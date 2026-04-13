@@ -59,8 +59,8 @@ build_tool() {
       #   node v24.2.0                    →  24.2.0
       #   git version 2.47.1              →  2.47.1
       local extra_ver
-      extra_ver=$(docker run --rm "$image_tag" sh -c "$(echo "$extra") --version" 2>/dev/null \
-        | head -1 | tr -d '\r' | grep -oE '[0-9]+(\.[0-9]+)*' | head -1 || true)
+      extra_ver=$(docker run --rm "$image_tag" sh -c "$(echo "$extra") --version" 2>/dev/null |
+        head -1 | tr -d '\r' | grep -oE '[0-9]+(\.[0-9]+)*' | head -1 || true)
       base_label="${base_label},$extra${extra_ver:+@$extra_ver}"
 
       prev_image="$image_tag"
