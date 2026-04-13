@@ -1,0 +1,10 @@
+# This file is sourced by build.sh, clean.sh and run.sh - do not execute directly.
+
+# shellcheck source=../../shared/scripts/repo-root.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../../shared/scripts/repo-root.sh"
+# shellcheck source=../../shared/config.sh
+source "${REPO_ROOT}/shared/config.sh"
+
+BASE=""
+IMAGE="agentic-copilot"
+VERSION_CMD="copilot --version"

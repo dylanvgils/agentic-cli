@@ -1,0 +1,750 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# --- Usage ---
+usage() {
+	cat <<EOF
+Usage: agentic <command> [args...]
+
+Build, clean, and run agentic tools in sandboxed Docker containers.
+
+Commands:
+  build        Build tool image(s)
+  update       Update tool image(s) to latest version
+  clean        Remove tool image(s)
+  inspect      Show image info
+  completion   Print shell completion script
+  aliases      Print shell alias definitions for tools
+  help         Show help for a command
+  <tool>       Run a tool (claude, copilot, opencode)
+               Use 'agentic help run' for run options.
+
+Run 'agentic help <command>' for command-specific help.
+EOF
+}
+
+usage_build() {
+	cat <<EOF
+Usage: agentic build [tool] [options]
+
+Build tool image(s). Builds all tools if no tool specified.
+
+Options:
+  --base <extra[,extra]>  Override the extra runtime(s) to layer on top of node.
+  --no-cache              Disable Docker layer cache for a fully fresh build.
+  --node <version>        Node.js version (default: 24).
+  --java <version>        Java (Temurin JDK) version (default: 21).
+  --dotnet <version>      .NET version (default: 10).
+
+Environment:
+  AGENTIC_NODE_VERSION    Node.js version (overridden by --node)
+  AGENTIC_JAVA_VERSION    Java version (overridden by --java)
+  AGENTIC_DOTNET_VERSION  .NET version (overridden by --dotnet)
+
+Examples:
+  agentic build
+  agentic build claude
+  agentic build claude --base java
+  agentic build --node 22
+  agentic build claude --base java --java 17
+  AGENTIC_NODE_VERSION=22 agentic build
+  AGENTIC_JAVA_VERSION=17 agentic build claude --base java
+EOF
+}
+
+usage_update() {
+	cat <<EOF
+Usage: agentic update [tool] [options]
+
+Update tool image(s) to latest version. Rebuilds the tool step without cache
+so the installer fetches the latest version. Skips unbuilt tools when no tool
+specified.
+
+Options:
+  --base <extra[,extra]>  Override the extra runtime(s) to layer on top of node.
+  --no-cache              Also rebuild base layers (fully fresh build).
+  --node <version>        Node.js version (default: 24).
+  --java <version>        Java (Temurin JDK) version (default: 21).
+  --dotnet <version>      .NET version (default: 10).
+
+Examples:
+  agentic update
+  agentic update claude
+  agentic update claude --base java
+  agentic update claude --no-cache
+EOF
+}
+
+usage_clean() {
+	cat <<EOF
+Usage: agentic clean [tool]
+
+Remove tool image(s). Cleans all tools and base images if no tool specified.
+
+Examples:
+  agentic clean
+  agentic clean claude
+EOF
+}
+
+usage_inspect() {
+	cat <<EOF
+Usage: agentic inspect [tool]
+
+Show image info (tool version, base layers, build date, size).
+Inspects all tools if no tool specified.
+
+Examples:
+  agentic inspect
+  agentic inspect claude
+EOF
+}
+
+usage_completion() {
+	cat <<EOF
+Usage: agentic completion [shell]
+
+Print shell completion script. Supported shells: bash, zsh (default).
+Eval or source the output to activate completions.
+
+Examples:
+  source <(agentic completion zsh)   # add to .zshrc
+  source <(agentic completion bash)  # add to .bashrc
+EOF
+}
+
+usage_aliases() {
+	cat <<EOF
+Usage: agentic aliases [shell]
+
+Print shell alias definitions for installed tools. Supported shells: bash, zsh (default).
+Source the output to activate aliases.
+
+Examples:
+  source <(agentic aliases)        # add to .zshrc
+  source <(agentic aliases bash)   # add to .bashrc
+EOF
+}
+
+usage_run() {
+	cat <<EOF
+Usage: agentic [options] <tool> [tool-args...]
+
+Run a tool in a sandboxed Docker container.
+
+Tools:
+  claude     Run the Claude Code CLI
+  copilot    Run the GitHub Copilot CLI
+  opencode   Run the OpenCode CLI
+
+Options:
+  -h, --help              Show this help message
+  --home <path>           Override tool home directory (default: \$AGENTIC_HOME or \$HOME/.agentic)
+  -v, --volume <host:container>
+                          Mount an extra volume. Can be repeated.
+
+Environment:
+  AGENTIC_DEFAULT_TOOL    Default tool when none is specified
+  AGENTIC_HOME            Persistent default for tool home directory
+  AGENTIC_EXTRA_MOUNTS    Comma-separated extra mounts (host:container)
+
+Examples:
+  agentic claude
+  agentic copilot
+  agentic --home /opt/agentic claude
+  agentic -v '~/.m2:\$CONTAINER_HOME/.m2' claude
+  agentic -v '~/.m2:\$CONTAINER_HOME/.m2' -v '~/.gradle:\$CONTAINER_HOME/.gradle' claude
+  AGENTIC_HOME=/opt/agentic agentic claude
+  AGENTIC_DEFAULT_TOOL=claude agentic
+  AGENTIC_EXTRA_MOUNTS=~/.m2:/root/.m2,~/.gradle:/root/.gradle agentic claude
+EOF
+}
+
+# --- Dependencies ---
+# Resolve symlinks so this works when installed via a symlink (e.g. ~/.local/bin/agentic)
+_SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck source=../shared/scripts/repo-root.sh
+source "$_SCRIPT_DIR/../shared/scripts/repo-root.sh"
+
+# --- Helpers ---
+# Enumerate available tools by scanning tools/*/run.sh.
+list_tools() {
+	for script in "$REPO_ROOT/tools"/*/run.sh; do
+		basename "$(dirname "$script")"
+	done
+}
+
+# Walk up from $PWD to find the nearest .agenticrc project config file.
+find_project_config() {
+	local dir="$PWD"
+	while [[ "$dir" != "/" ]]; do
+		if [[ -f "$dir/.agenticrc" ]]; then
+			echo "$dir/.agenticrc"
+			return
+		fi
+		dir="$(dirname "$dir")"
+	done
+}
+
+# Safely extract EXTRA_MOUNTS from a .agenticrc config file without executing it.
+# Only reads lines of the form: EXTRA_MOUNTS=value (with optional quotes).
+parse_project_config() {
+	local config="$1"
+	local value
+	value=$(grep -m1 '^EXTRA_MOUNTS=' "$config" 2>/dev/null | cut -d= -f2- | sed "s/^['\"]//; s/['\"]$//")
+	echo "${value//'~'/$HOME}"
+}
+
+# Run a build or clean script for a single tool.
+run_tool_script() {
+	local cmd="$1" tool="$2"
+	local script="$REPO_ROOT/tools/$tool/$cmd.sh"
+	if [[ ! -f "$script" ]]; then
+		echo "Error: unknown tool '$tool'"
+		exit 1
+	fi
+	echo "=> $tool"
+	bash "$script"
+}
+
+# Source a tool's config and echo its IMAGE name. Always call via $() to isolate side effects.
+tool_image() {
+	local config="$REPO_ROOT/tools/$1/config.sh"
+	source "$config"
+	echo "$IMAGE"
+}
+
+get_tool_version() {
+	local tool="$1"
+	local image
+	image=$(tool_image "$tool")
+	docker inspect --format '{{index .Config.Labels "agentic.tool.version"}}' "$image" 2>/dev/null || true
+}
+
+is_tool_built() {
+	local image
+	image=$(tool_image "$1")
+	docker image inspect "$image" >/dev/null 2>&1
+}
+
+parse_build_args() {
+	local cmd="$1"
+	shift
+	TOOL_ARG=""
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+		--base)
+			if [[ -z "${2:-}" ]]; then
+				echo "Error: --base requires a value"
+				exit 1
+			fi
+			export AGENTIC_BASE_OVERRIDE="$2"
+			shift 2
+			;;
+		--no-cache)
+			export AGENTIC_NO_CACHE=1
+			shift
+			;;
+		--node)
+			if [[ -z "${2:-}" ]]; then
+				echo "Error: --node requires a version"
+				exit 1
+			fi
+			export AGENTIC_NODE_VERSION="$2"
+			shift 2
+			;;
+		--java)
+			if [[ -z "${2:-}" ]]; then
+				echo "Error: --java requires a version"
+				exit 1
+			fi
+			export AGENTIC_JAVA_VERSION="$2"
+			shift 2
+			;;
+		--dotnet)
+			if [[ -z "${2:-}" ]]; then
+				echo "Error: --dotnet requires a version"
+				exit 1
+			fi
+			export AGENTIC_DOTNET_VERSION="$2"
+			shift 2
+			;;
+		-*)
+			echo "Error: unknown $cmd option '$1'"
+			exit 1
+			;;
+		*)
+			TOOL_ARG="$1"
+			shift
+			;;
+		esac
+	done
+}
+
+prune_images() {
+	local prune_out reclaimed
+	prune_out=$(docker image prune -f 2>&1)
+	reclaimed=$(echo "$prune_out" | awk '/Total reclaimed space:/ {print $NF}')
+	if [[ -n "$reclaimed" && "$reclaimed" != "0B" ]]; then
+		echo "=> pruned dangling images (reclaimed $reclaimed)"
+	fi
+}
+
+# --- Build ---
+cmd_build() {
+	local tool="${1:-}"
+	if [[ -n "$tool" ]]; then
+		run_tool_script build "$tool"
+	else
+		for script in "$REPO_ROOT/tools"/*/build.sh; do
+			run_tool_script build "$(basename "$(dirname "$script")")"
+		done
+	fi
+}
+
+# --- Update ---
+report_version_change() {
+	local before="$1" after="$2"
+	if [[ -n "$before" && "$before" != "$after" ]]; then
+		echo "=> version: $before -> $after"
+	elif [[ -n "$after" ]]; then
+		echo "=> version: $after (up to date)"
+	fi
+}
+
+update_tool() {
+	local tool="$1"
+	local before after
+	before=$(get_tool_version "$tool")
+	run_tool_script update "$tool"
+	after=$(get_tool_version "$tool")
+	report_version_change "$before" "$after"
+}
+
+cmd_update() {
+	local tool="${1:-}"
+
+	if [[ -n "$tool" ]]; then
+		update_tool "$tool"
+	else
+		local updated=0
+
+		for script in "$REPO_ROOT/tools"/*/update.sh; do
+			local t
+			t="$(basename "$(dirname "$script")")"
+
+			if ! is_tool_built "$t"; then
+				echo "=> $t (skipped - not built)"
+				continue
+			fi
+
+			update_tool "$t"
+			updated=1
+		done
+
+		if [[ "$updated" -eq 0 ]]; then
+			echo "No tools are built. Run 'agentic build' first."
+		fi
+	fi
+}
+
+# --- Inspect ---
+inspect_tool() {
+	local tool="$1"
+	local config="$REPO_ROOT/tools/$tool/config.sh"
+	if [[ ! -f "$config" ]]; then
+		echo "Error: unknown tool '$tool'"
+		exit 1
+	fi
+
+	local image
+	image=$(tool_image "$tool")
+	if ! docker image inspect "$image" >/dev/null 2>&1; then
+		echo "  image:    $image (not built)"
+		return
+	fi
+
+	local id size built base version
+	id=$(docker inspect --format '{{slice .Id 7 19}}' "$image")
+	size=$(docker inspect --format '{{.Size}}' "$image" | awk '{printf "%.0f MB", $1/1048576}')
+	built=$(docker inspect --format '{{index .Config.Labels "agentic.built"}}' "$image")
+	base=$(docker inspect --format '{{index .Config.Labels "agentic.base"}}' "$image")
+	version=$(docker inspect --format '{{index .Config.Labels "agentic.tool.version"}}' "$image")
+	echo "  image:    $image ($id)"
+	echo "  version:  ${version:-(unknown - rebuild to capture)}"
+	echo "  base:     ${base:-(unknown)}"
+	echo "  built:    ${built:-(unknown)}"
+	echo "  size:     $size"
+}
+
+cmd_inspect() {
+	local tool="${1:-}"
+	if [[ -n "$tool" ]]; then
+		echo "=> $tool"
+		inspect_tool "$tool"
+	else
+		for config in "$REPO_ROOT/tools"/*/config.sh; do
+			tool="$(basename "$(dirname "$config")")"
+			echo "=> $tool"
+			inspect_tool "$tool"
+		done
+	fi
+}
+
+# --- Clean ---
+cmd_clean() {
+	local tool="${1:-}"
+	if [[ -n "$tool" ]]; then
+		run_tool_script clean "$tool"
+	else
+		for script in "$REPO_ROOT/tools"/*/clean.sh; do
+			run_tool_script clean "$(basename "$(dirname "$script")")"
+		done
+		echo "=> base"
+		docker images --format '{{.Repository}}' | grep '^agentic-base' | xargs -r docker rmi -f
+	fi
+}
+
+# --- Help ---
+handle_help() {
+	local cmd="$1" flag="${2:-}"
+	if [[ "$flag" == "-h" || "$flag" == "--help" ]]; then
+		cmd_help "$cmd"
+		exit 0
+	fi
+}
+
+cmd_help() {
+	case "${1:-}" in
+	build) usage_build ;;
+	update) usage_update ;;
+	clean) usage_clean ;;
+	inspect) usage_inspect ;;
+	completion) usage_completion ;;
+	aliases) usage_aliases ;;
+	run) usage_run ;;
+	help | "") usage ;;
+	*)
+		echo "Error: unknown command '${1}'"
+		echo ""
+		usage
+		exit 1
+		;;
+	esac
+}
+
+# --- Completion ---
+cmd_completion() {
+	local shell="${1:-zsh}"
+
+	# Collect tools at generation time so the script stays up to date with the
+	# actual tools/ directory rather than a hard-coded list.
+	local tools
+	tools="$(list_tools | tr '\n' ' ')"
+
+	case "$shell" in
+	zsh)
+		cat <<'PREAMBLE'
+# agentic zsh completion - generated by: agentic completion zsh
+# Add to .zshrc:  source <(agentic completion zsh)
+PREAMBLE
+		cat <<BODY
+_agentic() {
+  local state
+
+  _arguments -C \\
+    '(-h --help)'{-h,--help}'[show help]' \\
+    '1: :->command' \\
+    '*:: :->args'
+
+  case \$state in
+    command)
+      local -a commands
+      commands=(
+        'build:build tool image(s)'
+        'clean:remove tool image(s)'
+        'inspect:show image info'
+        'update:update tool image(s) to latest version'
+        'completion:print shell completion script'
+        'aliases:print shell alias definitions for tools'
+        'help:show help for a command'
+$(for t in $tools; do printf "        '%s:run the %s CLI'\n" "$t" "$t"; done)
+      )
+      _describe 'command' commands
+      ;;
+
+    args)
+      case \$words[1] in
+        build)
+          _arguments \\
+            '(-h --help)'{-h,--help}'[show help]' \\
+            '--base[override extra runtimes]:extras' \\
+            '--no-cache[disable Docker layer cache]' \\
+            '--node[Node.js version to use]:version' \\
+            '--java[Java (Temurin JDK) version to use]:version' \\
+            '--dotnet[Dotnet version to use]:version' \\
+            ": :(($(for t in $tools; do printf "%s:'build the %s image' " "$t" "$t"; done)))"
+          ;;
+        update)
+          _arguments \\
+            '(-h --help)'{-h,--help}'[show help]' \\
+            '--base[override extra runtimes]:extras' \\
+            '--no-cache[disable Docker layer cache for all steps]' \\
+            '--node[Node.js version to use]:version' \\
+            '--java[Java (Temurin JDK) version to use]:version' \\
+            '--dotnet[Dotnet version to use]:version' \\
+            ": :(($(for t in $tools; do printf "%s:'update the %s image' " "$t" "$t"; done)))"
+          ;;
+        clean|inspect)
+          _arguments '(-h --help)'{-h,--help}'[show help]' ": :(($(for t in $tools; do printf "%s:'%s' " "$t" "$t"; done)))"
+          ;;
+        help)
+          _arguments ": :(build update clean inspect completion aliases run)"
+          ;;
+        completion)
+          _arguments '(-h --help)'{-h,--help}'[show help]' ": :(bash zsh)"
+          ;;
+        *)
+          _arguments \\
+            '(-h --help)'{-h,--help}'[show help]' \\
+            '--home[override tool home directory]:directory:_directories' \\
+            '(--volume -v)'{--volume,-v}'[mount extra volume]:host\:container' \\
+            '*:: :'
+          ;;
+      esac
+      ;;
+  esac
+}
+
+compdef _agentic agentic
+BODY
+		;;
+
+	bash)
+		cat <<'PREAMBLE'
+# agentic bash completion - generated by: agentic completion bash
+# Add to .bashrc:  source <(agentic completion bash)
+PREAMBLE
+		cat <<BODY
+_agentic_complete() {
+  local cur prev
+  cur="\${COMP_WORDS[COMP_CWORD]}"
+  prev="\${COMP_WORDS[COMP_CWORD-1]}"
+
+  local tools="${tools}"
+  local commands="build clean inspect update completion aliases help \${tools}"
+
+  if [[ \$COMP_CWORD -eq 1 ]]; then
+    COMPREPLY=(\$(compgen -W "--help \${commands}" -- "\$cur"))
+    return
+  fi
+
+  case "\${COMP_WORDS[1]}" in
+    build)
+      case "\$prev" in
+        --base|--node|--java|--dotnet) COMPREPLY=(); return ;;
+        *)      COMPREPLY=(\$(compgen -W "\${tools} --base --no-cache --node --java --dotnet --help" -- "\$cur")) ;;
+      esac
+      ;;
+    update)
+      case "\$prev" in
+        --base|--node|--java|--dotnet) COMPREPLY=(); return ;;
+        *)      COMPREPLY=(\$(compgen -W "\${tools} --base --no-cache --node --java --dotnet --help" -- "\$cur")) ;;
+      esac
+      ;;
+    clean|inspect)
+      COMPREPLY=(\$(compgen -W "\${tools} --help" -- "\$cur"))
+      ;;
+    help)
+      COMPREPLY=(\$(compgen -W "build update clean inspect completion aliases run" -- "\$cur"))
+      ;;
+    completion)
+      COMPREPLY=(\$(compgen -W "bash zsh --help" -- "\$cur"))
+      ;;
+    *)
+      COMPREPLY=(\$(compgen -W "--help --home --volume -v" -- "\$cur"))
+      ;;
+  esac
+}
+
+complete -F _agentic_complete agentic
+BODY
+		;;
+
+	*)
+		echo "Error: unsupported shell '$shell'. Supported: bash, zsh" >&2
+		exit 1
+		;;
+	esac
+}
+
+# --- Aliases ---
+cmd_aliases() {
+	local shell="${1:-zsh}"
+
+	case "$shell" in
+	zsh)
+		cat <<'PREAMBLE'
+# agentic tool aliases - generated by: agentic aliases zsh
+# Add to .zshrc:  source <(agentic aliases)
+PREAMBLE
+		for t in $(list_tools); do
+			is_tool_built "$t" && echo "alias ${t}='agentic ${t}'"
+		done
+		;;
+
+	bash)
+		cat <<'PREAMBLE'
+# agentic tool aliases - generated by: agentic aliases bash
+# Add to .bashrc:  source <(agentic aliases bash)
+PREAMBLE
+		for t in $(list_tools); do
+			is_tool_built "$t" && echo "alias ${t}='agentic ${t}'"
+		done
+		;;
+
+	*)
+		echo "Error: unsupported shell '$shell'. Supported: bash, zsh" >&2
+		exit 1
+		;;
+	esac
+}
+
+# --- Dispatch ---
+# Route build/clean/inspect/completion commands before run-specific argument parsing.
+COMMAND="${1:-}"
+
+case "$COMMAND" in
+-h | --help)
+	usage
+	exit 0
+	;;
+
+build)
+	handle_help build "${2:-}"
+	shift
+	parse_build_args build "$@"
+	cmd_build "$TOOL_ARG"
+	prune_images
+	exit 0
+	;;
+
+update)
+	handle_help update "${2:-}"
+	shift
+	parse_build_args update "$@"
+	cmd_update "$TOOL_ARG"
+	prune_images
+	exit 0
+	;;
+
+clean)
+	handle_help clean "${2:-}"
+	cmd_clean "${2:-}"
+	exit 0
+	;;
+
+inspect)
+	handle_help inspect "${2:-}"
+	cmd_inspect "${2:-}"
+	exit 0
+	;;
+
+completion)
+	handle_help completion "${2:-}"
+	cmd_completion "${2:-}"
+	exit 0
+	;;
+
+aliases)
+	handle_help aliases "${2:-}"
+	cmd_aliases "${2:-}"
+	exit 0
+	;;
+
+help)
+	cmd_help "${2:-}"
+	exit 0
+	;;
+esac
+
+# --- Arguments ---
+TOOL_HOME="${AGENTIC_HOME:-${HOME}/.agentic}"
+IFS=',' read -ra EXTRA_MOUNTS <<<"${AGENTIC_EXTRA_MOUNTS:-}"
+
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	--home)
+		TOOL_HOME="${2:-}"
+		if [[ -z "$TOOL_HOME" ]]; then
+			echo "Error: --home requires a path"
+			exit 1
+		fi
+		shift 2
+		;;
+	--volume | -v)
+		if [[ -z "${2:-}" ]]; then
+			echo "Error: --volume requires a value"
+			exit 1
+		fi
+		EXTRA_MOUNTS+=("$2")
+		shift 2
+		;;
+	-*)
+		if [[ -z "${AGENTIC_DEFAULT_TOOL:-}" ]]; then
+			echo "Error: unknown option '$1'"
+			echo ""
+			usage
+			exit 1
+		fi
+		break
+		;;
+	*)
+		break
+		;;
+	esac
+done
+
+# --- Project config ---
+PROJECT_CONFIG="$(find_project_config)"
+if [[ -n "$PROJECT_CONFIG" ]]; then
+	PROJECT_EXTRA_MOUNTS="$(parse_project_config "$PROJECT_CONFIG")"
+	if [[ -n "$PROJECT_EXTRA_MOUNTS" ]]; then
+		IFS=',' read -ra _PROJECT_MOUNTS <<<"$PROJECT_EXTRA_MOUNTS"
+		EXTRA_MOUNTS+=("${_PROJECT_MOUNTS[@]}")
+	fi
+fi
+
+# --- Validation ---
+if [[ "${1:-}" == -* ]]; then
+	TOOL="$AGENTIC_DEFAULT_TOOL"
+else
+	TOOL="${1:-$AGENTIC_DEFAULT_TOOL}"
+fi
+
+if [[ -z "$TOOL" ]]; then
+	echo "Error: no tool specified and AGENTIC_DEFAULT_TOOL is not set"
+	echo ""
+	usage
+	exit 1
+fi
+
+SCRIPT="$REPO_ROOT/tools/$TOOL/run.sh"
+if [[ ! -f "$SCRIPT" ]]; then
+	echo "Error: unknown tool '$TOOL'"
+	echo ""
+	usage
+	exit 1
+fi
+
+mkdir -p "${TOOL_HOME}"
+
+# --- Run ---
+export AGENTIC_HOME="${TOOL_HOME}"
+export AGENTIC_EXTRA_MOUNTS="$(
+	IFS=','
+	echo "${EXTRA_MOUNTS[*]:-}"
+)"
+
+[[ "${1:-}" == "$TOOL" ]] && shift
+exec "$SCRIPT" "$@"
