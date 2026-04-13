@@ -48,6 +48,12 @@ fi
 DOCKER_ARGS=(
   # Run container in interactive mode, delete when done
   "run" "--rm" "-it"
+  # Limit the number of PIDs (processes) the container can spawn
+  "--pids-limit=${AGENTIC_PIDS_LIMIT}"
+  # Maximum number CPUs the container can utilize
+  "--cpus=${AGENTIC_CPUS}"
+  # Maximum memory that can be used by the container
+  "--memory=${AGENTIC_MEMORY}"
   # Read-only file system
   "--read-only"
   # Security: drop all capabilities

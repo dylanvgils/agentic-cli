@@ -239,20 +239,33 @@ All configuration is done through environment variables, which can be set in you
 | `AGENTIC_DEFAULT_TOOL`   | Default tool when none is specified                                                        | -                         |
 | `AGENTIC_HOME`           | Base directory for tool config and secrets                                                 | `$HOME/.agentic`          |
 | `AGENTIC_EXTRA_MOUNTS`   | Comma-separated list of extra volume mounts (`host:container`), supports `$CONTAINER_HOME` | -                         |
+| `AGENTIC_PIDS_LIMIT`     | Default container PID limit                                                                | `1024`                    |
+| `AGENTIC_CPUS`           | Default container CPU limit                                                                | `4`                       |
+| `AGENTIC_MEMORY`         | Default container memory limit                                                             | `4g`                      |
 | `AGENTIC_NODE_VERSION`   | Node.js version used when building the base node image                                     | `24` (Dockerfile default) |
 | `AGENTIC_JAVA_VERSION`   | Java (Temurin JDK) version used when building the java layer                               | `21` (Dockerfile default) |
 | `AGENTIC_DOTNET_VERSION` | .NET version used when building the dotnet layer                                           | `10` (Dockerfile default) |
 
 ### Per-project configuration
 
-Place a `.agenticrc` file in your project root to set project-specific mounts. `agentic` walks up from `$PWD` to find the nearest config file, so it works from any subdirectory.
+Place a `.agenticrc` file in your project root to set project-specific configuration. `agentic` walks up from `$PWD` to find the nearest config file, so it works from any subdirectory.
+
+| Key            | Description                                                                                | Default | Env var override       |
+| -------------- | ------------------------------------------------------------------------------------------ | ------- | ---------------------- |
+| `EXTRA_MOUNTS` | Comma-separated extra volume mounts (`host:container`), supports `~` and `$CONTAINER_HOME` | -       | `AGENTIC_EXTRA_MOUNTS` |
+| `PIDS_LIMIT`   | Container PID limit                                                                        | `1024`  | `AGENTIC_PIDS_LIMIT`   |
+| `CPUS`         | Container CPU limit                                                                        | `4`     | `AGENTIC_CPUS`         |
+| `MEMORY`       | Container memory limit                                                                     | `4g`    | `AGENTIC_MEMORY`       |
+
+`.agenticrc` values override env var defaults but are superseded by CLI flags. `EXTRA_MOUNTS` is appended to rather than replacing `AGENTIC_EXTRA_MOUNTS`. You can commit `.agenticrc` to the repo so the whole team picks up the right settings automatically.
 
 ```sh
 # .agenticrc
 EXTRA_MOUNTS=~/.m2:$CONTAINER_HOME/.m2,~/.gradle:$CONTAINER_HOME/.gradle
+PIDS_LIMIT=2048
+CPUS=8
+MEMORY=8g
 ```
-
-Project mounts are appended to `AGENTIC_EXTRA_MOUNTS`, so global defaults still apply. You can commit `.agenticrc` to the repo so the whole team picks up the right mounts automatically.
 
 ### Mount variable substitution
 
