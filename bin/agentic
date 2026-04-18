@@ -148,6 +148,7 @@ Options:
   --pids-limit <n>        Override container PID limit (default: 1024)
   --cpus <n>              Override CPU limit (default: 4)
   --memory <size>         Override memory limit (default: 4g)
+  -- <cmd> [args...]      Override the entrypoint and run <cmd> directly.
 
 Environment:
   AGENTIC_DEFAULT_TOOL    Default tool when none is specified
@@ -167,6 +168,8 @@ Examples:
   AGENTIC_HOME=/opt/agentic agentic claude
   AGENTIC_DEFAULT_TOOL=claude agentic
   AGENTIC_EXTRA_MOUNTS='maven:\$CONTAINER_HOME/.m2,gradle:\$CONTAINER_HOME/.gradle' agentic claude
+  agentic claude -- bash
+  agentic claude -- ls /workspace
 EOF
 }
 
@@ -641,7 +644,9 @@ $(for t in $tools; do printf "          '%s:run the %s CLI'\n" "$t" "$t"; done)
           _arguments '(-h --help)'{-h,--help}'[show help]' ": :(bash zsh)"
           ;;
         *)
-          if [[ \$words[1] == -* ]]; then
+          if (( \${words[(I)--]} )); then
+            _command_names -e
+          elif [[ \$words[1] == -* ]]; then
             _arguments \\
               '(-h --help)'{-h,--help}'[show help]' \\
               '--home[override tool home directory]:directory:_directories' \\
@@ -650,6 +655,8 @@ $(for t in $tools; do printf "          '%s:run the %s CLI'\n" "$t" "$t"; done)
               '--cpus[override CPU limit]:cpus' \\
               '--memory[override memory limit]:size' \\
               ": :(($(for t in $tools; do printf "%s:'run the %s CLI' " "$t" "$t"; done)))"
+          else
+            _arguments ': :(--)'
           fi
           ;;
       esac
@@ -715,12 +722,20 @@ _agentic_complete() {
       COMPREPLY=(\$(compgen -W "bash zsh --help" -- "\$cur"))
       ;;
     *)
-      if [[ "\${COMP_WORDS[1]}" == -* ]]; then
+      local i has_dashdash=0
+      for (( i=1; i<COMP_CWORD; i++ )); do
+        [[ "\${COMP_WORDS[i]}" == "--" ]] && has_dashdash=1 && break
+      done
+      if [[ "\$has_dashdash" -eq 1 ]]; then
+        COMPREPLY=(\$(compgen -c -- "\$cur"))
+      elif [[ "\${COMP_WORDS[1]}" == -* ]]; then
         case "\$prev" in
           --home) COMPREPLY=(\$(compgen -d -- "\$cur")); return ;;
           --pids-limit|--cpus|--memory|--volume|-v) COMPREPLY=(); return ;;
         esac
         COMPREPLY=(\$(compgen -W "\${tools} --help --home --volume -v --pids-limit --cpus --memory" -- "\$cur"))
+      else
+        COMPREPLY=(\$(compgen -W "--" -- "\$cur"))
       fi
       ;;
   esac

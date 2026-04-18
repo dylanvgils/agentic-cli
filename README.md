@@ -63,6 +63,7 @@ agentic <command> [args...]
 | `aliases [shell]`                                                                                                          | Print shell alias definitions for tools (`bash` or `zsh`, defaults to `zsh`)                |
 | `help [command]`                                                                                                           | Show help for a command (`run` for tool run options). Shows overview if unspecified         |
 | `<tool> [args]`                                                                                                            | Run a tool in a sandboxed Docker container                                                  |
+| `<tool> -- <cmd> [args]`                                                                                                   | Override the entrypoint and run a shell command directly                                    |
 
 Run tool commands from within a git repository. The current directory is mounted as `/workspace` inside the container.
 
@@ -117,6 +118,10 @@ agentic update claude --no-cache
 agentic claude
 agentic copilot
 agentic opencode
+
+# Run a shell command instead of the tool entrypoint
+agentic claude -- bash
+agentic claude -- ls /workspace
 
 # Mount named Docker volumes (auto-created on first use)
 agentic -v 'maven:$CONTAINER_HOME/.m2' claude

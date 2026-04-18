@@ -91,6 +91,7 @@ expand_mount_vars() {
 }
 
 # Run the container. Expects IMAGE, CONTAINER_HOME, TMPFS_FLAGS, and MOUNTS to be set.
+# Passing -- <cmd> [args...] overrides the entrypoint and runs <cmd> directly.
 run_container() {
   if [[ -z "${IMAGE:-}" ]]; then
     echo "Error: IMAGE is not set"
@@ -99,6 +100,16 @@ run_container() {
   if [[ -z "${CONTAINER_HOME:-}" ]]; then
     echo "Error: CONTAINER_HOME is not set (call resolve_container_home first)"
     exit 1
+  fi
+
+  if [[ "${1:-}" == "--" ]]; then
+    shift
+    if [[ $# -eq 0 ]]; then
+      echo "Error: -- requires a command"
+      exit 1
+    fi
+    DOCKER_ARGS+=("--entrypoint" "$1")
+    shift
   fi
 
   expand_mount_vars
