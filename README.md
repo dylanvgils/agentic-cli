@@ -52,17 +52,17 @@ agentic <command> [args...]
 
 ### Commands
 
-| Command                                                                                                   | Description                                                                                 |
-| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `build [tool] [--base <extras>] [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>]`  | Build tool image(s). Builds all tools if unspecified                                        |
-| `update [tool] [--base <extras>] [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>]` | Update tool image(s) to latest version. Skips unbuilt tools when unspecified                |
-| `clean [tool]`                                                                                            | Remove tool image(s). Cleans all tools + base if unspecified                                |
-| `inspect [tool]`                                                                                          | Show image info (version, base layers, build date, size). Inspects all tools if unspecified |
-| `volumes <create\|list\|ls\|remove\|rm> [name]`                                                           | Manage named Docker volumes created by agentic                                              |
-| `completion [shell]`                                                                                      | Print shell completion script (`bash` or `zsh`, defaults to `zsh`)                          |
-| `aliases [shell]`                                                                                         | Print shell alias definitions for tools (`bash` or `zsh`, defaults to `zsh`)                |
-| `help [command]`                                                                                          | Show help for a command (`run` for tool run options). Shows overview if unspecified         |
-| `<tool> [args]`                                                                                           | Run a tool in a sandboxed Docker container                                                  |
+| Command                                                                                                                    | Description                                                                                 |
+| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `build [tool] [--base <extras>] [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]`  | Build tool image(s). Builds all tools if unspecified                                        |
+| `update [tool] [--base <extras>] [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]` | Update tool image(s) to latest version. Skips unbuilt tools when unspecified                |
+| `clean [tool]`                                                                                                             | Remove tool image(s). Cleans all tools + base if unspecified                                |
+| `inspect [tool]`                                                                                                           | Show image info (version, base layers, build date, size). Inspects all tools if unspecified |
+| `volumes <create\|list\|ls\|remove\|rm> [name]`                                                                            | Manage named Docker volumes created by agentic                                              |
+| `completion [shell]`                                                                                                       | Print shell completion script (`bash` or `zsh`, defaults to `zsh`)                          |
+| `aliases [shell]`                                                                                                          | Print shell alias definitions for tools (`bash` or `zsh`, defaults to `zsh`)                |
+| `help [command]`                                                                                                           | Show help for a command (`run` for tool run options). Shows overview if unspecified         |
+| `<tool> [args]`                                                                                                            | Run a tool in a sandboxed Docker container                                                  |
 
 Run tool commands from within a git repository. The current directory is mounted as `/workspace` inside the container.
 
@@ -171,9 +171,9 @@ Node is always the root layer. The `--base` flag adds extra runtimes on top of i
 
 ```
 node (agentic-base)
-  ├── java (agentic-base-java)     ← added with --base java
-  │     └── tool image
-  └── dotnet (agentic-base-dotnet) ← added with --base dotnet
+  ├── java   (agentic-base-java)   ← added with --base java
+  ├── dotnet (agentic-base-dotnet) ← added with --base dotnet
+  └── go     (agentic-base-go)     ← added with --base go
         └── tool image
 ```
 
@@ -182,15 +182,17 @@ node (agentic-base)
 | _(none)_                             | node only (v24)    |
 | `--base java`                        | node v24 + Java 21 |
 | `--base dotnet`                      | node v24 + .NET 10 |
+| `--base go`                          | node v24 + Go 1.26 |
 | `--node 22`                          | node v22 only      |
 | `--base java --java 17`              | node v24 + Java 17 |
 | `--base dotnet --dotnet 9`           | node v24 + .NET 9  |
+| `--base go --go 1.23`                | node v24 + Go 1.23 |
 | `--node 22 --base java --java 17`    | node v22 + Java 17 |
 | `--node 22 --base dotnet --dotnet 9` | node v22 + .NET 9  |
 
 Both tools default to node only. Use `--base` to add extra runtimes at build time.
 
-Version defaults live in the Dockerfiles (`NODE_VERSION=24`, `JAVA_VERSION=21`, `DOTNET_VERSION=10`). Override them per-build with `--node`/`--java`/`--dotnet`, or set `AGENTIC_NODE_VERSION`/`AGENTIC_JAVA_VERSION`/`AGENTIC_DOTNET_VERSION` in your shell config for persistent defaults.
+Version defaults live in the Dockerfiles (`NODE_VERSION=24`, `JAVA_VERSION=21`, `DOTNET_VERSION=10`, `GO_VERSION=1.26.2`). Override them per-build with `--node`/`--java`/`--dotnet`/`--go`, or set `AGENTIC_NODE_VERSION`/`AGENTIC_JAVA_VERSION`/`AGENTIC_DOTNET_VERSION`/`AGENTIC_GO_VERSION` in your shell config for persistent defaults.
 
 Adding a new runtime is a matter of dropping a `Dockerfile` into `shared/base/<name>/` - it will be picked up automatically by `--base <name>`.
 

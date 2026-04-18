@@ -22,7 +22,8 @@ build_tool() {
     "$REPO_ROOT/shared/base/node"
 
   local node_ver
-  node_ver=$(docker run --rm agentic-base node --version 2>/dev/null | tr -d '\r' | grep -oE '[0-9]+(\.[0-9]+)*' | head -1 || true)
+  node_ver=$(docker run --rm agentic-base agentic-version-node 2>/dev/null |
+    head -1 | tr -d '\r' | grep -oE '[0-9]+(\.[0-9]+)*' | head -1 || true)
 
   # Step 2: Layer any extras on top of node, left to right
   local prev_image="agentic-base"
@@ -59,7 +60,7 @@ build_tool() {
       #   node v24.2.0                    →  24.2.0
       #   git version 2.47.1              →  2.47.1
       local extra_ver
-      extra_ver=$(docker run --rm "$image_tag" sh -c "$(echo "$extra") --version" 2>/dev/null |
+      extra_ver=$(docker run --rm "$image_tag" "agentic-version-$extra" 2>/dev/null |
         head -1 | tr -d '\r' | grep -oE '[0-9]+(\.[0-9]+)*' | head -1 || true)
       base_label="${base_label},$extra${extra_ver:+@$extra_ver}"
 

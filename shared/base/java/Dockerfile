@@ -3,6 +3,7 @@ FROM ${BASE_IMAGE}
 
 ARG JAVA_VERSION=21
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN \
   # Add Adoptium GPG key and repository
   wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public \
@@ -14,4 +15,8 @@ RUN \
   # Install Temurin JDK and cleanup
   && apt-get update -yq \
   && apt-get install -yq --no-install-recommends temurin-${JAVA_VERSION}-jdk \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  \
+  # Version script
+  && printf '#!/bin/sh\njava --version\n' > /usr/local/bin/agentic-version-java \
+  && chmod +x /usr/local/bin/agentic-version-java

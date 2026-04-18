@@ -8,12 +8,18 @@ RUN \
   wget "https://packages.microsoft.com/config/debian/$(. /etc/os-release && echo ${VERSION_ID})/packages-microsoft-prod.deb" \
   && dpkg -i packages-microsoft-prod.deb \
   && rm packages-microsoft-prod.deb \
+  \
   # Set version
   && case "${DOTNET_VERSION}" in \
   *.*) ;; \
   *) DOTNET_VERSION="${DOTNET_VERSION}.0" ;; \
   esac \
+  \
   # Install dotnet
   && apt-get update -yq \
   && apt-get install -yq --no-install-recommends dotnet-sdk-${DOTNET_VERSION} \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  \
+  # Version script
+  && printf '#!/bin/sh\ndotnet --version\n' > /usr/local/bin/agentic-version-dotnet \
+  && chmod +x /usr/local/bin/agentic-version-dotnet
