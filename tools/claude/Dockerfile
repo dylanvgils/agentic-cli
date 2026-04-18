@@ -1,5 +1,6 @@
 ARG BASE_IMAGE=agentic-base:latest
 FROM ${BASE_IMAGE}
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG HOST_UID=1000
 ARG HOST_GID=1000
@@ -24,7 +25,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 USER ${TOOL_USER}
 ENV PATH="${TOOL_HOME}/.local/bin:${PATH}"
-RUN bash -o pipefail -c 'curl -fsSL https://claude.ai/install.sh | bash' \
+RUN curl -fsSL https://claude.ai/install.sh | bash \
   && mkdir -p "${TOOL_HOME}/.claude"
 ENV TOOL_HOME=${TOOL_HOME}
 

@@ -2,6 +2,7 @@
 # Extends agentic-base-java by default; remaps the node user to match host UID/GID for bind mount compatibility.
 ARG BASE_IMAGE=agentic-base:latest
 FROM ${BASE_IMAGE}
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG HOST_UID=1000
 ARG HOST_GID=1000
@@ -20,7 +21,7 @@ RUN \
   && groupadd -g ${HOST_GID} --non-unique ${TOOL_USER} \
   && useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique ${TOOL_USER}
 
-RUN bash -o pipefail -c 'curl -fsSL https://gh.io/copilot-install | bash'
+RUN curl -fsSL https://gh.io/copilot-install | bash
 
 COPY ./entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh \

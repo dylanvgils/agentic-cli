@@ -2,6 +2,7 @@
 # Extends agentic-base-java by default; remaps the node user to match host UID/GID for bind mount compatibility.
 ARG BASE_IMAGE=agentic-base:latest
 FROM ${BASE_IMAGE}
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG HOST_UID=1000
 ARG HOST_GID=1000
@@ -25,7 +26,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 USER ${TOOL_USER}
 ENV PATH="${TOOL_HOME}/.opencode/bin:${PATH}"
-RUN bash -o pipefail -c 'curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path' \
+RUN curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path \
   && mkdir -p ${TOOL_HOME}/.config/opencode
 ENV TOOL_HOME=${TOOL_HOME}
 
