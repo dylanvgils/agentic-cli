@@ -58,6 +58,7 @@ agentic <command> [args...]
 | `update [tool] [--base <extras>] [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>]` | Update tool image(s) to latest version. Skips unbuilt tools when unspecified                |
 | `clean [tool]`                                                                                            | Remove tool image(s). Cleans all tools + base if unspecified                                |
 | `inspect [tool]`                                                                                          | Show image info (version, base layers, build date, size). Inspects all tools if unspecified |
+| `volumes <create\|list\|ls\|remove\|rm> [name]`                                                           | Manage named Docker volumes created by agentic                                              |
 | `completion [shell]`                                                                                      | Print shell completion script (`bash` or `zsh`, defaults to `zsh`)                          |
 | `aliases [shell]`                                                                                         | Print shell alias definitions for tools (`bash` or `zsh`, defaults to `zsh`)                |
 | `help [command]`                                                                                          | Show help for a command (`run` for tool run options). Shows overview if unspecified         |
@@ -117,7 +118,11 @@ agentic claude
 agentic copilot
 agentic opencode
 
-# Mount extra volumes (e.g. Maven/Gradle cache)
+# Mount named Docker volumes (auto-created on first use)
+agentic -v 'maven:$CONTAINER_HOME/.m2' claude
+agentic -v 'maven:$CONTAINER_HOME/.m2' -v 'gradle:$CONTAINER_HOME/.gradle' claude
+
+# Mount bind-mount volumes (host paths)
 agentic -v '~/.m2:$CONTAINER_HOME/.m2' claude
 agentic -v '~/.m2:$CONTAINER_HOME/.m2' -v '~/.gradle:$CONTAINER_HOME/.gradle' claude
 
@@ -204,6 +209,45 @@ docker inspect agentic-claude --format '{{ index .Config.Labels "agentic.tool.ve
 
 Use `agentic inspect` for a formatted summary of all of the above.
 
+## 📦 Named Docker volumes
+
+The `-v` flag and `AGENTIC_EXTRA_MOUNTS` support both bind mounts (host paths) and named Docker volumes. Named volumes are created automatically on first use and persist across container runs — no host path required.
+
+Use a volume name (no leading `/`) as the left side of the mount spec:
+
+```bash
+# Named Docker volumes (created automatically, managed by Docker)
+agentic -v 'maven:$CONTAINER_HOME/.m2' claude
+agentic -v 'maven:$CONTAINER_HOME/.m2' -v 'gradle:$CONTAINER_HOME/.gradle' claude
+
+# Bind mounts (path on the host)
+agentic -v '~/.m2:$CONTAINER_HOME/.m2' claude
+```
+
+For persistent global config, set `AGENTIC_EXTRA_MOUNTS` in your shell:
+
+```bash
+export AGENTIC_EXTRA_MOUNTS='maven:$CONTAINER_HOME/.m2,gradle:$CONTAINER_HOME/.gradle'
+```
+
+For per-project control, use a [`.agenticrc` project config file](#per-project-configuration):
+
+```sh
+# .agenticrc
+EXTRA_MOUNTS=maven:$CONTAINER_HOME/.m2,gradle:$CONTAINER_HOME/.gradle
+```
+
+### Managing volumes
+
+Use `agentic volumes` to inspect and clean up agentic-managed volumes:
+
+```bash
+agentic volumes create maven      # Create a named volume
+agentic volumes list              # List all agentic-managed volumes (alias: ls)
+agentic volumes remove maven      # Remove a specific volume (alias: rm)
+agentic volumes remove            # Remove all agentic-managed volumes
+```
+
 ## ☕ Java build tools
 
 Maven and Gradle are **not** included in the Java base image. Instead, use the wrappers that come with your project (`mvnw` / `gradlew`). Wrappers are committed to the repo and download the exact build tool version the project requires on first run - this avoids version mismatches and keeps the image lean.
@@ -218,50 +262,51 @@ mvn wrapper:wrapper
 gradle wrapper
 ```
 
-Build tool downloads are cached in `~/.m2` (Maven) and `~/.gradle` (Gradle) on the host. Mount them to persist the cache across container runs:
+Use named volumes to persist the download cache across container runs:
 
 ```bash
-# One-off
-agentic -v '~/.m2:$CONTAINER_HOME/.m2' -v '~/.gradle:$CONTAINER_HOME/.gradle' claude
-
-# Persistent - add to ~/.zshrc or ~/.bashrc
-export AGENTIC_EXTRA_MOUNTS='~/.m2:$CONTAINER_HOME/.m2,~/.gradle:$CONTAINER_HOME/.gradle'
+agentic -v 'maven:$CONTAINER_HOME/.m2' -v 'gradle:$CONTAINER_HOME/.gradle' claude
 ```
 
-For per-project control (e.g. only mount `~/.m2` in Java repos, not in frontend projects), use a [`.agenticrc` project config file](#per-project-configuration).
+Or add to `.agenticrc` in the repo root so the whole team picks it up:
+
+```sh
+# .agenticrc
+EXTRA_MOUNTS=maven:$CONTAINER_HOME/.m2,gradle:$CONTAINER_HOME/.gradle
+```
 
 ## ⚙️ Configuration
 
 All configuration is done through environment variables, which can be set in your shell config (`.zshrc`, `.bashrc`, etc.).
 
-| Variable                 | Description                                                                                | Default                   |
-| ------------------------ | ------------------------------------------------------------------------------------------ | ------------------------- |
-| `AGENTIC_DEFAULT_TOOL`   | Default tool when none is specified                                                        | -                         |
-| `AGENTIC_HOME`           | Base directory for tool config and secrets                                                 | `$HOME/.agentic`          |
-| `AGENTIC_EXTRA_MOUNTS`   | Comma-separated list of extra volume mounts (`host:container`), supports `$CONTAINER_HOME` | -                         |
-| `AGENTIC_PIDS_LIMIT`     | Default container PID limit                                                                | `1024`                    |
-| `AGENTIC_CPUS`           | Default container CPU limit                                                                | `4`                       |
-| `AGENTIC_MEMORY`         | Default container memory limit                                                             | `4g`                      |
-| `AGENTIC_NODE_VERSION`   | Node.js version used when building the base node image                                     | `24` (Dockerfile default) |
-| `AGENTIC_JAVA_VERSION`   | Java (Temurin JDK) version used when building the java layer                               | `21` (Dockerfile default) |
-| `AGENTIC_DOTNET_VERSION` | .NET version used when building the dotnet layer                                           | `10` (Dockerfile default) |
+| Variable                 | Description                                                                                                                                           | Default                   |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `AGENTIC_DEFAULT_TOOL`   | Default tool when none is specified                                                                                                                   | -                         |
+| `AGENTIC_HOME`           | Base directory for tool config and secrets                                                                                                            | `$HOME/.agentic`          |
+| `AGENTIC_EXTRA_MOUNTS`   | Comma-separated extra mounts. Bind mount: `host/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `$CONTAINER_HOME`. | -                         |
+| `AGENTIC_PIDS_LIMIT`     | Default container PID limit                                                                                                                           | `1024`                    |
+| `AGENTIC_CPUS`           | Default container CPU limit                                                                                                                           | `4`                       |
+| `AGENTIC_MEMORY`         | Default container memory limit                                                                                                                        | `4g`                      |
+| `AGENTIC_NODE_VERSION`   | Node.js version used when building the base node image                                                                                                | `24` (Dockerfile default) |
+| `AGENTIC_JAVA_VERSION`   | Java (Temurin JDK) version used when building the java layer                                                                                          | `21` (Dockerfile default) |
+| `AGENTIC_DOTNET_VERSION` | .NET version used when building the dotnet layer                                                                                                      | `10` (Dockerfile default) |
 
 ### Per-project configuration
 
 Place a `.agenticrc` file in your project root to set project-specific configuration. `agentic` walks up from `$PWD` to find the nearest config file, so it works from any subdirectory.
 
-| Key            | Description                                                                                | Default | Env var override       |
-| -------------- | ------------------------------------------------------------------------------------------ | ------- | ---------------------- |
-| `EXTRA_MOUNTS` | Comma-separated extra volume mounts (`host:container`), supports `~` and `$CONTAINER_HOME` | -       | `AGENTIC_EXTRA_MOUNTS` |
-| `PIDS_LIMIT`   | Container PID limit                                                                        | `1024`  | `AGENTIC_PIDS_LIMIT`   |
-| `CPUS`         | Container CPU limit                                                                        | `4`     | `AGENTIC_CPUS`         |
-| `MEMORY`       | Container memory limit                                                                     | `4g`    | `AGENTIC_MEMORY`       |
+| Key            | Description                                                                                                                                                | Default | Env var override       |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------- |
+| `EXTRA_MOUNTS` | Comma-separated extra mounts. Bind mount: `~/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `~` and `$CONTAINER_HOME`. | -       | `AGENTIC_EXTRA_MOUNTS` |
+| `PIDS_LIMIT`   | Container PID limit                                                                                                                                        | `1024`  | `AGENTIC_PIDS_LIMIT`   |
+| `CPUS`         | Container CPU limit                                                                                                                                        | `4`     | `AGENTIC_CPUS`         |
+| `MEMORY`       | Container memory limit                                                                                                                                     | `4g`    | `AGENTIC_MEMORY`       |
 
 `.agenticrc` values override env var defaults but are superseded by CLI flags. `EXTRA_MOUNTS` is appended to rather than replacing `AGENTIC_EXTRA_MOUNTS`. You can commit `.agenticrc` to the repo so the whole team picks up the right settings automatically.
 
 ```sh
 # .agenticrc
-EXTRA_MOUNTS=~/.m2:$CONTAINER_HOME/.m2,~/.gradle:$CONTAINER_HOME/.gradle
+EXTRA_MOUNTS=maven:$CONTAINER_HOME/.m2,gradle:$CONTAINER_HOME/.gradle
 PIDS_LIMIT=2048
 CPUS=8
 MEMORY=8g
@@ -294,8 +339,8 @@ export AGENTIC_DEFAULT_TOOL=claude
 # export AGENTIC_JAVA_VERSION=17   # uncomment to pin Java version
 # export AGENTIC_DOTNET_VERSION=9  # uncomment to pin .NET version
 
-# Mount Maven and Gradle caches for Java projects
-# export AGENTIC_EXTRA_MOUNTS='~/.m2:$CONTAINER_HOME/.m2,~/.gradle:$CONTAINER_HOME/.gradle'
+# Mount Maven and Gradle caches for Java projects (named volumes)
+# export AGENTIC_EXTRA_MOUNTS='maven:$CONTAINER_HOME/.m2,gradle:$CONTAINER_HOME/.gradle'
 ```
 
 ## 🏠 Tool home directory

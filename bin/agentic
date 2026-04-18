@@ -13,6 +13,7 @@ Commands:
   update       Update tool image(s) to latest version
   clean        Remove tool image(s)
   inspect      Show image info
+  volumes      Manage named Docker volumes
   completion   Print shell completion script
   aliases      Print shell alias definitions for tools
   help         Show help for a command
@@ -140,8 +141,10 @@ Tools:
 Options:
   -h, --help              Show this help message
   --home <path>           Override tool home directory (default: \$AGENTIC_HOME or \$HOME/.agentic)
-  -v, --volume <host:container>
-                          Mount an extra volume. Can be repeated.
+  -v, --volume <spec>     Mount an extra volume. Can be repeated.
+                          Bind mount:   host/path:\$CONTAINER_HOME/path
+                          Named volume: volume-name:\$CONTAINER_HOME/path
+                          Named volumes are created automatically if they don't exist.
   --pids-limit <n>        Override container PID limit (default: 1024)
   --cpus <n>              Override CPU limit (default: 4)
   --memory <size>         Override memory limit (default: 4g)
@@ -149,7 +152,7 @@ Options:
 Environment:
   AGENTIC_DEFAULT_TOOL    Default tool when none is specified
   AGENTIC_HOME            Persistent default for tool home directory
-  AGENTIC_EXTRA_MOUNTS    Comma-separated extra mounts (host:container)
+  AGENTIC_EXTRA_MOUNTS    Comma-separated extra mounts (bind or named volume specs)
   AGENTIC_PIDS_LIMIT      Default PID limit for containers
   AGENTIC_CPUS            Default CPU limit for containers
   AGENTIC_MEMORY          Default memory limit for containers
@@ -158,11 +161,12 @@ Examples:
   agentic claude
   agentic copilot
   agentic --home /opt/agentic claude
+  agentic -v 'maven:\$CONTAINER_HOME/.m2' claude
   agentic -v '~/.m2:\$CONTAINER_HOME/.m2' claude
   agentic -v '~/.m2:\$CONTAINER_HOME/.m2' -v '~/.gradle:\$CONTAINER_HOME/.gradle' claude
   AGENTIC_HOME=/opt/agentic agentic claude
   AGENTIC_DEFAULT_TOOL=claude agentic
-  AGENTIC_EXTRA_MOUNTS=~/.m2:/root/.m2,~/.gradle:/root/.gradle agentic claude
+  AGENTIC_EXTRA_MOUNTS='maven:\$CONTAINER_HOME/.m2,gradle:\$CONTAINER_HOME/.gradle' agentic claude
 EOF
 }
 
@@ -302,6 +306,100 @@ prune_images() {
   fi
 }
 
+# --- Volumes ---
+usage_volumes() {
+  cat <<EOF
+Usage: agentic volumes <subcommand>
+
+Manage named Docker volumes created by agentic.
+
+Subcommands:
+  create <name>  Create a named volume
+  list, ls       List all agentic-managed volumes
+  remove, rm     Remove an agentic-managed volume, or all if no name given
+
+Examples:
+  agentic volumes create maven
+  agentic volumes list
+  agentic volumes remove maven
+  agentic volumes remove
+EOF
+}
+
+ensure_volume() {
+  docker volume create --label "project=agentic-cli" "$1" >/dev/null
+}
+
+ensure_extra_mount_volumes() {
+  local i mount mount_left prefixed
+  for i in "${!EXTRA_MOUNTS[@]}"; do
+    mount="${EXTRA_MOUNTS[$i]}"
+    mount_left="${mount%%:*}"
+    mount_left="${mount_left/\~/$HOME}"
+    if [[ -n "$mount_left" && "$mount_left" != /* ]]; then
+      prefixed="agentic_${mount_left}"
+      ensure_volume "$prefixed"
+      EXTRA_MOUNTS[$i]="${prefixed}${mount#*:}"
+    fi
+  done
+}
+
+create_volume() {
+  local name="${1:-}"
+  if [[ -z "$name" ]]; then
+    echo "Error: volumes create requires a name"
+    exit 1
+  fi
+  local volume="agentic_${name}"
+  ensure_volume "$volume"
+  echo "=> created: $volume"
+}
+
+list_volumes() {
+  docker volume ls --filter "label=project=agentic-cli"
+}
+
+remove_volume() {
+  local name="${1:-}"
+  if [[ -n "$name" ]]; then
+    local label
+    label=$(docker volume inspect --format '{{index .Labels "project"}}' "$name" 2>/dev/null || true)
+    if [[ "$label" != "agentic-cli" ]]; then
+      echo "Error: '$name' is not an agentic-managed volume"
+      exit 1
+    fi
+    docker volume rm "$name" | sed 's/^/=> deleted: /'
+  else
+    local volumes
+    volumes=$(docker volume ls -q --filter "label=project=agentic-cli")
+    if [[ -z "$volumes" ]]; then
+      echo "No agentic-managed volumes found."
+    else
+      echo "Volumes to remove:"
+      echo "$volumes" | sed 's/^/  /'
+      read -r -p "Remove all agentic-managed volumes? [y/N] " confirm
+      [[ "$confirm" =~ ^[Yy]$ ]] || exit 0
+      echo "$volumes" | xargs docker volume rm | sed 's/^/=> deleted: /'
+    fi
+  fi
+}
+
+cmd_volumes() {
+  local subcmd="${1:-}"
+  case "$subcmd" in
+  create) create_volume "${@:2}" ;;
+  list | ls) list_volumes ;;
+  remove | rm) remove_volume "${@:2}" ;;
+  "" | -h | --help) usage_volumes ;;
+  *)
+    echo "Error: unknown volumes subcommand '${subcmd}'"
+    echo ""
+    usage_volumes
+    exit 1
+    ;;
+  esac
+}
+
 # --- Build ---
 cmd_build() {
   local tool="${1:-}"
@@ -432,6 +530,7 @@ cmd_help() {
   update) usage_update ;;
   clean) usage_clean ;;
   inspect) usage_inspect ;;
+  volumes) usage_volumes ;;
   completion) usage_completion ;;
   aliases) usage_aliases ;;
   run) usage_run ;;
@@ -467,7 +566,7 @@ _agentic() {
   _arguments -C \\
     '(-h --help)'{-h,--help}'[show help]' \\
     '--home[override tool home directory]:directory:_directories' \\
-    '(--volume -v)'{--volume,-v}'[mount extra volume]:host\:container' \\
+    '(--volume -v)'{--volume,-v}'[mount extra volume (bind or named volume)]:spec' \\
     '--pids-limit[override container PID limit]:limit' \\
     '--cpus[override CPU limit]:cpus' \\
     '--memory[override memory limit]:size' \\
@@ -488,6 +587,7 @@ $(for t in $tools; do printf "          '%s:run the %s CLI'\n" "$t" "$t"; done)
           'clean:remove tool image(s)'
           'inspect:show image info'
           'update:update tool image(s) to latest version'
+          'volumes:manage named Docker volumes'
           'completion:print shell completion script'
           'aliases:print shell alias definitions for tools'
           'help:show help for a command'
@@ -522,8 +622,20 @@ $(for t in $tools; do printf "          '%s:run the %s CLI'\n" "$t" "$t"; done)
         clean|inspect)
           _arguments '(-h --help)'{-h,--help}'[show help]' ": :(($(for t in $tools; do printf "%s:'%s' " "$t" "$t"; done)))"
           ;;
+        volumes)
+          case \$words[2] in
+            remove|rm)
+              local vols
+              vols=(\${(f)"\$(docker volume ls -q --filter 'label=project=agentic-cli' 2>/dev/null)"})
+              _describe 'volume' vols
+              ;;
+            *)
+              _arguments ": :(create list ls remove rm)"
+              ;;
+          esac
+          ;;
         help)
-          _arguments ": :(build update clean inspect completion aliases run)"
+          _arguments ": :(build update clean inspect volumes completion aliases run)"
           ;;
         completion)
           _arguments '(-h --help)'{-h,--help}'[show help]' ": :(bash zsh)"
@@ -533,7 +645,7 @@ $(for t in $tools; do printf "          '%s:run the %s CLI'\n" "$t" "$t"; done)
             _arguments \\
               '(-h --help)'{-h,--help}'[show help]' \\
               '--home[override tool home directory]:directory:_directories' \\
-              '(--volume -v)'{--volume,-v}'[mount extra volume]:host\:container' \\
+              '(--volume -v)'{--volume,-v}'[mount extra volume (bind or named volume)]:spec' \\
               '--pids-limit[override container PID limit]:limit' \\
               '--cpus[override CPU limit]:cpus' \\
               '--memory[override memory limit]:size' \\
@@ -561,7 +673,7 @@ _agentic_complete() {
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
 
   local tools="${tools}"
-  local commands="build clean inspect update completion aliases help \${tools}"
+  local commands="build clean inspect update volumes completion aliases help \${tools}"
 
   if [[ \$COMP_CWORD -eq 1 ]]; then
     COMPREPLY=(\$(compgen -W "--help \${commands}" -- "\$cur"))
@@ -584,8 +696,20 @@ _agentic_complete() {
     clean|inspect)
       COMPREPLY=(\$(compgen -W "\${tools} --help" -- "\$cur"))
       ;;
+    volumes)
+      case "\${COMP_WORDS[2]}" in
+        remove|rm)
+          local vols
+          vols=\$(docker volume ls -q --filter "label=project=agentic-cli" 2>/dev/null)
+          COMPREPLY=(\$(compgen -W "\$vols" -- "\$cur"))
+          ;;
+        *)
+          COMPREPLY=(\$(compgen -W "create list ls remove rm" -- "\$cur"))
+          ;;
+      esac
+      ;;
     help)
-      COMPREPLY=(\$(compgen -W "build update clean inspect completion aliases run" -- "\$cur"))
+      COMPREPLY=(\$(compgen -W "build update clean inspect volumes completion aliases run" -- "\$cur"))
       ;;
     completion)
       COMPREPLY=(\$(compgen -W "bash zsh --help" -- "\$cur"))
@@ -594,7 +718,7 @@ _agentic_complete() {
       if [[ "\${COMP_WORDS[1]}" == -* ]]; then
         case "\$prev" in
           --home) COMPREPLY=(\$(compgen -d -- "\$cur")); return ;;
-          --pids-limit|--cpus|--memory) COMPREPLY=(); return ;;
+          --pids-limit|--cpus|--memory|--volume|-v) COMPREPLY=(); return ;;
         esac
         COMPREPLY=(\$(compgen -W "\${tools} --help --home --volume -v --pids-limit --cpus --memory" -- "\$cur"))
       fi
@@ -697,6 +821,12 @@ aliases)
   exit 0
   ;;
 
+volumes)
+  handle_help volumes "${2:-}"
+  cmd_volumes "${2:-}" "${3:-}"
+  exit 0
+  ;;
+
 help)
   cmd_help "${2:-}"
   exit 0
@@ -706,9 +836,11 @@ esac
 # --- Arguments ---
 TOOL_HOME="${AGENTIC_HOME:-${HOME}/.agentic}"
 IFS=',' read -ra EXTRA_MOUNTS <<<"${AGENTIC_EXTRA_MOUNTS:-}"
+
 PIDS_LIMIT="${AGENTIC_PIDS_LIMIT:-1024}"
 CPUS="${AGENTIC_CPUS:-4}"
 MEMORY="${AGENTIC_MEMORY:-4g}"
+
 PIDS_LIMIT_CLI_SET=0
 CPUS_CLI_SET=0
 MEMORY_CLI_SET=0
@@ -781,13 +913,20 @@ if [[ -n "$PROJECT_CONFIG" ]]; then
     IFS=',' read -ra PROJECT_MOUNTS <<<"$PROJECT_EXTRA_MOUNTS"
     EXTRA_MOUNTS+=("${PROJECT_MOUNTS[@]}")
   fi
+
   rc_val="$(parse_config_var "$PROJECT_CONFIG" "PIDS_LIMIT")"
   [[ -n "$rc_val" && "$PIDS_LIMIT_CLI_SET" -eq 0 ]] && PIDS_LIMIT="$rc_val"
+
   rc_val="$(parse_config_var "$PROJECT_CONFIG" "CPUS")"
   [[ -n "$rc_val" && "$CPUS_CLI_SET" -eq 0 ]] && CPUS="$rc_val"
+
   rc_val="$(parse_config_var "$PROJECT_CONFIG" "MEMORY")"
   [[ -n "$rc_val" && "$MEMORY_CLI_SET" -eq 0 ]] && MEMORY="$rc_val"
 fi
+
+# --- Named volumes ---
+# Auto-create any named Docker volumes referenced in EXTRA_MOUNTS (left side with no '/').
+[[ ${#EXTRA_MOUNTS[@]} -gt 0 ]] && ensure_extra_mount_volumes
 
 # --- Validation ---
 if [[ "${1:-}" == -* ]]; then
@@ -819,6 +958,7 @@ export AGENTIC_EXTRA_MOUNTS="$(
   IFS=','
   echo "${EXTRA_MOUNTS[*]:-}"
 )"
+
 export AGENTIC_PIDS_LIMIT="$PIDS_LIMIT"
 export AGENTIC_CPUS="$CPUS"
 export AGENTIC_MEMORY="$MEMORY"
