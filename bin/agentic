@@ -340,9 +340,8 @@ ensure_extra_mount_volumes() {
     mount_left="${mount%%:*}"
     mount_left="${mount_left/\~/$HOME}"
     if [[ -n "$mount_left" && "$mount_left" != /* ]]; then
-      prefixed="agentic_${mount_left}"
-      ensure_volume "$prefixed"
-      EXTRA_MOUNTS[$i]="${prefixed}${mount#*:}"
+      ensure_volume "$mount_left"
+      EXTRA_MOUNTS[$i]="${mount_left}${mount#*:}"
     fi
   done
 }
@@ -353,9 +352,8 @@ create_volume() {
     echo "Error: volumes create requires a name"
     exit 1
   fi
-  local volume="agentic_${name}"
-  ensure_volume "$volume"
-  echo "=> created: $volume"
+  ensure_volume "$name"
+  echo "=> created: $name"
 }
 
 list_volumes() {
