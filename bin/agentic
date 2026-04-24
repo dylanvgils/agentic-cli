@@ -203,7 +203,7 @@ find_project_config() {
 # Only reads lines of the form: VAR=value (with optional quotes).
 parse_config_var() {
   local config="$1" var="$2"
-  grep -m1 "^${var}=" "$config" 2>/dev/null | cut -d= -f2- | sed "s/^['\"]//; s/['\"]$//"
+  grep -m1 "^${var}=" "$config" 2>/dev/null | cut -d= -f2- | sed "s/^['\"]//; s/['\"]$//" || true
 }
 
 # Extract EXTRA_MOUNTS from a .agenticrc config file, expanding ~ to $HOME.
