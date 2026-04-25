@@ -334,14 +334,23 @@ ensure_volume() {
 }
 
 ensure_extra_mount_volumes() {
-  local i mount mount_left prefixed
+  local i mount mount_left
   for i in "${!EXTRA_MOUNTS[@]}"; do
     mount="${EXTRA_MOUNTS[$i]}"
     mount_left="${mount%%:*}"
     mount_left="${mount_left/\~/$HOME}"
+
     if [[ -n "$mount_left" && "$mount_left" != /* ]]; then
-      ensure_volume "$mount_left"
-      EXTRA_MOUNTS[$i]="${mount_left}${mount#*:}"
+      if ! docker volume inspect "$mount_left" >/dev/null 2>&1; then
+        ensure_volume "$mount_left"
+
+        # Docker initialises new volumes as root:root; fix ownership so the
+        # container user (matched to the host uid/gid) can write to them.
+        docker run --rm -v "${mount_left}:/vol" --user root \
+          busybox chown "$(id -u):$(id -g)" /vol >/dev/null
+      fi
+
+      EXTRA_MOUNTS[$i]="${mount_left}:${mount#*:}"
     fi
   done
 }

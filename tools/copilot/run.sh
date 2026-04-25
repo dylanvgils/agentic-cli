@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --- Environment ---
+# Enable exec on /tmp (allow to run compiled output).
+TMPFS_EXEC_TMP=1
+
 # --- Dependencies ---
 # shellcheck source=../../shared/scripts/repo-root.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../../shared/scripts/repo-root.sh"
