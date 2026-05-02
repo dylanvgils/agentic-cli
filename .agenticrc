@@ -1,0 +1,1 @@
+EXTRA_MOUNTS=go-mod:$CONTAINER_HOME/go,go-cache:$CONTAINER_HOME/.cache/go-build
