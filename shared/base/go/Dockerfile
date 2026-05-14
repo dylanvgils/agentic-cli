@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=agentic-base:latest
 FROM ${BASE_IMAGE}
 
-ARG GO_VERSION=1.26.2
+ARG GO_VERSION=1.26.3
 ARG TARGETARCH
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
