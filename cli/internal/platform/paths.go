@@ -1,3 +1,4 @@
+// Package platform provides platform utility method, such as path or tty.
 package platform
 
 // ToolHomeDefault returns the default agentic data directory.

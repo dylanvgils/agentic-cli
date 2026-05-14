@@ -1,3 +1,4 @@
+// Package config provides global configuration for the entire cli.
 package config
 
 // RunSpec is the parsed contents of a tool's run.json file.

@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/script"
 	"github.com/spf13/cobra"
 )
 
@@ -57,9 +58,7 @@ func ToolHome() string {
 }
 
 func delegateToShell(args []string) error {
-	scriptPath := findScript()
-
-	fmt.Printf("hello: %s\n", scriptPath)
+	scriptPath := script.FindScript("agentic")
 
 	cmd := exec.Command("bash", append([]string{scriptPath}, args...)...)
 	cmd.Stdin = os.Stdin
@@ -73,14 +72,4 @@ func delegateToShell(args []string) error {
 		return err
 	}
 	return nil
-}
-
-func findScript() string {
-	if path, err := exec.LookPath("agentic"); err == nil {
-		return path
-	}
-
-	fmt.Fprintln(os.Stderr, "error: agentic not found on PATH")
-	os.Exit(1)
-	return ""
 }
