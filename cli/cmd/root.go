@@ -5,34 +5,28 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"slices"
 
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/script"
 	"github.com/spf13/cobra"
 )
-
-var toolHome string
 
 var rootCmd = &cobra.Command{
 	Use:   "agentic",
 	Short: "Run agentic coding tools in sandboxed containers",
 	Long: `agentic runs AI coding tools (Claude Code, Copilot, OpenCode) in
 sandboxed Docker containers with read-only filesystems and dropped capabilities.`,
-	SilenceUsage:       true,
-	Args:               cobra.ArbitraryArgs,
-	DisableFlagParsing: true,
-	RunE:               rootRun,
+	SilenceUsage: true,
+	Args:         cobra.ArbitraryArgs,
+	RunE:         rootRun,
 }
 
 func rootRun(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return cmd.Help()
 	}
-	if !slices.Contains(validTools, args[0]) {
-		return delegateToShell(os.Args[1:])
-	}
-	return runTool(runToolCmd, args)
+
+	// if command not exist forward to old script
+	return delegateToShell(args)
 }
 
 // Execute the Agentic CLI
@@ -41,20 +35,6 @@ func Execute() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-}
-
-func init() {
-	defaultHome := platform.ToolHomeDefault()
-	if env := os.Getenv("AGENTIC_HOME"); env != "" {
-		defaultHome = env
-	}
-
-	rootCmd.PersistentFlags().StringVar(&toolHome, "home", defaultHome,
-		"agentic data directory (overrides $AGENTIC_HOME)")
-}
-
-func ToolHome() string {
-	return toolHome
 }
 
 func delegateToShell(args []string) error {

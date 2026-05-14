@@ -10,9 +10,11 @@ import (
 
 // RunSpec collects everything needed to run a container.
 type RunSpec struct {
-	Image    string
-	ToolHome string
-	Spec     config.RunSpec
+	Image          string
+	ToolHome       string
+	Volumes        []string
+	SkipEntrypoint bool
+	Spec           config.RunSpec
 }
 
 // ExpandMountVars replaces $TOOL_HOME, ${TOOL_HOME}, $CONTAINER_HOME, ${CONTAINER_HOME},
@@ -27,6 +29,8 @@ func ExpandMountVars(spec, toolHome, containerHome string) string {
 	s = strings.ReplaceAll(s, "$PWD", pwd)
 	return s
 }
+
+var runInteractive = RunInteractive
 
 func RunContainer(rs RunSpec, toolArgs []string) error {
 	// Base arguments for running the docker container
@@ -56,6 +60,16 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 		tmpFlags = "exec," + tmpFlags
 	}
 	args = append(args, "--tmpfs", "/tmp:"+tmpFlags)
+
+	for _, v := range rs.Volumes {
+		args = append(args, "-v", ExpandMountVars(v, rs.ToolHome, ""))
+	}
+
+	if rs.SkipEntrypoint {
+		args = append(args, "--entrypoint", "")
+	}
+
+	args = append(args, rs.Image)
 	args = append(args, toolArgs...)
-	return RunInteractive(args...)
+	return runInteractive(args...)
 }
