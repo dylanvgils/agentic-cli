@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunAliases_zsh_defaultsToZsh(t *testing.T) {
+func TestRunAliases_printsPreamble(t *testing.T) {
 	// Arrange
 	restore := stubInspectImage(t, nil, nil)
 	defer restore()
@@ -21,24 +21,7 @@ func TestRunAliases_zsh_defaultsToZsh(t *testing.T) {
 	})
 
 	// Assert
-	assert.Contains(t, out, "agentic aliases zsh")
-	assert.Contains(t, out, ".zshrc")
-}
-
-func TestRunAliases_bash_producesBashPreamble(t *testing.T) {
-	// Arrange
-	restore := stubInspectImage(t, nil, nil)
-	defer restore()
-
-	// Act
-	out := captureStdout(t, func() {
-		err := runAliases(aliasesCmd, []string{"bash"})
-		require.NoError(t, err)
-	})
-
-	// Assert
-	assert.Contains(t, out, "agentic aliases bash")
-	assert.Contains(t, out, ".bashrc")
+	assert.Contains(t, out, "# agentic tool aliases - source with: source <(agentic aliases)")
 }
 
 func TestRunAliases_notBuiltTools_emitNothingAfterPreamble(t *testing.T) {
