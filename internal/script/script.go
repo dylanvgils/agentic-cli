@@ -7,6 +7,8 @@ import (
 	"os/exec"
 )
 
+// Delegate runs the named script via bash, forwarding stdin/stdout/stderr and args.
+// Exits with the script's exit code if it fails.
 func Delegate(name string, args []string) error {
 	scriptPath := FindScript(name)
 
@@ -24,11 +26,8 @@ func Delegate(name string, args []string) error {
 	return nil
 }
 
-func findScriptSafe(name string) string {
-	path, _ := exec.LookPath(name)
-	return path
-}
-
+// FindScript returns the full path to the named script on PATH.
+// Prints an error and exits if the script is not found.
 func FindScript(name string) string {
 	if path := findScriptSafe(name); path != "" {
 		return path
@@ -37,4 +36,9 @@ func FindScript(name string) string {
 	fmt.Fprintln(os.Stderr, "error: agentic not found on PATH")
 	os.Exit(1)
 	return ""
+}
+
+func findScriptSafe(name string) string {
+	path, _ := exec.LookPath(name)
+	return path
 }
