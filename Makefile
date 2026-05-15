@@ -3,7 +3,7 @@ BUILD_DIR := dist
 LDFLAGS   := -s -w
 GOFLAGS   := CGO_ENABLED=0
 
-.PHONY: build install dist test test-integration clean
+.PHONY: build install uninstall dist test test-integration clean
 
 build:
 	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY) .
@@ -14,6 +14,9 @@ install: build
 	@if ! echo "$$PATH" | grep -q "$$HOME/.local/bin"; then \
 		echo "Note: add ~/.local/bin to your PATH (e.g. export PATH=\"\$$HOME/.local/bin:\$$PATH\")"; \
 	fi
+
+uninstall:
+	rm -f ~/.local/bin/$(BINARY)
 
 dist:
 	@mkdir -p $(BUILD_DIR)
