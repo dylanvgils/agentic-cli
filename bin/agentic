@@ -88,19 +88,6 @@ Examples:
 EOF
 }
 
-usage_inspect() {
-  cat <<EOF
-Usage: agentic inspect [tool]
-
-Show image info (tool version, base layers, build date, size).
-Inspects all tools if no tool specified.
-
-Examples:
-  agentic inspect
-  agentic inspect claude
-EOF
-}
-
 usage_completion() {
   cat <<EOF
 Usage: agentic completion [shell]
@@ -373,49 +360,6 @@ cmd_update() {
   fi
 }
 
-# --- Inspect ---
-inspect_tool() {
-  local tool="$1"
-  local config="$REPO_ROOT/tools/$tool/config.sh"
-  if [[ ! -f "$config" ]]; then
-    echo "Error: unknown tool '$tool'"
-    exit 1
-  fi
-
-  local image
-  image=$(tool_image "$tool")
-  if ! docker image inspect "$image" >/dev/null 2>&1; then
-    echo "  image:    $image (not built)"
-    return
-  fi
-
-  local id size built base version
-  id=$(docker inspect --format '{{slice .Id 7 19}}' "$image")
-  size=$(docker inspect --format '{{.Size}}' "$image" | awk '{printf "%.0f MB", $1/1048576}')
-  built=$(docker inspect --format '{{index .Config.Labels "agentic.built"}}' "$image")
-  base=$(docker inspect --format '{{index .Config.Labels "agentic.base"}}' "$image")
-  version=$(docker inspect --format '{{index .Config.Labels "agentic.tool.version"}}' "$image")
-  echo "  image:    $image ($id)"
-  echo "  version:  ${version:-(unknown - rebuild to capture)}"
-  echo "  base:     ${base:-(unknown)}"
-  echo "  built:    ${built:-(unknown)}"
-  echo "  size:     $size"
-}
-
-cmd_inspect() {
-  local tool="${1:-}"
-  if [[ -n "$tool" ]]; then
-    echo "=> $tool"
-    inspect_tool "$tool"
-  else
-    for config in "$REPO_ROOT/tools"/*/config.sh; do
-      tool="$(basename "$(dirname "$config")")"
-      echo "=> $tool"
-      inspect_tool "$tool"
-    done
-  fi
-}
-
 # --- Clean ---
 cmd_clean() {
   local tool="${1:-}"
@@ -444,7 +388,7 @@ cmd_help() {
   build) usage_build ;;
   update) usage_update ;;
   clean) usage_clean ;;
-  inspect) usage_inspect ;;
+  inspect) exec agentic-cli inspect --help ;;
   volumes) usage_volumes ;;
   completion) usage_completion ;;
   aliases) usage_aliases ;;
@@ -731,9 +675,7 @@ clean)
   ;;
 
 inspect)
-  handle_help inspect "${2:-}"
-  cmd_inspect "${2:-}"
-  exit 0
+  exec agentic-cli inspect "${@:2}"
   ;;
 
 completion)

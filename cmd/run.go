@@ -21,11 +21,6 @@ var (
 	dryRun       bool
 )
 
-var (
-	runContainer       = docker.RunContainer
-	ensureNamedVolumes = docker.EnsureNamedVolumes
-)
-
 func init() {
 	rootCmd.AddCommand(runToolCmd)
 
@@ -61,8 +56,12 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 
 	toolName := args[0]
+	imageName, err := tools.ImageName(toolName)
+	if err != nil {
+		return err
+	}
+
 	toolArgs := args[1:]
-	imageName := fmt.Sprintf("agentic-%s", toolName)
 
 	skipEntrypoint := len(toolArgs) > 0 && toolArgs[0] == "--"
 	if skipEntrypoint {
@@ -74,17 +73,16 @@ func runTool(cmd *cobra.Command, args []string) error {
 
 	containerHome := docker.ResolveContainerHome(imageName)
 
+	toolConfig := tools.Configs[toolName]
+	if err := toolConfig.Setup(toolHome); err != nil {
+		return fmt.Errorf("setup %s: %w", toolName, err)
+	}
+
+	home, _ := os.UserHomeDir()
 	var volumes []string
 	var spec config.RunSpec
-	if toolConfig, ok := tools.Configs[toolName]; ok {
-		if err := toolConfig.Setup(toolHome); err != nil {
-			return fmt.Errorf("setup %s: %w", toolName, err)
-		}
-
-		home, _ := os.UserHomeDir()
-		volumes = append(toolConfig.Mounts(home), volumes...)
-		spec.TmpfsExecTmp = toolConfig.TmpfsExecTmp
-	}
+	volumes = append(toolConfig.Mounts(home), volumes...)
+	spec.TmpfsExecTmp = toolConfig.TmpfsExecTmp
 	if env := os.Getenv("AGENTIC_EXTRA_MOUNTS"); env != "" {
 		for m := range strings.SplitSeq(env, ",") {
 			if m != "" {
