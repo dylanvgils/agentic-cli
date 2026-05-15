@@ -62,7 +62,7 @@ agentic <command> [args...]
 | `inspect [tool]`                                                                                                           | Show image info (version, base layers, build date, size). Inspects all tools if unspecified |
 | `volumes <create\|list\|ls\|remove\|rm> [name]`                                                                            | Manage named Docker volumes created by agentic                                              |
 | `completion [shell]`                                                                                                       | Print shell completion script (`bash` or `zsh`, defaults to `zsh`)                          |
-| `aliases [shell]`                                                                                                          | Print shell alias definitions for tools (`bash` or `zsh`, defaults to `zsh`)                |
+| `aliases`                                                                                                                  | Print shell alias definitions for tools                                                     |
 | `help [command]`                                                                                                           | Show help for a command (`run` for tool run options). Shows overview if unspecified         |
 | `<tool> [args]`                                                                                                            | Run a tool in a sandboxed Docker container                                                  |
 | `<tool> -- <cmd> [args]`                                                                                                   | Override the entrypoint and run a shell command directly                                    |
@@ -160,14 +160,10 @@ Completions cover all commands (`build`, `update`, `clean`, `inspect`, `completi
 
 ## 🔗 Shell aliases
 
-Shell aliases let you run tools directly (e.g., `copilot` instead of `agentic copilot`). Add one of the following to your shell config to activate them:
+Shell aliases let you run tools directly (e.g., `copilot` instead of `agentic copilot`). Add to your shell config to activate them:
 
 ```bash
-# zsh - add to ~/.zshrc
 source <(agentic aliases)
-
-# bash - add to ~/.bashrc
-source <(agentic aliases bash)
 ```
 
 Only tools with a built image produce an alias, so sourcing the output never creates broken aliases for uninstalled tools.
