@@ -44,7 +44,7 @@ func TestFindScript_found(t *testing.T) {
 }
 
 func TestDelegate_success(t *testing.T) {
-	// Arrange - use a small inline script that exits 0
+	// Arrange
 	f, err := os.CreateTemp(t.TempDir(), "script-*.sh")
 	require.NoError(t, err)
 	_, err = f.WriteString("#!/usr/bin/env bash\nexit 0\n")
@@ -52,8 +52,10 @@ func TestDelegate_success(t *testing.T) {
 	require.NoError(t, f.Close())
 	require.NoError(t, os.Chmod(f.Name(), 0o755))
 
-	// Act + Assert - no error expected; LookPath accepts absolute paths
+	// Act
 	err = Delegate(f.Name(), []string{})
+
+	// Assert
 	require.NoError(t, err)
 }
 
@@ -88,10 +90,14 @@ func TestDelegate_nonZeroExit(t *testing.T) {
 		return
 	}
 
+	// Arrange
 	cmd := exec.Command(os.Args[0], "-test.run=TestDelegate_nonZeroExit")
 	cmd.Env = append(os.Environ(), "TEST_DELEGATE_EXIT=1")
 
+	// Act
 	err := cmd.Run()
+
+	// Assert
 	exitErr, ok := err.(*exec.ExitError)
 	require.True(t, ok, "expected ExitError, got %T", err)
 	require.Equal(t, 42, exitErr.ExitCode())
@@ -118,3 +124,4 @@ func TestFindScript_notFound(t *testing.T) {
 	require.Equal(t, 1, exitErr.ExitCode())
 	require.Contains(t, string(out), "agentic not found on PATH")
 }
+

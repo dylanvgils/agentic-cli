@@ -5,14 +5,21 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/script"
 	"github.com/spf13/cobra"
 )
 
 var version = "dev"
 
+var (
+	runContainer       = docker.RunContainer
+	ensureNamedVolumes = docker.EnsureNamedVolumes
+	inspectImage       = docker.InspectImage
+)
+
 var rootCmd = &cobra.Command{
-	Use:   "agentic",
+	Use:   "agentic-cli",
 	Short: "Run agentic coding tools in sandboxed containers",
 	Long: `agentic runs AI coding tools (Claude Code, Copilot, OpenCode) in
 sandboxed Docker containers with read-only filesystems and dropped capabilities.`,

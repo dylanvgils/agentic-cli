@@ -7,7 +7,7 @@ import (
 )
 
 func TestArg_buildsFlag(t *testing.T) {
-	// Arrange + Act
+	// Act
 	result := arg("volume", "/host:/container")
 
 	// Assert
@@ -15,11 +15,11 @@ func TestArg_buildsFlag(t *testing.T) {
 }
 
 func TestArg_emptyNamePanics(t *testing.T) {
-	// Arrange + Act + Assert
+	// Act + Assert
 	assert.Panics(t, func() { arg("", "value") })
 }
 
 func TestArg_dashPrefixPanics(t *testing.T) {
-	// Arrange + Act + Assert
+	// Act + Assert
 	assert.Panics(t, func() { arg("-flag", "value") })
 }

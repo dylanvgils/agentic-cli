@@ -2,8 +2,10 @@
 package tools
 
 import (
+	"fmt"
 	"maps"
 	"slices"
+	"strings"
 )
 
 // ToolConfig holds the default configuration for a tool container.
@@ -11,6 +13,14 @@ type ToolConfig struct {
 	TmpfsExecTmp bool
 	Setup        func(toolHome string) error
 	Mounts       func(home string) []string
+}
+
+// ImageName returns the Docker image name for the given tool, or an error if the tool is unknown.
+func ImageName(name string) (string, error) {
+	if _, ok := Configs[name]; !ok {
+		return "", fmt.Errorf("unknown tool %q, available: %s", name, strings.Join(Names(), ", "))
+	}
+	return "agentic-" + name, nil
 }
 
 // Names returns the sorted list of known tool names.

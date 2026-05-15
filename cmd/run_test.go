@@ -59,6 +59,15 @@ func TestRunTool_noArgs_printsHelp(t *testing.T) {
 	assert.Empty(t, rs.Image, "RunContainer should not be called when no args given")
 }
 
+func TestRunTool_unknownTool_returnsError(t *testing.T) {
+	// Act
+	err := runTool(runToolCmd, []string{"bogus"})
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bogus")
+}
+
 func TestRunTool_buildsImageName(t *testing.T) {
 	// Arrange
 	withTempToolHome(t)

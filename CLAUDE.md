@@ -41,6 +41,12 @@ Tool execution is handled entirely by the Go CLI (`agentic-cli run <tool>`). Too
 ### Adding a new runtime layer
 Drop a `Dockerfile` in `shared/base/<name>/`. It must accept `BASE_IMAGE` as a build arg. The build system derives the version env var as `AGENTIC_<NAME>_VERSION` automatically.
 
+### Go tests
+- Use Arrange-Act-Assert (AAA) in every test: `// Arrange`, `// Act`, `// Assert` comment labels with a blank line between sections
+- Omit `// Arrange` only when there is genuinely nothing to set up
+- Use `// Act + Assert` only when a single call is inseparably both (e.g. `assert.Panics`)
+- Assign the result of the function under test to a variable in `// Act` so `// Assert` can reference it — do not inline the call inside the assertion
+
 ### Security constraints (enforced in `internal/docker/run.go`)
 `--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`, `--user $(id -u):$(id -g)`. Do not relax these. If a tool needs write access, use a targeted tmpfs or volume mount instead.
 
