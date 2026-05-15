@@ -178,3 +178,202 @@ func TestEnsureNamedVolumes_emptyList(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, get())
 }
+
+// --- CreateVolume ---
+
+func TestCreateVolume_callsDockerWithLabel(t *testing.T) {
+	// Arrange
+	get, restore := captureDockerRun(t)
+	defer restore()
+
+	// Act
+	err := CreateVolume("maven")
+
+	// Assert
+	require.NoError(t, err)
+	calls := get()
+	require.Len(t, calls, 1)
+	assert.Equal(t, []string{"volume", "create", "--label=project=agentic-cli", "maven"}, calls[0].args)
+}
+
+func TestCreateVolume_wrapsError(t *testing.T) {
+	// Arrange
+	_, restore := captureDockerRun(t, "volume create")
+	defer restore()
+
+	// Act
+	err := CreateVolume("maven")
+
+	// Assert
+	assert.ErrorContains(t, err, "create volume maven")
+}
+
+// --- ListVolumes ---
+
+func TestListVolumes_callsWithFilter(t *testing.T) {
+	// Arrange
+	get, restore := captureDockerRun(t)
+	defer restore()
+
+	// Act
+	_, err := ListVolumes()
+
+	// Assert
+	require.NoError(t, err)
+	calls := get()
+	require.Len(t, calls, 1)
+	assert.Equal(t, []string{"volume", "ls", "--filter=label=project=agentic-cli"}, calls[0].args)
+}
+
+func TestListVolumes_returnsOutput(t *testing.T) {
+	// Arrange
+	orig := dockerRun
+	dockerRun = func(_ ...string) (string, error) { return "DRIVER    VOLUME NAME\nlocal     maven\n", nil }
+	defer func() { dockerRun = orig }()
+
+	// Act
+	out, err := ListVolumes()
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "DRIVER    VOLUME NAME\nlocal     maven\n", out)
+}
+
+func TestListVolumes_propagatesError(t *testing.T) {
+	// Arrange
+	_, restore := captureDockerRun(t, "volume ls")
+	defer restore()
+
+	// Act
+	_, err := ListVolumes()
+
+	// Assert
+	assert.Error(t, err)
+}
+
+// --- ListVolumeNames ---
+
+func TestListVolumeNames_callsDockerWithQuietAndFilter(t *testing.T) {
+	// Arrange
+	get, restore := captureDockerRun(t)
+	defer restore()
+
+	// Act
+	_, err := ListVolumeNames()
+
+	// Assert
+	require.NoError(t, err)
+	calls := get()
+	require.Len(t, calls, 1)
+	assert.Contains(t, calls[0].args, "--quiet")
+	assert.Contains(t, calls[0].args, "--filter=label=project=agentic-cli")
+}
+
+func TestListVolumeNames_splitsLines(t *testing.T) {
+	// Arrange
+	orig := dockerRun
+	dockerRun = func(_ ...string) (string, error) { return "maven\ngradle\n", nil }
+	defer func() { dockerRun = orig }()
+
+	// Act
+	names, err := ListVolumeNames()
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, []string{"maven", "gradle"}, names)
+}
+
+func TestListVolumeNames_emptyOutput_returnsEmpty(t *testing.T) {
+	// Arrange
+	orig := dockerRun
+	dockerRun = func(_ ...string) (string, error) { return "", nil }
+	defer func() { dockerRun = orig }()
+
+	// Act
+	names, err := ListVolumeNames()
+
+	// Assert
+	require.NoError(t, err)
+	assert.Empty(t, names)
+}
+
+func TestListVolumeNames_propagatesError(t *testing.T) {
+	// Arrange
+	_, restore := captureDockerRun(t, "volume ls")
+	defer restore()
+
+	// Act
+	_, err := ListVolumeNames()
+
+	// Assert
+	assert.Error(t, err)
+}
+
+// --- RemoveVolume ---
+
+func TestRemoveVolume_validLabel_callsRm(t *testing.T) {
+	// Arrange
+	var calls []dockerCall
+	orig := dockerRun
+	dockerRun = func(args ...string) (string, error) {
+		calls = append(calls, dockerCall{args: args})
+		if args[0] == "volume" && args[1] == "inspect" {
+			return "agentic-cli\n", nil
+		}
+		return "", nil
+	}
+	defer func() { dockerRun = orig }()
+
+	// Act
+	err := RemoveVolume("maven")
+
+	// Assert
+	require.NoError(t, err)
+	require.Len(t, calls, 2)
+	assert.Equal(t, "inspect", calls[0].args[1])
+	assert.Equal(t, "rm", calls[1].args[1])
+	assert.Equal(t, "maven", calls[1].args[2])
+}
+
+func TestRemoveVolume_inspectFails_returnsError(t *testing.T) {
+	// Arrange
+	_, restore := captureDockerRun(t, "volume inspect")
+	defer restore()
+
+	// Act
+	err := RemoveVolume("maven")
+
+	// Assert
+	assert.ErrorContains(t, err, "not an agentic-managed volume")
+}
+
+func TestRemoveVolume_wrongLabel_returnsError(t *testing.T) {
+	// Arrange
+	orig := dockerRun
+	dockerRun = func(_ ...string) (string, error) { return "other-project\n", nil }
+	defer func() { dockerRun = orig }()
+
+	// Act
+	err := RemoveVolume("maven")
+
+	// Assert
+	assert.ErrorContains(t, err, "not an agentic-managed volume")
+}
+
+func TestRemoveVolume_rmFails_propagatesError(t *testing.T) {
+	// Arrange
+	orig := dockerRun
+	dockerRun = func(args ...string) (string, error) {
+		if args[0] == "volume" && args[1] == "inspect" {
+			return "agentic-cli\n", nil
+		}
+		return "", fmt.Errorf("stub: volume rm failed")
+	}
+	defer func() { dockerRun = orig }()
+
+	// Act
+	err := RemoveVolume("maven")
+
+	// Assert
+	assert.ErrorContains(t, err, "volume rm failed")
+}

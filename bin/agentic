@@ -200,83 +200,6 @@ prune_images() {
 }
 
 # --- Volumes ---
-usage_volumes() {
-  cat <<EOF
-Usage: agentic volumes <subcommand>
-
-Manage named Docker volumes created by agentic.
-
-Subcommands:
-  create <name>  Create a named volume
-  list, ls       List all agentic-managed volumes
-  remove, rm     Remove an agentic-managed volume, or all if no name given
-
-Examples:
-  agentic volumes create maven
-  agentic volumes list
-  agentic volumes remove maven
-  agentic volumes remove
-EOF
-}
-
-ensure_volume() {
-  docker volume create --label "project=agentic-cli" "$1" >/dev/null
-}
-
-create_volume() {
-  local name="${1:-}"
-  if [[ -z "$name" ]]; then
-    echo "Error: volumes create requires a name"
-    exit 1
-  fi
-  ensure_volume "$name"
-  echo "=> created: $name"
-}
-
-list_volumes() {
-  docker volume ls --filter "label=project=agentic-cli"
-}
-
-remove_volume() {
-  local name="${1:-}"
-  if [[ -n "$name" ]]; then
-    local label
-    label=$(docker volume inspect --format '{{index .Labels "project"}}' "$name" 2>/dev/null || true)
-    if [[ "$label" != "agentic-cli" ]]; then
-      echo "Error: '$name' is not an agentic-managed volume"
-      exit 1
-    fi
-    docker volume rm "$name" | sed 's/^/=> deleted: /'
-  else
-    local volumes
-    volumes=$(docker volume ls -q --filter "label=project=agentic-cli")
-    if [[ -z "$volumes" ]]; then
-      echo "No agentic-managed volumes found."
-    else
-      echo "Volumes to remove:"
-      echo "$volumes" | sed 's/^/  /'
-      read -r -p "Remove all agentic-managed volumes? [y/N] " confirm
-      [[ "$confirm" =~ ^[Yy]$ ]] || exit 0
-      echo "$volumes" | xargs docker volume rm | sed 's/^/=> deleted: /'
-    fi
-  fi
-}
-
-cmd_volumes() {
-  local subcmd="${1:-}"
-  case "$subcmd" in
-  create) create_volume "${@:2}" ;;
-  list | ls) list_volumes ;;
-  remove | rm) remove_volume "${@:2}" ;;
-  "" | -h | --help) usage_volumes ;;
-  *)
-    echo "Error: unknown volumes subcommand '${subcmd}'"
-    echo ""
-    usage_volumes
-    exit 1
-    ;;
-  esac
-}
 
 # --- Build ---
 cmd_build() {
@@ -352,7 +275,7 @@ cmd_help() {
   update) usage_update ;;
   clean) exec agentic-cli clean --help ;;
   inspect) exec agentic-cli inspect --help ;;
-  volumes) usage_volumes ;;
+  volumes) exec agentic-cli volumes --help ;;
   completion) usage_completion ;;
   aliases) exec agentic-cli aliases --help ;;
   run) exec agentic-cli run --help ;;
@@ -618,9 +541,7 @@ aliases)
   ;;
 
 volumes)
-  handle_help volumes "${2:-}"
-  cmd_volumes "${2:-}" "${3:-}"
-  exit 0
+  exec agentic-cli volumes "${@:2}"
   ;;
 
 help)
