@@ -127,52 +127,6 @@ Examples:
 EOF
 }
 
-usage_run() {
-  cat <<EOF
-Usage: agentic [options] <tool> [tool-args...]
-
-Run a tool in a sandboxed Docker container.
-
-Tools:
-  claude     Run the Claude Code CLI
-  copilot    Run the GitHub Copilot CLI
-  opencode   Run the OpenCode CLI
-
-Options:
-  -h, --help              Show this help message
-  --home <path>           Override tool home directory (default: \$AGENTIC_HOME or \$HOME/.agentic)
-  -v, --volume <spec>     Mount an extra volume. Can be repeated.
-                          Bind mount:   host/path:\$CONTAINER_HOME/path
-                          Named volume: volume-name:\$CONTAINER_HOME/path
-                          Named volumes are created automatically if they don't exist.
-  --pids-limit <n>        Override container PID limit (default: 1024)
-  --cpus <n>              Override CPU limit (default: 4)
-  --memory <size>         Override memory limit (default: 4g)
-  -- <cmd> [args...]      Override the entrypoint and run <cmd> directly.
-
-Environment:
-  AGENTIC_DEFAULT_TOOL    Default tool when none is specified
-  AGENTIC_HOME            Persistent default for tool home directory
-  AGENTIC_EXTRA_MOUNTS    Comma-separated extra mounts (bind or named volume specs)
-  AGENTIC_PIDS_LIMIT      Default PID limit for containers
-  AGENTIC_CPUS            Default CPU limit for containers
-  AGENTIC_MEMORY          Default memory limit for containers
-
-Examples:
-  agentic claude
-  agentic copilot
-  agentic --home /opt/agentic claude
-  agentic -v 'maven:\$CONTAINER_HOME/.m2' claude
-  agentic -v '~/.m2:\$CONTAINER_HOME/.m2' claude
-  agentic -v '~/.m2:\$CONTAINER_HOME/.m2' -v '~/.gradle:\$CONTAINER_HOME/.gradle' claude
-  AGENTIC_HOME=/opt/agentic agentic claude
-  AGENTIC_DEFAULT_TOOL=claude agentic
-  AGENTIC_EXTRA_MOUNTS='maven:\$CONTAINER_HOME/.m2,gradle:\$CONTAINER_HOME/.gradle' agentic claude
-  agentic claude -- bash
-  agentic claude -- ls /workspace
-EOF
-}
-
 # --- Dependencies ---
 # Resolve symlinks so this works when installed via a symlink (e.g. ~/.local/bin/agentic)
 _SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -180,38 +134,11 @@ _SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 source "$_SCRIPT_DIR/../shared/scripts/repo-root.sh"
 
 # --- Helpers ---
-# Enumerate available tools by scanning tools/*/run.sh.
+# Enumerate available tools by scanning tools/*/config.sh.
 list_tools() {
-  for script in "$REPO_ROOT/tools"/*/run.sh; do
-    basename "$(dirname "$script")"
+  for config in "$REPO_ROOT/tools"/*/config.sh; do
+    basename "$(dirname "$config")"
   done
-}
-
-# Walk up from $PWD to find the nearest .agenticrc project config file.
-find_project_config() {
-  local dir="$PWD"
-  while [[ "$dir" != "/" ]]; do
-    if [[ -f "$dir/.agenticrc" ]]; then
-      echo "$dir/.agenticrc"
-      return
-    fi
-    dir="$(dirname "$dir")"
-  done
-}
-
-# Safely extract a single variable from a .agenticrc config file without executing it.
-# Only reads lines of the form: VAR=value (with optional quotes).
-parse_config_var() {
-  local config="$1" var="$2"
-  grep -m1 "^${var}=" "$config" 2>/dev/null | cut -d= -f2- | sed "s/^['\"]//; s/['\"]$//" || true
-}
-
-# Extract EXTRA_MOUNTS from a .agenticrc config file, expanding ~ to $HOME.
-parse_project_config() {
-  local config="$1"
-  local value
-  value=$(parse_config_var "$config" "EXTRA_MOUNTS")
-  echo "${value//'~'/$HOME}"
 }
 
 # Run a build or clean script for a single tool.
@@ -331,28 +258,6 @@ EOF
 
 ensure_volume() {
   docker volume create --label "project=agentic-cli" "$1" >/dev/null
-}
-
-ensure_extra_mount_volumes() {
-  local i mount mount_left
-  for i in "${!EXTRA_MOUNTS[@]}"; do
-    mount="${EXTRA_MOUNTS[$i]}"
-    mount_left="${mount%%:*}"
-    mount_left="${mount_left/\~/$HOME}"
-
-    if [[ -n "$mount_left" && "$mount_left" != /* ]]; then
-      if ! docker volume inspect "$mount_left" >/dev/null 2>&1; then
-        ensure_volume "$mount_left"
-
-        # Docker initialises new volumes as root:root; fix ownership so the
-        # container user (matched to the host uid/gid) can write to them.
-        docker run --rm -v "${mount_left}:/vol" --user root \
-          busybox chown "$(id -u):$(id -g)" /vol >/dev/null
-      fi
-
-      EXTRA_MOUNTS[$i]="${mount_left}:${mount#*:}"
-    fi
-  done
 }
 
 create_volume() {
@@ -543,7 +448,7 @@ cmd_help() {
   volumes) usage_volumes ;;
   completion) usage_completion ;;
   aliases) usage_aliases ;;
-  run) usage_run ;;
+  run) exec agentic-cli run --help ;;
   help | "") usage ;;
   *)
     echo "Error: unknown command '${1}'"
@@ -855,135 +760,9 @@ help)
   ;;
 esac
 
-# --- Arguments ---
-TOOL_HOME="${AGENTIC_HOME:-${HOME}/.agentic}"
-IFS=',' read -ra EXTRA_MOUNTS <<<"${AGENTIC_EXTRA_MOUNTS:-}"
-
-PIDS_LIMIT="${AGENTIC_PIDS_LIMIT:-1024}"
-CPUS="${AGENTIC_CPUS:-4}"
-MEMORY="${AGENTIC_MEMORY:-4g}"
-
-PIDS_LIMIT_CLI_SET=0
-CPUS_CLI_SET=0
-MEMORY_CLI_SET=0
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-  --home)
-    TOOL_HOME="${2:-}"
-    if [[ -z "$TOOL_HOME" ]]; then
-      echo "Error: --home requires a path"
-      exit 1
-    fi
-    shift 2
-    ;;
-  --volume | -v)
-    if [[ -z "${2:-}" ]]; then
-      echo "Error: --volume requires a value"
-      exit 1
-    fi
-    EXTRA_MOUNTS+=("$2")
-    shift 2
-    ;;
-  --pids-limit)
-    if [[ -z "${2:-}" ]]; then
-      echo "Error: --pids-limit requires a value"
-      exit 1
-    fi
-    PIDS_LIMIT="$2"
-    PIDS_LIMIT_CLI_SET=1
-    shift 2
-    ;;
-  --cpus)
-    if [[ -z "${2:-}" ]]; then
-      echo "Error: --cpus requires a value"
-      exit 1
-    fi
-    CPUS="$2"
-    CPUS_CLI_SET=1
-    shift 2
-    ;;
-  --memory)
-    if [[ -z "${2:-}" ]]; then
-      echo "Error: --memory requires a value"
-      exit 1
-    fi
-    MEMORY="$2"
-    MEMORY_CLI_SET=1
-    shift 2
-    ;;
-  -*)
-    if [[ -z "${AGENTIC_DEFAULT_TOOL:-}" ]]; then
-      echo "Error: unknown option '$1'"
-      echo ""
-      usage
-      exit 1
-    fi
-    break
-    ;;
-  *)
-    break
-    ;;
-  esac
-done
-
-# --- Project config ---
-PROJECT_CONFIG="$(find_project_config)"
-if [[ -n "$PROJECT_CONFIG" ]]; then
-  PROJECT_EXTRA_MOUNTS="$(parse_project_config "$PROJECT_CONFIG")"
-  if [[ -n "$PROJECT_EXTRA_MOUNTS" ]]; then
-    IFS=',' read -ra PROJECT_MOUNTS <<<"$PROJECT_EXTRA_MOUNTS"
-    EXTRA_MOUNTS+=("${PROJECT_MOUNTS[@]}")
-  fi
-
-  rc_val="$(parse_config_var "$PROJECT_CONFIG" "PIDS_LIMIT")"
-  [[ -n "$rc_val" && "$PIDS_LIMIT_CLI_SET" -eq 0 ]] && PIDS_LIMIT="$rc_val"
-
-  rc_val="$(parse_config_var "$PROJECT_CONFIG" "CPUS")"
-  [[ -n "$rc_val" && "$CPUS_CLI_SET" -eq 0 ]] && CPUS="$rc_val"
-
-  rc_val="$(parse_config_var "$PROJECT_CONFIG" "MEMORY")"
-  [[ -n "$rc_val" && "$MEMORY_CLI_SET" -eq 0 ]] && MEMORY="$rc_val"
-fi
-
-# --- Named volumes ---
-# Auto-create any named Docker volumes referenced in EXTRA_MOUNTS (left side with no '/').
-[[ ${#EXTRA_MOUNTS[@]} -gt 0 ]] && ensure_extra_mount_volumes
-
-# --- Validation ---
-if [[ "${1:-}" == -* ]]; then
-  TOOL="$AGENTIC_DEFAULT_TOOL"
-else
-  TOOL="${1:-$AGENTIC_DEFAULT_TOOL}"
-fi
-
-if [[ -z "$TOOL" ]]; then
-  echo "Error: no tool specified and AGENTIC_DEFAULT_TOOL is not set"
-  echo ""
-  usage
-  exit 1
-fi
-
-SCRIPT="$REPO_ROOT/tools/$TOOL/run.sh"
-if [[ ! -f "$SCRIPT" ]]; then
-  echo "Error: unknown tool '$TOOL'"
-  echo ""
-  usage
-  exit 1
-fi
-
-mkdir -p "${TOOL_HOME}"
-
 # --- Run ---
-export AGENTIC_HOME="${TOOL_HOME}"
-export AGENTIC_EXTRA_MOUNTS="$(
-  IFS=','
-  echo "${EXTRA_MOUNTS[*]:-}"
-)"
-
-export AGENTIC_PIDS_LIMIT="$PIDS_LIMIT"
-export AGENTIC_CPUS="$CPUS"
-export AGENTIC_MEMORY="$MEMORY"
-
-[[ "${1:-}" == "$TOOL" ]] && shift
-exec "$SCRIPT" "$@"
+if ! command -v agentic-cli >/dev/null 2>&1; then
+  echo "Error: agentic-cli not found on PATH. Install it with 'make install'."
+  exit 1
+fi
+exec agentic-cli run "$@"
