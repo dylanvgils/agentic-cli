@@ -1,7 +1,8 @@
 package docker
 
 import (
-	"os/exec"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,9 +13,9 @@ type dockerCall struct {
 	args []string
 }
 
-// captureDockerCmd replaces dockerCmd with a stub that records calls.
+// captureDockerRun replaces dockerRun with a stub that records calls.
 // failSubcmds lists "verb sub" pairs (e.g. "volume inspect") that should fail.
-func captureDockerCmd(t *testing.T, failSubcmds ...string) (func() []dockerCall, func()) {
+func captureDockerRun(t *testing.T, failSubcmds ...string) (func() []dockerCall, func()) {
 	t.Helper()
 	var calls []dockerCall
 	failing := make(map[string]bool, len(failSubcmds))
@@ -22,60 +23,72 @@ func captureDockerCmd(t *testing.T, failSubcmds ...string) (func() []dockerCall,
 		failing[s] = true
 	}
 
-	orig := dockerCmd
-	dockerCmd = func(args ...string) *exec.Cmd {
+	orig := dockerRun
+	dockerRun = func(args ...string) (string, error) {
 		calls = append(calls, dockerCall{args: args})
 		key := args[0]
-		if len(args) > 1 {
+		if len(args) > 1 && !strings.HasPrefix(args[1], "-") {
 			key += " " + args[1]
 		}
 		if failing[key] {
-			return exec.Command("false")
+			return "", fmt.Errorf("stub: %s failed", key)
 		}
-		return exec.Command("true")
+		return "", nil
 	}
 
 	get := func() []dockerCall { return calls }
-	restore := func() { dockerCmd = orig }
+	restore := func() { dockerRun = orig }
 	return get, restore
 }
 
 func TestEnsureNamedVolumes_skipsAbsolutePath(t *testing.T) {
-	get, restore := captureDockerCmd(t)
+	// Arrange
+	get, restore := captureDockerRun(t)
 	defer restore()
 
+	// Act
 	err := EnsureNamedVolumes([]string{"/host/path:/container"}, "", "")
 
+	// Assert
 	require.NoError(t, err)
 	assert.Empty(t, get())
 }
 
 func TestEnsureNamedVolumes_skipsToolHomeExpanded(t *testing.T) {
-	get, restore := captureDockerCmd(t)
+	// Arrange
+	get, restore := captureDockerRun(t)
 	defer restore()
 
+	// Act
 	err := EnsureNamedVolumes([]string{"$TOOL_HOME/data:/container"}, "/home/.agentic", "")
 
+	// Assert
 	require.NoError(t, err)
 	assert.Empty(t, get())
 }
 
 func TestEnsureNamedVolumes_skipsEmptyLeft(t *testing.T) {
-	get, restore := captureDockerCmd(t)
+	// Arrange
+	get, restore := captureDockerRun(t)
 	defer restore()
 
+	// Act
 	err := EnsureNamedVolumes([]string{":/container"}, "", "")
 
+	// Assert
 	require.NoError(t, err)
 	assert.Empty(t, get())
 }
 
 func TestEnsureNamedVolumes_existingVolume_skipsCreateAndChown(t *testing.T) {
-	get, restore := captureDockerCmd(t) // inspect succeeds -> volume exists
+	// Arrange
+	get, restore := captureDockerRun(t) // inspect succeeds -> volume exists
 	defer restore()
 
+	// Act
 	err := EnsureNamedVolumes([]string{"maven:/container"}, "", "")
 
+	// Assert
 	require.NoError(t, err)
 	calls := get()
 	require.Len(t, calls, 1)
@@ -83,59 +96,63 @@ func TestEnsureNamedVolumes_existingVolume_skipsCreateAndChown(t *testing.T) {
 }
 
 func TestEnsureNamedVolumes_newVolume_createsAndChowns(t *testing.T) {
-	get, restore := captureDockerCmd(t, "volume inspect")
+	// Arrange
+	get, restore := captureDockerRun(t, "volume inspect")
 	defer restore()
 
+	// Act
 	err := EnsureNamedVolumes([]string{"maven:/container"}, "", "")
 
+	// Assert
 	require.NoError(t, err)
 	calls := get()
 	require.Len(t, calls, 3)
 	assert.Equal(t, []string{"volume", "inspect", "maven"}, calls[0].args)
 	assert.Equal(t, []string{"volume", "create", "--label", "project=agentic-cli", "maven"}, calls[1].args)
 	assert.Equal(t, "run", calls[2].args[0])
-	assert.Contains(t, calls[2].args, "maven:/vol")
+	assert.Contains(t, calls[2].args, "--volume=maven:/vol")
+	assert.Contains(t, calls[2].args, "--user=root")
 	assert.Contains(t, calls[2].args, "busybox")
 	assert.Contains(t, calls[2].args, "chown")
 }
 
 func TestEnsureNamedVolumes_createFails_returnsError(t *testing.T) {
-	_, restore := captureDockerCmd(t, "volume inspect", "volume create")
+	// Arrange
+	_, restore := captureDockerRun(t, "volume inspect", "volume create")
 	defer restore()
 
+	// Act
 	err := EnsureNamedVolumes([]string{"maven:/container"}, "", "")
 
+	// Assert
 	assert.ErrorContains(t, err, "create volume maven")
 }
 
 func TestEnsureNamedVolumes_chownFails_returnsError(t *testing.T) {
-	orig := dockerCmd
-	dockerCmd = func(args ...string) *exec.Cmd {
-		if args[0] == "volume" && args[1] == "inspect" {
-			return exec.Command("false")
-		}
-		if args[0] == "run" {
-			return exec.Command("false")
-		}
-		return exec.Command("true")
-	}
-	defer func() { dockerCmd = orig }()
+	// Arrange
+	_, restore := captureDockerRun(t, "volume inspect", "run")
+	defer restore()
 
+	// Act
 	err := EnsureNamedVolumes([]string{"maven:/container"}, "", "")
 
+	// Assert
 	assert.ErrorContains(t, err, "chown volume maven")
 }
 
 func TestEnsureNamedVolumes_multipleVolumes(t *testing.T) {
-	get, restore := captureDockerCmd(t, "volume inspect")
+	// Arrange
+	get, restore := captureDockerRun(t, "volume inspect")
 	defer restore()
 
+	// Act
 	err := EnsureNamedVolumes([]string{
 		"/host:/container",
 		"maven:/m2",
 		"gradle:/gradle",
 	}, "", "")
 
+	// Assert
 	require.NoError(t, err)
 	calls := get()
 	// Two named volumes: inspect+create+chown each = 6 calls
@@ -150,11 +167,14 @@ func TestEnsureNamedVolumes_multipleVolumes(t *testing.T) {
 }
 
 func TestEnsureNamedVolumes_emptyList(t *testing.T) {
-	get, restore := captureDockerCmd(t)
+	// Arrange
+	get, restore := captureDockerRun(t)
 	defer restore()
 
+	// Act
 	err := EnsureNamedVolumes([]string{}, "", "")
 
+	// Assert
 	require.NoError(t, err)
 	assert.Empty(t, get())
 }

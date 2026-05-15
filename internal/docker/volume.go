@@ -2,16 +2,10 @@ package docker
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
-
-// dockerCmd is a var so tests can replace it.
-var dockerCmd = func(args ...string) *exec.Cmd {
-	return exec.Command("docker", args...)
-}
 
 // EnsureNamedVolumes inspects each volume spec and, for any that reference a
 // named Docker volume (left side has no leading "/"), creates the volume if it
@@ -31,18 +25,24 @@ func EnsureNamedVolumes(volumes []string, toolHome, containerHome string) error 
 }
 
 func ensureVolume(name string) error {
-	if err := dockerCmd("volume", "inspect", name).Run(); err == nil {
+	if _, err := dockerRun("volume", "inspect", name); err == nil {
 		return nil
 	}
 
-	if out, err := dockerCmd("volume", "create", "--label", "project=agentic-cli", name).CombinedOutput(); err != nil {
-		return fmt.Errorf("create volume %s: %w\n%s", name, err, out)
+	createArgs := []string{"volume", "create", "--label", "project=agentic-cli", name}
+	if _, err := dockerRun(createArgs...); err != nil {
+		return fmt.Errorf("create volume %s: %w", name, err)
 	}
 
-	mount := fmt.Sprintf("%s:/vol", name)
-	if out, err := dockerCmd("run", "--rm", "-v", mount, "--user", "root",
-		"busybox", "chown", platform.UserGroup(), "/vol").CombinedOutput(); err != nil {
-		return fmt.Errorf("chown volume %s: %w\n%s", name, err, out)
+	chownArgs := []string{
+		"run", "--rm",
+		arg("volume", fmt.Sprintf("%s:/vol", name)),
+		arg("user", "root"),
+		"busybox", "chown", platform.UserGroup(), "/vol",
+	}
+
+	if _, err := dockerRun(chownArgs...); err != nil {
+		return fmt.Errorf("chown volume %s: %w", name, err)
 	}
 
 	return nil

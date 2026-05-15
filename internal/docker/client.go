@@ -8,6 +8,12 @@ import (
 	"os/exec"
 )
 
+// dockerRun and runInteractive are vars so tests can replace them.
+var (
+	dockerRun      = Run
+	runInteractive = RunInteractive
+)
+
 // Run executes `docker <args>` and returns combined stdout+stderr.
 // Use RunInteractive for commands that need a TTY.
 func Run(args ...string) (string, error) {

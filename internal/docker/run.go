@@ -34,20 +34,6 @@ func ExpandMountVars(spec, toolHome, containerHome string) string {
 	return s
 }
 
-var runInteractive = RunInteractive
-
-// arg builds a --name=value Docker flag.
-// Panics if name is empty or starts with '-' (programmer error).
-func arg(name, value string) string {
-	if name == "" {
-		panic("docker: arg name must not be empty")
-	}
-	if strings.HasPrefix(name, "-") {
-		panic("docker: arg name must not start with '-', got: " + name)
-	}
-	return "--" + name + "=" + value
-}
-
 // resolveLimit returns val if non-empty, then the env var, then fallback.
 // Mirrors the bash ${VAR:-default} pattern used in bin/agentic.
 func resolveLimit(val, envKey, fallback string) string {
