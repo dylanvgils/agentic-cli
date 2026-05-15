@@ -17,6 +17,7 @@ Example: `/migrate-to-go completion`
 ### 1. Read the bash source
 
 In `bin/agentic`, find and read:
+
 - `usage_<cmd>()` — understand the flags, arguments, and help text
 - `cmd_<cmd>()` — understand inputs, outputs, and what Docker/tool APIs it uses
 
@@ -42,7 +43,7 @@ var <cmd>Cmd = &cobra.Command{
     Use:       "<cmd> [args]",
     Short:     "<one-line description>",
     Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
-    ValidArgs: tools.Names(), // or []string{"bash", "zsh"} etc.
+    ValidArgs: tools.Names(), // or a fixed []string if args are not tool names
     RunE:      run<Cmd>,
 }
 
@@ -52,6 +53,7 @@ func run<Cmd>(_ *cobra.Command, args []string) error {
 ```
 
 Key reusable pieces (all in `cmd/root.go` and `internal/`):
+
 - `inspectImage` — package-level var wrapping `docker.InspectImage`; returns `nil, nil` when image not built
 - `tools.Names()` — sorted tool name list
 - `tools.ImageName(name)` — returns `("agentic-<name>", error)`
@@ -59,6 +61,7 @@ Key reusable pieces (all in `cmd/root.go` and `internal/`):
 ### 3. Create `cmd/<command>_test.go`
 
 Use `package cmd` to access internal helpers. Reuse from `inspect_test.go`:
+
 - `captureStdout(t, fn)` — captures what `fn` prints to stdout
 - `stubInspectImage(t, info, err)` — replaces `inspectImage` for the test; returns a restore func
 
@@ -71,6 +74,7 @@ a. **Remove** `usage_<cmd>()` — help is now served by `agentic-cli <cmd> --hel
 b. **Remove** `cmd_<cmd>()` — logic lives in Go
 
 c. **Replace** the dispatch case:
+
 ```bash
 <cmd>)
   exec agentic-cli <cmd> "${@:2}"
@@ -78,6 +82,7 @@ c. **Replace** the dispatch case:
 ```
 
 d. **Replace** the `cmd_help` case:
+
 ```bash
 <cmd>) exec agentic-cli <cmd> --help ;;
 ```
