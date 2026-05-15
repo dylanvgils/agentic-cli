@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -19,6 +20,7 @@ type RunSpec struct {
 	PidsLimit      string
 	CPUs           string
 	Memory         string
+	DryRun         bool
 }
 
 // ExpandMountVars replaces $TOOL_HOME, ${TOOL_HOME}, $CONTAINER_HOME, ${CONTAINER_HOME},
@@ -90,5 +92,22 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 
 	args = append(args, rs.Image)
 	args = append(args, toolArgs...)
+
+	if rs.DryRun {
+		fmt.Fprintln(os.Stdout, "docker", shellJoin(args))
+		return nil
+	}
 	return runInteractive(args...)
+}
+
+func shellJoin(args []string) string {
+	parts := make([]string, len(args))
+	for i, a := range args {
+		if strings.ContainsAny(a, " \t$") {
+			parts[i] = "'" + strings.ReplaceAll(a, "'", `'\''`) + "'"
+		} else {
+			parts[i] = a
+		}
+	}
+	return strings.Join(parts, " ")
 }

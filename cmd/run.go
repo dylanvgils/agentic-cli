@@ -18,6 +18,7 @@ var (
 	pidsLimit    string
 	cpus         string
 	memory       string
+	dryRun       bool
 )
 
 var (
@@ -40,6 +41,7 @@ func init() {
 	runToolCmd.Flags().StringVar(&pidsLimit, "pids-limit", "", "container PID limit")
 	runToolCmd.Flags().StringVar(&cpus, "cpus", "", "CPU limit")
 	runToolCmd.Flags().StringVar(&memory, "memory", "", "memory limit")
+	runToolCmd.Flags().BoolVar(&dryRun, "dry-run", false, "print the docker command without running it")
 	runToolCmd.Flags().SetInterspersed(false)
 }
 
@@ -117,6 +119,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		PidsLimit:      pidsLimit,
 		CPUs:           cpus,
 		Memory:         memory,
+		DryRun:         dryRun,
 	}
 
 	return runContainer(rs, toolArgs)
