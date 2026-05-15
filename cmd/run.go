@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -19,7 +20,10 @@ var (
 	memory       string
 )
 
-var runContainer = docker.RunContainer
+var (
+	runContainer       = docker.RunContainer
+	ensureNamedVolumes = docker.EnsureNamedVolumes
+)
 
 func init() {
 	rootCmd.AddCommand(runToolCmd)
@@ -79,6 +83,13 @@ func runTool(cmd *cobra.Command, args []string) error {
 		volumes = append(toolConfig.Mounts(home), volumes...)
 		spec.TmpfsExecTmp = toolConfig.TmpfsExecTmp
 	}
+	if env := os.Getenv("AGENTIC_EXTRA_MOUNTS"); env != "" {
+		for m := range strings.SplitSeq(env, ",") {
+			if m != "" {
+				volumes = append(volumes, m)
+			}
+		}
+	}
 	volumes = append(volumes, extraVolumes...)
 	volumes = append(volumes, rc.ExtraMounts...)
 
@@ -90,6 +101,10 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 	if memory == "" {
 		memory = rc.Memory
+	}
+
+	if err := ensureNamedVolumes(volumes, toolHome, containerHome); err != nil {
+		return err
 	}
 
 	rs := docker.RunSpec{

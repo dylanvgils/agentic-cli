@@ -9,22 +9,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// captureRunContainer replaces the runContainer var with a mock that records
-// the RunSpec and tool args passed to it. Returns a getter and a restore func.
+// captureRunContainer replaces runContainer and ensureNamedVolumes with stubs
+// that record the RunSpec and tool args. Returns a getter and a restore func.
 func captureRunContainer(t *testing.T) (func() (docker.RunSpec, []string), func()) {
 	t.Helper()
 	var capturedSpec docker.RunSpec
 	var capturedArgs []string
 
-	orig := runContainer
+	origRun := runContainer
 	runContainer = func(rs docker.RunSpec, args []string) error {
 		capturedSpec = rs
 		capturedArgs = args
 		return nil
 	}
 
+	origEnsure := ensureNamedVolumes
+	ensureNamedVolumes = func(volumes []string, toolHome, containerHome string) error {
+		return nil
+	}
+
 	get := func() (docker.RunSpec, []string) { return capturedSpec, capturedArgs }
-	restore := func() { runContainer = orig }
+	restore := func() {
+		runContainer = origRun
+		ensureNamedVolumes = origEnsure
+	}
 	return get, restore
 }
 
@@ -191,6 +199,54 @@ func TestRunTool_agenticrcResourceLimits(t *testing.T) {
 	assert.Equal(t, "512", rs.PidsLimit)
 	assert.Equal(t, "2", rs.CPUs)
 	assert.Equal(t, "2g", rs.Memory)
+}
+
+func TestRunTool_agenticExtraMountsEnv(t *testing.T) {
+	// Arrange
+	withTempToolHome(t)
+	t.Chdir(t.TempDir())
+	t.Setenv("AGENTIC_EXTRA_MOUNTS", "vol:/mnt/data")
+	get, restore := captureRunContainer(t)
+	defer restore()
+
+	// Act
+	err := runTool(runToolCmd, []string{"claude"})
+
+	// Assert
+	require.NoError(t, err)
+	rs, _ := get()
+	assert.Contains(t, rs.Volumes, "vol:/mnt/data")
+	// env mounts appear before CLI -v flags (after tool defaults)
+	defaultEnd := 2 // last tool-default index
+	envIdx := -1
+	for i, v := range rs.Volumes {
+		if v == "vol:/mnt/data" {
+			envIdx = i
+		}
+	}
+	assert.Greater(t, envIdx, defaultEnd, "env mount should come after tool defaults")
+}
+
+func TestRunTool_agenticExtraMountsEnv_empty(t *testing.T) {
+	// Arrange
+	withTempToolHome(t)
+	t.Chdir(t.TempDir())
+	t.Setenv("AGENTIC_EXTRA_MOUNTS", "")
+	get, restore := captureRunContainer(t)
+	defer restore()
+
+	// Act
+	err := runTool(runToolCmd, []string{"claude"})
+
+	// Assert
+	require.NoError(t, err)
+	rs, _ := get()
+	// Only tool-default mounts; no empty entry added
+	assert.Equal(t, []string{
+		"$PWD:/workspace",
+		"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude",
+		"$TOOL_HOME/claude/.claude.json:$CONTAINER_HOME/.claude.json",
+	}, rs.Volumes)
 }
 
 func TestRunTool_toolHome(t *testing.T) {
