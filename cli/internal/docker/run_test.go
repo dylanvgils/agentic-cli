@@ -228,6 +228,6 @@ func TestRunContainer_volumes(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	args := get()
-	assert.Contains(t, args, "/host:/container")
-	assert.Contains(t, args, "/home/.agentic/data:/data")
+	assert.Contains(t, args, "--volume=/host:/container")
+	assert.Contains(t, args, "--volume=/home/.agentic/data:/data")
 }

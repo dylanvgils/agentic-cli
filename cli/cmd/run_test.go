@@ -28,6 +28,15 @@ func captureRunContainer(t *testing.T) (func() (docker.RunSpec, []string), func(
 	return get, restore
 }
 
+// withTempToolHome sets toolHome to a temp dir for the duration of the test.
+func withTempToolHome(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	orig := toolHome
+	toolHome = dir
+	t.Cleanup(func() { toolHome = orig })
+}
+
 func TestRunTool_noArgs_printsHelp(t *testing.T) {
 	// Arrange
 	get, restore := captureRunContainer(t)
@@ -44,6 +53,7 @@ func TestRunTool_noArgs_printsHelp(t *testing.T) {
 
 func TestRunTool_buildsImageName(t *testing.T) {
 	// Arrange
+	withTempToolHome(t)
 	get, restore := captureRunContainer(t)
 	defer restore()
 
@@ -59,6 +69,7 @@ func TestRunTool_buildsImageName(t *testing.T) {
 
 func TestRunTool_passesToolArgs(t *testing.T) {
 	// Arrange
+	withTempToolHome(t)
 	get, restore := captureRunContainer(t)
 	defer restore()
 
@@ -73,6 +84,7 @@ func TestRunTool_passesToolArgs(t *testing.T) {
 
 func TestRunTool_dashDash_setsSkipEntrypoint(t *testing.T) {
 	// Arrange
+	withTempToolHome(t)
 	get, restore := captureRunContainer(t)
 	defer restore()
 
@@ -88,6 +100,7 @@ func TestRunTool_dashDash_setsSkipEntrypoint(t *testing.T) {
 
 func TestRunTool_dashDash_noTrailingArgs(t *testing.T) {
 	// Arrange
+	withTempToolHome(t)
 	get, restore := captureRunContainer(t)
 	defer restore()
 
@@ -103,6 +116,7 @@ func TestRunTool_dashDash_noTrailingArgs(t *testing.T) {
 
 func TestRunTool_extraVolumes(t *testing.T) {
 	// Arrange
+	withTempToolHome(t)
 	t.Chdir(t.TempDir()) // isolate from workspace .agenticrc
 	get, restore := captureRunContainer(t)
 	defer restore()
@@ -116,11 +130,17 @@ func TestRunTool_extraVolumes(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	rs, _ := get()
-	assert.Equal(t, []string{"/host:/container"}, rs.Volumes)
+	assert.Equal(t, []string{
+		"$PWD:/workspace",
+		"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude",
+		"$TOOL_HOME/claude/.claude.json:$CONTAINER_HOME/.claude.json",
+		"/host:/container",
+	}, rs.Volumes)
 }
 
 func TestRunTool_agenticrcMountsAppended(t *testing.T) {
 	// Arrange
+	withTempToolHome(t)
 	dir := t.TempDir()
 	t.Chdir(dir)
 	require.NoError(t, os.WriteFile(
@@ -140,11 +160,18 @@ func TestRunTool_agenticrcMountsAppended(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	rs, _ := get()
-	assert.Equal(t, []string{"/host:/container", "myvolume:/mnt/data"}, rs.Volumes)
+	assert.Equal(t, []string{
+		"$PWD:/workspace",
+		"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude",
+		"$TOOL_HOME/claude/.claude.json:$CONTAINER_HOME/.claude.json",
+		"/host:/container",
+		"myvolume:/mnt/data",
+	}, rs.Volumes)
 }
 
 func TestRunTool_agenticrcResourceLimits(t *testing.T) {
 	// Arrange
+	withTempToolHome(t)
 	dir := t.TempDir()
 	t.Chdir(dir)
 	require.NoError(t, os.WriteFile(
@@ -171,7 +198,8 @@ func TestRunTool_toolHome(t *testing.T) {
 	get, restore := captureRunContainer(t)
 	defer restore()
 	origHome := toolHome
-	toolHome = "/custom/home"
+	customHome := t.TempDir()
+	toolHome = customHome
 	defer func() { toolHome = origHome }()
 
 	// Act
@@ -180,5 +208,5 @@ func TestRunTool_toolHome(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	rs, _ := get()
-	assert.Equal(t, "/custom/home", rs.ToolHome)
+	assert.Equal(t, customHome, rs.ToolHome)
 }

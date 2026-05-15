@@ -12,6 +12,7 @@ import (
 type RunSpec struct {
 	Image          string
 	ToolHome       string
+	ContainerHome  string
 	Volumes        []string
 	SkipEntrypoint bool
 	Spec           config.RunSpec
@@ -93,7 +94,7 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	args = append(args, "--tmpfs", "/tmp:"+tmpFlags)
 
 	for _, v := range rs.Volumes {
-		varg := arg("volume", ExpandMountVars(v, rs.ToolHome, ""))
+		varg := arg("volume", ExpandMountVars(v, rs.ToolHome, rs.ContainerHome))
 		args = append(args, varg)
 	}
 

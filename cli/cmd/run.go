@@ -7,10 +7,9 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
-
-var validTools = []string{"claude", "copilot", "opencode"}
 
 var (
 	toolHome     string
@@ -45,7 +44,7 @@ var runToolCmd = &cobra.Command{
 	Short:     "Run a tool container",
 	Long:      `Run a tool container in the current directory.`,
 	Args:      cobra.ArbitraryArgs,
-	ValidArgs: validTools,
+	ValidArgs: tools.Names(),
 	RunE:      runTool,
 	Hidden:    false,
 }
@@ -67,7 +66,22 @@ func runTool(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	rc := config.FindAndLoad(cwd)
 
-	volumes := append(extraVolumes, rc.ExtraMounts...)
+	containerHome := docker.ResolveContainerHome(imageName)
+
+	var volumes []string
+	var spec config.RunSpec
+	if toolConfig, ok := tools.Configs[toolName]; ok {
+		if err := toolConfig.Setup(toolHome); err != nil {
+			return fmt.Errorf("setup %s: %w", toolName, err)
+		}
+
+		home, _ := os.UserHomeDir()
+		volumes = append(toolConfig.Mounts(home), volumes...)
+		spec.TmpfsExecTmp = toolConfig.TmpfsExecTmp
+	}
+	volumes = append(volumes, extraVolumes...)
+	volumes = append(volumes, rc.ExtraMounts...)
+
 	if pidsLimit == "" {
 		pidsLimit = rc.PidsLimit
 	}
@@ -81,8 +95,10 @@ func runTool(cmd *cobra.Command, args []string) error {
 	rs := docker.RunSpec{
 		Image:          imageName,
 		ToolHome:       toolHome,
+		ContainerHome:  containerHome,
 		Volumes:        volumes,
 		SkipEntrypoint: skipEntrypoint,
+		Spec:           spec,
 		PidsLimit:      pidsLimit,
 		CPUs:           cpus,
 		Memory:         memory,
