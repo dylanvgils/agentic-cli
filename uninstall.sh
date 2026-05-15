@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 BIN_DIR="$HOME/.local/bin"
 BINARY="agentic"
 
@@ -11,3 +12,6 @@ fi
 
 rm "$BIN_DIR/$BINARY"
 echo "Removed $BIN_DIR/$BINARY"
+
+(cd "$REPO_DIR" && make uninstall)
+echo "Removed $BIN_DIR/$BINARY-cli"

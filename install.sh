@@ -15,6 +15,8 @@ fi
 ln -s "$REPO_DIR/bin/$BINARY" "$BIN_DIR/$BINARY"
 echo "Installed $BINARY -> $BIN_DIR/$BINARY"
 
+(cd "$REPO_DIR" && make install)
+
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
   echo ""
   echo "Warning: $BIN_DIR is not in your PATH."

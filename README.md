@@ -10,6 +10,8 @@ Each tool runs in an isolated, read-only container with only the minimal mounts 
 
 - Docker
 - Git
+- Go
+- Make
 
 ## 🚀 Installation
 
@@ -366,8 +368,8 @@ The copilot tool will also use `$HOME/.secrets/copilot_token` if it exists, to r
 
 ```
 agentic-cli/
-├── install.sh                   # Symlink agentic into ~/.local/bin
-├── uninstall.sh                 # Remove the symlink
+├── install.sh                   # Symlink agentic into ~/.local/bin and build agentic-cli
+├── uninstall.sh                 # Remove the symlink and agentic-cli binary
 ├── bin/
 │   └── agentic                  # Main entrypoint: build, clean, and run tools
 ├── tools/
