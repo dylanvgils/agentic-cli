@@ -27,16 +27,16 @@ agentic <tool> [args]
 - Section headers as `# --- Section Name ---` comments
 
 ### Tool structure
-Each tool in `tools/<name>/` must implement exactly: `config.sh`, `build.sh`, `clean.sh`, `update.sh`, `Dockerfile`, `entrypoint.sh`. Tools are discovered dynamically by scanning for `config.sh` - no registration needed anywhere.
+Each tool in `tools/<name>/` must implement exactly: `config.sh`, `build.sh`, `update.sh`, `Dockerfile`, `entrypoint.sh`. Tools are discovered dynamically by scanning for `config.sh` - no registration needed anywhere.
 
 `config.sh` sets `BASE`, `IMAGE`, `VERSION_CMD` and sources `shared/config.sh` (which sets `TOOL_HOME`).
 
-`build.sh`, `clean.sh`, and `update.sh` are one-liners: source `config.sh` + call the shared function.
+`build.sh` and `update.sh` are one-liners: source `config.sh` + call the shared function.
 
 Tool execution is handled entirely by the Go CLI (`agentic-cli run <tool>`). Tool-specific mount configuration and setup live in `internal/tools/<tool>.go`.
 
 ### Shared scripts
-`shared/scripts/` scripts are sourced, not executed. They expose functions for building and cleaning images (`build-common.sh`, `clean-common.sh`, `repo-root.sh`).
+`shared/scripts/` scripts are sourced, not executed. They expose functions for building images (`build-common.sh`, `repo-root.sh`).
 
 ### Adding a new runtime layer
 Drop a `Dockerfile` in `shared/base/<name>/`. It must accept `BASE_IMAGE` as a build arg. The build system derives the version env var as `AGENTIC_<NAME>_VERSION` automatically.

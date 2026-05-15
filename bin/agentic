@@ -76,17 +76,6 @@ Examples:
 EOF
 }
 
-usage_clean() {
-  cat <<EOF
-Usage: agentic clean [tool]
-
-Remove tool image(s). Cleans all tools and base images if no tool specified.
-
-Examples:
-  agentic clean
-  agentic clean claude
-EOF
-}
 
 usage_completion() {
   cat <<EOF
@@ -348,19 +337,6 @@ cmd_update() {
 }
 
 # --- Clean ---
-cmd_clean() {
-  local tool="${1:-}"
-  if [[ -n "$tool" ]]; then
-    run_tool_script clean "$tool"
-  else
-    for script in "$REPO_ROOT/tools"/*/clean.sh; do
-      run_tool_script clean "$(basename "$(dirname "$script")")"
-    done
-    echo "=> base"
-    docker images --format '{{.Repository}}' | grep '^agentic-base' | xargs -r docker rmi -f
-  fi
-}
-
 # --- Help ---
 handle_help() {
   local cmd="$1" flag="${2:-}"
@@ -374,7 +350,7 @@ cmd_help() {
   case "${1:-}" in
   build) usage_build ;;
   update) usage_update ;;
-  clean) usage_clean ;;
+  clean) exec agentic-cli clean --help ;;
   inspect) exec agentic-cli inspect --help ;;
   volumes) usage_volumes ;;
   completion) usage_completion ;;
@@ -624,9 +600,7 @@ update)
   ;;
 
 clean)
-  handle_help clean "${2:-}"
-  cmd_clean "${2:-}"
-  exit 0
+  exec agentic-cli clean "${@:2}"
   ;;
 
 inspect)

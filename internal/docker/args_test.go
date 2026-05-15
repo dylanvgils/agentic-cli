@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestArg_buildsFlag(t *testing.T) {
+func TestArg_buildsFlagWithValue(t *testing.T) {
 	// Act
 	result := arg("volume", "/host:/container")
 
@@ -14,12 +14,25 @@ func TestArg_buildsFlag(t *testing.T) {
 	assert.Equal(t, "--volume=/host:/container", result)
 }
 
+func TestArg_buildsFlagWithoutValue(t *testing.T) {
+	// Act
+	result := arg("force")
+
+	// Assert
+	assert.Equal(t, "--force", result)
+}
+
 func TestArg_emptyNamePanics(t *testing.T) {
 	// Act + Assert
-	assert.Panics(t, func() { arg("", "value") })
+	assert.Panics(t, func() { arg("") })
 }
 
 func TestArg_dashPrefixPanics(t *testing.T) {
 	// Act + Assert
-	assert.Panics(t, func() { arg("-flag", "value") })
+	assert.Panics(t, func() { arg("-flag") })
+}
+
+func TestArg_multipleValuesPanics(t *testing.T) {
+	// Act + Assert
+	assert.Panics(t, func() { arg("filter", "a", "b") })
 }
