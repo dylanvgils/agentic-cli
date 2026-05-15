@@ -4,7 +4,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
 
 	"github.com/dylanvgils/agentic-cli/internal/script"
 	"github.com/spf13/cobra"
@@ -29,7 +28,7 @@ func rootRun(cmd *cobra.Command, args []string) error {
 	}
 
 	// if command not exist forward to old script
-	return delegateToShell(args)
+	return script.Delegate("agentic", args)
 }
 
 // Execute the Agentic CLI
@@ -38,21 +37,4 @@ func Execute() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-}
-
-func delegateToShell(args []string) error {
-	scriptPath := script.FindScript("agentic")
-
-	cmd := exec.Command("bash", append([]string{scriptPath}, args...)...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			os.Exit(exitErr.ExitCode())
-		}
-		return err
-	}
-	return nil
 }

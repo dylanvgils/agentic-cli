@@ -7,6 +7,23 @@ import (
 	"os/exec"
 )
 
+func Delegate(name string, args []string) error {
+	scriptPath := FindScript(name)
+
+	cmd := exec.Command("bash", append([]string{scriptPath}, args...)...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		return err
+	}
+	return nil
+}
+
 func findScriptSafe(name string) string {
 	path, _ := exec.LookPath(name)
 	return path
