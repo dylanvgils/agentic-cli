@@ -58,6 +58,17 @@ Key reusable pieces (all in `cmd/root.go` and `internal/`):
 - `tools.Names()` — sorted tool name list
 - `tools.ImageName(name)` — returns `("agentic-<name>", error)`
 
+When calling `dockerRun` inside `internal/docker/`, use the `arg()` helper (defined in `internal/docker/args.go`) for all Docker flags:
+
+```go
+arg("label", "project=agentic-cli")  // --label=project=agentic-cli
+arg("filter", "label=project=agentic-cli")  // --filter=label=project=agentic-cli
+arg("quiet")  // --quiet
+arg("format", `{{index .Labels "project"}}`)  // --format={{index .Labels "project"}}
+```
+
+Do **not** pass flags as two separate strings (`"--flag"`, `"value"`) — always use `arg()` for consistency with the rest of `internal/docker/`.
+
 ### 3. Create `cmd/<command>_test.go`
 
 Use `package cmd` to access internal helpers. Reuse from `inspect_test.go`:

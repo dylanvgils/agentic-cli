@@ -18,6 +18,10 @@ var (
 	inspectImage       = docker.InspectImage
 	cleanImage         = docker.CleanImage
 	cleanBaseImages    = docker.CleanBaseImages
+	createVolume       = docker.CreateVolume
+	listVolumes        = docker.ListVolumes
+	listVolumeNames    = docker.ListVolumeNames
+	removeVolume       = docker.RemoveVolume
 )
 
 var rootCmd = &cobra.Command{
