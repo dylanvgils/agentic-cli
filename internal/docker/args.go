@@ -2,9 +2,9 @@ package docker
 
 import "strings"
 
-// arg builds a --name=value Docker flag.
-// Panics if name is empty or starts with '-' (programmer error).
-func arg(name, value string) string {
+// arg builds a --name or --name=value Docker flag.
+// Panics if name is empty, starts with '-', or more than one value is given (programmer error).
+func arg(name string, value ...string) string {
 	if name == "" {
 		panic("docker: arg name must not be empty")
 	}
@@ -13,5 +13,13 @@ func arg(name, value string) string {
 		panic("docker: arg name must not start with '-', got: " + name)
 	}
 
-	return "--" + name + "=" + value
+	if len(value) > 1 {
+		panic("docker: arg accepts at most one value")
+	}
+
+	if len(value) == 0 {
+		return "--" + name
+	}
+
+	return "--" + name + "=" + value[0]
 }

@@ -16,6 +16,8 @@ var (
 	runContainer       = docker.RunContainer
 	ensureNamedVolumes = docker.EnsureNamedVolumes
 	inspectImage       = docker.InspectImage
+	cleanImage         = docker.CleanImage
+	cleanBaseImages    = docker.CleanBaseImages
 )
 
 var rootCmd = &cobra.Command{

@@ -87,7 +87,16 @@ d. **Replace** the `cmd_help` case:
 <cmd>) exec agentic-cli <cmd> --help ;;
 ```
 
-### 5. Verify
+### 5. Clean up shell scripts
+
+Check whether any bash helper scripts are now dead code:
+
+- **`tools/<cmd>/` script** — if the command had a `tools/<name>/<cmd>.sh` per tool (e.g. `clean.sh`), delete them now that Go handles the logic directly.
+- **`shared/scripts/<cmd>-common.sh`** — delete if it was only sourced by the per-tool scripts above.
+- **`tools/*/config.sh` comments** — update the header comment (e.g. `# This file is sourced by build.sh, clean.sh and update.sh`) to remove the deleted script.
+- **`CLAUDE.md` tool structure** — remove the deleted script from the `tools/<name>/` required-files list and from the `shared/scripts/` description.
+
+### 6. Verify
 
 ```bash
 go test ./cmd/...

@@ -1,0 +1,45 @@
+package cmd
+
+import (
+	"fmt"
+
+	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/spf13/cobra"
+)
+
+func init() {
+	rootCmd.AddCommand(cleanCmd)
+}
+
+var cleanCmd = &cobra.Command{
+	Use:       "clean [tool]",
+	Short:     "Remove tool image(s)",
+	Long:      "Remove tool image(s). Cleans all tools and base images if no tool specified.",
+	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
+	ValidArgs: tools.Names(),
+	RunE:      runClean,
+}
+
+func runClean(_ *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		return cleanOneTool(args[0])
+	}
+
+	for _, name := range tools.Names() {
+		if err := cleanOneTool(name); err != nil {
+			return err
+		}
+	}
+
+	fmt.Println("=> base")
+	return cleanBaseImages()
+}
+
+func cleanOneTool(name string) error {
+	fmt.Printf("=> %s\n", name)
+	image, err := tools.ImageName(name)
+	if err != nil {
+		return err
+	}
+	return cleanImage(image)
+}
