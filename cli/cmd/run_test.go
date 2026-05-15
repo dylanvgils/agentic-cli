@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -102,6 +103,7 @@ func TestRunTool_dashDash_noTrailingArgs(t *testing.T) {
 
 func TestRunTool_extraVolumes(t *testing.T) {
 	// Arrange
+	t.Chdir(t.TempDir()) // isolate from workspace .agenticrc
 	get, restore := captureRunContainer(t)
 	defer restore()
 	origVolumes := extraVolumes
@@ -115,6 +117,53 @@ func TestRunTool_extraVolumes(t *testing.T) {
 	require.NoError(t, err)
 	rs, _ := get()
 	assert.Equal(t, []string{"/host:/container"}, rs.Volumes)
+}
+
+func TestRunTool_agenticrcMountsAppended(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	t.Chdir(dir)
+	require.NoError(t, os.WriteFile(
+		dir+"/.agenticrc",
+		[]byte("EXTRA_MOUNTS=myvolume:/mnt/data\n"),
+		0644,
+	))
+	get, restore := captureRunContainer(t)
+	defer restore()
+	origVolumes := extraVolumes
+	extraVolumes = []string{"/host:/container"}
+	defer func() { extraVolumes = origVolumes }()
+
+	// Act
+	err := runTool(runToolCmd, []string{"claude"})
+
+	// Assert
+	require.NoError(t, err)
+	rs, _ := get()
+	assert.Equal(t, []string{"/host:/container", "myvolume:/mnt/data"}, rs.Volumes)
+}
+
+func TestRunTool_agenticrcResourceLimits(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	t.Chdir(dir)
+	require.NoError(t, os.WriteFile(
+		dir+"/.agenticrc",
+		[]byte("PIDS_LIMIT=512\nCPUS=2\nMEMORY=2g\n"),
+		0644,
+	))
+	get, restore := captureRunContainer(t)
+	defer restore()
+
+	// Act
+	err := runTool(runToolCmd, []string{"claude"})
+
+	// Assert
+	require.NoError(t, err)
+	rs, _ := get()
+	assert.Equal(t, "512", rs.PidsLimit)
+	assert.Equal(t, "2", rs.CPUs)
+	assert.Equal(t, "2g", rs.Memory)
 }
 
 func TestRunTool_toolHome(t *testing.T) {

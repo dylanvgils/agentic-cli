@@ -138,7 +138,7 @@ func TestRunContainer_securityArgs(t *testing.T) {
 	assert.Contains(t, args, "--read-only")
 	assert.Contains(t, args, "--cap-drop=ALL")
 	assert.Contains(t, args, "--security-opt=no-new-privileges:true")
-	assert.Equal(t, platform.UserGroup(), argAfter(args, "--user"))
+	assert.Contains(t, args, "--user="+platform.UserGroup())
 }
 
 func TestRunContainer_tmpfsDefault(t *testing.T) {
