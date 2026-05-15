@@ -94,8 +94,8 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	args = append(args, toolArgs...)
 
 	if rs.DryRun {
-		fmt.Fprintln(os.Stdout, "docker", shellJoin(args))
-		return nil
+		_, err := fmt.Fprintln(os.Stdout, "docker", shellJoin(args))
+		return err
 	}
 	return runInteractive(args...)
 }
