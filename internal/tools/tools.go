@@ -10,6 +10,8 @@ import (
 
 // ToolConfig holds the default configuration for a tool container.
 type ToolConfig struct {
+	Base         string // default base extras layered on top of node (e.g. "java"); empty = node only
+	VersionCmd   string // shell command run inside the built image to detect the tool version
 	TmpfsExecTmp bool
 	Setup        func(toolHome string) error
 	Mounts       func(home string) []string
@@ -30,7 +32,7 @@ func Names() []string {
 
 // Configs maps tool names to their container configuration.
 var Configs = map[string]ToolConfig{
-	"claude":   {TmpfsExecTmp: true, Setup: setupClaude, Mounts: claudeMounts},
-	"copilot":  {TmpfsExecTmp: true, Setup: setupCopilot, Mounts: copilotMounts},
-	"opencode": {TmpfsExecTmp: true, Setup: setupOpencode, Mounts: opencodeMounts},
+	"claude":   {Base: "", VersionCmd: "claude --version", TmpfsExecTmp: true, Setup: setupClaude, Mounts: claudeMounts},
+	"copilot":  {Base: "", VersionCmd: "copilot --version", TmpfsExecTmp: true, Setup: setupCopilot, Mounts: copilotMounts},
+	"opencode": {Base: "", VersionCmd: "opencode --version", TmpfsExecTmp: true, Setup: setupOpencode, Mounts: opencodeMounts},
 }

@@ -24,57 +24,6 @@ Run 'agentic help <command>' for command-specific help.
 EOF
 }
 
-usage_build() {
-  cat <<EOF
-Usage: agentic build [tool] [options]
-
-Build tool image(s). Builds all tools if no tool specified.
-
-Options:
-  --base <extra[,extra]>  Override the extra runtime(s) to layer on top of node.
-  --no-cache              Disable Docker layer cache for a fully fresh build.
-  --node <version>        Node.js version (default: 24).
-  --java <version>        Java (Temurin JDK) version (default: 21).
-  --dotnet <version>      .NET version (default: 10).
-
-Environment:
-  AGENTIC_NODE_VERSION    Node.js version (overridden by --node)
-  AGENTIC_JAVA_VERSION    Java version (overridden by --java)
-  AGENTIC_DOTNET_VERSION  .NET version (overridden by --dotnet)
-
-Examples:
-  agentic build
-  agentic build claude
-  agentic build claude --base java
-  agentic build --node 22
-  agentic build claude --base java --java 17
-  AGENTIC_NODE_VERSION=22 agentic build
-  AGENTIC_JAVA_VERSION=17 agentic build claude --base java
-EOF
-}
-
-usage_update() {
-  cat <<EOF
-Usage: agentic update [tool] [options]
-
-Update tool image(s) to latest version. Rebuilds the tool step without cache
-so the installer fetches the latest version. Skips unbuilt tools when no tool
-specified.
-
-Options:
-  --base <extra[,extra]>  Override the extra runtime(s) to layer on top of node.
-  --no-cache              Also rebuild base layers (fully fresh build).
-  --node <version>        Node.js version (default: 24).
-  --java <version>        Java (Temurin JDK) version (default: 21).
-  --dotnet <version>      .NET version (default: 10).
-
-Examples:
-  agentic update
-  agentic update claude
-  agentic update claude --base java
-  agentic update claude --no-cache
-EOF
-}
 
 
 usage_completion() {
@@ -97,166 +46,11 @@ _SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 source "$_SCRIPT_DIR/../shared/scripts/repo-root.sh"
 
 # --- Helpers ---
-# Enumerate available tools by scanning tools/*/config.sh.
+# Enumerate available tools by scanning tools/*/Dockerfile.
 list_tools() {
-  for config in "$REPO_ROOT/tools"/*/config.sh; do
-    basename "$(dirname "$config")"
+  for df in "$REPO_ROOT/tools"/*/Dockerfile; do
+    basename "$(dirname "$df")"
   done
-}
-
-# Run a build or clean script for a single tool.
-run_tool_script() {
-  local cmd="$1" tool="$2"
-  local script="$REPO_ROOT/tools/$tool/$cmd.sh"
-  if [[ ! -f "$script" ]]; then
-    echo "Error: unknown tool '$tool'"
-    exit 1
-  fi
-  echo "=> $tool"
-  bash "$script"
-}
-
-# Source a tool's config and echo its IMAGE name. Always call via $() to isolate side effects.
-tool_image() {
-  local config="$REPO_ROOT/tools/$1/config.sh"
-  source "$config"
-  echo "$IMAGE"
-}
-
-get_tool_version() {
-  local tool="$1"
-  local image
-  image=$(tool_image "$tool")
-  docker inspect --format '{{index .Config.Labels "agentic.tool.version"}}' "$image" 2>/dev/null || true
-}
-
-is_tool_built() {
-  local image
-  image=$(tool_image "$1")
-  docker image inspect "$image" >/dev/null 2>&1
-}
-
-parse_build_args() {
-  local cmd="$1"
-  shift
-  TOOL_ARG=""
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-    --base)
-      if [[ -z "${2:-}" ]]; then
-        echo "Error: --base requires a value"
-        exit 1
-      fi
-      export AGENTIC_BASE_OVERRIDE="$2"
-      shift 2
-      ;;
-    --no-cache)
-      export AGENTIC_NO_CACHE=1
-      shift
-      ;;
-    --node)
-      if [[ -z "${2:-}" ]]; then
-        echo "Error: --node requires a version"
-        exit 1
-      fi
-      export AGENTIC_NODE_VERSION="$2"
-      shift 2
-      ;;
-    --java)
-      if [[ -z "${2:-}" ]]; then
-        echo "Error: --java requires a version"
-        exit 1
-      fi
-      export AGENTIC_JAVA_VERSION="$2"
-      shift 2
-      ;;
-    --dotnet)
-      if [[ -z "${2:-}" ]]; then
-        echo "Error: --dotnet requires a version"
-        exit 1
-      fi
-      export AGENTIC_DOTNET_VERSION="$2"
-      shift 2
-      ;;
-    -*)
-      echo "Error: unknown $cmd option '$1'"
-      exit 1
-      ;;
-    *)
-      TOOL_ARG="$1"
-      shift
-      ;;
-    esac
-  done
-}
-
-prune_images() {
-  local prune_out reclaimed
-  prune_out=$(docker image prune -f 2>&1)
-  reclaimed=$(echo "$prune_out" | awk '/Total reclaimed space:/ {print $NF}')
-  if [[ -n "$reclaimed" && "$reclaimed" != "0B" ]]; then
-    echo "=> pruned dangling images (reclaimed $reclaimed)"
-  fi
-}
-
-# --- Volumes ---
-
-# --- Build ---
-cmd_build() {
-  local tool="${1:-}"
-  if [[ -n "$tool" ]]; then
-    run_tool_script build "$tool"
-  else
-    for script in "$REPO_ROOT/tools"/*/build.sh; do
-      run_tool_script build "$(basename "$(dirname "$script")")"
-    done
-  fi
-}
-
-# --- Update ---
-report_version_change() {
-  local before="$1" after="$2"
-  if [[ -n "$before" && "$before" != "$after" ]]; then
-    echo "=> version: $before -> $after"
-  elif [[ -n "$after" ]]; then
-    echo "=> version: $after (up to date)"
-  fi
-}
-
-update_tool() {
-  local tool="$1"
-  local before after
-  before=$(get_tool_version "$tool")
-  run_tool_script update "$tool"
-  after=$(get_tool_version "$tool")
-  report_version_change "$before" "$after"
-}
-
-cmd_update() {
-  local tool="${1:-}"
-
-  if [[ -n "$tool" ]]; then
-    update_tool "$tool"
-  else
-    local updated=0
-
-    for script in "$REPO_ROOT/tools"/*/update.sh; do
-      local t
-      t="$(basename "$(dirname "$script")")"
-
-      if ! is_tool_built "$t"; then
-        echo "=> $t (skipped - not built)"
-        continue
-      fi
-
-      update_tool "$t"
-      updated=1
-    done
-
-    if [[ "$updated" -eq 0 ]]; then
-      echo "No tools are built. Run 'agentic build' first."
-    fi
-  fi
 }
 
 # --- Clean ---
@@ -271,8 +65,8 @@ handle_help() {
 
 cmd_help() {
   case "${1:-}" in
-  build) usage_build ;;
-  update) usage_update ;;
+  build) exec agentic-cli build --help ;;
+  update) exec agentic-cli update --help ;;
   clean) exec agentic-cli clean --help ;;
   inspect) exec agentic-cli inspect --help ;;
   volumes) exec agentic-cli volumes --help ;;
@@ -505,21 +299,11 @@ case "$COMMAND" in
   ;;
 
 build)
-  handle_help build "${2:-}"
-  shift
-  parse_build_args build "$@"
-  cmd_build "$TOOL_ARG"
-  prune_images
-  exit 0
+  exec agentic-cli build "${@:2}"
   ;;
 
 update)
-  handle_help update "${2:-}"
-  shift
-  parse_build_args update "$@"
-  cmd_update "$TOOL_ARG"
-  prune_images
-  exit 0
+  exec agentic-cli update "${@:2}"
   ;;
 
 clean)

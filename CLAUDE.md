@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Bash + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in sandboxed containers. No test suite, no linter. Development means editing shell scripts and Dockerfiles, then testing by building and running.
+A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in sandboxed containers. The Go binary (`agentic-cli`) handles all commands; `bin/agentic` is a thin bash wrapper for completion. No linter. Development means editing Go source and Dockerfiles, then testing with `go test ./...` and building/running containers.
 
 ## Key commands
 
@@ -27,16 +27,14 @@ agentic <tool> [args]
 - Section headers as `# --- Section Name ---` comments
 
 ### Tool structure
-Each tool in `tools/<name>/` must implement exactly: `config.sh`, `build.sh`, `update.sh`, `Dockerfile`, `entrypoint.sh`. Tools are discovered dynamically by scanning for `config.sh` - no registration needed anywhere.
+Each tool in `tools/<name>/` must implement exactly: `Dockerfile`, `entrypoint.sh`. Tools are discovered dynamically by scanning for `Dockerfile` - no registration needed anywhere.
 
-`config.sh` sets `BASE`, `IMAGE`, `VERSION_CMD` and sources `shared/config.sh` (which sets `TOOL_HOME`).
-
-`build.sh` and `update.sh` are one-liners: source `config.sh` + call the shared function.
+Build and update logic lives in Go: `internal/tools/<tool>.go` holds runtime config (`Base`, `VersionCmd`); `internal/docker/build.go` and `internal/docker/update.go` hold the orchestration.
 
 Tool execution is handled entirely by the Go CLI (`agentic-cli run <tool>`). Tool-specific mount configuration and setup live in `internal/tools/<tool>.go`.
 
 ### Shared scripts
-`shared/scripts/` scripts are sourced, not executed. They expose functions for building images (`build-common.sh`, `repo-root.sh`).
+`shared/scripts/` contains `repo-root.sh` (sourced by `bin/agentic` for completion). Build/update orchestration has moved to Go (`internal/docker/`).
 
 ### Adding a new runtime layer
 Drop a `Dockerfile` in `shared/base/<name>/`. It must accept `BASE_IMAGE` as a build arg. The build system derives the version env var as `AGENTIC_<NAME>_VERSION` automatically.

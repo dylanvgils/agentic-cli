@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/script"
 	"github.com/spf13/cobra"
 )
 
@@ -18,6 +17,7 @@ var (
 	inspectImage       = docker.InspectImage
 	cleanImage         = docker.CleanImage
 	cleanBaseImages    = docker.CleanBaseImages
+	pruneImages        = docker.PruneImages
 	createVolume       = docker.CreateVolume
 	listVolumes        = docker.ListVolumes
 	listVolumeNames    = docker.ListVolumeNames
@@ -31,17 +31,11 @@ var rootCmd = &cobra.Command{
 sandboxed Docker containers with read-only filesystems and dropped capabilities.`,
 	Version:      version,
 	SilenceUsage: true,
-	Args:         cobra.ArbitraryArgs,
 	RunE:         rootRun,
 }
 
-func rootRun(cmd *cobra.Command, args []string) error {
-	if len(args) == 0 {
-		return cmd.Help()
-	}
-
-	// if command not exist forward to old script
-	return script.Delegate("agentic", args)
+func rootRun(cmd *cobra.Command, _ []string) error {
+	return cmd.Help()
 }
 
 // Execute the Agentic CLI
