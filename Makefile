@@ -1,6 +1,7 @@
 BINARY    := agentic-cli
 BUILD_DIR := dist
-LDFLAGS   := -s -w
+VERSION   ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+LDFLAGS   := -s -w -X github.com/dylanvgils/agentic-cli/cmd.version=$(VERSION)
 GOFLAGS   := CGO_ENABLED=0
 
 .PHONY: build install uninstall dist test test-integration clean

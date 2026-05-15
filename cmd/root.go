@@ -10,11 +10,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var version = "dev"
+
 var rootCmd = &cobra.Command{
 	Use:   "agentic",
 	Short: "Run agentic coding tools in sandboxed containers",
 	Long: `agentic runs AI coding tools (Claude Code, Copilot, OpenCode) in
 sandboxed Docker containers with read-only filesystems and dropped capabilities.`,
+	Version:      version,
 	SilenceUsage: true,
 	Args:         cobra.ArbitraryArgs,
 	RunE:         rootRun,
