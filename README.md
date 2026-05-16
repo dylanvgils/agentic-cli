@@ -315,7 +315,7 @@ All configuration is done through environment variables, which can be set in you
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
 | `AGENTIC_HOME`           | Base directory for tool config and secrets                                                                                                            | `$HOME/.agentic`              |
 | `AGENTIC_EXTRA_MOUNTS`   | Comma-separated extra mounts. Bind mount: `host/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `$CONTAINER_HOME`. | -                             |
-| `AGENTIC_SECRETS`  | Comma-separated secrets to mount read-only at `/run/secrets/<name>`. Format: `name=/path/to/file`.                                                    | -                             |
+| `AGENTIC_SECRETS`        | Comma-separated secrets to mount read-only at `/run/secrets/<name>`. Format: `name=/path/to/file`.                                                    | -                             |
 | `AGENTIC_PIDS_LIMIT`     | Default container PID limit                                                                                                                           | `1024`                        |
 | `AGENTIC_CPUS`           | Default container CPU limit                                                                                                                           | `4`                           |
 | `AGENTIC_MEMORY`         | Default container memory limit                                                                                                                        | `4g`                          |
@@ -330,8 +330,8 @@ Place a `.agenticrc` file in your project root to set project-specific configura
 
 | Key            | Description                                                                                                                                                | Default | Env var override       |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------- |
-| `EXTRA_MOUNTS`   | Comma-separated extra mounts. Bind mount: `~/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `~` and `$CONTAINER_HOME`. | -       | `AGENTIC_EXTRA_MOUNTS`   |
-| `SECRETS`  | Comma-separated secrets to mount read-only at `/run/secrets/<name>`. Format: `name=/path/to/file`. Supports `~`.                                           | -       | `AGENTIC_SECRETS`  |
+| `EXTRA_MOUNTS` | Comma-separated extra mounts. Bind mount: `~/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `~` and `$CONTAINER_HOME`. | -       | `AGENTIC_EXTRA_MOUNTS` |
+| `SECRETS`      | Comma-separated secrets to mount read-only at `/run/secrets/<name>`. Format: `name=/path/to/file`. Supports `~`.                                           | -       | `AGENTIC_SECRETS`      |
 | `PIDS_LIMIT`   | Container PID limit                                                                                                                                        | `1024`  | `AGENTIC_PIDS_LIMIT`   |
 | `CPUS`         | Container CPU limit                                                                                                                                        | `4`     | `AGENTIC_CPUS`         |
 | `MEMORY`       | Container memory limit                                                                                                                                     | `4g`    | `AGENTIC_MEMORY`       |
