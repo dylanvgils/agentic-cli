@@ -9,7 +9,8 @@ func PruneImages() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for _, line := range strings.Split(out, "\n") {
+
+	for line := range strings.SplitSeq(out, "\n") {
 		if strings.Contains(line, "Total reclaimed space:") {
 			fields := strings.Fields(line)
 			if len(fields) > 0 {
