@@ -29,3 +29,17 @@ func TestLookupBinary_notFound(t *testing.T) {
 	// Assert
 	require.Empty(t, path)
 }
+
+func TestFindRepoRoot_injected(t *testing.T) {
+	// Arrange
+	original := repoRoot
+	repoRoot = "/injected/repo"
+	defer func() { repoRoot = original }()
+
+	// Act
+	got, err := FindRepoRoot()
+
+	// Assert
+	require.NoError(t, err)
+	require.Equal(t, "/injected/repo", got)
+}
