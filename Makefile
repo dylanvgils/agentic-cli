@@ -1,7 +1,8 @@
 BINARY    := agentic
 BUILD_DIR := dist
 VERSION   ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
-LDFLAGS   := -s -w -X github.com/dylanvgils/agentic-cli/cmd.version=$(VERSION)
+LDFLAGS    = -s -w -X github.com/dylanvgils/agentic-cli/cmd.version=$(VERSION) \
+             $(if $(REPO_ROOT),-X github.com/dylanvgils/agentic-cli/internal/platform.repoRoot=$(REPO_ROOT))
 GOFLAGS   := CGO_ENABLED=0
 
 .PHONY: build install uninstall dist docker-dist test clean
@@ -9,8 +10,9 @@ GOFLAGS   := CGO_ENABLED=0
 build:
 	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(BINARY) .
 
+install: REPO_ROOT = $(CURDIR)
 install:
-	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS) -X github.com/dylanvgils/agentic-cli/internal/platform.repoRoot=$(CURDIR)" -o bin/$(BINARY) .
+	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(BINARY) .
 	@mkdir -p ~/.local/bin
 	cp bin/$(BINARY) ~/.local/bin/$(BINARY)
 	@if ! echo "$$PATH" | grep -q "$$HOME/.local/bin"; then \

@@ -1,5 +1,6 @@
 ARG GO_VERSION=1.26.3
 ARG TARGETARCH
+ARG REPO_ROOT
 
 FROM debian:bookworm-slim AS builder
 
@@ -50,7 +51,8 @@ ENV PATH="${PATH}:/usr/local/go/bin"
 
 WORKDIR /src
 COPY . .
-RUN make dist
+ARG REPO_ROOT
+RUN make dist REPO_ROOT="${REPO_ROOT}"
 
 FROM scratch AS export
 COPY --from=builder /src/dist/ /

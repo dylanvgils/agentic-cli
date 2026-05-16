@@ -44,7 +44,7 @@ $BinaryName = "agentic-windows-$Arch.exe"
 $BinarySrc = Join-Path $ScriptDir "dist\$BinaryName"
 
 Write-Host "Building agentic for windows/$Arch..."
-& docker buildx build --target export --output "$ScriptDir\dist\" $ScriptDir
+& docker buildx build --build-arg "REPO_ROOT=$ScriptDir" --target export --output "$ScriptDir\dist\" $ScriptDir
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 if (-not (Test-Path $BinarySrc)) {
