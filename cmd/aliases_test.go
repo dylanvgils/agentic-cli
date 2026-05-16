@@ -51,9 +51,9 @@ func TestRunAliases_builtTools_emitAliasLines(t *testing.T) {
 	})
 
 	// Assert
-	assert.Contains(t, out, "alias claude='agentic claude'")
-	assert.Contains(t, out, "alias copilot='agentic copilot'")
-	assert.Contains(t, out, "alias opencode='agentic opencode'")
+	assert.Contains(t, out, "alias claude='agentic run claude'")
+	assert.Contains(t, out, "alias copilot='agentic run copilot'")
+	assert.Contains(t, out, "alias opencode='agentic run opencode'")
 }
 
 func TestRunAliases_dockerError_propagates(t *testing.T) {

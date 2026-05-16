@@ -33,7 +33,7 @@ func runAliases(_ *cobra.Command, _ []string) error {
 		}
 
 		if info != nil {
-			fmt.Printf("alias %s='agentic %s'\n", name, name)
+			fmt.Printf("alias %s='agentic run %s'\n", name, name)
 		}
 	}
 
