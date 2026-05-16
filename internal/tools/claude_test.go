@@ -12,7 +12,7 @@ import (
 // --- claudeMounts ---
 func TestClaudeMounts_returnsExpected(t *testing.T) {
 	// Act
-	mounts := claudeMounts("")
+	mounts := claudeMounts()
 
 	// Assert
 	assert.Equal(t, []string{

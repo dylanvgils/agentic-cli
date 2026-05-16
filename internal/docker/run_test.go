@@ -37,87 +37,6 @@ func argAfter(args []string, flag string) string {
 	return ""
 }
 
-// --- ExpandMountVars ---
-
-func TestExpandMountVars_toolHome(t *testing.T) {
-	// Arrange
-	spec := "$TOOL_HOME/data:/data"
-
-	// Act
-	result := ExpandMountVars(spec, "/custom/home", "")
-
-	// Assert
-	assert.Equal(t, "/custom/home/data:/data", result)
-}
-
-func TestExpandMountVars_toolHome_braces(t *testing.T) {
-	// Arrange
-	spec := "${TOOL_HOME}/data:/data"
-
-	// Act
-	result := ExpandMountVars(spec, "/custom/home", "")
-
-	// Assert
-	assert.Equal(t, "/custom/home/data:/data", result)
-}
-
-func TestExpandMountVars_containerHome(t *testing.T) {
-	// Arrange
-	spec := "/data:$CONTAINER_HOME/data"
-
-	// Act
-	result := ExpandMountVars(spec, "", "/root")
-
-	// Assert
-	assert.Equal(t, "/data:/root/data", result)
-}
-
-func TestExpandMountVars_containerHome_braces(t *testing.T) {
-	// Arrange
-	spec := "/data:${CONTAINER_HOME}/data"
-
-	// Act
-	result := ExpandMountVars(spec, "", "/root")
-
-	// Assert
-	assert.Equal(t, "/data:/root/data", result)
-}
-
-func TestExpandMountVars_pwd(t *testing.T) {
-	// Arrange
-	pwd, err := os.Getwd()
-	require.NoError(t, err)
-	spec := "$PWD:/workspace"
-
-	// Act
-	result := ExpandMountVars(spec, "", "")
-
-	// Assert
-	assert.Equal(t, pwd+":/workspace", result)
-}
-
-func TestExpandMountVars_noPlaceholders(t *testing.T) {
-	// Arrange
-	spec := "/host/path:/container/path"
-
-	// Act
-	result := ExpandMountVars(spec, "/custom/home", "/root")
-
-	// Assert
-	assert.Equal(t, "/host/path:/container/path", result)
-}
-
-func TestExpandMountVars_mixed(t *testing.T) {
-	// Arrange
-	spec := "$TOOL_HOME/cfg:${CONTAINER_HOME}/.config"
-
-	// Act
-	result := ExpandMountVars(spec, "/home/.agentic", "/root")
-
-	// Assert
-	assert.Equal(t, "/home/.agentic/cfg:/root/.config", result)
-}
-
 // --- RunContainer ---
 
 func TestRunContainer_securityArgs(t *testing.T) {
@@ -153,7 +72,7 @@ func TestRunContainer_tmpfsDefault(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, "/tmp:size=1g", argAfter(get(), "--tmpfs"))
+	assert.Contains(t, get(), "--tmpfs=/tmp:size=1g")
 }
 
 func TestRunContainer_tmpfsExec(t *testing.T) {
@@ -171,7 +90,7 @@ func TestRunContainer_tmpfsExec(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, "/tmp:exec,size=1g", argAfter(get(), "--tmpfs"))
+	assert.Contains(t, get(), "--tmpfs=/tmp:exec,size=1g")
 }
 
 func TestRunContainer_imageAndToolArgs(t *testing.T) {
@@ -231,3 +150,57 @@ func TestRunContainer_volumes(t *testing.T) {
 	assert.Contains(t, args, "--volume=/host:/container")
 	assert.Contains(t, args, "--volume=/home/.agentic/data:/data")
 }
+
+func TestRunContainer_secrets(t *testing.T) {
+	// Arrange
+	get, restore := captureRunInteractive(t)
+	defer restore()
+
+	rs := RunSpec{
+		Image:   "agentic-copilot",
+		Secrets: []string{"mytoken=/tmp/token"},
+	}
+
+	// Act
+	err := RunContainer(rs, nil)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Contains(t, get(), "--volume=/tmp/token:/run/secrets/mytoken:ro")
+}
+
+func TestRunContainer_secrets_tildeExpanded(t *testing.T) {
+	// Arrange
+	get, restore := captureRunInteractive(t)
+	defer restore()
+
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	rs := RunSpec{
+		Image:   "agentic-copilot",
+		Secrets: []string{"mytoken=~/secrets/token"},
+	}
+
+	// Act
+	err = RunContainer(rs, nil)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Contains(t, get(), "--volume="+home+"/secrets/token:/run/secrets/mytoken:ro")
+}
+
+func TestRunContainer_secrets_invalidFormat(t *testing.T) {
+	// Arrange
+	_, restore := captureRunInteractive(t)
+	defer restore()
+
+	rs := RunSpec{
+		Image:   "agentic-copilot",
+		Secrets: []string{"badformat"},
+	}
+
+	// Act + Assert
+	assert.ErrorContains(t, RunContainer(rs, nil), "invalid secret")
+}
+

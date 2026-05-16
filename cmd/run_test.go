@@ -258,6 +258,67 @@ func TestRunTool_agenticExtraMountsEnv_empty(t *testing.T) {
 	}, rs.Volumes)
 }
 
+func TestRunTool_flagSecrets(t *testing.T) {
+	// Arrange
+	withTempToolHome(t)
+	t.Chdir(t.TempDir())
+	get, restore := captureRunContainer(t)
+	defer restore()
+	origSecrets := flagSecrets
+	flagSecrets = []string{"mytoken=/tmp/token"}
+	defer func() { flagSecrets = origSecrets }()
+
+	// Act
+	err := runTool(runToolCmd, []string{"claude"})
+
+	// Assert
+	require.NoError(t, err)
+	rs, _ := get()
+	assert.Equal(t, []string{"mytoken=/tmp/token"}, rs.Secrets)
+}
+
+func TestRunTool_agenticrcSecretsAppended(t *testing.T) {
+	// Arrange
+	withTempToolHome(t)
+	dir := t.TempDir()
+	t.Chdir(dir)
+	require.NoError(t, os.WriteFile(
+		dir+"/.agenticrc",
+		[]byte("SECRETS=rctoken=/tmp/rc_token\n"),
+		0644,
+	))
+	get, restore := captureRunContainer(t)
+	defer restore()
+	origSecrets := flagSecrets
+	flagSecrets = []string{"flagtoken=/tmp/flag_token"}
+	defer func() { flagSecrets = origSecrets }()
+
+	// Act
+	err := runTool(runToolCmd, []string{"claude"})
+
+	// Assert
+	require.NoError(t, err)
+	rs, _ := get()
+	assert.Equal(t, []string{"flagtoken=/tmp/flag_token", "rctoken=/tmp/rc_token"}, rs.Secrets)
+}
+
+func TestRunTool_agenticExtraSecretsEnv(t *testing.T) {
+	// Arrange
+	withTempToolHome(t)
+	t.Chdir(t.TempDir())
+	t.Setenv("AGENTIC_SECRETS", "envtoken=/tmp/env_token")
+	get, restore := captureRunContainer(t)
+	defer restore()
+
+	// Act
+	err := runTool(runToolCmd, []string{"claude"})
+
+	// Assert
+	require.NoError(t, err)
+	rs, _ := get()
+	assert.Contains(t, rs.Secrets, "envtoken=/tmp/env_token")
+}
+
 func TestRunTool_toolHome(t *testing.T) {
 	// Arrange
 	get, restore := captureRunContainer(t)

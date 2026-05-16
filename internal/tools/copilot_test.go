@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -10,35 +9,14 @@ import (
 )
 
 // --- copilotMounts ---
-func TestCopilotMounts_tokenAbsent(t *testing.T) {
-	// Arrange
-	home := t.TempDir()
-
+func TestCopilotMounts(t *testing.T) {
 	// Act
-	mounts := copilotMounts(home)
+	mounts := copilotMounts()
 
 	// Assert
 	assert.Equal(t, []string{
 		"$PWD:/workspace",
 		"$TOOL_HOME/copilot:$CONTAINER_HOME/.copilot",
-	}, mounts)
-}
-
-func TestCopilotMounts_tokenPresent(t *testing.T) {
-	// Arrange
-	home := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(home, ".secrets"), 0o700))
-	tokenPath := filepath.Join(home, ".secrets", "copilot_token")
-	require.NoError(t, os.WriteFile(tokenPath, []byte("token"), 0o600))
-
-	// Act
-	mounts := copilotMounts(home)
-
-	// Assert
-	assert.Equal(t, []string{
-		"$PWD:/workspace",
-		"$TOOL_HOME/copilot:$CONTAINER_HOME/.copilot",
-		tokenPath + ":/run/secrets/copilot_token:ro",
 	}, mounts)
 }
 

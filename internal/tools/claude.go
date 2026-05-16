@@ -3,13 +3,15 @@ package tools
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
-func claudeMounts(_ string) []string {
+func claudeMounts() []string {
 	return []string{
-		"$PWD:/workspace",
-		"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude",
-		"$TOOL_HOME/claude/.claude.json:$CONTAINER_HOME/.claude.json",
+		mount.VolumeMount("$PWD", "/workspace"),
+		mount.VolumeMount("$TOOL_HOME/claude/data", "$CONTAINER_HOME/.claude"),
+		mount.VolumeMount("$TOOL_HOME/claude/.claude.json", "$CONTAINER_HOME/.claude.json"),
 	}
 }
 

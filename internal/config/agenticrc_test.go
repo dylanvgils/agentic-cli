@@ -59,6 +59,7 @@ func TestFindAndLoad_NoFile_ReturnsEmpty(t *testing.T) {
 
 	// Assert
 	assert.Empty(t, rc.ExtraMounts)
+	assert.Empty(t, rc.Secrets)
 	assert.Empty(t, rc.PidsLimit)
 	assert.Empty(t, rc.CPUs)
 	assert.Empty(t, rc.Memory)
@@ -83,13 +84,14 @@ func TestFindAndLoad_WithFile_ReturnsConfig(t *testing.T) {
 
 func TestLoadRC_AllKeys(t *testing.T) {
 	// Arrange
-	content := "EXTRA_MOUNTS=vol1:/mnt/a,vol2:/mnt/b\nPIDS_LIMIT=512\nCPUS=2\nMEMORY=2g\n"
+	content := "EXTRA_MOUNTS=vol1:/mnt/a,vol2:/mnt/b\nSECRETS=token=/run/s/a,key=/run/s/b\nPIDS_LIMIT=512\nCPUS=2\nMEMORY=2g\n"
 
 	// Act
 	rc := loadRCFromString(t, content)
 
 	// Assert
 	assert.Equal(t, []string{"vol1:/mnt/a", "vol2:/mnt/b"}, rc.ExtraMounts)
+	assert.Equal(t, []string{"token=/run/s/a", "key=/run/s/b"}, rc.Secrets)
 	assert.Equal(t, "512", rc.PidsLimit)
 	assert.Equal(t, "2", rc.CPUs)
 	assert.Equal(t, "2g", rc.Memory)
@@ -124,13 +126,14 @@ func TestLoadRC_TildeExpansion(t *testing.T) {
 	// Arrange
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)
-	content := "EXTRA_MOUNTS=~/.cache:/cache\n"
+	content := "EXTRA_MOUNTS=~/.cache:/cache\nSECRETS=mytoken=~/.secrets/token\n"
 
 	// Act
 	rc := loadRCFromString(t, content)
 
 	// Assert
 	assert.Equal(t, []string{home + "/.cache:/cache"}, rc.ExtraMounts)
+	assert.Equal(t, []string{"mytoken=" + home + "/.secrets/token"}, rc.Secrets)
 }
 
 func TestLoadRC_UnknownKeysIgnored(t *testing.T) {

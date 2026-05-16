@@ -11,7 +11,7 @@ import (
 // --- opencodeMounts ---
 func TestOpencodeMounts_returnsExpected(t *testing.T) {
 	// Act
-	mounts := opencodeMounts("")
+	mounts := opencodeMounts()
 
 	// Assert
 	assert.Equal(t, []string{
