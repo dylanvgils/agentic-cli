@@ -108,7 +108,7 @@ func TestEnsureNamedVolumes_newVolume_createsAndChowns(t *testing.T) {
 	calls := get()
 	require.Len(t, calls, 3)
 	assert.Equal(t, []string{"volume", "inspect", "maven"}, calls[0].args)
-	assert.Equal(t, []string{"volume", "create", "--label", "project=agentic-cli", "maven"}, calls[1].args)
+	assert.Equal(t, []string{"volume", "create", "--label=project=agentic-cli", "maven"}, calls[1].args)
 	assert.Equal(t, "run", calls[2].args[0])
 	assert.Contains(t, calls[2].args, "--volume=maven:/vol")
 	assert.Contains(t, calls[2].args, "--user=root")

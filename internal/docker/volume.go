@@ -27,7 +27,7 @@ func EnsureNamedVolumes(volumes []string, toolHome, containerHome string) error 
 // CreateVolume creates a named Docker volume with the project=agentic-cli label.
 // Unlike ensureVolume, it does not chown — that is only needed for runtime volumes.
 func CreateVolume(name string) error {
-	_, err := dockerRun("volume", "create", arg("label", "project=agentic-cli"), name)
+	_, err := dockerRun("volume", "create", label(LabelProject, LabelProjectVal), name)
 	if err != nil {
 		return fmt.Errorf("create volume %s: %w", name, err)
 	}
@@ -36,12 +36,12 @@ func CreateVolume(name string) error {
 
 // ListVolumes returns the raw output of docker volume ls filtered to agentic-managed volumes.
 func ListVolumes() (string, error) {
-	return dockerRun("volume", "ls", arg("filter", "label=project=agentic-cli"))
+	return dockerRun("volume", "ls", labelFilter(LabelProject, LabelProjectVal))
 }
 
 // ListVolumeNames returns only the names of agentic-managed volumes (no header row).
 func ListVolumeNames() ([]string, error) {
-	out, err := dockerRun("volume", "ls", arg("quiet"), arg("filter", "label=project=agentic-cli"))
+	out, err := dockerRun("volume", "ls", arg("quiet"), labelFilter(LabelProject, LabelProjectVal))
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func ListVolumeNames() ([]string, error) {
 // RemoveVolume validates that the named volume is agentic-managed, then removes it.
 func RemoveVolume(name string) error {
 	out, err := dockerRun("volume", "inspect", arg("format", `{{index .Labels "project"}}`), name)
-	if err != nil || strings.TrimSpace(out) != "agentic-cli" {
+	if err != nil || strings.TrimSpace(out) != LabelProjectVal {
 		return fmt.Errorf("'%s' is not an agentic-managed volume", name)
 	}
 	_, err = dockerRun("volume", "rm", name)
@@ -63,7 +63,7 @@ func ensureVolume(name string) error {
 		return nil
 	}
 
-	createArgs := []string{"volume", "create", "--label", "project=agentic-cli", name}
+	createArgs := []string{"volume", "create", label(LabelProject, LabelProjectVal), name}
 	if _, err := dockerRun(createArgs...); err != nil {
 		return fmt.Errorf("create volume %s: %w", name, err)
 	}

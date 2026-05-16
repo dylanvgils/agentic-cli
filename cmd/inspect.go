@@ -21,12 +21,7 @@ var inspectCmd = &cobra.Command{
 }
 
 func runInspect(_ *cobra.Command, args []string) error {
-	names := tools.Names()
-	if len(args) > 0 {
-		names = []string{args[0]}
-	}
-
-	for _, name := range names {
+	for _, name := range toolNames(args) {
 		fmt.Printf("=> %s\n", name)
 		if err := printImageInfo(name); err != nil {
 			return err
