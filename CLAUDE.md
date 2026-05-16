@@ -28,6 +28,9 @@ Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-sp
 ### Adding a new runtime layer
 Drop a `Dockerfile` in `shared/base/<name>/`. It must accept `BASE_IMAGE` as a build arg. The build system derives the version env var as `AGENTIC_<NAME>_VERSION` automatically.
 
+### Go style
+- Use blank lines between logical blocks within a function to aid readability (e.g. between groups of related `if` statements, between `switch` case groups)
+
 ### Go tests
 - Always add tests for new code
 - Use Arrange-Act-Assert (AAA) in every test: `// Arrange`, `// Act`, `// Assert` comment labels with a blank line between sections

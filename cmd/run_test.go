@@ -162,7 +162,7 @@ func TestRunTool_agenticrcMountsAppended(t *testing.T) {
 	t.Chdir(dir)
 	require.NoError(t, os.WriteFile(
 		dir+"/.agenticrc",
-		[]byte("EXTRA_MOUNTS=myvolume:/mnt/data\n"),
+		[]byte("extra_mounts=myvolume:/mnt/data\n"),
 		0644,
 	))
 	get, restore := captureRunContainer(t)
@@ -193,7 +193,7 @@ func TestRunTool_agenticrcResourceLimits(t *testing.T) {
 	t.Chdir(dir)
 	require.NoError(t, os.WriteFile(
 		dir+"/.agenticrc",
-		[]byte("PIDS_LIMIT=512\nCPUS=2\nMEMORY=2g\n"),
+		[]byte("pids_limit=512\ncpus=2\nmemory=2g\n"),
 		0644,
 	))
 	get, restore := captureRunContainer(t)
@@ -284,7 +284,7 @@ func TestRunTool_agenticrcSecretsAppended(t *testing.T) {
 	t.Chdir(dir)
 	require.NoError(t, os.WriteFile(
 		dir+"/.agenticrc",
-		[]byte("SECRETS=rctoken=/tmp/rc_token\n"),
+		[]byte("secrets=rctoken=/tmp/rc_token\n"),
 		0644,
 	))
 	get, restore := captureRunContainer(t)

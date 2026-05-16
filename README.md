@@ -236,7 +236,7 @@ For per-project control, use a [`.agenticrc` project config file](#per-project-c
 
 ```sh
 # .agenticrc
-SECRETS=copilot_token=~/.secrets/copilot_token
+secrets=copilot_token=~/.secrets/copilot_token
 ```
 
 Secrets use the format `name=/path/to/file`. The `~` prefix is expanded to your home directory. The file is mounted read-only at `/run/secrets/<name>` inside the container.
@@ -266,7 +266,8 @@ For per-project control, use a [`.agenticrc` project config file](#per-project-c
 
 ```sh
 # .agenticrc
-EXTRA_MOUNTS=maven:$CONTAINER_HOME/.m2,gradle:$CONTAINER_HOME/.gradle
+extra_mounts=maven:$CONTAINER_HOME/.m2
+extra_mounts=gradle:$CONTAINER_HOME/.gradle
 ```
 
 ### Managing volumes
@@ -304,7 +305,8 @@ Or add to `.agenticrc` in the repo root so the whole team picks it up:
 
 ```sh
 # .agenticrc
-EXTRA_MOUNTS=maven:$CONTAINER_HOME/.m2,gradle:$CONTAINER_HOME/.gradle
+extra_mounts=maven:$CONTAINER_HOME/.m2
+extra_mounts=gradle:$CONTAINER_HOME/.gradle
 ```
 
 ## ⚙️ Configuration
@@ -326,25 +328,47 @@ All configuration is done through environment variables, which can be set in you
 
 ### Per-project configuration
 
-Place a `.agenticrc` file in your project root to set project-specific configuration. `agentic` walks up from `$PWD` to find the nearest config file, so it works from any subdirectory.
+Place a `.agenticrc` file anywhere in your directory tree to apply project-specific configuration. `agentic` walks up from `$PWD` collecting all `.agenticrc` files it finds and merges them. Add `root=true` to a file to stop the walk there (like EditorConfig's `root = true`).
 
-| Key            | Description                                                                                                                                                | Default | Env var override       |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------- |
-| `EXTRA_MOUNTS` | Comma-separated extra mounts. Bind mount: `~/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `~` and `$CONTAINER_HOME`. | -       | `AGENTIC_EXTRA_MOUNTS` |
-| `SECRETS`      | Comma-separated secrets to mount read-only at `/run/secrets/<name>`. Format: `name=/path/to/file`. Supports `~`.                                           | -       | `AGENTIC_SECRETS`      |
-| `PIDS_LIMIT`   | Container PID limit                                                                                                                                        | `1024`  | `AGENTIC_PIDS_LIMIT`   |
-| `CPUS`         | Container CPU limit                                                                                                                                        | `4`     | `AGENTIC_CPUS`         |
-| `MEMORY`       | Container memory limit                                                                                                                                     | `4g`    | `AGENTIC_MEMORY`       |
+**Merge rules:** list keys (`extra_mounts`, `secrets`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value.
 
-`.agenticrc` values override env var defaults but are superseded by CLI flags. `EXTRA_MOUNTS` is appended to rather than replacing `AGENTIC_EXTRA_MOUNTS`. You can commit `.agenticrc` to the repo so the whole team picks up the right settings automatically.
+| Key            | Description                                                                                                                                            | Default | Env var override       |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- | ---------------------- |
+| `root`         | Stop walking up the directory tree at this file (`true`/`false`)                                                                                       | `false` | -                      |
+| `extra_mounts` | Extra mounts. Bind mount: `~/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `~` and `$CONTAINER_HOME`. Repeatable. | -       | `AGENTIC_EXTRA_MOUNTS` |
+| `secrets`      | Secrets to mount read-only at `/run/secrets/<name>`. Format: `name=/path/to/file`. Supports `~`. Repeatable.                                           | -       | `AGENTIC_SECRETS`      |
+| `pids_limit`   | Container PID limit                                                                                                                                    | `1024`  | `AGENTIC_PIDS_LIMIT`   |
+| `cpus`         | Container CPU limit                                                                                                                                    | `4`     | `AGENTIC_CPUS`         |
+| `memory`       | Container memory limit                                                                                                                                 | `4g`    | `AGENTIC_MEMORY`       |
+
+`.agenticrc` values override env var defaults but are superseded by CLI flags. `extra_mounts` and `secrets` are appended to rather than replacing `AGENTIC_EXTRA_MOUNTS` / `AGENTIC_SECRETS`. You can commit `.agenticrc` to the repo so the whole team picks up the right settings automatically.
+
+Repeatable keys let you list one entry per line; comma-separated values on a single line also work — your choice:
 
 ```sh
 # .agenticrc
-EXTRA_MOUNTS=maven:$CONTAINER_HOME/.m2,gradle:$CONTAINER_HOME/.gradle
-SECRETS=copilot_token=~/.secrets/copilot_token
-PIDS_LIMIT=2048
-CPUS=8
-MEMORY=8g
+root=true
+
+extra_mounts=maven:$CONTAINER_HOME/.m2
+extra_mounts=gradle:$CONTAINER_HOME/.gradle
+
+secrets=copilot_token=~/.secrets/copilot_token
+
+pids_limit=2048
+cpus=8
+memory=8g
+```
+
+**Multi-level example** — shared secrets in a parent directory, project mounts in the project:
+
+```sh
+# ~/projects/.agenticrc  (applies to all projects under ~/projects)
+root=true
+secrets=gh-token=~/.secrets/gh_token
+
+# ~/projects/my-project/.agenticrc
+extra_mounts=maven:$CONTAINER_HOME/.m2
+cpus=8
 ```
 
 ### Mount variable substitution
