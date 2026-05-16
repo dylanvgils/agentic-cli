@@ -21,18 +21,17 @@ var cleanCmd = &cobra.Command{
 }
 
 func runClean(_ *cobra.Command, args []string) error {
-	if len(args) > 0 {
-		return cleanOneTool(args[0])
-	}
-
-	for _, name := range tools.Names() {
+	for _, name := range toolNames(args) {
 		if err := cleanOneTool(name); err != nil {
 			return err
 		}
 	}
 
-	fmt.Println("=> base")
-	return cleanBaseImages()
+	if len(args) == 0 {
+		fmt.Println("=> base")
+		return cleanBaseImages()
+	}
+	return nil
 }
 
 func cleanOneTool(name string) error {

@@ -51,38 +51,40 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		if err := updateOneTool(args[0], opts); err != nil {
 			return err
 		}
-	} else {
-		updated := 0
-		for _, name := range tools.Names() {
-			image, err := tools.ImageName(name)
-			if err != nil {
-				return err
-			}
-			info, err := inspectImage(image)
-			if err != nil {
-				return err
-			}
-			if info == nil {
-				fmt.Printf("=> %s (skipped - not built)\n", name)
-				continue
-			}
-			if err := updateOneTool(name, opts); err != nil {
-				return err
-			}
-			updated++
-		}
-		if updated == 0 {
-			fmt.Println("No tools are built. Run 'agentic build' first.")
-		}
-	}
-
-	reclaimed, err := pruneImages()
-	if err != nil {
+	} else if err := updateAllTools(opts); err != nil {
 		return err
 	}
-	if reclaimed != "" {
-		fmt.Printf("=> pruned dangling images (reclaimed %s)\n", reclaimed)
+
+	return pruneAndReport()
+}
+
+func updateAllTools(opts docker.BuildOptions) error {
+	updated := 0
+	for _, name := range tools.Names() {
+		image, err := tools.ImageName(name)
+		if err != nil {
+			return err
+		}
+
+		info, err := inspectImage(image)
+		if err != nil {
+			return err
+		}
+		if info == nil {
+			fmt.Printf("=> %s (skipped - not built)\n", name)
+			continue
+		}
+		if err := updateOneTool(name, opts); err != nil {
+			return err
+		}
+
+		updated++
 	}
+
+	if updated == 0 {
+		fmt.Println("No tools are built. Run 'agentic build' first.")
+	}
+
 	return nil
 }
 
@@ -126,10 +128,12 @@ func defaultRunUpdateScript(tool string, opts docker.BuildOptions) error {
 	if err != nil {
 		return err
 	}
+
 	image, err := tools.ImageName(tool)
 	if err != nil {
 		return err
 	}
+
 	cfg := tools.Configs[tool]
 	toolDir := filepath.Join(repoRoot, "tools", tool)
 	return docker.UpdateTool(toolDir, image, cfg.VersionCmd, repoRoot, opts)

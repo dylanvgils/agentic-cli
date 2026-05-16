@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -47,60 +46,14 @@ Environment:
 func runBuild(cmd *cobra.Command, args []string) error {
 	opts := buildOptsFromFlags(cmd)
 
-	names := tools.Names()
-	if len(args) > 0 {
-		names = []string{args[0]}
-	}
-
-	for _, name := range names {
+	for _, name := range toolNames(args) {
 		fmt.Printf("=> %s\n", name)
 		if err := runBuildScript(name, opts); err != nil {
 			return err
 		}
 	}
 
-	reclaimed, err := pruneImages()
-	if err != nil {
-		return err
-	}
-	if reclaimed != "" {
-		fmt.Printf("=> pruned dangling images (reclaimed %s)\n", reclaimed)
-	}
-	return nil
-}
-
-// buildOptsFromFlags builds a BuildOptions from cobra flags, falling back to env vars.
-func buildOptsFromFlags(cmd *cobra.Command) docker.BuildOptions {
-	flags := cmd.Flags()
-	opts := docker.BuildOptions{Versions: map[string]string{}}
-
-	if v, _ := flags.GetString("base"); v != "" {
-		opts.BaseOverride = v
-	} else {
-		opts.BaseOverride = os.Getenv("AGENTIC_BASE_OVERRIDE")
-	}
-	opts.NoCache, _ = flags.GetBool("no-cache")
-
-	if v, _ := flags.GetString("node"); v != "" {
-		opts.NodeVersion = v
-	} else {
-		opts.NodeVersion = os.Getenv("AGENTIC_NODE_VERSION")
-	}
-
-	extraEnvKeys := map[string]string{
-		"java":   "AGENTIC_JAVA_VERSION",
-		"dotnet": "AGENTIC_DOTNET_VERSION",
-		"go":     "AGENTIC_GO_VERSION",
-	}
-	for extra, envKey := range extraEnvKeys {
-		if v, _ := flags.GetString(extra); v != "" {
-			opts.Versions[extra] = v
-		} else if v = os.Getenv(envKey); v != "" {
-			opts.Versions[extra] = v
-		}
-	}
-
-	return opts
+	return pruneAndReport()
 }
 
 func defaultRunBuildScript(tool string, opts docker.BuildOptions) error {
@@ -108,10 +61,12 @@ func defaultRunBuildScript(tool string, opts docker.BuildOptions) error {
 	if err != nil {
 		return err
 	}
+
 	image, err := tools.ImageName(tool)
 	if err != nil {
 		return err
 	}
+
 	cfg := tools.Configs[tool]
 	toolDir := filepath.Join(repoRoot, "tools", tool)
 	return docker.BuildTool(toolDir, image, cfg.VersionCmd, repoRoot, opts)
