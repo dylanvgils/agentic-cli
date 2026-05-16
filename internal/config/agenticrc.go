@@ -2,6 +2,7 @@ package config
 
 import (
 	"bufio"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,45 +10,85 @@ import (
 
 // AgenticRC holds the parsed contents of a .agenticrc project config file.
 type AgenticRC struct {
-	ExtraMounts  []string
-	Secrets []string
-	PidsLimit    string
-	CPUs         string
-	Memory       string
+	Root        bool
+	ExtraMounts []string
+	Secrets     []string
+	PidsLimit   string
+	CPUs        string
+	Memory      string
 }
 
-// FindAndLoad walks up from startDir looking for .agenticrc and parses it.
-// Returns an empty AgenticRC if no file is found or the file cannot be read.
+// FindAndLoad walks up from startDir collecting all .agenticrc files and merges
+// them. Stops when a file with root=true is encountered. For scalar keys the
+// innermost (child) value wins; list keys accumulate outermost-first.
+// Returns an empty AgenticRC if no file is found.
 func FindAndLoad(startDir string) *AgenticRC {
-	path, ok := findRC(startDir)
-	if !ok {
-		return &AgenticRC{}
-	}
-
-	rc, err := loadRC(path)
-	if err != nil {
-		return &AgenticRC{}
-	}
-
-	return rc
+	paths := collectPaths(startDir)
+	configs := loadConfigs(paths)
+	return mergeConfigs(configs)
 }
 
-func findRC(startDir string) (string, bool) {
+func collectPaths(startDir string) []string {
+	var paths []string
 	dir := startDir
 
 	for {
 		candidate := filepath.Join(dir, ".agenticrc")
 		if _, err := os.Stat(candidate); err == nil {
-			return candidate, true
+			paths = append(paths, candidate)
 		}
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", false
+			break
 		}
-
 		dir = parent
 	}
+
+	return paths
+}
+
+func loadConfigs(paths []string) []*AgenticRC {
+	var configs []*AgenticRC
+
+	for _, path := range paths {
+		rc, err := loadRC(path)
+		if err != nil {
+			continue
+		}
+		configs = append(configs, rc)
+
+		if rc.Root {
+			break
+		}
+	}
+
+	return configs
+}
+
+func mergeConfigs(configs []*AgenticRC) *AgenticRC {
+	result := &AgenticRC{}
+
+	for _, rc := range configs {
+		if result.PidsLimit == "" {
+			result.PidsLimit = rc.PidsLimit
+		}
+
+		if result.CPUs == "" {
+			result.CPUs = rc.CPUs
+		}
+
+		if result.Memory == "" {
+			result.Memory = rc.Memory
+		}
+	}
+
+	for i := len(configs) - 1; i >= 0; i-- {
+		result.ExtraMounts = append(result.ExtraMounts, configs[i].ExtraMounts...)
+		result.Secrets = append(result.Secrets, configs[i].Secrets...)
+	}
+
+	return result
 }
 
 func loadRC(path string) (*AgenticRC, error) {
@@ -64,11 +105,11 @@ func loadRC(path string) (*AgenticRC, error) {
 	return rc, err
 }
 
-func parseRC(f *os.File) (*AgenticRC, error) {
+func parseRC(r io.Reader) (*AgenticRC, error) {
 	home, _ := os.UserHomeDir()
 
 	rc := &AgenticRC{}
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -79,36 +120,44 @@ func parseRC(f *os.File) (*AgenticRC, error) {
 		if !ok {
 			continue
 		}
-		value = stripQuotes(value)
+		key = strings.TrimSpace(key)
+		value = stripQuotes(strings.TrimSpace(value))
 
 		switch key {
-		case "EXTRA_MOUNTS":
-			if value == "" {
-				continue
-			}
-			parts := strings.Split(value, ",")
-			for _, p := range parts {
-				p = strings.ReplaceAll(p, "~", home)
-				rc.ExtraMounts = append(rc.ExtraMounts, p)
-			}
-		case "SECRETS":
-			if value == "" {
-				continue
-			}
-			for _, p := range strings.Split(value, ",") {
-				p = strings.ReplaceAll(p, "~", home)
-				rc.Secrets = append(rc.Secrets, p)
-			}
-		case "PIDS_LIMIT":
+		case "root":
+			rc.Root = value == "true"
+
+		case "extra_mounts":
+			rc.ExtraMounts = append(rc.ExtraMounts, splitValues(value, home)...)
+		case "secrets":
+			rc.Secrets = append(rc.Secrets, splitValues(value, home)...)
+
+		case "pids_limit":
 			rc.PidsLimit = value
-		case "CPUS":
+		case "cpus":
 			rc.CPUs = value
-		case "MEMORY":
+		case "memory":
 			rc.Memory = value
 		}
 	}
 
 	return rc, scanner.Err()
+}
+
+// splitValues splits a comma-separated value string, expands ~ to home, and
+// skips empty parts. Supports both comma-separated and repeatable-key styles.
+func splitValues(value, home string) []string {
+	var result []string
+
+	for pair := range strings.SplitSeq(value, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		result = append(result, strings.ReplaceAll(pair, "~", home))
+	}
+
+	return result
 }
 
 func stripQuotes(s string) string {
