@@ -1,7 +1,8 @@
 package docker
 
 import (
-	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -9,46 +10,59 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- RunCmd ---
-func TestRunCmd_delegatesToRun(t *testing.T) {
-	// Arrange
-	var capturedArgs []string
-	orig := dockerRun
-	dockerRun = func(args ...string) (string, error) {
-		capturedArgs = args
-		return "ok", nil
-	}
-	defer func() { dockerRun = orig }()
-
-	// Act
-	out, err := dockerRun("images", "--quiet")
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "ok", out)
-	assert.Equal(t, []string{"images", "--quiet"}, capturedArgs)
+// fakeDocker writes a shell script named "docker" to a temp dir and prepends
+// it to PATH. t.Setenv handles cleanup automatically.
+func fakeDocker(t *testing.T, script string) {
+	t.Helper()
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "docker")
+	require.NoError(t, os.WriteFile(bin, []byte("#!/bin/sh\n"+script+"\n"), 0o755))
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
-// --- dockerRunStdin ---
-func TestDockerRunStdin_passesReaderAndArgs(t *testing.T) {
+func TestRunCmd_capturesOutput(t *testing.T) {
 	// Arrange
-	var capturedReader io.Reader
-	var capturedArgs []string
-	orig := dockerRunStdin
-	dockerRunStdin = func(r io.Reader, args ...string) (string, error) {
-		capturedReader = r
-		capturedArgs = args
-		return "", nil
-	}
-	defer func() { dockerRunStdin = orig }()
-
-	reader := strings.NewReader("FROM scratch\n")
+	fakeDocker(t, `printf '%s\n' "$@"`)
 
 	// Act
-	_, err := dockerRunStdin(reader, "build", "--quiet", "-")
+	out, err := RunCmd("images", "--quiet")
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, reader, capturedReader)
-	assert.Equal(t, []string{"build", "--quiet", "-"}, capturedArgs)
+	assert.Equal(t, "images\n--quiet\n", out)
+}
+
+func TestRunCmd_returnsErrorOnFailure(t *testing.T) {
+	// Arrange
+	fakeDocker(t, `exit 1`)
+
+	// Act
+	_, err := RunCmd("bad-command")
+
+	// Assert
+	assert.Error(t, err)
+}
+
+func TestRun_pipesStdin(t *testing.T) {
+	// Arrange
+	fakeDocker(t, `cat`)
+
+	// Act
+	out, err := Run(strings.NewReader("hello\n"), "build", "-")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "hello\n", out)
+}
+
+func TestRun_nilStdinDoesNotBlock(t *testing.T) {
+	// Arrange
+	fakeDocker(t, `echo ok`)
+
+	// Act
+	out, err := Run(nil, "info")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "ok\n", out)
 }

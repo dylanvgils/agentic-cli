@@ -1,12 +1,24 @@
 package docker
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// makeRepoRoot creates a temp directory tree with shared/base/<extras> subdirs.
+func makeRepoRoot(t *testing.T, extras ...string) string {
+	t.Helper()
+	root := t.TempDir()
+	for _, extra := range extras {
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "shared", "base", extra), 0o755))
+	}
+	return root
+}
 
 // captureAllRunInteractive replaces runInteractive with a mock that records every call.
 func captureAllRunInteractive(t *testing.T) (func() [][]string, func()) {
@@ -41,6 +53,7 @@ func stubDockerRunBySubcmd(t *testing.T, responses map[string]string) func() {
 
 func TestUpdateTool_recoversBuildFromLabel(t *testing.T) {
 	// Arrange
+	repoRoot := makeRepoRoot(t, "java")
 	restore := stubDockerRunBySubcmd(t, map[string]string{
 		"inspect": `{"Id":"sha256:abcdef","Size":1048576,"Config":{"Labels":{"agentic.base":"node@24.0.0,java@21.0.1"}}}`,
 	})
@@ -50,7 +63,7 @@ func TestUpdateTool_recoversBuildFromLabel(t *testing.T) {
 	defer restoreInteractive()
 
 	// Act
-	err := UpdateTool("tooldir", "agentic-claude", "", "reporoot", BuildOptions{})
+	err := UpdateTool("tooldir", "agentic-claude", "", repoRoot, BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -67,6 +80,7 @@ func TestUpdateTool_recoversBuildFromLabel(t *testing.T) {
 
 func TestUpdateTool_respectsExistingBaseOverride(t *testing.T) {
 	// Arrange
+	repoRoot := makeRepoRoot(t, "java")
 	var inspectCalled bool
 	orig := dockerRun
 	dockerRun = func(args ...string) (string, error) {
@@ -81,7 +95,7 @@ func TestUpdateTool_respectsExistingBaseOverride(t *testing.T) {
 	defer restoreInteractive()
 
 	// Act
-	err := UpdateTool("tooldir", "agentic-claude", "", "reporoot", BuildOptions{BaseOverride: "java"})
+	err := UpdateTool("tooldir", "agentic-claude", "", repoRoot, BuildOptions{BaseOverride: "java"})
 
 	// Assert
 	require.NoError(t, err)
@@ -97,7 +111,7 @@ func TestUpdateTool_alwaysSetsNoCacheTool(t *testing.T) {
 	defer restoreInteractive()
 
 	// Act — pass NoCache:false to confirm NoCacheTool alone triggers --no-cache on the tool step
-	err := UpdateTool("tooldir", "agentic-claude", "", "reporoot", BuildOptions{})
+	err := UpdateTool("tooldir", "agentic-claude", "", t.TempDir(), BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)

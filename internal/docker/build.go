@@ -2,6 +2,7 @@ package docker
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -66,6 +67,9 @@ func buildExtraLayers(repoRoot string, extras []string, nodeVer string, opts Bui
 
 	for i, extra := range extras {
 		extraDir := filepath.Join(repoRoot, "shared", "base", extra)
+		if _, err := os.Stat(extraDir); os.IsNotExist(err) {
+			return "", "", fmt.Errorf("unknown base %q (valid: %s)", extra, validExtras(repoRoot))
+		}
 		imageTag := "agentic-base-" + strings.Join(extras[:i+1], "-")
 
 		args := []string{"build"}
@@ -97,6 +101,21 @@ func parseExtras(base string) []string {
 		}
 	}
 	return extras
+}
+
+func validExtras(repoRoot string) string {
+	baseDir := filepath.Join(repoRoot, "shared", "base")
+	entries, err := os.ReadDir(baseDir)
+	if err != nil {
+		return "(unavailable)"
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() && e.Name() != "node" {
+			names = append(names, e.Name())
+		}
+	}
+	return strings.Join(names, ", ")
 }
 
 func buildToolImage(toolDir, image, baseImage, baseLabel string, opts BuildOptions) error {
