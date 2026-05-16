@@ -1,3 +1,4 @@
+// Package config provides project configuration loaded from .agenticrc files.
 package config
 
 import (

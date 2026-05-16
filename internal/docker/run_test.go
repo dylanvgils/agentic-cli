@@ -4,7 +4,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,8 +80,8 @@ func TestRunContainer_tmpfsExec(t *testing.T) {
 	defer restore()
 
 	rs := RunSpec{
-		Image: "agentic-claude",
-		Spec:  config.RunSpec{TmpfsExecTmp: true},
+		Image:        "agentic-claude",
+		TmpfsExecTmp: true,
 	}
 
 	// Act

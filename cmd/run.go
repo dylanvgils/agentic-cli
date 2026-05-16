@@ -83,9 +83,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 
 	var volumes []string
 	var secrets []string
-	var spec config.RunSpec
 	volumes = append(toolConfig.Mounts(), volumes...)
-	spec.TmpfsExecTmp = toolConfig.TmpfsExecTmp
 	if env := os.Getenv("AGENTIC_EXTRA_MOUNTS"); env != "" {
 		for m := range strings.SplitSeq(env, ",") {
 			if m != "" {
@@ -126,7 +124,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		Volumes:        volumes,
 		Secrets:        secrets,
 		SkipEntrypoint: skipEntrypoint,
-		Spec:           spec,
+		TmpfsExecTmp:   toolConfig.TmpfsExecTmp,
 		PidsLimit:      pidsLimit,
 		CPUs:           cpus,
 		Memory:         memory,

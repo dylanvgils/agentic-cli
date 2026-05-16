@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
@@ -19,7 +18,7 @@ type RunSpec struct {
 	Volumes        []string
 	Secrets        []string
 	SkipEntrypoint bool
-	Spec           config.RunSpec
+	TmpfsExecTmp   bool
 	PidsLimit      string
 	CPUs           string
 	Memory         string
@@ -65,7 +64,7 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	}
 
 	args = append(args, arg("tmpfs", mount.TmpfsMount("/tmp", mount.TmpfsOptions{
-		Exec: rs.Spec.TmpfsExecTmp,
+		Exec: rs.TmpfsExecTmp,
 		Size: "1g",
 	})))
 
