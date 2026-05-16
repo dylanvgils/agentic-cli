@@ -1,6 +1,6 @@
 # Build output
-agentic-cli
-agentic-cli.exe
+agentic
+agentic.exe
 dist/
 
 # Go artifacts
