@@ -64,10 +64,10 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 		args = append(args, "-it")
 	}
 
-	args = append(args, "--tmpfs", mount.TmpfsMount("/tmp", mount.TmpfsOptions{
+	args = append(args, arg("tmpfs", mount.TmpfsMount("/tmp", mount.TmpfsOptions{
 		Exec: rs.Spec.TmpfsExecTmp,
 		Size: "1g",
-	}))
+	})))
 
 	for _, volume := range rs.Volumes {
 		varg := arg("volume", mount.ExpandVars(volume, rs.ToolHome, rs.ContainerHome))

@@ -72,7 +72,7 @@ func TestRunContainer_tmpfsDefault(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, "/tmp:size=1g", argAfter(get(), "--tmpfs"))
+	assert.Contains(t, get(), "--tmpfs=/tmp:size=1g")
 }
 
 func TestRunContainer_tmpfsExec(t *testing.T) {
@@ -90,7 +90,7 @@ func TestRunContainer_tmpfsExec(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, "/tmp:exec,size=1g", argAfter(get(), "--tmpfs"))
+	assert.Contains(t, get(), "--tmpfs=/tmp:exec,size=1g")
 }
 
 func TestRunContainer_imageAndToolArgs(t *testing.T) {
