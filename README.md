@@ -394,8 +394,7 @@ agentic-cli/
     │   ├── java/Dockerfile      # Base Java image (extends node)
     │   ├── dotnet/Dockerfile    # Base .NET image (extends node)
     │   └── go/Dockerfile        # Base Go image (extends node)
-    └── scripts/
-        └── repo-root.sh         # Resolves $REPO_ROOT (sourced by bin/agentic)
+    └── scripts/                 # Shell scripts sourced by bin/agentic
 ```
 
 ## 🐛 Debugging
