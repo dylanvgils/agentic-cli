@@ -5,7 +5,7 @@ import "strings"
 // CleanImage removes all containers using image and the image itself.
 func CleanImage(image string) error {
 	if err := runIfAny(
-		[]string{"ps", arg("all"), arg("quiet"), arg("filter", "label=project=agentic-cli"), arg("filter", "ancestor="+image)},
+		[]string{"ps", arg("all"), arg("quiet"), labelFilter(LabelProject, LabelProjectVal), arg("filter", "ancestor="+image)},
 		[]string{"rm", arg("force")},
 	); err != nil {
 		return err

@@ -45,9 +45,9 @@ func InspectImage(name string) (*ImageInfo, error) {
 	return &ImageInfo{
 		Image:   name,
 		ID:      shortID,
-		Version: result.Config.Labels["agentic.tool.version"],
-		Base:    result.Config.Labels["agentic.base"],
-		Built:   result.Config.Labels["agentic.built"],
+		Version: result.Config.Labels[LabelToolVersion],
+		Base:    result.Config.Labels[LabelBase],
+		Built:   result.Config.Labels[LabelBuilt],
 		SizeMB:  int(result.Size / 1048576),
 	}, nil
 }

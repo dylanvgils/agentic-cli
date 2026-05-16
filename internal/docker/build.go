@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 )
 
 // BuildOptions controls how a tool image is built.
@@ -74,12 +73,9 @@ func buildNodeBase(repoRoot string, opts BuildOptions) (string, error) {
 
 func buildExtraLayers(repoRoot string, extras []string, nodeVer string, opts BuildOptions) (prevImage, baseLabel string, err error) {
 	prevImage = "agentic-base"
-	baseLabel = "node"
-	if nodeVer != "" {
-		baseLabel += "@" + nodeVer
-	}
-
 	tagSuffix := ""
+	extraVersions := make(map[string]string)
+
 	for _, extra := range extras {
 		extraDir := filepath.Join(repoRoot, "shared", "base", extra)
 
@@ -103,20 +99,15 @@ func buildExtraLayers(repoRoot string, extras []string, nodeVer string, opts Bui
 			return "", "", fmt.Errorf("%s layer: %w", extra, err)
 		}
 
-		extraVer := detectBaseVersion(imageTag, "agentic-version-"+extra)
-		baseLabel += "," + extra
-		if extraVer != "" {
-			baseLabel += "@" + extraVer
-		}
+		extraVersions[extra] = detectBaseVersion(imageTag, "agentic-version-"+extra)
 		prevImage = imageTag
 	}
 
-	return prevImage, baseLabel, nil
+	return prevImage, buildBaseLabel(nodeVer, extras, extraVersions), nil
 }
 
 func buildToolImage(toolDir, image, baseImage, baseLabel string, opts BuildOptions) error {
 	uid, gid := currentUserIDs()
-	built := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 
 	args := []string{"build"}
 	if opts.NoCache || opts.NoCacheTool {
@@ -126,8 +117,8 @@ func buildToolImage(toolDir, image, baseImage, baseLabel string, opts BuildOptio
 		arg("build-arg", "HOST_UID="+uid),
 		arg("build-arg", "HOST_GID="+gid),
 		arg("build-arg", "BASE_IMAGE="+baseImage),
-		arg("label", "agentic.base="+baseLabel),
-		arg("label", "agentic.built="+built),
+		label(LabelBase, baseLabel),
+		label(LabelBuilt, buildBuiltLabel()),
 		arg("tag", image),
 		toolDir,
 	)
@@ -145,7 +136,7 @@ func stampToolVersion(image, versionCmd string) {
 	_, _ = dockerRunStdin(
 		strings.NewReader("FROM "+image+"\n"),
 		"build",
-		arg("label", "agentic.tool.version="+ver),
+		label(LabelToolVersion, ver),
 		arg("tag", image),
 		"-",
 	)
