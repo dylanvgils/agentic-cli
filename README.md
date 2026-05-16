@@ -120,24 +120,24 @@ agentic update claude --base java
 agentic update claude --no-cache
 
 # Run a specific tool
-agentic claude
-agentic copilot
-agentic opencode
+agentic run claude
+agentic run copilot
+agentic run opencode
 
 # Run a shell command instead of the tool entrypoint
-agentic claude -- bash
-agentic claude -- ls /workspace
+agentic run claude -- bash
+agentic run claude -- ls /workspace
 
 # Mount named Docker volumes (auto-created on first use)
-agentic -v 'maven:$CONTAINER_HOME/.m2' claude
-agentic -v 'maven:$CONTAINER_HOME/.m2' -v 'gradle:$CONTAINER_HOME/.gradle' claude
+agentic run -v 'maven:$CONTAINER_HOME/.m2' claude
+agentic run -v 'maven:$CONTAINER_HOME/.m2' -v 'gradle:$CONTAINER_HOME/.gradle' claude
 
 # Mount bind-mount volumes (host paths)
-agentic -v '~/.m2:$CONTAINER_HOME/.m2' claude
-agentic -v '~/.m2:$CONTAINER_HOME/.m2' -v '~/.gradle:$CONTAINER_HOME/.gradle' claude
+agentic run -v '~/.m2:$CONTAINER_HOME/.m2' claude
+agentic run -v '~/.m2:$CONTAINER_HOME/.m2' -v '~/.gradle:$CONTAINER_HOME/.gradle' claude
 
 # Override the tool home directory
-agentic --home /opt/agentic claude
+agentic run --home /opt/agentic claude
 
 # Run with no arguments if a default tool is configured
 agentic
@@ -163,7 +163,7 @@ Completions cover all commands (`build`, `update`, `clean`, `inspect`, `completi
 
 ## 🔗 Shell aliases
 
-Shell aliases let you run tools directly (e.g., `copilot` instead of `agentic copilot`). Add to your shell config to activate them:
+Shell aliases let you run tools directly (e.g., `copilot` instead of `agentic run copilot`). Add to your shell config to activate them:
 
 ```bash
 source <(agentic aliases)
