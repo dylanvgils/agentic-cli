@@ -1,10 +1,10 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
@@ -50,7 +50,7 @@ func pruneAndReport() error {
 	}
 
 	if reclaimed != "" {
-		fmt.Printf("=> pruned dangling images (reclaimed %s)\n", reclaimed)
+		output.Stepf("pruned dangling images (reclaimed %s)", reclaimed)
 	}
 
 	return nil

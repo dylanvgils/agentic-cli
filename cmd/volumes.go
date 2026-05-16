@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -51,7 +52,7 @@ func runVolumeCreate(_ *cobra.Command, args []string) error {
 	if err := createVolume(name); err != nil {
 		return err
 	}
-	fmt.Printf("=> created: %s\n", name)
+	output.Stepf("created: %s", name)
 	return nil
 }
 
@@ -69,7 +70,7 @@ func runVolumeRemove(_ *cobra.Command, args []string) error {
 		if err := removeVolume(args[0]); err != nil {
 			return err
 		}
-		fmt.Printf("=> deleted: %s\n", args[0])
+		output.Stepf("deleted: %s", args[0])
 		return nil
 	}
 
@@ -99,7 +100,7 @@ func runVolumeRemove(_ *cobra.Command, args []string) error {
 		if err := removeVolume(n); err != nil {
 			return err
 		}
-		fmt.Printf("=> deleted: %s\n", n)
+		output.Stepf("deleted: %s", n)
 	}
 	return nil
 }

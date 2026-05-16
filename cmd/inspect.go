@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
@@ -22,7 +23,7 @@ var inspectCmd = &cobra.Command{
 
 func runInspect(_ *cobra.Command, args []string) error {
 	for _, name := range toolNames(args) {
-		fmt.Printf("=> %s\n", name)
+		output.Step(name)
 		if err := printImageInfo(name); err != nil {
 			return err
 		}
