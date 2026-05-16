@@ -10,23 +10,38 @@ Each tool runs in an isolated, read-only container with only the minimal mounts 
 
 - Docker
 - Git
-- Go
-- Make
 
 ## 🚀 Installation
 
-Clone the repo and install:
+Clone the repo, then build and install using Docker (no Go required):
 
 ```bash
 git clone https://github.com/dylanvgils/agentic-cli.git
 cd agentic-cli
-make install
+./install.sh        # Linux / macOS
+.\install.ps1       # Windows (PowerShell)
 ```
 
-To uninstall:
+On Linux/macOS, the binary is installed to `~/.local/bin`. If that directory isn't in your PATH, add it to your shell config:
 
 ```bash
-make uninstall
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+On Windows, the installer adds the install directory to your user PATH automatically. Restart your terminal after installation for the change to take effect.
+
+To uninstall and remove all agentic data:
+
+```bash
+./install.sh --remove
+.\install.ps1 -Remove
+```
+
+If you already have Go installed, you can build and install natively instead:
+
+```bash
+make install        # builds and installs to ~/.local/bin/agentic
+make uninstall      # removes the binary
 ```
 
 Then build the image(s) you need:
@@ -441,6 +456,19 @@ agentic-cli/
         ├── dotnet/Dockerfile    # Base .NET image (extends node)
         └── go/Dockerfile        # Base Go image (extends node)
 ```
+
+## 🛠️ Development
+
+Working on the CLI requires Go and Make installed locally.
+
+```bash
+make build          # compile to bin/agentic
+make test           # run unit tests
+make dist           # cross-platform binaries → dist/
+make docker-dist    # same via Docker (no local Go needed)
+```
+
+Changes to the CLI take effect immediately after `make build` — no container rebuild needed. Changes to Dockerfiles in `tools/` or `shared/base/` require a `agentic build` to rebuild the affected image.
 
 ## 🐛 Debugging
 

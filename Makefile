@@ -4,7 +4,7 @@ VERSION   ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 LDFLAGS   := -s -w -X github.com/dylanvgils/agentic-cli/cmd.version=$(VERSION)
 GOFLAGS   := CGO_ENABLED=0
 
-.PHONY: build install uninstall dist test test-integration clean
+.PHONY: build install uninstall dist docker-dist test clean
 
 build:
 	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(BINARY) .
@@ -26,6 +26,9 @@ dist:
 	GOOS=linux   GOARCH=arm64 $(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY)-linux-arm64 .
 	GOOS=darwin  GOARCH=arm64 $(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY)-darwin-arm64 .
 	GOOS=windows GOARCH=amd64 $(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY)-windows-amd64.exe .
+
+docker-dist:
+	docker buildx build --target export --output $(BUILD_DIR)/ .
 
 test:
 	go test ./...
