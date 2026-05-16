@@ -91,9 +91,9 @@ func buildExtraLayers(repoRoot string, extras []string, nodeVer string, opts Bui
 
 func parseExtras(base string) []string {
 	var extras []string
-	for e := range strings.SplitSeq(base, ",") {
-		if e = strings.TrimSpace(e); e != "" {
-			extras = append(extras, e)
+	for extra := range strings.SplitSeq(base, ",") {
+		if extra = strings.TrimSpace(extra); extra != "" {
+			extras = append(extras, extra)
 		}
 	}
 	return extras
@@ -117,4 +117,3 @@ func buildToolImage(toolDir, image, baseImage, baseLabel string, opts BuildOptio
 
 	return runInteractive(args...)
 }
-
