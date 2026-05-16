@@ -216,6 +216,32 @@ func TestRunUpdate_stopsOnFirstToolError(t *testing.T) {
 	assert.Len(t, updated, 1)
 }
 
+func TestRunUpdate_goFlag_setsOpt(t *testing.T) {
+	// Arrange
+	var capturedOpts docker.BuildOptions
+	restore := stubRunUpdateScript(t, func(_ string, opts docker.BuildOptions) error {
+		capturedOpts = opts
+		return nil
+	})
+	defer restore()
+
+	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+	defer restoreInspect()
+
+	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
+	defer restorePrune()
+
+	require.NoError(t, updateCmd.Flags().Set("go", "1.23"))
+	defer updateCmd.Flags().Set("go", "") //nolint:errcheck
+
+	// Act
+	err := runUpdate(updateCmd, []string{"claude"})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "1.23", capturedOpts.Versions["go"])
+}
+
 func TestRunUpdate_noCacheFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts docker.BuildOptions

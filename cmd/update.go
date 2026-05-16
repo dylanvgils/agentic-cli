@@ -19,6 +19,7 @@ func init() {
 	updateCmd.Flags().String("node", "", "Node.js version (default: 24)")
 	updateCmd.Flags().String("java", "", "Java (Temurin JDK) version (default: 21)")
 	updateCmd.Flags().String("dotnet", "", ".NET version (default: 10)")
+	updateCmd.Flags().String("go", "", "Go version (default: 1.26.2)")
 }
 
 var updateCmd = &cobra.Command{

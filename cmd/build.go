@@ -20,6 +20,7 @@ func init() {
 	buildCmd.Flags().String("node", "", "Node.js version (default: 24)")
 	buildCmd.Flags().String("java", "", "Java (Temurin JDK) version (default: 21)")
 	buildCmd.Flags().String("dotnet", "", ".NET version (default: 10)")
+	buildCmd.Flags().String("go", "", "Go version (default: 1.26.2)")
 }
 
 var buildCmd = &cobra.Command{
@@ -87,6 +88,7 @@ func buildOptsFromFlags(cmd *cobra.Command) docker.BuildOptions {
 	extraEnvKeys := map[string]string{
 		"java":   "AGENTIC_JAVA_VERSION",
 		"dotnet": "AGENTIC_DOTNET_VERSION",
+		"go":     "AGENTIC_GO_VERSION",
 	}
 	for extra, envKey := range extraEnvKeys {
 		if v, _ := flags.GetString(extra); v != "" {
@@ -94,9 +96,6 @@ func buildOptsFromFlags(cmd *cobra.Command) docker.BuildOptions {
 		} else if v = os.Getenv(envKey); v != "" {
 			opts.Versions[extra] = v
 		}
-	}
-	if v := os.Getenv("AGENTIC_GO_VERSION"); v != "" {
-		opts.Versions["go"] = v
 	}
 
 	return opts
