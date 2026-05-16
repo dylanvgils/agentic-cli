@@ -56,8 +56,8 @@ agentic <command> [args...]
 
 | Command                                                                                                                    | Description                                                                                 |
 | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `build [tool] [--base <extras>] [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]`  | Build tool image(s). Builds all tools if unspecified                                        |
-| `update [tool] [--base <extras>] [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]` | Update tool image(s) to latest version. Skips unbuilt tools when unspecified                |
+| `build [tool] [--base <e1[,e2,...]>] [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]`  | Build tool image(s). Builds all tools if unspecified                                        |
+| `update [tool] [--base <e1[,e2,...]>] [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]` | Update tool image(s) to latest version. Skips unbuilt tools when unspecified                |
 | `clean [tool]`                                                                                                             | Remove tool image(s). Cleans all tools + base if unspecified                                |
 | `inspect [tool]`                                                                                                           | Show image info (version, base layers, build date, size). Inspects all tools if unspecified |
 | `volumes <create\|list\|ls\|remove\|rm> [name]`                                                                            | Manage named Docker volumes created by agentic                                              |
@@ -86,6 +86,9 @@ agentic build copilot
 
 # Build with an extra runtime on top of node
 agentic build claude --base java
+
+# Build with multiple extra runtimes (comma-separated, layered left to right)
+agentic build claude --base java,dotnet
 
 # Force a fully fresh build (bypasses Docker layer cache)
 agentic build claude --no-cache
@@ -180,18 +183,19 @@ node (agentic-base)
         └── tool image
 ```
 
-| Flag                                 | Result             |
-| ------------------------------------ | ------------------ |
-| _(none)_                             | node only (v24)    |
-| `--base java`                        | node v24 + Java 21 |
-| `--base dotnet`                      | node v24 + .NET 10 |
-| `--base go`                          | node v24 + Go 1.26 |
-| `--node 22`                          | node v22 only      |
-| `--base java --java 17`              | node v24 + Java 17 |
-| `--base dotnet --dotnet 9`           | node v24 + .NET 9  |
-| `--base go --go 1.23`                | node v24 + Go 1.23 |
-| `--node 22 --base java --java 17`    | node v22 + Java 17 |
-| `--node 22 --base dotnet --dotnet 9` | node v22 + .NET 9  |
+| Flag                                 | Result                      |
+| ------------------------------------ | --------------------------- |
+| _(none)_                             | node only (v24)             |
+| `--base java`                        | node v24 + Java 21          |
+| `--base dotnet`                      | node v24 + .NET 10          |
+| `--base go`                          | node v24 + Go 1.26          |
+| `--base java,dotnet`                 | node v24 + Java 21 + .NET 10 |
+| `--node 22`                          | node v22 only               |
+| `--base java --java 17`              | node v24 + Java 17          |
+| `--base dotnet --dotnet 9`           | node v24 + .NET 9           |
+| `--base go --go 1.23`                | node v24 + Go 1.23          |
+| `--node 22 --base java --java 17`    | node v22 + Java 17          |
+| `--node 22 --base dotnet --dotnet 9` | node v22 + .NET 9           |
 
 Both tools default to node only. Use `--base` to add extra runtimes at build time.
 
@@ -294,7 +298,8 @@ All configuration is done through environment variables, which can be set in you
 | `AGENTIC_MEMORY`         | Default container memory limit                                                                                                                        | `4g`                      |
 | `AGENTIC_NODE_VERSION`   | Node.js version used when building the base node image                                                                                                | `24` (Dockerfile default) |
 | `AGENTIC_JAVA_VERSION`   | Java (Temurin JDK) version used when building the java layer                                                                                          | `21` (Dockerfile default) |
-| `AGENTIC_DOTNET_VERSION` | .NET version used when building the dotnet layer                                                                                                      | `10` (Dockerfile default) |
+| `AGENTIC_DOTNET_VERSION` | .NET version used when building the dotnet layer                                                                                                      | `10` (Dockerfile default)     |
+| `AGENTIC_GO_VERSION`     | Go version used when building the go layer                                                                                                            | `1.26.2` (Dockerfile default) |
 
 ### Per-project configuration
 
@@ -343,6 +348,7 @@ export AGENTIC_DEFAULT_TOOL=claude
 # export AGENTIC_NODE_VERSION=22   # uncomment to pin Node.js version
 # export AGENTIC_JAVA_VERSION=17   # uncomment to pin Java version
 # export AGENTIC_DOTNET_VERSION=9  # uncomment to pin .NET version
+# export AGENTIC_GO_VERSION=1.23   # uncomment to pin Go version
 
 # Mount Maven and Gradle caches for Java projects (named volumes)
 # export AGENTIC_EXTRA_MOUNTS='maven:$CONTAINER_HOME/.m2,gradle:$CONTAINER_HOME/.gradle'
@@ -367,44 +373,29 @@ agentic-cli/
 ├── install.sh                   # Symlink agentic into ~/.local/bin and build agentic-cli
 ├── uninstall.sh                 # Remove the symlink and agentic-cli binary
 ├── bin/
-│   └── agentic                  # Main entrypoint: build, clean, and run tools
+│   └── agentic                  # Thin bash wrapper: routes subcommands to agentic-cli
+├── cmd/                         # Cobra commands (build, update, clean, inspect, run, …)
+├── internal/
+│   ├── docker/                  # Build, update, run, clean, inspect orchestration
+│   └── tools/                   # Per-tool runtime config (mounts, base, version cmd)
 ├── tools/
 │   ├── claude/
-│   │   ├── build.sh
-│   │   ├── clean.sh
-│   │   ├── update.sh
-│   │   ├── config.sh
 │   │   ├── Dockerfile
-│   │   ├── entrypoint.sh
-│   │   └── run.sh
+│   │   └── entrypoint.sh
 │   ├── copilot/
-│   │   ├── build.sh
-│   │   ├── clean.sh
-│   │   ├── update.sh
-│   │   ├── config.sh
 │   │   ├── Dockerfile
-│   │   ├── entrypoint.sh
-│   │   └── run.sh
+│   │   └── entrypoint.sh
 │   └── opencode/
-│       ├── build.sh
-│       ├── clean.sh
-│       ├── update.sh
-│       ├── config.sh
 │       ├── Dockerfile
-│       ├── entrypoint.sh
-│       └── run.sh
+│       └── entrypoint.sh
 └── shared/
-    ├── config.sh                # Shared config (TOOL_HOME)
     ├── base/
     │   ├── node/Dockerfile      # Base Node.js image (root layer)
     │   ├── java/Dockerfile      # Base Java image (extends node)
-    │   └── dotnet/Dockerfile    # Base .NET image (extends node)
+    │   ├── dotnet/Dockerfile    # Base .NET image (extends node)
+    │   └── go/Dockerfile        # Base Go image (extends node)
     └── scripts/
-        ├── build-common.sh      # Shared build logic
-        ├── clean-common.sh      # Shared clean logic
-        ├── update-common.sh     # Shared update logic
-        ├── repo-root.sh         # Resolves $REPO_ROOT
-        └── run-common.sh        # Shared Docker run logic
+        └── repo-root.sh         # Resolves $REPO_ROOT (sourced by bin/agentic)
 ```
 
 ## 🐛 Debugging

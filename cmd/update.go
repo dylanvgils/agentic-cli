@@ -14,7 +14,7 @@ var runUpdateScript = defaultRunUpdateScript
 
 func init() {
 	rootCmd.AddCommand(updateCmd)
-	updateCmd.Flags().String("base", "", "override the extra runtime(s) to layer on top of node")
+	updateCmd.Flags().String("base", "", "comma-separated extra runtime(s) to layer on top of node (e.g. java,dotnet)")
 	updateCmd.Flags().Bool("no-cache", false, "also rebuild base layers (fully fresh build)")
 	updateCmd.Flags().String("node", "", "Node.js version (default: 24)")
 	updateCmd.Flags().String("java", "", "Java (Temurin JDK) version (default: 21)")
@@ -27,10 +27,17 @@ var updateCmd = &cobra.Command{
 	Short: "Update tool image(s) to latest version",
 	Long: `Update tool image(s) to latest version. Rebuilds the tool step without cache
 so the installer fetches the latest version. Skips unbuilt tools when no tool
-specified.`,
+specified.
+
+Environment:
+  AGENTIC_NODE_VERSION    Node.js version (overridden by --node)
+  AGENTIC_JAVA_VERSION    Java version (overridden by --java)
+  AGENTIC_DOTNET_VERSION  .NET version (overridden by --dotnet)
+  AGENTIC_GO_VERSION      Go version (overridden by --go)`,
 	Example: `  agentic update
   agentic update claude
   agentic update claude --base java
+  agentic update claude --base java,dotnet
   agentic update claude --no-cache`,
 	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
 	ValidArgs: tools.Names(),
