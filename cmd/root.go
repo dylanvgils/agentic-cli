@@ -9,7 +9,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var version = "dev"
+var (
+	version       = "dev"
+	installMethod = ""
+)
 
 var (
 	runContainer       = docker.RunContainer
@@ -29,13 +32,20 @@ var rootCmd = &cobra.Command{
 	Short: "Run agentic coding tools in sandboxed containers",
 	Long: `agentic runs AI coding tools (Claude Code, Copilot, OpenCode) in
 sandboxed Docker containers with read-only filesystems and dropped capabilities.`,
-	Version:      version,
+	Version:      buildVersion(),
 	SilenceUsage: true,
 	RunE:         rootRun,
 }
 
 func rootRun(cmd *cobra.Command, _ []string) error {
 	return cmd.Help()
+}
+
+func buildVersion() string {
+	if installMethod == "" {
+		return version
+	}
+	return version + " (" + installMethod + ")"
 }
 
 // Execute the Agentic CLI
