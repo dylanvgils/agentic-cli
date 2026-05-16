@@ -15,18 +15,18 @@ Each tool runs in an isolated, read-only container with only the minimal mounts 
 
 ## 🚀 Installation
 
-Clone the repo and run the install script:
+Clone the repo and install:
 
 ```bash
 git clone https://github.com/dylanvgils/agentic-cli.git
 cd agentic-cli
-./install.sh
+make install
 ```
 
 To uninstall:
 
 ```bash
-./uninstall.sh
+make uninstall
 ```
 
 Then build the image(s) you need:
@@ -370,10 +370,6 @@ The copilot tool will also use `$HOME/.secrets/copilot_token` if it exists, to r
 
 ```
 agentic-cli/
-├── install.sh                   # Symlink agentic into ~/.local/bin and build agentic-cli
-├── uninstall.sh                 # Remove the symlink and agentic-cli binary
-├── bin/
-│   └── agentic                  # Thin bash wrapper: routes subcommands to agentic-cli
 ├── cmd/                         # Cobra commands (build, update, clean, inspect, run, …)
 ├── internal/
 │   ├── docker/                  # Build, update, run, clean, inspect orchestration
@@ -389,12 +385,11 @@ agentic-cli/
 │       ├── Dockerfile
 │       └── entrypoint.sh
 └── shared/
-    ├── base/
-    │   ├── node/Dockerfile      # Base Node.js image (root layer)
-    │   ├── java/Dockerfile      # Base Java image (extends node)
-    │   ├── dotnet/Dockerfile    # Base .NET image (extends node)
-    │   └── go/Dockerfile        # Base Go image (extends node)
-    └── scripts/                 # Shell scripts sourced by bin/agentic
+    └── base/
+        ├── node/Dockerfile      # Base Node.js image (root layer)
+        ├── java/Dockerfile      # Base Java image (extends node)
+        ├── dotnet/Dockerfile    # Base .NET image (extends node)
+        └── go/Dockerfile        # Base Go image (extends node)
 ```
 
 ## 🐛 Debugging

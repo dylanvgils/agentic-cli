@@ -1,4 +1,4 @@
-BINARY    := agentic-cli
+BINARY    := agentic
 BUILD_DIR := dist
 VERSION   ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 LDFLAGS   := -s -w -X github.com/dylanvgils/agentic-cli/cmd.version=$(VERSION)
@@ -28,9 +28,6 @@ dist:
 
 test:
 	go test ./...
-
-test-integration:
-	go test -tags=integration ./...
 
 clean:
 	rm -f $(BINARY)
