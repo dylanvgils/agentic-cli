@@ -1,8 +1,7 @@
 package cmd
 
 import (
-	"fmt"
-
+	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
@@ -28,14 +27,14 @@ func runClean(_ *cobra.Command, args []string) error {
 	}
 
 	if len(args) == 0 {
-		fmt.Println("=> base")
+		output.Step("base")
 		return cleanBaseImages()
 	}
 	return nil
 }
 
 func cleanOneTool(name string) error {
-	fmt.Printf("=> %s\n", name)
+	output.Step(name)
 	image, err := tools.ImageName(name)
 	if err != nil {
 		return err

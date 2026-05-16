@@ -1,10 +1,10 @@
 package cmd
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
@@ -47,7 +47,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	opts := buildOptsFromFlags(cmd)
 
 	for _, name := range toolNames(args) {
-		fmt.Printf("=> %s\n", name)
+		output.Step(name)
 		if err := runBuildScript(name, opts); err != nil {
 			return err
 		}

@@ -29,6 +29,7 @@ Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-sp
 Drop a `Dockerfile` in `shared/base/<name>/`. It must accept `BASE_IMAGE` as a build arg. The build system derives the version env var as `AGENTIC_<NAME>_VERSION` automatically.
 
 ### Go tests
+- Always add tests for new code
 - Use Arrange-Act-Assert (AAA) in every test: `// Arrange`, `// Act`, `// Assert` comment labels with a blank line between sections
 - Omit `// Arrange` only when there is genuinely nothing to set up
 - Use `// Act + Assert` only when a single call is inseparably both (e.g. `assert.Panics`)

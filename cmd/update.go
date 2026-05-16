@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
@@ -71,7 +72,7 @@ func updateAllTools(opts docker.BuildOptions) error {
 			return err
 		}
 		if info == nil {
-			fmt.Printf("=> %s (skipped - not built)\n", name)
+			output.Stepf("%s (skipped - not built)", name)
 			continue
 		}
 		if err := updateOneTool(name, opts); err != nil {
@@ -89,7 +90,7 @@ func updateAllTools(opts docker.BuildOptions) error {
 }
 
 func updateOneTool(name string, opts docker.BuildOptions) error {
-	fmt.Printf("=> %s\n", name)
+	output.Step(name)
 
 	image, err := tools.ImageName(name)
 	if err != nil {
@@ -117,9 +118,9 @@ func imageVersion(image string) string {
 
 func reportVersionChange(before, after string) {
 	if before != "" && before != after {
-		fmt.Printf("=> version: %s -> %s\n", before, after)
+		output.Stepf("version: %s -> %s", before, after)
 	} else if after != "" {
-		fmt.Printf("=> version: %s (up to date)\n", after)
+		output.Stepf("version: %s (up to date)", after)
 	}
 }
 
