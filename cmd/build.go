@@ -114,5 +114,5 @@ func defaultRunBuildScript(tool string, opts docker.BuildOptions) error {
 	}
 	cfg := tools.Configs[tool]
 	toolDir := filepath.Join(repoRoot, "tools", tool)
-	return docker.BuildTool(toolDir, image, cfg.Base, cfg.VersionCmd, repoRoot, opts)
+	return docker.BuildTool(toolDir, image, cfg.VersionCmd, repoRoot, opts)
 }

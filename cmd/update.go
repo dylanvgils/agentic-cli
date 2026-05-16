@@ -132,5 +132,5 @@ func defaultRunUpdateScript(tool string, opts docker.BuildOptions) error {
 	}
 	cfg := tools.Configs[tool]
 	toolDir := filepath.Join(repoRoot, "tools", tool)
-	return docker.UpdateTool(toolDir, image, cfg.Base, cfg.VersionCmd, repoRoot, opts)
+	return docker.UpdateTool(toolDir, image, cfg.VersionCmd, repoRoot, opts)
 }

@@ -6,14 +6,14 @@ import "strings"
 // It recovers the base extras from the existing image's agentic.base label when
 // BaseOverride is not set (so updates preserve the original --base configuration),
 // then delegates to BuildTool with NoCacheTool enabled so only the tool step skips cache.
-func UpdateTool(toolDir, image, defaultBase, versionCmd, repoRoot string, opts BuildOptions) error {
+func UpdateTool(toolDir, image, versionCmd, repoRoot string, opts BuildOptions) error {
 	if opts.BaseOverride == "" {
 		if info, err := InspectImage(image); err == nil && info != nil && info.Base != "" {
 			opts.BaseOverride = recoverExtras(info.Base)
 		}
 	}
 	opts.NoCacheTool = true
-	return BuildTool(toolDir, image, defaultBase, versionCmd, repoRoot, opts)
+	return BuildTool(toolDir, image, versionCmd, repoRoot, opts)
 }
 
 // recoverExtras parses an agentic.base label and returns the non-node extras as a

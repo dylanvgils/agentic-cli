@@ -33,19 +33,15 @@ var dockerBuildStdin = func(stdin string, args ...string) error {
 // BuildTool runs the four-step multi-stage build pipeline for a tool.
 // toolDir is the absolute path to the tool directory (contains Dockerfile).
 // image is the target Docker image name (e.g. "agentic-claude").
-// defaultBase is the tool's default base extras; overridden by opts.BaseOverride if non-empty.
 // versionCmd is run inside the built image to detect the installed version (may be empty).
 // repoRoot is the repository root (used to locate shared/base/ Dockerfiles).
-func BuildTool(toolDir, image, defaultBase, versionCmd, repoRoot string, opts BuildOptions) error {
+func BuildTool(toolDir, image, versionCmd, repoRoot string, opts BuildOptions) error {
 	nodeVer, err := buildNodeBase(repoRoot, opts)
 	if err != nil {
 		return fmt.Errorf("node base: %w", err)
 	}
 
 	base := opts.BaseOverride
-	if base == "" {
-		base = defaultBase
-	}
 	var extras []string
 	for _, e := range strings.Split(base, ",") {
 		if e = strings.TrimSpace(e); e != "" {
