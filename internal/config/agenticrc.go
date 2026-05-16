@@ -9,10 +9,11 @@ import (
 
 // AgenticRC holds the parsed contents of a .agenticrc project config file.
 type AgenticRC struct {
-	ExtraMounts []string
-	PidsLimit   string
-	CPUs        string
-	Memory      string
+	ExtraMounts  []string
+	Secrets []string
+	PidsLimit    string
+	CPUs         string
+	Memory       string
 }
 
 // FindAndLoad walks up from startDir looking for .agenticrc and parses it.
@@ -89,6 +90,14 @@ func parseRC(f *os.File) (*AgenticRC, error) {
 			for _, p := range parts {
 				p = strings.ReplaceAll(p, "~", home)
 				rc.ExtraMounts = append(rc.ExtraMounts, p)
+			}
+		case "SECRETS":
+			if value == "" {
+				continue
+			}
+			for _, p := range strings.Split(value, ",") {
+				p = strings.ReplaceAll(p, "~", home)
+				rc.Secrets = append(rc.Secrets, p)
 			}
 		case "PIDS_LIMIT":
 			rc.PidsLimit = value

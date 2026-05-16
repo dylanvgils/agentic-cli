@@ -3,14 +3,16 @@ package tools
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
-func opencodeMounts(_ string) []string {
+func opencodeMounts() []string {
 	return []string{
-		"$PWD:/workspace",
-		"$TOOL_HOME/opencode/data:$CONTAINER_HOME/.local/share/opencode",
-		"$TOOL_HOME/opencode/cache:$CONTAINER_HOME/.cache/opencode",
-		"$TOOL_HOME/opencode/state:$CONTAINER_HOME/.local/state/opencode",
+		mount.VolumeMount("$PWD", "/workspace"),
+		mount.VolumeMount("$TOOL_HOME/opencode/data", "$CONTAINER_HOME/.local/share/opencode"),
+		mount.VolumeMount("$TOOL_HOME/opencode/cache", "$CONTAINER_HOME/.cache/opencode"),
+		mount.VolumeMount("$TOOL_HOME/opencode/state", "$CONTAINER_HOME/.local/state/opencode"),
 	}
 }
 

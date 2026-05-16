@@ -13,7 +13,7 @@ type ToolConfig struct {
 	VersionCmd   string // shell command run inside the built image to detect the tool version
 	TmpfsExecTmp bool
 	Setup        func(toolHome string) error
-	Mounts       func(home string) []string
+	Mounts       func() []string
 }
 
 // ImageName returns the Docker image name for the given tool, or an error if the tool is unknown.

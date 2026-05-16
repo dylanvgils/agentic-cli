@@ -15,6 +15,7 @@ import (
 var (
 	toolHome     string
 	extraVolumes []string
+	flagSecrets  []string
 	pidsLimit    string
 	cpus         string
 	memory       string
@@ -33,6 +34,8 @@ func init() {
 		"agentic data directory (overrides $AGENTIC_HOME)")
 	runToolCmd.Flags().StringArrayVarP(&extraVolumes, "volume", "v", nil,
 		"additional volume mount (format: host:container[:options]); repeatable")
+	runToolCmd.Flags().StringArrayVarP(&flagSecrets, "secret", "s", nil,
+		"secret file to mount read-only at /run/secrets/<name> (format: name=/path); repeatable")
 	runToolCmd.Flags().StringVar(&pidsLimit, "pids-limit", "", "container PID limit")
 	runToolCmd.Flags().StringVar(&cpus, "cpus", "", "CPU limit")
 	runToolCmd.Flags().StringVar(&memory, "memory", "", "memory limit")
@@ -78,10 +81,10 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("setup %s: %w", toolName, err)
 	}
 
-	home, _ := os.UserHomeDir()
 	var volumes []string
+	var secrets []string
 	var spec config.RunSpec
-	volumes = append(toolConfig.Mounts(home), volumes...)
+	volumes = append(toolConfig.Mounts(), volumes...)
 	spec.TmpfsExecTmp = toolConfig.TmpfsExecTmp
 	if env := os.Getenv("AGENTIC_EXTRA_MOUNTS"); env != "" {
 		for m := range strings.SplitSeq(env, ",") {
@@ -92,6 +95,15 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 	volumes = append(volumes, extraVolumes...)
 	volumes = append(volumes, rc.ExtraMounts...)
+	if env := os.Getenv("AGENTIC_SECRETS"); env != "" {
+		for s := range strings.SplitSeq(env, ",") {
+			if s != "" {
+				secrets = append(secrets, s)
+			}
+		}
+	}
+	secrets = append(secrets, flagSecrets...)
+	secrets = append(secrets, rc.Secrets...)
 
 	if pidsLimit == "" {
 		pidsLimit = rc.PidsLimit
@@ -112,6 +124,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		ToolHome:       toolHome,
 		ContainerHome:  containerHome,
 		Volumes:        volumes,
+		Secrets:        secrets,
 		SkipEntrypoint: skipEntrypoint,
 		Spec:           spec,
 		PidsLimit:      pidsLimit,
