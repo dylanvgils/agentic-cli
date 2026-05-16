@@ -2,10 +2,10 @@ package docker
 
 import (
 	"fmt"
-	"os/user"
 	"path/filepath"
-	"regexp"
 	"strings"
+
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
 // BuildOptions controls how a tool image is built.
@@ -18,25 +18,14 @@ type BuildOptions struct {
 }
 
 // BuildTool runs the four-step multi-stage build pipeline for a tool.
-// toolDir is the absolute path to the tool directory (contains Dockerfile).
-// image is the target Docker image name (e.g. "agentic-claude").
 // versionCmd is run inside the built image to detect the installed version (may be empty).
-// repoRoot is the repository root (used to locate shared/base/ Dockerfiles).
 func BuildTool(toolDir, image, versionCmd, repoRoot string, opts BuildOptions) error {
 	nodeVer, err := buildNodeBase(repoRoot, opts)
 	if err != nil {
 		return fmt.Errorf("node base: %w", err)
 	}
 
-	base := opts.BaseOverride
-	var extras []string
-	for e := range strings.SplitSeq(base, ",") {
-		if e = strings.TrimSpace(e); e != "" {
-			extras = append(extras, e)
-		}
-	}
-
-	prevImage, baseLabel, err := buildExtraLayers(repoRoot, extras, nodeVer, opts)
+	prevImage, baseLabel, err := buildExtraLayers(repoRoot, parseExtras(opts.BaseOverride), nodeVer, opts)
 	if err != nil {
 		return err
 	}
@@ -71,19 +60,13 @@ func buildNodeBase(repoRoot string, opts BuildOptions) (string, error) {
 	return detectBaseVersion("agentic-base", "agentic-version-node"), nil
 }
 
-func buildExtraLayers(repoRoot string, extras []string, nodeVer string, opts BuildOptions) (prevImage, baseLabel string, err error) {
-	prevImage = "agentic-base"
-	tagSuffix := ""
+func buildExtraLayers(repoRoot string, extras []string, nodeVer string, opts BuildOptions) (string, string, error) {
+	prevImage := "agentic-base"
 	extraVersions := make(map[string]string)
 
-	for _, extra := range extras {
+	for i, extra := range extras {
 		extraDir := filepath.Join(repoRoot, "shared", "base", extra)
-
-		if tagSuffix != "" {
-			tagSuffix += "-"
-		}
-		tagSuffix += extra
-		imageTag := "agentic-base-" + tagSuffix
+		imageTag := "agentic-base-" + strings.Join(extras[:i+1], "-")
 
 		args := []string{"build"}
 		if opts.NoCache {
@@ -95,7 +78,7 @@ func buildExtraLayers(repoRoot string, extras []string, nodeVer string, opts Bui
 		}
 		args = append(args, arg("tag", imageTag), extraDir)
 
-		if err = runInteractive(args...); err != nil {
+		if err := runInteractive(args...); err != nil {
 			return "", "", fmt.Errorf("%s layer: %w", extra, err)
 		}
 
@@ -106,16 +89,25 @@ func buildExtraLayers(repoRoot string, extras []string, nodeVer string, opts Bui
 	return prevImage, buildBaseLabel(nodeVer, extras, extraVersions), nil
 }
 
-func buildToolImage(toolDir, image, baseImage, baseLabel string, opts BuildOptions) error {
-	uid, gid := currentUserIDs()
+func parseExtras(base string) []string {
+	var extras []string
+	for e := range strings.SplitSeq(base, ",") {
+		if e = strings.TrimSpace(e); e != "" {
+			extras = append(extras, e)
+		}
+	}
+	return extras
+}
 
+func buildToolImage(toolDir, image, baseImage, baseLabel string, opts BuildOptions) error {
 	args := []string{"build"}
 	if opts.NoCache || opts.NoCacheTool {
 		args = append(args, arg("no-cache"))
 	}
+
 	args = append(args,
-		arg("build-arg", "HOST_UID="+uid),
-		arg("build-arg", "HOST_GID="+gid),
+		arg("build-arg", "HOST_UID="+platform.GetUID()),
+		arg("build-arg", "HOST_GID="+platform.GetGID()),
 		arg("build-arg", "BASE_IMAGE="+baseImage),
 		label(LabelBase, baseLabel),
 		label(LabelBuilt, buildBuiltLabel()),
@@ -126,56 +118,3 @@ func buildToolImage(toolDir, image, baseImage, baseLabel string, opts BuildOptio
 	return runInteractive(args...)
 }
 
-// stampToolVersion detects the installed tool version and applies it as an image label.
-// Runs best-effort: errors are silently ignored since a missing label is non-fatal.
-func stampToolVersion(image, versionCmd string) {
-	ver := detectToolVersion(image, versionCmd)
-	if ver == "" {
-		return
-	}
-	_, _ = dockerRunStdin(
-		strings.NewReader("FROM "+image+"\n"),
-		"build",
-		label(LabelToolVersion, ver),
-		arg("tag", image),
-		"-",
-	)
-}
-
-func detectBaseVersion(image, script string) string {
-	out, err := dockerRun("run", arg("rm"), image, script)
-	if err != nil {
-		return ""
-	}
-	return extractVersion(out)
-}
-
-func detectToolVersion(image, cmd string) string {
-	out, err := dockerRun("run", arg("rm"), arg("entrypoint", ""), image, "sh", "-c", cmd)
-	if err != nil {
-		return ""
-	}
-	return extractVersion(out)
-}
-
-var versionRe = regexp.MustCompile(`[0-9]+(\.[0-9]+)*`)
-
-func extractVersion(out string) string {
-	line := strings.SplitN(out, "\n", 2)[0]
-	line = strings.TrimRight(line, "\r")
-	return versionRe.FindString(line)
-}
-
-// ParseVersion extracts the first semver-like token from a string.
-// Used by cmd/update to normalize version labels for comparison.
-func ParseVersion(s string) string {
-	return versionRe.FindString(s)
-}
-
-func currentUserIDs() (uid, gid string) {
-	u, err := user.Current()
-	if err != nil {
-		return "1000", "1000"
-	}
-	return u.Uid, u.Gid
-}
