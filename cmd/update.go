@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/script"
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
@@ -122,7 +122,7 @@ func reportVersionChange(before, after string) {
 }
 
 func defaultRunUpdateScript(tool string, opts docker.BuildOptions) error {
-	repoRoot, err := script.FindRepoRoot()
+	repoRoot, err := platform.FindRepoRoot()
 	if err != nil {
 		return err
 	}
