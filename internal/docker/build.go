@@ -2,8 +2,6 @@ package docker
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
@@ -20,16 +18,6 @@ type BuildOptions struct {
 	Versions     map[string]string // extra name → version override, e.g. {"java": "21"}
 }
 
-// dockerBuildStdin runs docker build with the Dockerfile provided via stdin.
-// Defined as a var so tests can replace it.
-var dockerBuildStdin = func(stdin string, args ...string) error {
-	cmd := exec.Command("docker", args...)
-	cmd.Stdin = strings.NewReader(stdin)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
 // BuildTool runs the four-step multi-stage build pipeline for a tool.
 // toolDir is the absolute path to the tool directory (contains Dockerfile).
 // image is the target Docker image name (e.g. "agentic-claude").
@@ -43,7 +31,7 @@ func BuildTool(toolDir, image, versionCmd, repoRoot string, opts BuildOptions) e
 
 	base := opts.BaseOverride
 	var extras []string
-	for _, e := range strings.Split(base, ",") {
+	for e := range strings.SplitSeq(base, ",") {
 		if e = strings.TrimSpace(e); e != "" {
 			extras = append(extras, e)
 		}
@@ -154,8 +142,8 @@ func stampToolVersion(image, versionCmd string) {
 	if ver == "" {
 		return
 	}
-	_ = dockerBuildStdin(
-		"FROM "+image+"\n",
+	_, _ = dockerRunStdin(
+		strings.NewReader("FROM "+image+"\n"),
 		"build",
 		arg("label", "agentic.tool.version="+ver),
 		arg("tag", image),
