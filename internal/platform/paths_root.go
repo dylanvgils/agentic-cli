@@ -6,9 +6,17 @@ import (
 	"path/filepath"
 )
 
-// FindRepoRoot resolves the repository root by following the agentic symlink on PATH.
-// Returns an error if agentic is not on PATH or its real path cannot be resolved.
+// repoRoot may be set at build time via -ldflags (injected by make install).
+var repoRoot string
+
+// FindRepoRoot resolves the repository root. When installed via make install the
+// path is embedded at build time; otherwise it falls back to following the agentic
+// symlink on PATH. Returns an error if the root cannot be determined.
 func FindRepoRoot() (string, error) {
+	if repoRoot != "" {
+		return repoRoot, nil
+	}
+
 	path := lookupBinary("agentic")
 	if path == "" {
 		return "", fmt.Errorf("agentic not found on PATH")
