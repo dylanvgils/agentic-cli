@@ -14,6 +14,7 @@ var runBuildScript = defaultRunBuildScript
 
 func init() {
 	rootCmd.AddCommand(buildCmd)
+
 	buildCmd.Flags().String("base", "", "comma-separated extra runtime(s) to layer on top of node (e.g. java,dotnet)")
 	buildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
 	buildCmd.Flags().String("node", "", "Node.js version (default: 24)")

@@ -160,3 +160,109 @@ func TestRunInspect_dockerError_propagates(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "docker daemon not running")
 }
+
+func TestRunInspect_invalidOutputFormat_returnsError(t *testing.T) {
+	// Arrange
+	outputFmt = "json"
+	defer func() { outputFmt = "default" }()
+
+	// Act
+	err := runInspect(inspectCmd, []string{"claude"})
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "json")
+}
+
+func TestRunInspect_tableOutput_showsHeader(t *testing.T) {
+	// Arrange
+	restore := stubInspectImage(t, builtInfo, nil)
+	defer restore()
+	outputFmt = "table"
+	defer func() { outputFmt = "default" }()
+
+	// Act
+	out := captureStdout(t, func() {
+		err := runInspect(inspectCmd, []string{})
+		require.NoError(t, err)
+	})
+
+	// Assert
+	assert.Contains(t, out, "TOOL")
+	assert.Contains(t, out, "IMAGE")
+	assert.Contains(t, out, "VERSION")
+	assert.Contains(t, out, "BUILT")
+	assert.Contains(t, out, "SIZE")
+}
+
+func TestRunInspect_tableOutput_builtImage_showsFields(t *testing.T) {
+	// Arrange
+	restore := stubInspectImage(t, builtInfo, nil)
+	defer restore()
+	outputFmt = "table"
+	defer func() { outputFmt = "default" }()
+
+	// Act
+	out := captureStdout(t, func() {
+		err := runInspect(inspectCmd, []string{"claude"})
+		require.NoError(t, err)
+	})
+
+	// Assert
+	assert.Contains(t, out, "claude")
+	assert.Contains(t, out, "1.2.3")
+	assert.Contains(t, out, "2026-05-01")
+	assert.Contains(t, out, "512 MB")
+}
+
+func TestRunInspect_tableOutput_notBuilt_showsDashes(t *testing.T) {
+	// Arrange
+	restore := stubInspectImage(t, nil, nil)
+	defer restore()
+	outputFmt = "table"
+	defer func() { outputFmt = "default" }()
+
+	// Act
+	out := captureStdout(t, func() {
+		err := runInspect(inspectCmd, []string{"claude"})
+		require.NoError(t, err)
+	})
+
+	// Assert
+	assert.Contains(t, out, "(not built)")
+}
+
+func TestRunInspect_tableOutput_emptyLabels_showsUnknown(t *testing.T) {
+	// Arrange
+	restore := stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", ID: "abc", SizeMB: 100}, nil)
+	defer restore()
+	outputFmt = "table"
+	defer func() { outputFmt = "default" }()
+
+	// Act
+	out := captureStdout(t, func() {
+		err := runInspect(inspectCmd, []string{"claude"})
+		require.NoError(t, err)
+	})
+
+	// Assert
+	assert.Contains(t, out, "(unknown)")
+}
+
+func TestRunInspect_tableOutput_dockerError_propagates(t *testing.T) {
+	// Arrange
+	orig := inspectImage
+	inspectImage = func(_ string) (*docker.ImageInfo, error) {
+		return nil, fmt.Errorf("docker daemon not running")
+	}
+	defer func() { inspectImage = orig }()
+	outputFmt = "table"
+	defer func() { outputFmt = "default" }()
+
+	// Act
+	err := runInspect(inspectCmd, []string{"claude"})
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "docker daemon not running")
+}

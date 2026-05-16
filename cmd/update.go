@@ -15,6 +15,7 @@ var runUpdateScript = defaultRunUpdateScript
 
 func init() {
 	rootCmd.AddCommand(updateCmd)
+
 	updateCmd.Flags().String("base", "", "comma-separated extra runtime(s) to layer on top of node (e.g. java,dotnet)")
 	updateCmd.Flags().Bool("no-cache", false, "also rebuild base layers (fully fresh build)")
 	updateCmd.Flags().String("node", "", "Node.js version (default: 24)")
