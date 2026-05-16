@@ -8,10 +8,12 @@ import "strings"
 // then delegates to BuildTool with NoCacheTool enabled so only the tool step skips cache.
 func UpdateTool(toolDir, image, versionCmd, repoRoot string, opts BuildOptions) error {
 	if opts.BaseOverride == "" {
-		if info, err := InspectImage(image); err == nil && info != nil && info.Base != "" {
+		info, err := InspectImage(image)
+		if err == nil && info != nil && info.Base != "" {
 			opts.BaseOverride = recoverExtras(info.Base)
 		}
 	}
+
 	opts.NoCacheTool = true
 	return BuildTool(toolDir, image, versionCmd, repoRoot, opts)
 }
@@ -21,11 +23,14 @@ func UpdateTool(toolDir, image, versionCmd, repoRoot string, opts BuildOptions) 
 // e.g. "node@24.2.0,java@21.0.1" → "java"
 func recoverExtras(baseLabel string) string {
 	var extras []string
-	for _, part := range strings.Split(baseLabel, ",") {
-		name := strings.SplitN(part, "@", 2)[0]
-		if name != "node" && name != "" {
-			extras = append(extras, name)
+
+	for part := range strings.SplitSeq(baseLabel, ",") {
+		name, _, _ := strings.Cut(part, "@")
+		if name == "" || name == "node" {
+			continue
 		}
+		extras = append(extras, name)
 	}
+
 	return strings.Join(extras, ",")
 }
