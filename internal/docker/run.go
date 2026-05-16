@@ -69,20 +69,22 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 		Size: "1g",
 	}))
 
-	for _, v := range rs.Volumes {
-		varg := arg("volume", mount.ExpandVars(v, rs.ToolHome, rs.ContainerHome))
+	for _, volume := range rs.Volumes {
+		varg := arg("volume", mount.ExpandVars(volume, rs.ToolHome, rs.ContainerHome))
 		args = append(args, varg)
 	}
 
-	for _, s := range rs.Secrets {
-		name, hostPath, ok := strings.Cut(s, "=")
+	for _, secret := range rs.Secrets {
+		name, hostPath, ok := strings.Cut(secret, "=")
 		if !ok {
-			return fmt.Errorf("invalid secret %q: expected name=/path", s)
+			return fmt.Errorf("invalid secret %q: expected name=/path", secret)
 		}
+
 		if strings.HasPrefix(hostPath, "~/") {
 			home, _ := os.UserHomeDir()
 			hostPath = filepath.Join(home, hostPath[2:])
 		}
+
 		args = append(args, arg("volume", mount.VolumeMount(hostPath, "/run/secrets/"+name, mount.VolumeOptions{ReadOnly: true})))
 	}
 
@@ -102,11 +104,11 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 
 func shellJoin(args []string) string {
 	parts := make([]string, len(args))
-	for i, a := range args {
-		if strings.ContainsAny(a, " \t$") {
-			parts[i] = "'" + strings.ReplaceAll(a, "'", `'\''`) + "'"
+	for i, arg := range args {
+		if strings.ContainsAny(arg, " \t$") {
+			parts[i] = "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
 		} else {
-			parts[i] = a
+			parts[i] = arg
 		}
 	}
 	return strings.Join(parts, " ")
