@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/spf13/cobra"
 )
 
@@ -25,6 +26,7 @@ var (
 	listVolumes        = docker.ListVolumes
 	listVolumeNames    = docker.ListVolumeNames
 	removeVolume       = docker.RemoveVolume
+	isTerminal         = platform.IsTerminal
 )
 
 var rootCmd = &cobra.Command{
