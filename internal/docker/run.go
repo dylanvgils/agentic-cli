@@ -25,6 +25,12 @@ type RunSpec struct {
 	DryRun         bool
 }
 
+const (
+	DefaultPidsLimit = "1024"
+	DefaultCPUs      = "4"
+	DefaultMemory    = "4g"
+)
+
 // resolveLimit returns val if non-empty, then the env var, then fallback.
 // Mirrors the bash ${VAR:-default} pattern used in bin/agentic.
 func resolveLimit(val, envKey, fallback string) string {
@@ -45,11 +51,11 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 		// Run container read-only, remove when done
 		"run", "--rm", "--read-only",
 		// Limit the number of PIDs (processes) the container can spawn
-		arg("pids-limit", resolveLimit(rs.PidsLimit, "AGENTIC_PIDS_LIMIT", "1024")),
+		arg("pids-limit", resolveLimit(rs.PidsLimit, "AGENTIC_PIDS_LIMIT", DefaultPidsLimit)),
 		// Maximum number of CPUs the container can utilize
-		arg("cpus", resolveLimit(rs.CPUs, "AGENTIC_CPUS", "4")),
+		arg("cpus", resolveLimit(rs.CPUs, "AGENTIC_CPUS", DefaultCPUs)),
 		// Maximum memory the container can use
-		arg("memory", resolveLimit(rs.Memory, "AGENTIC_MEMORY", "4g")),
+		arg("memory", resolveLimit(rs.Memory, "AGENTIC_MEMORY", DefaultMemory)),
 		// Security: drop all capabilities
 		arg("cap-drop", "ALL"),
 		// Security: prevent privilege escalation

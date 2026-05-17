@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/spf13/cobra"
 )
@@ -68,7 +69,7 @@ func printGlobalConfig(w io.Writer, home string, cfg *config.CliConfig) error {
 	}
 
 	for _, dir := range cfg.TrustedDirs {
-		if _, err := fmt.Fprintf(w, "    - %s\n", dir); err != nil {
+		if _, err := fmt.Fprintf(w, "  - %s\n", dir); err != nil {
 			return err
 		}
 	}
@@ -93,28 +94,39 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 		return err
 	}
 
-	if err := printScalarField(w, "  pids_limit", layers, func(rc *config.AgenticRC) string { return rc.PidsLimit }); err != nil {
+	pidsLimit := func(rc *config.AgenticRC) string { return rc.PidsLimit }
+	cpus := func(rc *config.AgenticRC) string { return rc.CPUs }
+	memory := func(rc *config.AgenticRC) string { return rc.Memory }
+	extraMounts := func(rc *config.AgenticRC) []string { return rc.ExtraMounts }
+	secrets := func(rc *config.AgenticRC) []string { return rc.Secrets }
+
+	if err := printScalarField(w, "  pids_limit", layers, pidsLimit, docker.DefaultPidsLimit); err != nil {
 		return err
 	}
-	if err := printScalarField(w, "  cpus", layers, func(rc *config.AgenticRC) string { return rc.CPUs }); err != nil {
+	if err := printScalarField(w, "  cpus", layers, cpus, docker.DefaultCPUs); err != nil {
 		return err
 	}
-	if err := printScalarField(w, "  memory", layers, func(rc *config.AgenticRC) string { return rc.Memory }); err != nil {
+	if err := printScalarField(w, "  memory", layers, memory, docker.DefaultMemory); err != nil {
 		return err
 	}
-	if err := printListField(w, "  extra_mounts", layers, func(rc *config.AgenticRC) []string { return rc.ExtraMounts }); err != nil {
+	if err := printListField(w, "  extra_mounts", layers, extraMounts); err != nil {
 		return err
 	}
-	return printListField(w, "  secrets", layers, func(rc *config.AgenticRC) []string { return rc.Secrets })
+	return printListField(w, "  secrets", layers, secrets)
 }
 
 // printScalarField prints a scalar config field. Innermost (last in layers) non-empty value wins.
-func printScalarField(w io.Writer, label string, layers []config.RCLayer, get func(*config.AgenticRC) string) error {
+// When no layer sets the field and defaultVal is non-empty, the default is shown with a (default) tag.
+func printScalarField(w io.Writer, label string, layers []config.RCLayer, get func(*config.AgenticRC) string, defaultVal string) error {
 	for i := len(layers) - 1; i >= 0; i-- {
 		if v := get(layers[i].RC); v != "" {
 			_, err := fmt.Fprintf(w, "%s: %s  [%s]\n", label, v, layers[i].Path)
 			return err
 		}
+	}
+	if defaultVal != "" {
+		_, err := fmt.Fprintf(w, "%s: %s  (default)\n", label, defaultVal)
+		return err
 	}
 	_, err := fmt.Fprintf(w, "%s: (not set)\n", label)
 	return err
@@ -145,7 +157,7 @@ func printListField(w io.Writer, label string, layers []config.RCLayer, get func
 	}
 
 	for _, entry := range entries {
-		if _, err := fmt.Fprintf(w, "    - %s  [%s]\n", entry.value, entry.path); err != nil {
+		if _, err := fmt.Fprintf(w, "  - %s  [%s]\n", entry.value, entry.path); err != nil {
 			return err
 		}
 	}

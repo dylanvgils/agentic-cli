@@ -27,7 +27,7 @@ func TestCollectPaths_InStartDir(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()
 	rcPath := filepath.Join(dir, ".agenticrc")
-	require.NoError(t, os.WriteFile(rcPath, []byte(""), 0644))
+	require.NoError(t, os.WriteFile(rcPath, []byte(""), 0o644))
 
 	// Act
 	paths := collectPaths(dir)
@@ -40,9 +40,9 @@ func TestCollectPaths_InParentDir(t *testing.T) {
 	// Arrange
 	parent := t.TempDir()
 	child := filepath.Join(parent, "sub")
-	require.NoError(t, os.Mkdir(child, 0755))
+	require.NoError(t, os.Mkdir(child, 0o755))
 	rcPath := filepath.Join(parent, ".agenticrc")
-	require.NoError(t, os.WriteFile(rcPath, []byte(""), 0644))
+	require.NoError(t, os.WriteFile(rcPath, []byte(""), 0o644))
 
 	// Act
 	paths := collectPaths(child)
@@ -55,11 +55,11 @@ func TestCollectPaths_MultipleLevels(t *testing.T) {
 	// Arrange
 	parent := t.TempDir()
 	child := filepath.Join(parent, "sub")
-	require.NoError(t, os.Mkdir(child, 0755))
+	require.NoError(t, os.Mkdir(child, 0o755))
 	parentRC := filepath.Join(parent, ".agenticrc")
 	childRC := filepath.Join(child, ".agenticrc")
-	require.NoError(t, os.WriteFile(parentRC, []byte(""), 0644))
-	require.NoError(t, os.WriteFile(childRC, []byte(""), 0644))
+	require.NoError(t, os.WriteFile(parentRC, []byte(""), 0o644))
+	require.NoError(t, os.WriteFile(childRC, []byte(""), 0o644))
 
 	// Act
 	paths := collectPaths(child)
@@ -265,7 +265,6 @@ func TestParseRC_Empty(t *testing.T) {
 }
 
 // --- FindLayers ---
-
 func TestFindLayers_NoFiles(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()
@@ -281,7 +280,7 @@ func TestFindLayers_SingleFile(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()
 	rcPath := filepath.Join(dir, ".agenticrc")
-	require.NoError(t, os.WriteFile(rcPath, []byte("cpus=4\n"), 0644))
+	require.NoError(t, os.WriteFile(rcPath, []byte("cpus=4\n"), 0o644))
 
 	// Act
 	layers := FindLayers(dir)
@@ -296,11 +295,11 @@ func TestFindLayers_MultipleFiles_OutermostFirst(t *testing.T) {
 	// Arrange
 	parent := t.TempDir()
 	child := filepath.Join(parent, "sub")
-	require.NoError(t, os.Mkdir(child, 0755))
+	require.NoError(t, os.Mkdir(child, 0o755))
 	parentRC := filepath.Join(parent, ".agenticrc")
 	childRC := filepath.Join(child, ".agenticrc")
-	require.NoError(t, os.WriteFile(parentRC, []byte("cpus=2\n"), 0644))
-	require.NoError(t, os.WriteFile(childRC, []byte("cpus=8\n"), 0644))
+	require.NoError(t, os.WriteFile(parentRC, []byte("cpus=2\n"), 0o644))
+	require.NoError(t, os.WriteFile(childRC, []byte("cpus=8\n"), 0o644))
 
 	// Act
 	layers := FindLayers(child)
@@ -316,13 +315,13 @@ func TestFindLayers_StopsAtRoot(t *testing.T) {
 	grandparent := t.TempDir()
 	parent := filepath.Join(grandparent, "mid")
 	child := filepath.Join(parent, "sub")
-	require.NoError(t, os.MkdirAll(child, 0755))
+	require.NoError(t, os.MkdirAll(child, 0o755))
 	grandparentRC := filepath.Join(grandparent, ".agenticrc")
 	parentRC := filepath.Join(parent, ".agenticrc")
 	childRC := filepath.Join(child, ".agenticrc")
-	require.NoError(t, os.WriteFile(grandparentRC, []byte("cpus=1\n"), 0644))
-	require.NoError(t, os.WriteFile(parentRC, []byte("root=true\ncpus=2\n"), 0644))
-	require.NoError(t, os.WriteFile(childRC, []byte("cpus=8\n"), 0644))
+	require.NoError(t, os.WriteFile(grandparentRC, []byte("cpus=1\n"), 0o644))
+	require.NoError(t, os.WriteFile(parentRC, []byte("root=true\ncpus=2\n"), 0o644))
+	require.NoError(t, os.WriteFile(childRC, []byte("cpus=8\n"), 0o644))
 
 	// Act
 	layers := FindLayers(child)
@@ -334,7 +333,6 @@ func TestFindLayers_StopsAtRoot(t *testing.T) {
 }
 
 // --- FindAndLoad (smoke tests) ---
-
 func TestFindAndLoad_NoFile_ReturnsEmpty(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()
@@ -354,9 +352,9 @@ func TestFindAndLoad_MergesFromDisk(t *testing.T) {
 	// Arrange
 	parent := t.TempDir()
 	child := filepath.Join(parent, "sub")
-	require.NoError(t, os.Mkdir(child, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(parent, ".agenticrc"), []byte("root=true\ncpus=2\nextra_mounts=parent-vol:/mnt/p\n"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(child, ".agenticrc"), []byte("cpus=8\nextra_mounts=child-vol:/mnt/c\n"), 0644))
+	require.NoError(t, os.Mkdir(child, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(parent, ".agenticrc"), []byte("root=true\ncpus=2\nextra_mounts=parent-vol:/mnt/p\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(child, ".agenticrc"), []byte("cpus=8\nextra_mounts=child-vol:/mnt/c\n"), 0o644))
 
 	// Act
 	rc := FindAndLoad(child)
@@ -367,7 +365,6 @@ func TestFindAndLoad_MergesFromDisk(t *testing.T) {
 }
 
 // --- helpers ---
-
 func mustParseRC(t *testing.T, content string) *AgenticRC {
 	t.Helper()
 	rc, err := parseRC(strings.NewReader(content))
@@ -378,6 +375,6 @@ func mustParseRC(t *testing.T, content string) *AgenticRC {
 func writeRC(t *testing.T, content string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), ".agenticrc")
-	require.NoError(t, os.WriteFile(path, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 	return path
 }

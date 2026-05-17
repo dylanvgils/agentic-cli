@@ -104,7 +104,7 @@ func TestPrintProjectConfig_MultiLayers_SourceAttribution(t *testing.T) {
 	// Innermost (child) wins for scalars
 	assert.Contains(t, out, "cpus: 8  [/project/.agenticrc]")
 	assert.Contains(t, out, "pids_limit: 100  [/project/.agenticrc]")
-	assert.Contains(t, out, "memory: (not set)")
+	assert.Contains(t, out, "memory: 4g  (default)")
 	// List entries tagged per-layer, outermost first
 	assert.Contains(t, out, "- parent-vol:/mnt/p  [/home/.agenticrc]")
 	assert.Contains(t, out, "- child-vol:/mnt/c  [/project/.agenticrc]")
@@ -114,7 +114,7 @@ func TestPrintProjectConfig_MultiLayers_SourceAttribution(t *testing.T) {
 	assert.Less(t, parentIdx, childIdx)
 }
 
-func TestPrintProjectConfig_NoValues_ShowsNotSet(t *testing.T) {
+func TestPrintProjectConfig_NoValues_ShowsDefaults(t *testing.T) {
 	// Arrange
 	var buf bytes.Buffer
 	layers := []config.RCLayer{
@@ -127,9 +127,9 @@ func TestPrintProjectConfig_NoValues_ShowsNotSet(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	out := buf.String()
-	assert.Contains(t, out, "pids_limit: (not set)")
-	assert.Contains(t, out, "cpus: (not set)")
-	assert.Contains(t, out, "memory: (not set)")
+	assert.Contains(t, out, "pids_limit: 1024  (default)")
+	assert.Contains(t, out, "cpus: 4  (default)")
+	assert.Contains(t, out, "memory: 4g  (default)")
 	assert.Contains(t, out, "extra_mounts: (none)")
 	assert.Contains(t, out, "secrets: (none)")
 }
