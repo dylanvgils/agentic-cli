@@ -217,8 +217,6 @@ Both tools default to node only. Use `--base` to add extra runtimes at build tim
 
 Version defaults live in the Dockerfiles (`NODE_VERSION=24`, `JAVA_VERSION=21`, `DOTNET_VERSION=10`, `GO_VERSION=1.26.2`). Override them per-build with `--node`/`--java`/`--dotnet`/`--go`, or set `AGENTIC_NODE_VERSION`/`AGENTIC_JAVA_VERSION`/`AGENTIC_DOTNET_VERSION`/`AGENTIC_GO_VERSION` in your shell config for persistent defaults.
 
-Adding a new runtime is a matter of dropping a `Dockerfile` into `shared/base/<name>/` - it will be picked up automatically by `--base <name>`.
-
 The final tool image is labeled with the base layers, build timestamp, and installed tool version:
 
 ```bash
@@ -439,23 +437,22 @@ agentic-cli/
 │   ├── mount/                   # Volume mount spec builder
 │   ├── output/                  # CLI output formatting
 │   ├── platform/                # Platform-specific paths and utilities
-│   └── tools/                   # Per-tool runtime config (mounts, base, version cmd)
-├── tools/
-│   ├── claude/
-│   │   ├── Dockerfile
-│   │   └── entrypoint.sh
-│   ├── copilot/
-│   │   ├── Dockerfile
-│   │   └── entrypoint.sh
-│   └── opencode/
-│       ├── Dockerfile
-│       └── entrypoint.sh
-└── shared/
-    └── base/
-        ├── node/Dockerfile      # Base Node.js image (root layer)
-        ├── java/Dockerfile      # Base Java image (extends node)
-        ├── dotnet/Dockerfile    # Base .NET image (extends node)
-        └── go/Dockerfile        # Base Go image (extends node)
+│   └── tools/                   # Per-tool runtime config (mounts, setup, version cmd)
+└── tools/
+    ├── base/
+    │   ├── node/Dockerfile      # Base Node.js image (root layer)
+    │   ├── java/Dockerfile      # Base Java image (extends node)
+    │   ├── dotnet/Dockerfile    # Base .NET image (extends node)
+    │   └── go/Dockerfile        # Base Go image (extends node)
+    ├── claude/
+    │   ├── Dockerfile
+    │   └── entrypoint.sh
+    ├── copilot/
+    │   ├── Dockerfile
+    │   └── entrypoint.sh
+    └── opencode/
+        ├── Dockerfile
+        └── entrypoint.sh
 ```
 
 ## 🛠️ Development
@@ -469,7 +466,20 @@ make dist           # cross-platform binaries → dist/
 make docker-dist    # same via Docker (no local Go needed)
 ```
 
-Changes to the CLI take effect immediately after `make build` — no container rebuild needed. Changes to Dockerfiles in `tools/` or `shared/base/` require a `agentic build` to rebuild the affected image.
+Changes to the CLI take effect immediately after `make build` — no container rebuild needed. Changes to Dockerfiles in `tools/` require a `agentic build` to rebuild the affected image.
+
+### Adding a new tool
+
+1. `tools/<name>/Dockerfile` and `tools/<name>/entrypoint.sh`
+2. `internal/tools/<name>.go` — implement `Setup` and `Mounts` functions
+3. Register in `internal/tools/tools.go` `Configs` map (`VersionCmd`, `TmpfsExecTmp`, `Setup`, `Mounts`)
+
+### Adding a new base runtime
+
+1. `tools/base/<name>/Dockerfile` — must accept `BASE_IMAGE` as a build arg
+2. `--<name>` version flag wired into `cmd/build.go`, `cmd/update.go`, and `cmd/flags.go`
+
+The `--base <name>` routing is derived from the directory automatically; version pinning requires the flag.
 
 ## 🐛 Debugging
 

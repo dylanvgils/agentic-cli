@@ -19,14 +19,14 @@ agentic <tool> [args]
 ## Code conventions
 
 ### Tool structure
-Each tool in `tools/<name>/` must implement exactly: `Dockerfile`, `entrypoint.sh`. Adding a new tool requires an entry in `internal/tools/tools.go Configs` (holds `Base`, `VersionCmd`, and mount config) plus the corresponding `internal/tools/<name>.go` file.
+Each tool in `tools/<name>/` must implement exactly: `Dockerfile`, `entrypoint.sh`. Adding a new tool requires an entry in `internal/tools/tools.go Configs` (holds `VersionCmd`, `TmpfsExecTmp`, `Setup`, and `Mounts`) plus the corresponding `internal/tools/<name>.go` file implementing `Setup` and `Mounts`.
 
 Build and update logic lives in Go: `internal/tools/<tool>.go` holds runtime config (`Base`, `VersionCmd`); `internal/docker/build.go` and `internal/docker/update.go` hold the orchestration.
 
 Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-specific mount configuration and setup live in `internal/tools/<tool>.go`.
 
 ### Adding a new runtime layer
-Drop a `Dockerfile` in `shared/base/<name>/`. It must accept `BASE_IMAGE` as a build arg. The build system derives the version env var as `AGENTIC_<NAME>_VERSION` automatically.
+Drop a `Dockerfile` in `tools/base/<name>/` (must accept `BASE_IMAGE` as a build arg) and add a `--<name>` flag to `cmd/build.go`, `cmd/update.go`, and `cmd/flags.go`. The `--base <name>` routing is derived from the directory; version pinning requires the flag.
 
 ### Go style
 - Use blank lines between logical blocks within a function to aid readability (e.g. between groups of related `if` statements, between `switch` case groups)

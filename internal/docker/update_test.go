@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// makeRepoRoot creates a temp directory tree with shared/base/<extras> subdirs.
+// makeRepoRoot creates a temp directory tree with tools/base/<extras> subdirs.
 func makeRepoRoot(t *testing.T, extras ...string) string {
 	t.Helper()
 	root := t.TempDir()
 	for _, extra := range extras {
-		require.NoError(t, os.MkdirAll(filepath.Join(root, "shared", "base", extra), 0o755))
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "tools", "base", extra), 0o755))
 	}
 	return root
 }

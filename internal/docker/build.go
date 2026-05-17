@@ -43,7 +43,7 @@ func BuildTool(toolDir, image, versionCmd, repoRoot string, opts BuildOptions) e
 }
 
 func buildNodeBase(repoRoot string, opts BuildOptions) (string, error) {
-	nodeDir := filepath.Join(repoRoot, "shared", "base", "node")
+	nodeDir := filepath.Join(repoRoot, "tools", "base", "node")
 
 	args := []string{"build"}
 	if opts.NoCache {
@@ -66,7 +66,7 @@ func buildExtraLayers(repoRoot string, extras []string, nodeVer string, opts Bui
 	extraVersions := make(map[string]string)
 
 	for i, extra := range extras {
-		extraDir := filepath.Join(repoRoot, "shared", "base", extra)
+		extraDir := filepath.Join(repoRoot, "tools", "base", extra)
 		if _, err := os.Stat(extraDir); os.IsNotExist(err) {
 			return "", "", fmt.Errorf("unknown base %q (valid: %s)", extra, validExtras(repoRoot))
 		}
@@ -104,7 +104,7 @@ func parseExtras(base string) []string {
 }
 
 func validExtras(repoRoot string) string {
-	baseDir := filepath.Join(repoRoot, "shared", "base")
+	baseDir := filepath.Join(repoRoot, "tools", "base")
 	entries, err := os.ReadDir(baseDir)
 	if err != nil {
 		return "(unavailable)"
