@@ -264,6 +264,75 @@ func TestParseRC_Empty(t *testing.T) {
 	assert.Empty(t, rc.Memory)
 }
 
+// --- FindLayers ---
+
+func TestFindLayers_NoFiles(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+
+	// Act
+	layers := FindLayers(dir)
+
+	// Assert
+	assert.Empty(t, layers)
+}
+
+func TestFindLayers_SingleFile(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	rcPath := filepath.Join(dir, ".agenticrc")
+	require.NoError(t, os.WriteFile(rcPath, []byte("cpus=4\n"), 0644))
+
+	// Act
+	layers := FindLayers(dir)
+
+	// Assert
+	require.Len(t, layers, 1)
+	assert.Equal(t, rcPath, layers[0].Path)
+	assert.Equal(t, "4", layers[0].RC.CPUs)
+}
+
+func TestFindLayers_MultipleFiles_OutermostFirst(t *testing.T) {
+	// Arrange
+	parent := t.TempDir()
+	child := filepath.Join(parent, "sub")
+	require.NoError(t, os.Mkdir(child, 0755))
+	parentRC := filepath.Join(parent, ".agenticrc")
+	childRC := filepath.Join(child, ".agenticrc")
+	require.NoError(t, os.WriteFile(parentRC, []byte("cpus=2\n"), 0644))
+	require.NoError(t, os.WriteFile(childRC, []byte("cpus=8\n"), 0644))
+
+	// Act
+	layers := FindLayers(child)
+
+	// Assert — outermost (parent) is index 0
+	require.Len(t, layers, 2)
+	assert.Equal(t, parentRC, layers[0].Path)
+	assert.Equal(t, childRC, layers[1].Path)
+}
+
+func TestFindLayers_StopsAtRoot(t *testing.T) {
+	// Arrange
+	grandparent := t.TempDir()
+	parent := filepath.Join(grandparent, "mid")
+	child := filepath.Join(parent, "sub")
+	require.NoError(t, os.MkdirAll(child, 0755))
+	grandparentRC := filepath.Join(grandparent, ".agenticrc")
+	parentRC := filepath.Join(parent, ".agenticrc")
+	childRC := filepath.Join(child, ".agenticrc")
+	require.NoError(t, os.WriteFile(grandparentRC, []byte("cpus=1\n"), 0644))
+	require.NoError(t, os.WriteFile(parentRC, []byte("root=true\ncpus=2\n"), 0644))
+	require.NoError(t, os.WriteFile(childRC, []byte("cpus=8\n"), 0644))
+
+	// Act
+	layers := FindLayers(child)
+
+	// Assert — grandparent excluded because parent has root=true
+	require.Len(t, layers, 2)
+	assert.Equal(t, parentRC, layers[0].Path)
+	assert.Equal(t, childRC, layers[1].Path)
+}
+
 // --- FindAndLoad (smoke tests) ---
 
 func TestFindAndLoad_NoFile_ReturnsEmpty(t *testing.T) {
