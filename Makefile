@@ -7,7 +7,7 @@ LDFLAGS    = -s -w -X github.com/dylanvgils/agentic-cli/cmd.version=$(VERSION) \
              $(if $(INSTALL_METHOD),-X github.com/dylanvgils/agentic-cli/cmd.installMethod=$(INSTALL_METHOD))
 GOFLAGS   := CGO_ENABLED=0
 
-.PHONY: build install uninstall dist docker-dist test clean
+.PHONY: build install uninstall dist docker-dist test coverage clean
 
 build:
 	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(BINARY) .
@@ -37,6 +37,9 @@ docker-dist:
 
 test:
 	go test ./...
+
+coverage:
+	go test -cover ./...
 
 clean:
 	rm -rf bin/ $(BUILD_DIR)

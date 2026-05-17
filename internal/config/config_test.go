@@ -125,6 +125,22 @@ func TestIsTrusted_emptyConfig(t *testing.T) {
 	assert.False(t, result)
 }
 
+func TestIsTrusted_symlinkDir_matches(t *testing.T) {
+	// Arrange: create a real dir and a symlink pointing to it
+	real := t.TempDir()
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skip("cannot create symlink:", err)
+	}
+	cfg := &CliConfig{TrustedDirs: []string{real}}
+
+	// Act
+	result := cfg.IsTrusted(link)
+
+	// Assert
+	assert.True(t, result, "symlinked dir should be trusted when its target is trusted")
+}
+
 func TestTrust_appendsAndPersists(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()

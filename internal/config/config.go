@@ -46,19 +46,32 @@ func (config *CliConfig) Save(toolHome string) error {
 
 // IsTrusted reports whether dir is trusted. An exact match or a match where
 // a trusted entry is a parent of dir (separated by filepath.Separator) returns
-// true.
+// true. Symlinks are resolved on both sides so that e.g. /var and /private/var
+// on macOS compare equal.
 func (config *CliConfig) IsTrusted(dir string) bool {
+	realDir := evalSymlinks(dir)
+
 	for _, trusted := range config.TrustedDirs {
-		if dir == trusted {
+		realTrusted := evalSymlinks(trusted)
+
+		if realDir == realTrusted {
 			return true
 		}
 
-		if strings.HasPrefix(dir, trusted+string(filepath.Separator)) {
+		if strings.HasPrefix(realDir, realTrusted+string(filepath.Separator)) {
 			return true
 		}
 	}
 
 	return false
+}
+
+// evalSymlinks resolves symlinks in path, falling back to path on error.
+func evalSymlinks(path string) string {
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		return real
+	}
+	return path
 }
 
 // Trust appends dir to the trusted directories and saves the config.
