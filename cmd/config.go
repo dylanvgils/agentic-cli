@@ -69,7 +69,7 @@ func printGlobalConfig(w io.Writer, home string, cfg *config.CliConfig) error {
 	}
 
 	for _, dir := range cfg.TrustedDirs {
-		if _, err := fmt.Fprintf(w, "  - %s\n", dir); err != nil {
+		if _, err := fmt.Fprintf(w, "    - %s\n", dir); err != nil {
 			return err
 		}
 	}
@@ -100,19 +100,19 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	extraMounts := func(rc *config.AgenticRC) []string { return rc.ExtraMounts }
 	secrets := func(rc *config.AgenticRC) []string { return rc.Secrets }
 
-	if err := printScalarField(w, "  pids_limit", layers, pidsLimit, docker.DefaultPidsLimit); err != nil {
+	if err := printScalarField(w, "pids_limit", layers, pidsLimit, docker.DefaultPidsLimit); err != nil {
 		return err
 	}
-	if err := printScalarField(w, "  cpus", layers, cpus, docker.DefaultCPUs); err != nil {
+	if err := printScalarField(w, "cpus", layers, cpus, docker.DefaultCPUs); err != nil {
 		return err
 	}
-	if err := printScalarField(w, "  memory", layers, memory, docker.DefaultMemory); err != nil {
+	if err := printScalarField(w, "memory", layers, memory, docker.DefaultMemory); err != nil {
 		return err
 	}
-	if err := printListField(w, "  extra_mounts", layers, extraMounts); err != nil {
+	if err := printListField(w, "extra_mounts", layers, extraMounts); err != nil {
 		return err
 	}
-	return printListField(w, "  secrets", layers, secrets)
+	return printListField(w, "secrets", layers, secrets)
 }
 
 // printScalarField prints a scalar config field. Innermost (last in layers) non-empty value wins.
@@ -120,15 +120,15 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 func printScalarField(w io.Writer, label string, layers []config.RCLayer, get func(*config.AgenticRC) string, defaultVal string) error {
 	for i := len(layers) - 1; i >= 0; i-- {
 		if v := get(layers[i].RC); v != "" {
-			_, err := fmt.Fprintf(w, "%s: %s  [%s]\n", label, v, layers[i].Path)
+			_, err := fmt.Fprintf(w, "  %s: %s  [%s]\n", label, v, layers[i].Path)
 			return err
 		}
 	}
 	if defaultVal != "" {
-		_, err := fmt.Fprintf(w, "%s: %s  (default)\n", label, defaultVal)
+		_, err := fmt.Fprintf(w, "  %s: %s  (default)\n", label, defaultVal)
 		return err
 	}
-	_, err := fmt.Fprintf(w, "%s: (not set)\n", label)
+	_, err := fmt.Fprintf(w, "  %s: (not set)\n", label)
 	return err
 }
 
@@ -148,16 +148,16 @@ func printListField(w io.Writer, label string, layers []config.RCLayer, get func
 	}
 
 	if len(entries) == 0 {
-		_, err := fmt.Fprintf(w, "%s: (none)\n", label)
+		_, err := fmt.Fprintf(w, "  %s: (none)\n", label)
 		return err
 	}
 
-	if _, err := fmt.Fprintf(w, "%s:\n", label); err != nil {
+	if _, err := fmt.Fprintf(w, "  %s:\n", label); err != nil {
 		return err
 	}
 
 	for _, entry := range entries {
-		if _, err := fmt.Fprintf(w, "  - %s  [%s]\n", entry.value, entry.path); err != nil {
+		if _, err := fmt.Fprintf(w, "    - %s  [%s]\n", entry.value, entry.path); err != nil {
 			return err
 		}
 	}
