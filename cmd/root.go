@@ -32,7 +32,7 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "agentic",
 	Short: "Run agentic coding tools in sandboxed containers",
-	Long: `agentic runs AI coding tools (Claude Code, Copilot, OpenCode) in
+	Long: `Agentic runs AI coding tools (Claude Code, Copilot, OpenCode) in
 sandboxed Docker containers with read-only filesystems and dropped capabilities.`,
 	Version:      buildVersion(),
 	SilenceUsage: true,

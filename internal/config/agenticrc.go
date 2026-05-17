@@ -19,6 +19,12 @@ type AgenticRC struct {
 	Memory      string
 }
 
+// RCLayer pairs a parsed .agenticrc with the path it was loaded from.
+type RCLayer struct {
+	Path string
+	RC   *AgenticRC
+}
+
 // FindAndLoad walks up from startDir collecting all .agenticrc files and merges
 // them. Stops when a file with root=true is encountered. For scalar keys the
 // innermost (child) value wins; list keys accumulate outermost-first.
@@ -27,6 +33,31 @@ func FindAndLoad(startDir string) *AgenticRC {
 	paths := collectPaths(startDir)
 	configs := loadConfigs(paths)
 	return mergeConfigs(configs)
+}
+
+// FindLayers returns the .agenticrc layers that FindAndLoad would merge,
+// ordered outermost-to-innermost, each paired with its source path.
+func FindLayers(startDir string) []RCLayer {
+	paths := collectPaths(startDir)
+	var layers []RCLayer
+
+	for _, path := range paths {
+		rc, err := loadRC(path)
+		if err != nil {
+			continue
+		}
+
+		layers = append(layers, RCLayer{Path: path, RC: rc})
+		if rc.Root {
+			break
+		}
+	}
+
+	for i, j := 0, len(layers)-1; i < j; i, j = i+1, j-1 {
+		layers[i], layers[j] = layers[j], layers[i]
+	}
+
+	return layers
 }
 
 func collectPaths(startDir string) []string {
