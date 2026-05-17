@@ -20,6 +20,7 @@ var (
 	cpus         string
 	memory       string
 	dryRun       bool
+	trustDir     bool
 )
 
 func init() {
@@ -40,6 +41,7 @@ func init() {
 	runToolCmd.Flags().StringVar(&cpus, "cpus", "", "CPU limit")
 	runToolCmd.Flags().StringVar(&memory, "memory", "", "memory limit")
 	runToolCmd.Flags().BoolVar(&dryRun, "dry-run", false, "print the docker command without running it")
+	runToolCmd.Flags().BoolVar(&trustDir, "trust-dir", false, "trust the current directory and save it to config")
 	runToolCmd.Flags().SetInterspersed(false)
 }
 
@@ -79,6 +81,10 @@ func runTool(cmd *cobra.Command, args []string) error {
 	toolConfig := tools.Configs[toolName]
 	if err := toolConfig.Setup(toolHome); err != nil {
 		return fmt.Errorf("setup %s: %w", toolName, err)
+	}
+
+	if err := checkTrust(cwd, toolHome, trustDir); err != nil {
+		return err
 	}
 
 	var volumes []string
@@ -133,3 +139,4 @@ func runTool(cmd *cobra.Command, args []string) error {
 
 	return runContainer(rs, toolArgs)
 }
+

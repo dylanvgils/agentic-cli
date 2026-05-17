@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,12 +37,18 @@ func captureRunContainer(t *testing.T) (func() (docker.RunSpec, []string), func(
 	return get, restore
 }
 
-// withTempToolHome sets toolHome to a temp dir for the duration of the test.
+// withTempToolHome sets toolHome to a temp dir and pre-trusts the directories
+// that tests run in (os.TempDir() covers t.Chdir paths; cwd covers tests that
+// don't chdir).
 func withTempToolHome(t *testing.T) {
 	t.Helper()
-	dir := t.TempDir()
+	homeDir := t.TempDir()
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	cfg := &config.CliConfig{TrustedDirs: []string{os.TempDir(), cwd}}
+	require.NoError(t, cfg.Save(homeDir))
 	orig := toolHome
-	toolHome = dir
+	toolHome = homeDir
 	t.Cleanup(func() { toolHome = orig })
 }
 
@@ -323,16 +330,21 @@ func TestRunTool_toolHome(t *testing.T) {
 	// Arrange
 	get, restore := captureRunContainer(t)
 	defer restore()
-	origHome := toolHome
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
 	customHome := t.TempDir()
+	cfg := &config.CliConfig{TrustedDirs: []string{cwd}}
+	require.NoError(t, cfg.Save(customHome))
+	orig := toolHome
 	toolHome = customHome
-	defer func() { toolHome = origHome }()
+	defer func() { toolHome = orig }()
 
 	// Act
-	err := runTool(runToolCmd, []string{"claude"})
+	err = runTool(runToolCmd, []string{"claude"})
 
 	// Assert
 	require.NoError(t, err)
 	rs, _ := get()
 	assert.Equal(t, customHome, rs.ToolHome)
 }
+
