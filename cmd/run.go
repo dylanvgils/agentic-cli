@@ -36,7 +36,7 @@ func init() {
 	runToolCmd.Flags().StringArrayVarP(&extraVolumes, "volume", "v", nil,
 		"additional volume mount (format: host:container[:options]); repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagSecrets, "secret", "s", nil,
-		"secret file to mount read-only at /run/secrets/<name> (format: name=/path); repeatable")
+		"secret file to mount read-only at /run/secrets/<name> (format: name:/path); repeatable")
 	runToolCmd.Flags().StringVar(&pidsLimit, "pids-limit", "", "container PID limit")
 	runToolCmd.Flags().StringVar(&cpus, "cpus", "", "CPU limit")
 	runToolCmd.Flags().StringVar(&memory, "memory", "", "memory limit")

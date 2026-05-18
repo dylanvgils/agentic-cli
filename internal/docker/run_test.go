@@ -163,7 +163,7 @@ func TestRunContainer_secrets(t *testing.T) {
 
 	rs := RunSpec{
 		Image:   "agentic-copilot",
-		Secrets: []string{"mytoken=/tmp/token"},
+		Secrets: []string{"mytoken:/tmp/token"},
 	}
 
 	// Act
@@ -184,7 +184,7 @@ func TestRunContainer_secrets_tildeExpanded(t *testing.T) {
 
 	rs := RunSpec{
 		Image:   "agentic-copilot",
-		Secrets: []string{"mytoken=~/secrets/token"},
+		Secrets: []string{"mytoken:~/secrets/token"},
 	}
 
 	// Act

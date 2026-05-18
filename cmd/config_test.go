@@ -62,7 +62,7 @@ func TestPrintProjectConfig_SingleLayer(t *testing.T) {
 	layers := []config.RCLayer{
 		{
 			Path: "/project/.agenticrc",
-			RC:   &config.AgenticRC{PidsLimit: "100", CPUs: "2", Memory: "4g", ExtraMounts: []string{"vol:/mnt"}, Secrets: []string{"tok=/run/s/t"}},
+			RC:   &config.AgenticRC{PidsLimit: "100", CPUs: "2", Memory: "4g", ExtraMounts: []string{"vol:/mnt"}, Secrets: []string{"tok:/run/s/t"}},
 		},
 	}
 
@@ -77,7 +77,7 @@ func TestPrintProjectConfig_SingleLayer(t *testing.T) {
 	assert.Contains(t, out, "cpus: 2  [/project/.agenticrc]")
 	assert.Contains(t, out, "memory: 4g  [/project/.agenticrc]")
 	assert.Contains(t, out, "- vol:/mnt  [/project/.agenticrc]")
-	assert.Contains(t, out, "- tok=/run/s/t  [/project/.agenticrc]")
+	assert.Contains(t, out, "- tok:/run/s/t  [/project/.agenticrc]")
 }
 
 func TestPrintProjectConfig_MultiLayers_SourceAttribution(t *testing.T) {

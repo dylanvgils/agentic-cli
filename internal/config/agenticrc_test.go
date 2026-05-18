@@ -172,14 +172,14 @@ func TestMergeConfigs_SingleConfig(t *testing.T) {
 
 func TestParseRC_AllKeys(t *testing.T) {
 	// Arrange
-	content := "extra_mounts=vol1:/mnt/a,vol2:/mnt/b\nsecrets=token=/run/s/a,key=/run/s/b\npids_limit=512\ncpus=2\nmemory=2g\n"
+	content := "extra_mounts=vol1:/mnt/a,vol2:/mnt/b\nsecrets=token:/run/s/a,key:/run/s/b\npids_limit=512\ncpus=2\nmemory=2g\n"
 
 	// Act
 	rc := mustParseRC(t, content)
 
 	// Assert
 	assert.Equal(t, []string{"vol1:/mnt/a", "vol2:/mnt/b"}, rc.ExtraMounts)
-	assert.Equal(t, []string{"token=/run/s/a", "key=/run/s/b"}, rc.Secrets)
+	assert.Equal(t, []string{"token:/run/s/a", "key:/run/s/b"}, rc.Secrets)
 	assert.Equal(t, "512", rc.PidsLimit)
 	assert.Equal(t, "2", rc.CPUs)
 	assert.Equal(t, "2g", rc.Memory)
@@ -232,14 +232,14 @@ func TestParseRC_TildeExpansion(t *testing.T) {
 	// Arrange
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)
-	content := "extra_mounts=~/.cache:/cache\nsecrets=mytoken=~/.secrets/token\n"
+	content := "extra_mounts=~/.cache:/cache\nsecrets=mytoken:~/.secrets/token\n"
 
 	// Act
 	rc := mustParseRC(t, content)
 
 	// Assert
 	assert.Equal(t, []string{home + "/.cache:/cache"}, rc.ExtraMounts)
-	assert.Equal(t, []string{"mytoken=" + home + "/.secrets/token"}, rc.Secrets)
+	assert.Equal(t, []string{"mytoken:" + home + "/.secrets/token"}, rc.Secrets)
 }
 
 func TestParseRC_UnknownKeysIgnored(t *testing.T) {

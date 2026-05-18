@@ -153,7 +153,7 @@ agentic run -v '~/.m2:$CONTAINER_HOME/.m2' claude
 agentic run -v '~/.m2:$CONTAINER_HOME/.m2' -v '~/.gradle:$CONTAINER_HOME/.gradle' claude
 
 # Mount a secret file read-only at /run/secrets/<name>
-agentic run -s 'copilot_token=~/.secrets/copilot_token' copilot
+agentic run -s 'copilot_token:~/.secrets/copilot_token' copilot
 
 # Override the tool home directory
 agentic run --home /opt/agentic claude
@@ -237,23 +237,23 @@ Use `agentic inspect` for a formatted summary of all of the above.
 Use `--secret` / `-s` to mount a secret file into the container at `/run/secrets/<name>`, read-only:
 
 ```bash
-agentic run -s 'copilot_token=~/.secrets/copilot_token' copilot
+agentic run -s 'copilot_token:~/.secrets/copilot_token' copilot
 ```
 
 For persistent global config, set `AGENTIC_SECRETS` in your shell:
 
 ```bash
-export AGENTIC_SECRETS='copilot_token=~/.secrets/copilot_token'
+export AGENTIC_SECRETS='copilot_token:~/.secrets/copilot_token'
 ```
 
 For per-project control, use a [`.agenticrc` project config file](#per-project-configuration):
 
 ```sh
 # .agenticrc
-secrets=copilot_token=~/.secrets/copilot_token
+secrets=copilot_token:~/.secrets/copilot_token
 ```
 
-Secrets use the format `name=/path/to/file`. The `~` prefix is expanded to your home directory. The file is mounted read-only at `/run/secrets/<name>` inside the container.
+Secrets use the format `name:/path/to/file`. The `~` prefix is expanded to your home directory. The file is mounted read-only at `/run/secrets/<name>` inside the container.
 
 ## 📦 Named Docker volumes
 
@@ -331,7 +331,7 @@ All configuration is done through environment variables, which can be set in you
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
 | `AGENTIC_HOME`           | Base directory for tool config and secrets                                                                                                            | `$HOME/.agentic`              |
 | `AGENTIC_EXTRA_MOUNTS`   | Comma-separated extra mounts. Bind mount: `host/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `$CONTAINER_HOME`. | -                             |
-| `AGENTIC_SECRETS`        | Comma-separated secrets to mount read-only at `/run/secrets/<name>`. Format: `name=/path/to/file`.                                                    | -                             |
+| `AGENTIC_SECRETS`        | Comma-separated secrets to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`.                                                    | -                             |
 | `AGENTIC_PIDS_LIMIT`     | Default container PID limit                                                                                                                           | `1024`                        |
 | `AGENTIC_CPUS`           | Default container CPU limit                                                                                                                           | `4`                           |
 | `AGENTIC_MEMORY`         | Default container memory limit                                                                                                                        | `4g`                          |
@@ -350,7 +350,7 @@ Place a `.agenticrc` file anywhere in your directory tree to apply project-speci
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- | ---------------------- |
 | `root`         | Stop walking up the directory tree at this file (`true`/`false`)                                                                                       | `false` | -                      |
 | `extra_mounts` | Extra mounts. Bind mount: `~/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `~` and `$CONTAINER_HOME`. Repeatable. | -       | `AGENTIC_EXTRA_MOUNTS` |
-| `secrets`      | Secrets to mount read-only at `/run/secrets/<name>`. Format: `name=/path/to/file`. Supports `~`. Repeatable.                                           | -       | `AGENTIC_SECRETS`      |
+| `secrets`      | Secrets to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~`. Repeatable.                                           | -       | `AGENTIC_SECRETS`      |
 | `pids_limit`   | Container PID limit                                                                                                                                    | `1024`  | `AGENTIC_PIDS_LIMIT`   |
 | `cpus`         | Container CPU limit                                                                                                                                    | `4`     | `AGENTIC_CPUS`         |
 | `memory`       | Container memory limit                                                                                                                                 | `4g`    | `AGENTIC_MEMORY`       |
@@ -366,7 +366,7 @@ root=true
 extra_mounts=maven:$CONTAINER_HOME/.m2
 extra_mounts=gradle:$CONTAINER_HOME/.gradle
 
-secrets=copilot_token=~/.secrets/copilot_token
+secrets=copilot_token:~/.secrets/copilot_token
 
 pids_limit=2048
 cpus=8
@@ -378,7 +378,7 @@ memory=8g
 ```sh
 # ~/projects/.agenticrc  (applies to all projects under ~/projects)
 root=true
-secrets=gh-token=~/.secrets/gh_token
+secrets=gh-token:~/.secrets/gh_token
 
 # ~/projects/my-project/.agenticrc
 extra_mounts=maven:$CONTAINER_HOME/.m2

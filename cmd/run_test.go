@@ -272,7 +272,7 @@ func TestRunTool_flagSecrets(t *testing.T) {
 	get, restore := captureRunContainer(t)
 	defer restore()
 	origSecrets := flagSecrets
-	flagSecrets = []string{"mytoken=/tmp/token"}
+	flagSecrets = []string{"mytoken:/tmp/token"}
 	defer func() { flagSecrets = origSecrets }()
 
 	// Act
@@ -281,7 +281,7 @@ func TestRunTool_flagSecrets(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	rs, _ := get()
-	assert.Equal(t, []string{"mytoken=/tmp/token"}, rs.Secrets)
+	assert.Equal(t, []string{"mytoken:/tmp/token"}, rs.Secrets)
 }
 
 func TestRunTool_agenticrcSecretsAppended(t *testing.T) {
@@ -291,13 +291,13 @@ func TestRunTool_agenticrcSecretsAppended(t *testing.T) {
 	t.Chdir(dir)
 	require.NoError(t, os.WriteFile(
 		dir+"/.agenticrc",
-		[]byte("secrets=rctoken=/tmp/rc_token\n"),
+		[]byte("secrets=rctoken:/tmp/rc_token\n"),
 		0644,
 	))
 	get, restore := captureRunContainer(t)
 	defer restore()
 	origSecrets := flagSecrets
-	flagSecrets = []string{"flagtoken=/tmp/flag_token"}
+	flagSecrets = []string{"flagtoken:/tmp/flag_token"}
 	defer func() { flagSecrets = origSecrets }()
 
 	// Act
@@ -306,14 +306,14 @@ func TestRunTool_agenticrcSecretsAppended(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	rs, _ := get()
-	assert.Equal(t, []string{"flagtoken=/tmp/flag_token", "rctoken=/tmp/rc_token"}, rs.Secrets)
+	assert.Equal(t, []string{"flagtoken:/tmp/flag_token", "rctoken:/tmp/rc_token"}, rs.Secrets)
 }
 
 func TestRunTool_agenticExtraSecretsEnv(t *testing.T) {
 	// Arrange
 	withTempToolHome(t)
 	t.Chdir(t.TempDir())
-	t.Setenv("AGENTIC_SECRETS", "envtoken=/tmp/env_token")
+	t.Setenv("AGENTIC_SECRETS", "envtoken:/tmp/env_token")
 	get, restore := captureRunContainer(t)
 	defer restore()
 
@@ -323,7 +323,7 @@ func TestRunTool_agenticExtraSecretsEnv(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	rs, _ := get()
-	assert.Contains(t, rs.Secrets, "envtoken=/tmp/env_token")
+	assert.Contains(t, rs.Secrets, "envtoken:/tmp/env_token")
 }
 
 func TestRunTool_toolHome(t *testing.T) {

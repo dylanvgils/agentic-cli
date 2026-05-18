@@ -79,9 +79,9 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	}
 
 	for _, secret := range rs.Secrets {
-		name, hostPath, ok := strings.Cut(secret, "=")
+		name, hostPath, ok := strings.Cut(secret, ":")
 		if !ok {
-			return fmt.Errorf("invalid secret %q: expected name=/path", secret)
+			return fmt.Errorf("invalid secret %q: expected name:/path", secret)
 		}
 
 		if strings.HasPrefix(hostPath, "~/") {
