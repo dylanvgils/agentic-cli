@@ -22,12 +22,12 @@ RUN \
   && useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique ${TOOL_USER}
 
 COPY ./entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh \
+  && curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path \
+  && mv /root/.opencode/bin/opencode /usr/local/bin/opencode \
+  && rm -rf /root/.opencode
 
 USER ${TOOL_USER}
-ENV PATH="${TOOL_HOME}/.opencode/bin:${PATH}"
-RUN curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path \
-  && mkdir -p ${TOOL_HOME}/.config/opencode
 ENV TOOL_HOME=${TOOL_HOME}
 
 WORKDIR /workspace

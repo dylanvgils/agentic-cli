@@ -25,9 +25,11 @@ func TestOpencodeMounts_returnsExpected(t *testing.T) {
 	// Assert
 	assert.Equal(t, []string{
 		"$PWD:/workspace",
-		"$TOOL_HOME/opencode/data:$CONTAINER_HOME/.local/share/opencode",
-		"$TOOL_HOME/opencode/cache:$CONTAINER_HOME/.cache/opencode",
+		"$TOOL_HOME/opencode/data:$CONTAINER_HOME/.opencode",
+		"$TOOL_HOME/opencode/share:$CONTAINER_HOME/.local/share/opencode",
 		"$TOOL_HOME/opencode/state:$CONTAINER_HOME/.local/state/opencode",
+		"$TOOL_HOME/opencode/cache:$CONTAINER_HOME/.cache/opencode",
+		"$TOOL_HOME/opencode/config:$CONTAINER_HOME/.config/opencode",
 	}, mounts)
 }
 
@@ -41,7 +43,7 @@ func TestSetupOpencode_createsSubDirs(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	for _, sub := range []string{"data", "cache", "state"} {
+	for _, sub := range []string{"data", "share", "state", "cache", "config"} {
 		assert.DirExists(t, filepath.Join(dir, "opencode", sub))
 	}
 }

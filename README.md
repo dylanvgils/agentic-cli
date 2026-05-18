@@ -423,11 +423,11 @@ export AGENTIC_EXTRA_MOUNTS='~/.m2:$CONTAINER_HOME/.m2,~/.gradle:$CONTAINER_HOME
 
 Each tool stores its configuration under `$AGENTIC_HOME`:
 
-| Tool       | Config path                                                  |
-| ---------- | ------------------------------------------------------------ |
-| `claude`   | `$AGENTIC_HOME/claude/`, `$AGENTIC_HOME/claude/.claude.json` |
-| `copilot`  | `$AGENTIC_HOME/copilot/`                                     |
-| `opencode` | `$AGENTIC_HOME/opencode/` (data, cache, state)               |
+| Tool       | Config path                                                   |
+| ---------- | ------------------------------------------------------------- |
+| `claude`   | `$AGENTIC_HOME/claude/`, `$AGENTIC_HOME/claude/.claude.json`  |
+| `copilot`  | `$AGENTIC_HOME/copilot/`                                      |
+| `opencode` | `$AGENTIC_HOME/opencode/` (data, share, state, cache, config) |
 
 ## 📁 Repository structure
 
