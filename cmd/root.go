@@ -4,6 +4,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
@@ -12,6 +13,8 @@ import (
 
 var (
 	version       = "dev"
+	commit        = ""
+	buildDate     = ""
 	installMethod = ""
 )
 
@@ -44,10 +47,22 @@ func rootRun(cmd *cobra.Command, _ []string) error {
 }
 
 func buildVersion() string {
-	if installMethod == "" {
+	var meta []string
+
+	if commit != "" {
+		meta = append(meta, commit)
+	}
+	if buildDate != "" {
+		meta = append(meta, buildDate)
+	}
+	if installMethod != "" {
+		meta = append(meta, installMethod)
+	}
+
+	if len(meta) == 0 {
 		return version
 	}
-	return version + " (" + installMethod + ")"
+	return version + " (" + strings.Join(meta, ", ") + ")"
 }
 
 // Execute the Agentic CLI
