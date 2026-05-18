@@ -1,0 +1,27 @@
+# Build output
+bin/
+dist/
+
+# Go artifacts
+*.o
+*.a
+*.so
+*.test
+*.out
+coverage.txt
+vendor/
+go.work.sum
+
+# OS
+.DS_Store
+.DS_store
+Thumbs.db
+ehthumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.bak

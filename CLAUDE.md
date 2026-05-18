@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Bash + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in sandboxed containers. No test suite, no linter. Development means editing shell scripts and Dockerfiles, then testing by building and running.
+A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in sandboxed containers. The Go binary (`agentic`) handles all commands. No linter. Development means editing Go source and Dockerfiles, then testing with `go test ./...` and building/running containers.
 
 ## Key commands
 
@@ -18,39 +18,34 @@ agentic <tool> [args]
 
 ## Code conventions
 
-### Shell scripts
-- All executable scripts: `#!/usr/bin/env bash` + `set -euo pipefail`
-- Sourced files (not executed directly): no shebang, no `set -euo pipefail`, start with a comment saying so
-- `shellcheck source=` annotations on every `source` line
-- `local` for all function-scoped variables; declare and assign on separate lines when the value comes from a subshell (so `set -e` catches errors)
-- Arrays for multi-value Docker args (`DOCKER_ARGS=()`, `MOUNTS+=(-v ...)`, `TMPFS_FLAGS=(...)`)
-- Section headers as `# --- Section Name ---` comments
-
 ### Tool structure
-Each tool in `tools/<name>/` must implement exactly: `config.sh`, `build.sh`, `clean.sh`, `update.sh`, `run.sh`, `Dockerfile`, `entrypoint.sh`. Tools are discovered dynamically by scanning for `run.sh` - no registration needed anywhere.
+Each tool in `tools/<name>/` must implement exactly: `Dockerfile`, `entrypoint.sh`. Adding a new tool requires an entry in `internal/tools/tools.go Configs` (holds `VersionCmd`, `TmpfsExecTmp`, `Setup`, and `Mounts`) plus the corresponding `internal/tools/<name>.go` file implementing `Setup` and `Mounts`.
 
-`config.sh` sets `BASE`, `IMAGE`, `VERSION_CMD` and sources `shared/config.sh` (which sets `TOOL_HOME`).
+Build and update logic lives in Go: `internal/tools/<tool>.go` holds runtime config (`Base`, `VersionCmd`); `internal/docker/build.go` and `internal/docker/update.go` hold the orchestration.
 
-`build.sh`, `clean.sh`, and `update.sh` are one-liners: source `config.sh` + call the shared function.
-
-`run.sh` sources `run-common.sh` and `config.sh`, runs pre-flight checks, sets up host-side dirs, calls `resolve_container_home`, appends to `MOUNTS`, then calls `run_container "$@"`.
-
-### Shared scripts
-`shared/scripts/` scripts are sourced, not executed. They expose functions and pre-populate variables (`DOCKER_ARGS`, `MOUNTS`, `TMPFS_FLAGS`) that callers extend before invoking `run_container` or `build_tool`.
+Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-specific mount configuration and setup live in `internal/tools/<tool>.go`.
 
 ### Adding a new runtime layer
-Drop a `Dockerfile` in `shared/base/<name>/`. It must accept `BASE_IMAGE` as a build arg. The build system derives the version env var as `AGENTIC_<NAME>_VERSION` automatically.
+Drop a `Dockerfile` in `tools/base/<name>/` (must accept `BASE_IMAGE` as a build arg) and add a `--<name>` flag to `cmd/build.go`, `cmd/update.go`, and `cmd/flags.go`. The `--base <name>` routing is derived from the directory; version pinning requires the flag.
 
-### Security constraints (enforced in `run-common.sh`)
+### Go style
+- Use blank lines between logical blocks within a function to aid readability (e.g. between groups of related `if` statements, between `switch` case groups)
+
+### Go tests
+- Always add tests for new code
+- Use Arrange-Act-Assert (AAA) in every test: `// Arrange`, `// Act`, `// Assert` comment labels with a blank line between sections
+- Omit `// Arrange` only when there is genuinely nothing to set up
+- Use `// Act + Assert` only when a single call is inseparably both (e.g. `assert.Panics`)
+- Assign the result of the function under test to a variable in `// Act` so `// Assert` can reference it — do not inline the call inside the assertion
+
+### Security constraints (enforced in `internal/docker/run.go`)
 `--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`, `--user $(id -u):$(id -g)`. Do not relax these. If a tool needs write access, use a targeted tmpfs or volume mount instead.
 
 ### Keeping docs in sync
-Any change that affects user-facing behaviour must be reflected in both:
-- `README.md` - user documentation (commands, flags, config, examples)
-- `bin/agentic` - the usage string in the `usage()` function
+Any change that affects user-facing behaviour must be reflected in `README.md` (commands, flags, config, examples).
 
 ### Mount handling
-`CONTAINER_HOME` is resolved at runtime from the image's `TOOL_HOME` env var via `resolve_container_home`. Mount strings support two placeholders expanded by `expand_mount_vars` in `run-common.sh` before the `docker run` call:
+`CONTAINER_HOME` is resolved at runtime from the image's `TOOL_HOME` env var via `docker.ResolveContainerHome` in `internal/docker/inspect.go`. Mount strings support two placeholders expanded by `docker.ExpandMountVars` in `internal/docker/run.go` before the `docker run` call:
 - `$TOOL_HOME` / `${TOOL_HOME}` - host-side agentic data dir; use on the left (host path) side of `:`
 - `$CONTAINER_HOME` / `${CONTAINER_HOME}` - container home dir; use on the right (container path) side of `:`
 

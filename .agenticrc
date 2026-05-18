@@ -1,0 +1,2 @@
+extra_mounts=go-mod:$CONTAINER_HOME/go
+extra_mounts=go-cache:$CONTAINER_HOME/.cache/go-build
