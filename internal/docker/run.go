@@ -3,7 +3,6 @@ package docker
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/mount"
@@ -84,10 +83,7 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 			return fmt.Errorf("invalid secret %q: expected name:/path", secret)
 		}
 
-		if strings.HasPrefix(hostPath, "~/") {
-			home, _ := os.UserHomeDir()
-			hostPath = filepath.Join(home, hostPath[2:])
-		}
+		hostPath = mount.ExpandVars(hostPath, rs.ToolHome, rs.ContainerHome)
 
 		args = append(args, arg("volume", mount.VolumeMount(hostPath, "/run/secrets/"+name, mount.VolumeOptions{ReadOnly: true})))
 	}

@@ -22,14 +22,18 @@ func VolumeMount(host, container string, opts ...VolumeOptions) string {
 }
 
 // ExpandVars replaces $TOOL_HOME, ${TOOL_HOME}, $CONTAINER_HOME, ${CONTAINER_HOME},
-// and $PWD in a mount spec string.
+// $HOME, ${HOME}, ~ and $PWD in a mount spec string.
 func ExpandVars(spec, toolHome, containerHome string) string {
 	pwd, _ := os.Getwd()
+	home, _ := os.UserHomeDir()
 	s := spec
 	s = strings.ReplaceAll(s, "${CONTAINER_HOME}", containerHome)
 	s = strings.ReplaceAll(s, "$CONTAINER_HOME", containerHome)
 	s = strings.ReplaceAll(s, "${TOOL_HOME}", toolHome)
 	s = strings.ReplaceAll(s, "$TOOL_HOME", toolHome)
+	s = strings.ReplaceAll(s, "${HOME}", home)
+	s = strings.ReplaceAll(s, "$HOME", home)
+	s = strings.ReplaceAll(s, "~", home)
 	s = strings.ReplaceAll(s, "$PWD", pwd)
 	return s
 }
