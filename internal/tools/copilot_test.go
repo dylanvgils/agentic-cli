@@ -8,6 +8,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// --- copilotTmpfsMounts ---
+func TestCopilotTmpfsMounts_returnsExpected(t *testing.T) {
+	// Act
+	mounts := copilotTmpfsMounts()
+
+	// Assert
+	assert.Equal(t, []string{
+		"/tmp:exec,size=1g",
+		"$CONTAINER_HOME/.cache:exec,size=1g",
+	}, mounts)
+}
+
 // --- copilotMounts ---
 func TestCopilotMounts(t *testing.T) {
 	// Act

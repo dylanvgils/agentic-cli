@@ -8,6 +8,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// --- opencodeTmpfsMounts ---
+func TestOpencodeTmpfsMounts_returnsExpected(t *testing.T) {
+	// Act
+	mounts := opencodeTmpfsMounts()
+
+	// Assert
+	assert.Equal(t, []string{"/tmp:exec,size=1g"}, mounts)
+}
+
 // --- opencodeMounts ---
 func TestOpencodeMounts_returnsExpected(t *testing.T) {
 	// Act
