@@ -242,6 +242,20 @@ func TestParseRC_TildeExpansion(t *testing.T) {
 	assert.Equal(t, []string{"mytoken:" + home + "/.secrets/token"}, rc.Secrets)
 }
 
+func TestParseRC_HomeEnvExpansion(t *testing.T) {
+	// Arrange
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	content := "extra_mounts=$HOME/.cache:/cache\nsecrets=mytoken:${HOME}/.secrets/token\n"
+
+	// Act
+	rc := mustParseRC(t, content)
+
+	// Assert
+	assert.Equal(t, []string{home + "/.cache:/cache"}, rc.ExtraMounts)
+	assert.Equal(t, []string{"mytoken:" + home + "/.secrets/token"}, rc.Secrets)
+}
+
 func TestParseRC_UnknownKeysIgnored(t *testing.T) {
 	// Arrange
 	content := "unknown=foo\ncpus=4\n"

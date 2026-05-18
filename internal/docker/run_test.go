@@ -195,6 +195,48 @@ func TestRunContainer_secrets_tildeExpanded(t *testing.T) {
 	assert.Contains(t, get(), "--volume="+home+"/secrets/token:/run/secrets/mytoken:ro")
 }
 
+func TestRunContainer_secrets_dollarHomeExpanded(t *testing.T) {
+	// Arrange
+	get, restore := captureRunInteractive(t)
+	defer restore()
+
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	rs := RunSpec{
+		Image:   "agentic-copilot",
+		Secrets: []string{"mytoken:$HOME/secrets/token"},
+	}
+
+	// Act
+	err = RunContainer(rs, nil)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Contains(t, get(), "--volume="+home+"/secrets/token:/run/secrets/mytoken:ro")
+}
+
+func TestRunContainer_secrets_dollarHomeBracesExpanded(t *testing.T) {
+	// Arrange
+	get, restore := captureRunInteractive(t)
+	defer restore()
+
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	rs := RunSpec{
+		Image:   "agentic-copilot",
+		Secrets: []string{"mytoken:${HOME}/secrets/token"},
+	}
+
+	// Act
+	err = RunContainer(rs, nil)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Contains(t, get(), "--volume="+home+"/secrets/token:/run/secrets/mytoken:ro")
+}
+
 func TestRunContainer_secrets_invalidFormat(t *testing.T) {
 	// Arrange
 	_, restore := captureRunInteractive(t)

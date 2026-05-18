@@ -176,8 +176,9 @@ func parseRC(r io.Reader) (*AgenticRC, error) {
 	return rc, scanner.Err()
 }
 
-// splitValues splits a comma-separated value string, expands ~ to home, and
-// skips empty parts. Supports both comma-separated and repeatable-key styles.
+// splitValues splits a comma-separated value string, expands ~, $HOME, and
+// ${HOME} to home, and skips empty parts. Supports both comma-separated and
+// repeatable-key styles.
 func splitValues(value, home string) []string {
 	var result []string
 
@@ -186,7 +187,10 @@ func splitValues(value, home string) []string {
 		if pair == "" {
 			continue
 		}
-		result = append(result, strings.ReplaceAll(pair, "~", home))
+		pair = strings.ReplaceAll(pair, "${HOME}", home)
+		pair = strings.ReplaceAll(pair, "$HOME", home)
+		pair = strings.ReplaceAll(pair, "~", home)
+		result = append(result, pair)
 	}
 
 	return result

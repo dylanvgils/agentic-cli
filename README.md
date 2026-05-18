@@ -253,7 +253,7 @@ For per-project control, use a [`.agenticrc` project config file](#per-project-c
 secrets=copilot_token:~/.secrets/copilot_token
 ```
 
-Secrets use the format `name:/path/to/file`. The `~` prefix is expanded to your home directory. The file is mounted read-only at `/run/secrets/<name>` inside the container.
+Secrets use the format `name:/path/to/file`. The `~`, `$HOME`, and `${HOME}` prefixes are expanded to your home directory. The file is mounted read-only at `/run/secrets/<name>` inside the container.
 
 ## 📦 Named Docker volumes
 
@@ -346,14 +346,14 @@ Place a `.agenticrc` file anywhere in your directory tree to apply project-speci
 
 **Merge rules:** list keys (`extra_mounts`, `secrets`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value.
 
-| Key            | Description                                                                                                                                            | Default | Env var override       |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- | ---------------------- |
-| `root`         | Stop walking up the directory tree at this file (`true`/`false`)                                                                                       | `false` | -                      |
-| `extra_mounts` | Extra mounts. Bind mount: `~/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `~` and `$CONTAINER_HOME`. Repeatable. | -       | `AGENTIC_EXTRA_MOUNTS` |
-| `secrets`      | Secrets to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~`. Repeatable.                                           | -       | `AGENTIC_SECRETS`      |
-| `pids_limit`   | Container PID limit                                                                                                                                    | `1024`  | `AGENTIC_PIDS_LIMIT`   |
-| `cpus`         | Container CPU limit                                                                                                                                    | `4`     | `AGENTIC_CPUS`         |
-| `memory`       | Container memory limit                                                                                                                                 | `4g`    | `AGENTIC_MEMORY`       |
+| Key            | Description                                                                                                                                                      | Default | Env var override       |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------- |
+| `root`         | Stop walking up the directory tree at this file (`true`/`false`)                                                                                                 | `false` | -                      |
+| `extra_mounts` | Extra mounts. Bind mount: `~/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `~`, `$HOME`, and `$CONTAINER_HOME`. Repeatable. | -       | `AGENTIC_EXTRA_MOUNTS` |
+| `secrets`      | Secrets to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~` and `$HOME`. Repeatable.                                         | -       | `AGENTIC_SECRETS`      |
+| `pids_limit`   | Container PID limit                                                                                                                                              | `1024`  | `AGENTIC_PIDS_LIMIT`   |
+| `cpus`         | Container CPU limit                                                                                                                                              | `4`     | `AGENTIC_CPUS`         |
+| `memory`       | Container memory limit                                                                                                                                           | `4g`    | `AGENTIC_MEMORY`       |
 
 `.agenticrc` values override env var defaults but are superseded by CLI flags. `extra_mounts` and `secrets` are appended to rather than replacing `AGENTIC_EXTRA_MOUNTS` / `AGENTIC_SECRETS`. You can commit `.agenticrc` to the repo so the whole team picks up the right settings automatically.
 
@@ -387,10 +387,13 @@ cpus=8
 
 ### Mount variable substitution
 
-Two placeholders are substituted in mount strings at runtime. Use them so you don't have to hardcode paths that vary per machine or per tool:
+Several placeholders are substituted in mount strings at runtime. Use them so you don't have to hardcode paths that vary per machine or per tool:
 
 | Placeholder         | Side of `:`       | Expands to                                     |
 | ------------------- | ----------------- | ---------------------------------------------- |
+| `~`                 | host (left)       | Your home directory                            |
+| `$HOME`             | host (left)       | Same as above                                  |
+| `${HOME}`           | host (left)       | Same as above                                  |
 | `$TOOL_HOME`        | host (left)       | Agentic data directory (e.g. `~/.agentic`)     |
 | `${TOOL_HOME}`      | host (left)       | Same as above                                  |
 | `$CONTAINER_HOME`   | container (right) | Container home directory (e.g. `/home/claude`) |

@@ -82,6 +82,45 @@ func TestExpandVars_pwd(t *testing.T) {
 	assert.Equal(t, pwd+":/workspace", result)
 }
 
+func TestExpandVars_tilde(t *testing.T) {
+	// Arrange
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	spec := "~/.cache:/cache"
+
+	// Act
+	result := ExpandVars(spec, "", "")
+
+	// Assert
+	assert.Equal(t, home+"/.cache:/cache", result)
+}
+
+func TestExpandVars_home(t *testing.T) {
+	// Arrange
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	spec := "$HOME/.cache:/cache"
+
+	// Act
+	result := ExpandVars(spec, "", "")
+
+	// Assert
+	assert.Equal(t, home+"/.cache:/cache", result)
+}
+
+func TestExpandVars_home_braces(t *testing.T) {
+	// Arrange
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	spec := "${HOME}/.cache:/cache"
+
+	// Act
+	result := ExpandVars(spec, "", "")
+
+	// Assert
+	assert.Equal(t, home+"/.cache:/cache", result)
+}
+
 func TestExpandVars_noPlaceholders(t *testing.T) {
 	// Arrange
 	spec := "/host/path:/container/path"
