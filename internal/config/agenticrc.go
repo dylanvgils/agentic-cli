@@ -138,8 +138,6 @@ func loadRC(path string) (*AgenticRC, error) {
 }
 
 func parseRC(r io.Reader) (*AgenticRC, error) {
-	home, _ := os.UserHomeDir()
-
 	rc := &AgenticRC{}
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
@@ -160,9 +158,9 @@ func parseRC(r io.Reader) (*AgenticRC, error) {
 			rc.Root = value == "true"
 
 		case "extra_mounts":
-			rc.ExtraMounts = append(rc.ExtraMounts, splitValues(value, home)...)
+			rc.ExtraMounts = append(rc.ExtraMounts, splitValues(value)...)
 		case "secrets":
-			rc.Secrets = append(rc.Secrets, splitValues(value, home)...)
+			rc.Secrets = append(rc.Secrets, splitValues(value)...)
 
 		case "pids_limit":
 			rc.PidsLimit = value
@@ -176,10 +174,10 @@ func parseRC(r io.Reader) (*AgenticRC, error) {
 	return rc, scanner.Err()
 }
 
-// splitValues splits a comma-separated value string, expands ~, $HOME, and
-// ${HOME} to home, and skips empty parts. Supports both comma-separated and
-// repeatable-key styles.
-func splitValues(value, home string) []string {
+// splitValues splits a comma-separated value string and skips empty parts.
+// Supports both comma-separated and repeatable-key styles. Variable expansion
+// is handled later by mount.ExpandVars at container launch time.
+func splitValues(value string) []string {
 	var result []string
 
 	for pair := range strings.SplitSeq(value, ",") {
@@ -187,9 +185,6 @@ func splitValues(value, home string) []string {
 		if pair == "" {
 			continue
 		}
-		pair = strings.ReplaceAll(pair, "${HOME}", home)
-		pair = strings.ReplaceAll(pair, "$HOME", home)
-		pair = strings.ReplaceAll(pair, "~", home)
 		result = append(result, pair)
 	}
 
