@@ -59,29 +59,14 @@ func TestRunContainer_securityArgs(t *testing.T) {
 	assert.Contains(t, args, "--user="+platform.UserGroup())
 }
 
-func TestRunContainer_tmpfsDefault(t *testing.T) {
-	// Arrange
-	get, restore := captureRunInteractive(t)
-	defer restore()
-
-	rs := RunSpec{Image: "agentic-claude"}
-
-	// Act
-	err := RunContainer(rs, nil)
-
-	// Assert
-	require.NoError(t, err)
-	assert.Contains(t, get(), "--tmpfs=/tmp:size=1g")
-}
-
-func TestRunContainer_tmpfsExec(t *testing.T) {
+func TestRunContainer_tmpfsMounts(t *testing.T) {
 	// Arrange
 	get, restore := captureRunInteractive(t)
 	defer restore()
 
 	rs := RunSpec{
-		Image:        "agentic-claude",
-		TmpfsExecTmp: true,
+		Image:       "agentic-claude",
+		TmpfsMounts: []string{"/tmp:exec,size=1g"},
 	}
 
 	// Act
@@ -90,6 +75,27 @@ func TestRunContainer_tmpfsExec(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.Contains(t, get(), "--tmpfs=/tmp:exec,size=1g")
+}
+
+func TestRunContainer_tmpfsMounts_expandsContainerHome(t *testing.T) {
+	// Arrange
+	get, restore := captureRunInteractive(t)
+	defer restore()
+
+	rs := RunSpec{
+		Image:         "agentic-copilot",
+		ContainerHome: "/home/user",
+		TmpfsMounts:   []string{"/tmp:exec,size=1g", "$CONTAINER_HOME/.cache:exec,size=1g"},
+	}
+
+	// Act
+	err := RunContainer(rs, nil)
+
+	// Assert
+	require.NoError(t, err)
+	args := get()
+	assert.Contains(t, args, "--tmpfs=/tmp:exec,size=1g")
+	assert.Contains(t, args, "--tmpfs=/home/user/.cache:exec,size=1g")
 }
 
 func TestRunContainer_imageAndToolArgs(t *testing.T) {

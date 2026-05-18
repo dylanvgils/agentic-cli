@@ -130,7 +130,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		Volumes:        volumes,
 		Secrets:        secrets,
 		SkipEntrypoint: skipEntrypoint,
-		TmpfsExecTmp:   toolConfig.TmpfsExecTmp,
+		TmpfsMounts:    toolConfig.TmpfsMounts(),
 		PidsLimit:      pidsLimit,
 		CPUs:           cpus,
 		Memory:         memory,

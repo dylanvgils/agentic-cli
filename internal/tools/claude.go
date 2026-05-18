@@ -7,6 +7,12 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
+func claudeTmpfsMounts() []string {
+	return []string{
+		mount.TmpfsMount("/tmp", mount.TmpfsOptions{Exec: true, Size: "1g"}),
+	}
+}
+
 func claudeMounts() []string {
 	return []string{
 		mount.VolumeMount("$PWD", "/workspace"),

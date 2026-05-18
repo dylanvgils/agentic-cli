@@ -18,7 +18,7 @@ type RunSpec struct {
 	Volumes        []string
 	Secrets        []string
 	SkipEntrypoint bool
-	TmpfsExecTmp   bool
+	TmpfsMounts    []string
 	PidsLimit      string
 	CPUs           string
 	Memory         string
@@ -69,10 +69,9 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 		args = append(args, "-it")
 	}
 
-	args = append(args, arg("tmpfs", mount.TmpfsMount("/tmp", mount.TmpfsOptions{
-		Exec: rs.TmpfsExecTmp,
-		Size: "1g",
-	})))
+	for _, t := range rs.TmpfsMounts {
+		args = append(args, arg("tmpfs", mount.ExpandVars(t, rs.ToolHome, rs.ContainerHome)))
+	}
 
 	for _, volume := range rs.Volumes {
 		varg := arg("volume", mount.ExpandVars(volume, rs.ToolHome, rs.ContainerHome))

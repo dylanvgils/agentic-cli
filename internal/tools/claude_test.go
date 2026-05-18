@@ -9,6 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// --- claudeTmpfsMounts ---
+func TestClaudeTmpfsMounts_returnsExpected(t *testing.T) {
+	// Act
+	mounts := claudeTmpfsMounts()
+
+	// Assert
+	assert.Equal(t, []string{"/tmp:exec,size=1g"}, mounts)
+}
+
 // --- claudeMounts ---
 func TestClaudeMounts_returnsExpected(t *testing.T) {
 	// Act

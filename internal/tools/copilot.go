@@ -7,6 +7,13 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
+func copilotTmpfsMounts() []string {
+	return []string{
+		mount.TmpfsMount("/tmp", mount.TmpfsOptions{Exec: true, Size: "1g"}),
+		mount.TmpfsMount("$CONTAINER_HOME/.cache", mount.TmpfsOptions{Exec: true, Size: "1g"}),
+	}
+}
+
 func copilotMounts() []string {
 	return []string{
 		mount.VolumeMount("$PWD", "/workspace"),
