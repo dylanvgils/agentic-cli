@@ -11,11 +11,6 @@ import (
 )
 
 var (
-	version       = "dev"
-	installMethod = ""
-)
-
-var (
 	runContainer       = docker.RunContainer
 	ensureNamedVolumes = docker.EnsureNamedVolumes
 	inspectImage       = docker.InspectImage
@@ -31,9 +26,9 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "agentic",
-	Short: "Run agentic coding tools in sandboxed containers",
+	Short: "Run agentic coding tools in isolated containers",
 	Long: `Agentic runs AI coding tools (Claude Code, Copilot, OpenCode) in
-sandboxed Docker containers with read-only filesystems and dropped capabilities.`,
+isolated Docker containers with read-only filesystems and dropped capabilities.`,
 	Version:      buildVersion(),
 	SilenceUsage: true,
 	RunE:         rootRun,
@@ -41,13 +36,6 @@ sandboxed Docker containers with read-only filesystems and dropped capabilities.
 
 func rootRun(cmd *cobra.Command, _ []string) error {
 	return cmd.Help()
-}
-
-func buildVersion() string {
-	if installMethod == "" {
-		return version
-	}
-	return version + " (" + installMethod + ")"
 }
 
 // Execute the Agentic CLI

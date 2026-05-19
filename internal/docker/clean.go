@@ -26,7 +26,7 @@ func CleanBaseImages() error {
 
 	var names []string
 	for name := range strings.FieldsSeq(out) {
-		if strings.HasPrefix(name, "agentic-base") {
+		if strings.HasPrefix(name, baseImage()) {
 			names = append(names, name)
 		}
 	}

@@ -1,10 +1,15 @@
 BINARY    := agentic
 BUILD_DIR := dist
-VERSION   ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+VERSION    ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+COMMIT     ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "")
+BUILD_DATE ?= $(shell date -u +%Y-%m-%d)
 INSTALL_METHOD ?=
-LDFLAGS    = -s -w -X github.com/dylanvgils/agentic-cli/cmd.version=$(VERSION) \
-             $(if $(REPO_ROOT),-X github.com/dylanvgils/agentic-cli/internal/platform.repoRoot=$(REPO_ROOT)) \
-             $(if $(INSTALL_METHOD),-X github.com/dylanvgils/agentic-cli/cmd.installMethod=$(INSTALL_METHOD))
+LDFLAGS     = -s -w \
+              -X github.com/dylanvgils/agentic-cli/cmd.version=$(VERSION) \
+              -X github.com/dylanvgils/agentic-cli/cmd.commit=$(COMMIT) \
+              -X github.com/dylanvgils/agentic-cli/cmd.buildDate=$(BUILD_DATE) \
+              $(if $(REPO_ROOT),-X github.com/dylanvgils/agentic-cli/internal/platform.repoRoot=$(REPO_ROOT)) \
+              $(if $(INSTALL_METHOD),-X github.com/dylanvgils/agentic-cli/cmd.installMethod=$(INSTALL_METHOD))
 GOFLAGS   := CGO_ENABLED=0
 
 .PHONY: build install uninstall dist docker-dist test coverage clean

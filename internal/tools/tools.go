@@ -16,12 +16,15 @@ type ToolConfig struct {
 	Mounts      func() []string
 }
 
+// Prefix is the shared prefix for all agentic Docker image names.
+const Prefix = "agentic-"
+
 // ImageName returns the Docker image name for the given tool, or an error if the tool is unknown.
 func ImageName(name string) (string, error) {
 	if _, ok := Configs[name]; !ok {
 		return "", fmt.Errorf("unknown tool %q, available: %s", name, strings.Join(Names(), ", "))
 	}
-	return "agentic-" + name, nil
+	return Prefix + name, nil
 }
 
 // Names returns the sorted list of known tool names.

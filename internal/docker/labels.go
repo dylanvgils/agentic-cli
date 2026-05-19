@@ -18,11 +18,6 @@ func label(key, value string) string {
 	return arg("label", key+"="+value)
 }
 
-// labelFilter builds a --filter=label=key=value Docker flag.
-func labelFilter(key, value string) string {
-	return arg("filter", "label="+key+"="+value)
-}
-
 // buildBaseLabel constructs the agentic.base label value from the node version
 // and any extra layers with their detected versions.
 func buildBaseLabel(nodeVer string, extras []string, extraVersions map[string]string) string {

@@ -28,9 +28,9 @@ var inspectCmd = &cobra.Command{
 	Use:       "inspect [tool]",
 	Short:     "Show image info",
 	Long:      "Show image info (tool version, base layers, build date, size).\nInspects all tools if no tool specified.",
-	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
-	ValidArgs: tools.Names(),
-	RunE:      runInspect,
+	Args:              cobra.MaximumNArgs(1),
+	ValidArgsFunction: builtToolNamesFunc,
+	RunE:              runInspect,
 }
 
 func runInspect(_ *cobra.Command, args []string) error {
@@ -86,7 +86,12 @@ func runInspectTable(names []string) error {
 			built = "(unknown)"
 		}
 
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d MB\n", name, image, version, built, info.SizeMB); err != nil {
+		size := info.Size
+		if size == "" {
+			size = "-"
+		}
+
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", name, image, version, built, size); err != nil {
 			return err
 		}
 	}
@@ -126,6 +131,11 @@ func printImageInfo(tool string) error {
 	fmt.Printf("  version:  %s\n", version)
 	fmt.Printf("  base:     %s\n", base)
 	fmt.Printf("  built:    %s\n", built)
-	fmt.Printf("  size:     %d MB\n", info.SizeMB)
+	size := info.Size
+	if size == "" {
+		size = "(unknown)"
+	}
+
+	fmt.Printf("  size:     %s\n", size)
 	return nil
 }

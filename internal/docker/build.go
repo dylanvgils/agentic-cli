@@ -52,17 +52,17 @@ func buildNodeBase(repoRoot string, opts BuildOptions) (string, error) {
 	if opts.NodeVersion != "" {
 		args = append(args, arg("build-arg", "NODE_VERSION="+opts.NodeVersion))
 	}
-	args = append(args, arg("tag", "agentic-base"), nodeDir)
+	args = append(args, arg("tag", baseImage()), nodeDir)
 
 	if err := runInteractive(args...); err != nil {
 		return "", err
 	}
 
-	return detectBaseVersion("agentic-base", "agentic-version-node"), nil
+	return detectBaseVersion(baseImage(), versionScript("node")), nil
 }
 
 func buildExtraLayers(repoRoot string, extras []string, nodeVer string, opts BuildOptions) (string, string, error) {
-	prevImage := "agentic-base"
+	prevImage := baseImage()
 	extraVersions := make(map[string]string)
 
 	for i, extra := range extras {
@@ -70,7 +70,7 @@ func buildExtraLayers(repoRoot string, extras []string, nodeVer string, opts Bui
 		if _, err := os.Stat(extraDir); os.IsNotExist(err) {
 			return "", "", fmt.Errorf("unknown base %q (valid: %s)", extra, validExtras(repoRoot))
 		}
-		imageTag := "agentic-base-" + strings.Join(extras[:i+1], "-")
+		imageTag := baseLayerImage(extras[:i+1]...)
 
 		args := []string{"build"}
 		if opts.NoCache {
@@ -86,7 +86,7 @@ func buildExtraLayers(repoRoot string, extras []string, nodeVer string, opts Bui
 			return "", "", fmt.Errorf("%s layer: %w", extra, err)
 		}
 
-		extraVersions[extra] = detectBaseVersion(imageTag, "agentic-version-"+extra)
+		extraVersions[extra] = detectBaseVersion(imageTag, versionScript(extra))
 		prevImage = imageTag
 	}
 
