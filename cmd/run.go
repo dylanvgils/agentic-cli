@@ -49,9 +49,9 @@ var runToolCmd = &cobra.Command{
 	Use:       "run [flags] <tool> [args...]",
 	Short:     "Run a tool container",
 	Long:      `Run a tool container in the current directory.`,
-	Args:      cobra.ArbitraryArgs,
-	ValidArgs: tools.Names(),
-	RunE:      runTool,
+	Args:              cobra.ArbitraryArgs,
+	ValidArgsFunction: builtToolNamesFunc,
+	RunE:              runTool,
 	Hidden:    false,
 }
 

@@ -1,9 +1,6 @@
 package docker
 
-import (
-	"encoding/json"
-	"strings"
-)
+import "strings"
 
 // ImageInfo holds metadata about a built tool image.
 type ImageInfo struct {
@@ -12,29 +9,18 @@ type ImageInfo struct {
 	Version string // agentic.tool.version label
 	Base    string // agentic.base label
 	Built   string // agentic.built label
-	SizeMB  int
-}
-
-type imageInspectResult struct {
-	ID     string `json:"Id"`
-	Size   int64  `json:"Size"`
-	Config struct {
-		Labels map[string]string `json:"Labels"`
-	} `json:"Config"`
+	Size    string // formatted size from docker image ls
 }
 
 // InspectImage returns metadata for the given Docker image.
 // Returns nil, nil if the image does not exist or is not built.
 func InspectImage(name string) (*ImageInfo, error) {
-	out, err := dockerRun("inspect", "--format={{json .}}", name)
+	result, err := inspectImage(name)
 	if err != nil {
-		return nil, nil
-	}
-
-	out = strings.TrimSpace(out)
-	var result imageInspectResult
-	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		return nil, err
+	}
+	if result == nil {
+		return nil, nil
 	}
 
 	shortID := ""
@@ -48,6 +34,16 @@ func InspectImage(name string) (*ImageInfo, error) {
 		Version: result.Config.Labels[LabelToolVersion],
 		Base:    result.Config.Labels[LabelBase],
 		Built:   result.Config.Labels[LabelBuilt],
-		SizeMB:  int(result.Size / 1048576),
+		Size:    imageSize(name),
 	}, nil
+}
+
+// imageSize returns the formatted size of a Docker image, or empty string if unavailable.
+func imageSize(name string) string {
+	out, err := dockerRun("image", "ls", arg("format", "{{.Size}}"), referenceFilter(name))
+	size := strings.TrimSpace(out)
+	if err != nil || size == "" {
+		return ""
+	}
+	return size
 }

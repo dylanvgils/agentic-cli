@@ -41,7 +41,7 @@ var builtInfo = &docker.ImageInfo{
 	Version: "1.2.3",
 	Base:    "node:24",
 	Built:   "2026-05-01",
-	SizeMB:  512,
+	Size:    "512MB",
 }
 
 func TestRunInspect_allTools_whenNoArgs(t *testing.T) {
@@ -107,7 +107,7 @@ func TestRunInspect_builtImage_printsAllFields(t *testing.T) {
 	assert.Contains(t, out, "1.2.3")
 	assert.Contains(t, out, "node:24")
 	assert.Contains(t, out, "2026-05-01")
-	assert.Contains(t, out, "512 MB")
+	assert.Contains(t, out, "512MB")
 }
 
 func TestRunInspect_notBuilt_printsFallback(t *testing.T) {
@@ -128,9 +128,8 @@ func TestRunInspect_notBuilt_printsFallback(t *testing.T) {
 func TestRunInspect_emptyLabels_printsFallbacks(t *testing.T) {
 	// Arrange
 	restore := stubInspectImage(t, &docker.ImageInfo{
-		Image:  "agentic-claude",
-		ID:     "a1b2c3d4e5f6",
-		SizeMB: 100,
+		Image: "agentic-claude",
+		ID:    "a1b2c3d4e5f6",
 	}, nil)
 	defer restore()
 
@@ -212,7 +211,7 @@ func TestRunInspect_tableOutput_builtImage_showsFields(t *testing.T) {
 	assert.Contains(t, out, "claude")
 	assert.Contains(t, out, "1.2.3")
 	assert.Contains(t, out, "2026-05-01")
-	assert.Contains(t, out, "512 MB")
+	assert.Contains(t, out, "512MB")
 }
 
 func TestRunInspect_tableOutput_notBuilt_showsDashes(t *testing.T) {
@@ -234,7 +233,7 @@ func TestRunInspect_tableOutput_notBuilt_showsDashes(t *testing.T) {
 
 func TestRunInspect_tableOutput_emptyLabels_showsUnknown(t *testing.T) {
 	// Arrange
-	restore := stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", ID: "abc", SizeMB: 100}, nil)
+	restore := stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", ID: "abc"}, nil)
 	defer restore()
 	outputFmt = "table"
 	defer func() { outputFmt = "default" }()

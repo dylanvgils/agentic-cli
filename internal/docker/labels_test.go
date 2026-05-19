@@ -14,14 +14,6 @@ func TestLabel_buildsFlag(t *testing.T) {
 	assert.Equal(t, "--label=agentic.base=node@24.0.0", result)
 }
 
-func TestLabelFilter_buildsFlag(t *testing.T) {
-	// Act
-	result := labelFilter("project", "agentic-cli")
-
-	// Assert
-	assert.Equal(t, "--filter=label=project=agentic-cli", result)
-}
-
 func TestBuildBaseLabel_nodeOnly(t *testing.T) {
 	// Act
 	result := buildBaseLabel("24.0.0", nil, nil)

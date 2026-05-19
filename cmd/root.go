@@ -4,18 +4,10 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/spf13/cobra"
-)
-
-var (
-	version       = "dev"
-	commit        = ""
-	buildDate     = ""
-	installMethod = ""
 )
 
 var (
@@ -34,9 +26,9 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "agentic",
-	Short: "Run agentic coding tools in sandboxed containers",
+	Short: "Run agentic coding tools in isolated containers",
 	Long: `Agentic runs AI coding tools (Claude Code, Copilot, OpenCode) in
-sandboxed Docker containers with read-only filesystems and dropped capabilities.`,
+isolated Docker containers with read-only filesystems and dropped capabilities.`,
 	Version:      buildVersion(),
 	SilenceUsage: true,
 	RunE:         rootRun,
@@ -44,25 +36,6 @@ sandboxed Docker containers with read-only filesystems and dropped capabilities.
 
 func rootRun(cmd *cobra.Command, _ []string) error {
 	return cmd.Help()
-}
-
-func buildVersion() string {
-	var meta []string
-
-	if commit != "" {
-		meta = append(meta, commit)
-	}
-	if buildDate != "" {
-		meta = append(meta, buildDate)
-	}
-	if installMethod != "" {
-		meta = append(meta, installMethod)
-	}
-
-	if len(meta) == 0 {
-		return version
-	}
-	return version + " (" + strings.Join(meta, ", ") + ")"
 }
 
 // Execute the Agentic CLI

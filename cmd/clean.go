@@ -14,9 +14,9 @@ var cleanCmd = &cobra.Command{
 	Use:       "clean [tool]",
 	Short:     "Remove tool image(s)",
 	Long:      "Remove tool image(s). Cleans all tools and base images if no tool specified.",
-	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
-	ValidArgs: tools.Names(),
-	RunE:      runClean,
+	Args:              cobra.MaximumNArgs(1),
+	ValidArgsFunction: builtToolNamesFunc,
+	RunE:              runClean,
 }
 
 func runClean(_ *cobra.Command, args []string) error {
