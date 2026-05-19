@@ -40,11 +40,12 @@ var volumesListCmd = &cobra.Command{
 }
 
 var volumesRemoveCmd = &cobra.Command{
-	Use:     "remove [name]",
-	Aliases: []string{"rm"},
-	Short:   "Remove an agentic-managed volume, or all if no name given",
-	Args:    cobra.MaximumNArgs(1),
-	RunE:    runVolumeRemove,
+	Use:               "remove [name]",
+	Aliases:           []string{"rm"},
+	Short:             "Remove an agentic-managed volume, or all if no name given",
+	Args:              cobra.MaximumNArgs(1),
+	RunE:              runVolumeRemove,
+	ValidArgsFunction: volumeNamesFunc,
 }
 
 func runVolumeCreate(_ *cobra.Command, args []string) error {

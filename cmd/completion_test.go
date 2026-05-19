@@ -76,3 +76,39 @@ func TestBuiltToolNamesFunc_SomeBuilt(t *testing.T) {
 	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
 	assert.Equal(t, []string{"claude"}, names)
 }
+
+func TestVolumeNamesFunc_returnsVolumeNames(t *testing.T) {
+	restore := stubListVolumeNames(t, func() ([]string, error) { return []string{"maven", "gradle"}, nil })
+	defer restore()
+
+	// Act
+	names, directive := volumeNamesFunc(&cobra.Command{}, nil, "")
+
+	// Assert
+	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+	assert.Equal(t, []string{"maven", "gradle"}, names)
+}
+
+func TestVolumeNamesFunc_argAlreadyProvided_returnsEmpty(t *testing.T) {
+	restore := stubListVolumeNames(t, func() ([]string, error) { return []string{"maven"}, nil })
+	defer restore()
+
+	// Act
+	names, directive := volumeNamesFunc(&cobra.Command{}, []string{"maven"}, "")
+
+	// Assert
+	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+	assert.Empty(t, names)
+}
+
+func TestVolumeNamesFunc_listError_returnsEmpty(t *testing.T) {
+	restore := stubListVolumeNames(t, func() ([]string, error) { return nil, assert.AnError })
+	defer restore()
+
+	// Act
+	names, directive := volumeNamesFunc(&cobra.Command{}, nil, "")
+
+	// Assert
+	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+	assert.Empty(t, names)
+}
