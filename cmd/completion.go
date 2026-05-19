@@ -20,3 +20,15 @@ var builtToolNamesFunc = func(_ *cobra.Command, args []string, _ string) ([]stri
 	}
 	return names, cobra.ShellCompDirectiveNoFileComp
 }
+
+var volumeNamesFunc = func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	names, err := listVolumeNames()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return names, cobra.ShellCompDirectiveNoFileComp
+}
