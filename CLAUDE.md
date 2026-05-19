@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in sandboxed containers. The Go binary (`agentic`) handles all commands. No linter. Development means editing Go source and Dockerfiles, then testing with `go test ./...` and building/running containers.
+A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in isolated containers. The Go binary (`agentic`) handles all commands. No linter. Development means editing Go source and Dockerfiles, then testing with `go test ./...` and building/running containers.
 
 ## Key commands
 

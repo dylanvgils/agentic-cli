@@ -1,6 +1,35 @@
 # Agentic CLI
 
-CLI for running agentic coding tools in sandboxed Docker containers.
+CLI for running agentic coding tools in isolated Docker containers.
+
+## Contents
+
+- [Overview](#-overview)
+- [Requirements](#-requirements)
+- [Installation](#-installation)
+- [Usage](#-usage)
+  - [Commands](#commands)
+  - [Tools](#tools)
+  - [Examples](#examples)
+- [Shell completion](#-shell-completion)
+- [Shell aliases](#-shell-aliases)
+- [Base images](#-base-images)
+- [Secrets](#-secrets)
+- [Named Docker volumes](#-named-docker-volumes)
+  - [Managing volumes](#managing-volumes)
+- [Java build tools](#-java-build-tools)
+- [Configuration](#-configuration)
+  - [Per-project configuration](#per-project-configuration)
+  - [Mount variable substitution](#mount-variable-substitution)
+  - [Example `.zshrc`](#example-zshrc)
+- [Tool home directory](#-tool-home-directory)
+- [Repository structure](#-repository-structure)
+- [Development](#-development)
+  - [Adding a new tool](#adding-a-new-tool)
+  - [Adding a new base runtime](#adding-a-new-base-runtime)
+- [Debugging](#-debugging)
+- [Security](#-security)
+- [Motivation](#-motivation)
 
 ## 📖 Overview
 
@@ -80,7 +109,7 @@ agentic <command> [args...]
 | `completion <bash\|zsh\|fish\|powershell>`                                                                                      | Generate shell completion script for the specified shell                                    |
 | `aliases`                                                                                                                       | Print shell alias definitions for installed tools                                           |
 | `help [command]`                                                                                                                | Show help for a command (`run` for tool run options). Shows overview if unspecified         |
-| `run [flags] <tool> [args...]`                                                                                                  | Run a tool in a sandboxed Docker container                                                  |
+| `run [flags] <tool> [args...]`                                                                                                  | Run a tool in an isolated Docker container                                                  |
 | `run <tool> -- <cmd> [args]`                                                                                                    | Override the entrypoint and run a shell command directly                                    |
 
 Run tool commands from within a git repository. The current directory is mounted as `/workspace` inside the container.
@@ -486,13 +515,14 @@ The `--base <name>` routing is derived from the directory automatically; version
 
 ## 🐛 Debugging
 
-To get a shell inside a container instead of running the tool, override the entrypoint:
+To get a shell inside a container instead of running the tool, use `--` to override the entrypoint:
 
 ```bash
-docker run --rm -it --entrypoint="" agentic-claude bash
+agentic run claude -- bash
+agentic run opencode -- bash
 ```
 
-Replace `agentic-claude` with the image you want to inspect (`agentic-copilot`, `agentic-opencode`, etc.). From there you can inspect the filesystem, check environment variables, or run the tool manually to see raw output.
+From there you can inspect the filesystem, check environment variables, or run the tool manually to see raw output.
 
 ## 🔒 Security
 
@@ -503,3 +533,13 @@ Containers run with the following constraints:
 - No privilege escalation
 - Runs as the host user to avoid permission issues on mounted files
 - `/tmp` limited to 1GB
+
+## 💡 Motivation
+
+Agentic coding tools are powerful - but that power comes at a cost. They do come with guard rails, but they still run with the same permissions as your user. You're trusting the tool not to access anything you didn't intend to give it - and that's a hard sell if you want to experiment without fully trusting the tool.
+
+Docker does have a sandbox feature for this, but it's currently in early access and requires Docker Desktop. This project provides a solution that works with any Docker-compatible runtime - Rancher Desktop, Podman, or plain Docker. The container runs read-only with all capabilities dropped and no privilege escalation, so the tool can only touch what you explicitly hand it.
+
+Beyond isolation, it also aims to make working with these tools practical day-to-day: a single command to build or update any tool, and a flexible configuration system that works globally or per-project so the right settings are always picked up automatically.
+
+It's also a side project for learning how to build and work with AI-assisted tooling.
