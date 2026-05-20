@@ -6,6 +6,8 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
 // ToolConfig holds the default configuration for a tool container.
@@ -14,6 +16,7 @@ type ToolConfig struct {
 	TmpfsMounts func() []string
 	Setup       func(toolHome string) error
 	Mounts      func() []string
+	Stage       func(prevStage string) dockerfile.Stage // returns the tool's Dockerfile stage
 }
 
 // Prefix is the shared prefix for all agentic Docker image names.
@@ -34,7 +37,7 @@ func Names() []string {
 
 // Configs maps tool names to their container configuration.
 var Configs = map[string]ToolConfig{
-	"claude":   {VersionCmd: "claude --version", TmpfsMounts: claudeTmpfsMounts, Setup: setupClaude, Mounts: claudeMounts},
-	"copilot":  {VersionCmd: "copilot --version", TmpfsMounts: copilotTmpfsMounts, Setup: setupCopilot, Mounts: copilotMounts},
-	"opencode": {VersionCmd: "opencode --version", TmpfsMounts: opencodeTmpfsMounts, Setup: setupOpencode, Mounts: opencodeMounts},
+	"claude":   {VersionCmd: "claude --version", TmpfsMounts: claudeTmpfsMounts, Setup: setupClaude, Mounts: claudeMounts, Stage: claudeStage},
+	"copilot":  {VersionCmd: "copilot --version", TmpfsMounts: copilotTmpfsMounts, Setup: setupCopilot, Mounts: copilotMounts, Stage: copilotStage},
+	"opencode": {VersionCmd: "opencode --version", TmpfsMounts: opencodeTmpfsMounts, Setup: setupOpencode, Mounts: opencodeMounts, Stage: opencodeStage},
 }

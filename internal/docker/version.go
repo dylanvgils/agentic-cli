@@ -7,21 +7,31 @@ import (
 
 var versionRe = regexp.MustCompile(`[0-9]+(\.[0-9]+)*`)
 
-// stampToolVersion detects the installed tool version and applies it as an image label.
-// Runs best-effort: errors are silently ignored since a missing label is non-fatal.
-func stampToolVersion(image, versionCmd string) {
-	ver := detectToolVersion(image, versionCmd)
-	if ver == "" {
-		return
+// stampImageLabels detects base and tool versions from the built image and applies
+// them as labels in a single docker build call. Runs best-effort: errors are
+// silently ignored since missing labels are non-fatal.
+func stampImageLabels(image, versionCmd string, extras []string) {
+	nodeVer := detectBaseVersion(image, versionScript("node"))
+
+	extraVersions := make(map[string]string)
+	for _, extra := range extras {
+		extraVersions[extra] = detectBaseVersion(image, versionScript(extra))
 	}
 
-	_, _ = dockerRunStdin(
-		strings.NewReader("FROM "+image+"\n"),
+	args := []string{
 		"build",
-		label(LabelToolVersion, ver),
+		label(LabelBase, buildBaseLabel(nodeVer, extras, extraVersions)),
 		arg("tag", image),
-		"-",
-	)
+	}
+
+	if versionCmd != "" {
+		if ver := detectToolVersion(image, versionCmd); ver != "" {
+			args = append(args, label(LabelToolVersion, ver))
+		}
+	}
+
+	args = append(args, "-")
+	_, _ = dockerRunStdin(strings.NewReader("FROM "+image+"\n"), args...)
 }
 
 func detectBaseVersion(image, script string) string {

@@ -1,11 +1,8 @@
 package cmd
 
 import (
-	"path/filepath"
-
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/output"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
@@ -58,17 +55,11 @@ func runBuild(cmd *cobra.Command, args []string) error {
 }
 
 func defaultRunBuildScript(tool string, opts docker.BuildOptions) error {
-	repoRoot, err := platform.FindRepoRoot()
-	if err != nil {
-		return err
-	}
-
 	image, err := tools.ImageName(tool)
 	if err != nil {
 		return err
 	}
 
 	cfg := tools.Configs[tool]
-	toolDir := filepath.Join(repoRoot, "tools", tool)
-	return docker.BuildTool(toolDir, image, cfg.VersionCmd, repoRoot, opts)
+	return docker.BuildTool(tool, image, cfg.VersionCmd, opts)
 }

@@ -2,6 +2,7 @@ package tools
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,6 +32,34 @@ func TestOpencodeMounts_returnsExpected(t *testing.T) {
 		"$TOOL_HOME/opencode/cache:$CONTAINER_HOME/.cache/opencode",
 		"$TOOL_HOME/opencode/config:$CONTAINER_HOME/.config/opencode",
 	}, mounts)
+}
+
+// --- opencodeStage ---
+
+func TestOpencodeStage_fromPrevStage(t *testing.T) {
+	// Act
+	stage := opencodeStage("base")
+
+	// Assert
+	assert.Equal(t, "base", stage.From.Image)
+	assert.Equal(t, "tool", stage.From.As)
+}
+
+func TestOpencodeStage_containsInstallAndUser(t *testing.T) {
+	// Act
+	result := renderStage(opencodeStage("base"))
+
+	// Assert
+	assert.True(t, strings.Contains(result, "opencode"), "expected opencode in stage")
+	assert.Contains(t, result, "TOOL_HOME=/home/opencode")
+}
+
+func TestOpencodeStage_containsProjectLabel(t *testing.T) {
+	// Act
+	result := renderStage(opencodeStage("base"))
+
+	// Assert
+	assert.Contains(t, result, "project=agentic-cli")
 }
 
 // --- setupOpencode ---

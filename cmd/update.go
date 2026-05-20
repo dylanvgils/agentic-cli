@@ -2,11 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/output"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
@@ -126,17 +124,11 @@ func reportVersionChange(before, after string) {
 }
 
 func defaultRunUpdateScript(tool string, opts docker.BuildOptions) error {
-	repoRoot, err := platform.FindRepoRoot()
-	if err != nil {
-		return err
-	}
-
 	image, err := tools.ImageName(tool)
 	if err != nil {
 		return err
 	}
 
 	cfg := tools.Configs[tool]
-	toolDir := filepath.Join(repoRoot, "tools", tool)
-	return docker.UpdateTool(toolDir, image, cfg.VersionCmd, repoRoot, opts)
+	return docker.UpdateTool(tool, image, cfg.VersionCmd, opts)
 }

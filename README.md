@@ -218,12 +218,14 @@ Only tools with a built image produce an alias, so sourcing the output never cre
 Node is always the root layer. The `--base` flag adds extra runtimes on top of it:
 
 ```
-node (agentic-base)
-  ├── java   (agentic-base-java)   ← added with --base java
-  ├── dotnet (agentic-base-dotnet) ← added with --base dotnet
-  └── go     (agentic-base-go)     ← added with --base go
-        └── tool image
+node (base stage)
+  ├── java   (java stage)   ← added with --base java
+  ├── dotnet (dotnet stage) ← added with --base dotnet
+  └── go     (go stage)     ← added with --base go
+        └── tool (tool stage)
 ```
+
+All stages are composed into a single multi-stage Dockerfile at build time and built in one `docker build` call. No intermediate images are produced.
 
 | Flag                                 | Result                       |
 | ------------------------------------ | ---------------------------- |
@@ -241,7 +243,7 @@ node (agentic-base)
 
 Both tools default to node only. Use `--base` to add extra runtimes at build time.
 
-Version defaults live in the Dockerfiles (`NODE_VERSION=24`, `JAVA_VERSION=21`, `DOTNET_VERSION=10`, `GO_VERSION=1.26.2`). Override them per-build with `--node`/`--java`/`--dotnet`/`--go`, or set `AGENTIC_NODE_VERSION`/`AGENTIC_JAVA_VERSION`/`AGENTIC_DOTNET_VERSION`/`AGENTIC_GO_VERSION` in your shell config for persistent defaults.
+Version defaults are `NODE_VERSION=24`, `JAVA_VERSION=21`, `DOTNET_VERSION=10`, `GO_VERSION=1.26.3`. Override them per-build with `--node`/`--java`/`--dotnet`/`--go`, or set `AGENTIC_NODE_VERSION`/`AGENTIC_JAVA_VERSION`/`AGENTIC_DOTNET_VERSION`/`AGENTIC_GO_VERSION` in your shell config for persistent defaults.
 
 The final tool image is labeled with the base layers, build timestamp, and installed tool version:
 

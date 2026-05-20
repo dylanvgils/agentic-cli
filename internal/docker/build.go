@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
 // BuildOptions controls how a tool image is built.
@@ -18,79 +20,94 @@ type BuildOptions struct {
 	Versions     map[string]string // extra name → version override, e.g. {"java": "21"}
 }
 
-// BuildTool runs the four-step multi-stage build pipeline for a tool.
+// BuildTool generates a multi-stage Dockerfile for the named tool and builds it.
 // versionCmd is run inside the built image to detect the installed version (may be empty).
-func BuildTool(toolDir, image, versionCmd, repoRoot string, opts BuildOptions) error {
-	nodeVer, err := buildNodeBase(repoRoot, opts)
-	if err != nil {
-		return fmt.Errorf("node base: %w", err)
-	}
+func BuildTool(tool, image, versionCmd string, opts BuildOptions) error {
+	extras := parseExtras(opts.BaseOverride)
 
-	prevImage, baseLabel, err := buildExtraLayers(repoRoot, parseExtras(opts.BaseOverride), nodeVer, opts)
+	stages, err := composeStages(tool, extras, opts)
 	if err != nil {
 		return err
 	}
 
-	if err := buildToolImage(toolDir, image, prevImage, baseLabel, opts); err != nil {
+	content := dockerfile.File{Stages: stages}.Render()
+
+	if err := buildFromContent(content, image, opts); err != nil {
 		return fmt.Errorf("tool image: %w", err)
 	}
 
-	if versionCmd != "" {
-		stampToolVersion(image, versionCmd)
-	}
+	stampImageLabels(image, versionCmd, extras)
 
 	return nil
 }
 
-func buildNodeBase(repoRoot string, opts BuildOptions) (string, error) {
-	nodeDir := filepath.Join(repoRoot, "tools", "base", "node")
+// composeStages assembles the full list of Dockerfile stages: node base + requested extras + tool.
+func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfile.Stage, error) {
+	stages := []dockerfile.Stage{tools.NodeStage(opts.NodeVersion)}
+	prev := "base"
 
-	args := []string{"build"}
+	for _, extra := range extras {
+		ver := opts.Versions[extra]
+		stage, err := tools.ExtraStage(extra, prev, ver)
+		if err != nil {
+			return nil, err
+		}
+		stages = append(stages, stage)
+		prev = extra
+	}
+
+	cfg, ok := tools.Configs[tool]
+	if !ok {
+		return nil, fmt.Errorf("unknown tool %q", tool)
+	}
+	stages = append(stages, cfg.Stage(prev))
+
+	return stages, nil
+}
+
+// buildFromContent writes content to a temp Dockerfile and runs docker build.
+func buildFromContent(content, image string, opts BuildOptions) error {
+	tmpDir, err := os.MkdirTemp("", "agentic-build-*")
+	if err != nil {
+		return fmt.Errorf("temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(content), 0o600); err != nil {
+		return fmt.Errorf("write Dockerfile: %w", err)
+	}
+
+	args := []string{"build",
+		"--file", filepath.Join(tmpDir, "Dockerfile"),
+	}
+
 	if opts.NoCache {
 		args = append(args, arg("no-cache"))
+	} else if opts.NoCacheTool {
+		args = append(args, arg("no-cache-filter", "tool"))
 	}
+
+	args = append(args,
+		arg("build-arg", "HOST_UID="+platform.GetUID()),
+		arg("build-arg", "HOST_GID="+platform.GetGID()),
+	)
+
 	if opts.NodeVersion != "" {
 		args = append(args, arg("build-arg", "NODE_VERSION="+opts.NodeVersion))
 	}
-	args = append(args, arg("tag", baseImage()), nodeDir)
-
-	if err := runInteractive(args...); err != nil {
-		return "", err
-	}
-
-	return detectBaseVersion(baseImage(), versionScript("node")), nil
-}
-
-func buildExtraLayers(repoRoot string, extras []string, nodeVer string, opts BuildOptions) (string, string, error) {
-	prevImage := baseImage()
-	extraVersions := make(map[string]string)
-
-	for i, extra := range extras {
-		extraDir := filepath.Join(repoRoot, "tools", "base", extra)
-		if _, err := os.Stat(extraDir); os.IsNotExist(err) {
-			return "", "", fmt.Errorf("unknown base %q (valid: %s)", extra, validExtras(repoRoot))
-		}
-		imageTag := baseLayerImage(extras[:i+1]...)
-
-		args := []string{"build"}
-		if opts.NoCache {
-			args = append(args, arg("no-cache"))
-		}
-		args = append(args, arg("build-arg", "BASE_IMAGE="+prevImage))
+	for _, extra := range parseExtras(opts.BaseOverride) {
 		if ver := opts.Versions[extra]; ver != "" {
 			args = append(args, arg("build-arg", strings.ToUpper(extra)+"_VERSION="+ver))
 		}
-		args = append(args, arg("tag", imageTag), extraDir)
-
-		if err := runInteractive(args...); err != nil {
-			return "", "", fmt.Errorf("%s layer: %w", extra, err)
-		}
-
-		extraVersions[extra] = detectBaseVersion(imageTag, versionScript(extra))
-		prevImage = imageTag
 	}
 
-	return prevImage, buildBaseLabel(nodeVer, extras, extraVersions), nil
+	args = append(args,
+		label(LabelBuilt, buildBuiltLabel()),
+		arg("tag", image),
+		tmpDir,
+	)
+
+	return runInteractive(args...)
 }
 
 func parseExtras(base string) []string {
@@ -101,38 +118,4 @@ func parseExtras(base string) []string {
 		}
 	}
 	return extras
-}
-
-func validExtras(repoRoot string) string {
-	baseDir := filepath.Join(repoRoot, "tools", "base")
-	entries, err := os.ReadDir(baseDir)
-	if err != nil {
-		return "(unavailable)"
-	}
-	var names []string
-	for _, e := range entries {
-		if e.IsDir() && e.Name() != "node" {
-			names = append(names, e.Name())
-		}
-	}
-	return strings.Join(names, ", ")
-}
-
-func buildToolImage(toolDir, image, baseImage, baseLabel string, opts BuildOptions) error {
-	args := []string{"build"}
-	if opts.NoCache || opts.NoCacheTool {
-		args = append(args, arg("no-cache"))
-	}
-
-	args = append(args,
-		arg("build-arg", "HOST_UID="+platform.GetUID()),
-		arg("build-arg", "HOST_GID="+platform.GetGID()),
-		arg("build-arg", "BASE_IMAGE="+baseImage),
-		label(LabelBase, baseLabel),
-		label(LabelBuilt, buildBuiltLabel()),
-		arg("tag", image),
-		toolDir,
-	)
-
-	return runInteractive(args...)
 }
