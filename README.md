@@ -23,11 +23,7 @@ CLI for running agentic coding tools in isolated Docker containers.
   - [Mount variable substitution](#mount-variable-substitution)
   - [Example `.zshrc`](#example-zshrc)
 - [Tool home directory](#-tool-home-directory)
-- [Repository structure](#-repository-structure)
-- [Development](#-development)
-  - [Adding a new tool](#adding-a-new-tool)
-  - [Adding a new base runtime](#adding-a-new-base-runtime)
-- [Debugging](#-debugging)
+- [Development](docs/development.md)
 - [Security](#-security)
 
 ## 📖 Overview
@@ -461,71 +457,9 @@ Each tool stores its configuration under `$AGENTIC_HOME`:
 | `copilot`  | `$AGENTIC_HOME/copilot/`                                      |
 | `opencode` | `$AGENTIC_HOME/opencode/` (data, share, state, cache, config) |
 
-## 📁 Repository structure
-
-```
-agentic-cli/
-├── cmd/                         # Cobra commands (build, update, clean, inspect, run, …)
-├── internal/
-│   ├── config/                  # .agenticrc loading and run spec
-│   ├── docker/                  # Build, update, run, clean, inspect, volume orchestration
-│   ├── mount/                   # Volume mount spec builder
-│   ├── output/                  # CLI output formatting
-│   ├── platform/                # Platform-specific paths and utilities
-│   └── tools/                   # Per-tool runtime config (mounts, setup, version cmd)
-└── tools/
-    ├── base/
-    │   ├── node/Dockerfile      # Base Node.js image (root layer)
-    │   ├── java/Dockerfile      # Base Java image (extends node)
-    │   ├── dotnet/Dockerfile    # Base .NET image (extends node)
-    │   └── go/Dockerfile        # Base Go image (extends node)
-    ├── claude/
-    │   ├── Dockerfile
-    │   └── entrypoint.sh
-    ├── copilot/
-    │   ├── Dockerfile
-    │   └── entrypoint.sh
-    └── opencode/
-        ├── Dockerfile
-        └── entrypoint.sh
-```
-
 ## 🛠️ Development
 
-Working on the CLI requires Go and Make installed locally.
-
-```bash
-make build          # compile to bin/agentic
-make test           # run unit tests
-make dist           # cross-platform binaries → dist/
-make docker-dist    # same via Docker (no local Go needed)
-```
-
-Changes to the CLI take effect immediately after `make build` — no container rebuild needed. Changes to Dockerfiles in `tools/` require a `agentic build` to rebuild the affected image.
-
-### Adding a new tool
-
-1. `tools/<name>/Dockerfile` and `tools/<name>/entrypoint.sh`
-2. `internal/tools/<name>.go` — implement `Setup` and `Mounts` functions
-3. Register in `internal/tools/tools.go` `Configs` map (`VersionCmd`, `TmpfsExecTmp`, `Setup`, `Mounts`)
-
-### Adding a new base runtime
-
-1. `tools/base/<name>/Dockerfile` — must accept `BASE_IMAGE` as a build arg
-2. `--<name>` version flag wired into `cmd/build.go`, `cmd/update.go`, and `cmd/flags.go`
-
-The `--base <name>` routing is derived from the directory automatically; version pinning requires the flag.
-
-## 🐛 Debugging
-
-To get a shell inside a container instead of running the tool, use `--` to override the entrypoint:
-
-```bash
-agentic run claude -- bash
-agentic run opencode -- bash
-```
-
-From there you can inspect the filesystem, check environment variables, or run the tool manually to see raw output.
+See [docs/development.md](docs/development.md) for build commands, repo structure, adding tools, adding base runtimes, and debugging.
 
 ## 🔒 Security
 
