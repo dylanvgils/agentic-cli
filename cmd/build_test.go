@@ -142,6 +142,32 @@ func TestRunBuild_pruneMessage_hidden_whenReclaimedZero(t *testing.T) {
 	assert.NotContains(t, out, "pruned dangling images")
 }
 
+func TestRunBuild_dryRun_printsDockerfile_skipsScript(t *testing.T) {
+	// Arrange
+	var scriptCalled bool
+	restore := stubRunBuildScript(t, func(_ string, _ docker.BuildOptions) error {
+		scriptCalled = true
+		return nil
+	})
+	defer restore()
+
+	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
+	defer restorePrune()
+
+	require.NoError(t, buildCmd.Flags().Set("dry-run", "true"))
+	defer buildCmd.Flags().Set("dry-run", "false") //nolint:errcheck
+
+	// Act
+	out := captureStdout(t, func() {
+		err := runBuild(buildCmd, []string{"claude"})
+		require.NoError(t, err)
+	})
+
+	// Assert
+	assert.False(t, scriptCalled)
+	assert.Contains(t, out, "FROM")
+}
+
 func TestRunBuild_noCacheFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts docker.BuildOptions

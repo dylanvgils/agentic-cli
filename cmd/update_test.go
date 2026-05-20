@@ -372,6 +372,51 @@ func TestRunUpdate_noCacheFlag_setsOpt(t *testing.T) {
 	assert.True(t, capturedOpts.NoCache)
 }
 
+func TestRunUpdate_dryRun_printsDockerfile_skipsScript(t *testing.T) {
+	// Arrange
+	var scriptCalled bool
+	restore := stubRunUpdateScript(t, func(_ string, _ docker.BuildOptions) error {
+		scriptCalled = true
+		return nil
+	})
+	defer restore()
+
+	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
+	defer restorePrune()
+
+	require.NoError(t, updateCmd.Flags().Set("dry-run", "true"))
+	defer updateCmd.Flags().Set("dry-run", "false") //nolint:errcheck
+
+	// Act
+	out := captureStdout(t, func() {
+		err := runUpdate(updateCmd, []string{"claude"})
+		require.NoError(t, err)
+	})
+
+	// Assert
+	assert.False(t, scriptCalled)
+	assert.Contains(t, out, "FROM")
+}
+
+func TestRunUpdate_dryRun_withoutToolArg_returnsError(t *testing.T) {
+	// Arrange
+	restore := stubRunUpdateScript(t, func(_ string, _ docker.BuildOptions) error { return nil })
+	defer restore()
+
+	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
+	defer restorePrune()
+
+	require.NoError(t, updateCmd.Flags().Set("dry-run", "true"))
+	defer updateCmd.Flags().Set("dry-run", "false") //nolint:errcheck
+
+	// Act
+	err := runUpdate(updateCmd, []string{})
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--dry-run requires a tool argument")
+}
+
 func TestRunUpdate_pruneMessage_shown_whenReclaimedNonZero(t *testing.T) {
 	// Arrange
 	restore := stubRunUpdateScript(t, func(_ string, _ docker.BuildOptions) error { return nil })

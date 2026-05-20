@@ -2,6 +2,7 @@ package dockerfile
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 )
 
@@ -141,4 +142,39 @@ func (e Entrypoint) Render() string {
 		quoted[i] = `"` + c + `"`
 	}
 	return "ENTRYPOINT [" + strings.Join(quoted, ", ") + "]"
+}
+
+// Located wraps an Instruction and prepends a Go source-location comment when rendered.
+type Located struct {
+	Source string
+	Inst   Instruction
+}
+
+func (l Located) Render() string {
+	if l.Source == "" {
+		return l.Inst.Render()
+	}
+	return "# " + l.Source + "\n" + l.Inst.Render()
+}
+
+// Locate wraps inst and records the Go source location of the call site as a Dockerfile comment.
+func Locate(inst Instruction) Located {
+	_, file, line, ok := runtime.Caller(1)
+	if !ok {
+		return Located{Inst: inst}
+	}
+	return Located{Source: fmt.Sprintf("%s:%d", trimPath(file), line), Inst: inst}
+}
+
+func trimPath(file string) string {
+	for _, seg := range []string{"/internal/", "/cmd/"} {
+		if i := strings.Index(file, seg); i >= 0 {
+			return file[i+1:]
+		}
+	}
+	parts := strings.Split(file, "/")
+	if len(parts) >= 2 {
+		return strings.Join(parts[len(parts)-2:], "/")
+	}
+	return file
 }

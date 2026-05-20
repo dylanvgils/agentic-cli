@@ -20,6 +20,7 @@ func init() {
 	updateCmd.Flags().String("java", "", "Java (Temurin JDK) version (default: 21)")
 	updateCmd.Flags().String("dotnet", "", ".NET version (default: 10)")
 	updateCmd.Flags().String("go", "", "Go version (default: 1.26.2)")
+	updateCmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
 }
 
 var updateCmd = &cobra.Command{
@@ -46,6 +47,21 @@ Environment:
 
 func runUpdate(cmd *cobra.Command, args []string) error {
 	opts := buildOptsFromFlags(cmd)
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
+
+	if dryRun {
+		if len(args) == 0 {
+			return fmt.Errorf("--dry-run requires a tool argument")
+		}
+		name := args[0]
+		output.Step(name)
+		content, err := docker.GenerateDockerfile(name, opts)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Println(content)
+		return err
+	}
 
 	if len(args) > 0 {
 		if err := updateOneTool(args[0], opts); err != nil {
@@ -74,6 +90,7 @@ func updateAllTools(opts docker.BuildOptions) error {
 			output.Stepf("%s (skipped - not built)", name)
 			continue
 		}
+
 		if err := updateOneTool(name, opts); err != nil {
 			return err
 		}

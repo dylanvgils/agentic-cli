@@ -6,9 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
 // BuildOptions controls how a tool image is built.
@@ -23,46 +21,18 @@ type BuildOptions struct {
 // BuildTool generates a multi-stage Dockerfile for the named tool and builds it.
 // versionCmd is run inside the built image to detect the installed version (may be empty).
 func BuildTool(tool, image, versionCmd string, opts BuildOptions) error {
-	extras := parseExtras(opts.BaseOverride)
-
-	stages, err := composeStages(tool, extras, opts)
+	content, err := GenerateDockerfile(tool, opts)
 	if err != nil {
 		return err
 	}
-
-	content := dockerfile.File{Stages: stages}.Render()
 
 	if err := buildFromContent(content, image, opts); err != nil {
 		return fmt.Errorf("tool image: %w", err)
 	}
 
-	stampImageLabels(image, versionCmd, extras)
+	stampImageLabels(image, versionCmd, parseExtras(opts.BaseOverride))
 
 	return nil
-}
-
-// composeStages assembles the full list of Dockerfile stages: node base + requested extras + tool.
-func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfile.Stage, error) {
-	stages := []dockerfile.Stage{tools.NodeStage(opts.NodeVersion)}
-	prev := "base"
-
-	for _, extra := range extras {
-		ver := opts.Versions[extra]
-		stage, err := tools.ExtraStage(extra, prev, ver)
-		if err != nil {
-			return nil, err
-		}
-		stages = append(stages, stage)
-		prev = extra
-	}
-
-	cfg, ok := tools.Configs[tool]
-	if !ok {
-		return nil, fmt.Errorf("unknown tool %q", tool)
-	}
-	stages = append(stages, cfg.Stage(prev))
-
-	return stages, nil
 }
 
 // buildFromContent writes content to a temp Dockerfile and runs docker build.
@@ -108,14 +78,4 @@ func buildFromContent(content, image string, opts BuildOptions) error {
 	)
 
 	return runInteractive(args...)
-}
-
-func parseExtras(base string) []string {
-	var extras []string
-	for extra := range strings.SplitSeq(base, ",") {
-		if extra = strings.TrimSpace(extra); extra != "" {
-			extras = append(extras, extra)
-		}
-	}
-	return extras
 }

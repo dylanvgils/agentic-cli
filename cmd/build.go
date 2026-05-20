@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -18,6 +20,7 @@ func init() {
 	buildCmd.Flags().String("java", "", "Java (Temurin JDK) version (default: 21)")
 	buildCmd.Flags().String("dotnet", "", ".NET version (default: 10)")
 	buildCmd.Flags().String("go", "", "Go version (default: 1.26.2)")
+	buildCmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
 }
 
 var buildCmd = &cobra.Command{
@@ -43,15 +46,27 @@ Environment:
 
 func runBuild(cmd *cobra.Command, args []string) error {
 	opts := buildOptsFromFlags(cmd)
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
 	for _, name := range toolNames(args) {
 		output.Step(name)
-		if err := runBuildScript(name, opts); err != nil {
+		if dryRun {
+			content, err := docker.GenerateDockerfile(name, opts)
+			if err != nil {
+				return err
+			}
+			if _, err := fmt.Println(content); err != nil {
+				return err
+			}
+		} else if err := runBuildScript(name, opts); err != nil {
 			return err
 		}
 	}
 
-	return pruneAndReport()
+	if !dryRun {
+		return pruneAndReport()
+	}
+	return nil
 }
 
 func defaultRunBuildScript(tool string, opts docker.BuildOptions) error {

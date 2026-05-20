@@ -23,48 +23,45 @@ func copilotMounts() []string {
 }
 
 func copilotStage(prevStage string) df.Stage {
-	return df.Stage{
-		From: df.From{Image: prevStage, As: "tool"},
-		Instructions: []df.Instruction{
-			df.Shell{Form: []string{"/bin/bash", "-o", "pipefail", "-c"}},
-			df.Arg{Key: "HOST_UID", Default: "1000"},
-			df.Arg{Key: "HOST_GID", Default: "1000"},
-			df.Label{Key: "project", Value: "agentic-cli"},
-			df.Run{Blocks: []df.Block{
-				{
-					Comment: "Remove conflicting user at HOST_UID",
-					Lines: []string{
-						`existing=$(getent passwd ${HOST_UID} | cut -d: -f1);`,
-						`if [ -n "$existing" ] && [ "$existing" != "copilot" ]; then`,
-						`userdel -r "$existing" 2>/dev/null || true;`,
-						`fi`,
-					},
-				},
-				{Comment: "Create container user", Lines: []string{`groupadd -g ${HOST_GID} --non-unique copilot`}},
-				{Lines: []string{`useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique copilot`}},
-			}},
-			df.Run{Command: "curl -fsSL https://gh.io/copilot-install | bash"},
-			df.Heredoc{
-				Dest: "/usr/local/bin/entrypoint.sh",
+	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
+		Add(df.Shell{Form: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(df.Arg{Key: "HOST_UID", Default: "1000"}).
+		Add(df.Arg{Key: "HOST_GID", Default: "1000"}).
+		Add(df.Label{Key: "project", Value: "agentic-cli"}).
+		Add(df.Run{Blocks: []df.Block{
+			{
+				Comment: "Remove conflicting user at HOST_UID",
 				Lines: []string{
-					"#!/usr/bin/env bash",
-					"set -euo pipefail",
-					"",
-					"# Set GITHUB_TOKEN if mounted in container",
-					"if [[ -f /run/secrets/copilot_token ]]; then",
-					`  export GITHUB_TOKEN="$(cat /run/secrets/copilot_token)"`,
-					"fi",
-					"",
-					`exec copilot "$@"`,
+					`existing=$(getent passwd ${HOST_UID} | cut -d: -f1);`,
+					`if [ -n "$existing" ] && [ "$existing" != "copilot" ]; then`,
+					`userdel -r "$existing" 2>/dev/null || true;`,
+					`fi`,
 				},
 			},
-			df.Run{Command: "mkdir -p /home/copilot/.copilot"},
-			df.User{Name: "copilot"},
-			df.Env{Key: "TOOL_HOME", Value: "/home/copilot"},
-			df.Workdir{Path: "/workspace"},
-			df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}},
-		},
-	}
+			{Comment: "Create container user", Lines: []string{`groupadd -g ${HOST_GID} --non-unique copilot`}},
+			{Lines: []string{`useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique copilot`}},
+		}}).
+		Add(df.Run{Command: "curl -fsSL https://gh.io/copilot-install | bash"}).
+		Add(df.Heredoc{
+			Dest: "/usr/local/bin/entrypoint.sh",
+			Lines: []string{
+				"#!/usr/bin/env bash",
+				"set -euo pipefail",
+				"",
+				"# Set GITHUB_TOKEN if mounted in container",
+				"if [[ -f /run/secrets/copilot_token ]]; then",
+				`  export GITHUB_TOKEN="$(cat /run/secrets/copilot_token)"`,
+				"fi",
+				"",
+				`exec copilot "$@"`,
+			},
+		}).
+		Add(df.Run{Command: "mkdir -p /home/copilot/.copilot"}).
+		Add(df.User{Name: "copilot"}).
+		Add(df.Env{Key: "TOOL_HOME", Value: "/home/copilot"}).
+		Add(df.Workdir{Path: "/workspace"}).
+		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
+		Build()
 }
 
 func setupCopilot(toolHome string) error {

@@ -149,3 +149,36 @@ func TestEntrypoint_render(t *testing.T) {
 	// Assert
 	assert.Equal(t, `ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]`, result)
 }
+
+// --- Located ---
+
+func TestLocated_render(t *testing.T) {
+	// Arrange
+	located := Located{Source: "internal/tools/bases.go:42", Inst: Env{Key: "FOO", Value: "bar"}}
+
+	// Act
+	result := located.Render()
+
+	// Assert
+	assert.Equal(t, "# internal/tools/bases.go:42\nENV FOO=bar", result)
+}
+
+func TestLocated_emptySource(t *testing.T) {
+	// Arrange
+	located := Located{Inst: Env{Key: "FOO", Value: "bar"}}
+
+	// Act
+	result := located.Render()
+
+	// Assert
+	assert.Equal(t, "ENV FOO=bar", result)
+}
+
+func TestLocate_capturesSource(t *testing.T) {
+	// Act
+	located := Locate(Env{Key: "FOO", Value: "bar"})
+
+	// Assert
+	assert.Contains(t, located.Source, "instructions_test.go:")
+	assert.IsType(t, Env{}, located.Inst)
+}
