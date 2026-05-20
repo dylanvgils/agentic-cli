@@ -29,11 +29,12 @@ CLI for running agentic coding tools in isolated Docker containers.
   - [Adding a new base runtime](#adding-a-new-base-runtime)
 - [Debugging](#-debugging)
 - [Security](#-security)
-- [Motivation](#-motivation)
 
 ## 📖 Overview
 
 Each tool runs in an isolated, read-only container with only the minimal mounts it needs - your workspace and its own config directory. No root, no extra capabilities, no leftovers when done.
+
+→ [Full overview and motivation](docs/overview.md)
 
 ## 📋 Requirements
 
@@ -288,6 +289,8 @@ Secrets use the format `name:/path/to/file`. The `~`, `$HOME`, and `${HOME}` pre
 
 The `-v` flag and `AGENTIC_EXTRA_MOUNTS` support both bind mounts (host paths) and named Docker volumes. Named volumes are created automatically on first use and persist across container runs — no host path required.
 
+For a per-tool breakdown of what's mounted automatically and why, see [docs/volume-mounts.md](docs/volume-mounts.md).
+
 Use a volume name (no leading `/`) as the left side of the mount spec:
 
 ```bash
@@ -371,7 +374,7 @@ All configuration is done through environment variables, which can be set in you
 
 ### Per-project configuration
 
-Place a `.agenticrc` file anywhere in your directory tree to apply project-specific configuration. `agentic` walks up from `$PWD` collecting all `.agenticrc` files it finds and merges them. Add `root=true` to a file to stop the walk there (like EditorConfig's `root = true`).
+Place a `.agenticrc` file anywhere in your directory tree to apply project-specific configuration. `agentic` walks up from `$PWD` collecting all `.agenticrc` files it finds and merges them. Add `root=true` to a file to stop the walk there.
 
 **Merge rules:** list keys (`extra_mounts`, `secrets`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value.
 
@@ -533,13 +536,3 @@ Containers run with the following constraints:
 - No privilege escalation
 - Runs as the host user to avoid permission issues on mounted files
 - `/tmp` limited to 1GB
-
-## 💡 Motivation
-
-Agentic coding tools are powerful - but that power comes at a cost. They do come with guard rails, but they still run with the same permissions as your user. You're trusting the tool not to access anything you didn't intend to give it - and that's a hard sell if you want to experiment without fully trusting the tool.
-
-Docker does have a sandbox feature for this, but it's currently in early access and requires Docker Desktop. This project provides a solution that works with any Docker-compatible runtime - Rancher Desktop, Podman, or plain Docker. The container runs read-only with all capabilities dropped and no privilege escalation, so the tool can only touch what you explicitly hand it.
-
-Beyond isolation, it also aims to make working with these tools practical day-to-day: a single command to build or update any tool, and a flexible configuration system that works globally or per-project so the right settings are always picked up automatically.
-
-It's also a side project for learning how to build and work with AI-assisted tooling.
