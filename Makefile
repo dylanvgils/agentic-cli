@@ -8,7 +8,6 @@ LDFLAGS     = -s -w \
               -X github.com/dylanvgils/agentic-cli/cmd.version=$(VERSION) \
               -X github.com/dylanvgils/agentic-cli/cmd.commit=$(COMMIT) \
               -X github.com/dylanvgils/agentic-cli/cmd.buildDate=$(BUILD_DATE) \
-              $(if $(REPO_ROOT),-X github.com/dylanvgils/agentic-cli/internal/platform.repoRoot=$(REPO_ROOT)) \
               $(if $(INSTALL_METHOD),-X github.com/dylanvgils/agentic-cli/cmd.installMethod=$(INSTALL_METHOD))
 GOFLAGS   := CGO_ENABLED=0
 
@@ -17,7 +16,6 @@ GOFLAGS   := CGO_ENABLED=0
 build:
 	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(BINARY) .
 
-install: REPO_ROOT = $(CURDIR)
 install: INSTALL_METHOD = make
 install:
 	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(BINARY) .

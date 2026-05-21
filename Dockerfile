@@ -1,6 +1,5 @@
 ARG GO_VERSION=1.26.3
 ARG TARGETARCH
-ARG REPO_ROOT
 ARG INSTALL_METHOD=script
 
 FROM debian:bookworm-slim AS builder
@@ -52,9 +51,8 @@ ENV PATH="${PATH}:/usr/local/go/bin"
 
 WORKDIR /src
 COPY . .
-ARG REPO_ROOT
 ARG INSTALL_METHOD
-RUN make dist REPO_ROOT="${REPO_ROOT}" INSTALL_METHOD="${INSTALL_METHOD}"
+RUN make dist INSTALL_METHOD="${INSTALL_METHOD}"
 
 FROM scratch AS export
 COPY --from=builder /src/dist/ /
