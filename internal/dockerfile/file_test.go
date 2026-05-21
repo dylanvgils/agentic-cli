@@ -49,44 +49,6 @@ func TestFile_multiStage(t *testing.T) {
 	)
 }
 
-// --- StageBuilder ---
-
-func TestStageBuilder_build(t *testing.T) {
-	// Act
-	stage := NewStage(From{Image: "base", As: "tool"}).
-		Add(Env{Key: "FOO", Value: "bar"}).
-		Add(User{Name: "app"}).
-		Build()
-
-	// Assert
-	assert.Equal(t, From{Image: "base", As: "tool"}, stage.From)
-	assert.Len(t, stage.Instructions, 2)
-}
-
-func TestStageBuilder_addCapturesLocation(t *testing.T) {
-	// Act
-	stage := NewStage(From{Image: "base", As: "tool"}).
-		Add(Env{Key: "FOO", Value: "bar"}).
-		Build()
-
-	// Assert
-	located, ok := stage.Instructions[0].(Located)
-	assert.True(t, ok)
-	assert.Contains(t, located.Source, "dockerfile_test.go:")
-	assert.Equal(t, Env{Key: "FOO", Value: "bar"}, located.Inst)
-}
-
-func TestStageBuilder_addGlobalArg(t *testing.T) {
-	// Act
-	stage := NewStage(From{Image: "node:${NODE_VERSION}-slim", As: "base"}).
-		AddGlobalArg(Arg{Key: "NODE_VERSION", Default: "24"}).
-		Build()
-
-	// Assert
-	assert.Equal(t, []Arg{{Key: "NODE_VERSION", Default: "24"}}, stage.GlobalArgs)
-	assert.Empty(t, stage.Instructions)
-}
-
 func TestFile_globalArgsBeforeFrom(t *testing.T) {
 	// Arrange
 	f := File{

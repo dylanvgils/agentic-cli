@@ -1,0 +1,96 @@
+package dockerfile
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestStageBuilder_build(t *testing.T) {
+	// Act
+	stage := NewStage(From{Image: "base", As: "tool"}).
+		Add(Env{Key: "FOO", Value: "bar"}).
+		Add(User{Name: "app"}).
+		Build()
+
+	// Assert
+	assert.Equal(t, From{Image: "base", As: "tool"}, stage.From)
+	assert.Len(t, stage.Instructions, 2)
+}
+
+func TestStageBuilder_addCapturesLocation(t *testing.T) {
+	// Act
+	stage := NewStage(From{Image: "base", As: "tool"}).
+		Add(Env{Key: "FOO", Value: "bar"}).
+		Build()
+
+	// Assert
+	located, ok := stage.Instructions[0].(Located)
+	assert.True(t, ok)
+	assert.Contains(t, located.Source, "builder_test.go:")
+	assert.Equal(t, Env{Key: "FOO", Value: "bar"}, located.Inst)
+}
+
+func TestStageBuilder_addWithComment(t *testing.T) {
+	// Act
+	stage := NewStage(From{Image: "base", As: "tool"}).
+		Add(C("host user ID for container user mapping", Arg{Key: "HOST_UID", Default: "1000"})).
+		Build()
+
+	// Assert
+	located, ok := stage.Instructions[0].(Located)
+	assert.True(t, ok)
+	assert.Equal(t, "host user ID for container user mapping", located.Comment)
+	assert.Contains(t, located.Source, "builder_test.go:")
+	assert.Equal(t, Arg{Key: "HOST_UID", Default: "1000"}, located.Inst)
+}
+
+func TestStageBuilder_addWithoutComment_backwardCompat(t *testing.T) {
+	// Act
+	stage := NewStage(From{Image: "base", As: "tool"}).
+		Add(Env{Key: "FOO", Value: "bar"}).
+		Build()
+
+	// Assert
+	located, ok := stage.Instructions[0].(Located)
+	assert.True(t, ok)
+	assert.Equal(t, "", located.Comment)
+}
+
+func TestStageBuilder_addCLocated_noDoubleWrap(t *testing.T) {
+	// Act
+	stage := NewStage(From{Image: "base", As: "tool"}).
+		Add(C("a comment", User{Name: "claude"})).
+		Build()
+
+	// Assert — exactly one Located, Inst is User (not a nested Located)
+	located, ok := stage.Instructions[0].(Located)
+	assert.True(t, ok)
+	assert.Equal(t, "a comment", located.Comment)
+	assert.IsType(t, User{}, located.Inst)
+}
+
+func TestStageBuilder_addComment_renderedInDockerfile(t *testing.T) {
+	// Arrange
+	stage := NewStage(From{Image: "base", As: "tool"}).
+		Add(C("host user ID", Arg{Key: "HOST_UID", Default: "1000"})).
+		Build()
+
+	// Act
+	result := File{Stages: []Stage{stage}}.Render()
+
+	// Assert
+	assert.Contains(t, result, "# host user ID\n")
+	assert.Contains(t, result, "ARG HOST_UID=1000")
+}
+
+func TestStageBuilder_addGlobalArg(t *testing.T) {
+	// Act
+	stage := NewStage(From{Image: "node:${NODE_VERSION}-slim", As: "base"}).
+		AddGlobalArg(Arg{Key: "NODE_VERSION", Default: "24"}).
+		Build()
+
+	// Assert
+	assert.Equal(t, []Arg{{Key: "NODE_VERSION", Default: "24"}}, stage.GlobalArgs)
+	assert.Empty(t, stage.Instructions)
+}
