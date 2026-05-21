@@ -13,14 +13,14 @@ import (
 // Prefix is the shared prefix for all agentic Docker image names.
 const Prefix = "agentic-"
 
-// ToolBuildConfig holds the build-time configuration for a tool container.
-type ToolBuildConfig struct {
+// BuildConfig holds the build-time configuration for a tool container.
+type BuildConfig struct {
 	Stage      func(prevStage string) dockerfile.Stage // returns the tool's Dockerfile stage
 	VersionCmd string                                  // shell command run inside the built image to detect the tool version
 }
 
-// ToolRuntimeConfig holds the runtime configuration for a tool container.
-type ToolRuntimeConfig struct {
+// RuntimeConfig holds the runtime configuration for a tool container.
+type RuntimeConfig struct {
 	TmpfsMounts func() []string
 	Setup       func(toolHome string) error
 	Mounts      func() []string
@@ -28,8 +28,8 @@ type ToolRuntimeConfig struct {
 
 // ToolConfig holds the full configuration for a tool container.
 type ToolConfig struct {
-	Build   ToolBuildConfig
-	Runtime ToolRuntimeConfig
+	Build   BuildConfig
+	Runtime RuntimeConfig
 }
 
 // ImageName returns the Docker image name for the given tool, or an error if the tool is unknown.
@@ -48,15 +48,15 @@ func Names() []string {
 // Configs maps tool names to their container configuration.
 var Configs = map[string]ToolConfig{
 	"claude": {
-		Build:   ToolBuildConfig{Stage: claudeStage, VersionCmd: "claude --version"},
-		Runtime: ToolRuntimeConfig{TmpfsMounts: claudeTmpfsMounts, Setup: setupClaude, Mounts: claudeMounts},
+		Build:   BuildConfig{Stage: claudeStage, VersionCmd: "claude --version"},
+		Runtime: RuntimeConfig{TmpfsMounts: claudeTmpfsMounts, Setup: setupClaude, Mounts: claudeMounts},
 	},
 	"copilot": {
-		Build:   ToolBuildConfig{Stage: copilotStage, VersionCmd: "copilot --version"},
-		Runtime: ToolRuntimeConfig{TmpfsMounts: copilotTmpfsMounts, Setup: setupCopilot, Mounts: copilotMounts},
+		Build:   BuildConfig{Stage: copilotStage, VersionCmd: "copilot --version"},
+		Runtime: RuntimeConfig{TmpfsMounts: copilotTmpfsMounts, Setup: setupCopilot, Mounts: copilotMounts},
 	},
 	"opencode": {
-		Build:   ToolBuildConfig{Stage: opencodeStage, VersionCmd: "opencode --version"},
-		Runtime: ToolRuntimeConfig{TmpfsMounts: opencodeTmpfsMounts, Setup: setupOpencode, Mounts: opencodeMounts},
+		Build:   BuildConfig{Stage: opencodeStage, VersionCmd: "opencode --version"},
+		Runtime: RuntimeConfig{TmpfsMounts: opencodeTmpfsMounts, Setup: setupOpencode, Mounts: opencodeMounts},
 	},
 }
