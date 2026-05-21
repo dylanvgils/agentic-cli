@@ -44,9 +44,25 @@ func TestFile_multiStage(t *testing.T) {
 
 	// Assert
 	assert.Equal(t,
-		"ARG NODE_VERSION=24\nFROM node:${NODE_VERSION}-bookworm-slim AS base\n\nFROM base AS tool\n\nUSER app\n",
+		"ARG NODE_VERSION=24\nFROM node:${NODE_VERSION}-bookworm-slim AS base\n\n##########\n# tool\n##########\nFROM base AS tool\n\nUSER app\n",
 		result,
 	)
+}
+
+func TestFile_dividerUsesStageAs(t *testing.T) {
+	// Arrange
+	f := File{
+		Stages: []Stage{
+			{From: From{Image: "debian:bookworm-slim", As: "base"}},
+			{From: From{Image: "base", As: "myapp"}},
+		},
+	}
+
+	// Act
+	result := f.Render()
+
+	// Assert
+	assert.Contains(t, result, "##########\n# myapp\n##########\n")
 }
 
 func TestFile_globalArgsBeforeFrom(t *testing.T) {

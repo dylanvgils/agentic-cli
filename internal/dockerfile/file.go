@@ -26,7 +26,7 @@ func (f File) Render() string {
 	var sb strings.Builder
 	for i, stage := range f.Stages {
 		if i > 0 {
-			sb.WriteByte('\n')
+			sb.WriteString("\n##########\n# " + stage.From.As + "\n##########\n")
 		}
 		for _, a := range stage.GlobalArgs {
 			sb.WriteString(a.Render())
