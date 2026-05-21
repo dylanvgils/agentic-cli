@@ -36,7 +36,7 @@ func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfil
 	if !ok {
 		return nil, fmt.Errorf("unknown tool %q", tool)
 	}
-	stages = append(stages, cfg.Stage(prev))
+	stages = append(stages, cfg.Build.Stage(prev))
 
 	return stages, nil
 }

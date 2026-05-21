@@ -79,7 +79,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 	containerHome := docker.ResolveContainerHome(imageName)
 
 	toolConfig := tools.Configs[toolName]
-	if err := toolConfig.Setup(toolHome); err != nil {
+	if err := toolConfig.Runtime.Setup(toolHome); err != nil {
 		return fmt.Errorf("setup %s: %w", toolName, err)
 	}
 
@@ -89,7 +89,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 
 	var volumes []string
 	var secrets []string
-	volumes = append(toolConfig.Mounts(), volumes...)
+	volumes = append(toolConfig.Runtime.Mounts(), volumes...)
 	if env := os.Getenv("AGENTIC_EXTRA_MOUNTS"); env != "" {
 		for m := range strings.SplitSeq(env, ",") {
 			if m != "" {
@@ -130,7 +130,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		Volumes:        volumes,
 		Secrets:        secrets,
 		SkipEntrypoint: skipEntrypoint,
-		TmpfsMounts:    toolConfig.TmpfsMounts(),
+		TmpfsMounts:    toolConfig.Runtime.TmpfsMounts(),
 		PidsLimit:      pidsLimit,
 		CPUs:           cpus,
 		Memory:         memory,

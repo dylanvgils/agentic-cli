@@ -147,5 +147,5 @@ func defaultRunUpdateScript(tool string, opts docker.BuildOptions) error {
 	}
 
 	cfg := tools.Configs[tool]
-	return docker.UpdateTool(tool, image, cfg.VersionCmd, opts)
+	return docker.UpdateTool(tool, image, cfg.Build.VersionCmd, opts)
 }

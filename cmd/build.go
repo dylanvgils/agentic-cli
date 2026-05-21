@@ -76,5 +76,5 @@ func defaultRunBuildScript(tool string, opts docker.BuildOptions) error {
 	}
 
 	cfg := tools.Configs[tool]
-	return docker.BuildTool(tool, image, cfg.VersionCmd, opts)
+	return docker.BuildTool(tool, image, cfg.Build.VersionCmd, opts)
 }
