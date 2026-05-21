@@ -1,6 +1,7 @@
 package dockerfile
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,7 +22,8 @@ func TestFile_singleStage(t *testing.T) {
 	result := f.Render()
 
 	// Assert
-	assert.Equal(t, "FROM debian:bookworm-slim AS base\n\nENV FOO=bar\n", result)
+	divider := strings.Repeat("#", dividerWidth)
+	assert.Equal(t, divider+"\n# base\n"+divider+"\nFROM debian:bookworm-slim AS base\n\nENV FOO=bar\n", result)
 }
 
 func TestFile_multiStage(t *testing.T) {
@@ -43,8 +45,10 @@ func TestFile_multiStage(t *testing.T) {
 	result := f.Render()
 
 	// Assert
+	divider := strings.Repeat("#", dividerWidth)
 	assert.Equal(t,
-		"ARG NODE_VERSION=24\nFROM node:${NODE_VERSION}-bookworm-slim AS base\n\n##########\n# tool\n##########\nFROM base AS tool\n\nUSER app\n",
+		divider+"\n# base\n"+divider+"\nARG NODE_VERSION=24\nFROM node:${NODE_VERSION}-bookworm-slim AS base\n\n"+
+			divider+"\n# tool\n"+divider+"\nFROM base AS tool\n\nUSER app\n",
 		result,
 	)
 }
@@ -62,7 +66,8 @@ func TestFile_dividerUsesStageAs(t *testing.T) {
 	result := f.Render()
 
 	// Assert
-	assert.Contains(t, result, "##########\n# myapp\n##########\n")
+	divider := strings.Repeat("#", dividerWidth)
+	assert.Contains(t, result, divider+"\n# myapp\n"+divider+"\n")
 }
 
 func TestFile_globalArgsBeforeFrom(t *testing.T) {
@@ -83,5 +88,6 @@ func TestFile_globalArgsBeforeFrom(t *testing.T) {
 	result := f.Render()
 
 	// Assert
-	assert.Equal(t, "ARG NODE_VERSION=24\nARG TARGETARCH\nFROM node:${NODE_VERSION}-slim AS base\n", result)
+	divider := strings.Repeat("#", dividerWidth)
+	assert.Equal(t, divider+"\n# base\n"+divider+"\nARG NODE_VERSION=24\nARG TARGETARCH\nFROM node:${NODE_VERSION}-slim AS base\n", result)
 }

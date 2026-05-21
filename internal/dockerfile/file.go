@@ -21,13 +21,17 @@ type File struct {
 	Stages []Stage
 }
 
+const dividerWidth = 30
+
 // Render returns the complete Dockerfile content as a string.
 func (f File) Render() string {
+	divider := strings.Repeat("#", dividerWidth)
 	var sb strings.Builder
 	for i, stage := range f.Stages {
 		if i > 0 {
-			sb.WriteString("\n##########\n# " + stage.From.As + "\n##########\n")
+			sb.WriteByte('\n')
 		}
+		sb.WriteString(divider + "\n# " + stage.From.As + "\n" + divider + "\n")
 		for _, a := range stage.GlobalArgs {
 			sb.WriteString(a.Render())
 			sb.WriteByte('\n')
