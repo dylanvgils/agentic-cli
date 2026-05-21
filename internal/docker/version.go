@@ -35,7 +35,7 @@ func stampImageLabels(image, versionCmd string, extras []string) {
 }
 
 func detectBaseVersion(image, script string) string {
-	out, err := dockerRun("run", arg("rm"), image, script)
+	out, err := dockerRun("run", arg("rm"), arg("entrypoint", ""), image, script)
 	if err != nil {
 		return ""
 	}
