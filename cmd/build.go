@@ -9,8 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var runBuildScript = defaultRunBuildScript
-
 func init() {
 	rootCmd.AddCommand(buildCmd)
 
@@ -48,33 +46,47 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	opts := buildOptsFromFlags(cmd)
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
-	for _, name := range toolNames(args) {
-		output.Step(name)
-		if dryRun {
-			content, err := docker.GenerateDockerfile(name, opts)
-			if err != nil {
-				return err
-			}
-			if _, err := fmt.Println(content); err != nil {
-				return err
-			}
-		} else if err := runBuildScript(name, opts); err != nil {
-			return err
-		}
+	if dryRun {
+		return dryRunBuild(args, opts)
 	}
 
-	if !dryRun {
-		return pruneAndReport()
+	if err := buildTools(args, opts); err != nil {
+		return err
+	}
+
+	return pruneAndReport()
+}
+
+func dryRunBuild(args []string, opts docker.BuildOptions) error {
+	for _, name := range toolNames(args) {
+		output.Step(name)
+		content, err := docker.GenerateDockerfile(name, opts)
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Println(content); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func defaultRunBuildScript(tool string, opts docker.BuildOptions) error {
+func buildTools(args []string, opts docker.BuildOptions) error {
+	for _, name := range toolNames(args) {
+		output.Step(name)
+		if err := buildOneTool(name, opts); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func buildOneTool(tool string, opts docker.BuildOptions) error {
 	image, err := tools.ImageName(tool)
 	if err != nil {
 		return err
 	}
 
 	cfg := tools.Configs[tool]
-	return docker.BuildTool(tool, image, cfg.Build.VersionCmd, opts)
+	return buildTool(tool, image, cfg.Build.VersionCmd, opts)
 }

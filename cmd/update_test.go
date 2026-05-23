@@ -9,17 +9,48 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func stubRunUpdateScript(t *testing.T, fn func(string, docker.BuildOptions) error) func() {
+func stubUpdateTool(t *testing.T, fn func(tool, image, versionCmd string, opts docker.BuildOptions) error) func() {
 	t.Helper()
-	orig := runUpdateScript
-	runUpdateScript = fn
-	return func() { runUpdateScript = orig }
+	orig := updateTool
+	updateTool = fn
+	return func() { updateTool = orig }
 }
 
-func TestRunUpdate_allBuilt_updatesAll(t *testing.T) {
+// dryRunUpdate
+func TestDryRunUpdate_printsDockerfile_skipsScript(t *testing.T) {
+	// Arrange
+	var scriptCalled bool
+	restore := stubUpdateTool(t, func(_, _, _ string, _ docker.BuildOptions) error {
+		scriptCalled = true
+		return nil
+	})
+	defer restore()
+
+	// Act
+	out := captureStdout(t, func() {
+		err := dryRunUpdate([]string{"claude"}, docker.BuildOptions{Versions: map[string]string{}})
+		require.NoError(t, err)
+	})
+
+	// Assert
+	assert.False(t, scriptCalled)
+	assert.Contains(t, out, "FROM")
+}
+
+func TestDryRunUpdate_withoutToolArg_returnsError(t *testing.T) {
+	// Act
+	err := dryRunUpdate([]string{}, docker.BuildOptions{Versions: map[string]string{}})
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--dry-run requires a tool argument")
+}
+
+// updateTools
+func TestUpdateTools_allBuilt_updatesAll(t *testing.T) {
 	// Arrange
 	var updated []string
-	restore := stubRunUpdateScript(t, func(tool string, _ docker.BuildOptions) error {
+	restore := stubUpdateTool(t, func(tool, _, _ string, _ docker.BuildOptions) error {
 		updated = append(updated, tool)
 		return nil
 	})
@@ -28,21 +59,18 @@ func TestRunUpdate_allBuilt_updatesAll(t *testing.T) {
 	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
 	defer restoreInspect()
 
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
 	// Act
-	err := runUpdate(updateCmd, []string{})
+	err := updateTools([]string{}, docker.BuildOptions{Versions: map[string]string{}})
 
 	// Assert
 	require.NoError(t, err)
 	assert.Equal(t, []string{"claude", "copilot", "opencode"}, updated)
 }
 
-func TestRunUpdate_allUnbuilt_skipsAll_printsMessage(t *testing.T) {
+func TestUpdateTools_allUnbuilt_skipsAll_printsMessage(t *testing.T) {
 	// Arrange
 	var updated []string
-	restore := stubRunUpdateScript(t, func(tool string, _ docker.BuildOptions) error {
+	restore := stubUpdateTool(t, func(tool, _, _ string, _ docker.BuildOptions) error {
 		updated = append(updated, tool)
 		return nil
 	})
@@ -51,12 +79,9 @@ func TestRunUpdate_allUnbuilt_skipsAll_printsMessage(t *testing.T) {
 	restoreInspect := stubInspectImage(t, nil, nil)
 	defer restoreInspect()
 
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
 	// Act
 	out := captureStdout(t, func() {
-		err := runUpdate(updateCmd, []string{})
+		err := updateTools([]string{}, docker.BuildOptions{Versions: map[string]string{}})
 		require.NoError(t, err)
 	})
 
@@ -65,10 +90,10 @@ func TestRunUpdate_allUnbuilt_skipsAll_printsMessage(t *testing.T) {
 	assert.Contains(t, out, "No tools are built.")
 }
 
-func TestRunUpdate_mixedBuilt_skipsUnbuilt(t *testing.T) {
+func TestUpdateTools_mixedBuilt_skipsUnbuilt(t *testing.T) {
 	// Arrange
 	var updated []string
-	restore := stubRunUpdateScript(t, func(tool string, _ docker.BuildOptions) error {
+	restore := stubUpdateTool(t, func(tool, _, _ string, _ docker.BuildOptions) error {
 		updated = append(updated, tool)
 		return nil
 	})
@@ -85,12 +110,9 @@ func TestRunUpdate_mixedBuilt_skipsUnbuilt(t *testing.T) {
 	}
 	defer func() { inspectImage = orig }()
 
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
 	// Act
 	out := captureStdout(t, func() {
-		err := runUpdate(updateCmd, []string{})
+		err := updateTools([]string{}, docker.BuildOptions{Versions: map[string]string{}})
 		require.NoError(t, err)
 	})
 
@@ -99,10 +121,10 @@ func TestRunUpdate_mixedBuilt_skipsUnbuilt(t *testing.T) {
 	assert.Contains(t, out, "=> claude (skipped - not built)")
 }
 
-func TestRunUpdate_singleTool_alwaysUpdates(t *testing.T) {
+func TestUpdateTools_singleTool_alwaysUpdates(t *testing.T) {
 	// Arrange
 	var updated []string
-	restore := stubRunUpdateScript(t, func(tool string, _ docker.BuildOptions) error {
+	restore := stubUpdateTool(t, func(tool, _, _ string, _ docker.BuildOptions) error {
 		updated = append(updated, tool)
 		return nil
 	})
@@ -111,20 +133,38 @@ func TestRunUpdate_singleTool_alwaysUpdates(t *testing.T) {
 	restoreInspect := stubInspectImage(t, nil, nil)
 	defer restoreInspect()
 
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
 	// Act
-	err := runUpdate(updateCmd, []string{"claude"})
+	err := updateTools([]string{"claude"}, docker.BuildOptions{Versions: map[string]string{}})
 
 	// Assert
 	require.NoError(t, err)
 	assert.Equal(t, []string{"claude"}, updated)
 }
 
-func TestRunUpdate_versionChanged_reported(t *testing.T) {
+func TestUpdateTools_stopsOnFirstToolError(t *testing.T) {
 	// Arrange
-	restore := stubRunUpdateScript(t, func(_ string, _ docker.BuildOptions) error { return nil })
+	var updated []string
+	restore := stubUpdateTool(t, func(tool, _, _ string, _ docker.BuildOptions) error {
+		updated = append(updated, tool)
+		return fmt.Errorf("fail on %s", tool)
+	})
+	defer restore()
+
+	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+	defer restoreInspect()
+
+	// Act
+	err := updateTools([]string{}, docker.BuildOptions{Versions: map[string]string{}})
+
+	// Assert
+	require.Error(t, err)
+	assert.Len(t, updated, 1)
+}
+
+// updateOneTool
+func TestUpdateOneTool_versionChanged_reported(t *testing.T) {
+	// Arrange
+	restore := stubUpdateTool(t, func(_, _, _ string, _ docker.BuildOptions) error { return nil })
 	defer restore()
 
 	callCount := 0
@@ -138,12 +178,9 @@ func TestRunUpdate_versionChanged_reported(t *testing.T) {
 	}
 	defer func() { inspectImage = orig }()
 
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
 	// Act
 	out := captureStdout(t, func() {
-		err := runUpdate(updateCmd, []string{"claude"})
+		err := updateOneTool("claude", docker.BuildOptions{Versions: map[string]string{}})
 		require.NoError(t, err)
 	})
 
@@ -151,20 +188,17 @@ func TestRunUpdate_versionChanged_reported(t *testing.T) {
 	assert.Contains(t, out, "=> version: 1.0.0 -> 2.0.0")
 }
 
-func TestRunUpdate_versionUpToDate_reported(t *testing.T) {
+func TestUpdateOneTool_versionUpToDate_reported(t *testing.T) {
 	// Arrange
-	restore := stubRunUpdateScript(t, func(_ string, _ docker.BuildOptions) error { return nil })
+	restore := stubUpdateTool(t, func(_, _, _ string, _ docker.BuildOptions) error { return nil })
 	defer restore()
 
 	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
 	defer restoreInspect()
 
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
 	// Act
 	out := captureStdout(t, func() {
-		err := runUpdate(updateCmd, []string{"claude"})
+		err := updateOneTool("claude", docker.BuildOptions{Versions: map[string]string{}})
 		require.NoError(t, err)
 	})
 
@@ -172,9 +206,9 @@ func TestRunUpdate_versionUpToDate_reported(t *testing.T) {
 	assert.Contains(t, out, "=> version: 1.0.0 (up to date)")
 }
 
-func TestRunUpdate_scriptError_propagates(t *testing.T) {
+func TestUpdateOneTool_scriptError_propagates(t *testing.T) {
 	// Arrange
-	restore := stubRunUpdateScript(t, func(_ string, _ docker.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _, _ string, _ docker.BuildOptions) error {
 		return fmt.Errorf("docker daemon not running")
 	})
 	defer restore()
@@ -182,44 +216,19 @@ func TestRunUpdate_scriptError_propagates(t *testing.T) {
 	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
 	defer restoreInspect()
 
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
 	// Act
-	err := runUpdate(updateCmd, []string{"claude"})
+	err := updateOneTool("claude", docker.BuildOptions{Versions: map[string]string{}})
 
 	// Assert
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "docker daemon not running")
 }
 
-func TestRunUpdate_stopsOnFirstToolError(t *testing.T) {
-	// Arrange
-	var updated []string
-	restore := stubRunUpdateScript(t, func(tool string, _ docker.BuildOptions) error {
-		updated = append(updated, tool)
-		return fmt.Errorf("fail on %s", tool)
-	})
-	defer restore()
-
-	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-	defer restoreInspect()
-
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
-	// Act
-	err := runUpdate(updateCmd, []string{})
-
-	// Assert
-	require.Error(t, err)
-	assert.Len(t, updated, 1)
-}
-
+// runUpdate
 func TestRunUpdate_baseFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts docker.BuildOptions
-	restore := stubRunUpdateScript(t, func(_ string, opts docker.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _, _ string, opts docker.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -245,7 +254,7 @@ func TestRunUpdate_baseFlag_setsOpt(t *testing.T) {
 func TestRunUpdate_nodeFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts docker.BuildOptions
-	restore := stubRunUpdateScript(t, func(_ string, opts docker.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _, _ string, opts docker.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -271,7 +280,7 @@ func TestRunUpdate_nodeFlag_setsOpt(t *testing.T) {
 func TestRunUpdate_javaFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts docker.BuildOptions
-	restore := stubRunUpdateScript(t, func(_ string, opts docker.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _, _ string, opts docker.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -297,7 +306,7 @@ func TestRunUpdate_javaFlag_setsOpt(t *testing.T) {
 func TestRunUpdate_dotnetFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts docker.BuildOptions
-	restore := stubRunUpdateScript(t, func(_ string, opts docker.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _, _ string, opts docker.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -323,7 +332,7 @@ func TestRunUpdate_dotnetFlag_setsOpt(t *testing.T) {
 func TestRunUpdate_goFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts docker.BuildOptions
-	restore := stubRunUpdateScript(t, func(_ string, opts docker.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _, _ string, opts docker.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -349,7 +358,7 @@ func TestRunUpdate_goFlag_setsOpt(t *testing.T) {
 func TestRunUpdate_noCacheFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts docker.BuildOptions
-	restore := stubRunUpdateScript(t, func(_ string, opts docker.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _, _ string, opts docker.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -372,54 +381,9 @@ func TestRunUpdate_noCacheFlag_setsOpt(t *testing.T) {
 	assert.True(t, capturedOpts.NoCache)
 }
 
-func TestRunUpdate_dryRun_printsDockerfile_skipsScript(t *testing.T) {
-	// Arrange
-	var scriptCalled bool
-	restore := stubRunUpdateScript(t, func(_ string, _ docker.BuildOptions) error {
-		scriptCalled = true
-		return nil
-	})
-	defer restore()
-
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
-	require.NoError(t, updateCmd.Flags().Set("dry-run", "true"))
-	defer updateCmd.Flags().Set("dry-run", "false") //nolint:errcheck
-
-	// Act
-	out := captureStdout(t, func() {
-		err := runUpdate(updateCmd, []string{"claude"})
-		require.NoError(t, err)
-	})
-
-	// Assert
-	assert.False(t, scriptCalled)
-	assert.Contains(t, out, "FROM")
-}
-
-func TestRunUpdate_dryRun_withoutToolArg_returnsError(t *testing.T) {
-	// Arrange
-	restore := stubRunUpdateScript(t, func(_ string, _ docker.BuildOptions) error { return nil })
-	defer restore()
-
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
-	require.NoError(t, updateCmd.Flags().Set("dry-run", "true"))
-	defer updateCmd.Flags().Set("dry-run", "false") //nolint:errcheck
-
-	// Act
-	err := runUpdate(updateCmd, []string{})
-
-	// Assert
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--dry-run requires a tool argument")
-}
-
 func TestRunUpdate_pruneMessage_shown_whenReclaimedNonZero(t *testing.T) {
 	// Arrange
-	restore := stubRunUpdateScript(t, func(_ string, _ docker.BuildOptions) error { return nil })
+	restore := stubUpdateTool(t, func(_, _, _ string, _ docker.BuildOptions) error { return nil })
 	defer restore()
 
 	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)

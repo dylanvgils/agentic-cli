@@ -9,8 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var runUpdateScript = defaultRunUpdateScript
-
 func init() {
 	rootCmd.AddCommand(updateCmd)
 
@@ -50,55 +48,58 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
 	if dryRun {
-		if len(args) == 0 {
-			return fmt.Errorf("--dry-run requires a tool argument")
-		}
-		name := args[0]
-		output.Step(name)
-		content, err := docker.GenerateDockerfile(name, opts)
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Println(content)
-		return err
+		return dryRunUpdate(args, opts)
 	}
 
-	if len(args) > 0 {
-		if err := updateOneTool(args[0], opts); err != nil {
-			return err
-		}
-	} else if err := updateAllTools(opts); err != nil {
+	if err := updateTools(args, opts); err != nil {
 		return err
 	}
 
 	return pruneAndReport()
 }
 
-func updateAllTools(opts docker.BuildOptions) error {
-	updated := 0
-	for _, name := range tools.Names() {
-		image, err := tools.ImageName(name)
-		if err != nil {
-			return err
-		}
+func dryRunUpdate(args []string, opts docker.BuildOptions) error {
+	if len(args) == 0 {
+		return fmt.Errorf("--dry-run requires a tool argument")
+	}
 
-		info, err := inspectImage(image)
-		if err != nil {
-			return err
-		}
-		if info == nil {
-			output.Stepf("%s (skipped - not built)", name)
-			continue
+	output.Step(args[0])
+	content, err := docker.GenerateDockerfile(args[0], opts)
+	if err != nil {
+		return err
+	}
+
+	_, err = fmt.Println(content)
+	return err
+}
+
+func updateTools(args []string, opts docker.BuildOptions) error {
+	skipUnbuilt := len(args) == 0
+	updated := 0
+
+	for _, name := range toolNames(args) {
+		if skipUnbuilt {
+			image, err := tools.ImageName(name)
+			if err != nil {
+				return err
+			}
+			info, err := inspectImage(image)
+			if err != nil {
+				return err
+			}
+			if info == nil {
+				output.Stepf("%s (skipped - not built)", name)
+				continue
+			}
 		}
 
 		if err := updateOneTool(name, opts); err != nil {
 			return err
 		}
-
 		updated++
 	}
 
-	if updated == 0 {
+	if skipUnbuilt && updated == 0 {
 		fmt.Println("No tools are built. Run 'agentic build' first.")
 	}
 
@@ -115,7 +116,8 @@ func updateOneTool(name string, opts docker.BuildOptions) error {
 
 	before := imageVersion(image)
 
-	if err := runUpdateScript(name, opts); err != nil {
+	cfg := tools.Configs[name]
+	if err := updateTool(name, image, cfg.Build.VersionCmd, opts); err != nil {
 		return err
 	}
 
@@ -138,14 +140,4 @@ func reportVersionChange(before, after string) {
 	} else if after != "" {
 		output.Stepf("version: %s (up to date)", after)
 	}
-}
-
-func defaultRunUpdateScript(tool string, opts docker.BuildOptions) error {
-	image, err := tools.ImageName(tool)
-	if err != nil {
-		return err
-	}
-
-	cfg := tools.Configs[tool]
-	return docker.UpdateTool(tool, image, cfg.Build.VersionCmd, opts)
 }

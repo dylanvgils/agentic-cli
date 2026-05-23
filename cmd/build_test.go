@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func stubRunBuildScript(t *testing.T, fn func(string, docker.BuildOptions) error) func() {
+func stubBuildTool(t *testing.T, fn func(tool, image, versionCmd string, opts docker.BuildOptions) error) func() {
 	t.Helper()
-	orig := runBuildScript
-	runBuildScript = fn
-	return func() { runBuildScript = orig }
+	orig := buildTool
+	buildTool = fn
+	return func() { buildTool = orig }
 }
 
 func stubPruneImages(t *testing.T, fn func() (string, error)) func() {
@@ -23,41 +23,57 @@ func stubPruneImages(t *testing.T, fn func() (string, error)) func() {
 	return func() { pruneImages = orig }
 }
 
-func TestRunBuild_allTools_whenNoArgs(t *testing.T) {
+// dryRunBuild
+func TestDryRunBuild_printsDockerfile_skipsScript(t *testing.T) {
+	// Arrange
+	var scriptCalled bool
+	restore := stubBuildTool(t, func(_, _, _ string, _ docker.BuildOptions) error {
+		scriptCalled = true
+		return nil
+	})
+	defer restore()
+
+	// Act
+	out := captureStdout(t, func() {
+		err := dryRunBuild([]string{"claude"}, docker.BuildOptions{Versions: map[string]string{}})
+		require.NoError(t, err)
+	})
+
+	// Assert
+	assert.False(t, scriptCalled)
+	assert.Contains(t, out, "FROM")
+}
+
+// buildTools
+func TestBuildTools_allTools_whenNoArgs(t *testing.T) {
 	// Arrange
 	var built []string
-	restore := stubRunBuildScript(t, func(tool string, _ docker.BuildOptions) error {
+	restore := stubBuildTool(t, func(tool, _, _ string, _ docker.BuildOptions) error {
 		built = append(built, tool)
 		return nil
 	})
 	defer restore()
 
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
 	// Act
-	err := runBuild(buildCmd, []string{})
+	err := buildTools([]string{}, docker.BuildOptions{Versions: map[string]string{}})
 
 	// Assert
 	require.NoError(t, err)
 	assert.Equal(t, []string{"claude", "copilot", "opencode"}, built)
 }
 
-func TestRunBuild_singleTool_whenArgGiven(t *testing.T) {
+func TestBuildTools_singleTool_whenArgGiven(t *testing.T) {
 	// Arrange
 	var built []string
-	restore := stubRunBuildScript(t, func(tool string, _ docker.BuildOptions) error {
+	restore := stubBuildTool(t, func(tool, _, _ string, _ docker.BuildOptions) error {
 		built = append(built, tool)
 		return nil
 	})
 	defer restore()
 
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
 	// Act
 	out := captureStdout(t, func() {
-		err := runBuild(buildCmd, []string{"claude"})
+		err := buildTools([]string{"claude"}, docker.BuildOptions{Versions: map[string]string{}})
 		require.NoError(t, err)
 	})
 
@@ -68,110 +84,43 @@ func TestRunBuild_singleTool_whenArgGiven(t *testing.T) {
 	assert.NotContains(t, out, "=> opencode")
 }
 
-func TestRunBuild_buildScriptError_propagates(t *testing.T) {
+func TestBuildTools_scriptError_propagates(t *testing.T) {
 	// Arrange
-	restore := stubRunBuildScript(t, func(_ string, _ docker.BuildOptions) error {
+	restore := stubBuildTool(t, func(_, _, _ string, _ docker.BuildOptions) error {
 		return fmt.Errorf("docker daemon not running")
 	})
 	defer restore()
 
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
 	// Act
-	err := runBuild(buildCmd, []string{"claude"})
+	err := buildTools([]string{"claude"}, docker.BuildOptions{Versions: map[string]string{}})
 
 	// Assert
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "docker daemon not running")
 }
 
-func TestRunBuild_stopsOnFirstToolError(t *testing.T) {
+func TestBuildTools_stopsOnFirstToolError(t *testing.T) {
 	// Arrange
 	var built []string
-	restore := stubRunBuildScript(t, func(tool string, _ docker.BuildOptions) error {
+	restore := stubBuildTool(t, func(tool, _, _ string, _ docker.BuildOptions) error {
 		built = append(built, tool)
 		return fmt.Errorf("fail on %s", tool)
 	})
 	defer restore()
 
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
 	// Act
-	err := runBuild(buildCmd, []string{})
+	err := buildTools([]string{}, docker.BuildOptions{Versions: map[string]string{}})
 
 	// Assert
 	require.Error(t, err)
 	assert.Len(t, built, 1)
 }
 
-func TestRunBuild_pruneMessage_shown_whenReclaimedNonZero(t *testing.T) {
-	// Arrange
-	restore := stubRunBuildScript(t, func(_ string, _ docker.BuildOptions) error { return nil })
-	defer restore()
-
-	restorePrune := stubPruneImages(t, func() (string, error) { return "1.23GB", nil })
-	defer restorePrune()
-
-	// Act
-	out := captureStdout(t, func() {
-		err := runBuild(buildCmd, []string{"claude"})
-		require.NoError(t, err)
-	})
-
-	// Assert
-	assert.Contains(t, out, "=> pruned dangling images (reclaimed 1.23GB)")
-}
-
-func TestRunBuild_pruneMessage_hidden_whenReclaimedZero(t *testing.T) {
-	// Arrange
-	restore := stubRunBuildScript(t, func(_ string, _ docker.BuildOptions) error { return nil })
-	defer restore()
-
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
-	// Act
-	out := captureStdout(t, func() {
-		err := runBuild(buildCmd, []string{"claude"})
-		require.NoError(t, err)
-	})
-
-	// Assert
-	assert.NotContains(t, out, "pruned dangling images")
-}
-
-func TestRunBuild_dryRun_printsDockerfile_skipsScript(t *testing.T) {
-	// Arrange
-	var scriptCalled bool
-	restore := stubRunBuildScript(t, func(_ string, _ docker.BuildOptions) error {
-		scriptCalled = true
-		return nil
-	})
-	defer restore()
-
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
-	require.NoError(t, buildCmd.Flags().Set("dry-run", "true"))
-	defer buildCmd.Flags().Set("dry-run", "false") //nolint:errcheck
-
-	// Act
-	out := captureStdout(t, func() {
-		err := runBuild(buildCmd, []string{"claude"})
-		require.NoError(t, err)
-	})
-
-	// Assert
-	assert.False(t, scriptCalled)
-	assert.Contains(t, out, "FROM")
-}
-
+// runBuild
 func TestRunBuild_noCacheFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts docker.BuildOptions
-	restore := stubRunBuildScript(t, func(_ string, opts docker.BuildOptions) error {
+	restore := stubBuildTool(t, func(_, _, _ string, opts docker.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -194,7 +143,7 @@ func TestRunBuild_noCacheFlag_setsOpt(t *testing.T) {
 func TestRunBuild_baseFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts docker.BuildOptions
-	restore := stubRunBuildScript(t, func(_ string, opts docker.BuildOptions) error {
+	restore := stubBuildTool(t, func(_, _, _ string, opts docker.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -217,7 +166,7 @@ func TestRunBuild_baseFlag_setsOpt(t *testing.T) {
 func TestRunBuild_nodeFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts docker.BuildOptions
-	restore := stubRunBuildScript(t, func(_ string, opts docker.BuildOptions) error {
+	restore := stubBuildTool(t, func(_, _, _ string, opts docker.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -240,7 +189,7 @@ func TestRunBuild_nodeFlag_setsOpt(t *testing.T) {
 func TestRunBuild_goFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts docker.BuildOptions
-	restore := stubRunBuildScript(t, func(_ string, opts docker.BuildOptions) error {
+	restore := stubBuildTool(t, func(_, _, _ string, opts docker.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -258,4 +207,40 @@ func TestRunBuild_goFlag_setsOpt(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.Equal(t, "1.23", capturedOpts.Versions["go"])
+}
+
+func TestRunBuild_pruneMessage_shown_whenReclaimedNonZero(t *testing.T) {
+	// Arrange
+	restore := stubBuildTool(t, func(_, _, _ string, _ docker.BuildOptions) error { return nil })
+	defer restore()
+
+	restorePrune := stubPruneImages(t, func() (string, error) { return "1.23GB", nil })
+	defer restorePrune()
+
+	// Act
+	out := captureStdout(t, func() {
+		err := runBuild(buildCmd, []string{"claude"})
+		require.NoError(t, err)
+	})
+
+	// Assert
+	assert.Contains(t, out, "=> pruned dangling images (reclaimed 1.23GB)")
+}
+
+func TestRunBuild_pruneMessage_hidden_whenReclaimedZero(t *testing.T) {
+	// Arrange
+	restore := stubBuildTool(t, func(_, _, _ string, _ docker.BuildOptions) error { return nil })
+	defer restore()
+
+	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
+	defer restorePrune()
+
+	// Act
+	out := captureStdout(t, func() {
+		err := runBuild(buildCmd, []string{"claude"})
+		require.NoError(t, err)
+	})
+
+	// Assert
+	assert.NotContains(t, out, "pruned dangling images")
 }
