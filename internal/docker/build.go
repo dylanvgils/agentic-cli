@@ -35,20 +35,44 @@ func BuildTool(tool, image, versionCmd string, opts BuildOptions) error {
 	return nil
 }
 
-// buildFromContent writes content to a temp Dockerfile and runs docker build.
-func buildFromContent(content, image string, opts BuildOptions) error {
-	tmpDir, err := os.MkdirTemp("", "agentic-build-*")
+// buildFromContent writes content to a temp Dockerfile and builds the image.
+func buildFromContent(content, image string, opts BuildOptions) (retErr error) {
+	tmpDir, dockerfilePath, err := writeTempDockerfile(content)
 	if err != nil {
-		return fmt.Errorf("temp dir: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	if err := os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(content), 0o600); err != nil {
-		return fmt.Errorf("write Dockerfile: %w", err)
+		return err
 	}
 
-	args := []string{"build",
-		"--file", filepath.Join(tmpDir, "Dockerfile"),
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil && retErr == nil {
+			retErr = fmt.Errorf("remove temp dir: %w", err)
+		}
+	}()
+
+	return buildImage(dockerfilePath, image, opts)
+}
+
+// writeTempDockerfile creates a temp directory, writes content as a Dockerfile,
+// and returns both the directory path (for cleanup) and the Dockerfile path.
+func writeTempDockerfile(content string) (tmpDir, dockerfilePath string, err error) {
+	tmpDir, err = os.MkdirTemp("", "agentic-build-*")
+	if err != nil {
+		return "", "", fmt.Errorf("temp dir: %w", err)
+	}
+
+	dockerfilePath = filepath.Join(tmpDir, "Dockerfile")
+	if err = os.WriteFile(dockerfilePath, []byte(content), 0o600); err != nil {
+		_ = os.RemoveAll(tmpDir)
+		return "", "", fmt.Errorf("write Dockerfile: %w", err)
+	}
+
+	return tmpDir, dockerfilePath, nil
+}
+
+// buildImage assembles the docker build arguments and runs the build.
+func buildImage(dockerfilePath, image string, opts BuildOptions) error {
+	args := []string{
+		"build",
+		"--file", dockerfilePath,
 	}
 
 	if opts.NoCache {
@@ -65,6 +89,7 @@ func buildFromContent(content, image string, opts BuildOptions) error {
 	if opts.NodeVersion != "" {
 		args = append(args, arg("build-arg", "NODE_VERSION="+opts.NodeVersion))
 	}
+
 	for _, extra := range parseExtras(opts.BaseOverride) {
 		if ver := opts.Versions[extra]; ver != "" {
 			args = append(args, arg("build-arg", strings.ToUpper(extra)+"_VERSION="+ver))
@@ -74,7 +99,7 @@ func buildFromContent(content, image string, opts BuildOptions) error {
 	args = append(args,
 		label(LabelBuilt, buildBuiltLabel()),
 		arg("tag", image),
-		tmpDir,
+		filepath.Dir(dockerfilePath),
 	)
 
 	return runInteractive(args...)
