@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -92,7 +93,7 @@ func TestBuildImage_firstArgIsBuild(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", BuildOptions{})
+	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -105,7 +106,7 @@ func TestBuildImage_includesFileFlag(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", BuildOptions{})
+	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -120,7 +121,7 @@ func TestBuildImage_contextIsParentOfDockerfile(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", BuildOptions{})
+	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -134,7 +135,7 @@ func TestBuildImage_alwaysIncludesTagFlag(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", BuildOptions{})
+	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -147,7 +148,7 @@ func TestBuildImage_noCache_addsNoCacheFlag(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", BuildOptions{NoCache: true})
+	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{NoCache: true})
 
 	// Assert
 	require.NoError(t, err)
@@ -162,7 +163,7 @@ func TestBuildImage_noCacheTool_addsFilterFlag(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", BuildOptions{NoCacheTool: true})
+	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{NoCacheTool: true})
 
 	// Assert
 	require.NoError(t, err)
@@ -177,7 +178,7 @@ func TestBuildImage_noCache_takesPrecedenceOverNoCacheTool(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", BuildOptions{
+	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{
 		NoCache:     true,
 		NoCacheTool: true,
 	})
@@ -195,7 +196,7 @@ func TestBuildImage_noCacheFlags_absentByDefault(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", BuildOptions{})
+	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -210,7 +211,7 @@ func TestBuildImage_alwaysIncludesHostUIDAndGID(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", BuildOptions{})
+	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -225,7 +226,7 @@ func TestBuildImage_nodeVersion_addsBuildArg(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", BuildOptions{NodeVersion: "20.11.0"})
+	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{NodeVersion: "20.11.0"})
 
 	// Assert
 	require.NoError(t, err)
@@ -238,7 +239,7 @@ func TestBuildImage_emptyNodeVersion_omitsBuildArg(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", BuildOptions{})
+	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -252,7 +253,7 @@ func TestBuildImage_extraVersions_addsUppercasedBuildArgs(t *testing.T) {
 	get, restore := captureRunInteractive(t)
 	defer restore()
 
-	opts := BuildOptions{
+	opts := tools.BuildOptions{
 		BaseOverride: "java,dotnet",
 		Versions:     map[string]string{"java": "21", "dotnet": "8"},
 	}
@@ -272,7 +273,7 @@ func TestBuildImage_extraWithEmptyVersion_omitsBuildArg(t *testing.T) {
 	get, restore := captureRunInteractive(t)
 	defer restore()
 
-	opts := BuildOptions{
+	opts := tools.BuildOptions{
 		BaseOverride: "java",
 		Versions:     map[string]string{"java": ""},
 	}
@@ -293,7 +294,7 @@ func TestBuildImage_alwaysIncludesBuiltLabel(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", BuildOptions{})
+	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -314,7 +315,7 @@ func TestBuildFromContent_wiresDockerfileAndImageBuild(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildFromContent("FROM scratch\n", "agentic-test", BuildOptions{})
+	err := buildFromContent("FROM scratch\n", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)

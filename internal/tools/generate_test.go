@@ -1,4 +1,4 @@
-package docker
+package tools
 
 import (
 	"testing"
@@ -25,7 +25,7 @@ func TestGenerateDockerfile_unknownTool_returnsError(t *testing.T) {
 
 func TestParseExtras_single(t *testing.T) {
 	// Act
-	result := parseExtras("java")
+	result := ParseExtras("java")
 
 	// Assert
 	assert.Equal(t, []string{"java"}, result)
@@ -33,7 +33,7 @@ func TestParseExtras_single(t *testing.T) {
 
 func TestParseExtras_multiple(t *testing.T) {
 	// Act
-	result := parseExtras("java,dotnet")
+	result := ParseExtras("java,dotnet")
 
 	// Assert
 	assert.Equal(t, []string{"java", "dotnet"}, result)
@@ -41,7 +41,7 @@ func TestParseExtras_multiple(t *testing.T) {
 
 func TestParseExtras_whitespace(t *testing.T) {
 	// Act
-	result := parseExtras(" java , dotnet ")
+	result := ParseExtras(" java , dotnet ")
 
 	// Assert
 	assert.Equal(t, []string{"java", "dotnet"}, result)
@@ -49,7 +49,7 @@ func TestParseExtras_whitespace(t *testing.T) {
 
 func TestParseExtras_empty(t *testing.T) {
 	// Act
-	result := parseExtras("")
+	result := ParseExtras("")
 
 	// Assert
 	assert.Empty(t, result)
@@ -57,7 +57,7 @@ func TestParseExtras_empty(t *testing.T) {
 
 func TestParseExtras_emptySegments(t *testing.T) {
 	// Act
-	result := parseExtras(",java,,dotnet,")
+	result := ParseExtras(",java,,dotnet,")
 
 	// Assert
 	assert.Equal(t, []string{"java", "dotnet"}, result)

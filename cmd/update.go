@@ -58,13 +58,13 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	return pruneAndReport()
 }
 
-func dryRunUpdate(args []string, opts docker.BuildOptions) error {
+func dryRunUpdate(args []string, opts tools.BuildOptions) error {
 	if len(args) == 0 {
 		return fmt.Errorf("--dry-run requires a tool argument")
 	}
 
 	output.Step(args[0])
-	content, err := docker.GenerateDockerfile(args[0], opts)
+	content, err := tools.GenerateDockerfile(args[0], opts)
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func dryRunUpdate(args []string, opts docker.BuildOptions) error {
 	return err
 }
 
-func updateTools(args []string, opts docker.BuildOptions) error {
+func updateTools(args []string, opts tools.BuildOptions) error {
 	skipUnbuilt := len(args) == 0
 	updated := 0
 
@@ -106,7 +106,7 @@ func updateTools(args []string, opts docker.BuildOptions) error {
 	return nil
 }
 
-func updateOneTool(name string, opts docker.BuildOptions) error {
+func updateOneTool(name string, opts tools.BuildOptions) error {
 	output.Step(name)
 
 	image, err := tools.ImageName(name)

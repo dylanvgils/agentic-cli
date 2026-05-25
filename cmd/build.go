@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
@@ -57,10 +56,10 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	return pruneAndReport()
 }
 
-func dryRunBuild(args []string, opts docker.BuildOptions) error {
+func dryRunBuild(args []string, opts tools.BuildOptions) error {
 	for _, name := range toolNames(args) {
 		output.Step(name)
-		content, err := docker.GenerateDockerfile(name, opts)
+		content, err := tools.GenerateDockerfile(name, opts)
 		if err != nil {
 			return err
 		}
@@ -71,7 +70,7 @@ func dryRunBuild(args []string, opts docker.BuildOptions) error {
 	return nil
 }
 
-func buildTools(args []string, opts docker.BuildOptions) error {
+func buildTools(args []string, opts tools.BuildOptions) error {
 	for _, name := range toolNames(args) {
 		output.Step(name)
 		if err := buildOneTool(name, opts); err != nil {
@@ -81,7 +80,7 @@ func buildTools(args []string, opts docker.BuildOptions) error {
 	return nil
 }
 
-func buildOneTool(tool string, opts docker.BuildOptions) error {
+func buildOneTool(tool string, opts tools.BuildOptions) error {
 	image, err := tools.ImageName(tool)
 	if err != nil {
 		return err
