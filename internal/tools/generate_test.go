@@ -23,6 +23,66 @@ func TestGenerateDockerfile_unknownTool_returnsError(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestBuildExtraStages_empty(t *testing.T) {
+	// Act
+	stages, prev, err := buildExtraStages([]string{}, "base", nil)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Empty(t, stages)
+	assert.Equal(t, "base", prev)
+}
+
+func TestBuildExtraStages_single(t *testing.T) {
+	// Act
+	stages, prev, err := buildExtraStages([]string{"java"}, "base", nil)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, stages, 1)
+	assert.Equal(t, "java", stages[0].From.As)
+	assert.Equal(t, "java", prev)
+}
+
+func TestBuildExtraStages_multiple(t *testing.T) {
+	// Act
+	stages, prev, err := buildExtraStages([]string{"java", "dotnet"}, "base", nil)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, stages, 2)
+	assert.Equal(t, "java", stages[0].From.As)
+	assert.Equal(t, "dotnet", stages[1].From.As)
+	assert.Equal(t, "java", stages[1].From.Image)
+	assert.Equal(t, "dotnet", prev)
+}
+
+func TestBuildExtraStages_unknownExtra_returnsError(t *testing.T) {
+	// Act
+	stages, _, err := buildExtraStages([]string{"unknown"}, "base", nil)
+
+	// Assert
+	require.Error(t, err)
+	assert.Nil(t, stages)
+}
+
+func TestResolveToolStage_knownTool(t *testing.T) {
+	// Act
+	stage, err := resolveToolStage("claude", "base")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "tool", stage.From.As)
+	assert.Equal(t, "base", stage.From.Image)
+}
+
+func TestResolveToolStage_unknownTool_returnsError(t *testing.T) {
+	// Act + Assert
+	_, err := resolveToolStage("unknown", "base")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown")
+}
+
 func TestParseExtras_single(t *testing.T) {
 	// Act
 	result := ParseExtras("java")

@@ -27,26 +27,50 @@ func GenerateDockerfile(tool string, opts BuildOptions) (string, error) {
 
 // composeStages assembles the full list of Dockerfile stages: node base + requested extras + tool.
 func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfile.Stage, error) {
-	stages := []dockerfile.Stage{NodeStage(opts.NodeVersion)}
-	prev := "base"
+	base := NodeStage(opts.NodeVersion)
+
+	extraList, prev, err := buildExtraStages(extras, "base", opts.Versions)
+	if err != nil {
+		return nil, err
+	}
+
+	toolStage, err := resolveToolStage(tool, prev)
+	if err != nil {
+		return nil, err
+	}
+
+	stages := []dockerfile.Stage{base}
+	stages = append(stages, extraList...)
+	stages = append(stages, toolStage)
+	return stages, nil
+}
+
+// buildExtraStages chains extra stages (e.g. java, dotnet, go), each building FROM the previous.
+// Returns the assembled stages and the name of the final stage in the chain.
+func buildExtraStages(extras []string, prevStage string, versions map[string]string) ([]dockerfile.Stage, string, error) {
+	var stages []dockerfile.Stage
+	prev := prevStage
 
 	for _, extra := range extras {
-		ver := opts.Versions[extra]
+		ver := versions[extra]
 		stage, err := ExtraStage(extra, prev, ver)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		stages = append(stages, stage)
 		prev = extra
 	}
 
+	return stages, prev, nil
+}
+
+// resolveToolStage looks up the tool config and returns its Dockerfile stage.
+func resolveToolStage(tool, prevStage string) (dockerfile.Stage, error) {
 	cfg, ok := Configs[tool]
 	if !ok {
-		return nil, fmt.Errorf("unknown tool %q", tool)
+		return dockerfile.Stage{}, fmt.Errorf("unknown tool %q", tool)
 	}
-	stages = append(stages, cfg.Build.Stage(prev))
-
-	return stages, nil
+	return cfg.Build.Stage(prevStage), nil
 }
 
 // ParseExtras splits a comma-separated base override string into individual extra names.
