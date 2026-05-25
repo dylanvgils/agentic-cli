@@ -11,16 +11,9 @@ var versionRe = regexp.MustCompile(`[0-9]+(\.[0-9]+)*`)
 // them as labels in a single docker build call. Runs best-effort: errors are
 // silently ignored since missing labels are non-fatal.
 func stampImageLabels(image, versionCmd string, extras []string) {
-	nodeVer := detectBaseVersion(image, versionScript("node"))
-
-	extraVersions := make(map[string]string)
-	for _, extra := range extras {
-		extraVersions[extra] = detectBaseVersion(image, versionScript(extra))
-	}
-
 	args := []string{
 		"build",
-		label(LabelBase, buildBaseLabel(nodeVer, extras, extraVersions)),
+		label(LabelBase, collectBaseLabel(image, extras)),
 		arg("tag", image),
 	}
 
@@ -48,6 +41,25 @@ func detectToolVersion(image, cmd string) string {
 		return ""
 	}
 	return extractVersion(out)
+}
+
+// collectExtraVersions detects the installed version for each extra layer in
+// the given image. Returns a map of layer name → version string (empty string
+// when detection fails).
+func collectExtraVersions(image string, extras []string) map[string]string {
+	versions := make(map[string]string)
+	for _, extra := range extras {
+		versions[extra] = detectBaseVersion(image, versionScript(extra))
+	}
+	return versions
+}
+
+// collectBaseLabel detects the node version and all extra-layer versions from
+// the image and assembles the agentic.base label value.
+func collectBaseLabel(image string, extras []string) string {
+	nodeVer := detectBaseVersion(image, versionScript("node"))
+	extraVersions := collectExtraVersions(image, extras)
+	return buildBaseLabel(nodeVer, extras, extraVersions)
 }
 
 func extractVersion(out string) string {
