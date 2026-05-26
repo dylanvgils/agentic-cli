@@ -18,7 +18,7 @@ var AptBasePackages = []string{
 // NodeStage returns the foundational node/debian base stage.
 // ver is the NODE_VERSION build arg default; empty string uses the Dockerfile default of 24.
 func NodeStage(ver string) df.Stage {
-	nodeArg := df.Arg{Key: "NODE_VERSION", Default: "24"}
+	nodeArg := df.Arg{Key: "NODE_VERSION", Default: DefaultVersions.Node}
 	if ver != "" {
 		nodeArg.Default = ver
 	}
@@ -51,7 +51,7 @@ func ExtraStage(name, prevStage, ver string) (df.Stage, error) {
 }
 
 func javaStage(prevStage, ver string) df.Stage {
-	versionArg := df.Arg{Key: "JAVA_VERSION", Default: "21"}
+	versionArg := df.Arg{Key: "JAVA_VERSION", Default: DefaultVersions.Java}
 	if ver != "" {
 		versionArg.Default = ver
 	}
@@ -86,7 +86,7 @@ func javaStage(prevStage, ver string) df.Stage {
 }
 
 func dotnetStage(prevStage, ver string) df.Stage {
-	versionArg := df.Arg{Key: "DOTNET_VERSION", Default: "10"}
+	versionArg := df.Arg{Key: "DOTNET_VERSION", Default: DefaultVersions.Dotnet}
 	if ver != "" {
 		versionArg.Default = ver
 	}
@@ -121,7 +121,7 @@ func dotnetStage(prevStage, ver string) df.Stage {
 }
 
 func goStage(prevStage, ver string) df.Stage {
-	versionArg := df.Arg{Key: "GO_VERSION", Default: "1.26.3"}
+	versionArg := df.Arg{Key: "GO_VERSION", Default: DefaultVersions.Go}
 	if ver != "" {
 		versionArg.Default = ver
 	}

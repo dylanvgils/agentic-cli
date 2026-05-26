@@ -37,7 +37,7 @@ func TestNodeStage_defaultVersionArg(t *testing.T) {
 	// Assert
 	require.Len(t, stage.GlobalArgs, 1)
 	assert.Equal(t, "NODE_VERSION", stage.GlobalArgs[0].Key)
-	assert.Equal(t, "24", stage.GlobalArgs[0].Default)
+	assert.Equal(t, DefaultVersions.Node, stage.GlobalArgs[0].Default)
 }
 
 func TestNodeStage_versionOverride(t *testing.T) {
@@ -93,7 +93,7 @@ func TestExtraStage_java_defaultVersion(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Contains(t, renderStage(stage), "JAVA_VERSION=21")
+	assert.Contains(t, renderStage(stage), "JAVA_VERSION="+DefaultVersions.Java)
 }
 
 func TestExtraStage_java_versionOverride(t *testing.T) {
@@ -124,6 +124,15 @@ func TestExtraStage_dotnet_fromPrevStage(t *testing.T) {
 	assert.Equal(t, "dotnet", stage.From.As)
 }
 
+func TestExtraStage_dotnet_defaultVersion(t *testing.T) {
+	// Act
+	stage, err := ExtraStage("dotnet", "base", "")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Contains(t, renderStage(stage), "DOTNET_VERSION="+DefaultVersions.Dotnet)
+}
+
 func TestExtraStage_dotnet_rendersVersionScript(t *testing.T) {
 	// Act
 	stage, err := ExtraStage("dotnet", "base", "")
@@ -131,6 +140,15 @@ func TestExtraStage_dotnet_rendersVersionScript(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.Contains(t, renderStage(stage), "agentic-version-dotnet")
+}
+
+func TestExtraStage_go_defaultVersion(t *testing.T) {
+	// Act
+	stage, err := ExtraStage("go", "base", "")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Contains(t, renderStage(stage), "GO_VERSION="+DefaultVersions.Go)
 }
 
 func TestExtraStage_go_rendersVersionScript(t *testing.T) {

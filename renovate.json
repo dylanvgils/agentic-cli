@@ -1,0 +1,48 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["every weekend"],
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "minor and patch updates"
+    },
+    {
+      "matchPackageNames": ["go"],
+      "matchDatasources": ["golang-version"],
+      "groupName": "Go version"
+    }
+  ],
+  "regexManagers": [
+    {
+      "fileMatch": ["^internal/tools/versions\\.json$"],
+      "matchStrings": ["\"node\":\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "node",
+      "datasourceTemplate": "node-version"
+    },
+    {
+      "fileMatch": ["^internal/tools/versions\\.json$"],
+      "matchStrings": ["\"java\":\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "java-jre",
+      "datasourceTemplate": "adoptium-java"
+    },
+    {
+      "fileMatch": ["^internal/tools/versions\\.json$"],
+      "matchStrings": ["\"dotnet\":\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "dotnet-sdk",
+      "datasourceTemplate": "dotnet-version"
+    },
+    {
+      "fileMatch": ["^internal/tools/versions\\.json$"],
+      "matchStrings": ["\"go\":\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version"
+    },
+    {
+      "fileMatch": ["^Dockerfile$"],
+      "matchStrings": ["ARG GO_VERSION=(?<currentValue>[^\\s]+)"],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version"
+    }
+  ]
+}

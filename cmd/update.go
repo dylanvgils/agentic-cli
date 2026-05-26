@@ -12,13 +12,8 @@ import (
 func init() {
 	rootCmd.AddCommand(updateCmd)
 
-	updateCmd.Flags().String("base", "", "comma-separated extra runtime(s) to layer on top of node (e.g. java,dotnet)")
+	addBuildFlags(updateCmd)
 	updateCmd.Flags().Bool("no-cache", false, "also rebuild base layers (fully fresh build)")
-	updateCmd.Flags().String("node", "", "Node.js version (default: 24)")
-	updateCmd.Flags().String("java", "", "Java (Temurin JDK) version (default: 21)")
-	updateCmd.Flags().String("dotnet", "", ".NET version (default: 10)")
-	updateCmd.Flags().String("go", "", "Go version (default: 1.26.2)")
-	updateCmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
 }
 
 var updateCmd = &cobra.Command{

@@ -243,7 +243,7 @@ All stages are composed into a single multi-stage Dockerfile at build time and b
 
 Both tools default to node only. Use `--base` to add extra runtimes at build time.
 
-Version defaults are `NODE_VERSION=24`, `JAVA_VERSION=21`, `DOTNET_VERSION=10`, `GO_VERSION=1.26.3`. Override them per-build with `--node`/`--java`/`--dotnet`/`--go`, or set `AGENTIC_NODE_VERSION`/`AGENTIC_JAVA_VERSION`/`AGENTIC_DOTNET_VERSION`/`AGENTIC_GO_VERSION` in your shell config for persistent defaults.
+Version defaults are `NODE_VERSION=24`, `JAVA_VERSION=21`, `DOTNET_VERSION=10`, `GO_VERSION=1.26.3`. These defaults are defined in `internal/tools/versions.json` and embedded into the binary at build time. Override them per-build with `--node`/`--java`/`--dotnet`/`--go`, or set `AGENTIC_NODE_VERSION`/`AGENTIC_JAVA_VERSION`/`AGENTIC_DOTNET_VERSION`/`AGENTIC_GO_VERSION` in your shell config for persistent defaults.
 
 The final tool image is labeled with the base layers, build timestamp, and installed tool version:
 
@@ -357,18 +357,18 @@ extra_mounts=gradle:$CONTAINER_HOME/.gradle
 
 All configuration is done through environment variables, which can be set in your shell config (`.zshrc`, `.bashrc`, etc.).
 
-| Variable                 | Description                                                                                                                                           | Default                       |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| `AGENTIC_HOME`           | Base directory for tool config and secrets                                                                                                            | `$HOME/.agentic`              |
-| `AGENTIC_EXTRA_MOUNTS`   | Comma-separated extra mounts. Bind mount: `host/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `$CONTAINER_HOME`. | -                             |
-| `AGENTIC_SECRETS`        | Comma-separated secrets to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`.                                                    | -                             |
-| `AGENTIC_PIDS_LIMIT`     | Default container PID limit                                                                                                                           | `1024`                        |
-| `AGENTIC_CPUS`           | Default container CPU limit                                                                                                                           | `4`                           |
-| `AGENTIC_MEMORY`         | Default container memory limit                                                                                                                        | `4g`                          |
-| `AGENTIC_NODE_VERSION`   | Node.js version used when building the base node image                                                                                                | `24` (Dockerfile default)     |
-| `AGENTIC_JAVA_VERSION`   | Java (Temurin JDK) version used when building the java layer                                                                                          | `21` (Dockerfile default)     |
-| `AGENTIC_DOTNET_VERSION` | .NET version used when building the dotnet layer                                                                                                      | `10` (Dockerfile default)     |
-| `AGENTIC_GO_VERSION`     | Go version used when building the go layer                                                                                                            | `1.26.2` (Dockerfile default) |
+| Variable                 | Description                                                                                                                                           | Default                          |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `AGENTIC_HOME`           | Base directory for tool config and secrets                                                                                                            | `$HOME/.agentic`                 |
+| `AGENTIC_EXTRA_MOUNTS`   | Comma-separated extra mounts. Bind mount: `host/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `$CONTAINER_HOME`. | -                                |
+| `AGENTIC_SECRETS`        | Comma-separated secrets to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`.                                                    | -                                |
+| `AGENTIC_PIDS_LIMIT`     | Default container PID limit                                                                                                                           | `1024`                           |
+| `AGENTIC_CPUS`           | Default container CPU limit                                                                                                                           | `4`                              |
+| `AGENTIC_MEMORY`         | Default container memory limit                                                                                                                        | `4g`                             |
+| `AGENTIC_NODE_VERSION`   | Node.js version used when building the base node image                                                                                                | `24` (versions.json default)     |
+| `AGENTIC_JAVA_VERSION`   | Java (Temurin JDK) version used when building the java layer                                                                                          | `21` (versions.json default)     |
+| `AGENTIC_DOTNET_VERSION` | .NET version used when building the dotnet layer                                                                                                      | `10` (versions.json default)     |
+| `AGENTIC_GO_VERSION`     | Go version used when building the go layer                                                                                                            | `1.26.3` (versions.json default) |
 
 ### Per-project configuration
 
