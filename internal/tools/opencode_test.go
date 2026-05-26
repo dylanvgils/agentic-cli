@@ -2,7 +2,6 @@ package tools
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,12 +44,20 @@ func TestOpencodeStage_fromPrevStage(t *testing.T) {
 	assert.Equal(t, "tool", stage.From.As)
 }
 
-func TestOpencodeStage_containsInstallAndUser(t *testing.T) {
+func TestOpencodeStage_containsContainerUser(t *testing.T) {
 	// Act
 	result := renderStage(opencodeStage("base"))
 
 	// Assert
-	assert.True(t, strings.Contains(result, "opencode"), "expected opencode in stage")
+	assert.Contains(t, result, "groupadd -g ${HOST_GID} --non-unique opencode")
+	assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique opencode")
+}
+
+func TestOpencodeStage_containsToolHome(t *testing.T) {
+	// Act
+	result := renderStage(opencodeStage("base"))
+
+	// Assert
 	assert.Contains(t, result, "TOOL_HOME=/home/opencode")
 }
 

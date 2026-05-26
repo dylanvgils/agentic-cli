@@ -2,7 +2,6 @@ package tools
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,13 +43,22 @@ func TestCopilotStage_fromPrevStage(t *testing.T) {
 	assert.Equal(t, "tool", stage.From.As)
 }
 
+func TestCopilotStage_containsContainerUser(t *testing.T) {
+	// Act
+	result := renderStage(copilotStage("base"))
+
+	// Assert
+	assert.Contains(t, result, "groupadd -g ${HOST_GID} --non-unique copilot")
+	assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique copilot")
+}
+
 func TestCopilotStage_containsTokenSetup(t *testing.T) {
 	// Act
 	result := renderStage(copilotStage("base"))
 
 	// Assert
-	assert.True(t, strings.Contains(result, "copilot_token"), "expected token setup in copilot entrypoint")
-	assert.True(t, strings.Contains(result, "GITHUB_TOKEN"), "expected GITHUB_TOKEN in copilot entrypoint")
+	assert.Contains(t, result, "copilot_token")
+	assert.Contains(t, result, "GITHUB_TOKEN")
 }
 
 func TestCopilotStage_containsProjectLabel(t *testing.T) {

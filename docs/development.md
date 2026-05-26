@@ -38,6 +38,10 @@ Changes to the CLI take effect immediately after `make build` - no container reb
    - `<name>Mounts() []string` — return the list of bind/volume mounts using helpers from `internal/mount`
    - `<name>TmpfsMounts() []string` — return any tmpfs mounts (every tool needs at least `/tmp`)
 
+   Reuse the shared helpers in `internal/tools/helpers.go` inside the stage func:
+   - `CreateContainerUser(name string) []df.Instruction` — declares `HOST_UID`/`HOST_GID` build args, removes any conflicting user, and creates the container user. Spread into `Add`: `Add(CreateContainerUser("mytool")...)`
+   - `AptInstallRun(pkgs []string) df.Run` — builds a standard apt update → install → cleanup `RUN` block
+
    Use `mount.VolumeMount(host, container)` and `mount.TmpfsMount(path, opts)` from `internal/mount`. Mount strings support two placeholder variables expanded at runtime:
    - `$TOOL_HOME` (host side) — expands to the agentic data dir (e.g. `~/.agentic`)
    - `$CONTAINER_HOME` (container side) — expands to the container home dir, resolved from the image's `TOOL_HOME` env var
