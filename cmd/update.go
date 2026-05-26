@@ -58,6 +58,15 @@ func dryRunUpdate(args []string, opts tools.BuildOptions) error {
 		return fmt.Errorf("--dry-run requires a tool argument")
 	}
 
+	if opts.BaseOverride == "" {
+		image, err := tools.ImageName(args[0])
+		if err == nil {
+			if info, iErr := inspectImage(image); iErr == nil && info != nil {
+				opts.BaseOverride = docker.RecoverExtras(info.Base)
+			}
+		}
+	}
+
 	output.Step(args[0])
 	content, err := tools.GenerateDockerfile(args[0], opts)
 	if err != nil {

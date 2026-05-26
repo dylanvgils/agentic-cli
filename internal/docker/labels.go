@@ -42,10 +42,10 @@ func buildBuiltLabel() string {
 	return time.Now().UTC().Format("2006-01-02T15:04:05Z")
 }
 
-// recoverExtras parses an agentic.base label and returns the non-node extras as a
+// RecoverExtras parses an agentic.base label and returns the non-node extras as a
 // comma-separated string suitable for BuildOptions.BaseOverride.
 // e.g. "node@24.2.0,java@21.0.1" → "java"
-func recoverExtras(baseLabel string) string {
+func RecoverExtras(baseLabel string) string {
 	var extras []string
 
 	for part := range strings.SplitSeq(baseLabel, ",") {

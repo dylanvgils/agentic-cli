@@ -47,6 +47,39 @@ func TestDryRunUpdate_withoutToolArg_returnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "--dry-run requires a tool argument")
 }
 
+func TestDryRunUpdate_recoversBaseFromImageLabel(t *testing.T) {
+	// Arrange
+	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Base: "node@24.0.0,java@21.0.1"}, nil)
+	defer restoreInspect()
+
+	// Act
+	out := captureStdout(t, func() {
+		err := dryRunUpdate([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
+		require.NoError(t, err)
+	})
+
+	// Assert
+	assert.Contains(t, out, "temurin")
+}
+
+func TestDryRunUpdate_explicitBaseFlag_takesPrecdence(t *testing.T) {
+	// Arrange
+	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Base: "node@24.0.0,go@1.22"}, nil)
+	defer restoreInspect()
+
+	opts := tools.BuildOptions{BaseOverride: "java", Versions: map[string]string{}}
+
+	// Act
+	out := captureStdout(t, func() {
+		err := dryRunUpdate([]string{"claude"}, opts)
+		require.NoError(t, err)
+	})
+
+	// Assert
+	assert.Contains(t, out, "temurin")
+	assert.NotContains(t, out, "go.dev")
+}
+
 // updateTools
 func TestUpdateTools_allBuilt_updatesAll(t *testing.T) {
 	// Arrange
