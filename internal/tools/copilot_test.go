@@ -2,6 +2,7 @@ package tools
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,6 +31,43 @@ func TestCopilotMounts(t *testing.T) {
 		"$PWD:/workspace",
 		"$TOOL_HOME/copilot:$CONTAINER_HOME/.copilot",
 	}, mounts)
+}
+
+// --- copilotStage ---
+
+func TestCopilotStage_fromPrevStage(t *testing.T) {
+	// Act
+	stage := copilotStage("java")
+
+	// Assert
+	assert.Equal(t, "java", stage.From.Image)
+	assert.Equal(t, "tool", stage.From.As)
+}
+
+func TestCopilotStage_containsTokenSetup(t *testing.T) {
+	// Act
+	result := renderStage(copilotStage("base"))
+
+	// Assert
+	assert.True(t, strings.Contains(result, "copilot_token"), "expected token setup in copilot entrypoint")
+	assert.True(t, strings.Contains(result, "GITHUB_TOKEN"), "expected GITHUB_TOKEN in copilot entrypoint")
+}
+
+func TestCopilotStage_containsProjectLabel(t *testing.T) {
+	// Act
+	result := renderStage(copilotStage("base"))
+
+	// Assert
+	assert.Contains(t, result, "project=agentic-cli")
+}
+
+func TestCopilotStage_containsVersionScript(t *testing.T) {
+	// Act
+	result := renderStage(copilotStage("base"))
+
+	// Assert
+	assert.Contains(t, result, "agentic-version-copilot")
+	assert.Contains(t, result, "copilot --version")
 }
 
 // --- setupCopilot ---

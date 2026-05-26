@@ -47,7 +47,7 @@ esac
 BINARY_SRC="${SCRIPT_DIR}/dist/agentic-${OS}-${ARCH}"
 
 echo "Building agentic for ${OS}/${ARCH}..."
-docker buildx build --build-arg "REPO_ROOT=${SCRIPT_DIR}" --target export --output "${SCRIPT_DIR}/dist/" "${SCRIPT_DIR}"
+docker buildx build --target export --output "${SCRIPT_DIR}/dist/" "${SCRIPT_DIR}"
 
 if [[ ! -f "${BINARY_SRC}" ]]; then
   echo "Error: expected binary not found at ${BINARY_SRC}" >&2

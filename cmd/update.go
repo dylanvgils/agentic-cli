@@ -2,16 +2,12 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/output"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
-
-var runUpdateScript = defaultRunUpdateScript
 
 func init() {
 	rootCmd.AddCommand(updateCmd)
@@ -22,6 +18,7 @@ func init() {
 	updateCmd.Flags().String("java", "", "Java (Temurin JDK) version (default: 21)")
 	updateCmd.Flags().String("dotnet", "", ".NET version (default: 10)")
 	updateCmd.Flags().String("go", "", "Go version (default: 1.26.2)")
+	updateCmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
 }
 
 var updateCmd = &cobra.Command{
@@ -48,49 +45,68 @@ Environment:
 
 func runUpdate(cmd *cobra.Command, args []string) error {
 	opts := buildOptsFromFlags(cmd)
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
-	if len(args) > 0 {
-		if err := updateOneTool(args[0], opts); err != nil {
-			return err
-		}
-	} else if err := updateAllTools(opts); err != nil {
+	if dryRun {
+		return dryRunUpdate(args, opts)
+	}
+
+	if err := updateTools(args, opts); err != nil {
 		return err
 	}
 
 	return pruneAndReport()
 }
 
-func updateAllTools(opts docker.BuildOptions) error {
+func dryRunUpdate(args []string, opts tools.BuildOptions) error {
+	if len(args) == 0 {
+		return fmt.Errorf("--dry-run requires a tool argument")
+	}
+
+	output.Step(args[0])
+	content, err := tools.GenerateDockerfile(args[0], opts)
+	if err != nil {
+		return err
+	}
+
+	_, err = fmt.Println(content)
+	return err
+}
+
+func updateTools(args []string, opts tools.BuildOptions) error {
+	skipUnbuilt := len(args) == 0
 	updated := 0
-	for _, name := range tools.Names() {
-		image, err := tools.ImageName(name)
-		if err != nil {
-			return err
+
+	for _, name := range toolNames(args) {
+		if skipUnbuilt {
+			image, err := tools.ImageName(name)
+			if err != nil {
+				return err
+			}
+			info, err := inspectImage(image)
+			if err != nil {
+				return err
+			}
+			if info == nil {
+				output.Stepf("%s (skipped - not built)", name)
+				continue
+			}
 		}
 
-		info, err := inspectImage(image)
-		if err != nil {
-			return err
-		}
-		if info == nil {
-			output.Stepf("%s (skipped - not built)", name)
-			continue
-		}
 		if err := updateOneTool(name, opts); err != nil {
 			return err
 		}
-
 		updated++
 	}
 
-	if updated == 0 {
+	if skipUnbuilt && updated == 0 {
 		fmt.Println("No tools are built. Run 'agentic build' first.")
 	}
 
 	return nil
 }
 
-func updateOneTool(name string, opts docker.BuildOptions) error {
+func updateOneTool(name string, opts tools.BuildOptions) error {
 	output.Step(name)
 
 	image, err := tools.ImageName(name)
@@ -100,7 +116,7 @@ func updateOneTool(name string, opts docker.BuildOptions) error {
 
 	before := imageVersion(image)
 
-	if err := runUpdateScript(name, opts); err != nil {
+	if err := updateTool(name, image, opts); err != nil {
 		return err
 	}
 
@@ -123,20 +139,4 @@ func reportVersionChange(before, after string) {
 	} else if after != "" {
 		output.Stepf("version: %s (up to date)", after)
 	}
-}
-
-func defaultRunUpdateScript(tool string, opts docker.BuildOptions) error {
-	repoRoot, err := platform.FindRepoRoot()
-	if err != nil {
-		return err
-	}
-
-	image, err := tools.ImageName(tool)
-	if err != nil {
-		return err
-	}
-
-	cfg := tools.Configs[tool]
-	toolDir := filepath.Join(repoRoot, "tools", tool)
-	return docker.UpdateTool(toolDir, image, cfg.VersionCmd, repoRoot, opts)
 }

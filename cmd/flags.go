@@ -3,7 +3,6 @@ package cmd
 import (
 	"os"
 
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
@@ -16,8 +15,8 @@ func flagOrEnv(cmd *cobra.Command, flag, env string) string {
 	return os.Getenv(env)
 }
 
-func buildOptsFromFlags(cmd *cobra.Command) docker.BuildOptions {
-	opts := docker.BuildOptions{Versions: map[string]string{}}
+func buildOptsFromFlags(cmd *cobra.Command) tools.BuildOptions {
+	opts := tools.BuildOptions{Versions: map[string]string{}}
 
 	opts.BaseOverride = flagOrEnv(cmd, "base", "AGENTIC_BASE_OVERRIDE")
 	opts.NoCache, _ = cmd.Flags().GetBool("no-cache")

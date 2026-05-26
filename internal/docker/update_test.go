@@ -1,24 +1,14 @@
 package docker
 
 import (
-	"os"
-	"path/filepath"
+	"io"
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// makeRepoRoot creates a temp directory tree with tools/base/<extras> subdirs.
-func makeRepoRoot(t *testing.T, extras ...string) string {
-	t.Helper()
-	root := t.TempDir()
-	for _, extra := range extras {
-		require.NoError(t, os.MkdirAll(filepath.Join(root, "tools", "base", extra), 0o755))
-	}
-	return root
-}
 
 // captureAllRunInteractive replaces runInteractive with a mock that records every call.
 func captureAllRunInteractive(t *testing.T) (func() [][]string, func()) {
@@ -53,34 +43,38 @@ func stubDockerRunBySubcmd(t *testing.T, responses map[string]string) func() {
 
 func TestUpdateTool_recoversBuildFromLabel(t *testing.T) {
 	// Arrange
-	repoRoot := makeRepoRoot(t, "java")
 	restore := stubDockerRunBySubcmd(t, map[string]string{
 		"inspect": `{"Id":"sha256:abcdef","Size":1048576,"Config":{"Labels":{"agentic.base":"node@24.0.0,java@21.0.1"}}}`,
 	})
 	defer restore()
 
+	origStdin := dockerRunStdin
+	dockerRunStdin = func(_ io.Reader, _ ...string) (string, error) { return "", nil }
+	defer func() { dockerRunStdin = origStdin }()
+
 	getCalls, restoreInteractive := captureAllRunInteractive(t)
 	defer restoreInteractive()
 
 	// Act
-	err := UpdateTool("tooldir", "agentic-claude", "", repoRoot, BuildOptions{})
+	err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
-	var builtJavaLayer bool
-	for _, args := range getCalls() {
-		for _, a := range args {
-			if strings.Contains(a, "agentic-base-java") {
-				builtJavaLayer = true
-			}
+	calls := getCalls()
+	require.NotEmpty(t, calls)
+
+	buildCall := calls[0]
+	noCacheFilter := false
+	for _, a := range buildCall {
+		if strings.Contains(a, "no-cache-filter") {
+			noCacheFilter = true
 		}
 	}
-	assert.True(t, builtJavaLayer, "expected java extra layer to be built from recovered base label")
+	assert.True(t, noCacheFilter, "expected --no-cache-filter in build call after label recovery")
 }
 
 func TestUpdateTool_respectsExistingBaseOverride(t *testing.T) {
 	// Arrange
-	repoRoot := makeRepoRoot(t, "java")
 	var inspectCalled bool
 	orig := dockerRun
 	dockerRun = func(args ...string) (string, error) {
@@ -91,32 +85,40 @@ func TestUpdateTool_respectsExistingBaseOverride(t *testing.T) {
 	}
 	defer func() { dockerRun = orig }()
 
+	origStdin := dockerRunStdin
+	dockerRunStdin = func(_ io.Reader, _ ...string) (string, error) { return "", nil }
+	defer func() { dockerRunStdin = origStdin }()
+
 	_, restoreInteractive := captureAllRunInteractive(t)
 	defer restoreInteractive()
 
 	// Act
-	err := UpdateTool("tooldir", "agentic-claude", "", repoRoot, BuildOptions{BaseOverride: "java"})
+	err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{BaseOverride: "java"})
 
 	// Assert
 	require.NoError(t, err)
 	assert.False(t, inspectCalled, "expected InspectImage to be skipped when BaseOverride is already set")
 }
 
-func TestUpdateTool_alwaysSetsNoCacheTool(t *testing.T) {
+func TestUpdateTool_alwaysSetsNoCacheFilter(t *testing.T) {
 	// Arrange
 	restore := stubDockerRunBySubcmd(t, nil)
 	defer restore()
 
+	origStdin := dockerRunStdin
+	dockerRunStdin = func(_ io.Reader, _ ...string) (string, error) { return "", nil }
+	defer func() { dockerRunStdin = origStdin }()
+
 	getCalls, restoreInteractive := captureAllRunInteractive(t)
 	defer restoreInteractive()
 
-	// Act — pass NoCache:false to confirm NoCacheTool alone triggers --no-cache on the tool step
-	err := UpdateTool("tooldir", "agentic-claude", "", t.TempDir(), BuildOptions{})
+	// Act — pass NoCache:false to confirm NoCacheTool alone triggers --no-cache-filter on the tool stage
+	err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
 	calls := getCalls()
 	require.NotEmpty(t, calls)
-	toolBuild := calls[len(calls)-1]
-	assert.Contains(t, toolBuild, "--no-cache", "tool build step must always skip cache")
+	buildCall := calls[0]
+	assert.Contains(t, buildCall, "--no-cache-filter=tool", "tool build must skip cache via --no-cache-filter=tool")
 }

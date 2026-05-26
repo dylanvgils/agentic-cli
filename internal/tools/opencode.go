@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
+	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
@@ -22,6 +23,45 @@ func opencodeMounts() []string {
 		mount.VolumeMount("$TOOL_HOME/opencode/cache", "$CONTAINER_HOME/.cache/opencode"),
 		mount.VolumeMount("$TOOL_HOME/opencode/config", "$CONTAINER_HOME/.config/opencode"),
 	}
+}
+
+func opencodeStage(prevStage string) df.Stage {
+	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
+		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(df.Arg{Key: "HOST_UID", Default: "1000"}).
+		Add(df.Arg{Key: "HOST_GID", Default: "1000"}).
+		Add(df.Label{Key: "project", Value: "agentic-cli"}).
+		Add(df.Run{Blocks: []df.Block{
+			{
+				Comment: "Remove conflicting user at HOST_UID",
+				Lines: []string{
+					`existing=$(getent passwd ${HOST_UID} | cut -d: -f1);`,
+					`if [ -n "$existing" ] && [ "$existing" != "opencode" ]; then`,
+					`userdel -r "$existing" 2>/dev/null || true;`,
+					`fi`,
+				},
+			},
+			{Comment: "Create container user", Lines: []string{`groupadd -g ${HOST_GID} --non-unique opencode`}},
+			{Lines: []string{`useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique opencode`}},
+		}}).
+		Add(df.Heredoc{
+			Dest:  "/usr/local/bin/entrypoint.sh",
+			Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail", `exec opencode "$@"`},
+		}).
+		Add(df.Run{Blocks: []df.Block{
+			{Lines: []string{"curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path"}},
+			{Lines: []string{"mv /root/.opencode/bin/opencode /usr/local/bin/opencode"}},
+			{Lines: []string{"rm -rf /root/.opencode"}},
+		}}).
+		Add(df.Heredoc{
+			Dest:  "/usr/local/bin/" + versionScript("opencode"),
+			Lines: []string{"#!/bin/sh", "opencode --version"},
+		}).
+		Add(df.User{Name: "opencode"}).
+		Add(df.Env{Key: "TOOL_HOME", Value: "/home/opencode"}).
+		Add(df.Workdir{Path: "/workspace"}).
+		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
+		Build()
 }
 
 func setupOpencode(toolHome string) error {

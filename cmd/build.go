@@ -1,16 +1,12 @@
 package cmd
 
 import (
-	"path/filepath"
+	"fmt"
 
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/output"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
-
-var runBuildScript = defaultRunBuildScript
 
 func init() {
 	rootCmd.AddCommand(buildCmd)
@@ -21,6 +17,7 @@ func init() {
 	buildCmd.Flags().String("java", "", "Java (Temurin JDK) version (default: 21)")
 	buildCmd.Flags().String("dotnet", "", ".NET version (default: 10)")
 	buildCmd.Flags().String("go", "", "Go version (default: 1.26.2)")
+	buildCmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
 }
 
 var buildCmd = &cobra.Command{
@@ -46,29 +43,48 @@ Environment:
 
 func runBuild(cmd *cobra.Command, args []string) error {
 	opts := buildOptsFromFlags(cmd)
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
-	for _, name := range toolNames(args) {
-		output.Step(name)
-		if err := runBuildScript(name, opts); err != nil {
-			return err
-		}
+	if dryRun {
+		return dryRunBuild(args, opts)
+	}
+
+	if err := buildTools(args, opts); err != nil {
+		return err
 	}
 
 	return pruneAndReport()
 }
 
-func defaultRunBuildScript(tool string, opts docker.BuildOptions) error {
-	repoRoot, err := platform.FindRepoRoot()
-	if err != nil {
-		return err
+func dryRunBuild(args []string, opts tools.BuildOptions) error {
+	for _, name := range toolNames(args) {
+		output.Step(name)
+		content, err := tools.GenerateDockerfile(name, opts)
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Println(content); err != nil {
+			return err
+		}
 	}
+	return nil
+}
 
+func buildTools(args []string, opts tools.BuildOptions) error {
+	for _, name := range toolNames(args) {
+		output.Step(name)
+		if err := buildOneTool(name, opts); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func buildOneTool(tool string, opts tools.BuildOptions) error {
 	image, err := tools.ImageName(tool)
 	if err != nil {
 		return err
 	}
 
-	cfg := tools.Configs[tool]
-	toolDir := filepath.Join(repoRoot, "tools", tool)
-	return docker.BuildTool(toolDir, image, cfg.VersionCmd, repoRoot, opts)
+	return buildTool(tool, image, opts)
 }

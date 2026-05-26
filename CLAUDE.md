@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in isolated containers. The Go binary (`agentic`) handles all commands. No linter. Development means editing Go source and Dockerfiles, then testing with `go test ./...` and building/running containers.
+A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in isolated containers. The Go binary (`agentic`) handles all commands and generates Dockerfiles programmatically at build time — no static Dockerfile files exist. No linter. Development means editing Go source, then testing with `go test ./...` and building/running containers.
 
 ## Key commands
 
@@ -20,15 +20,15 @@ agentic <tool> [args]
 
 ### Tool structure
 
-Each tool in `tools/<name>/` must implement exactly: `Dockerfile`, `entrypoint.sh`. Adding a new tool requires an entry in `internal/tools/tools.go Configs` (holds `VersionCmd`, `TmpfsMounts`, `Setup`, and `Mounts`) plus the corresponding `internal/tools/<name>.go` file implementing `Setup`, `Mounts`, and `TmpfsMounts`.
+Adding a new tool requires an entry in `internal/tools/tools.go Configs` (holds `VersionCmd`, `TmpfsMounts`, `Setup`, `Mounts`, and `Stage`) plus the corresponding `internal/tools/<name>.go` file implementing `Setup`, `Mounts`, `TmpfsMounts`, and a `<name>Stage(prevStage string) dockerfile.Stage` function.
 
-Build and update logic lives in Go: `internal/tools/<tool>.go` holds runtime config (`Base`, `VersionCmd`); `internal/docker/build.go` and `internal/docker/update.go` hold the orchestration.
+Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/docker/bases.go` (base layers) and the tool's `Stage` func. The DSL lives in `internal/dockerfile/`. No static Dockerfile files exist.
 
 Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-specific mount configuration and setup live in `internal/tools/<tool>.go`.
 
 ### Adding a new runtime layer
 
-Drop a `Dockerfile` in `tools/base/<name>/` (must accept `BASE_IMAGE` as a build arg) and add a `--<name>` flag to `cmd/build.go`, `cmd/update.go`, and `cmd/flags.go`. The `--base <name>` routing is derived from the directory; version pinning requires the flag.
+Add a new case to `extraStage()` in `internal/docker/bases.go` (follow the `javaStage`/`dotnetStage`/`goStage` pattern), add the name to `knownExtras`, and add a `--<name>` flag to `cmd/build.go`, `cmd/update.go`, and `cmd/flags.go`.
 
 ### Go style
 

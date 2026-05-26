@@ -11,6 +11,8 @@ import (
 )
 
 var (
+	buildTool          = docker.BuildTool
+	updateTool         = docker.UpdateTool
 	runContainer       = docker.RunContainer
 	ensureNamedVolumes = docker.EnsureNamedVolumes
 	inspectImage       = docker.InspectImage
