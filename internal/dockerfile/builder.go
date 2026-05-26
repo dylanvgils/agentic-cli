@@ -33,11 +33,14 @@ func (b *StageBuilder) Add(inst Instruction) *StageBuilder {
 	}
 
 	if located, isLocated := inst.(Located); isLocated {
+		// Already a Located (e.g. from C()), fill in Source without double-wrapping.
 		located.Source = source
 		b.instructions = append(b.instructions, located)
 	} else if source != "" {
+		// Plain instruction, wrap it with the captured source location.
 		b.instructions = append(b.instructions, Located{Source: source, Inst: inst})
 	} else {
+		// runtime.Caller failed; append unwrapped rather than emit an empty comment.
 		b.instructions = append(b.instructions, inst)
 	}
 	return b

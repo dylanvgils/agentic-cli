@@ -48,8 +48,8 @@ func Locate(inst Instruction) Located {
 }
 
 func trimPath(file string) string {
-	for _, seg := range []string{"/internal/", "/cmd/"} {
-		if i := strings.Index(file, seg); i >= 0 {
+	for _, segment := range []string{"/internal/", "/cmd/"} {
+		if i := strings.Index(file, segment); i >= 0 {
 			return file[i+1:]
 		}
 	}
