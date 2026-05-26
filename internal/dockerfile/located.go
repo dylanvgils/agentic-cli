@@ -15,21 +15,14 @@ type Located struct {
 }
 
 func (l Located) Render() string {
-	var sb strings.Builder
-
+	var s string
 	if l.Comment != "" {
-		sb.WriteString("# ")
-		sb.WriteString(l.Comment)
-		sb.WriteByte('\n')
+		s += fmt.Sprintf("# %s\n", l.Comment)
 	}
 	if l.Source != "" {
-		sb.WriteString("# ")
-		sb.WriteString(l.Source)
-		sb.WriteByte('\n')
+		s += fmt.Sprintf("# %s\n", l.Source)
 	}
-
-	sb.WriteString(l.Inst.Render())
-	return sb.String()
+	return s + l.Inst.Render()
 }
 
 // C wraps inst with a human-readable comment. Pass the result to StageBuilder.Add;

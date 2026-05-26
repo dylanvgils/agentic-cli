@@ -24,7 +24,7 @@ func copilotMounts() []string {
 
 func copilotStage(prevStage string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
-		Add(df.Shell{Form: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
 		Add(df.Arg{Key: "HOST_UID", Default: "1000"}).
 		Add(df.Arg{Key: "HOST_GID", Default: "1000"}).
 		Add(df.Label{Key: "project", Value: "agentic-cli"}).
@@ -42,6 +42,10 @@ func copilotStage(prevStage string) df.Stage {
 			{Lines: []string{`useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique copilot`}},
 		}}).
 		Add(df.Run{Command: "curl -fsSL https://gh.io/copilot-install | bash"}).
+		Add(df.Heredoc{
+			Dest:  "/usr/local/bin/" + versionScript("copilot"),
+			Lines: []string{"#!/bin/sh", "copilot --version"},
+		}).
 		Add(df.Heredoc{
 			Dest: "/usr/local/bin/entrypoint.sh",
 			Lines: []string{

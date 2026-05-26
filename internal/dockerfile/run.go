@@ -1,6 +1,18 @@
 package dockerfile
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
+
+const (
+	// startContinuation is a line continuation at the start of a RUN block, with no leading space.
+	startContinuation = "\\\n  "
+	// continuation is a Dockerfile line continuation with a 2-space indent.
+	continuation = " \\\n  "
+	// blankContinuation produces a blank continuation line to visually separate blocks.
+	blankContinuation = continuation + startContinuation
+)
 
 // Block is a group of related lines within a Run directive.
 // An optional Comment is rendered as a shell comment before the block's commands.
@@ -10,7 +22,7 @@ type Block struct {
 }
 
 // Run is a RUN directive.
-// Use Blocks to group related lines into logical operations — blocks are separated by a blank
+// Use Blocks to group related lines into logical operations, blocks are separated by a blank
 // continuation line and && joined. An optional Comment per block is rendered as a shell comment.
 // Use Lines for a flat sequence. Use Command for a single pre-formatted string.
 type Run struct {
@@ -21,31 +33,42 @@ type Run struct {
 
 func (r Run) Render() string {
 	if len(r.Blocks) > 0 {
-		var sb strings.Builder
-		sb.WriteString("RUN ")
-		for i, block := range r.Blocks {
-			if i == 0 {
-				if block.Comment != "" {
-					sb.WriteString("\\\n  # ")
-					sb.WriteString(block.Comment)
-					sb.WriteString("\n  ")
-				}
-			} else {
-				if block.Comment != "" {
-					sb.WriteString(" \\\n  \\\n  # ")
-					sb.WriteString(block.Comment)
-					sb.WriteString("\n  ")
-				} else {
-					sb.WriteString(" \\\n  ")
-				}
-				sb.WriteString("&& ")
-			}
-			sb.WriteString(strings.Join(block.Lines, " \\\n  "))
-		}
-		return sb.String()
+		return r.renderBlocks()
 	}
 	if len(r.Lines) > 0 {
-		return "RUN " + strings.Join(r.Lines, " \\\n  ")
+		return r.renderLines()
 	}
+	return r.renderCommand()
+}
+
+func (r Run) renderBlocks() string {
+	var sb strings.Builder
+
+	sb.WriteString("RUN ")
+	for i, block := range r.Blocks {
+		if i == 0 {
+			if block.Comment != "" {
+				fmt.Fprintf(&sb, "%s# %s\n  ", startContinuation, block.Comment)
+			}
+		} else {
+			if block.Comment != "" {
+				fmt.Fprintf(&sb, "%s# %s\n  ", blankContinuation, block.Comment)
+			} else {
+				sb.WriteString(continuation)
+			}
+			sb.WriteString("&& ")
+		}
+
+		sb.WriteString(strings.Join(block.Lines, continuation))
+	}
+
+	return sb.String()
+}
+
+func (r Run) renderLines() string {
+	return "RUN " + strings.Join(r.Lines, continuation)
+}
+
+func (r Run) renderCommand() string {
 	return "RUN " + r.Command
 }

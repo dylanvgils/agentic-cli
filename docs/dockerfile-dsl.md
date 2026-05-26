@@ -23,7 +23,7 @@ type Instruction interface {
 | `From`       | `Image`, `As`    | `FROM image AS name`                |
 | `Arg`        | `Key`, `Default` | `ARG key=default`                   |
 | `Env`        | `Key`, `Value`   | `ENV key=value`                     |
-| `Shell`      | `Form []string`  | `SHELL ["a", "b"]` (exec form)      |
+| `Shell`      | `Cmd []string`   | `SHELL ["a", "b"]` (exec form)      |
 | `User`       | `Name`           | `USER name`                         |
 | `Workdir`    | `Path`           | `WORKDIR /path`                     |
 | `Label`      | `Key`, `Value`   | `LABEL key=value`                   |
@@ -66,7 +66,7 @@ Add a `Comment` to a block to insert a shell comment before its lines:
 
 ### Heredoc
 
-`Heredoc` (`heredoc.go`) writes a multi-line script using BuildKit's `COPY <<'EOF'` syntax, then marks it executable:
+`Heredoc` (`heredoc.go`) writes a multi-line script using BuildKit's `COPY --chmod=0755 <<'EOF'` syntax. The `--chmod` flag sets the executable bit at copy time, so no separate `RUN chmod +x` is needed and the instruction works correctly regardless of the active `USER` context:
 
 ```go
 Heredoc{
@@ -78,12 +78,11 @@ Heredoc{
 Renders as:
 
 ```dockerfile
-COPY <<'EOF' /usr/local/bin/entrypoint.sh
+COPY --chmod=0755 <<'EOF' /usr/local/bin/entrypoint.sh
 #!/usr/bin/env bash
 set -euo pipefail
 exec claude "$@"
 EOF
-RUN chmod +x /usr/local/bin/entrypoint.sh
 ```
 
 ### Located
@@ -156,11 +155,10 @@ FROM node:${NODE_VERSION}-bookworm-slim AS base
 ENV DEBIAN_FRONTEND=noninteractive
 
 # internal/tools/bases.go:24
-COPY <<'EOF' /usr/local/bin/agentic-version-node
+COPY --chmod=0755 <<'EOF' /usr/local/bin/agentic-version-node
 #!/bin/sh
 node --version
 EOF
-RUN chmod +x /usr/local/bin/agentic-version-node
 
 # internal/tools/bases.go:28
 RUN apt-get update -yq \

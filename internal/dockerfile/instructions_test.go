@@ -48,7 +48,7 @@ func TestEnv_render(t *testing.T) {
 
 func TestShell_render(t *testing.T) {
 	// Act
-	result := Shell{Form: []string{"/bin/bash", "-o", "pipefail", "-c"}}.Render()
+	result := Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}.Render()
 
 	// Assert
 	assert.Equal(t, `SHELL ["/bin/bash", "-o", "pipefail", "-c"]`, result)

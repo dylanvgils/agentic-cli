@@ -61,6 +61,15 @@ func TestCopilotStage_containsProjectLabel(t *testing.T) {
 	assert.Contains(t, result, "project=agentic-cli")
 }
 
+func TestCopilotStage_containsVersionScript(t *testing.T) {
+	// Act
+	result := renderStage(copilotStage("base"))
+
+	// Assert
+	assert.Contains(t, result, "agentic-version-copilot")
+	assert.Contains(t, result, "copilot --version")
+}
+
 // --- setupCopilot ---
 func TestSetupCopilot_createsDir(t *testing.T) {
 	// Arrange

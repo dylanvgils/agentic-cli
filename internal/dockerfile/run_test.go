@@ -6,15 +6,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRun_singleLine(t *testing.T) {
+func TestRun_renderCommand(t *testing.T) {
 	// Act
-	result := Run{Command: "apt-get update"}.Render()
+	result := Run{Command: "apt-get update"}.renderCommand()
 
 	// Assert
 	assert.Equal(t, "RUN apt-get update", result)
 }
 
-func TestRun_blocks_noComment(t *testing.T) {
+func TestRun_renderLines(t *testing.T) {
+	// Act
+	result := Run{Lines: []string{"apt-get update", "&& apt-get install curl"}}.renderLines()
+
+	// Assert
+	assert.Equal(t, "RUN apt-get update \\\n  && apt-get install curl", result)
+}
+
+func TestRun_renderBlocks_noComment(t *testing.T) {
 	// Arrange
 	run := Run{Blocks: []Block{
 		{Lines: []string{"apt-get update"}},
@@ -23,13 +31,13 @@ func TestRun_blocks_noComment(t *testing.T) {
 	}}
 
 	// Act
-	result := run.Render()
+	result := run.renderBlocks()
 
 	// Assert
 	assert.Equal(t, "RUN apt-get update \\\n  && apt-get install curl \\\n  wget \\\n  && rm -rf /var/lib/apt/lists/*", result)
 }
 
-func TestRun_blocks_withComment(t *testing.T) {
+func TestRun_renderBlocks_withComment(t *testing.T) {
 	// Arrange
 	run := Run{Blocks: []Block{
 		{Comment: "Update package list", Lines: []string{"apt-get update"}},
@@ -37,16 +45,42 @@ func TestRun_blocks_withComment(t *testing.T) {
 	}}
 
 	// Act
-	result := run.Render()
+	result := run.renderBlocks()
 
 	// Assert
 	assert.Equal(t, "RUN \\\n  # Update package list\n  apt-get update \\\n  \\\n  # Install packages\n  && apt-get install curl", result)
 }
 
-func TestRun_multiLine(t *testing.T) {
-	// Act
-	result := Run{Lines: []string{"apt-get update", "&& apt-get install curl"}}.Render()
+func TestRun_render_dispatchesCorrectly(t *testing.T) {
+	tests := []struct {
+		name     string
+		run      Run
+		expected string
+	}{
+		{
+			name:     "dispatches to renderBlocks",
+			run:      Run{Blocks: []Block{{Lines: []string{"apt-get update"}}}},
+			expected: Run{Blocks: []Block{{Lines: []string{"apt-get update"}}}}.renderBlocks(),
+		},
+		{
+			name:     "dispatches to renderLines",
+			run:      Run{Lines: []string{"apt-get update"}},
+			expected: Run{Lines: []string{"apt-get update"}}.renderLines(),
+		},
+		{
+			name:     "dispatches to renderCommand",
+			run:      Run{Command: "apt-get update"},
+			expected: Run{Command: "apt-get update"}.renderCommand(),
+		},
+	}
 
-	// Assert
-	assert.Equal(t, "RUN apt-get update \\\n  && apt-get install curl", result)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Act
+			result := tt.run.Render()
+
+			// Assert
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

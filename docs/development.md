@@ -48,11 +48,8 @@ Changes to the CLI take effect immediately after `make build` - no container reb
 
    ```go
    "mytool": {
-       VersionCmd:  "mytool --version",
-       TmpfsMounts: mytoolTmpfsMounts,
-       Setup:       setupMytool,
-       Mounts:      mytoolMounts,
-       Stage:       mytoolStage,
+       Build:   BuildConfig{Stage: mytoolStage},
+       Runtime: RuntimeConfig{TmpfsMounts: mytoolTmpfsMounts, Setup: setupMytool, Mounts: mytoolMounts},
    },
    ```
 

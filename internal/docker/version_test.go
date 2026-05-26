@@ -55,6 +55,32 @@ func TestParseVersion_delegatesToExtractVersion(t *testing.T) {
 	assert.Equal(t, "3.7.0", result)
 }
 
+func TestRunVersionScript_returnsDetectedVersion(t *testing.T) {
+	// Arrange
+	orig := dockerRun
+	dockerRun = func(_ ...string) (string, error) { return "1.2.3\n", nil }
+	defer func() { dockerRun = orig }()
+
+	// Act
+	result := runVersionScript("agentic-claude", "agentic-version-claude")
+
+	// Assert
+	assert.Equal(t, "1.2.3", result)
+}
+
+func TestRunVersionScript_dockerRunError_returnsEmpty(t *testing.T) {
+	// Arrange
+	orig := dockerRun
+	dockerRun = func(_ ...string) (string, error) { return "", fmt.Errorf("not found") }
+	defer func() { dockerRun = orig }()
+
+	// Act
+	result := runVersionScript("agentic-claude", "agentic-version-claude")
+
+	// Assert
+	assert.Equal(t, "", result)
+}
+
 func TestCollectExtraVersions_emptyExtras_returnsEmptyMap(t *testing.T) {
 	// Arrange
 	calls := 0

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func stubUpdateTool(t *testing.T, fn func(tool, image, versionCmd string, opts tools.BuildOptions) error) func() {
+func stubUpdateTool(t *testing.T, fn func(tool, image string, opts tools.BuildOptions) error) func() {
 	t.Helper()
 	orig := updateTool
 	updateTool = fn
@@ -21,7 +21,7 @@ func stubUpdateTool(t *testing.T, fn func(tool, image, versionCmd string, opts t
 func TestDryRunUpdate_printsDockerfile_skipsScript(t *testing.T) {
 	// Arrange
 	var scriptCalled bool
-	restore := stubUpdateTool(t, func(_, _, _ string, _ tools.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error {
 		scriptCalled = true
 		return nil
 	})
@@ -51,7 +51,7 @@ func TestDryRunUpdate_withoutToolArg_returnsError(t *testing.T) {
 func TestUpdateTools_allBuilt_updatesAll(t *testing.T) {
 	// Arrange
 	var updated []string
-	restore := stubUpdateTool(t, func(tool, _, _ string, _ tools.BuildOptions) error {
+	restore := stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
 		updated = append(updated, tool)
 		return nil
 	})
@@ -71,7 +71,7 @@ func TestUpdateTools_allBuilt_updatesAll(t *testing.T) {
 func TestUpdateTools_allUnbuilt_skipsAll_printsMessage(t *testing.T) {
 	// Arrange
 	var updated []string
-	restore := stubUpdateTool(t, func(tool, _, _ string, _ tools.BuildOptions) error {
+	restore := stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
 		updated = append(updated, tool)
 		return nil
 	})
@@ -94,7 +94,7 @@ func TestUpdateTools_allUnbuilt_skipsAll_printsMessage(t *testing.T) {
 func TestUpdateTools_mixedBuilt_skipsUnbuilt(t *testing.T) {
 	// Arrange
 	var updated []string
-	restore := stubUpdateTool(t, func(tool, _, _ string, _ tools.BuildOptions) error {
+	restore := stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
 		updated = append(updated, tool)
 		return nil
 	})
@@ -125,7 +125,7 @@ func TestUpdateTools_mixedBuilt_skipsUnbuilt(t *testing.T) {
 func TestUpdateTools_singleTool_alwaysUpdates(t *testing.T) {
 	// Arrange
 	var updated []string
-	restore := stubUpdateTool(t, func(tool, _, _ string, _ tools.BuildOptions) error {
+	restore := stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
 		updated = append(updated, tool)
 		return nil
 	})
@@ -145,7 +145,7 @@ func TestUpdateTools_singleTool_alwaysUpdates(t *testing.T) {
 func TestUpdateTools_stopsOnFirstToolError(t *testing.T) {
 	// Arrange
 	var updated []string
-	restore := stubUpdateTool(t, func(tool, _, _ string, _ tools.BuildOptions) error {
+	restore := stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
 		updated = append(updated, tool)
 		return fmt.Errorf("fail on %s", tool)
 	})
@@ -165,7 +165,7 @@ func TestUpdateTools_stopsOnFirstToolError(t *testing.T) {
 // updateOneTool
 func TestUpdateOneTool_versionChanged_reported(t *testing.T) {
 	// Arrange
-	restore := stubUpdateTool(t, func(_, _, _ string, _ tools.BuildOptions) error { return nil })
+	restore := stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
 	defer restore()
 
 	callCount := 0
@@ -191,7 +191,7 @@ func TestUpdateOneTool_versionChanged_reported(t *testing.T) {
 
 func TestUpdateOneTool_versionUpToDate_reported(t *testing.T) {
 	// Arrange
-	restore := stubUpdateTool(t, func(_, _, _ string, _ tools.BuildOptions) error { return nil })
+	restore := stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
 	defer restore()
 
 	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
@@ -209,7 +209,7 @@ func TestUpdateOneTool_versionUpToDate_reported(t *testing.T) {
 
 func TestUpdateOneTool_scriptError_propagates(t *testing.T) {
 	// Arrange
-	restore := stubUpdateTool(t, func(_, _, _ string, _ tools.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error {
 		return fmt.Errorf("docker daemon not running")
 	})
 	defer restore()
@@ -229,7 +229,7 @@ func TestUpdateOneTool_scriptError_propagates(t *testing.T) {
 func TestRunUpdate_baseFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts tools.BuildOptions
-	restore := stubUpdateTool(t, func(_, _, _ string, opts tools.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -255,7 +255,7 @@ func TestRunUpdate_baseFlag_setsOpt(t *testing.T) {
 func TestRunUpdate_nodeFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts tools.BuildOptions
-	restore := stubUpdateTool(t, func(_, _, _ string, opts tools.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -281,7 +281,7 @@ func TestRunUpdate_nodeFlag_setsOpt(t *testing.T) {
 func TestRunUpdate_javaFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts tools.BuildOptions
-	restore := stubUpdateTool(t, func(_, _, _ string, opts tools.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -307,7 +307,7 @@ func TestRunUpdate_javaFlag_setsOpt(t *testing.T) {
 func TestRunUpdate_dotnetFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts tools.BuildOptions
-	restore := stubUpdateTool(t, func(_, _, _ string, opts tools.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -333,7 +333,7 @@ func TestRunUpdate_dotnetFlag_setsOpt(t *testing.T) {
 func TestRunUpdate_goFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts tools.BuildOptions
-	restore := stubUpdateTool(t, func(_, _, _ string, opts tools.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -359,7 +359,7 @@ func TestRunUpdate_goFlag_setsOpt(t *testing.T) {
 func TestRunUpdate_noCacheFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts tools.BuildOptions
-	restore := stubUpdateTool(t, func(_, _, _ string, opts tools.BuildOptions) error {
+	restore := stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
 		capturedOpts = opts
 		return nil
 	})
@@ -384,7 +384,7 @@ func TestRunUpdate_noCacheFlag_setsOpt(t *testing.T) {
 
 func TestRunUpdate_pruneMessage_shown_whenReclaimedNonZero(t *testing.T) {
 	// Arrange
-	restore := stubUpdateTool(t, func(_, _, _ string, _ tools.BuildOptions) error { return nil })
+	restore := stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
 	defer restore()
 
 	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)

@@ -62,6 +62,15 @@ func TestOpencodeStage_containsProjectLabel(t *testing.T) {
 	assert.Contains(t, result, "project=agentic-cli")
 }
 
+func TestOpencodeStage_containsVersionScript(t *testing.T) {
+	// Act
+	result := renderStage(opencodeStage("base"))
+
+	// Assert
+	assert.Contains(t, result, "agentic-version-opencode")
+	assert.Contains(t, result, "opencode --version")
+}
+
 // --- setupOpencode ---
 func TestSetupOpencode_createsSubDirs(t *testing.T) {
 	// Arrange

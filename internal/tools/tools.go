@@ -15,8 +15,7 @@ const Prefix = "agentic-"
 
 // BuildConfig holds the build-time configuration for a tool container.
 type BuildConfig struct {
-	Stage      func(prevStage string) dockerfile.Stage // returns the tool's Dockerfile stage
-	VersionCmd string                                  // shell command run inside the built image to detect the tool version
+	Stage func(prevStage string) dockerfile.Stage // returns the tool's Dockerfile stage
 }
 
 // RuntimeConfig holds the runtime configuration for a tool container.
@@ -48,15 +47,15 @@ func Names() []string {
 // Configs maps tool names to their container configuration.
 var Configs = map[string]ToolConfig{
 	"claude": {
-		Build:   BuildConfig{Stage: claudeStage, VersionCmd: "claude --version"},
+		Build:   BuildConfig{Stage: claudeStage},
 		Runtime: RuntimeConfig{TmpfsMounts: claudeTmpfsMounts, Setup: setupClaude, Mounts: claudeMounts},
 	},
 	"copilot": {
-		Build:   BuildConfig{Stage: copilotStage, VersionCmd: "copilot --version"},
+		Build:   BuildConfig{Stage: copilotStage},
 		Runtime: RuntimeConfig{TmpfsMounts: copilotTmpfsMounts, Setup: setupCopilot, Mounts: copilotMounts},
 	},
 	"opencode": {
-		Build:   BuildConfig{Stage: opencodeStage, VersionCmd: "opencode --version"},
+		Build:   BuildConfig{Stage: opencodeStage},
 		Runtime: RuntimeConfig{TmpfsMounts: opencodeTmpfsMounts, Setup: setupOpencode, Mounts: opencodeMounts},
 	},
 }

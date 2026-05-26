@@ -86,6 +86,5 @@ func buildOneTool(tool string, opts tools.BuildOptions) error {
 		return err
 	}
 
-	cfg := tools.Configs[tool]
-	return buildTool(tool, image, cfg.Build.VersionCmd, opts)
+	return buildTool(tool, image, opts)
 }

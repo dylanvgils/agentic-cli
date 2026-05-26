@@ -10,33 +10,23 @@ var versionRe = regexp.MustCompile(`[0-9]+(\.[0-9]+)*`)
 // stampImageLabels detects base and tool versions from the built image and applies
 // them as labels in a single docker build call. Runs best-effort: errors are
 // silently ignored since missing labels are non-fatal.
-func stampImageLabels(image, versionCmd string, extras []string) {
+func stampImageLabels(image, tool string, extras []string) {
 	args := []string{
 		"build",
 		label(LabelBase, collectBaseLabel(image, extras)),
 		arg("tag", image),
 	}
 
-	if versionCmd != "" {
-		if ver := detectToolVersion(image, versionCmd); ver != "" {
-			args = append(args, label(LabelToolVersion, ver))
-		}
+	if ver := runVersionScript(image, versionScript(tool)); ver != "" {
+		args = append(args, label(LabelToolVersion, ver))
 	}
 
 	args = append(args, "-")
 	_, _ = dockerRunStdin(strings.NewReader("FROM "+image+"\n"), args...)
 }
 
-func detectBaseVersion(image, script string) string {
+func runVersionScript(image, script string) string {
 	out, err := dockerRun("run", arg("rm"), arg("entrypoint", ""), image, script)
-	if err != nil {
-		return ""
-	}
-	return extractVersion(out)
-}
-
-func detectToolVersion(image, cmd string) string {
-	out, err := dockerRun("run", arg("rm"), arg("entrypoint", ""), image, "sh", "-c", cmd)
 	if err != nil {
 		return ""
 	}
@@ -49,7 +39,7 @@ func detectToolVersion(image, cmd string) string {
 func collectExtraVersions(image string, extras []string) map[string]string {
 	versions := make(map[string]string)
 	for _, extra := range extras {
-		versions[extra] = detectBaseVersion(image, versionScript(extra))
+		versions[extra] = runVersionScript(image, versionScript(extra))
 	}
 	return versions
 }
@@ -57,7 +47,7 @@ func collectExtraVersions(image string, extras []string) map[string]string {
 // collectBaseLabel detects the node version and all extra-layer versions from
 // the image and assembles the agentic.base label value.
 func collectBaseLabel(image string, extras []string) string {
-	nodeVer := detectBaseVersion(image, versionScript("node"))
+	nodeVer := runVersionScript(image, versionScript("node"))
 	extraVersions := collectExtraVersions(image, extras)
 	return buildBaseLabel(nodeVer, extras, extraVersions)
 }

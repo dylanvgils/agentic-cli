@@ -62,7 +62,7 @@ func javaStage(prevStage, ver string) df.Stage {
 
 	return df.NewStage(df.From{Image: prevStage, As: "java"}).
 		Add(versionArg).
-		Add(df.Shell{Form: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
 		Add(df.Run{Blocks: []df.Block{
 			{
 				Comment: "Add Adoptium GPG key",
@@ -133,7 +133,7 @@ func goStage(prevStage, ver string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "go"}).
 		Add(versionArg).
 		Add(df.Arg{Key: "TARGETARCH"}).
-		Add(df.Shell{Form: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
 		Add(df.Run{Blocks: []df.Block{
 			{
 				Comment: "Map Docker arch to Go arch",

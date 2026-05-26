@@ -77,6 +77,45 @@ func TestLocate_capturesSource(t *testing.T) {
 	assert.IsType(t, Env{}, located.Inst)
 }
 
+func TestTrimPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "internal segment",
+			input:    "/home/user/project/internal/tools/bases.go",
+			expected: "internal/tools/bases.go",
+		},
+		{
+			name:     "cmd segment",
+			input:    "/home/user/project/cmd/build.go",
+			expected: "cmd/build.go",
+		},
+		{
+			name:     "fallback to last two segments",
+			input:    "/home/user/project/pkg/foo.go",
+			expected: "pkg/foo.go",
+		},
+		{
+			name:     "single segment fallback",
+			input:    "foo.go",
+			expected: "foo.go",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Act
+			result := trimPath(tt.input)
+
+			// Assert
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestC_setsCommentField(t *testing.T) {
 	// Act
 	located := C("host user ID for container user mapping", Arg{Key: "HOST_UID", Default: "1000"})

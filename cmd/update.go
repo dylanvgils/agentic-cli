@@ -116,8 +116,7 @@ func updateOneTool(name string, opts tools.BuildOptions) error {
 
 	before := imageVersion(image)
 
-	cfg := tools.Configs[name]
-	if err := updateTool(name, image, cfg.Build.VersionCmd, opts); err != nil {
+	if err := updateTool(name, image, opts); err != nil {
 		return err
 	}
 

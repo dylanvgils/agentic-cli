@@ -56,7 +56,7 @@ func TestUpdateTool_recoversBuildFromLabel(t *testing.T) {
 	defer restoreInteractive()
 
 	// Act
-	err := UpdateTool("claude", "agentic-claude", "", tools.BuildOptions{})
+	err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestUpdateTool_respectsExistingBaseOverride(t *testing.T) {
 	defer restoreInteractive()
 
 	// Act
-	err := UpdateTool("claude", "agentic-claude", "", tools.BuildOptions{BaseOverride: "java"})
+	err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{BaseOverride: "java"})
 
 	// Assert
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestUpdateTool_alwaysSetsNoCacheFilter(t *testing.T) {
 	defer restoreInteractive()
 
 	// Act — pass NoCache:false to confirm NoCacheTool alone triggers --no-cache-filter on the tool stage
-	err := UpdateTool("claude", "agentic-claude", "", tools.BuildOptions{})
+	err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)

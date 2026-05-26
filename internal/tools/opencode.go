@@ -27,7 +27,7 @@ func opencodeMounts() []string {
 
 func opencodeStage(prevStage string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
-		Add(df.Shell{Form: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
 		Add(df.Arg{Key: "HOST_UID", Default: "1000"}).
 		Add(df.Arg{Key: "HOST_GID", Default: "1000"}).
 		Add(df.Label{Key: "project", Value: "agentic-cli"}).
@@ -53,6 +53,10 @@ func opencodeStage(prevStage string) df.Stage {
 			{Lines: []string{"mv /root/.opencode/bin/opencode /usr/local/bin/opencode"}},
 			{Lines: []string{"rm -rf /root/.opencode"}},
 		}}).
+		Add(df.Heredoc{
+			Dest:  "/usr/local/bin/" + versionScript("opencode"),
+			Lines: []string{"#!/bin/sh", "opencode --version"},
+		}).
 		Add(df.User{Name: "opencode"}).
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/opencode"}).
 		Add(df.Workdir{Path: "/workspace"}).

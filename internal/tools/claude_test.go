@@ -109,6 +109,15 @@ func TestClaudeStage_containsProjectLabel(t *testing.T) {
 	assert.Contains(t, result, "project=agentic-cli")
 }
 
+func TestClaudeStage_containsVersionScript(t *testing.T) {
+	// Act
+	result := renderStage(claudeStage("base"))
+
+	// Assert
+	assert.Contains(t, result, "agentic-version-claude")
+	assert.Contains(t, result, "claude --version")
+}
+
 func TestSetupClaude_doesNotOverwriteExistingJSON(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()

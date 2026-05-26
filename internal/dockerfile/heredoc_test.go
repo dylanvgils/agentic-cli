@@ -14,7 +14,7 @@ func TestHeredoc_render(t *testing.T) {
 	}.Render()
 
 	// Assert
-	assert.Equal(t, "COPY <<'EOF' /usr/local/bin/version.sh\n#!/bin/sh\nnode --version\nEOF\nRUN chmod +x /usr/local/bin/version.sh", result)
+	assert.Equal(t, "COPY --chmod=0755 <<'EOF' /usr/local/bin/version.sh\n#!/bin/sh\nnode --version\nEOF", result)
 }
 
 func TestHeredoc_singleQuotesPreservedLiterally(t *testing.T) {

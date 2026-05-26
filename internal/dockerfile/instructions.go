@@ -25,7 +25,7 @@ type Env struct {
 
 // Shell is a SHELL directive.
 type Shell struct {
-	Form []string
+	Cmd []string
 }
 
 // User is a USER directive.
@@ -68,8 +68,8 @@ func (e Env) Render() string {
 }
 
 func (s Shell) Render() string {
-	quoted := make([]string, len(s.Form))
-	for i, f := range s.Form {
+	quoted := make([]string, len(s.Cmd))
+	for i, f := range s.Cmd {
 		quoted[i] = `"` + f + `"`
 	}
 	return "SHELL [" + strings.Join(quoted, ", ") + "]"

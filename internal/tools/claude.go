@@ -24,7 +24,7 @@ func claudeMounts() []string {
 
 func claudeStage(prevStage string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
-		Add(df.Shell{Form: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
 		Add(df.Arg{Key: "HOST_UID", Default: "1000"}).
 		Add(df.Arg{Key: "HOST_GID", Default: "1000"}).
 		Add(df.Label{Key: "project", Value: "agentic-cli"}).
@@ -51,6 +51,10 @@ func claudeStage(prevStage string) df.Stage {
 			{Lines: []string{"curl -fsSL https://claude.ai/install.sh | bash"}},
 			{Lines: []string{`mkdir -p "/home/claude/.claude"`}},
 		}}).
+		Add(df.Heredoc{
+			Dest:  "/usr/local/bin/" + versionScript("claude"),
+			Lines: []string{"#!/bin/sh", "claude --version"},
+		}).
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/claude"}).
 		Add(df.Workdir{Path: "/workspace"}).
 		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
