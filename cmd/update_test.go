@@ -47,6 +47,39 @@ func TestDryRunUpdate_withoutToolArg_returnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "--dry-run requires a tool argument")
 }
 
+func TestDryRunUpdate_recoversBaseFromImageLabel(t *testing.T) {
+	// Arrange
+	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Base: "node@24.0.0,java@21.0.1"}, nil)
+	defer restoreInspect()
+
+	// Act
+	out := captureStdout(t, func() {
+		err := dryRunUpdate([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
+		require.NoError(t, err)
+	})
+
+	// Assert
+	assert.Contains(t, out, "temurin")
+}
+
+func TestDryRunUpdate_explicitBaseFlag_takesPrecdence(t *testing.T) {
+	// Arrange
+	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Base: "node@24.0.0,go@1.22"}, nil)
+	defer restoreInspect()
+
+	opts := tools.BuildOptions{BaseOverride: "java", Versions: map[string]string{}}
+
+	// Act
+	out := captureStdout(t, func() {
+		err := dryRunUpdate([]string{"claude"}, opts)
+		require.NoError(t, err)
+	})
+
+	// Assert
+	assert.Contains(t, out, "temurin")
+	assert.NotContains(t, out, "go.dev")
+}
+
 // updateTools
 func TestUpdateTools_allBuilt_updatesAll(t *testing.T) {
 	// Arrange
@@ -226,136 +259,6 @@ func TestUpdateOneTool_scriptError_propagates(t *testing.T) {
 }
 
 // runUpdate
-func TestRunUpdate_baseFlag_setsOpt(t *testing.T) {
-	// Arrange
-	var capturedOpts tools.BuildOptions
-	restore := stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
-		capturedOpts = opts
-		return nil
-	})
-	defer restore()
-
-	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-	defer restoreInspect()
-
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
-	require.NoError(t, updateCmd.Flags().Set("base", "java"))
-	defer updateCmd.Flags().Set("base", "") //nolint:errcheck
-
-	// Act
-	err := runUpdate(updateCmd, []string{"claude"})
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "java", capturedOpts.BaseOverride)
-}
-
-func TestRunUpdate_nodeFlag_setsOpt(t *testing.T) {
-	// Arrange
-	var capturedOpts tools.BuildOptions
-	restore := stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
-		capturedOpts = opts
-		return nil
-	})
-	defer restore()
-
-	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-	defer restoreInspect()
-
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
-	require.NoError(t, updateCmd.Flags().Set("node", "22"))
-	defer updateCmd.Flags().Set("node", "") //nolint:errcheck
-
-	// Act
-	err := runUpdate(updateCmd, []string{"claude"})
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "22", capturedOpts.NodeVersion)
-}
-
-func TestRunUpdate_javaFlag_setsOpt(t *testing.T) {
-	// Arrange
-	var capturedOpts tools.BuildOptions
-	restore := stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
-		capturedOpts = opts
-		return nil
-	})
-	defer restore()
-
-	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-	defer restoreInspect()
-
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
-	require.NoError(t, updateCmd.Flags().Set("java", "21"))
-	defer updateCmd.Flags().Set("java", "") //nolint:errcheck
-
-	// Act
-	err := runUpdate(updateCmd, []string{"claude"})
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "21", capturedOpts.Versions["java"])
-}
-
-func TestRunUpdate_dotnetFlag_setsOpt(t *testing.T) {
-	// Arrange
-	var capturedOpts tools.BuildOptions
-	restore := stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
-		capturedOpts = opts
-		return nil
-	})
-	defer restore()
-
-	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-	defer restoreInspect()
-
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
-	require.NoError(t, updateCmd.Flags().Set("dotnet", "10"))
-	defer updateCmd.Flags().Set("dotnet", "") //nolint:errcheck
-
-	// Act
-	err := runUpdate(updateCmd, []string{"claude"})
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "10", capturedOpts.Versions["dotnet"])
-}
-
-func TestRunUpdate_goFlag_setsOpt(t *testing.T) {
-	// Arrange
-	var capturedOpts tools.BuildOptions
-	restore := stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
-		capturedOpts = opts
-		return nil
-	})
-	defer restore()
-
-	restoreInspect := stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-	defer restoreInspect()
-
-	restorePrune := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restorePrune()
-
-	require.NoError(t, updateCmd.Flags().Set("go", "1.23"))
-	defer updateCmd.Flags().Set("go", "") //nolint:errcheck
-
-	// Act
-	err := runUpdate(updateCmd, []string{"claude"})
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "1.23", capturedOpts.Versions["go"])
-}
-
 func TestRunUpdate_noCacheFlag_setsOpt(t *testing.T) {
 	// Arrange
 	var capturedOpts tools.BuildOptions

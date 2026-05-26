@@ -10,7 +10,7 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 	if opts.BaseOverride == "" {
 		info, err := InspectImage(image)
 		if err == nil && info != nil && info.Base != "" {
-			opts.BaseOverride = recoverExtras(info.Base)
+			opts.BaseOverride = RecoverExtras(info.Base)
 		}
 	}
 

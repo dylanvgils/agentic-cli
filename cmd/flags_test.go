@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,6 +17,57 @@ func newFlagCmd(t *testing.T, flags ...string) *cobra.Command {
 		cmd.Flags().String(f, "", "")
 	}
 	return cmd
+}
+
+// --- addBuildFlags ---
+
+func TestAddBuildFlags_registersAllFlags(t *testing.T) {
+	// Arrange
+	cmd := &cobra.Command{Use: "test"}
+
+	// Act
+	addBuildFlags(cmd)
+
+	// Assert
+	for _, name := range []string{"base", "node", "java", "dotnet", "go", "dry-run"} {
+		assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
+	}
+}
+
+func TestAddBuildFlags_versionFlagUsage_reflectsDefaultVersions(t *testing.T) {
+	// Arrange
+	cmd := &cobra.Command{Use: "test"}
+	addBuildFlags(cmd)
+
+	cases := []struct {
+		flag    string
+		version string
+	}{
+		{"node", tools.DefaultVersions.Node},
+		{"java", tools.DefaultVersions.Java},
+		{"dotnet", tools.DefaultVersions.Dotnet},
+		{"go", tools.DefaultVersions.Go},
+	}
+
+	// Assert
+	for _, tc := range cases {
+		f := cmd.Flags().Lookup(tc.flag)
+		require.NotNil(t, f, "flag --%s not registered", tc.flag)
+		assert.Contains(t, f.Usage, tc.version, "flag --%s usage should mention version %s", tc.flag, tc.version)
+	}
+}
+
+func TestAddBuildFlags_dryRunFlag_defaultsFalse(t *testing.T) {
+	// Arrange
+	cmd := &cobra.Command{Use: "test"}
+
+	// Act
+	addBuildFlags(cmd)
+
+	// Assert
+	f := cmd.Flags().Lookup("dry-run")
+	require.NotNil(t, f)
+	assert.Equal(t, "false", f.DefValue)
 }
 
 // --- flagOrEnv ---
