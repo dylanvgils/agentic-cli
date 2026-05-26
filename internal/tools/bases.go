@@ -172,6 +172,3 @@ func goStage(prevStage, ver string) df.Stage {
 		Build()
 }
 
-func versionScript(lang string) string {
-	return Prefix + "version-" + lang
-}

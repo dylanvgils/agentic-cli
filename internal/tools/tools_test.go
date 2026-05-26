@@ -43,3 +43,11 @@ func TestImageName_unknownTool_returnsError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bogus")
 }
+
+func TestVersionScript_returnsAgenticPrefixedName(t *testing.T) {
+	// Act
+	result := versionScript("node")
+
+	// Assert
+	assert.Equal(t, "agentic-version-node", result)
+}

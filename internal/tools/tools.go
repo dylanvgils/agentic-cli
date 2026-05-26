@@ -13,6 +13,11 @@ import (
 // Prefix is the shared prefix for all agentic Docker image names.
 const Prefix = "agentic-"
 
+// versionScript returns the filename for a language's version-check helper script.
+func versionScript(lang string) string {
+	return Prefix + "version-" + lang
+}
+
 // BuildConfig holds the build-time configuration for a tool container.
 type BuildConfig struct {
 	Stage func(prevStage string) dockerfile.Stage // returns the tool's Dockerfile stage
