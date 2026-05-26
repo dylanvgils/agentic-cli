@@ -93,18 +93,18 @@ func TestParseExtras_single(t *testing.T) {
 
 func TestParseExtras_multiple(t *testing.T) {
 	// Act
-	result := ParseExtras("java,dotnet")
+	result := ParseExtras("dotnet,java")
 
 	// Assert
-	assert.Equal(t, []string{"java", "dotnet"}, result)
+	assert.Equal(t, []string{"dotnet", "java"}, result)
 }
 
 func TestParseExtras_whitespace(t *testing.T) {
 	// Act
-	result := ParseExtras(" java , dotnet ")
+	result := ParseExtras(" dotnet , java ")
 
 	// Assert
-	assert.Equal(t, []string{"java", "dotnet"}, result)
+	assert.Equal(t, []string{"dotnet", "java"}, result)
 }
 
 func TestParseExtras_empty(t *testing.T) {
@@ -117,8 +117,41 @@ func TestParseExtras_empty(t *testing.T) {
 
 func TestParseExtras_emptySegments(t *testing.T) {
 	// Act
-	result := ParseExtras(",java,,dotnet,")
+	result := ParseExtras(",dotnet,,java,")
 
 	// Assert
-	assert.Equal(t, []string{"java", "dotnet"}, result)
+	assert.Equal(t, []string{"dotnet", "java"}, result)
+}
+
+func TestSortByKnownExtras_sortsIntoKnownExtrasOrder(t *testing.T) {
+	// Arrange
+	input := []string{"java", "go", "dotnet"}
+
+	// Act
+	result := sortByKnownExtras(input)
+
+	// Assert
+	assert.Equal(t, []string{"dotnet", "go", "java"}, result)
+}
+
+func TestSortByKnownExtras_reverseInputProducesSameResult(t *testing.T) {
+	// Arrange
+	forward := sortByKnownExtras([]string{"dotnet", "java"})
+
+	// Act
+	reversed := sortByKnownExtras([]string{"java", "dotnet"})
+
+	// Assert
+	assert.Equal(t, forward, reversed)
+}
+
+func TestSortByKnownExtras_doesNotMutateInput(t *testing.T) {
+	// Arrange
+	input := []string{"java", "dotnet"}
+
+	// Act
+	_ = sortByKnownExtras(input)
+
+	// Assert
+	assert.Equal(t, []string{"java", "dotnet"}, input)
 }

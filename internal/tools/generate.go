@@ -1,7 +1,9 @@
 package tools
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
@@ -73,7 +75,9 @@ func resolveToolStage(tool, prevStage string) (dockerfile.Stage, error) {
 	return cfg.Build.Stage(prevStage), nil
 }
 
-// ParseExtras splits a comma-separated base override string into individual extra names.
+// ParseExtras splits a comma-separated base override string into individual extra names,
+// returned in canonical KnownExtras order so the generated Dockerfile is deterministic
+// and Docker layer caching is not invalidated by flag reordering.
 func ParseExtras(base string) []string {
 	var extras []string
 	for extra := range strings.SplitSeq(base, ",") {
@@ -81,5 +85,15 @@ func ParseExtras(base string) []string {
 			extras = append(extras, extra)
 		}
 	}
-	return extras
+
+	return sortByKnownExtras(extras)
+}
+
+// sortByKnownExtras returns a copy of extras sorted by their position in KnownExtras.
+func sortByKnownExtras(extras []string) []string {
+	sorted := slices.Clone(extras)
+	slices.SortFunc(sorted, func(a, b string) int {
+		return cmp.Compare(slices.Index(KnownExtras, a), slices.Index(KnownExtras, b))
+	})
+	return sorted
 }
