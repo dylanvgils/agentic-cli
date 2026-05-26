@@ -1,7 +1,12 @@
 // Package dockerfile provides types for generating Dockerfile content programmatically.
 package dockerfile
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
+
+const dividerWidth = 30
 
 // Instruction renders a single Dockerfile directive.
 type Instruction interface {
@@ -21,28 +26,29 @@ type File struct {
 	Stages []Stage
 }
 
-const dividerWidth = 30
-
 // Render returns the complete Dockerfile content as a string.
 func (f File) Render() string {
 	divider := strings.Repeat("#", dividerWidth)
+
 	var sb strings.Builder
 	for i, stage := range f.Stages {
 		if i > 0 {
 			sb.WriteByte('\n')
 		}
-		sb.WriteString(divider + "\n# " + stage.From.As + "\n" + divider + "\n")
-		for _, a := range stage.GlobalArgs {
-			sb.WriteString(a.Render())
-			sb.WriteByte('\n')
+
+		fmt.Fprintln(&sb, divider)
+		fmt.Fprintf(&sb, "# %s\n", stage.From.As)
+		fmt.Fprintln(&sb, divider)
+		for _, arg := range stage.GlobalArgs {
+			fmt.Fprintln(&sb, arg.Render())
 		}
-		sb.WriteString(stage.From.Render())
-		sb.WriteByte('\n')
+
+		fmt.Fprintln(&sb, stage.From.Render())
 		for _, inst := range stage.Instructions {
 			sb.WriteByte('\n')
-			sb.WriteString(inst.Render())
-			sb.WriteByte('\n')
+			fmt.Fprintln(&sb, inst.Render())
 		}
 	}
+
 	return sb.String()
 }
