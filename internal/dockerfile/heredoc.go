@@ -1,6 +1,9 @@
 package dockerfile
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // Heredoc writes a multi-line script to Dest using a BuildKit COPY heredoc and marks it executable.
 type Heredoc struct {
@@ -10,10 +13,11 @@ type Heredoc struct {
 
 func (h Heredoc) Render() string {
 	var sb strings.Builder
-	sb.WriteString("COPY <<'EOF' " + h.Dest + "\n")
+	fmt.Fprintf(&sb, "COPY <<'EOF' %s\n", h.Dest)
 	for _, line := range h.Lines {
-		sb.WriteString(line + "\n")
+		fmt.Fprintln(&sb, line)
 	}
-	sb.WriteString("EOF\nRUN chmod +x " + h.Dest)
+	fmt.Fprintln(&sb, "EOF")
+	fmt.Fprintf(&sb, "RUN chmod +x %s", h.Dest)
 	return sb.String()
 }
