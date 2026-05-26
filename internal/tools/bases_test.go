@@ -8,8 +8,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- NodeStage ---
+// --- AptBasePackages ---
+func TestAptBasePackages_containsExpectedDefaults(t *testing.T) {
+	// Assert
+	assert.Contains(t, AptBasePackages, "curl")
+	assert.Contains(t, AptBasePackages, "wget")
+	assert.Contains(t, AptBasePackages, "jq")
+	assert.Contains(t, AptBasePackages, "git")
+	assert.Contains(t, AptBasePackages, "gpg")
+	assert.Contains(t, AptBasePackages, "ca-certificates")
+	assert.Contains(t, AptBasePackages, "apt-transport-https")
+}
 
+// --- NodeStage ---
 func TestNodeStage_fromUsesNodeImage(t *testing.T) {
 	// Act
 	stage := NodeStage("")
@@ -45,8 +56,17 @@ func TestNodeStage_rendersVersionScript(t *testing.T) {
 	assert.True(t, strings.Contains(result, "agentic-version-node"), "expected version script in node stage")
 }
 
-// --- ExtraStage ---
+func TestNodeStage_rendersAptBasePackages(t *testing.T) {
+	// Act
+	result := renderStage(NodeStage(""))
 
+	// Assert
+	for _, pkg := range AptBasePackages {
+		assert.Contains(t, result, pkg, "expected base package %q in node stage", pkg)
+	}
+}
+
+// --- ExtraStage ---
 func TestExtraStage_unknownReturnsError(t *testing.T) {
 	// Act
 	_, err := ExtraStage("ruby", "base", "")

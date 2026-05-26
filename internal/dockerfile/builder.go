@@ -23,27 +23,34 @@ func (b *StageBuilder) AddGlobalArg(arg Arg) *StageBuilder {
 	return b
 }
 
-// Add appends inst to the stage, tagging it with the Go source location of the call site.
-// To attach a human-readable comment, wrap inst with C() before passing it here.
-func (b *StageBuilder) Add(inst Instruction) *StageBuilder {
+// Add appends one or more instructions to the stage, tagging each with the Go source location
+// of the call site. To attach a human-readable comment, wrap an instruction with C() before
+// passing it here.
+func (b *StageBuilder) Add(insts ...Instruction) *StageBuilder {
 	_, file, line, ok := runtime.Caller(1)
 	source := ""
 	if ok {
 		source = fmt.Sprintf("%s:%d", trimPath(file), line)
 	}
 
-	if located, isLocated := inst.(Located); isLocated {
-		// Already a Located (e.g. from C()), fill in Source without double-wrapping.
-		located.Source = source
-		b.instructions = append(b.instructions, located)
-	} else if source != "" {
-		// Plain instruction, wrap it with the captured source location.
-		b.instructions = append(b.instructions, Located{Source: source, Inst: inst})
-	} else {
-		// runtime.Caller failed; append unwrapped rather than emit an empty comment.
-		b.instructions = append(b.instructions, inst)
+	for _, inst := range insts {
+		b.instructions = append(b.instructions, withSource(source, inst))
 	}
 	return b
+}
+
+// withSource tags inst with source, returning a Located wrapper.
+// If inst is already a Located (e.g. from C()), only the Source field is set — no double-wrapping.
+// If source is empty (runtime.Caller failed), inst is returned unwrapped.
+func withSource(source string, inst Instruction) Instruction {
+	if located, isLocated := inst.(Located); isLocated {
+		located.Source = source
+		return located
+	}
+	if source != "" {
+		return Located{Source: source, Inst: inst}
+	}
+	return inst
 }
 
 // Build returns the completed Stage.

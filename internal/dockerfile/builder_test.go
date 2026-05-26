@@ -84,6 +84,55 @@ func TestStageBuilder_addComment_renderedInDockerfile(t *testing.T) {
 	assert.Contains(t, result, "ARG HOST_UID=1000")
 }
 
+func TestStageBuilder_addMultiple_appendsAllInOrder(t *testing.T) {
+	// Act
+	stage := NewStage(From{Image: "base", As: "tool"}).
+		Add(Arg{Key: "HOST_UID", Default: "1000"}, Arg{Key: "HOST_GID", Default: "1000"}).
+		Build()
+
+	// Assert
+	assert.Len(t, stage.Instructions, 2)
+	assert.Equal(t, Arg{Key: "HOST_UID", Default: "1000"}, stage.Instructions[0].(Located).Inst)
+	assert.Equal(t, Arg{Key: "HOST_GID", Default: "1000"}, stage.Instructions[1].(Located).Inst)
+}
+
+func TestWithSource_plainInstruction_wrapsWithSource(t *testing.T) {
+	// Arrange
+	inst := Env{Key: "FOO", Value: "bar"}
+
+	// Act
+	result := withSource("tools/bases.go:42", inst)
+
+	// Assert
+	located, ok := result.(Located)
+	assert.True(t, ok)
+	assert.Equal(t, "tools/bases.go:42", located.Source)
+	assert.Equal(t, inst, located.Inst)
+}
+
+func TestWithSource_alreadyLocated_fillsSourceWithoutDoubleWrap(t *testing.T) {
+	// Arrange
+	inst := C("a comment", Env{Key: "FOO", Value: "bar"})
+
+	// Act
+	result := withSource("tools/bases.go:42", inst)
+
+	// Assert
+	located, ok := result.(Located)
+	assert.True(t, ok)
+	assert.Equal(t, "tools/bases.go:42", located.Source)
+	assert.Equal(t, "a comment", located.Comment)
+	assert.IsType(t, Env{}, located.Inst)
+}
+
+func TestWithSource_emptySource_returnsUnwrapped(t *testing.T) {
+	// Arrange
+	inst := Env{Key: "FOO", Value: "bar"}
+
+	// Act + Assert
+	assert.Equal(t, inst, withSource("", inst))
+}
+
 func TestStageBuilder_addGlobalArg(t *testing.T) {
 	// Act
 	stage := NewStage(From{Image: "node:${NODE_VERSION}-slim", As: "base"}).

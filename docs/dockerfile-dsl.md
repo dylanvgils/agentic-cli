@@ -123,7 +123,22 @@ type File struct {
 
 ## Builder API
 
-`StageBuilder` is the fluent interface for constructing a `Stage`. Every `Add()` call wraps the instruction in `Located` with the calling Go source location automatically:
+`StageBuilder` is the fluent interface for constructing a `Stage`. Every `Add()` call wraps the instruction(s) in `Located` with the calling Go source location automatically.
+
+`Add()` is variadic — pass one instruction or several in a single call:
+
+```go
+// Single instruction
+Add(df.Env{Key: "DEBIAN_FRONTEND", Value: "noninteractive"})
+
+// Multiple instructions in one call (share the same source location)
+Add(df.Arg{Key: "HOST_UID", Default: "1000"}, df.Arg{Key: "HOST_GID", Default: "1000"})
+
+// Spread a slice returned by a helper
+Add(CreateContainerUser("claude")...)
+```
+
+Full example:
 
 ```go
 stage := df.NewStage(df.From{Image: "node:${NODE_VERSION}-bookworm-slim", As: "base"}).

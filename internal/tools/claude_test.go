@@ -3,7 +3,6 @@ package tools
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
@@ -75,13 +74,13 @@ func TestClaudeStage_fromPrevStage(t *testing.T) {
 	assert.Equal(t, "tool", stage.From.As)
 }
 
-func TestClaudeStage_containsUserSetup(t *testing.T) {
+func TestClaudeStage_containsContainerUser(t *testing.T) {
 	// Act
 	result := renderStage(claudeStage("base"))
 
 	// Assert
-	assert.True(t, strings.Contains(result, "claude"), "expected claude user in stage")
-	assert.True(t, strings.Contains(result, "HOST_UID"), "expected HOST_UID arg in stage")
+	assert.Contains(t, result, "groupadd -g ${HOST_GID} --non-unique claude")
+	assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique claude")
 }
 
 func TestClaudeStage_containsEntrypoint(t *testing.T) {

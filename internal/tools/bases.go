@@ -10,6 +10,11 @@ import (
 // KnownExtras lists the supported extra base layers in alphabetical order.
 var KnownExtras = []string{"dotnet", "go", "java"}
 
+// AptBasePackages are the apt packages installed in every node base image.
+var AptBasePackages = []string{
+	"curl", "wget", "jq", "git", "gpg", "ca-certificates", "apt-transport-https",
+}
+
 // NodeStage returns the foundational node/debian base stage.
 // ver is the NODE_VERSION build arg default; empty string uses the Dockerfile default of 24.
 func NodeStage(ver string) df.Stage {
@@ -25,16 +30,7 @@ func NodeStage(ver string) df.Stage {
 			Dest:  "/usr/local/bin/" + versionScript("node"),
 			Lines: []string{"#!/bin/sh", "node --version"},
 		}).
-		Add(df.Run{Blocks: []df.Block{
-			{Lines: []string{"apt-get update -yq"}},
-			{
-				Lines: []string{
-					"apt-get install -yq --no-install-recommends",
-					"curl", "wget", "jq", "git", "gpg", "ca-certificates", "apt-transport-https",
-				},
-			},
-			{Lines: []string{"rm -rf /var/lib/apt/lists/*"}},
-		}}).
+		Add(AptInstallRun(AptBasePackages)).
 		Build()
 }
 
