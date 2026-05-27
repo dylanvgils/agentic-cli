@@ -11,6 +11,7 @@ import (
 )
 
 var (
+	checkDockerDaemon  = docker.CheckDaemon
 	buildTool          = docker.BuildTool
 	updateTool         = docker.UpdateTool
 	runContainer       = docker.RunContainer
@@ -31,13 +32,11 @@ var rootCmd = &cobra.Command{
 	Short: "Run agentic coding tools in isolated containers",
 	Long: `Agentic runs AI coding tools (Claude Code, Copilot, OpenCode) in
 isolated Docker containers with read-only filesystems and dropped capabilities.`,
-	Version:      buildVersion(),
-	SilenceUsage: true,
-	RunE:         rootRun,
-}
-
-func rootRun(cmd *cobra.Command, _ []string) error {
-	return cmd.Help()
+	Version:           buildVersion(),
+	SilenceUsage:      true,
+	SilenceErrors:     true,
+	RunE:              rootRun,
+	PersistentPreRunE: checkDocker,
 }
 
 // Execute the Agentic CLI
@@ -46,4 +45,25 @@ func Execute() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// checkDocker is the PersistentPreRunE hook that verifies the Docker daemon is
+// reachable before any subcommand that needs it runs.
+func checkDocker(cmd *cobra.Command, _ []string) error {
+	// Bare `agentic` (no subcommand) just shows help — no Docker needed.
+	if cmd.Parent() == nil {
+		return nil
+	}
+
+	// Shell completion generation and `aliases` do not need a running daemon.
+	// (`aliases` calls inspectImage which returns nil,nil on failure — already graceful.)
+	if name := cmd.Name(); name == "completion" || name == "aliases" {
+		return nil
+	}
+
+	return checkDockerDaemon()
+}
+
+func rootRun(cmd *cobra.Command, _ []string) error {
+	return cmd.Help()
 }

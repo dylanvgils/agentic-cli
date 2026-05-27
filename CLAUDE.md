@@ -34,6 +34,18 @@ Add a new case to `extraStage()` in `internal/docker/bases.go` (follow the `java
 
 - Use blank lines between logical blocks within a function to aid readability (e.g. between groups of related `if` statements, between `switch` case groups)
 
+### File structure
+
+Within each `.go` file, order elements as follows:
+
+1. Package declaration
+2. Import block - two groups separated by a blank line: stdlib, then everything else (alphabetical within each group)
+3. Constants (`const` blocks)
+4. Package-level variables (`var` blocks)
+5. Type declarations (structs, interfaces) - ordered by dependency/importance
+6. Constructors and methods - grouped with their type; constructor first, then exported methods, then unexported methods
+7. Standalone functions - exported functions first, then unexported helpers
+
 ### Go tests
 
 - Always add tests for new code

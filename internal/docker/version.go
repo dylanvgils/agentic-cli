@@ -7,6 +7,12 @@ import (
 
 var versionRe = regexp.MustCompile(`[0-9]+(\.[0-9]+)*`)
 
+// ParseVersion extracts the first semver-like token from a string.
+// Used by cmd/update to normalize version labels for comparison.
+func ParseVersion(s string) string {
+	return versionRe.FindString(s)
+}
+
 // stampImageLabels detects base and tool versions from the built image and applies
 // them as labels in a single docker build call. Runs best-effort: errors are
 // silently ignored since missing labels are non-fatal.
@@ -56,10 +62,4 @@ func extractVersion(out string) string {
 	line := strings.SplitN(out, "\n", 2)[0]
 	line = strings.TrimRight(line, "\r")
 	return versionRe.FindString(line)
-}
-
-// ParseVersion extracts the first semver-like token from a string.
-// Used by cmd/update to normalize version labels for comparison.
-func ParseVersion(s string) string {
-	return versionRe.FindString(s)
 }

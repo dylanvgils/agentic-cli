@@ -30,6 +30,31 @@ make docker-dist    # same via Docker (no local Go needed)
 
 Changes to the CLI take effect immediately after `make build` - no container rebuild needed. Changes to stage funcs in `internal/tools/` or `internal/docker/` require an `agentic build` to rebuild the affected image.
 
+## Go conventions
+
+### File structure
+
+Within each `.go` file, order elements as follows:
+
+1. Package declaration
+2. Import block - two groups separated by a blank line: stdlib, then everything else (alphabetical within each group)
+3. Constants (`const` blocks)
+4. Package-level variables (`var` blocks)
+5. Type declarations (structs, interfaces) - ordered by dependency/importance
+6. Constructors and methods - grouped with their type; constructor first, then exported methods, then unexported methods
+7. Standalone functions - exported functions first, then unexported helpers
+
+### Style
+
+- Use blank lines between logical blocks within a function to aid readability (e.g. between groups of related `if` statements, between `switch` case groups)
+
+### Tests
+
+- Use Arrange-Act-Assert (AAA) with `// Arrange`, `// Act`, `// Assert` comment labels and a blank line between sections
+- Omit `// Arrange` only when there is genuinely nothing to set up
+- Use `// Act + Assert` only when a single call is inseparably both (e.g. `assert.Panics`)
+- Assign the result of the function under test to a variable in `// Act` so `// Assert` can reference it
+
 ## Adding a new tool
 
 1. Create `internal/tools/<name>.go` implementing four functions:

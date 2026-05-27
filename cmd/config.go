@@ -12,6 +12,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var configCmd = &cobra.Command{
+	Use:   "config",
+	Short: "Show the effective agentic configuration",
+	Long:  `Show the merged configuration from agentic.json and all .agenticrc files.`,
+	Args:  cobra.NoArgs,
+	RunE:  showConfig,
+}
+
 func init() {
 	rootCmd.AddCommand(configCmd)
 
@@ -22,14 +30,6 @@ func init() {
 
 	configCmd.Flags().StringVar(&toolHome, "home", defaultHome,
 		"agentic data directory (overrides $AGENTIC_HOME)")
-}
-
-var configCmd = &cobra.Command{
-	Use:   "config",
-	Short: "Show the effective agentic configuration",
-	Long:  `Show the merged configuration from agentic.json and all .agenticrc files.`,
-	Args:  cobra.NoArgs,
-	RunE:  showConfig,
 }
 
 func showConfig(cmd *cobra.Command, _ []string) error {

@@ -6,10 +6,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	rootCmd.AddCommand(cleanCmd)
-}
-
 var cleanCmd = &cobra.Command{
 	Use:       "clean [tool]",
 	Short:     "Remove tool image(s)",
@@ -17,6 +13,10 @@ var cleanCmd = &cobra.Command{
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: builtToolNamesFunc,
 	RunE:              runClean,
+}
+
+func init() {
+	rootCmd.AddCommand(cleanCmd)
 }
 
 func runClean(_ *cobra.Command, args []string) error {

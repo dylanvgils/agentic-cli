@@ -13,11 +13,6 @@ import (
 
 var volumesStdin io.Reader = os.Stdin
 
-func init() {
-	rootCmd.AddCommand(volumesCmd)
-	volumesCmd.AddCommand(volumesCreateCmd, volumesListCmd, volumesRemoveCmd)
-}
-
 var volumesCmd = &cobra.Command{
 	Use:   "volumes",
 	Short: "Manage named Docker volumes",
@@ -46,6 +41,11 @@ var volumesRemoveCmd = &cobra.Command{
 	Args:              cobra.MaximumNArgs(1),
 	RunE:              runVolumeRemove,
 	ValidArgsFunction: volumeNamesFunc,
+}
+
+func init() {
+	rootCmd.AddCommand(volumesCmd)
+	volumesCmd.AddCommand(volumesCreateCmd, volumesListCmd, volumesRemoveCmd)
 }
 
 func runVolumeCreate(_ *cobra.Command, args []string) error {
