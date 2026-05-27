@@ -12,9 +12,14 @@
       "groupName": "GitHub Actions"
     },
     {
-      "matchPackageNames": ["go"],
+      "matchDepNames": ["go"],
       "matchDatasources": ["golang-version"],
       "groupName": "Go version"
+    },
+    {
+      "matchDepNames": ["java-jdk"],
+      "matchDatasources": ["java-version"],
+      "extractVersion": "^(?<version>\\d+)"
     }
   ],
   "regexManagers": [
@@ -28,8 +33,7 @@
       "fileMatch": ["^internal/tools/versions\\.json$"],
       "matchStrings": ["\"java\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "java-jdk",
-      "datasourceTemplate": "adoptium-java",
-      "extractVersion": "^(?<version>\\d+)"
+      "datasourceTemplate": "java-version"
     },
     {
       "fileMatch": ["^internal/tools/versions\\.json$"],
