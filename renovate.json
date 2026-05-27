@@ -8,6 +8,10 @@
       "groupName": "minor and patch updates"
     },
     {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    },
+    {
       "matchPackageNames": ["go"],
       "matchDatasources": ["golang-version"],
       "groupName": "Go version"
@@ -23,8 +27,9 @@
     {
       "fileMatch": ["^internal/tools/versions\\.json$"],
       "matchStrings": ["\"java\":\\s*\"(?<currentValue>[^\"]+)\""],
-      "depNameTemplate": "java-jre",
-      "datasourceTemplate": "adoptium-java"
+      "depNameTemplate": "java-jdk",
+      "datasourceTemplate": "adoptium-java",
+      "extractVersion": "^(?<version>\\d+)"
     },
     {
       "fileMatch": ["^internal/tools/versions\\.json$"],
