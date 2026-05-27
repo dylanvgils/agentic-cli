@@ -125,7 +125,7 @@ type File struct {
 
 `StageBuilder` is the fluent interface for constructing a `Stage`. Every `Add()` call wraps the instruction(s) in `Located` with the calling Go source location automatically.
 
-`Add()` is variadic — pass one instruction or several in a single call:
+`Add()` is variadic - pass one instruction or several in a single call:
 
 ```go
 // Single instruction

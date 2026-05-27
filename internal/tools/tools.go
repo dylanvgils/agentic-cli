@@ -13,9 +13,20 @@ import (
 // Prefix is the shared prefix for all agentic Docker image names.
 const Prefix = "agentic-"
 
-// versionScript returns the filename for a language's version-check helper script.
-func versionScript(lang string) string {
-	return Prefix + "version-" + lang
+// Configs maps tool names to their container configuration.
+var Configs = map[string]ToolConfig{
+	"claude": {
+		Build:   BuildConfig{Stage: claudeStage},
+		Runtime: RuntimeConfig{TmpfsMounts: claudeTmpfsMounts, Setup: setupClaude, Mounts: claudeMounts},
+	},
+	"copilot": {
+		Build:   BuildConfig{Stage: copilotStage},
+		Runtime: RuntimeConfig{TmpfsMounts: copilotTmpfsMounts, Setup: setupCopilot, Mounts: copilotMounts},
+	},
+	"opencode": {
+		Build:   BuildConfig{Stage: opencodeStage},
+		Runtime: RuntimeConfig{TmpfsMounts: opencodeTmpfsMounts, Setup: setupOpencode, Mounts: opencodeMounts},
+	},
 }
 
 // BuildConfig holds the build-time configuration for a tool container.
@@ -49,18 +60,7 @@ func Names() []string {
 	return slices.Sorted(maps.Keys(Configs))
 }
 
-// Configs maps tool names to their container configuration.
-var Configs = map[string]ToolConfig{
-	"claude": {
-		Build:   BuildConfig{Stage: claudeStage},
-		Runtime: RuntimeConfig{TmpfsMounts: claudeTmpfsMounts, Setup: setupClaude, Mounts: claudeMounts},
-	},
-	"copilot": {
-		Build:   BuildConfig{Stage: copilotStage},
-		Runtime: RuntimeConfig{TmpfsMounts: copilotTmpfsMounts, Setup: setupCopilot, Mounts: copilotMounts},
-	},
-	"opencode": {
-		Build:   BuildConfig{Stage: opencodeStage},
-		Runtime: RuntimeConfig{TmpfsMounts: opencodeTmpfsMounts, Setup: setupOpencode, Mounts: opencodeMounts},
-	},
+// versionScript returns the filename for a language's version-check helper script.
+func versionScript(lang string) string {
+	return Prefix + "version-" + lang
 }

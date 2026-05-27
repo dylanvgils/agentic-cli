@@ -27,6 +27,20 @@ func GenerateDockerfile(tool string, opts BuildOptions) (string, error) {
 	return dockerfile.File{Stages: stages}.Render(), nil
 }
 
+// ParseExtras splits a comma-separated base override string into individual extra names,
+// returned in canonical KnownExtras order so the generated Dockerfile is deterministic
+// and Docker layer caching is not invalidated by flag reordering.
+func ParseExtras(base string) []string {
+	var extras []string
+	for extra := range strings.SplitSeq(base, ",") {
+		if extra = strings.TrimSpace(extra); extra != "" {
+			extras = append(extras, extra)
+		}
+	}
+
+	return sortByKnownExtras(extras)
+}
+
 // composeStages assembles the full list of Dockerfile stages: node base + requested extras + tool.
 func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfile.Stage, error) {
 	base := NodeStage(opts.NodeVersion)
@@ -73,20 +87,6 @@ func resolveToolStage(tool, prevStage string) (dockerfile.Stage, error) {
 		return dockerfile.Stage{}, fmt.Errorf("unknown tool %q", tool)
 	}
 	return cfg.Build.Stage(prevStage), nil
-}
-
-// ParseExtras splits a comma-separated base override string into individual extra names,
-// returned in canonical KnownExtras order so the generated Dockerfile is deterministic
-// and Docker layer caching is not invalidated by flag reordering.
-func ParseExtras(base string) []string {
-	var extras []string
-	for extra := range strings.SplitSeq(base, ",") {
-		if extra = strings.TrimSpace(extra); extra != "" {
-			extras = append(extras, extra)
-		}
-	}
-
-	return sortByKnownExtras(extras)
 }
 
 // sortByKnownExtras returns a copy of extras sorted by their position in KnownExtras.

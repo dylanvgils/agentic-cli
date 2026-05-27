@@ -23,6 +23,29 @@ var (
 	trustDir     bool
 )
 
+type parsedArgs struct {
+	toolName       string
+	imageName      string
+	toolArgs       []string
+	skipEntrypoint bool
+}
+
+type resourceLimits struct {
+	pidsLimit string
+	cpus      string
+	memory    string
+}
+
+var runToolCmd = &cobra.Command{
+	Use:               "run [flags] <tool> [args...]",
+	Short:             "Run a tool container",
+	Long:              `Run a tool container in the current directory.`,
+	Args:              cobra.ArbitraryArgs,
+	ValidArgsFunction: builtToolNamesFunc,
+	RunE:              runTool,
+	Hidden:            false,
+}
+
 func init() {
 	rootCmd.AddCommand(runToolCmd)
 
@@ -45,51 +68,77 @@ func init() {
 	runToolCmd.Flags().SetInterspersed(false)
 }
 
-var runToolCmd = &cobra.Command{
-	Use:       "run [flags] <tool> [args...]",
-	Short:     "Run a tool container",
-	Long:      `Run a tool container in the current directory.`,
-	Args:              cobra.ArbitraryArgs,
-	ValidArgsFunction: builtToolNamesFunc,
-	RunE:              runTool,
-	Hidden:    false,
-}
-
 func runTool(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return cmd.Help()
 	}
 
-	toolName := args[0]
-	imageName, err := tools.ImageName(toolName)
+	parsedArgs, err := parseArgs(args)
 	if err != nil {
 		return err
-	}
-
-	toolArgs := args[1:]
-
-	skipEntrypoint := len(toolArgs) > 0 && toolArgs[0] == "--"
-	if skipEntrypoint {
-		toolArgs = toolArgs[1:]
 	}
 
 	cwd, _ := os.Getwd()
 	rc := config.FindAndLoad(cwd)
 
-	containerHome := docker.ResolveContainerHome(imageName)
-
-	toolConfig := tools.Configs[toolName]
+	toolConfig := tools.Configs[parsedArgs.toolName]
 	if err := toolConfig.Runtime.Setup(toolHome); err != nil {
-		return fmt.Errorf("setup %s: %w", toolName, err)
+		return fmt.Errorf("setup %s: %w", parsedArgs.toolName, err)
 	}
 
 	if err := checkTrust(cwd, toolHome, trustDir); err != nil {
 		return err
 	}
 
-	var volumes []string
-	var secrets []string
-	volumes = append(toolConfig.Runtime.Mounts(), volumes...)
+	containerHome := docker.ResolveContainerHome(parsedArgs.imageName)
+	volumes := collectVolumes(toolConfig.Runtime.Mounts(), extraVolumes, rc)
+	secrets := collectSecrets(flagSecrets, rc)
+	limits := resolveResourceLimits(pidsLimit, cpus, memory, rc)
+
+	if err := ensureNamedVolumes(volumes, toolHome, containerHome); err != nil {
+		return err
+	}
+
+	rs := docker.NewRunSpec(parsedArgs.imageName).
+		WithToolHome(toolHome).
+		WithContainerHome(containerHome).
+		WithVolumes(volumes...).
+		WithSecrets(secrets...).
+		WithSkipEntrypoint(parsedArgs.skipEntrypoint).
+		WithTmpfsMounts(toolConfig.Runtime.TmpfsMounts()...).
+		WithPidsLimit(limits.pidsLimit).
+		WithCPUs(limits.cpus).
+		WithMemory(limits.memory).
+		WithDryRun(dryRun).
+		Build()
+
+	return runContainer(rs, parsedArgs.toolArgs)
+}
+
+func parseArgs(args []string) (parsedArgs, error) {
+	toolName := args[0]
+	imageName, err := tools.ImageName(toolName)
+	if err != nil {
+		return parsedArgs{}, err
+	}
+
+	toolArgs := args[1:]
+	skipEntrypoint := len(toolArgs) > 0 && toolArgs[0] == "--"
+	if skipEntrypoint {
+		toolArgs = toolArgs[1:]
+	}
+
+	return parsedArgs{
+		toolName:       toolName,
+		imageName:      imageName,
+		toolArgs:       toolArgs,
+		skipEntrypoint: skipEntrypoint,
+	}, nil
+}
+
+func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) []string {
+	volumes := append([]string{}, toolMounts...)
+
 	if env := os.Getenv("AGENTIC_EXTRA_MOUNTS"); env != "" {
 		for m := range strings.SplitSeq(env, ",") {
 			if m != "" {
@@ -97,8 +146,15 @@ func runTool(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
-	volumes = append(volumes, extraVolumes...)
+	volumes = append(volumes, extra...)
 	volumes = append(volumes, rc.ExtraMounts...)
+
+	return volumes
+}
+
+func collectSecrets(flags []string, rc *config.AgenticRC) []string {
+	var secrets []string
+
 	if env := os.Getenv("AGENTIC_SECRETS"); env != "" {
 		for s := range strings.SplitSeq(env, ",") {
 			if s != "" {
@@ -106,9 +162,13 @@ func runTool(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
-	secrets = append(secrets, flagSecrets...)
+	secrets = append(secrets, flags...)
 	secrets = append(secrets, rc.Secrets...)
 
+	return secrets
+}
+
+func resolveResourceLimits(pidsLimit, cpus, memory string, rc *config.AgenticRC) resourceLimits {
 	if pidsLimit == "" {
 		pidsLimit = rc.PidsLimit
 	}
@@ -118,25 +178,5 @@ func runTool(cmd *cobra.Command, args []string) error {
 	if memory == "" {
 		memory = rc.Memory
 	}
-
-	if err := ensureNamedVolumes(volumes, toolHome, containerHome); err != nil {
-		return err
-	}
-
-	rs := docker.RunSpec{
-		Image:          imageName,
-		ToolHome:       toolHome,
-		ContainerHome:  containerHome,
-		Volumes:        volumes,
-		Secrets:        secrets,
-		SkipEntrypoint: skipEntrypoint,
-		TmpfsMounts:    toolConfig.Runtime.TmpfsMounts(),
-		PidsLimit:      pidsLimit,
-		CPUs:           cpus,
-		Memory:         memory,
-		DryRun:         dryRun,
-	}
-
-	return runContainer(rs, toolArgs)
+	return resourceLimits{pidsLimit: pidsLimit, cpus: cpus, memory: memory}
 }
-

@@ -326,6 +326,224 @@ func TestRunTool_agenticExtraSecretsEnv(t *testing.T) {
 	assert.Contains(t, rs.Secrets, "envtoken:/tmp/env_token")
 }
 
+func TestParseArgs_toolNameAndImageName(t *testing.T) {
+	// Act
+	result, err := parseArgs([]string{"claude"})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "claude", result.toolName)
+	assert.Equal(t, "agentic-claude", result.imageName)
+	assert.Empty(t, result.toolArgs)
+	assert.False(t, result.skipEntrypoint)
+}
+
+func TestParseArgs_toolArgs(t *testing.T) {
+	// Act
+	result, err := parseArgs([]string{"claude", "--flag", "value"})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, []string{"--flag", "value"}, result.toolArgs)
+	assert.False(t, result.skipEntrypoint)
+}
+
+func TestParseArgs_dashDash_setsSkipEntrypoint(t *testing.T) {
+	// Act
+	result, err := parseArgs([]string{"claude", "--", "bash", "-c", "echo hi"})
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, result.skipEntrypoint)
+	assert.Equal(t, []string{"bash", "-c", "echo hi"}, result.toolArgs)
+}
+
+func TestParseArgs_dashDash_noTrailingArgs(t *testing.T) {
+	// Act
+	result, err := parseArgs([]string{"claude", "--"})
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, result.skipEntrypoint)
+	assert.Empty(t, result.toolArgs)
+}
+
+func TestParseArgs_unknownTool_returnsError(t *testing.T) {
+	// Act
+	_, err := parseArgs([]string{"bogus"})
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bogus")
+}
+
+func TestCollectVolumes_ordering(t *testing.T) {
+	// Arrange
+	t.Setenv("AGENTIC_EXTRA_MOUNTS", "envvol:/mnt/env")
+	rc := &config.AgenticRC{ExtraMounts: []string{"rcvol:/mnt/rc"}}
+
+	// Act
+	result := collectVolumes([]string{"tool:/mnt/tool"}, []string{"flagvol:/mnt/flag"}, rc)
+
+	// Assert
+	assert.Equal(t, []string{
+		"tool:/mnt/tool",
+		"envvol:/mnt/env",
+		"flagvol:/mnt/flag",
+		"rcvol:/mnt/rc",
+	}, result)
+}
+
+func TestCollectVolumes_emptyEnv_skipped(t *testing.T) {
+	// Arrange
+	t.Setenv("AGENTIC_EXTRA_MOUNTS", "")
+	rc := &config.AgenticRC{}
+
+	// Act
+	result := collectVolumes([]string{"tool:/mnt/tool"}, nil, rc)
+
+	// Assert
+	assert.Equal(t, []string{"tool:/mnt/tool"}, result)
+}
+
+func TestCollectVolumes_noSources_returnsEmpty(t *testing.T) {
+	// Arrange
+	t.Setenv("AGENTIC_EXTRA_MOUNTS", "")
+	rc := &config.AgenticRC{}
+
+	// Act
+	result := collectVolumes(nil, nil, rc)
+
+	// Assert
+	assert.Empty(t, result)
+}
+
+func TestCollectVolumes_doesNotMutateToolMounts(t *testing.T) {
+	// Arrange
+	t.Setenv("AGENTIC_EXTRA_MOUNTS", "")
+	toolMounts := []string{"tool:/mnt/tool"}
+	rc := &config.AgenticRC{}
+
+	// Act
+	result := collectVolumes(toolMounts, []string{"extra:/mnt/extra"}, rc)
+
+	// Assert
+	assert.Len(t, toolMounts, 1, "original toolMounts slice should not be modified")
+	assert.Len(t, result, 2)
+}
+
+func TestCollectSecrets_ordering(t *testing.T) {
+	// Arrange
+	t.Setenv("AGENTIC_SECRETS", "envtoken:/tmp/env")
+	rc := &config.AgenticRC{Secrets: []string{"rctoken:/tmp/rc"}}
+
+	// Act
+	result := collectSecrets([]string{"flagtoken:/tmp/flag"}, rc)
+
+	// Assert
+	assert.Equal(t, []string{
+		"envtoken:/tmp/env",
+		"flagtoken:/tmp/flag",
+		"rctoken:/tmp/rc",
+	}, result)
+}
+
+func TestCollectSecrets_emptyEnv_skipped(t *testing.T) {
+	// Arrange
+	t.Setenv("AGENTIC_SECRETS", "")
+	rc := &config.AgenticRC{}
+
+	// Act
+	result := collectSecrets([]string{"flagtoken:/tmp/flag"}, rc)
+
+	// Assert
+	assert.Equal(t, []string{"flagtoken:/tmp/flag"}, result)
+}
+
+func TestCollectSecrets_allEmpty_returnsNil(t *testing.T) {
+	// Arrange
+	t.Setenv("AGENTIC_SECRETS", "")
+	rc := &config.AgenticRC{}
+
+	// Act
+	result := collectSecrets(nil, rc)
+
+	// Assert
+	assert.Nil(t, result)
+}
+
+func TestResolveResourceLimits_rcFillsEmptyFlags(t *testing.T) {
+	// Arrange
+	rc := &config.AgenticRC{PidsLimit: "512", CPUs: "2", Memory: "2g"}
+
+	// Act
+	result := resolveResourceLimits("", "", "", rc)
+
+	// Assert
+	assert.Equal(t, "512", result.pidsLimit)
+	assert.Equal(t, "2", result.cpus)
+	assert.Equal(t, "2g", result.memory)
+}
+
+func TestResolveResourceLimits_flagTakesPrecedenceOverRC(t *testing.T) {
+	// Arrange
+	rc := &config.AgenticRC{PidsLimit: "512", CPUs: "2", Memory: "2g"}
+
+	// Act
+	result := resolveResourceLimits("1024", "4", "4g", rc)
+
+	// Assert
+	assert.Equal(t, "1024", result.pidsLimit)
+	assert.Equal(t, "4", result.cpus)
+	assert.Equal(t, "4g", result.memory)
+}
+
+func TestResolveResourceLimits_partialFlags_rcFillsRest(t *testing.T) {
+	// Arrange
+	rc := &config.AgenticRC{PidsLimit: "512", CPUs: "2", Memory: "2g"}
+
+	// Act
+	result := resolveResourceLimits("1024", "", "", rc)
+
+	// Assert
+	assert.Equal(t, "1024", result.pidsLimit)
+	assert.Equal(t, "2", result.cpus)
+	assert.Equal(t, "2g", result.memory)
+}
+
+func TestRunTool_dryRun(t *testing.T) {
+	// Arrange
+	withTempToolHome(t)
+	get, restore := captureRunContainer(t)
+	defer restore()
+	origDryRun := dryRun
+	dryRun = true
+	defer func() { dryRun = origDryRun }()
+
+	// Act
+	err := runTool(runToolCmd, []string{"claude"})
+
+	// Assert
+	require.NoError(t, err)
+	rs, _ := get()
+	assert.True(t, rs.DryRun)
+}
+
+func TestRunTool_tmpfsMounts(t *testing.T) {
+	// Arrange
+	withTempToolHome(t)
+	get, restore := captureRunContainer(t)
+	defer restore()
+
+	// Act
+	err := runTool(runToolCmd, []string{"claude"})
+
+	// Assert
+	require.NoError(t, err)
+	rs, _ := get()
+	assert.NotEmpty(t, rs.TmpfsMounts)
+}
+
 func TestRunTool_toolHome(t *testing.T) {
 	// Arrange
 	get, restore := captureRunContainer(t)

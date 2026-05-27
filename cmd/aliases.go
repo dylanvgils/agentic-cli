@@ -7,15 +7,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	rootCmd.AddCommand(aliasesCmd)
-}
-
 var aliasesCmd = &cobra.Command{
 	Use:   "aliases",
 	Short: "Print shell alias definitions for installed tools",
 	Long:  "Print shell alias definitions for installed tools.\nSource the output to activate aliases: source <(agentic aliases)",
 	RunE:  runAliases,
+}
+
+func init() {
+	rootCmd.AddCommand(aliasesCmd)
 }
 
 func runAliases(_ *cobra.Command, _ []string) error {

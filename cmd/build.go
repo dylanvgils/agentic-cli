@@ -8,13 +8,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	rootCmd.AddCommand(buildCmd)
-
-	addBuildFlags(buildCmd)
-	buildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
-}
-
 var buildCmd = &cobra.Command{
 	Use:   "build [tool]",
 	Short: "Build tool image(s)",
@@ -34,6 +27,13 @@ Environment:
 	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
 	ValidArgs: tools.Names(),
 	RunE:      runBuild,
+}
+
+func init() {
+	rootCmd.AddCommand(buildCmd)
+
+	addBuildFlags(buildCmd)
+	buildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
 }
 
 func runBuild(cmd *cobra.Command, args []string) error {

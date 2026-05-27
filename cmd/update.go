@@ -9,13 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	rootCmd.AddCommand(updateCmd)
-
-	addBuildFlags(updateCmd)
-	updateCmd.Flags().Bool("no-cache", false, "also rebuild base layers (fully fresh build)")
-}
-
 var updateCmd = &cobra.Command{
 	Use:   "update [tool]",
 	Short: "Update tool image(s) to latest version",
@@ -36,6 +29,13 @@ Environment:
 	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
 	ValidArgs: tools.Names(),
 	RunE:      runUpdate,
+}
+
+func init() {
+	rootCmd.AddCommand(updateCmd)
+
+	addBuildFlags(updateCmd)
+	updateCmd.Flags().Bool("no-cache", false, "also rebuild base layers (fully fresh build)")
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {

@@ -12,6 +12,15 @@ import (
 
 var outputFmt string
 
+var inspectCmd = &cobra.Command{
+	Use:       "inspect [tool]",
+	Short:     "Show image info",
+	Long:      "Show image info (tool version, base layers, build date, size).\nInspects all tools if no tool specified.",
+	Args:              cobra.MaximumNArgs(1),
+	ValidArgsFunction: builtToolNamesFunc,
+	RunE:              runInspect,
+}
+
 func init() {
 	rootCmd.AddCommand(inspectCmd)
 
@@ -22,15 +31,6 @@ func init() {
 	}); err != nil {
 		panic(err)
 	}
-}
-
-var inspectCmd = &cobra.Command{
-	Use:       "inspect [tool]",
-	Short:     "Show image info",
-	Long:      "Show image info (tool version, base layers, build date, size).\nInspects all tools if no tool specified.",
-	Args:              cobra.MaximumNArgs(1),
-	ValidArgsFunction: builtToolNamesFunc,
-	RunE:              runInspect,
 }
 
 func runInspect(_ *cobra.Command, args []string) error {
