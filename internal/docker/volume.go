@@ -2,11 +2,16 @@ package docker
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
+
+// validVolumeName matches Docker's named volume naming rules: 2+ chars, starting
+// with alphanumeric or underscore, followed by alphanumeric, underscore, dot, or dash.
+var validVolumeName = regexp.MustCompile(`^[a-zA-Z0-9_][a-zA-Z0-9_.\-]+$`)
 
 // EnsureNamedVolumes inspects each volume spec and, for any that reference a
 // named Docker volume (left side has no leading "/"), creates the volume if it
@@ -15,7 +20,7 @@ func EnsureNamedVolumes(volumes []string, toolHome, containerHome string) error 
 	for _, volume := range volumes {
 		expanded := mount.ExpandVars(volume, toolHome, containerHome)
 		left, _, _ := strings.Cut(expanded, ":")
-		if left == "" || strings.HasPrefix(left, "/") {
+		if !validVolumeName.MatchString(left) {
 			continue
 		}
 		if err := ensureVolume(left); err != nil {
