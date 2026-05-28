@@ -71,6 +71,58 @@ func TestSplitMountHost_noColon(t *testing.T) {
 	assert.Equal(t, "", rest)
 }
 
+// --- HostPart ---
+
+func TestHostPart_unixPath(t *testing.T) {
+	// Act
+	result := HostPart("/host/path:/container")
+
+	// Assert
+	assert.Equal(t, "/host/path", result)
+}
+
+func TestHostPart_namedVolume(t *testing.T) {
+	// Act
+	result := HostPart("maven:/container")
+
+	// Assert
+	assert.Equal(t, "maven", result)
+}
+
+func TestHostPart_windowsDriveLetter(t *testing.T) {
+	// Act
+	result := HostPart(`C:\Users\foo:/container`)
+
+	// Assert
+	assert.Equal(t, `C:\Users\foo`, result)
+}
+
+func TestHostPart_noColon(t *testing.T) {
+	// Act
+	result := HostPart("maven")
+
+	// Assert
+	assert.Equal(t, "maven", result)
+}
+
+// --- IsNamedVolume ---
+
+func TestIsNamedVolume_namedVolume_returnsTrue(t *testing.T) {
+	assert.True(t, IsNamedVolume("maven:/container"))
+}
+
+func TestIsNamedVolume_unixPath_returnsFalse(t *testing.T) {
+	assert.False(t, IsNamedVolume("/host/path:/container"))
+}
+
+func TestIsNamedVolume_windowsPath_returnsFalse(t *testing.T) {
+	assert.False(t, IsNamedVolume(`C:\data:/container`))
+}
+
+func TestIsNamedVolume_singleChar_returnsFalse(t *testing.T) {
+	assert.False(t, IsNamedVolume("C:/container"))
+}
+
 // --- NormalizeMountSpec ---
 
 func TestNormalizeMountSpec_unixPath_unchanged(t *testing.T) {

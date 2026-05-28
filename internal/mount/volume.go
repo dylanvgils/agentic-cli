@@ -4,8 +4,13 @@ package mount
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+// validVolumeName matches Docker's named volume naming rules: 2+ chars, starting
+// with alphanumeric or underscore, followed by alphanumeric, underscore, dot, or dash.
+var validVolumeName = regexp.MustCompile(`^[a-zA-Z0-9_][a-zA-Z0-9_.\-]+$`)
 
 // VolumeOptions configures a volume mount.
 type VolumeOptions struct {
@@ -37,6 +42,19 @@ func ExpandMountSpec(spec, toolHome, containerHome string) string {
 	s = strings.ReplaceAll(s, "~", home)
 	s = strings.ReplaceAll(s, "$PWD", pwd)
 	return s
+}
+
+// HostPart returns the host-side path of a mount spec, correctly handling
+// Windows drive letters (e.g. "C:\path:/container" → "C:\path").
+func HostPart(spec string) string {
+	host, _ := splitMountHost(spec)
+	return host
+}
+
+// IsNamedVolume reports whether the host side of a mount spec is a Docker named
+// volume (as opposed to an absolute path or Windows drive-letter bind mount).
+func IsNamedVolume(spec string) bool {
+	return validVolumeName.MatchString(HostPart(spec))
 }
 
 // NormalizeMountSpec normalizes the host-side path of a mount spec to use
