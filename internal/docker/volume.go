@@ -13,12 +13,13 @@ import (
 // does not exist and fixes its ownership so the container user can write to it.
 func EnsureNamedVolumes(volumes []string, toolHome, containerHome string) error {
 	for _, volume := range volumes {
-		expanded := mount.ExpandVars(volume, toolHome, containerHome)
-		left, _, _ := strings.Cut(expanded, ":")
-		if left == "" || strings.HasPrefix(left, "/") {
+		expanded := mount.NormalizeMountSpec(mount.ExpandMountSpec(volume, toolHome, containerHome))
+		if !mount.IsNamedVolume(expanded) {
 			continue
 		}
-		if err := ensureVolume(left); err != nil {
+
+		host := mount.HostPart(expanded)
+		if err := ensureVolume(host); err != nil {
 			return err
 		}
 	}

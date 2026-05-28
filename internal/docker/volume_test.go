@@ -67,6 +67,32 @@ func TestEnsureNamedVolumes_skipsToolHomeExpanded(t *testing.T) {
 	assert.Empty(t, get())
 }
 
+func TestEnsureNamedVolumes_skipsWindowsAbsolutePath(t *testing.T) {
+	// Arrange
+	get, restore := captureDockerRun(t)
+	defer restore()
+
+	// Act
+	err := EnsureNamedVolumes([]string{`C:\Users\foo:/container`}, "", "")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Empty(t, get())
+}
+
+func TestEnsureNamedVolumes_skipsWindowsAbsolutePathLowercase(t *testing.T) {
+	// Arrange
+	get, restore := captureDockerRun(t)
+	defer restore()
+
+	// Act
+	err := EnsureNamedVolumes([]string{`c:\data:/container`}, "", "")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Empty(t, get())
+}
+
 func TestEnsureNamedVolumes_skipsEmptyLeft(t *testing.T) {
 	// Arrange
 	get, restore := captureDockerRun(t)

@@ -111,7 +111,8 @@ func buildBaseArgs(rs RunSpec) []string {
 func buildTmpfsArgs(rs RunSpec) []string {
 	args := make([]string, 0, len(rs.TmpfsMounts))
 	for _, t := range rs.TmpfsMounts {
-		args = append(args, arg("tmpfs", mount.ExpandVars(t, rs.ToolHome, rs.ContainerHome)))
+		expanded := mount.ExpandMountSpec(t, rs.ToolHome, rs.ContainerHome)
+		args = append(args, arg("tmpfs", mount.NormalizeMountSpec(expanded)))
 	}
 	return args
 }
@@ -120,7 +121,8 @@ func buildTmpfsArgs(rs RunSpec) []string {
 func buildVolumeArgs(rs RunSpec) []string {
 	args := make([]string, 0, len(rs.Volumes))
 	for _, volume := range rs.Volumes {
-		args = append(args, arg("volume", mount.ExpandVars(volume, rs.ToolHome, rs.ContainerHome)))
+		expanded := mount.ExpandMountSpec(volume, rs.ToolHome, rs.ContainerHome)
+		args = append(args, arg("volume", mount.NormalizeMountSpec(expanded)))
 	}
 	return args
 }
@@ -135,7 +137,8 @@ func buildSecretArgs(rs RunSpec) ([]string, error) {
 			return nil, fmt.Errorf("invalid secret %q: expected name:/path", secret)
 		}
 
-		hostPath = mount.ExpandVars(hostPath, rs.ToolHome, rs.ContainerHome)
+		hostPath = mount.ExpandMountSpec(hostPath, rs.ToolHome, rs.ContainerHome)
+		hostPath = mount.NormalizeMountSpec(hostPath)
 
 		args = append(args, arg("volume", mount.VolumeMount(hostPath, "/run/secrets/"+name, mount.VolumeOptions{ReadOnly: true})))
 	}
