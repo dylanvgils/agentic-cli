@@ -176,7 +176,7 @@ func parseRC(r io.Reader) (*AgenticRC, error) {
 
 // splitValues splits a comma-separated value string and skips empty parts.
 // Supports both comma-separated and repeatable-key styles. Variable expansion
-// is handled later by mount.ExpandVars at container launch time.
+// is handled later by mount.ExpandMountSpec at container launch time.
 func splitValues(value string) []string {
 	var result []string
 

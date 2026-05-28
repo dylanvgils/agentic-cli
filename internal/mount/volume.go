@@ -3,6 +3,7 @@ package mount
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -21,9 +22,9 @@ func VolumeMount(host, container string, opts ...VolumeOptions) string {
 	return s
 }
 
-// ExpandVars replaces $TOOL_HOME, ${TOOL_HOME}, $CONTAINER_HOME, ${CONTAINER_HOME},
+// ExpandMountSpec replaces $TOOL_HOME, ${TOOL_HOME}, $CONTAINER_HOME, ${CONTAINER_HOME},
 // $HOME, ${HOME}, ~ and $PWD in a mount spec string.
-func ExpandVars(spec, toolHome, containerHome string) string {
+func ExpandMountSpec(spec, toolHome, containerHome string) string {
 	pwd, _ := os.Getwd()
 	home, _ := os.UserHomeDir()
 	s := spec
@@ -36,4 +37,33 @@ func ExpandVars(spec, toolHome, containerHome string) string {
 	s = strings.ReplaceAll(s, "~", home)
 	s = strings.ReplaceAll(s, "$PWD", pwd)
 	return s
+}
+
+// NormalizeMountSpec normalizes the host-side path of a mount spec to use
+// OS-native path separators. The container-side path is always left unchanged
+// since Docker containers always run Linux.
+func NormalizeMountSpec(spec string) string {
+	host, rest := splitMountHost(spec)
+	return filepath.Clean(host) + rest
+}
+
+// splitMountHost splits a mount spec into the host path and the remainder
+// (":container[:opts]"), correctly handling Windows drive letters (e.g. "C:\path").
+func splitMountHost(spec string) (host, rest string) {
+	start := 0
+	if len(spec) >= 2 && spec[1] == ':' && isASCIILetter(spec[0]) {
+		start = 2
+	}
+
+	idx := strings.Index(spec[start:], ":")
+	if idx == -1 {
+		return spec, ""
+	}
+
+	cut := start + idx
+	return spec[:cut], spec[cut:]
+}
+
+func isASCIILetter(c byte) bool {
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
 }

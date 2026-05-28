@@ -24,120 +24,202 @@ func TestVolumeMount_readOnly(t *testing.T) {
 	assert.Equal(t, "/host/path:/container/path:ro", result)
 }
 
-// --- ExpandVars ---
-func TestExpandVars_toolHome(t *testing.T) {
+// --- splitMountHost ---
+
+func TestSplitMountHost_unixPath(t *testing.T) {
+	// Act
+	host, rest := splitMountHost("/host/path:/container")
+
+	// Assert
+	assert.Equal(t, "/host/path", host)
+	assert.Equal(t, ":/container", rest)
+}
+
+func TestSplitMountHost_namedVolume(t *testing.T) {
+	// Act
+	host, rest := splitMountHost("maven:/container")
+
+	// Assert
+	assert.Equal(t, "maven", host)
+	assert.Equal(t, ":/container", rest)
+}
+
+func TestSplitMountHost_windowsDriveLetter(t *testing.T) {
+	// Act
+	host, rest := splitMountHost(`C:\Users\foo:/container`)
+
+	// Assert
+	assert.Equal(t, `C:\Users\foo`, host)
+	assert.Equal(t, ":/container", rest)
+}
+
+func TestSplitMountHost_windowsDriveLetterLowercase(t *testing.T) {
+	// Act
+	host, rest := splitMountHost(`c:\data:/container`)
+
+	// Assert
+	assert.Equal(t, `c:\data`, host)
+	assert.Equal(t, ":/container", rest)
+}
+
+func TestSplitMountHost_noColon(t *testing.T) {
+	// Act
+	host, rest := splitMountHost("maven")
+
+	// Assert
+	assert.Equal(t, "maven", host)
+	assert.Equal(t, "", rest)
+}
+
+// --- NormalizeMountSpec ---
+
+func TestNormalizeMountSpec_unixPath_unchanged(t *testing.T) {
+	// Act
+	result := NormalizeMountSpec("/host/path:/container/path")
+
+	// Assert
+	assert.Equal(t, "/host/path:/container/path", result)
+}
+
+func TestNormalizeMountSpec_namedVolume_unchanged(t *testing.T) {
+	// Act
+	result := NormalizeMountSpec("maven:/container/path")
+
+	// Assert
+	assert.Equal(t, "maven:/container/path", result)
+}
+
+func TestNormalizeMountSpec_redundantSlashesOnHostSide_cleaned(t *testing.T) {
+	// Act
+	result := NormalizeMountSpec("/host//data:/container/path")
+
+	// Assert
+	assert.Equal(t, "/host/data:/container/path", result)
+}
+
+func TestNormalizeMountSpec_containerSide_untouched(t *testing.T) {
+	// Act
+	result := NormalizeMountSpec("/host/data:/container//path")
+
+	// Assert — redundant slash on container side is preserved
+	assert.Equal(t, "/host/data:/container//path", result)
+}
+
+// --- ExpandMountSpec ---
+
+func TestExpandMountSpec_toolHome(t *testing.T) {
 	// Arrange
 	spec := "$TOOL_HOME/data:/data"
 
 	// Act
-	result := ExpandVars(spec, "/custom/home", "")
+	result := ExpandMountSpec(spec, "/custom/home", "")
 
 	// Assert
 	assert.Equal(t, "/custom/home/data:/data", result)
 }
 
-func TestExpandVars_toolHome_braces(t *testing.T) {
+func TestExpandMountSpec_toolHome_braces(t *testing.T) {
 	// Arrange
 	spec := "${TOOL_HOME}/data:/data"
 
 	// Act
-	result := ExpandVars(spec, "/custom/home", "")
+	result := ExpandMountSpec(spec, "/custom/home", "")
 
 	// Assert
 	assert.Equal(t, "/custom/home/data:/data", result)
 }
 
-func TestExpandVars_containerHome(t *testing.T) {
+func TestExpandMountSpec_containerHome(t *testing.T) {
 	// Arrange
 	spec := "/data:$CONTAINER_HOME/data"
 
 	// Act
-	result := ExpandVars(spec, "", "/root")
+	result := ExpandMountSpec(spec, "", "/root")
 
 	// Assert
 	assert.Equal(t, "/data:/root/data", result)
 }
 
-func TestExpandVars_containerHome_braces(t *testing.T) {
+func TestExpandMountSpec_containerHome_braces(t *testing.T) {
 	// Arrange
 	spec := "/data:${CONTAINER_HOME}/data"
 
 	// Act
-	result := ExpandVars(spec, "", "/root")
+	result := ExpandMountSpec(spec, "", "/root")
 
 	// Assert
 	assert.Equal(t, "/data:/root/data", result)
 }
 
-func TestExpandVars_pwd(t *testing.T) {
+func TestExpandMountSpec_pwd(t *testing.T) {
 	// Arrange
 	pwd, err := os.Getwd()
 	require.NoError(t, err)
 	spec := "$PWD:/workspace"
 
 	// Act
-	result := ExpandVars(spec, "", "")
+	result := ExpandMountSpec(spec, "", "")
 
 	// Assert
 	assert.Equal(t, pwd+":/workspace", result)
 }
 
-func TestExpandVars_tilde(t *testing.T) {
+func TestExpandMountSpec_tilde(t *testing.T) {
 	// Arrange
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)
 	spec := "~/.cache:/cache"
 
 	// Act
-	result := ExpandVars(spec, "", "")
+	result := ExpandMountSpec(spec, "", "")
 
 	// Assert
 	assert.Equal(t, home+"/.cache:/cache", result)
 }
 
-func TestExpandVars_home(t *testing.T) {
+func TestExpandMountSpec_home(t *testing.T) {
 	// Arrange
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)
 	spec := "$HOME/.cache:/cache"
 
 	// Act
-	result := ExpandVars(spec, "", "")
+	result := ExpandMountSpec(spec, "", "")
 
 	// Assert
 	assert.Equal(t, home+"/.cache:/cache", result)
 }
 
-func TestExpandVars_home_braces(t *testing.T) {
+func TestExpandMountSpec_home_braces(t *testing.T) {
 	// Arrange
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)
 	spec := "${HOME}/.cache:/cache"
 
 	// Act
-	result := ExpandVars(spec, "", "")
+	result := ExpandMountSpec(spec, "", "")
 
 	// Assert
 	assert.Equal(t, home+"/.cache:/cache", result)
 }
 
-func TestExpandVars_noPlaceholders(t *testing.T) {
+func TestExpandMountSpec_noPlaceholders(t *testing.T) {
 	// Arrange
 	spec := "/host/path:/container/path"
 
 	// Act
-	result := ExpandVars(spec, "/custom/home", "/root")
+	result := ExpandMountSpec(spec, "/custom/home", "/root")
 
 	// Assert
 	assert.Equal(t, "/host/path:/container/path", result)
 }
 
-func TestExpandVars_mixed(t *testing.T) {
+func TestExpandMountSpec_mixed(t *testing.T) {
 	// Arrange
 	spec := "$TOOL_HOME/cfg:${CONTAINER_HOME}/.config"
 
 	// Act
-	result := ExpandVars(spec, "/home/.agentic", "/root")
+	result := ExpandMountSpec(spec, "/home/.agentic", "/root")
 
 	// Assert
 	assert.Equal(t, "/home/.agentic/cfg:/root/.config", result)

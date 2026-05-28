@@ -18,7 +18,7 @@ var validVolumeName = regexp.MustCompile(`^[a-zA-Z0-9_][a-zA-Z0-9_.\-]+$`)
 // does not exist and fixes its ownership so the container user can write to it.
 func EnsureNamedVolumes(volumes []string, toolHome, containerHome string) error {
 	for _, volume := range volumes {
-		expanded := mount.ExpandVars(volume, toolHome, containerHome)
+		expanded := mount.NormalizeMountSpec(mount.ExpandMountSpec(volume, toolHome, containerHome))
 		left, _, _ := strings.Cut(expanded, ":")
 		if !validVolumeName.MatchString(left) {
 			continue
