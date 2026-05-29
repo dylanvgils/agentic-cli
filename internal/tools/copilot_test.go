@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- copilotTmpfsMounts ---
 func TestCopilotTmpfsMounts_returnsExpected(t *testing.T) {
 	// Act
 	mounts := copilotTmpfsMounts()
@@ -20,7 +19,6 @@ func TestCopilotTmpfsMounts_returnsExpected(t *testing.T) {
 	}, mounts)
 }
 
-// --- copilotMounts ---
 func TestCopilotMounts(t *testing.T) {
 	// Act
 	mounts := copilotMounts()
@@ -32,53 +30,42 @@ func TestCopilotMounts(t *testing.T) {
 	}, mounts)
 }
 
-// --- copilotStage ---
-
-func TestCopilotStage_fromPrevStage(t *testing.T) {
-	// Act
-	stage := copilotStage("java")
-
-	// Assert
-	assert.Equal(t, "java", stage.From.Image)
-	assert.Equal(t, "tool", stage.From.As)
-}
-
-func TestCopilotStage_containsContainerUser(t *testing.T) {
-	// Act
+func TestCopilotStage(t *testing.T) {
 	result := renderStage(copilotStage("base"))
 
-	// Assert
-	assert.Contains(t, result, "groupadd -g ${HOST_GID} --non-unique copilot")
-	assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique copilot")
+	t.Run("from prev stage", func(t *testing.T) {
+		// Arrange
+		stage := copilotStage("java")
+
+		// Assert
+		assert.Equal(t, "java", stage.From.Image)
+		assert.Equal(t, "tool", stage.From.As)
+	})
+
+	t.Run("contains container user", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "groupadd -g ${HOST_GID} --non-unique copilot")
+		assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique copilot")
+	})
+
+	t.Run("contains token setup", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "copilot_token")
+		assert.Contains(t, result, "GITHUB_TOKEN")
+	})
+
+	t.Run("contains project label", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "project=agentic-cli")
+	})
+
+	t.Run("contains version script", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "agentic-version-copilot")
+		assert.Contains(t, result, "copilot --version")
+	})
 }
 
-func TestCopilotStage_containsTokenSetup(t *testing.T) {
-	// Act
-	result := renderStage(copilotStage("base"))
-
-	// Assert
-	assert.Contains(t, result, "copilot_token")
-	assert.Contains(t, result, "GITHUB_TOKEN")
-}
-
-func TestCopilotStage_containsProjectLabel(t *testing.T) {
-	// Act
-	result := renderStage(copilotStage("base"))
-
-	// Assert
-	assert.Contains(t, result, "project=agentic-cli")
-}
-
-func TestCopilotStage_containsVersionScript(t *testing.T) {
-	// Act
-	result := renderStage(copilotStage("base"))
-
-	// Assert
-	assert.Contains(t, result, "agentic-version-copilot")
-	assert.Contains(t, result, "copilot --version")
-}
-
-// --- setupCopilot ---
 func TestSetupCopilot_createsDir(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()

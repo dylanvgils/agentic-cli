@@ -10,189 +10,178 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newFlagCmd(t *testing.T, flags ...string) *cobra.Command {
-	t.Helper()
-	cmd := &cobra.Command{Use: "test"}
-	for _, f := range flags {
-		cmd.Flags().String(f, "", "")
-	}
-	return cmd
+func TestAddBuildFlags(t *testing.T) {
+	t.Run("registers all flags", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+
+		// Act
+		addBuildFlags(cmd)
+
+		// Assert
+		for _, name := range []string{"base", "node", "java", "dotnet", "go", "dry-run"} {
+			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
+		}
+	})
+
+	t.Run("version flag usage reflects default versions", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+		addBuildFlags(cmd)
+
+		cases := []struct {
+			flag    string
+			version string
+		}{
+			{"node", tools.DefaultVersions.Node},
+			{"java", tools.DefaultVersions.Java},
+			{"dotnet", tools.DefaultVersions.Dotnet},
+			{"go", tools.DefaultVersions.Go},
+		}
+
+		// Assert
+		for _, tc := range cases {
+			f := cmd.Flags().Lookup(tc.flag)
+			require.NotNil(t, f, "flag --%s not registered", tc.flag)
+			assert.Contains(t, f.Usage, tc.version, "flag --%s usage should mention version %s", tc.flag, tc.version)
+		}
+	})
+
+	t.Run("dry run flag defaults false", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+
+		// Act
+		addBuildFlags(cmd)
+
+		// Assert
+		f := cmd.Flags().Lookup("dry-run")
+		require.NotNil(t, f)
+		assert.Equal(t, "false", f.DefValue)
+	})
 }
 
-// --- addBuildFlags ---
+func TestFlagOrEnv(t *testing.T) {
+	t.Run("flag takes priority", func(t *testing.T) {
+		// Arrange
+		cmd := newFlagCmd(t, "node")
+		require.NoError(t, cmd.Flags().Set("node", "fromflag"))
+		t.Setenv("AGENTIC_NODE_VERSION", "fromenv")
 
-func TestAddBuildFlags_registersAllFlags(t *testing.T) {
-	// Arrange
-	cmd := &cobra.Command{Use: "test"}
+		// Act
+		result := flagOrEnv(cmd, "node", "AGENTIC_NODE_VERSION")
 
-	// Act
-	addBuildFlags(cmd)
+		// Assert
+		assert.Equal(t, "fromflag", result)
+	})
 
-	// Assert
-	for _, name := range []string{"base", "node", "java", "dotnet", "go", "dry-run"} {
-		assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
-	}
+	t.Run("falls back to env when flag empty", func(t *testing.T) {
+		// Arrange
+		cmd := newFlagCmd(t, "node")
+		t.Setenv("AGENTIC_NODE_VERSION", "fromenv")
+
+		// Act
+		result := flagOrEnv(cmd, "node", "AGENTIC_NODE_VERSION")
+
+		// Assert
+		assert.Equal(t, "fromenv", result)
+	})
+
+	t.Run("returns empty when both unset", func(t *testing.T) {
+		// Arrange
+		cmd := newFlagCmd(t, "node")
+
+		// Act + Assert
+		assert.Equal(t, "", flagOrEnv(cmd, "node", "AGENTIC_NODE_VERSION"))
+	})
 }
 
-func TestAddBuildFlags_versionFlagUsage_reflectsDefaultVersions(t *testing.T) {
-	// Arrange
-	cmd := &cobra.Command{Use: "test"}
-	addBuildFlags(cmd)
+func TestBuildOptsFromFlags(t *testing.T) {
+	t.Run("node env var used when flag absent", func(t *testing.T) {
+		// Arrange
+		t.Setenv("AGENTIC_NODE_VERSION", "20")
 
-	cases := []struct {
-		flag    string
-		version string
-	}{
-		{"node", tools.DefaultVersions.Node},
-		{"java", tools.DefaultVersions.Java},
-		{"dotnet", tools.DefaultVersions.Dotnet},
-		{"go", tools.DefaultVersions.Go},
-	}
+		// Act
+		opts := buildOptsFromFlags(buildCmd)
 
-	// Assert
-	for _, tc := range cases {
-		f := cmd.Flags().Lookup(tc.flag)
-		require.NotNil(t, f, "flag --%s not registered", tc.flag)
-		assert.Contains(t, f.Usage, tc.version, "flag --%s usage should mention version %s", tc.flag, tc.version)
-	}
+		// Assert
+		assert.Equal(t, "20", opts.NodeVersion)
+	})
+
+	t.Run("version env vars used when flags absent", func(t *testing.T) {
+		// Arrange
+		t.Setenv("AGENTIC_JAVA_VERSION", "17")
+		t.Setenv("AGENTIC_DOTNET_VERSION", "8")
+		t.Setenv("AGENTIC_GO_VERSION", "1.22")
+
+		// Act
+		opts := buildOptsFromFlags(buildCmd)
+
+		// Assert
+		assert.Equal(t, "17", opts.Versions["java"])
+		assert.Equal(t, "8", opts.Versions["dotnet"])
+		assert.Equal(t, "1.22", opts.Versions["go"])
+	})
 }
 
-func TestAddBuildFlags_dryRunFlag_defaultsFalse(t *testing.T) {
-	// Arrange
-	cmd := &cobra.Command{Use: "test"}
+func TestToolNames(t *testing.T) {
+	t.Run("no args returns all tools", func(t *testing.T) {
+		// Act
+		result := toolNames([]string{})
 
-	// Act
-	addBuildFlags(cmd)
+		// Assert
+		assert.Equal(t, []string{"claude", "copilot", "opencode"}, result)
+	})
 
-	// Assert
-	f := cmd.Flags().Lookup("dry-run")
-	require.NotNil(t, f)
-	assert.Equal(t, "false", f.DefValue)
+	t.Run("single arg returns that tool", func(t *testing.T) {
+		// Act
+		result := toolNames([]string{"claude"})
+
+		// Assert
+		assert.Equal(t, []string{"claude"}, result)
+	})
 }
 
-// --- flagOrEnv ---
+func TestPruneAndReport(t *testing.T) {
+	t.Run("prints message when reclaimed non empty", func(t *testing.T) {
+		// Arrange
+		stubPruneImages(t, func() (string, error) { return "500MB", nil })
 
-func TestFlagOrEnv_flagTakesPriority(t *testing.T) {
-	// Arrange
-	cmd := newFlagCmd(t, "node")
-	require.NoError(t, cmd.Flags().Set("node", "fromflag"))
-	t.Setenv("AGENTIC_NODE_VERSION", "fromenv")
+		// Act
+		out := captureStdout(t, func() {
+			err := pruneAndReport()
+			require.NoError(t, err)
+		})
 
-	// Act
-	result := flagOrEnv(cmd, "node", "AGENTIC_NODE_VERSION")
+		// Assert
+		assert.Contains(t, out, "=> pruned dangling images (reclaimed 500MB)")
+	})
 
-	// Assert
-	assert.Equal(t, "fromflag", result)
-}
+	t.Run("silent when reclaimed empty", func(t *testing.T) {
+		// Arrange
+		stubPruneImages(t, func() (string, error) { return "", nil })
 
-func TestFlagOrEnv_fallsBackToEnv_whenFlagEmpty(t *testing.T) {
-	// Arrange
-	cmd := newFlagCmd(t, "node")
-	t.Setenv("AGENTIC_NODE_VERSION", "fromenv")
+		// Act
+		out := captureStdout(t, func() {
+			err := pruneAndReport()
+			require.NoError(t, err)
+		})
 
-	// Act
-	result := flagOrEnv(cmd, "node", "AGENTIC_NODE_VERSION")
+		// Assert
+		assert.NotContains(t, out, "pruned")
+	})
 
-	// Assert
-	assert.Equal(t, "fromenv", result)
-}
+	t.Run("propagates error", func(t *testing.T) {
+		// Arrange
+		stubPruneImages(t, func() (string, error) {
+			return "", fmt.Errorf("prune failed")
+		})
 
-func TestFlagOrEnv_returnsEmpty_whenBothUnset(t *testing.T) {
-	cmd := newFlagCmd(t, "node")
-
-	// Act + Assert
-	assert.Equal(t, "", flagOrEnv(cmd, "node", "AGENTIC_NODE_VERSION"))
-}
-
-// --- buildOptsFromFlags env var fallback ---
-
-func TestBuildOptsFromFlags_nodeEnvVar_usedWhenFlagAbsent(t *testing.T) {
-	// Arrange
-	t.Setenv("AGENTIC_NODE_VERSION", "20")
-
-	// Act
-	opts := buildOptsFromFlags(buildCmd)
-
-	// Assert
-	assert.Equal(t, "20", opts.NodeVersion)
-}
-
-func TestBuildOptsFromFlags_versionEnvVars_usedWhenFlagsAbsent(t *testing.T) {
-	// Arrange
-	t.Setenv("AGENTIC_JAVA_VERSION", "17")
-	t.Setenv("AGENTIC_DOTNET_VERSION", "8")
-	t.Setenv("AGENTIC_GO_VERSION", "1.22")
-
-	// Act
-	opts := buildOptsFromFlags(buildCmd)
-
-	// Assert
-	assert.Equal(t, "17", opts.Versions["java"])
-	assert.Equal(t, "8", opts.Versions["dotnet"])
-	assert.Equal(t, "1.22", opts.Versions["go"])
-}
-
-// --- toolNames ---
-
-func TestToolNames_noArgs_returnsAllTools(t *testing.T) {
-	// Act
-	result := toolNames([]string{})
-
-	// Assert
-	assert.Equal(t, []string{"claude", "copilot", "opencode"}, result)
-}
-
-func TestToolNames_singleArg_returnsThatTool(t *testing.T) {
-	// Act
-	result := toolNames([]string{"claude"})
-
-	// Assert
-	assert.Equal(t, []string{"claude"}, result)
-}
-
-// --- pruneAndReport ---
-
-func TestPruneAndReport_printsMessage_whenReclaimedNonEmpty(t *testing.T) {
-	// Arrange
-	restore := stubPruneImages(t, func() (string, error) { return "500MB", nil })
-	defer restore()
-
-	// Act
-	out := captureStdout(t, func() {
+		// Act
 		err := pruneAndReport()
-		require.NoError(t, err)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "prune failed")
 	})
-
-	// Assert
-	assert.Contains(t, out, "=> pruned dangling images (reclaimed 500MB)")
-}
-
-func TestPruneAndReport_silent_whenReclaimedEmpty(t *testing.T) {
-	// Arrange
-	restore := stubPruneImages(t, func() (string, error) { return "", nil })
-	defer restore()
-
-	// Act
-	out := captureStdout(t, func() {
-		err := pruneAndReport()
-		require.NoError(t, err)
-	})
-
-	// Assert
-	assert.NotContains(t, out, "pruned")
-}
-
-func TestPruneAndReport_propagatesError(t *testing.T) {
-	// Arrange
-	restore := stubPruneImages(t, func() (string, error) {
-		return "", fmt.Errorf("prune failed")
-	})
-	defer restore()
-
-	// Act
-	err := pruneAndReport()
-
-	// Assert
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "prune failed")
 }

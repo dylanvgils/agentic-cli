@@ -7,81 +7,70 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func mockDockerRun(t *testing.T, output string, err error) func() {
-	t.Helper()
-	orig := dockerRun
-	dockerRun = func(_ ...string) (string, error) { return output, err }
-	return func() { dockerRun = orig }
-}
+func TestResolveContainerHome(t *testing.T) {
+	t.Run("found", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, `["PATH=/usr/bin","TOOL_HOME=/home/claude"]`, nil)
 
-func TestResolveContainerHome_found(t *testing.T) {
-	// Arrange
-	restore := mockDockerRun(t, `["PATH=/usr/bin","TOOL_HOME=/home/claude"]`, nil)
-	defer restore()
+		// Act
+		result := ResolveContainerHome("agentic-claude")
 
-	// Act
-	result := ResolveContainerHome("agentic-claude")
+		// Assert
+		assert.Equal(t, "/home/claude", result)
+	})
 
-	// Assert
-	assert.Equal(t, "/home/claude", result)
-}
+	t.Run("first match", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, `["TOOL_HOME=/home/claude","OTHER=value","TOOL_HOME=/other"]`, nil)
 
-func TestResolveContainerHome_firstMatch(t *testing.T) {
-	// Arrange
-	restore := mockDockerRun(t, `["TOOL_HOME=/home/claude","OTHER=value","TOOL_HOME=/other"]`, nil)
-	defer restore()
+		// Act
+		result := ResolveContainerHome("agentic-claude")
 
-	// Act
-	result := ResolveContainerHome("agentic-claude")
+		// Assert
+		assert.Equal(t, "/home/claude", result)
+	})
 
-	// Assert
-	assert.Equal(t, "/home/claude", result)
-}
+	t.Run("not present", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, `["PATH=/usr/bin","HOME=/root"]`, nil)
 
-func TestResolveContainerHome_notPresent(t *testing.T) {
-	// Arrange
-	restore := mockDockerRun(t, `["PATH=/usr/bin","HOME=/root"]`, nil)
-	defer restore()
+		// Act
+		result := ResolveContainerHome("agentic-claude")
 
-	// Act
-	result := ResolveContainerHome("agentic-claude")
+		// Assert
+		assert.Equal(t, "/root", result)
+	})
 
-	// Assert
-	assert.Equal(t, "/root", result)
-}
+	t.Run("empty env", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, `[]`, nil)
 
-func TestResolveContainerHome_emptyEnv(t *testing.T) {
-	// Arrange
-	restore := mockDockerRun(t, `[]`, nil)
-	defer restore()
+		// Act
+		result := ResolveContainerHome("agentic-claude")
 
-	// Act
-	result := ResolveContainerHome("agentic-claude")
+		// Assert
+		assert.Equal(t, "/root", result)
+	})
 
-	// Assert
-	assert.Equal(t, "/root", result)
-}
+	t.Run("docker error", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "", fmt.Errorf("image not found"))
 
-func TestResolveContainerHome_dockerError(t *testing.T) {
-	// Arrange
-	restore := mockDockerRun(t, "", fmt.Errorf("image not found"))
-	defer restore()
+		// Act
+		result := ResolveContainerHome("agentic-missing")
 
-	// Act
-	result := ResolveContainerHome("agentic-missing")
+		// Assert
+		assert.Equal(t, "/root", result)
+	})
 
-	// Assert
-	assert.Equal(t, "/root", result)
-}
+	t.Run("malformed JSON", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "not json", nil)
 
-func TestResolveContainerHome_malformedJSON(t *testing.T) {
-	// Arrange
-	restore := mockDockerRun(t, "not json", nil)
-	defer restore()
+		// Act
+		result := ResolveContainerHome("agentic-claude")
 
-	// Act
-	result := ResolveContainerHome("agentic-claude")
-
-	// Assert
-	assert.Equal(t, "/root", result)
+		// Assert
+		assert.Equal(t, "/root", result)
+	})
 }

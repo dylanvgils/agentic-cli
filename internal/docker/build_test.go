@@ -88,7 +88,7 @@ func TestWriteTempDockerfile(t *testing.T) {
 }
 
 func TestBuildImage(t *testing.T) {
-	get := captureRunInteractive(t)
+	get := stubRunInteractive(t)
 
 	t.Run("first arg is build", func(t *testing.T) {
 		// Act
@@ -258,7 +258,7 @@ func TestBuildImage(t *testing.T) {
 
 func TestBuildFromContent_wiresDockerfileAndImageBuild(t *testing.T) {
 	// Arrange
-	get := captureRunInteractive(t)
+	get := stubRunInteractive(t)
 
 	// Act
 	err := buildFromContent("FROM scratch\n", "agentic-test", tools.BuildOptions{})

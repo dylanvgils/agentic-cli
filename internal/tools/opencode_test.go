@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- opencodeTmpfsMounts ---
 func TestOpencodeTmpfsMounts_returnsExpected(t *testing.T) {
 	// Act
 	mounts := opencodeTmpfsMounts()
@@ -17,7 +16,6 @@ func TestOpencodeTmpfsMounts_returnsExpected(t *testing.T) {
 	assert.Equal(t, []string{"/tmp:exec,size=1g"}, mounts)
 }
 
-// --- opencodeMounts ---
 func TestOpencodeMounts_returnsExpected(t *testing.T) {
 	// Act
 	mounts := opencodeMounts()
@@ -33,52 +31,39 @@ func TestOpencodeMounts_returnsExpected(t *testing.T) {
 	}, mounts)
 }
 
-// --- opencodeStage ---
-
-func TestOpencodeStage_fromPrevStage(t *testing.T) {
-	// Act
+func TestOpencodeStage(t *testing.T) {
 	stage := opencodeStage("base")
+	result := renderStage(stage)
 
-	// Assert
-	assert.Equal(t, "base", stage.From.Image)
-	assert.Equal(t, "tool", stage.From.As)
+	t.Run("from prev stage", func(t *testing.T) {
+		// Assert
+		assert.Equal(t, "base", stage.From.Image)
+		assert.Equal(t, "tool", stage.From.As)
+	})
+
+	t.Run("contains container user", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "groupadd -g ${HOST_GID} --non-unique opencode")
+		assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique opencode")
+	})
+
+	t.Run("contains tool home", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "TOOL_HOME=/home/opencode")
+	})
+
+	t.Run("contains project label", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "project=agentic-cli")
+	})
+
+	t.Run("contains version script", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "agentic-version-opencode")
+		assert.Contains(t, result, "opencode --version")
+	})
 }
 
-func TestOpencodeStage_containsContainerUser(t *testing.T) {
-	// Act
-	result := renderStage(opencodeStage("base"))
-
-	// Assert
-	assert.Contains(t, result, "groupadd -g ${HOST_GID} --non-unique opencode")
-	assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique opencode")
-}
-
-func TestOpencodeStage_containsToolHome(t *testing.T) {
-	// Act
-	result := renderStage(opencodeStage("base"))
-
-	// Assert
-	assert.Contains(t, result, "TOOL_HOME=/home/opencode")
-}
-
-func TestOpencodeStage_containsProjectLabel(t *testing.T) {
-	// Act
-	result := renderStage(opencodeStage("base"))
-
-	// Assert
-	assert.Contains(t, result, "project=agentic-cli")
-}
-
-func TestOpencodeStage_containsVersionScript(t *testing.T) {
-	// Act
-	result := renderStage(opencodeStage("base"))
-
-	// Assert
-	assert.Contains(t, result, "agentic-version-opencode")
-	assert.Contains(t, result, "opencode --version")
-}
-
-// --- setupOpencode ---
 func TestSetupOpencode_createsSubDirs(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()

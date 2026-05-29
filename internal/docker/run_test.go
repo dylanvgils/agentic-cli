@@ -9,34 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// captureRunInteractive replaces the runInteractive var with a mock that
-// records the args passed to it. Cleanup is registered via t.Cleanup.
-func captureRunInteractive(t *testing.T) func() []string {
-	t.Helper()
-	var capturedArgs []string
-
-	orig := runInteractive
-	runInteractive = func(args ...string) error {
-		capturedArgs = args
-		return nil
-	}
-	t.Cleanup(func() { runInteractive = orig })
-
-	return func() []string { return capturedArgs }
-}
-
-// argAfter returns the value immediately following flag in args, or "".
-func argAfter(args []string, flag string) string {
-	for i, a := range args {
-		if a == flag && i+1 < len(args) {
-			return args[i+1]
-		}
-	}
-	return ""
-}
-
 func TestRunContainer(t *testing.T) {
-	get := captureRunInteractive(t)
+	get := stubRunInteractive(t)
 
 	t.Run("security args", func(t *testing.T) {
 		// Arrange

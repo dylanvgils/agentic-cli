@@ -10,107 +10,89 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func stubCheckDockerDaemon(t *testing.T, fn func() error) func() {
-	t.Helper()
-	orig := checkDockerDaemon
-	checkDockerDaemon = fn
-	return func() { checkDockerDaemon = orig }
-}
+func TestCheckDocker(t *testing.T) {
+	t.Run("root command skips check", func(t *testing.T) {
+		// Arrange
+		stubCheckDockerDaemon(t, func() error {
+			return errors.New("should not be called")
+		})
 
-// checkDocker — root command (no parent) skips daemon check (bare `agentic` shows help).
-func TestCheckDocker_rootCommand_skipsCheck(t *testing.T) {
-	// Arrange
-	restore := stubCheckDockerDaemon(t, func() error {
-		return errors.New("should not be called")
+		// Act — rootCmd.Parent() == nil satisfies the guard in checkDocker.
+		err := checkDocker(rootCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
 	})
-	defer restore()
 
-	// Act — rootCmd.Parent() == nil satisfies the guard in checkDocker.
-	err := checkDocker(rootCmd, nil)
+	t.Run("completion command skips check", func(t *testing.T) {
+		// Arrange
+		stubCheckDockerDaemon(t, func() error {
+			return errors.New("should not be called")
+		})
+		cmd := &cobra.Command{Use: "completion"}
 
-	// Assert
-	require.NoError(t, err)
-}
+		// Act
+		err := checkDocker(cmd, nil)
 
-// checkDocker — `completion` subcommand skips daemon check.
-func TestCheckDocker_completionCommand_skipsCheck(t *testing.T) {
-	// Arrange
-	restore := stubCheckDockerDaemon(t, func() error {
-		return errors.New("should not be called")
+		// Assert
+		require.NoError(t, err)
 	})
-	defer restore()
 
-	cmd := &cobra.Command{Use: "completion"}
+	t.Run("aliases command skips check", func(t *testing.T) {
+		// Arrange
+		stubCheckDockerDaemon(t, func() error {
+			return errors.New("should not be called")
+		})
 
-	// Act
-	err := checkDocker(cmd, nil)
+		// Act
+		err := checkDocker(aliasesCmd, nil)
 
-	// Assert
-	require.NoError(t, err)
-}
-
-// checkDocker — `aliases` subcommand skips daemon check (handles failure gracefully).
-func TestCheckDocker_aliasesCommand_skipsCheck(t *testing.T) {
-	// Arrange
-	restore := stubCheckDockerDaemon(t, func() error {
-		return errors.New("should not be called")
+		// Assert
+		require.NoError(t, err)
 	})
-	defer restore()
 
-	// Act
-	err := checkDocker(aliasesCmd, nil)
+	t.Run("calls check success", func(t *testing.T) {
+		// Arrange
+		var called bool
+		stubCheckDockerDaemon(t, func() error {
+			called = true
+			return nil
+		})
 
-	// Assert
-	require.NoError(t, err)
-}
+		// Act
+		err := checkDocker(buildCmd, nil)
 
-// checkDocker — calls daemon check (success path).
-func TestCheckDocker_callsCheck_success(t *testing.T) {
-	// Arrange
-	var called bool
-	restore := stubCheckDockerDaemon(t, func() error {
-		called = true
-		return nil
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, called)
 	})
-	defer restore()
 
-	// Act
-	err := checkDocker(buildCmd, nil)
+	t.Run("calls check error", func(t *testing.T) {
+		// Arrange
+		stubCheckDockerDaemon(t, func() error {
+			return docker.ErrDaemonNotRunning
+		})
 
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, called)
-}
+		// Act
+		err := checkDocker(buildCmd, nil)
 
-// checkDocker — propagates daemon error.
-func TestCheckDocker_callsCheck_error(t *testing.T) {
-	// Arrange
-	restore := stubCheckDockerDaemon(t, func() error {
-		return docker.ErrDaemonNotRunning
+		// Assert
+		assert.Equal(t, docker.ErrDaemonNotRunning, err)
 	})
-	defer restore()
 
-	// Act
-	err := checkDocker(buildCmd, nil)
+	t.Run("no dry run flag calls check", func(t *testing.T) {
+		// Arrange
+		var called bool
+		stubCheckDockerDaemon(t, func() error {
+			called = true
+			return nil
+		})
 
-	// Assert
-	assert.Equal(t, docker.ErrDaemonNotRunning, err)
-}
+		// Act
+		err := checkDocker(inspectCmd, nil)
 
-// checkDocker — command with no dry-run flag calls daemon check.
-func TestCheckDocker_noDryRunFlag_callsCheck(t *testing.T) {
-	// Arrange
-	var called bool
-	restore := stubCheckDockerDaemon(t, func() error {
-		called = true
-		return nil
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, called)
 	})
-	defer restore()
-
-	// Act
-	err := checkDocker(inspectCmd, nil)
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, called)
 }
