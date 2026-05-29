@@ -4,6 +4,7 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\agentic"
 $InstallPath = Join-Path $InstallDir "agentic.exe"
+$InstallMethod = "script-pwsh"
 $DataDir = if ($env:AGENTIC_HOME) { $env:AGENTIC_HOME } else { Join-Path $env:APPDATA "agentic" }
 
 if ($Remove) {
@@ -44,7 +45,11 @@ $BinaryName = "agentic-windows-$Arch.exe"
 $BinarySrc = Join-Path $ScriptDir "dist\$BinaryName"
 
 Write-Host "Building agentic for windows/$Arch..."
-& docker buildx build --target export --output "$ScriptDir\dist\" $ScriptDir
+& docker buildx build `
+  --target export `
+  --build-arg "INSTALL_METHOD=$InstallMethod" `
+  --output "$ScriptDir\dist\" `
+  $ScriptDir
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 if (-not (Test-Path $BinarySrc)) {
