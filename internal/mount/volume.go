@@ -27,21 +27,22 @@ func VolumeMount(host, container string, opts ...VolumeOptions) string {
 	return s
 }
 
-// ExpandMountSpec replaces $TOOL_HOME, ${TOOL_HOME}, $CONTAINER_HOME, ${CONTAINER_HOME},
-// $HOME, ${HOME}, ~ and $PWD in a mount spec string.
+// ExpandMountSpec expands variables in a volume mount spec (host:container[:opts]),
+// applying host-side variables to the host part and container-side variables to the
+// container part.
 func ExpandMountSpec(spec, toolHome, containerHome string) string {
-	pwd, _ := os.Getwd()
-	home, _ := os.UserHomeDir()
-	s := spec
-	s = strings.ReplaceAll(s, "${CONTAINER_HOME}", containerHome)
-	s = strings.ReplaceAll(s, "$CONTAINER_HOME", containerHome)
-	s = strings.ReplaceAll(s, "${TOOL_HOME}", toolHome)
-	s = strings.ReplaceAll(s, "$TOOL_HOME", toolHome)
-	s = strings.ReplaceAll(s, "${HOME}", home)
-	s = strings.ReplaceAll(s, "$HOME", home)
-	s = strings.ReplaceAll(s, "~", home)
-	s = strings.ReplaceAll(s, "$PWD", pwd)
-	return s
+	host, rest := splitMountHost(spec)
+	return expandHostVars(host, toolHome) + expandContainerVars(rest, containerHome)
+}
+
+// ExpandTmpfsSpec expands $CONTAINER_HOME in a tmpfs mount spec.
+// The spec format is container_path[:options].
+func ExpandTmpfsSpec(spec, containerHome string) string {
+	idx := strings.Index(spec, ":")
+	if idx == -1 {
+		return expandContainerVars(spec, containerHome)
+	}
+	return expandContainerVars(spec[:idx], containerHome) + spec[idx:]
 }
 
 // HostPart returns the host-side path of a mount spec, correctly handling
@@ -63,6 +64,30 @@ func IsNamedVolume(spec string) bool {
 func NormalizeMountSpec(spec string) string {
 	host, rest := splitMountHost(spec)
 	return filepath.Clean(host) + rest
+}
+
+// IsUNCPath reports whether path is a UNC path (starts with \\ or //).
+func IsUNCPath(path string) bool {
+	return strings.HasPrefix(path, `\\`) ||
+		strings.HasPrefix(path, `//`)
+}
+
+func expandHostVars(spec, toolHome string) string {
+	pwd, _ := os.Getwd()
+	home, _ := os.UserHomeDir()
+	spec = strings.ReplaceAll(spec, "${TOOL_HOME}", toolHome)
+	spec = strings.ReplaceAll(spec, "$TOOL_HOME", toolHome)
+	spec = strings.ReplaceAll(spec, "${HOME}", home)
+	spec = strings.ReplaceAll(spec, "$HOME", home)
+	spec = strings.ReplaceAll(spec, "~", home)
+	spec = strings.ReplaceAll(spec, "$PWD", pwd)
+	return spec
+}
+
+func expandContainerVars(spec, containerHome string) string {
+	spec = strings.ReplaceAll(spec, "${CONTAINER_HOME}", containerHome)
+	spec = strings.ReplaceAll(spec, "$CONTAINER_HOME", containerHome)
+	return spec
 }
 
 // splitMountHost splits a mount spec into the host path and the remainder

@@ -7,6 +7,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
@@ -79,6 +80,10 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 
 	cwd, _ := os.Getwd()
+	if mount.IsUNCPath(cwd) {
+		return fmt.Errorf("working directory %q is on a network share; Docker cannot bind-mount UNC paths", cwd)
+	}
+
 	rc := config.FindAndLoad(cwd)
 
 	toolConfig := tools.Configs[parsedArgs.toolName]

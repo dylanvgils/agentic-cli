@@ -111,7 +111,7 @@ func buildBaseArgs(rs RunSpec) []string {
 func buildTmpfsArgs(rs RunSpec) []string {
 	args := make([]string, 0, len(rs.TmpfsMounts))
 	for _, t := range rs.TmpfsMounts {
-		expanded := mount.ExpandMountSpec(t, rs.ToolHome, rs.ContainerHome)
+		expanded := mount.ExpandTmpfsSpec(t, rs.ContainerHome)
 		args = append(args, arg("tmpfs", expanded))
 	}
 	return args

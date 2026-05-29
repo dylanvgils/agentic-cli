@@ -255,6 +255,92 @@ func TestExpandMountSpec_home_braces(t *testing.T) {
 	assert.Equal(t, home+"/.cache:/cache", result)
 }
 
+func TestExpandMountSpec_containerHomeInHostPart_notExpanded(t *testing.T) {
+	// Arrange — $CONTAINER_HOME mistakenly on host side should not expand
+	spec := "$CONTAINER_HOME/data:/container/data"
+
+	// Act
+	result := ExpandMountSpec(spec, "/tool", "/root")
+
+	// Assert
+	assert.Equal(t, "$CONTAINER_HOME/data:/container/data", result)
+}
+
+func TestExpandMountSpec_toolHomeInContainerPart_notExpanded(t *testing.T) {
+	// Arrange — $TOOL_HOME mistakenly on container side should not expand
+	spec := "/host/data:$TOOL_HOME/data"
+
+	// Act
+	result := ExpandMountSpec(spec, "/tool", "/root")
+
+	// Assert
+	assert.Equal(t, "/host/data:$TOOL_HOME/data", result)
+}
+
+// --- ExpandTmpfsSpec ---
+
+func TestExpandTmpfsSpec_containerHome(t *testing.T) {
+	// Arrange
+	spec := "$CONTAINER_HOME/.cache:exec,size=1g"
+
+	// Act
+	result := ExpandTmpfsSpec(spec, "/root")
+
+	// Assert
+	assert.Equal(t, "/root/.cache:exec,size=1g", result)
+}
+
+func TestExpandTmpfsSpec_containerHome_braces(t *testing.T) {
+	// Arrange
+	spec := "${CONTAINER_HOME}/.cache:exec,size=1g"
+
+	// Act
+	result := ExpandTmpfsSpec(spec, "/root")
+
+	// Assert
+	assert.Equal(t, "/root/.cache:exec,size=1g", result)
+}
+
+func TestExpandTmpfsSpec_noOptions(t *testing.T) {
+	// Arrange
+	spec := "$CONTAINER_HOME/.cache"
+
+	// Act
+	result := ExpandTmpfsSpec(spec, "/root")
+
+	// Assert
+	assert.Equal(t, "/root/.cache", result)
+}
+
+func TestExpandTmpfsSpec_noPlaceholders(t *testing.T) {
+	// Arrange
+	spec := "/tmp/cache:exec,size=512m"
+
+	// Act
+	result := ExpandTmpfsSpec(spec, "/root")
+
+	// Assert
+	assert.Equal(t, "/tmp/cache:exec,size=512m", result)
+}
+
+// --- IsUNCPath ---
+
+func TestIsUNCPath_backslash_returnsTrue(t *testing.T) {
+	assert.True(t, IsUNCPath(`\\server\share\project`))
+}
+
+func TestIsUNCPath_forwardSlash_returnsTrue(t *testing.T) {
+	assert.True(t, IsUNCPath("//server/share/project"))
+}
+
+func TestIsUNCPath_localPath_returnsFalse(t *testing.T) {
+	assert.False(t, IsUNCPath("/home/user/project"))
+}
+
+func TestIsUNCPath_windowsDrive_returnsFalse(t *testing.T) {
+	assert.False(t, IsUNCPath(`C:\Users\foo`))
+}
+
 func TestExpandMountSpec_noPlaceholders(t *testing.T) {
 	// Arrange
 	spec := "/host/path:/container/path"
