@@ -234,6 +234,55 @@ func TestBuildBaseArgs(t *testing.T) {
 		assert.Contains(t, args, "--cpus=2")
 		assert.Contains(t, args, "--memory=2g")
 	})
+
+}
+
+func TestBuildTTYArgs(t *testing.T) {
+	t.Run("returns -it when terminal", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, true)
+
+		// Act
+		args := buildTTYArgs()
+
+		// Assert
+		assert.Equal(t, []string{"--interactive", "--tty"}, args)
+	})
+
+	t.Run("empty when not a terminal", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, false)
+
+		// Act
+		args := buildTTYArgs()
+
+		// Assert
+		assert.Empty(t, args)
+	})
+}
+
+func TestBuildEnvArgs(t *testing.T) {
+	t.Run("empty when COLORTERM unset", func(t *testing.T) {
+		// Arrange
+		t.Setenv("COLORTERM", "")
+
+		// Act
+		args := buildEnvArgs()
+
+		// Assert
+		assert.Empty(t, args)
+	})
+
+	t.Run("COLORTERM passed through from host", func(t *testing.T) {
+		// Arrange
+		t.Setenv("COLORTERM", "truecolor")
+
+		// Act
+		args := buildEnvArgs()
+
+		// Assert
+		assert.Equal(t, []string{"--env=COLORTERM=truecolor"}, args)
+	})
 }
 
 func TestBuildTmpfsArgs(t *testing.T) {

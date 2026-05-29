@@ -33,11 +33,8 @@ const (
 func RunContainer(rs RunSpec, toolArgs []string) error {
 	args := buildBaseArgs(rs)
 
-	// Interactive TTY only when stdin is a terminal
-	if platform.IsTerminal() {
-		args = append(args, "-it")
-	}
-
+	args = append(args, buildTTYArgs()...)
+	args = append(args, buildEnvArgs()...)
 	args = append(args, buildTmpfsArgs(rs)...)
 	args = append(args, buildVolumeArgs(rs)...)
 
@@ -105,6 +102,27 @@ func buildBaseArgs(rs RunSpec) []string {
 		// Use system user to prevent permission issues on mounted files
 		arg("user", platform.UserGroup()),
 	}
+}
+
+// buildTTYArgs returns [--interactive --tty] when stdin is a terminal, otherwise empty.
+func buildTTYArgs() []string {
+	if isTerminal() {
+		return []string{arg("interactive"), arg("tty")}
+	}
+	return nil
+}
+
+// buildEnvArgs forwards select host env vars to the container.
+// Only vars that are actually set on the host are included, to avoid
+// misrepresenting capabilities the terminal doesn't have.
+func buildEnvArgs() []string {
+	var args []string
+
+	if colorterm := os.Getenv("COLORTERM"); colorterm != "" {
+		args = append(args, arg("env", "COLORTERM="+colorterm))
+	}
+
+	return args
 }
 
 // buildTmpfsArgs builds --tmpfs flags with variable expansion.

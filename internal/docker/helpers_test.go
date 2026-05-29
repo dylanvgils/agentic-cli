@@ -108,6 +108,14 @@ func stubRunInteractiveAll(t *testing.T) func() [][]string {
 	return func() [][]string { return calls }
 }
 
+// stubIsTerminal replaces isTerminal with a stub that returns val for the duration of the test.
+func stubIsTerminal(t *testing.T, val bool) {
+	t.Helper()
+	orig := isTerminal
+	isTerminal = func() bool { return val }
+	t.Cleanup(func() { isTerminal = orig })
+}
+
 // argAfter returns the value immediately following flag in args, or "".
 func argAfter(args []string, flag string) string {
 	for i, a := range args {

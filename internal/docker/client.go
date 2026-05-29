@@ -7,13 +7,16 @@ import (
 	"io"
 	"os"
 	"os/exec"
+
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
-// dockerRun, dockerRunStdin, and runInteractive are vars so tests can replace them.
+// dockerRun, dockerRunStdin, runInteractive, and isTerminal are vars so tests can replace them.
 var (
 	dockerRun      = RunCmd
 	dockerRunStdin = Run
 	runInteractive = RunInteractive
+	isTerminal     = platform.IsTerminal
 )
 
 // Run executes `docker <args>` with r piped to stdin (nil = no stdin) and

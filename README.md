@@ -20,7 +20,7 @@ CLI for running agentic coding tools in isolated Docker containers.
 - [Java build tools](#-java-build-tools)
 - [Configuration](#-configuration)
   - [Per-project configuration](#per-project-configuration)
-  - [Mount variable substitution](#mount-variable-substitution)
+  - [Mount variable expansion](#mount-variable-expansion)
   - [Example `.zshrc`](#example-zshrc)
 - [Tool home directory](#-tool-home-directory)
 - [Development](docs/development.md)
@@ -427,9 +427,9 @@ extra_mounts=maven:$CONTAINER_HOME/.m2
 cpus=8
 ```
 
-### Mount variable substitution
+### Mount variable expansion
 
-Several placeholders are substituted in mount strings at runtime. Use them so you don't have to hardcode paths that vary per machine or per tool:
+Several placeholders are expanded in mount strings at runtime. Use them so you don't have to hardcode paths that vary per machine or per tool:
 
 | Placeholder         | Side of `:`       | Expands to                                     |
 | ------------------- | ----------------- | ---------------------------------------------- |
