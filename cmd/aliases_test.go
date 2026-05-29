@@ -9,65 +9,64 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunAliases_printsPreamble(t *testing.T) {
-	// Arrange
-	restore := stubInspectImage(t, nil, nil)
-	defer restore()
+func TestRunAliases(t *testing.T) {
+	t.Run("prints preamble", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, nil)
 
-	// Act
-	out := captureStdout(t, func() {
-		err := runAliases(aliasesCmd, []string{})
-		require.NoError(t, err)
+		// Act
+		out := captureStdout(t, func() {
+			err := runAliases(aliasesCmd, []string{})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "# agentic tool aliases - source with: source <(agentic aliases)")
 	})
 
-	// Assert
-	assert.Contains(t, out, "# agentic tool aliases - source with: source <(agentic aliases)")
-}
+	t.Run("not built tools emit nothing after preamble", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, nil)
 
-func TestRunAliases_notBuiltTools_emitNothingAfterPreamble(t *testing.T) {
-	// Arrange
-	restore := stubInspectImage(t, nil, nil)
-	defer restore()
+		// Act
+		out := captureStdout(t, func() {
+			err := runAliases(aliasesCmd, []string{})
+			require.NoError(t, err)
+		})
 
-	// Act
-	out := captureStdout(t, func() {
-		err := runAliases(aliasesCmd, []string{})
-		require.NoError(t, err)
+		// Assert
+		assert.NotContains(t, out, "alias ")
 	})
 
-	// Assert
-	assert.NotContains(t, out, "alias ")
-}
+	t.Run("built tools emit alias lines", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", ID: "abc123"}, nil)
 
-func TestRunAliases_builtTools_emitAliasLines(t *testing.T) {
-	// Arrange
-	restore := stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", ID: "abc123"}, nil)
-	defer restore()
+		// Act
+		out := captureStdout(t, func() {
+			err := runAliases(aliasesCmd, []string{})
+			require.NoError(t, err)
+		})
 
-	// Act
-	out := captureStdout(t, func() {
-		err := runAliases(aliasesCmd, []string{})
-		require.NoError(t, err)
+		// Assert
+		assert.Contains(t, out, "alias claude='agentic run claude'")
+		assert.Contains(t, out, "alias copilot='agentic run copilot'")
+		assert.Contains(t, out, "alias opencode='agentic run opencode'")
 	})
 
-	// Assert
-	assert.Contains(t, out, "alias claude='agentic run claude'")
-	assert.Contains(t, out, "alias copilot='agentic run copilot'")
-	assert.Contains(t, out, "alias opencode='agentic run opencode'")
-}
+	t.Run("docker error propagates", func(t *testing.T) {
+		// Arrange
+		orig := inspectImage
+		inspectImage = func(_ string) (*docker.ImageInfo, error) {
+			return nil, fmt.Errorf("docker daemon not running")
+		}
+		defer func() { inspectImage = orig }()
 
-func TestRunAliases_dockerError_propagates(t *testing.T) {
-	// Arrange
-	orig := inspectImage
-	inspectImage = func(_ string) (*docker.ImageInfo, error) {
-		return nil, fmt.Errorf("docker daemon not running")
-	}
-	defer func() { inspectImage = orig }()
+		// Act
+		err := runAliases(aliasesCmd, []string{})
 
-	// Act
-	err := runAliases(aliasesCmd, []string{})
-
-	// Assert
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "docker daemon not running")
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "docker daemon not running")
+	})
 }
