@@ -5,16 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func renderStage(stage df.Stage) string {
-	return df.File{Stages: []df.Stage{stage}}.Render()
-}
-
-// --- claudeTmpfsMounts ---
 func TestClaudeTmpfsMounts_returnsExpected(t *testing.T) {
 	// Act
 	mounts := claudeTmpfsMounts()
@@ -23,7 +17,6 @@ func TestClaudeTmpfsMounts_returnsExpected(t *testing.T) {
 	assert.Equal(t, []string{"/tmp:exec,size=1g"}, mounts)
 }
 
-// --- claudeMounts ---
 func TestClaudeMounts_returnsExpected(t *testing.T) {
 	// Act
 	mounts := claudeMounts()
@@ -36,100 +29,86 @@ func TestClaudeMounts_returnsExpected(t *testing.T) {
 	}, mounts)
 }
 
-// --- setupClaude ---
-func TestSetupClaude_createsDataDir(t *testing.T) {
-	// Arrange
-	dir := t.TempDir()
+func TestSetupClaude(t *testing.T) {
+	t.Run("creates data dir", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
 
-	// Act
-	err := setupClaude(dir)
+		// Act
+		err := setupClaude(dir)
 
-	// Assert
-	require.NoError(t, err)
-	assert.DirExists(t, filepath.Join(dir, "claude", "data"))
+		// Assert
+		require.NoError(t, err)
+		assert.DirExists(t, filepath.Join(dir, "claude", "data"))
+	})
+
+	t.Run("creates default JSON", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+
+		// Act
+		err := setupClaude(dir)
+
+		// Assert
+		require.NoError(t, err)
+		got, err := os.ReadFile(filepath.Join(dir, "claude", ".claude.json"))
+		require.NoError(t, err)
+		assert.Equal(t, "{}", string(got))
+	})
+
+	t.Run("does not overwrite existing JSON", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "claude"), 0o750))
+		p := filepath.Join(dir, "claude", ".claude.json")
+		require.NoError(t, os.WriteFile(p, []byte(`{"existing":true}`), 0o640))
+
+		// Act
+		err := setupClaude(dir)
+
+		// Assert
+		require.NoError(t, err)
+		got, err := os.ReadFile(p)
+		require.NoError(t, err)
+		assert.Equal(t, `{"existing":true}`, string(got))
+	})
 }
 
-func TestSetupClaude_createsDefaultJSON(t *testing.T) {
-	// Arrange
-	dir := t.TempDir()
-
-	// Act
-	err := setupClaude(dir)
-
-	// Assert
-	require.NoError(t, err)
-	got, err := os.ReadFile(filepath.Join(dir, "claude", ".claude.json"))
-	require.NoError(t, err)
-	assert.Equal(t, "{}", string(got))
-}
-
-// --- claudeStage ---
-
-func TestClaudeStage_fromPrevStage(t *testing.T) {
-	// Act
+func TestClaudeStage(t *testing.T) {
 	stage := claudeStage("base")
+	result := renderStage(stage)
 
-	// Assert
-	assert.Equal(t, "base", stage.From.Image)
-	assert.Equal(t, "tool", stage.From.As)
-}
+	t.Run("from prev stage", func(t *testing.T) {
+		// Assert
+		assert.Equal(t, "base", stage.From.Image)
+		assert.Equal(t, "tool", stage.From.As)
+	})
 
-func TestClaudeStage_containsContainerUser(t *testing.T) {
-	// Act
-	result := renderStage(claudeStage("base"))
+	t.Run("contains container user", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "groupadd -g ${HOST_GID} --non-unique claude")
+		assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique claude")
+	})
 
-	// Assert
-	assert.Contains(t, result, "groupadd -g ${HOST_GID} --non-unique claude")
-	assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique claude")
-}
+	t.Run("contains entrypoint", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "entrypoint.sh")
+		assert.Contains(t, result, `exec claude`)
+	})
 
-func TestClaudeStage_containsEntrypoint(t *testing.T) {
-	// Act
-	result := renderStage(claudeStage("base"))
+	t.Run("contains tool home", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "TOOL_HOME=/home/claude")
+	})
 
-	// Assert
-	assert.Contains(t, result, "entrypoint.sh")
-	assert.Contains(t, result, `exec claude`)
-}
+	t.Run("contains project label", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "project=agentic-cli")
+	})
 
-func TestClaudeStage_containsToolHome(t *testing.T) {
-	// Act
-	result := renderStage(claudeStage("base"))
-
-	// Assert
-	assert.Contains(t, result, "TOOL_HOME=/home/claude")
-}
-
-func TestClaudeStage_containsProjectLabel(t *testing.T) {
-	// Act
-	result := renderStage(claudeStage("base"))
-
-	// Assert
-	assert.Contains(t, result, "project=agentic-cli")
-}
-
-func TestClaudeStage_containsVersionScript(t *testing.T) {
-	// Act
-	result := renderStage(claudeStage("base"))
-
-	// Assert
-	assert.Contains(t, result, "agentic-version-claude")
-	assert.Contains(t, result, "claude --version")
-}
-
-func TestSetupClaude_doesNotOverwriteExistingJSON(t *testing.T) {
-	// Arrange
-	dir := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "claude"), 0o750))
-	p := filepath.Join(dir, "claude", ".claude.json")
-	require.NoError(t, os.WriteFile(p, []byte(`{"existing":true}`), 0o640))
-
-	// Act
-	err := setupClaude(dir)
-
-	// Assert
-	require.NoError(t, err)
-	got, err := os.ReadFile(p)
-	require.NoError(t, err)
-	assert.Equal(t, `{"existing":true}`, string(got))
+	t.Run("contains version script", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "agentic-version-claude")
+		assert.Contains(t, result, "claude --version")
+	})
 }

@@ -7,41 +7,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNames_sorted(t *testing.T) {
-	// Act
+func TestNames(t *testing.T) {
 	names := Names()
 
-	// Assert
-	assert.Equal(t, []string{"claude", "copilot", "opencode"}, names)
+	t.Run("sorted", func(t *testing.T) {
+		// Assert
+		assert.Equal(t, []string{"claude", "copilot", "opencode"}, names)
+	})
+
+	t.Run("match config keys", func(t *testing.T) {
+		// Assert
+		assert.Len(t, names, len(Configs))
+		for _, n := range names {
+			assert.Contains(t, Configs, n)
+		}
+	})
 }
 
-func TestNames_matchConfigKeys(t *testing.T) {
-	// Act
-	names := Names()
+func TestImageName(t *testing.T) {
+	t.Run("known tool returns image name", func(t *testing.T) {
+		// Act
+		image, err := ImageName("claude")
 
-	// Assert
-	assert.Len(t, names, len(Configs))
-	for _, n := range names {
-		assert.Contains(t, Configs, n)
-	}
-}
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "agentic-claude", image)
+	})
 
-func TestImageName_knownTool_returnsImageName(t *testing.T) {
-	// Act
-	image, err := ImageName("claude")
+	t.Run("unknown tool returns error", func(t *testing.T) {
+		// Act
+		_, err := ImageName("bogus")
 
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "agentic-claude", image)
-}
-
-func TestImageName_unknownTool_returnsError(t *testing.T) {
-	// Act
-	_, err := ImageName("bogus")
-
-	// Assert
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "bogus")
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "bogus")
+	})
 }
 
 func TestVersionScript_returnsAgenticPrefixedName(t *testing.T) {
