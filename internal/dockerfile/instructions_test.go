@@ -6,36 +6,40 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFrom_noAs(t *testing.T) {
-	// Act
-	result := From{Image: "debian:bookworm-slim"}.Render()
+func TestFrom_render(t *testing.T) {
+	t.Run("no As", func(t *testing.T) {
+		// Act
+		result := From{Image: "debian:bookworm-slim"}.Render()
 
-	// Assert
-	assert.Equal(t, "FROM debian:bookworm-slim", result)
+		// Assert
+		assert.Equal(t, "FROM debian:bookworm-slim", result)
+	})
+
+	t.Run("with As", func(t *testing.T) {
+		// Act
+		result := From{Image: "debian:bookworm-slim", As: "base"}.Render()
+
+		// Assert
+		assert.Equal(t, "FROM debian:bookworm-slim AS base", result)
+	})
 }
 
-func TestFrom_withAs(t *testing.T) {
-	// Act
-	result := From{Image: "debian:bookworm-slim", As: "base"}.Render()
+func TestArg_render(t *testing.T) {
+	t.Run("no default", func(t *testing.T) {
+		// Act
+		result := Arg{Key: "HOST_UID"}.Render()
 
-	// Assert
-	assert.Equal(t, "FROM debian:bookworm-slim AS base", result)
-}
+		// Assert
+		assert.Equal(t, "ARG HOST_UID", result)
+	})
 
-func TestArg_noDefault(t *testing.T) {
-	// Act
-	result := Arg{Key: "HOST_UID"}.Render()
+	t.Run("with default", func(t *testing.T) {
+		// Act
+		result := Arg{Key: "NODE_VERSION", Default: "24"}.Render()
 
-	// Assert
-	assert.Equal(t, "ARG HOST_UID", result)
-}
-
-func TestArg_withDefault(t *testing.T) {
-	// Act
-	result := Arg{Key: "NODE_VERSION", Default: "24"}.Render()
-
-	// Assert
-	assert.Equal(t, "ARG NODE_VERSION=24", result)
+		// Assert
+		assert.Equal(t, "ARG NODE_VERSION=24", result)
+	})
 }
 
 func TestEnv_render(t *testing.T) {
