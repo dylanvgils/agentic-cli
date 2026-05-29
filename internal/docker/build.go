@@ -29,7 +29,7 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 
 // buildFromContent writes content to a temp Dockerfile and builds the image.
 func buildFromContent(content, image string, opts tools.BuildOptions) (retErr error) {
-	tmpDir, dockerfilePath, err := writeTempDockerfile(content)
+	tmpDir, err := writeTempDockerfile(content)
 	if err != nil {
 		return err
 	}
@@ -40,31 +40,33 @@ func buildFromContent(content, image string, opts tools.BuildOptions) (retErr er
 		}
 	}()
 
-	return buildImage(dockerfilePath, image, opts)
+	return buildImage(tmpDir, image, opts)
 }
 
 // writeTempDockerfile creates a temp directory, writes content as a Dockerfile,
-// and returns both the directory path (for cleanup) and the Dockerfile path.
-func writeTempDockerfile(content string) (tmpDir, dockerfilePath string, err error) {
+// and returns the directory path for use as the build context.
+func writeTempDockerfile(content string) (tmpDir string, err error) {
 	tmpDir, err = os.MkdirTemp("", "agentic-build-*")
 	if err != nil {
-		return "", "", fmt.Errorf("temp dir: %w", err)
+		return "", fmt.Errorf("temp dir: %w", err)
 	}
 
-	dockerfilePath = filepath.Join(tmpDir, "Dockerfile")
+	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
 	if err = os.WriteFile(dockerfilePath, []byte(content), 0o600); err != nil {
 		_ = os.RemoveAll(tmpDir)
-		return "", "", fmt.Errorf("write Dockerfile: %w", err)
+		return "", fmt.Errorf("write Dockerfile: %w", err)
 	}
 
-	return tmpDir, dockerfilePath, nil
+	return tmpDir, nil
 }
 
 // buildImage assembles the docker build arguments and runs the build.
-func buildImage(dockerfilePath, image string, opts tools.BuildOptions) error {
+func buildImage(tmpDir, image string, opts tools.BuildOptions) error {
+	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
+
 	args := []string{
 		"build",
-		"--file", dockerfilePath,
+		arg("file", dockerfilePath),
 	}
 
 	if opts.NoCache {
@@ -91,7 +93,7 @@ func buildImage(dockerfilePath, image string, opts tools.BuildOptions) error {
 	args = append(args,
 		label(LabelBuilt, buildBuiltLabel()),
 		arg("tag", image),
-		filepath.Dir(dockerfilePath),
+		tmpDir,
 	)
 
 	return runInteractive(args...)

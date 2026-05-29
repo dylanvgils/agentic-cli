@@ -48,6 +48,18 @@ cd agentic-cli
 .\install.ps1       # Windows (PowerShell)
 ```
 
+> **Windows note:** If you get an error about running scripts being disabled, set the execution policy for your user:
+>
+> ```powershell
+> Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+> ```
+>
+> Alternatively, run it directly without changing the policy:
+>
+> ```powershell
+> powershell -ExecutionPolicy Bypass -File .\install.ps1
+> ```
+
 On Linux/macOS, the binary is installed to `~/.local/bin`. If that directory isn't in your PATH, add it to your shell config:
 
 ```bash

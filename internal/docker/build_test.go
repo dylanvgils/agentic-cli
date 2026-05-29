@@ -13,25 +13,26 @@ import (
 )
 
 // --- writeTempDockerfile ---
-func TestWriteTempDockerfile_returnsNonEmptyPaths(t *testing.T) {
+
+func TestWriteTempDockerfile_returnsNonEmptyDir(t *testing.T) {
 	// Act
-	tmpDir, dockerfilePath, err := writeTempDockerfile("FROM scratch\n")
+	tmpDir, err := writeTempDockerfile("FROM scratch\n")
 	defer os.RemoveAll(tmpDir)
 
 	// Assert
 	require.NoError(t, err)
 	assert.NotEmpty(t, tmpDir)
-	assert.NotEmpty(t, dockerfilePath)
 }
 
-func TestWriteTempDockerfile_dockerfileIsInsideTmpDir(t *testing.T) {
+func TestWriteTempDockerfile_writesDockerfileInsideDir(t *testing.T) {
 	// Act
-	tmpDir, dockerfilePath, err := writeTempDockerfile("FROM scratch\n")
+	tmpDir, err := writeTempDockerfile("FROM scratch\n")
 	defer os.RemoveAll(tmpDir)
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(tmpDir, "Dockerfile"), dockerfilePath)
+	_, statErr := os.Stat(filepath.Join(tmpDir, "Dockerfile"))
+	assert.NoError(t, statErr)
 }
 
 func TestWriteTempDockerfile_writesContentToFile(t *testing.T) {
@@ -39,24 +40,24 @@ func TestWriteTempDockerfile_writesContentToFile(t *testing.T) {
 	content := "FROM scratch\nRUN echo hello\n"
 
 	// Act
-	tmpDir, dockerfilePath, err := writeTempDockerfile(content)
+	tmpDir, err := writeTempDockerfile(content)
 	defer os.RemoveAll(tmpDir)
 
 	// Assert
 	require.NoError(t, err)
-	got, readErr := os.ReadFile(dockerfilePath)
+	got, readErr := os.ReadFile(filepath.Join(tmpDir, "Dockerfile"))
 	require.NoError(t, readErr)
 	assert.Equal(t, content, string(got))
 }
 
 func TestWriteTempDockerfile_fileHasRestrictedPermissions(t *testing.T) {
 	// Act
-	tmpDir, dockerfilePath, err := writeTempDockerfile("FROM scratch\n")
+	tmpDir, err := writeTempDockerfile("FROM scratch\n")
 	defer os.RemoveAll(tmpDir)
 
 	// Assert
 	require.NoError(t, err)
-	info, statErr := os.Stat(dockerfilePath)
+	info, statErr := os.Stat(filepath.Join(tmpDir, "Dockerfile"))
 	require.NoError(t, statErr)
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
@@ -82,18 +83,19 @@ func TestWriteTempDockerfile_cleansTmpDirOnWriteError(t *testing.T) {
 	// writeTempDockerfile creates its own temp dir; we can't inject it directly.
 	// Verify only that a valid call returns no error (error injection is done via OS perms above
 	// on a separate dir — this test validates the happy path leaves the caller a usable tmpDir).
-	_, _, writeErr := writeTempDockerfile("FROM scratch\n")
+	_, writeErr := writeTempDockerfile("FROM scratch\n")
 	assert.NoError(t, writeErr)
 }
 
 // --- buildImage ---
+
 func TestBuildImage_firstArgIsBuild(t *testing.T) {
 	// Arrange
 	get, restore := captureRunInteractive(t)
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
+	err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -106,22 +108,21 @@ func TestBuildImage_includesFileFlag(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
+	err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
 	args := get()
-	assert.Contains(t, args, "--file")
-	assert.Contains(t, args, "/tmp/x/Dockerfile")
+	assert.Contains(t, args, "--file=/tmp/x/Dockerfile")
 }
 
-func TestBuildImage_contextIsParentOfDockerfile(t *testing.T) {
+func TestBuildImage_contextIsTmpDir(t *testing.T) {
 	// Arrange
 	get, restore := captureRunInteractive(t)
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
+	err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -135,7 +136,7 @@ func TestBuildImage_alwaysIncludesTagFlag(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
+	err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -148,7 +149,7 @@ func TestBuildImage_noCache_addsNoCacheFlag(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{NoCache: true})
+	err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{NoCache: true})
 
 	// Assert
 	require.NoError(t, err)
@@ -163,7 +164,7 @@ func TestBuildImage_noCacheTool_addsFilterFlag(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{NoCacheTool: true})
+	err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{NoCacheTool: true})
 
 	// Assert
 	require.NoError(t, err)
@@ -178,7 +179,7 @@ func TestBuildImage_noCache_takesPrecedenceOverNoCacheTool(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{
+	err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{
 		NoCache:     true,
 		NoCacheTool: true,
 	})
@@ -196,7 +197,7 @@ func TestBuildImage_noCacheFlags_absentByDefault(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
+	err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -211,7 +212,7 @@ func TestBuildImage_alwaysIncludesHostUIDAndGID(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
+	err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -226,7 +227,7 @@ func TestBuildImage_nodeVersion_addsBuildArg(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{NodeVersion: "20.11.0"})
+	err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{NodeVersion: "20.11.0"})
 
 	// Assert
 	require.NoError(t, err)
@@ -239,7 +240,7 @@ func TestBuildImage_emptyNodeVersion_omitsBuildArg(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
+	err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -259,7 +260,7 @@ func TestBuildImage_extraVersions_addsUppercasedBuildArgs(t *testing.T) {
 	}
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", opts)
+	err := buildImage("/tmp/x", "agentic-test", opts)
 
 	// Assert
 	require.NoError(t, err)
@@ -279,7 +280,7 @@ func TestBuildImage_extraWithEmptyVersion_omitsBuildArg(t *testing.T) {
 	}
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", opts)
+	err := buildImage("/tmp/x", "agentic-test", opts)
 
 	// Assert
 	require.NoError(t, err)
@@ -294,7 +295,7 @@ func TestBuildImage_alwaysIncludesBuiltLabel(t *testing.T) {
 	defer restore()
 
 	// Act
-	err := buildImage("/tmp/x/Dockerfile", "agentic-test", tools.BuildOptions{})
+	err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -309,6 +310,7 @@ func TestBuildImage_alwaysIncludesBuiltLabel(t *testing.T) {
 }
 
 // --- buildFromContent ---
+
 func TestBuildFromContent_wiresDockerfileAndImageBuild(t *testing.T) {
 	// Arrange
 	get, restore := captureRunInteractive(t)
