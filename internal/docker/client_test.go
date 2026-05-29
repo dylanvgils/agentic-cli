@@ -1,8 +1,6 @@
 package docker
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -10,59 +8,53 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeDocker writes a shell script named "docker" to a temp dir and prepends
-// it to PATH. t.Setenv handles cleanup automatically.
-func fakeDocker(t *testing.T, script string) {
-	t.Helper()
-	dir := t.TempDir()
-	bin := filepath.Join(dir, "docker")
-	require.NoError(t, os.WriteFile(bin, []byte("#!/bin/sh\n"+script+"\n"), 0o755))
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+func TestRunCmd(t *testing.T) {
+	t.Run("captures output", func(t *testing.T) {
+		// Arrange
+		stubDocker(t, `printf '%s\n' "$@"`)
+
+		// Act
+		out, err := RunCmd("images", "--quiet")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "images\n--quiet\n", out)
+	})
+
+	t.Run("returns error on failure", func(t *testing.T) {
+		// Arrange
+		stubDocker(t, `exit 1`)
+
+		// Act
+		_, err := RunCmd("bad-command")
+
+		// Assert
+		assert.Error(t, err)
+	})
 }
 
-func TestRunCmd_capturesOutput(t *testing.T) {
-	// Arrange
-	fakeDocker(t, `printf '%s\n' "$@"`)
+func TestRun(t *testing.T) {
+	t.Run("pipes stdin", func(t *testing.T) {
+		// Arrange
+		stubDocker(t, `cat`)
 
-	// Act
-	out, err := RunCmd("images", "--quiet")
+		// Act
+		out, err := Run(strings.NewReader("hello\n"), "build", "-")
 
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "images\n--quiet\n", out)
-}
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "hello\n", out)
+	})
 
-func TestRunCmd_returnsErrorOnFailure(t *testing.T) {
-	// Arrange
-	fakeDocker(t, `exit 1`)
+	t.Run("nil stdin does not block", func(t *testing.T) {
+		// Arrange
+		stubDocker(t, `echo ok`)
 
-	// Act
-	_, err := RunCmd("bad-command")
+		// Act
+		out, err := Run(nil, "info")
 
-	// Assert
-	assert.Error(t, err)
-}
-
-func TestRun_pipesStdin(t *testing.T) {
-	// Arrange
-	fakeDocker(t, `cat`)
-
-	// Act
-	out, err := Run(strings.NewReader("hello\n"), "build", "-")
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "hello\n", out)
-}
-
-func TestRun_nilStdinDoesNotBlock(t *testing.T) {
-	// Arrange
-	fakeDocker(t, `echo ok`)
-
-	// Act
-	out, err := Run(nil, "info")
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "ok\n", out)
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "ok\n", out)
+	})
 }

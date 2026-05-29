@@ -7,24 +7,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCheckDaemon_returnsNil_whenDaemonRunning(t *testing.T) {
-	// Arrange
-	fakeDocker(t, `exit 0`)
+func TestCheckDaemon(t *testing.T) {
+	t.Run("returns nil when daemon running", func(t *testing.T) {
+		// Arrange
+		stubDocker(t, `exit 0`)
 
-	// Act
-	err := CheckDaemon()
+		// Act
+		err := CheckDaemon()
 
-	// Assert
-	require.NoError(t, err)
-}
+		// Assert
+		require.NoError(t, err)
+	})
 
-func TestCheckDaemon_returnsErrDaemonNotRunning_whenDaemonDown(t *testing.T) {
-	// Arrange
-	fakeDocker(t, `exit 1`)
+	t.Run("returns ErrDaemonNotRunning when daemon down", func(t *testing.T) {
+		// Arrange
+		stubDocker(t, `exit 1`)
 
-	// Act
-	err := CheckDaemon()
+		// Act
+		err := CheckDaemon()
 
-	// Assert
-	assert.Equal(t, ErrDaemonNotRunning, err)
+		// Assert
+		assert.Equal(t, ErrDaemonNotRunning, err)
+	})
 }
