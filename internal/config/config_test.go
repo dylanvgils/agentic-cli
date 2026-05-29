@@ -9,49 +9,51 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoadConfig_fileNotExist_returnsEmpty(t *testing.T) {
-	// Arrange
-	dir := t.TempDir()
+func TestLoadConfig(t *testing.T) {
+	t.Run("file not exist returns empty", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
 
-	// Act
-	cfg, err := LoadConfig(dir)
+		// Act
+		cfg, err := LoadConfig(dir)
 
-	// Assert
-	require.NoError(t, err)
-	assert.Empty(t, cfg.TrustedDirs)
-}
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, cfg.TrustedDirs)
+	})
 
-func TestLoadConfig_validFile_returnsParsed(t *testing.T) {
-	// Arrange
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(
-		filepath.Join(dir, "agentic.json"),
-		[]byte(`{"trusted_dirs":["/home/user/projects"]}`),
-		0o640,
-	))
+	t.Run("valid file returns parsed", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(
+			filepath.Join(dir, "agentic.json"),
+			[]byte(`{"trusted_dirs":["/home/user/projects"]}`),
+			0o640,
+		))
 
-	// Act
-	cfg, err := LoadConfig(dir)
+		// Act
+		cfg, err := LoadConfig(dir)
 
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, []string{"/home/user/projects"}, cfg.TrustedDirs)
-}
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"/home/user/projects"}, cfg.TrustedDirs)
+	})
 
-func TestLoadConfig_malformedJSON_returnsError(t *testing.T) {
-	// Arrange
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(
-		filepath.Join(dir, "agentic.json"),
-		[]byte(`not-json`),
-		0o640,
-	))
+	t.Run("malformed JSON returns error", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(
+			filepath.Join(dir, "agentic.json"),
+			[]byte(`not-json`),
+			0o640,
+		))
 
-	// Act
-	_, err := LoadConfig(dir)
+		// Act
+		_, err := LoadConfig(dir)
 
-	// Assert
-	require.Error(t, err)
+		// Assert
+		require.Error(t, err)
+	})
 }
 
 func TestSave_writesFileWithCorrectPerms(t *testing.T) {
@@ -73,72 +75,67 @@ func TestSave_writesFileWithCorrectPerms(t *testing.T) {
 	assert.Equal(t, []string{"/foo"}, reloaded.TrustedDirs)
 }
 
-func TestIsTrusted_exactMatch(t *testing.T) {
-	// Arrange
+func TestIsTrusted(t *testing.T) {
 	cfg := &CliConfig{TrustedDirs: []string{"/home/user/projects"}}
 
-	// Act
-	result := cfg.IsTrusted("/home/user/projects")
+	t.Run("exact match", func(t *testing.T) {
+		// Act
+		result := cfg.IsTrusted("/home/user/projects")
 
-	// Assert
-	assert.True(t, result)
-}
+		// Assert
+		assert.True(t, result)
+	})
 
-func TestIsTrusted_parentMatch(t *testing.T) {
-	// Arrange
-	cfg := &CliConfig{TrustedDirs: []string{"/home/user/projects"}}
+	t.Run("parent match", func(t *testing.T) {
+		// Act
+		result := cfg.IsTrusted("/home/user/projects/foo")
 
-	// Act
-	result := cfg.IsTrusted("/home/user/projects/foo")
+		// Assert
+		assert.True(t, result)
+	})
 
-	// Assert
-	assert.True(t, result)
-}
+	t.Run("no match", func(t *testing.T) {
+		// Act
+		result := cfg.IsTrusted("/home/user/other")
 
-func TestIsTrusted_noMatch(t *testing.T) {
-	// Arrange
-	cfg := &CliConfig{TrustedDirs: []string{"/home/user/projects"}}
+		// Assert
+		assert.False(t, result)
+	})
 
-	// Act
-	result := cfg.IsTrusted("/home/user/other")
+	t.Run("prefix without separator no match", func(t *testing.T) {
+		// Act
+		result := cfg.IsTrusted("/home/user/projects-evil")
 
-	// Assert
-	assert.False(t, result)
-}
+		// Assert
+		assert.False(t, result)
+	})
 
-func TestIsTrusted_prefixWithoutSeparator_noMatch(t *testing.T) {
-	// Arrange
-	cfg := &CliConfig{TrustedDirs: []string{"/home/user/projects"}}
+	t.Run("empty config", func(t *testing.T) {
+		// Arrange
+		cfg := &CliConfig{}
 
-	// Act
-	result := cfg.IsTrusted("/home/user/projects-evil")
+		// Act
+		result := cfg.IsTrusted("/anything")
 
-	// Assert
-	assert.False(t, result)
-}
+		// Assert
+		assert.False(t, result)
+	})
 
-func TestIsTrusted_emptyConfig(t *testing.T) {
-	// Act
-	result := (&CliConfig{}).IsTrusted("/anything")
+	t.Run("symlink dir matches", func(t *testing.T) {
+		// Arrange: create a real dir and a symlink pointing to it
+		real := t.TempDir()
+		link := filepath.Join(t.TempDir(), "link")
+		if err := os.Symlink(real, link); err != nil {
+			t.Skip("cannot create symlink:", err)
+		}
+		cfg := &CliConfig{TrustedDirs: []string{real}}
 
-	// Assert
-	assert.False(t, result)
-}
+		// Act
+		result := cfg.IsTrusted(link)
 
-func TestIsTrusted_symlinkDir_matches(t *testing.T) {
-	// Arrange: create a real dir and a symlink pointing to it
-	real := t.TempDir()
-	link := filepath.Join(t.TempDir(), "link")
-	if err := os.Symlink(real, link); err != nil {
-		t.Skip("cannot create symlink:", err)
-	}
-	cfg := &CliConfig{TrustedDirs: []string{real}}
-
-	// Act
-	result := cfg.IsTrusted(link)
-
-	// Assert
-	assert.True(t, result, "symlinked dir should be trusted when its target is trusted")
+		// Assert
+		assert.True(t, result, "symlinked dir should be trusted when its target is trusted")
+	})
 }
 
 func TestTrust_appendsAndPersists(t *testing.T) {
