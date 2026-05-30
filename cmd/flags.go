@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -16,9 +17,10 @@ import (
 func addBuildFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSlice("base", nil, "extra runtime(s) to layer on top of node; repeatable or comma-separated (e.g. --base java --base dotnet or --base java,dotnet)")
 	cmd.Flags().String("node", "", "Node.js version (default: "+tools.DefaultVersions.Node+")")
-	cmd.Flags().String("java", "", "Java (Temurin JDK) version (default: "+tools.DefaultVersions.Java+")")
-	cmd.Flags().String("dotnet", "", ".NET version (default: "+tools.DefaultVersions.Dotnet+")")
-	cmd.Flags().String("go", "", "Go version (default: "+tools.DefaultVersions.Go+")")
+	for _, name := range tools.KnownExtras {
+		label := tools.ExtraFlagDesc[name]
+		cmd.Flags().String(name, "", label+" version (default: "+tools.DefaultVersions.ForExtra(name)+")")
+	}
 	cmd.Flags().StringSlice("apt", nil, "apt packages to install in the base stage; repeatable or comma-separated (e.g. --apt make --apt gcc or --apt make,gcc)")
 	cmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
 }
@@ -41,14 +43,10 @@ func buildOptsFromFlags(cmd *cobra.Command) tools.BuildOptions {
 	opts.NoCache, _ = cmd.Flags().GetBool("no-cache")
 	opts.NodeVersion = flagOrEnv(cmd, "node", "AGENTIC_NODE_VERSION")
 
-	if v := flagOrEnv(cmd, "java", "AGENTIC_JAVA_VERSION"); v != "" {
-		opts.Versions["java"] = v
-	}
-	if v := flagOrEnv(cmd, "dotnet", "AGENTIC_DOTNET_VERSION"); v != "" {
-		opts.Versions["dotnet"] = v
-	}
-	if v := flagOrEnv(cmd, "go", "AGENTIC_GO_VERSION"); v != "" {
-		opts.Versions["go"] = v
+	for _, name := range tools.KnownExtras {
+		if v := flagOrEnv(cmd, name, tools.ExtraEnvVarName(name)); v != "" {
+			opts.Versions[name] = v
+		}
 	}
 
 	opts.AptPackages = collectAptPackages(cmd)
@@ -68,6 +66,22 @@ func toolNames(args []string) []string {
 		return []string{args[0]}
 	}
 	return tools.Names()
+}
+
+func extrasEnvDoc() string {
+	const col = 24
+
+	lines := []string{
+		"Environment:",
+		fmt.Sprintf("  %-*s %s version (overridden by --%s)", col, "AGENTIC_NODE_VERSION", "Node.js", "node"),
+	}
+
+	for _, name := range tools.KnownExtras {
+		lines = append(lines, fmt.Sprintf("  %-*s %s version (overridden by --%s)",
+			col, tools.ExtraEnvVarName(name), tools.ExtraFlagDesc[name], name))
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func pruneAndReport() error {

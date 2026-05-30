@@ -11,13 +11,7 @@ import (
 var buildCmd = &cobra.Command{
 	Use:   "build [tool]",
 	Short: "Build tool image(s)",
-	Long: `Build tool image(s). Builds all tools if no tool specified.
-
-Environment:
-  AGENTIC_NODE_VERSION    Node.js version (overridden by --node)
-  AGENTIC_JAVA_VERSION    Java version (overridden by --java)
-  AGENTIC_DOTNET_VERSION  .NET version (overridden by --dotnet)
-  AGENTIC_GO_VERSION      Go version (overridden by --go)`,
+	Long: "Build tool image(s). Builds all tools if no tool specified.\n\n" + extrasEnvDoc(),
 	Example: `  agentic build
   agentic build claude
   agentic build claude --base java

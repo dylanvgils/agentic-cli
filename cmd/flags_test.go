@@ -21,7 +21,11 @@ func TestAddBuildFlags(t *testing.T) {
 		addBuildFlags(cmd)
 
 		// Assert
-		for _, name := range []string{"base", "node", "java", "dotnet", "go", "apt", "dry-run"} {
+		expected := []string{"base", "node", "apt", "dry-run"}
+		for _, name := range tools.KnownExtras {
+			expected = append(expected, name)
+		}
+		for _, name := range expected {
 			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
 		}
 	})
@@ -36,9 +40,12 @@ func TestAddBuildFlags(t *testing.T) {
 			version string
 		}{
 			{"node", tools.DefaultVersions.Node},
-			{"java", tools.DefaultVersions.Java},
-			{"dotnet", tools.DefaultVersions.Dotnet},
-			{"go", tools.DefaultVersions.Go},
+		}
+		for _, name := range tools.KnownExtras {
+			cases = append(cases, struct {
+				flag    string
+				version string
+			}{name, tools.DefaultVersions.ForExtra(name)})
 		}
 
 		// Assert

@@ -17,6 +17,20 @@ const (
 // KnownExtras lists the supported extra base layers in alphabetical order.
 var KnownExtras = []string{"dotnet", "go", "java"}
 
+// ExtraFlagDesc maps each KnownExtras entry to the human-readable label used
+// in its CLI flag description.
+var ExtraFlagDesc = map[string]string{
+	"dotnet": ".NET",
+	"go":     "Go",
+	"java":   "Java (Temurin JDK)",
+}
+
+// ExtraEnvVarName returns the canonical env var name for an extra's version
+// override, e.g. "java" → "AGENTIC_JAVA_VERSION".
+func ExtraEnvVarName(name string) string {
+	return "AGENTIC_" + strings.ToUpper(name) + "_VERSION"
+}
+
 // baseStage returns the foundational base stage. Currently delegates to nodeStage.
 func baseStage(ver string, pkgs []string) df.Stage {
 	return nodeStage(ver, pkgs)

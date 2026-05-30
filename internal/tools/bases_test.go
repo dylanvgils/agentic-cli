@@ -140,3 +140,23 @@ func Test_extraStage(t *testing.T) {
 		assert.Contains(t, renderStage(stage), "agentic-version-go")
 	})
 }
+
+func Test_extraEnvVarName(t *testing.T) {
+	t.Run("java", func(t *testing.T) {
+		assert.Equal(t, "AGENTIC_JAVA_VERSION", ExtraEnvVarName("java"))
+	})
+
+	t.Run("dotnet", func(t *testing.T) {
+		assert.Equal(t, "AGENTIC_DOTNET_VERSION", ExtraEnvVarName("dotnet"))
+	})
+
+	t.Run("go", func(t *testing.T) {
+		assert.Equal(t, "AGENTIC_GO_VERSION", ExtraEnvVarName("go"))
+	})
+}
+
+func Test_extraFlagDescCoversKnownExtras(t *testing.T) {
+	for _, name := range KnownExtras {
+		assert.NotEmpty(t, ExtraFlagDesc[name], "ExtraFlagDesc missing entry for %q", name)
+	}
+}
