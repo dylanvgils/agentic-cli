@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-
 )
 
 // dockerRun, dockerRunStdin, and runInteractive are vars so tests can replace them.
