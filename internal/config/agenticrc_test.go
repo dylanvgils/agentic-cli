@@ -9,6 +9,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAptPackages(t *testing.T) {
+	t.Run("returns packages from rc", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc"), []byte("apt_packages=make\n"), 0o644))
+
+		// Act
+		result := AptPackages(dir)
+
+		// Assert
+		assert.Equal(t, []string{"make"}, result)
+	})
+
+	t.Run("env var appends to rc packages", func(t *testing.T) {
+		// Arrange
+		t.Setenv("AGENTIC_APT_PACKAGES", "gcc")
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc"), []byte("apt_packages=make\n"), 0o644))
+
+		// Act
+		result := AptPackages(dir)
+
+		// Assert
+		assert.Equal(t, []string{"make", "gcc"}, result)
+	})
+}
+
 func TestCollectPaths(t *testing.T) {
 	t.Run("no file", func(t *testing.T) {
 		// Arrange

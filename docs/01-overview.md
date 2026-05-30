@@ -14,7 +14,7 @@ Containers run with:
 
 When a tool needs to write somewhere (config, cache, temp files), it gets a targeted mount - a named volume or bind mount for persistent state, or a tmpfs for ephemeral scratch space. Nothing gets write access unless explicitly granted.
 
-See [volume-mounts.md](volume-mounts.md) for a per-tool breakdown of what's mounted and why.
+See [volume-mounts.md](03-volume-mounts.md) for a per-tool breakdown of what's mounted and why.
 
 ## Motivation
 

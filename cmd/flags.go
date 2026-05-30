@@ -30,6 +30,7 @@ func flagOrEnv(cmd *cobra.Command, flag, env string) string {
 	return os.Getenv(env)
 }
 
+
 func buildOptsFromFlags(cmd *cobra.Command) tools.BuildOptions {
 	opts := tools.BuildOptions{Versions: map[string]string{}}
 
@@ -57,21 +58,10 @@ func buildOptsFromFlags(cmd *cobra.Command) tools.BuildOptions {
 	return opts
 }
 
-// collectAptPackages merges apt packages from .agenticrc, AGENTIC_APT_PACKAGES env var,
-// and --apt flag, in that order (outermost RC first, flag last). Deduplicates.
 func collectAptPackages(cmd *cobra.Command) []string {
 	cwd, _ := os.Getwd()
-	rcPkgs := config.FindAndLoad(cwd).AptPackages
-
-	var envPkgs []string
-	for pkg := range strings.SplitSeq(os.Getenv("AGENTIC_APT_PACKAGES"), ",") {
-		if pkg = strings.TrimSpace(pkg); pkg != "" {
-			envPkgs = append(envPkgs, pkg)
-		}
-	}
-
-	flagVals, _ := cmd.Flags().GetStringSlice("apt")
-	return tools.MergePackages(append(rcPkgs, envPkgs...), flagVals)
+	flagPkgs, _ := cmd.Flags().GetStringSlice("apt")
+	return tools.MergePackages(config.AptPackages(cwd), flagPkgs)
 }
 
 func toolNames(args []string) []string {

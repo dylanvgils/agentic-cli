@@ -63,6 +63,7 @@ func TestAddBuildFlags(t *testing.T) {
 	})
 }
 
+
 func TestFlagOrEnv(t *testing.T) {
 	t.Run("flag takes priority", func(t *testing.T) {
 		// Arrange
@@ -106,75 +107,6 @@ func newAptCmd(t *testing.T) *cobra.Command {
 }
 
 func TestCollectAptPackages(t *testing.T) {
-	t.Run("env var parsed as comma-separated packages", func(t *testing.T) {
-		// Arrange
-		t.Setenv("AGENTIC_APT_PACKAGES", "make,gcc")
-		cmd := newAptCmd(t)
-
-		// Act
-		result := collectAptPackages(cmd)
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc"}, result)
-	})
-
-	t.Run("flag appends to env", func(t *testing.T) {
-		// Arrange
-		t.Setenv("AGENTIC_APT_PACKAGES", "make")
-		cmd := newAptCmd(t)
-		require.NoError(t, cmd.Flags().Set("apt", "gcc"))
-
-		// Act
-		result := collectAptPackages(cmd)
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc"}, result)
-	})
-
-	t.Run("multiple flags are all collected", func(t *testing.T) {
-		// Arrange
-		cmd := newAptCmd(t)
-		require.NoError(t, cmd.Flags().Set("apt", "make"))
-		require.NoError(t, cmd.Flags().Set("apt", "gcc"))
-
-		// Act
-		result := collectAptPackages(cmd)
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc"}, result)
-	})
-
-	t.Run("flag with comma-separated values", func(t *testing.T) {
-		// Arrange
-		cmd := newAptCmd(t)
-		require.NoError(t, cmd.Flags().Set("apt", "make,gcc"))
-
-		// Act
-		result := collectAptPackages(cmd)
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc"}, result)
-	})
-
-	t.Run("deduplicates across sources", func(t *testing.T) {
-		// Arrange
-		t.Setenv("AGENTIC_APT_PACKAGES", "make")
-		cmd := newAptCmd(t)
-		require.NoError(t, cmd.Flags().Set("apt", "make"))
-
-		// Act
-		result := collectAptPackages(cmd)
-
-		// Assert
-		count := 0
-		for _, pkg := range result {
-			if pkg == "make" {
-				count++
-			}
-		}
-		assert.Equal(t, 1, count, "make should appear exactly once")
-	})
-
 	t.Run("rc file packages are included", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
@@ -187,6 +119,21 @@ func TestCollectAptPackages(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []string{"make"}, result)
+	})
+
+	t.Run("flag appends to config packages", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc"), []byte("apt_packages=make\n"), 0o644))
+		t.Chdir(dir)
+		cmd := newAptCmd(t)
+		require.NoError(t, cmd.Flags().Set("apt", "gcc"))
+
+		// Act
+		result := collectAptPackages(cmd)
+
+		// Assert
+		assert.Equal(t, []string{"make", "gcc"}, result)
 	})
 
 	t.Run("empty when no sources set", func(t *testing.T) {

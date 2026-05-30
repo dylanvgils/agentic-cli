@@ -26,6 +26,14 @@ type RCLayer struct {
 	RC   *AgenticRC
 }
 
+// AptPackages returns the merged apt packages from .agenticrc files and the
+// AGENTIC_APT_PACKAGES env var, outermost RC first, env var last.
+func AptPackages(startDir string) []string {
+	rcPkgs := FindAndLoad(startDir).AptPackages
+	envPkgs := splitValues(os.Getenv("AGENTIC_APT_PACKAGES"))
+	return append(rcPkgs, envPkgs...)
+}
+
 // FindAndLoad walks up from startDir collecting all .agenticrc files and merges
 // them. Stops when a file with root=true is encountered. For scalar keys the
 // innermost (child) value wins; list keys accumulate outermost-first.

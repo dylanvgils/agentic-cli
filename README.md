@@ -23,14 +23,14 @@ CLI for running agentic coding tools in isolated Docker containers.
   - [Mount variable expansion](#mount-variable-expansion)
   - [Example `.zshrc`](#example-zshrc)
 - [Tool home directory](#-tool-home-directory)
-- [Development](docs/development.md)
+- [Development](docs/05-development.md)
 - [Security](#-security)
 
 ## 📖 Overview
 
 Each tool runs in an isolated, read-only container with only the minimal mounts it needs - your workspace and its own config directory. No root, no extra capabilities, no leftovers when done.
 
-→ [Full overview and motivation](docs/overview.md)
+→ [Full overview and motivation](docs/01-overview.md)
 
 ## 📋 Requirements
 
@@ -333,7 +333,7 @@ Secrets use the format `name:/path/to/file`. The `~`, `$HOME`, and `${HOME}` pre
 
 The `-v` flag and `AGENTIC_EXTRA_MOUNTS` support both bind mounts (host paths) and named Docker volumes. Named volumes are created automatically on first use and persist across container runs - no host path required.
 
-For a per-tool breakdown of what's mounted automatically and why, see [docs/volume-mounts.md](docs/volume-mounts.md).
+For a per-tool breakdown of what's mounted automatically and why, see [docs/volume-mounts.md](docs/03-volume-mounts.md).
 
 Use a volume name (no leading `/`) as the left side of the mount spec:
 
@@ -512,7 +512,7 @@ Each tool stores its configuration under `$AGENTIC_HOME`:
 
 ## 🛠️ Development
 
-See [docs/development.md](docs/development.md) for build commands, repo structure, adding tools, adding base runtimes, and debugging.
+See [docs/development.md](docs/05-development.md) for build commands, repo structure, adding tools, adding base runtimes, and debugging.
 
 ## 🔒 Security
 
