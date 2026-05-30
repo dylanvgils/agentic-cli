@@ -14,12 +14,12 @@ import (
 // update commands. --no-cache is registered separately because its description
 // differs between the two commands.
 func addBuildFlags(cmd *cobra.Command) {
-	cmd.Flags().String("base", "", "comma-separated extra runtime(s) to layer on top of node (e.g. java,dotnet)")
+	cmd.Flags().StringSlice("base", nil, "extra runtime(s) to layer on top of node; repeatable or comma-separated (e.g. --base java --base dotnet or --base java,dotnet)")
 	cmd.Flags().String("node", "", "Node.js version (default: "+tools.DefaultVersions.Node+")")
 	cmd.Flags().String("java", "", "Java (Temurin JDK) version (default: "+tools.DefaultVersions.Java+")")
 	cmd.Flags().String("dotnet", "", ".NET version (default: "+tools.DefaultVersions.Dotnet+")")
 	cmd.Flags().String("go", "", "Go version (default: "+tools.DefaultVersions.Go+")")
-	cmd.Flags().String("apt", "", "comma-separated apt packages to install in the base stage (e.g. make,gcc)")
+	cmd.Flags().StringSlice("apt", nil, "apt packages to install in the base stage; repeatable or comma-separated (e.g. --apt make --apt gcc or --apt make,gcc)")
 	cmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
 }
 
@@ -33,7 +33,11 @@ func flagOrEnv(cmd *cobra.Command, flag, env string) string {
 func buildOptsFromFlags(cmd *cobra.Command) tools.BuildOptions {
 	opts := tools.BuildOptions{Versions: map[string]string{}}
 
-	opts.BaseOverride = flagOrEnv(cmd, "base", "AGENTIC_BASE_OVERRIDE")
+	if baseVals, _ := cmd.Flags().GetStringSlice("base"); len(baseVals) > 0 {
+		opts.BaseOverride = strings.Join(baseVals, ",")
+	} else if v := os.Getenv("AGENTIC_BASE_OVERRIDE"); v != "" {
+		opts.BaseOverride = v
+	}
 	opts.NoCache, _ = cmd.Flags().GetBool("no-cache")
 	opts.NodeVersion = flagOrEnv(cmd, "node", "AGENTIC_NODE_VERSION")
 
@@ -75,7 +79,10 @@ func collectAptPackages(cmd *cobra.Command) []string {
 
 	add(os.Getenv("AGENTIC_APT_PACKAGES"))
 
-	add(flagOrEnv(cmd, "apt", ""))
+	aptVals, _ := cmd.Flags().GetStringSlice("apt")
+	for _, v := range aptVals {
+		add(v)
+	}
 
 	return result
 }

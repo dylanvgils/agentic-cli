@@ -96,11 +96,18 @@ func TestFlagOrEnv(t *testing.T) {
 	})
 }
 
+func newAptCmd(t *testing.T) *cobra.Command {
+	t.Helper()
+	cmd := &cobra.Command{Use: "test"}
+	addBuildFlags(cmd)
+	return cmd
+}
+
 func TestCollectAptPackages(t *testing.T) {
 	t.Run("env var parsed as comma-separated packages", func(t *testing.T) {
 		// Arrange
 		t.Setenv("AGENTIC_APT_PACKAGES", "make,gcc")
-		cmd := newFlagCmd(t, "apt")
+		cmd := newAptCmd(t)
 
 		// Act
 		result := collectAptPackages(cmd)
@@ -109,11 +116,36 @@ func TestCollectAptPackages(t *testing.T) {
 		assert.Equal(t, []string{"make", "gcc"}, result)
 	})
 
-	t.Run("flag takes priority and appends to env", func(t *testing.T) {
+	t.Run("flag appends to env", func(t *testing.T) {
 		// Arrange
 		t.Setenv("AGENTIC_APT_PACKAGES", "make")
-		cmd := newFlagCmd(t, "apt")
+		cmd := newAptCmd(t)
 		require.NoError(t, cmd.Flags().Set("apt", "gcc"))
+
+		// Act
+		result := collectAptPackages(cmd)
+
+		// Assert
+		assert.Equal(t, []string{"make", "gcc"}, result)
+	})
+
+	t.Run("multiple flags are all collected", func(t *testing.T) {
+		// Arrange
+		cmd := newAptCmd(t)
+		require.NoError(t, cmd.Flags().Set("apt", "make"))
+		require.NoError(t, cmd.Flags().Set("apt", "gcc"))
+
+		// Act
+		result := collectAptPackages(cmd)
+
+		// Assert
+		assert.Equal(t, []string{"make", "gcc"}, result)
+	})
+
+	t.Run("flag with comma-separated values", func(t *testing.T) {
+		// Arrange
+		cmd := newAptCmd(t)
+		require.NoError(t, cmd.Flags().Set("apt", "make,gcc"))
 
 		// Act
 		result := collectAptPackages(cmd)
@@ -125,7 +157,7 @@ func TestCollectAptPackages(t *testing.T) {
 	t.Run("deduplicates across sources", func(t *testing.T) {
 		// Arrange
 		t.Setenv("AGENTIC_APT_PACKAGES", "make")
-		cmd := newFlagCmd(t, "apt")
+		cmd := newAptCmd(t)
 		require.NoError(t, cmd.Flags().Set("apt", "make"))
 
 		// Act
@@ -143,7 +175,7 @@ func TestCollectAptPackages(t *testing.T) {
 
 	t.Run("empty when no sources set", func(t *testing.T) {
 		// Arrange
-		cmd := newFlagCmd(t, "apt")
+		cmd := newAptCmd(t)
 
 		// Act
 		result := collectAptPackages(cmd)
@@ -178,6 +210,33 @@ func TestBuildOptsFromFlags(t *testing.T) {
 		assert.Equal(t, "17", opts.Versions["java"])
 		assert.Equal(t, "8", opts.Versions["dotnet"])
 		assert.Equal(t, "1.22", opts.Versions["go"])
+	})
+
+	t.Run("multiple base flags are joined", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+		addBuildFlags(cmd)
+		require.NoError(t, cmd.Flags().Set("base", "java"))
+		require.NoError(t, cmd.Flags().Set("base", "dotnet"))
+
+		// Act
+		opts := buildOptsFromFlags(cmd)
+
+		// Assert
+		assert.Equal(t, "java,dotnet", opts.BaseOverride)
+	})
+
+	t.Run("base env var used when flag absent", func(t *testing.T) {
+		// Arrange
+		t.Setenv("AGENTIC_BASE_OVERRIDE", "java")
+		cmd := &cobra.Command{Use: "test"}
+		addBuildFlags(cmd)
+
+		// Act
+		opts := buildOptsFromFlags(cmd)
+
+		// Assert
+		assert.Equal(t, "java", opts.BaseOverride)
 	})
 }
 
