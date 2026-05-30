@@ -36,32 +36,6 @@ func Test_recoverAptPackages(t *testing.T) {
 	})
 }
 
-func Test_mergeAptPackages(t *testing.T) {
-	t.Run("appends additional to base", func(t *testing.T) {
-		// Act
-		result := mergeAptPackages([]string{"make"}, []string{"gcc"})
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc"}, result)
-	})
-
-	t.Run("deduplicates", func(t *testing.T) {
-		// Act
-		result := mergeAptPackages([]string{"make", "gcc"}, []string{"gcc", "jq"})
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc", "jq"}, result)
-	})
-
-	t.Run("nil additional returns base copy", func(t *testing.T) {
-		// Act
-		result := mergeAptPackages([]string{"make"}, nil)
-
-		// Assert
-		assert.Equal(t, []string{"make"}, result)
-	})
-}
-
 func TestUpdateTool(t *testing.T) {
 	origStdin := dockerRunStdin
 	dockerRunStdin = func(_ io.Reader, _ ...string) (string, error) { return "", nil }

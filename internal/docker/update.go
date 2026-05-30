@@ -20,7 +20,8 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 		}
 
 		if info.Apt != "" {
-			opts.AptPackages = mergeAptPackages(recoverAptPackages(info.Apt), opts.AptPackages)
+			recoveredPkgs := recoverAptPackages(info.Apt)
+			opts.AptPackages = tools.MergePackages(recoveredPkgs, opts.AptPackages)
 		}
 	}
 
@@ -38,21 +39,4 @@ func recoverAptPackages(aptLabel string) []string {
 		}
 	}
 	return pkgs
-}
-
-// mergeAptPackages appends additional packages to a base list, deduplicating.
-func mergeAptPackages(base []string, additional []string) []string {
-	seen := make(map[string]bool, len(base))
-	result := make([]string, len(base), len(base)+len(additional))
-	copy(result, base)
-	for _, pkg := range base {
-		seen[pkg] = true
-	}
-	for _, pkg := range additional {
-		if !seen[pkg] {
-			seen[pkg] = true
-			result = append(result, pkg)
-		}
-	}
-	return result
 }
