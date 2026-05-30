@@ -31,7 +31,7 @@ type Instruction interface {
 
 ### Run
 
-`Run` (`run.go`) has three modes — use the one that fits:
+`Run` (`run.go`) has three modes - use the one that fits:
 
 ```go
 // Single pre-formatted string
@@ -196,4 +196,4 @@ func claudeStage(prevStage string) df.Stage {
 }
 ```
 
-`internal/tools/generate.go` threads these together — base → extras → tool stage — then calls `File{Stages: stages}.Render()` to produce the final Dockerfile string. The `Stage` field in each tool's `BuildConfig` (`internal/tools/tools.go`) is what gets wired into this pipeline.
+`internal/tools/generate.go` threads these together - base → extras → tool stage - then calls `File{Stages: stages}.Render()` to produce the final Dockerfile string. The `Stage` field in each tool's `BuildConfig` (`internal/tools/tools.go`) is what gets wired into this pipeline.

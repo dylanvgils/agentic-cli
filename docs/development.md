@@ -50,28 +50,59 @@ Within each `.go` file, order elements as follows:
 
 ### Tests
 
+- Always add tests for new code
 - Use Arrange-Act-Assert (AAA) with `// Arrange`, `// Act`, `// Assert` comment labels and a blank line between sections
 - Omit `// Arrange` only when there is genuinely nothing to set up
 - Use `// Act + Assert` only when a single call is inseparably both (e.g. `assert.Panics`)
-- Assign the result of the function under test to a variable in `// Act` so `// Assert` can reference it
+- Assign the result of the function under test to a variable in `// Act` so `// Assert` can reference it - do not inline the call inside the assertion
+- When a function has multiple test cases, group them under a single parent function using `t.Run` subtests; name the parent after the function under test (e.g. `TestBuildImage`). A function with only one test case stays as a flat top-level function
+- Subtest names use lowercase sentence style derived from the scenario (e.g. `"first arg is build"`, `"noCache adds no-cache flag"`)
+- Place shared setup that applies to all subtests at the top of the parent function body, before the first `t.Run` call; subtests with no additional setup omit `// Arrange`
+- Test helper functions that need cleanup must register it via `t.Cleanup` internally - do not return a restore/teardown func for callers to defer
+- All shared test helpers live in `helpers_test.go` in the same package; do not define helpers inside individual test files
+- Name all stub helpers with a `stub` prefix (e.g. `stubDockerRun`, `stubRunInteractive`); pure utilities that are not stubs are exempt (e.g. `argAfter`)
+
+Example structure:
+
+```go
+func TestBuildImage(t *testing.T) {
+    get := stubRunInteractive(t) // shared setup - no // Arrange label needed at subtest level
+
+    t.Run("first arg is build", func(t *testing.T) {
+        // Act
+        err := buildImage(...)
+        // Assert
+        assert.Equal(t, "build", get()[0])
+    })
+
+    t.Run("noCache adds no-cache flag", func(t *testing.T) {
+        // Arrange
+        opts := tools.BuildOptions{NoCache: true}
+        // Act
+        err := buildImage(..., opts)
+        // Assert
+        assert.Contains(t, get(), "--no-cache")
+    })
+}
+```
 
 ## Adding a new tool
 
 1. Create `internal/tools/<name>.go` implementing four functions:
-   - `<name>Stage(prevStage string) dockerfile.Stage` — return the tool's Dockerfile stage using the [Dockerfile DSL](dockerfile-dsl.md); `prevStage` is the name of the preceding base stage to `FROM`
-   - `setup<Name>(toolHome string) error` — create any host-side directories or files the tool needs before first run (e.g. pre-creating a credentials file so the read-only root filesystem doesn't block the first write)
-   - `<name>Mounts() []string` — return the list of bind/volume mounts using helpers from `internal/mount`
-   - `<name>TmpfsMounts() []string` — return any tmpfs mounts (every tool needs at least `/tmp`)
+   - `<name>Stage(prevStage string) dockerfile.Stage` - return the tool's Dockerfile stage using the [Dockerfile DSL](dockerfile-dsl.md); `prevStage` is the name of the preceding base stage to `FROM`
+   - `setup<Name>(toolHome string) error` - create any host-side directories or files the tool needs before first run (e.g. pre-creating a credentials file so the read-only root filesystem doesn't block the first write)
+   - `<name>Mounts() []string` - return the list of bind/volume mounts using helpers from `internal/mount`
+   - `<name>TmpfsMounts() []string` - return any tmpfs mounts (every tool needs at least `/tmp`)
 
    Reuse the shared helpers in `internal/tools/helpers.go` inside the stage func:
-   - `CreateContainerUser(name string) []df.Instruction` — declares `HOST_UID`/`HOST_GID` build args, removes any conflicting user, and creates the container user. Spread into `Add`: `Add(CreateContainerUser("mytool")...)`
-   - `AptInstallRun(pkgs []string) df.Run` — builds a standard apt update → install → cleanup `RUN` block
+   - `CreateContainerUser(name string) []df.Instruction` - declares `HOST_UID`/`HOST_GID` build args, removes any conflicting user, and creates the container user. Spread into `Add`: `Add(CreateContainerUser("mytool")...)`
+   - `AptInstallRun(pkgs []string) df.Run` - builds a standard apt update → install → cleanup `RUN` block
 
    Use `mount.VolumeMount(host, container)` and `mount.TmpfsMount(path, opts)` from `internal/mount`. Mount strings support two placeholder variables expanded at runtime:
-   - `$TOOL_HOME` (host side) — expands to the agentic data dir (e.g. `~/.agentic`)
-   - `$CONTAINER_HOME` (container side) — expands to the container home dir, resolved from the image's `TOOL_HOME` env var
+   - `$TOOL_HOME` (host side) - expands to the agentic data dir (e.g. `~/.agentic`)
+   - `$CONTAINER_HOME` (container side) - expands to the container home dir, resolved from the image's `TOOL_HOME` env var
 
-   Security constraints (`--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`) are enforced in `internal/docker/run.go`. Do not relax them. If the tool needs to write somewhere, use a targeted tmpfs or volume mount — not a relaxed security flag.
+   Security constraints (`--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`) are enforced in `internal/docker/run.go`. Do not relax them. If the tool needs to write somewhere, use a targeted tmpfs or volume mount - not a relaxed security flag.
 
 2. Register in `internal/tools/tools.go` `Configs` map:
 
@@ -84,14 +115,14 @@ Within each `.go` file, order elements as follows:
 
 ## Adding a new base runtime
 
-1. Add a new case to `ExtraStage()` in `internal/tools/bases.go` (follow the `javaStage`/`dotnetStage`/`goStage` pattern). The stage func receives `prevStage` and `ver` — build FROM `prevStage` and apply the version as a build arg default.
+1. Add a new case to `ExtraStage()` in `internal/tools/bases.go` (follow the `javaStage`/`dotnetStage`/`goStage` pattern). The stage func receives `prevStage` and `ver` - build FROM `prevStage` and apply the version as a build arg default.
 
 2. Add the name to `KnownExtras` in `internal/tools/bases.go`.
 
 3. Wire a `--<name>` version flag into three files:
-   - `cmd/flags.go` — define the flag
-   - `cmd/build.go` — pass it through to the build step
-   - `cmd/update.go` — pass it through to the update step
+   - `cmd/flags.go` - define the flag
+   - `cmd/build.go` - pass it through to the build step
+   - `cmd/update.go` - pass it through to the update step
 
 ## Debugging
 

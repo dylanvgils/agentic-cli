@@ -234,6 +234,91 @@ func TestBuildBaseArgs(t *testing.T) {
 		assert.Contains(t, args, "--cpus=2")
 		assert.Contains(t, args, "--memory=2g")
 	})
+
+}
+
+func TestBuildTTYArgs(t *testing.T) {
+	t.Run("returns -it when terminal", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, true)
+
+		// Act
+		args := buildTTYArgs()
+
+		// Assert
+		assert.Equal(t, []string{"--interactive", "--tty"}, args)
+	})
+
+	t.Run("empty when not a terminal", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, false)
+
+		// Act
+		args := buildTTYArgs()
+
+		// Assert
+		assert.Empty(t, args)
+	})
+}
+
+func TestBuildEnvArgs(t *testing.T) {
+	t.Run("empty when no color vars set", func(t *testing.T) {
+		// Arrange
+		t.Setenv("COLORTERM", "")
+		t.Setenv("TERM", "")
+		t.Setenv("NO_COLOR", "")
+		t.Setenv("FORCE_COLOR", "")
+
+		// Act
+		args := buildEnvArgs()
+
+		// Assert
+		assert.Empty(t, args)
+	})
+
+	t.Run("COLORTERM passed through from host", func(t *testing.T) {
+		// Arrange
+		t.Setenv("COLORTERM", "truecolor")
+
+		// Act
+		args := buildEnvArgs()
+
+		// Assert
+		assert.Contains(t, args, "--env=COLORTERM=truecolor")
+	})
+
+	t.Run("TERM passed through from host", func(t *testing.T) {
+		// Arrange
+		t.Setenv("TERM", "xterm-256color")
+
+		// Act
+		args := buildEnvArgs()
+
+		// Assert
+		assert.Contains(t, args, "--env=TERM=xterm-256color")
+	})
+
+	t.Run("NO_COLOR passed through from host", func(t *testing.T) {
+		// Arrange
+		t.Setenv("NO_COLOR", "1")
+
+		// Act
+		args := buildEnvArgs()
+
+		// Assert
+		assert.Contains(t, args, "--env=NO_COLOR=1")
+	})
+
+	t.Run("FORCE_COLOR passed through from host", func(t *testing.T) {
+		// Arrange
+		t.Setenv("FORCE_COLOR", "1")
+
+		// Act
+		args := buildEnvArgs()
+
+		// Assert
+		assert.Contains(t, args, "--env=FORCE_COLOR=1")
+	})
 }
 
 func TestBuildTmpfsArgs(t *testing.T) {
