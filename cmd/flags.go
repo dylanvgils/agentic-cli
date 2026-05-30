@@ -60,31 +60,18 @@ func buildOptsFromFlags(cmd *cobra.Command) tools.BuildOptions {
 // collectAptPackages merges apt packages from .agenticrc, AGENTIC_APT_PACKAGES env var,
 // and --apt flag, in that order (outermost RC first, flag last). Deduplicates.
 func collectAptPackages(cmd *cobra.Command) []string {
-	seen := make(map[string]bool)
-	var result []string
+	cwd, _ := os.Getwd()
+	rcPkgs := config.FindAndLoad(cwd).AptPackages
 
-	add := func(raw string) {
-		for pkg := range strings.SplitSeq(raw, ",") {
-			if pkg = strings.TrimSpace(pkg); pkg != "" && !seen[pkg] {
-				seen[pkg] = true
-				result = append(result, pkg)
-			}
+	var envPkgs []string
+	for pkg := range strings.SplitSeq(os.Getenv("AGENTIC_APT_PACKAGES"), ",") {
+		if pkg = strings.TrimSpace(pkg); pkg != "" {
+			envPkgs = append(envPkgs, pkg)
 		}
 	}
 
-	rc := config.FindAndLoad(".")
-	for _, pkg := range rc.AptPackages {
-		add(pkg)
-	}
-
-	add(os.Getenv("AGENTIC_APT_PACKAGES"))
-
-	aptVals, _ := cmd.Flags().GetStringSlice("apt")
-	for _, v := range aptVals {
-		add(v)
-	}
-
-	return result
+	flagVals, _ := cmd.Flags().GetStringSlice("apt")
+	return tools.MergePackages(append(rcPkgs, envPkgs...), flagVals)
 }
 
 func toolNames(args []string) []string {

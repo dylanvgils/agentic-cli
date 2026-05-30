@@ -25,7 +25,7 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 		}
 	}
 
-	opts.VerifyApt = hasUserApt && len(opts.AptPackages) > 0
+	opts.VerifyApt = hasUserApt
 	opts.NoCacheTool = true
 	return BuildTool(tool, image, opts)
 }

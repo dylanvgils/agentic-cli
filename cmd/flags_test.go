@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -173,8 +175,23 @@ func TestCollectAptPackages(t *testing.T) {
 		assert.Equal(t, 1, count, "make should appear exactly once")
 	})
 
+	t.Run("rc file packages are included", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc"), []byte("apt_packages=make\n"), 0o644))
+		t.Chdir(dir)
+		cmd := newAptCmd(t)
+
+		// Act
+		result := collectAptPackages(cmd)
+
+		// Assert
+		assert.Equal(t, []string{"make"}, result)
+	})
+
 	t.Run("empty when no sources set", func(t *testing.T) {
 		// Arrange
+		t.Chdir(t.TempDir())
 		cmd := newAptCmd(t)
 
 		// Act
