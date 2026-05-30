@@ -9,6 +9,8 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
+var isTerminal = platform.IsTerminal
+
 // RunSpec collects everything needed to run a container.
 type RunSpec struct {
 	Image          string
