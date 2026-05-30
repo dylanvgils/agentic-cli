@@ -26,7 +26,7 @@ func claudeStage(prevStage string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
 		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
 		Add(df.Label{Key: "project", Value: "agentic-cli"}).
-		Add(CreateContainerUser("claude")...).
+		Add(createContainerUser("claude")...).
 		Add(df.Heredoc{
 			Dest:  "/usr/local/bin/entrypoint.sh",
 			Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail", "exec claude \"$@\""},

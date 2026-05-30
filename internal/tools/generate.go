@@ -43,7 +43,8 @@ func ParseExtras(base string) []string {
 
 // composeStages assembles the full list of Dockerfile stages: node base + requested extras + tool.
 func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfile.Stage, error) {
-	base := NodeStage(opts.NodeVersion)
+	pkgs := collectPackages(extras)
+	base := baseStage(opts.NodeVersion, pkgs)
 
 	extraList, prev, err := buildExtraStages(extras, "base", opts.Versions)
 	if err != nil {
@@ -69,7 +70,7 @@ func buildExtraStages(extras []string, prevStage string, versions map[string]str
 
 	for _, extra := range extras {
 		ver := versions[extra]
-		stage, err := ExtraStage(extra, prev, ver)
+		stage, err := extraStage(extra, prev, ver)
 		if err != nil {
 			return nil, "", err
 		}

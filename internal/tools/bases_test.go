@@ -8,19 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAptBasePackages_containsExpectedDefaults(t *testing.T) {
-	// Assert
-	assert.Contains(t, AptBasePackages, "curl")
-	assert.Contains(t, AptBasePackages, "wget")
-	assert.Contains(t, AptBasePackages, "jq")
-	assert.Contains(t, AptBasePackages, "git")
-	assert.Contains(t, AptBasePackages, "gpg")
-	assert.Contains(t, AptBasePackages, "ca-certificates")
-	assert.Contains(t, AptBasePackages, "apt-transport-https")
-}
-
-func TestNodeStage(t *testing.T) {
-	stage := NodeStage("")
+func Test_baseStage(t *testing.T) {
+	stage := baseStage("", collectPackages(nil))
 	result := renderStage(stage)
 
 	t.Run("from uses node image", func(t *testing.T) {
@@ -38,7 +27,7 @@ func TestNodeStage(t *testing.T) {
 
 	t.Run("version override", func(t *testing.T) {
 		// Arrange
-		stage := NodeStage("22")
+		stage := baseStage("22", nil)
 
 		// Assert
 		assert.Equal(t, "22", stage.GlobalArgs[0].Default)
@@ -51,16 +40,16 @@ func TestNodeStage(t *testing.T) {
 
 	t.Run("renders apt base packages", func(t *testing.T) {
 		// Assert
-		for _, pkg := range AptBasePackages {
+		for _, pkg := range collectPackages(nil) {
 			assert.Contains(t, result, pkg, "expected base package %q in node stage", pkg)
 		}
 	})
 }
 
-func TestExtraStage(t *testing.T) {
+func Test_extraStage(t *testing.T) {
 	t.Run("unknown returns error", func(t *testing.T) {
 		// Act
-		_, err := ExtraStage("ruby", "base", "")
+		_, err := extraStage("ruby", "base", "")
 
 		// Assert
 		require.Error(t, err)
@@ -70,7 +59,7 @@ func TestExtraStage(t *testing.T) {
 
 	t.Run("java from prev stage", func(t *testing.T) {
 		// Act
-		stage, err := ExtraStage("java", "base", "")
+		stage, err := extraStage("java", "base", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -80,7 +69,7 @@ func TestExtraStage(t *testing.T) {
 
 	t.Run("java default version", func(t *testing.T) {
 		// Act
-		stage, err := ExtraStage("java", "base", "")
+		stage, err := extraStage("java", "base", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -89,7 +78,7 @@ func TestExtraStage(t *testing.T) {
 
 	t.Run("java version override", func(t *testing.T) {
 		// Act
-		stage, err := ExtraStage("java", "base", "17")
+		stage, err := extraStage("java", "base", "17")
 
 		// Assert
 		require.NoError(t, err)
@@ -98,7 +87,7 @@ func TestExtraStage(t *testing.T) {
 
 	t.Run("java renders version script", func(t *testing.T) {
 		// Act
-		stage, err := ExtraStage("java", "base", "")
+		stage, err := extraStage("java", "base", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -107,7 +96,7 @@ func TestExtraStage(t *testing.T) {
 
 	t.Run("dotnet from prev stage", func(t *testing.T) {
 		// Act
-		stage, err := ExtraStage("dotnet", "java", "")
+		stage, err := extraStage("dotnet", "java", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -117,7 +106,7 @@ func TestExtraStage(t *testing.T) {
 
 	t.Run("dotnet default version", func(t *testing.T) {
 		// Act
-		stage, err := ExtraStage("dotnet", "base", "")
+		stage, err := extraStage("dotnet", "base", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -126,7 +115,7 @@ func TestExtraStage(t *testing.T) {
 
 	t.Run("dotnet renders version script", func(t *testing.T) {
 		// Act
-		stage, err := ExtraStage("dotnet", "base", "")
+		stage, err := extraStage("dotnet", "base", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -135,7 +124,7 @@ func TestExtraStage(t *testing.T) {
 
 	t.Run("go default version", func(t *testing.T) {
 		// Act
-		stage, err := ExtraStage("go", "base", "")
+		stage, err := extraStage("go", "base", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -144,7 +133,7 @@ func TestExtraStage(t *testing.T) {
 
 	t.Run("go renders version script", func(t *testing.T) {
 		// Act
-		stage, err := ExtraStage("go", "base", "")
+		stage, err := extraStage("go", "base", "")
 
 		// Assert
 		require.NoError(t, err)

@@ -1,6 +1,20 @@
 package docker
 
-import "strings"
+import (
+	"os"
+	"strings"
+)
+
+// forwardEnvArg builds --env=KEY=val flags for each key set in the host environment.
+func forwardEnvArg(keys ...string) []string {
+	var args []string
+	for _, key := range keys {
+		if val := os.Getenv(key); val != "" {
+			args = append(args, arg("env", key+"="+val))
+		}
+	}
+	return args
+}
 
 // arg builds a --name or --name=value Docker flag.
 // Panics if name is empty, starts with '-', or more than one value is given (programmer error).

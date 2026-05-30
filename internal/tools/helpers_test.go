@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCreateContainerUser(t *testing.T) {
+func Test_createContainerUser(t *testing.T) {
 	result := df.File{Stages: []df.Stage{
-		df.NewStage(df.From{Image: "scratch"}).Add(CreateContainerUser("myuser")...).Build(),
+		df.NewStage(df.From{Image: "scratch"}).Add(createContainerUser("myuser")...).Build(),
 	}}.Render()
 
 	t.Run("renders host ID args", func(t *testing.T) {
@@ -31,12 +31,12 @@ func TestCreateContainerUser(t *testing.T) {
 	})
 }
 
-func TestAptInstallRun_rendersUpdateInstallCleanup(t *testing.T) {
+func Test_aptInstallRun_rendersUpdateInstallCleanup(t *testing.T) {
 	// Arrange
 	pkgs := []string{"curl", "wget"}
 
 	// Act
-	run := AptInstallRun(pkgs)
+	run := aptInstallRun(pkgs)
 	result := df.File{Stages: []df.Stage{
 		df.NewStage(df.From{Image: "scratch"}).Add(run).Build(),
 	}}.Render()

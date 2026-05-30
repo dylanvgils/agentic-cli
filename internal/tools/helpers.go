@@ -6,8 +6,8 @@ import (
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
-// AptInstallRun builds a standard apt update → install --no-install-recommends → cleanup Run block.
-func AptInstallRun(pkgs []string) df.Run {
+// aptInstallRun builds a standard apt update → install --no-install-recommends → cleanup Run block.
+func aptInstallRun(pkgs []string) df.Run {
 	return df.Run{Blocks: []df.Block{
 		{Lines: []string{"apt-get update -yq"}},
 		{Lines: append([]string{"apt-get install -yq --no-install-recommends"}, pkgs...)},
@@ -15,9 +15,9 @@ func AptInstallRun(pkgs []string) df.Run {
 	}}
 }
 
-// CreateContainerUser returns the instructions that declare HOST_UID/HOST_GID build args,
+// createContainerUser returns the instructions that declare HOST_UID/HOST_GID build args,
 // remove any user already occupying HOST_UID, and create a fresh container user with the given name.
-func CreateContainerUser(name string) []df.Instruction {
+func createContainerUser(name string) []df.Instruction {
 	return []df.Instruction{
 		df.Arg{Key: "HOST_UID", Default: "1000"},
 		df.Arg{Key: "HOST_GID", Default: "1000"},

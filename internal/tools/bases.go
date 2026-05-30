@@ -10,14 +10,30 @@ import (
 // KnownExtras lists the supported extra base layers in alphabetical order.
 var KnownExtras = []string{"dotnet", "go", "java"}
 
-// AptBasePackages are the apt packages installed in every node base image.
-var AptBasePackages = []string{
-	"curl", "wget", "jq", "git", "gpg", "ca-certificates", "apt-transport-https",
+// baseStage returns the foundational base stage. Currently delegates to nodeStage.
+func baseStage(ver string, pkgs []string) df.Stage {
+	return nodeStage(ver, pkgs)
 }
 
-// NodeStage returns the foundational node/debian base stage.
+// extraStage returns the stage for a named extra layer (java, dotnet, go).
+// prevStage is the name of the preceding stage to build FROM.
+// ver overrides the layer's default version; empty string uses the Dockerfile default.
+func extraStage(name, prevStage, ver string) (df.Stage, error) {
+	switch name {
+	case "java":
+		return javaStage(prevStage, ver), nil
+	case "dotnet":
+		return dotnetStage(prevStage, ver), nil
+	case "go":
+		return goStage(prevStage, ver), nil
+	default:
+		return df.Stage{}, fmt.Errorf("unknown base %q (valid: %s)", name, strings.Join(KnownExtras, ", "))
+	}
+}
+
+// nodeStage returns the foundational node/debian base stage.
 // ver is the NODE_VERSION build arg default; empty string uses the Dockerfile default of 24.
-func NodeStage(ver string) df.Stage {
+func nodeStage(ver string, pkgs []string) df.Stage {
 	nodeArg := df.Arg{Key: "NODE_VERSION", Default: DefaultVersions.Node}
 	if ver != "" {
 		nodeArg.Default = ver
@@ -30,24 +46,8 @@ func NodeStage(ver string) df.Stage {
 			Dest:  "/usr/local/bin/" + versionScript("node"),
 			Lines: []string{"#!/bin/sh", "node --version"},
 		}).
-		Add(AptInstallRun(AptBasePackages)).
+		Add(aptInstallRun(pkgs)).
 		Build()
-}
-
-// ExtraStage returns the stage for a named extra layer (java, dotnet, go).
-// prevStage is the name of the preceding stage to build FROM.
-// ver overrides the layer's default version; empty string uses the Dockerfile default.
-func ExtraStage(name, prevStage, ver string) (df.Stage, error) {
-	switch name {
-	case "java":
-		return javaStage(prevStage, ver), nil
-	case "dotnet":
-		return dotnetStage(prevStage, ver), nil
-	case "go":
-		return goStage(prevStage, ver), nil
-	default:
-		return df.Stage{}, fmt.Errorf("unknown base %q (valid: %s)", name, strings.Join(KnownExtras, ", "))
-	}
 }
 
 func javaStage(prevStage, ver string) df.Stage {
@@ -167,4 +167,3 @@ func goStage(prevStage, ver string) df.Stage {
 		}).
 		Build()
 }
-
