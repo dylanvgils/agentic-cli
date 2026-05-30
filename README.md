@@ -297,7 +297,7 @@ Secrets use the format `name:/path/to/file`. The `~`, `$HOME`, and `${HOME}` pre
 
 ## 📦 Named Docker volumes
 
-The `-v` flag and `AGENTIC_EXTRA_MOUNTS` support both bind mounts (host paths) and named Docker volumes. Named volumes are created automatically on first use and persist across container runs — no host path required.
+The `-v` flag and `AGENTIC_EXTRA_MOUNTS` support both bind mounts (host paths) and named Docker volumes. Named volumes are created automatically on first use and persist across container runs - no host path required.
 
 For a per-tool breakdown of what's mounted automatically and why, see [docs/volume-mounts.md](docs/volume-mounts.md).
 
@@ -399,7 +399,7 @@ Place a `.agenticrc` file anywhere in your directory tree to apply project-speci
 
 `.agenticrc` values override env var defaults but are superseded by CLI flags. `extra_mounts` and `secrets` are appended to rather than replacing `AGENTIC_EXTRA_MOUNTS` / `AGENTIC_SECRETS`. You can commit `.agenticrc` to the repo so the whole team picks up the right settings automatically.
 
-Repeatable keys let you list one entry per line; comma-separated values on a single line also work — your choice:
+Repeatable keys let you list one entry per line; comma-separated values on a single line also work - your choice:
 
 ```sh
 # .agenticrc
@@ -415,7 +415,7 @@ cpus=8
 memory=8g
 ```
 
-**Multi-level example** — shared secrets in a parent directory, project mounts in the project:
+**Multi-level example** - shared secrets in a parent directory, project mounts in the project:
 
 ```sh
 # ~/projects/.agenticrc  (applies to all projects under ~/projects)

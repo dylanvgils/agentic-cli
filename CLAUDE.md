@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in isolated containers. The Go binary (`agentic`) handles all commands and generates Dockerfiles programmatically at build time — no static Dockerfile files exist. No linter. Development means editing Go source, then testing with `go test ./...` and building/running containers.
+A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in isolated containers. The Go binary (`agentic`) handles all commands and generates Dockerfiles programmatically at build time - no static Dockerfile files exist. No linter. Development means editing Go source, then testing with `go test ./...` and building/running containers.
 
 ## Key commands
 
@@ -52,11 +52,11 @@ Within each `.go` file, order elements as follows:
 - Use Arrange-Act-Assert (AAA) in every test: `// Arrange`, `// Act`, `// Assert` comment labels with a blank line between sections
 - Omit `// Arrange` only when there is genuinely nothing to set up
 - Use `// Act + Assert` only when a single call is inseparably both (e.g. `assert.Panics`)
-- Assign the result of the function under test to a variable in `// Act` so `// Assert` can reference it — do not inline the call inside the assertion
+- Assign the result of the function under test to a variable in `// Act` so `// Assert` can reference it - do not inline the call inside the assertion
 - When a function has multiple test cases, group them under a single parent function using `t.Run` subtests; name the parent after the function under test (e.g. `TestBuildImage`). A function with only one test case stays as a flat top-level function
 - Subtest names use lowercase sentence style derived from the scenario (e.g. `"first arg is build"`, `"noCache adds no-cache flag"`)
 - Place shared setup that applies to all subtests at the top of the parent function body, before the first `t.Run` call; subtests with no additional setup omit `// Arrange`
-- Test helper functions that need cleanup must register it via `t.Cleanup` internally — do not return a restore/teardown func for callers to defer
+- Test helper functions that need cleanup must register it via `t.Cleanup` internally - do not return a restore/teardown func for callers to defer
 - All shared test helpers live in `helpers_test.go` in the same package; do not define helpers inside individual test files
 - Name all stub helpers with a `stub` prefix (e.g. `stubDockerRun`, `stubRunInteractive`); pure utilities that are not stubs are exempt (e.g. `argAfter`)
 
@@ -64,7 +64,7 @@ Example structure:
 
 ```go
 func TestBuildImage(t *testing.T) {
-    get := stubRunInteractive(t) // shared setup — no // Arrange label needed at subtest level
+    get := stubRunInteractive(t) // shared setup - no // Arrange label needed at subtest level
 
     t.Run("first arg is build", func(t *testing.T) {
         // Act
