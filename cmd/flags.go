@@ -30,7 +30,6 @@ func flagOrEnv(cmd *cobra.Command, flag, env string) string {
 	return os.Getenv(env)
 }
 
-
 func buildOptsFromFlags(cmd *cobra.Command) tools.BuildOptions {
 	opts := tools.BuildOptions{Versions: map[string]string{}}
 
