@@ -118,25 +118,7 @@ func buildTTYArgs() []string {
 // Only vars that are actually set on the host are included, to avoid
 // misrepresenting capabilities the terminal doesn't have.
 func buildEnvArgs() []string {
-	var args []string
-
-	if colorterm := os.Getenv("COLORTERM"); colorterm != "" {
-		args = append(args, arg("env", "COLORTERM="+colorterm))
-	}
-
-	if term := os.Getenv("TERM"); term != "" {
-		args = append(args, arg("env", "TERM="+term))
-	}
-
-	if noColor := os.Getenv("NO_COLOR"); noColor != "" {
-		args = append(args, arg("env", "NO_COLOR="+noColor))
-	}
-
-	if forceColor := os.Getenv("FORCE_COLOR"); forceColor != "" {
-		args = append(args, arg("env", "FORCE_COLOR="+forceColor))
-	}
-
-	return args
+	return forwardEnvArg("COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR")
 }
 
 // buildTmpfsArgs builds --tmpfs flags with variable expansion.
