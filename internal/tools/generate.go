@@ -16,6 +16,8 @@ type BuildOptions struct {
 	NoCacheTool  bool              // disable layer cache for the tool step only (used by update)
 	NodeVersion  string            // override Node.js version
 	Versions     map[string]string // extra name → version override, e.g. {"java": "21"}
+	AptPackages  []string          // additional apt packages to install in the base stage
+	VerifyApt    bool              // run pre-build apt-cache check for AptPackages
 }
 
 // GenerateDockerfile returns the Dockerfile content for the named tool without building it.
@@ -43,7 +45,7 @@ func ParseExtras(base string) []string {
 
 // composeStages assembles the full list of Dockerfile stages: node base + requested extras + tool.
 func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfile.Stage, error) {
-	pkgs := collectPackages(extras)
+	pkgs := collectPackages(extras, opts.AptPackages)
 	base := baseStage(opts.NodeVersion, pkgs)
 
 	extraList, prev, err := buildExtraStages(extras, "base", opts.Versions)

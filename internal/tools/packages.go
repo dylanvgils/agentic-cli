@@ -10,8 +10,8 @@ var layerPackages = map[string][]string{
 }
 
 // collectPackages merges the base packages with any extra packages declared by the given
-// extra layers, deduplicating while preserving declaration order.
-func collectPackages(extras []string) []string {
+// extra layers and any user-supplied apt packages, deduplicating while preserving declaration order.
+func collectPackages(extras []string, userPkgs []string) []string {
 	seen := make(map[string]bool)
 	var result []string
 
@@ -21,6 +21,13 @@ func collectPackages(extras []string) []string {
 				seen[pkg] = true
 				result = append(result, pkg)
 			}
+		}
+	}
+
+	for _, pkg := range userPkgs {
+		if !seen[pkg] {
+			seen[pkg] = true
+			result = append(result, pkg)
 		}
 	}
 

@@ -14,6 +14,7 @@ type AgenticRC struct {
 	Root        bool
 	ExtraMounts []string
 	Secrets     []string
+	AptPackages []string
 	PidsLimit   string
 	CPUs        string
 	Memory      string
@@ -118,6 +119,7 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 	for i := len(configs) - 1; i >= 0; i-- {
 		result.ExtraMounts = append(result.ExtraMounts, configs[i].ExtraMounts...)
 		result.Secrets = append(result.Secrets, configs[i].Secrets...)
+		result.AptPackages = append(result.AptPackages, configs[i].AptPackages...)
 	}
 
 	return result
@@ -161,6 +163,8 @@ func parseRC(r io.Reader) (*AgenticRC, error) {
 			rc.ExtraMounts = append(rc.ExtraMounts, splitValues(value)...)
 		case "secrets":
 			rc.Secrets = append(rc.Secrets, splitValues(value)...)
+		case "apt_packages":
+			rc.AptPackages = append(rc.AptPackages, splitValues(value)...)
 
 		case "pids_limit":
 			rc.PidsLimit = value

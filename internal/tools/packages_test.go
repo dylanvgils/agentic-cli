@@ -9,7 +9,7 @@ import (
 func TestCollectPackages(t *testing.T) {
 	t.Run("nil extras returns base packages", func(t *testing.T) {
 		// Act
-		result := collectPackages(nil)
+		result := collectPackages(nil, nil)
 
 		// Assert
 		assert.Contains(t, result, "curl")
@@ -23,7 +23,7 @@ func TestCollectPackages(t *testing.T) {
 
 	t.Run("go adds jq", func(t *testing.T) {
 		// Act
-		result := collectPackages([]string{"go"})
+		result := collectPackages([]string{"go"}, nil)
 
 		// Assert
 		assert.Contains(t, result, "jq")
@@ -31,7 +31,7 @@ func TestCollectPackages(t *testing.T) {
 
 	t.Run("java adds apt-transport-https", func(t *testing.T) {
 		// Act
-		result := collectPackages([]string{"java"})
+		result := collectPackages([]string{"java"}, nil)
 
 		// Assert
 		assert.Contains(t, result, "apt-transport-https")
@@ -39,7 +39,7 @@ func TestCollectPackages(t *testing.T) {
 
 	t.Run("deduplicates across layers", func(t *testing.T) {
 		// Act
-		result := collectPackages([]string{"java", "dotnet"})
+		result := collectPackages([]string{"java", "dotnet"}, nil)
 
 		// Assert
 		count := 0
@@ -49,5 +49,29 @@ func TestCollectPackages(t *testing.T) {
 			}
 		}
 		assert.Equal(t, 1, count, "apt-transport-https should appear exactly once")
+	})
+
+	t.Run("user packages appended after layer packages", func(t *testing.T) {
+		// Act
+		result := collectPackages(nil, []string{"make", "gcc"})
+
+		// Assert
+		assert.Contains(t, result, "make")
+		assert.Contains(t, result, "gcc")
+	})
+
+	t.Run("user packages deduplicated against layer packages", func(t *testing.T) {
+		// Act
+		result := collectPackages(nil, []string{"curl", "make"})
+
+		// Assert
+		count := 0
+		for _, pkg := range result {
+			if pkg == "curl" {
+				count++
+			}
+		}
+		assert.Equal(t, 1, count, "curl should appear exactly once")
+		assert.Contains(t, result, "make")
 	})
 }

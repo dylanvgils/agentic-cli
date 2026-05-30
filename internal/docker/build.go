@@ -13,6 +13,12 @@ import (
 // BuildTool generates a multi-stage Dockerfile for the named tool and builds it.
 // The installed tool version is detected from the image via its embedded version script.
 func BuildTool(tool, image string, opts tools.BuildOptions) error {
+	if opts.VerifyApt {
+		if err := verifyAptPackages(opts.AptPackages); err != nil {
+			return err
+		}
+	}
+
 	content, err := tools.GenerateDockerfile(tool, opts)
 	if err != nil {
 		return err
@@ -22,7 +28,7 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 		return fmt.Errorf("tool image: %w", err)
 	}
 
-	stampImageLabels(image, tool, tools.ParseExtras(opts.BaseOverride))
+	stampImageLabels(image, tool, tools.ParseExtras(opts.BaseOverride), opts.AptPackages)
 
 	return nil
 }

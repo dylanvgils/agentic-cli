@@ -7,6 +7,13 @@ import (
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
+const (
+	debianCodename = "bookworm-slim"
+
+	// DebianImage is the base Debian image used for apt verification.
+	DebianImage = "debian:" + debianCodename
+)
+
 // KnownExtras lists the supported extra base layers in alphabetical order.
 var KnownExtras = []string{"dotnet", "go", "java"}
 
@@ -39,7 +46,7 @@ func nodeStage(ver string, pkgs []string) df.Stage {
 		nodeArg.Default = ver
 	}
 
-	return df.NewStage(df.From{Image: "node:${NODE_VERSION}-bookworm-slim", As: "base"}).
+	return df.NewStage(df.From{Image: "node:${NODE_VERSION}-" + debianCodename, As: "base"}).
 		AddGlobalArg(nodeArg).
 		Add(df.Env{Key: "DEBIAN_FRONTEND", Value: "noninteractive"}).
 		Add(df.Heredoc{

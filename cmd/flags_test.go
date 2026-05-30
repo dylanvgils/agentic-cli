@@ -19,7 +19,7 @@ func TestAddBuildFlags(t *testing.T) {
 		addBuildFlags(cmd)
 
 		// Assert
-		for _, name := range []string{"base", "node", "java", "dotnet", "go", "dry-run"} {
+		for _, name := range []string{"base", "node", "java", "dotnet", "go", "apt", "dry-run"} {
 			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
 		}
 	})
@@ -93,6 +93,63 @@ func TestFlagOrEnv(t *testing.T) {
 
 		// Act + Assert
 		assert.Equal(t, "", flagOrEnv(cmd, "node", "AGENTIC_NODE_VERSION"))
+	})
+}
+
+func TestCollectAptPackages(t *testing.T) {
+	t.Run("env var parsed as comma-separated packages", func(t *testing.T) {
+		// Arrange
+		t.Setenv("AGENTIC_APT_PACKAGES", "make,gcc")
+		cmd := newFlagCmd(t, "apt")
+
+		// Act
+		result := collectAptPackages(cmd)
+
+		// Assert
+		assert.Equal(t, []string{"make", "gcc"}, result)
+	})
+
+	t.Run("flag takes priority and appends to env", func(t *testing.T) {
+		// Arrange
+		t.Setenv("AGENTIC_APT_PACKAGES", "make")
+		cmd := newFlagCmd(t, "apt")
+		require.NoError(t, cmd.Flags().Set("apt", "gcc"))
+
+		// Act
+		result := collectAptPackages(cmd)
+
+		// Assert
+		assert.Equal(t, []string{"make", "gcc"}, result)
+	})
+
+	t.Run("deduplicates across sources", func(t *testing.T) {
+		// Arrange
+		t.Setenv("AGENTIC_APT_PACKAGES", "make")
+		cmd := newFlagCmd(t, "apt")
+		require.NoError(t, cmd.Flags().Set("apt", "make"))
+
+		// Act
+		result := collectAptPackages(cmd)
+
+		// Assert
+		count := 0
+		for _, pkg := range result {
+			if pkg == "make" {
+				count++
+			}
+		}
+		assert.Equal(t, 1, count, "make should appear exactly once")
+	})
+
+	t.Run("empty when no sources set", func(t *testing.T) {
+		// Arrange
+		cmd := newFlagCmd(t, "apt")
+
+		// Act
+		result := collectAptPackages(cmd)
+
+		// Assert
+		assert.Empty(t, result)
 	})
 }
 

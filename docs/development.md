@@ -119,7 +119,9 @@ func TestBuildImage(t *testing.T) {
 
 2. Add the name to `KnownExtras` in `internal/tools/bases.go`.
 
-3. Wire a `--<name>` version flag into three files:
+3. If the new layer needs apt packages installed in the base stage (e.g. `apt-transport-https` for Java), add them to `layerPackages` in `internal/tools/packages.go` under the layer's name. `collectPackages` merges them with the base packages and any user-supplied `--apt` packages automatically.
+
+4. Wire a `--<name>` version flag into three files:
    - `cmd/flags.go` - define the flag
    - `cmd/build.go` - pass it through to the build step
    - `cmd/update.go` - pass it through to the update step

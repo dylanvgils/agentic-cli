@@ -130,6 +130,9 @@ func printImageInfo(tool string) error {
 	fmt.Printf("  image:    %s (%s)\n", image, info.ID)
 	fmt.Printf("  version:  %s\n", version)
 	fmt.Printf("  base:     %s\n", base)
+	if info.Apt != "" {
+		fmt.Printf("  apt:      %s\n", info.Apt)
+	}
 	fmt.Printf("  built:    %s\n", built)
 	size := info.Size
 	if size == "" {
