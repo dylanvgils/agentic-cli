@@ -9,6 +9,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAptPackages(t *testing.T) {
+	t.Run("returns packages from rc", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc"), []byte("apt_packages=make\n"), 0o644))
+
+		// Act
+		result := AptPackages(dir)
+
+		// Assert
+		assert.Equal(t, []string{"make"}, result)
+	})
+
+	t.Run("env var appends to rc packages", func(t *testing.T) {
+		// Arrange
+		t.Setenv("AGENTIC_APT_PACKAGES", "gcc")
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc"), []byte("apt_packages=make\n"), 0o644))
+
+		// Act
+		result := AptPackages(dir)
+
+		// Assert
+		assert.Equal(t, []string{"make", "gcc"}, result)
+	})
+}
+
 func TestCollectPaths(t *testing.T) {
 	t.Run("no file", func(t *testing.T) {
 		// Arrange
@@ -143,8 +170,8 @@ func TestMergeConfigs(t *testing.T) {
 
 	t.Run("lists accumulate outermost first", func(t *testing.T) {
 		// Arrange
-		child := &AgenticRC{ExtraMounts: []string{"child-vol:/mnt/c"}, Secrets: []string{"child-secret"}}
-		parent := &AgenticRC{ExtraMounts: []string{"parent-vol:/mnt/p"}, Secrets: []string{"parent-secret"}}
+		child := &AgenticRC{ExtraMounts: []string{"child-vol:/mnt/c"}, Secrets: []string{"child-secret"}, AptPackages: []string{"gcc"}}
+		parent := &AgenticRC{ExtraMounts: []string{"parent-vol:/mnt/p"}, Secrets: []string{"parent-secret"}, AptPackages: []string{"make"}}
 
 		// Act
 		result := mergeConfigs([]*AgenticRC{child, parent})
@@ -152,6 +179,7 @@ func TestMergeConfigs(t *testing.T) {
 		// Assert — parent (outermost) entries first
 		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, result.ExtraMounts)
 		assert.Equal(t, []string{"parent-secret", "child-secret"}, result.Secrets)
+		assert.Equal(t, []string{"make", "gcc"}, result.AptPackages)
 	})
 
 	t.Run("single config", func(t *testing.T) {
@@ -170,7 +198,7 @@ func TestMergeConfigs(t *testing.T) {
 func TestParseRC(t *testing.T) {
 	t.Run("all keys", func(t *testing.T) {
 		// Arrange
-		content := "extra_mounts=vol1:/mnt/a,vol2:/mnt/b\nsecrets=token:/run/s/a,key:/run/s/b\npids_limit=512\ncpus=2\nmemory=2g\n"
+		content := "extra_mounts=vol1:/mnt/a,vol2:/mnt/b\nsecrets=token:/run/s/a,key:/run/s/b\napt_packages=make,gcc\npids_limit=512\ncpus=2\nmemory=2g\n"
 
 		// Act
 		rc := mustParseRC(t, content)
@@ -178,6 +206,7 @@ func TestParseRC(t *testing.T) {
 		// Assert
 		assert.Equal(t, []string{"vol1:/mnt/a", "vol2:/mnt/b"}, rc.ExtraMounts)
 		assert.Equal(t, []string{"token:/run/s/a", "key:/run/s/b"}, rc.Secrets)
+		assert.Equal(t, []string{"make", "gcc"}, rc.AptPackages)
 		assert.Equal(t, "512", rc.PidsLimit)
 		assert.Equal(t, "2", rc.CPUs)
 		assert.Equal(t, "2g", rc.Memory)
@@ -185,7 +214,7 @@ func TestParseRC(t *testing.T) {
 
 	t.Run("repeatable keys", func(t *testing.T) {
 		// Arrange
-		content := "extra_mounts=vol1:/mnt/a\nextra_mounts=vol2:/mnt/b\nsecrets=gh-token\nsecrets=npm-token\n"
+		content := "extra_mounts=vol1:/mnt/a\nextra_mounts=vol2:/mnt/b\nsecrets=gh-token\nsecrets=npm-token\napt_packages=make\napt_packages=gcc\n"
 
 		// Act
 		rc := mustParseRC(t, content)
@@ -193,6 +222,7 @@ func TestParseRC(t *testing.T) {
 		// Assert
 		assert.Equal(t, []string{"vol1:/mnt/a", "vol2:/mnt/b"}, rc.ExtraMounts)
 		assert.Equal(t, []string{"gh-token", "npm-token"}, rc.Secrets)
+		assert.Equal(t, []string{"make", "gcc"}, rc.AptPackages)
 	})
 
 	t.Run("root key", func(t *testing.T) {

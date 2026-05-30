@@ -8,6 +8,7 @@ type ImageInfo struct {
 	ID      string // 12-char short ID
 	Version string // agentic.tool.version label
 	Base    string // agentic.base label
+	Apt     string // agentic.apt label (comma-separated apt packages)
 	Built   string // agentic.built label
 	Size    string // formatted size from docker image ls
 }
@@ -33,6 +34,7 @@ func InspectImage(name string) (*ImageInfo, error) {
 		ID:      shortID,
 		Version: result.Config.Labels[LabelToolVersion],
 		Base:    result.Config.Labels[LabelBase],
+		Apt:     result.Config.Labels[LabelApt],
 		Built:   result.Config.Labels[LabelBuilt],
 		Size:    imageSize(name),
 	}, nil

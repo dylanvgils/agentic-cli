@@ -16,10 +16,11 @@ func ParseVersion(s string) string {
 // stampImageLabels detects base and tool versions from the built image and applies
 // them as labels in a single docker build call. Runs best-effort: errors are
 // silently ignored since missing labels are non-fatal.
-func stampImageLabels(image, tool string, extras []string) {
+func stampImageLabels(image, tool string, extras []string, aptPkgs []string) {
 	args := []string{
 		"build",
 		label(LabelBase, collectBaseLabel(image, extras)),
+		label(LabelApt, strings.Join(aptPkgs, ",")),
 		arg("tag", image),
 	}
 

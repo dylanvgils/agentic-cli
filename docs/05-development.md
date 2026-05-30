@@ -17,7 +17,7 @@ agentic-cli/
     └── tools/                   # Per-tool stage funcs, mounts, setup, and base layers
 ```
 
-No static Dockerfile files exist. All Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/tools/bases.go` (base and extra layers) and each tool's `Stage` func. See [dockerfile-dsl.md](dockerfile-dsl.md) for the DSL reference.
+No static Dockerfile files exist. All Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/tools/bases.go` (base and extra layers) and each tool's `Stage` func. See [04-dockerfile-dsl.md](04-dockerfile-dsl.md) for the DSL reference.
 
 ## Build & test
 
@@ -89,7 +89,7 @@ func TestBuildImage(t *testing.T) {
 ## Adding a new tool
 
 1. Create `internal/tools/<name>.go` implementing four functions:
-   - `<name>Stage(prevStage string) dockerfile.Stage` - return the tool's Dockerfile stage using the [Dockerfile DSL](dockerfile-dsl.md); `prevStage` is the name of the preceding base stage to `FROM`
+   - `<name>Stage(prevStage string) dockerfile.Stage` - return the tool's Dockerfile stage using the [Dockerfile DSL](04-dockerfile-dsl.md); `prevStage` is the name of the preceding base stage to `FROM`
    - `setup<Name>(toolHome string) error` - create any host-side directories or files the tool needs before first run (e.g. pre-creating a credentials file so the read-only root filesystem doesn't block the first write)
    - `<name>Mounts() []string` - return the list of bind/volume mounts using helpers from `internal/mount`
    - `<name>TmpfsMounts() []string` - return any tmpfs mounts (every tool needs at least `/tmp`)
@@ -119,7 +119,9 @@ func TestBuildImage(t *testing.T) {
 
 2. Add the name to `KnownExtras` in `internal/tools/bases.go`.
 
-3. Wire a `--<name>` version flag into three files:
+3. If the new layer needs apt packages installed in the base stage (e.g. `apt-transport-https` for Java), add them to `layerPackages` in `internal/tools/packages.go` under the layer's name. `collectPackages` merges them with the base packages and any user-supplied `--apt` packages automatically.
+
+4. Wire a `--<name>` version flag into three files:
    - `cmd/flags.go` - define the flag
    - `cmd/build.go` - pass it through to the build step
    - `cmd/update.go` - pass it through to the update step

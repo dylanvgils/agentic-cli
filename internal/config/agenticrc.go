@@ -14,6 +14,7 @@ type AgenticRC struct {
 	Root        bool
 	ExtraMounts []string
 	Secrets     []string
+	AptPackages []string
 	PidsLimit   string
 	CPUs        string
 	Memory      string
@@ -23,6 +24,14 @@ type AgenticRC struct {
 type RCLayer struct {
 	Path string
 	RC   *AgenticRC
+}
+
+// AptPackages returns the merged apt packages from .agenticrc files and the
+// AGENTIC_APT_PACKAGES env var, outermost RC first, env var last.
+func AptPackages(startDir string) []string {
+	rcPkgs := FindAndLoad(startDir).AptPackages
+	envPkgs := splitValues(os.Getenv("AGENTIC_APT_PACKAGES"))
+	return append(rcPkgs, envPkgs...)
 }
 
 // FindAndLoad walks up from startDir collecting all .agenticrc files and merges
@@ -118,6 +127,7 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 	for i := len(configs) - 1; i >= 0; i-- {
 		result.ExtraMounts = append(result.ExtraMounts, configs[i].ExtraMounts...)
 		result.Secrets = append(result.Secrets, configs[i].Secrets...)
+		result.AptPackages = append(result.AptPackages, configs[i].AptPackages...)
 	}
 
 	return result
@@ -161,6 +171,8 @@ func parseRC(r io.Reader) (*AgenticRC, error) {
 			rc.ExtraMounts = append(rc.ExtraMounts, splitValues(value)...)
 		case "secrets":
 			rc.Secrets = append(rc.Secrets, splitValues(value)...)
+		case "apt_packages":
+			rc.AptPackages = append(rc.AptPackages, splitValues(value)...)
 
 		case "pids_limit":
 			rc.PidsLimit = value

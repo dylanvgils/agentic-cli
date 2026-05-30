@@ -9,7 +9,7 @@ import (
 )
 
 func Test_baseStage(t *testing.T) {
-	stage := baseStage("", collectPackages(nil))
+	stage := baseStage("", collectPackages(nil, nil))
 	result := renderStage(stage)
 
 	t.Run("from uses node image", func(t *testing.T) {
@@ -40,7 +40,7 @@ func Test_baseStage(t *testing.T) {
 
 	t.Run("renders apt base packages", func(t *testing.T) {
 		// Assert
-		for _, pkg := range collectPackages(nil) {
+		for _, pkg := range collectPackages(nil, nil) {
 			assert.Contains(t, result, pkg, "expected base package %q in node stage", pkg)
 		}
 	})

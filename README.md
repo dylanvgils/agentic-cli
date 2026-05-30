@@ -23,14 +23,14 @@ CLI for running agentic coding tools in isolated Docker containers.
   - [Mount variable expansion](#mount-variable-expansion)
   - [Example `.zshrc`](#example-zshrc)
 - [Tool home directory](#-tool-home-directory)
-- [Development](docs/development.md)
+- [Development](docs/05-development.md)
 - [Security](#-security)
 
 ## 📖 Overview
 
 Each tool runs in an isolated, read-only container with only the minimal mounts it needs - your workspace and its own config directory. No root, no extra capabilities, no leftovers when done.
 
-→ [Full overview and motivation](docs/overview.md)
+→ [Full overview and motivation](docs/01-overview.md)
 
 ## 📋 Requirements
 
@@ -107,19 +107,19 @@ agentic <command> [args...]
 
 ### Commands
 
-| Command                                                                                                                         | Description                                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `build [tool] [--base <e1[,e2,...]>] [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]`  | Build tool image(s). Builds all tools if unspecified                                        |
-| `update [tool] [--base <e1[,e2,...]>] [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]` | Update tool image(s) to latest version. Skips unbuilt tools when unspecified                |
-| `clean [tool]`                                                                                                                  | Remove tool image(s). Cleans all tools + base if unspecified                                |
-| `inspect [tool]`                                                                                                                | Show image info (version, base layers, build date, size). Inspects all tools if unspecified |
-| `config [--home <dir>]`                                                                                                         | Show the merged configuration from agentic.json and all .agenticrc files                    |
-| `volumes <create\|list\|ls\|remove\|rm> [name]`                                                                                 | Manage named Docker volumes created by agentic                                              |
-| `completion <bash\|zsh\|fish\|powershell>`                                                                                      | Generate shell completion script for the specified shell                                    |
-| `aliases`                                                                                                                       | Print shell alias definitions for installed tools                                           |
-| `help [command]`                                                                                                                | Show help for a command (`run` for tool run options). Shows overview if unspecified         |
-| `run [flags] <tool> [args...]`                                                                                                  | Run a tool in an isolated Docker container                                                  |
-| `run <tool> -- <cmd> [args]`                                                                                                    | Override the entrypoint and run a shell command directly                                    |
+| Command                                                                                                                                       | Description                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `build [tool] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]`  | Build tool image(s). Builds all tools if unspecified                                        |
+| `update [tool] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]` | Update tool image(s) to latest version. Skips unbuilt tools when unspecified                |
+| `clean [tool]`                                                                                                                                | Remove tool image(s). Cleans all tools + base if unspecified                                |
+| `inspect [tool]`                                                                                                                              | Show image info (version, base layers, build date, size). Inspects all tools if unspecified |
+| `config [--home <dir>]`                                                                                                                       | Show the merged configuration from agentic.json and all .agenticrc files                    |
+| `volumes <create\|list\|ls\|remove\|rm> [name]`                                                                                               | Manage named Docker volumes created by agentic                                              |
+| `completion <bash\|zsh\|fish\|powershell>`                                                                                                    | Generate shell completion script for the specified shell                                    |
+| `aliases`                                                                                                                                     | Print shell alias definitions for installed tools                                           |
+| `help [command]`                                                                                                                              | Show help for a command (`run` for tool run options). Shows overview if unspecified         |
+| `run [flags] <tool> [args...]`                                                                                                                | Run a tool in an isolated Docker container                                                  |
+| `run <tool> -- <cmd> [args]`                                                                                                                  | Override the entrypoint and run a shell command directly                                    |
 
 Run tool commands from within a git repository. The current directory is mounted as `/workspace` inside the container.
 
@@ -141,8 +141,14 @@ agentic build copilot
 # Build with an extra runtime on top of node
 agentic build claude --base java
 
-# Build with multiple extra runtimes (comma-separated, layered left to right)
+# Install extra apt packages in the base stage (available to all tool stages)
+agentic build claude --apt make
+agentic build claude --apt make,gcc,jq   # comma-separated
+agentic build claude --apt make --apt gcc --apt jq   # repeatable flags
+
+# Build with multiple extra runtimes (comma-separated or repeatable flags)
 agentic build claude --base java,dotnet
+agentic build claude --base java --base dotnet
 
 # Force a fully fresh build (bypasses Docker layer cache)
 agentic build claude --no-cache
@@ -257,11 +263,39 @@ Both tools default to node only. Use `--base` to add extra runtimes at build tim
 
 Version defaults are `NODE_VERSION=24`, `JAVA_VERSION=21`, `DOTNET_VERSION=10`, `GO_VERSION=1.26.3`. These defaults are defined in `internal/tools/versions.json` and embedded into the binary at build time. Override them per-build with `--node`/`--java`/`--dotnet`/`--go`, or set `AGENTIC_NODE_VERSION`/`AGENTIC_JAVA_VERSION`/`AGENTIC_DOTNET_VERSION`/`AGENTIC_GO_VERSION` in your shell config for persistent defaults.
 
-The final tool image is labeled with the base layers, build timestamp, and installed tool version:
+### Extra apt packages
+
+Use `--apt` to install additional Debian packages into the base stage. Packages are installed before any extra runtime layers, so they are available everywhere:
+
+```bash
+agentic build claude --apt make
+agentic build claude --apt make,gcc,jq      # comma-separated
+agentic build claude --apt make --apt gcc   # repeatable flags
+```
+
+Packages are verified with `apt-cache show` before the build starts (fail-fast). The package list is stored in the `agentic.apt` image label and automatically recovered on `agentic update`, so you don't need to re-specify it each time.
+
+You can also set packages persistently via environment variable or `.agenticrc`:
+
+```bash
+# Environment variable (comma-separated)
+export AGENTIC_APT_PACKAGES=make,gcc
+
+# .agenticrc (accumulates across nested RC files)
+apt_packages=make
+apt_packages=gcc
+```
+
+All three sources accumulate: RC files (outermost first), then `AGENTIC_APT_PACKAGES`, then `--apt`.
+
+The final tool image is labeled with the base layers, apt packages, build timestamp, and installed tool version:
 
 ```bash
 docker inspect agentic-claude --format '{{ index .Config.Labels "agentic.base" }}'
 # → node,java
+
+docker inspect agentic-claude --format '{{ index .Config.Labels "agentic.apt" }}'
+# → make,gcc
 
 docker inspect agentic-claude --format '{{ index .Config.Labels "agentic.built" }}'
 # → 2026-04-05T14:30:00Z
@@ -299,7 +333,7 @@ Secrets use the format `name:/path/to/file`. The `~`, `$HOME`, and `${HOME}` pre
 
 The `-v` flag and `AGENTIC_EXTRA_MOUNTS` support both bind mounts (host paths) and named Docker volumes. Named volumes are created automatically on first use and persist across container runs - no host path required.
 
-For a per-tool breakdown of what's mounted automatically and why, see [docs/volume-mounts.md](docs/volume-mounts.md).
+For a per-tool breakdown of what's mounted automatically and why, see [docs/volume-mounts.md](docs/03-volume-mounts.md).
 
 Use a volume name (no leading `/`) as the left side of the mount spec:
 
@@ -386,13 +420,14 @@ All configuration is done through environment variables, which can be set in you
 
 Place a `.agenticrc` file anywhere in your directory tree to apply project-specific configuration. `agentic` walks up from `$PWD` collecting all `.agenticrc` files it finds and merges them. Add `root=true` to a file to stop the walk there.
 
-**Merge rules:** list keys (`extra_mounts`, `secrets`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value.
+**Merge rules:** list keys (`extra_mounts`, `secrets`, `apt_packages`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value.
 
 | Key            | Description                                                                                                                                                      | Default | Env var override       |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------- |
 | `root`         | Stop walking up the directory tree at this file (`true`/`false`)                                                                                                 | `false` | -                      |
 | `extra_mounts` | Extra mounts. Bind mount: `~/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `~`, `$HOME`, and `$CONTAINER_HOME`. Repeatable. | -       | `AGENTIC_EXTRA_MOUNTS` |
 | `secrets`      | Secrets to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~` and `$HOME`. Repeatable.                                         | -       | `AGENTIC_SECRETS`      |
+| `apt_packages` | Extra apt packages to install in the base stage at build time. Repeatable. Accumulates with `AGENTIC_APT_PACKAGES` and `--apt`.                                  | -       | `AGENTIC_APT_PACKAGES` |
 | `pids_limit`   | Container PID limit                                                                                                                                              | `1024`  | `AGENTIC_PIDS_LIMIT`   |
 | `cpus`         | Container CPU limit                                                                                                                                              | `4`     | `AGENTIC_CPUS`         |
 | `memory`       | Container memory limit                                                                                                                                           | `4g`    | `AGENTIC_MEMORY`       |
@@ -410,6 +445,8 @@ extra_mounts=gradle:$CONTAINER_HOME/.gradle
 
 secrets=copilot_token:~/.secrets/copilot_token
 
+apt_packages=make,gcc
+
 pids_limit=2048
 cpus=8
 memory=8g
@@ -421,9 +458,11 @@ memory=8g
 # ~/projects/.agenticrc  (applies to all projects under ~/projects)
 root=true
 secrets=gh-token:~/.secrets/gh_token
+apt_packages=make
 
 # ~/projects/my-project/.agenticrc
 extra_mounts=maven:$CONTAINER_HOME/.m2
+apt_packages=gcc
 cpus=8
 ```
 
@@ -473,7 +512,7 @@ Each tool stores its configuration under `$AGENTIC_HOME`:
 
 ## 🛠️ Development
 
-See [docs/development.md](docs/development.md) for build commands, repo structure, adding tools, adding base runtimes, and debugging.
+See [docs/development.md](docs/05-development.md) for build commands, repo structure, adding tools, adding base runtimes, and debugging.
 
 ## 🔒 Security
 

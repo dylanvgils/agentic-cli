@@ -6,48 +6,54 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCollectPackages(t *testing.T) {
-	t.Run("nil extras returns base packages", func(t *testing.T) {
+func Test_MergePackages(t *testing.T) {
+	t.Run("appends additional to base", func(t *testing.T) {
 		// Act
-		result := collectPackages(nil)
+		result := MergePackages([]string{"make"}, []string{"gcc"})
 
 		// Assert
-		assert.Contains(t, result, "curl")
-		assert.Contains(t, result, "wget")
-		assert.Contains(t, result, "git")
-		assert.Contains(t, result, "gpg")
-		assert.Contains(t, result, "ca-certificates")
-		assert.NotContains(t, result, "jq")
-		assert.NotContains(t, result, "apt-transport-https")
+		assert.Equal(t, []string{"make", "gcc"}, result)
 	})
 
-	t.Run("go adds jq", func(t *testing.T) {
+	t.Run("deduplicates", func(t *testing.T) {
 		// Act
-		result := collectPackages([]string{"go"})
+		result := MergePackages([]string{"make", "gcc"}, []string{"gcc", "jq"})
 
 		// Assert
-		assert.Contains(t, result, "jq")
+		assert.Equal(t, []string{"make", "gcc", "jq"}, result)
 	})
 
-	t.Run("java adds apt-transport-https", func(t *testing.T) {
+	t.Run("nil additional returns base", func(t *testing.T) {
 		// Act
-		result := collectPackages([]string{"java"})
+		result := MergePackages([]string{"make"}, nil)
 
 		// Assert
-		assert.Contains(t, result, "apt-transport-https")
+		assert.Equal(t, []string{"make"}, result)
 	})
+}
 
-	t.Run("deduplicates across layers", func(t *testing.T) {
+func Test_expandPackages(t *testing.T) {
+	t.Run("base packages always included", func(t *testing.T) {
 		// Act
-		result := collectPackages([]string{"java", "dotnet"})
+		result := expandPackages(nil)
 
 		// Assert
-		count := 0
-		for _, pkg := range result {
-			if pkg == "apt-transport-https" {
-				count++
-			}
-		}
-		assert.Equal(t, 1, count, "apt-transport-https should appear exactly once")
+		assert.Equal(t, layerPackages["base"], result)
 	})
+
+	t.Run("extra layer packages appended after base", func(t *testing.T) {
+		// Act
+		result := expandPackages([]string{"go"})
+
+		// Assert
+		assert.Equal(t, append(layerPackages["base"], layerPackages["go"]...), result)
+	})
+}
+
+func Test_collectPackages(t *testing.T) {
+	// Act
+	result := collectPackages([]string{"go"}, []string{"make"})
+
+	// Assert
+	assert.Equal(t, append(expandPackages([]string{"go"}), "make"), result)
 }
