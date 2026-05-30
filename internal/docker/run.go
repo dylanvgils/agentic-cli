@@ -122,6 +122,18 @@ func buildEnvArgs() []string {
 		args = append(args, arg("env", "COLORTERM="+colorterm))
 	}
 
+	if term := os.Getenv("TERM"); term != "" {
+		args = append(args, arg("env", "TERM="+term))
+	}
+
+	if noColor := os.Getenv("NO_COLOR"); noColor != "" {
+		args = append(args, arg("env", "NO_COLOR="+noColor))
+	}
+
+	if forceColor := os.Getenv("FORCE_COLOR"); forceColor != "" {
+		args = append(args, arg("env", "FORCE_COLOR="+forceColor))
+	}
+
 	return args
 }
 
