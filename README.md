@@ -136,65 +136,45 @@ Run tool commands from within a git repository. The current directory is mounted
 ```bash
 # Build images
 agentic build
-agentic build copilot
+agentic build claude
 
-# Build with an extra runtime on top of node
+# Build with extra runtimes on top of node (comma-separated or repeatable)
 agentic build claude --base java
-
-# Install extra apt packages in the base stage (available to all tool stages)
-agentic build claude --apt make
-agentic build claude --apt make,gcc,jq   # comma-separated
-agentic build claude --apt make --apt gcc --apt jq   # repeatable flags
-
-# Build with multiple extra runtimes (comma-separated or repeatable flags)
 agentic build claude --base java,dotnet
-agentic build claude --base java --base dotnet
 
-# Force a fully fresh build (bypasses Docker layer cache)
-agentic build claude --no-cache
-agentic build claude --base java --no-cache
-
-# Build with dotnet runtime
-agentic build claude --base dotnet
-agentic build claude --base dotnet --dotnet 9
-
-# Pin specific runtime versions
-agentic build --node 22
+# Pin runtime versions
 agentic build claude --base java --java 17
-agentic build claude --base java --node 22 --java 17 --no-cache
-agentic build claude --base dotnet --dotnet 9 --no-cache
+agentic build claude --node 22
 
-# Clean images
-agentic clean
-agentic clean claude
+# Install extra apt packages (comma-separated or repeatable)
+agentic build claude --apt make
+agentic build claude --apt make,gcc
 
-# Inspect built images
-agentic inspect
-agentic inspect claude
+# Force a fully fresh build
+agentic build claude --no-cache
 
 # Update to latest version (only rebuilds the tool step, base layers stay cached)
 agentic update
-agentic update claude
 agentic update claude --base java
-# Force a fully fresh update (also rebuilds base layers)
-agentic update claude --no-cache
+agentic update claude --no-cache   # also rebuilds base layers
 
-# Run a specific tool
+# Clean / inspect images
+agentic clean
+agentic clean claude
+agentic inspect
+agentic inspect claude
+
+# Run a tool
 agentic run claude
-agentic run copilot
-agentic run opencode
 
 # Run a shell command instead of the tool entrypoint
 agentic run claude -- bash
-agentic run claude -- ls /workspace
 
 # Mount named Docker volumes (auto-created on first use)
-agentic run -v 'maven:$CONTAINER_HOME/.m2' claude
 agentic run -v 'maven:$CONTAINER_HOME/.m2' -v 'gradle:$CONTAINER_HOME/.gradle' claude
 
 # Mount bind-mount volumes (host paths)
 agentic run -v '~/.m2:$CONTAINER_HOME/.m2' claude
-agentic run -v '~/.m2:$CONTAINER_HOME/.m2' -v '~/.gradle:$CONTAINER_HOME/.gradle' claude
 
 # Mount a secret file read-only at /run/secrets/<name>
 agentic run -s 'copilot_token:~/.secrets/copilot_token' copilot
@@ -204,7 +184,6 @@ agentic run --home /opt/agentic claude
 
 # Print completion script
 agentic completion zsh
-agentic completion bash
 ```
 
 ## 🔁 Shell completion
@@ -261,7 +240,7 @@ All stages are composed into a single multi-stage Dockerfile at build time and b
 
 Both tools default to node only. Use `--base` to add extra runtimes at build time.
 
-Version defaults are `NODE_VERSION=24`, `JAVA_VERSION=21`, `DOTNET_VERSION=10`, `GO_VERSION=1.26.3`. These defaults are defined in `internal/tools/versions.json` and embedded into the binary at build time. Override them per-build with `--node`/`--java`/`--dotnet`/`--go`, or set `AGENTIC_NODE_VERSION`/`AGENTIC_JAVA_VERSION`/`AGENTIC_DOTNET_VERSION`/`AGENTIC_GO_VERSION` in your shell config for persistent defaults.
+Version defaults are embedded in the binary at build time - run `agentic build --help` to see current defaults. Override per-build with the corresponding flag (`--node`, `--java`, `--dotnet`, `--go`), or set `AGENTIC_<LAYER>_VERSION` in your shell config for a persistent default (e.g. `AGENTIC_JAVA_VERSION=17`).
 
 ### Extra apt packages
 
@@ -403,18 +382,15 @@ extra_mounts=gradle:$CONTAINER_HOME/.gradle
 
 All configuration is done through environment variables, which can be set in your shell config (`.zshrc`, `.bashrc`, etc.).
 
-| Variable                 | Description                                                                                                                                           | Default                          |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| `AGENTIC_HOME`           | Base directory for tool config and secrets                                                                                                            | `$HOME/.agentic`                 |
-| `AGENTIC_EXTRA_MOUNTS`   | Comma-separated extra mounts. Bind mount: `host/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `$CONTAINER_HOME`. | -                                |
-| `AGENTIC_SECRETS`        | Comma-separated secrets to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`.                                                    | -                                |
-| `AGENTIC_PIDS_LIMIT`     | Default container PID limit                                                                                                                           | `1024`                           |
-| `AGENTIC_CPUS`           | Default container CPU limit                                                                                                                           | `4`                              |
-| `AGENTIC_MEMORY`         | Default container memory limit                                                                                                                        | `4g`                             |
-| `AGENTIC_NODE_VERSION`   | Node.js version used when building the base node image                                                                                                | `24` (versions.json default)     |
-| `AGENTIC_JAVA_VERSION`   | Java (Temurin JDK) version used when building the java layer                                                                                          | `21` (versions.json default)     |
-| `AGENTIC_DOTNET_VERSION` | .NET version used when building the dotnet layer                                                                                                      | `10` (versions.json default)     |
-| `AGENTIC_GO_VERSION`     | Go version used when building the go layer                                                                                                            | `1.26.3` (versions.json default) |
+| Variable                  | Description                                                                                                                                           | Default                                                  |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `AGENTIC_HOME`            | Base directory for tool config and secrets                                                                                                            | `$HOME/.agentic`                                         |
+| `AGENTIC_EXTRA_MOUNTS`    | Comma-separated extra mounts. Bind mount: `host/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `$CONTAINER_HOME`. | -                                                        |
+| `AGENTIC_SECRETS`         | Comma-separated secrets to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`.                                                    | -                                                        |
+| `AGENTIC_PIDS_LIMIT`      | Default container PID limit                                                                                                                           | `1024`                                                   |
+| `AGENTIC_CPUS`            | Default container CPU limit                                                                                                                           | `4`                                                      |
+| `AGENTIC_MEMORY`          | Default container memory limit                                                                                                                        | `4g`                                                     |
+| `AGENTIC_<LAYER>_VERSION` | Version used when building the named runtime layer (e.g. `AGENTIC_JAVA_VERSION=17`, `AGENTIC_NODE_VERSION=22`)                                        | Embedded per-layer defaults (see `agentic build --help`) |
 
 ### Per-project configuration
 
@@ -491,10 +467,7 @@ export AGENTIC_EXTRA_MOUNTS='~/.m2:$CONTAINER_HOME/.m2,~/.gradle:$CONTAINER_HOME
 
 ```bash
 # export AGENTIC_HOME="${HOME}/.agentic"   # default; uncomment to override
-# export AGENTIC_NODE_VERSION=22   # uncomment to pin Node.js version
-# export AGENTIC_JAVA_VERSION=17   # uncomment to pin Java version
-# export AGENTIC_DOTNET_VERSION=9  # uncomment to pin .NET version
-# export AGENTIC_GO_VERSION=1.23   # uncomment to pin Go version
+# export AGENTIC_NODE_VERSION=22   # pin a runtime version (see agentic build --help for all layers)
 
 # Mount Maven and Gradle caches for Java projects (named volumes)
 # export AGENTIC_EXTRA_MOUNTS='maven:$CONTAINER_HOME/.m2,gradle:$CONTAINER_HOME/.gradle'
