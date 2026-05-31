@@ -15,7 +15,7 @@ import (
 // The installed tool version is detected from the image via its embedded version script.
 func BuildTool(tool, image string, opts tools.BuildOptions) error {
 	if opts.VerifyApt {
-		if err := verifyAptPackages(opts.AptPackages); err != nil {
+		if err := verifyAptPackages(opts.AptPackages, opts.Registry); err != nil {
 			return err
 		}
 		output.Step("Building image...")

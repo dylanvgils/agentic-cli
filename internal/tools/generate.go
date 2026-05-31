@@ -17,6 +17,7 @@ type BuildOptions struct {
 	Versions     map[string]string // layer name → version override, e.g. {"node": "22", "java": "21"}
 	AptPackages  []string          // additional apt packages to install in the base stage
 	VerifyApt    bool              // run pre-build apt-cache check for AptPackages
+	Registry     string            // registry prefix for base images (e.g. "myregistry.example.com")
 }
 
 // GenerateDockerfile returns the Dockerfile content for the named tool without building it.
@@ -45,7 +46,7 @@ func ParseExtras(base string) []string {
 // composeStages assembles the full list of Dockerfile stages: node base + requested extras + tool.
 func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfile.Stage, error) {
 	pkgs := collectPackages(extras, opts.AptPackages)
-	base := baseStage(opts.Versions[BaseLayer], pkgs)
+	base := baseStage(opts.Versions[BaseLayer], opts.Registry, pkgs)
 
 	extraList, prev, err := buildExtraStages(extras, "base", opts.Versions)
 	if err != nil {

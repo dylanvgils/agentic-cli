@@ -9,7 +9,7 @@ import (
 )
 
 func Test_baseStage(t *testing.T) {
-	stage := baseStage("", collectPackages(nil, nil))
+	stage := baseStage("", "", collectPackages(nil, nil))
 	result := renderStage(stage)
 
 	t.Run("from uses node image", func(t *testing.T) {
@@ -27,10 +27,19 @@ func Test_baseStage(t *testing.T) {
 
 	t.Run("version override", func(t *testing.T) {
 		// Arrange
-		stage := baseStage("22", nil)
+		stage := baseStage("22", "", nil)
 
 		// Assert
 		assert.Equal(t, "22", stage.GlobalArgs[0].Default)
+	})
+
+	t.Run("registry prefix applied to node image", func(t *testing.T) {
+		// Arrange
+		stage := baseStage("", "myregistry.example.com", nil)
+
+		// Assert
+		assert.True(t, strings.HasPrefix(stage.From.Image, "myregistry.example.com/node:"),
+			"expected image to start with registry prefix, got: %s", stage.From.Image)
 	})
 
 	t.Run("renders version script", func(t *testing.T) {
@@ -43,6 +52,50 @@ func Test_baseStage(t *testing.T) {
 		for _, pkg := range collectPackages(nil, nil) {
 			assert.Contains(t, result, pkg, "expected base package %q in node stage", pkg)
 		}
+	})
+}
+
+func Test_prefixImage(t *testing.T) {
+	t.Run("empty registry returns image unchanged", func(t *testing.T) {
+		// Act
+		result := prefixImage("", "node:24-bookworm-slim")
+
+		// Assert
+		assert.Equal(t, "node:24-bookworm-slim", result)
+	})
+
+	t.Run("registry prepended with slash", func(t *testing.T) {
+		// Act
+		result := prefixImage("myregistry.example.com", "node:24-bookworm-slim")
+
+		// Assert
+		assert.Equal(t, "myregistry.example.com/node:24-bookworm-slim", result)
+	})
+
+	t.Run("trailing slash on registry is stripped", func(t *testing.T) {
+		// Act
+		result := prefixImage("myregistry.example.com/", "node:24-bookworm-slim")
+
+		// Assert
+		assert.Equal(t, "myregistry.example.com/node:24-bookworm-slim", result)
+	})
+}
+
+func TestDebianImageFor(t *testing.T) {
+	t.Run("empty registry returns plain image", func(t *testing.T) {
+		// Act
+		result := DebianImageFor("")
+
+		// Assert
+		assert.Equal(t, DebianImage, result)
+	})
+
+	t.Run("registry is prepended", func(t *testing.T) {
+		// Act
+		result := DebianImageFor("myregistry.example.com")
+
+		// Assert
+		assert.Equal(t, "myregistry.example.com/"+DebianImage, result)
 	})
 }
 

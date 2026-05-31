@@ -107,19 +107,19 @@ agentic <command> [args...]
 
 ### Commands
 
-| Command                                                                                                                                       | Description                                                                                 |
-| --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `build [tool] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]`  | Build tool image(s). Builds all tools if unspecified                                        |
-| `update [tool] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]` | Update tool image(s) to latest version. Skips unbuilt tools when unspecified                |
-| `clean [tool]`                                                                                                                                | Remove tool image(s). Cleans all tools + base if unspecified                                |
-| `inspect [tool]`                                                                                                                              | Show image info (version, base layers, build date, size). Inspects all tools if unspecified |
-| `config [--home <dir>]`                                                                                                                       | Show the merged configuration from agentic.json and all .agenticrc files                    |
-| `volumes <create\|list\|ls\|remove\|rm> [name]`                                                                                               | Manage named Docker volumes created by agentic                                              |
-| `completion <bash\|zsh\|fish\|powershell>`                                                                                                    | Generate shell completion script for the specified shell                                    |
-| `aliases`                                                                                                                                     | Print shell alias definitions for installed tools                                           |
-| `help [command]`                                                                                                                              | Show help for a command (`run` for tool run options). Shows overview if unspecified         |
-| `run [flags] <tool> [args...]`                                                                                                                | Run a tool in an isolated Docker container                                                  |
-| `run <tool> -- <cmd> [args]`                                                                                                                  | Override the entrypoint and run a shell command directly                                    |
+| Command                                                                                                                                                           | Description                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `build [tool] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--registry <host>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]`  | Build tool image(s). Builds all tools if unspecified                                        |
+| `update [tool] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--registry <host>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]` | Update tool image(s) to latest version. Skips unbuilt tools when unspecified                |
+| `clean [tool]`                                                                                                                                                    | Remove tool image(s). Cleans all tools + base if unspecified                                |
+| `inspect [tool]`                                                                                                                                                  | Show image info (version, base layers, build date, size). Inspects all tools if unspecified |
+| `config [--home <dir>]`                                                                                                                                           | Show the merged configuration from agentic.json and all .agenticrc files                    |
+| `volumes <create\|list\|ls\|remove\|rm> [name]`                                                                                                                   | Manage named Docker volumes created by agentic                                              |
+| `completion <bash\|zsh\|fish\|powershell>`                                                                                                                        | Generate shell completion script for the specified shell                                    |
+| `aliases`                                                                                                                                                         | Print shell alias definitions for installed tools                                           |
+| `help [command]`                                                                                                                                                  | Show help for a command (`run` for tool run options). Shows overview if unspecified         |
+| `run [flags] <tool> [args...]`                                                                                                                                    | Run a tool in an isolated Docker container                                                  |
+| `run <tool> -- <cmd> [args]`                                                                                                                                      | Override the entrypoint and run a shell command directly                                    |
 
 Run tool commands from within a git repository. The current directory is mounted as `/workspace` inside the container.
 
@@ -242,6 +242,22 @@ All stages are composed into a single multi-stage Dockerfile at build time and b
 All tools default to node only. Use `--base` to add extra runtimes at build time. The same pinning pattern applies to every layer (`--dotnet`, `--go`, etc.).
 
 Version defaults are embedded in the binary at build time - run `agentic build --help` to see current defaults. Override per-build with the corresponding flag (`--node`, `--java`, `--dotnet`, `--go`), or set `AGENTIC_<LAYER>_VERSION` in your shell config for a persistent default (e.g. `AGENTIC_JAVA_VERSION=17`).
+
+### Registry proxy
+
+If your environment requires pulling Docker Hub images through a registry proxy (e.g. Harbor, Nexus, Artifactory, AWS ECR pull-through cache), set the registry hostname and agentic will prefix all base image pulls with it:
+
+```bash
+# One-off override via flag
+agentic build claude --registry myregistry.example.com
+
+# Persistent: add to $AGENTIC_HOME/agentic.json (default: ~/.agentic/agentic.json)
+# { "registry": "myregistry.example.com" }
+```
+
+Authentication is out of scope - configure it once with `docker login myregistry.example.com` before building.
+
+The `--registry` flag takes precedence over the `agentic.json` value. Run `agentic config` to see the active registry setting.
 
 ### Extra apt packages
 

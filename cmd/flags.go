@@ -11,6 +11,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// collectRegistry resolves the registry to use for pulling base images.
+// Precedence: --registry flag > agentic.json registry field.
+func collectRegistry(cmd *cobra.Command) string {
+	if v, _ := cmd.Flags().GetString("registry"); v != "" {
+		return v
+	}
+	if cfg, err := config.LoadConfig(toolHome); err == nil {
+		return cfg.Registry
+	}
+	return ""
+}
+
 // addBuildFlags registers the version and dry-run flags shared by the build and
 // update commands. --no-cache is registered separately because its description
 // differs between the two commands.
@@ -18,6 +30,7 @@ func addBuildFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSlice("base", nil, "extra runtime(s) to layer on top of node; repeatable or comma-separated (e.g. --base java --base dotnet or --base java,dotnet)")
 	cmd.Flags().StringSlice("apt", nil, "apt packages to install in the base stage; repeatable or comma-separated (e.g. --apt make --apt gcc or --apt make,gcc)")
 	cmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
+	cmd.Flags().String("registry", "", "registry prefix for base images (e.g. myregistry.example.com); overrides agentic.json registry")
 
 	addVersionFlags(cmd)
 }
@@ -52,6 +65,7 @@ func buildOptsFromFlags(cmd *cobra.Command) tools.BuildOptions {
 
 	opts.AptPackages = collectAptPackages(cmd)
 	opts.VerifyApt = len(opts.AptPackages) > 0
+	opts.Registry = collectRegistry(cmd)
 
 	return opts
 }
