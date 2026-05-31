@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, edited, synchronize, reopened]
 
 jobs:
   ci:
@@ -15,6 +16,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate PR title
+        if: github.event_name == 'pull_request'
+        run: .github/scripts/validate-title.sh "${{ github.event.pull_request.title }}"
+
       - name: Compute next tag
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         id: next
@@ -24,14 +29,17 @@ jobs:
           echo "next=${NEXT}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-go@v6
+        if: github.event.action != 'edited'
         with:
           go-version-file: go.mod
           cache: true
 
       - name: Test
+        if: github.event.action != 'edited'
         run: make test
 
       - name: Build
+        if: github.event.action != 'edited'
         run: make build
 
       - name: Create and push tag
