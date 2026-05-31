@@ -208,10 +208,17 @@ Tool names are discovered dynamically at completion time, so new tools are picke
 
 ## 🔗 Shell aliases
 
-Shell aliases let you run tools directly (e.g., `copilot` instead of `agentic run copilot`). Add to your shell config to activate them:
+Shell aliases let you run tools directly (e.g., `copilot` instead of `agentic run copilot`). The shell is detected automatically. Add to your shell config to activate them:
 
 ```bash
+# bash/zsh - add to ~/.bashrc or ~/.zshrc
 source <(agentic aliases)
+
+# fish - add to ~/.config/fish/config.fish
+agentic aliases | source
+
+# PowerShell - add to your $PROFILE
+agentic aliases | Out-String | Invoke-Expression
 ```
 
 Only tools with a built image produce an alias, so sourcing the output never creates broken aliases for uninstalled tools.
