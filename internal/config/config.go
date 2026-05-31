@@ -11,6 +11,7 @@ import (
 // CliConfig holds the persisted global agentic config stored in $AGENTIC_HOME/agentic.json.
 type CliConfig struct {
 	TrustedDirs []string `json:"trusted_dirs"`
+	Registry    string   `json:"registry,omitempty"`
 }
 
 // LoadConfig reads $AGENTIC_HOME/agentic.json. Returns an empty CliConfig if the

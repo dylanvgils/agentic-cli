@@ -1,6 +1,35 @@
 # Configuration
 
-Agentic is configured through three layers, applied in order of increasing specificity: `.agenticrc` project files, environment variables, and CLI flags. List-type settings accumulate across all layers; scalar settings use the most specific value.
+Agentic is configured through three layers, applied in order of increasing specificity: `agentic.json` global file, `.agenticrc` project files, environment variables, and CLI flags. List-type settings accumulate across all layers; scalar settings use the most specific value.
+
+## `agentic.json` (global config)
+
+Stored in `$AGENTIC_HOME/agentic.json` (default: `~/.agentic/agentic.json`). This file holds machine-level settings that apply to all projects. Edit it directly with any text editor.
+
+| Key            | Type   | Description                                                                      | CLI flag      |
+| -------------- | ------ | -------------------------------------------------------------------------------- | ------------- |
+| `trusted_dirs` | list   | Directories trusted to run tools from without an interactive prompt              | `--trust-dir` |
+| `registry`     | scalar | Registry prefix for base image pulls (e.g. `myregistry.example.com`). See below. | `--registry`  |
+
+### Registry proxy
+
+If your environment requires pulling Docker Hub images through a registry proxy (e.g. Harbor, Nexus, Artifactory, AWS ECR pull-through cache), set the `registry` field:
+
+```json
+{
+  "registry": "myregistry.example.com"
+}
+```
+
+Agentic prefixes all base image names with this value at build time, routing pulls through the proxy. Authentication is out of scope - configure it once with `docker login myregistry.example.com`.
+
+The `--registry` flag overrides the `agentic.json` value for a single build:
+
+```bash
+agentic build claude --registry myregistry.example.com
+```
+
+Run `agentic config` to see the active registry setting.
 
 ## `.agenticrc` files
 

@@ -7,6 +7,20 @@ import (
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
+// DebianImageFor returns the debian base image name optionally prefixed with registry.
+func DebianImageFor(registry string) string {
+	return prefixImage(registry, DebianImage)
+}
+
+// prefixImage prepends registry to image (e.g. "myregistry.example.com/node:24").
+// Returns image unchanged when registry is empty.
+func prefixImage(registry, image string) string {
+	if registry == "" {
+		return image
+	}
+	return strings.TrimRight(registry, "/") + "/" + image
+}
+
 const (
 	debianCodename = "bookworm-slim"
 
@@ -47,8 +61,8 @@ func ExtraEnvVarName(name string) string {
 }
 
 // baseStage returns the foundational base stage. Currently delegates to nodeStage.
-func baseStage(ver string, pkgs []string) df.Stage {
-	return nodeStage(ver, pkgs)
+func baseStage(ver, registry string, pkgs []string) df.Stage {
+	return nodeStage(ver, registry, pkgs)
 }
 
 // extraStage returns the stage for a named extra layer (java, dotnet, go).
@@ -69,13 +83,14 @@ func extraStage(name, prevStage, ver string) (df.Stage, error) {
 
 // nodeStage returns the foundational node/debian base stage.
 // ver is the NODE_VERSION build arg default; empty string uses the Dockerfile default of 24.
-func nodeStage(ver string, pkgs []string) df.Stage {
+func nodeStage(ver, registry string, pkgs []string) df.Stage {
 	nodeArg := df.Arg{Key: "NODE_VERSION", Default: DefaultVersions.Node}
 	if ver != "" {
 		nodeArg.Default = ver
 	}
 
-	return df.NewStage(df.From{Image: "node:${NODE_VERSION}-" + debianCodename, As: "base"}).
+	image := prefixImage(registry, "node:${NODE_VERSION}-"+debianCodename)
+	return df.NewStage(df.From{Image: image, As: "base"}).
 		AddGlobalArg(nodeArg).
 		Add(df.Env{Key: "DEBIAN_FRONTEND", Value: "noninteractive"}).
 		Add(df.Heredoc{

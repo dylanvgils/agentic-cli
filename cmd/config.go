@@ -59,6 +59,16 @@ func printGlobalConfig(w io.Writer, home string, cfg *config.CliConfig) error {
 		return err
 	}
 
+	if cfg.Registry != "" {
+		if _, err := fmt.Fprintf(w, "  registry: %s\n", cfg.Registry); err != nil {
+			return err
+		}
+	} else {
+		if _, err := fmt.Fprintln(w, "  registry: (not set)"); err != nil {
+			return err
+		}
+	}
+
 	if len(cfg.TrustedDirs) == 0 {
 		_, err := fmt.Fprintln(w, "  trusted_dirs: (none)")
 		return err

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -21,7 +22,7 @@ func TestAddBuildFlags(t *testing.T) {
 		addBuildFlags(cmd)
 
 		// Assert
-		expected := append([]string{"base", "apt", "dry-run"}, tools.KnownLayers()...)
+		expected := append([]string{"base", "apt", "dry-run", "registry"}, tools.KnownLayers()...)
 		for _, name := range expected {
 			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
 		}
@@ -145,6 +146,63 @@ func TestCollectAptPackages(t *testing.T) {
 
 		// Act
 		result := collectAptPackages(cmd)
+
+		// Assert
+		assert.Empty(t, result)
+	})
+}
+
+func TestCollectRegistry(t *testing.T) {
+	t.Run("flag takes priority over config", func(t *testing.T) {
+		// Arrange
+		homeDir := t.TempDir()
+		cfg := &config.CliConfig{Registry: "config.example.com"}
+		require.NoError(t, cfg.Save(homeDir))
+		orig := toolHome
+		toolHome = homeDir
+		t.Cleanup(func() { toolHome = orig })
+
+		cmd := &cobra.Command{Use: "test"}
+		cmd.Flags().String("registry", "", "")
+		require.NoError(t, cmd.Flags().Set("registry", "flag.example.com"))
+
+		// Act
+		result := collectRegistry(cmd)
+
+		// Assert
+		assert.Equal(t, "flag.example.com", result)
+	})
+
+	t.Run("falls back to agentic.json when flag not set", func(t *testing.T) {
+		// Arrange
+		homeDir := t.TempDir()
+		cfg := &config.CliConfig{Registry: "config.example.com"}
+		require.NoError(t, cfg.Save(homeDir))
+		orig := toolHome
+		toolHome = homeDir
+		t.Cleanup(func() { toolHome = orig })
+
+		cmd := &cobra.Command{Use: "test"}
+		cmd.Flags().String("registry", "", "")
+
+		// Act
+		result := collectRegistry(cmd)
+
+		// Assert
+		assert.Equal(t, "config.example.com", result)
+	})
+
+	t.Run("empty when neither set", func(t *testing.T) {
+		// Arrange
+		orig := toolHome
+		toolHome = t.TempDir()
+		t.Cleanup(func() { toolHome = orig })
+
+		cmd := &cobra.Command{Use: "test"}
+		cmd.Flags().String("registry", "", "")
+
+		// Act
+		result := collectRegistry(cmd)
 
 		// Assert
 		assert.Empty(t, result)

@@ -20,6 +20,7 @@ func TestLoadConfig(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, cfg.TrustedDirs)
+		assert.Empty(t, cfg.Registry)
 	})
 
 	t.Run("valid file returns parsed", func(t *testing.T) {
@@ -37,6 +38,23 @@ func TestLoadConfig(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"/home/user/projects"}, cfg.TrustedDirs)
+	})
+
+	t.Run("registry field is loaded", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(
+			filepath.Join(dir, "agentic.json"),
+			[]byte(`{"registry":"myregistry.example.com"}`),
+			0o640,
+		))
+
+		// Act
+		cfg, err := LoadConfig(dir)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "myregistry.example.com", cfg.Registry)
 	})
 
 	t.Run("malformed JSON returns error", func(t *testing.T) {
@@ -73,6 +91,21 @@ func TestSave_writesFileWithCorrectPerms(t *testing.T) {
 	reloaded, err := LoadConfig(dir)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/foo"}, reloaded.TrustedDirs)
+}
+
+func TestSave_registryRoundTrips(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	cfg := &CliConfig{Registry: "myregistry.example.com"}
+
+	// Act
+	err := cfg.Save(dir)
+
+	// Assert
+	require.NoError(t, err)
+	reloaded, err := LoadConfig(dir)
+	require.NoError(t, err)
+	assert.Equal(t, "myregistry.example.com", reloaded.Registry)
 }
 
 func TestIsTrusted(t *testing.T) {

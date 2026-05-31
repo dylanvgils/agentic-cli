@@ -22,7 +22,23 @@ func TestPrintGlobalConfig(t *testing.T) {
 		require.NoError(t, err)
 		out := buf.String()
 		assert.Contains(t, out, "Global (/home/user/.agentic/agentic.json)")
+		assert.Contains(t, out, "registry: (not set)")
 		assert.Contains(t, out, "trusted_dirs: (none)")
+	})
+
+	t.Run("with registry", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		cfg := &config.CliConfig{Registry: "myregistry.example.com"}
+
+		// Act
+		err := printGlobalConfig(&buf, "/home/user/.agentic", cfg)
+
+		// Assert
+		require.NoError(t, err)
+		out := buf.String()
+		assert.Contains(t, out, "registry: myregistry.example.com")
+		assert.NotContains(t, out, "(not set)")
 	})
 
 	t.Run("with dirs", func(t *testing.T) {
