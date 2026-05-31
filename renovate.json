@@ -22,33 +22,38 @@
       "extractVersion": "^(?<version>\\d+)"
     }
   ],
-  "regexManagers": [
+  "customManagers": [
     {
-      "fileMatch": ["^internal/tools/versions\\.json$"],
+      "customType": "regex",
+      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
       "matchStrings": ["\"node\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "node",
       "datasourceTemplate": "node-version"
     },
     {
-      "fileMatch": ["^internal/tools/versions\\.json$"],
+      "customType": "regex",
+      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
       "matchStrings": ["\"java\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "java-jdk",
       "datasourceTemplate": "java-version"
     },
     {
-      "fileMatch": ["^internal/tools/versions\\.json$"],
+      "customType": "regex",
+      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
       "matchStrings": ["\"dotnet\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "dotnet-sdk",
       "datasourceTemplate": "dotnet-version"
     },
     {
-      "fileMatch": ["^internal/tools/versions\\.json$"],
+      "customType": "regex",
+      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
       "matchStrings": ["\"go\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "go",
       "datasourceTemplate": "golang-version"
     },
     {
-      "fileMatch": ["^Dockerfile$"],
+      "customType": "regex",
+      "managerFilePatterns": ["/^Dockerfile$/"],
       "matchStrings": ["ARG GO_VERSION=(?<currentValue>[^\\s]+)"],
       "depNameTemplate": "go",
       "datasourceTemplate": "golang-version"
