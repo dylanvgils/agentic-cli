@@ -108,6 +108,7 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	cpus := func(rc *config.AgenticRC) string { return rc.CPUs }
 	memory := func(rc *config.AgenticRC) string { return rc.Memory }
 	extraMounts := func(rc *config.AgenticRC) []string { return rc.ExtraMounts }
+	aptPackages := func(rc *config.AgenticRC) []string { return rc.AptPackages }
 	secrets := func(rc *config.AgenticRC) []string { return rc.Secrets }
 
 	if err := printScalarField(w, "pids_limit", layers, pidsLimit, docker.DefaultPidsLimit); err != nil {
@@ -120,6 +121,9 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 		return err
 	}
 	if err := printListField(w, "extra_mounts", layers, extraMounts); err != nil {
+		return err
+	}
+	if err := printListField(w, "apt_packages", layers, aptPackages); err != nil {
 		return err
 	}
 	return printListField(w, "secrets", layers, secrets)

@@ -79,7 +79,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		layers := []config.RCLayer{
 			{
 				Path: "/project/.agenticrc",
-				RC:   &config.AgenticRC{PidsLimit: "100", CPUs: "2", Memory: "4g", ExtraMounts: []string{"vol:/mnt"}, Secrets: []string{"tok:/run/s/t"}},
+				RC:   &config.AgenticRC{PidsLimit: "100", CPUs: "2", Memory: "4g", ExtraMounts: []string{"vol:/mnt"}, AptPackages: []string{"make"}, Secrets: []string{"tok:/run/s/t"}},
 			},
 		}
 
@@ -94,6 +94,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "cpus: 2  [/project/.agenticrc]")
 		assert.Contains(t, out, "memory: 4g  [/project/.agenticrc]")
 		assert.Contains(t, out, "- vol:/mnt  [/project/.agenticrc]")
+		assert.Contains(t, out, "- make  [/project/.agenticrc]")
 		assert.Contains(t, out, "- tok:/run/s/t  [/project/.agenticrc]")
 	})
 
@@ -103,11 +104,11 @@ func TestPrintProjectConfig(t *testing.T) {
 		layers := []config.RCLayer{
 			{
 				Path: "/home/.agenticrc",
-				RC:   &config.AgenticRC{CPUs: "2", ExtraMounts: []string{"parent-vol:/mnt/p"}},
+				RC:   &config.AgenticRC{CPUs: "2", ExtraMounts: []string{"parent-vol:/mnt/p"}, AptPackages: []string{"make"}},
 			},
 			{
 				Path: "/project/.agenticrc",
-				RC:   &config.AgenticRC{CPUs: "8", PidsLimit: "100", ExtraMounts: []string{"child-vol:/mnt/c"}},
+				RC:   &config.AgenticRC{CPUs: "8", PidsLimit: "100", ExtraMounts: []string{"child-vol:/mnt/c"}, AptPackages: []string{"gcc"}},
 			},
 		}
 
@@ -126,6 +127,11 @@ func TestPrintProjectConfig(t *testing.T) {
 		parentIdx := bytes.Index(buf.Bytes(), []byte("parent-vol"))
 		childIdx := bytes.Index(buf.Bytes(), []byte("child-vol"))
 		assert.Less(t, parentIdx, childIdx)
+		assert.Contains(t, out, "- make  [/home/.agenticrc]")
+		assert.Contains(t, out, "- gcc  [/project/.agenticrc]")
+		makeIdx := bytes.Index(buf.Bytes(), []byte("- make"))
+		gccIdx := bytes.Index(buf.Bytes(), []byte("- gcc"))
+		assert.Less(t, makeIdx, gccIdx)
 	})
 
 	t.Run("no values shows defaults", func(t *testing.T) {
@@ -145,6 +151,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "cpus: 4  (default)")
 		assert.Contains(t, out, "memory: 4g  (default)")
 		assert.Contains(t, out, "extra_mounts: (none)")
+		assert.Contains(t, out, "apt_packages: (none)")
 		assert.Contains(t, out, "secrets: (none)")
 	})
 }
