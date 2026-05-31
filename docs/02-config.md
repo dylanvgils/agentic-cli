@@ -82,7 +82,7 @@ These also accumulate, but their env vars (`AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECR
 Resolution priority (highest to lowest):
 
 1. CLI flag (`--pids-limit`, `--cpus`, `--memory`) on `agentic run`
-2. `.agenticrc` — innermost (child) value wins
+2. `.agenticrc` - innermost (child) value wins
 3. Environment variable (`AGENTIC_PIDS_LIMIT`, `AGENTIC_CPUS`, `AGENTIC_MEMORY`)
 4. Built-in default (`1024`, `4`, `4g`)
 

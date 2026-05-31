@@ -188,7 +188,7 @@ agentic completion zsh
 
 ## 🔁 Shell completion
 
-Tab completion is available for bash and zsh. Add one of the following to your shell config to activate it:
+Tab completion is available for bash, zsh, fish, and PowerShell. Add one of the following to your shell config to activate it:
 
 ```bash
 # zsh - add to ~/.zshrc
@@ -196,9 +196,15 @@ source <(agentic completion zsh)
 
 # bash - add to ~/.bashrc
 source <(agentic completion bash)
+
+# fish - add to ~/.config/fish/config.fish
+agentic completion fish | source
+
+# PowerShell - add to your $PROFILE
+agentic completion powershell | Out-String | Invoke-Expression
 ```
 
-Completions cover all commands (`build`, `update`, `clean`, `inspect`, `completion`, `aliases`, `help`), tool names, and command-specific flags (`--base`, `--no-cache`, `--help`). Tool names are discovered dynamically at completion time, so new tools are picked up automatically without regenerating the script.
+Tool names are discovered dynamically at completion time, so new tools are picked up automatically without regenerating the script.
 
 ## 🔗 Shell aliases
 
@@ -224,21 +230,16 @@ node (base stage)
 
 All stages are composed into a single multi-stage Dockerfile at build time and built in one `docker build` call. No intermediate images are produced.
 
-| Flag                                 | Result                       |
-| ------------------------------------ | ---------------------------- |
-| _(none)_                             | node only (v24)              |
-| `--base java`                        | node v24 + Java 21           |
-| `--base dotnet`                      | node v24 + .NET 10           |
-| `--base go`                          | node v24 + Go 1.26           |
-| `--base java,dotnet`                 | node v24 + Java 21 + .NET 10 |
-| `--node 22`                          | node v22 only                |
-| `--base java --java 17`              | node v24 + Java 17           |
-| `--base dotnet --dotnet 9`           | node v24 + .NET 9            |
-| `--base go --go 1.23`                | node v24 + Go 1.23           |
-| `--node 22 --base java --java 17`    | node v22 + Java 17           |
-| `--node 22 --base dotnet --dotnet 9` | node v22 + .NET 9            |
+| Flag                              | Result             |
+| --------------------------------- | ------------------ |
+| _(none)_                          | node only          |
+| `--base java`                     | node + Java        |
+| `--base java,dotnet`              | node + Java + .NET |
+| `--node 22`                       | node v22 only      |
+| `--base java --java 17`           | node + Java 17     |
+| `--node 22 --base java --java 17` | node v22 + Java 17 |
 
-Both tools default to node only. Use `--base` to add extra runtimes at build time.
+All tools default to node only. Use `--base` to add extra runtimes at build time. The same pinning pattern applies to every layer (`--dotnet`, `--go`, etc.).
 
 Version defaults are embedded in the binary at build time - run `agentic build --help` to see current defaults. Override per-build with the corresponding flag (`--node`, `--java`, `--dotnet`, `--go`), or set `AGENTIC_<LAYER>_VERSION` in your shell config for a persistent default (e.g. `AGENTIC_JAVA_VERSION=17`).
 
@@ -248,8 +249,7 @@ Use `--apt` to install additional Debian packages into the base stage. Packages 
 
 ```bash
 agentic build claude --apt make
-agentic build claude --apt make,gcc,jq      # comma-separated
-agentic build claude --apt make --apt gcc   # repeatable flags
+agentic build claude --apt make,gcc   # comma-separated or repeatable (--apt make --apt gcc)
 ```
 
 Packages are verified with `apt-cache show` before the build starts (fail-fast). The package list is stored in the `agentic.apt` image label and automatically recovered on `agentic update`, so you don't need to re-specify it each time.
@@ -267,23 +267,7 @@ apt_packages=gcc
 
 All three sources accumulate: RC files (outermost first), then `AGENTIC_APT_PACKAGES`, then `--apt`.
 
-The final tool image is labeled with the base layers, apt packages, build timestamp, and installed tool version:
-
-```bash
-docker inspect agentic-claude --format '{{ index .Config.Labels "agentic.base" }}'
-# → node,java
-
-docker inspect agentic-claude --format '{{ index .Config.Labels "agentic.apt" }}'
-# → make,gcc
-
-docker inspect agentic-claude --format '{{ index .Config.Labels "agentic.built" }}'
-# → 2026-04-05T14:30:00Z
-
-docker inspect agentic-claude --format '{{ index .Config.Labels "agentic.tool.version" }}'
-# → Claude Code 1.2.3
-```
-
-Use `agentic inspect` for a formatted summary of all of the above.
+Use `agentic inspect` to see base layers, apt packages, build timestamp, and installed tool version for any built image.
 
 ## 🔑 Secrets
 

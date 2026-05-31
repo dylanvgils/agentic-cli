@@ -117,14 +117,9 @@ func TestBuildImage(t *testing.T) {
 
 1. Add a new case to `ExtraStage()` in `internal/tools/bases.go` (follow the `javaStage`/`dotnetStage`/`goStage` pattern). The stage func receives `prevStage` and `ver` - build FROM `prevStage` and apply the version as a build arg default.
 
-2. Add the name to `KnownExtras` in `internal/tools/bases.go`.
+2. Add the name to `knownExtras` in `internal/tools/bases.go` and add a human-readable label to `LayerFlagDesc` in the same file. The `--<name>` version flag and its `AGENTIC_<NAME>_VERSION` env var are registered automatically from these two maps.
 
 3. If the new layer needs apt packages installed in the base stage (e.g. `apt-transport-https` for Java), add them to `layerPackages` in `internal/tools/packages.go` under the layer's name. `collectPackages` merges them with the base packages and any user-supplied `--apt` packages automatically.
-
-4. Wire a `--<name>` version flag into three files:
-   - `cmd/flags.go` - define the flag
-   - `cmd/build.go` - pass it through to the build step
-   - `cmd/update.go` - pass it through to the update step
 
 ## Debugging
 
