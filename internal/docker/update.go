@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -34,17 +35,11 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 
 // hasNewAptPackages returns true if any package in requested is not present in existing.
 func hasNewAptPackages(requested, existing []string) bool {
-	set := make(map[string]bool, len(existing))
-	for _, p := range existing {
-		set[p] = true
-	}
-
-	for _, p := range requested {
-		if !set[p] {
+	for _, pkg := range requested {
+		if !slices.Contains(existing, pkg) {
 			return true
 		}
 	}
-
 	return false
 }
 
