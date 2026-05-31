@@ -16,13 +16,16 @@ import (
 // differs between the two commands.
 func addBuildFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSlice("base", nil, "extra runtime(s) to layer on top of node; repeatable or comma-separated (e.g. --base java --base dotnet or --base java,dotnet)")
-	cmd.Flags().String("node", "", "Node.js version (default: "+tools.DefaultVersions.Node+")")
-	for _, name := range tools.KnownExtras {
-		label := tools.ExtraFlagDesc[name]
-		cmd.Flags().String(name, "", label+" version (default: "+tools.DefaultVersions.ForExtra(name)+")")
-	}
 	cmd.Flags().StringSlice("apt", nil, "apt packages to install in the base stage; repeatable or comma-separated (e.g. --apt make --apt gcc or --apt make,gcc)")
 	cmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
+
+	addVersionFlags(cmd)
+}
+
+func addVersionFlags(cmd *cobra.Command) {
+	for _, name := range tools.KnownLayers() {
+		cmd.Flags().String(name, "", tools.LayerFlagDesc[name]+" version (default: "+tools.DefaultVersions.ForLayer(name)+")")
+	}
 }
 
 func flagOrEnv(cmd *cobra.Command, flag, env string) string {
@@ -41,9 +44,7 @@ func buildOptsFromFlags(cmd *cobra.Command) tools.BuildOptions {
 		opts.BaseOverride = v
 	}
 	opts.NoCache, _ = cmd.Flags().GetBool("no-cache")
-	opts.NodeVersion = flagOrEnv(cmd, "node", "AGENTIC_NODE_VERSION")
-
-	for _, name := range tools.KnownExtras {
+	for _, name := range tools.KnownLayers() {
 		if v := flagOrEnv(cmd, name, tools.ExtraEnvVarName(name)); v != "" {
 			opts.Versions[name] = v
 		}
@@ -71,14 +72,11 @@ func toolNames(args []string) []string {
 func extrasEnvDoc() string {
 	const col = 24
 
-	lines := []string{
-		"Environment:",
-		fmt.Sprintf("  %-*s %s version (overridden by --%s)", col, "AGENTIC_NODE_VERSION", "Node.js", "node"),
-	}
+	lines := []string{"Environment:"}
 
-	for _, name := range tools.KnownExtras {
+	for _, name := range tools.KnownLayers() {
 		lines = append(lines, fmt.Sprintf("  %-*s %s version (overridden by --%s)",
-			col, tools.ExtraEnvVarName(name), tools.ExtraFlagDesc[name], name))
+			col, tools.ExtraEnvVarName(name), tools.LayerFlagDesc[name], name))
 	}
 
 	return strings.Join(lines, "\n")

@@ -27,10 +27,12 @@ func init() {
 	}
 }
 
-// ForExtra returns the default version string for the named extra runtime layer.
+// ForLayer returns the default version string for the named runtime layer (base or extra).
 // Returns an empty string for unknown names.
-func (v Versions) ForExtra(name string) string {
+func (v Versions) ForLayer(name string) string {
 	switch name {
+	case "node":
+		return v.Node
 	case "java":
 		return v.Java
 	case "dotnet":

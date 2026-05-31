@@ -12,17 +12,32 @@ const (
 
 	// DebianImage is the base Debian image used for apt verification.
 	DebianImage = "debian:" + debianCodename
+
+	// BaseLayer is the name of the foundational runtime layer.
+	BaseLayer = "node"
 )
 
-// KnownExtras lists the supported extra base layers in alphabetical order.
-var KnownExtras = []string{"dotnet", "go", "java"}
+// knownExtras lists the supported extra base layers in alphabetical order.
+var knownExtras = []string{"dotnet", "go", "java"}
 
-// ExtraFlagDesc maps each KnownExtras entry to the human-readable label used
+// LayerFlagDesc maps each runtime layer name to the human-readable label used
 // in its CLI flag description.
-var ExtraFlagDesc = map[string]string{
+var LayerFlagDesc = map[string]string{
+	"node":   "Node.js",
 	"dotnet": ".NET",
 	"go":     "Go",
 	"java":   "Java (Temurin JDK)",
+}
+
+// KnownLayers returns all runtime layers in registration order: base first, then extras.
+func KnownLayers() []string {
+	return append([]string{BaseLayer}, knownExtras...)
+}
+
+// BuildLayers returns the ordered layers for a build: the base layer followed
+// by the requested extras parsed from baseOverride.
+func BuildLayers(baseOverride string) []string {
+	return append([]string{BaseLayer}, ParseExtras(baseOverride)...)
 }
 
 // ExtraEnvVarName returns the canonical env var name for an extra's version
@@ -48,7 +63,7 @@ func extraStage(name, prevStage, ver string) (df.Stage, error) {
 	case "go":
 		return goStage(prevStage, ver), nil
 	default:
-		return df.Stage{}, fmt.Errorf("unknown base %q (valid: %s)", name, strings.Join(KnownExtras, ", "))
+		return df.Stage{}, fmt.Errorf("unknown base %q (valid: %s)", name, strings.Join(knownExtras, ", "))
 	}
 }
 

@@ -86,13 +86,9 @@ func buildImage(tmpDir, image string, opts tools.BuildOptions) error {
 		arg("build-arg", "HOST_GID="+platform.GetGID()),
 	)
 
-	if opts.NodeVersion != "" {
-		args = append(args, arg("build-arg", "NODE_VERSION="+opts.NodeVersion))
-	}
-
-	for _, extra := range tools.ParseExtras(opts.BaseOverride) {
-		if ver := opts.Versions[extra]; ver != "" {
-			args = append(args, arg("build-arg", strings.ToUpper(extra)+"_VERSION="+ver))
+	for _, name := range tools.BuildLayers(opts.BaseOverride) {
+		if ver := opts.Versions[name]; ver != "" {
+			args = append(args, arg("build-arg", strings.ToUpper(name)+"_VERSION="+ver))
 		}
 	}
 
