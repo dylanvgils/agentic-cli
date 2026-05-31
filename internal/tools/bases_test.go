@@ -140,3 +140,50 @@ func Test_extraStage(t *testing.T) {
 		assert.Contains(t, renderStage(stage), "agentic-version-go")
 	})
 }
+
+func Test_extraEnvVarName(t *testing.T) {
+	t.Run("java", func(t *testing.T) {
+		assert.Equal(t, "AGENTIC_JAVA_VERSION", ExtraEnvVarName("java"))
+	})
+
+	t.Run("dotnet", func(t *testing.T) {
+		assert.Equal(t, "AGENTIC_DOTNET_VERSION", ExtraEnvVarName("dotnet"))
+	})
+
+	t.Run("go", func(t *testing.T) {
+		assert.Equal(t, "AGENTIC_GO_VERSION", ExtraEnvVarName("go"))
+	})
+}
+
+func TestBuildLayers(t *testing.T) {
+	t.Run("base layer is always first", func(t *testing.T) {
+		// Act
+		result := BuildLayers("")
+
+		// Assert
+		assert.Equal(t, []string{BaseLayer}, result)
+	})
+
+	t.Run("extras follow the base layer", func(t *testing.T) {
+		// Act
+		result := BuildLayers("java,dotnet")
+
+		// Assert
+		assert.Equal(t, []string{BaseLayer, "dotnet", "java"}, result)
+	})
+}
+
+func Test_knownLayers(t *testing.T) {
+	// Act
+	result := KnownLayers()
+
+	// Assert
+	assert.Equal(t, BaseLayer, result[0], "base layer must be first")
+	assert.Equal(t, knownExtras, result[1:], "extras follow the base layer")
+}
+
+func Test_layerFlagDescCoversAllLayers(t *testing.T) {
+	for _, name := range KnownLayers() {
+		assert.NotEmpty(t, LayerFlagDesc[name], "LayerFlagDesc missing entry for %q", name)
+	}
+}

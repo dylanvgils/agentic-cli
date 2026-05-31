@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -12,6 +13,8 @@ import (
 // then delegates to BuildTool with NoCacheTool enabled so only the tool stage skips cache.
 func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 	hasUserApt := len(opts.AptPackages) > 0
+	userPkgs := opts.AptPackages
+	opts.VerifyApt = hasUserApt
 
 	info, err := InspectImage(image)
 	if err == nil && info != nil {
@@ -22,12 +25,22 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 		if info.Apt != "" {
 			recoveredPkgs := recoverAptPackages(info.Apt)
 			opts.AptPackages = tools.MergePackages(recoveredPkgs, opts.AptPackages)
+			opts.VerifyApt = hasUserApt && hasNewAptPackages(userPkgs, recoveredPkgs)
 		}
 	}
 
-	opts.VerifyApt = hasUserApt
 	opts.NoCacheTool = true
 	return BuildTool(tool, image, opts)
+}
+
+// hasNewAptPackages returns true if any package in requested is not present in existing.
+func hasNewAptPackages(requested, existing []string) bool {
+	for _, pkg := range requested {
+		if !slices.Contains(existing, pkg) {
+			return true
+		}
+	}
+	return false
 }
 
 // recoverAptPackages parses the agentic.apt label value into a slice of package names.

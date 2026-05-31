@@ -24,15 +24,15 @@ pids_limit=2048
 
 ### Keys
 
-| Key            | Type   | Description                                                                                                                                                        | Env var                |
-| -------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- |
-| `root`         | scalar | Stop the upward directory walk at this file (`true`/`false`)                                                                                                       | -                      |
-| `apt_packages` | list   | Extra Debian packages to install in the base image at build time                                                                                                   | `AGENTIC_APT_PACKAGES` |
-| `extra_mounts` | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME` | `AGENTIC_EXTRA_MOUNTS` |
-| `secrets`      | list   | Files to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~`, `$HOME`                                                             | `AGENTIC_SECRETS`      |
-| `pids_limit`   | scalar | Container PID limit                                                                                                                                                | `AGENTIC_PIDS_LIMIT`   |
-| `cpus`         | scalar | Container CPU limit                                                                                                                                                | `AGENTIC_CPUS`         |
-| `memory`       | scalar | Container memory limit                                                                                                                                             | `AGENTIC_MEMORY`       |
+| Key            | Type   | Description                                                                                                                                                        | CLI flag       | Env var                | Default |
+| -------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- | ---------------------- | ------- |
+| `root`         | scalar | Stop the upward directory walk at this file (`true`/`false`)                                                                                                       | -              | -                      | -       |
+| `apt_packages` | list   | Extra Debian packages to install in the base image at build time                                                                                                   | -              | `AGENTIC_APT_PACKAGES` | -       |
+| `extra_mounts` | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME` | -              | `AGENTIC_EXTRA_MOUNTS` | -       |
+| `secrets`      | list   | Files to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~`, `$HOME`                                                             | -              | `AGENTIC_SECRETS`      | -       |
+| `pids_limit`   | scalar | Container PID limit                                                                                                                                                | `--pids-limit` | `AGENTIC_PIDS_LIMIT`   | `1024`  |
+| `cpus`         | scalar | Container CPU limit                                                                                                                                                | `--cpus`       | `AGENTIC_CPUS`         | `4`     |
+| `memory`       | scalar | Container memory limit                                                                                                                                             | `--memory`     | `AGENTIC_MEMORY`       | `4g`    |
 
 ### Merge semantics
 
@@ -79,7 +79,12 @@ These also accumulate, but their env vars (`AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECR
 
 ### Scalar settings (`pids_limit`, `cpus`, `memory`)
 
-CLI flags are not available for resource limits; the innermost `.agenticrc` value wins, with the env var as the global default when no RC file sets the key.
+Resolution priority (highest to lowest):
+
+1. CLI flag (`--pids-limit`, `--cpus`, `--memory`) on `agentic run`
+2. `.agenticrc` - innermost (child) value wins
+3. Environment variable (`AGENTIC_PIDS_LIMIT`, `AGENTIC_CPUS`, `AGENTIC_MEMORY`)
+4. Built-in default (`1024`, `4`, `4g`)
 
 ## Using `root=true`
 

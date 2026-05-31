@@ -26,3 +26,20 @@ func init() {
 		log.Fatalf("tools: failed to parse embedded versions.json: %v", err)
 	}
 }
+
+// ForLayer returns the default version string for the named runtime layer (base or extra).
+// Returns an empty string for unknown names.
+func (v Versions) ForLayer(name string) string {
+	switch name {
+	case "node":
+		return v.Node
+	case "java":
+		return v.Java
+	case "dotnet":
+		return v.Dotnet
+	case "go":
+		return v.Go
+	default:
+		return ""
+	}
+}

@@ -187,7 +187,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("nodeVersion adds build arg", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{NodeVersion: "20.11.0"})
+		err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{Versions: map[string]string{"node": "20.11.0"}})
 
 		// Assert
 		require.NoError(t, err)

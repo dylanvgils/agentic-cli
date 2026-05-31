@@ -12,15 +12,9 @@ import (
 var updateCmd = &cobra.Command{
 	Use:   "update [tool]",
 	Short: "Update tool image(s) to latest version",
-	Long: `Update tool image(s) to latest version. Rebuilds the tool step without cache
-so the installer fetches the latest version. Skips unbuilt tools when no tool
-specified.
-
-Environment:
-  AGENTIC_NODE_VERSION    Node.js version (overridden by --node)
-  AGENTIC_JAVA_VERSION    Java version (overridden by --java)
-  AGENTIC_DOTNET_VERSION  .NET version (overridden by --dotnet)
-  AGENTIC_GO_VERSION      Go version (overridden by --go)`,
+	Long: "Update tool image(s) to latest version. Rebuilds the tool step without cache\n" +
+		"so the installer fetches the latest version. Skips unbuilt tools when no tool\n" +
+		"specified.\n\n" + extrasEnvDoc(),
 	Example: `  agentic update
   agentic update claude
   agentic update claude --base java

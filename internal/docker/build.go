@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
@@ -17,6 +18,7 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 		if err := verifyAptPackages(opts.AptPackages); err != nil {
 			return err
 		}
+		output.Step("Building image...")
 	}
 
 	content, err := tools.GenerateDockerfile(tool, opts)
@@ -86,13 +88,9 @@ func buildImage(tmpDir, image string, opts tools.BuildOptions) error {
 		arg("build-arg", "HOST_GID="+platform.GetGID()),
 	)
 
-	if opts.NodeVersion != "" {
-		args = append(args, arg("build-arg", "NODE_VERSION="+opts.NodeVersion))
-	}
-
-	for _, extra := range tools.ParseExtras(opts.BaseOverride) {
-		if ver := opts.Versions[extra]; ver != "" {
-			args = append(args, arg("build-arg", strings.ToUpper(extra)+"_VERSION="+ver))
+	for _, name := range tools.BuildLayers(opts.BaseOverride) {
+		if ver := opts.Versions[name]; ver != "" {
+			args = append(args, arg("build-arg", strings.ToUpper(name)+"_VERSION="+ver))
 		}
 	}
 

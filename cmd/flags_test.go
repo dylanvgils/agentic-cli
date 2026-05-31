@@ -21,7 +21,8 @@ func TestAddBuildFlags(t *testing.T) {
 		addBuildFlags(cmd)
 
 		// Assert
-		for _, name := range []string{"base", "node", "java", "dotnet", "go", "apt", "dry-run"} {
+		expected := append([]string{"base", "apt", "dry-run"}, tools.KnownLayers()...)
+		for _, name := range expected {
 			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
 		}
 	})
@@ -31,14 +32,15 @@ func TestAddBuildFlags(t *testing.T) {
 		cmd := &cobra.Command{Use: "test"}
 		addBuildFlags(cmd)
 
-		cases := []struct {
+		var cases []struct {
 			flag    string
 			version string
-		}{
-			{"node", tools.DefaultVersions.Node},
-			{"java", tools.DefaultVersions.Java},
-			{"dotnet", tools.DefaultVersions.Dotnet},
-			{"go", tools.DefaultVersions.Go},
+		}
+		for _, name := range tools.KnownLayers() {
+			cases = append(cases, struct {
+				flag    string
+				version string
+			}{name, tools.DefaultVersions.ForLayer(name)})
 		}
 
 		// Assert
@@ -158,7 +160,7 @@ func TestBuildOptsFromFlags(t *testing.T) {
 		opts := buildOptsFromFlags(buildCmd)
 
 		// Assert
-		assert.Equal(t, "20", opts.NodeVersion)
+		assert.Equal(t, "20", opts.Versions["node"])
 	})
 
 	t.Run("version env vars used when flags absent", func(t *testing.T) {
@@ -202,6 +204,16 @@ func TestBuildOptsFromFlags(t *testing.T) {
 		// Assert
 		assert.Equal(t, "java", opts.BaseOverride)
 	})
+}
+
+func TestExtrasEnvDoc(t *testing.T) {
+	// Act
+	result := extrasEnvDoc()
+
+	// Assert
+	for _, name := range tools.KnownLayers() {
+		assert.Contains(t, result, tools.ExtraEnvVarName(name), "env doc missing var for layer %q", name)
+	}
 }
 
 func TestToolNames(t *testing.T) {

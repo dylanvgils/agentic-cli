@@ -155,7 +155,7 @@ func TestRunBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "22", capturedOpts.NodeVersion)
+		assert.Equal(t, "22", capturedOpts.Versions["node"])
 	})
 
 	t.Run("go flag sets opt", func(t *testing.T) {

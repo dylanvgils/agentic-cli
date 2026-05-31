@@ -14,8 +14,7 @@ type BuildOptions struct {
 	BaseOverride string            // overrides the tool's default base extras (comma-separated)
 	NoCache      bool              // disable layer cache for all steps
 	NoCacheTool  bool              // disable layer cache for the tool step only (used by update)
-	NodeVersion  string            // override Node.js version
-	Versions     map[string]string // extra name → version override, e.g. {"java": "21"}
+	Versions     map[string]string // layer name → version override, e.g. {"node": "22", "java": "21"}
 	AptPackages  []string          // additional apt packages to install in the base stage
 	VerifyApt    bool              // run pre-build apt-cache check for AptPackages
 }
@@ -30,7 +29,7 @@ func GenerateDockerfile(tool string, opts BuildOptions) (string, error) {
 }
 
 // ParseExtras splits a comma-separated base override string into individual extra names,
-// returned in canonical KnownExtras order so the generated Dockerfile is deterministic
+// returned in canonical knownExtras order so the generated Dockerfile is deterministic
 // and Docker layer caching is not invalidated by flag reordering.
 func ParseExtras(base string) []string {
 	var extras []string
@@ -46,7 +45,7 @@ func ParseExtras(base string) []string {
 // composeStages assembles the full list of Dockerfile stages: node base + requested extras + tool.
 func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfile.Stage, error) {
 	pkgs := collectPackages(extras, opts.AptPackages)
-	base := baseStage(opts.NodeVersion, pkgs)
+	base := baseStage(opts.Versions[BaseLayer], pkgs)
 
 	extraList, prev, err := buildExtraStages(extras, "base", opts.Versions)
 	if err != nil {
@@ -92,11 +91,11 @@ func resolveToolStage(tool, prevStage string) (dockerfile.Stage, error) {
 	return cfg.Build.Stage(prevStage), nil
 }
 
-// sortByKnownExtras returns a copy of extras sorted by their position in KnownExtras.
+// sortByKnownExtras returns a copy of extras sorted by their position in knownExtras.
 func sortByKnownExtras(extras []string) []string {
 	sorted := slices.Clone(extras)
 	slices.SortFunc(sorted, func(a, b string) int {
-		return cmp.Compare(slices.Index(KnownExtras, a), slices.Index(KnownExtras, b))
+		return cmp.Compare(slices.Index(knownExtras, a), slices.Index(knownExtras, b))
 	})
 	return sorted
 }
