@@ -20,6 +20,7 @@ jobs:
         id: next
         run: |
           NEXT=$(.github/scripts/next-tag.sh)
+          echo "next tag: ${NEXT:-none}"
           echo "next=${NEXT}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-go@v6
