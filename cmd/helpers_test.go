@@ -165,6 +165,13 @@ func stubUpdateTool(t *testing.T, fn func(tool, image string, opts tools.BuildOp
 	t.Cleanup(func() { updateTool = orig })
 }
 
+func stubCurrentGOOS(t *testing.T, goos string) {
+	t.Helper()
+	orig := currentGOOS
+	currentGOOS = goos
+	t.Cleanup(func() { currentGOOS = orig })
+}
+
 func stubVolumeStdin(t *testing.T, input string) {
 	t.Helper()
 	orig := volumesStdin
