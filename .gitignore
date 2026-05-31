@@ -18,6 +18,9 @@ go.work.sum
 Thumbs.db
 ehthumbs.db
 
+# Claude Code
+.claude/settings.local.json
+
 # Editors
 .vscode/
 .idea/
