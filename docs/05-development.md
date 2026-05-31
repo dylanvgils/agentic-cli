@@ -121,6 +121,28 @@ func TestBuildImage(t *testing.T) {
 
 3. If the new layer needs apt packages installed in the base stage (e.g. `apt-transport-https` for Java), add them to `layerPackages` in `internal/tools/packages.go` under the layer's name. `collectPackages` merges them with the base packages and any user-supplied `--apt` packages automatically.
 
+## Releasing
+
+Releases are automated. When a PR is merged to `main` and CI passes, `.github/scripts/next-tag.sh` inspects the commits since the last tag and pushes a new annotated git tag if any releaseable commit is found.
+
+Bump rules follow the [Conventional Commits](https://www.conventionalcommits.org/) convention:
+
+| Commit type                                                         | Bump       |
+| ------------------------------------------------------------------- | ---------- |
+| `feat!:`, `fix!:`, or any type with `!` / `BREAKING CHANGE:` footer | major      |
+| `feat:`                                                             | minor      |
+| `fix:`, `perf:`, `refactor:`                                        | patch      |
+| `chore:`, `docs:`, `ci:`, `test:`, `style:`, `build:`               | no release |
+
+Scoped variants (e.g. `feat(tool):`) are treated the same as their unscoped form.
+
+The script can be run locally for a dry-run:
+
+```bash
+.github/scripts/next-tag.sh          # next tag based on latest git tag
+.github/scripts/next-tag.sh v0.3.0   # next tag based on a specific tag
+```
+
 ## Debugging
 
 To get a shell inside a container instead of running the tool, use `--` to override the entrypoint:
