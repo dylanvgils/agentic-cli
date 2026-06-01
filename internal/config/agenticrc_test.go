@@ -168,6 +168,30 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, "512", result.PidsLimit)
 	})
 
+	t.Run("prefix child wins over parent", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Prefix: "myproject"}
+		parent := &AgenticRC{Prefix: "other"}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, "myproject", result.Prefix)
+	})
+
+	t.Run("prefix parent fills when child unset", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{}
+		parent := &AgenticRC{Prefix: "shared"}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, "shared", result.Prefix)
+	})
+
 	t.Run("lists accumulate outermost first", func(t *testing.T) {
 		// Arrange
 		child := &AgenticRC{ExtraMounts: []string{"child-vol:/mnt/c"}, Secrets: []string{"child-secret"}, AptPackages: []string{"gcc"}}
@@ -198,7 +222,7 @@ func TestMergeConfigs(t *testing.T) {
 func TestParseRC(t *testing.T) {
 	t.Run("all keys", func(t *testing.T) {
 		// Arrange
-		content := "extra_mounts=vol1:/mnt/a,vol2:/mnt/b\nsecrets=token:/run/s/a,key:/run/s/b\napt_packages=make,gcc\npids_limit=512\ncpus=2\nmemory=2g\n"
+		content := "extra_mounts=vol1:/mnt/a,vol2:/mnt/b\nsecrets=token:/run/s/a,key:/run/s/b\napt_packages=make,gcc\npids_limit=512\ncpus=2\nmemory=2g\nprefix=myproject\n"
 
 		// Act
 		rc := mustParseRC(t, content)
@@ -210,6 +234,15 @@ func TestParseRC(t *testing.T) {
 		assert.Equal(t, "512", rc.PidsLimit)
 		assert.Equal(t, "2", rc.CPUs)
 		assert.Equal(t, "2g", rc.Memory)
+		assert.Equal(t, "myproject", rc.Prefix)
+	})
+
+	t.Run("prefix key", func(t *testing.T) {
+		// Act
+		rc := mustParseRC(t, "prefix=work\n")
+
+		// Assert
+		assert.Equal(t, "work", rc.Prefix)
 	})
 
 	t.Run("repeatable keys", func(t *testing.T) {

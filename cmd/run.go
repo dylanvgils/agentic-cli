@@ -67,16 +67,12 @@ func init() {
 	runToolCmd.Flags().BoolVar(&dryRun, "dry-run", false, "print the docker command without running it")
 	runToolCmd.Flags().BoolVar(&trustDir, "trust-dir", false, "trust the current directory and save it to config")
 	runToolCmd.Flags().SetInterspersed(false)
+	addPrefixFlag(runToolCmd)
 }
 
 func runTool(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return cmd.Help()
-	}
-
-	parsedArgs, err := parseArgs(args)
-	if err != nil {
-		return err
 	}
 
 	cwd, _ := os.Getwd()
@@ -85,6 +81,12 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 
 	rc := config.FindAndLoad(cwd)
+	prefix := resolvePrefix(cmd, rc)
+
+	parsedArgs, err := parseArgs(args, prefix)
+	if err != nil {
+		return err
+	}
 
 	toolConfig := tools.Configs[parsedArgs.toolName]
 	if err := toolConfig.Runtime.Setup(toolHome); err != nil {
@@ -120,9 +122,9 @@ func runTool(cmd *cobra.Command, args []string) error {
 	return runContainer(rs, parsedArgs.toolArgs)
 }
 
-func parseArgs(args []string) (parsedArgs, error) {
+func parseArgs(args []string, prefix string) (parsedArgs, error) {
 	toolName := args[0]
-	imageName, err := tools.ImageName(toolName)
+	imageName, err := tools.ImageName(toolName, prefix)
 	if err != nil {
 		return parsedArgs{}, err
 	}

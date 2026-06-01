@@ -23,12 +23,14 @@ func init() {
 	rootCmd.AddCommand(aliasesCmd)
 }
 
-func runAliases(_ *cobra.Command, _ []string) error {
+func runAliases(cmd *cobra.Command, _ []string) error {
 	shell := detectShell()
 	fmt.Println(preambleFor(shell))
 
+	prefix := resolvePrefix(cmd, nil)
+
 	for _, name := range tools.Names() {
-		image, err := tools.ImageName(name)
+		image, err := tools.ImageName(name, prefix)
 		if err != nil {
 			return err
 		}

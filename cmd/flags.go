@@ -11,6 +11,31 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// resolvePrefix returns the active image prefix.
+// Precedence: --prefix flag > AGENTIC_PREFIX env var > .agenticrc prefix field > DefaultPrefix.
+func resolvePrefix(cmd *cobra.Command, rc *config.AgenticRC) string {
+	if v, _ := cmd.Flags().GetString("prefix"); v != "" {
+		return v
+	}
+	if v := os.Getenv("AGENTIC_PREFIX"); v != "" {
+		return v
+	}
+	if rc != nil && rc.Prefix != "" {
+		return rc.Prefix
+	}
+	return tools.DefaultPrefix
+}
+
+// addPrefixFlag registers the --prefix flag on the given command.
+func addPrefixFlag(cmd *cobra.Command) {
+	cmd.Flags().String("prefix", "", "image name prefix (overrides AGENTIC_PREFIX and .agenticrc prefix)")
+}
+
+// addAllFlag registers the --all flag on the given command.
+func addAllFlag(cmd *cobra.Command) {
+	cmd.Flags().Bool("all", false, "operate on all prefixes, not just the active one")
+}
+
 // collectRegistry resolves the registry to use for pulling base images.
 // Precedence: --registry flag > agentic.json registry field.
 func collectRegistry(cmd *cobra.Command) string {

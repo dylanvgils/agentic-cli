@@ -25,18 +25,27 @@ func TestNames(t *testing.T) {
 }
 
 func TestImageName(t *testing.T) {
-	t.Run("known tool returns image name", func(t *testing.T) {
+	t.Run("known tool with default prefix", func(t *testing.T) {
 		// Act
-		image, err := ImageName("claude")
+		image, err := ImageName("claude", DefaultPrefix)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude", image)
 	})
 
+	t.Run("known tool with custom prefix", func(t *testing.T) {
+		// Act
+		image, err := ImageName("claude", "myproject")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "myproject-claude", image)
+	})
+
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		_, err := ImageName("bogus")
+		_, err := ImageName("bogus", DefaultPrefix)
 
 		// Assert
 		require.Error(t, err)

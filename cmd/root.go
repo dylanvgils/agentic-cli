@@ -11,20 +11,21 @@ import (
 )
 
 var (
-	checkDockerDaemon  = docker.CheckDaemon
-	buildTool          = docker.BuildTool
-	updateTool         = docker.UpdateTool
-	runContainer       = docker.RunContainer
-	ensureNamedVolumes = docker.EnsureNamedVolumes
-	inspectImage       = docker.InspectImage
-	cleanImage         = docker.CleanImage
-	cleanBaseImages    = docker.CleanBaseImages
-	pruneImages        = docker.PruneImages
-	createVolume       = docker.CreateVolume
-	listVolumes        = docker.ListVolumes
-	listVolumeNames    = docker.ListVolumeNames
-	removeVolume       = docker.RemoveVolume
-	isTerminal         = platform.IsTerminal
+	checkDockerDaemon   = docker.CheckDaemon
+	buildTool           = docker.BuildTool
+	updateTool          = docker.UpdateTool
+	runContainer        = docker.RunContainer
+	ensureNamedVolumes  = docker.EnsureNamedVolumes
+	inspectImage        = docker.InspectImage
+	listAllAgenticImages = docker.ListAllAgenticImages
+	cleanImage          = docker.CleanImage
+	cleanBaseImages     = docker.CleanBaseImages
+	pruneImages         = docker.PruneImages
+	createVolume        = docker.CreateVolume
+	listVolumes         = docker.ListVolumes
+	listVolumeNames     = docker.ListVolumeNames
+	removeVolume        = docker.RemoveVolume
+	isTerminal          = platform.IsTerminal
 )
 
 var rootCmd = &cobra.Command{

@@ -41,6 +41,8 @@ func TestInspectImage(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, info)
 		assert.Equal(t, "agentic-claude", info.Image)
+		assert.Equal(t, "agentic", info.Prefix)
+		assert.Equal(t, "claude", info.Tool)
 		assert.Equal(t, "a1b2c3d4e5f6", info.ID)
 		assert.Equal(t, "1.2.3", info.Version)
 		assert.Equal(t, "node:24", info.Base)
@@ -139,6 +141,107 @@ func TestInspectImage(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, inspectArgs, "agentic-opencode")
 		assert.Contains(t, lsArgs, "--filter=reference=agentic-opencode")
+	})
+}
+
+func TestParseImageName(t *testing.T) {
+	t.Run("default prefix and known tool", func(t *testing.T) {
+		// Act
+		prefix, tool, ok := parseImageName("agentic-claude")
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, "agentic", prefix)
+		assert.Equal(t, "claude", tool)
+	})
+
+	t.Run("custom prefix and known tool", func(t *testing.T) {
+		// Act
+		prefix, tool, ok := parseImageName("myproject-copilot")
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, "myproject", prefix)
+		assert.Equal(t, "copilot", tool)
+	})
+
+	t.Run("multi-segment prefix", func(t *testing.T) {
+		// Act
+		prefix, tool, ok := parseImageName("my-long-project-opencode")
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, "my-long-project", prefix)
+		assert.Equal(t, "opencode", tool)
+	})
+
+	t.Run("unknown tool returns false", func(t *testing.T) {
+		// Act
+		_, _, ok := parseImageName("agentic-bogus")
+
+		// Assert
+		assert.False(t, ok)
+	})
+
+	t.Run("no dash returns false", func(t *testing.T) {
+		// Act
+		_, _, ok := parseImageName("claude")
+
+		// Assert
+		assert.False(t, ok)
+	})
+}
+
+func TestListAllAgenticImages(t *testing.T) {
+	t.Run("returns parsed images", func(t *testing.T) {
+		// Arrange
+		callNum := 0
+		stubDockerRun(t, func(args ...string) (string, error) {
+			callNum++
+			switch callNum {
+			case 1: // images --filter label=project=agentic-cli
+				return "agentic-claude\nmyproject-claude\n", nil
+			case 2, 4: // inspect
+				return fullImageJSON, nil
+			case 3, 5: // image ls size
+				return "512MB", nil
+			}
+			return "", nil
+		})
+
+		// Act
+		images, err := ListAllAgenticImages()
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, images, 2)
+		assert.Equal(t, "agentic", images[0].Prefix)
+		assert.Equal(t, "claude", images[0].Tool)
+		assert.Equal(t, "myproject", images[1].Prefix)
+		assert.Equal(t, "claude", images[1].Tool)
+	})
+
+	t.Run("skips none images", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "<none>", nil)
+
+		// Act
+		images, err := ListAllAgenticImages()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, images)
+	})
+
+	t.Run("docker error propagates", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "", fmt.Errorf("docker daemon not running"))
+
+		// Act
+		_, err := ListAllAgenticImages()
+
+		// Assert
+		require.Error(t, err)
 	})
 }
 

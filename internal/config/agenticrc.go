@@ -18,6 +18,7 @@ type AgenticRC struct {
 	PidsLimit   string
 	CPUs        string
 	Memory      string
+	Prefix      string
 }
 
 // RCLayer pairs a parsed .agenticrc with the path it was loaded from.
@@ -122,6 +123,10 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 		if result.Memory == "" {
 			result.Memory = rc.Memory
 		}
+
+		if result.Prefix == "" {
+			result.Prefix = rc.Prefix
+		}
 	}
 
 	for i := len(configs) - 1; i >= 0; i-- {
@@ -180,6 +185,8 @@ func parseRC(r io.Reader) (*AgenticRC, error) {
 			rc.CPUs = value
 		case "memory":
 			rc.Memory = value
+		case "prefix":
+			rc.Prefix = value
 		}
 	}
 

@@ -325,7 +325,7 @@ func TestRunTool(t *testing.T) {
 func TestParseArgs(t *testing.T) {
 	t.Run("tool name and image name", func(t *testing.T) {
 		// Act
-		result, err := parseArgs([]string{"claude"})
+		result, err := parseArgs([]string{"claude"}, "agentic")
 
 		// Assert
 		require.NoError(t, err)
@@ -337,7 +337,7 @@ func TestParseArgs(t *testing.T) {
 
 	t.Run("tool args", func(t *testing.T) {
 		// Act
-		result, err := parseArgs([]string{"claude", "--flag", "value"})
+		result, err := parseArgs([]string{"claude", "--flag", "value"}, "agentic")
 
 		// Assert
 		require.NoError(t, err)
@@ -347,7 +347,7 @@ func TestParseArgs(t *testing.T) {
 
 	t.Run("dash dash sets skip entrypoint", func(t *testing.T) {
 		// Act
-		result, err := parseArgs([]string{"claude", "--", "bash", "-c", "echo hi"})
+		result, err := parseArgs([]string{"claude", "--", "bash", "-c", "echo hi"}, "agentic")
 
 		// Assert
 		require.NoError(t, err)
@@ -357,7 +357,7 @@ func TestParseArgs(t *testing.T) {
 
 	t.Run("dash dash no trailing args", func(t *testing.T) {
 		// Act
-		result, err := parseArgs([]string{"claude", "--"})
+		result, err := parseArgs([]string{"claude", "--"}, "agentic")
 
 		// Assert
 		require.NoError(t, err)
@@ -367,7 +367,7 @@ func TestParseArgs(t *testing.T) {
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		_, err := parseArgs([]string{"bogus"})
+		_, err := parseArgs([]string{"bogus"}, "agentic")
 
 		// Assert
 		require.Error(t, err)

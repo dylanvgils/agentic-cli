@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,6 +60,50 @@ func TestPrintGlobalConfig(t *testing.T) {
 	})
 }
 
+func TestEffectivePrefix(t *testing.T) {
+	t.Run("env var takes priority over rc", func(t *testing.T) {
+		// Arrange
+		t.Setenv("AGENTIC_PREFIX", "fromenv")
+		layers := []config.RCLayer{
+			{Path: "/project/.agenticrc", RC: &config.AgenticRC{Prefix: "fromrc"}},
+		}
+
+		// Act
+		val, src := effectivePrefix(layers)
+
+		// Assert
+		assert.Equal(t, "fromenv", val)
+		assert.Equal(t, "(AGENTIC_PREFIX)", src)
+	})
+
+	t.Run("rc innermost wins when no env", func(t *testing.T) {
+		// Arrange
+		layers := []config.RCLayer{
+			{Path: "/home/.agenticrc", RC: &config.AgenticRC{Prefix: "outer"}},
+			{Path: "/project/.agenticrc", RC: &config.AgenticRC{Prefix: "inner"}},
+		}
+
+		// Act
+		val, src := effectivePrefix(layers)
+
+		// Assert
+		assert.Equal(t, "inner", val)
+		assert.Equal(t, "[/project/.agenticrc]", src)
+	})
+
+	t.Run("falls back to default when nothing set", func(t *testing.T) {
+		// Arrange - ensure AGENTIC_PREFIX is unset
+		os.Unsetenv("AGENTIC_PREFIX") //nolint:errcheck
+
+		// Act
+		val, src := effectivePrefix(nil)
+
+		// Assert
+		assert.Equal(t, tools.DefaultPrefix, val)
+		assert.Equal(t, "(default)", src)
+	})
+}
+
 func TestPrintProjectConfig(t *testing.T) {
 	t.Run("no layers", func(t *testing.T) {
 		// Arrange
@@ -79,7 +125,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		layers := []config.RCLayer{
 			{
 				Path: "/project/.agenticrc",
-				RC:   &config.AgenticRC{PidsLimit: "100", CPUs: "2", Memory: "4g", ExtraMounts: []string{"vol:/mnt"}, AptPackages: []string{"make"}, Secrets: []string{"tok:/run/s/t"}},
+				RC:   &config.AgenticRC{PidsLimit: "100", CPUs: "2", Memory: "4g", Prefix: "myproject", ExtraMounts: []string{"vol:/mnt"}, AptPackages: []string{"make"}, Secrets: []string{"tok:/run/s/t"}},
 			},
 		}
 
@@ -90,6 +136,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		require.NoError(t, err)
 		out := buf.String()
 		assert.Contains(t, out, "Project (.agenticrc, 1 file)")
+		assert.Contains(t, out, "prefix: myproject  [/project/.agenticrc]")
 		assert.Contains(t, out, "pids_limit: 100  [/project/.agenticrc]")
 		assert.Contains(t, out, "cpus: 2  [/project/.agenticrc]")
 		assert.Contains(t, out, "memory: 4g  [/project/.agenticrc]")
@@ -136,6 +183,7 @@ func TestPrintProjectConfig(t *testing.T) {
 
 	t.Run("no values shows defaults", func(t *testing.T) {
 		// Arrange
+		os.Unsetenv("AGENTIC_PREFIX") //nolint:errcheck
 		var buf bytes.Buffer
 		layers := []config.RCLayer{
 			{Path: "/project/.agenticrc", RC: &config.AgenticRC{}},
@@ -147,6 +195,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		out := buf.String()
+		assert.Contains(t, out, "prefix: agentic  (default)")
 		assert.Contains(t, out, "pids_limit: 1024  (default)")
 		assert.Contains(t, out, "cpus: 4  (default)")
 		assert.Contains(t, out, "memory: 4g  (default)")

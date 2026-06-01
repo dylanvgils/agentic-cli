@@ -9,6 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
 
@@ -52,6 +53,18 @@ func showConfig(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	return printProjectConfig(w, layers)
+}
+
+func effectivePrefix(layers []config.RCLayer) (value, source string) {
+	if v := os.Getenv("AGENTIC_PREFIX"); v != "" {
+		return v, "(AGENTIC_PREFIX)"
+	}
+	for i := len(layers) - 1; i >= 0; i-- {
+		if v := layers[i].RC.Prefix; v != "" {
+			return v, "[" + layers[i].Path + "]"
+		}
+	}
+	return tools.DefaultPrefix, "(default)"
 }
 
 func printGlobalConfig(w io.Writer, home string, cfg *config.CliConfig) error {
@@ -110,6 +123,11 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	extraMounts := func(rc *config.AgenticRC) []string { return rc.ExtraMounts }
 	aptPackages := func(rc *config.AgenticRC) []string { return rc.AptPackages }
 	secrets := func(rc *config.AgenticRC) []string { return rc.Secrets }
+
+	prefixVal, prefixSrc := effectivePrefix(layers)
+	if _, err := fmt.Fprintf(w, "  prefix: %s  %s\n", prefixVal, prefixSrc); err != nil {
+		return err
+	}
 
 	if err := printScalarField(w, "pids_limit", layers, pidsLimit, docker.DefaultPidsLimit); err != nil {
 		return err

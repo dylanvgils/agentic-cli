@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -112,5 +113,62 @@ func TestRunClean(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Len(t, cleaned, 1)
+	})
+
+	t.Run("all flag removes all prefixes of tool", func(t *testing.T) {
+		// Arrange
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Prefix: "agentic", Tool: "claude"},
+				{Image: "work-claude", Prefix: "work", Tool: "claude"},
+				{Image: "agentic-copilot", Prefix: "agentic", Tool: "copilot"},
+			}, nil
+		})
+		var cleaned []string
+		stubCleanImage(t, func(image string) error {
+			cleaned = append(cleaned, image)
+			return nil
+		})
+
+		require.NoError(t, cleanCmd.Flags().Set("all", "true"))
+		defer cleanCmd.Flags().Set("all", "false") //nolint:errcheck
+
+		// Act
+		err := runClean(cleanCmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{"agentic-claude", "work-claude"}, cleaned)
+	})
+
+	t.Run("all flag no tool removes everything", func(t *testing.T) {
+		// Arrange
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Prefix: "agentic", Tool: "claude"},
+				{Image: "work-claude", Prefix: "work", Tool: "claude"},
+			}, nil
+		})
+		var cleaned []string
+		stubCleanImage(t, func(image string) error {
+			cleaned = append(cleaned, image)
+			return nil
+		})
+		basesCleaned := false
+		stubCleanBaseImages(t, func() error {
+			basesCleaned = true
+			return nil
+		})
+
+		require.NoError(t, cleanCmd.Flags().Set("all", "true"))
+		defer cleanCmd.Flags().Set("all", "false") //nolint:errcheck
+
+		// Act
+		err := runClean(cleanCmd, []string{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{"agentic-claude", "work-claude"}, cleaned)
+		assert.True(t, basesCleaned)
 	})
 }

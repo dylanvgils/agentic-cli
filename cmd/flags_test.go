@@ -274,6 +274,58 @@ func TestExtrasEnvDoc(t *testing.T) {
 	}
 }
 
+func TestResolvePrefix(t *testing.T) {
+	t.Run("flag takes priority over all", func(t *testing.T) {
+		// Arrange
+		t.Setenv("AGENTIC_PREFIX", "fromenv")
+		cmd := newFlagCmd(t, "prefix")
+		require.NoError(t, cmd.Flags().Set("prefix", "fromflag"))
+		rc := &config.AgenticRC{Prefix: "fromrc"}
+
+		// Act
+		result := resolvePrefix(cmd, rc)
+
+		// Assert
+		assert.Equal(t, "fromflag", result)
+	})
+
+	t.Run("env var takes priority over rc and default", func(t *testing.T) {
+		// Arrange
+		t.Setenv("AGENTIC_PREFIX", "fromenv")
+		cmd := newFlagCmd(t, "prefix")
+		rc := &config.AgenticRC{Prefix: "fromrc"}
+
+		// Act
+		result := resolvePrefix(cmd, rc)
+
+		// Assert
+		assert.Equal(t, "fromenv", result)
+	})
+
+	t.Run("rc value used when flag and env absent", func(t *testing.T) {
+		// Arrange
+		cmd := newFlagCmd(t, "prefix")
+		rc := &config.AgenticRC{Prefix: "fromrc"}
+
+		// Act
+		result := resolvePrefix(cmd, rc)
+
+		// Assert
+		assert.Equal(t, "fromrc", result)
+	})
+
+	t.Run("falls back to default when nothing set", func(t *testing.T) {
+		// Arrange
+		cmd := newFlagCmd(t, "prefix")
+
+		// Act
+		result := resolvePrefix(cmd, nil)
+
+		// Assert
+		assert.Equal(t, tools.DefaultPrefix, result)
+	})
+}
+
 func TestToolNames(t *testing.T) {
 	t.Run("no args returns all tools", func(t *testing.T) {
 		// Act

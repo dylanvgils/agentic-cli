@@ -21,7 +21,7 @@ func TestDryRunUpdate(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := dryRunUpdate([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
+			err := dryRunUpdate([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -32,7 +32,7 @@ func TestDryRunUpdate(t *testing.T) {
 
 	t.Run("without tool arg returns error", func(t *testing.T) {
 		// Act
-		err := dryRunUpdate([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+		err := dryRunUpdate([]string{}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
@@ -45,7 +45,7 @@ func TestDryRunUpdate(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := dryRunUpdate([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
+			err := dryRunUpdate([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -60,7 +60,7 @@ func TestDryRunUpdate(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := dryRunUpdate([]string{"claude"}, opts)
+			err := dryRunUpdate([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
 
@@ -81,7 +81,7 @@ func TestUpdateTools(t *testing.T) {
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
 
 		// Act
-		err := updateTools([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+		err := updateTools([]string{}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestUpdateTools(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := updateTools([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+			err := updateTools([]string{}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -129,7 +129,7 @@ func TestUpdateTools(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := updateTools([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+			err := updateTools([]string{}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -148,7 +148,7 @@ func TestUpdateTools(t *testing.T) {
 		stubInspectImage(t, nil, nil)
 
 		// Act
-		err := updateTools([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
+		err := updateTools([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
@@ -165,7 +165,7 @@ func TestUpdateTools(t *testing.T) {
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
 
 		// Act
-		err := updateTools([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+		err := updateTools([]string{}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
@@ -191,7 +191,7 @@ func TestUpdateOneTool(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := updateOneTool("claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := updateOneTool("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -206,7 +206,7 @@ func TestUpdateOneTool(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := updateOneTool("claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := updateOneTool("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -222,7 +222,87 @@ func TestUpdateOneTool(t *testing.T) {
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
 
 		// Act
-		err := updateOneTool("claude", tools.BuildOptions{Versions: map[string]string{}})
+		err := updateOneTool("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "docker daemon not running")
+	})
+}
+
+func TestSplitCommaSep(t *testing.T) {
+	t.Run("comma-separated values", func(t *testing.T) {
+		// Act
+		result := splitCommaSep("make,gcc,cmake")
+
+		// Assert
+		assert.Equal(t, []string{"make", "gcc", "cmake"}, result)
+	})
+
+	t.Run("trims whitespace", func(t *testing.T) {
+		// Act
+		result := splitCommaSep(" make , gcc ")
+
+		// Assert
+		assert.Equal(t, []string{"make", "gcc"}, result)
+	})
+
+	t.Run("empty string returns nil", func(t *testing.T) {
+		// Act
+		result := splitCommaSep("")
+
+		// Assert
+		assert.Nil(t, result)
+	})
+}
+
+func TestUpdateAllImages(t *testing.T) {
+	t.Run("updates every image with recovered build opts", func(t *testing.T) {
+		// Arrange
+		var updated []string
+		stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
+			updated = append(updated, tool)
+			return nil
+		})
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Prefix: "agentic", Tool: "claude", Base: "node@24,java@21"},
+				{Image: "work-copilot", Prefix: "work", Tool: "copilot", Base: "node@24"},
+			}, nil
+		})
+
+		// Act
+		err := updateAllImages(tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"claude", "copilot"}, updated)
+	})
+
+	t.Run("no images prints message", func(t *testing.T) {
+		// Arrange
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) { return nil, nil })
+
+		// Act
+		out := captureStdout(t, func() {
+			err := updateAllImages(tools.BuildOptions{Versions: map[string]string{}})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "No agentic images found")
+	})
+
+	t.Run("docker error propagates", func(t *testing.T) {
+		// Arrange
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+			return nil, fmt.Errorf("docker daemon not running")
+		})
+
+		// Act
+		err := updateAllImages(tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)

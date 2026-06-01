@@ -6,14 +6,16 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
-var builtToolNamesFunc = func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+var builtToolNamesFunc = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
+	prefix := resolvePrefix(cmd, nil)
+
 	var names []string
 	for _, name := range tools.Names() {
-		imageName, _ := tools.ImageName(name)
+		imageName, _ := tools.ImageName(name, prefix)
 		if info, err := inspectImage(imageName); err == nil && info != nil {
 			names = append(names, name)
 		}

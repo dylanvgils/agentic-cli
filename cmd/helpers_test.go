@@ -130,6 +130,13 @@ func stubInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
 	t.Cleanup(func() { inspectImage = orig })
 }
 
+func stubListAllAgenticImages(t *testing.T, fn func() ([]*docker.ImageInfo, error)) {
+	t.Helper()
+	orig := listAllAgenticImages
+	listAllAgenticImages = fn
+	t.Cleanup(func() { listAllAgenticImages = orig })
+}
+
 func stubListVolumeNames(t *testing.T, fn func() ([]string, error)) {
 	t.Helper()
 	orig := listVolumeNames

@@ -38,7 +38,7 @@ func TestBuildTools(t *testing.T) {
 		})
 
 		// Act
-		err := buildTools([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+		err := buildTools([]string{}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
@@ -55,7 +55,7 @@ func TestBuildTools(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := buildTools([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
+			err := buildTools([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -73,7 +73,7 @@ func TestBuildTools(t *testing.T) {
 		})
 
 		// Act
-		err := buildTools([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
+		err := buildTools([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
@@ -89,7 +89,7 @@ func TestBuildTools(t *testing.T) {
 		})
 
 		// Act
-		err := buildTools([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+		err := buildTools([]string{}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)

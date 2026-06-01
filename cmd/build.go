@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
@@ -27,10 +29,14 @@ func init() {
 	rootCmd.AddCommand(buildCmd)
 
 	addBuildFlags(buildCmd)
+	addPrefixFlag(buildCmd)
 	buildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
 }
 
 func runBuild(cmd *cobra.Command, args []string) error {
+	cwd, _ := os.Getwd()
+	rc := config.FindAndLoad(cwd)
+	prefix := resolvePrefix(cmd, rc)
 	opts := buildOptsFromFlags(cmd)
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
@@ -38,7 +44,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		return dryRunBuild(args, opts)
 	}
 
-	if err := buildTools(args, opts); err != nil {
+	if err := buildTools(args, prefix, opts); err != nil {
 		return err
 	}
 
@@ -59,18 +65,18 @@ func dryRunBuild(args []string, opts tools.BuildOptions) error {
 	return nil
 }
 
-func buildTools(args []string, opts tools.BuildOptions) error {
+func buildTools(args []string, prefix string, opts tools.BuildOptions) error {
 	for _, name := range toolNames(args) {
 		output.Step(name)
-		if err := buildOneTool(name, opts); err != nil {
+		if err := buildOneTool(name, prefix, opts); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func buildOneTool(tool string, opts tools.BuildOptions) error {
-	image, err := tools.ImageName(tool)
+func buildOneTool(tool, prefix string, opts tools.BuildOptions) error {
+	image, err := tools.ImageName(tool, prefix)
 	if err != nil {
 		return err
 	}
