@@ -35,7 +35,12 @@ func InspectImage(name string) (*ImageInfo, error) {
 		shortID = result.ID[7:19]
 	}
 
-	prefix, tool, _ := parseImageName(name)
+	labelTool := result.Config.Labels[LabelTool]
+	prefix, parsedTool, _ := parseImageName(name)
+	tool := labelTool
+	if tool == "" {
+		tool = parsedTool
+	}
 
 	return &ImageInfo{
 		Image:   name,

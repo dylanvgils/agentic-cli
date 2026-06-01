@@ -23,24 +23,19 @@ func init() {
 	rootCmd.AddCommand(aliasesCmd)
 }
 
-func runAliases(cmd *cobra.Command, _ []string) error {
+func runAliases(_ *cobra.Command, _ []string) error {
 	shell := detectShell()
 	fmt.Println(preambleFor(shell))
 
-	prefix := resolvePrefix(cmd, nil)
+	images, _ := listAllAgenticImages()
+
+	built := make(map[string]bool)
+	for _, img := range images {
+		built[img.Tool] = true
+	}
 
 	for _, name := range tools.Names() {
-		image, err := tools.ImageName(name, prefix)
-		if err != nil {
-			return err
-		}
-
-		info, err := inspectImage(image)
-		if err != nil {
-			return err
-		}
-
-		if info != nil {
+		if built[name] {
 			fmt.Println(aliasLineFor(shell, name))
 		}
 	}

@@ -21,6 +21,7 @@ func stampImageLabels(image, tool string, extras []string, aptPkgs []string) {
 		"build",
 		label(LabelBase, collectBaseLabel(image, extras)),
 		label(LabelApt, strings.Join(aptPkgs, ",")),
+		label(LabelTool, tool),
 		arg("tag", image),
 	}
 

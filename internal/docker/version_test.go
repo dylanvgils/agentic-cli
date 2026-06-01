@@ -2,10 +2,82 @@ package docker
 
 import (
 	"fmt"
+	"io"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestStampImageLabels(t *testing.T) {
+	var capturedArgs []string
+	origStdin := dockerRunStdin
+	dockerRunStdin = func(_ io.Reader, args ...string) (string, error) {
+		capturedArgs = args
+		return "", nil
+	}
+	t.Cleanup(func() { dockerRunStdin = origStdin })
+
+	t.Run("includes tool label", func(t *testing.T) {
+		stubDockerRunFixed(t, "", nil)
+
+		// Act
+		stampImageLabels("agentic-claude", "claude", nil, nil)
+
+		// Assert
+		assert.Contains(t, capturedArgs, "--label="+LabelTool+"=claude")
+	})
+
+	t.Run("includes apt label with packages", func(t *testing.T) {
+		stubDockerRunFixed(t, "", nil)
+
+		// Act
+		stampImageLabels("agentic-claude", "claude", nil, []string{"make", "gcc"})
+
+		// Assert
+		assert.Contains(t, capturedArgs, "--label="+LabelApt+"=make,gcc")
+	})
+
+	t.Run("includes base label", func(t *testing.T) {
+		stubDockerRunFixed(t, "", nil)
+
+		// Act
+		stampImageLabels("agentic-claude", "claude", nil, nil)
+
+		// Assert
+		found := false
+		for _, a := range capturedArgs {
+			if strings.HasPrefix(a, "--label="+LabelBase+"=") {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected --%s label in args", LabelBase)
+	})
+
+	t.Run("includes tool version label when detected", func(t *testing.T) {
+		stubDockerRunFixed(t, "1.2.3\n", nil)
+
+		// Act
+		stampImageLabels("agentic-claude", "claude", nil, nil)
+
+		// Assert
+		assert.Contains(t, capturedArgs, "--label="+LabelToolVersion+"=1.2.3")
+	})
+
+	t.Run("omits tool version label when detection fails", func(t *testing.T) {
+		stubDockerRunFixed(t, "", fmt.Errorf("version script not found"))
+
+		// Act
+		stampImageLabels("agentic-claude", "claude", nil, nil)
+
+		// Assert
+		for _, a := range capturedArgs {
+			assert.False(t, strings.HasPrefix(a, "--label="+LabelToolVersion+"="),
+				"unexpected %s label in args: %s", LabelToolVersion, a)
+		}
+	})
+}
 
 func TestExtractVersion(t *testing.T) {
 	t.Run("semver", func(t *testing.T) {

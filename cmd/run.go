@@ -88,6 +88,10 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if err := requireImage(parsedArgs.imageName, parsedArgs.toolName); err != nil {
+		return err
+	}
+
 	toolConfig := tools.Configs[parsedArgs.toolName]
 	if err := toolConfig.Runtime.Setup(toolHome); err != nil {
 		return fmt.Errorf("setup %s: %w", parsedArgs.toolName, err)
@@ -186,4 +190,32 @@ func resolveResourceLimits(pidsLimit, cpus, memory string, rc *config.AgenticRC)
 		memory = rc.Memory
 	}
 	return resourceLimits{pidsLimit: pidsLimit, cpus: cpus, memory: memory}
+}
+
+// requireImage returns an error if imageName does not exist locally.
+// If the image is missing but the tool has images under other prefixes,
+// the error includes a hint to use --prefix.
+func requireImage(imageName, toolName string) error {
+	info, err := inspectImage(imageName)
+	if err != nil {
+		return err
+	}
+	if info != nil {
+		return nil
+	}
+
+	images, _ := listAllAgenticImages()
+	var prefixes []string
+	for _, img := range images {
+		if img.Tool == toolName {
+			prefixes = append(prefixes, img.Prefix)
+		}
+	}
+
+	if len(prefixes) == 0 {
+		return fmt.Errorf("image %q not found; run \"agentic build %s\" to build it", imageName, toolName)
+	}
+
+	return fmt.Errorf("image %q not found; %q is available under prefix %s - use --prefix or run \"agentic build %s\"",
+		imageName, toolName, strings.Join(prefixes, ", "), toolName)
 }

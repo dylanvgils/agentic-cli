@@ -12,7 +12,7 @@ import (
 func TestRunAliases(t *testing.T) {
 	t.Run("prints bash preamble", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, nil, nil)
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) { return nil, nil })
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
@@ -27,7 +27,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("prints fish preamble", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, nil, nil)
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) { return nil, nil })
 		t.Setenv("SHELL", "/usr/bin/fish")
 
 		// Act
@@ -42,7 +42,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("prints powershell preamble for pwsh shell", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, nil, nil)
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) { return nil, nil })
 		t.Setenv("SHELL", "/usr/bin/pwsh")
 
 		// Act
@@ -57,7 +57,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("prints powershell preamble on windows", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, nil, nil)
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) { return nil, nil })
 		stubCurrentGOOS(t, "windows")
 		t.Setenv("SHELL", "")
 
@@ -73,7 +73,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("not built tools emit nothing after preamble", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, nil, nil)
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) { return nil, nil })
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
@@ -87,9 +87,34 @@ func TestRunAliases(t *testing.T) {
 		assert.NotContains(t, out, "function ")
 	})
 
+	t.Run("only built tools get aliases", func(t *testing.T) {
+		// Arrange - only claude is built
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{{Tool: "claude"}}, nil
+		})
+		t.Setenv("SHELL", "/bin/bash")
+
+		// Act
+		out := captureStdout(t, func() {
+			err := runAliases(aliasesCmd, []string{})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "alias claude='agentic run claude'")
+		assert.NotContains(t, out, "alias copilot=")
+		assert.NotContains(t, out, "alias opencode=")
+	})
+
 	t.Run("built tools emit bash alias lines", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", ID: "abc123"}, nil)
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Tool: "claude"},
+				{Tool: "copilot"},
+				{Tool: "opencode"},
+			}, nil
+		})
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
@@ -106,7 +131,13 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("built tools emit powershell function lines", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", ID: "abc123"}, nil)
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Tool: "claude"},
+				{Tool: "copilot"},
+				{Tool: "opencode"},
+			}, nil
+		})
 		t.Setenv("SHELL", "/usr/bin/pwsh")
 
 		// Act
@@ -121,21 +152,22 @@ func TestRunAliases(t *testing.T) {
 		assert.Contains(t, out, "function opencode { agentic run opencode @args }")
 	})
 
-	t.Run("docker error propagates", func(t *testing.T) {
+	t.Run("docker error prints no aliases", func(t *testing.T) {
 		// Arrange
-		orig := inspectImage
-		inspectImage = func(_ string) (*docker.ImageInfo, error) {
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
 			return nil, fmt.Errorf("docker daemon not running")
-		}
-		defer func() { inspectImage = orig }()
+		})
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
-		err := runAliases(aliasesCmd, []string{})
+		out := captureStdout(t, func() {
+			err := runAliases(aliasesCmd, []string{})
+			require.NoError(t, err)
+		})
 
 		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "docker daemon not running")
+		assert.NotContains(t, out, "alias ")
+		assert.NotContains(t, out, "function ")
 	})
 }
 

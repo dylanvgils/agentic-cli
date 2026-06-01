@@ -12,6 +12,7 @@ const fullImageJSON = `{
 	"Id": "sha256:a1b2c3d4e5f6abcdef012345678901234567890",
 	"Config": {
 		"Labels": {
+			"agentic.tool": "claude",
 			"agentic.tool.version": "1.2.3",
 			"agentic.base": "node:24",
 			"agentic.built": "2026-05-01"
@@ -117,6 +118,46 @@ func TestInspectImage(t *testing.T) {
 		assert.Empty(t, info.ID)
 	})
 
+	t.Run("label takes precedence over name parsing for tool", func(t *testing.T) {
+		// Arrange - label says copilot but image name says claude
+		callNum := 0
+		stubDockerRun(t, func(args ...string) (string, error) {
+			callNum++
+			if callNum == 1 {
+				return `{"Id":"sha256:a1b2c3d4e5f6abcdef012345","Config":{"Labels":{"agentic.tool":"copilot"}}}`, nil
+			}
+			return "", nil
+		})
+
+		// Act
+		info, err := InspectImage("agentic-claude")
+
+		// Assert
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "copilot", info.Tool)
+	})
+
+	t.Run("falls back to name parsing when no tool label", func(t *testing.T) {
+		// Arrange
+		callNum := 0
+		stubDockerRun(t, func(args ...string) (string, error) {
+			callNum++
+			if callNum == 1 {
+				return `{"Id":"sha256:a1b2c3d4e5f6abcdef012345","Config":{"Labels":{}}}`, nil
+			}
+			return "", nil
+		})
+
+		// Act
+		info, err := InspectImage("agentic-claude")
+
+		// Assert
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "claude", info.Tool)
+	})
+
 	t.Run("passes image name", func(t *testing.T) {
 		// Arrange
 		callNum := 0
@@ -219,6 +260,36 @@ func TestListAllAgenticImages(t *testing.T) {
 		assert.Equal(t, "claude", images[0].Tool)
 		assert.Equal(t, "myproject", images[1].Prefix)
 		assert.Equal(t, "claude", images[1].Tool)
+	})
+
+	t.Run("mixed tools from label", func(t *testing.T) {
+		// Arrange
+		callNum := 0
+		stubDockerRun(t, func(args ...string) (string, error) {
+			callNum++
+			switch callNum {
+			case 1: // images --filter
+				return "agentic-claude\nagentic-copilot\n", nil
+			case 2: // inspect claude
+				return `{"Id":"sha256:a1b2c3d4e5f6abcdef012345678901234567890","Config":{"Labels":{"agentic.tool":"claude"}}}`, nil
+			case 3: // image ls size claude
+				return "", nil
+			case 4: // inspect copilot
+				return `{"Id":"sha256:b2c3d4e5f6a7bcdef012345678901234567890","Config":{"Labels":{"agentic.tool":"copilot"}}}`, nil
+			case 5: // image ls size copilot
+				return "", nil
+			}
+			return "", nil
+		})
+
+		// Act
+		images, err := ListAllAgenticImages()
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, images, 2)
+		assert.Equal(t, "claude", images[0].Tool)
+		assert.Equal(t, "copilot", images[1].Tool)
 	})
 
 	t.Run("skips none images", func(t *testing.T) {

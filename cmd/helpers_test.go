@@ -29,8 +29,8 @@ func captureStdout(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
-// captureRunContainer replaces runContainer and ensureNamedVolumes with stubs
-// that record the RunSpec and tool args. Returns a getter for the captured values.
+// captureRunContainer replaces runContainer, ensureNamedVolumes, and inspectImage
+// with stubs that record the RunSpec and tool args. Returns a getter for the captured values.
 func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	t.Helper()
 	var capturedSpec docker.RunSpec
@@ -48,9 +48,15 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 		return nil
 	}
 
+	origInspect := inspectImage
+	inspectImage = func(name string) (*docker.ImageInfo, error) {
+		return &docker.ImageInfo{Image: name}, nil
+	}
+
 	t.Cleanup(func() {
 		runContainer = origRun
 		ensureNamedVolumes = origEnsure
+		inspectImage = origInspect
 	})
 
 	return func() (docker.RunSpec, []string) { return capturedSpec, capturedArgs }

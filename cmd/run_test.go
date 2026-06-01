@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -319,6 +321,82 @@ func TestRunTool(t *testing.T) {
 		require.NoError(t, err)
 		rs, _ := get()
 		assert.Equal(t, customHome, rs.ToolHome)
+	})
+}
+
+func TestRequireImage(t *testing.T) {
+	t.Run("image exists returns nil", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude"}, nil)
+
+		// Act
+		err := requireImage("agentic-claude", "claude")
+
+		// Assert
+		require.NoError(t, err)
+	})
+
+	t.Run("inspect error propagates", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, fmt.Errorf("docker daemon not running"))
+
+		// Act
+		err := requireImage("agentic-claude", "claude")
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "docker daemon not running")
+	})
+
+	t.Run("no image no alternatives suggests build", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, nil)
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) { return nil, nil })
+
+		// Act
+		err := requireImage("agentic-claude", "claude")
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "agentic-claude")
+		assert.Contains(t, err.Error(), "agentic build claude")
+	})
+
+	t.Run("no image with alternative prefix suggests --prefix", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, nil)
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{{Tool: "claude", Prefix: "myproject"}}, nil
+		})
+
+		// Act
+		err := requireImage("agentic-claude", "claude")
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "agentic-claude")
+		assert.Contains(t, err.Error(), "myproject")
+		assert.Contains(t, err.Error(), "--prefix")
+	})
+
+	t.Run("no image with multiple alternative prefixes lists all", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, nil)
+		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Tool: "claude", Prefix: "myproject"},
+				{Tool: "claude", Prefix: "work"},
+			}, nil
+		})
+
+		// Act
+		err := requireImage("agentic-claude", "claude")
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "myproject")
+		assert.Contains(t, err.Error(), "work")
+		assert.Contains(t, err.Error(), "--prefix")
 	})
 }
 
