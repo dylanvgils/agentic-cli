@@ -2,7 +2,6 @@ package docker
 
 import (
 	"slices"
-	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
@@ -23,7 +22,7 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 		}
 
 		if info.Apt != "" {
-			recoveredPkgs := recoverAptPackages(info.Apt)
+			recoveredPkgs := RecoverApt(info.Apt)
 			opts.AptPackages = tools.MergePackages(recoveredPkgs, opts.AptPackages)
 			opts.VerifyApt = hasUserApt && hasNewAptPackages(userPkgs, recoveredPkgs)
 		}
@@ -43,13 +42,3 @@ func hasNewAptPackages(requested, existing []string) bool {
 	return false
 }
 
-// recoverAptPackages parses the agentic.apt label value into a slice of package names.
-func recoverAptPackages(aptLabel string) []string {
-	var pkgs []string
-	for pkg := range strings.SplitSeq(aptLabel, ",") {
-		if pkg = strings.TrimSpace(pkg); pkg != "" {
-			pkgs = append(pkgs, pkg)
-		}
-	}
-	return pkgs
-}

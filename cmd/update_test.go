@@ -230,32 +230,6 @@ func TestUpdateOneTool(t *testing.T) {
 	})
 }
 
-func TestSplitCommaSep(t *testing.T) {
-	t.Run("comma-separated values", func(t *testing.T) {
-		// Act
-		result := splitCommaSep("make,gcc,cmake")
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc", "cmake"}, result)
-	})
-
-	t.Run("trims whitespace", func(t *testing.T) {
-		// Act
-		result := splitCommaSep(" make , gcc ")
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc"}, result)
-	})
-
-	t.Run("empty string returns nil", func(t *testing.T) {
-		// Act
-		result := splitCommaSep("")
-
-		// Assert
-		assert.Nil(t, result)
-	})
-}
-
 func Test_recoverOpts(t *testing.T) {
 	t.Run("recovers base from label", func(t *testing.T) {
 		// Act

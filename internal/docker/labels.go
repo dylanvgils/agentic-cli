@@ -32,6 +32,17 @@ func RecoverExtras(baseLabel string) string {
 	return strings.Join(extras, ",")
 }
 
+// RecoverApt parses an agentic.apt label value into a slice of package names.
+func RecoverApt(aptLabel string) []string {
+	var pkgs []string
+	for pkg := range strings.SplitSeq(aptLabel, ",") {
+		if pkg = strings.TrimSpace(pkg); pkg != "" {
+			pkgs = append(pkgs, pkg)
+		}
+	}
+	return pkgs
+}
+
 // label builds a --label=key=value Docker flag.
 func label(key, value string) string {
 	return arg("label", key+"="+value)

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -152,7 +151,7 @@ func recoverOpts(info *docker.ImageInfo, opts tools.BuildOptions) tools.BuildOpt
 		opts.BaseOverride = docker.RecoverExtras(info.Base)
 	}
 	if opts.AptPackages == nil && info.Apt != "" {
-		opts.AptPackages = splitCommaSep(info.Apt)
+		opts.AptPackages = docker.RecoverApt(info.Apt)
 	}
 	return opts
 }
@@ -187,12 +186,3 @@ func reportVersionChange(before, after string) {
 	}
 }
 
-func splitCommaSep(s string) []string {
-	var result []string
-	for part := range strings.SplitSeq(s, ",") {
-		if p := strings.TrimSpace(part); p != "" {
-			result = append(result, p)
-		}
-	}
-	return result
-}

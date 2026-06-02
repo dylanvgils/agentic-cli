@@ -43,6 +43,32 @@ func TestBuildBaseLabel(t *testing.T) {
 	})
 }
 
+func TestRecoverApt(t *testing.T) {
+	t.Run("splits comma-separated packages", func(t *testing.T) {
+		// Act
+		result := RecoverApt("make,gcc,jq")
+
+		// Assert
+		assert.Equal(t, []string{"make", "gcc", "jq"}, result)
+	})
+
+	t.Run("trims spaces", func(t *testing.T) {
+		// Act
+		result := RecoverApt("make, gcc")
+
+		// Assert
+		assert.Equal(t, []string{"make", "gcc"}, result)
+	})
+
+	t.Run("empty string returns nil", func(t *testing.T) {
+		// Act
+		result := RecoverApt("")
+
+		// Assert
+		assert.Nil(t, result)
+	})
+}
+
 func TestRecoverExtras(t *testing.T) {
 	t.Run("strips node and versions", func(t *testing.T) {
 		// Act
