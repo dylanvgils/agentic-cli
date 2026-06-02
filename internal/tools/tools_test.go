@@ -27,7 +27,7 @@ func TestNames(t *testing.T) {
 func TestImageName(t *testing.T) {
 	t.Run("known tool with default prefix", func(t *testing.T) {
 		// Act
-		image, err := ImageName("claude", DefaultPrefix)
+		image, err := ImageName("claude", "agentic")
 
 		// Assert
 		require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestImageName(t *testing.T) {
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		_, err := ImageName("bogus", DefaultPrefix)
+		_, err := ImageName("bogus", "agentic")
 
 		// Assert
 		require.Error(t, err)

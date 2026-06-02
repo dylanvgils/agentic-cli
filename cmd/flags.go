@@ -11,19 +11,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// resolvePrefix returns the active image prefix.
-// Precedence: --prefix flag > AGENTIC_PREFIX env var > .agenticrc prefix field > DefaultPrefix.
 func resolvePrefix(cmd *cobra.Command, rc *config.AgenticRC) string {
-	if v, _ := cmd.Flags().GetString("prefix"); v != "" {
-		return v
-	}
-	if v := os.Getenv("AGENTIC_PREFIX"); v != "" {
-		return v
-	}
-	if rc != nil && rc.Prefix != "" {
-		return rc.Prefix
-	}
-	return tools.DefaultPrefix
+	v, _ := cmd.Flags().GetString("prefix")
+	return config.ResolvePrefix(v, rc)
 }
 
 // addPrefixFlag registers the --prefix flag on the given command.
@@ -36,16 +26,9 @@ func addAllFlag(cmd *cobra.Command) {
 	cmd.Flags().Bool("all", false, "operate on all prefixes, not just the active one")
 }
 
-// collectRegistry resolves the registry to use for pulling base images.
-// Precedence: --registry flag > agentic.json registry field.
 func collectRegistry(cmd *cobra.Command) string {
-	if v, _ := cmd.Flags().GetString("registry"); v != "" {
-		return v
-	}
-	if cfg, err := config.LoadConfig(toolHome); err == nil {
-		return cfg.Registry
-	}
-	return ""
+	v, _ := cmd.Flags().GetString("registry")
+	return config.ResolveRegistry(v, toolHome)
 }
 
 // addBuildFlags registers the version and dry-run flags shared by the build and
@@ -67,10 +50,8 @@ func addVersionFlags(cmd *cobra.Command) {
 }
 
 func flagOrEnv(cmd *cobra.Command, flag, env string) string {
-	if v, _ := cmd.Flags().GetString(flag); v != "" {
-		return v
-	}
-	return os.Getenv(env)
+	v, _ := cmd.Flags().GetString(flag)
+	return config.FlagOrEnv(v, env)
 }
 
 func buildOptsFromFlags(cmd *cobra.Command) tools.BuildOptions {
@@ -83,7 +64,7 @@ func buildOptsFromFlags(cmd *cobra.Command) tools.BuildOptions {
 	}
 	opts.NoCache, _ = cmd.Flags().GetBool("no-cache")
 	for _, name := range tools.KnownLayers() {
-		if v := flagOrEnv(cmd, name, tools.ExtraEnvVarName(name)); v != "" {
+		if v := flagOrEnv(cmd, name, config.EnvVersionVar(name)); v != "" {
 			opts.Versions[name] = v
 		}
 	}
@@ -115,7 +96,7 @@ func extrasEnvDoc() string {
 
 	for _, name := range tools.KnownLayers() {
 		lines = append(lines, fmt.Sprintf("  %-*s %s version (overridden by --%s)",
-			col, tools.ExtraEnvVarName(name), tools.LayerFlagDesc[name], name))
+			col, config.EnvVersionVar(name), tools.LayerFlagDesc[name], name))
 	}
 
 	return strings.Join(lines, "\n")

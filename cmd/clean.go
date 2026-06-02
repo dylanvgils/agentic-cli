@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"os"
-
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -26,8 +24,7 @@ func init() {
 }
 
 func runClean(cmd *cobra.Command, args []string) error {
-	cwd, _ := os.Getwd()
-	rc := config.FindAndLoad(cwd)
+	rc := config.FindAndLoadFromCwd()
 	prefix := resolvePrefix(cmd, rc)
 	all, _ := cmd.Flags().GetBool("all")
 

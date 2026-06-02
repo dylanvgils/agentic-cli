@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -60,47 +59,35 @@ func TestPrintGlobalConfig(t *testing.T) {
 	})
 }
 
-func TestEffectivePrefix(t *testing.T) {
-	t.Run("env var takes priority over rc", func(t *testing.T) {
+func TestPrintScalarField(t *testing.T) {
+	get := func(rc *config.AgenticRC) string { return rc.PidsLimit }
+
+	t.Run("env var wins over rc and default", func(t *testing.T) {
 		// Arrange
-		t.Setenv("AGENTIC_PREFIX", "fromenv")
+		t.Setenv("AGENTIC_PIDS_LIMIT", "512")
+		var buf bytes.Buffer
 		layers := []config.RCLayer{
-			{Path: "/project/.agenticrc", RC: &config.AgenticRC{Prefix: "fromrc"}},
+			{Path: "/project/.agenticrc", RC: &config.AgenticRC{PidsLimit: "100"}},
 		}
 
 		// Act
-		val, src := effectivePrefix(layers)
+		err := printScalarField(&buf, "pids_limit", "AGENTIC_PIDS_LIMIT", layers, get, "1024")
 
 		// Assert
-		assert.Equal(t, "fromenv", val)
-		assert.Equal(t, "(AGENTIC_PREFIX)", src)
+		require.NoError(t, err)
+		assert.Equal(t, "  pids_limit: 512  (AGENTIC_PIDS_LIMIT)\n", buf.String())
 	})
 
-	t.Run("rc innermost wins when no env", func(t *testing.T) {
+	t.Run("not set shown when no env, rc, or default", func(t *testing.T) {
 		// Arrange
-		layers := []config.RCLayer{
-			{Path: "/home/.agenticrc", RC: &config.AgenticRC{Prefix: "outer"}},
-			{Path: "/project/.agenticrc", RC: &config.AgenticRC{Prefix: "inner"}},
-		}
+		var buf bytes.Buffer
 
 		// Act
-		val, src := effectivePrefix(layers)
+		err := printScalarField(&buf, "pids_limit", "", nil, get, "")
 
 		// Assert
-		assert.Equal(t, "inner", val)
-		assert.Equal(t, "[/project/.agenticrc]", src)
-	})
-
-	t.Run("falls back to default when nothing set", func(t *testing.T) {
-		// Arrange - ensure AGENTIC_PREFIX is unset
-		os.Unsetenv("AGENTIC_PREFIX") //nolint:errcheck
-
-		// Act
-		val, src := effectivePrefix(nil)
-
-		// Assert
-		assert.Equal(t, tools.DefaultPrefix, val)
-		assert.Equal(t, "(default)", src)
+		require.NoError(t, err)
+		assert.Equal(t, "  pids_limit: (not set)\n", buf.String())
 	})
 }
 

@@ -405,6 +405,23 @@ func TestFindLayers(t *testing.T) {
 	})
 }
 
+func TestFindAndLoadFromCwd(t *testing.T) {
+	t.Run("no file returns empty config", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		orig, _ := os.Getwd()
+		require.NoError(t, os.Chdir(dir))
+		t.Cleanup(func() { _ = os.Chdir(orig) })
+
+		// Act
+		rc := FindAndLoadFromCwd()
+
+		// Assert
+		assert.Empty(t, rc.CPUs)
+		assert.Empty(t, rc.ExtraMounts)
+	})
+}
+
 func TestFindAndLoad(t *testing.T) {
 	t.Run("no file returns empty", func(t *testing.T) {
 		// Arrange

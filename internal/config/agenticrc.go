@@ -27,11 +27,17 @@ type RCLayer struct {
 	RC   *AgenticRC
 }
 
+// FindAndLoadFromCwd loads config starting from the current working directory.
+func FindAndLoadFromCwd() *AgenticRC {
+	cwd, _ := os.Getwd()
+	return FindAndLoad(cwd)
+}
+
 // AptPackages returns the merged apt packages from .agenticrc files and the
 // AGENTIC_APT_PACKAGES env var, outermost RC first, env var last.
 func AptPackages(startDir string) []string {
 	rcPkgs := FindAndLoad(startDir).AptPackages
-	envPkgs := splitValues(os.Getenv("AGENTIC_APT_PACKAGES"))
+	envPkgs := splitValues(os.Getenv(EnvAptPackages))
 	return append(rcPkgs, envPkgs...)
 }
 

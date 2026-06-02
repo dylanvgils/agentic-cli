@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
@@ -92,11 +93,11 @@ func buildBaseArgs(rs RunSpec) []string {
 		// Run container read-only, remove when done
 		"run", "--rm", "--read-only",
 		// Limit the number of PIDs (processes) the container can spawn
-		arg("pids-limit", resolveLimit(rs.PidsLimit, "AGENTIC_PIDS_LIMIT", DefaultPidsLimit)),
+		arg("pids-limit", resolveLimit(rs.PidsLimit, config.EnvPidsLimit, DefaultPidsLimit)),
 		// Maximum number of CPUs the container can utilize
-		arg("cpus", resolveLimit(rs.CPUs, "AGENTIC_CPUS", DefaultCPUs)),
+		arg("cpus", resolveLimit(rs.CPUs, config.EnvCPUs, DefaultCPUs)),
 		// Maximum memory the container can use
-		arg("memory", resolveLimit(rs.Memory, "AGENTIC_MEMORY", DefaultMemory)),
+		arg("memory", resolveLimit(rs.Memory, config.EnvMemory, DefaultMemory)),
 		// Security: drop all capabilities
 		arg("cap-drop", "ALL"),
 		// Security: prevent privilege escalation

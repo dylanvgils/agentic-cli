@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -31,15 +30,15 @@ var updateCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(updateCmd)
 
+	updateCmd.Flags().Bool("no-cache", false, "also rebuild base layers (fully fresh build)")
+
 	addBuildFlags(updateCmd)
 	addPrefixFlag(updateCmd)
 	addAllFlag(updateCmd)
-	updateCmd.Flags().Bool("no-cache", false, "also rebuild base layers (fully fresh build)")
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
-	cwd, _ := os.Getwd()
-	rc := config.FindAndLoad(cwd)
+	rc := config.FindAndLoadFromCwd()
 	prefix := resolvePrefix(cmd, rc)
 	opts := buildOptsFromFlags(cmd)
 	dryRun, _ := cmd.Flags().GetBool("dry-run")

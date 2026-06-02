@@ -10,7 +10,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,16 +59,6 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	})
 
 	return func() (docker.RunSpec, []string) { return capturedSpec, capturedArgs }
-}
-
-// newFlagCmd creates a cobra command with the given string flags registered.
-func newFlagCmd(t *testing.T, flags ...string) *cobra.Command {
-	t.Helper()
-	cmd := &cobra.Command{Use: "test"}
-	for _, f := range flags {
-		cmd.Flags().String(f, "", "")
-	}
-	return cmd
 }
 
 // withTempToolHome sets toolHome to a temp dir and pre-trusts the directories

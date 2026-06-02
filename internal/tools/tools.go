@@ -10,9 +10,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
-// DefaultPrefix is the default prefix for agentic Docker image names.
-const DefaultPrefix = "agentic"
-
 // Configs maps tool names to their container configuration.
 var Configs = map[string]ToolConfig{
 	"claude": {

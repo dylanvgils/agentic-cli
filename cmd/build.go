@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/output"
@@ -13,7 +12,7 @@ import (
 var buildCmd = &cobra.Command{
 	Use:   "build [tool]",
 	Short: "Build tool image(s)",
-	Long: "Build tool image(s). Builds all tools if no tool specified.\n\n" + extrasEnvDoc(),
+	Long:  "Build tool image(s). Builds all tools if no tool specified.\n\n" + extrasEnvDoc(),
 	Example: `  agentic build
   agentic build claude
   agentic build claude --base java
@@ -28,14 +27,14 @@ var buildCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(buildCmd)
 
+	buildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
+
 	addBuildFlags(buildCmd)
 	addPrefixFlag(buildCmd)
-	buildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
 }
 
 func runBuild(cmd *cobra.Command, args []string) error {
-	cwd, _ := os.Getwd()
-	rc := config.FindAndLoad(cwd)
+	rc := config.FindAndLoadFromCwd()
 	prefix := resolvePrefix(cmd, rc)
 	opts := buildOptsFromFlags(cmd)
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
