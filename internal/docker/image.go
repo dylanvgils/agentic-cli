@@ -30,23 +30,13 @@ func InspectImage(name string) (*ImageInfo, error) {
 		return nil, nil
 	}
 
-	shortID := ""
-	if len(result.ID) >= 19 {
-		shortID = result.ID[7:19]
-	}
-
-	labelTool := result.Config.Labels[LabelTool]
-	prefix, parsedTool, _ := parseImageName(name)
-	tool := labelTool
-	if tool == "" {
-		tool = parsedTool
-	}
+	prefix, tool := resolveToolName(name, result.Config.Labels[LabelTool])
 
 	return &ImageInfo{
 		Image:   name,
 		Prefix:  prefix,
 		Tool:    tool,
-		ID:      shortID,
+		ID:      extractShortID(result.ID),
 		Version: result.Config.Labels[LabelToolVersion],
 		Base:    result.Config.Labels[LabelBase],
 		Apt:     result.Config.Labels[LabelApt],
@@ -96,6 +86,26 @@ func parseImageName(image string) (prefix, tool string, ok bool) {
 		}
 	}
 	return "", "", false
+}
+
+// resolveToolName determines the tool name and prefix for an image.
+// The label value takes precedence; falls back to parsing the image name.
+func resolveToolName(image, labelTool string) (prefix, tool string) {
+	prefix, parsedTool, _ := parseImageName(image)
+	tool = labelTool
+	if tool == "" {
+		tool = parsedTool
+	}
+	return
+}
+
+// extractShortID returns the 12-character short ID from a full Docker image ID
+// (e.g. "sha256:a1b2c3d4e5f6..."). Returns empty string if the ID is too short.
+func extractShortID(id string) string {
+	if len(id) < 19 {
+		return ""
+	}
+	return id[7:19]
 }
 
 // imageSize returns the formatted size of a Docker image, or empty string if unavailable.

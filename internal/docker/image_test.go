@@ -98,66 +98,6 @@ func TestInspectImage(t *testing.T) {
 		assert.Nil(t, info)
 	})
 
-	t.Run("short ID no slice", func(t *testing.T) {
-		// Arrange - ID shorter than 19 chars means we skip slicing
-		callNum := 0
-		stubDockerRun(t, func(args ...string) (string, error) {
-			callNum++
-			if callNum == 1 {
-				return `{"Id":"sha256:short","Config":{"Labels":{}}}`, nil
-			}
-			return "", nil
-		})
-
-		// Act
-		info, err := InspectImage("agentic-claude")
-
-		// Assert
-		require.NoError(t, err)
-		require.NotNil(t, info)
-		assert.Empty(t, info.ID)
-	})
-
-	t.Run("label takes precedence over name parsing for tool", func(t *testing.T) {
-		// Arrange - label says copilot but image name says claude
-		callNum := 0
-		stubDockerRun(t, func(args ...string) (string, error) {
-			callNum++
-			if callNum == 1 {
-				return `{"Id":"sha256:a1b2c3d4e5f6abcdef012345","Config":{"Labels":{"agentic.tool":"copilot"}}}`, nil
-			}
-			return "", nil
-		})
-
-		// Act
-		info, err := InspectImage("agentic-claude")
-
-		// Assert
-		require.NoError(t, err)
-		require.NotNil(t, info)
-		assert.Equal(t, "copilot", info.Tool)
-	})
-
-	t.Run("falls back to name parsing when no tool label", func(t *testing.T) {
-		// Arrange
-		callNum := 0
-		stubDockerRun(t, func(args ...string) (string, error) {
-			callNum++
-			if callNum == 1 {
-				return `{"Id":"sha256:a1b2c3d4e5f6abcdef012345","Config":{"Labels":{}}}`, nil
-			}
-			return "", nil
-		})
-
-		// Act
-		info, err := InspectImage("agentic-claude")
-
-		// Assert
-		require.NoError(t, err)
-		require.NotNil(t, info)
-		assert.Equal(t, "claude", info.Tool)
-	})
-
 	t.Run("passes image name", func(t *testing.T) {
 		// Arrange
 		callNum := 0
@@ -230,6 +170,58 @@ func TestParseImageName(t *testing.T) {
 
 		// Assert
 		assert.False(t, ok)
+	})
+}
+
+func Test_extractShortID(t *testing.T) {
+	t.Run("returns 12-char short ID", func(t *testing.T) {
+		// Act
+		id := extractShortID("sha256:a1b2c3d4e5f6abcdef012345678901234567890")
+
+		// Assert
+		assert.Equal(t, "a1b2c3d4e5f6", id)
+	})
+
+	t.Run("ID shorter than 19 chars returns empty", func(t *testing.T) {
+		// Act
+		id := extractShortID("sha256:short")
+
+		// Assert
+		assert.Empty(t, id)
+	})
+}
+
+func Test_resolveToolName(t *testing.T) {
+	t.Run("label takes precedence over parsed name", func(t *testing.T) {
+		// Act
+		_, tool := resolveToolName("agentic-claude", "copilot")
+
+		// Assert
+		assert.Equal(t, "copilot", tool)
+	})
+
+	t.Run("falls back to parsed name when label is empty", func(t *testing.T) {
+		// Act
+		_, tool := resolveToolName("agentic-claude", "")
+
+		// Assert
+		assert.Equal(t, "claude", tool)
+	})
+
+	t.Run("returns prefix from parsed name", func(t *testing.T) {
+		// Act
+		prefix, _ := resolveToolName("myproject-claude", "")
+
+		// Assert
+		assert.Equal(t, "myproject", prefix)
+	})
+
+	t.Run("unknown tool with no label returns empty tool", func(t *testing.T) {
+		// Act
+		_, tool := resolveToolName("agentic-bogus", "")
+
+		// Assert
+		assert.Empty(t, tool)
 	})
 }
 
