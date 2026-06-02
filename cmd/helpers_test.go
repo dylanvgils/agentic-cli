@@ -125,7 +125,7 @@ func stubInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
 	t.Cleanup(func() { inspectImage = orig })
 }
 
-func stubListAllImages(t *testing.T, fn func() ([]*docker.ImageInfo, error)) {
+func stubListAllImages(t *testing.T, fn func(...docker.ImageFilter) ([]*docker.ImageInfo, error)) {
 	t.Helper()
 	orig := listAllImages
 	listAllImages = fn

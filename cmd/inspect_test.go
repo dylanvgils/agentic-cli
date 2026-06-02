@@ -23,7 +23,7 @@ var builtInfo = &docker.ImageInfo{
 func TestRunInspect(t *testing.T) {
 	t.Run("no args shows table of all images", func(t *testing.T) {
 		// Arrange
-		stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{builtInfo}, nil
 		})
 
@@ -46,7 +46,7 @@ func TestRunInspect(t *testing.T) {
 
 	t.Run("no args empty shows placeholder", func(t *testing.T) {
 		// Arrange
-		stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, nil
 		})
 
@@ -63,7 +63,7 @@ func TestRunInspect(t *testing.T) {
 	t.Run("table truncates long base field", func(t *testing.T) {
 		// Arrange
 		longBase := "node@24,java@21,dotnet@9,go@1.26.3,extra@1,another@2"
-		stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{{
 				Image: "agentic-claude", Prefix: "agentic", Tool: "claude",
 				Version: "1.0", Base: longBase, Built: "2026-05-01", Size: "1GB",
@@ -83,7 +83,7 @@ func TestRunInspect(t *testing.T) {
 
 	t.Run("no args docker error propagates", func(t *testing.T) {
 		// Arrange
-		stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, fmt.Errorf("docker daemon not running")
 		})
 
@@ -179,7 +179,7 @@ func TestRunInspect(t *testing.T) {
 			Image: "work-claude", Prefix: "work", Tool: "claude",
 			ID: "deadbeef1234", Version: "2.0", Base: "node@24", Built: "2026-05-02", Size: "600MB",
 		}
-		stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{builtInfo, workInfo}, nil
 		})
 

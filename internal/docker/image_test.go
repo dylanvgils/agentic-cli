@@ -284,6 +284,22 @@ func Test_listAllRepositories(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, capturedArgs, "--filter=label=project=agentic-cli")
 	})
+
+	t.Run("passes extra filters", func(t *testing.T) {
+		// Arrange
+		var capturedArgs []string
+		stubDockerRun(t, func(args ...string) (string, error) {
+			capturedArgs = args
+			return "", nil
+		})
+
+		// Act
+		_, err := listAllRepositories(ToolFilter("claude"))
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, capturedArgs, "--filter=label=agentic.tool=claude")
+	})
 }
 
 func TestListAllImages(t *testing.T) {

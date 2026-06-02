@@ -92,53 +92,63 @@ func TestCleanScoped(t *testing.T) {
 	})
 }
 
-func TestCleanAllImages(t *testing.T) {
-	// Arrange
-	stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
-		return []*docker.ImageInfo{
-			{Image: "agentic-claude", Prefix: "agentic", Tool: "claude"},
-			{Image: "work-claude", Prefix: "work", Tool: "claude"},
-		}, nil
-	})
-	var cleaned []string
-	stubCleanImage(t, func(image string) error {
-		cleaned = append(cleaned, image)
-		return nil
-	})
-	basesCleaned := false
-	stubCleanBaseImages(t, func() error {
-		basesCleaned = true
-		return nil
-	})
+func TestCleanAll(t *testing.T) {
+	t.Run("no args removes all images and base", func(t *testing.T) {
+		// Arrange
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Prefix: "agentic", Tool: "claude"},
+				{Image: "work-claude", Prefix: "work", Tool: "claude"},
+			}, nil
+		})
+		var cleaned []string
+		stubCleanImage(t, func(image string) error {
+			cleaned = append(cleaned, image)
+			return nil
+		})
+		basesCleaned := false
+		stubCleanBaseImages(t, func() error {
+			basesCleaned = true
+			return nil
+		})
 
-	// Act
-	err := cleanAllImages()
+		// Act
+		err := cleanAll([]string{})
 
-	// Assert
-	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{"agentic-claude", "work-claude"}, cleaned)
-	assert.True(t, basesCleaned)
-}
-
-func TestCleanAllTool(t *testing.T) {
-	// Arrange
-	stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
-		return []*docker.ImageInfo{
-			{Image: "agentic-claude", Prefix: "agentic", Tool: "claude"},
-			{Image: "work-claude", Prefix: "work", Tool: "claude"},
-			{Image: "agentic-copilot", Prefix: "agentic", Tool: "copilot"},
-		}, nil
-	})
-	var cleaned []string
-	stubCleanImage(t, func(image string) error {
-		cleaned = append(cleaned, image)
-		return nil
+		// Assert
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{"agentic-claude", "work-claude"}, cleaned)
+		assert.True(t, basesCleaned)
 	})
 
-	// Act
-	err := cleanAllTool("claude")
+	t.Run("tool arg filters images and skips base", func(t *testing.T) {
+		// Arrange
+		var capturedFilters []docker.ImageFilter
+		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			capturedFilters = filters
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Prefix: "agentic", Tool: "claude"},
+				{Image: "work-claude", Prefix: "work", Tool: "claude"},
+			}, nil
+		})
+		var cleaned []string
+		stubCleanImage(t, func(image string) error {
+			cleaned = append(cleaned, image)
+			return nil
+		})
+		basesCleaned := false
+		stubCleanBaseImages(t, func() error {
+			basesCleaned = true
+			return nil
+		})
 
-	// Assert
-	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{"agentic-claude", "work-claude"}, cleaned)
+		// Act
+		err := cleanAll([]string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, capturedFilters)
+		assert.ElementsMatch(t, []string{"agentic-claude", "work-claude"}, cleaned)
+		assert.False(t, basesCleaned)
+	})
 }

@@ -56,9 +56,10 @@ func InspectImage(name string) (*ImageInfo, error) {
 }
 
 // ListAllImages returns metadata for every Docker image carrying the
-// project=agentic-cli label, across all prefixes.
-func ListAllImages() ([]*ImageInfo, error) {
-	repos, err := listAllRepositories()
+// project=agentic-cli label, across all prefixes. Optional filters narrow the
+// result set; use the typed constructors (e.g. ToolFilter) to build them.
+func ListAllImages(filters ...ImageFilter) ([]*ImageInfo, error) {
+	repos, err := listAllRepositories(filters...)
 	if err != nil {
 		return nil, err
 	}
@@ -108,12 +109,19 @@ func imageSize(name string) string {
 }
 
 // listAllRepositories returns the repository names of every Docker image
-// carrying the project=agentic-cli label.
-func listAllRepositories() ([]string, error) {
-	out, err := dockerRun("images",
+// carrying the project=agentic-cli label. Optional extraFilters are passed
+// as additional --filter flags.
+func listAllRepositories(filters ...ImageFilter) ([]string, error) {
+	args := []string{
+		"images",
 		arg("format", "{{.Repository}}"),
 		labelFilter(LabelProject, LabelProjectVal),
-	)
+	}
+	for _, f := range filters {
+		args = append(args, string(f))
+	}
+
+	out, err := dockerRun(args...)
 	if err != nil {
 		return nil, err
 	}

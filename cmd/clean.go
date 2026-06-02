@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
@@ -36,14 +37,12 @@ func runClean(cmd *cobra.Command, args []string) error {
 }
 
 func cleanAll(args []string) error {
-	if len(args) == 0 {
-		return cleanAllImages()
+	var filters []docker.ImageFilter
+	if len(args) > 0 {
+		filters = append(filters, docker.ToolFilter(args[0]))
 	}
-	return cleanAllTool(args[0])
-}
 
-func cleanAllImages() error {
-	images, err := listAllImages()
+	images, err := listAllImages(filters...)
 	if err != nil {
 		return err
 	}
@@ -55,25 +54,11 @@ func cleanAllImages() error {
 		}
 	}
 
-	output.Step("base")
-	return cleanBaseImages()
-}
-
-func cleanAllTool(tool string) error {
-	images, err := listAllImages()
-	if err != nil {
-		return err
+	if len(filters) == 0 {
+		output.Step("base")
+		return cleanBaseImages()
 	}
 
-	for _, info := range images {
-		if info.Tool != tool {
-			continue
-		}
-		output.Stepf("%s/%s", info.Prefix, info.Tool)
-		if err := cleanImage(info.Image); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
