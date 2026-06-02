@@ -191,7 +191,7 @@ func TestUpdateOneTool(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := updateOneTool("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
+			err := updateOneTool("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -206,7 +206,7 @@ func TestUpdateOneTool(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := updateOneTool("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
+			err := updateOneTool("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -222,7 +222,7 @@ func TestUpdateOneTool(t *testing.T) {
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
 
 		// Act
-		err := updateOneTool("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := updateOneTool("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)

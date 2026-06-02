@@ -66,19 +66,14 @@ func dryRunBuild(args []string, opts tools.BuildOptions) error {
 
 func buildTools(args []string, prefix string, opts tools.BuildOptions) error {
 	for _, name := range toolNames(args) {
+		image, err := tools.ImageName(name, prefix)
+		if err != nil {
+			return err
+		}
 		output.Step(name)
-		if err := buildOneTool(name, prefix, opts); err != nil {
+		if err := buildTool(name, image, opts); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func buildOneTool(tool, prefix string, opts tools.BuildOptions) error {
-	image, err := tools.ImageName(tool, prefix)
-	if err != nil {
-		return err
-	}
-
-	return buildTool(tool, image, opts)
 }

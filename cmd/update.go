@@ -128,11 +128,12 @@ func updateTools(args []string, prefix string, opts tools.BuildOptions) error {
 	updated := 0
 
 	for _, name := range toolNames(args) {
+		image, err := tools.ImageName(name, prefix)
+		if err != nil {
+			return err
+		}
+
 		if skipUnbuilt {
-			image, err := tools.ImageName(name, prefix)
-			if err != nil {
-				return err
-			}
 			info, err := inspectImage(image)
 			if err != nil {
 				return err
@@ -143,7 +144,7 @@ func updateTools(args []string, prefix string, opts tools.BuildOptions) error {
 			}
 		}
 
-		if err := updateOneTool(name, prefix, opts); err != nil {
+		if err := updateOneTool(name, image, opts); err != nil {
 			return err
 		}
 		updated++
@@ -156,13 +157,8 @@ func updateTools(args []string, prefix string, opts tools.BuildOptions) error {
 	return nil
 }
 
-func updateOneTool(name, prefix string, opts tools.BuildOptions) error {
+func updateOneTool(name, image string, opts tools.BuildOptions) error {
 	output.Step(name)
-
-	image, err := tools.ImageName(name, prefix)
-	if err != nil {
-		return err
-	}
 
 	before := imageVersion(image)
 
