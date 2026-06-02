@@ -20,8 +20,52 @@ var builtInfo = &docker.ImageInfo{
 	Size:    "512MB",
 }
 
-func TestRunInspect(t *testing.T) {
-	t.Run("no args shows table of all images", func(t *testing.T) {
+func Test_runInspect(t *testing.T) {
+	t.Run("no args propagates table error", func(t *testing.T) {
+		// Arrange
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return nil, fmt.Errorf("table error")
+		})
+
+		// Act
+		err := runInspect(inspectCmd, []string{})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "table error")
+	})
+
+	t.Run("tool arg propagates detail error", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, fmt.Errorf("detail error"))
+
+		// Act
+		err := runInspect(inspectCmd, []string{"claude"})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "detail error")
+	})
+
+	t.Run("all flag propagates all-prefix error", func(t *testing.T) {
+		// Arrange
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return nil, fmt.Errorf("all error")
+		})
+		require.NoError(t, inspectCmd.Flags().Set("all", "true"))
+		defer inspectCmd.Flags().Set("all", "false") //nolint:errcheck
+
+		// Act
+		err := runInspect(inspectCmd, []string{"claude"})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "all error")
+	})
+}
+
+func Test_runInspectTable(t *testing.T) {
+	t.Run("shows headers and image data", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{builtInfo}, nil
@@ -29,7 +73,7 @@ func TestRunInspect(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := runInspect(inspectCmd, []string{})
+			err := runInspectTable()
 			require.NoError(t, err)
 		})
 
@@ -44,7 +88,7 @@ func TestRunInspect(t *testing.T) {
 		assert.Contains(t, out, "claude")
 	})
 
-	t.Run("no args empty shows placeholder", func(t *testing.T) {
+	t.Run("empty shows placeholder", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, nil
@@ -52,7 +96,7 @@ func TestRunInspect(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := runInspect(inspectCmd, []string{})
+			err := runInspectTable()
 			require.NoError(t, err)
 		})
 
@@ -60,7 +104,7 @@ func TestRunInspect(t *testing.T) {
 		assert.Contains(t, out, "no agentic images found")
 	})
 
-	t.Run("table truncates long base field", func(t *testing.T) {
+	t.Run("truncates long base field", func(t *testing.T) {
 		// Arrange
 		longBase := "node@24,java@21,dotnet@9,go@1.26.3,extra@1,another@2"
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -72,7 +116,7 @@ func TestRunInspect(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := runInspect(inspectCmd, []string{})
+			err := runInspectTable()
 			require.NoError(t, err)
 		})
 
@@ -81,27 +125,29 @@ func TestRunInspect(t *testing.T) {
 		assert.NotContains(t, out, longBase)
 	})
 
-	t.Run("no args docker error propagates", func(t *testing.T) {
+	t.Run("docker error propagates", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, fmt.Errorf("docker daemon not running")
 		})
 
 		// Act
-		err := runInspect(inspectCmd, []string{})
+		err := runInspectTable()
 
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "docker daemon not running")
 	})
+}
 
-	t.Run("tool arg shows detail for active prefix", func(t *testing.T) {
+func Test_printImageDetail(t *testing.T) {
+	t.Run("shows detail for active prefix", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, builtInfo, nil)
 
 		// Act
 		out := captureStdout(t, func() {
-			err := runInspect(inspectCmd, []string{"claude"})
+			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
 
@@ -113,13 +159,13 @@ func TestRunInspect(t *testing.T) {
 		assert.Contains(t, out, "512MB")
 	})
 
-	t.Run("tool arg not built shows fallback", func(t *testing.T) {
+	t.Run("not built shows fallback", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, nil, nil)
 
 		// Act
 		out := captureStdout(t, func() {
-			err := runInspect(inspectCmd, []string{"claude"})
+			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
 
@@ -127,7 +173,7 @@ func TestRunInspect(t *testing.T) {
 		assert.Contains(t, out, "agentic-claude (not built)")
 	})
 
-	t.Run("tool arg empty labels shows fallbacks", func(t *testing.T) {
+	t.Run("empty labels shows fallbacks", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, &docker.ImageInfo{
 			Image: "agentic-claude",
@@ -136,7 +182,7 @@ func TestRunInspect(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := runInspect(inspectCmd, []string{"claude"})
+			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
 
@@ -145,16 +191,12 @@ func TestRunInspect(t *testing.T) {
 		assert.Contains(t, out, "(unknown)")
 	})
 
-	t.Run("tool arg docker error propagates", func(t *testing.T) {
+	t.Run("docker error propagates", func(t *testing.T) {
 		// Arrange
-		orig := inspectImage
-		inspectImage = func(_ string) (*docker.ImageInfo, error) {
-			return nil, fmt.Errorf("docker daemon not running")
-		}
-		defer func() { inspectImage = orig }()
+		stubInspectImage(t, nil, fmt.Errorf("docker daemon not running"))
 
 		// Act
-		err := runInspect(inspectCmd, []string{"claude"})
+		err := printImageDetail("claude", "agentic")
 
 		// Assert
 		require.Error(t, err)
@@ -166,14 +208,16 @@ func TestRunInspect(t *testing.T) {
 		stubInspectImage(t, builtInfo, nil)
 
 		// Act
-		err := runInspect(inspectCmd, []string{"bogus"})
+		err := printImageDetail("bogus", "agentic")
 
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "bogus")
 	})
+}
 
-	t.Run("all flag shows detail for all prefixes of tool", func(t *testing.T) {
+func Test_printAllPrefixDetail(t *testing.T) {
+	t.Run("shows detail for all matching images", func(t *testing.T) {
 		// Arrange
 		workInfo := &docker.ImageInfo{
 			Image: "work-claude", Prefix: "work", Tool: "claude",
@@ -183,12 +227,9 @@ func TestRunInspect(t *testing.T) {
 			return []*docker.ImageInfo{builtInfo, workInfo}, nil
 		})
 
-		require.NoError(t, inspectCmd.Flags().Set("all", "true"))
-		defer inspectCmd.Flags().Set("all", "false") //nolint:errcheck
-
 		// Act
 		out := captureStdout(t, func() {
-			err := runInspect(inspectCmd, []string{"claude"})
+			err := printAllPrefixDetail("claude")
 			require.NoError(t, err)
 		})
 
@@ -196,12 +237,42 @@ func TestRunInspect(t *testing.T) {
 		assert.Contains(t, out, "agentic-claude")
 		assert.Contains(t, out, "work-claude")
 	})
+
+	t.Run("no match prints message", func(t *testing.T) {
+		// Arrange
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{builtInfo}, nil
+		})
+
+		// Act
+		out := captureStdout(t, func() {
+			err := printAllPrefixDetail("unknown")
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, `no images found for tool "unknown"`)
+	})
+
+	t.Run("docker error propagates", func(t *testing.T) {
+		// Arrange
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return nil, fmt.Errorf("docker daemon not running")
+		})
+
+		// Act
+		err := printAllPrefixDetail("claude")
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "docker daemon not running")
+	})
 }
 
-func TestTruncate(t *testing.T) {
+func Test_truncate(t *testing.T) {
 	t.Run("short string unchanged", func(t *testing.T) {
 		// Act
-		result := truncate("node@24", baseMaxLen)
+		result := truncate("node@24", baseMaxLength)
 
 		// Assert
 		assert.Equal(t, "node@24", result)
@@ -212,11 +283,11 @@ func TestTruncate(t *testing.T) {
 		long := "node@24,java@21,dotnet@9,go@1.26,extra@1,another@2,more@3"
 
 		// Act
-		result := truncate(long, baseMaxLen)
+		result := truncate(long, baseMaxLength)
 
 		// Assert
-		assert.Len(t, result, baseMaxLen+3)
-		assert.True(t, len(result) <= baseMaxLen+3)
+		assert.Len(t, result, baseMaxLength+3)
+		assert.True(t, len(result) <= baseMaxLength+3)
 		assert.Contains(t, result, "...")
 	})
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const baseMaxLen = 32
+const baseMaxLength = 32
 
 var inspectCmd = &cobra.Command{
 	Use:   "inspect [tool]",
@@ -71,7 +71,7 @@ func runInspectTable() error {
 
 	for _, info := range images {
 		version := orDash(info.Version)
-		base := truncate(info.Base, baseMaxLen)
+		base := truncate(info.Base, baseMaxLength)
 		if base == "" {
 			base = "-"
 		}

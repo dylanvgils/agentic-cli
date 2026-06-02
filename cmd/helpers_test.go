@@ -167,6 +167,13 @@ func stubUpdateTool(t *testing.T, fn func(tool, image string, opts tools.BuildOp
 	t.Cleanup(func() { updateTool = orig })
 }
 
+func stubEnsureNamedVolumes(t *testing.T, fn func(volumes []string, toolHome, containerHome string) error) {
+	t.Helper()
+	orig := ensureNamedVolumes
+	ensureNamedVolumes = fn
+	t.Cleanup(func() { ensureNamedVolumes = orig })
+}
+
 func stubCurrentGOOS(t *testing.T, goos string) {
 	t.Helper()
 	orig := currentGOOS

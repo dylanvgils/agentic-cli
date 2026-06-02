@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,265 +62,129 @@ func TestRunTool(t *testing.T) {
 		_, toolArgs := get()
 		assert.Equal(t, []string{"--dangerously-skip-permissions"}, toolArgs)
 	})
+}
 
-	t.Run("dash dash sets skip entrypoint", func(t *testing.T) {
+func Test_buildRunSpec(t *testing.T) {
+	stubEnsureNamedVolumes(t, func([]string, string, string) error { return nil })
+
+	t.Run("volumes wired", func(t *testing.T) {
 		// Arrange
 		withTempToolHome(t)
-		get := captureRunContainer(t)
-
-		// Act
-		err := runTool(runToolCmd, []string{"claude", "--", "bash", "-c", "echo hi"})
-
-		// Assert
-		require.NoError(t, err)
-		rs, toolArgs := get()
-		assert.True(t, rs.SkipEntrypoint)
-		assert.Equal(t, []string{"bash", "-c", "echo hi"}, toolArgs)
-	})
-
-	t.Run("dash dash no trailing args", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		get := captureRunContainer(t)
-
-		// Act
-		err := runTool(runToolCmd, []string{"claude", "--"})
-
-		// Assert
-		require.NoError(t, err)
-		rs, toolArgs := get()
-		assert.True(t, rs.SkipEntrypoint)
-		assert.Empty(t, toolArgs)
-	})
-
-	t.Run("extra volumes", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		t.Chdir(t.TempDir())
-		get := captureRunContainer(t)
 		orig := extraVolumes
 		extraVolumes = []string{"/host:/container"}
 		defer func() { extraVolumes = orig }()
+		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		err := runTool(runToolCmd, []string{"claude"})
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		rs, _ := get()
-		assert.Equal(t, []string{
-			"$PWD:/workspace",
-			"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude",
-			"$TOOL_HOME/claude/.claude.json:$CONTAINER_HOME/.claude.json",
-			"/host:/container",
-		}, rs.Volumes)
+		assert.Contains(t, rs.Volumes, "/host:/container")
 	})
 
-	t.Run("agenticrc mounts appended", func(t *testing.T) {
+	t.Run("secrets wired", func(t *testing.T) {
 		// Arrange
 		withTempToolHome(t)
-		dir := t.TempDir()
-		t.Chdir(dir)
-		require.NoError(t, os.WriteFile(
-			dir+"/.agenticrc",
-			[]byte("extra_mounts=myvolume:/mnt/data\n"),
-			0644,
-		))
-		get := captureRunContainer(t)
-		orig := extraVolumes
-		extraVolumes = []string{"/host:/container"}
-		defer func() { extraVolumes = orig }()
+		orig := flagSecrets
+		flagSecrets = []string{"mytoken:/tmp/token"}
+		defer func() { flagSecrets = orig }()
+		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		err := runTool(runToolCmd, []string{"claude"})
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		rs, _ := get()
-		assert.Equal(t, []string{
-			"$PWD:/workspace",
-			"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude",
-			"$TOOL_HOME/claude/.claude.json:$CONTAINER_HOME/.claude.json",
-			"/host:/container",
-			"myvolume:/mnt/data",
-		}, rs.Volumes)
+		assert.Equal(t, []string{"mytoken:/tmp/token"}, rs.Secrets)
 	})
 
-	t.Run("agenticrc resource limits", func(t *testing.T) {
+	t.Run("resource limits wired", func(t *testing.T) {
 		// Arrange
 		withTempToolHome(t)
-		dir := t.TempDir()
-		t.Chdir(dir)
-		require.NoError(t, os.WriteFile(
-			dir+"/.agenticrc",
-			[]byte("pids_limit=512\ncpus=2\nmemory=2g\n"),
-			0644,
-		))
-		get := captureRunContainer(t)
+		rc := &config.AgenticRC{PidsLimit: "512", CPUs: "2", Memory: "2g"}
+		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		err := runTool(runToolCmd, []string{"claude"})
+		rs, err := buildRunSpec(args, tools.Configs["claude"], rc)
 
 		// Assert
 		require.NoError(t, err)
-		rs, _ := get()
 		assert.Equal(t, "512", rs.PidsLimit)
 		assert.Equal(t, "2", rs.CPUs)
 		assert.Equal(t, "2g", rs.Memory)
 	})
 
-	t.Run("agentic extra mounts env", func(t *testing.T) {
+	t.Run("dry run wired", func(t *testing.T) {
 		// Arrange
 		withTempToolHome(t)
-		t.Chdir(t.TempDir())
-		t.Setenv("AGENTIC_EXTRA_MOUNTS", "vol:/mnt/data")
-		get := captureRunContainer(t)
-
-		// Act
-		err := runTool(runToolCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		rs, _ := get()
-		assert.Contains(t, rs.Volumes, "vol:/mnt/data")
-		defaultEnd := 2
-		envIdx := -1
-		for i, v := range rs.Volumes {
-			if v == "vol:/mnt/data" {
-				envIdx = i
-			}
-		}
-		assert.Greater(t, envIdx, defaultEnd, "env mount should come after tool defaults")
-	})
-
-	t.Run("agentic extra mounts env empty", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		t.Chdir(t.TempDir())
-		t.Setenv("AGENTIC_EXTRA_MOUNTS", "")
-		get := captureRunContainer(t)
-
-		// Act
-		err := runTool(runToolCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		rs, _ := get()
-		assert.Equal(t, []string{
-			"$PWD:/workspace",
-			"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude",
-			"$TOOL_HOME/claude/.claude.json:$CONTAINER_HOME/.claude.json",
-		}, rs.Volumes)
-	})
-
-	t.Run("flag secrets", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		t.Chdir(t.TempDir())
-		get := captureRunContainer(t)
-		orig := flagSecrets
-		flagSecrets = []string{"mytoken:/tmp/token"}
-		defer func() { flagSecrets = orig }()
-
-		// Act
-		err := runTool(runToolCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		rs, _ := get()
-		assert.Equal(t, []string{"mytoken:/tmp/token"}, rs.Secrets)
-	})
-
-	t.Run("agenticrc secrets appended", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		dir := t.TempDir()
-		t.Chdir(dir)
-		require.NoError(t, os.WriteFile(
-			dir+"/.agenticrc",
-			[]byte("secrets=rctoken:/tmp/rc_token\n"),
-			0644,
-		))
-		get := captureRunContainer(t)
-		orig := flagSecrets
-		flagSecrets = []string{"flagtoken:/tmp/flag_token"}
-		defer func() { flagSecrets = orig }()
-
-		// Act
-		err := runTool(runToolCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		rs, _ := get()
-		assert.Equal(t, []string{"flagtoken:/tmp/flag_token", "rctoken:/tmp/rc_token"}, rs.Secrets)
-	})
-
-	t.Run("agentic extra secrets env", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		t.Chdir(t.TempDir())
-		t.Setenv("AGENTIC_SECRETS", "envtoken:/tmp/env_token")
-		get := captureRunContainer(t)
-
-		// Act
-		err := runTool(runToolCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		rs, _ := get()
-		assert.Contains(t, rs.Secrets, "envtoken:/tmp/env_token")
-	})
-
-	t.Run("dry run", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		get := captureRunContainer(t)
 		orig := dryRun
 		dryRun = true
 		defer func() { dryRun = orig }()
+		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		err := runTool(runToolCmd, []string{"claude"})
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		rs, _ := get()
 		assert.True(t, rs.DryRun)
 	})
 
-	t.Run("tmpfs mounts", func(t *testing.T) {
+	t.Run("tmpfs mounts wired", func(t *testing.T) {
 		// Arrange
 		withTempToolHome(t)
-		get := captureRunContainer(t)
+		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		err := runTool(runToolCmd, []string{"claude"})
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		rs, _ := get()
 		assert.NotEmpty(t, rs.TmpfsMounts)
 	})
 
-	t.Run("tool home", func(t *testing.T) {
+	t.Run("tool home wired", func(t *testing.T) {
 		// Arrange
-		get := captureRunContainer(t)
-		cwd, err := os.Getwd()
-		require.NoError(t, err)
 		customHome := t.TempDir()
-		cfg := &config.CliConfig{TrustedDirs: []string{cwd}}
-		require.NoError(t, cfg.Save(customHome))
 		orig := toolHome
 		toolHome = customHome
 		defer func() { toolHome = orig }()
+		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		err = runTool(runToolCmd, []string{"claude"})
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		rs, _ := get()
 		assert.Equal(t, customHome, rs.ToolHome)
+	})
+
+	t.Run("skip entrypoint wired", func(t *testing.T) {
+		// Arrange
+		withTempToolHome(t)
+		args := parsedArgs{toolName: "claude", imageName: "agentic-claude", skipEntrypoint: true}
+
+		// Act
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, rs.SkipEntrypoint)
+	})
+
+	t.Run("ensure named volumes error propagates", func(t *testing.T) {
+		// Arrange
+		withTempToolHome(t)
+		stubEnsureNamedVolumes(t, func([]string, string, string) error { return fmt.Errorf("volume error") })
+		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
+
+		// Act
+		_, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "volume error")
 	})
 }
 
@@ -348,7 +212,23 @@ func TestRequireImage(t *testing.T) {
 		assert.Contains(t, err.Error(), "docker daemon not running")
 	})
 
-	t.Run("no image no alternatives suggests build", func(t *testing.T) {
+	t.Run("passes tool filter to list", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, nil)
+		var got []docker.ImageFilter
+		stubListAllImages(t, func(f ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			got = f
+			return nil, nil
+		})
+
+		// Act
+		_ = requireImage("agentic-claude", "claude")
+
+		// Assert
+		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, got)
+	})
+
+	t.Run("no alternatives suggests build", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, nil, nil)
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) { return nil, nil })
@@ -362,11 +242,11 @@ func TestRequireImage(t *testing.T) {
 		assert.Contains(t, err.Error(), "agentic build claude")
 	})
 
-	t.Run("no image with alternative prefix suggests --prefix", func(t *testing.T) {
+	t.Run("alternative prefix suggests --prefix", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, nil, nil)
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{{Tool: "claude", Prefix: "myproject"}}, nil
+			return []*docker.ImageInfo{{Prefix: "myproject"}}, nil
 		})
 
 		// Act
@@ -379,13 +259,13 @@ func TestRequireImage(t *testing.T) {
 		assert.Contains(t, err.Error(), "--prefix")
 	})
 
-	t.Run("no image with multiple alternative prefixes lists all", func(t *testing.T) {
+	t.Run("multiple alternative prefixes lists all", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, nil, nil)
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
-				{Tool: "claude", Prefix: "myproject"},
-				{Tool: "claude", Prefix: "work"},
+				{Prefix: "myproject"},
+				{Prefix: "work"},
 			}, nil
 		})
 
@@ -592,4 +472,3 @@ func TestResolveResourceLimits(t *testing.T) {
 		assert.Equal(t, "2g", result.memory)
 	})
 }
-

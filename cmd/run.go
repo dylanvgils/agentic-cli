@@ -67,6 +67,7 @@ func init() {
 	runToolCmd.Flags().BoolVar(&dryRun, "dry-run", false, "print the docker command without running it")
 	runToolCmd.Flags().BoolVar(&trustDir, "trust-dir", false, "trust the current directory and save it to config")
 	runToolCmd.Flags().SetInterspersed(false)
+
 	addPrefixFlag(runToolCmd)
 }
 
@@ -80,7 +81,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("working directory %q is on a network share; Docker cannot bind-mount UNC paths", cwd)
 	}
 
-	rc := config.FindAndLoadFromCwd()
+	rc := config.FindAndLoad(cwd)
 	prefix := resolvePrefix(cmd, rc)
 
 	parsedArgs, err := parseArgs(args, prefix)
@@ -101,27 +102,10 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	containerHome := docker.ResolveContainerHome(parsedArgs.imageName)
-	volumes := collectVolumes(toolConfig.Runtime.Mounts(), extraVolumes, rc)
-	secrets := collectSecrets(flagSecrets, rc)
-	limits := resolveResourceLimits(pidsLimit, cpus, memory, rc)
-
-	if err := ensureNamedVolumes(volumes, toolHome, containerHome); err != nil {
+	rs, err := buildRunSpec(parsedArgs, toolConfig, rc)
+	if err != nil {
 		return err
 	}
-
-	rs := docker.NewRunSpec(parsedArgs.imageName).
-		WithToolHome(toolHome).
-		WithContainerHome(containerHome).
-		WithVolumes(volumes...).
-		WithSecrets(secrets...).
-		WithSkipEntrypoint(parsedArgs.skipEntrypoint).
-		WithTmpfsMounts(toolConfig.Runtime.TmpfsMounts()...).
-		WithPidsLimit(limits.pidsLimit).
-		WithCPUs(limits.cpus).
-		WithMemory(limits.memory).
-		WithDryRun(dryRun).
-		Build()
 
 	return runContainer(rs, parsedArgs.toolArgs)
 }
@@ -145,6 +129,32 @@ func parseArgs(args []string, prefix string) (parsedArgs, error) {
 		toolArgs:       toolArgs,
 		skipEntrypoint: skipEntrypoint,
 	}, nil
+}
+
+func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, error) {
+	containerHome := docker.ResolveContainerHome(args.imageName)
+	volumes := collectVolumes(toolConfig.Runtime.Mounts(), extraVolumes, rc)
+	secrets := collectSecrets(flagSecrets, rc)
+	limits := resolveResourceLimits(pidsLimit, cpus, memory, rc)
+
+	if err := ensureNamedVolumes(volumes, toolHome, containerHome); err != nil {
+		return docker.RunSpec{}, err
+	}
+
+	rs := docker.NewRunSpec(args.imageName).
+		WithToolHome(toolHome).
+		WithContainerHome(containerHome).
+		WithVolumes(volumes...).
+		WithSecrets(secrets...).
+		WithSkipEntrypoint(args.skipEntrypoint).
+		WithTmpfsMounts(toolConfig.Runtime.TmpfsMounts()...).
+		WithPidsLimit(limits.pidsLimit).
+		WithCPUs(limits.cpus).
+		WithMemory(limits.memory).
+		WithDryRun(dryRun).
+		Build()
+
+	return rs, nil
 }
 
 func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) []string {
@@ -195,8 +205,8 @@ func resolveResourceLimits(pidsLimit, cpus, memory string, rc *config.AgenticRC)
 // requireImage returns an error if imageName does not exist locally.
 // If the image is missing but the tool has images under other prefixes,
 // the error includes a hint to use --prefix.
-func requireImage(imageName, toolName string) error {
-	info, err := inspectImage(imageName)
+func requireImage(image, tool string) error {
+	info, err := inspectImage(image)
 	if err != nil {
 		return err
 	}
@@ -204,18 +214,16 @@ func requireImage(imageName, toolName string) error {
 		return nil
 	}
 
-	images, _ := listAllImages()
+	images, _ := listAllImages(docker.ToolFilter(tool))
 	var prefixes []string
 	for _, img := range images {
-		if img.Tool == toolName {
-			prefixes = append(prefixes, img.Prefix)
-		}
+		prefixes = append(prefixes, img.Prefix)
 	}
 
 	if len(prefixes) == 0 {
-		return fmt.Errorf("image %q not found; run \"agentic build %s\" to build it", imageName, toolName)
+		return fmt.Errorf("image %q not found; run \"agentic build %s\" to build it", image, tool)
 	}
 
 	return fmt.Errorf("image %q not found; %q is available under prefix %s - use --prefix or run \"agentic build %s\"",
-		imageName, toolName, strings.Join(prefixes, ", "), toolName)
+		image, tool, strings.Join(prefixes, ", "), tool)
 }
