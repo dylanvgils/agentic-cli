@@ -256,8 +256,42 @@ func TestSplitCommaSep(t *testing.T) {
 	})
 }
 
+func Test_recoverOpts(t *testing.T) {
+	t.Run("recovers base from label", func(t *testing.T) {
+		// Act
+		result := recoverOpts(&docker.ImageInfo{Base: "node@24,java@21"}, tools.BuildOptions{})
+
+		// Assert
+		assert.Equal(t, "java", result.BaseOverride)
+	})
+
+	t.Run("explicit base takes precedence", func(t *testing.T) {
+		// Act
+		result := recoverOpts(&docker.ImageInfo{Base: "node@24,go@1.22"}, tools.BuildOptions{BaseOverride: "java"})
+
+		// Assert
+		assert.Equal(t, "java", result.BaseOverride)
+	})
+
+	t.Run("recovers apt from label", func(t *testing.T) {
+		// Act
+		result := recoverOpts(&docker.ImageInfo{Base: "node@24", Apt: "make,gcc"}, tools.BuildOptions{})
+
+		// Assert
+		assert.Equal(t, []string{"make", "gcc"}, result.AptPackages)
+	})
+
+	t.Run("explicit apt takes precedence", func(t *testing.T) {
+		// Act
+		result := recoverOpts(&docker.ImageInfo{Base: "node@24", Apt: "make,gcc"}, tools.BuildOptions{AptPackages: []string{"cmake"}})
+
+		// Assert
+		assert.Equal(t, []string{"cmake"}, result.AptPackages)
+	})
+}
+
 func TestUpdateAllImages(t *testing.T) {
-	t.Run("updates every image with recovered build opts", func(t *testing.T) {
+	t.Run("updates every image", func(t *testing.T) {
 		// Arrange
 		var updated []string
 		stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {

@@ -99,20 +99,10 @@ func updateAllImages(opts tools.BuildOptions) error {
 		if info.Tool == "" {
 			continue
 		}
-		output.Stepf("%s/%s", info.Prefix, info.Tool)
-		o := opts
-		if o.BaseOverride == "" {
-			o.BaseOverride = docker.RecoverExtras(info.Base)
-		}
-		if o.AptPackages == nil && info.Apt != "" {
-			o.AptPackages = splitCommaSep(info.Apt)
-		}
-		before := docker.ParseVersion(info.Version)
-		if err := updateTool(info.Tool, info.Image, o); err != nil {
+
+		if err := updateOneTool(info.Tool, info.Image, recoverOpts(info, opts)); err != nil {
 			return err
 		}
-		after := imageVersion(info.Image)
-		reportVersionChange(before, after)
 		updated++
 	}
 
@@ -157,6 +147,16 @@ func updateTools(args []string, prefix string, opts tools.BuildOptions) error {
 	return nil
 }
 
+func recoverOpts(info *docker.ImageInfo, opts tools.BuildOptions) tools.BuildOptions {
+	if opts.BaseOverride == "" {
+		opts.BaseOverride = docker.RecoverExtras(info.Base)
+	}
+	if opts.AptPackages == nil && info.Apt != "" {
+		opts.AptPackages = splitCommaSep(info.Apt)
+	}
+	return opts
+}
+
 func updateOneTool(name, image string, opts tools.BuildOptions) error {
 	output.Step(name)
 
@@ -189,7 +189,7 @@ func reportVersionChange(before, after string) {
 
 func splitCommaSep(s string) []string {
 	var result []string
-	for _, part := range strings.Split(s, ",") {
+	for part := range strings.SplitSeq(s, ",") {
 		if p := strings.TrimSpace(part); p != "" {
 			result = append(result, p)
 		}
