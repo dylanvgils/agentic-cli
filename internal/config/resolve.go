@@ -5,13 +5,16 @@ import "os"
 const DefaultPrefix = "agentic"
 
 // ResolvePrefix returns the active image prefix.
-// Precedence: flagVal > AGENTIC_PREFIX env var > rc.Prefix > DefaultPrefix.
+// Precedence: flagVal > rc.Prefix > AGENTIC_PREFIX env var > DefaultPrefix.
 func ResolvePrefix(flagVal string, rc *AgenticRC) string {
-	if v := FlagOrEnv(flagVal, EnvPrefix); v != "" {
-		return v
+	if flagVal != "" {
+		return flagVal
 	}
 	if rc != nil && rc.Prefix != "" {
 		return rc.Prefix
+	}
+	if env := os.Getenv(EnvPrefix); env != "" {
+		return env
 	}
 	return DefaultPrefix
 }

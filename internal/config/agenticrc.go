@@ -12,13 +12,13 @@ import (
 // AgenticRC holds the parsed contents of a .agenticrc project config file.
 type AgenticRC struct {
 	Root        bool
+	Prefix      string
+	AptPackages []string
 	ExtraMounts []string
 	Secrets     []string
-	AptPackages []string
 	PidsLimit   string
 	CPUs        string
 	Memory      string
-	Prefix      string
 }
 
 // RCLayer pairs a parsed .agenticrc with the path it was loaded from.
@@ -118,6 +118,10 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 	result := &AgenticRC{}
 
 	for _, rc := range configs {
+		if result.Prefix == "" {
+			result.Prefix = rc.Prefix
+		}
+
 		if result.PidsLimit == "" {
 			result.PidsLimit = rc.PidsLimit
 		}
@@ -128,10 +132,6 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 
 		if result.Memory == "" {
 			result.Memory = rc.Memory
-		}
-
-		if result.Prefix == "" {
-			result.Prefix = rc.Prefix
 		}
 	}
 
@@ -177,13 +177,15 @@ func parseRC(r io.Reader) (*AgenticRC, error) {
 		switch key {
 		case "root":
 			rc.Root = value == "true"
+		case "prefix":
+			rc.Prefix = value
 
+		case "apt_packages":
+			rc.AptPackages = append(rc.AptPackages, splitValues(value)...)
 		case "extra_mounts":
 			rc.ExtraMounts = append(rc.ExtraMounts, splitValues(value)...)
 		case "secrets":
 			rc.Secrets = append(rc.Secrets, splitValues(value)...)
-		case "apt_packages":
-			rc.AptPackages = append(rc.AptPackages, splitValues(value)...)
 
 		case "pids_limit":
 			rc.PidsLimit = value
@@ -191,8 +193,6 @@ func parseRC(r io.Reader) (*AgenticRC, error) {
 			rc.CPUs = value
 		case "memory":
 			rc.Memory = value
-		case "prefix":
-			rc.Prefix = value
 		}
 	}
 

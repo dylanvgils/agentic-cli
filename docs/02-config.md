@@ -69,7 +69,7 @@ pids_limit=2048
 When multiple `.agenticrc` files are found, they are merged. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
 - **List keys** (`apt_packages`, `extra_mounts`, `secrets`): values from all levels accumulate, outermost first.
-- **Scalar keys** (`pids_limit`, `cpus`, `memory`, `prefix`): the innermost (child) value wins; outer files fill in any keys the inner file does not set. Note that `prefix` differs in its env-var precedence: `AGENTIC_PREFIX` overrides the RC value, whereas for the other scalars the RC value wins over the env var (see the [Precedence](#precedence) section).
+- **Scalar keys** (`pids_limit`, `cpus`, `memory`, `prefix`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
 
 ```
 ~/projects/.agenticrc       ← outermost (root=true stops the walk here)
@@ -112,8 +112,8 @@ These also accumulate, but their env vars (`AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECR
 Resolution priority (highest to lowest):
 
 1. `--prefix` flag
-2. `AGENTIC_PREFIX` environment variable
-3. `.agenticrc` `prefix=` - innermost (child) value wins
+2. `.agenticrc` `prefix=` - innermost (child) value wins
+3. `AGENTIC_PREFIX` environment variable
 4. Built-in default (`agentic`)
 
 With the default prefix, images are named `agentic-claude`, `agentic-copilot`, etc. - identical to the pre-prefix behavior, so existing images continue to work.

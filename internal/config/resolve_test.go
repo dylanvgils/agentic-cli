@@ -10,6 +10,18 @@ import (
 )
 
 func Test_resolvePrefix(t *testing.T) {
+	t.Run("rc value wins over env", func(t *testing.T) {
+		// Arrange
+		t.Setenv(EnvPrefix, "fromenv")
+		rc := &AgenticRC{Prefix: "fromrc"}
+
+		// Act
+		result := ResolvePrefix("", rc)
+
+		// Assert
+		assert.Equal(t, "fromrc", result)
+	})
+
 	t.Run("rc value used when flag and env absent", func(t *testing.T) {
 		// Arrange
 		rc := &AgenticRC{Prefix: "fromrc"}
