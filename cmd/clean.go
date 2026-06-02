@@ -68,6 +68,7 @@ func cleanScoped(args []string, prefix string) error {
 		if err != nil {
 			return err
 		}
+
 		output.Step(name)
 		if err := cleanImage(image); err != nil {
 			return err

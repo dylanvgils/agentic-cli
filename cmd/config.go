@@ -132,20 +132,19 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	return printListField(w, "secrets", layers, secrets)
 }
 
-// printScalarField prints a scalar config field. When envVar is set and the env var is active,
-// that value wins and is shown with a (ENV_VAR) tag. Otherwise, innermost (last in layers)
-// non-empty value wins. When no layer sets the field and defaultVal is non-empty, the default
-// is shown with a (default) tag.
+// printScalarField prints a scalar config field. Innermost (last in layers) non-empty RC value
+// wins. If no layer sets the field, the env var (if set) is shown with a (ENV_VAR) tag. If
+// neither is set and defaultVal is non-empty, the default is shown with a (default) tag.
 func printScalarField(w io.Writer, label, envVar string, layers []config.RCLayer, get func(*config.AgenticRC) string, defaultVal string) error {
-	if envVar != "" {
-		if v := os.Getenv(envVar); v != "" {
-			_, err := fmt.Fprintf(w, "  %s: %s  (%s)\n", label, v, envVar)
-			return err
-		}
-	}
 	for i := len(layers) - 1; i >= 0; i-- {
 		if v := get(layers[i].RC); v != "" {
 			_, err := fmt.Fprintf(w, "  %s: %s  [%s]\n", label, v, layers[i].Path)
+			return err
+		}
+	}
+	if envVar != "" {
+		if v := os.Getenv(envVar); v != "" {
+			_, err := fmt.Fprintf(w, "  %s: %s  (%s)\n", label, v, envVar)
 			return err
 		}
 	}

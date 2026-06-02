@@ -62,7 +62,7 @@ func TestPrintGlobalConfig(t *testing.T) {
 func TestPrintScalarField(t *testing.T) {
 	get := func(rc *config.AgenticRC) string { return rc.PidsLimit }
 
-	t.Run("env var wins over rc and default", func(t *testing.T) {
+	t.Run("rc wins over env var", func(t *testing.T) {
 		// Arrange
 		t.Setenv("AGENTIC_PIDS_LIMIT", "512")
 		var buf bytes.Buffer
@@ -75,7 +75,7 @@ func TestPrintScalarField(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "  pids_limit: 512  (AGENTIC_PIDS_LIMIT)\n", buf.String())
+		assert.Equal(t, "  pids_limit: 100  [/project/.agenticrc]\n", buf.String())
 	})
 
 	t.Run("not set shown when no env, rc, or default", func(t *testing.T) {
@@ -170,7 +170,10 @@ func TestPrintProjectConfig(t *testing.T) {
 
 	t.Run("no values shows defaults", func(t *testing.T) {
 		// Arrange
-		os.Unsetenv("AGENTIC_PREFIX") //nolint:errcheck
+		os.Unsetenv("AGENTIC_PREFIX")    //nolint:errcheck
+		os.Unsetenv("AGENTIC_PIDS_LIMIT") //nolint:errcheck
+		os.Unsetenv("AGENTIC_CPUS")       //nolint:errcheck
+		os.Unsetenv("AGENTIC_MEMORY")     //nolint:errcheck
 		var buf bytes.Buffer
 		layers := []config.RCLayer{
 			{Path: "/project/.agenticrc", RC: &config.AgenticRC{}},
