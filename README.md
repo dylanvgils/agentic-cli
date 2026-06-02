@@ -411,7 +411,7 @@ All configuration is done through environment variables, which can be set in you
 
 Place a `.agenticrc` file anywhere in your directory tree to apply project-specific configuration. `agentic` walks up from `$PWD` collecting all `.agenticrc` files it finds and merges them. Add `root=true` to a file to stop the walk there.
 
-**Merge rules:** list keys (`extra_mounts`, `secrets`, `apt_packages`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value.
+**Merge rules:** list keys (`extra_mounts`, `secrets`, `apt_packages`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value. `prefix` also uses the innermost value across RC files, but `AGENTIC_PREFIX` takes precedence over any RC value (unlike the other scalars, where the RC beats the env var).
 
 | Key            | Description                                                                                                                                                      | Default   | Env var override       |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---------------------- |
@@ -424,7 +424,7 @@ Place a `.agenticrc` file anywhere in your directory tree to apply project-speci
 | `cpus`         | Container CPU limit                                                                                                                                              | `4`       | `AGENTIC_CPUS`         |
 | `memory`       | Container memory limit                                                                                                                                           | `4g`      | `AGENTIC_MEMORY`       |
 
-`.agenticrc` values override env var defaults but are superseded by CLI flags. `extra_mounts` and `secrets` are appended to rather than replacing `AGENTIC_EXTRA_MOUNTS` / `AGENTIC_SECRETS`. You can commit `.agenticrc` to the repo so the whole team picks up the right settings automatically.
+For `pids_limit`, `cpus`, and `memory`, `.agenticrc` values override the corresponding env var defaults but are superseded by CLI flags. `prefix` is the exception: `AGENTIC_PREFIX` takes priority over `.agenticrc`, and `--prefix` takes priority over both. `extra_mounts` and `secrets` are appended to rather than replacing `AGENTIC_EXTRA_MOUNTS` / `AGENTIC_SECRETS`. You can commit `.agenticrc` to the repo so the whole team picks up the right settings automatically.
 
 Repeatable keys let you list one entry per line; comma-separated values on a single line also work - your choice:
 
