@@ -8,9 +8,9 @@ import (
 )
 
 var cleanCmd = &cobra.Command{
-	Use:       "clean [tool]",
-	Short:     "Remove tool image(s)",
-	Long:      "Remove tool image(s). Cleans all tools and base images if no tool specified.",
+	Use:               "clean [tool]",
+	Short:             "Remove tool image(s)",
+	Long:              "Remove tool image(s). Cleans all tools and base images if no tool specified.",
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: builtToolNamesFunc,
 	RunE:              runClean,
@@ -29,35 +29,42 @@ func runClean(cmd *cobra.Command, args []string) error {
 	all, _ := cmd.Flags().GetBool("all")
 
 	if all {
-		return cleanAll(args, prefix)
+		return cleanAll(args)
 	}
 
 	return cleanScoped(args, prefix)
 }
 
-func cleanAll(args []string, prefix string) error {
+func cleanAll(args []string) error {
 	if len(args) == 0 {
-		// Nuclear: remove every agentic image across all prefixes.
-		images, err := listAllImages()
-		if err != nil {
-			return err
-		}
-		for _, info := range images {
-			output.Stepf("%s/%s", info.Prefix, info.Tool)
-			if err := cleanImage(info.Image); err != nil {
-				return err
-			}
-		}
-		output.Step("base")
-		return cleanBaseImages()
+		return cleanAllImages()
 	}
+	return cleanAllTool(args[0])
+}
 
-	// Remove the named tool across all prefixes.
-	tool := args[0]
+func cleanAllImages() error {
 	images, err := listAllImages()
 	if err != nil {
 		return err
 	}
+
+	for _, info := range images {
+		output.Stepf("%s/%s", info.Prefix, info.Tool)
+		if err := cleanImage(info.Image); err != nil {
+			return err
+		}
+	}
+
+	output.Step("base")
+	return cleanBaseImages()
+}
+
+func cleanAllTool(tool string) error {
+	images, err := listAllImages()
+	if err != nil {
+		return err
+	}
+
 	for _, info := range images {
 		if info.Tool != tool {
 			continue
@@ -72,7 +79,12 @@ func cleanAll(args []string, prefix string) error {
 
 func cleanScoped(args []string, prefix string) error {
 	for _, name := range toolNames(args) {
-		if err := cleanOneTool(name, prefix); err != nil {
+		image, err := tools.ImageName(name, prefix)
+		if err != nil {
+			return err
+		}
+		output.Step(name)
+		if err := cleanImage(image); err != nil {
 			return err
 		}
 	}
@@ -82,13 +94,4 @@ func cleanScoped(args []string, prefix string) error {
 		return cleanBaseImages()
 	}
 	return nil
-}
-
-func cleanOneTool(name, prefix string) error {
-	output.Step(name)
-	image, err := tools.ImageName(name, prefix)
-	if err != nil {
-		return err
-	}
-	return cleanImage(image)
 }

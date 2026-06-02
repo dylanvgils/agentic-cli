@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunClean(t *testing.T) {
+func TestCleanScoped(t *testing.T) {
 	t.Run("all tools when no args", func(t *testing.T) {
 		// Arrange
 		var cleaned []string
@@ -17,7 +17,6 @@ func TestRunClean(t *testing.T) {
 			cleaned = append(cleaned, image)
 			return nil
 		})
-
 		basesCleaned := false
 		stubCleanBaseImages(t, func() error {
 			basesCleaned = true
@@ -26,7 +25,7 @@ func TestRunClean(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := runClean(cleanCmd, []string{})
+			err := cleanScoped([]string{}, "agentic")
 			require.NoError(t, err)
 		})
 
@@ -47,15 +46,9 @@ func TestRunClean(t *testing.T) {
 			return nil
 		})
 
-		basesCleaned := false
-		stubCleanBaseImages(t, func() error {
-			basesCleaned = true
-			return nil
-		})
-
 		// Act
 		out := captureStdout(t, func() {
-			err := runClean(cleanCmd, []string{"claude"})
+			err := cleanScoped([]string{"claude"}, "agentic")
 			require.NoError(t, err)
 		})
 
@@ -64,23 +57,23 @@ func TestRunClean(t *testing.T) {
 		assert.NotContains(t, out, "=> copilot")
 		assert.NotContains(t, out, "=> opencode")
 		assert.NotContains(t, out, "=> base")
-		assert.False(t, basesCleaned)
 		assert.Equal(t, []string{"agentic-claude"}, cleaned)
 	})
 
-	t.Run("clean image error propagates", func(t *testing.T) {
+	t.Run("stops on first tool error", func(t *testing.T) {
 		// Arrange
-		stubCleanImage(t, func(_ string) error {
-			return fmt.Errorf("docker daemon not running")
+		var cleaned []string
+		stubCleanImage(t, func(image string) error {
+			cleaned = append(cleaned, image)
+			return fmt.Errorf("fail on %s", image)
 		})
-		stubCleanBaseImages(t, func() error { return nil })
 
 		// Act
-		err := runClean(cleanCmd, []string{"claude"})
+		err := cleanScoped([]string{}, "agentic")
 
 		// Assert
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "docker daemon not running")
+		assert.Len(t, cleaned, 1)
 	})
 
 	t.Run("clean base images error propagates", func(t *testing.T) {
@@ -91,84 +84,61 @@ func TestRunClean(t *testing.T) {
 		})
 
 		// Act
-		err := runClean(cleanCmd, []string{})
+		err := cleanScoped([]string{}, "agentic")
 
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "base cleanup failed")
 	})
+}
 
-	t.Run("stops on first tool error", func(t *testing.T) {
-		// Arrange
-		var cleaned []string
-		stubCleanImage(t, func(image string) error {
-			cleaned = append(cleaned, image)
-			return fmt.Errorf("fail on %s", image)
-		})
-		stubCleanBaseImages(t, func() error { return nil })
-
-		// Act
-		err := runClean(cleanCmd, []string{})
-
-		// Assert
-		require.Error(t, err)
-		assert.Len(t, cleaned, 1)
+func TestCleanAllImages(t *testing.T) {
+	// Arrange
+	stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
+		return []*docker.ImageInfo{
+			{Image: "agentic-claude", Prefix: "agentic", Tool: "claude"},
+			{Image: "work-claude", Prefix: "work", Tool: "claude"},
+		}, nil
+	})
+	var cleaned []string
+	stubCleanImage(t, func(image string) error {
+		cleaned = append(cleaned, image)
+		return nil
+	})
+	basesCleaned := false
+	stubCleanBaseImages(t, func() error {
+		basesCleaned = true
+		return nil
 	})
 
-	t.Run("all flag removes all prefixes of tool", func(t *testing.T) {
-		// Arrange
-		stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Prefix: "agentic", Tool: "claude"},
-				{Image: "work-claude", Prefix: "work", Tool: "claude"},
-				{Image: "agentic-copilot", Prefix: "agentic", Tool: "copilot"},
-			}, nil
-		})
-		var cleaned []string
-		stubCleanImage(t, func(image string) error {
-			cleaned = append(cleaned, image)
-			return nil
-		})
+	// Act
+	err := cleanAllImages()
 
-		require.NoError(t, cleanCmd.Flags().Set("all", "true"))
-		defer cleanCmd.Flags().Set("all", "false") //nolint:errcheck
+	// Assert
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"agentic-claude", "work-claude"}, cleaned)
+	assert.True(t, basesCleaned)
+}
 
-		// Act
-		err := runClean(cleanCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.ElementsMatch(t, []string{"agentic-claude", "work-claude"}, cleaned)
+func TestCleanAllTool(t *testing.T) {
+	// Arrange
+	stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
+		return []*docker.ImageInfo{
+			{Image: "agentic-claude", Prefix: "agentic", Tool: "claude"},
+			{Image: "work-claude", Prefix: "work", Tool: "claude"},
+			{Image: "agentic-copilot", Prefix: "agentic", Tool: "copilot"},
+		}, nil
+	})
+	var cleaned []string
+	stubCleanImage(t, func(image string) error {
+		cleaned = append(cleaned, image)
+		return nil
 	})
 
-	t.Run("all flag no tool removes everything", func(t *testing.T) {
-		// Arrange
-		stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Prefix: "agentic", Tool: "claude"},
-				{Image: "work-claude", Prefix: "work", Tool: "claude"},
-			}, nil
-		})
-		var cleaned []string
-		stubCleanImage(t, func(image string) error {
-			cleaned = append(cleaned, image)
-			return nil
-		})
-		basesCleaned := false
-		stubCleanBaseImages(t, func() error {
-			basesCleaned = true
-			return nil
-		})
+	// Act
+	err := cleanAllTool("claude")
 
-		require.NoError(t, cleanCmd.Flags().Set("all", "true"))
-		defer cleanCmd.Flags().Set("all", "false") //nolint:errcheck
-
-		// Act
-		err := runClean(cleanCmd, []string{})
-
-		// Assert
-		require.NoError(t, err)
-		assert.ElementsMatch(t, []string{"agentic-claude", "work-claude"}, cleaned)
-		assert.True(t, basesCleaned)
-	})
+	// Assert
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"agentic-claude", "work-claude"}, cleaned)
 }
