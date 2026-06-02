@@ -55,23 +55,17 @@ func InspectImage(name string) (*ImageInfo, error) {
 	}, nil
 }
 
-// ListAllAgenticImages returns metadata for every Docker image carrying the
+// ListAllImages returns metadata for every Docker image carrying the
 // project=agentic-cli label, across all prefixes.
-func ListAllAgenticImages() ([]*ImageInfo, error) {
-	out, err := dockerRun("images",
-		arg("format", "{{.Repository}}"),
-		labelFilter(LabelProject, LabelProjectVal),
-	)
+func ListAllImages() ([]*ImageInfo, error) {
+	repos, err := listAllRepositories()
 	if err != nil {
 		return nil, err
 	}
 
 	var images []*ImageInfo
-	for name := range strings.FieldsSeq(out) {
-		if name == "<none>" {
-			continue
-		}
-		info, err := InspectImage(name)
+	for _, repo := range repos {
+		info, err := InspectImage(repo)
 		if err != nil || info == nil {
 			continue
 		}
@@ -81,14 +75,23 @@ func ListAllAgenticImages() ([]*ImageInfo, error) {
 	return images, nil
 }
 
+// BuiltToolsFromImages returns the set of tool names that have at least one image.
+func BuiltToolsFromImages(images []*ImageInfo) map[string]bool {
+	built := make(map[string]bool)
+	for _, img := range images {
+		built[img.Tool] = true
+	}
+	return built
+}
+
 // parseImageName splits an image name into prefix and tool by matching the
 // suffix against the known set of tool names.
 // e.g. "myproject-claude" → ("myproject", "claude", true)
 func parseImageName(image string) (prefix, tool string, ok bool) {
-	for _, t := range tools.Names() {
-		suffix := "-" + t
-		if strings.HasSuffix(image, suffix) {
-			return strings.TrimSuffix(image, suffix), t, true
+	for _, tool := range tools.Names() {
+		suffix := "-" + tool
+		if before, ok0 := strings.CutSuffix(image, suffix); ok0 {
+			return before, tool, true
 		}
 	}
 	return "", "", false
@@ -102,4 +105,26 @@ func imageSize(name string) string {
 		return ""
 	}
 	return size
+}
+
+// listAllRepositories returns the repository names of every Docker image
+// carrying the project=agentic-cli label.
+func listAllRepositories() ([]string, error) {
+	out, err := dockerRun("images",
+		arg("format", "{{.Repository}}"),
+		labelFilter(LabelProject, LabelProjectVal),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var repos []string
+	for repo := range strings.FieldsSeq(out) {
+		if repo == "<none>" {
+			continue
+		}
+		repos = append(repos, repo)
+	}
+
+	return repos, nil
 }

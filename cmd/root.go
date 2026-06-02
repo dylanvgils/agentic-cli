@@ -11,21 +11,21 @@ import (
 )
 
 var (
-	checkDockerDaemon   = docker.CheckDaemon
-	buildTool           = docker.BuildTool
-	updateTool          = docker.UpdateTool
-	runContainer        = docker.RunContainer
-	ensureNamedVolumes  = docker.EnsureNamedVolumes
-	inspectImage        = docker.InspectImage
-	listAllAgenticImages = docker.ListAllAgenticImages
-	cleanImage          = docker.CleanImage
-	cleanBaseImages     = docker.CleanBaseImages
-	pruneImages         = docker.PruneImages
-	createVolume        = docker.CreateVolume
-	listVolumes         = docker.ListVolumes
-	listVolumeNames     = docker.ListVolumeNames
-	removeVolume        = docker.RemoveVolume
-	isTerminal          = platform.IsTerminal
+	checkDockerDaemon  = docker.CheckDaemon
+	buildTool          = docker.BuildTool
+	updateTool         = docker.UpdateTool
+	runContainer       = docker.RunContainer
+	ensureNamedVolumes = docker.EnsureNamedVolumes
+	inspectImage       = docker.InspectImage
+	listAllImages      = docker.ListAllImages
+	cleanImage         = docker.CleanImage
+	cleanBaseImages    = docker.CleanBaseImages
+	pruneImages        = docker.PruneImages
+	createVolume       = docker.CreateVolume
+	listVolumes        = docker.ListVolumes
+	listVolumeNames    = docker.ListVolumeNames
+	removeVolume       = docker.RemoveVolume
+	isTerminal         = platform.IsTerminal
 )
 
 var rootCmd = &cobra.Command{
@@ -57,7 +57,7 @@ func checkDocker(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Shell completion generation and `aliases` do not need a running daemon.
-	// (`aliases` calls listAllAgenticImages which swallows errors — already graceful.)
+	// (`aliases` calls listAllImages which swallows errors — already graceful.)
 	if name := cmd.Name(); name == "completion" || name == "aliases" {
 		return nil
 	}

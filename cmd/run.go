@@ -204,7 +204,7 @@ func requireImage(imageName, toolName string) error {
 		return nil
 	}
 
-	images, _ := listAllAgenticImages()
+	images, _ := listAllImages()
 	var prefixes []string
 	for _, img := range images {
 		if img.Tool == toolName {

@@ -52,7 +52,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 }
 
 func runInspectTable() error {
-	images, err := listAllAgenticImages()
+	images, err := listAllImages()
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func runInspectTable() error {
 }
 
 func printAllPrefixDetail(tool string) error {
-	images, err := listAllAgenticImages()
+	images, err := listAllImages()
 	if err != nil {
 		return err
 	}

@@ -351,7 +351,7 @@ func TestRequireImage(t *testing.T) {
 	t.Run("no image no alternatives suggests build", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, nil, nil)
-		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) { return nil, nil })
+		stubListAllImages(t, func() ([]*docker.ImageInfo, error) { return nil, nil })
 
 		// Act
 		err := requireImage("agentic-claude", "claude")
@@ -365,7 +365,7 @@ func TestRequireImage(t *testing.T) {
 	t.Run("no image with alternative prefix suggests --prefix", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, nil, nil)
-		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+		stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{{Tool: "claude", Prefix: "myproject"}}, nil
 		})
 
@@ -382,7 +382,7 @@ func TestRequireImage(t *testing.T) {
 	t.Run("no image with multiple alternative prefixes lists all", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, nil, nil)
-		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+		stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
 				{Tool: "claude", Prefix: "myproject"},
 				{Tool: "claude", Prefix: "work"},

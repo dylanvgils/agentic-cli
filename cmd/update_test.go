@@ -266,7 +266,7 @@ func TestUpdateAllImages(t *testing.T) {
 		})
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
 		stubPruneImages(t, func() (string, error) { return "", nil })
-		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+		stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
 				{Image: "agentic-claude", Prefix: "agentic", Tool: "claude", Base: "node@24,java@21"},
 				{Image: "work-copilot", Prefix: "work", Tool: "copilot", Base: "node@24"},
@@ -283,7 +283,7 @@ func TestUpdateAllImages(t *testing.T) {
 
 	t.Run("no images prints message", func(t *testing.T) {
 		// Arrange
-		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) { return nil, nil })
+		stubListAllImages(t, func() ([]*docker.ImageInfo, error) { return nil, nil })
 
 		// Act
 		out := captureStdout(t, func() {
@@ -297,7 +297,7 @@ func TestUpdateAllImages(t *testing.T) {
 
 	t.Run("docker error propagates", func(t *testing.T) {
 		// Arrange
-		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+		stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
 			return nil, fmt.Errorf("docker daemon not running")
 		})
 

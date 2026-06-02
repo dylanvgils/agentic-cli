@@ -41,7 +41,7 @@ func runClean(cmd *cobra.Command, args []string) error {
 func cleanAll(args []string, prefix string) error {
 	if len(args) == 0 {
 		// Nuclear: remove every agentic image across all prefixes.
-		images, err := listAllAgenticImages()
+		images, err := listAllImages()
 		if err != nil {
 			return err
 		}
@@ -57,7 +57,7 @@ func cleanAll(args []string, prefix string) error {
 
 	// Remove the named tool across all prefixes.
 	tool := args[0]
-	images, err := listAllAgenticImages()
+	images, err := listAllImages()
 	if err != nil {
 		return err
 	}

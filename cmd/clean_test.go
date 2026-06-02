@@ -117,7 +117,7 @@ func TestRunClean(t *testing.T) {
 
 	t.Run("all flag removes all prefixes of tool", func(t *testing.T) {
 		// Arrange
-		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+		stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
 				{Image: "agentic-claude", Prefix: "agentic", Tool: "claude"},
 				{Image: "work-claude", Prefix: "work", Tool: "claude"},
@@ -143,7 +143,7 @@ func TestRunClean(t *testing.T) {
 
 	t.Run("all flag no tool removes everything", func(t *testing.T) {
 		// Arrange
-		stubListAllAgenticImages(t, func() ([]*docker.ImageInfo, error) {
+		stubListAllImages(t, func() ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
 				{Image: "agentic-claude", Prefix: "agentic", Tool: "claude"},
 				{Image: "work-claude", Prefix: "work", Tool: "claude"},

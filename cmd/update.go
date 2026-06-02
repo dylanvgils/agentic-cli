@@ -85,7 +85,7 @@ func dryRunUpdate(args []string, prefix string, opts tools.BuildOptions) error {
 }
 
 func updateAllImages(opts tools.BuildOptions) error {
-	images, err := listAllAgenticImages()
+	images, err := listAllImages()
 	if err != nil {
 		return err
 	}

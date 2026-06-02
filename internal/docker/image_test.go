@@ -233,7 +233,60 @@ func TestParseImageName(t *testing.T) {
 	})
 }
 
-func TestListAllAgenticImages(t *testing.T) {
+func Test_listAllRepositories(t *testing.T) {
+	t.Run("returns repository names from docker output", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "agentic-claude\nmyproject-copilot\n", nil)
+
+		// Act
+		repos, err := listAllRepositories()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"agentic-claude", "myproject-copilot"}, repos)
+	})
+
+	t.Run("skips none repositories", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "<none>", nil)
+
+		// Act
+		repos, err := listAllRepositories()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, repos)
+	})
+
+	t.Run("docker error propagates", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "", fmt.Errorf("docker daemon not running"))
+
+		// Act
+		_, err := listAllRepositories()
+
+		// Assert
+		require.Error(t, err)
+	})
+
+	t.Run("passes label filter", func(t *testing.T) {
+		// Arrange
+		var capturedArgs []string
+		stubDockerRun(t, func(args ...string) (string, error) {
+			capturedArgs = args
+			return "", nil
+		})
+
+		// Act
+		_, err := listAllRepositories()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, capturedArgs, "--filter=label=project=agentic-cli")
+	})
+}
+
+func TestListAllImages(t *testing.T) {
 	t.Run("returns parsed images", func(t *testing.T) {
 		// Arrange
 		callNum := 0
@@ -251,7 +304,7 @@ func TestListAllAgenticImages(t *testing.T) {
 		})
 
 		// Act
-		images, err := ListAllAgenticImages()
+		images, err := ListAllImages()
 
 		// Assert
 		require.NoError(t, err)
@@ -283,7 +336,7 @@ func TestListAllAgenticImages(t *testing.T) {
 		})
 
 		// Act
-		images, err := ListAllAgenticImages()
+		images, err := ListAllImages()
 
 		// Assert
 		require.NoError(t, err)
@@ -292,27 +345,66 @@ func TestListAllAgenticImages(t *testing.T) {
 		assert.Equal(t, "copilot", images[1].Tool)
 	})
 
-	t.Run("skips none images", func(t *testing.T) {
+	t.Run("skips images where inspect returns nil", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "<none>", nil)
+		callNum := 0
+		stubDockerRun(t, func(args ...string) (string, error) {
+			callNum++
+			switch callNum {
+			case 1: // images --filter
+				return "agentic-claude\nagentic-copilot\n", nil
+			case 2: // inspect claude — image does not exist
+				return "", fmt.Errorf("No such image: agentic-claude")
+			case 3: // inspect copilot
+				return `{"Id":"sha256:b2c3d4e5f6a7bcdef012345678901234567890","Config":{"Labels":{"agentic.tool":"copilot"}}}`, nil
+			case 4: // image ls size copilot
+				return "512MB", nil
+			}
+			return "", nil
+		})
 
 		// Act
-		images, err := ListAllAgenticImages()
+		images, err := ListAllImages()
 
 		// Assert
 		require.NoError(t, err)
-		assert.Empty(t, images)
+		require.Len(t, images, 1)
+		assert.Equal(t, "copilot", images[0].Tool)
 	})
+}
 
-	t.Run("docker error propagates", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("docker daemon not running"))
-
+func TestBuiltToolsFromImages(t *testing.T) {
+	t.Run("empty image list returns empty map", func(t *testing.T) {
 		// Act
-		_, err := ListAllAgenticImages()
+		result := BuiltToolsFromImages(nil)
 
 		// Assert
-		require.Error(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("images populate map by tool name", func(t *testing.T) {
+		// Arrange
+		images := []*ImageInfo{{Tool: "claude"}, {Tool: "copilot"}}
+
+		// Act
+		result := BuiltToolsFromImages(images)
+
+		// Assert
+		assert.True(t, result["claude"])
+		assert.True(t, result["copilot"])
+		assert.False(t, result["opencode"])
+	})
+
+	t.Run("duplicate tool names collapse to one entry", func(t *testing.T) {
+		// Arrange
+		images := []*ImageInfo{{Tool: "claude"}, {Tool: "claude"}}
+
+		// Act
+		result := BuiltToolsFromImages(images)
+
+		// Assert
+		assert.Len(t, result, 1)
+		assert.True(t, result["claude"])
 	})
 }
 
