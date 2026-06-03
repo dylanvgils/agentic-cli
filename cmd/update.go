@@ -33,39 +33,39 @@ func init() {
 	updateCmd.Flags().Bool("no-cache", false, "also rebuild base layers (fully fresh build)")
 
 	addBuildFlags(updateCmd)
-	addPrefixFlag(updateCmd)
+	addNamespaceFlag(updateCmd)
 	addAllFlag(updateCmd)
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
 	rc := config.FindAndLoadFromCwd()
-	prefix := resolvePrefix(cmd, rc)
+	namespace := resolveNamespace(cmd, rc)
 	opts := buildOptsFromFlags(cmd)
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	all, _ := cmd.Flags().GetBool("all")
 
 	if dryRun {
-		return dryRunUpdate(args, prefix, opts)
+		return dryRunUpdate(args, namespace, opts)
 	}
 
 	if all {
 		return updateAllImages(opts)
 	}
 
-	if err := updateTools(args, prefix, opts); err != nil {
+	if err := updateTools(args, namespace, opts); err != nil {
 		return err
 	}
 
 	return pruneAndReport()
 }
 
-func dryRunUpdate(args []string, prefix string, opts tools.BuildOptions) error {
+func dryRunUpdate(args []string, namespace string, opts tools.BuildOptions) error {
 	if len(args) == 0 {
 		return fmt.Errorf("--dry-run requires a tool argument")
 	}
 
 	if opts.BaseOverride == "" {
-		image, err := tools.ImageName(args[0], prefix)
+		image, err := tools.ImageName(args[0], namespace)
 		if err == nil {
 			if info, iErr := inspectImage(image); iErr == nil && info != nil {
 				opts.BaseOverride = docker.RecoverExtras(info.Base)
@@ -113,12 +113,12 @@ func updateAllImages(opts tools.BuildOptions) error {
 	return pruneAndReport()
 }
 
-func updateTools(args []string, prefix string, opts tools.BuildOptions) error {
+func updateTools(args []string, namespace string, opts tools.BuildOptions) error {
 	skipUnbuilt := len(args) == 0
 	updated := 0
 
 	for _, name := range toolNames(args) {
-		image, err := tools.ImageName(name, prefix)
+		image, err := tools.ImageName(name, namespace)
 		if err != nil {
 			return err
 		}

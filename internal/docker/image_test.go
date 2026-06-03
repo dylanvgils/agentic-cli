@@ -42,7 +42,7 @@ func TestInspectImage(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, info)
 		assert.Equal(t, "agentic-claude", info.Image)
-		assert.Equal(t, "agentic", info.Prefix)
+		assert.Equal(t, "agentic", info.Namespace)
 		assert.Equal(t, "claude", info.Tool)
 		assert.Equal(t, "a1b2c3d4e5f6", info.ID)
 		assert.Equal(t, "1.2.3", info.Version)
@@ -317,9 +317,9 @@ func TestListAllImages(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		require.Len(t, images, 2)
-		assert.Equal(t, "agentic", images[0].Prefix)
+		assert.Equal(t, "agentic", images[0].Namespace)
 		assert.Equal(t, "claude", images[0].Tool)
-		assert.Equal(t, "myproject", images[1].Prefix)
+		assert.Equal(t, "myproject", images[1].Namespace)
 		assert.Equal(t, "claude", images[1].Tool)
 	})
 

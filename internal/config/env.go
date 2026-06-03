@@ -6,7 +6,7 @@ const (
 	envPrefix = "AGENTIC_"
 
 	EnvHome        = envPrefix + "HOME"
-	EnvPrefix      = envPrefix + "PREFIX"
+	EnvNamespace   = envPrefix + "NAMESPACE"
 	EnvPidsLimit   = envPrefix + "PIDS_LIMIT"
 	EnvCPUs        = envPrefix + "CPUS"
 	EnvMemory      = envPrefix + "MEMORY"

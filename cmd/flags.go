@@ -11,19 +11,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func resolvePrefix(cmd *cobra.Command, rc *config.AgenticRC) string {
-	v, _ := cmd.Flags().GetString("prefix")
-	return config.ResolvePrefix(v, rc)
+func resolveNamespace(cmd *cobra.Command, rc *config.AgenticRC) string {
+	v, _ := cmd.Flags().GetString("namespace")
+	return config.ResolveNamespace(v, rc)
 }
 
-// addPrefixFlag registers the --prefix flag on the given command.
-func addPrefixFlag(cmd *cobra.Command) {
-	cmd.Flags().String("prefix", "", "image name prefix (overrides AGENTIC_PREFIX and .agenticrc prefix)")
+// addNamespaceFlag registers the --namespace flag on the given command.
+func addNamespaceFlag(cmd *cobra.Command) {
+	cmd.Flags().String("namespace", "", "image namespace (overrides AGENTIC_NAMESPACE and .agenticrc namespace)")
 }
 
 // addAllFlag registers the --all flag on the given command.
 func addAllFlag(cmd *cobra.Command) {
-	cmd.Flags().Bool("all", false, "operate on all prefixes, not just the active one")
+	cmd.Flags().Bool("all", false, "operate on all namespaces, not just the active one")
 }
 
 func collectRegistry(cmd *cobra.Command) string {

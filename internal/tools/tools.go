@@ -44,13 +44,13 @@ type ToolConfig struct {
 	Runtime RuntimeConfig
 }
 
-// ImageName returns the Docker image name for the given tool using the given prefix,
+// ImageName returns the Docker image name for the given tool using the given namespace,
 // or an error if the tool is unknown.
-func ImageName(name, prefix string) (string, error) {
+func ImageName(name, namespace string) (string, error) {
 	if _, ok := Configs[name]; !ok {
 		return "", fmt.Errorf("unknown tool %q, available: %s", name, strings.Join(Names(), ", "))
 	}
-	return prefix + "-" + name, nil
+	return namespace + "-" + name, nil
 }
 
 // Names returns the sorted list of known tool names.

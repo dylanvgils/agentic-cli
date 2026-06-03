@@ -12,7 +12,7 @@ import (
 // AgenticRC holds the parsed contents of a .agenticrc project config file.
 type AgenticRC struct {
 	Root        bool
-	Prefix      string
+	Namespace   string
 	AptPackages []string
 	ExtraMounts []string
 	Secrets     []string
@@ -118,8 +118,8 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 	result := &AgenticRC{}
 
 	for _, rc := range configs {
-		if result.Prefix == "" {
-			result.Prefix = rc.Prefix
+		if result.Namespace == "" {
+			result.Namespace = rc.Namespace
 		}
 
 		if result.PidsLimit == "" {
@@ -177,8 +177,8 @@ func parseRC(r io.Reader) (*AgenticRC, error) {
 		switch key {
 		case "root":
 			rc.Root = value == "true"
-		case "prefix":
-			rc.Prefix = value
+		case "namespace":
+			rc.Namespace = value
 
 		case "apt_packages":
 			rc.AptPackages = append(rc.AptPackages, splitValues(value)...)

@@ -8,9 +8,9 @@ import (
 
 // ImageInfo holds metadata about a built tool image.
 type ImageInfo struct {
-	Image   string
-	Prefix  string // image name prefix (e.g. "agentic", "myproject")
-	Tool    string // tool name (e.g. "claude", "copilot")
+	Image     string
+	Namespace string // image namespace (e.g. "agentic", "myproject")
+	Tool      string // tool name (e.g. "claude", "copilot")
 	ID      string // 12-char short ID
 	Version string // agentic.tool.version label
 	Base    string // agentic.base label
@@ -30,12 +30,12 @@ func InspectImage(name string) (*ImageInfo, error) {
 		return nil, nil
 	}
 
-	prefix, tool := resolveToolName(name, result.Config.Labels[LabelTool])
+	namespace, tool := resolveToolName(name, result.Config.Labels[LabelTool])
 
 	return &ImageInfo{
-		Image:   name,
-		Prefix:  prefix,
-		Tool:    tool,
+		Image:     name,
+		Namespace: namespace,
+		Tool:      tool,
 		ID:      extractShortID(result.ID),
 		Version: result.Config.Labels[LabelToolVersion],
 		Base:    result.Config.Labels[LabelBase],
@@ -46,7 +46,7 @@ func InspectImage(name string) (*ImageInfo, error) {
 }
 
 // ListAllImages returns metadata for every Docker image carrying the
-// project=agentic-cli label, across all prefixes. Optional filters narrow the
+// project=agentic-cli label, across all namespaces. Optional filters narrow the
 // result set; use the typed constructors (e.g. ToolFilter) to build them.
 func ListAllImages(filters ...ImageFilter) ([]*ImageInfo, error) {
 	repos, err := listAllRepositories(filters...)
@@ -75,10 +75,10 @@ func BuiltToolsFromImages(images []*ImageInfo) map[string]bool {
 	return built
 }
 
-// parseImageName splits an image name into prefix and tool by matching the
+// parseImageName splits an image name into namespace and tool by matching the
 // suffix against the known set of tool names.
 // e.g. "myproject-claude" → ("myproject", "claude", true)
-func parseImageName(image string) (prefix, tool string, ok bool) {
+func parseImageName(image string) (namespace, tool string, ok bool) {
 	for _, tool := range tools.Names() {
 		suffix := "-" + tool
 		if before, ok0 := strings.CutSuffix(image, suffix); ok0 {
@@ -88,10 +88,10 @@ func parseImageName(image string) (prefix, tool string, ok bool) {
 	return "", "", false
 }
 
-// resolveToolName determines the tool name and prefix for an image.
+// resolveToolName determines the tool name and namespace for an image.
 // The label value takes precedence; falls back to parsing the image name.
-func resolveToolName(image, labelTool string) (prefix, tool string) {
-	prefix, parsedTool, _ := parseImageName(image)
+func resolveToolName(image, labelTool string) (namespace, tool string) {
+	namespace, parsedTool, _ := parseImageName(image)
 	tool = labelTool
 	if tool == "" {
 		tool = parsedTool

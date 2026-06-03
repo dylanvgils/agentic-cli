@@ -2,21 +2,21 @@ package config
 
 import "os"
 
-const DefaultPrefix = "agentic"
+const DefaultNamespace = "agentic"
 
-// ResolvePrefix returns the active image prefix.
-// Precedence: flagVal > rc.Prefix > AGENTIC_PREFIX env var > DefaultPrefix.
-func ResolvePrefix(flagVal string, rc *AgenticRC) string {
+// ResolveNamespace returns the active image namespace.
+// Precedence: flagVal > rc.Namespace > AGENTIC_NAMESPACE env var > DefaultNamespace.
+func ResolveNamespace(flagVal string, rc *AgenticRC) string {
 	if flagVal != "" {
 		return flagVal
 	}
-	if rc != nil && rc.Prefix != "" {
-		return rc.Prefix
+	if rc != nil && rc.Namespace != "" {
+		return rc.Namespace
 	}
-	if env := os.Getenv(EnvPrefix); env != "" {
+	if env := os.Getenv(EnvNamespace); env != "" {
 		return env
 	}
-	return DefaultPrefix
+	return DefaultNamespace
 }
 
 // FlagOrEnv returns flagVal if non-empty, otherwise the value of the named env var.

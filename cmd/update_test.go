@@ -324,8 +324,8 @@ func TestUpdateAllImages(t *testing.T) {
 		stubPruneImages(t, func() (string, error) { return "", nil })
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Prefix: "agentic", Tool: "claude", Base: "node@24,java@21"},
-				{Image: "work-copilot", Prefix: "work", Tool: "copilot", Base: "node@24"},
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24,java@21"},
+				{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "node@24"},
 			}, nil
 		})
 

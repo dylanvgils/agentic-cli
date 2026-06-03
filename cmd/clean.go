@@ -20,20 +20,20 @@ var cleanCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(cleanCmd)
 
-	addPrefixFlag(cleanCmd)
+	addNamespaceFlag(cleanCmd)
 	addAllFlag(cleanCmd)
 }
 
 func runClean(cmd *cobra.Command, args []string) error {
 	rc := config.FindAndLoadFromCwd()
-	prefix := resolvePrefix(cmd, rc)
+	namespace := resolveNamespace(cmd, rc)
 	all, _ := cmd.Flags().GetBool("all")
 
 	if all {
 		return cleanAll(args)
 	}
 
-	return cleanScoped(args, prefix)
+	return cleanScoped(args, namespace)
 }
 
 func cleanAll(args []string) error {
@@ -48,7 +48,7 @@ func cleanAll(args []string) error {
 	}
 
 	for _, info := range images {
-		output.Stepf("%s/%s", info.Prefix, info.Tool)
+		output.Stepf("%s/%s", info.Namespace, info.Tool)
 		if err := cleanImage(info.Image); err != nil {
 			return err
 		}
@@ -62,9 +62,9 @@ func cleanAll(args []string) error {
 	return nil
 }
 
-func cleanScoped(args []string, prefix string) error {
+func cleanScoped(args []string, namespace string) error {
 	for _, name := range toolNames(args) {
-		image, err := tools.ImageName(name, prefix)
+		image, err := tools.ImageName(name, namespace)
 		if err != nil {
 			return err
 		}

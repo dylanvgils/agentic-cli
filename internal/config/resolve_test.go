@@ -9,14 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_resolvePrefix(t *testing.T) {
+func Test_resolveNamespace(t *testing.T) {
 	t.Run("rc value wins over env", func(t *testing.T) {
 		// Arrange
-		t.Setenv(EnvPrefix, "fromenv")
-		rc := &AgenticRC{Prefix: "fromrc"}
+		t.Setenv(EnvNamespace, "fromenv")
+		rc := &AgenticRC{Namespace: "fromrc"}
 
 		// Act
-		result := ResolvePrefix("", rc)
+		result := ResolveNamespace("", rc)
 
 		// Assert
 		assert.Equal(t, "fromrc", result)
@@ -24,10 +24,10 @@ func Test_resolvePrefix(t *testing.T) {
 
 	t.Run("rc value used when flag and env absent", func(t *testing.T) {
 		// Arrange
-		rc := &AgenticRC{Prefix: "fromrc"}
+		rc := &AgenticRC{Namespace: "fromrc"}
 
 		// Act
-		result := ResolvePrefix("", rc)
+		result := ResolveNamespace("", rc)
 
 		// Assert
 		assert.Equal(t, "fromrc", result)
@@ -35,10 +35,10 @@ func Test_resolvePrefix(t *testing.T) {
 
 	t.Run("falls back to default when nothing set", func(t *testing.T) {
 		// Act
-		result := ResolvePrefix("", nil)
+		result := ResolveNamespace("", nil)
 
 		// Assert
-		assert.Equal(t, DefaultPrefix, result)
+		assert.Equal(t, DefaultNamespace, result)
 	})
 }
 

@@ -97,8 +97,8 @@ func TestCleanAll(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Prefix: "agentic", Tool: "claude"},
-				{Image: "work-claude", Prefix: "work", Tool: "claude"},
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+				{Image: "work-claude", Namespace: "work", Tool: "claude"},
 			}, nil
 		})
 		var cleaned []string
@@ -127,8 +127,8 @@ func TestCleanAll(t *testing.T) {
 		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			capturedFilters = filters
 			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Prefix: "agentic", Tool: "claude"},
-				{Image: "work-claude", Prefix: "work", Tool: "claude"},
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+				{Image: "work-claude", Namespace: "work", Tool: "claude"},
 			}, nil
 		})
 		var cleaned []string

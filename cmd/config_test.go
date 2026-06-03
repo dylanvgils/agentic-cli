@@ -112,7 +112,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		layers := []config.RCLayer{
 			{
 				Path: "/project/.agenticrc",
-				RC:   &config.AgenticRC{PidsLimit: "100", CPUs: "2", Memory: "4g", Prefix: "myproject", ExtraMounts: []string{"vol:/mnt"}, AptPackages: []string{"make"}, Secrets: []string{"tok:/run/s/t"}},
+				RC:   &config.AgenticRC{PidsLimit: "100", CPUs: "2", Memory: "4g", Namespace: "myproject", ExtraMounts: []string{"vol:/mnt"}, AptPackages: []string{"make"}, Secrets: []string{"tok:/run/s/t"}},
 			},
 		}
 
@@ -123,7 +123,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		require.NoError(t, err)
 		out := buf.String()
 		assert.Contains(t, out, "Project (.agenticrc, 1 file)")
-		assert.Contains(t, out, "prefix: myproject  [/project/.agenticrc]")
+		assert.Contains(t, out, "namespace: myproject  [/project/.agenticrc]")
 		assert.Contains(t, out, "pids_limit: 100  [/project/.agenticrc]")
 		assert.Contains(t, out, "cpus: 2  [/project/.agenticrc]")
 		assert.Contains(t, out, "memory: 4g  [/project/.agenticrc]")
@@ -170,7 +170,7 @@ func TestPrintProjectConfig(t *testing.T) {
 
 	t.Run("no values shows defaults", func(t *testing.T) {
 		// Arrange
-		os.Unsetenv("AGENTIC_PREFIX")    //nolint:errcheck
+		os.Unsetenv("AGENTIC_NAMESPACE")  //nolint:errcheck
 		os.Unsetenv("AGENTIC_PIDS_LIMIT") //nolint:errcheck
 		os.Unsetenv("AGENTIC_CPUS")       //nolint:errcheck
 		os.Unsetenv("AGENTIC_MEMORY")     //nolint:errcheck
@@ -185,7 +185,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		out := buf.String()
-		assert.Contains(t, out, "prefix: agentic  (default)")
+		assert.Contains(t, out, "namespace: agentic  (default)")
 		assert.Contains(t, out, "pids_limit: 1024  (default)")
 		assert.Contains(t, out, "cpus: 4  (default)")
 		assert.Contains(t, out, "memory: 4g  (default)")

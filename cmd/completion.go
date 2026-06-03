@@ -11,11 +11,11 @@ var builtToolNamesFunc = func(cmd *cobra.Command, args []string, _ string) ([]st
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	prefix := resolvePrefix(cmd, nil)
+	namespace := resolveNamespace(cmd, nil)
 
 	var names []string
 	for _, name := range tools.Names() {
-		imageName, _ := tools.ImageName(name, prefix)
+		imageName, _ := tools.ImageName(name, namespace)
 		if info, err := inspectImage(imageName); err == nil && info != nil {
 			names = append(names, name)
 		}

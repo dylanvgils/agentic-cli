@@ -56,7 +56,7 @@ pids_limit=2048
 | Key            | Type   | Description                                                                                                                                                        | CLI flag       | Env var                | Default   |
 | -------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- | ---------------------- | --------- |
 | `root`         | scalar | Stop the upward directory walk at this file (`true`/`false`)                                                                                                       | -              | -                      | -         |
-| `prefix`       | scalar | Image name prefix. Images are named `<prefix>-<tool>` (e.g. `myproject-claude`). Allows multiple image sets per tool.                                              | `--prefix`     | `AGENTIC_PREFIX`       | `agentic` |
+| `namespace`    | scalar | Image namespace. Images are named `<namespace>-<tool>` (e.g. `myproject-claude`). Allows multiple image sets per tool.                                             | `--namespace`  | `AGENTIC_NAMESPACE`    | `agentic` |
 | `apt_packages` | list   | Extra Debian packages to install in the base image at build time                                                                                                   | -              | `AGENTIC_APT_PACKAGES` | -         |
 | `extra_mounts` | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME` | -              | `AGENTIC_EXTRA_MOUNTS` | -         |
 | `secrets`      | list   | Files to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~`, `$HOME`                                                             | -              | `AGENTIC_SECRETS`      | -         |
@@ -69,7 +69,7 @@ pids_limit=2048
 When multiple `.agenticrc` files are found, they are merged. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
 - **List keys** (`apt_packages`, `extra_mounts`, `secrets`): values from all levels accumulate, outermost first.
-- **Scalar keys** (`pids_limit`, `cpus`, `memory`, `prefix`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
+- **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
 
 ```
 ~/projects/.agenticrc       ← outermost (root=true stops the walk here)
@@ -107,22 +107,22 @@ Duplicates are removed while preserving order.
 
 These also accumulate, but their env vars (`AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECRETS`) and RC values are each collected independently and combined at runtime.
 
-### `prefix`
+### `namespace`
 
 Resolution priority (highest to lowest):
 
-1. `--prefix` flag
-2. `.agenticrc` `prefix=` - innermost (child) value wins
-3. `AGENTIC_PREFIX` environment variable
+1. `--namespace` flag
+2. `.agenticrc` `namespace=` - innermost (child) value wins
+3. `AGENTIC_NAMESPACE` environment variable
 4. Built-in default (`agentic`)
 
-With the default prefix, images are named `agentic-claude`, `agentic-copilot`, etc. - identical to the pre-prefix behavior, so existing images continue to work.
+With the default namespace, images are named `agentic-claude`, `agentic-copilot`, etc.
 
 Example: building separate images for a Java project:
 
 ```sh
 # ~/projects/java-app/.agenticrc
-prefix=java-app
+namespace=java-app
 apt_packages=make
 ```
 

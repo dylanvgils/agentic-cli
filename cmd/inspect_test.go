@@ -11,14 +11,14 @@ import (
 )
 
 var builtInfo = &docker.ImageInfo{
-	Image:   "agentic-claude",
-	Prefix:  "agentic",
-	Tool:    "claude",
-	ID:      "a1b2c3d4e5f6",
-	Version: "1.2.3",
-	Base:    "node:24",
-	Built:   "2026-05-01",
-	Size:    "512MB",
+	Image:     "agentic-claude",
+	Namespace: "agentic",
+	Tool:      "claude",
+	ID:        "a1b2c3d4e5f6",
+	Version:   "1.2.3",
+	Base:      "node:24",
+	Built:     "2026-05-01",
+	Size:      "512MB",
 }
 
 func Test_runInspect(t *testing.T) {
@@ -36,9 +36,9 @@ func Test_runInspect(t *testing.T) {
 		assert.Contains(t, err.Error(), "table error")
 	})
 
-	t.Run("no args without --all shows active prefix only", func(t *testing.T) {
+	t.Run("no args without --all shows active namespace only", func(t *testing.T) {
 		// Arrange
-		workInfo := &docker.ImageInfo{Image: "work-claude", Prefix: "work", Tool: "claude"}
+		workInfo := &docker.ImageInfo{Image: "work-claude", Namespace: "work", Tool: "claude"}
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{builtInfo, workInfo}, nil
 		})
@@ -50,14 +50,13 @@ func Test_runInspect(t *testing.T) {
 		})
 
 		// Assert
-		assert.NotContains(t, out, "PREFIX")
 		assert.NotContains(t, out, "work")
 		assert.Contains(t, out, "claude")
 	})
 
-	t.Run("no args with --all shows all prefixes", func(t *testing.T) {
+	t.Run("no args with --all shows all namespaces", func(t *testing.T) {
 		// Arrange
-		workInfo := &docker.ImageInfo{Image: "work-claude", Prefix: "work", Tool: "claude"}
+		workInfo := &docker.ImageInfo{Image: "work-claude", Namespace: "work", Tool: "claude"}
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{builtInfo, workInfo}, nil
 		})
@@ -71,7 +70,6 @@ func Test_runInspect(t *testing.T) {
 		})
 
 		// Assert
-		assert.Contains(t, out, "PREFIX")
 		assert.Contains(t, out, "agentic")
 		assert.Contains(t, out, "work")
 	})
@@ -88,7 +86,7 @@ func Test_runInspect(t *testing.T) {
 		assert.Contains(t, err.Error(), "detail error")
 	})
 
-	t.Run("all flag propagates all-prefix error", func(t *testing.T) {
+	t.Run("all flag propagates all-namespace error", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, fmt.Errorf("all error")
@@ -106,9 +104,9 @@ func Test_runInspect(t *testing.T) {
 }
 
 func Test_runInspectTable(t *testing.T) {
-	t.Run("with prefix filters to that prefix", func(t *testing.T) {
+	t.Run("with namespace filters to that namespace", func(t *testing.T) {
 		// Arrange
-		workInfo := &docker.ImageInfo{Image: "work-claude", Prefix: "work", Tool: "claude"}
+		workInfo := &docker.ImageInfo{Image: "work-claude", Namespace: "work", Tool: "claude"}
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{builtInfo, workInfo}, nil
 		})
@@ -126,7 +124,7 @@ func Test_runInspectTable(t *testing.T) {
 
 	t.Run("results are sorted by tool name", func(t *testing.T) {
 		// Arrange
-		opencode := &docker.ImageInfo{Image: "agentic-opencode", Prefix: "agentic", Tool: "opencode", Version: "0.1.0"}
+		opencode := &docker.ImageInfo{Image: "agentic-opencode", Namespace: "agentic", Tool: "opencode", Version: "0.1.0"}
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{opencode, builtInfo}, nil
 		})
@@ -156,16 +154,17 @@ func Test_runInspectTable(t *testing.T) {
 	})
 }
 
-func Test_writeScopedTable(t *testing.T) {
-	t.Run("shows headers without PREFIX column", func(t *testing.T) {
+func Test_writeNamespaceTable(t *testing.T) {
+	t.Run("shows namespace header and columns without NAMESPACE column", func(t *testing.T) {
 		// Act
 		out := captureStdout(t, func() {
-			err := writeScopedTable([]*docker.ImageInfo{builtInfo})
+			err := writeNamespaceTable("agentic", []*docker.ImageInfo{builtInfo})
 			require.NoError(t, err)
 		})
 
 		// Assert
-		assert.NotContains(t, out, "PREFIX")
+		assert.Contains(t, out, "Namespace: agentic")
+		assert.NotContains(t, out, "NAMESPACE\t")
 		assert.Contains(t, out, "TOOL")
 		assert.Contains(t, out, "VERSION")
 		assert.Contains(t, out, "BASE")
@@ -175,15 +174,15 @@ func Test_writeScopedTable(t *testing.T) {
 		assert.Contains(t, out, "1.2.3")
 	})
 
-	t.Run("empty shows no images found", func(t *testing.T) {
+	t.Run("empty shows no images found in namespace", func(t *testing.T) {
 		// Act
 		out := captureStdout(t, func() {
-			err := writeScopedTable(nil)
+			err := writeNamespaceTable("agentic", nil)
 			require.NoError(t, err)
 		})
 
 		// Assert
-		assert.Contains(t, out, "no images found")
+		assert.Contains(t, out, `No images found in namespace "agentic"`)
 	})
 
 	t.Run("truncates long base field", func(t *testing.T) {
@@ -192,8 +191,8 @@ func Test_writeScopedTable(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := writeScopedTable([]*docker.ImageInfo{{
-				Image: "agentic-claude", Prefix: "agentic", Tool: "claude",
+			err := writeNamespaceTable("agentic", []*docker.ImageInfo{{
+				Image: "agentic-claude", Namespace: "agentic", Tool: "claude",
 				Version: "1.0", Base: longBase, Built: "2026-05-01", Size: "1GB",
 			}})
 			require.NoError(t, err)
@@ -206,7 +205,7 @@ func Test_writeScopedTable(t *testing.T) {
 }
 
 func Test_writeAllTable(t *testing.T) {
-	t.Run("shows headers with PREFIX column", func(t *testing.T) {
+	t.Run("shows headers with NAMESPACE column", func(t *testing.T) {
 		// Act
 		out := captureStdout(t, func() {
 			err := writeAllTable([]*docker.ImageInfo{builtInfo})
@@ -214,7 +213,7 @@ func Test_writeAllTable(t *testing.T) {
 		})
 
 		// Assert
-		assert.Contains(t, out, "PREFIX")
+		assert.Contains(t, out, "NAMESPACE")
 		assert.Contains(t, out, "TOOL")
 		assert.Contains(t, out, "VERSION")
 		assert.Contains(t, out, "BASE")
@@ -237,7 +236,7 @@ func Test_writeAllTable(t *testing.T) {
 }
 
 func Test_printImageDetail(t *testing.T) {
-	t.Run("shows detail for active prefix", func(t *testing.T) {
+	t.Run("shows detail for active namespace", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, builtInfo, nil)
 
@@ -312,11 +311,11 @@ func Test_printImageDetail(t *testing.T) {
 	})
 }
 
-func Test_printAllPrefixDetail(t *testing.T) {
+func Test_printAllNamespaceDetail(t *testing.T) {
 	t.Run("shows detail for all matching images", func(t *testing.T) {
 		// Arrange
 		workInfo := &docker.ImageInfo{
-			Image: "work-claude", Prefix: "work", Tool: "claude",
+			Image: "work-claude", Namespace: "work", Tool: "claude",
 			ID: "deadbeef1234", Version: "2.0", Base: "node@24", Built: "2026-05-02", Size: "600MB",
 		}
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -325,7 +324,7 @@ func Test_printAllPrefixDetail(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := printAllPrefixDetail("claude", "")
+			err := printAllNamespaceDetail("claude", "")
 			require.NoError(t, err)
 		})
 
@@ -334,10 +333,10 @@ func Test_printAllPrefixDetail(t *testing.T) {
 		assert.Contains(t, out, "work-claude")
 	})
 
-	t.Run("with prefix filters to that prefix", func(t *testing.T) {
+	t.Run("with namespace filters to that namespace", func(t *testing.T) {
 		// Arrange
 		workInfo := &docker.ImageInfo{
-			Image: "work-claude", Prefix: "work", Tool: "claude",
+			Image: "work-claude", Namespace: "work", Tool: "claude",
 			ID: "deadbeef1234", Version: "2.0", Base: "node@24", Built: "2026-05-02", Size: "600MB",
 		}
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -346,7 +345,7 @@ func Test_printAllPrefixDetail(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := printAllPrefixDetail("claude", "work")
+			err := printAllNamespaceDetail("claude", "work")
 			require.NoError(t, err)
 		})
 
@@ -355,7 +354,7 @@ func Test_printAllPrefixDetail(t *testing.T) {
 		assert.Contains(t, out, "work-claude")
 	})
 
-	t.Run("with prefix and no match prints not-found message", func(t *testing.T) {
+	t.Run("with namespace and no match prints not-found message", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{builtInfo}, nil
@@ -363,7 +362,7 @@ func Test_printAllPrefixDetail(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := printAllPrefixDetail("claude", "other")
+			err := printAllNamespaceDetail("claude", "other")
 			require.NoError(t, err)
 		})
 
@@ -379,7 +378,7 @@ func Test_printAllPrefixDetail(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := printAllPrefixDetail("unknown", "")
+			err := printAllNamespaceDetail("unknown", "")
 			require.NoError(t, err)
 		})
 
@@ -394,7 +393,7 @@ func Test_printAllPrefixDetail(t *testing.T) {
 		})
 
 		// Act
-		err := printAllPrefixDetail("claude", "")
+		err := printAllNamespaceDetail("claude", "")
 
 		// Assert
 		require.Error(t, err)

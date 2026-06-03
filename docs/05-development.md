@@ -50,7 +50,7 @@ Every `init()` in a `cmd/*.go` file must follow this order:
 
 1. `rootCmd.AddCommand(xCmd)` - command registration
 2. Command-specific flags declared inline (`xCmd.Flags()...`)
-3. Calls to shared flag helpers (`addBuildFlags`, `addPrefixFlag`, `addAllFlag`, etc.)
+3. Calls to shared flag helpers (`addBuildFlags`, `addNamespaceFlag`, `addAllFlag`, etc.)
 
 ```go
 func init() {
@@ -59,7 +59,7 @@ func init() {
     buildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
 
     addBuildFlags(buildCmd)
-    addPrefixFlag(buildCmd)
+    addNamespaceFlag(buildCmd)
 }
 ```
 

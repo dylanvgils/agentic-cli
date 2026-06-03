@@ -242,11 +242,11 @@ func TestRequireImage(t *testing.T) {
 		assert.Contains(t, err.Error(), "agentic build claude")
 	})
 
-	t.Run("alternative prefix suggests --prefix", func(t *testing.T) {
+	t.Run("alternative namespace suggests --namespace", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, nil, nil)
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{{Prefix: "myproject"}}, nil
+			return []*docker.ImageInfo{{Namespace: "myproject"}}, nil
 		})
 
 		// Act
@@ -256,16 +256,16 @@ func TestRequireImage(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "agentic-claude")
 		assert.Contains(t, err.Error(), "myproject")
-		assert.Contains(t, err.Error(), "--prefix")
+		assert.Contains(t, err.Error(), "--namespace")
 	})
 
-	t.Run("multiple alternative prefixes lists all", func(t *testing.T) {
+	t.Run("multiple alternative namespaces lists all", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, nil, nil)
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
-				{Prefix: "myproject"},
-				{Prefix: "work"},
+				{Namespace: "myproject"},
+				{Namespace: "work"},
 			}, nil
 		})
 
@@ -276,7 +276,7 @@ func TestRequireImage(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "myproject")
 		assert.Contains(t, err.Error(), "work")
-		assert.Contains(t, err.Error(), "--prefix")
+		assert.Contains(t, err.Error(), "--namespace")
 	})
 }
 

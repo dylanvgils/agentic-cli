@@ -19,8 +19,8 @@ const baseMaxLength = 32
 var inspectCmd = &cobra.Command{
 	Use:   "inspect [tool]",
 	Short: "Show image info",
-	Long: "Show image info for the active prefix. Without a tool argument, lists all images in\n" +
-		"the active prefix. Use --all to show images across all prefixes.\n" +
+	Long: "Show image info for the active namespace. Without a tool argument, lists all images in\n" +
+		"the active namespace. Use --all to show images across all namespaces.\n" +
 		"With a tool argument, shows full detail for that image.",
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: builtToolNamesFunc,
@@ -30,43 +30,43 @@ var inspectCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(inspectCmd)
 
-	addPrefixFlag(inspectCmd)
+	addNamespaceFlag(inspectCmd)
 	addAllFlag(inspectCmd)
 }
 
 func runInspect(cmd *cobra.Command, args []string) error {
 	rc := config.FindAndLoadFromCwd()
-	prefix := resolvePrefix(cmd, rc)
+	namespace := resolveNamespace(cmd, rc)
 	all, _ := cmd.Flags().GetBool("all")
 
 	if len(args) == 0 {
-		p := prefix
+		ns := namespace
 		if all {
-			p = ""
+			ns = ""
 		}
-		return runInspectTable(p)
+		return runInspectTable(ns)
 	}
 
 	tool := args[0]
 
 	if all {
-		return printAllPrefixDetail(tool, prefix)
+		return printAllNamespaceDetail(tool, namespace)
 	}
 
 	output.Step(tool)
-	return printImageDetail(tool, prefix)
+	return printImageDetail(tool, namespace)
 }
 
-func runInspectTable(prefix string) error {
+func runInspectTable(namespace string) error {
 	images, err := listAllImages()
 	if err != nil {
 		return err
 	}
 
-	if prefix != "" {
+	if namespace != "" {
 		filtered := images[:0]
 		for _, info := range images {
-			if info.Prefix == prefix {
+			if info.Namespace == namespace {
 				filtered = append(filtered, info)
 			}
 		}
@@ -77,22 +77,24 @@ func runInspectTable(prefix string) error {
 		if n := strings.Compare(a.Tool, b.Tool); n != 0 {
 			return n
 		}
-		return strings.Compare(a.Prefix, b.Prefix)
+		return strings.Compare(a.Namespace, b.Namespace)
 	})
 
-	if prefix != "" {
-		return writeScopedTable(images)
+	if namespace != "" {
+		return writeNamespaceTable(namespace, images)
 	}
 	return writeAllTable(images)
 }
 
-func writeScopedTable(images []*docker.ImageInfo) error {
+func writeNamespaceTable(namespace string, images []*docker.ImageInfo) error {
+	fmt.Printf("Namespace: %s\n\n", namespace)
+
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	if _, err := fmt.Fprintln(w, "TOOL\tVERSION\tBASE\tBUILT\tSIZE"); err != nil {
 		return err
 	}
 	if len(images) == 0 {
-		if _, err := fmt.Fprintln(w, "(no images found)"); err != nil {
+		if _, err := fmt.Fprintf(w, "No images found in namespace %q.\n", namespace); err != nil {
 			return err
 		}
 		return w.Flush()
@@ -112,7 +114,7 @@ func writeScopedTable(images []*docker.ImageInfo) error {
 
 func writeAllTable(images []*docker.ImageInfo) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	if _, err := fmt.Fprintln(w, "PREFIX\tTOOL\tVERSION\tBASE\tBUILT\tSIZE"); err != nil {
+	if _, err := fmt.Fprintln(w, "NAMESPACE\tTOOL\tVERSION\tBASE\tBUILT\tSIZE"); err != nil {
 		return err
 	}
 	if len(images) == 0 {
@@ -127,14 +129,14 @@ func writeAllTable(images []*docker.ImageInfo) error {
 		built := orDash(info.Built)
 		size := orDash(info.Size)
 
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", info.Prefix, info.Tool, version, base, built, size); err != nil {
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", info.Namespace, info.Tool, version, base, built, size); err != nil {
 			return err
 		}
 	}
 	return w.Flush()
 }
 
-func printAllPrefixDetail(tool, prefix string) error {
+func printAllNamespaceDetail(tool, namespace string) error {
 	images, err := listAllImages()
 	if err != nil {
 		return err
@@ -145,10 +147,10 @@ func printAllPrefixDetail(tool, prefix string) error {
 		if info.Tool != tool {
 			continue
 		}
-		if prefix != "" && info.Prefix != prefix {
+		if namespace != "" && info.Namespace != namespace {
 			continue
 		}
-		output.Stepf("%s/%s", info.Prefix, info.Tool)
+		output.Stepf("%s/%s", info.Namespace, info.Tool)
 		printInfoDetail(info)
 		found = true
 	}
@@ -159,8 +161,8 @@ func printAllPrefixDetail(tool, prefix string) error {
 	return nil
 }
 
-func printImageDetail(tool, prefix string) error {
-	image, err := tools.ImageName(tool, prefix)
+func printImageDetail(tool, namespace string) error {
+	image, err := tools.ImageName(tool, namespace)
 	if err != nil {
 		return err
 	}

@@ -31,12 +31,12 @@ func init() {
 	buildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
 
 	addBuildFlags(buildCmd)
-	addPrefixFlag(buildCmd)
+	addNamespaceFlag(buildCmd)
 }
 
 func runBuild(cmd *cobra.Command, args []string) error {
 	rc := config.FindAndLoadFromCwd()
-	prefix := resolvePrefix(cmd, rc)
+	namespace := resolveNamespace(cmd, rc)
 	opts := buildOptsFromFlags(cmd)
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
@@ -44,7 +44,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		return dryRunBuild(args, opts)
 	}
 
-	if err := buildTools(args, prefix, opts); err != nil {
+	if err := buildTools(args, namespace, opts); err != nil {
 		return err
 	}
 
@@ -65,9 +65,9 @@ func dryRunBuild(args []string, opts tools.BuildOptions) error {
 	return nil
 }
 
-func buildTools(args []string, prefix string, opts tools.BuildOptions) error {
+func buildTools(args []string, namespace string, opts tools.BuildOptions) error {
 	for _, name := range toolNames(args) {
-		image, err := tools.ImageName(name, prefix)
+		image, err := tools.ImageName(name, namespace)
 		if err != nil {
 			return err
 		}

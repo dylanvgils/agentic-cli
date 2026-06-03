@@ -111,7 +111,7 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	aptPackages := func(rc *config.AgenticRC) []string { return rc.AptPackages }
 	secrets := func(rc *config.AgenticRC) []string { return rc.Secrets }
 
-	if err := printScalarField(w, "prefix", config.EnvPrefix, layers, func(rc *config.AgenticRC) string { return rc.Prefix }, config.DefaultPrefix); err != nil {
+	if err := printScalarField(w, "namespace", config.EnvNamespace, layers, func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace); err != nil {
 		return err
 	}
 	if err := printScalarField(w, "pids_limit", config.EnvPidsLimit, layers, pidsLimit, docker.DefaultPidsLimit); err != nil {

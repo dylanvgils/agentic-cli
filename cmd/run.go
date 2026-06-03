@@ -68,7 +68,7 @@ func init() {
 	runToolCmd.Flags().BoolVar(&trustDir, "trust-dir", false, "trust the current directory and save it to config")
 	runToolCmd.Flags().SetInterspersed(false)
 
-	addPrefixFlag(runToolCmd)
+	addNamespaceFlag(runToolCmd)
 }
 
 func runTool(cmd *cobra.Command, args []string) error {
@@ -82,9 +82,9 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 
 	rc := config.FindAndLoad(cwd)
-	prefix := resolvePrefix(cmd, rc)
+	namespace := resolveNamespace(cmd, rc)
 
-	parsedArgs, err := parseArgs(args, prefix)
+	parsedArgs, err := parseArgs(args, namespace)
 	if err != nil {
 		return err
 	}
@@ -110,9 +110,9 @@ func runTool(cmd *cobra.Command, args []string) error {
 	return runContainer(rs, parsedArgs.toolArgs)
 }
 
-func parseArgs(args []string, prefix string) (parsedArgs, error) {
+func parseArgs(args []string, namespace string) (parsedArgs, error) {
 	toolName := args[0]
-	imageName, err := tools.ImageName(toolName, prefix)
+	imageName, err := tools.ImageName(toolName, namespace)
 	if err != nil {
 		return parsedArgs{}, err
 	}
@@ -203,8 +203,8 @@ func resolveResourceLimits(pidsLimit, cpus, memory string, rc *config.AgenticRC)
 }
 
 // requireImage returns an error if imageName does not exist locally.
-// If the image is missing but the tool has images under other prefixes,
-// the error includes a hint to use --prefix.
+// If the image is missing but the tool has images under other namespaces,
+// the error includes a hint to use --namespace.
 func requireImage(image, tool string) error {
 	info, err := inspectImage(image)
 	if err != nil {
@@ -215,15 +215,15 @@ func requireImage(image, tool string) error {
 	}
 
 	images, _ := listAllImages(docker.ToolFilter(tool))
-	var prefixes []string
+	var namespaces []string
 	for _, img := range images {
-		prefixes = append(prefixes, img.Prefix)
+		namespaces = append(namespaces, img.Namespace)
 	}
 
-	if len(prefixes) == 0 {
+	if len(namespaces) == 0 {
 		return fmt.Errorf("image %q not found; run \"agentic build %s\" to build it", image, tool)
 	}
 
-	return fmt.Errorf("image %q not found; %q is available under prefix %s - use --prefix or run \"agentic build %s\"",
-		image, tool, strings.Join(prefixes, ", "), tool)
+	return fmt.Errorf("image %q not found; %q is available under namespace %s - use --namespace or run \"agentic build %s\"",
+		image, tool, strings.Join(namespaces, ", "), tool)
 }
