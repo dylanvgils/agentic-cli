@@ -53,7 +53,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 		return printAllNamespaceDetail(tool, namespace)
 	}
 
-	output.Step(tool)
+	output.Stepf("%s/%s", namespace, tool)
 	return printImageDetail(tool, namespace)
 }
 
