@@ -13,6 +13,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAddAllFlag(t *testing.T) {
+	t.Run("registers -a shorthand", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+
+		// Act
+		addAllFlag(cmd)
+
+		// Assert
+		assert.NotNil(t, cmd.Flags().ShorthandLookup("a"))
+	})
+}
+
+func TestAddNamespaceFlag(t *testing.T) {
+	t.Run("registers -n shorthand", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+
+		// Act
+		addNamespaceFlag(cmd)
+
+		// Assert
+		assert.NotNil(t, cmd.Flags().ShorthandLookup("n"))
+	})
+}
+
 func TestAddBuildFlags(t *testing.T) {
 	t.Run("registers all flags", func(t *testing.T) {
 		// Arrange

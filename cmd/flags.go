@@ -18,12 +18,12 @@ func resolveNamespace(cmd *cobra.Command, rc *config.AgenticRC) string {
 
 // addNamespaceFlag registers the --namespace flag on the given command.
 func addNamespaceFlag(cmd *cobra.Command) {
-	cmd.Flags().String("namespace", "", "image namespace (overrides AGENTIC_NAMESPACE and .agenticrc namespace)")
+	cmd.Flags().StringP("namespace", "n", "", "image namespace (overrides AGENTIC_NAMESPACE and .agenticrc namespace)")
 }
 
 // addAllFlag registers the --all flag on the given command.
 func addAllFlag(cmd *cobra.Command) {
-	cmd.Flags().Bool("all", false, "operate on all namespaces, not just the active one")
+	cmd.Flags().BoolP("all", "a", false, "operate on all namespaces, not just the active one")
 }
 
 func collectRegistry(cmd *cobra.Command) string {
