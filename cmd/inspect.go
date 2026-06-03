@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -17,8 +19,9 @@ const baseMaxLength = 32
 var inspectCmd = &cobra.Command{
 	Use:   "inspect [tool]",
 	Short: "Show image info",
-	Long: "Show image info. Without a tool argument, lists all agentic images across all prefixes.\n" +
-		"With a tool argument, shows full detail for the active prefix's image.",
+	Long: "Show image info for the active prefix. Without a tool argument, lists all images in\n" +
+		"the active prefix. Use --all to show images across all prefixes.\n" +
+		"With a tool argument, shows full detail for that image.",
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: builtToolNamesFunc,
 	RunE:              runInspect,
@@ -37,57 +40,101 @@ func runInspect(cmd *cobra.Command, args []string) error {
 	all, _ := cmd.Flags().GetBool("all")
 
 	if len(args) == 0 {
-		return runInspectTable()
+		p := prefix
+		if all {
+			p = ""
+		}
+		return runInspectTable(p)
 	}
 
 	tool := args[0]
 
 	if all {
-		return printAllPrefixDetail(tool)
+		return printAllPrefixDetail(tool, prefix)
 	}
 
 	output.Step(tool)
 	return printImageDetail(tool, prefix)
 }
 
-func runInspectTable() error {
+func runInspectTable(prefix string) error {
 	images, err := listAllImages()
 	if err != nil {
 		return err
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	if prefix != "" {
+		filtered := images[:0]
+		for _, info := range images {
+			if info.Prefix == prefix {
+				filtered = append(filtered, info)
+			}
+		}
+		images = filtered
+	}
 
+	slices.SortFunc(images, func(a, b *docker.ImageInfo) int {
+		if n := strings.Compare(a.Tool, b.Tool); n != 0 {
+			return n
+		}
+		return strings.Compare(a.Prefix, b.Prefix)
+	})
+
+	if prefix != "" {
+		return writeScopedTable(images)
+	}
+	return writeAllTable(images)
+}
+
+func writeScopedTable(images []*docker.ImageInfo) error {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	if _, err := fmt.Fprintln(w, "TOOL\tVERSION\tBASE\tBUILT\tSIZE"); err != nil {
+		return err
+	}
+	if len(images) == 0 {
+		if _, err := fmt.Fprintln(w, "(no images found)"); err != nil {
+			return err
+		}
+		return w.Flush()
+	}
+	for _, info := range images {
+		version := orDash(info.Version)
+		base := orDash(truncate(info.Base, baseMaxLength))
+		built := orDash(info.Built)
+		size := orDash(info.Size)
+
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", info.Tool, version, base, built, size); err != nil {
+			return err
+		}
+	}
+	return w.Flush()
+}
+
+func writeAllTable(images []*docker.ImageInfo) error {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	if _, err := fmt.Fprintln(w, "PREFIX\tTOOL\tVERSION\tBASE\tBUILT\tSIZE"); err != nil {
 		return err
 	}
-
 	if len(images) == 0 {
 		if _, err := fmt.Fprintln(w, "(no agentic images found)"); err != nil {
 			return err
 		}
 		return w.Flush()
 	}
-
 	for _, info := range images {
 		version := orDash(info.Version)
-		base := truncate(info.Base, baseMaxLength)
-		if base == "" {
-			base = "-"
-		}
+		base := orDash(truncate(info.Base, baseMaxLength))
 		built := orDash(info.Built)
 		size := orDash(info.Size)
 
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-			info.Prefix, info.Tool, version, base, built, size); err != nil {
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", info.Prefix, info.Tool, version, base, built, size); err != nil {
 			return err
 		}
 	}
-
 	return w.Flush()
 }
 
-func printAllPrefixDetail(tool string) error {
+func printAllPrefixDetail(tool, prefix string) error {
 	images, err := listAllImages()
 	if err != nil {
 		return err
@@ -96,6 +143,9 @@ func printAllPrefixDetail(tool string) error {
 	found := false
 	for _, info := range images {
 		if info.Tool != tool {
+			continue
+		}
+		if prefix != "" && info.Prefix != prefix {
 			continue
 		}
 		output.Stepf("%s/%s", info.Prefix, info.Tool)
