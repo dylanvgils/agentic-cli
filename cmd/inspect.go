@@ -62,6 +62,7 @@ func runInspectTable(namespace string) error {
 	if namespace != "" {
 		filters = append(filters, docker.NamespaceFilter(namespace))
 	}
+
 	images, err := listAllImages(filters...)
 	if err != nil {
 		return err
@@ -135,6 +136,7 @@ func printAllNamespaceDetail(tool, namespace string) error {
 	if namespace != "" {
 		filters = append(filters, docker.NamespaceFilter(namespace))
 	}
+
 	images, err := listAllImages(filters...)
 	if err != nil {
 		return err
@@ -142,9 +144,6 @@ func printAllNamespaceDetail(tool, namespace string) error {
 
 	found := false
 	for _, info := range images {
-		if info.Tool != tool {
-			continue
-		}
 		output.Stepf("%s/%s", info.Namespace, info.Tool)
 		printInfoDetail(info)
 		found = true

@@ -11,12 +11,12 @@ type ImageInfo struct {
 	Image     string
 	Namespace string // image namespace (e.g. "agentic", "myproject")
 	Tool      string // tool name (e.g. "claude", "copilot")
-	ID      string // 12-char short ID
-	Version string // agentic.tool.version label
-	Base    string // agentic.base label
-	Apt     string // agentic.apt label (comma-separated apt packages)
-	Built   string // agentic.built label
-	Size    string // formatted size from docker image ls
+	ID        string // 12-char short ID
+	Version   string // agentic.tool.version label
+	Base      string // agentic.base label
+	Apt       string // agentic.apt label (comma-separated apt packages)
+	Built     string // agentic.built label
+	Size      string // formatted size from docker image ls
 }
 
 // InspectImage returns metadata for the given Docker image.
@@ -36,12 +36,12 @@ func InspectImage(name string) (*ImageInfo, error) {
 		Image:     name,
 		Namespace: namespace,
 		Tool:      tool,
-		ID:      extractShortID(result.ID),
-		Version: result.Config.Labels[LabelToolVersion],
-		Base:    result.Config.Labels[LabelBase],
-		Apt:     result.Config.Labels[LabelApt],
-		Built:   result.Config.Labels[LabelBuilt],
-		Size:    imageSize(name),
+		ID:        extractShortID(result.ID),
+		Version:   result.Config.Labels[LabelToolVersion],
+		Base:      result.Config.Labels[LabelBase],
+		Apt:       result.Config.Labels[LabelApt],
+		Built:     result.Config.Labels[LabelBuilt],
+		Size:      imageSize(name),
 	}, nil
 }
 
@@ -96,6 +96,7 @@ func resolveToolName(image, labelTool, labelNamespace string) (namespace, tool s
 	if tool == "" {
 		tool = parsedTool
 	}
+
 	namespace = labelNamespace
 	if namespace == "" {
 		namespace = parsedNamespace

@@ -378,7 +378,7 @@ func Test_printAllNamespaceDetail(t *testing.T) {
 	t.Run("no match prints message", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{builtInfo}, nil
+			return nil, nil
 		})
 
 		// Act
