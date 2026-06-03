@@ -58,19 +58,13 @@ func runInspect(cmd *cobra.Command, args []string) error {
 }
 
 func runInspectTable(namespace string) error {
-	images, err := listAllImages()
+	var filters []docker.ImageFilter
+	if namespace != "" {
+		filters = append(filters, docker.NamespaceFilter(namespace))
+	}
+	images, err := listAllImages(filters...)
 	if err != nil {
 		return err
-	}
-
-	if namespace != "" {
-		filtered := images[:0]
-		for _, info := range images {
-			if info.Namespace == namespace {
-				filtered = append(filtered, info)
-			}
-		}
-		images = filtered
 	}
 
 	slices.SortFunc(images, func(a, b *docker.ImageInfo) int {
@@ -137,7 +131,11 @@ func writeAllTable(images []*docker.ImageInfo) error {
 }
 
 func printAllNamespaceDetail(tool, namespace string) error {
-	images, err := listAllImages()
+	filters := []docker.ImageFilter{docker.ToolFilter(tool)}
+	if namespace != "" {
+		filters = append(filters, docker.NamespaceFilter(namespace))
+	}
+	images, err := listAllImages(filters...)
 	if err != nil {
 		return err
 	}
@@ -145,9 +143,6 @@ func printAllNamespaceDetail(tool, namespace string) error {
 	found := false
 	for _, info := range images {
 		if info.Tool != tool {
-			continue
-		}
-		if namespace != "" && info.Namespace != namespace {
 			continue
 		}
 		output.Stepf("%s/%s", info.Namespace, info.Tool)

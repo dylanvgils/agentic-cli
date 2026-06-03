@@ -13,6 +13,7 @@ const fullImageJSON = `{
 	"Config": {
 		"Labels": {
 			"agentic.tool": "claude",
+			"agentic.namespace": "agentic",
 			"agentic.tool.version": "1.2.3",
 			"agentic.base": "node:24",
 			"agentic.built": "2026-05-01"
@@ -192,25 +193,33 @@ func Test_extractShortID(t *testing.T) {
 }
 
 func Test_resolveToolName(t *testing.T) {
-	t.Run("label takes precedence over parsed name", func(t *testing.T) {
+	t.Run("tool label takes precedence over parsed name", func(t *testing.T) {
 		// Act
-		_, tool := resolveToolName("agentic-claude", "copilot")
+		_, tool := resolveToolName("agentic-claude", "copilot", "")
 
 		// Assert
 		assert.Equal(t, "copilot", tool)
 	})
 
-	t.Run("falls back to parsed name when label is empty", func(t *testing.T) {
+	t.Run("falls back to parsed tool name when label is empty", func(t *testing.T) {
 		// Act
-		_, tool := resolveToolName("agentic-claude", "")
+		_, tool := resolveToolName("agentic-claude", "", "")
 
 		// Assert
 		assert.Equal(t, "claude", tool)
 	})
 
-	t.Run("returns prefix from parsed name", func(t *testing.T) {
+	t.Run("namespace label takes precedence over parsed name", func(t *testing.T) {
 		// Act
-		prefix, _ := resolveToolName("myproject-claude", "")
+		namespace, _ := resolveToolName("agentic-claude", "claude", "myproject")
+
+		// Assert
+		assert.Equal(t, "myproject", namespace)
+	})
+
+	t.Run("falls back to parsed namespace when label is empty", func(t *testing.T) {
+		// Act
+		prefix, _ := resolveToolName("myproject-claude", "claude", "")
 
 		// Assert
 		assert.Equal(t, "myproject", prefix)
@@ -218,7 +227,7 @@ func Test_resolveToolName(t *testing.T) {
 
 	t.Run("unknown tool with no label returns empty tool", func(t *testing.T) {
 		// Act
-		_, tool := resolveToolName("agentic-bogus", "")
+		_, tool := resolveToolName("agentic-bogus", "", "")
 
 		// Assert
 		assert.Empty(t, tool)
@@ -297,15 +306,20 @@ func Test_listAllRepositories(t *testing.T) {
 func TestListAllImages(t *testing.T) {
 	t.Run("returns parsed images", func(t *testing.T) {
 		// Arrange
+		myprojectJSON := `{"Id":"sha256:b2c3d4e5f6a7bcdef012345678901234567890","Config":{"Labels":{"agentic.tool":"claude","agentic.namespace":"myproject"}}}`
 		callNum := 0
 		stubDockerRun(t, func(args ...string) (string, error) {
 			callNum++
 			switch callNum {
 			case 1: // images --filter label=project=agentic-cli
 				return "agentic-claude\nmyproject-claude\n", nil
-			case 2, 4: // inspect
+			case 2: // inspect agentic-claude
 				return fullImageJSON, nil
-			case 3, 5: // image ls size
+			case 3: // image ls size agentic-claude
+				return "512MB", nil
+			case 4: // inspect myproject-claude
+				return myprojectJSON, nil
+			case 5: // image ls size myproject-claude
 				return "512MB", nil
 			}
 			return "", nil

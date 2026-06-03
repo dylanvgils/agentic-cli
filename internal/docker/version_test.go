@@ -28,6 +28,16 @@ func TestStampImageLabels(t *testing.T) {
 		assert.Contains(t, capturedArgs, "--label="+LabelTool+"=claude")
 	})
 
+	t.Run("includes namespace label", func(t *testing.T) {
+		stubDockerRunFixed(t, "", nil)
+
+		// Act
+		stampImageLabels("myproject-claude", "claude", nil, nil)
+
+		// Assert
+		assert.Contains(t, capturedArgs, "--label="+LabelNamespace+"=myproject")
+	})
+
 	t.Run("includes apt label with packages", func(t *testing.T) {
 		stubDockerRunFixed(t, "", nil)
 

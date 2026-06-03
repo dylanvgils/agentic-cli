@@ -21,3 +21,11 @@ func TestReferenceFilter_buildsFlag(t *testing.T) {
 	// Assert
 	assert.Equal(t, "--filter=reference=agentic-claude", result)
 }
+
+func TestNamespaceFilter_buildsFlag(t *testing.T) {
+	// Act
+	result := NamespaceFilter("myproject")
+
+	// Assert
+	assert.Equal(t, ImageFilter("--filter=label=agentic.namespace=myproject"), result)
+}

@@ -30,7 +30,7 @@ func InspectImage(name string) (*ImageInfo, error) {
 		return nil, nil
 	}
 
-	namespace, tool := resolveToolName(name, result.Config.Labels[LabelTool])
+	namespace, tool := resolveToolName(name, result.Config.Labels[LabelTool], result.Config.Labels[LabelNamespace])
 
 	return &ImageInfo{
 		Image:     name,
@@ -89,12 +89,16 @@ func parseImageName(image string) (namespace, tool string, ok bool) {
 }
 
 // resolveToolName determines the tool name and namespace for an image.
-// The label value takes precedence; falls back to parsing the image name.
-func resolveToolName(image, labelTool string) (namespace, tool string) {
-	namespace, parsedTool, _ := parseImageName(image)
+// Label values take precedence; falls back to parsing the image name.
+func resolveToolName(image, labelTool, labelNamespace string) (namespace, tool string) {
+	parsedNamespace, parsedTool, _ := parseImageName(image)
 	tool = labelTool
 	if tool == "" {
 		tool = parsedTool
+	}
+	namespace = labelNamespace
+	if namespace == "" {
+		namespace = parsedNamespace
 	}
 	return
 }

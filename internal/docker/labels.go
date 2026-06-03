@@ -8,6 +8,7 @@ import (
 const (
 	LabelToolVersion = "agentic.tool.version"
 	LabelTool        = "agentic.tool"
+	LabelNamespace   = "agentic.namespace"
 	LabelBase        = "agentic.base"
 	LabelApt         = "agentic.apt"
 	LabelBuilt       = "agentic.built"
