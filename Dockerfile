@@ -1,4 +1,4 @@
-ARG GO_VERSION=1.26.3
+ARG GO_VERSION=1.26.4
 ARG TARGETARCH
 ARG INSTALL_METHOD=script
 
@@ -11,7 +11,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-     ca-certificates curl git jq make \
+  ca-certificates curl git jq make \
   && rm -rf /var/lib/apt/lists/*
 
 RUN \

@@ -61,9 +61,53 @@ func TestBuildTools(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []string{"claude"}, built)
-		assert.Contains(t, out, "=> claude")
+		assert.Contains(t, out, "=> agentic-claude")
 		assert.NotContains(t, out, "=> copilot")
 		assert.NotContains(t, out, "=> opencode")
+	})
+
+	t.Run("base override shown", func(t *testing.T) {
+		// Arrange
+		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		opts := tools.BuildOptions{BaseOverride: "java", Versions: map[string]string{}}
+
+		// Act
+		out := captureStdout(t, func() {
+			err := buildTools([]string{"claude"}, "agentic", opts)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "   base: java")
+	})
+
+	t.Run("base override with multiple extras shown", func(t *testing.T) {
+		// Arrange
+		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		opts := tools.BuildOptions{BaseOverride: "java,dotnet", Versions: map[string]string{}}
+
+		// Act
+		out := captureStdout(t, func() {
+			err := buildTools([]string{"claude"}, "agentic", opts)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "   base: java, dotnet")
+	})
+
+	t.Run("base override hidden when empty", func(t *testing.T) {
+		// Arrange
+		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+
+		// Act
+		out := captureStdout(t, func() {
+			err := buildTools([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.NotContains(t, out, "=> base:")
 	})
 
 	t.Run("script error propagates", func(t *testing.T) {

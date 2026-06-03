@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/output"
@@ -70,7 +71,12 @@ func buildTools(args []string, prefix string, opts tools.BuildOptions) error {
 		if err != nil {
 			return err
 		}
-		output.Step(name)
+
+		output.Step(image)
+		if opts.BaseOverride != "" {
+			output.Detailf("base: %s", strings.ReplaceAll(opts.BaseOverride, ",", ", "))
+		}
+
 		if err := buildTool(name, image, opts); err != nil {
 			return err
 		}

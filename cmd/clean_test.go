@@ -30,9 +30,9 @@ func TestCleanScoped(t *testing.T) {
 		})
 
 		// Assert
-		assert.Contains(t, out, "=> claude")
-		assert.Contains(t, out, "=> copilot")
-		assert.Contains(t, out, "=> opencode")
+		assert.Contains(t, out, "=> agentic-claude")
+		assert.Contains(t, out, "=> agentic-copilot")
+		assert.Contains(t, out, "=> agentic-opencode")
 		assert.Contains(t, out, "=> base")
 		assert.True(t, basesCleaned)
 		assert.Len(t, cleaned, 3)
@@ -53,7 +53,7 @@ func TestCleanScoped(t *testing.T) {
 		})
 
 		// Assert
-		assert.Contains(t, out, "=> claude")
+		assert.Contains(t, out, "=> agentic-claude")
 		assert.NotContains(t, out, "=> copilot")
 		assert.NotContains(t, out, "=> opencode")
 		assert.NotContains(t, out, "=> base")

@@ -135,7 +135,7 @@ func TestUpdateTools(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []string{"copilot", "opencode"}, updated)
-		assert.Contains(t, out, "=> claude (skipped - not built)")
+		assert.Contains(t, out, "=> agentic-claude (skipped - not built)")
 	})
 
 	t.Run("single tool always updates", func(t *testing.T) {
@@ -153,6 +153,23 @@ func TestUpdateTools(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"claude"}, updated)
+	})
+
+	t.Run("recovers opts from image labels", func(t *testing.T) {
+		// Arrange
+		var capturedOpts tools.BuildOptions
+		stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = opts
+			return nil
+		})
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0", Base: "node@24,java@21"}, nil)
+
+		// Act
+		err := updateTools([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotEmpty(t, capturedOpts.BaseOverride)
 	})
 
 	t.Run("stops on first tool error", func(t *testing.T) {
@@ -196,7 +213,7 @@ func TestUpdateOneTool(t *testing.T) {
 		})
 
 		// Assert
-		assert.Contains(t, out, "=> version: 1.0.0 -> 2.0.0")
+		assert.Contains(t, out, "   version: 1.0.0 -> 2.0.0")
 	})
 
 	t.Run("version up to date reported", func(t *testing.T) {
@@ -211,7 +228,38 @@ func TestUpdateOneTool(t *testing.T) {
 		})
 
 		// Assert
-		assert.Contains(t, out, "=> version: 1.0.0 (up to date)")
+		assert.Contains(t, out, "   version: 1.0.0 (up to date)")
+	})
+
+	t.Run("base override shown", func(t *testing.T) {
+		// Arrange
+		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		opts := tools.BuildOptions{BaseOverride: "java", Versions: map[string]string{}}
+
+		// Act
+		out := captureStdout(t, func() {
+			err := updateOneTool("claude", "agentic-claude", opts)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "   base: java")
+	})
+
+	t.Run("base override hidden when empty", func(t *testing.T) {
+		// Arrange
+		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+
+		// Act
+		out := captureStdout(t, func() {
+			err := updateOneTool("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.NotContains(t, out, "=> base:")
 	})
 
 	t.Run("script error propagates", func(t *testing.T) {

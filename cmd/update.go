@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -122,18 +123,22 @@ func updateTools(args []string, prefix string, opts tools.BuildOptions) error {
 			return err
 		}
 
-		if skipUnbuilt {
-			info, err := inspectImage(image)
-			if err != nil {
-				return err
-			}
-			if info == nil {
-				output.Stepf("%s (skipped - not built)", name)
-				continue
-			}
+		info, err := inspectImage(image)
+		if err != nil {
+			return err
 		}
 
-		if err := updateOneTool(name, image, opts); err != nil {
+		if skipUnbuilt && info == nil {
+			output.Stepf("%s (skipped - not built)", image)
+			continue
+		}
+
+		toolOpts := opts
+		if info != nil {
+			toolOpts = recoverOpts(info, opts)
+		}
+
+		if err := updateOneTool(name, image, toolOpts); err != nil {
 			return err
 		}
 		updated++
@@ -157,7 +162,10 @@ func recoverOpts(info *docker.ImageInfo, opts tools.BuildOptions) tools.BuildOpt
 }
 
 func updateOneTool(name, image string, opts tools.BuildOptions) error {
-	output.Step(name)
+	output.Step(image)
+	if opts.BaseOverride != "" {
+		output.Detailf("base: %s", strings.ReplaceAll(opts.BaseOverride, ",", ", "))
+	}
 
 	before := imageVersion(image)
 
@@ -180,9 +188,9 @@ func imageVersion(image string) string {
 
 func reportVersionChange(before, after string) {
 	if before != "" && before != after {
-		output.Stepf("version: %s -> %s", before, after)
+		output.Detailf("version: %s -> %s", before, after)
 	} else if after != "" {
-		output.Stepf("version: %s (up to date)", after)
+		output.Detailf("version: %s (up to date)", after)
 	}
 }
 
