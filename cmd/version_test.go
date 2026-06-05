@@ -6,22 +6,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBuildVersion(t *testing.T) {
-	t.Run("no meta", func(t *testing.T) {
+func Test_versionOutput(t *testing.T) {
+	t.Run("no metadata", func(t *testing.T) {
 		// Arrange
-		version = "1.2.3"
+		version = "dev"
 		commit = ""
 		buildDate = ""
 		installMethod = ""
 
 		// Act
-		v := buildVersion()
+		out := versionOutput()
 
 		// Assert
-		assert.Equal(t, "1.2.3", v)
+		assert.Equal(t, "agentic version dev", out)
 	})
 
-	t.Run("commit only", func(t *testing.T) {
+	t.Run("with metadata", func(t *testing.T) {
 		// Arrange
 		version = "1.2.3"
 		commit = "a1b2c3d"
@@ -29,51 +29,52 @@ func TestBuildVersion(t *testing.T) {
 		installMethod = ""
 
 		// Act
-		v := buildVersion()
+		out := versionOutput()
 
 		// Assert
-		assert.Equal(t, "1.2.3 (a1b2c3d)", v)
+		assert.Equal(t, "agentic version 1.2.3\n\ncommit      : a1b2c3d", out)
 	})
+}
 
-	t.Run("commit and date", func(t *testing.T) {
+func Test_versionExtras(t *testing.T) {
+	t.Run("no fields", func(t *testing.T) {
 		// Arrange
-		version = "1.2.3"
-		commit = "a1b2c3d"
-		buildDate = "2026-05-18"
+		commit = ""
+		buildDate = ""
 		installMethod = ""
 
 		// Act
-		v := buildVersion()
+		out := versionExtras()
 
 		// Assert
-		assert.Equal(t, "1.2.3 (a1b2c3d, 2026-05-18)", v)
+		assert.Equal(t, "", out)
 	})
 
 	t.Run("all fields", func(t *testing.T) {
 		// Arrange
-		version = "1.2.3"
 		commit = "a1b2c3d"
-		buildDate = "2026-05-18"
 		installMethod = "make"
+		buildDate = "2026-05-18"
 
 		// Act
-		v := buildVersion()
+		out := versionExtras()
 
 		// Assert
-		assert.Equal(t, "1.2.3 (a1b2c3d, 2026-05-18, make)", v)
+		expected := "commit      : a1b2c3d\nbuilt by    : make\nbuilt date  : 2026-05-18"
+		assert.Equal(t, expected, out)
 	})
 
-	t.Run("method only", func(t *testing.T) {
+	t.Run("partial fields", func(t *testing.T) {
 		// Arrange
-		version = "1.2.3"
-		commit = ""
-		buildDate = ""
-		installMethod = "script"
+		commit = "a1b2c3d"
+		installMethod = ""
+		buildDate = "2026-05-18"
 
 		// Act
-		v := buildVersion()
+		out := versionExtras()
 
 		// Assert
-		assert.Equal(t, "1.2.3 (script)", v)
+		expected := "commit      : a1b2c3d\nbuilt date  : 2026-05-18"
+		assert.Equal(t, expected, out)
 	})
 }
