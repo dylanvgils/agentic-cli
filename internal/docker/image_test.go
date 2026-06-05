@@ -127,33 +127,33 @@ func TestInspectImage(t *testing.T) {
 }
 
 func TestParseImageName(t *testing.T) {
-	t.Run("default prefix and known tool", func(t *testing.T) {
+	t.Run("default namespace and known tool", func(t *testing.T) {
 		// Act
-		prefix, tool, ok := parseImageName("agentic-claude")
+		namespace, tool, ok := parseImageName("agentic-claude")
 
 		// Assert
 		assert.True(t, ok)
-		assert.Equal(t, "agentic", prefix)
+		assert.Equal(t, "agentic", namespace)
 		assert.Equal(t, "claude", tool)
 	})
 
-	t.Run("custom prefix and known tool", func(t *testing.T) {
+	t.Run("custom namespace and known tool", func(t *testing.T) {
 		// Act
-		prefix, tool, ok := parseImageName("myproject-copilot")
+		namespace, tool, ok := parseImageName("myproject-copilot")
 
 		// Assert
 		assert.True(t, ok)
-		assert.Equal(t, "myproject", prefix)
+		assert.Equal(t, "myproject", namespace)
 		assert.Equal(t, "copilot", tool)
 	})
 
-	t.Run("multi-segment prefix", func(t *testing.T) {
+	t.Run("multi-segment namespace", func(t *testing.T) {
 		// Act
-		prefix, tool, ok := parseImageName("my-long-project-opencode")
+		namespace, tool, ok := parseImageName("my-long-project-opencode")
 
 		// Assert
 		assert.True(t, ok)
-		assert.Equal(t, "my-long-project", prefix)
+		assert.Equal(t, "my-long-project", namespace)
 		assert.Equal(t, "opencode", tool)
 	})
 
@@ -219,10 +219,10 @@ func Test_resolveToolName(t *testing.T) {
 
 	t.Run("falls back to parsed namespace when label is empty", func(t *testing.T) {
 		// Act
-		prefix, _ := resolveToolName("myproject-claude", "claude", "")
+		namespace, _ := resolveToolName("myproject-claude", "claude", "")
 
 		// Assert
-		assert.Equal(t, "myproject", prefix)
+		assert.Equal(t, "myproject", namespace)
 	})
 
 	t.Run("unknown tool with no label returns empty tool", func(t *testing.T) {

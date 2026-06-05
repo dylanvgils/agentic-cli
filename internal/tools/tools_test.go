@@ -25,7 +25,7 @@ func TestNames(t *testing.T) {
 }
 
 func TestImageName(t *testing.T) {
-	t.Run("known tool with default prefix", func(t *testing.T) {
+	t.Run("known tool with default namespace", func(t *testing.T) {
 		// Act
 		image, err := ImageName("claude", "agentic")
 
@@ -34,7 +34,7 @@ func TestImageName(t *testing.T) {
 		assert.Equal(t, "agentic-claude", image)
 	})
 
-	t.Run("known tool with custom prefix", func(t *testing.T) {
+	t.Run("known tool with custom namespace", func(t *testing.T) {
 		// Act
 		image, err := ImageName("claude", "myproject")
 
