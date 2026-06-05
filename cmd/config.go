@@ -194,54 +194,41 @@ func printListField(w io.Writer, label string, layers []config.RCLayer, get func
 }
 
 // printBasesField prints the bases list with versions inlined as basename@version.
-// The effective version for each base is resolved with innermost RC layer winning, then env vars.
 func printBasesField(w io.Writer, layers []config.RCLayer) error {
-	effectiveVersions := map[string]string{}
+	versions := resolveEffectiveVersions(layers)
+
+	getBases := func(rc *config.AgenticRC) []string {
+		result := make([]string, len(rc.Build.Bases))
+		for i, name := range rc.Build.Bases {
+			if v, ok := versions[name]; ok {
+				result[i] = name + "@" + v
+			} else {
+				result[i] = name
+			}
+		}
+		return result
+	}
+
+	return printListField(w, "bases", layers, getBases)
+}
+
+// resolveEffectiveVersions builds the version map for bases: innermost RC layer wins, then env vars.
+func resolveEffectiveVersions(layers []config.RCLayer) map[string]string {
+	versions := map[string]string{}
 
 	for _, layer := range layers {
 		for name, v := range layer.RC.Build.Versions {
 			if v != "" {
-				effectiveVersions[name] = v
+				versions[name] = v
 			}
 		}
 	}
 
 	for _, name := range tools.KnownLayers() {
 		if v := os.Getenv(config.EnvVersionVar(name)); v != "" {
-			effectiveVersions[name] = v
+			versions[name] = v
 		}
 	}
 
-	type entry struct {
-		display string
-		path    string
-	}
-
-	var entries []entry
-	for _, layer := range layers {
-		for _, name := range layer.RC.Build.Bases {
-			display := name
-			if v, ok := effectiveVersions[name]; ok {
-				display = name + "@" + v
-			}
-			entries = append(entries, entry{display: display, path: layer.Path})
-		}
-	}
-
-	if len(entries) == 0 {
-		_, err := fmt.Fprintf(w, "  bases: (none)\n")
-		return err
-	}
-
-	if _, err := fmt.Fprintf(w, "  bases:\n"); err != nil {
-		return err
-	}
-
-	for _, e := range entries {
-		if _, err := fmt.Fprintf(w, "    - %s  [%s]\n", e.display, e.path); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return versions
 }
