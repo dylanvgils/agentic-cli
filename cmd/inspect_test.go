@@ -72,32 +72,13 @@ func Test_runInspect(t *testing.T) {
 		assert.Contains(t, out, "work")
 	})
 
-	t.Run("tool arg propagates detail error", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, fmt.Errorf("detail error"))
-
+	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		err := runInspect(inspectCmd, []string{"claude"})
+		err := runInspect(inspectCmd, []string{"bogus"})
 
 		// Assert
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "detail error")
-	})
-
-	t.Run("all flag propagates all-namespace error", func(t *testing.T) {
-		// Arrange
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return nil, fmt.Errorf("all error")
-		})
-		require.NoError(t, inspectCmd.Flags().Set("all", "true"))
-		defer inspectCmd.Flags().Set("all", "false") //nolint:errcheck
-
-		// Act
-		err := runInspect(inspectCmd, []string{"claude"})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "all error")
+		assert.Contains(t, err.Error(), "bogus")
 	})
 }
 

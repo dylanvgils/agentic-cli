@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
@@ -11,7 +12,8 @@ var builtToolNamesFunc = func(cmd *cobra.Command, args []string, _ string) ([]st
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	namespace := resolveNamespace(cmd, nil)
+	rc := config.FindAndLoadFromCwd()
+	namespace := resolveNamespace(cmd, rc)
 
 	var names []string
 	for _, name := range tools.Names() {

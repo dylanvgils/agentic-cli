@@ -57,7 +57,10 @@ func ListAllImages(filters ...ImageFilter) ([]*ImageInfo, error) {
 	var images []*ImageInfo
 	for _, repo := range repos {
 		info, err := InspectImage(repo)
-		if err != nil || info == nil {
+		if err != nil {
+			return nil, err
+		}
+		if info == nil {
 			continue
 		}
 		images = append(images, info)

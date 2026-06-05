@@ -49,6 +49,10 @@ func runInspect(cmd *cobra.Command, args []string) error {
 
 	tool := args[0]
 
+	if _, err := tools.ImageName(tool, namespace); err != nil {
+		return err
+	}
+
 	if all {
 		return printAllNamespaceDetail(tool, "")
 	}
@@ -113,12 +117,14 @@ func writeAllTable(images []*docker.ImageInfo) error {
 	if _, err := fmt.Fprintln(w, "NAMESPACE\tTOOL\tVERSION\tBASE\tBUILT\tSIZE"); err != nil {
 		return err
 	}
+
 	if len(images) == 0 {
 		if _, err := fmt.Fprintln(w, "(no agentic images found)"); err != nil {
 			return err
 		}
 		return w.Flush()
 	}
+
 	for _, info := range images {
 		version := orDash(info.Version)
 		base := orDash(truncate(info.Base, baseMaxLength))
@@ -129,6 +135,7 @@ func writeAllTable(images []*docker.ImageInfo) error {
 			return err
 		}
 	}
+
 	return w.Flush()
 }
 
@@ -152,6 +159,7 @@ func printAllNamespaceDetail(tool, namespace string) error {
 	if !found {
 		fmt.Printf("no images found for tool %q\n", tool)
 	}
+
 	return nil
 }
 
