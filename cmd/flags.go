@@ -61,26 +61,45 @@ func flagOrEnv(cmd *cobra.Command, flag, env string) string {
 
 // buildOptsFromFlags constructs a BuildOptions from the command's flags and environment variables.
 func buildOptsFromFlags(cmd *cobra.Command) tools.BuildOptions {
-	opts := tools.BuildOptions{Versions: map[string]string{}}
+	opts := tools.BuildOptions{}
 
-	if baseVals, _ := cmd.Flags().GetStringSlice("base"); len(baseVals) > 0 {
-		opts.BaseOverride = strings.Join(baseVals, ",")
-	} else if v := os.Getenv("AGENTIC_BASE_OVERRIDE"); v != "" {
+	if v := os.Getenv("AGENTIC_BASE_OVERRIDE"); v != "" {
 		opts.BaseOverride = v
+	} else {
+		opts.BaseOverride = collectBases(cmd)
 	}
 
 	opts.NoCache, _ = cmd.Flags().GetBool("no-cache")
-	for _, name := range tools.KnownLayers() {
-		if v := flagOrEnv(cmd, name, config.EnvVersionVar(name)); v != "" {
-			opts.Versions[name] = v
-		}
-	}
-
+	opts.Versions = collectVersions(cmd)
 	opts.AptPackages = collectAptPackages(cmd)
 	opts.VerifyApt = len(opts.AptPackages) > 0
 	opts.Registry = collectRegistry(cmd)
 
 	return opts
+}
+
+// collectBases merges extra base layers from the project config file with those from the --base flag.
+func collectBases(cmd *cobra.Command) string {
+	cwd, _ := os.Getwd()
+	flagBases, _ := cmd.Flags().GetStringSlice("base")
+	merged := tools.MergePackages(config.Bases(cwd), flagBases)
+	return strings.Join(merged, ",")
+}
+
+// collectVersions builds the per-layer version map with RC values as defaults,
+// overridden by CLI flags and environment variables.
+func collectVersions(cmd *cobra.Command) map[string]string {
+	cwd, _ := os.Getwd()
+	versions := config.BuildVersions(cwd)
+	if versions == nil {
+		versions = map[string]string{}
+	}
+	for _, name := range tools.KnownLayers() {
+		if v := flagOrEnv(cmd, name, config.EnvVersionVar(name)); v != "" {
+			versions[name] = v
+		}
+	}
+	return versions
 }
 
 // collectAptPackages merges apt packages from the project config file with those from the --apt flag.

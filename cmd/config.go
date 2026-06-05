@@ -9,6 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
 
@@ -117,6 +118,9 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if err := printListField(w, "apt_packages", layers, aptPackages); err != nil {
 		return err
 	}
+	if err := printBasesField(w, layers); err != nil {
+		return err
+	}
 	if err := printScalarField(w, "pids_limit", config.EnvPidsLimit, layers, pidsLimit, docker.DefaultPidsLimit); err != nil {
 		return err
 	}
@@ -182,6 +186,59 @@ func printListField(w io.Writer, label string, layers []config.RCLayer, get func
 
 	for _, entry := range entries {
 		if _, err := fmt.Fprintf(w, "    - %s  [%s]\n", entry.value, entry.path); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// printBasesField prints the bases list with versions inlined as basename@version.
+// The effective version for each base is resolved with innermost RC layer winning, then env vars.
+func printBasesField(w io.Writer, layers []config.RCLayer) error {
+	effectiveVersions := map[string]string{}
+
+	for _, layer := range layers {
+		for name, v := range layer.RC.Build.Versions {
+			if v != "" {
+				effectiveVersions[name] = v
+			}
+		}
+	}
+
+	for _, name := range tools.KnownLayers() {
+		if v := os.Getenv(config.EnvVersionVar(name)); v != "" {
+			effectiveVersions[name] = v
+		}
+	}
+
+	type entry struct {
+		display string
+		path    string
+	}
+
+	var entries []entry
+	for _, layer := range layers {
+		for _, name := range layer.RC.Build.Bases {
+			display := name
+			if v, ok := effectiveVersions[name]; ok {
+				display = name + "@" + v
+			}
+			entries = append(entries, entry{display: display, path: layer.Path})
+		}
+	}
+
+	if len(entries) == 0 {
+		_, err := fmt.Fprintf(w, "  bases: (none)\n")
+		return err
+	}
+
+	if _, err := fmt.Fprintf(w, "  bases:\n"); err != nil {
+		return err
+	}
+
+	for _, e := range entries {
+		if _, err := fmt.Fprintf(w, "    - %s  [%s]\n", e.display, e.path); err != nil {
 			return err
 		}
 	}

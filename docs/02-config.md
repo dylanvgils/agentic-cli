@@ -45,6 +45,11 @@ root = true
 
 [build]
 apt_packages = ["make", "gcc", "jq"]
+bases = ["java"]
+
+[build.versions]
+java = "17"
+node = "22"
 
 [run]
 extra_mounts = ["maven:$CONTAINER_HOME/.m2"]
@@ -62,9 +67,11 @@ pids_limit = "2048"
 
 **`[build]` section** - applied at `agentic build` / `agentic update` time
 
-| Key            | Type | Description                                        | CLI flag | Env var                | Default |
-| -------------- | ---- | -------------------------------------------------- | -------- | ---------------------- | ------- |
-| `apt_packages` | list | Extra Debian packages to install in the base image | `--apt`  | `AGENTIC_APT_PACKAGES` | -       |
+| Key            | Type       | Description                                                                                                                      | CLI flag    | Env var                   | Default |
+| -------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ------------------------- | ------- |
+| `apt_packages` | list       | Extra Debian packages to install in the base image. Accumulates across RC layers and with `--apt`.                               | `--apt`     | `AGENTIC_APT_PACKAGES`    | -       |
+| `bases`        | list       | Extra runtime layers to add on top of the node base (e.g. `["java", "dotnet"]`). Accumulates across RC layers and with `--base`. | `--base`    | -                         | -       |
+| `versions`     | TOML table | Per-layer version pins. Written as `[build.versions]` with `node`, `java`, `dotnet`, or `go` keys. Innermost value wins per key. | `--<layer>` | `AGENTIC_<LAYER>_VERSION` | -       |
 
 **`[run]` section** - applied at `agentic run` time
 
@@ -80,8 +87,9 @@ pids_limit = "2048"
 
 When multiple `.agenticrc.toml` files are found, they are merged. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
-- **List keys** (`apt_packages`, `extra_mounts`, `secrets`): values from all levels accumulate, outermost first.
+- **List keys** (`apt_packages`, `bases`, `extra_mounts`, `secrets`): values from all levels accumulate, outermost first.
 - **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
+- **`versions` table**: each layer name is resolved independently — innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
 
 ```
 ~/projects/.agenticrc.toml              ← outermost (root=true stops the walk here)
@@ -124,6 +132,23 @@ Packages accumulate across all three sources in this order:
 
 Duplicates are removed while preserving order.
 
+### `bases`
+
+Extra runtime layers accumulate across RC files and the `--base` flag:
+
+1. `.agenticrc.toml` files (outermost first)
+2. `--base` flag (appended, deduplicated)
+
+`AGENTIC_BASE_OVERRIDE` is a full override — when set it replaces all RC and flag values.
+
+### `versions`
+
+Per-layer version resolution (highest to lowest priority):
+
+1. `--<layer>` flag (e.g. `--java 17`) or `AGENTIC_<LAYER>_VERSION` env var
+2. `.agenticrc.toml` `[build.versions]` — innermost value wins per key
+3. Built-in default (from the bundled `versions.json`)
+
 ### `extra_mounts` and `secrets`
 
 These also accumulate, but their env vars (`AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECRETS`) and RC values are each collected independently and combined at runtime.
@@ -147,9 +172,13 @@ namespace = "java-app"
 
 [build]
 apt_packages = ["make"]
+bases = ["java"]
+
+[build.versions]
+java = "17"
 ```
 
-Then `agentic build claude --base java` creates `java-app-claude`, while the default `agentic-claude` remains untouched.
+Then `agentic build claude` creates `java-app-claude` with the Java layer, while the default `agentic-claude` remains untouched.
 
 ### Scalar settings (`pids_limit`, `cpus`, `memory`)
 

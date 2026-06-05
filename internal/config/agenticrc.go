@@ -13,7 +13,9 @@ import (
 
 // RCBuild holds build-time settings from a .agenticrc.toml file.
 type RCBuild struct {
-	AptPackages []string `toml:"apt_packages"`
+	AptPackages []string          `toml:"apt_packages"`
+	Bases       []string          `toml:"bases"`
+	Versions    map[string]string `toml:"versions"`
 }
 
 // RCRun holds runtime settings from a .agenticrc.toml file.
@@ -57,6 +59,17 @@ func AptPackages(startDir string) []string {
 	rcPkgs := FindAndLoad(startDir).Build.AptPackages
 	envPkgs := splitEnvValues(os.Getenv(EnvAptPackages))
 	return append(rcPkgs, envPkgs...)
+}
+
+// Bases returns the merged extra base layers from .agenticrc.toml files, outermost RC first.
+func Bases(startDir string) []string {
+	return FindAndLoad(startDir).Build.Bases
+}
+
+// BuildVersions returns the merged per-layer version overrides from .agenticrc.toml files.
+// Innermost RC value wins per key.
+func BuildVersions(startDir string) map[string]string {
+	return FindAndLoad(startDir).Build.Versions
 }
 
 // FindAndLoad walks up from startDir collecting all .agenticrc.toml files and
@@ -140,6 +153,7 @@ func loadConfigs(paths []string) []*AgenticRC {
 
 func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 	result := &AgenticRC{}
+	result.Build.Versions = make(map[string]string)
 	resRun := &result.Run
 	resBuild := &result.Build
 
@@ -161,6 +175,12 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 		if resRun.Memory == "" {
 			resRun.Memory = run.Memory
 		}
+
+		for key, val := range rc.Build.Versions {
+			if _, exists := result.Build.Versions[key]; !exists {
+				result.Build.Versions[key] = val
+			}
+		}
 	}
 
 	for i := len(configs) - 1; i >= 0; i-- {
@@ -169,6 +189,7 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 		resRun.ExtraMounts = append(resRun.ExtraMounts, run.ExtraMounts...)
 		resRun.Secrets = append(resRun.Secrets, run.Secrets...)
 		resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
+		resBuild.Bases = append(resBuild.Bases, build.Bases...)
 	}
 
 	return result

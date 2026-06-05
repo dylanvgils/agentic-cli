@@ -424,7 +424,7 @@ Place a `.agenticrc.toml` file anywhere in your directory tree to apply project-
 
 > **Migration note:** The old `.agenticrc` key=value format is no longer supported. If `agentic` finds a `.agenticrc` file it will print a warning. Rename it to `.agenticrc.toml` and convert the contents to TOML.
 
-**Merge rules:** list keys (`extra_mounts`, `secrets`, `apt_packages`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value. `namespace` also uses the innermost value across RC files, and like the other scalars, `.agenticrc.toml` takes precedence over `AGENTIC_NAMESPACE`.
+**Merge rules:** list keys (`extra_mounts`, `secrets`, `apt_packages`, `bases`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value. `namespace` and `versions` keys also use the innermost value — for `versions`, each layer name is resolved independently so a child can pin `java` without affecting `node` inherited from a parent. `.agenticrc.toml` takes precedence over env vars for all scalar keys.
 
 `root` and `namespace` are top-level keys. Build-time settings go under `[build]`; runtime settings go under `[run]`.
 
@@ -437,9 +437,11 @@ Place a `.agenticrc.toml` file anywhere in your directory tree to apply project-
 
 **`[build]` section** - baked into the image at build time
 
-| Key            | Description                                                                        | Default | Env var override       |
-| -------------- | ---------------------------------------------------------------------------------- | ------- | ---------------------- |
-| `apt_packages` | Extra apt packages to install at build time. Accumulates with `--apt` and env var. | -       | `AGENTIC_APT_PACKAGES` |
+| Key            | Description                                                                                          | Default | Env var override          |
+| -------------- | ---------------------------------------------------------------------------------------------------- | ------- | ------------------------- |
+| `apt_packages` | Extra apt packages to install at build time. Accumulates with `--apt` and env var.                   | -       | `AGENTIC_APT_PACKAGES`    |
+| `bases`        | Extra runtime layers to add on top of node (e.g. `["java", "dotnet"]`). Accumulates with `--base`.   | -       | -                         |
+| `versions`     | Per-layer version pins as a TOML table (e.g. `[build.versions]` with `java = "17"`). Innermost wins. | -       | `AGENTIC_<LAYER>_VERSION` |
 
 **`[run]` section** - applied to each container at runtime
 
@@ -459,6 +461,11 @@ root = true
 
 [build]
 apt_packages = ["make", "gcc"]
+bases = ["java"]
+
+[build.versions]
+java = "17"
+node = "22"
 
 [run]
 extra_mounts = [
@@ -479,6 +486,10 @@ root = true
 
 [build]
 apt_packages = ["make"]
+bases = ["java"]
+
+[build.versions]
+node = "22"
 
 [run]
 secrets = ["gh-token:~/.secrets/gh_token"]
@@ -488,6 +499,9 @@ secrets = ["gh-token:~/.secrets/gh_token"]
 # ~/projects/my-project/.agenticrc.toml
 [build]
 apt_packages = ["gcc"]
+
+[build.versions]
+java = "17"  # pins java; node = "22" is inherited from parent
 
 [run]
 extra_mounts = ["maven:$CONTAINER_HOME/.m2"]
