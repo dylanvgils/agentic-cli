@@ -215,8 +215,8 @@ func TestMergeConfigs(t *testing.T) {
 
 	t.Run("lists accumulate outermost first", func(t *testing.T) {
 		// Arrange
-		child := &AgenticRC{Run: RCRun{ExtraMounts: []string{"child-vol:/mnt/c"}, Secrets: []string{"child-secret"}}, Build: RCBuild{AptPackages: []string{"gcc"}}}
-		parent := &AgenticRC{Run: RCRun{ExtraMounts: []string{"parent-vol:/mnt/p"}, Secrets: []string{"parent-secret"}}, Build: RCBuild{AptPackages: []string{"make"}}}
+		child := &AgenticRC{Run: RCRun{ExtraMounts: []string{"child-vol:/mnt/c"}, Secrets: []string{"child-secret"}}, Build: RCBuild{AptPackages: []string{"gcc"}, Bases: []string{"java"}}}
+		parent := &AgenticRC{Run: RCRun{ExtraMounts: []string{"parent-vol:/mnt/p"}, Secrets: []string{"parent-secret"}}, Build: RCBuild{AptPackages: []string{"make"}, Bases: []string{"dotnet"}}}
 
 		// Act
 		result := mergeConfigs([]*AgenticRC{child, parent})
@@ -225,6 +225,21 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, result.Run.ExtraMounts)
 		assert.Equal(t, []string{"parent-secret", "child-secret"}, result.Run.Secrets)
 		assert.Equal(t, []string{"make", "gcc"}, result.Build.AptPackages)
+		assert.Equal(t, []string{"dotnet", "java"}, result.Build.Bases)
+	})
+
+	t.Run("versions innermost wins per key", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Build: RCBuild{Versions: map[string]string{"node": "22", "java": "17"}}}
+		parent := &AgenticRC{Build: RCBuild{Versions: map[string]string{"node": "20", "dotnet": "8"}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert — child wins for "node"; parent fills keys not set by child
+		assert.Equal(t, "22", result.Build.Versions["node"])
+		assert.Equal(t, "17", result.Build.Versions["java"])
+		assert.Equal(t, "8", result.Build.Versions["dotnet"])
 	})
 
 	t.Run("single config", func(t *testing.T) {
@@ -248,6 +263,11 @@ namespace = "myproject"
 
 [build]
 apt_packages = ["make", "gcc"]
+bases = ["java", "dotnet"]
+
+[build.versions]
+node = "22"
+java = "17"
 
 [run]
 extra_mounts = ["vol1:/mnt/a", "vol2:/mnt/b"]
@@ -263,6 +283,8 @@ memory = "2g"
 		assert.Equal(t, []string{"vol1:/mnt/a", "vol2:/mnt/b"}, rc.Run.ExtraMounts)
 		assert.Equal(t, []string{"token:/run/s/a", "key:/run/s/b"}, rc.Run.Secrets)
 		assert.Equal(t, []string{"make", "gcc"}, rc.Build.AptPackages)
+		assert.Equal(t, []string{"java", "dotnet"}, rc.Build.Bases)
+		assert.Equal(t, map[string]string{"node": "22", "java": "17"}, rc.Build.Versions)
 		assert.Equal(t, "512", rc.Run.PidsLimit)
 		assert.Equal(t, "2", rc.Run.CPUs)
 		assert.Equal(t, "2g", rc.Run.Memory)
@@ -318,6 +340,23 @@ memory = "2g"
 		// Assert
 		assert.Equal(t, []string{"$HOME/.cache:/cache"}, rc.Run.ExtraMounts)
 		assert.Equal(t, []string{"mytoken:${HOME}/.secrets/token"}, rc.Run.Secrets)
+	})
+
+	t.Run("bases key", func(t *testing.T) {
+		// Act
+		rc := mustParseRC(t, "[build]\nbases = [\"java\", \"dotnet\"]\n")
+
+		// Assert
+		assert.Equal(t, []string{"java", "dotnet"}, rc.Build.Bases)
+	})
+
+	t.Run("versions key", func(t *testing.T) {
+		// Act
+		rc := mustParseRC(t, "[build.versions]\njava = \"17\"\nnode = \"22\"\n")
+
+		// Assert
+		assert.Equal(t, "17", rc.Build.Versions["java"])
+		assert.Equal(t, "22", rc.Build.Versions["node"])
 	})
 
 	t.Run("unknown key returns error", func(t *testing.T) {
@@ -460,5 +499,55 @@ func TestFindAndLoad(t *testing.T) {
 		// Assert
 		assert.Equal(t, "8", rc.Run.CPUs)
 		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, rc.Run.ExtraMounts)
+	})
+}
+
+func TestBases(t *testing.T) {
+	t.Run("returns bases from rc", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build]\nbases = [\"java\"]\n"), 0o644))
+
+		// Act
+		result := Bases(dir)
+
+		// Assert
+		assert.Equal(t, []string{"java"}, result)
+	})
+
+	t.Run("empty when not set", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+
+		// Act
+		result := Bases(dir)
+
+		// Assert
+		assert.Empty(t, result)
+	})
+}
+
+func TestBuildVersions(t *testing.T) {
+	t.Run("returns versions from rc", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build.versions]\njava = \"17\"\n"), 0o644))
+
+		// Act
+		result := BuildVersions(dir)
+
+		// Assert
+		assert.Equal(t, "17", result["java"])
+	})
+
+	t.Run("empty when not set", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+
+		// Act
+		result := BuildVersions(dir)
+
+		// Assert
+		assert.Empty(t, result)
 	})
 }

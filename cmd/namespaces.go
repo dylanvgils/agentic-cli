@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"io"
+	"os"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -11,33 +15,53 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/output"
 )
 
+var namespacesStdin io.Reader = os.Stdin
+
 var namespacesCmd = &cobra.Command{
-	Use:   "namespaces",
-	Short: "List all known namespaces",
-	Long: "List all namespaces derived from built agentic images.\n" +
-		"Use --prune to remove all images in the active (or specified) namespace.",
-	Args: cobra.NoArgs,
-	RunE: runNamespaces,
+	Use:     "namespaces",
+	Aliases: []string{"ns"},
+	Short:   "Manage namespaces",
+	Long:    "Manage namespaces derived from built agentic images.",
+}
+
+var namespacesListCmd = &cobra.Command{
+	Use:     "list",
+	Aliases: []string{"ls"},
+	Short:   "List all known namespaces",
+	Args:    cobra.NoArgs,
+	RunE:    runNamespacesList,
+}
+
+var namespacesPruneCmd = &cobra.Command{
+	Use:   "prune",
+	Short: "Remove all images in the active or specified namespace",
+	Args:  cobra.NoArgs,
+	RunE:  runNamespacesPrune,
 }
 
 func init() {
 	rootCmd.AddCommand(namespacesCmd)
+	namespacesCmd.AddCommand(namespacesListCmd, namespacesPruneCmd)
 
-	namespacesCmd.Flags().Bool("prune", false, "remove all images in the namespace")
-
-	addNamespaceFlag(namespacesCmd)
+	addNamespaceFlag(namespacesPruneCmd)
 }
 
-func runNamespaces(cmd *cobra.Command, _ []string) error {
-	prune, _ := cmd.Flags().GetBool("prune")
+func runNamespacesList(_ *cobra.Command, _ []string) error {
+	return listNamespaces()
+}
 
-	if prune {
-		rc := config.FindAndLoadFromCwd()
-		namespace := resolveNamespace(cmd, rc)
-		return pruneNamespace(namespace)
+func runNamespacesPrune(cmd *cobra.Command, _ []string) error {
+	rc := config.FindAndLoadFromCwd()
+	namespace := resolveNamespace(cmd, rc)
+
+	fmt.Printf("Remove all images in namespace %q? [y/N] ", namespace)
+	scanner := bufio.NewScanner(namespacesStdin)
+	scanner.Scan()
+	if answer := strings.TrimSpace(scanner.Text()); answer != "y" && answer != "Y" {
+		return nil
 	}
 
-	return listNamespaces()
+	return pruneNamespace(namespace)
 }
 
 func listNamespaces() error {

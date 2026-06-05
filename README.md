@@ -113,7 +113,8 @@ agentic <command> [args...]
 | `update [tool] [--namespace <name>] [--all] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--registry <host>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]` | Update tool image(s) to latest version. `--all` updates every agentic image across all namespaces                                                       |
 | `clean [tool] [--namespace <name>] [--all]`                                                                                                                                                    | Remove tool image(s). `--all` removes across all namespaces                                                                                             |
 | `inspect [tool] [--namespace <name>] [--all]`                                                                                                                                                  | No arg: table of images in the active namespace; `--all` shows all namespaces. Tool arg: full detail for active namespace; `--all` shows all namespaces |
-| `namespaces [--namespace <name>] [--prune]`                                                                                                                                                    | List all known namespaces. `--prune` removes all images in the active (or specified) namespace                                                          |
+| `namespaces list` / `namespaces ls`                                                                                                                                                            | List all known namespaces                                                                                                                               |
+| `namespaces prune [-n namespace]`                                                                                                                                                              | Remove all images in the active (or specified) namespace                                                                                                |
 | `config [--home <dir>]`                                                                                                                                                                        | Show the merged configuration from agentic.json and all .agenticrc.toml files                                                                           |
 | `volumes <create\|list\|ls\|remove\|rm> [name]`                                                                                                                                                | Manage named Docker volumes created by agentic                                                                                                          |
 | `version`                                                                                                                                                                                      | Show version information (version, commit, built by, built date)                                                                                        |
@@ -424,7 +425,7 @@ Place a `.agenticrc.toml` file anywhere in your directory tree to apply project-
 
 > **Migration note:** The old `.agenticrc` key=value format is no longer supported. If `agentic` finds a `.agenticrc` file it will print a warning. Rename it to `.agenticrc.toml` and convert the contents to TOML.
 
-**Merge rules:** list keys (`extra_mounts`, `secrets`, `apt_packages`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value. `namespace` also uses the innermost value across RC files, and like the other scalars, `.agenticrc.toml` takes precedence over `AGENTIC_NAMESPACE`.
+**Merge rules:** list keys (`bases`, `apt_packages`, `extra_mounts`, `secrets`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value. `namespace` and `versions` keys also use the innermost value — for `versions`, each layer name is resolved independently so a child can pin `java` without affecting `node` inherited from a parent. `.agenticrc.toml` takes precedence over env vars for all scalar keys.
 
 `root` and `namespace` are top-level keys. Build-time settings go under `[build]`; runtime settings go under `[run]`.
 
@@ -437,9 +438,11 @@ Place a `.agenticrc.toml` file anywhere in your directory tree to apply project-
 
 **`[build]` section** - baked into the image at build time
 
-| Key            | Description                                                                        | Default | Env var override       |
-| -------------- | ---------------------------------------------------------------------------------- | ------- | ---------------------- |
-| `apt_packages` | Extra apt packages to install at build time. Accumulates with `--apt` and env var. | -       | `AGENTIC_APT_PACKAGES` |
+| Key            | Description                                                                                          | Default | Env var override          |
+| -------------- | ---------------------------------------------------------------------------------------------------- | ------- | ------------------------- |
+| `bases`        | Extra runtime layers to add on top of node (e.g. `["java", "dotnet"]`). Accumulates with `--base`.   | -       | -                         |
+| `apt_packages` | Extra apt packages to install at build time. Accumulates with `--apt` and env var.                   | -       | `AGENTIC_APT_PACKAGES`    |
+| `versions`     | Per-layer version pins as a TOML table (e.g. `[build.versions]` with `java = "17"`). Innermost wins. | -       | `AGENTIC_<LAYER>_VERSION` |
 
 **`[run]` section** - applied to each container at runtime
 
@@ -458,7 +461,12 @@ You can commit `.agenticrc.toml` to the repo so the whole team picks up the righ
 root = true
 
 [build]
+bases = ["java"]
 apt_packages = ["make", "gcc"]
+
+[build.versions]
+java = "17"
+node = "22"
 
 [run]
 extra_mounts = [
@@ -478,7 +486,11 @@ memory = "8g"
 root = true
 
 [build]
+bases = ["java"]
 apt_packages = ["make"]
+
+[build.versions]
+node = "22"
 
 [run]
 secrets = ["gh-token:~/.secrets/gh_token"]
@@ -488,6 +500,9 @@ secrets = ["gh-token:~/.secrets/gh_token"]
 # ~/projects/my-project/.agenticrc.toml
 [build]
 apt_packages = ["gcc"]
+
+[build.versions]
+java = "17"  # pins java; node = "22" is inherited from parent
 
 [run]
 extra_mounts = ["maven:$CONTAINER_HOME/.m2"]

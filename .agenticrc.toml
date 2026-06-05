@@ -1,4 +1,5 @@
 [build]
+bases = ['go']
 apt_packages = ["make"]
 
 [run]

@@ -9,6 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
 
@@ -114,6 +115,9 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if err := printScalarField(w, "namespace", config.EnvNamespace, layers, func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace); err != nil {
 		return err
 	}
+	if err := printBasesField(w, layers); err != nil {
+		return err
+	}
 	if err := printListField(w, "apt_packages", layers, aptPackages); err != nil {
 		return err
 	}
@@ -187,4 +191,44 @@ func printListField(w io.Writer, label string, layers []config.RCLayer, get func
 	}
 
 	return nil
+}
+
+// printBasesField prints the bases list with versions inlined as basename@version.
+func printBasesField(w io.Writer, layers []config.RCLayer) error {
+	versions := resolveEffectiveVersions(layers)
+
+	getBases := func(rc *config.AgenticRC) []string {
+		result := make([]string, len(rc.Build.Bases))
+		for i, name := range rc.Build.Bases {
+			if v, ok := versions[name]; ok {
+				result[i] = name + "@" + v
+			} else {
+				result[i] = name
+			}
+		}
+		return result
+	}
+
+	return printListField(w, "bases", layers, getBases)
+}
+
+// resolveEffectiveVersions builds the version map for bases: innermost RC layer wins, then env vars.
+func resolveEffectiveVersions(layers []config.RCLayer) map[string]string {
+	versions := map[string]string{}
+
+	for _, layer := range layers {
+		for name, v := range layer.RC.Build.Versions {
+			if v != "" {
+				versions[name] = v
+			}
+		}
+	}
+
+	for _, name := range tools.KnownLayers() {
+		if v := os.Getenv(config.EnvVersionVar(name)); v != "" {
+			versions[name] = v
+		}
+	}
+
+	return versions
 }

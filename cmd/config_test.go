@@ -10,6 +10,110 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPrintBasesField(t *testing.T) {
+	t.Run("no bases shows none", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		layers := []config.RCLayer{
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}},
+		}
+
+		// Act
+		err := printBasesField(&buf, layers)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "  bases: (none)\n", buf.String())
+	})
+
+	t.Run("base without version shows plain name", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		layers := []config.RCLayer{
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}},
+		}
+
+		// Act
+		err := printBasesField(&buf, layers)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "- java  [/project/.agenticrc.toml]")
+	})
+
+	t.Run("base with rc version shows at-version", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		layers := []config.RCLayer{
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}, Versions: map[string]string{"java": "17"}}}},
+		}
+
+		// Act
+		err := printBasesField(&buf, layers)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "- java@17  [/project/.agenticrc.toml]")
+	})
+
+	t.Run("innermost layer version wins", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		layers := []config.RCLayer{
+			{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}, Versions: map[string]string{"java": "11"}}}},
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}},
+		}
+
+		// Act
+		err := printBasesField(&buf, layers)
+
+		// Assert
+		require.NoError(t, err)
+		out := buf.String()
+		assert.Contains(t, out, "- java@17  [/home/.agenticrc.toml]")
+		assert.NotContains(t, out, "java@11")
+	})
+
+	t.Run("env var overrides rc version", func(t *testing.T) {
+		// Arrange
+		t.Setenv("AGENTIC_JAVA_VERSION", "21")
+		var buf bytes.Buffer
+		layers := []config.RCLayer{
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}, Versions: map[string]string{"java": "17"}}}},
+		}
+
+		// Act
+		err := printBasesField(&buf, layers)
+
+		// Assert
+		require.NoError(t, err)
+		out := buf.String()
+		assert.Contains(t, out, "- java@21  [/project/.agenticrc.toml]")
+		assert.NotContains(t, out, "java@17")
+	})
+
+	t.Run("multiple layers show all entries with correct attribution", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		layers := []config.RCLayer{
+			{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}},
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"dotnet"}}}},
+		}
+
+		// Act
+		err := printBasesField(&buf, layers)
+
+		// Assert
+		require.NoError(t, err)
+		out := buf.String()
+		assert.Contains(t, out, "- java  [/home/.agenticrc.toml]")
+		assert.Contains(t, out, "- dotnet  [/project/.agenticrc.toml]")
+		javaIdx := bytes.Index(buf.Bytes(), []byte("- java"))
+		dotnetIdx := bytes.Index(buf.Bytes(), []byte("- dotnet"))
+		assert.Less(t, javaIdx, dotnetIdx)
+	})
+}
+
 func TestPrintGlobalConfig(t *testing.T) {
 	t.Run("empty config", func(t *testing.T) {
 		// Arrange
@@ -114,7 +218,7 @@ func TestPrintProjectConfig(t *testing.T) {
 				Path: "/project/.agenticrc.toml",
 				RC: &config.AgenticRC{
 					Namespace: "myproject",
-					Build:     config.RCBuild{AptPackages: []string{"make"}},
+					Build:     config.RCBuild{AptPackages: []string{"make"}, Bases: []string{"java"}, Versions: map[string]string{"java": "17"}},
 					Run:       config.RCRun{PidsLimit: "100", CPUs: "2", Memory: "4g", ExtraMounts: []string{"vol:/mnt"}, Secrets: []string{"tok:/run/s/t"}},
 				},
 			},
@@ -133,6 +237,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "memory: 4g  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- vol:/mnt  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- make  [/project/.agenticrc.toml]")
+		assert.Contains(t, out, "- java@17  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- tok:/run/s/t  [/project/.agenticrc.toml]")
 	})
 
@@ -199,8 +304,9 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "pids_limit: 1024  (default)")
 		assert.Contains(t, out, "cpus: 4  (default)")
 		assert.Contains(t, out, "memory: 4g  (default)")
-		assert.Contains(t, out, "extra_mounts: (none)")
 		assert.Contains(t, out, "apt_packages: (none)")
+		assert.Contains(t, out, "bases: (none)")
+		assert.Contains(t, out, "extra_mounts: (none)")
 		assert.Contains(t, out, "secrets: (none)")
 	})
 }
