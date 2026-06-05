@@ -13,8 +13,8 @@ import (
 
 // RCBuild holds build-time settings from a .agenticrc.toml file.
 type RCBuild struct {
-	AptPackages []string          `toml:"apt_packages"`
 	Bases       []string          `toml:"bases"`
+	AptPackages []string          `toml:"apt_packages"`
 	Versions    map[string]string `toml:"versions"`
 }
 

@@ -44,8 +44,8 @@ Standard [TOML](https://toml.io). Comments start with `#`. List keys use TOML ar
 root = true
 
 [build]
-apt_packages = ["make", "gcc", "jq"]
 bases = ["java"]
+apt_packages = ["make", "gcc", "jq"]
 
 [build.versions]
 java = "17"
@@ -69,8 +69,8 @@ pids_limit = "2048"
 
 | Key            | Type       | Description                                                                                                                      | CLI flag    | Env var                   | Default |
 | -------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ------------------------- | ------- |
-| `apt_packages` | list       | Extra Debian packages to install in the base image. Accumulates across RC layers and with `--apt`.                               | `--apt`     | `AGENTIC_APT_PACKAGES`    | -       |
 | `bases`        | list       | Extra runtime layers to add on top of the node base (e.g. `["java", "dotnet"]`). Accumulates across RC layers and with `--base`. | `--base`    | -                         | -       |
+| `apt_packages` | list       | Extra Debian packages to install in the base image. Accumulates across RC layers and with `--apt`.                               | `--apt`     | `AGENTIC_APT_PACKAGES`    | -       |
 | `versions`     | TOML table | Per-layer version pins. Written as `[build.versions]` with `node`, `java`, `dotnet`, or `go` keys. Innermost value wins per key. | `--<layer>` | `AGENTIC_<LAYER>_VERSION` | -       |
 
 **`[run]` section** - applied at `agentic run` time
@@ -87,7 +87,7 @@ pids_limit = "2048"
 
 When multiple `.agenticrc.toml` files are found, they are merged. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
-- **List keys** (`apt_packages`, `bases`, `extra_mounts`, `secrets`): values from all levels accumulate, outermost first.
+- **List keys** (`bases`, `apt_packages`, `extra_mounts`, `secrets`): values from all levels accumulate, outermost first.
 - **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
 - **`versions` table**: each layer name is resolved independently — innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
 
@@ -171,8 +171,8 @@ Example: building separate images for a Java project:
 namespace = "java-app"
 
 [build]
-apt_packages = ["make"]
 bases = ["java"]
+apt_packages = ["make"]
 
 [build.versions]
 java = "17"

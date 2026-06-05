@@ -424,7 +424,7 @@ Place a `.agenticrc.toml` file anywhere in your directory tree to apply project-
 
 > **Migration note:** The old `.agenticrc` key=value format is no longer supported. If `agentic` finds a `.agenticrc` file it will print a warning. Rename it to `.agenticrc.toml` and convert the contents to TOML.
 
-**Merge rules:** list keys (`extra_mounts`, `secrets`, `apt_packages`, `bases`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value. `namespace` and `versions` keys also use the innermost value — for `versions`, each layer name is resolved independently so a child can pin `java` without affecting `node` inherited from a parent. `.agenticrc.toml` takes precedence over env vars for all scalar keys.
+**Merge rules:** list keys (`bases`, `apt_packages`, `extra_mounts`, `secrets`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value. `namespace` and `versions` keys also use the innermost value — for `versions`, each layer name is resolved independently so a child can pin `java` without affecting `node` inherited from a parent. `.agenticrc.toml` takes precedence over env vars for all scalar keys.
 
 `root` and `namespace` are top-level keys. Build-time settings go under `[build]`; runtime settings go under `[run]`.
 
@@ -439,8 +439,8 @@ Place a `.agenticrc.toml` file anywhere in your directory tree to apply project-
 
 | Key            | Description                                                                                          | Default | Env var override          |
 | -------------- | ---------------------------------------------------------------------------------------------------- | ------- | ------------------------- |
-| `apt_packages` | Extra apt packages to install at build time. Accumulates with `--apt` and env var.                   | -       | `AGENTIC_APT_PACKAGES`    |
 | `bases`        | Extra runtime layers to add on top of node (e.g. `["java", "dotnet"]`). Accumulates with `--base`.   | -       | -                         |
+| `apt_packages` | Extra apt packages to install at build time. Accumulates with `--apt` and env var.                   | -       | `AGENTIC_APT_PACKAGES`    |
 | `versions`     | Per-layer version pins as a TOML table (e.g. `[build.versions]` with `java = "17"`). Innermost wins. | -       | `AGENTIC_<LAYER>_VERSION` |
 
 **`[run]` section** - applied to each container at runtime
@@ -460,8 +460,8 @@ You can commit `.agenticrc.toml` to the repo so the whole team picks up the righ
 root = true
 
 [build]
-apt_packages = ["make", "gcc"]
 bases = ["java"]
+apt_packages = ["make", "gcc"]
 
 [build.versions]
 java = "17"
@@ -485,8 +485,8 @@ memory = "8g"
 root = true
 
 [build]
-apt_packages = ["make"]
 bases = ["java"]
+apt_packages = ["make"]
 
 [build.versions]
 node = "22"
