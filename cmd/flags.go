@@ -14,6 +14,7 @@ import (
 // addNamespaceFlag registers the --namespace flag on the given command.
 func addNamespaceFlag(cmd *cobra.Command) {
 	cmd.Flags().StringP("namespace", "n", "", "image namespace (overrides AGENTIC_NAMESPACE and .agenticrc namespace)")
+	_ = cmd.RegisterFlagCompletionFunc("namespace", namespacesFunc)
 }
 
 // addAllFlag registers the --all flag on the given command.

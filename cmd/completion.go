@@ -25,6 +25,23 @@ var builtToolNamesFunc = func(cmd *cobra.Command, args []string, _ string) ([]st
 	return names, cobra.ShellCompDirectiveNoFileComp
 }
 
+var namespacesFunc = func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+	images, err := listAllImages()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	seen := make(map[string]bool)
+	var names []string
+	for _, image := range images {
+		if image.Namespace != "" && !seen[image.Namespace] {
+			seen[image.Namespace] = true
+			names = append(names, image.Namespace)
+		}
+	}
+	return names, cobra.ShellCompDirectiveNoFileComp
+}
+
 var volumeNamesFunc = func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
