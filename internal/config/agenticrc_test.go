@@ -168,6 +168,30 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, "512", result.PidsLimit)
 	})
 
+	t.Run("namespace child wins over parent", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Namespace: "myproject"}
+		parent := &AgenticRC{Namespace: "other"}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, "myproject", result.Namespace)
+	})
+
+	t.Run("namespace parent fills when child unset", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{}
+		parent := &AgenticRC{Namespace: "shared"}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, "shared", result.Namespace)
+	})
+
 	t.Run("lists accumulate outermost first", func(t *testing.T) {
 		// Arrange
 		child := &AgenticRC{ExtraMounts: []string{"child-vol:/mnt/c"}, Secrets: []string{"child-secret"}, AptPackages: []string{"gcc"}}
@@ -198,7 +222,7 @@ func TestMergeConfigs(t *testing.T) {
 func TestParseRC(t *testing.T) {
 	t.Run("all keys", func(t *testing.T) {
 		// Arrange
-		content := "extra_mounts=vol1:/mnt/a,vol2:/mnt/b\nsecrets=token:/run/s/a,key:/run/s/b\napt_packages=make,gcc\npids_limit=512\ncpus=2\nmemory=2g\n"
+		content := "extra_mounts=vol1:/mnt/a,vol2:/mnt/b\nsecrets=token:/run/s/a,key:/run/s/b\napt_packages=make,gcc\npids_limit=512\ncpus=2\nmemory=2g\nnamespace=myproject\n"
 
 		// Act
 		rc := mustParseRC(t, content)
@@ -210,6 +234,15 @@ func TestParseRC(t *testing.T) {
 		assert.Equal(t, "512", rc.PidsLimit)
 		assert.Equal(t, "2", rc.CPUs)
 		assert.Equal(t, "2g", rc.Memory)
+		assert.Equal(t, "myproject", rc.Namespace)
+	})
+
+	t.Run("namespace key", func(t *testing.T) {
+		// Act
+		rc := mustParseRC(t, "namespace=work\n")
+
+		// Assert
+		assert.Equal(t, "work", rc.Namespace)
 	})
 
 	t.Run("repeatable keys", func(t *testing.T) {
@@ -369,6 +402,23 @@ func TestFindLayers(t *testing.T) {
 		require.Len(t, layers, 2)
 		assert.Equal(t, parentRC, layers[0].Path)
 		assert.Equal(t, childRC, layers[1].Path)
+	})
+}
+
+func TestFindAndLoadFromCwd(t *testing.T) {
+	t.Run("no file returns empty config", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		orig, _ := os.Getwd()
+		require.NoError(t, os.Chdir(dir))
+		t.Cleanup(func() { _ = os.Chdir(orig) })
+
+		// Act
+		rc := FindAndLoadFromCwd()
+
+		// Assert
+		assert.Empty(t, rc.CPUs)
+		assert.Empty(t, rc.ExtraMounts)
 	})
 }
 

@@ -3,19 +3,25 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"text/tabwriter"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
 
-var outputFmt string
+const baseMaxLength = 32
 
 var inspectCmd = &cobra.Command{
-	Use:       "inspect [tool]",
-	Short:     "Show image info",
-	Long:      "Show image info (tool version, base layers, build date, size).\nInspects all tools if no tool specified.",
+	Use:   "inspect [tool]",
+	Short: "Show image info",
+	Long: "Show image info for the active namespace. Without a tool argument, lists all images in\n" +
+		"the active namespace. Use --all to show images across all namespaces.\n" +
+		"With a tool argument, shows full detail for that image.",
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: builtToolNamesFunc,
 	RunE:              runInspect,
@@ -24,74 +30,99 @@ var inspectCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(inspectCmd)
 
-	inspectCmd.Flags().StringVarP(&outputFmt, "output", "o", "default", "output format (default|table)")
-
-	if err := inspectCmd.RegisterFlagCompletionFunc("output", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-		return []string{"default", "table"}, cobra.ShellCompDirectiveNoFileComp
-	}); err != nil {
-		panic(err)
-	}
+	addNamespaceFlag(inspectCmd)
+	addAllFlag(inspectCmd)
 }
 
-func runInspect(_ *cobra.Command, args []string) error {
-	if outputFmt != "default" && outputFmt != "table" {
-		return fmt.Errorf("unknown output format %q: must be default or table", outputFmt)
-	}
+func runInspect(cmd *cobra.Command, args []string) error {
+	rc := config.FindAndLoadFromCwd()
+	namespace := resolveNamespace(cmd, rc)
+	all, _ := cmd.Flags().GetBool("all")
 
-	if outputFmt == "table" {
-		return runInspectTable(toolNames(args))
-	}
-
-	for _, name := range toolNames(args) {
-		output.Step(name)
-		if err := printImageInfo(name); err != nil {
-			return err
+	if len(args) == 0 {
+		ns := namespace
+		if all {
+			ns = ""
 		}
+		return runInspectTable(ns)
 	}
-	return nil
-}
 
-func runInspectTable(names []string) error {
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	tool := args[0]
 
-	if _, err := fmt.Fprintln(w, "TOOL\tIMAGE\tVERSION\tBUILT\tSIZE"); err != nil {
+	if _, err := tools.ImageName(tool, namespace); err != nil {
 		return err
 	}
 
-	for _, name := range names {
-		image, err := tools.ImageName(name)
-		if err != nil {
+	if all {
+		return printAllNamespaceDetail(tool, "")
+	}
+
+	output.Stepf("%s/%s", namespace, tool)
+	return printImageDetail(tool, namespace)
+}
+
+func runInspectTable(namespace string) error {
+	var filters []docker.ImageFilter
+	if namespace != "" {
+		filters = append(filters, docker.NamespaceFilter(namespace))
+	}
+
+	images, err := listAllImages(filters...)
+	if err != nil {
+		return err
+	}
+
+	slices.SortFunc(images, func(a, b *docker.ImageInfo) int {
+		if n := strings.Compare(a.Tool, b.Tool); n != 0 {
+			return n
+		}
+		return strings.Compare(a.Namespace, b.Namespace)
+	})
+
+	if namespace != "" {
+		return writeNamespaceTable(namespace, images)
+	}
+	return writeAllTable(images)
+}
+
+func writeNamespaceTable(namespace string, images []*docker.ImageInfo) error {
+	fmt.Printf("Namespace: %s\n\n", namespace)
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	if _, err := fmt.Fprintln(w, "TOOL\tVERSION\tBASE\tBUILT\tSIZE"); err != nil {
+		return err
+	}
+	if len(images) == 0 {
+		if _, err := fmt.Fprintf(w, "No images found in namespace %q.\n", namespace); err != nil {
 			return err
 		}
-
-		info, err := inspectImage(image)
-		if err != nil {
+		return w.Flush()
+	}
+	for _, info := range images {
+		version, base, built, size := imageRow(info)
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", info.Tool, version, base, built, size); err != nil {
 			return err
 		}
+	}
+	return w.Flush()
+}
 
-		if info == nil {
-			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", name, image, "-", "-", "(not built)"); err != nil {
-				return err
-			}
-			continue
+func writeAllTable(images []*docker.ImageInfo) error {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	if _, err := fmt.Fprintln(w, "NAMESPACE\tTOOL\tVERSION\tBASE\tBUILT\tSIZE"); err != nil {
+		return err
+	}
+
+	if len(images) == 0 {
+		if _, err := fmt.Fprintln(w, "(no agentic images found)"); err != nil {
+			return err
 		}
+		return w.Flush()
+	}
 
-		version := info.Version
-		if version == "" {
-			version = "(unknown)"
-		}
-
-		built := info.Built
-		if built == "" {
-			built = "(unknown)"
-		}
-
-		size := info.Size
-		if size == "" {
-			size = "-"
-		}
-
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", name, image, version, built, size); err != nil {
+	for _, info := range images {
+		version, base, built, size := imageRow(info)
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", info.Namespace, info.Tool, version, base, built, size); err != nil {
 			return err
 		}
 	}
@@ -99,8 +130,32 @@ func runInspectTable(names []string) error {
 	return w.Flush()
 }
 
-func printImageInfo(tool string) error {
-	image, err := tools.ImageName(tool)
+func printAllNamespaceDetail(tool, namespace string) error {
+	images, err := listAllImages(docker.ToolFilter(tool))
+	if err != nil {
+		return err
+	}
+
+	found := false
+	for _, info := range images {
+		if info.Tool != tool || (namespace != "" && info.Namespace != namespace) {
+			continue
+		}
+
+		output.Stepf("%s/%s", info.Namespace, info.Tool)
+		printInfoDetail(info)
+		found = true
+	}
+
+	if !found {
+		fmt.Printf("no images found for tool %q\n", tool)
+	}
+
+	return nil
+}
+
+func printImageDetail(tool, namespace string) error {
+	image, err := tools.ImageName(tool, namespace)
 	if err != nil {
 		return err
 	}
@@ -114,6 +169,11 @@ func printImageInfo(tool string) error {
 		return nil
 	}
 
+	printInfoDetail(info)
+	return nil
+}
+
+func printInfoDetail(info *docker.ImageInfo) {
 	version := info.Version
 	if version == "" {
 		version = "(unknown - rebuild to capture)"
@@ -126,19 +186,38 @@ func printImageInfo(tool string) error {
 	if built == "" {
 		built = "(unknown)"
 	}
+	size := info.Size
+	if size == "" {
+		size = "(unknown)"
+	}
 
-	fmt.Printf("  image:    %s (%s)\n", image, info.ID)
+	fmt.Printf("  image:    %s (%s)\n", info.Image, info.ID)
 	fmt.Printf("  version:  %s\n", version)
 	fmt.Printf("  base:     %s\n", base)
 	if info.Apt != "" {
 		fmt.Printf("  apt:      %s\n", info.Apt)
 	}
 	fmt.Printf("  built:    %s\n", built)
-	size := info.Size
-	if size == "" {
-		size = "(unknown)"
-	}
-
 	fmt.Printf("  size:     %s\n", size)
-	return nil
+}
+
+func imageRow(info *docker.ImageInfo) (version, base, built, size string) {
+	return orDash(info.Version),
+		orDash(truncate(info.Base, baseMaxLength)),
+		orDash(info.Built),
+		orDash(info.Size)
+}
+
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
 }

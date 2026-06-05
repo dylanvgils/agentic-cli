@@ -27,23 +27,18 @@ func runAliases(_ *cobra.Command, _ []string) error {
 	shell := detectShell()
 	fmt.Println(preambleFor(shell))
 
+	built, _ := builtTools()
+	printAliases(shell, built)
+
+	return nil
+}
+
+func printAliases(shell string, built map[string]bool) {
 	for _, name := range tools.Names() {
-		image, err := tools.ImageName(name)
-		if err != nil {
-			return err
-		}
-
-		info, err := inspectImage(image)
-		if err != nil {
-			return err
-		}
-
-		if info != nil {
+		if built[name] {
 			fmt.Println(aliasLineFor(shell, name))
 		}
 	}
-
-	return nil
 }
 
 func detectShell() string {

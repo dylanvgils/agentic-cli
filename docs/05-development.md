@@ -44,6 +44,25 @@ Within each `.go` file, order elements as follows:
 6. Constructors and methods - grouped with their type; constructor first, then exported methods, then unexported methods
 7. Standalone functions - exported functions first, then unexported helpers
 
+### Cobra command init functions
+
+Every `init()` in a `cmd/*.go` file must follow this order:
+
+1. `rootCmd.AddCommand(xCmd)` - command registration
+2. Command-specific flags declared inline (`xCmd.Flags()...`)
+3. Calls to shared flag helpers (`addBuildFlags`, `addNamespaceFlag`, `addAllFlag`, etc.)
+
+```go
+func init() {
+    rootCmd.AddCommand(buildCmd)
+
+    buildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
+
+    addBuildFlags(buildCmd)
+    addNamespaceFlag(buildCmd)
+}
+```
+
 ### Style
 
 - Use blank lines between logical blocks within a function to aid readability (e.g. between groups of related `if` statements, between `switch` case groups)

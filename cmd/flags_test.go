@@ -13,6 +13,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAddAllFlag(t *testing.T) {
+	t.Run("registers -a shorthand", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+
+		// Act
+		addAllFlag(cmd)
+
+		// Assert
+		assert.NotNil(t, cmd.Flags().ShorthandLookup("a"))
+	})
+}
+
+func TestAddNamespaceFlag(t *testing.T) {
+	t.Run("registers -n shorthand", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+
+		// Act
+		addNamespaceFlag(cmd)
+
+		// Assert
+		assert.NotNil(t, cmd.Flags().ShorthandLookup("n"))
+	})
+}
+
 func TestAddBuildFlags(t *testing.T) {
 	t.Run("registers all flags", func(t *testing.T) {
 		// Arrange
@@ -66,42 +92,6 @@ func TestAddBuildFlags(t *testing.T) {
 	})
 }
 
-
-func TestFlagOrEnv(t *testing.T) {
-	t.Run("flag takes priority", func(t *testing.T) {
-		// Arrange
-		cmd := newFlagCmd(t, "node")
-		require.NoError(t, cmd.Flags().Set("node", "fromflag"))
-		t.Setenv("AGENTIC_NODE_VERSION", "fromenv")
-
-		// Act
-		result := flagOrEnv(cmd, "node", "AGENTIC_NODE_VERSION")
-
-		// Assert
-		assert.Equal(t, "fromflag", result)
-	})
-
-	t.Run("falls back to env when flag empty", func(t *testing.T) {
-		// Arrange
-		cmd := newFlagCmd(t, "node")
-		t.Setenv("AGENTIC_NODE_VERSION", "fromenv")
-
-		// Act
-		result := flagOrEnv(cmd, "node", "AGENTIC_NODE_VERSION")
-
-		// Assert
-		assert.Equal(t, "fromenv", result)
-	})
-
-	t.Run("returns empty when both unset", func(t *testing.T) {
-		// Arrange
-		cmd := newFlagCmd(t, "node")
-
-		// Act + Assert
-		assert.Equal(t, "", flagOrEnv(cmd, "node", "AGENTIC_NODE_VERSION"))
-	})
-}
-
 func newAptCmd(t *testing.T) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{Use: "test"}
@@ -152,90 +142,7 @@ func TestCollectAptPackages(t *testing.T) {
 	})
 }
 
-func TestCollectRegistry(t *testing.T) {
-	t.Run("flag takes priority over config", func(t *testing.T) {
-		// Arrange
-		homeDir := t.TempDir()
-		cfg := &config.CliConfig{Registry: "config.example.com"}
-		require.NoError(t, cfg.Save(homeDir))
-		orig := toolHome
-		toolHome = homeDir
-		t.Cleanup(func() { toolHome = orig })
-
-		cmd := &cobra.Command{Use: "test"}
-		cmd.Flags().String("registry", "", "")
-		require.NoError(t, cmd.Flags().Set("registry", "flag.example.com"))
-
-		// Act
-		result := collectRegistry(cmd)
-
-		// Assert
-		assert.Equal(t, "flag.example.com", result)
-	})
-
-	t.Run("falls back to agentic.json when flag not set", func(t *testing.T) {
-		// Arrange
-		homeDir := t.TempDir()
-		cfg := &config.CliConfig{Registry: "config.example.com"}
-		require.NoError(t, cfg.Save(homeDir))
-		orig := toolHome
-		toolHome = homeDir
-		t.Cleanup(func() { toolHome = orig })
-
-		cmd := &cobra.Command{Use: "test"}
-		cmd.Flags().String("registry", "", "")
-
-		// Act
-		result := collectRegistry(cmd)
-
-		// Assert
-		assert.Equal(t, "config.example.com", result)
-	})
-
-	t.Run("empty when neither set", func(t *testing.T) {
-		// Arrange
-		orig := toolHome
-		toolHome = t.TempDir()
-		t.Cleanup(func() { toolHome = orig })
-
-		cmd := &cobra.Command{Use: "test"}
-		cmd.Flags().String("registry", "", "")
-
-		// Act
-		result := collectRegistry(cmd)
-
-		// Assert
-		assert.Empty(t, result)
-	})
-}
-
 func TestBuildOptsFromFlags(t *testing.T) {
-	t.Run("node env var used when flag absent", func(t *testing.T) {
-		// Arrange
-		t.Setenv("AGENTIC_NODE_VERSION", "20")
-
-		// Act
-		opts := buildOptsFromFlags(buildCmd)
-
-		// Assert
-		assert.Equal(t, "20", opts.Versions["node"])
-	})
-
-	t.Run("version env vars used when flags absent", func(t *testing.T) {
-		// Arrange
-		t.Setenv("AGENTIC_JAVA_VERSION", "17")
-		t.Setenv("AGENTIC_DOTNET_VERSION", "8")
-		t.Setenv("AGENTIC_GO_VERSION", "1.22")
-
-		// Act
-		opts := buildOptsFromFlags(buildCmd)
-
-		// Assert
-		assert.Equal(t, "17", opts.Versions["java"])
-		assert.Equal(t, "8", opts.Versions["dotnet"])
-		assert.Equal(t, "1.22", opts.Versions["go"])
-	})
-
 	t.Run("multiple base flags are joined", func(t *testing.T) {
 		// Arrange
 		cmd := &cobra.Command{Use: "test"}
@@ -270,7 +177,7 @@ func TestExtrasEnvDoc(t *testing.T) {
 
 	// Assert
 	for _, name := range tools.KnownLayers() {
-		assert.Contains(t, result, tools.ExtraEnvVarName(name), "env doc missing var for layer %q", name)
+		assert.Contains(t, result, config.EnvVersionVar(name), "env doc missing var for layer %q", name)
 	}
 }
 

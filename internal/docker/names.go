@@ -1,11 +1,9 @@
 package docker
 
-import "github.com/dylanvgils/agentic-cli/internal/tools"
-
 func baseImage() string {
-	return tools.Prefix + "base"
+	return "agentic-base"
 }
 
 func versionScript(lang string) string {
-	return tools.Prefix + "version-" + lang
+	return "agentic-version-" + lang
 }

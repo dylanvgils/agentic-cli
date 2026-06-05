@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,7 +11,7 @@ import (
 func TestRunAliases(t *testing.T) {
 	t.Run("prints bash preamble", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, nil, nil)
+		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
@@ -27,7 +26,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("prints fish preamble", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, nil, nil)
+		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/usr/bin/fish")
 
 		// Act
@@ -42,7 +41,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("prints powershell preamble for pwsh shell", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, nil, nil)
+		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/usr/bin/pwsh")
 
 		// Act
@@ -57,7 +56,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("prints powershell preamble on windows", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, nil, nil)
+		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		stubCurrentGOOS(t, "windows")
 		t.Setenv("SHELL", "")
 
@@ -73,7 +72,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("not built tools emit nothing after preamble", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, nil, nil)
+		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
@@ -87,9 +86,30 @@ func TestRunAliases(t *testing.T) {
 		assert.NotContains(t, out, "function ")
 	})
 
+	t.Run("only built tools get aliases", func(t *testing.T) {
+		// Arrange - only claude is built
+		stubBuiltTools(t, func() (map[string]bool, error) {
+			return map[string]bool{"claude": true}, nil
+		})
+		t.Setenv("SHELL", "/bin/bash")
+
+		// Act
+		out := captureStdout(t, func() {
+			err := runAliases(aliasesCmd, []string{})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "alias claude='agentic run claude'")
+		assert.NotContains(t, out, "alias copilot=")
+		assert.NotContains(t, out, "alias opencode=")
+	})
+
 	t.Run("built tools emit bash alias lines", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", ID: "abc123"}, nil)
+		stubBuiltTools(t, func() (map[string]bool, error) {
+			return map[string]bool{"claude": true, "copilot": true, "opencode": true}, nil
+		})
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
@@ -106,7 +126,9 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("built tools emit powershell function lines", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", ID: "abc123"}, nil)
+		stubBuiltTools(t, func() (map[string]bool, error) {
+			return map[string]bool{"claude": true, "copilot": true, "opencode": true}, nil
+		})
 		t.Setenv("SHELL", "/usr/bin/pwsh")
 
 		// Act
@@ -121,21 +143,49 @@ func TestRunAliases(t *testing.T) {
 		assert.Contains(t, out, "function opencode { agentic run opencode @args }")
 	})
 
-	t.Run("docker error propagates", func(t *testing.T) {
+	t.Run("docker error prints no aliases", func(t *testing.T) {
 		// Arrange
-		orig := inspectImage
-		inspectImage = func(_ string) (*docker.ImageInfo, error) {
+		stubBuiltTools(t, func() (map[string]bool, error) {
 			return nil, fmt.Errorf("docker daemon not running")
-		}
-		defer func() { inspectImage = orig }()
+		})
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
-		err := runAliases(aliasesCmd, []string{})
+		out := captureStdout(t, func() {
+			err := runAliases(aliasesCmd, []string{})
+			require.NoError(t, err)
+		})
 
 		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "docker daemon not running")
+		assert.NotContains(t, out, "alias ")
+		assert.NotContains(t, out, "function ")
+	})
+}
+
+func Test_printAliases(t *testing.T) {
+	t.Run("no built tools prints nothing", func(t *testing.T) {
+		// Act
+		out := captureStdout(t, func() {
+			printAliases("bash", map[string]bool{})
+		})
+
+		// Assert
+		assert.Empty(t, out)
+	})
+
+	t.Run("only built tools appear in output", func(t *testing.T) {
+		// Arrange
+		built := map[string]bool{"claude": true}
+
+		// Act
+		out := captureStdout(t, func() {
+			printAliases("bash", built)
+		})
+
+		// Assert
+		assert.Contains(t, out, "alias claude=")
+		assert.NotContains(t, out, "alias copilot=")
+		assert.NotContains(t, out, "alias opencode=")
 	})
 }
 

@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
@@ -11,7 +13,7 @@ import (
 var buildCmd = &cobra.Command{
 	Use:   "build [tool]",
 	Short: "Build tool image(s)",
-	Long: "Build tool image(s). Builds all tools if no tool specified.\n\n" + extrasEnvDoc(),
+	Long:  "Build tool image(s). Builds all tools if no tool specified.\n\n" + extrasEnvDoc(),
 	Example: `  agentic build
   agentic build claude
   agentic build claude --base java
@@ -26,11 +28,15 @@ var buildCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(buildCmd)
 
-	addBuildFlags(buildCmd)
 	buildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
+
+	addBuildFlags(buildCmd)
+	addNamespaceFlag(buildCmd)
 }
 
 func runBuild(cmd *cobra.Command, args []string) error {
+	rc := config.FindAndLoadFromCwd()
+	namespace := resolveNamespace(cmd, rc)
 	opts := buildOptsFromFlags(cmd)
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
@@ -38,7 +44,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		return dryRunBuild(args, opts)
 	}
 
-	if err := buildTools(args, opts); err != nil {
+	if err := buildTools(args, namespace, opts); err != nil {
 		return err
 	}
 
@@ -59,21 +65,21 @@ func dryRunBuild(args []string, opts tools.BuildOptions) error {
 	return nil
 }
 
-func buildTools(args []string, opts tools.BuildOptions) error {
+func buildTools(args []string, namespace string, opts tools.BuildOptions) error {
 	for _, name := range toolNames(args) {
-		output.Step(name)
-		if err := buildOneTool(name, opts); err != nil {
+		image, err := tools.ImageName(name, namespace)
+		if err != nil {
+			return err
+		}
+
+		output.Step(image)
+		if opts.BaseOverride != "" {
+			output.Detailf("base: %s", strings.ReplaceAll(opts.BaseOverride, ",", ", "))
+		}
+
+		if err := buildTool(name, image, opts); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func buildOneTool(tool string, opts tools.BuildOptions) error {
-	image, err := tools.ImageName(tool)
-	if err != nil {
-		return err
-	}
-
-	return buildTool(tool, image, opts)
 }

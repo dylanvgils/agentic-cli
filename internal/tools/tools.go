@@ -10,9 +10,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
-// Prefix is the shared prefix for all agentic Docker image names.
-const Prefix = "agentic-"
-
 // Configs maps tool names to their container configuration.
 var Configs = map[string]ToolConfig{
 	"claude": {
@@ -47,12 +44,13 @@ type ToolConfig struct {
 	Runtime RuntimeConfig
 }
 
-// ImageName returns the Docker image name for the given tool, or an error if the tool is unknown.
-func ImageName(name string) (string, error) {
+// ImageName returns the Docker image name for the given tool using the given namespace,
+// or an error if the tool is unknown.
+func ImageName(name, namespace string) (string, error) {
 	if _, ok := Configs[name]; !ok {
 		return "", fmt.Errorf("unknown tool %q, available: %s", name, strings.Join(Names(), ", "))
 	}
-	return Prefix + name, nil
+	return namespace + "-" + name, nil
 }
 
 // Names returns the sorted list of known tool names.
@@ -62,5 +60,5 @@ func Names() []string {
 
 // versionScript returns the filename for a language's version-check helper script.
 func versionScript(lang string) string {
-	return Prefix + "version-" + lang
+	return "agentic-version-" + lang
 }

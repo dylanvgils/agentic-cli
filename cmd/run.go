@@ -67,16 +67,13 @@ func init() {
 	runToolCmd.Flags().BoolVar(&dryRun, "dry-run", false, "print the docker command without running it")
 	runToolCmd.Flags().BoolVar(&trustDir, "trust-dir", false, "trust the current directory and save it to config")
 	runToolCmd.Flags().SetInterspersed(false)
+
+	addNamespaceFlag(runToolCmd)
 }
 
 func runTool(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return cmd.Help()
-	}
-
-	parsedArgs, err := parseArgs(args)
-	if err != nil {
-		return err
 	}
 
 	cwd, _ := os.Getwd()
@@ -85,6 +82,16 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 
 	rc := config.FindAndLoad(cwd)
+	namespace := resolveNamespace(cmd, rc)
+
+	parsedArgs, err := parseArgs(args, namespace)
+	if err != nil {
+		return err
+	}
+
+	if err := requireImage(parsedArgs.imageName, parsedArgs.toolName); err != nil {
+		return err
+	}
 
 	toolConfig := tools.Configs[parsedArgs.toolName]
 	if err := toolConfig.Runtime.Setup(toolHome); err != nil {
@@ -95,34 +102,17 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	containerHome := docker.ResolveContainerHome(parsedArgs.imageName)
-	volumes := collectVolumes(toolConfig.Runtime.Mounts(), extraVolumes, rc)
-	secrets := collectSecrets(flagSecrets, rc)
-	limits := resolveResourceLimits(pidsLimit, cpus, memory, rc)
-
-	if err := ensureNamedVolumes(volumes, toolHome, containerHome); err != nil {
+	rs, err := buildRunSpec(parsedArgs, toolConfig, rc)
+	if err != nil {
 		return err
 	}
-
-	rs := docker.NewRunSpec(parsedArgs.imageName).
-		WithToolHome(toolHome).
-		WithContainerHome(containerHome).
-		WithVolumes(volumes...).
-		WithSecrets(secrets...).
-		WithSkipEntrypoint(parsedArgs.skipEntrypoint).
-		WithTmpfsMounts(toolConfig.Runtime.TmpfsMounts()...).
-		WithPidsLimit(limits.pidsLimit).
-		WithCPUs(limits.cpus).
-		WithMemory(limits.memory).
-		WithDryRun(dryRun).
-		Build()
 
 	return runContainer(rs, parsedArgs.toolArgs)
 }
 
-func parseArgs(args []string) (parsedArgs, error) {
+func parseArgs(args []string, namespace string) (parsedArgs, error) {
 	toolName := args[0]
-	imageName, err := tools.ImageName(toolName)
+	imageName, err := tools.ImageName(toolName, namespace)
 	if err != nil {
 		return parsedArgs{}, err
 	}
@@ -139,6 +129,32 @@ func parseArgs(args []string) (parsedArgs, error) {
 		toolArgs:       toolArgs,
 		skipEntrypoint: skipEntrypoint,
 	}, nil
+}
+
+func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, error) {
+	containerHome := docker.ResolveContainerHome(args.imageName)
+	volumes := collectVolumes(toolConfig.Runtime.Mounts(), extraVolumes, rc)
+	secrets := collectSecrets(flagSecrets, rc)
+	limits := resolveResourceLimits(pidsLimit, cpus, memory, rc)
+
+	if err := ensureNamedVolumes(volumes, toolHome, containerHome); err != nil {
+		return docker.RunSpec{}, err
+	}
+
+	rs := docker.NewRunSpec(args.imageName).
+		WithToolHome(toolHome).
+		WithContainerHome(containerHome).
+		WithVolumes(volumes...).
+		WithSecrets(secrets...).
+		WithSkipEntrypoint(args.skipEntrypoint).
+		WithTmpfsMounts(toolConfig.Runtime.TmpfsMounts()...).
+		WithPidsLimit(limits.pidsLimit).
+		WithCPUs(limits.cpus).
+		WithMemory(limits.memory).
+		WithDryRun(dryRun).
+		Build()
+
+	return rs, nil
 }
 
 func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) []string {
@@ -184,4 +200,38 @@ func resolveResourceLimits(pidsLimit, cpus, memory string, rc *config.AgenticRC)
 		memory = rc.Memory
 	}
 	return resourceLimits{pidsLimit: pidsLimit, cpus: cpus, memory: memory}
+}
+
+// requireImage returns an error if imageName does not exist locally.
+// If the image is missing but the tool has images under other namespaces,
+// the error includes a hint to use --namespace.
+func requireImage(image, tool string) error {
+	info, err := inspectImage(image)
+	if err != nil {
+		return err
+	}
+	if info != nil {
+		return nil
+	}
+
+	images, err := listAllImages(docker.ToolFilter(tool))
+	if err != nil {
+		return err
+	}
+
+	var namespaces []string
+	for _, img := range images {
+		namespaces = append(namespaces, img.Namespace)
+	}
+
+	if len(namespaces) == 0 {
+		return fmt.Errorf("image %q not found; run \"agentic build %s\" to build it", image, tool)
+	}
+
+	noun := "namespace"
+	if len(namespaces) > 1 {
+		noun = "namespaces"
+	}
+	return fmt.Errorf("image %q not found; %q is available under %s %s - use --namespace or run \"agentic build %s\"",
+		image, tool, noun, strings.Join(namespaces, ", "), tool)
 }

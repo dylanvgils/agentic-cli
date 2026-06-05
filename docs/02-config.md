@@ -53,22 +53,23 @@ pids_limit=2048
 
 ### Keys
 
-| Key            | Type   | Description                                                                                                                                                        | CLI flag       | Env var                | Default |
-| -------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- | ---------------------- | ------- |
-| `root`         | scalar | Stop the upward directory walk at this file (`true`/`false`)                                                                                                       | -              | -                      | -       |
-| `apt_packages` | list   | Extra Debian packages to install in the base image at build time                                                                                                   | -              | `AGENTIC_APT_PACKAGES` | -       |
-| `extra_mounts` | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME` | -              | `AGENTIC_EXTRA_MOUNTS` | -       |
-| `secrets`      | list   | Files to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~`, `$HOME`                                                             | -              | `AGENTIC_SECRETS`      | -       |
-| `pids_limit`   | scalar | Container PID limit                                                                                                                                                | `--pids-limit` | `AGENTIC_PIDS_LIMIT`   | `1024`  |
-| `cpus`         | scalar | Container CPU limit                                                                                                                                                | `--cpus`       | `AGENTIC_CPUS`         | `4`     |
-| `memory`       | scalar | Container memory limit                                                                                                                                             | `--memory`     | `AGENTIC_MEMORY`       | `4g`    |
+| Key            | Type   | Description                                                                                                                                                        | CLI flag       | Env var                | Default   |
+| -------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- | ---------------------- | --------- |
+| `root`         | scalar | Stop the upward directory walk at this file (`true`/`false`)                                                                                                       | -              | -                      | -         |
+| `namespace`    | scalar | Image namespace. Images are named `<namespace>-<tool>` (e.g. `myproject-claude`). Allows multiple image sets per tool.                                             | `--namespace`  | `AGENTIC_NAMESPACE`    | `agentic` |
+| `apt_packages` | list   | Extra Debian packages to install in the base image at build time                                                                                                   | -              | `AGENTIC_APT_PACKAGES` | -         |
+| `extra_mounts` | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME` | -              | `AGENTIC_EXTRA_MOUNTS` | -         |
+| `secrets`      | list   | Files to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~`, `$HOME`                                                             | -              | `AGENTIC_SECRETS`      | -         |
+| `pids_limit`   | scalar | Container PID limit                                                                                                                                                | `--pids-limit` | `AGENTIC_PIDS_LIMIT`   | `1024`    |
+| `cpus`         | scalar | Container CPU limit                                                                                                                                                | `--cpus`       | `AGENTIC_CPUS`         | `4`       |
+| `memory`       | scalar | Container memory limit                                                                                                                                             | `--memory`     | `AGENTIC_MEMORY`       | `4g`      |
 
 ### Merge semantics
 
 When multiple `.agenticrc` files are found, they are merged. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
 - **List keys** (`apt_packages`, `extra_mounts`, `secrets`): values from all levels accumulate, outermost first.
-- **Scalar keys** (`pids_limit`, `cpus`, `memory`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
+- **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
 
 ```
 ~/projects/.agenticrc       ← outermost (root=true stops the walk here)
@@ -105,6 +106,27 @@ Duplicates are removed while preserving order.
 ### `extra_mounts` and `secrets`
 
 These also accumulate, but their env vars (`AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECRETS`) and RC values are each collected independently and combined at runtime.
+
+### `namespace`
+
+Resolution priority (highest to lowest):
+
+1. `--namespace` flag
+2. `.agenticrc` `namespace=` - innermost (child) value wins
+3. `AGENTIC_NAMESPACE` environment variable
+4. Built-in default (`agentic`)
+
+With the default namespace, images are named `agentic-claude`, `agentic-copilot`, etc.
+
+Example: building separate images for a Java project:
+
+```sh
+# ~/projects/java-app/.agenticrc
+namespace=java-app
+apt_packages=make
+```
+
+Then `agentic build claude --base java` creates `java-app-claude`, while the default `agentic-claude` remains untouched.
 
 ### Scalar settings (`pids_limit`, `cpus`, `memory`)
 

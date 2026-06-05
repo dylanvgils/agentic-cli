@@ -54,12 +54,6 @@ func BuildLayers(baseOverride string) []string {
 	return append([]string{BaseLayer}, ParseExtras(baseOverride)...)
 }
 
-// ExtraEnvVarName returns the canonical env var name for an extra's version
-// override, e.g. "java" → "AGENTIC_JAVA_VERSION".
-func ExtraEnvVarName(name string) string {
-	return "AGENTIC_" + strings.ToUpper(name) + "_VERSION"
-}
-
 // baseStage returns the foundational base stage. Currently delegates to nodeStage.
 func baseStage(ver, registry string, pkgs []string) df.Stage {
 	return nodeStage(ver, registry, pkgs)

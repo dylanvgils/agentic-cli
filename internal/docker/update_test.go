@@ -10,32 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_recoverAptPackages(t *testing.T) {
-	t.Run("splits comma-separated packages", func(t *testing.T) {
-		// Act
-		result := recoverAptPackages("make,gcc,jq")
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc", "jq"}, result)
-	})
-
-	t.Run("trims spaces", func(t *testing.T) {
-		// Act
-		result := recoverAptPackages("make, gcc")
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc"}, result)
-	})
-
-	t.Run("empty string returns nil", func(t *testing.T) {
-		// Act
-		result := recoverAptPackages("")
-
-		// Assert
-		assert.Nil(t, result)
-	})
-}
-
 func TestUpdateTool(t *testing.T) {
 	origStdin := dockerRunStdin
 	dockerRunStdin = func(_ io.Reader, _ ...string) (string, error) { return "", nil }

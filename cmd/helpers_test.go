@@ -10,7 +10,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,8 +28,8 @@ func captureStdout(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
-// captureRunContainer replaces runContainer and ensureNamedVolumes with stubs
-// that record the RunSpec and tool args. Returns a getter for the captured values.
+// captureRunContainer replaces runContainer, ensureNamedVolumes, and inspectImage
+// with stubs that record the RunSpec and tool args. Returns a getter for the captured values.
 func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	t.Helper()
 	var capturedSpec docker.RunSpec
@@ -48,22 +47,18 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 		return nil
 	}
 
+	origInspect := inspectImage
+	inspectImage = func(name string) (*docker.ImageInfo, error) {
+		return &docker.ImageInfo{Image: name}, nil
+	}
+
 	t.Cleanup(func() {
 		runContainer = origRun
 		ensureNamedVolumes = origEnsure
+		inspectImage = origInspect
 	})
 
 	return func() (docker.RunSpec, []string) { return capturedSpec, capturedArgs }
-}
-
-// newFlagCmd creates a cobra command with the given string flags registered.
-func newFlagCmd(t *testing.T, flags ...string) *cobra.Command {
-	t.Helper()
-	cmd := &cobra.Command{Use: "test"}
-	for _, f := range flags {
-		cmd.Flags().String(f, "", "")
-	}
-	return cmd
 }
 
 // withTempToolHome sets toolHome to a temp dir and pre-trusts the directories
@@ -86,6 +81,13 @@ func writeTrustConfig(t *testing.T, toolHome string, dirs []string) {
 	t.Helper()
 	cfg := &config.CliConfig{TrustedDirs: dirs}
 	require.NoError(t, cfg.Save(toolHome))
+}
+
+func stubBuiltTools(t *testing.T, fn func() (map[string]bool, error)) {
+	t.Helper()
+	orig := builtTools
+	builtTools = fn
+	t.Cleanup(func() { builtTools = orig })
 }
 
 func stubBuildTool(t *testing.T, fn func(tool, image string, opts tools.BuildOptions) error) {
@@ -130,6 +132,13 @@ func stubInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
 	t.Cleanup(func() { inspectImage = orig })
 }
 
+func stubListAllImages(t *testing.T, fn func(...docker.ImageFilter) ([]*docker.ImageInfo, error)) {
+	t.Helper()
+	orig := listAllImages
+	listAllImages = fn
+	t.Cleanup(func() { listAllImages = orig })
+}
+
 func stubListVolumeNames(t *testing.T, fn func() ([]string, error)) {
 	t.Helper()
 	orig := listVolumeNames
@@ -163,6 +172,13 @@ func stubUpdateTool(t *testing.T, fn func(tool, image string, opts tools.BuildOp
 	orig := updateTool
 	updateTool = fn
 	t.Cleanup(func() { updateTool = orig })
+}
+
+func stubEnsureNamedVolumes(t *testing.T, fn func(volumes []string, toolHome, containerHome string) error) {
+	t.Helper()
+	orig := ensureNamedVolumes
+	ensureNamedVolumes = fn
+	t.Cleanup(func() { ensureNamedVolumes = orig })
 }
 
 func stubCurrentGOOS(t *testing.T, goos string) {

@@ -12,9 +12,10 @@ import (
 // AgenticRC holds the parsed contents of a .agenticrc project config file.
 type AgenticRC struct {
 	Root        bool
+	Namespace   string
+	AptPackages []string
 	ExtraMounts []string
 	Secrets     []string
-	AptPackages []string
 	PidsLimit   string
 	CPUs        string
 	Memory      string
@@ -26,11 +27,17 @@ type RCLayer struct {
 	RC   *AgenticRC
 }
 
+// FindAndLoadFromCwd loads config starting from the current working directory.
+func FindAndLoadFromCwd() *AgenticRC {
+	cwd, _ := os.Getwd()
+	return FindAndLoad(cwd)
+}
+
 // AptPackages returns the merged apt packages from .agenticrc files and the
 // AGENTIC_APT_PACKAGES env var, outermost RC first, env var last.
 func AptPackages(startDir string) []string {
 	rcPkgs := FindAndLoad(startDir).AptPackages
-	envPkgs := splitValues(os.Getenv("AGENTIC_APT_PACKAGES"))
+	envPkgs := splitValues(os.Getenv(EnvAptPackages))
 	return append(rcPkgs, envPkgs...)
 }
 
@@ -111,6 +118,10 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 	result := &AgenticRC{}
 
 	for _, rc := range configs {
+		if result.Namespace == "" {
+			result.Namespace = rc.Namespace
+		}
+
 		if result.PidsLimit == "" {
 			result.PidsLimit = rc.PidsLimit
 		}
@@ -166,13 +177,15 @@ func parseRC(r io.Reader) (*AgenticRC, error) {
 		switch key {
 		case "root":
 			rc.Root = value == "true"
+		case "namespace":
+			rc.Namespace = value
 
+		case "apt_packages":
+			rc.AptPackages = append(rc.AptPackages, splitValues(value)...)
 		case "extra_mounts":
 			rc.ExtraMounts = append(rc.ExtraMounts, splitValues(value)...)
 		case "secrets":
 			rc.Secrets = append(rc.Secrets, splitValues(value)...)
-		case "apt_packages":
-			rc.AptPackages = append(rc.AptPackages, splitValues(value)...)
 
 		case "pids_limit":
 			rc.PidsLimit = value
