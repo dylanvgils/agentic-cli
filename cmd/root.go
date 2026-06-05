@@ -32,7 +32,7 @@ var rootCmd = &cobra.Command{
 	Short: "Run agentic coding tools in isolated containers",
 	Long: `Agentic runs AI coding tools (Claude Code, Copilot, OpenCode) in
 isolated Docker containers with read-only filesystems and dropped capabilities.`,
-	Version:           buildVersion(),
+	Version:           version,
 	SilenceUsage:      true,
 	SilenceErrors:     true,
 	RunE:              rootRun,
@@ -57,7 +57,7 @@ func checkDocker(cmd *cobra.Command, _ []string) error {
 
 	// Shell completion generation and `aliases` do not need a running daemon.
 	// (`aliases` calls inspectImage which returns nil,nil on failure — already graceful.)
-	if name := cmd.Name(); name == "completion" || name == "aliases" {
+	if name := cmd.Name(); name == "completion" || name == "aliases" || name == "version" {
 		return nil
 	}
 

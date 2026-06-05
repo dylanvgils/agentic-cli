@@ -1,6 +1,11 @@
 package cmd
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/spf13/cobra"
+)
 
 var (
 	version       = "dev"
@@ -9,21 +14,42 @@ var (
 	installMethod = ""
 )
 
-func buildVersion() string {
-	var meta []string
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Show version information",
+	RunE:  runVersion,
+}
 
-	if commit != "" {
-		meta = append(meta, commit)
+func init() {
+	rootCmd.AddCommand(versionCmd)
+}
+
+func runVersion(cmd *cobra.Command, _ []string) error {
+	_, err := fmt.Fprintln(cmd.OutOrStdout(), versionOutput())
+	return err
+}
+
+func versionOutput() string {
+	out := "agentic version " + version
+	if extras := versionExtras(); extras != "" {
+		out += "\n\n" + extras
 	}
-	if buildDate != "" {
-		meta = append(meta, buildDate)
-	}
-	if installMethod != "" {
-		meta = append(meta, installMethod)
+	return out
+}
+
+func versionExtras() string {
+	meta := []struct{ key, val string }{
+		{"commit", commit},
+		{"built by", installMethod},
+		{"built date", buildDate},
 	}
 
-	if len(meta) == 0 {
-		return version
+	var lines []string
+	for _, m := range meta {
+		if m.val != "" {
+			lines = append(lines, fmt.Sprintf("%-12s: %s", m.key, m.val))
+		}
 	}
-	return version + " (" + strings.Join(meta, ", ") + ")"
+
+	return strings.Join(lines, "\n")
 }
