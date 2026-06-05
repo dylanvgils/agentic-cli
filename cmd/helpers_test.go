@@ -83,6 +83,13 @@ func writeTrustConfig(t *testing.T, toolHome string, dirs []string) {
 	require.NoError(t, cfg.Save(toolHome))
 }
 
+func stubBuiltTools(t *testing.T, fn func() (map[string]bool, error)) {
+	t.Helper()
+	orig := builtTools
+	builtTools = fn
+	t.Cleanup(func() { builtTools = orig })
+}
+
 func stubBuildTool(t *testing.T, fn func(tool, image string, opts tools.BuildOptions) error) {
 	t.Helper()
 	orig := buildTool

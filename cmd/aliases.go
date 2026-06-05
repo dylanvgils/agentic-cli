@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
@@ -28,8 +27,7 @@ func runAliases(_ *cobra.Command, _ []string) error {
 	shell := detectShell()
 	fmt.Println(preambleFor(shell))
 
-	images, _ := listAllImages()
-	built := docker.BuiltToolsFromImages(images)
+	built, _ := builtTools()
 	printAliases(shell, built)
 
 	return nil

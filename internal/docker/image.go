@@ -66,8 +66,16 @@ func ListAllImages(filters ...ImageFilter) ([]*ImageInfo, error) {
 	return images, nil
 }
 
-// BuiltToolsFromImages returns the set of tool names that have at least one image.
-func BuiltToolsFromImages(images []*ImageInfo) map[string]bool {
+// BuiltTools returns the set of tool names that have at least one built image.
+func BuiltTools() (map[string]bool, error) {
+	images, err := ListAllImages()
+	if err != nil {
+		return nil, err
+	}
+	return builtToolsFromImages(images), nil
+}
+
+func builtToolsFromImages(images []*ImageInfo) map[string]bool {
 	built := make(map[string]bool)
 	for _, img := range images {
 		built[img.Tool] = true

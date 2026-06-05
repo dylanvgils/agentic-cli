@@ -395,10 +395,24 @@ func TestListAllImages(t *testing.T) {
 	})
 }
 
-func TestBuiltToolsFromImages(t *testing.T) {
+func TestBuiltTools(t *testing.T) {
+	t.Run("docker error propagates", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "", fmt.Errorf("docker daemon not running"))
+
+		// Act
+		result, err := BuiltTools()
+
+		// Assert
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func Test_builtToolsFromImages(t *testing.T) {
 	t.Run("empty image list returns empty map", func(t *testing.T) {
 		// Act
-		result := BuiltToolsFromImages(nil)
+		result := builtToolsFromImages(nil)
 
 		// Assert
 		assert.Empty(t, result)
@@ -409,7 +423,7 @@ func TestBuiltToolsFromImages(t *testing.T) {
 		images := []*ImageInfo{{Tool: "claude"}, {Tool: "copilot"}}
 
 		// Act
-		result := BuiltToolsFromImages(images)
+		result := builtToolsFromImages(images)
 
 		// Assert
 		assert.True(t, result["claude"])
@@ -422,7 +436,7 @@ func TestBuiltToolsFromImages(t *testing.T) {
 		images := []*ImageInfo{{Tool: "claude"}, {Tool: "claude"}}
 
 		// Act
-		result := BuiltToolsFromImages(images)
+		result := builtToolsFromImages(images)
 
 		// Assert
 		assert.Len(t, result, 1)

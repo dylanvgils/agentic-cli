@@ -30,7 +30,7 @@ RUN \
   && . /etc/os-release \
   \
   # Fetch checksum from the official API
-  && EXPECTED_SHA=$(curl -fsSL "https://go.dev/dl/?mode=json" \
+  && EXPECTED_SHA=$(curl -fsSL "https://go.dev/dl/?mode=json&include=all" \
   | jq -r --arg ver "go${GO_VERSION}" \
   --arg arch "${GO_ARCH}" \
   '.[].files[] | select(.version == $ver and .os == "linux" and .arch == $arch and .kind == "archive") | .sha256') \
