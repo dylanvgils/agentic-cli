@@ -188,6 +188,13 @@ func stubCurrentGOOS(t *testing.T, goos string) {
 	t.Cleanup(func() { currentGOOS = orig })
 }
 
+func stubNamespacesStdin(t *testing.T, input string) {
+	t.Helper()
+	orig := namespacesStdin
+	namespacesStdin = strings.NewReader(input)
+	t.Cleanup(func() { namespacesStdin = orig })
+}
+
 func stubVolumeStdin(t *testing.T, input string) {
 	t.Helper()
 	orig := volumesStdin

@@ -80,6 +80,75 @@ func Test_listNamespaces(t *testing.T) {
 	})
 }
 
+func TestRunNamespacesPrune(t *testing.T) {
+	setup := func(t *testing.T) {
+		t.Helper()
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+			}, nil
+		})
+		require.NoError(t, namespacesPruneCmd.Flags().Set("namespace", "agentic"))
+		t.Cleanup(func() { _ = namespacesPruneCmd.Flags().Set("namespace", "") })
+	}
+
+	t.Run("confirmed y runs prune", func(t *testing.T) {
+		setup(t)
+		var cleaned []string
+		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
+		stubNamespacesStdin(t, "y\n")
+
+		// Act
+		err := runNamespacesPrune(namespacesPruneCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"agentic-claude"}, cleaned)
+	})
+
+	t.Run("confirmed upper Y runs prune", func(t *testing.T) {
+		setup(t)
+		var cleaned []string
+		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
+		stubNamespacesStdin(t, "Y\n")
+
+		// Act
+		err := runNamespacesPrune(namespacesPruneCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"agentic-claude"}, cleaned)
+	})
+
+	t.Run("declined n skips prune", func(t *testing.T) {
+		setup(t)
+		var cleanCalled bool
+		stubCleanImage(t, func(string) error { cleanCalled = true; return nil })
+		stubNamespacesStdin(t, "n\n")
+
+		// Act
+		err := runNamespacesPrune(namespacesPruneCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, cleanCalled)
+	})
+
+	t.Run("empty input skips prune", func(t *testing.T) {
+		setup(t)
+		var cleanCalled bool
+		stubCleanImage(t, func(string) error { cleanCalled = true; return nil })
+		stubNamespacesStdin(t, "\n")
+
+		// Act
+		err := runNamespacesPrune(namespacesPruneCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, cleanCalled)
+	})
+}
+
 func Test_pruneNamespace(t *testing.T) {
 	t.Run("calls cleanImage for each image in the namespace", func(t *testing.T) {
 		// Arrange

@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"io"
+	"os"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -11,10 +15,13 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/output"
 )
 
+var namespacesStdin io.Reader = os.Stdin
+
 var namespacesCmd = &cobra.Command{
-	Use:   "namespaces",
-	Short: "Manage namespaces",
-	Long:  "Manage namespaces derived from built agentic images.",
+	Use:     "namespaces",
+	Aliases: []string{"ns"},
+	Short:   "Manage namespaces",
+	Long:    "Manage namespaces derived from built agentic images.",
 }
 
 var namespacesListCmd = &cobra.Command{
@@ -46,6 +53,14 @@ func runNamespacesList(_ *cobra.Command, _ []string) error {
 func runNamespacesPrune(cmd *cobra.Command, _ []string) error {
 	rc := config.FindAndLoadFromCwd()
 	namespace := resolveNamespace(cmd, rc)
+
+	fmt.Printf("Remove all images in namespace %q? [y/N] ", namespace)
+	scanner := bufio.NewScanner(namespacesStdin)
+	scanner.Scan()
+	if answer := strings.TrimSpace(scanner.Text()); answer != "y" && answer != "Y" {
+		return nil
+	}
+
 	return pruneNamespace(namespace)
 }
 
