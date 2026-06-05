@@ -15,7 +15,7 @@ import (
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Show the effective agentic configuration",
-	Long:  `Show the merged configuration from agentic.json and all .agenticrc files.`,
+	Long:  `Show the merged configuration from agentic.json and all .agenticrc.toml files.`,
 	Args:  cobra.NoArgs,
 	RunE:  showConfig,
 }
@@ -89,10 +89,10 @@ func printGlobalConfig(w io.Writer, home string, cfg *config.CliConfig) error {
 
 func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if len(layers) == 0 {
-		if _, err := fmt.Fprintln(w, "Project (.agenticrc)"); err != nil {
+		if _, err := fmt.Fprintln(w, "Project (.agenticrc.toml)"); err != nil {
 			return err
 		}
-		_, err := fmt.Fprintln(w, "  (no .agenticrc files found)")
+		_, err := fmt.Fprintln(w, "  (no .agenticrc.toml files found)")
 		return err
 	}
 
@@ -100,18 +100,21 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if len(layers) > 1 {
 		noun = "files"
 	}
-	if _, err := fmt.Fprintf(w, "Project (.agenticrc, %d %s)\n", len(layers), noun); err != nil {
+	if _, err := fmt.Fprintf(w, "Project (.agenticrc.toml, %d %s)\n", len(layers), noun); err != nil {
 		return err
 	}
 
-	pidsLimit := func(rc *config.AgenticRC) string { return rc.PidsLimit }
-	cpus := func(rc *config.AgenticRC) string { return rc.CPUs }
-	memory := func(rc *config.AgenticRC) string { return rc.Memory }
-	extraMounts := func(rc *config.AgenticRC) []string { return rc.ExtraMounts }
-	aptPackages := func(rc *config.AgenticRC) []string { return rc.AptPackages }
-	secrets := func(rc *config.AgenticRC) []string { return rc.Secrets }
+	pidsLimit := func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
+	cpus := func(rc *config.AgenticRC) string { return rc.Run.CPUs }
+	memory := func(rc *config.AgenticRC) string { return rc.Run.Memory }
+	extraMounts := func(rc *config.AgenticRC) []string { return rc.Run.ExtraMounts }
+	aptPackages := func(rc *config.AgenticRC) []string { return rc.Build.AptPackages }
+	secrets := func(rc *config.AgenticRC) []string { return rc.Run.Secrets }
 
 	if err := printScalarField(w, "namespace", config.EnvNamespace, layers, func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace); err != nil {
+		return err
+	}
+	if err := printListField(w, "apt_packages", layers, aptPackages); err != nil {
 		return err
 	}
 	if err := printScalarField(w, "pids_limit", config.EnvPidsLimit, layers, pidsLimit, docker.DefaultPidsLimit); err != nil {
@@ -124,9 +127,6 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 		return err
 	}
 	if err := printListField(w, "extra_mounts", layers, extraMounts); err != nil {
-		return err
-	}
-	if err := printListField(w, "apt_packages", layers, aptPackages); err != nil {
 		return err
 	}
 	return printListField(w, "secrets", layers, secrets)

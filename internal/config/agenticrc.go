@@ -1,31 +1,49 @@
-// Package config provides project configuration loaded from .agenticrc files.
+// Package config provides project configuration loaded from .agenticrc.toml files.
 package config
 
 import (
-	"bufio"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
-// AgenticRC holds the parsed contents of a .agenticrc project config file.
-type AgenticRC struct {
-	Root        bool
-	Namespace   string
-	AptPackages []string
-	ExtraMounts []string
-	Secrets     []string
-	PidsLimit   string
-	CPUs        string
-	Memory      string
+// RCBuild holds build-time settings from a .agenticrc.toml file.
+type RCBuild struct {
+	AptPackages []string `toml:"apt_packages"`
 }
 
-// RCLayer pairs a parsed .agenticrc with the path it was loaded from.
+// RCRun holds runtime settings from a .agenticrc.toml file.
+type RCRun struct {
+	ExtraMounts []string `toml:"extra_mounts"`
+	Secrets     []string `toml:"secrets"`
+	PidsLimit   string   `toml:"pids_limit"`
+	CPUs        string   `toml:"cpus"`
+	Memory      string   `toml:"memory"`
+}
+
+// AgenticRC holds the parsed contents of a .agenticrc.toml project config file.
+type AgenticRC struct {
+	Root      bool     `toml:"root"`
+	Namespace string   `toml:"namespace"`
+	Build     RCBuild  `toml:"build"`
+	Run       RCRun    `toml:"run"`
+}
+
+// RCLayer pairs a parsed .agenticrc.toml with the path it was loaded from.
 type RCLayer struct {
 	Path string
 	RC   *AgenticRC
 }
+
+const rcFilename = ".agenticrc.toml"
+const legacyRCFilename = ".agenticrc"
+
+// rcWarningWriter is the destination for legacy-file warnings; overridable in tests.
+var rcWarningWriter io.Writer = os.Stderr
 
 // FindAndLoadFromCwd loads config starting from the current working directory.
 func FindAndLoadFromCwd() *AgenticRC {
@@ -33,17 +51,17 @@ func FindAndLoadFromCwd() *AgenticRC {
 	return FindAndLoad(cwd)
 }
 
-// AptPackages returns the merged apt packages from .agenticrc files and the
+// AptPackages returns the merged apt packages from .agenticrc.toml files and the
 // AGENTIC_APT_PACKAGES env var, outermost RC first, env var last.
 func AptPackages(startDir string) []string {
-	rcPkgs := FindAndLoad(startDir).AptPackages
-	envPkgs := splitValues(os.Getenv(EnvAptPackages))
+	rcPkgs := FindAndLoad(startDir).Build.AptPackages
+	envPkgs := splitEnvValues(os.Getenv(EnvAptPackages))
 	return append(rcPkgs, envPkgs...)
 }
 
-// FindAndLoad walks up from startDir collecting all .agenticrc files and merges
-// them. Stops when a file with root=true is encountered. For scalar keys the
-// innermost (child) value wins; list keys accumulate outermost-first.
+// FindAndLoad walks up from startDir collecting all .agenticrc.toml files and
+// merges them. Stops when a file with root=true is encountered. For scalar keys
+// the innermost (child) value wins; list keys accumulate outermost-first.
 // Returns an empty AgenticRC if no file is found.
 func FindAndLoad(startDir string) *AgenticRC {
 	paths := collectPaths(startDir)
@@ -51,7 +69,7 @@ func FindAndLoad(startDir string) *AgenticRC {
 	return mergeConfigs(configs)
 }
 
-// FindLayers returns the .agenticrc layers that FindAndLoad would merge,
+// FindLayers returns the .agenticrc.toml layers that FindAndLoad would merge,
 // ordered outermost-to-innermost, each paired with its source path.
 func FindLayers(startDir string) []RCLayer {
 	paths := collectPaths(startDir)
@@ -81,7 +99,13 @@ func collectPaths(startDir string) []string {
 	dir := startDir
 
 	for {
-		candidate := filepath.Join(dir, ".agenticrc")
+		legacy := filepath.Join(dir, legacyRCFilename)
+		if _, err := os.Stat(legacy); err == nil {
+			_, _ = fmt.Fprintf(rcWarningWriter, "warning: found legacy %s at %s — rename to %s and convert to TOML syntax\n",
+				legacyRCFilename, legacy, rcFilename)
+		}
+
+		candidate := filepath.Join(dir, rcFilename)
 		if _, err := os.Stat(candidate); err == nil {
 			paths = append(paths, candidate)
 		}
@@ -116,93 +140,57 @@ func loadConfigs(paths []string) []*AgenticRC {
 
 func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 	result := &AgenticRC{}
+	resRun := &result.Run
+	resBuild := &result.Build
 
 	for _, rc := range configs {
+		run := rc.Run
+
 		if result.Namespace == "" {
 			result.Namespace = rc.Namespace
 		}
 
-		if result.PidsLimit == "" {
-			result.PidsLimit = rc.PidsLimit
+		if resRun.PidsLimit == "" {
+			resRun.PidsLimit = run.PidsLimit
 		}
 
-		if result.CPUs == "" {
-			result.CPUs = rc.CPUs
+		if resRun.CPUs == "" {
+			resRun.CPUs = run.CPUs
 		}
 
-		if result.Memory == "" {
-			result.Memory = rc.Memory
+		if resRun.Memory == "" {
+			resRun.Memory = run.Memory
 		}
 	}
 
 	for i := len(configs) - 1; i >= 0; i-- {
-		result.ExtraMounts = append(result.ExtraMounts, configs[i].ExtraMounts...)
-		result.Secrets = append(result.Secrets, configs[i].Secrets...)
-		result.AptPackages = append(result.AptPackages, configs[i].AptPackages...)
+		run := configs[i].Run
+		build := configs[i].Build
+		resRun.ExtraMounts = append(resRun.ExtraMounts, run.ExtraMounts...)
+		resRun.Secrets = append(resRun.Secrets, run.Secrets...)
+		resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
 	}
 
 	return result
 }
 
 func loadRC(path string) (*AgenticRC, error) {
-	f, err := os.Open(path)
+	rc := &AgenticRC{}
+	md, err := toml.DecodeFile(path, rc)
 	if err != nil {
 		return nil, err
 	}
 
-	rc, err := parseRC(f)
-	if closeErr := f.Close(); err == nil {
-		err = closeErr
+	if keys := md.Undecoded(); len(keys) > 0 {
+		return nil, fmt.Errorf("%s: unknown keys: %v", path, keys)
 	}
 
-	return rc, err
+	return rc, nil
 }
 
-func parseRC(r io.Reader) (*AgenticRC, error) {
-	rc := &AgenticRC{}
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		key, value, ok := strings.Cut(line, "=")
-		if !ok {
-			continue
-		}
-		key = strings.TrimSpace(key)
-		value = stripQuotes(strings.TrimSpace(value))
-
-		switch key {
-		case "root":
-			rc.Root = value == "true"
-		case "namespace":
-			rc.Namespace = value
-
-		case "apt_packages":
-			rc.AptPackages = append(rc.AptPackages, splitValues(value)...)
-		case "extra_mounts":
-			rc.ExtraMounts = append(rc.ExtraMounts, splitValues(value)...)
-		case "secrets":
-			rc.Secrets = append(rc.Secrets, splitValues(value)...)
-
-		case "pids_limit":
-			rc.PidsLimit = value
-		case "cpus":
-			rc.CPUs = value
-		case "memory":
-			rc.Memory = value
-		}
-	}
-
-	return rc, scanner.Err()
-}
-
-// splitValues splits a comma-separated value string and skips empty parts.
-// Supports both comma-separated and repeatable-key styles. Variable expansion
-// is handled later by mount.ExpandMountSpec at container launch time.
-func splitValues(value string) []string {
+// splitEnvValues splits a comma-separated value string and skips empty parts.
+// Used for env var parsing where variable expansion is handled by the caller.
+func splitEnvValues(value string) []string {
 	var result []string
 
 	for pair := range strings.SplitSeq(value, ",") {
@@ -214,14 +202,4 @@ func splitValues(value string) []string {
 	}
 
 	return result
-}
-
-func stripQuotes(s string) string {
-	if len(s) >= 2 {
-		if (s[0] == '\'' && s[len(s)-1] == '\'') || (s[0] == '"' && s[len(s)-1] == '"') {
-			return s[1 : len(s)-1]
-		}
-	}
-
-	return s
 }

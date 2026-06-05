@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,7 +14,7 @@ func TestAptPackages(t *testing.T) {
 	t.Run("returns packages from rc", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc"), []byte("apt_packages=make\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build]\napt_packages = [\"make\"]\n"), 0o644))
 
 		// Act
 		result := AptPackages(dir)
@@ -26,7 +27,7 @@ func TestAptPackages(t *testing.T) {
 		// Arrange
 		t.Setenv("AGENTIC_APT_PACKAGES", "gcc")
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc"), []byte("apt_packages=make\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build]\napt_packages = [\"make\"]\n"), 0o644))
 
 		// Act
 		result := AptPackages(dir)
@@ -51,7 +52,7 @@ func TestCollectPaths(t *testing.T) {
 	t.Run("in start dir", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
-		rcPath := filepath.Join(dir, ".agenticrc")
+		rcPath := filepath.Join(dir, ".agenticrc.toml")
 		require.NoError(t, os.WriteFile(rcPath, []byte(""), 0o644))
 
 		// Act
@@ -66,7 +67,7 @@ func TestCollectPaths(t *testing.T) {
 		parent := t.TempDir()
 		child := filepath.Join(parent, "sub")
 		require.NoError(t, os.Mkdir(child, 0o755))
-		rcPath := filepath.Join(parent, ".agenticrc")
+		rcPath := filepath.Join(parent, ".agenticrc.toml")
 		require.NoError(t, os.WriteFile(rcPath, []byte(""), 0o644))
 
 		// Act
@@ -81,8 +82,8 @@ func TestCollectPaths(t *testing.T) {
 		parent := t.TempDir()
 		child := filepath.Join(parent, "sub")
 		require.NoError(t, os.Mkdir(child, 0o755))
-		parentRC := filepath.Join(parent, ".agenticrc")
-		childRC := filepath.Join(child, ".agenticrc")
+		parentRC := filepath.Join(parent, ".agenticrc.toml")
+		childRC := filepath.Join(child, ".agenticrc.toml")
 		require.NoError(t, os.WriteFile(parentRC, []byte(""), 0o644))
 		require.NoError(t, os.WriteFile(childRC, []byte(""), 0o644))
 
@@ -91,6 +92,26 @@ func TestCollectPaths(t *testing.T) {
 
 		// Assert — innermost first
 		assert.Equal(t, []string{childRC, parentRC}, paths)
+	})
+
+	t.Run("legacy .agenticrc warns and is not collected", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		legacyPath := filepath.Join(dir, ".agenticrc")
+		require.NoError(t, os.WriteFile(legacyPath, []byte("cpus=4\n"), 0o644))
+
+		var buf bytes.Buffer
+		orig := rcWarningWriter
+		rcWarningWriter = &buf
+		t.Cleanup(func() { rcWarningWriter = orig })
+
+		// Act
+		paths := collectPaths(dir)
+
+		// Assert
+		assert.Empty(t, paths)
+		assert.Contains(t, buf.String(), legacyPath)
+		assert.Contains(t, buf.String(), ".agenticrc.toml")
 	})
 }
 
@@ -105,39 +126,39 @@ func TestLoadConfigs(t *testing.T) {
 
 	t.Run("single file", func(t *testing.T) {
 		// Arrange
-		path := writeRC(t, "cpus=4\n")
+		path := writeRC(t, "[run]\ncpus = \"4\"\n")
 
 		// Act
 		configs := loadConfigs([]string{path})
 
 		// Assert
 		require.Len(t, configs, 1)
-		assert.Equal(t, "4", configs[0].CPUs)
+		assert.Equal(t, "4", configs[0].Run.CPUs)
 	})
 
 	t.Run("stops at root true", func(t *testing.T) {
 		// Arrange
-		withRoot := writeRC(t, "root=true\ncpus=4\n")
-		shouldSkip := writeRC(t, "cpus=1\n")
+		withRoot := writeRC(t, "root = true\n[run]\ncpus = \"4\"\n")
+		shouldSkip := writeRC(t, "[run]\ncpus = \"1\"\n")
 
 		// Act
 		configs := loadConfigs([]string{withRoot, shouldSkip})
 
 		// Assert — second file not loaded
 		assert.Len(t, configs, 1)
-		assert.Equal(t, "4", configs[0].CPUs)
+		assert.Equal(t, "4", configs[0].Run.CPUs)
 	})
 
 	t.Run("skips missing file", func(t *testing.T) {
 		// Arrange
-		valid := writeRC(t, "cpus=4\n")
+		valid := writeRC(t, "[run]\ncpus = \"4\"\n")
 
 		// Act
-		configs := loadConfigs([]string{"/nonexistent/.agenticrc", valid})
+		configs := loadConfigs([]string{"/nonexistent/.agenticrc.toml", valid})
 
 		// Assert — missing file skipped, valid file loaded
 		require.Len(t, configs, 1)
-		assert.Equal(t, "4", configs[0].CPUs)
+		assert.Equal(t, "4", configs[0].Run.CPUs)
 	})
 }
 
@@ -147,25 +168,25 @@ func TestMergeConfigs(t *testing.T) {
 		result := mergeConfigs(nil)
 
 		// Assert
-		assert.Empty(t, result.ExtraMounts)
-		assert.Empty(t, result.Secrets)
-		assert.Empty(t, result.PidsLimit)
-		assert.Empty(t, result.CPUs)
-		assert.Empty(t, result.Memory)
+		assert.Empty(t, result.Run.ExtraMounts)
+		assert.Empty(t, result.Run.Secrets)
+		assert.Empty(t, result.Run.PidsLimit)
+		assert.Empty(t, result.Run.CPUs)
+		assert.Empty(t, result.Run.Memory)
 	})
 
 	t.Run("scalar child wins", func(t *testing.T) {
 		// Arrange
-		child := &AgenticRC{CPUs: "8", Memory: "8g"}
-		parent := &AgenticRC{CPUs: "2", Memory: "2g", PidsLimit: "512"}
+		child := &AgenticRC{Run: RCRun{CPUs: "8", Memory: "8g"}}
+		parent := &AgenticRC{Run: RCRun{CPUs: "2", Memory: "2g", PidsLimit: "512"}}
 
 		// Act
 		result := mergeConfigs([]*AgenticRC{child, parent})
 
 		// Assert — child wins for set scalars, parent fills unset ones
-		assert.Equal(t, "8", result.CPUs)
-		assert.Equal(t, "8g", result.Memory)
-		assert.Equal(t, "512", result.PidsLimit)
+		assert.Equal(t, "8", result.Run.CPUs)
+		assert.Equal(t, "8g", result.Run.Memory)
+		assert.Equal(t, "512", result.Run.PidsLimit)
 	})
 
 	t.Run("namespace child wins over parent", func(t *testing.T) {
@@ -194,134 +215,121 @@ func TestMergeConfigs(t *testing.T) {
 
 	t.Run("lists accumulate outermost first", func(t *testing.T) {
 		// Arrange
-		child := &AgenticRC{ExtraMounts: []string{"child-vol:/mnt/c"}, Secrets: []string{"child-secret"}, AptPackages: []string{"gcc"}}
-		parent := &AgenticRC{ExtraMounts: []string{"parent-vol:/mnt/p"}, Secrets: []string{"parent-secret"}, AptPackages: []string{"make"}}
+		child := &AgenticRC{Run: RCRun{ExtraMounts: []string{"child-vol:/mnt/c"}, Secrets: []string{"child-secret"}}, Build: RCBuild{AptPackages: []string{"gcc"}}}
+		parent := &AgenticRC{Run: RCRun{ExtraMounts: []string{"parent-vol:/mnt/p"}, Secrets: []string{"parent-secret"}}, Build: RCBuild{AptPackages: []string{"make"}}}
 
 		// Act
 		result := mergeConfigs([]*AgenticRC{child, parent})
 
 		// Assert — parent (outermost) entries first
-		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, result.ExtraMounts)
-		assert.Equal(t, []string{"parent-secret", "child-secret"}, result.Secrets)
-		assert.Equal(t, []string{"make", "gcc"}, result.AptPackages)
+		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, result.Run.ExtraMounts)
+		assert.Equal(t, []string{"parent-secret", "child-secret"}, result.Run.Secrets)
+		assert.Equal(t, []string{"make", "gcc"}, result.Build.AptPackages)
 	})
 
 	t.Run("single config", func(t *testing.T) {
 		// Arrange
-		rc := &AgenticRC{CPUs: "4", ExtraMounts: []string{"vol:/mnt"}}
+		rc := &AgenticRC{Run: RCRun{CPUs: "4", ExtraMounts: []string{"vol:/mnt"}}}
 
 		// Act
 		result := mergeConfigs([]*AgenticRC{rc})
 
 		// Assert
-		assert.Equal(t, "4", result.CPUs)
-		assert.Equal(t, []string{"vol:/mnt"}, result.ExtraMounts)
+		assert.Equal(t, "4", result.Run.CPUs)
+		assert.Equal(t, []string{"vol:/mnt"}, result.Run.ExtraMounts)
 	})
 }
 
 func TestParseRC(t *testing.T) {
 	t.Run("all keys", func(t *testing.T) {
 		// Arrange
-		content := "extra_mounts=vol1:/mnt/a,vol2:/mnt/b\nsecrets=token:/run/s/a,key:/run/s/b\napt_packages=make,gcc\npids_limit=512\ncpus=2\nmemory=2g\nnamespace=myproject\n"
+		content := `
+namespace = "myproject"
 
+[build]
+apt_packages = ["make", "gcc"]
+
+[run]
+extra_mounts = ["vol1:/mnt/a", "vol2:/mnt/b"]
+secrets = ["token:/run/s/a", "key:/run/s/b"]
+pids_limit = "512"
+cpus = "2"
+memory = "2g"
+`
 		// Act
 		rc := mustParseRC(t, content)
 
 		// Assert
-		assert.Equal(t, []string{"vol1:/mnt/a", "vol2:/mnt/b"}, rc.ExtraMounts)
-		assert.Equal(t, []string{"token:/run/s/a", "key:/run/s/b"}, rc.Secrets)
-		assert.Equal(t, []string{"make", "gcc"}, rc.AptPackages)
-		assert.Equal(t, "512", rc.PidsLimit)
-		assert.Equal(t, "2", rc.CPUs)
-		assert.Equal(t, "2g", rc.Memory)
+		assert.Equal(t, []string{"vol1:/mnt/a", "vol2:/mnt/b"}, rc.Run.ExtraMounts)
+		assert.Equal(t, []string{"token:/run/s/a", "key:/run/s/b"}, rc.Run.Secrets)
+		assert.Equal(t, []string{"make", "gcc"}, rc.Build.AptPackages)
+		assert.Equal(t, "512", rc.Run.PidsLimit)
+		assert.Equal(t, "2", rc.Run.CPUs)
+		assert.Equal(t, "2g", rc.Run.Memory)
 		assert.Equal(t, "myproject", rc.Namespace)
 	})
 
 	t.Run("namespace key", func(t *testing.T) {
 		// Act
-		rc := mustParseRC(t, "namespace=work\n")
+		rc := mustParseRC(t, "namespace = \"work\"\n")
 
 		// Assert
 		assert.Equal(t, "work", rc.Namespace)
 	})
 
-	t.Run("repeatable keys", func(t *testing.T) {
-		// Arrange
-		content := "extra_mounts=vol1:/mnt/a\nextra_mounts=vol2:/mnt/b\nsecrets=gh-token\nsecrets=npm-token\napt_packages=make\napt_packages=gcc\n"
-
-		// Act
-		rc := mustParseRC(t, content)
-
-		// Assert
-		assert.Equal(t, []string{"vol1:/mnt/a", "vol2:/mnt/b"}, rc.ExtraMounts)
-		assert.Equal(t, []string{"gh-token", "npm-token"}, rc.Secrets)
-		assert.Equal(t, []string{"make", "gcc"}, rc.AptPackages)
-	})
-
 	t.Run("root key", func(t *testing.T) {
 		// Act + Assert
-		assert.True(t, mustParseRC(t, "root=true\n").Root)
-		assert.False(t, mustParseRC(t, "root=false\n").Root)
-	})
-
-	t.Run("quoted values", func(t *testing.T) {
-		// Arrange
-		content := "pids_limit='1024'\ncpus=\"4\"\n"
-
-		// Act
-		rc := mustParseRC(t, content)
-
-		// Assert
-		assert.Equal(t, "1024", rc.PidsLimit)
-		assert.Equal(t, "4", rc.CPUs)
+		assert.True(t, mustParseRC(t, "root = true\n").Root)
+		assert.False(t, mustParseRC(t, "root = false\n").Root)
 	})
 
 	t.Run("comments and blanks", func(t *testing.T) {
 		// Arrange
-		content := "# this is a comment\n\ncpus=4\n\n# another comment\nmemory=4g\n"
+		content := "# this is a comment\n\n[run]\ncpus = \"4\"\n\n# another comment\nmemory = \"4g\"\n"
 
 		// Act
 		rc := mustParseRC(t, content)
 
 		// Assert
-		assert.Equal(t, "4", rc.CPUs)
-		assert.Equal(t, "4g", rc.Memory)
-		assert.Empty(t, rc.ExtraMounts)
+		assert.Equal(t, "4", rc.Run.CPUs)
+		assert.Equal(t, "4g", rc.Run.Memory)
+		assert.Empty(t, rc.Run.ExtraMounts)
 	})
 
-	t.Run("tilde expansion", func(t *testing.T) {
+	t.Run("tilde in string values", func(t *testing.T) {
 		// Arrange
-		content := "extra_mounts=~/.cache:/cache\nsecrets=mytoken:~/.secrets/token\n"
+		content := "[run]\nextra_mounts = [\"~/.cache:/cache\"]\nsecrets = [\"mytoken:~/.secrets/token\"]\n"
 
 		// Act
 		rc := mustParseRC(t, content)
 
 		// Assert
-		assert.Equal(t, []string{"~/.cache:/cache"}, rc.ExtraMounts)
-		assert.Equal(t, []string{"mytoken:~/.secrets/token"}, rc.Secrets)
+		assert.Equal(t, []string{"~/.cache:/cache"}, rc.Run.ExtraMounts)
+		assert.Equal(t, []string{"mytoken:~/.secrets/token"}, rc.Run.Secrets)
 	})
 
-	t.Run("HOME env expansion", func(t *testing.T) {
+	t.Run("HOME env ref in string values", func(t *testing.T) {
 		// Arrange
-		content := "extra_mounts=$HOME/.cache:/cache\nsecrets=mytoken:${HOME}/.secrets/token\n"
+		content := "[run]\nextra_mounts = [\"$HOME/.cache:/cache\"]\nsecrets = [\"mytoken:${HOME}/.secrets/token\"]\n"
 
 		// Act
 		rc := mustParseRC(t, content)
 
 		// Assert
-		assert.Equal(t, []string{"$HOME/.cache:/cache"}, rc.ExtraMounts)
-		assert.Equal(t, []string{"mytoken:${HOME}/.secrets/token"}, rc.Secrets)
+		assert.Equal(t, []string{"$HOME/.cache:/cache"}, rc.Run.ExtraMounts)
+		assert.Equal(t, []string{"mytoken:${HOME}/.secrets/token"}, rc.Run.Secrets)
 	})
 
-	t.Run("unknown keys ignored", func(t *testing.T) {
+	t.Run("unknown key returns error", func(t *testing.T) {
 		// Arrange
-		content := "unknown=foo\ncpus=4\n"
+		content := "unknown = \"foo\"\ncpus = \"4\"\n"
+		path := writeRC(t, content)
 
 		// Act
-		rc := mustParseRC(t, content)
+		_, err := loadRC(path)
 
 		// Assert
-		assert.Equal(t, "4", rc.CPUs)
+		assert.ErrorContains(t, err, "unknown keys")
 	})
 
 	t.Run("empty", func(t *testing.T) {
@@ -329,10 +337,10 @@ func TestParseRC(t *testing.T) {
 		rc := mustParseRC(t, "")
 
 		// Assert
-		assert.Empty(t, rc.ExtraMounts)
-		assert.Empty(t, rc.PidsLimit)
-		assert.Empty(t, rc.CPUs)
-		assert.Empty(t, rc.Memory)
+		assert.Empty(t, rc.Run.ExtraMounts)
+		assert.Empty(t, rc.Run.PidsLimit)
+		assert.Empty(t, rc.Run.CPUs)
+		assert.Empty(t, rc.Run.Memory)
 	})
 }
 
@@ -351,8 +359,8 @@ func TestFindLayers(t *testing.T) {
 	t.Run("single file", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
-		rcPath := filepath.Join(dir, ".agenticrc")
-		require.NoError(t, os.WriteFile(rcPath, []byte("cpus=4\n"), 0o644))
+		rcPath := filepath.Join(dir, ".agenticrc.toml")
+		require.NoError(t, os.WriteFile(rcPath, []byte("[run]\ncpus = \"4\"\n"), 0o644))
 
 		// Act
 		layers := FindLayers(dir)
@@ -360,7 +368,7 @@ func TestFindLayers(t *testing.T) {
 		// Assert
 		require.Len(t, layers, 1)
 		assert.Equal(t, rcPath, layers[0].Path)
-		assert.Equal(t, "4", layers[0].RC.CPUs)
+		assert.Equal(t, "4", layers[0].RC.Run.CPUs)
 	})
 
 	t.Run("multiple files outermost first", func(t *testing.T) {
@@ -368,10 +376,10 @@ func TestFindLayers(t *testing.T) {
 		parent := t.TempDir()
 		child := filepath.Join(parent, "sub")
 		require.NoError(t, os.Mkdir(child, 0o755))
-		parentRC := filepath.Join(parent, ".agenticrc")
-		childRC := filepath.Join(child, ".agenticrc")
-		require.NoError(t, os.WriteFile(parentRC, []byte("cpus=2\n"), 0o644))
-		require.NoError(t, os.WriteFile(childRC, []byte("cpus=8\n"), 0o644))
+		parentRC := filepath.Join(parent, ".agenticrc.toml")
+		childRC := filepath.Join(child, ".agenticrc.toml")
+		require.NoError(t, os.WriteFile(parentRC, []byte("[run]\ncpus = \"2\"\n"), 0o644))
+		require.NoError(t, os.WriteFile(childRC, []byte("[run]\ncpus = \"8\"\n"), 0o644))
 
 		// Act
 		layers := FindLayers(child)
@@ -388,12 +396,12 @@ func TestFindLayers(t *testing.T) {
 		parent := filepath.Join(grandparent, "mid")
 		child := filepath.Join(parent, "sub")
 		require.NoError(t, os.MkdirAll(child, 0o755))
-		grandparentRC := filepath.Join(grandparent, ".agenticrc")
-		parentRC := filepath.Join(parent, ".agenticrc")
-		childRC := filepath.Join(child, ".agenticrc")
-		require.NoError(t, os.WriteFile(grandparentRC, []byte("cpus=1\n"), 0o644))
-		require.NoError(t, os.WriteFile(parentRC, []byte("root=true\ncpus=2\n"), 0o644))
-		require.NoError(t, os.WriteFile(childRC, []byte("cpus=8\n"), 0o644))
+		grandparentRC := filepath.Join(grandparent, ".agenticrc.toml")
+		parentRC := filepath.Join(parent, ".agenticrc.toml")
+		childRC := filepath.Join(child, ".agenticrc.toml")
+		require.NoError(t, os.WriteFile(grandparentRC, []byte("[run]\ncpus = \"1\"\n"), 0o644))
+		require.NoError(t, os.WriteFile(parentRC, []byte("root = true\n[run]\ncpus = \"2\"\n"), 0o644))
+		require.NoError(t, os.WriteFile(childRC, []byte("[run]\ncpus = \"8\"\n"), 0o644))
 
 		// Act
 		layers := FindLayers(child)
@@ -417,8 +425,8 @@ func TestFindAndLoadFromCwd(t *testing.T) {
 		rc := FindAndLoadFromCwd()
 
 		// Assert
-		assert.Empty(t, rc.CPUs)
-		assert.Empty(t, rc.ExtraMounts)
+		assert.Empty(t, rc.Run.CPUs)
+		assert.Empty(t, rc.Run.ExtraMounts)
 	})
 }
 
@@ -431,11 +439,11 @@ func TestFindAndLoad(t *testing.T) {
 		rc := FindAndLoad(dir)
 
 		// Assert
-		assert.Empty(t, rc.ExtraMounts)
-		assert.Empty(t, rc.Secrets)
-		assert.Empty(t, rc.PidsLimit)
-		assert.Empty(t, rc.CPUs)
-		assert.Empty(t, rc.Memory)
+		assert.Empty(t, rc.Run.ExtraMounts)
+		assert.Empty(t, rc.Run.Secrets)
+		assert.Empty(t, rc.Run.PidsLimit)
+		assert.Empty(t, rc.Run.CPUs)
+		assert.Empty(t, rc.Run.Memory)
 	})
 
 	t.Run("merges from disk", func(t *testing.T) {
@@ -443,14 +451,14 @@ func TestFindAndLoad(t *testing.T) {
 		parent := t.TempDir()
 		child := filepath.Join(parent, "sub")
 		require.NoError(t, os.Mkdir(child, 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(parent, ".agenticrc"), []byte("root=true\ncpus=2\nextra_mounts=parent-vol:/mnt/p\n"), 0o644))
-		require.NoError(t, os.WriteFile(filepath.Join(child, ".agenticrc"), []byte("cpus=8\nextra_mounts=child-vol:/mnt/c\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(parent, ".agenticrc.toml"), []byte("root = true\n[run]\ncpus = \"2\"\nextra_mounts = [\"parent-vol:/mnt/p\"]\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(child, ".agenticrc.toml"), []byte("[run]\ncpus = \"8\"\nextra_mounts = [\"child-vol:/mnt/c\"]\n"), 0o644))
 
 		// Act
 		rc := FindAndLoad(child)
 
 		// Assert
-		assert.Equal(t, "8", rc.CPUs)
-		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, rc.ExtraMounts)
+		assert.Equal(t, "8", rc.Run.CPUs)
+		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, rc.Run.ExtraMounts)
 	})
 }

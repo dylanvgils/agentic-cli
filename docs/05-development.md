@@ -8,7 +8,7 @@ Working on the CLI requires Go and Make installed locally.
 agentic-cli/
 ├── cmd/                         # Cobra commands (build, update, clean, inspect, run, …)
 └── internal/
-    ├── config/                  # .agenticrc loading and run spec
+    ├── config/                  # .agenticrc.toml loading and run spec
     ├── docker/                  # Build, update, run, clean, inspect, volume orchestration
     ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
     ├── mount/                   # Volume mount spec builder
