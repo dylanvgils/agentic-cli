@@ -114,15 +114,7 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if err := printScalarField(w, "namespace", config.EnvNamespace, layers, func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace); err != nil {
 		return err
 	}
-
-	if _, err := fmt.Fprintln(w, "  [build]"); err != nil {
-		return err
-	}
 	if err := printListField(w, "apt_packages", layers, aptPackages); err != nil {
-		return err
-	}
-
-	if _, err := fmt.Fprintln(w, "  [run]"); err != nil {
 		return err
 	}
 	if err := printScalarField(w, "pids_limit", config.EnvPidsLimit, layers, pidsLimit, docker.DefaultPidsLimit); err != nil {
