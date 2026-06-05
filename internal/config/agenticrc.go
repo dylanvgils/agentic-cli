@@ -11,16 +11,26 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// AgenticRC holds the parsed contents of a .agenticrc.toml project config file.
-type AgenticRC struct {
-	Root        bool     `toml:"root"`
-	Namespace   string   `toml:"namespace"`
+// RCBuild holds build-time settings from a .agenticrc.toml file.
+type RCBuild struct {
 	AptPackages []string `toml:"apt_packages"`
+}
+
+// RCRun holds runtime settings from a .agenticrc.toml file.
+type RCRun struct {
 	ExtraMounts []string `toml:"extra_mounts"`
 	Secrets     []string `toml:"secrets"`
 	PidsLimit   string   `toml:"pids_limit"`
 	CPUs        string   `toml:"cpus"`
 	Memory      string   `toml:"memory"`
+}
+
+// AgenticRC holds the parsed contents of a .agenticrc.toml project config file.
+type AgenticRC struct {
+	Root      bool     `toml:"root"`
+	Namespace string   `toml:"namespace"`
+	Build     RCBuild  `toml:"build"`
+	Run       RCRun    `toml:"run"`
 }
 
 // RCLayer pairs a parsed .agenticrc.toml with the path it was loaded from.
@@ -44,7 +54,7 @@ func FindAndLoadFromCwd() *AgenticRC {
 // AptPackages returns the merged apt packages from .agenticrc.toml files and the
 // AGENTIC_APT_PACKAGES env var, outermost RC first, env var last.
 func AptPackages(startDir string) []string {
-	rcPkgs := FindAndLoad(startDir).AptPackages
+	rcPkgs := FindAndLoad(startDir).Build.AptPackages
 	envPkgs := splitEnvValues(os.Getenv(EnvAptPackages))
 	return append(rcPkgs, envPkgs...)
 }
@@ -130,29 +140,35 @@ func loadConfigs(paths []string) []*AgenticRC {
 
 func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 	result := &AgenticRC{}
+	resRun := &result.Run
+	resBuild := &result.Build
 
 	for _, rc := range configs {
+		run := rc.Run
+
 		if result.Namespace == "" {
 			result.Namespace = rc.Namespace
 		}
 
-		if result.PidsLimit == "" {
-			result.PidsLimit = rc.PidsLimit
+		if resRun.PidsLimit == "" {
+			resRun.PidsLimit = run.PidsLimit
 		}
 
-		if result.CPUs == "" {
-			result.CPUs = rc.CPUs
+		if resRun.CPUs == "" {
+			resRun.CPUs = run.CPUs
 		}
 
-		if result.Memory == "" {
-			result.Memory = rc.Memory
+		if resRun.Memory == "" {
+			resRun.Memory = run.Memory
 		}
 	}
 
 	for i := len(configs) - 1; i >= 0; i-- {
-		result.ExtraMounts = append(result.ExtraMounts, configs[i].ExtraMounts...)
-		result.Secrets = append(result.Secrets, configs[i].Secrets...)
-		result.AptPackages = append(result.AptPackages, configs[i].AptPackages...)
+		run := configs[i].Run
+		build := configs[i].Build
+		resRun.ExtraMounts = append(resRun.ExtraMounts, run.ExtraMounts...)
+		resRun.Secrets = append(resRun.Secrets, run.Secrets...)
+		resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
 	}
 
 	return result

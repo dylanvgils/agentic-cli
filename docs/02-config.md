@@ -37,31 +37,44 @@ Place a `.agenticrc.toml` file in any directory to apply settings when `agentic`
 
 ### File format
 
-Standard [TOML](https://toml.io). Comments start with `#`. List keys use TOML arrays.
+Standard [TOML](https://toml.io). Comments start with `#`. List keys use TOML arrays. Build-time and runtime settings live in separate `[build]` and `[run]` sections; `root` and `namespace` are top-level keys.
 
 ```toml
 # .agenticrc.toml
 root = true
 
+[build]
 apt_packages = ["make", "gcc", "jq"]
 
+[run]
 extra_mounts = ["maven:$CONTAINER_HOME/.m2"]
-
 pids_limit = "2048"
 ```
 
 ### Keys
 
-| Key            | Type   | Description                                                                                                                                                        | CLI flag       | Env var                | Default   |
-| -------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- | ---------------------- | --------- |
-| `root`         | bool   | Stop the upward directory walk at this file                                                                                                                        | -              | -                      | -         |
-| `namespace`    | string | Image namespace. Images are named `<namespace>-<tool>` (e.g. `myproject-claude`). Allows multiple image sets per tool.                                             | `--namespace`  | `AGENTIC_NAMESPACE`    | `agentic` |
-| `apt_packages` | list   | Extra Debian packages to install in the base image at build time                                                                                                   | -              | `AGENTIC_APT_PACKAGES` | -         |
-| `extra_mounts` | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME` | -              | `AGENTIC_EXTRA_MOUNTS` | -         |
-| `secrets`      | list   | Files to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~`, `$HOME`                                                             | -              | `AGENTIC_SECRETS`      | -         |
-| `pids_limit`   | string | Container PID limit (e.g. `"1024"`)                                                                                                                                | `--pids-limit` | `AGENTIC_PIDS_LIMIT`   | `1024`    |
-| `cpus`         | string | Container CPU limit (e.g. `"4"`)                                                                                                                                   | `--cpus`       | `AGENTIC_CPUS`         | `4`       |
-| `memory`       | string | Container memory limit (e.g. `"8g"`)                                                                                                                               | `--memory`     | `AGENTIC_MEMORY`       | `4g`      |
+**Top-level**
+
+| Key         | Type   | Description                                                                                                            | Env var             | Default   |
+| ----------- | ------ | ---------------------------------------------------------------------------------------------------------------------- | ------------------- | --------- |
+| `root`      | bool   | Stop the upward directory walk at this file                                                                            | -                   | -         |
+| `namespace` | string | Image namespace. Images are named `<namespace>-<tool>` (e.g. `myproject-claude`). Allows multiple image sets per tool. | `AGENTIC_NAMESPACE` | `agentic` |
+
+**`[build]` section** - applied at `agentic build` / `agentic update` time
+
+| Key            | Type | Description                                        | CLI flag | Env var                | Default |
+| -------------- | ---- | -------------------------------------------------- | -------- | ---------------------- | ------- |
+| `apt_packages` | list | Extra Debian packages to install in the base image | `--apt`  | `AGENTIC_APT_PACKAGES` | -       |
+
+**`[run]` section** - applied at `agentic run` time
+
+| Key            | Type   | Description                                                                                                                                                        | CLI flag       | Env var                | Default |
+| -------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- | ---------------------- | ------- |
+| `extra_mounts` | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME` | `-v`           | `AGENTIC_EXTRA_MOUNTS` | -       |
+| `secrets`      | list   | Files to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~`, `$HOME`                                                             | `-s`           | `AGENTIC_SECRETS`      | -       |
+| `pids_limit`   | string | Container PID limit (e.g. `"1024"`)                                                                                                                                | `--pids-limit` | `AGENTIC_PIDS_LIMIT`   | `1024`  |
+| `cpus`         | string | Container CPU limit (e.g. `"4"`)                                                                                                                                   | `--cpus`       | `AGENTIC_CPUS`         | `4`     |
+| `memory`       | string | Container memory limit (e.g. `"8g"`)                                                                                                                               | `--memory`     | `AGENTIC_MEMORY`       | `4g`    |
 
 ### Merge semantics
 
@@ -80,13 +93,20 @@ Given these two files:
 ```toml
 # ~/projects/.agenticrc.toml
 root = true
+
+[build]
 apt_packages = ["make"]
+
+[run]
 cpus = "4"
 ```
 
 ```toml
 # ~/projects/my-project/.agenticrc.toml
+[build]
 apt_packages = ["gcc"]
+
+[run]
 cpus = "8"
 ```
 
@@ -124,6 +144,8 @@ Example: building separate images for a Java project:
 ```toml
 # ~/projects/java-app/.agenticrc.toml
 namespace = "java-app"
+
+[build]
 apt_packages = ["make"]
 ```
 
@@ -145,14 +167,21 @@ Resolution priority (highest to lowest):
 ```toml
 # ~/projects/.agenticrc.toml - shared config for all projects
 root = true
-secrets = ["gh-token:~/.secrets/gh_token"]
+
+[build]
 apt_packages = ["make"]
+
+[run]
+secrets = ["gh-token:~/.secrets/gh_token"]
 ```
 
 ```toml
 # ~/projects/my-project/.agenticrc.toml - project-specific additions
-extra_mounts = ["maven:$CONTAINER_HOME/.m2"]
+[build]
 apt_packages = ["gcc"]
+
+[run]
+extra_mounts = ["maven:$CONTAINER_HOME/.m2"]
 cpus = "8"
 ```
 

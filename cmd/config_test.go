@@ -60,14 +60,14 @@ func TestPrintGlobalConfig(t *testing.T) {
 }
 
 func TestPrintScalarField(t *testing.T) {
-	get := func(rc *config.AgenticRC) string { return rc.PidsLimit }
+	get := func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
 
 	t.Run("rc wins over env var", func(t *testing.T) {
 		// Arrange
 		t.Setenv("AGENTIC_PIDS_LIMIT", "512")
 		var buf bytes.Buffer
 		layers := []config.RCLayer{
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{PidsLimit: "100"}},
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{PidsLimit: "100"}}},
 		}
 
 		// Act
@@ -112,7 +112,11 @@ func TestPrintProjectConfig(t *testing.T) {
 		layers := []config.RCLayer{
 			{
 				Path: "/project/.agenticrc.toml",
-				RC:   &config.AgenticRC{PidsLimit: "100", CPUs: "2", Memory: "4g", Namespace: "myproject", ExtraMounts: []string{"vol:/mnt"}, AptPackages: []string{"make"}, Secrets: []string{"tok:/run/s/t"}},
+				RC: &config.AgenticRC{
+					Namespace: "myproject",
+					Build:     config.RCBuild{AptPackages: []string{"make"}},
+					Run:       config.RCRun{PidsLimit: "100", CPUs: "2", Memory: "4g", ExtraMounts: []string{"vol:/mnt"}, Secrets: []string{"tok:/run/s/t"}},
+				},
 			},
 		}
 
@@ -138,11 +142,17 @@ func TestPrintProjectConfig(t *testing.T) {
 		layers := []config.RCLayer{
 			{
 				Path: "/home/.agenticrc.toml",
-				RC:   &config.AgenticRC{CPUs: "2", ExtraMounts: []string{"parent-vol:/mnt/p"}, AptPackages: []string{"make"}},
+				RC: &config.AgenticRC{
+					Build: config.RCBuild{AptPackages: []string{"make"}},
+					Run:   config.RCRun{CPUs: "2", ExtraMounts: []string{"parent-vol:/mnt/p"}},
+				},
 			},
 			{
 				Path: "/project/.agenticrc.toml",
-				RC:   &config.AgenticRC{CPUs: "8", PidsLimit: "100", ExtraMounts: []string{"child-vol:/mnt/c"}, AptPackages: []string{"gcc"}},
+				RC: &config.AgenticRC{
+					Build: config.RCBuild{AptPackages: []string{"gcc"}},
+					Run:   config.RCRun{CPUs: "8", PidsLimit: "100", ExtraMounts: []string{"child-vol:/mnt/c"}},
+				},
 			},
 		}
 

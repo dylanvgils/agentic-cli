@@ -104,14 +104,25 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 		return err
 	}
 
-	pidsLimit := func(rc *config.AgenticRC) string { return rc.PidsLimit }
-	cpus := func(rc *config.AgenticRC) string { return rc.CPUs }
-	memory := func(rc *config.AgenticRC) string { return rc.Memory }
-	extraMounts := func(rc *config.AgenticRC) []string { return rc.ExtraMounts }
-	aptPackages := func(rc *config.AgenticRC) []string { return rc.AptPackages }
-	secrets := func(rc *config.AgenticRC) []string { return rc.Secrets }
+	pidsLimit := func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
+	cpus := func(rc *config.AgenticRC) string { return rc.Run.CPUs }
+	memory := func(rc *config.AgenticRC) string { return rc.Run.Memory }
+	extraMounts := func(rc *config.AgenticRC) []string { return rc.Run.ExtraMounts }
+	aptPackages := func(rc *config.AgenticRC) []string { return rc.Build.AptPackages }
+	secrets := func(rc *config.AgenticRC) []string { return rc.Run.Secrets }
 
 	if err := printScalarField(w, "namespace", config.EnvNamespace, layers, func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace); err != nil {
+		return err
+	}
+
+	if _, err := fmt.Fprintln(w, "  [build]"); err != nil {
+		return err
+	}
+	if err := printListField(w, "apt_packages", layers, aptPackages); err != nil {
+		return err
+	}
+
+	if _, err := fmt.Fprintln(w, "  [run]"); err != nil {
 		return err
 	}
 	if err := printScalarField(w, "pids_limit", config.EnvPidsLimit, layers, pidsLimit, docker.DefaultPidsLimit); err != nil {
@@ -124,9 +135,6 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 		return err
 	}
 	if err := printListField(w, "extra_mounts", layers, extraMounts); err != nil {
-		return err
-	}
-	if err := printListField(w, "apt_packages", layers, aptPackages); err != nil {
 		return err
 	}
 	return printListField(w, "secrets", layers, secrets)

@@ -102,7 +102,7 @@ func Test_buildRunSpec(t *testing.T) {
 	t.Run("resource limits wired", func(t *testing.T) {
 		// Arrange
 		withTempToolHome(t)
-		rc := &config.AgenticRC{PidsLimit: "512", CPUs: "2", Memory: "2g"}
+		rc := &config.AgenticRC{Run: config.RCRun{PidsLimit: "512", CPUs: "2", Memory: "2g"}}
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
@@ -371,7 +371,7 @@ func TestCollectVolumes(t *testing.T) {
 	t.Run("ordering", func(t *testing.T) {
 		// Arrange
 		t.Setenv("AGENTIC_EXTRA_MOUNTS", "envvol:/mnt/env")
-		rc := &config.AgenticRC{ExtraMounts: []string{"rcvol:/mnt/rc"}}
+		rc := &config.AgenticRC{Run: config.RCRun{ExtraMounts: []string{"rcvol:/mnt/rc"}}}
 
 		// Act
 		result := collectVolumes([]string{"tool:/mnt/tool"}, []string{"flagvol:/mnt/flag"}, rc)
@@ -428,7 +428,7 @@ func TestCollectSecrets(t *testing.T) {
 	t.Run("ordering", func(t *testing.T) {
 		// Arrange
 		t.Setenv("AGENTIC_SECRETS", "envtoken:/tmp/env")
-		rc := &config.AgenticRC{Secrets: []string{"rctoken:/tmp/rc"}}
+		rc := &config.AgenticRC{Run: config.RCRun{Secrets: []string{"rctoken:/tmp/rc"}}}
 
 		// Act
 		result := collectSecrets([]string{"flagtoken:/tmp/flag"}, rc)
@@ -469,7 +469,7 @@ func TestCollectSecrets(t *testing.T) {
 func TestResolveResourceLimits(t *testing.T) {
 	t.Run("rc fills empty flags", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{PidsLimit: "512", CPUs: "2", Memory: "2g"}
+		rc := &config.AgenticRC{Run: config.RCRun{PidsLimit: "512", CPUs: "2", Memory: "2g"}}
 
 		// Act
 		result := resolveResourceLimits("", "", "", rc)
@@ -482,7 +482,7 @@ func TestResolveResourceLimits(t *testing.T) {
 
 	t.Run("flag takes precedence over rc", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{PidsLimit: "512", CPUs: "2", Memory: "2g"}
+		rc := &config.AgenticRC{Run: config.RCRun{PidsLimit: "512", CPUs: "2", Memory: "2g"}}
 
 		// Act
 		result := resolveResourceLimits("1024", "4", "4g", rc)
@@ -495,7 +495,7 @@ func TestResolveResourceLimits(t *testing.T) {
 
 	t.Run("partial flags rc fills rest", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{PidsLimit: "512", CPUs: "2", Memory: "2g"}
+		rc := &config.AgenticRC{Run: config.RCRun{PidsLimit: "512", CPUs: "2", Memory: "2g"}}
 
 		// Act
 		result := resolveResourceLimits("1024", "", "", rc)

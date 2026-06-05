@@ -295,6 +295,7 @@ export AGENTIC_APT_PACKAGES=make,gcc
 
 ```toml
 # .agenticrc.toml (accumulates across nested RC files)
+[build]
 apt_packages = ["make", "gcc"]
 ```
 
@@ -320,6 +321,7 @@ For per-project control, use a [`.agenticrc.toml` project config file](#per-proj
 
 ```toml
 # .agenticrc.toml
+[run]
 secrets = ["copilot_token:~/.secrets/copilot_token"]
 ```
 
@@ -352,6 +354,7 @@ For per-project control, use a [`.agenticrc.toml` project config file](#per-proj
 
 ```toml
 # .agenticrc.toml
+[run]
 extra_mounts = [
   "maven:$CONTAINER_HOME/.m2",
   "gradle:$CONTAINER_HOME/.gradle",
@@ -393,6 +396,7 @@ Or add to `.agenticrc.toml` in the repo root so the whole team picks it up:
 
 ```toml
 # .agenticrc.toml
+[run]
 extra_mounts = [
   "maven:$CONTAINER_HOME/.m2",
   "gradle:$CONTAINER_HOME/.gradle",
@@ -422,32 +426,46 @@ Place a `.agenticrc.toml` file anywhere in your directory tree to apply project-
 
 **Merge rules:** list keys (`extra_mounts`, `secrets`, `apt_packages`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value. `namespace` also uses the innermost value across RC files, and like the other scalars, `.agenticrc.toml` takes precedence over `AGENTIC_NAMESPACE`.
 
-| Key            | Description                                                                                                                                          | Default   | Env var override       |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---------------------- |
-| `root`         | Stop walking up the directory tree at this file                                                                                                      | `false`   | -                      |
-| `namespace`    | Image namespace; images are named `<namespace>-<tool>`. Set per-project to maintain separate image sets.                                             | `agentic` | `AGENTIC_NAMESPACE`    |
-| `extra_mounts` | Extra mounts. Bind mount: `~/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `~`, `$HOME`, and `$CONTAINER_HOME`. | -         | `AGENTIC_EXTRA_MOUNTS` |
-| `secrets`      | Secrets to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~` and `$HOME`.                                         | -         | `AGENTIC_SECRETS`      |
-| `apt_packages` | Extra apt packages to install in the base stage at build time. Accumulates with `AGENTIC_APT_PACKAGES` and `--apt`.                                  | -         | `AGENTIC_APT_PACKAGES` |
-| `pids_limit`   | Container PID limit (quoted string, e.g. `"1024"`)                                                                                                   | `1024`    | `AGENTIC_PIDS_LIMIT`   |
-| `cpus`         | Container CPU limit (quoted string, e.g. `"4"`)                                                                                                      | `4`       | `AGENTIC_CPUS`         |
-| `memory`       | Container memory limit (string, e.g. `"8g"`)                                                                                                         | `4g`      | `AGENTIC_MEMORY`       |
+`root` and `namespace` are top-level keys. Build-time settings go under `[build]`; runtime settings go under `[run]`.
 
-For `pids_limit`, `cpus`, `memory`, and `namespace`, `.agenticrc.toml` values override the corresponding env var defaults but are superseded by CLI flags. `extra_mounts` and `secrets` are appended to rather than replacing `AGENTIC_EXTRA_MOUNTS` / `AGENTIC_SECRETS`. You can commit `.agenticrc.toml` to the repo so the whole team picks up the right settings automatically.
+**Top-level**
+
+| Key         | Description                                             | Default   | Env var override    |
+| ----------- | ------------------------------------------------------- | --------- | ------------------- |
+| `root`      | Stop walking up the directory tree at this file         | `false`   | -                   |
+| `namespace` | Image namespace; images are named `<namespace>-<tool>`. | `agentic` | `AGENTIC_NAMESPACE` |
+
+**`[build]` section** - baked into the image at build time
+
+| Key            | Description                                                                        | Default | Env var override       |
+| -------------- | ---------------------------------------------------------------------------------- | ------- | ---------------------- |
+| `apt_packages` | Extra apt packages to install at build time. Accumulates with `--apt` and env var. | -       | `AGENTIC_APT_PACKAGES` |
+
+**`[run]` section** - applied to each container at runtime
+
+| Key            | Description                                                                                                                                          | Default | Env var override       |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------- |
+| `extra_mounts` | Extra mounts. Bind mount: `~/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `~`, `$HOME`, and `$CONTAINER_HOME`. | -       | `AGENTIC_EXTRA_MOUNTS` |
+| `secrets`      | Secrets to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~` and `$HOME`.                                         | -       | `AGENTIC_SECRETS`      |
+| `pids_limit`   | Container PID limit (quoted string, e.g. `"1024"`)                                                                                                   | `1024`  | `AGENTIC_PIDS_LIMIT`   |
+| `cpus`         | Container CPU limit (quoted string, e.g. `"4"`)                                                                                                      | `4`     | `AGENTIC_CPUS`         |
+| `memory`       | Container memory limit (string, e.g. `"8g"`)                                                                                                         | `4g`    | `AGENTIC_MEMORY`       |
+
+You can commit `.agenticrc.toml` to the repo so the whole team picks up the right settings automatically.
 
 ```toml
 # .agenticrc.toml
 root = true
 
+[build]
+apt_packages = ["make", "gcc"]
+
+[run]
 extra_mounts = [
   "maven:$CONTAINER_HOME/.m2",
   "gradle:$CONTAINER_HOME/.gradle",
 ]
-
 secrets = ["copilot_token:~/.secrets/copilot_token"]
-
-apt_packages = ["make", "gcc"]
-
 pids_limit = "2048"
 cpus = "8"
 memory = "8g"
@@ -458,14 +476,21 @@ memory = "8g"
 ```toml
 # ~/projects/.agenticrc.toml  (applies to all projects under ~/projects)
 root = true
-secrets = ["gh-token:~/.secrets/gh_token"]
+
+[build]
 apt_packages = ["make"]
+
+[run]
+secrets = ["gh-token:~/.secrets/gh_token"]
 ```
 
 ```toml
 # ~/projects/my-project/.agenticrc.toml
-extra_mounts = ["maven:$CONTAINER_HOME/.m2"]
+[build]
 apt_packages = ["gcc"]
+
+[run]
+extra_mounts = ["maven:$CONTAINER_HOME/.m2"]
 cpus = "8"
 ```
 

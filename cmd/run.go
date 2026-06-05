@@ -168,7 +168,7 @@ func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) [
 		}
 	}
 	volumes = append(volumes, extra...)
-	volumes = append(volumes, rc.ExtraMounts...)
+	volumes = append(volumes, rc.Run.ExtraMounts...)
 
 	return volumes
 }
@@ -184,20 +184,21 @@ func collectSecrets(flags []string, rc *config.AgenticRC) []string {
 		}
 	}
 	secrets = append(secrets, flags...)
-	secrets = append(secrets, rc.Secrets...)
+	secrets = append(secrets, rc.Run.Secrets...)
 
 	return secrets
 }
 
 func resolveResourceLimits(pidsLimit, cpus, memory string, rc *config.AgenticRC) resourceLimits {
+	run := rc.Run
 	if pidsLimit == "" {
-		pidsLimit = rc.PidsLimit
+		pidsLimit = run.PidsLimit
 	}
 	if cpus == "" {
-		cpus = rc.CPUs
+		cpus = run.CPUs
 	}
 	if memory == "" {
-		memory = rc.Memory
+		memory = run.Memory
 	}
 	return resourceLimits{pidsLimit: pidsLimit, cpus: cpus, memory: memory}
 }
