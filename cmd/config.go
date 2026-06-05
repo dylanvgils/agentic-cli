@@ -15,7 +15,7 @@ import (
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Show the effective agentic configuration",
-	Long:  `Show the merged configuration from agentic.json and all .agenticrc files.`,
+	Long:  `Show the merged configuration from agentic.json and all .agenticrc.toml files.`,
 	Args:  cobra.NoArgs,
 	RunE:  showConfig,
 }
@@ -89,10 +89,10 @@ func printGlobalConfig(w io.Writer, home string, cfg *config.CliConfig) error {
 
 func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if len(layers) == 0 {
-		if _, err := fmt.Fprintln(w, "Project (.agenticrc)"); err != nil {
+		if _, err := fmt.Fprintln(w, "Project (.agenticrc.toml)"); err != nil {
 			return err
 		}
-		_, err := fmt.Fprintln(w, "  (no .agenticrc files found)")
+		_, err := fmt.Fprintln(w, "  (no .agenticrc.toml files found)")
 		return err
 	}
 
@@ -100,7 +100,7 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if len(layers) > 1 {
 		noun = "files"
 	}
-	if _, err := fmt.Fprintf(w, "Project (.agenticrc, %d %s)\n", len(layers), noun); err != nil {
+	if _, err := fmt.Fprintf(w, "Project (.agenticrc.toml, %d %s)\n", len(layers), noun); err != nil {
 		return err
 	}
 

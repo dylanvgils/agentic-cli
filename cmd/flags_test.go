@@ -103,7 +103,7 @@ func TestCollectAptPackages(t *testing.T) {
 	t.Run("rc file packages are included", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc"), []byte("apt_packages=make\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("apt_packages = [\"make\"]\n"), 0o644))
 		t.Chdir(dir)
 		cmd := newAptCmd(t)
 
@@ -117,7 +117,7 @@ func TestCollectAptPackages(t *testing.T) {
 	t.Run("flag appends to config packages", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc"), []byte("apt_packages=make\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("apt_packages = [\"make\"]\n"), 0o644))
 		t.Chdir(dir)
 		cmd := newAptCmd(t)
 		require.NoError(t, cmd.Flags().Set("apt", "gcc"))

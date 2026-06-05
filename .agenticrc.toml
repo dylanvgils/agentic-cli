@@ -1,0 +1,6 @@
+extra_mounts = [
+  "go-mod:$CONTAINER_HOME/go",
+  "go-cache:$CONTAINER_HOME/.cache/go-build",
+]
+
+apt_packages = ["make"]
