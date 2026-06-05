@@ -164,6 +164,7 @@ func TestRunBuild(t *testing.T) {
 
 	t.Run("base flag sets opt", func(t *testing.T) {
 		// Arrange
+		t.Chdir(t.TempDir())
 		var capturedOpts tools.BuildOptions
 		stubBuildTool(t, func(_, _ string, opts tools.BuildOptions) error {
 			capturedOpts = opts
