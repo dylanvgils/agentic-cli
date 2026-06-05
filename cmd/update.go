@@ -37,6 +37,12 @@ func init() {
 	addAllFlag(updateCmd)
 }
 
+type updateTarget struct {
+	name  string
+	image string
+	opts  tools.BuildOptions
+}
+
 func runUpdate(cmd *cobra.Command, args []string) error {
 	rc := config.FindAndLoadFromCwd()
 	namespace := resolveNamespace(cmd, rc)
@@ -48,15 +54,81 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return dryRunUpdate(args, namespace, opts)
 	}
 
-	if all {
-		return updateAllImages(opts)
-	}
-
-	if err := updateTools(args, namespace, opts); err != nil {
+	targets, err := resolveUpdateTargets(args, namespace, opts, all)
+	if err != nil {
 		return err
 	}
 
+	if len(targets) == 0 {
+		if all {
+			fmt.Println("No agentic images found. Run 'agentic build' first.")
+		} else if len(args) == 0 {
+			fmt.Println("No tools are built. Run 'agentic build' first.")
+		}
+		return nil
+	}
+
+	for _, t := range targets {
+		if err := updateOneTool(t.name, t.image, t.opts); err != nil {
+			return err
+		}
+	}
+
 	return pruneAndReport()
+}
+
+func resolveUpdateTargets(args []string, namespace string, opts tools.BuildOptions, all bool) ([]updateTarget, error) {
+	if all {
+		return resolveAllUpdateTargets(opts)
+	}
+	return resolveScopedUpdateTargets(args, namespace, opts)
+}
+
+func resolveAllUpdateTargets(opts tools.BuildOptions) ([]updateTarget, error) {
+	images, err := listAllImages()
+	if err != nil {
+		return nil, err
+	}
+
+	var targets []updateTarget
+	for _, info := range images {
+		if info.Tool == "" {
+			continue
+		}
+		targets = append(targets, updateTarget{name: info.Tool, image: info.Image, opts: recoverOpts(info, opts)})
+	}
+	return targets, nil
+}
+
+func resolveScopedUpdateTargets(args []string, namespace string, opts tools.BuildOptions) ([]updateTarget, error) {
+	skipUnbuilt := len(args) == 0
+	var targets []updateTarget
+
+	for _, name := range toolNames(args) {
+		image, err := tools.ImageName(name, namespace)
+		if err != nil {
+			return nil, err
+		}
+
+		info, err := inspectImage(image)
+		if err != nil {
+			return nil, err
+		}
+
+		if skipUnbuilt && info == nil {
+			output.Stepf("%s (skipped - not built)", image)
+			continue
+		}
+
+		toolOpts := opts
+		if info != nil {
+			toolOpts = recoverOpts(info, opts)
+		}
+
+		targets = append(targets, updateTarget{name: name, image: image, opts: toolOpts})
+	}
+
+	return targets, nil
 }
 
 func dryRunUpdate(args []string, namespace string, opts tools.BuildOptions) error {
@@ -81,74 +153,6 @@ func dryRunUpdate(args []string, namespace string, opts tools.BuildOptions) erro
 
 	_, err = fmt.Println(content)
 	return err
-}
-
-func updateAllImages(opts tools.BuildOptions) error {
-	images, err := listAllImages()
-	if err != nil {
-		return err
-	}
-
-	if len(images) == 0 {
-		fmt.Println("No agentic images found. Run 'agentic build' first.")
-		return nil
-	}
-
-	updated := 0
-	for _, info := range images {
-		if info.Tool == "" {
-			continue
-		}
-
-		if err := updateOneTool(info.Tool, info.Image, recoverOpts(info, opts)); err != nil {
-			return err
-		}
-		updated++
-	}
-
-	if updated == 0 {
-		fmt.Println("No agentic images found. Run 'agentic build' first.")
-	}
-
-	return pruneAndReport()
-}
-
-func updateTools(args []string, namespace string, opts tools.BuildOptions) error {
-	skipUnbuilt := len(args) == 0
-	updated := 0
-
-	for _, name := range toolNames(args) {
-		image, err := tools.ImageName(name, namespace)
-		if err != nil {
-			return err
-		}
-
-		info, err := inspectImage(image)
-		if err != nil {
-			return err
-		}
-
-		if skipUnbuilt && info == nil {
-			output.Stepf("%s (skipped - not built)", image)
-			continue
-		}
-
-		toolOpts := opts
-		if info != nil {
-			toolOpts = recoverOpts(info, opts)
-		}
-
-		if err := updateOneTool(name, image, toolOpts); err != nil {
-			return err
-		}
-		updated++
-	}
-
-	if skipUnbuilt && updated == 0 {
-		fmt.Println("No tools are built. Run 'agentic build' first.")
-	}
-
-	return nil
 }
 
 func recoverOpts(info *docker.ImageInfo, opts tools.BuildOptions) tools.BuildOptions {

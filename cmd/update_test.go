@@ -70,52 +70,22 @@ func TestDryRunUpdate(t *testing.T) {
 	})
 }
 
-func TestUpdateTools(t *testing.T) {
-	t.Run("all built updates all", func(t *testing.T) {
+func Test_resolveScopedUpdateTargets(t *testing.T) {
+	t.Run("single tool always included even if unbuilt", func(t *testing.T) {
 		// Arrange
-		var updated []string
-		stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
-			updated = append(updated, tool)
-			return nil
-		})
-		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-
-		// Act
-		err := updateTools([]string{}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"claude", "copilot", "opencode"}, updated)
-	})
-
-	t.Run("all unbuilt skips all prints message", func(t *testing.T) {
-		// Arrange
-		var updated []string
-		stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
-			updated = append(updated, tool)
-			return nil
-		})
 		stubInspectImage(t, nil, nil)
 
 		// Act
-		out := captureStdout(t, func() {
-			err := updateTools([]string{}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
-			require.NoError(t, err)
-		})
+		targets, err := resolveScopedUpdateTargets([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
-		assert.Empty(t, updated)
-		assert.Contains(t, out, "No tools are built.")
+		require.NoError(t, err)
+		require.Len(t, targets, 1)
+		assert.Equal(t, "claude", targets[0].name)
 	})
 
-	t.Run("mixed built skips unbuilt", func(t *testing.T) {
+	t.Run("mixed built recovers opts from label for built tools", func(t *testing.T) {
 		// Arrange
-		var updated []string
-		stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
-			updated = append(updated, tool)
-			return nil
-		})
-
 		callCount := 0
 		orig := inspectImage
 		inspectImage = func(_ string) (*docker.ImageInfo, error) {
@@ -123,70 +93,62 @@ func TestUpdateTools(t *testing.T) {
 			if callCount == 1 {
 				return nil, nil // claude not built
 			}
-			return &docker.ImageInfo{Version: "1.0.0"}, nil
+			return &docker.ImageInfo{Version: "1.0.0", Base: "node@24,java@21"}, nil
 		}
-		defer func() { inspectImage = orig }()
+		t.Cleanup(func() { inspectImage = orig })
 
 		// Act
-		out := captureStdout(t, func() {
-			err := updateTools([]string{}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Equal(t, []string{"copilot", "opencode"}, updated)
-		assert.Contains(t, out, "=> agentic-claude (skipped - not built)")
-	})
-
-	t.Run("single tool always updates", func(t *testing.T) {
-		// Arrange
-		var updated []string
-		stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
-			updated = append(updated, tool)
-			return nil
-		})
-		stubInspectImage(t, nil, nil)
-
-		// Act
-		err := updateTools([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		targets, err := resolveScopedUpdateTargets([]string{}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"claude"}, updated)
+		assert.Len(t, targets, 2) // copilot + opencode
+		assert.NotEmpty(t, targets[0].opts.BaseOverride)
 	})
 
-	t.Run("recovers opts from image labels", func(t *testing.T) {
+	t.Run("inspectImage error propagates", func(t *testing.T) {
 		// Arrange
-		var capturedOpts tools.BuildOptions
-		stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
-			capturedOpts = opts
-			return nil
-		})
-		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0", Base: "node@24,java@21"}, nil)
+		stubInspectImage(t, nil, fmt.Errorf("daemon not running"))
 
 		// Act
-		err := updateTools([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotEmpty(t, capturedOpts.BaseOverride)
-	})
-
-	t.Run("stops on first tool error", func(t *testing.T) {
-		// Arrange
-		var updated []string
-		stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
-			updated = append(updated, tool)
-			return fmt.Errorf("fail on %s", tool)
-		})
-		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-
-		// Act
-		err := updateTools([]string{}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		_, err := resolveScopedUpdateTargets([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
-		assert.Len(t, updated, 1)
+	})
+}
+
+func Test_resolveAllUpdateTargets(t *testing.T) {
+	t.Run("skips images with empty tool field", func(t *testing.T) {
+		// Arrange
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-base", Namespace: "agentic", Tool: ""},
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+			}, nil
+		})
+
+		// Act
+		targets, err := resolveAllUpdateTargets(tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, targets, 1)
+		assert.Equal(t, "claude", targets[0].name)
+	})
+
+	t.Run("listAllImages error propagates", func(t *testing.T) {
+		// Arrange
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return nil, fmt.Errorf("docker daemon not running")
+		})
+
+		// Act
+		_, err := resolveAllUpdateTargets(tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "docker daemon not running")
 	})
 }
 
@@ -312,60 +274,6 @@ func Test_recoverOpts(t *testing.T) {
 	})
 }
 
-func TestUpdateAllImages(t *testing.T) {
-	t.Run("updates every image", func(t *testing.T) {
-		// Arrange
-		var updated []string
-		stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
-			updated = append(updated, tool)
-			return nil
-		})
-		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-		stubPruneImages(t, func() (string, error) { return "", nil })
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24,java@21"},
-				{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "node@24"},
-			}, nil
-		})
-
-		// Act
-		err := updateAllImages(tools.BuildOptions{Versions: map[string]string{}})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"claude", "copilot"}, updated)
-	})
-
-	t.Run("no images prints message", func(t *testing.T) {
-		// Arrange
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) { return nil, nil })
-
-		// Act
-		out := captureStdout(t, func() {
-			err := updateAllImages(tools.BuildOptions{Versions: map[string]string{}})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "No agentic images found")
-	})
-
-	t.Run("docker error propagates", func(t *testing.T) {
-		// Arrange
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return nil, fmt.Errorf("docker daemon not running")
-		})
-
-		// Act
-		err := updateAllImages(tools.BuildOptions{Versions: map[string]string{}})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "docker daemon not running")
-	})
-}
-
 func TestRunUpdate(t *testing.T) {
 	t.Run("no cache flag sets opt", func(t *testing.T) {
 		// Arrange
@@ -402,5 +310,82 @@ func TestRunUpdate(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, out, "=> pruned dangling images (reclaimed 512MB)")
+	})
+
+	t.Run("stops on first update error", func(t *testing.T) {
+		// Arrange
+		var updated []string
+		stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
+			updated = append(updated, tool)
+			return fmt.Errorf("fail on %s", tool)
+		})
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+
+		// Act
+		err := runUpdate(updateCmd, []string{})
+
+		// Assert
+		require.Error(t, err)
+		assert.Len(t, updated, 1)
+	})
+
+	t.Run("no tools built prints message", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, nil)
+
+		// Act
+		out := captureStdout(t, func() {
+			err := runUpdate(updateCmd, []string{})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "No tools are built.")
+	})
+
+	t.Run("all flag with no images prints message", func(t *testing.T) {
+		// Arrange
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) { return nil, nil })
+
+		cmd := updateCmd
+		require.NoError(t, cmd.Flags().Set("all", "true"))
+		defer cmd.Flags().Set("all", "false") //nolint:errcheck
+
+		// Act
+		out := captureStdout(t, func() {
+			err := runUpdate(cmd, []string{})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "No agentic images found")
+	})
+
+	t.Run("all flag updates all images and prunes", func(t *testing.T) {
+		// Arrange
+		var updated []string
+		stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
+			updated = append(updated, tool)
+			return nil
+		})
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},
+				{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "node@24"},
+			}, nil
+		})
+
+		cmd := updateCmd
+		require.NoError(t, cmd.Flags().Set("all", "true"))
+		defer cmd.Flags().Set("all", "false") //nolint:errcheck
+
+		// Act
+		err := runUpdate(cmd, []string{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"claude", "copilot"}, updated)
 	})
 }
