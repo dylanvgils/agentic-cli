@@ -214,7 +214,11 @@ func requireImage(image, tool string) error {
 		return nil
 	}
 
-	images, _ := listAllImages(docker.ToolFilter(tool))
+	images, err := listAllImages(docker.ToolFilter(tool))
+	if err != nil {
+		return err
+	}
+
 	var namespaces []string
 	for _, img := range images {
 		namespaces = append(namespaces, img.Namespace)

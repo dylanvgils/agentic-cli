@@ -149,11 +149,13 @@ func listAllRepositories(filters ...ImageFilter) ([]string, error) {
 		return nil, err
 	}
 
+	seen := make(map[string]bool)
 	var repos []string
 	for repo := range strings.FieldsSeq(out) {
-		if repo == "<none>" {
+		if repo == "<none>" || seen[repo] {
 			continue
 		}
+		seen[repo] = true
 		repos = append(repos, repo)
 	}
 

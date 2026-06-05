@@ -50,7 +50,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 	tool := args[0]
 
 	if all {
-		return printAllNamespaceDetail(tool, namespace)
+		return printAllNamespaceDetail(tool, "")
 	}
 
 	output.Stepf("%s/%s", namespace, tool)
@@ -58,14 +58,15 @@ func runInspect(cmd *cobra.Command, args []string) error {
 }
 
 func runInspectTable(namespace string) error {
-	var filters []docker.ImageFilter
-	if namespace != "" {
-		filters = append(filters, docker.NamespaceFilter(namespace))
-	}
-
-	images, err := listAllImages(filters...)
+	images, err := listAllImages()
 	if err != nil {
 		return err
+	}
+
+	if namespace != "" {
+		images = slices.DeleteFunc(images, func(img *docker.ImageInfo) bool {
+			return img.Namespace != namespace
+		})
 	}
 
 	slices.SortFunc(images, func(a, b *docker.ImageInfo) int {
@@ -132,18 +133,17 @@ func writeAllTable(images []*docker.ImageInfo) error {
 }
 
 func printAllNamespaceDetail(tool, namespace string) error {
-	filters := []docker.ImageFilter{docker.ToolFilter(tool)}
-	if namespace != "" {
-		filters = append(filters, docker.NamespaceFilter(namespace))
-	}
-
-	images, err := listAllImages(filters...)
+	images, err := listAllImages()
 	if err != nil {
 		return err
 	}
 
 	found := false
 	for _, info := range images {
+		if info.Tool != tool || (namespace != "" && info.Namespace != namespace) {
+			continue
+		}
+
 		output.Stepf("%s/%s", info.Namespace, info.Tool)
 		printInfoDetail(info)
 		found = true
