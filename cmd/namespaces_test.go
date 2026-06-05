@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_runNamespaces(t *testing.T) {
-	t.Run("list: prints unique namespaces sorted alphabetically", func(t *testing.T) {
+func Test_listNamespaces(t *testing.T) {
+	t.Run("prints unique namespaces sorted alphabetically", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
@@ -22,7 +22,7 @@ func Test_runNamespaces(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := runNamespaces(namespacesCmd, []string{})
+			err := listNamespaces()
 			require.NoError(t, err)
 		})
 
@@ -30,7 +30,7 @@ func Test_runNamespaces(t *testing.T) {
 		assert.Less(t, strings.Index(out, "agentic"), strings.Index(out, "work"))
 	})
 
-	t.Run("list: deduplicates namespaces from multiple images", func(t *testing.T) {
+	t.Run("deduplicates namespaces from multiple images", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
@@ -41,7 +41,7 @@ func Test_runNamespaces(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := runNamespaces(namespacesCmd, []string{})
+			err := listNamespaces()
 			require.NoError(t, err)
 		})
 
@@ -49,7 +49,7 @@ func Test_runNamespaces(t *testing.T) {
 		assert.Equal(t, 1, strings.Count(out, "agentic"))
 	})
 
-	t.Run("list: empty prints no-images message", func(t *testing.T) {
+	t.Run("empty prints no-images message", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, nil
@@ -57,7 +57,7 @@ func Test_runNamespaces(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := runNamespaces(namespacesCmd, []string{})
+			err := listNamespaces()
 			require.NoError(t, err)
 		})
 
@@ -65,21 +65,23 @@ func Test_runNamespaces(t *testing.T) {
 		assert.Contains(t, out, "no agentic images found")
 	})
 
-	t.Run("list: docker error propagates", func(t *testing.T) {
+	t.Run("docker error propagates", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, fmt.Errorf("docker daemon not running")
 		})
 
 		// Act
-		err := runNamespaces(namespacesCmd, []string{})
+		err := listNamespaces()
 
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "docker daemon not running")
 	})
+}
 
-	t.Run("prune: calls cleanImage for each image in the namespace", func(t *testing.T) {
+func Test_pruneNamespace(t *testing.T) {
+	t.Run("calls cleanImage for each image in the namespace", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
@@ -92,18 +94,16 @@ func Test_runNamespaces(t *testing.T) {
 			cleaned = append(cleaned, image)
 			return nil
 		})
-		require.NoError(t, namespacesCmd.Flags().Set("prune", "true"))
-		defer namespacesCmd.Flags().Set("prune", "false") //nolint:errcheck
 
 		// Act
-		err := runNamespaces(namespacesCmd, []string{})
+		err := pruneNamespace("agentic")
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"agentic-claude", "agentic-copilot"}, cleaned)
 	})
 
-	t.Run("prune: passes namespace filter to listAllImages", func(t *testing.T) {
+	t.Run("passes namespace filter to listAllImages", func(t *testing.T) {
 		// Arrange
 		var capturedFilters []docker.ImageFilter
 		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -113,28 +113,24 @@ func Test_runNamespaces(t *testing.T) {
 			}, nil
 		})
 		stubCleanImage(t, func(string) error { return nil })
-		require.NoError(t, namespacesCmd.Flags().Set("prune", "true"))
-		defer namespacesCmd.Flags().Set("prune", "false") //nolint:errcheck
 
 		// Act
-		err := runNamespaces(namespacesCmd, []string{})
+		err := pruneNamespace("agentic")
 		require.NoError(t, err)
 
 		// Assert
 		assert.Equal(t, []docker.ImageFilter{docker.NamespaceFilter("agentic")}, capturedFilters)
 	})
 
-	t.Run("prune: empty namespace prints message without error", func(t *testing.T) {
+	t.Run("empty namespace prints message without error", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, nil
 		})
-		require.NoError(t, namespacesCmd.Flags().Set("prune", "true"))
-		defer namespacesCmd.Flags().Set("prune", "false") //nolint:errcheck
 
 		// Act
 		out := captureStdout(t, func() {
-			err := runNamespaces(namespacesCmd, []string{})
+			err := pruneNamespace("agentic")
 			require.NoError(t, err)
 		})
 
@@ -142,23 +138,21 @@ func Test_runNamespaces(t *testing.T) {
 		assert.Contains(t, out, "no images found in namespace")
 	})
 
-	t.Run("prune: docker list error propagates", func(t *testing.T) {
+	t.Run("docker list error propagates", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, fmt.Errorf("docker daemon not running")
 		})
-		require.NoError(t, namespacesCmd.Flags().Set("prune", "true"))
-		defer namespacesCmd.Flags().Set("prune", "false") //nolint:errcheck
 
 		// Act
-		err := runNamespaces(namespacesCmd, []string{})
+		err := pruneNamespace("agentic")
 
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "docker daemon not running")
 	})
 
-	t.Run("prune: cleanImage error propagates", func(t *testing.T) {
+	t.Run("cleanImage error propagates", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
@@ -166,11 +160,9 @@ func Test_runNamespaces(t *testing.T) {
 			}, nil
 		})
 		stubCleanImage(t, func(string) error { return fmt.Errorf("remove failed") })
-		require.NoError(t, namespacesCmd.Flags().Set("prune", "true"))
-		defer namespacesCmd.Flags().Set("prune", "false") //nolint:errcheck
 
 		// Act
-		err := runNamespaces(namespacesCmd, []string{})
+		err := pruneNamespace("agentic")
 
 		// Assert
 		require.Error(t, err)

@@ -13,31 +13,40 @@ import (
 
 var namespacesCmd = &cobra.Command{
 	Use:   "namespaces",
-	Short: "List all known namespaces",
-	Long: "List all namespaces derived from built agentic images.\n" +
-		"Use --prune to remove all images in the active (or specified) namespace.",
-	Args: cobra.NoArgs,
-	RunE: runNamespaces,
+	Short: "Manage namespaces",
+	Long:  "Manage namespaces derived from built agentic images.",
+}
+
+var namespacesListCmd = &cobra.Command{
+	Use:     "list",
+	Aliases: []string{"ls"},
+	Short:   "List all known namespaces",
+	Args:    cobra.NoArgs,
+	RunE:    runNamespacesList,
+}
+
+var namespacesPruneCmd = &cobra.Command{
+	Use:   "prune",
+	Short: "Remove all images in the active or specified namespace",
+	Args:  cobra.NoArgs,
+	RunE:  runNamespacesPrune,
 }
 
 func init() {
 	rootCmd.AddCommand(namespacesCmd)
+	namespacesCmd.AddCommand(namespacesListCmd, namespacesPruneCmd)
 
-	namespacesCmd.Flags().Bool("prune", false, "remove all images in the namespace")
-
-	addNamespaceFlag(namespacesCmd)
+	addNamespaceFlag(namespacesPruneCmd)
 }
 
-func runNamespaces(cmd *cobra.Command, _ []string) error {
-	prune, _ := cmd.Flags().GetBool("prune")
-
-	if prune {
-		rc := config.FindAndLoadFromCwd()
-		namespace := resolveNamespace(cmd, rc)
-		return pruneNamespace(namespace)
-	}
-
+func runNamespacesList(_ *cobra.Command, _ []string) error {
 	return listNamespaces()
+}
+
+func runNamespacesPrune(cmd *cobra.Command, _ []string) error {
+	rc := config.FindAndLoadFromCwd()
+	namespace := resolveNamespace(cmd, rc)
+	return pruneNamespace(namespace)
 }
 
 func listNamespaces() error {
