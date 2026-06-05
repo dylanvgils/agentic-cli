@@ -24,53 +24,24 @@ func init() {
 	addAllFlag(cleanCmd)
 }
 
+type cleanTarget struct {
+	label string
+	image string
+}
+
 func runClean(cmd *cobra.Command, args []string) error {
 	rc := config.FindAndLoadFromCwd()
 	namespace := resolveNamespace(cmd, rc)
 	all, _ := cmd.Flags().GetBool("all")
 
-	if all {
-		return cleanAll(args)
-	}
-
-	return cleanScoped(args, namespace)
-}
-
-func cleanAll(args []string) error {
-	var filters []docker.ImageFilter
-	if len(args) > 0 {
-		filters = append(filters, docker.ToolFilter(args[0]))
-	}
-
-	images, err := listAllImages(filters...)
+	targets, err := resolveCleanTargets(args, namespace, all)
 	if err != nil {
 		return err
 	}
 
-	for _, info := range images {
-		output.Stepf("%s/%s", info.Namespace, info.Tool)
-		if err := cleanImage(info.Image); err != nil {
-			return err
-		}
-	}
-
-	if len(filters) == 0 {
-		output.Step("base")
-		return cleanBaseImages()
-	}
-
-	return nil
-}
-
-func cleanScoped(args []string, namespace string) error {
-	for _, name := range toolNames(args) {
-		image, err := tools.ImageName(name, namespace)
-		if err != nil {
-			return err
-		}
-
-		output.Step(image)
-		if err := cleanImage(image); err != nil {
+	for _, t := range targets {
+		output.Step(t.label)
+		if err := cleanImage(t.image); err != nil {
 			return err
 		}
 	}
@@ -79,5 +50,47 @@ func cleanScoped(args []string, namespace string) error {
 		output.Step("base")
 		return cleanBaseImages()
 	}
+
 	return nil
+}
+
+func resolveCleanTargets(args []string, namespace string, all bool) ([]cleanTarget, error) {
+	if all {
+		return resolveAllCleanTargets(args)
+	}
+	return resolveScopedCleanTargets(args, namespace)
+}
+
+func resolveAllCleanTargets(args []string) ([]cleanTarget, error) {
+	var filters []docker.ImageFilter
+	if len(args) > 0 {
+		filters = append(filters, docker.ToolFilter(args[0]))
+	}
+
+	images, err := listAllImages(filters...)
+	if err != nil {
+		return nil, err
+	}
+
+	targets := make([]cleanTarget, len(images))
+	for i, info := range images {
+		targets[i] = cleanTarget{label: info.Namespace + "/" + info.Tool, image: info.Image}
+	}
+
+	return targets, nil
+}
+
+func resolveScopedCleanTargets(args []string, namespace string) ([]cleanTarget, error) {
+	names := toolNames(args)
+	targets := make([]cleanTarget, 0, len(names))
+
+	for _, name := range names {
+		image, err := tools.ImageName(name, namespace)
+		if err != nil {
+			return nil, err
+		}
+		targets = append(targets, cleanTarget{label: image, image: image})
+	}
+
+	return targets, nil
 }
