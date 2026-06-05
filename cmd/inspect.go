@@ -62,15 +62,14 @@ func runInspect(cmd *cobra.Command, args []string) error {
 }
 
 func runInspectTable(namespace string) error {
-	images, err := listAllImages()
-	if err != nil {
-		return err
+	var filters []docker.ImageFilter
+	if namespace != "" {
+		filters = append(filters, docker.NamespaceFilter(namespace))
 	}
 
-	if namespace != "" {
-		images = slices.DeleteFunc(images, func(img *docker.ImageInfo) bool {
-			return img.Namespace != namespace
-		})
+	images, err := listAllImages(filters...)
+	if err != nil {
+		return err
 	}
 
 	slices.SortFunc(images, func(a, b *docker.ImageInfo) int {
@@ -100,11 +99,7 @@ func writeNamespaceTable(namespace string, images []*docker.ImageInfo) error {
 		return w.Flush()
 	}
 	for _, info := range images {
-		version := orDash(info.Version)
-		base := orDash(truncate(info.Base, baseMaxLength))
-		built := orDash(info.Built)
-		size := orDash(info.Size)
-
+		version, base, built, size := imageRow(info)
 		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", info.Tool, version, base, built, size); err != nil {
 			return err
 		}
@@ -126,11 +121,7 @@ func writeAllTable(images []*docker.ImageInfo) error {
 	}
 
 	for _, info := range images {
-		version := orDash(info.Version)
-		base := orDash(truncate(info.Base, baseMaxLength))
-		built := orDash(info.Built)
-		size := orDash(info.Size)
-
+		version, base, built, size := imageRow(info)
 		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", info.Namespace, info.Tool, version, base, built, size); err != nil {
 			return err
 		}
@@ -140,7 +131,7 @@ func writeAllTable(images []*docker.ImageInfo) error {
 }
 
 func printAllNamespaceDetail(tool, namespace string) error {
-	images, err := listAllImages()
+	images, err := listAllImages(docker.ToolFilter(tool))
 	if err != nil {
 		return err
 	}
@@ -208,6 +199,13 @@ func printInfoDetail(info *docker.ImageInfo) {
 	}
 	fmt.Printf("  built:    %s\n", built)
 	fmt.Printf("  size:     %s\n", size)
+}
+
+func imageRow(info *docker.ImageInfo) (version, base, built, size string) {
+	return orDash(info.Version),
+		orDash(truncate(info.Base, baseMaxLength)),
+		orDash(info.Built),
+		orDash(info.Size)
 }
 
 func truncate(s string, max int) string {

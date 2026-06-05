@@ -84,10 +84,9 @@ func Test_runInspect(t *testing.T) {
 
 func Test_runInspectTable(t *testing.T) {
 	t.Run("with namespace shows namespace images only", func(t *testing.T) {
-		// Arrange
-		workInfo := &docker.ImageInfo{Image: "work-claude", Namespace: "work", Tool: "claude"}
+		// Arrange — stub returns only the agentic image (as Docker would after label filtering)
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{builtInfo, workInfo}, nil
+			return []*docker.ImageInfo{builtInfo}, nil
 		})
 
 		// Act
@@ -99,6 +98,22 @@ func Test_runInspectTable(t *testing.T) {
 		// Assert
 		assert.Contains(t, out, "claude")
 		assert.NotContains(t, out, "work")
+	})
+
+	t.Run("namespace filter passed to listAllImages", func(t *testing.T) {
+		// Arrange
+		var capturedFilters []docker.ImageFilter
+		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			capturedFilters = filters
+			return []*docker.ImageInfo{builtInfo}, nil
+		})
+
+		// Act
+		err := runInspectTable("agentic")
+		require.NoError(t, err)
+
+		// Assert
+		assert.Equal(t, []docker.ImageFilter{docker.NamespaceFilter("agentic")}, capturedFilters)
 	})
 
 	t.Run("results are sorted by tool name", func(t *testing.T) {
@@ -379,6 +394,22 @@ func Test_printAllNamespaceDetail(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "docker daemon not running")
+	})
+
+	t.Run("tool filter passed to listAllImages", func(t *testing.T) {
+		// Arrange
+		var capturedFilters []docker.ImageFilter
+		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			capturedFilters = filters
+			return []*docker.ImageInfo{builtInfo}, nil
+		})
+
+		// Act
+		err := printAllNamespaceDetail("claude", "")
+		require.NoError(t, err)
+
+		// Assert
+		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, capturedFilters)
 	})
 }
 

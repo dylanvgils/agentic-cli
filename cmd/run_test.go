@@ -278,6 +278,40 @@ func TestRequireImage(t *testing.T) {
 		assert.Contains(t, err.Error(), "work")
 		assert.Contains(t, err.Error(), "--namespace")
 	})
+
+	t.Run("single namespace uses singular noun", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, nil)
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{{Namespace: "myproject"}}, nil
+		})
+
+		// Act
+		err := requireImage("agentic-claude", "claude")
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "namespace ")
+		assert.NotContains(t, err.Error(), "namespaces ")
+	})
+
+	t.Run("multiple namespaces uses plural noun", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, nil)
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Namespace: "myproject"},
+				{Namespace: "work"},
+			}, nil
+		})
+
+		// Act
+		err := requireImage("agentic-claude", "claude")
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "namespaces ")
+	})
 }
 
 func TestParseArgs(t *testing.T) {

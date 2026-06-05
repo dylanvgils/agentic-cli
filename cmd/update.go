@@ -136,12 +136,10 @@ func dryRunUpdate(args []string, namespace string, opts tools.BuildOptions) erro
 		return fmt.Errorf("--dry-run requires a tool argument")
 	}
 
-	if opts.BaseOverride == "" {
-		image, err := tools.ImageName(args[0], namespace)
-		if err == nil {
-			if info, iErr := inspectImage(image); iErr == nil && info != nil {
-				opts.BaseOverride = docker.RecoverExtras(info.Base)
-			}
+	image, err := tools.ImageName(args[0], namespace)
+	if err == nil {
+		if info, iErr := inspectImage(image); iErr == nil && info != nil {
+			opts = recoverOpts(info, opts)
 		}
 	}
 
@@ -191,10 +189,18 @@ func imageVersion(image string) string {
 }
 
 func reportVersionChange(before, after string) {
-	if before != "" && before != after {
+	if after == "" {
+		return
+	}
+
+	if before == "" {
+		output.Detailf("version: %s", after)
+		return
+	}
+
+	if before != after {
 		output.Detailf("version: %s -> %s", before, after)
-	} else if after != "" {
+	} else {
 		output.Detailf("version: %s (up to date)", after)
 	}
 }
-

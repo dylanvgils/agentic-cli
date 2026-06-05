@@ -228,6 +228,10 @@ func requireImage(image, tool string) error {
 		return fmt.Errorf("image %q not found; run \"agentic build %s\" to build it", image, tool)
 	}
 
-	return fmt.Errorf("image %q not found; %q is available under namespace %s - use --namespace or run \"agentic build %s\"",
-		image, tool, strings.Join(namespaces, ", "), tool)
+	noun := "namespace"
+	if len(namespaces) > 1 {
+		noun = "namespaces"
+	}
+	return fmt.Errorf("image %q not found; %q is available under %s %s - use --namespace or run \"agentic build %s\"",
+		image, tool, noun, strings.Join(namespaces, ", "), tool)
 }

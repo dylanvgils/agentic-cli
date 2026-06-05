@@ -68,6 +68,7 @@ func TestDryRunUpdate(t *testing.T) {
 		assert.Contains(t, out, "temurin")
 		assert.NotContains(t, out, "go.dev")
 	})
+
 }
 
 func Test_resolveScopedUpdateTargets(t *testing.T) {
@@ -237,6 +238,41 @@ func TestUpdateOneTool(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "docker daemon not running")
+	})
+}
+
+func Test_reportVersionChange(t *testing.T) {
+	t.Run("version changed", func(t *testing.T) {
+		// Act
+		out := captureStdout(t, func() { reportVersionChange("1.0.0", "2.0.0") })
+
+		// Assert
+		assert.Contains(t, out, "1.0.0 -> 2.0.0")
+	})
+
+	t.Run("version up to date", func(t *testing.T) {
+		// Act
+		out := captureStdout(t, func() { reportVersionChange("1.0.0", "1.0.0") })
+
+		// Assert
+		assert.Contains(t, out, "(up to date)")
+	})
+
+	t.Run("no before version just prints version", func(t *testing.T) {
+		// Act
+		out := captureStdout(t, func() { reportVersionChange("", "1.0.0") })
+
+		// Assert
+		assert.Contains(t, out, "1.0.0")
+		assert.NotContains(t, out, "(up to date)")
+	})
+
+	t.Run("no after version prints nothing", func(t *testing.T) {
+		// Act
+		out := captureStdout(t, func() { reportVersionChange("1.0.0", "") })
+
+		// Assert
+		assert.Empty(t, out)
 	})
 }
 
