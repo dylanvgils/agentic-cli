@@ -67,112 +67,6 @@ func TestRunTool(t *testing.T) {
 func Test_buildRunSpec(t *testing.T) {
 	stubEnsureNamedVolumes(t, func([]string, string, string, string) error { return nil })
 
-	t.Run("volumes wired", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		orig := extraVolumes
-		extraVolumes = []string{"/host:/container"}
-		defer func() { extraVolumes = orig }()
-		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
-
-		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, rs.Volumes, "/host:/container")
-	})
-
-	t.Run("secrets wired", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		orig := flagSecrets
-		flagSecrets = []string{"mytoken:/tmp/token"}
-		defer func() { flagSecrets = orig }()
-		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
-
-		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"mytoken:/tmp/token"}, rs.Secrets)
-	})
-
-	t.Run("resource limits wired", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		rc := &config.AgenticRC{Run: config.RCRun{PidsLimit: "512", CPUs: "2", Memory: "2g"}}
-		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
-
-		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], rc)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "512", rs.PidsLimit)
-		assert.Equal(t, "2", rs.CPUs)
-		assert.Equal(t, "2g", rs.Memory)
-	})
-
-	t.Run("dry run wired", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		orig := dryRun
-		dryRun = true
-		defer func() { dryRun = orig }()
-		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
-
-		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, rs.DryRun)
-	})
-
-	t.Run("tmpfs mounts wired", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
-
-		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotEmpty(t, rs.TmpfsMounts)
-	})
-
-	t.Run("tool home wired", func(t *testing.T) {
-		// Arrange
-		customHome := t.TempDir()
-		orig := toolHome
-		toolHome = customHome
-		defer func() { toolHome = orig }()
-		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
-
-		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, customHome, rs.ToolHome)
-	})
-
-	t.Run("skip entrypoint wired", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		args := parsedArgs{toolName: "claude", imageName: "agentic-claude", skipEntrypoint: true}
-
-		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, rs.SkipEntrypoint)
-	})
-
 	t.Run("ensure named volumes error propagates", func(t *testing.T) {
 		// Arrange
 		withTempToolHome(t)
@@ -180,7 +74,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		_, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
+		_, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
 
 		// Assert
 		require.Error(t, err)

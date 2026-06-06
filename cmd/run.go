@@ -69,6 +69,7 @@ func init() {
 	runToolCmd.Flags().SetInterspersed(false)
 
 	addNamespaceFlag(runToolCmd)
+	addRegistryFlag(runToolCmd)
 }
 
 func runTool(cmd *cobra.Command, args []string) error {
@@ -102,7 +103,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	rs, err := buildRunSpec(parsedArgs, toolConfig, rc)
+	rs, err := buildRunSpec(parsedArgs, toolConfig, rc, collectRegistry(cmd))
 	if err != nil {
 		return err
 	}
@@ -131,13 +132,11 @@ func parseArgs(args []string, namespace string) (parsedArgs, error) {
 	}, nil
 }
 
-func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, error) {
+func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC, registry string) (docker.RunSpec, error) {
 	containerHome := docker.ResolveContainerHome(args.imageName)
 	volumes := collectVolumes(toolConfig.Runtime.Mounts(), extraVolumes, rc)
 	secrets := collectSecrets(flagSecrets, rc)
 	limits := resolveResourceLimits(pidsLimit, cpus, memory, rc)
-
-	registry := config.ResolveRegistry("", toolHome)
 	if err := ensureNamedVolumes(volumes, toolHome, containerHome, registry); err != nil {
 		return docker.RunSpec{}, err
 	}

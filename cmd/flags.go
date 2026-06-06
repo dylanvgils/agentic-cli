@@ -17,6 +17,11 @@ func addNamespaceFlag(cmd *cobra.Command) {
 	_ = cmd.RegisterFlagCompletionFunc("namespace", namespacesFunc)
 }
 
+// addRegistryFlag registers the --registry flag on the given command.
+func addRegistryFlag(cmd *cobra.Command) {
+	cmd.Flags().String("registry", "", "registry prefix for base images (e.g. myregistry.example.com); overrides agentic.json registry")
+}
+
 // addAllFlag registers the --all flag on the given command.
 func addAllFlag(cmd *cobra.Command) {
 	cmd.Flags().BoolP("all", "a", false, "operate on all namespaces, not just the active one")
@@ -48,8 +53,8 @@ func addBuildFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSlice("base", nil, "extra runtime(s) to layer on top of node; repeatable or comma-separated (e.g. --base java --base dotnet or --base java,dotnet)")
 	cmd.Flags().StringSlice("apt", nil, "apt packages to install in the base stage; repeatable or comma-separated (e.g. --apt make --apt gcc or --apt make,gcc)")
 	cmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
-	cmd.Flags().String("registry", "", "registry prefix for base images (e.g. myregistry.example.com); overrides agentic.json registry")
 
+	addRegistryFlag(cmd)
 	addVersionFlags(cmd)
 }
 
