@@ -88,7 +88,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t, "volume inspect")
 
 		// Act
-		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "", "")
+		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "", "busybox")
 
 		// Assert
 		require.NoError(t, err)
@@ -101,20 +101,6 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		assert.Contains(t, calls[2].args, "--user=root")
 		assert.Contains(t, calls[2].args, "busybox")
 		assert.Contains(t, calls[2].args, "chown")
-	})
-
-	t.Run("registry prefix applied to busybox image", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, "volume inspect")
-
-		// Act
-		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "", "myregistry.example.com")
-
-		// Assert
-		require.NoError(t, err)
-		calls := get()
-		require.Len(t, calls, 3)
-		assert.Contains(t, calls[2].args, "myregistry.example.com/busybox")
 	})
 
 	t.Run("create fails returns error", func(t *testing.T) {
