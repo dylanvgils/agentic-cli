@@ -43,7 +43,7 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	}
 
 	origEnsure := ensureNamedVolumes
-	ensureNamedVolumes = func(volumes []string, toolHome, containerHome string) error {
+	ensureNamedVolumes = func(volumes []string, toolHome, containerHome, registry string) error {
 		return nil
 	}
 
@@ -174,7 +174,7 @@ func stubUpdateTool(t *testing.T, fn func(tool, image string, opts tools.BuildOp
 	t.Cleanup(func() { updateTool = orig })
 }
 
-func stubEnsureNamedVolumes(t *testing.T, fn func(volumes []string, toolHome, containerHome string) error) {
+func stubEnsureNamedVolumes(t *testing.T, fn func(volumes []string, toolHome, containerHome, registry string) error) {
 	t.Helper()
 	orig := ensureNamedVolumes
 	ensureNamedVolumes = fn

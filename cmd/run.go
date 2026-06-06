@@ -137,7 +137,8 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 	secrets := collectSecrets(flagSecrets, rc)
 	limits := resolveResourceLimits(pidsLimit, cpus, memory, rc)
 
-	if err := ensureNamedVolumes(volumes, toolHome, containerHome); err != nil {
+	registry := config.ResolveRegistry("", toolHome)
+	if err := ensureNamedVolumes(volumes, toolHome, containerHome, registry); err != nil {
 		return docker.RunSpec{}, err
 	}
 

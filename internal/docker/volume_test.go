@@ -14,7 +14,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t)
 
 		// Act
-		err := EnsureNamedVolumes([]string{"/host/path:/container"}, "", "")
+		err := EnsureNamedVolumes([]string{"/host/path:/container"}, "", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -26,7 +26,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t)
 
 		// Act
-		err := EnsureNamedVolumes([]string{"$TOOL_HOME/data:/container"}, "/home/.agentic", "")
+		err := EnsureNamedVolumes([]string{"$TOOL_HOME/data:/container"}, "/home/.agentic", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -38,7 +38,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t)
 
 		// Act
-		err := EnsureNamedVolumes([]string{`C:\Users\foo:/container`}, "", "")
+		err := EnsureNamedVolumes([]string{`C:\Users\foo:/container`}, "", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -50,7 +50,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t)
 
 		// Act
-		err := EnsureNamedVolumes([]string{`c:\data:/container`}, "", "")
+		err := EnsureNamedVolumes([]string{`c:\data:/container`}, "", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -62,7 +62,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t)
 
 		// Act
-		err := EnsureNamedVolumes([]string{":/container"}, "", "")
+		err := EnsureNamedVolumes([]string{":/container"}, "", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t) // inspect succeeds -> volume exists
 
 		// Act
-		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "")
+		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t, "volume inspect")
 
 		// Act
-		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "")
+		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -103,12 +103,26 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		assert.Contains(t, calls[2].args, "chown")
 	})
 
+	t.Run("registry prefix applied to busybox image", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t, "volume inspect")
+
+		// Act
+		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "", "myregistry.example.com")
+
+		// Assert
+		require.NoError(t, err)
+		calls := get()
+		require.Len(t, calls, 3)
+		assert.Contains(t, calls[2].args, "myregistry.example.com/busybox")
+	})
+
 	t.Run("create fails returns error", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, "volume inspect", "volume create")
 
 		// Act
-		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "")
+		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "", "")
 
 		// Assert
 		assert.ErrorContains(t, err, "create volume maven")
@@ -119,7 +133,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		stubDockerRunCapture(t, "volume inspect", "run")
 
 		// Act
-		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "")
+		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "", "")
 
 		// Assert
 		assert.ErrorContains(t, err, "chown volume maven")
@@ -134,7 +148,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 			"/host:/container",
 			"maven:/m2",
 			"gradle:/gradle",
-		}, "", "")
+		}, "", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -155,7 +169,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t)
 
 		// Act
-		err := EnsureNamedVolumes([]string{}, "", "")
+		err := EnsureNamedVolumes([]string{}, "", "", "")
 
 		// Assert
 		require.NoError(t, err)

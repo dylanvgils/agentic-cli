@@ -425,7 +425,7 @@ Place a `.agenticrc.toml` file anywhere in your directory tree to apply project-
 
 > **Migration note:** The old `.agenticrc` key=value format is no longer supported. If `agentic` finds a `.agenticrc` file it will print a warning. Rename it to `.agenticrc.toml` and convert the contents to TOML.
 
-**Merge rules:** list keys (`bases`, `apt_packages`, `extra_mounts`, `secrets`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value. `namespace` and `versions` keys also use the innermost value — for `versions`, each layer name is resolved independently so a child can pin `java` without affecting `node` inherited from a parent. `.agenticrc.toml` takes precedence over env vars for all scalar keys.
+**Merge rules:** list keys (`bases`, `apt_packages`, `extra_mounts`, `secrets`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value. `namespace` and `versions` keys also use the innermost value - for `versions`, each layer name is resolved independently so a child can pin `java` without affecting `node` inherited from a parent. `.agenticrc.toml` takes precedence over env vars for all scalar keys.
 
 `root` and `namespace` are top-level keys. Build-time settings go under `[build]`; runtime settings go under `[run]`.
 
