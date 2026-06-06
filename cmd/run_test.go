@@ -65,7 +65,7 @@ func TestRunTool(t *testing.T) {
 }
 
 func Test_buildRunSpec(t *testing.T) {
-	stubEnsureNamedVolumes(t, func([]string, string, string) error { return nil })
+	stubEnsureNamedVolumes(t, func([]string, string, string, string) error { return nil })
 
 	t.Run("volumes wired", func(t *testing.T) {
 		// Arrange
@@ -76,7 +76,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -92,7 +92,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -106,7 +106,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], rc)
+		rs, err := buildRunSpec(args, tools.Configs["claude"], rc, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -124,7 +124,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -137,7 +137,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -153,7 +153,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -166,7 +166,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude", skipEntrypoint: true}
 
 		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -176,11 +176,11 @@ func Test_buildRunSpec(t *testing.T) {
 	t.Run("ensure named volumes error propagates", func(t *testing.T) {
 		// Arrange
 		withTempToolHome(t)
-		stubEnsureNamedVolumes(t, func([]string, string, string) error { return fmt.Errorf("volume error") })
+		stubEnsureNamedVolumes(t, func([]string, string, string, string) error { return fmt.Errorf("volume error") })
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		_, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{})
+		_, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
 
 		// Assert
 		require.Error(t, err)

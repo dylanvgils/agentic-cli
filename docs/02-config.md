@@ -89,7 +89,7 @@ When multiple `.agenticrc.toml` files are found, they are merged. The walk start
 
 - **List keys** (`bases`, `apt_packages`, `extra_mounts`, `secrets`): values from all levels accumulate, outermost first.
 - **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
-- **`versions` table**: each layer name is resolved independently — innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
+- **`versions` table**: each layer name is resolved independently - innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
 
 ```
 ~/projects/.agenticrc.toml              ← outermost (root=true stops the walk here)
@@ -139,14 +139,14 @@ Extra runtime layers accumulate across RC files and the `--base` flag:
 1. `.agenticrc.toml` files (outermost first)
 2. `--base` flag (appended, deduplicated)
 
-`AGENTIC_BASE_OVERRIDE` is a full override — when set it replaces all RC and flag values.
+`AGENTIC_BASE_OVERRIDE` is a full override - when set it replaces all RC and flag values.
 
 ### `versions`
 
 Per-layer version resolution (highest to lowest priority):
 
 1. `--<layer>` flag (e.g. `--java 17`) or `AGENTIC_<LAYER>_VERSION` env var
-2. `.agenticrc.toml` `[build.versions]` — innermost value wins per key
+2. `.agenticrc.toml` `[build.versions]` - innermost value wins per key
 3. Built-in default (from the bundled `versions.json`)
 
 ### `extra_mounts` and `secrets`

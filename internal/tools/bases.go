@@ -12,6 +12,11 @@ func DebianImageFor(registry string) string {
 	return prefixImage(registry, DebianImage)
 }
 
+// BusyboxImageFor returns the busybox image name optionally prefixed with registry.
+func BusyboxImageFor(registry string) string {
+	return prefixImage(registry, BusyboxImage)
+}
+
 // prefixImage prepends registry to image (e.g. "myregistry.example.com/node:24").
 // Returns image unchanged when registry is empty.
 func prefixImage(registry, image string) string {
@@ -26,6 +31,9 @@ const (
 
 	// DebianImage is the base Debian image used for apt verification.
 	DebianImage = "debian:" + debianCodename
+
+	// BusyboxImage is the utility image used for volume ownership fixups.
+	BusyboxImage = "busybox"
 
 	// BaseLayer is the name of the foundational runtime layer.
 	BaseLayer = "node"

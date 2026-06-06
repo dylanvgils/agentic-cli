@@ -111,6 +111,8 @@ func TestBuildImage(t *testing.T) {
 
 Any change that affects user-facing behaviour must be reflected in `README.md` (commands, flags, config, examples).
 
+Use `-` (hyphen) in all file content, never `—` (em dash) or `–` (en dash).
+
 ### Mount handling
 
 `CONTAINER_HOME` is resolved at runtime from the image's `TOOL_HOME` env var via `docker.ResolveContainerHome` in `internal/docker/inspect.go`. Mount strings support two placeholders expanded by `mount.ExpandMountSpec` / `mount.ExpandTmpfsSpec` in `internal/mount/volume.go` (called from `internal/docker/run.go`) before the `docker run` call:

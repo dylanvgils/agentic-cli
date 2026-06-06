@@ -99,6 +99,24 @@ func TestDebianImageFor(t *testing.T) {
 	})
 }
 
+func TestBusyboxImageFor(t *testing.T) {
+	t.Run("empty registry returns plain image", func(t *testing.T) {
+		// Act
+		result := BusyboxImageFor("")
+
+		// Assert
+		assert.Equal(t, BusyboxImage, result)
+	})
+
+	t.Run("registry is prepended", func(t *testing.T) {
+		// Act
+		result := BusyboxImageFor("myregistry.example.com")
+
+		// Assert
+		assert.Equal(t, "myregistry.example.com/"+BusyboxImage, result)
+	})
+}
+
 func Test_extraStage(t *testing.T) {
 	t.Run("unknown returns error", func(t *testing.T) {
 		// Act

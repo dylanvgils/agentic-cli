@@ -11,7 +11,7 @@ import (
 // EnsureNamedVolumes inspects each volume spec and, for any that reference a
 // named Docker volume (left side has no leading "/"), creates the volume if it
 // does not exist and fixes its ownership so the container user can write to it.
-func EnsureNamedVolumes(volumes []string, toolHome, containerHome string) error {
+func EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage string) error {
 	for _, volume := range volumes {
 		expanded := mount.NormalizeMountSpec(mount.ExpandMountSpec(volume, toolHome, containerHome))
 		if !mount.IsNamedVolume(expanded) {
@@ -19,7 +19,7 @@ func EnsureNamedVolumes(volumes []string, toolHome, containerHome string) error 
 		}
 
 		host := mount.HostPart(expanded)
-		if err := ensureVolume(host); err != nil {
+		if err := ensureVolume(host, chownImage); err != nil {
 			return err
 		}
 	}
@@ -60,7 +60,7 @@ func RemoveVolume(name string) error {
 	return err
 }
 
-func ensureVolume(name string) error {
+func ensureVolume(name, chownImage string) error {
 	if _, err := dockerRun("volume", "inspect", name); err == nil {
 		return nil
 	}
@@ -74,7 +74,7 @@ func ensureVolume(name string) error {
 		"run", "--rm",
 		arg("volume", fmt.Sprintf("%s:/vol", name)),
 		arg("user", "root"),
-		"busybox", "chown", platform.UserGroup(), "/vol",
+		chownImage, "chown", platform.UserGroup(), "/vol",
 	}
 
 	if _, err := dockerRun(chownArgs...); err != nil {
