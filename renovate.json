@@ -53,6 +53,20 @@
     },
     {
       "customType": "regex",
+      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
+      "matchStrings": ["\"busybox\":\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "busybox",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
+      "matchStrings": ["\"debian\":\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "debian",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
       "managerFilePatterns": ["/^Dockerfile$/"],
       "matchStrings": ["ARG GO_VERSION=(?<currentValue>[^\\s]+)"],
       "depNameTemplate": "go",
