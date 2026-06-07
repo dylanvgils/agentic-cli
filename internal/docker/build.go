@@ -79,8 +79,8 @@ func buildImage(tmpDir, image string, opts tools.BuildOptions) error {
 
 	if opts.NoCache {
 		args = append(args, arg("no-cache"))
-	} else if opts.NoCacheTool {
-		args = append(args, arg("no-cache-filter", "tool"))
+	} else if opts.CacheBust != "" {
+		args = append(args, arg("build-arg", "CACHEBUST="+opts.CacheBust))
 	}
 
 	args = append(args,

@@ -78,3 +78,11 @@ func buildBaseLabel(nodeVer string, extras []string, extraVersions map[string]st
 func buildBuiltLabel() string {
 	return time.Now().UTC().Format("2006-01-02T15:04:05Z")
 }
+
+// NewCacheBust returns a value that changes between `agentic update` invocations
+// but can be reused across every target built within a single invocation, so
+// Docker can still serve cached tool-stage layers when the same tool is rebuilt
+// for multiple namespaces in one run.
+func NewCacheBust() string {
+	return time.Now().UTC().Format(time.RFC3339Nano)
+}

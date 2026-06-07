@@ -14,6 +14,27 @@ func TestLabel_buildsFlag(t *testing.T) {
 	assert.Equal(t, "--label=agentic.base=node@24.0.0", result)
 }
 
+func TestNewCacheBust(t *testing.T) {
+	t.Run("returns non-empty value", func(t *testing.T) {
+		// Act
+		result := NewCacheBust()
+
+		// Assert
+		assert.NotEmpty(t, result)
+	})
+
+	t.Run("differs between calls", func(t *testing.T) {
+		// Arrange
+		first := NewCacheBust()
+
+		// Act
+		second := NewCacheBust()
+
+		// Assert
+		assert.NotEqual(t, first, second)
+	})
+}
+
 func TestBuildBaseLabel(t *testing.T) {
 	t.Run("node only", func(t *testing.T) {
 		// Act

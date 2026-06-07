@@ -138,32 +138,36 @@ func TestBuildImage(t *testing.T) {
 		require.NoError(t, err)
 		args := get()
 		assert.Contains(t, args, "--no-cache")
-		assert.NotContains(t, args, "--no-cache-filter=tool")
+		for _, a := range args {
+			assert.False(t, strings.HasPrefix(a, "--build-arg=CACHEBUST"), "unexpected CACHEBUST arg: %s", a)
+		}
 	})
 
-	t.Run("noCacheTool adds filter flag", func(t *testing.T) {
+	t.Run("cacheBust adds build arg with its value", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{NoCacheTool: true})
+		err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{CacheBust: "shared-value"})
 
 		// Assert
 		require.NoError(t, err)
 		args := get()
-		assert.Contains(t, args, "--no-cache-filter=tool")
 		assert.NotContains(t, args, "--no-cache")
+		assert.Contains(t, args, "--build-arg=CACHEBUST=shared-value")
 	})
 
-	t.Run("noCache takes precedence over noCacheTool", func(t *testing.T) {
+	t.Run("noCache takes precedence over cacheBust", func(t *testing.T) {
 		// Act
 		err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{
-			NoCache:     true,
-			NoCacheTool: true,
+			NoCache:   true,
+			CacheBust: "shared-value",
 		})
 
 		// Assert
 		require.NoError(t, err)
 		args := get()
 		assert.Contains(t, args, "--no-cache")
-		assert.NotContains(t, args, "--no-cache-filter=tool")
+		for _, a := range args {
+			assert.False(t, strings.HasPrefix(a, "--build-arg=CACHEBUST"), "unexpected CACHEBUST arg: %s", a)
+		}
 	})
 
 	t.Run("noCache flags absent by default", func(t *testing.T) {
@@ -174,7 +178,9 @@ func TestBuildImage(t *testing.T) {
 		require.NoError(t, err)
 		args := get()
 		assert.NotContains(t, args, "--no-cache")
-		assert.NotContains(t, args, "--no-cache-filter=tool")
+		for _, a := range args {
+			assert.False(t, strings.HasPrefix(a, "--build-arg=CACHEBUST"), "unexpected CACHEBUST arg: %s", a)
+		}
 	})
 
 	t.Run("always includes host UID and GID", func(t *testing.T) {

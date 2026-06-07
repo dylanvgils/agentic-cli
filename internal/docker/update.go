@@ -9,7 +9,7 @@ import (
 // UpdateTool runs a build update for a tool.
 // It recovers the base extras and apt packages from the existing image's labels when
 // not already set (so updates preserve the original build configuration),
-// then delegates to BuildTool with NoCacheTool enabled so only the tool stage skips cache.
+// then delegates to BuildTool with a CacheBust value set so only the tool stage skips cache.
 func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 	hasUserApt := len(opts.AptPackages) > 0
 	userPkgs := opts.AptPackages
@@ -28,7 +28,10 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 		}
 	}
 
-	opts.NoCacheTool = true
+	if opts.CacheBust == "" {
+		opts.CacheBust = NewCacheBust()
+	}
+
 	return BuildTool(tool, image, opts)
 }
 

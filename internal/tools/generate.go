@@ -13,7 +13,7 @@ import (
 type BuildOptions struct {
 	BaseOverride string            // overrides the tool's default base extras (comma-separated)
 	NoCache      bool              // disable layer cache for all steps
-	NoCacheTool  bool              // disable layer cache for the tool step only (used by update)
+	CacheBust    string            // non-empty to bust the tool stage's cache via its CACHEBUST build arg (used by update)
 	Versions     map[string]string // layer name → version override, e.g. {"node": "22", "java": "21"}
 	AptPackages  []string          // additional apt packages to install in the base stage
 	VerifyApt    bool              // run pre-build apt-cache check for AptPackages
@@ -83,13 +83,18 @@ func buildExtraStages(extras []string, prevStage string, versions map[string]str
 	return stages, prev, nil
 }
 
-// resolveToolStage looks up the tool config and returns its Dockerfile stage.
+// resolveToolStage looks up the tool config and returns its Dockerfile stage,
+// with cache-busting instructions prepended right after FROM so a changed
+// CACHEBUST build arg invalidates the cache for the entire tool stage.
 func resolveToolStage(tool, prevStage string) (dockerfile.Stage, error) {
 	cfg, ok := Configs[tool]
 	if !ok {
 		return dockerfile.Stage{}, fmt.Errorf("unknown tool %q", tool)
 	}
-	return cfg.Build.Stage(prevStage), nil
+
+	stage := cfg.Build.Stage(prevStage)
+	stage.Instructions = append(cacheBustInstructions(), stage.Instructions...)
+	return stage, nil
 }
 
 // sortByKnownExtras returns a copy of extras sorted by their position in knownExtras.
