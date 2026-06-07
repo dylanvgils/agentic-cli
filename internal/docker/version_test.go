@@ -23,7 +23,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, "", nil)
 
 		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil)
+		stampImageLabels("agentic-claude", "claude", nil, nil, nil)
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelTool+"=claude")
@@ -37,7 +37,7 @@ func TestStampImageLabels(t *testing.T) {
 		t.Cleanup(func() { CLIVersion = origCLIVersion })
 
 		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil)
+		stampImageLabels("agentic-claude", "claude", nil, nil, nil)
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelCLIVersion+"=v9.9.9")
@@ -48,7 +48,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, "", nil)
 
 		// Act
-		stampImageLabels("myproject-claude", "claude", nil, nil)
+		stampImageLabels("myproject-claude", "claude", nil, nil, nil)
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelNamespace+"=myproject")
@@ -59,7 +59,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, "", nil)
 
 		// Act
-		stampImageLabels("agentic-claude", "claude", nil, []string{"make", "gcc"})
+		stampImageLabels("agentic-claude", "claude", nil, []string{"make", "gcc"}, nil)
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelApt+"=make,gcc")
@@ -70,7 +70,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, "", nil)
 
 		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil)
+		stampImageLabels("agentic-claude", "claude", nil, nil, nil)
 
 		// Assert
 		found := false
@@ -83,12 +83,30 @@ func TestStampImageLabels(t *testing.T) {
 		assert.True(t, found, "expected --%s label in args", LabelBase)
 	})
 
+	t.Run("includes version-args label", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "", nil)
+
+		// Act
+		stampImageLabels("agentic-claude", "claude", []string{"java"}, nil, map[string]string{"java": "17"})
+
+		// Assert
+		found := false
+		for _, a := range capturedArgs {
+			if strings.HasPrefix(a, "--label="+LabelVersionArgs+"=") {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected --%s label in args", LabelVersionArgs)
+	})
+
 	t.Run("includes tool version label when detected", func(t *testing.T) {
 		// Arrange
 		stubDockerRunFixed(t, "1.2.3\n", nil)
 
 		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil)
+		stampImageLabels("agentic-claude", "claude", nil, nil, nil)
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelToolVersion+"=1.2.3")
@@ -99,7 +117,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, "", fmt.Errorf("version script not found"))
 
 		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil)
+		stampImageLabels("agentic-claude", "claude", nil, nil, nil)
 
 		// Assert
 		for _, a := range capturedArgs {

@@ -3,6 +3,8 @@ package docker
 import (
 	"regexp"
 	"strings"
+
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
 var versionRe = regexp.MustCompile(`[0-9]+(\.[0-9]+)*`)
@@ -16,13 +18,15 @@ func ParseVersion(s string) string {
 // stampImageLabels detects base and tool versions from the built image and applies
 // them as labels in a single docker build call. Runs best-effort: errors are
 // silently ignored since missing labels are non-fatal.
-func stampImageLabels(image, tool string, extras []string, aptPkgs []string) {
+func stampImageLabels(image, tool string, extras []string, aptPkgs []string, versions map[string]string) {
 	namespace := strings.TrimSuffix(image, "-"+tool)
+	layers := append([]string{tools.BaseLayer}, extras...)
 	args := []string{
 		"build",
 		label(LabelCLIVersion, CLIVersion),
 		label(LabelNamespace, namespace),
 		label(LabelBase, collectBaseLabel(image, extras)),
+		label(LabelVersionArgs, buildVersionArgsLabel(layers, versions)),
 		label(LabelApt, strings.Join(aptPkgs, ",")),
 		label(LabelTool, tool),
 		arg("tag", image),

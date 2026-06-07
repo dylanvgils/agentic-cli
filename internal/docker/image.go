@@ -8,15 +8,16 @@ import (
 
 // ImageInfo holds metadata about a built tool image.
 type ImageInfo struct {
-	Image     string
-	Namespace string // image namespace (e.g. "agentic", "myproject")
-	Tool      string // tool name (e.g. "claude", "copilot")
-	ID        string // 12-char short ID
-	Version   string // agentic.tool.version label
-	Base      string // agentic.base label
-	Apt       string // agentic.apt label (comma-separated apt packages)
-	Built     string // agentic.built label
-	Size      string // formatted size from docker image ls
+	Image       string
+	Namespace   string // image namespace (e.g. "agentic", "myproject")
+	Tool        string // tool name (e.g. "claude", "copilot")
+	ID          string // 12-char short ID
+	Version     string // agentic.tool.version label
+	Base        string // agentic.base label
+	VersionArgs string // agentic.version-args label (layer name@version pairs used to build, e.g. "node@24,java@17")
+	Apt         string // agentic.apt label (comma-separated apt packages)
+	Built       string // agentic.built label
+	Size        string // formatted size from docker image ls
 }
 
 // InspectImage returns metadata for the given Docker image.
@@ -33,15 +34,16 @@ func InspectImage(name string) (*ImageInfo, error) {
 	namespace, tool := resolveToolName(name, result.Config.Labels[LabelTool], result.Config.Labels[LabelNamespace])
 
 	return &ImageInfo{
-		Image:     name,
-		Namespace: namespace,
-		Tool:      tool,
-		ID:        extractShortID(result.ID),
-		Version:   result.Config.Labels[LabelToolVersion],
-		Base:      result.Config.Labels[LabelBase],
-		Apt:       result.Config.Labels[LabelApt],
-		Built:     result.Config.Labels[LabelBuilt],
-		Size:      imageSize(name),
+		Image:       name,
+		Namespace:   namespace,
+		Tool:        tool,
+		ID:          extractShortID(result.ID),
+		Version:     result.Config.Labels[LabelToolVersion],
+		Base:        result.Config.Labels[LabelBase],
+		VersionArgs: result.Config.Labels[LabelVersionArgs],
+		Apt:         result.Config.Labels[LabelApt],
+		Built:       result.Config.Labels[LabelBuilt],
+		Size:        imageSize(name),
 	}, nil
 }
 

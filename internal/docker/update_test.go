@@ -50,6 +50,40 @@ func TestUpdateTool(t *testing.T) {
 		assert.NotContains(t, dockerfiles[0], "AS dotnet")
 	})
 
+	t.Run("recovers layer versions from label", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{
+			"inspect": `{"Id":"sha256:abcdef","Size":1048576,"Config":{"Labels":{"agentic.base":"node@24.0.0,java@21.0.1","agentic.version-args":"node@24,java@17"}}}`,
+		})
+		getDockerfiles := stubRunInteractiveCapturingDockerfile(t)
+
+		// Act - no --java flag passed, so the recovered override must be the one used
+		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		dockerfiles := getDockerfiles()
+		require.NotEmpty(t, dockerfiles)
+		assert.Contains(t, dockerfiles[0], "ARG JAVA_VERSION=17")
+	})
+
+	t.Run("user-provided version flag wins over recovered label", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{
+			"inspect": `{"Id":"sha256:abcdef","Size":1048576,"Config":{"Labels":{"agentic.base":"node@24.0.0,java@21.0.1","agentic.version-args":"node@24,java@17"}}}`,
+		})
+		getDockerfiles := stubRunInteractiveCapturingDockerfile(t)
+
+		// Act
+		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{"java": "21"}})
+
+		// Assert
+		require.NoError(t, err)
+		dockerfiles := getDockerfiles()
+		require.NotEmpty(t, dockerfiles)
+		assert.Contains(t, dockerfiles[0], "ARG JAVA_VERSION=21")
+	})
+
 	t.Run("recovers apt packages from label", func(t *testing.T) {
 		// Arrange
 		stubDockerRunBySubcmd(t, map[string]string{
@@ -139,6 +173,32 @@ func TestUpdateTool(t *testing.T) {
 			}
 		}
 		assert.True(t, hasCacheBust, "tool build must skip cache via a non-empty --build-arg=CACHEBUST=<value>")
+	})
+}
+
+func Test_mergeVersions(t *testing.T) {
+	t.Run("overrides win over recovered", func(t *testing.T) {
+		// Act
+		result := mergeVersions(map[string]string{"node": "24", "java": "17"}, map[string]string{"java": "21"})
+
+		// Assert
+		assert.Equal(t, map[string]string{"node": "24", "java": "21"}, result)
+	})
+
+	t.Run("empty override values are ignored", func(t *testing.T) {
+		// Act
+		result := mergeVersions(map[string]string{"node": "24"}, map[string]string{"node": "", "java": "17"})
+
+		// Assert
+		assert.Equal(t, map[string]string{"node": "24", "java": "17"}, result)
+	})
+
+	t.Run("no recovered values returns overrides", func(t *testing.T) {
+		// Act
+		result := mergeVersions(nil, map[string]string{"java": "17"})
+
+		// Assert
+		assert.Equal(t, map[string]string{"java": "17"}, result)
 	})
 }
 
