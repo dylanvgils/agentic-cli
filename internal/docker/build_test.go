@@ -82,7 +82,10 @@ func TestWriteTempDockerfile(t *testing.T) {
 		// writeTempDockerfile creates its own temp dir; we can't inject it directly.
 		// Verify only that a valid call returns no error (error injection is done via OS perms above
 		// on a separate dir — this test validates the happy path leaves the caller a usable tmpDir).
+		// Act
 		_, writeErr := writeTempDockerfile("FROM scratch\n")
+
+		// Assert
 		assert.NoError(t, writeErr)
 	})
 }

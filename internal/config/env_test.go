@@ -8,14 +8,26 @@ import (
 
 func TestEnvVersionVar(t *testing.T) {
 	t.Run("java", func(t *testing.T) {
-		assert.Equal(t, envPrefix+"JAVA_VERSION", EnvVersionVar("java"))
+		// Act
+		result := EnvVersionVar("java")
+
+		// Assert
+		assert.Equal(t, envPrefix+"JAVA_VERSION", result)
 	})
 
 	t.Run("dotnet", func(t *testing.T) {
-		assert.Equal(t, envPrefix+"DOTNET_VERSION", EnvVersionVar("dotnet"))
+		// Act
+		result := EnvVersionVar("dotnet")
+
+		// Assert
+		assert.Equal(t, envPrefix+"DOTNET_VERSION", result)
 	})
 
 	t.Run("go", func(t *testing.T) {
-		assert.Equal(t, envPrefix+"GO_VERSION", EnvVersionVar("go"))
+		// Act
+		result := EnvVersionVar("go")
+
+		// Assert
+		assert.Equal(t, envPrefix+"GO_VERSION", result)
 	})
 }

@@ -212,7 +212,6 @@ func Test_extraStage(t *testing.T) {
 	})
 }
 
-
 func TestBuildLayers(t *testing.T) {
 	t.Run("base layer is always first", func(t *testing.T) {
 		// Act

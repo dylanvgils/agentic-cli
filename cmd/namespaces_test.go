@@ -93,6 +93,7 @@ func TestRunNamespacesPrune(t *testing.T) {
 	}
 
 	t.Run("confirmed y runs prune", func(t *testing.T) {
+		// Arrange
 		setup(t)
 		var cleaned []string
 		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
@@ -107,6 +108,7 @@ func TestRunNamespacesPrune(t *testing.T) {
 	})
 
 	t.Run("confirmed upper Y runs prune", func(t *testing.T) {
+		// Arrange
 		setup(t)
 		var cleaned []string
 		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
@@ -121,6 +123,7 @@ func TestRunNamespacesPrune(t *testing.T) {
 	})
 
 	t.Run("declined n skips prune", func(t *testing.T) {
+		// Arrange
 		setup(t)
 		var cleanCalled bool
 		stubCleanImage(t, func(string) error { cleanCalled = true; return nil })
@@ -135,6 +138,7 @@ func TestRunNamespacesPrune(t *testing.T) {
 	})
 
 	t.Run("empty input skips prune", func(t *testing.T) {
+		// Arrange
 		setup(t)
 		var cleanCalled bool
 		stubCleanImage(t, func(string) error { cleanCalled = true; return nil })

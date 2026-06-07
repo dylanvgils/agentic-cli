@@ -19,6 +19,7 @@ func TestStampImageLabels(t *testing.T) {
 	t.Cleanup(func() { dockerRunStdin = origStdin })
 
 	t.Run("includes tool label", func(t *testing.T) {
+		// Arrange
 		stubDockerRunFixed(t, "", nil)
 
 		// Act
@@ -29,6 +30,7 @@ func TestStampImageLabels(t *testing.T) {
 	})
 
 	t.Run("includes agentic version label", func(t *testing.T) {
+		// Arrange
 		stubDockerRunFixed(t, "", nil)
 		origCLIVersion := CLIVersion
 		CLIVersion = "v9.9.9"
@@ -42,6 +44,7 @@ func TestStampImageLabels(t *testing.T) {
 	})
 
 	t.Run("includes namespace label", func(t *testing.T) {
+		// Arrange
 		stubDockerRunFixed(t, "", nil)
 
 		// Act
@@ -52,6 +55,7 @@ func TestStampImageLabels(t *testing.T) {
 	})
 
 	t.Run("includes apt label with packages", func(t *testing.T) {
+		// Arrange
 		stubDockerRunFixed(t, "", nil)
 
 		// Act
@@ -62,6 +66,7 @@ func TestStampImageLabels(t *testing.T) {
 	})
 
 	t.Run("includes base label", func(t *testing.T) {
+		// Arrange
 		stubDockerRunFixed(t, "", nil)
 
 		// Act
@@ -79,6 +84,7 @@ func TestStampImageLabels(t *testing.T) {
 	})
 
 	t.Run("includes tool version label when detected", func(t *testing.T) {
+		// Arrange
 		stubDockerRunFixed(t, "1.2.3\n", nil)
 
 		// Act
@@ -89,6 +95,7 @@ func TestStampImageLabels(t *testing.T) {
 	})
 
 	t.Run("omits tool version label when detection fails", func(t *testing.T) {
+		// Arrange
 		stubDockerRunFixed(t, "", fmt.Errorf("version script not found"))
 
 		// Act

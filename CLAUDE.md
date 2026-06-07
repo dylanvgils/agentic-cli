@@ -69,7 +69,7 @@ Within each `.go` file, order elements as follows:
 
 - Always add tests for new code
 - Use Arrange-Act-Assert (AAA) in every test: `// Arrange`, `// Act`, `// Assert` comment labels with a blank line between sections
-- Omit `// Arrange` only when there is genuinely nothing to set up
+- Omit `// Arrange` only when there is genuinely nothing to set up - if a subtest contains any setup statement before the act (stub configuration, variable declarations, flag setting, etc.), even a single line, label it `// Arrange`
 - Use `// Act + Assert` only when a single call is inseparably both (e.g. `assert.Panics`)
 - Assign the result of the function under test to a variable in `// Act` so `// Assert` can reference it - do not inline the call inside the assertion
 - When a function has multiple test cases, group them under a single parent function using `t.Run` subtests; name the parent after the function under test (e.g. `TestBuildImage`). A function with only one test case stays as a flat top-level function

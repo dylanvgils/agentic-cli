@@ -45,57 +45,84 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 
 func TestRunSpecBuilder_WithVolumes_variadic(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
+		// Act
 		result := NewRunSpec("img").WithVolumes().Build()
+
+		// Assert
 		assert.Nil(t, result.Volumes)
 	})
 
 	t.Run("single", func(t *testing.T) {
+		// Act
 		result := NewRunSpec("img").WithVolumes("/a:/b").Build()
+
+		// Assert
 		assert.Equal(t, []string{"/a:/b"}, result.Volumes)
 	})
 
 	t.Run("multiple calls accumulate", func(t *testing.T) {
+		// Act
 		result := NewRunSpec("img").
 			WithVolumes("/a:/b").
 			WithVolumes("/c:/d", "/e:/f").
 			Build()
+
+		// Assert
 		assert.Equal(t, []string{"/a:/b", "/c:/d", "/e:/f"}, result.Volumes)
 	})
 }
 
 func TestRunSpecBuilder_WithSecrets_variadic(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
+		// Act
 		result := NewRunSpec("img").WithSecrets().Build()
+
+		// Assert
 		assert.Nil(t, result.Secrets)
 	})
 
 	t.Run("single", func(t *testing.T) {
+		// Act
 		result := NewRunSpec("img").WithSecrets("tok:/run/secrets/tok").Build()
+
+		// Assert
 		assert.Equal(t, []string{"tok:/run/secrets/tok"}, result.Secrets)
 	})
 
 	t.Run("multiple calls accumulate", func(t *testing.T) {
+		// Act
 		result := NewRunSpec("img").
 			WithSecrets("a:/run/secrets/a").
 			WithSecrets("b:/run/secrets/b").
 			Build()
+
+		// Assert
 		assert.Equal(t, []string{"a:/run/secrets/a", "b:/run/secrets/b"}, result.Secrets)
 	})
 }
 
 func TestRunSpecBuilder_WithTmpfsMounts_variadic(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
+		// Act
 		result := NewRunSpec("img").WithTmpfsMounts().Build()
+
+		// Assert
 		assert.Nil(t, result.TmpfsMounts)
 	})
 
 	t.Run("single", func(t *testing.T) {
+		// Act
 		result := NewRunSpec("img").WithTmpfsMounts("/tmp").Build()
+
+		// Assert
 		assert.Equal(t, []string{"/tmp"}, result.TmpfsMounts)
 	})
 
 	t.Run("multiple", func(t *testing.T) {
+		// Act
 		result := NewRunSpec("img").WithTmpfsMounts("/tmp", "/run").Build()
+
+		// Assert
 		assert.Equal(t, []string{"/tmp", "/run"}, result.TmpfsMounts)
 	})
 }
