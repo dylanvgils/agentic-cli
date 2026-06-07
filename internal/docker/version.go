@@ -20,10 +20,11 @@ func stampImageLabels(image, tool string, extras []string, aptPkgs []string) {
 	namespace := strings.TrimSuffix(image, "-"+tool)
 	args := []string{
 		"build",
+		label(LabelCLIVersion, CLIVersion),
+		label(LabelNamespace, namespace),
 		label(LabelBase, collectBaseLabel(image, extras)),
 		label(LabelApt, strings.Join(aptPkgs, ",")),
 		label(LabelTool, tool),
-		label(LabelNamespace, namespace),
 		arg("tag", image),
 	}
 

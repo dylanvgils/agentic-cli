@@ -6,15 +6,21 @@ import (
 )
 
 const (
-	LabelToolVersion = "agentic.tool.version"
-	LabelTool        = "agentic.tool"
+	LabelCLIVersion  = "agentic.version"
 	LabelNamespace   = "agentic.namespace"
 	LabelBase        = "agentic.base"
 	LabelApt         = "agentic.apt"
+	LabelTool        = "agentic.tool"
+	LabelToolVersion = "agentic.tool.version"
 	LabelBuilt       = "agentic.built"
 	LabelProject     = "project"
-	LabelProjectVal  = "agentic-cli"
+
+	LabelProjectVal = "agentic-cli"
 )
+
+// CLIVersion is the agentic CLI version stamped onto built images via the
+// agentic.version label. Set from cmd.Version at startup.
+var CLIVersion = "dev"
 
 // RecoverExtras parses an agentic.base label and returns the non-node extras as a
 // comma-separated string suitable for BuildOptions.BaseOverride.
