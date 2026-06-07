@@ -28,6 +28,19 @@ func TestStampImageLabels(t *testing.T) {
 		assert.Contains(t, capturedArgs, "--label="+LabelTool+"=claude")
 	})
 
+	t.Run("includes agentic version label", func(t *testing.T) {
+		stubDockerRunFixed(t, "", nil)
+		origCLIVersion := CLIVersion
+		CLIVersion = "v9.9.9"
+		t.Cleanup(func() { CLIVersion = origCLIVersion })
+
+		// Act
+		stampImageLabels("agentic-claude", "claude", nil, nil)
+
+		// Assert
+		assert.Contains(t, capturedArgs, "--label="+LabelCLIVersion+"=v9.9.9")
+	})
+
 	t.Run("includes namespace label", func(t *testing.T) {
 		stubDockerRunFixed(t, "", nil)
 

@@ -41,6 +41,10 @@ isolated Docker containers with read-only filesystems and dropped capabilities.`
 	PersistentPreRunE: checkDocker,
 }
 
+func init() {
+	docker.CLIVersion = version
+}
+
 // Execute the Agentic CLI
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
