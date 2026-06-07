@@ -54,6 +54,10 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return dryRunUpdate(args, namespace, opts)
 	}
 
+	// Generate the cache-bust value once so multiple targets for the same tool
+	// (e.g. --all updating it across namespaces) can still share cached layers.
+	opts.CacheBust = docker.NewCacheBust()
+
 	targets, err := resolveUpdateTargets(args, namespace, opts, all)
 	if err != nil {
 		return err

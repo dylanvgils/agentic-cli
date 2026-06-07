@@ -260,6 +260,8 @@ All tools default to node only. Use `--base` to add extra runtimes at build time
 
 Version defaults are embedded in the binary at build time - run `agentic build --help` to see current defaults. Override per-build with the corresponding flag (`--node`, `--java`, `--dotnet`, `--go`), or set `AGENTIC_<LAYER>_VERSION` in your shell config for a persistent default (e.g. `AGENTIC_JAVA_VERSION=17`).
 
+The resolved version for each layer is stored in the `agentic.version-args` image label and automatically recovered on `agentic update`, so the base/extra layers are regenerated identically (and stay cache-hits) even if the embedded defaults have since changed - pass the flag again to pin a different version instead. Pass `--no-cache` to `agentic update` to bypass this and rebuild the base/extra layers from scratch as well, instead of only the tool stage.
+
 ### Registry proxy
 
 If your environment requires pulling Docker Hub images through a registry proxy (e.g. Harbor, Nexus, Artifactory, AWS ECR pull-through cache), set the registry hostname and agentic will prefix all base image pulls with it:

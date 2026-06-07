@@ -31,6 +31,17 @@ func Test_createContainerUser(t *testing.T) {
 	})
 }
 
+func Test_cacheBustInstructions(t *testing.T) {
+	// Act
+	result := df.File{Stages: []df.Stage{
+		df.NewStage(df.From{Image: "scratch"}).Add(cacheBustInstructions()...).Build(),
+	}}.Render()
+
+	// Assert
+	assert.Contains(t, result, "ARG CACHEBUST")
+	assert.Contains(t, result, `RUN : "${CACHEBUST}"`)
+}
+
 func Test_aptInstallRun_rendersUpdateInstallCleanup(t *testing.T) {
 	// Arrange
 	pkgs := []string{"curl", "wget"}

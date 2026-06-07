@@ -56,9 +56,9 @@ func Test_baseStage(t *testing.T) {
 }
 
 func Test_prefixImage(t *testing.T) {
-	t.Run("empty registry returns image unchanged", func(t *testing.T) {
+	t.Run("empty registry returns image:tag unchanged", func(t *testing.T) {
 		// Act
-		result := prefixImage("", "node:24-bookworm-slim")
+		result := prefixImage("", "node", "24-bookworm-slim")
 
 		// Assert
 		assert.Equal(t, "node:24-bookworm-slim", result)
@@ -66,7 +66,7 @@ func Test_prefixImage(t *testing.T) {
 
 	t.Run("registry prepended with slash", func(t *testing.T) {
 		// Act
-		result := prefixImage("myregistry.example.com", "node:24-bookworm-slim")
+		result := prefixImage("myregistry.example.com", "node", "24-bookworm-slim")
 
 		// Assert
 		assert.Equal(t, "myregistry.example.com/node:24-bookworm-slim", result)
@@ -74,7 +74,7 @@ func Test_prefixImage(t *testing.T) {
 
 	t.Run("trailing slash on registry is stripped", func(t *testing.T) {
 		// Act
-		result := prefixImage("myregistry.example.com/", "node:24-bookworm-slim")
+		result := prefixImage("myregistry.example.com/", "node", "24-bookworm-slim")
 
 		// Assert
 		assert.Equal(t, "myregistry.example.com/node:24-bookworm-slim", result)
@@ -82,39 +82,19 @@ func Test_prefixImage(t *testing.T) {
 }
 
 func TestDebianImageFor(t *testing.T) {
-	t.Run("empty registry returns plain image", func(t *testing.T) {
-		// Act
-		result := DebianImageFor("")
+	// Act
+	result := DebianImageFor("")
 
-		// Assert
-		assert.Equal(t, DebianImage, result)
-	})
-
-	t.Run("registry is prepended", func(t *testing.T) {
-		// Act
-		result := DebianImageFor("myregistry.example.com")
-
-		// Assert
-		assert.Equal(t, "myregistry.example.com/"+DebianImage, result)
-	})
+	// Assert
+	assert.Equal(t, "debian:"+DefaultVersions.Debian, result)
 }
 
 func TestBusyboxImageFor(t *testing.T) {
-	t.Run("empty registry returns plain image", func(t *testing.T) {
-		// Act
-		result := BusyboxImageFor("")
+	// Act
+	result := BusyboxImageFor("")
 
-		// Assert
-		assert.Equal(t, BusyboxImage, result)
-	})
-
-	t.Run("registry is prepended", func(t *testing.T) {
-		// Act
-		result := BusyboxImageFor("myregistry.example.com")
-
-		// Assert
-		assert.Equal(t, "myregistry.example.com/"+BusyboxImage, result)
-	})
+	// Assert
+	assert.Equal(t, "busybox:"+DefaultVersions.Busybox, result)
 }
 
 func Test_extraStage(t *testing.T) {

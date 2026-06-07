@@ -9,12 +9,15 @@ import (
 //go:embed versions.json
 var versionsJSON []byte
 
-// Versions holds the default runtime version strings for each supported base layer.
+// Versions holds the default version strings for each supported runtime layer
+// plus the pinned tags for the utility base images (busybox, debian).
 type Versions struct {
-	Node   string `json:"node"`
-	Java   string `json:"java"`
-	Dotnet string `json:"dotnet"`
-	Go     string `json:"go"`
+	Node    string `json:"node"`
+	Java    string `json:"java"`
+	Dotnet  string `json:"dotnet"`
+	Go      string `json:"go"`
+	Busybox string `json:"busybox"`
+	Debian  string `json:"debian"`
 }
 
 // DefaultVersions is populated at startup from the embedded versions.json.

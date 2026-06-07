@@ -91,6 +91,31 @@ func stubRunInteractive(t *testing.T) func() []string {
 	return func() []string { return capturedArgs }
 }
 
+// stubRunInteractiveCapturingDockerfile replaces runInteractive with a mock that
+// records the rendered Dockerfile content for each "build" call, read from the
+// path passed via --file= before buildFromContent removes its temp dir.
+func stubRunInteractiveCapturingDockerfile(t *testing.T) func() []string {
+	t.Helper()
+	var contents []string
+
+	orig := runInteractive
+	runInteractive = func(args ...string) error {
+		for _, a := range args {
+			path, ok := strings.CutPrefix(a, "--file=")
+			if !ok {
+				continue
+			}
+			content, err := os.ReadFile(path)
+			require.NoError(t, err)
+			contents = append(contents, string(content))
+		}
+		return nil
+	}
+	t.Cleanup(func() { runInteractive = orig })
+
+	return func() []string { return contents }
+}
+
 // stubRunInteractiveAll replaces runInteractive with a mock that records every call.
 func stubRunInteractiveAll(t *testing.T) func() [][]string {
 	t.Helper()

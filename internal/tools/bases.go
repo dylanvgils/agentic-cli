@@ -7,33 +7,13 @@ import (
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
-// DebianImageFor returns the debian base image name optionally prefixed with registry.
-func DebianImageFor(registry string) string {
-	return prefixImage(registry, DebianImage)
-}
-
-// BusyboxImageFor returns the busybox image name optionally prefixed with registry.
-func BusyboxImageFor(registry string) string {
-	return prefixImage(registry, BusyboxImage)
-}
-
-// prefixImage prepends registry to image (e.g. "myregistry.example.com/node:24").
-// Returns image unchanged when registry is empty.
-func prefixImage(registry, image string) string {
-	if registry == "" {
-		return image
-	}
-	return strings.TrimRight(registry, "/") + "/" + image
-}
-
 const (
-	debianCodename = "bookworm-slim"
-
-	// DebianImage is the base Debian image used for apt verification.
-	DebianImage = "debian:" + debianCodename
-
-	// BusyboxImage is the utility image used for volume ownership fixups.
-	BusyboxImage = "busybox"
+	// nodeDebianCodename is the Debian codename suffix for the official node image
+	// (e.g. "node:24-bookworm-slim"). Pinned manually rather than via
+	// DefaultVersions.Debian/Renovate, since node only publishes a tag for a new
+	// Debian release after that release ships - an automatic bump could point at
+	// a "node:<version>-<codename>" tag that doesn't exist yet.
+	nodeDebianCodename = "bookworm-slim"
 
 	// BaseLayer is the name of the foundational runtime layer.
 	BaseLayer = "node"
@@ -51,6 +31,18 @@ var LayerFlagDesc = map[string]string{
 	"java":   "Java (Temurin JDK)",
 }
 
+// DebianImageFor returns the standalone debian image used for apt verification,
+// optionally prefixed with registry. Its codename (DefaultVersions.Debian) is
+// tracked independently of nodeDebianCodename - see its doc comment for why.
+func DebianImageFor(registry string) string {
+	return prefixImage(registry, "debian", DefaultVersions.Debian)
+}
+
+// BusyboxImageFor returns the busybox image name optionally prefixed with registry.
+func BusyboxImageFor(registry string) string {
+	return prefixImage(registry, "busybox", DefaultVersions.Busybox)
+}
+
 // KnownLayers returns all runtime layers in registration order: base first, then extras.
 func KnownLayers() []string {
 	return append([]string{BaseLayer}, knownExtras...)
@@ -60,6 +52,17 @@ func KnownLayers() []string {
 // by the requested extras parsed from baseOverride.
 func BuildLayers(baseOverride string) []string {
 	return append([]string{BaseLayer}, ParseExtras(baseOverride)...)
+}
+
+// prefixImage builds "image:tag", optionally prefixed with registry
+// (e.g. "myregistry.example.com/node:24"). Returns "image:tag" unchanged
+// when registry is empty.
+func prefixImage(registry, image, tag string) string {
+	ref := image + ":" + tag
+	if registry == "" {
+		return ref
+	}
+	return strings.TrimRight(registry, "/") + "/" + ref
 }
 
 // baseStage returns the foundational base stage. Currently delegates to nodeStage.
@@ -91,7 +94,7 @@ func nodeStage(ver, registry string, pkgs []string) df.Stage {
 		nodeArg.Default = ver
 	}
 
-	image := prefixImage(registry, "node:${NODE_VERSION}-"+debianCodename)
+	image := prefixImage(registry, "node", "${NODE_VERSION}-"+nodeDebianCodename)
 	return df.NewStage(df.From{Image: image, As: "base"}).
 		AddGlobalArg(nodeArg).
 		Add(df.Env{Key: "DEBIAN_FRONTEND", Value: "noninteractive"}).

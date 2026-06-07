@@ -2,5 +2,7 @@
   "node": "24",
   "java": "25",
   "dotnet": "10",
-  "go": "1.26.4"
+  "go": "1.26.4",
+  "busybox": "1.38.0",
+  "debian": "bookworm-slim"
 }

@@ -3,6 +3,7 @@ package tools
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -79,6 +80,17 @@ func TestResolveToolStage(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "tool", stage.From.As)
 		assert.Equal(t, "base", stage.From.Image)
+	})
+
+	t.Run("prepends cache-bust instructions", func(t *testing.T) {
+		// Act
+		stage, err := resolveToolStage("claude", "base")
+
+		// Assert
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(stage.Instructions), 2)
+		assert.Equal(t, dockerfile.Arg{Key: "CACHEBUST", Default: ""}, stage.Instructions[0])
+		assert.Equal(t, dockerfile.Run{Command: `: "${CACHEBUST}"`}, stage.Instructions[1])
 	})
 
 	t.Run("unknown tool returns error", func(t *testing.T) {

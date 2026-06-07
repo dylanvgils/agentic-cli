@@ -30,7 +30,7 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 		return fmt.Errorf("tool image: %w", err)
 	}
 
-	stampImageLabels(image, tool, tools.ParseExtras(opts.BaseOverride), opts.AptPackages)
+	stampImageLabels(image, tool, tools.ParseExtras(opts.BaseOverride), opts.AptPackages, opts.Versions)
 
 	return nil
 }
@@ -79,8 +79,8 @@ func buildImage(tmpDir, image string, opts tools.BuildOptions) error {
 
 	if opts.NoCache {
 		args = append(args, arg("no-cache"))
-	} else if opts.NoCacheTool {
-		args = append(args, arg("no-cache-filter", "tool"))
+	} else if opts.CacheBust != "" {
+		args = append(args, arg("build-arg", "CACHEBUST="+opts.CacheBust))
 	}
 
 	args = append(args,

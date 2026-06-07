@@ -424,4 +424,35 @@ func TestRunUpdate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{"claude", "copilot"}, updated)
 	})
+
+	t.Run("all flag shares cache-bust value across targets", func(t *testing.T) {
+		// Arrange
+		var capturedOpts []tools.BuildOptions
+		stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = append(capturedOpts, opts)
+			return nil
+		})
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},
+				{Image: "work-claude", Namespace: "work", Tool: "claude", Base: "node@24"},
+			}, nil
+		})
+
+		cmd := updateCmd
+		require.NoError(t, cmd.Flags().Set("all", "true"))
+		defer cmd.Flags().Set("all", "false") //nolint:errcheck
+
+		// Act
+		err := runUpdate(cmd, []string{})
+
+		// Assert — same tool rebuilt across two namespaces should reuse the same
+		// CacheBust value, so Docker can serve cached tool-stage layers for the second build
+		require.NoError(t, err)
+		require.Len(t, capturedOpts, 2)
+		assert.NotEmpty(t, capturedOpts[0].CacheBust)
+		assert.Equal(t, capturedOpts[0].CacheBust, capturedOpts[1].CacheBust)
+	})
 }
