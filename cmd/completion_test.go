@@ -63,6 +63,7 @@ func TestBuiltToolNamesFunc(t *testing.T) {
 
 	t.Run("some built", func(t *testing.T) {
 		// Arrange
+		t.Chdir(t.TempDir())
 		orig := inspectImage
 		inspectImage = func(name string) (*docker.ImageInfo, error) {
 			if name == "agentic-claude" {

@@ -64,6 +64,7 @@ func Test_resolveAllCleanTargets(t *testing.T) {
 func Test_runClean(t *testing.T) {
 	t.Run("cleans images and base when no args", func(t *testing.T) {
 		// Arrange
+		t.Chdir(t.TempDir())
 		var cleaned []string
 		stubCleanImage(t, func(image string) error {
 			cleaned = append(cleaned, image)

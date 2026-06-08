@@ -36,6 +36,7 @@ func TestRunTool(t *testing.T) {
 
 	t.Run("builds image name", func(t *testing.T) {
 		// Arrange
+		t.Chdir(t.TempDir())
 		withTempToolHome(t)
 		get := captureRunContainer(t)
 
