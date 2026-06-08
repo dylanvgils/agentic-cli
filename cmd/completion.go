@@ -12,7 +12,10 @@ var builtToolNamesFunc = func(cmd *cobra.Command, args []string, _ string) ([]st
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	rc := config.FindAndLoadFromCwd()
+	rc, err := config.FindAndLoadFromCwd()
+	if err != nil {
+		rc = &config.AgenticRC{}
+	}
 	namespace := resolveNamespace(cmd, rc)
 
 	var names []string

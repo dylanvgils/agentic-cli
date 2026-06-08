@@ -82,7 +82,11 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("working directory %q is on a network share; Docker cannot bind-mount UNC paths", cwd)
 	}
 
-	rc := config.FindAndLoad(cwd)
+	rc, err := config.FindAndLoad(cwd)
+	if err != nil {
+		return err
+	}
+
 	namespace := resolveNamespace(cmd, rc)
 
 	parsedArgs, err := parseArgs(args, namespace)

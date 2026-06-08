@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -107,15 +105,13 @@ func newAptCmd(t *testing.T) *cobra.Command {
 }
 
 func TestCollectAptPackages(t *testing.T) {
-	t.Run("rc file packages are included", func(t *testing.T) {
+	t.Run("rc packages are included", func(t *testing.T) {
 		// Arrange
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build]\napt_packages = [\"make\"]\n"), 0o644))
-		t.Chdir(dir)
+		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
 		cmd := newAptCmd(t)
 
 		// Act
-		result := collectAptPackages(cmd)
+		result := collectAptPackages(cmd, rc)
 
 		// Assert
 		assert.Equal(t, []string{"make"}, result)
@@ -123,14 +119,12 @@ func TestCollectAptPackages(t *testing.T) {
 
 	t.Run("flag appends to config packages", func(t *testing.T) {
 		// Arrange
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build]\napt_packages = [\"make\"]\n"), 0o644))
-		t.Chdir(dir)
+		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
 		cmd := newAptCmd(t)
 		require.NoError(t, cmd.Flags().Set("apt", "gcc"))
 
 		// Act
-		result := collectAptPackages(cmd)
+		result := collectAptPackages(cmd, rc)
 
 		// Assert
 		assert.Equal(t, []string{"make", "gcc"}, result)
@@ -138,11 +132,11 @@ func TestCollectAptPackages(t *testing.T) {
 
 	t.Run("empty when no sources set", func(t *testing.T) {
 		// Arrange
-		t.Chdir(t.TempDir())
+		rc := &config.AgenticRC{}
 		cmd := newAptCmd(t)
 
 		// Act
-		result := collectAptPackages(cmd)
+		result := collectAptPackages(cmd, rc)
 
 		// Assert
 		assert.Empty(t, result)
@@ -150,15 +144,13 @@ func TestCollectAptPackages(t *testing.T) {
 }
 
 func TestCollectBases(t *testing.T) {
-	t.Run("rc file bases are included", func(t *testing.T) {
+	t.Run("rc bases are included", func(t *testing.T) {
 		// Arrange
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build]\nbases = [\"java\"]\n"), 0o644))
-		t.Chdir(dir)
+		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
 		cmd := newBuildCmd(t)
 
 		// Act
-		result := collectBases(cmd)
+		result := collectBases(cmd, rc)
 
 		// Assert
 		assert.Equal(t, "java", result)
@@ -166,14 +158,12 @@ func TestCollectBases(t *testing.T) {
 
 	t.Run("flag appends to rc bases", func(t *testing.T) {
 		// Arrange
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build]\nbases = [\"java\"]\n"), 0o644))
-		t.Chdir(dir)
+		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
 		cmd := newBuildCmd(t)
 		require.NoError(t, cmd.Flags().Set("base", "dotnet"))
 
 		// Act
-		result := collectBases(cmd)
+		result := collectBases(cmd, rc)
 
 		// Assert — rc first, flag appended
 		assert.Equal(t, "java,dotnet", result)
@@ -181,11 +171,11 @@ func TestCollectBases(t *testing.T) {
 
 	t.Run("empty when no sources set", func(t *testing.T) {
 		// Arrange
-		t.Chdir(t.TempDir())
+		rc := &config.AgenticRC{}
 		cmd := newBuildCmd(t)
 
 		// Act
-		result := collectBases(cmd)
+		result := collectBases(cmd, rc)
 
 		// Assert
 		assert.Empty(t, result)
@@ -195,13 +185,11 @@ func TestCollectBases(t *testing.T) {
 func TestCollectVersions(t *testing.T) {
 	t.Run("rc versions used as defaults", func(t *testing.T) {
 		// Arrange
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build.versions]\njava = \"17\"\n"), 0o644))
-		t.Chdir(dir)
+		rc := &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}
 		cmd := newBuildCmd(t)
 
 		// Act
-		result := collectVersions(cmd)
+		result := collectVersions(cmd, rc)
 
 		// Assert
 		assert.Equal(t, "17", result["java"])
@@ -209,14 +197,12 @@ func TestCollectVersions(t *testing.T) {
 
 	t.Run("flag overrides rc version", func(t *testing.T) {
 		// Arrange
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build.versions]\njava = \"17\"\n"), 0o644))
-		t.Chdir(dir)
+		rc := &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}
 		cmd := newBuildCmd(t)
 		require.NoError(t, cmd.Flags().Set("java", "21"))
 
 		// Act
-		result := collectVersions(cmd)
+		result := collectVersions(cmd, rc)
 
 		// Assert
 		assert.Equal(t, "21", result["java"])
@@ -224,11 +210,11 @@ func TestCollectVersions(t *testing.T) {
 
 	t.Run("empty when no sources set", func(t *testing.T) {
 		// Arrange
-		t.Chdir(t.TempDir())
+		rc := &config.AgenticRC{}
 		cmd := newBuildCmd(t)
 
 		// Act
-		result := collectVersions(cmd)
+		result := collectVersions(cmd, rc)
 
 		// Assert
 		assert.Empty(t, result)
@@ -238,46 +224,29 @@ func TestCollectVersions(t *testing.T) {
 func TestBuildOptsFromFlags(t *testing.T) {
 	t.Run("multiple base flags are joined", func(t *testing.T) {
 		// Arrange
-		t.Chdir(t.TempDir())
+		rc := &config.AgenticRC{}
 		cmd := &cobra.Command{Use: "test"}
 		addBuildFlags(cmd)
 		require.NoError(t, cmd.Flags().Set("base", "java"))
 		require.NoError(t, cmd.Flags().Set("base", "dotnet"))
 
 		// Act
-		opts := buildOptsFromFlags(cmd)
+		opts := buildOptsFromFlags(cmd, rc)
 
 		// Assert
 		assert.Equal(t, "java,dotnet", opts.BaseOverride)
 	})
 
-	t.Run("rc bases used when flag absent", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build]\nbases = [\"java\"]\n"), 0o644))
-		t.Chdir(dir)
-		cmd := &cobra.Command{Use: "test"}
-		addBuildFlags(cmd)
-
-		// Act
-		opts := buildOptsFromFlags(cmd)
-
-		// Assert
-		assert.Equal(t, "java", opts.BaseOverride)
-	})
-
 	t.Run("base env var overrides rc and flag", func(t *testing.T) {
 		// Arrange
 		t.Setenv("AGENTIC_BASE_OVERRIDE", "dotnet")
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build]\nbases = [\"java\"]\n"), 0o644))
-		t.Chdir(dir)
+		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
 		cmd := &cobra.Command{Use: "test"}
 		addBuildFlags(cmd)
 		require.NoError(t, cmd.Flags().Set("base", "go"))
 
 		// Act
-		opts := buildOptsFromFlags(cmd)
+		opts := buildOptsFromFlags(cmd, rc)
 
 		// Assert
 		assert.Equal(t, "dotnet", opts.BaseOverride)

@@ -51,7 +51,11 @@ func runNamespacesList(_ *cobra.Command, _ []string) error {
 }
 
 func runNamespacesPrune(cmd *cobra.Command, _ []string) error {
-	rc := config.FindAndLoadFromCwd()
+	rc, err := config.FindAndLoadFromCwd()
+	if err != nil {
+		return err
+	}
+
 	namespace := resolveNamespace(cmd, rc)
 
 	fmt.Printf("Remove all images in namespace %q? [y/N] ", namespace)

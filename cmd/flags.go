@@ -64,41 +64,41 @@ func flagOrEnv(cmd *cobra.Command, flag, env string) string {
 	return config.FlagOrEnv(v, env)
 }
 
-// buildOptsFromFlags constructs a BuildOptions from the command's flags and environment variables.
-func buildOptsFromFlags(cmd *cobra.Command) tools.BuildOptions {
+// buildOptsFromFlags constructs a BuildOptions from the command's flags, the
+// project config, and environment variables.
+func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOptions {
 	opts := tools.BuildOptions{}
 
 	if v := os.Getenv("AGENTIC_BASE_OVERRIDE"); v != "" {
 		opts.BaseOverride = v
 	} else {
-		opts.BaseOverride = collectBases(cmd)
+		opts.BaseOverride = collectBases(cmd, rc)
 	}
 
 	opts.NoCache, _ = cmd.Flags().GetBool("no-cache")
-	opts.Versions = collectVersions(cmd)
-	opts.AptPackages = collectAptPackages(cmd)
+	opts.Versions = collectVersions(cmd, rc)
+	opts.AptPackages = collectAptPackages(cmd, rc)
 	opts.VerifyApt = len(opts.AptPackages) > 0
 	opts.Registry = collectRegistry(cmd)
 
 	return opts
 }
 
-// collectBases merges extra base layers from the project config file with those from the --base flag.
-func collectBases(cmd *cobra.Command) string {
-	cwd, _ := os.Getwd()
+// collectBases merges extra base layers from the project config with those from the --base flag.
+func collectBases(cmd *cobra.Command, rc *config.AgenticRC) string {
 	flagBases, _ := cmd.Flags().GetStringSlice("base")
-	merged := tools.MergePackages(config.Bases(cwd), flagBases)
+	merged := tools.MergePackages(rc.Build.Bases, flagBases)
 	return strings.Join(merged, ",")
 }
 
 // collectVersions builds the per-layer version map with RC values as defaults,
 // overridden by CLI flags and environment variables.
-func collectVersions(cmd *cobra.Command) map[string]string {
-	cwd, _ := os.Getwd()
-	versions := config.BuildVersions(cwd)
-	if versions == nil {
-		versions = map[string]string{}
+func collectVersions(cmd *cobra.Command, rc *config.AgenticRC) map[string]string {
+	versions := make(map[string]string, len(rc.Build.Versions))
+	for k, v := range rc.Build.Versions {
+		versions[k] = v
 	}
+
 	for _, name := range tools.KnownLayers() {
 		if v := flagOrEnv(cmd, name, config.EnvVersionVar(name)); v != "" {
 			versions[name] = v
@@ -107,11 +107,10 @@ func collectVersions(cmd *cobra.Command) map[string]string {
 	return versions
 }
 
-// collectAptPackages merges apt packages from the project config file with those from the --apt flag.
-func collectAptPackages(cmd *cobra.Command) []string {
-	cwd, _ := os.Getwd()
+// collectAptPackages merges apt packages from the project config with those from the --apt flag.
+func collectAptPackages(cmd *cobra.Command, rc *config.AgenticRC) []string {
 	flagPkgs, _ := cmd.Flags().GetStringSlice("apt")
-	return tools.MergePackages(config.AptPackages(cwd), flagPkgs)
+	return tools.MergePackages(config.AptPackages(rc), flagPkgs)
 }
 
 // toolNames returns the single tool name from args, or all known tool names when args is empty.

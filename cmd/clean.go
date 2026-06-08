@@ -30,7 +30,11 @@ type cleanTarget struct {
 }
 
 func runClean(cmd *cobra.Command, args []string) error {
-	rc := config.FindAndLoadFromCwd()
+	rc, err := config.FindAndLoadFromCwd()
+	if err != nil {
+		return err
+	}
+
 	namespace := resolveNamespace(cmd, rc)
 	all, _ := cmd.Flags().GetBool("all")
 
