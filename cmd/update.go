@@ -44,9 +44,13 @@ type updateTarget struct {
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
-	rc := config.FindAndLoadFromCwd()
+	rc, err := config.FindAndLoadFromCwd()
+	if err != nil {
+		return err
+	}
+
 	namespace := resolveNamespace(cmd, rc)
-	opts := buildOptsFromFlags(cmd)
+	opts := buildOptsFromFlags(cmd, rc)
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	all, _ := cmd.Flags().GetBool("all")
 

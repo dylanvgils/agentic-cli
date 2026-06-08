@@ -35,9 +35,13 @@ func init() {
 }
 
 func runBuild(cmd *cobra.Command, args []string) error {
-	rc := config.FindAndLoadFromCwd()
+	rc, err := config.FindAndLoadFromCwd()
+	if err != nil {
+		return err
+	}
+
 	namespace := resolveNamespace(cmd, rc)
-	opts := buildOptsFromFlags(cmd)
+	opts := buildOptsFromFlags(cmd, rc)
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
 	if dryRun {

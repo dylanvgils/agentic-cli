@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -181,6 +183,20 @@ func TestRunBuild(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "java", capturedOpts.BaseOverride)
+	})
+
+	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		rcPath := filepath.Join(dir, ".agenticrc.toml")
+		require.NoError(t, os.WriteFile(rcPath, []byte("not valid toml [[["), 0o644))
+		t.Chdir(dir)
+
+		// Act
+		err := runBuild(buildCmd, []string{"claude"})
+
+		// Assert
+		assert.ErrorContains(t, err, rcPath)
 	})
 
 	t.Run("node flag sets opt", func(t *testing.T) {

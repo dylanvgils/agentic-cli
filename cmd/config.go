@@ -43,7 +43,11 @@ func showConfig(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	layers := config.FindLayers(cwd)
+	layers, err := config.FindLayers(cwd)
+	if err != nil {
+		return err
+	}
+
 
 	w := cmd.OutOrStdout()
 	if err := printGlobalConfig(w, toolHome, cliConfig); err != nil {

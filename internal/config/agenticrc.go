@@ -48,50 +48,47 @@ const legacyRCFilename = ".agenticrc"
 var rcWarningWriter io.Writer = os.Stderr
 
 // FindAndLoadFromCwd loads config starting from the current working directory.
-func FindAndLoadFromCwd() *AgenticRC {
-	cwd, _ := os.Getwd()
+func FindAndLoadFromCwd() (*AgenticRC, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
 	return FindAndLoad(cwd)
 }
 
-// AptPackages returns the merged apt packages from .agenticrc.toml files and the
-// AGENTIC_APT_PACKAGES env var, outermost RC first, env var last.
-func AptPackages(startDir string) []string {
-	rcPkgs := FindAndLoad(startDir).Build.AptPackages
+// AptPackages returns the merged apt packages from rc and the AGENTIC_APT_PACKAGES
+// env var, RC values first, env var last.
+func AptPackages(rc *AgenticRC) []string {
 	envPkgs := splitEnvValues(os.Getenv(EnvAptPackages))
-	return append(rcPkgs, envPkgs...)
-}
-
-// Bases returns the merged extra base layers from .agenticrc.toml files, outermost RC first.
-func Bases(startDir string) []string {
-	return FindAndLoad(startDir).Build.Bases
-}
-
-// BuildVersions returns the merged per-layer version overrides from .agenticrc.toml files.
-// Innermost RC value wins per key.
-func BuildVersions(startDir string) map[string]string {
-	return FindAndLoad(startDir).Build.Versions
+	return append(rc.Build.AptPackages, envPkgs...)
 }
 
 // FindAndLoad walks up from startDir collecting all .agenticrc.toml files and
 // merges them. Stops when a file with root=true is encountered. For scalar keys
 // the innermost (child) value wins; list keys accumulate outermost-first.
 // Returns an empty AgenticRC if no file is found.
-func FindAndLoad(startDir string) *AgenticRC {
+func FindAndLoad(startDir string) (*AgenticRC, error) {
 	paths := collectPaths(startDir)
-	configs := loadConfigs(paths)
-	return mergeConfigs(configs)
+
+	configs, err := loadConfigs(paths)
+	if err != nil {
+		return nil, err
+	}
+
+	return mergeConfigs(configs), nil
 }
 
 // FindLayers returns the .agenticrc.toml layers that FindAndLoad would merge,
 // ordered outermost-to-innermost, each paired with its source path.
-func FindLayers(startDir string) []RCLayer {
+func FindLayers(startDir string) ([]RCLayer, error) {
 	paths := collectPaths(startDir)
 	var layers []RCLayer
 
 	for _, path := range paths {
 		rc, err := loadRC(path)
 		if err != nil {
-			continue
+			return nil, err
 		}
 
 		layers = append(layers, RCLayer{Path: path, RC: rc})
@@ -104,7 +101,7 @@ func FindLayers(startDir string) []RCLayer {
 		layers[i], layers[j] = layers[j], layers[i]
 	}
 
-	return layers
+	return layers, nil
 }
 
 func collectPaths(startDir string) []string {
@@ -133,13 +130,13 @@ func collectPaths(startDir string) []string {
 	return paths
 }
 
-func loadConfigs(paths []string) []*AgenticRC {
+func loadConfigs(paths []string) ([]*AgenticRC, error) {
 	var configs []*AgenticRC
 
 	for _, path := range paths {
 		rc, err := loadRC(path)
 		if err != nil {
-			continue
+			return nil, err
 		}
 		configs = append(configs, rc)
 
@@ -148,7 +145,7 @@ func loadConfigs(paths []string) []*AgenticRC {
 		}
 	}
 
-	return configs
+	return configs, nil
 }
 
 func mergeConfigs(configs []*AgenticRC) *AgenticRC {
@@ -199,7 +196,7 @@ func loadRC(path string) (*AgenticRC, error) {
 	rc := &AgenticRC{}
 	md, err := toml.DecodeFile(path, rc)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 
 	if keys := md.Undecoded(); len(keys) > 0 {

@@ -13,11 +13,10 @@ import (
 func TestAptPackages(t *testing.T) {
 	t.Run("returns packages from rc", func(t *testing.T) {
 		// Arrange
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build]\napt_packages = [\"make\"]\n"), 0o644))
+		rc := &AgenticRC{Build: RCBuild{AptPackages: []string{"make"}}}
 
 		// Act
-		result := AptPackages(dir)
+		result := AptPackages(rc)
 
 		// Assert
 		assert.Equal(t, []string{"make"}, result)
@@ -26,11 +25,10 @@ func TestAptPackages(t *testing.T) {
 	t.Run("env var appends to rc packages", func(t *testing.T) {
 		// Arrange
 		t.Setenv("AGENTIC_APT_PACKAGES", "gcc")
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build]\napt_packages = [\"make\"]\n"), 0o644))
+		rc := &AgenticRC{Build: RCBuild{AptPackages: []string{"make"}}}
 
 		// Act
-		result := AptPackages(dir)
+		result := AptPackages(rc)
 
 		// Assert
 		assert.Equal(t, []string{"make", "gcc"}, result)
@@ -118,9 +116,10 @@ func TestCollectPaths(t *testing.T) {
 func TestLoadConfigs(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		// Act
-		configs := loadConfigs(nil)
+		configs, err := loadConfigs(nil)
 
 		// Assert
+		require.NoError(t, err)
 		assert.Empty(t, configs)
 	})
 
@@ -129,9 +128,10 @@ func TestLoadConfigs(t *testing.T) {
 		path := writeRC(t, "[run]\ncpus = \"4\"\n")
 
 		// Act
-		configs := loadConfigs([]string{path})
+		configs, err := loadConfigs([]string{path})
 
 		// Assert
+		require.NoError(t, err)
 		require.Len(t, configs, 1)
 		assert.Equal(t, "4", configs[0].Run.CPUs)
 	})
@@ -142,23 +142,25 @@ func TestLoadConfigs(t *testing.T) {
 		shouldSkip := writeRC(t, "[run]\ncpus = \"1\"\n")
 
 		// Act
-		configs := loadConfigs([]string{withRoot, shouldSkip})
+		configs, err := loadConfigs([]string{withRoot, shouldSkip})
 
 		// Assert — second file not loaded
+		require.NoError(t, err)
 		assert.Len(t, configs, 1)
 		assert.Equal(t, "4", configs[0].Run.CPUs)
 	})
 
-	t.Run("skips missing file", func(t *testing.T) {
+	t.Run("returns error on invalid file and stops", func(t *testing.T) {
 		// Arrange
+		invalid := writeRC(t, "not valid toml [[[")
 		valid := writeRC(t, "[run]\ncpus = \"4\"\n")
 
 		// Act
-		configs := loadConfigs([]string{"/nonexistent/.agenticrc.toml", valid})
+		configs, err := loadConfigs([]string{invalid, valid})
 
-		// Assert — missing file skipped, valid file loaded
-		require.Len(t, configs, 1)
-		assert.Equal(t, "4", configs[0].Run.CPUs)
+		// Assert — error propagated, valid file after it not loaded
+		assert.ErrorContains(t, err, invalid)
+		assert.Empty(t, configs)
 	})
 }
 
@@ -359,7 +361,7 @@ memory = "2g"
 		assert.Equal(t, "22", rc.Build.Versions["node"])
 	})
 
-	t.Run("unknown key returns error", func(t *testing.T) {
+	t.Run("unknown key returns error with path", func(t *testing.T) {
 		// Arrange
 		content := "unknown = \"foo\"\ncpus = \"4\"\n"
 		path := writeRC(t, content)
@@ -369,6 +371,18 @@ memory = "2g"
 
 		// Assert
 		assert.ErrorContains(t, err, "unknown keys")
+		assert.ErrorContains(t, err, path)
+	})
+
+	t.Run("syntax error returns error with path", func(t *testing.T) {
+		// Arrange
+		path := writeRC(t, "not valid toml [[[")
+
+		// Act
+		_, err := loadRC(path)
+
+		// Assert
+		assert.ErrorContains(t, err, path)
 	})
 
 	t.Run("empty", func(t *testing.T) {
@@ -389,9 +403,10 @@ func TestFindLayers(t *testing.T) {
 		dir := t.TempDir()
 
 		// Act
-		layers := FindLayers(dir)
+		layers, err := FindLayers(dir)
 
 		// Assert
+		require.NoError(t, err)
 		assert.Empty(t, layers)
 	})
 
@@ -402,9 +417,10 @@ func TestFindLayers(t *testing.T) {
 		require.NoError(t, os.WriteFile(rcPath, []byte("[run]\ncpus = \"4\"\n"), 0o644))
 
 		// Act
-		layers := FindLayers(dir)
+		layers, err := FindLayers(dir)
 
 		// Assert
+		require.NoError(t, err)
 		require.Len(t, layers, 1)
 		assert.Equal(t, rcPath, layers[0].Path)
 		assert.Equal(t, "4", layers[0].RC.Run.CPUs)
@@ -421,9 +437,10 @@ func TestFindLayers(t *testing.T) {
 		require.NoError(t, os.WriteFile(childRC, []byte("[run]\ncpus = \"8\"\n"), 0o644))
 
 		// Act
-		layers := FindLayers(child)
+		layers, err := FindLayers(child)
 
 		// Assert — outermost (parent) is index 0
+		require.NoError(t, err)
 		require.Len(t, layers, 2)
 		assert.Equal(t, parentRC, layers[0].Path)
 		assert.Equal(t, childRC, layers[1].Path)
@@ -443,12 +460,27 @@ func TestFindLayers(t *testing.T) {
 		require.NoError(t, os.WriteFile(childRC, []byte("[run]\ncpus = \"8\"\n"), 0o644))
 
 		// Act
-		layers := FindLayers(child)
+		layers, err := FindLayers(child)
 
 		// Assert — grandparent excluded because parent has root=true
+		require.NoError(t, err)
 		require.Len(t, layers, 2)
 		assert.Equal(t, parentRC, layers[0].Path)
 		assert.Equal(t, childRC, layers[1].Path)
+	})
+
+	t.Run("returns error on invalid file", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		rcPath := filepath.Join(dir, ".agenticrc.toml")
+		require.NoError(t, os.WriteFile(rcPath, []byte("not valid toml [[["), 0o644))
+
+		// Act
+		layers, err := FindLayers(dir)
+
+		// Assert
+		assert.ErrorContains(t, err, rcPath)
+		assert.Empty(t, layers)
 	})
 }
 
@@ -461,11 +493,29 @@ func TestFindAndLoadFromCwd(t *testing.T) {
 		t.Cleanup(func() { _ = os.Chdir(orig) })
 
 		// Act
-		rc := FindAndLoadFromCwd()
+		rc, err := FindAndLoadFromCwd()
 
 		// Assert
+		require.NoError(t, err)
 		assert.Empty(t, rc.Run.CPUs)
 		assert.Empty(t, rc.Run.ExtraMounts)
+	})
+
+	t.Run("invalid file returns error", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		rcPath := filepath.Join(dir, ".agenticrc.toml")
+		require.NoError(t, os.WriteFile(rcPath, []byte("not valid toml [[["), 0o644))
+		orig, _ := os.Getwd()
+		require.NoError(t, os.Chdir(dir))
+		t.Cleanup(func() { _ = os.Chdir(orig) })
+
+		// Act
+		rc, err := FindAndLoadFromCwd()
+
+		// Assert
+		assert.ErrorContains(t, err, rcPath)
+		assert.Nil(t, rc)
 	})
 }
 
@@ -475,9 +525,10 @@ func TestFindAndLoad(t *testing.T) {
 		dir := t.TempDir()
 
 		// Act
-		rc := FindAndLoad(dir)
+		rc, err := FindAndLoad(dir)
 
 		// Assert
+		require.NoError(t, err)
 		assert.Empty(t, rc.Run.ExtraMounts)
 		assert.Empty(t, rc.Run.Secrets)
 		assert.Empty(t, rc.Run.PidsLimit)
@@ -494,60 +545,28 @@ func TestFindAndLoad(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(child, ".agenticrc.toml"), []byte("[run]\ncpus = \"8\"\nextra_mounts = [\"child-vol:/mnt/c\"]\n"), 0o644))
 
 		// Act
-		rc := FindAndLoad(child)
+		rc, err := FindAndLoad(child)
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, "8", rc.Run.CPUs)
 		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, rc.Run.ExtraMounts)
 	})
-}
 
-func TestBases(t *testing.T) {
-	t.Run("returns bases from rc", func(t *testing.T) {
+	t.Run("broken outer layer fails the whole load even when inner layer is valid", func(t *testing.T) {
 		// Arrange
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build]\nbases = [\"java\"]\n"), 0o644))
+		parent := t.TempDir()
+		child := filepath.Join(parent, "sub")
+		require.NoError(t, os.Mkdir(child, 0o755))
+		parentRC := filepath.Join(parent, ".agenticrc.toml")
+		require.NoError(t, os.WriteFile(parentRC, []byte("not valid toml [[["), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(child, ".agenticrc.toml"), []byte("[run]\ncpus = \"8\"\n"), 0o644))
 
 		// Act
-		result := Bases(dir)
+		rc, err := FindAndLoad(child)
 
 		// Assert
-		assert.Equal(t, []string{"java"}, result)
-	})
-
-	t.Run("empty when not set", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-
-		// Act
-		result := Bases(dir)
-
-		// Assert
-		assert.Empty(t, result)
-	})
-}
-
-func TestBuildVersions(t *testing.T) {
-	t.Run("returns versions from rc", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("[build.versions]\njava = \"17\"\n"), 0o644))
-
-		// Act
-		result := BuildVersions(dir)
-
-		// Assert
-		assert.Equal(t, "17", result["java"])
-	})
-
-	t.Run("empty when not set", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-
-		// Act
-		result := BuildVersions(dir)
-
-		// Assert
-		assert.Empty(t, result)
+		assert.ErrorContains(t, err, parentRC)
+		assert.Nil(t, rc)
 	})
 }
