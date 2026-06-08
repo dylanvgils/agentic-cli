@@ -1,5 +1,8 @@
+root = true
+namespace = "agenticgo"
+
 [build]
-bases = ['go']
+bases = ["go"]
 apt_packages = ["make"]
 
 [run]
