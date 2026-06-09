@@ -9,7 +9,7 @@ import (
 )
 
 func TestRunAliases(t *testing.T) {
-	t.Run("prints bash preamble", func(t *testing.T) {
+	t.Run("prints bash preamble and reload alias", func(t *testing.T) {
 		// Arrange
 		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/bin/bash")
@@ -22,9 +22,10 @@ func TestRunAliases(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, out, "# agentic tool aliases - source with: source <(agentic aliases)")
+		assert.Contains(t, out, "alias agentic-reload='source <(agentic aliases)'")
 	})
 
-	t.Run("prints fish preamble", func(t *testing.T) {
+	t.Run("prints fish preamble and reload function", func(t *testing.T) {
 		// Arrange
 		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/usr/bin/fish")
@@ -37,9 +38,10 @@ func TestRunAliases(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, out, "# agentic tool aliases - source with: agentic aliases | source")
+		assert.Contains(t, out, "function agentic-reload; agentic aliases | source; end")
 	})
 
-	t.Run("prints powershell preamble for pwsh shell", func(t *testing.T) {
+	t.Run("prints powershell preamble and reload function", func(t *testing.T) {
 		// Arrange
 		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/usr/bin/pwsh")
@@ -52,9 +54,10 @@ func TestRunAliases(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, out, "# agentic tool aliases - source with: agentic aliases | Out-String | Invoke-Expression")
+		assert.Contains(t, out, "function agentic-reload { agentic aliases | Out-String | Invoke-Expression }")
 	})
 
-	t.Run("prints powershell preamble on windows", func(t *testing.T) {
+	t.Run("prints powershell preamble and reload function on windows", func(t *testing.T) {
 		// Arrange
 		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		stubCurrentGOOS(t, "windows")
@@ -68,9 +71,10 @@ func TestRunAliases(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, out, "# agentic tool aliases - source with: agentic aliases | Out-String | Invoke-Expression")
+		assert.Contains(t, out, "function agentic-reload { agentic aliases | Out-String | Invoke-Expression }")
 	})
 
-	t.Run("not built tools emit nothing after preamble", func(t *testing.T) {
+	t.Run("not built tools emit no tool aliases", func(t *testing.T) {
 		// Arrange
 		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/bin/bash")
@@ -82,8 +86,9 @@ func TestRunAliases(t *testing.T) {
 		})
 
 		// Assert
-		assert.NotContains(t, out, "alias ")
-		assert.NotContains(t, out, "function ")
+		assert.NotContains(t, out, "alias claude=")
+		assert.NotContains(t, out, "alias copilot=")
+		assert.NotContains(t, out, "alias opencode=")
 	})
 
 	t.Run("only built tools get aliases", func(t *testing.T) {
@@ -143,7 +148,7 @@ func TestRunAliases(t *testing.T) {
 		assert.Contains(t, out, "function opencode { agentic run opencode @args }")
 	})
 
-	t.Run("docker error prints no aliases", func(t *testing.T) {
+	t.Run("docker error prints nothing", func(t *testing.T) {
 		// Arrange
 		stubBuiltTools(t, func() (map[string]bool, error) {
 			return nil, fmt.Errorf("docker daemon not running")
@@ -157,8 +162,7 @@ func TestRunAliases(t *testing.T) {
 		})
 
 		// Assert
-		assert.NotContains(t, out, "alias ")
-		assert.NotContains(t, out, "function ")
+		assert.Empty(t, out)
 	})
 }
 
@@ -315,5 +319,39 @@ func Test_detectShell(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, "powershell", result)
+	})
+}
+
+func Test_reloadLineFor(t *testing.T) {
+	t.Run("bash returns alias", func(t *testing.T) {
+		// Act
+		result := reloadLineFor("bash")
+
+		// Assert
+		assert.Equal(t, "alias agentic-reload='source <(agentic aliases)'", result)
+	})
+
+	t.Run("zsh returns alias", func(t *testing.T) {
+		// Act
+		result := reloadLineFor("zsh")
+
+		// Assert
+		assert.Equal(t, "alias agentic-reload='source <(agentic aliases)'", result)
+	})
+
+	t.Run("fish returns function", func(t *testing.T) {
+		// Act
+		result := reloadLineFor("fish")
+
+		// Assert
+		assert.Equal(t, "function agentic-reload; agentic aliases | source; end", result)
+	})
+
+	t.Run("powershell returns function", func(t *testing.T) {
+		// Act
+		result := reloadLineFor("powershell")
+
+		// Assert
+		assert.Equal(t, "function agentic-reload { agentic aliases | Out-String | Invoke-Expression }", result)
 	})
 }

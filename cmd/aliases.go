@@ -24,10 +24,14 @@ func init() {
 }
 
 func runAliases(_ *cobra.Command, _ []string) error {
+	built, err := builtTools()
+	if err != nil {
+		return nil
+	}
+
 	shell := detectShell()
 	fmt.Println(preambleFor(shell))
-
-	built, _ := builtTools()
+	fmt.Println(reloadLineFor(shell))
 	printAliases(shell, built)
 
 	return nil
@@ -85,4 +89,15 @@ func aliasLineFor(shell, name string) string {
 		return fmt.Sprintf("function %s { agentic run %s @args }", name, name)
 	}
 	return fmt.Sprintf("alias %s='agentic run %s'", name, name)
+}
+
+func reloadLineFor(shell string) string {
+	switch shell {
+	case "fish":
+		return "function agentic-reload; agentic aliases | source; end"
+	case "powershell":
+		return "function agentic-reload { agentic aliases | Out-String | Invoke-Expression }"
+	default:
+		return "alias agentic-reload='source <(agentic aliases)'"
+	}
 }
