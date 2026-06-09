@@ -39,7 +39,17 @@ Each tool runs in an isolated, read-only container with only the minimal mounts 
 
 ## 🚀 Installation
 
-Clone the repo, then build and install using Docker (no Go required):
+Install directly:
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/dylanvgils/agentic-cli/main/install.sh | bash
+
+# Windows (PowerShell)
+Invoke-RestMethod https://raw.githubusercontent.com/dylanvgils/agentic-cli/main/install.ps1 | Invoke-Expression
+```
+
+Or clone the repo first and run the script from there:
 
 ```bash
 git clone https://github.com/dylanvgils/agentic-cli.git
@@ -47,6 +57,8 @@ cd agentic-cli
 ./install.sh        # Linux / macOS
 .\install.ps1       # Windows (PowerShell)
 ```
+
+The installer fetches the latest release for your OS and architecture, verifies the checksum, and installs the binary.
 
 > **Windows note:** If you get an error about running scripts being disabled, set the execution policy for your user:
 >
@@ -73,6 +85,15 @@ To uninstall and remove all agentic data:
 ```bash
 ./install.sh --remove
 .\install.ps1 -Remove
+```
+
+### Building from source
+
+To build from source instead of downloading a pre-built binary (requires Docker):
+
+```bash
+./install.sh --from-source    # Linux / macOS
+.\install.ps1 -FromSource     # Windows (PowerShell)
 ```
 
 If you already have Go installed, you can build and install natively instead:
