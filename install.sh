@@ -55,7 +55,7 @@ install_from_release() {
 
   local tmpdir
   tmpdir=$(mktemp -d)
-  trap 'rm -rf "${tmpdir}"' EXIT
+  trap "rm -rf '${tmpdir}'" EXIT
 
   echo "Downloading agentic ${version} for ${OS}/${ARCH}..."
   curl -fsSL "${url}" -o "${tmpdir}/${archive}"

@@ -17,7 +17,7 @@ builds:
     ldflags:
       - -s -w
       - -X github.com/dylanvgils/agentic-cli/cmd.version={{.Tag}}
-      - -X github.com/dylanvgils/agentic-cli/cmd.commit={{.Commit}}
+      - -X github.com/dylanvgils/agentic-cli/cmd.commit={{.ShortCommit}}
       - -X github.com/dylanvgils/agentic-cli/cmd.buildDate={{.CommitDate}}
       - -X github.com/dylanvgils/agentic-cli/cmd.installMethod=release
     goos:
