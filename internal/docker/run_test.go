@@ -181,6 +181,48 @@ func TestRunContainer(t *testing.T) {
 		assert.Contains(t, get(), "--volume="+home+"/secrets/token:/run/secrets/mytoken:ro")
 	})
 
+	t.Run("secrets with explicit container path", func(t *testing.T) {
+		// Arrange
+		rs := RunSpec{
+			Image:   "agentic-copilot",
+			Secrets: []string{"maven-settings:/tmp/settings.xml:/root/.m2/settings.xml"},
+		}
+
+		// Act
+		err := RunContainer(rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, get(), "--volume=/tmp/settings.xml:/root/.m2/settings.xml:ro")
+	})
+
+	t.Run("secrets with $CONTAINER_HOME in container path", func(t *testing.T) {
+		// Arrange
+		rs := RunSpec{
+			Image:          "agentic-copilot",
+			ContainerHome:  "/root",
+			Secrets:        []string{"maven-settings:/tmp/settings.xml:$CONTAINER_HOME/.m2/settings.xml"},
+		}
+
+		// Act
+		err := RunContainer(rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, get(), "--volume=/tmp/settings.xml:/root/.m2/settings.xml:ro")
+	})
+
+	t.Run("secrets empty container path", func(t *testing.T) {
+		// Arrange
+		rs := RunSpec{
+			Image:   "agentic-copilot",
+			Secrets: []string{"mytoken:/tmp/token:"},
+		}
+
+		// Act + Assert
+		assert.ErrorContains(t, RunContainer(rs, nil), "empty container path")
+	})
+
 	t.Run("secrets invalid format", func(t *testing.T) {
 		// Arrange
 		rs := RunSpec{

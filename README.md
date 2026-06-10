@@ -308,7 +308,7 @@ Use `agentic inspect` to see base layers, apt packages, build timestamp, and ins
 
 ## 🔑 Secrets
 
-Use `--secret` / `-s` to mount a secret file into the container at `/run/secrets/<name>`, read-only:
+Use `--secret` / `-s` to mount a secret file read-only into the container:
 
 ```bash
 agentic run -s 'copilot_token:~/.secrets/copilot_token' copilot
@@ -328,7 +328,12 @@ For per-project control, use a [`.agenticrc.toml` project config file](#per-proj
 secrets = ["copilot_token:~/.secrets/copilot_token"]
 ```
 
-Secrets use the format `name:/path/to/file`. The `~`, `$HOME`, and `${HOME}` prefixes are expanded to your home directory. The file is mounted read-only at `/run/secrets/<name>` inside the container.
+Secrets use the format `name:/path/to/file[:/container/path]`. The `~`, `$HOME`, and `${HOME}` prefixes are expanded to your home directory. Without a container path the file is mounted at `/run/secrets/<name>`; with one it is mounted at the specified path (supports `$CONTAINER_HOME`):
+
+```bash
+# Mount Maven settings.xml at the path Maven expects
+agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml' java-tool
+```
 
 ## 📦 Named Docker volumes
 
@@ -415,7 +420,7 @@ All configuration is done through environment variables, which can be set in you
 | `AGENTIC_HOME`            | Base directory for tool config and secrets                                                                                                            | `$HOME/.agentic`                                         |
 | `AGENTIC_NAMESPACE`       | Image namespace. Images are named `<namespace>-<tool>`. Used when no `.agenticrc.toml` sets `namespace`.                                              | `agentic`                                                |
 | `AGENTIC_EXTRA_MOUNTS`    | Comma-separated extra mounts. Bind mount: `host/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `$CONTAINER_HOME`. | -                                                        |
-| `AGENTIC_SECRETS`         | Comma-separated secrets to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`.                                                    | -                                                        |
+| `AGENTIC_SECRETS`         | Comma-separated secrets to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`.     | -                                                        |
 | `AGENTIC_PIDS_LIMIT`      | Default container PID limit                                                                                                                           | `1024`                                                   |
 | `AGENTIC_CPUS`            | Default container CPU limit                                                                                                                           | `4`                                                      |
 | `AGENTIC_MEMORY`          | Default container memory limit                                                                                                                        | `4g`                                                     |
@@ -448,13 +453,13 @@ Place a `.agenticrc.toml` file anywhere in your directory tree to apply project-
 
 **`[run]` section** - applied to each container at runtime
 
-| Key            | Description                                                                                                                                          | Default | Env var override       |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------- |
-| `extra_mounts` | Extra mounts. Bind mount: `~/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `~`, `$HOME`, and `$CONTAINER_HOME`. | -       | `AGENTIC_EXTRA_MOUNTS` |
-| `secrets`      | Secrets to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~` and `$HOME`.                                         | -       | `AGENTIC_SECRETS`      |
-| `pids_limit`   | Container PID limit (quoted string, e.g. `"1024"`)                                                                                                   | `1024`  | `AGENTIC_PIDS_LIMIT`   |
-| `cpus`         | Container CPU limit (quoted string, e.g. `"4"`)                                                                                                      | `4`     | `AGENTIC_CPUS`         |
-| `memory`       | Container memory limit (string, e.g. `"8g"`)                                                                                                         | `4g`    | `AGENTIC_MEMORY`       |
+| Key            | Description                                                                                                                                                                                           | Default | Env var override       |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------- |
+| `extra_mounts` | Extra mounts. Bind mount: `~/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `~`, `$HOME`, and `$CONTAINER_HOME`.                                                  | -       | `AGENTIC_EXTRA_MOUNTS` |
+| `secrets`      | Secrets to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`. Supports `~`, `$HOME`, and `$CONTAINER_HOME` (container path only). | -       | `AGENTIC_SECRETS`      |
+| `pids_limit`   | Container PID limit (quoted string, e.g. `"1024"`)                                                                                                                                                    | `1024`  | `AGENTIC_PIDS_LIMIT`   |
+| `cpus`         | Container CPU limit (quoted string, e.g. `"4"`)                                                                                                                                                       | `4`     | `AGENTIC_CPUS`         |
+| `memory`       | Container memory limit (string, e.g. `"8g"`)                                                                                                                                                          | `4g`    | `AGENTIC_MEMORY`       |
 
 You can commit `.agenticrc.toml` to the repo so the whole team picks up the right settings automatically.
 

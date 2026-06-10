@@ -75,13 +75,13 @@ pids_limit = "2048"
 
 **`[run]` section** - applied at `agentic run` time
 
-| Key            | Type   | Description                                                                                                                                                        | CLI flag       | Env var                | Default |
-| -------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- | ---------------------- | ------- |
-| `extra_mounts` | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME` | `-v`           | `AGENTIC_EXTRA_MOUNTS` | -       |
-| `secrets`      | list   | Files to mount read-only at `/run/secrets/<name>`. Format: `name:/path/to/file`. Supports `~`, `$HOME`                                                             | `-s`           | `AGENTIC_SECRETS`      | -       |
-| `pids_limit`   | string | Container PID limit (e.g. `"1024"`)                                                                                                                                | `--pids-limit` | `AGENTIC_PIDS_LIMIT`   | `1024`  |
-| `cpus`         | string | Container CPU limit (e.g. `"4"`)                                                                                                                                   | `--cpus`       | `AGENTIC_CPUS`         | `4`     |
-| `memory`       | string | Container memory limit (e.g. `"8g"`)                                                                                                                               | `--memory`     | `AGENTIC_MEMORY`       | `4g`    |
+| Key            | Type   | Description                                                                                                                                                                                    | CLI flag       | Env var                | Default |
+| -------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ---------------------- | ------- |
+| `extra_mounts` | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`                             | `-v`           | `AGENTIC_EXTRA_MOUNTS` | -       |
+| `secrets`      | list   | Files to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`. Supports `~`, `$HOME`, `$CONTAINER_HOME` (container path only) | `-s`           | `AGENTIC_SECRETS`      | -       |
+| `pids_limit`   | string | Container PID limit (e.g. `"1024"`)                                                                                                                                                            | `--pids-limit` | `AGENTIC_PIDS_LIMIT`   | `1024`  |
+| `cpus`         | string | Container CPU limit (e.g. `"4"`)                                                                                                                                                               | `--cpus`       | `AGENTIC_CPUS`         | `4`     |
+| `memory`       | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                           | `--memory`     | `AGENTIC_MEMORY`       | `4g`    |
 
 ### Merge semantics
 

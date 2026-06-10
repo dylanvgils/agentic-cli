@@ -143,19 +143,28 @@ func buildVolumeArgs(rs RunSpec) []string {
 }
 
 // buildSecretArgs builds read-only secret volume flags.
-// Returns an error for any malformed "name:/path" entry.
+// Returns an error for any malformed "name:/path[:/container/path]" entry.
 func buildSecretArgs(rs RunSpec) ([]string, error) {
 	args := make([]string, 0, len(rs.Secrets))
 	for _, secret := range rs.Secrets {
-		name, hostPath, ok := strings.Cut(secret, ":")
+		name, rest, ok := strings.Cut(secret, ":")
 		if !ok {
-			return nil, fmt.Errorf("invalid secret %q: expected name:/path", secret)
+			return nil, fmt.Errorf("invalid secret %q: expected name:/path[:/container/path]", secret)
 		}
 
-		hostPath = mount.ExpandMountSpec(hostPath, rs.ToolHome, rs.ContainerHome)
-		hostPath = mount.NormalizeMountSpec(hostPath)
+		hostPath := mount.HostPart(rest)
+		containerPath := "/run/secrets/" + name
 
-		args = append(args, arg("volume", mount.VolumeMount(hostPath, "/run/secrets/"+name, mount.VolumeOptions{ReadOnly: true})))
+		if after, found := strings.CutPrefix(rest, hostPath+":"); found {
+			if after == "" {
+				return nil, fmt.Errorf("invalid secret %q: empty container path", secret)
+			}
+			containerPath = after
+		}
+
+		spec := mount.ExpandMountSpec(hostPath+":"+containerPath, rs.ToolHome, rs.ContainerHome)
+		spec = mount.NormalizeMountSpec(spec)
+		args = append(args, arg("volume", spec+":ro"))
 	}
 	return args, nil
 }
