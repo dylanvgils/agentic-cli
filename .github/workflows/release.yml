@@ -32,6 +32,10 @@ jobs:
             echo "RELEASE_TAG=${{ inputs.tag }}" >> $GITHUB_ENV
           fi
 
+      - name: Checkout release tag
+        if: github.event_name == 'workflow_dispatch'
+        run: git checkout $RELEASE_TAG
+
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
