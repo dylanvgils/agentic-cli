@@ -18,7 +18,7 @@ builds:
       - -s -w
       - -X github.com/dylanvgils/agentic-cli/cmd.version={{.Tag}}
       - -X github.com/dylanvgils/agentic-cli/cmd.commit={{.Commit}}
-      - -X github.com/dylanvgils/agentic-cli/cmd.buildDate={{.CommitDate | date "2006-01-02"}}
+      - -X github.com/dylanvgils/agentic-cli/cmd.buildDate={{.CommitDate}}
       - -X github.com/dylanvgils/agentic-cli/cmd.installMethod=release
     goos:
       - linux
