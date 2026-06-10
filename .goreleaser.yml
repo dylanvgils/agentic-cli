@@ -1,0 +1,85 @@
+version: 2
+
+project_name: agentic
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: agentic
+    binary: agentic
+    main: .
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/dylanvgils/agentic-cli/cmd.version={{.Tag}}
+      - -X github.com/dylanvgils/agentic-cli/cmd.commit={{.Commit}}
+      - -X github.com/dylanvgils/agentic-cli/cmd.buildDate={{.CommitDate | date "2006-01-02"}}
+      - -X github.com/dylanvgils/agentic-cli/cmd.installMethod=release
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: darwin
+        goarch: amd64
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: agentic
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - README.md
+      - install.sh
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: git
+  filters:
+    exclude:
+      - "^chore"
+      - "^docs"
+      - "^ci"
+      - "^test"
+      - "^style"
+      - "^build"
+      - "Merge pull request"
+      - "Merge branch"
+  groups:
+    - title: Features
+      regexp: "^feat"
+      order: 0
+    - title: Bug Fixes
+      regexp: "^fix"
+      order: 1
+    - title: Performance Improvements
+      regexp: "^perf"
+      order: 2
+    - title: Refactoring
+      regexp: "^refactor"
+      order: 3
+    - title: Other
+      order: 999
+
+release:
+  draft: false
+  prerelease: auto
+  name_template: "{{ .Tag }}"
