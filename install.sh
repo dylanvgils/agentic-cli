@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="${HOME}/.local/bin"
 INSTALL_PATH="${INSTALL_DIR}/agentic"
 DATA_DIR="${AGENTIC_HOME:-${HOME}/.agentic}"
@@ -12,14 +11,16 @@ install_from_source() {
     exit 1
   fi
 
-  local binary_src="${SCRIPT_DIR}/dist/agentic-${OS}-${ARCH}"
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+  local binary_src="${script_dir}/dist/agentic-${OS}-${ARCH}"
 
   echo "Building agentic for ${OS}/${ARCH}..."
   docker buildx build \
     --target export \
     --build-arg "INSTALL_METHOD=script-sh" \
-    --output "${SCRIPT_DIR}/dist/" \
-    "${SCRIPT_DIR}"
+    --output "${script_dir}/dist/" \
+    "${script_dir}"
 
   if [[ ! -f "${binary_src}" ]]; then
     echo "Error: expected binary not found at ${binary_src}" >&2

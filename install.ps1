@@ -1,7 +1,6 @@
 param([switch]$Remove, [switch]$FromSource)
 
 $ErrorActionPreference = "Stop"
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\agentic"
 $InstallPath = Join-Path $InstallDir "agentic.exe"
 $DataDir = if ($env:AGENTIC_HOME) { $env:AGENTIC_HOME } else { Join-Path $env:APPDATA "agentic" }
@@ -17,6 +16,7 @@ function Install-FromSource {
     exit 1
   }
 
+  $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
   $BinaryName = "agentic-windows-$Arch.exe"
   $BinarySrc = Join-Path $ScriptDir "dist\$BinaryName"
 
