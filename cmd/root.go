@@ -61,8 +61,8 @@ func checkDocker(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Shell completion generation and `aliases` do not need a running daemon.
-	// (`aliases` ignores the error from builtTools and prints no aliases when Docker is unavailable.)
+	// Shell completion generation and `aliases` do not need a running daemon up-front.
+	// (`aliases` always emits the reload alias and does its own daemon check before listing built tools.)
 	if name := cmd.Name(); name == "completion" || name == "aliases" || name == "version" {
 		return nil
 	}

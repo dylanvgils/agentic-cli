@@ -24,16 +24,20 @@ func init() {
 }
 
 func runAliases(_ *cobra.Command, _ []string) error {
+	shell := detectShell()
+	fmt.Println(preambleFor(shell))
+	fmt.Println(reloadLineFor(shell))
+
+	if checkDockerDaemon() != nil {
+		return nil
+	}
+
 	built, err := builtTools()
 	if err != nil {
 		return nil
 	}
 
-	shell := detectShell()
-	fmt.Println(preambleFor(shell))
-	fmt.Println(reloadLineFor(shell))
 	printAliases(shell, built)
-
 	return nil
 }
 
