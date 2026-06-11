@@ -7,6 +7,7 @@ CLI for running agentic coding tools in isolated Docker containers.
 - [Overview](#-overview)
 - [Requirements](#-requirements)
 - [Installation](#-installation)
+  - [Updating](#updating)
 - [Usage](#-usage)
   - [Commands](#commands)
   - [Tools](#tools)
@@ -87,6 +88,16 @@ To uninstall and remove all agentic data:
 .\install.ps1 -Remove
 ```
 
+### Updating
+
+Once installed, use the `selfupdate` command to upgrade to the latest release:
+
+```bash
+agentic selfupdate
+```
+
+The CLI also checks for updates automatically once per day and prompts you when a newer release is available.
+
 ### Building from source
 
 To build from source instead of downloading a pre-built binary (requires Docker):
@@ -138,6 +149,7 @@ agentic <command> [args...]
 | `namespaces prune [-n namespace]`                                                                                                                                                              | Remove all images in the active (or specified) namespace                                                                                                |
 | `config [--home <dir>]`                                                                                                                                                                        | Show the merged configuration from agentic.json and all .agenticrc.toml files                                                                           |
 | `volumes <create\|list\|ls\|remove\|rm> [name]`                                                                                                                                                | Manage named Docker volumes created by agentic                                                                                                          |
+| `selfupdate`                                                                                                                                                                                   | Update the agentic binary to the latest release                                                                                                         |
 | `version`                                                                                                                                                                                      | Show version information (version, commit, built by, built date)                                                                                        |
 | `completion <bash\|zsh\|fish\|powershell>`                                                                                                                                                     | Generate shell completion script for the specified shell                                                                                                |
 | `aliases`                                                                                                                                                                                      | Print shell alias definitions for installed tools                                                                                                       |

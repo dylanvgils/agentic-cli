@@ -6,12 +6,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // CliConfig holds the persisted global agentic config stored in $AGENTIC_HOME/agentic.json.
 type CliConfig struct {
-	TrustedDirs []string `json:"trusted_dirs"`
-	Registry    string   `json:"registry,omitempty"`
+	TrustedDirs     []string  `json:"trusted_dirs"`
+	Registry        string    `json:"registry,omitempty"`
+	LastUpdateCheck time.Time `json:"last_update_check,omitempty"`
 }
 
 // LoadConfig reads $AGENTIC_HOME/agentic.json. Returns an empty CliConfig if the

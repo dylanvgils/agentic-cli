@@ -38,7 +38,7 @@ isolated Docker containers with read-only filesystems and dropped capabilities.`
 	SilenceUsage:      true,
 	SilenceErrors:     true,
 	RunE:              rootRun,
-	PersistentPreRunE: checkDocker,
+	PersistentPreRunE: persistentPreRunE,
 }
 
 func init() {
@@ -53,17 +53,35 @@ func Execute() {
 	}
 }
 
-// checkDocker is the PersistentPreRunE hook that verifies the Docker daemon is
-// reachable before any subcommand that needs it runs.
+// persistentPreRunE is the PersistentPreRunE hook for rootCmd. It checks the
+// Docker daemon and, for interactive commands, notifies the user when a newer
+// agentic release is available.
+func persistentPreRunE(cmd *cobra.Command, args []string) error {
+	if err := checkDocker(cmd, args); err != nil {
+		return err
+	}
+
+	if cmd.Parent() != nil {
+		name := cmd.Name()
+		if name != "completion" && name != "aliases" && name != "selfupdate" {
+			maybeNotifyUpdate(toolHome)
+		}
+	}
+
+	return nil
+}
+
+// checkDocker verifies the Docker daemon is reachable before any subcommand
+// that needs it runs.
 func checkDocker(cmd *cobra.Command, _ []string) error {
 	// Bare `agentic` (no subcommand) just shows help — no Docker needed.
 	if cmd.Parent() == nil {
 		return nil
 	}
 
-	// Shell completion generation and `aliases` do not need a running daemon.
-	// (`aliases` ignores the error from builtTools and prints no aliases when Docker is unavailable.)
-	if name := cmd.Name(); name == "completion" || name == "aliases" || name == "version" {
+	// Shell completion generation, `aliases`, `version`, and `selfupdate` do
+	// not need a running daemon.
+	if name := cmd.Name(); name == "completion" || name == "aliases" || name == "version" || name == "selfupdate" {
 		return nil
 	}
 
