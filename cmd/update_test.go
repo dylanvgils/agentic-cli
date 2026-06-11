@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
@@ -130,12 +132,50 @@ func Test_resolveAllUpdateTargets(t *testing.T) {
 		})
 
 		// Act
-		targets, err := resolveAllUpdateTargets(tools.BuildOptions{Versions: map[string]string{}})
+		targets, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
 		require.Len(t, targets, 1)
 		assert.Equal(t, "claude", targets[0].name)
+	})
+
+	t.Run("recovers base independently from each image label", func(t *testing.T) {
+		// Arrange
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24,java@21"},
+				{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "node@24,dotnet@8"},
+			}, nil
+		})
+
+		// Act
+		targets, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, targets, 2)
+		assert.Equal(t, "java", targets[0].opts.BaseOverride)
+		assert.Equal(t, "dotnet", targets[1].opts.BaseOverride)
+	})
+
+	t.Run("recovers apt independently from each image label", func(t *testing.T) {
+		// Arrange
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Apt: "make,gcc"},
+				{Image: "work-copilot", Namespace: "work", Tool: "copilot", Apt: "cmake"},
+			}, nil
+		})
+
+		// Act
+		targets, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, targets, 2)
+		assert.Equal(t, []string{"make", "gcc"}, targets[0].opts.AptPackages)
+		assert.Equal(t, []string{"cmake"}, targets[1].opts.AptPackages)
 	})
 
 	t.Run("listAllImages error propagates", func(t *testing.T) {
@@ -145,11 +185,31 @@ func Test_resolveAllUpdateTargets(t *testing.T) {
 		})
 
 		// Act
-		_, err := resolveAllUpdateTargets(tools.BuildOptions{Versions: map[string]string{}})
+		_, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "docker daemon not running")
+	})
+
+	t.Run("filters to matching tool when args provided", func(t *testing.T) {
+		// Arrange
+		var capturedFilters []docker.ImageFilter
+		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			capturedFilters = filters
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+			}, nil
+		})
+
+		// Act
+		targets, err := resolveAllUpdateTargets([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, targets, 1)
+		assert.Equal(t, "claude", targets[0].name)
+		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, capturedFilters)
 	})
 }
 
@@ -423,6 +483,139 @@ func TestRunUpdate(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"claude", "copilot"}, updated)
+	})
+
+	t.Run("all flag clears rc config base for per-image recovery", func(t *testing.T) {
+		// Arrange — simulate an RC config with build.bases = ["java"] in a temp dir.
+		// Without the fix, opts.BaseOverride = "java" (from RC) would prevent per-image
+		// recovery, and every image would be rebuilt with "java" regardless of its label.
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\nbases = [\"java\"]\n"), 0o600))
+
+		var capturedOpts []tools.BuildOptions
+		stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = append(capturedOpts, opts)
+			return nil
+		})
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24,go@1.23"},
+				{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "node@24,dotnet@8"},
+			}, nil
+		})
+
+		cmd := updateCmd
+		require.NoError(t, cmd.Flags().Set("all", "true"))
+		defer cmd.Flags().Set("all", "false") //nolint:errcheck
+
+		// Act
+		err := runUpdate(cmd, []string{})
+
+		// Assert — each image must use its own label-recovered base, not "java" from RC
+		require.NoError(t, err)
+		require.Len(t, capturedOpts, 2)
+		assert.Equal(t, "go", capturedOpts[0].BaseOverride)
+		assert.Equal(t, "dotnet", capturedOpts[1].BaseOverride)
+	})
+
+	t.Run("all flag with explicit base flag applies base to all images", func(t *testing.T) {
+		// Arrange — use a temp dir (no RC config) so the only base is the explicit flag.
+		t.Chdir(t.TempDir())
+
+		var capturedOpts []tools.BuildOptions
+		stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = append(capturedOpts, opts)
+			return nil
+		})
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},
+				{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "node@24,dotnet@8"},
+			}, nil
+		})
+
+		cmd := updateCmd
+		require.NoError(t, cmd.Flags().Set("all", "true"))
+		require.NoError(t, cmd.Flags().Set("base", "java"))
+		defer func() {
+			cmd.Flags().Set("all", "false") //nolint:errcheck
+			cmd.Flags().Set("base", "")     //nolint:errcheck
+		}()
+
+		// Act
+		err := runUpdate(cmd, []string{})
+
+		// Assert — explicit --base java must reach every target unchanged
+		require.NoError(t, err)
+		require.Len(t, capturedOpts, 2)
+		assert.Equal(t, "java", capturedOpts[0].BaseOverride)
+		assert.Equal(t, "java", capturedOpts[1].BaseOverride)
+	})
+
+	t.Run("all flag with base env var applies base to all images", func(t *testing.T) {
+		// Arrange — AGENTIC_BASE_OVERRIDE is an explicit env override; it must NOT be cleared.
+		t.Chdir(t.TempDir())
+		t.Setenv(config.EnvBaseOverride, "java")
+
+		var capturedOpts []tools.BuildOptions
+		stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = append(capturedOpts, opts)
+			return nil
+		})
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},
+				{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "node@24,dotnet@8"},
+			}, nil
+		})
+
+		cmd := updateCmd
+		require.NoError(t, cmd.Flags().Set("all", "true"))
+		defer cmd.Flags().Set("all", "false") //nolint:errcheck
+
+		// Act
+		err := runUpdate(cmd, []string{})
+
+		// Assert — env var override must reach every target unchanged
+		require.NoError(t, err)
+		require.Len(t, capturedOpts, 2)
+		assert.Equal(t, "java", capturedOpts[0].BaseOverride)
+		assert.Equal(t, "java", capturedOpts[1].BaseOverride)
+	})
+
+	t.Run("all flag with tool arg updates only that tool across namespaces", func(t *testing.T) {
+		// Arrange
+		var updated []string
+		stubUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
+			updated = append(updated, tool)
+			return nil
+		})
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			// Docker would apply the ToolFilter server-side; simulate by honouring it here.
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},
+				{Image: "work-claude", Namespace: "work", Tool: "claude", Base: "node@24"},
+			}, nil
+		})
+
+		cmd := updateCmd
+		require.NoError(t, cmd.Flags().Set("all", "true"))
+		defer cmd.Flags().Set("all", "false") //nolint:errcheck
+
+		// Act
+		err := runUpdate(cmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"claude", "claude"}, updated)
 	})
 
 	t.Run("all flag shares cache-bust value across targets", func(t *testing.T) {

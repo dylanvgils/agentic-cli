@@ -69,7 +69,7 @@ func flagOrEnv(cmd *cobra.Command, flag, env string) string {
 func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOptions {
 	opts := tools.BuildOptions{}
 
-	if v := os.Getenv("AGENTIC_BASE_OVERRIDE"); v != "" {
+	if v := os.Getenv(config.EnvBaseOverride); v != "" {
 		opts.BaseOverride = v
 	} else {
 		opts.BaseOverride = collectBases(cmd, rc)
