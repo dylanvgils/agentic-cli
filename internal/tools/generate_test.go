@@ -166,6 +166,14 @@ func TestSortByKnownExtras(t *testing.T) {
 		assert.Equal(t, forward, reversed)
 	})
 
+	t.Run("deduplicates", func(t *testing.T) {
+		// Act
+		result := sortByKnownExtras([]string{"java", "dotnet", "java"})
+
+		// Assert
+		assert.Equal(t, []string{"dotnet", "java"}, result)
+	})
+
 	t.Run("does not mutate input", func(t *testing.T) {
 		// Arrange
 		input := []string{"java", "dotnet"}

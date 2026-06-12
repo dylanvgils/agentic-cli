@@ -102,11 +102,20 @@ func SortExtras(extras []string) []string {
 	return sortByKnownExtras(extras)
 }
 
-// sortByKnownExtras returns a copy of extras sorted by their position in knownExtras.
+// sortByKnownExtras returns a deduplicated copy of extras sorted by their position in knownExtras.
 func sortByKnownExtras(extras []string) []string {
-	sorted := slices.Clone(extras)
-	slices.SortFunc(sorted, func(a, b string) int {
+	seen := make(map[string]bool, len(extras))
+	deduped := make([]string, 0, len(extras))
+	for _, e := range extras {
+		if !seen[e] {
+			seen[e] = true
+			deduped = append(deduped, e)
+		}
+	}
+
+	slices.SortFunc(deduped, func(a, b string) int {
 		return cmp.Compare(slices.Index(knownExtras, a), slices.Index(knownExtras, b))
 	})
-	return sorted
+
+	return deduped
 }
