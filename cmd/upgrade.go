@@ -21,6 +21,7 @@ var (
 	performUpdate      func(string) error     = selfupdate.Update
 	upgradeStdin       io.Reader              = os.Stdin
 	upgradeStderr      io.Writer              = os.Stderr
+	osExit             func(int)              = os.Exit
 )
 
 var upgradeCmd = &cobra.Command{
@@ -115,11 +116,11 @@ func fetchUpdateIfDue(home string) (string, bool) {
 // immediately; otherwise it prints a one-liner suggesting `agentic upgrade`.
 func notifyUpdate(latest string) {
 	if !isTerminal() {
-		fmt.Fprintf(upgradeStderr, "\n=> update available: %s (current: %s) - run: agentic upgrade\n", latest, version)
+		fmt.Fprintf(upgradeStderr, "=> update available: %s (current: %s) - run: agentic upgrade\n", latest, version)
 		return
 	}
 
-	fmt.Fprintf(upgradeStderr, "\n=> update available: %s (current: %s)\n   update now? [y/N] ", latest, version)
+	fmt.Fprintf(upgradeStderr, "=> update available: %s (current: %s)\n   update now? [y/N] ", latest, version)
 
 	scanner := bufio.NewScanner(upgradeStdin)
 	if scanner.Scan() && strings.EqualFold(strings.TrimSpace(scanner.Text()), "y") {
@@ -127,8 +128,10 @@ func notifyUpdate(latest string) {
 
 		if err := performUpdate(latest); err != nil {
 			fmt.Fprintf(upgradeStderr, "=> update failed: %v\n   run: agentic upgrade\n", err)
+			osExit(1)
 		} else {
 			fmt.Fprintf(upgradeStderr, "=> updated to %s\n", latest)
+			osExit(0)
 		}
 	}
 }

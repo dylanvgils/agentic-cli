@@ -350,12 +350,46 @@ func Test_notifyUpdate(t *testing.T) {
 		upgradeStderr = &errBuf
 		t.Cleanup(func() { upgradeStderr = origStderr })
 
+		var exitCode int
+		origExit := osExit
+		osExit = func(code int) { exitCode = code }
+		t.Cleanup(func() { osExit = origExit })
+
 		// Act
 		notifyUpdate("v1.1.0")
 
 		// Assert
 		assert.Equal(t, "v1.1.0", updateCalledWith)
 		assert.Contains(t, errBuf.String(), "updated to v1.1.0")
+		assert.Equal(t, 0, exitCode)
+	})
+
+	t.Run("exits with code 1 when terminal, user confirms, and update fails", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, true)
+
+		stubPerformUpdate(t, errors.New("network error"))
+
+		origStdin := upgradeStdin
+		upgradeStdin = strings.NewReader("y\n")
+		t.Cleanup(func() { upgradeStdin = origStdin })
+
+		var errBuf bytes.Buffer
+		origStderr := upgradeStderr
+		upgradeStderr = &errBuf
+		t.Cleanup(func() { upgradeStderr = origStderr })
+
+		var exitCode int
+		origExit := osExit
+		osExit = func(code int) { exitCode = code }
+		t.Cleanup(func() { osExit = origExit })
+
+		// Act
+		notifyUpdate("v1.1.0")
+
+		// Assert
+		assert.Contains(t, errBuf.String(), "update failed")
+		assert.Equal(t, 1, exitCode)
 	})
 
 	t.Run("skips update when terminal and user declines", func(t *testing.T) {
