@@ -68,7 +68,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	// Only explicit CLI flags and env vars should override all images.
 	if all {
 		if !cmd.Flags().Changed("base") && os.Getenv(config.EnvBaseOverride) == "" {
-			opts.BaseOverride = ""
+			opts.BaseOverride = nil
 		}
 		if !cmd.Flags().Changed("apt") && os.Getenv(config.EnvAptPackages) == "" {
 			opts.AptPackages = nil
@@ -180,7 +180,7 @@ func dryRunUpdate(args []string, namespace string, opts tools.BuildOptions) erro
 }
 
 func recoverOpts(info *docker.ImageInfo, opts tools.BuildOptions) tools.BuildOptions {
-	if opts.BaseOverride == "" {
+	if len(opts.BaseOverride) == 0 {
 		opts.BaseOverride = docker.RecoverExtras(info.Base)
 	}
 	if info.Apt != "" {
@@ -192,8 +192,8 @@ func recoverOpts(info *docker.ImageInfo, opts tools.BuildOptions) tools.BuildOpt
 
 func updateOneTool(name, image string, opts tools.BuildOptions) error {
 	output.Step(image)
-	if opts.BaseOverride != "" {
-		output.Detailf("base: %s", strings.ReplaceAll(opts.BaseOverride, ",", ", "))
+	if len(opts.BaseOverride) > 0 {
+		output.Detailf("base: %s", strings.Join(opts.BaseOverride, ", "))
 	}
 	if len(opts.AptPackages) > 0 {
 		output.Detailf("apt: %s", strings.Join(opts.AptPackages, ", "))

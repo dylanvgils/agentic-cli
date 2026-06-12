@@ -49,9 +49,9 @@ func KnownLayers() []string {
 }
 
 // BuildLayers returns the ordered layers for a build: the base layer followed
-// by the requested extras parsed from baseOverride.
-func BuildLayers(baseOverride string) []string {
-	return append([]string{BaseLayer}, ParseExtras(baseOverride)...)
+// by the requested extras.
+func BuildLayers(extras []string) []string {
+	return append([]string{BaseLayer}, extras...)
 }
 
 // prefixImage builds "image:tag", optionally prefixed with registry

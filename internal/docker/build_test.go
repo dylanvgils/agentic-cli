@@ -217,7 +217,7 @@ func TestBuildImage(t *testing.T) {
 	t.Run("extraVersions adds uppercased build args", func(t *testing.T) {
 		// Arrange
 		opts := tools.BuildOptions{
-			BaseOverride: "java,dotnet",
+			BaseOverride: []string{"dotnet", "java"},
 			Versions:     map[string]string{"java": "21", "dotnet": "8"},
 		}
 
@@ -234,7 +234,7 @@ func TestBuildImage(t *testing.T) {
 	t.Run("extra with empty version omits build arg", func(t *testing.T) {
 		// Arrange
 		opts := tools.BuildOptions{
-			BaseOverride: "java",
+			BaseOverride: []string{"java"},
 			Versions:     map[string]string{"java": ""},
 		}
 

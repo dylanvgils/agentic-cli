@@ -40,7 +40,7 @@ func TestUpdateTool(t *testing.T) {
 		getDockerfiles := stubRunInteractiveCapturingDockerfile(t)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{BaseOverride: "java"})
+		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{BaseOverride: []string{"java"}})
 
 		// Assert - explicit BaseOverride wins over the dotnet recovered from the label
 		require.NoError(t, err)

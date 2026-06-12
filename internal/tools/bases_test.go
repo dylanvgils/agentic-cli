@@ -195,7 +195,7 @@ func Test_extraStage(t *testing.T) {
 func TestBuildLayers(t *testing.T) {
 	t.Run("base layer is always first", func(t *testing.T) {
 		// Act
-		result := BuildLayers("")
+		result := BuildLayers(nil)
 
 		// Assert
 		assert.Equal(t, []string{BaseLayer}, result)
@@ -203,7 +203,7 @@ func TestBuildLayers(t *testing.T) {
 
 	t.Run("extras follow the base layer", func(t *testing.T) {
 		// Act
-		result := BuildLayers("java,dotnet")
+		result := BuildLayers([]string{"dotnet", "java"})
 
 		// Assert
 		assert.Equal(t, []string{BaseLayer, "dotnet", "java"}, result)

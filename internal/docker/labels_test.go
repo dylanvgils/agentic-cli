@@ -149,7 +149,7 @@ func TestRecoverExtras(t *testing.T) {
 		result := RecoverExtras("node@24.0.0,java@21.0.1")
 
 		// Assert
-		assert.Equal(t, "java", result)
+		assert.Equal(t, []string{"java"}, result)
 	})
 
 	t.Run("multiple extras", func(t *testing.T) {
@@ -157,7 +157,7 @@ func TestRecoverExtras(t *testing.T) {
 		result := RecoverExtras("node@24.0.0,java@21.0.1,python@3.11")
 
 		// Assert
-		assert.Equal(t, "java,python", result)
+		assert.Equal(t, []string{"java", "python"}, result)
 	})
 
 	t.Run("node only", func(t *testing.T) {
@@ -165,6 +165,6 @@ func TestRecoverExtras(t *testing.T) {
 		result := RecoverExtras("node@24.0.0")
 
 		// Assert
-		assert.Equal(t, "", result)
+		assert.Nil(t, result)
 	})
 }

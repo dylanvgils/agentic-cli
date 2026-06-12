@@ -153,7 +153,7 @@ func TestCollectBases(t *testing.T) {
 		result := collectBases(cmd, rc)
 
 		// Assert
-		assert.Equal(t, "java", result)
+		assert.Equal(t, []string{"java"}, result)
 	})
 
 	t.Run("flag appends to rc bases", func(t *testing.T) {
@@ -165,8 +165,8 @@ func TestCollectBases(t *testing.T) {
 		// Act
 		result := collectBases(cmd, rc)
 
-		// Assert — rc first, flag appended
-		assert.Equal(t, "java,dotnet", result)
+		// Assert — sorted by canonical extras order
+		assert.Equal(t, []string{"dotnet", "java"}, result)
 	})
 
 	t.Run("empty when no sources set", func(t *testing.T) {
@@ -234,7 +234,7 @@ func TestBuildOptsFromFlags(t *testing.T) {
 		opts := buildOptsFromFlags(cmd, rc)
 
 		// Assert
-		assert.Equal(t, "java,dotnet", opts.BaseOverride)
+		assert.Equal(t, []string{"dotnet", "java"}, opts.BaseOverride)
 	})
 
 	t.Run("base env var overrides rc and flag", func(t *testing.T) {
@@ -249,7 +249,7 @@ func TestBuildOptsFromFlags(t *testing.T) {
 		opts := buildOptsFromFlags(cmd, rc)
 
 		// Assert
-		assert.Equal(t, "dotnet", opts.BaseOverride)
+		assert.Equal(t, []string{"dotnet"}, opts.BaseOverride)
 	})
 }
 
