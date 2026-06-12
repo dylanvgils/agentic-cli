@@ -15,6 +15,8 @@ import (
 )
 
 var (
+	upgradeForce       bool
+	upgradeVersion     string
 	fetchLatestVersion func() (string, error) = selfupdate.LatestVersion
 	performUpdate      func(string) error     = selfupdate.Update
 	upgradeStdin       io.Reader              = os.Stdin
@@ -30,28 +32,37 @@ var upgradeCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(upgradeCmd)
+
+	upgradeCmd.Flags().BoolVar(&upgradeForce, "force", false, "reinstall even if already up to date")
+	upgradeCmd.Flags().StringVar(&upgradeVersion, "version", "", "install a specific version (e.g. v1.2.0)")
 }
 
 func runUpgrade(_ *cobra.Command, _ []string) error {
-	output.Step("checking for updates...")
+	target := upgradeVersion
 
-	latest, err := fetchLatestVersion()
-	if err != nil {
-		return fmt.Errorf("checking for updates: %w", err)
+	if target == "" {
+		output.Step("checking for updates...")
+
+		latest, err := fetchLatestVersion()
+		if err != nil {
+			return fmt.Errorf("checking for updates: %w", err)
+		}
+
+		target = latest
 	}
 
-	if !selfupdate.IsNewer(version, latest) {
-		output.Stepf("already up to date (%s)", version)
+	if !upgradeForce && upgradeVersion == "" && !selfupdate.IsNewer(version, target) {
+		output.Detailf("already up to date (%s)", version)
 		return nil
 	}
 
-	output.Stepf("updating %s -> %s...", version, latest)
+	output.Stepf("updating %s -> %s...", version, target)
 
-	if err := performUpdate(latest); err != nil {
+	if err := performUpdate(target); err != nil {
 		return fmt.Errorf("update failed: %w", err)
 	}
 
-	output.Stepf("updated to %s", latest)
+	output.Detailf("updated to %s", target)
 	return nil
 }
 
@@ -63,43 +74,61 @@ func maybeNotifyUpdate(home string) {
 		return
 	}
 
-	cfg, err := config.LoadConfig(home)
-	if err != nil {
+	latest, ok := fetchUpdateIfDue(home)
+	if !ok {
 		return
 	}
 
-	if !selfupdate.ShouldCheck(cfg.LastUpdateCheck) {
-		return
+	notifyUpdate(latest)
+}
+
+// fetchUpdateIfDue checks whether the update interval has elapsed, fetches the latest
+// version from GitHub, saves the check timestamp, and returns (latestVersion, true) if a
+// newer version is available. Returns ("", false) in all other cases.
+func fetchUpdateIfDue(home string) (string, bool) {
+	config, err := config.LoadConfig(home)
+	if err != nil {
+		return "", false
+	}
+
+	if !selfupdate.ShouldCheck(config.LastUpdateCheck) {
+		return "", false
 	}
 
 	latest, err := fetchLatestVersion()
 	if err != nil {
-		return
+		return "", false
 	}
 
-	cfg.LastUpdateCheck = time.Now()
-	_ = cfg.Save(home)
+	now := time.Now()
+	config.LastUpdateCheck = &now
+	_ = config.Save(home)
 
 	if !selfupdate.IsNewer(version, latest) {
+		return "", false
+	}
+
+	return latest, true
+}
+
+// notifyUpdate prints an update notice to stderr. On a TTY it prompts the user to update
+// immediately; otherwise it prints a one-liner suggesting `agentic upgrade`.
+func notifyUpdate(latest string) {
+	if !isTerminal() {
+		fmt.Fprintf(upgradeStderr, "\n=> update available: %s (current: %s) - run: agentic upgrade\n", latest, version)
 		return
 	}
 
-	if isTerminal() {
-		fmt.Fprintf(upgradeStderr, "\n=> update available: %s (current: %s)\n   update now? [y/N] ", latest, version)
+	fmt.Fprintf(upgradeStderr, "\n=> update available: %s (current: %s)\n   update now? [y/N] ", latest, version)
 
-		scanner := bufio.NewScanner(upgradeStdin)
-		if scanner.Scan() && strings.EqualFold(strings.TrimSpace(scanner.Text()), "y") {
-			fmt.Fprintln(upgradeStderr, "=> updating...")
+	scanner := bufio.NewScanner(upgradeStdin)
+	if scanner.Scan() && strings.EqualFold(strings.TrimSpace(scanner.Text()), "y") {
+		fmt.Fprintln(upgradeStderr, "=> updating...")
 
-			if err := performUpdate(latest); err != nil {
-				fmt.Fprintf(upgradeStderr, "=> update failed: %v\n   run: agentic upgrade\n", err)
-			} else {
-				fmt.Fprintf(upgradeStderr, "=> updated to %s\n", latest)
-			}
+		if err := performUpdate(latest); err != nil {
+			fmt.Fprintf(upgradeStderr, "=> update failed: %v\n   run: agentic upgrade\n", err)
+		} else {
+			fmt.Fprintf(upgradeStderr, "=> updated to %s\n", latest)
 		}
-
-		return
 	}
-
-	fmt.Fprintf(upgradeStderr, "\n=> update available: %s (current: %s) - run: agentic upgrade\n", latest, version)
 }

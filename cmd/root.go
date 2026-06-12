@@ -84,10 +84,13 @@ func checkDocker(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Shell completion generation, `aliases`, `version`, and `upgrade` do
-	// not need a running daemon.
-	if slices.Contains(noDockerCmds, cmd.Name()) {
-		return nil
+	// Walk up from cmd to (but not including) root: if any command in the chain
+	// is in noDockerCmds, skip the check. This correctly handles subcommands
+	// like `completion bash` where cmd.Name() is "bash" but the parent is "completion".
+	for command := cmd; command.Parent() != nil; command = command.Parent() {
+		if slices.Contains(noDockerCmds, command.Name()) {
+			return nil
+		}
 	}
 
 	return checkDockerDaemon()

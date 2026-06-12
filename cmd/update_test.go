@@ -285,6 +285,37 @@ func TestUpdateOneTool(t *testing.T) {
 		assert.NotContains(t, out, "=> base:")
 	})
 
+	t.Run("apt packages shown", func(t *testing.T) {
+		// Arrange
+		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		opts := tools.BuildOptions{AptPackages: []string{"curl", "jq"}, Versions: map[string]string{}}
+
+		// Act
+		out := captureStdout(t, func() {
+			err := updateOneTool("claude", "agentic-claude", opts)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "   apt: curl, jq")
+	})
+
+	t.Run("apt packages hidden when empty", func(t *testing.T) {
+		// Arrange
+		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+
+		// Act
+		out := captureStdout(t, func() {
+			err := updateOneTool("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.NotContains(t, out, "apt:")
+	})
+
 	t.Run("script error propagates", func(t *testing.T) {
 		// Arrange
 		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error {
@@ -361,12 +392,12 @@ func Test_recoverOpts(t *testing.T) {
 		assert.NotEmpty(t, result.AptPackages)
 	})
 
-	t.Run("explicit apt takes precedence", func(t *testing.T) {
+	t.Run("explicit apt merged with recovered packages", func(t *testing.T) {
 		// Act
 		result := recoverOpts(&docker.ImageInfo{Base: "node@24", Apt: "make,gcc"}, tools.BuildOptions{AptPackages: []string{"cmake"}})
 
 		// Assert
-		assert.Equal(t, []string{"cmake"}, result.AptPackages)
+		assert.Equal(t, []string{"make", "gcc", "cmake"}, result.AptPackages)
 	})
 }
 

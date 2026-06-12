@@ -29,10 +29,31 @@ func TestCheckDocker(t *testing.T) {
 		stubCheckDockerDaemon(t, func() error {
 			return errors.New("should not be called")
 		})
-		cmd := &cobra.Command{Use: "completion"}
+		fakeRoot := &cobra.Command{Use: "agentic"}
+		completionCmd := &cobra.Command{Use: "completion"}
+		fakeRoot.AddCommand(completionCmd)
 
 		// Act
-		err := checkDocker(cmd, nil)
+		err := checkDocker(completionCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+	})
+
+	t.Run("completion subcommand skips check", func(t *testing.T) {
+		// Arrange — `agentic completion bash` reaches persistentPreRunE with cmd.Name()=="bash",
+		// which is not in noDockerCmds; the ancestor walk must find "completion" instead.
+		stubCheckDockerDaemon(t, func() error {
+			return errors.New("should not be called")
+		})
+		fakeRoot := &cobra.Command{Use: "agentic"}
+		completionCmd := &cobra.Command{Use: "completion"}
+		bashCmd := &cobra.Command{Use: "bash"}
+		fakeRoot.AddCommand(completionCmd)
+		completionCmd.AddCommand(bashCmd)
+
+		// Act
+		err := checkDocker(bashCmd, nil)
 
 		// Assert
 		require.NoError(t, err)

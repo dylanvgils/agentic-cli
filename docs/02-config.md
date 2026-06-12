@@ -6,10 +6,11 @@ Agentic is configured through three layers, applied in order of increasing speci
 
 Stored in `$AGENTIC_HOME/agentic.json` (default: `~/.agentic/agentic.json`). This file holds machine-level settings that apply to all projects. Edit it directly with any text editor.
 
-| Key            | Type   | Description                                                                      | CLI flag      |
-| -------------- | ------ | -------------------------------------------------------------------------------- | ------------- |
-| `trusted_dirs` | list   | Directories trusted to run tools from without an interactive prompt              | `--trust-dir` |
-| `registry`     | scalar | Registry prefix for base image pulls (e.g. `myregistry.example.com`). See below. | `--registry`  |
+| Key                 | Type   | Description                                                                                | CLI flag      |
+| ------------------- | ------ | ------------------------------------------------------------------------------------------ | ------------- |
+| `trusted_dirs`      | list   | Directories trusted to run tools from without an interactive prompt                        | `--trust-dir` |
+| `registry`          | scalar | Registry prefix for base image pulls (e.g. `myregistry.example.com`). See below.           | `--registry`  |
+| `last_update_check` | scalar | Timestamp of the last automatic update check. Managed automatically - do not edit by hand. | -             |
 
 ### Registry proxy
 

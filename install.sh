@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --- Variables ---
+
 INSTALL_DIR="${HOME}/.local/bin"
 INSTALL_PATH="${INSTALL_DIR}/agentic"
 DATA_DIR="${AGENTIC_HOME:-${HOME}/.agentic}"
+
+# --- Functions ---
 
 install_from_source() {
   if ! command -v docker &>/dev/null; then
@@ -56,6 +60,7 @@ install_from_release() {
 
   local tmpdir
   tmpdir=$(mktemp -d)
+  # shellcheck disable=SC2064 # tmpdir is local; must expand now, not when trap fires
   trap "rm -rf '${tmpdir}'" EXIT
 
   echo "Downloading agentic ${version} for ${OS}/${ARCH}..."
@@ -92,6 +97,8 @@ install_from_release() {
   chmod +x "${INSTALL_PATH}"
   echo "Installed agentic to ${INSTALL_PATH}"
 }
+
+# --- Main ---
 
 main() {
   local remove=0

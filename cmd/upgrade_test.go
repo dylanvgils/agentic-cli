@@ -12,6 +12,26 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+func stubFetchLatestVersion(t *testing.T, v string, err error) {
+	t.Helper()
+	orig := fetchLatestVersion
+	fetchLatestVersion = func() (string, error) { return v, err }
+	t.Cleanup(func() { fetchLatestVersion = orig })
+}
+
+func stubPerformUpdate(t *testing.T, err error) {
+	t.Helper()
+	orig := performUpdate
+	performUpdate = func(_ string) error { return err }
+	t.Cleanup(func() { performUpdate = orig })
+}
+
+func stubIsTerminal(t *testing.T, terminal bool) {
+	t.Helper()
+	orig := isTerminal
+	isTerminal = func() bool { return terminal }
+	t.Cleanup(func() { isTerminal = orig })
+}
 
 func TestRunUpgrade(t *testing.T) {
 	t.Run("prints already up to date when no newer version", func(t *testing.T) {
@@ -82,6 +102,96 @@ func TestRunUpgrade(t *testing.T) {
 		// Assert
 		assert.Error(t, err)
 	})
+
+	t.Run("force skips up-to-date check", func(t *testing.T) {
+		// Arrange
+		upgradeForce = true
+		t.Cleanup(func() { upgradeForce = false })
+		var updateCalledWith string
+		stubFetchLatestVersion(t, "v1.0.0", nil)
+		orig := performUpdate
+		performUpdate = func(v string) error { updateCalledWith = v; return nil }
+		t.Cleanup(func() { performUpdate = orig })
+		version = "v1.0.0"
+		t.Cleanup(func() { version = "dev" })
+
+		// Act
+		out := captureStdout(t, func() {
+			err := runUpgrade(upgradeCmd, nil)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, "v1.0.0", updateCalledWith)
+		assert.Contains(t, out, "updating")
+	})
+
+	t.Run("force skips pre-release check", func(t *testing.T) {
+		// Arrange
+		upgradeForce = true
+		t.Cleanup(func() { upgradeForce = false })
+		var updateCalledWith string
+		stubFetchLatestVersion(t, "v1.0.0", nil)
+		orig := performUpdate
+		performUpdate = func(v string) error { updateCalledWith = v; return nil }
+		t.Cleanup(func() { performUpdate = orig })
+		version = "v1.0.0-alpha.1"
+		t.Cleanup(func() { version = "dev" })
+
+		// Act
+		err := runUpgrade(upgradeCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "v1.0.0", updateCalledWith)
+	})
+
+	t.Run("version flag installs specified version without fetching latest", func(t *testing.T) {
+		// Arrange
+		upgradeVersion = "v0.9.0"
+		t.Cleanup(func() { upgradeVersion = "" })
+		var fetchCalled bool
+		orig := fetchLatestVersion
+		fetchLatestVersion = func() (string, error) { fetchCalled = true; return "v1.0.0", nil }
+		t.Cleanup(func() { fetchLatestVersion = orig })
+		var updateCalledWith string
+		origUpdate := performUpdate
+		performUpdate = func(v string) error { updateCalledWith = v; return nil }
+		t.Cleanup(func() { performUpdate = origUpdate })
+		version = "v1.0.0"
+		t.Cleanup(func() { version = "dev" })
+
+		// Act
+		out := captureStdout(t, func() {
+			err := runUpgrade(upgradeCmd, nil)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.False(t, fetchCalled)
+		assert.Equal(t, "v0.9.0", updateCalledWith)
+		assert.Contains(t, out, "v0.9.0")
+	})
+
+	t.Run("version flag skips up-to-date check", func(t *testing.T) {
+		// Arrange
+		upgradeVersion = "v1.0.0"
+		t.Cleanup(func() { upgradeVersion = "" })
+		stubFetchLatestVersion(t, "v1.0.0", nil)
+		var updateCalledWith string
+		orig := performUpdate
+		performUpdate = func(v string) error { updateCalledWith = v; return nil }
+		t.Cleanup(func() { performUpdate = orig })
+		version = "v1.0.0"
+		t.Cleanup(func() { version = "dev" })
+
+		// Act
+		err := runUpgrade(upgradeCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "v1.0.0", updateCalledWith)
+	})
 }
 
 func TestMaybeNotifyUpdate(t *testing.T) {
@@ -102,11 +212,12 @@ func TestMaybeNotifyUpdate(t *testing.T) {
 		// Assert
 		assert.False(t, fetchCalled)
 	})
+}
 
-	t.Run("skips when within check interval", func(t *testing.T) {
+func Test_fetchUpdateIfDue(t *testing.T) {
+	t.Run("returns false when within check interval", func(t *testing.T) {
 		// Arrange
 		var fetchCalled bool
-		stubFetchLatestVersion(t, "v1.1.0", nil)
 		orig := fetchLatestVersion
 		fetchLatestVersion = func() (string, error) {
 			fetchCalled = true
@@ -115,27 +226,93 @@ func TestMaybeNotifyUpdate(t *testing.T) {
 		t.Cleanup(func() { fetchLatestVersion = orig })
 
 		home := t.TempDir()
-		cfg := &config.CliConfig{LastUpdateCheck: time.Now().Add(-1 * time.Hour)}
+		lastCheck := time.Now().Add(-1 * time.Hour)
+		cfg := &config.CliConfig{LastUpdateCheck: &lastCheck}
 		require.NoError(t, cfg.Save(home))
 
 		version = "v1.0.0"
 		t.Cleanup(func() { version = "dev" })
 
 		// Act
-		maybeNotifyUpdate(home)
+		latest, ok := fetchUpdateIfDue(home)
 
 		// Assert
 		assert.False(t, fetchCalled)
+		assert.False(t, ok)
+		assert.Empty(t, latest)
 	})
 
-	t.Run("prints notice to stderr when not a terminal", func(t *testing.T) {
+	t.Run("returns false when fetch fails", func(t *testing.T) {
 		// Arrange
-		stubFetchLatestVersion(t, "v1.1.0", nil)
-		stubIsTerminal(t, false)
+		stubFetchLatestVersion(t, "", errors.New("network error"))
 		home := t.TempDir()
-
 		version = "v1.0.0"
 		t.Cleanup(func() { version = "dev" })
+
+		// Act
+		latest, ok := fetchUpdateIfDue(home)
+
+		// Assert
+		assert.False(t, ok)
+		assert.Empty(t, latest)
+	})
+
+	t.Run("returns false when already up to date", func(t *testing.T) {
+		// Arrange
+		stubFetchLatestVersion(t, "v1.0.0", nil)
+		home := t.TempDir()
+		version = "v1.0.0"
+		t.Cleanup(func() { version = "dev" })
+
+		// Act
+		latest, ok := fetchUpdateIfDue(home)
+
+		// Assert
+		assert.False(t, ok)
+		assert.Empty(t, latest)
+	})
+
+	t.Run("saves LastUpdateCheck after fetch", func(t *testing.T) {
+		// Arrange
+		stubFetchLatestVersion(t, "v1.0.0", nil)
+		home := t.TempDir()
+		version = "v1.0.0"
+		t.Cleanup(func() { version = "dev" })
+		before := time.Now()
+
+		// Act
+		fetchUpdateIfDue(home)
+
+		// Assert
+		cfg, err := config.LoadConfig(home)
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.LastUpdateCheck)
+		assert.True(t, cfg.LastUpdateCheck.After(before))
+	})
+
+	t.Run("returns latest and true when update available", func(t *testing.T) {
+		// Arrange
+		stubFetchLatestVersion(t, "v1.1.0", nil)
+		home := t.TempDir()
+		version = "v1.0.0"
+		t.Cleanup(func() { version = "dev" })
+
+		// Act
+		latest, ok := fetchUpdateIfDue(home)
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, "v1.1.0", latest)
+	})
+}
+
+func Test_notifyUpdate(t *testing.T) {
+	version = "v1.0.0"
+	t.Cleanup(func() { version = "dev" })
+
+	t.Run("prints one-liner to stderr when not a terminal", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, false)
 
 		var errBuf bytes.Buffer
 		orig := upgradeStderr
@@ -143,7 +320,7 @@ func TestMaybeNotifyUpdate(t *testing.T) {
 		t.Cleanup(func() { upgradeStderr = orig })
 
 		// Act
-		maybeNotifyUpdate(home)
+		notifyUpdate("v1.1.0")
 
 		// Assert
 		out := errBuf.String()
@@ -154,9 +331,7 @@ func TestMaybeNotifyUpdate(t *testing.T) {
 
 	t.Run("prompts and updates when terminal and user confirms", func(t *testing.T) {
 		// Arrange
-		stubFetchLatestVersion(t, "v1.1.0", nil)
 		stubIsTerminal(t, true)
-		home := t.TempDir()
 
 		var updateCalledWith string
 		orig := performUpdate
@@ -175,11 +350,8 @@ func TestMaybeNotifyUpdate(t *testing.T) {
 		upgradeStderr = &errBuf
 		t.Cleanup(func() { upgradeStderr = origStderr })
 
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
-
 		// Act
-		maybeNotifyUpdate(home)
+		notifyUpdate("v1.1.0")
 
 		// Assert
 		assert.Equal(t, "v1.1.0", updateCalledWith)
@@ -188,9 +360,7 @@ func TestMaybeNotifyUpdate(t *testing.T) {
 
 	t.Run("skips update when terminal and user declines", func(t *testing.T) {
 		// Arrange
-		stubFetchLatestVersion(t, "v1.1.0", nil)
 		stubIsTerminal(t, true)
-		home := t.TempDir()
 
 		var updateCalled bool
 		orig := performUpdate
@@ -206,66 +376,11 @@ func TestMaybeNotifyUpdate(t *testing.T) {
 
 		upgradeStderr = io.Discard
 
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
-
 		// Act
-		maybeNotifyUpdate(home)
+		notifyUpdate("v1.1.0")
 
 		// Assert
 		assert.False(t, updateCalled)
 	})
-
-	t.Run("updates LastUpdateCheck in config after fetch", func(t *testing.T) {
-		// Arrange
-		stubFetchLatestVersion(t, "v1.0.0", nil)
-		stubIsTerminal(t, false)
-		upgradeStderr = io.Discard
-
-		home := t.TempDir()
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
-
-		before := time.Now()
-
-		// Act
-		maybeNotifyUpdate(home)
-
-		// Assert
-		cfg, err := config.LoadConfig(home)
-		require.NoError(t, err)
-		assert.True(t, cfg.LastUpdateCheck.After(before))
-	})
-
-	t.Run("silently skips when fetch fails", func(t *testing.T) {
-		// Arrange
-		stubFetchLatestVersion(t, "", errors.New("network error"))
-		home := t.TempDir()
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
-
-		// Act + Assert — must not panic or print anything
-		assert.NotPanics(t, func() { maybeNotifyUpdate(home) })
-	})
 }
 
-func stubFetchLatestVersion(t *testing.T, v string, err error) {
-	t.Helper()
-	orig := fetchLatestVersion
-	fetchLatestVersion = func() (string, error) { return v, err }
-	t.Cleanup(func() { fetchLatestVersion = orig })
-}
-
-func stubPerformUpdate(t *testing.T, err error) {
-	t.Helper()
-	orig := performUpdate
-	performUpdate = func(_ string) error { return err }
-	t.Cleanup(func() { performUpdate = orig })
-}
-
-func stubIsTerminal(t *testing.T, terminal bool) {
-	t.Helper()
-	orig := isTerminal
-	isTerminal = func() bool { return terminal }
-	t.Cleanup(func() { isTerminal = orig })
-}

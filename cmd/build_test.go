@@ -98,6 +98,35 @@ func TestBuildTools(t *testing.T) {
 		assert.Contains(t, out, "   base: java, dotnet")
 	})
 
+	t.Run("apt packages shown", func(t *testing.T) {
+		// Arrange
+		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		opts := tools.BuildOptions{AptPackages: []string{"curl", "jq"}, Versions: map[string]string{}}
+
+		// Act
+		out := captureStdout(t, func() {
+			err := buildTools([]string{"claude"}, "agentic", opts)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "   apt: curl, jq")
+	})
+
+	t.Run("apt packages hidden when empty", func(t *testing.T) {
+		// Arrange
+		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+
+		// Act
+		out := captureStdout(t, func() {
+			err := buildTools([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.NotContains(t, out, "apt:")
+	})
+
 	t.Run("base override hidden when empty", func(t *testing.T) {
 		// Arrange
 		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
