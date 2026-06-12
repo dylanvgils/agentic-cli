@@ -58,7 +58,7 @@ func TestDryRunUpdate(t *testing.T) {
 	t.Run("explicit base flag takes precedence", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, &docker.ImageInfo{Base: "node@24.0.0,go@1.22"}, nil)
-		opts := tools.BuildOptions{BaseOverride: "java", Versions: map[string]string{}}
+		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
 		out := captureStdout(t, func() {
@@ -155,8 +155,8 @@ func Test_resolveAllUpdateTargets(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		require.Len(t, targets, 2)
-		assert.Equal(t, "java", targets[0].opts.BaseOverride)
-		assert.Equal(t, "dotnet", targets[1].opts.BaseOverride)
+		assert.Equal(t, []string{"java"}, targets[0].opts.BaseOverride)
+		assert.Equal(t, []string{"dotnet"}, targets[1].opts.BaseOverride)
 	})
 
 	t.Run("recovers apt independently from each image label", func(t *testing.T) {
@@ -258,7 +258,7 @@ func TestUpdateOneTool(t *testing.T) {
 		// Arrange
 		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-		opts := tools.BuildOptions{BaseOverride: "java", Versions: map[string]string{}}
+		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
 		out := captureStdout(t, func() {
@@ -378,10 +378,10 @@ func Test_recoverOpts(t *testing.T) {
 
 	t.Run("explicit base takes precedence", func(t *testing.T) {
 		// Act
-		result := recoverOpts(&docker.ImageInfo{Base: "node@24,go@1.22"}, tools.BuildOptions{BaseOverride: "java"})
+		result := recoverOpts(&docker.ImageInfo{Base: "node@24,go@1.22"}, tools.BuildOptions{BaseOverride: []string{"java"}})
 
 		// Assert
-		assert.Equal(t, "java", result.BaseOverride)
+		assert.Equal(t, []string{"java"}, result.BaseOverride)
 	})
 
 	t.Run("recovers apt from label when not explicitly set", func(t *testing.T) {
@@ -547,8 +547,8 @@ func TestRunUpdate(t *testing.T) {
 		// Assert — each image must use its own label-recovered base, not "java" from RC
 		require.NoError(t, err)
 		require.Len(t, capturedOpts, 2)
-		assert.Equal(t, "go", capturedOpts[0].BaseOverride)
-		assert.Equal(t, "dotnet", capturedOpts[1].BaseOverride)
+		assert.Equal(t, []string{"go"}, capturedOpts[0].BaseOverride)
+		assert.Equal(t, []string{"dotnet"}, capturedOpts[1].BaseOverride)
 	})
 
 	t.Run("all flag with explicit base flag applies base to all images", func(t *testing.T) {
@@ -583,8 +583,8 @@ func TestRunUpdate(t *testing.T) {
 		// Assert — explicit --base java must reach every target unchanged
 		require.NoError(t, err)
 		require.Len(t, capturedOpts, 2)
-		assert.Equal(t, "java", capturedOpts[0].BaseOverride)
-		assert.Equal(t, "java", capturedOpts[1].BaseOverride)
+		assert.Equal(t, []string{"java"}, capturedOpts[0].BaseOverride)
+		assert.Equal(t, []string{"java"}, capturedOpts[1].BaseOverride)
 	})
 
 	t.Run("all flag with base env var applies base to all images", func(t *testing.T) {
@@ -616,8 +616,8 @@ func TestRunUpdate(t *testing.T) {
 		// Assert — env var override must reach every target unchanged
 		require.NoError(t, err)
 		require.Len(t, capturedOpts, 2)
-		assert.Equal(t, "java", capturedOpts[0].BaseOverride)
-		assert.Equal(t, "java", capturedOpts[1].BaseOverride)
+		assert.Equal(t, []string{"java"}, capturedOpts[0].BaseOverride)
+		assert.Equal(t, []string{"java"}, capturedOpts[1].BaseOverride)
 	})
 
 	t.Run("all flag with tool arg updates only that tool across namespaces", func(t *testing.T) {

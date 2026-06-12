@@ -77,8 +77,8 @@ func buildTools(args []string, namespace string, opts tools.BuildOptions) error 
 		}
 
 		output.Step(image)
-		if opts.BaseOverride != "" {
-			output.Detailf("base: %s", strings.ReplaceAll(opts.BaseOverride, ",", ", "))
+		if len(opts.BaseOverride) > 0 {
+			output.Detailf("base: %s", strings.Join(opts.BaseOverride, ", "))
 		}
 		if len(opts.AptPackages) > 0 {
 			output.Detailf("apt: %s", strings.Join(opts.AptPackages, ", "))

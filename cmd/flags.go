@@ -70,7 +70,7 @@ func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOpt
 	opts := tools.BuildOptions{}
 
 	if v := os.Getenv(config.EnvBaseOverride); v != "" {
-		opts.BaseOverride = v
+		opts.BaseOverride = tools.ParseExtras(v)
 	} else {
 		opts.BaseOverride = collectBases(cmd, rc)
 	}
@@ -85,10 +85,9 @@ func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOpt
 }
 
 // collectBases merges extra base layers from the project config with those from the --base flag.
-func collectBases(cmd *cobra.Command, rc *config.AgenticRC) string {
+func collectBases(cmd *cobra.Command, rc *config.AgenticRC) []string {
 	flagBases, _ := cmd.Flags().GetStringSlice("base")
-	merged := tools.MergePackages(rc.Build.Bases, flagBases)
-	return strings.Join(merged, ",")
+	return tools.SortExtras(tools.MergePackages(rc.Build.Bases, flagBases))
 }
 
 // collectVersions builds the per-layer version map with RC values as defaults,

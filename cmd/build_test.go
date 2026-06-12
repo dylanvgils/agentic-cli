@@ -71,7 +71,7 @@ func TestBuildTools(t *testing.T) {
 	t.Run("base override shown", func(t *testing.T) {
 		// Arrange
 		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
-		opts := tools.BuildOptions{BaseOverride: "java", Versions: map[string]string{}}
+		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
 		out := captureStdout(t, func() {
@@ -86,7 +86,7 @@ func TestBuildTools(t *testing.T) {
 	t.Run("base override with multiple extras shown", func(t *testing.T) {
 		// Arrange
 		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
-		opts := tools.BuildOptions{BaseOverride: "java,dotnet", Versions: map[string]string{}}
+		opts := tools.BuildOptions{BaseOverride: []string{"java", "dotnet"}, Versions: map[string]string{}}
 
 		// Act
 		out := captureStdout(t, func() {
@@ -211,7 +211,7 @@ func TestRunBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "java", capturedOpts.BaseOverride)
+		assert.Equal(t, []string{"java"}, capturedOpts.BaseOverride)
 	})
 
 	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {

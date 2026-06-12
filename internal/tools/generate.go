@@ -11,7 +11,7 @@ import (
 
 // BuildOptions controls how a tool image is built.
 type BuildOptions struct {
-	BaseOverride string            // overrides the tool's default base extras (comma-separated)
+	BaseOverride []string          // overrides the tool's default base extras
 	NoCache      bool              // disable layer cache for all steps
 	CacheBust    string            // non-empty to bust the tool stage's cache via its CACHEBUST build arg (used by update)
 	Versions     map[string]string // layer name → version override, e.g. {"node": "22", "java": "21"}
@@ -22,7 +22,7 @@ type BuildOptions struct {
 
 // GenerateDockerfile returns the Dockerfile content for the named tool without building it.
 func GenerateDockerfile(tool string, opts BuildOptions) (string, error) {
-	stages, err := composeStages(tool, ParseExtras(opts.BaseOverride), opts)
+	stages, err := composeStages(tool, opts.BaseOverride, opts)
 	if err != nil {
 		return "", err
 	}
@@ -97,11 +97,25 @@ func resolveToolStage(tool, prevStage string) (dockerfile.Stage, error) {
 	return stage, nil
 }
 
-// sortByKnownExtras returns a copy of extras sorted by their position in knownExtras.
+// SortExtras returns a copy of extras sorted by canonical knownExtras order.
+func SortExtras(extras []string) []string {
+	return sortByKnownExtras(extras)
+}
+
+// sortByKnownExtras returns a deduplicated copy of extras sorted by their position in knownExtras.
 func sortByKnownExtras(extras []string) []string {
-	sorted := slices.Clone(extras)
-	slices.SortFunc(sorted, func(a, b string) int {
+	seen := make(map[string]bool, len(extras))
+	deduped := make([]string, 0, len(extras))
+	for _, e := range extras {
+		if !seen[e] {
+			seen[e] = true
+			deduped = append(deduped, e)
+		}
+	}
+
+	slices.SortFunc(deduped, func(a, b string) int {
 		return cmp.Compare(slices.Index(knownExtras, a), slices.Index(knownExtras, b))
 	})
-	return sorted
+
+	return deduped
 }

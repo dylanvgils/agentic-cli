@@ -30,7 +30,7 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 		return fmt.Errorf("tool image: %w", err)
 	}
 
-	stampImageLabels(image, tool, tools.ParseExtras(opts.BaseOverride), opts.AptPackages, opts.Versions)
+	stampImageLabels(image, tool, opts.BaseOverride, opts.AptPackages, opts.Versions)
 
 	return nil
 }

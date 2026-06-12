@@ -56,10 +56,9 @@ const (
 // agentic.version label. Set from cmd.Version at startup.
 var CLIVersion = "dev"
 
-// RecoverExtras parses an agentic.base label and returns the non-node extras as a
-// comma-separated string suitable for BuildOptions.BaseOverride.
-// e.g. "node@24.2.0,java@21.0.1" → "java"
-func RecoverExtras(baseLabel string) string {
+// RecoverExtras parses an agentic.base label and returns the non-node extras as a slice.
+// e.g. "node@24.2.0,java@21.0.1" → ["java"]
+func RecoverExtras(baseLabel string) []string {
 	var extras []string
 
 	for part := range strings.SplitSeq(baseLabel, ",") {
@@ -70,7 +69,7 @@ func RecoverExtras(baseLabel string) string {
 		extras = append(extras, name)
 	}
 
-	return strings.Join(extras, ",")
+	return extras
 }
 
 // RecoverVersionArgs parses an agentic.version-args label into a layer name → version map,
