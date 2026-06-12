@@ -111,7 +111,7 @@ func collectPaths(startDir string) []string {
 	for {
 		legacy := filepath.Join(dir, legacyRCFilename)
 		if _, err := os.Stat(legacy); err == nil {
-			_, _ = fmt.Fprintf(rcWarningWriter, "warning: found legacy %s at %s — rename to %s and convert to TOML syntax\n",
+			fmt.Fprintf(rcWarningWriter, "warning: found legacy %s at %s — rename to %s and convert to TOML syntax\n",
 				legacyRCFilename, legacy, rcFilename)
 		}
 

@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunSelfUpdate(t *testing.T) {
+func TestRunUpgrade(t *testing.T) {
 	t.Run("prints already up to date when no newer version", func(t *testing.T) {
 		// Arrange
 		stubFetchLatestVersion(t, "v1.0.0", nil)
@@ -23,7 +23,7 @@ func TestRunSelfUpdate(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := runSelfUpdate(selfupdateCmd, nil)
+			err := runUpgrade(upgradeCmd, nil)
 			require.NoError(t, err)
 		})
 
@@ -47,7 +47,7 @@ func TestRunSelfUpdate(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := runSelfUpdate(selfupdateCmd, nil)
+			err := runUpgrade(upgradeCmd, nil)
 			require.NoError(t, err)
 		})
 
@@ -63,7 +63,7 @@ func TestRunSelfUpdate(t *testing.T) {
 		t.Cleanup(func() { version = "dev" })
 
 		// Act
-		err := runSelfUpdate(selfupdateCmd, nil)
+		err := runUpgrade(upgradeCmd, nil)
 
 		// Assert
 		assert.Error(t, err)
@@ -77,7 +77,7 @@ func TestRunSelfUpdate(t *testing.T) {
 		t.Cleanup(func() { version = "dev" })
 
 		// Act
-		err := runSelfUpdate(selfupdateCmd, nil)
+		err := runUpgrade(upgradeCmd, nil)
 
 		// Assert
 		assert.Error(t, err)
@@ -138,9 +138,9 @@ func TestMaybeNotifyUpdate(t *testing.T) {
 		t.Cleanup(func() { version = "dev" })
 
 		var errBuf bytes.Buffer
-		orig := selfupdateStderr
-		selfupdateStderr = &errBuf
-		t.Cleanup(func() { selfupdateStderr = orig })
+		orig := upgradeStderr
+		upgradeStderr = &errBuf
+		t.Cleanup(func() { upgradeStderr = orig })
 
 		// Act
 		maybeNotifyUpdate(home)
@@ -149,7 +149,7 @@ func TestMaybeNotifyUpdate(t *testing.T) {
 		out := errBuf.String()
 		assert.Contains(t, out, "v1.1.0")
 		assert.Contains(t, out, "v1.0.0")
-		assert.Contains(t, out, "selfupdate")
+		assert.Contains(t, out, "upgrade")
 	})
 
 	t.Run("prompts and updates when terminal and user confirms", func(t *testing.T) {
@@ -166,14 +166,14 @@ func TestMaybeNotifyUpdate(t *testing.T) {
 		}
 		t.Cleanup(func() { performUpdate = orig })
 
-		origStdin := selfupdateStdin
-		selfupdateStdin = strings.NewReader("y\n")
-		t.Cleanup(func() { selfupdateStdin = origStdin })
+		origStdin := upgradeStdin
+		upgradeStdin = strings.NewReader("y\n")
+		t.Cleanup(func() { upgradeStdin = origStdin })
 
 		var errBuf bytes.Buffer
-		origStderr := selfupdateStderr
-		selfupdateStderr = &errBuf
-		t.Cleanup(func() { selfupdateStderr = origStderr })
+		origStderr := upgradeStderr
+		upgradeStderr = &errBuf
+		t.Cleanup(func() { upgradeStderr = origStderr })
 
 		version = "v1.0.0"
 		t.Cleanup(func() { version = "dev" })
@@ -200,11 +200,11 @@ func TestMaybeNotifyUpdate(t *testing.T) {
 		}
 		t.Cleanup(func() { performUpdate = orig })
 
-		origStdin := selfupdateStdin
-		selfupdateStdin = strings.NewReader("n\n")
-		t.Cleanup(func() { selfupdateStdin = origStdin })
+		origStdin := upgradeStdin
+		upgradeStdin = strings.NewReader("n\n")
+		t.Cleanup(func() { upgradeStdin = origStdin })
 
-		selfupdateStderr = io.Discard
+		upgradeStderr = io.Discard
 
 		version = "v1.0.0"
 		t.Cleanup(func() { version = "dev" })
@@ -220,7 +220,7 @@ func TestMaybeNotifyUpdate(t *testing.T) {
 		// Arrange
 		stubFetchLatestVersion(t, "v1.0.0", nil)
 		stubIsTerminal(t, false)
-		selfupdateStderr = io.Discard
+		upgradeStderr = io.Discard
 
 		home := t.TempDir()
 		version = "v1.0.0"

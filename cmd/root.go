@@ -4,6 +4,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
@@ -27,6 +28,13 @@ var (
 	listVolumeNames    = docker.ListVolumeNames
 	removeVolume       = docker.RemoveVolume
 	isTerminal         = platform.IsTerminal
+)
+
+var (
+	// noDockerCmds lists subcommands that do not require a running Docker daemon.
+	noDockerCmds = []string{"completion", "aliases", "version", "upgrade"}
+	// noUpdateCmds lists subcommands that skip the automatic update check.
+	noUpdateCmds = []string{"completion", "aliases", "upgrade"}
 )
 
 var rootCmd = &cobra.Command{
@@ -61,11 +69,8 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if cmd.Parent() != nil {
-		name := cmd.Name()
-		if name != "completion" && name != "aliases" && name != "selfupdate" {
-			maybeNotifyUpdate(toolHome)
-		}
+	if cmd.Parent() != nil && !slices.Contains(noUpdateCmds, cmd.Name()) {
+		maybeNotifyUpdate(toolHome)
 	}
 
 	return nil
@@ -79,9 +84,9 @@ func checkDocker(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Shell completion generation, `aliases`, `version`, and `selfupdate` do
+	// Shell completion generation, `aliases`, `version`, and `upgrade` do
 	// not need a running daemon.
-	if name := cmd.Name(); name == "completion" || name == "aliases" || name == "version" || name == "selfupdate" {
+	if slices.Contains(noDockerCmds, cmd.Name()) {
 		return nil
 	}
 

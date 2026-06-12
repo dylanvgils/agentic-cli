@@ -9,30 +9,31 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/selfupdate"
 	"github.com/spf13/cobra"
 )
 
 var (
 	fetchLatestVersion func() (string, error) = selfupdate.LatestVersion
-	performUpdate      func(string) error      = selfupdate.Update
-	selfupdateStdin    io.Reader               = os.Stdin
-	selfupdateStderr   io.Writer               = os.Stderr
+	performUpdate      func(string) error     = selfupdate.Update
+	upgradeStdin       io.Reader              = os.Stdin
+	upgradeStderr      io.Writer              = os.Stderr
 )
 
-var selfupdateCmd = &cobra.Command{
-	Use:   "selfupdate",
-	Short: "Update agentic to the latest release",
+var upgradeCmd = &cobra.Command{
+	Use:   "upgrade",
+	Short: "Upgrade agentic to the latest release",
 	Args:  cobra.NoArgs,
-	RunE:  runSelfUpdate,
+	RunE:  runUpgrade,
 }
 
 func init() {
-	rootCmd.AddCommand(selfupdateCmd)
+	rootCmd.AddCommand(upgradeCmd)
 }
 
-func runSelfUpdate(cmd *cobra.Command, _ []string) error {
-	fmt.Fprintln(cmd.OutOrStdout(), "=> checking for updates...")
+func runUpgrade(_ *cobra.Command, _ []string) error {
+	output.Step("checking for updates...")
 
 	latest, err := fetchLatestVersion()
 	if err != nil {
@@ -40,23 +41,23 @@ func runSelfUpdate(cmd *cobra.Command, _ []string) error {
 	}
 
 	if !selfupdate.IsNewer(version, latest) {
-		fmt.Fprintf(cmd.OutOrStdout(), "=> already up to date (%s)\n", version)
+		output.Stepf("already up to date (%s)", version)
 		return nil
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "=> updating %s -> %s...\n", version, latest)
+	output.Stepf("updating %s -> %s...", version, latest)
 
 	if err := performUpdate(latest); err != nil {
 		return fmt.Errorf("update failed: %w", err)
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "=> updated to %s\n", latest)
+	output.Stepf("updated to %s", latest)
 	return nil
 }
 
 // maybeNotifyUpdate checks GitHub for a newer release at most once per CheckInterval and
 // notifies the user on stderr. On a TTY it prompts to update immediately; otherwise it
-// prints a one-liner suggesting `agentic selfupdate`.
+// prints a one-liner suggesting `agentic upgrade`.
 func maybeNotifyUpdate(home string) {
 	if version == "dev" {
 		return
@@ -84,21 +85,21 @@ func maybeNotifyUpdate(home string) {
 	}
 
 	if isTerminal() {
-		fmt.Fprintf(selfupdateStderr, "\n=> update available: %s (current: %s)\n   update now? [y/N] ", latest, version)
+		fmt.Fprintf(upgradeStderr, "\n=> update available: %s (current: %s)\n   update now? [y/N] ", latest, version)
 
-		scanner := bufio.NewScanner(selfupdateStdin)
+		scanner := bufio.NewScanner(upgradeStdin)
 		if scanner.Scan() && strings.EqualFold(strings.TrimSpace(scanner.Text()), "y") {
-			fmt.Fprintln(selfupdateStderr, "=> updating...")
+			fmt.Fprintln(upgradeStderr, "=> updating...")
 
 			if err := performUpdate(latest); err != nil {
-				fmt.Fprintf(selfupdateStderr, "=> update failed: %v\n   run: agentic selfupdate\n", err)
+				fmt.Fprintf(upgradeStderr, "=> update failed: %v\n   run: agentic upgrade\n", err)
 			} else {
-				fmt.Fprintf(selfupdateStderr, "=> updated to %s\n", latest)
+				fmt.Fprintf(upgradeStderr, "=> updated to %s\n", latest)
 			}
 		}
 
 		return
 	}
 
-	fmt.Fprintf(selfupdateStderr, "\n=> update available: %s (current: %s) - run: agentic selfupdate\n", latest, version)
+	fmt.Fprintf(upgradeStderr, "\n=> update available: %s (current: %s) - run: agentic upgrade\n", latest, version)
 }
