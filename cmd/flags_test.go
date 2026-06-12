@@ -239,7 +239,7 @@ func TestBuildOptsFromFlags(t *testing.T) {
 
 	t.Run("base env var overrides rc and flag", func(t *testing.T) {
 		// Arrange
-		t.Setenv("AGENTIC_BASE_OVERRIDE", "dotnet")
+		t.Setenv(config.EnvBaseOverride, "dotnet")
 		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
 		cmd := &cobra.Command{Use: "test"}
 		addBuildFlags(cmd)

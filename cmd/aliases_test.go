@@ -11,6 +11,7 @@ import (
 func TestRunAliases(t *testing.T) {
 	t.Run("prints bash preamble and reload alias", func(t *testing.T) {
 		// Arrange
+		stubCheckDockerDaemon(t, func() error { return nil })
 		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/bin/bash")
 
@@ -27,6 +28,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("prints fish preamble and reload function", func(t *testing.T) {
 		// Arrange
+		stubCheckDockerDaemon(t, func() error { return nil })
 		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/usr/bin/fish")
 
@@ -43,6 +45,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("prints powershell preamble and reload function", func(t *testing.T) {
 		// Arrange
+		stubCheckDockerDaemon(t, func() error { return nil })
 		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/usr/bin/pwsh")
 
@@ -59,6 +62,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("prints powershell preamble and reload function on windows", func(t *testing.T) {
 		// Arrange
+		stubCheckDockerDaemon(t, func() error { return nil })
 		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		stubCurrentGOOS(t, "windows")
 		t.Setenv("SHELL", "")
@@ -76,6 +80,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("not built tools emit no tool aliases", func(t *testing.T) {
 		// Arrange
+		stubCheckDockerDaemon(t, func() error { return nil })
 		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/bin/bash")
 
@@ -93,6 +98,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("only built tools get aliases", func(t *testing.T) {
 		// Arrange - only claude is built
+		stubCheckDockerDaemon(t, func() error { return nil })
 		stubBuiltTools(t, func() (map[string]bool, error) {
 			return map[string]bool{"claude": true}, nil
 		})
@@ -112,6 +118,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("built tools emit bash alias lines", func(t *testing.T) {
 		// Arrange
+		stubCheckDockerDaemon(t, func() error { return nil })
 		stubBuiltTools(t, func() (map[string]bool, error) {
 			return map[string]bool{"claude": true, "copilot": true, "opencode": true}, nil
 		})
@@ -131,6 +138,7 @@ func TestRunAliases(t *testing.T) {
 
 	t.Run("built tools emit powershell function lines", func(t *testing.T) {
 		// Arrange
+		stubCheckDockerDaemon(t, func() error { return nil })
 		stubBuiltTools(t, func() (map[string]bool, error) {
 			return map[string]bool{"claude": true, "copilot": true, "opencode": true}, nil
 		})
@@ -148,10 +156,30 @@ func TestRunAliases(t *testing.T) {
 		assert.Contains(t, out, "function opencode { agentic run opencode @args }")
 	})
 
-	t.Run("docker error prints nothing", func(t *testing.T) {
+	t.Run("daemon unreachable prints preamble and reload but no tool aliases", func(t *testing.T) {
 		// Arrange
+		stubCheckDockerDaemon(t, func() error { return fmt.Errorf("docker daemon not running") })
+		t.Setenv("SHELL", "/bin/bash")
+
+		// Act
+		out := captureStdout(t, func() {
+			err := runAliases(aliasesCmd, []string{})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "# agentic tool aliases")
+		assert.Contains(t, out, "alias agentic-reload=")
+		assert.NotContains(t, out, "alias claude=")
+		assert.NotContains(t, out, "alias copilot=")
+		assert.NotContains(t, out, "alias opencode=")
+	})
+
+	t.Run("built tools error prints preamble and reload but no tool aliases", func(t *testing.T) {
+		// Arrange
+		stubCheckDockerDaemon(t, func() error { return nil })
 		stubBuiltTools(t, func() (map[string]bool, error) {
-			return nil, fmt.Errorf("docker daemon not running")
+			return nil, fmt.Errorf("image list failed")
 		})
 		t.Setenv("SHELL", "/bin/bash")
 
@@ -162,7 +190,11 @@ func TestRunAliases(t *testing.T) {
 		})
 
 		// Assert
-		assert.Empty(t, out)
+		assert.Contains(t, out, "# agentic tool aliases")
+		assert.Contains(t, out, "alias agentic-reload=")
+		assert.NotContains(t, out, "alias claude=")
+		assert.NotContains(t, out, "alias copilot=")
+		assert.NotContains(t, out, "alias opencode=")
 	})
 }
 

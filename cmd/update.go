@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -62,6 +63,18 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	// (e.g. --all updating it across namespaces) can still share cached layers.
 	opts.CacheBust = docker.NewCacheBust()
 
+	// For --all, RC config bases/apt must not prevent per-image label recovery:
+	// images in other namespaces may have been built with different configs.
+	// Only explicit CLI flags and env vars should override all images.
+	if all {
+		if !cmd.Flags().Changed("base") && os.Getenv(config.EnvBaseOverride) == "" {
+			opts.BaseOverride = ""
+		}
+		if !cmd.Flags().Changed("apt") && os.Getenv(config.EnvAptPackages) == "" {
+			opts.AptPackages = nil
+		}
+	}
+
 	targets, err := resolveUpdateTargets(args, namespace, opts, all)
 	if err != nil {
 		return err
@@ -87,13 +100,18 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 func resolveUpdateTargets(args []string, namespace string, opts tools.BuildOptions, all bool) ([]updateTarget, error) {
 	if all {
-		return resolveAllUpdateTargets(opts)
+		return resolveAllUpdateTargets(args, opts)
 	}
 	return resolveScopedUpdateTargets(args, namespace, opts)
 }
 
-func resolveAllUpdateTargets(opts tools.BuildOptions) ([]updateTarget, error) {
-	images, err := listAllImages()
+func resolveAllUpdateTargets(args []string, opts tools.BuildOptions) ([]updateTarget, error) {
+	var filters []docker.ImageFilter
+	if len(args) > 0 {
+		filters = append(filters, docker.ToolFilter(args[0]))
+	}
+
+	images, err := listAllImages(filters...)
 	if err != nil {
 		return nil, err
 	}
