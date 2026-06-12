@@ -4,6 +4,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
@@ -29,6 +30,13 @@ var (
 	isTerminal         = platform.IsTerminal
 )
 
+var (
+	// noDockerCmds lists subcommands that do not require a running Docker daemon.
+	noDockerCmds = []string{"completion", "aliases", "version", "upgrade"}
+	// noUpdateCmds lists subcommands that skip the automatic update check.
+	noUpdateCmds = []string{"completion", "aliases", "upgrade"}
+)
+
 var rootCmd = &cobra.Command{
 	Use:   "agentic",
 	Short: "Run agentic coding tools in isolated containers",
@@ -38,7 +46,7 @@ isolated Docker containers with read-only filesystems and dropped capabilities.`
 	SilenceUsage:      true,
 	SilenceErrors:     true,
 	RunE:              rootRun,
-	PersistentPreRunE: checkDocker,
+	PersistentPreRunE: persistentPreRunE,
 }
 
 func init() {
@@ -53,18 +61,36 @@ func Execute() {
 	}
 }
 
-// checkDocker is the PersistentPreRunE hook that verifies the Docker daemon is
-// reachable before any subcommand that needs it runs.
+// persistentPreRunE is the PersistentPreRunE hook for rootCmd. It checks the
+// Docker daemon and, for interactive commands, notifies the user when a newer
+// agentic release is available.
+func persistentPreRunE(cmd *cobra.Command, args []string) error {
+	if err := checkDocker(cmd, args); err != nil {
+		return err
+	}
+
+	if cmd.Parent() != nil && !slices.Contains(noUpdateCmds, cmd.Name()) {
+		maybeNotifyUpdate(toolHome)
+	}
+
+	return nil
+}
+
+// checkDocker verifies the Docker daemon is reachable before any subcommand
+// that needs it runs.
 func checkDocker(cmd *cobra.Command, _ []string) error {
 	// Bare `agentic` (no subcommand) just shows help — no Docker needed.
 	if cmd.Parent() == nil {
 		return nil
 	}
 
-	// Shell completion generation and `aliases` do not need a running daemon up-front.
-	// (`aliases` always emits the reload alias and does its own daemon check before listing built tools.)
-	if name := cmd.Name(); name == "completion" || name == "aliases" || name == "version" {
-		return nil
+	// Walk up from cmd to (but not including) root: if any command in the chain
+	// is in noDockerCmds, skip the check. This correctly handles subcommands
+	// like `completion bash` where cmd.Name() is "bash" but the parent is "completion".
+	for command := cmd; command.Parent() != nil; command = command.Parent() {
+		if slices.Contains(noDockerCmds, command.Name()) {
+			return nil
+		}
 	}
 
 	return checkDockerDaemon()

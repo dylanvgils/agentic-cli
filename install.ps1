@@ -1,9 +1,13 @@
 param([switch]$Remove, [switch]$FromSource)
 
+# --- Variables ---
+
 $ErrorActionPreference = "Stop"
 $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\agentic"
 $InstallPath = Join-Path $InstallDir "agentic.exe"
 $DataDir = if ($env:AGENTIC_HOME) { $env:AGENTIC_HOME } else { Join-Path $env:APPDATA "agentic" }
+
+# --- Functions ---
 
 function Install-FromSource {
   if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
@@ -87,45 +91,51 @@ function Install-FromRelease {
   }
 }
 
-$Arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
+# --- Main ---
 
-if ($Remove) {
-  if (Test-Path $InstallPath) {
-    Remove-Item -Force $InstallPath
-    Write-Host "Removed $InstallPath"
-  }
+function Main {
+  $script:Arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
 
-  if ((Test-Path $InstallDir) -and -not (Get-ChildItem $InstallDir)) {
-    Remove-Item -Force -Recurse $InstallDir
-  }
-
-  if (Test-Path $DataDir) {
-    $confirm = Read-Host "Remove data directory $DataDir? [y/N]"
-    if ($confirm -match '^[Yy]$') {
-      Remove-Item -Force -Recurse $DataDir
-      Write-Host "Removed $DataDir"
+  if ($Remove) {
+    if (Test-Path $InstallPath) {
+      Remove-Item -Force $InstallPath
+      Write-Host "Removed $InstallPath"
     }
+
+    if ((Test-Path $InstallDir) -and -not (Get-ChildItem $InstallDir)) {
+      Remove-Item -Force -Recurse $InstallDir
+    }
+
+    if (Test-Path $DataDir) {
+      $confirm = Read-Host "Remove data directory $DataDir? [y/N]"
+      if ($confirm -match '^[Yy]$') {
+        Remove-Item -Force -Recurse $DataDir
+        Write-Host "Removed $DataDir"
+      }
+    }
+
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    if ($userPath -like "*$InstallDir*") {
+      $newPath = ($userPath -split ";" | Where-Object { $_ -ne $InstallDir }) -join ";"
+      [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+      Write-Host "Removed $InstallDir from user PATH"
+    }
+
+    exit 0
+  }
+
+  if ($FromSource) {
+    Install-FromSource
+  } else {
+    Install-FromRelease
   }
 
   $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-  if ($userPath -like "*$InstallDir*") {
-    $newPath = ($userPath -split ";" | Where-Object { $_ -ne $InstallDir }) -join ";"
-    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-    Write-Host "Removed $InstallDir from user PATH"
+  if ($userPath -notlike "*$InstallDir*") {
+    [Environment]::SetEnvironmentVariable("Path", "$userPath;$InstallDir", "User")
+    Write-Host "Added $InstallDir to user PATH"
+    Write-Host "Note: restart your terminal for the PATH change to take effect"
   }
-
-  exit 0
 }
 
-if ($FromSource) {
-  Install-FromSource
-} else {
-  Install-FromRelease
-}
-
-$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($userPath -notlike "*$InstallDir*") {
-  [Environment]::SetEnvironmentVariable("Path", "$userPath;$InstallDir", "User")
-  Write-Host "Added $InstallDir to user PATH"
-  Write-Host "Note: restart your terminal for the PATH change to take effect"
-}
+Main

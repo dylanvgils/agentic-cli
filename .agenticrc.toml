@@ -3,7 +3,7 @@ namespace = "agenticgo"
 
 [build]
 bases = ["go"]
-apt_packages = ["make"]
+apt_packages = ["make", "shellcheck"]
 
 [run]
 extra_mounts = [

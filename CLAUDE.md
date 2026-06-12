@@ -103,6 +103,10 @@ func TestBuildImage(t *testing.T) {
 }
 ```
 
+### Shell scripts
+
+Always check shell scripts with `shellcheck` before committing. Fix all warnings unless there is a specific reason to suppress a rule (add an inline `# shellcheck disable=SCxxxx` comment with a brief reason).
+
 ### Security constraints (enforced in `internal/docker/run.go`)
 
 `--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`, `--user $(id -u):$(id -g)`. Do not relax these. If a tool needs write access, use a targeted tmpfs or volume mount instead.

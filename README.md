@@ -7,6 +7,7 @@ CLI for running agentic coding tools in isolated Docker containers.
 - [Overview](#-overview)
 - [Requirements](#-requirements)
 - [Installation](#-installation)
+  - [Updating](#updating)
 - [Usage](#-usage)
   - [Commands](#commands)
   - [Tools](#tools)
@@ -83,9 +84,31 @@ On Windows, the installer adds the install directory to your user PATH automatic
 To uninstall and remove all agentic data:
 
 ```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/dylanvgils/agentic-cli/main/install.sh | bash -s -- --remove
+
+# Windows (PowerShell)
+& ([scriptblock]::Create((Invoke-RestMethod https://raw.githubusercontent.com/dylanvgils/agentic-cli/main/install.ps1))) -Remove
+```
+
+Or if you already have the repo cloned:
+
+```bash
 ./install.sh --remove
 .\install.ps1 -Remove
 ```
+
+### Updating
+
+Once installed, use the `upgrade` command to upgrade to the latest release:
+
+```bash
+agentic upgrade                    # update to latest
+agentic upgrade --force            # reinstall even if already up to date
+agentic upgrade --version v1.2.0   # install a specific release
+```
+
+The CLI also checks for updates automatically once per day and prompts you when a newer release is available.
 
 ### Building from source
 
@@ -138,6 +161,7 @@ agentic <command> [args...]
 | `namespaces prune [-n namespace]`                                                                                                                                                              | Remove all images in the active (or specified) namespace                                                                                                |
 | `config [--home <dir>]`                                                                                                                                                                        | Show the merged configuration from agentic.json and all .agenticrc.toml files                                                                           |
 | `volumes <create\|list\|ls\|remove\|rm> [name]`                                                                                                                                                | Manage named Docker volumes created by agentic                                                                                                          |
+| `upgrade [--force] [--version <tag>]`                                                                                                                                                          | Upgrade the agentic binary to the latest release. `--force` reinstalls even if already up to date; `--version` installs a specific release tag          |
 | `version`                                                                                                                                                                                      | Show version information (version, commit, built by, built date)                                                                                        |
 | `completion <bash\|zsh\|fish\|powershell>`                                                                                                                                                     | Generate shell completion script for the specified shell                                                                                                |
 | `aliases`                                                                                                                                                                                      | Print shell alias definitions for installed tools                                                                                                       |

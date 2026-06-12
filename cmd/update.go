@@ -183,8 +183,9 @@ func recoverOpts(info *docker.ImageInfo, opts tools.BuildOptions) tools.BuildOpt
 	if opts.BaseOverride == "" {
 		opts.BaseOverride = docker.RecoverExtras(info.Base)
 	}
-	if opts.AptPackages == nil && info.Apt != "" {
-		opts.AptPackages = docker.RecoverApt(info.Apt)
+	if info.Apt != "" {
+		recoveredPkgs := docker.RecoverApt(info.Apt)
+		opts.AptPackages = tools.MergePackages(recoveredPkgs, opts.AptPackages)
 	}
 	return opts
 }
@@ -193,6 +194,9 @@ func updateOneTool(name, image string, opts tools.BuildOptions) error {
 	output.Step(image)
 	if opts.BaseOverride != "" {
 		output.Detailf("base: %s", strings.ReplaceAll(opts.BaseOverride, ",", ", "))
+	}
+	if len(opts.AptPackages) > 0 {
+		output.Detailf("apt: %s", strings.Join(opts.AptPackages, ", "))
 	}
 
 	before := imageVersion(image)
