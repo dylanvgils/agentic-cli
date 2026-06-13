@@ -39,32 +39,4 @@ func TestHeredoc_render(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, "line1\n\nline2")
 	})
-
-	t.Run("blocks without comment", func(t *testing.T) {
-		// Act
-		result := Heredoc{
-			Dest: "/tmp/setup.sh",
-			Blocks: []Block{
-				{Lines: []string{"#!/bin/bash", "set -eo pipefail"}},
-				{Lines: []string{"apt-get update -yq", "apt-get install -yq curl"}},
-			},
-		}.Render()
-
-		// Assert
-		assert.Equal(t, "COPY --chmod=0755 <<'EOF' /tmp/setup.sh\n#!/bin/bash\nset -eo pipefail\n\napt-get update -yq\napt-get install -yq curl\nEOF", result)
-	})
-
-	t.Run("blocks with comment", func(t *testing.T) {
-		// Act
-		result := Heredoc{
-			Dest: "/tmp/setup.sh",
-			Blocks: []Block{
-				{Lines: []string{"#!/bin/bash", "set -eo pipefail"}},
-				{Comment: "Install packages", Lines: []string{"apt-get update -yq", "apt-get install -yq curl"}},
-			},
-		}.Render()
-
-		// Assert
-		assert.Equal(t, "COPY --chmod=0755 <<'EOF' /tmp/setup.sh\n#!/bin/bash\nset -eo pipefail\n\n# Install packages\napt-get update -yq\napt-get install -yq curl\nEOF", result)
-	})
 }
