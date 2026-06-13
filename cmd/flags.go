@@ -50,7 +50,7 @@ func collectRegistry(cmd *cobra.Command) string {
 // update commands. --no-cache is registered separately because its description
 // differs between the two commands.
 func addBuildFlags(cmd *cobra.Command) {
-	cmd.Flags().StringSlice("base", nil, "extra runtime(s) to layer on top of node; repeatable or comma-separated (e.g. --base java --base dotnet or --base java,dotnet)")
+	cmd.Flags().StringSlice("base", nil, "extra runtime(s) to layer on top of debian; repeatable or comma-separated (e.g. --base node --base java or --base node,java)")
 	cmd.Flags().StringSlice("apt", nil, "apt packages to install in the base stage; repeatable or comma-separated (e.g. --apt make --apt gcc or --apt make,gcc)")
 	cmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
 

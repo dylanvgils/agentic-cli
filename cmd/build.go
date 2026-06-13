@@ -16,9 +16,9 @@ var buildCmd = &cobra.Command{
 	Long:  "Build tool image(s). Builds all tools if no tool specified.\n\n" + extrasEnvDoc(),
 	Example: `  agentic build
   agentic build claude
-  agentic build claude --base java
-  agentic build claude --base java,dotnet
-  agentic build --node 22
+  agentic build claude --base node
+  agentic build claude --base node,java
+  agentic build claude --base node --node 22
   agentic build claude --base java --java 17`,
 	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
 	ValidArgs: tools.Names(),

@@ -33,6 +33,15 @@
     {
       "customType": "regex",
       "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
+      "matchStrings": ["\"nvm\":\\s*\"(?<currentValue>[\\d.]+)\",\\s*\\n\\s*\"nvm_checksum\":\\s*\"(?<currentDigest>[a-f0-9]+)\""],
+      "depNameTemplate": "nvm-sh/nvm",
+      "datasourceTemplate": "github-releases",
+      "extractVersion": "^v(?<version>.+)$",
+      "digestFileTemplate": "https://raw.githubusercontent.com/nvm-sh/nvm/v{{newValue}}/install.sh"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
       "matchStrings": ["\"java\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "java-jdk",
       "datasourceTemplate": "java-version"

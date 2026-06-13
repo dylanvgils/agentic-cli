@@ -8,23 +8,17 @@ import (
 )
 
 const (
-	// nodeDebianCodename is the Debian codename suffix for the official node image
-	// (e.g. "node:24-bookworm-slim"). Pinned manually rather than via
-	// DefaultVersions.Debian/Renovate, since node only publishes a tag for a new
-	// Debian release after that release ships - an automatic bump could point at
-	// a "node:<version>-<codename>" tag that doesn't exist yet.
-	nodeDebianCodename = "bookworm-slim"
-
 	// BaseLayer is the name of the foundational runtime layer.
-	BaseLayer = "node"
+	BaseLayer = "debian"
 )
 
 // knownExtras lists the supported extra base layers in alphabetical order.
-var knownExtras = []string{"dotnet", "go", "java"}
+var knownExtras = []string{"dotnet", "go", "java", "node"}
 
 // LayerFlagDesc maps each runtime layer name to the human-readable label used
 // in its CLI flag description.
 var LayerFlagDesc = map[string]string{
+	"debian": "Debian",
 	"node":   "Node.js",
 	"dotnet": ".NET",
 	"go":     "Go",
@@ -32,8 +26,7 @@ var LayerFlagDesc = map[string]string{
 }
 
 // DebianImageFor returns the standalone debian image used for apt verification,
-// optionally prefixed with registry. Its codename (DefaultVersions.Debian) is
-// tracked independently of nodeDebianCodename - see its doc comment for why.
+// optionally prefixed with registry.
 func DebianImageFor(registry string) string {
 	return prefixImage(registry, "debian", DefaultVersions.Debian)
 }
@@ -65,44 +58,87 @@ func prefixImage(registry, image, tag string) string {
 	return strings.TrimRight(registry, "/") + "/" + ref
 }
 
-// baseStage returns the foundational base stage. Currently delegates to nodeStage.
+// baseStage returns the foundational Debian base stage.
 func baseStage(ver, registry string, pkgs []string) df.Stage {
-	return nodeStage(ver, registry, pkgs)
+	return debianStage(ver, registry, pkgs)
 }
 
-// extraStage returns the stage for a named extra layer (java, dotnet, go).
+// extraStage returns the stage for a named extra layer (dotnet, go, java, node).
 // prevStage is the name of the preceding stage to build FROM.
 // ver overrides the layer's default version; empty string uses the Dockerfile default.
 func extraStage(name, prevStage, ver string) (df.Stage, error) {
 	switch name {
-	case "java":
-		return javaStage(prevStage, ver), nil
 	case "dotnet":
 		return dotnetStage(prevStage, ver), nil
 	case "go":
 		return goStage(prevStage, ver), nil
+	case "java":
+		return javaStage(prevStage, ver), nil
+	case "node":
+		return nodeStage(prevStage, ver), nil
 	default:
 		return df.Stage{}, fmt.Errorf("unknown base %q (valid: %s)", name, strings.Join(knownExtras, ", "))
 	}
 }
 
-// nodeStage returns the foundational node/debian base stage.
-// ver is the NODE_VERSION build arg default; empty string uses the Dockerfile default of 24.
-func nodeStage(ver, registry string, pkgs []string) df.Stage {
-	nodeArg := df.Arg{Key: "NODE_VERSION", Default: DefaultVersions.Node}
+// debianStage returns the foundational debian base stage.
+// ver is the DEBIAN_VERSION build arg default; empty string uses the versions.json default.
+func debianStage(ver, registry string, pkgs []string) df.Stage {
+	debianArg := df.Arg{Key: "DEBIAN_VERSION", Default: DefaultVersions.Debian}
 	if ver != "" {
-		nodeArg.Default = ver
+		debianArg.Default = ver
 	}
 
-	image := prefixImage(registry, "node", "${NODE_VERSION}-"+nodeDebianCodename)
+	image := prefixImage(registry, "debian", "${DEBIAN_VERSION}")
 	return df.NewStage(df.From{Image: image, As: "base"}).
-		AddGlobalArg(nodeArg).
+		AddGlobalArg(debianArg).
 		Add(df.Env{Key: "DEBIAN_FRONTEND", Value: "noninteractive"}).
+		Add(aptInstallRun(pkgs)).
+		Build()
+}
+
+// nodeStage returns the NVM-based Node.js extra stage.
+// ver is the NODE_VERSION build arg default; empty string uses the versions.json default.
+func nodeStage(prevStage, ver string) df.Stage {
+	versionArg := df.Arg{Key: "NODE_VERSION", Default: DefaultVersions.Node}
+	if ver != "" {
+		versionArg.Default = ver
+	}
+
+	nvmArg := df.Arg{Key: "NVM_VERSION", Default: DefaultVersions.Nvm}
+	nvmChecksumArg := df.Arg{Key: "NVM_CHECKSUM", Default: DefaultVersions.NvmChecksum}
+
+	return df.NewStage(df.From{Image: prevStage, As: "node"}).
+		Add(versionArg).
+		Add(nvmArg).
+		Add(nvmChecksumArg).
+		Add(df.Env{Key: "NVM_DIR", Value: "/usr/local/nvm"}).
+		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(df.Run{Blocks: []df.Block{
+			{Comment: "Create NVM directory", Lines: []string{`mkdir -p "$NVM_DIR"`}},
+			{
+				Comment: "Download NVM install script and verify checksum",
+				Lines:   []string{`curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh" -o /tmp/nvm_install.sh`},
+			},
+			{Lines: []string{`echo "${NVM_CHECKSUM}  /tmp/nvm_install.sh" | sha256sum -c -`}},
+			{Lines: []string{`NVM_DIR="$NVM_DIR" bash /tmp/nvm_install.sh`}},
+			{Lines: []string{`rm /tmp/nvm_install.sh`}},
+			{
+				Comment: "Install Node.js and symlink to /usr/local/bin",
+				Lines:   []string{`. "$NVM_DIR/nvm.sh"`},
+			},
+			{Lines: []string{`nvm install "${NODE_VERSION}"`}},
+			{Lines: []string{`nvm alias default "${NODE_VERSION}"`}},
+			{Lines: []string{`NODE_BIN="$(nvm which default | xargs dirname)"`}},
+			{Lines: []string{`ln -sf "$NODE_BIN/node" /usr/local/bin/node`}},
+			{Lines: []string{`ln -sf "$NODE_BIN/npm"  /usr/local/bin/npm`}},
+			{Lines: []string{`ln -sf "$NODE_BIN/npx"  /usr/local/bin/npx`}},
+			{Lines: []string{`nvm cache clear`}},
+		}}).
 		Add(df.Heredoc{
 			Dest:  "/usr/local/bin/" + versionScript("node"),
 			Lines: []string{"#!/bin/sh", "node --version"},
 		}).
-		Add(aptInstallRun(pkgs)).
 		Build()
 }
 
@@ -119,7 +155,7 @@ func javaStage(prevStage, ver string) df.Stage {
 			{
 				Comment: "Add Adoptium GPG key",
 				Lines: []string{
-					`wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public`,
+					`wget -qO - "https://packages.adoptium.net/artifactory/api/gpg/key/public"`,
 					`| gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null`,
 				},
 			},
@@ -131,7 +167,7 @@ func javaStage(prevStage, ver string) df.Stage {
 				},
 			},
 			{Comment: "Install Temurin JDK and clean up", Lines: []string{`apt-get update -yq`}},
-			{Lines: []string{`apt-get install -yq --no-install-recommends temurin-${JAVA_VERSION}-jdk`}},
+			{Lines: []string{`apt-get install -yq --no-install-recommends "temurin-${JAVA_VERSION}-jdk"`}},
 			{Lines: []string{`rm -rf /var/lib/apt/lists/*`}},
 		}}).
 		Add(df.Heredoc{
@@ -166,7 +202,7 @@ func dotnetStage(prevStage, ver string) df.Stage {
 				},
 			},
 			{Comment: "Install dotnet SDK and clean up", Lines: []string{`apt-get update -yq`}},
-			{Lines: []string{`apt-get install -yq --no-install-recommends dotnet-sdk-${DOTNET_VERSION}`}},
+			{Lines: []string{`apt-get install -yq --no-install-recommends "dotnet-sdk-${DOTNET_VERSION}"`}},
 			{Lines: []string{`rm -rf /var/lib/apt/lists/*`}},
 		}}).
 		Add(df.Heredoc{
