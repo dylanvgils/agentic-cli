@@ -84,14 +84,15 @@ func extraStage(name, prevStage, ver string) (df.Stage, error) {
 // debianStage returns the foundational debian base stage.
 // ver is the DEBIAN_VERSION build arg default; empty string uses the versions.json default.
 func debianStage(ver, registry string, pkgs []string) df.Stage {
-	debianArg := df.Arg{Key: "DEBIAN_VERSION", Default: DefaultVersions.Debian}
+	versionArg := df.Arg{Key: "DEBIAN_VERSION", Default: DefaultVersions.Debian}
 	if ver != "" {
-		debianArg.Default = ver
+		versionArg.Default = ver
 	}
 
 	image := prefixImage(registry, "debian", "${DEBIAN_VERSION}")
+
 	return df.NewStage(df.From{Image: image, As: "base"}).
-		AddGlobalArg(debianArg).
+		AddGlobalArg(versionArg).
 		Add(df.Env{Key: "DEBIAN_FRONTEND", Value: "noninteractive"}).
 		Add(aptInstallRun(pkgs)).
 		Build()
@@ -115,25 +116,26 @@ func nodeStage(prevStage, ver string) df.Stage {
 		Add(df.Env{Key: "NVM_DIR", Value: "/usr/local/nvm"}).
 		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
 		Add(df.Run{Blocks: []df.Block{
-			{Comment: "Create NVM directory", Lines: []string{`mkdir -p "$NVM_DIR"`}},
 			{
-				Comment: "Download NVM install script and verify checksum",
-				Lines:   []string{`curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh" -o /tmp/nvm_install.sh`},
+				Comment: "Create NVM directory",
+				Lines:   []string{`mkdir -p "$NVM_DIR"`},
 			},
-			{Lines: []string{`echo "${NVM_CHECKSUM}  /tmp/nvm_install.sh" | sha256sum -c -`}},
-			{Lines: []string{`NVM_DIR="$NVM_DIR" bash /tmp/nvm_install.sh`}},
-			{Lines: []string{`rm /tmp/nvm_install.sh`}},
-			{
-				Comment: "Install Node.js and symlink to /usr/local/bin",
-				Lines:   []string{`. "$NVM_DIR/nvm.sh"`},
-			},
-			{Lines: []string{`nvm install "${NODE_VERSION}"`}},
-			{Lines: []string{`nvm alias default "${NODE_VERSION}"`}},
-			{Lines: []string{`NODE_BIN="$(nvm which default | xargs dirname)"`}},
-			{Lines: []string{`ln -sf "$NODE_BIN/node" /usr/local/bin/node`}},
-			{Lines: []string{`ln -sf "$NODE_BIN/npm"  /usr/local/bin/npm`}},
-			{Lines: []string{`ln -sf "$NODE_BIN/npx"  /usr/local/bin/npx`}},
-			{Lines: []string{`nvm cache clear`}},
+			{Comment: "Download, verify and install NVM", Chain: true, Lines: []string{
+				`curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh" -o /tmp/nvm_install.sh`,
+				`echo "${NVM_CHECKSUM}  /tmp/nvm_install.sh" | sha256sum -c -`,
+				`NVM_DIR="$NVM_DIR" bash /tmp/nvm_install.sh`,
+				`rm /tmp/nvm_install.sh`,
+			}},
+			{Comment: "Install Node.js and symlink to /usr/local/bin", Chain: true, Lines: []string{
+				`. "$NVM_DIR/nvm.sh"`,
+				`nvm install "${NODE_VERSION}"`,
+				`nvm alias default "${NODE_VERSION}"`,
+				`NODE_BIN="$(nvm which default | xargs dirname)"`,
+				`ln -sf "$NODE_BIN/node" /usr/local/bin/node`,
+				`ln -sf "$NODE_BIN/npm"  /usr/local/bin/npm`,
+				`ln -sf "$NODE_BIN/npx"  /usr/local/bin/npx`,
+				`nvm cache clear`,
+			}},
 		}}).
 		Add(df.Heredoc{
 			Dest:  "/usr/local/bin/" + versionScript("node"),
@@ -166,9 +168,11 @@ func javaStage(prevStage, ver string) df.Stage {
 					`| tee /etc/apt/sources.list.d/adoptium.list`,
 				},
 			},
-			{Comment: "Install Temurin JDK and clean up", Lines: []string{`apt-get update -yq`}},
-			{Lines: []string{`apt-get install -yq --no-install-recommends "temurin-${JAVA_VERSION}-jdk"`}},
-			{Lines: []string{`rm -rf /var/lib/apt/lists/*`}},
+			{Comment: "Install Temurin JDK and clean up", Chain: true, Lines: []string{
+				`apt-get update -yq`,
+				`apt-get install -yq --no-install-recommends "temurin-${JAVA_VERSION}-jdk"`,
+				`rm -rf /var/lib/apt/lists/*`,
+			}},
 		}}).
 		Add(df.Heredoc{
 			Dest:  "/usr/local/bin/" + versionScript("java"),
@@ -201,9 +205,11 @@ func dotnetStage(prevStage, ver string) df.Stage {
 					`esac`,
 				},
 			},
-			{Comment: "Install dotnet SDK and clean up", Lines: []string{`apt-get update -yq`}},
-			{Lines: []string{`apt-get install -yq --no-install-recommends "dotnet-sdk-${DOTNET_VERSION}"`}},
-			{Lines: []string{`rm -rf /var/lib/apt/lists/*`}},
+			{Comment: "Install dotnet SDK and clean up", Chain: true, Lines: []string{
+				`apt-get update -yq`,
+				`apt-get install -yq --no-install-recommends "dotnet-sdk-${DOTNET_VERSION}"`,
+				`rm -rf /var/lib/apt/lists/*`,
+			}},
 		}}).
 		Add(df.Heredoc{
 			Dest:  "/usr/local/bin/" + versionScript("dotnet"),
@@ -246,11 +252,15 @@ func goStage(prevStage, ver string) df.Stage {
 			},
 			{Lines: []string{`echo "Installing Go ${GO_VERSION} on ${PRETTY_NAME} (${GO_ARCH})"`}},
 			{Lines: []string{`echo "Expected SHA256: ${EXPECTED_SHA}"`}},
-			{Comment: "Download and verify", Lines: []string{`TARBALL="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"`}},
-			{Lines: []string{`curl -fsSL "https://go.dev/dl/${TARBALL}" -o /tmp/go.tar.gz`}},
-			{Lines: []string{`echo "${EXPECTED_SHA}  /tmp/go.tar.gz" | sha256sum -c -`}},
-			{Comment: "Install and clean up", Lines: []string{`tar -C /usr/local -xzf /tmp/go.tar.gz`}},
-			{Lines: []string{`rm /tmp/go.tar.gz`}},
+			{Comment: "Download and verify", Chain: true, Lines: []string{
+				`TARBALL="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"`,
+				`curl -fsSL "https://go.dev/dl/${TARBALL}" -o /tmp/go.tar.gz`,
+				`echo "${EXPECTED_SHA}  /tmp/go.tar.gz" | sha256sum -c -`,
+			}},
+			{Comment: "Install and clean up", Chain: true, Lines: []string{
+				`tar -C /usr/local -xzf /tmp/go.tar.gz`,
+				`rm /tmp/go.tar.gz`,
+			}},
 		}}).
 		Add(df.Env{Key: "PATH", Value: "${PATH}:/usr/local/go/bin"}).
 		Add(df.Heredoc{

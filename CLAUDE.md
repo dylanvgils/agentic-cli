@@ -36,8 +36,8 @@ Install steps use `df.Run{Blocks: []df.Block{...}}`; version check scripts use `
 
 - **Block = logical group**: each `Block` is one phase of work; the renderer joins blocks with `&&`.
 - **Independent commands** within a group each get their own `Block` (one `Lines` entry).
-- **Multi-line single commands** (pipelines, subshells) use multiple `Lines` entries within one `Block` - the renderer joins them with ` \` continuation.
-- **`&&`-chained commands** within a group use `&&` prefix on each continuation line (e.g. download + verify + install + cleanup as one block).
+- **Multi-line single commands** (pipelines, subshells) use multiple `Lines` entries within one `Block` - the renderer joins them with `\` continuation.
+- **`&&`-chained commands** within one block: set `Chain: true` on the `Block` and list the commands as `Lines` - the renderer joins them with `\\\n  &&`.
 - Stages that use pipelines need `df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}` before the `Run`.
 
 ### Cobra command init functions

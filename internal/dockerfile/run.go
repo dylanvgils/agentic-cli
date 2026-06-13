@@ -16,9 +16,11 @@ const (
 
 // Block is a group of related lines within a Run directive.
 // An optional Comment is rendered as a shell comment before the block's commands.
+// Set Chain to true to join Lines with && instead of plain \ continuation.
 type Block struct {
 	Comment string
 	Lines   []string
+	Chain   bool
 }
 
 // Run is a RUN directive.
@@ -59,7 +61,11 @@ func (r Run) renderBlocks() string {
 			sb.WriteString("&& ")
 		}
 
-		sb.WriteString(strings.Join(block.Lines, continuation))
+		lineSep := continuation
+		if block.Chain {
+			lineSep = continuation + "&& "
+		}
+		sb.WriteString(strings.Join(block.Lines, lineSep))
 	}
 
 	return sb.String()
