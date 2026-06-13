@@ -1,10 +1,10 @@
 {
   "node": "24",
-  "nvm": "0.40.3",
-  "nvm_checksum": "2d8359a64a3cb07c02389ad88ceecd43f2fa469c06104f92f98df5b6f315275f",
+  "nvm": "0.40.5",
+  "nvm_checksum": "582070e4c44452c1d8d68e16fc786c2216ecba6bc6bf18dc280a03fdba6ed1a9",
   "java": "25",
   "dotnet": "10",
   "go": "1.26.4",
   "busybox": "1.38.0",
-  "debian": "bookworm-slim"
+  "debian": "13-slim"
 }

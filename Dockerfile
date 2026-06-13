@@ -2,7 +2,7 @@ ARG GO_VERSION=1.26.4
 ARG TARGETARCH
 ARG INSTALL_METHOD=script
 
-FROM debian:bookworm-slim AS builder
+FROM debian:13-slim AS builder
 
 ARG GO_VERSION
 ARG TARGETARCH

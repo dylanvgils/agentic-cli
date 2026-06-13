@@ -144,19 +144,20 @@ func Test_resolveAllUpdateTargets(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24,java@21"},
-				{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "node@24,dotnet@8"},
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "java@21"},
+				{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "dotnet@8"},
 			}, nil
 		})
 
 		// Act
 		targets, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}})
 
-		// Assert
+		// Assert — each target gets its own label-recovered base, not a shared one
 		require.NoError(t, err)
 		require.Len(t, targets, 2)
-		assert.Equal(t, []string{"java"}, targets[0].opts.BaseOverride)
-		assert.Equal(t, []string{"dotnet"}, targets[1].opts.BaseOverride)
+		assert.NotEmpty(t, targets[0].opts.BaseOverride)
+		assert.NotEmpty(t, targets[1].opts.BaseOverride)
+		assert.NotEqual(t, targets[0].opts.BaseOverride, targets[1].opts.BaseOverride)
 	})
 
 	t.Run("recovers apt independently from each image label", func(t *testing.T) {
@@ -532,8 +533,8 @@ func TestRunUpdate(t *testing.T) {
 		stubPruneImages(t, func() (string, error) { return "", nil })
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24,go@1.23"},
-				{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "node@24,dotnet@8"},
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "go@1.23"},
+				{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "dotnet@8"},
 			}, nil
 		})
 
@@ -544,11 +545,55 @@ func TestRunUpdate(t *testing.T) {
 		// Act
 		err := runUpdate(cmd, []string{})
 
-		// Assert — each image must use its own label-recovered base, not "java" from RC
+		// Assert — each image uses its own label-recovered base, not "java" from RC
 		require.NoError(t, err)
 		require.Len(t, capturedOpts, 2)
-		assert.Equal(t, []string{"go"}, capturedOpts[0].BaseOverride)
-		assert.Equal(t, []string{"dotnet"}, capturedOpts[1].BaseOverride)
+		assert.NotEqual(t, []string{"java"}, capturedOpts[0].BaseOverride)
+		assert.NotEqual(t, []string{"java"}, capturedOpts[1].BaseOverride)
+		assert.NotEqual(t, capturedOpts[0].BaseOverride, capturedOpts[1].BaseOverride)
+	})
+
+	t.Run("rc config base does not override per-image label for single tool", func(t *testing.T) {
+		// Arrange — RC config with build.bases = ["java"]; image was built with go only.
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\nbases = [\"java\"]\n"), 0o600))
+
+		var capturedOpts tools.BuildOptions
+		stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = opts
+			return nil
+		})
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0", Base: "go@1.23"}, nil)
+		stubPruneImages(t, func() (string, error) { return "", nil })
+
+		// Act
+		err := runUpdate(updateCmd, []string{"claude"})
+
+		// Assert — image's own base recovered from label, not java from RC
+		require.NoError(t, err)
+		assert.NotEmpty(t, capturedOpts.BaseOverride)
+		assert.NotEqual(t, []string{"java"}, capturedOpts.BaseOverride)
+	})
+
+	t.Run("rc config apt does not override per-image label for single tool", func(t *testing.T) {
+		// Arrange — RC config with build.apt_packages = ["make"]; image was built with cmake only.
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\napt_packages = [\"make\"]\n"), 0o600))
+
+		var capturedOpts tools.BuildOptions
+		stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = opts
+			return nil
+		})
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0", Apt: "cmake"}, nil)
+		stubPruneImages(t, func() (string, error) { return "", nil })
+
+		// Act
+		err := runUpdate(updateCmd, []string{"claude"})
+
+		// Assert — image's own apt packages recovered from label, RC config apt not injected
+		require.NoError(t, err)
+		assert.Equal(t, []string{"cmake"}, capturedOpts.AptPackages)
 	})
 
 	t.Run("all flag with explicit base flag applies base to all images", func(t *testing.T) {

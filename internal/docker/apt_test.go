@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +39,7 @@ func Test_verifyAptPackages(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "pull", get()[0])
-		assert.Contains(t, get(), "debian:bookworm-slim")
+		assert.Contains(t, get(), "debian:"+tools.DefaultVersions.Debian)
 	})
 
 	t.Run("pulls registry-prefixed image when registry set", func(t *testing.T) {
@@ -51,7 +52,7 @@ func Test_verifyAptPackages(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, get(), "myregistry.example.com/debian:bookworm-slim")
+		assert.Contains(t, get(), "myregistry.example.com/debian:"+tools.DefaultVersions.Debian)
 	})
 
 	t.Run("returns specific error for missing packages", func(t *testing.T) {

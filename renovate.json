@@ -12,6 +12,11 @@
       "groupName": "GitHub Actions"
     },
     {
+      "matchManagers": ["dockerfile"],
+      "matchDepNames": ["debian"],
+      "versioning": "regex:^(?<major>\\d+)-slim$"
+    },
+    {
       "matchDepNames": ["go"],
       "matchDatasources": ["golang-version"],
       "groupName": "Go version"
@@ -72,7 +77,8 @@
       "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
       "matchStrings": ["\"debian\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "debian",
-      "datasourceTemplate": "docker"
+      "datasourceTemplate": "docker",
+      "versioning": "regex:^(?<major>\\d+)-slim$"
     },
     {
       "customType": "regex",

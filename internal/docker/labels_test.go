@@ -37,31 +37,39 @@ func TestNewCacheBust(t *testing.T) {
 }
 
 func TestBuildBaseLabel(t *testing.T) {
-	t.Run("node only", func(t *testing.T) {
+	t.Run("single extra with version", func(t *testing.T) {
 		// Act
-		result := buildBaseLabel("24.0.0", nil, nil)
+		result := buildBaseLabel([]string{"node"}, map[string]string{"node": "24.0.0"})
 
 		// Assert
 		assert.Equal(t, "node@24.0.0", result)
 	})
 
-	t.Run("node version missing", func(t *testing.T) {
+	t.Run("single extra version missing", func(t *testing.T) {
 		// Act
-		result := buildBaseLabel("", nil, nil)
+		result := buildBaseLabel([]string{"node"}, nil)
 
 		// Assert
 		assert.Equal(t, "node", result)
 	})
 
-	t.Run("with extras", func(t *testing.T) {
+	t.Run("no extras returns empty string", func(t *testing.T) {
+		// Act
+		result := buildBaseLabel(nil, nil)
+
+		// Assert
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("multiple extras with versions", func(t *testing.T) {
 		// Arrange
 		extraVersions := map[string]string{"java": "21.0.1", "python": ""}
 
 		// Act
-		result := buildBaseLabel("24.0.0", []string{"java", "python"}, extraVersions)
+		result := buildBaseLabel([]string{"java", "python"}, extraVersions)
 
 		// Assert
-		assert.Equal(t, "node@24.0.0,java@21.0.1,python", result)
+		assert.Equal(t, "java@21.0.1,python", result)
 	})
 }
 
@@ -144,12 +152,12 @@ func TestRecoverApt(t *testing.T) {
 }
 
 func TestRecoverExtras(t *testing.T) {
-	t.Run("strips node and versions", func(t *testing.T) {
+	t.Run("strips versions from entries", func(t *testing.T) {
 		// Act
 		result := RecoverExtras("node@24.0.0,java@21.0.1")
 
 		// Assert
-		assert.Equal(t, []string{"java"}, result)
+		assert.Equal(t, []string{"node", "java"}, result)
 	})
 
 	t.Run("multiple extras", func(t *testing.T) {
@@ -157,12 +165,20 @@ func TestRecoverExtras(t *testing.T) {
 		result := RecoverExtras("node@24.0.0,java@21.0.1,python@3.11")
 
 		// Assert
-		assert.Equal(t, []string{"java", "python"}, result)
+		assert.Equal(t, []string{"node", "java", "python"}, result)
 	})
 
 	t.Run("node only", func(t *testing.T) {
 		// Act
 		result := RecoverExtras("node@24.0.0")
+
+		// Assert
+		assert.Equal(t, []string{"node"}, result)
+	})
+
+	t.Run("empty string returns nil", func(t *testing.T) {
+		// Act
+		result := RecoverExtras("")
 
 		// Assert
 		assert.Nil(t, result)

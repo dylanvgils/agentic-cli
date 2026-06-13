@@ -59,12 +59,11 @@ func collectExtraVersions(image string, extras []string) map[string]string {
 	return versions
 }
 
-// collectBaseLabel detects the node version and all extra-layer versions from
-// the image and assembles the agentic.base label value.
+// collectBaseLabel detects all extra-layer versions from the image and assembles
+// the agentic.base label value.
 func collectBaseLabel(image string, extras []string) string {
-	nodeVer := runVersionScript(image, versionScript("node"))
 	extraVersions := collectExtraVersions(image, extras)
-	return buildBaseLabel(nodeVer, extras, extraVersions)
+	return buildBaseLabel(extras, extraVersions)
 }
 
 func extractVersion(out string) string {

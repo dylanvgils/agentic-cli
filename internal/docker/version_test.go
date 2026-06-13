@@ -240,18 +240,20 @@ func TestCollectExtraVersions(t *testing.T) {
 }
 
 func TestCollectBaseLabel(t *testing.T) {
-	t.Run("no extras returns node label", func(t *testing.T) {
+	t.Run("no extras returns empty string", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "24.0.0\n", nil)
+		calls := 0
+		stubDockerRun(t, func(_ ...string) (string, error) { calls++; return "", nil })
 
 		// Act
 		result := collectBaseLabel("agentic-base", nil)
 
 		// Assert
-		assert.Equal(t, "node@24.0.0", result)
+		assert.Equal(t, "", result)
+		assert.Equal(t, 0, calls, "dockerRun should not be called for empty extras")
 	})
 
-	t.Run("with extras returns full label", func(t *testing.T) {
+	t.Run("with extras returns detected versions", func(t *testing.T) {
 		// Arrange
 		stubDockerRunFixed(t, "21.0.1\n", nil)
 
@@ -259,7 +261,7 @@ func TestCollectBaseLabel(t *testing.T) {
 		result := collectBaseLabel("agentic-base", []string{"java"})
 
 		// Assert
-		assert.Equal(t, "node@21.0.1,java@21.0.1", result)
+		assert.Equal(t, "java@21.0.1", result)
 	})
 
 	t.Run("version detection fails returns partial label", func(t *testing.T) {
@@ -270,6 +272,6 @@ func TestCollectBaseLabel(t *testing.T) {
 		result := collectBaseLabel("agentic-base", []string{"java"})
 
 		// Assert
-		assert.Equal(t, "node,java", result)
+		assert.Equal(t, "java", result)
 	})
 }
