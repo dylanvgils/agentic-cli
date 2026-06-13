@@ -116,10 +116,7 @@ func nodeStage(prevStage, ver string) df.Stage {
 		Add(df.Env{Key: "NVM_DIR", Value: "/usr/local/nvm"}).
 		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
 		Add(df.Run{Blocks: []df.Block{
-			{
-				Comment: "Create NVM directory",
-				Lines:   []string{`mkdir -p "$NVM_DIR"`},
-			},
+			{Comment: "Create NVM directory", Lines: []string{`mkdir -p "$NVM_DIR"`}},
 			{Comment: "Download, verify and install NVM", Chain: true, Lines: []string{
 				`curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh" -o /tmp/nvm_install.sh`,
 				`echo "${NVM_CHECKSUM}  /tmp/nvm_install.sh" | sha256sum -c -`,
