@@ -141,13 +141,9 @@ Add(CreateContainerUser("claude")...)
 Full example:
 
 ```go
-stage := df.NewStage(df.From{Image: "node:${NODE_VERSION}-bookworm-slim", As: "base"}).
-    AddGlobalArg(df.Arg{Key: "NODE_VERSION", Default: "24"}).
+stage := df.NewStage(df.From{Image: "debian:${DEBIAN_VERSION}", As: "base"}).
+    AddGlobalArg(df.Arg{Key: "DEBIAN_VERSION", Default: "bookworm-slim"}).
     Add(df.Env{Key: "DEBIAN_FRONTEND", Value: "noninteractive"}).
-    Add(df.Heredoc{
-        Dest:  "/usr/local/bin/agentic-version-node",
-        Lines: []string{"#!/bin/sh", "node --version"},
-    }).
     Add(df.Run{Blocks: []df.Block{
         {Lines: []string{"apt-get update -yq"}},
         {Lines: []string{"apt-get install -yq --no-install-recommends", "curl", "wget", "git"}},
@@ -162,18 +158,12 @@ Partial rendered output:
 ##############################
 # base
 ##############################
-ARG NODE_VERSION=24
+ARG DEBIAN_VERSION=bookworm-slim
 
-FROM node:${NODE_VERSION}-bookworm-slim AS base
+FROM debian:${DEBIAN_VERSION} AS base
 
 # internal/tools/bases.go:23
 ENV DEBIAN_FRONTEND=noninteractive
-
-# internal/tools/bases.go:24
-COPY --chmod=0755 <<'EOF' /usr/local/bin/agentic-version-node
-#!/bin/sh
-node --version
-EOF
 
 # internal/tools/bases.go:28
 RUN apt-get update -yq \

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 
@@ -94,9 +95,7 @@ func collectBases(cmd *cobra.Command, rc *config.AgenticRC) []string {
 // overridden by CLI flags and environment variables.
 func collectVersions(cmd *cobra.Command, rc *config.AgenticRC) map[string]string {
 	versions := make(map[string]string, len(rc.Build.Versions))
-	for k, v := range rc.Build.Versions {
-		versions[k] = v
-	}
+	maps.Copy(versions, rc.Build.Versions)
 
 	for _, name := range tools.KnownLayers() {
 		if v := flagOrEnv(cmd, name, config.EnvVersionVar(name)); v != "" {

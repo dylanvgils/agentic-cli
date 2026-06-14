@@ -133,7 +133,7 @@ agentic build                        # Build all tools
 agentic build claude                 # Claude agent only
 agentic build copilot                # GitHub Copilot agent only
 agentic build opencode               # OpenCode agent only
-agentic build claude --base java     # Claude with Java runtime added
+agentic build claude --base node,java # Claude with Node.js and Java runtimes added
 agentic build claude --no-cache      # Force a fully fresh build
 ```
 
@@ -151,23 +151,23 @@ agentic <command> [args...]
 
 ### Commands
 
-| Command                                                                                                                                                                                        | Description                                                                                                                                             |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `build [tool] [--namespace <name>] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--registry <host>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]`          | Build tool image(s). Builds all tools if unspecified                                                                                                    |
-| `update [tool] [--namespace <name>] [--all] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--registry <host>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]` | Update tool image(s) to latest version. `--all` updates every agentic image across all namespaces                                                       |
-| `clean [tool] [--namespace <name>] [--all]`                                                                                                                                                    | Remove tool image(s). `--all` removes across all namespaces                                                                                             |
-| `inspect [tool] [--namespace <name>] [--all]`                                                                                                                                                  | No arg: table of images in the active namespace; `--all` shows all namespaces. Tool arg: full detail for active namespace; `--all` shows all namespaces |
-| `namespaces list` / `namespaces ls`                                                                                                                                                            | List all known namespaces                                                                                                                               |
-| `namespaces prune [-n namespace]`                                                                                                                                                              | Remove all images in the active (or specified) namespace                                                                                                |
-| `config [--home <dir>]`                                                                                                                                                                        | Show the merged configuration from agentic.json and all .agenticrc.toml files                                                                           |
-| `volumes <create\|list\|ls\|remove\|rm> [name]`                                                                                                                                                | Manage named Docker volumes created by agentic                                                                                                          |
-| `upgrade [--force] [--version <tag>]`                                                                                                                                                          | Upgrade the agentic binary to the latest release. `--force` reinstalls even if already up to date; `--version` installs a specific release tag          |
-| `version`                                                                                                                                                                                      | Show version information (version, commit, built by, built date)                                                                                        |
-| `completion <bash\|zsh\|fish\|powershell>`                                                                                                                                                     | Generate shell completion script for the specified shell                                                                                                |
-| `aliases`                                                                                                                                                                                      | Print shell alias definitions for installed tools                                                                                                       |
-| `help [command]`                                                                                                                                                                               | Show help for a command (`run` for tool run options). Shows overview if unspecified                                                                     |
-| `run [flags] <tool> [args...]`                                                                                                                                                                 | Run a tool in an isolated Docker container                                                                                                              |
-| `run <tool> -- <cmd> [args]`                                                                                                                                                                   | Override the entrypoint and run a shell command directly                                                                                                |
+| Command                                                                                                                                                                                                             | Description                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `build [tool] [--namespace <name>] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--registry <host>] [--debian <version>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]`          | Build tool image(s). Builds all tools if unspecified                                                                                                    |
+| `update [tool] [--namespace <name>] [--all] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--registry <host>] [--debian <version>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]` | Update tool image(s) to latest version. `--all` updates every agentic image across all namespaces                                                       |
+| `clean [tool] [--namespace <name>] [--all]`                                                                                                                                                                         | Remove tool image(s). `--all` removes across all namespaces                                                                                             |
+| `inspect [tool] [--namespace <name>] [--all]`                                                                                                                                                                       | No arg: table of images in the active namespace; `--all` shows all namespaces. Tool arg: full detail for active namespace; `--all` shows all namespaces |
+| `namespaces list` / `namespaces ls`                                                                                                                                                                                 | List all known namespaces                                                                                                                               |
+| `namespaces prune [-n namespace]`                                                                                                                                                                                   | Remove all images in the active (or specified) namespace                                                                                                |
+| `config [--home <dir>]`                                                                                                                                                                                             | Show the merged configuration from agentic.json and all .agenticrc.toml files                                                                           |
+| `volumes <create\|list\|ls\|remove\|rm> [name]`                                                                                                                                                                     | Manage named Docker volumes created by agentic                                                                                                          |
+| `upgrade [--force] [--version <tag>]`                                                                                                                                                                               | Upgrade the agentic binary to the latest release. `--force` reinstalls even if already up to date; `--version` installs a specific release tag          |
+| `version`                                                                                                                                                                                                           | Show version information (version, commit, built by, built date)                                                                                        |
+| `completion <bash\|zsh\|fish\|powershell>`                                                                                                                                                                          | Generate shell completion script for the specified shell                                                                                                |
+| `aliases`                                                                                                                                                                                                           | Print shell alias definitions for installed tools                                                                                                       |
+| `help [command]`                                                                                                                                                                                                    | Show help for a command (`run` for tool run options). Shows overview if unspecified                                                                     |
+| `run [flags] <tool> [args...]`                                                                                                                                                                                      | Run a tool in an isolated Docker container                                                                                                              |
+| `run <tool> -- <cmd> [args]`                                                                                                                                                                                        | Override the entrypoint and run a shell command directly                                                                                                |
 
 Run tool commands from within a git repository. The current directory is mounted as `/workspace` inside the container.
 
@@ -186,13 +186,14 @@ Run tool commands from within a git repository. The current directory is mounted
 agentic build
 agentic build claude
 
-# Build with extra runtimes on top of node (comma-separated or repeatable)
-agentic build claude --base java
-agentic build claude --base java,dotnet
+# Build with extra runtimes on top of debian (comma-separated or repeatable)
+agentic build claude --base node
+agentic build claude --base node,java
+agentic build claude --base node,java,dotnet
 
 # Pin runtime versions
-agentic build claude --base java --java 17
-agentic build claude --node 22
+agentic build claude --base node,java --java 17
+agentic build claude --base node --node 22
 
 # Install extra apt packages (comma-separated or repeatable)
 agentic build claude --apt make
@@ -203,7 +204,7 @@ agentic build claude --no-cache
 
 # Update to latest version (only rebuilds the tool step, base layers stay cached)
 agentic update
-agentic update claude --base java
+agentic update claude --base node,java
 agentic update claude --no-cache   # also rebuilds base layers
 
 # Clean / inspect images
@@ -214,7 +215,7 @@ agentic inspect claude               # full detail for active namespace's claude
 agentic inspect claude --all         # detail for all namespaces' claude image
 
 # Build a project-specific image set (images are named <namespace>-<tool>)
-agentic build claude --namespace myproject --base java --apt make
+agentic build claude --namespace myproject --base node,java --apt make
 agentic inspect                      # shows both agentic-claude and myproject-claude
 AGENTIC_NAMESPACE=myproject agentic run claude
 agentic update --all                 # update every agentic image across all namespaces
@@ -280,32 +281,36 @@ Only tools with a built image produce an alias, so sourcing the output never cre
 
 ## 🧱 Base images
 
-Node is always the root layer. The `--base` flag adds extra runtimes on top of it:
+Debian is the root layer. The `--base` flag adds extra runtimes on top of it, including Node.js (installed via NVM):
 
 ```
-node (base stage)
-  ├── java   (java stage)   ← added with --base java
-  ├── dotnet (dotnet stage) ← added with --base dotnet
-  └── go     (go stage)     ← added with --base go
-        └── tool (tool stage)
+debian (base stage)
+  ├── node   (node stage)   ← added with --base node
+  │     ├── java   (java stage)   ← added with --base node,java
+  │     ├── dotnet (dotnet stage) ← added with --base node,dotnet
+  │     └── go     (go stage)     ← added with --base node,go
+  └── tool (tool stage)
 ```
 
 All stages are composed into a single multi-stage Dockerfile at build time and built in one `docker build` call. No intermediate images are produced.
 
-| Flag                              | Result             |
-| --------------------------------- | ------------------ |
-| _(none)_                          | node only          |
-| `--base java`                     | node + Java        |
-| `--base java,dotnet`              | node + Java + .NET |
-| `--node 22`                       | node v22 only      |
-| `--base java --java 17`           | node + Java 17     |
-| `--node 22 --base java --java 17` | node v22 + Java 17 |
+| Flag                                   | Result                         |
+| -------------------------------------- | ------------------------------ |
+| _(none)_                               | debian only                    |
+| `--base node`                          | debian + Node.js               |
+| `--base node,java`                     | debian + Node.js + Java        |
+| `--base node,java,dotnet`              | debian + Node.js + Java + .NET |
+| `--node 22`                            | debian + Node.js v22           |
+| `--base node,java --java 17`           | debian + Node.js + Java 17     |
+| `--node 22 --base node,java --java 17` | debian + Node.js v22 + Java 17 |
 
-All tools default to node only. Use `--base` to add extra runtimes at build time. The same pinning pattern applies to every layer (`--dotnet`, `--go`, etc.).
+Use `--base` to add extra runtimes at build time. The same pinning pattern applies to every layer (`--debian`, `--node`, `--dotnet`, `--go`, etc.).
 
-Version defaults are embedded in the binary at build time - run `agentic build --help` to see current defaults. Override per-build with the corresponding flag (`--node`, `--java`, `--dotnet`, `--go`), or set `AGENTIC_<LAYER>_VERSION` in your shell config for a persistent default (e.g. `AGENTIC_JAVA_VERSION=17`).
+Version defaults are embedded in the binary at build time - run `agentic build --help` to see current defaults. Override per-build with the corresponding flag (`--debian`, `--node`, `--java`, `--dotnet`, `--go`), or set `AGENTIC_<LAYER>_VERSION` in your shell config for a persistent default (e.g. `AGENTIC_JAVA_VERSION=17`, `AGENTIC_NODE_VERSION=22`).
 
 The resolved version for each layer is stored in the `agentic.version-args` image label and automatically recovered on `agentic update`, so the base/extra layers are regenerated identically (and stay cache-hits) even if the embedded defaults have since changed - pass the flag again to pin a different version instead. Pass `--no-cache` to `agentic update` to bypass this and rebuild the base/extra layers from scratch as well, instead of only the tool stage.
+
+> **Note:** During `agentic update`, the `bases` and `apt_packages` settings from `.agenticrc.toml` are ignored - the image's own labels are always used to recover the original build configuration. Only an explicit `--base` or `--apt` CLI flag (or the corresponding env var) overrides what the image was built with.
 
 ### Registry proxy
 
