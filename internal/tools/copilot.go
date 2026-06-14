@@ -25,7 +25,6 @@ func copilotMounts() []string {
 func copilotStage(prevStage string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
 		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
-		Add(df.Label{Key: "project", Value: "agentic-cli"}).
 		Add(createContainerUser("copilot")...).
 		Add(df.Run{Command: "curl -fsSL https://gh.io/copilot-install | bash"}).
 		Add(df.Heredoc{

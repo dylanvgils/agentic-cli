@@ -26,7 +26,7 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 		return err
 	}
 
-	if err := buildFromContent(content, image, opts); err != nil {
+	if err := buildFromContent(content, image, tool, opts); err != nil {
 		return fmt.Errorf("tool image: %w", err)
 	}
 
@@ -36,7 +36,7 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 }
 
 // buildFromContent writes content to a temp Dockerfile and builds the image.
-func buildFromContent(content, image string, opts tools.BuildOptions) (retErr error) {
+func buildFromContent(content, image, tool string, opts tools.BuildOptions) (retErr error) {
 	tmpDir, err := writeTempDockerfile(content)
 	if err != nil {
 		return err
@@ -48,7 +48,7 @@ func buildFromContent(content, image string, opts tools.BuildOptions) (retErr er
 		}
 	}()
 
-	return buildImage(tmpDir, image, opts)
+	return buildImage(tmpDir, image, tool, opts)
 }
 
 // writeTempDockerfile creates a temp directory, writes content as a Dockerfile,
@@ -69,8 +69,9 @@ func writeTempDockerfile(content string) (tmpDir string, err error) {
 }
 
 // buildImage assembles the docker build arguments and runs the build.
-func buildImage(tmpDir, image string, opts tools.BuildOptions) error {
+func buildImage(tmpDir, image, tool string, opts tools.BuildOptions) error {
 	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
+	namespace := strings.TrimSuffix(image, "-"+tool)
 
 	args := []string{
 		"build",
@@ -95,7 +96,11 @@ func buildImage(tmpDir, image string, opts tools.BuildOptions) error {
 	}
 
 	args = append(args,
+		label(LabelProject, LabelProjectVal),
 		label(LabelBuilt, buildBuiltLabel()),
+		label(LabelCLIVersion, CLIVersion),
+		label(LabelNamespace, namespace),
+		label(LabelTool, tool),
 		arg("tag", image),
 		tmpDir,
 	)

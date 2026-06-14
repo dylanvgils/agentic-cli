@@ -54,11 +54,6 @@ func TestCopilotStage(t *testing.T) {
 		assert.Contains(t, result, "GITHUB_TOKEN")
 	})
 
-	t.Run("contains project label", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "project=agentic-cli")
-	})
-
 	t.Run("contains version script", func(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, "agentic-version-copilot")

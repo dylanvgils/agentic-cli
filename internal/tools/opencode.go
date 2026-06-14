@@ -28,7 +28,6 @@ func opencodeMounts() []string {
 func opencodeStage(prevStage string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
 		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
-		Add(df.Label{Key: "project", Value: "agentic-cli"}).
 		Add(createContainerUser("opencode")...).
 		Add(df.Heredoc{
 			Dest:  "/usr/local/bin/entrypoint.sh",
