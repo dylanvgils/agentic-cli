@@ -285,11 +285,11 @@ Debian is the root layer. The `--base` flag adds extra runtimes on top of it, in
 
 ```
 debian (base stage)
-  ├── node   (node stage)   ← added with --base node
-  │     ├── java   (java stage)   ← added with --base node,java
-  │     ├── dotnet (dotnet stage) ← added with --base node,dotnet
-  │     └── go     (go stage)     ← added with --base node,go
-  └── tool (tool stage)
+  ├── dotnet (dotnet stage) ← added with --base dotnet
+  ├── go     (go stage)     ← added with --base go
+  ├── java   (java stage)   ← added with --base java
+  └── node   (node stage)   ← added with --base node
+        └── tool (tool stage)
 ```
 
 All stages are composed into a single multi-stage Dockerfile at build time and built in one `docker build` call. No intermediate images are produced.

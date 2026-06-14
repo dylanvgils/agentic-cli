@@ -14,6 +14,7 @@ agentic-cli/
     ├── mount/                   # Volume mount spec builder
     ├── output/                  # CLI output formatting
     ├── platform/                # Platform-specific paths and utilities
+    ├── selfupdate/              # Downloads and installs new releases from GitHub
     └── tools/                   # Per-tool stage funcs, mounts, setup, and base layers
 ```
 
@@ -114,8 +115,8 @@ func TestBuildImage(t *testing.T) {
    - `<name>TmpfsMounts() []string` - return any tmpfs mounts (every tool needs at least `/tmp`)
 
    Reuse the shared helpers in `internal/tools/helpers.go` inside the stage func:
-   - `CreateContainerUser(name string) []df.Instruction` - declares `HOST_UID`/`HOST_GID` build args, removes any conflicting user, and creates the container user. Spread into `Add`: `Add(CreateContainerUser("mytool")...)`
-   - `AptInstallRun(pkgs []string) df.Run` - builds a standard apt update → install → cleanup `RUN` block
+   - `createContainerUser(name string) []df.Instruction` - declares `HOST_UID`/`HOST_GID` build args, removes any conflicting user, and creates the container user. Spread into `Add`: `Add(createContainerUser("mytool")...)`
+   - `aptInstallRun(pkgs []string) df.Run` - builds a standard apt update → install → cleanup `RUN` block
 
    Use `mount.VolumeMount(host, container)` and `mount.TmpfsMount(path, opts)` from `internal/mount`. Mount strings support two placeholder variables expanded at runtime:
    - `$TOOL_HOME` (host side) - expands to the agentic data dir (e.g. `~/.agentic`)
@@ -134,7 +135,7 @@ func TestBuildImage(t *testing.T) {
 
 ## Adding a new base runtime
 
-1. Add a new case to `ExtraStage()` in `internal/tools/bases.go` (follow the `javaStage`/`dotnetStage`/`goStage` pattern). The stage func receives `prevStage` and `ver` - build FROM `prevStage` and apply the version as a build arg default.
+1. Add a new case to `extraStage()` in `internal/tools/bases.go` (follow the `nodeStage`/`javaStage`/`dotnetStage`/`goStage` pattern). The stage func receives `prevStage` and `ver` - build FROM `prevStage` and apply the version as a build arg default.
 
 2. Add the name to `knownExtras` in `internal/tools/bases.go` and add a human-readable label to `LayerFlagDesc` in the same file. The `--<name>` version flag and its `AGENTIC_<NAME>_VERSION` env var are registered automatically from these two maps.
 
