@@ -141,7 +141,12 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 	volumes := collectVolumes(toolConfig.Runtime.Mounts(), extraVolumes, rc)
 	secrets := collectSecrets(flagSecrets, rc)
 	limits := resolveResourceLimits(pidsLimit, cpus, memory, rc)
+
 	if err := ensureNamedVolumes(volumes, toolHome, containerHome, tools.BusyboxImageFor(registry)); err != nil {
+		return docker.RunSpec{}, err
+	}
+
+	if err := ensureNetwork(); err != nil {
 		return docker.RunSpec{}, err
 	}
 

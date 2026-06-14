@@ -52,7 +52,12 @@ func runClean(cmd *cobra.Command, args []string) error {
 
 	if len(args) == 0 {
 		output.Step("base")
-		return cleanBaseImages()
+		if err := cleanBaseImages(); err != nil {
+			return err
+		}
+
+		output.Step("network")
+		return removeNetwork()
 	}
 
 	return nil
