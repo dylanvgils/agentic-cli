@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -278,49 +277,5 @@ func TestToolNames(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []string{"claude"}, result)
-	})
-}
-
-func TestPruneAndReport(t *testing.T) {
-	t.Run("prints message when reclaimed non empty", func(t *testing.T) {
-		// Arrange
-		stubPruneImages(t, func() (string, error) { return "500MB", nil })
-
-		// Act
-		out := captureStdout(t, func() {
-			err := pruneAndReport()
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "=> pruned dangling images (reclaimed 500MB)")
-	})
-
-	t.Run("silent when reclaimed empty", func(t *testing.T) {
-		// Arrange
-		stubPruneImages(t, func() (string, error) { return "", nil })
-
-		// Act
-		out := captureStdout(t, func() {
-			err := pruneAndReport()
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.NotContains(t, out, "pruned")
-	})
-
-	t.Run("propagates error", func(t *testing.T) {
-		// Arrange
-		stubPruneImages(t, func() (string, error) {
-			return "", fmt.Errorf("prune failed")
-		})
-
-		// Act
-		err := pruneAndReport()
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "prune failed")
 	})
 }

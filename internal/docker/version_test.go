@@ -18,7 +18,7 @@ func TestStampImageLabels(t *testing.T) {
 	}
 	t.Cleanup(func() { dockerRunStdin = origStdin })
 
-	t.Run("includes tool label", func(t *testing.T) {
+	t.Run("includes project label", func(t *testing.T) {
 		// Arrange
 		stubDockerRunFixed(t, "", nil)
 
@@ -26,32 +26,7 @@ func TestStampImageLabels(t *testing.T) {
 		stampImageLabels("agentic-claude", "claude", nil, nil, nil)
 
 		// Assert
-		assert.Contains(t, capturedArgs, "--label="+LabelTool+"=claude")
-	})
-
-	t.Run("includes agentic version label", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "", nil)
-		origCLIVersion := CLIVersion
-		CLIVersion = "v9.9.9"
-		t.Cleanup(func() { CLIVersion = origCLIVersion })
-
-		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil, nil)
-
-		// Assert
-		assert.Contains(t, capturedArgs, "--label="+LabelCLIVersion+"=v9.9.9")
-	})
-
-	t.Run("includes namespace label", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "", nil)
-
-		// Act
-		stampImageLabels("myproject-claude", "claude", nil, nil, nil)
-
-		// Assert
-		assert.Contains(t, capturedArgs, "--label="+LabelNamespace+"=myproject")
+		assert.Contains(t, capturedArgs, "--label="+LabelProject+"="+LabelProjectVal)
 	})
 
 	t.Run("includes apt label with packages", func(t *testing.T) {

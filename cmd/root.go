@@ -23,6 +23,7 @@ var (
 	cleanImage         = docker.CleanImage
 	cleanBaseImages    = docker.CleanBaseImages
 	pruneImages        = docker.PruneImages
+	pruneBuildCache    = docker.PruneBuildCache
 	createVolume       = docker.CreateVolume
 	listVolumes        = docker.ListVolumes
 	listVolumeNames    = docker.ListVolumeNames
@@ -94,6 +95,12 @@ func checkDocker(cmd *cobra.Command, _ []string) error {
 	}
 
 	return checkDockerDaemon()
+}
+
+// pruneResources silently removes agentic-owned dangling images and build cache.
+func pruneResources() {
+	_ = pruneImages()
+	_ = pruneBuildCache()
 }
 
 func rootRun(cmd *cobra.Command, _ []string) error {

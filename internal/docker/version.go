@@ -19,16 +19,14 @@ func ParseVersion(s string) string {
 // them as labels in a single docker build call. Runs best-effort: errors are
 // silently ignored since missing labels are non-fatal.
 func stampImageLabels(image, tool string, extras []string, aptPkgs []string, versions map[string]string) {
-	namespace := strings.TrimSuffix(image, "-"+tool)
 	layers := append([]string{tools.BaseLayer}, extras...)
+
 	args := []string{
 		"build",
-		label(LabelCLIVersion, CLIVersion),
-		label(LabelNamespace, namespace),
+		label(LabelProject, LabelProjectVal),
 		label(LabelBase, collectBaseLabel(image, extras)),
 		label(LabelVersionArgs, buildVersionArgsLabel(layers, versions)),
 		label(LabelApt, strings.Join(aptPkgs, ",")),
-		label(LabelTool, tool),
 		arg("tag", image),
 	}
 

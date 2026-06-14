@@ -92,7 +92,8 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return pruneAndReport()
+	pruneResources()
+	return nil
 }
 
 func resolveUpdateTargets(args []string, namespace string, opts tools.BuildOptions, all bool) ([]updateTarget, error) {
