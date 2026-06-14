@@ -38,11 +38,10 @@
     {
       "customType": "regex",
       "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
-      "matchStrings": ["\"nvm\":\\s*\"(?<currentValue>[\\d.]+)\",\\s*\\n\\s*\"nvm_checksum\":\\s*\"(?<currentDigest>[a-f0-9]+)\""],
+      "matchStrings": ["\"nvm\":\\s*\"(?<currentValue>[\\d.]+)\""],
       "depNameTemplate": "nvm-sh/nvm",
       "datasourceTemplate": "github-releases",
-      "extractVersion": "^v(?<version>.+)$",
-      "digestFileTemplate": "https://raw.githubusercontent.com/nvm-sh/nvm/v{{newValue}}/install.sh"
+      "extractVersionTemplate": "^v(?<version>.+)$"
     },
     {
       "customType": "regex",
@@ -78,7 +77,7 @@
       "matchStrings": ["\"debian\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "debian",
       "datasourceTemplate": "docker",
-      "versioning": "regex:^(?<major>\\d+)-slim$"
+      "versioningTemplate": "regex:^(?<major>\\d+)-slim$"
     },
     {
       "customType": "regex",
