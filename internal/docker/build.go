@@ -75,7 +75,11 @@ func buildImage(tmpDir, image, tool string, opts tools.BuildOptions) error {
 
 	args := []string{
 		"build",
-		arg("file", dockerfilePath),
+		label(LabelProject, LabelProjectVal),
+		label(LabelBuilt, buildBuiltLabel()),
+		label(LabelCLIVersion, CLIVersion),
+		label(LabelNamespace, namespace),
+		label(LabelTool, tool),
 	}
 
 	if opts.NoCache {
@@ -84,7 +88,8 @@ func buildImage(tmpDir, image, tool string, opts tools.BuildOptions) error {
 		args = append(args, arg("build-arg", "CACHEBUST="+opts.CacheBust))
 	}
 
-	args = append(args,
+	args = append(
+		args,
 		arg("build-arg", "HOST_UID="+platform.GetUID()),
 		arg("build-arg", "HOST_GID="+platform.GetGID()),
 	)
@@ -96,14 +101,9 @@ func buildImage(tmpDir, image, tool string, opts tools.BuildOptions) error {
 	}
 
 	args = append(args,
-		label(LabelProject, LabelProjectVal),
-		label(LabelBuilt, buildBuiltLabel()),
-		label(LabelCLIVersion, CLIVersion),
-		label(LabelNamespace, namespace),
-		label(LabelTool, tool),
 		arg("tag", image),
-		tmpDir,
-	)
+		arg("file", dockerfilePath),
+		tmpDir)
 
 	return runInteractive(args...)
 }

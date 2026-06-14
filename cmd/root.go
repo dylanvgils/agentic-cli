@@ -24,6 +24,8 @@ var (
 	cleanBaseImages    = docker.CleanBaseImages
 	pruneImages        = docker.PruneImages
 	pruneBuildCache    = docker.PruneBuildCache
+	ensureNetwork      = docker.EnsureNetwork
+	removeNetwork      = docker.RemoveNetwork
 	createVolume       = docker.CreateVolume
 	listVolumes        = docker.ListVolumes
 	listVolumeNames    = docker.ListVolumeNames

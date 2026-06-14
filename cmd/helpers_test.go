@@ -28,8 +28,9 @@ func captureStdout(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
-// captureRunContainer replaces runContainer, ensureNamedVolumes, and inspectImage
-// with stubs that record the RunSpec and tool args. Returns a getter for the captured values.
+// captureRunContainer replaces runContainer, ensureNamedVolumes, ensureNetwork,
+// and inspectImage with stubs that record the RunSpec and tool args. Returns a
+// getter for the captured values.
 func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	t.Helper()
 	var capturedSpec docker.RunSpec
@@ -47,6 +48,9 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 		return nil
 	}
 
+	origEnsureNet := ensureNetwork
+	ensureNetwork = func() error { return nil }
+
 	origInspect := inspectImage
 	inspectImage = func(name string) (*docker.ImageInfo, error) {
 		return &docker.ImageInfo{Image: name}, nil
@@ -55,6 +59,7 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	t.Cleanup(func() {
 		runContainer = origRun
 		ensureNamedVolumes = origEnsure
+		ensureNetwork = origEnsureNet
 		inspectImage = origInspect
 	})
 
@@ -186,6 +191,13 @@ func stubEnsureNamedVolumes(t *testing.T, fn func(volumes []string, toolHome, co
 	orig := ensureNamedVolumes
 	ensureNamedVolumes = fn
 	t.Cleanup(func() { ensureNamedVolumes = orig })
+}
+
+func stubEnsureNetwork(t *testing.T, fn func() error) {
+	t.Helper()
+	orig := ensureNetwork
+	ensureNetwork = fn
+	t.Cleanup(func() { ensureNetwork = orig })
 }
 
 func stubCurrentGOOS(t *testing.T, goos string) {

@@ -67,6 +67,7 @@ func TestRunTool(t *testing.T) {
 
 func Test_buildRunSpec(t *testing.T) {
 	stubEnsureNamedVolumes(t, func([]string, string, string, string) error { return nil })
+	stubEnsureNetwork(t, func() error { return nil })
 
 	t.Run("volumes wired", func(t *testing.T) {
 		// Arrange
@@ -186,6 +187,20 @@ func Test_buildRunSpec(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "volume error")
+	})
+
+	t.Run("ensure network error propagates", func(t *testing.T) {
+		// Arrange
+		withTempToolHome(t)
+		stubEnsureNetwork(t, func() error { return fmt.Errorf("network error") })
+		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
+
+		// Act
+		_, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "network error")
 	})
 }
 

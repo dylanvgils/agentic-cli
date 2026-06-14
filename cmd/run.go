@@ -144,6 +144,9 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 	if err := ensureNamedVolumes(volumes, toolHome, containerHome, tools.BusyboxImageFor(registry)); err != nil {
 		return docker.RunSpec{}, err
 	}
+	if err := ensureNetwork(); err != nil {
+		return docker.RunSpec{}, err
+	}
 
 	rs := docker.NewRunSpec(args.imageName).
 		WithToolHome(toolHome).

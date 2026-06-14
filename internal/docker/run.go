@@ -98,6 +98,8 @@ func buildBaseArgs(rs RunSpec) []string {
 		arg("cpus", resolveLimit(rs.CPUs, config.EnvCPUs, DefaultCPUs)),
 		// Maximum memory the container can use
 		arg("memory", resolveLimit(rs.Memory, config.EnvMemory, DefaultMemory)),
+		// Security: isolate from other host containers
+		arg("network", NetworkName),
 		// Security: drop all capabilities
 		arg("cap-drop", "ALL"),
 		// Security: prevent privilege escalation

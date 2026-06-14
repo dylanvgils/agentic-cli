@@ -11,6 +11,7 @@ Containers run with:
 - No privilege escalation (`no-new-privileges`)
 - Host UID/GID mapping - the container process runs as your user, so file permissions on mounted directories work correctly
 - `/tmp` limited to 1 GB
+- Isolated Docker network (`agentic-net`) - containers cannot reach other containers on the host, only the internet
 
 When a tool needs to write somewhere (config, cache, temp files), it gets a targeted mount - a named volume or bind mount for persistent state, or a tmpfs for ephemeral scratch space. Nothing gets write access unless explicitly granted.
 

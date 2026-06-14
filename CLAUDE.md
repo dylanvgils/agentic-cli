@@ -119,7 +119,7 @@ Always check shell scripts with `shellcheck` before committing. Fix all warnings
 
 ### Security constraints (enforced in `internal/docker/run.go`)
 
-`--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`, `--user $(id -u):$(id -g)`. Do not relax these. If a tool needs write access, use a targeted tmpfs or volume mount instead.
+`--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`, `--user $(id -u):$(id -g)`, `--network agentic-net`. Do not relax these. If a tool needs write access, use a targeted tmpfs or volume mount instead. `agentic-net` is a custom bridge that isolates containers from other host containers; it is created on demand by `EnsureNetwork()` in `internal/docker/network.go` and removed on full `agentic clean`.
 
 ### Keeping docs in sync
 
