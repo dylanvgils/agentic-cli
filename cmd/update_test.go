@@ -152,7 +152,7 @@ func Test_resolveAllUpdateTargets(t *testing.T) {
 		// Act
 		targets, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}})
 
-		// Assert — each target gets its own label-recovered base, not a shared one
+		// Assert - each target gets its own label-recovered base, not a shared one
 		require.NoError(t, err)
 		require.Len(t, targets, 2)
 		assert.NotEmpty(t, targets[0].opts.BaseOverride)
@@ -518,7 +518,7 @@ func TestRunUpdate(t *testing.T) {
 	})
 
 	t.Run("all flag clears rc config base for per-image recovery", func(t *testing.T) {
-		// Arrange — simulate an RC config with build.bases = ["java"] in a temp dir.
+		// Arrange - simulate an RC config with build.bases = ["java"] in a temp dir.
 		// Without the fix, opts.BaseOverride = "java" (from RC) would prevent per-image
 		// recovery, and every image would be rebuilt with "java" regardless of its label.
 		t.Chdir(t.TempDir())
@@ -545,7 +545,7 @@ func TestRunUpdate(t *testing.T) {
 		// Act
 		err := runUpdate(cmd, []string{})
 
-		// Assert — each image uses its own label-recovered base, not "java" from RC
+		// Assert - each image uses its own label-recovered base, not "java" from RC
 		require.NoError(t, err)
 		require.Len(t, capturedOpts, 2)
 		assert.NotEqual(t, []string{"java"}, capturedOpts[0].BaseOverride)
@@ -554,7 +554,7 @@ func TestRunUpdate(t *testing.T) {
 	})
 
 	t.Run("rc config base does not override per-image label for single tool", func(t *testing.T) {
-		// Arrange — RC config with build.bases = ["java"]; image was built with go only.
+		// Arrange - RC config with build.bases = ["java"]; image was built with go only.
 		t.Chdir(t.TempDir())
 		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\nbases = [\"java\"]\n"), 0o600))
 
@@ -569,14 +569,14 @@ func TestRunUpdate(t *testing.T) {
 		// Act
 		err := runUpdate(updateCmd, []string{"claude"})
 
-		// Assert — image's own base recovered from label, not java from RC
+		// Assert - image's own base recovered from label, not java from RC
 		require.NoError(t, err)
 		assert.NotEmpty(t, capturedOpts.BaseOverride)
 		assert.NotEqual(t, []string{"java"}, capturedOpts.BaseOverride)
 	})
 
 	t.Run("rc config apt does not override per-image label for single tool", func(t *testing.T) {
-		// Arrange — RC config with build.apt_packages = ["make"]; image was built with cmake only.
+		// Arrange - RC config with build.apt_packages = ["make"]; image was built with cmake only.
 		t.Chdir(t.TempDir())
 		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\napt_packages = [\"make\"]\n"), 0o600))
 
@@ -591,13 +591,13 @@ func TestRunUpdate(t *testing.T) {
 		// Act
 		err := runUpdate(updateCmd, []string{"claude"})
 
-		// Assert — image's own apt packages recovered from label, RC config apt not injected
+		// Assert - image's own apt packages recovered from label, RC config apt not injected
 		require.NoError(t, err)
 		assert.Equal(t, []string{"cmake"}, capturedOpts.AptPackages)
 	})
 
 	t.Run("all flag with explicit base flag applies base to all images", func(t *testing.T) {
-		// Arrange — use a temp dir (no RC config) so the only base is the explicit flag.
+		// Arrange - use a temp dir (no RC config) so the only base is the explicit flag.
 		t.Chdir(t.TempDir())
 
 		var capturedOpts []tools.BuildOptions
@@ -625,7 +625,7 @@ func TestRunUpdate(t *testing.T) {
 		// Act
 		err := runUpdate(cmd, []string{})
 
-		// Assert — explicit --base java must reach every target unchanged
+		// Assert - explicit --base java must reach every target unchanged
 		require.NoError(t, err)
 		require.Len(t, capturedOpts, 2)
 		assert.Equal(t, []string{"java"}, capturedOpts[0].BaseOverride)
@@ -633,7 +633,7 @@ func TestRunUpdate(t *testing.T) {
 	})
 
 	t.Run("all flag with base env var applies base to all images", func(t *testing.T) {
-		// Arrange — AGENTIC_BASE_OVERRIDE is an explicit env override; it must NOT be cleared.
+		// Arrange - AGENTIC_BASE_OVERRIDE is an explicit env override; it must NOT be cleared.
 		t.Chdir(t.TempDir())
 		t.Setenv(config.EnvBaseOverride, "java")
 
@@ -658,7 +658,7 @@ func TestRunUpdate(t *testing.T) {
 		// Act
 		err := runUpdate(cmd, []string{})
 
-		// Assert — env var override must reach every target unchanged
+		// Assert - env var override must reach every target unchanged
 		require.NoError(t, err)
 		require.Len(t, capturedOpts, 2)
 		assert.Equal(t, []string{"java"}, capturedOpts[0].BaseOverride)
@@ -717,7 +717,7 @@ func TestRunUpdate(t *testing.T) {
 		// Act
 		err := runUpdate(cmd, []string{})
 
-		// Assert — same tool rebuilt across two namespaces should reuse the same
+		// Assert - same tool rebuilt across two namespaces should reuse the same
 		// CacheBust value, so Docker can serve cached tool-stage layers for the second build
 		require.NoError(t, err)
 		require.Len(t, capturedOpts, 2)

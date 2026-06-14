@@ -158,7 +158,7 @@ func TestUpdateTool(t *testing.T) {
 		stubDockerRunBySubcmd(t, nil)
 		getCalls := stubRunInteractiveAll(t)
 
-		// Act — confirm UpdateTool sets a CacheBust value that triggers the CACHEBUST build arg on the tool stage
+		// Act - confirm UpdateTool sets a CacheBust value that triggers the CACHEBUST build arg on the tool stage
 		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
 
 		// Assert

@@ -62,7 +62,7 @@ func TestWriteTempDockerfile(t *testing.T) {
 	})
 
 	t.Run("cleans tmpDir on write error", func(t *testing.T) {
-		// Arrange — make the Dockerfile path a directory so WriteFile fails
+		// Arrange - make the Dockerfile path a directory so WriteFile fails
 		tmpDir, err := os.MkdirTemp("", "agentic-test-*")
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
@@ -81,7 +81,7 @@ func TestWriteTempDockerfile(t *testing.T) {
 
 		// writeTempDockerfile creates its own temp dir; we can't inject it directly.
 		// Verify only that a valid call returns no error (error injection is done via OS perms above
-		// on a separate dir — this test validates the happy path leaves the caller a usable tmpDir).
+		// on a separate dir - this test validates the happy path leaves the caller a usable tmpDir).
 		// Act
 		_, writeErr := writeTempDockerfile("FROM scratch\n")
 

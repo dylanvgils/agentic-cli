@@ -170,7 +170,7 @@ func TestNormalizeMountSpec(t *testing.T) {
 		// Act
 		result := NormalizeMountSpec("/host/data:/container//path")
 
-		// Assert — redundant slash on container side is preserved
+		// Assert - redundant slash on container side is preserved
 		assert.Equal(t, "/host/data:/container//path", result)
 	})
 }
@@ -273,7 +273,7 @@ func TestExpandMountSpec(t *testing.T) {
 	})
 
 	t.Run("CONTAINER_HOME in host part not expanded", func(t *testing.T) {
-		// Arrange — $CONTAINER_HOME mistakenly on host side should not expand
+		// Arrange - $CONTAINER_HOME mistakenly on host side should not expand
 		spec := "$CONTAINER_HOME/data:/container/data"
 
 		// Act
@@ -284,7 +284,7 @@ func TestExpandMountSpec(t *testing.T) {
 	})
 
 	t.Run("TOOL_HOME in container part not expanded", func(t *testing.T) {
-		// Arrange — $TOOL_HOME mistakenly on container side should not expand
+		// Arrange - $TOOL_HOME mistakenly on container side should not expand
 		spec := "/host/data:$TOOL_HOME/data"
 
 		// Act

@@ -375,7 +375,7 @@ func TestListAllImages(t *testing.T) {
 			switch callNum {
 			case 1: // images --filter
 				return "agentic-claude\nagentic-copilot\n", nil
-			case 2: // inspect claude — image does not exist
+			case 2: // inspect claude - image does not exist
 				return "", fmt.Errorf("No such image: agentic-claude")
 			case 3: // inspect copilot
 				return `{"Id":"sha256:b2c3d4e5f6a7bcdef012345678901234567890","Config":{"Labels":{"agentic.tool":"copilot"}}}`, nil

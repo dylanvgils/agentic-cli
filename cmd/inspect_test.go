@@ -84,7 +84,7 @@ func Test_runInspect(t *testing.T) {
 
 func Test_runInspectTable(t *testing.T) {
 	t.Run("with namespace shows namespace images only", func(t *testing.T) {
-		// Arrange — stub returns only the agentic image (as Docker would after label filtering)
+		// Arrange - stub returns only the agentic image (as Docker would after label filtering)
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{builtInfo}, nil
 		})
