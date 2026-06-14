@@ -411,7 +411,8 @@ func TestRunUpdate(t *testing.T) {
 			return nil
 		})
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
 
 		require.NoError(t, updateCmd.Flags().Set("no-cache", "true"))
 		defer updateCmd.Flags().Set("no-cache", "false") //nolint:errcheck
@@ -422,22 +423,6 @@ func TestRunUpdate(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, capturedOpts.NoCache)
-	})
-
-	t.Run("prune message shown when reclaimed non zero", func(t *testing.T) {
-		// Arrange
-		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
-		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-		stubPruneImages(t, func() (string, error) { return "512MB", nil })
-
-		// Act
-		out := captureStdout(t, func() {
-			err := runUpdate(updateCmd, []string{"claude"})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "=> pruned dangling images (reclaimed 512MB)")
 	})
 
 	t.Run("stops on first update error", func(t *testing.T) {
@@ -497,7 +482,8 @@ func TestRunUpdate(t *testing.T) {
 			return nil
 		})
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
 				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},
@@ -530,7 +516,8 @@ func TestRunUpdate(t *testing.T) {
 			return nil
 		})
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
 				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "go@1.23"},
@@ -564,7 +551,8 @@ func TestRunUpdate(t *testing.T) {
 			return nil
 		})
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0", Base: "go@1.23"}, nil)
-		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
 
 		// Act
 		err := runUpdate(updateCmd, []string{"claude"})
@@ -586,7 +574,8 @@ func TestRunUpdate(t *testing.T) {
 			return nil
 		})
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0", Apt: "cmake"}, nil)
-		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
 
 		// Act
 		err := runUpdate(updateCmd, []string{"claude"})
@@ -606,7 +595,8 @@ func TestRunUpdate(t *testing.T) {
 			return nil
 		})
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
 				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},
@@ -643,7 +633,8 @@ func TestRunUpdate(t *testing.T) {
 			return nil
 		})
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
 				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},
@@ -673,7 +664,8 @@ func TestRunUpdate(t *testing.T) {
 			return nil
 		})
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
 		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			// Docker would apply the ToolFilter server-side; simulate by honouring it here.
 			return []*docker.ImageInfo{
@@ -702,7 +694,8 @@ func TestRunUpdate(t *testing.T) {
 			return nil
 		})
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
 				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},

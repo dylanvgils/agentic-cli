@@ -52,7 +52,8 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return pruneAndReport()
+	pruneResources()
+	return nil
 }
 
 func dryRunBuild(args []string, opts tools.BuildOptions) error {

@@ -153,11 +153,18 @@ func stubListVolumes(t *testing.T, fn func() (string, error)) {
 	t.Cleanup(func() { listVolumes = orig })
 }
 
-func stubPruneImages(t *testing.T, fn func() (string, error)) {
+func stubPruneImages(t *testing.T, fn func() error) {
 	t.Helper()
 	orig := pruneImages
 	pruneImages = fn
 	t.Cleanup(func() { pruneImages = orig })
+}
+
+func stubPruneBuildCache(t *testing.T, fn func() error) {
+	t.Helper()
+	orig := pruneBuildCache
+	pruneBuildCache = fn
+	t.Cleanup(func() { pruneBuildCache = orig })
 }
 
 func stubRemoveVolume(t *testing.T, fn func(string) error) {

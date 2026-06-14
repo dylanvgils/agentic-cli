@@ -180,7 +180,8 @@ func TestRunBuild(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		})
-		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
 
 		require.NoError(t, buildCmd.Flags().Set("no-cache", "true"))
 		defer buildCmd.Flags().Set("no-cache", "false") //nolint:errcheck
@@ -201,7 +202,8 @@ func TestRunBuild(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		})
-		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
 
 		require.NoError(t, buildCmd.Flags().Set("base", "java"))
 		defer buildCmd.Flags().Set("base", "") //nolint:errcheck
@@ -235,7 +237,8 @@ func TestRunBuild(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		})
-		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
 
 		require.NoError(t, buildCmd.Flags().Set("node", "22"))
 		defer buildCmd.Flags().Set("node", "") //nolint:errcheck
@@ -255,7 +258,8 @@ func TestRunBuild(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		})
-		stubPruneImages(t, func() (string, error) { return "", nil })
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
 
 		require.NoError(t, buildCmd.Flags().Set("go", "1.23"))
 		defer buildCmd.Flags().Set("go", "") //nolint:errcheck
@@ -268,33 +272,4 @@ func TestRunBuild(t *testing.T) {
 		assert.Equal(t, "1.23", capturedOpts.Versions["go"])
 	})
 
-	t.Run("prune message shown when reclaimed non zero", func(t *testing.T) {
-		// Arrange
-		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
-		stubPruneImages(t, func() (string, error) { return "1.23GB", nil })
-
-		// Act
-		out := captureStdout(t, func() {
-			err := runBuild(buildCmd, []string{"claude"})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "=> pruned dangling images (reclaimed 1.23GB)")
-	})
-
-	t.Run("prune message hidden when reclaimed zero", func(t *testing.T) {
-		// Arrange
-		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
-		stubPruneImages(t, func() (string, error) { return "", nil })
-
-		// Act
-		out := captureStdout(t, func() {
-			err := runBuild(buildCmd, []string{"claude"})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.NotContains(t, out, "pruned dangling images")
-	})
 }

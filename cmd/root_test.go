@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -115,5 +116,42 @@ func TestCheckDocker(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, called)
+	})
+}
+
+func TestPruneResources(t *testing.T) {
+	t.Run("calls pruneImages", func(t *testing.T) {
+		// Arrange
+		var called bool
+		stubPruneImages(t, func() error { called = true; return nil })
+		stubPruneBuildCache(t, func() error { return nil })
+
+		// Act
+		pruneResources()
+
+		// Assert
+		assert.True(t, called)
+	})
+
+	t.Run("calls pruneBuildCache", func(t *testing.T) {
+		// Arrange
+		var called bool
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { called = true; return nil })
+
+		// Act
+		pruneResources()
+
+		// Assert
+		assert.True(t, called)
+	})
+
+	t.Run("silent on error", func(t *testing.T) {
+		// Arrange
+		stubPruneImages(t, func() error { return fmt.Errorf("prune failed") })
+		stubPruneBuildCache(t, func() error { return fmt.Errorf("cache prune failed") })
+
+		// Act + Assert
+		assert.NotPanics(t, pruneResources)
 	})
 }

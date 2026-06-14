@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
@@ -131,18 +130,4 @@ func extrasEnvDoc() string {
 	}
 
 	return strings.Join(lines, "\n")
-}
-
-// pruneAndReport prunes dangling Docker images and prints a summary of reclaimed space.
-func pruneAndReport() error {
-	reclaimed, err := pruneImages()
-	if err != nil {
-		return err
-	}
-
-	if reclaimed != "" {
-		output.Stepf("pruned dangling images (reclaimed %s)", reclaimed)
-	}
-
-	return nil
 }
