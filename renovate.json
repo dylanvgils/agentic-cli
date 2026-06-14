@@ -12,6 +12,11 @@
       "groupName": "GitHub Actions"
     },
     {
+      "matchManagers": ["dockerfile"],
+      "matchDepNames": ["debian"],
+      "versioning": "regex:^(?<major>\\d+)-slim$"
+    },
+    {
       "matchDepNames": ["go"],
       "matchDatasources": ["golang-version"],
       "groupName": "Go version"
@@ -29,6 +34,15 @@
       "matchStrings": ["\"node\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "node",
       "datasourceTemplate": "node-version"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
+      "matchStrings": ["\"nvm\":\\s*\"(?<currentValue>[\\d.]+)\",\\s*\\n\\s*\"nvm_checksum\":\\s*\"(?<currentDigest>[a-f0-9]+)\""],
+      "depNameTemplate": "nvm-sh/nvm",
+      "datasourceTemplate": "github-releases",
+      "extractVersion": "^v(?<version>.+)$",
+      "digestFileTemplate": "https://raw.githubusercontent.com/nvm-sh/nvm/v{{newValue}}/install.sh"
     },
     {
       "customType": "regex",
@@ -63,7 +77,8 @@
       "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
       "matchStrings": ["\"debian\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "debian",
-      "datasourceTemplate": "docker"
+      "datasourceTemplate": "docker",
+      "versioning": "regex:^(?<major>\\d+)-slim$"
     },
     {
       "customType": "regex",

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 
@@ -50,7 +51,7 @@ func collectRegistry(cmd *cobra.Command) string {
 // update commands. --no-cache is registered separately because its description
 // differs between the two commands.
 func addBuildFlags(cmd *cobra.Command) {
-	cmd.Flags().StringSlice("base", nil, "extra runtime(s) to layer on top of node; repeatable or comma-separated (e.g. --base java --base dotnet or --base java,dotnet)")
+	cmd.Flags().StringSlice("base", nil, "extra runtime(s) to layer on top of debian; repeatable or comma-separated (e.g. --base node --base java or --base node,java)")
 	cmd.Flags().StringSlice("apt", nil, "apt packages to install in the base stage; repeatable or comma-separated (e.g. --apt make --apt gcc or --apt make,gcc)")
 	cmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
 
@@ -94,9 +95,7 @@ func collectBases(cmd *cobra.Command, rc *config.AgenticRC) []string {
 // overridden by CLI flags and environment variables.
 func collectVersions(cmd *cobra.Command, rc *config.AgenticRC) map[string]string {
 	versions := make(map[string]string, len(rc.Build.Versions))
-	for k, v := range rc.Build.Versions {
-		versions[k] = v
-	}
+	maps.Copy(versions, rc.Build.Versions)
 
 	for _, name := range tools.KnownLayers() {
 		if v := flagOrEnv(cmd, name, config.EnvVersionVar(name)); v != "" {

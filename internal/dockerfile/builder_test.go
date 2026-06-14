@@ -64,7 +64,7 @@ func TestStageBuilder_Add(t *testing.T) {
 			Add(C("a comment", User{Name: "claude"})).
 			Build()
 
-		// Assert — exactly one Located, Inst is User (not a nested Located)
+		// Assert - exactly one Located, Inst is User (not a nested Located)
 		located, ok := stage.Instructions[0].(Located)
 		assert.True(t, ok)
 		assert.Equal(t, "a comment", located.Comment)

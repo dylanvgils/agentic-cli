@@ -55,6 +55,15 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	all, _ := cmd.Flags().GetBool("all")
 
+	// For update, RC config bases/apt must not prevent per-image label recovery.
+	// Only explicit CLI flags and env vars should override what the image was built with.
+	if !cmd.Flags().Changed("base") && os.Getenv(config.EnvBaseOverride) == "" {
+		opts.BaseOverride = nil
+	}
+	if !cmd.Flags().Changed("apt") && os.Getenv(config.EnvAptPackages) == "" {
+		opts.AptPackages = nil
+	}
+
 	if dryRun {
 		return dryRunUpdate(args, namespace, opts)
 	}
@@ -62,18 +71,6 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	// Generate the cache-bust value once so multiple targets for the same tool
 	// (e.g. --all updating it across namespaces) can still share cached layers.
 	opts.CacheBust = docker.NewCacheBust()
-
-	// For --all, RC config bases/apt must not prevent per-image label recovery:
-	// images in other namespaces may have been built with different configs.
-	// Only explicit CLI flags and env vars should override all images.
-	if all {
-		if !cmd.Flags().Changed("base") && os.Getenv(config.EnvBaseOverride) == "" {
-			opts.BaseOverride = nil
-		}
-		if !cmd.Flags().Changed("apt") && os.Getenv(config.EnvAptPackages) == "" {
-			opts.AptPackages = nil
-		}
-	}
 
 	targets, err := resolveUpdateTargets(args, namespace, opts, all)
 	if err != nil {

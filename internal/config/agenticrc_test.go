@@ -71,7 +71,7 @@ func TestCollectPaths(t *testing.T) {
 		// Act
 		paths := collectPaths(child)
 
-		// Assert — child first, then parent
+		// Assert - child first, then parent
 		assert.Equal(t, []string{rcPath}, paths)
 	})
 
@@ -88,7 +88,7 @@ func TestCollectPaths(t *testing.T) {
 		// Act
 		paths := collectPaths(child)
 
-		// Assert — innermost first
+		// Assert - innermost first
 		assert.Equal(t, []string{childRC, parentRC}, paths)
 	})
 
@@ -144,7 +144,7 @@ func TestLoadConfigs(t *testing.T) {
 		// Act
 		configs, err := loadConfigs([]string{withRoot, shouldSkip})
 
-		// Assert — second file not loaded
+		// Assert - second file not loaded
 		require.NoError(t, err)
 		assert.Len(t, configs, 1)
 		assert.Equal(t, "4", configs[0].Run.CPUs)
@@ -158,7 +158,7 @@ func TestLoadConfigs(t *testing.T) {
 		// Act
 		configs, err := loadConfigs([]string{invalid, valid})
 
-		// Assert — error propagated, valid file after it not loaded
+		// Assert - error propagated, valid file after it not loaded
 		assert.ErrorContains(t, err, invalid)
 		assert.Empty(t, configs)
 	})
@@ -185,7 +185,7 @@ func TestMergeConfigs(t *testing.T) {
 		// Act
 		result := mergeConfigs([]*AgenticRC{child, parent})
 
-		// Assert — child wins for set scalars, parent fills unset ones
+		// Assert - child wins for set scalars, parent fills unset ones
 		assert.Equal(t, "8", result.Run.CPUs)
 		assert.Equal(t, "8g", result.Run.Memory)
 		assert.Equal(t, "512", result.Run.PidsLimit)
@@ -223,7 +223,7 @@ func TestMergeConfigs(t *testing.T) {
 		// Act
 		result := mergeConfigs([]*AgenticRC{child, parent})
 
-		// Assert — parent (outermost) entries first
+		// Assert - parent (outermost) entries first
 		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, result.Run.ExtraMounts)
 		assert.Equal(t, []string{"parent-secret", "child-secret"}, result.Run.Secrets)
 		assert.Equal(t, []string{"make", "gcc"}, result.Build.AptPackages)
@@ -238,7 +238,7 @@ func TestMergeConfigs(t *testing.T) {
 		// Act
 		result := mergeConfigs([]*AgenticRC{child, parent})
 
-		// Assert — child wins for "node"; parent fills keys not set by child
+		// Assert - child wins for "node"; parent fills keys not set by child
 		assert.Equal(t, "22", result.Build.Versions["node"])
 		assert.Equal(t, "17", result.Build.Versions["java"])
 		assert.Equal(t, "8", result.Build.Versions["dotnet"])
@@ -439,7 +439,7 @@ func TestFindLayers(t *testing.T) {
 		// Act
 		layers, err := FindLayers(child)
 
-		// Assert — outermost (parent) is index 0
+		// Assert - outermost (parent) is index 0
 		require.NoError(t, err)
 		require.Len(t, layers, 2)
 		assert.Equal(t, parentRC, layers[0].Path)
@@ -462,7 +462,7 @@ func TestFindLayers(t *testing.T) {
 		// Act
 		layers, err := FindLayers(child)
 
-		// Assert — grandparent excluded because parent has root=true
+		// Assert - grandparent excluded because parent has root=true
 		require.NoError(t, err)
 		require.Len(t, layers, 2)
 		assert.Equal(t, parentRC, layers[0].Path)

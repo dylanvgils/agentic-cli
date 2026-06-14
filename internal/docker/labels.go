@@ -15,9 +15,9 @@ const (
 	// the image name at stamp time. Used to filter images by namespace.
 	LabelNamespace = "agentic.namespace"
 
-	// LabelBase records the observed base composition: the node and extra-layer
-	// versions actually detected inside the built image (see collectBaseLabel).
-	// This is what `agentic inspect` shows the user - "what is this image?".
+	// LabelBase records the observed extra-layer versions actually detected inside
+	// the built image (see collectBaseLabel). This is what `agentic inspect` shows
+	// the user - "what is this image?".
 	LabelBase = "agentic.base"
 
 	// LabelVersionArgs records the requested base composition: the exact ARG
@@ -56,14 +56,14 @@ const (
 // agentic.version label. Set from cmd.Version at startup.
 var CLIVersion = "dev"
 
-// RecoverExtras parses an agentic.base label and returns the non-node extras as a slice.
-// e.g. "node@24.2.0,java@21.0.1" → ["java"]
+// RecoverExtras parses an agentic.base label and returns the extra layer names as a slice.
+// e.g. "node@24.2.0,java@21.0.1" → ["node", "java"]
 func RecoverExtras(baseLabel string) []string {
 	var extras []string
 
 	for part := range strings.SplitSeq(baseLabel, ",") {
 		name, _, _ := strings.Cut(part, "@")
-		if name == "" || name == "node" {
+		if name == "" {
 			continue
 		}
 		extras = append(extras, name)
@@ -106,23 +106,18 @@ func label(key, value string) string {
 	return arg("label", key+"="+value)
 }
 
-// buildBaseLabel constructs the agentic.base label value from the node version
-// and any extra layers with their detected versions.
-func buildBaseLabel(nodeVer string, extras []string, extraVersions map[string]string) string {
-	var label strings.Builder
-	label.WriteString("node")
-	if nodeVer != "" {
-		label.WriteString("@" + nodeVer)
-	}
-
+// buildBaseLabel constructs the agentic.base label value from the extra layers
+// and their detected versions.
+func buildBaseLabel(extras []string, extraVersions map[string]string) string {
+	var parts []string
 	for _, extra := range extras {
-		label.WriteString("," + extra)
+		part := extra
 		if ver := extraVersions[extra]; ver != "" {
-			label.WriteString("@" + ver)
+			part += "@" + ver
 		}
+		parts = append(parts, part)
 	}
-
-	return label.String()
+	return strings.Join(parts, ",")
 }
 
 // buildVersionArgsLabel constructs the agentic.version-args label value from the resolved

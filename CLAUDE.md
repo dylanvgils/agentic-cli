@@ -28,7 +28,17 @@ Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-sp
 
 ### Adding a new runtime layer
 
-Add a new case to `extraStage()` in `internal/docker/bases.go` (follow the `javaStage`/`dotnetStage`/`goStage` pattern), add the name to `knownExtras`, and add a `--<name>` flag to `cmd/build.go`, `cmd/update.go`, and `cmd/flags.go`.
+Add a new case to `extraStage()` in `internal/tools/bases.go` (follow the `javaStage`/`dotnetStage`/`goStage` pattern), add the name to `knownExtras`, and add a `--<name>` flag to `cmd/build.go`, `cmd/update.go`, and `cmd/flags.go`.
+
+### Dockerfile DSL (`internal/dockerfile`)
+
+Install steps use `df.Run{Blocks: []df.Block{...}}`; version check scripts use `df.Heredoc`. Block conventions:
+
+- **Block = logical group**: each `Block` is one phase of work; the renderer joins blocks with `&&`.
+- **Independent commands** within a group each get their own `Block` (one `Lines` entry).
+- **Multi-line single commands** (pipelines, subshells) use multiple `Lines` entries within one `Block` - the renderer joins them with `\` continuation.
+- **`&&`-chained commands** within one block: set `Chain: true` on the `Block` and list the commands as `Lines` - the renderer joins them with `\\\n  &&`.
+- Stages that use pipelines need `df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}` before the `Run`.
 
 ### Cobra command init functions
 

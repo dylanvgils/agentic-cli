@@ -62,7 +62,7 @@ func TestWriteTempDockerfile(t *testing.T) {
 	})
 
 	t.Run("cleans tmpDir on write error", func(t *testing.T) {
-		// Arrange — make the Dockerfile path a directory so WriteFile fails
+		// Arrange - make the Dockerfile path a directory so WriteFile fails
 		tmpDir, err := os.MkdirTemp("", "agentic-test-*")
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
@@ -81,7 +81,7 @@ func TestWriteTempDockerfile(t *testing.T) {
 
 		// writeTempDockerfile creates its own temp dir; we can't inject it directly.
 		// Verify only that a valid call returns no error (error injection is done via OS perms above
-		// on a separate dir — this test validates the happy path leaves the caller a usable tmpDir).
+		// on a separate dir - this test validates the happy path leaves the caller a usable tmpDir).
 		// Act
 		_, writeErr := writeTempDockerfile("FROM scratch\n")
 
@@ -194,18 +194,47 @@ func TestBuildImage(t *testing.T) {
 		assert.Contains(t, args, "--build-arg=HOST_GID="+platform.GetGID())
 	})
 
-	t.Run("nodeVersion adds build arg", func(t *testing.T) {
+	t.Run("debianVersion adds build arg", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{Versions: map[string]string{"node": "20.11.0"}})
+		err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{Versions: map[string]string{"debian": "trixie-slim"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, get(), "--build-arg=DEBIAN_VERSION=trixie-slim")
+	})
+
+	t.Run("empty debianVersion omits build arg", func(t *testing.T) {
+		// Act
+		err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		for _, a := range get() {
+			assert.False(t, strings.HasPrefix(a, "--build-arg=DEBIAN_VERSION"), "unexpected DEBIAN_VERSION arg: %s", a)
+		}
+	})
+
+	t.Run("node extra version adds build arg", func(t *testing.T) {
+		// Arrange
+		opts := tools.BuildOptions{
+			BaseOverride: []string{"node"},
+			Versions:     map[string]string{"node": "20.11.0"},
+		}
+
+		// Act
+		err := buildImage("/tmp/x", "agentic-test", opts)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, get(), "--build-arg=NODE_VERSION=20.11.0")
 	})
 
-	t.Run("empty nodeVersion omits build arg", func(t *testing.T) {
+	t.Run("node extra without version omits build arg", func(t *testing.T) {
+		// Arrange
+		opts := tools.BuildOptions{BaseOverride: []string{"node"}}
+
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", tools.BuildOptions{})
+		err := buildImage("/tmp/x", "agentic-test", opts)
 
 		// Assert
 		require.NoError(t, err)

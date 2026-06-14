@@ -38,6 +38,21 @@ func TestRun_renderBlocks(t *testing.T) {
 		assert.Equal(t, "RUN apt-get update \\\n  && apt-get install curl \\\n  wget \\\n  && rm -rf /var/lib/apt/lists/*", result)
 	})
 
+	t.Run("And joins lines with &&", func(t *testing.T) {
+		// Arrange
+		run := Run{Blocks: []Block{
+			{Lines: []string{"apt-get update"}},
+			{Chain: true, Lines: []string{"apt-get install curl", "wget"}},
+			{Lines: []string{"rm -rf /var/lib/apt/lists/*"}},
+		}}
+
+		// Act
+		result := run.renderBlocks()
+
+		// Assert
+		assert.Equal(t, "RUN apt-get update \\\n  && apt-get install curl \\\n  && wget \\\n  && rm -rf /var/lib/apt/lists/*", result)
+	})
+
 	t.Run("with comment", func(t *testing.T) {
 		// Arrange
 		run := Run{Blocks: []Block{

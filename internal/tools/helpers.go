@@ -42,10 +42,8 @@ func createContainerUser(name string) []df.Instruction {
 					`fi`,
 				},
 			},
-			{Comment: "Create container user", Lines: []string{
+			{Comment: "Create container user", Chain: true, Lines: []string{
 				fmt.Sprintf(`groupadd -g ${HOST_GID} --non-unique %s`, name),
-			}},
-			{Lines: []string{
 				fmt.Sprintf(`useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique %s`, name),
 			}},
 		}},

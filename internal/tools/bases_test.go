@@ -12,46 +12,106 @@ func Test_baseStage(t *testing.T) {
 	stage := baseStage("", "", collectPackages(nil, nil))
 	result := renderStage(stage)
 
-	t.Run("from uses node image", func(t *testing.T) {
+	t.Run("from uses debian image", func(t *testing.T) {
 		// Assert
-		assert.Contains(t, stage.From.Image, "node:")
+		assert.Contains(t, stage.From.Image, "debian:")
 		assert.Equal(t, "base", stage.From.As)
 	})
 
 	t.Run("default version arg", func(t *testing.T) {
 		// Assert
 		require.Len(t, stage.GlobalArgs, 1)
-		assert.Equal(t, "NODE_VERSION", stage.GlobalArgs[0].Key)
-		assert.Equal(t, DefaultVersions.Node, stage.GlobalArgs[0].Default)
+		assert.Equal(t, "DEBIAN_VERSION", stage.GlobalArgs[0].Key)
+		assert.Equal(t, DefaultVersions.Debian, stage.GlobalArgs[0].Default)
 	})
 
 	t.Run("version override", func(t *testing.T) {
 		// Arrange
-		stage := baseStage("22", "", nil)
+		stage := baseStage("trixie-slim", "", nil)
 
 		// Assert
-		assert.Equal(t, "22", stage.GlobalArgs[0].Default)
+		assert.Equal(t, "trixie-slim", stage.GlobalArgs[0].Default)
 	})
 
-	t.Run("registry prefix applied to node image", func(t *testing.T) {
+	t.Run("registry prefix applied to debian image", func(t *testing.T) {
 		// Arrange
 		stage := baseStage("", "myregistry.example.com", nil)
 
 		// Assert
-		assert.True(t, strings.HasPrefix(stage.From.Image, "myregistry.example.com/node:"),
+		assert.True(t, strings.HasPrefix(stage.From.Image, "myregistry.example.com/debian:"),
 			"expected image to start with registry prefix, got: %s", stage.From.Image)
-	})
-
-	t.Run("renders version script", func(t *testing.T) {
-		// Assert
-		assert.True(t, strings.Contains(result, "agentic-version-node"), "expected version script in node stage")
 	})
 
 	t.Run("renders apt base packages", func(t *testing.T) {
 		// Assert
 		for _, pkg := range collectPackages(nil, nil) {
-			assert.Contains(t, result, pkg, "expected base package %q in node stage", pkg)
+			assert.Contains(t, result, pkg, "expected base package %q in debian stage", pkg)
 		}
+	})
+}
+
+func Test_nodeStage(t *testing.T) {
+	stage, err := extraStage("node", "base", "")
+	require.NoError(t, err)
+	result := renderStage(stage)
+
+	t.Run("builds from prev stage as node", func(t *testing.T) {
+		// Assert
+		assert.Equal(t, "base", stage.From.Image)
+		assert.Equal(t, "node", stage.From.As)
+	})
+
+	t.Run("default node version arg", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "NODE_VERSION="+DefaultVersions.Node)
+	})
+
+	t.Run("node version override", func(t *testing.T) {
+		// Arrange
+		stage, err := extraStage("node", "base", "22")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, renderStage(stage), "NODE_VERSION=22")
+	})
+
+	t.Run("default nvm version arg", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "NVM_VERSION="+DefaultVersions.Nvm)
+	})
+
+	t.Run("default nvm checksum arg", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "NVM_CHECKSUM="+DefaultVersions.NvmChecksum)
+	})
+
+	t.Run("sets NVM_DIR env", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "NVM_DIR")
+		assert.Contains(t, result, "/usr/local/nvm")
+	})
+
+	t.Run("installs NVM via curl", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "nvm-sh/nvm")
+		assert.Contains(t, result, "install.sh")
+	})
+
+	t.Run("symlinks node binaries to /usr/local/bin", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "/usr/local/bin/node")
+		assert.Contains(t, result, "/usr/local/bin/npm")
+		assert.Contains(t, result, "/usr/local/bin/npx")
+	})
+
+	t.Run("clears nvm cache", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "nvm cache clear")
+	})
+
+	t.Run("renders version script", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "agentic-version-node")
 	})
 }
 
@@ -189,6 +249,34 @@ func Test_extraStage(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, renderStage(stage), "agentic-version-go")
+	})
+
+	t.Run("node from prev stage", func(t *testing.T) {
+		// Act
+		stage, err := extraStage("node", "base", "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "base", stage.From.Image)
+		assert.Equal(t, "node", stage.From.As)
+	})
+
+	t.Run("node default version", func(t *testing.T) {
+		// Act
+		stage, err := extraStage("node", "base", "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, renderStage(stage), "NODE_VERSION="+DefaultVersions.Node)
+	})
+
+	t.Run("node renders version script", func(t *testing.T) {
+		// Act
+		stage, err := extraStage("node", "base", "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, renderStage(stage), "agentic-version-node")
 	})
 }
 

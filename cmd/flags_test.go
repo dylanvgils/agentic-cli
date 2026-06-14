@@ -165,7 +165,7 @@ func TestCollectBases(t *testing.T) {
 		// Act
 		result := collectBases(cmd, rc)
 
-		// Assert — sorted by canonical extras order
+		// Assert - sorted by canonical extras order
 		assert.Equal(t, []string{"dotnet", "java"}, result)
 	})
 

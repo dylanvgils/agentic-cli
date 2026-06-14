@@ -17,7 +17,7 @@ func TestCheckDocker(t *testing.T) {
 			return errors.New("should not be called")
 		})
 
-		// Act — rootCmd.Parent() == nil satisfies the guard in checkDocker.
+		// Act - rootCmd.Parent() == nil satisfies the guard in checkDocker.
 		err := checkDocker(rootCmd, nil)
 
 		// Assert
@@ -41,7 +41,7 @@ func TestCheckDocker(t *testing.T) {
 	})
 
 	t.Run("completion subcommand skips check", func(t *testing.T) {
-		// Arrange — `agentic completion bash` reaches persistentPreRunE with cmd.Name()=="bash",
+		// Arrange - `agentic completion bash` reaches persistentPreRunE with cmd.Name()=="bash",
 		// which is not in noDockerCmds; the ancestor walk must find "completion" instead.
 		stubCheckDockerDaemon(t, func() error {
 			return errors.New("should not be called")

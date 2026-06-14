@@ -12,7 +12,9 @@ var versionsJSON []byte
 // Versions holds the default version strings for each supported runtime layer
 // plus the pinned tags for the utility base images (busybox, debian).
 type Versions struct {
-	Node    string `json:"node"`
+	Node        string `json:"node"`
+	Nvm         string `json:"nvm"`
+	NvmChecksum string `json:"nvm_checksum"`
 	Java    string `json:"java"`
 	Dotnet  string `json:"dotnet"`
 	Go      string `json:"go"`
@@ -34,6 +36,8 @@ func init() {
 // Returns an empty string for unknown names.
 func (v Versions) ForLayer(name string) string {
 	switch name {
+	case "debian":
+		return v.Debian
 	case "node":
 		return v.Node
 	case "java":
