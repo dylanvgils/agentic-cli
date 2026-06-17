@@ -179,6 +179,13 @@ func stubPruneBuildCache(t *testing.T, fn func() error) {
 	t.Cleanup(func() { pruneBuildCache = orig })
 }
 
+func stubRemoveNetwork(t *testing.T, fn func() error) {
+	t.Helper()
+	orig := removeNetwork
+	removeNetwork = fn
+	t.Cleanup(func() { removeNetwork = orig })
+}
+
 func stubRemoveVolume(t *testing.T, fn func(string) error) {
 	t.Helper()
 	orig := removeVolume

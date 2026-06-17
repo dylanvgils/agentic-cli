@@ -43,6 +43,18 @@ func runClean(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if err := cleanTargets(targets); err != nil {
+		return err
+	}
+
+	if len(args) == 0 {
+		return cleanGlobalResources(namespace)
+	}
+
+	return nil
+}
+
+func cleanTargets(targets []cleanTarget) error {
 	for _, t := range targets {
 		output.Step(t.label)
 		if err := cleanImage(t.image); err != nil {
@@ -50,25 +62,25 @@ func runClean(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if len(args) == 0 {
-		output.Step("base")
-		if err := cleanBaseImages(); err != nil {
-			return err
-		}
+	return nil
+}
 
-		output.Step("proxy")
-		if err := cleanImage(tools.ProxyImageName(namespace)); err != nil {
-			return err
-		}
-		if err := sweepProxyResources(); err != nil {
-			return err
-		}
-
-		output.Step("network")
-		return removeNetwork()
+func cleanGlobalResources(namespace string) error {
+	output.Step("base")
+	if err := cleanBaseImages(); err != nil {
+		return err
 	}
 
-	return nil
+	output.Step("proxy")
+	if err := cleanImage(tools.ProxyImageName(namespace)); err != nil {
+		return err
+	}
+	if err := sweepProxyResources(); err != nil {
+		return err
+	}
+
+	output.Step("network")
+	return removeNetwork()
 }
 
 func resolveCleanTargets(args []string, namespace string, all bool) ([]cleanTarget, error) {
