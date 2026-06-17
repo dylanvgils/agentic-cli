@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -70,50 +69,7 @@ func ensureProxyImage(cmd *cobra.Command, namespace string) error {
 	}
 
 	output.Step("building proxy image " + image)
-	return buildProxyImage(image, buildinfo.Version, proxySourceDir(), tools.BuildOptions{Registry: collectRegistry(cmd)})
-}
-
-// proxySourceDir returns the agentic module root for dev builds, so the proxy
-// image can be compiled from local source. It returns "" for released builds
-// (which install the published module instead) and when no agentic source tree
-// is found by walking up from the working directory.
-func proxySourceDir() string {
-	if !buildinfo.IsDev(buildinfo.Version) {
-		return ""
-	}
-	return findModuleRoot(tools.ProxyModulePath)
-}
-
-// findModuleRoot walks up from the working directory looking for the go.mod of
-// the given module, returning its directory or "" if not found. It verifies the
-// module path so an unrelated project's go.mod is never used as source.
-func findModuleRoot(modulePath string) string {
-	dir, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-
-	for {
-		if data, err := os.ReadFile(filepath.Join(dir, "go.mod")); err == nil && moduleMatches(data, modulePath) {
-			return dir
-		}
-
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
-}
-
-// moduleMatches reports whether a go.mod declares the given module path.
-func moduleMatches(gomod []byte, modulePath string) bool {
-	for line := range strings.SplitSeq(string(gomod), "\n") {
-		if after, ok := strings.CutPrefix(strings.TrimSpace(line), "module "); ok {
-			return strings.TrimSpace(after) == modulePath
-		}
-	}
-	return false
+	return buildProxyImage(image, buildinfo.Version, buildinfo.DevSourceDir(tools.ProxyModulePath), tools.BuildOptions{Registry: collectRegistry(cmd)})
 }
 
 // proxyLogDir returns the host directory for proxy access logs, creating it when
