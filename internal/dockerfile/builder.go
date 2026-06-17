@@ -40,7 +40,7 @@ func (b *StageBuilder) Add(insts ...Instruction) *StageBuilder {
 }
 
 // withSource tags inst with source, returning a Located wrapper.
-// If inst is already a Located (e.g. from C()), only the Source field is set — no double-wrapping.
+// If inst is already a Located (e.g. from C()), only the Source field is set - no double-wrapping.
 // If source is empty (runtime.Caller failed), inst is returned unwrapped.
 func withSource(source string, inst Instruction) Instruction {
 	if located, isLocated := inst.(Located); isLocated {

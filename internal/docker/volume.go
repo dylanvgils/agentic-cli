@@ -27,7 +27,7 @@ func EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage st
 }
 
 // CreateVolume creates a named Docker volume with the project=agentic-cli label.
-// Unlike ensureVolume, it does not chown — that is only needed for runtime volumes.
+// Unlike ensureVolume, it does not chown - that is only needed for runtime volumes.
 func CreateVolume(name string) error {
 	_, err := dockerRun("volume", "create", label(LabelProject, LabelProjectVal), name)
 	if err != nil {

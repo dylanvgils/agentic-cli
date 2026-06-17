@@ -81,7 +81,7 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 // checkDocker verifies the Docker daemon is reachable before any subcommand
 // that needs it runs.
 func checkDocker(cmd *cobra.Command, _ []string) error {
-	// Bare `agentic` (no subcommand) just shows help — no Docker needed.
+	// Bare `agentic` (no subcommand) just shows help - no Docker needed.
 	if cmd.Parent() == nil {
 		return nil
 	}
