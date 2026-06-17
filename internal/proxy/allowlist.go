@@ -27,7 +27,7 @@ type Allowlist struct {
 // NewAllowlist builds an Allowlist from raw entries. Empty and blank entries are
 // ignored; entries are lower-cased so matching is case-insensitive.
 func NewAllowlist(entries []string) *Allowlist {
-	al := &Allowlist{exact: make(map[string]bool)}
+	allowList := &Allowlist{exact: make(map[string]bool)}
 
 	for _, raw := range entries {
 		entry := strings.ToLower(strings.TrimSpace(raw))
@@ -36,14 +36,14 @@ func NewAllowlist(entries []string) *Allowlist {
 		}
 
 		if suffix, ok := wildcardSuffix(entry); ok {
-			al.suffixes = append(al.suffixes, suffix)
+			allowList.suffixes = append(allowList.suffixes, suffix)
 			continue
 		}
 
-		al.exact[entry] = true
+		allowList.exact[entry] = true
 	}
 
-	return al
+	return allowList
 }
 
 // Allows reports whether a connection to host on port is permitted. The port

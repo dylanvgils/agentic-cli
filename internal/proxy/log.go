@@ -42,10 +42,10 @@ type Entry struct {
 // stdout, so `docker logs -f` on the proxy container is easy to read). It is
 // safe for concurrent use: each connection is handled in its own goroutine.
 type Logger struct {
-	mu    sync.Mutex
-	enc   *json.Encoder // nil when no JSON destination is configured
-	human io.Writer     // nil when no human-readable destination is configured
-	now   func() time.Time
+	mutex   sync.Mutex
+	encoder *json.Encoder // nil when no JSON destination is configured
+	human   io.Writer     // nil when no human-readable destination is configured
+	now     func() time.Time
 }
 
 // NewLogger returns a Logger that writes JSON lines to file and human-readable
@@ -53,20 +53,20 @@ type Logger struct {
 func NewLogger(file, human io.Writer) *Logger {
 	l := &Logger{human: human, now: time.Now}
 	if file != nil {
-		l.enc = json.NewEncoder(file)
+		l.encoder = json.NewEncoder(file)
 	}
 	return l
 }
 
 // Log records a single connection attempt.
 func (l *Logger) Log(protocol Protocol, host, port string, decision Decision) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
 
 	entry := Entry{Time: l.now().UTC(), Protocol: protocol, Host: host, Port: port, Decision: decision}
 
-	if l.enc != nil {
-		_ = l.enc.Encode(entry)
+	if l.encoder != nil {
+		_ = l.encoder.Encode(entry)
 	}
 
 	if l.human != nil {
