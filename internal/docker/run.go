@@ -3,7 +3,9 @@ package docker
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
@@ -25,6 +27,18 @@ type RunSpec struct {
 	CPUs           string
 	Memory         string
 	DryRun         bool
+
+	// Egress proxy. When ProxyEnabled is set, the tool is confined to an
+	// internal network and reaches the outside world only through a proxy
+	// sidecar that enforces ProxyAllow.
+	ProxyEnabled bool
+	ProxyImage   string   // proxy sidecar image
+	ProxyAllow   []string // merged allowlist (tool baseline + user hosts)
+	ProxyLogDir  string   // host dir for JSON-lines access logs
+
+	// network is the docker network the tool container attaches to. Empty
+	// means NetworkName; proxy mode overrides it with the per-run internal net.
+	network string
 }
 
 const (
@@ -34,10 +48,44 @@ const (
 )
 
 func RunContainer(rs RunSpec, toolArgs []string) error {
+	var proxyEnv []string
+
+	if rs.ProxyEnabled && rs.DryRun {
+		// Reflect the internal network and proxy env in the printed command
+		// without provisioning any docker resources.
+		handle, err := newProxyHandle(rs)
+		if err != nil {
+			return err
+		}
+		rs.network = handle.network
+		proxyEnv = handle.envArgs()
+	}
+
+	if rs.ProxyEnabled && !rs.DryRun {
+		handle, err := startProxy(rs)
+		if err != nil {
+			return err
+		}
+		defer handle.Stop()
+
+		rs.network = handle.network
+		proxyEnv = handle.envArgs()
+
+		// Ensure the sidecar is torn down even on Ctrl-C: capturing these
+		// signals suppresses Go's default termination so deferred cleanup
+		// runs after the tool container (which the terminal also signals)
+		// exits and runInteractive returns.
+		stop := guardSignals()
+		defer stop()
+
+		defer handle.PrintSummary(os.Stderr)
+	}
+
 	args := buildBaseArgs(rs)
 
 	args = append(args, buildTTYArgs()...)
 	args = append(args, buildEnvArgs()...)
+	args = append(args, proxyEnv...)
 	args = append(args, buildTmpfsArgs(rs)...)
 	args = append(args, buildVolumeArgs(rs)...)
 
@@ -59,6 +107,23 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 		return err
 	}
 	return runInteractive(args...)
+}
+
+// networkOrDefault returns the configured network, or NetworkName when unset.
+func networkOrDefault(network string) string {
+	if network == "" {
+		return NetworkName
+	}
+	return network
+}
+
+// guardSignals installs a no-op handler for interrupt/terminate signals and
+// returns a function that uninstalls it. This keeps the agentic process alive
+// long enough to run deferred proxy cleanup when the user presses Ctrl-C.
+func guardSignals() func() {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+	return func() { signal.Stop(ch) }
 }
 
 // resolveLimit returns val if non-empty, then the env var, then fallback.
@@ -98,8 +163,9 @@ func buildBaseArgs(rs RunSpec) []string {
 		arg("cpus", resolveLimit(rs.CPUs, config.EnvCPUs, DefaultCPUs)),
 		// Maximum memory the container can use
 		arg("memory", resolveLimit(rs.Memory, config.EnvMemory, DefaultMemory)),
-		// Security: isolate from other host containers
-		arg("network", NetworkName),
+		// Security: isolate from other host containers (proxy mode swaps this
+		// for a per-run internal network with no direct egress)
+		arg("network", networkOrDefault(rs.network)),
 		// Security: drop all capabilities
 		arg("cap-drop", "ALL"),
 		// Security: prevent privilege escalation

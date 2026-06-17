@@ -8,12 +8,14 @@ Working on the CLI requires Go and Make installed locally.
 agentic-cli/
 ├── cmd/                         # Cobra commands (build, update, clean, inspect, run, …)
 └── internal/
+    ├── buildinfo/               # Build-time version/commit metadata and dev-build classification
     ├── config/                  # .agenticrc.toml loading and run spec
     ├── docker/                  # Build, update, run, clean, inspect, volume orchestration
     ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
     ├── mount/                   # Volume mount spec builder
     ├── output/                  # CLI output formatting
     ├── platform/                # Platform-specific paths and utilities
+    ├── proxy/                   # Egress allowlist proxy: server, allowlist, JSON-lines logger
     ├── selfupdate/              # Downloads and installs new releases from GitHub
     └── tools/                   # Per-tool stage funcs, mounts, setup, and base layers
 ```
@@ -129,9 +131,11 @@ func TestBuildImage(t *testing.T) {
    ```go
    "mytool": {
        Build:   BuildConfig{Stage: mytoolStage},
-       Runtime: RuntimeConfig{TmpfsMounts: mytoolTmpfsMounts, Setup: setupMytool, Mounts: mytoolMounts},
+       Runtime: RuntimeConfig{TmpfsMounts: mytoolTmpfsMounts, Setup: setupMytool, Mounts: mytoolMounts, AllowedHosts: mytoolAllowedHosts},
    },
    ```
+
+   `AllowedHosts` is the tool's baseline egress allowlist. When the proxy is enabled, these hosts are permitted by default; the user merges additional hosts on top via `allowed_hosts` in `.agenticrc.toml`. Define it as a package-level `var` in `internal/tools/<name>.go` (see the other tools for examples).
 
 ## Adding a new base runtime
 
@@ -140,6 +144,34 @@ func TestBuildImage(t *testing.T) {
 2. Add the name to `knownExtras` in `internal/tools/bases.go` and add a human-readable label to `LayerFlagDesc` in the same file. The `--<name>` version flag and its `AGENTIC_<NAME>_VERSION` env var are registered automatically from these two maps.
 
 3. If the new layer needs apt packages installed in the base stage (e.g. `apt-transport-https` for Java), add them to `layerPackages` in `internal/tools/packages.go` under the layer's name. `collectPackages` merges them with the base packages and any user-supplied `--apt` packages automatically.
+
+## Building the proxy image locally
+
+The proxy image runs as a sidecar container whenever `--proxy` is enabled. It embeds the `agentic __proxy` sub-command and is built separately from the tool images.
+
+### Released builds
+
+For a released version (`v0.x.y`), the proxy Dockerfile uses `go install` to fetch the published module. No local source tree is needed:
+
+```bash
+agentic build          # builds all tool images and the proxy image
+```
+
+The proxy image is tagged as `<namespace>-proxy` (e.g. `agentic-proxy`). The build is a no-op if the image already exists at the same version.
+
+### Dev builds
+
+When the binary version is `dev` (the default for local builds via `make build`), the proxy Dockerfile compiles from the local source tree instead of installing the published module. `agentic build` detects this automatically by walking up from `$PWD` looking for the `go.mod` of the agentic module:
+
+```bash
+# From the agentic repository root:
+make build             # compile the CLI binary (version = "dev")
+./bin/agentic build    # builds tool images and compiles the proxy from local source
+```
+
+If `agentic build` is run from outside the repository, the source tree cannot be found and the build fails with an error asking you to run it from within the repository.
+
+`agentic run --proxy` only builds the proxy image when one does not already exist for the namespace (`ensureProxyImage`) - it never checks whether an existing image is stale. After editing `internal/proxy/`, `cmd/proxy.go`, or any other code the proxy binary links in, rerun `make build && ./bin/agentic build` before testing with `./bin/agentic run --proxy claude` (flags go before the tool name - `run` is non-interspersed), otherwise the old image is reused silently. `agentic clean` (no tool argument) removes the proxy image too, so it is a reliable way to force a clean rebuild.
 
 ## Releasing
 

@@ -102,6 +102,13 @@ func stubBuildTool(t *testing.T, fn func(tool, image string, opts tools.BuildOpt
 	t.Cleanup(func() { buildTool = orig })
 }
 
+func stubBuildProxyImage(t *testing.T, fn func(image, version, sourceDir string, opts tools.BuildOptions) error) {
+	t.Helper()
+	orig := buildProxyImage
+	buildProxyImage = fn
+	t.Cleanup(func() { buildProxyImage = orig })
+}
+
 func stubCheckDockerDaemon(t *testing.T, fn func() error) {
 	t.Helper()
 	orig := checkDockerDaemon
@@ -177,6 +184,13 @@ func stubRemoveVolume(t *testing.T, fn func(string) error) {
 	orig := removeVolume
 	removeVolume = fn
 	t.Cleanup(func() { removeVolume = orig })
+}
+
+func stubSweepProxyResources(t *testing.T, fn func() error) {
+	t.Helper()
+	orig := sweepProxyResources
+	sweepProxyResources = fn
+	t.Cleanup(func() { sweepProxyResources = orig })
 }
 
 func stubUpdateTool(t *testing.T, fn func(tool, image string, opts tools.BuildOptions) error) {

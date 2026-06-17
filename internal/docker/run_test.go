@@ -30,6 +30,28 @@ func TestRunContainer(t *testing.T) {
 		assert.Contains(t, args, "--user="+platform.UserGroup())
 	})
 
+	t.Run("proxy mode swaps network and injects proxy env", func(t *testing.T) {
+		// Arrange
+		stubDockerRunCapture(t, "network inspect")
+		rs := RunSpec{
+			Image:        "agentic-claude",
+			ProxyEnabled: true,
+			ProxyImage:   "default-proxy",
+			ProxyAllow:   []string{"api.anthropic.com"},
+			ProxyLogDir:  t.TempDir(),
+		}
+
+		// Act
+		err := RunContainer(rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		args := get()
+		assert.True(t, hasArgWithPrefix(args, "--network=agentic-proxy-"), "tool should attach to the internal proxy net")
+		assert.False(t, hasArg(args, "--network="+NetworkName), "tool should not be on the egress net directly")
+		assert.True(t, hasArgWithPrefix(args, "--env=HTTPS_PROXY=http://agentic-proxy-"), "tool should get HTTPS_PROXY")
+	})
+
 	t.Run("tmpfs mounts", func(t *testing.T) {
 		// Arrange
 		rs := RunSpec{
@@ -199,9 +221,9 @@ func TestRunContainer(t *testing.T) {
 	t.Run("secrets with $CONTAINER_HOME in container path", func(t *testing.T) {
 		// Arrange
 		rs := RunSpec{
-			Image:          "agentic-copilot",
-			ContainerHome:  "/root",
-			Secrets:        []string{"maven-settings:/tmp/settings.xml:$CONTAINER_HOME/.m2/settings.xml"},
+			Image:         "agentic-copilot",
+			ContainerHome: "/root",
+			Secrets:       []string{"maven-settings:/tmp/settings.xml:$CONTAINER_HOME/.m2/settings.xml"},
 		}
 
 		// Act

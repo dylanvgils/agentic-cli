@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -149,4 +150,44 @@ func argAfter(args []string, flag string) string {
 		}
 	}
 	return ""
+}
+
+// stubRunInteractiveCapture captures the args of the last runInteractive call
+// and, if a --file flag is present, the content of that Dockerfile (read inside
+// the stub, since the temp file is removed once the build returns).
+func stubRunInteractiveCapture(t *testing.T) func() (args []string, dockerfile string) {
+	t.Helper()
+	var capturedArgs []string
+	var content string
+
+	orig := runInteractive
+	runInteractive = func(a ...string) error {
+		capturedArgs = a
+		for _, x := range a {
+			if p, ok := strings.CutPrefix(x, "--file="); ok {
+				b, err := os.ReadFile(p)
+				require.NoError(t, err)
+				content = string(b)
+			}
+		}
+		return nil
+	}
+	t.Cleanup(func() { runInteractive = orig })
+
+	return func() ([]string, string) { return capturedArgs, content }
+}
+
+// hasArg reports whether args contains exactly value.
+func hasArg(args []string, value string) bool {
+	return slices.Contains(args, value)
+}
+
+// hasArgWithPrefix reports whether any arg in args starts with prefix.
+func hasArgWithPrefix(args []string, prefix string) bool {
+	for _, a := range args {
+		if strings.HasPrefix(a, prefix) {
+			return true
+		}
+	}
+	return false
 }

@@ -12,14 +12,15 @@ var versionsJSON []byte
 // Versions holds the default version strings for each supported runtime layer
 // plus the pinned tags for the utility base images (busybox, debian).
 type Versions struct {
-	Node        string `json:"node"`
-	Nvm         string `json:"nvm"`
-	NvmChecksum string `json:"nvm_checksum"`
-	Java    string `json:"java"`
-	Dotnet  string `json:"dotnet"`
-	Go      string `json:"go"`
-	Busybox string `json:"busybox"`
-	Debian  string `json:"debian"`
+	Node             string `json:"node"`
+	Nvm              string `json:"nvm"`
+	NvmChecksum      string `json:"nvm_checksum"`
+	Java             string `json:"java"`
+	Dotnet           string `json:"dotnet"`
+	Go               string `json:"go"`
+	Busybox          string `json:"busybox"`
+	Debian           string `json:"debian"`
+	DistrolessDebian string `json:"distroless_debian"`
 }
 
 // DefaultVersions is populated at startup from the embedded versions.json.

@@ -13,6 +13,10 @@ type RunSpecBuilder struct {
 	cpus           string
 	memory         string
 	dryRun         bool
+	proxyEnabled   bool
+	proxyImage     string
+	proxyAllow     []string
+	proxyLogDir    string
 }
 
 // NewRunSpec creates a RunSpecBuilder for the given image.
@@ -80,6 +84,17 @@ func (b *RunSpecBuilder) WithDryRun(dryRun bool) *RunSpecBuilder {
 	return b
 }
 
+// WithProxy configures the egress proxy sidecar. When enabled, the tool is
+// confined to an internal network and reaches the outside only via the proxy,
+// which enforces allow and logs to logDir.
+func (b *RunSpecBuilder) WithProxy(enabled bool, image string, allow []string, logDir string) *RunSpecBuilder {
+	b.proxyEnabled = enabled
+	b.proxyImage = image
+	b.proxyAllow = allow
+	b.proxyLogDir = logDir
+	return b
+}
+
 // Build returns the completed RunSpec.
 func (b *RunSpecBuilder) Build() RunSpec {
 	return RunSpec{
@@ -94,5 +109,9 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		CPUs:           b.cpus,
 		Memory:         b.memory,
 		DryRun:         b.dryRun,
+		ProxyEnabled:   b.proxyEnabled,
+		ProxyImage:     b.proxyImage,
+		ProxyAllow:     b.proxyAllow,
+		ProxyLogDir:    b.proxyLogDir,
 	}
 }

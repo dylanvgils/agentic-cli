@@ -8,6 +8,13 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
+// copilotAllowedHosts is the baseline egress allowlist for GitHub Copilot CLI.
+// Package registries or other hosts are added by the user via allowed_hosts.
+var copilotAllowedHosts = []string{
+	".githubcopilot.com", // Copilot API and subdomains (e.g. api.githubcopilot.com, telemetry.githubcopilot.com)
+	"api.github.com",     // GitHub API used for authentication
+}
+
 func copilotTmpfsMounts() []string {
 	return []string{
 		mount.TmpfsMount("/tmp", mount.TmpfsOptions{Exec: true, Size: "1g"}),

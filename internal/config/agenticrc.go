@@ -25,14 +25,23 @@ type RCRun struct {
 	PidsLimit   string   `toml:"pids_limit"`
 	CPUs        string   `toml:"cpus"`
 	Memory      string   `toml:"memory"`
+	Proxy       RCProxy  `toml:"proxy"`
+}
+
+// RCProxy holds egress-proxy settings from a .agenticrc.toml file. Enabled is a
+// pointer so an inner config can explicitly disable a proxy enabled by an outer
+// one (a plain false is indistinguishable from "unset").
+type RCProxy struct {
+	Enabled      *bool    `toml:"enabled"`
+	AllowedHosts []string `toml:"allowed_hosts"`
 }
 
 // AgenticRC holds the parsed contents of a .agenticrc.toml project config file.
 type AgenticRC struct {
-	Root      bool     `toml:"root"`
-	Namespace string   `toml:"namespace"`
-	Build     RCBuild  `toml:"build"`
-	Run       RCRun    `toml:"run"`
+	Root      bool    `toml:"root"`
+	Namespace string  `toml:"namespace"`
+	Build     RCBuild `toml:"build"`
+	Run       RCRun   `toml:"run"`
 }
 
 // RCLayer pairs a parsed .agenticrc.toml with the path it was loaded from.
@@ -173,6 +182,10 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 			resRun.Memory = run.Memory
 		}
 
+		if resRun.Proxy.Enabled == nil {
+			resRun.Proxy.Enabled = run.Proxy.Enabled
+		}
+
 		for key, val := range rc.Build.Versions {
 			if _, exists := result.Build.Versions[key]; !exists {
 				result.Build.Versions[key] = val
@@ -185,6 +198,7 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 		build := configs[i].Build
 		resRun.ExtraMounts = append(resRun.ExtraMounts, run.ExtraMounts...)
 		resRun.Secrets = append(resRun.Secrets, run.Secrets...)
+		resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)
 		resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
 		resBuild.Bases = append(resBuild.Bases, build.Bases...)
 	}

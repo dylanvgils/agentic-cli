@@ -155,7 +155,7 @@ agentic <command> [args...]
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `build [tool] [--namespace <name>] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--registry <host>] [--debian <version>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]`          | Build tool image(s). Builds all tools if unspecified                                                                                                    |
 | `update [tool] [--namespace <name>] [--all] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--registry <host>] [--debian <version>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]` | Update tool image(s) to latest version. `--all` updates every agentic image across all namespaces                                                       |
-| `clean [tool] [--namespace <name>] [--all]`                                                                                                                                                                         | Remove tool image(s). `--all` removes across all namespaces. No-arg form also removes base images and the `agentic-net` network                         |
+| `clean [tool] [--namespace <name>] [--all]`                                                                                                                                                                         | Remove tool image(s). `--all` removes across all namespaces. No-arg form also removes base images, the proxy image, leftover proxy resources, and the `agentic-net` network |
 | `inspect [tool] [--namespace <name>] [--all]`                                                                                                                                                                       | No arg: table of images in the active namespace; `--all` shows all namespaces. Tool arg: full detail for active namespace; `--all` shows all namespaces |
 | `namespaces list` / `namespaces ls`                                                                                                                                                                                 | List all known namespaces                                                                                                                               |
 | `namespaces prune [-n namespace]`                                                                                                                                                                                   | Remove all images in the active (or specified) namespace                                                                                                |
@@ -166,7 +166,7 @@ agentic <command> [args...]
 | `completion <bash\|zsh\|fish\|powershell>`                                                                                                                                                                          | Generate shell completion script for the specified shell                                                                                                |
 | `aliases`                                                                                                                                                                                                           | Print shell alias definitions for installed tools                                                                                                       |
 | `help [command]`                                                                                                                                                                                                    | Show help for a command (`run` for tool run options). Shows overview if unspecified                                                                     |
-| `run [flags] <tool> [args...]`                                                                                                                                                                                      | Run a tool in an isolated Docker container                                                                                                              |
+| `run [flags] <tool> [args...]`                                                                                                                                                                                      | Run a tool in an isolated Docker container. `--proxy` / `--no-proxy` toggle the egress allowlist proxy for the run                                       |
 | `run <tool> -- <cmd> [args]`                                                                                                                                                                                        | Override the entrypoint and run a shell command directly                                                                                                |
 
 Run tool commands from within a git repository. The current directory is mounted as `/workspace` inside the container.
@@ -511,6 +511,13 @@ Place a `.agenticrc.toml` file anywhere in your directory tree to apply project-
 | `cpus`         | Container CPU limit (quoted string, e.g. `"4"`)                                                                                                                                                       | `4`     | `AGENTIC_CPUS`         |
 | `memory`       | Container memory limit (string, e.g. `"8g"`)                                                                                                                                                          | `4g`    | `AGENTIC_MEMORY`       |
 
+**`[run.proxy]` section** - egress allowlist proxy (see [Egress proxy](#egress-proxy))
+
+| Key             | Description                                                                                                                            | Default | Env var override |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------- |
+| `enabled`       | Route the tool's egress through the allowlist proxy. Override per run with `--proxy` / `--no-proxy`.                                   | `false` | -                |
+| `allowed_hosts` | Extra hosts to permit, merged on top of the tool's baseline. Exact match, or a leading-dot/`*.` entry to match a domain + subdomains.  | -       | -                |
+
 You can commit `.agenticrc.toml` to the repo so the whole team picks up the right settings automatically.
 
 ```toml
@@ -621,3 +628,29 @@ Containers run with the following constraints:
 - Runs as the host user to avoid permission issues on mounted files
 - `/tmp` limited to 1GB
 - Isolated Docker network (`agentic-net`) - containers cannot reach other containers on the host, only the internet
+- Optional egress allowlist proxy - restrict a tool to a configurable set of hosts (see below)
+
+### Egress proxy
+
+By default a tool container can reach any host on the internet. Enable the egress proxy to restrict it to an allowlist and record every host it contacts.
+
+When enabled, the tool no longer has direct internet access. Instead it runs on a per-run **internal** Docker network and reaches the outside world only through a dedicated proxy sidecar that enforces the allowlist. This is **fail-closed**: anything not routed through the proxy simply cannot connect, and any host not on the allowlist is blocked with a `403`. The proxy matches on hostname only (via HTTP `CONNECT`); it does not decrypt TLS.
+
+Each tool ships a baseline allowlist of the hosts it needs (e.g. Claude Code allows `.anthropic.com`). Add your own with `allowed_hosts`:
+
+```toml
+# .agenticrc.toml
+[run.proxy]
+enabled = true
+allowed_hosts = [
+  "registry.npmjs.org",
+  ".github.com",      # leading dot matches the domain and any subdomain
+]
+```
+
+- Toggle per run with `--proxy` / `--no-proxy` (overrides the config value).
+- Matching is exact, or a leading-dot / `*.` entry matches a domain and its subdomains. Ports 80 and 443 are allowed.
+- Blocked hosts are summarized at the end of the run; add them to `allowed_hosts` to permit.
+- Every connection attempt is logged as JSON lines under `$AGENTIC_HOME/proxy/`.
+
+The proxy image is built automatically by `agentic build`, and on demand the first time you run with `--proxy` if it is missing. A released agentic installs its matching version from the published module; a dev build (version `dev`) compiles the proxy from the local source tree, so build it by running `agentic build` from within the agentic repository. `build` and `update` themselves are not proxied - they need broad network access for apt and package installs.

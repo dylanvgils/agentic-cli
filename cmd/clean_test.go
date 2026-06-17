@@ -75,6 +75,7 @@ func Test_runClean(t *testing.T) {
 			basesCleaned = true
 			return nil
 		})
+		stubSweepProxyResources(t, func() error { return nil })
 
 		// Act
 		out := captureStdout(t, func() {
@@ -85,8 +86,11 @@ func Test_runClean(t *testing.T) {
 		// Assert
 		assert.Contains(t, out, "=> agentic-claude")
 		assert.Contains(t, out, "=> base")
+		assert.Contains(t, out, "=> proxy")
 		assert.True(t, basesCleaned)
-		assert.Len(t, cleaned, 3)
+		// 3 tools plus the namespace proxy image
+		assert.Len(t, cleaned, 4)
+		assert.Contains(t, cleaned, "agentic-proxy")
 	})
 
 	t.Run("stops on first cleanImage error", func(t *testing.T) {
@@ -120,6 +124,7 @@ func Test_runClean(t *testing.T) {
 
 	t.Run("all flag cleans across namespaces and base", func(t *testing.T) {
 		// Arrange
+		t.Chdir(t.TempDir())
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
 				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
@@ -136,6 +141,7 @@ func Test_runClean(t *testing.T) {
 			basesCleaned = true
 			return nil
 		})
+		stubSweepProxyResources(t, func() error { return nil })
 		cmd := newTestCleanCmd()
 		require.NoError(t, cmd.Flags().Set("all", "true"))
 
@@ -144,7 +150,8 @@ func Test_runClean(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.ElementsMatch(t, []string{"agentic-claude", "work-claude"}, cleaned)
+		// tool images across namespaces plus the namespace proxy image
+		assert.ElementsMatch(t, []string{"agentic-claude", "work-claude", "agentic-proxy"}, cleaned)
 		assert.True(t, basesCleaned)
 	})
 

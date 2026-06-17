@@ -255,6 +255,47 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, "4", result.Run.CPUs)
 		assert.Equal(t, []string{"vol:/mnt"}, result.Run.ExtraMounts)
 	})
+
+	t.Run("proxy allowed_hosts accumulate outermost first", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Run: RCRun{Proxy: RCProxy{AllowedHosts: []string{"child.example.com"}}}}
+		parent := &AgenticRC{Run: RCRun{Proxy: RCProxy{AllowedHosts: []string{"parent.example.com"}}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, []string{"parent.example.com", "child.example.com"}, result.Run.Proxy.AllowedHosts)
+	})
+
+	t.Run("proxy enabled child wins over parent", func(t *testing.T) {
+		// Arrange
+		childFalse := false
+		parentTrue := true
+		child := &AgenticRC{Run: RCRun{Proxy: RCProxy{Enabled: &childFalse}}}
+		parent := &AgenticRC{Run: RCRun{Proxy: RCProxy{Enabled: &parentTrue}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert - child explicitly disables, overriding the parent
+		require.NotNil(t, result.Run.Proxy.Enabled)
+		assert.False(t, *result.Run.Proxy.Enabled)
+	})
+
+	t.Run("proxy enabled parent fills when child unset", func(t *testing.T) {
+		// Arrange
+		parentTrue := true
+		child := &AgenticRC{}
+		parent := &AgenticRC{Run: RCRun{Proxy: RCProxy{Enabled: &parentTrue}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		require.NotNil(t, result.Run.Proxy.Enabled)
+		assert.True(t, *result.Run.Proxy.Enabled)
+	})
 }
 
 func TestParseRC(t *testing.T) {

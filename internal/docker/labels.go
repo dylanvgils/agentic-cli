@@ -8,7 +8,8 @@ import (
 )
 
 const (
-	// LabelCLIVersion records the agentic CLI version (CLIVersion) that built the image.
+	// LabelCLIVersion records the agentic CLI version (buildinfo.Version) that
+	// built the image.
 	LabelCLIVersion = "agentic.version"
 
 	// LabelNamespace records the namespace the image belongs to, recovered from
@@ -51,10 +52,6 @@ const (
 
 	LabelProjectVal = "agentic-cli"
 )
-
-// CLIVersion is the agentic CLI version stamped onto built images via the
-// agentic.version label. Set from cmd.Version at startup.
-var CLIVersion = "dev"
 
 // RecoverExtras parses an agentic.base label and returns the extra layer names as a slice.
 // e.g. "node@24.2.0,java@21.0.1" → ["node", "java"]

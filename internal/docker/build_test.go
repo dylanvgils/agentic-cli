@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
@@ -308,7 +309,7 @@ func TestBuildImage(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, get(), "--label="+LabelCLIVersion+"="+CLIVersion)
+		assert.Contains(t, get(), "--label="+LabelCLIVersion+"="+buildinfo.Version)
 	})
 
 	t.Run("always includes namespace label", func(t *testing.T) {
@@ -342,4 +343,50 @@ func TestBuildFromContent_wiresDockerfileAndImageBuild(t *testing.T) {
 	args := get()
 	assert.Equal(t, "build", args[0])
 	assert.Contains(t, args, "--tag=agentic-test")
+}
+
+func TestBuildProxyImage(t *testing.T) {
+	t.Run("released version installs the published module from an isolated context", func(t *testing.T) {
+		// Arrange
+		get := stubRunInteractiveCapture(t)
+
+		// Act
+		err := BuildProxyImage("default-proxy", "v1.2.3", "", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		args, dockerfile := get()
+		assert.Contains(t, args, "--tag=default-proxy")
+		assert.NotEqual(t, "", args[len(args)-1], "context should be set")
+		assert.Contains(t, dockerfile, "go install github.com/dylanvgils/agentic-cli@${AGENTIC_VERSION}")
+		assert.NotContains(t, dockerfile, "COPY . /src")
+	})
+
+	t.Run("dev version compiles the supplied source tree as context", func(t *testing.T) {
+		// Arrange
+		get := stubRunInteractiveCapture(t)
+		src := t.TempDir()
+
+		// Act
+		err := BuildProxyImage("default-proxy", "dev", src, tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		args, dockerfile := get()
+		assert.Equal(t, src, args[len(args)-1], "source dir should be the build context")
+		assert.Contains(t, dockerfile, "COPY . /src")
+		assert.Contains(t, dockerfile, "go build")
+	})
+
+	t.Run("dev version without source tree errors", func(t *testing.T) {
+		// Arrange
+		stubRunInteractiveCapture(t)
+
+		// Act
+		err := BuildProxyImage("default-proxy", "dev", "", tools.BuildOptions{})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "source tree")
+	})
 }

@@ -5,10 +5,10 @@ COMMIT     ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "")
 BUILD_DATE ?= $(shell date -u +%Y-%m-%d)
 INSTALL_METHOD ?=
 LDFLAGS     = -s -w \
-              -X github.com/dylanvgils/agentic-cli/cmd.version=$(VERSION) \
-              -X github.com/dylanvgils/agentic-cli/cmd.commit=$(COMMIT) \
-              -X github.com/dylanvgils/agentic-cli/cmd.buildDate=$(BUILD_DATE) \
-              $(if $(INSTALL_METHOD),-X github.com/dylanvgils/agentic-cli/cmd.installMethod=$(INSTALL_METHOD))
+              -X github.com/dylanvgils/agentic-cli/internal/buildinfo.Version=$(VERSION) \
+              -X github.com/dylanvgils/agentic-cli/internal/buildinfo.Commit=$(COMMIT) \
+              -X github.com/dylanvgils/agentic-cli/internal/buildinfo.BuildDate=$(BUILD_DATE) \
+              $(if $(INSTALL_METHOD),-X github.com/dylanvgils/agentic-cli/internal/buildinfo.InstallMethod=$(INSTALL_METHOD))
 GOFLAGS   := CGO_ENABLED=0
 
 .PHONY: build install uninstall dist docker-dist test coverage clean

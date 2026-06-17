@@ -84,11 +84,31 @@ pids_limit = "2048"
 | `cpus`         | string | Container CPU limit (e.g. `"4"`)                                                                                                                                                               | `--cpus`       | `AGENTIC_CPUS`         | `4`     |
 | `memory`       | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                           | `--memory`     | `AGENTIC_MEMORY`       | `4g`    |
 
+**`[run.proxy]` section** - egress allowlist proxy
+
+| Key             | Type | Description                                                                                                                                                                                        | CLI flag                 | Default |
+| --------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------- |
+| `enabled`       | bool | Route the tool's egress through the allowlist proxy. `enabled` is a pointer internally so an inner config can explicitly disable a proxy enabled by an outer one.                                  | `--proxy` / `--no-proxy` | `false` |
+| `allowed_hosts` | list | Extra hosts to permit, merged on top of the tool's baseline. Exact match (e.g. `"api.github.com"`), or a leading-dot / `*.` entry to match a domain and all its subdomains (e.g. `".github.com"`). | -                        | -       |
+
+When the proxy is enabled the tool container loses direct internet access. It runs on a per-run internal Docker network and reaches the outside only through a proxy sidecar that enforces the allowlist. Blocked hosts are printed at the end of the run; every connection attempt is logged as JSON lines under `$AGENTIC_HOME/proxy/`.
+
+Each tool ships a baseline allowlist (e.g. Claude Code allows `.anthropic.com` and `.claude.ai`); `allowed_hosts` values are merged on top. The proxy image is built automatically by `agentic build`.
+
+```toml
+[run.proxy]
+enabled = true
+allowed_hosts = [
+  "registry.npmjs.org",
+  ".github.com",
+]
+```
+
 ### Merge semantics
 
 When multiple `.agenticrc.toml` files are found, they are merged. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
-- **List keys** (`bases`, `apt_packages`, `extra_mounts`, `secrets`): values from all levels accumulate, outermost first.
+- **List keys** (`bases`, `apt_packages`, `extra_mounts`, `secrets`, `proxy.allowed_hosts`): values from all levels accumulate, outermost first.
 - **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
 - **`versions` table**: each layer name is resolved independently - innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
 

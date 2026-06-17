@@ -56,6 +56,14 @@ func runClean(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
+		output.Step("proxy")
+		if err := cleanImage(tools.ProxyImageName(namespace)); err != nil {
+			return err
+		}
+		if err := sweepProxyResources(); err != nil {
+			return err
+		}
+
 		output.Step("network")
 		return removeNetwork()
 	}

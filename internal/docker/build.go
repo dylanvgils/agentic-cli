@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -33,6 +34,64 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 	stampImageLabels(image, tool, opts.BaseOverride, opts.AptPackages, opts.Versions)
 
 	return nil
+}
+
+// BuildProxyImage generates the egress proxy Dockerfile and builds it. For a
+// released version it installs the published module (version baked into the
+// image so rebuilds are no-ops until the version changes). For a dev version it
+// compiles sourceDir, which must be the agentic module root.
+func BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) (retErr error) {
+	content := tools.GenerateProxyDockerfile(version, opts.Registry)
+
+	tmpDir, err := writeTempDockerfile(content)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil && retErr == nil {
+			retErr = fmt.Errorf("remove temp dir: %w", err)
+		}
+	}()
+
+	// Released builds need only the generated Dockerfile in context; dev builds
+	// compile the local tree, so the source root becomes the build context.
+	context := tmpDir
+	if buildinfo.IsDev(version) {
+		if sourceDir == "" {
+			return fmt.Errorf("proxy image: dev build requires the agentic source tree - run \"agentic build\" from the repository, or build a published version")
+		}
+		context = sourceDir
+	}
+
+	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
+	if err := buildProxyImage(dockerfilePath, image, context, opts); err != nil {
+		return fmt.Errorf("proxy image: %w", err)
+	}
+	return nil
+}
+
+// buildProxyImage assembles the docker build args for the proxy image. It is
+// deliberately leaner than buildImage: no tool/base build-args, just the
+// agentic labels so cleanup and listing can find it.
+func buildProxyImage(dockerfilePath, image, context string, opts tools.BuildOptions) error {
+	args := []string{
+		"build",
+		label(LabelProject, LabelProjectVal),
+		label(LabelBuilt, buildBuiltLabel()),
+		label(LabelCLIVersion, buildinfo.Version),
+	}
+
+	if opts.NoCache {
+		args = append(args, arg("no-cache"))
+	}
+
+	args = append(args,
+		arg("tag", image),
+		arg("file", dockerfilePath),
+		context)
+
+	return runInteractive(args...)
 }
 
 // buildFromContent writes content to a temp Dockerfile and builds the image.
@@ -77,7 +136,7 @@ func buildImage(tmpDir, image, tool string, opts tools.BuildOptions) error {
 		"build",
 		label(LabelProject, LabelProjectVal),
 		label(LabelBuilt, buildBuiltLabel()),
-		label(LabelCLIVersion, CLIVersion),
+		label(LabelCLIVersion, buildinfo.Version),
 		label(LabelNamespace, namespace),
 		label(LabelTool, tool),
 	}

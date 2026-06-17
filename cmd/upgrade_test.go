@@ -8,10 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
 func stubFetchLatestVersion(t *testing.T, v string, err error) {
 	t.Helper()
 	orig := fetchLatestVersion
@@ -38,8 +40,8 @@ func TestRunUpgrade(t *testing.T) {
 		// Arrange
 		stubFetchLatestVersion(t, "v1.0.0", nil)
 		stubPerformUpdate(t, nil)
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
+		buildinfo.Version = "v1.0.0"
+		t.Cleanup(func() { buildinfo.Version = "dev" })
 
 		// Act
 		out := captureStdout(t, func() {
@@ -62,8 +64,8 @@ func TestRunUpgrade(t *testing.T) {
 			return nil
 		}
 		t.Cleanup(func() { performUpdate = orig })
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
+		buildinfo.Version = "v1.0.0"
+		t.Cleanup(func() { buildinfo.Version = "dev" })
 
 		// Act
 		out := captureStdout(t, func() {
@@ -79,8 +81,8 @@ func TestRunUpgrade(t *testing.T) {
 	t.Run("returns error when fetch fails", func(t *testing.T) {
 		// Arrange
 		stubFetchLatestVersion(t, "", errors.New("network error"))
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
+		buildinfo.Version = "v1.0.0"
+		t.Cleanup(func() { buildinfo.Version = "dev" })
 
 		// Act
 		err := runUpgrade(upgradeCmd, nil)
@@ -93,8 +95,8 @@ func TestRunUpgrade(t *testing.T) {
 		// Arrange
 		stubFetchLatestVersion(t, "v1.1.0", nil)
 		stubPerformUpdate(t, errors.New("permission denied"))
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
+		buildinfo.Version = "v1.0.0"
+		t.Cleanup(func() { buildinfo.Version = "dev" })
 
 		// Act
 		err := runUpgrade(upgradeCmd, nil)
@@ -112,8 +114,8 @@ func TestRunUpgrade(t *testing.T) {
 		orig := performUpdate
 		performUpdate = func(v string) error { updateCalledWith = v; return nil }
 		t.Cleanup(func() { performUpdate = orig })
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
+		buildinfo.Version = "v1.0.0"
+		t.Cleanup(func() { buildinfo.Version = "dev" })
 
 		// Act
 		out := captureStdout(t, func() {
@@ -135,8 +137,8 @@ func TestRunUpgrade(t *testing.T) {
 		orig := performUpdate
 		performUpdate = func(v string) error { updateCalledWith = v; return nil }
 		t.Cleanup(func() { performUpdate = orig })
-		version = "v1.0.0-alpha.1"
-		t.Cleanup(func() { version = "dev" })
+		buildinfo.Version = "v1.0.0-alpha.1"
+		t.Cleanup(func() { buildinfo.Version = "dev" })
 
 		// Act
 		err := runUpgrade(upgradeCmd, nil)
@@ -158,8 +160,8 @@ func TestRunUpgrade(t *testing.T) {
 		origUpdate := performUpdate
 		performUpdate = func(v string) error { updateCalledWith = v; return nil }
 		t.Cleanup(func() { performUpdate = origUpdate })
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
+		buildinfo.Version = "v1.0.0"
+		t.Cleanup(func() { buildinfo.Version = "dev" })
 
 		// Act
 		out := captureStdout(t, func() {
@@ -182,8 +184,8 @@ func TestRunUpgrade(t *testing.T) {
 		orig := performUpdate
 		performUpdate = func(v string) error { updateCalledWith = v; return nil }
 		t.Cleanup(func() { performUpdate = orig })
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
+		buildinfo.Version = "v1.0.0"
+		t.Cleanup(func() { buildinfo.Version = "dev" })
 
 		// Act
 		err := runUpgrade(upgradeCmd, nil)
@@ -230,8 +232,8 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 		cfg := &config.CliConfig{LastUpdateCheck: &lastCheck}
 		require.NoError(t, cfg.Save(home))
 
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
+		buildinfo.Version = "v1.0.0"
+		t.Cleanup(func() { buildinfo.Version = "dev" })
 
 		// Act
 		latest, ok := fetchUpdateIfDue(home)
@@ -246,8 +248,8 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 		// Arrange
 		stubFetchLatestVersion(t, "", errors.New("network error"))
 		home := t.TempDir()
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
+		buildinfo.Version = "v1.0.0"
+		t.Cleanup(func() { buildinfo.Version = "dev" })
 
 		// Act
 		latest, ok := fetchUpdateIfDue(home)
@@ -261,8 +263,8 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 		// Arrange
 		stubFetchLatestVersion(t, "v1.0.0", nil)
 		home := t.TempDir()
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
+		buildinfo.Version = "v1.0.0"
+		t.Cleanup(func() { buildinfo.Version = "dev" })
 
 		// Act
 		latest, ok := fetchUpdateIfDue(home)
@@ -276,8 +278,8 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 		// Arrange
 		stubFetchLatestVersion(t, "v1.0.0", nil)
 		home := t.TempDir()
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
+		buildinfo.Version = "v1.0.0"
+		t.Cleanup(func() { buildinfo.Version = "dev" })
 		before := time.Now()
 
 		// Act
@@ -294,8 +296,8 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 		// Arrange
 		stubFetchLatestVersion(t, "v1.1.0", nil)
 		home := t.TempDir()
-		version = "v1.0.0"
-		t.Cleanup(func() { version = "dev" })
+		buildinfo.Version = "v1.0.0"
+		t.Cleanup(func() { buildinfo.Version = "dev" })
 
 		// Act
 		latest, ok := fetchUpdateIfDue(home)
@@ -307,8 +309,8 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 }
 
 func Test_notifyUpdate(t *testing.T) {
-	version = "v1.0.0"
-	t.Cleanup(func() { version = "dev" })
+	buildinfo.Version = "v1.0.0"
+	t.Cleanup(func() { buildinfo.Version = "dev" })
 
 	t.Run("prints one-liner to stderr when not a terminal", func(t *testing.T) {
 		// Arrange
@@ -417,4 +419,3 @@ func Test_notifyUpdate(t *testing.T) {
 		assert.False(t, updateCalled)
 	})
 }
-

@@ -3,11 +3,14 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
@@ -22,6 +25,8 @@ var (
 	memory       string
 	dryRun       bool
 	trustDir     bool
+	proxyFlag    bool
+	noProxyFlag  bool
 )
 
 type parsedArgs struct {
@@ -66,6 +71,9 @@ func init() {
 	runToolCmd.Flags().StringVar(&memory, "memory", "", "memory limit")
 	runToolCmd.Flags().BoolVar(&dryRun, "dry-run", false, "print the docker command without running it")
 	runToolCmd.Flags().BoolVar(&trustDir, "trust-dir", false, "trust the current directory and save it to config")
+	runToolCmd.Flags().BoolVar(&proxyFlag, "proxy", false, "route egress through the allowlist proxy (overrides config)")
+	runToolCmd.Flags().BoolVar(&noProxyFlag, "no-proxy", false, "disable the egress proxy for this run (overrides config)")
+	runToolCmd.MarkFlagsMutuallyExclusive("proxy", "no-proxy")
 	runToolCmd.Flags().SetInterspersed(false)
 
 	addNamespaceFlag(runToolCmd)
@@ -107,12 +115,102 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	rs, err := buildRunSpec(parsedArgs, toolConfig, rc, collectRegistry(cmd))
+	proxyEnabled := resolveProxyEnabled(cmd, rc)
+	if proxyEnabled && !dryRun {
+		if err := ensureProxyImage(cmd, namespace); err != nil {
+			return err
+		}
+	}
+
+	rs, err := buildRunSpec(parsedArgs, toolConfig, rc, collectRegistry(cmd), namespace, proxyEnabled)
 	if err != nil {
 		return err
 	}
 
 	return runContainer(rs, parsedArgs.toolArgs)
+}
+
+// resolveProxyEnabled determines whether the egress proxy is on for this run.
+// An explicit flag wins over config; --no-proxy beats --proxy; otherwise the
+// config value applies, defaulting to off.
+func resolveProxyEnabled(cmd *cobra.Command, rc *config.AgenticRC) bool {
+	if cmd.Flags().Changed("no-proxy") {
+		return false
+	}
+	if cmd.Flags().Changed("proxy") {
+		return true
+	}
+	if rc.Run.Proxy.Enabled != nil {
+		return *rc.Run.Proxy.Enabled
+	}
+	return false
+}
+
+// proxyAllowList merges the tool's baseline allowlist with user-configured hosts.
+func proxyAllowList(toolConfig tools.ToolConfig, rc *config.AgenticRC) []string {
+	allow := append([]string{}, toolConfig.Runtime.AllowedHosts...)
+	return append(allow, rc.Run.Proxy.AllowedHosts...)
+}
+
+// ensureProxyImage builds the proxy image for the namespace if it is not
+// already present. The image is normally produced by `agentic build`, but
+// building it on demand keeps `--proxy` working without a separate build step.
+func ensureProxyImage(cmd *cobra.Command, namespace string) error {
+	image := tools.ProxyImageName(namespace)
+
+	info, err := inspectImage(image)
+	if err != nil {
+		return err
+	}
+	if info != nil {
+		return nil
+	}
+
+	output.Step("building proxy image " + image)
+	return buildProxyImage(image, buildinfo.Version, proxySourceDir(), tools.BuildOptions{Registry: collectRegistry(cmd)})
+}
+
+// proxySourceDir returns the agentic module root for dev builds, so the proxy
+// image can be compiled from local source. It returns "" for released builds
+// (which install the published module instead) and when no agentic source tree
+// is found by walking up from the working directory.
+func proxySourceDir() string {
+	if !buildinfo.IsDev(buildinfo.Version) {
+		return ""
+	}
+	return findModuleRoot(tools.ProxyModulePath)
+}
+
+// findModuleRoot walks up from the working directory looking for the go.mod of
+// the given module, returning its directory or "" if not found. It verifies the
+// module path so an unrelated project's go.mod is never used as source.
+func findModuleRoot(modulePath string) string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+
+	for {
+		if data, err := os.ReadFile(filepath.Join(dir, "go.mod")); err == nil && moduleMatches(data, modulePath) {
+			return dir
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
+// moduleMatches reports whether a go.mod declares the given module path.
+func moduleMatches(gomod []byte, modulePath string) bool {
+	for line := range strings.SplitSeq(string(gomod), "\n") {
+		if after, ok := strings.CutPrefix(strings.TrimSpace(line), "module "); ok {
+			return strings.TrimSpace(after) == modulePath
+		}
+	}
+	return false
 }
 
 func parseArgs(args []string, namespace string) (parsedArgs, error) {
@@ -136,7 +234,7 @@ func parseArgs(args []string, namespace string) (parsedArgs, error) {
 	}, nil
 }
 
-func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC, registry string) (docker.RunSpec, error) {
+func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC, registry, namespace string, proxyEnabled bool) (docker.RunSpec, error) {
 	containerHome := docker.ResolveContainerHome(args.imageName)
 	volumes := collectVolumes(toolConfig.Runtime.Mounts(), extraVolumes, rc)
 	secrets := collectSecrets(flagSecrets, rc)
@@ -147,6 +245,11 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 	}
 
 	if err := ensureNetwork(); err != nil {
+		return docker.RunSpec{}, err
+	}
+
+	proxyLogDir, err := proxyLogDir(proxyEnabled)
+	if err != nil {
 		return docker.RunSpec{}, err
 	}
 
@@ -161,9 +264,24 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 		WithCPUs(limits.cpus).
 		WithMemory(limits.memory).
 		WithDryRun(dryRun).
+		WithProxy(proxyEnabled, tools.ProxyImageName(namespace), proxyAllowList(toolConfig, rc), proxyLogDir).
 		Build()
 
 	return rs, nil
+}
+
+// proxyLogDir returns the host directory for proxy access logs, creating it when
+// the proxy is enabled. Returns an empty string when the proxy is off.
+func proxyLogDir(proxyEnabled bool) (string, error) {
+	if !proxyEnabled {
+		return "", nil
+	}
+
+	dir := filepath.Join(toolHome, "proxy")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return "", fmt.Errorf("create proxy log dir: %w", err)
+	}
+	return dir, nil
 }
 
 func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) []string {

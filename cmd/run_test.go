@@ -78,7 +78,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "", "", false)
 
 		// Assert
 		require.NoError(t, err)
@@ -94,7 +94,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "", "", false)
 
 		// Assert
 		require.NoError(t, err)
@@ -108,7 +108,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], rc, "")
+		rs, err := buildRunSpec(args, tools.Configs["claude"], rc, "", "", false)
 
 		// Assert
 		require.NoError(t, err)
@@ -126,7 +126,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "", "", false)
 
 		// Assert
 		require.NoError(t, err)
@@ -139,7 +139,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "", "", false)
 
 		// Assert
 		require.NoError(t, err)
@@ -155,7 +155,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "", "", false)
 
 		// Assert
 		require.NoError(t, err)
@@ -168,7 +168,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude", skipEntrypoint: true}
 
 		// Act
-		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "", "", false)
 
 		// Assert
 		require.NoError(t, err)
@@ -182,7 +182,7 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		_, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
+		_, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "", "", false)
 
 		// Assert
 		require.Error(t, err)
@@ -196,11 +196,134 @@ func Test_buildRunSpec(t *testing.T) {
 		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
 
 		// Act
-		_, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "")
+		_, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "", "", false)
 
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "network error")
+	})
+
+	t.Run("proxy wired with merged allowlist and image", func(t *testing.T) {
+		// Arrange
+		withTempToolHome(t)
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
+		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
+
+		// Act
+		rs, err := buildRunSpec(args, tools.Configs["claude"], rc, "", "myns", true)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, rs.ProxyEnabled)
+		assert.Equal(t, "myns-proxy", rs.ProxyImage)
+		assert.Equal(t, []string{".anthropic.com", ".claude.ai", "extra.example.com"}, rs.ProxyAllow)
+		assert.NotEmpty(t, rs.ProxyLogDir)
+	})
+
+	t.Run("proxy off leaves spec unproxied", func(t *testing.T) {
+		// Arrange
+		withTempToolHome(t)
+		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
+
+		// Act
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "", "default", false)
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, rs.ProxyEnabled)
+		assert.Empty(t, rs.ProxyLogDir)
+	})
+}
+
+func Test_resolveProxyEnabled(t *testing.T) {
+	enabled := true
+	disabled := false
+
+	t.Run("no flag and no config defaults off", func(t *testing.T) {
+		// Act
+		result := resolveProxyEnabled(runToolCmd, &config.AgenticRC{})
+
+		// Assert
+		assert.False(t, result)
+	})
+
+	t.Run("config enabled is honored", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}
+
+		// Act
+		result := resolveProxyEnabled(runToolCmd, rc)
+
+		// Assert
+		assert.True(t, result)
+	})
+
+	t.Run("proxy flag overrides config disabled", func(t *testing.T) {
+		// Arrange
+		require.NoError(t, runToolCmd.Flags().Set("proxy", "true"))
+		t.Cleanup(func() {
+			_ = runToolCmd.Flags().Set("proxy", "false")
+			runToolCmd.Flags().Lookup("proxy").Changed = false
+		})
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled}}}
+
+		// Act
+		result := resolveProxyEnabled(runToolCmd, rc)
+
+		// Assert
+		assert.True(t, result)
+	})
+
+	t.Run("no-proxy flag overrides config enabled", func(t *testing.T) {
+		// Arrange
+		require.NoError(t, runToolCmd.Flags().Set("no-proxy", "true"))
+		t.Cleanup(func() {
+			_ = runToolCmd.Flags().Set("no-proxy", "false")
+			runToolCmd.Flags().Lookup("no-proxy").Changed = false
+		})
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}
+
+		// Act
+		result := resolveProxyEnabled(runToolCmd, rc)
+
+		// Assert
+		assert.False(t, result)
+	})
+}
+
+func Test_ensureProxyImage(t *testing.T) {
+	t.Run("builds the image when missing", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, nil)
+		var built string
+		stubBuildProxyImage(t, func(image, _, _ string, _ tools.BuildOptions) error {
+			built = image
+			return nil
+		})
+
+		// Act
+		err := ensureProxyImage(runToolCmd, "myns")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "myns-proxy", built)
+	})
+
+	t.Run("skips build when image already exists", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, &docker.ImageInfo{Image: "myns-proxy"}, nil)
+		built := false
+		stubBuildProxyImage(t, func(string, string, string, tools.BuildOptions) error {
+			built = true
+			return nil
+		})
+
+		// Act
+		err := ensureProxyImage(runToolCmd, "myns")
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, built)
 	})
 }
 

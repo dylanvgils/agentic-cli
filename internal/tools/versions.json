@@ -6,5 +6,6 @@
   "dotnet": "10",
   "go": "1.26.4",
   "busybox": "1.38.0",
-  "debian": "13-slim"
+  "debian": "13-slim",
+  "distroless_debian": "13"
 }

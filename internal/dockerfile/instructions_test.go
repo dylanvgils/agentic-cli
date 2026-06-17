@@ -89,3 +89,21 @@ func TestEntrypoint_render(t *testing.T) {
 	// Assert
 	assert.Equal(t, `ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]`, result)
 }
+
+func TestCopy_render(t *testing.T) {
+	t.Run("no From", func(t *testing.T) {
+		// Act
+		result := Copy{Src: "go.mod", Dest: "/src/"}.Render()
+
+		// Assert
+		assert.Equal(t, "COPY go.mod /src/", result)
+	})
+
+	t.Run("with From", func(t *testing.T) {
+		// Act
+		result := Copy{From: "builder", Src: "/go/bin/agentic", Dest: "/usr/local/bin/agentic"}.Render()
+
+		// Assert
+		assert.Equal(t, "COPY --from=builder /go/bin/agentic /usr/local/bin/agentic", result)
+	})
+}
