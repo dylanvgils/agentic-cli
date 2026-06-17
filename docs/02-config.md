@@ -93,7 +93,7 @@ pids_limit = "2048"
 
 When the proxy is enabled the tool container loses direct internet access. It runs on a per-run internal Docker network and reaches the outside only through a proxy sidecar that enforces the allowlist. Blocked hosts are printed at the end of the run; every connection attempt is logged as JSON lines under `$AGENTIC_HOME/proxy/`.
 
-Each tool ships a baseline allowlist (e.g. Claude Code allows `.anthropic.com` and `.claude.ai`); `allowed_hosts` values are merged on top. The proxy image is built automatically by `agentic build`.
+Each tool ships a baseline allowlist (e.g. Claude Code allows `.anthropic.com` and `.claude.ai`); `allowed_hosts` values are merged on top. The proxy image is built on demand the first time you run with `--proxy`.
 
 ```toml
 [run.proxy]

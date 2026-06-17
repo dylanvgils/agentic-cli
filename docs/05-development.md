@@ -147,31 +147,31 @@ func TestBuildImage(t *testing.T) {
 
 ## Building the proxy image locally
 
-The proxy image runs as a sidecar container whenever `--proxy` is enabled. It embeds the `agentic __proxy` sub-command and is built separately from the tool images.
+The proxy image runs as a sidecar container whenever `--proxy` is enabled. It embeds the `agentic __proxy` sub-command and is built separately from the tool images, lazily by `agentic run --proxy` the first time the image is missing for the namespace (`ensureProxyImage`). `agentic build` never builds it.
 
 ### Released builds
 
 For a released version (`v0.x.y`), the proxy Dockerfile uses `go install` to fetch the published module. No local source tree is needed:
 
 ```bash
-agentic build          # builds all tool images and the proxy image
+agentic run --proxy claude   # builds <namespace>-proxy on first use, then runs claude
 ```
 
-The proxy image is tagged as `<namespace>-proxy` (e.g. `agentic-proxy`). The build is a no-op if the image already exists at the same version.
+The proxy image is tagged as `<namespace>-proxy` (e.g. `agentic-proxy`).
 
 ### Dev builds
 
-When the binary version is `dev` (the default for local builds via `make build`), the proxy Dockerfile compiles from the local source tree instead of installing the published module. `agentic build` detects this automatically by walking up from `$PWD` looking for the `go.mod` of the agentic module:
+When the binary version is `dev` (the default for local builds via `make build`), the proxy Dockerfile compiles from the local source tree instead of installing the published module. `ensureProxyImage` detects this automatically by walking up from `$PWD` looking for the `go.mod` of the agentic module:
 
 ```bash
 # From the agentic repository root:
-make build             # compile the CLI binary (version = "dev")
-./bin/agentic build    # builds tool images and compiles the proxy from local source
+make build                          # compile the CLI binary (version = "dev")
+./bin/agentic run --proxy claude    # compiles the proxy from local source on first use
 ```
 
-If `agentic build` is run from outside the repository, the source tree cannot be found and the build fails with an error asking you to run it from within the repository.
+If `agentic run --proxy` is run from outside the repository on a dev build, the source tree cannot be found and the build fails with an error asking you to run it from within the repository.
 
-`agentic run --proxy` only builds the proxy image when one does not already exist for the namespace (`ensureProxyImage`) - it never checks whether an existing image is stale. After editing `internal/proxy/`, `cmd/proxy.go`, or any other code the proxy binary links in, rerun `make build && ./bin/agentic build` before testing with `./bin/agentic run --proxy claude` (flags go before the tool name - `run` is non-interspersed), otherwise the old image is reused silently. `agentic clean` (no tool argument) removes the proxy image too, so it is a reliable way to force a clean rebuild.
+`ensureProxyImage` only builds the proxy image when one does not already exist for the namespace - it never checks whether an existing image is stale. After editing `internal/proxy/`, `cmd/proxy.go`, or any other code the proxy binary links in, remove the stale image with `agentic clean` (no tool argument, which also removes the proxy image) before rerunning `make build && ./bin/agentic run --proxy claude` (flags go before the tool name - `run` is non-interspersed), otherwise the old image is reused silently.
 
 ## Releasing
 

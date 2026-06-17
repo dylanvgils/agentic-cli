@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -53,21 +52,8 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := buildProxy(namespace, opts); err != nil {
-		return err
-	}
-
 	pruneResources()
 	return nil
-}
-
-// buildProxy builds the egress proxy image for the namespace. It always runs so
-// any later `--proxy` run has the image ready; the version-pinned build cache
-// makes unchanged-version rebuilds a no-op.
-func buildProxy(namespace string, opts tools.BuildOptions) error {
-	image := tools.ProxyImageName(namespace)
-	output.Step(image)
-	return buildProxyImage(image, buildinfo.Version, proxySourceDir(), opts)
 }
 
 func dryRunBuild(args []string, opts tools.BuildOptions) error {
@@ -80,11 +66,6 @@ func dryRunBuild(args []string, opts tools.BuildOptions) error {
 		if _, err := fmt.Println(content); err != nil {
 			return err
 		}
-	}
-
-	output.Step(tools.ProxyImageSuffix)
-	if _, err := fmt.Println(tools.GenerateProxyDockerfile(buildinfo.Version, opts.Registry)); err != nil {
-		return err
 	}
 	return nil
 }

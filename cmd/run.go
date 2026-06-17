@@ -153,8 +153,7 @@ func proxyAllowList(toolConfig tools.ToolConfig, rc *config.AgenticRC) []string 
 }
 
 // ensureProxyImage builds the proxy image for the namespace if it is not
-// already present. The image is normally produced by `agentic build`, but
-// building it on demand keeps `--proxy` working without a separate build step.
+// already present, so `--proxy` works without a separate build step.
 func ensureProxyImage(cmd *cobra.Command, namespace string) error {
 	image := tools.ProxyImageName(namespace)
 

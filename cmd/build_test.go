@@ -28,6 +28,7 @@ func TestDryRunBuild_printsDockerfile_skipsScript(t *testing.T) {
 	// Assert
 	assert.False(t, scriptCalled)
 	assert.Contains(t, out, "FROM")
+	assert.NotContains(t, out, "proxy")
 }
 
 func TestBuildTools(t *testing.T) {
@@ -180,7 +181,6 @@ func TestRunBuild(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		})
-		stubBuildProxyImage(t, func(_, _, _ string, _ tools.BuildOptions) error { return nil })
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
@@ -203,7 +203,6 @@ func TestRunBuild(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		})
-		stubBuildProxyImage(t, func(_, _, _ string, _ tools.BuildOptions) error { return nil })
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
@@ -239,7 +238,6 @@ func TestRunBuild(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		})
-		stubBuildProxyImage(t, func(_, _, _ string, _ tools.BuildOptions) error { return nil })
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
@@ -261,7 +259,6 @@ func TestRunBuild(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		})
-		stubBuildProxyImage(t, func(_, _, _ string, _ tools.BuildOptions) error { return nil })
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 

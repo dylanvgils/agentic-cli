@@ -216,7 +216,7 @@ func Test_buildRunSpec(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, rs.ProxyEnabled)
 		assert.Equal(t, "myns-proxy", rs.ProxyImage)
-		assert.Equal(t, []string{".anthropic.com", ".claude.ai", "extra.example.com"}, rs.ProxyAllow)
+		assert.Equal(t, []string{".anthropic.com", ".claude.ai", ".claude.com", "extra.example.com"}, rs.ProxyAllow)
 		assert.NotEmpty(t, rs.ProxyLogDir)
 	})
 
