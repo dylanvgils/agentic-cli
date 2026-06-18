@@ -2,6 +2,7 @@ package docker
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/platform"
@@ -50,6 +51,25 @@ func TestRunContainer(t *testing.T) {
 		assert.True(t, hasArgWithPrefix(args, "--network=agentic-proxy-"), "tool should attach to the internal proxy net")
 		assert.False(t, hasArg(args, "--network="+NetworkName), "tool should not be on the egress net directly")
 		assert.True(t, hasArgWithPrefix(args, "--env=HTTPS_PROXY=http://agentic-proxy-"), "tool should get HTTPS_PROXY")
+	})
+
+	t.Run("proxy mode dry run prints internal network without docker calls", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t)
+		rs := RunSpec{
+			Image:        "agentic-claude",
+			ProxyEnabled: true,
+			DryRun:       true,
+			ProxyAllow:   []string{"api.anthropic.com"},
+			ProxyLogDir:  t.TempDir(),
+		}
+
+		// Act
+		err := RunContainer(rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, calls(), "dry run must not invoke docker")
 	})
 
 	t.Run("tmpfs mounts", func(t *testing.T) {
@@ -254,6 +274,86 @@ func TestRunContainer(t *testing.T) {
 
 		// Act + Assert
 		assert.ErrorContains(t, RunContainer(rs, nil), "invalid secret")
+	})
+}
+
+func TestSetupProxy(t *testing.T) {
+	t.Run("disabled returns no env and no-op cleanup", func(t *testing.T) {
+		// Arrange
+		rs := RunSpec{Image: "agentic-claude"}
+
+		// Act
+		env, cleanup, err := setupProxy(&rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, env)
+		assert.Equal(t, "", rs.network)
+		require.NotPanics(t, cleanup)
+	})
+
+	t.Run("dry run sets network without docker calls", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t)
+		rs := RunSpec{
+			Image:        "agentic-claude",
+			ProxyEnabled: true,
+			DryRun:       true,
+			ProxyAllow:   []string{"api.anthropic.com"},
+			ProxyLogDir:  t.TempDir(),
+		}
+
+		// Act
+		env, cleanup, err := setupProxy(&rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, strings.HasPrefix(rs.network, "agentic-proxy-"))
+		assert.True(t, hasArgWithPrefix(env, "--env=HTTPS_PROXY=http://agentic-proxy-"))
+		assert.Empty(t, calls(), "dry run must not invoke docker")
+		require.NotPanics(t, cleanup)
+	})
+
+	t.Run("real mode provisions sidecar and returns cleanup", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t, "network inspect")
+		rs := RunSpec{
+			Image:        "agentic-claude",
+			ProxyEnabled: true,
+			ProxyImage:   "default-proxy",
+			ProxyAllow:   []string{"api.anthropic.com"},
+			ProxyLogDir:  t.TempDir(),
+		}
+
+		// Act
+		env, cleanup, err := setupProxy(&rs)
+		cleanup()
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, strings.HasPrefix(rs.network, "agentic-proxy-"))
+		assert.True(t, hasArgWithPrefix(env, "--env=HTTPS_PROXY=http://agentic-proxy-"))
+		last := calls()[len(calls())-1]
+		assert.Equal(t, []string{"network", "rm"}, last.args[:2], "cleanup should remove the proxy network")
+	})
+
+	t.Run("real mode propagates startProxy error", func(t *testing.T) {
+		// Arrange
+		stubDockerRunCapture(t, "network inspect", "network create")
+		rs := RunSpec{
+			Image:        "agentic-claude",
+			ProxyEnabled: true,
+			ProxyImage:   "default-proxy",
+			ProxyLogDir:  t.TempDir(),
+		}
+
+		// Act
+		env, cleanup, err := setupProxy(&rs)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, env)
+		assert.Nil(t, cleanup)
 	})
 }
 

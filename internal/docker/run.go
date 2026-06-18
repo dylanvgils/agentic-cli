@@ -48,38 +48,11 @@ const (
 )
 
 func RunContainer(rs RunSpec, toolArgs []string) error {
-	var proxyEnv []string
-
-	if rs.ProxyEnabled && rs.DryRun {
-		// Reflect the internal network and proxy env in the printed command
-		// without provisioning any docker resources.
-		handle, err := newProxyHandle(rs)
-		if err != nil {
-			return err
-		}
-		rs.network = handle.network
-		proxyEnv = handle.envArgs()
+	proxyEnv, cleanup, err := setupProxy(&rs)
+	if err != nil {
+		return err
 	}
-
-	if rs.ProxyEnabled && !rs.DryRun {
-		handle, err := startProxy(rs)
-		if err != nil {
-			return err
-		}
-		defer handle.Stop()
-
-		rs.network = handle.network
-		proxyEnv = handle.envArgs()
-
-		// Ensure the sidecar is torn down even on Ctrl-C: capturing these
-		// signals suppresses Go's default termination so deferred cleanup
-		// runs after the tool container (which the terminal also signals)
-		// exits and runInteractive returns.
-		stop := guardSignals()
-		defer stop()
-
-		defer handle.PrintSummary(os.Stderr)
-	}
+	defer cleanup()
 
 	args := buildBaseArgs(rs)
 
@@ -107,6 +80,48 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 		return err
 	}
 	return runInteractive(args...)
+}
+
+// setupProxy configures rs for proxy mode if enabled, returning the env args
+// to inject into the tool container and a cleanup func to defer. The cleanup
+// func is a no-op when proxying is disabled or this is a dry run.
+func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
+	if !rs.ProxyEnabled {
+		return nil, func() {}, nil
+	}
+
+	if rs.DryRun {
+		// Reflect the internal network and proxy env in the printed command
+		// without provisioning any docker resources.
+		handle, err := newProxyHandle(*rs)
+		if err != nil {
+			return nil, nil, err
+		}
+		rs.network = handle.network
+		return handle.envArgs(), func() {}, nil
+	}
+
+	handle, err := startProxy(*rs)
+	if err != nil {
+		return nil, nil, err
+	}
+	rs.network = handle.network
+
+	// Ensure the sidecar is torn down even on Ctrl-C: capturing these
+	// signals suppresses Go's default termination so deferred cleanup
+	// runs after the tool container (which the terminal also signals)
+	// exits and runInteractive returns.
+	stop := guardSignals()
+
+	cleanup = func() {
+		// Stop the sidecar before reading its log: it may still be writing
+		// entries for in-flight requests, so the summary would otherwise
+		// miss late denials.
+		handle.Stop()
+		stop()
+		handle.PrintSummary(os.Stderr)
+	}
+	return handle.envArgs(), cleanup, nil
 }
 
 // networkOrDefault returns the configured network, or NetworkName when unset.
