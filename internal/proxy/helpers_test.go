@@ -1,8 +1,11 @@
 package proxy
 
 import (
+	"bufio"
 	"io"
 	"net"
+	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -42,4 +45,50 @@ func startEchoServer(t *testing.T) (host, port string) {
 	host, port, err = net.SplitHostPort(ln.Addr().String())
 	require.NoError(t, err)
 	return host, port
+}
+
+// rawConnect issues a CONNECT to proxyAddr for target and returns the raw
+// tunneled connection once the proxy reports success.
+func rawConnect(t *testing.T, proxyAddr, target string) net.Conn {
+	t.Helper()
+
+	conn, err := net.Dial("tcp", proxyAddr)
+	require.NoError(t, err)
+
+	_, err = io.WriteString(conn, "CONNECT "+target+" HTTP/1.1\r\nHost: "+target+"\r\n\r\n")
+	require.NoError(t, err)
+
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	return conn
+}
+
+// connect issues a CONNECT and returns the response (used to assert non-200s).
+func connect(t *testing.T, proxyAddr, target string) *http.Response {
+	t.Helper()
+
+	conn, err := net.Dial("tcp", proxyAddr)
+	require.NoError(t, err)
+
+	_, err = io.WriteString(conn, "CONNECT "+target+" HTTP/1.1\r\nHost: "+target+"\r\n\r\n")
+	require.NoError(t, err)
+
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	require.NoError(t, err)
+	return resp
+}
+
+// proxyGet performs a GET for target through the given proxy URL.
+func proxyGet(t *testing.T, proxyURL, target string) *http.Response {
+	t.Helper()
+
+	parsed, err := http.NewRequest(http.MethodGet, target, nil)
+	require.NoError(t, err)
+
+	transport := &http.Transport{Proxy: func(*http.Request) (*url.URL, error) { return url.Parse(proxyURL) }}
+	client := &http.Client{Transport: transport}
+	resp, err := client.Do(parsed)
+	require.NoError(t, err)
+	return resp
 }

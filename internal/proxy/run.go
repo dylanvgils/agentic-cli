@@ -5,7 +5,8 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strings"
+
+	"github.com/dylanvgils/agentic-cli/internal/config"
 )
 
 // Port is the TCP port the proxy listens on inside its container.
@@ -26,16 +27,9 @@ const (
 
 // ConfigFromEnv builds a Config from the proxy environment variables.
 func ConfigFromEnv() Config {
-	var hosts []string
-	for h := range strings.SplitSeq(os.Getenv(EnvAllow), ",") {
-		if h = strings.TrimSpace(h); h != "" {
-			hosts = append(hosts, h)
-		}
-	}
-
 	return Config{
 		Addr:         os.Getenv(EnvAddr),
-		AllowedHosts: hosts,
+		AllowedHosts: config.SplitEnvValues(os.Getenv(EnvAllow)),
 		LogPath:      os.Getenv(EnvLog),
 	}
 }

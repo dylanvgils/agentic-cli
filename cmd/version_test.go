@@ -8,6 +8,17 @@ import (
 )
 
 func Test_versionOutput(t *testing.T) {
+	origVersion := buildinfo.Version
+	origCommit := buildinfo.Commit
+	origBuildDate := buildinfo.BuildDate
+	origInstallMethod := buildinfo.InstallMethod
+	t.Cleanup(func() {
+		buildinfo.Version = origVersion
+		buildinfo.Commit = origCommit
+		buildinfo.BuildDate = origBuildDate
+		buildinfo.InstallMethod = origInstallMethod
+	})
+
 	t.Run("no metadata", func(t *testing.T) {
 		// Arrange
 		buildinfo.Version = "dev"
@@ -38,6 +49,15 @@ func Test_versionOutput(t *testing.T) {
 }
 
 func Test_versionExtras(t *testing.T) {
+	origCommit := buildinfo.Commit
+	origBuildDate := buildinfo.BuildDate
+	origInstallMethod := buildinfo.InstallMethod
+	t.Cleanup(func() {
+		buildinfo.Commit = origCommit
+		buildinfo.BuildDate = origBuildDate
+		buildinfo.InstallMethod = origInstallMethod
+	})
+
 	t.Run("no fields", func(t *testing.T) {
 		// Arrange
 		buildinfo.Commit = ""

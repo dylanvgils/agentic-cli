@@ -59,6 +59,24 @@ func Test_resolveAllCleanTargets(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 	})
+
+	t.Run("skips the proxy image since cleanGlobalResources handles it separately", func(t *testing.T) {
+		// Arrange
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-proxy", Namespace: "agentic", Tool: "proxy"},
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+			}, nil
+		})
+
+		// Act
+		targets, err := resolveAllCleanTargets([]string{})
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, targets, 1)
+		assert.Equal(t, "agentic-claude", targets[0].image)
+	})
 }
 
 func Test_cleanTargets(t *testing.T) {

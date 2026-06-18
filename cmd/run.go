@@ -158,8 +158,13 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 		return docker.RunSpec{}, err
 	}
 
-	if err := ensureNetwork(); err != nil {
-		return docker.RunSpec{}, err
+	// In proxy mode the tool container attaches to a per-run internal network
+	// instead of agentic-net; startProxy ensures agentic-net itself for the
+	// sidecar's egress connection, so skip the redundant check here.
+	if !proxyEnabled {
+		if err := ensureNetwork(); err != nil {
+			return docker.RunSpec{}, err
+		}
 	}
 
 	proxyLogDir, err := proxyLogDir(proxyEnabled)

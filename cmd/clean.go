@@ -101,9 +101,12 @@ func resolveAllCleanTargets(args []string) ([]cleanTarget, error) {
 		return nil, err
 	}
 
-	targets := make([]cleanTarget, len(images))
-	for i, info := range images {
-		targets[i] = cleanTarget{label: info.Namespace + "/" + info.Tool, image: info.Image}
+	var targets []cleanTarget
+	for _, info := range images {
+		if _, ok := tools.Configs[info.Tool]; !ok {
+			continue
+		}
+		targets = append(targets, cleanTarget{label: info.Namespace + "/" + info.Tool, image: info.Image})
 	}
 
 	return targets, nil

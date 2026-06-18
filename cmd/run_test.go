@@ -233,6 +233,20 @@ func Test_buildRunSpec(t *testing.T) {
 		assert.False(t, rs.ProxyEnabled)
 		assert.Empty(t, rs.ProxyLogDir)
 	})
+
+	t.Run("proxy enabled skips agentic-net check since startProxy ensures it itself", func(t *testing.T) {
+		// Arrange
+		withTempToolHome(t)
+		stubEnsureNetwork(t, func() error { return fmt.Errorf("network error") })
+		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
+
+		// Act
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "", "myns", true)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, rs.ProxyEnabled)
+	})
 }
 
 func TestRequireImage(t *testing.T) {

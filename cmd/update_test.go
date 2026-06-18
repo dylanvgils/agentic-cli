@@ -140,6 +140,24 @@ func Test_resolveAllUpdateTargets(t *testing.T) {
 		assert.Equal(t, "claude", targets[0].name)
 	})
 
+	t.Run("skips the proxy image since it is not an updatable tool", func(t *testing.T) {
+		// Arrange
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-proxy", Namespace: "agentic", Tool: "proxy"},
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+			}, nil
+		})
+
+		// Act
+		targets, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, targets, 1)
+		assert.Equal(t, "claude", targets[0].name)
+	})
+
 	t.Run("recovers base independently from each image label", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {

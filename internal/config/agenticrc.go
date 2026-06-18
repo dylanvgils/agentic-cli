@@ -69,7 +69,7 @@ func FindAndLoadFromCwd() (*AgenticRC, error) {
 // AptPackages returns the merged apt packages from rc and the AGENTIC_APT_PACKAGES
 // env var, RC values first, env var last.
 func AptPackages(rc *AgenticRC) []string {
-	envPkgs := splitEnvValues(os.Getenv(EnvAptPackages))
+	envPkgs := SplitEnvValues(os.Getenv(EnvAptPackages))
 	return append(rc.Build.AptPackages, envPkgs...)
 }
 
@@ -220,9 +220,9 @@ func loadRC(path string) (*AgenticRC, error) {
 	return rc, nil
 }
 
-// splitEnvValues splits a comma-separated value string and skips empty parts.
+// SplitEnvValues splits a comma-separated value string and skips empty parts.
 // Used for env var parsing where variable expansion is handled by the caller.
-func splitEnvValues(value string) []string {
+func SplitEnvValues(value string) []string {
 	var result []string
 
 	for pair := range strings.SplitSeq(value, ",") {
