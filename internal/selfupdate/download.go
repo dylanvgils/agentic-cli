@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/dylanvgils/agentic-cli/internal/cleanup"
 )
 
 func downloadFile(client *http.Client, url, destPath string) (err error) {
@@ -15,7 +17,7 @@ func downloadFile(client *http.Client, url, destPath string) (err error) {
 	if err != nil {
 		return err
 	}
-	defer closeErr(response.Body, &err)
+	defer cleanup.Capture(&err, response.Body.Close)
 
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("HTTP %d for %s", response.StatusCode, url)
@@ -25,7 +27,7 @@ func downloadFile(client *http.Client, url, destPath string) (err error) {
 	if err != nil {
 		return err
 	}
-	defer closeErr(file, &err)
+	defer cleanup.Capture(&err, file.Close)
 
 	_, err = io.Copy(file, response.Body)
 	return err
@@ -70,7 +72,7 @@ func hashFile(path string) (sum string, err error) {
 	if err != nil {
 		return "", err
 	}
-	defer closeErr(file, &err)
+	defer cleanup.Capture(&err, file.Close)
 
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
@@ -85,13 +87,13 @@ func copyFile(src, dst string) (err error) {
 	if err != nil {
 		return err
 	}
-	defer closeErr(in, &err)
+	defer cleanup.Capture(&err, in.Close)
 
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer closeErr(out, &err)
+	defer cleanup.Capture(&err, out.Close)
 
 	_, err = io.Copy(out, in)
 	return err

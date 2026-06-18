@@ -4,7 +4,6 @@ package selfupdate
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -12,6 +11,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/dylanvgils/agentic-cli/internal/cleanup"
 )
 
 const (
@@ -76,11 +77,7 @@ func updateWith(version, targetPath, baseURL string, client *http.Client) (err e
 	if err != nil {
 		return fmt.Errorf("creating temp dir: %w", err)
 	}
-	defer func() {
-		if rerr := os.RemoveAll(tmpDir); rerr != nil && err == nil {
-			err = rerr
-		}
-	}()
+	defer cleanup.Capture(&err, func() error { return os.RemoveAll(tmpDir) })
 
 	newBinaryPath, err := downloadRelease(client, archiveURL, archiveName, checksumsURL, ext, tmpDir)
 	if err != nil {
@@ -137,11 +134,5 @@ func installBinary(newBinaryPath, targetPath string) error {
 	}
 
 	return nil
-}
-
-func closeErr(c io.Closer, err *error) {
-	if cerr := c.Close(); cerr != nil && *err == nil {
-		*err = cerr
-	}
 }
 

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/dylanvgils/agentic-cli/internal/cleanup"
 )
 
 const (
@@ -42,7 +44,7 @@ func fetchRelease(url string, client *http.Client) (_ *release, err error) {
 	if err != nil {
 		return nil, err
 	}
-	defer closeErr(resp.Body, &err)
+	defer cleanup.Capture(&err, resp.Body.Close)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GitHub API returned HTTP %d", resp.StatusCode)

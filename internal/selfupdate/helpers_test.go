@@ -135,11 +135,6 @@ func makeZip(t *testing.T, filename string, content []byte) []byte {
 	return data
 }
 
-// stubErrCloser is a stub io.Closer that returns a fixed error on Close.
-type stubErrCloser struct{ err error }
-
-func (c *stubErrCloser) Close() error { return c.err }
-
 // writeTempFile writes content to a new temp file and returns its path.
 func writeTempFile(t *testing.T, content []byte) string {
 	t.Helper()

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/cleanup"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -48,11 +49,12 @@ func BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) 
 		return err
 	}
 
-	defer func() {
-		if err := os.RemoveAll(tmpDir); err != nil && retErr == nil {
-			retErr = fmt.Errorf("remove temp dir: %w", err)
+	defer cleanup.Capture(&retErr, func() error {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			return fmt.Errorf("remove temp dir: %w", err)
 		}
-	}()
+		return nil
+	})
 
 	// Released builds need only the generated Dockerfile in context; dev builds
 	// compile the local tree, so the source root becomes the build context.
@@ -68,6 +70,7 @@ func BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) 
 	if err := buildProxyImage(dockerfilePath, image, context, opts); err != nil {
 		return fmt.Errorf("proxy image: %w", err)
 	}
+
 	return nil
 }
 
@@ -101,11 +104,12 @@ func buildFromContent(content, image, tool string, opts tools.BuildOptions) (ret
 		return err
 	}
 
-	defer func() {
-		if err := os.RemoveAll(tmpDir); err != nil && retErr == nil {
-			retErr = fmt.Errorf("remove temp dir: %w", err)
+	defer cleanup.Capture(&retErr, func() error {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			return fmt.Errorf("remove temp dir: %w", err)
 		}
-	}()
+		return nil
+	})
 
 	return buildImage(tmpDir, image, tool, opts)
 }

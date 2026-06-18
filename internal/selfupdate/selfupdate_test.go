@@ -1,7 +1,6 @@
 package selfupdate
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,43 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func Test_closeErr(t *testing.T) {
-	t.Run("sets err when close fails and err is nil", func(t *testing.T) {
-		// Arrange
-		closeError := errors.New("close failed")
-		err := error(nil)
-
-		// Act
-		closeErr(&stubErrCloser{err: closeError}, &err)
-
-		// Assert
-		assert.ErrorIs(t, err, closeError)
-	})
-
-	t.Run("does not overwrite existing err", func(t *testing.T) {
-		// Arrange
-		existing := errors.New("existing")
-		err := existing
-
-		// Act
-		closeErr(&stubErrCloser{err: errors.New("close failed")}, &err)
-
-		// Assert
-		assert.ErrorIs(t, err, existing)
-	})
-
-	t.Run("leaves err nil when close succeeds", func(t *testing.T) {
-		// Arrange
-		err := error(nil)
-
-		// Act
-		closeErr(&stubErrCloser{}, &err)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-}
 
 func TestShouldCheck(t *testing.T) {
 	t.Run("within interval returns false", func(t *testing.T) {
