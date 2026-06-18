@@ -37,12 +37,16 @@ func runProxy(_ *cobra.Command, _ []string) error {
 // An explicit flag wins over config; --no-proxy beats --proxy; otherwise the
 // config value applies, defaulting to off.
 func resolveProxyEnabled(cmd *cobra.Command, rc *config.AgenticRC) bool {
-	if cmd.Flags().Changed("no-proxy") {
+	noProxy, _ := cmd.Flags().GetBool("no-proxy")
+	if noProxy {
 		return false
 	}
-	if cmd.Flags().Changed("proxy") {
+
+	proxy, _ := cmd.Flags().GetBool("proxy")
+	if proxy {
 		return true
 	}
+
 	if rc.Run.Proxy.Enabled != nil {
 		return *rc.Run.Proxy.Enabled
 	}

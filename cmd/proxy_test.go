@@ -64,6 +64,21 @@ func Test_resolveProxyEnabled(t *testing.T) {
 		// Assert
 		assert.False(t, result)
 	})
+
+	t.Run("proxy flag explicitly set false does not override config disabled", func(t *testing.T) {
+		// Arrange
+		require.NoError(t, runToolCmd.Flags().Set("proxy", "false"))
+		t.Cleanup(func() {
+			runToolCmd.Flags().Lookup("proxy").Changed = false
+		})
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled}}}
+
+		// Act
+		result := resolveProxyEnabled(runToolCmd, rc)
+
+		// Assert
+		assert.False(t, result)
+	})
 }
 
 func Test_ensureProxyImage(t *testing.T) {
