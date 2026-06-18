@@ -127,7 +127,13 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 		return proxyHandle{}, err
 	}
 
-	if _, err := dockerRun("network", "create", arg("internal"), label(LabelProject, LabelProjectVal), h.network); err != nil {
+	createArgs := []string{
+		"network", "create",
+		arg("internal"),
+		label(LabelProject, LabelProjectVal),
+		h.network,
+	}
+	if _, err := dockerRun(createArgs...); err != nil {
 		return proxyHandle{}, fmt.Errorf("create proxy network: %w", err)
 	}
 
@@ -136,7 +142,8 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 		return proxyHandle{}, fmt.Errorf("start proxy: %w", err)
 	}
 
-	if _, err := dockerRun("network", "connect", NetworkName, h.container); err != nil {
+	connectArgs := []string{"network", "connect", NetworkName, h.container}
+	if _, err := dockerRun(connectArgs...); err != nil {
 		h.Stop()
 		return proxyHandle{}, fmt.Errorf("connect proxy to %s: %w", NetworkName, err)
 	}
@@ -149,10 +156,9 @@ func (h proxyHandle) runArgs(rs RunSpec) []string {
 	containerLog := proxyLogMountDir + "/" + h.id + ".jsonl"
 
 	return []string{
-		"run", "--detach", "--rm",
+		"run", "--detach", "--rm", "--read-only",
 		arg("name", h.container),
 		arg("network", h.network),
-		"--read-only",
 		arg("cap-drop", "ALL"),
 		arg("security-opt", "no-new-privileges:true"),
 		arg("user", platform.UserGroup()),
@@ -168,17 +174,23 @@ func (h proxyHandle) runArgs(rs RunSpec) []string {
 // networks (e.g. from an interrupted run). It is idempotent and scoped to
 // agentic-managed resources named with the proxy prefix.
 func SweepProxyResources() error {
-	if err := runIfAny(
-		[]string{"ps", arg("all"), arg("quiet"), labelFilter(LabelProject, LabelProjectVal), arg("filter", "name="+proxyResourcePrefix)},
-		[]string{"rm", arg("force")},
-	); err != nil {
+	listContainerArgs := []string{
+		"ps", arg("all"), arg("quiet"),
+		labelFilter(LabelProject, LabelProjectVal),
+		nameFilter(proxyResourcePrefix),
+	}
+	removeContainerArgs := []string{"rm", arg("force")}
+	if err := runIfAny(listContainerArgs, removeContainerArgs); err != nil {
 		return err
 	}
 
-	return runIfAny(
-		[]string{"network", "ls", arg("quiet"), labelFilter(LabelProject, LabelProjectVal), arg("filter", "name="+proxyResourcePrefix)},
-		[]string{"network", "rm"},
-	)
+	listNetworkArgs := []string{
+		"network", "ls", arg("quiet"),
+		labelFilter(LabelProject, LabelProjectVal),
+		nameFilter(proxyResourcePrefix),
+	}
+	removeNetworkArgs := []string{"network", "rm"}
+	return runIfAny(listNetworkArgs, removeNetworkArgs)
 }
 
 // randID returns a short random hex identifier for per-run resource names.
