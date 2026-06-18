@@ -36,7 +36,9 @@ func NewAllowlist(entries []string) *Allowlist {
 		}
 
 		if suffix, ok := wildcardSuffix(entry); ok {
-			allowList.suffixes = append(allowList.suffixes, suffix)
+			if !slices.Contains(allowList.suffixes, suffix) {
+				allowList.suffixes = append(allowList.suffixes, suffix)
+			}
 			continue
 		}
 

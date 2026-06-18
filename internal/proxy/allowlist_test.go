@@ -101,4 +101,16 @@ func TestAllowlistAllows(t *testing.T) {
 		assert.True(t, al.Allows("api.anthropic.com", "80"))
 		assert.False(t, al.Allows("", "80"))
 	})
+
+	t.Run("duplicate wildcard entries are deduplicated", func(t *testing.T) {
+		// Arrange
+		al := NewAllowlist([]string{".anthropic.com", "*.anthropic.com"})
+
+		// Act
+		allowed := al.Allows("api.anthropic.com", "443")
+
+		// Assert
+		assert.True(t, allowed)
+		assert.Len(t, al.suffixes, 1)
+	})
 }
