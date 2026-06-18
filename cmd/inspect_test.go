@@ -146,6 +146,24 @@ func Test_runInspectTable(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "docker daemon not running")
 	})
+
+	t.Run("excludes proxy image", func(t *testing.T) {
+		// Arrange
+		proxyInfo := &docker.ImageInfo{Image: "agentic-proxy", Namespace: "agentic", Tool: "proxy"}
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{builtInfo, proxyInfo}, nil
+		})
+
+		// Act
+		out := captureStdout(t, func() {
+			err := runInspectTable("agentic")
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "claude")
+		assert.NotContains(t, out, "proxy")
+	})
 }
 
 func Test_writeNamespaceTable(t *testing.T) {
