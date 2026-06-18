@@ -389,4 +389,30 @@ func TestBuildProxyImage(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "source tree")
 	})
+
+	t.Run("always includes namespace label", func(t *testing.T) {
+		// Arrange
+		get := stubRunInteractiveCapture(t)
+
+		// Act
+		err := BuildProxyImage("myproject-proxy", "v1.2.3", "", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		args, _ := get()
+		assert.Contains(t, args, "--label="+LabelNamespace+"=myproject")
+	})
+
+	t.Run("always includes tool label", func(t *testing.T) {
+		// Arrange
+		get := stubRunInteractiveCapture(t)
+
+		// Act
+		err := BuildProxyImage("myproject-proxy", "v1.2.3", "", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		args, _ := get()
+		assert.Contains(t, args, "--label="+LabelTool+"=proxy")
+	})
 }

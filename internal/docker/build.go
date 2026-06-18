@@ -78,11 +78,15 @@ func BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) 
 // deliberately leaner than buildImage: no tool/base build-args, just the
 // agentic labels so cleanup and listing can find it.
 func buildProxyImage(dockerfilePath, image, context string, opts tools.BuildOptions) error {
+	namespace := strings.TrimSuffix(image, "-"+tools.ProxyImageSuffix)
+
 	args := []string{
 		"build",
 		label(LabelProject, LabelProjectVal),
 		label(LabelBuilt, buildBuiltLabel()),
 		label(LabelCLIVersion, buildinfo.Version),
+		label(LabelNamespace, namespace),
+		label(LabelTool, tools.ProxyImageSuffix),
 	}
 
 	if opts.NoCache {
