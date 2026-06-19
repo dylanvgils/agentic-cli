@@ -8,12 +8,15 @@ Working on the CLI requires Go and Make installed locally.
 agentic-cli/
 ├── cmd/                         # Cobra commands (build, update, clean, inspect, run, …)
 └── internal/
+    ├── buildinfo/               # Build-time version/commit metadata and dev-build classification
     ├── config/                  # .agenticrc.toml loading and run spec
     ├── docker/                  # Build, update, run, clean, inspect, volume orchestration
     ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
+    ├── housekeeping/            # Host-side cleanup not tied to a tool run, the proxy server, or docker orchestration (e.g. pruning proxy logs)
     ├── mount/                   # Volume mount spec builder
     ├── output/                  # CLI output formatting
     ├── platform/                # Platform-specific paths and utilities
+    ├── proxy/                   # Egress allowlist proxy: server, allowlist, JSON-lines logger
     ├── selfupdate/              # Downloads and installs new releases from GitHub
     └── tools/                   # Per-tool stage funcs, mounts, setup, and base layers
 ```
@@ -129,9 +132,11 @@ func TestBuildImage(t *testing.T) {
    ```go
    "mytool": {
        Build:   BuildConfig{Stage: mytoolStage},
-       Runtime: RuntimeConfig{TmpfsMounts: mytoolTmpfsMounts, Setup: setupMytool, Mounts: mytoolMounts},
+       Runtime: RuntimeConfig{TmpfsMounts: mytoolTmpfsMounts, Setup: setupMytool, Mounts: mytoolMounts, AllowedHosts: mytoolAllowedHosts},
    },
    ```
+
+   `AllowedHosts` is the tool's baseline egress allowlist. When the proxy is enabled, these hosts are permitted by default; the user merges additional hosts on top via `allowed_hosts` in `.agenticrc.toml`. Define it as a package-level `var` in `internal/tools/<name>.go` (see the other tools for examples).
 
 ## Adding a new base runtime
 
@@ -140,6 +145,23 @@ func TestBuildImage(t *testing.T) {
 2. Add the name to `knownExtras` in `internal/tools/bases.go` and add a human-readable label to `LayerFlagDesc` in the same file. The `--<name>` version flag and its `AGENTIC_<NAME>_VERSION` env var are registered automatically from these two maps.
 
 3. If the new layer needs apt packages installed in the base stage (e.g. `apt-transport-https` for Java), add them to `layerPackages` in `internal/tools/packages.go` under the layer's name. `collectPackages` merges them with the base packages and any user-supplied `--apt` packages automatically.
+
+## Building the proxy image locally
+
+The proxy image runs as a sidecar container whenever `--proxy` is enabled. It embeds the `agentic proxy __run` sub-command and is built separately from the tool images via `agentic proxy build`/`agentic proxy update`, or lazily by `agentic run --proxy` the first time it's missing (`ensureProxyImage`). `agentic build` never builds it. Unlike tool images, the proxy image is global (tagged `agentic-proxy`), not namespaced.
+
+The proxy is unreleased, so it can only be built from local source for now. Local builds default `VERSION` to `dev`, which makes the proxy Dockerfile compile from the local source tree instead of installing a published module - detected by walking up from `$PWD` looking for the module's `go.mod`, so run these from the repository root:
+
+```bash
+make build                          # compile the CLI binary (version = "dev")
+./bin/agentic run --proxy claude    # compiles the proxy from local source on first use
+```
+
+`ensureProxyImage` only builds the proxy image when one doesn't already exist - it never checks whether an existing image is stale. After editing `internal/proxy/`, `cmd/proxy.go`, or any other code the proxy binary links in, force a fresh build:
+
+```bash
+./bin/agentic proxy update    # always rebuilds agentic-proxy with --no-cache
+```
 
 ## Releasing
 

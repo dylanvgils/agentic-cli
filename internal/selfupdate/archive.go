@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/dylanvgils/agentic-cli/internal/cleanup"
 )
 
 func archiveExt() string {
@@ -30,13 +32,13 @@ func extractTarGz(archivePath, destPath string) (err error) {
 	if err != nil {
 		return err
 	}
-	defer closeErr(file, &err)
+	defer cleanup.Capture(&err, file.Close)
 
 	reader, err := gzip.NewReader(file)
 	if err != nil {
 		return err
 	}
-	defer closeErr(reader, &err)
+	defer cleanup.Capture(&err, reader.Close)
 
 	return scanTarEntries(tar.NewReader(reader), destPath)
 }
@@ -46,7 +48,7 @@ func extractZip(archivePath, destPath string) (err error) {
 	if err != nil {
 		return err
 	}
-	defer closeErr(reader, &err)
+	defer cleanup.Capture(&err, reader.Close)
 
 	return scanZipEntries(&reader.Reader, destPath)
 }
@@ -84,7 +86,7 @@ func scanZipEntries(r *zip.Reader, destPath string) (err error) {
 		if openErr != nil {
 			return openErr
 		}
-		defer closeErr(rc, &err)
+		defer cleanup.Capture(&err, rc.Close)
 
 		return writeTo(rc, destPath)
 	}
@@ -97,7 +99,7 @@ func writeTo(reader io.Reader, destPath string) (err error) {
 	if err != nil {
 		return err
 	}
-	defer closeErr(out, &err)
+	defer cleanup.Capture(&err, out.Close)
 
 	_, err = io.Copy(out, reader)
 	return err

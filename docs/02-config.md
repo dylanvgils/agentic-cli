@@ -6,11 +6,12 @@ Agentic is configured through three layers, applied in order of increasing speci
 
 Stored in `$AGENTIC_HOME/agentic.json` (default: `~/.agentic/agentic.json`). This file holds machine-level settings that apply to all projects. Edit it directly with any text editor.
 
-| Key                 | Type   | Description                                                                                | CLI flag      |
-| ------------------- | ------ | ------------------------------------------------------------------------------------------ | ------------- |
-| `trusted_dirs`      | list   | Directories trusted to run tools from without an interactive prompt                        | `--trust-dir` |
-| `registry`          | scalar | Registry prefix for base image pulls (e.g. `myregistry.example.com`). See below.           | `--registry`  |
-| `last_update_check` | scalar | Timestamp of the last automatic update check. Managed automatically - do not edit by hand. | -             |
+| Key                        | Type   | Description                                                                                | CLI flag      |
+| -------------------------- | ------ | ------------------------------------------------------------------------------------------ | ------------- |
+| `trusted_dirs`             | list   | Directories trusted to run tools from without an interactive prompt                        | `--trust-dir` |
+| `registry`                 | scalar | Registry prefix for base image pulls (e.g. `myregistry.example.com`). See below.           | `--registry`  |
+| `proxy_log_retention_days` | scalar | Days to keep egress proxy access logs before they're pruned automatically. Default: `3`.   | -             |
+| `last_update_check`        | scalar | Timestamp of the last automatic update check. Managed automatically - do not edit by hand. | -             |
 
 ### Registry proxy
 
@@ -84,11 +85,46 @@ pids_limit = "2048"
 | `cpus`         | string | Container CPU limit (e.g. `"4"`)                                                                                                                                                               | `--cpus`       | `AGENTIC_CPUS`         | `4`     |
 | `memory`       | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                           | `--memory`     | `AGENTIC_MEMORY`       | `4g`    |
 
+**`[run.proxy]` section** - egress allowlist proxy
+
+| Key             | Type | Description                                                                                                                                                                                        | CLI flag                 | Default |
+| --------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------- |
+| `enabled`       | bool | Route the tool's egress through the allowlist proxy. `enabled` is a pointer internally so an inner config can explicitly disable a proxy enabled by an outer one.                                  | `--proxy` / `--no-proxy` | `false` |
+| `allowed_hosts` | list | Extra hosts to permit, merged on top of the tool's baseline. Exact match (e.g. `"api.github.com"`), or a leading-dot / `*.` entry to match a domain and all its subdomains (e.g. `".github.com"`). | -                        | -       |
+
+When the proxy is enabled the tool container loses direct internet access. It runs on a per-run internal Docker network and reaches the outside only through a proxy sidecar that enforces the allowlist. Blocked hosts are printed at the end of the run; every connection attempt is logged as JSON lines under `$AGENTIC_HOME/proxy/`.
+
+Each proxy-enabled run prunes its own access logs before starting, deleting any older than a retention window (default 3 days). This is a host-level setting, not a per-project one, so it isn't part of `.agenticrc.toml`: set `proxy_log_retention_days` in `agentic.json` (see the table above) to change it. To wipe every log regardless of age, run `agentic proxy clean --logs`.
+
+Each tool ships a baseline allowlist; `allowed_hosts` values are merged on top of it. The proxy image is built on demand the first time you run with `--proxy`, or explicitly via `agentic proxy build`/`agentic proxy update` (see [Development](05-development.md#building-the-proxy-image-locally)).
+
+| Tool       | Baseline host        | Purpose                             |
+| ---------- | -------------------- | ----------------------------------- |
+| `claude`   | `.anthropic.com`     | Claude API and telemetry subdomains |
+| `claude`   | `.claude.ai`         | installer and asset downloads       |
+| `claude`   | `.claude.com`        | OAuth/login flow                    |
+| `copilot`  | `.githubcopilot.com` | Copilot API and subdomains          |
+| `copilot`  | `api.github.com`     | GitHub API used for authentication  |
+| `opencode` | `opencode.ai`        | OpenCode auth and update checks     |
+
+OpenCode is multi-provider, so only its own auth/update host is included by default - add your chosen model-provider hosts via `allowed_hosts`.
+
+`agentic config` shows the resolved `proxy.enabled` and `proxy.allowed_hosts` values for the current directory, tagged with the `.agenticrc.toml` that set them (the tool's baseline hosts aren't part of this output - they're fixed per tool, not configurable).
+
+```toml
+[run.proxy]
+enabled = true
+allowed_hosts = [
+  "registry.npmjs.org",
+  ".github.com",
+]
+```
+
 ### Merge semantics
 
 When multiple `.agenticrc.toml` files are found, they are merged. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
-- **List keys** (`bases`, `apt_packages`, `extra_mounts`, `secrets`): values from all levels accumulate, outermost first.
+- **List keys** (`bases`, `apt_packages`, `extra_mounts`, `secrets`, `proxy.allowed_hosts`): values from all levels accumulate, outermost first.
 - **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
 - **`versions` table**: each layer name is resolved independently - innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
 

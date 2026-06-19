@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/cleanup"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -35,6 +37,69 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 	return nil
 }
 
+// BuildProxyImage generates the egress proxy Dockerfile and builds it. For a
+// released version it installs the published module (version baked into the
+// image so rebuilds are no-ops until the version changes). For a dev version it
+// compiles sourceDir, which must be the agentic module root.
+func BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) (retErr error) {
+	content := tools.GenerateProxyDockerfile(version, opts.Registry)
+
+	tmpDir, err := writeTempDockerfile(content)
+	if err != nil {
+		return err
+	}
+
+	defer cleanup.Capture(&retErr, func() error {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			return fmt.Errorf("remove temp dir: %w", err)
+		}
+		return nil
+	})
+
+	// Released builds need only the generated Dockerfile in context; dev builds
+	// compile the local tree, so the source root becomes the build context.
+	context := tmpDir
+	if buildinfo.IsDev(version) {
+		if sourceDir == "" {
+			return fmt.Errorf("proxy image: dev build requires the agentic source tree - run \"agentic build\" from the repository, or build a published version")
+		}
+		context = sourceDir
+	}
+
+	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
+	if err := buildProxyImage(dockerfilePath, image, context, opts); err != nil {
+		return fmt.Errorf("proxy image: %w", err)
+	}
+
+	return nil
+}
+
+// buildProxyImage assembles the docker build args for the proxy image. It is
+// deliberately leaner than buildImage: no tool/base build-args, just the
+// agentic labels so `agentic inspect --all` and cleanup can find it. Unlike
+// tool images it carries no namespace label - the proxy image is global, not
+// namespaced (see tools.ProxyImage).
+func buildProxyImage(dockerfilePath, image, context string, opts tools.BuildOptions) error {
+	args := []string{
+		"build",
+		label(LabelProject, LabelProjectVal),
+		label(LabelBuilt, buildBuiltLabel()),
+		label(LabelCLIVersion, buildinfo.Version),
+		label(LabelTool, tools.ProxyImageSuffix),
+	}
+
+	if opts.NoCache {
+		args = append(args, arg("no-cache"))
+	}
+
+	args = append(args,
+		arg("tag", image),
+		arg("file", dockerfilePath),
+		context)
+
+	return runInteractive(args...)
+}
+
 // buildFromContent writes content to a temp Dockerfile and builds the image.
 func buildFromContent(content, image, tool string, opts tools.BuildOptions) (retErr error) {
 	tmpDir, err := writeTempDockerfile(content)
@@ -42,11 +107,12 @@ func buildFromContent(content, image, tool string, opts tools.BuildOptions) (ret
 		return err
 	}
 
-	defer func() {
-		if err := os.RemoveAll(tmpDir); err != nil && retErr == nil {
-			retErr = fmt.Errorf("remove temp dir: %w", err)
+	defer cleanup.Capture(&retErr, func() error {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			return fmt.Errorf("remove temp dir: %w", err)
 		}
-	}()
+		return nil
+	})
 
 	return buildImage(tmpDir, image, tool, opts)
 }
@@ -77,7 +143,7 @@ func buildImage(tmpDir, image, tool string, opts tools.BuildOptions) error {
 		"build",
 		label(LabelProject, LabelProjectVal),
 		label(LabelBuilt, buildBuiltLabel()),
-		label(LabelCLIVersion, CLIVersion),
+		label(LabelCLIVersion, buildinfo.Version),
 		label(LabelNamespace, namespace),
 		label(LabelTool, tool),
 	}

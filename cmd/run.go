@@ -22,6 +22,8 @@ var (
 	memory       string
 	dryRun       bool
 	trustDir     bool
+	proxyFlag    bool
+	noProxyFlag  bool
 )
 
 type parsedArgs struct {
@@ -66,6 +68,9 @@ func init() {
 	runToolCmd.Flags().StringVar(&memory, "memory", "", "memory limit")
 	runToolCmd.Flags().BoolVar(&dryRun, "dry-run", false, "print the docker command without running it")
 	runToolCmd.Flags().BoolVar(&trustDir, "trust-dir", false, "trust the current directory and save it to config")
+	runToolCmd.Flags().BoolVar(&proxyFlag, "proxy", false, "route egress through the allowlist proxy (overrides config)")
+	runToolCmd.Flags().BoolVar(&noProxyFlag, "no-proxy", false, "disable the egress proxy for this run (overrides config)")
+	runToolCmd.MarkFlagsMutuallyExclusive("proxy", "no-proxy")
 	runToolCmd.Flags().SetInterspersed(false)
 
 	addNamespaceFlag(runToolCmd)
@@ -107,7 +112,14 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	rs, err := buildRunSpec(parsedArgs, toolConfig, rc, collectRegistry(cmd))
+	proxyEnabled := resolveProxyEnabled(cmd, rc)
+	if proxyEnabled && !dryRun {
+		if err := ensureProxyImage(cmd); err != nil {
+			return err
+		}
+	}
+
+	rs, err := buildRunSpec(parsedArgs, toolConfig, rc, collectRegistry(cmd), proxyEnabled)
 	if err != nil {
 		return err
 	}
@@ -136,7 +148,7 @@ func parseArgs(args []string, namespace string) (parsedArgs, error) {
 	}, nil
 }
 
-func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC, registry string) (docker.RunSpec, error) {
+func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC, registry string, proxyEnabled bool) (docker.RunSpec, error) {
 	containerHome := docker.ResolveContainerHome(args.imageName)
 	volumes := collectVolumes(toolConfig.Runtime.Mounts(), extraVolumes, rc)
 	secrets := collectSecrets(flagSecrets, rc)
@@ -146,7 +158,17 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 		return docker.RunSpec{}, err
 	}
 
-	if err := ensureNetwork(); err != nil {
+	// In proxy mode the tool container attaches to a per-run internal network
+	// instead of agentic-net; startProxy ensures agentic-net itself for the
+	// sidecar's egress connection, so skip the redundant check here.
+	if !proxyEnabled {
+		if err := ensureNetwork(); err != nil {
+			return docker.RunSpec{}, err
+		}
+	}
+
+	proxyLogDir, err := proxyLogDir(proxyEnabled)
+	if err != nil {
 		return docker.RunSpec{}, err
 	}
 
@@ -161,6 +183,7 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 		WithCPUs(limits.cpus).
 		WithMemory(limits.memory).
 		WithDryRun(dryRun).
+		WithProxy(proxyEnabled, tools.ProxyImage, proxyAllowList(toolConfig, rc), proxyLogDir).
 		Build()
 
 	return rs, nil

@@ -13,16 +13,31 @@ import (
 // Configs maps tool names to their container configuration.
 var Configs = map[string]ToolConfig{
 	"claude": {
-		Build:   BuildConfig{Stage: claudeStage},
-		Runtime: RuntimeConfig{TmpfsMounts: claudeTmpfsMounts, Setup: setupClaude, Mounts: claudeMounts},
+		Build: BuildConfig{Stage: claudeStage},
+		Runtime: RuntimeConfig{
+			Setup:        setupClaude,
+			Mounts:       claudeMounts,
+			TmpfsMounts:  claudeTmpfsMounts,
+			AllowedHosts: claudeAllowedHosts,
+		},
 	},
 	"copilot": {
-		Build:   BuildConfig{Stage: copilotStage},
-		Runtime: RuntimeConfig{TmpfsMounts: copilotTmpfsMounts, Setup: setupCopilot, Mounts: copilotMounts},
+		Build: BuildConfig{Stage: copilotStage},
+		Runtime: RuntimeConfig{
+			Setup:        setupCopilot,
+			Mounts:       copilotMounts,
+			TmpfsMounts:  copilotTmpfsMounts,
+			AllowedHosts: copilotAllowedHosts,
+		},
 	},
 	"opencode": {
-		Build:   BuildConfig{Stage: opencodeStage},
-		Runtime: RuntimeConfig{TmpfsMounts: opencodeTmpfsMounts, Setup: setupOpencode, Mounts: opencodeMounts},
+		Build: BuildConfig{Stage: opencodeStage},
+		Runtime: RuntimeConfig{
+			Setup:        setupOpencode,
+			Mounts:       opencodeMounts,
+			TmpfsMounts:  opencodeTmpfsMounts,
+			AllowedHosts: opencodeAllowedHosts,
+		},
 	},
 }
 
@@ -33,9 +48,14 @@ type BuildConfig struct {
 
 // RuntimeConfig holds the runtime configuration for a tool container.
 type RuntimeConfig struct {
-	TmpfsMounts func() []string
-	Setup       func(toolHome string) error
+	Setup func(toolHome string) error
+	// Mounts is the tool's baseline volume mounts. User-configured mounts
+	// are merged on top.
 	Mounts      func() []string
+	TmpfsMounts func() []string
+	// AllowedHosts is the tool's baseline egress allowlist, used when the
+	// egress proxy is enabled. User-configured hosts are merged on top.
+	AllowedHosts []string
 }
 
 // ToolConfig holds the full configuration for a tool container.

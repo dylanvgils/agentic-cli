@@ -76,6 +76,11 @@ func runInspectTable(namespace string) error {
 		return err
 	}
 
+	images = slices.DeleteFunc(images, func(info *docker.ImageInfo) bool {
+		_, ok := tools.Configs[info.Tool]
+		return !ok
+	})
+
 	slices.SortFunc(images, func(a, b *docker.ImageInfo) int {
 		if n := strings.Compare(a.Tool, b.Tool); n != 0 {
 			return n

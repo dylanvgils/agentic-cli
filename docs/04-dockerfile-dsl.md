@@ -18,16 +18,17 @@ type Instruction interface {
 
 `instructions.go` defines the standard directives:
 
-| Type         | Fields           | Renders as                          |
-| ------------ | ---------------- | ----------------------------------- |
-| `From`       | `Image`, `As`    | `FROM image AS name`                |
-| `Arg`        | `Key`, `Default` | `ARG key=default`                   |
-| `Env`        | `Key`, `Value`   | `ENV key=value`                     |
-| `Shell`      | `Cmd []string`   | `SHELL ["a", "b"]` (exec form)      |
-| `User`       | `Name`           | `USER name`                         |
-| `Workdir`    | `Path`           | `WORKDIR /path`                     |
-| `Label`      | `Key`, `Value`   | `LABEL key=value`                   |
-| `Entrypoint` | `Cmd []string`   | `ENTRYPOINT ["a", "b"]` (exec form) |
+| Type         | Fields                | Renders as                                                           |
+| ------------ | --------------------- | -------------------------------------------------------------------- |
+| `From`       | `Image`, `As`         | `FROM image AS name`                                                 |
+| `Arg`        | `Key`, `Default`      | `ARG key=default`                                                    |
+| `Env`        | `Key`, `Value`        | `ENV key=value`                                                      |
+| `Shell`      | `Cmd []string`        | `SHELL ["a", "b"]` (exec form)                                       |
+| `User`       | `Name`                | `USER name`                                                          |
+| `Workdir`    | `Path`                | `WORKDIR /path`                                                      |
+| `Label`      | `Key`, `Value`        | `LABEL key=value`                                                    |
+| `Entrypoint` | `Cmd []string`        | `ENTRYPOINT ["a", "b"]` (exec form)                                  |
+| `Copy`       | `From`, `Src`, `Dest` | `COPY src dest` (or `COPY --from=stage src dest` when `From` is set) |
 
 ### Run
 

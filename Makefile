@@ -1,14 +1,18 @@
 BINARY    := agentic
 BUILD_DIR := dist
-VERSION    ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+# build/install are local dev targets - VERSION defaults to "dev" so the proxy
+# image compiles from local source instead of installing a published module
+# that may not have the code being developed yet. dist/docker-dist produce
+# distributable artifacts, so they override VERSION to the real tag below.
+VERSION    ?= dev
 COMMIT     ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "")
 BUILD_DATE ?= $(shell date -u +%Y-%m-%d)
 INSTALL_METHOD ?=
 LDFLAGS     = -s -w \
-              -X github.com/dylanvgils/agentic-cli/cmd.version=$(VERSION) \
-              -X github.com/dylanvgils/agentic-cli/cmd.commit=$(COMMIT) \
-              -X github.com/dylanvgils/agentic-cli/cmd.buildDate=$(BUILD_DATE) \
-              $(if $(INSTALL_METHOD),-X github.com/dylanvgils/agentic-cli/cmd.installMethod=$(INSTALL_METHOD))
+              -X github.com/dylanvgils/agentic-cli/internal/buildinfo.Version=$(VERSION) \
+              -X github.com/dylanvgils/agentic-cli/internal/buildinfo.Commit=$(COMMIT) \
+              -X github.com/dylanvgils/agentic-cli/internal/buildinfo.BuildDate=$(BUILD_DATE) \
+              $(if $(INSTALL_METHOD),-X github.com/dylanvgils/agentic-cli/internal/buildinfo.InstallMethod=$(INSTALL_METHOD))
 GOFLAGS   := CGO_ENABLED=0
 
 .PHONY: build install uninstall dist docker-dist test coverage clean
@@ -28,6 +32,7 @@ install:
 uninstall:
 	rm -f ~/.local/bin/$(BINARY)
 
+dist: VERSION = $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 dist:
 	@mkdir -p $(BUILD_DIR)
 	GOOS=linux   GOARCH=amd64 $(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY)-linux-amd64 .

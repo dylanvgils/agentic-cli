@@ -116,7 +116,7 @@ func resolveAllUpdateTargets(args []string, opts tools.BuildOptions) ([]updateTa
 
 	var targets []updateTarget
 	for _, info := range images {
-		if info.Tool == "" {
+		if _, ok := tools.Configs[info.Tool]; !ok {
 			continue
 		}
 		targets = append(targets, updateTarget{name: info.Tool, image: info.Image, opts: recoverOpts(info, opts)})

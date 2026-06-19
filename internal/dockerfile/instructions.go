@@ -49,6 +49,14 @@ type Entrypoint struct {
 	Cmd []string
 }
 
+// Copy is a COPY directive. When From is set it copies from an earlier build
+// stage (COPY --from=<stage>).
+type Copy struct {
+	From string
+	Src  string
+	Dest string
+}
+
 func (f From) Render() string {
 	if f.As != "" {
 		return fmt.Sprintf("FROM %s AS %s", f.Image, f.As)
@@ -93,4 +101,11 @@ func (e Entrypoint) Render() string {
 		quoted[i] = `"` + c + `"`
 	}
 	return "ENTRYPOINT [" + strings.Join(quoted, ", ") + "]"
+}
+
+func (c Copy) Render() string {
+	if c.From != "" {
+		return fmt.Sprintf("COPY --from=%s %s %s", c.From, c.Src, c.Dest)
+	}
+	return fmt.Sprintf("COPY %s %s", c.Src, c.Dest)
 }

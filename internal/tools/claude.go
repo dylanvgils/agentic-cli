@@ -8,6 +8,14 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
+// claudeAllowedHosts is the baseline egress allowlist for Claude Code. Package
+// registries or other hosts are added by the user via allowed_hosts.
+var claudeAllowedHosts = []string{
+	".anthropic.com", // Claude API and telemetry subdomains (e.g. api.anthropic.com, statsig.anthropic.com)
+	".claude.ai",     // installer and asset downloads (e.g. downloads.claude.ai)
+	".claude.com",    // OAuth/login flow
+}
+
 func claudeTmpfsMounts() []string {
 	return []string{
 		mount.TmpfsMount("/tmp", mount.TmpfsOptions{Exec: true, Size: "1g"}),

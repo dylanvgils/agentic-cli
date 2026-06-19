@@ -6,38 +6,43 @@ import (
 	"os"
 	"slices"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/spf13/cobra"
 )
 
 var (
-	checkDockerDaemon  = docker.CheckDaemon
-	buildTool          = docker.BuildTool
-	updateTool         = docker.UpdateTool
-	runContainer       = docker.RunContainer
-	ensureNamedVolumes = docker.EnsureNamedVolumes
-	inspectImage       = docker.InspectImage
-	builtTools         = docker.BuiltTools
-	listAllImages      = docker.ListAllImages
-	cleanImage         = docker.CleanImage
-	cleanBaseImages    = docker.CleanBaseImages
-	pruneImages        = docker.PruneImages
-	pruneBuildCache    = docker.PruneBuildCache
-	ensureNetwork      = docker.EnsureNetwork
-	removeNetwork      = docker.RemoveNetwork
-	createVolume       = docker.CreateVolume
-	listVolumes        = docker.ListVolumes
-	listVolumeNames    = docker.ListVolumeNames
-	removeVolume       = docker.RemoveVolume
-	isTerminal         = platform.IsTerminal
+	checkDockerDaemon   = docker.CheckDaemon
+	buildTool           = docker.BuildTool
+	buildProxyImage     = docker.BuildProxyImage
+	updateTool          = docker.UpdateTool
+	runContainer        = docker.RunContainer
+	ensureNamedVolumes  = docker.EnsureNamedVolumes
+	inspectImage        = docker.InspectImage
+	builtTools          = docker.BuiltTools
+	listAllImages       = docker.ListAllImages
+	cleanImage          = docker.CleanImage
+	cleanBaseImages     = docker.CleanBaseImages
+	pruneImages         = docker.PruneImages
+	pruneBuildCache     = docker.PruneBuildCache
+	ensureNetwork       = docker.EnsureNetwork
+	removeNetwork       = docker.RemoveNetwork
+	sweepProxyResources = docker.SweepProxyResources
+	pruneProxyLogs      = housekeeping.PruneProxyLogs
+	createVolume        = docker.CreateVolume
+	listVolumes         = docker.ListVolumes
+	listVolumeNames     = docker.ListVolumeNames
+	removeVolume        = docker.RemoveVolume
+	isTerminal          = platform.IsTerminal
 )
 
 var (
 	// noDockerCmds lists subcommands that do not require a running Docker daemon.
-	noDockerCmds = []string{"completion", "aliases", "version", "upgrade"}
+	noDockerCmds = []string{"completion", "aliases", "version", "upgrade", "__run"}
 	// noUpdateCmds lists subcommands that skip the automatic update check.
-	noUpdateCmds = []string{"completion", "aliases", "upgrade"}
+	noUpdateCmds = []string{"completion", "aliases", "upgrade", "__run"}
 )
 
 var rootCmd = &cobra.Command{
@@ -45,15 +50,11 @@ var rootCmd = &cobra.Command{
 	Short: "Run agentic coding tools in isolated containers",
 	Long: `Agentic runs AI coding tools (Claude Code, Copilot, OpenCode) in
 isolated Docker containers with read-only filesystems and dropped capabilities.`,
-	Version:           version,
+	Version:           buildinfo.Version,
 	SilenceUsage:      true,
 	SilenceErrors:     true,
 	RunE:              rootRun,
 	PersistentPreRunE: persistentPreRunE,
-}
-
-func init() {
-	docker.CLIVersion = version
 }
 
 // Execute the Agentic CLI
@@ -82,7 +83,7 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 // checkDocker verifies the Docker daemon is reachable before any subcommand
 // that needs it runs.
 func checkDocker(cmd *cobra.Command, _ []string) error {
-	// Bare `agentic` (no subcommand) just shows help — no Docker needed.
+	// Bare `agentic` (no subcommand) just shows help - no Docker needed.
 	if cmd.Parent() == nil {
 		return nil
 	}

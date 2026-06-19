@@ -48,7 +48,6 @@ func showConfig(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-
 	w := cmd.OutOrStdout()
 	if err := printGlobalConfig(w, toolHome, cliConfig); err != nil {
 		return err
@@ -115,6 +114,8 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	extraMounts := func(rc *config.AgenticRC) []string { return rc.Run.ExtraMounts }
 	aptPackages := func(rc *config.AgenticRC) []string { return rc.Build.AptPackages }
 	secrets := func(rc *config.AgenticRC) []string { return rc.Run.Secrets }
+	proxyEnabled := func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
+	proxyAllowedHosts := func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts }
 
 	if err := printScalarField(w, "namespace", config.EnvNamespace, layers, func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace); err != nil {
 		return err
@@ -137,7 +138,13 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if err := printListField(w, "extra_mounts", layers, extraMounts); err != nil {
 		return err
 	}
-	return printListField(w, "secrets", layers, secrets)
+	if err := printListField(w, "secrets", layers, secrets); err != nil {
+		return err
+	}
+	if err := printBoolField(w, "proxy.enabled", layers, proxyEnabled, false); err != nil {
+		return err
+	}
+	return printListField(w, "proxy.allowed_hosts", layers, proxyAllowedHosts)
 }
 
 // printScalarField prints a scalar config field. Innermost (last in layers) non-empty RC value
@@ -161,6 +168,19 @@ func printScalarField(w io.Writer, label, envVar string, layers []config.RCLayer
 		return err
 	}
 	_, err := fmt.Fprintf(w, "  %s: (not set)\n", label)
+	return err
+}
+
+// printBoolField prints a bool config field. Innermost (last in layers) non-nil
+// RC value wins. If no layer sets the field, defaultVal is shown tagged (default).
+func printBoolField(w io.Writer, label string, layers []config.RCLayer, get func(*config.AgenticRC) *bool, defaultVal bool) error {
+	for i := len(layers) - 1; i >= 0; i-- {
+		if v := get(layers[i].RC); v != nil {
+			_, err := fmt.Fprintf(w, "  %s: %t  [%s]\n", label, *v, layers[i].Path)
+			return err
+		}
+	}
+	_, err := fmt.Fprintf(w, "  %s: %t  (default)\n", label, defaultVal)
 	return err
 }
 

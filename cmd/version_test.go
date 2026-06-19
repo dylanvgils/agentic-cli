@@ -3,16 +3,28 @@ package cmd
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_versionOutput(t *testing.T) {
+	origVersion := buildinfo.Version
+	origCommit := buildinfo.Commit
+	origBuildDate := buildinfo.BuildDate
+	origInstallMethod := buildinfo.InstallMethod
+	t.Cleanup(func() {
+		buildinfo.Version = origVersion
+		buildinfo.Commit = origCommit
+		buildinfo.BuildDate = origBuildDate
+		buildinfo.InstallMethod = origInstallMethod
+	})
+
 	t.Run("no metadata", func(t *testing.T) {
 		// Arrange
-		version = "dev"
-		commit = ""
-		buildDate = ""
-		installMethod = ""
+		buildinfo.Version = "dev"
+		buildinfo.Commit = ""
+		buildinfo.BuildDate = ""
+		buildinfo.InstallMethod = ""
 
 		// Act
 		out := versionOutput()
@@ -23,10 +35,10 @@ func Test_versionOutput(t *testing.T) {
 
 	t.Run("with metadata", func(t *testing.T) {
 		// Arrange
-		version = "1.2.3"
-		commit = "a1b2c3d"
-		buildDate = ""
-		installMethod = ""
+		buildinfo.Version = "1.2.3"
+		buildinfo.Commit = "a1b2c3d"
+		buildinfo.BuildDate = ""
+		buildinfo.InstallMethod = ""
 
 		// Act
 		out := versionOutput()
@@ -37,11 +49,20 @@ func Test_versionOutput(t *testing.T) {
 }
 
 func Test_versionExtras(t *testing.T) {
+	origCommit := buildinfo.Commit
+	origBuildDate := buildinfo.BuildDate
+	origInstallMethod := buildinfo.InstallMethod
+	t.Cleanup(func() {
+		buildinfo.Commit = origCommit
+		buildinfo.BuildDate = origBuildDate
+		buildinfo.InstallMethod = origInstallMethod
+	})
+
 	t.Run("no fields", func(t *testing.T) {
 		// Arrange
-		commit = ""
-		buildDate = ""
-		installMethod = ""
+		buildinfo.Commit = ""
+		buildinfo.BuildDate = ""
+		buildinfo.InstallMethod = ""
 
 		// Act
 		out := versionExtras()
@@ -52,9 +73,9 @@ func Test_versionExtras(t *testing.T) {
 
 	t.Run("all fields", func(t *testing.T) {
 		// Arrange
-		commit = "a1b2c3d"
-		installMethod = "make"
-		buildDate = "2026-05-18"
+		buildinfo.Commit = "a1b2c3d"
+		buildinfo.InstallMethod = "make"
+		buildinfo.BuildDate = "2026-05-18"
 
 		// Act
 		out := versionExtras()
@@ -66,9 +87,9 @@ func Test_versionExtras(t *testing.T) {
 
 	t.Run("partial fields", func(t *testing.T) {
 		// Arrange
-		commit = "a1b2c3d"
-		installMethod = ""
-		buildDate = "2026-05-18"
+		buildinfo.Commit = "a1b2c3d"
+		buildinfo.InstallMethod = ""
+		buildinfo.BuildDate = "2026-05-18"
 
 		// Act
 		out := versionExtras()

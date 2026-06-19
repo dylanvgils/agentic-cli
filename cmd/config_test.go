@@ -195,6 +195,58 @@ func TestPrintScalarField(t *testing.T) {
 	})
 }
 
+func TestPrintBoolField(t *testing.T) {
+	get := func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
+
+	t.Run("no layer sets it shows default", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		layers := []config.RCLayer{
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}},
+		}
+
+		// Act
+		err := printBoolField(&buf, "proxy.enabled", layers, get, false)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "  proxy.enabled: false  (default)\n", buf.String())
+	})
+
+	t.Run("layer sets true shows true with path", func(t *testing.T) {
+		// Arrange
+		enabled := true
+		var buf bytes.Buffer
+		layers := []config.RCLayer{
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}},
+		}
+
+		// Act
+		err := printBoolField(&buf, "proxy.enabled", layers, get, false)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "  proxy.enabled: true  [/project/.agenticrc.toml]\n", buf.String())
+	})
+
+	t.Run("innermost layer wins over outer layer", func(t *testing.T) {
+		// Arrange
+		outer, inner := true, false
+		var buf bytes.Buffer
+		layers := []config.RCLayer{
+			{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &outer}}}},
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &inner}}}},
+		}
+
+		// Act
+		err := printBoolField(&buf, "proxy.enabled", layers, get, false)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "  proxy.enabled: false  [/project/.agenticrc.toml]\n", buf.String())
+	})
+}
+
 func TestPrintProjectConfig(t *testing.T) {
 	t.Run("no layers", func(t *testing.T) {
 		// Arrange
@@ -212,6 +264,7 @@ func TestPrintProjectConfig(t *testing.T) {
 
 	t.Run("single layer", func(t *testing.T) {
 		// Arrange
+		enabled := true
 		var buf bytes.Buffer
 		layers := []config.RCLayer{
 			{
@@ -219,7 +272,11 @@ func TestPrintProjectConfig(t *testing.T) {
 				RC: &config.AgenticRC{
 					Namespace: "myproject",
 					Build:     config.RCBuild{AptPackages: []string{"make"}, Bases: []string{"java"}, Versions: map[string]string{"java": "17"}},
-					Run:       config.RCRun{PidsLimit: "100", CPUs: "2", Memory: "4g", ExtraMounts: []string{"vol:/mnt"}, Secrets: []string{"tok:/run/s/t"}},
+					Run: config.RCRun{
+						PidsLimit: "100", CPUs: "2", Memory: "4g",
+						ExtraMounts: []string{"vol:/mnt"}, Secrets: []string{"tok:/run/s/t"},
+						Proxy: config.RCProxy{Enabled: &enabled, AllowedHosts: []string{".github.com"}},
+					},
 				},
 			},
 		}
@@ -239,6 +296,8 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "- make  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- java@17  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- tok:/run/s/t  [/project/.agenticrc.toml]")
+		assert.Contains(t, out, "proxy.enabled: true  [/project/.agenticrc.toml]")
+		assert.Contains(t, out, "- .github.com  [/project/.agenticrc.toml]")
 	})
 
 	t.Run("multi layers source attribution", func(t *testing.T) {
@@ -308,5 +367,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "bases: (none)")
 		assert.Contains(t, out, "extra_mounts: (none)")
 		assert.Contains(t, out, "secrets: (none)")
+		assert.Contains(t, out, "proxy.enabled: false  (default)")
+		assert.Contains(t, out, "proxy.allowed_hosts: (none)")
 	})
 }

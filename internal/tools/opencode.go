@@ -8,6 +8,13 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
+// opencodeAllowedHosts is the baseline egress allowlist for OpenCode. OpenCode
+// is multi-provider, so only its own auth/update host is included by default;
+// users add their chosen model-provider hosts via allowed_hosts.
+var opencodeAllowedHosts = []string{
+	"opencode.ai", // OpenCode auth and update checks
+}
+
 func opencodeTmpfsMounts() []string {
 	return []string{
 		mount.TmpfsMount("/tmp", mount.TmpfsOptions{Exec: true, Size: "1g"}),

@@ -28,6 +28,7 @@ func TestDryRunBuild_printsDockerfile_skipsScript(t *testing.T) {
 	// Assert
 	assert.False(t, scriptCalled)
 	assert.Contains(t, out, "FROM")
+	assert.NotContains(t, out, "proxy")
 }
 
 func TestBuildTools(t *testing.T) {

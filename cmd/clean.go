@@ -43,6 +43,18 @@ func runClean(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if err := cleanTargets(targets); err != nil {
+		return err
+	}
+
+	if len(args) == 0 {
+		return cleanGlobalResources()
+	}
+
+	return nil
+}
+
+func cleanTargets(targets []cleanTarget) error {
 	for _, t := range targets {
 		output.Step(t.label)
 		if err := cleanImage(t.image); err != nil {
@@ -50,17 +62,24 @@ func runClean(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if len(args) == 0 {
-		output.Step("base")
-		if err := cleanBaseImages(); err != nil {
-			return err
-		}
+	return nil
+}
 
-		output.Step("network")
-		return removeNetwork()
+func cleanGlobalResources() error {
+	output.Step("base")
+	if err := cleanBaseImages(); err != nil {
+		return err
 	}
 
-	return nil
+	if err := cleanProxyImage(); err != nil {
+		return err
+	}
+	if err := sweepProxyResources(); err != nil {
+		return err
+	}
+
+	output.Step("network")
+	return removeNetwork()
 }
 
 func resolveCleanTargets(args []string, namespace string, all bool) ([]cleanTarget, error) {
@@ -81,9 +100,12 @@ func resolveAllCleanTargets(args []string) ([]cleanTarget, error) {
 		return nil, err
 	}
 
-	targets := make([]cleanTarget, len(images))
-	for i, info := range images {
-		targets[i] = cleanTarget{label: info.Namespace + "/" + info.Tool, image: info.Image}
+	var targets []cleanTarget
+	for _, info := range images {
+		if _, ok := tools.Configs[info.Tool]; !ok {
+			continue
+		}
+		targets = append(targets, cleanTarget{label: info.Namespace + "/" + info.Tool, image: info.Image})
 	}
 
 	return targets, nil

@@ -22,7 +22,7 @@ agentic <tool> [args]
 
 Adding a new tool requires an entry in `internal/tools/tools.go Configs` (holds `VersionCmd`, `TmpfsMounts`, `Setup`, `Mounts`, and `Stage`) plus the corresponding `internal/tools/<name>.go` file implementing `Setup`, `Mounts`, `TmpfsMounts`, and a `<name>Stage(prevStage string) dockerfile.Stage` function.
 
-Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/docker/bases.go` (base layers) and the tool's `Stage` func. The DSL lives in `internal/dockerfile/`. No static Dockerfile files exist.
+Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/tools/bases.go` (base layers) and the tool's `Stage` func. The DSL lives in `internal/dockerfile/`. No static Dockerfile files exist.
 
 Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-specific mount configuration and setup live in `internal/tools/<tool>.go`.
 

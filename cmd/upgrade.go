@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/selfupdate"
@@ -52,12 +53,12 @@ func runUpgrade(_ *cobra.Command, _ []string) error {
 		target = latest
 	}
 
-	if !upgradeForce && upgradeVersion == "" && !selfupdate.IsNewer(version, target) {
-		output.Detailf("already up to date (%s)", version)
+	if !upgradeForce && upgradeVersion == "" && !selfupdate.IsNewer(buildinfo.Version, target) {
+		output.Detailf("already up to date (%s)", buildinfo.Version)
 		return nil
 	}
 
-	output.Stepf("updating %s -> %s...", version, target)
+	output.Stepf("updating %s -> %s...", buildinfo.Version, target)
 
 	if err := performUpdate(target); err != nil {
 		return fmt.Errorf("update failed: %w", err)
@@ -71,7 +72,7 @@ func runUpgrade(_ *cobra.Command, _ []string) error {
 // notifies the user on stderr. On a TTY it prompts to update immediately; otherwise it
 // prints a one-liner suggesting `agentic upgrade`.
 func maybeNotifyUpdate(home string) {
-	if version == "dev" {
+	if buildinfo.IsDevBuild() {
 		return
 	}
 
@@ -105,7 +106,7 @@ func fetchUpdateIfDue(home string) (string, bool) {
 	config.LastUpdateCheck = &now
 	_ = config.Save(home)
 
-	if !selfupdate.IsNewer(version, latest) {
+	if !selfupdate.IsNewer(buildinfo.Version, latest) {
 		return "", false
 	}
 
@@ -116,11 +117,11 @@ func fetchUpdateIfDue(home string) (string, bool) {
 // immediately; otherwise it prints a one-liner suggesting `agentic upgrade`.
 func notifyUpdate(latest string) {
 	if !isTerminal() {
-		fmt.Fprintf(upgradeStderr, "=> update available: %s (current: %s) - run: agentic upgrade\n", latest, version)
+		fmt.Fprintf(upgradeStderr, "=> update available: %s (current: %s) - run: agentic upgrade\n", latest, buildinfo.Version)
 		return
 	}
 
-	fmt.Fprintf(upgradeStderr, "=> update available: %s (current: %s)\n   update now? [y/N] ", latest, version)
+	fmt.Fprintf(upgradeStderr, "=> update available: %s (current: %s)\n   update now? [y/N] ", latest, buildinfo.Version)
 
 	scanner := bufio.NewScanner(upgradeStdin)
 	if scanner.Scan() && strings.EqualFold(strings.TrimSpace(scanner.Text()), "y") {

@@ -12,6 +12,7 @@ Containers run with:
 - Host UID/GID mapping - the container process runs as your user, so file permissions on mounted directories work correctly
 - `/tmp` limited to 1 GB
 - Isolated Docker network (`agentic-net`) - containers cannot reach other containers on the host, only the internet
+- Optional egress allowlist proxy - restrict a tool to a configurable set of hosts and log every connection attempt (see [config.md](02-config.md#runproxy-section))
 
 When a tool needs to write somewhere (config, cache, temp files), it gets a targeted mount - a named volume or bind mount for persistent state, or a tmpfs for ephemeral scratch space. Nothing gets write access unless explicitly granted.
 
