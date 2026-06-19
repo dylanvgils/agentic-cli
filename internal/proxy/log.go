@@ -39,19 +39,28 @@ type Entry struct {
 
 // Logger writes each access record as a JSON line to an optional file and as a
 // human-readable line to an optional human-readable destination (typically
-// stdout, so `docker logs -f` on the proxy container is easy to read). It is
-// safe for concurrent use: each connection is handled in its own goroutine.
+// stdout, so `docker logs -f` on the proxy container is easy to read). The
+// JSON line always records UTC; the human-readable line is shown in location,
+// since it's meant to be read live by whoever is watching the container's
+// logs. It is safe for concurrent use: each connection is handled in its own
+// goroutine.
 type Logger struct {
-	mutex   sync.Mutex
-	encoder *json.Encoder // nil when no JSON destination is configured
-	human   io.Writer     // nil when no human-readable destination is configured
-	now     func() time.Time
+	mutex    sync.Mutex
+	encoder  *json.Encoder // nil when no JSON destination is configured
+	human    io.Writer     // nil when no human-readable destination is configured
+	location *time.Location
+	now      func() time.Time
 }
 
 // NewLogger returns a Logger that writes JSON lines to file and human-readable
-// lines to human. Either may be nil to skip that destination.
-func NewLogger(file, human io.Writer) *Logger {
-	l := &Logger{human: human, now: time.Now}
+// lines to human, with the human-readable line shown in location (nil
+// defaults to UTC). Either writer may be nil to skip that destination.
+func NewLogger(file, human io.Writer, location *time.Location) *Logger {
+	if location == nil {
+		location = time.UTC
+	}
+
+	l := &Logger{human: human, location: location, now: time.Now}
 	if file != nil {
 		l.encoder = json.NewEncoder(file)
 	}
@@ -71,6 +80,6 @@ func (l *Logger) Log(protocol Protocol, host, port string, decision Decision) {
 
 	if l.human != nil {
 		level := "[" + strings.ToUpper(string(decision)) + "]"
-		fmt.Fprintf(l.human, "%s %-7s %-5s %s:%s\n", entry.Time.Format(time.RFC3339), level, protocol, host, port)
+		fmt.Fprintf(l.human, "%s %-7s %-5s %s:%s\n", entry.Time.In(l.location).Format(time.RFC3339), level, protocol, host, port)
 	}
 }

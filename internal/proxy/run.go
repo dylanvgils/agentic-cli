@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 )
@@ -17,28 +19,36 @@ const Port = "3128"
 const DefaultAddr = ":" + Port
 
 // Environment variables passed from the host to the proxy container. They are
-// internal wiring between StartProxy (host) and the `agentic __proxy` command
-// (container), not user-facing configuration.
+// internal wiring between StartProxy (host) and the `agentic proxy __run`
+// command (container), not user-facing configuration.
 const (
-	EnvAllow = "AGENTIC_PROXY_ALLOW" // comma-separated allowed hosts
-	EnvLog   = "AGENTIC_PROXY_LOG"   // JSON-lines access-log path
-	EnvAddr  = "AGENTIC_PROXY_ADDR"  // override listen address
+	EnvAllow    = "AGENTIC_PROXY_ALLOW"     // comma-separated allowed hosts
+	EnvLog      = "AGENTIC_PROXY_LOG"       // JSON-lines access-log path
+	EnvAddr     = "AGENTIC_PROXY_ADDR"      // override listen address
+	EnvTZOffset = "AGENTIC_PROXY_TZ_OFFSET" // host UTC offset in seconds, for the human-readable log line
 )
 
 // ConfigFromEnv builds a Config from the proxy environment variables.
 func ConfigFromEnv() Config {
+	addr := os.Getenv(EnvAddr)
+	allowedHosts := config.SplitEnvValues(os.Getenv(EnvAllow))
+	logPath := os.Getenv(EnvLog)
+	offset, _ := strconv.Atoi(os.Getenv(EnvTZOffset))
+
 	return Config{
-		Addr:         os.Getenv(EnvAddr),
-		AllowedHosts: config.SplitEnvValues(os.Getenv(EnvAllow)),
-		LogPath:      os.Getenv(EnvLog),
+		Addr:            addr,
+		AllowedHosts:    allowedHosts,
+		LogPath:         logPath,
+		TZOffsetSeconds: offset,
 	}
 }
 
 // Config controls a proxy run.
 type Config struct {
-	Addr         string   // listen address; empty uses DefaultAddr
-	AllowedHosts []string // permitted hosts (exact or leading-dot/"*." wildcard)
-	LogPath      string   // JSON-lines access log file; always also written to stdout
+	Addr            string   // listen address; empty uses DefaultAddr
+	AllowedHosts    []string // permitted hosts (exact or leading-dot/"*." wildcard)
+	LogPath         string   // JSON-lines access log file; always also written to stdout
+	TZOffsetSeconds int      // host UTC offset shown in the stdout human-readable line; the JSON log always stays UTC
 }
 
 // Run starts the forward proxy and blocks until it stops serving.
@@ -54,7 +64,8 @@ func Run(cfg Config) error {
 	}
 	defer closeLog()
 
-	server := NewServer(NewAllowlist(cfg.AllowedHosts), NewLogger(jsonWriter(logFile), os.Stdout))
+	location := time.FixedZone("", cfg.TZOffsetSeconds)
+	server := NewServer(NewAllowlist(cfg.AllowedHosts), NewLogger(jsonWriter(logFile), os.Stdout, location))
 
 	httpServer := &http.Server{
 		Addr:    addr,

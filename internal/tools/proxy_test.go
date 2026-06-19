@@ -6,14 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestProxyImageName(t *testing.T) {
-	// Act
-	name := ProxyImageName("default")
-
-	// Assert
-	assert.Equal(t, "default-proxy", name)
-}
-
 func TestGenerateProxyDockerfile(t *testing.T) {
 	t.Run("pins released version and runs proxy", func(t *testing.T) {
 		// Act
@@ -23,7 +15,7 @@ func TestGenerateProxyDockerfile(t *testing.T) {
 		assert.Contains(t, content, "ARG AGENTIC_VERSION=v1.2.3")
 		assert.Contains(t, content, "go install "+ProxyModulePath+"@${AGENTIC_VERSION}")
 		assert.Contains(t, content, "COPY --from=proxy-builder /go/bin/"+proxyBinaryName+" /usr/local/bin/agentic")
-		assert.Contains(t, content, `ENTRYPOINT ["agentic", "__proxy"]`)
+		assert.Contains(t, content, `ENTRYPOINT ["agentic", "proxy", "__run"]`)
 	})
 
 	t.Run("dev version compiles from local source", func(t *testing.T) {

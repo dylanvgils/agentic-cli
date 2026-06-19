@@ -8,6 +8,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/spf13/cobra"
 )
@@ -29,6 +30,7 @@ var (
 	ensureNetwork       = docker.EnsureNetwork
 	removeNetwork       = docker.RemoveNetwork
 	sweepProxyResources = docker.SweepProxyResources
+	pruneProxyLogs      = housekeeping.PruneProxyLogs
 	createVolume        = docker.CreateVolume
 	listVolumes         = docker.ListVolumes
 	listVolumeNames     = docker.ListVolumeNames
@@ -38,9 +40,9 @@ var (
 
 var (
 	// noDockerCmds lists subcommands that do not require a running Docker daemon.
-	noDockerCmds = []string{"completion", "aliases", "version", "upgrade", "__proxy"}
+	noDockerCmds = []string{"completion", "aliases", "version", "upgrade", "__run"}
 	// noUpdateCmds lists subcommands that skip the automatic update check.
-	noUpdateCmds = []string{"completion", "aliases", "upgrade", "__proxy"}
+	noUpdateCmds = []string{"completion", "aliases", "upgrade", "__run"}
 )
 
 var rootCmd = &cobra.Command{

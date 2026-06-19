@@ -390,17 +390,19 @@ func TestBuildProxyImage(t *testing.T) {
 		assert.Contains(t, err.Error(), "source tree")
 	})
 
-	t.Run("always includes namespace label", func(t *testing.T) {
-		// Arrange
+	t.Run("does not include a namespace label", func(t *testing.T) {
+		// Arrange - the proxy image is global, not namespaced (see tools.ProxyImage)
 		get := stubRunInteractiveCapture(t)
 
 		// Act
-		err := BuildProxyImage("myproject-proxy", "v1.2.3", "", tools.BuildOptions{})
+		err := BuildProxyImage("agentic-proxy", "v1.2.3", "", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
 		args, _ := get()
-		assert.Contains(t, args, "--label="+LabelNamespace+"=myproject")
+		for _, a := range args {
+			assert.False(t, strings.HasPrefix(a, "--label="+LabelNamespace+"="), "unexpected namespace label: %s", a)
+		}
 	})
 
 	t.Run("always includes tool label", func(t *testing.T) {

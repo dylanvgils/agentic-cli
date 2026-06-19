@@ -76,18 +76,15 @@ func BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) 
 
 // buildProxyImage assembles the docker build args for the proxy image. It is
 // deliberately leaner than buildImage: no tool/base build-args, just the
-// agentic labels (including namespace/tool, so `agentic inspect --all` and
-// namespace filtering work the same as for tool images) so cleanup and
-// listing can find it.
+// agentic labels so `agentic inspect --all` and cleanup can find it. Unlike
+// tool images it carries no namespace label - the proxy image is global, not
+// namespaced (see tools.ProxyImage).
 func buildProxyImage(dockerfilePath, image, context string, opts tools.BuildOptions) error {
-	namespace := strings.TrimSuffix(image, "-"+tools.ProxyImageSuffix)
-
 	args := []string{
 		"build",
 		label(LabelProject, LabelProjectVal),
 		label(LabelBuilt, buildBuiltLabel()),
 		label(LabelCLIVersion, buildinfo.Version),
-		label(LabelNamespace, namespace),
 		label(LabelTool, tools.ProxyImageSuffix),
 	}
 

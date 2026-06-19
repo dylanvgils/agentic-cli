@@ -6,8 +6,15 @@ import (
 )
 
 const (
-	// ProxyImageSuffix is appended to the namespace to form the proxy image name.
+	// ProxyImageSuffix names the proxy image's tool label.
 	ProxyImageSuffix = "proxy"
+
+	// ProxyImage is the proxy sidecar's image name. It is global, not
+	// namespaced - the image's content never varies by namespace (it only
+	// depends on the CLI version and registry; allowlist/log config is
+	// passed via env vars at container run time), so unlike tool images it
+	// doesn't need a per-namespace copy.
+	ProxyImage = "agentic-" + ProxyImageSuffix
 
 	// ProxyModulePath is the Go module installed into the proxy image. The
 	// resulting binary is named after the module's last path element.
@@ -29,11 +36,6 @@ const (
 	proxySourceDir = "/src"
 )
 
-// ProxyImageName returns the proxy image name for a namespace, e.g. "default-proxy".
-func ProxyImageName(namespace string) string {
-	return namespace + "-" + ProxyImageSuffix
-}
-
 // GenerateProxyDockerfile returns the Dockerfile content for the egress proxy
 // image. For a released version the binary is installed from the published
 // module (baked into the AGENTIC_VERSION build arg so an unchanged version is a
@@ -52,7 +54,7 @@ func proxyStages(version, registry string) []df.Stage {
 			Src:  proxyBuilderBin,
 			Dest: "/usr/local/bin/agentic",
 		}).
-		Add(df.Entrypoint{Cmd: []string{"agentic", "__proxy"}}).
+		Add(df.Entrypoint{Cmd: []string{"agentic", "proxy", "__run"}}).
 		Build()
 
 	return []df.Stage{proxyBuilderStage(version, registry), final}

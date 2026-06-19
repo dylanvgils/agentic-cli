@@ -48,7 +48,7 @@ func runClean(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(args) == 0 {
-		return cleanGlobalResources(namespace)
+		return cleanGlobalResources()
 	}
 
 	return nil
@@ -65,14 +65,13 @@ func cleanTargets(targets []cleanTarget) error {
 	return nil
 }
 
-func cleanGlobalResources(namespace string) error {
+func cleanGlobalResources() error {
 	output.Step("base")
 	if err := cleanBaseImages(); err != nil {
 		return err
 	}
 
-	output.Step("proxy")
-	if err := cleanImage(tools.ProxyImageName(namespace)); err != nil {
+	if err := cleanProxyImage(); err != nil {
 		return err
 	}
 	if err := sweepProxyResources(); err != nil {

@@ -35,6 +35,28 @@ func TestConfigFromEnv(t *testing.T) {
 		// Assert
 		assert.Empty(t, cfg.AllowedHosts)
 	})
+
+	t.Run("parses a negative TZ offset", func(t *testing.T) {
+		// Arrange
+		t.Setenv(EnvTZOffset, "-18000")
+
+		// Act
+		cfg := ConfigFromEnv()
+
+		// Assert
+		assert.Equal(t, -18000, cfg.TZOffsetSeconds)
+	})
+
+	t.Run("missing or invalid TZ offset defaults to zero", func(t *testing.T) {
+		// Arrange
+		t.Setenv(EnvTZOffset, "not-a-number")
+
+		// Act
+		cfg := ConfigFromEnv()
+
+		// Assert
+		assert.Zero(t, cfg.TZOffsetSeconds)
+	})
 }
 
 func TestOpenLog(t *testing.T) {

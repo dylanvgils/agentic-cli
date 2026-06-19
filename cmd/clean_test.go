@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,17 +149,17 @@ func Test_cleanGlobalResources(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := cleanGlobalResources("agentic")
+			err := cleanGlobalResources()
 			require.NoError(t, err)
 		})
 
 		// Assert
 		assert.True(t, basesCleaned)
-		assert.Contains(t, cleaned, "agentic-proxy")
+		assert.Contains(t, cleaned, tools.ProxyImage)
 		assert.True(t, swept)
 		assert.True(t, networkRemoved)
 		assert.Contains(t, out, "=> base")
-		assert.Contains(t, out, "=> proxy")
+		assert.Contains(t, out, "=> "+tools.ProxyImage)
 		assert.Contains(t, out, "=> network")
 	})
 
@@ -167,7 +168,7 @@ func Test_cleanGlobalResources(t *testing.T) {
 		stubCleanBaseImages(t, func() error { return fmt.Errorf("base cleanup failed") })
 
 		// Act
-		err := cleanGlobalResources("agentic")
+		err := cleanGlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -180,7 +181,7 @@ func Test_cleanGlobalResources(t *testing.T) {
 		stubCleanImage(t, func(string) error { return fmt.Errorf("proxy cleanup failed") })
 
 		// Act
-		err := cleanGlobalResources("agentic")
+		err := cleanGlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -194,7 +195,7 @@ func Test_cleanGlobalResources(t *testing.T) {
 		stubSweepProxyResources(t, func() error { return fmt.Errorf("sweep failed") })
 
 		// Act
-		err := cleanGlobalResources("agentic")
+		err := cleanGlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -209,7 +210,7 @@ func Test_cleanGlobalResources(t *testing.T) {
 		stubRemoveNetwork(t, func() error { return fmt.Errorf("network removal failed") })
 
 		// Act
-		err := cleanGlobalResources("agentic")
+		err := cleanGlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -302,8 +303,8 @@ func Test_runClean(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		// tool images across namespaces plus the namespace proxy image
-		assert.ElementsMatch(t, []string{"agentic-claude", "work-claude", "agentic-proxy"}, cleaned)
+		// tool images across namespaces plus the global proxy image
+		assert.ElementsMatch(t, []string{"agentic-claude", "work-claude", tools.ProxyImage}, cleaned)
 		assert.True(t, basesCleaned)
 	})
 

@@ -6,11 +6,12 @@ Agentic is configured through three layers, applied in order of increasing speci
 
 Stored in `$AGENTIC_HOME/agentic.json` (default: `~/.agentic/agentic.json`). This file holds machine-level settings that apply to all projects. Edit it directly with any text editor.
 
-| Key                 | Type   | Description                                                                                | CLI flag      |
-| ------------------- | ------ | ------------------------------------------------------------------------------------------ | ------------- |
-| `trusted_dirs`      | list   | Directories trusted to run tools from without an interactive prompt                        | `--trust-dir` |
-| `registry`          | scalar | Registry prefix for base image pulls (e.g. `myregistry.example.com`). See below.           | `--registry`  |
-| `last_update_check` | scalar | Timestamp of the last automatic update check. Managed automatically - do not edit by hand. | -             |
+| Key                        | Type   | Description                                                                                | CLI flag      |
+| -------------------------- | ------ | ------------------------------------------------------------------------------------------ | ------------- |
+| `trusted_dirs`             | list   | Directories trusted to run tools from without an interactive prompt                        | `--trust-dir` |
+| `registry`                 | scalar | Registry prefix for base image pulls (e.g. `myregistry.example.com`). See below.           | `--registry`  |
+| `proxy_log_retention_days` | scalar | Days to keep egress proxy access logs before they're pruned automatically. Default: `3`.   | -             |
+| `last_update_check`        | scalar | Timestamp of the last automatic update check. Managed automatically - do not edit by hand. | -             |
 
 ### Registry proxy
 
@@ -93,7 +94,22 @@ pids_limit = "2048"
 
 When the proxy is enabled the tool container loses direct internet access. It runs on a per-run internal Docker network and reaches the outside only through a proxy sidecar that enforces the allowlist. Blocked hosts are printed at the end of the run; every connection attempt is logged as JSON lines under `$AGENTIC_HOME/proxy/`.
 
-Each tool ships a baseline allowlist (e.g. Claude Code allows `.anthropic.com` and `.claude.ai`); `allowed_hosts` values are merged on top. The proxy image is built on demand the first time you run with `--proxy`.
+Each proxy-enabled run prunes its own access logs before starting, deleting any older than a retention window (default 3 days). This is a host-level setting, not a per-project one, so it isn't part of `.agenticrc.toml`: set `proxy_log_retention_days` in `agentic.json` (see the table above) to change it. To wipe every log regardless of age, run `agentic proxy clean --logs`.
+
+Each tool ships a baseline allowlist; `allowed_hosts` values are merged on top of it. The proxy image is built on demand the first time you run with `--proxy`, or explicitly via `agentic proxy build`/`agentic proxy update` (see [Development](05-development.md#building-the-proxy-image-locally)).
+
+| Tool       | Baseline host        | Purpose                             |
+| ---------- | -------------------- | ----------------------------------- |
+| `claude`   | `.anthropic.com`     | Claude API and telemetry subdomains |
+| `claude`   | `.claude.ai`         | installer and asset downloads       |
+| `claude`   | `.claude.com`        | OAuth/login flow                    |
+| `copilot`  | `.githubcopilot.com` | Copilot API and subdomains          |
+| `copilot`  | `api.github.com`     | GitHub API used for authentication  |
+| `opencode` | `opencode.ai`        | OpenCode auth and update checks     |
+
+OpenCode is multi-provider, so only its own auth/update host is included by default - add your chosen model-provider hosts via `allowed_hosts`.
+
+`agentic config` shows the resolved `proxy.enabled` and `proxy.allowed_hosts` values for the current directory, tagged with the `.agenticrc.toml` that set them (the tool's baseline hosts aren't part of this output - they're fixed per tool, not configurable).
 
 ```toml
 [run.proxy]

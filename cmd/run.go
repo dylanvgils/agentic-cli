@@ -114,12 +114,12 @@ func runTool(cmd *cobra.Command, args []string) error {
 
 	proxyEnabled := resolveProxyEnabled(cmd, rc)
 	if proxyEnabled && !dryRun {
-		if err := ensureProxyImage(cmd, namespace); err != nil {
+		if err := ensureProxyImage(cmd); err != nil {
 			return err
 		}
 	}
 
-	rs, err := buildRunSpec(parsedArgs, toolConfig, rc, collectRegistry(cmd), namespace, proxyEnabled)
+	rs, err := buildRunSpec(parsedArgs, toolConfig, rc, collectRegistry(cmd), proxyEnabled)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func parseArgs(args []string, namespace string) (parsedArgs, error) {
 	}, nil
 }
 
-func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC, registry, namespace string, proxyEnabled bool) (docker.RunSpec, error) {
+func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC, registry string, proxyEnabled bool) (docker.RunSpec, error) {
 	containerHome := docker.ResolveContainerHome(args.imageName)
 	volumes := collectVolumes(toolConfig.Runtime.Mounts(), extraVolumes, rc)
 	secrets := collectSecrets(flagSecrets, rc)
@@ -183,7 +183,7 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 		WithCPUs(limits.cpus).
 		WithMemory(limits.memory).
 		WithDryRun(dryRun).
-		WithProxy(proxyEnabled, tools.ProxyImageName(namespace), proxyAllowList(toolConfig, rc), proxyLogDir).
+		WithProxy(proxyEnabled, tools.ProxyImage, proxyAllowList(toolConfig, rc), proxyLogDir).
 		Build()
 
 	return rs, nil

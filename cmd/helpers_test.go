@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -198,6 +199,13 @@ func stubSweepProxyResources(t *testing.T, fn func() error) {
 	orig := sweepProxyResources
 	sweepProxyResources = fn
 	t.Cleanup(func() { sweepProxyResources = orig })
+}
+
+func stubPruneProxyLogs(t *testing.T, fn func(dir string, maxAge time.Duration)) {
+	t.Helper()
+	orig := pruneProxyLogs
+	pruneProxyLogs = fn
+	t.Cleanup(func() { pruneProxyLogs = orig })
 }
 
 func stubUpdateTool(t *testing.T, fn func(tool, image string, opts tools.BuildOptions) error) {

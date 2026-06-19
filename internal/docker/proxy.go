@@ -9,7 +9,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
@@ -154,6 +156,7 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 // runArgs builds the `docker run` arguments for the hardened proxy sidecar.
 func (h proxyHandle) runArgs(rs RunSpec) []string {
 	containerLog := proxyLogMountDir + "/" + h.id + ".jsonl"
+	_, tzOffset := time.Now().Zone()
 
 	return []string{
 		"run", "--detach", "--rm", "--read-only",
@@ -165,6 +168,7 @@ func (h proxyHandle) runArgs(rs RunSpec) []string {
 		label(LabelProject, LabelProjectVal),
 		arg("env", proxy.EnvAllow+"="+strings.Join(h.allow, ",")),
 		arg("env", proxy.EnvLog+"="+containerLog),
+		arg("env", proxy.EnvTZOffset+"="+strconv.Itoa(tzOffset)),
 		arg("volume", rs.ProxyLogDir+":"+proxyLogMountDir),
 		rs.ProxyImage,
 	}

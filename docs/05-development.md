@@ -12,6 +12,7 @@ agentic-cli/
     ├── config/                  # .agenticrc.toml loading and run spec
     ├── docker/                  # Build, update, run, clean, inspect, volume orchestration
     ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
+    ├── housekeeping/            # Host-side cleanup not tied to a tool run, the proxy server, or docker orchestration (e.g. pruning proxy logs)
     ├── mount/                   # Volume mount spec builder
     ├── output/                  # CLI output formatting
     ├── platform/                # Platform-specific paths and utilities
@@ -147,31 +148,20 @@ func TestBuildImage(t *testing.T) {
 
 ## Building the proxy image locally
 
-The proxy image runs as a sidecar container whenever `--proxy` is enabled. It embeds the `agentic __proxy` sub-command and is built separately from the tool images, lazily by `agentic run --proxy` the first time the image is missing for the namespace (`ensureProxyImage`). `agentic build` never builds it.
+The proxy image runs as a sidecar container whenever `--proxy` is enabled. It embeds the `agentic proxy __run` sub-command and is built separately from the tool images via `agentic proxy build`/`agentic proxy update`, or lazily by `agentic run --proxy` the first time it's missing (`ensureProxyImage`). `agentic build` never builds it. Unlike tool images, the proxy image is global (tagged `agentic-proxy`), not namespaced.
 
-### Released builds
-
-For a released version (`v0.x.y`), the proxy Dockerfile uses `go install` to fetch the published module. No local source tree is needed:
+The proxy is unreleased, so it can only be built from local source for now. Local builds default `VERSION` to `dev`, which makes the proxy Dockerfile compile from the local source tree instead of installing a published module - detected by walking up from `$PWD` looking for the module's `go.mod`, so run these from the repository root:
 
 ```bash
-agentic run --proxy claude   # builds <namespace>-proxy on first use, then runs claude
-```
-
-The proxy image is tagged as `<namespace>-proxy` (e.g. `agentic-proxy`).
-
-### Dev builds
-
-When the binary version is `dev` (the default for local builds via `make build`), the proxy Dockerfile compiles from the local source tree instead of installing the published module. `ensureProxyImage` detects this automatically by walking up from `$PWD` looking for the `go.mod` of the agentic module:
-
-```bash
-# From the agentic repository root:
 make build                          # compile the CLI binary (version = "dev")
 ./bin/agentic run --proxy claude    # compiles the proxy from local source on first use
 ```
 
-If `agentic run --proxy` is run from outside the repository on a dev build, the source tree cannot be found and the build fails with an error asking you to run it from within the repository.
+`ensureProxyImage` only builds the proxy image when one doesn't already exist - it never checks whether an existing image is stale. After editing `internal/proxy/`, `cmd/proxy.go`, or any other code the proxy binary links in, force a fresh build:
 
-`ensureProxyImage` only builds the proxy image when one does not already exist for the namespace - it never checks whether an existing image is stale. After editing `internal/proxy/`, `cmd/proxy.go`, or any other code the proxy binary links in, remove the stale image with `agentic clean` (no tool argument, which also removes the proxy image) before rerunning `make build && ./bin/agentic run --proxy claude` (flags go before the tool name - `run` is non-interspersed), otherwise the old image is reused silently.
+```bash
+./bin/agentic proxy update    # always rebuilds agentic-proxy with --no-cache
+```
 
 ## Releasing
 

@@ -43,6 +43,7 @@ func TestStartProxy(t *testing.T) {
 		assert.Contains(t, runArgs, "--cap-drop=ALL")
 		assert.Contains(t, runArgs, "--security-opt=no-new-privileges:true")
 		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_ALLOW=api.anthropic.com")
+		assert.True(t, hasArgWithPrefix(runArgs, "--env=AGENTIC_PROXY_TZ_OFFSET="))
 		assert.Equal(t, "default-proxy", runArgs[len(runArgs)-1])
 
 		assert.Equal(t, []string{"network", "connect", NetworkName, handle.container}, connectArgs)
