@@ -112,7 +112,7 @@ The CLI also checks for updates automatically once per day and prompts you when 
 
 ### Building from source
 
-To build from source instead of downloading a pre-built binary (requires Docker):
+To build from source instead of downloading a pre-built binary:
 
 ```bash
 ./install.sh --from-source    # Linux / macOS
@@ -311,9 +311,9 @@ Use `--base` to add extra runtimes at build time. The same pinning pattern appli
 
 Version defaults are embedded in the binary at build time - run `agentic build --help` to see current defaults. Override per-build with the corresponding flag (`--debian`, `--node`, `--java`, `--dotnet`, `--go`), or set `AGENTIC_<LAYER>_VERSION` in your shell config for a persistent default (e.g. `AGENTIC_JAVA_VERSION=17`, `AGENTIC_NODE_VERSION=22`).
 
-The resolved version for each layer is stored in the `agentic.version-args` image label and automatically recovered on `agentic update`, so the base/extra layers are regenerated identically (and stay cache-hits) even if the embedded defaults have since changed - pass the flag again to pin a different version instead. Pass `--no-cache` to `agentic update` to bypass this and rebuild the base/extra layers from scratch as well, instead of only the tool stage.
+`agentic update` reuses the version each layer was originally built with, so base/extra layers are regenerated identically (and stay cache-hits) even if the embedded defaults have since changed - pass the flag again to pin a different version instead. Pass `--no-cache` to also rebuild the base/extra layers from scratch, instead of only the tool stage.
 
-> **Note:** During `agentic update`, the `bases` and `apt_packages` settings from `.agenticrc.toml` are ignored - the image's own labels are always used to recover the original build configuration. Only an explicit `--base` or `--apt` CLI flag (or the corresponding env var) overrides what the image was built with.
+> **Note:** During `agentic update`, the `bases` and `apt_packages` settings from `.agenticrc.toml` are ignored - the original build configuration is always reused. Only an explicit `--base` or `--apt` CLI flag (or the corresponding env var) overrides what the image was built with.
 
 ### Registry proxy
 
@@ -340,7 +340,7 @@ agentic build claude --apt make
 agentic build claude --apt make,gcc   # comma-separated or repeatable (--apt make --apt gcc)
 ```
 
-Packages are verified with `apt-cache show` before the build starts (fail-fast). The package list is stored in the `agentic.apt` image label and automatically recovered on `agentic update`, so you don't need to re-specify it each time.
+Packages are verified with `apt-cache show` before the build starts (fail-fast). `agentic update` automatically reuses the package list, so you don't need to re-specify it each time.
 
 You can also set packages persistently via environment variable or `.agenticrc.toml`:
 
@@ -466,7 +466,7 @@ extra_mounts = [
 
 ## ⚙️ Configuration
 
-All configuration is done through environment variables, which can be set in your shell config (`.zshrc`, `.bashrc`, etc.).
+Configuration comes from environment variables, `.agenticrc.toml` project files, and `agentic.json`, with CLI flags taking precedence over all of them. This section covers the global environment variables, settable in your shell config (`.zshrc`, `.bashrc`, etc.); see [Per-project configuration](#per-project-configuration) below for `.agenticrc.toml`.
 
 | Variable                  | Description                                                                                                                                           | Default                                                  |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
@@ -483,9 +483,12 @@ All configuration is done through environment variables, which can be set in you
 
 Place a `.agenticrc.toml` file anywhere in your directory tree to apply project-specific configuration. `agentic` walks up from `$PWD` collecting all `.agenticrc.toml` files it finds and merges them. Add `root = true` to a file to stop the walk there.
 
-> **Migration note:** The old `.agenticrc` key=value format is no longer supported. If `agentic` finds a `.agenticrc` file it will print a warning. Rename it to `.agenticrc.toml` and convert the contents to TOML.
+**Merge rules:**
 
-**Merge rules:** list keys (`bases`, `apt_packages`, `extra_mounts`, `secrets`) accumulate from all levels, outermost first. Scalar keys (`cpus`, `memory`, `pids_limit`) use the innermost (child) value. `namespace` and `versions` keys also use the innermost value - for `versions`, each layer name is resolved independently so a child can pin `java` without affecting `node` inherited from a parent. `.agenticrc.toml` takes precedence over env vars for all scalar keys.
+- List keys (`bases`, `apt_packages`, `extra_mounts`, `secrets`) accumulate across all levels, outermost first.
+- Scalar keys (`namespace`, `cpus`, `memory`, `pids_limit`) use the innermost (child) value.
+- `versions` is resolved per layer rather than as a whole table, using the innermost value that sets that layer - so a child can pin `java` without losing a `node` pin set by a parent.
+- For scalar keys, an `.agenticrc.toml` value takes precedence over the corresponding environment variable.
 
 `root` and `namespace` are top-level keys. Build-time settings go under `[build]`; runtime settings go under `[run]`.
 
@@ -635,9 +638,7 @@ Containers run with the following constraints:
 
 ### Egress proxy
 
-By default a tool container can reach any host on the internet. Enable the egress proxy to restrict it to an allowlist and record every host it contacts.
-
-When enabled, the tool no longer has direct internet access. Instead it runs on a per-run **internal** Docker network and reaches the outside world only through a dedicated proxy sidecar that enforces the allowlist. This is **fail-closed**: anything not routed through the proxy simply cannot connect, and any host not on the allowlist is blocked with a `403`. The proxy matches on hostname only (via HTTP `CONNECT`); it does not decrypt TLS.
+Enable the egress proxy to restrict a tool's outbound traffic to an allowlist of hosts and log every connection attempt. The tool runs on a per-run **internal** Docker network with no direct internet access, reaching the outside world only through a proxy sidecar. This is **fail-closed**: anything not routed through the proxy simply cannot connect, and any host not on the allowlist is blocked with a `403`. Matching is on hostname only (via HTTP `CONNECT`); the proxy does not decrypt TLS.
 
 Each tool ships a baseline allowlist of the hosts it needs (e.g. Claude Code allows `.anthropic.com`). Add your own with `allowed_hosts`:
 
@@ -652,10 +653,8 @@ allowed_hosts = [
 ```
 
 - Toggle per run with `--proxy` / `--no-proxy` (overrides the config value).
-- Matching is exact, or a leading-dot / `*.` entry matches a domain and its subdomains. Ports 80 and 443 are allowed.
+- An entry matches exactly, or as a domain plus its subdomains with a leading dot or `*.`. Ports 80 and 443 are allowed.
 - Blocked hosts are summarized at the end of the run; add them to `allowed_hosts` to permit.
-- Every connection attempt is logged as JSON lines under `$AGENTIC_HOME/proxy/`. Each run prunes logs older than a retention window (default 3 days) before starting - set `proxy_log_retention_days` in `agentic.json` to change it. Run `agentic proxy clean --logs` to wipe every log immediately, regardless of age.
+- Every connection attempt is logged as JSON lines under `$AGENTIC_HOME/proxy/`, pruned after a retention window (default 3 days, set via `proxy_log_retention_days` in `agentic.json`). Run `agentic proxy clean --logs` to wipe every log immediately, regardless of age.
 
-The proxy image (`agentic-proxy`) is global, not namespaced - it's the same image for every namespace, since its content never depends on per-project config. It's built on demand the first time you run with `--proxy` if it is missing, or explicitly with `agentic proxy build`/`agentic proxy update` (the latter always forces a fresh, cache-free rebuild - use it after changing the proxy's allowlist/code or to pick up a moved base-image tag; `agentic proxy clean` removes it). A released agentic installs its matching version from the published module; a dev build (version `dev`) compiles the proxy from the local source tree, so run `agentic proxy build`/`agentic run --proxy` from within the agentic repository. `agentic build`/`agentic update` (for the tool images themselves) are not proxied - they need broad network access for apt and package installs.
-
-If you're upgrading from an older agentic that built a per-namespace `<namespace>-proxy` image, those are now orphaned (replaced by the single global `agentic-proxy`) and can be removed manually: `docker rmi $(docker images --format '{{.Repository}}' | grep -- '-proxy$')`.
+The proxy image (`agentic-proxy`) is global, not namespaced - the same image is used for every namespace. It's built automatically the first time you run with `--proxy`, or explicitly with `agentic proxy build`/`agentic proxy update` (the latter forces a fresh, cache-free rebuild; `agentic proxy clean` removes it). `agentic build`/`agentic update` for the tool images themselves are never proxied - they need broad network access for apt and package installs.

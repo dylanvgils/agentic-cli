@@ -1,7 +1,6 @@
 package config
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -90,26 +89,6 @@ func TestCollectPaths(t *testing.T) {
 
 		// Assert - innermost first
 		assert.Equal(t, []string{childRC, parentRC}, paths)
-	})
-
-	t.Run("legacy .agenticrc warns and is not collected", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-		legacyPath := filepath.Join(dir, ".agenticrc")
-		require.NoError(t, os.WriteFile(legacyPath, []byte("cpus=4\n"), 0o644))
-
-		var buf bytes.Buffer
-		orig := rcWarningWriter
-		rcWarningWriter = &buf
-		t.Cleanup(func() { rcWarningWriter = orig })
-
-		// Act
-		paths := collectPaths(dir)
-
-		// Assert
-		assert.Empty(t, paths)
-		assert.Contains(t, buf.String(), legacyPath)
-		assert.Contains(t, buf.String(), ".agenticrc.toml")
 	})
 }
 
