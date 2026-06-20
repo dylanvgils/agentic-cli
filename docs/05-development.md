@@ -146,6 +146,8 @@ func TestBuildImage(t *testing.T) {
 
 3. If the new layer needs apt packages installed in the base stage (e.g. `apt-transport-https` for Java), add them to `layerPackages` in `internal/tools/packages.go` under the layer's name. `collectPackages` merges them with the base packages and any user-supplied `--apt` packages automatically.
 
+The resolved version for each layer and the final apt package list are persisted as Docker labels (`agentic.version-args`, `agentic.apt` - see `internal/docker/labels.go`) when an image is built. `agentic update` reads these labels back (`RecoverVersionArgs`, `RecoverApt`) to reconstruct the original build flags, which is why base/extra layers stay cache-hits across an update even though `.agenticrc.toml`'s `bases`/`apt_packages` are ignored at that point - only an explicit `--base`/`--apt` flag or env var overrides the recovered value.
+
 ## Building the proxy image locally
 
 The proxy image runs as a sidecar container whenever `--proxy` is enabled. It embeds the `agentic proxy __run` sub-command and is built separately from the tool images via `agentic proxy build`/`agentic proxy update`, or lazily by `agentic run --proxy` the first time it's missing (`ensureProxyImage`). `agentic build` never builds it. Unlike tool images, the proxy image is global (tagged `agentic-proxy`), not namespaced.

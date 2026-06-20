@@ -3,7 +3,6 @@ package config
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,10 +50,6 @@ type RCLayer struct {
 }
 
 const rcFilename = ".agenticrc.toml"
-const legacyRCFilename = ".agenticrc"
-
-// rcWarningWriter is the destination for legacy-file warnings; overridable in tests.
-var rcWarningWriter io.Writer = os.Stderr
 
 // FindAndLoadFromCwd loads config starting from the current working directory.
 func FindAndLoadFromCwd() (*AgenticRC, error) {
@@ -118,12 +113,6 @@ func collectPaths(startDir string) []string {
 	dir := startDir
 
 	for {
-		legacy := filepath.Join(dir, legacyRCFilename)
-		if _, err := os.Stat(legacy); err == nil {
-			fmt.Fprintf(rcWarningWriter, "warning: found legacy %s at %s - rename to %s and convert to TOML syntax\n",
-				legacyRCFilename, legacy, rcFilename)
-		}
-
 		candidate := filepath.Join(dir, rcFilename)
 		if _, err := os.Stat(candidate); err == nil {
 			paths = append(paths, candidate)
