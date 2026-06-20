@@ -1,10 +1,18 @@
 # Agentic CLI
 
-CLI for running agentic coding tools in isolated Docker containers.
+Runs agentic coding tools in isolated, read-only Docker containers - each with only the minimal mounts it needs: your workspace and its own config directory. No root, no extra capabilities, no leftovers when done.
+
+- **Multiple tools** - Claude Code, GitHub Copilot CLI, OpenCode, run the same way
+- **Isolated by default** - read-only filesystem, no root, dropped capabilities, isolated network
+- **Per-project config** - `.agenticrc.toml` files merge up the directory tree; namespaces keep separate image sets per project
+- **Pluggable runtimes** - add Node.js, Java, .NET, or Go on top of the base image, with version pinning
+- **Persistent state** - named volumes and read-only secret mounts survive across container runs
+- **Egress allowlist proxy** - optionally restrict and log a tool's outbound network access
+
+→ [Full overview and motivation](docs/01-overview.md)
 
 ## Contents
 
-- [Overview](#-overview)
 - [Requirements](#-requirements)
 - [Installation](#-installation)
   - [Updating](#updating)
@@ -26,12 +34,6 @@ CLI for running agentic coding tools in isolated Docker containers.
 - [Tool home directory](#-tool-home-directory)
 - [Development](docs/05-development.md)
 - [Security](#-security)
-
-## 📖 Overview
-
-Each tool runs in an isolated, read-only container with only the minimal mounts it needs - your workspace and its own config directory. No root, no extra capabilities, no leftovers when done.
-
-→ [Full overview and motivation](docs/01-overview.md)
 
 ## 📋 Requirements
 
