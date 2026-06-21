@@ -18,7 +18,7 @@ func TestExcludesCLIDependencies(t *testing.T) {
 	forbidden := []string{
 		"github.com/dylanvgils/agentic-cli/internal/docker",
 		"github.com/dylanvgils/agentic-cli/internal/tools",
-		"github.com/dylanvgils/agentic-cli/cmd",
+		"github.com/dylanvgils/agentic-cli/internal/cli",
 		"github.com/spf13/cobra",
 	}
 
