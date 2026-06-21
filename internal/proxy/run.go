@@ -19,8 +19,8 @@ const Port = "3128"
 const DefaultAddr = ":" + Port
 
 // Environment variables passed from the host to the proxy container. They are
-// internal wiring between StartProxy (host) and the `agentic proxy __run`
-// command (container), not user-facing configuration.
+// internal wiring between StartProxy (host) and the agentic-proxy binary
+// (container, see cmd/proxy/main.go), not user-facing configuration.
 const (
 	EnvAllow    = "AGENTIC_PROXY_ALLOW"     // comma-separated allowed hosts
 	EnvLog      = "AGENTIC_PROXY_LOG"       // JSON-lines access-log path

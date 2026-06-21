@@ -16,10 +16,27 @@ const (
 	// doesn't need a per-namespace copy.
 	ProxyImage = "agentic-" + ProxyImageSuffix
 
-	// ProxyModulePath is the Go module installed into the proxy image. The
-	// resulting binary is named after the module's last path element.
+	// ProxyModulePath is the module containing the proxy entrypoint
+	// (cmd/proxy). It's also used by buildinfo.DevSourceDir to locate the
+	// local module root as the dev build's Docker build context - it must
+	// match go.mod's module line exactly, so it stays at the module root
+	// rather than pointing at the subpackage actually built/installed.
 	ProxyModulePath = "github.com/dylanvgils/agentic-cli"
-	proxyBinaryName = "agentic-cli"
+
+	// proxyPackagePath is the package go install fetches for a released
+	// build: a minimal entrypoint that only imports internal/proxy, so the
+	// proxy image's binary excludes the CLI's docker/tools/cobra code
+	// entirely.
+	proxyPackagePath = ProxyModulePath + "/cmd/proxy"
+
+	// proxyBuilderBinaryName is the name go build/go install give the
+	// compiled binary in the builder stage - it matches the cmd/proxy
+	// directory name. The final stage copies and renames it to
+	// proxyFinalBinaryName below.
+	proxyBuilderBinaryName = "proxy"
+
+	// proxyFinalBinaryName is the binary's name in the final image.
+	proxyFinalBinaryName = "agentic-proxy"
 
 	// proxyFinalImagePrefix is the minimal runtime base for the proxy: a
 	// static distroless image carrying only the proxy binary. The Debian
@@ -30,7 +47,7 @@ const (
 	proxyFinalTag         = "nonroot"
 
 	// proxyBuilderBin is where the builder stage leaves the compiled binary.
-	proxyBuilderBin = "/go/bin/" + proxyBinaryName
+	proxyBuilderBin = "/go/bin/" + proxyBuilderBinaryName
 
 	// proxySourceDir is where local source is copied for dev builds.
 	proxySourceDir = "/src"
@@ -46,15 +63,15 @@ func GenerateProxyDockerfile(version, registry string) string {
 }
 
 // proxyStages builds the proxy image: a Go builder stage that produces the
-// agentic binary, then a distroless stage that runs it as the proxy.
+// proxy binary, then a distroless stage that runs it.
 func proxyStages(version, registry string) []df.Stage {
 	final := df.NewStage(df.From{Image: prefixImage(registry, proxyFinalImagePrefix+DefaultVersions.DistrolessDebian, proxyFinalTag), As: "proxy"}).
 		Add(df.Copy{
 			From: "proxy-builder",
 			Src:  proxyBuilderBin,
-			Dest: "/usr/local/bin/agentic",
+			Dest: "/usr/local/bin/" + proxyFinalBinaryName,
 		}).
-		Add(df.Entrypoint{Cmd: []string{"agentic", "proxy", "__run"}}).
+		Add(df.Entrypoint{Cmd: []string{proxyFinalBinaryName}}).
 		Build()
 
 	return []df.Stage{proxyBuilderStage(version, registry), final}
@@ -88,8 +105,8 @@ func proxyDevBuilderStage(registry string) df.Stage {
 		}).
 		Add(df.Workdir{Path: proxySourceDir}).
 		Add(df.Run{Blocks: []df.Block{
-			{Comment: "Compile the agentic binary from local source", Lines: []string{
-				"go build -trimpath -o " + proxyBuilderBin + " .",
+			{Comment: "Compile the proxy binary from local source", Lines: []string{
+				"go build -trimpath -o " + proxyBuilderBin + " ./cmd/proxy",
 			}},
 		}}).
 		Build()
@@ -101,8 +118,8 @@ func proxyReleaseBuilderStage(version, registry string) df.Stage {
 	return proxyBuilderBase(registry).
 		Add(df.Arg{Key: "AGENTIC_VERSION", Default: version}).
 		Add(df.Run{Blocks: []df.Block{
-			{Comment: "Install the agentic binary at the pinned version", Lines: []string{
-				"go install " + ProxyModulePath + "@${AGENTIC_VERSION}",
+			{Comment: "Install the proxy binary at the pinned version", Lines: []string{
+				"go install " + proxyPackagePath + "@${AGENTIC_VERSION}",
 			}},
 		}}).
 		Build()

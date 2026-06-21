@@ -9,7 +9,7 @@ before:
 builds:
   - id: agentic
     binary: agentic
-    main: .
+    main: ./cmd/cli
     env:
       - CGO_ENABLED=0
     flags:
