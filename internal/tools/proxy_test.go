@@ -13,9 +13,9 @@ func TestGenerateProxyDockerfile(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, content, "ARG AGENTIC_VERSION=v1.2.3")
-		assert.Contains(t, content, "go install "+ProxyModulePath+"@${AGENTIC_VERSION}")
-		assert.Contains(t, content, "COPY --from=proxy-builder /go/bin/"+proxyBinaryName+" /usr/local/bin/agentic")
-		assert.Contains(t, content, `ENTRYPOINT ["agentic", "proxy", "__run"]`)
+		assert.Contains(t, content, "go install "+proxyPackagePath+"@${AGENTIC_VERSION}")
+		assert.Contains(t, content, "COPY --from=proxy-builder /go/bin/"+proxyBuilderBinaryName+" /usr/local/bin/"+proxyFinalBinaryName)
+		assert.Contains(t, content, `ENTRYPOINT ["`+proxyFinalBinaryName+`"]`)
 	})
 
 	t.Run("dev version compiles from local source", func(t *testing.T) {
@@ -24,7 +24,7 @@ func TestGenerateProxyDockerfile(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, content, "COPY . "+proxySourceDir)
-		assert.Contains(t, content, "go build -trimpath -o "+proxyBuilderBin+" .")
+		assert.Contains(t, content, "go build -trimpath -o "+proxyBuilderBin+" ./cmd/proxy")
 		assert.NotContains(t, content, "go install")
 	})
 

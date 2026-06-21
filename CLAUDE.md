@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in isolated containers. The Go binary (`agentic`) handles all commands and generates Dockerfiles programmatically at build time - no static Dockerfile files exist. No linter. Development means editing Go source, then testing with `go test ./...` and building/running containers.
+A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in isolated containers. The Go binary (`agentic`, entrypoint `cmd/cli/main.go`, Cobra command tree in `internal/cli`) handles all commands and generates Dockerfiles programmatically at build time - no static Dockerfile files exist. No linter. Development means editing Go source, then testing with `go test ./...` and building/running containers.
+
+The egress proxy sidecar (`internal/proxy`) runs as its own minimal binary, `agentic-proxy` (entrypoint `cmd/proxy/main.go`), built into a separate image. It must only import `internal/proxy` - never `internal/docker`, `internal/tools`, or `internal/cli` - so the proxy container's binary stays free of the CLI's Docker-orchestration code.
 
 ## Key commands
 
@@ -28,7 +30,7 @@ Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-sp
 
 ### Adding a new runtime layer
 
-Add a new case to `extraStage()` in `internal/tools/bases.go` (follow the `javaStage`/`dotnetStage`/`goStage` pattern), add the name to `knownExtras`, and add a `--<name>` flag to `cmd/build.go`, `cmd/update.go`, and `cmd/flags.go`.
+Add a new case to `extraStage()` in `internal/tools/bases.go` (follow the `javaStage`/`dotnetStage`/`goStage` pattern), add the name to `knownExtras`, and add a `--<name>` flag to `internal/cli/build.go`, `internal/cli/update.go`, and `internal/cli/flags.go`.
 
 ### Dockerfile DSL (`internal/dockerfile`)
 
@@ -42,7 +44,7 @@ Install steps use `df.Run{Blocks: []df.Block{...}}`; version check scripts use `
 
 ### Cobra command init functions
 
-Every `init()` in a `cmd/*.go` file must follow this order:
+Every `init()` in an `internal/cli/*.go` file must follow this order:
 
 1. `rootCmd.AddCommand(xCmd)` - command registration
 2. Command-specific flags declared inline (`xCmd.Flags()...`)

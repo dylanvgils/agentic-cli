@@ -6,9 +6,12 @@ Working on the CLI requires Go and Make installed locally.
 
 ```
 agentic-cli/
-├── cmd/                         # Cobra commands (build, update, clean, inspect, run, …)
+├── cmd/
+│   ├── cli/                     # Thin entrypoint for the agentic binary (main.go only)
+│   └── proxy/                   # Thin entrypoint for the agentic-proxy binary (main.go only)
 └── internal/
     ├── buildinfo/               # Build-time version/commit metadata and dev-build classification
+    ├── cli/                     # Cobra commands (build, update, clean, inspect, run, …)
     ├── config/                  # .agenticrc.toml loading and run spec
     ├── docker/                  # Build, update, run, clean, inspect, volume orchestration
     ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
@@ -20,6 +23,8 @@ agentic-cli/
     ├── selfupdate/              # Downloads and installs new releases from GitHub
     └── tools/                   # Per-tool stage funcs, mounts, setup, and base layers
 ```
+
+`cmd/proxy` only imports `internal/proxy` - never `internal/docker`, `internal/tools`, or `internal/cli` - so the `agentic-proxy` binary that runs inside the (untrusted-traffic-handling) sidecar container stays free of the CLI's code.
 
 No static Dockerfile files exist. All Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/tools/bases.go` (base and extra layers) and each tool's `Stage` func. See [04-dockerfile-dsl.md](04-dockerfile-dsl.md) for the DSL reference.
 
@@ -50,7 +55,7 @@ Within each `.go` file, order elements as follows:
 
 ### Cobra command init functions
 
-Every `init()` in a `cmd/*.go` file must follow this order:
+Every `init()` in an `internal/cli/*.go` file must follow this order:
 
 1. `rootCmd.AddCommand(xCmd)` - command registration
 2. Command-specific flags declared inline (`xCmd.Flags()...`)
@@ -150,7 +155,7 @@ The resolved version for each layer and the final apt package list are persisted
 
 ## Building the proxy image locally
 
-The proxy image runs as a sidecar container whenever `--proxy` is enabled. It embeds the `agentic proxy __run` sub-command and is built separately from the tool images via `agentic proxy build`/`agentic proxy update`, or lazily by `agentic run --proxy` the first time it's missing (`ensureProxyImage`). `agentic build` never builds it. Unlike tool images, the proxy image is global (tagged `agentic-proxy`), not namespaced.
+The proxy image runs as a sidecar container whenever `--proxy` is enabled. It installs the minimal `agentic-proxy` binary (entrypoint `cmd/proxy/main.go`, built from the `cmd/proxy` package - not the CLI's `agentic` binary) and is built separately from the tool images via `agentic proxy build`/`agentic proxy update`, or lazily by `agentic run --proxy` the first time it's missing (`ensureProxyImage`). `agentic build` never builds it. Unlike tool images, the proxy image is global (tagged `agentic-proxy`), not namespaced.
 
 The proxy is unreleased, so it can only be built from local source for now. Local builds default `VERSION` to `dev`, which makes the proxy Dockerfile compile from the local source tree instead of installing a published module - detected by walking up from `$PWD` looking for the module's `go.mod`, so run these from the repository root:
 
@@ -159,7 +164,7 @@ make build                          # compile the CLI binary (version = "dev")
 ./bin/agentic run --proxy claude    # compiles the proxy from local source on first use
 ```
 
-`ensureProxyImage` only builds the proxy image when one doesn't already exist - it never checks whether an existing image is stale. After editing `internal/proxy/`, `cmd/proxy.go`, or any other code the proxy binary links in, force a fresh build:
+`ensureProxyImage` only builds the proxy image when one doesn't already exist - it never checks whether an existing image is stale. After editing `internal/proxy/`, `cmd/proxy/main.go`, or any other code the proxy binary links in, force a fresh build:
 
 ```bash
 ./bin/agentic proxy update    # always rebuilds agentic-proxy with --no-cache
