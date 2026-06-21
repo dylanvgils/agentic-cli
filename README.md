@@ -28,8 +28,6 @@ Runs agentic coding tools in isolated, read-only Docker containers - each with o
   - [Managing volumes](#managing-volumes)
 - [Java build tools](#-java-build-tools)
 - [Configuration](#-configuration)
-  - [Per-project configuration](#per-project-configuration)
-  - [Mount variable expansion](#mount-variable-expansion)
   - [Example `.zshrc`](#example-zshrc)
 - [Tool home directory](#-tool-home-directory)
 - [Development](docs/05-development.md)
@@ -317,47 +315,16 @@ Version defaults are embedded in the binary at build time - run `agentic build -
 
 > **Note:** During `agentic update`, the `bases` and `apt_packages` settings from `.agenticrc.toml` are ignored - the original build configuration is always reused. Only an explicit `--base` or `--apt` CLI flag (or the corresponding env var) overrides what the image was built with.
 
-### Registry proxy
-
-If your environment requires pulling Docker Hub images through a registry proxy (e.g. Harbor, Nexus, Artifactory, AWS ECR pull-through cache), set the registry hostname and agentic will prefix all base image pulls with it:
-
-```bash
-# One-off override via flag
-agentic build claude --registry myregistry.example.com
-
-# Persistent: add to $AGENTIC_HOME/agentic.json (default: ~/.agentic/agentic.json)
-# { "registry": "myregistry.example.com" }
-```
-
-Authentication is out of scope - configure it once with `docker login myregistry.example.com` before building.
-
-The `--registry` flag takes precedence over the `agentic.json` value. Run `agentic config` to see the active registry setting.
-
 ### Extra apt packages
 
-Use `--apt` to install additional Debian packages into the base stage. Packages are installed before any extra runtime layers, so they are available everywhere:
+Use `--apt` to install additional Debian packages into the base stage, verified against `apt-cache show` before the build starts (fail-fast):
 
 ```bash
 agentic build claude --apt make
 agentic build claude --apt make,gcc   # comma-separated or repeatable (--apt make --apt gcc)
 ```
 
-Packages are verified with `apt-cache show` before the build starts (fail-fast). `agentic update` automatically reuses the package list, so you don't need to re-specify it each time.
-
-You can also set packages persistently via environment variable or `.agenticrc.toml`:
-
-```bash
-# Environment variable (comma-separated)
-export AGENTIC_APT_PACKAGES=make,gcc
-```
-
-```toml
-# .agenticrc.toml (accumulates across nested RC files)
-[build]
-apt_packages = ["make", "gcc"]
-```
-
-All three sources accumulate: RC files (outermost first), then `AGENTIC_APT_PACKAGES`, then `--apt`.
+`agentic update` automatically reuses the package list, so you don't need to re-specify it each time. For persisting packages via `AGENTIC_APT_PACKAGES` or `.agenticrc.toml`, and for registry proxy configuration (pulling base images through Harbor, Nexus, Artifactory, etc.), see [docs/02-config.md](docs/02-config.md).
 
 Use `agentic inspect` to see base layers, apt packages, build timestamp, and installed tool version for any built image.
 
@@ -369,20 +336,6 @@ Use `--secret` / `-s` to mount a secret file read-only into the container:
 agentic run -s 'copilot_token:~/.secrets/copilot_token' copilot
 ```
 
-For persistent global config, set `AGENTIC_SECRETS` in your shell:
-
-```bash
-export AGENTIC_SECRETS='copilot_token:~/.secrets/copilot_token'
-```
-
-For per-project control, use a [`.agenticrc.toml` project config file](#per-project-configuration):
-
-```toml
-# .agenticrc.toml
-[run]
-secrets = ["copilot_token:~/.secrets/copilot_token"]
-```
-
 Secrets use the format `name:/path/to/file[:/container/path]`. The `~`, `$HOME`, and `${HOME}` prefixes are expanded to your home directory. Without a container path the file is mounted at `/run/secrets/<name>`; with one it is mounted at the specified path (supports `$CONTAINER_HOME`):
 
 ```bash
@@ -390,39 +343,11 @@ Secrets use the format `name:/path/to/file[:/container/path]`. The `~`, `$HOME`,
 agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml' java-tool
 ```
 
+For persisting secrets via `AGENTIC_SECRETS` or `.agenticrc.toml`, see [docs/02-config.md](docs/02-config.md).
+
 ## 📦 Named Docker volumes
 
-The `-v` flag and `AGENTIC_EXTRA_MOUNTS` support both bind mounts (host paths) and named Docker volumes. Named volumes are created automatically on first use and persist across container runs - no host path required.
-
-For a per-tool breakdown of what's mounted automatically and why, see [docs/volume-mounts.md](docs/03-volume-mounts.md).
-
-Use a volume name (no leading `/`) as the left side of the mount spec:
-
-```bash
-# Named Docker volumes (created automatically, managed by Docker)
-agentic -v 'maven:$CONTAINER_HOME/.m2' claude
-agentic -v 'maven:$CONTAINER_HOME/.m2' -v 'gradle:$CONTAINER_HOME/.gradle' claude
-
-# Bind mounts (path on the host)
-agentic -v '~/.m2:$CONTAINER_HOME/.m2' claude
-```
-
-For persistent global config, set `AGENTIC_EXTRA_MOUNTS` in your shell:
-
-```bash
-export AGENTIC_EXTRA_MOUNTS='maven:$CONTAINER_HOME/.m2,gradle:$CONTAINER_HOME/.gradle'
-```
-
-For per-project control, use a [`.agenticrc.toml` project config file](#per-project-configuration):
-
-```toml
-# .agenticrc.toml
-[run]
-extra_mounts = [
-  "maven:$CONTAINER_HOME/.m2",
-  "gradle:$CONTAINER_HOME/.gradle",
-]
-```
+The `-v` flag and `AGENTIC_EXTRA_MOUNTS` support both bind mounts (host paths) and named Docker volumes - named volumes are created automatically on first use and persist across container runs, no host path required. See [Examples](#examples) above for the mount syntax, [docs/02-config.md](docs/02-config.md) for `AGENTIC_EXTRA_MOUNTS` / `.agenticrc.toml` persistence, and [docs/volume-mounts.md](docs/03-volume-mounts.md) for a per-tool breakdown of what's mounted automatically and why.
 
 ### Managing volumes
 
@@ -468,7 +393,7 @@ extra_mounts = [
 
 ## ⚙️ Configuration
 
-Configuration comes from environment variables, `.agenticrc.toml` project files, and `agentic.json`, with CLI flags taking precedence over all of them. This section covers the global environment variables, settable in your shell config (`.zshrc`, `.bashrc`, etc.); see [Per-project configuration](#per-project-configuration) below for `.agenticrc.toml`.
+Configuration comes from environment variables, `.agenticrc.toml` project files, and `agentic.json`, with CLI flags taking precedence over all of them. This section covers the global environment variables, settable in your shell config (`.zshrc`, `.bashrc`, etc.). For the full `.agenticrc.toml` format, merge rules, precedence, and mount variable expansion (`$TOOL_HOME`, `$CONTAINER_HOME`, etc.), see [docs/02-config.md](docs/02-config.md).
 
 | Variable                  | Description                                                                                                                                           | Default                                                  |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
@@ -480,127 +405,6 @@ Configuration comes from environment variables, `.agenticrc.toml` project files,
 | `AGENTIC_CPUS`            | Default container CPU limit                                                                                                                           | `4`                                                      |
 | `AGENTIC_MEMORY`          | Default container memory limit                                                                                                                        | `4g`                                                     |
 | `AGENTIC_<LAYER>_VERSION` | Version used when building the named runtime layer (e.g. `AGENTIC_JAVA_VERSION=17`, `AGENTIC_NODE_VERSION=22`)                                        | Embedded per-layer defaults (see `agentic build --help`) |
-
-### Per-project configuration
-
-Place a `.agenticrc.toml` file anywhere in your directory tree to apply project-specific configuration. `agentic` walks up from `$PWD` collecting all `.agenticrc.toml` files it finds and merges them. Add `root = true` to a file to stop the walk there.
-
-**Merge rules:**
-
-- List keys (`bases`, `apt_packages`, `extra_mounts`, `secrets`) accumulate across all levels, outermost first.
-- Scalar keys (`namespace`, `cpus`, `memory`, `pids_limit`) use the innermost (child) value.
-- `versions` is resolved per layer rather than as a whole table, using the innermost value that sets that layer - so a child can pin `java` without losing a `node` pin set by a parent.
-- For scalar keys, an `.agenticrc.toml` value takes precedence over the corresponding environment variable.
-
-`root` and `namespace` are top-level keys. Build-time settings go under `[build]`; runtime settings go under `[run]`.
-
-**Top-level**
-
-| Key         | Description                                             | Default   | Env var override    |
-| ----------- | ------------------------------------------------------- | --------- | ------------------- |
-| `root`      | Stop walking up the directory tree at this file         | `false`   | -                   |
-| `namespace` | Image namespace; images are named `<namespace>-<tool>`. | `agentic` | `AGENTIC_NAMESPACE` |
-
-**`[build]` section** - baked into the image at build time
-
-| Key            | Description                                                                                          | Default | Env var override          |
-| -------------- | ---------------------------------------------------------------------------------------------------- | ------- | ------------------------- |
-| `bases`        | Extra runtime layers to add on top of node (e.g. `["java", "dotnet"]`). Accumulates with `--base`.   | -       | -                         |
-| `apt_packages` | Extra apt packages to install at build time. Accumulates with `--apt` and env var.                   | -       | `AGENTIC_APT_PACKAGES`    |
-| `versions`     | Per-layer version pins as a TOML table (e.g. `[build.versions]` with `java = "17"`). Innermost wins. | -       | `AGENTIC_<LAYER>_VERSION` |
-
-**`[run]` section** - applied to each container at runtime
-
-| Key            | Description                                                                                                                                                                                           | Default | Env var override       |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------- |
-| `extra_mounts` | Extra mounts. Bind mount: `~/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `~`, `$HOME`, and `$CONTAINER_HOME`.                                                  | -       | `AGENTIC_EXTRA_MOUNTS` |
-| `secrets`      | Secrets to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`. Supports `~`, `$HOME`, and `$CONTAINER_HOME` (container path only). | -       | `AGENTIC_SECRETS`      |
-| `pids_limit`   | Container PID limit (quoted string, e.g. `"1024"`)                                                                                                                                                    | `1024`  | `AGENTIC_PIDS_LIMIT`   |
-| `cpus`         | Container CPU limit (quoted string, e.g. `"4"`)                                                                                                                                                       | `4`     | `AGENTIC_CPUS`         |
-| `memory`       | Container memory limit (string, e.g. `"8g"`)                                                                                                                                                          | `4g`    | `AGENTIC_MEMORY`       |
-
-**`[run.proxy]` section** - egress allowlist proxy (see [Egress proxy](#egress-proxy))
-
-| Key             | Description                                                                                                                           | Default | Env var override |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------- |
-| `enabled`       | Route the tool's egress through the allowlist proxy. Override per run with `--proxy` / `--no-proxy`.                                  | `false` | -                |
-| `allowed_hosts` | Extra hosts to permit, merged on top of the tool's baseline. Exact match, or a leading-dot/`*.` entry to match a domain + subdomains. | -       | -                |
-
-You can commit `.agenticrc.toml` to the repo so the whole team picks up the right settings automatically.
-
-```toml
-# .agenticrc.toml
-root = true
-
-[build]
-bases = ["java"]
-apt_packages = ["make", "gcc"]
-
-[build.versions]
-java = "17"
-node = "22"
-
-[run]
-extra_mounts = [
-  "maven:$CONTAINER_HOME/.m2",
-  "gradle:$CONTAINER_HOME/.gradle",
-]
-secrets = ["copilot_token:~/.secrets/copilot_token"]
-pids_limit = "2048"
-cpus = "8"
-memory = "8g"
-```
-
-**Multi-level example** - shared secrets in a parent directory, project mounts in the project:
-
-```toml
-# ~/projects/.agenticrc.toml  (applies to all projects under ~/projects)
-root = true
-
-[build]
-bases = ["java"]
-apt_packages = ["make"]
-
-[build.versions]
-node = "22"
-
-[run]
-secrets = ["gh-token:~/.secrets/gh_token"]
-```
-
-```toml
-# ~/projects/my-project/.agenticrc.toml
-[build]
-apt_packages = ["gcc"]
-
-[build.versions]
-java = "17"  # pins java; node = "22" is inherited from parent
-
-[run]
-extra_mounts = ["maven:$CONTAINER_HOME/.m2"]
-cpus = "8"
-```
-
-### Mount variable expansion
-
-Several placeholders are expanded in mount strings at runtime. Use them so you don't have to hardcode paths that vary per machine or per tool:
-
-| Placeholder         | Side of `:`       | Expands to                                     |
-| ------------------- | ----------------- | ---------------------------------------------- |
-| `~`                 | host (left)       | Your home directory                            |
-| `$HOME`             | host (left)       | Same as above                                  |
-| `${HOME}`           | host (left)       | Same as above                                  |
-| `$TOOL_HOME`        | host (left)       | Agentic data directory (e.g. `~/.agentic`)     |
-| `${TOOL_HOME}`      | host (left)       | Same as above                                  |
-| `$CONTAINER_HOME`   | container (right) | Container home directory (e.g. `/home/claude`) |
-| `${CONTAINER_HOME}` | container (right) | Same as above                                  |
-
-Use single quotes (or escape the `$`) so the shell doesn't try to expand the variables before passing them to `agentic`:
-
-```bash
-agentic -v '$TOOL_HOME/custom:$CONTAINER_HOME/.custom' claude
-export AGENTIC_EXTRA_MOUNTS='~/.m2:$CONTAINER_HOME/.m2,~/.gradle:$CONTAINER_HOME/.gradle'
-```
 
 ### Example `.zshrc`
 
@@ -628,35 +432,6 @@ See [docs/development.md](docs/05-development.md) for build commands, repo struc
 
 ## 🔒 Security
 
-Containers run with the following constraints:
+Containers run read-only with all capabilities dropped, no privilege escalation, and on an isolated Docker network - see [docs/01-overview.md](docs/01-overview.md#security-model) for the full list of constraints.
 
-- Read-only filesystem
-- All capabilities dropped
-- No privilege escalation
-- Runs as the host user to avoid permission issues on mounted files
-- `/tmp` limited to 1GB
-- Isolated Docker network (`agentic-net`) - containers cannot reach other containers on the host, only the internet
-- Optional egress allowlist proxy - restrict a tool to a configurable set of hosts (see below)
-
-### Egress proxy
-
-Enable the egress proxy to restrict a tool's outbound traffic to an allowlist of hosts and log every connection attempt. The tool runs on a per-run **internal** Docker network with no direct internet access, reaching the outside world only through a proxy sidecar. This is **fail-closed**: anything not routed through the proxy simply cannot connect, and any host not on the allowlist is blocked with a `403`. Matching is on hostname only (via HTTP `CONNECT`); the proxy does not decrypt TLS.
-
-Each tool ships a baseline allowlist of the hosts it needs (e.g. Claude Code allows `.anthropic.com`). Add your own with `allowed_hosts`:
-
-```toml
-# .agenticrc.toml
-[run.proxy]
-enabled = true
-allowed_hosts = [
-  "registry.npmjs.org",
-  ".github.com",      # leading dot matches the domain and any subdomain
-]
-```
-
-- Toggle per run with `--proxy` / `--no-proxy` (overrides the config value).
-- An entry matches exactly, or as a domain plus its subdomains with a leading dot or `*.`. Ports 80 and 443 are allowed.
-- Blocked hosts are summarized at the end of the run; add them to `allowed_hosts` to permit.
-- Every connection attempt is logged as JSON lines under `$AGENTIC_HOME/proxy/`, pruned after a retention window (default 3 days, set via `proxy_log_retention_days` in `agentic.json`). Run `agentic proxy clean --logs` to wipe every log immediately, regardless of age.
-
-The proxy image (`agentic-proxy`) is global, not namespaced - the same image is used for every namespace. It's built automatically the first time you run with `--proxy`, or explicitly with `agentic proxy build`/`agentic proxy update` (the latter forces a fresh, cache-free rebuild; `agentic proxy clean` removes it). `agentic build`/`agentic update` for the tool images themselves are never proxied - they need broad network access for apt and package installs.
+Optionally, an egress allowlist proxy can restrict a tool's outbound traffic to a configurable set of hosts and log every connection attempt - fail-closed, so anything not on the allowlist is blocked. Toggle it per run with `--proxy` / `--no-proxy`; see [docs/02-config.md](docs/02-config.md#keys) for the `[run.proxy]` config reference and setup details.

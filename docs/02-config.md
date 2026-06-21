@@ -167,7 +167,7 @@ Packages accumulate across all three sources in this order:
 2. `AGENTIC_APT_PACKAGES` environment variable (comma-separated)
 3. `--apt` flag
 
-Duplicates are removed while preserving order.
+Duplicates are removed while preserving order. The resolved list is verified with `apt-cache show` before the build starts (fail-fast).
 
 ### `bases`
 
@@ -252,6 +252,27 @@ cpus = "8"
 ```
 
 Running `agentic` from `~/projects/my-project` merges both files and stops; `~/projects` is not traversed further even if a `.agenticrc.toml` exists above it.
+
+## Mount variable expansion
+
+Several placeholders are expanded in mount strings (`extra_mounts`, `AGENTIC_EXTRA_MOUNTS`, `-v`) at runtime, so paths don't have to be hardcoded per machine or per tool:
+
+| Placeholder         | Side of `:`       | Expands to                                     |
+| ------------------- | ----------------- | ---------------------------------------------- |
+| `~`                 | host (left)       | Your home directory                            |
+| `$HOME`             | host (left)       | Same as above                                  |
+| `${HOME}`           | host (left)       | Same as above                                  |
+| `$TOOL_HOME`        | host (left)       | Agentic data directory (e.g. `~/.agentic`)     |
+| `${TOOL_HOME}`      | host (left)       | Same as above                                  |
+| `$CONTAINER_HOME`   | container (right) | Container home directory (e.g. `/home/claude`) |
+| `${CONTAINER_HOME}` | container (right) | Same as above                                  |
+
+Use single quotes (or escape the `$`) so the shell doesn't expand the variables before passing them to `agentic`:
+
+```bash
+agentic -v '$TOOL_HOME/custom:$CONTAINER_HOME/.custom' claude
+export AGENTIC_EXTRA_MOUNTS='~/.m2:$CONTAINER_HOME/.m2,~/.gradle:$CONTAINER_HOME/.gradle'
+```
 
 ## Inspecting the merged config
 
