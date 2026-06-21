@@ -2,6 +2,21 @@
 
 Agentic is configured through three layers, applied in order of increasing specificity: `agentic.json` global file, `.agenticrc.toml` project files, environment variables, and CLI flags. List-type settings accumulate across all layers; scalar settings use the most specific value.
 
+## Environment variables
+
+Settable in your shell config (`.zshrc`, `.bashrc`, etc.) for a persistent global default. `.agenticrc.toml` values and CLI flags take precedence over these - see [Precedence](#precedence) below.
+
+| Variable                  | Description                                                                                                                                           | Default                                                  |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `AGENTIC_HOME`            | Base directory for tool config and secrets                                                                                                            | `$HOME/.agentic`                                         |
+| `AGENTIC_NAMESPACE`       | Image namespace. Images are named `<namespace>-<tool>`. Used when no `.agenticrc.toml` sets `namespace`.                                              | `agentic`                                                |
+| `AGENTIC_EXTRA_MOUNTS`    | Comma-separated extra mounts. Bind mount: `host/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `$CONTAINER_HOME`. | -                                                        |
+| `AGENTIC_SECRETS`         | Comma-separated secrets to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`.     | -                                                        |
+| `AGENTIC_PIDS_LIMIT`      | Default container PID limit                                                                                                                           | `1024`                                                   |
+| `AGENTIC_CPUS`            | Default container CPU limit                                                                                                                           | `4`                                                      |
+| `AGENTIC_MEMORY`          | Default container memory limit                                                                                                                        | `4g`                                                     |
+| `AGENTIC_<LAYER>_VERSION` | Version used when building the named runtime layer (e.g. `AGENTIC_JAVA_VERSION=17`, `AGENTIC_NODE_VERSION=22`)                                        | Embedded per-layer defaults (see `agentic build --help`) |
+
 ## `agentic.json` (global config)
 
 Stored in `$AGENTIC_HOME/agentic.json` (default: `~/.agentic/agentic.json`). This file holds machine-level settings that apply to all projects. Edit it directly with any text editor.

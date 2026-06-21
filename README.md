@@ -393,18 +393,7 @@ extra_mounts = [
 
 ## ⚙️ Configuration
 
-Configuration comes from environment variables, `.agenticrc.toml` project files, and `agentic.json`, with CLI flags taking precedence over all of them. This section covers the global environment variables, settable in your shell config (`.zshrc`, `.bashrc`, etc.). For the full `.agenticrc.toml` format, merge rules, precedence, and mount variable expansion (`$TOOL_HOME`, `$CONTAINER_HOME`, etc.), see [docs/02-config.md](docs/02-config.md).
-
-| Variable                  | Description                                                                                                                                           | Default                                                  |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `AGENTIC_HOME`            | Base directory for tool config and secrets                                                                                                            | `$HOME/.agentic`                                         |
-| `AGENTIC_NAMESPACE`       | Image namespace. Images are named `<namespace>-<tool>`. Used when no `.agenticrc.toml` sets `namespace`.                                              | `agentic`                                                |
-| `AGENTIC_EXTRA_MOUNTS`    | Comma-separated extra mounts. Bind mount: `host/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `$CONTAINER_HOME`. | -                                                        |
-| `AGENTIC_SECRETS`         | Comma-separated secrets to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`.     | -                                                        |
-| `AGENTIC_PIDS_LIMIT`      | Default container PID limit                                                                                                                           | `1024`                                                   |
-| `AGENTIC_CPUS`            | Default container CPU limit                                                                                                                           | `4`                                                      |
-| `AGENTIC_MEMORY`          | Default container memory limit                                                                                                                        | `4g`                                                     |
-| `AGENTIC_<LAYER>_VERSION` | Version used when building the named runtime layer (e.g. `AGENTIC_JAVA_VERSION=17`, `AGENTIC_NODE_VERSION=22`)                                        | Embedded per-layer defaults (see `agentic build --help`) |
+Configuration comes from environment variables, `.agenticrc.toml` project files, and `agentic.json`, with CLI flags taking precedence over all of them. See [docs/02-config.md](docs/02-config.md) for the full environment variable reference, `.agenticrc.toml` format, merge rules, precedence, and mount variable expansion (`$TOOL_HOME`, `$CONTAINER_HOME`, etc.).
 
 ### Example `.zshrc`
 
