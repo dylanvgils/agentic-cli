@@ -15,9 +15,10 @@ import (
 var updateCmd = &cobra.Command{
 	Use:   "update [tool]",
 	Short: "Update tool image(s) to latest version",
-	Long: "Update tool image(s) to latest version. Rebuilds the tool step without cache\n" +
-		"so the installer fetches the latest version. Skips unbuilt tools when no tool\n" +
-		"specified.\n\n" + extrasEnvDoc(),
+	Long: "Update tool image(s) to latest version. Checks the latest version available\n" +
+		"upstream first and skips the rebuild if the image is already current; otherwise\n" +
+		"rebuilds the tool step without cache so the installer fetches the latest version.\n" +
+		"Skips unbuilt tools when no tool specified.\n\n" + extrasEnvDoc(),
 	Example: `  agentic update
   agentic update claude
   agentic update claude --base java

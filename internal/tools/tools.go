@@ -13,7 +13,10 @@ import (
 // Configs maps tool names to their container configuration.
 var Configs = map[string]ToolConfig{
 	"claude": {
-		Build: BuildConfig{Stage: claudeStage},
+		Build: BuildConfig{
+			Stage:         claudeStage,
+			LatestVersion: claudeLatestVersion,
+		},
 		Runtime: RuntimeConfig{
 			Setup:        setupClaude,
 			Mounts:       claudeMounts,
@@ -22,7 +25,10 @@ var Configs = map[string]ToolConfig{
 		},
 	},
 	"copilot": {
-		Build: BuildConfig{Stage: copilotStage},
+		Build: BuildConfig{
+			Stage:         copilotStage,
+			LatestVersion: copilotLatestVersion,
+		},
 		Runtime: RuntimeConfig{
 			Setup:        setupCopilot,
 			Mounts:       copilotMounts,
@@ -31,7 +37,10 @@ var Configs = map[string]ToolConfig{
 		},
 	},
 	"opencode": {
-		Build: BuildConfig{Stage: opencodeStage},
+		Build: BuildConfig{
+			Stage:         opencodeStage,
+			LatestVersion: opencodeLatestVersion,
+		},
 		Runtime: RuntimeConfig{
 			Setup:        setupOpencode,
 			Mounts:       opencodeMounts,
@@ -44,6 +53,9 @@ var Configs = map[string]ToolConfig{
 // BuildConfig holds the build-time configuration for a tool container.
 type BuildConfig struct {
 	Stage func(prevStage string) dockerfile.Stage // returns the tool's Dockerfile stage
+	// LatestVersion fetches the latest version available upstream, so update
+	// can skip rebuilding when the installed version already matches.
+	LatestVersion func() (string, error)
 }
 
 // RuntimeConfig holds the runtime configuration for a tool container.

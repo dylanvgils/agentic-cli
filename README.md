@@ -205,7 +205,7 @@ agentic build claude --apt make,gcc
 # Force a fully fresh build
 agentic build claude --no-cache
 
-# Update to latest version (only rebuilds the tool step, base layers stay cached)
+# Update to latest version (checks upstream first; rebuilds only if newer, base layers stay cached)
 agentic update
 agentic update claude --base node,java
 agentic update claude --no-cache   # also rebuilds base layers

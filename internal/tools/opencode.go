@@ -8,6 +8,10 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
+// opencodeReleaseRepo is the GitHub repo the install script (opencode.ai/install)
+// pulls releases from.
+const opencodeReleaseRepo = "anomalyco/opencode"
+
 // opencodeAllowedHosts is the baseline egress allowlist for OpenCode. OpenCode
 // is multi-provider, so only its own auth/update host is included by default;
 // users add their chosen model-provider hosts via allowed_hosts.
@@ -54,6 +58,11 @@ func opencodeStage(prevStage string) df.Stage {
 		Add(df.Workdir{Path: "/workspace"}).
 		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
 		Build()
+}
+
+// opencodeLatestVersion fetches the latest OpenCode version available upstream.
+func opencodeLatestVersion() (string, error) {
+	return latestGithubTag(opencodeReleaseRepo)
 }
 
 func setupOpencode(toolHome string) error {
