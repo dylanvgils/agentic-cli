@@ -1,12 +1,19 @@
 package tools
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
+
+// claudeLatestVersionURL mirrors the version check performed by claude.ai/install.sh
+// before it picks a binary to download - install.sh always resolves this URL
+// regardless of any stable/latest/version target, so checking it here matches
+// exactly what the install step below actually fetches.
+const claudeLatestVersionURL = "https://downloads.claude.ai/claude-code-releases/latest"
 
 // claudeAllowedHosts is the baseline egress allowlist for Claude Code. Package
 // registries or other hosts are added by the user via allowed_hosts.
@@ -52,6 +59,11 @@ func claudeStage(prevStage string) df.Stage {
 		Add(df.Workdir{Path: "/workspace"}).
 		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
 		Build()
+}
+
+// claudeLatestVersion fetches the latest Claude Code version available upstream.
+func claudeLatestVersion() (string, error) {
+	return fetchTextVersion(claudeLatestVersionURL, http.DefaultClient)
 }
 
 func setupClaude(toolHome string) error {

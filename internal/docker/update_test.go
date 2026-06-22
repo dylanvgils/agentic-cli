@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -153,6 +154,70 @@ func TestUpdateTool(t *testing.T) {
 		assert.True(t, hasPull, "expected pull for new package not in image")
 	})
 
+	t.Run("skips rebuild when installed version matches latest", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{
+			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3"}}}`,
+		})
+		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
+		getCalls := stubRunInteractiveAll(t)
+
+		// Act
+		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, getCalls())
+	})
+
+	t.Run("rebuilds when upstream has a newer version", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{
+			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3"}}}`,
+		})
+		stubLatestVersion(t, "claude", func() (string, error) { return "9.9.9", nil })
+		getCalls := stubRunInteractiveAll(t)
+
+		// Act
+		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotEmpty(t, getCalls())
+	})
+
+	t.Run("rebuilds when upstream check fails", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{
+			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3"}}}`,
+		})
+		stubLatestVersion(t, "claude", func() (string, error) { return "", errors.New("network error") })
+		getCalls := stubRunInteractiveAll(t)
+
+		// Act
+		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotEmpty(t, getCalls())
+	})
+
+	t.Run("no-cache bypasses the up-to-date check", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{
+			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3"}}}`,
+		})
+		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
+		getCalls := stubRunInteractiveAll(t)
+
+		// Act
+		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{NoCache: true})
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotEmpty(t, getCalls())
+	})
+
 	t.Run("always sets cachebust build arg", func(t *testing.T) {
 		// Arrange
 		stubDockerRunBySubcmd(t, nil)
@@ -173,6 +238,63 @@ func TestUpdateTool(t *testing.T) {
 			}
 		}
 		assert.True(t, hasCacheBust, "tool build must skip cache via a non-empty --build-arg=CACHEBUST=<value>")
+	})
+}
+
+func Test_isUpToDate(t *testing.T) {
+	t.Run("empty installed version returns false", func(t *testing.T) {
+		// Arrange
+		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
+
+		// Act
+		result := isUpToDate("claude", "")
+
+		// Assert
+		assert.False(t, result)
+	})
+
+	t.Run("no fetcher configured returns false", func(t *testing.T) {
+		// Arrange
+		stubLatestVersion(t, "claude", nil)
+
+		// Act
+		result := isUpToDate("claude", "1.2.3")
+
+		// Assert
+		assert.False(t, result)
+	})
+
+	t.Run("fetch error returns false", func(t *testing.T) {
+		// Arrange
+		stubLatestVersion(t, "claude", func() (string, error) { return "", errors.New("network error") })
+
+		// Act
+		result := isUpToDate("claude", "1.2.3")
+
+		// Assert
+		assert.False(t, result)
+	})
+
+	t.Run("matching versions returns true", func(t *testing.T) {
+		// Arrange
+		stubLatestVersion(t, "claude", func() (string, error) { return "v1.2.3", nil })
+
+		// Act
+		result := isUpToDate("claude", "1.2.3")
+
+		// Assert
+		assert.True(t, result)
+	})
+
+	t.Run("differing versions returns false", func(t *testing.T) {
+		// Arrange
+		stubLatestVersion(t, "claude", func() (string, error) { return "9.9.9", nil })
+
+		// Act
+		result := isUpToDate("claude", "1.2.3")
+
+		// Assert
+		assert.False(t, result)
 	})
 }
 

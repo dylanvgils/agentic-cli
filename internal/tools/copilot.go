@@ -8,6 +8,10 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
+// copilotReleaseRepo is the GitHub repo the install script (gh.io/copilot-install)
+// pulls releases from.
+const copilotReleaseRepo = "github/copilot-cli"
+
 // copilotAllowedHosts is the baseline egress allowlist for GitHub Copilot CLI.
 // Package registries or other hosts are added by the user via allowed_hosts.
 var copilotAllowedHosts = []string{
@@ -58,6 +62,11 @@ func copilotStage(prevStage string) df.Stage {
 		Add(df.Workdir{Path: "/workspace"}).
 		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
 		Build()
+}
+
+// copilotLatestVersion fetches the latest GitHub Copilot CLI version available upstream.
+func copilotLatestVersion() (string, error) {
+	return latestGithubTag(copilotReleaseRepo)
 }
 
 func setupCopilot(toolHome string) error {
