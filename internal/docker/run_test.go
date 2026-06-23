@@ -50,7 +50,7 @@ func TestRunContainer(t *testing.T) {
 		args := get()
 		assert.True(t, hasArgWithPrefix(args, "--network=agentic-proxy-"), "tool should attach to the internal proxy net")
 		assert.False(t, hasArg(args, "--network="+NetworkName), "tool should not be on the egress net directly")
-		assert.True(t, hasArgWithPrefix(args, "--env=HTTPS_PROXY=http://agentic-proxy-"), "tool should get HTTPS_PROXY")
+		assert.True(t, hasArgWithPrefix(args, "--env=HTTPS_PROXY="), "tool should get HTTPS_PROXY")
 	})
 
 	t.Run("proxy mode dry run prints internal network without docker calls", func(t *testing.T) {
@@ -309,7 +309,7 @@ func TestSetupProxy(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, strings.HasPrefix(rs.network, "agentic-proxy-"))
-		assert.True(t, hasArgWithPrefix(env, "--env=HTTPS_PROXY=http://agentic-proxy-"))
+		assert.True(t, hasArgWithPrefix(env, "--env=HTTPS_PROXY="))
 		assert.Empty(t, calls(), "dry run must not invoke docker")
 		require.NotPanics(t, cleanup)
 	})
@@ -332,7 +332,7 @@ func TestSetupProxy(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, strings.HasPrefix(rs.network, "agentic-proxy-"))
-		assert.True(t, hasArgWithPrefix(env, "--env=HTTPS_PROXY=http://agentic-proxy-"))
+		assert.True(t, hasArgWithPrefix(env, "--env=HTTPS_PROXY="))
 		last := calls()[len(calls())-1]
 		assert.Equal(t, []string{"network", "rm"}, last.args[:2], "cleanup should remove the proxy network")
 	})
@@ -360,9 +360,10 @@ func TestSetupProxy(t *testing.T) {
 func TestBuildBaseArgs(t *testing.T) {
 	t.Run("security flags", func(t *testing.T) {
 		// Act
-		args := buildBaseArgs(RunSpec{Image: "agentic-claude"})
+		args, err := buildBaseArgs(RunSpec{Image: "agentic-claude"})
 
 		// Assert
+		require.NoError(t, err)
 		assert.Contains(t, args, "run")
 		assert.Contains(t, args, "--rm")
 		assert.Contains(t, args, "--read-only")
@@ -371,11 +372,22 @@ func TestBuildBaseArgs(t *testing.T) {
 		assert.Contains(t, args, "--user="+platform.UserGroup())
 	})
 
-	t.Run("resource limits defaults", func(t *testing.T) {
+	t.Run("name and label", func(t *testing.T) {
 		// Act
-		args := buildBaseArgs(RunSpec{Image: "agentic-claude"})
+		args, err := buildBaseArgs(RunSpec{Image: "agentic-claude"})
 
 		// Assert
+		require.NoError(t, err)
+		assert.True(t, hasArgWithPrefix(args, "--name=agentic-claude-"), "tool container should be named after its image")
+		assert.Contains(t, args, "--label=project=agentic-cli")
+	})
+
+	t.Run("resource limits defaults", func(t *testing.T) {
+		// Act
+		args, err := buildBaseArgs(RunSpec{Image: "agentic-claude"})
+
+		// Assert
+		require.NoError(t, err)
 		assert.Contains(t, args, "--pids-limit="+DefaultPidsLimit)
 		assert.Contains(t, args, "--cpus="+DefaultCPUs)
 		assert.Contains(t, args, "--memory="+DefaultMemory)
@@ -391,9 +403,10 @@ func TestBuildBaseArgs(t *testing.T) {
 		}
 
 		// Act
-		args := buildBaseArgs(rs)
+		args, err := buildBaseArgs(rs)
 
 		// Assert
+		require.NoError(t, err)
 		assert.Contains(t, args, "--pids-limit=512")
 		assert.Contains(t, args, "--cpus=2")
 		assert.Contains(t, args, "--memory=2g")
@@ -426,15 +439,18 @@ func TestBuildTTYArgs(t *testing.T) {
 }
 
 func TestBuildEnvArgs(t *testing.T) {
-	t.Run("empty when no color vars set", func(t *testing.T) {
+	clearTerminalEnv := func(t *testing.T) {
+		for _, key := range terminalCapabilityEnvNames {
+			t.Setenv(key, "")
+		}
+	}
+
+	t.Run("empty when no color vars set and no rs.Env", func(t *testing.T) {
 		// Arrange
-		t.Setenv("COLORTERM", "")
-		t.Setenv("TERM", "")
-		t.Setenv("NO_COLOR", "")
-		t.Setenv("FORCE_COLOR", "")
+		clearTerminalEnv(t)
 
 		// Act
-		args := buildEnvArgs()
+		args := buildEnvArgs(RunSpec{})
 
 		// Assert
 		assert.Empty(t, args)
@@ -445,7 +461,7 @@ func TestBuildEnvArgs(t *testing.T) {
 		t.Setenv("COLORTERM", "truecolor")
 
 		// Act
-		args := buildEnvArgs()
+		args := buildEnvArgs(RunSpec{})
 
 		// Assert
 		assert.Contains(t, args, "--env=COLORTERM=truecolor")
@@ -456,7 +472,7 @@ func TestBuildEnvArgs(t *testing.T) {
 		t.Setenv("TERM", "xterm-256color")
 
 		// Act
-		args := buildEnvArgs()
+		args := buildEnvArgs(RunSpec{})
 
 		// Assert
 		assert.Contains(t, args, "--env=TERM=xterm-256color")
@@ -467,7 +483,7 @@ func TestBuildEnvArgs(t *testing.T) {
 		t.Setenv("NO_COLOR", "1")
 
 		// Act
-		args := buildEnvArgs()
+		args := buildEnvArgs(RunSpec{})
 
 		// Assert
 		assert.Contains(t, args, "--env=NO_COLOR=1")
@@ -478,10 +494,91 @@ func TestBuildEnvArgs(t *testing.T) {
 		t.Setenv("FORCE_COLOR", "1")
 
 		// Act
-		args := buildEnvArgs()
+		args := buildEnvArgs(RunSpec{})
 
 		// Assert
 		assert.Contains(t, args, "--env=FORCE_COLOR=1")
+	})
+
+	t.Run("literal KEY=VALUE passed through", func(t *testing.T) {
+		// Arrange
+		clearTerminalEnv(t)
+		rs := RunSpec{Env: []string{"MAVEN_OPTS=-Dfoo=bar"}}
+
+		// Act
+		args := buildEnvArgs(rs)
+
+		// Assert
+		assert.Equal(t, []string{"--env=MAVEN_OPTS=-Dfoo=bar"}, args)
+	})
+
+	t.Run("bare key forwards host value", func(t *testing.T) {
+		// Arrange
+		clearTerminalEnv(t)
+		t.Setenv("CI", "true")
+		rs := RunSpec{Env: []string{"CI"}}
+
+		// Act
+		args := buildEnvArgs(rs)
+
+		// Assert
+		assert.Equal(t, []string{"--env=CI=true"}, args)
+	})
+
+	t.Run("bare key omitted when unset on host", func(t *testing.T) {
+		// Arrange
+		clearTerminalEnv(t)
+		os.Unsetenv("AGENTIC_NONEXISTENT_VAR")
+		rs := RunSpec{Env: []string{"AGENTIC_NONEXISTENT_VAR"}}
+
+		// Act
+		args := buildEnvArgs(rs)
+
+		// Assert
+		assert.Empty(t, args)
+	})
+
+	t.Run("user-supplied entry overrides auto-forwarded terminal var", func(t *testing.T) {
+		// Arrange
+		clearTerminalEnv(t)
+		t.Setenv("NO_COLOR", "1")
+		rs := RunSpec{Env: []string{"NO_COLOR=0"}}
+
+		// Act
+		args := buildEnvArgs(rs)
+
+		// Assert - both occurrences are present; docker keeps the last one
+		assert.Equal(t, []string{"--env=NO_COLOR=1", "--env=NO_COLOR=0"}, args)
+	})
+}
+
+func TestIsReservedEnvName(t *testing.T) {
+	t.Run("config names reserved regardless of proxy", func(t *testing.T) {
+		for _, key := range []string{"TOOL_HOME", "CONTAINER_HOME"} {
+			assert.True(t, IsReservedEnvName(key, false), key)
+			assert.True(t, IsReservedEnvName(key, true), key)
+		}
+	})
+
+	t.Run("proxy names reserved only when proxy enabled", func(t *testing.T) {
+		for _, key := range []string{"HTTP_PROXY", "https_proxy"} {
+			assert.False(t, IsReservedEnvName(key, false), key)
+			assert.True(t, IsReservedEnvName(key, true), key)
+		}
+	})
+
+	t.Run("terminal vars are not reserved", func(t *testing.T) {
+		for _, key := range terminalCapabilityEnvNames {
+			assert.False(t, IsReservedEnvName(key, true), key)
+		}
+	})
+
+	t.Run("non-reserved name", func(t *testing.T) {
+		// Act
+		result := IsReservedEnvName("MAVEN_OPTS", true)
+
+		// Assert
+		assert.False(t, result)
 	})
 }
 

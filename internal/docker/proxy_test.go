@@ -40,6 +40,7 @@ func TestStartProxy(t *testing.T) {
 
 		assert.Contains(t, runArgs, "--detach")
 		assert.Contains(t, runArgs, "--read-only")
+		assert.Contains(t, runArgs, "--network-alias=agentic-proxy")
 		assert.Contains(t, runArgs, "--cap-drop=ALL")
 		assert.Contains(t, runArgs, "--security-opt=no-new-privileges:true")
 		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_ALLOW=api.anthropic.com")
@@ -86,16 +87,13 @@ func TestProxyHandleStop(t *testing.T) {
 	})
 }
 
-func TestProxyHandleEnvArgs(t *testing.T) {
-	// Arrange
-	handle := proxyHandle{container: "agentic-proxy-abc"}
-
+func Test_proxyEnvArgs(t *testing.T) {
 	// Act
-	args := handle.envArgs()
+	args := proxyEnvArgs()
 
 	// Assert
-	assert.Contains(t, args, "--env=HTTPS_PROXY=http://agentic-proxy-abc:3128")
-	assert.Contains(t, args, "--env=HTTP_PROXY=http://agentic-proxy-abc:3128")
+	assert.Contains(t, args, "--env=HTTPS_PROXY=http://agentic-proxy:3128")
+	assert.Contains(t, args, "--env=HTTP_PROXY=http://agentic-proxy:3128")
 	assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1")
 }
 

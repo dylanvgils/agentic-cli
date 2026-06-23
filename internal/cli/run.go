@@ -17,6 +17,7 @@ var (
 	toolHome     string
 	extraVolumes []string
 	flagSecrets  []string
+	flagEnv      []string
 	pidsLimit    string
 	cpus         string
 	memory       string
@@ -63,6 +64,8 @@ func init() {
 		"additional volume mount (format: host:container[:options]); repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagSecrets, "secret", "s", nil,
 		"secret file to mount read-only into the container (format: name:/path[:/container/path]); repeatable")
+	runToolCmd.Flags().StringArrayVarP(&flagEnv, "env", "e", nil,
+		"environment variable to set in the container (format: KEY=VALUE, or KEY to forward the host value); repeatable")
 	runToolCmd.Flags().StringVar(&pidsLimit, "pids-limit", "", "container PID limit")
 	runToolCmd.Flags().StringVar(&cpus, "cpus", "", "CPU limit")
 	runToolCmd.Flags().StringVar(&memory, "memory", "", "memory limit")
@@ -152,7 +155,12 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 	containerHome := docker.ResolveContainerHome(args.imageName)
 	volumes := collectVolumes(toolConfig.Runtime.Mounts(), extraVolumes, rc)
 	secrets := collectSecrets(flagSecrets, rc)
+	env := collectEnv(flagEnv, rc)
 	limits := resolveResourceLimits(pidsLimit, cpus, memory, rc)
+
+	if err := validateEnv(env, proxyEnabled); err != nil {
+		return docker.RunSpec{}, err
+	}
 
 	if err := ensureNamedVolumes(volumes, toolHome, containerHome, tools.BusyboxImageFor(registry)); err != nil {
 		return docker.RunSpec{}, err
@@ -177,6 +185,7 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 		WithContainerHome(containerHome).
 		WithVolumes(volumes...).
 		WithSecrets(secrets...).
+		WithEnv(env...).
 		WithSkipEntrypoint(args.skipEntrypoint).
 		WithTmpfsMounts(toolConfig.Runtime.TmpfsMounts()...).
 		WithPidsLimit(limits.pidsLimit).
@@ -219,6 +228,26 @@ func collectSecrets(flags []string, rc *config.AgenticRC) []string {
 	secrets = append(secrets, rc.Run.Secrets...)
 
 	return secrets
+}
+
+func collectEnv(flags []string, rc *config.AgenticRC) []string {
+	env := append([]string{}, rc.Run.Env...)
+	env = append(env, flags...)
+
+	return env
+}
+
+// validateEnv rejects entries that target an env var agentic already manages
+// (proxy injection when proxyEnabled, mount placeholders always).
+func validateEnv(entries []string, proxyEnabled bool) error {
+	for _, entry := range entries {
+		key, _, _ := strings.Cut(entry, "=")
+		if docker.IsReservedEnvName(key, proxyEnabled) {
+			return fmt.Errorf("--env: %q is managed by agentic and cannot be overridden", key)
+		}
+	}
+
+	return nil
 }
 
 func resolveResourceLimits(pidsLimit, cpus, memory string, rc *config.AgenticRC) resourceLimits {

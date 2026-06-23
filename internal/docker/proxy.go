@@ -17,8 +17,11 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 )
 
-// proxyResourcePrefix names the per-run internal network and sidecar container.
-const proxyResourcePrefix = "agentic-proxy-"
+// proxyHostAlias is the proxy's stable network alias, registered alongside
+// its randomized container name so tools that need a literal host:port
+// (rather than reading HTTP_PROXY/HTTPS_PROXY) can hardcode it. Network
+// aliases are scoped per-network, so reusing it across concurrent runs is safe.
+const proxyHostAlias = "agentic-proxy"
 
 // proxyLogMountDir is where the host log directory is mounted inside the proxy.
 const proxyLogMountDir = "/var/log/agentic-proxy"
@@ -41,7 +44,7 @@ func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 		return proxyHandle{}, err
 	}
 
-	name := proxyResourcePrefix + id
+	name := proxyHostAlias + "-" + id
 	return proxyHandle{
 		id:        id,
 		network:   name,
@@ -51,11 +54,15 @@ func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 	}, nil
 }
 
-// envArgs returns the --env flags that point the tool container at the proxy.
-// NO_PROXY excludes loopback only; it is not a security boundary, since the
-// internal network already blocks every route except the proxy.
-func (h proxyHandle) envArgs() []string {
-	url := "http://" + h.container + ":" + proxy.Port
+// proxyEnvArgs returns the --env flags that point the tool container at the
+// proxy. It uses the static proxyHostAlias rather than any per-run handle
+// field, so the injected URL is identical on every run, even though the
+// sidecar's actual container name is randomized per run for Docker's
+// host-wide --name uniqueness requirement. NO_PROXY excludes loopback only;
+// it is not a security boundary, since the internal network already blocks
+// every route except the proxy.
+func proxyEnvArgs() []string {
+	url := "http://" + proxyHostAlias + ":" + proxy.Port
 	noProxy := "localhost,127.0.0.1"
 	return []string{
 		arg("env", "HTTP_PROXY="+url),
@@ -93,7 +100,7 @@ func (h proxyHandle) deniedHosts() (hosts []string, total int) {
 	if err != nil {
 		return nil, 0
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	seen := make(map[string]bool)
 	scanner := bufio.NewScanner(f)
@@ -112,6 +119,10 @@ func (h proxyHandle) deniedHosts() (hosts []string, total int) {
 			hosts = append(hosts, entry.Host)
 		}
 	}
+
+	// A read error here only means the summary reflects whatever was
+	// scanned before it occurred; PrintSummary has no error path to report it.
+	_ = scanner.Err()
 
 	return hosts, total
 }
@@ -154,6 +165,8 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 }
 
 // runArgs builds the `docker run` arguments for the hardened proxy sidecar.
+// Registers proxyHostAlias on the per-run network alongside the randomized
+// container name, so tool config can reference a stable hostname.
 func (h proxyHandle) runArgs(rs RunSpec) []string {
 	containerLog := proxyLogMountDir + "/" + h.id + ".jsonl"
 	_, tzOffset := time.Now().Zone()
@@ -162,6 +175,7 @@ func (h proxyHandle) runArgs(rs RunSpec) []string {
 		"run", "--detach", "--rm", "--read-only",
 		arg("name", h.container),
 		arg("network", h.network),
+		arg("network-alias", proxyHostAlias),
 		arg("cap-drop", "ALL"),
 		arg("security-opt", "no-new-privileges:true"),
 		arg("user", platform.UserGroup()),
@@ -176,12 +190,12 @@ func (h proxyHandle) runArgs(rs RunSpec) []string {
 
 // SweepProxyResources removes any leftover per-run proxy containers and internal
 // networks (e.g. from an interrupted run). It is idempotent and scoped to
-// agentic-managed resources named with the proxy prefix.
+// agentic-managed resources whose name contains proxyHostAlias.
 func SweepProxyResources() error {
 	listContainerArgs := []string{
 		"ps", arg("all"), arg("quiet"),
 		labelFilter(LabelProject, LabelProjectVal),
-		nameFilter(proxyResourcePrefix),
+		nameFilter(proxyHostAlias),
 	}
 	removeContainerArgs := []string{"rm", arg("force")}
 	if err := runIfAny(listContainerArgs, removeContainerArgs); err != nil {
@@ -191,7 +205,7 @@ func SweepProxyResources() error {
 	listNetworkArgs := []string{
 		"network", "ls", arg("quiet"),
 		labelFilter(LabelProject, LabelProjectVal),
-		nameFilter(proxyResourcePrefix),
+		nameFilter(proxyHostAlias),
 	}
 	removeNetworkArgs := []string{"network", "rm"}
 	return runIfAny(listNetworkArgs, removeNetworkArgs)

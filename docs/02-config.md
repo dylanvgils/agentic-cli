@@ -70,6 +70,7 @@ node = "22"
 
 [run]
 extra_mounts = ["maven:$CONTAINER_HOME/.m2"]
+env = ["NODE_OPTIONS=--max-old-space-size=4096"]
 pids_limit = "2048"
 ```
 
@@ -96,6 +97,7 @@ pids_limit = "2048"
 | -------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ---------------------- | ------- |
 | `extra_mounts` | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`                             | `-v`           | `AGENTIC_EXTRA_MOUNTS` | -       |
 | `secrets`      | list   | Files to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`. Supports `~`, `$HOME`, `$CONTAINER_HOME` (container path only) | `-s`           | `AGENTIC_SECRETS`      | -       |
+| `env`          | list   | Environment variables to set in the container. Format: `KEY=VALUE`, or bare `KEY` to forward the host's current value. Cannot target a reserved name (see [env](#env) below)                   | `-e`           | -                      | -       |
 | `pids_limit`   | string | Container PID limit (e.g. `"1024"`)                                                                                                                                                            | `--pids-limit` | `AGENTIC_PIDS_LIMIT`   | `1024`  |
 | `cpus`         | string | Container CPU limit (e.g. `"4"`)                                                                                                                                                               | `--cpus`       | `AGENTIC_CPUS`         | `4`     |
 | `memory`       | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                           | `--memory`     | `AGENTIC_MEMORY`       | `4g`    |
@@ -107,9 +109,9 @@ pids_limit = "2048"
 | `enabled`       | bool | Route the tool's egress through the allowlist proxy. `enabled` is a pointer internally so an inner config can explicitly disable a proxy enabled by an outer one.                                  | `--proxy` / `--no-proxy` | `false` |
 | `allowed_hosts` | list | Extra hosts to permit, merged on top of the tool's baseline. Exact match (e.g. `"api.github.com"`), or a leading-dot / `*.` entry to match a domain and all its subdomains (e.g. `".github.com"`). | -                        | -       |
 
-When the proxy is enabled the tool container loses direct internet access. It runs on a per-run internal Docker network and reaches the outside only through a proxy sidecar that enforces the allowlist. Blocked hosts are printed at the end of the run; every connection attempt is logged as JSON lines under `$AGENTIC_HOME/proxy/`.
+When enabled, the tool container loses direct internet access and reaches the outside only through a proxy sidecar enforcing the allowlist, on a per-run internal Docker network. Blocked hosts are printed at the end of the run; every connection attempt is logged as JSON lines under `$AGENTIC_HOME/proxy/`. The sidecar is reachable via the auto-injected `HTTP_PROXY`/`HTTPS_PROXY` env vars, or at the stable alias `agentic-proxy:3128` for tools that need a literal hostname (see [below](#pointing-a-tools-own-proxy-setting-at-the-egress-proxy)).
 
-Each proxy-enabled run prunes its own access logs before starting, deleting any older than a retention window (default 3 days). This is a host-level setting, not a per-project one, so it isn't part of `.agenticrc.toml`: set `proxy_log_retention_days` in `agentic.json` (see the table above) to change it. To wipe every log regardless of age, run `agentic proxy clean --logs`.
+Each proxy-enabled run prunes access logs older than a retention window (default 3 days) before starting. This is host-level, not per-project, so it's set via `proxy_log_retention_days` in `agentic.json` (see table above), not `.agenticrc.toml`. To wipe all logs regardless of age, run `agentic proxy clean --logs`.
 
 Each tool ships a baseline allowlist; `allowed_hosts` values are merged on top of it. The proxy image is built on demand the first time you run with `--proxy`, or explicitly via `agentic proxy build`/`agentic proxy update` (see [Development](05-development.md#building-the-proxy-image-locally)).
 
@@ -135,11 +137,17 @@ allowed_hosts = [
 ]
 ```
 
+#### Pointing a tool's own proxy setting at the egress proxy
+
+`HTTP_PROXY`/`HTTPS_PROXY` (and their lowercase variants) are injected into the tool container automatically whenever the proxy is enabled, so most tools need no extra configuration. Some tools ignore those env vars and instead require a literal host:port in a static config file or option - Maven is a common example: its dependency resolver only reads proxy settings from the `<proxies>` section of `settings.xml`, not from `MAVEN_OPTS`'s `-Dhttps.proxyHost` system properties or the standard proxy env vars.
+
+For these cases, the sidecar is also reachable at the stable hostname `agentic-proxy` on port `3128`. Unlike the sidecar's actual Docker container name (randomized per run), this hostname is identical on every run, so it's safe to hardcode once in the tool's own config. See [Tool-specific proxy examples](#tool-specific-proxy-examples) below for a concrete walkthrough (Maven).
+
 ### Merge semantics
 
 When multiple `.agenticrc.toml` files are found, they are merged. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
-- **List keys** (`bases`, `apt_packages`, `extra_mounts`, `secrets`, `proxy.allowed_hosts`): values from all levels accumulate, outermost first.
+- **List keys** (`bases`, `apt_packages`, `extra_mounts`, `secrets`, `env`, `proxy.allowed_hosts`): values from all levels accumulate, outermost first.
 - **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
 - **`versions` table**: each layer name is resolved independently - innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
 
@@ -204,6 +212,12 @@ Per-layer version resolution (highest to lowest priority):
 ### `extra_mounts` and `secrets`
 
 These also accumulate, but their env vars (`AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECRETS`) and RC values are each collected independently and combined at runtime.
+
+### `env`
+
+`.agenticrc.toml` `env` entries and `-e`/`--env` flags both accumulate, but on a duplicate key the `-e` flag wins - `.agenticrc.toml` entries are applied first, and the last `--env` for a given key takes effect, matching `docker run -e` itself.
+
+`-e`/`--env` values are visible inside the container and via `docker inspect`/`ps` - use `-s`/`--secret` for tokens or credentials instead.
 
 ### `namespace`
 
@@ -296,3 +310,45 @@ Run `agentic config` to see the merged result of all active `.agenticrc.toml` fi
 ```
 agentic config
 ```
+
+## Tool-specific proxy examples
+
+Concrete walkthroughs for routing a tool's own proxy setting through the `agentic-proxy:3128` egress sidecar (see [Pointing a tool's own proxy setting at the egress proxy](#pointing-a-tools-own-proxy-setting-at-the-egress-proxy)).
+
+### Maven
+
+Maven only reads proxy settings from `settings.xml`'s `<proxies>` section - not `MAVEN_OPTS` or the standard proxy env vars. Mount a `settings.xml` pointing at `agentic-proxy:3128`, with a `<proxy>` entry per URL scheme - Maven matches `<protocol>` against the repository URL, not the connection to the proxy itself, and most registries (Maven Central included) serve over `https`:
+
+```xml
+<!-- settings.xml -->
+<settings>
+  <proxies>
+    <proxy>
+      <id>agentic-proxy-http</id>
+      <active>true</active>
+      <protocol>http</protocol>
+      <host>agentic-proxy</host>
+      <port>3128</port>
+    </proxy>
+    <proxy>
+      <id>agentic-proxy-https</id>
+      <active>true</active>
+      <protocol>https</protocol>
+      <host>agentic-proxy</host>
+      <port>3128</port>
+    </proxy>
+  </proxies>
+</settings>
+```
+
+```toml
+# .agenticrc.toml
+[run]
+secrets = ["maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml"]
+
+[run.proxy]
+enabled = true
+allowed_hosts = ["repo.maven.apache.org"]
+```
+
+A `settings.xml` `<proxies>` entry pointed at an _external_ corporate proxy instead would bypass agentic's egress allowlist entirely, since that traffic never reaches the `agentic-proxy` sidecar - routing through `agentic-proxy` is what keeps Maven's traffic subject to `allowed_hosts`.
