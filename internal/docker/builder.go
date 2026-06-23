@@ -7,6 +7,7 @@ type RunSpecBuilder struct {
 	containerHome  string
 	volumes        []string
 	secrets        []string
+	env            []string
 	skipEntrypoint bool
 	tmpfsMounts    []string
 	pidsLimit      string
@@ -45,6 +46,13 @@ func (b *RunSpecBuilder) WithVolumes(vols ...string) *RunSpecBuilder {
 // WithSecrets appends secret file mounts (name:/path format).
 func (b *RunSpecBuilder) WithSecrets(secrets ...string) *RunSpecBuilder {
 	b.secrets = append(b.secrets, secrets...)
+	return b
+}
+
+// WithEnv appends environment variable entries (KEY=VALUE, or bare KEY to
+// forward the host's current value).
+func (b *RunSpecBuilder) WithEnv(env ...string) *RunSpecBuilder {
+	b.env = append(b.env, env...)
 	return b
 }
 
@@ -103,6 +111,7 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		ContainerHome:  b.containerHome,
 		Volumes:        b.volumes,
 		Secrets:        b.secrets,
+		Env:            b.env,
 		SkipEntrypoint: b.skipEntrypoint,
 		TmpfsMounts:    b.tmpfsMounts,
 		PidsLimit:      b.pidsLimit,

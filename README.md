@@ -24,6 +24,7 @@ Runs agentic coding tools in isolated, read-only Docker containers - each with o
 - [Shell aliases](#-shell-aliases)
 - [Base images](#-base-images)
 - [Secrets](#-secrets)
+- [Environment variables](#-environment-variables)
 - [Named Docker volumes](#-named-docker-volumes)
   - [Managing volumes](#managing-volumes)
 - [Java build tools](#-java-build-tools)
@@ -344,6 +345,17 @@ agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.x
 ```
 
 For persisting secrets via `AGENTIC_SECRETS` or `.agenticrc.toml`, see [docs/02-config.md](docs/02-config.md).
+
+## 🌱 Environment variables
+
+Use `--env` / `-e` to set an environment variable in the container, either as a literal `KEY=VALUE` or a bare `KEY` to forward the host's current value:
+
+```bash
+agentic run -e NODE_OPTIONS=--max-old-space-size=4096 claude
+agentic run -e CI claude   # forwards the host's CI value, omitted if unset
+```
+
+See [docs/02-config.md](docs/02-config.md) for names agentic already manages that can't be overridden this way, and for persisting variables via `.agenticrc.toml`. Values set with `--env` are visible inside the container and via `docker inspect`/`ps`, so use `--secret` / `-s` for tokens or credentials instead.
 
 ## 📦 Named Docker volumes
 

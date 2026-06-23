@@ -527,6 +527,93 @@ func TestCollectSecrets(t *testing.T) {
 	})
 }
 
+func TestCollectEnv(t *testing.T) {
+	t.Run("ordering, flag wins over rc on duplicate key", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{Env: []string{"FOO=fromrc"}}}
+
+		// Act
+		result := collectEnv([]string{"FOO=fromflag"}, rc)
+
+		// Assert
+		assert.Equal(t, []string{"FOO=fromrc", "FOO=fromflag"}, result)
+	})
+
+	t.Run("no sources returns empty", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+
+		// Act
+		result := collectEnv(nil, rc)
+
+		// Assert
+		assert.Empty(t, result)
+	})
+
+	t.Run("does not mutate rc env slice", func(t *testing.T) {
+		// Arrange
+		rcEnv := []string{"FOO=bar"}
+		rc := &config.AgenticRC{Run: config.RCRun{Env: rcEnv}}
+
+		// Act
+		result := collectEnv([]string{"BAZ=qux"}, rc)
+
+		// Assert
+		assert.Len(t, rcEnv, 1, "original rc env slice should not be modified")
+		assert.Len(t, result, 2)
+	})
+}
+
+func TestValidateEnv(t *testing.T) {
+	t.Run("accepts ordinary KEY=VALUE", func(t *testing.T) {
+		// Act
+		err := validateEnv([]string{"MAVEN_OPTS=-Dfoo=bar"}, false)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("accepts bare KEY", func(t *testing.T) {
+		// Act
+		err := validateEnv([]string{"CI"}, false)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("accepts overriding terminal vars", func(t *testing.T) {
+		// Act
+		err := validateEnv([]string{"NO_COLOR=1", "TERM=dumb"}, true)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("accepts proxy var when proxy disabled", func(t *testing.T) {
+		// Act
+		err := validateEnv([]string{"HTTP_PROXY=http://my-corp-proxy"}, false)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("rejects proxy var when proxy enabled", func(t *testing.T) {
+		// Act
+		err := validateEnv([]string{"HTTP_PROXY=http://evil"}, true)
+
+		// Assert
+		assert.ErrorContains(t, err, "HTTP_PROXY")
+	})
+
+	t.Run("rejects bare reserved name regardless of proxy", func(t *testing.T) {
+		// Act
+		err := validateEnv([]string{"TOOL_HOME"}, false)
+
+		// Assert
+		assert.ErrorContains(t, err, "TOOL_HOME")
+	})
+}
+
 func TestResolveResourceLimits(t *testing.T) {
 	t.Run("rc fills empty flags", func(t *testing.T) {
 		// Arrange

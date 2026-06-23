@@ -21,6 +21,7 @@ type RCBuild struct {
 type RCRun struct {
 	ExtraMounts []string `toml:"extra_mounts"`
 	Secrets     []string `toml:"secrets"`
+	Env         []string `toml:"env"`
 	PidsLimit   string   `toml:"pids_limit"`
 	CPUs        string   `toml:"cpus"`
 	Memory      string   `toml:"memory"`
@@ -187,6 +188,7 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 		build := configs[i].Build
 		resRun.ExtraMounts = append(resRun.ExtraMounts, run.ExtraMounts...)
 		resRun.Secrets = append(resRun.Secrets, run.Secrets...)
+		resRun.Env = append(resRun.Env, run.Env...)
 		resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)
 		resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
 		resBuild.Bases = append(resBuild.Bases, build.Bases...)

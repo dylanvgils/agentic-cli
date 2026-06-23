@@ -196,8 +196,8 @@ func TestMergeConfigs(t *testing.T) {
 
 	t.Run("lists accumulate outermost first", func(t *testing.T) {
 		// Arrange
-		child := &AgenticRC{Run: RCRun{ExtraMounts: []string{"child-vol:/mnt/c"}, Secrets: []string{"child-secret"}}, Build: RCBuild{AptPackages: []string{"gcc"}, Bases: []string{"java"}}}
-		parent := &AgenticRC{Run: RCRun{ExtraMounts: []string{"parent-vol:/mnt/p"}, Secrets: []string{"parent-secret"}}, Build: RCBuild{AptPackages: []string{"make"}, Bases: []string{"dotnet"}}}
+		child := &AgenticRC{Run: RCRun{ExtraMounts: []string{"child-vol:/mnt/c"}, Secrets: []string{"child-secret"}, Env: []string{"child-env=1"}}, Build: RCBuild{AptPackages: []string{"gcc"}, Bases: []string{"java"}}}
+		parent := &AgenticRC{Run: RCRun{ExtraMounts: []string{"parent-vol:/mnt/p"}, Secrets: []string{"parent-secret"}, Env: []string{"parent-env=1"}}, Build: RCBuild{AptPackages: []string{"make"}, Bases: []string{"dotnet"}}}
 
 		// Act
 		result := mergeConfigs([]*AgenticRC{child, parent})
@@ -205,6 +205,7 @@ func TestMergeConfigs(t *testing.T) {
 		// Assert - parent (outermost) entries first
 		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, result.Run.ExtraMounts)
 		assert.Equal(t, []string{"parent-secret", "child-secret"}, result.Run.Secrets)
+		assert.Equal(t, []string{"parent-env=1", "child-env=1"}, result.Run.Env)
 		assert.Equal(t, []string{"make", "gcc"}, result.Build.AptPackages)
 		assert.Equal(t, []string{"dotnet", "java"}, result.Build.Bases)
 	})

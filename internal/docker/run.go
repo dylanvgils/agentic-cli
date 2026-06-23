@@ -14,6 +14,36 @@ import (
 
 var isTerminal = platform.IsTerminal
 
+// terminalCapabilityEnvNames are host vars forwarded into the container
+// automatically when set, so the tool sees the same terminal capabilities
+// the host has. Not reserved - a user-supplied --env entry for one of these
+// overrides the forwarded value, since it's a cosmetic preference, not
+// something agentic enforces.
+var terminalCapabilityEnvNames = []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"}
+
+// proxyEnvNames are the env vars the egress proxy injects via docker run -e.
+// Overriding one via --env would silently break the proxy's allowlist
+// enforcement.
+var proxyEnvNames = map[string]bool{
+	"HTTP_PROXY":  true,
+	"HTTPS_PROXY": true,
+	"http_proxy":  true,
+	"https_proxy": true,
+	"NO_PROXY":    true,
+	"no_proxy":    true,
+}
+
+// reservedConfigNames are names agentic treats specially elsewhere, even
+// though neither is an env var this package injects: TOOL_HOME is baked into
+// the image at build time, and CONTAINER_HOME is a host-side mount
+// placeholder with no effect inside the container. --env targeting either
+// would be confusing - overriding TOOL_HOME risks breaking the image's own
+// assumptions, and setting CONTAINER_HOME would silently do nothing.
+var reservedConfigNames = map[string]bool{
+	"TOOL_HOME":      true,
+	"CONTAINER_HOME": true,
+}
+
 // RunSpec collects everything needed to run a container.
 type RunSpec struct {
 	Image          string
@@ -21,6 +51,7 @@ type RunSpec struct {
 	ContainerHome  string
 	Volumes        []string
 	Secrets        []string
+	Env            []string
 	SkipEntrypoint bool
 	TmpfsMounts    []string
 	PidsLimit      string
@@ -54,10 +85,13 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	}
 	defer cleanup()
 
-	args := buildBaseArgs(rs)
+	args, err := buildBaseArgs(rs)
+	if err != nil {
+		return err
+	}
 
 	args = append(args, buildTTYArgs()...)
-	args = append(args, buildEnvArgs()...)
+	args = append(args, buildEnvArgs(rs)...)
 	args = append(args, proxyEnv...)
 	args = append(args, buildTmpfsArgs(rs)...)
 	args = append(args, buildVolumeArgs(rs)...)
@@ -82,6 +116,17 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	return runInteractive(args...)
 }
 
+// IsReservedEnvName reports whether key is an env var agentic already
+// manages, so user-supplied --env entries cannot override it. proxyEnvNames
+// only apply when proxyEnabled - those vars aren't injected at all otherwise,
+// so there's nothing to protect and the name is free for the user to set.
+func IsReservedEnvName(key string, proxyEnabled bool) bool {
+	if proxyEnabled && proxyEnvNames[key] {
+		return true
+	}
+	return reservedConfigNames[key]
+}
+
 // setupProxy configures rs for proxy mode if enabled, returning the env args
 // to inject into the tool container and a cleanup func to defer. The cleanup
 // func is a no-op when proxying is disabled or this is a dry run.
@@ -98,7 +143,7 @@ func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 			return nil, nil, err
 		}
 		rs.network = handle.network
-		return handle.envArgs(), func() {}, nil
+		return proxyEnvArgs(), func() {}, nil
 	}
 
 	handle, err := startProxy(*rs)
@@ -121,7 +166,7 @@ func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 		stop()
 		handle.PrintSummary(os.Stderr)
 	}
-	return handle.envArgs(), cleanup, nil
+	return proxyEnvArgs(), cleanup, nil
 }
 
 // networkOrDefault returns the configured network, or NetworkName when unset.
@@ -168,10 +213,18 @@ func shellJoin(args []string) string {
 // buildBaseArgs builds the mandatory security and resource-limit args.
 // Base arguments for running the docker container; the goal is to run
 // the container with minimal permissions.
-func buildBaseArgs(rs RunSpec) []string {
+func buildBaseArgs(rs RunSpec) ([]string, error) {
+	id, err := randID()
+	if err != nil {
+		return nil, err
+	}
+
 	return []string{
 		// Run container read-only, remove when done
 		"run", "--rm", "--read-only",
+		// Identify the container in `docker ps`/logs; randomized per run for
+		arg("name", rs.Image+"-"+id),
+		label(LabelProject, LabelProjectVal),
 		// Limit the number of PIDs (processes) the container can spawn
 		arg("pids-limit", resolveLimit(rs.PidsLimit, config.EnvPidsLimit, DefaultPidsLimit)),
 		// Maximum number of CPUs the container can utilize
@@ -187,7 +240,7 @@ func buildBaseArgs(rs RunSpec) []string {
 		arg("security-opt", "no-new-privileges:true"),
 		// Use system user to prevent permission issues on mounted files
 		arg("user", platform.UserGroup()),
-	}
+	}, nil
 }
 
 // buildTTYArgs returns [--interactive --tty] when stdin is a terminal, otherwise empty.
@@ -198,11 +251,25 @@ func buildTTYArgs() []string {
 	return nil
 }
 
-// buildEnvArgs forwards select host env vars to the container.
-// Only vars that are actually set on the host are included, to avoid
-// misrepresenting capabilities the terminal doesn't have.
-func buildEnvArgs() []string {
-	return forwardEnvArg("COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR")
+// buildEnvArgs builds --env flags for the container: select host vars are
+// forwarded automatically (only if set, to avoid misrepresenting capabilities
+// the terminal doesn't have), then rs.Env adds user-supplied entries - each
+// either "KEY=VALUE" (a literal) or bare "KEY" (forward the host's current
+// value, omitted entirely if unset) - mirroring Docker's own -e semantics. A
+// user-supplied entry naturally overrides an auto-forwarded one for the same
+// key, since Docker keeps the last -e occurrence.
+func buildEnvArgs(rs RunSpec) []string {
+	args := forwardEnvArg(terminalCapabilityEnvNames...)
+
+	for _, entry := range rs.Env {
+		if key, _, ok := strings.Cut(entry, "="); ok {
+			args = append(args, arg("env", entry))
+		} else if value, set := os.LookupEnv(key); set {
+			args = append(args, arg("env", key+"="+value))
+		}
+	}
+
+	return args
 }
 
 // buildTmpfsArgs builds --tmpfs flags with variable expansion.
