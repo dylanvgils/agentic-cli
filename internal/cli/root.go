@@ -73,7 +73,7 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if cmd.Parent() != nil && !slices.Contains(noUpdateCmds, cmd.Name()) {
+	if cmd.Parent() != nil && !inCommandChain(cmd, noUpdateCmds) {
 		maybeNotifyUpdate(toolHome)
 	}
 
@@ -88,16 +88,23 @@ func checkDocker(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Walk up from cmd to (but not including) root: if any command in the chain
-	// is in noDockerCmds, skip the check. This correctly handles subcommands
-	// like `completion bash` where cmd.Name() is "bash" but the parent is "completion".
-	for command := cmd; command.Parent() != nil; command = command.Parent() {
-		if slices.Contains(noDockerCmds, command.Name()) {
-			return nil
-		}
+	if inCommandChain(cmd, noDockerCmds) {
+		return nil
 	}
 
 	return checkDockerDaemon()
+}
+
+// inCommandChain reports whether cmd or any of its ancestors (up to but not
+// including root) has a name in names. Handles subcommands like
+// `completion bash`, where cmd.Name() is "bash" but the parent is "completion".
+func inCommandChain(cmd *cobra.Command, names []string) bool {
+	for command := cmd; command.Parent() != nil; command = command.Parent() {
+		if slices.Contains(names, command.Name()) {
+			return true
+		}
+	}
+	return false
 }
 
 // pruneResources silently removes agentic-owned dangling images and build cache.

@@ -119,6 +119,41 @@ func TestCheckDocker(t *testing.T) {
 	})
 }
 
+func TestInCommandChain(t *testing.T) {
+	t.Run("matches command name", func(t *testing.T) {
+		// Act
+		result := inCommandChain(aliasesCmd, noUpdateCmds)
+
+		// Assert
+		assert.True(t, result)
+	})
+
+	t.Run("matches ancestor name for nested subcommand", func(t *testing.T) {
+		// Arrange - `agentic completion zsh` reaches the update-check guard with
+		// cmd.Name()=="zsh", which is not in noUpdateCmds; the ancestor walk must
+		// find "completion" instead, since shells source this at startup.
+		fakeRoot := &cobra.Command{Use: "agentic"}
+		completionCmd := &cobra.Command{Use: "completion"}
+		zshCmd := &cobra.Command{Use: "zsh"}
+		fakeRoot.AddCommand(completionCmd)
+		completionCmd.AddCommand(zshCmd)
+
+		// Act
+		result := inCommandChain(zshCmd, noUpdateCmds)
+
+		// Assert
+		assert.True(t, result)
+	})
+
+	t.Run("returns false when no ancestor matches", func(t *testing.T) {
+		// Act
+		result := inCommandChain(buildCmd, noUpdateCmds)
+
+		// Assert
+		assert.False(t, result)
+	})
+}
+
 func TestPruneResources(t *testing.T) {
 	t.Run("calls pruneImages", func(t *testing.T) {
 		// Arrange
