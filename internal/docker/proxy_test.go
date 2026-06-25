@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,6 +45,7 @@ func TestStartProxy(t *testing.T) {
 		assert.Contains(t, runArgs, "--cap-drop=ALL")
 		assert.Contains(t, runArgs, "--security-opt=no-new-privileges:true")
 		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_ALLOW=api.anthropic.com")
+		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_MONITOR=false")
 		assert.True(t, hasArgWithPrefix(runArgs, "--env=AGENTIC_PROXY_TZ_OFFSET="))
 		assert.Equal(t, "default-proxy", runArgs[len(runArgs)-1])
 
@@ -97,7 +99,7 @@ func Test_proxyEnvArgs(t *testing.T) {
 	assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1")
 }
 
-func TestProxyHandleDeniedHosts(t *testing.T) {
+func TestProxyHandleHostsByDecision(t *testing.T) {
 	t.Run("collects unique denied hosts and total", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
@@ -112,7 +114,7 @@ func TestProxyHandleDeniedHosts(t *testing.T) {
 		handle := proxyHandle{logPath: logPath}
 
 		// Act
-		hosts, total := handle.deniedHosts()
+		hosts, total := handle.hostsByDecision(proxy.DecisionDeny)
 
 		// Assert
 		assert.Equal(t, []string{"evil.com", "tracker.net"}, hosts)
@@ -124,10 +126,66 @@ func TestProxyHandleDeniedHosts(t *testing.T) {
 		handle := proxyHandle{logPath: filepath.Join(t.TempDir(), "absent.jsonl")}
 
 		// Act
-		hosts, total := handle.deniedHosts()
+		hosts, total := handle.hostsByDecision(proxy.DecisionDeny)
 
 		// Assert
 		assert.Empty(t, hosts)
 		assert.Zero(t, total)
+	})
+}
+
+func TestProxyHandlePrintSummary(t *testing.T) {
+	writeLog := func(t *testing.T, lines ...string) string {
+		dir := t.TempDir()
+		logPath := filepath.Join(dir, "run.jsonl")
+		require.NoError(t, os.WriteFile(logPath, []byte(strings.Join(lines, "\n")+"\n"), 0o644))
+		return logPath
+	}
+
+	t.Run("enforced mode reports blocked hosts", func(t *testing.T) {
+		// Arrange
+		logPath := writeLog(t,
+			`{"host":"api.anthropic.com","decision":"allow"}`,
+			`{"host":"evil.com","decision":"deny"}`,
+		)
+		handle := proxyHandle{logPath: logPath}
+		var buf strings.Builder
+
+		// Act
+		handle.PrintSummary(&buf)
+
+		// Assert
+		assert.Contains(t, buf.String(), "agentic proxy blocked 1 request(s) to: evil.com")
+		assert.NotContains(t, buf.String(), "monitor mode")
+	})
+
+	t.Run("monitor mode reports would-be-blocked hosts", func(t *testing.T) {
+		// Arrange
+		logPath := writeLog(t,
+			`{"host":"api.anthropic.com","decision":"allow"}`,
+			`{"host":"evil.com","decision":"deny"}`,
+		)
+		handle := proxyHandle{logPath: logPath, monitor: true}
+		var buf strings.Builder
+
+		// Act
+		handle.PrintSummary(&buf)
+
+		// Assert
+		assert.Contains(t, buf.String(), "agentic proxy (monitor mode) observed 2 request(s); 1 would be blocked under the current allowlist: evil.com")
+		assert.Contains(t, buf.String(), "--proxy-monitor")
+	})
+
+	t.Run("nothing denied prints nothing", func(t *testing.T) {
+		// Arrange
+		logPath := writeLog(t, `{"host":"api.anthropic.com","decision":"allow"}`)
+		handle := proxyHandle{logPath: logPath, monitor: true}
+		var buf strings.Builder
+
+		// Act
+		handle.PrintSummary(&buf)
+
+		// Assert
+		assert.Empty(t, buf.String())
 	})
 }

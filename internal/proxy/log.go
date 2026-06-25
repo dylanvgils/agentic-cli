@@ -35,6 +35,11 @@ type Entry struct {
 	Host     string    `json:"host"`
 	Port     string    `json:"port"`
 	Decision Decision  `json:"decision"`
+	// Enforced reports whether Decision was actually acted on. It is always
+	// true outside monitor mode. In monitor mode it is always false: Decision
+	// still reflects the real allowlist verdict, but the connection was let
+	// through regardless, so a "deny" here was only observed, not blocked.
+	Enforced bool `json:"enforced"`
 }
 
 // Logger writes each access record as a JSON line to an optional file and as a
@@ -67,12 +72,21 @@ func NewLogger(file, human io.Writer, location *time.Location) *Logger {
 	return l
 }
 
-// Log records a single connection attempt.
-func (l *Logger) Log(protocol Protocol, host, port string, decision Decision) {
+// Log records a single connection attempt. enforced reports whether decision
+// was actually acted on (see Entry.Enforced) - pass false from monitor mode,
+// where the connection is let through regardless of decision.
+func (l *Logger) Log(protocol Protocol, host, port string, decision Decision, enforced bool) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
-	entry := Entry{Time: l.now().UTC(), Protocol: protocol, Host: host, Port: port, Decision: decision}
+	entry := Entry{
+		Time:     l.now().UTC(),
+		Protocol: protocol,
+		Host:     host,
+		Port:     port,
+		Decision: decision,
+		Enforced: enforced,
+	}
 
 	if l.encoder != nil {
 		_ = l.encoder.Encode(entry)
@@ -80,6 +94,10 @@ func (l *Logger) Log(protocol Protocol, host, port string, decision Decision) {
 
 	if l.human != nil {
 		level := "[" + strings.ToUpper(string(decision)) + "]"
-		fmt.Fprintf(l.human, "%s %-7s %-5s %s:%s\n", entry.Time.In(l.location).Format(time.RFC3339), level, protocol, host, port)
+		tag := ""
+		if !enforced {
+			tag = " (monitor)"
+		}
+		fmt.Fprintf(l.human, "%s %-7s %-5s %s:%s%s\n", entry.Time.In(l.location).Format(time.RFC3339), level, protocol, host, port, tag)
 	}
 }

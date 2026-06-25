@@ -115,6 +115,7 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	aptPackages := func(rc *config.AgenticRC) []string { return rc.Build.AptPackages }
 	secrets := func(rc *config.AgenticRC) []string { return rc.Run.Secrets }
 	proxyEnabled := func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
+	proxyMode := func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }
 	proxyAllowedHosts := func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts }
 
 	if err := printScalarField(w, "namespace", config.EnvNamespace, layers, func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace); err != nil {
@@ -142,6 +143,9 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 		return err
 	}
 	if err := printBoolField(w, "proxy.enabled", layers, proxyEnabled, false); err != nil {
+		return err
+	}
+	if err := printScalarField(w, "proxy.mode", "", layers, proxyMode, config.ModeEnforce); err != nil {
 		return err
 	}
 	return printListField(w, "proxy.allowed_hosts", layers, proxyAllowedHosts)

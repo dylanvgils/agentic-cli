@@ -107,24 +107,30 @@ func cleanProxyImage() error {
 	return cleanImage(tools.ProxyImage)
 }
 
-// resolveProxyEnabled determines whether the egress proxy is on for this run.
-// An explicit flag wins over config; --no-proxy beats --proxy; otherwise the
-// config value applies, defaulting to off.
-func resolveProxyEnabled(cmd *cobra.Command, rc *config.AgenticRC) bool {
-	noProxy, _ := cmd.Flags().GetBool("no-proxy")
-	if noProxy {
-		return false
+// resolveProxyMode determines whether the egress proxy is on for this run,
+// and if so, whether it enforces the allowlist or only monitors it. Flags win
+// over config; an explicit "off" (--no-proxy, or enabled = false) always
+// beats mode, since mode only matters once the proxy is otherwise on.
+// Monitor mode (flag or config) implies the proxy is enabled.
+func resolveProxyMode(cmd *cobra.Command, rc *config.AgenticRC) (enabled, monitor bool) {
+	if noProxy, _ := cmd.Flags().GetBool("no-proxy"); noProxy {
+		return false, false
+	}
+	if monitorFlag, _ := cmd.Flags().GetBool("proxy-monitor"); monitorFlag {
+		return true, true
+	}
+	if proxy, _ := cmd.Flags().GetBool("proxy"); proxy {
+		return true, false
 	}
 
-	proxy, _ := cmd.Flags().GetBool("proxy")
-	if proxy {
-		return true
+	if rc.Run.Proxy.Enabled != nil && !*rc.Run.Proxy.Enabled {
+		return false, false
+	}
+	if rc.Run.Proxy.Mode == config.ModeMonitor {
+		return true, true
 	}
 
-	if rc.Run.Proxy.Enabled != nil {
-		return *rc.Run.Proxy.Enabled
-	}
-	return false
+	return rc.Run.Proxy.Enabled != nil && *rc.Run.Proxy.Enabled, false
 }
 
 // proxyAllowList merges the tool's baseline allowlist with user-configured hosts.

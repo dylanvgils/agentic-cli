@@ -12,16 +12,22 @@ import (
 // connection before giving up.
 const dialTimeout = 30 * time.Second
 
-// Server is a fail-closed forward proxy. It permits HTTP CONNECT tunnels and
-// plain HTTP requests only to hosts on the allowlist, logging every attempt.
+// Server is a forward proxy that permits HTTP CONNECT tunnels and plain HTTP
+// requests only to hosts on the allowlist, logging every attempt. When
+// monitor is true it stops enforcing the allowlist - every connection is let
+// through regardless of the verdict - while still logging the real verdict,
+// so a run can be observed without ever blocking it.
 type Server struct {
-	allow  *Allowlist
-	logger *Logger
+	allow   *Allowlist
+	logger  *Logger
+	monitor bool
 }
 
-// NewServer builds a Server enforcing allow and recording to logger.
-func NewServer(allow *Allowlist, logger *Logger) *Server {
-	return &Server{allow: allow, logger: logger}
+// NewServer builds a Server recording to logger. It enforces allow unless
+// monitor is true, in which case allow is still evaluated for logging but
+// never blocks a connection.
+func NewServer(allow *Allowlist, logger *Logger, monitor bool) *Server {
+	return &Server{allow: allow, logger: logger, monitor: monitor}
 }
 
 // ServeHTTP handles both CONNECT (HTTPS tunnels) and plain HTTP forwarding.
@@ -34,16 +40,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleConnect tunnels a CONNECT request to the upstream host after checking
-// the allowlist. Denied hosts get a 403 so the tool sees an informative error.
+// the allowlist. Denied hosts get a 403 so the tool sees an informative error,
+// unless the server is in monitor mode, where the tunnel proceeds regardless.
 func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	host, port := splitHostPort(r.Host)
 
 	if !s.allow.Allows(host, port) {
-		s.logger.Log(ProtocolHTTPS, host, port, DecisionDeny)
-		http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
-		return
+		s.logger.Log(ProtocolHTTPS, host, port, DecisionDeny, !s.monitor)
+		if !s.monitor {
+			http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
+			return
+		}
+	} else {
+		s.logger.Log(ProtocolHTTPS, host, port, DecisionAllow, !s.monitor)
 	}
-	s.logger.Log(ProtocolHTTPS, host, port, DecisionAllow)
 
 	upstream, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), dialTimeout)
 	if err != nil {
@@ -67,7 +77,8 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleHTTP forwards a plain (non-TLS) HTTP request to the upstream host after
-// checking the allowlist.
+// checking the allowlist, unless the server is in monitor mode, where the
+// request is forwarded regardless of the verdict.
 func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	host, port := splitHostPort(r.Host)
 	if port == "" {
@@ -75,11 +86,14 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.allow.Allows(host, port) {
-		s.logger.Log(ProtocolHTTP, host, port, DecisionDeny)
-		http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
-		return
+		s.logger.Log(ProtocolHTTP, host, port, DecisionDeny, !s.monitor)
+		if !s.monitor {
+			http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
+			return
+		}
+	} else {
+		s.logger.Log(ProtocolHTTP, host, port, DecisionAllow, !s.monitor)
 	}
-	s.logger.Log(ProtocolHTTP, host, port, DecisionAllow)
 
 	r.RequestURI = ""
 	resp, err := http.DefaultTransport.RoundTrip(r)

@@ -43,6 +43,20 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 	assert.True(t, result.DryRun)
 }
 
+func TestRunSpecBuilder_WithProxy(t *testing.T) {
+	// Act
+	result := NewRunSpec("agentic-claude").
+		WithProxy(true, "agentic-proxy", []string{".anthropic.com"}, "/home/user/.agentic/proxy", true).
+		Build()
+
+	// Assert
+	assert.True(t, result.ProxyEnabled)
+	assert.Equal(t, "agentic-proxy", result.ProxyImage)
+	assert.Equal(t, []string{".anthropic.com"}, result.ProxyAllow)
+	assert.Equal(t, "/home/user/.agentic/proxy", result.ProxyLogDir)
+	assert.True(t, result.ProxyMonitor)
+}
+
 func TestRunSpecBuilder_WithVolumes_variadic(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		// Act

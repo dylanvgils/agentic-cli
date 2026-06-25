@@ -61,11 +61,13 @@ type RunSpec struct {
 
 	// Egress proxy. When ProxyEnabled is set, the tool is confined to an
 	// internal network and reaches the outside world only through a proxy
-	// sidecar that enforces ProxyAllow.
+	// sidecar that enforces ProxyAllow, unless ProxyMonitor is set, in which
+	// case the sidecar logs the ProxyAllow verdict without enforcing it.
 	ProxyEnabled bool
 	ProxyImage   string   // proxy sidecar image
 	ProxyAllow   []string // merged allowlist (tool baseline + user hosts)
 	ProxyLogDir  string   // host dir for JSON-lines access logs
+	ProxyMonitor bool     // log the allowlist verdict without enforcing it
 
 	// network is the docker network the tool container attaches to. Empty
 	// means NetworkName; proxy mode overrides it with the per-run internal net.
