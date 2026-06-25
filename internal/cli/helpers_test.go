@@ -22,7 +22,7 @@ func captureStdout(t *testing.T, fn func()) string {
 	orig := os.Stdout
 	os.Stdout = w
 	fn()
-	w.Close()
+	w.Close() //nolint:errcheck
 	os.Stdout = orig
 	var buf bytes.Buffer
 	io.Copy(&buf, r) //nolint:errcheck

@@ -17,7 +17,7 @@ func TestWriteTempDockerfile(t *testing.T) {
 	t.Run("returns non-empty dir", func(t *testing.T) {
 		// Act
 		tmpDir, err := writeTempDockerfile("FROM scratch\n")
-		defer os.RemoveAll(tmpDir)
+		defer os.RemoveAll(tmpDir) //nolint:errcheck
 
 		// Assert
 		require.NoError(t, err)
@@ -27,7 +27,7 @@ func TestWriteTempDockerfile(t *testing.T) {
 	t.Run("writes Dockerfile inside dir", func(t *testing.T) {
 		// Act
 		tmpDir, err := writeTempDockerfile("FROM scratch\n")
-		defer os.RemoveAll(tmpDir)
+		defer os.RemoveAll(tmpDir) //nolint:errcheck
 
 		// Assert
 		require.NoError(t, err)
@@ -41,7 +41,7 @@ func TestWriteTempDockerfile(t *testing.T) {
 
 		// Act
 		tmpDir, err := writeTempDockerfile(content)
-		defer os.RemoveAll(tmpDir)
+		defer os.RemoveAll(tmpDir) //nolint:errcheck
 
 		// Assert
 		require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestWriteTempDockerfile(t *testing.T) {
 	t.Run("file has restricted permissions", func(t *testing.T) {
 		// Act
 		tmpDir, err := writeTempDockerfile("FROM scratch\n")
-		defer os.RemoveAll(tmpDir)
+		defer os.RemoveAll(tmpDir) //nolint:errcheck
 
 		// Assert
 		require.NoError(t, err)
@@ -66,7 +66,7 @@ func TestWriteTempDockerfile(t *testing.T) {
 		// Arrange - make the Dockerfile path a directory so WriteFile fails
 		tmpDir, err := os.MkdirTemp("", "agentic-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer os.RemoveAll(tmpDir) //nolint:errcheck
 
 		// Pre-create a directory where the Dockerfile would be written
 		err = os.Mkdir(filepath.Join(tmpDir, "Dockerfile"), 0o755)
@@ -78,7 +78,7 @@ func TestWriteTempDockerfile(t *testing.T) {
 		// Instead, test that a non-writable dir produces an error with no leaked tmpDir.
 		err = os.Chmod(tmpDir, 0o555)
 		require.NoError(t, err)
-		defer os.Chmod(tmpDir, 0o755)
+		defer os.Chmod(tmpDir, 0o755) //nolint:errcheck
 
 		// writeTempDockerfile creates its own temp dir; we can't inject it directly.
 		// Verify only that a valid call returns no error (error injection is done via OS perms above

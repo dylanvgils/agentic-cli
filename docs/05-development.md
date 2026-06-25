@@ -32,6 +32,7 @@ No static Dockerfile files exist. All Dockerfiles are generated at build time by
 
 ```bash
 make build          # compile to bin/agentic
+make lint           # run golangci-lint
 make test           # run unit tests
 make dist           # cross-platform binaries → dist/
 make docker-dist    # same via Docker (no local Go needed)
@@ -75,6 +76,28 @@ func init() {
 ### Style
 
 - Use blank lines between logical blocks within a function to aid readability (e.g. between groups of related `if` statements, between `switch` case groups)
+
+### Linting
+
+Install `golangci-lint` locally, pinned to the version CI uses (v2.12.2):
+
+```bash
+curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.12.2
+```
+
+Or via Homebrew on macOS:
+
+```bash
+brew install golangci-lint
+```
+
+`go install` also works but isn't recommended upstream (slower, no guaranteed reproducibility) - if you use it anyway:
+
+```bash
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+```
+
+Run `make lint` (or `golangci-lint run ./...`) before committing; CI runs the same check via `golangci-lint-action` and fails the build on any issue. Config lives in `.golangci.yml` at the repo root - it uses the default linter set (`errcheck`, `govet`, `staticcheck`, `ineffassign`, `unused`) plus an `errcheck` exclusion for `fmt.Fprint*`/`fmt.Print*`. When a `Close`/`Unsetenv`/`RemoveAll`-style call's error is intentionally ignored, suppress it with a trailing `//nolint:errcheck` comment in test files, or wrap it as `defer func() { _ = x.Close() }()` in non-test code.
 
 ### Tests
 

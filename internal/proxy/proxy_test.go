@@ -22,7 +22,7 @@ func TestServerConnect(t *testing.T) {
 
 		// Act
 		resp := connect(t, proxy.Listener.Addr().String(), "evil.com:443")
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 
 		// Assert
 		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
@@ -43,7 +43,7 @@ func TestServerConnect(t *testing.T) {
 
 		// Act
 		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
-		defer conn.Close()
+		defer conn.Close() //nolint:errcheck
 		_, err := conn.Write([]byte("ping"))
 		require.NoError(t, err)
 		echo := make([]byte, 4)
@@ -67,7 +67,7 @@ func TestServerConnect(t *testing.T) {
 
 		// Act
 		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
-		defer conn.Close()
+		defer conn.Close() //nolint:errcheck
 		_, err := conn.Write([]byte("ping"))
 		require.NoError(t, err)
 		echo := make([]byte, 4)
@@ -89,7 +89,7 @@ func TestServerHTTP(t *testing.T) {
 
 		// Act
 		resp := proxyGet(t, proxy.URL, "http://evil.com/")
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 
 		// Assert
 		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
@@ -109,7 +109,7 @@ func TestServerHTTP(t *testing.T) {
 
 		// Act
 		resp := proxyGet(t, proxy.URL, upstream.URL)
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 		body, _ := io.ReadAll(resp.Body)
 
 		// Assert
@@ -130,7 +130,7 @@ func TestServerHTTP(t *testing.T) {
 
 		// Act
 		resp := proxyGet(t, proxy.URL, upstream.URL)
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 		body, _ := io.ReadAll(resp.Body)
 
 		// Assert

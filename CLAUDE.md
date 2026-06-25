@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in isolated containers. The Go binary (`agentic`, entrypoint `cmd/cli/main.go`, Cobra command tree in `internal/cli`) handles all commands and generates Dockerfiles programmatically at build time - no static Dockerfile files exist. No linter. Development means editing Go source, then testing with `go test ./...` and building/running containers.
+A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in isolated containers. The Go binary (`agentic`, entrypoint `cmd/cli/main.go`, Cobra command tree in `internal/cli`) handles all commands and generates Dockerfiles programmatically at build time - no static Dockerfile files exist. Development means editing Go source, then linting with `golangci-lint run ./...` (or `make lint`), testing with `go test ./...`, and building/running containers.
 
 The egress proxy sidecar (`internal/proxy`) runs as its own minimal binary, `agentic-proxy` (entrypoint `cmd/proxy/main.go`), built into a separate image. It must only import `internal/proxy` - never `internal/docker`, `internal/tools`, or `internal/cli` - so the proxy container's binary stays free of the CLI's Docker-orchestration code.
 
@@ -64,6 +64,10 @@ func init() {
 ### Go style
 
 - Use blank lines between logical blocks within a function to aid readability (e.g. between groups of related `if` statements, between `switch` case groups)
+
+### Linting
+
+Run `golangci-lint run ./...` (or `make lint`) before committing; CI runs the same command and fails the build on any issue. Config lives in `.golangci.yml` at the repo root - it uses the default linter set (`errcheck`, `govet`, `staticcheck`, `ineffassign`, `unused`) plus an `errcheck` exclusion for `fmt.Fprint*`/`fmt.Print*`. When a `Close`/`Unsetenv`/`RemoveAll`-style call's error is intentionally ignored, suppress it with a trailing `//nolint:errcheck` comment in test files, or wrap it as `defer func() { _ = x.Close() }()` in non-test code.
 
 ### File structure
 
