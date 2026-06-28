@@ -34,6 +34,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Lint
+        if: github.event.action != 'edited'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12
+
       - name: Test
         if: github.event.action != 'edited'
         run: make test

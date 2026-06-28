@@ -26,6 +26,7 @@ const (
 	EnvLog      = "AGENTIC_PROXY_LOG"       // JSON-lines access-log path
 	EnvAddr     = "AGENTIC_PROXY_ADDR"      // override listen address
 	EnvTZOffset = "AGENTIC_PROXY_TZ_OFFSET" // host UTC offset in seconds, for the human-readable log line
+	EnvMonitor  = "AGENTIC_PROXY_MONITOR"   // "true" to log without enforcing the allowlist
 )
 
 // ConfigFromEnv builds a Config from the proxy environment variables.
@@ -34,12 +35,14 @@ func ConfigFromEnv() Config {
 	allowedHosts := config.SplitEnvValues(os.Getenv(EnvAllow))
 	logPath := os.Getenv(EnvLog)
 	offset, _ := strconv.Atoi(os.Getenv(EnvTZOffset))
+	monitor, _ := strconv.ParseBool(os.Getenv(EnvMonitor))
 
 	return Config{
 		Addr:            addr,
 		AllowedHosts:    allowedHosts,
 		LogPath:         logPath,
 		TZOffsetSeconds: offset,
+		Monitor:         monitor,
 	}
 }
 
@@ -49,6 +52,7 @@ type Config struct {
 	AllowedHosts    []string // permitted hosts (exact or leading-dot/"*." wildcard)
 	LogPath         string   // JSON-lines access log file; always also written to stdout
 	TZOffsetSeconds int      // host UTC offset shown in the stdout human-readable line; the JSON log always stays UTC
+	Monitor         bool     // log the allowlist verdict without enforcing it
 }
 
 // Run starts the forward proxy and blocks until it stops serving.
@@ -65,7 +69,7 @@ func Run(cfg Config) error {
 	defer closeLog()
 
 	location := time.FixedZone("", cfg.TZOffsetSeconds)
-	server := NewServer(NewAllowlist(cfg.AllowedHosts), NewLogger(jsonWriter(logFile), os.Stdout, location))
+	server := NewServer(NewAllowlist(cfg.AllowedHosts), NewLogger(jsonWriter(logFile), os.Stdout, location), cfg.Monitor)
 
 	httpServer := &http.Server{
 		Addr:    addr,

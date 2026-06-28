@@ -34,6 +34,7 @@ type proxyHandle struct {
 	container string
 	logPath   string
 	allow     []string
+	monitor   bool
 }
 
 // newProxyHandle derives the per-run proxy resource names without creating any
@@ -51,6 +52,7 @@ func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 		container: name,
 		logPath:   filepath.Join(rs.ProxyLogDir, id+".jsonl"),
 		allow:     rs.ProxyAllow,
+		monitor:   rs.ProxyMonitor,
 	}, nil
 }
 
@@ -81,21 +83,31 @@ func (h proxyHandle) Stop() {
 	_, _ = dockerRun("network", "rm", h.network)
 }
 
-// PrintSummary reports the hosts the proxy blocked during the run, so a user
-// whose tool failed to connect knows what to allowlist.
+// PrintSummary reports what the proxy observed during the run. In normal mode
+// it reports the hosts actually blocked, so a user whose tool failed to
+// connect knows what to allowlist. In monitor mode nothing was blocked, so it
+// instead reports the hosts that would have been blocked under the current
+// allowlist - the actionable gap before switching to enforcement.
 func (h proxyHandle) PrintSummary(w io.Writer) {
-	hosts, total := h.deniedHosts()
-	if total == 0 {
+	hosts, denied := h.hostsByDecision(proxy.DecisionDeny)
+	if denied == 0 {
 		return
 	}
 
-	fmt.Fprintf(w, "\nagentic proxy blocked %d request(s) to: %s\n", total, strings.Join(hosts, ", "))
+	if h.monitor {
+		fmt.Fprintf(w, "\nagentic proxy (monitor mode) observed %d request(s); %d would be blocked under the current allowlist: %s\n", h.totalRequests(), denied, strings.Join(hosts, ", "))
+		fmt.Fprintln(w, "add the ones you want to allow to [run.proxy] allowed_hosts, then drop --proxy-monitor.")
+		return
+	}
+
+	fmt.Fprintf(w, "\nagentic proxy blocked %d request(s) to: %s\n", denied, strings.Join(hosts, ", "))
 	fmt.Fprintln(w, "add them to [run.proxy] allowed_hosts (or pass --no-proxy) to permit.")
 }
 
-// deniedHosts reads the access log and returns the unique denied hosts (in
-// first-seen order) and the total number of denied requests.
-func (h proxyHandle) deniedHosts() (hosts []string, total int) {
+// hostsByDecision reads the access log and returns the unique hosts logged
+// with decision (in first-seen order) and the total number of matching
+// requests.
+func (h proxyHandle) hostsByDecision(decision proxy.Decision) (hosts []string, total int) {
 	f, err := os.Open(h.logPath)
 	if err != nil {
 		return nil, 0
@@ -109,7 +121,7 @@ func (h proxyHandle) deniedHosts() (hosts []string, total int) {
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
 			continue
 		}
-		if entry.Decision != proxy.DecisionDeny {
+		if entry.Decision != decision {
 			continue
 		}
 
@@ -125,6 +137,31 @@ func (h proxyHandle) deniedHosts() (hosts []string, total int) {
 	_ = scanner.Err()
 
 	return hosts, total
+}
+
+// totalRequests reads the access log and returns the total number of
+// connection attempts logged, regardless of decision. Used by PrintSummary's
+// monitor-mode message, where every attempt is allowed through and only the
+// would-be-denied subset is otherwise reported.
+func (h proxyHandle) totalRequests() int {
+	f, err := os.Open(h.logPath)
+	if err != nil {
+		return 0
+	}
+	defer func() { _ = f.Close() }()
+
+	total := 0
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		var entry proxy.Entry
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			continue
+		}
+		total++
+	}
+	_ = scanner.Err()
+
+	return total
 }
 
 // startProxy provisions the per-run internal network and proxy sidecar, wiring
@@ -183,6 +220,7 @@ func (h proxyHandle) runArgs(rs RunSpec) []string {
 		arg("env", proxy.EnvAllow+"="+strings.Join(h.allow, ",")),
 		arg("env", proxy.EnvLog+"="+containerLog),
 		arg("env", proxy.EnvTZOffset+"="+strconv.Itoa(tzOffset)),
+		arg("env", proxy.EnvMonitor+"="+strconv.FormatBool(h.monitor)),
 		arg("volume", rs.ProxyLogDir+":"+proxyLogMountDir),
 		rs.ProxyImage,
 	}

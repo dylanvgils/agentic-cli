@@ -36,7 +36,7 @@ func startEchoServer(t *testing.T) (host, port string) {
 				return
 			}
 			go func() {
-				defer conn.Close()
+				defer conn.Close() //nolint:errcheck
 				_, _ = io.Copy(conn, conn)
 			}()
 		}

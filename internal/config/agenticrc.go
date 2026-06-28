@@ -10,6 +10,15 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+const rcFilename = ".agenticrc.toml"
+
+// ModeEnforce and ModeMonitor are the only valid RCProxy.Mode values, besides
+// the unset "" (treated the same as ModeEnforce).
+const (
+	ModeEnforce = "enforce"
+	ModeMonitor = "monitor"
+)
+
 // RCBuild holds build-time settings from a .agenticrc.toml file.
 type RCBuild struct {
 	Bases       []string          `toml:"bases"`
@@ -34,6 +43,11 @@ type RCRun struct {
 type RCProxy struct {
 	Enabled      *bool    `toml:"enabled"`
 	AllowedHosts []string `toml:"allowed_hosts"`
+	// Mode selects how the proxy enforces AllowedHosts: "enforce" (default,
+	// also used when unset) blocks disallowed hosts, "monitor" logs the
+	// allowlist verdict without blocking anything. An explicit Enabled=false
+	// always disables the proxy regardless of Mode.
+	Mode string `toml:"mode"`
 }
 
 // AgenticRC holds the parsed contents of a .agenticrc.toml project config file.
@@ -49,8 +63,6 @@ type RCLayer struct {
 	Path string
 	RC   *AgenticRC
 }
-
-const rcFilename = ".agenticrc.toml"
 
 // FindAndLoadFromCwd loads config starting from the current working directory.
 func FindAndLoadFromCwd() (*AgenticRC, error) {
@@ -107,6 +119,22 @@ func FindLayers(startDir string) ([]RCLayer, error) {
 	}
 
 	return layers, nil
+}
+
+// SplitEnvValues splits a comma-separated value string and skips empty parts.
+// Used for env var parsing where variable expansion is handled by the caller.
+func SplitEnvValues(value string) []string {
+	var result []string
+
+	for pair := range strings.SplitSeq(value, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		result = append(result, pair)
+	}
+
+	return result
 }
 
 func collectPaths(startDir string) []string {
@@ -176,6 +204,10 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 			resRun.Proxy.Enabled = run.Proxy.Enabled
 		}
 
+		if resRun.Proxy.Mode == "" {
+			resRun.Proxy.Mode = run.Proxy.Mode
+		}
+
 		for key, val := range rc.Build.Versions {
 			if _, exists := result.Build.Versions[key]; !exists {
 				result.Build.Versions[key] = val
@@ -208,21 +240,10 @@ func loadRC(path string) (*AgenticRC, error) {
 		return nil, fmt.Errorf("%s: unknown keys: %v", path, keys)
 	}
 
-	return rc, nil
-}
-
-// SplitEnvValues splits a comma-separated value string and skips empty parts.
-// Used for env var parsing where variable expansion is handled by the caller.
-func SplitEnvValues(value string) []string {
-	var result []string
-
-	for pair := range strings.SplitSeq(value, ",") {
-		pair = strings.TrimSpace(pair)
-		if pair == "" {
-			continue
-		}
-		result = append(result, pair)
+	mode := rc.Run.Proxy.Mode
+	if mode != "" && mode != ModeEnforce && mode != ModeMonitor {
+		return nil, fmt.Errorf("%s: invalid [run.proxy] mode %q: must be %q or %q", path, mode, ModeEnforce, ModeMonitor)
 	}
 
-	return result
+	return rc, nil
 }

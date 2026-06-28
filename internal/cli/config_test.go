@@ -275,7 +275,7 @@ func TestPrintProjectConfig(t *testing.T) {
 					Run: config.RCRun{
 						PidsLimit: "100", CPUs: "2", Memory: "4g",
 						ExtraMounts: []string{"vol:/mnt"}, Secrets: []string{"tok:/run/s/t"},
-						Proxy: config.RCProxy{Enabled: &enabled, AllowedHosts: []string{".github.com"}},
+						Proxy: config.RCProxy{Enabled: &enabled, Mode: config.ModeMonitor, AllowedHosts: []string{".github.com"}},
 					},
 				},
 			},
@@ -297,6 +297,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "- java@17  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- tok:/run/s/t  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "proxy.enabled: true  [/project/.agenticrc.toml]")
+		assert.Contains(t, out, "proxy.mode: monitor  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- .github.com  [/project/.agenticrc.toml]")
 	})
 
@@ -368,6 +369,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "extra_mounts: (none)")
 		assert.Contains(t, out, "secrets: (none)")
 		assert.Contains(t, out, "proxy.enabled: false  (default)")
+		assert.Contains(t, out, "proxy.mode: enforce  (default)")
 		assert.Contains(t, out, "proxy.allowed_hosts: (none)")
 	})
 }

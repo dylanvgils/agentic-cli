@@ -18,7 +18,7 @@ func captureStdout(t *testing.T, fn func()) string {
 	t.Cleanup(func() { os.Stdout = orig })
 
 	fn()
-	w.Close()
+	w.Close() //nolint:errcheck
 
 	out, err := io.ReadAll(r)
 	require.NoError(t, err)

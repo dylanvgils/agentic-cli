@@ -104,12 +104,15 @@ pids_limit = "2048"
 
 **`[run.proxy]` section** - egress allowlist proxy
 
-| Key             | Type | Description                                                                                                                                                                                        | CLI flag                 | Default |
-| --------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------- |
-| `enabled`       | bool | Route the tool's egress through the allowlist proxy. `enabled` is a pointer internally so an inner config can explicitly disable a proxy enabled by an outer one.                                  | `--proxy` / `--no-proxy` | `false` |
-| `allowed_hosts` | list | Extra hosts to permit, merged on top of the tool's baseline. Exact match (e.g. `"api.github.com"`), or a leading-dot / `*.` entry to match a domain and all its subdomains (e.g. `".github.com"`). | -                        | -       |
+| Key             | Type   | Description                                                                                                                                                                                                               | CLI flag                 | Default     |
+| --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ----------- |
+| `enabled`       | bool   | Route the tool's egress through the allowlist proxy. `enabled` is a pointer internally so an inner config can explicitly disable a proxy enabled by an outer one.                                                         | `--proxy` / `--no-proxy` | `false`     |
+| `mode`          | string | `"enforce"` blocks disallowed hosts; `"monitor"` logs the allowlist verdict without blocking anything. Setting `mode = "monitor"` implies the proxy is enabled, unless `enabled = false` is also set (which always wins). | `--proxy-monitor`        | `"enforce"` |
+| `allowed_hosts` | list   | Extra hosts to permit, merged on top of the tool's baseline. Exact match (e.g. `"api.github.com"`), or a leading-dot / `*.` entry to match a domain and all its subdomains (e.g. `".github.com"`).                        | -                        | -           |
 
 When enabled, the tool container loses direct internet access and reaches the outside only through a proxy sidecar enforcing the allowlist, on a per-run internal Docker network. Blocked hosts are printed at the end of the run; every connection attempt is logged as JSON lines under `$AGENTIC_HOME/proxy/`. The sidecar is reachable via the auto-injected `HTTP_PROXY`/`HTTPS_PROXY` env vars, or at the stable alias `agentic-proxy:3128` for tools that need a literal hostname (see [below](#pointing-a-tools-own-proxy-setting-at-the-egress-proxy)).
+
+`--proxy-monitor` (or `mode = "monitor"`) runs the proxy without ever blocking a connection - every host the tool tries to reach succeeds, including ones missing from the allowlist. The access log still records the real verdict for each attempt (`"decision": "allow"` or `"deny"`), tagged with `"enforced": false` so it's clear nothing was actually blocked; the human-readable line printed to `docker logs` gets a `(monitor)` suffix for the same reason. At the end of the run, instead of reporting blocked hosts, agentic reports the hosts that _would_ have been blocked under the current allowlist - the gap to fill in before switching to a real `--proxy` run. This is meant for discovering a new tool's egress needs before writing an allowlist at all.
 
 Each proxy-enabled run prunes access logs older than a retention window (default 3 days) before starting. This is host-level, not per-project, so it's set via `proxy_log_retention_days` in `agentic.json` (see table above), not `.agenticrc.toml`. To wipe all logs regardless of age, run `agentic proxy clean --logs`.
 
@@ -126,11 +129,12 @@ Each tool ships a baseline allowlist; `allowed_hosts` values are merged on top o
 
 OpenCode is multi-provider, so only its own auth/update host is included by default - add your chosen model-provider hosts via `allowed_hosts`.
 
-`agentic config` shows the resolved `proxy.enabled` and `proxy.allowed_hosts` values for the current directory, tagged with the `.agenticrc.toml` that set them (the tool's baseline hosts aren't part of this output - they're fixed per tool, not configurable).
+`agentic config` shows the resolved `proxy.enabled`, `proxy.mode`, and `proxy.allowed_hosts` values for the current directory, tagged with the `.agenticrc.toml` that set them (the tool's baseline hosts aren't part of this output - they're fixed per tool, not configurable).
 
 ```toml
 [run.proxy]
 enabled = true
+mode = "monitor" # or "enforce" (default)
 allowed_hosts = [
   "registry.npmjs.org",
   ".github.com",

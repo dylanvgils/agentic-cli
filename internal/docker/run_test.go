@@ -528,7 +528,7 @@ func TestBuildEnvArgs(t *testing.T) {
 	t.Run("bare key omitted when unset on host", func(t *testing.T) {
 		// Arrange
 		clearTerminalEnv(t)
-		os.Unsetenv("AGENTIC_NONEXISTENT_VAR")
+		os.Unsetenv("AGENTIC_NONEXISTENT_VAR") //nolint:errcheck
 		rs := RunSpec{Env: []string{"AGENTIC_NONEXISTENT_VAR"}}
 
 		// Act

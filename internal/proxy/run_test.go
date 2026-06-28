@@ -57,6 +57,28 @@ func TestConfigFromEnv(t *testing.T) {
 		// Assert
 		assert.Zero(t, cfg.TZOffsetSeconds)
 	})
+
+	t.Run("monitor true enables monitor mode", func(t *testing.T) {
+		// Arrange
+		t.Setenv(EnvMonitor, "true")
+
+		// Act
+		cfg := ConfigFromEnv()
+
+		// Assert
+		assert.True(t, cfg.Monitor)
+	})
+
+	t.Run("missing or invalid monitor defaults to false", func(t *testing.T) {
+		// Arrange
+		t.Setenv(EnvMonitor, "not-a-bool")
+
+		// Act
+		cfg := ConfigFromEnv()
+
+		// Assert
+		assert.False(t, cfg.Monitor)
+	})
 }
 
 func TestOpenLog(t *testing.T) {

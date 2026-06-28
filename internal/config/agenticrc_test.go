@@ -276,6 +276,30 @@ func TestMergeConfigs(t *testing.T) {
 		require.NotNil(t, result.Run.Proxy.Enabled)
 		assert.True(t, *result.Run.Proxy.Enabled)
 	})
+
+	t.Run("proxy mode child wins over parent", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Run: RCRun{Proxy: RCProxy{Mode: ModeEnforce}}}
+		parent := &AgenticRC{Run: RCRun{Proxy: RCProxy{Mode: ModeMonitor}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, ModeEnforce, result.Run.Proxy.Mode)
+	})
+
+	t.Run("proxy mode parent fills when child unset", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{}
+		parent := &AgenticRC{Run: RCRun{Proxy: RCProxy{Mode: ModeMonitor}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, ModeMonitor, result.Run.Proxy.Mode)
+	})
 }
 
 func TestParseRC(t *testing.T) {
@@ -380,6 +404,26 @@ memory = "2g"
 		// Assert
 		assert.Equal(t, "17", rc.Build.Versions["java"])
 		assert.Equal(t, "22", rc.Build.Versions["node"])
+	})
+
+	t.Run("proxy mode key", func(t *testing.T) {
+		// Act
+		rc := mustParseRC(t, "[run.proxy]\nmode = \"monitor\"\n")
+
+		// Assert
+		assert.Equal(t, ModeMonitor, rc.Run.Proxy.Mode)
+	})
+
+	t.Run("invalid proxy mode returns error with path", func(t *testing.T) {
+		// Arrange
+		path := writeRC(t, "[run.proxy]\nmode = \"bogus\"\n")
+
+		// Act
+		_, err := loadRC(path)
+
+		// Assert
+		assert.ErrorContains(t, err, "invalid [run.proxy] mode")
+		assert.ErrorContains(t, err, path)
 	})
 
 	t.Run("unknown key returns error with path", func(t *testing.T) {

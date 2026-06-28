@@ -18,8 +18,8 @@ func TestLoggerLog(t *testing.T) {
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
-		logger.Log(ProtocolHTTPS, "api.anthropic.com", "443", DecisionAllow)
-		logger.Log(ProtocolHTTP, "evil.com", "443", DecisionDeny)
+		logger.Log(ProtocolHTTPS, "api.anthropic.com", "443", DecisionAllow, true)
+		logger.Log(ProtocolHTTP, "evil.com", "443", DecisionDeny, true)
 
 		// Assert
 		lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
@@ -31,12 +31,30 @@ func TestLoggerLog(t *testing.T) {
 		assert.Equal(t, "api.anthropic.com", allow.Host)
 		assert.Equal(t, "443", allow.Port)
 		assert.Equal(t, DecisionAllow, allow.Decision)
+		assert.True(t, allow.Enforced)
 		assert.Equal(t, "2026-06-17T12:00:00Z", allow.Time.Format(time.RFC3339))
 
 		var deny Entry
 		require.NoError(t, json.Unmarshal(lines[1], &deny))
 		assert.Equal(t, ProtocolHTTP, deny.Protocol)
 		assert.Equal(t, DecisionDeny, deny.Decision)
+		assert.True(t, deny.Enforced)
+	})
+
+	t.Run("monitor mode logs enforced=false", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		logger := NewLogger(&buf, nil, nil)
+		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
+
+		// Act
+		logger.Log(ProtocolHTTPS, "evil.com", "443", DecisionDeny, false)
+
+		// Assert
+		var entry Entry
+		require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &entry))
+		assert.Equal(t, DecisionDeny, entry.Decision)
+		assert.False(t, entry.Enforced)
 	})
 
 	t.Run("writes one human-readable line per call to the human destination", func(t *testing.T) {
@@ -46,14 +64,29 @@ func TestLoggerLog(t *testing.T) {
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
-		logger.Log(ProtocolHTTPS, "api.anthropic.com", "443", DecisionAllow)
-		logger.Log(ProtocolHTTP, "evil.com", "443", DecisionDeny)
+		logger.Log(ProtocolHTTPS, "api.anthropic.com", "443", DecisionAllow, true)
+		logger.Log(ProtocolHTTP, "evil.com", "443", DecisionDeny, true)
 
 		// Assert
 		lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
 		require.Len(t, lines, 2)
 		assert.Equal(t, "2026-06-17T12:00:00Z [ALLOW] https api.anthropic.com:443", string(lines[0]))
 		assert.Equal(t, "2026-06-17T12:00:00Z [DENY]  http  evil.com:443", string(lines[1]))
+	})
+
+	t.Run("monitor mode tags the human-readable line", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		logger := NewLogger(nil, &buf, nil)
+		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
+
+		// Act
+		logger.Log(ProtocolHTTPS, "evil.com", "443", DecisionDeny, false)
+
+		// Assert
+		lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
+		require.Len(t, lines, 1)
+		assert.Equal(t, "2026-06-17T12:00:00Z [DENY]  https evil.com:443 (monitor)", string(lines[0]))
 	})
 
 	t.Run("human destination uses the configured location", func(t *testing.T) {
@@ -64,7 +97,7 @@ func TestLoggerLog(t *testing.T) {
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
-		logger.Log(ProtocolHTTPS, "api.anthropic.com", "443", DecisionAllow)
+		logger.Log(ProtocolHTTPS, "api.anthropic.com", "443", DecisionAllow, true)
 
 		// Assert
 		lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
@@ -77,6 +110,6 @@ func TestLoggerLog(t *testing.T) {
 		logger := NewLogger(nil, nil, nil)
 
 		// Act + Assert
-		assert.NotPanics(t, func() { logger.Log(ProtocolHTTPS, "api.anthropic.com", "443", DecisionAllow) })
+		assert.NotPanics(t, func() { logger.Log(ProtocolHTTPS, "api.anthropic.com", "443", DecisionAllow, true) })
 	})
 }

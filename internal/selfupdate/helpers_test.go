@@ -148,7 +148,7 @@ func openTarGzReader(t *testing.T, data []byte) *tar.Reader {
 	t.Helper()
 	gz, err := gzip.NewReader(bytes.NewReader(data))
 	require.NoError(t, err)
-	t.Cleanup(func() { gz.Close() })
+	t.Cleanup(func() { gz.Close() }) //nolint:errcheck
 	return tar.NewReader(gz)
 }
 
@@ -158,6 +158,6 @@ func openZipReader(t *testing.T, data []byte) *zip.Reader {
 	path := writeTempFile(t, data)
 	rc, err := zip.OpenReader(path)
 	require.NoError(t, err)
-	t.Cleanup(func() { rc.Close() })
+	t.Cleanup(func() { rc.Close() }) //nolint:errcheck
 	return &rc.Reader
 }

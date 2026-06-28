@@ -14,17 +14,18 @@ import (
 )
 
 var (
-	toolHome     string
-	extraVolumes []string
-	flagSecrets  []string
-	flagEnv      []string
-	pidsLimit    string
-	cpus         string
-	memory       string
-	dryRun       bool
-	trustDir     bool
-	proxyFlag    bool
-	noProxyFlag  bool
+	toolHome         string
+	extraVolumes     []string
+	flagSecrets      []string
+	flagEnv          []string
+	pidsLimit        string
+	cpus             string
+	memory           string
+	dryRun           bool
+	trustDir         bool
+	proxyFlag        bool
+	noProxyFlag      bool
+	proxyMonitorFlag bool
 )
 
 type parsedArgs struct {
@@ -73,7 +74,8 @@ func init() {
 	runToolCmd.Flags().BoolVar(&trustDir, "trust-dir", false, "trust the current directory and save it to config")
 	runToolCmd.Flags().BoolVar(&proxyFlag, "proxy", false, "route egress through the allowlist proxy (overrides config)")
 	runToolCmd.Flags().BoolVar(&noProxyFlag, "no-proxy", false, "disable the egress proxy for this run (overrides config)")
-	runToolCmd.MarkFlagsMutuallyExclusive("proxy", "no-proxy")
+	runToolCmd.Flags().BoolVar(&proxyMonitorFlag, "proxy-monitor", false, "route egress through the proxy without blocking, logging every host (overrides config)")
+	runToolCmd.MarkFlagsMutuallyExclusive("proxy", "no-proxy", "proxy-monitor")
 	runToolCmd.Flags().SetInterspersed(false)
 
 	addNamespaceFlag(runToolCmd)
@@ -115,14 +117,14 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	proxyEnabled := resolveProxyEnabled(cmd, rc)
+	proxyEnabled, proxyMonitor := resolveProxyMode(cmd, rc)
 	if proxyEnabled && !dryRun {
 		if err := ensureProxyImage(cmd); err != nil {
 			return err
 		}
 	}
 
-	rs, err := buildRunSpec(parsedArgs, toolConfig, rc, collectRegistry(cmd), proxyEnabled)
+	rs, err := buildRunSpec(parsedArgs, toolConfig, rc, collectRegistry(cmd), proxyEnabled, proxyMonitor)
 	if err != nil {
 		return err
 	}
@@ -151,7 +153,7 @@ func parseArgs(args []string, namespace string) (parsedArgs, error) {
 	}, nil
 }
 
-func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC, registry string, proxyEnabled bool) (docker.RunSpec, error) {
+func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC, registry string, proxyEnabled, proxyMonitor bool) (docker.RunSpec, error) {
 	containerHome := docker.ResolveContainerHome(args.imageName)
 	volumes := collectVolumes(toolConfig.Runtime.Mounts(), extraVolumes, rc)
 	secrets := collectSecrets(flagSecrets, rc)
@@ -192,7 +194,7 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 		WithCPUs(limits.cpus).
 		WithMemory(limits.memory).
 		WithDryRun(dryRun).
-		WithProxy(proxyEnabled, tools.ProxyImage, proxyAllowList(toolConfig, rc), proxyLogDir).
+		WithProxy(proxyEnabled, tools.ProxyImage, proxyAllowList(toolConfig, rc), proxyLogDir, proxyMonitor).
 		Build()
 
 	return rs, nil
