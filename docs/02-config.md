@@ -223,6 +223,8 @@ These also accumulate, but their env vars (`AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECR
 
 `-e`/`--env` values are visible inside the container and via `docker inspect`/`ps` - use `-s`/`--secret` for tokens or credentials instead.
 
+`TZ` is auto-forwarded from the host's detected timezone alongside the terminal-capability vars (`COLORTERM`, `TERM`, `NO_COLOR`, `FORCE_COLOR`) - an explicit `-e TZ=...` or `.agenticrc.toml` `env` entry overrides it, same as any other auto-forwarded var.
+
 ### `namespace`
 
 Resolution priority (highest to lowest):

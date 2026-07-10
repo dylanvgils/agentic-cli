@@ -12,7 +12,23 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
-var isTerminal = platform.IsTerminal
+// Default resource limits applied when neither an explicit RunSpec field nor
+// the corresponding config env var (config.EnvPidsLimit/EnvCPUs/EnvMemory) is
+// set; see resolveLimit.
+const (
+	DefaultPidsLimit = "1024"
+	DefaultCPUs      = "4"
+	DefaultMemory    = "4g"
+)
+
+var (
+	// isTerminal is a test-stubbable indirection into platform.IsTerminal
+	// (see stubIsTerminal in helpers_test.go).
+	isTerminal = platform.IsTerminal
+	// hostTimezone is a test-stubbable indirection into platform.Timezone
+	// (see stubHostTimezone in helpers_test.go).
+	hostTimezone = platform.Timezone
+)
 
 // terminalCapabilityEnvNames are host vars forwarded into the container
 // automatically when set, so the tool sees the same terminal capabilities
@@ -73,12 +89,6 @@ type RunSpec struct {
 	// means NetworkName; proxy mode overrides it with the per-run internal net.
 	network string
 }
-
-const (
-	DefaultPidsLimit = "1024"
-	DefaultCPUs      = "4"
-	DefaultMemory    = "4g"
-)
 
 func RunContainer(rs RunSpec, toolArgs []string) error {
 	proxyEnv, cleanup, err := setupProxy(&rs)
@@ -253,15 +263,15 @@ func buildTTYArgs() []string {
 	return nil
 }
 
-// buildEnvArgs builds --env flags for the container: select host vars are
-// forwarded automatically (only if set, to avoid misrepresenting capabilities
-// the terminal doesn't have), then rs.Env adds user-supplied entries - each
-// either "KEY=VALUE" (a literal) or bare "KEY" (forward the host's current
-// value, omitted entirely if unset) - mirroring Docker's own -e semantics. A
-// user-supplied entry naturally overrides an auto-forwarded one for the same
-// key, since Docker keeps the last -e occurrence.
+// buildEnvArgs builds --env flags: auto-forwarded terminal capabilities and
+// host timezone, then rs.Env entries ("KEY=VALUE" or bare "KEY" to forward
+// the host's current value), mirroring Docker's -e semantics.
 func buildEnvArgs(rs RunSpec) []string {
 	args := forwardEnvArg(terminalCapabilityEnvNames...)
+
+	if tz := hostTimezone(); tz != "" {
+		args = append(args, arg("env", "TZ="+tz))
+	}
 
 	for _, entry := range rs.Env {
 		if key, _, ok := strings.Cut(entry, "="); ok {

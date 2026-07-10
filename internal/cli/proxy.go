@@ -139,14 +139,15 @@ func proxyAllowList(toolConfig tools.ToolConfig, rc *config.AgenticRC) []string 
 	return append(allow, rc.Run.Proxy.AllowedHosts...)
 }
 
-// ensureProxyImage builds the proxy image if it is not already present, so
-// `--proxy` works without a separate build step.
+// ensureProxyImage builds the proxy image if it is not already present or if
+// its CLI version label does not match the running CLI version, so `--proxy`
+// automatically picks up proxy changes shipped with a CLI update.
 func ensureProxyImage(cmd *cobra.Command) error {
 	info, err := inspectImage(tools.ProxyImage)
 	if err != nil {
 		return err
 	}
-	if info != nil {
+	if info != nil && info.CLIVersion == buildinfo.Version {
 		return nil
 	}
 
