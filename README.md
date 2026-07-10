@@ -355,6 +355,8 @@ agentic run -e NODE_OPTIONS=--max-old-space-size=4096 claude
 agentic run -e CI claude   # forwards the host's CI value, omitted if unset
 ```
 
+The container's `TZ` is also auto-detected from the host and forwarded automatically, so its clock matches the host instead of defaulting to UTC - override it the same way as any other var (`agentic run -e TZ=UTC claude`).
+
 See [docs/02-config.md](docs/02-config.md) for names agentic already manages that can't be overridden this way, and for persisting variables via `.agenticrc.toml`. Values set with `--env` are visible inside the container and via `docker inspect`/`ps`, so use `--secret` / `-s` for tokens or credentials instead.
 
 ## 📦 Named Docker volumes

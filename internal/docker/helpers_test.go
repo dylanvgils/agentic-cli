@@ -143,6 +143,14 @@ func stubIsTerminal(t *testing.T, val bool) {
 	t.Cleanup(func() { isTerminal = orig })
 }
 
+// stubHostTimezone replaces hostTimezone with a stub that returns val for the duration of the test.
+func stubHostTimezone(t *testing.T, val string) {
+	t.Helper()
+	orig := hostTimezone
+	hostTimezone = func() string { return val }
+	t.Cleanup(func() { hostTimezone = orig })
+}
+
 // argAfter returns the value immediately following flag in args, or "".
 func argAfter(args []string, flag string) string {
 	for i, a := range args {

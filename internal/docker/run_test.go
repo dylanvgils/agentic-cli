@@ -444,6 +444,7 @@ func TestBuildEnvArgs(t *testing.T) {
 			t.Setenv(key, "")
 		}
 	}
+	stubHostTimezone(t, "")
 
 	t.Run("empty when no color vars set and no rs.Env", func(t *testing.T) {
 		// Arrange
@@ -549,6 +550,43 @@ func TestBuildEnvArgs(t *testing.T) {
 
 		// Assert - both occurrences are present; docker keeps the last one
 		assert.Equal(t, []string{"--env=NO_COLOR=1", "--env=NO_COLOR=0"}, args)
+	})
+
+	t.Run("TZ forwarded when host timezone detected", func(t *testing.T) {
+		// Arrange
+		clearTerminalEnv(t)
+		stubHostTimezone(t, "America/New_York")
+
+		// Act
+		args := buildEnvArgs(RunSpec{})
+
+		// Assert
+		assert.Equal(t, []string{"--env=TZ=America/New_York"}, args)
+	})
+
+	t.Run("no TZ arg when host timezone can't be detected", func(t *testing.T) {
+		// Arrange
+		clearTerminalEnv(t)
+		stubHostTimezone(t, "")
+
+		// Act
+		args := buildEnvArgs(RunSpec{})
+
+		// Assert
+		assert.Empty(t, args)
+	})
+
+	t.Run("user-supplied entry overrides auto-forwarded TZ", func(t *testing.T) {
+		// Arrange
+		clearTerminalEnv(t)
+		stubHostTimezone(t, "America/New_York")
+		rs := RunSpec{Env: []string{"TZ=UTC"}}
+
+		// Act
+		args := buildEnvArgs(rs)
+
+		// Assert - both occurrences are present; docker keeps the last one
+		assert.Equal(t, []string{"--env=TZ=America/New_York", "--env=TZ=UTC"}, args)
 	})
 }
 

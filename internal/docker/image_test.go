@@ -16,7 +16,8 @@ const fullImageJSON = `{
 			"agentic.namespace": "agentic",
 			"agentic.tool.version": "1.2.3",
 			"agentic.base": "node:24",
-			"agentic.built": "2026-05-01"
+			"agentic.built": "2026-05-01",
+			"agentic.version": "v1.0.0"
 		}
 	}
 }`
@@ -49,6 +50,7 @@ func TestInspectImage(t *testing.T) {
 		assert.Equal(t, "1.2.3", info.Version)
 		assert.Equal(t, "node:24", info.Base)
 		assert.Equal(t, "2026-05-01", info.Built)
+		assert.Equal(t, "v1.0.0", info.CLIVersion)
 		assert.Equal(t, "1.23GB", info.Size)
 	})
 
