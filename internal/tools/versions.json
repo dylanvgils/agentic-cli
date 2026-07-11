@@ -4,7 +4,7 @@
   "nvm_checksum": "582070e4c44452c1d8d68e16fc786c2216ecba6bc6bf18dc280a03fdba6ed1a9",
   "java": "25",
   "dotnet": "10",
-  "go": "1.26.4",
+  "go": "1.26.5",
   "busybox": "1.38.0",
   "debian": "13-slim",
   "distroless_debian": "13"
