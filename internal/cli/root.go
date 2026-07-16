@@ -14,33 +14,34 @@ import (
 )
 
 var (
-	checkDockerDaemon   = docker.CheckDaemon
-	buildTool           = docker.BuildTool
-	buildProxyImage     = docker.BuildProxyImage
-	updateTool          = docker.UpdateTool
-	runContainer        = docker.RunContainer
-	ensureNamedVolumes  = docker.EnsureNamedVolumes
-	inspectImage        = docker.InspectImage
-	builtTools          = docker.BuiltTools
-	listAllImages       = docker.ListAllImages
-	cleanImage          = docker.CleanImage
-	cleanBaseImages     = docker.CleanBaseImages
-	pruneImages         = docker.PruneImages
-	pruneBuildCache     = docker.PruneBuildCache
-	ensureNetwork       = docker.EnsureNetwork
-	removeNetwork       = docker.RemoveNetwork
-	sweepProxyResources = docker.SweepProxyResources
-	pruneProxyLogs      = housekeeping.PruneProxyLogs
-	createVolume        = docker.CreateVolume
-	listVolumes         = docker.ListVolumes
-	listVolumeNames     = docker.ListVolumeNames
-	removeVolume        = docker.RemoveVolume
-	isTerminal          = platform.IsTerminal
+	checkDockerDaemon     = docker.CheckDaemon
+	buildTool             = docker.BuildTool
+	buildProxyImage       = docker.BuildProxyImage
+	updateTool            = docker.UpdateTool
+	runContainer          = docker.RunContainer
+	ensureNamedVolumes    = docker.EnsureNamedVolumes
+	inspectImage          = docker.InspectImage
+	builtTools            = docker.BuiltTools
+	listAllImages         = docker.ListAllImages
+	cleanImage            = docker.CleanImage
+	cleanBaseImages       = docker.CleanBaseImages
+	pruneImages           = docker.PruneImages
+	pruneBuildCache       = docker.PruneBuildCache
+	ensureNetwork         = docker.EnsureNetwork
+	removeNetwork         = docker.RemoveNetwork
+	sweepProxyResources   = docker.SweepProxyResources
+	pruneProxyLogs        = housekeeping.PruneProxyLogs
+	createVolume          = docker.CreateVolume
+	listVolumes           = docker.ListVolumes
+	listVolumeNames       = docker.ListVolumeNames
+	removeVolume          = docker.RemoveVolume
+	listRunningContainers = docker.ListRunningContainers
+	isTerminal            = platform.IsTerminal
 )
 
 var (
 	// noDockerCmds lists subcommands that do not require a running Docker daemon.
-	noDockerCmds = []string{"completion", "aliases", "version", "upgrade"}
+	noDockerCmds = []string{"completion", "aliases", "version", "upgrade", "status"}
 	// noUpdateCmds lists subcommands that skip the automatic update check.
 	noUpdateCmds = []string{"completion", "aliases", "upgrade"}
 )
