@@ -152,6 +152,13 @@ func stubListAllImages(t *testing.T, fn func(...docker.ImageFilter) ([]*docker.I
 	t.Cleanup(func() { listAllImages = orig })
 }
 
+func stubListRunningContainers(t *testing.T, fn func() ([]*docker.ContainerInfo, error)) {
+	t.Helper()
+	orig := listRunningContainers
+	listRunningContainers = fn
+	t.Cleanup(func() { listRunningContainers = orig })
+}
+
 func stubListVolumeNames(t *testing.T, fn func() ([]string, error)) {
 	t.Helper()
 	orig := listVolumeNames
