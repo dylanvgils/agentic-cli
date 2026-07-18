@@ -28,7 +28,7 @@ jobs:
           echo "next tag: ${NEXT:-none}"
           echo "next=${NEXT}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         if: github.event.action != 'edited'
         with:
           go-version-file: go.mod
