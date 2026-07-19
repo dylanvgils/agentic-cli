@@ -222,6 +222,20 @@ func stubUpdateTool(t *testing.T, fn func(tool, image string, opts tools.BuildOp
 	t.Cleanup(func() { updateTool = orig })
 }
 
+func stubLatestToolVersion(t *testing.T, fn func(tool, installedLabel string) (string, bool, bool)) {
+	t.Helper()
+	orig := latestToolVersion
+	latestToolVersion = fn
+	t.Cleanup(func() { latestToolVersion = orig })
+}
+
+func stubToolUpdateStdin(t *testing.T, input string) {
+	t.Helper()
+	orig := toolUpdateStdin
+	toolUpdateStdin = strings.NewReader(input)
+	t.Cleanup(func() { toolUpdateStdin = orig })
+}
+
 func stubEnsureNamedVolumes(t *testing.T, fn func(volumes []string, toolHome, containerHome, chownImage string) error) {
 	t.Helper()
 	orig := ensureNamedVolumes

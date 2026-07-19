@@ -21,12 +21,13 @@ Settable in your shell config (`.zshrc`, `.bashrc`, etc.) for a persistent globa
 
 Stored in `$AGENTIC_HOME/agentic.json` (default: `~/.agentic/agentic.json`). This file holds machine-level settings that apply to all projects. Edit it directly with any text editor.
 
-| Key                        | Type   | Description                                                                                | CLI flag      |
-| -------------------------- | ------ | ------------------------------------------------------------------------------------------ | ------------- |
-| `trusted_dirs`             | list   | Directories trusted to run tools from without an interactive prompt                        | `--trust-dir` |
-| `registry`                 | scalar | Registry prefix for base image pulls (e.g. `myregistry.example.com`). See below.           | `--registry`  |
-| `proxy_log_retention_days` | scalar | Days to keep egress proxy access logs before they're pruned automatically. Default: `3`.   | -             |
-| `last_update_check`        | scalar | Timestamp of the last automatic update check. Managed automatically - do not edit by hand. | -             |
+| Key                        | Type   | Description                                                                                                                   | CLI flag      |
+| -------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `trusted_dirs`             | list   | Directories trusted to run tools from without an interactive prompt                                                           | `--trust-dir` |
+| `registry`                 | scalar | Registry prefix for base image pulls (e.g. `myregistry.example.com`). See below.                                              | `--registry`  |
+| `proxy_log_retention_days` | scalar | Days to keep egress proxy access logs before they're pruned automatically. Default: `3`.                                      | -             |
+| `last_update_check`        | scalar | Timestamp of the last automatic update check. Managed automatically - do not edit by hand.                                    | -             |
+| `last_tool_version_check`  | object | Per-tool timestamps of the last automatic tool-update check, keyed by tool name. Managed automatically - do not edit by hand. | -             |
 
 ### Registry proxy
 
@@ -93,14 +94,15 @@ pids_limit = "2048"
 
 **`[run]` section** - applied at `agentic run` time
 
-| Key            | Type   | Description                                                                                                                                                                                    | CLI flag       | Env var                | Default |
-| -------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ---------------------- | ------- |
-| `extra_mounts` | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`                             | `-v`           | `AGENTIC_EXTRA_MOUNTS` | -       |
-| `secrets`      | list   | Files to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`. Supports `~`, `$HOME`, `$CONTAINER_HOME` (container path only) | `-s`           | `AGENTIC_SECRETS`      | -       |
-| `env`          | list   | Environment variables to set in the container. Format: `KEY=VALUE`, or bare `KEY` to forward the host's current value. Cannot target a reserved name (see [env](#env) below)                   | `-e`           | -                      | -       |
-| `pids_limit`   | string | Container PID limit (e.g. `"1024"`)                                                                                                                                                            | `--pids-limit` | `AGENTIC_PIDS_LIMIT`   | `1024`  |
-| `cpus`         | string | Container CPU limit (e.g. `"4"`)                                                                                                                                                               | `--cpus`       | `AGENTIC_CPUS`         | `4`     |
-| `memory`       | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                           | `--memory`     | `AGENTIC_MEMORY`       | `4g`    |
+| Key             | Type   | Description                                                                                                                                                                                                                          | CLI flag       | Env var                | Default |
+| --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- | ---------------------- | ------- |
+| `extra_mounts`  | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`                                                                   | `-v`           | `AGENTIC_EXTRA_MOUNTS` | -       |
+| `secrets`       | list   | Files to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`. Supports `~`, `$HOME`, `$CONTAINER_HOME` (container path only)                                       | `-s`           | `AGENTIC_SECRETS`      | -       |
+| `env`           | list   | Environment variables to set in the container. Format: `KEY=VALUE`, or bare `KEY` to forward the host's current value. Cannot target a reserved name (see [env](#env) below)                                                         | `-e`           | -                      | -       |
+| `pids_limit`    | string | Container PID limit (e.g. `"1024"`)                                                                                                                                                                                                  | `--pids-limit` | `AGENTIC_PIDS_LIMIT`   | `1024`  |
+| `cpus`          | string | Container CPU limit (e.g. `"4"`)                                                                                                                                                                                                     | `--cpus`       | `AGENTIC_CPUS`         | `4`     |
+| `memory`        | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                                                                 | `--memory`     | `AGENTIC_MEMORY`       | `4g`    |
+| `check_updates` | bool   | Periodically check upstream for a newer tool version during `agentic run` (at most once every 6 hours per tool) and offer to update. A pointer internally so an inner config can explicitly disable a check enabled by an outer one. | -              | -                      | `true`  |
 
 **`[run.proxy]` section** - egress allowlist proxy
 

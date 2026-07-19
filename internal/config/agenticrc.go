@@ -35,6 +35,10 @@ type RCRun struct {
 	CPUs        string   `toml:"cpus"`
 	Memory      string   `toml:"memory"`
 	Proxy       RCProxy  `toml:"proxy"`
+	// CheckUpdates is a pointer so an inner config can explicitly disable the
+	// proactive tool-update check enabled by an outer one (a plain false is
+	// indistinguishable from "unset"). Nil or true means the check runs.
+	CheckUpdates *bool `toml:"check_updates"`
 }
 
 // RCProxy holds egress-proxy settings from a .agenticrc.toml file. Enabled is a
@@ -206,6 +210,10 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 
 		if resRun.Proxy.Mode == "" {
 			resRun.Proxy.Mode = run.Proxy.Mode
+		}
+
+		if resRun.CheckUpdates == nil {
+			resRun.CheckUpdates = run.CheckUpdates
 		}
 
 		for key, val := range rc.Build.Versions {

@@ -277,6 +277,35 @@ func TestMergeConfigs(t *testing.T) {
 		assert.True(t, *result.Run.Proxy.Enabled)
 	})
 
+	t.Run("check_updates child wins over parent", func(t *testing.T) {
+		// Arrange
+		childFalse := false
+		parentTrue := true
+		child := &AgenticRC{Run: RCRun{CheckUpdates: &childFalse}}
+		parent := &AgenticRC{Run: RCRun{CheckUpdates: &parentTrue}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert - child explicitly disables, overriding the parent
+		require.NotNil(t, result.Run.CheckUpdates)
+		assert.False(t, *result.Run.CheckUpdates)
+	})
+
+	t.Run("check_updates parent fills when child unset", func(t *testing.T) {
+		// Arrange
+		parentTrue := true
+		child := &AgenticRC{}
+		parent := &AgenticRC{Run: RCRun{CheckUpdates: &parentTrue}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		require.NotNil(t, result.Run.CheckUpdates)
+		assert.True(t, *result.Run.CheckUpdates)
+	})
+
 	t.Run("proxy mode child wins over parent", func(t *testing.T) {
 		// Arrange
 		child := &AgenticRC{Run: RCRun{Proxy: RCProxy{Mode: ModeEnforce}}}

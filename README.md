@@ -317,6 +317,8 @@ Version defaults are embedded in the binary at build time - run `agentic build -
 
 > **Note:** During `agentic update`, the `bases` and `apt_packages` settings from `.agenticrc.toml` are ignored - the original build configuration is always reused. Only an explicit `--base` or `--apt` CLI flag (or the corresponding env var) overrides what the image was built with.
 
+`agentic run` also checks upstream for a newer tool version automatically (at most once every 6 hours per tool) and, in an interactive terminal, prompts you to update before the tool starts - the same upstream check `agentic update` does, just run proactively. Answering "no" (or running non-interactively) just prints a one-line notice and starts the tool on the current version. Disable it per project with `check_updates = false` under `[run]` in `.agenticrc.toml` (see [docs/02-config.md](docs/02-config.md)).
+
 ### Extra apt packages
 
 Use `--apt` to install additional Debian packages into the base stage, verified against `apt-cache show` before the build starts (fail-fast):

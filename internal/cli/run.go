@@ -108,6 +108,10 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if err := checkToolUpdate(toolHome, rc, parsedArgs.toolName, parsedArgs.imageName); err != nil {
+		return err
+	}
+
 	toolConfig := tools.Configs[parsedArgs.toolName]
 	if err := toolConfig.Runtime.Setup(toolHome); err != nil {
 		return fmt.Errorf("setup %s: %w", parsedArgs.toolName, err)
