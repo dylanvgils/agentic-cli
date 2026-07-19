@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -106,6 +107,23 @@ func TestSave_registryRoundTrips(t *testing.T) {
 	reloaded, err := LoadConfig(dir)
 	require.NoError(t, err)
 	assert.Equal(t, "myregistry.example.com", reloaded.Registry)
+}
+
+func TestSave_lastToolVersionCheckRoundTrips(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	checked := time.Now().Truncate(time.Second)
+	cfg := &CliConfig{LastToolVersionCheck: map[string]time.Time{"claude": checked}}
+
+	// Act
+	err := cfg.Save(dir)
+
+	// Assert
+	require.NoError(t, err)
+	reloaded, err := LoadConfig(dir)
+	require.NoError(t, err)
+	require.Contains(t, reloaded.LastToolVersionCheck, "claude")
+	assert.True(t, checked.Equal(reloaded.LastToolVersionCheck["claude"]))
 }
 
 func TestIsTrusted(t *testing.T) {

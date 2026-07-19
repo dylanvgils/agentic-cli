@@ -7,14 +7,10 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
-// UpdateTool runs a build update for a tool.
-// It first checks whether a newer version is available upstream; if the
-// installed version already matches, the rebuild is skipped entirely so
-// `agentic update` is fast when there is nothing to do. Otherwise it recovers
-// the base extras, layer versions, and apt packages from the existing image's
-// labels when not already set (so updates preserve the original build
-// configuration and the regenerated base/extra stages stay cache-hits), then
-// delegates to BuildTool with a CacheBust value set so only the tool stage skips cache.
+// UpdateTool rebuilds tool, skipping entirely if it's already up to date.
+// Otherwise it recovers base extras, layer versions, and apt packages from the
+// existing image's labels when not already set, then delegates to BuildTool
+// with CacheBust set so only the tool stage skips cache.
 func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 	hasUserApt := len(opts.AptPackages) > 0
 	userPkgs := opts.AptPackages
@@ -48,33 +44,42 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 	return BuildTool(tool, image, opts)
 }
 
-// isUpToDate reports whether tool's installed version already matches the
-// latest version available upstream. Any failure to determine this (unknown
-// installed version, no upstream check configured, or the upstream request
-// failing) returns false so the caller falls back to rebuilding as before -
-// a missed skip costs a rebuild, a wrong skip would leave the tool stale.
+// isUpToDate reports whether tool's installed version matches the latest
+// upstream version. Any failure to determine this returns false, so the
+// caller falls back to rebuilding.
 func isUpToDate(tool, installedLabel string) bool {
+	_, newer, ok := LatestToolVersion(tool, installedLabel)
+	return ok && !newer
+}
+
+// LatestToolVersion fetches the latest version available upstream for tool and
+// compares it against installedLabel (an "agentic.tool.version" image label).
+// ok is false when there's nothing conclusive to report - treat that as
+// inconclusive, not as confirmation of being up to date. When ok is true,
+// latest is the normalized latest version, and newer reports whether it
+// differs from installedLabel.
+func LatestToolVersion(tool, installedLabel string) (latest string, newer bool, ok bool) {
 	current := ParseVersion(installedLabel)
 	if current == "" {
-		return false
+		return "", false, false
 	}
 
 	fetch := tools.Configs[tool].Build.LatestVersion
 	if fetch == nil {
-		return false
+		return "", false, false
 	}
 
-	latest, err := fetch()
+	raw, err := fetch()
 	if err != nil {
-		return false
+		return "", false, false
 	}
 
-	return ParseVersion(latest) == current
+	latest = ParseVersion(raw)
+	return latest, latest != current, true
 }
 
-// mergeVersions combines the recovered per-layer versions with any user-specified
-// overrides, with overrides winning - so explicit --node/--java/etc flags (or RC/env
-// settings) still take precedence over whatever the original image was built with.
+// mergeVersions combines recovered per-layer versions with user overrides,
+// with overrides winning.
 func mergeVersions(recovered, overrides map[string]string) map[string]string {
 	merged := make(map[string]string, len(recovered)+len(overrides))
 	maps.Copy(merged, recovered)

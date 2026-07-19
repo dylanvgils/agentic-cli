@@ -63,6 +63,65 @@ func TestRunTool(t *testing.T) {
 		_, toolArgs := get()
 		assert.Equal(t, []string{"--dangerously-skip-permissions"}, toolArgs)
 	})
+
+	t.Run("starts container when no tool update is due", func(t *testing.T) {
+		// Arrange
+		t.Chdir(t.TempDir())
+		withTempToolHome(t)
+		get := captureRunContainer(t)
+		var fetchCalled bool
+		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) {
+			fetchCalled = true
+			return "", false, false
+		})
+
+		// Act
+		err := runTool(runToolCmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, fetchCalled)
+		rs, _ := get()
+		assert.Equal(t, "agentic-claude", rs.Image)
+	})
+
+	t.Run("starts container after a successful interactive tool update", func(t *testing.T) {
+		// Arrange
+		t.Chdir(t.TempDir())
+		withTempToolHome(t)
+		get := captureRunContainer(t)
+		stubIsTerminal(t, true)
+		stubToolUpdateStdin(t, "y\n")
+		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
+		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+
+		// Act
+		err := runTool(runToolCmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		rs, _ := get()
+		assert.Equal(t, "agentic-claude", rs.Image)
+	})
+
+	t.Run("aborts and does not start container when interactive tool update fails", func(t *testing.T) {
+		// Arrange
+		t.Chdir(t.TempDir())
+		withTempToolHome(t)
+		get := captureRunContainer(t)
+		stubIsTerminal(t, true)
+		stubToolUpdateStdin(t, "y\n")
+		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
+		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return fmt.Errorf("build failed") })
+
+		// Act
+		err := runTool(runToolCmd, []string{"claude"})
+
+		// Assert
+		require.Error(t, err)
+		rs, _ := get()
+		assert.Empty(t, rs.Image, "RunContainer should not be called when the confirmed update fails")
+	})
 }
 
 func Test_buildRunSpec(t *testing.T) {
