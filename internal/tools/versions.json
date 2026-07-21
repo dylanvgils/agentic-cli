@@ -1,7 +1,7 @@
 {
   "node": "24",
   "nvm": "0.40.6",
-  "nvm_checksum": "582070e4c44452c1d8d68e16fc786c2216ecba6bc6bf18dc280a03fdba6ed1a9",
+  "nvm_checksum": "2ef7e8d4373c1ffd70daa55f919f629e98a619543ffc0a8d892d77a5247e50e4",
   "java": "25",
   "dotnet": "10",
   "go": "1.26.5",
