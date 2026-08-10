@@ -7,6 +7,45 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func Test_withContext(t *testing.T) {
+	t.Run("returns args unchanged when context unset", func(t *testing.T) {
+		// Arrange
+		SetContext("")
+		t.Cleanup(func() { SetContext("") })
+
+		// Act
+		result := withContext([]string{"build", "-t", "img"})
+
+		// Assert
+		assert.Equal(t, []string{"build", "-t", "img"}, result)
+	})
+
+	t.Run("prepends --context flag when context set", func(t *testing.T) {
+		// Arrange
+		SetContext("prod")
+		t.Cleanup(func() { SetContext("") })
+
+		// Act
+		result := withContext([]string{"build", "-t", "img"})
+
+		// Assert
+		assert.Equal(t, []string{"--context", "prod", "build", "-t", "img"}, result)
+	})
+}
+
+func TestSetContext(t *testing.T) {
+	t.Run("Context reflects the value set", func(t *testing.T) {
+		// Arrange
+		t.Cleanup(func() { SetContext("") })
+
+		// Act
+		SetContext("staging")
+
+		// Assert
+		assert.Equal(t, "staging", Context())
+	})
+}
+
 func TestListContexts(t *testing.T) {
 	t.Run("calls docker with format", func(t *testing.T) {
 		// Arrange
