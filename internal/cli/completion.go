@@ -56,3 +56,11 @@ var volumeNamesFunc = func(_ *cobra.Command, args []string, _ string) ([]string,
 	}
 	return names, cobra.ShellCompDirectiveNoFileComp
 }
+
+var dockerContextsFunc = func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+	names, err := listContexts()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return names, cobra.ShellCompDirectiveNoFileComp
+}

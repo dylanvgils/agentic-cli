@@ -119,6 +119,44 @@ func TestCheckDocker(t *testing.T) {
 	})
 }
 
+func TestResolveContext(t *testing.T) {
+	t.Run("passes the resolved flag value to setContext", func(t *testing.T) {
+		// Arrange
+		var got string
+		stubSetContext(t, func(ctx string) { got = ctx })
+		cmd := &cobra.Command{}
+		cmd.Flags().String("docker-context", "", "")
+		require.NoError(t, cmd.Flags().Set("docker-context", "prod"))
+
+		// Act
+		resolveContext(cmd)
+
+		// Assert
+		assert.Equal(t, "prod", got)
+	})
+}
+
+func TestPersistentPreRunE(t *testing.T) {
+	t.Run("resolves docker context before checking the daemon", func(t *testing.T) {
+		// Arrange
+		var got string
+		stubSetContext(t, func(ctx string) { got = ctx })
+		stubCheckDockerDaemon(t, func() error { return nil })
+		cmd := &cobra.Command{Use: "status"}
+		cmd.Flags().String("docker-context", "", "")
+		require.NoError(t, cmd.Flags().Set("docker-context", "prod"))
+		fakeRoot := &cobra.Command{Use: "agentic"}
+		fakeRoot.AddCommand(cmd)
+
+		// Act
+		err := persistentPreRunE(cmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "prod", got)
+	})
+}
+
 func TestInCommandChain(t *testing.T) {
 	t.Run("matches command name", func(t *testing.T) {
 		// Act

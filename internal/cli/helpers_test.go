@@ -173,6 +173,20 @@ func stubListVolumes(t *testing.T, fn func() (string, error)) {
 	t.Cleanup(func() { listVolumes = orig })
 }
 
+func stubSetContext(t *testing.T, fn func(string)) {
+	t.Helper()
+	orig := setContext
+	setContext = fn
+	t.Cleanup(func() { setContext = orig })
+}
+
+func stubListContexts(t *testing.T, fn func() ([]string, error)) {
+	t.Helper()
+	orig := listContexts
+	listContexts = fn
+	t.Cleanup(func() { listContexts = orig })
+}
+
 func stubPruneImages(t *testing.T, fn func() error) {
 	t.Helper()
 	orig := pruneImages

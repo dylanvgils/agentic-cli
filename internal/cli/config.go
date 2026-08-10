@@ -73,6 +73,16 @@ func printGlobalConfig(w io.Writer, home string, cfg *config.CliConfig) error {
 		}
 	}
 
+	if cfg.DockerContext != "" {
+		if _, err := fmt.Fprintf(w, "  docker_context: %s\n", cfg.DockerContext); err != nil {
+			return err
+		}
+	} else {
+		if _, err := fmt.Fprintln(w, "  docker_context: (not set)"); err != nil {
+			return err
+		}
+	}
+
 	if len(cfg.TrustedDirs) == 0 {
 		_, err := fmt.Fprintln(w, "  trusted_dirs: (none)")
 		return err
@@ -119,6 +129,9 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	proxyAllowedHosts := func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts }
 
 	if err := printScalarField(w, "namespace", config.EnvNamespace, layers, func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace); err != nil {
+		return err
+	}
+	if err := printScalarField(w, "docker_context", "", layers, func(rc *config.AgenticRC) string { return rc.DockerContext }, ""); err != nil {
 		return err
 	}
 	if err := printBasesField(w, layers); err != nil {

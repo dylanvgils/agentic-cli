@@ -58,3 +58,19 @@ func TestRun(t *testing.T) {
 		assert.Equal(t, "ok\n", out)
 	})
 }
+
+func TestRunCmd_context(t *testing.T) {
+	t.Run("prepends --context to the executed command", func(t *testing.T) {
+		// Arrange
+		stubDocker(t, `printf '%s\n' "$@"`)
+		SetContext("prod")
+		t.Cleanup(func() { SetContext("") })
+
+		// Act
+		out, err := RunCmd("images", "--quiet")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "--context\nprod\nimages\n--quiet\n", out)
+	})
+}

@@ -143,7 +143,20 @@ func TestPrintGlobalConfig(t *testing.T) {
 		require.NoError(t, err)
 		out := buf.String()
 		assert.Contains(t, out, "registry: myregistry.example.com")
-		assert.NotContains(t, out, "(not set)")
+	})
+
+	t.Run("with docker context", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		cfg := &config.CliConfig{DockerContext: "prod"}
+
+		// Act
+		err := printGlobalConfig(&buf, "/home/user/.agentic", cfg)
+
+		// Assert
+		require.NoError(t, err)
+		out := buf.String()
+		assert.Contains(t, out, "docker_context: prod")
 	})
 
 	t.Run("with dirs", func(t *testing.T) {
@@ -270,8 +283,9 @@ func TestPrintProjectConfig(t *testing.T) {
 			{
 				Path: "/project/.agenticrc.toml",
 				RC: &config.AgenticRC{
-					Namespace: "myproject",
-					Build:     config.RCBuild{AptPackages: []string{"make"}, Bases: []string{"java"}, Versions: map[string]string{"java": "17"}},
+					Namespace:     "myproject",
+					DockerContext: "prod",
+					Build:         config.RCBuild{AptPackages: []string{"make"}, Bases: []string{"java"}, Versions: map[string]string{"java": "17"}},
 					Run: config.RCRun{
 						PidsLimit: "100", CPUs: "2", Memory: "4g",
 						ExtraMounts: []string{"vol:/mnt"}, Secrets: []string{"tok:/run/s/t"},
@@ -289,6 +303,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		out := buf.String()
 		assert.Contains(t, out, "Project (.agenticrc.toml, 1 file)")
 		assert.Contains(t, out, "namespace: myproject  [/project/.agenticrc.toml]")
+		assert.Contains(t, out, "docker_context: prod  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "pids_limit: 100  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "cpus: 2  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "memory: 4g  [/project/.agenticrc.toml]")

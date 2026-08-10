@@ -118,3 +118,51 @@ func Test_resolveRegistry(t *testing.T) {
 		assert.Empty(t, result)
 	})
 }
+
+func Test_resolveDockerContext(t *testing.T) {
+	t.Run("flag wins over everything", func(t *testing.T) {
+		// Arrange
+		homeDir := t.TempDir()
+		require.NoError(t, (&CliConfig{DockerContext: "fromconfig"}).Save(homeDir))
+		rc := &AgenticRC{DockerContext: "fromrc"}
+
+		// Act
+		result := ResolveDockerContext("fromflag", rc, homeDir)
+
+		// Assert
+		assert.Equal(t, "fromflag", result)
+	})
+
+	t.Run("rc value wins over agentic.json", func(t *testing.T) {
+		// Arrange
+		homeDir := t.TempDir()
+		require.NoError(t, (&CliConfig{DockerContext: "fromconfig"}).Save(homeDir))
+		rc := &AgenticRC{DockerContext: "fromrc"}
+
+		// Act
+		result := ResolveDockerContext("", rc, homeDir)
+
+		// Assert
+		assert.Equal(t, "fromrc", result)
+	})
+
+	t.Run("agentic.json wins when rc unset", func(t *testing.T) {
+		// Arrange
+		homeDir := t.TempDir()
+		require.NoError(t, (&CliConfig{DockerContext: "fromconfig"}).Save(homeDir))
+
+		// Act
+		result := ResolveDockerContext("", nil, homeDir)
+
+		// Assert
+		assert.Equal(t, "fromconfig", result)
+	})
+
+	t.Run("empty when nothing set", func(t *testing.T) {
+		// Act
+		result := ResolveDockerContext("", nil, t.TempDir())
+
+		// Assert
+		assert.Empty(t, result)
+	})
+}

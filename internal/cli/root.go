@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
@@ -37,6 +38,8 @@ var (
 	removeVolume          = docker.RemoveVolume
 	listRunningContainers = docker.ListRunningContainers
 	isTerminal            = platform.IsTerminal
+	setContext            = docker.SetContext
+	listContexts          = docker.ListContexts
 )
 
 var (
@@ -58,6 +61,12 @@ isolated Docker containers with read-only filesystems and dropped capabilities.`
 	PersistentPreRunE: persistentPreRunE,
 }
 
+func init() {
+	rootCmd.PersistentFlags().String("docker-context", "",
+		"Docker context to use (overrides .agenticrc.toml and agentic.json)")
+	_ = rootCmd.RegisterFlagCompletionFunc("docker-context", dockerContextsFunc)
+}
+
 // Execute the Agentic CLI
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
@@ -66,10 +75,12 @@ func Execute() {
 	}
 }
 
-// persistentPreRunE is the PersistentPreRunE hook for rootCmd. It checks the
-// Docker daemon and, for interactive commands, notifies the user when a newer
-// agentic release is available.
+// persistentPreRunE is the PersistentPreRunE hook for rootCmd. It resolves the
+// active Docker context, checks the Docker daemon, and, for interactive
+// commands, notifies the user when a newer agentic release is available.
 func persistentPreRunE(cmd *cobra.Command, args []string) error {
+	resolveContext(cmd)
+
 	if err := checkDocker(cmd, args); err != nil {
 		return err
 	}
@@ -79,6 +90,21 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// resolveContext resolves the active Docker context from the --docker-context
+// flag, .agenticrc.toml, and agentic.json, then sets it for all subsequent
+// docker invocations in this process. If none of those are set, the docker
+// CLI's own context resolution (including its DOCKER_CONTEXT env var) applies
+// unchanged.
+func resolveContext(cmd *cobra.Command) {
+	rc, err := config.FindAndLoadFromCwd()
+	if err != nil {
+		rc = &config.AgenticRC{}
+	}
+
+	flagVal, _ := cmd.Flags().GetString("docker-context")
+	setContext(config.ResolveDockerContext(flagVal, rc, toolHome))
 }
 
 // checkDocker verifies the Docker daemon is reachable before any subcommand

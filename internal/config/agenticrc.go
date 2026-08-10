@@ -56,10 +56,11 @@ type RCProxy struct {
 
 // AgenticRC holds the parsed contents of a .agenticrc.toml project config file.
 type AgenticRC struct {
-	Root      bool    `toml:"root"`
-	Namespace string  `toml:"namespace"`
-	Build     RCBuild `toml:"build"`
-	Run       RCRun   `toml:"run"`
+	Root          bool    `toml:"root"`
+	Namespace     string  `toml:"namespace"`
+	DockerContext string  `toml:"docker_context"`
+	Build         RCBuild `toml:"build"`
+	Run           RCRun   `toml:"run"`
 }
 
 // RCLayer pairs a parsed .agenticrc.toml with the path it was loaded from.
@@ -190,6 +191,10 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 
 		if result.Namespace == "" {
 			result.Namespace = rc.Namespace
+		}
+
+		if result.DockerContext == "" {
+			result.DockerContext = rc.DockerContext
 		}
 
 		if resRun.PidsLimit == "" {
