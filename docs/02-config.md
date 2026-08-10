@@ -21,13 +21,14 @@ Settable in your shell config (`.zshrc`, `.bashrc`, etc.) for a persistent globa
 
 Stored in `$AGENTIC_HOME/agentic.json` (default: `~/.agentic/agentic.json`). This file holds machine-level settings that apply to all projects. Edit it directly with any text editor.
 
-| Key                        | Type   | Description                                                                                                                   | CLI flag      |
-| -------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| `trusted_dirs`             | list   | Directories trusted to run tools from without an interactive prompt                                                           | `--trust-dir` |
-| `registry`                 | scalar | Registry prefix for base image pulls (e.g. `myregistry.example.com`). See below.                                              | `--registry`  |
-| `proxy_log_retention_days` | scalar | Days to keep egress proxy access logs before they're pruned automatically. Default: `3`.                                      | -             |
-| `last_update_check`        | scalar | Timestamp of the last automatic update check. Managed automatically - do not edit by hand.                                    | -             |
-| `last_tool_version_check`  | object | Per-tool timestamps of the last automatic tool-update check, keyed by tool name. Managed automatically - do not edit by hand. | -             |
+| Key                        | Type   | Description                                                                                                                   | CLI flag           |
+| -------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `trusted_dirs`             | list   | Directories trusted to run tools from without an interactive prompt                                                           | `--trust-dir`      |
+| `registry`                 | scalar | Registry prefix for base image pulls (e.g. `myregistry.example.com`). See below.                                              | `--registry`       |
+| `docker_context`           | scalar | Machine-wide default Docker context. See [`docker_context`](#docker_context) below.                                           | `--docker-context` |
+| `proxy_log_retention_days` | scalar | Days to keep egress proxy access logs before they're pruned automatically. Default: `3`.                                      | -                  |
+| `last_update_check`        | scalar | Timestamp of the last automatic update check. Managed automatically - do not edit by hand.                                    | -                  |
+| `last_tool_version_check`  | object | Per-tool timestamps of the last automatic tool-update check, keyed by tool name. Managed automatically - do not edit by hand. | -                  |
 
 ### Registry proxy
 
@@ -79,10 +80,11 @@ pids_limit = "2048"
 
 **Top-level**
 
-| Key         | Type   | Description                                                                                                            | Env var             | Default   |
-| ----------- | ------ | ---------------------------------------------------------------------------------------------------------------------- | ------------------- | --------- |
-| `root`      | bool   | Stop the upward directory walk at this file                                                                            | -                   | -         |
-| `namespace` | string | Image namespace. Images are named `<namespace>-<tool>` (e.g. `myproject-claude`). Allows multiple image sets per tool. | `AGENTIC_NAMESPACE` | `agentic` |
+| Key              | Type   | Description                                                                                                            | Env var             | Default   |
+| ---------------- | ------ | ---------------------------------------------------------------------------------------------------------------------- | ------------------- | --------- |
+| `root`           | bool   | Stop the upward directory walk at this file                                                                            | -                   | -         |
+| `namespace`      | string | Image namespace. Images are named `<namespace>-<tool>` (e.g. `myproject-claude`). Allows multiple image sets per tool. | `AGENTIC_NAMESPACE` | `agentic` |
+| `docker_context` | string | Docker context to use for this project. See [`docker_context`](#docker_context) below.                                 | -                   | -         |
 
 **`[build]` section** - applied at `agentic build` / `agentic update` time
 
@@ -154,7 +156,7 @@ For these cases, the sidecar is also reachable at the stable hostname `agentic-p
 When multiple `.agenticrc.toml` files are found, they are merged. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
 - **List keys** (`bases`, `apt_packages`, `extra_mounts`, `secrets`, `env`, `proxy.allowed_hosts`): values from all levels accumulate, outermost first.
-- **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
+- **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`, `docker_context`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
 - **`versions` table**: each layer name is resolved independently - innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
 
 ```
@@ -253,6 +255,24 @@ java = "17"
 ```
 
 Then `agentic build claude` creates `java-app-claude` with the Java layer, while the default `agentic-claude` remains untouched.
+
+### `docker_context`
+
+Selects which [Docker context](https://docs.docker.com/engine/manage-resources/contexts/) `agentic` talks to - useful when Docker is configured with multiple contexts (e.g. a local daemon and a remote one) and you want `agentic` to target a specific one instead of whichever context is currently active.
+
+Resolution priority (highest to lowest):
+
+1. `--docker-context` flag
+2. `.agenticrc.toml` `docker_context` - innermost (child) value wins
+3. `agentic.json` `docker_context` (machine-wide default)
+4. Unset - defers to the docker CLI's own context resolution, unchanged (including its `DOCKER_CONTEXT` environment variable, if set)
+
+```toml
+# .agenticrc.toml
+docker_context = "prod"
+```
+
+`--docker-context` tab-completes against `docker context ls`. `agentic status` prints the active context (when non-default) above the container table, and `agentic config` shows the resolved value from both `agentic.json` and the merged `.agenticrc.toml` layers.
 
 ### Scalar settings (`pids_limit`, `cpus`, `memory`)
 

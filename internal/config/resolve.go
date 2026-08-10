@@ -38,3 +38,21 @@ func ResolveRegistry(flagVal, homeDir string) string {
 	}
 	return ""
 }
+
+// ResolveDockerContext returns the active Docker context.
+// Precedence: flagVal > rc.DockerContext > agentic.json docker_context field
+// (loaded from homeDir). If none are set, an empty string is returned and the
+// docker CLI's own context resolution (including its DOCKER_CONTEXT env var)
+// applies unchanged.
+func ResolveDockerContext(flagVal string, rc *AgenticRC, homeDir string) string {
+	if flagVal != "" {
+		return flagVal
+	}
+	if rc != nil && rc.DockerContext != "" {
+		return rc.DockerContext
+	}
+	if cfg, err := LoadConfig(homeDir); err == nil && cfg.DockerContext != "" {
+		return cfg.DockerContext
+	}
+	return ""
+}

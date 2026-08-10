@@ -16,10 +16,33 @@ var (
 	runInteractive = RunInteractive
 )
 
+// dockerContext is the Docker context (docker --context) prepended to every
+// docker invocation, set once per process via SetContext. Empty means the
+// docker CLI's own active context is used, unchanged.
+var dockerContext string
+
+// SetContext sets the Docker context used for all subsequent docker invocations.
+func SetContext(ctx string) {
+	dockerContext = ctx
+}
+
+// Context returns the Docker context currently set via SetContext.
+func Context() string {
+	return dockerContext
+}
+
+// withContext prepends "--context <name>" to args when a context is set.
+func withContext(args []string) []string {
+	if dockerContext == "" {
+		return args
+	}
+	return append([]string{"--context", dockerContext}, args...)
+}
+
 // Run executes `docker <args>` with r piped to stdin (nil = no stdin) and
 // returns combined stdout+stderr.
 func Run(r io.Reader, args ...string) (string, error) {
-	cmd := exec.Command("docker", args...)
+	cmd := exec.Command("docker", withContext(args)...)
 	cmd.Stdin = r
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
@@ -38,7 +61,7 @@ func RunCmd(args ...string) (string, error) {
 // RunInteractive executes `docker <args>` with stdin/stdout/stderr inherited
 // from the current process. Used for the `run` command.
 func RunInteractive(args ...string) error {
-	cmd := exec.Command("docker", args...)
+	cmd := exec.Command("docker", withContext(args)...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

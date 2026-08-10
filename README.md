@@ -28,6 +28,7 @@ Runs agentic coding tools in isolated, read-only Docker containers - each with o
 - [Named Docker volumes](#-named-docker-volumes)
   - [Managing volumes](#managing-volumes)
 - [Java build tools](#-java-build-tools)
+- [Docker context](#-docker-context)
 - [Configuration](#-configuration)
   - [Example `.zshrc`](#example-zshrc)
 - [Tool home directory](#-tool-home-directory)
@@ -151,6 +152,8 @@ agentic <command> [args...]
 ```
 
 ### Commands
+
+`--docker-context <name>` is available on every command below (see [Docker context](#-docker-context)) and is omitted from the per-command flag lists for brevity.
 
 | Command                                                                                                                                                                                                             | Description                                                                                                                                                                                  |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -407,6 +410,16 @@ extra_mounts = [
   "gradle:$CONTAINER_HOME/.gradle",
 ]
 ```
+
+## 🐳 Docker context
+
+If Docker is configured with multiple [contexts](https://docs.docker.com/engine/manage-resources/contexts/), use `--docker-context` (tab-completes against `docker context ls`) to target a specific one instead of whichever is currently active:
+
+```bash
+agentic --docker-context prod build claude
+```
+
+For persisting a default via `.agenticrc.toml` or `agentic.json`, see [`docker_context`](docs/02-config.md#docker_context).
 
 ## ⚙️ Configuration
 

@@ -58,3 +58,58 @@ func TestRun(t *testing.T) {
 		assert.Equal(t, "ok\n", out)
 	})
 }
+
+func Test_withContext(t *testing.T) {
+	t.Run("returns args unchanged when context unset", func(t *testing.T) {
+		// Arrange
+		SetContext("")
+		t.Cleanup(func() { SetContext("") })
+
+		// Act
+		result := withContext([]string{"build", "-t", "img"})
+
+		// Assert
+		assert.Equal(t, []string{"build", "-t", "img"}, result)
+	})
+
+	t.Run("prepends --context flag when context set", func(t *testing.T) {
+		// Arrange
+		SetContext("prod")
+		t.Cleanup(func() { SetContext("") })
+
+		// Act
+		result := withContext([]string{"build", "-t", "img"})
+
+		// Assert
+		assert.Equal(t, []string{"--context", "prod", "build", "-t", "img"}, result)
+	})
+}
+
+func TestSetContext(t *testing.T) {
+	t.Run("Context reflects the value set", func(t *testing.T) {
+		// Arrange
+		t.Cleanup(func() { SetContext("") })
+
+		// Act
+		SetContext("staging")
+
+		// Assert
+		assert.Equal(t, "staging", Context())
+	})
+}
+
+func TestRunCmd_context(t *testing.T) {
+	t.Run("prepends --context to the executed command", func(t *testing.T) {
+		// Arrange
+		stubDocker(t, `printf '%s\n' "$@"`)
+		SetContext("prod")
+		t.Cleanup(func() { SetContext("") })
+
+		// Act
+		out, err := RunCmd("images", "--quiet")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "--context\nprod\nimages\n--quiet\n", out)
+	})
+}

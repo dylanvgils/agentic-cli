@@ -194,6 +194,30 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, "shared", result.Namespace)
 	})
 
+	t.Run("docker_context child wins over parent", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{DockerContext: "prod"}
+		parent := &AgenticRC{DockerContext: "other"}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, "prod", result.DockerContext)
+	})
+
+	t.Run("docker_context parent fills when child unset", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{}
+		parent := &AgenticRC{DockerContext: "shared"}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, "shared", result.DockerContext)
+	})
+
 	t.Run("lists accumulate outermost first", func(t *testing.T) {
 		// Arrange
 		child := &AgenticRC{Run: RCRun{ExtraMounts: []string{"child-vol:/mnt/c"}, Secrets: []string{"child-secret"}, Env: []string{"child-env=1"}}, Build: RCBuild{AptPackages: []string{"gcc"}, Bases: []string{"java"}}}

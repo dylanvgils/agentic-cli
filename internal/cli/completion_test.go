@@ -170,3 +170,29 @@ func TestVolumeNamesFunc(t *testing.T) {
 		assert.Empty(t, names)
 	})
 }
+
+func TestDockerContextsFunc(t *testing.T) {
+	t.Run("returns context names", func(t *testing.T) {
+		// Arrange
+		stubListContexts(t, func() ([]string, error) { return []string{"default", "prod"}, nil })
+
+		// Act
+		names, directive := dockerContextsFunc(&cobra.Command{}, nil, "")
+
+		// Assert
+		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+		assert.Equal(t, []string{"default", "prod"}, names)
+	})
+
+	t.Run("list error returns empty", func(t *testing.T) {
+		// Arrange
+		stubListContexts(t, func() ([]string, error) { return nil, assert.AnError })
+
+		// Act
+		names, directive := dockerContextsFunc(&cobra.Command{}, nil, "")
+
+		// Assert
+		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+		assert.Empty(t, names)
+	})
+}

@@ -32,6 +32,13 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	}
 
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+
+	if ctx := docker.Context(); ctx != "" {
+		if _, err := fmt.Fprintf(w, "Docker context:\t%s\n", ctx); err != nil {
+			return err
+		}
+	}
+
 	if _, err := fmt.Fprintf(w, "Docker:\trunning\nContainers running:\t%d\n", len(containers)); err != nil {
 		return err
 	}
