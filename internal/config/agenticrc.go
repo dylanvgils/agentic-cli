@@ -14,9 +14,8 @@ import (
 
 const rcFilename = ".agenticrc.toml"
 
-// validMarketplaceName matches safe filesystem path-segment characters, since
-// RCMarketplace.Name becomes a literal host directory segment and container
-// mount path component.
+// validMarketplaceName matches safe path-segment characters, since Name
+// becomes a literal host/container directory segment.
 var validMarketplaceName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // ModeEnforce and ModeMonitor are the only valid RCProxy.Mode values, besides

@@ -10,10 +10,8 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
-// MarketplacesDirName is the fixed subdirectory directly under $TOOL_HOME (a
-// sibling of each tool's own data dir, e.g. $TOOL_HOME/claude) where synced
-// marketplace git clones live on the host - one clone per marketplace name,
-// shared across every tool that mounts it.
+// MarketplacesDirName is the subdirectory under $TOOL_HOME where synced
+// marketplace clones live, shared across every tool that mounts them.
 const MarketplacesDirName = "marketplaces"
 
 // Configs maps tool names to their container configuration.

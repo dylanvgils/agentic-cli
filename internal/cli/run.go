@@ -177,10 +177,7 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 		return docker.RunSpec{}, err
 	}
 
-	// Tells the entrypoint exactly which marketplace names to register, so it
-	// doesn't have to (and must not) glob every directory under
-	// ~/.claude/plugins/marketplaces - that dir persists across runs and can
-	// also hold marketplace state the tool created for itself.
+	// Tells entrypoint.sh exactly which names to register instead of globbing.
 	if len(marketplaceNames) > 0 {
 		env = append(env, "AGENTIC_MARKETPLACES="+strings.Join(marketplaceNames, ","))
 	}
@@ -221,10 +218,9 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 	return rs, nil
 }
 
-// syncToolMarketplaces syncs any marketplaces configured for tool
-// (clone-if-missing, fetch+reset-if-present, tolerating a stale fetch) and
-// returns the read-only mount spec plus the name of each. Named to avoid
-// colliding with the package-level syncMarketplaces indirection var in root.go.
+// syncToolMarketplaces syncs tool's configured marketplaces and returns the
+// read-only mount spec plus name of each. Named to avoid colliding with the
+// syncMarketplaces indirection var in root.go.
 func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc *config.AgenticRC) (mounts, names []string, err error) {
 	if toolConfig.Runtime.MarketplaceMount == nil {
 		return nil, nil, nil

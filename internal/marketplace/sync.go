@@ -1,6 +1,5 @@
-// Package marketplace syncs git-based plugin marketplace repos onto the host
-// filesystem, so tool containers never run git or reach a git host over the
-// network themselves.
+// Package marketplace syncs git-based plugin marketplace repos onto the host,
+// so tool containers never run git or reach a git host themselves.
 package marketplace
 
 import (
@@ -12,14 +11,12 @@ import (
 	"time"
 )
 
-// gitTimeout bounds each individual git invocation so a hanging remote can't
-// block every container start forever. A var, not a const, so tests can
-// shrink it.
+// gitTimeout bounds each git invocation so a hanging remote can't block a run
+// forever. A var, not a const, so tests can shrink it.
 var gitTimeout = 45 * time.Second
 
-// runGit is a test-stubbable indirection over `git <args...>`, combined
-// stdout+stderr, inheriting the parent process's environment (SSH_AUTH_SOCK,
-// credential helpers, netrc, etc.) unmodified.
+// runGit is a test-stubbable indirection over `git <args...>`, inheriting the
+// parent's environment (SSH_AUTH_SOCK, credential helpers, netrc) unmodified.
 var runGit = func(ctx context.Context, args ...string) ([]byte, error) {
 	return exec.CommandContext(ctx, "git", args...).CombinedOutput()
 }
@@ -46,12 +43,9 @@ func CheckGitAvailable() error {
 	return nil
 }
 
-// Sync clones (if dirFor(entry.Name) doesn't exist) or fetches+resets (if it
-// does) each entry, in order. A fetch/reset failure on an existing clone is
-// tolerated: the entry is returned with Stale=true and Warning set, and Sync
-// continues to the next entry. A clone failure (nothing on disk yet) is not
-// tolerated: Sync returns immediately with a non-nil error and no further
-// entries are attempted.
+// Sync clones each entry (if missing) or fetches+resets it (if present), in
+// order. A fetch/reset failure is tolerated (Stale=true, Warning set); a
+// clone failure aborts Sync immediately.
 func Sync(entries []Entry, dirFor func(name string) string) ([]Result, error) {
 	if err := checkDuplicateNames(entries); err != nil {
 		return nil, err
@@ -153,10 +147,9 @@ func gitClone(url, dir string) error {
 	return nil
 }
 
-// gitFetchReset resets dir's checked-out branch to match its upstream. Using
-// `reset --hard @{upstream}` (rather than a plain `pull`) means a
-// force-pushed marketplace repo never produces a merge conflict - dir is a
-// pure host-side mirror nobody commits to, so there's nothing to preserve.
+// gitFetchReset resets dir to match its upstream. `reset --hard` rather than
+// `pull` avoids merge conflicts on a force-pushed repo - dir is a pure mirror
+// with nothing to preserve.
 func gitFetchReset(dir string) error {
 	if out, err := gitRunIn(dir, "fetch"); err != nil {
 		return fmt.Errorf("git fetch: %w\n%s", err, out)

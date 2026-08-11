@@ -49,14 +49,10 @@ var proxyEnvNames = map[string]bool{
 	"no_proxy":    true,
 }
 
-// reservedConfigNames are names agentic treats specially elsewhere. TOOL_HOME
-// is baked into the image at build time, and CONTAINER_HOME is a host-side
-// mount placeholder with no effect inside the container - --env targeting
-// either would be confusing - overriding TOOL_HOME risks breaking the image's
-// own assumptions, and setting CONTAINER_HOME would silently do nothing.
-// AGENTIC_MARKETPLACES is injected by agentic run itself, listing exactly the
-// marketplace names an entrypoint should register; a user override would
-// desync it from the marketplace mounts actually attached to the container.
+// reservedConfigNames are names agentic treats specially elsewhere, so --env
+// targeting them would be confusing: TOOL_HOME and CONTAINER_HOME are baked
+// in / mount placeholders, and AGENTIC_MARKETPLACES is injected by agentic
+// run itself to match the marketplace mounts actually attached.
 var reservedConfigNames = map[string]bool{
 	"TOOL_HOME":            true,
 	"CONTAINER_HOME":       true,

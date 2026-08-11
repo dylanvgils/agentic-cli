@@ -98,9 +98,8 @@ func cleanGlobalResources(rc *config.AgenticRC) error {
 	return removeNetwork()
 }
 
-// pruneOrphanedMarketplaces removes on-disk marketplace clones under
-// $TOOL_HOME/marketplaces whose name no longer matches any configured
-// marketplace entry, regardless of which tool(s) referenced it.
+// pruneOrphanedMarketplaces removes clones under $TOOL_HOME/marketplaces no
+// longer in rc.Marketplaces.
 func pruneOrphanedMarketplaces(toolHome string, rc *config.AgenticRC) error {
 	var keep []string
 	for _, e := range rc.Marketplaces {
