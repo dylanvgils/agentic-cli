@@ -3,10 +3,12 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -159,7 +161,14 @@ func parseArgs(args []string, namespace string) (parsedArgs, error) {
 
 func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC, registry string, proxyEnabled, proxyMonitor bool) (docker.RunSpec, error) {
 	containerHome := docker.ResolveContainerHome(args.imageName)
+
+	marketplaceMounts, err := syncToolMarketplaces(toolHome, args.toolName, toolConfig, rc)
+	if err != nil {
+		return docker.RunSpec{}, err
+	}
+
 	volumes := collectVolumes(toolConfig.Runtime.Mounts(), extraVolumes, rc)
+	volumes = append(volumes, marketplaceMounts...)
 	secrets := collectSecrets(flagSecrets, rc)
 	env := collectEnv(flagEnv, rc)
 	limits := resolveResourceLimits(pidsLimit, cpus, memory, rc)
@@ -202,6 +211,46 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 		Build()
 
 	return rs, nil
+}
+
+// syncToolMarketplaces syncs any marketplaces configured for tool
+// (clone-if-missing, fetch+reset-if-present, tolerating a stale fetch) and
+// returns the read-only mount spec for each. Named to avoid colliding with the
+// package-level syncMarketplaces indirection var in root.go.
+func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc *config.AgenticRC) ([]string, error) {
+	if toolConfig.Runtime.MarketplaceMount == nil {
+		return nil, nil
+	}
+
+	entries := config.MarketplacesFor(rc, tool)
+	if len(entries) == 0 {
+		return nil, nil
+	}
+
+	if err := checkGitAvailable(); err != nil {
+		return nil, err
+	}
+
+	mpEntries := make([]marketplace.Entry, len(entries))
+	for i, e := range entries {
+		mpEntries[i] = marketplace.Entry{Name: e.Name, URL: e.URL}
+	}
+
+	baseDir := filepath.Join(toolHome, tools.MarketplacesDirName)
+	results, err := syncMarketplaces(mpEntries, func(name string) string { return filepath.Join(baseDir, name) })
+	if err != nil {
+		return nil, fmt.Errorf("sync marketplaces for %s: %w", tool, err)
+	}
+
+	mounts := make([]string, len(results))
+	for i, r := range results {
+		if r.Stale {
+			fmt.Fprintf(os.Stderr, "warning: marketplace %q: %v; using existing clone\n", r.Entry.Name, r.Warning)
+		}
+		mounts[i] = toolConfig.Runtime.MarketplaceMount(r.Entry.Name)
+	}
+
+	return mounts, nil
 }
 
 func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) []string {

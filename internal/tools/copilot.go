@@ -33,6 +33,21 @@ func copilotMounts() []string {
 	}
 }
 
+// copilotMarketplaceMount mounts a synced marketplace clone read-only into the
+// container. UNVERIFIED: GitHub's docs describe where *installed plugins* end up
+// (~/.copilot/installed-plugins/<marketplace>/<plugin>) but not where the
+// marketplace registry clone itself lives. This mirrors that layout as a best
+// guess. Before shipping: run `copilot plugin marketplace add <repo>` locally,
+// inspect ~/.copilot/, and fix this function if the real path differs - it's the
+// only place the destination is declared.
+func copilotMarketplaceMount(name string) string {
+	return mount.VolumeMount(
+		"$TOOL_HOME/"+MarketplacesDirName+"/"+name,
+		"$CONTAINER_HOME/.copilot/marketplaces/"+name,
+		mount.VolumeOptions{ReadOnly: true},
+	)
+}
+
 func copilotStage(prevStage string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
 		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).

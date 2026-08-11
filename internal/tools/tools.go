@@ -10,6 +10,12 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
+// MarketplacesDirName is the fixed subdirectory directly under $TOOL_HOME (a
+// sibling of each tool's own data dir, e.g. $TOOL_HOME/claude) where synced
+// marketplace git clones live on the host - one clone per marketplace name,
+// shared across every tool that mounts it.
+const MarketplacesDirName = "marketplaces"
+
 // Configs maps tool names to their container configuration.
 var Configs = map[string]ToolConfig{
 	"claude": {
@@ -18,10 +24,11 @@ var Configs = map[string]ToolConfig{
 			LatestVersion: claudeLatestVersion,
 		},
 		Runtime: RuntimeConfig{
-			Setup:        setupClaude,
-			Mounts:       claudeMounts,
-			TmpfsMounts:  claudeTmpfsMounts,
-			AllowedHosts: claudeAllowedHosts,
+			Setup:            setupClaude,
+			Mounts:           claudeMounts,
+			TmpfsMounts:      claudeTmpfsMounts,
+			AllowedHosts:     claudeAllowedHosts,
+			MarketplaceMount: claudeMarketplaceMount,
 		},
 	},
 	"copilot": {
@@ -30,10 +37,11 @@ var Configs = map[string]ToolConfig{
 			LatestVersion: copilotLatestVersion,
 		},
 		Runtime: RuntimeConfig{
-			Setup:        setupCopilot,
-			Mounts:       copilotMounts,
-			TmpfsMounts:  copilotTmpfsMounts,
-			AllowedHosts: copilotAllowedHosts,
+			Setup:            setupCopilot,
+			Mounts:           copilotMounts,
+			TmpfsMounts:      copilotTmpfsMounts,
+			AllowedHosts:     copilotAllowedHosts,
+			MarketplaceMount: copilotMarketplaceMount,
 		},
 	},
 	"opencode": {
@@ -68,6 +76,9 @@ type RuntimeConfig struct {
 	// AllowedHosts is the tool's baseline egress allowlist, used when the
 	// egress proxy is enabled. User-configured hosts are merged on top.
 	AllowedHosts []string
+	// MarketplaceMount returns the read-only volume mount spec for a synced
+	// marketplace clone named `name`. Nil for tools without marketplace support.
+	MarketplaceMount func(name string) string
 }
 
 // ToolConfig holds the full configuration for a tool container.

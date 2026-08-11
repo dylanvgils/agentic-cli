@@ -151,11 +151,45 @@ allowed_hosts = [
 
 For these cases, the sidecar is also reachable at the stable hostname `agentic-proxy` on port `3128`. Unlike the sidecar's actual Docker container name (randomized per run), this hostname is identical on every run, so it's safe to hardcode once in the tool's own config. See [Tool-specific proxy examples](#tool-specific-proxy-examples) below for a concrete walkthrough (Maven).
 
+**`[[marketplaces]]`** - git-based plugin marketplaces (skills, agents, commands, hooks, MCP servers, synced and mounted together as a single unit) to sync onto the host and mount read-only into every applicable tool's container
+
+| Key     | Type   | Description                                                                                                                            | Default               |
+| ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `name`  | string | Unique identifier for this marketplace. Must match `^[a-zA-Z0-9._-]+$` - becomes a host directory and container mount path segment.    | -                     |
+| `url`   | string | Git URL to clone (anything `git clone` accepts - `https://`, `git@host:...`, etc).                                                     | -                     |
+| `tools` | list   | Tool names this marketplace is mounted into (currently `claude`, `copilot`). Omit to mount into every tool that supports marketplaces. | every supporting tool |
+
+```toml
+[[marketplaces]]
+name = "acme-plugins"
+url  = "git@github.com:acme/plugin-marketplace.git"
+# tools omitted -> mounted into every tool that supports it (claude, copilot)
+
+[[marketplaces]]
+name = "claude-only-thing"
+url  = "git@github.com:acme/claude-extras.git"
+tools = ["claude"]
+```
+
+Before each `agentic run`/`agentic <tool>`, every marketplace applicable to the tool being run is synced on the host - a plain `git clone` (nothing on disk yet) or `git fetch` + `git reset --hard @{upstream}` (already cloned), using the invoking user's own git auth (SSH agent, credential helper, `~/.netrc`) with no credentials ever entering the container. Requires `git` on the host `PATH`.
+
+- If a marketplace has never been cloned and the clone fails, the run fails.
+- If a marketplace was already cloned and the fetch fails (offline, auth expired, etc.), the run continues with a warning, using the existing (possibly stale) clone.
+
+The synced clone is bind-mounted read-only into the container, so the container itself never runs git or reaches a git host over the network. Marketplaces are also shared across tools: a marketplace with no `tools` filter clones once on the host and is mounted into every supporting tool that runs, not cloned separately per tool. Where each tool expects marketplace content:
+
+| Tool      | Container path                          |
+| --------- | --------------------------------------- |
+| `claude`  | `~/.claude/plugins/marketplaces/<name>` |
+| `copilot` | `~/.copilot/marketplaces/<name>`        |
+
+`agentic clean` (with no tool argument) removes any on-disk marketplace clone under `$AGENTIC_HOME/marketplaces` that no longer has a matching `[[marketplaces]]` entry in the current directory's resolved config.
+
 ### Merge semantics
 
 When multiple `.agenticrc.toml` files are found, they are merged. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
-- **List keys** (`bases`, `apt_packages`, `extra_mounts`, `secrets`, `env`, `proxy.allowed_hosts`): values from all levels accumulate, outermost first.
+- **List keys** (`bases`, `apt_packages`, `extra_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `marketplaces`): values from all levels accumulate, outermost first.
 - **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`, `docker_context`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
 - **`versions` table**: each layer name is resolved independently - innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
 

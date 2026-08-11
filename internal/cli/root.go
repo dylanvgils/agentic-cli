@@ -10,6 +10,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
+	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/spf13/cobra"
 )
@@ -40,6 +41,9 @@ var (
 	isTerminal            = platform.IsTerminal
 	setContext            = docker.SetContext
 	listContexts          = docker.ListContexts
+	syncMarketplaces      = marketplace.Sync
+	checkGitAvailable     = marketplace.CheckGitAvailable
+	pruneMarketplaces     = marketplace.Prune
 )
 
 var (

@@ -10,6 +10,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/require"
 )
@@ -262,6 +263,33 @@ func stubEnsureNetwork(t *testing.T, fn func() error) {
 	orig := ensureNetwork
 	ensureNetwork = fn
 	t.Cleanup(func() { ensureNetwork = orig })
+}
+
+// stubSyncMarketplaces replaces the package-level syncMarketplaces indirection
+// var with fn for the duration of the test.
+func stubSyncMarketplaces(t *testing.T, fn func([]marketplace.Entry, func(string) string) ([]marketplace.Result, error)) {
+	t.Helper()
+	orig := syncMarketplaces
+	syncMarketplaces = fn
+	t.Cleanup(func() { syncMarketplaces = orig })
+}
+
+// stubCheckGitAvailable replaces checkGitAvailable with a stub that always
+// returns err for the duration of the test.
+func stubCheckGitAvailable(t *testing.T, err error) {
+	t.Helper()
+	orig := checkGitAvailable
+	checkGitAvailable = func() error { return err }
+	t.Cleanup(func() { checkGitAvailable = orig })
+}
+
+// stubPruneMarketplaces replaces the package-level pruneMarketplaces
+// indirection var with fn for the duration of the test.
+func stubPruneMarketplaces(t *testing.T, fn func(baseDir string, keep []string) ([]string, error)) {
+	t.Helper()
+	orig := pruneMarketplaces
+	pruneMarketplaces = fn
+	t.Cleanup(func() { pruneMarketplaces = orig })
 }
 
 func stubCurrentGOOS(t *testing.T, goos string) {

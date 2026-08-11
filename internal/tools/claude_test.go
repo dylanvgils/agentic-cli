@@ -29,6 +29,14 @@ func TestClaudeMounts_returnsExpected(t *testing.T) {
 	}, mounts)
 }
 
+func TestClaudeMarketplaceMount_returnsExpected(t *testing.T) {
+	// Act
+	spec := claudeMarketplaceMount("acme")
+
+	// Assert
+	assert.Equal(t, "$TOOL_HOME/marketplaces/acme:$CONTAINER_HOME/.claude/plugins/marketplaces/acme:ro", spec)
+}
+
 func TestSetupClaude(t *testing.T) {
 	t.Run("creates data dir", func(t *testing.T) {
 		// Arrange

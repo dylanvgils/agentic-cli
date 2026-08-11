@@ -37,6 +37,17 @@ func claudeMounts() []string {
 	}
 }
 
+// claudeMarketplaceMount mounts a synced marketplace clone read-only at Claude
+// Code's marketplace-registry location. The host side is the shared (not
+// per-tool) marketplaces dir under $TOOL_HOME.
+func claudeMarketplaceMount(name string) string {
+	return mount.VolumeMount(
+		"$TOOL_HOME/"+MarketplacesDirName+"/"+name,
+		"$CONTAINER_HOME/.claude/plugins/marketplaces/"+name,
+		mount.VolumeOptions{ReadOnly: true},
+	)
+}
+
 func claudeStage(prevStage string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
 		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).

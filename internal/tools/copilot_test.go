@@ -30,6 +30,14 @@ func TestCopilotMounts(t *testing.T) {
 	}, mounts)
 }
 
+func TestCopilotMarketplaceMount_returnsExpected(t *testing.T) {
+	// Act
+	spec := copilotMarketplaceMount("acme")
+
+	// Assert
+	assert.Equal(t, "$TOOL_HOME/marketplaces/acme:$CONTAINER_HOME/.copilot/marketplaces/acme:ro", spec)
+}
+
 func TestCopilotStage(t *testing.T) {
 	result := renderStage(copilotStage("base"))
 
