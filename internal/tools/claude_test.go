@@ -104,6 +104,14 @@ func TestClaudeStage(t *testing.T) {
 		assert.Contains(t, result, `exec claude`)
 	})
 
+	t.Run("registers only the marketplaces named in AGENTIC_MARKETPLACES before exec", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, `$HOME/.claude/plugins/marketplaces`)
+		assert.Contains(t, result, `AGENTIC_MARKETPLACES`)
+		assert.Contains(t, result, `claude plugin marketplace add "$dir" --scope user`)
+		assert.NotContains(t, result, `for dir in "$marketplaces_dir"/*/`)
+	})
+
 	t.Run("contains tool home", func(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, "TOOL_HOME=/home/claude")

@@ -38,8 +38,7 @@ func claudeMounts() []string {
 }
 
 // claudeMarketplaceMount mounts a synced marketplace clone read-only at Claude
-// Code's marketplace-registry location. The host side is the shared (not
-// per-tool) marketplaces dir under $TOOL_HOME.
+// Code's marketplace-registry location.
 func claudeMarketplaceMount(name string) string {
 	return mount.VolumeMount(
 		"$TOOL_HOME/"+MarketplacesDirName+"/"+name,
@@ -53,8 +52,25 @@ func claudeStage(prevStage string) df.Stage {
 		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
 		Add(createContainerUser("claude")...).
 		Add(df.Heredoc{
-			Dest:  "/usr/local/bin/entrypoint.sh",
-			Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail", "exec claude \"$@\""},
+			Dest: "/usr/local/bin/entrypoint.sh",
+			Lines: []string{
+				"#!/usr/bin/env bash",
+				"set -euo pipefail",
+				"",
+				"# Register AGENTIC_MARKETPLACES only - don't glob marketplaces_dir, since",
+				"# ~/.claude persists and may hold Claude's own marketplace state (reserved names).",
+				`marketplaces_dir="$HOME/.claude/plugins/marketplaces"`,
+				`if [[ -n "${AGENTIC_MARKETPLACES:-}" ]]; then`,
+				`  IFS=',' read -ra marketplace_names <<< "$AGENTIC_MARKETPLACES"`,
+				`  for name in "${marketplace_names[@]}"; do`,
+				`    dir="$marketplaces_dir/$name"`,
+				`    [[ -d "$dir" ]] || continue`,
+				`    claude plugin marketplace add "$dir" --scope user || echo "warning: failed to register marketplace $name" >&2`,
+				"  done",
+				"fi",
+				"",
+				`exec claude "$@"`,
+			},
 		}).
 		Add(df.User{Name: "claude"}).
 		Add(df.Env{Key: "PATH", Value: "/home/claude/.local/bin:${PATH}"}).

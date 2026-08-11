@@ -33,13 +33,9 @@ func copilotMounts() []string {
 	}
 }
 
-// copilotMarketplaceMount mounts a synced marketplace clone read-only into the
-// container. UNVERIFIED: GitHub's docs describe where *installed plugins* end up
-// (~/.copilot/installed-plugins/<marketplace>/<plugin>) but not where the
-// marketplace registry clone itself lives. This mirrors that layout as a best
-// guess. Before shipping: run `copilot plugin marketplace add <repo>` locally,
-// inspect ~/.copilot/, and fix this function if the real path differs - it's the
-// only place the destination is declared.
+// copilotMarketplaceMount mounts a synced marketplace clone read-only;
+// entrypoint.sh registers it explicitly, so the path just needs to match what
+// it passes to `copilot plugin marketplace add` (idempotency UNVERIFIED).
 func copilotMarketplaceMount(name string) string {
 	return mount.VolumeMount(
 		"$TOOL_HOME/"+MarketplacesDirName+"/"+name,
@@ -66,6 +62,17 @@ func copilotStage(prevStage string) df.Stage {
 				"# Set GITHUB_TOKEN if mounted in container",
 				"if [[ -f /run/secrets/copilot_token ]]; then",
 				`  export GITHUB_TOKEN="$(cat /run/secrets/copilot_token)"`,
+				"fi",
+				"",
+				"# Register AGENTIC_MARKETPLACES - mounting alone isn't enough.",
+				`marketplaces_dir="$HOME/.copilot/marketplaces"`,
+				`if [[ -n "${AGENTIC_MARKETPLACES:-}" ]]; then`,
+				`  IFS=',' read -ra marketplace_names <<< "$AGENTIC_MARKETPLACES"`,
+				`  for name in "${marketplace_names[@]}"; do`,
+				`    dir="$marketplaces_dir/$name"`,
+				`    [[ -d "$dir" ]] || continue`,
+				`    copilot plugin marketplace add "$dir" || echo "warning: failed to register marketplace $name" >&2`,
+				"  done",
 				"fi",
 				"",
 				`exec copilot "$@"`,

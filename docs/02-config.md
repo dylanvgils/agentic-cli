@@ -183,6 +183,13 @@ The synced clone is bind-mounted read-only into the container, so the container 
 | `claude`  | `~/.claude/plugins/marketplaces/<name>` |
 | `copilot` | `~/.copilot/marketplaces/<name>`        |
 
+Mounting the clone is not enough on its own: both tools only recognize marketplaces they have registered in their own config, not whatever happens to be present on disk. Each tool's `entrypoint.sh` handles this - before `exec`-ing the tool, it registers every name listed in `AGENTIC_MARKETPLACES` (set by `agentic run` to this run's configured marketplaces only), skipping names with no matching mounted directory:
+
+- `claude` runs `claude plugin marketplace add <dir> --scope user`, which is idempotent and needs no network access for an already-mounted local directory. The registered name comes from the marketplace's own `.claude-plugin/marketplace.json`, which may differ from the `name` you gave it in `.agenticrc.toml` (that name only controls the host clone directory and mount path).
+- `copilot` runs `copilot plugin marketplace add <dir>`. Whether this is idempotent across runs is unverified, so a failure is logged as a warning rather than failing the run - see `copilotMarketplaceMount` in `internal/tools/copilot.go`.
+
+Neither script globs the marketplaces directory directly, since `~/.claude`/`~/.copilot` persist across runs and may already hold marketplace state the tool created for itself.
+
 `agentic clean` (with no tool argument) removes any on-disk marketplace clone under `$AGENTIC_HOME/marketplaces` that no longer has a matching `[[marketplaces]]` entry in the current directory's resolved config.
 
 ### Merge semantics

@@ -62,6 +62,14 @@ func TestCopilotStage(t *testing.T) {
 		assert.Contains(t, result, "GITHUB_TOKEN")
 	})
 
+	t.Run("registers only the marketplaces named in AGENTIC_MARKETPLACES before exec", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, `$HOME/.copilot/marketplaces`)
+		assert.Contains(t, result, `AGENTIC_MARKETPLACES`)
+		assert.Contains(t, result, `copilot plugin marketplace add "$dir"`)
+		assert.NotContains(t, result, `for dir in "$marketplaces_dir"/*/`)
+	})
+
 	t.Run("contains version script", func(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, "agentic-version-copilot")

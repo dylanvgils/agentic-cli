@@ -162,7 +162,7 @@ func parseArgs(args []string, namespace string) (parsedArgs, error) {
 func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC, registry string, proxyEnabled, proxyMonitor bool) (docker.RunSpec, error) {
 	containerHome := docker.ResolveContainerHome(args.imageName)
 
-	marketplaceMounts, err := syncToolMarketplaces(toolHome, args.toolName, toolConfig, rc)
+	marketplaceMounts, marketplaceNames, err := syncToolMarketplaces(toolHome, args.toolName, toolConfig, rc)
 	if err != nil {
 		return docker.RunSpec{}, err
 	}
@@ -175,6 +175,14 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 
 	if err := validateEnv(env, proxyEnabled); err != nil {
 		return docker.RunSpec{}, err
+	}
+
+	// Tells the entrypoint exactly which marketplace names to register, so it
+	// doesn't have to (and must not) glob every directory under
+	// ~/.claude/plugins/marketplaces - that dir persists across runs and can
+	// also hold marketplace state the tool created for itself.
+	if len(marketplaceNames) > 0 {
+		env = append(env, "AGENTIC_MARKETPLACES="+strings.Join(marketplaceNames, ","))
 	}
 
 	if err := ensureNamedVolumes(volumes, toolHome, containerHome, tools.BusyboxImageFor(registry)); err != nil {
@@ -215,20 +223,20 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 
 // syncToolMarketplaces syncs any marketplaces configured for tool
 // (clone-if-missing, fetch+reset-if-present, tolerating a stale fetch) and
-// returns the read-only mount spec for each. Named to avoid colliding with the
-// package-level syncMarketplaces indirection var in root.go.
-func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc *config.AgenticRC) ([]string, error) {
+// returns the read-only mount spec plus the name of each. Named to avoid
+// colliding with the package-level syncMarketplaces indirection var in root.go.
+func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc *config.AgenticRC) (mounts, names []string, err error) {
 	if toolConfig.Runtime.MarketplaceMount == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	entries := config.MarketplacesFor(rc, tool)
 	if len(entries) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	if err := checkGitAvailable(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	mpEntries := make([]marketplace.Entry, len(entries))
@@ -239,18 +247,20 @@ func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc
 	baseDir := filepath.Join(toolHome, tools.MarketplacesDirName)
 	results, err := syncMarketplaces(mpEntries, func(name string) string { return filepath.Join(baseDir, name) })
 	if err != nil {
-		return nil, fmt.Errorf("sync marketplaces for %s: %w", tool, err)
+		return nil, nil, fmt.Errorf("sync marketplaces for %s: %w", tool, err)
 	}
 
-	mounts := make([]string, len(results))
+	mounts = make([]string, len(results))
+	names = make([]string, len(results))
 	for i, r := range results {
 		if r.Stale {
 			fmt.Fprintf(os.Stderr, "warning: marketplace %q: %v; using existing clone\n", r.Entry.Name, r.Warning)
 		}
 		mounts[i] = toolConfig.Runtime.MarketplaceMount(r.Entry.Name)
+		names[i] = r.Entry.Name
 	}
 
-	return mounts, nil
+	return mounts, names, nil
 }
 
 func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) []string {
