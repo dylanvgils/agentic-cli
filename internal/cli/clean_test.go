@@ -2,11 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
@@ -152,7 +149,7 @@ func Test_cleanGlobalResources(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := cleanGlobalResources(&config.AgenticRC{})
+			err := cleanGlobalResources()
 			require.NoError(t, err)
 		})
 
@@ -171,7 +168,7 @@ func Test_cleanGlobalResources(t *testing.T) {
 		stubCleanBaseImages(t, func() error { return fmt.Errorf("base cleanup failed") })
 
 		// Act
-		err := cleanGlobalResources(&config.AgenticRC{})
+		err := cleanGlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -184,7 +181,7 @@ func Test_cleanGlobalResources(t *testing.T) {
 		stubCleanImage(t, func(string) error { return fmt.Errorf("proxy cleanup failed") })
 
 		// Act
-		err := cleanGlobalResources(&config.AgenticRC{})
+		err := cleanGlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -198,7 +195,7 @@ func Test_cleanGlobalResources(t *testing.T) {
 		stubSweepProxyResources(t, func() error { return fmt.Errorf("sweep failed") })
 
 		// Act
-		err := cleanGlobalResources(&config.AgenticRC{})
+		err := cleanGlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -213,83 +210,13 @@ func Test_cleanGlobalResources(t *testing.T) {
 		stubRemoveNetwork(t, func() error { return fmt.Errorf("network removal failed") })
 
 		// Act
-		err := cleanGlobalResources(&config.AgenticRC{})
+		err := cleanGlobalResources()
 
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "network removal failed")
 	})
 
-	t.Run("prunes orphaned marketplaces before removing the network", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		stubCleanBaseImages(t, func() error { return nil })
-		stubCleanImage(t, func(string) error { return nil })
-		stubSweepProxyResources(t, func() error { return nil })
-		stubRemoveNetwork(t, func() error { return nil })
-		var gotBaseDir string
-		var gotKeep []string
-		stubPruneMarketplaces(t, func(baseDir string, keep []string) ([]string, error) {
-			gotBaseDir = baseDir
-			gotKeep = keep
-			return []string{"stale"}, nil
-		})
-		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
-
-		// Act
-		out := captureStdout(t, func() {
-			err := cleanGlobalResources(rc)
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Equal(t, filepath.Join(toolHome, "marketplaces"), gotBaseDir)
-		assert.Equal(t, []string{"acme"}, gotKeep)
-		assert.Contains(t, out, "removed stale marketplace: stale")
-	})
-
-	t.Run("pruneMarketplaces error propagates", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		stubCleanBaseImages(t, func() error { return nil })
-		stubCleanImage(t, func(string) error { return nil })
-		stubSweepProxyResources(t, func() error { return nil })
-		stubPruneMarketplaces(t, func(string, []string) ([]string, error) { return nil, fmt.Errorf("prune failed") })
-
-		// Act
-		err := cleanGlobalResources(&config.AgenticRC{})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "prune failed")
-	})
-}
-
-func TestPruneOrphanedMarketplaces(t *testing.T) {
-	t.Run("removes clones not in the merged config", func(t *testing.T) {
-		// Arrange
-		toolHomeDir := t.TempDir()
-		mpDir := filepath.Join(toolHomeDir, tools.MarketplacesDirName)
-		require.NoError(t, os.MkdirAll(filepath.Join(mpDir, "keep-me"), 0o755))
-		require.NoError(t, os.MkdirAll(filepath.Join(mpDir, "orphaned"), 0o755))
-		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "keep-me", URL: "git@example.com:k.git"}}}
-
-		// Act
-		err := pruneOrphanedMarketplaces(toolHomeDir, rc)
-
-		// Assert
-		require.NoError(t, err)
-		assert.DirExists(t, filepath.Join(mpDir, "keep-me"))
-		assert.NoDirExists(t, filepath.Join(mpDir, "orphaned"))
-	})
-
-	t.Run("no marketplaces dir is not an error", func(t *testing.T) {
-		// Act
-		err := pruneOrphanedMarketplaces(t.TempDir(), &config.AgenticRC{})
-
-		// Assert
-		require.NoError(t, err)
-	})
 }
 
 func Test_runClean(t *testing.T) {

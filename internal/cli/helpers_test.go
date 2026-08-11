@@ -265,7 +265,7 @@ func stubEnsureNetwork(t *testing.T, fn func() error) {
 	t.Cleanup(func() { ensureNetwork = orig })
 }
 
-func stubSyncMarketplaces(t *testing.T, fn func([]marketplace.Entry, func(string) string) ([]marketplace.Result, error)) {
+func stubSyncMarketplaces(t *testing.T, fn func([]marketplace.Entry, func(marketplace.Entry) string) ([]marketplace.Result, error)) {
 	t.Helper()
 	orig := syncMarketplaces
 	syncMarketplaces = fn
@@ -279,11 +279,18 @@ func stubCheckGitAvailable(t *testing.T, err error) {
 	t.Cleanup(func() { checkGitAvailable = orig })
 }
 
-func stubPruneMarketplaces(t *testing.T, fn func(baseDir string, keep []string) ([]string, error)) {
+func stubLoadMarketplaceRegistry(t *testing.T, fn func(baseDir string) (*marketplace.Registry, error)) {
 	t.Helper()
-	orig := pruneMarketplaces
-	pruneMarketplaces = fn
-	t.Cleanup(func() { pruneMarketplaces = orig })
+	orig := loadMarketplaceRegistry
+	loadMarketplaceRegistry = fn
+	t.Cleanup(func() { loadMarketplaceRegistry = orig })
+}
+
+func stubSaveMarketplaceRegistry(t *testing.T, fn func(baseDir string, reg *marketplace.Registry) error) {
+	t.Helper()
+	orig := saveMarketplaceRegistry
+	saveMarketplaceRegistry = fn
+	t.Cleanup(func() { saveMarketplaceRegistry = orig })
 }
 
 func stubCurrentGOOS(t *testing.T, goos string) {

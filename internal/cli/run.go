@@ -241,7 +241,9 @@ func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc
 	}
 
 	baseDir := filepath.Join(toolHome, tools.MarketplacesDirName)
-	results, err := syncMarketplaces(mpEntries, func(name string) string { return filepath.Join(baseDir, name) })
+	results, err := syncMarketplaces(mpEntries, func(e marketplace.Entry) string {
+		return filepath.Join(baseDir, marketplace.CloneDirName(e.Name, e.URL))
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("sync marketplaces for %s: %w", tool, err)
 	}
@@ -252,11 +254,42 @@ func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc
 		if r.Stale {
 			fmt.Fprintf(os.Stderr, "warning: marketplace %q: %v; using existing clone\n", r.Entry.Name, r.Warning)
 		}
-		mounts[i] = toolConfig.Runtime.MarketplaceMount(r.Entry.Name)
+		mounts[i] = toolConfig.Runtime.MarketplaceMount(r.Entry.Name, r.Entry.URL)
 		names[i] = r.Entry.Name
 	}
 
+	recordMarketplaceUsage(baseDir, results)
+
 	return mounts, names, nil
+}
+
+// recordMarketplaceUsage records cwd against each result for `marketplaces
+// prune`. Best-effort: must not fail a run that already synced successfully.
+func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
+	if len(results) == 0 {
+		return
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not record marketplace usage: %v\n", err)
+		return
+	}
+
+	reg, err := loadMarketplaceRegistry(baseDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not load marketplace usage registry: %v\n", err)
+		return
+	}
+
+	for _, r := range results {
+		key := marketplace.CloneDirName(r.Entry.Name, r.Entry.URL)
+		reg.Record(key, marketplace.RegistryEntry{Name: r.Entry.Name, URL: r.Entry.URL, Stale: r.Stale}, cwd)
+	}
+
+	if err := saveMarketplaceRegistry(baseDir, reg); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not save marketplace usage registry: %v\n", err)
+	}
 }
 
 func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) []string {

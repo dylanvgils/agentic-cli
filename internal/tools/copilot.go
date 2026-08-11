@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
@@ -36,9 +37,9 @@ func copilotMounts() []string {
 // copilotMarketplaceMount mounts a synced marketplace clone read-only;
 // entrypoint.sh registers it explicitly, so the path just needs to match what
 // it passes to `copilot plugin marketplace add` (idempotency UNVERIFIED).
-func copilotMarketplaceMount(name string) string {
+func copilotMarketplaceMount(name, url string) string {
 	return mount.VolumeMount(
-		"$TOOL_HOME/"+MarketplacesDirName+"/"+name,
+		"$TOOL_HOME/"+MarketplacesDirName+"/"+marketplace.CloneDirName(name, url),
 		"$CONTAINER_HOME/.copilot/marketplaces/"+name,
 		mount.VolumeOptions{ReadOnly: true},
 	)

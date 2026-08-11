@@ -2,7 +2,6 @@ package cli
 
 import (
 	"os"
-	"path/filepath"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -60,7 +59,7 @@ func runClean(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(args) == 0 {
-		return cleanGlobalResources(rc)
+		return cleanGlobalResources()
 	}
 
 	return nil
@@ -77,7 +76,7 @@ func cleanTargets(targets []cleanTarget) error {
 	return nil
 }
 
-func cleanGlobalResources(rc *config.AgenticRC) error {
+func cleanGlobalResources() error {
 	output.Step("base")
 	if err := cleanBaseImages(); err != nil {
 		return err
@@ -90,31 +89,8 @@ func cleanGlobalResources(rc *config.AgenticRC) error {
 		return err
 	}
 
-	if err := pruneOrphanedMarketplaces(toolHome, rc); err != nil {
-		return err
-	}
-
 	output.Step("network")
 	return removeNetwork()
-}
-
-// pruneOrphanedMarketplaces removes clones under $TOOL_HOME/marketplaces no
-// longer in rc.Marketplaces.
-func pruneOrphanedMarketplaces(toolHome string, rc *config.AgenticRC) error {
-	var keep []string
-	for _, e := range rc.Marketplaces {
-		keep = append(keep, e.Name)
-	}
-
-	baseDir := filepath.Join(toolHome, tools.MarketplacesDirName)
-	removed, err := pruneMarketplaces(baseDir, keep)
-	if err != nil {
-		return err
-	}
-	for _, name := range removed {
-		output.Stepf("removed stale marketplace: %s", name)
-	}
-	return nil
 }
 
 func resolveCleanTargets(args []string, namespace string, all bool) ([]cleanTarget, error) {

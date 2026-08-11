@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
@@ -37,11 +38,11 @@ func claudeMounts() []string {
 	}
 }
 
-// claudeMarketplaceMount mounts a synced marketplace clone read-only at Claude
-// Code's marketplace-registry location.
-func claudeMarketplaceMount(name string) string {
+// claudeMarketplaceMount mounts a synced marketplace clone read-only at
+// Claude Code's marketplace-registry location.
+func claudeMarketplaceMount(name, url string) string {
 	return mount.VolumeMount(
-		"$TOOL_HOME/"+MarketplacesDirName+"/"+name,
+		"$TOOL_HOME/"+MarketplacesDirName+"/"+marketplace.CloneDirName(name, url),
 		"$CONTAINER_HOME/.claude/plugins/marketplaces/"+name,
 		mount.VolumeOptions{ReadOnly: true},
 	)

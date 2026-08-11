@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,8 +13,8 @@ import (
 )
 
 func TestSync(t *testing.T) {
-	dirForBase := func(base string) func(name string) string {
-		return func(name string) string { return filepath.Join(base, name) }
+	dirForBase := func(base string) func(e Entry) string {
+		return func(e Entry) string { return filepath.Join(base, e.Name) }
 	}
 
 	t.Run("clones when missing", func(t *testing.T) {
@@ -128,35 +129,25 @@ func TestSync(t *testing.T) {
 	})
 }
 
-func TestPrune(t *testing.T) {
-	t.Run("missing baseDir is not an error", func(t *testing.T) {
-		// Arrange
-		baseDir := filepath.Join(t.TempDir(), "does-not-exist")
-
+func TestCloneDirName(t *testing.T) {
+	t.Run("same name different url produces different results", func(t *testing.T) {
 		// Act
-		removed, err := Prune(baseDir, nil)
+		a := CloneDirName("acme", "git@example.com:acme/one.git")
+		b := CloneDirName("acme", "git@example.com:acme/two.git")
 
 		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, removed)
+		assert.NotEqual(t, a, b)
+		assert.True(t, strings.HasPrefix(a, "acme-"))
+		assert.True(t, strings.HasPrefix(b, "acme-"))
 	})
 
-	t.Run("removes directories not in keep", func(t *testing.T) {
-		// Arrange
-		baseDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, "a"), 0o755))
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, "b"), 0o755))
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, "c"), 0o755))
-
+	t.Run("stable for repeated calls with the same inputs", func(t *testing.T) {
 		// Act
-		removed, err := Prune(baseDir, []string{"a", "c"})
+		first := CloneDirName("acme", "git@example.com:acme/one.git")
+		second := CloneDirName("acme", "git@example.com:acme/one.git")
 
 		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"b"}, removed)
-		assert.DirExists(t, filepath.Join(baseDir, "a"))
-		assert.NoDirExists(t, filepath.Join(baseDir, "b"))
-		assert.DirExists(t, filepath.Join(baseDir, "c"))
+		assert.Equal(t, first, second)
 	})
 }
 

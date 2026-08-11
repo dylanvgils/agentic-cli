@@ -153,11 +153,11 @@ For these cases, the sidecar is also reachable at the stable hostname `agentic-p
 
 **`[[marketplaces]]`** - git-based plugin marketplaces (skills, agents, commands, hooks, MCP servers, synced and mounted together as a single unit) to sync onto the host and mount read-only into every applicable tool's container
 
-| Key     | Type   | Description                                                                                                                            | Default               |
-| ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `name`  | string | Unique identifier for this marketplace. Must match `^[a-zA-Z0-9._-]+$` - becomes a host directory and container mount path segment.    | -                     |
-| `url`   | string | Git URL to clone (anything `git clone` accepts - `https://`, `git@host:...`, etc).                                                     | -                     |
-| `tools` | list   | Tool names this marketplace is mounted into (currently `claude`, `copilot`). Omit to mount into every tool that supports marketplaces. | every supporting tool |
+| Key     | Type   | Description                                                                                                                                                                                                                                                                                   | Default               |
+| ------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `name`  | string | Identifier for this marketplace. Must match `^[a-zA-Z0-9._-]+$` - becomes a container mount path segment, and (combined with `url`) the host clone directory name. Not required to be globally unique: two projects may reuse the same `name` for different `url`s without colliding on disk. | -                     |
+| `url`   | string | Git URL to clone (anything `git clone` accepts - `https://`, `git@host:...`, etc).                                                                                                                                                                                                            | -                     |
+| `tools` | list   | Tool names this marketplace is mounted into (currently `claude`, `copilot`). Omit to mount into every tool that supports marketplaces.                                                                                                                                                        | every supporting tool |
 
 ```toml
 [[marketplaces]]
@@ -176,7 +176,9 @@ Before each `agentic run`/`agentic <tool>`, every marketplace applicable to the 
 - If a marketplace has never been cloned and the clone fails, the run fails.
 - If a marketplace was already cloned and the fetch fails (offline, auth expired, etc.), the run continues with a warning, using the existing (possibly stale) clone.
 
-The synced clone is bind-mounted read-only into the container, so the container itself never runs git or reaches a git host over the network. Marketplaces are also shared across tools: a marketplace with no `tools` filter clones once on the host and is mounted into every supporting tool that runs, not cloned separately per tool. Where each tool expects marketplace content:
+The synced clone is bind-mounted read-only into the container, so the container itself never runs git or reaches a git host over the network. Marketplaces are also shared across tools: a marketplace with no `tools` filter clones once on the host and is mounted into every supporting tool that runs, not cloned separately per tool.
+
+The host clone lives at `$AGENTIC_HOME/marketplaces/<name>-<hash>/`, where `<hash>` is a short hash of `url`. This disambiguates by URL, not just `name`, since `$AGENTIC_HOME/marketplaces` is shared by every project on the machine - without it, two projects that happened to pick the same `name` for different `url`s would silently overwrite each other's clone. The container-side mount path stays `name`-only (see table below), since that's scoped to one project's sync and duplicate names within a single project are already rejected. Where each tool expects marketplace content:
 
 | Tool      | Container path                          |
 | --------- | --------------------------------------- |
@@ -190,7 +192,7 @@ Mounting the clone is not enough on its own: both tools only recognize marketpla
 
 Neither script globs the marketplaces directory directly, since `~/.claude`/`~/.copilot` persist across runs and may already hold marketplace state the tool created for itself.
 
-`agentic clean` (with no tool argument) removes any on-disk marketplace clone under `$AGENTIC_HOME/marketplaces` that no longer has a matching `[[marketplaces]]` entry in the current directory's resolved config.
+Each successful sync records the current working directory in a small usage registry (`$AGENTIC_HOME/marketplaces/.usage.json`), so more than one project can safely share the same clone. Use `agentic marketplaces list` to see every synced clone and which project(s) reference it, and `agentic marketplaces prune` to remove clones no known project references anymore - prune re-checks every recorded project's _current_ config before deleting anything, so a clone still used by a different project (even one you're not currently in) is never removed. A clone with no usage record at all (e.g. placed there manually) is left alone rather than guessed about. `agentic clean` does not touch marketplace clones.
 
 ### Merge semantics
 

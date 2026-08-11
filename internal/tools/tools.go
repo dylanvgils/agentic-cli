@@ -75,8 +75,9 @@ type RuntimeConfig struct {
 	// egress proxy is enabled. User-configured hosts are merged on top.
 	AllowedHosts []string
 	// MarketplaceMount returns the read-only volume mount spec for a synced
-	// marketplace clone named `name`. Nil for tools without marketplace support.
-	MarketplaceMount func(name string) string
+	// marketplace clone named `name`, cloned from `url`. Nil for tools without
+	// marketplace support.
+	MarketplaceMount func(name, url string) string
 }
 
 // ToolConfig holds the full configuration for a tool container.

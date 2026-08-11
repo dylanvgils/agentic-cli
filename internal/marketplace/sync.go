@@ -4,10 +4,11 @@ package marketplace
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"time"
 )
 
@@ -43,17 +44,24 @@ func CheckGitAvailable() error {
 	return nil
 }
 
+// CloneDirName hashes url into the dir name so same-name, different-URL
+// marketplaces never collide on disk.
+func CloneDirName(name, url string) string {
+	sum := sha256.Sum256([]byte(url))
+	return name + "-" + hex.EncodeToString(sum[:4])
+}
+
 // Sync clones each entry (if missing) or fetches+resets it (if present), in
 // order. A fetch/reset failure is tolerated (Stale=true, Warning set); a
 // clone failure aborts Sync immediately.
-func Sync(entries []Entry, dirFor func(name string) string) ([]Result, error) {
+func Sync(entries []Entry, dirFor func(e Entry) string) ([]Result, error) {
 	if err := checkDuplicateNames(entries); err != nil {
 		return nil, err
 	}
 
 	results := make([]Result, 0, len(entries))
 	for _, e := range entries {
-		result, err := syncEntry(e, dirFor(e.Name))
+		result, err := syncEntry(e, dirFor(e))
 		if err != nil {
 			return nil, err
 		}
@@ -61,36 +69,6 @@ func Sync(entries []Entry, dirFor func(name string) string) ([]Result, error) {
 	}
 
 	return results, nil
-}
-
-// Prune removes every immediate subdirectory of baseDir whose name is not in
-// keep, returning the names removed. A missing baseDir is not an error.
-func Prune(baseDir string, keep []string) ([]string, error) {
-	entries, err := os.ReadDir(baseDir)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	keepSet := make(map[string]bool, len(keep))
-	for _, k := range keep {
-		keepSet[k] = true
-	}
-
-	var removed []string
-	for _, entry := range entries {
-		if keepSet[entry.Name()] {
-			continue
-		}
-		if err := os.RemoveAll(filepath.Join(baseDir, entry.Name())); err != nil {
-			return removed, err
-		}
-		removed = append(removed, entry.Name())
-	}
-
-	return removed, nil
 }
 
 func syncEntry(e Entry, dir string) (Result, error) {
