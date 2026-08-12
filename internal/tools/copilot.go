@@ -2,6 +2,7 @@ package tools
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
@@ -37,8 +38,8 @@ func copilotMounts() []string {
 // copilotMarketplaceMount mounts a synced marketplace clone read-only; entrypoint.sh registers it.
 func copilotMarketplaceMount(name, url string) string {
 	return mount.VolumeMount(
-		"$TOOL_HOME/"+MarketplacesDirName+"/"+marketplace.CloneDirName(url),
-		"$CONTAINER_HOME/marketplaces/"+name,
+		path.Join("$TOOL_HOME", marketplace.MarketplacesDirName, marketplace.CloneDirName(url)),
+		path.Join("$CONTAINER_HOME", marketplace.MarketplacesDirName, name),
 		mount.VolumeOptions{ReadOnly: true},
 	)
 }
@@ -63,8 +64,8 @@ func copilotStage(prevStage string) df.Stage {
 				`  export GITHUB_TOKEN="$(cat /run/secrets/copilot_token)"`,
 				"fi",
 				"",
-				"# Register AGENTIC_MARKETPLACES - mounting alone isn't enough.",
-				`marketplaces_dir="$HOME/marketplaces"`,
+				"# Register AGENTIC_MARKETPLACES into Copilot",
+				`marketplaces_dir="$HOME/` + marketplace.MarketplacesDirName + `"`,
 				`if [[ -n "${AGENTIC_MARKETPLACES:-}" ]]; then`,
 				`  IFS=',' read -ra marketplace_names <<< "$AGENTIC_MARKETPLACES"`,
 				`  for name in "${marketplace_names[@]}"; do`,

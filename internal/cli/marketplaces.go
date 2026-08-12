@@ -12,7 +12,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
 
@@ -51,7 +50,7 @@ func init() {
 }
 
 func runMarketplacesList(_ *cobra.Command, _ []string) error {
-	baseDir := filepath.Join(toolHome, tools.MarketplacesDirName)
+	baseDir := filepath.Join(toolHome, marketplace.MarketplacesDirName)
 
 	reg, err := loadMarketplaceRegistry(baseDir)
 	if err != nil {
@@ -94,7 +93,7 @@ func runMarketplacesList(_ *cobra.Command, _ []string) error {
 }
 
 func runMarketplacesPrune(_ *cobra.Command, _ []string) error {
-	baseDir := filepath.Join(toolHome, tools.MarketplacesDirName)
+	baseDir := filepath.Join(toolHome, marketplace.MarketplacesDirName)
 
 	reg, err := loadMarketplaceRegistry(baseDir)
 	if err != nil {

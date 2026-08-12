@@ -238,7 +238,7 @@ func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc
 		mpEntries[i] = marketplace.Entry{Name: e.Name, URL: e.URL}
 	}
 
-	baseDir := filepath.Join(toolHome, tools.MarketplacesDirName)
+	baseDir := filepath.Join(toolHome, marketplace.MarketplacesDirName)
 	results, err := syncMarketplaces(mpEntries, func(e marketplace.Entry) string {
 		return filepath.Join(baseDir, marketplace.CloneDirName(e.URL))
 	})

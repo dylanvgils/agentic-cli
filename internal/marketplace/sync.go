@@ -12,6 +12,9 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/git"
 )
 
+// MarketplacesDirName is the subdirectory under $TOOL_HOME where synced marketplace clones live.
+const MarketplacesDirName = "marketplaces"
+
 // safeSlugPattern matches characters unsafe for a filesystem path segment.
 var safeSlugPattern = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
 

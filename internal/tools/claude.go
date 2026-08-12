@@ -3,6 +3,7 @@ package tools
 import (
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
@@ -41,8 +42,8 @@ func claudeMounts() []string {
 // claudeMarketplaceMount mounts a synced marketplace clone read-only outside Claude's own state tree.
 func claudeMarketplaceMount(name, url string) string {
 	return mount.VolumeMount(
-		"$TOOL_HOME/"+MarketplacesDirName+"/"+marketplace.CloneDirName(url),
-		"$CONTAINER_HOME/marketplaces/"+name,
+		path.Join("$TOOL_HOME", marketplace.MarketplacesDirName, marketplace.CloneDirName(url)),
+		path.Join("$CONTAINER_HOME", marketplace.MarketplacesDirName, name),
 		mount.VolumeOptions{ReadOnly: true},
 	)
 }
@@ -57,9 +58,8 @@ func claudeStage(prevStage string) df.Stage {
 				"#!/usr/bin/env bash",
 				"set -euo pipefail",
 				"",
-				"# Register only this run's configured marketplaces (AGENTIC_MARKETPLACES),",
-				"# not every mount that happens to exist.",
-				`marketplaces_dir="$HOME/marketplaces"`,
+				"# Register AGENTIC_MARKETPLACES into the Claude container",
+				`marketplaces_dir="$HOME/` + marketplace.MarketplacesDirName + `"`,
 				`if [[ -n "${AGENTIC_MARKETPLACES:-}" ]]; then`,
 				`  IFS=',' read -ra marketplace_names <<< "$AGENTIC_MARKETPLACES"`,
 				`  for name in "${marketplace_names[@]}"; do`,
