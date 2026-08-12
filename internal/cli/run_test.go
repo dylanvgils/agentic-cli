@@ -414,7 +414,7 @@ func TestSyncToolMarketplaces(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []marketplace.Entry{{Name: "acme", URL: "git@example.com:acme.git"}}, gotEntries)
-		wantDirName := marketplace.CloneDirName("acme", "git@example.com:acme.git")
+		wantDirName := marketplace.CloneDirName("git@example.com:acme.git")
 		assert.Equal(t, filepath.Join(home, "marketplaces", wantDirName), gotDir)
 		assert.Equal(t, []string{tools.Configs["claude"].Runtime.MarketplaceMount("acme", "git@example.com:acme.git")}, mounts)
 		assert.Equal(t, []string{"acme"}, names)
@@ -471,11 +471,12 @@ func TestSyncToolMarketplaces(t *testing.T) {
 		baseDir := filepath.Join(home, "marketplaces")
 		reg, err := marketplace.LoadRegistry(baseDir)
 		require.NoError(t, err)
-		key := marketplace.CloneDirName("acme", "git@example.com:acme.git")
+		key := marketplace.CloneDirName("git@example.com:acme.git")
 		cwd, err := os.Getwd()
 		require.NoError(t, err)
 		require.Contains(t, reg.Marketplaces, key)
-		assert.Equal(t, []string{cwd}, reg.Marketplaces[key].Projects)
+		require.Len(t, reg.Marketplaces[key], 1)
+		assert.Equal(t, []string{cwd}, reg.Marketplaces[key][0].Projects)
 	})
 
 	t.Run("registry load failure does not fail the run", func(t *testing.T) {

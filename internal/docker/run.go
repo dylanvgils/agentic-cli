@@ -49,10 +49,7 @@ var proxyEnvNames = map[string]bool{
 	"no_proxy":    true,
 }
 
-// reservedConfigNames are names agentic treats specially elsewhere, so --env
-// targeting them would be confusing: TOOL_HOME and CONTAINER_HOME are baked
-// in / mount placeholders, and AGENTIC_MARKETPLACES is injected by agentic
-// run itself to match the marketplace mounts actually attached.
+// reservedConfigNames are names agentic manages itself, so --env targeting them would be confusing.
 var reservedConfigNames = map[string]bool{
 	"TOOL_HOME":            true,
 	"CONTAINER_HOME":       true,

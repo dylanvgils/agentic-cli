@@ -33,13 +33,13 @@ func TestClaudeMounts_returnsExpected(t *testing.T) {
 func TestClaudeMarketplaceMount_returnsExpected(t *testing.T) {
 	// Arrange
 	url := "git@example.com:acme/marketplace.git"
-	dirName := marketplace.CloneDirName("acme", url)
+	dirName := marketplace.CloneDirName(url)
 
 	// Act
 	spec := claudeMarketplaceMount("acme", url)
 
 	// Assert
-	assert.Equal(t, "$TOOL_HOME/marketplaces/"+dirName+":$CONTAINER_HOME/.claude/plugins/marketplaces/acme:ro", spec)
+	assert.Equal(t, "$TOOL_HOME/marketplaces/"+dirName+":$CONTAINER_HOME/marketplaces/acme:ro", spec)
 }
 
 func TestSetupClaude(t *testing.T) {
@@ -111,7 +111,7 @@ func TestClaudeStage(t *testing.T) {
 
 	t.Run("registers only the marketplaces named in AGENTIC_MARKETPLACES before exec", func(t *testing.T) {
 		// Assert
-		assert.Contains(t, result, `$HOME/.claude/plugins/marketplaces`)
+		assert.Contains(t, result, `$HOME/marketplaces`)
 		assert.Contains(t, result, `AGENTIC_MARKETPLACES`)
 		assert.Contains(t, result, `claude plugin marketplace add "$dir" --scope user`)
 		assert.NotContains(t, result, `for dir in "$marketplaces_dir"/*/`)

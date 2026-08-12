@@ -218,9 +218,7 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 	return rs, nil
 }
 
-// syncToolMarketplaces syncs tool's configured marketplaces and returns the
-// read-only mount spec plus name of each. Named to avoid colliding with the
-// syncMarketplaces indirection var in root.go.
+// syncToolMarketplaces syncs tool's configured marketplaces and returns each mount spec plus name.
 func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc *config.AgenticRC) (mounts, names []string, err error) {
 	if toolConfig.Runtime.MarketplaceMount == nil {
 		return nil, nil, nil
@@ -242,7 +240,7 @@ func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc
 
 	baseDir := filepath.Join(toolHome, tools.MarketplacesDirName)
 	results, err := syncMarketplaces(mpEntries, func(e marketplace.Entry) string {
-		return filepath.Join(baseDir, marketplace.CloneDirName(e.Name, e.URL))
+		return filepath.Join(baseDir, marketplace.CloneDirName(e.URL))
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("sync marketplaces for %s: %w", tool, err)
@@ -263,8 +261,7 @@ func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc
 	return mounts, names, nil
 }
 
-// recordMarketplaceUsage records cwd against each result for `marketplaces
-// prune`. Best-effort: must not fail a run that already synced successfully.
+// recordMarketplaceUsage records cwd against each result for `marketplaces prune`. Best-effort.
 func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 	if len(results) == 0 {
 		return
@@ -283,7 +280,7 @@ func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 	}
 
 	for _, r := range results {
-		key := marketplace.CloneDirName(r.Entry.Name, r.Entry.URL)
+		key := marketplace.CloneDirName(r.Entry.URL)
 		reg.Record(key, marketplace.RegistryEntry{Name: r.Entry.Name, URL: r.Entry.URL, Stale: r.Stale}, cwd)
 	}
 

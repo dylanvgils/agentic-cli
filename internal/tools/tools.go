@@ -10,8 +10,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
-// MarketplacesDirName is the subdirectory under $TOOL_HOME where synced
-// marketplace clones live, shared across every tool that mounts them.
+// MarketplacesDirName is the subdirectory under $TOOL_HOME where synced marketplace clones live.
 const MarketplacesDirName = "marketplaces"
 
 // Configs maps tool names to their container configuration.
@@ -74,9 +73,7 @@ type RuntimeConfig struct {
 	// AllowedHosts is the tool's baseline egress allowlist, used when the
 	// egress proxy is enabled. User-configured hosts are merged on top.
 	AllowedHosts []string
-	// MarketplaceMount returns the read-only volume mount spec for a synced
-	// marketplace clone named `name`, cloned from `url`. Nil for tools without
-	// marketplace support.
+	// MarketplaceMount returns the mount spec for a synced marketplace clone; nil if unsupported.
 	MarketplaceMount func(name, url string) string
 }
 

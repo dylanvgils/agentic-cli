@@ -38,12 +38,11 @@ func claudeMounts() []string {
 	}
 }
 
-// claudeMarketplaceMount mounts a synced marketplace clone read-only at
-// Claude Code's marketplace-registry location.
+// claudeMarketplaceMount mounts a synced marketplace clone read-only outside Claude's own state tree.
 func claudeMarketplaceMount(name, url string) string {
 	return mount.VolumeMount(
-		"$TOOL_HOME/"+MarketplacesDirName+"/"+marketplace.CloneDirName(name, url),
-		"$CONTAINER_HOME/.claude/plugins/marketplaces/"+name,
+		"$TOOL_HOME/"+MarketplacesDirName+"/"+marketplace.CloneDirName(url),
+		"$CONTAINER_HOME/marketplaces/"+name,
 		mount.VolumeOptions{ReadOnly: true},
 	)
 }
@@ -58,9 +57,9 @@ func claudeStage(prevStage string) df.Stage {
 				"#!/usr/bin/env bash",
 				"set -euo pipefail",
 				"",
-				"# Register AGENTIC_MARKETPLACES only - don't glob marketplaces_dir, since",
-				"# ~/.claude persists and may hold Claude's own marketplace state (reserved names).",
-				`marketplaces_dir="$HOME/.claude/plugins/marketplaces"`,
+				"# Register only this run's configured marketplaces (AGENTIC_MARKETPLACES),",
+				"# not every mount that happens to exist.",
+				`marketplaces_dir="$HOME/marketplaces"`,
 				`if [[ -n "${AGENTIC_MARKETPLACES:-}" ]]; then`,
 				`  IFS=',' read -ra marketplace_names <<< "$AGENTIC_MARKETPLACES"`,
 				`  for name in "${marketplace_names[@]}"; do`,

@@ -34,13 +34,11 @@ func copilotMounts() []string {
 	}
 }
 
-// copilotMarketplaceMount mounts a synced marketplace clone read-only;
-// entrypoint.sh registers it explicitly, so the path just needs to match what
-// it passes to `copilot plugin marketplace add` (idempotency UNVERIFIED).
+// copilotMarketplaceMount mounts a synced marketplace clone read-only; entrypoint.sh registers it.
 func copilotMarketplaceMount(name, url string) string {
 	return mount.VolumeMount(
-		"$TOOL_HOME/"+MarketplacesDirName+"/"+marketplace.CloneDirName(name, url),
-		"$CONTAINER_HOME/.copilot/marketplaces/"+name,
+		"$TOOL_HOME/"+MarketplacesDirName+"/"+marketplace.CloneDirName(url),
+		"$CONTAINER_HOME/marketplaces/"+name,
 		mount.VolumeOptions{ReadOnly: true},
 	)
 }
@@ -66,7 +64,7 @@ func copilotStage(prevStage string) df.Stage {
 				"fi",
 				"",
 				"# Register AGENTIC_MARKETPLACES - mounting alone isn't enough.",
-				`marketplaces_dir="$HOME/.copilot/marketplaces"`,
+				`marketplaces_dir="$HOME/marketplaces"`,
 				`if [[ -n "${AGENTIC_MARKETPLACES:-}" ]]; then`,
 				`  IFS=',' read -ra marketplace_names <<< "$AGENTIC_MARKETPLACES"`,
 				`  for name in "${marketplace_names[@]}"; do`,

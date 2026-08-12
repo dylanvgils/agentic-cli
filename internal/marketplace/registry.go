@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
 // registryFileName holds the usage registry inside a marketplace baseDir.
@@ -18,18 +19,16 @@ type RegistryEntry struct {
 	Stale    bool     `json:"stale"`    // true if the most recent sync fell back to an existing clone
 }
 
-// Registry maps CloneDirName(name, url) to which projects reference it, so
-// pruning isn't limited to the current directory's config.
+// Registry maps CloneDirName(url) to the marketplaces (by local name) sharing that clone.
 type Registry struct {
-	Marketplaces map[string]RegistryEntry `json:"marketplaces"`
+	Marketplaces map[string][]RegistryEntry `json:"marketplaces"`
 }
 
-// LoadRegistry reads the usage registry from baseDir. A missing file returns
-// an empty Registry, not an error.
+// LoadRegistry reads the usage registry from baseDir. A missing or undecodable file returns an empty Registry, not an error.
 func LoadRegistry(baseDir string) (*Registry, error) {
 	data, err := os.ReadFile(filepath.Join(baseDir, registryFileName))
 	if os.IsNotExist(err) {
-		return &Registry{Marketplaces: map[string]RegistryEntry{}}, nil
+		return &Registry{Marketplaces: map[string][]RegistryEntry{}}, nil
 	}
 	if err != nil {
 		return nil, err
@@ -37,10 +36,10 @@ func LoadRegistry(baseDir string) (*Registry, error) {
 
 	var reg Registry
 	if err := json.Unmarshal(data, &reg); err != nil {
-		return nil, err
+		return &Registry{Marketplaces: map[string][]RegistryEntry{}}, nil
 	}
 	if reg.Marketplaces == nil {
-		reg.Marketplaces = map[string]RegistryEntry{}
+		reg.Marketplaces = map[string][]RegistryEntry{}
 	}
 
 	return &reg, nil
@@ -60,18 +59,28 @@ func SaveRegistry(baseDir string, reg *Registry) error {
 	return os.WriteFile(filepath.Join(baseDir, registryFileName), data, 0o644)
 }
 
-// Record adds projectDir to key's entry (deduped, sorted) and refreshes Name,
-// URL, and Stale from entry.
+// Record adds projectDir to key's entry matching entry.Name, creating it if needed (deduped, sorted).
 func (reg *Registry) Record(key string, entry RegistryEntry, projectDir string) {
-	existing := reg.Marketplaces[key]
-	existing.Name = entry.Name
-	existing.URL = entry.URL
-	existing.Stale = entry.Stale
+	entries := reg.Marketplaces[key]
 
-	if !slices.Contains(existing.Projects, projectDir) {
-		existing.Projects = append(existing.Projects, projectDir)
-		slices.Sort(existing.Projects)
+	for i := range entries {
+		if entries[i].Name != entry.Name {
+			continue
+		}
+
+		entries[i].URL = entry.URL
+		entries[i].Stale = entry.Stale
+		if !slices.Contains(entries[i].Projects, projectDir) {
+			entries[i].Projects = append(entries[i].Projects, projectDir)
+			slices.Sort(entries[i].Projects)
+		}
+
+		reg.Marketplaces[key] = entries
+		return
 	}
 
-	reg.Marketplaces[key] = existing
+	entry.Projects = []string{projectDir}
+	entries = append(entries, entry)
+	slices.SortFunc(entries, func(a, b RegistryEntry) int { return strings.Compare(a.Name, b.Name) })
+	reg.Marketplaces[key] = entries
 }

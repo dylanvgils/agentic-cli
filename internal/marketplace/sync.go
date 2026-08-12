@@ -1,26 +1,25 @@
-// Package marketplace syncs git-based plugin marketplace repos onto the host,
-// so tool containers never run git or reach a git host themselves.
+// Package marketplace syncs git-based plugin marketplace repos onto the host.
 package marketplace
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"os"
-	"os/exec"
-	"time"
+	"regexp"
+	"strings"
+
+	"github.com/dylanvgils/agentic-cli/internal/git"
 )
 
-// gitTimeout bounds each git invocation so a hanging remote can't block a run
-// forever. A var, not a const, so tests can shrink it.
-var gitTimeout = 45 * time.Second
+// safeSlugPattern matches characters unsafe for a filesystem path segment.
+var safeSlugPattern = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
 
-// runGit is a test-stubbable indirection over `git <args...>`, inheriting the
-// parent's environment (SSH_AUTH_SOCK, credential helpers, netrc) unmodified.
-var runGit = func(ctx context.Context, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, "git", args...).CombinedOutput()
-}
+// gitClone and gitFetchReset are test-stubbable indirections over the git package.
+var (
+	gitClone      = git.Clone
+	gitFetchReset = git.FetchReset
+)
 
 // Entry is one configured marketplace.
 type Entry struct {
@@ -36,24 +35,25 @@ type Result struct {
 	Warning error  // non-nil iff Stale
 }
 
-// CheckGitAvailable returns an error if git is not on the host PATH.
-func CheckGitAvailable() error {
-	if _, err := exec.LookPath("git"); err != nil {
-		return fmt.Errorf("git not found on PATH: %w", err)
-	}
-	return nil
-}
-
-// CloneDirName hashes url into the dir name so same-name, different-URL
-// marketplaces never collide on disk.
-func CloneDirName(name, url string) string {
+// CloneDirName hashes url into a filesystem-safe dir name shared by any project referencing that url.
+func CloneDirName(url string) string {
 	sum := sha256.Sum256([]byte(url))
-	return name + "-" + hex.EncodeToString(sum[:4])
+	return urlSlug(url) + "-" + hex.EncodeToString(sum[:4])
 }
 
-// Sync clones each entry (if missing) or fetches+resets it (if present), in
-// order. A fetch/reset failure is tolerated (Stale=true, Warning set); a
-// clone failure aborts Sync immediately.
+// urlSlug extracts a filesystem-safe label from url's last path segment.
+func urlSlug(url string) string {
+	trimmed := strings.TrimSuffix(strings.TrimRight(url, "/"), ".git")
+	if i := strings.LastIndexAny(trimmed, "/:"); i != -1 {
+		trimmed = trimmed[i+1:]
+	}
+	if trimmed == "" {
+		return "marketplace"
+	}
+	return safeSlugPattern.ReplaceAllString(trimmed, "-")
+}
+
+// Sync clones each entry (if missing) or fetches+resets it (if present), in order.
 func Sync(entries []Entry, dirFor func(e Entry) string) ([]Result, error) {
 	if err := checkDuplicateNames(entries); err != nil {
 		return nil, err
@@ -115,35 +115,4 @@ func dirExists(dir string) (bool, error) {
 		return false, fmt.Errorf("%s exists and is not a directory", dir)
 	}
 	return true, nil
-}
-
-func gitClone(url, dir string) error {
-	out, err := gitRun("clone", "--", url, dir)
-	if err != nil {
-		return fmt.Errorf("git clone: %w\n%s", err, out)
-	}
-	return nil
-}
-
-// gitFetchReset resets dir to match its upstream. `reset --hard` rather than
-// `pull` avoids merge conflicts on a force-pushed repo - dir is a pure mirror
-// with nothing to preserve.
-func gitFetchReset(dir string) error {
-	if out, err := gitRunIn(dir, "fetch"); err != nil {
-		return fmt.Errorf("git fetch: %w\n%s", err, out)
-	}
-	if out, err := gitRunIn(dir, "reset", "--hard", "@{upstream}"); err != nil {
-		return fmt.Errorf("git reset: %w\n%s", err, out)
-	}
-	return nil
-}
-
-func gitRunIn(dir string, args ...string) ([]byte, error) {
-	return gitRun(append([]string{"-C", dir}, args...)...)
-}
-
-func gitRun(args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
-	defer cancel()
-	return runGit(ctx, args...)
 }

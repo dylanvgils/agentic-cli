@@ -14,8 +14,7 @@ import (
 
 const rcFilename = ".agenticrc.toml"
 
-// validMarketplaceName matches safe path-segment characters, since Name
-// becomes a literal host/container directory segment.
+// validMarketplaceName matches safe path-segment characters for a directory name.
 var validMarketplaceName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // ModeEnforce and ModeMonitor are the only valid RCProxy.Mode values, besides
@@ -60,13 +59,11 @@ type RCProxy struct {
 	Mode string `toml:"mode"`
 }
 
-// RCMarketplace declares one git-based plugin marketplace to sync onto the host
-// and mount read-only into every applicable tool's container before each run.
+// RCMarketplace declares one git-based plugin marketplace to sync and mount into tool containers.
 type RCMarketplace struct {
 	Name string `toml:"name"`
 	URL  string `toml:"url"`
-	// Tools restricts which tools this marketplace is mounted into. Empty means
-	// every tool that supports marketplaces.
+	// Tools restricts which tools this marketplace is mounted into; empty means every tool.
 	Tools []string `toml:"tools"`
 }
 
@@ -103,8 +100,7 @@ func AptPackages(rc *AgenticRC) []string {
 	return append(rc.Build.AptPackages, envPkgs...)
 }
 
-// MarketplacesFor returns the marketplace entries applicable to tool: every
-// entry whose Tools is empty, plus every entry whose Tools contains tool.
+// MarketplacesFor returns the marketplace entries applicable to tool.
 func MarketplacesFor(rc *AgenticRC, tool string) []RCMarketplace {
 	var result []RCMarketplace
 	for _, m := range rc.Marketplaces {

@@ -34,13 +34,13 @@ func TestCopilotMounts(t *testing.T) {
 func TestCopilotMarketplaceMount_returnsExpected(t *testing.T) {
 	// Arrange
 	url := "git@example.com:acme/marketplace.git"
-	dirName := marketplace.CloneDirName("acme", url)
+	dirName := marketplace.CloneDirName(url)
 
 	// Act
 	spec := copilotMarketplaceMount("acme", url)
 
 	// Assert
-	assert.Equal(t, "$TOOL_HOME/marketplaces/"+dirName+":$CONTAINER_HOME/.copilot/marketplaces/acme:ro", spec)
+	assert.Equal(t, "$TOOL_HOME/marketplaces/"+dirName+":$CONTAINER_HOME/marketplaces/acme:ro", spec)
 }
 
 func TestCopilotStage(t *testing.T) {
@@ -69,7 +69,7 @@ func TestCopilotStage(t *testing.T) {
 
 	t.Run("registers only the marketplaces named in AGENTIC_MARKETPLACES before exec", func(t *testing.T) {
 		// Assert
-		assert.Contains(t, result, `$HOME/.copilot/marketplaces`)
+		assert.Contains(t, result, `$HOME/marketplaces`)
 		assert.Contains(t, result, `AGENTIC_MARKETPLACES`)
 		assert.Contains(t, result, `copilot plugin marketplace add "$dir"`)
 		assert.NotContains(t, result, `for dir in "$marketplaces_dir"/*/`)

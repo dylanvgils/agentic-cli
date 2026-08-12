@@ -9,6 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/git"
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
@@ -42,7 +43,7 @@ var (
 	setContext              = docker.SetContext
 	listContexts            = docker.ListContexts
 	syncMarketplaces        = marketplace.Sync
-	checkGitAvailable       = marketplace.CheckGitAvailable
+	checkGitAvailable       = git.CheckAvailable
 	loadMarketplaceRegistry = marketplace.LoadRegistry
 	saveMarketplaceRegistry = marketplace.SaveRegistry
 )

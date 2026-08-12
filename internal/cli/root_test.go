@@ -74,9 +74,7 @@ func TestCheckDocker(t *testing.T) {
 	})
 
 	t.Run("marketplaces list subcommand skips check", func(t *testing.T) {
-		// Arrange - `agentic marketplaces list` reaches persistentPreRunE with
-		// cmd.Name()=="list", not in noDockerCmds; the ancestor walk must find
-		// "marketplaces" instead. marketplaces does no Docker operations at all.
+		// Arrange - ancestor walk must find "marketplaces", not just cmd.Name()=="list"
 		stubCheckDockerDaemon(t, func() error {
 			return errors.New("should not be called")
 		})

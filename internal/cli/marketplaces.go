@@ -74,17 +74,19 @@ func runMarketplacesList(_ *cobra.Command, _ []string) error {
 	}
 
 	for _, dirName := range dirNames {
-		entry, tracked := reg.Marketplaces[dirName]
-		if !tracked {
+		entries := reg.Marketplaces[dirName]
+		if len(entries) == 0 {
 			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", dirName, "(untracked)", "(untracked)", "-"); err != nil {
 				return err
 			}
 			continue
 		}
 
-		row := fmt.Sprintf("%s\t%s\t%s\t%s\n", entry.Name, entry.URL, formatProjects(entry.Projects), yesNo(entry.Stale))
-		if _, err := fmt.Fprint(w, row); err != nil {
-			return err
+		for _, entry := range entries {
+			row := fmt.Sprintf("%s\t%s\t%s\t%s\n", entry.Name, entry.URL, formatProjects(entry.Projects), yesNo(entry.Stale))
+			if _, err := fmt.Fprint(w, row); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -104,34 +106,49 @@ func runMarketplacesPrune(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	updated := &marketplace.Registry{Marketplaces: map[string]marketplace.RegistryEntry{}}
+	updated := &marketplace.Registry{Marketplaces: map[string][]marketplace.RegistryEntry{}}
 	for _, dirName := range dirNames {
-		entry, tracked := reg.Marketplaces[dirName]
-		if !tracked {
+		entries := reg.Marketplaces[dirName]
+		if len(entries) == 0 {
 			output.Stepf("%s: no usage record, skipping (run `agentic run` from a project that uses it, or remove manually)", dirName)
 			continue
 		}
 
-		live := liveMarketplaceProjects(dirName, entry.Projects)
-		if len(live) == 0 {
+		var survivors, dead []marketplace.RegistryEntry
+		for _, entry := range entries {
+			live := liveMarketplaceProjects(dirName, entry.Name, entry.Projects)
+			if len(live) == 0 {
+				dead = append(dead, entry)
+				continue
+			}
+			entry.Projects = live
+			survivors = append(survivors, entry)
+		}
+
+		if len(survivors) == 0 {
 			if err := os.RemoveAll(filepath.Join(baseDir, dirName)); err != nil {
 				return err
 			}
-			output.Stepf("removed: %s (no project references it)", entry.Name)
+			for _, entry := range dead {
+				output.Stepf("removed: %s (no project references it)", entry.Name)
+			}
 			continue
 		}
 
-		entry.Projects = live
-		updated.Marketplaces[dirName] = entry
-		output.Stepf("kept: %s (used by %s)", entry.Name, strings.Join(live, ", "))
+		for _, entry := range dead {
+			output.Stepf("dropped: %s (no project references it; clone dir kept for other name(s))", entry.Name)
+		}
+		for _, entry := range survivors {
+			output.Stepf("kept: %s (used by %s)", entry.Name, strings.Join(entry.Projects, ", "))
+		}
+		updated.Marketplaces[dirName] = survivors
 	}
 
 	return saveMarketplaceRegistry(baseDir, updated)
 }
 
-// liveMarketplaceProjects re-checks each project's current config, dropping
-// any that no longer declare a marketplace matching dirName.
-func liveMarketplaceProjects(dirName string, projects []string) []string {
+// liveMarketplaceProjects re-checks each project's config, dropping any that no longer declare name/dirName.
+func liveMarketplaceProjects(dirName, name string, projects []string) []string {
 	var live []string
 	for _, dir := range projects {
 		rc, err := config.FindAndLoad(dir)
@@ -139,7 +156,7 @@ func liveMarketplaceProjects(dirName string, projects []string) []string {
 			continue
 		}
 		for _, m := range rc.Marketplaces {
-			if marketplace.CloneDirName(m.Name, m.URL) == dirName {
+			if m.Name == name && marketplace.CloneDirName(m.URL) == dirName {
 				live = append(live, dir)
 				break
 			}
