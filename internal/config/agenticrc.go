@@ -103,9 +103,9 @@ func AptPackages(rc *AgenticRC) []string {
 // MarketplacesFor returns the marketplace entries applicable to tool.
 func MarketplacesFor(rc *AgenticRC, tool string) []RCMarketplace {
 	var result []RCMarketplace
-	for _, m := range rc.Marketplaces {
-		if len(m.Tools) == 0 || slices.Contains(m.Tools, tool) {
-			result = append(result, m)
+	for _, marketplace := range rc.Marketplaces {
+		if len(marketplace.Tools) == 0 || slices.Contains(marketplace.Tools, tool) {
+			result = append(result, marketplace)
 		}
 	}
 	return result
