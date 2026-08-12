@@ -284,8 +284,8 @@ func loadRC(path string) (*AgenticRC, error) {
 		return nil, fmt.Errorf("%s: invalid [run.proxy] mode %q: must be %q or %q", path, mode, ModeEnforce, ModeMonitor)
 	}
 
-	for _, m := range rc.Marketplaces {
-		if err := validateMarketplace(m); err != nil {
+	for _, marketplace := range rc.Marketplaces {
+		if err := validateMarketplace(marketplace); err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
 		}
 	}
@@ -293,15 +293,15 @@ func loadRC(path string) (*AgenticRC, error) {
 	return rc, nil
 }
 
-func validateMarketplace(m RCMarketplace) error {
-	if m.Name == "" {
+func validateMarketplace(marketplace RCMarketplace) error {
+	if marketplace.Name == "" {
 		return fmt.Errorf("marketplace: name must not be empty")
 	}
-	if !validMarketplaceName.MatchString(m.Name) {
-		return fmt.Errorf("marketplace %q: name must match %s", m.Name, validMarketplaceName.String())
+	if !validMarketplaceName.MatchString(marketplace.Name) {
+		return fmt.Errorf("marketplace %q: name must match %s", marketplace.Name, validMarketplaceName.String())
 	}
-	if m.URL == "" {
-		return fmt.Errorf("marketplace %q: url must not be empty", m.Name)
+	if marketplace.URL == "" {
+		return fmt.Errorf("marketplace %q: url must not be empty", marketplace.Name)
 	}
 	return nil
 }

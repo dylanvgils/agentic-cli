@@ -446,18 +446,18 @@ Each tool stores its configuration under `$AGENTIC_HOME`:
 | `copilot`  | `$AGENTIC_HOME/copilot/`                                      |
 | `opencode` | `$AGENTIC_HOME/opencode/` (data, share, state, cache, config) |
 
-`$AGENTIC_HOME/marketplaces/<slug>-<hash>/` holds host-side clones of any `[[marketplaces]]` configured in `.agenticrc.toml` (see [docs/02-config.md](docs/02-config.md)) - shared across tools and mounted read-only into each applicable tool's container, never written to by the container itself. The directory name is a short hash of the marketplace's `url` (plus a readable slug taken from the URL), so it depends only on `url` - not on the `name` a project gives it - meaning two projects referencing the same URL under different names share one clone, and two different URLs never collide.
+`$AGENTIC_HOME/marketplaces/<slug>-<hash>/` holds host-side clones of any `[[marketplaces]]` configured in `.agenticrc.toml` - shared across tools and mounted read-only into each applicable tool's container. The clone is keyed by the marketplace's `url` alone, so two projects referencing the same URL always share one clone, even under different local names. See [docs/02-config.md](docs/02-config.md) for the full `[[marketplaces]]` reference.
 
 ### Managing marketplaces
 
-Marketplaces are downloaded implicitly the first time `agentic run` needs them - there's no separate install step. Use `agentic marketplaces` to see what's been downloaded and clean up clones that are no longer used:
+Marketplaces are downloaded implicitly the first time `agentic run` needs them - no separate install step. Use `agentic marketplaces` to see what's downloaded and clean up clones no longer used:
 
 ```bash
 agentic marketplaces list    # List synced clones and the name(s)/project(s) referencing each (alias: ls)
 agentic marketplaces prune   # Remove clones no project references anymore, under any name
 ```
 
-Because the clone store under `$AGENTIC_HOME/marketplaces/` is shared across every project on the machine, and two projects can reference the same clone under different local names, `prune` only removes a clone once none of the projects that have ever synced it, under any locally-given name (tracked in a small usage registry alongside the clones), still reference it - it never assumes the project you're pruning from is the only one that matters. If some names are still referenced and others aren't, only the dead names are dropped from the registry and the clone itself is kept. A clone with no usage record (e.g. placed there manually) is left alone and reported instead of deleted.
+`prune` only drops a clone once no known project references it under any name - see [docs/02-config.md](docs/02-config.md) for the exact rules.
 
 ## 🛠️ Development
 
