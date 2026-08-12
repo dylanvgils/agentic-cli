@@ -218,21 +218,22 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 	return rs, nil
 }
 
+// toolNeedsMarketplaceSync reports whether tool has marketplace mounting support
+// and at least one marketplace configured for it.
+func toolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, tool string) bool {
+	if toolConfig.Runtime.MarketplaceMount == nil {
+		return false
+	}
+	return len(config.MarketplacesFor(rc, tool)) > 0
+}
+
 // syncToolMarketplaces syncs tool's configured marketplaces and returns each mount spec plus name.
 func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc *config.AgenticRC) (mounts, names []string, err error) {
-	if toolConfig.Runtime.MarketplaceMount == nil {
+	if !toolNeedsMarketplaceSync(toolConfig, rc, tool) {
 		return nil, nil, nil
 	}
 
 	entries := config.MarketplacesFor(rc, tool)
-	if len(entries) == 0 {
-		return nil, nil, nil
-	}
-
-	if err := checkGitAvailable(); err != nil {
-		return nil, nil, err
-	}
-
 	mpEntries := make([]marketplace.Entry, len(entries))
 	for i, e := range entries {
 		mpEntries[i] = marketplace.Entry{Name: e.Name, URL: e.URL}
