@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"text/tabwriter"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
@@ -52,12 +50,12 @@ func init() {
 func runMarketplacesList(_ *cobra.Command, _ []string) error {
 	baseDir := filepath.Join(toolHome, marketplace.MarketplacesDirName)
 
-	reg, err := loadMarketplaceRegistry(baseDir)
+	registry, err := loadMarketplaceRegistry(baseDir)
 	if err != nil {
 		return err
 	}
 
-	dirNames, err := marketplaceCloneDirs(baseDir)
+	dirNames, err := marketplace.CloneDirs(baseDir)
 	if err != nil {
 		return err
 	}
@@ -67,15 +65,15 @@ func runMarketplacesList(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	if _, err := fmt.Fprintln(w, "NAME\tURL\tREFERENCED BY\tSTALE"); err != nil {
+	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	if _, err := fmt.Fprintln(writer, "NAME\tURL\tREFERENCED BY\tSTALE"); err != nil {
 		return err
 	}
 
 	for _, dirName := range dirNames {
-		entries := reg.Marketplaces[dirName]
+		entries := registry.Marketplaces[dirName]
 		if len(entries) == 0 {
-			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", dirName, "(untracked)", "(untracked)", "-"); err != nil {
+			if _, err := fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", dirName, "(untracked)", "(untracked)", "-"); err != nil {
 				return err
 			}
 			continue
@@ -83,13 +81,13 @@ func runMarketplacesList(_ *cobra.Command, _ []string) error {
 
 		for _, entry := range entries {
 			row := fmt.Sprintf("%s\t%s\t%s\t%s\n", entry.Name, entry.URL, formatProjects(entry.Projects), yesNo(entry.Stale))
-			if _, err := fmt.Fprint(w, row); err != nil {
+			if _, err := fmt.Fprint(writer, row); err != nil {
 				return err
 			}
 		}
 	}
 
-	return w.Flush()
+	return writer.Flush()
 }
 
 func runMarketplacesPrune(_ *cobra.Command, _ []string) error {
@@ -100,89 +98,25 @@ func runMarketplacesPrune(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	dirNames, err := marketplaceCloneDirs(baseDir)
+	updated, report, err := marketplace.Prune(baseDir, reg)
 	if err != nil {
 		return err
 	}
 
-	updated := &marketplace.Registry{Marketplaces: map[string][]marketplace.RegistryEntry{}}
-	for _, dirName := range dirNames {
-		entries := reg.Marketplaces[dirName]
-		if len(entries) == 0 {
-			output.Stepf("%s: no usage record, skipping (run `agentic run` from a project that uses it, or remove manually)", dirName)
-			continue
+	for _, a := range report {
+		switch a.Kind {
+		case marketplace.PruneNoRecord:
+			output.Stepf("%s: no usage record, skipping (run `agentic run` from a project that uses it, or remove manually)", a.DirName)
+		case marketplace.PruneRemoved:
+			output.Stepf("removed: %s (no project references it)", a.Name)
+		case marketplace.PruneDropped:
+			output.Stepf("dropped: %s (no project references it; clone dir kept for other name(s))", a.Name)
+		case marketplace.PruneKept:
+			output.Stepf("kept: %s (used by %s)", a.Name, strings.Join(a.Projects, ", "))
 		}
-
-		var survivors, dead []marketplace.RegistryEntry
-		for _, entry := range entries {
-			live := liveMarketplaceProjects(dirName, entry.Name, entry.Projects)
-			if len(live) == 0 {
-				dead = append(dead, entry)
-				continue
-			}
-			entry.Projects = live
-			survivors = append(survivors, entry)
-		}
-
-		if len(survivors) == 0 {
-			if err := os.RemoveAll(filepath.Join(baseDir, dirName)); err != nil {
-				return err
-			}
-			for _, entry := range dead {
-				output.Stepf("removed: %s (no project references it)", entry.Name)
-			}
-			continue
-		}
-
-		for _, entry := range dead {
-			output.Stepf("dropped: %s (no project references it; clone dir kept for other name(s))", entry.Name)
-		}
-		for _, entry := range survivors {
-			output.Stepf("kept: %s (used by %s)", entry.Name, strings.Join(entry.Projects, ", "))
-		}
-		updated.Marketplaces[dirName] = survivors
 	}
 
 	return saveMarketplaceRegistry(baseDir, updated)
-}
-
-// liveMarketplaceProjects re-checks each project's config, dropping any that no longer declare name/dirName.
-func liveMarketplaceProjects(dirName, name string, projects []string) []string {
-	var live []string
-	for _, dir := range projects {
-		rc, err := config.FindAndLoad(dir)
-		if err != nil {
-			continue
-		}
-		for _, m := range rc.Marketplaces {
-			if m.Name == name && marketplace.CloneDirName(m.URL) == dirName {
-				live = append(live, dir)
-				break
-			}
-		}
-	}
-	return live
-}
-
-// marketplaceCloneDirs lists baseDir's subdirectories, sorted. Missing baseDir is not an error.
-func marketplaceCloneDirs(baseDir string) ([]string, error) {
-	entries, err := os.ReadDir(baseDir)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	var names []string
-	for _, e := range entries {
-		if e.IsDir() {
-			names = append(names, e.Name())
-		}
-	}
-	sort.Strings(names)
-
-	return names, nil
 }
 
 func formatProjects(projects []string) string {
