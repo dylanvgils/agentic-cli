@@ -216,7 +216,6 @@ func Test_cleanGlobalResources(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "network removal failed")
 	})
-
 }
 
 func Test_runClean(t *testing.T) {
