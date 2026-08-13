@@ -59,6 +59,21 @@ func SaveRegistry(baseDir string, reg *Registry) error {
 	return os.WriteFile(filepath.Join(baseDir, registryFileName), data, 0o644)
 }
 
+// RecordUsage loads baseDir's registry, records projectDir against each result, and saves it back.
+func RecordUsage(baseDir string, results []Result, projectDir string) error {
+	reg, err := LoadRegistry(baseDir)
+	if err != nil {
+		return err
+	}
+
+	for _, r := range results {
+		key := CloneDirName(r.Entry.URL)
+		reg.Record(key, RegistryEntry{Name: r.Entry.Name, URL: r.Entry.URL, Stale: r.Stale}, projectDir)
+	}
+
+	return SaveRegistry(baseDir, reg)
+}
+
 // Record adds projectDir to key's entry matching entry.Name, creating it if needed (deduped, sorted).
 func (reg *Registry) Record(key string, entry RegistryEntry, projectDir string) {
 	entries := reg.Marketplaces[key]

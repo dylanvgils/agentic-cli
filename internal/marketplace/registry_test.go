@@ -63,6 +63,31 @@ func TestLoadRegistry(t *testing.T) {
 	})
 }
 
+func TestRecordUsage(t *testing.T) {
+	t.Run("records projectDir against each result and persists it", func(t *testing.T) {
+		// Arrange
+		baseDir := t.TempDir()
+		results := []Result{
+			{Entry: Entry{Name: "acme", URL: "git@example.com:acme.git"}},
+			{Entry: Entry{Name: "beta", URL: "git@example.com:beta.git"}, Stale: true},
+		}
+
+		// Act
+		err := RecordUsage(baseDir, results, "/home/user/proj")
+
+		// Assert
+		require.NoError(t, err)
+		reg, err := LoadRegistry(baseDir)
+		require.NoError(t, err)
+		acmeKey := CloneDirName("git@example.com:acme.git")
+		require.Contains(t, reg.Marketplaces, acmeKey)
+		assert.Equal(t, []string{"/home/user/proj"}, reg.Marketplaces[acmeKey][0].Projects)
+		betaKey := CloneDirName("git@example.com:beta.git")
+		require.Contains(t, reg.Marketplaces, betaKey)
+		assert.True(t, reg.Marketplaces[betaKey][0].Stale)
+	})
+}
+
 func TestRegistry_Record(t *testing.T) {
 	t.Run("adds a new entry", func(t *testing.T) {
 		// Arrange

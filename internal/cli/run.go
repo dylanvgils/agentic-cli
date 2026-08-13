@@ -274,19 +274,8 @@ func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 		return
 	}
 
-	reg, err := loadMarketplaceRegistry(baseDir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not load marketplace usage registry: %v\n", err)
-		return
-	}
-
-	for _, r := range results {
-		key := marketplace.CloneDirName(r.Entry.URL)
-		reg.Record(key, marketplace.RegistryEntry{Name: r.Entry.Name, URL: r.Entry.URL, Stale: r.Stale}, cwd)
-	}
-
-	if err := saveMarketplaceRegistry(baseDir, reg); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not save marketplace usage registry: %v\n", err)
+	if err := recordMarketplaceUsageFn(baseDir, results, cwd); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not record marketplace usage: %v\n", err)
 	}
 }
 

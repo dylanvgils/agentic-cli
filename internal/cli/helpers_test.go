@@ -279,18 +279,11 @@ func stubCheckGitAvailable(t *testing.T, err error) {
 	t.Cleanup(func() { checkGitAvailable = orig })
 }
 
-func stubLoadMarketplaceRegistry(t *testing.T, fn func(baseDir string) (*marketplace.Registry, error)) {
+func stubRecordMarketplaceUsage(t *testing.T, fn func(baseDir string, results []marketplace.Result, projectDir string) error) {
 	t.Helper()
-	orig := loadMarketplaceRegistry
-	loadMarketplaceRegistry = fn
-	t.Cleanup(func() { loadMarketplaceRegistry = orig })
-}
-
-func stubSaveMarketplaceRegistry(t *testing.T, fn func(baseDir string, reg *marketplace.Registry) error) {
-	t.Helper()
-	orig := saveMarketplaceRegistry
-	saveMarketplaceRegistry = fn
-	t.Cleanup(func() { saveMarketplaceRegistry = orig })
+	orig := recordMarketplaceUsageFn
+	recordMarketplaceUsageFn = fn
+	t.Cleanup(func() { recordMarketplaceUsageFn = orig })
 }
 
 func stubCurrentGOOS(t *testing.T, goos string) {
