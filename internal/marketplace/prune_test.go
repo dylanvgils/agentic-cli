@@ -81,7 +81,7 @@ func TestPrune(t *testing.T) {
 		require.NoError(t, err)
 		assert.DirExists(t, filepath.Join(baseDir, dirName))
 		require.Len(t, report, 1)
-		assert.Equal(t, PruneAction{Kind: PruneKept, DirName: dirName, Name: "acme", Projects: []string{proj}}, report[0])
+		assert.Equal(t, PruneResult{Kind: PruneKept, DirName: dirName, Name: "acme", Projects: []string{proj}}, report[0])
 		require.Len(t, updated.Marketplaces[dirName], 1)
 		assert.Equal(t, []string{proj}, updated.Marketplaces[dirName][0].Projects)
 	})
@@ -103,7 +103,7 @@ func TestPrune(t *testing.T) {
 		require.NoError(t, err)
 		assert.NoDirExists(t, filepath.Join(baseDir, dirName))
 		require.Len(t, report, 1)
-		assert.Equal(t, PruneAction{Kind: PruneRemoved, DirName: dirName, Name: "acme"}, report[0])
+		assert.Equal(t, PruneResult{Kind: PruneRemoved, DirName: dirName, Name: "acme"}, report[0])
 		assert.NotContains(t, updated.Marketplaces, dirName)
 	})
 
@@ -120,7 +120,7 @@ func TestPrune(t *testing.T) {
 		require.NoError(t, err)
 		assert.DirExists(t, filepath.Join(baseDir, "untracked-clone"))
 		require.Len(t, report, 1)
-		assert.Equal(t, PruneAction{Kind: PruneNoRecord, DirName: "untracked-clone"}, report[0])
+		assert.Equal(t, PruneResult{Kind: PruneNoRecord, DirName: "untracked-clone"}, report[0])
 		assert.NotContains(t, updated.Marketplaces, "untracked-clone")
 	})
 
@@ -167,8 +167,8 @@ func TestPrune(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.DirExists(t, filepath.Join(baseDir, dirName))
-		assert.Contains(t, report, PruneAction{Kind: PruneKept, DirName: dirName, Name: "foo", Projects: []string{projFoo}})
-		assert.Contains(t, report, PruneAction{Kind: PruneDropped, DirName: dirName, Name: "bar"})
+		assert.Contains(t, report, PruneResult{Kind: PruneKept, DirName: dirName, Name: "foo", Projects: []string{projFoo}})
+		assert.Contains(t, report, PruneResult{Kind: PruneDropped, DirName: dirName, Name: "bar"})
 		require.Len(t, updated.Marketplaces[dirName], 1)
 		assert.Equal(t, "foo", updated.Marketplaces[dirName][0].Name)
 	})
@@ -193,8 +193,8 @@ func TestPrune(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.NoDirExists(t, filepath.Join(baseDir, dirName))
-		assert.Contains(t, report, PruneAction{Kind: PruneRemoved, DirName: dirName, Name: "foo"})
-		assert.Contains(t, report, PruneAction{Kind: PruneRemoved, DirName: dirName, Name: "bar"})
+		assert.Contains(t, report, PruneResult{Kind: PruneRemoved, DirName: dirName, Name: "foo"})
+		assert.Contains(t, report, PruneResult{Kind: PruneRemoved, DirName: dirName, Name: "bar"})
 		assert.NotContains(t, updated.Marketplaces, dirName)
 	})
 }

@@ -17,8 +17,8 @@ const (
 	PruneKept
 )
 
-// PruneAction is one message-worthy outcome from Prune.
-type PruneAction struct {
+// PruneResult is one message-worthy outcome from Prune.
+type PruneResult struct {
 	Kind     PruneKind
 	DirName  string
 	Name     string   // empty for PruneNoRecord
@@ -45,19 +45,19 @@ func LiveProjects(dirName, name string, projects []string) []string {
 
 // Prune walks baseDir's clone dirs, drops reg entries no live project still references,
 // removes clone dirs left with no surviving entries, and reports what happened to each.
-func Prune(baseDir string, reg *Registry) (*Registry, []PruneAction, error) {
+func Prune(baseDir string, reg *Registry) (*Registry, []PruneResult, error) {
 	dirNames, err := CloneDirs(baseDir)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	updated := &Registry{Marketplaces: map[string][]RegistryEntry{}}
-	var report []PruneAction
+	var report []PruneResult
 
 	for _, dirName := range dirNames {
 		entries := reg.Marketplaces[dirName]
 		if len(entries) == 0 {
-			report = append(report, PruneAction{Kind: PruneNoRecord, DirName: dirName})
+			report = append(report, PruneResult{Kind: PruneNoRecord, DirName: dirName})
 			continue
 		}
 
@@ -77,16 +77,16 @@ func Prune(baseDir string, reg *Registry) (*Registry, []PruneAction, error) {
 				return nil, nil, err
 			}
 			for _, entry := range dead {
-				report = append(report, PruneAction{Kind: PruneRemoved, DirName: dirName, Name: entry.Name})
+				report = append(report, PruneResult{Kind: PruneRemoved, DirName: dirName, Name: entry.Name})
 			}
 			continue
 		}
 
 		for _, entry := range dead {
-			report = append(report, PruneAction{Kind: PruneDropped, DirName: dirName, Name: entry.Name})
+			report = append(report, PruneResult{Kind: PruneDropped, DirName: dirName, Name: entry.Name})
 		}
 		for _, entry := range survivors {
-			report = append(report, PruneAction{Kind: PruneKept, DirName: dirName, Name: entry.Name, Projects: entry.Projects})
+			report = append(report, PruneResult{Kind: PruneKept, DirName: dirName, Name: entry.Name, Projects: entry.Projects})
 		}
 		updated.Marketplaces[dirName] = survivors
 	}
