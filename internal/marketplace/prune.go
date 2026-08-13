@@ -3,7 +3,6 @@ package marketplace
 import (
 	"os"
 	"path/filepath"
-	"sort"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 )
@@ -24,27 +23,6 @@ type PruneAction struct {
 	DirName  string
 	Name     string   // empty for PruneNoRecord
 	Projects []string // populated for PruneKept
-}
-
-// CloneDirs lists baseDir's subdirectories, sorted. Missing baseDir is not an error.
-func CloneDirs(baseDir string) ([]string, error) {
-	entries, err := os.ReadDir(baseDir)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	var names []string
-	for _, e := range entries {
-		if e.IsDir() {
-			names = append(names, e.Name())
-		}
-	}
-	sort.Strings(names)
-
-	return names, nil
 }
 
 // LiveProjects re-checks each project's config, dropping any that no longer declare name/dirName.

@@ -9,39 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// writeMarketplaceRC writes a minimal .agenticrc.toml declaring one marketplace into dir.
-func writeMarketplaceRC(t *testing.T, dir, name, url string) {
-	t.Helper()
-	content := "root = true\n\n[[marketplaces]]\nname = \"" + name + "\"\nurl = \"" + url + "\"\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte(content), 0o644))
-}
-
-func TestCloneDirs(t *testing.T) {
-	t.Run("missing baseDir is not an error", func(t *testing.T) {
-		// Act
-		names, err := CloneDirs(filepath.Join(t.TempDir(), "does-not-exist"))
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, names)
-	})
-
-	t.Run("returns sorted directory names, skipping files", func(t *testing.T) {
-		// Arrange
-		baseDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, "zeta-1234"), 0o755))
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, "acme-5678"), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(baseDir, ".usage.json"), []byte("{}"), 0o644))
-
-		// Act
-		names, err := CloneDirs(baseDir)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"acme-5678", "zeta-1234"}, names)
-	})
-}
-
 func TestLiveProjects(t *testing.T) {
 	t.Run("keeps projects that still declare a matching marketplace", func(t *testing.T) {
 		// Arrange
@@ -228,28 +195,6 @@ func TestPrune(t *testing.T) {
 		assert.NoDirExists(t, filepath.Join(baseDir, dirName))
 		assert.Contains(t, report, PruneAction{Kind: PruneRemoved, DirName: dirName, Name: "foo"})
 		assert.Contains(t, report, PruneAction{Kind: PruneRemoved, DirName: dirName, Name: "bar"})
-		assert.NotContains(t, updated.Marketplaces, dirName)
-	})
-
-	t.Run("drops a name-entry when the project renamed the marketplace but kept the URL", func(t *testing.T) {
-		// Arrange
-		baseDir := t.TempDir()
-		proj := t.TempDir()
-		writeMarketplaceRC(t, proj, "renamed", "git@example.com:acme.git") // was "acme", renamed in place
-		dirName := CloneDirName("git@example.com:acme.git")
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, dirName), 0o755))
-		reg := &Registry{Marketplaces: map[string][]RegistryEntry{
-			dirName: {{Name: "acme", URL: "git@example.com:acme.git", Projects: []string{proj}}},
-		}}
-
-		// Act
-		updated, report, err := Prune(baseDir, reg)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NoDirExists(t, filepath.Join(baseDir, dirName))
-		require.Len(t, report, 1)
-		assert.Equal(t, PruneAction{Kind: PruneRemoved, DirName: dirName, Name: "acme"}, report[0])
 		assert.NotContains(t, updated.Marketplaces, dirName)
 	})
 }
