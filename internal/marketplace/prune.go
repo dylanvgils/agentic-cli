@@ -61,35 +61,62 @@ func Prune(baseDir string, reg *Registry) (*Registry, []PruneResult, error) {
 			continue
 		}
 
-		var survivors, dead []RegistryEntry
-		for _, entry := range entries {
-			live := LiveProjects(dirName, entry.Name, entry.Projects)
-			if len(live) == 0 {
-				dead = append(dead, entry)
-				continue
-			}
-			entry.Projects = live
-			survivors = append(survivors, entry)
+		survivors, results, err := pruneDir(baseDir, dirName, entries)
+		if err != nil {
+			return nil, nil, err
 		}
 
-		if len(survivors) == 0 {
-			if err := os.RemoveAll(filepath.Join(baseDir, dirName)); err != nil {
-				return nil, nil, err
-			}
-			for _, entry := range dead {
-				report = append(report, PruneResult{Kind: PruneRemoved, DirName: dirName, Name: entry.Name})
-			}
-			continue
+		report = append(report, results...)
+		if len(survivors) > 0 {
+			updated.Marketplaces[dirName] = survivors
 		}
-
-		for _, entry := range dead {
-			report = append(report, PruneResult{Kind: PruneDropped, DirName: dirName, Name: entry.Name})
-		}
-		for _, entry := range survivors {
-			report = append(report, PruneResult{Kind: PruneKept, DirName: dirName, Name: entry.Name, Projects: entry.Projects})
-		}
-		updated.Marketplaces[dirName] = survivors
 	}
 
 	return updated, report, nil
+}
+
+// pruneDir classifies dirName's entries into live survivors and dead ones, removes the
+// clone dir once nothing survives, and reports the outcome reached for each entry.
+func pruneDir(baseDir, dirName string, entries []RegistryEntry) ([]RegistryEntry, []PruneResult, error) {
+	survivors, dead := splitLiveEntries(dirName, entries)
+
+	if len(survivors) == 0 {
+		if err := os.RemoveAll(filepath.Join(baseDir, dirName)); err != nil {
+			return nil, nil, err
+		}
+		return nil, pruneResults(dirName, PruneRemoved, dead), nil
+	}
+
+	report := pruneResults(dirName, PruneDropped, dead)
+	for _, entry := range survivors {
+		report = append(report, PruneResult{Kind: PruneKept, DirName: dirName, Name: entry.Name, Projects: entry.Projects})
+	}
+
+	return survivors, report, nil
+}
+
+// splitLiveEntries partitions entries by whether any project still references dirName/entry.Name,
+// trimming survivors' Projects down to the live ones.
+func splitLiveEntries(dirName string, entries []RegistryEntry) (survivors, dead []RegistryEntry) {
+	for _, entry := range entries {
+		live := LiveProjects(dirName, entry.Name, entry.Projects)
+		if len(live) == 0 {
+			dead = append(dead, entry)
+			continue
+		}
+		entry.Projects = live
+		survivors = append(survivors, entry)
+	}
+
+	return survivors, dead
+}
+
+// pruneResults builds one report entry of kind per entry, name-only (no Projects).
+func pruneResults(dirName string, kind PruneKind, entries []RegistryEntry) []PruneResult {
+	results := make([]PruneResult, len(entries))
+	for i, entry := range entries {
+		results[i] = PruneResult{Kind: kind, DirName: dirName, Name: entry.Name}
+	}
+
+	return results
 }
