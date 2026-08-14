@@ -77,8 +77,9 @@ func TestCopilotStage(t *testing.T) {
 
 	t.Run("deregisters marketplaces no longer mounted before exec", func(t *testing.T) {
 		// Assert
-		assert.Contains(t, result, `copilot plugin marketplace list --json`)
-		assert.Contains(t, result, `copilot plugin marketplace remove "$name"`)
+		assert.Contains(t, result, `copilot plugin marketplace list 2>/dev/null | awk`)
+		assert.Contains(t, result, `index($0,"(Local: ")`)
+		assert.Contains(t, result, `copilot plugin marketplace remove --force "$name"`)
 	})
 
 	t.Run("contains version script", func(t *testing.T) {
