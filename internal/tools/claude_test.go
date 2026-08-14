@@ -117,6 +117,12 @@ func TestClaudeStage(t *testing.T) {
 		assert.NotContains(t, result, `for dir in "$marketplaces_dir"/*/`)
 	})
 
+	t.Run("deregisters marketplaces no longer mounted before exec", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, `claude plugin marketplace list --json`)
+		assert.Contains(t, result, `claude plugin marketplace remove "$name" --scope user`)
+	})
+
 	t.Run("contains tool home", func(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, "TOOL_HOME=/home/claude")

@@ -75,6 +75,12 @@ func TestCopilotStage(t *testing.T) {
 		assert.NotContains(t, result, `for dir in "$marketplaces_dir"/*/`)
 	})
 
+	t.Run("deregisters marketplaces no longer mounted before exec", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, `copilot plugin marketplace list --json`)
+		assert.Contains(t, result, `copilot plugin marketplace remove "$name"`)
+	})
+
 	t.Run("contains version script", func(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, "agentic-version-copilot")
