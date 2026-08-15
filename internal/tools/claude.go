@@ -54,28 +54,32 @@ func claudeStage(prevStage string) df.Stage {
 		Add(createContainerUser("claude")...).
 		Add(df.Heredoc{
 			Dest: "/usr/local/bin/entrypoint.sh",
-			Lines: []string{
-				"#!/usr/bin/env bash",
-				"set -euo pipefail",
-				"",
-				"# Register AGENTIC_MARKETPLACES into the Claude container",
-				`marketplaces_dir="$HOME/` + marketplace.MarketplacesDirName + `"`,
-				`if [[ -n "${AGENTIC_MARKETPLACES:-}" ]]; then`,
-				`  IFS=',' read -ra marketplace_names <<< "$AGENTIC_MARKETPLACES"`,
-				`  for name in "${marketplace_names[@]}"; do`,
-				`    dir="$marketplaces_dir/$name"`,
-				`    [[ -d "$dir" ]] || continue`,
-				`    claude plugin marketplace add "$dir" --scope user || echo "warning: failed to register marketplace $name" >&2`,
-				"  done",
-				"fi",
-				"",
-				"# Deregister marketplaces this container no longer mounts, e.g. removed from .agenticrc.toml",
-				`while IFS=$'\t' read -r name loc; do`,
-				`  [[ -n "$name" && "$(dirname -- "$loc")" == "$marketplaces_dir" && ! -d "$loc" ]] || continue`,
-				`  claude plugin marketplace remove "$name" --scope user || echo "warning: failed to deregister marketplace $name" >&2`,
-				`done < <(claude plugin marketplace list --json 2>/dev/null | jq -r '.[] | select(.source=="directory") | [.name, .installLocation] | @tsv' 2>/dev/null)`,
-				"",
-				`exec claude "$@"`,
+			Blocks: []df.Block{
+				{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
+				{
+					Comment: "Register AGENTIC_MARKETPLACES into the Claude container",
+					Lines: []string{
+						`marketplaces_dir="$HOME/` + marketplace.MarketplacesDirName + `"`,
+						`if [[ -n "${AGENTIC_MARKETPLACES:-}" ]]; then`,
+						`  IFS=',' read -ra marketplace_names <<< "$AGENTIC_MARKETPLACES"`,
+						`  for name in "${marketplace_names[@]}"; do`,
+						`    dir="$marketplaces_dir/$name"`,
+						`    [[ -d "$dir" ]] || continue`,
+						`    claude plugin marketplace add "$dir" --scope user || echo "warning: failed to register marketplace $name" >&2`,
+						"  done",
+						"fi",
+					},
+				},
+				{
+					Comment: "Deregister marketplaces this container no longer mounts, e.g. removed from .agenticrc.toml",
+					Lines: []string{
+						`while IFS=$'\t' read -r name loc; do`,
+						`  [[ -n "$name" && "$(dirname -- "$loc")" == "$marketplaces_dir" && ! -d "$loc" ]] || continue`,
+						`  claude plugin marketplace remove "$name" --scope user || echo "warning: failed to deregister marketplace $name" >&2`,
+						`done < <(claude plugin marketplace list --json 2>/dev/null | jq -r '.[] | select(.source=="directory") | [.name, .installLocation] | @tsv' 2>/dev/null)`,
+					},
+				},
+				{Lines: []string{`exec claude "$@"`}},
 			},
 		}).
 		Add(df.User{Name: "claude"}).
