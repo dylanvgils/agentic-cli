@@ -10,6 +10,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/require"
 )
@@ -262,6 +263,27 @@ func stubEnsureNetwork(t *testing.T, fn func() error) {
 	orig := ensureNetwork
 	ensureNetwork = fn
 	t.Cleanup(func() { ensureNetwork = orig })
+}
+
+func stubSyncMarketplaces(t *testing.T, fn func([]marketplace.Entry, func(marketplace.Entry) string) ([]marketplace.Result, error)) {
+	t.Helper()
+	orig := syncMarketplaces
+	syncMarketplaces = fn
+	t.Cleanup(func() { syncMarketplaces = orig })
+}
+
+func stubCheckGitAvailable(t *testing.T, err error) {
+	t.Helper()
+	orig := checkGitAvailable
+	checkGitAvailable = func() error { return err }
+	t.Cleanup(func() { checkGitAvailable = orig })
+}
+
+func stubRecordMarketplaceUsage(t *testing.T, fn func(baseDir string, results []marketplace.Result, projectDir string) error) {
+	t.Helper()
+	orig := recordMarketplaceUsageFn
+	recordMarketplaceUsageFn = fn
+	t.Cleanup(func() { recordMarketplaceUsageFn = orig })
 }
 
 func stubCurrentGOOS(t *testing.T, goos string) {

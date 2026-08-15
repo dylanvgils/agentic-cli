@@ -3,10 +3,12 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -159,13 +161,25 @@ func parseArgs(args []string, namespace string) (parsedArgs, error) {
 
 func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.AgenticRC, registry string, proxyEnabled, proxyMonitor bool) (docker.RunSpec, error) {
 	containerHome := docker.ResolveContainerHome(args.imageName)
+
+	marketplaceMounts, marketplaceNames, err := syncToolMarketplaces(toolHome, args.toolName, toolConfig, rc)
+	if err != nil {
+		return docker.RunSpec{}, err
+	}
+
 	volumes := collectVolumes(toolConfig.Runtime.Mounts(), extraVolumes, rc)
+	volumes = append(volumes, marketplaceMounts...)
 	secrets := collectSecrets(flagSecrets, rc)
 	env := collectEnv(flagEnv, rc)
 	limits := resolveResourceLimits(pidsLimit, cpus, memory, rc)
 
 	if err := validateEnv(env, proxyEnabled); err != nil {
 		return docker.RunSpec{}, err
+	}
+
+	// Tells entrypoint.sh exactly which names to register instead of globbing.
+	if len(marketplaceNames) > 0 {
+		env = append(env, "AGENTIC_MARKETPLACES="+strings.Join(marketplaceNames, ","))
 	}
 
 	if err := ensureNamedVolumes(volumes, toolHome, containerHome, tools.BusyboxImageFor(registry)); err != nil {
@@ -202,6 +216,67 @@ func buildRunSpec(args parsedArgs, toolConfig tools.ToolConfig, rc *config.Agent
 		Build()
 
 	return rs, nil
+}
+
+// toolNeedsMarketplaceSync reports whether tool has marketplace mounting support
+// and at least one marketplace configured for it.
+func toolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, tool string) bool {
+	if toolConfig.Runtime.MarketplaceMount == nil {
+		return false
+	}
+	return len(config.MarketplacesFor(rc, tool)) > 0
+}
+
+// syncToolMarketplaces syncs tool's configured marketplaces and returns each mount spec plus name.
+func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc *config.AgenticRC) (mounts, names []string, err error) {
+	if !toolNeedsMarketplaceSync(toolConfig, rc, tool) {
+		return nil, nil, nil
+	}
+
+	entries := config.MarketplacesFor(rc, tool)
+	mpEntries := make([]marketplace.Entry, len(entries))
+	for i, e := range entries {
+		mpEntries[i] = marketplace.Entry{Name: e.Name, URL: e.URL}
+	}
+
+	baseDir := filepath.Join(toolHome, marketplace.MarketplacesDirName)
+	results, err := syncMarketplaces(mpEntries, func(e marketplace.Entry) string {
+		return filepath.Join(baseDir, marketplace.CloneDirName(e.URL))
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("sync marketplaces for %s: %w", tool, err)
+	}
+
+	mounts = make([]string, len(results))
+	names = make([]string, len(results))
+	for i, r := range results {
+		if r.Stale {
+			fmt.Fprintf(os.Stderr, "warning: marketplace %q: %v; using existing clone\n", r.Entry.Name, r.Warning)
+		}
+		mounts[i] = toolConfig.Runtime.MarketplaceMount(r.Entry.Name, r.Entry.URL)
+		names[i] = r.Entry.Name
+	}
+
+	recordMarketplaceUsage(baseDir, results)
+
+	return mounts, names, nil
+}
+
+// recordMarketplaceUsage records cwd against each result for `marketplaces prune`. Best-effort.
+func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
+	if len(results) == 0 {
+		return
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not record marketplace usage: %v\n", err)
+		return
+	}
+
+	if err := recordMarketplaceUsageFn(baseDir, results, cwd); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not record marketplace usage: %v\n", err)
+	}
 }
 
 func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) []string {

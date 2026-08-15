@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,6 +31,18 @@ func TestCopilotMounts(t *testing.T) {
 	}, mounts)
 }
 
+func TestCopilotMarketplaceMount_returnsExpected(t *testing.T) {
+	// Arrange
+	url := "git@example.com:acme/marketplace.git"
+	dirName := marketplace.CloneDirName(url)
+
+	// Act
+	spec := copilotMarketplaceMount("acme", url)
+
+	// Assert
+	assert.Equal(t, "$TOOL_HOME/marketplaces/"+dirName+":$CONTAINER_HOME/marketplaces/acme:ro", spec)
+}
+
 func TestCopilotStage(t *testing.T) {
 	result := renderStage(copilotStage("base"))
 
@@ -52,6 +65,21 @@ func TestCopilotStage(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, "copilot_token")
 		assert.Contains(t, result, "GITHUB_TOKEN")
+	})
+
+	t.Run("registers only the marketplaces named in AGENTIC_MARKETPLACES before exec", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, `$HOME/marketplaces`)
+		assert.Contains(t, result, `AGENTIC_MARKETPLACES`)
+		assert.Contains(t, result, `copilot plugin marketplace add "$dir"`)
+		assert.NotContains(t, result, `for dir in "$marketplaces_dir"/*/`)
+	})
+
+	t.Run("deregisters marketplaces no longer mounted before exec", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, `copilot plugin marketplace list 2>/dev/null | awk`)
+		assert.Contains(t, result, `index($0,"(Local: ")`)
+		assert.Contains(t, result, `copilot plugin marketplace remove --force "$name"`)
 	})
 
 	t.Run("contains version script", func(t *testing.T) {

@@ -9,42 +9,50 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/git"
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
+	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
 
 var (
-	checkDockerDaemon     = docker.CheckDaemon
-	buildTool             = docker.BuildTool
-	buildProxyImage       = docker.BuildProxyImage
-	updateTool            = docker.UpdateTool
-	runContainer          = docker.RunContainer
-	ensureNamedVolumes    = docker.EnsureNamedVolumes
-	inspectImage          = docker.InspectImage
-	builtTools            = docker.BuiltTools
-	listAllImages         = docker.ListAllImages
-	cleanImage            = docker.CleanImage
-	cleanBaseImages       = docker.CleanBaseImages
-	pruneImages           = docker.PruneImages
-	pruneBuildCache       = docker.PruneBuildCache
-	ensureNetwork         = docker.EnsureNetwork
-	removeNetwork         = docker.RemoveNetwork
-	sweepProxyResources   = docker.SweepProxyResources
-	pruneProxyLogs        = housekeeping.PruneProxyLogs
-	createVolume          = docker.CreateVolume
-	listVolumes           = docker.ListVolumes
-	listVolumeNames       = docker.ListVolumeNames
-	removeVolume          = docker.RemoveVolume
-	listRunningContainers = docker.ListRunningContainers
-	isTerminal            = platform.IsTerminal
-	setContext            = docker.SetContext
-	listContexts          = docker.ListContexts
+	checkDockerDaemon        = docker.CheckDaemon
+	buildTool                = docker.BuildTool
+	buildProxyImage          = docker.BuildProxyImage
+	updateTool               = docker.UpdateTool
+	runContainer             = docker.RunContainer
+	ensureNamedVolumes       = docker.EnsureNamedVolumes
+	inspectImage             = docker.InspectImage
+	builtTools               = docker.BuiltTools
+	listAllImages            = docker.ListAllImages
+	cleanImage               = docker.CleanImage
+	cleanBaseImages          = docker.CleanBaseImages
+	pruneImages              = docker.PruneImages
+	pruneBuildCache          = docker.PruneBuildCache
+	ensureNetwork            = docker.EnsureNetwork
+	removeNetwork            = docker.RemoveNetwork
+	sweepProxyResources      = docker.SweepProxyResources
+	pruneProxyLogs           = housekeeping.PruneProxyLogs
+	createVolume             = docker.CreateVolume
+	listVolumes              = docker.ListVolumes
+	listVolumeNames          = docker.ListVolumeNames
+	removeVolume             = docker.RemoveVolume
+	listRunningContainers    = docker.ListRunningContainers
+	isTerminal               = platform.IsTerminal
+	setContext               = docker.SetContext
+	listContexts             = docker.ListContexts
+	syncMarketplaces         = marketplace.Sync
+	checkGitAvailable        = git.CheckAvailable
+	loadMarketplaceRegistry  = marketplace.LoadRegistry
+	saveMarketplaceRegistry  = marketplace.SaveRegistry
+	recordMarketplaceUsageFn = marketplace.RecordUsage
 )
 
 var (
 	// noDockerCmds lists subcommands that do not require a running Docker daemon.
-	noDockerCmds = []string{"completion", "aliases", "version", "upgrade", "status"}
+	noDockerCmds = []string{"completion", "aliases", "version", "upgrade", "status", "marketplaces"}
 	// noUpdateCmds lists subcommands that skip the automatic update check.
 	noUpdateCmds = []string{"completion", "aliases", "upgrade"}
 )
@@ -85,6 +93,10 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if err := checkGit(cmd, args); err != nil {
+		return err
+	}
+
 	if cmd.Parent() != nil && !inCommandChain(cmd, noUpdateCmds) {
 		maybeNotifyUpdate(toolHome)
 	}
@@ -120,6 +132,35 @@ func checkDocker(cmd *cobra.Command, _ []string) error {
 	}
 
 	return checkDockerDaemon()
+}
+
+// checkGit verifies git is on the host PATH before `run` starts a tool whose
+// runtime needs it to sync configured marketplaces.
+func checkGit(cmd *cobra.Command, args []string) error {
+	if cmd.Name() != "run" || len(args) == 0 {
+		return nil
+	}
+
+	toolConfig, ok := tools.Configs[args[0]]
+	if !ok {
+		return nil
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil
+	}
+
+	rc, err := config.FindAndLoad(cwd)
+	if err != nil {
+		return nil
+	}
+
+	if !toolNeedsMarketplaceSync(toolConfig, rc, args[0]) {
+		return nil
+	}
+
+	return checkGitAvailable()
 }
 
 // inCommandChain reports whether cmd or any of its ancestors (up to but not

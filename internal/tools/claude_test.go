@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,6 +28,18 @@ func TestClaudeMounts_returnsExpected(t *testing.T) {
 		"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude",
 		"$TOOL_HOME/claude/.claude.json:$CONTAINER_HOME/.claude.json",
 	}, mounts)
+}
+
+func TestClaudeMarketplaceMount_returnsExpected(t *testing.T) {
+	// Arrange
+	url := "git@example.com:acme/marketplace.git"
+	dirName := marketplace.CloneDirName(url)
+
+	// Act
+	spec := claudeMarketplaceMount("acme", url)
+
+	// Assert
+	assert.Equal(t, "$TOOL_HOME/marketplaces/"+dirName+":$CONTAINER_HOME/marketplaces/acme:ro", spec)
 }
 
 func TestSetupClaude(t *testing.T) {
@@ -94,6 +107,20 @@ func TestClaudeStage(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, "entrypoint.sh")
 		assert.Contains(t, result, `exec claude`)
+	})
+
+	t.Run("registers only the marketplaces named in AGENTIC_MARKETPLACES before exec", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, `$HOME/marketplaces`)
+		assert.Contains(t, result, `AGENTIC_MARKETPLACES`)
+		assert.Contains(t, result, `claude plugin marketplace add "$dir" --scope user`)
+		assert.NotContains(t, result, `for dir in "$marketplaces_dir"/*/`)
+	})
+
+	t.Run("deregisters marketplaces no longer mounted before exec", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, `claude plugin marketplace list --json`)
+		assert.Contains(t, result, `claude plugin marketplace remove "$name" --scope user`)
 	})
 
 	t.Run("contains tool home", func(t *testing.T) {

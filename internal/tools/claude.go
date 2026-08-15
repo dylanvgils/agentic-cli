@@ -3,9 +3,11 @@ package tools
 import (
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
@@ -37,13 +39,44 @@ func claudeMounts() []string {
 	}
 }
 
+// claudeMarketplaceMount mounts a synced marketplace clone read-only outside Claude's own state tree.
+func claudeMarketplaceMount(name, url string) string {
+	return mount.VolumeMount(
+		path.Join("$TOOL_HOME", marketplace.MarketplacesDirName, marketplace.CloneDirName(url)),
+		path.Join("$CONTAINER_HOME", marketplace.MarketplacesDirName, name),
+		mount.VolumeOptions{ReadOnly: true},
+	)
+}
+
 func claudeStage(prevStage string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
 		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
 		Add(createContainerUser("claude")...).
 		Add(df.Heredoc{
-			Dest:  "/usr/local/bin/entrypoint.sh",
-			Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail", "exec claude \"$@\""},
+			Dest: "/usr/local/bin/entrypoint.sh",
+			Lines: []string{
+				"#!/usr/bin/env bash",
+				"set -euo pipefail",
+				"",
+				"# Register AGENTIC_MARKETPLACES into the Claude container",
+				`marketplaces_dir="$HOME/` + marketplace.MarketplacesDirName + `"`,
+				`if [[ -n "${AGENTIC_MARKETPLACES:-}" ]]; then`,
+				`  IFS=',' read -ra marketplace_names <<< "$AGENTIC_MARKETPLACES"`,
+				`  for name in "${marketplace_names[@]}"; do`,
+				`    dir="$marketplaces_dir/$name"`,
+				`    [[ -d "$dir" ]] || continue`,
+				`    claude plugin marketplace add "$dir" --scope user || echo "warning: failed to register marketplace $name" >&2`,
+				"  done",
+				"fi",
+				"",
+				"# Deregister marketplaces this container no longer mounts, e.g. removed from .agenticrc.toml",
+				`while IFS=$'\t' read -r name loc; do`,
+				`  [[ -n "$name" && "$(dirname -- "$loc")" == "$marketplaces_dir" && ! -d "$loc" ]] || continue`,
+				`  claude plugin marketplace remove "$name" --scope user || echo "warning: failed to deregister marketplace $name" >&2`,
+				`done < <(claude plugin marketplace list --json 2>/dev/null | jq -r '.[] | select(.source=="directory") | [.name, .installLocation] | @tsv' 2>/dev/null)`,
+				"",
+				`exec claude "$@"`,
+			},
 		}).
 		Add(df.User{Name: "claude"}).
 		Add(df.Env{Key: "PATH", Value: "/home/claude/.local/bin:${PATH}"}).

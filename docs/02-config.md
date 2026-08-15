@@ -1,10 +1,10 @@
 # Configuration
 
-Agentic is configured through three layers, applied in order of increasing specificity: `agentic.json` global file, `.agenticrc.toml` project files, environment variables, and CLI flags. List-type settings accumulate across all layers; scalar settings use the most specific value.
+Agentic is configured through four layers, applied in order of increasing specificity: `agentic.json` global file, `.agenticrc.toml` project files, environment variables, and CLI flags. List-type settings accumulate across all layers; scalar settings use the most specific value.
 
 ## Environment variables
 
-Settable in your shell config (`.zshrc`, `.bashrc`, etc.) for a persistent global default. `.agenticrc.toml` values and CLI flags take precedence over these - see [Precedence](#precedence) below.
+Set in shell config (`.zshrc`, `.bashrc`, etc.) for a persistent default. `.agenticrc.toml` and CLI flags override these - see [Precedence](#precedence) below.
 
 | Variable                  | Description                                                                                                                                           | Default                                                  |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
@@ -19,7 +19,7 @@ Settable in your shell config (`.zshrc`, `.bashrc`, etc.) for a persistent globa
 
 ## `agentic.json` (global config)
 
-Stored in `$AGENTIC_HOME/agentic.json` (default: `~/.agentic/agentic.json`). This file holds machine-level settings that apply to all projects. Edit it directly with any text editor.
+Stored in `$AGENTIC_HOME/agentic.json` (default `~/.agentic/agentic.json`). Machine-level settings applied to all projects; edit directly with any text editor.
 
 | Key                        | Type   | Description                                                                                                                   | CLI flag           |
 | -------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------ |
@@ -32,7 +32,7 @@ Stored in `$AGENTIC_HOME/agentic.json` (default: `~/.agentic/agentic.json`). Thi
 
 ### Registry proxy
 
-If your environment requires pulling Docker Hub images through a registry proxy (e.g. Harbor, Nexus, Artifactory, AWS ECR pull-through cache), set the `registry` field:
+To pull Docker Hub images through a registry proxy (Harbor, Nexus, Artifactory, AWS ECR pull-through cache), set `registry`:
 
 ```json
 {
@@ -40,9 +40,9 @@ If your environment requires pulling Docker Hub images through a registry proxy 
 }
 ```
 
-Agentic prefixes all base image names with this value at build time, routing pulls through the proxy. Authentication is out of scope - configure it once with `docker login myregistry.example.com`.
+Agentic prefixes all base image names with this value at build time. Authentication is out of scope - run `docker login myregistry.example.com` once.
 
-The `--registry` flag overrides the `agentic.json` value for a single build:
+`--registry` overrides `agentic.json` for a single build:
 
 ```bash
 agentic build claude --registry myregistry.example.com
@@ -52,11 +52,11 @@ Run `agentic config` to see the active registry setting.
 
 ## `.agenticrc.toml` files
 
-Place a `.agenticrc.toml` file in any directory to apply settings when `agentic` is run from that directory or any subdirectory. `agentic` walks up from `$PWD` collecting every `.agenticrc.toml` it finds, stopping when it hits a file with `root = true` or the filesystem root.
+Place `.agenticrc.toml` in any directory to apply settings there and in subdirectories. `agentic` walks up from `$PWD`, collecting every `.agenticrc.toml` found, and stops at a file with `root = true` or the filesystem root.
 
 ### File format
 
-Standard [TOML](https://toml.io). Comments start with `#`. List keys use TOML arrays. Build-time and runtime settings live in separate `[build]` and `[run]` sections; `root` and `namespace` are top-level keys.
+Standard [TOML](https://toml.io). Build-time and runtime settings live in separate `[build]` and `[run]` sections; `root` and `namespace` are top-level keys.
 
 ```toml
 # .agenticrc.toml
@@ -114,13 +114,13 @@ pids_limit = "2048"
 | `mode`          | string | `"enforce"` blocks disallowed hosts; `"monitor"` logs the allowlist verdict without blocking anything. Setting `mode = "monitor"` implies the proxy is enabled, unless `enabled = false` is also set (which always wins). | `--proxy-monitor`        | `"enforce"` |
 | `allowed_hosts` | list   | Extra hosts to permit, merged on top of the tool's baseline. Exact match (e.g. `"api.github.com"`), or a leading-dot / `*.` entry to match a domain and all its subdomains (e.g. `".github.com"`).                        | -                        | -           |
 
-When enabled, the tool container loses direct internet access and reaches the outside only through a proxy sidecar enforcing the allowlist, on a per-run internal Docker network. Blocked hosts are printed at the end of the run; every connection attempt is logged as JSON lines under `$AGENTIC_HOME/proxy/`. The sidecar is reachable via the auto-injected `HTTP_PROXY`/`HTTPS_PROXY` env vars, or at the stable alias `agentic-proxy:3128` for tools that need a literal hostname (see [below](#pointing-a-tools-own-proxy-setting-at-the-egress-proxy)).
+When enabled, the tool container loses direct internet access and reaches the outside only through a proxy sidecar on a per-run internal Docker network. Blocked hosts print at the end of the run; every attempt is logged as JSON lines under `$AGENTIC_HOME/proxy/`. The sidecar is reachable via auto-injected `HTTP_PROXY`/`HTTPS_PROXY`, or at the stable alias `agentic-proxy:3128` for tools needing a literal hostname (see [below](#pointing-a-tools-own-proxy-setting-at-the-egress-proxy)).
 
-`--proxy-monitor` (or `mode = "monitor"`) runs the proxy without ever blocking a connection - every host the tool tries to reach succeeds, including ones missing from the allowlist. The access log still records the real verdict for each attempt (`"decision": "allow"` or `"deny"`), tagged with `"enforced": false` so it's clear nothing was actually blocked; the human-readable line printed to `docker logs` gets a `(monitor)` suffix for the same reason. At the end of the run, instead of reporting blocked hosts, agentic reports the hosts that _would_ have been blocked under the current allowlist - the gap to fill in before switching to a real `--proxy` run. This is meant for discovering a new tool's egress needs before writing an allowlist at all.
+`--proxy-monitor` (or `mode = "monitor"`) never blocks - every host succeeds, including ones missing from the allowlist. The access log still records the real verdict (`"decision": "allow"` or `"deny"`), tagged `"enforced": false`; `docker logs` lines get a `(monitor)` suffix. At the end of the run, agentic reports the hosts that _would_ have been blocked, so you can fill the allowlist gap before switching to real `--proxy` enforcement. Use this to discover a new tool's egress needs before writing an allowlist.
 
-Each proxy-enabled run prunes access logs older than a retention window (default 3 days) before starting. This is host-level, not per-project, so it's set via `proxy_log_retention_days` in `agentic.json` (see table above), not `.agenticrc.toml`. To wipe all logs regardless of age, run `agentic proxy clean --logs`.
+Each proxy-enabled run prunes access logs older than a retention window (default 3 days), set via `proxy_log_retention_days` in `agentic.json` (host-level, not per-project). To wipe all logs regardless of age, run `agentic proxy clean --logs`.
 
-Each tool ships a baseline allowlist; `allowed_hosts` values are merged on top of it. The proxy image is built on demand the first time you run with `--proxy`, or explicitly via `agentic proxy build`/`agentic proxy update` (see [Development](05-development.md#building-the-proxy-image-locally)).
+Each tool ships a baseline allowlist that `allowed_hosts` merges on top of. The proxy image builds on demand on the first `--proxy` run, or explicitly via `agentic proxy build`/`agentic proxy update` (see [Development](05-development.md#building-the-proxy-image-locally)).
 
 | Tool       | Baseline host        | Purpose                             |
 | ---------- | -------------------- | ----------------------------------- |
@@ -133,7 +133,7 @@ Each tool ships a baseline allowlist; `allowed_hosts` values are merged on top o
 
 OpenCode is multi-provider, so only its own auth/update host is included by default - add your chosen model-provider hosts via `allowed_hosts`.
 
-`agentic config` shows the resolved `proxy.enabled`, `proxy.mode`, and `proxy.allowed_hosts` values for the current directory, tagged with the `.agenticrc.toml` that set them (the tool's baseline hosts aren't part of this output - they're fixed per tool, not configurable).
+`agentic config` shows resolved `proxy.enabled`, `proxy.mode`, and `proxy.allowed_hosts` for the current directory, tagged with the `.agenticrc.toml` that set them (tool baseline hosts aren't included - they're fixed per tool, not configurable).
 
 ```toml
 [run.proxy]
@@ -147,15 +147,43 @@ allowed_hosts = [
 
 #### Pointing a tool's own proxy setting at the egress proxy
 
-`HTTP_PROXY`/`HTTPS_PROXY` (and their lowercase variants) are injected into the tool container automatically whenever the proxy is enabled, so most tools need no extra configuration. Some tools ignore those env vars and instead require a literal host:port in a static config file or option - Maven is a common example: its dependency resolver only reads proxy settings from the `<proxies>` section of `settings.xml`, not from `MAVEN_OPTS`'s `-Dhttps.proxyHost` system properties or the standard proxy env vars.
+`HTTP_PROXY`/`HTTPS_PROXY` (and lowercase variants) are auto-injected whenever the proxy is enabled, so most tools need no extra configuration. Some tools ignore these env vars and require a literal host:port instead - Maven is an example: it only reads proxy settings from `settings.xml`'s `<proxies>` section, not `MAVEN_OPTS` or the standard proxy env vars.
 
-For these cases, the sidecar is also reachable at the stable hostname `agentic-proxy` on port `3128`. Unlike the sidecar's actual Docker container name (randomized per run), this hostname is identical on every run, so it's safe to hardcode once in the tool's own config. See [Tool-specific proxy examples](#tool-specific-proxy-examples) below for a concrete walkthrough (Maven).
+For these cases, the sidecar is reachable at the stable hostname `agentic-proxy:3128` - unlike its actual Docker container name (randomized per run), this hostname is safe to hardcode once in the tool's own config. See [Tool-specific proxy examples](#tool-specific-proxy-examples) below for a Maven walkthrough.
+
+**`[[marketplaces]]`** - git-based plugin marketplaces (skills, agents, commands, hooks, MCP servers, synced and mounted together as a single unit) to sync onto the host and mount read-only into every applicable tool's container
+
+| Key     | Type   | Description                                                                                                                                                                                                                                                                                                     | Default               |
+| ------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `name`  | string | Identifier for this marketplace. Must match `^[a-zA-Z0-9._-]+$` - becomes a container mount path segment. Not required to be globally unique: the host clone is keyed by `url` alone, so two projects may give the same `url` different `name`s (or the same `name` to different `url`s) without any collision. | -                     |
+| `url`   | string | Git URL to clone (anything `git clone` accepts - `https://`, `git@host:...`, etc).                                                                                                                                                                                                                              | -                     |
+| `tools` | list   | Tool names this marketplace is mounted into (currently `claude`, `copilot`). Omit to mount into every tool that supports marketplaces.                                                                                                                                                                          | every supporting tool |
+
+```toml
+[[marketplaces]]
+name = "acme-plugins"
+url  = "git@github.com:acme/plugin-marketplace.git"
+# tools omitted -> mounted into every tool that supports it (claude, copilot)
+
+[[marketplaces]]
+name = "claude-only-thing"
+url  = "git@github.com:acme/claude-extras.git"
+tools = ["claude"]
+```
+
+Before each `agentic run`/`agentic <tool>`, every applicable marketplace is synced on the host - cloned if new, or `git fetch` + `git reset --hard @{upstream}` if already cloned - using the invoking user's own git auth (SSH agent, credential helper, `~/.netrc`); no credentials enter the container. Requires `git` on the host `PATH`. A failed first clone fails the run; a failed fetch on an already-cloned marketplace just warns and reuses the (possibly stale) existing clone.
+
+The clone is bind-mounted read-only, so the container itself never touches git. Clones are shared across tools and projects: the host path is `$AGENTIC_HOME/marketplaces/<slug>-<hash>/`, a pure function of `url` (`<hash>` a short hash of it, `<slug>` a label derived from it - not from `name`), so any project referencing the same `url` reuses the same clone regardless of the local `name` it gives it. Each tool mounts it at the neutral, agentic-owned path `~/marketplaces/<name>` rather than inside its own config tree, so it never collides with marketplace state a tool persists for itself.
+
+Mounting isn't registering: each tool only recognizes marketplaces it has explicitly added to its own config, not whatever is present on disk. So each tool's `entrypoint.sh` adds every currently-mounted name (`claude`/`copilot plugin marketplace add <dir>`) and removes any previously-registered, agentic-managed marketplace that's no longer mounted (`... remove <name>`) - so deleting a `[[marketplaces]]` entry cleans itself up the next time that project runs. Copilot warns rather than fails on error, and (unlike Claude) has no `--json` list output, so its entrypoint parses the plain `NAME (Local: PATH)` lines from `copilot plugin marketplace list` instead - see `internal/tools/copilot.go`.
+
+Usage is tracked in `$AGENTIC_HOME/marketplaces/.usage.json`, keyed by clone + local `name`, so multiple projects can share a clone under different names. `agentic marketplaces list` shows every clone and which project(s)/name(s) reference it (a clone under two names shows as two rows sharing a URL); `agentic marketplaces prune` deletes clones with no live project reference left, re-checking each recorded project's current config first - a clone survives as long as any one of its recorded names is still live. A clone with no usage record (e.g. placed manually) is left alone. `agentic clean` does not touch marketplace clones.
 
 ### Merge semantics
 
-When multiple `.agenticrc.toml` files are found, they are merged. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
+Multiple `.agenticrc.toml` files merge. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
-- **List keys** (`bases`, `apt_packages`, `extra_mounts`, `secrets`, `env`, `proxy.allowed_hosts`): values from all levels accumulate, outermost first.
+- **List keys** (`bases`, `apt_packages`, `extra_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `marketplaces`): values from all levels accumulate, outermost first.
 - **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`, `docker_context`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
 - **`versions` table**: each layer name is resolved independently - innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
 
@@ -219,15 +247,15 @@ Per-layer version resolution (highest to lowest priority):
 
 ### `extra_mounts` and `secrets`
 
-These also accumulate, but their env vars (`AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECRETS`) and RC values are each collected independently and combined at runtime.
+These accumulate too; their env vars (`AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECRETS`) and RC values are collected independently and combined at runtime.
 
 ### `env`
 
-`.agenticrc.toml` `env` entries and `-e`/`--env` flags both accumulate, but on a duplicate key the `-e` flag wins - `.agenticrc.toml` entries are applied first, and the last `--env` for a given key takes effect, matching `docker run -e` itself.
+`.agenticrc.toml` `env` entries and `-e`/`--env` flags accumulate, but on a duplicate key `-e` wins - RC entries apply first, and the last `--env` for a given key takes effect, matching `docker run -e` itself.
 
 `-e`/`--env` values are visible inside the container and via `docker inspect`/`ps` - use `-s`/`--secret` for tokens or credentials instead.
 
-`TZ` is auto-forwarded from the host's detected timezone alongside the terminal-capability vars (`COLORTERM`, `TERM`, `NO_COLOR`, `FORCE_COLOR`) - an explicit `-e TZ=...` or `.agenticrc.toml` `env` entry overrides it, same as any other auto-forwarded var.
+`TZ` is auto-forwarded from the host's detected timezone, alongside the terminal-capability vars (`COLORTERM`, `TERM`, `NO_COLOR`, `FORCE_COLOR`); an explicit `-e TZ=...` or `.agenticrc.toml` `env` entry overrides it like any other auto-forwarded var.
 
 ### `namespace`
 
@@ -258,7 +286,7 @@ Then `agentic build claude` creates `java-app-claude` with the Java layer, while
 
 ### `docker_context`
 
-Selects which [Docker context](https://docs.docker.com/engine/manage-resources/contexts/) `agentic` talks to - useful when Docker is configured with multiple contexts (e.g. a local daemon and a remote one) and you want `agentic` to target a specific one instead of whichever context is currently active.
+Selects which [Docker context](https://docs.docker.com/engine/manage-resources/contexts/) `agentic` talks to - useful with multiple Docker contexts (e.g. local + remote) when you want a specific one instead of whatever's currently active.
 
 Resolution priority (highest to lowest):
 
@@ -285,7 +313,7 @@ Resolution priority (highest to lowest):
 
 ## Using `root = true`
 
-`root = true` marks a boundary in the directory walk. It is useful for monorepos where you want a single shared config at the repo root and per-project configs in subdirectories, without accidentally picking up configs from outside the repo:
+`root = true` marks a boundary in the directory walk - useful for monorepos with a shared config at the repo root and per-project configs in subdirectories, without picking up configs from outside the repo:
 
 ```toml
 # ~/projects/.agenticrc.toml - shared config for all projects
@@ -312,7 +340,7 @@ Running `agentic` from `~/projects/my-project` merges both files and stops; `~/p
 
 ## Mount variable expansion
 
-Several placeholders are expanded in mount strings (`extra_mounts`, `AGENTIC_EXTRA_MOUNTS`, `-v`) at runtime, so paths don't have to be hardcoded per machine or per tool:
+These placeholders expand in mount strings (`extra_mounts`, `AGENTIC_EXTRA_MOUNTS`, `-v`) at runtime, so paths aren't hardcoded per machine or per tool:
 
 | Placeholder         | Side of `:`       | Expands to                                     |
 | ------------------- | ----------------- | ---------------------------------------------- |
@@ -345,7 +373,7 @@ Concrete walkthroughs for routing a tool's own proxy setting through the `agenti
 
 ### Maven
 
-Maven only reads proxy settings from `settings.xml`'s `<proxies>` section - not `MAVEN_OPTS` or the standard proxy env vars. Mount a `settings.xml` pointing at `agentic-proxy:3128`, with a `<proxy>` entry per URL scheme - Maven matches `<protocol>` against the repository URL, not the connection to the proxy itself, and most registries (Maven Central included) serve over `https`:
+Maven only reads proxy settings from `settings.xml`'s `<proxies>` section, not `MAVEN_OPTS` or the standard proxy env vars. Mount a `settings.xml` pointing at `agentic-proxy:3128`, with a `<proxy>` entry per URL scheme - Maven matches `<protocol>` against the repository URL (not the connection to the proxy itself), and most registries including Maven Central serve over `https`:
 
 ```xml
 <!-- settings.xml -->
@@ -379,4 +407,4 @@ enabled = true
 allowed_hosts = ["repo.maven.apache.org"]
 ```
 
-A `settings.xml` `<proxies>` entry pointed at an _external_ corporate proxy instead would bypass agentic's egress allowlist entirely, since that traffic never reaches the `agentic-proxy` sidecar - routing through `agentic-proxy` is what keeps Maven's traffic subject to `allowed_hosts`.
+Pointing `<proxies>` at an _external_ corporate proxy instead would bypass agentic's egress allowlist entirely, since that traffic never reaches the `agentic-proxy` sidecar - only routing through `agentic-proxy` keeps Maven's traffic subject to `allowed_hosts`.

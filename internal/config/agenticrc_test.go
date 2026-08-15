@@ -34,6 +34,33 @@ func TestAptPackages(t *testing.T) {
 	})
 }
 
+func TestMarketplacesFor(t *testing.T) {
+	t.Run("no tools filter matches every tool", func(t *testing.T) {
+		// Arrange
+		rc := &AgenticRC{Marketplaces: []RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
+
+		// Act
+		result := MarketplacesFor(rc, "claude")
+
+		// Assert
+		assert.Equal(t, []RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}, result)
+	})
+
+	t.Run("tools filter matches only listed tools", func(t *testing.T) {
+		// Arrange
+		rc := &AgenticRC{Marketplaces: []RCMarketplace{
+			{Name: "claude-only", URL: "git@example.com:c.git", Tools: []string{"claude"}},
+			{Name: "copilot-only", URL: "git@example.com:p.git", Tools: []string{"copilot"}},
+		}}
+
+		// Act
+		result := MarketplacesFor(rc, "claude")
+
+		// Assert
+		assert.Equal(t, []RCMarketplace{{Name: "claude-only", URL: "git@example.com:c.git", Tools: []string{"claude"}}}, result)
+	})
+}
+
 func TestCollectPaths(t *testing.T) {
 	t.Run("no file", func(t *testing.T) {
 		// Arrange
@@ -353,6 +380,21 @@ func TestMergeConfigs(t *testing.T) {
 		// Assert
 		assert.Equal(t, ModeMonitor, result.Run.Proxy.Mode)
 	})
+
+	t.Run("marketplaces accumulate outermost first", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Marketplaces: []RCMarketplace{{Name: "child-mp", URL: "git@example.com:c.git"}}}
+		parent := &AgenticRC{Marketplaces: []RCMarketplace{{Name: "parent-mp", URL: "git@example.com:p.git"}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, []RCMarketplace{
+			{Name: "parent-mp", URL: "git@example.com:p.git"},
+			{Name: "child-mp", URL: "git@example.com:c.git"},
+		}, result.Marketplaces)
+	})
 }
 
 func TestParseRC(t *testing.T) {
@@ -476,6 +518,58 @@ memory = "2g"
 
 		// Assert
 		assert.ErrorContains(t, err, "invalid [run.proxy] mode")
+		assert.ErrorContains(t, err, path)
+	})
+
+	t.Run("marketplaces key", func(t *testing.T) {
+		// Act
+		rc := mustParseRC(t, "[[marketplaces]]\nname = \"acme\"\nurl = \"git@example.com:acme.git\"\ntools = [\"claude\"]\n")
+
+		// Assert
+		assert.Equal(t, []RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git", Tools: []string{"claude"}}}, rc.Marketplaces)
+	})
+
+	t.Run("marketplaces key without tools filter", func(t *testing.T) {
+		// Act
+		rc := mustParseRC(t, "[[marketplaces]]\nname = \"acme\"\nurl = \"git@example.com:acme.git\"\n")
+
+		// Assert
+		assert.Equal(t, []RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}, rc.Marketplaces)
+	})
+
+	t.Run("marketplace with empty name returns error with path", func(t *testing.T) {
+		// Arrange
+		path := writeRC(t, "[[marketplaces]]\nurl = \"git@example.com:acme.git\"\n")
+
+		// Act
+		_, err := loadRC(path)
+
+		// Assert
+		assert.ErrorContains(t, err, "name must not be empty")
+		assert.ErrorContains(t, err, path)
+	})
+
+	t.Run("marketplace with unsafe name returns error with path", func(t *testing.T) {
+		// Arrange
+		path := writeRC(t, "[[marketplaces]]\nname = \"../escape\"\nurl = \"git@example.com:acme.git\"\n")
+
+		// Act
+		_, err := loadRC(path)
+
+		// Assert
+		assert.ErrorContains(t, err, "name must match")
+		assert.ErrorContains(t, err, path)
+	})
+
+	t.Run("marketplace with empty url returns error with path", func(t *testing.T) {
+		// Arrange
+		path := writeRC(t, "[[marketplaces]]\nname = \"acme\"\n")
+
+		// Act
+		_, err := loadRC(path)
+
+		// Assert
+		assert.ErrorContains(t, err, "url must not be empty")
 		assert.ErrorContains(t, err, path)
 	})
 

@@ -2,10 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,6 +54,7 @@ func TestRunTool(t *testing.T) {
 
 	t.Run("passes tool args", func(t *testing.T) {
 		// Arrange
+		t.Chdir(t.TempDir())
 		withTempToolHome(t)
 		get := captureRunContainer(t)
 
@@ -319,6 +322,182 @@ func Test_buildRunSpec(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, rs.ProxyEnabled)
 		assert.True(t, rs.ProxyMonitor)
+	})
+
+	t.Run("marketplace names wired into AGENTIC_MARKETPLACES env", func(t *testing.T) {
+		// Arrange
+		withTempToolHome(t)
+		stubSyncMarketplaces(t, func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error) {
+			return []marketplace.Result{{Entry: entries[0], Dir: dirFor(entries[0])}}, nil
+		})
+		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
+		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
+
+		// Act
+		rs, err := buildRunSpec(args, tools.Configs["claude"], rc, "", false, false)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, rs.Env, "AGENTIC_MARKETPLACES=acme")
+	})
+
+	t.Run("no marketplaces configured leaves AGENTIC_MARKETPLACES unset", func(t *testing.T) {
+		// Arrange
+		withTempToolHome(t)
+		args := parsedArgs{toolName: "claude", imageName: "agentic-claude"}
+
+		// Act
+		rs, err := buildRunSpec(args, tools.Configs["claude"], &config.AgenticRC{}, "", false, false)
+
+		// Assert
+		require.NoError(t, err)
+		for _, e := range rs.Env {
+			assert.NotContains(t, e, "AGENTIC_MARKETPLACES")
+		}
+	})
+}
+
+func Test_toolNeedsMarketplaceSync(t *testing.T) {
+	t.Run("tool without marketplace support returns false", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
+
+		// Act
+		needs := toolNeedsMarketplaceSync(tools.Configs["opencode"], rc, "opencode")
+
+		// Assert
+		assert.False(t, needs)
+	})
+
+	t.Run("marketplace-capable tool with no marketplaces configured returns false", func(t *testing.T) {
+		// Act
+		needs := toolNeedsMarketplaceSync(tools.Configs["claude"], &config.AgenticRC{}, "claude")
+
+		// Assert
+		assert.False(t, needs)
+	})
+
+	t.Run("marketplace-capable tool with marketplaces configured returns true", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
+
+		// Act
+		needs := toolNeedsMarketplaceSync(tools.Configs["claude"], rc, "claude")
+
+		// Assert
+		assert.True(t, needs)
+	})
+}
+
+func TestSyncToolMarketplaces(t *testing.T) {
+	t.Run("tool that doesn't need marketplace sync returns nil", func(t *testing.T) {
+		// Act
+		mounts, names, err := syncToolMarketplaces("/home", "claude", tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Nil(t, mounts)
+		assert.Nil(t, names)
+	})
+
+	t.Run("syncs configured marketplaces and returns mounts and names", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		var gotEntries []marketplace.Entry
+		var gotDir string
+		stubSyncMarketplaces(t, func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error) {
+			gotEntries = entries
+			gotDir = dirFor(entries[0])
+			return []marketplace.Result{{Entry: entries[0], Dir: dirFor(entries[0])}}, nil
+		})
+		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
+
+		// Act
+		mounts, names, err := syncToolMarketplaces(home, "claude", tools.Configs["claude"], rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []marketplace.Entry{{Name: "acme", URL: "git@example.com:acme.git"}}, gotEntries)
+		wantDirName := marketplace.CloneDirName("git@example.com:acme.git")
+		assert.Equal(t, filepath.Join(home, "marketplaces", wantDirName), gotDir)
+		assert.Equal(t, []string{tools.Configs["claude"].Runtime.MarketplaceMount("acme", "git@example.com:acme.git")}, mounts)
+		assert.Equal(t, []string{"acme"}, names)
+	})
+
+	t.Run("sync error is wrapped with tool name", func(t *testing.T) {
+		// Arrange
+		stubSyncMarketplaces(t, func([]marketplace.Entry, func(marketplace.Entry) string) ([]marketplace.Result, error) {
+			return nil, fmt.Errorf("clone failed")
+		})
+		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
+
+		// Act
+		_, _, err := syncToolMarketplaces(t.TempDir(), "claude", tools.Configs["claude"], rc)
+
+		// Assert
+		assert.ErrorContains(t, err, "claude")
+		assert.ErrorContains(t, err, "clone failed")
+	})
+
+	t.Run("stale result still returns a mount and name", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		stubSyncMarketplaces(t, func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error) {
+			return []marketplace.Result{{Entry: entries[0], Dir: dirFor(entries[0]), Stale: true, Warning: fmt.Errorf("offline")}}, nil
+		})
+		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
+
+		// Act
+		mounts, names, err := syncToolMarketplaces(home, "claude", tools.Configs["claude"], rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{tools.Configs["claude"].Runtime.MarketplaceMount("acme", "git@example.com:acme.git")}, mounts)
+		assert.Equal(t, []string{"acme"}, names)
+	})
+
+	t.Run("records usage against the sync results after a successful sync", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		wantResults := []marketplace.Result{{Entry: marketplace.Entry{Name: "acme", URL: "git@example.com:acme.git"}, Dir: filepath.Join(home, "marketplaces", marketplace.CloneDirName("git@example.com:acme.git"))}}
+		stubSyncMarketplaces(t, func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error) {
+			return wantResults, nil
+		})
+		var gotBaseDir string
+		var gotResults []marketplace.Result
+		stubRecordMarketplaceUsage(t, func(baseDir string, results []marketplace.Result, _ string) error {
+			gotBaseDir = baseDir
+			gotResults = results
+			return nil
+		})
+		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
+
+		// Act
+		_, _, err := syncToolMarketplaces(home, "claude", tools.Configs["claude"], rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(home, "marketplaces"), gotBaseDir)
+		assert.Equal(t, wantResults, gotResults)
+	})
+
+	t.Run("usage recording failure does not fail the run", func(t *testing.T) {
+		// Arrange
+		stubSyncMarketplaces(t, func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error) {
+			return []marketplace.Result{{Entry: entries[0], Dir: dirFor(entries[0])}}, nil
+		})
+		stubRecordMarketplaceUsage(t, func(string, []marketplace.Result, string) error {
+			return fmt.Errorf("disk error")
+		})
+		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
+
+		// Act
+		mounts, names, err := syncToolMarketplaces(t.TempDir(), "claude", tools.Configs["claude"], rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Len(t, mounts, 1)
+		assert.Equal(t, []string{"acme"}, names)
 	})
 }
 

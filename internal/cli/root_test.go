@@ -3,6 +3,8 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -73,6 +75,19 @@ func TestCheckDocker(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("marketplaces list subcommand skips check", func(t *testing.T) {
+		// Arrange - ancestor walk must find "marketplaces", not just cmd.Name()=="list"
+		stubCheckDockerDaemon(t, func() error {
+			return errors.New("should not be called")
+		})
+
+		// Act
+		err := checkDocker(marketplacesListCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+	})
+
 	t.Run("calls check success", func(t *testing.T) {
 		// Arrange
 		var called bool
@@ -116,6 +131,71 @@ func TestCheckDocker(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, called)
+	})
+}
+
+func TestCheckGit(t *testing.T) {
+	runCmd := &cobra.Command{Use: "run"}
+
+	t.Run("non-run command skips check", func(t *testing.T) {
+		// Arrange
+		stubCheckGitAvailable(t, errors.New("should not be called"))
+
+		// Act
+		err := checkGit(buildCmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+	})
+
+	t.Run("no args skips check", func(t *testing.T) {
+		// Arrange
+		stubCheckGitAvailable(t, errors.New("should not be called"))
+
+		// Act
+		err := checkGit(runCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+	})
+
+	t.Run("unknown tool skips check", func(t *testing.T) {
+		// Arrange
+		stubCheckGitAvailable(t, errors.New("should not be called"))
+
+		// Act
+		err := checkGit(runCmd, []string{"bogus"})
+
+		// Assert
+		require.NoError(t, err)
+	})
+
+	t.Run("tool that doesn't need marketplace sync skips check", func(t *testing.T) {
+		// Arrange - opencode has no MarketplaceMount support; toolNeedsMarketplaceSync
+		// covers the rest of this predicate's branches directly.
+		t.Chdir(t.TempDir())
+		stubCheckGitAvailable(t, errors.New("should not be called"))
+
+		// Act
+		err := checkGit(runCmd, []string{"opencode"})
+
+		// Assert
+		require.NoError(t, err)
+	})
+
+	t.Run("marketplace-capable tool with marketplaces configured calls check", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		rcContent := "[[marketplaces]]\nname = \"acme\"\nurl = \"git@example.com:acme.git\"\n"
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte(rcContent), 0o644))
+		t.Chdir(dir)
+		stubCheckGitAvailable(t, errors.New("git not found on PATH"))
+
+		// Act
+		err := checkGit(runCmd, []string{"claude"})
+
+		// Assert
+		assert.ErrorContains(t, err, "git not found on PATH")
 	})
 }
 

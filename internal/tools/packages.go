@@ -3,9 +3,8 @@ package tools
 // layerPackages lists the apt packages each layer needs present in the base image.
 // Each extra declares only what is not already in "base". collectPackages merges and deduplicates.
 var layerPackages = map[string][]string{
-	"base":   {"curl", "wget", "git", "gpg", "ca-certificates", "tzdata"},
+	"base":   {"curl", "wget", "git", "gpg", "ca-certificates", "tzdata", "jq"},
 	"dotnet": {"apt-transport-https"},
-	"go":     {"jq"},
 	"java":   {"apt-transport-https"},
 }
 

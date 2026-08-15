@@ -169,6 +169,7 @@ agentic <command> [args...]
 | `namespaces prune [-n namespace]`                                                                                                                                                                                   | Remove all images in the active (or specified) namespace                                                                                                                                     |
 | `config [--home <dir>]`                                                                                                                                                                                             | Show the merged configuration from agentic.json and all .agenticrc.toml files                                                                                                                |
 | `volumes <create\|list\|ls\|remove\|rm> [name]`                                                                                                                                                                     | Manage named Docker volumes created by agentic                                                                                                                                               |
+| `marketplaces <list\|ls\|prune> [--home <dir>]`                                                                                                                                                                     | Manage marketplace clones downloaded by `agentic run`. `list` shows each clone and the project(s) referencing it; `prune` removes clones no longer referenced by any known project           |
 | `upgrade [--force] [--version <tag>]`                                                                                                                                                                               | Upgrade the agentic binary to the latest release. `--force` reinstalls even if already up to date; `--version` installs a specific release tag                                               |
 | `version`                                                                                                                                                                                                           | Show version information (version, commit, built by, built date)                                                                                                                             |
 | `completion <bash\|zsh\|fish\|powershell>`                                                                                                                                                                          | Generate shell completion script for the specified shell                                                                                                                                     |
@@ -444,6 +445,19 @@ Each tool stores its configuration under `$AGENTIC_HOME`:
 | `claude`   | `$AGENTIC_HOME/claude/`, `$AGENTIC_HOME/claude/.claude.json`  |
 | `copilot`  | `$AGENTIC_HOME/copilot/`                                      |
 | `opencode` | `$AGENTIC_HOME/opencode/` (data, share, state, cache, config) |
+
+`$AGENTIC_HOME/marketplaces/<slug>-<hash>/` holds host-side clones of any `[[marketplaces]]` configured in `.agenticrc.toml` - shared across tools and mounted read-only into each applicable tool's container. The clone is keyed by the marketplace's `url` alone, so two projects referencing the same URL always share one clone, even under different local names. See [docs/02-config.md](docs/02-config.md) for the full `[[marketplaces]]` reference.
+
+### Managing marketplaces
+
+Marketplaces are downloaded implicitly the first time `agentic run` needs them - no separate install step. Use `agentic marketplaces` to see what's downloaded and clean up clones no longer used:
+
+```bash
+agentic marketplaces list    # List synced clones and the name(s)/project(s) referencing each (alias: ls)
+agentic marketplaces prune   # Remove clones no project references anymore, under any name
+```
+
+`prune` only drops a clone once no known project references it under any name - see [docs/02-config.md](docs/02-config.md) for the exact rules.
 
 ## 🛠️ Development
 

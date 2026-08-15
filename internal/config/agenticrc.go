@@ -5,12 +5,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
 )
 
 const rcFilename = ".agenticrc.toml"
+
+// validMarketplaceName matches safe path-segment characters for a directory name.
+var validMarketplaceName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // ModeEnforce and ModeMonitor are the only valid RCProxy.Mode values, besides
 // the unset "" (treated the same as ModeEnforce).
@@ -54,13 +59,22 @@ type RCProxy struct {
 	Mode string `toml:"mode"`
 }
 
+// RCMarketplace declares one git-based plugin marketplace to sync and mount into tool containers.
+type RCMarketplace struct {
+	Name string `toml:"name"`
+	URL  string `toml:"url"`
+	// Tools restricts which tools this marketplace is mounted into; empty means every tool.
+	Tools []string `toml:"tools"`
+}
+
 // AgenticRC holds the parsed contents of a .agenticrc.toml project config file.
 type AgenticRC struct {
-	Root          bool    `toml:"root"`
-	Namespace     string  `toml:"namespace"`
-	DockerContext string  `toml:"docker_context"`
-	Build         RCBuild `toml:"build"`
-	Run           RCRun   `toml:"run"`
+	Root          bool            `toml:"root"`
+	Namespace     string          `toml:"namespace"`
+	DockerContext string          `toml:"docker_context"`
+	Build         RCBuild         `toml:"build"`
+	Run           RCRun           `toml:"run"`
+	Marketplaces  []RCMarketplace `toml:"marketplaces"`
 }
 
 // RCLayer pairs a parsed .agenticrc.toml with the path it was loaded from.
@@ -84,6 +98,17 @@ func FindAndLoadFromCwd() (*AgenticRC, error) {
 func AptPackages(rc *AgenticRC) []string {
 	envPkgs := SplitEnvValues(os.Getenv(EnvAptPackages))
 	return append(rc.Build.AptPackages, envPkgs...)
+}
+
+// MarketplacesFor returns the marketplace entries applicable to tool.
+func MarketplacesFor(rc *AgenticRC, tool string) []RCMarketplace {
+	var result []RCMarketplace
+	for _, marketplace := range rc.Marketplaces {
+		if len(marketplace.Tools) == 0 || slices.Contains(marketplace.Tools, tool) {
+			result = append(result, marketplace)
+		}
+	}
+	return result
 }
 
 // FindAndLoad walks up from startDir collecting all .agenticrc.toml files and
@@ -237,6 +262,7 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 		resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)
 		resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
 		resBuild.Bases = append(resBuild.Bases, build.Bases...)
+		result.Marketplaces = append(result.Marketplaces, configs[i].Marketplaces...)
 	}
 
 	return result
@@ -258,5 +284,24 @@ func loadRC(path string) (*AgenticRC, error) {
 		return nil, fmt.Errorf("%s: invalid [run.proxy] mode %q: must be %q or %q", path, mode, ModeEnforce, ModeMonitor)
 	}
 
+	for _, marketplace := range rc.Marketplaces {
+		if err := validateMarketplace(marketplace); err != nil {
+			return nil, fmt.Errorf("%s: %w", path, err)
+		}
+	}
+
 	return rc, nil
+}
+
+func validateMarketplace(marketplace RCMarketplace) error {
+	if marketplace.Name == "" {
+		return fmt.Errorf("marketplace: name must not be empty")
+	}
+	if !validMarketplaceName.MatchString(marketplace.Name) {
+		return fmt.Errorf("marketplace %q: name must match %s", marketplace.Name, validMarketplaceName.String())
+	}
+	if marketplace.URL == "" {
+		return fmt.Errorf("marketplace %q: url must not be empty", marketplace.Name)
+	}
+	return nil
 }

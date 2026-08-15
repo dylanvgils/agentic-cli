@@ -18,10 +18,11 @@ var Configs = map[string]ToolConfig{
 			LatestVersion: claudeLatestVersion,
 		},
 		Runtime: RuntimeConfig{
-			Setup:        setupClaude,
-			Mounts:       claudeMounts,
-			TmpfsMounts:  claudeTmpfsMounts,
-			AllowedHosts: claudeAllowedHosts,
+			Setup:            setupClaude,
+			Mounts:           claudeMounts,
+			TmpfsMounts:      claudeTmpfsMounts,
+			AllowedHosts:     claudeAllowedHosts,
+			MarketplaceMount: claudeMarketplaceMount,
 		},
 	},
 	"copilot": {
@@ -30,10 +31,11 @@ var Configs = map[string]ToolConfig{
 			LatestVersion: copilotLatestVersion,
 		},
 		Runtime: RuntimeConfig{
-			Setup:        setupCopilot,
-			Mounts:       copilotMounts,
-			TmpfsMounts:  copilotTmpfsMounts,
-			AllowedHosts: copilotAllowedHosts,
+			Setup:            setupCopilot,
+			Mounts:           copilotMounts,
+			TmpfsMounts:      copilotTmpfsMounts,
+			AllowedHosts:     copilotAllowedHosts,
+			MarketplaceMount: copilotMarketplaceMount,
 		},
 	},
 	"opencode": {
@@ -68,6 +70,8 @@ type RuntimeConfig struct {
 	// AllowedHosts is the tool's baseline egress allowlist, used when the
 	// egress proxy is enabled. User-configured hosts are merged on top.
 	AllowedHosts []string
+	// MarketplaceMount returns the mount spec for a synced marketplace clone; nil if unsupported.
+	MarketplaceMount func(name, url string) string
 }
 
 // ToolConfig holds the full configuration for a tool container.
