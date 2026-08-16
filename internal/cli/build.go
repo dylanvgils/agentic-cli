@@ -29,6 +29,7 @@ func init() {
 	rootCmd.AddCommand(buildCmd)
 
 	buildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
+	buildCmd.Flags().Bool("pull", false, "pull the latest base images from the registry before building")
 
 	addBuildFlags(buildCmd)
 	addNamespaceFlag(buildCmd)

@@ -17,6 +17,7 @@ type ImageInfo struct {
 	VersionArgs string // agentic.version-args label (layer name@version pairs used to build, e.g. "node@24,java@17")
 	Apt         string // agentic.apt label (comma-separated apt packages)
 	Built       string // agentic.built label
+	Pulled      string // agentic.pulled label
 	CLIVersion  string // agentic.version label (CLI version that built this image)
 	Size        string // formatted size from docker image ls
 }
@@ -44,6 +45,7 @@ func InspectImage(name string) (*ImageInfo, error) {
 		VersionArgs: result.Config.Labels[LabelVersionArgs],
 		Apt:         result.Config.Labels[LabelApt],
 		Built:       result.Config.Labels[LabelBuilt],
+		Pulled:      result.Config.Labels[LabelPulled],
 		CLIVersion:  result.Config.Labels[LabelCLIVersion],
 		Size:        imageSize(name),
 	}, nil

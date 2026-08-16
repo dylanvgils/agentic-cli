@@ -195,6 +195,45 @@ func TestRunBuild(t *testing.T) {
 		assert.True(t, capturedOpts.NoCache)
 	})
 
+	t.Run("pull flag defaults false", func(t *testing.T) {
+		// Arrange
+		var capturedOpts tools.BuildOptions
+		stubBuildTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = opts
+			return nil
+		})
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
+
+		// Act
+		err := runBuild(buildCmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, capturedOpts.Pull)
+	})
+
+	t.Run("pull flag sets opt", func(t *testing.T) {
+		// Arrange
+		var capturedOpts tools.BuildOptions
+		stubBuildTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = opts
+			return nil
+		})
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
+
+		require.NoError(t, buildCmd.Flags().Set("pull", "true"))
+		defer buildCmd.Flags().Set("pull", "false") //nolint:errcheck
+
+		// Act
+		err := runBuild(buildCmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, capturedOpts.Pull)
+	})
+
 	t.Run("base flag sets opt", func(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())

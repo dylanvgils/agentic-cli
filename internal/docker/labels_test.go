@@ -2,6 +2,7 @@ package docker
 
 import (
 	"testing"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
@@ -148,6 +149,46 @@ func TestRecoverApt(t *testing.T) {
 
 		// Assert
 		assert.Nil(t, result)
+	})
+}
+
+func TestPullIsFresh(t *testing.T) {
+	t.Run("timestamp within interval is fresh", func(t *testing.T) {
+		// Arrange
+		label := formatLabelTime(time.Now())
+
+		// Act
+		result := PullIsFresh(label, 24*time.Hour)
+
+		// Assert
+		assert.True(t, result)
+	})
+
+	t.Run("timestamp older than interval is not fresh", func(t *testing.T) {
+		// Arrange
+		label := formatLabelTime(time.Now().Add(-25 * time.Hour))
+
+		// Act
+		result := PullIsFresh(label, 24*time.Hour)
+
+		// Assert
+		assert.False(t, result)
+	})
+
+	t.Run("empty label is not fresh", func(t *testing.T) {
+		// Act
+		result := PullIsFresh("", 24*time.Hour)
+
+		// Assert
+		assert.False(t, result)
+	})
+
+	t.Run("unparseable label is not fresh", func(t *testing.T) {
+		// Act
+		result := PullIsFresh("not-a-timestamp", 24*time.Hour)
+
+		// Assert
+		assert.False(t, result)
 	})
 }
 

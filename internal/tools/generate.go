@@ -13,6 +13,7 @@ import (
 type BuildOptions struct {
 	BaseOverride []string          // overrides the tool's default base extras
 	NoCache      bool              // disable layer cache for all steps
+	Pull         bool              // re-pull base images from the registry before building
 	CacheBust    string            // non-empty to bust the tool stage's cache via its CACHEBUST build arg (used by update)
 	Versions     map[string]string // layer name → version override, e.g. {"node": "22", "java": "21"}
 	AptPackages  []string          // additional apt packages to install in the base stage
