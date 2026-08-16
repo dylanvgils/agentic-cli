@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -12,18 +13,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// autoPullInterval bounds how often `agentic update` automatically passes
+// --pull to refresh base image layers when the user hasn't explicitly set
+// --pull/--pull=false themselves.
+const autoPullInterval = 24 * time.Hour
+
 var updateCmd = &cobra.Command{
 	Use:   "update [tool]",
 	Short: "Update tool image(s) to latest version",
 	Long: "Update tool image(s) to latest version. Checks the latest version available\n" +
-		"upstream first and skips the rebuild if the image is already current; otherwise\n" +
-		"rebuilds the tool step without cache so the installer fetches the latest version.\n" +
+		"upstream first and rebuilds the tool step without cache if it's newer, so the\n" +
+		"installer fetches the latest version. Also pulls fresh base images, at most\n" +
+		"once every 24h per image (--pull=false to skip, --pull to force a check now).\n" +
 		"Skips unbuilt tools when no tool specified.\n\n" + extrasEnvDoc(),
 	Example: `  agentic update
   agentic update claude
   agentic update claude --base java
   agentic update claude --base java,dotnet
-  agentic update claude --no-cache`,
+  agentic update claude --no-cache
+  agentic update claude --pull=false`,
 	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
 	ValidArgs: tools.Names(),
 	RunE:      runUpdate,
@@ -33,6 +41,7 @@ func init() {
 	rootCmd.AddCommand(updateCmd)
 
 	updateCmd.Flags().Bool("no-cache", false, "also rebuild base layers (fully fresh build)")
+	updateCmd.Flags().Bool("pull", true, "pull the latest base images, at most once every 24h per image (--pull=false to skip, e.g. offline; --pull to force a check now)")
 
 	addBuildFlags(updateCmd)
 	addNamespaceFlag(updateCmd)
@@ -55,6 +64,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	opts := buildOptsFromFlags(cmd, rc)
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	all, _ := cmd.Flags().GetBool("all")
+	pullExplicit := cmd.Flags().Changed("pull")
 
 	// For update, RC config bases/apt must not prevent per-image label recovery.
 	// Only explicit CLI flags and env vars should override what the image was built with.
@@ -73,7 +83,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	// (e.g. --all updating it across namespaces) can still share cached layers.
 	opts.CacheBust = docker.NewCacheBust()
 
-	targets, err := resolveUpdateTargets(args, namespace, opts, all)
+	targets, err := resolveUpdateTargets(args, namespace, opts, all, pullExplicit)
 	if err != nil {
 		return err
 	}
@@ -97,14 +107,14 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func resolveUpdateTargets(args []string, namespace string, opts tools.BuildOptions, all bool) ([]updateTarget, error) {
+func resolveUpdateTargets(args []string, namespace string, opts tools.BuildOptions, all, pullExplicit bool) ([]updateTarget, error) {
 	if all {
-		return resolveAllUpdateTargets(args, opts)
+		return resolveAllUpdateTargets(args, opts, pullExplicit)
 	}
-	return resolveScopedUpdateTargets(args, namespace, opts)
+	return resolveScopedUpdateTargets(args, namespace, opts, pullExplicit)
 }
 
-func resolveAllUpdateTargets(args []string, opts tools.BuildOptions) ([]updateTarget, error) {
+func resolveAllUpdateTargets(args []string, opts tools.BuildOptions, pullExplicit bool) ([]updateTarget, error) {
 	var filters []docker.ImageFilter
 	if len(args) > 0 {
 		filters = append(filters, docker.ToolFilter(args[0]))
@@ -120,12 +130,13 @@ func resolveAllUpdateTargets(args []string, opts tools.BuildOptions) ([]updateTa
 		if _, ok := tools.Configs[info.Tool]; !ok {
 			continue
 		}
-		targets = append(targets, updateTarget{name: info.Tool, image: info.Image, opts: recoverOpts(info, opts)})
+		toolOpts := applyPullThrottle(recoverOpts(info, opts), info, pullExplicit)
+		targets = append(targets, updateTarget{name: info.Tool, image: info.Image, opts: toolOpts})
 	}
 	return targets, nil
 }
 
-func resolveScopedUpdateTargets(args []string, namespace string, opts tools.BuildOptions) ([]updateTarget, error) {
+func resolveScopedUpdateTargets(args []string, namespace string, opts tools.BuildOptions, pullExplicit bool) ([]updateTarget, error) {
 	skipUnbuilt := len(args) == 0
 	var targets []updateTarget
 
@@ -149,11 +160,29 @@ func resolveScopedUpdateTargets(args []string, namespace string, opts tools.Buil
 		if info != nil {
 			toolOpts = recoverOpts(info, opts)
 		}
+		toolOpts = applyPullThrottle(toolOpts, info, pullExplicit)
 
 		targets = append(targets, updateTarget{name: name, image: image, opts: toolOpts})
 	}
 
 	return targets, nil
+}
+
+// applyPullThrottle leaves opts.Pull untouched when the user explicitly set
+// --pull/--pull=false, or when there's no existing image to check. Otherwise
+// it disables the automatic pull if the image's agentic.pulled label shows
+// a pull already happened within autoPullInterval, so `agentic update` doesn't
+// hit the registry on every single run.
+func applyPullThrottle(opts tools.BuildOptions, info *docker.ImageInfo, pullExplicit bool) tools.BuildOptions {
+	if pullExplicit || info == nil {
+		return opts
+	}
+
+	if docker.PullIsFresh(info.Pulled, autoPullInterval) {
+		opts.Pull = false
+	}
+
+	return opts
 }
 
 func dryRunUpdate(args []string, namespace string, opts tools.BuildOptions) error {

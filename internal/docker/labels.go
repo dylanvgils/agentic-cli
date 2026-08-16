@@ -45,6 +45,11 @@ const (
 	// LabelBuilt records the UTC timestamp at which the image was built.
 	LabelBuilt = "agentic.built"
 
+	// LabelPulled records the UTC timestamp at which `docker build --pull` was
+	// last actually run for this image, so `agentic update` can throttle how
+	// often it automatically re-checks the registry for fresher base images.
+	LabelPulled = "agentic.pulled"
+
 	// LabelProject marks every docker resource (image, container, volume) created
 	// by agentic, paired with LabelProjectVal. Used to scope cleanup and listing
 	// to agentic-managed resources only.
@@ -137,9 +142,35 @@ func buildVersionArgsLabel(layers []string, overrides map[string]string) string 
 	return strings.Join(parts, ",")
 }
 
+// formatLabelTime formats t as the UTC timestamp string used by agentic's
+// timestamp-valued labels (agentic.built, agentic.pulled).
+func formatLabelTime(t time.Time) string {
+	return t.UTC().Format("2006-01-02T15:04:05Z")
+}
+
+// parseLabelTime parses a timestamp previously formatted by formatLabelTime.
+func parseLabelTime(s string) (time.Time, bool) {
+	t, err := time.Parse("2006-01-02T15:04:05Z", s)
+	return t, err == nil
+}
+
 // buildBuiltLabel returns the current UTC time formatted as the agentic.built label value.
 func buildBuiltLabel() string {
-	return time.Now().UTC().Format("2006-01-02T15:04:05Z")
+	return formatLabelTime(time.Now())
+}
+
+// buildPulledLabel returns the current UTC time formatted as the agentic.pulled label value.
+func buildPulledLabel() string {
+	return formatLabelTime(time.Now())
+}
+
+// PullIsFresh reports whether pulledLabel (an agentic.pulled label value)
+// shows a pull within interval, so `agentic update` can skip a redundant
+// automatic --pull. An empty or unparseable label is treated as not fresh, so
+// the caller falls back to pulling.
+func PullIsFresh(pulledLabel string, interval time.Duration) bool {
+	t, ok := parseLabelTime(pulledLabel)
+	return ok && time.Since(t) < interval
 }
 
 // NewCacheBust returns a value that changes between `agentic update` invocations

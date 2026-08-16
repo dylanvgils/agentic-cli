@@ -218,6 +218,58 @@ func TestUpdateTool(t *testing.T) {
 		assert.NotEmpty(t, getCalls())
 	})
 
+	t.Run("pull bypasses the up-to-date check so base layers still get refreshed", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{
+			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3"}}}`,
+		})
+		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
+		getCalls := stubRunInteractiveAll(t)
+
+		// Act
+		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{Pull: true})
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotEmpty(t, getCalls())
+	})
+
+	t.Run("pull-only rebuild of an up-to-date tool does not bust the tool stage cache", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{
+			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3"}}}`,
+		})
+		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
+		getCalls := stubRunInteractiveAll(t)
+
+		// Act - up to date, rebuild only runs so --pull can refresh base layers
+		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{Pull: true})
+
+		// Assert
+		require.NoError(t, err)
+		calls := getCalls()
+		require.NotEmpty(t, calls)
+		for _, a := range calls[0] {
+			assert.False(t, strings.HasPrefix(a, "--build-arg=CACHEBUST="), "up-to-date pull-only rebuild must not force the tool stage to reinstall")
+		}
+	})
+
+	t.Run("skips rebuild when up to date and pull is false", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{
+			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3"}}}`,
+		})
+		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
+		getCalls := stubRunInteractiveAll(t)
+
+		// Act
+		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{Pull: false})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, getCalls())
+	})
+
 	t.Run("always sets cachebust build arg", func(t *testing.T) {
 		// Arrange
 		stubDockerRunBySubcmd(t, nil)

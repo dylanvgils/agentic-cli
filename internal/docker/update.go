@@ -7,18 +7,25 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
-// UpdateTool rebuilds tool, skipping entirely if it's already up to date.
-// Otherwise it recovers base extras, layer versions, and apt packages from the
-// existing image's labels when not already set, then delegates to BuildTool
-// with CacheBust set so only the tool stage skips cache.
+// UpdateTool rebuilds tool, skipping entirely if it's already up to date and
+// opts.Pull is false. When opts.Pull is true the rebuild always runs (even if
+// the tool version is unchanged) so a `docker build --pull` can refresh stale
+// base image layers - but in that case the tool stage's own cache is left
+// alone (no CacheBust) since there's nothing new for it to install. Otherwise
+// it recovers base extras, layer versions, and apt packages from the existing
+// image's labels when not already set, then delegates to BuildTool with
+// CacheBust set so only the tool stage skips cache.
 func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 	hasUserApt := len(opts.AptPackages) > 0
 	userPkgs := opts.AptPackages
 	opts.VerifyApt = hasUserApt
 
 	info, err := InspectImage(image)
+	upToDate := false
 	if err == nil && info != nil {
-		if !opts.NoCache && isUpToDate(tool, info.Version) {
+		upToDate = isUpToDate(tool, info.Version)
+
+		if !opts.NoCache && !opts.Pull && upToDate {
 			return nil
 		}
 
@@ -37,7 +44,9 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 		}
 	}
 
-	if opts.CacheBust == "" {
+	if !opts.NoCache && upToDate {
+		opts.CacheBust = ""
+	} else if opts.CacheBust == "" {
 		opts.CacheBust = NewCacheBust()
 	}
 

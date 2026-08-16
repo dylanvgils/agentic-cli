@@ -92,6 +92,10 @@ func buildProxyImage(dockerfilePath, image, context string, opts tools.BuildOpti
 		args = append(args, arg("no-cache"))
 	}
 
+	if opts.NoCache || opts.Pull {
+		args = append(args, arg("pull"))
+	}
+
 	args = append(args,
 		arg("tag", image),
 		arg("file", dockerfilePath),
@@ -152,6 +156,10 @@ func buildImage(tmpDir, image, tool string, opts tools.BuildOptions) error {
 		args = append(args, arg("no-cache"))
 	} else if opts.CacheBust != "" {
 		args = append(args, arg("build-arg", "CACHEBUST="+opts.CacheBust))
+	}
+
+	if opts.NoCache || opts.Pull {
+		args = append(args, arg("pull"), label(LabelPulled, buildPulledLabel()))
 	}
 
 	args = append(

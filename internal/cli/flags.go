@@ -76,6 +76,7 @@ func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOpt
 	}
 
 	opts.NoCache, _ = cmd.Flags().GetBool("no-cache")
+	opts.Pull, _ = cmd.Flags().GetBool("pull")
 	opts.Versions = collectVersions(cmd, rc)
 	opts.AptPackages = collectAptPackages(cmd, rc)
 	opts.VerifyApt = len(opts.AptPackages) > 0

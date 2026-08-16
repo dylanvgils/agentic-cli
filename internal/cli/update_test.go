@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -79,7 +80,7 @@ func Test_resolveScopedUpdateTargets(t *testing.T) {
 		stubInspectImage(t, nil, nil)
 
 		// Act
-		targets, err := resolveScopedUpdateTargets([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		targets, err := resolveScopedUpdateTargets([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -101,7 +102,7 @@ func Test_resolveScopedUpdateTargets(t *testing.T) {
 		t.Cleanup(func() { inspectImage = orig })
 
 		// Act
-		targets, err := resolveScopedUpdateTargets([]string{}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		targets, err := resolveScopedUpdateTargets([]string{}, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -114,10 +115,24 @@ func Test_resolveScopedUpdateTargets(t *testing.T) {
 		stubInspectImage(t, nil, fmt.Errorf("daemon not running"))
 
 		// Act
-		_, err := resolveScopedUpdateTargets([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		_, err := resolveScopedUpdateTargets([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.Error(t, err)
+	})
+
+	t.Run("recently pulled image has its automatic pull throttled", func(t *testing.T) {
+		// Arrange
+		freshLabel := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+		stubInspectImage(t, &docker.ImageInfo{Pulled: freshLabel}, nil)
+
+		// Act - pullExplicit is false, so the fresh label should disable Pull
+		targets, err := resolveScopedUpdateTargets([]string{"claude"}, "agentic", tools.BuildOptions{Pull: true, Versions: map[string]string{}}, false)
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, targets, 1)
+		assert.False(t, targets[0].opts.Pull)
 	})
 }
 
@@ -132,7 +147,7 @@ func Test_resolveAllUpdateTargets(t *testing.T) {
 		})
 
 		// Act
-		targets, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+		targets, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -150,7 +165,7 @@ func Test_resolveAllUpdateTargets(t *testing.T) {
 		})
 
 		// Act
-		targets, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+		targets, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -168,7 +183,7 @@ func Test_resolveAllUpdateTargets(t *testing.T) {
 		})
 
 		// Act
-		targets, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+		targets, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert - each target gets its own label-recovered base, not a shared one
 		require.NoError(t, err)
@@ -188,7 +203,7 @@ func Test_resolveAllUpdateTargets(t *testing.T) {
 		})
 
 		// Act
-		targets, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+		targets, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -204,7 +219,7 @@ func Test_resolveAllUpdateTargets(t *testing.T) {
 		})
 
 		// Act
-		_, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}})
+		_, err := resolveAllUpdateTargets([]string{}, tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.Error(t, err)
@@ -222,7 +237,7 @@ func Test_resolveAllUpdateTargets(t *testing.T) {
 		})
 
 		// Act
-		targets, err := resolveAllUpdateTargets([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
+		targets, err := resolveAllUpdateTargets([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -420,6 +435,53 @@ func Test_recoverOpts(t *testing.T) {
 	})
 }
 
+func Test_applyPullThrottle(t *testing.T) {
+	freshLabel := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+
+	t.Run("explicit flag leaves opts unchanged even with a fresh label", func(t *testing.T) {
+		// Act
+		result := applyPullThrottle(tools.BuildOptions{Pull: true}, &docker.ImageInfo{Pulled: freshLabel}, true)
+
+		// Assert
+		assert.True(t, result.Pull)
+	})
+
+	t.Run("no existing image leaves opts unchanged", func(t *testing.T) {
+		// Act
+		result := applyPullThrottle(tools.BuildOptions{Pull: true}, nil, false)
+
+		// Assert
+		assert.True(t, result.Pull)
+	})
+
+	t.Run("fresh pull-last label disables the automatic pull", func(t *testing.T) {
+		// Act
+		result := applyPullThrottle(tools.BuildOptions{Pull: true}, &docker.ImageInfo{Pulled: freshLabel}, false)
+
+		// Assert
+		assert.False(t, result.Pull)
+	})
+
+	t.Run("stale pull-last label leaves the automatic pull enabled", func(t *testing.T) {
+		// Arrange
+		staleLabel := time.Now().Add(-25 * time.Hour).UTC().Format("2006-01-02T15:04:05Z")
+
+		// Act
+		result := applyPullThrottle(tools.BuildOptions{Pull: true}, &docker.ImageInfo{Pulled: staleLabel}, false)
+
+		// Assert
+		assert.True(t, result.Pull)
+	})
+
+	t.Run("empty pull-last label leaves the automatic pull enabled", func(t *testing.T) {
+		// Act
+		result := applyPullThrottle(tools.BuildOptions{Pull: true}, &docker.ImageInfo{}, false)
+
+		// Assert
+		assert.True(t, result.Pull)
+	})
+}
+
 func TestRunUpdate(t *testing.T) {
 	t.Run("no cache flag sets opt", func(t *testing.T) {
 		// Arrange
@@ -441,6 +503,47 @@ func TestRunUpdate(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, capturedOpts.NoCache)
+	})
+
+	t.Run("pull flag defaults true", func(t *testing.T) {
+		// Arrange
+		var capturedOpts tools.BuildOptions
+		stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = opts
+			return nil
+		})
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
+
+		// Act
+		err := runUpdate(updateCmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, capturedOpts.Pull)
+	})
+
+	t.Run("pull flag can be disabled", func(t *testing.T) {
+		// Arrange
+		var capturedOpts tools.BuildOptions
+		stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = opts
+			return nil
+		})
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
+
+		require.NoError(t, updateCmd.Flags().Set("pull", "false"))
+		defer updateCmd.Flags().Set("pull", "true") //nolint:errcheck
+
+		// Act
+		err := runUpdate(updateCmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, capturedOpts.Pull)
 	})
 
 	t.Run("stops on first update error", func(t *testing.T) {

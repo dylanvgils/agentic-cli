@@ -144,6 +144,76 @@ func TestBuildImage(t *testing.T) {
 		}
 	})
 
+	t.Run("noCache also adds pull flag", func(t *testing.T) {
+		// Act
+		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{NoCache: true})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, get(), "--pull")
+	})
+
+	t.Run("pull adds pull flag", func(t *testing.T) {
+		// Act
+		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{Pull: true})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, get(), "--pull")
+	})
+
+	t.Run("pull flag absent by default", func(t *testing.T) {
+		// Act
+		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotContains(t, get(), "--pull")
+	})
+
+	t.Run("pull stamps pull-last label", func(t *testing.T) {
+		// Act
+		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{Pull: true})
+
+		// Assert
+		require.NoError(t, err)
+		found := false
+		for _, a := range get() {
+			if strings.HasPrefix(a, "--label="+LabelPulled+"=") {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected --label=%s=<timestamp> in args", LabelPulled)
+	})
+
+	t.Run("noCache also stamps pull-last label", func(t *testing.T) {
+		// Act
+		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{NoCache: true})
+
+		// Assert
+		require.NoError(t, err)
+		found := false
+		for _, a := range get() {
+			if strings.HasPrefix(a, "--label="+LabelPulled+"=") {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected --label=%s=<timestamp> in args", LabelPulled)
+	})
+
+	t.Run("pull-last label absent without pull or no-cache", func(t *testing.T) {
+		// Act
+		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		for _, a := range get() {
+			assert.False(t, strings.HasPrefix(a, "--label="+LabelPulled+"="), "unexpected pull-last label: %s", a)
+		}
+	})
+
 	t.Run("cacheBust adds build arg with its value", func(t *testing.T) {
 		// Act
 		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{CacheBust: "shared-value"})
@@ -416,5 +486,44 @@ func TestBuildProxyImage(t *testing.T) {
 		require.NoError(t, err)
 		args, _ := get()
 		assert.Contains(t, args, "--label="+LabelTool+"=proxy")
+	})
+
+	t.Run("noCache also adds pull flag", func(t *testing.T) {
+		// Arrange
+		get := stubRunInteractiveCapture(t)
+
+		// Act
+		err := BuildProxyImage("agentic-proxy", "v1.2.3", "", tools.BuildOptions{NoCache: true})
+
+		// Assert
+		require.NoError(t, err)
+		args, _ := get()
+		assert.Contains(t, args, "--pull")
+	})
+
+	t.Run("pull adds pull flag", func(t *testing.T) {
+		// Arrange
+		get := stubRunInteractiveCapture(t)
+
+		// Act
+		err := BuildProxyImage("agentic-proxy", "v1.2.3", "", tools.BuildOptions{Pull: true})
+
+		// Assert
+		require.NoError(t, err)
+		args, _ := get()
+		assert.Contains(t, args, "--pull")
+	})
+
+	t.Run("pull flag absent by default", func(t *testing.T) {
+		// Arrange
+		get := stubRunInteractiveCapture(t)
+
+		// Act
+		err := BuildProxyImage("agentic-proxy", "v1.2.3", "", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		args, _ := get()
+		assert.NotContains(t, args, "--pull")
 	})
 }
