@@ -355,7 +355,7 @@ run = [
 ]
 ```
 
-Each entry runs as its own Dockerfile layer, after any `--base` extras and before the tool's own install step. Unlike `bases`/`apt_packages`, `agentic update` does not ignore `custom_installs` from rc - it always reflects the current file. See [docs/02-config.md](docs/02-config.md) for the full reference.
+Runs as root before the tool's own install step - install into a root-owned path like `/usr/local/bin` rather than `$HOME`. See [docs/02-config.md](docs/02-config.md) for the full reference.
 
 ## 🔑 Secrets
 
