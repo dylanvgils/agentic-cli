@@ -1,12 +1,9 @@
 package cli
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
 	"github.com/spf13/cobra"
 )
 
@@ -44,51 +41,16 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	namespace := resolveNamespace(cmd, rc)
 	opts := buildOptsFromFlags(cmd, rc)
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	names := toolNames(args)
 
 	if dryRun {
-		return dryRunBuild(args, opts)
+		return build.DryRun(names, opts)
 	}
 
-	if err := buildTools(args, namespace, opts); err != nil {
+	if err := build.Apply(names, namespace, opts); err != nil {
 		return err
 	}
 
 	pruneResources()
-	return nil
-}
-
-func dryRunBuild(args []string, opts tools.BuildOptions) error {
-	for _, name := range toolNames(args) {
-		output.Step(name)
-		content, err := tools.GenerateDockerfile(name, opts)
-		if err != nil {
-			return err
-		}
-		if _, err := fmt.Println(content); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func buildTools(args []string, namespace string, opts tools.BuildOptions) error {
-	for _, name := range toolNames(args) {
-		image, err := tools.ImageName(name, namespace)
-		if err != nil {
-			return err
-		}
-
-		output.Step(image)
-		if len(opts.BaseOverride) > 0 {
-			output.Detailf("base: %s", strings.Join(opts.BaseOverride, ", "))
-		}
-		if len(opts.AptPackages) > 0 {
-			output.Detailf("apt: %s", strings.Join(opts.AptPackages, ", "))
-		}
-
-		if err := buildTool(name, image, opts); err != nil {
-			return err
-		}
-	}
 	return nil
 }

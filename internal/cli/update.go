@@ -3,20 +3,13 @@ package cli
 import (
 	"fmt"
 	"os"
-	"strings"
-	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
 )
-
-// autoPullInterval bounds how often `agentic update` automatically passes
-// --pull to refresh base image layers when the user hasn't explicitly set
-// --pull/--pull=false themselves.
-const autoPullInterval = 24 * time.Hour
 
 var updateCmd = &cobra.Command{
 	Use:   "update [tool]",
@@ -48,12 +41,6 @@ func init() {
 	addAllFlag(updateCmd)
 }
 
-type updateTarget struct {
-	name  string
-	image string
-	opts  tools.BuildOptions
-}
-
 func runUpdate(cmd *cobra.Command, args []string) error {
 	rc, err := config.FindAndLoadFromCwd()
 	if err != nil {
@@ -66,6 +53,11 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	all, _ := cmd.Flags().GetBool("all")
 	pullExplicit := cmd.Flags().Changed("pull")
 
+	var tool string
+	if len(args) > 0 {
+		tool = args[0]
+	}
+
 	// For update, RC config bases/apt must not prevent per-image label recovery.
 	// Only explicit CLI flags and env vars should override what the image was built with.
 	if !cmd.Flags().Changed("base") && os.Getenv(config.EnvBaseOverride) == "" {
@@ -76,14 +68,22 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	if dryRun {
-		return dryRunUpdate(args, namespace, opts)
+		return update.DryRun(tool, namespace, opts)
 	}
 
 	// Generate the cache-bust value once so multiple targets for the same tool
 	// (e.g. --all updating it across namespaces) can still share cached layers.
 	opts.CacheBust = docker.NewCacheBust()
 
-	targets, err := resolveUpdateTargets(args, namespace, opts, all, pullExplicit)
+	scope := update.Scope{
+		Names:      toolNames(args),
+		HasArgs:    len(args) > 0,
+		FilterTool: tool,
+		Namespace:  namespace,
+		All:        all,
+	}
+
+	targets, err := update.Resolve(scope, opts, pullExplicit)
 	if err != nil {
 		return err
 	}
@@ -98,167 +98,11 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, t := range targets {
-		if err := updateOneTool(t.name, t.image, t.opts); err != nil {
+		if err := update.Apply(t.Name, t.Image, t.Opts); err != nil {
 			return err
 		}
 	}
 
 	pruneResources()
 	return nil
-}
-
-func resolveUpdateTargets(args []string, namespace string, opts tools.BuildOptions, all, pullExplicit bool) ([]updateTarget, error) {
-	if all {
-		return resolveAllUpdateTargets(args, opts, pullExplicit)
-	}
-	return resolveScopedUpdateTargets(args, namespace, opts, pullExplicit)
-}
-
-func resolveAllUpdateTargets(args []string, opts tools.BuildOptions, pullExplicit bool) ([]updateTarget, error) {
-	var filters []docker.ImageFilter
-	if len(args) > 0 {
-		filters = append(filters, docker.ToolFilter(args[0]))
-	}
-
-	images, err := listAllImages(filters...)
-	if err != nil {
-		return nil, err
-	}
-
-	var targets []updateTarget
-	for _, info := range images {
-		if _, ok := tools.Configs[info.Tool]; !ok {
-			continue
-		}
-		toolOpts := applyPullThrottle(recoverOpts(info, opts), info, pullExplicit)
-		targets = append(targets, updateTarget{name: info.Tool, image: info.Image, opts: toolOpts})
-	}
-	return targets, nil
-}
-
-func resolveScopedUpdateTargets(args []string, namespace string, opts tools.BuildOptions, pullExplicit bool) ([]updateTarget, error) {
-	skipUnbuilt := len(args) == 0
-	var targets []updateTarget
-
-	for _, name := range toolNames(args) {
-		image, err := tools.ImageName(name, namespace)
-		if err != nil {
-			return nil, err
-		}
-
-		info, err := inspectImage(image)
-		if err != nil {
-			return nil, err
-		}
-
-		if skipUnbuilt && info == nil {
-			output.Stepf("%s (skipped - not built)", image)
-			continue
-		}
-
-		toolOpts := opts
-		if info != nil {
-			toolOpts = recoverOpts(info, opts)
-		}
-		toolOpts = applyPullThrottle(toolOpts, info, pullExplicit)
-
-		targets = append(targets, updateTarget{name: name, image: image, opts: toolOpts})
-	}
-
-	return targets, nil
-}
-
-// applyPullThrottle leaves opts.Pull untouched when the user explicitly set
-// --pull/--pull=false, or when there's no existing image to check. Otherwise
-// it disables the automatic pull if the image's agentic.pulled label shows
-// a pull already happened within autoPullInterval, so `agentic update` doesn't
-// hit the registry on every single run.
-func applyPullThrottle(opts tools.BuildOptions, info *docker.ImageInfo, pullExplicit bool) tools.BuildOptions {
-	if pullExplicit || info == nil {
-		return opts
-	}
-
-	if docker.PullIsFresh(info.Pulled, autoPullInterval) {
-		opts.Pull = false
-	}
-
-	return opts
-}
-
-func dryRunUpdate(args []string, namespace string, opts tools.BuildOptions) error {
-	if len(args) == 0 {
-		return fmt.Errorf("--dry-run requires a tool argument")
-	}
-
-	image, err := tools.ImageName(args[0], namespace)
-	if err == nil {
-		if info, iErr := inspectImage(image); iErr == nil && info != nil {
-			opts = recoverOpts(info, opts)
-		}
-	}
-
-	output.Step(args[0])
-	content, err := tools.GenerateDockerfile(args[0], opts)
-	if err != nil {
-		return err
-	}
-
-	_, err = fmt.Println(content)
-	return err
-}
-
-func recoverOpts(info *docker.ImageInfo, opts tools.BuildOptions) tools.BuildOptions {
-	if len(opts.BaseOverride) == 0 {
-		opts.BaseOverride = docker.RecoverExtras(info.Base)
-	}
-	if info.Apt != "" {
-		recoveredPkgs := docker.RecoverApt(info.Apt)
-		opts.AptPackages = tools.MergePackages(recoveredPkgs, opts.AptPackages)
-	}
-	return opts
-}
-
-func updateOneTool(name, image string, opts tools.BuildOptions) error {
-	output.Step(image)
-	if len(opts.BaseOverride) > 0 {
-		output.Detailf("base: %s", strings.Join(opts.BaseOverride, ", "))
-	}
-	if len(opts.AptPackages) > 0 {
-		output.Detailf("apt: %s", strings.Join(opts.AptPackages, ", "))
-	}
-
-	before := imageVersion(image)
-
-	if err := updateTool(name, image, opts); err != nil {
-		return err
-	}
-
-	after := imageVersion(image)
-	reportVersionChange(before, after)
-	return nil
-}
-
-func imageVersion(image string) string {
-	info, err := inspectImage(image)
-	if err != nil || info == nil {
-		return ""
-	}
-	return docker.ParseVersion(info.Version)
-}
-
-func reportVersionChange(before, after string) {
-	if after == "" {
-		return
-	}
-
-	if before == "" {
-		output.Detailf("version: %s", after)
-		return
-	}
-
-	if before != after {
-		output.Detailf("version: %s -> %s", before, after)
-	} else {
-		output.Detailf("version: %s (up to date)", after)
-	}
 }

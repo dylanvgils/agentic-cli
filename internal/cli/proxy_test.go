@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -10,7 +9,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -299,68 +297,6 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 		// Assert
 		assert.False(t, built)
 		assert.Contains(t, out, "FROM")
-	})
-}
-
-func Test_proxyRetentionDays(t *testing.T) {
-	t.Run("uses the value configured in agentic.json", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		cfg, err := config.LoadConfig(toolHome)
-		require.NoError(t, err)
-		cfg.ProxyLogRetentionDays = 30
-		require.NoError(t, cfg.Save(toolHome))
-
-		// Act
-		result := proxyRetentionDays()
-
-		// Assert
-		assert.Equal(t, 30, result)
-	})
-
-	t.Run("falls back to default when not configured", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-
-		// Act
-		result := proxyRetentionDays()
-
-		// Assert
-		assert.Equal(t, housekeeping.DefaultProxyLogRetentionDays, result)
-	})
-}
-
-func Test_proxyLogDir(t *testing.T) {
-	t.Run("returns empty string when proxy is disabled", func(t *testing.T) {
-		// Act
-		dir, err := proxyLogDir(false)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, dir)
-	})
-
-	t.Run("creates the log dir and prunes old logs", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		cfg, err := config.LoadConfig(toolHome)
-		require.NoError(t, err)
-		cfg.ProxyLogRetentionDays = 1
-		require.NoError(t, cfg.Save(toolHome))
-		logDir := filepath.Join(toolHome, "proxy")
-		require.NoError(t, os.MkdirAll(logDir, 0o750))
-		oldLog := filepath.Join(logDir, "old.jsonl")
-		require.NoError(t, os.WriteFile(oldLog, []byte("{}\n"), 0o644))
-		old := time.Now().Add(-48 * time.Hour)
-		require.NoError(t, os.Chtimes(oldLog, old, old))
-
-		// Act
-		dir, err := proxyLogDir(true)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, logDir, dir)
-		assert.NoFileExists(t, oldLog)
 	})
 }
 

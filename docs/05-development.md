@@ -11,22 +11,52 @@ agentic-cli/
 │   └── proxy/                   # Thin entrypoint for the agentic-proxy binary (main.go only)
 └── internal/
     ├── buildinfo/               # Build-time version/commit metadata and dev-build classification
+    ├── cleanup/                 # Capture helper for propagating deferred cleanup errors without masking an earlier error
     ├── cli/                     # Cobra commands (build, update, clean, inspect, run, …)
     ├── config/                  # .agenticrc.toml loading and run spec
     ├── docker/                  # Build, update, run, clean, inspect, volume orchestration
     ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
+    ├── git/                     # Thin wrapper over the host git binary (CheckAvailable, Clone, FetchReset)
     ├── housekeeping/            # Host-side cleanup not tied to a tool run, the proxy server, or docker orchestration (e.g. pruning proxy logs)
+    ├── marketplace/             # Syncs git-based plugin marketplace repos onto the host and tracks per-clone usage
     ├── mount/                   # Volume mount spec builder
     ├── output/                  # CLI output formatting
     ├── platform/                # Platform-specific paths and utilities
     ├── proxy/                   # Egress allowlist proxy: server, allowlist, JSON-lines logger
     ├── selfupdate/              # Downloads and installs new releases from GitHub
-    └── tools/                   # Per-tool stage funcs, mounts, setup, and base layers
+    ├── tools/                   # Per-tool stage funcs, mounts, setup, and base layers
+    └── usecase/                 # Business logic extracted out of internal/cli commands (see below)
+        ├── build/               # Builds (or dry-run prints) tool images for `agentic build`
+        ├── clean/               # Resolves and removes tool images and global Docker resources for `agentic clean`
+        ├── run/                 # Builds docker.RunSpec for `agentic run` - marketplace sync, volume/secret/env merging, resource limits
+        ├── toolupdate/          # Checks for and applies upstream tool version updates on `agentic run`
+        ├── update/              # Resolves and applies `agentic update` targets - build-option recovery, --pull throttling
+        └── upgradecheck/        # Checks for and offers to apply a newer agentic CLI release, on any command's PersistentPreRunE
 ```
 
 `cmd/proxy` only imports `internal/proxy` - never `internal/docker`, `internal/tools`, or `internal/cli` - so the `agentic-proxy` binary that runs inside the (untrusted-traffic-handling) sidecar container stays free of the CLI's code.
 
 No static Dockerfile files exist. All Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/tools/bases.go` (base and extra layers) and each tool's `Stage` func. See [04-dockerfile-dsl.md](04-dockerfile-dsl.md) for the DSL reference.
+
+### When to extract a package out of `internal/cli`
+
+`internal/cli` should stay a thin presentation layer: a command's `RunE` parses
+flags, calls into one or more domain packages, and prints/returns the result.
+Business logic that's already independent of `*cobra.Command` (i.e. it doesn't
+take `cmd *cobra.Command` as a parameter) but makes multi-step decisions gluing
+together more than one domain package - not just a single delegating call -
+should move into its own package under `internal/usecase/`, named for what it
+does, the way `build`, `clean`, `run`, `toolupdate`, `update`, and
+`upgradecheck` were split out of their command files. A command whose logic
+is a single delegating call into an existing domain package, or is mostly
+presentation formatting over one domain package (`inspect.go`, `config.go`,
+`marketplaces.go`, `namespaces.go`, `status.go`, `trust.go`, `volumes.go`,
+etc.), doesn't need this - don't create a package-per-command mapping
+mechanically, that just reproduces a Java-style controller/service split
+without the payoff. `internal/usecase/` exists so this category of package -
+orchestration extracted from a CLI command - stays distinguishable from
+unrelated infra packages (`docker`, `git`, `mount`, `config`, etc.) as the
+number of packages in `internal/` grows.
 
 ## Build & test
 
