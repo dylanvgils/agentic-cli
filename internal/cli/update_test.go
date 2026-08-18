@@ -66,7 +66,10 @@ func TestRunUpdate(t *testing.T) {
 		stubPruneBuildCache(t, func() error { return nil })
 
 		require.NoError(t, updateCmd.Flags().Set("pull", "false"))
-		defer updateCmd.Flags().Set("pull", "true") //nolint:errcheck
+		t.Cleanup(func() {
+			updateCmd.Flags().Set("pull", "true") //nolint:errcheck
+			updateCmd.Flags().Lookup("pull").Changed = false
+		})
 
 		// Act
 		err := runUpdate(updateCmd, []string{"claude"})
@@ -74,6 +77,28 @@ func TestRunUpdate(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.False(t, capturedOpts.Pull)
+	})
+
+	t.Run("dry run flag prints dockerfile and skips update", func(t *testing.T) {
+		// Arrange
+		var updateCalled bool
+		stubUpdateUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error {
+			updateCalled = true
+			return nil
+		})
+
+		require.NoError(t, updateCmd.Flags().Set("dry-run", "true"))
+		defer updateCmd.Flags().Set("dry-run", "false") //nolint:errcheck
+
+		// Act
+		out := captureStdout(t, func() {
+			err := runUpdate(updateCmd, []string{"claude"})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.False(t, updateCalled)
+		assert.Contains(t, out, "FROM")
 	})
 
 	t.Run("stops on first update error", func(t *testing.T) {
@@ -258,10 +283,11 @@ func TestRunUpdate(t *testing.T) {
 		cmd := updateCmd
 		require.NoError(t, cmd.Flags().Set("all", "true"))
 		require.NoError(t, cmd.Flags().Set("base", "java"))
-		defer func() {
+		t.Cleanup(func() {
 			cmd.Flags().Set("all", "false") //nolint:errcheck
 			cmd.Flags().Set("base", "")     //nolint:errcheck
-		}()
+			cmd.Flags().Lookup("base").Changed = false
+		})
 
 		// Act
 		err := runUpdate(cmd, []string{})

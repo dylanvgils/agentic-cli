@@ -203,6 +203,7 @@ func TestBuild(t *testing.T) {
 		stubSyncMarketplaces(t, func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error) {
 			return []marketplace.Result{{Entry: entries[0], Dir: dirFor(entries[0])}}, nil
 		})
+		stubRecordMarketplaceUsage(t, func(string, []marketplace.Result, string) error { return nil })
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 		in := Input{ToolHome: t.TempDir()}
 		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}

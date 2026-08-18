@@ -69,6 +69,64 @@ func TestDryRun(t *testing.T) {
 		assert.Contains(t, out, "temurin")
 		assert.NotContains(t, out, "go.dev")
 	})
+
+	t.Run("unknown tool returns error", func(t *testing.T) {
+		// Act
+		err := DryRun("nonexistent", "agentic", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown tool")
+	})
+
+	t.Run("inspectImage error is swallowed, falls back to caller opts", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, fmt.Errorf("daemon not running"))
+		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
+
+		// Act
+		out := captureStdout(t, func() {
+			err := DryRun("claude", "agentic", opts)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "temurin")
+	})
+}
+
+func TestResolve(t *testing.T) {
+	t.Run("all scope dispatches to resolveAll", func(t *testing.T) {
+		// Arrange
+		var capturedFilters []docker.ImageFilter
+		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			capturedFilters = filters
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+			}, nil
+		})
+
+		// Act
+		targets, err := Resolve(Scope{All: true, FilterTool: "claude"}, tools.BuildOptions{Versions: map[string]string{}}, true)
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, targets, 1)
+		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, capturedFilters)
+	})
+
+	t.Run("scoped resolve dispatches to resolveScoped", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, nil)
+
+		// Act
+		targets, err := Resolve(Scope{Names: []string{"claude"}, HasArgs: true, Namespace: "agentic"}, tools.BuildOptions{Versions: map[string]string{}}, true)
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, targets, 1)
+		assert.Equal(t, "claude", targets[0].Name)
+	})
 }
 
 func Test_resolveScoped(t *testing.T) {
@@ -86,17 +144,8 @@ func Test_resolveScoped(t *testing.T) {
 	})
 
 	t.Run("mixed built recovers opts from label for built tools", func(t *testing.T) {
-		// Arrange
-		callCount := 0
-		orig := InspectImage
-		InspectImage = func(_ string) (*docker.ImageInfo, error) {
-			callCount++
-			if callCount == 1 {
-				return nil, nil // first tool not built
-			}
-			return &docker.ImageInfo{Version: "1.0.0", Base: "node@24,java@21"}, nil
-		}
-		t.Cleanup(func() { InspectImage = orig })
+		// Arrange - first tool not built, remaining tools return this built image
+		stubInspectImageSequence(t, nil, &docker.ImageInfo{Version: "1.0.0", Base: "node@24,java@21"})
 
 		// Act
 		targets, err := resolveScoped(tools.Names(), false, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
@@ -116,6 +165,15 @@ func Test_resolveScoped(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
+	})
+
+	t.Run("unknown tool returns error", func(t *testing.T) {
+		// Act
+		_, err := resolveScoped([]string{"nonexistent"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown tool")
 	})
 
 	t.Run("recently pulled image has its automatic pull throttled", func(t *testing.T) {
@@ -248,17 +306,7 @@ func TestApply(t *testing.T) {
 	t.Run("version changed reported", func(t *testing.T) {
 		// Arrange
 		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
-
-		callCount := 0
-		orig := InspectImage
-		InspectImage = func(_ string) (*docker.ImageInfo, error) {
-			callCount++
-			if callCount == 1 {
-				return &docker.ImageInfo{Version: "1.0.0"}, nil // before
-			}
-			return &docker.ImageInfo{Version: "2.0.0"}, nil // after
-		}
-		t.Cleanup(func() { InspectImage = orig })
+		stubInspectImageSequence(t, &docker.ImageInfo{Version: "1.0.0"}, &docker.ImageInfo{Version: "2.0.0"})
 
 		// Act
 		out := captureStdout(t, func() {

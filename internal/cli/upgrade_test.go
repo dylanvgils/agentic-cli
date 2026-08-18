@@ -28,8 +28,9 @@ func TestRunUpgrade(t *testing.T) {
 		// Arrange
 		stubFetchLatestVersion(t, "v1.0.0", nil)
 		stubPerformUpdate(t, nil)
+		origVersion := buildinfo.Version
 		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = "dev" })
+		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
 		out := captureStdout(t, func() {
@@ -52,8 +53,9 @@ func TestRunUpgrade(t *testing.T) {
 			return nil
 		}
 		t.Cleanup(func() { performUpdate = orig })
+		origVersion := buildinfo.Version
 		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = "dev" })
+		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
 		out := captureStdout(t, func() {
@@ -69,8 +71,9 @@ func TestRunUpgrade(t *testing.T) {
 	t.Run("returns error when fetch fails", func(t *testing.T) {
 		// Arrange
 		stubFetchLatestVersion(t, "", errors.New("network error"))
+		origVersion := buildinfo.Version
 		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = "dev" })
+		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
 		err := runUpgrade(upgradeCmd, nil)
@@ -83,8 +86,9 @@ func TestRunUpgrade(t *testing.T) {
 		// Arrange
 		stubFetchLatestVersion(t, "v1.1.0", nil)
 		stubPerformUpdate(t, errors.New("permission denied"))
+		origVersion := buildinfo.Version
 		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = "dev" })
+		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
 		err := runUpgrade(upgradeCmd, nil)
@@ -102,8 +106,9 @@ func TestRunUpgrade(t *testing.T) {
 		orig := performUpdate
 		performUpdate = func(v string) error { updateCalledWith = v; return nil }
 		t.Cleanup(func() { performUpdate = orig })
+		origVersion := buildinfo.Version
 		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = "dev" })
+		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
 		out := captureStdout(t, func() {
@@ -125,8 +130,9 @@ func TestRunUpgrade(t *testing.T) {
 		orig := performUpdate
 		performUpdate = func(v string) error { updateCalledWith = v; return nil }
 		t.Cleanup(func() { performUpdate = orig })
+		origVersion := buildinfo.Version
 		buildinfo.Version = "v1.0.0-alpha.1"
-		t.Cleanup(func() { buildinfo.Version = "dev" })
+		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
 		err := runUpgrade(upgradeCmd, nil)
@@ -148,8 +154,9 @@ func TestRunUpgrade(t *testing.T) {
 		origUpdate := performUpdate
 		performUpdate = func(v string) error { updateCalledWith = v; return nil }
 		t.Cleanup(func() { performUpdate = origUpdate })
+		origVersion := buildinfo.Version
 		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = "dev" })
+		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
 		out := captureStdout(t, func() {
@@ -172,8 +179,9 @@ func TestRunUpgrade(t *testing.T) {
 		orig := performUpdate
 		performUpdate = func(v string) error { updateCalledWith = v; return nil }
 		t.Cleanup(func() { performUpdate = orig })
+		origVersion := buildinfo.Version
 		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = "dev" })
+		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
 		err := runUpgrade(upgradeCmd, nil)
@@ -183,4 +191,3 @@ func TestRunUpgrade(t *testing.T) {
 		assert.Equal(t, "v1.0.0", updateCalledWith)
 	})
 }
-

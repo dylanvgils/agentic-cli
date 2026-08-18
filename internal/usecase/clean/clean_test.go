@@ -28,15 +28,57 @@ func captureStdout(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
-func Test_resolveScoped(t *testing.T) {
-	// Act
-	targets, err := resolveScoped([]string{"claude"}, "agentic")
+func TestResolve(t *testing.T) {
+	t.Run("all scope dispatches to resolveAll", func(t *testing.T) {
+		// Arrange
+		var capturedFilters []docker.ImageFilter
+		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			capturedFilters = filters
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+			}, nil
+		})
 
-	// Assert
-	require.NoError(t, err)
-	require.Len(t, targets, 1)
-	assert.Equal(t, "agentic-claude", targets[0].Label)
-	assert.Equal(t, "agentic-claude", targets[0].Image)
+		// Act
+		targets, err := Resolve(Scope{All: true, FilterTool: "claude"})
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, targets, 1)
+		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, capturedFilters)
+	})
+
+	t.Run("scoped resolve dispatches to resolveScoped", func(t *testing.T) {
+		// Act
+		targets, err := Resolve(Scope{Names: []string{"claude"}, Namespace: "agentic"})
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, targets, 1)
+		assert.Equal(t, "agentic-claude", targets[0].Image)
+	})
+}
+
+func Test_resolveScoped(t *testing.T) {
+	t.Run("known tool resolves to a target", func(t *testing.T) {
+		// Act
+		targets, err := resolveScoped([]string{"claude"}, "agentic")
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, targets, 1)
+		assert.Equal(t, "agentic-claude", targets[0].Label)
+		assert.Equal(t, "agentic-claude", targets[0].Image)
+	})
+
+	t.Run("unknown tool returns error", func(t *testing.T) {
+		// Act
+		_, err := resolveScoped([]string{"nonexistent"}, "agentic")
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown tool")
+	})
 }
 
 func Test_resolveAll(t *testing.T) {

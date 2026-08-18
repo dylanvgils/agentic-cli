@@ -28,23 +28,34 @@ func captureStdout(t *testing.T, fn func()) string {
 }
 
 func TestDryRun(t *testing.T) {
-	// Arrange
-	var scriptCalled bool
-	stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error {
-		scriptCalled = true
-		return nil
+	t.Run("prints dockerfile skips script", func(t *testing.T) {
+		// Arrange
+		var scriptCalled bool
+		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error {
+			scriptCalled = true
+			return nil
+		})
+
+		// Act
+		out := captureStdout(t, func() {
+			err := DryRun([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.False(t, scriptCalled)
+		assert.Contains(t, out, "FROM")
+		assert.NotContains(t, out, "proxy")
 	})
 
-	// Act
-	out := captureStdout(t, func() {
-		err := DryRun([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
-		require.NoError(t, err)
-	})
+	t.Run("unknown tool returns error", func(t *testing.T) {
+		// Act
+		err := DryRun([]string{"nonexistent"}, tools.BuildOptions{Versions: map[string]string{}})
 
-	// Assert
-	assert.False(t, scriptCalled)
-	assert.Contains(t, out, "FROM")
-	assert.NotContains(t, out, "proxy")
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown tool")
+	})
 }
 
 func TestApply(t *testing.T) {
@@ -170,6 +181,15 @@ func TestApply(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "docker daemon not running")
+	})
+
+	t.Run("unknown tool returns error", func(t *testing.T) {
+		// Act
+		err := Apply([]string{"nonexistent"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown tool")
 	})
 
 	t.Run("stops on first tool error", func(t *testing.T) {

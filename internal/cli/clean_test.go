@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -20,7 +22,9 @@ func newTestCleanCmd() *cobra.Command {
 
 func Test_runClean(t *testing.T) {
 	t.Run("cleans images and global resources when no args", func(t *testing.T) {
-		// Arrange
+		// Arrange - confirms runClean wires clean.Resolve -> clean.Apply -> clean.GlobalResources
+		// together when no tool arg is given; output formatting and per-target cleanup mechanics
+		// are covered by internal/usecase/clean's own tests.
 		t.Chdir(t.TempDir())
 		var cleaned []string
 		stubCleanCleanImage(t, func(image string) error {
@@ -36,15 +40,26 @@ func Test_runClean(t *testing.T) {
 		stubCleanRemoveNetwork(t, func() error { return nil })
 
 		// Act
-		out := captureStdout(t, func() {
-			err := runClean(newTestCleanCmd(), []string{})
-			require.NoError(t, err)
-		})
+		err := runClean(newTestCleanCmd(), []string{})
 
 		// Assert
-		assert.Contains(t, out, "=> agentic-claude")
-		assert.Contains(t, out, "=> base")
+		require.NoError(t, err)
+		assert.Contains(t, cleaned, "agentic-claude")
 		assert.True(t, basesCleaned)
+	})
+
+	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		rcPath := filepath.Join(dir, ".agenticrc.toml")
+		require.NoError(t, os.WriteFile(rcPath, []byte("not valid toml [[["), 0o644))
+		t.Chdir(dir)
+
+		// Act
+		err := runClean(newTestCleanCmd(), []string{"claude"})
+
+		// Assert
+		assert.ErrorContains(t, err, rcPath)
 	})
 
 	t.Run("propagates error from cleanTargets", func(t *testing.T) {

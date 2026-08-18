@@ -93,6 +93,28 @@ func TestRunBuild(t *testing.T) {
 		assert.Equal(t, []string{"java"}, capturedOpts.BaseOverride)
 	})
 
+	t.Run("dry run flag prints dockerfile and skips build", func(t *testing.T) {
+		// Arrange
+		var buildCalled bool
+		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error {
+			buildCalled = true
+			return nil
+		})
+
+		require.NoError(t, buildCmd.Flags().Set("dry-run", "true"))
+		defer buildCmd.Flags().Set("dry-run", "false") //nolint:errcheck
+
+		// Act
+		out := captureStdout(t, func() {
+			err := runBuild(buildCmd, []string{"claude"})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.False(t, buildCalled)
+		assert.Contains(t, out, "FROM")
+	})
+
 	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()

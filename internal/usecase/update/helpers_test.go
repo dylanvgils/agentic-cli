@@ -25,6 +25,23 @@ func stubInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
 	t.Cleanup(func() { InspectImage = orig })
 }
 
+// stubInspectImageSequence returns results[0] on the first call, results[1] on
+// the second, and so on, repeating the last entry for any further calls.
+func stubInspectImageSequence(t *testing.T, results ...*docker.ImageInfo) {
+	t.Helper()
+	orig := InspectImage
+	call := 0
+	InspectImage = func(string) (*docker.ImageInfo, error) {
+		idx := call
+		if idx >= len(results) {
+			idx = len(results) - 1
+		}
+		call++
+		return results[idx], nil
+	}
+	t.Cleanup(func() { InspectImage = orig })
+}
+
 func stubUpdateTool(t *testing.T, fn func(tool, image string, opts tools.BuildOptions) error) {
 	t.Helper()
 	orig := UpdateTool

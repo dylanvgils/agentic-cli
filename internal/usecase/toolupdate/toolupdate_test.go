@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -14,34 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func stubLatestToolVersion(t *testing.T, fn func(tool, installedLabel string) (string, bool, bool)) {
-	t.Helper()
-	orig := LatestToolVersion
-	LatestToolVersion = fn
-	t.Cleanup(func() { LatestToolVersion = orig })
-}
-
-func stubInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
-	t.Helper()
-	orig := InspectImage
-	InspectImage = func(string) (*docker.ImageInfo, error) { return info, err }
-	t.Cleanup(func() { InspectImage = orig })
-}
-
-func stubIsTerminal(t *testing.T, terminal bool) {
-	t.Helper()
-	orig := IsTerminal
-	IsTerminal = func() bool { return terminal }
-	t.Cleanup(func() { IsTerminal = orig })
-}
-
-func stubStdin(t *testing.T, input string) {
-	t.Helper()
-	orig := Stdin
-	Stdin = strings.NewReader(input)
-	t.Cleanup(func() { Stdin = orig })
-}
 
 func Test_shouldCheck(t *testing.T) {
 	t.Run("never checked returns true", func(t *testing.T) {
@@ -223,8 +193,9 @@ func Test_notify(t *testing.T) {
 		stubIsTerminal(t, true)
 		stubStdin(t, "y\n")
 
+		origStderr := Stderr
 		Stderr = io.Discard
-		t.Cleanup(func() { Stderr = os.Stderr })
+		t.Cleanup(func() { Stderr = origStderr })
 
 		// Act
 		confirmed := notify("claude", "1.2.3", "1.3.0")
@@ -238,8 +209,9 @@ func Test_notify(t *testing.T) {
 		stubIsTerminal(t, true)
 		stubStdin(t, "n\n")
 
+		origStderr := Stderr
 		Stderr = io.Discard
-		t.Cleanup(func() { Stderr = os.Stderr })
+		t.Cleanup(func() { Stderr = origStderr })
 
 		// Act
 		confirmed := notify("claude", "1.2.3", "1.3.0")
@@ -348,6 +320,7 @@ func TestCheck(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "update failed")
+		assert.Contains(t, err.Error(), "build failed")
 		assert.Contains(t, err.Error(), "agentic update claude")
 	})
 
