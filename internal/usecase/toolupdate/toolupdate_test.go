@@ -1,24 +1,22 @@
-package cli
+package toolupdate
 
 import (
 	"bytes"
 	"errors"
 	"io"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func Test_toolUpdateShouldCheck(t *testing.T) {
+func Test_shouldCheck(t *testing.T) {
 	t.Run("never checked returns true", func(t *testing.T) {
 		// Act
-		result := toolUpdateShouldCheck(nil, "claude")
+		result := shouldCheck(nil, "claude")
 
 		// Assert
 		assert.True(t, result)
@@ -29,7 +27,7 @@ func Test_toolUpdateShouldCheck(t *testing.T) {
 		last := map[string]time.Time{"claude": time.Now().Add(-1 * time.Hour)}
 
 		// Act
-		result := toolUpdateShouldCheck(last, "claude")
+		result := shouldCheck(last, "claude")
 
 		// Assert
 		assert.False(t, result)
@@ -40,14 +38,14 @@ func Test_toolUpdateShouldCheck(t *testing.T) {
 		last := map[string]time.Time{"claude": time.Now().Add(-7 * time.Hour)}
 
 		// Act
-		result := toolUpdateShouldCheck(last, "claude")
+		result := shouldCheck(last, "claude")
 
 		// Assert
 		assert.True(t, result)
 	})
 }
 
-func Test_fetchToolUpdateIfDue(t *testing.T) {
+func Test_fetchIfDue(t *testing.T) {
 	t.Run("returns not ok when within interval", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
@@ -61,7 +59,7 @@ func Test_fetchToolUpdateIfDue(t *testing.T) {
 		})
 
 		// Act
-		installed, latest, ok := fetchToolUpdateIfDue(home, "claude", "agentic-claude")
+		installed, latest, ok := fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		assert.False(t, fetchCalled)
@@ -76,7 +74,7 @@ func Test_fetchToolUpdateIfDue(t *testing.T) {
 		stubInspectImage(t, nil, nil)
 
 		// Act
-		_, _, ok := fetchToolUpdateIfDue(home, "claude", "agentic-claude")
+		_, _, ok := fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		assert.False(t, ok)
@@ -88,7 +86,7 @@ func Test_fetchToolUpdateIfDue(t *testing.T) {
 		stubInspectImage(t, nil, errors.New("docker error"))
 
 		// Act
-		_, _, ok := fetchToolUpdateIfDue(home, "claude", "agentic-claude")
+		_, _, ok := fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		assert.False(t, ok)
@@ -101,7 +99,7 @@ func Test_fetchToolUpdateIfDue(t *testing.T) {
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "", false, false })
 
 		// Act
-		_, _, ok := fetchToolUpdateIfDue(home, "claude", "agentic-claude")
+		_, _, ok := fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		assert.False(t, ok)
@@ -114,7 +112,7 @@ func Test_fetchToolUpdateIfDue(t *testing.T) {
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.2.3", false, true })
 
 		// Act
-		_, _, ok := fetchToolUpdateIfDue(home, "claude", "agentic-claude")
+		_, _, ok := fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		assert.False(t, ok)
@@ -128,7 +126,7 @@ func Test_fetchToolUpdateIfDue(t *testing.T) {
 		before := time.Now()
 
 		// Act
-		fetchToolUpdateIfDue(home, "claude", "agentic-claude")
+		fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		cfg, err := config.LoadConfig(home)
@@ -144,7 +142,7 @@ func Test_fetchToolUpdateIfDue(t *testing.T) {
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "", false, false })
 
 		// Act
-		fetchToolUpdateIfDue(home, "claude", "agentic-claude")
+		fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		cfg, err := config.LoadConfig(home)
@@ -159,7 +157,7 @@ func Test_fetchToolUpdateIfDue(t *testing.T) {
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 
 		// Act
-		installed, latest, ok := fetchToolUpdateIfDue(home, "claude", "agentic-claude")
+		installed, latest, ok := fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		assert.True(t, ok)
@@ -168,18 +166,18 @@ func Test_fetchToolUpdateIfDue(t *testing.T) {
 	})
 }
 
-func Test_notifyToolUpdate(t *testing.T) {
+func Test_notify(t *testing.T) {
 	t.Run("prints one-liner and returns false when not a terminal", func(t *testing.T) {
 		// Arrange
 		stubIsTerminal(t, false)
 
 		var errBuf bytes.Buffer
-		orig := toolUpdateStderr
-		toolUpdateStderr = &errBuf
-		t.Cleanup(func() { toolUpdateStderr = orig })
+		orig := Stderr
+		Stderr = &errBuf
+		t.Cleanup(func() { Stderr = orig })
 
 		// Act
-		confirmed := notifyToolUpdate("claude", "1.2.3", "1.3.0")
+		confirmed := notify("claude", "1.2.3", "1.3.0")
 
 		// Assert
 		assert.False(t, confirmed)
@@ -193,13 +191,14 @@ func Test_notifyToolUpdate(t *testing.T) {
 	t.Run("returns true when terminal and user confirms", func(t *testing.T) {
 		// Arrange
 		stubIsTerminal(t, true)
-		stubToolUpdateStdin(t, "y\n")
+		stubStdin(t, "y\n")
 
-		toolUpdateStderr = io.Discard
-		t.Cleanup(func() { toolUpdateStderr = os.Stderr })
+		origStderr := Stderr
+		Stderr = io.Discard
+		t.Cleanup(func() { Stderr = origStderr })
 
 		// Act
-		confirmed := notifyToolUpdate("claude", "1.2.3", "1.3.0")
+		confirmed := notify("claude", "1.2.3", "1.3.0")
 
 		// Assert
 		assert.True(t, confirmed)
@@ -208,54 +207,23 @@ func Test_notifyToolUpdate(t *testing.T) {
 	t.Run("returns false when terminal and user declines", func(t *testing.T) {
 		// Arrange
 		stubIsTerminal(t, true)
-		stubToolUpdateStdin(t, "n\n")
+		stubStdin(t, "n\n")
 
-		toolUpdateStderr = io.Discard
-		t.Cleanup(func() { toolUpdateStderr = os.Stderr })
+		origStderr := Stderr
+		Stderr = io.Discard
+		t.Cleanup(func() { Stderr = origStderr })
 
 		// Act
-		confirmed := notifyToolUpdate("claude", "1.2.3", "1.3.0")
+		confirmed := notify("claude", "1.2.3", "1.3.0")
 
 		// Assert
 		assert.False(t, confirmed)
 	})
 }
 
-func Test_applyToolUpdate(t *testing.T) {
-	t.Run("updates using recovered build options", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Version: "1.2.3"}, nil)
+func TestCheck(t *testing.T) {
+	noopUpdate := func(string, string) error { return nil }
 
-		var updateCalledWith string
-		stubUpdateTool(t, func(tool, image string, _ tools.BuildOptions) error {
-			updateCalledWith = tool + ":" + image
-			return nil
-		})
-
-		// Act
-		err := applyToolUpdate("claude", "agentic-claude")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "claude:agentic-claude", updateCalledWith)
-	})
-
-	t.Run("returns formatted error when update fails", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Version: "1.2.3"}, nil)
-		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return errors.New("build failed") })
-
-		// Act
-		err := applyToolUpdate("claude", "agentic-claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "update failed")
-		assert.Contains(t, err.Error(), "agentic update claude")
-	})
-}
-
-func Test_checkToolUpdate(t *testing.T) {
 	t.Run("skips when check_updates is false in rc", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
@@ -268,7 +236,7 @@ func Test_checkToolUpdate(t *testing.T) {
 		})
 
 		// Act
-		err := checkToolUpdate(home, rc, "claude", "agentic-claude")
+		err := Check(home, rc, "claude", "agentic-claude", noopUpdate)
 
 		// Assert
 		require.NoError(t, err)
@@ -287,7 +255,7 @@ func Test_checkToolUpdate(t *testing.T) {
 		})
 
 		// Act
-		err := checkToolUpdate(home, rc, "claude", "agentic-claude")
+		err := Check(home, rc, "claude", "agentic-claude", noopUpdate)
 
 		// Assert
 		require.NoError(t, err)
@@ -307,10 +275,73 @@ func Test_checkToolUpdate(t *testing.T) {
 		})
 
 		// Act
-		err := checkToolUpdate(home, rc, "claude", "agentic-claude")
+		err := Check(home, rc, "claude", "agentic-claude", noopUpdate)
 
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, fetchCalled)
+	})
+
+	t.Run("calls update with tool and image when confirmed", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		rc := &config.AgenticRC{}
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.2.3"}, nil)
+		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
+		stubIsTerminal(t, true)
+		stubStdin(t, "y\n")
+		var updateCalledWith string
+		update := func(tool, image string) error {
+			updateCalledWith = tool + ":" + image
+			return nil
+		}
+
+		// Act
+		err := Check(home, rc, "claude", "agentic-claude", update)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "claude:agentic-claude", updateCalledWith)
+	})
+
+	t.Run("returns formatted error when update fails", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		rc := &config.AgenticRC{}
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.2.3"}, nil)
+		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
+		stubIsTerminal(t, true)
+		stubStdin(t, "y\n")
+		update := func(string, string) error { return errors.New("build failed") }
+
+		// Act
+		err := Check(home, rc, "claude", "agentic-claude", update)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "update failed")
+		assert.Contains(t, err.Error(), "build failed")
+		assert.Contains(t, err.Error(), "agentic update claude")
+	})
+
+	t.Run("does not call update when not confirmed", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		rc := &config.AgenticRC{}
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.2.3"}, nil)
+		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
+		stubIsTerminal(t, false)
+		called := false
+		update := func(string, string) error {
+			called = true
+			return nil
+		}
+
+		// Act
+		err := Check(home, rc, "claude", "agentic-claude", update)
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, called)
 	})
 }

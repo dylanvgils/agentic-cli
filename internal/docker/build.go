@@ -74,12 +74,17 @@ func BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) 
 	return nil
 }
 
-// buildProxyImage assembles the docker build args for the proxy image. It is
-// deliberately leaner than buildImage: no tool/base build-args, just the
-// agentic labels so `agentic inspect --all` and cleanup can find it. Unlike
-// tool images it carries no namespace label - the proxy image is global, not
-// namespaced (see tools.ProxyImage).
+// buildProxyImage runs docker build for the proxy image.
 func buildProxyImage(dockerfilePath, image, context string, opts tools.BuildOptions) error {
+	return runInteractive(buildProxyImageArgs(dockerfilePath, image, context, opts)...)
+}
+
+// buildProxyImageArgs computes the docker build args for the proxy image. It
+// is deliberately leaner than buildImageArgs: no tool/base build-args, just
+// the agentic labels so `agentic inspect --all` and cleanup can find it.
+// Unlike tool images it carries no namespace label - the proxy image is
+// global, not namespaced (see tools.ProxyImage).
+func buildProxyImageArgs(dockerfilePath, image, context string, opts tools.BuildOptions) []string {
 	args := []string{
 		"build",
 		label(LabelProject, LabelProjectVal),
@@ -101,7 +106,7 @@ func buildProxyImage(dockerfilePath, image, context string, opts tools.BuildOpti
 		arg("file", dockerfilePath),
 		context)
 
-	return runInteractive(args...)
+	return args
 }
 
 // buildFromContent writes content to a temp Dockerfile and builds the image.
@@ -138,8 +143,13 @@ func writeTempDockerfile(content string) (tmpDir string, err error) {
 	return tmpDir, nil
 }
 
-// buildImage assembles the docker build arguments and runs the build.
+// buildImage runs docker build for the tool image.
 func buildImage(tmpDir, image, tool string, opts tools.BuildOptions) error {
+	return runInteractive(buildImageArgs(tmpDir, image, tool, opts)...)
+}
+
+// buildImageArgs computes the docker build args for the tool image.
+func buildImageArgs(tmpDir, image, tool string, opts tools.BuildOptions) []string {
 	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
 	namespace := strings.TrimSuffix(image, "-"+tool)
 
@@ -179,5 +189,5 @@ func buildImage(tmpDir, image, tool string, opts tools.BuildOptions) error {
 		arg("file", dockerfilePath),
 		tmpDir)
 
-	return runInteractive(args...)
+	return args
 }

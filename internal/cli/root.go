@@ -8,46 +8,10 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/git"
-	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
-	"github.com/dylanvgils/agentic-cli/internal/marketplace"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/upgradecheck"
 	"github.com/spf13/cobra"
-)
-
-var (
-	checkDockerDaemon        = docker.CheckDaemon
-	buildTool                = docker.BuildTool
-	buildProxyImage          = docker.BuildProxyImage
-	updateTool               = docker.UpdateTool
-	runContainer             = docker.RunContainer
-	ensureNamedVolumes       = docker.EnsureNamedVolumes
-	inspectImage             = docker.InspectImage
-	builtTools               = docker.BuiltTools
-	listAllImages            = docker.ListAllImages
-	cleanImage               = docker.CleanImage
-	cleanBaseImages          = docker.CleanBaseImages
-	pruneImages              = docker.PruneImages
-	pruneBuildCache          = docker.PruneBuildCache
-	ensureNetwork            = docker.EnsureNetwork
-	removeNetwork            = docker.RemoveNetwork
-	sweepProxyResources      = docker.SweepProxyResources
-	pruneProxyLogs           = housekeeping.PruneProxyLogs
-	createVolume             = docker.CreateVolume
-	listVolumes              = docker.ListVolumes
-	listVolumeNames          = docker.ListVolumeNames
-	removeVolume             = docker.RemoveVolume
-	listRunningContainers    = docker.ListRunningContainers
-	isTerminal               = platform.IsTerminal
-	setContext               = docker.SetContext
-	listContexts             = docker.ListContexts
-	syncMarketplaces         = marketplace.Sync
-	checkGitAvailable        = git.CheckAvailable
-	loadMarketplaceRegistry  = marketplace.LoadRegistry
-	saveMarketplaceRegistry  = marketplace.SaveRegistry
-	recordMarketplaceUsageFn = marketplace.RecordUsage
 )
 
 var (
@@ -98,7 +62,7 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	}
 
 	if cmd.Parent() != nil && !inCommandChain(cmd, noUpdateCmds) {
-		maybeNotifyUpdate(toolHome)
+		upgradecheck.Check(toolHome)
 	}
 
 	return nil
@@ -156,7 +120,7 @@ func checkGit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !toolNeedsMarketplaceSync(toolConfig, rc, args[0]) {
+	if !run.ToolNeedsMarketplaceSync(toolConfig, rc, args[0]) {
 		return nil
 	}
 

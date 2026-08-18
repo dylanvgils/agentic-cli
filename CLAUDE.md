@@ -28,6 +28,10 @@ Dockerfiles are generated at build time by composing `dockerfile.Stage` values f
 
 Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-specific mount configuration and setup live in `internal/tools/<tool>.go`.
 
+### Extracting a package out of `internal/cli`
+
+`internal/cli` stays a thin presentation layer: a command's `RunE` parses flags, calls into one or more domain packages, and prints/returns the result. Move logic into its own package under `internal/usecase/` (named for what it does, e.g. `build`, `clean`, `run`, `toolupdate`, `update`, `upgradecheck`) only when it is independent of `*cobra.Command` and makes multi-step decisions gluing together more than one domain package - not just a single delegating call. A command that's a single delegating call, or mostly presentation formatting over one domain package (`inspect.go`, `config.go`, `marketplaces.go`, `namespaces.go`, `status.go`, `trust.go`, `volumes.go`, etc.), doesn't need this - don't create a package-per-command mapping mechanically.
+
 ### Adding a new runtime layer
 
 Add a new case to `extraStage()` in `internal/tools/bases.go` (follow the `javaStage`/`dotnetStage`/`goStage` pattern), add the name to `knownExtras`, and add a `--<name>` flag to `internal/cli/build.go`, `internal/cli/update.go`, and `internal/cli/flags.go`.
