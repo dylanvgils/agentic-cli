@@ -17,15 +17,6 @@ import (
 // the registry again for the same image.
 const autoPullInterval = 24 * time.Hour
 
-// ListAllImages, InspectImage, and UpdateTool indirect the docker calls this
-// package makes, so callers can fake them in tests - mirrors the seam
-// convention in internal/cli/root.go.
-var (
-	ListAllImages = docker.ListAllImages
-	InspectImage  = docker.InspectImage
-	UpdateTool    = docker.UpdateTool
-)
-
 // Target is one tool image to rebuild, with its resolved build options.
 type Target struct {
 	Name  string

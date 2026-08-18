@@ -15,17 +15,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
-// EnsureNamedVolumes, EnsureNetwork, SyncMarketplaces, and
-// RecordMarketplaceUsage indirect the docker/marketplace calls Build makes,
-// so callers can fake them in tests - mirrors the seam convention in
-// internal/cli/root.go.
-var (
-	EnsureNamedVolumes     = docker.EnsureNamedVolumes
-	EnsureNetwork          = docker.EnsureNetwork
-	SyncMarketplaces       = marketplace.Sync
-	RecordMarketplaceUsage = marketplace.RecordUsage
-)
-
 // Target identifies the tool and image a RunSpec is being built for.
 type Target struct {
 	ToolName       string

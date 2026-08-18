@@ -5,30 +5,16 @@ package toolupdate
 import (
 	"bufio"
 	"fmt"
-	"io"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
 // checkInterval bounds how often `agentic run` re-checks a tool's upstream
 // version.
 const checkInterval = 6 * time.Hour
-
-// LatestToolVersion, InspectImage, IsTerminal, Stdin, and Stderr indirect the
-// calls Check makes, so callers can fake them in tests - mirrors the seam
-// convention in internal/cli/root.go.
-var (
-	LatestToolVersion func(tool, installedLabel string) (string, bool, bool) = docker.LatestToolVersion
-	InspectImage      func(image string) (*docker.ImageInfo, error)          = docker.InspectImage
-	IsTerminal        func() bool                                            = platform.IsTerminal
-	Stdin             io.Reader                                              = os.Stdin
-	Stderr            io.Writer                                              = os.Stderr
-)
 
 // Updater installs an update for tool/image - typically recovering the
 // image's existing build options and rebuilding it. Supplied by the caller
