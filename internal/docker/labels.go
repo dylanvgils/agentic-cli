@@ -34,6 +34,12 @@ const (
 	// newly requested packages without dropping previously installed ones).
 	LabelApt = "agentic.apt"
 
+	// LabelCustomInstalls records the comma-separated list of custom_installs
+	// names baked into the image, purely for `agentic inspect` display -
+	// unlike LabelApt there is no Recover* for it, since custom_installs always
+	// reads fresh from the current .agenticrc.toml on every build.
+	LabelCustomInstalls = "agentic.custom-installs"
+
 	// LabelTool records the name of the tool baked into the image (e.g. "claude").
 	// Used to filter images by tool.
 	LabelTool = "agentic.tool"

@@ -280,6 +280,36 @@ func Test_printImageDetail(t *testing.T) {
 		assert.Contains(t, out, "agentic-claude (not built)")
 	})
 
+	t.Run("shows custom installs when present", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, &docker.ImageInfo{
+			Image: "agentic-claude", ID: "a1b2c3d4e5f6", CustomInstalls: "helm,golangci-lint",
+		}, nil)
+
+		// Act
+		out := captureStdout(t, func() {
+			err := printImageDetail("claude", "agentic")
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "installs: helm,golangci-lint")
+	})
+
+	t.Run("omits installs line when empty", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, builtInfo, nil)
+
+		// Act
+		out := captureStdout(t, func() {
+			err := printImageDetail("claude", "agentic")
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.NotContains(t, out, "installs:")
+	})
+
 	t.Run("empty labels shows fallbacks", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, &docker.ImageInfo{

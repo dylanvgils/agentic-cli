@@ -32,7 +32,11 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 		return fmt.Errorf("tool image: %w", err)
 	}
 
-	stampImageLabels(image, tool, opts.BaseOverride, opts.AptPackages, opts.Versions)
+	customInstallNames := make([]string, len(opts.CustomInstalls))
+	for i, install := range opts.CustomInstalls {
+		customInstallNames[i] = install.Name
+	}
+	stampImageLabels(image, tool, opts.BaseOverride, opts.AptPackages, opts.Versions, customInstallNames)
 
 	return nil
 }
