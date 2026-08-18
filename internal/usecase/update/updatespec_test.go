@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
@@ -538,11 +539,29 @@ func TestApplyRecovered(t *testing.T) {
 		})
 
 		// Act
-		err := ApplyRecovered("claude", "agentic-claude")
+		err := ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
 		assert.NotEmpty(t, capturedOpts.BaseOverride)
+	})
+
+	t.Run("custom installs come from rc, not label recovery", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		var capturedOpts tools.BuildOptions
+		stubUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = opts
+			return nil
+		})
+		rc := &config.AgenticRC{Build: config.RCBuild{CustomInstalls: []config.RCCustomInstall{{Name: "helm", Run: []string{"true"}}}}}
+
+		// Act
+		err := ApplyRecovered("claude", "agentic-claude", rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, rc.Build.CustomInstalls, capturedOpts.CustomInstalls)
 	})
 
 	t.Run("missing image still rebuilds with empty opts", func(t *testing.T) {
@@ -557,7 +576,7 @@ func TestApplyRecovered(t *testing.T) {
 		})
 
 		// Act
-		err := ApplyRecovered("claude", "agentic-claude")
+		err := ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -570,7 +589,7 @@ func TestApplyRecovered(t *testing.T) {
 		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return fmt.Errorf("build failed") })
 
 		// Act
-		err := ApplyRecovered("claude", "agentic-claude")
+		err := ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
 
 		// Assert
 		require.Error(t, err)

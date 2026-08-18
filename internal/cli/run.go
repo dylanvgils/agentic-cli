@@ -105,7 +105,10 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := toolupdate.Check(toolHome, rc, parsedArgs.toolName, parsedArgs.imageName, update.ApplyRecovered); err != nil {
+	updater := func(tool, image string) error {
+		return update.ApplyRecovered(tool, image, rc)
+	}
+	if err := toolupdate.Check(toolHome, rc, parsedArgs.toolName, parsedArgs.imageName, updater); err != nil {
 		return err
 	}
 

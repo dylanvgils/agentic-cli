@@ -285,7 +285,10 @@ func TestPrintProjectConfig(t *testing.T) {
 				RC: &config.AgenticRC{
 					Namespace:     "myproject",
 					DockerContext: "prod",
-					Build:         config.RCBuild{AptPackages: []string{"make"}, Bases: []string{"java"}, Versions: map[string]string{"java": "17"}},
+					Build: config.RCBuild{
+						AptPackages: []string{"make"}, Bases: []string{"java"}, Versions: map[string]string{"java": "17"},
+						CustomInstalls: []config.RCCustomInstall{{Name: "helm", Run: []string{"true"}}},
+					},
 					Run: config.RCRun{
 						PidsLimit: "100", CPUs: "2", Memory: "4g",
 						ExtraMounts: []string{"vol:/mnt"}, Secrets: []string{"tok:/run/s/t"},
@@ -310,6 +313,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "- vol:/mnt  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- make  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- java@17  [/project/.agenticrc.toml]")
+		assert.Contains(t, out, "- helm  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- tok:/run/s/t  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "proxy.enabled: true  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "proxy.mode: monitor  [/project/.agenticrc.toml]")
@@ -380,6 +384,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "cpus: 4  (default)")
 		assert.Contains(t, out, "memory: 4g  (default)")
 		assert.Contains(t, out, "apt_packages: (none)")
+		assert.Contains(t, out, "custom_installs: (none)")
 		assert.Contains(t, out, "bases: (none)")
 		assert.Contains(t, out, "extra_mounts: (none)")
 		assert.Contains(t, out, "secrets: (none)")

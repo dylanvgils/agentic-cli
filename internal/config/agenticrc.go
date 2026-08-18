@@ -14,8 +14,9 @@ import (
 
 const rcFilename = ".agenticrc.toml"
 
-// validMarketplaceName matches safe path-segment characters for a directory name.
-var validMarketplaceName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+// validRCEntryName matches safe path-segment/identifier characters, used for
+// both marketplace and custom-install names.
+var validRCEntryName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // ModeEnforce and ModeMonitor are the only valid RCProxy.Mode values, besides
 // the unset "" (treated the same as ModeEnforce).
@@ -26,9 +27,10 @@ const (
 
 // RCBuild holds build-time settings from a .agenticrc.toml file.
 type RCBuild struct {
-	Bases       []string          `toml:"bases"`
-	AptPackages []string          `toml:"apt_packages"`
-	Versions    map[string]string `toml:"versions"`
+	Bases          []string          `toml:"bases"`
+	AptPackages    []string          `toml:"apt_packages"`
+	Versions       map[string]string `toml:"versions"`
+	CustomInstalls []RCCustomInstall `toml:"custom_installs"`
 }
 
 // RCRun holds runtime settings from a .agenticrc.toml file.
@@ -65,6 +67,15 @@ type RCMarketplace struct {
 	URL  string `toml:"url"`
 	// Tools restricts which tools this marketplace is mounted into; empty means every tool.
 	Tools []string `toml:"tools"`
+}
+
+// RCCustomInstall declares one non-apt tool to install into the image via
+// arbitrary shell commands (e.g. a curl|bash vendor installer). Applied
+// unconditionally at build time whenever declared - unlike bases/apt_packages,
+// there is no CLI flag or env var equivalent and no --<name> gate.
+type RCCustomInstall struct {
+	Name string   `toml:"name"`
+	Run  []string `toml:"run"`
 }
 
 // AgenticRC holds the parsed contents of a .agenticrc.toml project config file.
@@ -123,7 +134,12 @@ func FindAndLoad(startDir string) (*AgenticRC, error) {
 		return nil, err
 	}
 
-	return mergeConfigs(configs), nil
+	merged := mergeConfigs(configs)
+	if err := validateUniqueCustomInstalls(merged.Build.CustomInstalls); err != nil {
+		return nil, err
+	}
+
+	return merged, nil
 }
 
 // FindLayers returns the .agenticrc.toml layers that FindAndLoad would merge,
@@ -262,6 +278,7 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 		resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)
 		resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
 		resBuild.Bases = append(resBuild.Bases, build.Bases...)
+		resBuild.CustomInstalls = append(resBuild.CustomInstalls, build.CustomInstalls...)
 		result.Marketplaces = append(result.Marketplaces, configs[i].Marketplaces...)
 	}
 
@@ -290,6 +307,17 @@ func loadRC(path string) (*AgenticRC, error) {
 		}
 	}
 
+	seen := make(map[string]bool, len(rc.Build.CustomInstalls))
+	for _, install := range rc.Build.CustomInstalls {
+		if err := validateCustomInstall(install); err != nil {
+			return nil, fmt.Errorf("%s: %w", path, err)
+		}
+		if seen[install.Name] {
+			return nil, fmt.Errorf("%s: custom install %q: name must be unique", path, install.Name)
+		}
+		seen[install.Name] = true
+	}
+
 	return rc, nil
 }
 
@@ -297,11 +325,35 @@ func validateMarketplace(marketplace RCMarketplace) error {
 	if marketplace.Name == "" {
 		return fmt.Errorf("marketplace: name must not be empty")
 	}
-	if !validMarketplaceName.MatchString(marketplace.Name) {
-		return fmt.Errorf("marketplace %q: name must match %s", marketplace.Name, validMarketplaceName.String())
+	if !validRCEntryName.MatchString(marketplace.Name) {
+		return fmt.Errorf("marketplace %q: name must match %s", marketplace.Name, validRCEntryName.String())
 	}
 	if marketplace.URL == "" {
 		return fmt.Errorf("marketplace %q: url must not be empty", marketplace.Name)
+	}
+	return nil
+}
+
+func validateCustomInstall(install RCCustomInstall) error {
+	if install.Name == "" {
+		return fmt.Errorf("custom install: name must not be empty")
+	}
+	if !validRCEntryName.MatchString(install.Name) {
+		return fmt.Errorf("custom install %q: name must match %s", install.Name, validRCEntryName.String())
+	}
+	if len(install.Run) == 0 {
+		return fmt.Errorf("custom install %q: run must not be empty", install.Name)
+	}
+	return nil
+}
+
+func validateUniqueCustomInstalls(installs []RCCustomInstall) error {
+	seen := make(map[string]bool, len(installs))
+	for _, install := range installs {
+		if seen[install.Name] {
+			return fmt.Errorf("custom install %q: name must be unique across .agenticrc.toml layers", install.Name)
+		}
+		seen[install.Name] = true
 	}
 	return nil
 }

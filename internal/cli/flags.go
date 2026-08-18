@@ -81,6 +81,7 @@ func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOpt
 	opts.AptPackages = collectAptPackages(cmd, rc)
 	opts.VerifyApt = len(opts.AptPackages) > 0
 	opts.Registry = collectRegistry(cmd)
+	opts.CustomInstalls = rc.Build.CustomInstalls
 
 	return opts
 }

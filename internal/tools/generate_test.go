@@ -3,6 +3,7 @@ package tools
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +24,66 @@ func TestGenerateDockerfile(t *testing.T) {
 		// Act + Assert
 		_, err := GenerateDockerfile("unknown", BuildOptions{})
 		require.Error(t, err)
+	})
+
+	t.Run("custom installs appear in generated content", func(t *testing.T) {
+		// Arrange
+		opts := BuildOptions{CustomInstalls: []config.RCCustomInstall{{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh | bash"}}}}
+
+		// Act
+		content, err := GenerateDockerfile("claude", opts)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, content, "# helm")
+		assert.Contains(t, content, "curl -fsSL https://get.helm.sh | bash")
+	})
+}
+
+func Test_composeStages(t *testing.T) {
+	t.Run("no custom installs matches pre-existing stage order", func(t *testing.T) {
+		// Act
+		stages, err := composeStages("claude", []string{"java"}, BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, stages, 3)
+		assert.Equal(t, "base", stages[0].From.As)
+		assert.Equal(t, "java", stages[1].From.As)
+		assert.Equal(t, "tool", stages[2].From.As)
+		assert.Equal(t, "java", stages[2].From.Image)
+	})
+
+	t.Run("custom installs stage inserted after extras before tool", func(t *testing.T) {
+		// Arrange
+		opts := BuildOptions{CustomInstalls: []config.RCCustomInstall{{Name: "helm", Run: []string{"true"}}}}
+
+		// Act
+		stages, err := composeStages("claude", []string{"java"}, opts)
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, stages, 4)
+		assert.Equal(t, "base", stages[0].From.As)
+		assert.Equal(t, "java", stages[1].From.As)
+		assert.Equal(t, "custom-installs", stages[2].From.As)
+		assert.Equal(t, "java", stages[2].From.Image)
+		assert.Equal(t, "tool", stages[3].From.As)
+		assert.Equal(t, "custom-installs", stages[3].From.Image)
+	})
+
+	t.Run("custom installs stage inserted directly after base when no extras", func(t *testing.T) {
+		// Arrange
+		opts := BuildOptions{CustomInstalls: []config.RCCustomInstall{{Name: "helm", Run: []string{"true"}}}}
+
+		// Act
+		stages, err := composeStages("claude", nil, opts)
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, stages, 3)
+		assert.Equal(t, "custom-installs", stages[1].From.As)
+		assert.Equal(t, "base", stages[1].From.Image)
 	})
 }
 

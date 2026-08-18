@@ -123,6 +123,13 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	memory := func(rc *config.AgenticRC) string { return rc.Run.Memory }
 	extraMounts := func(rc *config.AgenticRC) []string { return rc.Run.ExtraMounts }
 	aptPackages := func(rc *config.AgenticRC) []string { return rc.Build.AptPackages }
+	customInstalls := func(rc *config.AgenticRC) []string {
+		names := make([]string, len(rc.Build.CustomInstalls))
+		for i, ci := range rc.Build.CustomInstalls {
+			names[i] = ci.Name
+		}
+		return names
+	}
 	secrets := func(rc *config.AgenticRC) []string { return rc.Run.Secrets }
 	proxyEnabled := func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
 	proxyMode := func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }
@@ -138,6 +145,9 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 		return err
 	}
 	if err := printListField(w, "apt_packages", layers, aptPackages); err != nil {
+		return err
+	}
+	if err := printListField(w, "custom_installs", layers, customInstalls); err != nil {
 		return err
 	}
 	if err := printScalarField(w, "pids_limit", config.EnvPidsLimit, layers, pidsLimit, docker.DefaultPidsLimit); err != nil {

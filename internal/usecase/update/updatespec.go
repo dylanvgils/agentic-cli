@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -155,9 +156,11 @@ func recoverOpts(info *docker.ImageInfo, opts tools.BuildOptions) tools.BuildOpt
 // build options where possible. It's the toolupdate.Updater used by the
 // auto-update prompt in `agentic run` - unlike `agentic update`'s own flow,
 // it never exits the process, since runTool must still start the tool
-// container afterward whether or not the update succeeded.
-func ApplyRecovered(tool, image string) error {
-	opts := tools.BuildOptions{}
+// container afterward whether or not the update succeeded. Unlike
+// BaseOverride/AptPackages, CustomInstalls is always taken from rc, not
+// recovered from an image label - see recoverOpts.
+func ApplyRecovered(tool, image string, rc *config.AgenticRC) error {
+	opts := tools.BuildOptions{CustomInstalls: rc.Build.CustomInstalls}
 	if info, err := InspectImage(image); err == nil && info != nil {
 		opts = recoverOpts(info, opts)
 	}

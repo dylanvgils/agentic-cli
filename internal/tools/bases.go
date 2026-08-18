@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
@@ -139,6 +140,23 @@ func nodeStage(prevStage, ver string) df.Stage {
 			Lines: []string{"#!/bin/sh", "node --version"},
 		}).
 		Build()
+}
+
+// customInstallsStage builds one RUN per declared custom install, each line
+// of its "run" list becoming its own Block. Applied unconditionally whenever
+// installs is non-empty - not gated by a --<name> flag like the extras.
+func customInstallsStage(prevStage string, installs []config.RCCustomInstall) df.Stage {
+	stage := df.NewStage(df.From{Image: prevStage, As: "custom-installs"}).
+		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}})
+	for _, install := range installs {
+		blocks := make([]df.Block, len(install.Run))
+		for i, line := range install.Run {
+			blocks[i] = df.Block{Lines: []string{line}}
+		}
+		blocks[0].Comment = install.Name
+		stage.Add(df.Run{Blocks: blocks})
+	}
+	return stage.Build()
 }
 
 func javaStage(prevStage, ver string) df.Stage {

@@ -6,19 +6,21 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
 // BuildOptions controls how a tool image is built.
 type BuildOptions struct {
-	BaseOverride []string          // overrides the tool's default base extras
-	NoCache      bool              // disable layer cache for all steps
-	Pull         bool              // re-pull base images from the registry before building
-	CacheBust    string            // non-empty to bust the tool stage's cache via its CACHEBUST build arg (used by update)
-	Versions     map[string]string // layer name → version override, e.g. {"node": "22", "java": "21"}
-	AptPackages  []string          // additional apt packages to install in the base stage
-	VerifyApt    bool              // run pre-build apt-cache check for AptPackages
-	Registry     string            // registry prefix for base images (e.g. "myregistry.example.com")
+	BaseOverride   []string                 // overrides the tool's default base extras
+	NoCache        bool                     // disable layer cache for all steps
+	Pull           bool                     // re-pull base images from the registry before building
+	CacheBust      string                   // non-empty to bust the tool stage's cache via its CACHEBUST build arg (used by update)
+	Versions       map[string]string        // layer name → version override, e.g. {"node": "22", "java": "21"}
+	AptPackages    []string                 // additional apt packages to install in the base stage
+	VerifyApt      bool                     // run pre-build apt-cache check for AptPackages
+	Registry       string                   // registry prefix for base images (e.g. "myregistry.example.com")
+	CustomInstalls []config.RCCustomInstall // non-apt tools installed via arbitrary shell commands, applied after any --base extras
 }
 
 // GenerateDockerfile returns the Dockerfile content for the named tool without building it.
@@ -54,13 +56,20 @@ func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfil
 		return nil, err
 	}
 
+	stages := []dockerfile.Stage{base}
+	stages = append(stages, extraList...)
+
+	if len(opts.CustomInstalls) > 0 {
+		customStage := customInstallsStage(prev, opts.CustomInstalls)
+		stages = append(stages, customStage)
+		prev = customStage.From.As
+	}
+
 	toolStage, err := resolveToolStage(tool, prev)
 	if err != nil {
 		return nil, err
 	}
 
-	stages := []dockerfile.Stage{base}
-	stages = append(stages, extraList...)
 	stages = append(stages, toolStage)
 	return stages, nil
 }
