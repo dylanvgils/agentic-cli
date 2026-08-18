@@ -38,26 +38,6 @@ agentic-cli/
 
 No static Dockerfile files exist. All Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/tools/bases.go` (base and extra layers) and each tool's `Stage` func. See [04-dockerfile-dsl.md](04-dockerfile-dsl.md) for the DSL reference.
 
-### When to extract a package out of `internal/cli`
-
-`internal/cli` should stay a thin presentation layer: a command's `RunE` parses
-flags, calls into one or more domain packages, and prints/returns the result.
-Business logic that's already independent of `*cobra.Command` (i.e. it doesn't
-take `cmd *cobra.Command` as a parameter) but makes multi-step decisions gluing
-together more than one domain package - not just a single delegating call -
-should move into its own package under `internal/usecase/`, named for what it
-does, the way `build`, `clean`, `run`, `toolupdate`, `update`, and
-`upgradecheck` were split out of their command files. A command whose logic
-is a single delegating call into an existing domain package, or is mostly
-presentation formatting over one domain package (`inspect.go`, `config.go`,
-`marketplaces.go`, `namespaces.go`, `status.go`, `trust.go`, `volumes.go`,
-etc.), doesn't need this - don't create a package-per-command mapping
-mechanically, that just reproduces a Java-style controller/service split
-without the payoff. `internal/usecase/` exists so this category of package -
-orchestration extracted from a CLI command - stays distinguishable from
-unrelated infra packages (`docker`, `git`, `mount`, `config`, etc.) as the
-number of packages in `internal/` grows.
-
 ## Build & test
 
 ```bash
