@@ -8,6 +8,12 @@ var layerPackages = map[string][]string{
 	"java":   {"apt-transport-https"},
 }
 
+// BasePackages returns the apt packages installed on every image, regardless
+// of extras or user configuration.
+func BasePackages() []string {
+	return append([]string(nil), layerPackages["base"]...)
+}
+
 // MergePackages appends additional to base, deduplicating while preserving declaration order.
 func MergePackages(base, additional []string) []string {
 	seen := make(map[string]bool)

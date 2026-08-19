@@ -2,11 +2,15 @@ package run
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,6 +31,37 @@ func TestBuild(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, rs.Volumes, "/host:/container")
+	})
+
+	t.Run("instructions mount wired after the tool's base mounts", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir(), InstructionsMount: "/tmp/snapshot.md:$CONTAINER_HOME/.claude/CLAUDE.md"}
+
+		// Act
+		rs, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		require.Contains(t, rs.Volumes, "/tmp/snapshot.md:$CONTAINER_HOME/.claude/CLAUDE.md")
+		baseMountIdx := slices.Index(rs.Volumes, tools.Configs["claude"].Runtime.Mounts()[1])
+		instructionsMountIdx := slices.Index(rs.Volumes, "/tmp/snapshot.md:$CONTAINER_HOME/.claude/CLAUDE.md")
+		assert.Less(t, baseMountIdx, instructionsMountIdx, "instructions mount must overlay the base directory mount, so it must be listed after it")
+	})
+
+	t.Run("instructions mount omitted when empty", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir()}
+
+		// Act
+		rs, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		for _, v := range rs.Volumes {
+			assert.NotContains(t, v, "CLAUDE.md")
+		}
 	})
 
 	t.Run("secrets wired", func(t *testing.T) {
@@ -229,6 +264,72 @@ func TestBuild(t *testing.T) {
 		for _, e := range rs.Env {
 			assert.NotContains(t, e, "AGENTIC_MARKETPLACES")
 		}
+	})
+}
+
+func TestBuildWithInstructions(t *testing.T) {
+	stubEnsureNamedVolumes(t, func([]string, string, string, string) error { return nil })
+	stubEnsureNetwork(t, func() error { return nil })
+
+	// BuildInstructions' own content rules (sections, formatting) are covered by
+	// TestBuildInstructions, and PrepareInstructions' merge/sync-back behavior is
+	// covered by TestPrepareInstructions - these subtests only cover what
+	// BuildWithInstructions itself adds: threading content -> snapshot -> mount
+	// into Build, and calling cleanup on a Build failure instead of leaking.
+
+	t.Run("wires the generated content into the RunSpec's instructions mount", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir()}
+		require.NoError(t, tools.Configs["claude"].Runtime.Setup(in.ToolHome))
+
+		// Act
+		rs, cleanup, err := BuildWithInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		t.Cleanup(cleanup)
+		instructionsVolume := findVolumeSuffix(t, rs.Volumes, ":$CONTAINER_HOME/.claude/CLAUDE.md")
+		got, err := os.ReadFile(mount.HostPart(instructionsVolume))
+		require.NoError(t, err)
+		assert.Contains(t, string(got), "# Agentic container environment")
+	})
+
+	t.Run("returned cleanup is wired to a real finalize, not a no-op", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir()}
+		require.NoError(t, tools.Configs["claude"].Runtime.Setup(in.ToolHome))
+		rs, cleanup, err := BuildWithInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+		require.NoError(t, err)
+		instructionsVolume := findVolumeSuffix(t, rs.Volumes, ":$CONTAINER_HOME/.claude/CLAUDE.md")
+		snapshotPath := mount.HostPart(instructionsVolume)
+
+		// Act
+		cleanup()
+
+		// Assert
+		_, statErr := os.Stat(snapshotPath)
+		assert.True(t, os.IsNotExist(statErr))
+	})
+
+	t.Run("build error finalizes and removes the snapshot immediately, rather than leaking it", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir(), Env: []string{"TOOL_HOME=nope"}}
+		require.NoError(t, tools.Configs["claude"].Runtime.Setup(in.ToolHome))
+		before, err := filepath.Glob(filepath.Join(os.TempDir(), "agentic-instructions-*"))
+		require.NoError(t, err)
+
+		// Act
+		_, cleanup, err := BuildWithInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.Error(t, err)
+		assert.NotPanics(t, func() { cleanup() })
+		after, globErr := filepath.Glob(filepath.Join(os.TempDir(), "agentic-instructions-*"))
+		require.NoError(t, globErr)
+		assert.Len(t, after, len(before), "snapshot temp file should already be cleaned up when Build fails")
 	})
 }
 
@@ -600,5 +701,42 @@ func Test_resolveResourceLimits(t *testing.T) {
 		assert.Equal(t, "1024", result.pidsLimit)
 		assert.Equal(t, "2", result.cpus)
 		assert.Equal(t, "2g", result.memory)
+	})
+
+	t.Run("falls back to env var when flag and rc unset", func(t *testing.T) {
+		// Arrange
+		t.Setenv(config.EnvPidsLimit, "256")
+		t.Setenv(config.EnvCPUs, "1")
+		t.Setenv(config.EnvMemory, "1g")
+
+		// Act
+		result := resolveResourceLimits("", "", "", &config.AgenticRC{})
+
+		// Assert
+		assert.Equal(t, "256", result.pidsLimit)
+		assert.Equal(t, "1", result.cpus)
+		assert.Equal(t, "1g", result.memory)
+	})
+
+	t.Run("falls back to hardcoded default when nothing else set", func(t *testing.T) {
+		// Act
+		result := resolveResourceLimits("", "", "", &config.AgenticRC{})
+
+		// Assert - always resolved, never left empty
+		assert.Equal(t, docker.DefaultPidsLimit, result.pidsLimit)
+		assert.Equal(t, docker.DefaultCPUs, result.cpus)
+		assert.Equal(t, docker.DefaultMemory, result.memory)
+	})
+
+	t.Run("rc takes precedence over env var", func(t *testing.T) {
+		// Arrange
+		t.Setenv(config.EnvPidsLimit, "256")
+		rc := &config.AgenticRC{Run: config.RCRun{PidsLimit: "512"}}
+
+		// Act
+		result := resolveResourceLimits("", "", "", rc)
+
+		// Assert
+		assert.Equal(t, "512", result.pidsLimit)
 	})
 }

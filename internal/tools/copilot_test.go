@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -99,4 +100,19 @@ func TestSetupCopilot_createsDir(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	assert.DirExists(t, filepath.Join(dir, "copilot"))
+}
+
+func TestWriteCopilotInstructions(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "copilot"), 0o750))
+
+	// Act
+	err := writeCopilotInstructions(dir, "# Environment\n")
+
+	// Assert
+	require.NoError(t, err)
+	got, err := os.ReadFile(filepath.Join(dir, "copilot", "copilot-instructions.md"))
+	require.NoError(t, err)
+	assert.Equal(t, instructionsBeginMarker+"\n# Environment\n"+instructionsEndMarker+"\n", string(got))
 }

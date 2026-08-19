@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -71,4 +72,19 @@ func TestSetupOpencode_createsSubDirs(t *testing.T) {
 	for _, sub := range []string{"data", "share", "state", "cache", "config"} {
 		assert.DirExists(t, filepath.Join(dir, "opencode", sub))
 	}
+}
+
+func TestWriteOpencodeInstructions(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "opencode", "config"), 0o750))
+
+	// Act
+	err := writeOpencodeInstructions(dir, "# Environment\n")
+
+	// Assert
+	require.NoError(t, err)
+	got, err := os.ReadFile(filepath.Join(dir, "opencode", "config", "AGENTS.md"))
+	require.NoError(t, err)
+	assert.Equal(t, instructionsBeginMarker+"\n# Environment\n"+instructionsEndMarker+"\n", string(got))
 }

@@ -7,14 +7,14 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
-// Default resource limits applied when neither an explicit RunSpec field nor
-// the corresponding config env var (config.EnvPidsLimit/EnvCPUs/EnvMemory) is
-// set; see resolveLimit.
+// Default resource limits used by usecase/run.resolveResourceLimits when
+// neither an explicit flag/rc value nor the corresponding config env var
+// (config.EnvPidsLimit/EnvCPUs/EnvMemory) is set. RunSpec.PidsLimit/CPUs/Memory
+// are always fully resolved by the time a RunSpec exists.
 const (
 	DefaultPidsLimit = "1024"
 	DefaultCPUs      = "4"
@@ -194,18 +194,6 @@ func guardSignals() func() {
 	return func() { signal.Stop(ch) }
 }
 
-// resolveLimit returns val if non-empty, then the env var, then fallback.
-// Mirrors the bash ${VAR:-default} pattern used in bin/agentic.
-func resolveLimit(val, envKey, fallback string) string {
-	if val != "" {
-		return val
-	}
-	if env := os.Getenv(envKey); env != "" {
-		return env
-	}
-	return fallback
-}
-
 func shellJoin(args []string) string {
 	parts := make([]string, len(args))
 	for i, arg := range args {
@@ -234,11 +222,11 @@ func buildBaseArgs(rs RunSpec) ([]string, error) {
 		arg("name", rs.Image+"-"+id),
 		label(LabelProject, LabelProjectVal),
 		// Limit the number of PIDs (processes) the container can spawn
-		arg("pids-limit", resolveLimit(rs.PidsLimit, config.EnvPidsLimit, DefaultPidsLimit)),
+		arg("pids-limit", rs.PidsLimit),
 		// Maximum number of CPUs the container can utilize
-		arg("cpus", resolveLimit(rs.CPUs, config.EnvCPUs, DefaultCPUs)),
+		arg("cpus", rs.CPUs),
 		// Maximum memory the container can use
-		arg("memory", resolveLimit(rs.Memory, config.EnvMemory, DefaultMemory)),
+		arg("memory", rs.Memory),
 		// Security: isolate from other host containers (proxy mode swaps this
 		// for a per-run internal network with no direct egress)
 		arg("network", networkOrDefault(rs.network)),

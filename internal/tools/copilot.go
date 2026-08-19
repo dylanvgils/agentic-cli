@@ -14,6 +14,11 @@ import (
 // pulls releases from.
 const copilotReleaseRepo = "github/copilot-cli"
 
+// copilotInstructionsContainerPath is the container-side mount target for a
+// per-run instructions snapshot, overlaying the single file inside the
+// $CONTAINER_HOME/.copilot mount from copilotMounts().
+const copilotInstructionsContainerPath = "$CONTAINER_HOME/.copilot/copilot-instructions.md"
+
 // copilotAllowedHosts is the baseline egress allowlist for GitHub Copilot CLI.
 // Package registries or other hosts are added by the user via allowed_hosts.
 var copilotAllowedHosts = []string{
@@ -115,4 +120,16 @@ func copilotLatestVersion() (string, error) {
 
 func setupCopilot(toolHome string) error {
 	return os.MkdirAll(filepath.Join(toolHome, "copilot"), 0o750)
+}
+
+// copilotInstructionsHostPath is Copilot CLI's global user-level instructions
+// file (~/.copilot/copilot-instructions.md), auto-combined with any
+// repository-level instructions.
+func copilotInstructionsHostPath(toolHome string) string {
+	return filepath.Join(toolHome, "copilot", "copilot-instructions.md")
+}
+
+// writeCopilotInstructions writes content to Copilot CLI's global instructions file.
+func writeCopilotInstructions(toolHome, content string) error {
+	return writeManagedInstructions(copilotInstructionsHostPath(toolHome), content)
 }

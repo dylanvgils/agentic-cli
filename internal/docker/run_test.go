@@ -382,17 +382,6 @@ func TestBuildBaseArgs(t *testing.T) {
 		assert.Contains(t, args, "--label=project=agentic-cli")
 	})
 
-	t.Run("resource limits defaults", func(t *testing.T) {
-		// Act
-		args, err := buildBaseArgs(RunSpec{Image: "agentic-claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, args, "--pids-limit="+DefaultPidsLimit)
-		assert.Contains(t, args, "--cpus="+DefaultCPUs)
-		assert.Contains(t, args, "--memory="+DefaultMemory)
-	})
-
 	t.Run("resource limits from spec", func(t *testing.T) {
 		// Arrange
 		rs := RunSpec{

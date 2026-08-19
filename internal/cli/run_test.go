@@ -2,9 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,6 +50,24 @@ func TestRunTool(t *testing.T) {
 		rs, toolArgs := get()
 		assert.Equal(t, "agentic-claude", rs.Image)
 		assert.Empty(t, toolArgs)
+	})
+
+	t.Run("mounts a per-run instructions snapshot for the tool", func(t *testing.T) {
+		// Arrange
+		t.Chdir(t.TempDir())
+		withTempToolHome(t)
+		get := captureRunContainer(t)
+
+		// Act
+		err := runTool(runToolCmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		rs, _ := get()
+		instructionsMount := findVolumeByContainerPath(t, rs.Volumes, "$CONTAINER_HOME/.claude/CLAUDE.md")
+		hostPath := mount.HostPart(instructionsMount)
+		assert.True(t, strings.HasPrefix(filepath.Base(hostPath), "agentic-instructions-"),
+			"instructions should be mounted from a per-run temp snapshot, not the persistent tool-home file: %s", hostPath)
 	})
 
 	t.Run("passes tool args", func(t *testing.T) {

@@ -6,6 +6,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func Test_BasePackages(t *testing.T) {
+	t.Run("returns the base layer packages", func(t *testing.T) {
+		// Act
+		result := BasePackages()
+
+		// Assert
+		assert.Equal(t, layerPackages["base"], result)
+	})
+
+	t.Run("returns a copy that mutation doesn't affect layerPackages", func(t *testing.T) {
+		// Arrange
+		result := BasePackages()
+
+		// Act
+		result[0] = "mutated"
+
+		// Assert
+		assert.NotEqual(t, "mutated", layerPackages["base"][0])
+	})
+}
+
 func Test_MergePackages(t *testing.T) {
 	t.Run("appends additional to base", func(t *testing.T) {
 		// Act

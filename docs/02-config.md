@@ -127,6 +127,22 @@ Each entry becomes its own Dockerfile stage `RUN`, inserted after any `--base` e
 | `memory`        | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                                                                 | `--memory`     | `AGENTIC_MEMORY`       | `4g`    |
 | `check_updates` | bool   | Periodically check upstream for a newer tool version during `agentic run` (at most once every 6 hours per tool) and offer to update. A pointer internally so an inner config can explicitly disable a check enabled by an outer one. | -              | -                      | `true`  |
 
+**`[run.instructions]` section** - environment instructions written into each tool's global instructions file (see [Environment instructions](../README.md#-environment-instructions))
+
+| Key       | Type   | Description                                                                                                                                                 | Default |
+| --------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `enabled` | bool   | Write the generated environment-instructions block. A pointer internally so an inner config can explicitly disable a block enabled by an outer one.         | `true`  |
+| `custom`  | string | Free text appended after the generated sections. Accumulates across RC layers like a list key (outermost first, separated by a blank line), not overridden. | -       |
+
+```toml
+[run.instructions]
+custom = """
+Always run `go test ./...` before considering a task finished.
+"""
+```
+
+The generated block opens with a note that it only describes the container environment, not coding conventions, and that this scope covers only the generated notes themselves - never any of the user's own content merged into the same file - so a project's own instructions file (`CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`) wins whenever it conflicts with anything below that note. It then covers three things: what's installed (base toolchain - a static default so it's listed even before the image is built - plus extra runtimes, apt packages, and custom installs, read from the built image's labels so they reflect what's actually running, not a possibly stale `.agenticrc.toml`), what's restricted (read-only filesystem, writable paths, resource limits, dropped privileges), and, when the egress proxy is enabled, the network situation (no direct internet access, plus the allowlist when actually enforced - omitted in `--proxy-monitor` mode, since nothing is actually blocked there).
+
 **`[run.proxy]` section** - egress allowlist proxy
 
 | Key             | Type   | Description                                                                                                                                                                                                               | CLI flag                 | Default     |
@@ -206,6 +222,7 @@ Multiple `.agenticrc.toml` files merge. The walk starts at `$PWD` and moves upwa
 
 - **List keys** (`bases`, `apt_packages`, `custom_installs`, `extra_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `marketplaces`): values from all levels accumulate, outermost first.
 - **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`, `docker_context`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
+- **`instructions.custom`**: text from all levels accumulates like a list key (outermost first, joined by a blank line), rather than the innermost overriding it - each layer's text is additive context, not a single setting. `instructions.enabled` is a scalar key: the innermost (child) value wins.
 - **`versions` table**: each layer name is resolved independently - innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
 
 ```

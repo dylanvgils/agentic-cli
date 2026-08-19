@@ -147,10 +147,11 @@ func runTool(cmd *cobra.Command, args []string) error {
 		ProxyMonitor: proxyMonitor,
 	}
 
-	rs, err := run.Build(target, input, toolConfig, rc)
+	rs, cleanupInstructions, err := run.BuildWithInstructions(target, input, toolConfig, rc)
 	if err != nil {
 		return err
 	}
+	defer cleanupInstructions()
 
 	return runContainer(rs, parsedArgs.toolArgs)
 }

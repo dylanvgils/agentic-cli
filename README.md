@@ -34,6 +34,7 @@ Runs agentic coding tools in isolated, read-only Docker containers - each with o
 - [Tool home directory](#-tool-home-directory)
 - [Development](docs/05-development.md)
 - [Security](#-security)
+- [Environment instructions](#-environment-instructions)
 
 ## 📋 Requirements
 
@@ -164,6 +165,7 @@ agentic <command> [args...]
 | `proxy update [--registry <host>] [--dry-run]`                                                                                                                                                                               | Force a fresh proxy image build (always `--no-cache`, which also re-pulls its base images), to pick up a proxy source or base-image change a cached image would otherwise mask                                      |
 | `proxy clean [--logs]`                                                                                                                                                                                                       | Remove the proxy image. The proxy image is global, not namespaced - there's only ever one. `--logs` also wipes all proxy access logs under `$AGENTIC_HOME/proxy/`, regardless of age                                |
 | `inspect [tool] [--namespace <name>] [--all]`                                                                                                                                                                                | No arg: table of images in the active namespace; `--all` shows all namespaces. Tool arg: full detail for active namespace; `--all` shows all namespaces                                                             |
+| `instructions <tool> [--home <dir>] [--namespace <name>] [--proxy\|--no-proxy\|--proxy-monitor] [--pids-limit <n>] [--cpus <n>] [--memory <size>]`                                                                          | Preview the environment instructions `agentic run` writes into the tool's global instructions file (e.g. `CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`), merged with whatever's already persisted at `$AGENTIC_HOME`, without starting a container |
 | `status`                                                                                                                                                                                                                     | Show whether the Docker backend is running and list currently running agentic-managed containers across all namespaces                                                                                              |
 | `namespaces list` / `namespaces ls`                                                                                                                                                                                          | List all known namespaces                                                                                                                                                                                           |
 | `namespaces prune [-n namespace]`                                                                                                                                                                                            | Remove all images in the active (or specified) namespace                                                                                                                                                            |
@@ -489,3 +491,20 @@ See [docs/development.md](docs/05-development.md) for build commands, repo struc
 Containers run read-only with all capabilities dropped, no privilege escalation, and on an isolated Docker network - see [docs/01-overview.md](docs/01-overview.md#security-model) for the full list of constraints.
 
 Optionally, an egress allowlist proxy can restrict a tool's outbound traffic to a configurable set of hosts and log every connection attempt - fail-closed, so anything not on the allowlist is blocked. Toggle it per run with `--proxy` / `--no-proxy`; use `--proxy-monitor` to log without blocking anything, useful for discovering a new tool's egress needs before writing an allowlist. See [docs/02-config.md](docs/02-config.md#keys) for the `[run.proxy]` config reference and setup details.
+
+## 🧭 Environment instructions
+
+Every `agentic run` generates an environment-instructions block and mounts it into the tool's own global instructions file - `~/.claude/CLAUDE.md` for Claude Code, `~/.config/opencode/AGENTS.md` for OpenCode, `~/.copilot/copilot-instructions.md` for Copilot CLI. Each is a location the tool already reads automatically on startup, separate from any project-level `CLAUDE.md`/`AGENTS.md` you own in the repo, so it never collides with your own instructions.
+
+The block is delimited by markers and only the content between them is ever replaced - anything else in the file, whether you added it by hand or the tool itself wrote it there at runtime (e.g. Claude Code's own memory/"remember this" feature), is left untouched across runs, including when `enabled = false` turns the block off entirely. Each run gets its own private, freshly-generated snapshot of the file for the container's lifetime, so running the same tool concurrently in multiple projects never has one run's instructions (or resource limits, or proxy settings) bleed into another's; anything added to the file during a run is folded back into the persisted copy once the container exits.
+
+The block covers what's installed, what's restricted, and, when the egress proxy is enabled, the network situation - see [docs/02-config.md](docs/02-config.md#keys) for exactly what each section includes and how `--proxy-monitor` changes it.
+
+Preview the exact content that would be written, without starting a container:
+
+```bash
+agentic instructions claude
+agentic instructions claude --proxy
+```
+
+Append your own project-specific instructions with `custom` under `[run.instructions]` in `.agenticrc.toml`, or turn the whole block off with `enabled = false`. See [docs/02-config.md](docs/02-config.md#keys) for the `[run.instructions]` reference.

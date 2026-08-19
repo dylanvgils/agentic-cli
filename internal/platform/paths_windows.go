@@ -14,4 +14,3 @@ func toolHomeDefault() string {
 	}
 	return filepath.Join(appData, "agentic")
 }
-

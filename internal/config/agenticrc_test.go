@@ -381,6 +381,59 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, ModeMonitor, result.Run.Proxy.Mode)
 	})
 
+	t.Run("instructions enabled child wins over parent", func(t *testing.T) {
+		// Arrange
+		childFalse := false
+		parentTrue := true
+		child := &AgenticRC{Run: RCRun{Instructions: RCInstructions{Enabled: &childFalse}}}
+		parent := &AgenticRC{Run: RCRun{Instructions: RCInstructions{Enabled: &parentTrue}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert - child explicitly disables, overriding the parent
+		require.NotNil(t, result.Run.Instructions.Enabled)
+		assert.False(t, *result.Run.Instructions.Enabled)
+	})
+
+	t.Run("instructions enabled parent fills when child unset", func(t *testing.T) {
+		// Arrange
+		parentTrue := true
+		child := &AgenticRC{}
+		parent := &AgenticRC{Run: RCRun{Instructions: RCInstructions{Enabled: &parentTrue}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		require.NotNil(t, result.Run.Instructions.Enabled)
+		assert.True(t, *result.Run.Instructions.Enabled)
+	})
+
+	t.Run("instructions custom text concatenates outermost first", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Run: RCRun{Instructions: RCInstructions{Custom: "child rule"}}}
+		parent := &AgenticRC{Run: RCRun{Instructions: RCInstructions{Custom: "parent rule"}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, "parent rule\n\nchild rule", result.Run.Instructions.Custom)
+	})
+
+	t.Run("instructions custom text child only", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Run: RCRun{Instructions: RCInstructions{Custom: "child rule"}}}
+		parent := &AgenticRC{}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, "child rule", result.Run.Instructions.Custom)
+	})
+
 	t.Run("marketplaces accumulate outermost first", func(t *testing.T) {
 		// Arrange
 		child := &AgenticRC{Marketplaces: []RCMarketplace{{Name: "child-mp", URL: "git@example.com:c.git"}}}
@@ -534,6 +587,16 @@ memory = "2g"
 		// Assert
 		assert.ErrorContains(t, err, "invalid [run.proxy] mode")
 		assert.ErrorContains(t, err, path)
+	})
+
+	t.Run("run.instructions key", func(t *testing.T) {
+		// Act
+		rc := mustParseRC(t, "[run.instructions]\nenabled = false\ncustom = \"Always run go test before finishing.\"\n")
+
+		// Assert
+		require.NotNil(t, rc.Run.Instructions.Enabled)
+		assert.False(t, *rc.Run.Instructions.Enabled)
+		assert.Equal(t, "Always run go test before finishing.", rc.Run.Instructions.Custom)
 	})
 
 	t.Run("marketplaces key", func(t *testing.T) {

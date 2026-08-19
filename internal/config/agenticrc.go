@@ -35,17 +35,32 @@ type RCBuild struct {
 
 // RCRun holds runtime settings from a .agenticrc.toml file.
 type RCRun struct {
-	ExtraMounts []string `toml:"extra_mounts"`
-	Secrets     []string `toml:"secrets"`
-	Env         []string `toml:"env"`
-	PidsLimit   string   `toml:"pids_limit"`
-	CPUs        string   `toml:"cpus"`
-	Memory      string   `toml:"memory"`
-	Proxy       RCProxy  `toml:"proxy"`
+	ExtraMounts  []string       `toml:"extra_mounts"`
+	Secrets      []string       `toml:"secrets"`
+	Env          []string       `toml:"env"`
+	PidsLimit    string         `toml:"pids_limit"`
+	CPUs         string         `toml:"cpus"`
+	Memory       string         `toml:"memory"`
+	Proxy        RCProxy        `toml:"proxy"`
+	Instructions RCInstructions `toml:"instructions"`
 	// CheckUpdates is a pointer so an inner config can explicitly disable the
 	// proactive tool-update check enabled by an outer one (a plain false is
 	// indistinguishable from "unset"). Nil or true means the check runs.
 	CheckUpdates *bool `toml:"check_updates"`
+}
+
+// RCInstructions holds environment-instructions settings from a .agenticrc.toml
+// file: the generated environment block written into each tool's global
+// instructions file, plus optional free-text appended to it.
+type RCInstructions struct {
+	// Enabled is a pointer so an inner config can explicitly disable the
+	// instructions block enabled by an outer one (a plain false is
+	// indistinguishable from "unset"). Nil or true means the block is written.
+	Enabled *bool `toml:"enabled"`
+	// Custom is free text appended after the generated sections. Layers
+	// concatenate (like ExtraMounts/Env) rather than override, since each
+	// layer's text is additive context rather than a single setting.
+	Custom string `toml:"custom"`
 }
 
 // RCProxy holds egress-proxy settings from a .agenticrc.toml file. Enabled is a
@@ -258,6 +273,10 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 			resRun.Proxy.Mode = run.Proxy.Mode
 		}
 
+		if resRun.Instructions.Enabled == nil {
+			resRun.Instructions.Enabled = run.Instructions.Enabled
+		}
+
 		if resRun.CheckUpdates == nil {
 			resRun.CheckUpdates = run.CheckUpdates
 		}
@@ -276,6 +295,7 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 		resRun.Secrets = append(resRun.Secrets, run.Secrets...)
 		resRun.Env = append(resRun.Env, run.Env...)
 		resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)
+		resRun.Instructions.Custom = appendInstructions(resRun.Instructions.Custom, run.Instructions.Custom)
 		resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
 		resBuild.Bases = append(resBuild.Bases, build.Bases...)
 		resBuild.CustomInstalls = append(resBuild.CustomInstalls, build.CustomInstalls...)
@@ -283,6 +303,18 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 	}
 
 	return result
+}
+
+// appendInstructions joins two layers' custom-instructions text, skipping an
+// empty side rather than introducing a stray blank line.
+func appendInstructions(existing, next string) string {
+	if next == "" {
+		return existing
+	}
+	if existing == "" {
+		return next
+	}
+	return existing + "\n\n" + next
 }
 
 func loadRC(path string) (*AgenticRC, error) {

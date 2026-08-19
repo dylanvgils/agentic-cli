@@ -18,11 +18,14 @@ var Configs = map[string]ToolConfig{
 			LatestVersion: claudeLatestVersion,
 		},
 		Runtime: RuntimeConfig{
-			Setup:            setupClaude,
-			Mounts:           claudeMounts,
-			TmpfsMounts:      claudeTmpfsMounts,
-			AllowedHosts:     claudeAllowedHosts,
-			MarketplaceMount: claudeMarketplaceMount,
+			Setup:                     setupClaude,
+			Mounts:                    claudeMounts,
+			TmpfsMounts:               claudeTmpfsMounts,
+			AllowedHosts:              claudeAllowedHosts,
+			MarketplaceMount:          claudeMarketplaceMount,
+			WriteInstructions:         writeClaudeInstructions,
+			InstructionsHostPath:      claudeInstructionsHostPath,
+			InstructionsContainerPath: claudeInstructionsContainerPath,
 		},
 	},
 	"copilot": {
@@ -31,11 +34,14 @@ var Configs = map[string]ToolConfig{
 			LatestVersion: copilotLatestVersion,
 		},
 		Runtime: RuntimeConfig{
-			Setup:            setupCopilot,
-			Mounts:           copilotMounts,
-			TmpfsMounts:      copilotTmpfsMounts,
-			AllowedHosts:     copilotAllowedHosts,
-			MarketplaceMount: copilotMarketplaceMount,
+			Setup:                     setupCopilot,
+			Mounts:                    copilotMounts,
+			TmpfsMounts:               copilotTmpfsMounts,
+			AllowedHosts:              copilotAllowedHosts,
+			MarketplaceMount:          copilotMarketplaceMount,
+			WriteInstructions:         writeCopilotInstructions,
+			InstructionsHostPath:      copilotInstructionsHostPath,
+			InstructionsContainerPath: copilotInstructionsContainerPath,
 		},
 	},
 	"opencode": {
@@ -44,10 +50,13 @@ var Configs = map[string]ToolConfig{
 			LatestVersion: opencodeLatestVersion,
 		},
 		Runtime: RuntimeConfig{
-			Setup:        setupOpencode,
-			Mounts:       opencodeMounts,
-			TmpfsMounts:  opencodeTmpfsMounts,
-			AllowedHosts: opencodeAllowedHosts,
+			Setup:                     setupOpencode,
+			Mounts:                    opencodeMounts,
+			TmpfsMounts:               opencodeTmpfsMounts,
+			AllowedHosts:              opencodeAllowedHosts,
+			WriteInstructions:         writeOpencodeInstructions,
+			InstructionsHostPath:      opencodeInstructionsHostPath,
+			InstructionsContainerPath: opencodeInstructionsContainerPath,
 		},
 	},
 }
@@ -72,6 +81,19 @@ type RuntimeConfig struct {
 	AllowedHosts []string
 	// MarketplaceMount returns the mount spec for a synced marketplace clone; nil if unsupported.
 	MarketplaceMount func(name, url string) string
+	// WriteInstructions writes content to the tool's native global
+	// instructions file (e.g. CLAUDE.md, AGENTS.md), read automatically by
+	// the tool on startup. Used for direct in-place edits of the persistent
+	// file, outside of the per-run snapshot flow - currently only to strip a
+	// stale managed block when instructions are disabled via config.
+	WriteInstructions func(toolHome, content string) error
+	// InstructionsHostPath returns the persistent host-side path to the
+	// tool's global instructions file.
+	InstructionsHostPath func(toolHome string) string
+	// InstructionsContainerPath is the container-side mount target for a
+	// per-run instructions snapshot, using the same $CONTAINER_HOME
+	// placeholder convention as Mounts().
+	InstructionsContainerPath string
 }
 
 // ToolConfig holds the full configuration for a tool container.

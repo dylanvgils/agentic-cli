@@ -135,4 +135,3 @@ func installBinary(newBinaryPath, targetPath string) error {
 
 	return nil
 }
-
