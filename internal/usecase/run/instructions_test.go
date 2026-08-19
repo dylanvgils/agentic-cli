@@ -184,6 +184,7 @@ func TestBuildInstructions(t *testing.T) {
 		assert.Contains(t, content, "no direct internet access")
 		assert.Contains(t, content, "extra.example.com")
 		assert.Contains(t, content, ".anthropic.com")
+		assert.Contains(t, content, "tell the user why so they can add it to allowed_hosts")
 	})
 
 	t.Run("network section omits host list in monitor mode", func(t *testing.T) {
@@ -199,6 +200,7 @@ func TestBuildInstructions(t *testing.T) {
 		assert.Contains(t, content, "no direct internet access")
 		assert.NotContains(t, content, "extra.example.com")
 		assert.NotContains(t, content, "reachable")
+		assert.NotContains(t, content, "tell the user why so they can add it to allowed_hosts")
 	})
 
 	t.Run("custom instructions appended when set", func(t *testing.T) {

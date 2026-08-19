@@ -141,7 +141,11 @@ Always run `go test ./...` before considering a task finished.
 """
 ```
 
-The generated block opens with a note that it only describes the container environment, not coding conventions, and that this scope covers only the generated notes themselves - never any of the user's own content merged into the same file - so a project's own instructions file (`CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`) wins whenever it conflicts with anything below that note. It then covers three things: what's installed (base toolchain - a static default so it's listed even before the image is built - plus extra runtimes, apt packages, and custom installs, read from the built image's labels so they reflect what's actually running, not a possibly stale `.agenticrc.toml`), what's restricted (read-only filesystem, writable paths, resource limits, dropped privileges), and, when the egress proxy is enabled, the network situation (no direct internet access, plus the allowlist when actually enforced - omitted in `--proxy-monitor` mode, since nothing is actually blocked there).
+The generated block opens with a precedence note - it only describes the container environment, not coding conventions, so the project's own instructions file (`CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`) wins on conflicts. It then covers:
+
+- **What's installed** - base toolchain (a static default, listed even before the image is built), extra runtimes, apt packages, and custom installs, read from the built image's labels so they reflect what's actually running, not a possibly stale `.agenticrc.toml`
+- **What's restricted** - read-only filesystem, writable paths, resource limits, dropped privileges
+- **Network access**, when the egress proxy is enabled - no direct internet access, plus the allowlist when enforced, with the same "tell the user so they can add it" note for a blocked host
 
 **`[run.proxy]` section** - egress allowlist proxy
 

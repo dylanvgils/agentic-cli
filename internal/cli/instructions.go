@@ -35,14 +35,9 @@ func init() {
 
 	instructionsCmd.Flags().StringVar(&toolHome, "home", defaultHome,
 		"agentic data directory (overrides $AGENTIC_HOME)")
-	instructionsCmd.Flags().String("pids-limit", "", "container PID limit to preview")
-	instructionsCmd.Flags().String("cpus", "", "CPU limit to preview")
-	instructionsCmd.Flags().String("memory", "", "memory limit to preview")
-	instructionsCmd.Flags().Bool("proxy", false, "preview with the egress proxy enabled (overrides config)")
-	instructionsCmd.Flags().Bool("no-proxy", false, "preview with the egress proxy disabled (overrides config)")
-	instructionsCmd.Flags().Bool("proxy-monitor", false, "preview with the egress proxy in monitor mode (overrides config)")
-	instructionsCmd.MarkFlagsMutuallyExclusive("proxy", "no-proxy", "proxy-monitor")
 
+	addResourceLimitFlags(instructionsCmd)
+	addProxyFlags(instructionsCmd)
 	addNamespaceFlag(instructionsCmd)
 }
 
@@ -60,10 +55,8 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	pidsLimit, _ := cmd.Flags().GetString("pids-limit")
-	cpus, _ := cmd.Flags().GetString("cpus")
-	memory, _ := cmd.Flags().GetString("memory")
 	proxyEnabled, proxyMonitor := resolveProxyMode(cmd, rc)
+	pidsLimit, cpus, memory := resolveResourceLimitFlags(cmd)
 
 	target := run.Target{ToolName: toolName, ImageName: imageName}
 	input := run.Input{

@@ -89,6 +89,49 @@ func TestAddBuildFlags(t *testing.T) {
 	})
 }
 
+func TestAddResourceLimitFlags(t *testing.T) {
+	t.Run("registers all flags", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+
+		// Act
+		addResourceLimitFlags(cmd)
+
+		// Assert
+		for _, name := range []string{"pids-limit", "cpus", "memory"} {
+			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
+		}
+	})
+}
+
+func TestAddProxyFlags(t *testing.T) {
+	t.Run("registers all flags", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+
+		// Act
+		addProxyFlags(cmd)
+
+		// Assert
+		for _, name := range []string{"proxy", "no-proxy", "proxy-monitor"} {
+			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
+		}
+	})
+
+	t.Run("proxy flags are mutually exclusive", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
+		addProxyFlags(cmd)
+		cmd.SetArgs([]string{"--proxy", "--no-proxy"})
+
+		// Act
+		err := cmd.Execute()
+
+		// Assert
+		assert.Error(t, err)
+	})
+}
+
 func newBuildCmd(t *testing.T) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{Use: "test"}

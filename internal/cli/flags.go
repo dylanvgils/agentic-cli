@@ -58,6 +58,36 @@ func addBuildFlags(cmd *cobra.Command) {
 	addVersionFlags(cmd)
 }
 
+// addResourceLimitFlags registers the --pids-limit, --cpus, and --memory flags
+// shared by the run and instructions commands. Unbound (read back via
+// resolveResourceLimitFlags) rather than bound to a package var, since both
+// commands register these flags on their own *cobra.Command and a shared
+// bound var would alias one command's flag value onto the other's.
+func addResourceLimitFlags(cmd *cobra.Command) {
+	cmd.Flags().String("pids-limit", "", "container PID limit")
+	cmd.Flags().String("cpus", "", "CPU limit")
+	cmd.Flags().String("memory", "", "memory limit")
+}
+
+// resolveResourceLimitFlags returns the --pids-limit, --cpus, and --memory flag values.
+func resolveResourceLimitFlags(cmd *cobra.Command) (pidsLimit, cpus, memory string) {
+	pidsLimit, _ = cmd.Flags().GetString("pids-limit")
+	cpus, _ = cmd.Flags().GetString("cpus")
+	memory, _ = cmd.Flags().GetString("memory")
+	return pidsLimit, cpus, memory
+}
+
+// addProxyFlags registers the mutually exclusive --proxy, --no-proxy, and
+// --proxy-monitor flags shared by the run and instructions commands. Read back
+// by resolveProxyMode via cmd.Flags() rather than a bound package var, for the
+// same reason as addResourceLimitFlags above.
+func addProxyFlags(cmd *cobra.Command) {
+	cmd.Flags().Bool("proxy", false, "route egress through the allowlist proxy (overrides config)")
+	cmd.Flags().Bool("no-proxy", false, "disable the egress proxy for this run (overrides config)")
+	cmd.Flags().Bool("proxy-monitor", false, "route egress through the proxy without blocking, logging every host (overrides config)")
+	cmd.MarkFlagsMutuallyExclusive("proxy", "no-proxy", "proxy-monitor")
+}
+
 // flagOrEnv returns the flag value if set, falling back to the named environment variable.
 func flagOrEnv(cmd *cobra.Command, flag, env string) string {
 	v, _ := cmd.Flags().GetString(flag)

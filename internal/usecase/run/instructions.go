@@ -230,7 +230,7 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 	for _, host := range proxyAllowList(toolConfig, rc) {
 		fmt.Fprintf(b, "  - %s\n", host)
 	}
-	b.WriteString("\n")
+	b.WriteString("\nAnything not listed above is blocked. If a task needs a host that isn't reachable, tell the user why so they can add it to allowed_hosts in .agenticrc.toml and rerun.\n\n")
 }
 
 func writeCustomSection(b *strings.Builder, rc *config.AgenticRC) {
