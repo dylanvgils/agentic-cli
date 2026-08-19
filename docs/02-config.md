@@ -141,6 +141,17 @@ Always run `go test ./...` before considering a task finished.
 """
 ```
 
+Written into the tool's own global instructions file - `~/.claude/CLAUDE.md` (Claude Code), `~/.config/opencode/AGENTS.md` (OpenCode), `~/.copilot/copilot-instructions.md` (Copilot CLI) - a location each tool already reads automatically on startup, separate from any project-level `CLAUDE.md`/`AGENTS.md` you own in the repo, so it never collides with your own instructions.
+
+The block is delimited by markers and only the content between them is ever replaced - anything else in the file, whether added by hand or by the tool itself at runtime (e.g. Claude Code's own memory/"remember this" feature), is left untouched across runs, including when `enabled = false` turns the block off entirely. Each run gets its own private, freshly-generated snapshot of the file for the container's lifetime, so concurrent runs of the same tool across projects never bleed instructions, resource limits, or proxy settings into each other; anything added to the file during a run is folded back into the persisted copy once the container exits.
+
+Preview the exact content a run would write, without starting a container:
+
+```bash
+agentic instructions claude
+agentic instructions claude --proxy
+```
+
 The generated block opens with a precedence note - it only describes the container environment, not coding conventions, so the project's own instructions file (`CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`) wins on conflicts. It then covers:
 
 - **What's installed** - base toolchain (a static default, listed even before the image is built), extra runtimes, apt packages, and custom installs, read from the built image's labels so they reflect what's actually running, not a possibly stale `.agenticrc.toml`
