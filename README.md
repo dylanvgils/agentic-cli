@@ -342,6 +342,21 @@ agentic build claude --apt make,gcc   # comma-separated or repeatable (--apt mak
 
 Use `agentic inspect` to see base layers, apt packages, build timestamp, and installed tool version for any built image.
 
+### Custom installs
+
+For tools not packaged via apt (e.g. `helm`, `golangci-lint`), declare a `[[build.custom_installs]]` entry in `.agenticrc.toml`:
+
+```toml
+[[build.custom_installs]]
+name = "helm"
+run = [
+  "curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 -o /tmp/get-helm.sh",
+  "bash /tmp/get-helm.sh",
+]
+```
+
+Runs as root before the tool's own install step - install into a root-owned path like `/usr/local/bin` rather than `$HOME`. See [docs/02-config.md](docs/02-config.md) for the full reference.
+
 ## 🔑 Secrets
 
 Use `--secret` / `-s` to mount a secret file read-only into the container:

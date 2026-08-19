@@ -395,6 +395,21 @@ func TestMergeConfigs(t *testing.T) {
 			{Name: "child-mp", URL: "git@example.com:c.git"},
 		}, result.Marketplaces)
 	})
+
+	t.Run("custom installs accumulate outermost first", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Build: RCBuild{CustomInstalls: []RCCustomInstall{{Name: "golangci-lint", Run: []string{"echo child"}}}}}
+		parent := &AgenticRC{Build: RCBuild{CustomInstalls: []RCCustomInstall{{Name: "helm", Run: []string{"echo parent"}}}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, []RCCustomInstall{
+			{Name: "helm", Run: []string{"echo parent"}},
+			{Name: "golangci-lint", Run: []string{"echo child"}},
+		}, result.Build.CustomInstalls)
+	})
 }
 
 func TestParseRC(t *testing.T) {
@@ -570,6 +585,64 @@ memory = "2g"
 
 		// Assert
 		assert.ErrorContains(t, err, "url must not be empty")
+		assert.ErrorContains(t, err, path)
+	})
+
+	t.Run("custom_installs key", func(t *testing.T) {
+		// Act
+		rc := mustParseRC(t, "[[build.custom_installs]]\nname = \"helm\"\nrun = [\"curl -fsSL https://get.helm.sh -o /tmp/get-helm.sh\", \"bash /tmp/get-helm.sh\"]\n")
+
+		// Assert
+		assert.Equal(t, []RCCustomInstall{
+			{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh -o /tmp/get-helm.sh", "bash /tmp/get-helm.sh"}},
+		}, rc.Build.CustomInstalls)
+	})
+
+	t.Run("custom install with empty name returns error with path", func(t *testing.T) {
+		// Arrange
+		path := writeRC(t, "[[build.custom_installs]]\nrun = [\"true\"]\n")
+
+		// Act
+		_, err := loadRC(path)
+
+		// Assert
+		assert.ErrorContains(t, err, "name must not be empty")
+		assert.ErrorContains(t, err, path)
+	})
+
+	t.Run("custom install with unsafe name returns error with path", func(t *testing.T) {
+		// Arrange
+		path := writeRC(t, "[[build.custom_installs]]\nname = \"../escape\"\nrun = [\"true\"]\n")
+
+		// Act
+		_, err := loadRC(path)
+
+		// Assert
+		assert.ErrorContains(t, err, "name must match")
+		assert.ErrorContains(t, err, path)
+	})
+
+	t.Run("custom install with empty run returns error with path", func(t *testing.T) {
+		// Arrange
+		path := writeRC(t, "[[build.custom_installs]]\nname = \"helm\"\n")
+
+		// Act
+		_, err := loadRC(path)
+
+		// Assert
+		assert.ErrorContains(t, err, "run must not be empty")
+		assert.ErrorContains(t, err, path)
+	})
+
+	t.Run("duplicate custom install name within one file returns error", func(t *testing.T) {
+		// Arrange
+		path := writeRC(t, "[[build.custom_installs]]\nname = \"helm\"\nrun = [\"true\"]\n\n[[build.custom_installs]]\nname = \"helm\"\nrun = [\"true\"]\n")
+
+		// Act
+		_, err := loadRC(path)
+
+		// Assert
+		assert.ErrorContains(t, err, "name must be unique")
 		assert.ErrorContains(t, err, path)
 	})
 
@@ -779,6 +852,22 @@ func TestFindAndLoad(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, parentRC)
+		assert.Nil(t, rc)
+	})
+
+	t.Run("duplicate custom install name across layers returns error", func(t *testing.T) {
+		// Arrange
+		parent := t.TempDir()
+		child := filepath.Join(parent, "sub")
+		require.NoError(t, os.Mkdir(child, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(parent, ".agenticrc.toml"), []byte("[[build.custom_installs]]\nname = \"helm\"\nrun = [\"true\"]\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(child, ".agenticrc.toml"), []byte("[[build.custom_installs]]\nname = \"helm\"\nrun = [\"true\"]\n"), 0o644))
+
+		// Act
+		rc, err := FindAndLoad(child)
+
+		// Assert
+		assert.ErrorContains(t, err, "name must be unique across")
 		assert.Nil(t, rc)
 	})
 }

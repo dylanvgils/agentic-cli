@@ -88,11 +88,32 @@ pids_limit = "2048"
 
 **`[build]` section** - applied at `agentic build` / `agentic update` time
 
-| Key            | Type       | Description                                                                                                                      | CLI flag    | Env var                   | Default |
-| -------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ------------------------- | ------- |
-| `bases`        | list       | Extra runtime layers to add on top of the node base (e.g. `["java", "dotnet"]`). Accumulates across RC layers and with `--base`. | `--base`    | -                         | -       |
-| `apt_packages` | list       | Extra Debian packages to install in the base image. Accumulates across RC layers and with `--apt`.                               | `--apt`     | `AGENTIC_APT_PACKAGES`    | -       |
-| `versions`     | TOML table | Per-layer version pins. Written as `[build.versions]` with `node`, `java`, `dotnet`, or `go` keys. Innermost value wins per key. | `--<layer>` | `AGENTIC_<LAYER>_VERSION` | -       |
+| Key               | Type           | Description                                                                                                                      | CLI flag    | Env var                   | Default |
+| ----------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ------------------------- | ------- |
+| `bases`           | list           | Extra runtime layers to add on top of the node base (e.g. `["java", "dotnet"]`). Accumulates across RC layers and with `--base`. | `--base`    | -                         | -       |
+| `apt_packages`    | list           | Extra Debian packages to install in the base image. Accumulates across RC layers and with `--apt`.                               | `--apt`     | `AGENTIC_APT_PACKAGES`    | -       |
+| `versions`        | TOML table     | Per-layer version pins. Written as `[build.versions]` with `node`, `java`, `dotnet`, or `go` keys. Innermost value wins per key. | `--<layer>` | `AGENTIC_<LAYER>_VERSION` | -       |
+| `custom_installs` | list of tables | Non-apt tools installed via arbitrary shell commands. See `[[build.custom_installs]]` below.                                     | -           | -                         | -       |
+
+**`[[build.custom_installs]]`** - non-apt tools (e.g. `helm`, `golangci-lint`) installed via arbitrary shell commands, applied unconditionally at build time - not gated by a `--<name>` flag the way `bases` extras are
+
+| Key    | Type   | Description                                                                                                                                                                          | Default |
+| ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
+| `name` | string | Identifier for this install; must match `^[a-zA-Z0-9._-]+$`, unique across all merged `.agenticrc.toml` layers. Shown as a comment in the generated `RUN` and in `agentic config`.   | -       |
+| `run`  | list   | Shell commands run as-is, in declaration order, in one Docker `RUN` layer per entry. No sandboxing, checksum, or allowlist - same trust level as a Dockerfile checked into the repo. | -       |
+
+```toml
+[[build.custom_installs]]
+name = "helm"
+run = [
+  "curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 -o /tmp/get-helm.sh",
+  "bash /tmp/get-helm.sh",
+]
+```
+
+Each entry becomes its own Dockerfile stage `RUN`, inserted after any `--base` extras (`dotnet`/`go`/`java`/`node`) and before the tool's own install step - so a custom install can rely on any requested extra's toolchain being on `PATH` (e.g. a `go install`-based install can assume `--base go` already ran). rc-only: no CLI flag or env var equivalent, unlike `bases`/`apt_packages`. Unlike those two, `agentic update` does not ignore `custom_installs` from rc - it always reflects the current file, since there's no per-image label recovery for it (the `agentic.custom-installs` label is informational only, shown by `agentic inspect <tool>` - it's never read back to decide what to rebuild). Editing an entry's `run` always takes effect on the next `build`/`update` via normal Docker layer-cache invalidation on the changed `RUN` command.
+
+`custom_installs` commands run as root, in a build stage before the container's non-root tool user is created (the same ordering `apt_packages`/`bases` already use). Install into a root-owned system path such as `/usr/local/bin` or `/opt` rather than `$HOME` - files written under the tool user's home directory will end up root-owned, and containers run `--read-only` as a non-root user at runtime, so such files would be unusable.
 
 **`[run]` section** - applied at `agentic run` time
 
@@ -183,7 +204,7 @@ Usage is tracked in `$AGENTIC_HOME/marketplaces/.usage.json`, keyed by clone + l
 
 Multiple `.agenticrc.toml` files merge. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
-- **List keys** (`bases`, `apt_packages`, `extra_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `marketplaces`): values from all levels accumulate, outermost first.
+- **List keys** (`bases`, `apt_packages`, `custom_installs`, `extra_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `marketplaces`): values from all levels accumulate, outermost first.
 - **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`, `docker_context`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
 - **`versions` table**: each layer name is resolved independently - innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
 

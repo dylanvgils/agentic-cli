@@ -206,6 +206,9 @@ func printInfoDetail(info *docker.ImageInfo) {
 	if info.Apt != "" {
 		fmt.Printf("  apt:      %s\n", info.Apt)
 	}
+	if info.CustomInstalls != "" {
+		fmt.Printf("  installs: %s\n", info.CustomInstalls)
+	}
 	fmt.Printf("  built:    %s\n", built)
 	fmt.Printf("  size:     %s\n", size)
 }

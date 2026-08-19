@@ -17,7 +17,8 @@ const fullImageJSON = `{
 			"agentic.tool.version": "1.2.3",
 			"agentic.base": "node:24",
 			"agentic.built": "2026-05-01",
-			"agentic.version": "v1.0.0"
+			"agentic.version": "v1.0.0",
+			"agentic.custom-installs": "helm,golangci-lint"
 		}
 	}
 }`
@@ -52,6 +53,7 @@ func TestInspectImage(t *testing.T) {
 		assert.Equal(t, "2026-05-01", info.Built)
 		assert.Equal(t, "v1.0.0", info.CLIVersion)
 		assert.Equal(t, "1.23GB", info.Size)
+		assert.Equal(t, "helm,golangci-lint", info.CustomInstalls)
 	})
 
 	t.Run("no labels", func(t *testing.T) {
@@ -75,6 +77,7 @@ func TestInspectImage(t *testing.T) {
 		assert.Empty(t, info.Base)
 		assert.Empty(t, info.Built)
 		assert.Empty(t, info.Size)
+		assert.Empty(t, info.CustomInstalls)
 	})
 
 	t.Run("docker error returns nil", func(t *testing.T) {

@@ -23,7 +23,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, "", nil)
 
 		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil, nil)
+		stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil)
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelProject+"="+LabelProjectVal)
@@ -34,10 +34,21 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, "", nil)
 
 		// Act
-		stampImageLabels("agentic-claude", "claude", nil, []string{"make", "gcc"}, nil)
+		stampImageLabels("agentic-claude", "claude", nil, []string{"make", "gcc"}, nil, nil)
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelApt+"=make,gcc")
+	})
+
+	t.Run("includes custom installs label with names", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "", nil)
+
+		// Act
+		stampImageLabels("agentic-claude", "claude", nil, nil, nil, []string{"helm", "golangci-lint"})
+
+		// Assert
+		assert.Contains(t, capturedArgs, "--label="+LabelCustomInstalls+"=helm,golangci-lint")
 	})
 
 	t.Run("includes base label", func(t *testing.T) {
@@ -45,7 +56,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, "", nil)
 
 		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil, nil)
+		stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil)
 
 		// Assert
 		found := false
@@ -63,7 +74,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, "", nil)
 
 		// Act
-		stampImageLabels("agentic-claude", "claude", []string{"java"}, nil, map[string]string{"java": "17"})
+		stampImageLabels("agentic-claude", "claude", []string{"java"}, nil, map[string]string{"java": "17"}, nil)
 
 		// Assert
 		found := false
@@ -81,7 +92,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, "1.2.3\n", nil)
 
 		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil, nil)
+		stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil)
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelToolVersion+"=1.2.3")
@@ -92,7 +103,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, "", fmt.Errorf("version script not found"))
 
 		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil, nil)
+		stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil)
 
 		// Assert
 		for _, a := range capturedArgs {

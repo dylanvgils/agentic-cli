@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -112,6 +113,73 @@ func Test_nodeStage(t *testing.T) {
 	t.Run("renders version script", func(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, "agentic-version-node")
+	})
+}
+
+func Test_customInstallsStage(t *testing.T) {
+	t.Run("builds from prev stage as custom-installs", func(t *testing.T) {
+		// Act
+		stage := customInstallsStage("base", []config.RCCustomInstall{{Name: "helm", Run: []string{"true"}}})
+
+		// Assert
+		assert.Equal(t, "base", stage.From.Image)
+		assert.Equal(t, "custom-installs", stage.From.As)
+	})
+
+	t.Run("sets pipefail shell so a failed curl in a pipeline fails the build", func(t *testing.T) {
+		// Act
+		stage := customInstallsStage("base", []config.RCCustomInstall{{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh | bash"}}})
+		result := renderStage(stage)
+
+		// Assert
+		assert.Contains(t, result, `SHELL ["/bin/bash", "-o", "pipefail", "-c"]`)
+	})
+
+	t.Run("single entry with one line renders one RUN with name comment", func(t *testing.T) {
+		// Act
+		stage := customInstallsStage("base", []config.RCCustomInstall{{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh | bash"}}})
+		result := renderStage(stage)
+
+		// Assert
+		assert.Equal(t, 1, strings.Count(result, "RUN "))
+		assert.Contains(t, result, "# helm")
+		assert.Contains(t, result, "curl -fsSL https://get.helm.sh | bash")
+	})
+
+	t.Run("single entry with multiple lines chains them with &&", func(t *testing.T) {
+		// Act
+		stage := customInstallsStage("base", []config.RCCustomInstall{
+			{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh -o /tmp/get-helm.sh", "bash /tmp/get-helm.sh"}},
+		})
+		result := renderStage(stage)
+
+		// Assert
+		assert.Equal(t, 1, strings.Count(result, "RUN "))
+		assert.Contains(t, result, "&&")
+		assert.Contains(t, result, "/tmp/get-helm.sh")
+	})
+
+	t.Run("multiple entries each get their own RUN", func(t *testing.T) {
+		// Act
+		stage := customInstallsStage("base", []config.RCCustomInstall{
+			{Name: "helm", Run: []string{"true"}},
+			{Name: "golangci-lint", Run: []string{"true"}},
+		})
+		result := renderStage(stage)
+
+		// Assert
+		assert.Equal(t, 2, strings.Count(result, "RUN "))
+		assert.Contains(t, result, "# helm")
+		assert.Contains(t, result, "# golangci-lint")
+	})
+
+	t.Run("empty installs renders no RUN", func(t *testing.T) {
+		// Act
+		stage := customInstallsStage("base", nil)
+		result := renderStage(stage)
+
+		// Assert
+		assert.NotContains(t, result, "RUN ")
 	})
 }
 
