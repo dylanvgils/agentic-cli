@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"os"
 	"testing"
 
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
@@ -62,4 +63,17 @@ func Test_aptInstallRun_rendersUpdateInstallCleanup(t *testing.T) {
 
 func renderStage(stage df.Stage) string {
 	return df.File{Stages: []df.Stage{stage}}.Render()
+}
+
+// appendFile appends content to the file at path, simulating a tool writing its
+// own notes below the agentic-managed block at runtime.
+func appendFile(path, content string) error {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o640)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	_, err = f.WriteString(content)
+	return err
 }

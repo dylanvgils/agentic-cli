@@ -35,6 +35,8 @@ type Input struct {
 	Registry     string
 	ProxyEnabled bool
 	ProxyMonitor bool
+	// InstructionsMount is the mount spec for this run's instructions snapshot, empty when disabled.
+	InstructionsMount string
 }
 
 type resourceLimits struct {
@@ -55,6 +57,9 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 
 	volumes := collectVolumes(toolConfig.Runtime.Mounts(), in.Volumes, rc)
 	volumes = append(volumes, marketplaceMounts...)
+	if in.InstructionsMount != "" {
+		volumes = append(volumes, in.InstructionsMount)
+	}
 	secrets := collectSecrets(in.Secrets, rc)
 	env := collectEnv(in.Env, rc)
 	limits := resolveResourceLimits(in.PidsLimit, in.CPUs, in.Memory, rc)
@@ -102,6 +107,29 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		Build()
 
 	return rs, nil
+}
+
+// BuildWithInstructions wraps Build with this run's instructions snapshot mounted in; the returned cleanup func must always be deferred, even on error.
+func BuildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, func(), error) {
+	content, err := BuildInstructions(target, in, toolConfig, rc)
+	if err != nil {
+		return docker.RunSpec{}, func() {}, fmt.Errorf("build instructions for %s: %w", target.ToolName, err)
+	}
+
+	snapshot, err := PrepareInstructions(in.ToolHome, toolConfig, content)
+	if err != nil {
+		return docker.RunSpec{}, func() {}, fmt.Errorf("prepare instructions for %s: %w", target.ToolName, err)
+	}
+
+	in.InstructionsMount = snapshot.MountSpec
+
+	rs, err := Build(target, in, toolConfig, rc)
+	if err != nil {
+		snapshot.Cleanup()
+		return docker.RunSpec{}, func() {}, err
+	}
+
+	return rs, snapshot.Cleanup, nil
 }
 
 // ToolNeedsMarketplaceSync reports whether tool has marketplace mounting
@@ -217,6 +245,7 @@ func validateEnv(entries []string, proxyEnabled bool) error {
 	return nil
 }
 
+// resolveResourceLimits resolves each limit through flag, then rc, then env var, then hardcoded default.
 func resolveResourceLimits(pidsLimit, cpus, memory string, rc *config.AgenticRC) resourceLimits {
 	run := rc.Run
 	if pidsLimit == "" {
@@ -228,5 +257,21 @@ func resolveResourceLimits(pidsLimit, cpus, memory string, rc *config.AgenticRC)
 	if memory == "" {
 		memory = run.Memory
 	}
-	return resourceLimits{pidsLimit: pidsLimit, cpus: cpus, memory: memory}
+
+	return resourceLimits{
+		pidsLimit: resolveLimit(pidsLimit, config.EnvPidsLimit, docker.DefaultPidsLimit),
+		cpus:      resolveLimit(cpus, config.EnvCPUs, docker.DefaultCPUs),
+		memory:    resolveLimit(memory, config.EnvMemory, docker.DefaultMemory),
+	}
+}
+
+// resolveLimit returns val if non-empty, then the env var, then fallback.
+func resolveLimit(val, envKey, fallback string) string {
+	if val != "" {
+		return val
+	}
+	if env := os.Getenv(envKey); env != "" {
+		return env
+	}
+	return fallback
 }

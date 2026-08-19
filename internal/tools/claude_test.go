@@ -87,6 +87,21 @@ func TestSetupClaude(t *testing.T) {
 	})
 }
 
+func TestWriteClaudeInstructions(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "claude", "data"), 0o750))
+
+	// Act
+	err := writeClaudeInstructions(dir, "# Environment\n")
+
+	// Assert
+	require.NoError(t, err)
+	got, err := os.ReadFile(filepath.Join(dir, "claude", "data", "CLAUDE.md"))
+	require.NoError(t, err)
+	assert.Equal(t, instructionsBeginMarker+"\n# Environment\n"+instructionsEndMarker+"\n", string(got))
+}
+
 func TestClaudeStage(t *testing.T) {
 	stage := claudeStage("base")
 	result := renderStage(stage)

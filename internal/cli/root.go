@@ -16,7 +16,7 @@ import (
 
 var (
 	// noDockerCmds lists subcommands that do not require a running Docker daemon.
-	noDockerCmds = []string{"completion", "aliases", "version", "upgrade", "status", "marketplaces"}
+	noDockerCmds = []string{"completion", "aliases", "version", "upgrade", "status", "marketplaces", "instructions"}
 	// noUpdateCmds lists subcommands that skip the automatic update check.
 	noUpdateCmds = []string{"completion", "aliases", "upgrade"}
 )

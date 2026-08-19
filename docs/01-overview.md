@@ -18,6 +18,8 @@ When a tool needs to write somewhere (config, cache, temp files), it gets a targ
 
 See [volume-mounts.md](03-volume-mounts.md) for a per-tool breakdown of what's mounted and why.
 
+These constraints (and what's installed) are also written into each tool's own global instructions file at run time, so the model itself knows what it can and can't do up front - see [Environment instructions](../README.md#-environment-instructions).
+
 ## Motivation
 
 Agentic coding tools are powerful - but that power comes at a cost. They do come with guard rails, but they still run with the same permissions as your user. You're trusting the tool not to access anything you didn't intend to give it - and that's a hard sell if you want to experiment without fully trusting the tool.

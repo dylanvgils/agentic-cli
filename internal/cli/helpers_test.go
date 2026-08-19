@@ -78,6 +78,21 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	return func() (docker.RunSpec, []string) { return capturedSpec, capturedArgs }
 }
 
+// findVolumeByContainerPath returns the one volume spec in volumes whose
+// container-side path is containerPath, failing the test if none or more than
+// one match.
+func findVolumeByContainerPath(t *testing.T, volumes []string, containerPath string) string {
+	t.Helper()
+	var matches []string
+	for _, v := range volumes {
+		if strings.HasSuffix(v, ":"+containerPath) {
+			matches = append(matches, v)
+		}
+	}
+	require.Len(t, matches, 1, "expected exactly one volume mounted at %s, got %v", containerPath, volumes)
+	return matches[0]
+}
+
 // withTempToolHome sets toolHome to a temp dir and pre-trusts the directories
 // that tests run in (os.TempDir() covers t.Chdir paths; cwd covers tests that
 // don't chdir).

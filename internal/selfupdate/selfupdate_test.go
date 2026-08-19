@@ -87,7 +87,6 @@ func TestIsNewer(t *testing.T) {
 	})
 }
 
-
 func Test_downloadRelease(t *testing.T) {
 	// Arrange
 	binaryContent := []byte("#!/bin/sh\necho hello")
@@ -194,4 +193,3 @@ func TestUpdateWith(t *testing.T) {
 		assert.ErrorIs(t, err, ErrBinaryNotFound)
 	})
 }
-

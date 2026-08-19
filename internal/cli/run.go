@@ -17,18 +17,12 @@ import (
 )
 
 var (
-	toolHome         string
-	extraVolumes     []string
-	flagSecrets      []string
-	flagEnv          []string
-	pidsLimit        string
-	cpus             string
-	memory           string
-	dryRun           bool
-	trustDir         bool
-	proxyFlag        bool
-	noProxyFlag      bool
-	proxyMonitorFlag bool
+	toolHome     string
+	extraVolumes []string
+	flagSecrets  []string
+	flagEnv      []string
+	dryRun       bool
+	trustDir     bool
 )
 
 type parsedArgs struct {
@@ -64,17 +58,12 @@ func init() {
 		"secret file to mount read-only into the container (format: name:/path[:/container/path]); repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagEnv, "env", "e", nil,
 		"environment variable to set in the container (format: KEY=VALUE, or KEY to forward the host value); repeatable")
-	runToolCmd.Flags().StringVar(&pidsLimit, "pids-limit", "", "container PID limit")
-	runToolCmd.Flags().StringVar(&cpus, "cpus", "", "CPU limit")
-	runToolCmd.Flags().StringVar(&memory, "memory", "", "memory limit")
 	runToolCmd.Flags().BoolVar(&dryRun, "dry-run", false, "print the docker command without running it")
 	runToolCmd.Flags().BoolVar(&trustDir, "trust-dir", false, "trust the current directory and save it to config")
-	runToolCmd.Flags().BoolVar(&proxyFlag, "proxy", false, "route egress through the allowlist proxy (overrides config)")
-	runToolCmd.Flags().BoolVar(&noProxyFlag, "no-proxy", false, "disable the egress proxy for this run (overrides config)")
-	runToolCmd.Flags().BoolVar(&proxyMonitorFlag, "proxy-monitor", false, "route egress through the proxy without blocking, logging every host (overrides config)")
-	runToolCmd.MarkFlagsMutuallyExclusive("proxy", "no-proxy", "proxy-monitor")
 	runToolCmd.Flags().SetInterspersed(false)
 
+	addResourceLimitFlags(runToolCmd)
+	addProxyFlags(runToolCmd)
 	addNamespaceFlag(runToolCmd)
 	addRegistryFlag(runToolCmd)
 }
@@ -128,6 +117,8 @@ func runTool(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	pidsLimit, cpus, memory := resolveResourceLimitFlags(cmd)
+
 	target := run.Target{
 		ToolName:       parsedArgs.toolName,
 		ImageName:      parsedArgs.imageName,
@@ -147,10 +138,11 @@ func runTool(cmd *cobra.Command, args []string) error {
 		ProxyMonitor: proxyMonitor,
 	}
 
-	rs, err := run.Build(target, input, toolConfig, rc)
+	rs, cleanupInstructions, err := run.BuildWithInstructions(target, input, toolConfig, rc)
 	if err != nil {
 		return err
 	}
+	defer cleanupInstructions()
 
 	return runContainer(rs, parsedArgs.toolArgs)
 }

@@ -127,6 +127,37 @@ Each entry becomes its own Dockerfile stage `RUN`, inserted after any `--base` e
 | `memory`        | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                                                                 | `--memory`     | `AGENTIC_MEMORY`       | `4g`    |
 | `check_updates` | bool   | Periodically check upstream for a newer tool version during `agentic run` (at most once every 6 hours per tool) and offer to update. A pointer internally so an inner config can explicitly disable a check enabled by an outer one. | -              | -                      | `true`  |
 
+**`[run.instructions]` section** - environment instructions written into each tool's global instructions file (see [Environment instructions](../README.md#-environment-instructions))
+
+| Key       | Type   | Description                                                                                                                                                 | Default |
+| --------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `enabled` | bool   | Write the generated environment-instructions block. A pointer internally so an inner config can explicitly disable a block enabled by an outer one.         | `true`  |
+| `custom`  | string | Free text appended after the generated sections. Accumulates across RC layers like a list key (outermost first, separated by a blank line), not overridden. | -       |
+
+```toml
+[run.instructions]
+custom = """
+Always run `go test ./...` before considering a task finished.
+"""
+```
+
+Written into the tool's own global instructions file - `~/.claude/CLAUDE.md` (Claude Code), `~/.config/opencode/AGENTS.md` (OpenCode), `~/.copilot/copilot-instructions.md` (Copilot CLI) - a location each tool already reads automatically on startup, separate from any project-level `CLAUDE.md`/`AGENTS.md` you own in the repo, so it never collides with your own instructions.
+
+The block is delimited by markers and only the content between them is ever replaced - anything else in the file, whether added by hand or by the tool itself at runtime (e.g. Claude Code's own memory/"remember this" feature), is left untouched across runs, including when `enabled = false` turns the block off entirely. Each run gets its own private, freshly-generated snapshot of the file for the container's lifetime, so concurrent runs of the same tool across projects never bleed instructions, resource limits, or proxy settings into each other; anything added to the file during a run is folded back into the persisted copy once the container exits.
+
+Preview the exact content a run would write, without starting a container:
+
+```bash
+agentic instructions claude
+agentic instructions claude --proxy
+```
+
+The generated block opens with a precedence note - it only describes the container environment, not coding conventions, so the project's own instructions file (`CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`) wins on conflicts. It then covers:
+
+- **What's installed** - base toolchain (a static default, listed even before the image is built), extra runtimes, apt packages, and custom installs, read from the built image's labels so they reflect what's actually running, not a possibly stale `.agenticrc.toml`
+- **What's restricted** - read-only filesystem, writable paths, resource limits, dropped privileges
+- **Network access**, when the egress proxy is enabled - no direct internet access, plus the allowlist when enforced, with the same "tell the user so they can add it" note for a blocked host
+
 **`[run.proxy]` section** - egress allowlist proxy
 
 | Key             | Type   | Description                                                                                                                                                                                                               | CLI flag                 | Default     |
@@ -206,6 +237,7 @@ Multiple `.agenticrc.toml` files merge. The walk starts at `$PWD` and moves upwa
 
 - **List keys** (`bases`, `apt_packages`, `custom_installs`, `extra_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `marketplaces`): values from all levels accumulate, outermost first.
 - **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`, `docker_context`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
+- **`instructions.custom`**: text from all levels accumulates like a list key (outermost first, joined by a blank line), rather than the innermost overriding it - each layer's text is additive context, not a single setting. `instructions.enabled` is a scalar key: the innermost (child) value wins.
 - **`versions` table**: each layer name is resolved independently - innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
 
 ```
