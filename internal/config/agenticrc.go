@@ -49,17 +49,11 @@ type RCRun struct {
 	CheckUpdates *bool `toml:"check_updates"`
 }
 
-// RCInstructions holds environment-instructions settings from a .agenticrc.toml
-// file: the generated environment block written into each tool's global
-// instructions file, plus optional free-text appended to it.
+// RCInstructions holds environment-instructions settings from a .agenticrc.toml file.
 type RCInstructions struct {
-	// Enabled is a pointer so an inner config can explicitly disable the
-	// instructions block enabled by an outer one (a plain false is
-	// indistinguishable from "unset"). Nil or true means the block is written.
+	// Enabled is a pointer so an inner config can explicitly disable a block enabled by an outer one.
 	Enabled *bool `toml:"enabled"`
-	// Custom is free text appended after the generated sections. Layers
-	// concatenate (like ExtraMounts/Env) rather than override, since each
-	// layer's text is additive context rather than a single setting.
+	// Custom is free text appended after the generated sections; layers concatenate rather than override.
 	Custom string `toml:"custom"`
 }
 
@@ -305,8 +299,7 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 	return result
 }
 
-// appendInstructions joins two layers' custom-instructions text, skipping an
-// empty side rather than introducing a stray blank line.
+// appendInstructions joins two layers' custom-instructions text, skipping an empty side.
 func appendInstructions(existing, next string) string {
 	if next == "" {
 		return existing

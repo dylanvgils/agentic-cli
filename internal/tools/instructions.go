@@ -11,12 +11,7 @@ const (
 	instructionsEndMarker   = "<!-- agentic:instructions:end -->"
 )
 
-// MergedInstructions reads hostPath's preserved content (its existing content
-// minus any managed block) and merges it with block, returning the combined
-// result - the effective content a run would write into the tool's
-// instructions file, without touching any files. Shared by
-// PrepareInstructionsSnapshot and by `agentic instructions <tool>`, which
-// previews this same result without starting a container.
+// MergedInstructions returns hostPath's preserved content merged with block, without touching any files.
 func MergedInstructions(hostPath, block string) (string, error) {
 	existing, err := os.ReadFile(hostPath)
 	if err != nil && !os.IsNotExist(err) {
@@ -26,12 +21,7 @@ func MergedInstructions(hostPath, block string) (string, error) {
 	return mergeInstructions(string(existing), block), nil
 }
 
-// PrepareInstructionsSnapshot merges hostPath's preserved content (its existing
-// content minus any managed block) with block, and writes the result to a new,
-// uniquely-named file in the OS temp dir, returning its path. Mounting this single
-// file over the tool's instructions path in the container gives each run a private
-// view for its whole session, so concurrent runs of the same tool never share one
-// live, mutable file.
+// PrepareInstructionsSnapshot writes the merged content to a new, uniquely-named file in the OS temp dir, returning its path - so each run gets a private mount instead of sharing one live file.
 func PrepareInstructionsSnapshot(hostPath, block string) (string, error) {
 	merged, err := MergedInstructions(hostPath, block)
 	if err != nil {
@@ -52,11 +42,7 @@ func PrepareInstructionsSnapshot(hostPath, block string) (string, error) {
 	return f.Name(), nil
 }
 
-// FinalizeInstructionsSnapshot reads back snapshotPath - possibly changed by the
-// tool during the run (e.g. Claude Code's own memory feature) - strips the now-stale
-// managed block, and persists whatever organic content remains to hostPath (even
-// when that's nothing), so the next run regenerates a fresh managed block on top of
-// it. hostPath itself is never removed - only snapshotPath is, always.
+// FinalizeInstructionsSnapshot strips the managed block from snapshotPath and persists the rest back to hostPath, then removes snapshotPath.
 func FinalizeInstructionsSnapshot(hostPath, snapshotPath string) error {
 	defer func() { _ = os.Remove(snapshotPath) }()
 
@@ -73,10 +59,7 @@ func FinalizeInstructionsSnapshot(hostPath, snapshotPath string) error {
 	return os.WriteFile(hostPath, []byte(preserved), 0o640)
 }
 
-// stripManaged removes the agentic-managed block (markers included) from existing
-// file content, returning whatever is left. If the markers are missing, malformed,
-// or out of order, the entire content is returned untouched to avoid ever losing
-// data.
+// stripManaged removes the agentic-managed block from existing, or returns it untouched if the markers are missing or malformed.
 func stripManaged(existing string) string {
 	begin := strings.Index(existing, instructionsBeginMarker)
 	if begin == -1 {
@@ -96,11 +79,7 @@ func stripManaged(existing string) string {
 	return before + after
 }
 
-// writeManagedInstructions writes block into the file at path, replacing only the
-// content between the agentic markers and leaving everything else untouched - the
-// user's own notes, or anything the tool itself appended at runtime (e.g. Claude
-// Code's own memory feature). An empty block removes the managed section entirely
-// rather than leaving empty markers behind.
+// writeManagedInstructions writes block into path, replacing only the managed section and leaving the rest untouched.
 func writeManagedInstructions(path, block string) error {
 	existing, err := os.ReadFile(path)
 	if err != nil {
@@ -115,9 +94,7 @@ func writeManagedInstructions(path, block string) error {
 	return os.WriteFile(path, []byte(mergeInstructions(string(existing), block)), 0o640)
 }
 
-// mergeInstructions returns existing with its managed block (if any) replaced by
-// block, or removed entirely when block is empty - the pure merge step shared by
-// writeManagedInstructions and the snapshot functions above.
+// mergeInstructions returns existing with its managed block replaced by block, or removed when block is empty.
 func mergeInstructions(existing, block string) string {
 	rest := stripManaged(existing)
 

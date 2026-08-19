@@ -12,9 +12,7 @@ import (
 // pulls releases from.
 const opencodeReleaseRepo = "anomalyco/opencode"
 
-// opencodeInstructionsContainerPath is the container-side mount target for a
-// per-run instructions snapshot, overlaying the single file inside the
-// $CONTAINER_HOME/.config/opencode mount from opencodeMounts().
+// opencodeInstructionsContainerPath is the container-side mount target for a per-run instructions snapshot.
 const opencodeInstructionsContainerPath = "$CONTAINER_HOME/.config/opencode/AGENTS.md"
 
 // opencodeAllowedHosts is the baseline egress allowlist for OpenCode. OpenCode
@@ -79,8 +77,7 @@ func setupOpencode(toolHome string) error {
 	return nil
 }
 
-// opencodeInstructionsHostPath is OpenCode's global AGENTS.md
-// (~/.config/opencode/AGENTS.md), loaded in addition to any project-level AGENTS.md.
+// opencodeInstructionsHostPath is OpenCode's global AGENTS.md (~/.config/opencode/AGENTS.md).
 func opencodeInstructionsHostPath(toolHome string) string {
 	return filepath.Join(toolHome, "opencode", "config", "AGENTS.md")
 }

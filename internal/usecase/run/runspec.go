@@ -35,10 +35,7 @@ type Input struct {
 	Registry     string
 	ProxyEnabled bool
 	ProxyMonitor bool
-	// InstructionsMount is the mount spec for this run's instructions
-	// snapshot (see PrepareInstructions), empty when instructions are
-	// disabled. Kept separate from Volumes since it's agentic-managed, not
-	// user-supplied.
+	// InstructionsMount is the mount spec for this run's instructions snapshot, empty when disabled.
 	InstructionsMount string
 }
 
@@ -112,13 +109,7 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	return rs, nil
 }
 
-// BuildWithInstructions wraps Build with this run's environment-instructions
-// snapshot: it generates the content, stages it into a per-run mount via
-// PrepareInstructions, wires that mount into in before building the RunSpec,
-// and returns a cleanup func the caller must defer regardless of how the run
-// ends, to sync any organic edits back to the persistent instructions file
-// and remove the temporary snapshot. cleanup is always safe to call, even on
-// a returned error.
+// BuildWithInstructions wraps Build with this run's instructions snapshot mounted in; the returned cleanup func must always be deferred, even on error.
 func BuildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, func(), error) {
 	content, err := BuildInstructions(target, in, toolConfig, rc)
 	if err != nil {
@@ -254,10 +245,7 @@ func validateEnv(entries []string, proxyEnabled bool) error {
 	return nil
 }
 
-// resolveResourceLimits resolves each limit through the full precedence chain:
-// flag, then rc, then the config env var, then the hardcoded default - so the
-// result is always a final, effective value (never empty). Mirrors the bash
-// ${VAR:-default} pattern used in bin/agentic.
+// resolveResourceLimits resolves each limit through flag, then rc, then env var, then hardcoded default.
 func resolveResourceLimits(pidsLimit, cpus, memory string, rc *config.AgenticRC) resourceLimits {
 	run := rc.Run
 	if pidsLimit == "" {

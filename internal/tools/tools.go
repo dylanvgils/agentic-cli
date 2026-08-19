@@ -81,18 +81,11 @@ type RuntimeConfig struct {
 	AllowedHosts []string
 	// MarketplaceMount returns the mount spec for a synced marketplace clone; nil if unsupported.
 	MarketplaceMount func(name, url string) string
-	// WriteInstructions writes content to the tool's native global
-	// instructions file (e.g. CLAUDE.md, AGENTS.md), read automatically by
-	// the tool on startup. Used for direct in-place edits of the persistent
-	// file, outside of the per-run snapshot flow - currently only to strip a
-	// stale managed block when instructions are disabled via config.
+	// WriteInstructions writes content directly to the tool's persistent global instructions file.
 	WriteInstructions func(toolHome, content string) error
-	// InstructionsHostPath returns the persistent host-side path to the
-	// tool's global instructions file.
+	// InstructionsHostPath returns the persistent host-side path to the tool's global instructions file.
 	InstructionsHostPath func(toolHome string) string
-	// InstructionsContainerPath is the container-side mount target for a
-	// per-run instructions snapshot, using the same $CONTAINER_HOME
-	// placeholder convention as Mounts().
+	// InstructionsContainerPath is the container-side mount target for a per-run instructions snapshot.
 	InstructionsContainerPath string
 }
 

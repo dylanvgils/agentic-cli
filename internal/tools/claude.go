@@ -17,9 +17,7 @@ import (
 // exactly what the install step below actually fetches.
 const claudeLatestVersionURL = "https://downloads.claude.ai/claude-code-releases/latest"
 
-// claudeInstructionsContainerPath is the container-side mount target for a
-// per-run instructions snapshot, overlaying the single file inside the
-// $CONTAINER_HOME/.claude mount from claudeMounts().
+// claudeInstructionsContainerPath is the container-side mount target for a per-run instructions snapshot.
 const claudeInstructionsContainerPath = "$CONTAINER_HOME/.claude/CLAUDE.md"
 
 // claudeAllowedHosts is the baseline egress allowlist for Claude Code. Package
@@ -121,8 +119,7 @@ func setupClaude(toolHome string) error {
 	return nil
 }
 
-// claudeInstructionsHostPath is Claude Code's global CLAUDE.md
-// (~/.claude/CLAUDE.md), loaded in addition to any project-level CLAUDE.md.
+// claudeInstructionsHostPath is Claude Code's global CLAUDE.md (~/.claude/CLAUDE.md).
 func claudeInstructionsHostPath(toolHome string) string {
 	return filepath.Join(toolHome, "claude", "data", "CLAUDE.md")
 }

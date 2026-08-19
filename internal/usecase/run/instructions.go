@@ -11,20 +11,13 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
-// InstructionsSnapshot is the per-run view of a tool's global instructions
-// file: MountSpec (empty when instructions are disabled) overlays this run's
-// generated content on top of the tool's persistent instructions file, so
-// concurrent runs of the same tool never share one live, mutable file for the
-// whole container session. Cleanup must be deferred by the caller regardless
-// of how the run ends, to sync any organic edits back to the persistent file
-// and remove the temporary snapshot.
+// InstructionsSnapshot is the per-run view of a tool's global instructions file; Cleanup must always be deferred by the caller.
 type InstructionsSnapshot struct {
 	MountSpec string
 	finalize  func() error
 }
 
-// Cleanup finalizes the snapshot, warning (not failing) on error since it
-// typically runs during unwind via a deferred call right after PrepareInstructions.
+// Cleanup finalizes the snapshot, warning rather than failing on error.
 func (s InstructionsSnapshot) Cleanup() {
 	if s.finalize == nil {
 		return
@@ -34,12 +27,7 @@ func (s InstructionsSnapshot) Cleanup() {
 	}
 }
 
-// PrepareInstructions stages this run's environment-instructions content into
-// a private per-run snapshot file, returning a mount spec that overlays it
-// onto the tool's instructions path inside the container. When content is
-// empty (instructions disabled via config), it instead strips any stale
-// managed block from the persistent file directly and returns a zero-value
-// snapshot (no mount, no-op Cleanup).
+// PrepareInstructions stages content into a private per-run snapshot file and returns its mount spec, or strips any stale managed block in place when content is empty.
 func PrepareInstructions(toolHome string, toolConfig tools.ToolConfig, content string) (InstructionsSnapshot, error) {
 	if content == "" {
 		return InstructionsSnapshot{}, toolConfig.Runtime.WriteInstructions(toolHome, "")
@@ -60,13 +48,7 @@ func PrepareInstructions(toolHome string, toolConfig tools.ToolConfig, content s
 	}, nil
 }
 
-// BuildInstructions assembles the environment-instructions Markdown written into
-// each tool's global instructions file: what's installed (capabilities, read
-// from the image's labels so it reflects the actual built image rather than a
-// possibly-stale .agenticrc.toml) and what's restricted (filesystem, resource
-// limits, privileges, network), plus any user-authored custom text. Returns ""
-// when the block is disabled via [run.instructions]. Side-effect free - safe to
-// call for a preview (agentic instructions <tool>) without starting a container.
+// BuildInstructions assembles the environment-instructions Markdown for the tool's global instructions file, or "" when disabled via [run.instructions].
 func BuildInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (string, error) {
 	if !instructionsEnabled(rc) {
 		return "", nil
@@ -95,10 +77,7 @@ func BuildInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc 
 	return b.String(), nil
 }
 
-// PreviewInstructions returns the effective content a run would write into
-// the tool's global instructions file - the generated block merged with
-// whatever's already persisted at its host path - without touching any
-// files. Used by `agentic instructions <tool>` to preview before running.
+// PreviewInstructions returns the effective content a run would write, without touching any files.
 func PreviewInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (string, error) {
 	content, err := BuildInstructions(target, in, toolConfig, rc)
 	if err != nil {
@@ -118,12 +97,7 @@ func instructionsEnabled(rc *config.AgenticRC) bool {
 	return enabled == nil || *enabled
 }
 
-// writePrecedenceSection scopes this generated section - not the file as a
-// whole, which may also carry the user's own notes merged in below it - to
-// environment facts (what's installed, what's restricted) rather than coding
-// conventions, so it's clear a project's own instructions file governs how to
-// work, not whether an operation is possible, and that the user's own
-// content is never demoted alongside it.
+// writePrecedenceSection scopes the generated block to environment facts, deferring to the project's own instructions file on conflicts.
 func writePrecedenceSection(b *strings.Builder) {
 	b.WriteString("## Precedence\n\n")
 	b.WriteString("These auto-generated notes describe the container environment, not project or personal conventions - they don't apply to anything you or the tool have added to this file yourself. If this project has its own instructions file (CLAUDE.md, AGENTS.md, copilot-instructions.md), follow it whenever it conflicts with anything below.\n\n")
@@ -153,9 +127,7 @@ func writeCapabilitiesSection(b *strings.Builder, info *docker.ImageInfo) {
 	writeMissingToolsNote(b)
 }
 
-// writeSubList writes label as a bullet followed by each item as a nested
-// bullet, e.g. "- Label:\n  - item1\n  - item2\n" - used for toolchain lists
-// that can otherwise grow into a hard-to-scan comma run.
+// writeSubList writes label as a bullet followed by each item as a nested bullet.
 func writeSubList(b *strings.Builder, label string, items []string) {
 	fmt.Fprintf(b, "- %s:\n", label)
 	for _, item := range items {
@@ -163,12 +135,7 @@ func writeSubList(b *strings.Builder, label string, items []string) {
 	}
 }
 
-// writeMissingToolsNote states plainly that anything outside the listed
-// toolchains cannot be installed at runtime, and points at the one way to
-// actually get a missing tool: telling the user why it's needed so they can
-// add it and rebuild the image, rather than the agent silently trying and
-// failing. Set apart from the bullet list above it since it's a rule, not an
-// inventory entry.
+// writeMissingToolsNote points the agent at telling the user rather than silently trying and failing.
 func writeMissingToolsNote(b *strings.Builder) {
 	b.WriteString("\nAnything not listed above cannot be installed or run - sudo, apt, and writes outside /workspace and /tmp are all blocked. If a task needs a missing tool, tell the user why it's needed so they can add it (e.g. via custom_installs in .agenticrc.toml) and rebuild the image.\n\n")
 }
@@ -185,8 +152,7 @@ func writeFilesystemSection(b *strings.Builder, toolConfig tools.ToolConfig, con
 	b.WriteString("- Any mounted secrets under `/run/secrets/` are read-only.\n\n")
 }
 
-// tmpfsPath extracts the container-side path from a tmpfs mount spec
-// (path[:options]), expanding $CONTAINER_HOME so the text reads as a real path.
+// tmpfsPath extracts the container-side path from a tmpfs mount spec, expanding $CONTAINER_HOME.
 func tmpfsPath(spec, containerHome string) string {
 	expanded := mount.ExpandTmpfsSpec(spec, containerHome)
 	path, _, _ := strings.Cut(expanded, ":")
@@ -207,12 +173,7 @@ func writePrivilegeSection(b *strings.Builder) {
 	b.WriteString("- `sudo`, system package installs, and binding privileged ports will not work.\n\n")
 }
 
-// writeNetworkSection is only written when the egress proxy is enabled - when
-// it's off there is no restriction worth commenting on. The "no direct internet
-// access" line holds in both proxy sub-modes, since the container is confined to
-// the internal network either way; the allowlist itself is only listed when
-// actually enforced; in monitor mode nothing is blocked, so listing hosts there
-// would misrepresent it as a real restriction.
+// writeNetworkSection is only written when the proxy is enabled; the allowlist itself is omitted in monitor mode, since nothing is actually blocked there.
 func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *config.AgenticRC, in Input) {
 	if !in.ProxyEnabled {
 		return

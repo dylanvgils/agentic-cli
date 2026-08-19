@@ -11,10 +11,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
-// Default resource limits used by usecase/run.resolveResourceLimits when
-// neither an explicit flag/rc value nor the corresponding config env var
-// (config.EnvPidsLimit/EnvCPUs/EnvMemory) is set. RunSpec.PidsLimit/CPUs/Memory
-// are always fully resolved by the time a RunSpec exists.
+// Default resource limits, used by usecase/run.resolveResourceLimits as the last fallback.
 const (
 	DefaultPidsLimit = "1024"
 	DefaultCPUs      = "4"
