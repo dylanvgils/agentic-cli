@@ -28,6 +28,10 @@ func PrepareInstructionsSnapshot(hostPath, block string) (string, error) {
 		return "", err
 	}
 
+	if err := ensureHostFile(hostPath); err != nil {
+		return "", err
+	}
+
 	f, err := os.CreateTemp("", "agentic-instructions-*"+filepath.Ext(hostPath))
 	if err != nil {
 		return "", err
@@ -40,6 +44,20 @@ func PrepareInstructionsSnapshot(hostPath, block string) (string, error) {
 	}
 
 	return f.Name(), nil
+}
+
+// ensureHostFile creates hostPath if missing, so Docker doesn't auto-create it as root when mounting the snapshot over it.
+func ensureHostFile(hostPath string) error {
+	if _, err := os.Stat(hostPath); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(hostPath), 0o750); err != nil {
+		return err
+	}
+	return os.WriteFile(hostPath, nil, 0o640)
 }
 
 // FinalizeInstructionsSnapshot strips the managed block from snapshotPath and persists the rest back to hostPath, then removes snapshotPath.

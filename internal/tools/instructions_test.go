@@ -178,6 +178,21 @@ func TestPrepareInstructionsSnapshot(t *testing.T) {
 		assert.Equal(t, instructionsBeginMarker+"\nnew block\n"+instructionsEndMarker+"\n\nremembered note\n", string(got))
 	})
 
+	t.Run("creates an empty host file up front so Docker can't auto-create it as root", func(t *testing.T) {
+		// Arrange
+		hostPath := filepath.Join(t.TempDir(), "CLAUDE.md")
+
+		// Act
+		snapshotPath, err := PrepareInstructionsSnapshot(hostPath, "block")
+
+		// Assert
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = os.Remove(snapshotPath) })
+		got, err := os.ReadFile(hostPath)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
 	t.Run("snapshot path is unique across calls", func(t *testing.T) {
 		// Arrange
 		hostPath := filepath.Join(t.TempDir(), "CLAUDE.md")
