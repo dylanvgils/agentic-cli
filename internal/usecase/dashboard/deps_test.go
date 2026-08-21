@@ -29,4 +29,9 @@ func TestDefaultDeps(t *testing.T) {
 		// Assert
 		assert.Equal(t, reflect.ValueOf(docker.ListVolumesInfo).Pointer(), reflect.ValueOf(ListVolumesInfo).Pointer())
 	})
+
+	t.Run("VolumeSizes defaults to docker.VolumeSizes", func(t *testing.T) {
+		// Assert
+		assert.Equal(t, reflect.ValueOf(docker.VolumeSizes).Pointer(), reflect.ValueOf(VolumeSizes).Pointer())
+	})
 }

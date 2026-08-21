@@ -2,6 +2,7 @@ package docker
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -333,6 +334,85 @@ func TestListVolumeNames(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
+	})
+}
+
+func TestVolumeSizes(t *testing.T) {
+	t.Run("calls docker system df verbose", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t)
+
+		// Act
+		_, err := VolumeSizes()
+
+		// Assert
+		require.NoError(t, err)
+		calls := get()
+		require.Len(t, calls, 1)
+		assert.Equal(t, []string{"system", "df", "--verbose"}, calls[0].args)
+	})
+
+	t.Run("parses local volumes table", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, strings.Join([]string{
+			"TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE",
+			"Images          2         1         245MB     120MB (48%)",
+			"",
+			"Local Volumes space usage:",
+			"",
+			"VOLUME NAME   LINKS     SIZE",
+			"maven         1         159.5MB",
+			"gradle        0         0B",
+			"",
+		}, "\n"), nil)
+
+		// Act
+		sizes, err := VolumeSizes()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"maven": "159.5MB", "gradle": "0B"}, sizes)
+	})
+
+	t.Run("no local volumes returns empty map", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, strings.Join([]string{
+			"Local Volumes space usage:",
+			"",
+			"VOLUME NAME   LINKS     SIZE",
+			"",
+		}, "\n"), nil)
+
+		// Act
+		sizes, err := VolumeSizes()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, sizes)
+	})
+
+	t.Run("missing section returns empty map", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "TYPE   TOTAL   ACTIVE   SIZE   RECLAIMABLE\nImages 0       0        0B     0B\n", nil)
+
+		// Act
+		sizes, err := VolumeSizes()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, sizes)
+	})
+
+	t.Run("docker error propagates", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "", fmt.Errorf("docker daemon not running"))
+
+		// Act
+		sizes, err := VolumeSizes()
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, sizes)
 	})
 }
 

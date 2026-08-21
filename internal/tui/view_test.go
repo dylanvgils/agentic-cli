@@ -113,13 +113,15 @@ func TestVolumeDetail(t *testing.T) {
 	t.Run("all fields populated", func(t *testing.T) {
 		// Arrange
 		v := &docker.VolumeInfo{Name: "maven", Driver: "local"}
+		sizes := map[string]string{"maven": "159.5MB"}
 
 		// Act
-		detail := volumeDetail(v)
+		detail := volumeDetail(v, sizes)
 
 		// Assert
 		assert.Contains(t, detail, "maven")
 		assert.Contains(t, detail, "local")
+		assert.Contains(t, detail, "159.5MB")
 	})
 
 	t.Run("empty fields dash out", func(t *testing.T) {
@@ -127,11 +129,12 @@ func TestVolumeDetail(t *testing.T) {
 		v := &docker.VolumeInfo{Name: "maven"}
 
 		// Act
-		detail := volumeDetail(v)
+		detail := volumeDetail(v, nil)
 
 		// Assert
 		assert.Contains(t, detail, "maven")
 		assert.Contains(t, detail, "Driver:          -")
+		assert.Contains(t, detail, "Size:            -")
 	})
 }
 

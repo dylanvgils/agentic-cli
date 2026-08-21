@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -87,6 +88,31 @@ func TestModelUpdate(t *testing.T) {
 		}
 	})
 
+	t.Run("focusing the volumes panel triggers a size fetch", func(t *testing.T) {
+		// Arrange
+		m := New()
+
+		// Act
+		_, cmd := act(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
+
+		// Assert
+		require.NotNil(t, cmd)
+		_, ok := cmd().(volumeSizesMsg)
+		assert.True(t, ok, "expected cmd() to produce a volumeSizesMsg")
+	})
+
+	t.Run("focusing a non-volumes panel does not trigger a size fetch", func(t *testing.T) {
+		// Arrange
+		m := New()
+		m, _ = act(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
+
+		// Act
+		_, cmd := act(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
+
+		// Assert
+		assert.Nil(t, cmd)
+	})
+
 	t.Run("r triggers an immediate refresh fetch", func(t *testing.T) {
 		// Arrange
 		m := New()
@@ -99,6 +125,33 @@ func TestModelUpdate(t *testing.T) {
 		msg, ok := cmd().(refreshMsg)
 		assert.True(t, ok, "expected cmd() to produce a refreshMsg")
 		_ = msg
+	})
+
+	t.Run("r while volumes panel focused also fetches sizes", func(t *testing.T) {
+		// Arrange
+		m := New()
+		m.setFocus(panelVolumes)
+
+		// Act
+		_, cmd := act(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+
+		// Assert
+		require.NotNil(t, cmd)
+		batch, ok := cmd().(tea.BatchMsg)
+		require.True(t, ok, "expected cmd() to produce a tea.BatchMsg")
+		require.Len(t, batch, 2)
+
+		var gotRefresh, gotSizes bool
+		for _, sub := range batch {
+			switch sub().(type) {
+			case refreshMsg:
+				gotRefresh = true
+			case volumeSizesMsg:
+				gotSizes = true
+			}
+		}
+		assert.True(t, gotRefresh, "expected a refreshMsg in the batch")
+		assert.True(t, gotSizes, "expected a volumeSizesMsg in the batch")
 	})
 
 	t.Run("unrecognized key is forwarded to the focused panel's table", func(t *testing.T) {
@@ -178,5 +231,32 @@ func TestModelUpdate(t *testing.T) {
 		assert.True(t, next.running)
 		assert.Equal(t, snapshot, next.snapshot)
 		assert.Len(t, next.images.Rows(), 1)
+	})
+
+	t.Run("volumeSizesMsg applies sizes", func(t *testing.T) {
+		// Arrange
+		m := New()
+		m.applySnapshot(dashboard.Snapshot{DockerRunning: true, Volumes: []*docker.VolumeInfo{{Name: "maven"}}})
+
+		// Act
+		next, cmd := act(t, m, volumeSizesMsg{sizes: map[string]string{"maven": "159.5MB"}})
+
+		// Assert
+		assert.Nil(t, cmd)
+		assert.Equal(t, map[string]string{"maven": "159.5MB"}, next.volumeSizes)
+	})
+
+	t.Run("volumeSizesMsg error leaves prior sizes untouched", func(t *testing.T) {
+		// Arrange
+		m := New()
+		m.applySnapshot(dashboard.Snapshot{DockerRunning: true, Volumes: []*docker.VolumeInfo{{Name: "maven"}}})
+		m, _ = act(t, m, volumeSizesMsg{sizes: map[string]string{"maven": "159.5MB"}})
+
+		// Act
+		next, cmd := act(t, m, volumeSizesMsg{err: fmt.Errorf("boom")})
+
+		// Assert
+		assert.Nil(t, cmd)
+		assert.Equal(t, map[string]string{"maven": "159.5MB"}, next.volumeSizes)
 	})
 }

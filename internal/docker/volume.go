@@ -88,6 +88,15 @@ func ListVolumeNames() ([]string, error) {
 	return strings.Fields(out), nil
 }
 
+// VolumeSizes returns on-disk usage per volume, from `docker system df -v`. Fetch on demand - it's slow.
+func VolumeSizes() (map[string]string, error) {
+	out, err := dockerRun("system", "df", arg("verbose"))
+	if err != nil {
+		return nil, err
+	}
+	return parseVolumeSizes(out), nil
+}
+
 // RemoveVolume validates that the named volume is agentic-managed, then removes it.
 func RemoveVolume(name string) error {
 	out, err := dockerRun("volume", "inspect", arg("format", `{{index .Labels "project"}}`), name)
@@ -96,6 +105,42 @@ func RemoveVolume(name string) error {
 	}
 	_, err = dockerRun("volume", "rm", name)
 	return err
+}
+
+// parseVolumeSizes extracts name/size from the "Local Volumes" table in `docker system df -v` output.
+func parseVolumeSizes(out string) map[string]string {
+	sizes := make(map[string]string)
+
+	lines := strings.Split(out, "\n")
+	start := -1
+	for i, line := range lines {
+		if strings.HasPrefix(line, "Local Volumes space usage:") {
+			start = i + 1
+			break
+		}
+	}
+	if start == -1 {
+		return sizes
+	}
+
+	seenHeader := false
+	for _, line := range lines[start:] {
+		switch {
+		case strings.TrimSpace(line) == "" && !seenHeader:
+			continue // blank line between the section header and column header
+		case strings.HasPrefix(line, "VOLUME NAME"):
+			seenHeader = true
+			continue
+		case strings.TrimSpace(line) == "":
+			return sizes // blank line after the column header ends the section
+		}
+
+		if fields := strings.Fields(line); len(fields) >= 3 {
+			sizes[fields[0]] = fields[2]
+		}
+	}
+
+	return sizes
 }
 
 func ensureVolume(name, chownImage string) error {

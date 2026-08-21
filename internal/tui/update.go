@@ -16,11 +16,25 @@ type refreshMsg struct {
 // tickMsg fires every refreshInterval to trigger the next refresh.
 type tickMsg struct{}
 
+// volumeSizesMsg carries freshly fetched per-volume disk usage.
+type volumeSizesMsg struct {
+	sizes map[string]string
+	err   error
+}
+
 // fetchSnapshotCmd fetches a dashboard.Snapshot on a background goroutine, as
 // bubbletea commands require, so the UI loop never blocks on Docker calls.
 func fetchSnapshotCmd() tea.Cmd {
 	return func() tea.Msg {
 		return refreshMsg{snapshot: dashboard.Refresh()}
+	}
+}
+
+// fetchVolumeSizesCmd fetches per-volume disk usage on demand (focus/refresh) rather than every tick - it's slow.
+func fetchVolumeSizesCmd() tea.Cmd {
+	return func() tea.Msg {
+		sizes, err := dashboard.VolumeSizes()
+		return volumeSizesMsg{sizes: sizes, err: err}
 	}
 }
 
@@ -42,6 +56,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case refreshMsg:
 		m.applySnapshot(msg.snapshot)
 		return m, nil
+	case volumeSizesMsg:
+		if msg.err == nil {
+			m.volumeSizes = msg.sizes
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -53,27 +72,34 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.quitting = true
 		return m, tea.Quit
 	case "tab", "right", "l":
-		m.setFocus(panels[(int(m.focus)+1)%len(panels)])
-		return m, nil
+		return m, m.focusCmd(panels[(int(m.focus)+1)%len(panels)])
 	case "shift+tab", "left", "h":
-		m.setFocus(panels[(int(m.focus)-1+len(panels))%len(panels)])
-		return m, nil
+		return m, m.focusCmd(panels[(int(m.focus)-1+len(panels))%len(panels)])
 	case "1":
-		m.setFocus(panelImages)
-		return m, nil
+		return m, m.focusCmd(panelImages)
 	case "2":
-		m.setFocus(panelContainers)
-		return m, nil
+		return m, m.focusCmd(panelContainers)
 	case "3":
-		m.setFocus(panelVolumes)
-		return m, nil
+		return m, m.focusCmd(panelVolumes)
 	case "r":
+		if m.focus == panelVolumes {
+			return m, tea.Batch(fetchSnapshotCmd(), fetchVolumeSizesCmd())
+		}
 		return m, fetchSnapshotCmd()
 	}
 
 	updated, cmd := m.focusedTable().Update(msg)
 	*m.focusedTable() = updated
 	return m, cmd
+}
+
+// focusCmd sets focus and fetches volume sizes if the Volumes panel gained focus.
+func (m *Model) focusCmd(p panel) tea.Cmd {
+	m.setFocus(p)
+	if p == panelVolumes {
+		return fetchVolumeSizesCmd()
+	}
+	return nil
 }
 
 // resizeTables fits each resource table to its panel's share of the given

@@ -188,6 +188,8 @@ Run tool commands from within a git repository. The current directory is mounted
 
 Running `agentic` with no command, in an interactive terminal, opens a live dashboard of agentic-managed Docker resources: images, running containers, and named volumes, refreshed automatically. A small status box at the top of the left column shows Docker daemon status, the active context, and the running container count. Below it, images, containers, and volumes are shown in three panels; a Details panel on the right shows full metadata for whichever row is selected in the currently focused panel. It's read-only in this release.
 
+Volume size is fetched on demand rather than on every automatic refresh, since Docker only reports it via a filesystem walk (`docker system df -v`) that can be slow for large volumes: focusing the Volumes panel, or pressing `r` while it's focused, fetches it in the background and fills in the SIZE column and detail line once it's ready.
+
 | Key                  | Action                                                      |
 | -------------------- | ----------------------------------------------------------- |
 | `tab` / `shift+tab`  | Move focus between the Images / Containers / Volumes panels |

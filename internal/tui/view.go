@@ -139,7 +139,7 @@ func (m Model) detail() string {
 		}
 	case panelVolumes:
 		if i := m.volumes.Cursor(); i >= 0 && i < len(m.snapshot.Volumes) {
-			return volumeDetail(m.snapshot.Volumes[i])
+			return volumeDetail(m.snapshot.Volumes[i], m.volumeSizes)
 		}
 	default:
 		if i := m.images.Cursor(); i >= 0 && i < len(m.snapshot.Images) {
@@ -178,10 +178,11 @@ func containerDetail(c *docker.ContainerInfo) string {
 	}, "\n")
 }
 
-func volumeDetail(v *docker.VolumeInfo) string {
+func volumeDetail(v *docker.VolumeInfo, sizes map[string]string) string {
 	return strings.Join([]string{
 		detailLine("Name", v.Name),
 		detailLine("Driver", v.Driver),
+		detailLine("Size", sizes[v.Name]),
 	}, "\n")
 }
 

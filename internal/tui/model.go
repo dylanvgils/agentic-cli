@@ -59,16 +59,17 @@ func (p panel) title() string {
 
 // Model is the bubbletea model backing the agentic dashboard.
 type Model struct {
-	focus      panel
-	images     table.Model
-	containers table.Model
-	volumes    table.Model
-	snapshot   dashboard.Snapshot
-	width      int
-	height     int
-	running    bool
-	err        error
-	quitting   bool
+	focus       panel
+	images      table.Model
+	containers  table.Model
+	volumes     table.Model
+	snapshot    dashboard.Snapshot
+	volumeSizes map[string]string
+	width       int
+	height      int
+	running     bool
+	err         error
+	quitting    bool
 }
 
 // New builds the initial dashboard Model. The tables start empty - the first
