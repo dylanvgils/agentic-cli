@@ -18,6 +18,7 @@ Runs agentic coding tools in isolated, read-only Docker containers - each with o
   - [Updating](#updating)
 - [Usage](#-usage)
   - [Commands](#commands)
+  - [Dashboard](#-dashboard)
   - [Tools](#tools)
   - [Examples](#examples)
 - [Shell completion](#-shell-completion)
@@ -158,6 +159,7 @@ agentic <command> [args...]
 
 | Command                                                                                                                                                                                                                      | Description                                                                                                                                                                                                                                              |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agentic` (no command)                                                                                                                                                                                                       | In an interactive terminal, launches the live dashboard (see [Dashboard](#-dashboard) below). Falls back to this help text when not run from a terminal (piped, scripted, CI)                                                                            |
 | `build [tool] [--namespace <name>] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--pull] [--registry <host>] [--debian <version>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]`          | Build tool image(s). Builds all tools if unspecified                                                                                                                                                                                                     |
 | `update [tool] [--namespace <name>] [--all] [--base <extra>]... [--apt <pkg>]... [--no-cache] [--pull] [--registry <host>] [--debian <version>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]` | Update tool image(s) to latest version. `--all` updates every agentic image across all namespaces. Pulls fresh base images at most once every 24h per image (`--pull=false` to skip, `--pull` to force a check now)                                      |
 | `clean [tool] [--namespace <name>] [--all]`                                                                                                                                                                                  | Remove tool image(s). `--all` removes across all namespaces. No-arg form also removes base images, the proxy image, leftover proxy resources, and the `agentic-net` network                                                                              |
@@ -181,6 +183,22 @@ agentic <command> [args...]
 | `run <tool> -- <cmd> [args]`                                                                                                                                                                                                 | Override the entrypoint and run a shell command directly                                                                                                                                                                                                 |
 
 Run tool commands from within a git repository. The current directory is mounted as `/workspace` inside the container.
+
+### 🖥️ Dashboard
+
+Running `agentic` with no command, in an interactive terminal, opens a live dashboard of agentic-managed Docker resources: images, running containers, and named volumes, refreshed automatically. A small status box at the top of the left column shows Docker daemon status, the active context, and the running container count. Below it, images, containers, and volumes are shown in three panels; a Details panel on the right shows full metadata for whichever row is selected in the currently focused panel. It's read-only in this release.
+
+Volume size is fetched on demand rather than on every automatic refresh, since Docker only reports it via a filesystem walk (`docker system df -v`) that can be slow for large volumes: focusing the Volumes panel, or pressing `r` while it's focused, fetches it in the background and fills in the SIZE column and detail line once it's ready.
+
+| Key                  | Action                                                      |
+| -------------------- | ----------------------------------------------------------- |
+| `tab` / `shift+tab`  | Move focus between the Images / Containers / Volumes panels |
+| `1` / `2` / `3`      | Jump focus to Images / Containers / Volumes                 |
+| `up`/`down`, `j`/`k` | Move the selection within the focused panel                 |
+| `r`                  | Refresh immediately                                         |
+| `q` / `ctrl+c`       | Quit                                                        |
+
+Piping or scripting `agentic` (no command) skips the dashboard and prints the usual help text instead.
 
 ### Tools
 
