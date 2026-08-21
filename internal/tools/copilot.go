@@ -106,6 +106,7 @@ func copilotStage(prevStage string) df.Stage {
 		Add(df.Run{Command: "mkdir -p /home/copilot/.copilot"}).
 		Add(df.User{Name: "copilot"}).
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/copilot"}).
+		Add(df.Env{Key: "COPILOT_AUTO_UPDATE", Value: "false"}).
 		Add(df.Workdir{Path: "/workspace"}).
 		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
 		Build()

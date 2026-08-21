@@ -3,8 +3,6 @@ package docker
 import (
 	"regexp"
 	"strings"
-
-	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
 var versionRe = regexp.MustCompile(`[0-9]+(\.[0-9]+)*`)
@@ -15,32 +13,9 @@ func ParseVersion(s string) string {
 	return versionRe.FindString(s)
 }
 
-// stampImageLabels detects base and tool versions from the built image and applies
-// them as labels in a single docker build call. Runs best-effort: errors are
-// silently ignored since missing labels are non-fatal.
-func stampImageLabels(image, tool string, extras []string, aptPkgs []string, versions map[string]string, customInstalls []string) {
-	layers := append([]string{tools.BaseLayer}, extras...)
-
-	args := []string{
-		"build",
-		label(LabelProject, LabelProjectVal),
-		label(LabelBase, collectBaseLabel(image, extras)),
-		label(LabelVersionArgs, buildVersionArgsLabel(layers, versions)),
-		label(LabelApt, strings.Join(aptPkgs, ",")),
-		label(LabelCustomInstalls, strings.Join(customInstalls, ",")),
-		arg("tag", image),
-	}
-
-	if ver := runVersionScript(image, versionScript(tool)); ver != "" {
-		args = append(args, label(LabelToolVersion, ver))
-	}
-
-	args = append(args, "-")
-	_, _ = dockerRunStdin(strings.NewReader("FROM "+image+"\n"), args...)
-}
-
+// runVersionScript runs script network-less so a self-updating tool can't change its reported version mid-detection.
 func runVersionScript(image, script string) string {
-	out, err := dockerRun("run", arg("rm"), arg("entrypoint", ""), image, script)
+	out, err := dockerRun("run", arg("rm"), arg("network", "none"), arg("entrypoint", ""), image, script)
 	if err != nil {
 		return ""
 	}
@@ -66,7 +41,7 @@ func collectBaseLabel(image string, extras []string) string {
 }
 
 func extractVersion(out string) string {
-	line := strings.SplitN(out, "\n", 2)[0]
+	line, _, _ := strings.Cut(out, "\n")
 	line = strings.TrimRight(line, "\r")
 	return versionRe.FindString(line)
 }

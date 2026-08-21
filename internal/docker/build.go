@@ -36,7 +36,7 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 	for i, install := range opts.CustomInstalls {
 		customInstallNames[i] = install.Name
 	}
-	stampImageLabels(image, tool, opts.BaseOverride, opts.AptPackages, opts.Versions, customInstallNames)
+	stampImageLabels(image, tool, opts.BaseOverride, opts.AptPackages, opts.Versions, customInstallNames, opts.CacheBust)
 
 	return nil
 }
