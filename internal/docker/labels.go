@@ -65,11 +65,8 @@ const (
 
 	// -- Cache --
 
-	// LabelCacheBust records the CACHEBUST build-arg value baked into the
-	// image's tool stage. `agentic update` reuses it verbatim on a pull-only
-	// rebuild (tool already up to date) so Docker's cache resolves to the
-	// currently-tagged image's own tool-stage layer instead of falling back to
-	// whatever unrelated build last used an empty CACHEBUST.
+	// LabelCacheBust records the CACHEBUST build-arg baked into the tool stage,
+	// reused verbatim on cache-hit rebuilds so Docker resolves the same layer.
 	LabelCacheBust = "agentic.cachebust"
 
 	// -- Project marker --

@@ -8,18 +8,10 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
-// UpdateTool rebuilds tool, skipping the expensive reinstall if it's already
-// up to date and opts.Pull is false - but even then it still restamps the
-// image via stampLabels with a fresh agentic.built/agentic.version, so
-// `agentic inspect` reflects the most recent update check without requiring a
-// full rebuild. When opts.Pull is true the rebuild always runs (even if the
-// tool version is unchanged) so a `docker build --pull` can refresh stale
-// base image layers - but in that case the tool stage's own cache is left
-// alone by reusing its existing CacheBust (see LabelCacheBust) since there's
-// nothing new for it to install. Otherwise it recovers base extras, layer
-// versions, and apt packages from the existing image's labels when not
-// already set, then delegates to BuildTool with a fresh CacheBust set so
-// only the tool stage skips cache.
+// UpdateTool rebuilds tool. If it's already up to date and opts.Pull is
+// false, it skips the reinstall but still restamps labels so `agentic
+// inspect` stays current; otherwise it recovers base/version/apt labels from
+// the existing image and delegates to BuildTool.
 func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 	hasUserApt := len(opts.AptPackages) > 0
 	userPkgs := opts.AptPackages
@@ -53,7 +45,8 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 	}
 
 	if !opts.NoCache && upToDate {
-		// Reuse the value that produced the current tool layer (LabelCacheBust) rather than clearing it, or Docker's cache falls back to a stale unrelated build.
+		// Reuse the existing CacheBust (LabelCacheBust) instead of clearing it,
+		// or Docker's cache falls back to a stale unrelated build.
 		if info != nil {
 			opts.CacheBust = info.CacheBust
 		}
