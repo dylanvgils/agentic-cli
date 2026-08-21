@@ -23,7 +23,11 @@ const refreshInterval = 3 * time.Second
 // and then wraps the whole joined row in Selected, so reusing Cell here
 // would pad the cursor row a second time and indent it relative to the rest.
 var (
-	focusedTableStyles = table.DefaultStyles()
+	focusedTableStyles = func() table.Styles {
+		s := table.DefaultStyles()
+		s.Selected = s.Selected.Foreground(lipgloss.Color("63"))
+		return s
+	}()
 	blurredTableStyles = func() table.Styles {
 		s := table.DefaultStyles()
 		s.Selected = lipgloss.NewStyle()
