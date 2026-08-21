@@ -20,6 +20,7 @@ type ImageInfo struct {
 	Built          string // agentic.built label
 	Pulled         string // agentic.pulled label
 	CLIVersion     string // agentic.version label (CLI version that built this image)
+	CacheBust      string // agentic.cachebust label (CACHEBUST build-arg baked into the tool stage)
 	Size           string // formatted size from docker image ls
 }
 
@@ -49,6 +50,7 @@ func InspectImage(name string) (*ImageInfo, error) {
 		Built:          result.Config.Labels[LabelBuilt],
 		Pulled:         result.Config.Labels[LabelPulled],
 		CLIVersion:     result.Config.Labels[LabelCLIVersion],
+		CacheBust:      result.Config.Labels[LabelCacheBust],
 		Size:           imageSize(name),
 	}, nil
 }

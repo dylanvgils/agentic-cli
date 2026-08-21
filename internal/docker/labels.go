@@ -4,17 +4,26 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
 const (
-	// LabelCLIVersion records the agentic CLI version (buildinfo.Version) that
-	// built the image.
-	LabelCLIVersion = "agentic.version"
+	// -- Identity: which image this is --
 
 	// LabelNamespace records the namespace the image belongs to, recovered from
 	// the image name at stamp time. Used to filter images by namespace.
 	LabelNamespace = "agentic.namespace"
+
+	// LabelTool records the name of the tool baked into the image (e.g. "claude").
+	// Used to filter images by tool.
+	LabelTool = "agentic.tool"
+
+	// -- Build provenance: what went into the image and how to rebuild it --
+
+	// LabelCLIVersion records the agentic CLI version (buildinfo.Version) that
+	// built the image.
+	LabelCLIVersion = "agentic.version"
 
 	// LabelBase records the observed extra-layer versions actually detected inside
 	// the built image (see collectBaseLabel). This is what `agentic inspect` shows
@@ -40,13 +49,11 @@ const (
 	// reads fresh from the current .agenticrc.toml on every build.
 	LabelCustomInstalls = "agentic.custom-installs"
 
-	// LabelTool records the name of the tool baked into the image (e.g. "claude").
-	// Used to filter images by tool.
-	LabelTool = "agentic.tool"
-
 	// LabelToolVersion records the detected version of the tool itself, read from
 	// the image by running its version script (see runVersionScript).
 	LabelToolVersion = "agentic.tool.version"
+
+	// -- Timestamps --
 
 	// LabelBuilt records the UTC timestamp at which the image was built.
 	LabelBuilt = "agentic.built"
@@ -55,6 +62,14 @@ const (
 	// last actually run for this image, so `agentic update` can throttle how
 	// often it automatically re-checks the registry for fresher base images.
 	LabelPulled = "agentic.pulled"
+
+	// -- Cache --
+
+	// LabelCacheBust records the CACHEBUST build-arg baked into the tool stage,
+	// reused verbatim on cache-hit rebuilds so Docker resolves the same layer.
+	LabelCacheBust = "agentic.cachebust"
+
+	// -- Project marker --
 
 	// LabelProject marks every docker resource (image, container, volume) created
 	// by agentic, paired with LabelProjectVal. Used to scope cleanup and listing
@@ -107,6 +122,23 @@ func RecoverApt(aptLabel string) []string {
 		}
 	}
 	return pkgs
+}
+
+// PullIsFresh reports whether pulledLabel (an agentic.pulled label value)
+// shows a pull within interval, so `agentic update` can skip a redundant
+// automatic --pull. An empty or unparseable label is treated as not fresh, so
+// the caller falls back to pulling.
+func PullIsFresh(pulledLabel string, interval time.Duration) bool {
+	t, ok := parseLabelTime(pulledLabel)
+	return ok && time.Since(t) < interval
+}
+
+// NewCacheBust returns a value that changes between `agentic update` invocations
+// but can be reused across every target built within a single invocation, so
+// Docker can still serve cached tool-stage layers when the same tool is rebuilt
+// for multiple namespaces in one run.
+func NewCacheBust() string {
+	return time.Now().UTC().Format(time.RFC3339Nano)
 }
 
 // label builds a --label=key=value Docker flag.
@@ -170,19 +202,54 @@ func buildPulledLabel() string {
 	return formatLabelTime(time.Now())
 }
 
-// PullIsFresh reports whether pulledLabel (an agentic.pulled label value)
-// shows a pull within interval, so `agentic update` can skip a redundant
-// automatic --pull. An empty or unparseable label is treated as not fresh, so
-// the caller falls back to pulling.
-func PullIsFresh(pulledLabel string, interval time.Duration) bool {
-	t, ok := parseLabelTime(pulledLabel)
-	return ok && time.Since(t) < interval
+// imageLabelPairs lists every agentic image label paired with its value on info.
+func imageLabelPairs(info ImageInfo) []struct{ key, value string } {
+	return []struct{ key, value string }{
+		{LabelNamespace, info.Namespace},
+		{LabelTool, info.Tool},
+		{LabelToolVersion, info.Version},
+		{LabelBase, info.Base},
+		{LabelVersionArgs, info.VersionArgs},
+		{LabelApt, info.Apt},
+		{LabelCustomInstalls, info.CustomInstalls},
+		{LabelBuilt, info.Built},
+		{LabelPulled, info.Pulled},
+		{LabelCLIVersion, info.CLIVersion},
+		{LabelCacheBust, info.CacheBust},
+	}
 }
 
-// NewCacheBust returns a value that changes between `agentic update` invocations
-// but can be reused across every target built within a single invocation, so
-// Docker can still serve cached tool-stage layers when the same tool is rebuilt
-// for multiple namespaces in one run.
-func NewCacheBust() string {
-	return time.Now().UTC().Format(time.RFC3339Nano)
+// stampLabels relabels image with LabelProject plus every non-empty label in info.
+func stampLabels(image string, info ImageInfo) {
+	args := []string{"build", label(LabelProject, LabelProjectVal)}
+
+	for _, p := range imageLabelPairs(info) {
+		if p.value != "" {
+			args = append(args, label(p.key, p.value))
+		}
+	}
+
+	args = append(args, arg("tag", image), "-")
+	_, _ = dockerRunStdin(strings.NewReader("FROM "+image+"\n"), args...)
+}
+
+// stampImageLabels detects base and tool versions from the built image and stamps them via stampLabels.
+// cacheBust becomes LabelCacheBust, so a later pull-only rebuild can reuse it verbatim.
+func stampImageLabels(image, tool string, extras []string, aptPkgs []string, versions map[string]string, customInstalls []string, cacheBust string) {
+	layers := append([]string{tools.BaseLayer}, extras...)
+
+	info := ImageInfo{
+		Namespace:      strings.TrimSuffix(image, "-"+tool),
+		Tool:           tool,
+		Base:           collectBaseLabel(image, extras),
+		VersionArgs:    buildVersionArgsLabel(layers, versions),
+		Apt:            strings.Join(aptPkgs, ","),
+		CustomInstalls: strings.Join(customInstalls, ","),
+		Built:          buildBuiltLabel(),
+		CLIVersion:     buildinfo.Version,
+		CacheBust:      cacheBust,
+	}
+	info.Version = runVersionScript(image, versionScript(tool))
+
+	stampLabels(image, info)
 }

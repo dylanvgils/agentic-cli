@@ -4,17 +4,14 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
-// UpdateTool rebuilds tool, skipping entirely if it's already up to date and
-// opts.Pull is false. When opts.Pull is true the rebuild always runs (even if
-// the tool version is unchanged) so a `docker build --pull` can refresh stale
-// base image layers - but in that case the tool stage's own cache is left
-// alone (no CacheBust) since there's nothing new for it to install. Otherwise
-// it recovers base extras, layer versions, and apt packages from the existing
-// image's labels when not already set, then delegates to BuildTool with
-// CacheBust set so only the tool stage skips cache.
+// UpdateTool rebuilds tool. If it's already up to date and opts.Pull is
+// false, it skips the reinstall but still restamps labels so `agentic
+// inspect` stays current; otherwise it recovers base/version/apt labels from
+// the existing image and delegates to BuildTool.
 func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 	hasUserApt := len(opts.AptPackages) > 0
 	userPkgs := opts.AptPackages
@@ -26,6 +23,9 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 		upToDate = isUpToDate(tool, info.Version)
 
 		if !opts.NoCache && !opts.Pull && upToDate {
+			info.Built = buildBuiltLabel()
+			info.CLIVersion = buildinfo.Version
+			stampLabels(image, *info)
 			return nil
 		}
 
@@ -45,20 +45,16 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 	}
 
 	if !opts.NoCache && upToDate {
-		opts.CacheBust = ""
+		// Reuse the existing CacheBust (LabelCacheBust) instead of clearing it,
+		// or Docker's cache falls back to a stale unrelated build.
+		if info != nil {
+			opts.CacheBust = info.CacheBust
+		}
 	} else if opts.CacheBust == "" {
 		opts.CacheBust = NewCacheBust()
 	}
 
 	return BuildTool(tool, image, opts)
-}
-
-// isUpToDate reports whether tool's installed version matches the latest
-// upstream version. Any failure to determine this returns false, so the
-// caller falls back to rebuilding.
-func isUpToDate(tool, installedLabel string) bool {
-	_, newer, ok := LatestToolVersion(tool, installedLabel)
-	return ok && !newer
 }
 
 // LatestToolVersion fetches the latest version available upstream for tool and
@@ -85,6 +81,14 @@ func LatestToolVersion(tool, installedLabel string) (latest string, newer bool, 
 
 	latest = ParseVersion(raw)
 	return latest, latest != current, true
+}
+
+// isUpToDate reports whether tool's installed version matches the latest
+// upstream version. Any failure to determine this returns false, so the
+// caller falls back to rebuilding.
+func isUpToDate(tool, installedLabel string) bool {
+	_, newer, ok := LatestToolVersion(tool, installedLabel)
+	return ok && !newer
 }
 
 // mergeVersions combines recovered per-layer versions with user overrides,

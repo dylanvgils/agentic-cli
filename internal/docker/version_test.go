@@ -2,116 +2,10 @@ package docker
 
 import (
 	"fmt"
-	"io"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestStampImageLabels(t *testing.T) {
-	var capturedArgs []string
-	origStdin := dockerRunStdin
-	dockerRunStdin = func(_ io.Reader, args ...string) (string, error) {
-		capturedArgs = args
-		return "", nil
-	}
-	t.Cleanup(func() { dockerRunStdin = origStdin })
-
-	t.Run("includes project label", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "", nil)
-
-		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil)
-
-		// Assert
-		assert.Contains(t, capturedArgs, "--label="+LabelProject+"="+LabelProjectVal)
-	})
-
-	t.Run("includes apt label with packages", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "", nil)
-
-		// Act
-		stampImageLabels("agentic-claude", "claude", nil, []string{"make", "gcc"}, nil, nil)
-
-		// Assert
-		assert.Contains(t, capturedArgs, "--label="+LabelApt+"=make,gcc")
-	})
-
-	t.Run("includes custom installs label with names", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "", nil)
-
-		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil, nil, []string{"helm", "golangci-lint"})
-
-		// Assert
-		assert.Contains(t, capturedArgs, "--label="+LabelCustomInstalls+"=helm,golangci-lint")
-	})
-
-	t.Run("includes base label", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "", nil)
-
-		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil)
-
-		// Assert
-		found := false
-		for _, a := range capturedArgs {
-			if strings.HasPrefix(a, "--label="+LabelBase+"=") {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "expected --%s label in args", LabelBase)
-	})
-
-	t.Run("includes version-args label", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "", nil)
-
-		// Act
-		stampImageLabels("agentic-claude", "claude", []string{"java"}, nil, map[string]string{"java": "17"}, nil)
-
-		// Assert
-		found := false
-		for _, a := range capturedArgs {
-			if strings.HasPrefix(a, "--label="+LabelVersionArgs+"=") {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "expected --%s label in args", LabelVersionArgs)
-	})
-
-	t.Run("includes tool version label when detected", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "1.2.3\n", nil)
-
-		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil)
-
-		// Assert
-		assert.Contains(t, capturedArgs, "--label="+LabelToolVersion+"=1.2.3")
-	})
-
-	t.Run("omits tool version label when detection fails", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("version script not found"))
-
-		// Act
-		stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil)
-
-		// Assert
-		for _, a := range capturedArgs {
-			assert.False(t, strings.HasPrefix(a, "--label="+LabelToolVersion+"="),
-				"unexpected %s label in args: %s", LabelToolVersion, a)
-		}
-	})
-}
 
 func TestExtractVersion(t *testing.T) {
 	t.Run("semver", func(t *testing.T) {
@@ -184,6 +78,21 @@ func TestRunVersionScript(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, "", result)
+	})
+
+	t.Run("runs without network so the tool can't self-update mid-detection", func(t *testing.T) {
+		// Arrange
+		var capturedArgs []string
+		stubDockerRun(t, func(args ...string) (string, error) {
+			capturedArgs = args
+			return "1.2.3\n", nil
+		})
+
+		// Act
+		runVersionScript("agentic-claude", "agentic-version-claude")
+
+		// Assert
+		assert.Contains(t, capturedArgs, "--network=none")
 	})
 }
 

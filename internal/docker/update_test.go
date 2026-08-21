@@ -254,6 +254,26 @@ func TestUpdateTool(t *testing.T) {
 		}
 	})
 
+	t.Run("pull-only rebuild reuses the recorded cachebust instead of falling back to a stale build", func(t *testing.T) {
+		// Arrange - image already carries the CACHEBUST value its tool stage was
+		// last actually built with; a pull-only rebuild must resolve to that same
+		// cached layer, not to whatever unrelated build last used an empty CACHEBUST
+		stubDockerRunBySubcmd(t, map[string]string{
+			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3","agentic.cachebust":"2026-08-21T07:18:37Z"}}}`,
+		})
+		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
+		getCalls := stubRunInteractiveAll(t)
+
+		// Act
+		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{Pull: true})
+
+		// Assert
+		require.NoError(t, err)
+		calls := getCalls()
+		require.NotEmpty(t, calls)
+		assert.Contains(t, calls[0], "--build-arg=CACHEBUST=2026-08-21T07:18:37Z")
+	})
+
 	t.Run("skips rebuild when up to date and pull is false", func(t *testing.T) {
 		// Arrange
 		stubDockerRunBySubcmd(t, map[string]string{
@@ -268,6 +288,42 @@ func TestUpdateTool(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, getCalls())
+	})
+
+	t.Run("restamps labels via stampLabels when up to date and pull is false", func(t *testing.T) {
+		// Arrange - existing image carries base/apt labels that must be
+		// carried forward unchanged since nothing actually changed
+		stubDockerRunBySubcmd(t, map[string]string{
+			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3","agentic.namespace":"agentic","agentic.tool":"claude","agentic.apt":"make,gcc","agentic.base":"node@24.0.0"}}}`,
+		})
+		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
+		getCalls := stubRunInteractiveAll(t)
+
+		var capturedArgs []string
+		origStdin := dockerRunStdin
+		dockerRunStdin = func(_ io.Reader, args ...string) (string, error) {
+			capturedArgs = args
+			return "", nil
+		}
+		t.Cleanup(func() { dockerRunStdin = origStdin })
+
+		// Act
+		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, getCalls(), "up-to-date path must not invoke a full docker build")
+		require.NotEmpty(t, capturedArgs, "expected a relabel-only build via dockerRunStdin")
+		assert.Contains(t, capturedArgs, "--label=agentic.tool=claude")
+		assert.Contains(t, capturedArgs, "--label=agentic.namespace=agentic")
+		assert.Contains(t, capturedArgs, "--label=agentic.apt=make,gcc",
+			"unchanged labels must be carried forward, not dropped")
+		assert.Contains(t, capturedArgs, "--label=agentic.base=node@24.0.0",
+			"unchanged labels must be carried forward, not dropped")
+		assert.True(t, hasArgWithPrefix(capturedArgs, "--label=agentic.built="),
+			"expected a fresh agentic.built label")
+		assert.True(t, hasArgWithPrefix(capturedArgs, "--label=agentic.version="),
+			"expected a fresh agentic.version label")
 	})
 
 	t.Run("always sets cachebust build arg", func(t *testing.T) {
