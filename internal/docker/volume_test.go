@@ -229,6 +229,61 @@ func TestListVolumes(t *testing.T) {
 	})
 }
 
+func TestListVolumesInfo(t *testing.T) {
+	t.Run("parses volumes", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t,
+			`{"Name":"maven","Driver":"local"}`+"\n"+`{"Name":"gradle","Driver":"local"}`, nil)
+
+		// Act
+		volumes, err := ListVolumesInfo()
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, volumes, 2)
+		assert.Equal(t, &VolumeInfo{Name: "maven", Driver: "local"}, volumes[0])
+		assert.Equal(t, &VolumeInfo{Name: "gradle", Driver: "local"}, volumes[1])
+	})
+
+	t.Run("no volumes returns empty slice", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "", nil)
+
+		// Act
+		volumes, err := ListVolumesInfo()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, volumes)
+	})
+
+	t.Run("docker error returns error", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "", fmt.Errorf("docker daemon not running"))
+
+		// Act
+		volumes, err := ListVolumesInfo()
+
+		// Assert
+		require.Error(t, err)
+		assert.Nil(t, volumes)
+	})
+
+	t.Run("filters on the agentic project label", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t)
+
+		// Act
+		_, err := ListVolumesInfo()
+
+		// Assert
+		require.NoError(t, err)
+		calls := get()
+		require.Len(t, calls, 1)
+		assert.Equal(t, []string{"volume", "ls", "--format={{json .}}", "--filter=label=project=agentic-cli"}, calls[0].args)
+	})
+}
+
 func TestListVolumeNames(t *testing.T) {
 	t.Run("calls docker with quiet and filter", func(t *testing.T) {
 		// Arrange

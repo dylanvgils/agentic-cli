@@ -1,12 +1,26 @@
 package docker
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
+
+// VolumeInfo holds metadata about an agentic-managed named Docker volume.
+type VolumeInfo struct {
+	Name   string
+	Driver string
+}
+
+// volumeListResult mirrors the fields `docker volume ls --format '{{json .}}'`
+// emits per volume.
+type volumeListResult struct {
+	Name   string `json:"Name"`
+	Driver string `json:"Driver"`
+}
 
 // EnsureNamedVolumes inspects each volume spec and, for any that reference a
 // named Docker volume (left side has no leading "/"), creates the volume if it
@@ -39,6 +53,30 @@ func CreateVolume(name string) error {
 // ListVolumes returns the raw output of docker volume ls filtered to agentic-managed volumes.
 func ListVolumes() (string, error) {
 	return dockerRun("volume", "ls", labelFilter(LabelProject, LabelProjectVal))
+}
+
+// ListVolumesInfo returns structured metadata for every agentic-managed volume.
+func ListVolumesInfo() ([]*VolumeInfo, error) {
+	out, err := dockerRun("volume", "ls", arg("format", "{{json .}}"), labelFilter(LabelProject, LabelProjectVal))
+	if err != nil {
+		return nil, err
+	}
+
+	var volumes []*VolumeInfo
+	for line := range strings.SplitSeq(strings.TrimSpace(out), "\n") {
+		if line == "" {
+			continue
+		}
+
+		var result volumeListResult
+		if err := json.Unmarshal([]byte(line), &result); err != nil {
+			return nil, err
+		}
+
+		volumes = append(volumes, &VolumeInfo{Name: result.Name, Driver: result.Driver})
+	}
+
+	return volumes, nil
 }
 
 // ListVolumeNames returns only the names of agentic-managed volumes (no header row).

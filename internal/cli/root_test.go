@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -306,5 +307,49 @@ func TestPruneResources(t *testing.T) {
 
 		// Act + Assert
 		assert.NotPanics(t, pruneResources)
+	})
+}
+
+func TestRootRun(t *testing.T) {
+	t.Run("non-TTY falls back to help", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, func() bool { return false })
+		stubRunDashboard(t, func() error {
+			return errors.New("should not be called")
+		})
+		cmd := &cobra.Command{Use: "agentic"}
+		cmd.SetOut(new(bytes.Buffer))
+
+		// Act
+		err := rootRun(cmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+	})
+
+	t.Run("TTY launches the dashboard", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, func() bool { return true })
+		var called bool
+		stubRunDashboard(t, func() error { called = true; return nil })
+
+		// Act
+		err := rootRun(&cobra.Command{Use: "agentic"}, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, called)
+	})
+
+	t.Run("TTY propagates dashboard error", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, func() bool { return true })
+		stubRunDashboard(t, func() error { return errors.New("dashboard failed") })
+
+		// Act
+		err := rootRun(&cobra.Command{Use: "agentic"}, nil)
+
+		// Assert
+		assert.ErrorContains(t, err, "dashboard failed")
 	})
 }

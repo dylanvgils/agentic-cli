@@ -143,6 +143,20 @@ func stubCheckDockerDaemon(t *testing.T, fn func() error) {
 	t.Cleanup(func() { checkDockerDaemon = orig })
 }
 
+func stubIsTerminal(t *testing.T, fn func() bool) {
+	t.Helper()
+	orig := isTerminal
+	isTerminal = fn
+	t.Cleanup(func() { isTerminal = orig })
+}
+
+func stubRunDashboard(t *testing.T, fn func() error) {
+	t.Helper()
+	orig := runDashboard
+	runDashboard = fn
+	t.Cleanup(func() { runDashboard = orig })
+}
+
 func stubCleanImage(t *testing.T, fn func(string) error) {
 	t.Helper()
 	orig := cleanImage
