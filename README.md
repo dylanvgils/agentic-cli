@@ -8,6 +8,7 @@ Runs agentic coding tools in isolated, read-only Docker containers - each with o
 - **Pluggable runtimes** - add Node.js, Java, .NET, or Go on top of the base image, with version pinning
 - **Persistent state** - named volumes and read-only secret mounts survive across container runs
 - **Egress allowlist proxy** - optionally restrict and log a tool's outbound network access
+- **Read-only sub-path mounts** - force a specific sub-path (e.g. a credentials directory) read-only even while its parent mount stays writable
 
 → [Full overview and motivation](docs/01-overview.md)
 
@@ -491,6 +492,8 @@ See [docs/development.md](docs/05-development.md) for build commands, repo struc
 Containers run read-only with all capabilities dropped, no privilege escalation, and on an isolated Docker network - see [docs/01-overview.md](docs/01-overview.md#security-model) for the full list of constraints.
 
 Optionally, an egress allowlist proxy can restrict a tool's outbound traffic to a configurable set of hosts and log every connection attempt - fail-closed, so anything not on the allowlist is blocked. Toggle it per run with `--proxy` / `--no-proxy`; use `--proxy-monitor` to log without blocking anything, useful for discovering a new tool's egress needs before writing an allowlist. See [docs/02-config.md](docs/02-config.md#keys) for the `[run.proxy]` config reference and setup details.
+
+Optionally, `read_only_mounts` in `.agenticrc.toml` can force a specific sub-path (e.g. a credentials directory) read-only even while its parent mount stays writable - plain Docker bind-mount behavior, so it works on every platform. See [docs/02-config.md](docs/02-config.md#keys) for the `read_only_mounts` config reference.
 
 ## 🧭 Environment instructions
 
