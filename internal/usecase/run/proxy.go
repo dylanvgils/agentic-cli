@@ -30,7 +30,7 @@ func proxyLogDir(toolHome string, proxyEnabled bool) (string, error) {
 		return "", fmt.Errorf("create proxy log dir: %w", err)
 	}
 
-	housekeeping.PruneProxyLogs(dir, time.Duration(proxyRetentionDays(toolHome))*24*time.Hour)
+	housekeeping.PruneJSONLLogs(dir, time.Duration(proxyRetentionDays(toolHome))*24*time.Hour)
 
 	return dir, nil
 }

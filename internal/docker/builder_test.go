@@ -57,6 +57,19 @@ func TestRunSpecBuilder_WithProxy(t *testing.T) {
 	assert.True(t, result.ProxyMonitor)
 }
 
+func TestRunSpecBuilder_WithAudit(t *testing.T) {
+	// Act
+	result := NewRunSpec("agentic-claude").
+		WithAudit(true, []string{"/workspace"}, []string{"target"}, "/home/user/.agentic/audit").
+		Build()
+
+	// Assert
+	assert.True(t, result.AuditEnabled)
+	assert.Equal(t, []string{"/workspace"}, result.AuditPaths)
+	assert.Equal(t, []string{"target"}, result.AuditExclude)
+	assert.Equal(t, "/home/user/.agentic/audit", result.AuditLogDir)
+}
+
 func TestRunSpecBuilder_WithVolumes_variadic(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		// Act

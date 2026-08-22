@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,5 +33,10 @@ func TestDefaultDeps(t *testing.T) {
 	t.Run("RemoveNetwork defaults to docker.RemoveNetwork", func(t *testing.T) {
 		// Assert
 		assert.Equal(t, reflect.ValueOf(docker.RemoveNetwork).Pointer(), reflect.ValueOf(RemoveNetwork).Pointer())
+	})
+
+	t.Run("pruneAuditLogs defaults to housekeeping.PruneJSONLLogs", func(t *testing.T) {
+		// Assert
+		assert.Equal(t, reflect.ValueOf(housekeeping.PruneJSONLLogs).Pointer(), reflect.ValueOf(pruneAuditLogs).Pointer())
 	})
 }

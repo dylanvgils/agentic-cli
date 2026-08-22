@@ -68,6 +68,7 @@ func init() {
 ### Go style
 
 - Use blank lines between logical blocks within a function to aid readability (e.g. between groups of related `if` statements, between `switch` case groups)
+- Keep comments short and to the point - one line unless multi-line is genuinely needed
 
 ### Linting
 
@@ -83,7 +84,11 @@ Within each `.go` file, order elements as follows:
 4. Package-level variables (`var` blocks)
 5. Type declarations (structs, interfaces) - ordered by dependency/importance
 6. Constructors and methods - grouped with their type; constructor first, then exported methods, then unexported methods
-7. Standalone functions - exported functions first, then unexported helpers
+7. Standalone functions - exported functions first, then unexported helpers. Group strictly by export status, not by caller/helper proximity - don't slot an exported function next to the unexported one that calls it if that breaks the exported-first grouping
+
+### Splitting code across files in a package
+
+Group functions by what they're about, not by when they were added, whether they have a side effect, or which other function currently calls them. A function belongs in the file that owns its subject, even if producing its result requires a side effect (a write, a shell-out) or calling into another file's helpers for inputs - that alone is never a reason to keep it next to its caller instead. Move a helper (and its tests to the matching `_test.go`) when its actual subject changes, not to keep related code physically close.
 
 ### Go tests
 
@@ -136,6 +141,10 @@ Always check shell scripts with `shellcheck` before committing. Fix all warnings
 Any change that affects user-facing behaviour must be reflected in `README.md` (commands, flags, config, examples).
 
 Use `-` (hyphen) in all file content, never `—` (em dash) or `–` (en dash).
+
+### Markdown formatting
+
+After adding, removing, or editing a row in a Markdown table, realign every column in that table - each column's cell padding and its `---` header separator should match the widest entry in that column, not just the row you touched. No formatter is configured for this repo; do it by hand.
 
 ### Mount handling
 

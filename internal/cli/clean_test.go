@@ -26,6 +26,7 @@ func Test_runClean(t *testing.T) {
 		// together when no tool arg is given; output formatting and per-target cleanup mechanics
 		// are covered by internal/usecase/clean's own tests.
 		t.Chdir(t.TempDir())
+		withTempToolHome(t)
 		var cleaned []string
 		stubCleanCleanImage(t, func(image string) error {
 			cleaned = append(cleaned, image)
@@ -38,6 +39,10 @@ func Test_runClean(t *testing.T) {
 		})
 		stubCleanSweepProxyResources(t, func() error { return nil })
 		stubCleanRemoveNetwork(t, func() error { return nil })
+		auditDir := filepath.Join(toolHome, "audit")
+		require.NoError(t, os.MkdirAll(auditDir, 0o750))
+		staleLog := filepath.Join(auditDir, "stale.jsonl")
+		require.NoError(t, os.WriteFile(staleLog, []byte("{}\n"), 0o644))
 
 		// Act
 		err := runClean(newTestCleanCmd(), []string{})
@@ -46,6 +51,7 @@ func Test_runClean(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, cleaned, "agentic-claude")
 		assert.True(t, basesCleaned)
+		assert.NoFileExists(t, staleLog, "GlobalResources must be passed this run's actual toolHome, not an empty/default one")
 	})
 
 	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {

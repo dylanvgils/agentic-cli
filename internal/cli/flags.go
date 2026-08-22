@@ -81,6 +81,15 @@ func addProxyFlags(cmd *cobra.Command) {
 	cmd.MarkFlagsMutuallyExclusive("proxy", "no-proxy", "proxy-monitor")
 }
 
+// addAuditFlags registers the mutually exclusive --audit and --no-audit
+// flags shared by the run command. Unlike proxy there is no "monitor"
+// variant - auditing is inherently observe-only already.
+func addAuditFlags(cmd *cobra.Command) {
+	cmd.Flags().Bool("audit", false, "log filesystem activity under bind-mounted host paths for this run (overrides config)")
+	cmd.Flags().Bool("no-audit", false, "disable filesystem audit logging for this run (overrides config)")
+	cmd.MarkFlagsMutuallyExclusive("audit", "no-audit")
+}
+
 // flagOrEnv returns the flag value if set, falling back to the named environment variable.
 func flagOrEnv(cmd *cobra.Command, flag, env string) string {
 	v, _ := cmd.Flags().GetString(flag)

@@ -42,6 +42,7 @@ type RCRun struct {
 	CPUs         string         `toml:"cpus"`
 	Memory       string         `toml:"memory"`
 	Proxy        RCProxy        `toml:"proxy"`
+	Audit        RCAudit        `toml:"audit"`
 	Instructions RCInstructions `toml:"instructions"`
 	// CheckUpdates is a pointer so an inner config can explicitly disable the
 	// proactive tool-update check enabled by an outer one (a plain false is
@@ -68,6 +69,17 @@ type RCProxy struct {
 	// allowlist verdict without blocking anything. An explicit Enabled=false
 	// always disables the proxy regardless of Mode.
 	Mode string `toml:"mode"`
+}
+
+// RCAudit holds filesystem-audit-logging settings from a .agenticrc.toml
+// file. Enabled is a pointer so an inner config can explicitly disable
+// auditing enabled by an outer one (a plain false is indistinguishable from
+// "unset").
+type RCAudit struct {
+	Enabled *bool `toml:"enabled"`
+	// Exclude lists extra directory names to skip while watching, merged with
+	// fswatch.DefaultExcludeDirs.
+	Exclude []string `toml:"exclude"`
 }
 
 // RCMarketplace declares one git-based plugin marketplace to sync and mount into tool containers.
@@ -267,6 +279,10 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 			resRun.Proxy.Mode = run.Proxy.Mode
 		}
 
+		if resRun.Audit.Enabled == nil {
+			resRun.Audit.Enabled = run.Audit.Enabled
+		}
+
 		if resRun.Instructions.Enabled == nil {
 			resRun.Instructions.Enabled = run.Instructions.Enabled
 		}
@@ -289,6 +305,7 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 		resRun.Secrets = append(resRun.Secrets, run.Secrets...)
 		resRun.Env = append(resRun.Env, run.Env...)
 		resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)
+		resRun.Audit.Exclude = append(resRun.Audit.Exclude, run.Audit.Exclude...)
 		resRun.Instructions.Custom = appendInstructions(resRun.Instructions.Custom, run.Instructions.Custom)
 		resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
 		resBuild.Bases = append(resBuild.Bases, build.Bases...)
