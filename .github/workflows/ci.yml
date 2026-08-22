@@ -34,59 +34,19 @@ jobs:
             git push origin "HEAD:$HEAD_REF"
           fi
 
-  ci:
+  validate-title:
     needs: [fix-checksum]
-    if: ${{ !cancelled() && (needs.fix-checksum.result == 'success' || needs.fix-checksum.result == 'skipped') }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && (needs.fix-checksum.result == 'success' || needs.fix-checksum.result == 'skipped') }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
-          fetch-depth: 0
+          ref: ${{ github.head_ref }}
 
       - name: Validate PR title
-        if: github.event_name == 'pull_request'
         run: .github/scripts/validate-title.sh "${{ github.event.pull_request.title }}"
 
-      - name: Verify checksums
-        run: make verify-checksums
-
-      - name: Compute next tag
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        id: next
-        run: |
-          NEXT=$(.github/scripts/next-tag.sh)
-          echo "next tag: ${NEXT:-none}"
-          echo "next=${NEXT}" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/setup-go@v7
-        if: github.event.action != 'edited'
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Lint
-        if: github.event.action != 'edited'
-        uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.13.1
-
-      - name: Test
-        if: github.event.action != 'edited'
-        run: make test
-
-      - name: Build
-        if: github.event.action != 'edited'
-        run: make build
-
-      - name: Create and push tag
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && steps.next.outputs.next != ''
-        env:
-          NEXT: ${{ steps.next.outputs.next }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$NEXT" -m "Release $NEXT"
-          git push origin "$NEXT"
+  ci:
+    needs: [fix-checksum]
+    if: ${{ !cancelled() && (needs.fix-checksum.result == 'success' || needs.fix-checksum.result == 'skipped') }}
+    uses: ./.github/workflows/validate.yml
