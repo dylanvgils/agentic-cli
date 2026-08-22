@@ -19,6 +19,10 @@ type RunSpecBuilder struct {
 	proxyAllow     []string
 	proxyLogDir    string
 	proxyMonitor   bool
+	auditEnabled   bool
+	auditPaths     []string
+	auditExclude   []string
+	auditLogDir    string
 }
 
 // NewRunSpec creates a RunSpecBuilder for the given image.
@@ -106,6 +110,18 @@ func (b *RunSpecBuilder) WithProxy(enabled bool, image string, allow []string, l
 	return b
 }
 
+// WithAudit configures host-side filesystem audit logging. When enabled, a
+// host-side inotify watcher observes paths (the host side of every bind
+// mount) for the container's lifetime, logging activity to logDir and
+// skipping directories named in exclude.
+func (b *RunSpecBuilder) WithAudit(enabled bool, paths, exclude []string, logDir string) *RunSpecBuilder {
+	b.auditEnabled = enabled
+	b.auditPaths = paths
+	b.auditExclude = exclude
+	b.auditLogDir = logDir
+	return b
+}
+
 // Build returns the completed RunSpec.
 func (b *RunSpecBuilder) Build() RunSpec {
 	return RunSpec{
@@ -126,5 +142,9 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		ProxyAllow:     b.proxyAllow,
 		ProxyLogDir:    b.proxyLogDir,
 		ProxyMonitor:   b.proxyMonitor,
+		AuditEnabled:   b.auditEnabled,
+		AuditPaths:     b.auditPaths,
+		AuditExclude:   b.auditExclude,
+		AuditLogDir:    b.auditLogDir,
 	}
 }

@@ -122,6 +122,7 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	cpus := func(rc *config.AgenticRC) string { return rc.Run.CPUs }
 	memory := func(rc *config.AgenticRC) string { return rc.Run.Memory }
 	extraMounts := func(rc *config.AgenticRC) []string { return rc.Run.ExtraMounts }
+	readOnlyMounts := func(rc *config.AgenticRC) []string { return rc.Run.ReadOnlyMounts }
 	aptPackages := func(rc *config.AgenticRC) []string { return rc.Build.AptPackages }
 	customInstalls := func(rc *config.AgenticRC) []string {
 		names := make([]string, len(rc.Build.CustomInstalls))
@@ -134,6 +135,8 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	proxyEnabled := func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
 	proxyMode := func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }
 	proxyAllowedHosts := func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts }
+	auditEnabled := func(rc *config.AgenticRC) *bool { return rc.Run.Audit.Enabled }
+	auditExclude := func(rc *config.AgenticRC) []string { return rc.Run.Audit.Exclude }
 
 	if err := printScalarField(w, "namespace", config.EnvNamespace, layers, func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace); err != nil {
 		return err
@@ -162,6 +165,9 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if err := printListField(w, "extra_mounts", layers, extraMounts); err != nil {
 		return err
 	}
+	if err := printListField(w, "read_only_mounts", layers, readOnlyMounts); err != nil {
+		return err
+	}
 	if err := printListField(w, "secrets", layers, secrets); err != nil {
 		return err
 	}
@@ -171,7 +177,13 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if err := printScalarField(w, "proxy.mode", "", layers, proxyMode, config.ModeEnforce); err != nil {
 		return err
 	}
-	return printListField(w, "proxy.allowed_hosts", layers, proxyAllowedHosts)
+	if err := printListField(w, "proxy.allowed_hosts", layers, proxyAllowedHosts); err != nil {
+		return err
+	}
+	if err := printBoolField(w, "audit.enabled", layers, auditEnabled, false); err != nil {
+		return err
+	}
+	return printListField(w, "audit.exclude", layers, auditExclude)
 }
 
 // printScalarField prints a scalar config field. Innermost (last in layers) non-empty RC value

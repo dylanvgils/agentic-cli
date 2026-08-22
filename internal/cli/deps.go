@@ -18,7 +18,7 @@ var (
 	cleanImage              = docker.CleanImage
 	pruneImages             = docker.PruneImages
 	pruneBuildCache         = docker.PruneBuildCache
-	pruneProxyLogs          = housekeeping.PruneProxyLogs
+	pruneProxyLogs          = housekeeping.PruneJSONLLogs
 	createVolume            = docker.CreateVolume
 	listVolumes             = docker.ListVolumes
 	listVolumeNames         = docker.ListVolumeNames

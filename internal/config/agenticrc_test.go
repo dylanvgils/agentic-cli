@@ -328,6 +328,59 @@ func TestMergeConfigs(t *testing.T) {
 		assert.True(t, *result.Run.Proxy.Enabled)
 	})
 
+	t.Run("read_only_mounts accumulate outermost first", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Run: RCRun{ReadOnlyMounts: []string{"$PWD/child:/workspace/child"}}}
+		parent := &AgenticRC{Run: RCRun{ReadOnlyMounts: []string{"$PWD/parent:/workspace/parent"}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, []string{"$PWD/parent:/workspace/parent", "$PWD/child:/workspace/child"}, result.Run.ReadOnlyMounts)
+	})
+
+	t.Run("audit exclude accumulates outermost first", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Run: RCRun{Audit: RCAudit{Exclude: []string{"child-dir"}}}}
+		parent := &AgenticRC{Run: RCRun{Audit: RCAudit{Exclude: []string{"parent-dir"}}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, []string{"parent-dir", "child-dir"}, result.Run.Audit.Exclude)
+	})
+
+	t.Run("audit enabled child wins over parent", func(t *testing.T) {
+		// Arrange
+		childFalse := false
+		parentTrue := true
+		child := &AgenticRC{Run: RCRun{Audit: RCAudit{Enabled: &childFalse}}}
+		parent := &AgenticRC{Run: RCRun{Audit: RCAudit{Enabled: &parentTrue}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert - child explicitly disables, overriding the parent
+		require.NotNil(t, result.Run.Audit.Enabled)
+		assert.False(t, *result.Run.Audit.Enabled)
+	})
+
+	t.Run("audit enabled parent fills when child unset", func(t *testing.T) {
+		// Arrange
+		parentTrue := true
+		child := &AgenticRC{}
+		parent := &AgenticRC{Run: RCRun{Audit: RCAudit{Enabled: &parentTrue}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		require.NotNil(t, result.Run.Audit.Enabled)
+		assert.True(t, *result.Run.Audit.Enabled)
+	})
+
 	t.Run("check_updates child wins over parent", func(t *testing.T) {
 		// Arrange
 		childFalse := false

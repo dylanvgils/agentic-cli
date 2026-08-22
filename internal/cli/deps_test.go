@@ -27,7 +27,7 @@ func TestDefaultDeps(t *testing.T) {
 		{"cleanImage", docker.CleanImage, cleanImage},
 		{"pruneImages", docker.PruneImages, pruneImages},
 		{"pruneBuildCache", docker.PruneBuildCache, pruneBuildCache},
-		{"pruneProxyLogs", housekeeping.PruneProxyLogs, pruneProxyLogs},
+		{"pruneProxyLogs", housekeeping.PruneJSONLLogs, pruneProxyLogs},
 		{"createVolume", docker.CreateVolume, createVolume},
 		{"listVolumes", docker.ListVolumes, listVolumes},
 		{"listVolumeNames", docker.ListVolumeNames, listVolumeNames},

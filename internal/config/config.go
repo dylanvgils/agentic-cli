@@ -16,6 +16,7 @@ type CliConfig struct {
 	DockerContext         string               `json:"docker_context,omitempty"`
 	LastUpdateCheck       *time.Time           `json:"last_update_check,omitempty"`
 	ProxyLogRetentionDays int                  `json:"proxy_log_retention_days,omitempty"`
+	AuditLogRetentionDays int                  `json:"audit_log_retention_days,omitempty"`
 	LastToolVersionCheck  map[string]time.Time `json:"last_tool_version_check,omitempty"`
 }
 
