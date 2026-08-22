@@ -8,7 +8,6 @@ Runs agentic coding tools in isolated, read-only Docker containers - each with o
 - **Pluggable runtimes** - add Node.js, Java, .NET, or Go on top of the base image, with version pinning
 - **Persistent state** - named volumes and read-only secret mounts survive across container runs
 - **Egress allowlist proxy** - optionally restrict and log a tool's outbound network access
-- **Read-only sub-path mounts** - force a specific sub-path (e.g. a credentials directory) read-only even while its parent mount stays writable
 
 → [Full overview and motivation](docs/01-overview.md)
 
