@@ -142,6 +142,10 @@ Any change that affects user-facing behaviour must be reflected in `README.md` (
 
 Use `-` (hyphen) in all file content, never `—` (em dash) or `–` (en dash).
 
+### Markdown formatting
+
+After adding, removing, or editing a row in a Markdown table, realign every column in that table - each column's cell padding and its `---` header separator should match the widest entry in that column, not just the row you touched. No formatter is configured for this repo; do it by hand.
+
 ### Mount handling
 
 `CONTAINER_HOME` is resolved at runtime from the image's `TOOL_HOME` env var via `docker.ResolveContainerHome` in `internal/docker/inspect.go`. Mount strings support two placeholders expanded by `mount.ExpandMountSpec` / `mount.ExpandTmpfsSpec` in `internal/mount/volume.go` (called from `internal/docker/run.go`) before the `docker run` call:
