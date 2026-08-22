@@ -93,6 +93,7 @@ func expandHostVars(spec, toolHome string) string {
 	spec = strings.ReplaceAll(spec, "${HOME}", home)
 	spec = strings.ReplaceAll(spec, "$HOME", home)
 	spec = strings.ReplaceAll(spec, "~", home)
+	spec = strings.ReplaceAll(spec, "${PWD}", pwd)
 	spec = strings.ReplaceAll(spec, "$PWD", pwd)
 	return spec
 }

@@ -416,16 +416,17 @@ Running `agentic` from `~/projects/my-project` merges both files and stops; `~/p
 
 These placeholders expand in mount strings (`extra_mounts`, `read_only_mounts`, `AGENTIC_EXTRA_MOUNTS`, `-v`, `--read-only-mount`) at runtime, so paths aren't hardcoded per machine or per tool:
 
-| Placeholder         | Side of `:`       | Expands to                                                                                                                                     |
-| ------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `~`                 | host (left)       | Your home directory                                                                                                                            |
-| `$HOME`             | host (left)       | Same as above                                                                                                                                  |
-| `${HOME}`           | host (left)       | Same as above                                                                                                                                  |
-| `$TOOL_HOME`        | host (left)       | Agentic data directory (e.g. `~/.agentic`)                                                                                                     |
-| `${TOOL_HOME}`      | host (left)       | Same as above                                                                                                                                  |
-| `$PWD`              | host (left)       | Current working directory (the same directory bind-mounted as `/workspace`) - only the unbraced form is supported, unlike `$HOME`/`$TOOL_HOME` |
-| `$CONTAINER_HOME`   | container (right) | Container home directory (e.g. `/home/claude`)                                                                                                 |
-| `${CONTAINER_HOME}` | container (right) | Same as above                                                                                                                                  |
+| Placeholder         | Side of `:`       | Expands to                                                                  |
+| ------------------- | ----------------- | --------------------------------------------------------------------------- |
+| `~`                 | host (left)       | Your home directory                                                         |
+| `$HOME`             | host (left)       | Same as above                                                               |
+| `${HOME}`           | host (left)       | Same as above                                                               |
+| `$TOOL_HOME`        | host (left)       | Agentic data directory (e.g. `~/.agentic`)                                  |
+| `${TOOL_HOME}`      | host (left)       | Same as above                                                               |
+| `$PWD`              | host (left)       | Current working directory (the same directory bind-mounted as `/workspace`) |
+| `${PWD}`            | host (left)       | Same as above                                                               |
+| `$CONTAINER_HOME`   | container (right) | Container home directory (e.g. `/home/claude`)                              |
+| `${CONTAINER_HOME}` | container (right) | Same as above                                                               |
 
 Use single quotes (or escape the `$`) so the shell doesn't expand the variables before passing them to `agentic`:
 

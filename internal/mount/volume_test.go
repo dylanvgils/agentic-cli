@@ -275,6 +275,19 @@ func TestExpandMountSpec(t *testing.T) {
 		assert.Equal(t, pwd+":/workspace", result)
 	})
 
+	t.Run("braced PWD", func(t *testing.T) {
+		// Arrange
+		pwd, err := os.Getwd()
+		require.NoError(t, err)
+		spec := "${PWD}:/workspace"
+
+		// Act
+		result := ExpandMountSpec(spec, "", "")
+
+		// Assert
+		assert.Equal(t, pwd+":/workspace", result)
+	})
+
 	t.Run("tilde", func(t *testing.T) {
 		// Arrange
 		home, err := os.UserHomeDir()
