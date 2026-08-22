@@ -291,7 +291,7 @@ func TestPrintProjectConfig(t *testing.T) {
 					},
 					Run: config.RCRun{
 						PidsLimit: "100", CPUs: "2", Memory: "4g",
-						ExtraMounts: []string{"vol:/mnt"}, Secrets: []string{"tok:/run/s/t"},
+						ExtraMounts: []string{"vol:/mnt"}, ReadOnlyMounts: []string{"$PWD/secrets:/workspace/secrets"}, Secrets: []string{"tok:/run/s/t"},
 						Proxy: config.RCProxy{Enabled: &enabled, Mode: config.ModeMonitor, AllowedHosts: []string{".github.com"}},
 					},
 				},
@@ -387,6 +387,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "custom_installs: (none)")
 		assert.Contains(t, out, "bases: (none)")
 		assert.Contains(t, out, "extra_mounts: (none)")
+		assert.Contains(t, out, "read_only_mounts: (none)")
 		assert.Contains(t, out, "secrets: (none)")
 		assert.Contains(t, out, "proxy.enabled: false  (default)")
 		assert.Contains(t, out, "proxy.mode: enforce  (default)")
