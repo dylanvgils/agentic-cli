@@ -7,8 +7,9 @@ on:
     types: [opened, edited, synchronize, reopened]
 
 jobs:
-  ci:
+  fix-checksum:
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.actor == 'renovate[bot]'
     permissions:
       contents: write
     steps:
@@ -16,9 +17,41 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Update checksums
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          git fetch origin "$HEAD_REF"
+          git switch -C "$HEAD_REF" "origin/$HEAD_REF"
+          make fix-checksums
+          if git diff --quiet -- internal/tools/versions.json; then
+            echo "checksums already up to date"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add internal/tools/versions.json
+            git commit -m "fix(deps): update nvm_checksum for bumped nvm version"
+            git push origin "HEAD:$HEAD_REF"
+          fi
+
+  ci:
+    needs: [fix-checksum]
+    if: ${{ !cancelled() && (needs.fix-checksum.result == 'success' || needs.fix-checksum.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+          fetch-depth: 0
+
       - name: Validate PR title
         if: github.event_name == 'pull_request'
         run: .github/scripts/validate-title.sh "${{ github.event.pull_request.title }}"
+
+      - name: Verify checksums
+        run: make verify-checksums
 
       - name: Compute next tag
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -38,7 +71,7 @@ jobs:
         if: github.event.action != 'edited'
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.12
+          version: v2.13.1
 
       - name: Test
         if: github.event.action != 'edited'
