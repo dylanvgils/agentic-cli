@@ -25,17 +25,18 @@ type Target struct {
 
 // Input carries the flag/env-derived values Build needs.
 type Input struct {
-	ToolHome     string
-	Volumes      []string
-	Secrets      []string
-	Env          []string
-	PidsLimit    string
-	CPUs         string
-	Memory       string
-	DryRun       bool
-	Registry     string
-	ProxyEnabled bool
-	ProxyMonitor bool
+	ToolHome       string
+	Volumes        []string
+	Secrets        []string
+	ReadOnlyMounts []string
+	Env            []string
+	PidsLimit      string
+	CPUs           string
+	Memory         string
+	DryRun         bool
+	Registry       string
+	ProxyEnabled   bool
+	ProxyMonitor   bool
 	// InstructionsMount is the mount spec for this run's instructions snapshot, empty when disabled.
 	InstructionsMount string
 }
@@ -64,7 +65,7 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	// Read-only sub-path overrides must stay last: Docker shadows an
 	// overlapping bind-mount path with whichever --volume flag for it comes
 	// last, so this is what actually enforces the sub-path override.
-	volumes = append(volumes, readOnlyMountSpecs(rc.Run.ReadOnlyMounts)...)
+	volumes = append(volumes, readOnlyMountSpecs(collectReadOnlyMounts(in.ReadOnlyMounts, rc))...)
 	secrets := collectSecrets(in.Secrets, rc)
 	env := collectEnv(in.Env, rc)
 	limits := resolveResourceLimits(in.PidsLimit, in.CPUs, in.Memory, rc)
@@ -212,6 +213,18 @@ func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) [
 	volumes = append(volumes, rc.Run.ExtraMounts...)
 
 	return volumes
+}
+
+// collectReadOnlyMounts merges --read-only-mount flag values with the
+// read_only_mounts config list, flags first then config (config keeps final
+// say, matching the extra_mounts/secrets convention).
+func collectReadOnlyMounts(flags []string, rc *config.AgenticRC) []string {
+	var mounts []string
+
+	mounts = append(mounts, flags...)
+	mounts = append(mounts, rc.Run.ReadOnlyMounts...)
+
+	return mounts
 }
 
 // readOnlyMountSpecs converts each "host:container" entry into a forced-:ro

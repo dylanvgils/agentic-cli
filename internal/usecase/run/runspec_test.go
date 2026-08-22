@@ -52,7 +52,11 @@ func TestBuild(t *testing.T) {
 	t.Run("read-only mounts wired after every other volume", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), InstructionsMount: "/tmp/snapshot.md:$CONTAINER_HOME/.claude/CLAUDE.md"}
+		in := Input{
+			ToolHome:          t.TempDir(),
+			InstructionsMount: "/tmp/snapshot.md:$CONTAINER_HOME/.claude/CLAUDE.md",
+			ReadOnlyMounts:    []string{"$PWD/flagsecret:/workspace/flagsecret"},
+		}
 		rc := &config.AgenticRC{Run: config.RCRun{ReadOnlyMounts: []string{"$PWD/secret:/workspace/secret"}}}
 
 		// Act
@@ -61,9 +65,12 @@ func TestBuild(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		require.Contains(t, rs.Volumes, "$PWD/secret:/workspace/secret:ro")
+		require.Contains(t, rs.Volumes, "$PWD/flagsecret:/workspace/flagsecret:ro")
 		roIdx := slices.Index(rs.Volumes, "$PWD/secret:/workspace/secret:ro")
+		flagRoIdx := slices.Index(rs.Volumes, "$PWD/flagsecret:/workspace/flagsecret:ro")
 		instructionsIdx := slices.Index(rs.Volumes, "/tmp/snapshot.md:$CONTAINER_HOME/.claude/CLAUDE.md")
 		assert.Greater(t, roIdx, instructionsIdx, "read-only sub-path mounts must be last so they shadow every other mount")
+		assert.Greater(t, flagRoIdx, instructionsIdx, "flag-supplied read-only mounts must be last too")
 	})
 
 	t.Run("instructions mount omitted when empty", func(t *testing.T) {
@@ -587,6 +594,44 @@ func Test_collectSecrets(t *testing.T) {
 
 		// Act
 		result := collectSecrets(nil, rc)
+
+		// Assert
+		assert.Nil(t, result)
+	})
+}
+
+func Test_collectReadOnlyMounts(t *testing.T) {
+	t.Run("ordering", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{ReadOnlyMounts: []string{"rcro:/mnt/rc"}}}
+
+		// Act
+		result := collectReadOnlyMounts([]string{"flagro:/mnt/flag"}, rc)
+
+		// Assert
+		assert.Equal(t, []string{
+			"flagro:/mnt/flag",
+			"rcro:/mnt/rc",
+		}, result)
+	})
+
+	t.Run("only flags", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+
+		// Act
+		result := collectReadOnlyMounts([]string{"flagro:/mnt/flag"}, rc)
+
+		// Assert
+		assert.Equal(t, []string{"flagro:/mnt/flag"}, result)
+	})
+
+	t.Run("all empty returns nil", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+
+		// Act
+		result := collectReadOnlyMounts(nil, rc)
 
 		// Assert
 		assert.Nil(t, result)

@@ -39,7 +39,7 @@ type RCRun struct {
 	// ReadOnlyMounts each declare a "host:container" mount forced read-only at
 	// assembly time, appended after every other volume so it shadows an
 	// overlapping read-write mount (e.g. a credentials sub-path within an
-	// otherwise writable $PWD). No CLI flag - config-file only.
+	// otherwise writable $PWD). Merged with --read-only-mount flag values.
 	ReadOnlyMounts []string       `toml:"read_only_mounts"`
 	Secrets        []string       `toml:"secrets"`
 	Env            []string       `toml:"env"`
