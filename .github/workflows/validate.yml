@@ -1,0 +1,36 @@
+name: Validate
+
+on:
+  workflow_call:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Verify checksums
+        run: make verify-checksums
+
+      - uses: actions/setup-go@v7
+        if: github.event.action != 'edited'
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Lint
+        if: github.event.action != 'edited'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.1
+
+      - name: Test
+        if: github.event.action != 'edited'
+        run: make test
+
+      - name: Build
+        if: github.event.action != 'edited'
+        run: make build
