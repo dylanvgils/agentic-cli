@@ -36,6 +36,7 @@ jobs:
 
   ci:
     needs: [fix-checksum]
+    if: ${{ !cancelled() && (needs.fix-checksum.result == 'success' || needs.fix-checksum.result == 'skipped') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
