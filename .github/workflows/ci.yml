@@ -7,7 +7,7 @@ on:
     types: [opened, edited, synchronize, reopened]
 
 jobs:
-  fix-nvm-checksum:
+  fix-checksum:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.actor == 'renovate[bot]'
     permissions:
@@ -35,8 +35,7 @@ jobs:
           fi
 
   ci:
-    needs: [fix-nvm-checksum]
-    if: ${{ !cancelled() && needs.fix-nvm-checksum.result != 'failure' }}
+    needs: [fix-checksum]
     runs-on: ubuntu-latest
     permissions:
       contents: write
