@@ -2,6 +2,26 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Table of contents
+
+- [What this is](#what-this-is)
+- [Key commands](#key-commands)
+- [Code conventions](#code-conventions)
+  - [Tool structure](#tool-structure)
+  - [Extracting a package out of `internal/cli`](#extracting-a-package-out-of-internalcli)
+  - [Adding a new runtime layer](#adding-a-new-runtime-layer)
+  - [Dockerfile DSL (`internal/dockerfile`)](#dockerfile-dsl-internaldockerfile)
+  - [Cobra command init functions](#cobra-command-init-functions)
+  - [Go style](#go-style)
+  - [Linting](#linting)
+  - [File structure](#file-structure)
+  - [Splitting code across files in a package](#splitting-code-across-files-in-a-package)
+  - [Go tests](#go-tests)
+  - [Shell scripts](#shell-scripts)
+  - [Security constraints (enforced in `internal/docker/run.go`)](#security-constraints-enforced-in-internaldockerrungo)
+  - [Keeping docs in sync](#keeping-docs-in-sync)
+  - [Mount handling](#mount-handling)
+
 ## What this is
 
 A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in isolated containers. The Go binary (`agentic`, entrypoint `cmd/cli/main.go`, Cobra command tree in `internal/cli`) handles all commands and generates Dockerfiles programmatically at build time - no static Dockerfile files exist. Development means editing Go source, then linting with `golangci-lint run ./...` (or `make lint`), testing with `go test ./...`, and building/running containers.
@@ -68,6 +88,7 @@ func init() {
 ### Go style
 
 - Use blank lines between logical blocks within a function to aid readability (e.g. between groups of related `if` statements, between `switch` case groups)
+- Keep comments short and to the point - one line unless multi-line is genuinely needed
 
 ### Linting
 
@@ -83,7 +104,11 @@ Within each `.go` file, order elements as follows:
 4. Package-level variables (`var` blocks)
 5. Type declarations (structs, interfaces) - ordered by dependency/importance
 6. Constructors and methods - grouped with their type; constructor first, then exported methods, then unexported methods
-7. Standalone functions - exported functions first, then unexported helpers
+7. Standalone functions - exported functions first, then unexported helpers. Group strictly by export status, not by caller/helper proximity - don't slot an exported function next to the unexported one that calls it if that breaks the exported-first grouping
+
+### Splitting code across files in a package
+
+Group functions by what they're about, not by when they were added, whether they have a side effect, or which other function currently calls them. A function belongs in the file that owns its subject, even if producing its result requires a side effect (a write, a shell-out) or calling into another file's helpers for inputs - that alone is never a reason to keep it next to its caller instead. Move a helper (and its tests to the matching `_test.go`) when its actual subject changes, not to keep related code physically close.
 
 ### Go tests
 

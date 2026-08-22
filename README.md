@@ -492,6 +492,8 @@ Containers run read-only with all capabilities dropped, no privilege escalation,
 
 Optionally, an egress allowlist proxy can restrict a tool's outbound traffic to a configurable set of hosts and log every connection attempt - fail-closed, so anything not on the allowlist is blocked. Toggle it per run with `--proxy` / `--no-proxy`; use `--proxy-monitor` to log without blocking anything, useful for discovering a new tool's egress needs before writing an allowlist. See [docs/02-config.md](docs/02-config.md#keys) for the `[run.proxy]` config reference and setup details.
 
+Optionally, `read_only_mounts` in `.agenticrc.toml` (or `--read-only-mount`) forces a specific sub-path (e.g. a credentials directory) read-only while its parent mount stays writable. See [docs/02-config.md](docs/02-config.md#keys) for the `read_only_mounts` config reference.
+
 ## 🧭 Environment instructions
 
 Every `agentic run` writes a generated block - what's installed, what's restricted, and the network situation - into the tool's own global instructions file (`CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`), so the model knows the container's constraints up front. Append your own notes via `custom` under `[run.instructions]` in `.agenticrc.toml`, or turn it off with `enabled = false`. See [docs/02-config.md](docs/02-config.md#keys) for the full reference.

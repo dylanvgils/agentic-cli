@@ -49,6 +49,30 @@ func TestBuild(t *testing.T) {
 		assert.Less(t, baseMountIdx, instructionsMountIdx, "instructions mount must overlay the base directory mount, so it must be listed after it")
 	})
 
+	t.Run("read-only mounts wired after every other volume", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{
+			ToolHome:          t.TempDir(),
+			InstructionsMount: "/tmp/snapshot.md:$CONTAINER_HOME/.claude/CLAUDE.md",
+			ReadOnlyMounts:    []string{"$PWD/flagsecret:/workspace/flagsecret"},
+		}
+		rc := &config.AgenticRC{Run: config.RCRun{ReadOnlyMounts: []string{"$PWD/secret:/workspace/secret"}}}
+
+		// Act
+		rs, err := Build(target, in, tools.Configs["claude"], rc)
+
+		// Assert
+		require.NoError(t, err)
+		require.Contains(t, rs.Volumes, "$PWD/secret:/workspace/secret:ro")
+		require.Contains(t, rs.Volumes, "$PWD/flagsecret:/workspace/flagsecret:ro")
+		roIdx := slices.Index(rs.Volumes, "$PWD/secret:/workspace/secret:ro")
+		flagRoIdx := slices.Index(rs.Volumes, "$PWD/flagsecret:/workspace/flagsecret:ro")
+		instructionsIdx := slices.Index(rs.Volumes, "/tmp/snapshot.md:$CONTAINER_HOME/.claude/CLAUDE.md")
+		assert.Greater(t, roIdx, instructionsIdx, "read-only sub-path mounts must be last so they shadow every other mount")
+		assert.Greater(t, flagRoIdx, instructionsIdx, "flag-supplied read-only mounts must be last too")
+	})
+
 	t.Run("instructions mount omitted when empty", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
@@ -576,6 +600,44 @@ func Test_collectSecrets(t *testing.T) {
 	})
 }
 
+func Test_collectReadOnlyMounts(t *testing.T) {
+	t.Run("ordering", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{ReadOnlyMounts: []string{"rcro:/mnt/rc"}}}
+
+		// Act
+		result := collectReadOnlyMounts([]string{"flagro:/mnt/flag"}, rc)
+
+		// Assert
+		assert.Equal(t, []string{
+			"flagro:/mnt/flag",
+			"rcro:/mnt/rc",
+		}, result)
+	})
+
+	t.Run("only flags", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+
+		// Act
+		result := collectReadOnlyMounts([]string{"flagro:/mnt/flag"}, rc)
+
+		// Assert
+		assert.Equal(t, []string{"flagro:/mnt/flag"}, result)
+	})
+
+	t.Run("all empty returns nil", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+
+		// Act
+		result := collectReadOnlyMounts(nil, rc)
+
+		// Assert
+		assert.Nil(t, result)
+	})
+}
+
 func Test_collectEnv(t *testing.T) {
 	t.Run("ordering, flag wins over rc on duplicate key", func(t *testing.T) {
 		// Arrange
@@ -738,5 +800,55 @@ func Test_resolveResourceLimits(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, "512", result.pidsLimit)
+	})
+}
+
+func Test_readOnlyMountSpecs(t *testing.T) {
+	t.Run("forces read-only on a plain spec", func(t *testing.T) {
+		// Act
+		result := readOnlyMountSpecs([]string{"$PWD/secrets:$CONTAINER_HOME/secrets"})
+
+		// Assert
+		assert.Equal(t, []string{"$PWD/secrets:$CONTAINER_HOME/secrets:ro"}, result)
+	})
+
+	t.Run("strips a user-supplied :ro suffix before re-forcing it", func(t *testing.T) {
+		// Act
+		result := readOnlyMountSpecs([]string{"/a/b:/c:ro"})
+
+		// Assert
+		assert.Equal(t, []string{"/a/b:/c:ro"}, result)
+	})
+
+	t.Run("strips a user-supplied :rw suffix", func(t *testing.T) {
+		// Act
+		result := readOnlyMountSpecs([]string{"/a/b:/c:rw"})
+
+		// Assert
+		assert.Equal(t, []string{"/a/b:/c:ro"}, result)
+	})
+
+	t.Run("empty input yields empty output", func(t *testing.T) {
+		// Act
+		result := readOnlyMountSpecs(nil)
+
+		// Assert
+		assert.Empty(t, result)
+	})
+
+	t.Run("no-colon spec expands to the workspace-relative shorthand", func(t *testing.T) {
+		// Act
+		result := readOnlyMountSpecs([]string{".git"})
+
+		// Assert
+		assert.Equal(t, []string{"$PWD/.git:/workspace/.git:ro"}, result)
+	})
+
+	t.Run("no-colon spec with a nested path expands the same way", func(t *testing.T) {
+		// Act
+		result := readOnlyMountSpecs([]string{"secrets/foo"})
+
+		// Assert
+		assert.Equal(t, []string{"$PWD/secrets/foo:/workspace/secrets/foo:ro"}, result)
 	})
 }

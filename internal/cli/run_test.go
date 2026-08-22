@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -68,6 +69,28 @@ func TestRunTool(t *testing.T) {
 		hostPath := mount.HostPart(instructionsMount)
 		assert.True(t, strings.HasPrefix(filepath.Base(hostPath), "agentic-instructions-"),
 			"instructions should be mounted from a per-run temp snapshot, not the persistent tool-home file: %s", hostPath)
+	})
+
+	t.Run("read-only-mount flag forces the mount :ro and appends it last", func(t *testing.T) {
+		// Arrange
+		t.Chdir(t.TempDir())
+		withTempToolHome(t)
+		get := captureRunContainer(t)
+		require.NoError(t, runToolCmd.Flags().Set("read-only-mount", "$PWD/creds:/workspace/creds"))
+		t.Cleanup(func() {
+			flagReadOnlyMounts = nil
+			runToolCmd.Flags().Lookup("read-only-mount").Changed = false
+		})
+
+		// Act
+		err := runTool(runToolCmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		rs, _ := get()
+		require.Contains(t, rs.Volumes, "$PWD/creds:/workspace/creds:ro")
+		assert.Equal(t, len(rs.Volumes)-1, slices.Index(rs.Volumes, "$PWD/creds:/workspace/creds:ro"),
+			"flag-supplied read-only mount must be last so it shadows every other mount")
 	})
 
 	t.Run("passes tool args", func(t *testing.T) {
