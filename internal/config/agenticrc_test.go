@@ -328,18 +328,6 @@ func TestMergeConfigs(t *testing.T) {
 		assert.True(t, *result.Run.Proxy.Enabled)
 	})
 
-	t.Run("read_only_mounts accumulate outermost first", func(t *testing.T) {
-		// Arrange
-		child := &AgenticRC{Run: RCRun{ReadOnlyMounts: []string{"$PWD/child:/workspace/child"}}}
-		parent := &AgenticRC{Run: RCRun{ReadOnlyMounts: []string{"$PWD/parent:/workspace/parent"}}}
-
-		// Act
-		result := mergeConfigs([]*AgenticRC{child, parent})
-
-		// Assert
-		assert.Equal(t, []string{"$PWD/parent:/workspace/parent", "$PWD/child:/workspace/child"}, result.Run.ReadOnlyMounts)
-	})
-
 	t.Run("audit exclude accumulates outermost first", func(t *testing.T) {
 		// Arrange
 		child := &AgenticRC{Run: RCRun{Audit: RCAudit{Exclude: []string{"child-dir"}}}}

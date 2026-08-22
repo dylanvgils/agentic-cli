@@ -12,7 +12,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
-	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
@@ -62,10 +61,6 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	if in.InstructionsMount != "" {
 		volumes = append(volumes, in.InstructionsMount)
 	}
-	// Read-only sub-path overrides must stay last: Docker shadows an
-	// overlapping bind-mount path with whichever --volume flag for it comes
-	// last, so this is what actually enforces the sub-path override.
-	volumes = append(volumes, readOnlyMountSpecs(rc.Run.ReadOnlyMounts)...)
 	secrets := collectSecrets(in.Secrets, rc)
 	env := collectEnv(in.Env, rc)
 	limits := resolveResourceLimits(in.PidsLimit, in.CPUs, in.Memory, rc)
@@ -219,24 +214,6 @@ func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) [
 	volumes = append(volumes, rc.Run.ExtraMounts...)
 
 	return volumes
-}
-
-// readOnlyMountSpecs converts each "host:container" entry into a forced-:ro
-// volume spec, stripping any user-supplied :ro/:rw suffix first (mirrors
-// buildSecretArgs's precedent of forcing :ro at assembly time regardless of
-// the source spec). Callers must append the result last to the final volumes
-// list: Docker shadows an overlapping bind-mount path with whichever
-// --volume flag for it appears last, so this sub-path override only takes
-// effect when it is ordered after the parent read-write mount.
-func readOnlyMountSpecs(specs []string) []string {
-	out := make([]string, 0, len(specs))
-	for _, spec := range specs {
-		host := mount.HostPart(spec)
-		container, _ := strings.CutPrefix(spec, host+":")
-		container = strings.TrimSuffix(strings.TrimSuffix(container, ":ro"), ":rw")
-		out = append(out, mount.VolumeMount(host, container, mount.VolumeOptions{ReadOnly: true}))
-	}
-	return out
 }
 
 func collectSecrets(flags []string, rc *config.AgenticRC) []string {

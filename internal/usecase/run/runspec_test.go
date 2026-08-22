@@ -265,23 +265,6 @@ func TestBuild(t *testing.T) {
 		assert.Empty(t, rs.AuditLogDir)
 	})
 
-	t.Run("read-only mounts wired after every other volume", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), InstructionsMount: "/tmp/snapshot.md:$CONTAINER_HOME/.claude/CLAUDE.md"}
-		rc := &config.AgenticRC{Run: config.RCRun{ReadOnlyMounts: []string{"$PWD/secret:/workspace/secret"}}}
-
-		// Act
-		rs, err := Build(target, in, tools.Configs["claude"], rc)
-
-		// Assert
-		require.NoError(t, err)
-		require.Contains(t, rs.Volumes, "$PWD/secret:/workspace/secret:ro")
-		roIdx := slices.Index(rs.Volumes, "$PWD/secret:/workspace/secret:ro")
-		instructionsIdx := slices.Index(rs.Volumes, "/tmp/snapshot.md:$CONTAINER_HOME/.claude/CLAUDE.md")
-		assert.Greater(t, roIdx, instructionsIdx, "read-only sub-path mounts must be last so they shadow every other mount")
-	})
-
 	t.Run("marketplace names wired into AGENTIC_MARKETPLACES env", func(t *testing.T) {
 		// Arrange
 		stubSyncMarketplaces(t, func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error) {
@@ -580,40 +563,6 @@ func Test_collectVolumes(t *testing.T) {
 		// Assert
 		assert.Len(t, toolMounts, 1, "original toolMounts slice should not be modified")
 		assert.Len(t, result, 2)
-	})
-}
-
-func Test_readOnlyMountSpecs(t *testing.T) {
-	t.Run("forces read-only on a plain spec", func(t *testing.T) {
-		// Act
-		result := readOnlyMountSpecs([]string{"$PWD/secrets:$CONTAINER_HOME/secrets"})
-
-		// Assert
-		assert.Equal(t, []string{"$PWD/secrets:$CONTAINER_HOME/secrets:ro"}, result)
-	})
-
-	t.Run("strips a user-supplied :ro suffix before re-forcing it", func(t *testing.T) {
-		// Act
-		result := readOnlyMountSpecs([]string{"/a/b:/c:ro"})
-
-		// Assert
-		assert.Equal(t, []string{"/a/b:/c:ro"}, result)
-	})
-
-	t.Run("strips a user-supplied :rw suffix", func(t *testing.T) {
-		// Act
-		result := readOnlyMountSpecs([]string{"/a/b:/c:rw"})
-
-		// Assert
-		assert.Equal(t, []string{"/a/b:/c:ro"}, result)
-	})
-
-	t.Run("empty input yields empty output", func(t *testing.T) {
-		// Act
-		result := readOnlyMountSpecs(nil)
-
-		// Assert
-		assert.Empty(t, result)
 	})
 }
 

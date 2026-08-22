@@ -291,7 +291,7 @@ func TestPrintProjectConfig(t *testing.T) {
 					},
 					Run: config.RCRun{
 						PidsLimit: "100", CPUs: "2", Memory: "4g",
-						ExtraMounts: []string{"vol:/mnt"}, ReadOnlyMounts: []string{"$PWD/secrets:/workspace/secrets"}, Secrets: []string{"tok:/run/s/t"},
+						ExtraMounts: []string{"vol:/mnt"}, Secrets: []string{"tok:/run/s/t"},
 						Proxy: config.RCProxy{Enabled: &enabled, Mode: config.ModeMonitor, AllowedHosts: []string{".github.com"}},
 						Audit: config.RCAudit{Enabled: &enabled, Exclude: []string{"target"}},
 					},
@@ -312,7 +312,6 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "cpus: 2  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "memory: 4g  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- vol:/mnt  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "- $PWD/secrets:/workspace/secrets  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- make  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- java@17  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- helm  [/project/.agenticrc.toml]")
@@ -391,7 +390,6 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "custom_installs: (none)")
 		assert.Contains(t, out, "bases: (none)")
 		assert.Contains(t, out, "extra_mounts: (none)")
-		assert.Contains(t, out, "read_only_mounts: (none)")
 		assert.Contains(t, out, "secrets: (none)")
 		assert.Contains(t, out, "proxy.enabled: false  (default)")
 		assert.Contains(t, out, "proxy.mode: enforce  (default)")

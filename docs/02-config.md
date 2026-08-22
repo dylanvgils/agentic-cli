@@ -121,7 +121,6 @@ Each entry becomes its own Dockerfile stage `RUN`, inserted after any `--base` e
 | Key                | Type   | Description                                                                                                                                                                                                                                                        | CLI flag       | Env var                | Default |
 | ------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- | ---------------------- | ------- |
 | `extra_mounts`     | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`                                                                                                 | `-v`           | `AGENTIC_EXTRA_MOUNTS` | -       |
-| `read_only_mounts` | list   | Sub-paths to force read-only even when their parent mount is writable. Format: `host/path:container/path` (`:ro` is always applied - any suffix you give is ignored). Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`. Config-only, no CLI flag or env var. | -              | -                      | -       |
 | `secrets`          | list   | Files to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`. Supports `~`, `$HOME`, `$CONTAINER_HOME` (container path only)                                                                     | `-s`           | `AGENTIC_SECRETS`      | -       |
 | `env`              | list   | Environment variables to set in the container. Format: `KEY=VALUE`, or bare `KEY` to forward the host's current value. Cannot target a reserved name (see [env](#env) below)                                                                                       | `-e`           | -                      | -       |
 | `pids_limit`       | string | Container PID limit (e.g. `"1024"`)                                                                                                                                                                                                                                | `--pids-limit` | `AGENTIC_PIDS_LIMIT`   | `1024`  |
@@ -262,7 +261,7 @@ Usage is tracked in `$AGENTIC_HOME/marketplaces/.usage.json`, keyed by clone + l
 
 Multiple `.agenticrc.toml` files merge. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
-- **List keys** (`bases`, `apt_packages`, `custom_installs`, `extra_mounts`, `read_only_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `audit.exclude`, `marketplaces`): values from all levels accumulate, outermost first.
+- **List keys** (`bases`, `apt_packages`, `custom_installs`, `extra_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `audit.exclude`, `marketplaces`): values from all levels accumulate, outermost first.
 - **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`, `docker_context`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
 - **`instructions.custom`**: text from all levels accumulates like a list key (outermost first, joined by a blank line), rather than the innermost overriding it - each layer's text is additive context, not a single setting. `instructions.enabled` is a scalar key: the innermost (child) value wins.
 - **`versions` table**: each layer name is resolved independently - innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
@@ -328,15 +327,6 @@ Per-layer version resolution (highest to lowest priority):
 ### `extra_mounts` and `secrets`
 
 These accumulate too; their env vars (`AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECRETS`) and RC values are collected independently and combined at runtime.
-
-### `read_only_mounts`
-
-Each entry forces one sub-path read-only, even though its parent directory (`$PWD`, a tool's own state dir, ...) stays writable - useful for keeping a credentials sub-directory or similar off-limits to writes without splitting it into a separate, fully-read-only mount elsewhere. Under the hood this relies on plain Docker bind-mount behavior: agentic places `read_only_mounts` entries last in the assembled mount list, so they shadow any overlapping read-write mount for that sub-path specifically (the same mechanism marketplace mounts already use to stay read-only alongside a tool's writable state). Order in the TOML file itself doesn't matter - agentic always places these last regardless of where they appear.
-
-```toml
-[run]
-read_only_mounts = ["$PWD/.credentials:/workspace/.credentials"]
-```
 
 ### `env`
 
@@ -429,7 +419,7 @@ Running `agentic` from `~/projects/my-project` merges both files and stops; `~/p
 
 ## Mount variable expansion
 
-These placeholders expand in mount strings (`extra_mounts`, `read_only_mounts`, `AGENTIC_EXTRA_MOUNTS`, `-v`) at runtime, so paths aren't hardcoded per machine or per tool:
+These placeholders expand in mount strings (`extra_mounts`, `AGENTIC_EXTRA_MOUNTS`, `-v`) at runtime, so paths aren't hardcoded per machine or per tool:
 
 | Placeholder         | Side of `:`       | Expands to                                     |
 | ------------------- | ----------------- | ---------------------------------------------- |
