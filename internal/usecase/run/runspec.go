@@ -62,9 +62,7 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	if in.InstructionsMount != "" {
 		volumes = append(volumes, in.InstructionsMount)
 	}
-	// Read-only sub-path overrides must stay last: Docker shadows an
-	// overlapping bind-mount path with whichever --volume flag for it comes
-	// last, so this is what actually enforces the sub-path override.
+	// Must stay last: Docker lets the last --volume flag for a path win.
 	volumes = append(volumes, readOnlyMountSpecs(collectReadOnlyMounts(in.ReadOnlyMounts, rc))...)
 	secrets := collectSecrets(in.Secrets, rc)
 	env := collectEnv(in.Env, rc)
@@ -215,9 +213,7 @@ func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) [
 	return volumes
 }
 
-// collectReadOnlyMounts merges --read-only-mount flag values with the
-// read_only_mounts config list, flags first then config (config keeps final
-// say, matching the extra_mounts/secrets convention).
+// collectReadOnlyMounts merges --read-only-mount flags with read_only_mounts config, flags first (matching extra_mounts/secrets).
 func collectReadOnlyMounts(flags []string, rc *config.AgenticRC) []string {
 	var mounts []string
 
@@ -227,22 +223,27 @@ func collectReadOnlyMounts(flags []string, rc *config.AgenticRC) []string {
 	return mounts
 }
 
-// readOnlyMountSpecs converts each "host:container" entry into a forced-:ro
-// volume spec, stripping any user-supplied :ro/:rw suffix first (mirrors
-// buildSecretArgs's precedent of forcing :ro at assembly time regardless of
-// the source spec). Callers must append the result last to the final volumes
-// list: Docker shadows an overlapping bind-mount path with whichever
-// --volume flag for it appears last, so this sub-path override only takes
-// effect when it is ordered after the parent read-write mount.
+// readOnlyMountSpecs converts each entry into a forced-:ro volume spec. A
+// no-colon entry is a workspace-relative shorthand expanding to
+// "$PWD/<path>:/workspace/<path>".
 func readOnlyMountSpecs(specs []string) []string {
 	out := make([]string, 0, len(specs))
 	for _, spec := range specs {
-		host := mount.HostPart(spec)
-		container, _ := strings.CutPrefix(spec, host+":")
-		container = strings.TrimSuffix(strings.TrimSuffix(container, ":ro"), ":rw")
+		host, container := splitReadOnlyMountSpec(spec)
 		out = append(out, mount.VolumeMount(host, container, mount.VolumeOptions{ReadOnly: true}))
 	}
 	return out
+}
+
+// splitReadOnlyMountSpec splits a read-only mount entry, expanding the no-colon workspace-relative shorthand.
+func splitReadOnlyMountSpec(spec string) (host, container string) {
+	if !strings.Contains(spec, ":") {
+		return "$PWD/" + spec, mount.WorkspaceContainerPath + "/" + spec
+	}
+
+	host, container, _ = mount.SplitHostContainer(spec)
+	container = strings.TrimSuffix(strings.TrimSuffix(container, ":ro"), ":rw")
+	return host, container
 }
 
 func collectSecrets(flags []string, rc *config.AgenticRC) []string {

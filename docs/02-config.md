@@ -117,16 +117,16 @@ Each entry becomes its own Dockerfile stage `RUN`, inserted after any `--base` e
 
 **`[run]` section** - applied at `agentic run` time
 
-| Key                | Type   | Description                                                                                                                                                                                                                          | CLI flag            | Env var                | Default |
-| ------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- | ---------------------- | ------- |
-| `extra_mounts`     | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`                                                                   | `-v`                | `AGENTIC_EXTRA_MOUNTS` | -       |
-| `read_only_mounts` | list   | Sub-paths to force read-only even when their parent mount is writable. Format: `host/path:container/path` (`:ro` is always applied - any suffix you give is ignored). Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`         | `--read-only-mount` | -                      | -       |
-| `secrets`          | list   | Files to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`. Supports `~`, `$HOME`, `$CONTAINER_HOME` (container path only)                                       | `-s`                | `AGENTIC_SECRETS`      | -       |
-| `env`              | list   | Environment variables to set in the container. Format: `KEY=VALUE`, or bare `KEY` to forward the host's current value. Cannot target a reserved name (see [env](#env) below)                                                         | `-e`                | -                      | -       |
-| `pids_limit`       | string | Container PID limit (e.g. `"1024"`)                                                                                                                                                                                                  | `--pids-limit`      | `AGENTIC_PIDS_LIMIT`   | `1024`  |
-| `cpus`             | string | Container CPU limit (e.g. `"4"`)                                                                                                                                                                                                     | `--cpus`            | `AGENTIC_CPUS`         | `4`     |
-| `memory`           | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                                                                 | `--memory`          | `AGENTIC_MEMORY`       | `4g`    |
-| `check_updates`    | bool   | Periodically check upstream for a newer tool version during `agentic run` (at most once every 6 hours per tool) and offer to update. A pointer internally so an inner config can explicitly disable a check enabled by an outer one. | -                   | -                      | `true`  |
+| Key                | Type   | Description                                                                                                                                                                                                                                                                                                                                                               | CLI flag            | Env var                | Default |
+| ------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ---------------------- | ------- |
+| `extra_mounts`     | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`, `$PWD`                                                                                                                                                                                                | `-v`                | `AGENTIC_EXTRA_MOUNTS` | -       |
+| `read_only_mounts` | list   | Sub-paths to force read-only even when their parent mount is writable. Format: `host/path:container/path` (`:ro` is always applied - any suffix you give is ignored), or a bare `sub/path` with no `:` as shorthand for a path relative to the workspace (expands to `$PWD/sub/path:/workspace/sub/path`). Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`, `$PWD` | `--read-only-mount` | -                      | -       |
+| `secrets`          | list   | Files to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`. Supports `~`, `$HOME`, `$CONTAINER_HOME` (container path only)                                                                                                                                                                            | `-s`                | `AGENTIC_SECRETS`      | -       |
+| `env`              | list   | Environment variables to set in the container. Format: `KEY=VALUE`, or bare `KEY` to forward the host's current value. Cannot target a reserved name (see [env](#env) below)                                                                                                                                                                                              | `-e`                | -                      | -       |
+| `pids_limit`       | string | Container PID limit (e.g. `"1024"`)                                                                                                                                                                                                                                                                                                                                       | `--pids-limit`      | `AGENTIC_PIDS_LIMIT`   | `1024`  |
+| `cpus`             | string | Container CPU limit (e.g. `"4"`)                                                                                                                                                                                                                                                                                                                                          | `--cpus`            | `AGENTIC_CPUS`         | `4`     |
+| `memory`           | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                                                                                                                                                                                                      | `--memory`          | `AGENTIC_MEMORY`       | `4g`    |
+| `check_updates`    | bool   | Periodically check upstream for a newer tool version during `agentic run` (at most once every 6 hours per tool) and offer to update. A pointer internally so an inner config can explicitly disable a check enabled by an outer one.                                                                                                                                      | -                   | -                      | `true`  |
 
 **`[run.instructions]` section** - environment instructions written into each tool's global instructions file (see [Environment instructions](../README.md#-environment-instructions))
 
@@ -307,9 +307,18 @@ These accumulate too; their env vars (`AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECRETS`)
 
 Each entry forces one sub-path read-only, even though its parent directory (`$PWD`, a tool's own state dir, ...) stays writable - useful for keeping a credentials sub-directory or similar off-limits to writes without splitting it into a separate, fully-read-only mount elsewhere. Under the hood this relies on plain Docker bind-mount behavior: agentic places `read_only_mounts` entries last in the assembled mount list, so they shadow any overlapping read-write mount for that sub-path specifically (the same mechanism marketplace mounts already use to stay read-only alongside a tool's writable state). Order in the TOML file itself doesn't matter - agentic always places these last regardless of where they appear.
 
+A bare entry with no `:` is shorthand for a path relative to the workspace - it expands to the same sub-path on both sides, under `$PWD` on the host and `/workspace` in the container:
+
 ```toml
 [run]
-read_only_mounts = ["$PWD/.credentials:/workspace/.credentials"]
+read_only_mounts = [".git", ".credentials"]
+```
+
+is equivalent to:
+
+```toml
+[run]
+read_only_mounts = ["$PWD/.git:/workspace/.git", "$PWD/.credentials:/workspace/.credentials"]
 ```
 
 `--read-only-mount` sets the same thing per invocation and accumulates with the config list (`--read-only-mount` values first, then `read_only_mounts` - no env var for this one, unlike `extra_mounts`/`secrets`).
@@ -407,15 +416,16 @@ Running `agentic` from `~/projects/my-project` merges both files and stops; `~/p
 
 These placeholders expand in mount strings (`extra_mounts`, `read_only_mounts`, `AGENTIC_EXTRA_MOUNTS`, `-v`, `--read-only-mount`) at runtime, so paths aren't hardcoded per machine or per tool:
 
-| Placeholder         | Side of `:`       | Expands to                                     |
-| ------------------- | ----------------- | ---------------------------------------------- |
-| `~`                 | host (left)       | Your home directory                            |
-| `$HOME`             | host (left)       | Same as above                                  |
-| `${HOME}`           | host (left)       | Same as above                                  |
-| `$TOOL_HOME`        | host (left)       | Agentic data directory (e.g. `~/.agentic`)     |
-| `${TOOL_HOME}`      | host (left)       | Same as above                                  |
-| `$CONTAINER_HOME`   | container (right) | Container home directory (e.g. `/home/claude`) |
-| `${CONTAINER_HOME}` | container (right) | Same as above                                  |
+| Placeholder         | Side of `:`       | Expands to                                                                                                                                     |
+| ------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~`                 | host (left)       | Your home directory                                                                                                                            |
+| `$HOME`             | host (left)       | Same as above                                                                                                                                  |
+| `${HOME}`           | host (left)       | Same as above                                                                                                                                  |
+| `$TOOL_HOME`        | host (left)       | Agentic data directory (e.g. `~/.agentic`)                                                                                                     |
+| `${TOOL_HOME}`      | host (left)       | Same as above                                                                                                                                  |
+| `$PWD`              | host (left)       | Current working directory (the same directory bind-mounted as `/workspace`) - only the unbraced form is supported, unlike `$HOME`/`$TOOL_HOME` |
+| `$CONTAINER_HOME`   | container (right) | Container home directory (e.g. `/home/claude`)                                                                                                 |
+| `${CONTAINER_HOME}` | container (right) | Same as above                                                                                                                                  |
 
 Use single quotes (or escape the `$`) so the shell doesn't expand the variables before passing them to `agentic`:
 

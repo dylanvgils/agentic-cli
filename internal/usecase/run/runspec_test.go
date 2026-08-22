@@ -835,4 +835,20 @@ func Test_readOnlyMountSpecs(t *testing.T) {
 		// Assert
 		assert.Empty(t, result)
 	})
+
+	t.Run("no-colon spec expands to the workspace-relative shorthand", func(t *testing.T) {
+		// Act
+		result := readOnlyMountSpecs([]string{".git"})
+
+		// Assert
+		assert.Equal(t, []string{"$PWD/.git:/workspace/.git:ro"}, result)
+	})
+
+	t.Run("no-colon spec with a nested path expands the same way", func(t *testing.T) {
+		// Act
+		result := readOnlyMountSpecs([]string{"secrets/foo"})
+
+		// Assert
+		assert.Equal(t, []string{"$PWD/secrets/foo:/workspace/secrets/foo:ro"}, result)
+	})
 }

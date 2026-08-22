@@ -36,10 +36,7 @@ type RCBuild struct {
 // RCRun holds runtime settings from a .agenticrc.toml file.
 type RCRun struct {
 	ExtraMounts []string `toml:"extra_mounts"`
-	// ReadOnlyMounts each declare a "host:container" mount forced read-only at
-	// assembly time, appended after every other volume so it shadows an
-	// overlapping read-write mount (e.g. a credentials sub-path within an
-	// otherwise writable $PWD). Merged with --read-only-mount flag values.
+	// ReadOnlyMounts forces mounts read-only, applied last to override an overlapping writable mount. Merged with --read-only-mount.
 	ReadOnlyMounts []string       `toml:"read_only_mounts"`
 	Secrets        []string       `toml:"secrets"`
 	Env            []string       `toml:"env"`

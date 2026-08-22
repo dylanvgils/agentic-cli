@@ -295,14 +295,11 @@ func buildSecretArgs(rs RunSpec) ([]string, error) {
 			return nil, fmt.Errorf("invalid secret %q: expected name:/path[:/container/path]", secret)
 		}
 
-		hostPath := mount.HostPart(rest)
-		containerPath := "/run/secrets/" + name
-
-		if after, found := strings.CutPrefix(rest, hostPath+":"); found {
-			if after == "" {
-				return nil, fmt.Errorf("invalid secret %q: empty container path", secret)
-			}
-			containerPath = after
+		hostPath, containerPath, found := mount.SplitHostContainer(rest)
+		if !found {
+			containerPath = "/run/secrets/" + name
+		} else if containerPath == "" {
+			return nil, fmt.Errorf("invalid secret %q: empty container path", secret)
 		}
 
 		spec := mount.ExpandMountSpec(hostPath+":"+containerPath, rs.ToolHome, rs.ContainerHome)

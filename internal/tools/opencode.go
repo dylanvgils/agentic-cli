@@ -30,7 +30,7 @@ func opencodeTmpfsMounts() []string {
 
 func opencodeMounts() []string {
 	return []string{
-		mount.VolumeMount("$PWD", "/workspace"),
+		mount.VolumeMount("$PWD", mount.WorkspaceContainerPath),
 		mount.VolumeMount("$TOOL_HOME/opencode/data", "$CONTAINER_HOME/.opencode"),
 		mount.VolumeMount("$TOOL_HOME/opencode/share", "$CONTAINER_HOME/.local/share/opencode"),
 		mount.VolumeMount("$TOOL_HOME/opencode/state", "$CONTAINER_HOME/.local/state/opencode"),
@@ -59,7 +59,7 @@ func opencodeStage(prevStage string) df.Stage {
 		Add(df.User{Name: "opencode"}).
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/opencode"}).
 		Add(df.Env{Key: "OPENCODE_DISABLE_AUTOUPDATE", Value: "true"}).
-		Add(df.Workdir{Path: "/workspace"}).
+		Add(df.Workdir{Path: mount.WorkspaceContainerPath}).
 		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
 		Build()
 }
