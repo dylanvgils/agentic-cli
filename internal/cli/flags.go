@@ -1,10 +1,9 @@
 package cli
 
 import (
-	"maps"
-
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/settings"
 	"github.com/spf13/cobra"
 )
 
@@ -34,13 +33,13 @@ func addVersionFlags(cmd *cobra.Command) {
 // resolveNamespace returns the effective namespace, preferring the --namespace flag over the rc file value.
 func resolveNamespace(cmd *cobra.Command, rc *config.AgenticRC) string {
 	v, _ := cmd.Flags().GetString("namespace")
-	return config.ResolveNamespace(v, rc)
+	return settings.Namespace(v, rc)
 }
 
 // collectRegistry returns the registry prefix from the --registry flag or the tool home config.
 func collectRegistry(cmd *cobra.Command) string {
 	v, _ := cmd.Flags().GetString("registry")
-	return config.ResolveRegistry(v, toolHome)
+	return settings.Registry(v, toolHome)
 }
 
 // addBuildFlags registers the version and dry-run flags shared by the build and
@@ -80,43 +79,48 @@ func addProxyFlags(cmd *cobra.Command) {
 
 // buildOptsFromFlags constructs a BuildOptions from the command's flags and the project config.
 func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOptions {
-	opts := tools.BuildOptions{}
+	flagBases, _ := cmd.Flags().GetStringSlice("base")
+	flagApt, _ := cmd.Flags().GetStringSlice("apt")
+	noCache, _ := cmd.Flags().GetBool("no-cache")
+	pull, _ := cmd.Flags().GetBool("pull")
 
-	opts.BaseOverride = collectBases(cmd, rc)
-	opts.NoCache, _ = cmd.Flags().GetBool("no-cache")
-	opts.Pull, _ = cmd.Flags().GetBool("pull")
-	opts.Versions = collectVersions(cmd, rc)
-	opts.AptPackages = collectAptPackages(cmd, rc)
-	opts.VerifyApt = len(opts.AptPackages) > 0
-	opts.Registry = collectRegistry(cmd)
-	opts.CustomInstalls = rc.Build.CustomInstalls
-
-	return opts
+	in := settings.BuildInput{
+		Bases:            flagBases,
+		VersionOverrides: collectVersionOverrides(cmd),
+		AptPackages:      flagApt,
+		NoCache:          noCache,
+		Pull:             pull,
+		Registry:         collectRegistry(cmd),
+	}
+	return settings.BuildOptions(in, rc)
 }
 
 // collectBases merges extra base layers from the project config with those from the --base flag.
 func collectBases(cmd *cobra.Command, rc *config.AgenticRC) []string {
 	flagBases, _ := cmd.Flags().GetStringSlice("base")
-	return tools.SortExtras(tools.MergePackages(rc.Build.Bases, flagBases))
+	return settings.Bases(flagBases, rc)
 }
 
 // collectVersions builds the per-layer version map with RC values as defaults, overridden by CLI flags.
 func collectVersions(cmd *cobra.Command, rc *config.AgenticRC) map[string]string {
-	versions := make(map[string]string, len(rc.Build.Versions))
-	maps.Copy(versions, rc.Build.Versions)
+	return settings.Versions(collectVersionOverrides(cmd), rc)
+}
 
+// collectVersionOverrides reads every registered --<layer> flag into a map, omitting unset ones.
+func collectVersionOverrides(cmd *cobra.Command) map[string]string {
+	overrides := make(map[string]string, len(tools.KnownLayers()))
 	for _, name := range tools.KnownLayers() {
 		if v, _ := cmd.Flags().GetString(name); v != "" {
-			versions[name] = v
+			overrides[name] = v
 		}
 	}
-	return versions
+	return overrides
 }
 
 // collectAptPackages merges apt packages from the project config with those from the --apt flag.
 func collectAptPackages(cmd *cobra.Command, rc *config.AgenticRC) []string {
 	flagPkgs, _ := cmd.Flags().GetStringSlice("apt")
-	return tools.MergePackages(rc.Build.AptPackages, flagPkgs)
+	return settings.AptPackages(flagPkgs, rc)
 }
 
 // toolNames returns the single tool name from args, or all known tool names when args is empty.

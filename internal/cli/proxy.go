@@ -8,6 +8,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/settings"
 	"github.com/spf13/cobra"
 )
 
@@ -104,30 +105,13 @@ func cleanProxyImage() error {
 	return cleanImage(tools.ProxyImage)
 }
 
-// resolveProxyMode determines whether the egress proxy is on for this run,
-// and if so, whether it enforces the allowlist or only monitors it. Flags win
-// over config; an explicit "off" (--no-proxy, or enabled = false) always
-// beats mode, since mode only matters once the proxy is otherwise on.
-// Monitor mode (flag or config) implies the proxy is enabled.
+// resolveProxyMode reads the proxy-related flags and resolves them against rc into the effective proxy mode.
 func resolveProxyMode(cmd *cobra.Command, rc *config.AgenticRC) (enabled, monitor bool) {
-	if noProxy, _ := cmd.Flags().GetBool("no-proxy"); noProxy {
-		return false, false
-	}
-	if monitorFlag, _ := cmd.Flags().GetBool("proxy-monitor"); monitorFlag {
-		return true, true
-	}
-	if proxy, _ := cmd.Flags().GetBool("proxy"); proxy {
-		return true, false
-	}
+	noProxy, _ := cmd.Flags().GetBool("no-proxy")
+	monitorFlag, _ := cmd.Flags().GetBool("proxy-monitor")
+	proxyFlag, _ := cmd.Flags().GetBool("proxy")
 
-	if rc.Run.Proxy.Enabled != nil && !*rc.Run.Proxy.Enabled {
-		return false, false
-	}
-	if rc.Run.Proxy.Mode == config.ModeMonitor {
-		return true, true
-	}
-
-	return rc.Run.Proxy.Enabled != nil && *rc.Run.Proxy.Enabled, false
+	return settings.ProxyMode(settings.ProxyInput{NoProxy: noProxy, MonitorFlag: monitorFlag, ProxyFlag: proxyFlag}, rc)
 }
 
 // ensureProxyImage builds the proxy image if it is not already present or if

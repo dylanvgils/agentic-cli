@@ -28,7 +28,8 @@ agentic-cli/
     └── usecase/                 # Business logic extracted out of internal/cli commands (see below)
         ├── build/               # Builds (or dry-run prints) tool images for `agentic build`
         ├── clean/               # Resolves and removes tool images and global Docker resources for `agentic clean`
-        ├── run/                 # Builds docker.RunSpec for `agentic run` - marketplace sync, volume/secret/env merging, resource limits
+        ├── run/                 # Builds docker.RunSpec for `agentic run` from resolved settings - marketplace sync, resource limits
+        ├── settings/            # Merges CLI flags, .agenticrc.toml, and agentic.json into the effective value of every setting agentic supports
         ├── toolupdate/          # Checks for and applies upstream tool version updates on `agentic run`
         ├── update/              # Resolves and applies `agentic update` targets - build-option recovery, --pull throttling
         └── upgradecheck/        # Checks for and offers to apply a newer agentic CLI release, on any command's PersistentPreRunE

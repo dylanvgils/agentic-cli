@@ -14,11 +14,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test_resolveProxyMode only needs to confirm each flag is read off cmd and
+// wired into the right settings.ProxyInput field - the actual precedence
+// matrix is covered by TestProxyMode in internal/usecase/settings.
 func Test_resolveProxyMode(t *testing.T) {
-	enabled := true
-	disabled := false
+	t.Run("no flags reads rc value", func(t *testing.T) {
+		// Arrange
+		enabled := true
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}
 
-	t.Run("no flag and no config defaults off", func(t *testing.T) {
+		// Act
+		gotEnabled, gotMonitor := resolveProxyMode(runToolCmd, rc)
+
+		// Assert
+		assert.True(t, gotEnabled)
+		assert.False(t, gotMonitor)
+	})
+
+	t.Run("no-proxy flag propagates", func(t *testing.T) {
+		// Arrange
+		require.NoError(t, runToolCmd.Flags().Set("no-proxy", "true"))
+		t.Cleanup(func() {
+			_ = runToolCmd.Flags().Set("no-proxy", "false")
+			runToolCmd.Flags().Lookup("no-proxy").Changed = false
+		})
+
 		// Act
 		gotEnabled, gotMonitor := resolveProxyMode(runToolCmd, &config.AgenticRC{})
 
@@ -27,69 +47,7 @@ func Test_resolveProxyMode(t *testing.T) {
 		assert.False(t, gotMonitor)
 	})
 
-	t.Run("config enabled is honored", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}
-
-		// Act
-		gotEnabled, gotMonitor := resolveProxyMode(runToolCmd, rc)
-
-		// Assert
-		assert.True(t, gotEnabled)
-		assert.False(t, gotMonitor)
-	})
-
-	t.Run("proxy flag overrides config disabled", func(t *testing.T) {
-		// Arrange
-		require.NoError(t, runToolCmd.Flags().Set("proxy", "true"))
-		t.Cleanup(func() {
-			_ = runToolCmd.Flags().Set("proxy", "false")
-			runToolCmd.Flags().Lookup("proxy").Changed = false
-		})
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled}}}
-
-		// Act
-		gotEnabled, gotMonitor := resolveProxyMode(runToolCmd, rc)
-
-		// Assert
-		assert.True(t, gotEnabled)
-		assert.False(t, gotMonitor)
-	})
-
-	t.Run("no-proxy flag overrides config enabled", func(t *testing.T) {
-		// Arrange
-		require.NoError(t, runToolCmd.Flags().Set("no-proxy", "true"))
-		t.Cleanup(func() {
-			_ = runToolCmd.Flags().Set("no-proxy", "false")
-			runToolCmd.Flags().Lookup("no-proxy").Changed = false
-		})
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}
-
-		// Act
-		gotEnabled, gotMonitor := resolveProxyMode(runToolCmd, rc)
-
-		// Assert
-		assert.False(t, gotEnabled)
-		assert.False(t, gotMonitor)
-	})
-
-	t.Run("proxy flag explicitly set false does not override config disabled", func(t *testing.T) {
-		// Arrange
-		require.NoError(t, runToolCmd.Flags().Set("proxy", "false"))
-		t.Cleanup(func() {
-			runToolCmd.Flags().Lookup("proxy").Changed = false
-		})
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled}}}
-
-		// Act
-		gotEnabled, gotMonitor := resolveProxyMode(runToolCmd, rc)
-
-		// Assert
-		assert.False(t, gotEnabled)
-		assert.False(t, gotMonitor)
-	})
-
-	t.Run("proxy-monitor flag enables monitor mode", func(t *testing.T) {
+	t.Run("proxy-monitor flag propagates", func(t *testing.T) {
 		// Arrange
 		require.NoError(t, runToolCmd.Flags().Set("proxy-monitor", "true"))
 		t.Cleanup(func() {
@@ -103,49 +61,6 @@ func Test_resolveProxyMode(t *testing.T) {
 		// Assert
 		assert.True(t, gotEnabled)
 		assert.True(t, gotMonitor)
-	})
-
-	t.Run("no-proxy flag overrides proxy-monitor flag", func(t *testing.T) {
-		// Arrange
-		require.NoError(t, runToolCmd.Flags().Set("proxy-monitor", "true"))
-		require.NoError(t, runToolCmd.Flags().Set("no-proxy", "true"))
-		t.Cleanup(func() {
-			_ = runToolCmd.Flags().Set("proxy-monitor", "false")
-			runToolCmd.Flags().Lookup("proxy-monitor").Changed = false
-			_ = runToolCmd.Flags().Set("no-proxy", "false")
-			runToolCmd.Flags().Lookup("no-proxy").Changed = false
-		})
-
-		// Act
-		gotEnabled, gotMonitor := resolveProxyMode(runToolCmd, &config.AgenticRC{})
-
-		// Assert
-		assert.False(t, gotEnabled)
-		assert.False(t, gotMonitor)
-	})
-
-	t.Run("config mode monitor implies enabled", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Mode: config.ModeMonitor}}}
-
-		// Act
-		gotEnabled, gotMonitor := resolveProxyMode(runToolCmd, rc)
-
-		// Assert
-		assert.True(t, gotEnabled)
-		assert.True(t, gotMonitor)
-	})
-
-	t.Run("config enabled false wins over config mode monitor", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled, Mode: config.ModeMonitor}}}
-
-		// Act
-		gotEnabled, gotMonitor := resolveProxyMode(runToolCmd, rc)
-
-		// Assert
-		assert.False(t, gotEnabled)
-		assert.False(t, gotMonitor)
 	})
 }
 
