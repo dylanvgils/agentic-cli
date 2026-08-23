@@ -11,9 +11,11 @@ EVENT_NAME="${2:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 LAST=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+echo "event=$EVENT_NAME tag_input='$TAG_INPUT' last=$LAST" >&2
 
 if [ "$EVENT_NAME" = "schedule" ] || { [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -z "$TAG_INPUT" ]; }; then
   NEXT=$("$SCRIPT_DIR/next-tag.sh" "$LAST")
+  echo "auto-computed next tag is '${NEXT:-<none>}'" >&2
 
   if [ -z "$NEXT" ]; then
     echo "nothing to release since $LAST" >&2

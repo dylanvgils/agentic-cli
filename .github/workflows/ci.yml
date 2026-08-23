@@ -7,17 +7,22 @@ on:
     types: [opened, edited, synchronize, reopened]
 
 jobs:
-  fix-checksum:
+  pr-checks:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.actor == 'renovate[bot]'
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
 
+      - name: Validate PR title
+        run: .github/scripts/validate-title.sh "${{ github.event.pull_request.title }}"
+
       - name: Update checksums
+        if: github.actor == 'renovate[bot]'
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: |
@@ -34,18 +39,7 @@ jobs:
             git push origin "HEAD:$HEAD_REF"
           fi
 
-  validate-title:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.head_ref }}
-
-      - name: Validate PR title
-        run: .github/scripts/validate-title.sh "${{ github.event.pull_request.title }}"
-
   ci:
-    needs: [fix-checksum]
-    if: ${{ !cancelled() && (needs.fix-checksum.result == 'success' || needs.fix-checksum.result == 'skipped') }}
+    needs: [pr-checks]
+    if: ${{ !cancelled() && (needs.pr-checks.result == 'success' || needs.pr-checks.result == 'skipped') }}
     uses: ./.github/workflows/validate.yml

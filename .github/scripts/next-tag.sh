@@ -5,9 +5,16 @@
 set -e
 
 LAST="${1:-$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")}"
+echo "last tag is $LAST" >&2
 
 COMMITS=$(git log "${LAST}..HEAD" --format="%s")
 BODIES=$(git log "${LAST}..HEAD" --format="%b")
+if [ -z "$COMMITS" ]; then
+  echo "no commits since $LAST" >&2
+else
+  echo "commits since $LAST:" >&2
+  echo "  ${COMMITS//$'\n'/$'\n  '}" >&2
+fi
 
 if [ -z "$COMMITS" ]; then
   exit 0
@@ -34,6 +41,8 @@ done <<< "$COMMITS"
 if echo "$BODIES" | grep -q "^BREAKING CHANGE:"; then
   BUMP="major"
 fi
+
+echo "bump level is $BUMP" >&2
 
 if [ "$BUMP" = "none" ]; then
   exit 0
