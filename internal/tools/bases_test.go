@@ -83,7 +83,7 @@ func Test_nodeStage(t *testing.T) {
 
 	t.Run("default nvm checksum arg", func(t *testing.T) {
 		// Assert
-		assert.Contains(t, result, "NVM_CHECKSUM="+DefaultVersions.NvmChecksum)
+		assert.Contains(t, result, "NVM_CHECKSUM="+DefaultChecksums.Nvm)
 	})
 
 	t.Run("sets NVM_DIR env", func(t *testing.T) {
