@@ -77,12 +77,12 @@ pids_limit = "2048"
 
 **`[build]` section** - applied at `agentic build` / `agentic update` time
 
-| Key               | Type           | Description                                                                                                                      | CLI flag    | Default |
-| ----------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ------- |
-| `bases`           | list           | Extra runtime layers to add on top of the node base (e.g. `["java", "dotnet"]`). Accumulates across RC layers and with `--base`. | `--base`    | -       |
-| `apt_packages`    | list           | Extra Debian packages to install in the base image. Accumulates across RC layers and with `--apt`.                               | `--apt`     | -       |
-| `versions`        | TOML table     | Per-layer version pins. Written as `[build.versions]` with `node`, `java`, `dotnet`, or `go` keys. Innermost value wins per key. | `--<layer>` | -       |
-| `custom_installs` | list of tables | Non-apt tools installed via arbitrary shell commands. See `[[build.custom_installs]]` below.                                     | -           | -       |
+| Key               | Type           | Description                                                                                                                                                                   | CLI flag                  | Default |
+| ----------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------- |
+| `bases`           | list           | Extra runtime layers to add on top of the node base (e.g. `["java", "dotnet"]`). Accumulates across RC layers and with `--base`; `--base-exact` replaces it entirely instead. | `--base` / `--base-exact` | -       |
+| `apt_packages`    | list           | Extra Debian packages to install in the base image. Accumulates across RC layers and with `--apt`; `--apt-exact` replaces it entirely instead.                                | `--apt` / `--apt-exact`   | -       |
+| `versions`        | TOML table     | Per-layer version pins. Written as `[build.versions]` with `node`, `java`, `dotnet`, or `go` keys. Innermost value wins per key.                                              | `--<layer>`               | -       |
+| `custom_installs` | list of tables | Non-apt tools installed via arbitrary shell commands. See `[[build.custom_installs]]` below.                                                                                  | -                         | -       |
 
 **`[[build.custom_installs]]`** - non-apt tools (e.g. `helm`, `golangci-lint`) installed via arbitrary shell commands, applied unconditionally at build time - not gated by a `--<name>` flag the way `bases` extras are
 
@@ -285,12 +285,16 @@ Packages accumulate across both sources:
 
 Duplicates are removed while preserving order. The resolved list is verified with `apt-cache show` before the build starts (fail-fast).
 
+`--apt-exact` bypasses this accumulation entirely: it replaces the resolved list outright, ignoring every `.agenticrc.toml` layer's `apt_packages`. For `agentic update`, it also wins over the previously-built image's per-image label recovery, which otherwise reuses whatever packages the image was last built with. Pass `--apt-exact=` (empty) to install no extra packages at all, even if some are configured. `--apt` and `--apt-exact` are mutually exclusive.
+
 ### `bases`
 
 Extra runtime layers accumulate across RC files and the `--base` flag:
 
 1. `.agenticrc.toml` files (outermost first)
 2. `--base` flag (appended, deduplicated)
+
+`--base-exact` bypasses this accumulation entirely: it replaces the resolved list outright, ignoring every `.agenticrc.toml` layer's `bases`. For `agentic update`, it also wins over the previously-built image's per-image label recovery, which otherwise reuses whatever extras the image was last built with. Pass `--base-exact=` (empty) to build with debian only, even if extras are configured. `--base` and `--base-exact` are mutually exclusive.
 
 ### `versions`
 

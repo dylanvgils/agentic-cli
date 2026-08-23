@@ -169,6 +169,36 @@ func TestApply(t *testing.T) {
 		assert.NotContains(t, out, "=> base:")
 	})
 
+	t.Run("empty base-exact reported as none, exact", func(t *testing.T) {
+		// Arrange
+		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		opts := tools.BuildOptions{BaseExact: true, Versions: map[string]string{}}
+
+		// Act
+		out := captureStdout(t, func() {
+			err := Apply([]string{"claude"}, "agentic", opts)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "   base: (none, exact)")
+	})
+
+	t.Run("empty apt-exact reported as none, exact", func(t *testing.T) {
+		// Arrange
+		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		opts := tools.BuildOptions{AptExact: true, Versions: map[string]string{}}
+
+		// Act
+		out := captureStdout(t, func() {
+			err := Apply([]string{"claude"}, "agentic", opts)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "   apt: (none, exact)")
+	})
+
 	t.Run("script error propagates", func(t *testing.T) {
 		// Arrange
 		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error {

@@ -29,17 +29,15 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 			return nil
 		}
 
-		if len(opts.BaseOverride) == 0 && info.Base != "" {
-			opts.BaseOverride = RecoverExtras(info.Base)
-		}
+		opts.BaseOverride = RecoveredBaseOverride(info, opts)
 
 		if info.VersionArgs != "" {
 			opts.Versions = mergeVersions(RecoverVersionArgs(info.VersionArgs), opts.Versions)
 		}
 
-		if info.Apt != "" {
-			recoveredPkgs := RecoverApt(info.Apt)
-			opts.AptPackages = tools.MergePackages(recoveredPkgs, opts.AptPackages)
+		var recoveredPkgs []string
+		opts.AptPackages, recoveredPkgs = RecoveredAptPackages(info, opts)
+		if recoveredPkgs != nil {
 			opts.VerifyApt = hasUserApt && hasNewAptPackages(userPkgs, recoveredPkgs)
 		}
 	}

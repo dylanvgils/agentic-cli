@@ -16,7 +16,9 @@ var buildCmd = &cobra.Command{
   agentic build claude --base node
   agentic build claude --base node,java
   agentic build claude --base node --node 22
-  agentic build claude --base java --java 17`,
+  agentic build claude --base java --java 17
+  agentic build claude --base-exact node
+  agentic build claude --apt-exact make,gcc`,
 	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
 	ValidArgs: tools.Names(),
 	RunE:      runBuild,

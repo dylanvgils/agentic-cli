@@ -22,6 +22,8 @@ var updateCmd = &cobra.Command{
   agentic update claude
   agentic update claude --base java
   agentic update claude --base java,dotnet
+  agentic update claude --base-exact node
+  agentic update claude --apt-exact make,gcc
   agentic update claude --no-cache
   agentic update claude --pull=false`,
 	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
@@ -58,11 +60,14 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	// For update, RC config bases/apt must not prevent per-image label recovery.
-	// Only an explicit CLI flag should override what the image was built with.
-	if !cmd.Flags().Changed("base") {
+	// Only an explicit --base/--base-exact (or --apt/--apt-exact) flag should
+	// override what the image was built with. -exact sets opts.BaseExact/AptExact
+	// (via resolve.BuildOptions), which makes the recovery layer skip entirely,
+	// even for an explicit empty list.
+	if !cmd.Flags().Changed("base") && !cmd.Flags().Changed("base-exact") {
 		opts.BaseOverride = nil
 	}
-	if !cmd.Flags().Changed("apt") {
+	if !cmd.Flags().Changed("apt") && !cmd.Flags().Changed("apt-exact") {
 		opts.AptPackages = nil
 	}
 

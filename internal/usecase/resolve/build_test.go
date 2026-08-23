@@ -39,6 +39,24 @@ func TestBases(t *testing.T) {
 	})
 }
 
+func TestBasesExact(t *testing.T) {
+	t.Run("returns sorted flag values only", func(t *testing.T) {
+		// Act
+		result := BasesExact([]string{"java", "dotnet"})
+
+		// Assert - sorted by canonical extras order
+		assert.Equal(t, []string{"dotnet", "java"}, result)
+	})
+
+	t.Run("empty flag list returns empty", func(t *testing.T) {
+		// Act
+		result := BasesExact(nil)
+
+		// Assert
+		assert.Empty(t, result)
+	})
+}
+
 func TestVersions(t *testing.T) {
 	t.Run("rc versions used as defaults", func(t *testing.T) {
 		// Arrange
@@ -103,6 +121,24 @@ func TestAptPackages(t *testing.T) {
 	})
 }
 
+func TestAptPackagesExact(t *testing.T) {
+	t.Run("returns deduplicated flag values only", func(t *testing.T) {
+		// Act
+		result := AptPackagesExact([]string{"make", "gcc", "make"})
+
+		// Assert
+		assert.Equal(t, []string{"make", "gcc"}, result)
+	})
+
+	t.Run("empty flag list returns empty", func(t *testing.T) {
+		// Act
+		result := AptPackagesExact(nil)
+
+		// Assert
+		assert.Empty(t, result)
+	})
+}
+
 func TestBuildOptions(t *testing.T) {
 	t.Run("merges bases from flag and rc", func(t *testing.T) {
 		// Arrange
@@ -135,5 +171,62 @@ func TestBuildOptions(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, rc.Build.CustomInstalls, opts.CustomInstalls)
+	})
+
+	t.Run("base-exact overrides rc bases entirely", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
+		exact := []string{"node"}
+		in := BuildInput{BasesExact: &exact}
+
+		// Act
+		opts := BuildOptions(in, rc)
+
+		// Assert
+		assert.Equal(t, []string{"node"}, opts.BaseOverride)
+		assert.True(t, opts.BaseExact)
+	})
+
+	t.Run("empty base-exact clears rc bases", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
+		exact := []string{}
+		in := BuildInput{BasesExact: &exact}
+
+		// Act
+		opts := BuildOptions(in, rc)
+
+		// Assert
+		assert.Empty(t, opts.BaseOverride)
+		assert.True(t, opts.BaseExact)
+	})
+
+	t.Run("apt-exact overrides rc apt entirely", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
+		exact := []string{"gcc"}
+		in := BuildInput{AptPackagesExact: &exact}
+
+		// Act
+		opts := BuildOptions(in, rc)
+
+		// Assert
+		assert.Equal(t, []string{"gcc"}, opts.AptPackages)
+		assert.True(t, opts.AptExact)
+	})
+
+	t.Run("empty apt-exact clears rc apt and disables verify", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
+		exact := []string{}
+		in := BuildInput{AptPackagesExact: &exact}
+
+		// Act
+		opts := BuildOptions(in, rc)
+
+		// Assert
+		assert.Empty(t, opts.AptPackages)
+		assert.True(t, opts.AptExact)
+		assert.False(t, opts.VerifyApt)
 	})
 }

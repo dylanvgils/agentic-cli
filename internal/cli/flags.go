@@ -47,8 +47,13 @@ func collectRegistry(cmd *cobra.Command) string {
 // differs between the two commands.
 func addBuildFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSlice("base", nil, "extra runtime(s) to layer on top of debian; repeatable or comma-separated (e.g. --base node --base java or --base node,java)")
+	cmd.Flags().StringSlice("base-exact", nil, "extra runtime(s) to layer on top of debian, replacing .agenticrc.toml's bases entirely instead of merging with it; repeatable or comma-separated; pass --base-exact= for debian only")
 	cmd.Flags().StringSlice("apt", nil, "apt packages to install in the base stage; repeatable or comma-separated (e.g. --apt make --apt gcc or --apt make,gcc)")
+	cmd.Flags().StringSlice("apt-exact", nil, "apt packages to install in the base stage, replacing .agenticrc.toml's apt_packages entirely instead of merging with it; repeatable or comma-separated; pass --apt-exact= for none")
 	cmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
+
+	cmd.MarkFlagsMutuallyExclusive("base", "base-exact")
+	cmd.MarkFlagsMutuallyExclusive("apt", "apt-exact")
 
 	addRegistryFlag(cmd)
 	addVersionFlags(cmd)
@@ -86,8 +91,10 @@ func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOpt
 
 	in := resolve.BuildInput{
 		Bases:            flagBases,
+		BasesExact:       exactFlagValue(cmd, "base-exact"),
 		VersionOverrides: collectVersionOverrides(cmd),
 		AptPackages:      flagApt,
+		AptPackagesExact: exactFlagValue(cmd, "apt-exact"),
 		NoCache:          noCache,
 		Pull:             pull,
 		Registry:         collectRegistry(cmd),
@@ -129,4 +136,14 @@ func toolNames(args []string) []string {
 		return []string{args[0]}
 	}
 	return tools.Names()
+}
+
+// exactFlagValue returns a pointer to name's flag value when it was explicitly
+// passed, or nil otherwise, so resolve can distinguish "not set" from "set empty".
+func exactFlagValue(cmd *cobra.Command, name string) *[]string {
+	if !cmd.Flags().Changed(name) {
+		return nil
+	}
+	v, _ := cmd.Flags().GetStringSlice(name)
+	return &v
 }
