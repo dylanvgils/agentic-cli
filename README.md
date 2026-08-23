@@ -232,7 +232,7 @@ agentic inspect claude --all         # detail for all namespaces' claude image
 # Build a project-specific image set (images are named <namespace>-<tool>)
 agentic build claude --namespace myproject --base node,java --apt make
 agentic inspect                      # shows both agentic-claude and myproject-claude
-AGENTIC_NAMESPACE=myproject agentic run claude
+agentic run --namespace myproject claude
 agentic update --all                 # update every agentic image across all namespaces
 
 # Run a tool
@@ -321,7 +321,7 @@ All stages are composed into a single multi-stage Dockerfile at build time and b
 
 Use `--base` to add extra runtimes at build time. The same pinning pattern applies to every layer (`--debian`, `--node`, `--dotnet`, `--go`, etc.).
 
-Version defaults are embedded in the binary at build time - run `agentic build --help` to see current defaults. Override per-build with the corresponding flag (`--debian`, `--node`, `--java`, `--dotnet`, `--go`), or set `AGENTIC_<LAYER>_VERSION` in your shell config for a persistent default (e.g. `AGENTIC_JAVA_VERSION=17`, `AGENTIC_NODE_VERSION=22`).
+Version defaults are embedded in the binary at build time - run `agentic build --help` to see current defaults. Override per-build with the corresponding flag (`--debian`, `--node`, `--java`, `--dotnet`, `--go`), or pin a persistent default per project with `[build.versions]` in `.agenticrc.toml` (see [docs/02-config.md](docs/02-config.md)).
 
 `agentic update` reuses the version each layer was originally built with, so base/extra layers are regenerated identically (and stay cache-hits) even if the embedded defaults have since changed - pass the flag again to pin a different version instead. Pass `--no-cache` to also rebuild the base/extra layers from scratch, instead of only the tool stage.
 
@@ -340,7 +340,7 @@ agentic build claude --apt make
 agentic build claude --apt make,gcc   # comma-separated or repeatable (--apt make --apt gcc)
 ```
 
-`agentic update` automatically reuses the package list, so you don't need to re-specify it each time. For persisting packages via `AGENTIC_APT_PACKAGES` or `.agenticrc.toml`, and for registry proxy configuration (pulling base images through Harbor, Nexus, Artifactory, etc.), see [docs/02-config.md](docs/02-config.md).
+`agentic update` automatically reuses the package list, so you don't need to re-specify it each time. For persisting packages via `.agenticrc.toml`, and for registry proxy configuration (pulling base images through Harbor, Nexus, Artifactory, etc.), see [docs/02-config.md](docs/02-config.md).
 
 Use `agentic inspect` to see base layers, apt packages, build timestamp, and installed tool version for any built image.
 
@@ -374,7 +374,7 @@ Secrets use the format `name:/path/to/file[:/container/path]`. The `~`, `$HOME`,
 agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml' java-tool
 ```
 
-For persisting secrets via `AGENTIC_SECRETS` or `.agenticrc.toml`, see [docs/02-config.md](docs/02-config.md).
+For persisting secrets via `.agenticrc.toml`, see [docs/02-config.md](docs/02-config.md).
 
 ## 🌱 Environment variables
 
@@ -391,7 +391,7 @@ See [docs/02-config.md](docs/02-config.md) for names agentic already manages tha
 
 ## 📦 Named Docker volumes
 
-The `-v` flag and `AGENTIC_EXTRA_MOUNTS` support both bind mounts (host paths) and named Docker volumes - named volumes are created automatically on first use and persist across container runs, no host path required. See [Examples](#examples) above for the mount syntax, [docs/02-config.md](docs/02-config.md) for `AGENTIC_EXTRA_MOUNTS` / `.agenticrc.toml` persistence, and [docs/volume-mounts.md](docs/03-volume-mounts.md) for a per-tool breakdown of what's mounted automatically and why.
+The `-v` flag supports both bind mounts (host paths) and named Docker volumes - named volumes are created automatically on first use and persist across container runs, no host path required. See [Examples](#examples) above for the mount syntax, [docs/02-config.md](docs/02-config.md) for `.agenticrc.toml` persistence, and [docs/volume-mounts.md](docs/03-volume-mounts.md) for a per-tool breakdown of what's mounted automatically and why.
 
 ### Managing volumes
 
@@ -421,7 +421,7 @@ gradle wrapper
 Use named volumes to persist the download cache across container runs:
 
 ```bash
-agentic -v 'maven:$CONTAINER_HOME/.m2' -v 'gradle:$CONTAINER_HOME/.gradle' claude
+agentic run -v 'maven:$CONTAINER_HOME/.m2' -v 'gradle:$CONTAINER_HOME/.gradle' claude
 ```
 
 Or add to `.agenticrc.toml` in the repo root so the whole team picks it up:
@@ -447,16 +447,17 @@ For persisting a default via `.agenticrc.toml` or `agentic.json`, see [`docker_c
 
 ## ⚙️ Configuration
 
-Configuration comes from environment variables, `.agenticrc.toml` project files, and `agentic.json`, with CLI flags taking precedence over all of them. See [docs/02-config.md](docs/02-config.md) for the full environment variable reference, `.agenticrc.toml` format, merge rules, precedence, and mount variable expansion (`$TOOL_HOME`, `$CONTAINER_HOME`, etc.).
+Configuration comes from `.agenticrc.toml` project files and `agentic.json`, with CLI flags taking precedence over both. `AGENTIC_HOME` (default `${HOME}/.agentic`) is the one setting still read from the environment, since it must be resolvable before any `.agenticrc.toml` can be located. See [docs/02-config.md](docs/02-config.md) for the full `.agenticrc.toml` format, merge rules, precedence, and mount variable expansion (`$TOOL_HOME`, `$CONTAINER_HOME`, etc.).
 
-### Example `.zshrc`
+### Example `.agenticrc.toml`
 
-```bash
-# export AGENTIC_HOME="${HOME}/.agentic"   # default; uncomment to override
-# export AGENTIC_NODE_VERSION=22   # pin a runtime version (see agentic build --help for all layers)
+```toml
+[build.versions]
+node = "22"   # pin a runtime version (see agentic build --help for all layers)
 
+[run]
 # Mount Maven and Gradle caches for Java projects (named volumes)
-# export AGENTIC_EXTRA_MOUNTS='maven:$CONTAINER_HOME/.m2,gradle:$CONTAINER_HOME/.gradle'
+extra_mounts = ["maven:$CONTAINER_HOME/.m2", "gradle:$CONTAINER_HOME/.gradle"]
 ```
 
 ## 🏠 Tool home directory

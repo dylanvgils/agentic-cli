@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
@@ -30,20 +29,6 @@ func GenerateDockerfile(tool string, opts BuildOptions) (string, error) {
 		return "", err
 	}
 	return dockerfile.File{Stages: stages}.Render(), nil
-}
-
-// ParseExtras splits a comma-separated base override string into individual extra names,
-// returned in canonical knownExtras order so the generated Dockerfile is deterministic
-// and Docker layer caching is not invalidated by flag reordering.
-func ParseExtras(base string) []string {
-	var extras []string
-	for extra := range strings.SplitSeq(base, ",") {
-		if extra = strings.TrimSpace(extra); extra != "" {
-			extras = append(extras, extra)
-		}
-	}
-
-	return sortByKnownExtras(extras)
 }
 
 // composeStages assembles the full list of Dockerfile stages: node base + requested extras + tool.

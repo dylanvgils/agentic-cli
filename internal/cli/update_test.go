@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
@@ -293,40 +292,6 @@ func TestRunUpdate(t *testing.T) {
 		err := runUpdate(cmd, []string{})
 
 		// Assert - explicit --base java must reach every target unchanged
-		require.NoError(t, err)
-		require.Len(t, capturedOpts, 2)
-		assert.Equal(t, []string{"java"}, capturedOpts[0].BaseOverride)
-		assert.Equal(t, []string{"java"}, capturedOpts[1].BaseOverride)
-	})
-
-	t.Run("all flag with base env var applies base to all images", func(t *testing.T) {
-		// Arrange - AGENTIC_BASE_OVERRIDE is an explicit env override; it must NOT be cleared.
-		t.Chdir(t.TempDir())
-		t.Setenv(config.EnvBaseOverride, "java")
-
-		var capturedOpts []tools.BuildOptions
-		stubUpdateUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
-			capturedOpts = append(capturedOpts, opts)
-			return nil
-		})
-		stubUpdateInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
-		stubUpdateListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},
-				{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "node@24,dotnet@8"},
-			}, nil
-		})
-
-		cmd := updateCmd
-		require.NoError(t, cmd.Flags().Set("all", "true"))
-		defer cmd.Flags().Set("all", "false") //nolint:errcheck
-
-		// Act
-		err := runUpdate(cmd, []string{})
-
-		// Assert - env var override must reach every target unchanged
 		require.NoError(t, err)
 		require.Len(t, capturedOpts, 2)
 		assert.Equal(t, []string{"java"}, capturedOpts[0].BaseOverride)

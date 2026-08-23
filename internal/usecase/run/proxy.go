@@ -8,14 +8,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
-
-// proxyAllowList merges the tool's baseline allowlist with user-configured hosts.
-func proxyAllowList(toolConfig tools.ToolConfig, rc *config.AgenticRC) []string {
-	allow := append([]string{}, toolConfig.Runtime.AllowedHosts...)
-	return append(allow, rc.Run.Proxy.AllowedHosts...)
-}
 
 // proxyLogDir returns the host directory for proxy access logs, creating it
 // when the proxy is enabled and pruning any logs older than the configured

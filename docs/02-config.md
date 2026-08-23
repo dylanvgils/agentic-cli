@@ -1,21 +1,10 @@
 # Configuration
 
-Agentic is configured through four layers, applied in order of increasing specificity: `agentic.json` global file, `.agenticrc.toml` project files, environment variables, and CLI flags. List-type settings accumulate across all layers; scalar settings use the most specific value.
+Agentic is configured through two layers, applied in order of increasing specificity: `.agenticrc.toml` project files, then CLI flags. List-type settings accumulate across all layers; scalar settings use the most specific value.
 
-## Environment variables
+`AGENTIC_HOME` is the one exception - a plain environment variable, since it must be resolvable before any `.agenticrc.toml` can even be located (default `$HOME/.agentic`).
 
-Set in shell config (`.zshrc`, `.bashrc`, etc.) for a persistent default. `.agenticrc.toml` and CLI flags override these - see [Precedence](#precedence) below.
-
-| Variable                  | Description                                                                                                                                           | Default                                                  |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `AGENTIC_HOME`            | Base directory for tool config and secrets                                                                                                            | `$HOME/.agentic`                                         |
-| `AGENTIC_NAMESPACE`       | Image namespace. Images are named `<namespace>-<tool>`. Used when no `.agenticrc.toml` sets `namespace`.                                              | `agentic`                                                |
-| `AGENTIC_EXTRA_MOUNTS`    | Comma-separated extra mounts. Bind mount: `host/path:container/path`. Named volume: `name:container/path` (auto-created). Supports `$CONTAINER_HOME`. | -                                                        |
-| `AGENTIC_SECRETS`         | Comma-separated secrets to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`.     | -                                                        |
-| `AGENTIC_PIDS_LIMIT`      | Default container PID limit                                                                                                                           | `1024`                                                   |
-| `AGENTIC_CPUS`            | Default container CPU limit                                                                                                                           | `4`                                                      |
-| `AGENTIC_MEMORY`          | Default container memory limit                                                                                                                        | `4g`                                                     |
-| `AGENTIC_<LAYER>_VERSION` | Version used when building the named runtime layer (e.g. `AGENTIC_JAVA_VERSION=17`, `AGENTIC_NODE_VERSION=22`)                                        | Embedded per-layer defaults (see `agentic build --help`) |
+> Older versions supported a second, redundant configuration path via `AGENTIC_*` environment variables (`AGENTIC_NAMESPACE`, `AGENTIC_APT_PACKAGES`, `AGENTIC_BASE_OVERRIDE`, `AGENTIC_<LAYER>_VERSION`, `AGENTIC_PIDS_LIMIT`, `AGENTIC_CPUS`, `AGENTIC_MEMORY`, `AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECRETS`). These have been removed - use the equivalent CLI flag or `.agenticrc.toml` field instead (see the tables below).
 
 ## `agentic.json` (global config)
 
@@ -80,20 +69,20 @@ pids_limit = "2048"
 
 **Top-level**
 
-| Key              | Type   | Description                                                                                                            | Env var             | Default   |
-| ---------------- | ------ | ---------------------------------------------------------------------------------------------------------------------- | ------------------- | --------- |
-| `root`           | bool   | Stop the upward directory walk at this file                                                                            | -                   | -         |
-| `namespace`      | string | Image namespace. Images are named `<namespace>-<tool>` (e.g. `myproject-claude`). Allows multiple image sets per tool. | `AGENTIC_NAMESPACE` | `agentic` |
-| `docker_context` | string | Docker context to use for this project. See [`docker_context`](#docker_context) below.                                 | -                   | -         |
+| Key              | Type   | Description                                                                                                            | Default   |
+| ---------------- | ------ | ---------------------------------------------------------------------------------------------------------------------- | --------- |
+| `root`           | bool   | Stop the upward directory walk at this file                                                                            | -         |
+| `namespace`      | string | Image namespace. Images are named `<namespace>-<tool>` (e.g. `myproject-claude`). Allows multiple image sets per tool. | `agentic` |
+| `docker_context` | string | Docker context to use for this project. See [`docker_context`](#docker_context) below.                                 | -         |
 
 **`[build]` section** - applied at `agentic build` / `agentic update` time
 
-| Key               | Type           | Description                                                                                                                      | CLI flag    | Env var                   | Default |
-| ----------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ------------------------- | ------- |
-| `bases`           | list           | Extra runtime layers to add on top of the node base (e.g. `["java", "dotnet"]`). Accumulates across RC layers and with `--base`. | `--base`    | -                         | -       |
-| `apt_packages`    | list           | Extra Debian packages to install in the base image. Accumulates across RC layers and with `--apt`.                               | `--apt`     | `AGENTIC_APT_PACKAGES`    | -       |
-| `versions`        | TOML table     | Per-layer version pins. Written as `[build.versions]` with `node`, `java`, `dotnet`, or `go` keys. Innermost value wins per key. | `--<layer>` | `AGENTIC_<LAYER>_VERSION` | -       |
-| `custom_installs` | list of tables | Non-apt tools installed via arbitrary shell commands. See `[[build.custom_installs]]` below.                                     | -           | -                         | -       |
+| Key               | Type           | Description                                                                                                                      | CLI flag    | Default |
+| ----------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ------- |
+| `bases`           | list           | Extra runtime layers to add on top of the node base (e.g. `["java", "dotnet"]`). Accumulates across RC layers and with `--base`. | `--base`    | -       |
+| `apt_packages`    | list           | Extra Debian packages to install in the base image. Accumulates across RC layers and with `--apt`.                               | `--apt`     | -       |
+| `versions`        | TOML table     | Per-layer version pins. Written as `[build.versions]` with `node`, `java`, `dotnet`, or `go` keys. Innermost value wins per key. | `--<layer>` | -       |
+| `custom_installs` | list of tables | Non-apt tools installed via arbitrary shell commands. See `[[build.custom_installs]]` below.                                     | -           | -       |
 
 **`[[build.custom_installs]]`** - non-apt tools (e.g. `helm`, `golangci-lint`) installed via arbitrary shell commands, applied unconditionally at build time - not gated by a `--<name>` flag the way `bases` extras are
 
@@ -111,22 +100,22 @@ run = [
 ]
 ```
 
-Each entry becomes its own Dockerfile stage `RUN`, inserted after any `--base` extras (`dotnet`/`go`/`java`/`node`) and before the tool's own install step - so a custom install can rely on any requested extra's toolchain being on `PATH` (e.g. a `go install`-based install can assume `--base go` already ran). rc-only: no CLI flag or env var equivalent, unlike `bases`/`apt_packages`. Unlike those two, `agentic update` does not ignore `custom_installs` from rc - it always reflects the current file, since there's no per-image label recovery for it (the `agentic.custom-installs` label is informational only, shown by `agentic inspect <tool>` - it's never read back to decide what to rebuild). Editing an entry's `run` always takes effect on the next `build`/`update` via normal Docker layer-cache invalidation on the changed `RUN` command.
+Each entry becomes its own Dockerfile stage `RUN`, inserted after any `--base` extras (`dotnet`/`go`/`java`/`node`) and before the tool's own install step - so a custom install can rely on any requested extra's toolchain being on `PATH` (e.g. a `go install`-based install can assume `--base go` already ran). rc-only: no CLI flag equivalent, unlike `bases`/`apt_packages`. Unlike those two, `agentic update` does not ignore `custom_installs` from rc - it always reflects the current file, since there's no per-image label recovery for it (the `agentic.custom-installs` label is informational only, shown by `agentic inspect <tool>` - it's never read back to decide what to rebuild). Editing an entry's `run` always takes effect on the next `build`/`update` via normal Docker layer-cache invalidation on the changed `RUN` command.
 
 `custom_installs` commands run as root, in a build stage before the container's non-root tool user is created (the same ordering `apt_packages`/`bases` already use). Install into a root-owned system path such as `/usr/local/bin` or `/opt` rather than `$HOME` - files written under the tool user's home directory will end up root-owned, and containers run `--read-only` as a non-root user at runtime, so such files would be unusable.
 
 **`[run]` section** - applied at `agentic run` time
 
-| Key                | Type   | Description                                                                                                                                                                                                                                                                                                                                                               | CLI flag            | Env var                | Default |
-| ------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ---------------------- | ------- |
-| `extra_mounts`     | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`, `$PWD`                                                                                                                                                                                                | `-v`                | `AGENTIC_EXTRA_MOUNTS` | -       |
-| `read_only_mounts` | list   | Sub-paths to force read-only even when their parent mount is writable. Format: `host/path:container/path` (`:ro` is always applied - any suffix you give is ignored), or a bare `sub/path` with no `:` as shorthand for a path relative to the workspace (expands to `$PWD/sub/path:/workspace/sub/path`). Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`, `$PWD` | `--read-only-mount` | -                      | -       |
-| `secrets`          | list   | Files to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`. Supports `~`, `$HOME`, `$CONTAINER_HOME` (container path only)                                                                                                                                                                            | `-s`                | `AGENTIC_SECRETS`      | -       |
-| `env`              | list   | Environment variables to set in the container. Format: `KEY=VALUE`, or bare `KEY` to forward the host's current value. Cannot target a reserved name (see [env](#env) below)                                                                                                                                                                                              | `-e`                | -                      | -       |
-| `pids_limit`       | string | Container PID limit (e.g. `"1024"`)                                                                                                                                                                                                                                                                                                                                       | `--pids-limit`      | `AGENTIC_PIDS_LIMIT`   | `1024`  |
-| `cpus`             | string | Container CPU limit (e.g. `"4"`)                                                                                                                                                                                                                                                                                                                                          | `--cpus`            | `AGENTIC_CPUS`         | `4`     |
-| `memory`           | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                                                                                                                                                                                                      | `--memory`          | `AGENTIC_MEMORY`       | `4g`    |
-| `check_updates`    | bool   | Periodically check upstream for a newer tool version during `agentic run` (at most once every 6 hours per tool) and offer to update. A pointer internally so an inner config can explicitly disable a check enabled by an outer one.                                                                                                                                      | -                   | -                      | `true`  |
+| Key                | Type   | Description                                                                                                                                                                                                                                                                                                                                                               | CLI flag            | Default |
+| ------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ------- |
+| `extra_mounts`     | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`, `$PWD`                                                                                                                                                                                                | `-v`                | -       |
+| `read_only_mounts` | list   | Sub-paths to force read-only even when their parent mount is writable. Format: `host/path:container/path` (`:ro` is always applied - any suffix you give is ignored), or a bare `sub/path` with no `:` as shorthand for a path relative to the workspace (expands to `$PWD/sub/path:/workspace/sub/path`). Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`, `$PWD` | `--read-only-mount` | -       |
+| `secrets`          | list   | Files to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`. Supports `~`, `$HOME`, `$CONTAINER_HOME` (container path only)                                                                                                                                                                            | `-s`                | -       |
+| `env`              | list   | Environment variables to set in the container. Format: `KEY=VALUE`, or bare `KEY` to forward the host's current value. Cannot target a reserved name (see [env](#env) below)                                                                                                                                                                                              | `-e`                | -       |
+| `pids_limit`       | string | Container PID limit (e.g. `"1024"`)                                                                                                                                                                                                                                                                                                                                       | `--pids-limit`      | `1024`  |
+| `cpus`             | string | Container CPU limit (e.g. `"4"`)                                                                                                                                                                                                                                                                                                                                          | `--cpus`            | `4`     |
+| `memory`           | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                                                                                                                                                                                                      | `--memory`          | `4g`    |
+| `check_updates`    | bool   | Periodically check upstream for a newer tool version during `agentic run` (at most once every 6 hours per tool) and offer to update. A pointer internally so an inner config can explicitly disable a check enabled by an outer one.                                                                                                                                      | -                   | `true`  |
 
 **`[run.instructions]` section** - environment instructions written into each tool's global instructions file (see [Environment instructions](../README.md#-environment-instructions))
 
@@ -272,13 +261,27 @@ The effective configuration is `apt_packages = ["make", "gcc"]` and `cpus = "8"`
 
 ## Precedence
 
+Scalar settings (`namespace`, `cpus`, `memory`, `pids_limit`, `versions`, `docker_context`) resolve down this chain, stopping at the first source that sets a value:
+
+```mermaid
+flowchart TD
+    A["CLI flag<br/>(--cpus, --namespace, --java, ...)"] -->|set| Z[Effective value]
+    A -->|not set| B[".agenticrc.toml<br/>innermost file wins"]
+    B -->|set| Z
+    B -->|not set| C["agentic.json<br/>(docker_context only)"]
+    C -->|set| Z
+    C -->|not set| D[Built-in default]
+    D --> Z
+```
+
+List settings (`bases`, `apt_packages`, `extra_mounts`, `read_only_mounts`, `secrets`, `env`, `marketplaces`) don't follow this chain - every source contributes and the values accumulate, as described under [Merge semantics](#merge-semantics) above. The per-key sections below cover the exact accumulation order for each.
+
 ### `apt_packages`
 
-Packages accumulate across all three sources in this order:
+Packages accumulate across both sources:
 
 1. `.agenticrc.toml` files (outermost first)
-2. `AGENTIC_APT_PACKAGES` environment variable (comma-separated)
-3. `--apt` flag
+2. `--apt` flag
 
 Duplicates are removed while preserving order. The resolved list is verified with `apt-cache show` before the build starts (fail-fast).
 
@@ -289,19 +292,17 @@ Extra runtime layers accumulate across RC files and the `--base` flag:
 1. `.agenticrc.toml` files (outermost first)
 2. `--base` flag (appended, deduplicated)
 
-`AGENTIC_BASE_OVERRIDE` is a full override - when set it replaces all RC and flag values.
-
 ### `versions`
 
 Per-layer version resolution (highest to lowest priority):
 
-1. `--<layer>` flag (e.g. `--java 17`) or `AGENTIC_<LAYER>_VERSION` env var
+1. `--<layer>` flag (e.g. `--java 17`)
 2. `.agenticrc.toml` `[build.versions]` - innermost value wins per key
 3. Built-in default (from the bundled `versions.json`)
 
 ### `extra_mounts` and `secrets`
 
-These accumulate too; their env vars (`AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECRETS`) and RC values are collected independently and combined at runtime.
+These accumulate too: the `-v`/`-s` flag values and RC values are collected independently and combined at runtime.
 
 ### `read_only_mounts`
 
@@ -321,7 +322,7 @@ is equivalent to:
 read_only_mounts = ["$PWD/.git:/workspace/.git", "$PWD/.credentials:/workspace/.credentials"]
 ```
 
-`--read-only-mount` sets the same thing per invocation and accumulates with the config list (`--read-only-mount` values first, then `read_only_mounts` - no env var for this one, unlike `extra_mounts`/`secrets`).
+`--read-only-mount` sets the same thing per invocation and accumulates with the config list (`--read-only-mount` values first, then `read_only_mounts`).
 
 ### `env`
 
@@ -337,8 +338,7 @@ Resolution priority (highest to lowest):
 
 1. `--namespace` flag
 2. `.agenticrc.toml` `namespace` - innermost (child) value wins
-3. `AGENTIC_NAMESPACE` environment variable
-4. Built-in default (`agentic`)
+3. Built-in default (`agentic`)
 
 With the default namespace, images are named `agentic-claude`, `agentic-copilot`, etc.
 
@@ -382,8 +382,7 @@ Resolution priority (highest to lowest):
 
 1. CLI flag (`--pids-limit`, `--cpus`, `--memory`) on `agentic run`
 2. `.agenticrc.toml` - innermost (child) value wins
-3. Environment variable (`AGENTIC_PIDS_LIMIT`, `AGENTIC_CPUS`, `AGENTIC_MEMORY`)
-4. Built-in default (`1024`, `4`, `4g`)
+3. Built-in default (`1024`, `4`, `4g`)
 
 ## Using `root = true`
 
@@ -414,7 +413,7 @@ Running `agentic` from `~/projects/my-project` merges both files and stops; `~/p
 
 ## Mount variable expansion
 
-These placeholders expand in mount strings (`extra_mounts`, `read_only_mounts`, `AGENTIC_EXTRA_MOUNTS`, `-v`, `--read-only-mount`) at runtime, so paths aren't hardcoded per machine or per tool:
+These placeholders expand in mount strings (`extra_mounts`, `read_only_mounts`, `-v`, `--read-only-mount`) at runtime, so paths aren't hardcoded per machine or per tool:
 
 | Placeholder         | Side of `:`       | Expands to                                                                  |
 | ------------------- | ----------------- | --------------------------------------------------------------------------- |
@@ -431,13 +430,13 @@ These placeholders expand in mount strings (`extra_mounts`, `read_only_mounts`, 
 Use single quotes (or escape the `$`) so the shell doesn't expand the variables before passing them to `agentic`:
 
 ```bash
-agentic -v '$TOOL_HOME/custom:$CONTAINER_HOME/.custom' claude
-export AGENTIC_EXTRA_MOUNTS='~/.m2:$CONTAINER_HOME/.m2,~/.gradle:$CONTAINER_HOME/.gradle'
+agentic run -v '$TOOL_HOME/custom:$CONTAINER_HOME/.custom' claude
+agentic run -v '~/.m2:$CONTAINER_HOME/.m2' -v '~/.gradle:$CONTAINER_HOME/.gradle' claude
 ```
 
 ## Inspecting the merged config
 
-Run `agentic config` to see the merged result of all active `.agenticrc.toml` files and environment variables for the current directory:
+Run `agentic config` to see the merged result of all active `.agenticrc.toml` files for the current directory:
 
 ```
 agentic config

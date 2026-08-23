@@ -14,6 +14,10 @@ import (
 
 const rcFilename = ".agenticrc.toml"
 
+// DefaultNamespace is the image namespace used when neither a flag nor
+// .agenticrc.toml sets one.
+const DefaultNamespace = "agentic"
+
 // validRCEntryName matches safe path-segment/identifier characters, used for
 // both marketplace and custom-install names.
 var validRCEntryName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
@@ -112,13 +116,6 @@ func FindAndLoadFromCwd() (*AgenticRC, error) {
 	}
 
 	return FindAndLoad(cwd)
-}
-
-// AptPackages returns the merged apt packages from rc and the AGENTIC_APT_PACKAGES
-// env var, RC values first, env var last.
-func AptPackages(rc *AgenticRC) []string {
-	envPkgs := SplitEnvValues(os.Getenv(EnvAptPackages))
-	return append(rc.Build.AptPackages, envPkgs...)
 }
 
 // MarketplacesFor returns the marketplace entries applicable to tool.
