@@ -138,8 +138,7 @@ func toolNames(args []string) []string {
 	return tools.Names()
 }
 
-// exactFlagValue returns a pointer to name's flag value when it was explicitly
-// passed, or nil otherwise, so resolve can distinguish "not set" from "set empty".
+// exactFlagValue returns name's flag value if explicitly passed, or nil otherwise, so resolve can distinguish "not set" from "set empty".
 func exactFlagValue(cmd *cobra.Command, name string) *[]string {
 	if !cmd.Flags().Changed(name) {
 		return nil

@@ -59,11 +59,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		tool = args[0]
 	}
 
-	// For update, RC config bases/apt must not prevent per-image label recovery.
-	// Only an explicit --base/--base-exact (or --apt/--apt-exact) flag should
-	// override what the image was built with. -exact sets opts.BaseExact/AptExact
-	// (via resolve.BuildOptions), which makes the recovery layer skip entirely,
-	// even for an explicit empty list.
+	// RC config bases/apt must not prevent per-image label recovery; only an explicit --base/--base-exact or --apt/--apt-exact flag overrides what the image was built with.
 	if !cmd.Flags().Changed("base") && !cmd.Flags().Changed("base-exact") {
 		opts.BaseOverride = nil
 	}

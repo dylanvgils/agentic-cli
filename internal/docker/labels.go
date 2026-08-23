@@ -124,12 +124,7 @@ func RecoverApt(aptLabel string) []string {
 	return pkgs
 }
 
-// RecoveredBaseOverride returns opts.BaseOverride, recovering it from info's
-// agentic.base label when opts didn't already request an explicit override and
-// isn't in exact mode (opts.BaseExact) - which always wins, even for an empty
-// list. This is the single source of truth for base-extra recovery, used both
-// by the actual build (UpdateTool) and by callers previewing the resolved
-// build options (e.g. `agentic update`'s reporting and --dry-run).
+// RecoveredBaseOverride returns opts.BaseOverride, recovering it from info's agentic.base label unless opts.BaseExact or an override is already set.
 func RecoveredBaseOverride(info *ImageInfo, opts tools.BuildOptions) []string {
 	if !opts.BaseExact && len(opts.BaseOverride) == 0 && info.Base != "" {
 		return RecoverExtras(info.Base)
@@ -137,13 +132,7 @@ func RecoveredBaseOverride(info *ImageInfo, opts tools.BuildOptions) []string {
 	return opts.BaseOverride
 }
 
-// RecoveredAptPackages returns opts.AptPackages merged with any packages
-// recovered from info's agentic.apt label, unless opts is in exact mode
-// (opts.AptExact), which always wins. recovered reports the packages actually
-// pulled from the label - nil when recovery was skipped - so callers can tell
-// "nothing recovered" apart from "recovered, but every package was already in
-// opts.AptPackages". Like RecoveredBaseOverride, this is the single source of
-// truth for apt-package recovery.
+// RecoveredAptPackages merges opts.AptPackages with packages recovered from info's agentic.apt label, unless opts.AptExact; recovered is nil when recovery was skipped.
 func RecoveredAptPackages(info *ImageInfo, opts tools.BuildOptions) (merged, recovered []string) {
 	if opts.AptExact || info.Apt == "" {
 		return opts.AptPackages, nil
