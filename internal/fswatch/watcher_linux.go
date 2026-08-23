@@ -7,8 +7,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -113,30 +111,10 @@ func (w *Watcher) Stop() {
 // addTree adds a watch for root and, if it is a directory, every
 // non-excluded subdirectory beneath it.
 func (w *Watcher) addTree(root string) {
-	info, err := os.Lstat(root)
-	if err != nil {
-		w.logger.LogDetail(fmt.Sprintf("skip %s: %v", root, err))
-		return
-	}
-
-	if !info.IsDir() {
-		w.addWatch(root)
-		return
-	}
-
-	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			w.logger.LogDetail(fmt.Sprintf("skip %s: %v", path, err))
-			return nil
+	walkTree(root, w.exclude, w.logger, func(path string, isDir bool) {
+		if isDir {
+			w.addWatch(path)
 		}
-		if !d.IsDir() {
-			return nil
-		}
-		if path != root && isExcludedDir(d.Name(), w.exclude) {
-			return filepath.SkipDir
-		}
-		w.addWatch(path)
-		return nil
 	})
 }
 

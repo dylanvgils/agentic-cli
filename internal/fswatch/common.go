@@ -1,6 +1,9 @@
 package fswatch
 
 import (
+	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -52,4 +55,33 @@ func isCoveredByAny(root string, roots []string) bool {
 		}
 	}
 	return false
+}
+
+// walkTree calls visit for root and, if it's a directory, every non-excluded entry beneath it.
+func walkTree(root string, exclude []string, logger *Logger, visit func(path string, isDir bool)) {
+	info, err := os.Lstat(root)
+	if err != nil {
+		logger.LogDetail(fmt.Sprintf("skip %s: %v", root, err))
+		return
+	}
+	if !info.IsDir() {
+		visit(root, false)
+		return
+	}
+
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			logger.LogDetail(fmt.Sprintf("skip %s: %v", path, err))
+			return nil
+		}
+		if d.IsDir() {
+			if path != root && isExcludedDir(d.Name(), exclude) {
+				return filepath.SkipDir
+			}
+			visit(path, true)
+			return nil
+		}
+		visit(path, false)
+		return nil
+	})
 }

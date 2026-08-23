@@ -103,32 +103,7 @@ func (w *Watcher) Stop() {
 // addTree adds a watch for root and, if it is a directory, every
 // non-excluded file and subdirectory beneath it.
 func (w *Watcher) addTree(root string) {
-	info, err := os.Lstat(root)
-	if err != nil {
-		w.logger.LogDetail(fmt.Sprintf("skip %s: %v", root, err))
-		return
-	}
-
-	if !info.IsDir() {
-		w.addWatch(root, false)
-		return
-	}
-
-	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			w.logger.LogDetail(fmt.Sprintf("skip %s: %v", path, err))
-			return nil
-		}
-		if d.IsDir() {
-			if path != root && isExcludedDir(d.Name(), w.exclude) {
-				return filepath.SkipDir
-			}
-			w.addWatch(path, true)
-			return nil
-		}
-		w.addWatch(path, false)
-		return nil
-	})
+	walkTree(root, w.exclude, w.logger, w.addWatch)
 }
 
 func (w *Watcher) addWatch(path string, isDir bool) {
