@@ -1,6 +1,7 @@
 package selfupdate
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -98,14 +100,20 @@ func Test_downloadRelease(t *testing.T) {
 	checksumsURL := fmt.Sprintf("%s/v1.5.0/checksums.txt", srv.URL)
 	tmpDir := t.TempDir()
 
+	var buf bytes.Buffer
+	origDefault := logging.Log
+	logging.Log = logging.New(&buf)
+	t.Cleanup(func() { logging.Log = origDefault })
+
 	// Act
 	path, err := downloadRelease(http.DefaultClient, archiveURL, archiveName, checksumsURL, ext, tmpDir)
+	require.NoError(t, err)
 
 	// Assert
-	require.NoError(t, err)
 	got, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, binaryContent, got)
+	assert.Contains(t, buf.String(), "verifying checksum...")
 }
 
 func Test_installBinary(t *testing.T) {

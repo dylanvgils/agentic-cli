@@ -4,7 +4,7 @@ package clean
 
 import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/output"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
@@ -37,7 +37,7 @@ func Resolve(scope Scope) ([]Target, error) {
 // Apply removes each target's image, reporting progress.
 func Apply(targets []Target) error {
 	for _, t := range targets {
-		output.Step(t.Label)
+		logging.Step(t.Label)
 		if err := CleanImage(t.Image); err != nil {
 			return err
 		}
@@ -50,7 +50,7 @@ func Apply(targets []Target) error {
 // resources: base images, the proxy image, other proxy resources, and the
 // agentic-net network.
 func GlobalResources() error {
-	output.Step("base")
+	logging.Step("base")
 	if err := CleanBaseImages(); err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func GlobalResources() error {
 		return err
 	}
 
-	output.Step("network")
+	logging.Step("network")
 	return RemoveNetwork()
 }
 
@@ -70,7 +70,7 @@ func GlobalResources() error {
 // one-liner in internal/cli/proxy.go (shared there by `agentic proxy
 // clean`) since this package can't depend on internal/cli.
 func cleanProxyImage() error {
-	output.Step(tools.ProxyImage)
+	logging.Step(tools.ProxyImage)
 	return CleanImage(tools.ProxyImage)
 }
 

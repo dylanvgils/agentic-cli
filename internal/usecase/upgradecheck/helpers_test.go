@@ -3,6 +3,8 @@ package upgradecheck
 import (
 	"bytes"
 	"testing"
+
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
 
 func stubLatestVersion(t *testing.T, v string, err error) {
@@ -39,13 +41,13 @@ func stubIsTerminal(t *testing.T, terminal bool) {
 	t.Cleanup(func() { IsTerminal = orig })
 }
 
-// stubStderrCapture redirects Stderr to a buffer for the duration of the test.
+// stubStderrCapture redirects Log to a buffer for the duration of the test.
 func stubStderrCapture(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	var buf bytes.Buffer
-	orig := Stderr
-	Stderr = &buf
-	t.Cleanup(func() { Stderr = orig })
+	orig := Log
+	Log = logging.New(&buf)
+	t.Cleanup(func() { Log = orig })
 	return &buf
 }
 

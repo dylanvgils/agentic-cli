@@ -10,7 +10,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/output"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
@@ -84,7 +84,7 @@ func resolveScoped(names []string, hasArgs bool, namespace string, opts tools.Bu
 		}
 
 		if skipUnbuilt && info == nil {
-			output.Stepf("%s (skipped - not built)", image)
+			logging.Stepf("%s (skipped - not built)", image)
 			continue
 		}
 
@@ -131,7 +131,7 @@ func DryRun(tool, namespace string, opts tools.BuildOptions) error {
 		}
 	}
 
-	output.Step(tool)
+	logging.Step(tool)
 	content, err := tools.GenerateDockerfile(tool, opts)
 	if err != nil {
 		return err
@@ -164,16 +164,16 @@ func ApplyRecovered(tool, image string, rc *config.AgenticRC) error {
 
 // Apply rebuilds image for tool, reporting base/apt/version before the build starts.
 func Apply(name, image string, opts tools.BuildOptions) error {
-	output.Step(image)
+	logging.Step(image)
 	if len(opts.BaseOverride) > 0 {
-		output.Detailf("base: %s", strings.Join(opts.BaseOverride, ", "))
+		logging.Detailf("base: %s", strings.Join(opts.BaseOverride, ", "))
 	} else if opts.BaseExact {
-		output.Detail("base: (none, exact)")
+		logging.Detail("base: (none, exact)")
 	}
 	if len(opts.AptPackages) > 0 {
-		output.Detailf("apt: %s", strings.Join(opts.AptPackages, ", "))
+		logging.Detailf("apt: %s", strings.Join(opts.AptPackages, ", "))
 	} else if opts.AptExact {
-		output.Detail("apt: (none, exact)")
+		logging.Detail("apt: (none, exact)")
 	}
 
 	reportBeforeUpdate(name, image)
@@ -208,13 +208,13 @@ func reportVersionChange(before, after string) {
 	}
 
 	if before == "" {
-		output.Detailf("version: %s", after)
+		logging.Detailf("version: %s", after)
 		return
 	}
 
 	if before != after {
-		output.Detailf("version: %s -> %s", before, after)
+		logging.Detailf("version: %s -> %s", before, after)
 	} else {
-		output.Detailf("version: %s (up to date)", after)
+		logging.Detailf("version: %s (up to date)", after)
 	}
 }

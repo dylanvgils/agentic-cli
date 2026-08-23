@@ -6,7 +6,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/output"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/spf13/cobra"
@@ -71,7 +71,7 @@ func runProxyBuildOrUpdate(cmd *cobra.Command, noCache bool) error {
 	opts := tools.BuildOptions{NoCache: noCache, Registry: collectRegistry(cmd)}
 
 	if dryRun, _ := cmd.Flags().GetBool("dry-run"); dryRun {
-		output.Step(tools.ProxyImage)
+		logging.Step(tools.ProxyImage)
 		content := tools.GenerateProxyDockerfile(buildinfo.Version, opts.Registry)
 		_, err := fmt.Println(content)
 		return err
@@ -91,7 +91,7 @@ func runProxyClean(cmd *cobra.Command, _ []string) error {
 	}
 
 	if logs, _ := cmd.Flags().GetBool("logs"); logs {
-		output.Step("proxy logs")
+		logging.Step("proxy logs")
 		pruneProxyLogs(filepath.Join(toolHome, "proxy"), 0)
 	}
 
@@ -101,7 +101,7 @@ func runProxyClean(cmd *cobra.Command, _ []string) error {
 // cleanProxyImage removes the proxy image. Shared by `agentic proxy clean`
 // and the no-arg `agentic clean`'s global resource sweep.
 func cleanProxyImage() error {
-	output.Step(tools.ProxyImage)
+	logging.Step(tools.ProxyImage)
 	return cleanImage(tools.ProxyImage)
 }
 
@@ -132,6 +132,6 @@ func ensureProxyImage(cmd *cobra.Command) error {
 // buildProxyImageNow builds the proxy image unconditionally - the caller
 // decides whether to check for an existing image first.
 func buildProxyImageNow(opts tools.BuildOptions) error {
-	output.Step(tools.ProxyImage)
+	logging.Step(tools.ProxyImage)
 	return buildProxyImage(tools.ProxyImage, buildinfo.Version, buildinfo.DevSourceDir(tools.ProxyModulePath), opts)
 }

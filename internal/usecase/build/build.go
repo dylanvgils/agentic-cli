@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/output"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
@@ -18,7 +18,7 @@ var BuildTool = docker.BuildTool
 // DryRun prints the generated Dockerfile for each tool in names instead of building it.
 func DryRun(names []string, opts tools.BuildOptions) error {
 	for _, name := range names {
-		output.Step(name)
+		logging.Step(name)
 		content, err := tools.GenerateDockerfile(name, opts)
 		if err != nil {
 			return err
@@ -39,16 +39,16 @@ func Apply(names []string, namespace string, opts tools.BuildOptions) error {
 			return err
 		}
 
-		output.Step(image)
+		logging.Step(image)
 		if len(opts.BaseOverride) > 0 {
-			output.Detailf("base: %s", strings.Join(opts.BaseOverride, ", "))
+			logging.Detailf("base: %s", strings.Join(opts.BaseOverride, ", "))
 		} else if opts.BaseExact {
-			output.Detail("base: (none, exact)")
+			logging.Detail("base: (none, exact)")
 		}
 		if len(opts.AptPackages) > 0 {
-			output.Detailf("apt: %s", strings.Join(opts.AptPackages, ", "))
+			logging.Detailf("apt: %s", strings.Join(opts.AptPackages, ", "))
 		} else if opts.AptExact {
-			output.Detail("apt: (none, exact)")
+			logging.Detail("apt: (none, exact)")
 		}
 
 		if err := BuildTool(name, image, opts); err != nil {

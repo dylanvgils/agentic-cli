@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/cleanup"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
 
 const (
@@ -99,6 +100,7 @@ func downloadRelease(client *http.Client, archiveURL, archiveName, checksumsURL,
 		return "", fmt.Errorf("downloading checksums: %w", err)
 	}
 
+	logging.Detail("verifying checksum...")
 	if err := verifyChecksum(archivePath, archiveName, checksumsPath); err != nil {
 		return "", err
 	}
