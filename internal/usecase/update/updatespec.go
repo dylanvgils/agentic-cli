@@ -167,8 +167,7 @@ func ApplyRecovered(tool, image string, rc *config.AgenticRC) error {
 	return Apply(tool, image, opts)
 }
 
-// Apply rebuilds image for tool with opts, reporting the base/apt overrides
-// in effect and the version change once the build completes.
+// Apply rebuilds image for tool, reporting base/apt/version before the build starts.
 func Apply(name, image string, opts tools.BuildOptions) error {
 	output.Step(image)
 	if len(opts.BaseOverride) > 0 {
@@ -178,25 +177,32 @@ func Apply(name, image string, opts tools.BuildOptions) error {
 		output.Detailf("apt: %s", strings.Join(opts.AptPackages, ", "))
 	}
 
-	before := imageVersion(image)
+	reportBeforeUpdate(name, image)
 
-	if err := UpdateTool(name, image, opts); err != nil {
-		return err
-	}
-
-	after := imageVersion(image)
-	reportVersionChange(before, after)
-	return nil
+	return UpdateTool(name, image, opts)
 }
 
-func imageVersion(image string) string {
+// reportBeforeUpdate prints the predicted version line, skipping unbuilt or inconclusive cases.
+func reportBeforeUpdate(name, image string) {
 	info, err := InspectImage(image)
 	if err != nil || info == nil {
-		return ""
+		return
 	}
-	return docker.ParseVersion(info.Version)
+
+	before := docker.ParseVersion(info.Version)
+	latest, newer, ok := LatestToolVersion(name, info.Version)
+	if !ok {
+		return
+	}
+
+	if newer {
+		reportVersionChange(before, latest)
+	} else {
+		reportVersionChange(before, before)
+	}
 }
 
+// reportVersionChange prints "version: X -> Y" or "version: X (up to date)".
 func reportVersionChange(before, after string) {
 	if after == "" {
 		return

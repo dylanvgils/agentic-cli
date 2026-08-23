@@ -23,4 +23,9 @@ func TestDefaultDeps(t *testing.T) {
 		// Assert
 		assert.Equal(t, reflect.ValueOf(docker.UpdateTool).Pointer(), reflect.ValueOf(UpdateTool).Pointer())
 	})
+
+	t.Run("LatestToolVersion defaults to docker.LatestToolVersion", func(t *testing.T) {
+		// Assert
+		assert.Equal(t, reflect.ValueOf(docker.LatestToolVersion).Pointer(), reflect.ValueOf(LatestToolVersion).Pointer())
+	})
 }
