@@ -16,18 +16,8 @@ if [ "$EVENT_NAME" = "schedule" ] || { [ "$EVENT_NAME" = "workflow_dispatch" ] &
   NEXT=$("$SCRIPT_DIR/next-tag.sh" "$LAST")
 
   if [ -z "$NEXT" ]; then
-    if [ "$EVENT_NAME" = "schedule" ]; then
-      echo "nothing to release since $LAST" >&2
-      echo "skip=true"
-      exit 0
-    fi
-    # Nothing new since $LAST: either it's already fully released (goreleaser
-    # will error "already exists"), or the previous run failed partway
-    # through publishing it. Either way, $LAST is what needs releasing.
-    echo "no new commits since $LAST, releasing it again" >&2
-    echo "release_tag=$LAST"
-    echo "create=false"
-    echo "skip=false"
+    echo "nothing to release since $LAST" >&2
+    echo "skip=true"
     exit 0
   fi
 
@@ -42,13 +32,25 @@ if ! echo "$TAG_INPUT" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
   exit 1
 fi
 
+if [ "$TAG_INPUT" = "$LAST" ]; then
+  # Re-releasing the current latest tag: either it's already fully released
+  # (goreleaser will error "already exists"), or a previous run failed
+  # partway through publishing it. Either way, this is an explicit request
+  # to redo it.
+  echo "re-releasing current latest tag $TAG_INPUT" >&2
+  echo "release_tag=$TAG_INPUT"
+  echo "create=false"
+  echo "skip=false"
+  exit 0
+fi
+
 if git rev-parse "$TAG_INPUT" >/dev/null 2>&1; then
   echo "tag $TAG_INPUT already exists" >&2
   exit 1
 fi
 
 NEWEST=$(printf '%s\n%s\n' "$LAST" "$TAG_INPUT" | sort -V | tail -n1)
-if [ "$NEWEST" != "$TAG_INPUT" ] || [ "$TAG_INPUT" = "$LAST" ]; then
+if [ "$NEWEST" != "$TAG_INPUT" ]; then
   echo "tag $TAG_INPUT is not newer than the current latest tag $LAST" >&2
   exit 1
 fi

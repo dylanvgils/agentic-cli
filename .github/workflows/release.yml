@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Version to release. Empty auto-computes the next version (or re-releases latest if nothing's new), or specify one explicitly (e.g. v1.2.3)."
+        description: "Version to release (e.g. v1.2.3). Empty auto-computes the next version, or skips if there's nothing new."
         required: false
         type: string
 
