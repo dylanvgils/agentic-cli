@@ -47,18 +47,18 @@ Both backends use the same trick to get out of a blocking syscall: instead of cl
 sequenceDiagram
     participant Caller
     participant Stop
-    participant Loop as event loop goroutine
+    participant EventLoop as event loop goroutine
     participant OS as OS watch handle
 
     Caller->>Stop: Stop()
     alt Linux
-        Stop->>Loop: write byte to stop pipe
-        Note over Loop: unix.Poll wakes on stopR
+        Stop->>EventLoop: write byte to stop pipe
+        Note over EventLoop: unix.Poll wakes on stopR
     else macOS
-        Stop->>Loop: EVFILT_USER wakeup event
-        Note over Loop: unix.Kevent wakes on wakeupIdent
+        Stop->>EventLoop: EVFILT_USER wakeup event
+        Note over EventLoop: unix.Kevent wakes on wakeupIdent
     end
-    Loop-->>Stop: close(done)
+    EventLoop-->>Stop: close(done)
     Stop->>Stop: wait on done (2s bound)
     Stop->>OS: close all watch fds
 ```
