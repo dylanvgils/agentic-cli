@@ -1,4 +1,4 @@
-package settings
+package resolve
 
 import "github.com/dylanvgils/agentic-cli/internal/config"
 

@@ -15,8 +15,8 @@ import (
 )
 
 // Test_resolveProxyMode only needs to confirm each flag is read off cmd and
-// wired into the right settings.ProxyInput field - the actual precedence
-// matrix is covered by TestProxyMode in internal/usecase/settings.
+// wired into the right resolve.ProxyInput field - the actual precedence
+// matrix is covered by TestProxyMode in internal/usecase/resolve.
 func Test_resolveProxyMode(t *testing.T) {
 	t.Run("no flags reads rc value", func(t *testing.T) {
 		// Arrange

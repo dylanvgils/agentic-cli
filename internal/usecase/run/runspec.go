@@ -1,6 +1,6 @@
 // Package run builds the docker.RunSpec for `agentic run`, syncing
 // configured marketplaces and assembling the already-resolved volumes,
-// secrets, env vars, and resource limits from internal/usecase/settings.
+// secrets, env vars, and resource limits from internal/usecase/resolve.
 package run
 
 import (
@@ -14,7 +14,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/settings"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
 // Target identifies the tool and image a RunSpec is being built for.
@@ -52,16 +52,16 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		return docker.RunSpec{}, err
 	}
 
-	volumes := settings.Volumes(toolConfig.Runtime.Mounts(), in.Volumes, rc)
+	volumes := resolve.Volumes(toolConfig.Runtime.Mounts(), in.Volumes, rc)
 	volumes = append(volumes, marketplaceMounts...)
 	if in.InstructionsMount != "" {
 		volumes = append(volumes, in.InstructionsMount)
 	}
 	// Must stay last: Docker lets the last --volume flag for a path win.
-	volumes = append(volumes, readOnlyMountSpecs(settings.ReadOnlyMounts(in.ReadOnlyMounts, rc))...)
-	secrets := settings.Secrets(in.Secrets, rc)
-	env := settings.Env(in.Env, rc)
-	limits := settings.ResourceLimitsFor(in.PidsLimit, in.CPUs, in.Memory, rc)
+	volumes = append(volumes, readOnlyMountSpecs(resolve.ReadOnlyMounts(in.ReadOnlyMounts, rc))...)
+	secrets := resolve.Secrets(in.Secrets, rc)
+	env := resolve.Env(in.Env, rc)
+	limits := resolve.ResourceLimitsFor(in.PidsLimit, in.CPUs, in.Memory, rc)
 
 	if err := validateEnv(env, in.ProxyEnabled); err != nil {
 		return docker.RunSpec{}, err
@@ -102,7 +102,7 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		WithCPUs(limits.CPUs).
 		WithMemory(limits.Memory).
 		WithDryRun(in.DryRun).
-		WithProxy(in.ProxyEnabled, tools.ProxyImage, settings.ProxyAllowList(toolConfig.Runtime.AllowedHosts, rc), logDir, in.ProxyMonitor).
+		WithProxy(in.ProxyEnabled, tools.ProxyImage, resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, rc), logDir, in.ProxyMonitor).
 		Build()
 
 	return rs, nil

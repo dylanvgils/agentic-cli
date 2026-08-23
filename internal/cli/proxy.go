@@ -8,7 +8,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/settings"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/spf13/cobra"
 )
 
@@ -111,7 +111,7 @@ func resolveProxyMode(cmd *cobra.Command, rc *config.AgenticRC) (enabled, monito
 	monitorFlag, _ := cmd.Flags().GetBool("proxy-monitor")
 	proxyFlag, _ := cmd.Flags().GetBool("proxy")
 
-	return settings.ProxyMode(settings.ProxyInput{NoProxy: noProxy, MonitorFlag: monitorFlag, ProxyFlag: proxyFlag}, rc)
+	return resolve.ProxyMode(resolve.ProxyInput{NoProxy: noProxy, MonitorFlag: monitorFlag, ProxyFlag: proxyFlag}, rc)
 }
 
 // ensureProxyImage builds the proxy image if it is not already present or if

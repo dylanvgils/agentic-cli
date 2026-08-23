@@ -141,10 +141,10 @@ func newBuildCmd(t *testing.T) *cobra.Command {
 
 // TestCollectBases, TestCollectVersions, and TestCollectAptPackages only need
 // to confirm the flag value is read and passed through - the merge/precedence
-// behavior itself is covered by internal/usecase/settings, which these
+// behavior itself is covered by internal/usecase/resolve, which these
 // delegate to.
 func TestCollectBases(t *testing.T) {
-	t.Run("flag value is read and merged via settings.Bases", func(t *testing.T) {
+	t.Run("flag value is read and merged via resolve.Bases", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
 		cmd := newBuildCmd(t)
@@ -159,7 +159,7 @@ func TestCollectBases(t *testing.T) {
 }
 
 func TestCollectVersions(t *testing.T) {
-	t.Run("flag value is read and merged via settings.Versions", func(t *testing.T) {
+	t.Run("flag value is read and merged via resolve.Versions", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}
 		cmd := newBuildCmd(t)
@@ -174,7 +174,7 @@ func TestCollectVersions(t *testing.T) {
 }
 
 func TestCollectAptPackages(t *testing.T) {
-	t.Run("flag value is read and merged via settings.AptPackages", func(t *testing.T) {
+	t.Run("flag value is read and merged via resolve.AptPackages", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
 		cmd := newBuildCmd(t)

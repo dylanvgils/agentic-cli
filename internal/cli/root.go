@@ -9,8 +9,8 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/settings"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/upgradecheck"
 	"github.com/spf13/cobra"
 )
@@ -81,7 +81,7 @@ func resolveContext(cmd *cobra.Command) {
 	}
 
 	flagVal, _ := cmd.Flags().GetString("docker-context")
-	setContext(settings.DockerContext(flagVal, rc, toolHome))
+	setContext(resolve.DockerContext(flagVal, rc, toolHome))
 }
 
 // checkDocker verifies the Docker daemon is reachable before any subcommand
