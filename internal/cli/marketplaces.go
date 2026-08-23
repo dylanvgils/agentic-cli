@@ -7,8 +7,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
-	"github.com/dylanvgils/agentic-cli/internal/output"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/spf13/cobra"
 )
@@ -106,13 +106,13 @@ func runMarketplacesPrune(_ *cobra.Command, _ []string) error {
 	for _, a := range report {
 		switch a.Kind {
 		case marketplace.PruneNoRecord:
-			output.Stepf("%s: no usage record, skipping (run `agentic run` from a project that uses it, or remove manually)", a.DirName)
+			logging.Stepf("%s: no usage record, skipping (run `agentic run` from a project that uses it, or remove manually)", a.DirName)
 		case marketplace.PruneRemoved:
-			output.Stepf("removed: %s (no project references it)", a.Name)
+			logging.Stepf("removed: %s (no project references it)", a.Name)
 		case marketplace.PruneDropped:
-			output.Stepf("dropped: %s (no project references it; clone dir kept for other name(s))", a.Name)
+			logging.Stepf("dropped: %s (no project references it; clone dir kept for other name(s))", a.Name)
 		case marketplace.PruneKept:
-			output.Stepf("kept: %s (used by %s)", a.Name, strings.Join(a.Projects, ", "))
+			logging.Stepf("kept: %s (used by %s)", a.Name, strings.Join(a.Projects, ", "))
 		}
 	}
 

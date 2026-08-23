@@ -63,21 +63,22 @@ func fetchUpdateIfDue(home string) (string, bool) {
 // immediately; otherwise it prints a one-liner suggesting `agentic upgrade`.
 func notifyUpdate(latest string) {
 	if !IsTerminal() {
-		fmt.Fprintf(Stderr, "=> agentic update available: %s (current: %s) - run: agentic upgrade\n", latest, buildinfo.Version)
+		Notify.Stepf("agentic update available: %s (current: %s) - run: agentic upgrade", latest, buildinfo.Version)
 		return
 	}
 
-	fmt.Fprintf(Stderr, "=> agentic update available: %s (current: %s)\n   update now? [y/N] ", latest, buildinfo.Version)
+	fmt.Fprintf(Notify.Writer(), "=> agentic update available: %s (current: %s)\n   update now? [y/N] ", latest, buildinfo.Version)
 
 	scanner := bufio.NewScanner(Stdin)
 	if scanner.Scan() && strings.EqualFold(strings.TrimSpace(scanner.Text()), "y") {
-		fmt.Fprintln(Stderr, "=> updating...")
+		Notify.Step("updating...")
 
 		if err := Update(latest); err != nil {
-			fmt.Fprintf(Stderr, "=> update failed: %v\n   run: agentic upgrade\n", err)
+			Notify.Stepf("update failed: %v", err)
+			Notify.Detail("run: agentic upgrade")
 			Exit(1)
 		} else {
-			fmt.Fprintf(Stderr, "=> updated to %s\n", latest)
+			Notify.Stepf("updated to %s", latest)
 			Exit(0)
 		}
 	}

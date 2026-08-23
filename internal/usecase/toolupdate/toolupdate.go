@@ -100,12 +100,12 @@ func shouldCheck(lastChecks map[string]time.Time, tool string) bool {
 // non-TTY it just suggests `agentic update <tool>` and returns false.
 func notify(toolName, installed, latest string) bool {
 	if !IsTerminal() {
-		fmt.Fprintf(Stderr, "=> %s update available: %s (current: %s) - run: agentic update %s\n",
+		Notify.Stepf("%s update available: %s (current: %s) - run: agentic update %s",
 			toolName, latest, installed, toolName)
 		return false
 	}
 
-	fmt.Fprintf(Stderr, "=> %s update available: %s (current: %s)\n   update now? [y/N] ",
+	fmt.Fprintf(Notify.Writer(), "=> %s update available: %s (current: %s)\n   update now? [y/N] ",
 		toolName, latest, installed)
 
 	scanner := bufio.NewScanner(Stdin)

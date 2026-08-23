@@ -9,7 +9,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/output"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
@@ -61,7 +61,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 		return printAllNamespaceDetail(tool, "")
 	}
 
-	output.Stepf("%s/%s", namespace, tool)
+	logging.Stepf("%s/%s", namespace, tool)
 	return printImageDetail(tool, namespace)
 }
 
@@ -151,7 +151,7 @@ func printAllNamespaceDetail(tool, namespace string) error {
 			continue
 		}
 
-		output.Stepf("%s/%s", info.Namespace, info.Tool)
+		logging.Stepf("%s/%s", info.Namespace, info.Tool)
 		printInfoDetail(info)
 		found = true
 	}

@@ -12,7 +12,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/output"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
 
 var namespacesStdin io.Reader = os.Stdin
@@ -108,7 +108,7 @@ func pruneNamespace(namespace string) error {
 	}
 
 	for _, image := range images {
-		output.Stepf("%s/%s", image.Namespace, image.Tool)
+		logging.Stepf("%s/%s", image.Namespace, image.Tool)
 		if err := cleanImage(image.Image); err != nil {
 			return err
 		}

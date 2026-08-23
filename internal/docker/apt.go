@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/output"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
@@ -22,7 +22,7 @@ func verifyAptPackages(packages []string, registry string) error {
 		return nil
 	}
 
-	output.Step("Verifying apt packages...")
+	logging.Step("Verifying apt packages...")
 
 	debianImage := tools.DebianImageFor(registry)
 	if err := runInteractive("pull", debianImage); err != nil {

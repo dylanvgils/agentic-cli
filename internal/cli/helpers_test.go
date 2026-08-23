@@ -10,6 +10,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
@@ -20,6 +21,8 @@ import (
 )
 
 // captureStdout replaces os.Stdout with a pipe and returns what was written.
+// Use this for functions that write to os.Stdout directly; for
+// logging.Step/Detail-based output, use captureLog.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()
@@ -31,6 +34,20 @@ func captureStdout(t *testing.T, fn func()) string {
 	os.Stdout = orig
 	var buf bytes.Buffer
 	io.Copy(&buf, r) //nolint:errcheck
+	return buf.String()
+}
+
+// captureLog swaps logging.Log for the duration of fn and returns what was written.
+func captureLog(t *testing.T, fn func()) string {
+	t.Helper()
+
+	var buf bytes.Buffer
+	orig := logging.Log
+	logging.Log = logging.New(&buf)
+	t.Cleanup(func() { logging.Log = orig })
+
+	fn()
+
 	return buf.String()
 }
 
