@@ -181,11 +181,11 @@ func TestBuildImage(t *testing.T) {
 
 1. Add a new case to `extraStage()` in `internal/tools/bases.go` (follow the `nodeStage`/`javaStage`/`dotnetStage`/`goStage` pattern). The stage func receives `prevStage` and `ver` - build FROM `prevStage` and apply the version as a build arg default.
 
-2. Add the name to `knownExtras` in `internal/tools/bases.go` and add a human-readable label to `LayerFlagDesc` in the same file. The `--<name>` version flag and its `AGENTIC_<NAME>_VERSION` env var are registered automatically from these two maps.
+2. Add the name to `knownExtras` in `internal/tools/bases.go` and add a human-readable label to `LayerFlagDesc` in the same file. The `--<name>` version flag is registered automatically from these two maps.
 
 3. If the new layer needs apt packages installed in the base stage (e.g. `apt-transport-https` for Java), add them to `layerPackages` in `internal/tools/packages.go` under the layer's name. `collectPackages` merges them with the base packages and any user-supplied `--apt` packages automatically.
 
-The resolved version for each layer and the final apt package list are persisted as Docker labels (`agentic.version-args`, `agentic.apt` - see `internal/docker/labels.go`) when an image is built. `agentic update` reads these labels back (`RecoverVersionArgs`, `RecoverApt`) to reconstruct the original build flags, which is why base/extra layers stay cache-hits across an update even though `.agenticrc.toml`'s `bases`/`apt_packages` are ignored at that point - only an explicit `--base`/`--apt` flag or env var overrides the recovered value.
+The resolved version for each layer and the final apt package list are persisted as Docker labels (`agentic.version-args`, `agentic.apt` - see `internal/docker/labels.go`) when an image is built. `agentic update` reads these labels back (`RecoverVersionArgs`, `RecoverApt`) to reconstruct the original build flags, which is why base/extra layers stay cache-hits across an update even though `.agenticrc.toml`'s `bases`/`apt_packages` are ignored at that point - only an explicit `--base`/`--apt` flag overrides the recovered value.
 
 ## Building the proxy image locally
 
