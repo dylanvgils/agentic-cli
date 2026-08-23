@@ -1,5 +1,4 @@
-// Package clean resolves and removes agentic-owned tool images and global
-// Docker resources for `agentic clean`.
+// Package clean resolves and removes agentic-owned tool images and global Docker resources for `agentic clean`.
 package clean
 
 import (
@@ -16,8 +15,7 @@ type Target struct {
 
 // Scope describes which tool images Resolve should target.
 type Scope struct {
-	// Names is the tool name list to resolve in scoped mode - already
-	// expanded from CLI args to every known tool when no tool was given.
+	// Names is the tool name list to resolve in scoped mode, already expanded to every known tool when none was given.
 	Names []string
 	// FilterTool narrows an --all resolve to one tool; empty means every tool.
 	FilterTool string
@@ -25,8 +23,7 @@ type Scope struct {
 	All        bool
 }
 
-// Resolve returns the clean targets for scope: either every agentic image
-// found across all namespaces (All) or the named tools in a single namespace.
+// Resolve returns the clean targets for scope: every agentic image across all namespaces (All), or the named tools in one namespace.
 func Resolve(scope Scope) ([]Target, error) {
 	if scope.All {
 		return resolveAll(scope.FilterTool)
@@ -46,9 +43,7 @@ func Apply(targets []Target) error {
 	return nil
 }
 
-// GlobalResources removes agentic's shared, non-tool-specific Docker
-// resources: base images, the proxy image, other proxy resources, and the
-// agentic-net network.
+// GlobalResources removes agentic's shared, non-tool-specific Docker resources: base images, the proxy image/resources, and the agentic-net network.
 func GlobalResources() error {
 	logging.Step("base")
 	if err := CleanBaseImages(); err != nil {
@@ -66,9 +61,7 @@ func GlobalResources() error {
 	return RemoveNetwork()
 }
 
-// cleanProxyImage removes the proxy image. Duplicates the equivalent
-// one-liner in internal/cli/proxy.go (shared there by `agentic proxy
-// clean`) since this package can't depend on internal/cli.
+// cleanProxyImage removes the proxy image; duplicated from internal/cli/proxy.go since this package can't depend on internal/cli.
 func cleanProxyImage() error {
 	logging.Step(tools.ProxyImage)
 	return CleanImage(tools.ProxyImage)

@@ -10,8 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// findVolumeSuffix returns the one volume spec in volumes ending with suffix,
-// failing the test if none or more than one match.
+// findVolumeSuffix returns the one volume spec ending with suffix, failing the test if there isn't exactly one match.
 func findVolumeSuffix(t *testing.T, volumes []string, suffix string) string {
 	t.Helper()
 	var matches []string
@@ -24,8 +23,7 @@ func findVolumeSuffix(t *testing.T, volumes []string, suffix string) string {
 	return matches[0]
 }
 
-// appendFile appends content to the file at path, simulating a tool writing its
-// own notes below the agentic-managed block at runtime.
+// appendFile appends content to the file at path, simulating a tool writing notes below the agentic-managed block at runtime.
 func appendFile(path, content string) error {
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o640)
 	if err != nil {

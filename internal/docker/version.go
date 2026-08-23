@@ -7,8 +7,7 @@ import (
 
 var versionRe = regexp.MustCompile(`[0-9]+(\.[0-9]+)*`)
 
-// ParseVersion extracts the first semver-like token from a string.
-// Used by cmd/update to normalize version labels for comparison.
+// ParseVersion extracts the first semver-like token from a string, for normalizing version labels.
 func ParseVersion(s string) string {
 	return versionRe.FindString(s)
 }
@@ -22,9 +21,7 @@ func runVersionScript(image, script string) string {
 	return extractVersion(out)
 }
 
-// collectExtraVersions detects the installed version for each extra layer in
-// the given image. Returns a map of layer name → version string (empty string
-// when detection fails).
+// collectExtraVersions detects the installed version for each extra layer in image, keyed by layer name (empty string on detection failure).
 func collectExtraVersions(image string, extras []string) map[string]string {
 	versions := make(map[string]string)
 	for _, extra := range extras {
@@ -33,8 +30,7 @@ func collectExtraVersions(image string, extras []string) map[string]string {
 	return versions
 }
 
-// collectBaseLabel detects all extra-layer versions from the image and assembles
-// the agentic.base label value.
+// collectBaseLabel detects all extra-layer versions from the image and assembles the agentic.base label value.
 func collectBaseLabel(image string, extras []string) string {
 	extraVersions := collectExtraVersions(image, extras)
 	return buildBaseLabel(extras, extraVersions)

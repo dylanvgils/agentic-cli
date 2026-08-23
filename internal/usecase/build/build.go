@@ -1,5 +1,4 @@
-// Package build builds tool images for `agentic build`, printing generated
-// Dockerfiles instead of building them in dry-run mode.
+// Package build builds tool images for `agentic build`, printing generated Dockerfiles instead in dry-run mode.
 package build
 
 import (
@@ -11,8 +10,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
-// BuildTool indirects the docker call this package makes, so callers can
-// fake it in tests - mirrors the seam convention in internal/cli/root.go.
+// BuildTool indirects the docker call so callers can fake it in tests (seam convention, see internal/cli/root.go).
 var BuildTool = docker.BuildTool
 
 // DryRun prints the generated Dockerfile for each tool in names instead of building it.
@@ -30,8 +28,7 @@ func DryRun(names []string, opts tools.BuildOptions) error {
 	return nil
 }
 
-// Apply builds each tool image in names under namespace, reporting the
-// base/apt overrides in effect for each.
+// Apply builds each tool image in names under namespace, reporting the base/apt overrides in effect for each.
 func Apply(names []string, namespace string, opts tools.BuildOptions) error {
 	for _, name := range names {
 		image, err := tools.ImageName(name, namespace)

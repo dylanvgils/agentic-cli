@@ -9,9 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/selfupdate"
 )
 
-// LatestVersion, Update, IsTerminal, Stdin, and Log indirect the calls
-// Check makes, so callers can fake them in tests - mirrors the seam
-// convention in internal/cli/deps.go.
+// Indirects the calls Check makes, so callers can fake them in tests (seam convention, see internal/cli/deps.go).
 var (
 	LatestVersion func() (string, error) = selfupdate.LatestVersion
 	Update        func(string) error     = selfupdate.Update

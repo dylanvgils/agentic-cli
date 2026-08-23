@@ -165,10 +165,7 @@ func newBuildCmd(t *testing.T) *cobra.Command {
 	return cmd
 }
 
-// TestCollectBases, TestCollectVersions, and TestCollectAptPackages only need
-// to confirm the flag value is read and passed through - the merge/precedence
-// behavior itself is covered by internal/usecase/resolve, which these
-// delegate to.
+// TestCollectBases, TestCollectVersions, and TestCollectAptPackages only confirm the flag value is read and passed through; merge/precedence is covered by internal/usecase/resolve.
 func TestCollectBases(t *testing.T) {
 	t.Run("flag value is read and merged via resolve.Bases", func(t *testing.T) {
 		// Arrange

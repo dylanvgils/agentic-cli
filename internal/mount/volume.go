@@ -11,8 +11,7 @@ import (
 // WorkspaceContainerPath is the fixed in-container path the workspace directory is mounted at.
 const WorkspaceContainerPath = "/workspace"
 
-// validVolumeName matches Docker's named volume naming rules: 2+ chars, starting
-// with alphanumeric or underscore, followed by alphanumeric, underscore, dot, or dash.
+// validVolumeName matches Docker's named volume naming rules (2+ chars: alphanumeric/underscore, then alphanumeric/underscore/dot/dash).
 var validVolumeName = regexp.MustCompile(`^[a-zA-Z0-9_][a-zA-Z0-9_.\-]+$`)
 
 // VolumeOptions configures a volume mount.
@@ -30,16 +29,13 @@ func VolumeMount(host, container string, opts ...VolumeOptions) string {
 	return s
 }
 
-// ExpandMountSpec expands variables in a volume mount spec (host:container[:opts]),
-// applying host-side variables to the host part and container-side variables to the
-// container part.
+// ExpandMountSpec expands variables in a volume mount spec (host:container[:opts]), host-side vars on the host part and container-side on the rest.
 func ExpandMountSpec(spec, toolHome, containerHome string) string {
 	host, rest := splitMountHost(spec)
 	return expandHostVars(host, toolHome) + expandContainerVars(rest, containerHome)
 }
 
-// ExpandTmpfsSpec expands $CONTAINER_HOME in a tmpfs mount spec.
-// The spec format is container_path[:options].
+// ExpandTmpfsSpec expands $CONTAINER_HOME in a tmpfs mount spec (container_path[:options]).
 func ExpandTmpfsSpec(spec, containerHome string) string {
 	idx := strings.Index(spec, ":")
 	if idx == -1 {
@@ -48,15 +44,13 @@ func ExpandTmpfsSpec(spec, containerHome string) string {
 	return expandContainerVars(spec[:idx], containerHome) + spec[idx:]
 }
 
-// HostPart returns the host-side path of a mount spec, correctly handling
-// Windows drive letters (e.g. "C:\path:/container" → "C:\path").
+// HostPart returns the host-side path of a mount spec, correctly handling Windows drive letters (e.g. "C:\path:/container" → "C:\path").
 func HostPart(spec string) string {
 	host, _ := splitMountHost(spec)
 	return host
 }
 
-// SplitHostContainer splits spec into host and container parts. ok is false
-// when spec has no ':' separator (container is then "").
+// SplitHostContainer splits spec into host and container parts; ok is false when spec has no ':' separator.
 func SplitHostContainer(spec string) (host, container string, ok bool) {
 	host, rest := splitMountHost(spec)
 	if rest == "" {
@@ -65,15 +59,12 @@ func SplitHostContainer(spec string) (host, container string, ok bool) {
 	return host, rest[1:], true
 }
 
-// IsNamedVolume reports whether the host side of a mount spec is a Docker named
-// volume (as opposed to an absolute path or Windows drive-letter bind mount).
+// IsNamedVolume reports whether the host side of a mount spec is a Docker named volume, as opposed to a bind mount.
 func IsNamedVolume(spec string) bool {
 	return validVolumeName.MatchString(HostPart(spec))
 }
 
-// NormalizeMountSpec normalizes the host-side path of a mount spec to use
-// OS-native path separators. The container-side path is always left unchanged
-// since Docker containers always run Linux.
+// NormalizeMountSpec normalizes the host-side path of a mount spec to OS-native separators; the container side is always Linux and left unchanged.
 func NormalizeMountSpec(spec string) string {
 	host, rest := splitMountHost(spec)
 	return filepath.Clean(host) + rest
@@ -104,8 +95,7 @@ func expandContainerVars(spec, containerHome string) string {
 	return spec
 }
 
-// splitMountHost splits a mount spec into the host path and the remainder
-// (":container[:opts]"), correctly handling Windows drive letters (e.g. "C:\path").
+// splitMountHost splits a mount spec into the host path and remainder (":container[:opts]"), handling Windows drive letters (e.g. "C:\path").
 func splitMountHost(spec string) (host, rest string) {
 	start := 0
 	if len(spec) >= 2 && spec[1] == ':' && isASCIILetter(spec[0]) {

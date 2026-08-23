@@ -11,46 +11,35 @@ import (
 const (
 	// -- Identity: which image this is --
 
-	// LabelNamespace records the namespace the image belongs to, recovered from
-	// the image name at stamp time. Used to filter images by namespace.
+	// LabelNamespace records the namespace an image belongs to, recovered from the image name at stamp time.
 	LabelNamespace = "agentic.namespace"
 
 	// LabelTool records the name of the tool baked into the image (e.g. "claude").
-	// Used to filter images by tool.
 	LabelTool = "agentic.tool"
 
 	// -- Build provenance: what went into the image and how to rebuild it --
 
-	// LabelCLIVersion records the agentic CLI version (buildinfo.Version) that
-	// built the image.
+	// LabelCLIVersion records the agentic CLI version (buildinfo.Version) that built the image.
 	LabelCLIVersion = "agentic.version"
 
-	// LabelBase records the observed extra-layer versions actually detected inside
-	// the built image (see collectBaseLabel). This is what `agentic inspect` shows
-	// the user - "what is this image?".
+	// LabelBase records the extra-layer versions actually detected inside the built image
+	// (see collectBaseLabel) - what `agentic inspect` shows as "what is this image?".
 	LabelBase = "agentic.base"
 
-	// LabelVersionArgs records the requested base composition: the exact ARG
-	// defaults used to generate the Dockerfile (see buildVersionArgsLabel), which
-	// may differ from the detected versions in LabelBase (e.g. requested "17" vs
-	// detected "21.0.1"). `agentic update` replays these verbatim (see
-	// RecoverVersionArgs) so the base/extra stages stay cache-hits across rebuilds -
-	// "how do I rebuild this image identically?".
+	// LabelVersionArgs records the requested ARG defaults used to generate the Dockerfile (see
+	// buildVersionArgsLabel), which `agentic update` replays via RecoverVersionArgs to keep
+	// base/extra stages cache-hits across rebuilds - "how do I rebuild this identically?".
 	LabelVersionArgs = "agentic.version-args"
 
-	// LabelApt records the comma-separated list of apt packages installed in the
-	// image (recovered verbatim by RecoverApt so `agentic update` can merge in any
-	// newly requested packages without dropping previously installed ones).
+	// LabelApt records the comma-separated apt packages installed, recovered verbatim by
+	// RecoverApt so `agentic update` can merge in new packages without dropping old ones.
 	LabelApt = "agentic.apt"
 
-	// LabelCustomInstalls records the comma-separated list of custom_installs
-	// names baked into the image, purely for `agentic inspect` display -
-	// unlike LabelApt there is no Recover* for it, since custom_installs always
-	// reads fresh from the current .agenticrc.toml on every build.
+	// LabelCustomInstalls records the comma-separated custom_installs names, for `agentic
+	// inspect` display only - always read fresh from .agenticrc.toml on build, unlike LabelApt.
 	LabelCustomInstalls = "agentic.custom-installs"
 
-	// LabelToolVersion records the detected version of the tool itself, read from
-	// the image by running its version script (see runVersionScript).
+	// LabelToolVersion records the detected tool version, read via its version script (see runVersionScript).
 	LabelToolVersion = "agentic.tool.version"
 
 	// -- Timestamps --
@@ -58,29 +47,23 @@ const (
 	// LabelBuilt records the UTC timestamp at which the image was built.
 	LabelBuilt = "agentic.built"
 
-	// LabelPulled records the UTC timestamp at which `docker build --pull` was
-	// last actually run for this image, so `agentic update` can throttle how
-	// often it automatically re-checks the registry for fresher base images.
+	// LabelPulled records when `docker build --pull` last ran, so `agentic update` can throttle automatic re-pulls.
 	LabelPulled = "agentic.pulled"
 
 	// -- Cache --
 
-	// LabelCacheBust records the CACHEBUST build-arg baked into the tool stage,
-	// reused verbatim on cache-hit rebuilds so Docker resolves the same layer.
+	// LabelCacheBust records the CACHEBUST build-arg baked into the tool stage, reused verbatim on cache-hit rebuilds.
 	LabelCacheBust = "agentic.cachebust"
 
 	// -- Project marker --
 
-	// LabelProject marks every docker resource (image, container, volume) created
-	// by agentic, paired with LabelProjectVal. Used to scope cleanup and listing
-	// to agentic-managed resources only.
+	// LabelProject marks every docker resource agentic created, paired with LabelProjectVal, to scope cleanup and listing.
 	LabelProject = "project"
 
 	LabelProjectVal = "agentic-cli"
 )
 
-// RecoverExtras parses an agentic.base label and returns the extra layer names as a slice.
-// e.g. "node@24.2.0,java@21.0.1" → ["node", "java"]
+// RecoverExtras parses an agentic.base label into extra layer names, e.g. "node@24.2.0,java@21.0.1" -> ["node", "java"].
 func RecoverExtras(baseLabel string) []string {
 	var extras []string
 
@@ -95,11 +78,8 @@ func RecoverExtras(baseLabel string) []string {
 	return extras
 }
 
-// RecoverVersionArgs parses an agentic.version-args label into a layer name → version map,
-// suitable for merging into BuildOptions.Versions so `agentic update` regenerates
-// the same ARG defaults the image was originally built with (and so its base/extra
-// stages stay cache-hits - only the tool stage gets busted).
-// e.g. "node@24,java@17" → {"node": "24", "java": "17"}
+// RecoverVersionArgs parses an agentic.version-args label into a layer name -> version map
+// (e.g. "node@24,java@17" -> {"node": "24", "java": "17"}) for merging into BuildOptions.Versions.
 func RecoverVersionArgs(versionArgsLabel string) map[string]string {
 	versions := make(map[string]string)
 
@@ -141,19 +121,13 @@ func RecoveredAptPackages(info *ImageInfo, opts tools.BuildOptions) (merged, rec
 	return tools.MergePackages(recovered, opts.AptPackages), recovered
 }
 
-// PullIsFresh reports whether pulledLabel (an agentic.pulled label value)
-// shows a pull within interval, so `agentic update` can skip a redundant
-// automatic --pull. An empty or unparseable label is treated as not fresh, so
-// the caller falls back to pulling.
+// PullIsFresh reports whether pulledLabel shows a pull within interval; empty or unparseable is treated as not fresh.
 func PullIsFresh(pulledLabel string, interval time.Duration) bool {
 	t, ok := parseLabelTime(pulledLabel)
 	return ok && time.Since(t) < interval
 }
 
-// NewCacheBust returns a value that changes between `agentic update` invocations
-// but can be reused across every target built within a single invocation, so
-// Docker can still serve cached tool-stage layers when the same tool is rebuilt
-// for multiple namespaces in one run.
+// NewCacheBust returns a value that changes between `agentic update` invocations but is shared across targets within one, so Docker can still cache-hit the same tool rebuilt across namespaces.
 func NewCacheBust() string {
 	return time.Now().UTC().Format(time.RFC3339Nano)
 }
@@ -163,8 +137,7 @@ func label(key, value string) string {
 	return arg("label", key+"="+value)
 }
 
-// buildBaseLabel constructs the agentic.base label value from the extra layers
-// and their detected versions.
+// buildBaseLabel constructs the agentic.base label value from the extra layers and their detected versions.
 func buildBaseLabel(extras []string, extraVersions map[string]string) string {
 	var parts []string
 	for _, extra := range extras {
@@ -177,10 +150,8 @@ func buildBaseLabel(extras []string, extraVersions map[string]string) string {
 	return strings.Join(parts, ",")
 }
 
-// buildVersionArgsLabel constructs the agentic.version-args label value from the resolved
-// version for each layer - the explicit override if one was given, otherwise the
-// embedded default - so the exact ARG default baked into the Dockerfile is recorded
-// and can be replayed verbatim by `agentic update` (see RecoverVersionArgs).
+// buildVersionArgsLabel constructs the agentic.version-args label from each layer's resolved
+// version (override or embedded default), so `agentic update` can replay it via RecoverVersionArgs.
 func buildVersionArgsLabel(layers []string, overrides map[string]string) string {
 	var parts []string
 
@@ -197,8 +168,7 @@ func buildVersionArgsLabel(layers []string, overrides map[string]string) string 
 	return strings.Join(parts, ",")
 }
 
-// formatLabelTime formats t as the UTC timestamp string used by agentic's
-// timestamp-valued labels (agentic.built, agentic.pulled).
+// formatLabelTime formats t as the UTC timestamp string used by agentic's timestamp-valued labels.
 func formatLabelTime(t time.Time) string {
 	return t.UTC().Format("2006-01-02T15:04:05Z")
 }
@@ -251,7 +221,6 @@ func stampLabels(image string, info ImageInfo) {
 }
 
 // stampImageLabels detects base and tool versions from the built image and stamps them via stampLabels.
-// cacheBust becomes LabelCacheBust, so a later pull-only rebuild can reuse it verbatim.
 func stampImageLabels(image, tool string, extras []string, aptPkgs []string, versions map[string]string, customInstalls []string, cacheBust string) {
 	layers := append([]string{tools.BaseLayer}, extras...)
 

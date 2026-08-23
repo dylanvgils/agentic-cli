@@ -17,17 +17,14 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 )
 
-// proxyHostAlias is the proxy's stable network alias, registered alongside
-// its randomized container name so tools that need a literal host:port
-// (rather than reading HTTP_PROXY/HTTPS_PROXY) can hardcode it. Network
-// aliases are scoped per-network, so reusing it across concurrent runs is safe.
+// proxyHostAlias is the proxy's stable network alias, registered alongside its randomized
+// container name so tools needing a literal host:port can hardcode it; safe to reuse across concurrent runs since aliases are scoped per-network.
 const proxyHostAlias = "agentic-proxy"
 
 // proxyLogMountDir is where the host log directory is mounted inside the proxy.
 const proxyLogMountDir = "/var/log/agentic-proxy"
 
-// proxyHandle identifies the per-run proxy network, sidecar container, and the
-// host-side access log for one run.
+// proxyHandle identifies the per-run proxy network, sidecar container, and host-side access log.
 type proxyHandle struct {
 	id        string
 	network   string
@@ -37,8 +34,7 @@ type proxyHandle struct {
 	monitor   bool
 }
 
-// newProxyHandle derives the per-run proxy resource names without creating any
-// docker resources, so it is also safe to use for dry runs.
+// newProxyHandle derives the per-run proxy resource names without creating any docker resources, so it is safe for dry runs.
 func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 	id, err := randID()
 	if err != nil {
@@ -56,13 +52,9 @@ func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 	}, nil
 }
 
-// proxyEnvArgs returns the --env flags that point the tool container at the
-// proxy. It uses the static proxyHostAlias rather than any per-run handle
-// field, so the injected URL is identical on every run, even though the
-// sidecar's actual container name is randomized per run for Docker's
-// host-wide --name uniqueness requirement. NO_PROXY excludes loopback only;
-// it is not a security boundary, since the internal network already blocks
-// every route except the proxy.
+// proxyEnvArgs returns the --env flags pointing the tool at the proxy, keyed on the static
+// proxyHostAlias so the URL is stable despite the container name being randomized per run.
+// NO_PROXY excludes loopback only - not a security boundary; the internal network blocks every other route.
 func proxyEnvArgs() []string {
 	url := "http://" + proxyHostAlias + ":" + proxy.Port
 	noProxy := "localhost,127.0.0.1"
@@ -76,18 +68,14 @@ func proxyEnvArgs() []string {
 	}
 }
 
-// Stop removes the proxy sidecar and its internal network. It is idempotent and
-// ignores errors so it is safe to defer.
+// Stop removes the proxy sidecar and its internal network; idempotent and error-ignoring, so it is safe to defer.
 func (h proxyHandle) Stop() {
 	_, _ = dockerRun("rm", "-f", h.container)
 	_, _ = dockerRun("network", "rm", h.network)
 }
 
-// PrintSummary reports what the proxy observed during the run. In normal mode
-// it reports the hosts actually blocked, so a user whose tool failed to
-// connect knows what to allowlist. In monitor mode nothing was blocked, so it
-// instead reports the hosts that would have been blocked under the current
-// allowlist - the actionable gap before switching to enforcement.
+// PrintSummary reports hosts actually blocked in normal mode, or hosts that would have been
+// blocked under the current allowlist in monitor mode, since nothing is blocked there.
 func (h proxyHandle) PrintSummary(w io.Writer) {
 	hosts, denied := h.hostsByDecision(proxy.DecisionDeny)
 	if denied == 0 {
@@ -104,9 +92,7 @@ func (h proxyHandle) PrintSummary(w io.Writer) {
 	fmt.Fprintln(w, "add them to [run.proxy] allowed_hosts (or pass --no-proxy) to permit.")
 }
 
-// hostsByDecision reads the access log and returns the unique hosts logged
-// with decision (in first-seen order) and the total number of matching
-// requests.
+// hostsByDecision reads the access log and returns the unique hosts logged with decision (first-seen order) and the matching total.
 func (h proxyHandle) hostsByDecision(decision proxy.Decision) (hosts []string, total int) {
 	f, err := os.Open(h.logPath)
 	if err != nil {
@@ -139,10 +125,7 @@ func (h proxyHandle) hostsByDecision(decision proxy.Decision) (hosts []string, t
 	return hosts, total
 }
 
-// totalRequests reads the access log and returns the total number of
-// connection attempts logged, regardless of decision. Used by PrintSummary's
-// monitor-mode message, where every attempt is allowed through and only the
-// would-be-denied subset is otherwise reported.
+// totalRequests reads the access log and returns the total connection attempts logged, regardless of decision.
 func (h proxyHandle) totalRequests() int {
 	f, err := os.Open(h.logPath)
 	if err != nil {
@@ -164,9 +147,8 @@ func (h proxyHandle) totalRequests() int {
 	return total
 }
 
-// startProxy provisions the per-run internal network and proxy sidecar, wiring
-// the sidecar to the egress network so it can reach allowed hosts. On any
-// failure it cleans up whatever it created.
+// startProxy provisions the per-run internal network and proxy sidecar, wiring the sidecar to
+// the egress network; cleans up whatever it created on any failure.
 func startProxy(rs RunSpec) (proxyHandle, error) {
 	h, err := newProxyHandle(rs)
 	if err != nil {
@@ -201,9 +183,8 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 	return h, nil
 }
 
-// runArgs builds the `docker run` arguments for the hardened proxy sidecar.
-// Registers proxyHostAlias on the per-run network alongside the randomized
-// container name, so tool config can reference a stable hostname.
+// runArgs builds the `docker run` arguments for the hardened proxy sidecar, registering
+// proxyHostAlias on the per-run network so tool config can reference a stable hostname.
 func (h proxyHandle) runArgs(rs RunSpec) []string {
 	containerLog := proxyLogMountDir + "/" + h.id + ".jsonl"
 	_, tzOffset := time.Now().Zone()
@@ -226,9 +207,8 @@ func (h proxyHandle) runArgs(rs RunSpec) []string {
 	}
 }
 
-// SweepProxyResources removes any leftover per-run proxy containers and internal
-// networks (e.g. from an interrupted run). It is idempotent and scoped to
-// agentic-managed resources whose name contains proxyHostAlias.
+// SweepProxyResources idempotently removes leftover per-run proxy containers and internal
+// networks (e.g. from an interrupted run), scoped to agentic-managed resources named with proxyHostAlias.
 func SweepProxyResources() error {
 	listContainerArgs := []string{
 		"ps", arg("all"), arg("quiet"),

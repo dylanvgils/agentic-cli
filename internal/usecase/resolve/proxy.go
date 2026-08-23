@@ -9,11 +9,7 @@ type ProxyInput struct {
 	ProxyFlag   bool
 }
 
-// ProxyMode determines whether the egress proxy is on for this run, and if
-// so, whether it enforces the allowlist or only monitors it. Flags win over
-// config; an explicit "off" (--no-proxy, or enabled = false) always beats
-// mode, since mode only matters once the proxy is otherwise on. Monitor mode
-// (flag or config) implies the proxy is enabled.
+// ProxyMode resolves whether the proxy is enabled and enforcing vs. monitoring. Flags win over config; --no-proxy/enabled=false always wins; monitor implies enabled.
 func ProxyMode(in ProxyInput, rc *config.AgenticRC) (enabled, monitor bool) {
 	if in.NoProxy {
 		return false, false

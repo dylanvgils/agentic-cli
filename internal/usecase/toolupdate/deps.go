@@ -9,9 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
-// LatestToolVersion, InspectImage, IsTerminal, Stdin, and Log indirect the
-// calls Check makes, so callers can fake them in tests - mirrors the seam
-// convention in internal/cli/deps.go.
+// Indirects the calls Check makes, so callers can fake them in tests (seam convention, see internal/cli/deps.go).
 var (
 	LatestToolVersion func(tool, installedLabel string) (string, bool, bool) = docker.LatestToolVersion
 	InspectImage      func(image string) (*docker.ImageInfo, error)          = docker.InspectImage

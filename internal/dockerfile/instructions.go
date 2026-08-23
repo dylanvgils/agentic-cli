@@ -49,8 +49,7 @@ type Entrypoint struct {
 	Cmd []string
 }
 
-// Copy is a COPY directive. When From is set it copies from an earlier build
-// stage (COPY --from=<stage>).
+// Copy is a COPY directive; a non-empty From copies from an earlier build stage (COPY --from=<stage>).
 type Copy struct {
 	From string
 	Src  string

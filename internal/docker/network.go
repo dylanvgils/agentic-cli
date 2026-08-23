@@ -23,8 +23,7 @@ func EnsureNetwork() error {
 	return err
 }
 
-// RemoveNetwork removes agentic-net if it exists and is agentic-managed.
-// Returns nil if the network does not exist.
+// RemoveNetwork removes agentic-net if it exists and is agentic-managed; returns nil if it does not exist.
 func RemoveNetwork() error {
 	inspectArgs := []string{
 		"network", "inspect",

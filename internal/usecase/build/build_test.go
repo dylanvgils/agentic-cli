@@ -13,9 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// captureStdout replaces os.Stdout with a pipe and returns what was written.
-// Use this for functions that write to os.Stdout directly (e.g. DryRun's
-// Dockerfile output); for logging.Step/Detail-based output, use captureLog.
+// captureStdout replaces os.Stdout with a pipe and returns what was written (e.g. DryRun's Dockerfile output); for logging.Step/Detail output, use captureLog.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()

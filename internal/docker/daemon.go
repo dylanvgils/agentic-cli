@@ -5,8 +5,7 @@ import "errors"
 // ErrDaemonNotRunning is returned when the Docker daemon is not reachable.
 var ErrDaemonNotRunning = errors.New("docker is not running. Start Docker and try again")
 
-// CheckDaemon verifies the Docker daemon is reachable by running `docker info`.
-// Returns ErrDaemonNotRunning if the daemon is not reachable.
+// CheckDaemon returns ErrDaemonNotRunning if `docker info` shows the daemon is unreachable.
 func CheckDaemon() error {
 	if _, err := dockerRun("info"); err != nil {
 		return ErrDaemonNotRunning

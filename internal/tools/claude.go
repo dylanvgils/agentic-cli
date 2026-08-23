@@ -11,17 +11,13 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
-// claudeLatestVersionURL mirrors the version check performed by claude.ai/install.sh
-// before it picks a binary to download - install.sh always resolves this URL
-// regardless of any stable/latest/version target, so checking it here matches
-// exactly what the install step below actually fetches.
+// claudeLatestVersionURL is the URL claude.ai/install.sh resolves before picking a binary, matching what the install step below fetches.
 const claudeLatestVersionURL = "https://downloads.claude.ai/claude-code-releases/latest"
 
 // claudeInstructionsContainerPath is the container-side mount target for a per-run instructions snapshot.
 const claudeInstructionsContainerPath = "$CONTAINER_HOME/.claude/CLAUDE.md"
 
-// claudeAllowedHosts is the baseline egress allowlist for Claude Code. Package
-// registries or other hosts are added by the user via allowed_hosts.
+// claudeAllowedHosts is the baseline egress allowlist for Claude Code; users add more via allowed_hosts.
 var claudeAllowedHosts = []string{
 	".anthropic.com", // Claude API and telemetry subdomains (e.g. api.anthropic.com, statsig.anthropic.com)
 	".claude.ai",     // installer and asset downloads (e.g. downloads.claude.ai)

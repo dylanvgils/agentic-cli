@@ -32,9 +32,7 @@ func (l *Logger) Detailf(format string, args ...any) {
 	fmt.Fprintf(l.w, "   "+format+"\n", args...)
 }
 
-// Writer returns the underlying destination, for callers that need to write
-// a message shape Logger's methods don't cover (e.g. a prompt with no
-// trailing newline).
+// Writer returns the underlying destination, for a message shape Logger's methods don't cover (e.g. a prompt with no trailing newline).
 func (l *Logger) Writer() io.Writer {
 	return l.w
 }
