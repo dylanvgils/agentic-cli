@@ -173,9 +173,9 @@ func Test_notify(t *testing.T) {
 		stubIsTerminal(t, false)
 
 		var errBuf bytes.Buffer
-		orig := Log
-		Log = logging.New(&errBuf)
-		t.Cleanup(func() { Log = orig })
+		orig := Notify
+		Notify = logging.New(&errBuf)
+		t.Cleanup(func() { Notify = orig })
 
 		// Act
 		confirmed := notify("claude", "1.2.3", "1.3.0")
@@ -194,9 +194,9 @@ func Test_notify(t *testing.T) {
 		stubIsTerminal(t, true)
 		stubStdin(t, "y\n")
 
-		origNotify := Log
-		Log = logging.New(io.Discard)
-		t.Cleanup(func() { Log = origNotify })
+		origNotify := Notify
+		Notify = logging.New(io.Discard)
+		t.Cleanup(func() { Notify = origNotify })
 
 		// Act
 		confirmed := notify("claude", "1.2.3", "1.3.0")
@@ -210,9 +210,9 @@ func Test_notify(t *testing.T) {
 		stubIsTerminal(t, true)
 		stubStdin(t, "n\n")
 
-		origNotify := Log
-		Log = logging.New(io.Discard)
-		t.Cleanup(func() { Log = origNotify })
+		origNotify := Notify
+		Notify = logging.New(io.Discard)
+		t.Cleanup(func() { Notify = origNotify })
 
 		// Act
 		confirmed := notify("claude", "1.2.3", "1.3.0")

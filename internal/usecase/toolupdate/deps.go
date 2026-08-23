@@ -15,5 +15,7 @@ var (
 	InspectImage      func(image string) (*docker.ImageInfo, error)          = docker.InspectImage
 	IsTerminal        func() bool                                            = platform.IsTerminal
 	Stdin             io.Reader                                              = os.Stdin
-	Log                                                                      = logging.New(os.Stderr)
+
+	// Notify is a separate stderr-writing Logger for update prompts, distinct from the shared stdout logging.Log used for build/run progress.
+	Notify = logging.New(os.Stderr)
 )

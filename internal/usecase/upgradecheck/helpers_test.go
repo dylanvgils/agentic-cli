@@ -41,13 +41,13 @@ func stubIsTerminal(t *testing.T, terminal bool) {
 	t.Cleanup(func() { IsTerminal = orig })
 }
 
-// stubStderrCapture redirects Log to a buffer for the duration of the test.
+// stubStderrCapture redirects Notify to a buffer for the duration of the test.
 func stubStderrCapture(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	var buf bytes.Buffer
-	orig := Log
-	Log = logging.New(&buf)
-	t.Cleanup(func() { Log = orig })
+	orig := Notify
+	Notify = logging.New(&buf)
+	t.Cleanup(func() { Notify = orig })
 	return &buf
 }
 
