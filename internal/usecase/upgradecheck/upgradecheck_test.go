@@ -201,9 +201,9 @@ func Test_notifyUpdate(t *testing.T) {
 		Stdin = strings.NewReader("n\n")
 		t.Cleanup(func() { Stdin = origStdin })
 
-		origNotify := Log
-		Log = logging.New(io.Discard)
-		t.Cleanup(func() { Log = origNotify })
+		origNotify := Notify
+		Notify = logging.New(io.Discard)
+		t.Cleanup(func() { Notify = origNotify })
 
 		// Act
 		notifyUpdate("v1.1.0")
