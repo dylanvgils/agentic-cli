@@ -108,7 +108,7 @@ func nodeStage(prevStage, ver string) df.Stage {
 	}
 
 	nvmArg := df.Arg{Key: "NVM_VERSION", Default: DefaultVersions.Nvm}
-	nvmChecksumArg := df.Arg{Key: "NVM_CHECKSUM", Default: DefaultVersions.NvmChecksum}
+	nvmChecksumArg := df.Arg{Key: "NVM_CHECKSUM", Default: DefaultChecksums.Nvm}
 
 	return df.NewStage(df.From{Image: prevStage, As: "node"}).
 		Add(versionArg).
