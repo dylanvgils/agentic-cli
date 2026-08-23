@@ -264,45 +264,18 @@ func TestCollectVersions(t *testing.T) {
 }
 
 func TestBuildOptsFromFlags(t *testing.T) {
-	t.Run("multiple base flags are joined", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		cmd := &cobra.Command{Use: "test"}
-		addBuildFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("base", "java"))
-		require.NoError(t, cmd.Flags().Set("base", "dotnet"))
+	// Arrange
+	rc := &config.AgenticRC{}
+	cmd := &cobra.Command{Use: "test"}
+	addBuildFlags(cmd)
+	require.NoError(t, cmd.Flags().Set("base", "java"))
+	require.NoError(t, cmd.Flags().Set("base", "dotnet"))
 
-		// Act
-		opts := buildOptsFromFlags(cmd, rc)
-
-		// Assert
-		assert.Equal(t, []string{"dotnet", "java"}, opts.BaseOverride)
-	})
-
-	t.Run("base env var overrides rc and flag", func(t *testing.T) {
-		// Arrange
-		t.Setenv(config.EnvBaseOverride, "dotnet")
-		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
-		cmd := &cobra.Command{Use: "test"}
-		addBuildFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("base", "go"))
-
-		// Act
-		opts := buildOptsFromFlags(cmd, rc)
-
-		// Assert
-		assert.Equal(t, []string{"dotnet"}, opts.BaseOverride)
-	})
-}
-
-func TestExtrasEnvDoc(t *testing.T) {
 	// Act
-	result := extrasEnvDoc()
+	opts := buildOptsFromFlags(cmd, rc)
 
 	// Assert
-	for _, name := range tools.KnownLayers() {
-		assert.Contains(t, result, config.EnvVersionVar(name), "env doc missing var for layer %q", name)
-	}
+	assert.Equal(t, []string{"dotnet", "java"}, opts.BaseOverride)
 }
 
 func TestToolNames(t *testing.T) {

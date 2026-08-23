@@ -199,14 +199,6 @@ func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 
 func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) []string {
 	volumes := append([]string{}, toolMounts...)
-
-	if env := os.Getenv("AGENTIC_EXTRA_MOUNTS"); env != "" {
-		for m := range strings.SplitSeq(env, ",") {
-			if m != "" {
-				volumes = append(volumes, m)
-			}
-		}
-	}
 	volumes = append(volumes, extra...)
 	volumes = append(volumes, rc.Run.ExtraMounts...)
 
@@ -249,13 +241,6 @@ func splitReadOnlyMountSpec(spec string) (host, container string) {
 func collectSecrets(flags []string, rc *config.AgenticRC) []string {
 	var secrets []string
 
-	if env := os.Getenv("AGENTIC_SECRETS"); env != "" {
-		for s := range strings.SplitSeq(env, ",") {
-			if s != "" {
-				secrets = append(secrets, s)
-			}
-		}
-	}
 	secrets = append(secrets, flags...)
 	secrets = append(secrets, rc.Run.Secrets...)
 
@@ -282,7 +267,7 @@ func validateEnv(entries []string, proxyEnabled bool) error {
 	return nil
 }
 
-// resolveResourceLimits resolves each limit through flag, then rc, then env var, then hardcoded default.
+// resolveResourceLimits resolves each limit through flag, then rc, then hardcoded default.
 func resolveResourceLimits(pidsLimit, cpus, memory string, rc *config.AgenticRC) resourceLimits {
 	run := rc.Run
 	if pidsLimit == "" {
@@ -296,19 +281,16 @@ func resolveResourceLimits(pidsLimit, cpus, memory string, rc *config.AgenticRC)
 	}
 
 	return resourceLimits{
-		pidsLimit: resolveLimit(pidsLimit, config.EnvPidsLimit, docker.DefaultPidsLimit),
-		cpus:      resolveLimit(cpus, config.EnvCPUs, docker.DefaultCPUs),
-		memory:    resolveLimit(memory, config.EnvMemory, docker.DefaultMemory),
+		pidsLimit: resolveLimit(pidsLimit, docker.DefaultPidsLimit),
+		cpus:      resolveLimit(cpus, docker.DefaultCPUs),
+		memory:    resolveLimit(memory, docker.DefaultMemory),
 	}
 }
 
-// resolveLimit returns val if non-empty, then the env var, then fallback.
-func resolveLimit(val, envKey, fallback string) string {
+// resolveLimit returns val if non-empty, otherwise fallback.
+func resolveLimit(val, fallback string) string {
 	if val != "" {
 		return val
-	}
-	if env := os.Getenv(envKey); env != "" {
-		return env
 	}
 	return fallback
 }

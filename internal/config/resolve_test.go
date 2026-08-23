@@ -10,19 +10,18 @@ import (
 )
 
 func Test_resolveNamespace(t *testing.T) {
-	t.Run("rc value wins over env", func(t *testing.T) {
+	t.Run("flag takes priority over rc", func(t *testing.T) {
 		// Arrange
-		t.Setenv(EnvNamespace, "fromenv")
 		rc := &AgenticRC{Namespace: "fromrc"}
 
 		// Act
-		result := ResolveNamespace("", rc)
+		result := ResolveNamespace("fromflag", rc)
 
 		// Assert
-		assert.Equal(t, "fromrc", result)
+		assert.Equal(t, "fromflag", result)
 	})
 
-	t.Run("rc value used when flag and env absent", func(t *testing.T) {
+	t.Run("rc value used when flag absent", func(t *testing.T) {
 		// Arrange
 		rc := &AgenticRC{Namespace: "fromrc"}
 
@@ -39,35 +38,6 @@ func Test_resolveNamespace(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, DefaultNamespace, result)
-	})
-}
-
-func Test_flagOrEnv(t *testing.T) {
-	t.Run("flag takes priority", func(t *testing.T) {
-		// Arrange
-		t.Setenv("AGENTIC_NODE_VERSION", "fromenv")
-
-		// Act
-		result := FlagOrEnv("fromflag", "AGENTIC_NODE_VERSION")
-
-		// Assert
-		assert.Equal(t, "fromflag", result)
-	})
-
-	t.Run("falls back to env when flag empty", func(t *testing.T) {
-		// Arrange
-		t.Setenv("AGENTIC_NODE_VERSION", "fromenv")
-
-		// Act
-		result := FlagOrEnv("", "AGENTIC_NODE_VERSION")
-
-		// Assert
-		assert.Equal(t, "fromenv", result)
-	})
-
-	t.Run("returns empty when both unset", func(t *testing.T) {
-		// Act + Assert
-		assert.Equal(t, "", FlagOrEnv("", "AGENTIC_NODE_VERSION"))
 	})
 }
 

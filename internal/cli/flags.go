@@ -1,10 +1,7 @@
 package cli
 
 import (
-	"fmt"
 	"maps"
-	"os"
-	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -13,7 +10,7 @@ import (
 
 // addNamespaceFlag registers the --namespace flag on the given command.
 func addNamespaceFlag(cmd *cobra.Command) {
-	cmd.Flags().StringP("namespace", "n", "", "image namespace (overrides AGENTIC_NAMESPACE and .agenticrc.toml namespace)")
+	cmd.Flags().StringP("namespace", "n", "", "image namespace (overrides .agenticrc.toml namespace)")
 	_ = cmd.RegisterFlagCompletionFunc("namespace", namespacesFunc)
 }
 
@@ -81,23 +78,11 @@ func addProxyFlags(cmd *cobra.Command) {
 	cmd.MarkFlagsMutuallyExclusive("proxy", "no-proxy", "proxy-monitor")
 }
 
-// flagOrEnv returns the flag value if set, falling back to the named environment variable.
-func flagOrEnv(cmd *cobra.Command, flag, env string) string {
-	v, _ := cmd.Flags().GetString(flag)
-	return config.FlagOrEnv(v, env)
-}
-
-// buildOptsFromFlags constructs a BuildOptions from the command's flags, the
-// project config, and environment variables.
+// buildOptsFromFlags constructs a BuildOptions from the command's flags and the project config.
 func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOptions {
 	opts := tools.BuildOptions{}
 
-	if v := os.Getenv(config.EnvBaseOverride); v != "" {
-		opts.BaseOverride = tools.ParseExtras(v)
-	} else {
-		opts.BaseOverride = collectBases(cmd, rc)
-	}
-
+	opts.BaseOverride = collectBases(cmd, rc)
 	opts.NoCache, _ = cmd.Flags().GetBool("no-cache")
 	opts.Pull, _ = cmd.Flags().GetBool("pull")
 	opts.Versions = collectVersions(cmd, rc)
@@ -115,14 +100,13 @@ func collectBases(cmd *cobra.Command, rc *config.AgenticRC) []string {
 	return tools.SortExtras(tools.MergePackages(rc.Build.Bases, flagBases))
 }
 
-// collectVersions builds the per-layer version map with RC values as defaults,
-// overridden by CLI flags and environment variables.
+// collectVersions builds the per-layer version map with RC values as defaults, overridden by CLI flags.
 func collectVersions(cmd *cobra.Command, rc *config.AgenticRC) map[string]string {
 	versions := make(map[string]string, len(rc.Build.Versions))
 	maps.Copy(versions, rc.Build.Versions)
 
 	for _, name := range tools.KnownLayers() {
-		if v := flagOrEnv(cmd, name, config.EnvVersionVar(name)); v != "" {
+		if v, _ := cmd.Flags().GetString(name); v != "" {
 			versions[name] = v
 		}
 	}
@@ -132,7 +116,7 @@ func collectVersions(cmd *cobra.Command, rc *config.AgenticRC) map[string]string
 // collectAptPackages merges apt packages from the project config with those from the --apt flag.
 func collectAptPackages(cmd *cobra.Command, rc *config.AgenticRC) []string {
 	flagPkgs, _ := cmd.Flags().GetStringSlice("apt")
-	return tools.MergePackages(config.AptPackages(rc), flagPkgs)
+	return tools.MergePackages(rc.Build.AptPackages, flagPkgs)
 }
 
 // toolNames returns the single tool name from args, or all known tool names when args is empty.
@@ -141,18 +125,4 @@ func toolNames(args []string) []string {
 		return []string{args[0]}
 	}
 	return tools.Names()
-}
-
-// extrasEnvDoc returns a formatted help string listing the environment variables for layer versions.
-func extrasEnvDoc() string {
-	const col = 24
-
-	lines := []string{"Environment:"}
-
-	for _, name := range tools.KnownLayers() {
-		lines = append(lines, fmt.Sprintf("  %-*s %s version (overridden by --%s)",
-			col, config.EnvVersionVar(name), tools.LayerFlagDesc[name], name))
-	}
-
-	return strings.Join(lines, "\n")
 }

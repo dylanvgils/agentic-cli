@@ -504,7 +504,6 @@ func Test_syncToolMarketplaces(t *testing.T) {
 func Test_collectVolumes(t *testing.T) {
 	t.Run("ordering", func(t *testing.T) {
 		// Arrange
-		t.Setenv("AGENTIC_EXTRA_MOUNTS", "envvol:/mnt/env")
 		rc := &config.AgenticRC{Run: config.RCRun{ExtraMounts: []string{"rcvol:/mnt/rc"}}}
 
 		// Act
@@ -513,27 +512,13 @@ func Test_collectVolumes(t *testing.T) {
 		// Assert
 		assert.Equal(t, []string{
 			"tool:/mnt/tool",
-			"envvol:/mnt/env",
 			"flagvol:/mnt/flag",
 			"rcvol:/mnt/rc",
 		}, result)
 	})
 
-	t.Run("empty env skipped", func(t *testing.T) {
-		// Arrange
-		t.Setenv("AGENTIC_EXTRA_MOUNTS", "")
-		rc := &config.AgenticRC{}
-
-		// Act
-		result := collectVolumes([]string{"tool:/mnt/tool"}, nil, rc)
-
-		// Assert
-		assert.Equal(t, []string{"tool:/mnt/tool"}, result)
-	})
-
 	t.Run("no sources returns empty", func(t *testing.T) {
 		// Arrange
-		t.Setenv("AGENTIC_EXTRA_MOUNTS", "")
 		rc := &config.AgenticRC{}
 
 		// Act
@@ -545,7 +530,6 @@ func Test_collectVolumes(t *testing.T) {
 
 	t.Run("does not mutate tool mounts", func(t *testing.T) {
 		// Arrange
-		t.Setenv("AGENTIC_EXTRA_MOUNTS", "")
 		toolMounts := []string{"tool:/mnt/tool"}
 		rc := &config.AgenticRC{}
 
@@ -561,7 +545,6 @@ func Test_collectVolumes(t *testing.T) {
 func Test_collectSecrets(t *testing.T) {
 	t.Run("ordering", func(t *testing.T) {
 		// Arrange
-		t.Setenv("AGENTIC_SECRETS", "envtoken:/tmp/env")
 		rc := &config.AgenticRC{Run: config.RCRun{Secrets: []string{"rctoken:/tmp/rc"}}}
 
 		// Act
@@ -569,27 +552,13 @@ func Test_collectSecrets(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []string{
-			"envtoken:/tmp/env",
 			"flagtoken:/tmp/flag",
 			"rctoken:/tmp/rc",
 		}, result)
 	})
 
-	t.Run("empty env skipped", func(t *testing.T) {
-		// Arrange
-		t.Setenv("AGENTIC_SECRETS", "")
-		rc := &config.AgenticRC{}
-
-		// Act
-		result := collectSecrets([]string{"flagtoken:/tmp/flag"}, rc)
-
-		// Assert
-		assert.Equal(t, []string{"flagtoken:/tmp/flag"}, result)
-	})
-
 	t.Run("all empty returns nil", func(t *testing.T) {
 		// Arrange
-		t.Setenv("AGENTIC_SECRETS", "")
 		rc := &config.AgenticRC{}
 
 		// Act
@@ -765,21 +734,6 @@ func Test_resolveResourceLimits(t *testing.T) {
 		assert.Equal(t, "2g", result.memory)
 	})
 
-	t.Run("falls back to env var when flag and rc unset", func(t *testing.T) {
-		// Arrange
-		t.Setenv(config.EnvPidsLimit, "256")
-		t.Setenv(config.EnvCPUs, "1")
-		t.Setenv(config.EnvMemory, "1g")
-
-		// Act
-		result := resolveResourceLimits("", "", "", &config.AgenticRC{})
-
-		// Assert
-		assert.Equal(t, "256", result.pidsLimit)
-		assert.Equal(t, "1", result.cpus)
-		assert.Equal(t, "1g", result.memory)
-	})
-
 	t.Run("falls back to hardcoded default when nothing else set", func(t *testing.T) {
 		// Act
 		result := resolveResourceLimits("", "", "", &config.AgenticRC{})
@@ -788,18 +742,6 @@ func Test_resolveResourceLimits(t *testing.T) {
 		assert.Equal(t, docker.DefaultPidsLimit, result.pidsLimit)
 		assert.Equal(t, docker.DefaultCPUs, result.cpus)
 		assert.Equal(t, docker.DefaultMemory, result.memory)
-	})
-
-	t.Run("rc takes precedence over env var", func(t *testing.T) {
-		// Arrange
-		t.Setenv(config.EnvPidsLimit, "256")
-		rc := &config.AgenticRC{Run: config.RCRun{PidsLimit: "512"}}
-
-		// Act
-		result := resolveResourceLimits("", "", "", rc)
-
-		// Assert
-		assert.Equal(t, "512", result.pidsLimit)
 	})
 }
 

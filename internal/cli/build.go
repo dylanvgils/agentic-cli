@@ -10,7 +10,7 @@ import (
 var buildCmd = &cobra.Command{
 	Use:   "build [tool]",
 	Short: "Build tool image(s)",
-	Long:  "Build tool image(s). Builds all tools if no tool specified.\n\n" + extrasEnvDoc(),
+	Long:  "Build tool image(s). Builds all tools if no tool specified.",
 	Example: `  agentic build
   agentic build claude
   agentic build claude --base node

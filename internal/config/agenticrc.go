@@ -114,13 +114,6 @@ func FindAndLoadFromCwd() (*AgenticRC, error) {
 	return FindAndLoad(cwd)
 }
 
-// AptPackages returns the merged apt packages from rc and the AGENTIC_APT_PACKAGES
-// env var, RC values first, env var last.
-func AptPackages(rc *AgenticRC) []string {
-	envPkgs := SplitEnvValues(os.Getenv(EnvAptPackages))
-	return append(rc.Build.AptPackages, envPkgs...)
-}
-
 // MarketplacesFor returns the marketplace entries applicable to tool.
 func MarketplacesFor(rc *AgenticRC, tool string) []RCMarketplace {
 	var result []RCMarketplace
