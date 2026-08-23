@@ -193,8 +193,7 @@ func printScalarField(w io.Writer, label string, layers []config.RCLayer, get fu
 	return err
 }
 
-// printBoolField prints a bool config field. Innermost (last in layers) non-nil
-// RC value wins. If no layer sets the field, defaultVal is shown tagged (default).
+// printBoolField prints a bool config field; the innermost layer with a non-nil value wins, else defaultVal is shown tagged (default).
 func printBoolField(w io.Writer, label string, layers []config.RCLayer, get func(*config.AgenticRC) *bool, defaultVal bool) error {
 	for i := len(layers) - 1; i >= 0; i-- {
 		if v := get(layers[i].RC); v != nil {
@@ -206,8 +205,7 @@ func printBoolField(w io.Writer, label string, layers []config.RCLayer, get func
 	return err
 }
 
-// printListField prints a list config field, tagging each entry with the layer it came from.
-// Entries are shown outermost-first (same order as the effective merge).
+// printListField prints a list config field, tagging each entry with its source layer, outermost-first.
 func printListField(w io.Writer, label string, layers []config.RCLayer, get func(*config.AgenticRC) []string) error {
 	type entry struct {
 		value string

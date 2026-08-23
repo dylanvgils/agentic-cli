@@ -1,5 +1,4 @@
-// Package toolupdate checks for and applies upstream tool version updates
-// from `agentic run`.
+// Package toolupdate checks for and applies upstream tool version updates from `agentic run`.
 package toolupdate
 
 import (
@@ -12,20 +11,13 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 )
 
-// checkInterval bounds how often `agentic run` re-checks a tool's upstream
-// version.
+// checkInterval bounds how often `agentic run` re-checks a tool's upstream version.
 const checkInterval = 6 * time.Hour
 
-// Updater installs an update for tool/image - typically recovering the
-// image's existing build options and rebuilding it. Supplied by the caller
-// so this package doesn't need to know how build options are recovered or
-// reported for a single tool.
+// Updater installs an update for tool/image, supplied by the caller so this package doesn't need to know how build options are recovered.
 type Updater func(tool, image string) error
 
-// Check checks upstream for a newer version of toolName at most once per
-// checkInterval and, on a TTY, offers to apply it immediately via update. A
-// missed or errored check is silent; only an explicitly confirmed update
-// that fails returns an error.
+// Check checks upstream for a newer version of toolName at most once per checkInterval and, on a TTY, offers to apply it via update; only a confirmed update that fails returns an error.
 func Check(home string, rc *config.AgenticRC, toolName, image string, update Updater) error {
 	if rc.Run.CheckUpdates != nil && !*rc.Run.CheckUpdates {
 		return nil
@@ -47,11 +39,7 @@ func Check(home string, rc *config.AgenticRC, toolName, image string, update Upd
 	return nil
 }
 
-// fetchIfDue fetches the latest upstream version for toolName if its check
-// interval has elapsed, saves the check timestamp, and returns (installed,
-// latest, true) if a newer version is available. The timestamp is only saved
-// on a successful fetch, so a failed fetch retries next time instead of
-// backing off.
+// fetchIfDue fetches toolName's latest upstream version if due, saves the check timestamp on success (so a failed fetch retries instead of backing off), and returns (installed, latest, true) if newer.
 func fetchIfDue(home, toolName, image string) (installed, latest string, ok bool) {
 	cfg, err := config.LoadConfig(home)
 	if err != nil {
@@ -85,8 +73,7 @@ func fetchIfDue(home, toolName, image string) (installed, latest string, ok bool
 	return docker.ParseVersion(info.Version), latestVersion, true
 }
 
-// shouldCheck reports whether tool is due for a check: never checked, or the
-// interval has elapsed since it last was.
+// shouldCheck reports whether tool is due for a check: never checked, or the interval has elapsed.
 func shouldCheck(lastChecks map[string]time.Time, tool string) bool {
 	last, ok := lastChecks[tool]
 	if !ok {
@@ -95,9 +82,7 @@ func shouldCheck(lastChecks map[string]time.Time, tool string) bool {
 	return time.Since(last) >= checkInterval
 }
 
-// notify prints an update notice to stderr for toolName and, on a TTY,
-// prompts to update immediately. It returns whether the user confirmed; on a
-// non-TTY it just suggests `agentic update <tool>` and returns false.
+// notify prints an update notice to stderr and, on a TTY, prompts to update, returning whether the user confirmed; otherwise it just suggests `agentic update <tool>`.
 func notify(toolName, installed, latest string) bool {
 	if !IsTerminal() {
 		Notify.Stepf("%s update available: %s (current: %s) - run: agentic update %s",

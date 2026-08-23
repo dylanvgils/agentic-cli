@@ -42,9 +42,7 @@ func collectRegistry(cmd *cobra.Command) string {
 	return resolve.Registry(v, toolHome)
 }
 
-// addBuildFlags registers the version and dry-run flags shared by the build and
-// update commands. --no-cache is registered separately because its description
-// differs between the two commands.
+// addBuildFlags registers the base/apt/dry-run flags shared by build and update; --no-cache is registered separately since its description differs between them.
 func addBuildFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSlice("base", nil, "extra runtime(s) to layer on top of debian; repeatable or comma-separated (e.g. --base node --base java or --base node,java)")
 	cmd.Flags().StringSlice("base-exact", nil, "extra runtime(s) to layer on top of debian, replacing .agenticrc.toml's bases entirely instead of merging with it; repeatable or comma-separated; pass --base-exact= for debian only")

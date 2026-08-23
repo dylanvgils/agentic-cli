@@ -16,8 +16,7 @@ var (
 	runInteractive = RunInteractive
 )
 
-// Run executes `docker <args>` with r piped to stdin (nil = no stdin) and
-// returns combined stdout+stderr.
+// Run executes `docker <args>` with r piped to stdin (nil = no stdin) and returns combined stdout+stderr.
 func Run(r io.Reader, args ...string) (string, error) {
 	cmd := exec.Command("docker", withContext(args)...)
 	cmd.Stdin = r
@@ -35,8 +34,7 @@ func RunCmd(args ...string) (string, error) {
 	return Run(nil, args...)
 }
 
-// RunInteractive executes `docker <args>` with stdin/stdout/stderr inherited
-// from the current process. Used for the `run` command.
+// RunInteractive executes `docker <args>` with stdin/stdout/stderr inherited from the current process.
 func RunInteractive(args ...string) error {
 	cmd := exec.Command("docker", withContext(args)...)
 	cmd.Stdin = os.Stdin

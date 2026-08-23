@@ -1,6 +1,4 @@
-// Package run builds the docker.RunSpec for `agentic run`, syncing
-// configured marketplaces and assembling the already-resolved volumes,
-// secrets, env vars, and resource limits from internal/usecase/resolve.
+// Package run builds the docker.RunSpec for `agentic run`, syncing marketplaces and assembling resolved volumes, secrets, env vars, and resource limits.
 package run
 
 import (
@@ -42,8 +40,7 @@ type Input struct {
 	InstructionsMount string
 }
 
-// Build assembles the docker.RunSpec for target, syncing marketplaces and
-// ensuring the named volumes/network it depends on exist.
+// Build assembles the docker.RunSpec for target, syncing marketplaces and ensuring the named volumes/network it depends on exist.
 func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, error) {
 	containerHome := docker.ResolveContainerHome(target.ImageName)
 
@@ -131,8 +128,7 @@ func BuildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig,
 	return rs, snapshot.Cleanup, nil
 }
 
-// ToolNeedsMarketplaceSync reports whether tool has marketplace mounting
-// support and at least one marketplace configured for it.
+// ToolNeedsMarketplaceSync reports whether tool supports marketplace mounting and has at least one marketplace configured.
 func ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, tool string) bool {
 	if toolConfig.Runtime.MarketplaceMount == nil {
 		return false
@@ -192,9 +188,7 @@ func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 	}
 }
 
-// readOnlyMountSpecs converts each entry into a forced-:ro volume spec. A
-// no-colon entry is a workspace-relative shorthand expanding to
-// "$PWD/<path>:/workspace/<path>".
+// readOnlyMountSpecs converts each entry into a forced-:ro volume spec; a no-colon entry expands to "$PWD/<path>:/workspace/<path>".
 func readOnlyMountSpecs(specs []string) []string {
 	out := make([]string, 0, len(specs))
 	for _, spec := range specs {
@@ -215,8 +209,7 @@ func splitReadOnlyMountSpec(spec string) (host, container string) {
 	return host, container
 }
 
-// validateEnv rejects entries that target an env var agentic already manages
-// (proxy injection when proxyEnabled, mount placeholders always).
+// validateEnv rejects entries targeting an env var agentic already manages (proxy injection when proxyEnabled, mount placeholders always).
 func validateEnv(entries []string, proxyEnabled bool) error {
 	for _, entry := range entries {
 		key, _, _ := strings.Cut(entry, "=")

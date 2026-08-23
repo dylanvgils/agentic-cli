@@ -14,9 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Test_resolveProxyMode only needs to confirm each flag is read off cmd and
-// wired into the right resolve.ProxyInput field - the actual precedence
-// matrix is covered by TestProxyMode in internal/usecase/resolve.
+// Test_resolveProxyMode only confirms each flag maps to the right resolve.ProxyInput field; precedence is covered by TestProxyMode in internal/usecase/resolve.
 func Test_resolveProxyMode(t *testing.T) {
 	t.Run("no flags reads rc value", func(t *testing.T) {
 		// Arrange

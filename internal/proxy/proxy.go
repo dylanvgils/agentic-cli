@@ -8,24 +8,19 @@ import (
 	"time"
 )
 
-// dialTimeout bounds how long the proxy waits to establish an upstream
-// connection before giving up.
+// dialTimeout bounds how long the proxy waits to establish an upstream connection.
 const dialTimeout = 30 * time.Second
 
-// Server is a forward proxy that permits HTTP CONNECT tunnels and plain HTTP
-// requests only to hosts on the allowlist, logging every attempt. When
-// monitor is true it stops enforcing the allowlist - every connection is let
-// through regardless of the verdict - while still logging the real verdict,
-// so a run can be observed without ever blocking it.
+// Server is a forward proxy that permits CONNECT tunnels and plain HTTP requests only to allowlisted
+// hosts, logging every attempt. In monitor mode it stops enforcing the allowlist but still logs
+// the real verdict, so a run can be observed without ever blocking it.
 type Server struct {
 	allow   *Allowlist
 	logger  *Logger
 	monitor bool
 }
 
-// NewServer builds a Server recording to logger. It enforces allow unless
-// monitor is true, in which case allow is still evaluated for logging but
-// never blocks a connection.
+// NewServer builds a Server recording to logger, enforcing allow unless monitor is true.
 func NewServer(allow *Allowlist, logger *Logger, monitor bool) *Server {
 	return &Server{allow: allow, logger: logger, monitor: monitor}
 }
@@ -39,9 +34,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.handleHTTP(w, r)
 }
 
-// handleConnect tunnels a CONNECT request to the upstream host after checking
-// the allowlist. Denied hosts get a 403 so the tool sees an informative error,
-// unless the server is in monitor mode, where the tunnel proceeds regardless.
+// handleConnect tunnels a CONNECT request to the upstream host after checking the allowlist; denied hosts get a 403 unless in monitor mode.
 func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	host, port := splitHostPort(r.Host)
 
@@ -76,9 +69,7 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	splice(client, upstream)
 }
 
-// handleHTTP forwards a plain (non-TLS) HTTP request to the upstream host after
-// checking the allowlist, unless the server is in monitor mode, where the
-// request is forwarded regardless of the verdict.
+// handleHTTP forwards a plain (non-TLS) HTTP request to the upstream host after checking the allowlist, unless in monitor mode.
 func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	host, port := splitHostPort(r.Host)
 	if port == "" {
@@ -112,8 +103,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, resp.Body)
 }
 
-// hijack takes over the underlying TCP connection from the ResponseWriter so the
-// proxy can splice raw bytes for a CONNECT tunnel.
+// hijack takes over the underlying TCP connection from the ResponseWriter for a CONNECT tunnel.
 func hijack(w http.ResponseWriter) (net.Conn, error) {
 	hj, ok := w.(http.Hijacker)
 	if !ok {
@@ -143,8 +133,7 @@ func splice(a, b net.Conn) {
 	<-done
 }
 
-// splitHostPort separates "host:port"; when no port is present the port is
-// returned empty.
+// splitHostPort separates "host:port", returning an empty port when none is present.
 func splitHostPort(hostport string) (host, port string) {
 	host, port, err := net.SplitHostPort(hostport)
 	if err != nil {

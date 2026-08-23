@@ -5,8 +5,7 @@ import (
 	"testing"
 )
 
-// stubLog redirects Log to a buffer for the duration of the test and
-// returns it.
+// stubLog redirects Log to a buffer for the duration of the test and returns it.
 func stubLog(t *testing.T) *bytes.Buffer {
 	t.Helper()
 

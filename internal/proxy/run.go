@@ -14,13 +14,11 @@ import (
 // Port is the TCP port the proxy listens on inside its container.
 const Port = "3128"
 
-// DefaultAddr is the address the proxy listens on inside its container. It binds
-// all interfaces so the tool container can reach it over the internal network.
+// DefaultAddr is the address the proxy listens on inside its container, binding all interfaces.
 const DefaultAddr = ":" + Port
 
-// Environment variables passed from the host to the proxy container. They are
-// internal wiring between StartProxy (host) and the agentic-proxy binary
-// (container, see cmd/proxy/main.go), not user-facing configuration.
+// Environment variables passed from the host to the proxy container - internal wiring between
+// StartProxy (host) and the agentic-proxy binary (see cmd/proxy/main.go), not user-facing config.
 const (
 	EnvAllow    = "AGENTIC_PROXY_ALLOW"     // comma-separated allowed hosts
 	EnvLog      = "AGENTIC_PROXY_LOG"       // JSON-lines access-log path
@@ -78,9 +76,7 @@ func Run(cfg Config) error {
 	return httpServer.ListenAndServe()
 }
 
-// openLog opens the JSON-lines log file. An empty path means no file is
-// configured; entries are still printed to stdout via Logger's human-readable
-// output, so `docker logs -f` on the proxy container shows them live either way.
+// openLog opens the JSON-lines log file; an empty path means no file (entries still print to stdout).
 func openLog(path string) (file *os.File, closeFn func(), err error) {
 	if path == "" {
 		return nil, func() {}, nil
@@ -93,9 +89,7 @@ func openLog(path string) (file *os.File, closeFn func(), err error) {
 	return f, func() { _ = f.Close() }, nil
 }
 
-// jsonWriter converts a possibly-nil *os.File to a possibly-nil io.Writer.
-// Passing a nil *os.File directly as an io.Writer argument would produce a
-// non-nil interface value wrapping a nil pointer, breaking nil checks.
+// jsonWriter converts a possibly-nil *os.File to a possibly-nil io.Writer, avoiding a non-nil interface wrapping a nil pointer.
 func jsonWriter(f *os.File) io.Writer {
 	if f == nil {
 		return nil

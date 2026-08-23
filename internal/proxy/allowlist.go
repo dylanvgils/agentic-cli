@@ -1,6 +1,4 @@
-// Package proxy implements a fail-closed forward proxy that restricts agentic
-// tool containers to a configurable set of allowed hosts and records every
-// connection attempt as structured JSON log lines.
+// Package proxy implements a fail-closed forward proxy that restricts tool containers to an allowed host set and logs every connection attempt.
 package proxy
 
 import (
@@ -8,24 +6,18 @@ import (
 	"strings"
 )
 
-// DefaultPorts are the destination ports a forward proxy will tunnel to when an
-// allowlist entry does not pin a specific port.
+// DefaultPorts are the destination ports tunneled to when an allowlist entry does not pin a specific port.
 var DefaultPorts = []string{"80", "443"}
 
-// Allowlist decides whether a (host, port) destination is permitted.
-//
-// An entry matches the host exactly (e.g. "api.anthropic.com"), or - when it
-// starts with a leading dot or "*." - matches that domain and any subdomain
-// (e.g. ".anthropic.com" matches "anthropic.com" and "api.anthropic.com"). No
-// substring matching is performed, so "anthropic.com" never matches
-// "evil-anthropic.com".
+// Allowlist decides whether a (host, port) destination is permitted. An entry matches the host
+// exactly, or - with a leading "." or "*." - matches that domain and its subdomains; no substring
+// matching is performed, so "anthropic.com" never matches "evil-anthropic.com".
 type Allowlist struct {
 	exact    map[string]bool
 	suffixes []string // normalized to ".example.com", matches the domain and subdomains
 }
 
-// NewAllowlist builds an Allowlist from raw entries. Empty and blank entries are
-// ignored; entries are lower-cased so matching is case-insensitive.
+// NewAllowlist builds an Allowlist from raw entries, skipping blank ones and lower-casing the rest for case-insensitive matching.
 func NewAllowlist(entries []string) *Allowlist {
 	allowList := &Allowlist{exact: make(map[string]bool)}
 
@@ -48,8 +40,7 @@ func NewAllowlist(entries []string) *Allowlist {
 	return allowList
 }
 
-// Allows reports whether a connection to host on port is permitted. The port
-// must be one of DefaultPorts and the host must match an allowlist entry.
+// Allows reports whether a connection to host on port is permitted: port must be one of DefaultPorts and host must match an allowlist entry.
 func (a *Allowlist) Allows(host, port string) bool {
 	if !slices.Contains(DefaultPorts, port) {
 		return false
@@ -70,8 +61,7 @@ func (a *Allowlist) Allows(host, port string) bool {
 	return false
 }
 
-// wildcardSuffix returns the normalized ".example.com" suffix for a wildcard
-// entry (".example.com" or "*.example.com"), or ok=false for an exact entry.
+// wildcardSuffix returns the normalized ".example.com" suffix for a wildcard entry, or ok=false for an exact entry.
 func wildcardSuffix(entry string) (string, bool) {
 	if after, ok := strings.CutPrefix(entry, "*."); ok {
 		return "." + after, true

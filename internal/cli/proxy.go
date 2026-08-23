@@ -63,10 +63,7 @@ func runProxyUpdate(cmd *cobra.Command, _ []string) error {
 	return runProxyBuildOrUpdate(cmd, true)
 }
 
-// runProxyBuildOrUpdate builds the proxy image, forcing a cache-free rebuild
-// when noCache is true. `build` only forces it via --no-cache; `update`
-// always forces it - that's the mechanism for picking up a proxy source or
-// base-image change that an existing cached image would otherwise mask.
+// runProxyBuildOrUpdate builds the proxy image; `update` always forces noCache so a stale cached layer can't mask a proxy source or base-image change.
 func runProxyBuildOrUpdate(cmd *cobra.Command, noCache bool) error {
 	opts := tools.BuildOptions{NoCache: noCache, Registry: collectRegistry(cmd)}
 
@@ -98,8 +95,7 @@ func runProxyClean(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// cleanProxyImage removes the proxy image. Shared by `agentic proxy clean`
-// and the no-arg `agentic clean`'s global resource sweep.
+// cleanProxyImage removes the proxy image; shared by `agentic proxy clean` and the no-arg `agentic clean`'s global sweep.
 func cleanProxyImage() error {
 	logging.Step(tools.ProxyImage)
 	return cleanImage(tools.ProxyImage)
@@ -114,9 +110,7 @@ func resolveProxyMode(cmd *cobra.Command, rc *config.AgenticRC) (enabled, monito
 	return resolve.ProxyMode(resolve.ProxyInput{NoProxy: noProxy, MonitorFlag: monitorFlag, ProxyFlag: proxyFlag}, rc)
 }
 
-// ensureProxyImage builds the proxy image if it is not already present or if
-// its CLI version label does not match the running CLI version, so `--proxy`
-// automatically picks up proxy changes shipped with a CLI update.
+// ensureProxyImage builds the proxy image if missing or stamped with a different CLI version, so `--proxy` picks up proxy changes shipped with a CLI update.
 func ensureProxyImage(cmd *cobra.Command) error {
 	info, err := inspectImage(tools.ProxyImage)
 	if err != nil {
@@ -129,8 +123,7 @@ func ensureProxyImage(cmd *cobra.Command) error {
 	return buildProxyImageNow(tools.BuildOptions{Registry: collectRegistry(cmd)})
 }
 
-// buildProxyImageNow builds the proxy image unconditionally - the caller
-// decides whether to check for an existing image first.
+// buildProxyImageNow builds the proxy image unconditionally; the caller decides whether to check for an existing image first.
 func buildProxyImageNow(opts tools.BuildOptions) error {
 	logging.Step(tools.ProxyImage)
 	return buildProxyImage(tools.ProxyImage, buildinfo.Version, buildinfo.DevSourceDir(tools.ProxyModulePath), opts)

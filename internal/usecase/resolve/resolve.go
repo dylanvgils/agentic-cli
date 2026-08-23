@@ -5,8 +5,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 )
 
-// Namespace returns the active image namespace.
-// Precedence: flagVal > rc.Namespace > config.DefaultNamespace.
+// Namespace returns the active image namespace: flagVal > rc.Namespace > config.DefaultNamespace.
 func Namespace(flagVal string, rc *config.AgenticRC) string {
 	if flagVal != "" {
 		return flagVal
@@ -17,8 +16,7 @@ func Namespace(flagVal string, rc *config.AgenticRC) string {
 	return config.DefaultNamespace
 }
 
-// Registry returns the active registry.
-// Precedence: flagVal > agentic.json registry field (loaded from homeDir).
+// Registry returns the active registry: flagVal > agentic.json's registry field (loaded from homeDir).
 func Registry(flagVal, homeDir string) string {
 	if flagVal != "" {
 		return flagVal
@@ -29,11 +27,7 @@ func Registry(flagVal, homeDir string) string {
 	return ""
 }
 
-// DockerContext returns the active Docker context.
-// Precedence: flagVal > rc.DockerContext > agentic.json docker_context field
-// (loaded from homeDir). If none are set, an empty string is returned and the
-// docker CLI's own context resolution (including its DOCKER_CONTEXT env var)
-// applies unchanged.
+// DockerContext returns the active Docker context: flagVal > rc.DockerContext > agentic.json's docker_context; empty if none are set, letting the docker CLI's own resolution apply.
 func DockerContext(flagVal string, rc *config.AgenticRC, homeDir string) string {
 	if flagVal != "" {
 		return flagVal

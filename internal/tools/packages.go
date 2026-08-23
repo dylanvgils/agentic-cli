@@ -1,7 +1,6 @@
 package tools
 
-// layerPackages lists the apt packages each layer needs present in the base image.
-// Each extra declares only what is not already in "base". collectPackages merges and deduplicates.
+// layerPackages lists the apt packages each layer needs; extras declare only what "base" doesn't already have.
 var layerPackages = map[string][]string{
 	"base":   {"curl", "wget", "git", "gpg", "ca-certificates", "tzdata", "jq"},
 	"dotnet": {"apt-transport-https"},
@@ -28,8 +27,7 @@ func MergePackages(base, additional []string) []string {
 	return result
 }
 
-// collectPackages merges the base packages with any extra packages declared by the given
-// extra layers and any user-supplied apt packages, deduplicating while preserving declaration order.
+// collectPackages merges the base packages, extra layers' packages, and user-supplied apt packages, deduplicating.
 func collectPackages(extras []string, userPkgs []string) []string {
 	return MergePackages(expandPackages(extras), userPkgs)
 }

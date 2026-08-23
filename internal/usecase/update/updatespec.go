@@ -1,6 +1,4 @@
-// Package update resolves and applies `agentic update` targets - which
-// tool images to rebuild, with which recovered build options, and whether an
-// automatic --pull should be throttled.
+// Package update resolves and applies `agentic update` targets: which tool images to rebuild, with which recovered build options, and whether to throttle an automatic --pull.
 package update
 
 import (
@@ -14,8 +12,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
-// autoPullInterval bounds how often an automatic --pull is allowed to hit
-// the registry again for the same image.
+// autoPullInterval bounds how often an automatic --pull may hit the registry again for the same image.
 const autoPullInterval = 24 * time.Hour
 
 // Target is one tool image to rebuild, with its resolved build options.
@@ -27,8 +24,7 @@ type Target struct {
 
 // Scope describes which tools/images Resolve should target.
 type Scope struct {
-	// Names is the tool name list to resolve in scoped mode - already
-	// expanded from CLI args to every known tool when no tool was given.
+	// Names is the tool name list to resolve in scoped mode, already expanded to every known tool when none was given.
 	Names   []string
 	HasArgs bool
 	// FilterTool narrows an --all resolve to one tool; empty means every tool.
@@ -37,8 +33,7 @@ type Scope struct {
 	All        bool
 }
 
-// Resolve returns the update targets for scope: either every image found
-// across all namespaces (All) or the named tools in a single namespace.
+// Resolve returns the update targets for scope: every image across all namespaces (All), or the named tools in one namespace.
 func Resolve(scope Scope, opts tools.BuildOptions, pullExplicit bool) ([]Target, error) {
 	if scope.All {
 		return resolveAll(scope.FilterTool, opts, pullExplicit)
@@ -100,11 +95,7 @@ func resolveScoped(names []string, hasArgs bool, namespace string, opts tools.Bu
 	return targets, nil
 }
 
-// applyPullThrottle leaves opts.Pull untouched when the user explicitly set
-// --pull/--pull=false, or when there's no existing image to check. Otherwise
-// it disables the automatic pull if the image's agentic.pulled label shows
-// a pull already happened within autoPullInterval, so `agentic update` doesn't
-// hit the registry on every single run.
+// applyPullThrottle leaves opts.Pull untouched if --pull was explicit or there's no image to check; otherwise it disables auto-pull if agentic.pulled shows a pull within autoPullInterval.
 func applyPullThrottle(opts tools.BuildOptions, info *docker.ImageInfo, pullExplicit bool) tools.BuildOptions {
 	if pullExplicit || info == nil {
 		return opts
@@ -117,8 +108,7 @@ func applyPullThrottle(opts tools.BuildOptions, info *docker.ImageInfo, pullExpl
 	return opts
 }
 
-// DryRun prints the generated Dockerfile for tool instead of building it,
-// recovering build options from the existing image's labels first.
+// DryRun prints the generated Dockerfile for tool instead of building it, recovering build options from the existing image's labels first.
 func DryRun(tool, namespace string, opts tools.BuildOptions) error {
 	if tool == "" {
 		return fmt.Errorf("--dry-run requires a tool argument")
@@ -147,13 +137,7 @@ func recoverOpts(info *docker.ImageInfo, opts tools.BuildOptions) tools.BuildOpt
 	return opts
 }
 
-// ApplyRecovered rebuilds image for tool, reusing the currently installed
-// build options where possible. It's the toolupdate.Updater used by the
-// auto-update prompt in `agentic run` - unlike `agentic update`'s own flow,
-// it never exits the process, since runTool must still start the tool
-// container afterward whether or not the update succeeded. Unlike
-// BaseOverride/AptPackages, CustomInstalls is always taken from rc, not
-// recovered from an image label - see recoverOpts.
+// ApplyRecovered rebuilds image for tool, reusing installed build options where possible; it's the toolupdate.Updater for `agentic run`'s auto-update prompt, so unlike `agentic update` it never exits the process.
 func ApplyRecovered(tool, image string, rc *config.AgenticRC) error {
 	opts := tools.BuildOptions{CustomInstalls: rc.Build.CustomInstalls}
 	if info, err := InspectImage(image); err == nil && info != nil {

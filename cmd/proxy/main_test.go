@@ -9,10 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestExcludesCLIDependencies guards the reason this binary exists as a
-// separate package: the proxy sidecar handles untrusted network traffic, so
-// it must never link in the CLI's Docker orchestration, Dockerfile
-// generation, or Cobra command tree, even transitively.
+// TestExcludesCLIDependencies ensures this binary never links the CLI's Docker/tools/Cobra code, even transitively.
 func TestExcludesCLIDependencies(t *testing.T) {
 	// Arrange
 	forbidden := []string{

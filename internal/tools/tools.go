@@ -64,20 +64,17 @@ var Configs = map[string]ToolConfig{
 // BuildConfig holds the build-time configuration for a tool container.
 type BuildConfig struct {
 	Stage func(prevStage string) dockerfile.Stage // returns the tool's Dockerfile stage
-	// LatestVersion fetches the latest version available upstream, so update
-	// can skip rebuilding when the installed version already matches.
+	// LatestVersion fetches the latest version available upstream.
 	LatestVersion func() (string, error)
 }
 
 // RuntimeConfig holds the runtime configuration for a tool container.
 type RuntimeConfig struct {
 	Setup func(toolHome string) error
-	// Mounts is the tool's baseline volume mounts. User-configured mounts
-	// are merged on top.
+	// Mounts is the tool's baseline volume mounts; user-configured mounts are merged on top.
 	Mounts      func() []string
 	TmpfsMounts func() []string
-	// AllowedHosts is the tool's baseline egress allowlist, used when the
-	// egress proxy is enabled. User-configured hosts are merged on top.
+	// AllowedHosts is the tool's baseline egress allowlist; user-configured hosts are merged on top.
 	AllowedHosts []string
 	// MarketplaceMount returns the mount spec for a synced marketplace clone; nil if unsupported.
 	MarketplaceMount func(name, url string) string
@@ -95,8 +92,7 @@ type ToolConfig struct {
 	Runtime RuntimeConfig
 }
 
-// ImageName returns the Docker image name for the given tool using the given namespace,
-// or an error if the tool is unknown.
+// ImageName returns the Docker image name for tool in namespace, or an error if the tool is unknown.
 func ImageName(name, namespace string) (string, error) {
 	if _, ok := Configs[name]; !ok {
 		return "", fmt.Errorf("unknown tool %q, available: %s", name, strings.Join(Names(), ", "))

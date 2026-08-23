@@ -61,8 +61,7 @@ func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfil
 	return stages, nil
 }
 
-// buildExtraStages chains extra stages (e.g. java, dotnet, go), each building FROM the previous.
-// Returns the assembled stages and the name of the final stage in the chain.
+// buildExtraStages chains extra stages (e.g. java, dotnet, go), each building FROM the previous, returning the stages and the final stage name.
 func buildExtraStages(extras []string, prevStage string, versions map[string]string) ([]dockerfile.Stage, string, error) {
 	var stages []dockerfile.Stage
 	prev := prevStage
@@ -80,9 +79,7 @@ func buildExtraStages(extras []string, prevStage string, versions map[string]str
 	return stages, prev, nil
 }
 
-// resolveToolStage looks up the tool config and returns its Dockerfile stage,
-// with cache-busting instructions prepended right after FROM so a changed
-// CACHEBUST build arg invalidates the cache for the entire tool stage.
+// resolveToolStage returns tool's Dockerfile stage with cache-busting instructions prepended right after FROM.
 func resolveToolStage(tool, prevStage string) (dockerfile.Stage, error) {
 	cfg, ok := Configs[tool]
 	if !ok {

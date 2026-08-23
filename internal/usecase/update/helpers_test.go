@@ -26,8 +26,7 @@ func stubInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
 	t.Cleanup(func() { InspectImage = orig })
 }
 
-// stubInspectImageSequence returns results[0] on the first call, results[1] on
-// the second, and so on, repeating the last entry for any further calls.
+// stubInspectImageSequence returns results in order by call, repeating the last entry for any further calls.
 func stubInspectImageSequence(t *testing.T, results ...*docker.ImageInfo) {
 	t.Helper()
 	orig := InspectImage
@@ -57,9 +56,7 @@ func stubLatestToolVersion(t *testing.T, latest string, newer, ok bool) {
 	t.Cleanup(func() { LatestToolVersion = orig })
 }
 
-// captureStdout replaces os.Stdout with a pipe and returns what was written.
-// Use this for functions that write to os.Stdout directly (e.g. DryRun's
-// Dockerfile output); for logging.Step/Detail-based output, use captureLog.
+// captureStdout replaces os.Stdout with a pipe and returns what was written (e.g. DryRun's Dockerfile output); for logging.Step/Detail output, use captureLog.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()
