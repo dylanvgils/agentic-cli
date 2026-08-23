@@ -16,12 +16,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// watchMask is the inotify event mask used for every watch. IN_ACCESS and
-// IN_MODIFY are deliberately excluded: they fire per read/write syscall,
-// which is far too noisy for an audit trail. IN_OPEN/IN_CLOSE_WRITE give
-// "was this file touched" semantics at the granularity an audit log needs.
-// IN_DONT_FOLLOW/IN_ONLYDIR guard against watching through a symlink or a
-// path that changes type between being discovered and being watched.
+// watchMask is the inotify event mask used for every watch. IN_ACCESS/IN_MODIFY
+// are excluded as too noisy (fire per syscall); IN_DONT_FOLLOW/IN_ONLYDIR guard
+// against watching through a symlink or a path that changes type mid-discovery.
 const watchMask = unix.IN_OPEN | unix.IN_CLOSE_WRITE | unix.IN_CREATE | unix.IN_DELETE |
 	unix.IN_MOVED_FROM | unix.IN_MOVED_TO | unix.IN_DELETE_SELF | unix.IN_MOVE_SELF |
 	unix.IN_ISDIR | unix.IN_DONT_FOLLOW | unix.IN_ONLYDIR
@@ -38,9 +35,8 @@ type rawEvent struct {
 }
 
 // Watcher watches a set of host directory trees for filesystem activity via
-// inotify, logging what it observes through a Logger. Watches are per
-// directory - inotify has no native recursion, so Watcher walks each root at
-// Start and adds a new watch under any directory later created within it.
+// inotify. Watches are per directory - inotify has no native recursion, so
+// Watcher walks each root at Start and adds a watch under any new directory.
 type Watcher struct {
 	fd           int
 	stopR, stopW int
@@ -56,10 +52,8 @@ type Watcher struct {
 	stopOnce sync.Once
 }
 
-// New creates a Watcher over roots, deduplicating and collapsing nested roots
-// (a root that is a descendant of another root is dropped, since the
-// ancestor's recursive watch already covers it). It does not touch inotify or
-// the filesystem until Start is called.
+// New creates a Watcher over roots, deduplicating and collapsing nested roots.
+// It does not touch inotify or the filesystem until Start is called.
 func New(roots []string, logger *Logger, opts Options) *Watcher {
 	return &Watcher{
 		logger:  logger,
@@ -72,10 +66,8 @@ func New(roots []string, logger *Logger, opts Options) *Watcher {
 }
 
 // Start opens the inotify instance and begins watching every root. A root
-// that doesn't exist, or that fails to watch (permission, ENOSPC), is logged
-// as a Detail entry and skipped - auditing is best-effort coverage, not a
-// gate on whether the tool container is allowed to run. Only failure to
-// initialize inotify (or its stop-signaling pipe) is fatal.
+// that fails to watch is logged as a Detail entry and skipped; only failure
+// to initialize inotify (or its stop-signaling pipe) is fatal.
 func (w *Watcher) Start() error {
 	fd, err := unix.InotifyInit1(unix.IN_CLOEXEC)
 	if err != nil {
@@ -98,11 +90,9 @@ func (w *Watcher) Start() error {
 	return nil
 }
 
-// Stop signals the event loop to exit via the stop pipe (poll(2), not a
-// concurrent close of the inotify fd, is what safely interrupts it - closing
-// an fd from another goroutine while a blocking read on it is in flight is
-// unreliable on Linux) and waits for it, up to a bound, so cleanup can never
-// hang. Idempotent and safe to call from a deferred cleanup.
+// Stop signals the event loop to exit via the stop pipe (safer than a
+// concurrent fd close, which is unreliable on Linux mid-read) and waits for
+// it, up to a bound. Idempotent.
 func (w *Watcher) Stop() {
 	w.stopOnce.Do(func() {
 		_, _ = unix.Write(w.stopW, []byte{0})
@@ -228,9 +218,7 @@ func (w *Watcher) handle(ev rawEvent) {
 	case ev.mask&(unix.IN_DELETE_SELF|unix.IN_MOVE_SELF) != 0:
 		w.forget(ev.wd)
 	case ev.mask&unix.IN_CREATE != 0:
-		// Register the new directory's watch before logging its creation, so
-		// that once the create entry is visible, activity inside it (even a
-		// write that follows immediately) cannot be missed.
+		// Watch before logging, so activity right after creation can't be missed.
 		if isDir {
 			w.addTree(path)
 		}

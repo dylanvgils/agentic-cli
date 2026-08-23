@@ -18,8 +18,7 @@ type auditHandle struct {
 	logFile *os.File
 }
 
-// newAuditHandle derives the per-run log path and constructs (but does not
-// Start) the watcher.
+// newAuditHandle derives the per-run log path and constructs (but does not Start) the watcher.
 func newAuditHandle(rs RunSpec) (auditHandle, error) {
 	id, err := randID()
 	if err != nil {
@@ -36,8 +35,7 @@ func newAuditHandle(rs RunSpec) (auditHandle, error) {
 	return auditHandle{logPath: logPath, watcher: watcher, logFile: f}, nil
 }
 
-// Stop stops the watcher and closes the log file. Idempotent, ignores errors,
-// so it is safe to defer.
+// Stop stops the watcher and closes the log file. Idempotent, safe to defer.
 func (h auditHandle) Stop() {
 	if h.watcher != nil {
 		h.watcher.Stop()
@@ -47,10 +45,7 @@ func (h auditHandle) Stop() {
 	}
 }
 
-// PrintSummary reports what the audit log observed during the run as a
-// single low-noise line, printed only when there is something to report -
-// either recorded activity or a warning (e.g. a root that couldn't be
-// watched), even if that warning is the only thing in the log.
+// PrintSummary reports what the audit log observed, printed only when there is something to report.
 func (h auditHandle) PrintSummary(w io.Writer) {
 	counts, total, warnings := h.summarize()
 	if total == 0 && warnings == 0 {
@@ -93,12 +88,7 @@ func (h auditHandle) summarize() (counts map[fswatch.Op]int, total, warnings int
 	return counts, total, warnings
 }
 
-// setupAudit starts a host-side inotify watcher over rs.AuditPaths when
-// AuditEnabled is set, returning a cleanup func to defer. No-op when auditing
-// is disabled or this is a dry run - no container will run, so there is
-// nothing to observe. Unlike setupProxy, this never mutates rs and never
-// returns extra docker args: the watcher is entirely out-of-band from the
-// container's own arguments.
+// setupAudit starts the audit watcher when enabled, returning a cleanup func to defer. No-op if disabled or a dry run.
 func setupAudit(rs RunSpec) (cleanup func(), err error) {
 	if !rs.AuditEnabled || rs.DryRun {
 		return func() {}, nil

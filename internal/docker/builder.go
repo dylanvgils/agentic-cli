@@ -110,10 +110,7 @@ func (b *RunSpecBuilder) WithProxy(enabled bool, image string, allow []string, l
 	return b
 }
 
-// WithAudit configures host-side filesystem audit logging. When enabled, a
-// host-side inotify watcher observes paths (the host side of every bind
-// mount) for the container's lifetime, logging activity to logDir and
-// skipping directories named in exclude.
+// WithAudit configures host-side filesystem audit logging over paths, logging to logDir and skipping exclude.
 func (b *RunSpecBuilder) WithAudit(enabled bool, paths, exclude []string, logDir string) *RunSpecBuilder {
 	b.auditEnabled = enabled
 	b.auditPaths = paths

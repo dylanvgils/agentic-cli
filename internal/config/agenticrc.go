@@ -72,14 +72,11 @@ type RCProxy struct {
 	Mode string `toml:"mode"`
 }
 
-// RCAudit holds filesystem-audit-logging settings from a .agenticrc.toml
-// file. Enabled is a pointer so an inner config can explicitly disable
-// auditing enabled by an outer one (a plain false is indistinguishable from
-// "unset").
+// RCAudit holds filesystem-audit-logging settings from a .agenticrc.toml file.
+// Enabled is a pointer so an inner config can explicitly disable an outer one's setting.
 type RCAudit struct {
 	Enabled *bool `toml:"enabled"`
-	// Exclude lists extra directory names to skip while watching, merged with
-	// fswatch.DefaultExcludeDirs.
+	// Exclude lists extra directory names to skip, merged with fswatch.DefaultExcludeDirs.
 	Exclude []string `toml:"exclude"`
 }
 

@@ -5,9 +5,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// resolveAuditEnabled determines whether filesystem audit logging is on for
-// this run. Flags win over config; an explicit --no-audit (or enabled =
-// false) always wins.
+// resolveAuditEnabled determines whether filesystem audit logging is on for this run. Flags win over config.
 func resolveAuditEnabled(cmd *cobra.Command, rc *config.AgenticRC) bool {
 	if noAudit, _ := cmd.Flags().GetBool("no-audit"); noAudit {
 		return false

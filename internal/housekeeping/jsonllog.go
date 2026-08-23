@@ -25,10 +25,7 @@ const DefaultAuditLogRetentionDays = 3
 const followChanBuffer = 64
 
 // PruneJSONLLogs removes *.jsonl log files in dir whose mtime is older than
-// maxAge. maxAge <= 0 removes every log file regardless of age (used for a
-// full `agentic clean` wipe). It is best-effort: a missing dir or an
-// unremovable file must not fail the caller. Shared by the proxy access log
-// and the filesystem audit log, which both write one JSON object per line.
+// maxAge (maxAge <= 0 removes every log file). Best-effort: never fails the caller.
 func PruneJSONLLogs(dir string, maxAge time.Duration) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -49,12 +46,9 @@ func PruneJSONLLogs(dir string, maxAge time.Duration) {
 	}
 }
 
-// FollowJSONL streams each line appended to path as it's written, starting
-// from the beginning of the file, until stop is called. It polls at interval
-// rather than using inotify/kqueue so the same mechanism works whether the
-// writer is agentic's own process (the audit watcher) or a separate
-// container (the proxy sidecar); it also tolerates path not existing yet.
-// lines is closed once the poller exits after stop is called.
+// FollowJSONL streams each line appended to path, from the start of the
+// file, until stop is called; lines is then closed. Polls rather than using
+// inotify/kqueue, since the writer may be a separate container.
 func FollowJSONL(path string, interval time.Duration) (lines <-chan []byte, stop func()) {
 	out := make(chan []byte, followChanBuffer)
 	done := make(chan struct{})
@@ -89,12 +83,9 @@ func followJSONL(path string, interval time.Duration, out chan<- []byte, done <-
 	}
 }
 
-// drainJSONLLines reads any bytes appended to path since offset, emits each
+// drainJSONLLines reads bytes appended to path since offset, emits each
 // complete line to out, and returns the advanced offset plus any trailing
-// partial line (no trailing newline yet) to carry into the next call. ok is
-// false when done fired while trying to send a line, signaling the caller to
-// stop; a missing path or read error is not fatal - it just yields no lines
-// this round, to be retried on the next tick.
+// partial line. ok is false when done fired while sending a line.
 func drainJSONLLines(path string, offset int64, partial []byte, out chan<- []byte, done <-chan struct{}) (newOffset int64, newPartial []byte, ok bool) {
 	f, err := os.Open(path)
 	if err != nil {

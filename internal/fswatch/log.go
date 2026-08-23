@@ -19,9 +19,7 @@ const (
 )
 
 // Entry is a single structured audit-log record, emitted as one JSON line per
-// filesystem event. A Detail-only entry (Op/Path unset) records meta
-// information - a root that could not be watched, a dropped-events warning -
-// rather than a specific path's activity.
+// filesystem event. A Detail-only entry (Op/Path unset) records meta info instead.
 type Entry struct {
 	Time   time.Time `json:"time"`
 	Op     Op        `json:"op,omitempty"`

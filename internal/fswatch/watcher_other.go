@@ -1,21 +1,15 @@
-// Package fswatch's fallback for any host OS without a native backend wired
-// up yet (currently: everything except Linux and macOS - notably Windows,
-// which would need ReadDirectoryChangesW, an entirely different API from
-// inotify/kqueue).
+// Package fswatch's fallback for any host OS without a native backend wired up yet (e.g. Windows).
 //go:build !linux && !darwin
 
 package fswatch
 
 import "fmt"
 
-// Watcher is a no-op stand-in. Start always fails, so a caller that
-// explicitly enabled filesystem auditing sees a clear error rather than
-// silent inactivity.
+// Watcher is a no-op stand-in; Start always fails rather than silently doing nothing.
 type Watcher struct{}
 
-// New returns a Watcher whose Start always fails - roots, logger, and opts
-// are accepted (and ignored) only to keep the constructor's signature
-// identical across every platform backend.
+// New returns a Watcher whose Start always fails. Args are accepted (and
+// ignored) only to keep the constructor's signature identical across platforms.
 func New(_ []string, _ *Logger, _ Options) *Watcher {
 	return &Watcher{}
 }

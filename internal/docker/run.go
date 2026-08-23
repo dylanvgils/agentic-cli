@@ -78,10 +78,7 @@ type RunSpec struct {
 	ProxyLogDir  string   // host dir for JSON-lines access logs
 	ProxyMonitor bool     // log the allowlist verdict without enforcing it
 
-	// Filesystem audit logging. When AuditEnabled is set, a host-side inotify
-	// watcher observes AuditPaths (the host side of every bind mount) for the
-	// container's lifetime, logging activity to AuditLogDir. Runs entirely on
-	// the host - contributes no docker run arguments.
+	// Filesystem audit logging; runs entirely on the host, contributes no docker run arguments.
 	AuditEnabled bool
 	AuditPaths   []string // host paths to watch
 	AuditExclude []string // extra directory names to exclude, merged with fswatch.DefaultExcludeDirs

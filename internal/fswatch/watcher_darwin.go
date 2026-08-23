@@ -1,18 +1,10 @@
 // Package fswatch's macOS backend, built on kqueue via golang.org/x/sys/unix.
 //
-// kqueue's EVFILT_VNODE has lower fidelity than Linux's inotify: it reports
-// "this watched file or directory changed" (NOTE_WRITE/NOTE_EXTEND/
-// NOTE_DELETE/NOTE_RENAME) but, for a directory, never which entry changed -
-// there's no analog of inotify's create/delete-with-filename event, and no
-// open/close event of any kind (that requires a kernel extension /
-// EndpointSecurity, not available to an unprivileged, capability-dropped
-// process). So this backend watches every individual file as well as every
-// directory (one open fd each - kqueue registrations are tied to the fd,
-// closing it removes the watch), and on a directory's NOTE_WRITE, diffs a
-// cached listing against a fresh one to recover which names were added or
-// removed. A consequence: OpOpen never fires on macOS, and OpWrite fires on
-// file content changes but with coarser event coalescing than inotify's
-// IN_CLOSE_WRITE.
+// kqueue's EVFILT_VNODE only reports that a watched file or directory
+// changed, not which entry - so this backend watches every file and
+// directory individually and diffs directory listings on NOTE_WRITE to
+// recover adds/removes. Consequence: OpOpen never fires on macOS, and
+// OpWrite coalesces more coarsely than inotify's IN_CLOSE_WRITE.
 //go:build darwin
 
 package fswatch
@@ -27,9 +19,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// wakeupIdent is the EVFILT_USER identifier Stop triggers to interrupt a
-// blocked Kevent call - kqueue's native, self-pipe-free cancellation
-// mechanism.
+// wakeupIdent is the EVFILT_USER identifier Stop triggers to interrupt a blocked Kevent call.
 const wakeupIdent = 1
 
 // vnodeFflags is the kqueue EVFILT_VNODE mask used for every watch.
@@ -67,9 +57,7 @@ func New(roots []string, logger *Logger, opts Options) *Watcher {
 }
 
 // Start opens the kqueue instance and begins watching every root. A root
-// that doesn't exist, or that fails to watch (permission, fd exhaustion), is
-// logged as a Detail entry and skipped - auditing is best-effort coverage,
-// not a gate on whether the tool container is allowed to run. Only failure
+// that fails to watch is logged as a Detail entry and skipped; only failure
 // to initialize kqueue itself is fatal.
 func (w *Watcher) Start() error {
 	kq, err := unix.Kqueue()
@@ -92,9 +80,7 @@ func (w *Watcher) Start() error {
 	return nil
 }
 
-// Stop signals the event loop to exit via the EVFILT_USER wakeup event and
-// waits for it, up to a bound, so cleanup can never hang. Idempotent and
-// safe to call from a deferred cleanup.
+// Stop signals the event loop to exit and waits for it, up to a bound. Idempotent.
 func (w *Watcher) Stop() {
 	w.stopOnce.Do(func() {
 		wake := unix.Kevent_t{Ident: wakeupIdent, Filter: unix.EVFILT_USER, Fflags: unix.NOTE_TRIGGER}
@@ -235,11 +221,8 @@ func (w *Watcher) handle(ev unix.Kevent_t) {
 	}
 }
 
-// rearmIfReplaced re-watches path if something now exists there, for the
-// atomic-save case (write temp file, then rename over the original): the
-// destination's name never changes in its parent directory's listing, only
-// its inode does, so diffDir's name-based comparison can never see it as
-// "created" and would otherwise leave it unwatched for the rest of the run.
+// rearmIfReplaced re-watches path if something now exists there, covering the
+// atomic-save case where a rename replaces the inode but not the name.
 func (w *Watcher) rearmIfReplaced(path string) {
 	info, err := os.Lstat(path)
 	if err != nil {
@@ -256,9 +239,7 @@ func (w *Watcher) rearmIfReplaced(path string) {
 }
 
 // diffDir re-lists a watched directory whose NOTE_WRITE fired, comparing
-// against the cached listing to recover which entries were added (logged as
-// create, then watched in turn) or removed (logged as delete) - kqueue
-// itself does not report which entry changed, only that the directory did.
+// against the cached listing to recover which entries were added or removed.
 func (w *Watcher) diffDir(path string) {
 	newNames := listNames(path)
 
