@@ -232,7 +232,7 @@ agentic inspect claude --all         # detail for all namespaces' claude image
 # Build a project-specific image set (images are named <namespace>-<tool>)
 agentic build claude --namespace myproject --base node,java --apt make
 agentic inspect                      # shows both agentic-claude and myproject-claude
-agentic run claude --namespace myproject
+agentic run --namespace myproject claude
 agentic update --all                 # update every agentic image across all namespaces
 
 # Run a tool
@@ -421,7 +421,7 @@ gradle wrapper
 Use named volumes to persist the download cache across container runs:
 
 ```bash
-agentic -v 'maven:$CONTAINER_HOME/.m2' -v 'gradle:$CONTAINER_HOME/.gradle' claude
+agentic run -v 'maven:$CONTAINER_HOME/.m2' -v 'gradle:$CONTAINER_HOME/.gradle' claude
 ```
 
 Or add to `.agenticrc.toml` in the repo root so the whole team picks it up:

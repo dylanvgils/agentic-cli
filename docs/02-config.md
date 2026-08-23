@@ -430,8 +430,8 @@ These placeholders expand in mount strings (`extra_mounts`, `read_only_mounts`, 
 Use single quotes (or escape the `$`) so the shell doesn't expand the variables before passing them to `agentic`:
 
 ```bash
-agentic -v '$TOOL_HOME/custom:$CONTAINER_HOME/.custom' claude
-agentic -v '~/.m2:$CONTAINER_HOME/.m2' -v '~/.gradle:$CONTAINER_HOME/.gradle' claude
+agentic run -v '$TOOL_HOME/custom:$CONTAINER_HOME/.custom' claude
+agentic run -v '~/.m2:$CONTAINER_HOME/.m2' -v '~/.gradle:$CONTAINER_HOME/.gradle' claude
 ```
 
 ## Inspecting the merged config
