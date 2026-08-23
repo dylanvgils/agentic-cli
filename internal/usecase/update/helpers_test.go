@@ -49,6 +49,13 @@ func stubUpdateTool(t *testing.T, fn func(tool, image string, opts tools.BuildOp
 	t.Cleanup(func() { UpdateTool = orig })
 }
 
+func stubLatestToolVersion(t *testing.T, latest string, newer, ok bool) {
+	t.Helper()
+	orig := LatestToolVersion
+	LatestToolVersion = func(string, string) (string, bool, bool) { return latest, newer, ok }
+	t.Cleanup(func() { LatestToolVersion = orig })
+}
+
 // captureStdout replaces os.Stdout with a pipe and returns what was written.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
