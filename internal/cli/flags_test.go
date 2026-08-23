@@ -45,10 +45,36 @@ func TestAddBuildFlags(t *testing.T) {
 		addBuildFlags(cmd)
 
 		// Assert
-		expected := append([]string{"base", "apt", "dry-run", "registry"}, tools.KnownLayers()...)
+		expected := append([]string{"base", "base-exact", "apt", "apt-exact", "dry-run", "registry"}, tools.KnownLayers()...)
 		for _, name := range expected {
 			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
 		}
+	})
+
+	t.Run("base and base-exact are mutually exclusive", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
+		addBuildFlags(cmd)
+		cmd.SetArgs([]string{"--base", "java", "--base-exact", "node"})
+
+		// Act
+		err := cmd.Execute()
+
+		// Assert
+		assert.Error(t, err)
+	})
+
+	t.Run("apt and apt-exact are mutually exclusive", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
+		addBuildFlags(cmd)
+		cmd.SetArgs([]string{"--apt", "make", "--apt-exact", "gcc"})
+
+		// Act
+		err := cmd.Execute()
+
+		// Assert
+		assert.Error(t, err)
 	})
 
 	t.Run("version flag usage reflects default versions", func(t *testing.T) {
@@ -189,18 +215,65 @@ func TestCollectAptPackages(t *testing.T) {
 }
 
 func TestBuildOptsFromFlags(t *testing.T) {
-	// Arrange
-	rc := &config.AgenticRC{}
-	cmd := &cobra.Command{Use: "test"}
-	addBuildFlags(cmd)
-	require.NoError(t, cmd.Flags().Set("base", "java"))
-	require.NoError(t, cmd.Flags().Set("base", "dotnet"))
+	t.Run("base flag values accumulate and merge with rc", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+		cmd := &cobra.Command{Use: "test"}
+		addBuildFlags(cmd)
+		require.NoError(t, cmd.Flags().Set("base", "java"))
+		require.NoError(t, cmd.Flags().Set("base", "dotnet"))
 
-	// Act
-	opts := buildOptsFromFlags(cmd, rc)
+		// Act
+		opts := buildOptsFromFlags(cmd, rc)
 
-	// Assert
-	assert.Equal(t, []string{"dotnet", "java"}, opts.BaseOverride)
+		// Assert
+		assert.Equal(t, []string{"dotnet", "java"}, opts.BaseOverride)
+	})
+
+	t.Run("base-exact ignores rc bases", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
+		cmd := &cobra.Command{Use: "test"}
+		addBuildFlags(cmd)
+		require.NoError(t, cmd.Flags().Set("base-exact", "node"))
+
+		// Act
+		opts := buildOptsFromFlags(cmd, rc)
+
+		// Assert
+		assert.Equal(t, []string{"node"}, opts.BaseOverride)
+		assert.True(t, opts.BaseExact)
+	})
+
+	t.Run("base-exact empty value produces debian only", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
+		cmd := &cobra.Command{Use: "test"}
+		addBuildFlags(cmd)
+		require.NoError(t, cmd.Flags().Set("base-exact", ""))
+
+		// Act
+		opts := buildOptsFromFlags(cmd, rc)
+
+		// Assert
+		assert.Empty(t, opts.BaseOverride)
+		assert.True(t, opts.BaseExact)
+	})
+
+	t.Run("apt-exact ignores rc apt", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
+		cmd := &cobra.Command{Use: "test"}
+		addBuildFlags(cmd)
+		require.NoError(t, cmd.Flags().Set("apt-exact", "gcc"))
+
+		// Act
+		opts := buildOptsFromFlags(cmd, rc)
+
+		// Assert
+		assert.Equal(t, []string{"gcc"}, opts.AptPackages)
+		assert.True(t, opts.AptExact)
+	})
 }
 
 func TestToolNames(t *testing.T) {

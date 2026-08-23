@@ -155,6 +155,61 @@ func TestRecoverApt(t *testing.T) {
 	})
 }
 
+func TestRecoveredBaseOverride(t *testing.T) {
+	t.Run("recovers from label when override is empty", func(t *testing.T) {
+		// Act
+		result := RecoveredBaseOverride(&ImageInfo{Base: "node@24,java@21"}, tools.BuildOptions{})
+
+		// Assert
+		assert.Equal(t, []string{"node", "java"}, result)
+	})
+
+	t.Run("explicit override wins over label", func(t *testing.T) {
+		// Act
+		result := RecoveredBaseOverride(&ImageInfo{Base: "node@24"}, tools.BuildOptions{BaseOverride: []string{"go"}})
+
+		// Assert
+		assert.Equal(t, []string{"go"}, result)
+	})
+
+	t.Run("exact mode skips recovery even when empty", func(t *testing.T) {
+		// Act
+		result := RecoveredBaseOverride(&ImageInfo{Base: "node@24"}, tools.BuildOptions{BaseOverride: []string{}, BaseExact: true})
+
+		// Assert
+		assert.Empty(t, result)
+	})
+}
+
+func TestRecoveredAptPackages(t *testing.T) {
+	t.Run("recovers from label and merges with opts", func(t *testing.T) {
+		// Act
+		merged, recovered := RecoveredAptPackages(&ImageInfo{Apt: "make,gcc"}, tools.BuildOptions{AptPackages: []string{"cmake"}})
+
+		// Assert
+		assert.Equal(t, []string{"make", "gcc", "cmake"}, merged)
+		assert.Equal(t, []string{"make", "gcc"}, recovered)
+	})
+
+	t.Run("no label to recover from", func(t *testing.T) {
+		// Act
+		merged, recovered := RecoveredAptPackages(&ImageInfo{}, tools.BuildOptions{AptPackages: []string{"cmake"}})
+
+		// Assert
+		assert.Equal(t, []string{"cmake"}, merged)
+		assert.Nil(t, recovered)
+	})
+
+	t.Run("exact mode skips recovery", func(t *testing.T) {
+		// Act
+		merged, recovered := RecoveredAptPackages(&ImageInfo{Apt: "make"}, tools.BuildOptions{AptPackages: []string{"cmake"}, AptExact: true})
+
+		// Assert
+		assert.Equal(t, []string{"cmake"}, merged)
+		assert.Nil(t, recovered)
+	})
+}
+
 func TestPullIsFresh(t *testing.T) {
 	t.Run("timestamp within interval is fresh", func(t *testing.T) {
 		// Arrange

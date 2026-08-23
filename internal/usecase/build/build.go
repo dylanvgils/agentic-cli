@@ -42,9 +42,13 @@ func Apply(names []string, namespace string, opts tools.BuildOptions) error {
 		output.Step(image)
 		if len(opts.BaseOverride) > 0 {
 			output.Detailf("base: %s", strings.Join(opts.BaseOverride, ", "))
+		} else if opts.BaseExact {
+			output.Detail("base: (none, exact)")
 		}
 		if len(opts.AptPackages) > 0 {
 			output.Detailf("apt: %s", strings.Join(opts.AptPackages, ", "))
+		} else if opts.AptExact {
+			output.Detail("apt: (none, exact)")
 		}
 
 		if err := BuildTool(name, image, opts); err != nil {

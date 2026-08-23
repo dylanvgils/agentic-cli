@@ -142,13 +142,8 @@ func DryRun(tool, namespace string, opts tools.BuildOptions) error {
 }
 
 func recoverOpts(info *docker.ImageInfo, opts tools.BuildOptions) tools.BuildOptions {
-	if len(opts.BaseOverride) == 0 {
-		opts.BaseOverride = docker.RecoverExtras(info.Base)
-	}
-	if info.Apt != "" {
-		recoveredPkgs := docker.RecoverApt(info.Apt)
-		opts.AptPackages = tools.MergePackages(recoveredPkgs, opts.AptPackages)
-	}
+	opts.BaseOverride = docker.RecoveredBaseOverride(info, opts)
+	opts.AptPackages, _ = docker.RecoveredAptPackages(info, opts)
 	return opts
 }
 
@@ -172,9 +167,13 @@ func Apply(name, image string, opts tools.BuildOptions) error {
 	output.Step(image)
 	if len(opts.BaseOverride) > 0 {
 		output.Detailf("base: %s", strings.Join(opts.BaseOverride, ", "))
+	} else if opts.BaseExact {
+		output.Detail("base: (none, exact)")
 	}
 	if len(opts.AptPackages) > 0 {
 		output.Detailf("apt: %s", strings.Join(opts.AptPackages, ", "))
+	} else if opts.AptExact {
+		output.Detail("apt: (none, exact)")
 	}
 
 	reportBeforeUpdate(name, image)

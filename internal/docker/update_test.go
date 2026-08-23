@@ -51,6 +51,24 @@ func TestUpdateTool(t *testing.T) {
 		assert.NotContains(t, dockerfiles[0], "AS dotnet")
 	})
 
+	t.Run("base-exact skips label recovery even when override is empty", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{
+			"inspect": `{"Id":"sha256:abcdef","Size":1048576,"Config":{"Labels":{"agentic.base":"node@24.0.0,java@21.0.1"}}}`,
+		})
+		getDockerfiles := stubRunInteractiveCapturingDockerfile(t)
+
+		// Act
+		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{BaseOverride: []string{}, BaseExact: true})
+
+		// Assert - neither java nor node extra is recovered from the label
+		require.NoError(t, err)
+		dockerfiles := getDockerfiles()
+		require.NotEmpty(t, dockerfiles)
+		assert.NotContains(t, dockerfiles[0], "AS java")
+		assert.NotContains(t, dockerfiles[0], "AS node")
+	})
+
 	t.Run("recovers layer versions from label", func(t *testing.T) {
 		// Arrange
 		stubDockerRunBySubcmd(t, map[string]string{
@@ -114,6 +132,24 @@ func TestUpdateTool(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		require.NotEmpty(t, getCalls())
+	})
+
+	t.Run("apt-exact skips label apt recovery", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{
+			"inspect": `{"Id":"sha256:abcdef","Size":1048576,"Config":{"Labels":{"agentic.apt":"make"}}}`,
+		})
+		getDockerfiles := stubRunInteractiveCapturingDockerfile(t)
+
+		// Act
+		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{AptPackages: []string{"gcc"}, AptExact: true})
+
+		// Assert - the recovered "make" package does not survive, only the exact "gcc" does
+		require.NoError(t, err)
+		dockerfiles := getDockerfiles()
+		require.NotEmpty(t, dockerfiles)
+		assert.Contains(t, dockerfiles[0], "gcc")
+		assert.NotContains(t, dockerfiles[0], "make")
 	})
 
 	t.Run("skips verification when all user packages already in image", func(t *testing.T) {

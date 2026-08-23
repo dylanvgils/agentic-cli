@@ -431,6 +431,38 @@ func TestApply(t *testing.T) {
 		assert.NotContains(t, out, "apt:")
 	})
 
+	t.Run("empty base-exact reported as none, exact", func(t *testing.T) {
+		// Arrange
+		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		opts := tools.BuildOptions{BaseExact: true, Versions: map[string]string{}}
+
+		// Act
+		out := captureStdout(t, func() {
+			err := Apply("claude", "agentic-claude", opts)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "   base: (none, exact)")
+	})
+
+	t.Run("empty apt-exact reported as none, exact", func(t *testing.T) {
+		// Arrange
+		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		opts := tools.BuildOptions{AptExact: true, Versions: map[string]string{}}
+
+		// Act
+		out := captureStdout(t, func() {
+			err := Apply("claude", "agentic-claude", opts)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "   apt: (none, exact)")
+	})
+
 	t.Run("script error propagates", func(t *testing.T) {
 		// Arrange
 		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error {
@@ -513,6 +545,22 @@ func Test_recoverOpts(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []string{"make", "gcc", "cmake"}, result.AptPackages)
+	})
+
+	t.Run("base-exact skips recovery even when empty", func(t *testing.T) {
+		// Act
+		result := recoverOpts(&docker.ImageInfo{Base: "node@24,java@21"}, tools.BuildOptions{BaseOverride: []string{}, BaseExact: true})
+
+		// Assert
+		assert.Empty(t, result.BaseOverride)
+	})
+
+	t.Run("apt-exact skips recovery", func(t *testing.T) {
+		// Act
+		result := recoverOpts(&docker.ImageInfo{Base: "node@24", Apt: "make,gcc"}, tools.BuildOptions{AptPackages: []string{"cmake"}, AptExact: true})
+
+		// Assert
+		assert.Equal(t, []string{"cmake"}, result.AptPackages)
 	})
 }
 
