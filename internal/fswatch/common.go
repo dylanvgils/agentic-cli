@@ -21,13 +21,13 @@ func collapseRoots(roots []string) []string {
 func cleanAndDedupeRoots(roots []string) []string {
 	cleaned := make([]string, 0, len(roots))
 	seen := make(map[string]bool, len(roots))
-	for _, r := range roots {
-		r = filepath.Clean(r)
-		if r == "" || r == "." || seen[r] {
+	for _, root := range roots {
+		root = filepath.Clean(root)
+		if root == "" || root == "." || seen[root] {
 			continue
 		}
-		seen[r] = true
-		cleaned = append(cleaned, r)
+		seen[root] = true
+		cleaned = append(cleaned, root)
 	}
 	sort.Strings(cleaned)
 	return cleaned
@@ -37,17 +37,17 @@ func cleanAndDedupeRoots(roots []string) []string {
 // appears in result before r is considered.
 func dropNestedRoots(cleaned []string) []string {
 	result := make([]string, 0, len(cleaned))
-	for _, r := range cleaned {
-		if !isCoveredByAny(r, result) {
-			result = append(result, r)
+	for _, root := range cleaned {
+		if !isCoveredByAny(root, result) {
+			result = append(result, root)
 		}
 	}
 	return result
 }
 
-func isCoveredByAny(r string, roots []string) bool {
+func isCoveredByAny(root string, roots []string) bool {
 	for _, kept := range roots {
-		if strings.HasPrefix(r, kept+string(filepath.Separator)) {
+		if strings.HasPrefix(root, kept+string(filepath.Separator)) {
 			return true
 		}
 	}
