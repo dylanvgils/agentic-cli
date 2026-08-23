@@ -167,8 +167,7 @@ func ApplyRecovered(tool, image string, rc *config.AgenticRC) error {
 	return Apply(tool, image, opts)
 }
 
-// Apply rebuilds image for tool with opts, reporting the base/apt overrides
-// and predicted version change in effect before the build starts.
+// Apply rebuilds image for tool, reporting base/apt/version before the build starts.
 func Apply(name, image string, opts tools.BuildOptions) error {
 	output.Step(image)
 	if len(opts.BaseOverride) > 0 {
@@ -183,11 +182,7 @@ func Apply(name, image string, opts tools.BuildOptions) error {
 	return UpdateTool(name, image, opts)
 }
 
-// reportBeforeUpdate prints the version-change line before the build starts,
-// predicted from the installed version and the latest upstream version - the
-// same "version: X -> Y" / "version: X (up to date)" wording Apply used to
-// print only after the build finished. Nothing prints for an unbuilt image
-// or when the upstream check is inconclusive.
+// reportBeforeUpdate prints the predicted version line, skipping unbuilt or inconclusive cases.
 func reportBeforeUpdate(name, image string) {
 	info, err := InspectImage(image)
 	if err != nil || info == nil {
@@ -207,9 +202,7 @@ func reportBeforeUpdate(name, image string) {
 	}
 }
 
-// reportVersionChange prints before/after as a "version: X -> Y" transition,
-// or "version: X (up to date)" when they match. after may be a predicted
-// target version rather than a confirmed post-build one.
+// reportVersionChange prints "version: X -> Y" or "version: X (up to date)".
 func reportVersionChange(before, after string) {
 	if after == "" {
 		return
