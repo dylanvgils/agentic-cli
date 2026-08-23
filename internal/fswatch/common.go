@@ -15,6 +15,10 @@ type Options struct {
 // collapseRoots cleans, dedupes, and drops any root that is a descendant of
 // another root in the set.
 func collapseRoots(roots []string) []string {
+	return dropNestedRoots(cleanAndDedupeRoots(roots))
+}
+
+func cleanAndDedupeRoots(roots []string) []string {
 	cleaned := make([]string, 0, len(roots))
 	seen := make(map[string]bool, len(roots))
 	for _, r := range roots {
@@ -26,19 +30,26 @@ func collapseRoots(roots []string) []string {
 		cleaned = append(cleaned, r)
 	}
 	sort.Strings(cleaned)
+	return cleaned
+}
 
+// dropNestedRoots assumes cleaned is sorted, so any ancestor of r already
+// appears in result before r is considered.
+func dropNestedRoots(cleaned []string) []string {
 	result := make([]string, 0, len(cleaned))
 	for _, r := range cleaned {
-		covered := false
-		for _, kept := range result {
-			if strings.HasPrefix(r, kept+string(filepath.Separator)) {
-				covered = true
-				break
-			}
-		}
-		if !covered {
+		if !isCoveredByAny(r, result) {
 			result = append(result, r)
 		}
 	}
 	return result
+}
+
+func isCoveredByAny(r string, roots []string) bool {
+	for _, kept := range roots {
+		if strings.HasPrefix(r, kept+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
