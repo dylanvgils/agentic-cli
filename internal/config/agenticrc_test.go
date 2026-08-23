@@ -261,6 +261,18 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, []string{"dotnet", "java"}, result.Build.Bases)
 	})
 
+	t.Run("read_only_mounts accumulate outermost first", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Run: RCRun{ReadOnlyMounts: []string{"$PWD/child:/workspace/child"}}}
+		parent := &AgenticRC{Run: RCRun{ReadOnlyMounts: []string{"$PWD/parent:/workspace/parent"}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, []string{"$PWD/parent:/workspace/parent", "$PWD/child:/workspace/child"}, result.Run.ReadOnlyMounts)
+	})
+
 	t.Run("versions innermost wins per key", func(t *testing.T) {
 		// Arrange
 		child := &AgenticRC{Build: RCBuild{Versions: map[string]string{"node": "22", "java": "17"}}}

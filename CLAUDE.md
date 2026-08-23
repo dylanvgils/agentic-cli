@@ -2,6 +2,26 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Table of contents
+
+- [What this is](#what-this-is)
+- [Key commands](#key-commands)
+- [Code conventions](#code-conventions)
+  - [Tool structure](#tool-structure)
+  - [Extracting a package out of `internal/cli`](#extracting-a-package-out-of-internalcli)
+  - [Adding a new runtime layer](#adding-a-new-runtime-layer)
+  - [Dockerfile DSL (`internal/dockerfile`)](#dockerfile-dsl-internaldockerfile)
+  - [Cobra command init functions](#cobra-command-init-functions)
+  - [Go style](#go-style)
+  - [Linting](#linting)
+  - [File structure](#file-structure)
+  - [Splitting code across files in a package](#splitting-code-across-files-in-a-package)
+  - [Go tests](#go-tests)
+  - [Shell scripts](#shell-scripts)
+  - [Security constraints (enforced in `internal/docker/run.go`)](#security-constraints-enforced-in-internaldockerrungo)
+  - [Keeping docs in sync](#keeping-docs-in-sync)
+  - [Mount handling](#mount-handling)
+
 ## What this is
 
 A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in isolated containers. The Go binary (`agentic`, entrypoint `cmd/cli/main.go`, Cobra command tree in `internal/cli`) handles all commands and generates Dockerfiles programmatically at build time - no static Dockerfile files exist. Development means editing Go source, then linting with `golangci-lint run ./...` (or `make lint`), testing with `go test ./...`, and building/running containers.

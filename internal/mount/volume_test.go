@@ -107,6 +107,48 @@ func TestHostPart(t *testing.T) {
 	})
 }
 
+func TestSplitHostContainer(t *testing.T) {
+	t.Run("unix path with container part", func(t *testing.T) {
+		// Act
+		host, container, ok := SplitHostContainer("/host/path:/container")
+
+		// Assert
+		assert.Equal(t, "/host/path", host)
+		assert.Equal(t, "/container", container)
+		assert.True(t, ok)
+	})
+
+	t.Run("named volume with container part", func(t *testing.T) {
+		// Act
+		host, container, ok := SplitHostContainer("maven:/container")
+
+		// Assert
+		assert.Equal(t, "maven", host)
+		assert.Equal(t, "/container", container)
+		assert.True(t, ok)
+	})
+
+	t.Run("no colon returns ok false", func(t *testing.T) {
+		// Act
+		host, container, ok := SplitHostContainer("maven")
+
+		// Assert
+		assert.Equal(t, "maven", host)
+		assert.Equal(t, "", container)
+		assert.False(t, ok)
+	})
+
+	t.Run("trailing colon returns empty container with ok true", func(t *testing.T) {
+		// Act
+		host, container, ok := SplitHostContainer("maven:")
+
+		// Assert
+		assert.Equal(t, "maven", host)
+		assert.Equal(t, "", container)
+		assert.True(t, ok)
+	})
+}
+
 func TestIsNamedVolume(t *testing.T) {
 	t.Run("named volume returns true", func(t *testing.T) {
 		// Act
@@ -225,6 +267,19 @@ func TestExpandMountSpec(t *testing.T) {
 		pwd, err := os.Getwd()
 		require.NoError(t, err)
 		spec := "$PWD:/workspace"
+
+		// Act
+		result := ExpandMountSpec(spec, "", "")
+
+		// Assert
+		assert.Equal(t, pwd+":/workspace", result)
+	})
+
+	t.Run("braced PWD", func(t *testing.T) {
+		// Arrange
+		pwd, err := os.Getwd()
+		require.NoError(t, err)
+		spec := "${PWD}:/workspace"
 
 		// Act
 		result := ExpandMountSpec(spec, "", "")

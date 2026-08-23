@@ -8,6 +8,9 @@ import (
 	"strings"
 )
 
+// WorkspaceContainerPath is the fixed in-container path the workspace directory is mounted at.
+const WorkspaceContainerPath = "/workspace"
+
 // validVolumeName matches Docker's named volume naming rules: 2+ chars, starting
 // with alphanumeric or underscore, followed by alphanumeric, underscore, dot, or dash.
 var validVolumeName = regexp.MustCompile(`^[a-zA-Z0-9_][a-zA-Z0-9_.\-]+$`)
@@ -52,6 +55,16 @@ func HostPart(spec string) string {
 	return host
 }
 
+// SplitHostContainer splits spec into host and container parts. ok is false
+// when spec has no ':' separator (container is then "").
+func SplitHostContainer(spec string) (host, container string, ok bool) {
+	host, rest := splitMountHost(spec)
+	if rest == "" {
+		return host, "", false
+	}
+	return host, rest[1:], true
+}
+
 // IsNamedVolume reports whether the host side of a mount spec is a Docker named
 // volume (as opposed to an absolute path or Windows drive-letter bind mount).
 func IsNamedVolume(spec string) bool {
@@ -80,6 +93,7 @@ func expandHostVars(spec, toolHome string) string {
 	spec = strings.ReplaceAll(spec, "${HOME}", home)
 	spec = strings.ReplaceAll(spec, "$HOME", home)
 	spec = strings.ReplaceAll(spec, "~", home)
+	spec = strings.ReplaceAll(spec, "${PWD}", pwd)
 	spec = strings.ReplaceAll(spec, "$PWD", pwd)
 	return spec
 }

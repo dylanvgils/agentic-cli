@@ -36,7 +36,7 @@ func claudeTmpfsMounts() []string {
 
 func claudeMounts() []string {
 	return []string{
-		mount.VolumeMount("$PWD", "/workspace"),
+		mount.VolumeMount("$PWD", mount.WorkspaceContainerPath),
 		mount.VolumeMount("$TOOL_HOME/claude/data", "$CONTAINER_HOME/.claude"),
 		mount.VolumeMount("$TOOL_HOME/claude/.claude.json", "$CONTAINER_HOME/.claude.json"),
 	}
@@ -97,7 +97,7 @@ func claudeStage(prevStage string) df.Stage {
 		}).
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/claude"}).
 		Add(df.Env{Key: "DISABLE_AUTOUPDATER", Value: "1"}).
-		Add(df.Workdir{Path: "/workspace"}).
+		Add(df.Workdir{Path: mount.WorkspaceContainerPath}).
 		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
 		Build()
 }

@@ -122,6 +122,7 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	cpus := func(rc *config.AgenticRC) string { return rc.Run.CPUs }
 	memory := func(rc *config.AgenticRC) string { return rc.Run.Memory }
 	extraMounts := func(rc *config.AgenticRC) []string { return rc.Run.ExtraMounts }
+	readOnlyMounts := func(rc *config.AgenticRC) []string { return rc.Run.ReadOnlyMounts }
 	aptPackages := func(rc *config.AgenticRC) []string { return rc.Build.AptPackages }
 	customInstalls := func(rc *config.AgenticRC) []string {
 		names := make([]string, len(rc.Build.CustomInstalls))
@@ -162,6 +163,9 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 		return err
 	}
 	if err := printListField(w, "extra_mounts", layers, extraMounts); err != nil {
+		return err
+	}
+	if err := printListField(w, "read_only_mounts", layers, readOnlyMounts); err != nil {
 		return err
 	}
 	if err := printListField(w, "secrets", layers, secrets); err != nil {

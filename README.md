@@ -495,6 +495,8 @@ Optionally, an egress allowlist proxy can restrict a tool's outbound traffic to 
 
 Optionally, filesystem audit logging can record what a tool actually touches under its bind-mounted host paths ($PWD, its own config/state dirs, credential files). Since a bind mount shares the host's underlying files, agentic watches the host side directly (`inotify` on Linux, `kqueue` on macOS) - no privilege needed, and nothing about the container's own hardening changes. Not yet implemented on Windows; `--audit` there returns a clear error rather than doing nothing silently. Toggle it per run with `--audit` / `--no-audit`; logs land as JSON lines under `$AGENTIC_HOME/audit/`. See [docs/02-config.md](docs/02-config.md#keys) for the`[run.audit]` config reference.
 
+Optionally, `read_only_mounts` in `.agenticrc.toml` (or `--read-only-mount`) forces a specific sub-path (e.g. a credentials directory) read-only while its parent mount stays writable. See [docs/02-config.md](docs/02-config.md#keys) for the `read_only_mounts` config reference.
+
 ## 🧭 Environment instructions
 
 Every `agentic run` writes a generated block - what's installed, what's restricted, and the network situation - into the tool's own global instructions file (`CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`), so the model knows the container's constraints up front. Append your own notes via `custom` under `[run.instructions]` in `.agenticrc.toml`, or turn it off with `enabled = false`. See [docs/02-config.md](docs/02-config.md#keys) for the full reference.
