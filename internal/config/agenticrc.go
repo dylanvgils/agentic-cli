@@ -35,14 +35,15 @@ type RCBuild struct {
 
 // RCRun holds runtime settings from a .agenticrc.toml file.
 type RCRun struct {
-	ExtraMounts  []string       `toml:"extra_mounts"`
-	Secrets      []string       `toml:"secrets"`
-	Env          []string       `toml:"env"`
-	PidsLimit    string         `toml:"pids_limit"`
-	CPUs         string         `toml:"cpus"`
-	Memory       string         `toml:"memory"`
-	Proxy        RCProxy        `toml:"proxy"`
-	Instructions RCInstructions `toml:"instructions"`
+	ExtraMounts    []string       `toml:"extra_mounts"`
+	ReadOnlyMounts []string       `toml:"read_only_mounts"`
+	Secrets        []string       `toml:"secrets"`
+	Env            []string       `toml:"env"`
+	PidsLimit      string         `toml:"pids_limit"`
+	CPUs           string         `toml:"cpus"`
+	Memory         string         `toml:"memory"`
+	Proxy          RCProxy        `toml:"proxy"`
+	Instructions   RCInstructions `toml:"instructions"`
 	// CheckUpdates is a pointer so an inner config can explicitly disable the
 	// proactive tool-update check enabled by an outer one (a plain false is
 	// indistinguishable from "unset"). Nil or true means the check runs.
@@ -286,6 +287,7 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 		run := configs[i].Run
 		build := configs[i].Build
 		resRun.ExtraMounts = append(resRun.ExtraMounts, run.ExtraMounts...)
+		resRun.ReadOnlyMounts = append(resRun.ReadOnlyMounts, run.ReadOnlyMounts...)
 		resRun.Secrets = append(resRun.Secrets, run.Secrets...)
 		resRun.Env = append(resRun.Env, run.Env...)
 		resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)

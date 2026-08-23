@@ -33,7 +33,7 @@ func copilotTmpfsMounts() []string {
 
 func copilotMounts() []string {
 	return []string{
-		mount.VolumeMount("$PWD", "/workspace"),
+		mount.VolumeMount("$PWD", mount.WorkspaceContainerPath),
 		mount.VolumeMount("$TOOL_HOME/copilot", "$CONTAINER_HOME/.copilot"),
 	}
 }
@@ -107,7 +107,7 @@ func copilotStage(prevStage string) df.Stage {
 		Add(df.User{Name: "copilot"}).
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/copilot"}).
 		Add(df.Env{Key: "COPILOT_AUTO_UPDATE", Value: "false"}).
-		Add(df.Workdir{Path: "/workspace"}).
+		Add(df.Workdir{Path: mount.WorkspaceContainerPath}).
 		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
 		Build()
 }

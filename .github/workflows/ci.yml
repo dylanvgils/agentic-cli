@@ -7,53 +7,39 @@ on:
     types: [opened, edited, synchronize, reopened]
 
 jobs:
-  ci:
+  pr-checks:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
 
       - name: Validate PR title
-        if: github.event_name == 'pull_request'
         run: .github/scripts/validate-title.sh "${{ github.event.pull_request.title }}"
 
-      - name: Compute next tag
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        id: next
-        run: |
-          NEXT=$(.github/scripts/next-tag.sh)
-          echo "next tag: ${NEXT:-none}"
-          echo "next=${NEXT}" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/setup-go@v7
-        if: github.event.action != 'edited'
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Lint
-        if: github.event.action != 'edited'
-        uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.12
-
-      - name: Test
-        if: github.event.action != 'edited'
-        run: make test
-
-      - name: Build
-        if: github.event.action != 'edited'
-        run: make build
-
-      - name: Create and push tag
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && steps.next.outputs.next != ''
+      - name: Update checksums
+        if: github.actor == 'renovate[bot]'
         env:
-          NEXT: ${{ steps.next.outputs.next }}
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$NEXT" -m "Release $NEXT"
-          git push origin "$NEXT"
+          git fetch origin "$HEAD_REF"
+          git switch -C "$HEAD_REF" "origin/$HEAD_REF"
+          make fix-checksums
+          if git diff --quiet -- internal/tools/checksums.json; then
+            echo "checksums already up to date"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add internal/tools/checksums.json
+            git commit -m "fix(deps): update nvm checksum for bumped nvm version"
+            git push origin "HEAD:$HEAD_REF"
+          fi
+
+  ci:
+    needs: [pr-checks]
+    if: ${{ !cancelled() && (needs.pr-checks.result == 'success' || needs.pr-checks.result == 'skipped') }}
+    uses: ./.github/workflows/validate.yml

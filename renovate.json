@@ -85,6 +85,14 @@
       "matchStrings": ["ARG GO_VERSION=(?<currentValue>[^\\s]+)"],
       "depNameTemplate": "go",
       "datasourceTemplate": "golang-version"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.agenticrc\\.toml$/"],
+      "matchStrings": ["golangci-lint.run/install\\.sh \\| sh -s -- -b /usr/local/bin v(?<currentValue>[\\d.]+)"],
+      "depNameTemplate": "golangci/golangci-lint",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
     }
   ]
 }

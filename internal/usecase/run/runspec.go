@@ -12,6 +12,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
@@ -24,17 +25,18 @@ type Target struct {
 
 // Input carries the flag/env-derived values Build needs.
 type Input struct {
-	ToolHome     string
-	Volumes      []string
-	Secrets      []string
-	Env          []string
-	PidsLimit    string
-	CPUs         string
-	Memory       string
-	DryRun       bool
-	Registry     string
-	ProxyEnabled bool
-	ProxyMonitor bool
+	ToolHome       string
+	Volumes        []string
+	Secrets        []string
+	ReadOnlyMounts []string
+	Env            []string
+	PidsLimit      string
+	CPUs           string
+	Memory         string
+	DryRun         bool
+	Registry       string
+	ProxyEnabled   bool
+	ProxyMonitor   bool
 	// InstructionsMount is the mount spec for this run's instructions snapshot, empty when disabled.
 	InstructionsMount string
 }
@@ -60,6 +62,8 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	if in.InstructionsMount != "" {
 		volumes = append(volumes, in.InstructionsMount)
 	}
+	// Must stay last: Docker lets the last --volume flag for a path win.
+	volumes = append(volumes, readOnlyMountSpecs(collectReadOnlyMounts(in.ReadOnlyMounts, rc))...)
 	secrets := collectSecrets(in.Secrets, rc)
 	env := collectEnv(in.Env, rc)
 	limits := resolveResourceLimits(in.PidsLimit, in.CPUs, in.Memory, rc)
@@ -207,6 +211,39 @@ func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) [
 	volumes = append(volumes, rc.Run.ExtraMounts...)
 
 	return volumes
+}
+
+// collectReadOnlyMounts merges --read-only-mount flags with read_only_mounts config, flags first (matching extra_mounts/secrets).
+func collectReadOnlyMounts(flags []string, rc *config.AgenticRC) []string {
+	var mounts []string
+
+	mounts = append(mounts, flags...)
+	mounts = append(mounts, rc.Run.ReadOnlyMounts...)
+
+	return mounts
+}
+
+// readOnlyMountSpecs converts each entry into a forced-:ro volume spec. A
+// no-colon entry is a workspace-relative shorthand expanding to
+// "$PWD/<path>:/workspace/<path>".
+func readOnlyMountSpecs(specs []string) []string {
+	out := make([]string, 0, len(specs))
+	for _, spec := range specs {
+		host, container := splitReadOnlyMountSpec(spec)
+		out = append(out, mount.VolumeMount(host, container, mount.VolumeOptions{ReadOnly: true}))
+	}
+	return out
+}
+
+// splitReadOnlyMountSpec splits a read-only mount entry, expanding the no-colon workspace-relative shorthand.
+func splitReadOnlyMountSpec(spec string) (host, container string) {
+	if !strings.Contains(spec, ":") {
+		return "$PWD/" + spec, mount.WorkspaceContainerPath + "/" + spec
+	}
+
+	host, container, _ = mount.SplitHostContainer(spec)
+	container = strings.TrimSuffix(strings.TrimSuffix(container, ":ro"), ":rw")
+	return host, container
 }
 
 func collectSecrets(flags []string, rc *config.AgenticRC) []string {

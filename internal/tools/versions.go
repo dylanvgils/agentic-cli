@@ -9,12 +9,14 @@ import (
 //go:embed versions.json
 var versionsJSON []byte
 
+//go:embed checksums.json
+var checksumsJSON []byte
+
 // Versions holds the default version strings for each supported runtime layer
 // plus the pinned tags for the utility base images (busybox, debian).
 type Versions struct {
 	Node             string `json:"node"`
 	Nvm              string `json:"nvm"`
-	NvmChecksum      string `json:"nvm_checksum"`
 	Java             string `json:"java"`
 	Dotnet           string `json:"dotnet"`
 	Go               string `json:"go"`
@@ -23,13 +25,23 @@ type Versions struct {
 	DistrolessDebian string `json:"distroless_debian"`
 }
 
+// Checksums holds integrity hashes for pinned artifacts that need verification.
+type Checksums struct {
+	Nvm string `json:"nvm"`
+}
+
 // DefaultVersions is populated at startup from the embedded versions.json.
+// DefaultChecksums is populated at startup from the embedded checksums.json.
 // A malformed file is a programmer error and causes a fatal log at process start.
 var DefaultVersions Versions
+var DefaultChecksums Checksums
 
 func init() {
 	if err := json.Unmarshal(versionsJSON, &DefaultVersions); err != nil {
 		log.Fatalf("tools: failed to parse embedded versions.json: %v", err)
+	}
+	if err := json.Unmarshal(checksumsJSON, &DefaultChecksums); err != nil {
+		log.Fatalf("tools: failed to parse embedded checksums.json: %v", err)
 	}
 }
 

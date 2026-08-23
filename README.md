@@ -343,7 +343,7 @@ Version defaults are embedded in the binary at build time - run `agentic build -
 
 `agentic update` reuses the version each layer was originally built with, so base/extra layers are regenerated identically (and stay cache-hits) even if the embedded defaults have since changed - pass the flag again to pin a different version instead. Pass `--no-cache` to also rebuild the base/extra layers from scratch, instead of only the tool stage.
 
-Base images (`debian:13-slim`, `golang:1.26.6`, etc.) use floating tags, not pinned digests, so registries publish security patches under the same tag over time. `agentic update` defaults to `--pull`, checking for a newer base image at most once every 24h per image (tracked via an `agentic.pulled` image label) - even when the tool's own CLI version is current - so patches reach your images without requiring `--no-cache`. Pass `--pull` to force a check now, or `--pull=false` to disable it (e.g. offline). `agentic build` does not pull by default - pass `--pull` explicitly to fetch fresh base images at build time too.
+Base images (`debian:13-slim`, `golang:1.26.6`, etc.) use floating tags, not pinned digests, so registries publish security patches under the same tag over time. `agentic update` defaults to `--pull`, checking for a newer base image at most once every 24h per image (tracked via an `agentic.pulled` image label) - even when the tool's own CLI version is current - so patches reach your images without requiring `--no-cache`. Pass `--pull` to force a check now, or `--pull=false` to disable it (e.g. offline). `agentic build` does not pull by default - pass `--pull` explicitly to fetch fresh base images at build time too. `agentic update` prints the installed and predicted target version (`version: X -> Y`, or `version: X (up to date)`) before the rebuild starts, not just after.
 
 > **Note:** During `agentic update`, the `bases` and `apt_packages` settings from `.agenticrc.toml` are ignored - the original build configuration is always reused. Only an explicit `--base` or `--apt` CLI flag (or the corresponding env var) overrides what the image was built with.
 
@@ -509,6 +509,8 @@ See [docs/development.md](docs/05-development.md) for build commands, repo struc
 Containers run read-only with all capabilities dropped, no privilege escalation, and on an isolated Docker network - see [docs/01-overview.md](docs/01-overview.md#security-model) for the full list of constraints.
 
 Optionally, an egress allowlist proxy can restrict a tool's outbound traffic to a configurable set of hosts and log every connection attempt - fail-closed, so anything not on the allowlist is blocked. Toggle it per run with `--proxy` / `--no-proxy`; use `--proxy-monitor` to log without blocking anything, useful for discovering a new tool's egress needs before writing an allowlist. See [docs/02-config.md](docs/02-config.md#keys) for the `[run.proxy]` config reference and setup details.
+
+Optionally, `read_only_mounts` in `.agenticrc.toml` (or `--read-only-mount`) forces a specific sub-path (e.g. a credentials directory) read-only while its parent mount stays writable. See [docs/02-config.md](docs/02-config.md#keys) for the `read_only_mounts` config reference.
 
 ## 🧭 Environment instructions
 

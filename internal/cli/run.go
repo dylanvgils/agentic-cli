@@ -17,12 +17,13 @@ import (
 )
 
 var (
-	toolHome     string
-	extraVolumes []string
-	flagSecrets  []string
-	flagEnv      []string
-	dryRun       bool
-	trustDir     bool
+	toolHome           string
+	extraVolumes       []string
+	flagSecrets        []string
+	flagReadOnlyMounts []string
+	flagEnv            []string
+	dryRun             bool
+	trustDir           bool
 )
 
 type parsedArgs struct {
@@ -56,6 +57,8 @@ func init() {
 		"additional volume mount (format: host:container[:options]); repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagSecrets, "secret", "s", nil,
 		"secret file to mount read-only into the container (format: name:/path[:/container/path]); repeatable")
+	runToolCmd.Flags().StringArrayVar(&flagReadOnlyMounts, "read-only-mount", nil,
+		"sub-path to force read-only, applied after other mounts (format: host:container); repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagEnv, "env", "e", nil,
 		"environment variable to set in the container (format: KEY=VALUE, or KEY to forward the host value); repeatable")
 	runToolCmd.Flags().BoolVar(&dryRun, "dry-run", false, "print the docker command without running it")
@@ -125,17 +128,18 @@ func runTool(cmd *cobra.Command, args []string) error {
 		SkipEntrypoint: parsedArgs.skipEntrypoint,
 	}
 	input := run.Input{
-		ToolHome:     toolHome,
-		Volumes:      extraVolumes,
-		Secrets:      flagSecrets,
-		Env:          flagEnv,
-		PidsLimit:    pidsLimit,
-		CPUs:         cpus,
-		Memory:       memory,
-		DryRun:       dryRun,
-		Registry:     collectRegistry(cmd),
-		ProxyEnabled: proxyEnabled,
-		ProxyMonitor: proxyMonitor,
+		ToolHome:       toolHome,
+		Volumes:        extraVolumes,
+		Secrets:        flagSecrets,
+		ReadOnlyMounts: flagReadOnlyMounts,
+		Env:            flagEnv,
+		PidsLimit:      pidsLimit,
+		CPUs:           cpus,
+		Memory:         memory,
+		DryRun:         dryRun,
+		Registry:       collectRegistry(cmd),
+		ProxyEnabled:   proxyEnabled,
+		ProxyMonitor:   proxyMonitor,
 	}
 
 	rs, cleanupInstructions, err := run.BuildWithInstructions(target, input, toolConfig, rc)
