@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to release. Empty auto-computes the next version from commits since the last release; 'latest' re-releases the current latest tag; or provide an explicit version (e.g. v1.2.3) to create and release that exact tag."
+        description: "Tag to release. Leave empty to auto-compute the next version from commits since the last release (or re-release the current latest tag if there's nothing new), or provide an explicit version (e.g. v1.2.3) to create and release that exact tag."
         required: false
         type: string
 

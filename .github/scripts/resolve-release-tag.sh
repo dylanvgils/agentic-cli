@@ -21,19 +21,18 @@ if [ "$EVENT_NAME" = "schedule" ] || { [ "$EVENT_NAME" = "workflow_dispatch" ] &
       echo "skip=true"
       exit 0
     fi
-    echo "no releasable commits since $LAST, nothing to release" >&2
-    exit 1
+    # Nothing new since $LAST: either it's already fully released (goreleaser
+    # will error "already exists"), or the previous run failed partway
+    # through publishing it. Either way, $LAST is what needs releasing.
+    echo "no new commits since $LAST, releasing it again" >&2
+    echo "release_tag=$LAST"
+    echo "create=false"
+    echo "skip=false"
+    exit 0
   fi
 
   echo "release_tag=$NEXT"
   echo "create=true"
-  echo "skip=false"
-  exit 0
-fi
-
-if [ "$TAG_INPUT" = "latest" ]; then
-  echo "release_tag=$LAST"
-  echo "create=false"
   echo "skip=false"
   exit 0
 fi

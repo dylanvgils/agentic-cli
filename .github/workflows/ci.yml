@@ -35,8 +35,7 @@ jobs:
           fi
 
   validate-title:
-    needs: [fix-checksum]
-    if: ${{ !cancelled() && github.event_name == 'pull_request' && (needs.fix-checksum.result == 'success' || needs.fix-checksum.result == 'skipped') }}
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
