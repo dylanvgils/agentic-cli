@@ -5,3 +5,4 @@
 3. [Volume mounts](03-volume-mounts.md) - per-tool mount breakdown and why each mount exists
 4. [Dockerfile DSL](04-dockerfile-dsl.md) - the typed Go DSL used to generate Dockerfiles at build time
 5. [Development](05-development.md) - build commands, Go conventions, adding tools and base runtimes
+6. [fswatch internals](06-fswatch.md) - how the inotify/kqueue backends behind `--audit` work, with sequence diagrams

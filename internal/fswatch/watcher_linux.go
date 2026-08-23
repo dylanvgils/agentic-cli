@@ -43,13 +43,18 @@ type Watcher struct {
 	logger       *Logger
 	exclude      []string
 	roots        []string
-
-	mu     sync.Mutex
-	wd     map[int32]string
-	byPath map[string]int32
+	watches      *watchSet
 
 	done     chan struct{}
 	stopOnce sync.Once
+}
+
+// watchSet is a mutex-protected bidirectional map between an inotify watch
+// descriptor and the path it watches.
+type watchSet struct {
+	mu     sync.Mutex
+	byWd   map[int32]string
+	byPath map[string]int32
 }
 
 // New creates a Watcher over roots, deduplicating and collapsing nested roots.
@@ -59,8 +64,7 @@ func New(roots []string, logger *Logger, opts Options) *Watcher {
 		logger:  logger,
 		exclude: opts.Exclude,
 		roots:   collapseRoots(roots),
-		wd:      make(map[int32]string),
-		byPath:  make(map[string]int32),
+		watches: newWatchSet(),
 		done:    make(chan struct{}),
 	}
 }
@@ -142,20 +146,7 @@ func (w *Watcher) addWatch(path string) {
 		w.logger.LogDetail(fmt.Sprintf("watch %s: %v", path, err))
 		return
 	}
-
-	w.mu.Lock()
-	w.wd[int32(wd)] = path
-	w.byPath[path] = int32(wd)
-	w.mu.Unlock()
-}
-
-func (w *Watcher) forget(wd int32) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if path, ok := w.wd[wd]; ok {
-		delete(w.wd, wd)
-		delete(w.byPath, path)
-	}
+	w.watches.add(int32(wd), path)
 }
 
 func (w *Watcher) loop() {
@@ -201,9 +192,7 @@ func (w *Watcher) handle(ev rawEvent) {
 		return
 	}
 
-	w.mu.Lock()
-	base, ok := w.wd[ev.wd]
-	w.mu.Unlock()
+	base, ok := w.watches.path(ev.wd)
 	if !ok {
 		return
 	}
@@ -216,7 +205,7 @@ func (w *Watcher) handle(ev rawEvent) {
 
 	switch {
 	case ev.mask&(unix.IN_DELETE_SELF|unix.IN_MOVE_SELF) != 0:
-		w.forget(ev.wd)
+		w.watches.remove(ev.wd)
 	case ev.mask&unix.IN_CREATE != 0:
 		// Watch before logging, so activity right after creation can't be missed.
 		if isDir {
@@ -232,6 +221,38 @@ func (w *Watcher) handle(ev rawEvent) {
 	case ev.mask&unix.IN_CLOSE_WRITE != 0:
 		w.logger.Log(OpWrite, path, isDir)
 	}
+}
+
+// newWatchSet returns an empty watchSet.
+func newWatchSet() *watchSet {
+	return &watchSet{
+		byWd:   make(map[int32]string),
+		byPath: make(map[string]int32),
+	}
+}
+
+func (s *watchSet) add(wd int32, path string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.byWd[wd] = path
+	s.byPath[path] = wd
+}
+
+func (s *watchSet) remove(wd int32) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if path, ok := s.byWd[wd]; ok {
+		delete(s.byWd, wd)
+		delete(s.byPath, path)
+	}
+}
+
+// path returns the watched path for wd, if any.
+func (s *watchSet) path(wd int32) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	path, ok := s.byWd[wd]
+	return path, ok
 }
 
 // decodeEvents decodes zero or more packed inotify_event records from buf.

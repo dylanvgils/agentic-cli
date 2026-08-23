@@ -16,7 +16,7 @@ agentic-cli/
     ├── config/                  # .agenticrc.toml loading and run spec
     ├── docker/                  # Build, update, run, clean, inspect, volume orchestration
     ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
-    ├── fswatch/                 # Host-side filesystem watcher (inotify/kqueue) backing --audit
+    ├── fswatch/                 # Host-side filesystem watcher (inotify/kqueue) backing --audit, see 06-fswatch.md
     ├── git/                     # Thin wrapper over the host git binary (CheckAvailable, Clone, FetchReset)
     ├── housekeeping/            # Host-side cleanup not tied to a tool run, the proxy server, or docker orchestration (e.g. pruning/following the proxy and audit JSON-lines logs)
     ├── marketplace/             # Syncs git-based plugin marketplace repos onto the host and tracks per-clone usage

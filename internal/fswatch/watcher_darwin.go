@@ -32,14 +32,21 @@ type Watcher struct {
 	logger  *Logger
 	exclude []string
 	roots   []string
-
-	mu      sync.Mutex
-	fdPath  map[uintptr]string         // watched fd -> path
-	pathFd  map[string]*os.File        // path -> the open file backing its kevent registration
-	dirList map[string]map[string]bool // path -> cached child-name set, directories only
+	watches *watchSet
 
 	done     chan struct{}
 	stopOnce sync.Once
+}
+
+// watchSet is a mutex-protected table of active watches: each watched path's
+// open file (kept so its kevent registration can be torn down by closing it),
+// the reverse fd -> path lookup kqueue events arrive with, and, for
+// directories, a cached listing of child names used to diff on NOTE_WRITE.
+type watchSet struct {
+	mu      sync.Mutex
+	fdPath  map[uintptr]string
+	pathFd  map[string]*os.File
+	dirList map[string]map[string]bool
 }
 
 // New creates a Watcher over roots, deduplicating and collapsing nested roots.
@@ -49,9 +56,7 @@ func New(roots []string, logger *Logger, opts Options) *Watcher {
 		logger:  logger,
 		exclude: opts.Exclude,
 		roots:   collapseRoots(roots),
-		fdPath:  make(map[uintptr]string),
-		pathFd:  make(map[string]*os.File),
-		dirList: make(map[string]map[string]bool),
+		watches: newWatchSet(),
 		done:    make(chan struct{}),
 	}
 }
@@ -90,11 +95,7 @@ func (w *Watcher) Stop() {
 		case <-time.After(2 * time.Second):
 		}
 
-		w.mu.Lock()
-		for _, f := range w.pathFd {
-			_ = f.Close()
-		}
-		w.mu.Unlock()
+		w.watches.closeAll()
 		_ = unix.Close(w.kq)
 	})
 }
@@ -149,29 +150,7 @@ func (w *Watcher) addWatch(path string, isDir bool) {
 		return
 	}
 
-	w.mu.Lock()
-	w.fdPath[f.Fd()] = path
-	w.pathFd[path] = f
-	if isDir {
-		w.dirList[path] = listNames(path)
-	}
-	w.mu.Unlock()
-}
-
-// forget drops path's watch (if any) and closes its fd, which removes the
-// kqueue registration.
-func (w *Watcher) forget(path string) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	f, ok := w.pathFd[path]
-	if !ok {
-		return
-	}
-	delete(w.fdPath, f.Fd())
-	delete(w.pathFd, path)
-	delete(w.dirList, path)
-	_ = f.Close()
+	w.watches.add(path, f, isDir)
 }
 
 func (w *Watcher) loop() {
@@ -197,10 +176,7 @@ func (w *Watcher) loop() {
 }
 
 func (w *Watcher) handle(ev unix.Kevent_t) {
-	w.mu.Lock()
-	path, ok := w.fdPath[uintptr(ev.Ident)]
-	_, isWatchedDir := w.dirList[path]
-	w.mu.Unlock()
+	path, isWatchedDir, ok := w.watches.lookup(uintptr(ev.Ident))
 	if !ok {
 		return
 	}
@@ -212,7 +188,7 @@ func (w *Watcher) handle(ev unix.Kevent_t) {
 			op = OpRename
 		}
 		w.logger.Log(op, path, isWatchedDir)
-		w.forget(path)
+		w.watches.remove(path)
 		w.rearmIfReplaced(path)
 	case isWatchedDir && ev.Fflags&unix.NOTE_WRITE != 0:
 		w.diffDir(path)
@@ -242,10 +218,7 @@ func (w *Watcher) rearmIfReplaced(path string) {
 // against the cached listing to recover which entries were added or removed.
 func (w *Watcher) diffDir(path string) {
 	newNames := listNames(path)
-
-	w.mu.Lock()
-	oldNames := w.dirList[path]
-	w.mu.Unlock()
+	oldNames := w.watches.dirListing(path)
 
 	for name := range newNames {
 		if oldNames[name] {
@@ -271,16 +244,88 @@ func (w *Watcher) diffDir(path string) {
 			continue
 		}
 		child := filepath.Join(path, name)
-		w.mu.Lock()
-		_, wasDir := w.dirList[child]
-		w.mu.Unlock()
+		wasDir := w.watches.isDir(child)
 		w.logger.Log(OpDelete, child, wasDir)
-		w.forget(child)
+		w.watches.remove(child)
 	}
 
-	w.mu.Lock()
-	w.dirList[path] = newNames
-	w.mu.Unlock()
+	w.watches.setDirListing(path, newNames)
+}
+
+// newWatchSet returns an empty watchSet.
+func newWatchSet() *watchSet {
+	return &watchSet{
+		fdPath:  make(map[uintptr]string),
+		pathFd:  make(map[string]*os.File),
+		dirList: make(map[string]map[string]bool),
+	}
+}
+
+func (s *watchSet) add(path string, f *os.File, isDir bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fdPath[f.Fd()] = path
+	s.pathFd[path] = f
+	if isDir {
+		s.dirList[path] = listNames(path)
+	}
+}
+
+// remove drops path's watch (if any) and closes its fd, which removes the
+// kqueue registration.
+func (s *watchSet) remove(path string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	f, ok := s.pathFd[path]
+	if !ok {
+		return
+	}
+	delete(s.fdPath, f.Fd())
+	delete(s.pathFd, path)
+	delete(s.dirList, path)
+	_ = f.Close()
+}
+
+// lookup returns the path watched by fd, whether it is a watched directory,
+// and whether fd is known.
+func (s *watchSet) lookup(fd uintptr) (path string, isDir bool, ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	path, ok = s.fdPath[fd]
+	_, isDir = s.dirList[path]
+	return path, isDir, ok
+}
+
+// isDir reports whether path is a currently watched directory.
+func (s *watchSet) isDir(path string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.dirList[path]
+	return ok
+}
+
+// dirListing returns the cached child-name set for a watched directory, or
+// nil if path isn't one.
+func (s *watchSet) dirListing(path string) map[string]bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.dirList[path]
+}
+
+func (s *watchSet) setDirListing(path string, names map[string]bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dirList[path] = names
+}
+
+// closeAll closes every watched file, tearing down its kqueue registration.
+func (s *watchSet) closeAll() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, f := range s.pathFd {
+		_ = f.Close()
+	}
 }
 
 // listNames returns the base names of dir's entries, or an empty set if it
