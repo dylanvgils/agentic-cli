@@ -304,10 +304,13 @@ func Test_resolveAll(t *testing.T) {
 }
 
 func TestApply(t *testing.T) {
+	stubLatestToolVersion(t, "", false, false)
+
 	t.Run("version changed reported", func(t *testing.T) {
 		// Arrange
 		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
-		stubInspectImageSequence(t, &docker.ImageInfo{Version: "1.0.0"}, &docker.ImageInfo{Version: "2.0.0"})
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		stubLatestToolVersion(t, "2.0.0", true, true)
 
 		// Act
 		out := captureStdout(t, func() {
@@ -323,6 +326,7 @@ func TestApply(t *testing.T) {
 		// Arrange
 		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		stubLatestToolVersion(t, "1.0.0", false, true)
 
 		// Act
 		out := captureStdout(t, func() {
@@ -332,6 +336,37 @@ func TestApply(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, out, "   version: 1.0.0 (up to date)")
+	})
+
+	t.Run("version line hidden when unbuilt", func(t *testing.T) {
+		// Arrange
+		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		stubInspectImage(t, nil, nil)
+
+		// Act
+		out := captureStdout(t, func() {
+			err := Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.NotContains(t, out, "version:")
+	})
+
+	t.Run("version line hidden when check inconclusive", func(t *testing.T) {
+		// Arrange
+		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		stubLatestToolVersion(t, "", false, false)
+
+		// Act
+		out := captureStdout(t, func() {
+			err := Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.NotContains(t, out, "version:")
 	})
 
 	t.Run("base override shown", func(t *testing.T) {
