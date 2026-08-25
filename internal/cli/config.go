@@ -9,7 +9,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
 
@@ -136,10 +135,10 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	proxyMode := func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }
 	proxyAllowedHosts := func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts }
 
-	if err := printScalarField(w, "namespace", config.EnvNamespace, layers, func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace); err != nil {
+	if err := printScalarField(w, "namespace", layers, func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace); err != nil {
 		return err
 	}
-	if err := printScalarField(w, "docker_context", "", layers, func(rc *config.AgenticRC) string { return rc.DockerContext }, ""); err != nil {
+	if err := printScalarField(w, "docker_context", layers, func(rc *config.AgenticRC) string { return rc.DockerContext }, ""); err != nil {
 		return err
 	}
 	if err := printBasesField(w, layers); err != nil {
@@ -151,13 +150,13 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if err := printListField(w, "custom_installs", layers, customInstalls); err != nil {
 		return err
 	}
-	if err := printScalarField(w, "pids_limit", config.EnvPidsLimit, layers, pidsLimit, docker.DefaultPidsLimit); err != nil {
+	if err := printScalarField(w, "pids_limit", layers, pidsLimit, docker.DefaultPidsLimit); err != nil {
 		return err
 	}
-	if err := printScalarField(w, "cpus", config.EnvCPUs, layers, cpus, docker.DefaultCPUs); err != nil {
+	if err := printScalarField(w, "cpus", layers, cpus, docker.DefaultCPUs); err != nil {
 		return err
 	}
-	if err := printScalarField(w, "memory", config.EnvMemory, layers, memory, docker.DefaultMemory); err != nil {
+	if err := printScalarField(w, "memory", layers, memory, docker.DefaultMemory); err != nil {
 		return err
 	}
 	if err := printListField(w, "extra_mounts", layers, extraMounts); err != nil {
@@ -172,25 +171,17 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if err := printBoolField(w, "proxy.enabled", layers, proxyEnabled, false); err != nil {
 		return err
 	}
-	if err := printScalarField(w, "proxy.mode", "", layers, proxyMode, config.ModeEnforce); err != nil {
+	if err := printScalarField(w, "proxy.mode", layers, proxyMode, config.ModeEnforce); err != nil {
 		return err
 	}
 	return printListField(w, "proxy.allowed_hosts", layers, proxyAllowedHosts)
 }
 
-// printScalarField prints a scalar config field. Innermost (last in layers) non-empty RC value
-// wins. If no layer sets the field, the env var (if set) is shown with a (ENV_VAR) tag. If
-// neither is set and defaultVal is non-empty, the default is shown with a (default) tag.
-func printScalarField(w io.Writer, label, envVar string, layers []config.RCLayer, get func(*config.AgenticRC) string, defaultVal string) error {
+// printScalarField prints a scalar config field: innermost RC value wins, else defaultVal tagged (default), else "(not set)".
+func printScalarField(w io.Writer, label string, layers []config.RCLayer, get func(*config.AgenticRC) string, defaultVal string) error {
 	for i := len(layers) - 1; i >= 0; i-- {
 		if v := get(layers[i].RC); v != "" {
 			_, err := fmt.Fprintf(w, "  %s: %s  [%s]\n", label, v, layers[i].Path)
-			return err
-		}
-	}
-	if envVar != "" {
-		if v := os.Getenv(envVar); v != "" {
-			_, err := fmt.Fprintf(w, "  %s: %s  (%s)\n", label, v, envVar)
 			return err
 		}
 	}
@@ -202,8 +193,7 @@ func printScalarField(w io.Writer, label, envVar string, layers []config.RCLayer
 	return err
 }
 
-// printBoolField prints a bool config field. Innermost (last in layers) non-nil
-// RC value wins. If no layer sets the field, defaultVal is shown tagged (default).
+// printBoolField prints a bool config field; the innermost layer with a non-nil value wins, else defaultVal is shown tagged (default).
 func printBoolField(w io.Writer, label string, layers []config.RCLayer, get func(*config.AgenticRC) *bool, defaultVal bool) error {
 	for i := len(layers) - 1; i >= 0; i-- {
 		if v := get(layers[i].RC); v != nil {
@@ -215,8 +205,7 @@ func printBoolField(w io.Writer, label string, layers []config.RCLayer, get func
 	return err
 }
 
-// printListField prints a list config field, tagging each entry with the layer it came from.
-// Entries are shown outermost-first (same order as the effective merge).
+// printListField prints a list config field, tagging each entry with its source layer, outermost-first.
 func printListField(w io.Writer, label string, layers []config.RCLayer, get func(*config.AgenticRC) []string) error {
 	type entry struct {
 		value string
@@ -267,7 +256,7 @@ func printBasesField(w io.Writer, layers []config.RCLayer) error {
 	return printListField(w, "bases", layers, getBases)
 }
 
-// resolveEffectiveVersions builds the version map for bases: innermost RC layer wins, then env vars.
+// resolveEffectiveVersions builds the version map for bases: innermost RC layer wins per key.
 func resolveEffectiveVersions(layers []config.RCLayer) map[string]string {
 	versions := map[string]string{}
 
@@ -276,12 +265,6 @@ func resolveEffectiveVersions(layers []config.RCLayer) map[string]string {
 			if v != "" {
 				versions[name] = v
 			}
-		}
-	}
-
-	for _, name := range tools.KnownLayers() {
-		if v := os.Getenv(config.EnvVersionVar(name)); v != "" {
-			versions[name] = v
 		}
 	}
 

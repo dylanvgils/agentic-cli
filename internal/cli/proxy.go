@@ -6,8 +6,9 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/output"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/spf13/cobra"
 )
 
@@ -62,15 +63,12 @@ func runProxyUpdate(cmd *cobra.Command, _ []string) error {
 	return runProxyBuildOrUpdate(cmd, true)
 }
 
-// runProxyBuildOrUpdate builds the proxy image, forcing a cache-free rebuild
-// when noCache is true. `build` only forces it via --no-cache; `update`
-// always forces it - that's the mechanism for picking up a proxy source or
-// base-image change that an existing cached image would otherwise mask.
+// runProxyBuildOrUpdate builds the proxy image; `update` always forces noCache so a stale cached layer can't mask a proxy source or base-image change.
 func runProxyBuildOrUpdate(cmd *cobra.Command, noCache bool) error {
 	opts := tools.BuildOptions{NoCache: noCache, Registry: collectRegistry(cmd)}
 
 	if dryRun, _ := cmd.Flags().GetBool("dry-run"); dryRun {
-		output.Step(tools.ProxyImage)
+		logging.Step(tools.ProxyImage)
 		content := tools.GenerateProxyDockerfile(buildinfo.Version, opts.Registry)
 		_, err := fmt.Println(content)
 		return err
@@ -90,49 +88,29 @@ func runProxyClean(cmd *cobra.Command, _ []string) error {
 	}
 
 	if logs, _ := cmd.Flags().GetBool("logs"); logs {
-		output.Step("proxy logs")
+		logging.Step("proxy logs")
 		pruneProxyLogs(filepath.Join(toolHome, "proxy"), 0)
 	}
 
 	return nil
 }
 
-// cleanProxyImage removes the proxy image. Shared by `agentic proxy clean`
-// and the no-arg `agentic clean`'s global resource sweep.
+// cleanProxyImage removes the proxy image; shared by `agentic proxy clean` and the no-arg `agentic clean`'s global sweep.
 func cleanProxyImage() error {
-	output.Step(tools.ProxyImage)
+	logging.Step(tools.ProxyImage)
 	return cleanImage(tools.ProxyImage)
 }
 
-// resolveProxyMode determines whether the egress proxy is on for this run,
-// and if so, whether it enforces the allowlist or only monitors it. Flags win
-// over config; an explicit "off" (--no-proxy, or enabled = false) always
-// beats mode, since mode only matters once the proxy is otherwise on.
-// Monitor mode (flag or config) implies the proxy is enabled.
+// resolveProxyMode reads the proxy-related flags and resolves them against rc into the effective proxy mode.
 func resolveProxyMode(cmd *cobra.Command, rc *config.AgenticRC) (enabled, monitor bool) {
-	if noProxy, _ := cmd.Flags().GetBool("no-proxy"); noProxy {
-		return false, false
-	}
-	if monitorFlag, _ := cmd.Flags().GetBool("proxy-monitor"); monitorFlag {
-		return true, true
-	}
-	if proxy, _ := cmd.Flags().GetBool("proxy"); proxy {
-		return true, false
-	}
+	noProxy, _ := cmd.Flags().GetBool("no-proxy")
+	monitorFlag, _ := cmd.Flags().GetBool("proxy-monitor")
+	proxyFlag, _ := cmd.Flags().GetBool("proxy")
 
-	if rc.Run.Proxy.Enabled != nil && !*rc.Run.Proxy.Enabled {
-		return false, false
-	}
-	if rc.Run.Proxy.Mode == config.ModeMonitor {
-		return true, true
-	}
-
-	return rc.Run.Proxy.Enabled != nil && *rc.Run.Proxy.Enabled, false
+	return resolve.ProxyMode(resolve.ProxyInput{NoProxy: noProxy, MonitorFlag: monitorFlag, ProxyFlag: proxyFlag}, rc)
 }
 
-// ensureProxyImage builds the proxy image if it is not already present or if
-// its CLI version label does not match the running CLI version, so `--proxy`
-// automatically picks up proxy changes shipped with a CLI update.
+// ensureProxyImage builds the proxy image if missing or stamped with a different CLI version, so `--proxy` picks up proxy changes shipped with a CLI update.
 func ensureProxyImage(cmd *cobra.Command) error {
 	info, err := inspectImage(tools.ProxyImage)
 	if err != nil {
@@ -145,9 +123,8 @@ func ensureProxyImage(cmd *cobra.Command) error {
 	return buildProxyImageNow(tools.BuildOptions{Registry: collectRegistry(cmd)})
 }
 
-// buildProxyImageNow builds the proxy image unconditionally - the caller
-// decides whether to check for an existing image first.
+// buildProxyImageNow builds the proxy image unconditionally; the caller decides whether to check for an existing image first.
 func buildProxyImageNow(opts tools.BuildOptions) error {
-	output.Step(tools.ProxyImage)
+	logging.Step(tools.ProxyImage)
 	return buildProxyImage(tools.ProxyImage, buildinfo.Version, buildinfo.DevSourceDir(tools.ProxyModulePath), opts)
 }

@@ -1,6 +1,4 @@
-// Package housekeeping manages host-side agentic state that needs periodic
-// cleanup but isn't tied to running a tool, the proxy server, or docker
-// orchestration itself - e.g. pruning stale files under $AGENTIC_HOME.
+// Package housekeeping prunes stale host-side agentic state under $AGENTIC_HOME that isn't tied to a specific tool run.
 package housekeeping
 
 import (
@@ -9,14 +7,10 @@ import (
 	"time"
 )
 
-// DefaultProxyLogRetentionDays is how long proxy access logs are kept when no
-// retention period is configured.
+// DefaultProxyLogRetentionDays is how long proxy access logs are kept when no retention period is configured.
 const DefaultProxyLogRetentionDays = 3
 
-// PruneProxyLogs removes *.jsonl access-log files in dir whose mtime is older
-// than maxAge. maxAge <= 0 removes every log file regardless of age (used for
-// a full `agentic clean` wipe). It is best-effort: a missing dir or an
-// unremovable file must not fail the caller.
+// PruneProxyLogs removes *.jsonl access-log files in dir older than maxAge (maxAge <= 0 removes all). Best-effort: never fails the caller.
 func PruneProxyLogs(dir string, maxAge time.Duration) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

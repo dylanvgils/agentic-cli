@@ -10,15 +10,13 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
-// copilotReleaseRepo is the GitHub repo the install script (gh.io/copilot-install)
-// pulls releases from.
+// copilotReleaseRepo is the GitHub repo the install script (gh.io/copilot-install) pulls releases from.
 const copilotReleaseRepo = "github/copilot-cli"
 
 // copilotInstructionsContainerPath is the container-side mount target for a per-run instructions snapshot.
 const copilotInstructionsContainerPath = "$CONTAINER_HOME/.copilot/copilot-instructions.md"
 
-// copilotAllowedHosts is the baseline egress allowlist for GitHub Copilot CLI.
-// Package registries or other hosts are added by the user via allowed_hosts.
+// copilotAllowedHosts is the baseline egress allowlist for GitHub Copilot CLI; users add more via allowed_hosts.
 var copilotAllowedHosts = []string{
 	".githubcopilot.com", // Copilot API and subdomains (e.g. api.githubcopilot.com, telemetry.githubcopilot.com)
 	"api.github.com",     // GitHub API used for authentication

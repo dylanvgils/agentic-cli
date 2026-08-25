@@ -33,7 +33,7 @@ func TestRunUpgrade(t *testing.T) {
 		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := runUpgrade(upgradeCmd, nil)
 			require.NoError(t, err)
 		})
@@ -58,7 +58,7 @@ func TestRunUpgrade(t *testing.T) {
 		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := runUpgrade(upgradeCmd, nil)
 			require.NoError(t, err)
 		})
@@ -111,7 +111,7 @@ func TestRunUpgrade(t *testing.T) {
 		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := runUpgrade(upgradeCmd, nil)
 			require.NoError(t, err)
 		})
@@ -159,7 +159,7 @@ func TestRunUpgrade(t *testing.T) {
 		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := runUpgrade(upgradeCmd, nil)
 			require.NoError(t, err)
 		})

@@ -1,6 +1,4 @@
-// Package run builds the docker.RunSpec for `agentic run`, syncing
-// configured marketplaces and merging config/flag/env sources for volumes,
-// secrets, env vars, and resource limits.
+// Package run builds the docker.RunSpec for `agentic run`, syncing marketplaces and assembling resolved volumes, secrets, env vars, and resource limits.
 package run
 
 import (
@@ -14,6 +12,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
 // Target identifies the tool and image a RunSpec is being built for.
@@ -41,14 +40,7 @@ type Input struct {
 	InstructionsMount string
 }
 
-type resourceLimits struct {
-	pidsLimit string
-	cpus      string
-	memory    string
-}
-
-// Build assembles the docker.RunSpec for target, syncing marketplaces and
-// ensuring the named volumes/network it depends on exist.
+// Build assembles the docker.RunSpec for target, syncing marketplaces and ensuring the named volumes/network it depends on exist.
 func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, error) {
 	containerHome := docker.ResolveContainerHome(target.ImageName)
 
@@ -57,16 +49,16 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		return docker.RunSpec{}, err
 	}
 
-	volumes := collectVolumes(toolConfig.Runtime.Mounts(), in.Volumes, rc)
+	volumes := resolve.Volumes(toolConfig.Runtime.Mounts(), in.Volumes, rc)
 	volumes = append(volumes, marketplaceMounts...)
 	if in.InstructionsMount != "" {
 		volumes = append(volumes, in.InstructionsMount)
 	}
 	// Must stay last: Docker lets the last --volume flag for a path win.
-	volumes = append(volumes, readOnlyMountSpecs(collectReadOnlyMounts(in.ReadOnlyMounts, rc))...)
-	secrets := collectSecrets(in.Secrets, rc)
-	env := collectEnv(in.Env, rc)
-	limits := resolveResourceLimits(in.PidsLimit, in.CPUs, in.Memory, rc)
+	volumes = append(volumes, readOnlyMountSpecs(resolve.ReadOnlyMounts(in.ReadOnlyMounts, rc))...)
+	secrets := resolve.Secrets(in.Secrets, rc)
+	env := resolve.Env(in.Env, rc)
+	limits := resolve.ResourceLimitsFor(in.PidsLimit, in.CPUs, in.Memory, rc)
 
 	if err := validateEnv(env, in.ProxyEnabled); err != nil {
 		return docker.RunSpec{}, err
@@ -103,11 +95,11 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		WithEnv(env...).
 		WithSkipEntrypoint(target.SkipEntrypoint).
 		WithTmpfsMounts(toolConfig.Runtime.TmpfsMounts()...).
-		WithPidsLimit(limits.pidsLimit).
-		WithCPUs(limits.cpus).
-		WithMemory(limits.memory).
+		WithPidsLimit(limits.PidsLimit).
+		WithCPUs(limits.CPUs).
+		WithMemory(limits.Memory).
 		WithDryRun(in.DryRun).
-		WithProxy(in.ProxyEnabled, tools.ProxyImage, proxyAllowList(toolConfig, rc), logDir, in.ProxyMonitor).
+		WithProxy(in.ProxyEnabled, tools.ProxyImage, resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, rc), logDir, in.ProxyMonitor).
 		Build()
 
 	return rs, nil
@@ -136,8 +128,7 @@ func BuildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig,
 	return rs, snapshot.Cleanup, nil
 }
 
-// ToolNeedsMarketplaceSync reports whether tool has marketplace mounting
-// support and at least one marketplace configured for it.
+// ToolNeedsMarketplaceSync reports whether tool supports marketplace mounting and has at least one marketplace configured.
 func ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, tool string) bool {
 	if toolConfig.Runtime.MarketplaceMount == nil {
 		return false
@@ -197,35 +188,7 @@ func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 	}
 }
 
-func collectVolumes(toolMounts []string, extra []string, rc *config.AgenticRC) []string {
-	volumes := append([]string{}, toolMounts...)
-
-	if env := os.Getenv("AGENTIC_EXTRA_MOUNTS"); env != "" {
-		for m := range strings.SplitSeq(env, ",") {
-			if m != "" {
-				volumes = append(volumes, m)
-			}
-		}
-	}
-	volumes = append(volumes, extra...)
-	volumes = append(volumes, rc.Run.ExtraMounts...)
-
-	return volumes
-}
-
-// collectReadOnlyMounts merges --read-only-mount flags with read_only_mounts config, flags first (matching extra_mounts/secrets).
-func collectReadOnlyMounts(flags []string, rc *config.AgenticRC) []string {
-	var mounts []string
-
-	mounts = append(mounts, flags...)
-	mounts = append(mounts, rc.Run.ReadOnlyMounts...)
-
-	return mounts
-}
-
-// readOnlyMountSpecs converts each entry into a forced-:ro volume spec. A
-// no-colon entry is a workspace-relative shorthand expanding to
-// "$PWD/<path>:/workspace/<path>".
+// readOnlyMountSpecs converts each entry into a forced-:ro volume spec; a no-colon entry expands to "$PWD/<path>:/workspace/<path>".
 func readOnlyMountSpecs(specs []string) []string {
 	out := make([]string, 0, len(specs))
 	for _, spec := range specs {
@@ -246,31 +209,7 @@ func splitReadOnlyMountSpec(spec string) (host, container string) {
 	return host, container
 }
 
-func collectSecrets(flags []string, rc *config.AgenticRC) []string {
-	var secrets []string
-
-	if env := os.Getenv("AGENTIC_SECRETS"); env != "" {
-		for s := range strings.SplitSeq(env, ",") {
-			if s != "" {
-				secrets = append(secrets, s)
-			}
-		}
-	}
-	secrets = append(secrets, flags...)
-	secrets = append(secrets, rc.Run.Secrets...)
-
-	return secrets
-}
-
-func collectEnv(flags []string, rc *config.AgenticRC) []string {
-	env := append([]string{}, rc.Run.Env...)
-	env = append(env, flags...)
-
-	return env
-}
-
-// validateEnv rejects entries that target an env var agentic already manages
-// (proxy injection when proxyEnabled, mount placeholders always).
+// validateEnv rejects entries targeting an env var agentic already manages (proxy injection when proxyEnabled, mount placeholders always).
 func validateEnv(entries []string, proxyEnabled bool) error {
 	for _, entry := range entries {
 		key, _, _ := strings.Cut(entry, "=")
@@ -280,35 +219,4 @@ func validateEnv(entries []string, proxyEnabled bool) error {
 	}
 
 	return nil
-}
-
-// resolveResourceLimits resolves each limit through flag, then rc, then env var, then hardcoded default.
-func resolveResourceLimits(pidsLimit, cpus, memory string, rc *config.AgenticRC) resourceLimits {
-	run := rc.Run
-	if pidsLimit == "" {
-		pidsLimit = run.PidsLimit
-	}
-	if cpus == "" {
-		cpus = run.CPUs
-	}
-	if memory == "" {
-		memory = run.Memory
-	}
-
-	return resourceLimits{
-		pidsLimit: resolveLimit(pidsLimit, config.EnvPidsLimit, docker.DefaultPidsLimit),
-		cpus:      resolveLimit(cpus, config.EnvCPUs, docker.DefaultCPUs),
-		memory:    resolveLimit(memory, config.EnvMemory, docker.DefaultMemory),
-	}
-}
-
-// resolveLimit returns val if non-empty, then the env var, then fallback.
-func resolveLimit(val, envKey, fallback string) string {
-	if val != "" {
-		return val
-	}
-	if env := os.Getenv(envKey); env != "" {
-		return env
-	}
-	return fallback
 }

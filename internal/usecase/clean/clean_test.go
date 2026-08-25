@@ -3,28 +3,26 @@ package clean
 import (
 	"bytes"
 	"fmt"
-	"io"
-	"os"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// captureStdout replaces os.Stdout with a pipe and returns what was written.
+// captureStdout swaps logging.Log for the duration of fn and returns what was written.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	orig := os.Stdout
-	os.Stdout = w
-	fn()
-	w.Close() //nolint:errcheck
-	os.Stdout = orig
+
 	var buf bytes.Buffer
-	io.Copy(&buf, r) //nolint:errcheck
+	orig := logging.Log
+	logging.Log = logging.New(&buf)
+	t.Cleanup(func() { logging.Log = orig })
+
+	fn()
+
 	return buf.String()
 }
 

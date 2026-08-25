@@ -17,8 +17,7 @@ const (
 	DecisionDeny  Decision = "deny"
 )
 
-// Protocol records how the client reached the proxy: an HTTP CONNECT tunnel
-// (used for HTTPS) or a plain HTTP forward.
+// Protocol records how the client reached the proxy: an HTTP CONNECT tunnel (HTTPS) or a plain HTTP forward.
 type Protocol string
 
 const (
@@ -26,29 +25,20 @@ const (
 	ProtocolHTTPS Protocol = "https"
 )
 
-// Entry is a single structured access-log record, emitted as one JSON line per
-// connection attempt. The shape is intentionally stable so a future insights UI
-// can consume the log directly.
+// Entry is a single structured access-log record, emitted as one JSON line per connection attempt.
 type Entry struct {
 	Time     time.Time `json:"time"`
 	Protocol Protocol  `json:"protocol"`
 	Host     string    `json:"host"`
 	Port     string    `json:"port"`
 	Decision Decision  `json:"decision"`
-	// Enforced reports whether Decision was actually acted on. It is always
-	// true outside monitor mode. In monitor mode it is always false: Decision
-	// still reflects the real allowlist verdict, but the connection was let
-	// through regardless, so a "deny" here was only observed, not blocked.
+	// Enforced reports whether Decision was acted on; always false in monitor mode, where a "deny" is only observed, not blocked.
 	Enforced bool `json:"enforced"`
 }
 
-// Logger writes each access record as a JSON line to an optional file and as a
-// human-readable line to an optional human-readable destination (typically
-// stdout, so `docker logs -f` on the proxy container is easy to read). The
-// JSON line always records UTC; the human-readable line is shown in location,
-// since it's meant to be read live by whoever is watching the container's
-// logs. It is safe for concurrent use: each connection is handled in its own
-// goroutine.
+// Logger writes each access record as a JSON line (always UTC) to an optional file and as a
+// human-readable line (shown in location, typically stdout for `docker logs -f`) to an optional
+// destination. Safe for concurrent use.
 type Logger struct {
 	mutex    sync.Mutex
 	encoder  *json.Encoder // nil when no JSON destination is configured
@@ -57,9 +47,7 @@ type Logger struct {
 	now      func() time.Time
 }
 
-// NewLogger returns a Logger that writes JSON lines to file and human-readable
-// lines to human, with the human-readable line shown in location (nil
-// defaults to UTC). Either writer may be nil to skip that destination.
+// NewLogger returns a Logger writing JSON to file and human-readable lines (in location, nil defaulting to UTC) to human; either writer may be nil.
 func NewLogger(file, human io.Writer, location *time.Location) *Logger {
 	if location == nil {
 		location = time.UTC
@@ -72,9 +60,7 @@ func NewLogger(file, human io.Writer, location *time.Location) *Logger {
 	return l
 }
 
-// Log records a single connection attempt. enforced reports whether decision
-// was actually acted on (see Entry.Enforced) - pass false from monitor mode,
-// where the connection is let through regardless of decision.
+// Log records a single connection attempt; enforced is Entry.Enforced - pass false from monitor mode.
 func (l *Logger) Log(protocol Protocol, host, port string, decision Decision, enforced bool) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()

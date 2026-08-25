@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -18,11 +17,13 @@ var updateCmd = &cobra.Command{
 		"upstream first and rebuilds the tool step without cache if it's newer, so the\n" +
 		"installer fetches the latest version. Also pulls fresh base images, at most\n" +
 		"once every 24h per image (--pull=false to skip, --pull to force a check now).\n" +
-		"Skips unbuilt tools when no tool specified.\n\n" + extrasEnvDoc(),
+		"Skips unbuilt tools when no tool specified.",
 	Example: `  agentic update
   agentic update claude
   agentic update claude --base java
   agentic update claude --base java,dotnet
+  agentic update claude --base-exact node
+  agentic update claude --apt-exact make,gcc
   agentic update claude --no-cache
   agentic update claude --pull=false`,
 	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
@@ -58,12 +59,11 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		tool = args[0]
 	}
 
-	// For update, RC config bases/apt must not prevent per-image label recovery.
-	// Only explicit CLI flags and env vars should override what the image was built with.
-	if !cmd.Flags().Changed("base") && os.Getenv(config.EnvBaseOverride) == "" {
+	// RC config bases/apt must not prevent per-image label recovery; only an explicit --base/--base-exact or --apt/--apt-exact flag overrides what the image was built with.
+	if !cmd.Flags().Changed("base") && !cmd.Flags().Changed("base-exact") {
 		opts.BaseOverride = nil
 	}
-	if !cmd.Flags().Changed("apt") && os.Getenv(config.EnvAptPackages) == "" {
+	if !cmd.Flags().Changed("apt") && !cmd.Flags().Changed("apt-exact") {
 		opts.AptPackages = nil
 	}
 

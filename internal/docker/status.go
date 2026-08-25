@@ -14,16 +14,14 @@ type ContainerInfo struct {
 	Status    string
 }
 
-// containerListResult mirrors the fields `docker ps --format '{{json .}}'`
-// emits per running container.
+// containerListResult mirrors the fields `docker ps --format '{{json .}}'` emits per container.
 type containerListResult struct {
 	Names  string `json:"Names"`
 	Image  string `json:"Image"`
 	Status string `json:"Status"`
 }
 
-// ListRunningContainers returns all currently running agentic-managed
-// containers (those labeled project=agentic-cli).
+// ListRunningContainers returns all currently running agentic-managed containers.
 func ListRunningContainers() ([]*ContainerInfo, error) {
 	out, err := dockerRun("ps", arg("format", "{{json .}}"), labelFilter(LabelProject, LabelProjectVal))
 	if err != nil {

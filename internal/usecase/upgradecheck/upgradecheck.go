@@ -1,6 +1,4 @@
-// Package upgradecheck checks for and offers to apply a newer agentic CLI
-// release from `agentic run`/any command's PersistentPreRunE, mirroring
-// toolupdate's role for per-tool version checks.
+// Package upgradecheck checks for and offers to apply a newer agentic CLI release from PersistentPreRunE, mirroring toolupdate's role for per-tool checks.
 package upgradecheck
 
 import (
@@ -14,9 +12,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/selfupdate"
 )
 
-// Check checks GitHub for a newer release at most once per CheckInterval and
-// notifies the user on stderr. On a TTY it prompts to update immediately; otherwise it
-// prints a one-liner suggesting `agentic upgrade`.
+// Check checks GitHub for a newer release at most once per CheckInterval; on a TTY it prompts to update, otherwise it suggests `agentic upgrade` on stderr.
 func Check(home string) {
 	if buildinfo.IsDevBuild() {
 		return
@@ -30,9 +26,7 @@ func Check(home string) {
 	notifyUpdate(latest)
 }
 
-// fetchUpdateIfDue checks whether the update interval has elapsed, fetches the latest
-// version from GitHub, saves the check timestamp, and returns (latestVersion, true) if a
-// newer version is available. Returns ("", false) in all other cases.
+// fetchUpdateIfDue fetches the latest GitHub version if the check interval has elapsed, saves the check timestamp, and returns (latest, true) if it's newer.
 func fetchUpdateIfDue(home string) (string, bool) {
 	config, err := config.LoadConfig(home)
 	if err != nil {
@@ -59,25 +53,25 @@ func fetchUpdateIfDue(home string) (string, bool) {
 	return latest, true
 }
 
-// notifyUpdate prints an update notice to stderr. On a TTY it prompts the user to update
-// immediately; otherwise it prints a one-liner suggesting `agentic upgrade`.
+// notifyUpdate prints an update notice to stderr; on a TTY it prompts to update, otherwise it suggests `agentic upgrade`.
 func notifyUpdate(latest string) {
 	if !IsTerminal() {
-		fmt.Fprintf(Stderr, "=> agentic update available: %s (current: %s) - run: agentic upgrade\n", latest, buildinfo.Version)
+		Notify.Stepf("agentic update available: %s (current: %s) - run: agentic upgrade", latest, buildinfo.Version)
 		return
 	}
 
-	fmt.Fprintf(Stderr, "=> agentic update available: %s (current: %s)\n   update now? [y/N] ", latest, buildinfo.Version)
+	fmt.Fprintf(Notify.Writer(), "=> agentic update available: %s (current: %s)\n   update now? [y/N] ", latest, buildinfo.Version)
 
 	scanner := bufio.NewScanner(Stdin)
 	if scanner.Scan() && strings.EqualFold(strings.TrimSpace(scanner.Text()), "y") {
-		fmt.Fprintln(Stderr, "=> updating...")
+		Notify.Step("updating...")
 
 		if err := Update(latest); err != nil {
-			fmt.Fprintf(Stderr, "=> update failed: %v\n   run: agentic upgrade\n", err)
+			Notify.Stepf("update failed: %v", err)
+			Notify.Detail("run: agentic upgrade")
 			Exit(1)
 		} else {
-			fmt.Fprintf(Stderr, "=> updated to %s\n", latest)
+			Notify.Stepf("updated to %s", latest)
 			Exit(0)
 		}
 	}

@@ -45,10 +45,36 @@ func TestAddBuildFlags(t *testing.T) {
 		addBuildFlags(cmd)
 
 		// Assert
-		expected := append([]string{"base", "apt", "dry-run", "registry"}, tools.KnownLayers()...)
+		expected := append([]string{"base", "base-exact", "apt", "apt-exact", "dry-run", "registry"}, tools.KnownLayers()...)
 		for _, name := range expected {
 			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
 		}
+	})
+
+	t.Run("base and base-exact are mutually exclusive", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
+		addBuildFlags(cmd)
+		cmd.SetArgs([]string{"--base", "java", "--base-exact", "node"})
+
+		// Act
+		err := cmd.Execute()
+
+		// Assert
+		assert.Error(t, err)
+	})
+
+	t.Run("apt and apt-exact are mutually exclusive", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
+		addBuildFlags(cmd)
+		cmd.SetArgs([]string{"--apt", "make", "--apt-exact", "gcc"})
+
+		// Act
+		err := cmd.Execute()
+
+		// Assert
+		assert.Error(t, err)
 	})
 
 	t.Run("version flag usage reflects default versions", func(t *testing.T) {
@@ -139,66 +165,9 @@ func newBuildCmd(t *testing.T) *cobra.Command {
 	return cmd
 }
 
-func newAptCmd(t *testing.T) *cobra.Command {
-	t.Helper()
-	cmd := &cobra.Command{Use: "test"}
-	addBuildFlags(cmd)
-	return cmd
-}
-
-func TestCollectAptPackages(t *testing.T) {
-	t.Run("rc packages are included", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
-		cmd := newAptCmd(t)
-
-		// Act
-		result := collectAptPackages(cmd, rc)
-
-		// Assert
-		assert.Equal(t, []string{"make"}, result)
-	})
-
-	t.Run("flag appends to config packages", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
-		cmd := newAptCmd(t)
-		require.NoError(t, cmd.Flags().Set("apt", "gcc"))
-
-		// Act
-		result := collectAptPackages(cmd, rc)
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc"}, result)
-	})
-
-	t.Run("empty when no sources set", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		cmd := newAptCmd(t)
-
-		// Act
-		result := collectAptPackages(cmd, rc)
-
-		// Assert
-		assert.Empty(t, result)
-	})
-}
-
+// TestCollectBases, TestCollectVersions, and TestCollectAptPackages only confirm the flag value is read and passed through; merge/precedence is covered by internal/usecase/resolve.
 func TestCollectBases(t *testing.T) {
-	t.Run("rc bases are included", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
-		cmd := newBuildCmd(t)
-
-		// Act
-		result := collectBases(cmd, rc)
-
-		// Assert
-		assert.Equal(t, []string{"java"}, result)
-	})
-
-	t.Run("flag appends to rc bases", func(t *testing.T) {
+	t.Run("flag value is read and merged via resolve.Bases", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
 		cmd := newBuildCmd(t)
@@ -210,34 +179,10 @@ func TestCollectBases(t *testing.T) {
 		// Assert - sorted by canonical extras order
 		assert.Equal(t, []string{"dotnet", "java"}, result)
 	})
-
-	t.Run("empty when no sources set", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		cmd := newBuildCmd(t)
-
-		// Act
-		result := collectBases(cmd, rc)
-
-		// Assert
-		assert.Empty(t, result)
-	})
 }
 
 func TestCollectVersions(t *testing.T) {
-	t.Run("rc versions used as defaults", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}
-		cmd := newBuildCmd(t)
-
-		// Act
-		result := collectVersions(cmd, rc)
-
-		// Assert
-		assert.Equal(t, "17", result["java"])
-	})
-
-	t.Run("flag overrides rc version", func(t *testing.T) {
+	t.Run("flag value is read and merged via resolve.Versions", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}
 		cmd := newBuildCmd(t)
@@ -249,22 +194,25 @@ func TestCollectVersions(t *testing.T) {
 		// Assert
 		assert.Equal(t, "21", result["java"])
 	})
+}
 
-	t.Run("empty when no sources set", func(t *testing.T) {
+func TestCollectAptPackages(t *testing.T) {
+	t.Run("flag value is read and merged via resolve.AptPackages", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{}
+		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
 		cmd := newBuildCmd(t)
+		require.NoError(t, cmd.Flags().Set("apt", "gcc"))
 
 		// Act
-		result := collectVersions(cmd, rc)
+		result := collectAptPackages(cmd, rc)
 
 		// Assert
-		assert.Empty(t, result)
+		assert.Equal(t, []string{"make", "gcc"}, result)
 	})
 }
 
 func TestBuildOptsFromFlags(t *testing.T) {
-	t.Run("multiple base flags are joined", func(t *testing.T) {
+	t.Run("base flag values accumulate and merge with rc", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
 		cmd := &cobra.Command{Use: "test"}
@@ -279,30 +227,50 @@ func TestBuildOptsFromFlags(t *testing.T) {
 		assert.Equal(t, []string{"dotnet", "java"}, opts.BaseOverride)
 	})
 
-	t.Run("base env var overrides rc and flag", func(t *testing.T) {
+	t.Run("base-exact ignores rc bases", func(t *testing.T) {
 		// Arrange
-		t.Setenv(config.EnvBaseOverride, "dotnet")
 		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
 		cmd := &cobra.Command{Use: "test"}
 		addBuildFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("base", "go"))
+		require.NoError(t, cmd.Flags().Set("base-exact", "node"))
 
 		// Act
 		opts := buildOptsFromFlags(cmd, rc)
 
 		// Assert
-		assert.Equal(t, []string{"dotnet"}, opts.BaseOverride)
+		assert.Equal(t, []string{"node"}, opts.BaseOverride)
+		assert.True(t, opts.BaseExact)
 	})
-}
 
-func TestExtrasEnvDoc(t *testing.T) {
-	// Act
-	result := extrasEnvDoc()
+	t.Run("base-exact empty value produces debian only", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
+		cmd := &cobra.Command{Use: "test"}
+		addBuildFlags(cmd)
+		require.NoError(t, cmd.Flags().Set("base-exact", ""))
 
-	// Assert
-	for _, name := range tools.KnownLayers() {
-		assert.Contains(t, result, config.EnvVersionVar(name), "env doc missing var for layer %q", name)
-	}
+		// Act
+		opts := buildOptsFromFlags(cmd, rc)
+
+		// Assert
+		assert.Empty(t, opts.BaseOverride)
+		assert.True(t, opts.BaseExact)
+	})
+
+	t.Run("apt-exact ignores rc apt", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
+		cmd := &cobra.Command{Use: "test"}
+		addBuildFlags(cmd)
+		require.NoError(t, cmd.Flags().Set("apt-exact", "gcc"))
+
+		// Act
+		opts := buildOptsFromFlags(cmd, rc)
+
+		// Assert
+		assert.Equal(t, []string{"gcc"}, opts.AptPackages)
+		assert.True(t, opts.AptExact)
+	})
 }
 
 func TestToolNames(t *testing.T) {

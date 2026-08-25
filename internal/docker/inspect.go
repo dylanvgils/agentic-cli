@@ -12,9 +12,7 @@ type imageInspectResult struct {
 	} `json:"Config"`
 }
 
-// ResolveContainerHome returns the container home directory for the given image
-// by reading the TOOL_HOME env var from the image config.
-// Falls back to "/root" if the image is not available or has no TOOL_HOME.
+// ResolveContainerHome reads image's TOOL_HOME env var, falling back to "/root" if unavailable.
 func ResolveContainerHome(image string) string {
 	out, err := dockerRun("inspect", arg("format", "{{json .Config.Env}}"), image)
 	if err != nil {

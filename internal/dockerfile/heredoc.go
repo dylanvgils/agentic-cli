@@ -5,13 +5,9 @@ import (
 	"strings"
 )
 
-// Heredoc writes a multi-line script to Dest using a BuildKit COPY heredoc.
-// --chmod=0755 sets the executable bit at copy time, so no separate RUN is needed
-// and the instruction works correctly regardless of the active USER context.
-//
-// Use Lines for a flat script body. Use Blocks to group related lines into
-// commented sections, separated by a blank line; Block.Chain is a Run-only
-// option and has no effect here.
+// Heredoc writes a multi-line script to Dest via a BuildKit COPY heredoc, --chmod=0755 setting the
+// executable bit at copy time so no separate RUN is needed. Use Lines for a flat script body, or
+// Blocks for commented sections separated by a blank line (Block.Chain has no effect here).
 type Heredoc struct {
 	Dest   string
 	Lines  []string

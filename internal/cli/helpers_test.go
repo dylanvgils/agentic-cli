@@ -10,6 +10,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
@@ -19,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// captureStdout replaces os.Stdout with a pipe and returns what was written.
+// captureStdout replaces os.Stdout with a pipe and returns what was written; for logging.Step/Detail-based output, use captureLog instead.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()
@@ -34,9 +35,21 @@ func captureStdout(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
-// captureRunContainer replaces runContainer, run's ensure-volumes/network
-// calls, and inspectImage (both cli's and toolupdate's) with stubs that
-// record the RunSpec and tool args. Returns a getter for the captured values.
+// captureLog swaps logging.Log for the duration of fn and returns what was written.
+func captureLog(t *testing.T, fn func()) string {
+	t.Helper()
+
+	var buf bytes.Buffer
+	orig := logging.Log
+	logging.Log = logging.New(&buf)
+	t.Cleanup(func() { logging.Log = orig })
+
+	fn()
+
+	return buf.String()
+}
+
+// captureRunContainer stubs runContainer, run's ensure-volumes/network calls, and inspectImage, returning a getter for the captured RunSpec and tool args.
 func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	t.Helper()
 	var capturedSpec docker.RunSpec
@@ -78,9 +91,7 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	return func() (docker.RunSpec, []string) { return capturedSpec, capturedArgs }
 }
 
-// findVolumeByContainerPath returns the one volume spec in volumes whose
-// container-side path is containerPath, failing the test if none or more than
-// one match.
+// findVolumeByContainerPath returns the one volume spec ending in containerPath, failing the test if there isn't exactly one match.
 func findVolumeByContainerPath(t *testing.T, volumes []string, containerPath string) string {
 	t.Helper()
 	var matches []string
@@ -93,9 +104,7 @@ func findVolumeByContainerPath(t *testing.T, volumes []string, containerPath str
 	return matches[0]
 }
 
-// withTempToolHome sets toolHome to a temp dir and pre-trusts the directories
-// that tests run in (os.TempDir() covers t.Chdir paths; cwd covers tests that
-// don't chdir).
+// withTempToolHome sets toolHome to a temp dir and pre-trusts the dirs tests run in (os.TempDir() for t.Chdir, cwd otherwise).
 func withTempToolHome(t *testing.T) {
 	t.Helper()
 	homeDir := t.TempDir()

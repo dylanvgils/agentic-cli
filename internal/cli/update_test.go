@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
@@ -261,6 +260,64 @@ func TestRunUpdate(t *testing.T) {
 		assert.Equal(t, []string{"cmake"}, capturedOpts.AptPackages)
 	})
 
+	t.Run("base-exact overrides rc bases and per-image label recovery, even when empty", func(t *testing.T) {
+		// Arrange - RC config with build.bases = ["java"]; image was built with go only.
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\nbases = [\"java\"]\n"), 0o600))
+
+		var capturedOpts tools.BuildOptions
+		stubUpdateUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = opts
+			return nil
+		})
+		stubUpdateInspectImage(t, &docker.ImageInfo{Version: "1.0.0", Base: "go@1.23"}, nil)
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
+
+		require.NoError(t, updateCmd.Flags().Set("base-exact", ""))
+		t.Cleanup(func() {
+			updateCmd.Flags().Set("base-exact", "") //nolint:errcheck
+			updateCmd.Flags().Lookup("base-exact").Changed = false
+		})
+
+		// Act
+		err := runUpdate(updateCmd, []string{"claude"})
+
+		// Assert - neither rc's "java" nor the image's recovered "go" survive
+		require.NoError(t, err)
+		assert.Empty(t, capturedOpts.BaseOverride)
+		assert.True(t, capturedOpts.BaseExact)
+	})
+
+	t.Run("apt-exact overrides rc apt and per-image label recovery, even when empty", func(t *testing.T) {
+		// Arrange - RC config with build.apt_packages = ["make"]; image was built with cmake only.
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\napt_packages = [\"make\"]\n"), 0o600))
+
+		var capturedOpts tools.BuildOptions
+		stubUpdateUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = opts
+			return nil
+		})
+		stubUpdateInspectImage(t, &docker.ImageInfo{Version: "1.0.0", Apt: "cmake"}, nil)
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
+
+		require.NoError(t, updateCmd.Flags().Set("apt-exact", ""))
+		t.Cleanup(func() {
+			updateCmd.Flags().Set("apt-exact", "") //nolint:errcheck
+			updateCmd.Flags().Lookup("apt-exact").Changed = false
+		})
+
+		// Act
+		err := runUpdate(updateCmd, []string{"claude"})
+
+		// Assert - neither rc's "make" nor the image's recovered "cmake" survive
+		require.NoError(t, err)
+		assert.Empty(t, capturedOpts.AptPackages)
+		assert.True(t, capturedOpts.AptExact)
+	})
+
 	t.Run("all flag with explicit base flag applies base to all images", func(t *testing.T) {
 		// Arrange - use a temp dir (no RC config) so the only base is the explicit flag.
 		t.Chdir(t.TempDir())
@@ -293,40 +350,6 @@ func TestRunUpdate(t *testing.T) {
 		err := runUpdate(cmd, []string{})
 
 		// Assert - explicit --base java must reach every target unchanged
-		require.NoError(t, err)
-		require.Len(t, capturedOpts, 2)
-		assert.Equal(t, []string{"java"}, capturedOpts[0].BaseOverride)
-		assert.Equal(t, []string{"java"}, capturedOpts[1].BaseOverride)
-	})
-
-	t.Run("all flag with base env var applies base to all images", func(t *testing.T) {
-		// Arrange - AGENTIC_BASE_OVERRIDE is an explicit env override; it must NOT be cleared.
-		t.Chdir(t.TempDir())
-		t.Setenv(config.EnvBaseOverride, "java")
-
-		var capturedOpts []tools.BuildOptions
-		stubUpdateUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
-			capturedOpts = append(capturedOpts, opts)
-			return nil
-		})
-		stubUpdateInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
-		stubUpdateListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},
-				{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "node@24,dotnet@8"},
-			}, nil
-		})
-
-		cmd := updateCmd
-		require.NoError(t, cmd.Flags().Set("all", "true"))
-		defer cmd.Flags().Set("all", "false") //nolint:errcheck
-
-		// Act
-		err := runUpdate(cmd, []string{})
-
-		// Assert - env var override must reach every target unchanged
 		require.NoError(t, err)
 		require.Len(t, capturedOpts, 2)
 		assert.Equal(t, []string{"java"}, capturedOpts[0].BaseOverride)

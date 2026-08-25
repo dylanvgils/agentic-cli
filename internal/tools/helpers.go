@@ -15,10 +15,7 @@ func aptInstallRun(pkgs []string) df.Run {
 	}}
 }
 
-// cacheBustInstructions declares the CACHEBUST build arg and references it in a
-// no-op RUN, so passing --build-arg CACHEBUST=<value> invalidates the layer
-// cache for every instruction that follows in the stage. Used to force a fresh
-// tool install on `agentic update` without rebuilding the base/extra layers.
+// cacheBustInstructions declares CACHEBUST and references it in a no-op RUN, so --build-arg CACHEBUST=<value> busts the rest of the stage's cache.
 func cacheBustInstructions() []df.Instruction {
 	return []df.Instruction{
 		df.Arg{Key: "CACHEBUST", Default: ""},
@@ -26,8 +23,7 @@ func cacheBustInstructions() []df.Instruction {
 	}
 }
 
-// createContainerUser returns the instructions that declare HOST_UID/HOST_GID build args,
-// remove any user already occupying HOST_UID, and create a fresh container user with the given name.
+// createContainerUser returns instructions to declare HOST_UID/HOST_GID, remove any user occupying HOST_UID, and create a fresh container user.
 func createContainerUser(name string) []df.Instruction {
 	return []df.Instruction{
 		df.Arg{Key: "HOST_UID", Default: "1000"},

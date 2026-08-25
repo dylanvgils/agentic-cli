@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/cleanup"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
 
 const (
@@ -28,8 +29,7 @@ var (
 	ErrBinaryNotFound   = errors.New("binary not found in release archive")
 )
 
-// ShouldCheck reports whether enough time has passed since lastCheck to run another update check.
-// A nil pointer (never checked) always returns true.
+// ShouldCheck reports whether enough time has passed since lastCheck to run another update check; nil (never checked) always returns true.
 func ShouldCheck(lastCheck *time.Time) bool {
 	if lastCheck == nil {
 		return true
@@ -37,8 +37,7 @@ func ShouldCheck(lastCheck *time.Time) bool {
 	return time.Since(*lastCheck) >= CheckInterval
 }
 
-// IsNewer reports whether latest is a different version than current.
-// Returns false when either version is empty or current is a pre-release (contains "-").
+// IsNewer reports whether latest is a different version than current; false if either is empty or current is a pre-release (contains "-").
 func IsNewer(current, latest string) bool {
 	if current == "" || latest == "" {
 		return false
@@ -99,6 +98,7 @@ func downloadRelease(client *http.Client, archiveURL, archiveName, checksumsURL,
 		return "", fmt.Errorf("downloading checksums: %w", err)
 	}
 
+	logging.Detail("verifying checksum...")
 	if err := verifyChecksum(archivePath, archiveName, checksumsPath); err != nil {
 		return "", err
 	}

@@ -7,9 +7,7 @@ import (
 	"strings"
 )
 
-// Version, Commit, BuildDate, and InstallMethod are injected at build time via
-// -ldflags (see Makefile and .goreleaser.yml). Version defaults to "dev" for
-// local, unreleased builds.
+// Version, Commit, BuildDate, and InstallMethod are injected at build time via -ldflags (see Makefile and .goreleaser.yml).
 var (
 	Version       = "dev"
 	Commit        = ""
@@ -17,9 +15,7 @@ var (
 	InstallMethod = ""
 )
 
-// IsDev reports whether version denotes an unreleased dev build. Dev builds
-// compile the proxy from the local source tree; released builds install the
-// published module via `go install`.
+// IsDev reports whether version denotes an unreleased dev build.
 func IsDev(version string) bool {
 	return version == "" || version == "dev"
 }
@@ -29,10 +25,7 @@ func IsDevBuild() bool {
 	return IsDev(Version)
 }
 
-// DevSourceDir returns the local module root for modulePath, for use as a dev
-// build's Docker build context. It returns "" for released builds (which
-// install the published module instead) and when no matching go.mod is found
-// by walking up from the working directory.
+// DevSourceDir returns the local module root for modulePath, for use as a dev build's Docker build context - "" for released builds or when no matching go.mod is found.
 func DevSourceDir(modulePath string) string {
 	if !IsDev(Version) {
 		return ""
@@ -40,9 +33,7 @@ func DevSourceDir(modulePath string) string {
 	return findModuleRoot(modulePath)
 }
 
-// findModuleRoot walks up from the working directory looking for the go.mod of
-// the given module, returning its directory or "" if not found. It verifies the
-// module path so an unrelated project's go.mod is never used as source.
+// findModuleRoot walks up from the working directory for a go.mod matching modulePath, returning its directory or "" if not found.
 func findModuleRoot(modulePath string) string {
 	dir, err := os.Getwd()
 	if err != nil {

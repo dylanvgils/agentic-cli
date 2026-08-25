@@ -16,8 +16,7 @@ func forwardEnvArg(keys ...string) []string {
 	return args
 }
 
-// arg builds a --name or --name=value Docker flag.
-// Panics if name is empty, starts with '-', or more than one value is given (programmer error).
+// arg builds a --name or --name=value Docker flag; panics on a malformed name or more than one value.
 func arg(name string, value ...string) string {
 	if name == "" {
 		panic("docker: arg name must not be empty")

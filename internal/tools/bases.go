@@ -16,8 +16,7 @@ const (
 // knownExtras lists the supported extra base layers in alphabetical order.
 var knownExtras = []string{"dotnet", "go", "java", "node"}
 
-// LayerFlagDesc maps each runtime layer name to the human-readable label used
-// in its CLI flag description.
+// LayerFlagDesc maps each runtime layer name to the human-readable label used in its CLI flag description.
 var LayerFlagDesc = map[string]string{
 	"debian": "Debian",
 	"node":   "Node.js",
@@ -26,8 +25,7 @@ var LayerFlagDesc = map[string]string{
 	"java":   "Java (Temurin JDK)",
 }
 
-// DebianImageFor returns the standalone debian image used for apt verification,
-// optionally prefixed with registry.
+// DebianImageFor returns the standalone debian image used for apt verification, optionally prefixed with registry.
 func DebianImageFor(registry string) string {
 	return prefixImage(registry, "debian", DefaultVersions.Debian)
 }
@@ -42,15 +40,12 @@ func KnownLayers() []string {
 	return append([]string{BaseLayer}, knownExtras...)
 }
 
-// BuildLayers returns the ordered layers for a build: the base layer followed
-// by the requested extras.
+// BuildLayers returns the ordered layers for a build: the base layer followed by the requested extras.
 func BuildLayers(extras []string) []string {
 	return append([]string{BaseLayer}, extras...)
 }
 
-// prefixImage builds "image:tag", optionally prefixed with registry
-// (e.g. "myregistry.example.com/node:24"). Returns "image:tag" unchanged
-// when registry is empty.
+// prefixImage builds "image:tag", prefixed with registry when non-empty (e.g. "myregistry.example.com/node:24").
 func prefixImage(registry, image, tag string) string {
 	ref := image + ":" + tag
 	if registry == "" {
@@ -64,9 +59,7 @@ func baseStage(ver, registry string, pkgs []string) df.Stage {
 	return debianStage(ver, registry, pkgs)
 }
 
-// extraStage returns the stage for a named extra layer (dotnet, go, java, node).
-// prevStage is the name of the preceding stage to build FROM.
-// ver overrides the layer's default version; empty string uses the Dockerfile default.
+// extraStage returns the stage for a named extra layer (dotnet, go, java, node), built FROM prevStage; ver overrides the default version.
 func extraStage(name, prevStage, ver string) (df.Stage, error) {
 	switch name {
 	case "dotnet":
@@ -82,8 +75,7 @@ func extraStage(name, prevStage, ver string) (df.Stage, error) {
 	}
 }
 
-// debianStage returns the foundational debian base stage.
-// ver is the DEBIAN_VERSION build arg default; empty string uses the versions.json default.
+// debianStage returns the foundational debian base stage; ver overrides the DEBIAN_VERSION build arg default.
 func debianStage(ver, registry string, pkgs []string) df.Stage {
 	versionArg := df.Arg{Key: "DEBIAN_VERSION", Default: DefaultVersions.Debian}
 	if ver != "" {
@@ -99,8 +91,7 @@ func debianStage(ver, registry string, pkgs []string) df.Stage {
 		Build()
 }
 
-// nodeStage returns the NVM-based Node.js extra stage.
-// ver is the NODE_VERSION build arg default; empty string uses the versions.json default.
+// nodeStage returns the NVM-based Node.js extra stage; ver overrides the NODE_VERSION build arg default.
 func nodeStage(prevStage, ver string) df.Stage {
 	versionArg := df.Arg{Key: "NODE_VERSION", Default: DefaultVersions.Node}
 	if ver != "" {
@@ -142,9 +133,7 @@ func nodeStage(prevStage, ver string) df.Stage {
 		Build()
 }
 
-// customInstallsStage builds one RUN per declared custom install, each line
-// of its "run" list becoming its own Block. Applied unconditionally whenever
-// installs is non-empty - not gated by a --<name> flag like the extras.
+// customInstallsStage builds one RUN per declared custom install; applied unconditionally, not gated by a --<name> flag like the extras.
 func customInstallsStage(prevStage string, installs []config.RCCustomInstall) df.Stage {
 	stage := df.NewStage(df.From{Image: prevStage, As: "custom-installs"}).
 		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}})

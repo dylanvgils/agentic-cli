@@ -7,12 +7,13 @@ import (
 	"os"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// captureStdout replaces os.Stdout with a pipe and returns what was written.
+// captureStdout replaces os.Stdout with a pipe and returns what was written (e.g. DryRun's Dockerfile output); for logging.Step/Detail output, use captureLog.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()
@@ -24,6 +25,20 @@ func captureStdout(t *testing.T, fn func()) string {
 	os.Stdout = orig
 	var buf bytes.Buffer
 	io.Copy(&buf, r) //nolint:errcheck
+	return buf.String()
+}
+
+// captureLog swaps logging.Log for the duration of fn and returns what was written.
+func captureLog(t *testing.T, fn func()) string {
+	t.Helper()
+
+	var buf bytes.Buffer
+	orig := logging.Log
+	logging.Log = logging.New(&buf)
+	t.Cleanup(func() { logging.Log = orig })
+
+	fn()
+
 	return buf.String()
 }
 
@@ -84,7 +99,7 @@ func TestApply(t *testing.T) {
 		})
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -102,7 +117,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -117,7 +132,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java", "dotnet"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -132,7 +147,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{AptPackages: []string{"curl", "jq"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -146,7 +161,7 @@ func TestApply(t *testing.T) {
 		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -160,13 +175,43 @@ func TestApply(t *testing.T) {
 		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
 		// Assert
 		assert.NotContains(t, out, "=> base:")
+	})
+
+	t.Run("empty base-exact reported as none, exact", func(t *testing.T) {
+		// Arrange
+		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		opts := tools.BuildOptions{BaseExact: true, Versions: map[string]string{}}
+
+		// Act
+		out := captureLog(t, func() {
+			err := Apply([]string{"claude"}, "agentic", opts)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "   base: (none, exact)")
+	})
+
+	t.Run("empty apt-exact reported as none, exact", func(t *testing.T) {
+		// Arrange
+		stubBuildTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		opts := tools.BuildOptions{AptExact: true, Versions: map[string]string{}}
+
+		// Act
+		out := captureLog(t, func() {
+			err := Apply([]string{"claude"}, "agentic", opts)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "   apt: (none, exact)")
 	})
 
 	t.Run("script error propagates", func(t *testing.T) {

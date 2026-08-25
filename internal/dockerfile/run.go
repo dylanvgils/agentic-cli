@@ -14,19 +14,14 @@ const (
 	blankContinuation = continuation + startContinuation
 )
 
-// Block is a group of related lines within a Run directive.
-// An optional Comment is rendered as a shell comment before the block's commands.
-// Set Chain to true to join Lines with && instead of plain \ continuation.
+// Block is a group of related lines within a Run directive, with an optional shell Comment; set Chain to join Lines with && instead of plain \ continuation.
 type Block struct {
 	Comment string
 	Lines   []string
 	Chain   bool
 }
 
-// Run is a RUN directive.
-// Use Blocks to group related lines into logical operations, blocks are separated by a blank
-// continuation line and && joined. An optional Comment per block is rendered as a shell comment.
-// Use Lines for a flat sequence. Use Command for a single pre-formatted string.
+// Run is a RUN directive: use Blocks for && logical groups (blank-line separated), Lines for a flat sequence, or Command for a single pre-formatted string.
 type Run struct {
 	Command string
 	Lines   []string

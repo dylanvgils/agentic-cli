@@ -43,8 +43,7 @@ func LiveProjects(dirName, name string, projects []string) []string {
 	return live
 }
 
-// Prune walks baseDir's clone dirs, drops reg entries no live project still references,
-// removes clone dirs left with no surviving entries, and reports what happened to each.
+// Prune drops reg entries no live project still references, removes clone dirs left empty, and reports the outcome per entry.
 func Prune(baseDir string, reg *Registry) (*Registry, []PruneResult, error) {
 	dirNames, err := CloneDirs(baseDir)
 	if err != nil {
@@ -75,8 +74,7 @@ func Prune(baseDir string, reg *Registry) (*Registry, []PruneResult, error) {
 	return updated, report, nil
 }
 
-// pruneDir classifies dirName's entries into live survivors and dead ones, removes the
-// clone dir once nothing survives, and reports the outcome reached for each entry.
+// pruneDir splits dirName's entries into survivors and dead ones, removing the clone dir once nothing survives.
 func pruneDir(baseDir, dirName string, entries []RegistryEntry) ([]RegistryEntry, []PruneResult, error) {
 	survivors, dead := splitLiveEntries(dirName, entries)
 
@@ -95,8 +93,7 @@ func pruneDir(baseDir, dirName string, entries []RegistryEntry) ([]RegistryEntry
 	return survivors, report, nil
 }
 
-// splitLiveEntries partitions entries by whether any project still references dirName/entry.Name,
-// trimming survivors' Projects down to the live ones.
+// splitLiveEntries partitions entries by whether any project still references them, trimming survivors' Projects to the live ones.
 func splitLiveEntries(dirName string, entries []RegistryEntry) (survivors, dead []RegistryEntry) {
 	for _, entry := range entries {
 		live := LiveProjects(dirName, entry.Name, entry.Projects)

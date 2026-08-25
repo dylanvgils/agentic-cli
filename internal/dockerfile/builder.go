@@ -23,9 +23,7 @@ func (b *StageBuilder) AddGlobalArg(arg Arg) *StageBuilder {
 	return b
 }
 
-// Add appends one or more instructions to the stage, tagging each with the Go source location
-// of the call site. To attach a human-readable comment, wrap an instruction with C() before
-// passing it here.
+// Add appends instructions, tagging each with the call site's Go source location. Wrap with C() first to attach a human-readable comment.
 func (b *StageBuilder) Add(insts ...Instruction) *StageBuilder {
 	_, file, line, ok := runtime.Caller(1)
 	source := ""
@@ -39,9 +37,7 @@ func (b *StageBuilder) Add(insts ...Instruction) *StageBuilder {
 	return b
 }
 
-// withSource tags inst with source, returning a Located wrapper.
-// If inst is already a Located (e.g. from C()), only the Source field is set - no double-wrapping.
-// If source is empty (runtime.Caller failed), inst is returned unwrapped.
+// withSource tags inst with source, avoiding double-wrapping an already-Located instruction (e.g. from C()).
 func withSource(source string, inst Instruction) Instruction {
 	if located, isLocated := inst.(Located); isLocated {
 		located.Source = source

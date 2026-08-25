@@ -2,9 +2,7 @@
 
 package platform
 
-// windowsToIANA maps Windows timezone names (as returned by "tzutil /g") to
-// their IANA equivalent, using the default ("001") territory mapping from
-// the Unicode CLDR windowsZones.xml dataset:
+// windowsToIANA maps Windows timezone names to their IANA equivalent, per the CLDR windowsZones.xml dataset:
 // https://github.com/unicode-org/cldr/blob/main/common/supplemental/windowsZones.xml
 var windowsToIANA = map[string]string{
 	"Dateline Standard Time":          "Etc/GMT+12",

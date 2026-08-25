@@ -10,13 +10,15 @@ import (
 var buildCmd = &cobra.Command{
 	Use:   "build [tool]",
 	Short: "Build tool image(s)",
-	Long:  "Build tool image(s). Builds all tools if no tool specified.\n\n" + extrasEnvDoc(),
+	Long:  "Build tool image(s). Builds all tools if no tool specified.",
 	Example: `  agentic build
   agentic build claude
   agentic build claude --base node
   agentic build claude --base node,java
   agentic build claude --base node --node 22
-  agentic build claude --base java --java 17`,
+  agentic build claude --base java --java 17
+  agentic build claude --base-exact node
+  agentic build claude --apt-exact make,gcc`,
 	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
 	ValidArgs: tools.Names(),
 	RunE:      runBuild,

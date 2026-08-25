@@ -9,6 +9,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -172,9 +173,9 @@ func Test_notify(t *testing.T) {
 		stubIsTerminal(t, false)
 
 		var errBuf bytes.Buffer
-		orig := Stderr
-		Stderr = &errBuf
-		t.Cleanup(func() { Stderr = orig })
+		orig := Notify
+		Notify = logging.New(&errBuf)
+		t.Cleanup(func() { Notify = orig })
 
 		// Act
 		confirmed := notify("claude", "1.2.3", "1.3.0")
@@ -193,9 +194,9 @@ func Test_notify(t *testing.T) {
 		stubIsTerminal(t, true)
 		stubStdin(t, "y\n")
 
-		origStderr := Stderr
-		Stderr = io.Discard
-		t.Cleanup(func() { Stderr = origStderr })
+		origNotify := Notify
+		Notify = logging.New(io.Discard)
+		t.Cleanup(func() { Notify = origNotify })
 
 		// Act
 		confirmed := notify("claude", "1.2.3", "1.3.0")
@@ -209,9 +210,9 @@ func Test_notify(t *testing.T) {
 		stubIsTerminal(t, true)
 		stubStdin(t, "n\n")
 
-		origStderr := Stderr
-		Stderr = io.Discard
-		t.Cleanup(func() { Stderr = origStderr })
+		origNotify := Notify
+		Notify = logging.New(io.Discard)
+		t.Cleanup(func() { Notify = origNotify })
 
 		// Act
 		confirmed := notify("claude", "1.2.3", "1.3.0")
