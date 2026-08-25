@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"os"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -72,24 +71,6 @@ func TestPrintBasesField(t *testing.T) {
 		out := buf.String()
 		assert.Contains(t, out, "- java@17  [/home/.agenticrc.toml]")
 		assert.NotContains(t, out, "java@11")
-	})
-
-	t.Run("env var overrides rc version", func(t *testing.T) {
-		// Arrange
-		t.Setenv("AGENTIC_JAVA_VERSION", "21")
-		var buf bytes.Buffer
-		layers := []config.RCLayer{
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}, Versions: map[string]string{"java": "17"}}}},
-		}
-
-		// Act
-		err := printBasesField(&buf, layers)
-
-		// Assert
-		require.NoError(t, err)
-		out := buf.String()
-		assert.Contains(t, out, "- java@21  [/project/.agenticrc.toml]")
-		assert.NotContains(t, out, "java@17")
 	})
 
 	t.Run("multiple layers show all entries with correct attribution", func(t *testing.T) {
@@ -179,28 +160,39 @@ func TestPrintGlobalConfig(t *testing.T) {
 func TestPrintScalarField(t *testing.T) {
 	get := func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
 
-	t.Run("rc wins over env var", func(t *testing.T) {
+	t.Run("rc value shown when set", func(t *testing.T) {
 		// Arrange
-		t.Setenv("AGENTIC_PIDS_LIMIT", "512")
 		var buf bytes.Buffer
 		layers := []config.RCLayer{
 			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{PidsLimit: "100"}}},
 		}
 
 		// Act
-		err := printScalarField(&buf, "pids_limit", "AGENTIC_PIDS_LIMIT", layers, get, "1024")
+		err := printScalarField(&buf, "pids_limit", layers, get, "1024")
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "  pids_limit: 100  [/project/.agenticrc.toml]\n", buf.String())
 	})
 
-	t.Run("not set shown when no env, rc, or default", func(t *testing.T) {
+	t.Run("default shown when no rc value", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer
 
 		// Act
-		err := printScalarField(&buf, "pids_limit", "", nil, get, "")
+		err := printScalarField(&buf, "pids_limit", nil, get, "1024")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "  pids_limit: 1024  (default)\n", buf.String())
+	})
+
+	t.Run("not set shown when no rc value or default", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+
+		// Act
+		err := printScalarField(&buf, "pids_limit", nil, get, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -367,10 +359,6 @@ func TestPrintProjectConfig(t *testing.T) {
 
 	t.Run("no values shows defaults", func(t *testing.T) {
 		// Arrange
-		os.Unsetenv("AGENTIC_NAMESPACE")  //nolint:errcheck
-		os.Unsetenv("AGENTIC_PIDS_LIMIT") //nolint:errcheck
-		os.Unsetenv("AGENTIC_CPUS")       //nolint:errcheck
-		os.Unsetenv("AGENTIC_MEMORY")     //nolint:errcheck
 		var buf bytes.Buffer
 		layers := []config.RCLayer{
 			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}},

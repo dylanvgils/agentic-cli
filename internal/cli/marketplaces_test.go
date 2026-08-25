@@ -132,7 +132,7 @@ func TestRunMarketplacesPrune(t *testing.T) {
 		require.NoError(t, marketplace.SaveRegistry(baseDir, reg))
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			require.NoError(t, runMarketplacesPrune(marketplacesPruneCmd, nil))
 		})
 

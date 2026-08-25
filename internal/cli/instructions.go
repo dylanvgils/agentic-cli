@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/output"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
@@ -73,7 +73,7 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	output.Stepf("%s/%s", namespace, toolName)
+	logging.Stepf("%s/%s", namespace, toolName)
 	if content == "" {
 		fmt.Println("(environment instructions disabled via .agenticrc.toml [run.instructions] enabled = false)")
 		return nil

@@ -8,9 +8,7 @@ import (
 	"strings"
 )
 
-// timezone resolves the host's IANA timezone name from /etc/timezone,
-// the /etc/localtime symlink target, or - if /etc/localtime is a plain
-// file copy instead of a symlink - the POSIX TZ string in its footer.
+// timezone resolves the host's IANA timezone name from /etc/timezone, the /etc/localtime symlink target, or its POSIX TZ footer as a last resort.
 func timezone() string {
 	if tz := readEtcTimezone(); tz != "" {
 		return tz
@@ -29,9 +27,7 @@ func readEtcTimezone() string {
 	return strings.TrimSpace(string(b))
 }
 
-// parseLocaltimeSymlink extracts the IANA zone name from a resolved
-// /etc/localtime symlink target, e.g. ".../zoneinfo/America/New_York" ->
-// "America/New_York".
+// parseLocaltimeSymlink extracts the IANA zone name from a resolved /etc/localtime symlink target (".../zoneinfo/America/New_York" -> "America/New_York").
 func parseLocaltimeSymlink(target string) string {
 	const marker = "zoneinfo/"
 	if _, after, ok := strings.Cut(target, marker); ok {
@@ -48,8 +44,7 @@ func readEtcLocaltimeTarget() string {
 	return target
 }
 
-// parseLocaltimePosixFooter extracts the POSIX TZ string from a TZif
-// file's footer (RFC 8536 3.3): its last line.
+// parseLocaltimePosixFooter extracts the POSIX TZ string from a TZif file's footer (RFC 8536 3.3): its last line.
 func parseLocaltimePosixFooter(data []byte) string {
 	last := bytes.LastIndexByte(data, '\n')
 	if last == -1 {

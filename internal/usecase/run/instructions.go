@@ -9,6 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
 // InstructionsSnapshot is the per-run view of a tool's global instructions file; Cleanup must always be deferred by the caller.
@@ -60,7 +61,7 @@ func BuildInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc 
 	}
 
 	containerHome := docker.ResolveContainerHome(target.ImageName)
-	limits := resolveResourceLimits(in.PidsLimit, in.CPUs, in.Memory, rc)
+	limits := resolve.ResourceLimitsFor(in.PidsLimit, in.CPUs, in.Memory, rc)
 
 	var b strings.Builder
 	b.WriteString("# Agentic container environment\n\n")
@@ -159,11 +160,11 @@ func tmpfsPath(spec, containerHome string) string {
 	return path
 }
 
-func writeResourceLimitsSection(b *strings.Builder, limits resourceLimits) {
+func writeResourceLimitsSection(b *strings.Builder, limits resolve.ResourceLimits) {
 	b.WriteString("## Resource limits\n\n")
-	fmt.Fprintf(b, "- Max processes (pids-limit): %s\n", limits.pidsLimit)
-	fmt.Fprintf(b, "- CPUs: %s\n", limits.cpus)
-	fmt.Fprintf(b, "- Memory: %s\n", limits.memory)
+	fmt.Fprintf(b, "- Max processes (pids-limit): %s\n", limits.PidsLimit)
+	fmt.Fprintf(b, "- CPUs: %s\n", limits.CPUs)
+	fmt.Fprintf(b, "- Memory: %s\n", limits.Memory)
 	b.WriteString("\nThese are configurable, not hard caps - if a task needs more, tell the user why so they can raise pids_limit/cpus/memory in .agenticrc.toml (or the --pids-limit/--cpus/--memory flags) and rerun.\n\n")
 }
 
@@ -188,7 +189,7 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 	}
 
 	b.WriteString("- Only the following hosts are reachable:\n")
-	for _, host := range proxyAllowList(toolConfig, rc) {
+	for _, host := range resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, rc) {
 		fmt.Fprintf(b, "  - %s\n", host)
 	}
 	b.WriteString("\nAnything not listed above is blocked. If a task needs a host that isn't reachable, tell the user why so they can add it to allowed_hosts in .agenticrc.toml and rerun.\n\n")

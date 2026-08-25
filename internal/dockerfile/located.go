@@ -6,8 +6,7 @@ import (
 	"strings"
 )
 
-// Located wraps an Instruction and prepends comments when rendered.
-// Comment is an optional human-readable annotation; Source is the Go source location.
+// Located wraps an Instruction, prepending an optional human-readable Comment and Go Source location when rendered.
 type Located struct {
 	Comment string
 	Source  string
@@ -25,8 +24,7 @@ func (l Located) Render() string {
 	return s + l.Inst.Render()
 }
 
-// C wraps inst with a human-readable comment. Pass the result to StageBuilder.Add;
-// the Go source location is filled in automatically without double-wrapping.
+// C wraps inst with a human-readable comment; pass the result to StageBuilder.Add to fill in its source location.
 func C(comment string, inst Instruction) Located {
 	return Located{Comment: comment, Inst: inst}
 }

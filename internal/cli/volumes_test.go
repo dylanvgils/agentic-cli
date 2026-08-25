@@ -27,7 +27,7 @@ func TestRunVolumeCreate(t *testing.T) {
 		stubCreateVolume(t, func(string) error { return nil })
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := runVolumeCreate(volumesCreateCmd, []string{"maven"})
 			require.NoError(t, err)
 		})
@@ -98,7 +98,7 @@ func TestRunVolumeRemove(t *testing.T) {
 		stubRemoveVolume(t, func(string) error { return nil })
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := runVolumeRemove(volumesRemoveCmd, []string{"maven"})
 			require.NoError(t, err)
 		})

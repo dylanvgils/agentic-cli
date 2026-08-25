@@ -12,8 +12,7 @@ var versionsJSON []byte
 //go:embed checksums.json
 var checksumsJSON []byte
 
-// Versions holds the default version strings for each supported runtime layer
-// plus the pinned tags for the utility base images (busybox, debian).
+// Versions holds the default version strings for each runtime layer plus pinned tags for utility base images.
 type Versions struct {
 	Node             string `json:"node"`
 	Nvm              string `json:"nvm"`
@@ -30,9 +29,7 @@ type Checksums struct {
 	Nvm string `json:"nvm"`
 }
 
-// DefaultVersions is populated at startup from the embedded versions.json.
-// DefaultChecksums is populated at startup from the embedded checksums.json.
-// A malformed file is a programmer error and causes a fatal log at process start.
+// DefaultVersions and DefaultChecksums are populated at startup from the embedded JSON files; a malformed file is a fatal error.
 var DefaultVersions Versions
 var DefaultChecksums Checksums
 
@@ -45,8 +42,7 @@ func init() {
 	}
 }
 
-// ForLayer returns the default version string for the named runtime layer (base or extra).
-// Returns an empty string for unknown names.
+// ForLayer returns the default version string for the named runtime layer, or "" for unknown names.
 func (v Versions) ForLayer(name string) string {
 	switch name {
 	case "debian":

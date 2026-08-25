@@ -162,48 +162,6 @@ func TestResolveToolStage(t *testing.T) {
 	})
 }
 
-func TestParseExtras(t *testing.T) {
-	t.Run("single", func(t *testing.T) {
-		// Act
-		result := ParseExtras("java")
-
-		// Assert
-		assert.Equal(t, []string{"java"}, result)
-	})
-
-	t.Run("multiple", func(t *testing.T) {
-		// Act
-		result := ParseExtras("dotnet,java")
-
-		// Assert
-		assert.Equal(t, []string{"dotnet", "java"}, result)
-	})
-
-	t.Run("whitespace", func(t *testing.T) {
-		// Act
-		result := ParseExtras(" dotnet , java ")
-
-		// Assert
-		assert.Equal(t, []string{"dotnet", "java"}, result)
-	})
-
-	t.Run("empty", func(t *testing.T) {
-		// Act
-		result := ParseExtras("")
-
-		// Assert
-		assert.Empty(t, result)
-	})
-
-	t.Run("empty segments", func(t *testing.T) {
-		// Act
-		result := ParseExtras(",dotnet,,java,")
-
-		// Assert
-		assert.Equal(t, []string{"dotnet", "java"}, result)
-	})
-}
-
 func TestSortByKnownExtras(t *testing.T) {
 	t.Run("sorts into known extras order", func(t *testing.T) {
 		// Arrange

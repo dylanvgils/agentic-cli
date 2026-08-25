@@ -9,31 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAptPackages(t *testing.T) {
-	t.Run("returns packages from rc", func(t *testing.T) {
-		// Arrange
-		rc := &AgenticRC{Build: RCBuild{AptPackages: []string{"make"}}}
-
-		// Act
-		result := AptPackages(rc)
-
-		// Assert
-		assert.Equal(t, []string{"make"}, result)
-	})
-
-	t.Run("env var appends to rc packages", func(t *testing.T) {
-		// Arrange
-		t.Setenv("AGENTIC_APT_PACKAGES", "gcc")
-		rc := &AgenticRC{Build: RCBuild{AptPackages: []string{"make"}}}
-
-		// Act
-		result := AptPackages(rc)
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc"}, result)
-	})
-}
-
 func TestMarketplacesFor(t *testing.T) {
 	t.Run("no tools filter matches every tool", func(t *testing.T) {
 		// Arrange

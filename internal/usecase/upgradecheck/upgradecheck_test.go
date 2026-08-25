@@ -9,6 +9,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -200,9 +201,9 @@ func Test_notifyUpdate(t *testing.T) {
 		Stdin = strings.NewReader("n\n")
 		t.Cleanup(func() { Stdin = origStdin })
 
-		origStderr := Stderr
-		Stderr = io.Discard
-		t.Cleanup(func() { Stderr = origStderr })
+		origNotify := Notify
+		Notify = logging.New(io.Discard)
+		t.Cleanup(func() { Notify = origNotify })
 
 		// Act
 		notifyUpdate("v1.1.0")

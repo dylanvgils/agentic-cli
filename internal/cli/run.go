@@ -175,9 +175,7 @@ func parseArgs(args []string, namespace string) (parsedArgs, error) {
 	}, nil
 }
 
-// requireImage returns an error if imageName does not exist locally.
-// If the image is missing but the tool has images under other namespaces,
-// the error includes a hint to use --namespace.
+// requireImage errors if the image doesn't exist locally, hinting at --namespace if the tool has images under other namespaces.
 func requireImage(image, tool string) error {
 	info, err := inspectImage(image)
 	if err != nil {

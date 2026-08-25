@@ -54,8 +54,7 @@ func (b *RunSpecBuilder) WithSecrets(secrets ...string) *RunSpecBuilder {
 	return b
 }
 
-// WithEnv appends environment variable entries (KEY=VALUE, or bare KEY to
-// forward the host's current value).
+// WithEnv appends env entries (KEY=VALUE, or bare KEY to forward the host's current value).
 func (b *RunSpecBuilder) WithEnv(env ...string) *RunSpecBuilder {
 	b.env = append(b.env, env...)
 	return b
@@ -97,10 +96,8 @@ func (b *RunSpecBuilder) WithDryRun(dryRun bool) *RunSpecBuilder {
 	return b
 }
 
-// WithProxy configures the egress proxy sidecar. When enabled, the tool is
-// confined to an internal network and reaches the outside only via the proxy,
-// which logs to logDir and enforces allow, unless monitor is true, in which
-// case it logs the allow verdict without enforcing it.
+// WithProxy confines the tool to an internal network reaching out only via the proxy sidecar,
+// which logs to logDir and enforces allow (or only logs the verdict when monitor is true).
 func (b *RunSpecBuilder) WithProxy(enabled bool, image string, allow []string, logDir string, monitor bool) *RunSpecBuilder {
 	b.proxyEnabled = enabled
 	b.proxyImage = image

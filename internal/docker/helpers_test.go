@@ -17,8 +17,7 @@ type dockerCall struct {
 	args []string
 }
 
-// stubDocker writes a shell script named "docker" to a temp dir and prepends
-// it to PATH. t.Setenv handles cleanup automatically.
+// stubDocker writes a shell script named "docker" to a temp dir and prepends it to PATH.
 func stubDocker(t *testing.T, script string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -52,8 +51,8 @@ func stubDockerRunBySubcmd(t *testing.T, responses map[string]string) {
 	})
 }
 
-// stubDockerRunCapture replaces dockerRun with a stub that records calls.
-// failSubcmds lists "verb sub" pairs (e.g. "volume inspect") that should fail.
+// stubDockerRunCapture replaces dockerRun with a stub that records calls and fails any
+// "verb sub" pair (e.g. "volume inspect") listed in failSubcmds.
 func stubDockerRunCapture(t *testing.T, failSubcmds ...string) func() []dockerCall {
 	t.Helper()
 	var calls []dockerCall
@@ -77,8 +76,7 @@ func stubDockerRunCapture(t *testing.T, failSubcmds ...string) func() []dockerCa
 	return func() []dockerCall { return calls }
 }
 
-// stubRunInteractive replaces runInteractive with a mock that records the
-// args of the most recent call.
+// stubRunInteractive replaces runInteractive with a mock that records the args of the most recent call.
 func stubRunInteractive(t *testing.T) func() []string {
 	t.Helper()
 	var capturedArgs []string
@@ -93,9 +91,8 @@ func stubRunInteractive(t *testing.T) func() []string {
 	return func() []string { return capturedArgs }
 }
 
-// stubRunInteractiveCapturingDockerfile replaces runInteractive with a mock that
-// records the rendered Dockerfile content for each "build" call, read from the
-// path passed via --file= before buildFromContent removes its temp dir.
+// stubRunInteractiveCapturingDockerfile replaces runInteractive with a mock recording the
+// rendered Dockerfile content for each "build" call, read from the --file= path before removal.
 func stubRunInteractiveCapturingDockerfile(t *testing.T) func() []string {
 	t.Helper()
 	var contents []string
@@ -161,9 +158,8 @@ func argAfter(args []string, flag string) string {
 	return ""
 }
 
-// stubRunInteractiveCapture captures the args of the last runInteractive call
-// and, if a --file flag is present, the content of that Dockerfile (read inside
-// the stub, since the temp file is removed once the build returns).
+// stubRunInteractiveCapture captures the last runInteractive call's args and, if present, its
+// --file Dockerfile content (read inside the stub before the temp file is removed).
 func stubRunInteractiveCapture(t *testing.T) func() (args []string, dockerfile string) {
 	t.Helper()
 	var capturedArgs []string

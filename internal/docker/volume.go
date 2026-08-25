@@ -8,9 +8,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
-// EnsureNamedVolumes inspects each volume spec and, for any that reference a
-// named Docker volume (left side has no leading "/"), creates the volume if it
-// does not exist and fixes its ownership so the container user can write to it.
+// EnsureNamedVolumes creates and fixes ownership for any spec referencing a named Docker volume (no leading "/" on the host side).
 func EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage string) error {
 	for _, volume := range volumes {
 		expanded := mount.NormalizeMountSpec(mount.ExpandMountSpec(volume, toolHome, containerHome))
@@ -26,8 +24,7 @@ func EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage st
 	return nil
 }
 
-// CreateVolume creates a named Docker volume with the project=agentic-cli label.
-// Unlike ensureVolume, it does not chown - that is only needed for runtime volumes.
+// CreateVolume creates a named Docker volume with the project=agentic-cli label; unlike ensureVolume, it does not chown.
 func CreateVolume(name string) error {
 	_, err := dockerRun("volume", "create", label(LabelProject, LabelProjectVal), name)
 	if err != nil {

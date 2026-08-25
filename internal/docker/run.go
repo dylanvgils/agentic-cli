@@ -19,24 +19,17 @@ const (
 )
 
 var (
-	// isTerminal is a test-stubbable indirection into platform.IsTerminal
-	// (see stubIsTerminal in helpers_test.go).
+	// isTerminal is a test-stubbable indirection into platform.IsTerminal.
 	isTerminal = platform.IsTerminal
-	// hostTimezone is a test-stubbable indirection into platform.Timezone
-	// (see stubHostTimezone in helpers_test.go).
+	// hostTimezone is a test-stubbable indirection into platform.Timezone.
 	hostTimezone = platform.Timezone
 )
 
-// terminalCapabilityEnvNames are host vars forwarded into the container
-// automatically when set, so the tool sees the same terminal capabilities
-// the host has. Not reserved - a user-supplied --env entry for one of these
-// overrides the forwarded value, since it's a cosmetic preference, not
-// something agentic enforces.
+// terminalCapabilityEnvNames are host vars auto-forwarded into the container; not reserved, so
+// a user-supplied --env entry for one of these can override it (a cosmetic preference, not enforced).
 var terminalCapabilityEnvNames = []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"}
 
-// proxyEnvNames are the env vars the egress proxy injects via docker run -e.
-// Overriding one via --env would silently break the proxy's allowlist
-// enforcement.
+// proxyEnvNames are the env vars the egress proxy injects; overriding one via --env would silently break allowlist enforcement.
 var proxyEnvNames = map[string]bool{
 	"HTTP_PROXY":  true,
 	"HTTPS_PROXY": true,
@@ -68,10 +61,8 @@ type RunSpec struct {
 	Memory         string
 	DryRun         bool
 
-	// Egress proxy. When ProxyEnabled is set, the tool is confined to an
-	// internal network and reaches the outside world only through a proxy
-	// sidecar that enforces ProxyAllow, unless ProxyMonitor is set, in which
-	// case the sidecar logs the ProxyAllow verdict without enforcing it.
+	// Egress proxy. When ProxyEnabled, the tool reaches out only through a sidecar that enforces
+	// ProxyAllow, unless ProxyMonitor is set, in which case it only logs the verdict.
 	ProxyEnabled bool
 	ProxyImage   string   // proxy sidecar image
 	ProxyAllow   []string // merged allowlist (tool baseline + user hosts)
@@ -84,8 +75,7 @@ type RunSpec struct {
 	AuditExclude []string // extra directory names to exclude, merged with fswatch.DefaultExcludeDirs
 	AuditLogDir  string   // host dir for JSON-lines audit logs
 
-	// network is the docker network the tool container attaches to. Empty
-	// means NetworkName; proxy mode overrides it with the per-run internal net.
+	// network is the docker network the tool attaches to; empty means NetworkName, proxy mode sets the per-run internal net.
 	network string
 }
 
@@ -133,10 +123,8 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	return runInteractive(args...)
 }
 
-// IsReservedEnvName reports whether key is an env var agentic already
-// manages, so user-supplied --env entries cannot override it. proxyEnvNames
-// only apply when proxyEnabled - those vars aren't injected at all otherwise,
-// so there's nothing to protect and the name is free for the user to set.
+// IsReservedEnvName reports whether key is an env var agentic already manages, so a user-supplied
+// --env cannot override it; proxyEnvNames only count when proxyEnabled.
 func IsReservedEnvName(key string, proxyEnabled bool) bool {
 	if proxyEnabled && proxyEnvNames[key] {
 		return true
@@ -144,9 +132,8 @@ func IsReservedEnvName(key string, proxyEnabled bool) bool {
 	return reservedConfigNames[key]
 }
 
-// setupProxy configures rs for proxy mode if enabled, returning the env args
-// to inject into the tool container and a cleanup func to defer. The cleanup
-// func is a no-op when proxying is disabled or this is a dry run.
+// setupProxy configures rs for proxy mode if enabled, returning the env args to inject and a
+// cleanup func to defer (a no-op when proxying is disabled or this is a dry run).
 func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 	if !rs.ProxyEnabled {
 		return nil, func() {}, nil
@@ -194,9 +181,8 @@ func networkOrDefault(network string) string {
 	return network
 }
 
-// guardSignals installs a no-op handler for interrupt/terminate signals and
-// returns a function that uninstalls it. This keeps the agentic process alive
-// long enough to run deferred proxy cleanup when the user presses Ctrl-C.
+// guardSignals installs a no-op interrupt/terminate handler and returns a func to uninstall it,
+// keeping the process alive long enough to run deferred proxy cleanup on Ctrl-C.
 func guardSignals() func() {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
@@ -215,9 +201,7 @@ func shellJoin(args []string) string {
 	return strings.Join(parts, " ")
 }
 
-// buildBaseArgs builds the mandatory security and resource-limit args.
-// Base arguments for running the docker container; the goal is to run
-// the container with minimal permissions.
+// buildBaseArgs builds the mandatory security and resource-limit args for running the container with minimal permissions.
 func buildBaseArgs(rs RunSpec) ([]string, error) {
 	id, err := randID()
 	if err != nil {
@@ -256,9 +240,8 @@ func buildTTYArgs() []string {
 	return nil
 }
 
-// buildEnvArgs builds --env flags: auto-forwarded terminal capabilities and
-// host timezone, then rs.Env entries ("KEY=VALUE" or bare "KEY" to forward
-// the host's current value), mirroring Docker's -e semantics.
+// buildEnvArgs builds --env flags: auto-forwarded terminal capabilities and host timezone, then
+// rs.Env entries ("KEY=VALUE", or bare "KEY" to forward the host's current value).
 func buildEnvArgs(rs RunSpec) []string {
 	args := forwardEnvArg(terminalCapabilityEnvNames...)
 
@@ -297,8 +280,7 @@ func buildVolumeArgs(rs RunSpec) []string {
 	return args
 }
 
-// buildSecretArgs builds read-only secret volume flags.
-// Returns an error for any malformed "name:/path[:/container/path]" entry.
+// buildSecretArgs builds read-only secret volume flags, erroring on a malformed "name:/path[:/container/path]" entry.
 func buildSecretArgs(rs RunSpec) ([]string, error) {
 	args := make([]string, 0, len(rs.Secrets))
 	for _, secret := range rs.Secrets {

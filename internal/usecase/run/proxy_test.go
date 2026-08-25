@@ -8,33 +8,9 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func Test_proxyAllowList(t *testing.T) {
-	t.Run("merges tool baseline with rc-configured hosts", func(t *testing.T) {
-		// Arrange
-		toolConfig := tools.ToolConfig{Runtime: tools.RuntimeConfig{AllowedHosts: []string{"api.example.com"}}}
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.AllowedHosts = []string{"extra.example.com"}
-
-		// Act
-		result := proxyAllowList(toolConfig, rc)
-
-		// Assert
-		assert.Equal(t, []string{"api.example.com", "extra.example.com"}, result)
-	})
-
-	t.Run("empty allowlists on both sides return empty result", func(t *testing.T) {
-		// Act
-		result := proxyAllowList(tools.ToolConfig{}, &config.AgenticRC{})
-
-		// Assert
-		assert.Empty(t, result)
-	})
-}
 
 func Test_proxyRetentionDays(t *testing.T) {
 	t.Run("uses the value configured in agentic.json", func(t *testing.T) {

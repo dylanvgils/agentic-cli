@@ -20,8 +20,7 @@ type CliConfig struct {
 	LastToolVersionCheck  map[string]time.Time `json:"last_tool_version_check,omitempty"`
 }
 
-// LoadConfig reads $AGENTIC_HOME/agentic.json. Returns an empty CliConfig if the
-// file does not exist.
+// LoadConfig reads $AGENTIC_HOME/agentic.json, returning an empty CliConfig if the file does not exist.
 func LoadConfig(toolHome string) (*CliConfig, error) {
 	path := filepath.Join(toolHome, "agentic.json")
 
@@ -51,10 +50,7 @@ func (config *CliConfig) Save(toolHome string) error {
 	return os.WriteFile(filepath.Join(toolHome, "agentic.json"), data, 0o640)
 }
 
-// IsTrusted reports whether dir is trusted. An exact match or a match where
-// a trusted entry is a parent of dir (separated by filepath.Separator) returns
-// true. Symlinks are resolved on both sides so that e.g. /var and /private/var
-// on macOS compare equal.
+// IsTrusted reports whether dir exactly matches or is nested under a trusted entry, resolving symlinks on both sides so e.g. macOS's /var and /private/var compare equal.
 func (config *CliConfig) IsTrusted(dir string) bool {
 	realDir := evalSymlinks(dir)
 

@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
@@ -13,11 +12,13 @@ import (
 // BuildOptions controls how a tool image is built.
 type BuildOptions struct {
 	BaseOverride   []string                 // overrides the tool's default base extras
+	BaseExact      bool                     // true when set via --base-exact: BaseOverride is authoritative even if empty, skips rc.Build.Bases and per-image label recovery
 	NoCache        bool                     // disable layer cache for all steps
 	Pull           bool                     // re-pull base images from the registry before building
 	CacheBust      string                   // non-empty to bust the tool stage's cache via its CACHEBUST build arg (used by update)
 	Versions       map[string]string        // layer name → version override, e.g. {"node": "22", "java": "21"}
 	AptPackages    []string                 // additional apt packages to install in the base stage
+	AptExact       bool                     // true when set via --apt-exact: AptPackages is authoritative even if empty, skips rc.Build.AptPackages and per-image label recovery
 	VerifyApt      bool                     // run pre-build apt-cache check for AptPackages
 	Registry       string                   // registry prefix for base images (e.g. "myregistry.example.com")
 	CustomInstalls []config.RCCustomInstall // non-apt tools installed via arbitrary shell commands, applied after any --base extras
@@ -30,20 +31,6 @@ func GenerateDockerfile(tool string, opts BuildOptions) (string, error) {
 		return "", err
 	}
 	return dockerfile.File{Stages: stages}.Render(), nil
-}
-
-// ParseExtras splits a comma-separated base override string into individual extra names,
-// returned in canonical knownExtras order so the generated Dockerfile is deterministic
-// and Docker layer caching is not invalidated by flag reordering.
-func ParseExtras(base string) []string {
-	var extras []string
-	for extra := range strings.SplitSeq(base, ",") {
-		if extra = strings.TrimSpace(extra); extra != "" {
-			extras = append(extras, extra)
-		}
-	}
-
-	return sortByKnownExtras(extras)
 }
 
 // composeStages assembles the full list of Dockerfile stages: node base + requested extras + tool.
@@ -74,8 +61,7 @@ func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfil
 	return stages, nil
 }
 
-// buildExtraStages chains extra stages (e.g. java, dotnet, go), each building FROM the previous.
-// Returns the assembled stages and the name of the final stage in the chain.
+// buildExtraStages chains extra stages (e.g. java, dotnet, go), each building FROM the previous, returning the stages and the final stage name.
 func buildExtraStages(extras []string, prevStage string, versions map[string]string) ([]dockerfile.Stage, string, error) {
 	var stages []dockerfile.Stage
 	prev := prevStage
@@ -93,9 +79,7 @@ func buildExtraStages(extras []string, prevStage string, versions map[string]str
 	return stages, prev, nil
 }
 
-// resolveToolStage looks up the tool config and returns its Dockerfile stage,
-// with cache-busting instructions prepended right after FROM so a changed
-// CACHEBUST build arg invalidates the cache for the entire tool stage.
+// resolveToolStage returns tool's Dockerfile stage with cache-busting instructions prepended right after FROM.
 func resolveToolStage(tool, prevStage string) (dockerfile.Stage, error) {
 	cfg, ok := Configs[tool]
 	if !ok {

@@ -8,19 +8,18 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/cleanup"
-	"github.com/dylanvgils/agentic-cli/internal/output"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
-// BuildTool generates a multi-stage Dockerfile for the named tool and builds it.
-// The installed tool version is detected from the image via its embedded version script.
+// BuildTool generates a multi-stage Dockerfile for the named tool, builds it, and stamps labels with the detected tool version.
 func BuildTool(tool, image string, opts tools.BuildOptions) error {
 	if opts.VerifyApt {
 		if err := verifyAptPackages(opts.AptPackages, opts.Registry); err != nil {
 			return err
 		}
-		output.Step("Building image...")
+		logging.Step("Building image...")
 	}
 
 	content, err := tools.GenerateDockerfile(tool, opts)
@@ -41,10 +40,8 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 	return nil
 }
 
-// BuildProxyImage generates the egress proxy Dockerfile and builds it. For a
-// released version it installs the published module (version baked into the
-// image so rebuilds are no-ops until the version changes). For a dev version it
-// compiles sourceDir, which must be the agentic module root.
+// BuildProxyImage generates the egress proxy Dockerfile and builds it: a released version
+// installs the published module, a dev version compiles sourceDir (the agentic module root).
 func BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) (retErr error) {
 	content := tools.GenerateProxyDockerfile(version, opts.Registry)
 
@@ -83,11 +80,8 @@ func buildProxyImage(dockerfilePath, image, context string, opts tools.BuildOpti
 	return runInteractive(buildProxyImageArgs(dockerfilePath, image, context, opts)...)
 }
 
-// buildProxyImageArgs computes the docker build args for the proxy image. It
-// is deliberately leaner than buildImageArgs: no tool/base build-args, just
-// the agentic labels so `agentic inspect --all` and cleanup can find it.
-// Unlike tool images it carries no namespace label - the proxy image is
-// global, not namespaced (see tools.ProxyImage).
+// buildProxyImageArgs computes the docker build args for the proxy image: only the agentic
+// labels (no tool/base build-args, no namespace label, since the proxy image is global).
 func buildProxyImageArgs(dockerfilePath, image, context string, opts tools.BuildOptions) []string {
 	args := []string{
 		"build",
@@ -130,8 +124,7 @@ func buildFromContent(content, image, tool string, opts tools.BuildOptions) (ret
 	return buildImage(tmpDir, image, tool, opts)
 }
 
-// writeTempDockerfile creates a temp directory, writes content as a Dockerfile,
-// and returns the directory path for use as the build context.
+// writeTempDockerfile writes content as a Dockerfile in a fresh temp dir, returned as the build context.
 func writeTempDockerfile(content string) (tmpDir string, err error) {
 	tmpDir, err = os.MkdirTemp("", "agentic-build-*")
 	if err != nil {

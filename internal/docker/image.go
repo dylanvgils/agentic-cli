@@ -24,8 +24,7 @@ type ImageInfo struct {
 	Size           string // formatted size from docker image ls
 }
 
-// InspectImage returns metadata for the given Docker image.
-// Returns nil, nil if the image does not exist or is not built.
+// InspectImage returns metadata for the given Docker image, or nil, nil if it does not exist.
 func InspectImage(name string) (*ImageInfo, error) {
 	result, err := inspectImage(name)
 	if err != nil {
@@ -55,9 +54,7 @@ func InspectImage(name string) (*ImageInfo, error) {
 	}, nil
 }
 
-// ListAllImages returns metadata for every Docker image carrying the
-// project=agentic-cli label, across all namespaces. Optional filters narrow the
-// result set; use the typed constructors (e.g. ToolFilter) to build them.
+// ListAllImages returns metadata for every agentic-managed image; optional filters (e.g. ToolFilter) narrow the result set.
 func ListAllImages(filters ...ImageFilter) ([]*ImageInfo, error) {
 	repos, err := listAllRepositories(filters...)
 	if err != nil {
@@ -96,9 +93,8 @@ func builtToolsFromImages(images []*ImageInfo) map[string]bool {
 	return built
 }
 
-// parseImageName splits an image name into namespace and tool by matching the
-// suffix against the known set of tool names.
-// e.g. "myproject-claude" → ("myproject", "claude", true)
+// parseImageName splits an image name into namespace and tool by matching its suffix against
+// the known tool names, e.g. "myproject-claude" -> ("myproject", "claude", true).
 func parseImageName(image string) (namespace, tool string, ok bool) {
 	for _, tool := range tools.Names() {
 		suffix := "-" + tool
@@ -109,8 +105,7 @@ func parseImageName(image string) (namespace, tool string, ok bool) {
 	return "", "", false
 }
 
-// resolveToolName determines the tool name and namespace for an image.
-// Label values take precedence; falls back to parsing the image name.
+// resolveToolName determines the tool name and namespace for an image, preferring labels over parsing the image name.
 func resolveToolName(image, labelTool, labelNamespace string) (namespace, tool string) {
 	parsedNamespace, parsedTool, _ := parseImageName(image)
 	tool = labelTool
@@ -125,8 +120,7 @@ func resolveToolName(image, labelTool, labelNamespace string) (namespace, tool s
 	return
 }
 
-// extractShortID returns the 12-character short ID from a full Docker image ID
-// (e.g. "sha256:a1b2c3d4e5f6..."). Returns empty string if the ID is too short.
+// extractShortID returns the 12-character short ID from a full Docker image ID (e.g. "sha256:a1b2c3d4e5f6...").
 func extractShortID(id string) string {
 	if len(id) < 19 {
 		return ""
@@ -144,9 +138,7 @@ func imageSize(name string) string {
 	return size
 }
 
-// listAllRepositories returns the repository names of every Docker image
-// carrying the project=agentic-cli label. Optional extraFilters are passed
-// as additional --filter flags.
+// listAllRepositories returns the repository names of every agentic-managed image, narrowed by any filters.
 func listAllRepositories(filters ...ImageFilter) ([]string, error) {
 	args := []string{
 		"images",

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Prints the next semver tag based on conventional commits since the last tag,
-# or exits 0 with no output if no releaseable commits are found.
+# or exits 0 with no output if no releasable commits are found.
 # Usage: next-tag.sh [base-tag]  (base-tag defaults to the latest git tag)
 set -e
 

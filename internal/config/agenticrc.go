@@ -14,12 +14,13 @@ import (
 
 const rcFilename = ".agenticrc.toml"
 
-// validRCEntryName matches safe path-segment/identifier characters, used for
-// both marketplace and custom-install names.
+// DefaultNamespace is the image namespace used when neither a flag nor .agenticrc.toml sets one.
+const DefaultNamespace = "agentic"
+
+// validRCEntryName matches safe path-segment/identifier characters, used for both marketplace and custom-install names.
 var validRCEntryName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
-// ModeEnforce and ModeMonitor are the only valid RCProxy.Mode values, besides
-// the unset "" (treated the same as ModeEnforce).
+// ModeEnforce and ModeMonitor are the only valid RCProxy.Mode values, besides unset "" (treated as ModeEnforce).
 const (
 	ModeEnforce = "enforce"
 	ModeMonitor = "monitor"
@@ -45,9 +46,7 @@ type RCRun struct {
 	Proxy          RCProxy        `toml:"proxy"`
 	Audit          RCAudit        `toml:"audit"`
 	Instructions   RCInstructions `toml:"instructions"`
-	// CheckUpdates is a pointer so an inner config can explicitly disable the
-	// proactive tool-update check enabled by an outer one (a plain false is
-	// indistinguishable from "unset"). Nil or true means the check runs.
+	// CheckUpdates is a pointer so an inner config can explicitly disable a check an outer one enabled; nil or true means it runs.
 	CheckUpdates *bool `toml:"check_updates"`
 }
 
@@ -59,16 +58,11 @@ type RCInstructions struct {
 	Custom string `toml:"custom"`
 }
 
-// RCProxy holds egress-proxy settings from a .agenticrc.toml file. Enabled is a
-// pointer so an inner config can explicitly disable a proxy enabled by an outer
-// one (a plain false is indistinguishable from "unset").
+// RCProxy holds egress-proxy settings from a .agenticrc.toml file. Enabled is a pointer so an inner config can explicitly disable a proxy an outer one enabled.
 type RCProxy struct {
 	Enabled      *bool    `toml:"enabled"`
 	AllowedHosts []string `toml:"allowed_hosts"`
-	// Mode selects how the proxy enforces AllowedHosts: "enforce" (default,
-	// also used when unset) blocks disallowed hosts, "monitor" logs the
-	// allowlist verdict without blocking anything. An explicit Enabled=false
-	// always disables the proxy regardless of Mode.
+	// Mode selects how the proxy enforces AllowedHosts: "enforce" (default) blocks disallowed hosts, "monitor" only logs the verdict.
 	Mode string `toml:"mode"`
 }
 
@@ -88,10 +82,7 @@ type RCMarketplace struct {
 	Tools []string `toml:"tools"`
 }
 
-// RCCustomInstall declares one non-apt tool to install into the image via
-// arbitrary shell commands (e.g. a curl|bash vendor installer). Applied
-// unconditionally at build time whenever declared - unlike bases/apt_packages,
-// there is no CLI flag or env var equivalent and no --<name> gate.
+// RCCustomInstall declares one non-apt tool to install via arbitrary shell commands, applied unconditionally at build time (no --<name> gate).
 type RCCustomInstall struct {
 	Name string   `toml:"name"`
 	Run  []string `toml:"run"`
@@ -123,13 +114,6 @@ func FindAndLoadFromCwd() (*AgenticRC, error) {
 	return FindAndLoad(cwd)
 }
 
-// AptPackages returns the merged apt packages from rc and the AGENTIC_APT_PACKAGES
-// env var, RC values first, env var last.
-func AptPackages(rc *AgenticRC) []string {
-	envPkgs := SplitEnvValues(os.Getenv(EnvAptPackages))
-	return append(rc.Build.AptPackages, envPkgs...)
-}
-
 // MarketplacesFor returns the marketplace entries applicable to tool.
 func MarketplacesFor(rc *AgenticRC, tool string) []RCMarketplace {
 	var result []RCMarketplace
@@ -141,10 +125,7 @@ func MarketplacesFor(rc *AgenticRC, tool string) []RCMarketplace {
 	return result
 }
 
-// FindAndLoad walks up from startDir collecting all .agenticrc.toml files and
-// merges them. Stops when a file with root=true is encountered. For scalar keys
-// the innermost (child) value wins; list keys accumulate outermost-first.
-// Returns an empty AgenticRC if no file is found.
+// FindAndLoad walks up from startDir merging .agenticrc.toml layers (stopping at root=true): scalar keys take the innermost value, list keys accumulate outermost-first.
 func FindAndLoad(startDir string) (*AgenticRC, error) {
 	paths := collectPaths(startDir)
 
@@ -161,8 +142,7 @@ func FindAndLoad(startDir string) (*AgenticRC, error) {
 	return merged, nil
 }
 
-// FindLayers returns the .agenticrc.toml layers that FindAndLoad would merge,
-// ordered outermost-to-innermost, each paired with its source path.
+// FindLayers returns the .agenticrc.toml layers that FindAndLoad would merge, ordered outermost-to-innermost, each paired with its source path.
 func FindLayers(startDir string) ([]RCLayer, error) {
 	paths := collectPaths(startDir)
 	var layers []RCLayer
@@ -187,7 +167,6 @@ func FindLayers(startDir string) ([]RCLayer, error) {
 }
 
 // SplitEnvValues splits a comma-separated value string and skips empty parts.
-// Used for env var parsing where variable expansion is handled by the caller.
 func SplitEnvValues(value string) []string {
 	var result []string
 

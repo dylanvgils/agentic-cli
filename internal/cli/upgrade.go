@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
-	"github.com/dylanvgils/agentic-cli/internal/output"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/selfupdate"
 	"github.com/spf13/cobra"
 )
@@ -34,7 +34,7 @@ func runUpgrade(_ *cobra.Command, _ []string) error {
 	target := upgradeVersion
 
 	if target == "" {
-		output.Step("checking for updates...")
+		logging.Step("checking for updates...")
 
 		latest, err := fetchLatestVersion()
 		if err != nil {
@@ -45,16 +45,16 @@ func runUpgrade(_ *cobra.Command, _ []string) error {
 	}
 
 	if !upgradeForce && upgradeVersion == "" && !selfupdate.IsNewer(buildinfo.Version, target) {
-		output.Detailf("already up to date (%s)", buildinfo.Version)
+		logging.Detailf("already up to date (%s)", buildinfo.Version)
 		return nil
 	}
 
-	output.Stepf("updating %s -> %s...", buildinfo.Version, target)
+	logging.Stepf("updating %s -> %s...", buildinfo.Version, target)
 
 	if err := performUpdate(target); err != nil {
 		return fmt.Errorf("update failed: %w", err)
 	}
 
-	output.Detailf("updated to %s", target)
+	logging.Detailf("updated to %s", target)
 	return nil
 }

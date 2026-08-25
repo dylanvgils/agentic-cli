@@ -313,7 +313,7 @@ func TestApply(t *testing.T) {
 		stubLatestToolVersion(t, "2.0.0", true, true)
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -329,7 +329,7 @@ func TestApply(t *testing.T) {
 		stubLatestToolVersion(t, "1.0.0", false, true)
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -344,7 +344,7 @@ func TestApply(t *testing.T) {
 		stubInspectImage(t, nil, nil)
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -360,7 +360,7 @@ func TestApply(t *testing.T) {
 		stubLatestToolVersion(t, "", false, false)
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -376,7 +376,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
@@ -391,7 +391,7 @@ func TestApply(t *testing.T) {
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -407,7 +407,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{AptPackages: []string{"curl", "jq"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
@@ -422,13 +422,45 @@ func TestApply(t *testing.T) {
 		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
 		// Assert
 		assert.NotContains(t, out, "apt:")
+	})
+
+	t.Run("empty base-exact reported as none, exact", func(t *testing.T) {
+		// Arrange
+		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		opts := tools.BuildOptions{BaseExact: true, Versions: map[string]string{}}
+
+		// Act
+		out := captureLog(t, func() {
+			err := Apply("claude", "agentic-claude", opts)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "   base: (none, exact)")
+	})
+
+	t.Run("empty apt-exact reported as none, exact", func(t *testing.T) {
+		// Arrange
+		stubUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		stubInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		opts := tools.BuildOptions{AptExact: true, Versions: map[string]string{}}
+
+		// Act
+		out := captureLog(t, func() {
+			err := Apply("claude", "agentic-claude", opts)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "   apt: (none, exact)")
 	})
 
 	t.Run("script error propagates", func(t *testing.T) {
@@ -450,7 +482,7 @@ func TestApply(t *testing.T) {
 func Test_reportVersionChange(t *testing.T) {
 	t.Run("version changed", func(t *testing.T) {
 		// Act
-		out := captureStdout(t, func() { reportVersionChange("1.0.0", "2.0.0") })
+		out := captureLog(t, func() { reportVersionChange("1.0.0", "2.0.0") })
 
 		// Assert
 		assert.Contains(t, out, "1.0.0 -> 2.0.0")
@@ -458,7 +490,7 @@ func Test_reportVersionChange(t *testing.T) {
 
 	t.Run("version up to date", func(t *testing.T) {
 		// Act
-		out := captureStdout(t, func() { reportVersionChange("1.0.0", "1.0.0") })
+		out := captureLog(t, func() { reportVersionChange("1.0.0", "1.0.0") })
 
 		// Assert
 		assert.Contains(t, out, "(up to date)")
@@ -466,7 +498,7 @@ func Test_reportVersionChange(t *testing.T) {
 
 	t.Run("no before version just prints version", func(t *testing.T) {
 		// Act
-		out := captureStdout(t, func() { reportVersionChange("", "1.0.0") })
+		out := captureLog(t, func() { reportVersionChange("", "1.0.0") })
 
 		// Assert
 		assert.Contains(t, out, "1.0.0")
@@ -475,7 +507,7 @@ func Test_reportVersionChange(t *testing.T) {
 
 	t.Run("no after version prints nothing", func(t *testing.T) {
 		// Act
-		out := captureStdout(t, func() { reportVersionChange("1.0.0", "") })
+		out := captureLog(t, func() { reportVersionChange("1.0.0", "") })
 
 		// Assert
 		assert.Empty(t, out)
@@ -513,6 +545,22 @@ func Test_recoverOpts(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []string{"make", "gcc", "cmake"}, result.AptPackages)
+	})
+
+	t.Run("base-exact skips recovery even when empty", func(t *testing.T) {
+		// Act
+		result := recoverOpts(&docker.ImageInfo{Base: "node@24,java@21"}, tools.BuildOptions{BaseOverride: []string{}, BaseExact: true})
+
+		// Assert
+		assert.Empty(t, result.BaseOverride)
+	})
+
+	t.Run("apt-exact skips recovery", func(t *testing.T) {
+		// Act
+		result := recoverOpts(&docker.ImageInfo{Base: "node@24", Apt: "make,gcc"}, tools.BuildOptions{AptPackages: []string{"cmake"}, AptExact: true})
+
+		// Assert
+		assert.Equal(t, []string{"cmake"}, result.AptPackages)
 	})
 }
 

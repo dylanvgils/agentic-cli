@@ -11,8 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// stubDefaultPorts temporarily replaces DefaultPorts for a test and restores it
-// on cleanup, so tunnels to an ephemeral upstream port can be exercised.
+// stubDefaultPorts replaces DefaultPorts for a test, restoring it on cleanup.
 func stubDefaultPorts(t *testing.T, ports ...string) {
 	t.Helper()
 	prev := DefaultPorts
@@ -20,8 +19,7 @@ func stubDefaultPorts(t *testing.T, ports ...string) {
 	t.Cleanup(func() { DefaultPorts = prev })
 }
 
-// startEchoServer starts a TCP server that echoes back everything it receives
-// and returns its host and port. It is torn down on cleanup.
+// startEchoServer starts a TCP echo server torn down on cleanup, returning its host and port.
 func startEchoServer(t *testing.T) (host, port string) {
 	t.Helper()
 
@@ -47,8 +45,7 @@ func startEchoServer(t *testing.T) (host, port string) {
 	return host, port
 }
 
-// rawConnect issues a CONNECT to proxyAddr for target and returns the raw
-// tunneled connection once the proxy reports success.
+// rawConnect issues a CONNECT to proxyAddr for target and returns the tunneled connection on success.
 func rawConnect(t *testing.T, proxyAddr, target string) net.Conn {
 	t.Helper()
 
