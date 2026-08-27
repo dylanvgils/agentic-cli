@@ -46,22 +46,22 @@ func run(toolHome string, pending []Migration) ([]Migration, error) {
 // applyPending applies every migration in pending newer than current.Version, persisting state after each step.
 func applyPending(toolHome string, pending []Migration, current state) ([]Migration, error) {
 	var applied []Migration
-	for _, m := range pending {
-		if m.Version <= current.Version {
+	for _, migration := range pending {
+		if migration.Version <= current.Version {
 			continue
 		}
 
-		if err := m.Apply(toolHome); err != nil {
-			return applied, fmt.Errorf("migrate: applying migration %d (%s): %w", m.Version, m.Description, err)
+		if err := migration.Apply(toolHome); err != nil {
+			return applied, fmt.Errorf("migrate: applying migration %d (%s): %w", migration.Version, migration.Description, err)
 		}
 
-		current.Version = m.Version
+		current.Version = migration.Version
 		if err := saveState(toolHome, current); err != nil {
 			return applied, err
 		}
 
-		logging.Stepf("migrated: %s (v%d)", m.Description, m.Version)
-		applied = append(applied, m)
+		logging.Stepf("migrated: %s (v%d)", migration.Description, migration.Version)
+		applied = append(applied, migration)
 	}
 
 	return applied, nil
