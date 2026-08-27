@@ -9,6 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/tui"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,6 +35,7 @@ func TestDefaultDeps(t *testing.T) {
 		{"removeVolume", docker.RemoveVolume, removeVolume},
 		{"listRunningContainers", docker.ListRunningContainers, listRunningContainers},
 		{"isTerminal", platform.IsTerminal, isTerminal},
+		{"runDashboard", tui.Run, runDashboard},
 		{"setContext", docker.SetContext, setContext},
 		{"listContexts", docker.ListContexts, listContexts},
 		{"checkGitAvailable", git.CheckAvailable, checkGitAvailable},

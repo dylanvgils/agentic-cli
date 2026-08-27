@@ -88,7 +88,9 @@ func resolveContext(cmd *cobra.Command) {
 
 // checkDocker verifies the Docker daemon is reachable before any subcommand that needs it runs.
 func checkDocker(cmd *cobra.Command, _ []string) error {
-	// Bare `agentic` (no subcommand) just shows help - no Docker needed.
+	// Bare `agentic` (no subcommand) launches the dashboard (or shows help on
+	// a non-TTY), and the dashboard surfaces "Docker: not running" itself -
+	// no upfront check needed here.
 	if cmd.Parent() == nil {
 		return nil
 	}
@@ -144,6 +146,11 @@ func pruneResources() {
 	_ = pruneBuildCache()
 }
 
+// rootRun launches the dashboard when run interactively; on a non-TTY
+// (piped, scripted, CI) it falls back to the usual help text.
 func rootRun(cmd *cobra.Command, _ []string) error {
-	return cmd.Help()
+	if !isTerminal() {
+		return cmd.Help()
+	}
+	return runDashboard()
 }

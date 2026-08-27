@@ -7,6 +7,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/tui"
 )
 
 var (
@@ -27,6 +28,7 @@ var (
 	removeVolume            = docker.RemoveVolume
 	listRunningContainers   = docker.ListRunningContainers
 	isTerminal              = platform.IsTerminal
+	runDashboard            = tui.Run
 	setContext              = docker.SetContext
 	listContexts            = docker.ListContexts
 	checkGitAvailable       = git.CheckAvailable
