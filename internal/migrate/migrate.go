@@ -1,8 +1,4 @@
-// Package migrate applies versioned changes to $AGENTIC_HOME's on-disk
-// layout. Applied migrations are tracked via a schema version stored at
-// TOOL_HOME/.migrations.json, so each entry in registry.go runs at most
-// once, in order. The migrations themselves - the plain functions each
-// entry's Apply points at - live in internal/migrate/migrations.
+// Package migrate applies versioned changes to TOOL_HOME's on-disk layout, tracked via TOOL_HOME/.migrations.json.
 package migrate
 
 import (
@@ -17,19 +13,17 @@ import (
 
 const stateFileName = ".migrations.json"
 
-// state is migrate's own bookkeeping, stored at TOOL_HOME/.migrations.json - separate from the user-facing agentic.json.
+// state is migrate's own bookkeeping, stored at TOOL_HOME/.migrations.json.
 type state struct {
 	Version int `json:"version"`
 }
 
-// Run applies every migration newer than TOOL_HOME's recorded schema version,
-// in ascending order, persisting progress after each successful step. It
-// returns the migrations actually applied (for logging), or the first error.
+// Run applies every migration newer than TOOL_HOME's recorded schema version, returning what was applied.
 func Run(toolHome string) ([]Migration, error) {
 	return run(toolHome, registry)
 }
 
-// run is Run's implementation, taking the migration list as a parameter so tests can substitute a fixture list without mutating the real registry.
+// run is Run's implementation; takes the migration list so tests can use a fixture instead of the real registry.
 func run(toolHome string, pending []Migration) ([]Migration, error) {
 	if _, err := os.Stat(toolHome); errors.Is(err, os.ErrNotExist) {
 		return nil, baseline(toolHome, pending)
@@ -64,7 +58,7 @@ func run(toolHome string, pending []Migration) ([]Migration, error) {
 	return applied, nil
 }
 
-// baseline creates a fresh toolHome and records it at the latest schema version without running any migration - a directory that never existed can't be in a legacy shape.
+// baseline creates a fresh toolHome already at the latest schema version - a new directory can't be in a legacy shape.
 func baseline(toolHome string, pending []Migration) error {
 	if err := os.MkdirAll(toolHome, 0o750); err != nil {
 		return err
@@ -101,7 +95,7 @@ func loadState(toolHome string) (state, error) {
 	return s, nil
 }
 
-// saveState atomically writes s to TOOL_HOME/.migrations.json: write to a temp file in the same directory, then rename over the target.
+// saveState atomically writes s to TOOL_HOME/.migrations.json via a temp file + rename.
 func saveState(toolHome string, s state) error {
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {

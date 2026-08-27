@@ -20,8 +20,7 @@ var (
 	noDockerCmds = []string{"completion", "aliases", "version", "upgrade", "status", "marketplaces", "instructions", "migrate"}
 	// noUpdateCmds lists subcommands that skip the automatic update check.
 	noUpdateCmds = []string{"completion", "aliases", "upgrade"}
-	// noMigrateCmds lists subcommands that skip the automatic migration check. Separate from noUpdateCmds:
-	// "upgrade" replaces the CLI binary, unrelated to TOOL_HOME's contents, and "migrate" runs it explicitly itself.
+	// noMigrateCmds lists subcommands that skip the automatic migration check.
 	noMigrateCmds = []string{"completion", "aliases", "upgrade", "migrate"}
 )
 
