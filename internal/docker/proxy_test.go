@@ -46,6 +46,7 @@ func TestStartProxy(t *testing.T) {
 		assert.Contains(t, runArgs, "--security-opt=no-new-privileges:true")
 		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_ALLOW=api.anthropic.com")
 		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_MONITOR=false")
+		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_LOG="+proxyLogMountDir+"/"+proxy.LogFilePrefix+handle.id+".jsonl")
 		assert.True(t, hasArgWithPrefix(runArgs, "--env=AGENTIC_PROXY_TZ_OFFSET="))
 		assert.Equal(t, "default-proxy", runArgs[len(runArgs)-1])
 
@@ -70,6 +71,18 @@ func TestStartProxy(t *testing.T) {
 		}
 		assert.True(t, sawNetworkRm, "expected network rm cleanup after failed run")
 	})
+}
+
+func TestNewProxyHandle(t *testing.T) {
+	// Arrange
+	rs := RunSpec{ProxyLogDir: "/tmp/agentic/logs"}
+
+	// Act
+	handle, err := newProxyHandle(rs)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(rs.ProxyLogDir, proxy.LogFilePrefix+handle.id+".jsonl"), handle.logPath)
 }
 
 func TestProxyHandleStop(t *testing.T) {

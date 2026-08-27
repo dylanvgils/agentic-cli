@@ -5,11 +5,13 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/git"
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tui"
 )
 
 var (
+	migrateRun              = migrate.Run
 	checkDockerDaemon       = docker.CheckDaemon
 	buildProxyImage         = docker.BuildProxyImage
 	runContainer            = docker.RunContainer

@@ -24,11 +24,11 @@ func TestOpencodeMounts_returnsExpected(t *testing.T) {
 	// Assert
 	assert.Equal(t, []string{
 		"$PWD:/workspace",
-		"$TOOL_HOME/opencode/data:$CONTAINER_HOME/.opencode",
-		"$TOOL_HOME/opencode/share:$CONTAINER_HOME/.local/share/opencode",
-		"$TOOL_HOME/opencode/state:$CONTAINER_HOME/.local/state/opencode",
-		"$TOOL_HOME/opencode/cache:$CONTAINER_HOME/.cache/opencode",
-		"$TOOL_HOME/opencode/config:$CONTAINER_HOME/.config/opencode",
+		"$TOOL_HOME/tools/opencode/data:$CONTAINER_HOME/.opencode",
+		"$TOOL_HOME/tools/opencode/share:$CONTAINER_HOME/.local/share/opencode",
+		"$TOOL_HOME/tools/opencode/state:$CONTAINER_HOME/.local/state/opencode",
+		"$TOOL_HOME/tools/opencode/cache:$CONTAINER_HOME/.cache/opencode",
+		"$TOOL_HOME/tools/opencode/config:$CONTAINER_HOME/.config/opencode",
 	}, mounts)
 }
 
@@ -70,21 +70,21 @@ func TestSetupOpencode_createsSubDirs(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	for _, sub := range []string{"data", "share", "state", "cache", "config"} {
-		assert.DirExists(t, filepath.Join(dir, "opencode", sub))
+		assert.DirExists(t, filepath.Join(dir, ToolsDirName, "opencode", sub))
 	}
 }
 
 func TestWriteOpencodeInstructions(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "opencode", "config"), 0o750))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ToolsDirName, "opencode", "config"), 0o750))
 
 	// Act
 	err := writeOpencodeInstructions(dir, "# Environment\n")
 
 	// Assert
 	require.NoError(t, err)
-	got, err := os.ReadFile(filepath.Join(dir, "opencode", "config", "AGENTS.md"))
+	got, err := os.ReadFile(filepath.Join(dir, ToolsDirName, "opencode", "config", "AGENTS.md"))
 	require.NoError(t, err)
 	assert.Equal(t, instructionsBeginMarker+"\n# Environment\n"+instructionsEndMarker+"\n", string(got))
 }

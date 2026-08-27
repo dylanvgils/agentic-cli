@@ -261,7 +261,7 @@ func Test_runProxyClean(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, filepath.Join(toolHome, "proxy"), dir)
+		assert.Equal(t, filepath.Join(toolHome, config.LogsDirName), dir)
 		assert.Zero(t, maxAge)
 	})
 

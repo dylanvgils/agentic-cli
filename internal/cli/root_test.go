@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,6 +85,19 @@ func TestCheckDocker(t *testing.T) {
 
 		// Act
 		err := checkDocker(marketplacesListCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+	})
+
+	t.Run("migrate command skips check", func(t *testing.T) {
+		// Arrange - migrate only touches the filesystem under TOOL_HOME, no Docker needed
+		stubCheckDockerDaemon(t, func() error {
+			return errors.New("should not be called")
+		})
+
+		// Act
+		err := checkDocker(migrateCmd, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -223,6 +237,7 @@ func TestPersistentPreRunE(t *testing.T) {
 		var got string
 		stubSetContext(t, func(ctx string) { got = ctx })
 		stubCheckDockerDaemon(t, func() error { return nil })
+		stubMigrateRun(t, func(string) ([]migrate.Migration, error) { return nil, nil })
 		cmd := &cobra.Command{Use: "status"}
 		cmd.Flags().String("docker-context", "", "")
 		require.NoError(t, cmd.Flags().Set("docker-context", "prod"))
@@ -235,6 +250,46 @@ func TestPersistentPreRunE(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "prod", got)
+	})
+
+	t.Run("migration failure aborts the command", func(t *testing.T) {
+		// Arrange
+		stubSetContext(t, func(string) {})
+		stubCheckDockerDaemon(t, func() error {
+			return errors.New("should not be called")
+		})
+		stubMigrateRun(t, func(string) ([]migrate.Migration, error) {
+			return nil, errors.New("migration failed")
+		})
+		cmd := &cobra.Command{Use: "status"}
+		cmd.Flags().String("docker-context", "", "")
+		fakeRoot := &cobra.Command{Use: "agentic"}
+		fakeRoot.AddCommand(cmd)
+
+		// Act
+		err := persistentPreRunE(cmd, nil)
+
+		// Assert
+		assert.ErrorContains(t, err, "migration failed")
+	})
+
+	t.Run("skips the migration check for excluded commands", func(t *testing.T) {
+		// Arrange
+		stubSetContext(t, func(string) {})
+		stubCheckDockerDaemon(t, func() error { return nil })
+		stubMigrateRun(t, func(string) ([]migrate.Migration, error) {
+			return nil, errors.New("should not be called")
+		})
+		cmd := &cobra.Command{Use: "upgrade"}
+		cmd.Flags().String("docker-context", "", "")
+		fakeRoot := &cobra.Command{Use: "agentic"}
+		fakeRoot.AddCommand(cmd)
+
+		// Act
+		err := persistentPreRunE(cmd, nil)
+
+		// Assert
+		require.NoError(t, err)
 	})
 }
 
@@ -267,6 +322,22 @@ func TestInCommandChain(t *testing.T) {
 	t.Run("returns false when no ancestor matches", func(t *testing.T) {
 		// Act
 		result := inCommandChain(buildCmd, noUpdateCmds)
+
+		// Assert
+		assert.False(t, result)
+	})
+
+	t.Run("matches command name against noMigrateCmds", func(t *testing.T) {
+		// Act
+		result := inCommandChain(migrateCmd, noMigrateCmds)
+
+		// Assert
+		assert.True(t, result)
+	})
+
+	t.Run("returns false against noMigrateCmds when no ancestor matches", func(t *testing.T) {
+		// Act
+		result := inCommandChain(buildCmd, noMigrateCmds)
 
 		// Assert
 		assert.False(t, result)

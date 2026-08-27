@@ -25,8 +25,8 @@ func TestClaudeMounts_returnsExpected(t *testing.T) {
 	// Assert
 	assert.Equal(t, []string{
 		"$PWD:/workspace",
-		"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude",
-		"$TOOL_HOME/claude/.claude.json:$CONTAINER_HOME/.claude.json",
+		"$TOOL_HOME/tools/claude/data:$CONTAINER_HOME/.claude",
+		"$TOOL_HOME/tools/claude/.claude.json:$CONTAINER_HOME/.claude.json",
 	}, mounts)
 }
 
@@ -52,7 +52,7 @@ func TestSetupClaude(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.DirExists(t, filepath.Join(dir, "claude", "data"))
+		assert.DirExists(t, filepath.Join(dir, ToolsDirName, "claude", "data"))
 	})
 
 	t.Run("creates default JSON", func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestSetupClaude(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		got, err := os.ReadFile(filepath.Join(dir, "claude", ".claude.json"))
+		got, err := os.ReadFile(filepath.Join(dir, ToolsDirName, "claude", ".claude.json"))
 		require.NoError(t, err)
 		assert.Equal(t, "{}", string(got))
 	})
@@ -72,8 +72,8 @@ func TestSetupClaude(t *testing.T) {
 	t.Run("does not overwrite existing JSON", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
-		require.NoError(t, os.MkdirAll(filepath.Join(dir, "claude"), 0o750))
-		p := filepath.Join(dir, "claude", ".claude.json")
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, ToolsDirName, "claude"), 0o750))
+		p := filepath.Join(dir, ToolsDirName, "claude", ".claude.json")
 		require.NoError(t, os.WriteFile(p, []byte(`{"existing":true}`), 0o640))
 
 		// Act
@@ -90,14 +90,14 @@ func TestSetupClaude(t *testing.T) {
 func TestWriteClaudeInstructions(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "claude", "data"), 0o750))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ToolsDirName, "claude", "data"), 0o750))
 
 	// Act
 	err := writeClaudeInstructions(dir, "# Environment\n")
 
 	// Assert
 	require.NoError(t, err)
-	got, err := os.ReadFile(filepath.Join(dir, "claude", "data", "CLAUDE.md"))
+	got, err := os.ReadFile(filepath.Join(dir, ToolsDirName, "claude", "data", "CLAUDE.md"))
 	require.NoError(t, err)
 	assert.Equal(t, instructionsBeginMarker+"\n# Environment\n"+instructionsEndMarker+"\n", string(got))
 }

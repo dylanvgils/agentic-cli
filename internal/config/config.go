@@ -9,6 +9,9 @@ import (
 	"time"
 )
 
+// LogsDirName is the subdirectory under $AGENTIC_HOME where log files are written.
+const LogsDirName = "logs"
+
 // CliConfig holds the persisted global agentic config stored in $AGENTIC_HOME/agentic.json.
 type CliConfig struct {
 	TrustedDirs           []string             `json:"trusted_dirs"`

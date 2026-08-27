@@ -32,7 +32,7 @@ func copilotTmpfsMounts() []string {
 func copilotMounts() []string {
 	return []string{
 		mount.VolumeMount("$PWD", mount.WorkspaceContainerPath),
-		mount.VolumeMount("$TOOL_HOME/copilot", "$CONTAINER_HOME/.copilot"),
+		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "copilot"), "$CONTAINER_HOME/.copilot"),
 	}
 }
 
@@ -116,12 +116,12 @@ func copilotLatestVersion() (string, error) {
 }
 
 func setupCopilot(toolHome string) error {
-	return os.MkdirAll(filepath.Join(toolHome, "copilot"), 0o750)
+	return os.MkdirAll(filepath.Join(toolHome, ToolsDirName, "copilot"), 0o750)
 }
 
 // copilotInstructionsHostPath is Copilot CLI's global instructions file (~/.copilot/copilot-instructions.md).
 func copilotInstructionsHostPath(toolHome string) string {
-	return filepath.Join(toolHome, "copilot", "copilot-instructions.md")
+	return filepath.Join(toolHome, ToolsDirName, "copilot", "copilot-instructions.md")
 }
 
 // writeCopilotInstructions writes content to Copilot CLI's global instructions file.
