@@ -198,10 +198,10 @@ func TestGlobalResources(t *testing.T) {
 			networkRemoved = true
 			return nil
 		})
-		var prunedDir string
+		var prunedDir, prunedPrefix string
 		var prunedMaxAge time.Duration
-		stubPruneAuditLogs(t, func(dir string, maxAge time.Duration) {
-			prunedDir, prunedMaxAge = dir, maxAge
+		stubPruneAuditLogs(t, func(dir, prefix string, maxAge time.Duration) {
+			prunedDir, prunedPrefix, prunedMaxAge = dir, prefix, maxAge
 		})
 
 		// Act
@@ -216,6 +216,7 @@ func TestGlobalResources(t *testing.T) {
 		assert.True(t, swept)
 		assert.True(t, networkRemoved)
 		assert.Equal(t, filepath.Join("/home/user/.agentic", "audit"), prunedDir)
+		assert.Empty(t, prunedPrefix, "audit logs live in their own dir, so pruning needs no filename prefix filter")
 		assert.Zero(t, prunedMaxAge, "bare `agentic clean` should wipe every audit log regardless of age")
 		assert.Contains(t, out, "=> base")
 		assert.Contains(t, out, "=> "+tools.ProxyImage)

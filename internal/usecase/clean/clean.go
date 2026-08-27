@@ -63,7 +63,7 @@ func GlobalResources(toolHome string) error {
 	}
 
 	logging.Step("audit logs")
-	pruneAuditLogs(filepath.Join(toolHome, "audit"), 0)
+	pruneAuditLogs(filepath.Join(toolHome, "audit"), "", 0)
 
 	logging.Step("network")
 	return RemoveNetwork()

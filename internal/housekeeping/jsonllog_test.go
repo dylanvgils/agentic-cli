@@ -25,7 +25,7 @@ func TestPruneJSONLLogs(t *testing.T) {
 		recent := writeFile(t, dir, "recent.jsonl", time.Hour)
 
 		// Act
-		PruneJSONLLogs(dir, 24*time.Hour)
+		PruneJSONLLogs(dir, "", 24*time.Hour)
 
 		// Assert
 		assert.NoFileExists(t, old)
@@ -38,20 +38,32 @@ func TestPruneJSONLLogs(t *testing.T) {
 		other := writeFile(t, dir, "old.txt", 48*time.Hour)
 
 		// Act
-		PruneJSONLLogs(dir, 24*time.Hour)
+		PruneJSONLLogs(dir, "", 24*time.Hour)
 
 		// Assert
 		assert.FileExists(t, other)
 	})
 
-	t.Run("maxAge of zero removes every log file", func(t *testing.T) {
+	t.Run("ignores jsonl files missing the given prefix regardless of age", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		other := writeFile(t, dir, "old.jsonl", 48*time.Hour)
+
+		// Act
+		PruneJSONLLogs(dir, "proxy_", 24*time.Hour)
+
+		// Assert
+		assert.FileExists(t, other)
+	})
+
+	t.Run("maxAge of zero removes every matching log file", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
 		old := writeFile(t, dir, "old.jsonl", 48*time.Hour)
 		recent := writeFile(t, dir, "recent.jsonl", time.Minute)
 
 		// Act
-		PruneJSONLLogs(dir, 0)
+		PruneJSONLLogs(dir, "", 0)
 
 		// Assert
 		assert.NoFileExists(t, old)
@@ -63,7 +75,7 @@ func TestPruneJSONLLogs(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "absent")
 
 		// Act + Assert
-		assert.NotPanics(t, func() { PruneJSONLLogs(dir, 24*time.Hour) })
+		assert.NotPanics(t, func() { PruneJSONLLogs(dir, "", 24*time.Hour) })
 	})
 }
 

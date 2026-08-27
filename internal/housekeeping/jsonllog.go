@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -24,9 +25,11 @@ const DefaultAuditLogRetentionDays = 3
 // slow consumer applies backpressure to the poller.
 const followChanBuffer = 64
 
-// PruneJSONLLogs removes *.jsonl log files in dir whose mtime is older than
-// maxAge (maxAge <= 0 removes every log file). Best-effort: never fails the caller.
-func PruneJSONLLogs(dir string, maxAge time.Duration) {
+// PruneJSONLLogs removes *.jsonl log files in dir whose name starts with prefix (pass "" to match
+// every log file) and whose mtime is older than maxAge (maxAge <= 0 removes every matching file).
+// Best-effort: never fails the caller. A prefix lets callers share one log directory - e.g. proxy
+// logs use proxy.LogFilePrefix so pruning them never touches other log types in the same dir.
+func PruneJSONLLogs(dir, prefix string, maxAge time.Duration) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
@@ -34,7 +37,7 @@ func PruneJSONLLogs(dir string, maxAge time.Duration) {
 
 	cutoff := time.Now().Add(-maxAge)
 	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".jsonl" {
+		if entry.IsDir() || !strings.HasPrefix(entry.Name(), prefix) || filepath.Ext(entry.Name()) != ".jsonl" {
 			continue
 		}
 

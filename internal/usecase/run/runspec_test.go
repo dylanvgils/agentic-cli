@@ -269,7 +269,7 @@ func TestBuild(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, rs.AuditEnabled)
-		assert.Contains(t, rs.AuditPaths, filepath.Join(home, "claude", "data"))
+		assert.Contains(t, rs.AuditPaths, filepath.Join(home, tools.ToolsDirName, "claude", "data"))
 		assert.Equal(t, []string{"target"}, rs.AuditExclude)
 		assert.NotEmpty(t, rs.AuditLogDir)
 	})

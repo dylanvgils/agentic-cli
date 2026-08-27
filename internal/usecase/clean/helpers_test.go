@@ -42,7 +42,7 @@ func stubRemoveNetwork(t *testing.T, fn func() error) {
 	t.Cleanup(func() { RemoveNetwork = orig })
 }
 
-func stubPruneAuditLogs(t *testing.T, fn func(dir string, maxAge time.Duration)) {
+func stubPruneAuditLogs(t *testing.T, fn func(dir, prefix string, maxAge time.Duration)) {
 	t.Helper()
 	orig := pruneAuditLogs
 	pruneAuditLogs = fn

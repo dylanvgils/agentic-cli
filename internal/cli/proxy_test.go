@@ -9,6 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -234,7 +235,7 @@ func Test_runProxyClean(t *testing.T) {
 		// Arrange
 		stubCleanImage(t, func(string) error { return nil })
 		pruned := false
-		stubPruneProxyLogs(t, func(string, time.Duration) { pruned = true })
+		stubPruneProxyLogs(t, func(string, string, time.Duration) { pruned = true })
 
 		// Act
 		err := runProxyClean(proxyCleanCmd, nil)
@@ -248,9 +249,9 @@ func Test_runProxyClean(t *testing.T) {
 		// Arrange
 		withTempToolHome(t)
 		stubCleanImage(t, func(string) error { return nil })
-		var dir string
+		var dir, prefix string
 		var maxAge time.Duration
-		stubPruneProxyLogs(t, func(d string, m time.Duration) { dir, maxAge = d, m })
+		stubPruneProxyLogs(t, func(d, p string, m time.Duration) { dir, prefix, maxAge = d, p, m })
 		require.NoError(t, proxyCleanCmd.Flags().Set("logs", "true"))
 		t.Cleanup(func() {
 			_ = proxyCleanCmd.Flags().Set("logs", "false")
@@ -261,7 +262,8 @@ func Test_runProxyClean(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, filepath.Join(toolHome, "proxy"), dir)
+		assert.Equal(t, filepath.Join(toolHome, config.LogsDirName), dir)
+		assert.Equal(t, proxy.LogFilePrefix, prefix)
 		assert.Zero(t, maxAge)
 	})
 
@@ -269,7 +271,7 @@ func Test_runProxyClean(t *testing.T) {
 		// Arrange
 		stubCleanImage(t, func(string) error { return fmt.Errorf("clean failed") })
 		pruned := false
-		stubPruneProxyLogs(t, func(string, time.Duration) { pruned = true })
+		stubPruneProxyLogs(t, func(string, string, time.Duration) { pruned = true })
 		require.NoError(t, proxyCleanCmd.Flags().Set("logs", "true"))
 		t.Cleanup(func() {
 			_ = proxyCleanCmd.Flags().Set("logs", "false")

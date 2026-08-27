@@ -38,7 +38,7 @@ func auditLogDir(toolHome string, auditEnabled bool) (string, error) {
 		return "", fmt.Errorf("create audit log dir: %w", err)
 	}
 
-	housekeeping.PruneJSONLLogs(dir, time.Duration(auditRetentionDays(toolHome))*24*time.Hour)
+	housekeeping.PruneJSONLLogs(dir, "", time.Duration(auditRetentionDays(toolHome))*24*time.Hour)
 
 	return dir, nil
 }
