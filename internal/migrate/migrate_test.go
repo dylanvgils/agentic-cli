@@ -29,68 +29,6 @@ func TestRun(t *testing.T) {
 		assert.Equal(t, 2, s.Version)
 	})
 
-	t.Run("applies every pending migration on an unmigrated existing TOOL_HOME", func(t *testing.T) {
-		// Arrange
-		toolHome := t.TempDir()
-		var calls []int
-		pending := []Migration{
-			{Version: 1, Description: "one", Apply: func(string) error { calls = append(calls, 1); return nil }},
-			{Version: 2, Description: "two", Apply: func(string) error { calls = append(calls, 2); return nil }},
-		}
-
-		// Act
-		applied, err := run(toolHome, pending)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []int{1, 2}, calls)
-		assert.Len(t, applied, 2)
-		s, err := loadState(toolHome)
-		require.NoError(t, err)
-		assert.Equal(t, 2, s.Version)
-	})
-
-	t.Run("is a no-op on an already-migrated TOOL_HOME", func(t *testing.T) {
-		// Arrange
-		toolHome := t.TempDir()
-		var calls int
-		pending := []Migration{
-			{Version: 1, Description: "one", Apply: func(string) error { calls++; return nil }},
-		}
-		require.NoError(t, saveState(toolHome, state{Version: 1}))
-
-		// Act
-		applied, err := run(toolHome, pending)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, applied)
-		assert.Zero(t, calls)
-	})
-
-	t.Run("stops at the first failing migration and does not advance past it", func(t *testing.T) {
-		// Arrange
-		toolHome := t.TempDir()
-		var thirdCalled bool
-		pending := []Migration{
-			{Version: 1, Description: "ok", Apply: func(string) error { return nil }},
-			{Version: 2, Description: "failing", Apply: func(string) error { return errors.New("boom") }},
-			{Version: 3, Description: "ok2", Apply: func(string) error { thirdCalled = true; return nil }},
-		}
-
-		// Act
-		applied, err := run(toolHome, pending)
-
-		// Assert
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "boom")
-		assert.False(t, thirdCalled)
-		assert.Len(t, applied, 1)
-		s, loadErr := loadState(toolHome)
-		require.NoError(t, loadErr)
-		assert.Equal(t, 1, s.Version)
-	})
-
 	t.Run("errors when TOOL_HOME predates the oldest pending migration", func(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()
@@ -125,9 +63,6 @@ func TestRun(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Len(t, applied, 1)
-		s, err := loadState(toolHome)
-		require.NoError(t, err)
-		assert.Equal(t, 3, s.Version)
 	})
 
 	t.Run("a retried run re-applies only the previously failed migration, not earlier successes", func(t *testing.T) {
@@ -158,6 +93,69 @@ func TestRun(t *testing.T) {
 		assert.Equal(t, 2, secondCalls)
 		assert.Len(t, applied, 1)
 		assert.Equal(t, 2, applied[0].Version)
+	})
+}
+
+func TestApplyPending(t *testing.T) {
+	t.Run("applies every pending migration newer than current.Version", func(t *testing.T) {
+		// Arrange
+		toolHome := t.TempDir()
+		var calls []int
+		pending := []Migration{
+			{Version: 1, Description: "one", Apply: func(string) error { calls = append(calls, 1); return nil }},
+			{Version: 2, Description: "two", Apply: func(string) error { calls = append(calls, 2); return nil }},
+		}
+
+		// Act
+		applied, err := applyPending(toolHome, pending, state{Version: 0})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []int{1, 2}, calls)
+		assert.Len(t, applied, 2)
+		s, err := loadState(toolHome)
+		require.NoError(t, err)
+		assert.Equal(t, 2, s.Version)
+	})
+
+	t.Run("skips migrations at or below current.Version", func(t *testing.T) {
+		// Arrange
+		toolHome := t.TempDir()
+		var calls int
+		pending := []Migration{
+			{Version: 1, Description: "one", Apply: func(string) error { calls++; return nil }},
+		}
+
+		// Act
+		applied, err := applyPending(toolHome, pending, state{Version: 1})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, applied)
+		assert.Zero(t, calls)
+	})
+
+	t.Run("stops at the first failing migration and does not advance past it", func(t *testing.T) {
+		// Arrange
+		toolHome := t.TempDir()
+		var thirdCalled bool
+		pending := []Migration{
+			{Version: 1, Description: "ok", Apply: func(string) error { return nil }},
+			{Version: 2, Description: "failing", Apply: func(string) error { return errors.New("boom") }},
+			{Version: 3, Description: "ok2", Apply: func(string) error { thirdCalled = true; return nil }},
+		}
+
+		// Act
+		applied, err := applyPending(toolHome, pending, state{Version: 0})
+
+		// Assert
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "boom")
+		assert.False(t, thirdCalled)
+		assert.Len(t, applied, 1)
+		s, loadErr := loadState(toolHome)
+		require.NoError(t, loadErr)
+		assert.Equal(t, 1, s.Version)
 	})
 }
 

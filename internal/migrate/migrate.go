@@ -40,6 +40,11 @@ func run(toolHome string, pending []Migration) ([]Migration, error) {
 		return nil, fmt.Errorf("migrate: TOOL_HOME is at schema version %d, older than the oldest supported migration (v%d) - cannot upgrade automatically", current.Version, floor+1)
 	}
 
+	return applyPending(toolHome, pending, current)
+}
+
+// applyPending applies every migration in pending newer than current.Version, persisting state after each step.
+func applyPending(toolHome string, pending []Migration, current state) ([]Migration, error) {
 	var applied []Migration
 	for _, m := range pending {
 		if m.Version <= current.Version {
