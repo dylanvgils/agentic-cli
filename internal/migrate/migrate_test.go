@@ -91,6 +91,45 @@ func TestRun(t *testing.T) {
 		assert.Equal(t, 1, s.Version)
 	})
 
+	t.Run("errors when TOOL_HOME predates the oldest pending migration", func(t *testing.T) {
+		// Arrange
+		toolHome := t.TempDir()
+		var called bool
+		pending := []Migration{
+			{Version: 3, Description: "three", Apply: func(string) error { called = true; return nil }},
+		}
+		require.NoError(t, saveState(toolHome, state{Version: 1}))
+
+		// Act
+		applied, err := run(toolHome, pending)
+
+		// Assert
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "schema version 1")
+		assert.ErrorContains(t, err, "v3")
+		assert.False(t, called)
+		assert.Empty(t, applied)
+	})
+
+	t.Run("applies pending migrations when TOOL_HOME sits exactly at the oldest pending migration's floor", func(t *testing.T) {
+		// Arrange
+		toolHome := t.TempDir()
+		pending := []Migration{
+			{Version: 3, Description: "three", Apply: func(string) error { return nil }},
+		}
+		require.NoError(t, saveState(toolHome, state{Version: 2}))
+
+		// Act
+		applied, err := run(toolHome, pending)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Len(t, applied, 1)
+		s, err := loadState(toolHome)
+		require.NoError(t, err)
+		assert.Equal(t, 3, s.Version)
+	})
+
 	t.Run("a retried run re-applies only the previously failed migration, not earlier successes", func(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()

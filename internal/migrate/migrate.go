@@ -20,10 +20,10 @@ type state struct {
 
 // Run applies every migration newer than TOOL_HOME's recorded schema version, returning what was applied.
 func Run(toolHome string) ([]Migration, error) {
-	return run(toolHome, registry)
+	return run(toolHome, changelog)
 }
 
-// run is Run's implementation; takes the migration list so tests can use a fixture instead of the real registry.
+// run is Run's implementation; takes the migration list so tests can use a fixture instead of the real changelog.
 func run(toolHome string, pending []Migration) ([]Migration, error) {
 	if _, err := os.Stat(toolHome); errors.Is(err, os.ErrNotExist) {
 		return nil, baseline(toolHome, pending)
@@ -34,6 +34,10 @@ func run(toolHome string, pending []Migration) ([]Migration, error) {
 	current, err := loadState(toolHome)
 	if err != nil {
 		return nil, err
+	}
+
+	if floor := oldestSupportedVersion(pending); current.Version < floor {
+		return nil, fmt.Errorf("migrate: TOOL_HOME is at schema version %d, older than the oldest supported migration (v%d) - cannot upgrade automatically", current.Version, floor+1)
 	}
 
 	var applied []Migration
@@ -75,6 +79,14 @@ func latestVersion(pending []Migration) int {
 		}
 	}
 	return latest
+}
+
+// oldestSupportedVersion returns one less than pending's oldest Version, or 0 if empty.
+func oldestSupportedVersion(pending []Migration) int {
+	if len(pending) == 0 {
+		return 0
+	}
+	return pending[0].Version - 1
 }
 
 // loadState reads TOOL_HOME/.migrations.json, returning state{Version: 0} if the file does not exist.
