@@ -33,8 +33,8 @@ func claudeTmpfsMounts() []string {
 func claudeMounts() []string {
 	return []string{
 		mount.VolumeMount("$PWD", mount.WorkspaceContainerPath),
-		mount.VolumeMount("$TOOL_HOME/claude/data", "$CONTAINER_HOME/.claude"),
-		mount.VolumeMount("$TOOL_HOME/claude/.claude.json", "$CONTAINER_HOME/.claude.json"),
+		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "claude", "data"), "$CONTAINER_HOME/.claude"),
+		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "claude", ".claude.json"), "$CONTAINER_HOME/.claude.json"),
 	}
 }
 
@@ -104,13 +104,13 @@ func claudeLatestVersion() (string, error) {
 }
 
 func setupClaude(toolHome string) error {
-	if err := os.MkdirAll(filepath.Join(toolHome, "claude", "data"), 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Join(toolHome, ToolsDirName, "claude", "data"), 0o750); err != nil {
 		return err
 	}
 
-	path := filepath.Join(toolHome, "claude", ".claude.json")
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return os.WriteFile(path, []byte("{}"), 0o640)
+	jsonPath := filepath.Join(toolHome, ToolsDirName, "claude", ".claude.json")
+	if _, err := os.Stat(jsonPath); os.IsNotExist(err) {
+		return os.WriteFile(jsonPath, []byte("{}"), 0o640)
 	}
 
 	return nil
@@ -118,7 +118,7 @@ func setupClaude(toolHome string) error {
 
 // claudeInstructionsHostPath is Claude Code's global CLAUDE.md (~/.claude/CLAUDE.md).
 func claudeInstructionsHostPath(toolHome string) string {
-	return filepath.Join(toolHome, "claude", "data", "CLAUDE.md")
+	return filepath.Join(toolHome, ToolsDirName, "claude", "data", "CLAUDE.md")
 }
 
 // writeClaudeInstructions writes content to Claude Code's global CLAUDE.md.

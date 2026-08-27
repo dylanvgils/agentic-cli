@@ -8,6 +8,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,9 +58,9 @@ func Test_proxyLogDir(t *testing.T) {
 		require.NoError(t, err)
 		cfg.ProxyLogRetentionDays = 1
 		require.NoError(t, cfg.Save(home))
-		logDir := filepath.Join(home, "proxy")
+		logDir := filepath.Join(home, config.LogsDirName)
 		require.NoError(t, os.MkdirAll(logDir, 0o750))
-		oldLog := filepath.Join(logDir, "old.jsonl")
+		oldLog := filepath.Join(logDir, proxy.LogFilePrefix+"old.jsonl")
 		require.NoError(t, os.WriteFile(oldLog, []byte("{}\n"), 0o644))
 		old := time.Now().Add(-48 * time.Hour)
 		require.NoError(t, os.Chtimes(oldLog, old, old))

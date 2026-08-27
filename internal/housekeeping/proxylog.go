@@ -4,13 +4,16 @@ package housekeeping
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 )
 
 // DefaultProxyLogRetentionDays is how long proxy access logs are kept when no retention period is configured.
 const DefaultProxyLogRetentionDays = 3
 
-// PruneProxyLogs removes *.jsonl access-log files in dir older than maxAge (maxAge <= 0 removes all). Best-effort: never fails the caller.
+// PruneProxyLogs removes proxy-prefixed *.jsonl access-log files in dir older than maxAge (maxAge <= 0 removes all). Best-effort: never fails the caller.
 func PruneProxyLogs(dir string, maxAge time.Duration) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -19,7 +22,7 @@ func PruneProxyLogs(dir string, maxAge time.Duration) {
 
 	cutoff := time.Now().Add(-maxAge)
 	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".jsonl" {
+		if entry.IsDir() || !strings.HasPrefix(entry.Name(), proxy.LogFilePrefix) || filepath.Ext(entry.Name()) != ".jsonl" {
 			continue
 		}
 

@@ -28,7 +28,7 @@ func TestCopilotMounts(t *testing.T) {
 	// Assert
 	assert.Equal(t, []string{
 		"$PWD:/workspace",
-		"$TOOL_HOME/copilot:$CONTAINER_HOME/.copilot",
+		"$TOOL_HOME/tools/copilot:$CONTAINER_HOME/.copilot",
 	}, mounts)
 }
 
@@ -99,20 +99,20 @@ func TestSetupCopilot_createsDir(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.DirExists(t, filepath.Join(dir, "copilot"))
+	assert.DirExists(t, filepath.Join(dir, ToolsDirName, "copilot"))
 }
 
 func TestWriteCopilotInstructions(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "copilot"), 0o750))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ToolsDirName, "copilot"), 0o750))
 
 	// Act
 	err := writeCopilotInstructions(dir, "# Environment\n")
 
 	// Assert
 	require.NoError(t, err)
-	got, err := os.ReadFile(filepath.Join(dir, "copilot", "copilot-instructions.md"))
+	got, err := os.ReadFile(filepath.Join(dir, ToolsDirName, "copilot", "copilot-instructions.md"))
 	require.NoError(t, err)
 	assert.Equal(t, instructionsBeginMarker+"\n# Environment\n"+instructionsEndMarker+"\n", string(got))
 }

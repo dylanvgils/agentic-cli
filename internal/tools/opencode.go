@@ -2,6 +2,7 @@ package tools
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
@@ -28,11 +29,11 @@ func opencodeTmpfsMounts() []string {
 func opencodeMounts() []string {
 	return []string{
 		mount.VolumeMount("$PWD", mount.WorkspaceContainerPath),
-		mount.VolumeMount("$TOOL_HOME/opencode/data", "$CONTAINER_HOME/.opencode"),
-		mount.VolumeMount("$TOOL_HOME/opencode/share", "$CONTAINER_HOME/.local/share/opencode"),
-		mount.VolumeMount("$TOOL_HOME/opencode/state", "$CONTAINER_HOME/.local/state/opencode"),
-		mount.VolumeMount("$TOOL_HOME/opencode/cache", "$CONTAINER_HOME/.cache/opencode"),
-		mount.VolumeMount("$TOOL_HOME/opencode/config", "$CONTAINER_HOME/.config/opencode"),
+		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "opencode", "data"), "$CONTAINER_HOME/.opencode"),
+		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "opencode", "share"), "$CONTAINER_HOME/.local/share/opencode"),
+		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "opencode", "state"), "$CONTAINER_HOME/.local/state/opencode"),
+		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "opencode", "cache"), "$CONTAINER_HOME/.cache/opencode"),
+		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "opencode", "config"), "$CONTAINER_HOME/.config/opencode"),
 	}
 }
 
@@ -68,7 +69,7 @@ func opencodeLatestVersion() (string, error) {
 
 func setupOpencode(toolHome string) error {
 	for _, sub := range []string{"data", "share", "state", "cache", "config"} {
-		if err := os.MkdirAll(filepath.Join(toolHome, "opencode", sub), 0o750); err != nil {
+		if err := os.MkdirAll(filepath.Join(toolHome, ToolsDirName, "opencode", sub), 0o750); err != nil {
 			return err
 		}
 	}
@@ -77,7 +78,7 @@ func setupOpencode(toolHome string) error {
 
 // opencodeInstructionsHostPath is OpenCode's global AGENTS.md (~/.config/opencode/AGENTS.md).
 func opencodeInstructionsHostPath(toolHome string) string {
-	return filepath.Join(toolHome, "opencode", "config", "AGENTS.md")
+	return filepath.Join(toolHome, ToolsDirName, "opencode", "config", "AGENTS.md")
 }
 
 // writeOpencodeInstructions writes content to OpenCode's global AGENTS.md.
