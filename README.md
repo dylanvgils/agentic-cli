@@ -470,6 +470,8 @@ node = "22"   # pin a runtime version (see agentic build --help for all layers)
 extra_mounts = ["maven:$CONTAINER_HOME/.m2", "gradle:$CONTAINER_HOME/.gradle"]
 ```
 
+A JSON Schema for editor autocomplete/validation is available - see [Editor validation and autocomplete](docs/02-config.md#editor-validation-and-autocomplete).
+
 ## 🏠 Tool home directory
 
 Each tool stores its configuration under `$AGENTIC_HOME/tools/`:

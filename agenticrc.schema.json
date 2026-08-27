@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/dylanvgils/agentic-cli/main/agenticrc.schema.json",
+  "title": "agentic-cli .agenticrc.toml",
+  "description": "Per-project configuration for the agentic CLI. See docs/02-config.md for the full reference.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "root": {
+      "type": "boolean",
+      "description": "Stop the upward directory walk at this file."
+    },
+    "namespace": {
+      "type": "string",
+      "description": "Image namespace. Images are named <namespace>-<tool>. Allows multiple image sets per tool. Default: agentic."
+    },
+    "docker_context": {
+      "type": "string",
+      "description": "Docker context to use for this project."
+    },
+    "build": {
+      "type": "object",
+      "description": "Settings applied at `agentic build` / `agentic update` time.",
+      "additionalProperties": false,
+      "properties": {
+        "bases": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["dotnet", "go", "java", "node"] },
+          "description": "Extra runtime layers to add on top of the debian base (e.g. [\"java\", \"dotnet\"]). Accumulates across RC layers and with --base; --base-exact replaces it entirely instead."
+        },
+        "apt_packages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Extra Debian packages to install in the base image. Accumulates across RC layers and with --apt; --apt-exact replaces it entirely instead."
+        },
+        "versions": {
+          "type": "object",
+          "description": "Per-layer version pins, written as [build.versions] with node, java, dotnet, or go keys. Innermost value wins per key.",
+          "additionalProperties": false,
+          "properties": {
+            "node": { "type": "string", "description": "Node.js version to pin (e.g. \"22\")." },
+            "java": { "type": "string", "description": "Java (Temurin JDK) version to pin (e.g. \"17\")." },
+            "dotnet": { "type": "string", "description": ".NET version to pin." },
+            "go": { "type": "string", "description": "Go version to pin." }
+          }
+        },
+        "custom_installs": {
+          "type": "array",
+          "description": "Non-apt tools (e.g. helm, golangci-lint) installed via arbitrary shell commands, applied unconditionally at build time.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "run"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9._-]+$",
+                "description": "Identifier for this install; unique across all merged .agenticrc.toml layers. Shown as a comment in the generated RUN and in `agentic config`."
+              },
+              "run": {
+                "type": "array",
+                "items": { "type": "string" },
+                "minItems": 1,
+                "description": "Shell commands run as-is, in declaration order, in one Docker RUN layer per entry."
+              }
+            }
+          }
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "description": "Settings applied at `agentic run` time.",
+      "additionalProperties": false,
+      "properties": {
+        "extra_mounts": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Extra mounts passed to `docker run`. Bind: host/path:container/path. Named volume: name:container/path. Supports ~, $HOME, $TOOL_HOME, $CONTAINER_HOME, $PWD."
+        },
+        "read_only_mounts": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Sub-paths to force read-only even when their parent mount is writable. Format: host/path:container/path, or a bare sub/path shorthand relative to the workspace."
+        },
+        "secrets": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files to mount read-only into the container. Format: name:/path/to/file[:/container/path]. Defaults to /run/secrets/<name>."
+        },
+        "env": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Environment variables to set in the container. Format: KEY=VALUE, or bare KEY to forward the host's current value."
+        },
+        "pids_limit": {
+          "type": "string",
+          "description": "Container PID limit (e.g. \"1024\"). Default: 1024."
+        },
+        "cpus": {
+          "type": "string",
+          "description": "Container CPU limit (e.g. \"4\"). Default: 4."
+        },
+        "memory": {
+          "type": "string",
+          "description": "Container memory limit (e.g. \"8g\"). Default: 4g."
+        },
+        "check_updates": {
+          "type": "boolean",
+          "description": "Periodically check upstream for a newer tool version during `agentic run` and offer to update. Default: true."
+        },
+        "proxy": {
+          "type": "object",
+          "description": "Egress allowlist proxy settings.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Route the tool's egress through the allowlist proxy. Default: false."
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["enforce", "monitor"],
+              "description": "\"enforce\" blocks disallowed hosts; \"monitor\" logs the allowlist verdict without blocking anything. Setting mode = \"monitor\" implies the proxy is enabled, unless enabled = false is also set. Default: enforce."
+            },
+            "allowed_hosts": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Extra hosts to permit, merged on top of the tool's baseline. Exact match, or a leading-dot / *. entry to match a domain and all its subdomains."
+            }
+          }
+        },
+        "instructions": {
+          "type": "object",
+          "description": "Environment instructions written into each tool's global instructions file.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Write the generated environment-instructions block. Default: true."
+            },
+            "custom": {
+              "type": "string",
+              "description": "Free text appended after the generated sections. Accumulates across RC layers (outermost first, separated by a blank line)."
+            }
+          }
+        }
+      }
+    },
+    "marketplaces": {
+      "type": "array",
+      "description": "Git-based plugin marketplaces (skills, agents, commands, hooks, MCP servers) to sync onto the host and mount read-only into every applicable tool's container.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "url"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9._-]+$",
+            "description": "Identifier for this marketplace; becomes a container mount path segment. Not required to be globally unique."
+          },
+          "url": {
+            "type": "string",
+            "description": "Git URL to clone (anything `git clone` accepts - https://, git@host:..., etc)."
+          },
+          "tools": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["claude", "copilot"] },
+            "description": "Tool names this marketplace is mounted into (currently claude, copilot - opencode has no marketplace support). Omit to mount into every tool that supports marketplaces."
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,3 +1,4 @@
+#:schema ./agenticrc.schema.json
 root = true
 namespace = "agenticgo"
 
@@ -7,7 +8,9 @@ apt_packages = ["make", "shellcheck"]
 
 [[build.custom_installs]]
 name = "golangci-lint"
-run = ["curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b /usr/local/bin v2.13.1"]
+run = [
+  "curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b /usr/local/bin v2.13.1",
+]
 
 [run]
 extra_mounts = [

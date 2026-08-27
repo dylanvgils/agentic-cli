@@ -65,6 +65,23 @@ env = ["NODE_OPTIONS=--max-old-space-size=4096"]
 pids_limit = "2048"
 ```
 
+### Editor validation and autocomplete
+
+A JSON Schema for `.agenticrc.toml` is published at [`agenticrc.schema.json`](../agenticrc.schema.json). Point your `.agenticrc.toml` at it with a `#:schema` comment on the first line:
+
+```toml
+#:schema ./agenticrc.schema.json
+root = true
+```
+
+From a project outside this repo, reference it by URL instead:
+
+```toml
+#:schema https://raw.githubusercontent.com/dylanvgils/agentic-cli/main/agenticrc.schema.json
+```
+
+This is read by [`taplo`](https://taplo.tamasfe.dev/), the TOML toolkit behind VSCode's "Even Better TOML" extension - it works the same way in any other taplo-backed editor integration, including Neovim via `nvim-lspconfig`'s `taplo` server.
+
 ### Keys
 
 **Top-level**
