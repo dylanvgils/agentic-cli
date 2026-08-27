@@ -15,23 +15,23 @@ All tools share one volume mount and one tmpfs:
 
 ## Claude
 
-Claude Code stores session history, project memory, and credentials in two locations under `$AGENTIC_HOME/claude/`.
+Claude Code stores session history, project memory, and credentials in two locations under `$AGENTIC_HOME/tools/claude/`.
 
-| Type   | Host path                           | Container path                 | Purpose                                          |
-| ------ | ----------------------------------- | ------------------------------ | ------------------------------------------------ |
-| Volume | `$AGENTIC_HOME/claude/data`         | `$CONTAINER_HOME/.claude`      | Session history, project memory, and tool config |
-| Volume | `$AGENTIC_HOME/claude/.claude.json` | `$CONTAINER_HOME/.claude.json` | Authentication credentials                       |
+| Type   | Host path                                 | Container path                 | Purpose                                          |
+| ------ | ------------------------------------------ | ------------------------------ | ------------------------------------------------ |
+| Volume | `$AGENTIC_HOME/tools/claude/data`         | `$CONTAINER_HOME/.claude`      | Session history, project memory, and tool config |
+| Volume | `$AGENTIC_HOME/tools/claude/.claude.json` | `$CONTAINER_HOME/.claude.json` | Authentication credentials                       |
 
 `.claude.json` is pre-created as an empty `{}` on first run. Claude Code expects this file to exist before it can write credentials - without it, the first login attempt would fail against the read-only root filesystem.
 
 ## Copilot
 
-GitHub Copilot CLI persists its auth tokens under `$AGENTIC_HOME/copilot/`.
+GitHub Copilot CLI persists its auth tokens under `$AGENTIC_HOME/tools/copilot/`.
 
-| Type   | Host path               | Container path                        | Purpose                            |
-| ------ | ----------------------- | ------------------------------------- | ---------------------------------- |
-| Volume | `$AGENTIC_HOME/copilot` | `$CONTAINER_HOME/.copilot`            | Auth tokens and Copilot CLI config |
-| Tmpfs  | -                       | `$CONTAINER_HOME/.cache` (1 GB, exec) | Ephemeral cache                    |
+| Type   | Host path                     | Container path                        | Purpose                            |
+| ------ | ------------------------------ | ------------------------------------- | ---------------------------------- |
+| Volume | `$AGENTIC_HOME/tools/copilot` | `$CONTAINER_HOME/.copilot`            | Auth tokens and Copilot CLI config |
+| Tmpfs  | -                              | `$CONTAINER_HOME/.cache` (1 GB, exec) | Ephemeral cache                    |
 
 The extra `~/.cache` tmpfs is required because Copilot writes cache data to `~/.cache` rather than `/tmp`. Since the root filesystem is read-only, this path needs its own writable tmpfs.
 
@@ -41,12 +41,12 @@ Copilot also supports secret injection via `--secret`: if a file is mounted at `
 
 OpenCode follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/), splitting its state across five distinct directories.
 
-| Type   | Host path                       | Container path                          | Purpose                       |
-| ------ | ------------------------------- | --------------------------------------- | ----------------------------- |
-| Volume | `$AGENTIC_HOME/opencode/data`   | `$CONTAINER_HOME/.opencode`             | Main application data         |
-| Volume | `$AGENTIC_HOME/opencode/share`  | `$CONTAINER_HOME/.local/share/opencode` | XDG data dir                  |
-| Volume | `$AGENTIC_HOME/opencode/state`  | `$CONTAINER_HOME/.local/state/opencode` | XDG state dir (logs, history) |
-| Volume | `$AGENTIC_HOME/opencode/cache`  | `$CONTAINER_HOME/.cache/opencode`       | XDG cache dir                 |
-| Volume | `$AGENTIC_HOME/opencode/config` | `$CONTAINER_HOME/.config/opencode`      | XDG config dir                |
+| Type   | Host path                             | Container path                          | Purpose                       |
+| ------ | -------------------------------------- | ---------------------------------------- | ----------------------------- |
+| Volume | `$AGENTIC_HOME/tools/opencode/data`   | `$CONTAINER_HOME/.opencode`             | Main application data         |
+| Volume | `$AGENTIC_HOME/tools/opencode/share`  | `$CONTAINER_HOME/.local/share/opencode` | XDG data dir                  |
+| Volume | `$AGENTIC_HOME/tools/opencode/state`  | `$CONTAINER_HOME/.local/state/opencode` | XDG state dir (logs, history) |
+| Volume | `$AGENTIC_HOME/tools/opencode/cache`  | `$CONTAINER_HOME/.cache/opencode`       | XDG cache dir                 |
+| Volume | `$AGENTIC_HOME/tools/opencode/config` | `$CONTAINER_HOME/.config/opencode`      | XDG config dir                |
 
 Each directory serves a distinct purpose under the XDG spec and OpenCode writes to all five, so all five must be separately mounted. Merging them into a single volume would expose unrelated state across the boundaries XDG is designed to separate.

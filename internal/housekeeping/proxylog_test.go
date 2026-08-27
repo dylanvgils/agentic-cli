@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,8 +22,8 @@ func TestPruneProxyLogs(t *testing.T) {
 	t.Run("removes files older than maxAge and keeps recent ones", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
-		old := writeFile(t, dir, "old.jsonl", 48*time.Hour)
-		recent := writeFile(t, dir, "recent.jsonl", time.Hour)
+		old := writeFile(t, dir, proxy.LogFilePrefix+"old.jsonl", 48*time.Hour)
+		recent := writeFile(t, dir, proxy.LogFilePrefix+"recent.jsonl", time.Hour)
 
 		// Act
 		PruneProxyLogs(dir, 24*time.Hour)
@@ -35,7 +36,19 @@ func TestPruneProxyLogs(t *testing.T) {
 	t.Run("ignores non-jsonl files regardless of age", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
-		other := writeFile(t, dir, "old.txt", 48*time.Hour)
+		other := writeFile(t, dir, proxy.LogFilePrefix+"old.txt", 48*time.Hour)
+
+		// Act
+		PruneProxyLogs(dir, 24*time.Hour)
+
+		// Assert
+		assert.FileExists(t, other)
+	})
+
+	t.Run("ignores jsonl files missing the proxy_ prefix regardless of age", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		other := writeFile(t, dir, "old.jsonl", 48*time.Hour)
 
 		// Act
 		PruneProxyLogs(dir, 24*time.Hour)
@@ -47,8 +60,8 @@ func TestPruneProxyLogs(t *testing.T) {
 	t.Run("maxAge of zero removes every log file", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
-		old := writeFile(t, dir, "old.jsonl", 48*time.Hour)
-		recent := writeFile(t, dir, "recent.jsonl", time.Minute)
+		old := writeFile(t, dir, proxy.LogFilePrefix+"old.jsonl", 48*time.Hour)
+		recent := writeFile(t, dir, proxy.LogFilePrefix+"recent.jsonl", time.Minute)
 
 		// Act
 		PruneProxyLogs(dir, 0)

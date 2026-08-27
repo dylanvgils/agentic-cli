@@ -46,7 +46,7 @@ func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 		id:        id,
 		network:   name,
 		container: name,
-		logPath:   filepath.Join(rs.ProxyLogDir, id+".jsonl"),
+		logPath:   filepath.Join(rs.ProxyLogDir, proxyLogFileName(id)),
 		allow:     rs.ProxyAllow,
 		monitor:   rs.ProxyMonitor,
 	}, nil
@@ -186,7 +186,7 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 // runArgs builds the `docker run` arguments for the hardened proxy sidecar, registering
 // proxyHostAlias on the per-run network so tool config can reference a stable hostname.
 func (h proxyHandle) runArgs(rs RunSpec) []string {
-	containerLog := proxyLogMountDir + "/" + h.id + ".jsonl"
+	containerLog := proxyLogMountDir + "/" + proxyLogFileName(h.id)
 	_, tzOffset := time.Now().Zone()
 
 	return []string{
@@ -227,6 +227,11 @@ func SweepProxyResources() error {
 	}
 	removeNetworkArgs := []string{"network", "rm"}
 	return runIfAny(listNetworkArgs, removeNetworkArgs)
+}
+
+// proxyLogFileName is shared by the host logPath and the in-container AGENTIC_PROXY_LOG path so they name the same file.
+func proxyLogFileName(id string) string {
+	return proxy.LogFilePrefix + id + ".jsonl"
 }
 
 // randID returns a short random hex identifier for per-run resource names.

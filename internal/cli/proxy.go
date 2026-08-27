@@ -89,7 +89,7 @@ func runProxyClean(cmd *cobra.Command, _ []string) error {
 
 	if logs, _ := cmd.Flags().GetBool("logs"); logs {
 		logging.Step("proxy logs")
-		pruneProxyLogs(filepath.Join(toolHome, "proxy"), 0)
+		pruneProxyLogs(filepath.Join(toolHome, config.LogsDirName), 0)
 	}
 
 	return nil

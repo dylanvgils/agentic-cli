@@ -25,6 +25,9 @@ const (
 	ProtocolHTTPS Protocol = "https"
 )
 
+// LogFilePrefix distinguishes proxy access-log filenames from other log types in $TOOL_HOME/logs.
+const LogFilePrefix = "proxy_"
+
 // Entry is a single structured access-log record, emitted as one JSON line per connection attempt.
 type Entry struct {
 	Time     time.Time `json:"time"`

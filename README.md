@@ -163,7 +163,7 @@ agentic <command> [args...]
 | `clean [tool] [--namespace <name>] [--all]`                                                                                                                                                                                                                                   | Remove tool image(s). `--all` removes across all namespaces. No-arg form also removes base images, the proxy image, leftover proxy resources, and the `agentic-net` network                                                                              |
 | `proxy build [--no-cache] [--registry <host>] [--dry-run]`                                                                                                                                                                                                                    | Build the proxy image (`agentic-proxy`). Builds normally happen automatically the first time you run with `--proxy`; this is for forcing one explicitly                                                                                                  |
 | `proxy update [--registry <host>] [--dry-run]`                                                                                                                                                                                                                                | Force a fresh proxy image build (always `--no-cache`, which also re-pulls its base images), to pick up a proxy source or base-image change a cached image would otherwise mask                                                                           |
-| `proxy clean [--logs]`                                                                                                                                                                                                                                                        | Remove the proxy image. The proxy image is global, not namespaced - there's only ever one. `--logs` also wipes all proxy access logs under `$AGENTIC_HOME/proxy/`, regardless of age                                                                     |
+| `proxy clean [--logs]`                                                                                                                                                                                                                                                        | Remove the proxy image. The proxy image is global, not namespaced - there's only ever one. `--logs` also wipes all proxy access logs under `$AGENTIC_HOME/logs/`, regardless of age                                                                     |
 | `inspect [tool] [--namespace <name>] [--all]`                                                                                                                                                                                                                                 | No arg: table of images in the active namespace; `--all` shows all namespaces. Tool arg: full detail for active namespace; `--all` shows all namespaces                                                                                                  |
 | `instructions <tool> [--home <dir>] [--namespace <name>] [--proxy\|--no-proxy\|--proxy-monitor] [--pids-limit <n>] [--cpus <n>] [--memory <size>]`                                                                                                                            | Preview the environment instructions `agentic run` writes into the tool's global instructions file (e.g. `CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`), merged with whatever's already persisted at `$AGENTIC_HOME`, without starting a container |
 | `status`                                                                                                                                                                                                                                                                      | Show whether the Docker backend is running and list currently running agentic-managed containers across all namespaces                                                                                                                                   |
@@ -472,15 +472,17 @@ extra_mounts = ["maven:$CONTAINER_HOME/.m2", "gradle:$CONTAINER_HOME/.gradle"]
 
 ## 🏠 Tool home directory
 
-Each tool stores its configuration under `$AGENTIC_HOME`:
+Each tool stores its configuration under `$AGENTIC_HOME/tools/`:
 
-| Tool       | Config path                                                   |
-| ---------- | ------------------------------------------------------------- |
-| `claude`   | `$AGENTIC_HOME/claude/`, `$AGENTIC_HOME/claude/.claude.json`  |
-| `copilot`  | `$AGENTIC_HOME/copilot/`                                      |
-| `opencode` | `$AGENTIC_HOME/opencode/` (data, share, state, cache, config) |
+| Tool       | Config path                                                               |
+| ---------- | -------------------------------------------------------------------------- |
+| `claude`   | `$AGENTIC_HOME/tools/claude/`, `$AGENTIC_HOME/tools/claude/.claude.json`  |
+| `copilot`  | `$AGENTIC_HOME/tools/copilot/`                                            |
+| `opencode` | `$AGENTIC_HOME/tools/opencode/` (data, share, state, cache, config)       |
 
 `$AGENTIC_HOME/marketplaces/<slug>-<hash>/` holds host-side clones of any `[[marketplaces]]` configured in `.agenticrc.toml` - shared across tools and mounted read-only into each applicable tool's container. The clone is keyed by the marketplace's `url` alone, so two projects referencing the same URL always share one clone, even under different local names. See [docs/02-config.md](docs/02-config.md) for the full `[[marketplaces]]` reference.
+
+`$AGENTIC_HOME/logs/` holds log files written by agentic's own components, named by type - proxy access logs are written there as `proxy_<id>.jsonl`.
 
 ### Managing marketplaces
 
