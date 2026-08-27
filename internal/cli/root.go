@@ -17,9 +17,12 @@ import (
 
 var (
 	// noDockerCmds lists subcommands that do not require a running Docker daemon.
-	noDockerCmds = []string{"completion", "aliases", "version", "upgrade", "status", "marketplaces", "instructions"}
+	noDockerCmds = []string{"completion", "aliases", "version", "upgrade", "status", "marketplaces", "instructions", "migrate"}
 	// noUpdateCmds lists subcommands that skip the automatic update check.
 	noUpdateCmds = []string{"completion", "aliases", "upgrade"}
+	// noMigrateCmds lists subcommands that skip the automatic migration check. Separate from noUpdateCmds:
+	// "upgrade" replaces the CLI binary, unrelated to TOOL_HOME's contents, and "migrate" runs it explicitly itself.
+	noMigrateCmds = []string{"completion", "aliases", "upgrade", "migrate"}
 )
 
 var rootCmd = &cobra.Command{
@@ -48,9 +51,15 @@ func Execute() {
 	}
 }
 
-// persistentPreRunE is rootCmd's PersistentPreRunE: resolves the Docker context, checks Docker/git, and offers an upgrade if available.
+// persistentPreRunE is rootCmd's PersistentPreRunE: resolves the Docker context, migrates TOOL_HOME if needed, checks Docker/git, and offers an upgrade if available.
 func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	resolveContext(cmd)
+
+	if cmd.Parent() != nil && !inCommandChain(cmd, noMigrateCmds) {
+		if _, err := migrateRun(toolHome); err != nil {
+			return err
+		}
+	}
 
 	if err := checkDocker(cmd, args); err != nil {
 		return err

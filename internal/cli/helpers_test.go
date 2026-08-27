@@ -11,6 +11,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
@@ -150,6 +151,13 @@ func stubCheckDockerDaemon(t *testing.T, fn func() error) {
 	orig := checkDockerDaemon
 	checkDockerDaemon = fn
 	t.Cleanup(func() { checkDockerDaemon = orig })
+}
+
+func stubMigrateRun(t *testing.T, fn func(string) ([]migrate.Migration, error)) {
+	t.Helper()
+	orig := migrateRun
+	migrateRun = fn
+	t.Cleanup(func() { migrateRun = orig })
 }
 
 func stubCleanImage(t *testing.T, fn func(string) error) {
