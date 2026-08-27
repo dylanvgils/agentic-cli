@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/fswatch"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
@@ -215,8 +216,8 @@ func TestGlobalResources(t *testing.T) {
 		assert.Contains(t, cleaned, tools.ProxyImage)
 		assert.True(t, swept)
 		assert.True(t, networkRemoved)
-		assert.Equal(t, filepath.Join("/home/user/.agentic", "audit"), prunedDir)
-		assert.Empty(t, prunedPrefix, "audit logs live in their own dir, so pruning needs no filename prefix filter")
+		assert.Equal(t, filepath.Join("/home/user/.agentic", "logs"), prunedDir)
+		assert.Equal(t, fswatch.LogFilePrefix, prunedPrefix, "audit logs share the logs dir with other log types, so pruning needs a filename prefix filter")
 		assert.Zero(t, prunedMaxAge, "bare `agentic clean` should wipe every audit log regardless of age")
 		assert.Contains(t, out, "=> base")
 		assert.Contains(t, out, "=> "+tools.ProxyImage)

@@ -25,7 +25,7 @@ func newAuditHandle(rs RunSpec) (auditHandle, error) {
 		return auditHandle{}, err
 	}
 
-	logPath := filepath.Join(rs.AuditLogDir, id+".jsonl")
+	logPath := filepath.Join(rs.AuditLogDir, fswatch.LogFilePrefix+id+".jsonl")
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o640)
 	if err != nil {
 		return auditHandle{}, fmt.Errorf("open audit log: %w", err)

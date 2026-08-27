@@ -18,6 +18,9 @@ const (
 	OpRename Op = "rename" // file or directory moved into or out of a watched directory
 )
 
+// LogFilePrefix distinguishes audit log filenames from other log types in $TOOL_HOME/logs.
+const LogFilePrefix = "audit_"
+
 // Entry is one JSON-line audit record; a Detail-only entry (Op/Path unset) records meta info.
 type Entry struct {
 	Time   time.Time `json:"time"`

@@ -7,9 +7,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/fswatch"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestNewAuditHandle(t *testing.T) {
+	// Arrange
+	rs := RunSpec{AuditLogDir: t.TempDir()}
+
+	// Act
+	handle, err := newAuditHandle(rs)
+	handle.Stop()
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(filepath.Base(handle.logPath), fswatch.LogFilePrefix))
+}
 
 func TestSetupAudit(t *testing.T) {
 	t.Run("disabled is a no-op", func(t *testing.T) {

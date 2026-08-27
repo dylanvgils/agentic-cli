@@ -4,7 +4,9 @@ package clean
 import (
 	"path/filepath"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/fswatch"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
@@ -60,7 +62,7 @@ func GlobalResources(toolHome string) error {
 	}
 
 	logging.Step("audit logs")
-	pruneAuditLogs(filepath.Join(toolHome, "audit"), "", 0)
+	pruneAuditLogs(filepath.Join(toolHome, config.LogsDirName), fswatch.LogFilePrefix, 0)
 
 	logging.Step("network")
 	return RemoveNetwork()

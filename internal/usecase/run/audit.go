@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/fswatch"
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
@@ -30,12 +31,12 @@ func auditLogDir(toolHome string, auditEnabled bool) (string, error) {
 		return "", nil
 	}
 
-	dir := filepath.Join(toolHome, "audit")
+	dir := filepath.Join(toolHome, config.LogsDirName)
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", fmt.Errorf("create audit log dir: %w", err)
 	}
 
-	housekeeping.PruneJSONLLogs(dir, "", time.Duration(auditRetentionDays(toolHome))*24*time.Hour)
+	housekeeping.PruneJSONLLogs(dir, fswatch.LogFilePrefix, time.Duration(auditRetentionDays(toolHome))*24*time.Hour)
 
 	return dir, nil
 }

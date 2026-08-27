@@ -39,9 +39,9 @@ func Test_runClean(t *testing.T) {
 		})
 		stubCleanSweepProxyResources(t, func() error { return nil })
 		stubCleanRemoveNetwork(t, func() error { return nil })
-		auditDir := filepath.Join(toolHome, "audit")
-		require.NoError(t, os.MkdirAll(auditDir, 0o750))
-		staleLog := filepath.Join(auditDir, "stale.jsonl")
+		logsDir := filepath.Join(toolHome, "logs")
+		require.NoError(t, os.MkdirAll(logsDir, 0o750))
+		staleLog := filepath.Join(logsDir, "audit_stale.jsonl")
 		require.NoError(t, os.WriteFile(staleLog, []byte("{}\n"), 0o644))
 
 		// Act
