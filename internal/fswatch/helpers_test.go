@@ -11,8 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// syncBuffer is a bytes.Buffer safe for the watcher goroutine to write to
-// while the test goroutine reads it back.
+// syncBuffer is a bytes.Buffer safe for concurrent writer/reader goroutines in tests.
 type syncBuffer struct {
 	mu  sync.Mutex
 	buf bytes.Buffer
@@ -50,8 +49,7 @@ func countMatching(entries []Entry, match func(Entry) bool) int {
 	return n
 }
 
-// waitForEntry polls until match returns true for some logged entry, or fails
-// the test after timeout.
+// waitForEntry polls until match returns true for some logged entry, or fails after timeout.
 func waitForEntry(t *testing.T, buf *syncBuffer, timeout time.Duration, match func(Entry) bool) Entry {
 	t.Helper()
 	deadline := time.Now().Add(timeout)

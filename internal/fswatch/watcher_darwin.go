@@ -1,10 +1,4 @@
-// Package fswatch's macOS backend, built on kqueue via golang.org/x/sys/unix.
-//
-// kqueue's EVFILT_VNODE only reports that a watched file or directory
-// changed, not which entry - so this backend watches every file and
-// directory individually and diffs directory listings on NOTE_WRITE to
-// recover adds/removes. Consequence: OpOpen never fires on macOS, and
-// OpWrite coalesces more coarsely than inotify's IN_CLOSE_WRITE.
+// Package fswatch's macOS backend, built on kqueue via golang.org/x/sys/unix; diffs directory listings on NOTE_WRITE to recover adds/removes, so OpOpen never fires on macOS.
 //go:build darwin
 
 package fswatch
@@ -25,8 +19,7 @@ const wakeupIdent = 1
 // vnodeFflags is the kqueue EVFILT_VNODE mask used for every watch.
 const vnodeFflags = unix.NOTE_WRITE | unix.NOTE_EXTEND | unix.NOTE_DELETE | unix.NOTE_RENAME
 
-// Watcher watches a set of host directory trees for filesystem activity via
-// kqueue, logging what it observes through a Logger.
+// Watcher watches host directory trees for filesystem activity via kqueue.
 type Watcher struct {
 	kq      int
 	logger  *Logger
@@ -38,10 +31,7 @@ type Watcher struct {
 	stopOnce sync.Once
 }
 
-// watchSet is a mutex-protected table of active watches: each watched path's
-// open file (kept so its kevent registration can be torn down by closing it),
-// the reverse fd -> path lookup kqueue events arrive with, and, for
-// directories, a cached listing of child names used to diff on NOTE_WRITE.
+// watchSet is a mutex-protected table of active watches, keyed both by path and by fd.
 type watchSet struct {
 	mu      sync.Mutex
 	fdPath  map[uintptr]string
@@ -49,8 +39,7 @@ type watchSet struct {
 	dirList map[string]map[string]bool
 }
 
-// New creates a Watcher over roots, deduplicating and collapsing nested roots.
-// It does not touch kqueue or the filesystem until Start is called.
+// New creates a Watcher over roots; it touches nothing until Start is called.
 func New(roots []string, logger *Logger, opts Options) *Watcher {
 	return &Watcher{
 		logger:  logger,
@@ -61,9 +50,7 @@ func New(roots []string, logger *Logger, opts Options) *Watcher {
 	}
 }
 
-// Start opens the kqueue instance and begins watching every root. A root
-// that fails to watch is logged as a Detail entry and skipped; only failure
-// to initialize kqueue itself is fatal.
+// Start opens kqueue and watches every root; a root that fails is logged and skipped.
 func (w *Watcher) Start() error {
 	kq, err := unix.Kqueue()
 	if err != nil {
@@ -100,8 +87,7 @@ func (w *Watcher) Stop() {
 	})
 }
 
-// addTree adds a watch for root and, if it is a directory, every
-// non-excluded file and subdirectory beneath it.
+// addTree adds a watch for root and every non-excluded entry beneath it.
 func (w *Watcher) addTree(root string) {
 	walkTree(root, w.exclude, w.logger, w.addWatch)
 }
@@ -172,8 +158,7 @@ func (w *Watcher) handle(ev unix.Kevent_t) {
 	}
 }
 
-// rearmIfReplaced re-watches path if something now exists there, covering the
-// atomic-save case where a rename replaces the inode but not the name.
+// rearmIfReplaced re-watches path if something now exists there (the atomic-save case).
 func (w *Watcher) rearmIfReplaced(path string) {
 	info, err := os.Lstat(path)
 	if err != nil {
@@ -189,8 +174,7 @@ func (w *Watcher) rearmIfReplaced(path string) {
 	}
 }
 
-// diffDir re-lists a watched directory whose NOTE_WRITE fired, comparing
-// against the cached listing to recover which entries were added or removed.
+// diffDir re-lists a watched directory and diffs against the cached listing for adds/removes.
 func (w *Watcher) diffDir(path string) {
 	newNames := listNames(path)
 	oldNames := w.watches.dirListing(path)
@@ -246,8 +230,7 @@ func (s *watchSet) add(path string, f *os.File, isDir bool) {
 	}
 }
 
-// remove drops path's watch (if any) and closes its fd, which removes the
-// kqueue registration.
+// remove drops path's watch (if any) and closes its fd, removing the kqueue registration.
 func (s *watchSet) remove(path string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -262,8 +245,7 @@ func (s *watchSet) remove(path string) {
 	_ = f.Close()
 }
 
-// lookup returns the path watched by fd, whether it is a watched directory,
-// and whether fd is known.
+// lookup returns the path watched by fd, whether it's a directory, and whether fd is known.
 func (s *watchSet) lookup(fd uintptr) (path string, isDir bool, ok bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -280,8 +262,7 @@ func (s *watchSet) isDir(path string) bool {
 	return ok
 }
 
-// dirListing returns the cached child-name set for a watched directory, or
-// nil if path isn't one.
+// dirListing returns the cached child-name set for a watched directory, or nil if path isn't one.
 func (s *watchSet) dirListing(path string) map[string]bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -303,8 +284,7 @@ func (s *watchSet) closeAll() {
 	}
 }
 
-// listNames returns the base names of dir's entries, or an empty set if it
-// can't be read (best-effort, mirrors addWatch's error handling).
+// listNames returns the base names of dir's entries, or an empty set if it can't be read.
 func listNames(dir string) map[string]bool {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

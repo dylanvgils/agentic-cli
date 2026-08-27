@@ -1,6 +1,4 @@
-// Exercises the common Watcher behavior (New/Start/Stop, create/write
-// detection) that both real backends - inotify (Linux) and kqueue (macOS) -
-// must satisfy identically from the caller's point of view.
+// Exercises the common Watcher behavior that both inotify (Linux) and kqueue (macOS) must satisfy.
 //go:build linux || darwin
 
 package fswatch
@@ -69,12 +67,9 @@ func TestWatcher(t *testing.T) {
 		require.NoError(t, w.Start())
 		t.Cleanup(w.Stop)
 
-		// Act - simulate the write-temp-then-rename-over pattern editors and
-		// agentic tools use for atomic saves; the destination's name never
-		// changes, only its inode.
+		// Act - simulate the write-temp-then-rename-over pattern used for atomic saves.
 		tmp := target + ".tmp"
-		// Linux logs the replace as a rename (IN_MOVED_TO); the darwin fix
-		// logs it as a create (re-arming the watch on the new inode).
+		// Linux logs the replace as a rename, darwin as a create.
 		matchesTarget := func(e Entry) bool {
 			return (e.Op == OpWrite || e.Op == OpCreate || e.Op == OpRename) && e.Path == target
 		}
@@ -87,8 +82,7 @@ func TestWatcher(t *testing.T) {
 		require.NoError(t, os.WriteFile(tmp, []byte("v3"), 0o644))
 		require.NoError(t, os.Rename(tmp, target))
 
-		// Assert - the second replace must also be observed, proving the
-		// watch was re-armed after the first one rather than going silent.
+		// Assert - the second replace must also be observed, proving the watch was re-armed.
 		require.Eventually(t, func() bool {
 			return countMatching(buf.Entries(t), matchesTarget) > firstCount
 		}, 2*time.Second, 10*time.Millisecond)
@@ -106,8 +100,7 @@ func TestWatcher(t *testing.T) {
 		// Act
 		ignored := filepath.Join(root, ".git", "HEAD")
 		require.NoError(t, os.WriteFile(ignored, []byte("ref"), 0o644))
-		// Give the watcher a moment, then prove activity in a sibling *is* seen
-		// (rules out "nothing was watched at all" passing trivially).
+		// Prove activity in a sibling *is* seen (rules out "nothing was watched at all").
 		sibling := filepath.Join(root, "tracked.txt")
 		require.NoError(t, os.WriteFile(sibling, []byte("x"), 0o644))
 		waitForEntry(t, buf, 2*time.Second, func(e Entry) bool {

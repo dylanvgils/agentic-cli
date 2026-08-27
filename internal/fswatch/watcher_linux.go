@@ -14,15 +14,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// watchMask is the inotify event mask used for every watch. IN_ACCESS/IN_MODIFY
-// are excluded as too noisy (fire per syscall); IN_DONT_FOLLOW/IN_ONLYDIR guard
-// against watching through a symlink or a path that changes type mid-discovery.
+// watchMask is the inotify event mask used for every watch (IN_ACCESS/IN_MODIFY excluded as too noisy).
 const watchMask = unix.IN_OPEN | unix.IN_CLOSE_WRITE | unix.IN_CREATE | unix.IN_DELETE |
 	unix.IN_MOVED_FROM | unix.IN_MOVED_TO | unix.IN_DELETE_SELF | unix.IN_MOVE_SELF |
 	unix.IN_ISDIR | unix.IN_DONT_FOLLOW | unix.IN_ONLYDIR
 
-// inotifyEventHeaderSize is sizeof(struct inotify_event) minus the trailing
-// variable-length name.
+// inotifyEventHeaderSize is sizeof(struct inotify_event) minus the trailing name.
 const inotifyEventHeaderSize = 16
 
 // rawEvent is one decoded inotify_event, before being mapped back to a path.
@@ -32,9 +29,7 @@ type rawEvent struct {
 	name string
 }
 
-// Watcher watches a set of host directory trees for filesystem activity via
-// inotify. Watches are per directory - inotify has no native recursion, so
-// Watcher walks each root at Start and adds a watch under any new directory.
+// Watcher watches host directory trees via inotify, one watch per directory.
 type Watcher struct {
 	fd           int
 	stopR, stopW int
@@ -47,16 +42,14 @@ type Watcher struct {
 	stopOnce sync.Once
 }
 
-// watchSet is a mutex-protected bidirectional map between an inotify watch
-// descriptor and the path it watches.
+// watchSet is a mutex-protected bidirectional map between an inotify watch descriptor and its path.
 type watchSet struct {
 	mu     sync.Mutex
 	byWd   map[int32]string
 	byPath map[string]int32
 }
 
-// New creates a Watcher over roots, deduplicating and collapsing nested roots.
-// It does not touch inotify or the filesystem until Start is called.
+// New creates a Watcher over roots; it touches nothing until Start is called.
 func New(roots []string, logger *Logger, opts Options) *Watcher {
 	return &Watcher{
 		logger:  logger,
@@ -67,9 +60,7 @@ func New(roots []string, logger *Logger, opts Options) *Watcher {
 	}
 }
 
-// Start opens the inotify instance and begins watching every root. A root
-// that fails to watch is logged as a Detail entry and skipped; only failure
-// to initialize inotify (or its stop-signaling pipe) is fatal.
+// Start opens inotify and watches every root; a root that fails is logged and skipped.
 func (w *Watcher) Start() error {
 	fd, err := unix.InotifyInit1(unix.IN_CLOEXEC)
 	if err != nil {
@@ -92,9 +83,7 @@ func (w *Watcher) Start() error {
 	return nil
 }
 
-// Stop signals the event loop to exit via the stop pipe (safer than a
-// concurrent fd close, which is unreliable on Linux mid-read) and waits for
-// it, up to a bound. Idempotent.
+// Stop signals the event loop to exit via the stop pipe and waits for it, up to a bound. Idempotent.
 func (w *Watcher) Stop() {
 	w.stopOnce.Do(func() {
 		_, _ = unix.Write(w.stopW, []byte{0})
@@ -108,8 +97,7 @@ func (w *Watcher) Stop() {
 	})
 }
 
-// addTree adds a watch for root and, if it is a directory, every
-// non-excluded subdirectory beneath it.
+// addTree adds a watch for root and every non-excluded subdirectory beneath it.
 func (w *Watcher) addTree(root string) {
 	walkTree(root, w.exclude, w.logger, func(path string, isDir bool) {
 		if isDir {

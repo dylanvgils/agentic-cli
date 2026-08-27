@@ -45,10 +45,7 @@ func Apply(targets []Target) error {
 	return nil
 }
 
-// GlobalResources removes agentic's shared, non-tool-specific Docker
-// resources: base images, the proxy image/resources, the agentic-net
-// network, and any filesystem audit logs under toolHome (removed
-// unconditionally, unlike the proxy's opt-in `agentic proxy clean --logs`).
+// GlobalResources removes agentic's shared Docker resources: base/proxy images, audit logs under toolHome, and agentic-net.
 func GlobalResources(toolHome string) error {
 	logging.Step("base")
 	if err := CleanBaseImages(); err != nil {

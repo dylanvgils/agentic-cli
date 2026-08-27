@@ -60,8 +60,7 @@ func (h auditHandle) PrintSummary(w io.Writer) {
 	fmt.Fprintln(w)
 }
 
-// summarize reads the audit log and tallies entries per Op, plus a count of
-// Detail-only meta entries (warnings) that aren't tied to any Op.
+// summarize reads the audit log and tallies entries per Op, plus a count of Detail-only warnings.
 func (h auditHandle) summarize() (counts map[fswatch.Op]int, total, warnings int) {
 	f, err := os.Open(h.logPath)
 	if err != nil {
@@ -103,7 +102,7 @@ func setupAudit(rs RunSpec) (cleanup func(), err error) {
 		return nil, err
 	}
 
-	// Ensure the watcher is stopped even on Ctrl-C, mirroring setupProxy.
+	// Mirrors setupProxy: stop the watcher even on Ctrl-C.
 	stop := guardSignals()
 
 	cleanup = func() {

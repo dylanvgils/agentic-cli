@@ -15,8 +15,7 @@ type Options struct {
 	Exclude []string
 }
 
-// collapseRoots cleans, dedupes, and drops any root that is a descendant of
-// another root in the set.
+// collapseRoots cleans, dedupes, and drops any root nested under another root.
 func collapseRoots(roots []string) []string {
 	return dropNestedRoots(cleanAndDedupeRoots(roots))
 }
@@ -36,8 +35,7 @@ func cleanAndDedupeRoots(roots []string) []string {
 	return cleaned
 }
 
-// dropNestedRoots assumes cleaned is sorted, so any ancestor of r already
-// appears in result before r is considered.
+// dropNestedRoots assumes cleaned is sorted, so an ancestor of r is always seen before r.
 func dropNestedRoots(cleaned []string) []string {
 	result := make([]string, 0, len(cleaned))
 	for _, root := range cleaned {

@@ -1,7 +1,6 @@
 package fswatch
 
-// DefaultExcludeDirs are directory names skipped by default when walking a
-// watch root, to keep inotify watch counts sane on large repositories.
+// DefaultExcludeDirs are directory names skipped by default when walking a watch root.
 var DefaultExcludeDirs = []string{
 	".git",
 	"node_modules",
@@ -12,8 +11,7 @@ var DefaultExcludeDirs = []string{
 	"__pycache__",
 }
 
-// isExcludedDir reports whether name (a directory's base name, not a full
-// path) should be skipped, checking both the built-in defaults and extra.
+// isExcludedDir reports whether name should be skipped, checking DefaultExcludeDirs and extra.
 func isExcludedDir(name string, extra []string) bool {
 	return containsName(DefaultExcludeDirs, name) ||
 		containsName(extra, name)

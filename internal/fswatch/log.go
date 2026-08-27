@@ -18,8 +18,7 @@ const (
 	OpRename Op = "rename" // file or directory moved into or out of a watched directory
 )
 
-// Entry is a single structured audit-log record, emitted as one JSON line per
-// filesystem event. A Detail-only entry (Op/Path unset) records meta info instead.
+// Entry is one JSON-line audit record; a Detail-only entry (Op/Path unset) records meta info.
 type Entry struct {
 	Time   time.Time `json:"time"`
 	Op     Op        `json:"op,omitempty"`

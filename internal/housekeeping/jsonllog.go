@@ -1,6 +1,4 @@
-// Package housekeeping manages host-side agentic state that needs periodic
-// cleanup but isn't tied to running a tool, the proxy server, or docker
-// orchestration itself - e.g. pruning stale files under $AGENTIC_HOME.
+// Package housekeeping prunes stale host-side agentic state under $AGENTIC_HOME that isn't tied to a specific tool run.
 package housekeeping
 
 import (
@@ -13,22 +11,16 @@ import (
 	"time"
 )
 
-// DefaultProxyLogRetentionDays is how long proxy access logs are kept when no
-// retention period is configured.
+// DefaultProxyLogRetentionDays is how long proxy access logs are kept when no retention period is configured.
 const DefaultProxyLogRetentionDays = 3
 
-// DefaultAuditLogRetentionDays is how long filesystem audit logs are kept
-// when no retention period is configured.
+// DefaultAuditLogRetentionDays is how long filesystem audit logs are kept when no retention period is configured.
 const DefaultAuditLogRetentionDays = 3
 
-// followChanBuffer bounds how many pending lines FollowJSONL buffers before a
-// slow consumer applies backpressure to the poller.
+// followChanBuffer bounds how many pending lines FollowJSONL buffers before backpressure applies.
 const followChanBuffer = 64
 
-// PruneJSONLLogs removes *.jsonl log files in dir whose name starts with prefix (pass "" to match
-// every log file) and whose mtime is older than maxAge (maxAge <= 0 removes every matching file).
-// Best-effort: never fails the caller. A prefix lets callers share one log directory - e.g. proxy
-// logs use proxy.LogFilePrefix so pruning them never touches other log types in the same dir.
+// PruneJSONLLogs removes *.jsonl files in dir matching prefix ("" matches all) older than maxAge (maxAge <= 0 removes all). Best-effort: never fails the caller.
 func PruneJSONLLogs(dir, prefix string, maxAge time.Duration) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -49,9 +41,7 @@ func PruneJSONLLogs(dir, prefix string, maxAge time.Duration) {
 	}
 }
 
-// FollowJSONL streams each line appended to path, from the start of the
-// file, until stop is called; lines is then closed. Polls rather than using
-// inotify/kqueue, since the writer may be a separate container.
+// FollowJSONL streams each line appended to path until stop is called, then closes lines. Polls, since the writer may be a separate container.
 func FollowJSONL(path string, interval time.Duration) (lines <-chan []byte, stop func()) {
 	out := make(chan []byte, followChanBuffer)
 	done := make(chan struct{})
@@ -86,9 +76,7 @@ func followJSONL(path string, interval time.Duration, out chan<- []byte, done <-
 	}
 }
 
-// drainJSONLLines reads bytes appended to path since offset, emits each
-// complete line to out, and returns the advanced offset plus any trailing
-// partial line. ok is false when done fired while sending a line.
+// drainJSONLLines emits complete new lines to out and returns the advanced offset plus any trailing partial line.
 func drainJSONLLines(path string, offset int64, partial []byte, out chan<- []byte, done <-chan struct{}) (newOffset int64, newPartial []byte, ok bool) {
 	f, err := os.Open(path)
 	if err != nil {

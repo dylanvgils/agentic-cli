@@ -126,8 +126,7 @@ func TestAuditHandlePrintSummary(t *testing.T) {
 	})
 }
 
-// waitForAuditWrite polls logDir until it contains a *.jsonl file mentioning
-// target, or fails the test after timeout.
+// waitForAuditWrite polls logDir until a *.jsonl file mentions target, or fails after timeout.
 func waitForAuditWrite(t *testing.T, logDir, target string) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)

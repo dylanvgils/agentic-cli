@@ -11,8 +11,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
-// auditPaths derives host-side watch roots from the volume list: the host
-// part of every bind mount, excluding Docker named volumes.
+// auditPaths derives host-side watch roots from the volume list's bind mounts, excluding named volumes.
 func auditPaths(volumes []string, toolHome, containerHome string) []string {
 	var paths []string
 	for _, v := range volumes {
@@ -25,9 +24,7 @@ func auditPaths(volumes []string, toolHome, containerHome string) []string {
 	return paths
 }
 
-// auditLogDir returns the host directory for audit logs, creating it when
-// auditing is enabled and pruning any logs older than the configured
-// retention window. Returns an empty string when auditing is off.
+// auditLogDir returns the host audit log directory, creating it and pruning old logs. Empty string when auditing is off.
 func auditLogDir(toolHome string, auditEnabled bool) (string, error) {
 	if !auditEnabled {
 		return "", nil
@@ -43,8 +40,7 @@ func auditLogDir(toolHome string, auditEnabled bool) (string, error) {
 	return dir, nil
 }
 
-// auditRetentionDays resolves the audit log retention window in days from
-// agentic.json, falling back to the default when unset - mirrors proxyRetentionDays.
+// auditRetentionDays resolves the audit log retention window from agentic.json, falling back to the default.
 func auditRetentionDays(toolHome string) int {
 	if cfg, err := config.LoadConfig(toolHome); err == nil && cfg.AuditLogRetentionDays > 0 {
 		return cfg.AuditLogRetentionDays
