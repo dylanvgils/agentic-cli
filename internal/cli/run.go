@@ -67,6 +67,7 @@ func init() {
 
 	addResourceLimitFlags(runToolCmd)
 	addProxyFlags(runToolCmd)
+	addAuditFlags(runToolCmd)
 	addNamespaceFlag(runToolCmd)
 	addRegistryFlag(runToolCmd)
 }
@@ -120,6 +121,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	auditEnabled := resolveAuditEnabled(cmd, rc)
 	pidsLimit, cpus, memory := resolveResourceLimitFlags(cmd)
 
 	target := run.Target{
@@ -140,6 +142,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		Registry:       collectRegistry(cmd),
 		ProxyEnabled:   proxyEnabled,
 		ProxyMonitor:   proxyMonitor,
+		AuditEnabled:   auditEnabled,
 	}
 
 	rs, cleanupInstructions, err := run.BuildWithInstructions(target, input, toolConfig, rc)

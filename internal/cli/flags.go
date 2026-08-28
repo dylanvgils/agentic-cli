@@ -80,6 +80,13 @@ func addProxyFlags(cmd *cobra.Command) {
 	cmd.MarkFlagsMutuallyExclusive("proxy", "no-proxy", "proxy-monitor")
 }
 
+// addAuditFlags registers the mutually exclusive --audit and --no-audit flags shared by the run command.
+func addAuditFlags(cmd *cobra.Command) {
+	cmd.Flags().Bool("audit", false, "log filesystem activity under bind-mounted host paths for this run (overrides config)")
+	cmd.Flags().Bool("no-audit", false, "disable filesystem audit logging for this run (overrides config)")
+	cmd.MarkFlagsMutuallyExclusive("audit", "no-audit")
+}
+
 // buildOptsFromFlags constructs a BuildOptions from the command's flags and the project config.
 func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOptions {
 	flagBases, _ := cmd.Flags().GetStringSlice("base")

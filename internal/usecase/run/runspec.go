@@ -36,6 +36,7 @@ type Input struct {
 	Registry       string
 	ProxyEnabled   bool
 	ProxyMonitor   bool
+	AuditEnabled   bool
 	// InstructionsMount is the mount spec for this run's instructions snapshot, empty when disabled.
 	InstructionsMount string
 }
@@ -87,6 +88,11 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		return docker.RunSpec{}, err
 	}
 
+	auditDir, err := auditLogDir(in.ToolHome, in.AuditEnabled)
+	if err != nil {
+		return docker.RunSpec{}, err
+	}
+
 	rs := docker.NewRunSpec(target.ImageName).
 		WithToolHome(in.ToolHome).
 		WithContainerHome(containerHome).
@@ -100,6 +106,7 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		WithMemory(limits.Memory).
 		WithDryRun(in.DryRun).
 		WithProxy(in.ProxyEnabled, tools.ProxyImage, resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, rc), logDir, in.ProxyMonitor).
+		WithAudit(in.AuditEnabled, auditPaths(volumes, in.ToolHome, containerHome), rc.Run.Audit.Exclude, auditDir).
 		Build()
 
 	return rs, nil

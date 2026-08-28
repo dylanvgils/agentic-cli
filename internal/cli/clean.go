@@ -53,7 +53,7 @@ func runClean(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(args) == 0 {
-		return clean.GlobalResources()
+		return clean.GlobalResources(toolHome)
 	}
 
 	return nil

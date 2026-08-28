@@ -2,7 +2,11 @@
 package clean
 
 import (
+	"path/filepath"
+
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/fswatch"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
@@ -43,8 +47,8 @@ func Apply(targets []Target) error {
 	return nil
 }
 
-// GlobalResources removes agentic's shared, non-tool-specific Docker resources: base images, the proxy image/resources, and the agentic-net network.
-func GlobalResources() error {
+// GlobalResources removes agentic's shared Docker resources: base/proxy images, audit logs under toolHome, and agentic-net.
+func GlobalResources(toolHome string) error {
 	logging.Step("base")
 	if err := CleanBaseImages(); err != nil {
 		return err
@@ -56,6 +60,9 @@ func GlobalResources() error {
 	if err := SweepProxyResources(); err != nil {
 		return err
 	}
+
+	logging.Step("audit logs")
+	pruneAuditLogs(filepath.Join(toolHome, config.LogsDirName), fswatch.LogFilePrefix, 0)
 
 	logging.Step("network")
 	return RemoveNetwork()

@@ -16,8 +16,9 @@ agentic-cli/
     ├── config/                  # .agenticrc.toml loading and run spec
     ├── docker/                  # Build, update, run, clean, inspect, volume orchestration
     ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
+    ├── fswatch/                 # Host-side filesystem watcher (inotify/kqueue) backing --audit, see 06-fswatch.md
     ├── git/                     # Thin wrapper over the host git binary (CheckAvailable, Clone, FetchReset)
-    ├── housekeeping/            # Host-side cleanup not tied to a tool run, the proxy server, or docker orchestration (e.g. pruning proxy logs)
+    ├── housekeeping/            # Host-side cleanup not tied to a tool run, the proxy server, or docker orchestration (e.g. pruning/following the proxy and audit JSON-lines logs)
     ├── marketplace/             # Syncs git-based plugin marketplace repos onto the host and tracks per-clone usage
     ├── mount/                   # Volume mount spec builder
     ├── output/                  # CLI output formatting
@@ -63,7 +64,11 @@ Within each `.go` file, order elements as follows:
 4. Package-level variables (`var` blocks)
 5. Type declarations (structs, interfaces) - ordered by dependency/importance
 6. Constructors and methods - grouped with their type; constructor first, then exported methods, then unexported methods
-7. Standalone functions - exported functions first, then unexported helpers
+7. Standalone functions - exported functions first, then unexported helpers. Group strictly by export status, not by caller/helper proximity - don't slot an exported function next to the unexported one that calls it if that breaks the exported-first grouping
+
+### Splitting code across files in a package
+
+Group functions by what they're about, not by when they were added, whether they have a side effect, or which other function currently calls them. A function belongs in the file that owns its subject, even if producing its result requires a side effect (a write, a shell-out) or calling into another file's helpers for inputs - that alone is never a reason to keep it next to its caller instead. Move a helper (and its tests to the matching `_test.go`) when its actual subject changes, not to keep related code physically close.
 
 ### Cobra command init functions
 
@@ -87,6 +92,7 @@ func init() {
 ### Style
 
 - Use blank lines between logical blocks within a function to aid readability (e.g. between groups of related `if` statements, between `switch` case groups)
+- Keep comments short and to the point - one line unless multi-line is genuinely needed
 
 ### Linting
 
@@ -164,7 +170,7 @@ func TestBuildImage(t *testing.T) {
    - `$TOOL_HOME` (host side) - expands to the agentic data dir (e.g. `~/.agentic`)
    - `$CONTAINER_HOME` (container side) - expands to the container home dir, resolved from the image's `TOOL_HOME` env var
 
-   Security constraints (`--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`) are enforced in `internal/docker/run.go`. Do not relax them. If the tool needs to write somewhere, use a targeted tmpfs or volume mount - not a relaxed security flag.
+   Security constraints (`--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`, `--user $(id -u):$(id -g)`, `--network agentic-net`) are enforced in `internal/docker/run.go`. Do not relax them. If the tool needs to write somewhere, use a targeted tmpfs or volume mount - not a relaxed security flag.
 
 2. Register in `internal/tools/tools.go` `Configs` map:
 

@@ -256,6 +256,38 @@ func TestBuild(t *testing.T) {
 		assert.True(t, rs.ProxyMonitor)
 	})
 
+	t.Run("audit wired with watch paths and log dir", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		home := t.TempDir()
+		in := Input{ToolHome: home, AuditEnabled: true}
+		rc := &config.AgenticRC{Run: config.RCRun{Audit: config.RCAudit{Exclude: []string{"target"}}}}
+
+		// Act
+		rs, err := Build(target, in, tools.Configs["claude"], rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, rs.AuditEnabled)
+		assert.Contains(t, rs.AuditPaths, filepath.Join(home, tools.ToolsDirName, "claude", "data"))
+		assert.Equal(t, []string{"target"}, rs.AuditExclude)
+		assert.NotEmpty(t, rs.AuditLogDir)
+	})
+
+	t.Run("audit off leaves spec unaudited", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir()}
+
+		// Act
+		rs, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, rs.AuditEnabled)
+		assert.Empty(t, rs.AuditLogDir)
+	})
+
 	t.Run("marketplace names wired into AGENTIC_MARKETPLACES env", func(t *testing.T) {
 		// Arrange
 		stubSyncMarketplaces(t, func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error) {

@@ -158,6 +158,34 @@ func TestAddProxyFlags(t *testing.T) {
 	})
 }
 
+func TestAddAuditFlags(t *testing.T) {
+	t.Run("registers all flags", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+
+		// Act
+		addAuditFlags(cmd)
+
+		// Assert
+		for _, name := range []string{"audit", "no-audit"} {
+			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
+		}
+	})
+
+	t.Run("audit flags are mutually exclusive", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
+		addAuditFlags(cmd)
+		cmd.SetArgs([]string{"--audit", "--no-audit"})
+
+		// Act
+		err := cmd.Execute()
+
+		// Assert
+		assert.Error(t, err)
+	})
+}
+
 func newBuildCmd(t *testing.T) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{Use: "test"}

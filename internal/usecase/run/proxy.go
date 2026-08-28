@@ -8,6 +8,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 )
 
 // proxyLogDir returns (creating and pruning) the host log dir when the proxy is enabled, else an empty string.
@@ -21,7 +22,7 @@ func proxyLogDir(toolHome string, proxyEnabled bool) (string, error) {
 		return "", fmt.Errorf("create log dir: %w", err)
 	}
 
-	housekeeping.PruneProxyLogs(dir, time.Duration(proxyRetentionDays(toolHome))*24*time.Hour)
+	housekeeping.PruneJSONLLogs(dir, proxy.LogFilePrefix, time.Duration(proxyRetentionDays(toolHome))*24*time.Hour)
 
 	return dir, nil
 }

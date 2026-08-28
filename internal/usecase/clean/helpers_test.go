@@ -2,6 +2,7 @@ package clean
 
 import (
 	"testing"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 )
@@ -39,4 +40,11 @@ func stubRemoveNetwork(t *testing.T, fn func() error) {
 	orig := RemoveNetwork
 	RemoveNetwork = fn
 	t.Cleanup(func() { RemoveNetwork = orig })
+}
+
+func stubPruneAuditLogs(t *testing.T, fn func(dir, prefix string, maxAge time.Duration)) {
+	t.Helper()
+	orig := pruneAuditLogs
+	pruneAuditLogs = fn
+	t.Cleanup(func() { pruneAuditLogs = orig })
 }

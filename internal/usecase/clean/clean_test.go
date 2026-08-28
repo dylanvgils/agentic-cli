@@ -3,9 +3,12 @@ package clean
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/fswatch"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
@@ -196,10 +199,15 @@ func TestGlobalResources(t *testing.T) {
 			networkRemoved = true
 			return nil
 		})
+		var prunedDir, prunedPrefix string
+		var prunedMaxAge time.Duration
+		stubPruneAuditLogs(t, func(dir, prefix string, maxAge time.Duration) {
+			prunedDir, prunedPrefix, prunedMaxAge = dir, prefix, maxAge
+		})
 
 		// Act
 		out := captureStdout(t, func() {
-			err := GlobalResources()
+			err := GlobalResources("/home/user/.agentic")
 			require.NoError(t, err)
 		})
 
@@ -208,8 +216,12 @@ func TestGlobalResources(t *testing.T) {
 		assert.Contains(t, cleaned, tools.ProxyImage)
 		assert.True(t, swept)
 		assert.True(t, networkRemoved)
+		assert.Equal(t, filepath.Join("/home/user/.agentic", "logs"), prunedDir)
+		assert.Equal(t, fswatch.LogFilePrefix, prunedPrefix, "audit logs share the logs dir with other log types, so pruning needs a filename prefix filter")
+		assert.Zero(t, prunedMaxAge, "bare `agentic clean` should wipe every audit log regardless of age")
 		assert.Contains(t, out, "=> base")
 		assert.Contains(t, out, "=> "+tools.ProxyImage)
+		assert.Contains(t, out, "=> audit logs")
 		assert.Contains(t, out, "=> network")
 	})
 
@@ -218,7 +230,7 @@ func TestGlobalResources(t *testing.T) {
 		stubCleanBaseImages(t, func() error { return fmt.Errorf("base cleanup failed") })
 
 		// Act
-		err := GlobalResources()
+		err := GlobalResources("/home/user/.agentic")
 
 		// Assert
 		require.Error(t, err)
@@ -231,7 +243,7 @@ func TestGlobalResources(t *testing.T) {
 		stubCleanImage(t, func(string) error { return fmt.Errorf("proxy cleanup failed") })
 
 		// Act
-		err := GlobalResources()
+		err := GlobalResources("/home/user/.agentic")
 
 		// Assert
 		require.Error(t, err)
@@ -245,7 +257,7 @@ func TestGlobalResources(t *testing.T) {
 		stubSweepProxyResources(t, func() error { return fmt.Errorf("sweep failed") })
 
 		// Act
-		err := GlobalResources()
+		err := GlobalResources("/home/user/.agentic")
 
 		// Assert
 		require.Error(t, err)
@@ -260,7 +272,7 @@ func TestGlobalResources(t *testing.T) {
 		stubRemoveNetwork(t, func() error { return fmt.Errorf("network removal failed") })
 
 		// Act
-		err := GlobalResources()
+		err := GlobalResources("/home/user/.agentic")
 
 		// Assert
 		require.Error(t, err)

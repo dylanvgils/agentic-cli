@@ -16,6 +16,7 @@ Stored in `$AGENTIC_HOME/agentic.json` (default `~/.agentic/agentic.json`). Mach
 | `registry`                 | scalar | Registry prefix for base image pulls (e.g. `myregistry.example.com`). See below.                                              | `--registry`       |
 | `docker_context`           | scalar | Machine-wide default Docker context. See [`docker_context`](#docker_context) below.                                           | `--docker-context` |
 | `proxy_log_retention_days` | scalar | Days to keep egress proxy access logs before they're pruned automatically. Default: `3`.                                      | -                  |
+| `audit_log_retention_days` | scalar | Days to keep filesystem audit logs before they're pruned automatically. Default: `3`.                                         | -                  |
 | `last_update_check`        | scalar | Timestamp of the last automatic update check. Managed automatically - do not edit by hand.                                    | -                  |
 | `last_tool_version_check`  | object | Per-tool timestamps of the last automatic tool-update check, keyed by tool name. Managed automatically - do not edit by hand. | -                  |
 
@@ -204,6 +205,31 @@ allowed_hosts = [
 ]
 ```
 
+**`[run.audit]` section** - filesystem audit logging
+
+| Key       | Type | Description                                                                                                                                                                                            | CLI flag                 | Default |
+| --------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ | ------- |
+| `enabled` | bool | Log filesystem activity under every bind-mounted host path for the run. `enabled` is a pointer internally so an inner config can explicitly disable auditing enabled by an outer one.                  | `--audit` / `--no-audit` | `false` |
+| `exclude` | list | Extra directory names to skip while watching, merged with the built-in defaults (`.git`, `node_modules`, `vendor`, `dist`, `build`, `.venv`, `__pycache__`), to keep watch counts sane on large repos. | -                        | -       |
+
+When enabled, agentic watches the host side of every bind mount directly for the container's lifetime - since a bind mount shares the host's underlying files, this sees all activity regardless of whether it came from the host or the container, with no extra privilege needed and no change to the container's own hardening. Activity (writes, creates, deletes, renames, and - Linux only, see below - opens) is logged as JSON lines under `$AGENTIC_HOME/logs/` (filenames prefixed `audit_`, alongside proxy access logs); a one-line summary prints after the container exits, including a warning count if anything went wrong while watching (e.g. a root that couldn't be watched) even when no activity was recorded. Each audit-enabled run prunes logs older than a retention window (default 3 days), set via `audit_log_retention_days` in `agentic.json` (host-level, not per-project). The bare `agentic clean` (no tool argument) wipes all audit logs unconditionally as part of its global resource sweep.
+
+**Platform support**: the watch mechanism is host-OS-specific, not container-specific (every container is still Linux regardless of host):
+
+| Host OS | Backend   | Notes                                                                                                                                                                                                                                                        |
+| ------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Linux   | `inotify` | Full fidelity - open, write, create, delete, and rename events, with the changed path given directly by the kernel.                                                                                                                                          |
+| macOS   | `kqueue`  | Lower fidelity - no open events (macOS has no unprivileged equivalent), and a changed directory has to be re-listed and diffed against a cached listing to recover which entry changed, since kqueue only reports "this directory changed," not which entry. |
+| Windows | none yet  | `--audit` / `enabled = true` returns a clear error rather than silently doing nothing.                                                                                                                                                                       |
+
+`agentic config` shows resolved `audit.enabled` and `audit.exclude` for the current directory, tagged with the `.agenticrc.toml` that set them.
+
+```toml
+[run.audit]
+enabled = true
+exclude = ["target"] # merged with the built-in defaults
+```
+
 #### Pointing a tool's own proxy setting at the egress proxy
 
 `HTTP_PROXY`/`HTTPS_PROXY` (and lowercase variants) are auto-injected whenever the proxy is enabled, so most tools need no extra configuration. Some tools ignore these env vars and require a literal host:port instead - Maven is an example: it only reads proxy settings from `settings.xml`'s `<proxies>` section, not `MAVEN_OPTS` or the standard proxy env vars.
@@ -242,7 +268,7 @@ Usage is tracked in `$AGENTIC_HOME/marketplaces/.usage.json`, keyed by clone + l
 
 Multiple `.agenticrc.toml` files merge. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
-- **List keys** (`bases`, `apt_packages`, `custom_installs`, `extra_mounts`, `read_only_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `marketplaces`): values from all levels accumulate, outermost first.
+- **List keys** (`bases`, `apt_packages`, `custom_installs`, `extra_mounts`, `read_only_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `audit.exclude`, `marketplaces`): values from all levels accumulate, outermost first.
 - **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`, `docker_context`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
 - **`instructions.custom`**: text from all levels accumulates like a list key (outermost first, joined by a blank line), rather than the innermost overriding it - each layer's text is additive context, not a single setting. `instructions.enabled` is a scalar key: the innermost (child) value wins.
 - **`versions` table**: each layer name is resolved independently - innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.

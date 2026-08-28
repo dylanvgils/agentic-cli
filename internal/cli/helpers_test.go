@@ -279,7 +279,7 @@ func stubRemoveVolume(t *testing.T, fn func(string) error) {
 	t.Cleanup(func() { removeVolume = orig })
 }
 
-func stubPruneProxyLogs(t *testing.T, fn func(dir string, maxAge time.Duration)) {
+func stubPruneProxyLogs(t *testing.T, fn func(dir, prefix string, maxAge time.Duration)) {
 	t.Helper()
 	orig := pruneProxyLogs
 	pruneProxyLogs = fn

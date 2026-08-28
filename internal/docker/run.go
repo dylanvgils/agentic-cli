@@ -69,6 +69,12 @@ type RunSpec struct {
 	ProxyLogDir  string   // host dir for JSON-lines access logs
 	ProxyMonitor bool     // log the allowlist verdict without enforcing it
 
+	// Filesystem audit logging; runs entirely on the host, contributes no docker run arguments.
+	AuditEnabled bool
+	AuditPaths   []string // host paths to watch
+	AuditExclude []string // extra directory names to exclude, merged with fswatch.DefaultExcludeDirs
+	AuditLogDir  string   // host dir for JSON-lines audit logs
+
 	// network is the docker network the tool attaches to; empty means NetworkName, proxy mode sets the per-run internal net.
 	network string
 }
@@ -79,6 +85,12 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 		return err
 	}
 	defer cleanup()
+
+	auditCleanup, err := setupAudit(rs)
+	if err != nil {
+		return err
+	}
+	defer auditCleanup()
 
 	args, err := buildBaseArgs(rs)
 	if err != nil {

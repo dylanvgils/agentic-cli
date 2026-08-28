@@ -285,6 +285,7 @@ func TestPrintProjectConfig(t *testing.T) {
 						PidsLimit: "100", CPUs: "2", Memory: "4g",
 						ExtraMounts: []string{"vol:/mnt"}, ReadOnlyMounts: []string{"$PWD/secrets:/workspace/secrets"}, Secrets: []string{"tok:/run/s/t"},
 						Proxy: config.RCProxy{Enabled: &enabled, Mode: config.ModeMonitor, AllowedHosts: []string{".github.com"}},
+						Audit: config.RCAudit{Enabled: &enabled, Exclude: []string{"target"}},
 					},
 				},
 			},
@@ -310,6 +311,8 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "proxy.enabled: true  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "proxy.mode: monitor  [/project/.agenticrc.toml]")
 		assert.Contains(t, out, "- .github.com  [/project/.agenticrc.toml]")
+		assert.Contains(t, out, "audit.enabled: true  [/project/.agenticrc.toml]")
+		assert.Contains(t, out, "- target  [/project/.agenticrc.toml]")
 	})
 
 	t.Run("multi layers source attribution", func(t *testing.T) {
@@ -380,5 +383,7 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "proxy.enabled: false  (default)")
 		assert.Contains(t, out, "proxy.mode: enforce  (default)")
 		assert.Contains(t, out, "proxy.allowed_hosts: (none)")
+		assert.Contains(t, out, "audit.enabled: false  (default)")
+		assert.Contains(t, out, "audit.exclude: (none)")
 	})
 }
