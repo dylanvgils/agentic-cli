@@ -36,3 +36,16 @@ func arg(name string, value ...string) string {
 
 	return "--" + name + "=" + value[0]
 }
+
+// shellJoin renders args as a shell command line, single-quoting any arg that needs it.
+func shellJoin(args []string) string {
+	parts := make([]string, len(args))
+	for i, arg := range args {
+		if strings.ContainsAny(arg, " \t$") {
+			parts[i] = "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
+		} else {
+			parts[i] = arg
+		}
+	}
+	return strings.Join(parts, " ")
+}
