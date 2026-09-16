@@ -49,7 +49,20 @@ func copilotStage(prevStage string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
 		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
 		Add(createContainerUser("copilot")...).
-		Add(df.Run{Command: "curl -fsSL https://gh.io/copilot-install | bash"}).
+		Add(df.Arg{Key: "COPILOT_INSTALL_CHECKSUM", Default: DefaultChecksums.CopilotInstall}).
+		Add(df.Run{Blocks: []df.Block{
+			{Comment: "Download and verify install script, then run it", Lines: []string{
+				`curl -fsSL https://gh.io/copilot-install -o /tmp/copilot_install.sh;`,
+				`if [ "${SKIP_INSTALL_CHECKSUM}" = "true" ]; then`,
+				`echo "warning: skipping copilot install script checksum verification (--skip-install-checksum)" >&2;`,
+				`else`,
+				`echo "${COPILOT_INSTALL_CHECKSUM}  /tmp/copilot_install.sh" | sha256sum -c --quiet -;`,
+				`echo "copilot install script checksum verified OK";`,
+				`fi;`,
+				`bash /tmp/copilot_install.sh;`,
+				`rm /tmp/copilot_install.sh`,
+			}},
+		}}).
 		Add(df.Heredoc{
 			Dest:  "/usr/local/bin/" + versionScript("copilot"),
 			Lines: []string{"#!/bin/sh", "copilot --version"},

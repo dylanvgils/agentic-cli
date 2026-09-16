@@ -138,6 +138,16 @@ func TestClaudeStage(t *testing.T) {
 		assert.Contains(t, result, `claude plugin marketplace remove "$name" --scope user`)
 	})
 
+	t.Run("verifies install script checksum before running it", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "CLAUDE_INSTALL_CHECKSUM="+DefaultChecksums.ClaudeInstall)
+		assert.Contains(t, result, "curl -fsSL https://claude.ai/install.sh -o /tmp/claude_install.sh")
+		assert.Contains(t, result, `echo "${CLAUDE_INSTALL_CHECKSUM}  /tmp/claude_install.sh" | sha256sum -c --quiet -`)
+		assert.Contains(t, result, `echo "claude install script checksum verified OK"`)
+		assert.Contains(t, result, "bash /tmp/claude_install.sh")
+		assert.Contains(t, result, "rm /tmp/claude_install.sh")
+	})
+
 	t.Run("contains tool home", func(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, "TOOL_HOME=/home/claude")

@@ -26,7 +26,10 @@ type Versions struct {
 
 // Checksums holds integrity hashes for pinned artifacts that need verification.
 type Checksums struct {
-	Nvm string `json:"nvm"`
+	Nvm             string `json:"nvm"`
+	ClaudeInstall   string `json:"claude_install"`
+	CopilotInstall  string `json:"copilot_install"`
+	OpencodeInstall string `json:"opencode_install"`
 }
 
 // DefaultVersions and DefaultChecksums are populated at startup from the embedded JSON files; a malformed file is a fatal error.

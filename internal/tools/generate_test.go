@@ -154,6 +154,16 @@ func TestResolveToolStage(t *testing.T) {
 		assert.Equal(t, dockerfile.Run{Command: `: "${CACHEBUST}"`}, stage.Instructions[1])
 	})
 
+	t.Run("prepends skip-install-checksum arg", func(t *testing.T) {
+		// Act
+		stage, err := resolveToolStage("claude", "base")
+
+		// Assert
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(stage.Instructions), 3)
+		assert.Equal(t, dockerfile.Arg{Key: "SKIP_INSTALL_CHECKSUM", Default: "false"}, stage.Instructions[2])
+	})
+
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act + Assert
 		_, err := resolveToolStage("unknown", "base")

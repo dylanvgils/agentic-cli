@@ -241,6 +241,26 @@ func TestBuildImage(t *testing.T) {
 		}
 	})
 
+	t.Run("skipInstallChecksum adds build arg", func(t *testing.T) {
+		// Act
+		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{SkipInstallChecksum: true})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, get(), "--build-arg=SKIP_INSTALL_CHECKSUM=true")
+	})
+
+	t.Run("skipInstallChecksum build arg absent by default", func(t *testing.T) {
+		// Act
+		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		for _, a := range get() {
+			assert.False(t, strings.HasPrefix(a, "--build-arg=SKIP_INSTALL_CHECKSUM"), "unexpected SKIP_INSTALL_CHECKSUM arg: %s", a)
+		}
+	})
+
 	t.Run("noCache flags absent by default", func(t *testing.T) {
 		// Act
 		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})

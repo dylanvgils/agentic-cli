@@ -49,6 +49,7 @@ func addBuildFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSlice("apt", nil, "apt packages to install in the base stage; repeatable or comma-separated (e.g. --apt make --apt gcc or --apt make,gcc)")
 	cmd.Flags().StringSlice("apt-exact", nil, "apt packages to install in the base stage, replacing .agenticrc.toml's apt_packages entirely instead of merging with it; repeatable or comma-separated; pass --apt-exact= for none")
 	cmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
+	cmd.Flags().Bool("skip-install-checksum", false, "bypass checksum verification of Claude/Copilot/OpenCode install scripts; only use if a build is broken by a stale pinned checksum")
 
 	cmd.MarkFlagsMutuallyExclusive("base", "base-exact")
 	cmd.MarkFlagsMutuallyExclusive("apt", "apt-exact")
@@ -86,16 +87,18 @@ func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOpt
 	flagApt, _ := cmd.Flags().GetStringSlice("apt")
 	noCache, _ := cmd.Flags().GetBool("no-cache")
 	pull, _ := cmd.Flags().GetBool("pull")
+	skipInstallChecksum, _ := cmd.Flags().GetBool("skip-install-checksum")
 
 	in := resolve.BuildInput{
-		Bases:            flagBases,
-		BasesExact:       exactFlagValue(cmd, "base-exact"),
-		VersionOverrides: collectVersionOverrides(cmd),
-		AptPackages:      flagApt,
-		AptPackagesExact: exactFlagValue(cmd, "apt-exact"),
-		NoCache:          noCache,
-		Pull:             pull,
-		Registry:         collectRegistry(cmd),
+		Bases:               flagBases,
+		BasesExact:          exactFlagValue(cmd, "base-exact"),
+		VersionOverrides:    collectVersionOverrides(cmd),
+		AptPackages:         flagApt,
+		AptPackagesExact:    exactFlagValue(cmd, "apt-exact"),
+		NoCache:             noCache,
+		Pull:                pull,
+		Registry:            collectRegistry(cmd),
+		SkipInstallChecksum: skipInstallChecksum,
 	}
 	return resolve.BuildOptions(in, rc)
 }

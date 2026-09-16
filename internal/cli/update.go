@@ -5,6 +5,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
@@ -53,6 +54,10 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	all, _ := cmd.Flags().GetBool("all")
 	pullExplicit := cmd.Flags().Changed("pull")
+
+	if opts.SkipInstallChecksum {
+		logging.Detail("warning: --skip-install-checksum disables install script integrity verification")
+	}
 
 	var tool string
 	if len(args) > 0 {

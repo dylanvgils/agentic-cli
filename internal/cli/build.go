@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
 	"github.com/spf13/cobra"
@@ -44,6 +45,10 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	opts := buildOptsFromFlags(cmd, rc)
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	names := toolNames(args)
+
+	if opts.SkipInstallChecksum {
+		logging.Detail("warning: --skip-install-checksum disables install script integrity verification")
+	}
 
 	if dryRun {
 		return build.DryRun(names, opts)

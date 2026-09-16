@@ -9,14 +9,15 @@ import (
 
 // BuildInput carries the flag-derived values BuildOptions needs.
 type BuildInput struct {
-	Bases            []string
-	BasesExact       *[]string // non-nil (even &[]string{}) triggers exact mode, overriding rc.Build.Bases entirely
-	VersionOverrides map[string]string
-	AptPackages      []string
-	AptPackagesExact *[]string // non-nil (even &[]string{}) triggers exact mode, overriding rc.Build.AptPackages entirely
-	NoCache          bool
-	Pull             bool
-	Registry         string
+	Bases               []string
+	BasesExact          *[]string // non-nil (even &[]string{}) triggers exact mode, overriding rc.Build.Bases entirely
+	VersionOverrides    map[string]string
+	AptPackages         []string
+	AptPackagesExact    *[]string // non-nil (even &[]string{}) triggers exact mode, overriding rc.Build.AptPackages entirely
+	NoCache             bool
+	Pull                bool
+	Registry            string
+	SkipInstallChecksum bool
 }
 
 // BuildOptions merges in with rc into the effective tools.BuildOptions.
@@ -43,6 +44,7 @@ func BuildOptions(in BuildInput, rc *config.AgenticRC) tools.BuildOptions {
 	opts.VerifyApt = len(opts.AptPackages) > 0
 	opts.Registry = in.Registry
 	opts.CustomInstalls = rc.Build.CustomInstalls
+	opts.SkipInstallChecksum = in.SkipInstallChecksum
 
 	return opts
 }

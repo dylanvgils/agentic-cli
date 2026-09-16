@@ -222,6 +222,9 @@ agentic build claude --no-cache
 # Refresh base images (e.g. debian:13-slim) without discarding the rest of the build cache
 agentic build claude --pull
 
+# Bypass install script checksum verification (only if a build is broken by a stale pinned checksum)
+agentic build claude --skip-install-checksum
+
 # Update to latest version (checks upstream first; rebuilds only if newer or base images changed)
 agentic update
 agentic update claude --base node,java
@@ -508,6 +511,8 @@ Containers run read-only with all capabilities dropped, no privilege escalation,
 Optionally, an egress allowlist proxy can restrict a tool's outbound traffic to a configurable set of hosts and log every connection attempt - fail-closed, so anything not on the allowlist is blocked. Toggle it per run with `--proxy` / `--no-proxy`; use `--proxy-monitor` to log without blocking anything, useful for discovering a new tool's egress needs before writing an allowlist. See [docs/02-config.md](docs/02-config.md#keys) for the `[run.proxy]` config reference and setup details.
 
 Optionally, `read_only_mounts` in `.agenticrc.toml` (or `--read-only-mount`) forces a specific sub-path (e.g. a credentials directory) read-only while its parent mount stays writable. See [docs/02-config.md](docs/02-config.md#keys) for the `read_only_mounts` config reference.
+
+At build time, the Claude/Copilot/OpenCode install scripts are downloaded, checksum-verified against a pinned SHA256, then executed - not piped straight into `bash`. A daily scheduled job re-checks each script against the live upstream URL and opens a PR if it has changed, so the pinned checksum stays current without pinning the tool's own version. If a build ever breaks on a stale checksum before that PR lands, `--skip-install-checksum` bypasses verification for that build.
 
 ## 🧭 Environment instructions
 

@@ -11,17 +11,18 @@ import (
 
 // BuildOptions controls how a tool image is built.
 type BuildOptions struct {
-	BaseOverride   []string                 // overrides the tool's default base extras
-	BaseExact      bool                     // true when set via --base-exact: BaseOverride is authoritative even if empty, skips rc.Build.Bases and per-image label recovery
-	NoCache        bool                     // disable layer cache for all steps
-	Pull           bool                     // re-pull base images from the registry before building
-	CacheBust      string                   // non-empty to bust the tool stage's cache via its CACHEBUST build arg (used by update)
-	Versions       map[string]string        // layer name → version override, e.g. {"node": "22", "java": "21"}
-	AptPackages    []string                 // additional apt packages to install in the base stage
-	AptExact       bool                     // true when set via --apt-exact: AptPackages is authoritative even if empty, skips rc.Build.AptPackages and per-image label recovery
-	VerifyApt      bool                     // run pre-build apt-cache check for AptPackages
-	Registry       string                   // registry prefix for base images (e.g. "myregistry.example.com")
-	CustomInstalls []config.RCCustomInstall // non-apt tools installed via arbitrary shell commands, applied after any --base extras
+	BaseOverride        []string                 // overrides the tool's default base extras
+	BaseExact           bool                     // true when set via --base-exact: BaseOverride is authoritative even if empty, skips rc.Build.Bases and per-image label recovery
+	NoCache             bool                     // disable layer cache for all steps
+	Pull                bool                     // re-pull base images from the registry before building
+	CacheBust           string                   // non-empty to bust the tool stage's cache via its CACHEBUST build arg (used by update)
+	Versions            map[string]string        // layer name → version override, e.g. {"node": "22", "java": "21"}
+	AptPackages         []string                 // additional apt packages to install in the base stage
+	AptExact            bool                     // true when set via --apt-exact: AptPackages is authoritative even if empty, skips rc.Build.AptPackages and per-image label recovery
+	VerifyApt           bool                     // run pre-build apt-cache check for AptPackages
+	Registry            string                   // registry prefix for base images (e.g. "myregistry.example.com")
+	CustomInstalls      []config.RCCustomInstall // non-apt tools installed via arbitrary shell commands, applied after any --base extras
+	SkipInstallChecksum bool                     // bypass installer script checksum verification via the SKIP_INSTALL_CHECKSUM build arg
 }
 
 // GenerateDockerfile returns the Dockerfile content for the named tool without building it.
@@ -87,7 +88,8 @@ func resolveToolStage(tool, prevStage string) (dockerfile.Stage, error) {
 	}
 
 	stage := cfg.Build.Stage(prevStage)
-	stage.Instructions = append(cacheBustInstructions(), stage.Instructions...)
+	prepend := append(cacheBustInstructions(), skipInstallChecksumArg())
+	stage.Instructions = append(prepend, stage.Instructions...)
 	return stage, nil
 }
 

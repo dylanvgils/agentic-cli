@@ -151,6 +151,17 @@ func TestBuildOptions(t *testing.T) {
 		assert.Equal(t, []string{"dotnet", "java"}, opts.BaseOverride)
 	})
 
+	t.Run("skip install checksum passes through", func(t *testing.T) {
+		// Arrange
+		in := BuildInput{SkipInstallChecksum: true}
+
+		// Act
+		opts := BuildOptions(in, &config.AgenticRC{})
+
+		// Assert
+		assert.True(t, opts.SkipInstallChecksum)
+	})
+
 	t.Run("verify apt reflects whether any apt packages are set", func(t *testing.T) {
 		// Arrange
 		in := BuildInput{AptPackages: []string{"make"}}

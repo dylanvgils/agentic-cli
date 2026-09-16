@@ -169,6 +169,10 @@ func buildImageArgs(tmpDir, image, tool string, opts tools.BuildOptions) []strin
 		args = append(args, arg("pull"), label(LabelPulled, buildPulledLabel()))
 	}
 
+	if opts.SkipInstallChecksum {
+		args = append(args, arg("build-arg", "SKIP_INSTALL_CHECKSUM=true"))
+	}
+
 	args = append(
 		args,
 		arg("build-arg", "HOST_UID="+platform.GetUID()),

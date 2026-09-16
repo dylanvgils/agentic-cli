@@ -1,0 +1,33 @@
+name: Refresh Install Checksums
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Refresh installer script checksums
+        run: make fix-checksums-all
+
+      - name: Open PR if checksums changed
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "fix(deps): refresh installer script checksums"
+          title: "fix(deps): refresh installer script checksums"
+          body: >
+            One or more installer script checksums in `internal/tools/checksums.json`
+            no longer match the live content at their pinned URL (Claude, Copilot, or
+            OpenCode's installer changed upstream). Review the diff at the source URL
+            before merging - see `CLAUDE.md` for why these are checksum-pinned.
+          branch: chore/refresh-install-checksums
+          delete-branch: true
+          add-paths: internal/tools/checksums.json
