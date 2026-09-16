@@ -27,7 +27,7 @@ jobs:
             One or more installer script checksums in `internal/tools/checksums.json`
             no longer match the live content at their pinned URL (Claude, Copilot, or
             OpenCode's installer changed upstream). Review the diff at the source URL
-            before merging - see `CLAUDE.md` for why these are checksum-pinned.
+            before merging - see `README.md` for why these are checksum-pinned.
           branch: chore/refresh-install-checksums
           delete-branch: true
           add-paths: internal/tools/checksums.json
