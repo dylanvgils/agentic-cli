@@ -66,16 +66,14 @@ check_one() {
 
 status=0
 
-while read -r name url; do
-  [ -n "$name" ] || continue
-  check_one "$name" "$url" || status=1
-done <<< "$PINNED_ENTRIES"
-
-if [ "$PINNED_ONLY" = false ]; then
+run_checks() {
   while read -r name url; do
     [ -n "$name" ] || continue
     check_one "$name" "$url" || status=1
-  done <<< "$LIVE_ENTRIES"
-fi
+  done <<< "$1"
+}
+
+run_checks "$PINNED_ENTRIES"
+[ "$PINNED_ONLY" = true ] || run_checks "$LIVE_ENTRIES"
 
 exit "$status"
