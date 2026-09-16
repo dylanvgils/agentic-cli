@@ -45,8 +45,19 @@ func opencodeStage(prevStage string) df.Stage {
 			Dest:  "/usr/local/bin/entrypoint.sh",
 			Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail", `exec opencode "$@"`},
 		}).
+		Add(df.Arg{Key: "OPENCODE_INSTALL_CHECKSUM", Default: DefaultChecksums.OpencodeInstall}).
 		Add(df.Run{Blocks: []df.Block{
-			{Lines: []string{"curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path"}},
+			{Comment: "Download and verify install script, then run it", Lines: []string{
+				`curl -fsSL https://opencode.ai/install -o /tmp/opencode_install.sh;`,
+				`if [ "${SKIP_INSTALL_CHECKSUM}" = "true" ]; then`,
+				`echo "warning: skipping opencode install script checksum verification (--skip-install-checksum)" >&2;`,
+				`else`,
+				`echo "${OPENCODE_INSTALL_CHECKSUM}  /tmp/opencode_install.sh" | sha256sum -c --quiet -;`,
+				`echo "opencode install script checksum verified OK";`,
+				`fi;`,
+				`bash /tmp/opencode_install.sh --no-modify-path;`,
+				`rm /tmp/opencode_install.sh`,
+			}},
 			{Lines: []string{"mv /root/.opencode/bin/opencode /usr/local/bin/opencode"}},
 			{Lines: []string{"rm -rf /root/.opencode"}},
 		}}).

@@ -83,8 +83,19 @@ func claudeStage(prevStage string) df.Stage {
 		}).
 		Add(df.User{Name: "claude"}).
 		Add(df.Env{Key: "PATH", Value: "/home/claude/.local/bin:${PATH}"}).
+		Add(df.Arg{Key: "CLAUDE_INSTALL_CHECKSUM", Default: DefaultChecksums.ClaudeInstall}).
 		Add(df.Run{Blocks: []df.Block{
-			{Lines: []string{"curl -fsSL https://claude.ai/install.sh | bash"}},
+			{Comment: "Download and verify install script, then run it", Lines: []string{
+				`curl -fsSL https://claude.ai/install.sh -o /tmp/claude_install.sh;`,
+				`if [ "${SKIP_INSTALL_CHECKSUM}" = "true" ]; then`,
+				`echo "warning: skipping claude install script checksum verification (--skip-install-checksum)" >&2;`,
+				`else`,
+				`echo "${CLAUDE_INSTALL_CHECKSUM}  /tmp/claude_install.sh" | sha256sum -c --quiet -;`,
+				`echo "claude install script checksum verified OK";`,
+				`fi;`,
+				`bash /tmp/claude_install.sh;`,
+				`rm /tmp/claude_install.sh`,
+			}},
 			{Lines: []string{`mkdir -p "/home/claude/.claude"`}},
 		}}).
 		Add(df.Heredoc{

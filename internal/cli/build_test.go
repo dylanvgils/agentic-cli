@@ -32,6 +32,27 @@ func TestRunBuild(t *testing.T) {
 		assert.True(t, capturedOpts.NoCache)
 	})
 
+	t.Run("skip install checksum flag sets opt", func(t *testing.T) {
+		// Arrange
+		var capturedOpts tools.BuildOptions
+		stubBuildTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = opts
+			return nil
+		})
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
+
+		require.NoError(t, buildCmd.Flags().Set("skip-install-checksum", "true"))
+		defer buildCmd.Flags().Set("skip-install-checksum", "false") //nolint:errcheck
+
+		// Act
+		err := runBuild(buildCmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, capturedOpts.SkipInstallChecksum)
+	})
+
 	t.Run("pull flag defaults false", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions

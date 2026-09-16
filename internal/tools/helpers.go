@@ -23,6 +23,11 @@ func cacheBustInstructions() []df.Instruction {
 	}
 }
 
+// skipInstallChecksumArg declares SKIP_INSTALL_CHECKSUM, so --build-arg SKIP_INSTALL_CHECKSUM=true bypasses installer script checksum verification for tools that check it.
+func skipInstallChecksumArg() df.Instruction {
+	return df.Arg{Key: "SKIP_INSTALL_CHECKSUM", Default: "false"}
+}
+
 // createContainerUser returns instructions to declare HOST_UID/HOST_GID, remove any user occupying HOST_UID, and create a fresh container user.
 func createContainerUser(name string) []df.Instruction {
 	return []df.Instruction{

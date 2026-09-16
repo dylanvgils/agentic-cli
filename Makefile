@@ -15,7 +15,7 @@ LDFLAGS     = -s -w \
               $(if $(INSTALL_METHOD),-X github.com/dylanvgils/agentic-cli/internal/buildinfo.InstallMethod=$(INSTALL_METHOD))
 GOFLAGS   := CGO_ENABLED=0
 
-.PHONY: build install uninstall dist docker-dist test coverage lint clean verify-checksums fix-checksums
+.PHONY: build install uninstall dist docker-dist test coverage lint clean verify-checksums fix-checksums verify-checksums-all fix-checksums-all
 
 build:
 	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/cli
@@ -52,11 +52,22 @@ coverage:
 lint:
 	golangci-lint run ./...
 
+# Pinned checksums only (currently just nvm) - safe to run on every PR, since these
+# only change when this repo bumps the pinned version itself.
 verify-checksums:
-	.github/scripts/verify-nvm-checksum.sh
+	.github/scripts/verify-install-checksums.sh --pinned-only
 
 fix-checksums:
-	.github/scripts/verify-nvm-checksum.sh --fix
+	.github/scripts/verify-install-checksums.sh --fix --pinned-only
+
+# All checksums, including installer scripts (claude/copilot/opencode) that track a
+# stable "latest" URL and can drift upstream at any time - used by the daily
+# scheduled refresh workflow, not per-PR CI.
+verify-checksums-all:
+	.github/scripts/verify-install-checksums.sh
+
+fix-checksums-all:
+	.github/scripts/verify-install-checksums.sh --fix
 
 clean:
 	rm -rf bin/ $(BUILD_DIR)

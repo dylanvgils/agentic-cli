@@ -34,6 +34,28 @@ func TestRunUpdate(t *testing.T) {
 		assert.True(t, capturedOpts.NoCache)
 	})
 
+	t.Run("skip install checksum flag sets opt", func(t *testing.T) {
+		// Arrange
+		var capturedOpts tools.BuildOptions
+		stubUpdateUpdateTool(t, func(_, _ string, opts tools.BuildOptions) error {
+			capturedOpts = opts
+			return nil
+		})
+		stubUpdateInspectImage(t, &docker.ImageInfo{Version: "1.0.0"}, nil)
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
+
+		require.NoError(t, updateCmd.Flags().Set("skip-install-checksum", "true"))
+		defer updateCmd.Flags().Set("skip-install-checksum", "false") //nolint:errcheck
+
+		// Act
+		err := runUpdate(updateCmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, capturedOpts.SkipInstallChecksum)
+	})
+
 	t.Run("pull flag defaults true", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions

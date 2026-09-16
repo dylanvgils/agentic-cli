@@ -111,7 +111,8 @@ func nodeStage(prevStage, ver string) df.Stage {
 			{Lines: []string{`mkdir -p "$NVM_DIR"`}},
 			{Comment: "Download, verify and install NVM", Chain: true, Lines: []string{
 				`curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh" -o /tmp/nvm_install.sh`,
-				`echo "${NVM_CHECKSUM}  /tmp/nvm_install.sh" | sha256sum -c -`,
+				`echo "${NVM_CHECKSUM}  /tmp/nvm_install.sh" | sha256sum -c --quiet -`,
+				`echo "nvm install script checksum verified OK"`,
 				`NVM_DIR="$NVM_DIR" bash /tmp/nvm_install.sh`,
 				`rm /tmp/nvm_install.sh`,
 			}},
@@ -259,7 +260,8 @@ func goStage(prevStage, ver string) df.Stage {
 			{Comment: "Download and verify", Chain: true, Lines: []string{
 				`TARBALL="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"`,
 				`curl -fsSL "https://go.dev/dl/${TARBALL}" -o /tmp/go.tar.gz`,
-				`echo "${EXPECTED_SHA}  /tmp/go.tar.gz" | sha256sum -c -`,
+				`echo "${EXPECTED_SHA}  /tmp/go.tar.gz" | sha256sum -c --quiet -`,
+				`echo "go archive checksum verified OK"`,
 			}},
 			{Comment: "Install and clean up", Chain: true, Lines: []string{
 				`tar -C /usr/local -xzf /tmp/go.tar.gz`,

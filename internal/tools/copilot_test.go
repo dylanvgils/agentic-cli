@@ -88,6 +88,16 @@ func TestCopilotStage(t *testing.T) {
 		assert.Contains(t, result, "agentic-version-copilot")
 		assert.Contains(t, result, "copilot --version")
 	})
+
+	t.Run("verifies install script checksum before running it", func(t *testing.T) {
+		// Assert
+		assert.Contains(t, result, "COPILOT_INSTALL_CHECKSUM="+DefaultChecksums.CopilotInstall)
+		assert.Contains(t, result, "curl -fsSL https://gh.io/copilot-install -o /tmp/copilot_install.sh")
+		assert.Contains(t, result, `echo "${COPILOT_INSTALL_CHECKSUM}  /tmp/copilot_install.sh" | sha256sum -c --quiet -`)
+		assert.Contains(t, result, `echo "copilot install script checksum verified OK"`)
+		assert.Contains(t, result, "bash /tmp/copilot_install.sh")
+		assert.Contains(t, result, "rm /tmp/copilot_install.sh")
+	})
 }
 
 func TestSetupCopilot_createsDir(t *testing.T) {
