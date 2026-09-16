@@ -13,26 +13,7 @@
 # Usage: verify-install-checksums.sh [--fix] [--pinned-only] [path-to-versions.json] [path-to-checksums.json]
 set -euo pipefail
 
-FIX=false
-PINNED_ONLY=false
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --fix) FIX=true; shift ;;
-    --pinned-only) PINNED_ONLY=true; shift ;;
-    *) break ;;
-  esac
-done
-
-VERSIONS_FILE="${1:-internal/tools/versions.json}"
-CHECKSUMS_FILE="${2:-internal/tools/checksums.json}"
-
-NVM_VERSION=$(jq -r '.nvm' "$VERSIONS_FILE")
-
-PINNED_ENTRIES="nvm https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh"
-LIVE_ENTRIES="claude_install https://claude.ai/install.sh
-copilot_install https://gh.io/copilot-install
-opencode_install https://opencode.ai/install"
-
+# Checks one "<name> <url>" entry against checksums.json; --fix rewrites it in place.
 check_one() {
   local name="$1" url="$2"
   local expected actual
@@ -64,14 +45,37 @@ check_one() {
   echo "$name checksum updated to $actual"
 }
 
-status=0
-
+# Runs check_one over a newline-separated "<name> <url>" list, tracking failures in $status.
 run_checks() {
   while read -r name url; do
     [ -n "$name" ] || continue
     check_one "$name" "$url" || status=1
   done <<< "$1"
 }
+
+# --- main ---
+
+FIX=false
+PINNED_ONLY=false
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --fix) FIX=true; shift ;;
+    --pinned-only) PINNED_ONLY=true; shift ;;
+    *) break ;;
+  esac
+done
+
+VERSIONS_FILE="${1:-internal/tools/versions.json}"
+CHECKSUMS_FILE="${2:-internal/tools/checksums.json}"
+
+NVM_VERSION=$(jq -r '.nvm' "$VERSIONS_FILE")
+
+PINNED_ENTRIES="nvm https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh"
+LIVE_ENTRIES="claude_install https://claude.ai/install.sh
+copilot_install https://gh.io/copilot-install
+opencode_install https://opencode.ai/install"
+
+status=0
 
 run_checks "$PINNED_ENTRIES"
 [ "$PINNED_ONLY" = true ] || run_checks "$LIVE_ENTRIES"
