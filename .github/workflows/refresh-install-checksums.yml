@@ -19,7 +19,7 @@ jobs:
         run: make fix-checksums-all
 
       - name: Open PR if checksums changed
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           commit-message: "fix(deps): refresh installer script checksums"
           title: "fix(deps): refresh installer script checksums"
