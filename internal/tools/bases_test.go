@@ -273,6 +273,29 @@ func Test_extraStage(t *testing.T) {
 		assert.Contains(t, renderStage(stage), "agentic-version-java")
 	})
 
+	t.Run("docker default version", func(t *testing.T) {
+		// Act
+		stage, err := extraStage("docker", "base", "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "docker", stage.From.As)
+		assert.Contains(t, renderStage(stage), "DOCKER_VERSION="+DefaultVersions.Docker)
+	})
+
+	t.Run("docker installs cli and plugins from signed repo only", func(t *testing.T) {
+		// Act
+		stage, err := extraStage("docker", "base", "")
+
+		// Assert
+		require.NoError(t, err)
+		rendered := renderStage(stage)
+		assert.Contains(t, rendered, "signed-by=/etc/apt/keyrings/docker.asc")
+		assert.Contains(t, rendered, "docker-buildx-plugin docker-compose-plugin")
+		assert.NotContains(t, rendered, "docker-ce ", "the daemon runs in the sidecar, never in the tool image")
+		assert.Contains(t, rendered, "agentic-version-docker")
+	})
+
 	t.Run("dotnet from prev stage", func(t *testing.T) {
 		// Act
 		stage, err := extraStage("dotnet", "java", "")

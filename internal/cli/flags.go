@@ -81,6 +81,21 @@ func addProxyFlags(cmd *cobra.Command) {
 	cmd.MarkFlagsMutuallyExclusive("proxy", "no-proxy", "proxy-monitor")
 }
 
+// addDindFlags registers the mutually exclusive --dind and --no-dind flags shared by the run and instructions commands.
+func addDindFlags(cmd *cobra.Command) {
+	cmd.Flags().Bool("dind", false, "start a rootless Docker daemon sidecar the tool can use (overrides config; needs the docker base layer)")
+	cmd.Flags().Bool("no-dind", false, "disable the Docker daemon sidecar for this run (overrides config)")
+	cmd.MarkFlagsMutuallyExclusive("dind", "no-dind")
+}
+
+// resolveDindEnabled reads the dind flags and resolves them against rc.
+func resolveDindEnabled(cmd *cobra.Command, rc *config.AgenticRC) bool {
+	dindFlag, _ := cmd.Flags().GetBool("dind")
+	noDindFlag, _ := cmd.Flags().GetBool("no-dind")
+
+	return resolve.DindEnabled(resolve.DindInput{DindFlag: dindFlag, NoDindFlag: noDindFlag}, rc)
+}
+
 // buildOptsFromFlags constructs a BuildOptions from the command's flags and the project config.
 func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOptions {
 	flagBases, _ := cmd.Flags().GetStringSlice("base")

@@ -3,6 +3,7 @@ package docker
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -470,5 +471,39 @@ func TestImageSize(t *testing.T) {
 
 		// Assert
 		assert.Empty(t, size)
+	})
+}
+
+func TestImageInfoBuiltBefore(t *testing.T) {
+	cutoff := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+
+	t.Run("older build is before cutoff", func(t *testing.T) {
+		// Arrange
+		info := ImageInfo{Built: "2026-09-20T10:00:00Z"}
+
+		// Act
+		result := info.BuiltBefore(cutoff)
+
+		// Assert
+		assert.True(t, result)
+	})
+
+	t.Run("newer build is not before cutoff", func(t *testing.T) {
+		// Arrange
+		info := ImageInfo{Built: "2026-10-01T10:00:00Z"}
+
+		// Act
+		result := info.BuiltBefore(cutoff)
+
+		// Assert
+		assert.False(t, result)
+	})
+
+	t.Run("missing label counts as before", func(t *testing.T) {
+		// Act
+		result := ImageInfo{}.BuiltBefore(cutoff)
+
+		// Assert
+		assert.True(t, result)
 	})
 }

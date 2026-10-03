@@ -14,11 +14,12 @@ const (
 )
 
 // knownExtras lists the supported extra base layers in alphabetical order.
-var knownExtras = []string{"dotnet", "go", "java", "node"}
+var knownExtras = []string{"docker", "dotnet", "go", "java", "node"}
 
 // LayerFlagDesc maps each runtime layer name to the human-readable label used in its CLI flag description.
 var LayerFlagDesc = map[string]string{
 	"debian": "Debian",
+	"docker": "Docker CLI",
 	"node":   "Node.js",
 	"dotnet": ".NET",
 	"go":     "Go",
@@ -59,9 +60,11 @@ func baseStage(ver, registry string, pkgs []string) df.Stage {
 	return debianStage(ver, registry, pkgs)
 }
 
-// extraStage returns the stage for a named extra layer (dotnet, go, java, node), built FROM prevStage; ver overrides the default version.
+// extraStage returns the stage for a named extra layer (docker, dotnet, go, java, node), built FROM prevStage; ver overrides the default version.
 func extraStage(name, prevStage, ver string) (df.Stage, error) {
 	switch name {
+	case "docker":
+		return dockerStage(prevStage, ver), nil
 	case "dotnet":
 		return dotnetStage(prevStage, ver), nil
 	case "go":
@@ -272,6 +275,54 @@ func goStage(prevStage, ver string) df.Stage {
 		Add(df.Heredoc{
 			Dest:  "/usr/local/bin/" + versionScript("go"),
 			Lines: []string{"#!/bin/sh", "go version"},
+		}).
+		Build()
+}
+
+// dockerStage installs the Docker CLI with buildx and compose plugins from Docker's signed apt repo; the daemon itself runs in the --dind sidecar.
+func dockerStage(prevStage, ver string) df.Stage {
+	versionArg := df.Arg{Key: "DOCKER_VERSION", Default: DefaultVersions.Docker}
+	if ver != "" {
+		versionArg.Default = ver
+	}
+
+	return df.NewStage(df.From{Image: prevStage, As: "docker"}).
+		Add(versionArg).
+		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(df.Run{Blocks: []df.Block{
+			{Comment: "Add Docker GPG key", Chain: true, Lines: []string{
+				`install -m 0755 -d /etc/apt/keyrings`,
+				`curl -fsSL "https://download.docker.com/linux/debian/gpg" -o /etc/apt/keyrings/docker.asc`,
+			}},
+			{
+				Comment: "Add apt repository",
+				Lines: []string{
+					`echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "${VERSION_CODENAME}") stable"`,
+					`| tee /etc/apt/sources.list.d/docker.list`,
+				},
+			},
+			{Lines: []string{`apt-get update -yq`}},
+			{
+				Comment: "Resolve the newest docker-ce-cli release matching DOCKER_VERSION",
+				Lines: []string{
+					`CLI_VERSION="$(apt-cache madison docker-ce-cli`,
+					`| awk -v v="5:${DOCKER_VERSION}" 'index($3, v ".") == 1 || index($3, v "-") == 1 { print $3; exit }')"`,
+				},
+			},
+			{Lines: []string{
+				`if [ -z "${CLI_VERSION}" ]; then`,
+				`echo "No docker-ce-cli release found for ${DOCKER_VERSION}" >&2;`,
+				`exit 1;`,
+				`fi`,
+			}},
+			{Comment: "Install Docker CLI and plugins and clean up", Chain: true, Lines: []string{
+				`apt-get install -yq --no-install-recommends "docker-ce-cli=${CLI_VERSION}" docker-buildx-plugin docker-compose-plugin`,
+				`rm -rf /var/lib/apt/lists/*`,
+			}},
+		}}).
+		Add(df.Heredoc{
+			Dest:  "/usr/local/bin/" + versionScript("docker"),
+			Lines: []string{"#!/bin/sh", "docker --version"},
 		}).
 		Build()
 }

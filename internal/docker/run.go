@@ -54,7 +54,11 @@ type RunSpec struct {
 	ProxyLogDir  string   // host dir for JSON-lines access logs
 	ProxyMonitor bool     // log the allowlist verdict without enforcing it
 
-	// network is the docker network the tool attaches to; empty means NetworkName, proxy mode sets the per-run internal net.
+	// Docker-in-Docker. When DindEnabled, a per-run rootless dockerd sidecar is reachable at DOCKER_HOST over mutual TLS.
+	DindEnabled bool
+	DindImage   string // sidecar image (docker:<ver>-dind-rootless)
+
+	// network is the docker network the tool attaches to; empty means NetworkName, proxy or dind mode sets a per-run net.
 	network string
 }
 
@@ -65,6 +69,13 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	}
 	defer cleanup()
 
+	// Set up after the proxy so the sidecar can join its internal network; deferred cleanup runs first.
+	dindArgs, dindCleanup, err := setupDind(&rs)
+	if err != nil {
+		return err
+	}
+	defer dindCleanup()
+
 	args, err := buildBaseArgs(rs)
 	if err != nil {
 		return err
@@ -73,6 +84,7 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	args = append(args, buildTTYArgs()...)
 	args = append(args, buildEnvArgs(rs)...)
 	args = append(args, proxyEnv...)
+	args = append(args, dindArgs...)
 	args = append(args, buildTmpfsArgs(rs)...)
 	args = append(args, buildVolumeArgs(rs)...)
 
@@ -120,7 +132,7 @@ func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 			return nil, nil, err
 		}
 		rs.network = handle.network
-		return proxyEnvArgs(), func() {}, nil
+		return proxyEnvArgs(rs.DindEnabled), func() {}, nil
 	}
 
 	handle, err := startProxy(*rs)
@@ -143,7 +155,43 @@ func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 		stop()
 		handle.PrintSummary(os.Stderr)
 	}
-	return proxyEnvArgs(), cleanup, nil
+	return proxyEnvArgs(rs.DindEnabled), cleanup, nil
+}
+
+// setupDind starts the Docker sidecar if enabled, returning the tool args pointing at it and a
+// cleanup func to defer (a no-op when disabled or this is a dry run, which only prints the sidecar command).
+func setupDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
+	if !rs.DindEnabled {
+		return nil, func() {}, nil
+	}
+
+	if rs.DryRun {
+		handle, err := newDindHandle(*rs)
+		if err != nil {
+			return nil, nil, err
+		}
+		if handle.ownsNetwork {
+			rs.network = handle.network
+		}
+		if _, err := fmt.Fprintln(os.Stdout, "docker", shellJoin(handle.runArgs(*rs))); err != nil {
+			return nil, nil, err
+		}
+		return handle.toolArgs(), func() {}, nil
+	}
+
+	fmt.Fprintln(os.Stderr, "starting docker sidecar...")
+	handle, err := startDind(*rs)
+	if err != nil {
+		return nil, nil, err
+	}
+	rs.network = handle.network
+
+	stop := guardSignals()
+	cleanup = func() {
+		handle.Stop()
+		stop()
+	}
+	return handle.toolArgs(), cleanup, nil
 }
 
 // guardSignals installs a no-op interrupt/terminate handler and returns a func to uninstall it,

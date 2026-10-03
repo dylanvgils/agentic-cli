@@ -187,6 +187,12 @@ func TestBuildImage(t *testing.T) {
 
 The resolved version for each layer and the final apt package list are persisted as Docker labels (`agentic.version-args`, `agentic.apt` - see `internal/docker/labels.go`) when an image is built. `agentic update` reads these labels back (`RecoverVersionArgs`, `RecoverApt`) to reconstruct the original build flags, which is why base/extra layers stay cache-hits across an update even though `.agenticrc.toml`'s `bases`/`apt_packages` are ignored at that point - only an explicit `--base`/`--apt` flag overrides the recovered value.
 
+## Docker-in-Docker sidecar image
+
+`agentic run --dind` builds the global `agentic-dind` image lazily (`ensureDindImage`) from `tools.GenerateDindDockerfile`: the upstream `docker:<version>-dind-rootless` image with setuid/setgid bits stripped and file capabilities on `newuidmap`/`newgidmap`. It always builds with `--pull` and is rebuilt when missing, built by another CLI version, or older than 7 days. `agentic clean` removes it.
+
+The sidecar's seccomp profile is derived at run time (`dindSeccompProfile`) from Docker's default profile, vendored verbatim in `internal/docker/dind_seccomp_default.json`. To refresh it, re-copy `seccomp/default.json` from [moby/profiles](https://github.com/moby/profiles) and update the commit noted on `dindSeccompDefault`; `Test_dindSeccompProfile` checks the derived rules still hold.
+
 ## Building the proxy image locally
 
 The proxy image runs as a sidecar container whenever `--proxy` is enabled. It installs the minimal `agentic-proxy` binary (entrypoint `cmd/proxy/main.go`, built from the `cmd/proxy` package - not the CLI's `agentic` binary) and is built separately from the tool images via `agentic proxy build`/`agentic proxy update`, or lazily by `agentic run --proxy` the first time it's missing (`ensureProxyImage`). `agentic build` never builds it. Unlike tool images, the proxy image is global (tagged `agentic-proxy`), not namespaced.

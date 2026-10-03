@@ -156,6 +156,8 @@ Always check shell scripts with `shellcheck` before committing. Fix all warnings
 
 `--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`, `--user $(id -u):$(id -g)`, `--network agentic-net`. Do not relax these. If a tool needs write access, use a targeted tmpfs or volume mount instead. `agentic-net` is a custom bridge that isolates containers from other host containers; it is created on demand by `EnsureNetwork()` in `internal/docker/network.go` and removed on full `agentic clean`.
 
+The rootless Docker-in-Docker sidecar (`internal/docker/dind.go`) is the only container allowed extra capabilities, unconfined AppArmor, and no `no-new-privileges`, because rootlesskit needs them to create its user namespace. It keeps a seccomp filter derived from Docker's default (`internal/docker/dind_seccomp.go`) - never switch it to `unconfined`. Never move these flags onto the tool container, never use `--privileged`, and never mount the host's Docker socket.
+
 ### Keeping docs in sync
 
 Any change that affects user-facing behaviour must be reflected in `README.md` (commands, flags, config, examples).

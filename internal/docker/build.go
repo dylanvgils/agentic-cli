@@ -68,27 +68,46 @@ func BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) 
 	}
 
 	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
-	if err := buildProxyImage(dockerfilePath, image, context, opts); err != nil {
+	if err := runInteractive(sidecarImageBuildArgs(dockerfilePath, image, tools.ProxyImageSuffix, context, opts)...); err != nil {
 		return fmt.Errorf("proxy image: %w", err)
 	}
 
 	return nil
 }
 
-// buildProxyImage runs docker build for the proxy image.
-func buildProxyImage(dockerfilePath, image, context string, opts tools.BuildOptions) error {
-	return runInteractive(buildProxyImageArgs(dockerfilePath, image, context, opts)...)
+// BuildDindImage generates the hardened Docker sidecar Dockerfile and builds it, always pulling
+// the upstream base so security patches land on every rebuild.
+func BuildDindImage(image string, opts tools.BuildOptions) (retErr error) {
+	tmpDir, err := writeTempDockerfile(tools.GenerateDindDockerfile(opts.Registry))
+	if err != nil {
+		return err
+	}
+
+	defer cleanup.Capture(&retErr, func() error {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			return fmt.Errorf("remove temp dir: %w", err)
+		}
+		return nil
+	})
+
+	opts.Pull = true
+	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
+	if err := runInteractive(sidecarImageBuildArgs(dockerfilePath, image, tools.DindImageSuffix, tmpDir, opts)...); err != nil {
+		return fmt.Errorf("docker sidecar image: %w", err)
+	}
+
+	return nil
 }
 
-// buildProxyImageArgs computes the docker build args for the proxy image: only the agentic
-// labels (no tool/base build-args, no namespace label, since the proxy image is global).
-func buildProxyImageArgs(dockerfilePath, image, context string, opts tools.BuildOptions) []string {
+// sidecarImageBuildArgs computes the docker build args for a global sidecar image (proxy, dind):
+// only the agentic labels (no tool/base build-args, no namespace label, since the image is global).
+func sidecarImageBuildArgs(dockerfilePath, image, toolLabel, context string, opts tools.BuildOptions) []string {
 	args := []string{
 		"build",
 		label(LabelProject, LabelProjectVal),
 		label(LabelBuilt, buildBuiltLabel()),
 		label(LabelCLIVersion, buildinfo.Version),
-		label(LabelTool, tools.ProxyImageSuffix),
+		label(LabelTool, toolLabel),
 	}
 
 	if opts.NoCache {

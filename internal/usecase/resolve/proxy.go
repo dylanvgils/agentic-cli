@@ -2,6 +2,9 @@ package resolve
 
 import "github.com/dylanvgils/agentic-cli/internal/config"
 
+// dindRegistryHosts are the Docker Hub endpoints image pulls need; other registries must be allowlisted explicitly.
+var dindRegistryHosts = []string{"registry-1.docker.io", "auth.docker.io", "production.cloudflare.docker.com"}
+
 // ProxyInput carries the flag-derived values ProxyMode needs.
 type ProxyInput struct {
 	NoProxy     bool
@@ -31,8 +34,11 @@ func ProxyMode(in ProxyInput, rc *config.AgenticRC) (enabled, monitor bool) {
 	return rc.Run.Proxy.Enabled != nil && *rc.Run.Proxy.Enabled, false
 }
 
-// ProxyAllowList merges the tool's baseline allowlist with user-configured hosts.
-func ProxyAllowList(toolAllowedHosts []string, rc *config.AgenticRC) []string {
+// ProxyAllowList merges the tool's baseline allowlist with user-configured hosts, plus Docker Hub when the Docker sidecar is on.
+func ProxyAllowList(toolAllowedHosts []string, dindEnabled bool, rc *config.AgenticRC) []string {
 	allow := append([]string{}, toolAllowedHosts...)
+	if dindEnabled {
+		allow = append(allow, dindRegistryHosts...)
+	}
 	return append(allow, rc.Run.Proxy.AllowedHosts...)
 }

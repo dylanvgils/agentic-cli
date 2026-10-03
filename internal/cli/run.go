@@ -3,10 +3,14 @@ package cli
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
+	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -15,6 +19,9 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
 )
+
+// dindImageMaxAge bounds how stale the sidecar image may get before a run rebuilds it, pulling the patched upstream base.
+const dindImageMaxAge = 7 * 24 * time.Hour
 
 var (
 	toolHome           string
@@ -67,6 +74,7 @@ func init() {
 
 	addResourceLimitFlags(runToolCmd)
 	addProxyFlags(runToolCmd)
+	addDindFlags(runToolCmd)
 	addNamespaceFlag(runToolCmd)
 	addRegistryFlag(runToolCmd)
 }
@@ -120,6 +128,18 @@ func runTool(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	dindEnabled := resolveDindEnabled(cmd, rc)
+	if dindEnabled {
+		if err := requireDockerLayer(parsedArgs.imageName, parsedArgs.toolName); err != nil {
+			return err
+		}
+		if !dryRun {
+			if err := ensureDindImage(cmd); err != nil {
+				return err
+			}
+		}
+	}
+
 	pidsLimit, cpus, memory := resolveResourceLimitFlags(cmd)
 
 	target := run.Target{
@@ -140,6 +160,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		Registry:       collectRegistry(cmd),
 		ProxyEnabled:   proxyEnabled,
 		ProxyMonitor:   proxyMonitor,
+		DindEnabled:    dindEnabled,
 	}
 
 	rs, cleanupInstructions, err := run.BuildWithInstructions(target, input, toolConfig, rc)
@@ -202,4 +223,37 @@ func requireImage(image, tool string) error {
 	}
 	return fmt.Errorf("image %q not found; %q is available under %s %s - use --namespace or run \"agentic build %s\"",
 		image, tool, noun, strings.Join(namespaces, ", "), tool)
+}
+
+// requireDockerLayer errors if image was built without the docker layer, since --dind is useless without a docker CLI to reach the sidecar.
+func requireDockerLayer(image, tool string) error {
+	info, err := inspectImage(image)
+	if err != nil {
+		return err
+	}
+	if info != nil && slices.Contains(docker.RecoverExtras(info.Base), "docker") {
+		return nil
+	}
+
+	return fmt.Errorf("--dind needs the docker CLI in %q; rebuild with \"agentic build %s --base docker\"", image, tool)
+}
+
+// ensureDindImage builds the sidecar image if missing, and rebuilds it when stamped by another CLI
+// version or older than dindImageMaxAge; a failed refresh of an existing image only warns, so offline runs still work.
+func ensureDindImage(cmd *cobra.Command) error {
+	info, err := inspectImage(tools.DindImage)
+	if err != nil {
+		return err
+	}
+	if info != nil && info.CLIVersion == buildinfo.Version && !info.BuiltBefore(time.Now().Add(-dindImageMaxAge)) {
+		return nil
+	}
+
+	logging.Step(tools.DindImage)
+	err = buildDindImage(tools.DindImage, tools.BuildOptions{Registry: collectRegistry(cmd)})
+	if err != nil && info != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not refresh %s, using the existing image: %v\n", tools.DindImage, err)
+		return nil
+	}
+	return err
 }

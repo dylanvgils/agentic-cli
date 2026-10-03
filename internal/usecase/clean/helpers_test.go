@@ -34,6 +34,13 @@ func stubSweepProxyResources(t *testing.T, fn func() error) {
 	t.Cleanup(func() { SweepProxyResources = orig })
 }
 
+func stubSweepDindResources(t *testing.T, fn func() error) {
+	t.Helper()
+	orig := SweepDindResources
+	SweepDindResources = fn
+	t.Cleanup(func() { SweepDindResources = orig })
+}
+
 func stubRemoveNetwork(t *testing.T, fn func() error) {
 	t.Helper()
 	orig := RemoveNetwork

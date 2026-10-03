@@ -104,7 +104,7 @@ func TestProxyHandleStop(t *testing.T) {
 
 func Test_proxyEnvArgs(t *testing.T) {
 	// Act
-	args := proxyEnvArgs()
+	args := proxyEnvArgs(false)
 
 	// Assert
 	assert.Contains(t, args, "--env=HTTPS_PROXY=http://agentic-proxy:3128")

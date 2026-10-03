@@ -4,6 +4,7 @@
   "java": "25",
   "dotnet": "10",
   "go": "1.27.1",
+  "docker": "29",
   "busybox": "1.38.0",
   "debian": "13-slim",
   "distroless_debian": "13"

@@ -57,6 +57,17 @@ func TestRunSpecBuilder_WithProxy(t *testing.T) {
 	assert.True(t, result.ProxyMonitor)
 }
 
+func TestRunSpecBuilder_WithDind(t *testing.T) {
+	// Act
+	result := NewRunSpec("agentic-claude").
+		WithDind(true, "docker:29-dind-rootless").
+		Build()
+
+	// Assert
+	assert.True(t, result.DindEnabled)
+	assert.Equal(t, "docker:29-dind-rootless", result.DindImage)
+}
+
 func TestRunSpecBuilder_WithVolumes_variadic(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		// Act

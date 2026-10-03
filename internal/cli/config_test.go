@@ -380,5 +380,6 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "proxy.enabled: false  (default)")
 		assert.Contains(t, out, "proxy.mode: enforce  (default)")
 		assert.Contains(t, out, "proxy.allowed_hosts: (none)")
+		assert.Contains(t, out, "dind.enabled: false  (default)")
 	})
 }
