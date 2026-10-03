@@ -24,75 +24,69 @@ const (
 	ClientCertSubdir = "client"
 )
 
-// certPair is a signed certificate and its private key, PEM-encoded.
-type certPair struct {
-	certPEM []byte
-	keyPEM  []byte
+// keyPair is an issued certificate and its private key.
+type keyPair struct {
+	cert *x509.Certificate
+	key  *ecdsa.PrivateKey
+}
+
+// certPEM returns the certificate PEM-encoded.
+func (p keyPair) certPEM() []byte {
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: p.cert.Raw})
+}
+
+// keyPEM returns the private key PEM-encoded.
+func (p keyPair) keyPEM() ([]byte, error) {
+	der, err := x509.MarshalECPrivateKey(p.key)
+	if err != nil {
+		return nil, fmt.Errorf("marshal %s key: %w", p.cert.Subject.CommonName, err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}), nil
 }
 
 // WriteCerts generates a throwaway CA plus a server and client cert under dir. The CA key
 // only ever lives in memory, so nothing on disk can mint further certs for this daemon.
 func WriteCerts(dir string, serverNames []string) error {
-	ca, caKey, caPEM, err := newCA()
+	ca, err := newCA()
 	if err != nil {
 		return err
 	}
 
-	server, err := newLeafCert(ca, caKey, "agentic dind server", x509.ExtKeyUsageServerAuth, serverNames)
+	server, err := newLeafCert(ca, "agentic dind server", x509.ExtKeyUsageServerAuth, serverNames)
 	if err != nil {
 		return err
 	}
 
-	client, err := newLeafCert(ca, caKey, "agentic dind client", x509.ExtKeyUsageClientAuth, nil)
+	client, err := newLeafCert(ca, "agentic dind client", x509.ExtKeyUsageClientAuth, nil)
 	if err != nil {
 		return err
 	}
 
-	if err := writeCertDir(filepath.Join(dir, ServerCertSubdir), caPEM, server); err != nil {
+	if err := writeCertDir(filepath.Join(dir, ServerCertSubdir), ca, server); err != nil {
 		return err
 	}
-	return writeCertDir(filepath.Join(dir, ClientCertSubdir), caPEM, client)
+	return writeCertDir(filepath.Join(dir, ClientCertSubdir), ca, client)
 }
 
-// newCA returns a self-signed CA cert, its in-memory key, and the cert as PEM.
-func newCA() (*x509.Certificate, *ecdsa.PrivateKey, []byte, error) {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("generate dind CA key: %w", err)
-	}
-
+// newCA returns a self-signed CA that may only sign leaf certs.
+func newCA() (keyPair, error) {
 	tmpl, err := certTemplate("agentic dind CA")
 	if err != nil {
-		return nil, nil, nil, err
+		return keyPair{}, err
 	}
 	tmpl.IsCA = true
 	tmpl.BasicConstraintsValid = true
 	tmpl.MaxPathLenZero = true
 	tmpl.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature
 
-	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("create dind CA cert: %w", err)
-	}
-
-	ca, err := x509.ParseCertificate(der)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("parse dind CA cert: %w", err)
-	}
-
-	return ca, key, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), nil
+	return issue(tmpl, nil)
 }
 
 // newLeafCert issues a cert signed by ca for one usage; names become DNS or IP SANs.
-func newLeafCert(ca *x509.Certificate, caKey *ecdsa.PrivateKey, cn string, usage x509.ExtKeyUsage, names []string) (certPair, error) {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return certPair{}, fmt.Errorf("generate %s key: %w", cn, err)
-	}
-
+func newLeafCert(ca keyPair, cn string, usage x509.ExtKeyUsage, names []string) (keyPair, error) {
 	tmpl, err := certTemplate(cn)
 	if err != nil {
-		return certPair{}, err
+		return keyPair{}, err
 	}
 	tmpl.KeyUsage = x509.KeyUsageDigitalSignature
 	tmpl.ExtKeyUsage = []x509.ExtKeyUsage{usage}
@@ -105,20 +99,7 @@ func newLeafCert(ca *x509.Certificate, caKey *ecdsa.PrivateKey, cn string, usage
 		}
 	}
 
-	der, err := x509.CreateCertificate(rand.Reader, tmpl, ca, &key.PublicKey, caKey)
-	if err != nil {
-		return certPair{}, fmt.Errorf("create %s cert: %w", cn, err)
-	}
-
-	keyDER, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		return certPair{}, fmt.Errorf("marshal %s key: %w", cn, err)
-	}
-
-	return certPair{
-		certPEM: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}),
-		keyPEM:  pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}),
-	}, nil
+	return issue(tmpl, &ca)
 }
 
 // certTemplate returns a template with a random serial and the per-run validity window.
@@ -137,18 +118,50 @@ func certTemplate(cn string) (*x509.Certificate, error) {
 	}, nil
 }
 
+// issue generates a key and signs tmpl with it, by parent or self-signed when parent is nil.
+func issue(tmpl *x509.Certificate, parent *keyPair) (keyPair, error) {
+	cn := tmpl.Subject.CommonName
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return keyPair{}, fmt.Errorf("generate %s key: %w", cn, err)
+	}
+
+	signer := keyPair{cert: tmpl, key: key}
+	if parent != nil {
+		signer = *parent
+	}
+
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, signer.cert, &key.PublicKey, signer.key)
+	if err != nil {
+		return keyPair{}, fmt.Errorf("create %s cert: %w", cn, err)
+	}
+
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		return keyPair{}, fmt.Errorf("parse %s cert: %w", cn, err)
+	}
+
+	return keyPair{cert: cert, key: key}, nil
+}
+
 // writeCertDir writes ca.pem, cert.pem and key.pem in the layout the docker CLI and dind entrypoint expect.
 // Files are world-readable because the sidecar's rootless user (uid 1000) may differ from the host
 // user; the per-run parent dir is 0700, which keeps other host users out.
-func writeCertDir(dir string, caPEM []byte, pair certPair) error {
+func writeCertDir(dir string, ca, leaf keyPair) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create cert dir: %w", err)
 	}
 
+	keyPEM, err := leaf.keyPEM()
+	if err != nil {
+		return err
+	}
+
 	files := map[string][]byte{
-		"ca.pem":   caPEM,
-		"cert.pem": pair.certPEM,
-		"key.pem":  pair.keyPEM,
+		"ca.pem":   ca.certPEM(),
+		"cert.pem": leaf.certPEM(),
+		"key.pem":  keyPEM,
 	}
 	for name, content := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), content, 0o644); err != nil {
