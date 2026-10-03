@@ -98,9 +98,13 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		WithTmpfsMounts(toolConfig.Runtime.TmpfsMounts()...).
 		WithLimits(limits).
 		WithDryRun(in.DryRun).
-		WithProxy(in.ProxyMode, tools.ProxyImage, resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc), logDir).
-		WithDind(in.DindEnabled, tools.DindImage).
-		WithDindLimits(dindLimits).
+		WithProxy(docker.ProxySpec{
+			Mode:   in.ProxyMode,
+			Image:  tools.ProxyImage,
+			Allow:  resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc),
+			LogDir: logDir,
+		}).
+		WithDind(docker.DindSpec{Enabled: in.DindEnabled, Image: tools.DindImage, Limits: dindLimits}).
 		Build()
 
 	return rs, nil

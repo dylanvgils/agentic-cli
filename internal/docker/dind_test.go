@@ -20,7 +20,7 @@ func Test_startDind(t *testing.T) {
 	t.Run("creates own network, writes run files and probes the sidecar", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t)
-		rs := RunSpec{ToolHome: t.TempDir(), DindImage: "dind", container: "agentic-claude-abc"}
+		rs := RunSpec{ToolHome: t.TempDir(), container: "agentic-claude-abc", Dind: DindSpec{Image: "dind"}}
 
 		// Act
 		handle, err := startDind(rs, nil)
@@ -43,7 +43,7 @@ func Test_startDind(t *testing.T) {
 	t.Run("joins the proxy network instead of creating one", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t)
-		rs := RunSpec{ToolHome: t.TempDir(), DindImage: "dind", ProxyMode: ProxyEnforce, network: "agentic-proxy-abc"}
+		rs := RunSpec{ToolHome: t.TempDir(), network: "agentic-proxy-abc", Proxy: ProxySpec{Mode: ProxyEnforce}, Dind: DindSpec{Image: "dind"}}
 
 		// Act
 		handle, err := startDind(rs, nil)
@@ -60,7 +60,7 @@ func Test_startDind(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, "exec")
 		toolHome := t.TempDir()
-		rs := RunSpec{ToolHome: toolHome, DindImage: "dind"}
+		rs := RunSpec{ToolHome: toolHome, Dind: DindSpec{Image: "dind"}}
 
 		// Act
 		_, err := startDind(rs, nil)
@@ -78,7 +78,7 @@ func Test_startDind(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, "run")
 		toolHome := t.TempDir()
-		rs := RunSpec{ToolHome: toolHome, DindImage: "dind"}
+		rs := RunSpec{ToolHome: toolHome, Dind: DindSpec{Image: "dind"}}
 
 		// Act
 		_, err := startDind(rs, nil)
@@ -99,7 +99,7 @@ func Test_setupDind(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t)
 		toolHome := t.TempDir()
-		rs := RunSpec{ToolHome: toolHome, DindImage: "dind", DindEnabled: true, DryRun: true}
+		rs := RunSpec{ToolHome: toolHome, DryRun: true, Dind: DindSpec{Image: "dind", Enabled: true}}
 
 		// Act
 		args, cleanup, err := setupDind(&rs)
@@ -116,7 +116,7 @@ func Test_setupDind(t *testing.T) {
 	t.Run("dry run keeps proxy network", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t)
-		rs := RunSpec{ToolHome: t.TempDir(), DindImage: "dind", DindEnabled: true, DryRun: true, ProxyMode: ProxyEnforce, network: "agentic-proxy-abc"}
+		rs := RunSpec{ToolHome: t.TempDir(), DryRun: true, network: "agentic-proxy-abc", Proxy: ProxySpec{Mode: ProxyEnforce}, Dind: DindSpec{Image: "dind", Enabled: true}}
 
 		// Act
 		_, _, err := setupDind(&rs)
@@ -130,7 +130,7 @@ func Test_setupDind(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t)
 		toolHome := t.TempDir()
-		rs := RunSpec{ToolHome: toolHome, DindImage: "dind", DindEnabled: true}
+		rs := RunSpec{ToolHome: toolHome, Dind: DindSpec{Image: "dind", Enabled: true}}
 
 		// Act
 		_, cleanup, err := setupDind(&rs)
@@ -147,7 +147,7 @@ func Test_setupDind(t *testing.T) {
 	t.Run("propagates startDind error", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, "run")
-		rs := RunSpec{ToolHome: t.TempDir(), DindImage: "dind", DindEnabled: true}
+		rs := RunSpec{ToolHome: t.TempDir(), Dind: DindSpec{Image: "dind", Enabled: true}}
 
 		// Act
 		args, cleanup, err := setupDind(&rs)
@@ -167,10 +167,9 @@ func Test_dindHandle_runArgs(t *testing.T) {
 	t.Run("hardened rootless sidecar", func(t *testing.T) {
 		// Arrange
 		rs := RunSpec{
-			DindImage:  "docker:29-dind-rootless",
-			Limits:     ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"},
-			DindLimits: ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"},
-			container:  "agentic-claude-abc",
+			Limits:    ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"},
+			Dind:      DindSpec{Image: "docker:29-dind-rootless", Limits: ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}},
+			container: "agentic-claude-abc",
 		}
 
 		// Act
@@ -204,7 +203,7 @@ func Test_dindHandle_runArgs(t *testing.T) {
 
 	t.Run("proxy mode routes egress through the proxy", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{DindImage: "dind", ProxyMode: ProxyEnforce}
+		rs := RunSpec{Proxy: ProxySpec{Mode: ProxyEnforce}, Dind: DindSpec{Image: "dind"}}
 
 		// Act
 		args := handle.runArgs(rs)

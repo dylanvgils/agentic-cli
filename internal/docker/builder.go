@@ -12,13 +12,8 @@ type RunSpecBuilder struct {
 	tmpfsMounts    []string
 	limits         ResourceLimits
 	dryRun         bool
-	proxyMode      ProxyMode
-	proxyImage     string
-	proxyAllow     []string
-	proxyLogDir    string
-	dindEnabled    bool
-	dindImage      string
-	dindLimits     ResourceLimits
+	proxy          ProxySpec
+	dind           DindSpec
 }
 
 // NewRunSpec creates a RunSpecBuilder for the given image.
@@ -80,26 +75,15 @@ func (b *RunSpecBuilder) WithDryRun(dryRun bool) *RunSpecBuilder {
 	return b
 }
 
-// WithProxy confines the tool to an internal network reaching out only via the proxy sidecar,
-// which logs to logDir and enforces allow (or only logs the verdict in ProxyMonitor mode).
-func (b *RunSpecBuilder) WithProxy(mode ProxyMode, image string, allow []string, logDir string) *RunSpecBuilder {
-	b.proxyMode = mode
-	b.proxyImage = image
-	b.proxyAllow = allow
-	b.proxyLogDir = logDir
+// WithProxy confines the tool to an internal network reaching out only via the proxy sidecar.
+func (b *RunSpecBuilder) WithProxy(spec ProxySpec) *RunSpecBuilder {
+	b.proxy = spec
 	return b
 }
 
-// WithDind starts a rootless Docker daemon sidecar from image that the tool reaches over mutual TLS.
-func (b *RunSpecBuilder) WithDind(enabled bool, image string) *RunSpecBuilder {
-	b.dindEnabled = enabled
-	b.dindImage = image
-	return b
-}
-
-// WithDindLimits sets the Docker sidecar's PID, CPU and memory limits.
-func (b *RunSpecBuilder) WithDindLimits(limits ResourceLimits) *RunSpecBuilder {
-	b.dindLimits = limits
+// WithDind starts a rootless Docker daemon sidecar that the tool reaches over mutual TLS.
+func (b *RunSpecBuilder) WithDind(spec DindSpec) *RunSpecBuilder {
+	b.dind = spec
 	return b
 }
 
@@ -116,12 +100,7 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		TmpfsMounts:    b.tmpfsMounts,
 		Limits:         b.limits,
 		DryRun:         b.dryRun,
-		ProxyMode:      b.proxyMode,
-		ProxyImage:     b.proxyImage,
-		ProxyAllow:     b.proxyAllow,
-		ProxyLogDir:    b.proxyLogDir,
-		DindEnabled:    b.dindEnabled,
-		DindImage:      b.dindImage,
-		DindLimits:     b.dindLimits,
+		Proxy:          b.proxy,
+		Dind:           b.dind,
 	}
 }

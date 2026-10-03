@@ -15,7 +15,7 @@ func TestStartProxy(t *testing.T) {
 	t.Run("creates internal network, hardened sidecar, and egress link", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, "network inspect")
-		rs := RunSpec{ProxyImage: "default-proxy", ProxyAllow: []string{"api.anthropic.com"}, ProxyLogDir: "/tmp/agentic/proxy", container: "agentic-claude-abc"}
+		rs := RunSpec{container: "agentic-claude-abc", Proxy: ProxySpec{Image: "default-proxy", Allow: []string{"api.anthropic.com"}, LogDir: "/tmp/agentic/proxy"}}
 
 		// Act
 		handle, err := startProxy(rs)
@@ -59,7 +59,7 @@ func TestStartProxy(t *testing.T) {
 	t.Run("removes network when sidecar fails to start", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, "network inspect", "run")
-		rs := RunSpec{ProxyImage: "default-proxy", ProxyLogDir: "/tmp/agentic/proxy"}
+		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: "/tmp/agentic/proxy"}}
 
 		// Act
 		_, err := startProxy(rs)
@@ -79,19 +79,19 @@ func TestStartProxy(t *testing.T) {
 func TestNewProxyHandle(t *testing.T) {
 	t.Run("log path is under the log dir", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{ProxyLogDir: "/tmp/agentic/logs"}
+		rs := RunSpec{Proxy: ProxySpec{LogDir: "/tmp/agentic/logs"}}
 
 		// Act
 		handle, err := newProxyHandle(rs)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, filepath.Join(rs.ProxyLogDir, proxy.LogFilePrefix+handle.id+".jsonl"), handle.logPath)
+		assert.Equal(t, filepath.Join(rs.Proxy.LogDir, proxy.LogFilePrefix+handle.id+".jsonl"), handle.logPath)
 	})
 
 	t.Run("enforce mode does not monitor", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{ProxyMode: ProxyEnforce}
+		rs := RunSpec{Proxy: ProxySpec{Mode: ProxyEnforce}}
 
 		// Act
 		handle, err := newProxyHandle(rs)
@@ -103,7 +103,7 @@ func TestNewProxyHandle(t *testing.T) {
 
 	t.Run("monitor mode monitors", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{ProxyMode: ProxyMonitor}
+		rs := RunSpec{Proxy: ProxySpec{Mode: ProxyMonitor}}
 
 		// Act
 		handle, err := newProxyHandle(rs)
@@ -276,7 +276,7 @@ func Test_setupProxy(t *testing.T) {
 	t.Run("dry run sets network without docker calls", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t)
-		rs := RunSpec{Image: "agentic-claude", ProxyMode: ProxyEnforce, DryRun: true, ProxyLogDir: t.TempDir()}
+		rs := RunSpec{Image: "agentic-claude", DryRun: true, Proxy: ProxySpec{Mode: ProxyEnforce, LogDir: t.TempDir()}}
 
 		// Act
 		env, cleanup, err := setupProxy(&rs)
@@ -292,7 +292,7 @@ func Test_setupProxy(t *testing.T) {
 	t.Run("cleanup stops the sidecar", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, "network inspect")
-		rs := RunSpec{Image: "agentic-claude", ProxyMode: ProxyEnforce, ProxyImage: "default-proxy", ProxyLogDir: t.TempDir()}
+		rs := RunSpec{Image: "agentic-claude", Proxy: ProxySpec{Mode: ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir()}}
 
 		// Act
 		_, cleanup, err := setupProxy(&rs)
@@ -307,7 +307,7 @@ func Test_setupProxy(t *testing.T) {
 	t.Run("propagates startProxy error", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, "network inspect", "network create")
-		rs := RunSpec{Image: "agentic-claude", ProxyMode: ProxyEnforce, ProxyImage: "default-proxy", ProxyLogDir: t.TempDir()}
+		rs := RunSpec{Image: "agentic-claude", Proxy: ProxySpec{Mode: ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir()}}
 
 		// Act
 		env, cleanup, err := setupProxy(&rs)

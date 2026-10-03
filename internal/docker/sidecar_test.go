@@ -55,13 +55,10 @@ func Test_setupSidecars(t *testing.T) {
 		stubDindReadyTimeout(t)
 		calls := stubDockerRunCapture(t, "network inspect", "exec")
 		rs := RunSpec{
-			Image:       "agentic-claude",
-			ToolHome:    t.TempDir(),
-			ProxyMode:   ProxyEnforce,
-			ProxyImage:  "default-proxy",
-			ProxyLogDir: t.TempDir(),
-			DindEnabled: true,
-			DindImage:   "dind",
+			Image:    "agentic-claude",
+			ToolHome: t.TempDir(),
+			Proxy:    ProxySpec{Mode: ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir()},
+			Dind:     DindSpec{Enabled: true, Image: "dind"},
 		}
 
 		// Act

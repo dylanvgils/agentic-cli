@@ -103,6 +103,13 @@ var dindReservedEnvNames = map[string]bool{
 	"DOCKER_CONFIG":     true,
 }
 
+// DindSpec configures the rootless Docker daemon sidecar the tool reaches over mutual TLS.
+type DindSpec struct {
+	Enabled bool
+	Image   string
+	Limits  ResourceLimits
+}
+
 // dindHandle identifies the per-run sidecar, its network and its run dir.
 type dindHandle struct {
 	id          string
@@ -159,9 +166,9 @@ func (h dindHandle) runArgs(rs RunSpec) []string {
 		arg("network", h.network),
 		arg("network-alias", dindHostAlias),
 		label(LabelProject, LabelProjectVal),
-		arg("pids-limit", rs.DindLimits.PidsLimit),
-		arg("cpus", rs.DindLimits.CPUs),
-		arg("memory", rs.DindLimits.Memory),
+		arg("pids-limit", rs.Dind.Limits.PidsLimit),
+		arg("cpus", rs.Dind.Limits.CPUs),
+		arg("memory", rs.Dind.Limits.Memory),
 		// Same user as the tool, so writes to /workspace land as the host user
 		arg("user", h.identity.UserGroup()),
 		arg("env", "HOME="+dind.Home),
@@ -198,12 +205,12 @@ func (h dindHandle) runArgs(rs RunSpec) []string {
 		args = append(args, arg("volume", volume))
 	}
 
-	if rs.ProxyMode.Enabled() {
+	if rs.Proxy.Mode.Enabled() {
 		args = append(args, proxyEnvArgs(false)...)
 	}
 
 	// Trailing flags are passed through to dockerd
-	return append(args, rs.DindImage, arg("data-root", dindDataRoot))
+	return append(args, rs.Dind.Image, arg("data-root", dindDataRoot))
 }
 
 // toolArgs returns the env and mounts pointing the tool's docker CLI at the sidecar.
@@ -320,7 +327,7 @@ func startDind(rs RunSpec, interrupt <-chan os.Signal) (dindHandle, error) {
 		h.Stop()
 		return dindHandle{}, err
 	}
-	if err := writeDindClientConfig(filepath.Join(h.runDir, dindConfigSubdir), rs.ProxyMode.Enabled()); err != nil {
+	if err := writeDindClientConfig(filepath.Join(h.runDir, dindConfigSubdir), rs.Proxy.Mode.Enabled()); err != nil {
 		h.Stop()
 		return dindHandle{}, err
 	}
@@ -358,7 +365,7 @@ func startDind(rs RunSpec, interrupt <-chan os.Signal) (dindHandle, error) {
 
 // setupDind starts the Docker sidecar if enabled, returning the tool args and a cleanup func to defer.
 func setupDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
-	if !rs.DindEnabled {
+	if !rs.Dind.Enabled {
 		return nil, func() {}, nil
 	}
 
