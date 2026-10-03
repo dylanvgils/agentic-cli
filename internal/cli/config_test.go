@@ -354,6 +354,30 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Less(t, makeIdx, gccIdx)
 	})
 
+	t.Run("dind limits inherit tool values unless set", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		layers := []config.RCLayer{
+			{
+				Path: "/project/.agenticrc.toml",
+				RC: &config.AgenticRC{Run: config.RCRun{
+					CPUs: "8", PidsLimit: "100",
+					Dind: config.RCDind{Memory: "16g"},
+				}},
+			},
+		}
+
+		// Act
+		err := printProjectConfig(&buf, layers)
+
+		// Assert
+		require.NoError(t, err)
+		out := buf.String()
+		assert.Contains(t, out, "dind.pids_limit: 100  (default)")
+		assert.Contains(t, out, "dind.cpus: 8  (default)")
+		assert.Contains(t, out, "dind.memory: 16g  [/project/.agenticrc.toml]")
+	})
+
 	t.Run("no values shows defaults", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer
@@ -381,5 +405,8 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "proxy.mode: enforce  (default)")
 		assert.Contains(t, out, "proxy.allowed_hosts: (none)")
 		assert.Contains(t, out, "dind.enabled: false  (default)")
+		assert.Contains(t, out, "dind.pids_limit: 1024  (default)")
+		assert.Contains(t, out, "dind.cpus: 4  (default)")
+		assert.Contains(t, out, "dind.memory: 4g  (default)")
 	})
 }

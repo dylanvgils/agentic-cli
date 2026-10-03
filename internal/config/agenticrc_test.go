@@ -344,6 +344,18 @@ func TestMergeConfigs(t *testing.T) {
 		assert.True(t, *result.Run.Dind.Enabled)
 	})
 
+	t.Run("dind limits child wins and parent fills gaps", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Run: RCRun{Dind: RCDind{CPUs: "2"}}}
+		parent := &AgenticRC{Run: RCRun{Dind: RCDind{PidsLimit: "512", CPUs: "8", Memory: "8g"}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, RCDind{PidsLimit: "512", CPUs: "2", Memory: "8g"}, result.Run.Dind)
+	})
+
 	t.Run("check_updates child wins over parent", func(t *testing.T) {
 		// Arrange
 		childFalse := false

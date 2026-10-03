@@ -135,6 +135,9 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	proxyMode := func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }
 	proxyAllowedHosts := func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts }
 	dindEnabled := func(rc *config.AgenticRC) *bool { return rc.Run.Dind.Enabled }
+	dindPidsLimit := func(rc *config.AgenticRC) string { return rc.Run.Dind.PidsLimit }
+	dindCPUs := func(rc *config.AgenticRC) string { return rc.Run.Dind.CPUs }
+	dindMemory := func(rc *config.AgenticRC) string { return rc.Run.Dind.Memory }
 
 	if err := printScalarField(w, "namespace", layers, func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace); err != nil {
 		return err
@@ -178,7 +181,18 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if err := printListField(w, "proxy.allowed_hosts", layers, proxyAllowedHosts); err != nil {
 		return err
 	}
-	return printBoolField(w, "dind.enabled", layers, dindEnabled, false)
+	if err := printBoolField(w, "dind.enabled", layers, dindEnabled, false); err != nil {
+		return err
+	}
+
+	// Unset dind limits inherit the tool's
+	if err := printScalarField(w, "dind.pids_limit", layers, dindPidsLimit, effectiveScalar(layers, pidsLimit, docker.DefaultPidsLimit)); err != nil {
+		return err
+	}
+	if err := printScalarField(w, "dind.cpus", layers, dindCPUs, effectiveScalar(layers, cpus, docker.DefaultCPUs)); err != nil {
+		return err
+	}
+	return printScalarField(w, "dind.memory", layers, dindMemory, effectiveScalar(layers, memory, docker.DefaultMemory))
 }
 
 // printScalarField prints a scalar config field: innermost RC value wins, else defaultVal tagged (default), else "(not set)".
@@ -195,6 +209,16 @@ func printScalarField(w io.Writer, label string, layers []config.RCLayer, get fu
 	}
 	_, err := fmt.Fprintf(w, "  %s: (not set)\n", label)
 	return err
+}
+
+// effectiveScalar returns the innermost RC value for a scalar field, else defaultVal.
+func effectiveScalar(layers []config.RCLayer, get func(*config.AgenticRC) string, defaultVal string) string {
+	for i := len(layers) - 1; i >= 0; i-- {
+		if v := get(layers[i].RC); v != "" {
+			return v
+		}
+	}
+	return defaultVal
 }
 
 // printBoolField prints a bool config field; the innermost layer with a non-nil value wins, else defaultVal is shown tagged (default).

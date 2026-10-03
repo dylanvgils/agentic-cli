@@ -68,6 +68,18 @@ func TestRunSpecBuilder_WithDind(t *testing.T) {
 	assert.Equal(t, "docker:29-dind-rootless", result.DindImage)
 }
 
+func TestRunSpecBuilder_WithDindLimits(t *testing.T) {
+	// Act
+	result := NewRunSpec("agentic-claude").
+		WithDindLimits("2048", "2", "8g").
+		Build()
+
+	// Assert
+	assert.Equal(t, "2048", result.DindPidsLimit)
+	assert.Equal(t, "2", result.DindCPUs)
+	assert.Equal(t, "8g", result.DindMemory)
+}
+
 func TestRunSpecBuilder_WithVolumes_variadic(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		// Act

@@ -55,8 +55,11 @@ type RunSpec struct {
 	ProxyMonitor bool     // log the allowlist verdict without enforcing it
 
 	// Docker-in-Docker sidecar, reachable at DOCKER_HOST over mutual TLS
-	DindEnabled bool
-	DindImage   string
+	DindEnabled   bool
+	DindImage     string
+	DindPidsLimit string
+	DindCPUs      string
+	DindMemory    string
 
 	// network is the docker network the tool attaches to; empty means NetworkName, proxy or dind mode sets a per-run net.
 	network string

@@ -21,6 +21,9 @@ type RunSpecBuilder struct {
 	proxyMonitor   bool
 	dindEnabled    bool
 	dindImage      string
+	dindPidsLimit  string
+	dindCPUs       string
+	dindMemory     string
 }
 
 // NewRunSpec creates a RunSpecBuilder for the given image.
@@ -112,6 +115,14 @@ func (b *RunSpecBuilder) WithDind(enabled bool, image string) *RunSpecBuilder {
 	return b
 }
 
+// WithDindLimits sets the Docker sidecar's PID, CPU and memory limits.
+func (b *RunSpecBuilder) WithDindLimits(pidsLimit, cpus, memory string) *RunSpecBuilder {
+	b.dindPidsLimit = pidsLimit
+	b.dindCPUs = cpus
+	b.dindMemory = memory
+	return b
+}
+
 // Build returns the completed RunSpec.
 func (b *RunSpecBuilder) Build() RunSpec {
 	return RunSpec{
@@ -134,5 +145,8 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		ProxyMonitor:   b.proxyMonitor,
 		DindEnabled:    b.dindEnabled,
 		DindImage:      b.dindImage,
+		DindPidsLimit:  b.dindPidsLimit,
+		DindCPUs:       b.dindCPUs,
+		DindMemory:     b.dindMemory,
 	}
 }

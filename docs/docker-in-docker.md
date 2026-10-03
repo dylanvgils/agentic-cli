@@ -35,7 +35,7 @@ The Docker host must allow unprivileged user namespaces (the default on Docker D
 ## Trade-offs
 
 - The agent can start containers with namespace-scoped `CAP_SYS_ADMIN`/`CAP_NET_ADMIN`, which exposes kernel interfaces (e.g. nf_tables, mounts, nested user namespaces) that a plain container can't reach. Isolation then rests on the host kernel's user-namespace code, so keep the Docker host's kernel patched.
-- The sidecar gets the same `--pids-limit`/`--cpus`/`--memory` as the tool container, on top of the tool's own, so a run can use up to twice those limits. Images and volumes live on the Docker host's disk with no size limit.
+- The sidecar has its own `--pids-limit`/`--cpus`/`--memory`, on top of the tool's, shared by everything the daemon runs. They default to the tool's limits (so a run can use up to twice them); set `[run.dind]` `pids_limit`/`cpus`/`memory` or `--dind-pids-limit`/`--dind-cpus`/`--dind-memory` to size the daemon separately. Images and volumes live on the Docker host's disk with no size limit.
 
 See [Security model](security-model.md) for how this fits with the other layers and what risk is left.
 

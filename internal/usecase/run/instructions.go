@@ -62,6 +62,7 @@ func BuildInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc 
 
 	containerHome := docker.ResolveContainerHome(target.ImageName)
 	limits := resolve.ResourceLimitsFor(in.PidsLimit, in.CPUs, in.Memory, rc)
+	dindLimits := resolve.DindResourceLimitsFor(in.DindPidsLimit, in.DindCPUs, in.DindMemory, rc, limits)
 
 	var b strings.Builder
 	b.WriteString("# Agentic container environment\n\n")
@@ -73,7 +74,7 @@ func BuildInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc 
 	writeResourceLimitsSection(&b, limits)
 	writePrivilegeSection(&b)
 	writeNetworkSection(&b, toolConfig, rc, in)
-	writeDockerSection(&b, in)
+	writeDockerSection(&b, in, dindLimits)
 	writeCustomSection(&b, rc)
 
 	return b.String(), nil
@@ -197,7 +198,7 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 }
 
 // writeDockerSection is only written when the Docker sidecar is enabled.
-func writeDockerSection(b *strings.Builder, in Input) {
+func writeDockerSection(b *strings.Builder, in Input, limits resolve.ResourceLimits) {
 	if !in.DindEnabled {
 		return
 	}
@@ -207,6 +208,7 @@ func writeDockerSection(b *strings.Builder, in Input) {
 	b.WriteString("- `/workspace` is mounted at the same path in the daemon, so bind mounts under `/workspace` work; other paths (e.g. this container's home or `/tmp`) don't exist there.\n")
 	b.WriteString("- Published ports listen on the sidecar: reach them at `agentic-docker:<port>`, not `localhost`. They are not reachable from the user's machine.\n")
 	b.WriteString("- Images, containers and volumes are discarded when this session ends.\n")
+	fmt.Fprintf(b, "- The daemon has its own limits, shared by everything it runs: %s processes, %s CPUs, %s memory. To raise them, tell the user to set pids_limit/cpus/memory under [run.dind] in .agenticrc.toml (or the --dind-pids-limit/--dind-cpus/--dind-memory flags).\n", limits.PidsLimit, limits.CPUs, limits.Memory)
 	if in.ProxyEnabled {
 		b.WriteString("- Image pulls, builds and containers go through the same egress proxy and allowlist; a registry other than Docker Hub must be added to allowed_hosts.\n")
 	}

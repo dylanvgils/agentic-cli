@@ -166,7 +166,10 @@ func Test_dindHandle_runArgs(t *testing.T) {
 
 	t.Run("hardened rootless sidecar", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{DindImage: "docker:29-dind-rootless", PidsLimit: "1024", CPUs: "4", Memory: "4g", container: "agentic-claude-abc"}
+		rs := RunSpec{
+			DindImage: "docker:29-dind-rootless", PidsLimit: "1024", CPUs: "4", Memory: "4g",
+			DindPidsLimit: "2048", DindCPUs: "2", DindMemory: "8g", container: "agentic-claude-abc",
+		}
 
 		// Act
 		args := handle.runArgs(rs)
@@ -183,7 +186,9 @@ func Test_dindHandle_runArgs(t *testing.T) {
 		assert.NotContains(t, args, "--security-opt=seccomp=unconfined")
 		assert.NotContains(t, args, "--privileged")
 		assert.Contains(t, args, "--device=/dev/net/tun")
-		assert.Contains(t, args, "--pids-limit=1024")
+		assert.Contains(t, args, "--pids-limit=2048", "sidecar uses its own limits, not the tool's")
+		assert.Contains(t, args, "--cpus=2")
+		assert.Contains(t, args, "--memory=8g")
 		assert.Contains(t, args, "--label=agentic.owner=agentic-claude-abc", "an orphaned sidecar is found by its owner")
 		assert.True(t, hasArgWithPrefix(args, "--label=agentic.started="))
 		assert.Contains(t, args, "--user=1234:5678", "sidecar runs as the host user, like the tool container")

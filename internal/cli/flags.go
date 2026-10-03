@@ -81,11 +81,22 @@ func addProxyFlags(cmd *cobra.Command) {
 	cmd.MarkFlagsMutuallyExclusive("proxy", "no-proxy", "proxy-monitor")
 }
 
-// addDindFlags registers the mutually exclusive --dind and --no-dind flags.
+// addDindFlags registers the exclusive --dind/--no-dind pair and the sidecar limit flags.
 func addDindFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("dind", false, "start a rootless Docker daemon sidecar the tool can use (overrides config; needs the docker base layer)")
 	cmd.Flags().Bool("no-dind", false, "disable the Docker daemon sidecar for this run (overrides config)")
+	cmd.Flags().String("dind-pids-limit", "", "Docker sidecar PID limit (defaults to the tool's)")
+	cmd.Flags().String("dind-cpus", "", "Docker sidecar CPU limit (defaults to the tool's)")
+	cmd.Flags().String("dind-memory", "", "Docker sidecar memory limit (defaults to the tool's)")
 	cmd.MarkFlagsMutuallyExclusive("dind", "no-dind")
+}
+
+// resolveDindResourceLimitFlags returns the --dind-* limit flag values.
+func resolveDindResourceLimitFlags(cmd *cobra.Command) (pidsLimit, cpus, memory string) {
+	pidsLimit, _ = cmd.Flags().GetString("dind-pids-limit")
+	cpus, _ = cmd.Flags().GetString("dind-cpus")
+	memory, _ = cmd.Flags().GetString("dind-memory")
+	return pidsLimit, cpus, memory
 }
 
 // resolveDindEnabled reads the dind flags and resolves them against rc.
