@@ -55,6 +55,17 @@ func TestToolContainer(t *testing.T) {
 		assert.Contains(t, out, "pids="+testPidsLimit)
 	})
 
+	t.Run("cpu limit applied", func(t *testing.T) {
+		// Arrange
+		skipWithoutCgroups(t)
+
+		// Act
+		out := runInTool(t, `echo "cpu=$(cat /sys/fs/cgroup/cpu.max)"`)
+
+		// Assert
+		assert.Contains(t, out, "cpu=150000 100000") // testCPUs as quota per 100ms period
+	})
+
 	t.Run("memory limit applied", func(t *testing.T) {
 		// Arrange
 		skipWithoutCgroups(t)

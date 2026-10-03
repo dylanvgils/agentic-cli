@@ -125,7 +125,7 @@ Group functions by what they're about, not by when they were added, whether they
 - Test helper functions that need cleanup must register it via `t.Cleanup` internally - do not return a restore/teardown func for callers to defer
 - All shared test helpers live in `helpers_test.go` in the same package; do not define helpers inside individual test files
 - Name all stub helpers with a `stub` prefix (e.g. `stubDockerRun`, `stubRunInteractive`); pure utilities that are not stubs are exempt (e.g. `argAfter`)
-- Integration tests go in `test/integration/` with `//go:build integration` and run via `make test-integration`; build docker fixtures with the `fakeContainer`/`fakeNetwork` builders
+- Integration tests go in `test/integration/` with `//go:build integration` and run via `make test-integration`; build docker fixtures with the `fakeContainer`/`fakeNetwork` builders in `fakeresource_test.go` (the one exception to the `helpers_test.go` rule)
 
 Example structure:
 
