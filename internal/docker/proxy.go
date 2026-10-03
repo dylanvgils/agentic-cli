@@ -187,6 +187,49 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 	return h, nil
 }
 
+// setupProxy configures rs for proxy mode if enabled, returning the env args to inject and a cleanup func to defer.
+func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
+	if !rs.ProxyEnabled {
+		return nil, func() {}, nil
+	}
+
+	if rs.DryRun {
+		return dryRunProxy(rs)
+	}
+	return launchProxy(rs)
+}
+
+// dryRunProxy reflects the proxy network and env in the printed command without provisioning anything.
+func dryRunProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
+	handle, err := newProxyHandle(*rs)
+	if err != nil {
+		return nil, nil, err
+	}
+	rs.network = handle.network
+
+	return proxyEnvArgs(rs.DindEnabled), func() {}, nil
+}
+
+// launchProxy starts the sidecar and returns a cleanup that tears it down and prints the access summary.
+func launchProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
+	handle, err := startProxy(*rs)
+	if err != nil {
+		return nil, nil, err
+	}
+	rs.network = handle.network
+
+	// Capture Ctrl-C so the deferred cleanup still runs after the tool exits
+	_, stop := guardSignals()
+
+	cleanup = func() {
+		// Stop before reading the log so late denials make the summary
+		handle.Stop()
+		stop()
+		handle.PrintSummary(os.Stderr)
+	}
+	return proxyEnvArgs(rs.DindEnabled), cleanup, nil
+}
+
 // runArgs builds the `docker run` arguments for the hardened proxy sidecar, registering
 // proxyHostAlias on the per-run network so tool config can reference a stable hostname.
 func (h proxyHandle) runArgs(rs RunSpec) []string {

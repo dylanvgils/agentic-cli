@@ -358,6 +358,54 @@ func startDind(rs RunSpec, interrupt <-chan os.Signal) (dindHandle, error) {
 	return h, nil
 }
 
+// setupDind starts the Docker sidecar if enabled, returning the tool args and a cleanup func to defer.
+func setupDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
+	if !rs.DindEnabled {
+		return nil, func() {}, nil
+	}
+
+	if rs.DryRun {
+		return dryRunDind(rs)
+	}
+	return launchDind(rs)
+}
+
+// dryRunDind prints the sidecar command and returns the tool args without provisioning anything.
+func dryRunDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
+	handle, err := newDindHandle(*rs)
+	if err != nil {
+		return nil, nil, err
+	}
+	if handle.ownsNetwork {
+		rs.network = handle.network
+	}
+
+	if _, err := fmt.Fprintln(os.Stdout, "docker", shellJoin(handle.runArgs(*rs))); err != nil {
+		return nil, nil, err
+	}
+	return handle.toolArgs(), func() {}, nil
+}
+
+// launchDind starts the sidecar and returns a cleanup that removes it.
+func launchDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
+	// Guard first so Ctrl-C during startup still removes the sidecar
+	interrupt, stop := guardSignals()
+
+	fmt.Fprintln(os.Stderr, "starting docker sidecar...")
+	handle, err := startDind(*rs, interrupt)
+	if err != nil {
+		stop()
+		return nil, nil, err
+	}
+	rs.network = handle.network
+
+	cleanup = func() {
+		handle.Stop()
+		stop()
+	}
+	return handle.toolArgs(), cleanup, nil
+}
+
 // sweepDindRunDirs removes run dirs whose sidecar is gone, sparing ones younger than dindRunDirGrace.
 func sweepDindRunDirs(toolHome string) error {
 	base := filepath.Join(toolHome, dindDirName)

@@ -105,6 +105,74 @@ func Test_startDind(t *testing.T) {
 	})
 }
 
+func Test_setupDind(t *testing.T) {
+	stubDindReadyTimeout(t)
+	stubHostUserGroup(t, "1234:5678")
+
+	t.Run("dry run sets own network without docker calls or files", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t)
+		toolHome := t.TempDir()
+		rs := RunSpec{ToolHome: toolHome, DindImage: "dind", DindEnabled: true, DryRun: true}
+
+		// Act
+		args, cleanup, err := setupDind(&rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, strings.HasPrefix(rs.network, dindNetworkPrefix+"-"))
+		assert.NotEmpty(t, args)
+		assert.Empty(t, calls(), "dry run must not invoke docker")
+		assert.NoDirExists(t, filepath.Join(toolHome, dindDirName), "dry run must not write certs")
+		require.NotPanics(t, cleanup)
+	})
+
+	t.Run("dry run keeps proxy network", func(t *testing.T) {
+		// Arrange
+		stubDockerRunCapture(t)
+		rs := RunSpec{ToolHome: t.TempDir(), DindImage: "dind", DindEnabled: true, DryRun: true, ProxyEnabled: true, network: "agentic-proxy-abc"}
+
+		// Act
+		_, _, err := setupDind(&rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "agentic-proxy-abc", rs.network)
+	})
+
+	t.Run("cleanup removes the sidecar", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t)
+		toolHome := t.TempDir()
+		rs := RunSpec{ToolHome: toolHome, DindImage: "dind", DindEnabled: true}
+
+		// Act
+		_, cleanup, err := setupDind(&rs)
+		cleanup()
+
+		// Assert
+		require.NoError(t, err)
+		last := calls()[len(calls())-1]
+		assert.Equal(t, []string{"network", "rm", rs.network}, last.args)
+		entries, _ := os.ReadDir(filepath.Join(toolHome, dindDirName))
+		assert.Empty(t, entries, "per-run certs should be removed")
+	})
+
+	t.Run("propagates startDind error", func(t *testing.T) {
+		// Arrange
+		stubDockerRunCapture(t, "run")
+		rs := RunSpec{ToolHome: t.TempDir(), DindImage: "dind", DindEnabled: true}
+
+		// Act
+		args, cleanup, err := setupDind(&rs)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, args)
+		assert.Nil(t, cleanup)
+	})
+}
+
 func Test_dindHandle_runArgs(t *testing.T) {
 	identity, err := dind.NewIdentity("1234:5678")
 	require.NoError(t, err)
