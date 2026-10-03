@@ -134,7 +134,7 @@ Each entry becomes its own Dockerfile stage `RUN`, inserted after any `--base` e
 | `memory`           | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                                                                                                                                                                                                      | `--memory`          | `4g`    |
 | `check_updates`    | bool   | Periodically check upstream for a newer tool version during `agentic run` (at most once every 6 hours per tool) and offer to update. A pointer internally so an inner config can explicitly disable a check enabled by an outer one.                                                                                                                                      | -                   | `true`  |
 
-**`[run.instructions]` section** - environment instructions written into each tool's global instructions file (see [Environment instructions](../README.md#-environment-instructions))
+**`[run.instructions]` section** - environment instructions written into each tool's global instructions file (see [Environment instructions](usage.md#environment-instructions))
 
 | Key       | Type   | Description                                                                                                                                                 | Default |
 | --------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |

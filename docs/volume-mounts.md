@@ -2,7 +2,7 @@
 
 Each tool container runs with a read-only filesystem. Any path a tool needs to write to must be explicitly mounted - either as a bind mount from the host, a named Docker volume for persistent state, or a tmpfs for ephemeral scratch space.
 
-This page documents the mounts agentic sets up automatically for each tool. For user-configurable extra mounts (`-v`, `.agenticrc.toml`), see the [Named Docker volumes](../README.md#-named-docker-volumes) section in the README.
+This page documents the mounts agentic sets up automatically for each tool. For user-configurable extra mounts (`-v`, `.agenticrc.toml`), see the [Named Docker volumes](usage.md#named-docker-volumes) in the usage docs.
 
 ## Common mounts (all tools)
 
@@ -35,7 +35,7 @@ GitHub Copilot CLI persists its auth tokens under `$AGENTIC_HOME/tools/copilot/`
 
 The extra `~/.cache` tmpfs is required because Copilot writes cache data to `~/.cache` rather than `/tmp`. Since the root filesystem is read-only, this path needs its own writable tmpfs.
 
-Copilot also supports secret injection via `--secret`: if a file is mounted at `/run/secrets/copilot_token`, the entrypoint automatically exports it as `GITHUB_TOKEN` before starting the CLI. See [Secrets](../README.md#-secrets) in the README.
+Copilot also supports secret injection via `--secret`: if a file is mounted at `/run/secrets/copilot_token`, the entrypoint automatically exports it as `GITHUB_TOKEN` before starting the CLI. See [Secrets](usage.md#secrets).
 
 ## OpenCode
 

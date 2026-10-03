@@ -12,14 +12,14 @@ Containers run with:
 - Host UID/GID mapping - the container process runs as your user, so file permissions on mounted directories work correctly
 - `/tmp` limited to 1 GB
 - Isolated Docker network (`agentic-net`) - containers cannot reach other containers on the host, only the internet
-- Optional egress allowlist proxy - restrict a tool to a configurable set of hosts and log every connection attempt (see [config.md](config.md#runproxy-section))
+- Optional egress allowlist proxy - restrict a tool to a configurable set of hosts and log every connection attempt (see [config.md](config.md#keys))
 - Optional Docker-in-Docker - a per-run rootless Docker daemon in a separate sidecar, reached over mutual TLS; the tool container itself keeps every constraint above and never sees the host's Docker socket (see [docker-in-docker.md](docker-in-docker.md))
 
 When a tool needs to write somewhere (config, cache, temp files), it gets a targeted mount - a named volume or bind mount for persistent state, or a tmpfs for ephemeral scratch space. Nothing gets write access unless explicitly granted.
 
 See [volume-mounts.md](volume-mounts.md) for a per-tool breakdown of what's mounted and why, and [security-model.md](security-model.md) for what each layer stops and the risk that's left.
 
-These constraints (and what's installed) are also written into each tool's own global instructions file at run time, so the model itself knows what it can and can't do up front - see [Environment instructions](../README.md#-environment-instructions).
+These constraints (and what's installed) are also written into each tool's own global instructions file at run time, so the model itself knows what it can and can't do up front - see [Environment instructions](usage.md#environment-instructions).
 
 ## Motivation
 
