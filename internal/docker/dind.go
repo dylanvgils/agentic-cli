@@ -380,7 +380,7 @@ func sweepDindRunDirs(toolHome string) error {
 	}
 
 	live := make(map[string]bool)
-	for _, name := range strings.Fields(out) {
+	for name := range strings.FieldsSeq(out) {
 		live[strings.TrimPrefix(name, dindHostAlias+"-")] = true
 	}
 
