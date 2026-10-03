@@ -15,7 +15,7 @@ LDFLAGS     = -s -w \
               $(if $(INSTALL_METHOD),-X github.com/dylanvgils/agentic-cli/internal/buildinfo.InstallMethod=$(INSTALL_METHOD))
 GOFLAGS   := CGO_ENABLED=0
 
-.PHONY: build install uninstall dist docker-dist test coverage lint clean verify-checksums fix-checksums verify-checksums-all fix-checksums-all
+.PHONY: build install uninstall dist docker-dist test test-integration coverage lint clean verify-checksums fix-checksums verify-checksums-all fix-checksums-all
 
 build:
 	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/cli
@@ -45,6 +45,10 @@ docker-dist:
 
 test:
 	go test ./...
+
+# Needs a Docker daemon; builds an agentic-itest-claude image on first run.
+test-integration:
+	go test -tags integration -count=1 -timeout 20m ./test/integration/...
 
 coverage:
 	go test -cover ./...
