@@ -66,8 +66,9 @@ type RCProxy struct {
 	Mode string `toml:"mode"`
 }
 
-// RCDind holds Docker-in-Docker sidecar settings from a .agenticrc.toml file. Enabled is a pointer so an inner config can explicitly disable a sidecar an outer one enabled.
+// RCDind holds Docker-in-Docker sidecar settings from a .agenticrc.toml file.
 type RCDind struct {
+	// Enabled is a pointer so an inner config can explicitly disable a sidecar an outer one enabled.
 	Enabled *bool `toml:"enabled"`
 }
 
