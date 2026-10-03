@@ -81,7 +81,7 @@ func addProxyFlags(cmd *cobra.Command) {
 	cmd.MarkFlagsMutuallyExclusive("proxy", "no-proxy", "proxy-monitor")
 }
 
-// addDindFlags registers the mutually exclusive --dind and --no-dind flags shared by the run and instructions commands.
+// addDindFlags registers the mutually exclusive --dind and --no-dind flags.
 func addDindFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("dind", false, "start a rootless Docker daemon sidecar the tool can use (overrides config; needs the docker base layer)")
 	cmd.Flags().Bool("no-dind", false, "disable the Docker daemon sidecar for this run (overrides config)")

@@ -279,7 +279,7 @@ func goStage(prevStage, ver string) df.Stage {
 		Build()
 }
 
-// dockerStage installs the Docker CLI with buildx and compose plugins from Docker's signed apt repo; the daemon itself runs in the --dind sidecar.
+// dockerStage installs the Docker CLI with buildx and compose; the daemon runs in the --dind sidecar.
 func dockerStage(prevStage, ver string) df.Stage {
 	versionArg := df.Arg{Key: "DOCKER_VERSION", Default: DefaultVersions.Docker}
 	if ver != "" {

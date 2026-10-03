@@ -15,10 +15,10 @@ import (
 	"time"
 )
 
-// certValidity bounds how long a per-run cert is usable; a leaked cert is worthless once the run's CA is gone anyway.
+// certValidity bounds how long a per-run cert is usable.
 const certValidity = 30 * 24 * time.Hour
 
-// Subdirectories of a per-run cert dir; the sidecar's entrypoint expects $DOCKER_TLS_CERTDIR/server.
+// Subdirectories of a per-run cert dir.
 const (
 	ServerCertSubdir = "server"
 	ClientCertSubdir = "client"
@@ -44,8 +44,7 @@ func (p keyPair) keyPEM() ([]byte, error) {
 	return pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}), nil
 }
 
-// WriteCerts generates a throwaway CA plus a server and client cert under dir. The CA key
-// only ever lives in memory, so nothing on disk can mint further certs for this daemon.
+// WriteCerts generates a throwaway CA plus a server and client cert under dir; the CA key never touches disk.
 func WriteCerts(dir string, serverNames []string) error {
 	ca, err := newCA()
 	if err != nil {
@@ -118,7 +117,7 @@ func certTemplate(cn string) (*x509.Certificate, error) {
 	}, nil
 }
 
-// issue generates a key and signs tmpl with it, by parent or self-signed when parent is nil.
+// issue generates a key and signs tmpl by parent, or self-signs when parent is nil.
 func issue(tmpl *x509.Certificate, parent *keyPair) (keyPair, error) {
 	cn := tmpl.Subject.CommonName
 
@@ -145,9 +144,8 @@ func issue(tmpl *x509.Certificate, parent *keyPair) (keyPair, error) {
 	return keyPair{cert: cert, key: key}, nil
 }
 
-// writeCertDir writes ca.pem, cert.pem and key.pem in the layout the docker CLI and dind entrypoint expect.
-// Files are world-readable because the sidecar's rootless user (uid 1000) may differ from the host
-// user; the per-run parent dir is 0700, which keeps other host users out.
+// writeCertDir writes ca.pem, cert.pem and key.pem. Files are world-readable for the sidecar's
+// user; the 0700 run dir keeps other host users out.
 func writeCertDir(dir string, ca, leaf keyPair) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create cert dir: %w", err)

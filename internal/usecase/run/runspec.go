@@ -211,7 +211,7 @@ func splitReadOnlyMountSpec(spec string) (host, container string) {
 	return host, container
 }
 
-// validateEnv rejects entries targeting an env var agentic already manages (proxy injection when proxyEnabled, Docker sidecar wiring when dindEnabled, mount placeholders always).
+// validateEnv rejects entries that override an env var agentic manages.
 func validateEnv(entries []string, proxyEnabled, dindEnabled bool) error {
 	for _, entry := range entries {
 		key, _, _ := strings.Cut(entry, "=")

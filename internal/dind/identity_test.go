@@ -41,7 +41,6 @@ func TestIdentity_files(t *testing.T) {
 		assert.Equal(t, "rootless:2000000000:65536\n", files["subgid"])
 		assert.Contains(t, files["passwd"], "rootless:x:1234:5678::/home/rootless:/bin/sh\n")
 		assert.Contains(t, files["group"], "rootless:x:5678:\n")
-		assert.NotContains(t, files["subuid"], "100000", "must not reuse the default useradd subuid range")
 	})
 
 	t.Run("primary group root is not duplicated", func(t *testing.T) {

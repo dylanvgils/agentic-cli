@@ -1,4 +1,4 @@
-// Package dind generates the per-run files the rootless Docker-in-Docker sidecar needs: TLS certs, a seccomp profile and /etc identity files.
+// Package dind generates the per-run files for the rootless Docker-in-Docker sidecar.
 package dind
 
 import (
@@ -8,30 +8,28 @@ import (
 	"strings"
 )
 
-// The sidecar's subordinate id range: inner containers' ids map here on the host. It sits far
-// above anything useradd hands out (SUB_UID_MAX defaults to 600100000), so it belongs to nobody.
+// Subordinate id range for inner containers, far above anything useradd hands out.
 const (
 	subIDStart = 2000000000
 	subIDCount = 65536
 )
 
-// userName and Home match the upstream image's rootless user, whose home holds the data-root volume.
+// userName and Home match the upstream image's rootless user.
 const (
 	userName = "rootless"
 	Home     = "/home/" + userName
 )
 
-// IdentityFiles are the /etc files generated per run and bind-mounted read-only over the image's own.
+// IdentityFiles are the generated /etc files mounted over the image's own.
 var IdentityFiles = []string{"passwd", "group", "subuid", "subgid"}
 
-// Identity is the host uid/gid the sidecar runs as, matching the tool container's --user.
+// Identity is the host uid/gid the sidecar runs as.
 type Identity struct {
 	uid string
 	gid string
 }
 
-// NewIdentity parses the host "uid:gid" the sidecar runs as, refusing root: as uid 0 the image
-// would start dockerd in its rootful mode, with real root behind the sidecar's capabilities.
+// NewIdentity parses a host "uid:gid", refusing root since dockerd would then run rootful.
 func NewIdentity(userGroup string) (Identity, error) {
 	uid, gid, _ := strings.Cut(userGroup, ":")
 	if uid == "0" {
@@ -45,8 +43,7 @@ func (id Identity) UserGroup() string {
 	return id.uid + ":" + id.gid
 }
 
-// files returns the contents of the generated /etc files: a passwd/group entry so newuidmap can
-// resolve the host uid, and subuid/subgid granting it only the dedicated subIDStart range.
+// files returns the generated /etc file contents, keyed by name.
 func (id Identity) files() map[string]string {
 	subIDs := fmt.Sprintf("%s:%d:%d\n", userName, subIDStart, subIDCount)
 

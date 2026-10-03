@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// seccompProfile mirrors every field of Docker's seccomp profile schema, so strict decoding rejects anything Docker would silently ignore.
+// seccompProfile mirrors Docker's seccomp schema, so strict decoding catches fields Docker would ignore.
 type seccompProfile struct {
 	DefaultAction    string           `json:"defaultAction"`
 	DefaultErrnoRet  *int             `json:"defaultErrnoRet"`

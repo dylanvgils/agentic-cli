@@ -506,4 +506,15 @@ func TestImageInfoBuiltBefore(t *testing.T) {
 		// Assert
 		assert.True(t, result)
 	})
+
+	t.Run("invalid label counts as before", func(t *testing.T) {
+		// Arrange
+		info := ImageInfo{Built: "not-a-time"}
+
+		// Act
+		result := info.BuiltBefore(cutoff)
+
+		// Assert
+		assert.True(t, result)
+	})
 }

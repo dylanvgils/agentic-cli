@@ -393,7 +393,7 @@ func TestParseArgs(t *testing.T) {
 	})
 }
 
-func TestRequireDockerLayer(t *testing.T) {
+func Test_requireDockerLayer(t *testing.T) {
 	t.Run("image with docker layer passes", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", Base: "node@24.1.0,docker@29.8.2"}, nil)
@@ -429,7 +429,7 @@ func TestRequireDockerLayer(t *testing.T) {
 	})
 }
 
-func TestEnsureDindImage(t *testing.T) {
+func Test_ensureDindImage(t *testing.T) {
 	withTempToolHome(t)
 	cmd := &cobra.Command{Use: "test"}
 	fresh := formatTestLabelTime(time.Now())

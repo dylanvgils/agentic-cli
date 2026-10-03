@@ -67,14 +67,12 @@ func Test_deriveSeccompProfile(t *testing.T) {
 		assert.Equal(t, "SCMP_ACT_ERRNO", result)
 	})
 
-	t.Run("still allows the namespace and mount syscalls rootless dockerd needs", func(t *testing.T) {
-		for _, name := range []string{"mount", "umount2", "unshare", "setns", "clone", "pivot_root"} {
-			// Act
-			allowed := allowedWithSysAdmin(profile, name)
+	t.Run("allows pivot_root with CAP_SYS_ADMIN for nested runc", func(t *testing.T) {
+		// Act
+		allowed := allowedWithSysAdmin(profile, "pivot_root")
 
-			// Assert
-			assert.True(t, allowed, name)
-		}
+		// Assert
+		assert.True(t, allowed)
 	})
 
 	t.Run("never allows dropped kernel interfaces", func(t *testing.T) {

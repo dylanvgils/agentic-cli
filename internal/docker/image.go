@@ -25,7 +25,7 @@ type ImageInfo struct {
 	Size           string // formatted size from docker image ls
 }
 
-// BuiltBefore reports whether the agentic.built label predates cutoff; a missing or unparseable label counts as before.
+// BuiltBefore reports whether the agentic.built label predates cutoff; a missing or invalid label counts as before.
 func (i ImageInfo) BuiltBefore(cutoff time.Time) bool {
 	built, ok := parseLabelTime(i.Built)
 	return !ok || built.Before(cutoff)

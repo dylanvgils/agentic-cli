@@ -158,7 +158,7 @@ func TestAddProxyFlags(t *testing.T) {
 	})
 }
 
-func TestAddDindFlags(t *testing.T) {
+func Test_addDindFlags(t *testing.T) {
 	t.Run("registers both flags", func(t *testing.T) {
 		// Arrange
 		cmd := &cobra.Command{Use: "test"}
@@ -186,7 +186,7 @@ func TestAddDindFlags(t *testing.T) {
 	})
 }
 
-func TestResolveDindEnabled(t *testing.T) {
+func Test_resolveDindEnabled(t *testing.T) {
 	// Arrange
 	cmd := &cobra.Command{Use: "test"}
 	addDindFlags(cmd)

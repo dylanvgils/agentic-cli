@@ -216,7 +216,7 @@ func stubDindReadyTimeout(t *testing.T) {
 	t.Cleanup(func() { dindReadyTimeout, dindPollInterval = origTimeout, origInterval })
 }
 
-// stubDindReadyTimeoutLong makes the dind readiness wait long enough that only a fail-fast path can end it within a test.
+// stubDindReadyTimeoutLong makes the readiness wait long enough that only a fail-fast path ends it.
 func stubDindReadyTimeoutLong(t *testing.T) {
 	t.Helper()
 	orig := dindReadyTimeout

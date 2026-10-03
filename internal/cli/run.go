@@ -222,7 +222,7 @@ func requireImage(image, tool string) error {
 		image, tool, noun, strings.Join(namespaces, ", "), tool)
 }
 
-// requireDockerLayer errors if image was built without the docker layer, since --dind is useless without a docker CLI to reach the sidecar.
+// requireDockerLayer errors if image lacks the docker layer that --dind needs.
 func requireDockerLayer(image, tool string) error {
 	info, err := inspectImage(image)
 	if err != nil {
@@ -235,8 +235,7 @@ func requireDockerLayer(image, tool string) error {
 	return fmt.Errorf("--dind needs the docker CLI in %q; rebuild with \"agentic build %s --base docker\"", image, tool)
 }
 
-// ensureDindImage builds the sidecar image if missing, and rebuilds it when stamped by another CLI
-// version or older than tools.DindImageMaxAge; a failed refresh of an existing image only warns, so offline runs still work.
+// ensureDindImage builds the sidecar image if missing, outdated or stale; a failed refresh only warns so offline runs work.
 func ensureDindImage(cmd *cobra.Command) error {
 	info, err := inspectImage(tools.DindImage)
 	if err != nil {

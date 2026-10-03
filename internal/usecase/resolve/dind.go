@@ -8,7 +8,7 @@ type DindInput struct {
 	NoDindFlag bool
 }
 
-// DindEnabled resolves whether the Docker-in-Docker sidecar runs. Flags win over config; --no-dind always wins; default is off.
+// DindEnabled resolves whether the Docker sidecar runs: --no-dind, then --dind, then config, default off.
 func DindEnabled(in DindInput, rc *config.AgenticRC) bool {
 	if in.NoDindFlag {
 		return false

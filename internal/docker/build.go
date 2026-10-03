@@ -75,8 +75,7 @@ func BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) 
 	return nil
 }
 
-// BuildDindImage generates the hardened Docker sidecar Dockerfile and builds it, always pulling
-// the upstream base so security patches land on every rebuild.
+// BuildDindImage builds the Docker sidecar image, always pulling the upstream base for security patches.
 func BuildDindImage(image string, opts tools.BuildOptions) (retErr error) {
 	tmpDir, err := writeTempDockerfile(tools.GenerateDindDockerfile(opts.Registry))
 	if err != nil {
@@ -99,8 +98,7 @@ func BuildDindImage(image string, opts tools.BuildOptions) (retErr error) {
 	return nil
 }
 
-// sidecarImageBuildArgs computes the docker build args for a global sidecar image (proxy, dind):
-// only the agentic labels (no tool/base build-args, no namespace label, since the image is global).
+// sidecarImageBuildArgs computes the docker build args for a global, non-namespaced sidecar image.
 func sidecarImageBuildArgs(dockerfilePath, image, toolLabel, context string, opts tools.BuildOptions) []string {
 	args := []string{
 		"build",

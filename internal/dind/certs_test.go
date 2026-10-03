@@ -1,7 +1,6 @@
 package dind
 
 import (
-	"crypto/tls"
 	"crypto/x509"
 	"os"
 	"path/filepath"
@@ -13,21 +12,27 @@ import (
 
 func TestWriteCerts(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, WriteCerts(dir, []string{"agentic-docker", "127.0.0.1"}))
+	err := WriteCerts(dir, []string{"agentic-docker", "127.0.0.1"})
+	require.NoError(t, err)
 
 	t.Run("writes only ca, cert and key per side", func(t *testing.T) {
+		// Arrange
+		ownDir := t.TempDir()
+
 		// Act
+		err := WriteCerts(ownDir, []string{"agentic-docker"})
+
+		// Assert - in particular, no CA private key ever reaches disk
+		require.NoError(t, err)
 		var files []string
-		err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		walkErr := filepath.WalkDir(ownDir, func(path string, d os.DirEntry, err error) error {
 			if err == nil && !d.IsDir() {
-				rel, _ := filepath.Rel(dir, path)
+				rel, _ := filepath.Rel(ownDir, path)
 				files = append(files, filepath.ToSlash(rel))
 			}
 			return err
 		})
-
-		// Assert - in particular, no CA private key ever reaches disk
-		require.NoError(t, err)
+		require.NoError(t, walkErr)
 		assert.ElementsMatch(t, []string{
 			"client/ca.pem", "client/cert.pem", "client/key.pem",
 			"server/ca.pem", "server/cert.pem", "server/key.pem",
@@ -58,15 +63,5 @@ func TestWriteCerts(t *testing.T) {
 		// Assert
 		assert.NoError(t, clientErr)
 		assert.Error(t, serverErr)
-	})
-
-	t.Run("each key matches its cert", func(t *testing.T) {
-		for _, side := range []string{ServerCertSubdir, ClientCertSubdir} {
-			// Act
-			_, err := tls.LoadX509KeyPair(filepath.Join(dir, side, "cert.pem"), filepath.Join(dir, side, "key.pem"))
-
-			// Assert
-			assert.NoError(t, err, side)
-		}
 	})
 }

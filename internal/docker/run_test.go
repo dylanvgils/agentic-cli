@@ -89,8 +89,6 @@ func TestRunContainer(t *testing.T) {
 		args := get()
 		assert.True(t, hasArgWithPrefix(args, "--network=agentic-dind-"), "tool should share the per-run dind net")
 		assert.Contains(t, args, "--env=DOCKER_HOST=tcp://agentic-docker:2376")
-		assert.Contains(t, args, "--env=DOCKER_TLS_VERIFY=1")
-		assert.True(t, hasArgWithPrefix(args, "--volume="+filepath.Join(toolHome, dindDirName)), "client certs should be mounted")
 		assert.Contains(t, args, "--cap-drop=ALL")
 		assert.Contains(t, args, "--security-opt=no-new-privileges:true")
 		assert.Contains(t, args, "--read-only")

@@ -11,25 +11,20 @@ import (
 // SeccompFileName is the per-run profile's name inside the run dir.
 const SeccompFileName = "seccomp.json"
 
-// errnoENOSYS makes a syscall look unimplemented, which callers like runc treat as "feature absent" rather than a hard failure.
+// errnoENOSYS makes a syscall look unimplemented, which runc tolerates.
 const errnoENOSYS = 38
 
-// seccompDefault is Docker's default seccomp profile, vendored verbatim from
-// github.com/moby/profiles (seccomp/default.json @ 6fe7deb, 2026-09-17); refresh by re-copying.
+// seccompDefault is Docker's default profile from github.com/moby/profiles (seccomp/default.json @ 6fe7deb).
 //
 //go:embed seccomp_default.json
 var seccompDefault []byte
 
-// seccompDropped are syscalls the default profile unlocks with CAP_SYS_ADMIN (or other caps)
-// that neither rootless dockerd nor typical inner containers need; keeping them blocked keeps
-// eBPF, perf, the kernel log and fanotify out of reach.
+// seccompDropped are cap-gated syscalls the sidecar doesn't need (eBPF, perf, kernel log, fanotify).
 var seccompDropped = []string{
 	"bpf", "fanotify_init", "lookup_dcookie", "perf_event_open", "quotactl", "quotactl_fd", "syslog",
 }
 
-// seccompExtraRules are what nested runc needs beyond the default profile: pivot_root to enter
-// an inner container's rootfs, and keyring syscalls failing with ENOSYS (which runc tolerates)
-// instead of the default EPERM (which it doesn't) - so keyrings stay blocked.
+// seccompExtraRules let nested runc pivot_root, and fail keyring calls with ENOSYS instead of EPERM.
 var seccompExtraRules = []any{
 	map[string]any{
 		"names":    []string{"pivot_root"},
@@ -43,7 +38,7 @@ var seccompExtraRules = []any{
 	},
 }
 
-// WriteSeccompProfile writes the derived profile to path; the docker CLI reads it client-side, so a host path works with any daemon.
+// WriteSeccompProfile writes the derived profile to path.
 func WriteSeccompProfile(path string) error {
 	content, err := deriveSeccompProfile()
 	if err != nil {
@@ -55,8 +50,7 @@ func WriteSeccompProfile(path string) error {
 	return nil
 }
 
-// deriveSeccompProfile derives the sidecar's profile from Docker's default: seccompDropped
-// removed from every allow rule, seccompExtraRules appended, everything else untouched.
+// deriveSeccompProfile returns Docker's default minus seccompDropped, plus seccompExtraRules.
 func deriveSeccompProfile() ([]byte, error) {
 	var profile map[string]any
 	if err := json.Unmarshal(seccompDefault, &profile); err != nil {

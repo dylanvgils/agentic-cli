@@ -10,26 +10,22 @@ const (
 	// DindImageSuffix names the Docker sidecar image's tool label.
 	DindImageSuffix = "dind"
 
-	// DindImage is the hardened Docker-in-Docker sidecar image. Like ProxyImage it is global, not
-	// namespaced: content only depends on CLI version and registry.
+	// DindImage is the global (not namespaced) Docker-in-Docker sidecar image.
 	DindImage = "agentic-" + DindImageSuffix
 
-	// DindImageMaxAge bounds how stale the sidecar image may get before a run rebuilds it, pulling the patched upstream base.
+	// DindImageMaxAge is how old the sidecar image may get before a run rebuilds it.
 	DindImageMaxAge = 7 * 24 * time.Hour
 
 	// dindUser is the upstream image's preconfigured rootless user.
 	dindUser = "rootless"
 )
 
-// GenerateDindDockerfile returns the Dockerfile for the sidecar image: upstream rootless dind with
-// every setuid/setgid bit removed and the id-map helpers given only the one capability each needs.
+// GenerateDindDockerfile returns the Dockerfile for the sidecar image.
 func GenerateDindDockerfile(registry string) string {
 	return df.File{Stages: []df.Stage{dindStage(registry)}}.Render()
 }
 
-// dindStage swaps setuid-root newuidmap/newgidmap for file capabilities, so a bug in either yields
-// CAP_SETUID or CAP_SETGID rather than full root, and nothing else in the image can become root.
-// The sidecar runs as the host user, so the data-root must be writable by any uid.
+// dindStage swaps setuid-root newuidmap/newgidmap for file capabilities, so nothing in the image can become root.
 func dindStage(registry string) df.Stage {
 	return df.NewStage(df.From{Image: dindBaseImageFor(registry), As: "dind"}).
 		Add(df.User{Name: "root"}).
@@ -48,7 +44,7 @@ func dindStage(registry string) df.Stage {
 			{Comment: "Fail the build if any setuid/setgid binary is left", Lines: []string{
 				`test -z "$(find / -xdev -type f -perm /6000)"`,
 			}},
-			{Comment: "Let whichever host uid the sidecar runs as create its data-root inside the volume (the anonymous volume copies these perms)", Lines: []string{
+			{Comment: "Let any host uid create its data-root in the volume", Lines: []string{
 				`chmod 1777 /home/rootless/.local/share/docker`,
 			}},
 		}}).
