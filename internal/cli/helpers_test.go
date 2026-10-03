@@ -81,12 +81,16 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	origToolUpdateInspect := toolupdate.InspectImage
 	toolupdate.InspectImage = fakeInspect
 
+	origRunInspect := run.InspectImage
+	run.InspectImage = fakeInspect
+
 	t.Cleanup(func() {
 		runContainer = origRun
 		run.EnsureNamedVolumes = origEnsure
 		run.EnsureNetwork = origEnsureNet
 		inspectImage = origInspect
 		toolupdate.InspectImage = origToolUpdateInspect
+		run.InspectImage = origRunInspect
 	})
 
 	return func() (docker.RunSpec, []string) { return capturedSpec, capturedArgs }
@@ -221,6 +225,13 @@ func stubInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
 	orig := inspectImage
 	inspectImage = func(_ string) (*docker.ImageInfo, error) { return info, err }
 	t.Cleanup(func() { inspectImage = orig })
+}
+
+func stubRunInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
+	t.Helper()
+	orig := run.InspectImage
+	run.InspectImage = func(_ string) (*docker.ImageInfo, error) { return info, err }
+	t.Cleanup(func() { run.InspectImage = orig })
 }
 
 func stubListAllImages(t *testing.T, fn func(...docker.ImageFilter) ([]*docker.ImageInfo, error)) {

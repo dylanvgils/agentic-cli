@@ -102,6 +102,7 @@ func TestRunTool(t *testing.T) {
 		withTempToolHome(t)
 		get := captureRunContainer(t)
 		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)
+		stubRunInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)
 		stubBuildDindImage(t, func(string, tools.BuildOptions) error { return nil })
 		require.NoError(t, runToolCmd.Flags().Set("dind", "true"))
 		t.Cleanup(func() {
@@ -390,42 +391,6 @@ func TestParseArgs(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "bogus")
-	})
-}
-
-func Test_requireDockerLayer(t *testing.T) {
-	t.Run("image with docker layer passes", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", Base: "node@24.1.0,docker@29.8.2"}, nil)
-
-		// Act
-		err := requireDockerLayer("agentic-claude", "claude")
-
-		// Assert
-		require.NoError(t, err)
-	})
-
-	t.Run("image without docker layer hints at rebuild", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", Base: "node@24.1.0"}, nil)
-
-		// Act
-		err := requireDockerLayer("agentic-claude", "claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "agentic build claude --base docker")
-	})
-
-	t.Run("inspect error propagates", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, fmt.Errorf("docker daemon not running"))
-
-		// Act
-		err := requireDockerLayer("agentic-claude", "claude")
-
-		// Assert
-		require.ErrorContains(t, err, "docker daemon not running")
 	})
 }
 
