@@ -23,10 +23,28 @@ These constraints (and what's installed) are also written into each tool's own g
 
 ## Motivation
 
-Agentic coding tools are powerful - but that power comes at a cost. They do come with guard rails, but they still run with the same permissions as your user. You're trusting the tool not to access anything you didn't intend to give it - and that's a hard sell if you want to experiment without fully trusting the tool.
+Agentic coding tools are powerful - but that power comes at a cost. They do come with guard rails, but they still run with the same permissions as your user. You're trusting the tool not to access anything you didn't intend to give it - and that's a hard sell if you want to experiment without fully trusting the tool. Agentic runs the tool in a locked-down container instead, so it can only touch what you explicitly hand it.
 
-Docker also offers [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) (`sbx`), which runs each agent in its own VM - a stronger boundary than containers. Local sandboxes need hardware virtualization and a supported host (macOS 14+ on Apple silicon, Windows 11 on x86_64, or Ubuntu 24.04+ on x86_64 or arm64 with KVM, at the time of writing). Cloud sandboxes skip that, but run on Docker's infrastructure with no access to your local files, and are billed per use. Both require signing in to Docker. This project works with any Docker-compatible runtime - Rancher Desktop, Podman, or plain Docker, on any OS or architecture Docker runs on, including machines without nested virtualization. The container runs read-only with all capabilities dropped and no privilege escalation, so the tool can only touch what you explicitly hand it. If your platform supports it and you want a VM boundary, Docker Sandboxes is a good fit; if you need portability, deep per-project configuration, or a setup you can fully audit, this project is.
-
-Beyond isolation, it also aims to make working with these tools practical day-to-day: a single command to build or update any tool, and a flexible configuration system that works globally or per-project so the right settings are always picked up automatically.
+Beyond isolation, agentic also aims to make working with these tools practical day-to-day: a single command to build or update any tool, and a flexible configuration system that works globally or per-project so the right settings are always picked up automatically.
 
 It's also a side project for learning how to build and work with AI-assisted tooling.
+
+## Compared to Docker Sandboxes
+
+Docker also offers [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) (`sbx`), which runs each agent in its own microVM - a stronger boundary than a container. The table compares agentic with local `sbx` sandboxes as of October 2026; check Docker's docs for current details.
+
+| | agentic | Docker Sandboxes (local) |
+| --- | --- | --- |
+| **Boundary** | Container on the host's kernel | microVM with its own kernel |
+| **Host requirements** | Any Docker-compatible runtime (Docker, Rancher Desktop, Podman) on any OS or architecture, no virtualization needed | macOS 14+ on Apple silicon, Windows 11 on x86_64, or Ubuntu 24.04+ on x86_64/arm64, with hardware virtualization |
+| **Agent inside** | Non-root, read-only root filesystem, all capabilities dropped | `sudo` inside the VM; the VM is the boundary |
+| **Network** | Open by default; opt-in allowlist proxy (`--proxy`) that logs every attempt | Deny by default; allowlist per machine or managed by your organization |
+| **Credentials** | The agent can read its own token and any mounted secret | Injected by a host-side proxy; the agent never sees raw values |
+| **Docker inside** | Opt-in rootless sidecar (`--dind`) | Private Docker Engine in every sandbox |
+| **Config** | `.agenticrc.toml` per project, merged up the directory tree | `sbxenv.yaml` environment files (experimental) |
+| **Account and cost** | None, free | Docker sign-in required; local sandboxes free |
+| **Source** | Open source (MIT) | Published as binaries |
+
+Docker also offers cloud sandboxes (`sbx --cloud`), which need no local virtualization but run on Docker's infrastructure with no access to your local files, billed per use.
+
+If your platform supports it and you want a VM boundary or credentials the agent can't read, Docker Sandboxes is a good fit. If you need portability, deep per-project configuration, or a setup you can fully audit, agentic is.

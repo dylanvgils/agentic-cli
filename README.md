@@ -66,7 +66,7 @@ Containers run read-only with all capabilities dropped, no privilege escalation,
 
 ## 📚 Documentation
 
-- [Overview](docs/overview.md) - what agentic is and why
+- [Overview](docs/overview.md) - what agentic is, why, and how it compares to Docker Sandboxes
 - [Installation](docs/installation.md) - install, uninstall, upgrade, build from source
 - [Usage](docs/usage.md) - commands, examples, secrets, env vars, volumes, tool home
 - [Images](docs/images.md) - base images, runtimes, versions, apt packages, custom installs

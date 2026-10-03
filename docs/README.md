@@ -1,6 +1,6 @@
 # Docs
 
-1. [Overview](overview.md) - what agentic is, the security model, and motivation
+1. [Overview](overview.md) - what agentic is, the security model, motivation, and how it compares to Docker Sandboxes
 2. [Installation](installation.md) - install, uninstall, upgrade, and building from source
 3. [Usage](usage.md) - commands, examples, shell setup, secrets, env vars, volumes, and tool home
 4. [Images](images.md) - base images, runtime layers, versions and updates, apt packages, custom installs
