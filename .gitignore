@@ -28,3 +28,6 @@ ehthumbs.db
 *.swo
 *~
 *.bak
+
+# Integration test scratch dirs
+test/integration/.home-*

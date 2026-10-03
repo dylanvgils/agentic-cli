@@ -9,31 +9,33 @@ agentic-cli/
 ├── cmd/
 │   ├── cli/                     # Thin entrypoint for the agentic binary (main.go only)
 │   └── proxy/                   # Thin entrypoint for the agentic-proxy binary (main.go only)
-└── internal/
-    ├── buildinfo/               # Build-time version/commit metadata and dev-build classification
-    ├── cleanup/                 # Capture helper for propagating deferred cleanup errors without masking an earlier error
-    ├── cli/                     # Cobra commands (build, update, clean, inspect, run, …)
-    ├── config/                  # .agenticrc.toml loading and run spec
-    ├── dind/                    # Docker-in-Docker sidecar per-run files: TLS certs, seccomp profile, /etc identity
-    ├── docker/                  # Build, update, run, clean, inspect, volume, and sidecar (proxy, dind) orchestration
-    ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
-    ├── git/                     # Thin wrapper over the host git binary (CheckAvailable, Clone, FetchReset)
-    ├── housekeeping/            # Host-side cleanup not tied to a tool run, the proxy server, or docker orchestration (e.g. pruning proxy logs)
-    ├── marketplace/             # Syncs git-based plugin marketplace repos onto the host and tracks per-clone usage
-    ├── mount/                   # Volume mount spec builder
-    ├── output/                  # CLI output formatting
-    ├── platform/                # Platform-specific paths and utilities
-    ├── proxy/                   # Egress allowlist proxy: server, allowlist, JSON-lines logger
-    ├── selfupdate/              # Downloads and installs new releases from GitHub
-    ├── tools/                   # Per-tool stage funcs, mounts, setup, and base layers
-    └── usecase/                 # Business logic extracted out of internal/cli commands (see below)
-        ├── build/               # Builds (or dry-run prints) tool images for `agentic build`
-        ├── clean/               # Resolves and removes tool images and global Docker resources for `agentic clean`
-        ├── resolve/             # Merges CLI flags, .agenticrc.toml, and agentic.json into the effective value of every setting agentic supports
-        ├── run/                 # Builds docker.RunSpec for `agentic run` from resolved settings - marketplace sync, resource limits
-        ├── toolupdate/          # Checks for and applies upstream tool version updates on `agentic run`
-        ├── update/              # Resolves and applies `agentic update` targets - build-option recovery, --pull throttling
-        └── upgradecheck/        # Checks for and offers to apply a newer agentic CLI release, on any command's PersistentPreRunE
+├── internal/
+│   ├── buildinfo/               # Build-time version/commit metadata and dev-build classification
+│   ├── cleanup/                 # Capture helper for propagating deferred cleanup errors without masking an earlier error
+│   ├── cli/                     # Cobra commands (build, update, clean, inspect, run, …)
+│   ├── config/                  # .agenticrc.toml loading and run spec
+│   ├── dind/                    # Docker-in-Docker sidecar per-run files: TLS certs, seccomp profile, /etc identity
+│   ├── docker/                  # Build, update, run, clean, inspect, volume, and sidecar (proxy, dind) orchestration
+│   ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
+│   ├── git/                     # Thin wrapper over the host git binary (CheckAvailable, Clone, FetchReset)
+│   ├── housekeeping/            # Host-side cleanup not tied to a tool run, the proxy server, or docker orchestration (e.g. pruning proxy logs)
+│   ├── marketplace/             # Syncs git-based plugin marketplace repos onto the host and tracks per-clone usage
+│   ├── mount/                   # Volume mount spec builder
+│   ├── output/                  # CLI output formatting
+│   ├── platform/                # Platform-specific paths and utilities
+│   ├── proxy/                   # Egress allowlist proxy: server, allowlist, JSON-lines logger
+│   ├── selfupdate/              # Downloads and installs new releases from GitHub
+│   ├── tools/                   # Per-tool stage funcs, mounts, setup, and base layers
+│   └── usecase/                 # Business logic extracted out of internal/cli commands (see below)
+│       ├── build/               # Builds (or dry-run prints) tool images for `agentic build`
+│       ├── clean/               # Resolves and removes tool images and global Docker resources for `agentic clean`
+│       ├── resolve/             # Merges CLI flags, .agenticrc.toml, and agentic.json into the effective value of every setting agentic supports
+│       ├── run/                 # Builds docker.RunSpec for `agentic run` from resolved settings - marketplace sync, resource limits
+│       ├── toolupdate/          # Checks for and applies upstream tool version updates on `agentic run`
+│       ├── update/              # Resolves and applies `agentic update` targets - build-option recovery, --pull throttling
+│       └── upgradecheck/        # Checks for and offers to apply a newer agentic CLI release, on any command's PersistentPreRunE
+└── test/
+    └── integration/             # Black-box tests driving the agentic binary against a real Docker daemon (`integration` build tag)
 ```
 
 `cmd/proxy` only imports `internal/proxy` - never `internal/docker`, `internal/tools`, or `internal/cli` - so the `agentic-proxy` binary that runs inside the (untrusted-traffic-handling) sidecar container stays free of the CLI's code.
@@ -48,11 +50,14 @@ No static Dockerfile files exist. All Dockerfiles are generated at build time by
 make build          # compile to bin/agentic
 make lint           # run golangci-lint
 make test           # run unit tests
+make test-integration # run integration tests against a real Docker daemon
 make dist           # cross-platform binaries → dist/
 make docker-dist    # same via Docker (no local Go needed)
 ```
 
 Changes to the CLI take effect immediately after `make build` - no container rebuild needed. Changes to stage funcs in `internal/tools/` or `internal/docker/` require an `agentic build` to rebuild the affected image.
+
+Integration tests live in `test/integration/` behind the `integration` build tag. They build the binary and an `agentic-itest-claude` image (a few minutes on the first run, cached after), then drive `agentic run` like a user would. They skip when Docker is unavailable, and the resource-limit checks skip when the daemon runs without cgroups (e.g. rootless without systemd). CI runs them in a separate job. This repo's `.agenticrc.toml` enables the DinD sidecar (and the egress proxy in monitor mode), so they also run inside an agentic container.
 
 ## Go conventions
 
@@ -126,6 +131,7 @@ Run `make lint` (or `golangci-lint run ./...`) before committing; CI runs the sa
 - Test helper functions that need cleanup must register it via `t.Cleanup` internally - do not return a restore/teardown func for callers to defer
 - All shared test helpers live in `helpers_test.go` in the same package; do not define helpers inside individual test files
 - Name all stub helpers with a `stub` prefix (e.g. `stubDockerRun`, `stubRunInteractive`); pure utilities that are not stubs are exempt (e.g. `argAfter`)
+- Integration tests go in `test/integration/` with `//go:build integration`; build docker fixtures with the `fakeContainer`/`fakeNetwork` builders in `fakeresource_test.go`
 
 Example structure:
 
