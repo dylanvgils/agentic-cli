@@ -68,10 +68,20 @@ var dindRunDirGrace = 10 * time.Minute
 var dindRunIDPattern = regexp.MustCompile(`^[0-9a-f]{12}$`)
 
 // dindCapabilities is the sidecar's bounding set; they only take effect inside rootlesskit's user namespace.
+// A cap missing here can never be regained by dockerd or its containers, even inside a nested user namespace.
 var dindCapabilities = []string{
-	"AUDIT_WRITE", "CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "KILL", "MKNOD",
-	"NET_ADMIN", "NET_BIND_SERVICE", "NET_RAW", "SETFCAP", "SETGID", "SETPCAP",
-	"SETUID", "SYS_ADMIN", "SYS_CHROOT",
+	// rootlesskit: create the user/mount namespaces, mount procfs and overlayfs, pivot_root for runc
+	"SYS_ADMIN",
+	// rootlesskit/dockerd: set up the network namespace, tap device, bridge and iptables rules
+	"NET_ADMIN",
+	// newuidmap/newgidmap: write the subuid/subgid maps (SETFCAP is needed to map uid 0 since kernel 5.12)
+	"SETUID", "SETGID", "SETFCAP",
+	// image extraction: keep layer file owners, modes, setuid bits and device nodes
+	"CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "MKNOD",
+	// runc: chroot into and drop caps for inner containers, signal their processes
+	"SYS_CHROOT", "SETPCAP", "KILL",
+	// Docker's default container caps, so inner containers get the usual set
+	"AUDIT_WRITE", "NET_BIND_SERVICE", "NET_RAW",
 }
 
 // dindSecurityOpts relax only what rootlesskit needs to create a user namespace and mount procfs.
