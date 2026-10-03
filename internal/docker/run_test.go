@@ -40,30 +40,6 @@ func TestRunContainer(t *testing.T) {
 		assert.True(t, hasArgWithPrefix(get(), "--name=agentic-claude-"))
 	})
 
-	t.Run("sweeps orphaned sidecars before starting", func(t *testing.T) {
-		// Arrange
-		calls := stubDockerRunCapture(t)
-
-		// Act
-		err := RunContainer(RunSpec{Image: "agentic-claude"}, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotNil(t, findCall(calls(), "ps"))
-	})
-
-	t.Run("dry run does not sweep", func(t *testing.T) {
-		// Arrange
-		calls := stubDockerRunCapture(t)
-
-		// Act
-		err := RunContainer(RunSpec{Image: "agentic-claude", DryRun: true}, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, calls())
-	})
-
 	t.Run("proxy mode swaps network and injects proxy env", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, "network inspect")

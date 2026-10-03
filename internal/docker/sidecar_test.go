@@ -22,6 +22,63 @@ func Test_ownerLabels(t *testing.T) {
 	assert.True(t, hasArgWithPrefix(labels[1:], "--label=agentic.started="))
 }
 
+func Test_setupSidecars(t *testing.T) {
+	t.Run("sweeps orphaned sidecars first", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t)
+		rs := RunSpec{Image: "agentic-claude"}
+
+		// Act
+		_, _, err := setupSidecars(&rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotNil(t, findCall(calls(), "ps"))
+	})
+
+	t.Run("dry run does not sweep", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t)
+		rs := RunSpec{Image: "agentic-claude", DryRun: true}
+
+		// Act
+		_, _, err := setupSidecars(&rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, calls())
+	})
+
+	t.Run("stops the proxy when dind fails to start", func(t *testing.T) {
+		// Arrange
+		stubHostUserGroup(t, "1000:1000")
+		stubDindReadyTimeout(t)
+		calls := stubDockerRunCapture(t, "network inspect", "exec")
+		rs := RunSpec{
+			Image:        "agentic-claude",
+			ToolHome:     t.TempDir(),
+			ProxyEnabled: true,
+			ProxyImage:   "default-proxy",
+			ProxyLogDir:  t.TempDir(),
+			DindEnabled:  true,
+			DindImage:    "dind",
+		}
+
+		// Act
+		_, _, err := setupSidecars(&rs)
+
+		// Assert
+		require.Error(t, err)
+		proxyRemoved := false
+		for _, c := range calls() {
+			if c.args[0] == "rm" && hasArgWithPrefix(c.args, "agentic-proxy-") {
+				proxyRemoved = true
+			}
+		}
+		assert.True(t, proxyRemoved, "the proxy must not outlive a failed run")
+	})
+}
+
 func Test_sweepOrphanedSidecars(t *testing.T) {
 	stubSidecarOrphanGrace(t, 5*time.Minute)
 

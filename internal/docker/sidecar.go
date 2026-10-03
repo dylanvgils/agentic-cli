@@ -1,6 +1,8 @@
 package docker
 
 import (
+	"fmt"
+	"os"
 	"strings"
 	"time"
 )
@@ -22,6 +24,34 @@ func ownerLabels(rs RunSpec) []string {
 		label(LabelOwner, rs.container),
 		label(LabelStarted, formatLabelTime(time.Now())),
 	}
+}
+
+// setupSidecars removes crashed runs' sidecars, then starts this run's proxy and dind; cleanup stops both.
+func setupSidecars(rs *RunSpec) (args []string, cleanup func(), err error) {
+	if !rs.DryRun {
+		// A crashed run never reaches its deferred cleanup, so remove its sidecars here
+		if err := sweepOrphanedSidecars(rs.ToolHome); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not remove orphaned sidecars: %v\n", err)
+		}
+	}
+
+	proxyEnv, proxyCleanup, err := setupProxy(rs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// After the proxy, so the sidecar can join its network
+	dindArgs, dindCleanup, err := setupDind(rs)
+	if err != nil {
+		proxyCleanup()
+		return nil, nil, err
+	}
+
+	cleanup = func() {
+		dindCleanup()
+		proxyCleanup()
+	}
+	return append(proxyEnv, dindArgs...), cleanup, nil
 }
 
 // sweepOrphanedSidecars removes sidecars and networks whose tool container is gone, e.g. after the CLI was killed,

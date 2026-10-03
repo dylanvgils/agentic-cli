@@ -72,46 +72,16 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	}
 	rs.container = rs.Image + "-" + id
 
-	if !rs.DryRun {
-		// A crashed run never reaches its deferred cleanup, so remove its sidecars here
-		if err := sweepOrphanedSidecars(rs.ToolHome); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not remove orphaned sidecars: %v\n", err)
-		}
-	}
-
-	proxyEnv, cleanup, err := setupProxy(&rs)
+	sidecarArgs, cleanup, err := setupSidecars(&rs)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 
-	// After the proxy, so the sidecar can join its network
-	dindArgs, dindCleanup, err := setupDind(&rs)
+	args, err := buildRunArgs(rs, sidecarArgs, toolArgs)
 	if err != nil {
 		return err
 	}
-	defer dindCleanup()
-
-	args := buildBaseArgs(rs)
-	args = append(args, buildTTYArgs()...)
-	args = append(args, buildEnvArgs(rs)...)
-	args = append(args, proxyEnv...)
-	args = append(args, dindArgs...)
-	args = append(args, buildTmpfsArgs(rs)...)
-	args = append(args, buildVolumeArgs(rs)...)
-
-	secretArgs, err := buildSecretArgs(rs)
-	if err != nil {
-		return err
-	}
-	args = append(args, secretArgs...)
-
-	if rs.SkipEntrypoint {
-		args = append(args, arg("entrypoint", ""))
-	}
-
-	args = append(args, rs.Image)
-	args = append(args, toolArgs...)
 
 	if rs.DryRun {
 		_, err := fmt.Fprintln(os.Stdout, "docker", shellJoin(args))

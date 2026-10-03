@@ -28,6 +28,29 @@ func networkOrDefault(network string) string {
 	return network
 }
 
+// buildRunArgs assembles the tool container's full `docker run` args around the sidecar args.
+func buildRunArgs(rs RunSpec, sidecarArgs, toolArgs []string) ([]string, error) {
+	secretArgs, err := buildSecretArgs(rs)
+	if err != nil {
+		return nil, err
+	}
+
+	args := buildBaseArgs(rs)
+	args = append(args, buildTTYArgs()...)
+	args = append(args, buildEnvArgs(rs)...)
+	args = append(args, sidecarArgs...)
+	args = append(args, buildTmpfsArgs(rs)...)
+	args = append(args, buildVolumeArgs(rs)...)
+	args = append(args, secretArgs...)
+
+	if rs.SkipEntrypoint {
+		args = append(args, arg("entrypoint", ""))
+	}
+
+	args = append(args, rs.Image)
+	return append(args, toolArgs...), nil
+}
+
 // buildBaseArgs builds the mandatory security and resource-limit args for running the container with minimal permissions.
 func buildBaseArgs(rs RunSpec) []string {
 	return []string{
