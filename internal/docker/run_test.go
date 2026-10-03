@@ -2,7 +2,6 @@ package docker
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/platform"
@@ -53,15 +52,41 @@ func TestRunContainer(t *testing.T) {
 		assert.True(t, hasArgWithPrefix(args, "--env=HTTPS_PROXY="), "tool should get HTTPS_PROXY")
 	})
 
-	t.Run("proxy mode dry run prints internal network without docker calls", func(t *testing.T) {
+	t.Run("dind mode points tool at sidecar without relaxing tool hardening", func(t *testing.T) {
 		// Arrange
-		calls := stubDockerRunCapture(t)
+		stubHostUserGroup(t, "1000:1000")
+		stubDindReadyTimeout(t)
+		stubDockerRunCapture(t)
+		rs := RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), DindEnabled: true, DindImage: "dind"}
+
+		// Act
+		err := RunContainer(rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		args := get()
+		assert.True(t, hasArgWithPrefix(args, "--network=agentic-dind-"), "tool should share the per-run dind net")
+		assert.Contains(t, args, "--env=DOCKER_HOST=tcp://agentic-docker:2376")
+		assert.Contains(t, args, "--cap-drop=ALL")
+		assert.Contains(t, args, "--security-opt=no-new-privileges:true")
+		assert.Contains(t, args, "--read-only")
+		assert.NotContains(t, args, "--privileged")
+		assert.False(t, hasArgWithPrefix(args, "--cap-add"), "tool container must not gain capabilities")
+	})
+
+	t.Run("dind with proxy shares the internal network and bypasses the proxy for the daemon", func(t *testing.T) {
+		// Arrange
+		stubHostUserGroup(t, "1000:1000")
+		stubDindReadyTimeout(t)
+		calls := stubDockerRunCapture(t, "network inspect")
 		rs := RunSpec{
 			Image:        "agentic-claude",
+			ToolHome:     t.TempDir(),
 			ProxyEnabled: true,
-			DryRun:       true,
-			ProxyAllow:   []string{"api.anthropic.com"},
+			ProxyImage:   "default-proxy",
 			ProxyLogDir:  t.TempDir(),
+			DindEnabled:  true,
+			DindImage:    "dind",
 		}
 
 		// Act
@@ -69,7 +94,14 @@ func TestRunContainer(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Empty(t, calls(), "dry run must not invoke docker")
+		args := get()
+		assert.True(t, hasArgWithPrefix(args, "--network=agentic-proxy-"))
+		assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1,agentic-docker")
+		for _, c := range calls() {
+			if c.args[0] == "network" && c.args[1] == "create" {
+				assert.False(t, hasArgWithPrefix(c.args, dindNetworkPrefix), "dind should join the proxy net, not create its own")
+			}
+		}
 	})
 
 	t.Run("tmpfs mounts", func(t *testing.T) {
@@ -274,86 +306,6 @@ func TestRunContainer(t *testing.T) {
 
 		// Act + Assert
 		assert.ErrorContains(t, RunContainer(rs, nil), "invalid secret")
-	})
-}
-
-func TestSetupProxy(t *testing.T) {
-	t.Run("disabled returns no env and no-op cleanup", func(t *testing.T) {
-		// Arrange
-		rs := RunSpec{Image: "agentic-claude"}
-
-		// Act
-		env, cleanup, err := setupProxy(&rs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, env)
-		assert.Equal(t, "", rs.network)
-		require.NotPanics(t, cleanup)
-	})
-
-	t.Run("dry run sets network without docker calls", func(t *testing.T) {
-		// Arrange
-		calls := stubDockerRunCapture(t)
-		rs := RunSpec{
-			Image:        "agentic-claude",
-			ProxyEnabled: true,
-			DryRun:       true,
-			ProxyAllow:   []string{"api.anthropic.com"},
-			ProxyLogDir:  t.TempDir(),
-		}
-
-		// Act
-		env, cleanup, err := setupProxy(&rs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, strings.HasPrefix(rs.network, "agentic-proxy-"))
-		assert.True(t, hasArgWithPrefix(env, "--env=HTTPS_PROXY="))
-		assert.Empty(t, calls(), "dry run must not invoke docker")
-		require.NotPanics(t, cleanup)
-	})
-
-	t.Run("real mode provisions sidecar and returns cleanup", func(t *testing.T) {
-		// Arrange
-		calls := stubDockerRunCapture(t, "network inspect")
-		rs := RunSpec{
-			Image:        "agentic-claude",
-			ProxyEnabled: true,
-			ProxyImage:   "default-proxy",
-			ProxyAllow:   []string{"api.anthropic.com"},
-			ProxyLogDir:  t.TempDir(),
-		}
-
-		// Act
-		env, cleanup, err := setupProxy(&rs)
-		cleanup()
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, strings.HasPrefix(rs.network, "agentic-proxy-"))
-		assert.True(t, hasArgWithPrefix(env, "--env=HTTPS_PROXY="))
-		last := calls()[len(calls())-1]
-		assert.Equal(t, []string{"network", "rm"}, last.args[:2], "cleanup should remove the proxy network")
-	})
-
-	t.Run("real mode propagates startProxy error", func(t *testing.T) {
-		// Arrange
-		stubDockerRunCapture(t, "network inspect", "network create")
-		rs := RunSpec{
-			Image:        "agentic-claude",
-			ProxyEnabled: true,
-			ProxyImage:   "default-proxy",
-			ProxyLogDir:  t.TempDir(),
-		}
-
-		// Act
-		env, cleanup, err := setupProxy(&rs)
-
-		// Assert
-		assert.Error(t, err)
-		assert.Nil(t, env)
-		assert.Nil(t, cleanup)
 	})
 }
 

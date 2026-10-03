@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -67,6 +70,7 @@ func init() {
 
 	addResourceLimitFlags(runToolCmd)
 	addProxyFlags(runToolCmd)
+	addDindFlags(runToolCmd)
 	addNamespaceFlag(runToolCmd)
 	addRegistryFlag(runToolCmd)
 }
@@ -120,6 +124,18 @@ func runTool(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	dindEnabled := resolveDindEnabled(cmd, rc)
+	if dindEnabled {
+		if err := run.RequireDockerLayer(parsedArgs.imageName, parsedArgs.toolName); err != nil {
+			return err
+		}
+		if !dryRun {
+			if err := ensureDindImage(cmd); err != nil {
+				return err
+			}
+		}
+	}
+
 	pidsLimit, cpus, memory := resolveResourceLimitFlags(cmd)
 
 	target := run.Target{
@@ -140,6 +156,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		Registry:       collectRegistry(cmd),
 		ProxyEnabled:   proxyEnabled,
 		ProxyMonitor:   proxyMonitor,
+		DindEnabled:    dindEnabled,
 	}
 
 	rs, cleanupInstructions, err := run.BuildWithInstructions(target, input, toolConfig, rc)
@@ -202,4 +219,23 @@ func requireImage(image, tool string) error {
 	}
 	return fmt.Errorf("image %q not found; %q is available under %s %s - use --namespace or run \"agentic build %s\"",
 		image, tool, noun, strings.Join(namespaces, ", "), tool)
+}
+
+// ensureDindImage builds the sidecar image if missing, outdated or stale; a failed refresh only warns so offline runs work.
+func ensureDindImage(cmd *cobra.Command) error {
+	info, err := inspectImage(tools.DindImage)
+	if err != nil {
+		return err
+	}
+	if info != nil && info.CLIVersion == buildinfo.Version && !info.BuiltBefore(time.Now().Add(-tools.DindImageMaxAge)) {
+		return nil
+	}
+
+	logging.Step(tools.DindImage)
+	err = buildDindImage(tools.DindImage, tools.BuildOptions{Registry: collectRegistry(cmd)})
+	if err != nil && info != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not refresh %s, using the existing image: %v\n", tools.DindImage, err)
+		return nil
+	}
+	return err
 }

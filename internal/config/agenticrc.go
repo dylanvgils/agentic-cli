@@ -44,6 +44,7 @@ type RCRun struct {
 	CPUs           string         `toml:"cpus"`
 	Memory         string         `toml:"memory"`
 	Proxy          RCProxy        `toml:"proxy"`
+	Dind           RCDind         `toml:"dind"`
 	Instructions   RCInstructions `toml:"instructions"`
 	// CheckUpdates is a pointer so an inner config can explicitly disable a check an outer one enabled; nil or true means it runs.
 	CheckUpdates *bool `toml:"check_updates"`
@@ -63,6 +64,12 @@ type RCProxy struct {
 	AllowedHosts []string `toml:"allowed_hosts"`
 	// Mode selects how the proxy enforces AllowedHosts: "enforce" (default) blocks disallowed hosts, "monitor" only logs the verdict.
 	Mode string `toml:"mode"`
+}
+
+// RCDind holds Docker-in-Docker sidecar settings from a .agenticrc.toml file.
+type RCDind struct {
+	// Pointer so an inner config can disable what an outer one enabled
+	Enabled *bool `toml:"enabled"`
 }
 
 // RCMarketplace declares one git-based plugin marketplace to sync and mount into tool containers.
@@ -245,6 +252,10 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 
 		if resRun.Proxy.Mode == "" {
 			resRun.Proxy.Mode = run.Proxy.Mode
+		}
+
+		if resRun.Dind.Enabled == nil {
+			resRun.Dind.Enabled = run.Dind.Enabled
 		}
 
 		if resRun.Instructions.Enabled == nil {

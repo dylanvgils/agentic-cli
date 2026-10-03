@@ -6,10 +6,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -91,6 +94,50 @@ func TestRunTool(t *testing.T) {
 		require.Contains(t, rs.Volumes, "$PWD/creds:/workspace/creds:ro")
 		assert.Equal(t, len(rs.Volumes)-1, slices.Index(rs.Volumes, "$PWD/creds:/workspace/creds:ro"),
 			"flag-supplied read-only mount must be last so it shadows every other mount")
+	})
+
+	t.Run("dind flag enables the sidecar when the image has the docker layer", func(t *testing.T) {
+		// Arrange
+		t.Chdir(t.TempDir())
+		withTempToolHome(t)
+		get := captureRunContainer(t)
+		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)
+		stubRunInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)
+		stubBuildDindImage(t, func(string, tools.BuildOptions) error { return nil })
+		require.NoError(t, runToolCmd.Flags().Set("dind", "true"))
+		t.Cleanup(func() {
+			_ = runToolCmd.Flags().Set("dind", "false")
+			runToolCmd.Flags().Lookup("dind").Changed = false
+		})
+
+		// Act
+		err := runTool(runToolCmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		rs, _ := get()
+		assert.True(t, rs.DindEnabled)
+		assert.Equal(t, tools.DindImage, rs.DindImage)
+	})
+
+	t.Run("dind flag without docker layer fails before running", func(t *testing.T) {
+		// Arrange
+		t.Chdir(t.TempDir())
+		withTempToolHome(t)
+		get := captureRunContainer(t)
+		require.NoError(t, runToolCmd.Flags().Set("dind", "true"))
+		t.Cleanup(func() {
+			_ = runToolCmd.Flags().Set("dind", "false")
+			runToolCmd.Flags().Lookup("dind").Changed = false
+		})
+
+		// Act
+		err := runTool(runToolCmd, []string{"claude"})
+
+		// Assert
+		require.ErrorContains(t, err, "--base docker")
+		rs, _ := get()
+		assert.Empty(t, rs.Image, "RunContainer should not be called")
 	})
 
 	t.Run("passes tool args", func(t *testing.T) {
@@ -344,5 +391,87 @@ func TestParseArgs(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "bogus")
+	})
+}
+
+func Test_ensureDindImage(t *testing.T) {
+	withTempToolHome(t)
+	cmd := &cobra.Command{Use: "test"}
+	fresh := formatTestLabelTime(time.Now())
+
+	t.Run("current image is reused", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, &docker.ImageInfo{CLIVersion: buildinfo.Version, Built: fresh}, nil)
+		built := false
+		stubBuildDindImage(t, func(string, tools.BuildOptions) error {
+			built = true
+			return nil
+		})
+
+		// Act
+		err := ensureDindImage(cmd)
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, built)
+	})
+
+	t.Run("missing image is built", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, nil)
+		var builtImage string
+		stubBuildDindImage(t, func(image string, _ tools.BuildOptions) error {
+			builtImage = image
+			return nil
+		})
+
+		// Act
+		err := ensureDindImage(cmd)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, tools.DindImage, builtImage)
+	})
+
+	t.Run("stale image is rebuilt to pick up base patches", func(t *testing.T) {
+		// Arrange
+		stale := formatTestLabelTime(time.Now().Add(-tools.DindImageMaxAge - time.Hour))
+		stubInspectImage(t, &docker.ImageInfo{CLIVersion: buildinfo.Version, Built: stale}, nil)
+		built := false
+		stubBuildDindImage(t, func(string, tools.BuildOptions) error {
+			built = true
+			return nil
+		})
+
+		// Act
+		err := ensureDindImage(cmd)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, built)
+	})
+
+	t.Run("failed refresh of an existing image only warns", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, &docker.ImageInfo{CLIVersion: "older", Built: fresh}, nil)
+		stubBuildDindImage(t, func(string, tools.BuildOptions) error { return fmt.Errorf("offline") })
+
+		// Act
+		err := ensureDindImage(cmd)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("failed build of a missing image errors", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, nil, nil)
+		stubBuildDindImage(t, func(string, tools.BuildOptions) error { return fmt.Errorf("offline") })
+
+		// Act
+		err := ensureDindImage(cmd)
+
+		// Assert
+		assert.ErrorContains(t, err, "offline")
 	})
 }

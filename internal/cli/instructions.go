@@ -38,6 +38,7 @@ func init() {
 
 	addResourceLimitFlags(instructionsCmd)
 	addProxyFlags(instructionsCmd)
+	addDindFlags(instructionsCmd)
 	addNamespaceFlag(instructionsCmd)
 }
 
@@ -56,6 +57,7 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 	}
 
 	proxyEnabled, proxyMonitor := resolveProxyMode(cmd, rc)
+	dindEnabled := resolveDindEnabled(cmd, rc)
 	pidsLimit, cpus, memory := resolveResourceLimitFlags(cmd)
 
 	target := run.Target{ToolName: toolName, ImageName: imageName}
@@ -66,6 +68,7 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 		Memory:       memory,
 		ProxyEnabled: proxyEnabled,
 		ProxyMonitor: proxyMonitor,
+		DindEnabled:  dindEnabled,
 	}
 
 	content, err := run.PreviewInstructions(target, input, tools.Configs[toolName], rc)

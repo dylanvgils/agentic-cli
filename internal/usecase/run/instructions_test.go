@@ -203,6 +203,42 @@ func TestBuildInstructions(t *testing.T) {
 		assert.NotContains(t, content, "tell the user why so they can add it to allowed_hosts")
 	})
 
+	t.Run("docker section omitted when dind disabled", func(t *testing.T) {
+		// Act
+		content, err := BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotContains(t, content, "## Docker")
+	})
+
+	t.Run("docker section explains the sidecar when dind enabled", func(t *testing.T) {
+		// Arrange
+		in := Input{DindEnabled: true}
+
+		// Act
+		content, err := BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, content, "## Docker")
+		assert.Contains(t, content, "agentic-docker:<port>")
+		assert.NotContains(t, content, "egress proxy")
+	})
+
+	t.Run("docker section and allowlist cover registries with proxy", func(t *testing.T) {
+		// Arrange
+		in := Input{DindEnabled: true, ProxyEnabled: true}
+
+		// Act
+		content, err := BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, content, "Image pulls, builds and containers go through the same egress proxy")
+		assert.Contains(t, content, "registry-1.docker.io")
+	})
+
 	t.Run("custom instructions appended when set", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Custom: "Always run go test before finishing."}}}

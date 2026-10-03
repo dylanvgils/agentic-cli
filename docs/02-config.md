@@ -98,7 +98,7 @@ This is read by [`taplo`](https://taplo.tamasfe.dev/), the TOML toolkit behind V
 | ----------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------- |
 | `bases`           | list           | Extra runtime layers to add on top of the node base (e.g. `["java", "dotnet"]`). Accumulates across RC layers and with `--base`; `--base-exact` replaces it entirely instead. | `--base` / `--base-exact` | -       |
 | `apt_packages`    | list           | Extra Debian packages to install in the base image. Accumulates across RC layers and with `--apt`; `--apt-exact` replaces it entirely instead.                                | `--apt` / `--apt-exact`   | -       |
-| `versions`        | TOML table     | Per-layer version pins. Written as `[build.versions]` with `node`, `java`, `dotnet`, or `go` keys. Innermost value wins per key.                                              | `--<layer>`               | -       |
+| `versions`        | TOML table     | Per-layer version pins. Written as `[build.versions]` with `node`, `java`, `dotnet`, `go`, or `docker` keys. Innermost value wins per key.                                              | `--<layer>`               | -       |
 | `custom_installs` | list of tables | Non-apt tools installed via arbitrary shell commands. See `[[build.custom_installs]]` below.                                                                                  | -                         | -       |
 
 **`[[build.custom_installs]]`** - non-apt tools (e.g. `helm`, `golangci-lint`) installed via arbitrary shell commands, applied unconditionally at build time - not gated by a `--<name>` flag the way `bases` extras are
@@ -117,7 +117,7 @@ run = [
 ]
 ```
 
-Each entry becomes its own Dockerfile stage `RUN`, inserted after any `--base` extras (`dotnet`/`go`/`java`/`node`) and before the tool's own install step - so a custom install can rely on any requested extra's toolchain being on `PATH` (e.g. a `go install`-based install can assume `--base go` already ran). rc-only: no CLI flag equivalent, unlike `bases`/`apt_packages`. Unlike those two, `agentic update` does not ignore `custom_installs` from rc - it always reflects the current file, since there's no per-image label recovery for it (the `agentic.custom-installs` label is informational only, shown by `agentic inspect <tool>` - it's never read back to decide what to rebuild). Editing an entry's `run` always takes effect on the next `build`/`update` via normal Docker layer-cache invalidation on the changed `RUN` command.
+Each entry becomes its own Dockerfile stage `RUN`, inserted after any `--base` extras (`docker`/`dotnet`/`go`/`java`/`node`) and before the tool's own install step - so a custom install can rely on any requested extra's toolchain being on `PATH` (e.g. a `go install`-based install can assume `--base go` already ran). rc-only: no CLI flag equivalent, unlike `bases`/`apt_packages`. Unlike those two, `agentic update` does not ignore `custom_installs` from rc - it always reflects the current file, since there's no per-image label recovery for it (the `agentic.custom-installs` label is informational only, shown by `agentic inspect <tool>` - it's never read back to decide what to rebuild). Editing an entry's `run` always takes effect on the next `build`/`update` via normal Docker layer-cache invalidation on the changed `RUN` command.
 
 `custom_installs` commands run as root, in a build stage before the container's non-root tool user is created (the same ordering `apt_packages`/`bases` already use). Install into a root-owned system path such as `/usr/local/bin` or `/opt` rather than `$HOME` - files written under the tool user's home directory will end up root-owned, and containers run `--read-only` as a non-root user at runtime, so such files would be unusable.
 
@@ -164,6 +164,7 @@ The generated block opens with a precedence note - it only describes the contain
 - **What's installed** - base toolchain (a static default, listed even before the image is built), extra runtimes, apt packages, and custom installs, read from the built image's labels so they reflect what's actually running, not a possibly stale `.agenticrc.toml`
 - **What's restricted** - read-only filesystem, writable paths, resource limits, dropped privileges
 - **Network access**, when the egress proxy is enabled - no direct internet access, plus the allowlist when enforced, with the same "tell the user so they can add it" note for a blocked host
+- **Docker**, when `--dind` is enabled - how to reach the sidecar daemon and its published ports, and that only `/workspace` is shared with it
 
 **`[run.proxy]` section** - egress allowlist proxy
 
@@ -179,7 +180,7 @@ When enabled, the tool container loses direct internet access and reaches the ou
 
 Each proxy-enabled run prunes access logs older than a retention window (default 3 days), set via `proxy_log_retention_days` in `agentic.json` (host-level, not per-project). To wipe all logs regardless of age, run `agentic proxy clean --logs`.
 
-Each tool ships a baseline allowlist that `allowed_hosts` merges on top of. The proxy image builds on demand on the first `--proxy` run, or explicitly via `agentic proxy build`/`agentic proxy update` (see [Development](05-development.md#building-the-proxy-image-locally)).
+Each tool ships a baseline allowlist that `allowed_hosts` merges on top of. The proxy image builds on demand on the first `--proxy` run, or explicitly via `agentic proxy build`/`agentic proxy update` (see [Development](07-development.md#building-the-proxy-image-locally)).
 
 | Tool       | Baseline host        | Purpose                             |
 | ---------- | -------------------- | ----------------------------------- |
@@ -192,7 +193,7 @@ Each tool ships a baseline allowlist that `allowed_hosts` merges on top of. The 
 
 OpenCode is multi-provider, so only its own auth/update host is included by default - add your chosen model-provider hosts via `allowed_hosts`.
 
-`agentic config` shows resolved `proxy.enabled`, `proxy.mode`, and `proxy.allowed_hosts` for the current directory, tagged with the `.agenticrc.toml` that set them (tool baseline hosts aren't included - they're fixed per tool, not configurable).
+`agentic config` shows resolved `proxy.enabled`, `proxy.mode`, and `proxy.allowed_hosts` (plus `dind.enabled`) for the current directory, tagged with the `.agenticrc.toml` that set them (tool baseline hosts aren't included - they're fixed per tool, not configurable).
 
 ```toml
 [run.proxy]
@@ -209,6 +210,19 @@ allowed_hosts = [
 `HTTP_PROXY`/`HTTPS_PROXY` (and lowercase variants) are auto-injected whenever the proxy is enabled, so most tools need no extra configuration. Some tools ignore these env vars and require a literal host:port instead - Maven is an example: it only reads proxy settings from `settings.xml`'s `<proxies>` section, not `MAVEN_OPTS` or the standard proxy env vars.
 
 For these cases, the sidecar is reachable at the stable hostname `agentic-proxy:3128` - unlike its actual Docker container name (randomized per run), this hostname is safe to hardcode once in the tool's own config. See [Tool-specific proxy examples](#tool-specific-proxy-examples) below for a Maven walkthrough.
+
+**`[run.dind]` section** - rootless Docker-in-Docker sidecar
+
+| Key       | Type | Description                                                                                                                                                                                                     | CLI flag               | Default |
+| --------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------- |
+| `enabled` | bool | Start a per-run rootless Docker daemon sidecar the tool reaches via `DOCKER_HOST`. The image needs the `docker` base layer (`--base docker`). A pointer internally, so an inner config can disable an outer one. | `--dind` / `--no-dind` | `false` |
+
+When enabled, `agentic run` generates throwaway TLS certs, builds the hardened `agentic-dind` image if needed (from `docker:<version>-dind-rootless`, setuid bits stripped, rebuilt at least weekly), starts it as your uid (inner-container ids map to a dedicated unused range from 2,000,000,000) with a derived seccomp profile on a per-run network (or the proxy's internal network when `--proxy` is on), waits for the daemon, and removes the sidecar, its images, and the certs when the run ends. `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CONFIG`, and `DOCKER_CONTEXT` are managed for the run and can't be overridden via `env`. With the proxy on, Docker Hub hosts are added to the allowlist automatically, and the CLI's `config.json` passes the proxy into containers and builds started through the sidecar. See [Docker-in-Docker](05-docker-in-docker.md) for the isolation model and a devcontainer example.
+
+```toml
+[run.dind]
+enabled = true
+```
 
 **`[[marketplaces]]`** - git-based plugin marketplaces (skills, agents, commands, hooks, MCP servers, synced and mounted together as a single unit) to sync onto the host and mount read-only into every applicable tool's container
 

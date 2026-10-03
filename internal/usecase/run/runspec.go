@@ -36,6 +36,7 @@ type Input struct {
 	Registry       string
 	ProxyEnabled   bool
 	ProxyMonitor   bool
+	DindEnabled    bool
 	// InstructionsMount is the mount spec for this run's instructions snapshot, empty when disabled.
 	InstructionsMount string
 }
@@ -60,7 +61,7 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	env := resolve.Env(in.Env, rc)
 	limits := resolve.ResourceLimitsFor(in.PidsLimit, in.CPUs, in.Memory, rc)
 
-	if err := validateEnv(env, in.ProxyEnabled); err != nil {
+	if err := validateEnv(env, in.ProxyEnabled, in.DindEnabled); err != nil {
 		return docker.RunSpec{}, err
 	}
 
@@ -73,10 +74,10 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		return docker.RunSpec{}, err
 	}
 
-	// In proxy mode the tool container attaches to a per-run internal network
+	// In proxy or dind mode the tool container attaches to a per-run network
 	// instead of agentic-net; startProxy ensures agentic-net itself for the
 	// sidecar's egress connection, so skip the redundant check here.
-	if !in.ProxyEnabled {
+	if !in.ProxyEnabled && !in.DindEnabled {
 		if err := EnsureNetwork(); err != nil {
 			return docker.RunSpec{}, err
 		}
@@ -99,7 +100,8 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		WithCPUs(limits.CPUs).
 		WithMemory(limits.Memory).
 		WithDryRun(in.DryRun).
-		WithProxy(in.ProxyEnabled, tools.ProxyImage, resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, rc), logDir, in.ProxyMonitor).
+		WithProxy(in.ProxyEnabled, tools.ProxyImage, resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc), logDir, in.ProxyMonitor).
+		WithDind(in.DindEnabled, tools.DindImage).
 		Build()
 
 	return rs, nil
@@ -209,11 +211,11 @@ func splitReadOnlyMountSpec(spec string) (host, container string) {
 	return host, container
 }
 
-// validateEnv rejects entries targeting an env var agentic already manages (proxy injection when proxyEnabled, mount placeholders always).
-func validateEnv(entries []string, proxyEnabled bool) error {
+// validateEnv rejects entries that override an env var agentic manages.
+func validateEnv(entries []string, proxyEnabled, dindEnabled bool) error {
 	for _, entry := range entries {
 		key, _, _ := strings.Cut(entry, "=")
-		if docker.IsReservedEnvName(key, proxyEnabled) {
+		if docker.IsReservedEnvName(key, proxyEnabled) || (dindEnabled && docker.IsReservedDindEnvName(key)) {
 			return fmt.Errorf("--env: %q is managed by agentic and cannot be overridden", key)
 		}
 	}

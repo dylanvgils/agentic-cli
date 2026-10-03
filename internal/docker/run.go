@@ -54,7 +54,11 @@ type RunSpec struct {
 	ProxyLogDir  string   // host dir for JSON-lines access logs
 	ProxyMonitor bool     // log the allowlist verdict without enforcing it
 
-	// network is the docker network the tool attaches to; empty means NetworkName, proxy mode sets the per-run internal net.
+	// Docker-in-Docker sidecar, reachable at DOCKER_HOST over mutual TLS
+	DindEnabled bool
+	DindImage   string
+
+	// network is the docker network the tool attaches to; empty means NetworkName, proxy or dind mode sets a per-run net.
 	network string
 }
 
@@ -65,6 +69,13 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	}
 	defer cleanup()
 
+	// After the proxy, so the sidecar can join its network
+	dindArgs, dindCleanup, err := setupDind(&rs)
+	if err != nil {
+		return err
+	}
+	defer dindCleanup()
+
 	args, err := buildBaseArgs(rs)
 	if err != nil {
 		return err
@@ -73,6 +84,7 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	args = append(args, buildTTYArgs()...)
 	args = append(args, buildEnvArgs(rs)...)
 	args = append(args, proxyEnv...)
+	args = append(args, dindArgs...)
 	args = append(args, buildTmpfsArgs(rs)...)
 	args = append(args, buildVolumeArgs(rs)...)
 
@@ -105,51 +117,9 @@ func IsReservedEnvName(key string, proxyEnabled bool) bool {
 	return reservedConfigNames[key]
 }
 
-// setupProxy configures rs for proxy mode if enabled, returning the env args to inject and a
-// cleanup func to defer (a no-op when proxying is disabled or this is a dry run).
-func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
-	if !rs.ProxyEnabled {
-		return nil, func() {}, nil
-	}
-
-	if rs.DryRun {
-		// Reflect the internal network and proxy env in the printed command
-		// without provisioning any docker resources.
-		handle, err := newProxyHandle(*rs)
-		if err != nil {
-			return nil, nil, err
-		}
-		rs.network = handle.network
-		return proxyEnvArgs(), func() {}, nil
-	}
-
-	handle, err := startProxy(*rs)
-	if err != nil {
-		return nil, nil, err
-	}
-	rs.network = handle.network
-
-	// Ensure the sidecar is torn down even on Ctrl-C: capturing these
-	// signals suppresses Go's default termination so deferred cleanup
-	// runs after the tool container (which the terminal also signals)
-	// exits and runInteractive returns.
-	stop := guardSignals()
-
-	cleanup = func() {
-		// Stop the sidecar before reading its log: it may still be writing
-		// entries for in-flight requests, so the summary would otherwise
-		// miss late denials.
-		handle.Stop()
-		stop()
-		handle.PrintSummary(os.Stderr)
-	}
-	return proxyEnvArgs(), cleanup, nil
-}
-
-// guardSignals installs a no-op interrupt/terminate handler and returns a func to uninstall it,
-// keeping the process alive long enough to run deferred proxy cleanup on Ctrl-C.
-func guardSignals() func() {
+// guardSignals routes interrupt/terminate signals to a channel so deferred cleanup still runs; stop uninstalls it.
+func guardSignals() (signals <-chan os.Signal, stop func()) {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
-	return func() { signal.Stop(ch) }
+	return ch, func() { signal.Stop(ch) }
 }

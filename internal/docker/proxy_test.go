@@ -103,13 +103,23 @@ func TestProxyHandleStop(t *testing.T) {
 }
 
 func Test_proxyEnvArgs(t *testing.T) {
-	// Act
-	args := proxyEnvArgs()
+	t.Run("points at the proxy and excludes loopback", func(t *testing.T) {
+		// Act
+		args := proxyEnvArgs(false)
 
-	// Assert
-	assert.Contains(t, args, "--env=HTTPS_PROXY=http://agentic-proxy:3128")
-	assert.Contains(t, args, "--env=HTTP_PROXY=http://agentic-proxy:3128")
-	assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1")
+		// Assert
+		assert.Contains(t, args, "--env=HTTPS_PROXY=http://agentic-proxy:3128")
+		assert.Contains(t, args, "--env=HTTP_PROXY=http://agentic-proxy:3128")
+		assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1")
+	})
+
+	t.Run("dind excludes the docker sidecar", func(t *testing.T) {
+		// Act
+		args := proxyEnvArgs(true)
+
+		// Assert
+		assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1,agentic-docker")
+	})
 }
 
 func TestProxyHandleHostsByDecision(t *testing.T) {
@@ -200,5 +210,52 @@ func TestProxyHandlePrintSummary(t *testing.T) {
 
 		// Assert
 		assert.Empty(t, buf.String())
+	})
+}
+
+func Test_setupProxy(t *testing.T) {
+	t.Run("dry run sets network without docker calls", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t)
+		rs := RunSpec{Image: "agentic-claude", ProxyEnabled: true, DryRun: true, ProxyLogDir: t.TempDir()}
+
+		// Act
+		env, cleanup, err := setupProxy(&rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, strings.HasPrefix(rs.network, "agentic-proxy-"))
+		assert.NotEmpty(t, env)
+		assert.Empty(t, calls(), "dry run must not invoke docker")
+		require.NotPanics(t, cleanup)
+	})
+
+	t.Run("cleanup stops the sidecar", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t, "network inspect")
+		rs := RunSpec{Image: "agentic-claude", ProxyEnabled: true, ProxyImage: "default-proxy", ProxyLogDir: t.TempDir()}
+
+		// Act
+		_, cleanup, err := setupProxy(&rs)
+		cleanup()
+
+		// Assert
+		require.NoError(t, err)
+		last := calls()[len(calls())-1]
+		assert.Equal(t, []string{"network", "rm", rs.network}, last.args)
+	})
+
+	t.Run("propagates startProxy error", func(t *testing.T) {
+		// Arrange
+		stubDockerRunCapture(t, "network inspect", "network create")
+		rs := RunSpec{Image: "agentic-claude", ProxyEnabled: true, ProxyImage: "default-proxy", ProxyLogDir: t.TempDir()}
+
+		// Act
+		env, cleanup, err := setupProxy(&rs)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, env)
+		assert.Nil(t, cleanup)
 	})
 }

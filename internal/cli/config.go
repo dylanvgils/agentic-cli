@@ -134,6 +134,7 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	proxyEnabled := func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
 	proxyMode := func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }
 	proxyAllowedHosts := func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts }
+	dindEnabled := func(rc *config.AgenticRC) *bool { return rc.Run.Dind.Enabled }
 
 	if err := printScalarField(w, "namespace", layers, func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace); err != nil {
 		return err
@@ -174,7 +175,10 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if err := printScalarField(w, "proxy.mode", layers, proxyMode, config.ModeEnforce); err != nil {
 		return err
 	}
-	return printListField(w, "proxy.allowed_hosts", layers, proxyAllowedHosts)
+	if err := printListField(w, "proxy.allowed_hosts", layers, proxyAllowedHosts); err != nil {
+		return err
+	}
+	return printBoolField(w, "dind.enabled", layers, dindEnabled, false)
 }
 
 // printScalarField prints a scalar config field: innermost RC value wins, else defaultVal tagged (default), else "(not set)".

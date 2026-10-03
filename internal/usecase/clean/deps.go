@@ -8,5 +8,6 @@ var (
 	CleanImage          = docker.CleanImage
 	CleanBaseImages     = docker.CleanBaseImages
 	SweepProxyResources = docker.SweepProxyResources
+	SweepDindResources  = docker.SweepDindResources
 	RemoveNetwork       = docker.RemoveNetwork
 )

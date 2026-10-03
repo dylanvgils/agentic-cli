@@ -315,6 +315,35 @@ func TestMergeConfigs(t *testing.T) {
 		assert.True(t, *result.Run.Proxy.Enabled)
 	})
 
+	t.Run("dind enabled child wins over parent", func(t *testing.T) {
+		// Arrange
+		childFalse := false
+		parentTrue := true
+		child := &AgenticRC{Run: RCRun{Dind: RCDind{Enabled: &childFalse}}}
+		parent := &AgenticRC{Run: RCRun{Dind: RCDind{Enabled: &parentTrue}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		require.NotNil(t, result.Run.Dind.Enabled)
+		assert.False(t, *result.Run.Dind.Enabled)
+	})
+
+	t.Run("dind enabled parent fills when child unset", func(t *testing.T) {
+		// Arrange
+		parentTrue := true
+		child := &AgenticRC{}
+		parent := &AgenticRC{Run: RCRun{Dind: RCDind{Enabled: &parentTrue}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		require.NotNil(t, result.Run.Dind.Enabled)
+		assert.True(t, *result.Run.Dind.Enabled)
+	})
+
 	t.Run("check_updates child wins over parent", func(t *testing.T) {
 		// Arrange
 		childFalse := false

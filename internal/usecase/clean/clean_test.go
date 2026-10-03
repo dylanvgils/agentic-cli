@@ -186,9 +186,15 @@ func TestGlobalResources(t *testing.T) {
 			basesCleaned = true
 			return nil
 		})
-		swept := false
+		var swept []string
+		var sweptHome string
+		stubSweepDindResources(t, func(toolHome string) error {
+			sweptHome = toolHome
+			swept = append(swept, "dind")
+			return nil
+		})
 		stubSweepProxyResources(t, func() error {
-			swept = true
+			swept = append(swept, "proxy")
 			return nil
 		})
 		networkRemoved := false
@@ -199,14 +205,16 @@ func TestGlobalResources(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := GlobalResources()
+			err := GlobalResources("/agentic-home")
 			require.NoError(t, err)
 		})
 
 		// Assert
 		assert.True(t, basesCleaned)
 		assert.Contains(t, cleaned, tools.ProxyImage)
-		assert.True(t, swept)
+		assert.Contains(t, cleaned, tools.DindImage)
+		assert.Equal(t, []string{"dind", "proxy"}, swept, "sidecars must go before the proxy networks they sit on")
+		assert.Equal(t, "/agentic-home", sweptHome)
 		assert.True(t, networkRemoved)
 		assert.Contains(t, out, "=> base")
 		assert.Contains(t, out, "=> "+tools.ProxyImage)
@@ -218,7 +226,7 @@ func TestGlobalResources(t *testing.T) {
 		stubCleanBaseImages(t, func() error { return fmt.Errorf("base cleanup failed") })
 
 		// Act
-		err := GlobalResources()
+		err := GlobalResources("/agentic-home")
 
 		// Assert
 		require.Error(t, err)
@@ -231,21 +239,36 @@ func TestGlobalResources(t *testing.T) {
 		stubCleanImage(t, func(string) error { return fmt.Errorf("proxy cleanup failed") })
 
 		// Act
-		err := GlobalResources()
+		err := GlobalResources("/agentic-home")
 
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "proxy cleanup failed")
 	})
 
+	t.Run("sweepDindResources error propagates", func(t *testing.T) {
+		// Arrange
+		stubCleanBaseImages(t, func() error { return nil })
+		stubCleanImage(t, func(string) error { return nil })
+		stubSweepDindResources(t, func(string) error { return fmt.Errorf("dind sweep failed") })
+
+		// Act
+		err := GlobalResources("/agentic-home")
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "dind sweep failed")
+	})
+
 	t.Run("sweepProxyResources error propagates", func(t *testing.T) {
 		// Arrange
 		stubCleanBaseImages(t, func() error { return nil })
 		stubCleanImage(t, func(string) error { return nil })
+		stubSweepDindResources(t, func(string) error { return nil })
 		stubSweepProxyResources(t, func() error { return fmt.Errorf("sweep failed") })
 
 		// Act
-		err := GlobalResources()
+		err := GlobalResources("/agentic-home")
 
 		// Assert
 		require.Error(t, err)
@@ -256,11 +279,12 @@ func TestGlobalResources(t *testing.T) {
 		// Arrange
 		stubCleanBaseImages(t, func() error { return nil })
 		stubCleanImage(t, func(string) error { return nil })
+		stubSweepDindResources(t, func(string) error { return nil })
 		stubSweepProxyResources(t, func() error { return nil })
 		stubRemoveNetwork(t, func() error { return fmt.Errorf("network removal failed") })
 
 		// Act
-		err := GlobalResources()
+		err := GlobalResources("/agentic-home")
 
 		// Assert
 		require.Error(t, err)

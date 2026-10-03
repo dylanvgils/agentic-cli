@@ -2,6 +2,7 @@ package docker
 
 import (
 	"strings"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
@@ -22,6 +23,12 @@ type ImageInfo struct {
 	CLIVersion     string // agentic.version label (CLI version that built this image)
 	CacheBust      string // agentic.cachebust label (CACHEBUST build-arg baked into the tool stage)
 	Size           string // formatted size from docker image ls
+}
+
+// BuiltBefore reports whether the agentic.built label predates cutoff; a missing or invalid label counts as before.
+func (i ImageInfo) BuiltBefore(cutoff time.Time) bool {
+	built, ok := parseLabelTime(i.Built)
+	return !ok || built.Before(cutoff)
 }
 
 // InspectImage returns metadata for the given Docker image, or nil, nil if it does not exist.

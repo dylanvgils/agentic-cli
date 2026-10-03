@@ -19,6 +19,7 @@ type Versions struct {
 	Java             string `json:"java"`
 	Dotnet           string `json:"dotnet"`
 	Go               string `json:"go"`
+	Docker           string `json:"docker"`
 	Busybox          string `json:"busybox"`
 	Debian           string `json:"debian"`
 	DistrolessDebian string `json:"distroless_debian"`
@@ -58,6 +59,8 @@ func (v Versions) ForLayer(name string) string {
 		return v.Dotnet
 	case "go":
 		return v.Go
+	case "docker":
+		return v.Docker
 	default:
 		return ""
 	}

@@ -37,6 +37,7 @@ func Test_runClean(t *testing.T) {
 			return nil
 		})
 		stubCleanSweepProxyResources(t, func() error { return nil })
+		stubCleanSweepDindResources(t, func(string) error { return nil })
 		stubCleanRemoveNetwork(t, func() error { return nil })
 
 		// Act
@@ -110,6 +111,7 @@ func Test_runClean(t *testing.T) {
 			return nil
 		})
 		stubCleanSweepProxyResources(t, func() error { return nil })
+		stubCleanSweepDindResources(t, func(string) error { return nil })
 		cmd := newTestCleanCmd()
 		require.NoError(t, cmd.Flags().Set("all", "true"))
 
@@ -119,7 +121,7 @@ func Test_runClean(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		// tool images across namespaces plus the global proxy image
-		assert.ElementsMatch(t, []string{"agentic-claude", "work-claude", tools.ProxyImage}, cleaned)
+		assert.ElementsMatch(t, []string{"agentic-claude", "work-claude", tools.ProxyImage, tools.DindImage}, cleaned)
 		assert.True(t, basesCleaned)
 	})
 

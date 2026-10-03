@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -545,5 +546,46 @@ func TestBuildProxyImage(t *testing.T) {
 		require.NoError(t, err)
 		args, _ := get()
 		assert.NotContains(t, args, "--pull")
+	})
+}
+
+func TestBuildDindImage(t *testing.T) {
+	t.Run("builds the hardened dockerfile with the dind tool label", func(t *testing.T) {
+		// Arrange
+		get := stubRunInteractiveCapture(t)
+
+		// Act
+		err := BuildDindImage("agentic-dind", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		args, dockerfile := get()
+		assert.Contains(t, args, "--tag=agentic-dind")
+		assert.Contains(t, args, "--label="+LabelTool+"=dind")
+		assert.Contains(t, dockerfile, "setcap cap_setuid=ep /usr/bin/newuidmap")
+	})
+
+	t.Run("always pulls the upstream base", func(t *testing.T) {
+		// Arrange
+		get := stubRunInteractiveCapture(t)
+
+		// Act
+		err := BuildDindImage("agentic-dind", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		args, _ := get()
+		assert.Contains(t, args, "--pull")
+	})
+
+	t.Run("build failure is wrapped", func(t *testing.T) {
+		// Arrange
+		stubRunInteractiveError(t, errors.New("boom"))
+
+		// Act
+		err := BuildDindImage("agentic-dind", tools.BuildOptions{})
+
+		// Assert
+		require.ErrorContains(t, err, "docker sidecar image: boom")
 	})
 }

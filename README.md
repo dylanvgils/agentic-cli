@@ -29,10 +29,11 @@ Runs agentic coding tools in isolated, read-only Docker containers - each with o
   - [Managing volumes](#managing-volumes)
 - [Java build tools](#-java-build-tools)
 - [Docker context](#-docker-context)
+- [Docker-in-Docker](#-docker-in-docker)
 - [Configuration](#-configuration)
   - [Example `.zshrc`](#example-zshrc)
 - [Tool home directory](#-tool-home-directory)
-- [Development](docs/05-development.md)
+- [Development](docs/07-development.md)
 - [Security](#-security)
 - [Environment instructions](#-environment-instructions)
 
@@ -158,14 +159,14 @@ agentic <command> [args...]
 
 | Command                                                                                                                                                                                                                                                                       | Description                                                                                                                                                                                                                                              |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `build [tool] [--namespace <name>] [--base <extra>]... [--base-exact <extra>]... [--apt <pkg>]... [--apt-exact <pkg>]... [--no-cache] [--pull] [--registry <host>] [--debian <version>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]`          | Build tool image(s). Builds all tools if unspecified                                                                                                                                                                                                     |
-| `update [tool] [--namespace <name>] [--all] [--base <extra>]... [--base-exact <extra>]... [--apt <pkg>]... [--apt-exact <pkg>]... [--no-cache] [--pull] [--registry <host>] [--debian <version>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>]` | Update tool image(s) to latest version. `--all` updates every agentic image across all namespaces. Pulls fresh base images at most once every 24h per image (`--pull=false` to skip, `--pull` to force a check now)                                      |
-| `clean [tool] [--namespace <name>] [--all]`                                                                                                                                                                                                                                   | Remove tool image(s). `--all` removes across all namespaces. No-arg form also removes base images, the proxy image, leftover proxy resources, and the `agentic-net` network                                                                              |
+| `build [tool] [--namespace <name>] [--base <extra>]... [--base-exact <extra>]... [--apt <pkg>]... [--apt-exact <pkg>]... [--no-cache] [--pull] [--registry <host>] [--debian <version>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>] [--docker <version>]`          | Build tool image(s). Builds all tools if unspecified                                                                                                                                                                                                     |
+| `update [tool] [--namespace <name>] [--all] [--base <extra>]... [--base-exact <extra>]... [--apt <pkg>]... [--apt-exact <pkg>]... [--no-cache] [--pull] [--registry <host>] [--debian <version>] [--node <version>] [--java <version>] [--dotnet <version>] [--go <version>] [--docker <version>]` | Update tool image(s) to latest version. `--all` updates every agentic image across all namespaces. Pulls fresh base images at most once every 24h per image (`--pull=false` to skip, `--pull` to force a check now)                                      |
+| `clean [tool] [--home <dir>] [--namespace <name>] [--all]`                                                                                                                                                                                                                    | Remove tool image(s). `--all` removes across all namespaces. No-arg form also removes base images, the proxy and Docker sidecar images, leftover proxy resources, sidecars and their per-run dirs, and the `agentic-net` network                                                                |
 | `proxy build [--no-cache] [--registry <host>] [--dry-run]`                                                                                                                                                                                                                    | Build the proxy image (`agentic-proxy`). Builds normally happen automatically the first time you run with `--proxy`; this is for forcing one explicitly                                                                                                  |
 | `proxy update [--registry <host>] [--dry-run]`                                                                                                                                                                                                                                | Force a fresh proxy image build (always `--no-cache`, which also re-pulls its base images), to pick up a proxy source or base-image change a cached image would otherwise mask                                                                           |
 | `proxy clean [--logs]`                                                                                                                                                                                                                                                        | Remove the proxy image. The proxy image is global, not namespaced - there's only ever one. `--logs` also wipes all proxy access logs under `$AGENTIC_HOME/logs/`, regardless of age                                                                     |
 | `inspect [tool] [--namespace <name>] [--all]`                                                                                                                                                                                                                                 | No arg: table of images in the active namespace; `--all` shows all namespaces. Tool arg: full detail for active namespace; `--all` shows all namespaces                                                                                                  |
-| `instructions <tool> [--home <dir>] [--namespace <name>] [--proxy\|--no-proxy\|--proxy-monitor] [--pids-limit <n>] [--cpus <n>] [--memory <size>]`                                                                                                                            | Preview the environment instructions `agentic run` writes into the tool's global instructions file (e.g. `CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`), merged with whatever's already persisted at `$AGENTIC_HOME`, without starting a container |
+| `instructions <tool> [--home <dir>] [--namespace <name>] [--proxy\|--no-proxy\|--proxy-monitor] [--dind\|--no-dind] [--pids-limit <n>] [--cpus <n>] [--memory <size>]`                                                                                                                            | Preview the environment instructions `agentic run` writes into the tool's global instructions file (e.g. `CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`), merged with whatever's already persisted at `$AGENTIC_HOME`, without starting a container |
 | `status`                                                                                                                                                                                                                                                                      | Show whether the Docker backend is running and list currently running agentic-managed containers across all namespaces                                                                                                                                   |
 | `namespaces list` / `namespaces ls`                                                                                                                                                                                                                                           | List all known namespaces                                                                                                                                                                                                                                |
 | `namespaces prune [-n namespace]`                                                                                                                                                                                                                                             | Remove all images in the active (or specified) namespace                                                                                                                                                                                                 |
@@ -178,7 +179,7 @@ agentic <command> [args...]
 | `completion <bash\|zsh\|fish\|powershell>`                                                                                                                                                                                                                                    | Generate shell completion script for the specified shell                                                                                                                                                                                                 |
 | `aliases`                                                                                                                                                                                                                                                                     | Print shell alias definitions for installed tools                                                                                                                                                                                                        |
 | `help [command]`                                                                                                                                                                                                                                                              | Show help for a command (`run` for tool run options). Shows overview if unspecified                                                                                                                                                                      |
-| `run [flags] <tool> [args...]`                                                                                                                                                                                                                                                | Run a tool in an isolated Docker container. `--proxy` / `--no-proxy` toggle the egress allowlist proxy for the run; `--proxy-monitor` runs it without blocking, just logging hosts contacted                                                             |
+| `run [flags] <tool> [args...]`                                                                                                                                                                                                                                                | Run a tool in an isolated Docker container. `--proxy` / `--no-proxy` toggle the egress allowlist proxy for the run; `--proxy-monitor` runs it without blocking, just logging hosts contacted; `--dind` / `--no-dind` toggle the [Docker-in-Docker](#-docker-in-docker) sidecar                                                             |
 | `run <tool> -- <cmd> [args]`                                                                                                                                                                                                                                                  | Override the entrypoint and run a shell command directly                                                                                                                                                                                                 |
 
 Run tool commands from within a git repository. The current directory is mounted as `/workspace` inside the container.
@@ -309,6 +310,7 @@ Debian is the root layer. The `--base` flag adds extra runtimes on top of it, in
 
 ```
 debian (base stage)
+  ├── docker (docker stage) ← added with --base docker (CLI only, for --dind)
   ├── dotnet (dotnet stage) ← added with --base dotnet
   ├── go     (go stage)     ← added with --base go
   ├── java   (java stage)   ← added with --base java
@@ -328,7 +330,7 @@ All stages are composed into a single multi-stage Dockerfile at build time and b
 | `--base node,java --java 17`           | debian + Node.js + Java 17     |
 | `--node 22 --base node,java --java 17` | debian + Node.js v22 + Java 17 |
 
-Use `--base` to add extra runtimes at build time. The same pinning pattern applies to every layer (`--debian`, `--node`, `--dotnet`, `--go`, etc.).
+Use `--base` to add extra runtimes at build time. The same pinning pattern applies to every layer (`--debian`, `--node`, `--dotnet`, `--go`, `--docker`, etc.).
 
 `--base` merges with `.agenticrc.toml`'s `bases` setting (see [docs/02-config.md](docs/02-config.md)) - it can only add to the configured list, never remove from it. Use `--base-exact` instead to replace the resolved list outright, ignoring `.agenticrc.toml`'s `bases` entirely - `--base-exact node` builds with only Node.js regardless of what's configured, and `--base-exact=` (empty) builds debian only. `--base` and `--base-exact` are mutually exclusive.
 
@@ -458,6 +460,17 @@ agentic --docker-context prod build claude
 
 For persisting a default via `.agenticrc.toml` or `agentic.json`, see [`docker_context`](docs/02-config.md#docker_context).
 
+## 🧪 Docker-in-Docker
+
+`--dind` gives a tool its own per-run, rootless Docker daemon in a sidecar container, so it can build images, run containers, use `docker compose`, or test devcontainers - without ever seeing the host's Docker socket.
+
+```bash
+agentic build claude --base docker   # adds the Docker CLI (once)
+agentic claude --dind
+```
+
+See [docs/05-docker-in-docker.md](docs/05-docker-in-docker.md) for how it stays isolated, its trade-offs, and a devcontainer example.
+
 ## ⚙️ Configuration
 
 Configuration comes from `.agenticrc.toml` project files and `agentic.json`, with CLI flags taking precedence over both. `AGENTIC_HOME` (default `${HOME}/.agentic`) is the one setting still read from the environment, since it must be resolvable before any `.agenticrc.toml` can be located. See [docs/02-config.md](docs/02-config.md) for the full `.agenticrc.toml` format, merge rules, precedence, and mount variable expansion (`$TOOL_HOME`, `$CONTAINER_HOME`, etc.).
@@ -502,13 +515,15 @@ agentic marketplaces prune   # Remove clones no project references anymore, unde
 
 ## 🛠️ Development
 
-See [docs/development.md](docs/05-development.md) for build commands, repo structure, adding tools, adding base runtimes, and debugging.
+See [docs/development.md](docs/07-development.md) for build commands, repo structure, adding tools, adding base runtimes, and debugging.
 
 ## 🔒 Security
 
 Containers run read-only with all capabilities dropped, no privilege escalation, and on an isolated Docker network - see [docs/01-overview.md](docs/01-overview.md#security-model) for the full list of constraints.
 
 Optionally, an egress allowlist proxy can restrict a tool's outbound traffic to a configurable set of hosts and log every connection attempt - fail-closed, so anything not on the allowlist is blocked. Toggle it per run with `--proxy` / `--no-proxy`; use `--proxy-monitor` to log without blocking anything, useful for discovering a new tool's egress needs before writing an allowlist. See [docs/02-config.md](docs/02-config.md#keys) for the `[run.proxy]` config reference and setup details.
+
+Optionally, `--dind` gives a tool its own rootless Docker daemon in a sidecar, without exposing the host's Docker socket or relaxing the tool container - see [Docker-in-Docker](#-docker-in-docker).
 
 Optionally, `read_only_mounts` in `.agenticrc.toml` (or `--read-only-mount`) forces a specific sub-path (e.g. a credentials directory) read-only while its parent mount stays writable. See [docs/02-config.md](docs/02-config.md#keys) for the `read_only_mounts` config reference.
 
