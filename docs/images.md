@@ -1,20 +1,12 @@
 # Images
 
-Build the image(s) you need:
+Each tool runs from an image built locally on your machine. `agentic build [tool]` builds it, `agentic update [tool]` rebuilds it with the latest tool version, and `agentic clean [tool]` removes it (with no tool, everything agentic created).
 
 ```bash
-agentic build                        # Build all tools
-agentic build claude                 # Claude agent only
-agentic build copilot                # GitHub Copilot agent only
-agentic build opencode               # OpenCode agent only
-agentic build claude --base node,java # Claude with Node.js and Java runtimes added
-agentic build claude --no-cache      # Force a fully fresh build, re-pulling base images
-```
-
-To remove all containers and images created by this project:
-
-```bash
-agentic clean
+agentic build                         # all tools
+agentic build claude --base node,java # Claude with Node.js and Java added
+agentic build claude --no-cache       # fully fresh build, re-pulling base images
+agentic build claude --pull           # refresh base images, keep the rest of the cache
 ```
 
 ## Base images

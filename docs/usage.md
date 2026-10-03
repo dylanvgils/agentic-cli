@@ -41,43 +41,11 @@ Run `agentic help <command>` (or `agentic <command> --help`) for the full list o
 
 ## Examples
 
+For building and updating images (runtimes, version pinning, apt packages), see [Images](images.md).
+
 ```bash
-# Build images
-agentic build
-agentic build claude
-
-# Build with extra runtimes on top of debian (comma-separated or repeatable)
-agentic build claude --base node
-agentic build claude --base node,java
-agentic build claude --base node,java,dotnet
-
-# Pin runtime versions
-agentic build claude --base node,java --java 17
-agentic build claude --base node --node 22
-
-# Install extra apt packages (comma-separated or repeatable)
-agentic build claude --apt make
-agentic build claude --apt make,gcc
-
-# Replace .agenticrc.toml's bases/apt_packages entirely instead of merging with them
-agentic build claude --base-exact node
-agentic build claude --apt-exact make,gcc
-agentic build claude --base-exact=   # debian only, ignoring any configured bases
-
-# Force a fully fresh build, re-pulling base images from the registry
-agentic build claude --no-cache
-
-# Refresh base images (e.g. debian:13-slim) without discarding the rest of the build cache
-agentic build claude --pull
-
-# Bypass install script checksum verification (only if a build is broken by a stale pinned checksum)
-agentic build claude --skip-install-checksum
-
 # Update to latest version (checks upstream first; rebuilds only if newer or base images changed)
 agentic update
-agentic update claude --base node,java
-agentic update claude --no-cache      # also rebuilds base layers from scratch
-agentic update claude --pull=false    # skip the default base-image pull, e.g. offline
 
 # Clean / inspect images
 agentic clean
@@ -163,7 +131,7 @@ Secrets use the format `name:/path/to/file[:/container/path]`. The `~`, `$HOME`,
 
 ```bash
 # Mount Maven settings.xml at the path Maven expects
-agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml' java-tool
+agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml' claude
 ```
 
 For persisting secrets via `.agenticrc.toml`, see [Configuration](config.md).

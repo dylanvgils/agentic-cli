@@ -35,7 +35,7 @@ extra_mounts = [
 
 ## Maven through the egress proxy
 
-Routes Maven through the `agentic-proxy:3128` egress sidecar (see [Pointing a tool's own proxy setting at the egress proxy](config.md#pointing-a-tools-own-proxy-setting-at-the-egress-proxy)).
+With `--proxy` on, Maven needs its own proxy setting pointed at the `agentic-proxy:3128` sidecar (background: [Pointing a tool's own proxy setting at the egress proxy](config.md#pointing-a-tools-own-proxy-setting-at-the-egress-proxy)).
 
 Maven only reads proxy settings from `settings.xml`'s `<proxies>` section, not `MAVEN_OPTS` or the standard proxy env vars. Mount a `settings.xml` pointing at `agentic-proxy:3128`, with a `<proxy>` entry per URL scheme - Maven matches `<protocol>` against the repository URL (not the connection to the proxy itself), and most registries including Maven Central serve over `https`:
 
