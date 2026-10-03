@@ -1,6 +1,7 @@
 package dind
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -16,6 +17,47 @@ func Test_deriveSeccompProfile(t *testing.T) {
 	require.NoError(t, err)
 	var profile seccompProfile
 	require.NoError(t, json.Unmarshal(content, &profile))
+
+	t.Run("uses only fields docker understands", func(t *testing.T) {
+		// Arrange
+		decoder := json.NewDecoder(bytes.NewReader(content))
+		decoder.DisallowUnknownFields()
+
+		// Act
+		var strict seccompProfile
+		err := decoder.Decode(&strict)
+
+		// Assert - docker ignores unknown fields, so a typo like "include" would silently widen a rule
+		assert.NoError(t, err)
+	})
+
+	t.Run("uses only known actions and comparison ops", func(t *testing.T) {
+		// Arrange
+		actions := []string{
+			"SCMP_ACT_KILL", "SCMP_ACT_KILL_PROCESS", "SCMP_ACT_KILL_THREAD", "SCMP_ACT_TRAP",
+			"SCMP_ACT_ERRNO", "SCMP_ACT_TRACE", "SCMP_ACT_ALLOW", "SCMP_ACT_LOG", "SCMP_ACT_NOTIFY",
+		}
+		ops := []string{
+			"SCMP_CMP_NE", "SCMP_CMP_LT", "SCMP_CMP_LE", "SCMP_CMP_EQ",
+			"SCMP_CMP_GE", "SCMP_CMP_GT", "SCMP_CMP_MASKED_EQ",
+		}
+
+		// Act
+		var unknown []string
+		for _, rule := range profile.Syscalls {
+			if !slices.Contains(actions, rule.Action) {
+				unknown = append(unknown, rule.Action)
+			}
+			for _, arg := range rule.Args {
+				if !slices.Contains(ops, arg.Op) {
+					unknown = append(unknown, arg.Op)
+				}
+			}
+		}
+
+		// Assert
+		assert.Empty(t, unknown)
+	})
 
 	t.Run("keeps the default deny action", func(t *testing.T) {
 		// Act

@@ -11,20 +11,48 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// seccompRule mirrors the fields of a profile rule the tests inspect.
-type seccompRule struct {
-	Names    []string `json:"names"`
-	Action   string   `json:"action"`
-	ErrnoRet *int     `json:"errnoRet"`
-	Includes struct {
-		Caps []string `json:"caps"`
-	} `json:"includes"`
+// seccompProfile mirrors every field of Docker's seccomp profile schema, so strict decoding rejects anything Docker would silently ignore.
+type seccompProfile struct {
+	DefaultAction    string           `json:"defaultAction"`
+	DefaultErrnoRet  *int             `json:"defaultErrnoRet"`
+	Architectures    []string         `json:"architectures"`
+	ArchMap          []seccompArchMap `json:"archMap"`
+	Syscalls         []seccompRule    `json:"syscalls"`
+	Flags            []string         `json:"flags"`
+	ListenerPath     string           `json:"listenerPath"`
+	ListenerMetadata string           `json:"listenerMetadata"`
 }
 
-// seccompProfile mirrors the top-level fields of a profile the tests inspect.
-type seccompProfile struct {
-	DefaultAction string        `json:"defaultAction"`
-	Syscalls      []seccompRule `json:"syscalls"`
+// seccompArchMap mirrors an archMap entry.
+type seccompArchMap struct {
+	Architecture     string   `json:"architecture"`
+	SubArchitectures []string `json:"subArchitectures"`
+}
+
+// seccompRule mirrors a syscalls entry.
+type seccompRule struct {
+	Names    []string      `json:"names"`
+	Action   string        `json:"action"`
+	ErrnoRet *int          `json:"errnoRet"`
+	Args     []seccompArg  `json:"args"`
+	Comment  string        `json:"comment"`
+	Includes seccompFilter `json:"includes"`
+	Excludes seccompFilter `json:"excludes"`
+}
+
+// seccompArg mirrors a rule's argument condition.
+type seccompArg struct {
+	Index    uint   `json:"index"`
+	Value    uint64 `json:"value"`
+	ValueTwo uint64 `json:"valueTwo"`
+	Op       string `json:"op"`
+}
+
+// seccompFilter mirrors a rule's includes/excludes conditions.
+type seccompFilter struct {
+	Caps      []string `json:"caps"`
+	Arches    []string `json:"arches"`
+	MinKernel string   `json:"minKernel"`
 }
 
 // loadCertSide parses a dind cert dir's ca.pem into a pool and cert.pem into a certificate.
