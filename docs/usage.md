@@ -166,7 +166,7 @@ Secrets use the format `name:/path/to/file[:/container/path]`. The `~`, `$HOME`,
 agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml' java-tool
 ```
 
-For persisting secrets via `.agenticrc.toml`, see [docs/02-config.md](02-config.md).
+For persisting secrets via `.agenticrc.toml`, see [docs/config.md](config.md).
 
 ## Environment variables
 
@@ -179,11 +179,11 @@ agentic run -e CI claude   # forwards the host's CI value, omitted if unset
 
 The container's `TZ` is also auto-detected from the host and forwarded automatically, so its clock matches the host instead of defaulting to UTC - override it the same way as any other var (`agentic run -e TZ=UTC claude`).
 
-See [docs/02-config.md](02-config.md) for names agentic already manages that can't be overridden this way, and for persisting variables via `.agenticrc.toml`. Values set with `--env` are visible inside the container and via `docker inspect`/`ps`, so use `--secret` / `-s` for tokens or credentials instead.
+See [docs/config.md](config.md) for names agentic already manages that can't be overridden this way, and for persisting variables via `.agenticrc.toml`. Values set with `--env` are visible inside the container and via `docker inspect`/`ps`, so use `--secret` / `-s` for tokens or credentials instead.
 
 ## Named Docker volumes
 
-The `-v` flag supports both bind mounts (host paths) and named Docker volumes - named volumes are created automatically on first use and persist across container runs, no host path required. See [Examples](#examples) above for the mount syntax, [docs/02-config.md](02-config.md) for `.agenticrc.toml` persistence, and [docs/volume-mounts.md](03-volume-mounts.md) for a per-tool breakdown of what's mounted automatically and why.
+The `-v` flag supports both bind mounts (host paths) and named Docker volumes - named volumes are created automatically on first use and persist across container runs, no host path required. See [Examples](#examples) above for the mount syntax, [docs/config.md](config.md) for `.agenticrc.toml` persistence, and [docs/volume-mounts.md](volume-mounts.md) for a per-tool breakdown of what's mounted automatically and why.
 
 ### Managing volumes
 
@@ -204,7 +204,7 @@ If Docker is configured with multiple [contexts](https://docs.docker.com/engine/
 agentic --docker-context prod build claude
 ```
 
-For persisting a default via `.agenticrc.toml` or `agentic.json`, see [`docker_context`](02-config.md#docker_context).
+For persisting a default via `.agenticrc.toml` or `agentic.json`, see [`docker_context`](config.md#docker_context).
 
 ## Tool home directory
 
@@ -216,7 +216,7 @@ Each tool stores its configuration under `$AGENTIC_HOME/tools/`:
 | `copilot`  | `$AGENTIC_HOME/tools/copilot/`                                            |
 | `opencode` | `$AGENTIC_HOME/tools/opencode/` (data, share, state, cache, config)       |
 
-`$AGENTIC_HOME/marketplaces/<slug>-<hash>/` holds host-side clones of any `[[marketplaces]]` configured in `.agenticrc.toml` - shared across tools and mounted read-only into each applicable tool's container. The clone is keyed by the marketplace's `url` alone, so two projects referencing the same URL always share one clone, even under different local names. See [docs/02-config.md](02-config.md) for the full `[[marketplaces]]` reference.
+`$AGENTIC_HOME/marketplaces/<slug>-<hash>/` holds host-side clones of any `[[marketplaces]]` configured in `.agenticrc.toml` - shared across tools and mounted read-only into each applicable tool's container. The clone is keyed by the marketplace's `url` alone, so two projects referencing the same URL always share one clone, even under different local names. See [docs/config.md](config.md) for the full `[[marketplaces]]` reference.
 
 `$AGENTIC_HOME/logs/` holds log files written by agentic's own components, named by type - proxy access logs are written there as `proxy_<id>.jsonl`.
 
@@ -229,8 +229,8 @@ agentic marketplaces list    # List synced clones and the name(s)/project(s) ref
 agentic marketplaces prune   # Remove clones no project references anymore, under any name
 ```
 
-`prune` only drops a clone once no known project references it under any name - see [docs/02-config.md](02-config.md) for the exact rules.
+`prune` only drops a clone once no known project references it under any name - see [docs/config.md](config.md) for the exact rules.
 
 ## Environment instructions
 
-Every `agentic run` writes a generated block - what's installed, what's restricted, and the network situation - into the tool's own global instructions file (`CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`), so the model knows the container's constraints up front. Append your own notes via `custom` under `[run.instructions]` in `.agenticrc.toml`, or turn it off with `enabled = false`. See [docs/02-config.md](02-config.md#keys) for the full reference.
+Every `agentic run` writes a generated block - what's installed, what's restricted, and the network situation - into the tool's own global instructions file (`CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`), so the model knows the container's constraints up front. Append your own notes via `custom` under `[run.instructions]` in `.agenticrc.toml`, or turn it off with `enabled = false`. See [docs/config.md](config.md#keys) for the full reference.

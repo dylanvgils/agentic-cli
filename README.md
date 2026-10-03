@@ -9,7 +9,7 @@ Runs agentic coding tools in isolated, read-only Docker containers - each with o
 - **Persistent state** - named volumes and read-only secret mounts survive across container runs
 - **Egress allowlist proxy** - optionally restrict and log a tool's outbound network access
 
-→ [Full overview and motivation](docs/01-overview.md)
+→ [Full overview and motivation](docs/overview.md)
 
 ## Contents
 
@@ -33,7 +33,7 @@ Runs agentic coding tools in isolated, read-only Docker containers - each with o
 - [Configuration](#-configuration)
   - [Example `.zshrc`](#example-zshrc)
 - [Tool home directory](#-tool-home-directory)
-- [Development](docs/07-development.md)
+- [Development](docs/development.md)
 - [Security](#-security)
 - [Environment instructions](#-environment-instructions)
 
@@ -332,9 +332,9 @@ All stages are composed into a single multi-stage Dockerfile at build time and b
 
 Use `--base` to add extra runtimes at build time. The same pinning pattern applies to every layer (`--debian`, `--node`, `--dotnet`, `--go`, `--docker`, etc.).
 
-`--base` merges with `.agenticrc.toml`'s `bases` setting (see [docs/02-config.md](docs/02-config.md)) - it can only add to the configured list, never remove from it. Use `--base-exact` instead to replace the resolved list outright, ignoring `.agenticrc.toml`'s `bases` entirely - `--base-exact node` builds with only Node.js regardless of what's configured, and `--base-exact=` (empty) builds debian only. `--base` and `--base-exact` are mutually exclusive.
+`--base` merges with `.agenticrc.toml`'s `bases` setting (see [docs/config.md](docs/config.md)) - it can only add to the configured list, never remove from it. Use `--base-exact` instead to replace the resolved list outright, ignoring `.agenticrc.toml`'s `bases` entirely - `--base-exact node` builds with only Node.js regardless of what's configured, and `--base-exact=` (empty) builds debian only. `--base` and `--base-exact` are mutually exclusive.
 
-Version defaults are embedded in the binary at build time - run `agentic build --help` to see current defaults. Override per-build with the corresponding flag (`--debian`, `--node`, `--java`, `--dotnet`, `--go`), or pin a persistent default per project with `[build.versions]` in `.agenticrc.toml` (see [docs/02-config.md](docs/02-config.md)).
+Version defaults are embedded in the binary at build time - run `agentic build --help` to see current defaults. Override per-build with the corresponding flag (`--debian`, `--node`, `--java`, `--dotnet`, `--go`), or pin a persistent default per project with `[build.versions]` in `.agenticrc.toml` (see [docs/config.md](docs/config.md)).
 
 `agentic update` reuses the version each layer was originally built with, so base/extra layers are regenerated identically (and stay cache-hits) even if the embedded defaults have since changed - pass the flag again to pin a different version instead. Pass `--no-cache` to also rebuild the base/extra layers from scratch, instead of only the tool stage.
 
@@ -342,7 +342,7 @@ Base images (`debian:13-slim`, `golang:1.26.6`, etc.) use floating tags, not pin
 
 > **Note:** During `agentic update`, the `bases` and `apt_packages` settings from `.agenticrc.toml` are ignored - the original build configuration is always reused. Only an explicit `--base`/`--base-exact` or `--apt`/`--apt-exact` CLI flag overrides what the image was built with - `--base-exact`/`--apt-exact` win over both `.agenticrc.toml` and the previously-built image's recovered state, even when passed as an empty list.
 
-`agentic run` also checks upstream for a newer tool version automatically (at most once every 6 hours per tool) and, in an interactive terminal, prompts you to update before the tool starts - the same upstream check `agentic update` does, just run proactively. Answering "no" (or running non-interactively) just prints a one-line notice and starts the tool on the current version. Disable it per project with `check_updates = false` under `[run]` in `.agenticrc.toml` (see [docs/02-config.md](docs/02-config.md)).
+`agentic run` also checks upstream for a newer tool version automatically (at most once every 6 hours per tool) and, in an interactive terminal, prompts you to update before the tool starts - the same upstream check `agentic update` does, just run proactively. Answering "no" (or running non-interactively) just prints a one-line notice and starts the tool on the current version. Disable it per project with `check_updates = false` under `[run]` in `.agenticrc.toml` (see [docs/config.md](docs/config.md)).
 
 ### Extra apt packages
 
@@ -353,7 +353,7 @@ agentic build claude --apt make
 agentic build claude --apt make,gcc   # comma-separated or repeatable (--apt make --apt gcc)
 ```
 
-`agentic update` automatically reuses the package list, so you don't need to re-specify it each time. For persisting packages via `.agenticrc.toml`, and for registry proxy configuration (pulling base images through Harbor, Nexus, Artifactory, etc.), see [docs/02-config.md](docs/02-config.md).
+`agentic update` automatically reuses the package list, so you don't need to re-specify it each time. For persisting packages via `.agenticrc.toml`, and for registry proxy configuration (pulling base images through Harbor, Nexus, Artifactory, etc.), see [docs/config.md](docs/config.md).
 
 `--apt` merges with `.agenticrc.toml`'s `apt_packages` setting - it can only add packages, never remove one that's configured. Use `--apt-exact` to replace the resolved list outright, ignoring `.agenticrc.toml`'s `apt_packages` entirely (`--apt-exact make,gcc`), or `--apt-exact=` (empty) to install no extra packages at all. `--apt` and `--apt-exact` are mutually exclusive.
 
@@ -372,7 +372,7 @@ run = [
 ]
 ```
 
-Runs as root before the tool's own install step - install into a root-owned path like `/usr/local/bin` rather than `$HOME`. See [docs/02-config.md](docs/02-config.md) for the full reference.
+Runs as root before the tool's own install step - install into a root-owned path like `/usr/local/bin` rather than `$HOME`. See [docs/config.md](docs/config.md) for the full reference.
 
 ## 🔑 Secrets
 
@@ -389,7 +389,7 @@ Secrets use the format `name:/path/to/file[:/container/path]`. The `~`, `$HOME`,
 agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml' java-tool
 ```
 
-For persisting secrets via `.agenticrc.toml`, see [docs/02-config.md](docs/02-config.md).
+For persisting secrets via `.agenticrc.toml`, see [docs/config.md](docs/config.md).
 
 ## 🌱 Environment variables
 
@@ -402,11 +402,11 @@ agentic run -e CI claude   # forwards the host's CI value, omitted if unset
 
 The container's `TZ` is also auto-detected from the host and forwarded automatically, so its clock matches the host instead of defaulting to UTC - override it the same way as any other var (`agentic run -e TZ=UTC claude`).
 
-See [docs/02-config.md](docs/02-config.md) for names agentic already manages that can't be overridden this way, and for persisting variables via `.agenticrc.toml`. Values set with `--env` are visible inside the container and via `docker inspect`/`ps`, so use `--secret` / `-s` for tokens or credentials instead.
+See [docs/config.md](docs/config.md) for names agentic already manages that can't be overridden this way, and for persisting variables via `.agenticrc.toml`. Values set with `--env` are visible inside the container and via `docker inspect`/`ps`, so use `--secret` / `-s` for tokens or credentials instead.
 
 ## 📦 Named Docker volumes
 
-The `-v` flag supports both bind mounts (host paths) and named Docker volumes - named volumes are created automatically on first use and persist across container runs, no host path required. See [Examples](#examples) above for the mount syntax, [docs/02-config.md](docs/02-config.md) for `.agenticrc.toml` persistence, and [docs/volume-mounts.md](docs/03-volume-mounts.md) for a per-tool breakdown of what's mounted automatically and why.
+The `-v` flag supports both bind mounts (host paths) and named Docker volumes - named volumes are created automatically on first use and persist across container runs, no host path required. See [Examples](#examples) above for the mount syntax, [docs/config.md](docs/config.md) for `.agenticrc.toml` persistence, and [docs/volume-mounts.md](docs/volume-mounts.md) for a per-tool breakdown of what's mounted automatically and why.
 
 ### Managing volumes
 
@@ -458,7 +458,7 @@ If Docker is configured with multiple [contexts](https://docs.docker.com/engine/
 agentic --docker-context prod build claude
 ```
 
-For persisting a default via `.agenticrc.toml` or `agentic.json`, see [`docker_context`](docs/02-config.md#docker_context).
+For persisting a default via `.agenticrc.toml` or `agentic.json`, see [`docker_context`](docs/config.md#docker_context).
 
 ## 🧪 Docker-in-Docker
 
@@ -469,11 +469,11 @@ agentic build claude --base docker   # adds the Docker CLI (once)
 agentic claude --dind
 ```
 
-See [docs/05-docker-in-docker.md](docs/05-docker-in-docker.md) for how it stays isolated, its trade-offs, and a devcontainer example.
+See [docs/docker-in-docker.md](docs/docker-in-docker.md) for how it stays isolated, its trade-offs, and a devcontainer example.
 
 ## ⚙️ Configuration
 
-Configuration comes from `.agenticrc.toml` project files and `agentic.json`, with CLI flags taking precedence over both. `AGENTIC_HOME` (default `${HOME}/.agentic`) is the one setting still read from the environment, since it must be resolvable before any `.agenticrc.toml` can be located. See [docs/02-config.md](docs/02-config.md) for the full `.agenticrc.toml` format, merge rules, precedence, and mount variable expansion (`$TOOL_HOME`, `$CONTAINER_HOME`, etc.).
+Configuration comes from `.agenticrc.toml` project files and `agentic.json`, with CLI flags taking precedence over both. `AGENTIC_HOME` (default `${HOME}/.agentic`) is the one setting still read from the environment, since it must be resolvable before any `.agenticrc.toml` can be located. See [docs/config.md](docs/config.md) for the full `.agenticrc.toml` format, merge rules, precedence, and mount variable expansion (`$TOOL_HOME`, `$CONTAINER_HOME`, etc.).
 
 ### Example `.agenticrc.toml`
 
@@ -486,7 +486,7 @@ node = "22"   # pin a runtime version (see agentic build --help for all layers)
 extra_mounts = ["maven:$CONTAINER_HOME/.m2", "gradle:$CONTAINER_HOME/.gradle"]
 ```
 
-A JSON Schema for editor autocomplete/validation is available - see [Editor validation and autocomplete](docs/02-config.md#editor-validation-and-autocomplete).
+A JSON Schema for editor autocomplete/validation is available - see [Editor validation and autocomplete](docs/config.md#editor-validation-and-autocomplete).
 
 ## 🏠 Tool home directory
 
@@ -498,7 +498,7 @@ Each tool stores its configuration under `$AGENTIC_HOME/tools/`:
 | `copilot`  | `$AGENTIC_HOME/tools/copilot/`                                            |
 | `opencode` | `$AGENTIC_HOME/tools/opencode/` (data, share, state, cache, config)       |
 
-`$AGENTIC_HOME/marketplaces/<slug>-<hash>/` holds host-side clones of any `[[marketplaces]]` configured in `.agenticrc.toml` - shared across tools and mounted read-only into each applicable tool's container. The clone is keyed by the marketplace's `url` alone, so two projects referencing the same URL always share one clone, even under different local names. See [docs/02-config.md](docs/02-config.md) for the full `[[marketplaces]]` reference.
+`$AGENTIC_HOME/marketplaces/<slug>-<hash>/` holds host-side clones of any `[[marketplaces]]` configured in `.agenticrc.toml` - shared across tools and mounted read-only into each applicable tool's container. The clone is keyed by the marketplace's `url` alone, so two projects referencing the same URL always share one clone, even under different local names. See [docs/config.md](docs/config.md) for the full `[[marketplaces]]` reference.
 
 `$AGENTIC_HOME/logs/` holds log files written by agentic's own components, named by type - proxy access logs are written there as `proxy_<id>.jsonl`.
 
@@ -511,24 +511,24 @@ agentic marketplaces list    # List synced clones and the name(s)/project(s) ref
 agentic marketplaces prune   # Remove clones no project references anymore, under any name
 ```
 
-`prune` only drops a clone once no known project references it under any name - see [docs/02-config.md](docs/02-config.md) for the exact rules.
+`prune` only drops a clone once no known project references it under any name - see [docs/config.md](docs/config.md) for the exact rules.
 
 ## 🛠️ Development
 
-See [docs/development.md](docs/07-development.md) for build commands, repo structure, adding tools, adding base runtimes, and debugging.
+See [docs/development.md](docs/development.md) for build commands, repo structure, adding tools, adding base runtimes, and debugging.
 
 ## 🔒 Security
 
-Containers run read-only with all capabilities dropped, no privilege escalation, and on an isolated Docker network - see [docs/01-overview.md](docs/01-overview.md#security-model) for the full list of constraints.
+Containers run read-only with all capabilities dropped, no privilege escalation, and on an isolated Docker network - see [docs/overview.md](docs/overview.md#security-model) for the full list of constraints.
 
-Optionally, an egress allowlist proxy can restrict a tool's outbound traffic to a configurable set of hosts and log every connection attempt - fail-closed, so anything not on the allowlist is blocked. Toggle it per run with `--proxy` / `--no-proxy`; use `--proxy-monitor` to log without blocking anything, useful for discovering a new tool's egress needs before writing an allowlist. See [docs/02-config.md](docs/02-config.md#keys) for the `[run.proxy]` config reference and setup details.
+Optionally, an egress allowlist proxy can restrict a tool's outbound traffic to a configurable set of hosts and log every connection attempt - fail-closed, so anything not on the allowlist is blocked. Toggle it per run with `--proxy` / `--no-proxy`; use `--proxy-monitor` to log without blocking anything, useful for discovering a new tool's egress needs before writing an allowlist. See [docs/config.md](docs/config.md#keys) for the `[run.proxy]` config reference and setup details.
 
 Optionally, `--dind` gives a tool its own rootless Docker daemon in a sidecar, without exposing the host's Docker socket or relaxing the tool container - see [Docker-in-Docker](#-docker-in-docker).
 
-Optionally, `read_only_mounts` in `.agenticrc.toml` (or `--read-only-mount`) forces a specific sub-path (e.g. a credentials directory) read-only while its parent mount stays writable. See [docs/02-config.md](docs/02-config.md#keys) for the `read_only_mounts` config reference.
+Optionally, `read_only_mounts` in `.agenticrc.toml` (or `--read-only-mount`) forces a specific sub-path (e.g. a credentials directory) read-only while its parent mount stays writable. See [docs/config.md](docs/config.md#keys) for the `read_only_mounts` config reference.
 
 At build time, the Claude/Copilot/OpenCode install scripts are downloaded, checksum-verified against a pinned SHA256, then executed - not piped straight into `bash`. A daily scheduled job re-checks each script against the live upstream URL and opens a PR if it has changed, so the pinned checksum stays current without pinning the tool's own version. If a build ever breaks on a stale checksum before that PR lands, `--skip-install-checksum` bypasses verification for that build.
 
 ## 🧭 Environment instructions
 
-Every `agentic run` writes a generated block - what's installed, what's restricted, and the network situation - into the tool's own global instructions file (`CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`), so the model knows the container's constraints up front. Append your own notes via `custom` under `[run.instructions]` in `.agenticrc.toml`, or turn it off with `enabled = false`. See [docs/02-config.md](docs/02-config.md#keys) for the full reference.
+Every `agentic run` writes a generated block - what's installed, what's restricted, and the network situation - into the tool's own global instructions file (`CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`), so the model knows the container's constraints up front. Append your own notes via `custom` under `[run.instructions]` in `.agenticrc.toml`, or turn it off with `enabled = false`. See [docs/config.md](docs/config.md#keys) for the full reference.

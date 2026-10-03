@@ -13,7 +13,7 @@ If you don't have Go installed, `make docker-dist` builds everything via Docker.
 
 ## Making changes
 
-- Add tests for new code - see `CLAUDE.md` or `docs/07-development.md` for conventions
+- Add tests for new code - see `CLAUDE.md` or `docs/development.md` for conventions
 - Keep `README.md` in sync with any user-facing behaviour changes
 
 ## Pull requests
