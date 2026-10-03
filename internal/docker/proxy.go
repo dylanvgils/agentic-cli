@@ -167,8 +167,9 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 		"network", "create",
 		arg("internal"),
 		label(LabelProject, LabelProjectVal),
-		h.network,
 	}
+	createArgs = append(createArgs, ownerLabels(rs)...)
+	createArgs = append(createArgs, h.network)
 	if _, err := dockerRun(createArgs...); err != nil {
 		return proxyHandle{}, fmt.Errorf("create proxy network: %w", err)
 	}
@@ -236,7 +237,7 @@ func (h proxyHandle) runArgs(rs RunSpec) []string {
 	containerLog := proxyLogMountDir + "/" + proxyLogFileName(h.id)
 	_, tzOffset := time.Now().Zone()
 
-	return []string{
+	args := []string{
 		"run", "--detach", "--rm", "--read-only",
 		arg("name", h.container),
 		arg("network", h.network),
@@ -245,13 +246,17 @@ func (h proxyHandle) runArgs(rs RunSpec) []string {
 		arg("security-opt", "no-new-privileges:true"),
 		arg("user", platform.UserGroup()),
 		label(LabelProject, LabelProjectVal),
+	}
+	args = append(args, ownerLabels(rs)...)
+
+	return append(args,
 		arg("env", proxy.EnvAllow+"="+strings.Join(h.allow, ",")),
 		arg("env", proxy.EnvLog+"="+containerLog),
 		arg("env", proxy.EnvTZOffset+"="+strconv.Itoa(tzOffset)),
 		arg("env", proxy.EnvMonitor+"="+strconv.FormatBool(h.monitor)),
 		arg("volume", rs.ProxyLogDir+":"+proxyLogMountDir),
 		rs.ProxyImage,
-	}
+	)
 }
 
 // SweepProxyResources idempotently removes leftover per-run proxy containers and internal

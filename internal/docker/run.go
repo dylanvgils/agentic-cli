@@ -60,9 +60,25 @@ type RunSpec struct {
 
 	// network is the docker network the tool attaches to; empty means NetworkName, proxy or dind mode sets a per-run net.
 	network string
+
+	// container is the tool container's name, recorded on sidecars as their owner.
+	container string
 }
 
 func RunContainer(rs RunSpec, toolArgs []string) error {
+	id, err := randID()
+	if err != nil {
+		return err
+	}
+	rs.container = rs.Image + "-" + id
+
+	if !rs.DryRun {
+		// A crashed run never reaches its deferred cleanup, so remove its sidecars here
+		if err := sweepOrphanedSidecars(rs.ToolHome); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not remove orphaned sidecars: %v\n", err)
+		}
+	}
+
 	proxyEnv, cleanup, err := setupProxy(&rs)
 	if err != nil {
 		return err
@@ -76,11 +92,7 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	}
 	defer dindCleanup()
 
-	args, err := buildBaseArgs(rs)
-	if err != nil {
-		return err
-	}
-
+	args := buildBaseArgs(rs)
 	args = append(args, buildTTYArgs()...)
 	args = append(args, buildEnvArgs(rs)...)
 	args = append(args, proxyEnv...)
@@ -117,9 +129,10 @@ func IsReservedEnvName(key string, proxyEnabled bool) bool {
 	return reservedConfigNames[key]
 }
 
-// guardSignals routes interrupt/terminate signals to a channel so deferred cleanup still runs; stop uninstalls it.
+// guardSignals routes interrupt/terminate/hangup signals to a channel so deferred cleanup still runs; stop uninstalls it.
 func guardSignals() (signals <-chan os.Signal, stop func()) {
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+	// SIGHUP covers a closed terminal
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	return ch, func() { signal.Stop(ch) }
 }

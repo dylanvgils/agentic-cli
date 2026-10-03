@@ -12,10 +12,9 @@ import (
 func TestBuildBaseArgs(t *testing.T) {
 	t.Run("security flags", func(t *testing.T) {
 		// Act
-		args, err := buildBaseArgs(RunSpec{Image: "agentic-claude"})
+		args := buildBaseArgs(RunSpec{Image: "agentic-claude"})
 
 		// Assert
-		require.NoError(t, err)
 		assert.Contains(t, args, "run")
 		assert.Contains(t, args, "--rm")
 		assert.Contains(t, args, "--read-only")
@@ -26,11 +25,10 @@ func TestBuildBaseArgs(t *testing.T) {
 
 	t.Run("name and label", func(t *testing.T) {
 		// Act
-		args, err := buildBaseArgs(RunSpec{Image: "agentic-claude"})
+		args := buildBaseArgs(RunSpec{Image: "agentic-claude", container: "agentic-claude-0123456789ab"})
 
 		// Assert
-		require.NoError(t, err)
-		assert.True(t, hasArgWithPrefix(args, "--name=agentic-claude-"), "tool container should be named after its image")
+		assert.Contains(t, args, "--name=agentic-claude-0123456789ab")
 		assert.Contains(t, args, "--label=project=agentic-cli")
 	})
 
@@ -44,10 +42,9 @@ func TestBuildBaseArgs(t *testing.T) {
 		}
 
 		// Act
-		args, err := buildBaseArgs(rs)
+		args := buildBaseArgs(rs)
 
 		// Assert
-		require.NoError(t, err)
 		assert.Contains(t, args, "--pids-limit=512")
 		assert.Contains(t, args, "--cpus=2")
 		assert.Contains(t, args, "--memory=2g")

@@ -29,17 +29,12 @@ func networkOrDefault(network string) string {
 }
 
 // buildBaseArgs builds the mandatory security and resource-limit args for running the container with minimal permissions.
-func buildBaseArgs(rs RunSpec) ([]string, error) {
-	id, err := randID()
-	if err != nil {
-		return nil, err
-	}
-
+func buildBaseArgs(rs RunSpec) []string {
 	return []string{
 		// Run container read-only, remove when done
 		"run", "--rm", "--read-only",
-		// Identify the container in `docker ps`/logs; randomized per run for
-		arg("name", rs.Image+"-"+id),
+		// Identify the container in `docker ps`/logs; randomized per run, and the owner sidecars point at
+		arg("name", rs.container),
 		label(LabelProject, LabelProjectVal),
 		// Limit the number of PIDs (processes) the container can spawn
 		arg("pids-limit", rs.PidsLimit),
@@ -56,7 +51,7 @@ func buildBaseArgs(rs RunSpec) ([]string, error) {
 		arg("security-opt", "no-new-privileges:true"),
 		// Use system user to prevent permission issues on mounted files
 		arg("user", platform.UserGroup()),
-	}, nil
+	}
 }
 
 // buildTTYArgs returns [--interactive --tty] when stdin is a terminal, otherwise empty.

@@ -167,6 +167,7 @@ func (h dindHandle) runArgs(rs RunSpec) []string {
 		arg("env", "HOME="+dind.Home),
 		arg("cap-drop", "ALL"),
 	}
+	args = append(args, ownerLabels(rs)...)
 
 	for _, capability := range dindCapabilities {
 		args = append(args, arg("cap-add", capability))
@@ -307,11 +308,6 @@ func SweepDindResources(toolHome string) error {
 
 // startDind writes the per-run files, starts the sidecar and waits for dockerd; cleans up on failure.
 func startDind(rs RunSpec, interrupt <-chan os.Signal) (dindHandle, error) {
-	// A crashed run never reaches Stop, so clean up its leftovers here
-	if err := sweepDindRunDirs(rs.ToolHome); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not remove stale docker sidecar dirs: %v\n", err)
-	}
-
 	h, err := newDindHandle(rs)
 	if err != nil {
 		return dindHandle{}, err
@@ -338,7 +334,9 @@ func startDind(rs RunSpec, interrupt <-chan os.Signal) (dindHandle, error) {
 	}
 
 	if h.ownsNetwork {
-		createArgs := []string{"network", "create", label(LabelProject, LabelProjectVal), h.network}
+		createArgs := []string{"network", "create", label(LabelProject, LabelProjectVal)}
+		createArgs = append(createArgs, ownerLabels(rs)...)
+		createArgs = append(createArgs, h.network)
 		if _, err := dockerRun(createArgs...); err != nil {
 			h.Stop()
 			return dindHandle{}, fmt.Errorf("create dind network: %w", err)
