@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -207,12 +208,25 @@ func Test_resolveDindResourceLimitFlags(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set("dind-memory", "8g"))
 
 	// Act
-	pidsLimit, cpus, memory := resolveDindResourceLimitFlags(cmd)
+	result := resolveDindResourceLimitFlags(cmd)
 
 	// Assert
-	assert.Empty(t, pidsLimit)
-	assert.Equal(t, "2", cpus)
-	assert.Equal(t, "8g", memory)
+	assert.Equal(t, docker.ResourceLimits{CPUs: "2", Memory: "8g"}, result)
+}
+
+func Test_resolveResourceLimitFlags(t *testing.T) {
+	// Arrange
+	cmd := &cobra.Command{Use: "test"}
+	addResourceLimitFlags(cmd)
+	require.NoError(t, cmd.Flags().Set("pids-limit", "512"))
+	require.NoError(t, cmd.Flags().Set("cpus", "2"))
+	require.NoError(t, cmd.Flags().Set("memory", "2g"))
+
+	// Act
+	result := resolveResourceLimitFlags(cmd)
+
+	// Assert
+	assert.Equal(t, docker.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, result)
 }
 
 func newBuildCmd(t *testing.T) *cobra.Command {

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -42,11 +43,11 @@ func TestDindEnabled(t *testing.T) {
 }
 
 func TestDindResourceLimitsFor(t *testing.T) {
-	tool := ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"}
+	tool := docker.ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"}
 
 	t.Run("inherits tool limits when nothing set", func(t *testing.T) {
 		// Act
-		result := DindResourceLimitsFor("", "", "", &config.AgenticRC{}, tool)
+		result := DindResourceLimitsFor(docker.ResourceLimits{}, &config.AgenticRC{}, tool)
 
 		// Assert
 		assert.Equal(t, tool, result)
@@ -54,23 +55,23 @@ func TestDindResourceLimitsFor(t *testing.T) {
 
 	t.Run("rc takes precedence over tool limits", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{PidsLimit: "2048", Memory: "8g"}}}
+		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{PidsLimit: "2048", Memory: "8g"}}}}
 
 		// Act
-		result := DindResourceLimitsFor("", "", "", rc, tool)
+		result := DindResourceLimitsFor(docker.ResourceLimits{}, rc, tool)
 
 		// Assert
-		assert.Equal(t, ResourceLimits{PidsLimit: "2048", CPUs: "4", Memory: "8g"}, result)
+		assert.Equal(t, docker.ResourceLimits{PidsLimit: "2048", CPUs: "4", Memory: "8g"}, result)
 	})
 
 	t.Run("flag takes precedence over rc", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}}
+		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}}}
 
 		// Act
-		result := DindResourceLimitsFor("", "1", "16g", rc, tool)
+		result := DindResourceLimitsFor(docker.ResourceLimits{CPUs: "1", Memory: "16g"}, rc, tool)
 
 		// Assert
-		assert.Equal(t, ResourceLimits{PidsLimit: "2048", CPUs: "1", Memory: "16g"}, result)
+		assert.Equal(t, docker.ResourceLimits{PidsLimit: "2048", CPUs: "1", Memory: "16g"}, result)
 	})
 }

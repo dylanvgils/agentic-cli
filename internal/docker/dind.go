@@ -159,9 +159,9 @@ func (h dindHandle) runArgs(rs RunSpec) []string {
 		arg("network", h.network),
 		arg("network-alias", dindHostAlias),
 		label(LabelProject, LabelProjectVal),
-		arg("pids-limit", rs.DindPidsLimit),
-		arg("cpus", rs.DindCPUs),
-		arg("memory", rs.DindMemory),
+		arg("pids-limit", rs.DindLimits.PidsLimit),
+		arg("cpus", rs.DindLimits.CPUs),
+		arg("memory", rs.DindLimits.Memory),
 		// Same user as the tool, so writes to /workspace land as the host user
 		arg("user", h.identity.UserGroup()),
 		arg("env", "HOME="+dind.Home),

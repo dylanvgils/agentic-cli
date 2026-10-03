@@ -164,7 +164,7 @@ func TestPrintScalarField(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer
 		layers := []config.RCLayer{
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{PidsLimit: "100"}}},
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "100"}}}},
 		}
 
 		// Act
@@ -282,7 +282,7 @@ func TestPrintProjectConfig(t *testing.T) {
 						CustomInstalls: []config.RCCustomInstall{{Name: "helm", Run: []string{"true"}}},
 					},
 					Run: config.RCRun{
-						PidsLimit: "100", CPUs: "2", Memory: "4g",
+						RCLimits:    config.RCLimits{PidsLimit: "100", CPUs: "2", Memory: "4g"},
 						ExtraMounts: []string{"vol:/mnt"}, ReadOnlyMounts: []string{"$PWD/secrets:/workspace/secrets"}, Secrets: []string{"tok:/run/s/t"},
 						Proxy: config.RCProxy{Enabled: &enabled, Mode: config.ModeMonitor, AllowedHosts: []string{".github.com"}},
 					},
@@ -320,14 +320,14 @@ func TestPrintProjectConfig(t *testing.T) {
 				Path: "/home/.agenticrc.toml",
 				RC: &config.AgenticRC{
 					Build: config.RCBuild{AptPackages: []string{"make"}},
-					Run:   config.RCRun{CPUs: "2", ExtraMounts: []string{"parent-vol:/mnt/p"}},
+					Run:   config.RCRun{RCLimits: config.RCLimits{CPUs: "2"}, ExtraMounts: []string{"parent-vol:/mnt/p"}},
 				},
 			},
 			{
 				Path: "/project/.agenticrc.toml",
 				RC: &config.AgenticRC{
 					Build: config.RCBuild{AptPackages: []string{"gcc"}},
-					Run:   config.RCRun{CPUs: "8", PidsLimit: "100", ExtraMounts: []string{"child-vol:/mnt/c"}},
+					Run:   config.RCRun{RCLimits: config.RCLimits{CPUs: "8", PidsLimit: "100"}, ExtraMounts: []string{"child-vol:/mnt/c"}},
 				},
 			},
 		}
@@ -361,8 +361,8 @@ func TestPrintProjectConfig(t *testing.T) {
 			{
 				Path: "/project/.agenticrc.toml",
 				RC: &config.AgenticRC{Run: config.RCRun{
-					CPUs: "8", PidsLimit: "100",
-					Dind: config.RCDind{Memory: "16g"},
+					RCLimits: config.RCLimits{CPUs: "8", PidsLimit: "100"},
+					Dind:     config.RCDind{RCLimits: config.RCLimits{Memory: "16g"}},
 				}},
 			},
 		}

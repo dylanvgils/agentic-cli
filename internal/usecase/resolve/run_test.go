@@ -138,10 +138,10 @@ func TestEnv(t *testing.T) {
 func TestResourceLimitsFor(t *testing.T) {
 	t.Run("rc fills empty flags", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{PidsLimit: "512", CPUs: "2", Memory: "2g"}}
+		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
 
 		// Act
-		result := ResourceLimitsFor("", "", "", rc)
+		result := ResourceLimitsFor(docker.ResourceLimits{}, rc)
 
 		// Assert
 		assert.Equal(t, "512", result.PidsLimit)
@@ -151,10 +151,10 @@ func TestResourceLimitsFor(t *testing.T) {
 
 	t.Run("flag takes precedence over rc", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{PidsLimit: "512", CPUs: "2", Memory: "2g"}}
+		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
 
 		// Act
-		result := ResourceLimitsFor("1024", "4", "4g", rc)
+		result := ResourceLimitsFor(docker.ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"}, rc)
 
 		// Assert
 		assert.Equal(t, "1024", result.PidsLimit)
@@ -164,10 +164,10 @@ func TestResourceLimitsFor(t *testing.T) {
 
 	t.Run("partial flags rc fills rest", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{PidsLimit: "512", CPUs: "2", Memory: "2g"}}
+		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
 
 		// Act
-		result := ResourceLimitsFor("1024", "", "", rc)
+		result := ResourceLimitsFor(docker.ResourceLimits{PidsLimit: "1024"}, rc)
 
 		// Assert
 		assert.Equal(t, "1024", result.PidsLimit)
@@ -177,7 +177,7 @@ func TestResourceLimitsFor(t *testing.T) {
 
 	t.Run("falls back to hardcoded default when nothing else set", func(t *testing.T) {
 		// Act
-		result := ResourceLimitsFor("", "", "", &config.AgenticRC{})
+		result := ResourceLimitsFor(docker.ResourceLimits{}, &config.AgenticRC{})
 
 		// Assert - always resolved, never left empty
 		assert.Equal(t, docker.DefaultPidsLimit, result.PidsLimit)

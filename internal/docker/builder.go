@@ -10,9 +10,7 @@ type RunSpecBuilder struct {
 	env            []string
 	skipEntrypoint bool
 	tmpfsMounts    []string
-	pidsLimit      string
-	cpus           string
-	memory         string
+	limits         ResourceLimits
 	dryRun         bool
 	proxyEnabled   bool
 	proxyImage     string
@@ -21,9 +19,7 @@ type RunSpecBuilder struct {
 	proxyMonitor   bool
 	dindEnabled    bool
 	dindImage      string
-	dindPidsLimit  string
-	dindCPUs       string
-	dindMemory     string
+	dindLimits     ResourceLimits
 }
 
 // NewRunSpec creates a RunSpecBuilder for the given image.
@@ -73,21 +69,9 @@ func (b *RunSpecBuilder) WithTmpfsMounts(mounts ...string) *RunSpecBuilder {
 	return b
 }
 
-// WithPidsLimit sets the container PID limit.
-func (b *RunSpecBuilder) WithPidsLimit(limit string) *RunSpecBuilder {
-	b.pidsLimit = limit
-	return b
-}
-
-// WithCPUs sets the CPU limit.
-func (b *RunSpecBuilder) WithCPUs(cpus string) *RunSpecBuilder {
-	b.cpus = cpus
-	return b
-}
-
-// WithMemory sets the memory limit.
-func (b *RunSpecBuilder) WithMemory(mem string) *RunSpecBuilder {
-	b.memory = mem
+// WithLimits sets the container's PID, CPU and memory limits.
+func (b *RunSpecBuilder) WithLimits(limits ResourceLimits) *RunSpecBuilder {
+	b.limits = limits
 	return b
 }
 
@@ -116,10 +100,8 @@ func (b *RunSpecBuilder) WithDind(enabled bool, image string) *RunSpecBuilder {
 }
 
 // WithDindLimits sets the Docker sidecar's PID, CPU and memory limits.
-func (b *RunSpecBuilder) WithDindLimits(pidsLimit, cpus, memory string) *RunSpecBuilder {
-	b.dindPidsLimit = pidsLimit
-	b.dindCPUs = cpus
-	b.dindMemory = memory
+func (b *RunSpecBuilder) WithDindLimits(limits ResourceLimits) *RunSpecBuilder {
+	b.dindLimits = limits
 	return b
 }
 
@@ -134,9 +116,7 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		Env:            b.env,
 		SkipEntrypoint: b.skipEntrypoint,
 		TmpfsMounts:    b.tmpfsMounts,
-		PidsLimit:      b.pidsLimit,
-		CPUs:           b.cpus,
-		Memory:         b.memory,
+		Limits:         b.limits,
 		DryRun:         b.dryRun,
 		ProxyEnabled:   b.proxyEnabled,
 		ProxyImage:     b.proxyImage,
@@ -145,8 +125,6 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		ProxyMonitor:   b.proxyMonitor,
 		DindEnabled:    b.dindEnabled,
 		DindImage:      b.dindImage,
-		DindPidsLimit:  b.dindPidsLimit,
-		DindCPUs:       b.dindCPUs,
-		DindMemory:     b.dindMemory,
+		DindLimits:     b.dindLimits,
 	}
 }

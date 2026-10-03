@@ -160,8 +160,8 @@ func TestMergeConfigs(t *testing.T) {
 
 	t.Run("scalar child wins", func(t *testing.T) {
 		// Arrange
-		child := &AgenticRC{Run: RCRun{CPUs: "8", Memory: "8g"}}
-		parent := &AgenticRC{Run: RCRun{CPUs: "2", Memory: "2g", PidsLimit: "512"}}
+		child := &AgenticRC{Run: RCRun{RCLimits: RCLimits{CPUs: "8", Memory: "8g"}}}
+		parent := &AgenticRC{Run: RCRun{RCLimits: RCLimits{CPUs: "2", Memory: "2g", PidsLimit: "512"}}}
 
 		// Act
 		result := mergeConfigs([]*AgenticRC{child, parent})
@@ -264,7 +264,7 @@ func TestMergeConfigs(t *testing.T) {
 
 	t.Run("single config", func(t *testing.T) {
 		// Arrange
-		rc := &AgenticRC{Run: RCRun{CPUs: "4", ExtraMounts: []string{"vol:/mnt"}}}
+		rc := &AgenticRC{Run: RCRun{RCLimits: RCLimits{CPUs: "4"}, ExtraMounts: []string{"vol:/mnt"}}}
 
 		// Act
 		result := mergeConfigs([]*AgenticRC{rc})
@@ -346,14 +346,14 @@ func TestMergeConfigs(t *testing.T) {
 
 	t.Run("dind limits child wins and parent fills gaps", func(t *testing.T) {
 		// Arrange
-		child := &AgenticRC{Run: RCRun{Dind: RCDind{CPUs: "2"}}}
-		parent := &AgenticRC{Run: RCRun{Dind: RCDind{PidsLimit: "512", CPUs: "8", Memory: "8g"}}}
+		child := &AgenticRC{Run: RCRun{Dind: RCDind{RCLimits: RCLimits{CPUs: "2"}}}}
+		parent := &AgenticRC{Run: RCRun{Dind: RCDind{RCLimits: RCLimits{PidsLimit: "512", CPUs: "8", Memory: "8g"}}}}
 
 		// Act
 		result := mergeConfigs([]*AgenticRC{child, parent})
 
 		// Assert
-		assert.Equal(t, RCDind{PidsLimit: "512", CPUs: "2", Memory: "8g"}, result.Run.Dind)
+		assert.Equal(t, RCDind{RCLimits: RCLimits{PidsLimit: "512", CPUs: "2", Memory: "8g"}}, result.Run.Dind)
 	})
 
 	t.Run("check_updates child wins over parent", func(t *testing.T) {
@@ -493,6 +493,40 @@ func TestMergeConfigs(t *testing.T) {
 	})
 }
 
+func Test_mergeLimits(t *testing.T) {
+	parent := RCLimits{PidsLimit: "512", CPUs: "8", Memory: "8g"}
+
+	t.Run("empty limits take the parent's", func(t *testing.T) {
+		// Act
+		result := mergeLimits(RCLimits{}, parent)
+
+		// Assert
+		assert.Equal(t, parent, result)
+	})
+
+	t.Run("set limits win over the parent", func(t *testing.T) {
+		// Arrange
+		limits := RCLimits{PidsLimit: "100", CPUs: "2", Memory: "2g"}
+
+		// Act
+		result := mergeLimits(limits, parent)
+
+		// Assert
+		assert.Equal(t, limits, result)
+	})
+
+	t.Run("each limit merges on its own", func(t *testing.T) {
+		// Arrange
+		limits := RCLimits{CPUs: "2"}
+
+		// Act
+		result := mergeLimits(limits, parent)
+
+		// Assert
+		assert.Equal(t, RCLimits{PidsLimit: "512", CPUs: "2", Memory: "8g"}, result)
+	})
+}
+
 func TestParseRC(t *testing.T) {
 	t.Run("all keys", func(t *testing.T) {
 		// Arrange
@@ -554,6 +588,20 @@ memory = "2g"
 		assert.Equal(t, "4", rc.Run.CPUs)
 		assert.Equal(t, "4g", rc.Run.Memory)
 		assert.Empty(t, rc.Run.ExtraMounts)
+	})
+
+	t.Run("dind limits", func(t *testing.T) {
+		// Arrange
+		content := "[run]\ncpus = \"4\"\n\n[run.dind]\npids_limit = \"2048\"\ncpus = \"2\"\nmemory = \"8g\"\n"
+
+		// Act
+		rc := mustParseRC(t, content)
+
+		// Assert
+		assert.Equal(t, "4", rc.Run.CPUs)
+		assert.Equal(t, "2048", rc.Run.Dind.PidsLimit)
+		assert.Equal(t, "2", rc.Run.Dind.CPUs)
+		assert.Equal(t, "8g", rc.Run.Dind.Memory)
 	})
 
 	t.Run("tilde in string values", func(t *testing.T) {

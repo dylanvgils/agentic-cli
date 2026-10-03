@@ -228,8 +228,8 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("docker section lists the sidecar limits", func(t *testing.T) {
 		// Arrange
-		in := Input{DindEnabled: true, DindCPUs: "2"}
-		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{Memory: "8g"}}}
+		in := Input{DindEnabled: true, DindLimits: docker.ResourceLimits{CPUs: "2"}}
+		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{Memory: "8g"}}}}
 
 		// Act
 		content, err := BuildInstructions(target, in, tools.Configs["claude"], rc)

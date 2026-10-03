@@ -35,10 +35,8 @@ func TestBuildBaseArgs(t *testing.T) {
 	t.Run("resource limits from spec", func(t *testing.T) {
 		// Arrange
 		rs := RunSpec{
-			Image:     "agentic-claude",
-			PidsLimit: "512",
-			CPUs:      "2",
-			Memory:    "2g",
+			Image:  "agentic-claude",
+			Limits: ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
 		}
 
 		// Act
