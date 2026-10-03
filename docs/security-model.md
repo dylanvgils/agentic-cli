@@ -62,7 +62,7 @@ If one of these breaks, a layer above stops meaning anything:
 
 What no layer covers today:
 
-- **Shared kernel**: a kernel exploit escapes every container. Only a VM boundary (Kata, gVisor, Docker Sandboxes) fixes this. Keep the host kernel patched.
+- **Shared kernel**: a kernel exploit escapes every container. Only a VM boundary (Kata, gVisor, [Docker Sandboxes](comparison.md)) fixes this. Keep the host kernel patched.
 - **Credentials in reach**: the agent can read its own API token and any `--secret` you mount, and use them from any allowed host.
 - **Workspace tampering**: the agent can edit git hooks, `Makefile`, `package.json` scripts, etc. They run on *your* machine the next time you use them outside the container. Review diffs.
 - **Exfiltration to allowed hosts**: without `--proxy` the internet is open; with it, data can still go to any allowlisted host.
