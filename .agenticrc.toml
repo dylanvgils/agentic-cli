@@ -3,7 +3,7 @@ root = true
 namespace = "agenticgo"
 
 [build]
-bases = ["go"]
+bases = ["go", "docker"]
 apt_packages = ["make", "shellcheck"]
 
 [[build.custom_installs]]
@@ -17,4 +17,17 @@ extra_mounts = [
   "go-mod:$CONTAINER_HOME/go",
   "go-cache:$CONTAINER_HOME/.cache/go-build",
   "golangci-lint-cache:$CONTAINER_HOME/.cache/golangci-lint",
+]
+
+[run.dind]
+enabled = true
+
+[run.proxy]
+enabled = true
+mode = "monitor"
+allowed_hosts = [
+  "proxy.golang.org", # go build/test downloads modules
+  "sum.golang.org",   # go verifies module checksums
+  "deb.debian.org",   # apt in the integration test image build
+  ".claude.ai",       # integration test image installs Claude, whichever tool runs
 ]

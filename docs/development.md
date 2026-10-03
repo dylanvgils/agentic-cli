@@ -57,7 +57,7 @@ make docker-dist    # same via Docker (no local Go needed)
 
 Changes to the CLI take effect immediately after `make build` - no container rebuild needed. Changes to stage funcs in `internal/tools/` or `internal/docker/` require an `agentic build` to rebuild the affected image.
 
-Integration tests live in `test/integration/` behind the `integration` build tag. They build the binary and an `agentic-itest-claude` image (a few minutes on the first run, cached after), then drive `agentic run` like a user would. They skip when Docker is unavailable, and the resource-limit checks skip when the daemon runs without cgroups (e.g. rootless without systemd). CI runs them in a separate job.
+Integration tests live in `test/integration/` behind the `integration` build tag. They build the binary and an `agentic-itest-claude` image (a few minutes on the first run, cached after), then drive `agentic run` like a user would. They skip when Docker is unavailable, and the resource-limit checks skip when the daemon runs without cgroups (e.g. rootless without systemd). CI runs them in a separate job. This repo's `.agenticrc.toml` enables the DinD sidecar (and the egress proxy in monitor mode), so they also run inside an agentic container.
 
 ## Go conventions
 
