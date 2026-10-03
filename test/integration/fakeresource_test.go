@@ -19,13 +19,8 @@ const (
 	labelTimeFormat = "2006-01-02T15:04:05Z"
 )
 
-const (
-	// listenPort is the TCP port a listening fake container accepts connections on.
-	listenPort = "8080"
-
-	// listenScript is a perl TCP server (the only listener the tool image has) that logs once it's ready.
-	listenScript = `$| = 1; my $s = IO::Socket::INET->new(LocalPort => ` + listenPort + `, Listen => 5, ReuseAddr => 1) or die $!; print "listening\n"; while (my $c = $s->accept) { close $c }`
-)
+// listenPort is the TCP port a listening fake container accepts connections on.
+const listenPort = "8080"
 
 // fakeResource builds a labelled docker container or network that looks like agentic created it.
 type fakeResource struct {
@@ -67,7 +62,7 @@ func (f *fakeResource) onNetwork(network string) *fakeResource {
 
 // listening makes the container run a TCP server on listenPort.
 func (f *fakeResource) listening() *fakeResource {
-	f.cmd = []string{"perl", "-MIO::Socket::INET", "-e", listenScript}
+	f.cmd = []string{"nc", "-lk", listenPort}
 	return f
 }
 
@@ -108,19 +103,18 @@ func (f *fakeResource) exists() bool {
 	return exec.Command("docker", f.kind, "inspect", f.name).Run() == nil
 }
 
-// addr returns the container's ip:listenPort on its network.
-func (f *fakeResource) addr() string {
+// ip returns the container's address on its network.
+func (f *fakeResource) ip() string {
 	f.t.Helper()
 	out, err := exec.Command("docker", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", f.name).Output()
 	require.NoError(f.t, err)
-	return strings.TrimSpace(string(out)) + ":" + listenPort
+	return strings.TrimSpace(string(out))
 }
 
-// awaitListening waits until the container's server logs that it's ready.
+// awaitListening waits until the container accepts connections on listenPort.
 func (f *fakeResource) awaitListening() {
 	f.t.Helper()
 	require.Eventually(f.t, func() bool {
-		out, _ := exec.Command("docker", "logs", f.name).CombinedOutput()
-		return strings.Contains(string(out), "listening")
+		return exec.Command("docker", "exec", f.name, "nc", "-z", "127.0.0.1", listenPort).Run() == nil
 	}, 10*time.Second, 100*time.Millisecond, "fake container %s never started listening", f.name)
 }

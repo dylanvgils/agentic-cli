@@ -28,8 +28,19 @@ const (
 	dockerInfoFormat = "server {{.ServerVersion}}, cgroup driver {{.CgroupDriver}}, cgroup v{{.CgroupVersion}}"
 )
 
-// rcContents isolates the work dir from the repo's and user's .agenticrc.toml.
-var rcContents = fmt.Sprintf("root = true\nnamespace = %q\n\n[run]\ncheck_updates = false\npids_limit = %q\nmemory = %q\ncpus = %q\n", testNamespace, testPidsLimit, testMemory, testCPUs)
+// rcContents isolates the work dir from the repo's and user's .agenticrc.toml; netcat is for the network tests.
+var rcContents = fmt.Sprintf(`root = true
+namespace = %q
+
+[build]
+apt_packages = ["netcat-openbsd"]
+
+[run]
+check_updates = false
+pids_limit = %q
+memory = %q
+cpus = %q
+`, testNamespace, testPidsLimit, testMemory, testCPUs)
 
 var (
 	// rootDir holds every host file the tests create, under the repo so a sidecar daemon can bind-mount them.
