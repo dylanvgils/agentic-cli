@@ -70,6 +70,10 @@ type RCProxy struct {
 type RCDind struct {
 	// Pointer so an inner config can disable what an outer one enabled
 	Enabled *bool `toml:"enabled"`
+	// Sidecar limits; empty inherits the tool's
+	PidsLimit string `toml:"pids_limit"`
+	CPUs      string `toml:"cpus"`
+	Memory    string `toml:"memory"`
 }
 
 // RCMarketplace declares one git-based plugin marketplace to sync and mount into tool containers.
@@ -256,6 +260,18 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 
 		if resRun.Dind.Enabled == nil {
 			resRun.Dind.Enabled = run.Dind.Enabled
+		}
+
+		if resRun.Dind.PidsLimit == "" {
+			resRun.Dind.PidsLimit = run.Dind.PidsLimit
+		}
+
+		if resRun.Dind.CPUs == "" {
+			resRun.Dind.CPUs = run.Dind.CPUs
+		}
+
+		if resRun.Dind.Memory == "" {
+			resRun.Dind.Memory = run.Dind.Memory
 		}
 
 		if resRun.Instructions.Enabled == nil {

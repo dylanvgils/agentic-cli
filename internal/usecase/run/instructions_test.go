@@ -226,6 +226,19 @@ func TestBuildInstructions(t *testing.T) {
 		assert.NotContains(t, content, "egress proxy")
 	})
 
+	t.Run("docker section lists the sidecar limits", func(t *testing.T) {
+		// Arrange
+		in := Input{DindEnabled: true, DindCPUs: "2"}
+		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{Memory: "8g"}}}
+
+		// Act
+		content, err := BuildInstructions(target, in, tools.Configs["claude"], rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, content, "own limits, shared by everything it runs: "+docker.DefaultPidsLimit+" processes, 2 CPUs, 8g memory")
+	})
+
 	t.Run("docker section and allowlist cover registries with proxy", func(t *testing.T) {
 		// Arrange
 		in := Input{DindEnabled: true, ProxyEnabled: true}

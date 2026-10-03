@@ -193,7 +193,7 @@ Each tool ships a baseline allowlist that `allowed_hosts` merges on top of. The 
 
 OpenCode is multi-provider, so only its own auth/update host is included by default - add your chosen model-provider hosts via `allowed_hosts`.
 
-`agentic config` shows resolved `proxy.enabled`, `proxy.mode`, and `proxy.allowed_hosts` (plus `dind.enabled`) for the current directory, tagged with the `.agenticrc.toml` that set them (tool baseline hosts aren't included - they're fixed per tool, not configurable).
+`agentic config` shows resolved `proxy.enabled`, `proxy.mode`, and `proxy.allowed_hosts` (plus `dind.enabled` and the sidecar limits `dind.pids_limit`, `dind.cpus`, `dind.memory`) for the current directory, tagged with the `.agenticrc.toml` that set them (tool baseline hosts aren't included - they're fixed per tool, not configurable).
 
 ```toml
 [run.proxy]
@@ -213,15 +213,19 @@ For these cases, the sidecar is reachable at the stable hostname `agentic-proxy:
 
 **`[run.dind]` section** - rootless Docker-in-Docker sidecar
 
-| Key       | Type | Description                                                                                                                                                                                                     | CLI flag               | Default |
-| --------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------- |
-| `enabled` | bool | Start a per-run rootless Docker daemon sidecar the tool reaches via `DOCKER_HOST`. The image needs the `docker` base layer (`--base docker`). A pointer internally, so an inner config can disable an outer one. | `--dind` / `--no-dind` | `false` |
+| Key          | Type   | Description                                                                                                                                                                                                      | CLI flag               | Default      |
+| ------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------ |
+| `enabled`    | bool   | Start a per-run rootless Docker daemon sidecar the tool reaches via `DOCKER_HOST`. The image needs the `docker` base layer (`--base docker`). A pointer internally, so an inner config can disable an outer one. | `--dind` / `--no-dind` | `false`      |
+| `pids_limit` | string | Sidecar PID limit, shared by everything the daemon runs. Unset inherits the tool container's `pids_limit`.                                                                                                       | `--dind-pids-limit`    | tool's value |
+| `cpus`       | string | Sidecar CPU limit. Unset inherits the tool container's `cpus`.                                                                                                                                                   | `--dind-cpus`          | tool's value |
+| `memory`     | string | Sidecar memory limit (e.g. `"8g"`). Unset inherits the tool container's `memory`.                                                                                                                                | `--dind-memory`        | tool's value |
 
 When enabled, `agentic run` generates throwaway TLS certs, builds the hardened `agentic-dind` image if needed (from `docker:<version>-dind-rootless`, setuid bits stripped, rebuilt at least weekly), starts it as your uid (inner-container ids map to a dedicated unused range from 2,000,000,000) with a derived seccomp profile on a per-run network (or the proxy's internal network when `--proxy` is on), waits for the daemon, and removes the sidecar, its images, and the certs when the run ends. `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CONFIG`, and `DOCKER_CONTEXT` are managed for the run and can't be overridden via `env`. With the proxy on, Docker Hub hosts are added to the allowlist automatically, and the CLI's `config.json` passes the proxy into containers and builds started through the sidecar. See [Docker-in-Docker](docker-in-docker.md) for the isolation model, and [Devcontainers](recipes.md#devcontainers) for an example.
 
 ```toml
 [run.dind]
 enabled = true
+memory = "8g" # sidecar only; pids_limit and cpus inherit the tool's
 ```
 
 **`[[marketplaces]]`** - git-based plugin marketplaces (skills, agents, commands, hooks, MCP servers, synced and mounted together as a single unit) to sync onto the host and mount read-only into every applicable tool's container
@@ -404,6 +408,8 @@ Resolution priority (highest to lowest):
 1. CLI flag (`--pids-limit`, `--cpus`, `--memory`) on `agentic run`
 2. `.agenticrc.toml` - innermost (child) value wins
 3. Built-in default (`1024`, `4`, `4g`)
+
+The Docker sidecar's limits resolve the same way through `--dind-pids-limit`/`--dind-cpus`/`--dind-memory` and `[run.dind]`, then fall back to the tool's resolved value instead of the built-in default.
 
 ## Using `root = true`
 

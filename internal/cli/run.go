@@ -137,6 +137,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 
 	pidsLimit, cpus, memory := resolveResourceLimitFlags(cmd)
+	dindPidsLimit, dindCPUs, dindMemory := resolveDindResourceLimitFlags(cmd)
 
 	target := run.Target{
 		ToolName:       parsedArgs.toolName,
@@ -157,6 +158,9 @@ func runTool(cmd *cobra.Command, args []string) error {
 		ProxyEnabled:   proxyEnabled,
 		ProxyMonitor:   proxyMonitor,
 		DindEnabled:    dindEnabled,
+		DindPidsLimit:  dindPidsLimit,
+		DindCPUs:       dindCPUs,
+		DindMemory:     dindMemory,
 	}
 
 	rs, cleanupInstructions, err := run.BuildWithInstructions(target, input, toolConfig, rc)

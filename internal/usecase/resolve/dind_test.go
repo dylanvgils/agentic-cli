@@ -40,3 +40,37 @@ func TestDindEnabled(t *testing.T) {
 		assert.False(t, result)
 	})
 }
+
+func TestDindResourceLimitsFor(t *testing.T) {
+	tool := ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"}
+
+	t.Run("inherits tool limits when nothing set", func(t *testing.T) {
+		// Act
+		result := DindResourceLimitsFor("", "", "", &config.AgenticRC{}, tool)
+
+		// Assert
+		assert.Equal(t, tool, result)
+	})
+
+	t.Run("rc takes precedence over tool limits", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{PidsLimit: "2048", Memory: "8g"}}}
+
+		// Act
+		result := DindResourceLimitsFor("", "", "", rc, tool)
+
+		// Assert
+		assert.Equal(t, ResourceLimits{PidsLimit: "2048", CPUs: "4", Memory: "8g"}, result)
+	})
+
+	t.Run("flag takes precedence over rc", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}}
+
+		// Act
+		result := DindResourceLimitsFor("", "1", "16g", rc, tool)
+
+		// Assert
+		assert.Equal(t, ResourceLimits{PidsLimit: "2048", CPUs: "1", Memory: "16g"}, result)
+	})
+}

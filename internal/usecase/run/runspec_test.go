@@ -116,6 +116,42 @@ func TestBuild(t *testing.T) {
 		assert.Equal(t, "2g", rs.Memory)
 	})
 
+	t.Run("dind limits inherit tool limits", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir()}
+		rc := &config.AgenticRC{Run: config.RCRun{PidsLimit: "512", CPUs: "2", Memory: "2g"}}
+
+		// Act
+		rs, err := Build(target, in, tools.Configs["claude"], rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "512", rs.DindPidsLimit)
+		assert.Equal(t, "2", rs.DindCPUs)
+		assert.Equal(t, "2g", rs.DindMemory)
+	})
+
+	t.Run("dind limits override tool limits", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir(), DindMemory: "16g"}
+		rc := &config.AgenticRC{Run: config.RCRun{
+			PidsLimit: "512", CPUs: "2", Memory: "2g",
+			Dind: config.RCDind{PidsLimit: "4096", Memory: "8g"},
+		}}
+
+		// Act
+		rs, err := Build(target, in, tools.Configs["claude"], rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "4096", rs.DindPidsLimit)
+		assert.Equal(t, "2", rs.DindCPUs)
+		assert.Equal(t, "16g", rs.DindMemory)
+		assert.Equal(t, "2g", rs.Memory, "tool limit is unaffected")
+	})
+
 	t.Run("dry run wired", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}

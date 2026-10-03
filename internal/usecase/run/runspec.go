@@ -37,6 +37,10 @@ type Input struct {
 	ProxyEnabled   bool
 	ProxyMonitor   bool
 	DindEnabled    bool
+	// Sidecar limit flags; empty falls back to config
+	DindPidsLimit string
+	DindCPUs      string
+	DindMemory    string
 	// InstructionsMount is the mount spec for this run's instructions snapshot, empty when disabled.
 	InstructionsMount string
 }
@@ -60,6 +64,7 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	secrets := resolve.Secrets(in.Secrets, rc)
 	env := resolve.Env(in.Env, rc)
 	limits := resolve.ResourceLimitsFor(in.PidsLimit, in.CPUs, in.Memory, rc)
+	dindLimits := resolve.DindResourceLimitsFor(in.DindPidsLimit, in.DindCPUs, in.DindMemory, rc, limits)
 
 	if err := validateEnv(env, in.ProxyEnabled, in.DindEnabled); err != nil {
 		return docker.RunSpec{}, err
@@ -102,6 +107,7 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		WithDryRun(in.DryRun).
 		WithProxy(in.ProxyEnabled, tools.ProxyImage, resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc), logDir, in.ProxyMonitor).
 		WithDind(in.DindEnabled, tools.DindImage).
+		WithDindLimits(dindLimits.PidsLimit, dindLimits.CPUs, dindLimits.Memory).
 		Build()
 
 	return rs, nil

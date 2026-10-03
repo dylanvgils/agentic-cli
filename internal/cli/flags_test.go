@@ -159,7 +159,7 @@ func TestAddProxyFlags(t *testing.T) {
 }
 
 func Test_addDindFlags(t *testing.T) {
-	t.Run("registers both flags", func(t *testing.T) {
+	t.Run("registers toggle and limit flags", func(t *testing.T) {
 		// Arrange
 		cmd := &cobra.Command{Use: "test"}
 
@@ -167,7 +167,7 @@ func Test_addDindFlags(t *testing.T) {
 		addDindFlags(cmd)
 
 		// Assert
-		for _, name := range []string{"dind", "no-dind"} {
+		for _, name := range []string{"dind", "no-dind", "dind-pids-limit", "dind-cpus", "dind-memory"} {
 			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
 		}
 	})
@@ -197,6 +197,22 @@ func Test_resolveDindEnabled(t *testing.T) {
 
 	// Assert
 	assert.True(t, result)
+}
+
+func Test_resolveDindResourceLimitFlags(t *testing.T) {
+	// Arrange
+	cmd := &cobra.Command{Use: "test"}
+	addDindFlags(cmd)
+	require.NoError(t, cmd.Flags().Set("dind-cpus", "2"))
+	require.NoError(t, cmd.Flags().Set("dind-memory", "8g"))
+
+	// Act
+	pidsLimit, cpus, memory := resolveDindResourceLimitFlags(cmd)
+
+	// Assert
+	assert.Empty(t, pidsLimit)
+	assert.Equal(t, "2", cpus)
+	assert.Equal(t, "8g", memory)
 }
 
 func newBuildCmd(t *testing.T) *cobra.Command {
