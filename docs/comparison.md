@@ -1,8 +1,8 @@
 # Comparison
 
-How agentic compares to [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) (`sbx`), Docker's own way to isolate coding agents. It runs each agent in its own microVM - a stronger boundary than a container. The table compares agentic with local `sbx` sandboxes as of October 2026; check Docker's docs for current details.
+How agentic compares to [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) (`sbx`), Docker's own way to isolate coding agents. It runs each agent in its own microVM - a stronger boundary than a container. The table reflects both as of October 2026; check Docker's docs for current details.
 
-| | agentic | Docker Sandboxes (local) |
+| | agentic | Docker Sandboxes |
 | --- | --- | --- |
 | **Boundary** | Container on the host's kernel | microVM with its own kernel |
 | **Host requirements** | Any Docker-compatible runtime (Docker, Rancher Desktop, Podman) on any OS or architecture, no virtualization needed | macOS 14+ on Apple silicon, Windows 11 on x86_64, or Ubuntu 24.04+ on x86_64/arm64, with hardware virtualization |
@@ -11,9 +11,7 @@ How agentic compares to [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/
 | **Credentials** | The agent can read its own token and any mounted secret | Injected by a host-side proxy; the agent never sees raw values |
 | **Docker inside** | Opt-in rootless sidecar (`--dind`) | Private Docker Engine in every sandbox |
 | **Config** | `.agenticrc.toml` per project, merged up the directory tree | `sbxenv.yaml` environment files (experimental) |
-| **Account and cost** | None, free | Docker sign-in required; local sandboxes free |
+| **Account and cost** | None, free | Docker sign-in required, free |
 | **Source** | Open source (MIT) | Published as binaries |
-
-Docker also offers cloud sandboxes (`sbx --cloud`), which need no local virtualization but run on Docker's infrastructure with no access to your local files, billed per use.
 
 If your platform supports it and you want a VM boundary or credentials the agent can't read, Docker Sandboxes is a good fit. If you need portability, deep per-project configuration, or a setup you can fully audit, agentic is.
