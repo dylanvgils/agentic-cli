@@ -55,7 +55,7 @@ func TestDindResourceLimitsFor(t *testing.T) {
 
 	t.Run("rc takes precedence over tool limits", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{PidsLimit: "2048", Memory: "8g"}}}
+		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{PidsLimit: "2048", Memory: "8g"}}}}
 
 		// Act
 		result := DindResourceLimitsFor(docker.ResourceLimits{}, rc, tool)
@@ -66,7 +66,7 @@ func TestDindResourceLimitsFor(t *testing.T) {
 
 	t.Run("flag takes precedence over rc", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}}
+		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}}}
 
 		// Act
 		result := DindResourceLimitsFor(docker.ResourceLimits{CPUs: "1", Memory: "16g"}, rc, tool)

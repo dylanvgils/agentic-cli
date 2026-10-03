@@ -105,7 +105,7 @@ func TestBuild(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 		in := Input{ToolHome: t.TempDir()}
-		rc := &config.AgenticRC{Run: config.RCRun{PidsLimit: "512", CPUs: "2", Memory: "2g"}}
+		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
 
 		// Act
 		rs, err := Build(target, in, tools.Configs["claude"], rc)
@@ -119,7 +119,7 @@ func TestBuild(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 		in := Input{ToolHome: t.TempDir()}
-		rc := &config.AgenticRC{Run: config.RCRun{PidsLimit: "512", CPUs: "2", Memory: "2g"}}
+		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
 
 		// Act
 		rs, err := Build(target, in, tools.Configs["claude"], rc)
@@ -134,8 +134,8 @@ func TestBuild(t *testing.T) {
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 		in := Input{ToolHome: t.TempDir(), DindLimits: docker.ResourceLimits{Memory: "16g"}}
 		rc := &config.AgenticRC{Run: config.RCRun{
-			PidsLimit: "512", CPUs: "2", Memory: "2g",
-			Dind: config.RCDind{PidsLimit: "4096", Memory: "8g"},
+			RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
+			Dind:     config.RCDind{RCLimits: config.RCLimits{PidsLimit: "4096", Memory: "8g"}},
 		}}
 
 		// Act

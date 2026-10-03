@@ -44,8 +44,5 @@ func Env(flags []string, rc *config.AgenticRC) []string {
 
 // ResourceLimitsFor resolves each limit through flag, then rc, then hardcoded default.
 func ResourceLimitsFor(flags docker.ResourceLimits, rc *config.AgenticRC) docker.ResourceLimits {
-	run := rc.Run
-	rcLimits := docker.ResourceLimits{PidsLimit: run.PidsLimit, CPUs: run.CPUs, Memory: run.Memory}
-
-	return flags.Or(rcLimits).Or(docker.DefaultLimits)
+	return flags.Or(docker.ResourceLimits(rc.Run.RCLimits)).Or(docker.DefaultLimits)
 }

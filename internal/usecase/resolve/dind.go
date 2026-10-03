@@ -25,8 +25,5 @@ func DindEnabled(in DindInput, rc *config.AgenticRC) bool {
 
 // DindResourceLimitsFor resolves each sidecar limit: flag, then [run.dind], then the tool's limit.
 func DindResourceLimitsFor(flags docker.ResourceLimits, rc *config.AgenticRC, tool docker.ResourceLimits) docker.ResourceLimits {
-	dind := rc.Run.Dind
-	rcLimits := docker.ResourceLimits{PidsLimit: dind.PidsLimit, CPUs: dind.CPUs, Memory: dind.Memory}
-
-	return flags.Or(rcLimits).Or(tool)
+	return flags.Or(docker.ResourceLimits(rc.Run.Dind.RCLimits)).Or(tool)
 }

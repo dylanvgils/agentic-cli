@@ -40,12 +40,11 @@ type RCRun struct {
 	ReadOnlyMounts []string       `toml:"read_only_mounts"`
 	Secrets        []string       `toml:"secrets"`
 	Env            []string       `toml:"env"`
-	PidsLimit      string         `toml:"pids_limit"`
-	CPUs           string         `toml:"cpus"`
-	Memory         string         `toml:"memory"`
 	Proxy          RCProxy        `toml:"proxy"`
 	Dind           RCDind         `toml:"dind"`
 	Instructions   RCInstructions `toml:"instructions"`
+	// Tool limits
+	RCLimits
 	// CheckUpdates is a pointer so an inner config can explicitly disable a check an outer one enabled; nil or true means it runs.
 	CheckUpdates *bool `toml:"check_updates"`
 }
@@ -71,6 +70,11 @@ type RCDind struct {
 	// Pointer so an inner config can disable what an outer one enabled
 	Enabled *bool `toml:"enabled"`
 	// Sidecar limits; empty inherits the tool's
+	RCLimits
+}
+
+// RCLimits holds the pids_limit, cpus and memory keys shared by [run] and [run.dind].
+type RCLimits struct {
 	PidsLimit string `toml:"pids_limit"`
 	CPUs      string `toml:"cpus"`
 	Memory    string `toml:"memory"`
@@ -238,17 +242,7 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 			result.DockerContext = rc.DockerContext
 		}
 
-		if resRun.PidsLimit == "" {
-			resRun.PidsLimit = run.PidsLimit
-		}
-
-		if resRun.CPUs == "" {
-			resRun.CPUs = run.CPUs
-		}
-
-		if resRun.Memory == "" {
-			resRun.Memory = run.Memory
-		}
+		resRun.RCLimits = mergeLimits(resRun.RCLimits, run.RCLimits)
 
 		if resRun.Proxy.Enabled == nil {
 			resRun.Proxy.Enabled = run.Proxy.Enabled
@@ -262,17 +256,7 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 			resRun.Dind.Enabled = run.Dind.Enabled
 		}
 
-		if resRun.Dind.PidsLimit == "" {
-			resRun.Dind.PidsLimit = run.Dind.PidsLimit
-		}
-
-		if resRun.Dind.CPUs == "" {
-			resRun.Dind.CPUs = run.Dind.CPUs
-		}
-
-		if resRun.Dind.Memory == "" {
-			resRun.Dind.Memory = run.Dind.Memory
-		}
+		resRun.Dind.RCLimits = mergeLimits(resRun.Dind.RCLimits, run.Dind.RCLimits)
 
 		if resRun.Instructions.Enabled == nil {
 			resRun.Instructions.Enabled = run.Instructions.Enabled
@@ -316,6 +300,23 @@ func appendInstructions(existing, next string) string {
 		return next
 	}
 	return existing + "\n\n" + next
+}
+
+// mergeLimits returns limits with each empty value filled from parent.
+func mergeLimits(limits, parent RCLimits) RCLimits {
+	if limits.PidsLimit == "" {
+		limits.PidsLimit = parent.PidsLimit
+	}
+
+	if limits.CPUs == "" {
+		limits.CPUs = parent.CPUs
+	}
+
+	if limits.Memory == "" {
+		limits.Memory = parent.Memory
+	}
+
+	return limits
 }
 
 func loadRC(path string) (*AgenticRC, error) {
