@@ -12,11 +12,10 @@ type RunSpecBuilder struct {
 	tmpfsMounts    []string
 	limits         ResourceLimits
 	dryRun         bool
-	proxyEnabled   bool
+	proxyMode      ProxyMode
 	proxyImage     string
 	proxyAllow     []string
 	proxyLogDir    string
-	proxyMonitor   bool
 	dindEnabled    bool
 	dindImage      string
 	dindLimits     ResourceLimits
@@ -82,13 +81,12 @@ func (b *RunSpecBuilder) WithDryRun(dryRun bool) *RunSpecBuilder {
 }
 
 // WithProxy confines the tool to an internal network reaching out only via the proxy sidecar,
-// which logs to logDir and enforces allow (or only logs the verdict when monitor is true).
-func (b *RunSpecBuilder) WithProxy(enabled bool, image string, allow []string, logDir string, monitor bool) *RunSpecBuilder {
-	b.proxyEnabled = enabled
+// which logs to logDir and enforces allow (or only logs the verdict in ProxyMonitor mode).
+func (b *RunSpecBuilder) WithProxy(mode ProxyMode, image string, allow []string, logDir string) *RunSpecBuilder {
+	b.proxyMode = mode
 	b.proxyImage = image
 	b.proxyAllow = allow
 	b.proxyLogDir = logDir
-	b.proxyMonitor = monitor
 	return b
 }
 
@@ -118,11 +116,10 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		TmpfsMounts:    b.tmpfsMounts,
 		Limits:         b.limits,
 		DryRun:         b.dryRun,
-		ProxyEnabled:   b.proxyEnabled,
+		ProxyMode:      b.proxyMode,
 		ProxyImage:     b.proxyImage,
 		ProxyAllow:     b.proxyAllow,
 		ProxyLogDir:    b.proxyLogDir,
-		ProxyMonitor:   b.proxyMonitor,
 		DindEnabled:    b.dindEnabled,
 		DindImage:      b.dindImage,
 		DindLimits:     b.dindLimits,

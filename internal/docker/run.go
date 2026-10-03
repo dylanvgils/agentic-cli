@@ -37,13 +37,12 @@ type RunSpec struct {
 	Limits         ResourceLimits
 	DryRun         bool
 
-	// Egress proxy. When ProxyEnabled, the tool reaches out only through a sidecar that enforces
-	// ProxyAllow, unless ProxyMonitor is set, in which case it only logs the verdict.
-	ProxyEnabled bool
-	ProxyImage   string   // proxy sidecar image
-	ProxyAllow   []string // merged allowlist (tool baseline + user hosts)
-	ProxyLogDir  string   // host dir for JSON-lines access logs
-	ProxyMonitor bool     // log the allowlist verdict without enforcing it
+	// Egress proxy. Unless ProxyMode is ProxyOff, the tool reaches out only through a sidecar that
+	// enforces ProxyAllow, or in ProxyMonitor mode only logs the verdict.
+	ProxyMode   ProxyMode
+	ProxyImage  string   // proxy sidecar image
+	ProxyAllow  []string // merged allowlist (tool baseline + user hosts)
+	ProxyLogDir string   // host dir for JSON-lines access logs
 
 	// Docker-in-Docker sidecar, reachable at DOCKER_HOST over mutual TLS
 	DindEnabled bool

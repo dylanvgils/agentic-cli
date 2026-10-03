@@ -173,7 +173,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("network section lists allowlist when enforcing", func(t *testing.T) {
 		// Arrange
-		in := Input{ProxyEnabled: true}
+		in := Input{ProxyMode: docker.ProxyEnforce}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
 
 		// Act
@@ -189,7 +189,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("network section omits host list in monitor mode", func(t *testing.T) {
 		// Arrange
-		in := Input{ProxyEnabled: true, ProxyMonitor: true}
+		in := Input{ProxyMode: docker.ProxyMonitor}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
 
 		// Act
@@ -241,7 +241,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("docker section and allowlist cover registries with proxy", func(t *testing.T) {
 		// Arrange
-		in := Input{DindEnabled: true, ProxyEnabled: true}
+		in := Input{DindEnabled: true, ProxyMode: docker.ProxyEnforce}
 
 		// Act
 		content, err := BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})

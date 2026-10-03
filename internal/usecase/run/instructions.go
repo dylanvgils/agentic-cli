@@ -178,14 +178,14 @@ func writePrivilegeSection(b *strings.Builder) {
 
 // writeNetworkSection is only written when the proxy is enabled; the allowlist itself is omitted in monitor mode, since nothing is actually blocked there.
 func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *config.AgenticRC, in Input) {
-	if !in.ProxyEnabled {
+	if !in.ProxyMode.Enabled() {
 		return
 	}
 
 	b.WriteString("## Network\n\n")
 	b.WriteString("- All network egress routes through an egress proxy - there is no direct internet access.\n")
 
-	if in.ProxyMonitor {
+	if in.ProxyMode == docker.ProxyMonitor {
 		b.WriteString("\n")
 		return
 	}
@@ -209,7 +209,7 @@ func writeDockerSection(b *strings.Builder, in Input, limits docker.ResourceLimi
 	b.WriteString("- Published ports listen on the sidecar: reach them at `agentic-docker:<port>`, not `localhost`. They are not reachable from the user's machine.\n")
 	b.WriteString("- Images, containers and volumes are discarded when this session ends.\n")
 	fmt.Fprintf(b, "- The daemon has its own limits, shared by everything it runs: %s processes, %s CPUs, %s memory. To raise them, tell the user to set pids_limit/cpus/memory under [run.dind] in .agenticrc.toml (or the --dind-pids-limit/--dind-cpus/--dind-memory flags).\n", limits.PidsLimit, limits.CPUs, limits.Memory)
-	if in.ProxyEnabled {
+	if in.ProxyMode.Enabled() {
 		b.WriteString("- Image pulls, builds and containers go through the same egress proxy and allowlist; a registry other than Docker Hub must be added to allowed_hosts.\n")
 	}
 	b.WriteString("\n")

@@ -117,8 +117,8 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	proxyEnabled, proxyMonitor := resolveProxyMode(cmd, rc)
-	if proxyEnabled && !dryRun {
+	proxyMode := resolveProxyMode(cmd, rc)
+	if proxyMode.Enabled() && !dryRun {
 		if err := ensureProxyImage(cmd); err != nil {
 			return err
 		}
@@ -150,8 +150,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		Limits:         resolveResourceLimitFlags(cmd),
 		DryRun:         dryRun,
 		Registry:       collectRegistry(cmd),
-		ProxyEnabled:   proxyEnabled,
-		ProxyMonitor:   proxyMonitor,
+		ProxyMode:      proxyMode,
 		DindEnabled:    dindEnabled,
 		DindLimits:     resolveDindResourceLimitFlags(cmd),
 	}

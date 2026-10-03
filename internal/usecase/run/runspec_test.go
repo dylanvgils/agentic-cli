@@ -231,7 +231,7 @@ func TestBuild(t *testing.T) {
 	t.Run("proxy wired with merged allowlist and image", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyEnabled: true}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
 
 		// Act
@@ -239,7 +239,7 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.True(t, rs.ProxyEnabled)
+		assert.Equal(t, docker.ProxyEnforce, rs.ProxyMode)
 		assert.Equal(t, tools.ProxyImage, rs.ProxyImage)
 		assert.Equal(t, []string{".anthropic.com", ".claude.ai", ".claude.com", "extra.example.com"}, rs.ProxyAllow)
 		assert.NotEmpty(t, rs.ProxyLogDir)
@@ -255,7 +255,7 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.False(t, rs.ProxyEnabled)
+		assert.Equal(t, docker.ProxyOff, rs.ProxyMode)
 		assert.Empty(t, rs.ProxyLogDir)
 	})
 
@@ -263,35 +263,34 @@ func TestBuild(t *testing.T) {
 		// Arrange
 		stubEnsureNetwork(t, func() error { return fmt.Errorf("network error") })
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyEnabled: true}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce}
 
 		// Act
 		rs, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		assert.True(t, rs.ProxyEnabled)
+		assert.Equal(t, docker.ProxyEnforce, rs.ProxyMode)
 	})
 
 	t.Run("proxy monitor wired", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyEnabled: true, ProxyMonitor: true}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyMonitor}
 
 		// Act
 		rs, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		assert.True(t, rs.ProxyEnabled)
-		assert.True(t, rs.ProxyMonitor)
+		assert.Equal(t, docker.ProxyMonitor, rs.ProxyMode)
 	})
 
 	t.Run("dind wired with sidecar image and docker hub allowlisted", func(t *testing.T) {
 		// Arrange
 		stubEnsureNetwork(t, func() error { return fmt.Errorf("network error") })
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyEnabled: true, DindEnabled: true}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce, DindEnabled: true}
 
 		// Act
 		rs, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})

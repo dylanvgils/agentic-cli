@@ -42,15 +42,14 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 func TestRunSpecBuilder_WithProxy(t *testing.T) {
 	// Act
 	result := NewRunSpec("agentic-claude").
-		WithProxy(true, "agentic-proxy", []string{".anthropic.com"}, "/home/user/.agentic/proxy", true).
+		WithProxy(ProxyMonitor, "agentic-proxy", []string{".anthropic.com"}, "/home/user/.agentic/proxy").
 		Build()
 
 	// Assert
-	assert.True(t, result.ProxyEnabled)
+	assert.Equal(t, ProxyMonitor, result.ProxyMode)
 	assert.Equal(t, "agentic-proxy", result.ProxyImage)
 	assert.Equal(t, []string{".anthropic.com"}, result.ProxyAllow)
 	assert.Equal(t, "/home/user/.agentic/proxy", result.ProxyLogDir)
-	assert.True(t, result.ProxyMonitor)
 }
 
 func TestRunSpecBuilder_WithDind(t *testing.T) {

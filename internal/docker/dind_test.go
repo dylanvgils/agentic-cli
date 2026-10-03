@@ -43,7 +43,7 @@ func Test_startDind(t *testing.T) {
 	t.Run("joins the proxy network instead of creating one", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t)
-		rs := RunSpec{ToolHome: t.TempDir(), DindImage: "dind", ProxyEnabled: true, network: "agentic-proxy-abc"}
+		rs := RunSpec{ToolHome: t.TempDir(), DindImage: "dind", ProxyMode: ProxyEnforce, network: "agentic-proxy-abc"}
 
 		// Act
 		handle, err := startDind(rs, nil)
@@ -116,7 +116,7 @@ func Test_setupDind(t *testing.T) {
 	t.Run("dry run keeps proxy network", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t)
-		rs := RunSpec{ToolHome: t.TempDir(), DindImage: "dind", DindEnabled: true, DryRun: true, ProxyEnabled: true, network: "agentic-proxy-abc"}
+		rs := RunSpec{ToolHome: t.TempDir(), DindImage: "dind", DindEnabled: true, DryRun: true, ProxyMode: ProxyEnforce, network: "agentic-proxy-abc"}
 
 		// Act
 		_, _, err := setupDind(&rs)
@@ -204,7 +204,7 @@ func Test_dindHandle_runArgs(t *testing.T) {
 
 	t.Run("proxy mode routes egress through the proxy", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{DindImage: "dind", ProxyEnabled: true}
+		rs := RunSpec{DindImage: "dind", ProxyMode: ProxyEnforce}
 
 		// Act
 		args := handle.runArgs(rs)

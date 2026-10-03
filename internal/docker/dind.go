@@ -198,7 +198,7 @@ func (h dindHandle) runArgs(rs RunSpec) []string {
 		args = append(args, arg("volume", volume))
 	}
 
-	if rs.ProxyEnabled {
+	if rs.ProxyMode.Enabled() {
 		args = append(args, proxyEnvArgs(false)...)
 	}
 
@@ -320,7 +320,7 @@ func startDind(rs RunSpec, interrupt <-chan os.Signal) (dindHandle, error) {
 		h.Stop()
 		return dindHandle{}, err
 	}
-	if err := writeDindClientConfig(filepath.Join(h.runDir, dindConfigSubdir), rs.ProxyEnabled); err != nil {
+	if err := writeDindClientConfig(filepath.Join(h.runDir, dindConfigSubdir), rs.ProxyMode.Enabled()); err != nil {
 		h.Stop()
 		return dindHandle{}, err
 	}

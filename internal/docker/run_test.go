@@ -44,11 +44,11 @@ func TestRunContainer(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, "network inspect")
 		rs := RunSpec{
-			Image:        "agentic-claude",
-			ProxyEnabled: true,
-			ProxyImage:   "default-proxy",
-			ProxyAllow:   []string{"api.anthropic.com"},
-			ProxyLogDir:  t.TempDir(),
+			Image:       "agentic-claude",
+			ProxyMode:   ProxyEnforce,
+			ProxyImage:  "default-proxy",
+			ProxyAllow:  []string{"api.anthropic.com"},
+			ProxyLogDir: t.TempDir(),
 		}
 
 		// Act
@@ -90,13 +90,13 @@ func TestRunContainer(t *testing.T) {
 		stubDindReadyTimeout(t)
 		calls := stubDockerRunCapture(t, "network inspect")
 		rs := RunSpec{
-			Image:        "agentic-claude",
-			ToolHome:     t.TempDir(),
-			ProxyEnabled: true,
-			ProxyImage:   "default-proxy",
-			ProxyLogDir:  t.TempDir(),
-			DindEnabled:  true,
-			DindImage:    "dind",
+			Image:       "agentic-claude",
+			ToolHome:    t.TempDir(),
+			ProxyMode:   ProxyEnforce,
+			ProxyImage:  "default-proxy",
+			ProxyLogDir: t.TempDir(),
+			DindEnabled: true,
+			DindImage:   "dind",
 		}
 
 		// Act

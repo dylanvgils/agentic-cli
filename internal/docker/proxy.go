@@ -24,6 +24,16 @@ const proxyHostAlias = "agentic-proxy"
 // proxyLogMountDir is where the host log directory is mounted inside the proxy.
 const proxyLogMountDir = "/var/log/agentic-proxy"
 
+// Proxy modes; ProxyOff is the zero value, so a RunSpec without one runs no proxy.
+const (
+	ProxyOff ProxyMode = iota
+	ProxyEnforce
+	ProxyMonitor
+)
+
+// ProxyMode selects whether the egress proxy runs and whether it blocks or only logs disallowed hosts.
+type ProxyMode int
+
 // proxyHandle identifies the per-run proxy network, sidecar container, and host-side access log.
 type proxyHandle struct {
 	id        string
@@ -32,6 +42,11 @@ type proxyHandle struct {
 	logPath   string
 	allow     []string
 	monitor   bool
+}
+
+// Enabled reports whether the proxy runs, in either mode.
+func (m ProxyMode) Enabled() bool {
+	return m != ProxyOff
 }
 
 // newProxyHandle derives the per-run proxy resource names without creating any docker resources, so it is safe for dry runs.
@@ -48,7 +63,7 @@ func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 		container: name,
 		logPath:   filepath.Join(rs.ProxyLogDir, proxyLogFileName(id)),
 		allow:     rs.ProxyAllow,
-		monitor:   rs.ProxyMonitor,
+		monitor:   rs.ProxyMode == ProxyMonitor,
 	}, nil
 }
 
@@ -190,7 +205,7 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 
 // setupProxy configures rs for proxy mode if enabled, returning the env args to inject and a cleanup func to defer.
 func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
-	if !rs.ProxyEnabled {
+	if !rs.ProxyMode.Enabled() {
 		return nil, func() {}, nil
 	}
 
