@@ -196,6 +196,10 @@ The resolved version for each layer and the final apt package list are persisted
 
 The sidecar's seccomp profile is derived at run time (`deriveSeccompProfile`) from Docker's default profile, vendored verbatim in `internal/dind/seccomp_default.json`. To refresh it, re-copy `seccomp/default.json` from [moby/profiles](https://github.com/moby/profiles) and update the commit noted on `seccompDefault`; `Test_deriveSeccompProfile` checks the derived rules still hold.
 
+## Orphaned sidecars
+
+Sidecars and their networks carry `agentic.owner` (the tool container name) and `agentic.started` labels. If the CLI is killed, its cleanup never runs, so each run starts with `sweepOrphanedSidecars` (`internal/docker/sidecar.go`). It removes sidecars whose owner is gone and that are older than `sidecarOrphanGrace` (5 minutes, which spares a run that is still starting).
+
 ## Building the proxy image locally
 
 The proxy image runs as a sidecar container whenever `--proxy` is enabled. It installs the minimal `agentic-proxy` binary (entrypoint `cmd/proxy/main.go`, built from the `cmd/proxy` package - not the CLI's `agentic` binary) and is built separately from the tool images via `agentic proxy build`/`agentic proxy update`, or lazily by `agentic run --proxy` the first time it's missing (`ensureProxyImage`). `agentic build` never builds it. Unlike tool images, the proxy image is global (tagged `agentic-proxy`), not namespaced.

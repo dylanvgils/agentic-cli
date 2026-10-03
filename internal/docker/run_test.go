@@ -11,6 +11,7 @@ import (
 
 func TestRunContainer(t *testing.T) {
 	get := stubRunInteractive(t)
+	stubDockerRunCapture(t)
 
 	t.Run("security args", func(t *testing.T) {
 		// Arrange
@@ -28,6 +29,15 @@ func TestRunContainer(t *testing.T) {
 		assert.Contains(t, args, "--cap-drop=ALL")
 		assert.Contains(t, args, "--security-opt=no-new-privileges:true")
 		assert.Contains(t, args, "--user="+platform.UserGroup())
+	})
+
+	t.Run("names the tool container after its image", func(t *testing.T) {
+		// Act
+		err := RunContainer(RunSpec{Image: "agentic-claude"}, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, hasArgWithPrefix(get(), "--name=agentic-claude-"))
 	})
 
 	t.Run("proxy mode swaps network and injects proxy env", func(t *testing.T) {

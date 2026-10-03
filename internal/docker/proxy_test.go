@@ -15,7 +15,7 @@ func TestStartProxy(t *testing.T) {
 	t.Run("creates internal network, hardened sidecar, and egress link", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, "network inspect")
-		rs := RunSpec{ProxyImage: "default-proxy", ProxyAllow: []string{"api.anthropic.com"}, ProxyLogDir: "/tmp/agentic/proxy"}
+		rs := RunSpec{ProxyImage: "default-proxy", ProxyAllow: []string{"api.anthropic.com"}, ProxyLogDir: "/tmp/agentic/proxy", container: "agentic-claude-abc"}
 
 		// Act
 		handle, err := startProxy(rs)
@@ -38,6 +38,7 @@ func TestStartProxy(t *testing.T) {
 
 		assert.Contains(t, createArgs, "--internal")
 		assert.Contains(t, createArgs, handle.network)
+		assert.Contains(t, createArgs, "--label=agentic.owner=agentic-claude-abc", "the network is swept with its owner")
 
 		assert.Contains(t, runArgs, "--detach")
 		assert.Contains(t, runArgs, "--read-only")
@@ -48,6 +49,8 @@ func TestStartProxy(t *testing.T) {
 		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_MONITOR=false")
 		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_LOG="+proxyLogMountDir+"/"+proxy.LogFilePrefix+handle.id+".jsonl")
 		assert.True(t, hasArgWithPrefix(runArgs, "--env=AGENTIC_PROXY_TZ_OFFSET="))
+		assert.Contains(t, runArgs, "--label=agentic.owner=agentic-claude-abc")
+		assert.True(t, hasArgWithPrefix(runArgs, "--label=agentic.started="))
 		assert.Equal(t, "default-proxy", runArgs[len(runArgs)-1])
 
 		assert.Equal(t, []string{"network", "connect", NetworkName, handle.container}, connectArgs)

@@ -287,3 +287,33 @@ func makeDindRunDir(t *testing.T, toolHome, name string, age time.Duration) stri
 	require.NoError(t, os.Chtimes(dir, past, past))
 	return dir
 }
+
+// stubSidecarOrphanGrace replaces sidecarOrphanGrace with d for the duration of the test.
+func stubSidecarOrphanGrace(t *testing.T, d time.Duration) {
+	t.Helper()
+	orig := sidecarOrphanGrace
+	sidecarOrphanGrace = d
+	t.Cleanup(func() { sidecarOrphanGrace = orig })
+}
+
+// stubOwnedResources stubs `ps` and `network ls` output, recording every call.
+func stubOwnedResources(t *testing.T, containers, networks string) func() []dockerCall {
+	t.Helper()
+	var calls []dockerCall
+	stubDockerRun(t, func(args ...string) (string, error) {
+		calls = append(calls, dockerCall{args: args})
+		switch {
+		case args[0] == "ps":
+			return containers, nil
+		case args[0] == "network" && args[1] == "ls":
+			return networks, nil
+		}
+		return "", nil
+	})
+	return func() []dockerCall { return calls }
+}
+
+// ownedRow formats a row as ownedFormat renders it.
+func ownedRow(name, owner string, age time.Duration) string {
+	return name + "\t" + owner + "\t" + formatLabelTime(time.Now().Add(-age)) + "\n"
+}

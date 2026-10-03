@@ -60,46 +60,28 @@ type RunSpec struct {
 
 	// network is the docker network the tool attaches to; empty means NetworkName, proxy or dind mode sets a per-run net.
 	network string
+
+	// container is the tool container's name, the sidecars' owner.
+	container string
 }
 
 func RunContainer(rs RunSpec, toolArgs []string) error {
-	proxyEnv, cleanup, err := setupProxy(&rs)
+	id, err := randID()
+	if err != nil {
+		return err
+	}
+	rs.container = rs.Image + "-" + id
+
+	sidecarArgs, cleanup, err := setupSidecars(&rs)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 
-	// After the proxy, so the sidecar can join its network
-	dindArgs, dindCleanup, err := setupDind(&rs)
+	args, err := buildRunArgs(rs, sidecarArgs, toolArgs)
 	if err != nil {
 		return err
 	}
-	defer dindCleanup()
-
-	args, err := buildBaseArgs(rs)
-	if err != nil {
-		return err
-	}
-
-	args = append(args, buildTTYArgs()...)
-	args = append(args, buildEnvArgs(rs)...)
-	args = append(args, proxyEnv...)
-	args = append(args, dindArgs...)
-	args = append(args, buildTmpfsArgs(rs)...)
-	args = append(args, buildVolumeArgs(rs)...)
-
-	secretArgs, err := buildSecretArgs(rs)
-	if err != nil {
-		return err
-	}
-	args = append(args, secretArgs...)
-
-	if rs.SkipEntrypoint {
-		args = append(args, arg("entrypoint", ""))
-	}
-
-	args = append(args, rs.Image)
-	args = append(args, toolArgs...)
 
 	if rs.DryRun {
 		_, err := fmt.Fprintln(os.Stdout, "docker", shellJoin(args))
@@ -120,6 +102,7 @@ func IsReservedEnvName(key string, proxyEnabled bool) bool {
 // guardSignals routes interrupt/terminate signals to a channel so deferred cleanup still runs; stop uninstalls it.
 func guardSignals() (signals <-chan os.Signal, stop func()) {
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+	// SIGHUP covers a closed terminal
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	return ch, func() { signal.Stop(ch) }
 }

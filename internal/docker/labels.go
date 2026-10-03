@@ -50,6 +50,14 @@ const (
 	// LabelPulled records when `docker build --pull` last ran, so `agentic update` can throttle automatic re-pulls.
 	LabelPulled = "agentic.pulled"
 
+	// -- Sidecar ownership --
+
+	// LabelOwner records the tool container a sidecar or its network serves.
+	LabelOwner = "agentic.owner"
+
+	// LabelStarted records when a sidecar or its network was created.
+	LabelStarted = "agentic.started"
+
 	// -- Cache --
 
 	// LabelCacheBust records the CACHEBUST build-arg baked into the tool stage, reused verbatim on cache-hit rebuilds.

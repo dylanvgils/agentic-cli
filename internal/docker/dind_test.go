@@ -20,7 +20,7 @@ func Test_startDind(t *testing.T) {
 	t.Run("creates own network, writes run files and probes the sidecar", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t)
-		rs := RunSpec{ToolHome: t.TempDir(), DindImage: "dind"}
+		rs := RunSpec{ToolHome: t.TempDir(), DindImage: "dind", container: "agentic-claude-abc"}
 
 		// Act
 		handle, err := startDind(rs, nil)
@@ -28,7 +28,10 @@ func Test_startDind(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		calls := get()
-		assert.Equal(t, []string{"network", "create", "--label=project=agentic-cli", handle.network}, findCall(calls, "network", "create"))
+		createArgs := findCall(calls, "network", "create")
+		assert.Contains(t, createArgs, "--label=project=agentic-cli")
+		assert.Contains(t, createArgs, "--label=agentic.owner=agentic-claude-abc", "the network is swept with its owner")
+		assert.Equal(t, handle.network, createArgs[len(createArgs)-1])
 		assert.NotNil(t, findCall(calls, "run"))
 		assert.NotNil(t, findCall(calls, "exec"), "should probe dockerd before returning")
 		assert.FileExists(t, filepath.Join(handle.runDir, "client", "cert.pem"))
@@ -51,23 +54,6 @@ func Test_startDind(t *testing.T) {
 		assert.False(t, handle.ownsNetwork)
 		assert.Nil(t, findCall(calls, "network", "create"))
 		assert.Contains(t, findCall(calls, "run"), "--network=agentic-proxy-abc")
-	})
-
-	t.Run("sweeps run dirs left behind by crashed runs", func(t *testing.T) {
-		// Arrange
-		stubDindRunDirGrace(t, time.Minute)
-		stubDockerRunCapture(t)
-		toolHome := t.TempDir()
-		stale := makeDindRunDir(t, toolHome, "0123456789ab", time.Hour)
-		rs := RunSpec{ToolHome: toolHome, DindImage: "dind"}
-
-		// Act
-		handle, err := startDind(rs, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NoDirExists(t, stale)
-		assert.DirExists(t, handle.runDir, "the new run's own dir must survive")
 	})
 
 	t.Run("tears everything down when dockerd never becomes ready", func(t *testing.T) {
@@ -180,7 +166,7 @@ func Test_dindHandle_runArgs(t *testing.T) {
 
 	t.Run("hardened rootless sidecar", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{DindImage: "docker:29-dind-rootless", PidsLimit: "1024", CPUs: "4", Memory: "4g"}
+		rs := RunSpec{DindImage: "docker:29-dind-rootless", PidsLimit: "1024", CPUs: "4", Memory: "4g", container: "agentic-claude-abc"}
 
 		// Act
 		args := handle.runArgs(rs)
@@ -198,6 +184,8 @@ func Test_dindHandle_runArgs(t *testing.T) {
 		assert.NotContains(t, args, "--privileged")
 		assert.Contains(t, args, "--device=/dev/net/tun")
 		assert.Contains(t, args, "--pids-limit=1024")
+		assert.Contains(t, args, "--label=agentic.owner=agentic-claude-abc", "an orphaned sidecar is found by its owner")
+		assert.True(t, hasArgWithPrefix(args, "--label=agentic.started="))
 		assert.Contains(t, args, "--user=1234:5678", "sidecar runs as the host user, like the tool container")
 		assert.Contains(t, args, "--env=HOME=/home/rootless")
 		assert.Contains(t, args, "--env=DOCKER_TLS_CERTDIR=/certs")
