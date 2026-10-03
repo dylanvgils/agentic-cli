@@ -25,7 +25,7 @@
       "properties": {
         "bases": {
           "type": "array",
-          "items": { "type": "string", "enum": ["dotnet", "go", "java", "node"] },
+          "items": { "type": "string", "enum": ["docker", "dotnet", "go", "java", "node"] },
           "description": "Extra runtime layers to add on top of the debian base (e.g. [\"java\", \"dotnet\"]). Accumulates across RC layers and with --base; --base-exact replaces it entirely instead."
         },
         "apt_packages": {
@@ -35,13 +35,14 @@
         },
         "versions": {
           "type": "object",
-          "description": "Per-layer version pins, written as [build.versions] with node, java, dotnet, or go keys. Innermost value wins per key.",
+          "description": "Per-layer version pins, written as [build.versions] with node, java, dotnet, go, or docker keys. Innermost value wins per key.",
           "additionalProperties": false,
           "properties": {
             "node": { "type": "string", "description": "Node.js version to pin (e.g. \"22\")." },
             "java": { "type": "string", "description": "Java (Temurin JDK) version to pin (e.g. \"17\")." },
             "dotnet": { "type": "string", "description": ".NET version to pin." },
-            "go": { "type": "string", "description": "Go version to pin." }
+            "go": { "type": "string", "description": "Go version to pin." },
+            "docker": { "type": "string", "description": "Docker CLI version to pin (major, minor, or exact, e.g. \"29\")." }
           }
         },
         "custom_installs": {
@@ -127,6 +128,17 @@
               "type": "array",
               "items": { "type": "string" },
               "description": "Extra hosts to permit, merged on top of the tool's baseline. Exact match, or a leading-dot / *. entry to match a domain and all its subdomains."
+            }
+          }
+        },
+        "dind": {
+          "type": "object",
+          "description": "Rootless Docker-in-Docker sidecar settings.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Start a per-run rootless Docker daemon sidecar the tool can reach via DOCKER_HOST. The image needs the docker base layer. Default: false."
             }
           }
         },

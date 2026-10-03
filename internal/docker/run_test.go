@@ -2,6 +2,7 @@ package docker
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -70,6 +71,78 @@ func TestRunContainer(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, calls(), "dry run must not invoke docker")
+	})
+
+	t.Run("dind mode points tool at sidecar without relaxing tool hardening", func(t *testing.T) {
+		// Arrange
+		stubHostUserGroup(t, "1000:1000")
+		stubDindReadyTimeout(t)
+		stubDockerRunCapture(t)
+		toolHome := t.TempDir()
+		rs := RunSpec{Image: "agentic-claude", ToolHome: toolHome, DindEnabled: true, DindImage: "dind"}
+
+		// Act
+		err := RunContainer(rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		args := get()
+		assert.True(t, hasArgWithPrefix(args, "--network=agentic-dind-"), "tool should share the per-run dind net")
+		assert.Contains(t, args, "--env=DOCKER_HOST=tcp://agentic-docker:2376")
+		assert.Contains(t, args, "--cap-drop=ALL")
+		assert.Contains(t, args, "--security-opt=no-new-privileges:true")
+		assert.Contains(t, args, "--read-only")
+		assert.NotContains(t, args, "--privileged")
+		assert.False(t, hasArgWithPrefix(args, "--cap-add"), "tool container must not gain capabilities")
+
+		entries, _ := os.ReadDir(filepath.Join(toolHome, dindDirName))
+		assert.Empty(t, entries, "per-run certs should be removed after the run")
+	})
+
+	t.Run("dind with proxy shares the internal network and bypasses the proxy for the daemon", func(t *testing.T) {
+		// Arrange
+		stubHostUserGroup(t, "1000:1000")
+		stubDindReadyTimeout(t)
+		calls := stubDockerRunCapture(t, "network inspect")
+		rs := RunSpec{
+			Image:        "agentic-claude",
+			ToolHome:     t.TempDir(),
+			ProxyEnabled: true,
+			ProxyImage:   "default-proxy",
+			ProxyLogDir:  t.TempDir(),
+			DindEnabled:  true,
+			DindImage:    "dind",
+		}
+
+		// Act
+		err := RunContainer(rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		args := get()
+		assert.True(t, hasArgWithPrefix(args, "--network=agentic-proxy-"))
+		assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1,agentic-docker")
+		for _, c := range calls() {
+			if c.args[0] == "network" && c.args[1] == "create" {
+				assert.False(t, hasArgWithPrefix(c.args, dindNetworkPrefix), "dind should join the proxy net, not create its own")
+			}
+		}
+	})
+
+	t.Run("dind dry run prints sidecar without docker calls", func(t *testing.T) {
+		// Arrange
+		stubHostUserGroup(t, "1000:1000")
+		calls := stubDockerRunCapture(t)
+		toolHome := t.TempDir()
+		rs := RunSpec{Image: "agentic-claude", ToolHome: toolHome, DryRun: true, DindEnabled: true, DindImage: "dind"}
+
+		// Act
+		err := RunContainer(rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, calls(), "dry run must not invoke docker")
+		assert.NoDirExists(t, filepath.Join(toolHome, dindDirName), "dry run must not write certs")
 	})
 
 	t.Run("tmpfs mounts", func(t *testing.T) {

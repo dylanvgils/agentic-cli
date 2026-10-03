@@ -158,6 +158,47 @@ func TestAddProxyFlags(t *testing.T) {
 	})
 }
 
+func Test_addDindFlags(t *testing.T) {
+	t.Run("registers both flags", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+
+		// Act
+		addDindFlags(cmd)
+
+		// Assert
+		for _, name := range []string{"dind", "no-dind"} {
+			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
+		}
+	})
+
+	t.Run("dind flags are mutually exclusive", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
+		addDindFlags(cmd)
+		cmd.SetArgs([]string{"--dind", "--no-dind"})
+
+		// Act
+		err := cmd.Execute()
+
+		// Assert
+		assert.Error(t, err)
+	})
+}
+
+func Test_resolveDindEnabled(t *testing.T) {
+	// Arrange
+	cmd := &cobra.Command{Use: "test"}
+	addDindFlags(cmd)
+	require.NoError(t, cmd.Flags().Set("dind", "true"))
+
+	// Act
+	result := resolveDindEnabled(cmd, &config.AgenticRC{})
+
+	// Assert
+	assert.True(t, result)
+}
+
 func newBuildCmd(t *testing.T) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{Use: "test"}

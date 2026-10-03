@@ -19,6 +19,8 @@ type RunSpecBuilder struct {
 	proxyAllow     []string
 	proxyLogDir    string
 	proxyMonitor   bool
+	dindEnabled    bool
+	dindImage      string
 }
 
 // NewRunSpec creates a RunSpecBuilder for the given image.
@@ -103,6 +105,13 @@ func (b *RunSpecBuilder) WithProxy(enabled bool, image string, allow []string, l
 	return b
 }
 
+// WithDind starts a rootless Docker daemon sidecar from image that the tool reaches over mutual TLS.
+func (b *RunSpecBuilder) WithDind(enabled bool, image string) *RunSpecBuilder {
+	b.dindEnabled = enabled
+	b.dindImage = image
+	return b
+}
+
 // Build returns the completed RunSpec.
 func (b *RunSpecBuilder) Build() RunSpec {
 	return RunSpec{
@@ -123,5 +132,7 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		ProxyAllow:     b.proxyAllow,
 		ProxyLogDir:    b.proxyLogDir,
 		ProxyMonitor:   b.proxyMonitor,
+		DindEnabled:    b.dindEnabled,
+		DindImage:      b.dindImage,
 	}
 }

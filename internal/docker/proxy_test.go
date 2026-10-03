@@ -103,13 +103,23 @@ func TestProxyHandleStop(t *testing.T) {
 }
 
 func Test_proxyEnvArgs(t *testing.T) {
-	// Act
-	args := proxyEnvArgs()
+	t.Run("points at the proxy and excludes loopback", func(t *testing.T) {
+		// Act
+		args := proxyEnvArgs(false)
 
-	// Assert
-	assert.Contains(t, args, "--env=HTTPS_PROXY=http://agentic-proxy:3128")
-	assert.Contains(t, args, "--env=HTTP_PROXY=http://agentic-proxy:3128")
-	assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1")
+		// Assert
+		assert.Contains(t, args, "--env=HTTPS_PROXY=http://agentic-proxy:3128")
+		assert.Contains(t, args, "--env=HTTP_PROXY=http://agentic-proxy:3128")
+		assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1")
+	})
+
+	t.Run("dind excludes the docker sidecar", func(t *testing.T) {
+		// Act
+		args := proxyEnvArgs(true)
+
+		// Assert
+		assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1,agentic-docker")
+	})
 }
 
 func TestProxyHandleHostsByDecision(t *testing.T) {

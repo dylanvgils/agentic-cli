@@ -73,6 +73,7 @@ func BuildInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc 
 	writeResourceLimitsSection(&b, limits)
 	writePrivilegeSection(&b)
 	writeNetworkSection(&b, toolConfig, rc, in)
+	writeDockerSection(&b, in)
 	writeCustomSection(&b, rc)
 
 	return b.String(), nil
@@ -189,10 +190,27 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 	}
 
 	b.WriteString("- Only the following hosts are reachable:\n")
-	for _, host := range resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, rc) {
+	for _, host := range resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc) {
 		fmt.Fprintf(b, "  - %s\n", host)
 	}
 	b.WriteString("\nAnything not listed above is blocked. If a task needs a host that isn't reachable, tell the user why so they can add it to allowed_hosts in .agenticrc.toml and rerun.\n\n")
+}
+
+// writeDockerSection is only written when the Docker sidecar is enabled.
+func writeDockerSection(b *strings.Builder, in Input) {
+	if !in.DindEnabled {
+		return
+	}
+
+	b.WriteString("## Docker\n\n")
+	b.WriteString("- `docker` talks to a rootless Docker daemon in a separate per-run sidecar; DOCKER_HOST and TLS certs are preconfigured, so don't change them.\n")
+	b.WriteString("- `/workspace` is mounted at the same path in the daemon, so bind mounts under `/workspace` work; other paths (e.g. this container's home or `/tmp`) don't exist there.\n")
+	b.WriteString("- Published ports listen on the sidecar: reach them at `agentic-docker:<port>`, not `localhost`. They are not reachable from the user's machine.\n")
+	b.WriteString("- Images, containers and volumes are discarded when this session ends.\n")
+	if in.ProxyEnabled {
+		b.WriteString("- Image pulls, builds and containers go through the same egress proxy and allowlist; a registry other than Docker Hub must be added to allowed_hosts.\n")
+	}
+	b.WriteString("\n")
 }
 
 func writeCustomSection(b *strings.Builder, rc *config.AgenticRC) {

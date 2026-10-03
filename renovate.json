@@ -71,6 +71,14 @@
     {
       "customType": "regex",
       "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
+      "matchStrings": ["\"docker\":\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "docker",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "regex:^(?<major>\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
       "matchStrings": ["\"busybox\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "busybox",
       "datasourceTemplate": "docker"

@@ -13,6 +13,7 @@ var (
 	migrateRun              = migrate.Run
 	checkDockerDaemon       = docker.CheckDaemon
 	buildProxyImage         = docker.BuildProxyImage
+	buildDindImage          = docker.BuildDindImage
 	runContainer            = docker.RunContainer
 	inspectImage            = docker.InspectImage
 	builtTools              = docker.BuiltTools

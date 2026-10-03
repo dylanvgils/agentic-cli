@@ -24,6 +24,14 @@ func TestExtractVersion(t *testing.T) {
 		assert.Equal(t, "1.21.0", result)
 	})
 
+	t.Run("docker cli output", func(t *testing.T) {
+		// Act
+		result := extractVersion("Docker version 29.8.2, build 1a2b3c4\n")
+
+		// Assert
+		assert.Equal(t, "29.8.2", result)
+	})
+
 	t.Run("windows line ending", func(t *testing.T) {
 		// Act
 		result := extractVersion("1.0.0\r\n")

@@ -54,7 +54,11 @@ type RunSpec struct {
 	ProxyLogDir  string   // host dir for JSON-lines access logs
 	ProxyMonitor bool     // log the allowlist verdict without enforcing it
 
-	// network is the docker network the tool attaches to; empty means NetworkName, proxy mode sets the per-run internal net.
+	// Docker-in-Docker sidecar, reachable at DOCKER_HOST over mutual TLS
+	DindEnabled bool
+	DindImage   string
+
+	// network is the docker network the tool attaches to; empty means NetworkName, proxy or dind mode sets a per-run net.
 	network string
 }
 
@@ -65,6 +69,13 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	}
 	defer cleanup()
 
+	// After the proxy, so the sidecar can join its network
+	dindArgs, dindCleanup, err := setupDind(&rs)
+	if err != nil {
+		return err
+	}
+	defer dindCleanup()
+
 	args, err := buildBaseArgs(rs)
 	if err != nil {
 		return err
@@ -73,6 +84,7 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 	args = append(args, buildTTYArgs()...)
 	args = append(args, buildEnvArgs(rs)...)
 	args = append(args, proxyEnv...)
+	args = append(args, dindArgs...)
 	args = append(args, buildTmpfsArgs(rs)...)
 	args = append(args, buildVolumeArgs(rs)...)
 
@@ -120,7 +132,7 @@ func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 			return nil, nil, err
 		}
 		rs.network = handle.network
-		return proxyEnvArgs(), func() {}, nil
+		return proxyEnvArgs(rs.DindEnabled), func() {}, nil
 	}
 
 	handle, err := startProxy(*rs)
@@ -133,7 +145,7 @@ func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 	// signals suppresses Go's default termination so deferred cleanup
 	// runs after the tool container (which the terminal also signals)
 	// exits and runInteractive returns.
-	stop := guardSignals()
+	_, stop := guardSignals()
 
 	cleanup = func() {
 		// Stop the sidecar before reading its log: it may still be writing
@@ -143,13 +155,49 @@ func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 		stop()
 		handle.PrintSummary(os.Stderr)
 	}
-	return proxyEnvArgs(), cleanup, nil
+	return proxyEnvArgs(rs.DindEnabled), cleanup, nil
 }
 
-// guardSignals installs a no-op interrupt/terminate handler and returns a func to uninstall it,
-// keeping the process alive long enough to run deferred proxy cleanup on Ctrl-C.
-func guardSignals() func() {
+// setupDind starts the Docker sidecar if enabled, returning the tool args and a cleanup func to defer.
+func setupDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
+	if !rs.DindEnabled {
+		return nil, func() {}, nil
+	}
+
+	if rs.DryRun {
+		handle, err := newDindHandle(*rs)
+		if err != nil {
+			return nil, nil, err
+		}
+		if handle.ownsNetwork {
+			rs.network = handle.network
+		}
+		if _, err := fmt.Fprintln(os.Stdout, "docker", shellJoin(handle.runArgs(*rs))); err != nil {
+			return nil, nil, err
+		}
+		return handle.toolArgs(), func() {}, nil
+	}
+
+	// Guard first so Ctrl-C during startup still removes the sidecar
+	interrupt, stop := guardSignals()
+	fmt.Fprintln(os.Stderr, "starting docker sidecar...")
+	handle, err := startDind(*rs, interrupt)
+	if err != nil {
+		stop()
+		return nil, nil, err
+	}
+	rs.network = handle.network
+
+	cleanup = func() {
+		handle.Stop()
+		stop()
+	}
+	return handle.toolArgs(), cleanup, nil
+}
+
+// guardSignals routes interrupt/terminate signals to a channel so deferred cleanup still runs; stop uninstalls it.
+func guardSignals() (signals <-chan os.Signal, stop func()) {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
-	return func() { signal.Stop(ch) }
+	return ch, func() { signal.Stop(ch) }
 }

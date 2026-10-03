@@ -54,10 +54,14 @@ func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 
 // proxyEnvArgs returns the --env flags pointing the tool at the proxy, keyed on the static
 // proxyHostAlias so the URL is stable despite the container name being randomized per run.
-// NO_PROXY excludes loopback only - not a security boundary; the internal network blocks every other route.
-func proxyEnvArgs() []string {
+// NO_PROXY excludes loopback (and the dind sidecar) only - not a security boundary; the internal network blocks every other route.
+func proxyEnvArgs(dind bool) []string {
 	url := "http://" + proxyHostAlias + ":" + proxy.Port
 	noProxy := "localhost,127.0.0.1"
+	if dind {
+		// Otherwise the docker CLI would route DOCKER_HOST through the proxy
+		noProxy += "," + dindHostAlias
+	}
 	return []string{
 		arg("env", "HTTP_PROXY="+url),
 		arg("env", "HTTPS_PROXY="+url),

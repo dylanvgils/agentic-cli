@@ -195,6 +195,13 @@ func stubCleanSweepProxyResources(t *testing.T, fn func() error) {
 	t.Cleanup(func() { clean.SweepProxyResources = orig })
 }
 
+func stubCleanSweepDindResources(t *testing.T, fn func(string) error) {
+	t.Helper()
+	orig := clean.SweepDindResources
+	clean.SweepDindResources = fn
+	t.Cleanup(func() { clean.SweepDindResources = orig })
+}
+
 func stubCleanRemoveNetwork(t *testing.T, fn func() error) {
 	t.Helper()
 	orig := clean.RemoveNetwork
@@ -354,4 +361,17 @@ func stubVolumeStdin(t *testing.T, input string) {
 	orig := volumesStdin
 	volumesStdin = strings.NewReader(input)
 	t.Cleanup(func() { volumesStdin = orig })
+}
+
+// stubBuildDindImage replaces buildDindImage with fn for the duration of the test.
+func stubBuildDindImage(t *testing.T, fn func(image string, opts tools.BuildOptions) error) {
+	t.Helper()
+	orig := buildDindImage
+	buildDindImage = fn
+	t.Cleanup(func() { buildDindImage = orig })
+}
+
+// formatTestLabelTime formats t like agentic's image timestamp labels.
+func formatTestLabelTime(t time.Time) string {
+	return t.UTC().Format("2006-01-02T15:04:05Z")
 }

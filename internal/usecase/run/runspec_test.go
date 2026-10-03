@@ -256,6 +256,34 @@ func TestBuild(t *testing.T) {
 		assert.True(t, rs.ProxyMonitor)
 	})
 
+	t.Run("dind wired with sidecar image and docker hub allowlisted", func(t *testing.T) {
+		// Arrange
+		stubEnsureNetwork(t, func() error { return fmt.Errorf("network error") })
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir(), ProxyEnabled: true, DindEnabled: true}
+
+		// Act
+		rs, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert - agentic-net is skipped since the tool joins a per-run network
+		require.NoError(t, err)
+		assert.True(t, rs.DindEnabled)
+		assert.Equal(t, tools.DindImage, rs.DindImage)
+		assert.Contains(t, rs.ProxyAllow, "registry-1.docker.io")
+	})
+
+	t.Run("dind rejects env overriding the docker host", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir(), DindEnabled: true, Env: []string{"DOCKER_HOST=unix:///var/run/docker.sock"}}
+
+		// Act
+		_, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		assert.ErrorContains(t, err, "DOCKER_HOST")
+	})
+
 	t.Run("marketplace names wired into AGENTIC_MARKETPLACES env", func(t *testing.T) {
 		// Arrange
 		stubSyncMarketplaces(t, func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error) {
@@ -503,7 +531,7 @@ func Test_syncToolMarketplaces(t *testing.T) {
 func Test_validateEnv(t *testing.T) {
 	t.Run("accepts ordinary KEY=VALUE", func(t *testing.T) {
 		// Act
-		err := validateEnv([]string{"MAVEN_OPTS=-Dfoo=bar"}, false)
+		err := validateEnv([]string{"MAVEN_OPTS=-Dfoo=bar"}, false, false)
 
 		// Assert
 		assert.NoError(t, err)
@@ -511,7 +539,7 @@ func Test_validateEnv(t *testing.T) {
 
 	t.Run("accepts bare KEY", func(t *testing.T) {
 		// Act
-		err := validateEnv([]string{"CI"}, false)
+		err := validateEnv([]string{"CI"}, false, false)
 
 		// Assert
 		assert.NoError(t, err)
@@ -519,7 +547,7 @@ func Test_validateEnv(t *testing.T) {
 
 	t.Run("accepts overriding terminal vars", func(t *testing.T) {
 		// Act
-		err := validateEnv([]string{"NO_COLOR=1", "TERM=dumb"}, true)
+		err := validateEnv([]string{"NO_COLOR=1", "TERM=dumb"}, true, false)
 
 		// Assert
 		assert.NoError(t, err)
@@ -527,7 +555,7 @@ func Test_validateEnv(t *testing.T) {
 
 	t.Run("accepts proxy var when proxy disabled", func(t *testing.T) {
 		// Act
-		err := validateEnv([]string{"HTTP_PROXY=http://my-corp-proxy"}, false)
+		err := validateEnv([]string{"HTTP_PROXY=http://my-corp-proxy"}, false, false)
 
 		// Assert
 		assert.NoError(t, err)
@@ -535,15 +563,31 @@ func Test_validateEnv(t *testing.T) {
 
 	t.Run("rejects proxy var when proxy enabled", func(t *testing.T) {
 		// Act
-		err := validateEnv([]string{"HTTP_PROXY=http://evil"}, true)
+		err := validateEnv([]string{"HTTP_PROXY=http://evil"}, true, false)
 
 		// Assert
 		assert.ErrorContains(t, err, "HTTP_PROXY")
 	})
 
+	t.Run("accepts docker var when dind disabled", func(t *testing.T) {
+		// Act
+		err := validateEnv([]string{"DOCKER_HOST=tcp://build-host:2376"}, false, false)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("rejects docker var when dind enabled", func(t *testing.T) {
+		// Act
+		err := validateEnv([]string{"DOCKER_CERT_PATH=/tmp"}, false, true)
+
+		// Assert
+		assert.ErrorContains(t, err, "DOCKER_CERT_PATH")
+	})
+
 	t.Run("rejects bare reserved name regardless of proxy", func(t *testing.T) {
 		// Act
-		err := validateEnv([]string{"TOOL_HOME"}, false)
+		err := validateEnv([]string{"TOOL_HOME"}, false, false)
 
 		// Assert
 		assert.ErrorContains(t, err, "TOOL_HOME")

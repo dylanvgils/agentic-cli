@@ -106,15 +106,27 @@ func TestProxyAllowList(t *testing.T) {
 		rc.Run.Proxy.AllowedHosts = []string{"extra.example.com"}
 
 		// Act
-		result := ProxyAllowList([]string{"api.example.com"}, rc)
+		result := ProxyAllowList([]string{"api.example.com"}, false, rc)
 
 		// Assert
 		assert.Equal(t, []string{"api.example.com", "extra.example.com"}, result)
 	})
 
+	t.Run("dind adds docker hub between baseline and rc hosts", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.AllowedHosts = []string{"ghcr.io"}
+
+		// Act
+		result := ProxyAllowList([]string{"api.example.com"}, true, rc)
+
+		// Assert
+		assert.Equal(t, []string{"api.example.com", "registry-1.docker.io", "auth.docker.io", "production.cloudflare.docker.com", "ghcr.io"}, result)
+	})
+
 	t.Run("empty allowlists on both sides return empty result", func(t *testing.T) {
 		// Act
-		result := ProxyAllowList(nil, &config.AgenticRC{})
+		result := ProxyAllowList(nil, false, &config.AgenticRC{})
 
 		// Assert
 		assert.Empty(t, result)
