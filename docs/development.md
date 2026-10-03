@@ -40,7 +40,7 @@ agentic-cli/
 
 `internal/dind` generates the Docker-in-Docker sidecar's per-run files and must not import `internal/docker`; the sidecar's container orchestration lives in `internal/docker/dind.go`, alongside `internal/docker/proxy.go` for the proxy.
 
-No static Dockerfile files exist. All Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/tools/bases.go` (base and extra layers) and each tool's `Stage` func. See [06-dockerfile-dsl.md](06-dockerfile-dsl.md) for the DSL reference.
+No static Dockerfile files exist. All Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/tools/bases.go` (base and extra layers) and each tool's `Stage` func. See [dockerfile-dsl.md](dockerfile-dsl.md) for the DSL reference.
 
 ## Build & test
 
@@ -154,7 +154,7 @@ func TestBuildImage(t *testing.T) {
 ## Adding a new tool
 
 1. Create `internal/tools/<name>.go` implementing four functions:
-   - `<name>Stage(prevStage string) dockerfile.Stage` - return the tool's Dockerfile stage using the [Dockerfile DSL](06-dockerfile-dsl.md); `prevStage` is the name of the preceding base stage to `FROM`
+   - `<name>Stage(prevStage string) dockerfile.Stage` - return the tool's Dockerfile stage using the [Dockerfile DSL](dockerfile-dsl.md); `prevStage` is the name of the preceding base stage to `FROM`
    - `setup<Name>(toolHome string) error` - create any host-side directories or files the tool needs before first run (e.g. pre-creating a credentials file so the read-only root filesystem doesn't block the first write)
    - `<name>Mounts() []string` - return the list of bind/volume mounts using helpers from `internal/mount`
    - `<name>TmpfsMounts() []string` - return any tmpfs mounts (every tool needs at least `/tmp`)

@@ -134,7 +134,7 @@ Each entry becomes its own Dockerfile stage `RUN`, inserted after any `--base` e
 | `memory`           | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                                                                                                                                                                                                      | `--memory`          | `4g`    |
 | `check_updates`    | bool   | Periodically check upstream for a newer tool version during `agentic run` (at most once every 6 hours per tool) and offer to update. A pointer internally so an inner config can explicitly disable a check enabled by an outer one.                                                                                                                                      | -                   | `true`  |
 
-**`[run.instructions]` section** - environment instructions written into each tool's global instructions file (see [Environment instructions](../README.md#-environment-instructions))
+**`[run.instructions]` section** - environment instructions written into each tool's global instructions file (see [Environment instructions](usage.md#environment-instructions))
 
 | Key       | Type   | Description                                                                                                                                                 | Default |
 | --------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
@@ -180,7 +180,7 @@ When enabled, the tool container loses direct internet access and reaches the ou
 
 Each proxy-enabled run prunes access logs older than a retention window (default 3 days), set via `proxy_log_retention_days` in `agentic.json` (host-level, not per-project). To wipe all logs regardless of age, run `agentic proxy clean --logs`.
 
-Each tool ships a baseline allowlist that `allowed_hosts` merges on top of. The proxy image builds on demand on the first `--proxy` run, or explicitly via `agentic proxy build`/`agentic proxy update` (see [Development](07-development.md#building-the-proxy-image-locally)).
+Each tool ships a baseline allowlist that `allowed_hosts` merges on top of. The proxy image builds on demand on the first `--proxy` run, or explicitly via `agentic proxy build`/`agentic proxy update` (see [Development](development.md#building-the-proxy-image-locally)).
 
 | Tool       | Baseline host        | Purpose                             |
 | ---------- | -------------------- | ----------------------------------- |
@@ -209,7 +209,7 @@ allowed_hosts = [
 
 `HTTP_PROXY`/`HTTPS_PROXY` (and lowercase variants) are auto-injected whenever the proxy is enabled, so most tools need no extra configuration. Some tools ignore these env vars and require a literal host:port instead - Maven is an example: it only reads proxy settings from `settings.xml`'s `<proxies>` section, not `MAVEN_OPTS` or the standard proxy env vars.
 
-For these cases, the sidecar is reachable at the stable hostname `agentic-proxy:3128` - unlike its actual Docker container name (randomized per run), this hostname is safe to hardcode once in the tool's own config. See [Tool-specific proxy examples](#tool-specific-proxy-examples) below for a Maven walkthrough.
+For these cases, the sidecar is reachable at the stable hostname `agentic-proxy:3128` - unlike its actual Docker container name (randomized per run), this hostname is safe to hardcode once in the tool's own config. See [Maven through the egress proxy](recipes.md#maven-through-the-egress-proxy) for a walkthrough.
 
 **`[run.dind]` section** - rootless Docker-in-Docker sidecar
 
@@ -217,7 +217,7 @@ For these cases, the sidecar is reachable at the stable hostname `agentic-proxy:
 | --------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------- |
 | `enabled` | bool | Start a per-run rootless Docker daemon sidecar the tool reaches via `DOCKER_HOST`. The image needs the `docker` base layer (`--base docker`). A pointer internally, so an inner config can disable an outer one. | `--dind` / `--no-dind` | `false` |
 
-When enabled, `agentic run` generates throwaway TLS certs, builds the hardened `agentic-dind` image if needed (from `docker:<version>-dind-rootless`, setuid bits stripped, rebuilt at least weekly), starts it as your uid (inner-container ids map to a dedicated unused range from 2,000,000,000) with a derived seccomp profile on a per-run network (or the proxy's internal network when `--proxy` is on), waits for the daemon, and removes the sidecar, its images, and the certs when the run ends. `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CONFIG`, and `DOCKER_CONTEXT` are managed for the run and can't be overridden via `env`. With the proxy on, Docker Hub hosts are added to the allowlist automatically, and the CLI's `config.json` passes the proxy into containers and builds started through the sidecar. See [Docker-in-Docker](05-docker-in-docker.md) for the isolation model and a devcontainer example.
+When enabled, `agentic run` generates throwaway TLS certs, builds the hardened `agentic-dind` image if needed (from `docker:<version>-dind-rootless`, setuid bits stripped, rebuilt at least weekly), starts it as your uid (inner-container ids map to a dedicated unused range from 2,000,000,000) with a derived seccomp profile on a per-run network (or the proxy's internal network when `--proxy` is on), waits for the daemon, and removes the sidecar, its images, and the certs when the run ends. `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CONFIG`, and `DOCKER_CONTEXT` are managed for the run and can't be overridden via `env`. With the proxy on, Docker Hub hosts are added to the allowlist automatically, and the CLI's `config.json` passes the proxy into containers and builds started through the sidecar. See [Docker-in-Docker](docker-in-docker.md) for the isolation model, and [Devcontainers](recipes.md#devcontainers) for an example.
 
 ```toml
 [run.dind]
@@ -377,21 +377,7 @@ Resolution priority (highest to lowest):
 
 With the default namespace, images are named `agentic-claude`, `agentic-copilot`, etc.
 
-Example: building separate images for a Java project:
-
-```toml
-# ~/projects/java-app/.agenticrc.toml
-namespace = "java-app"
-
-[build]
-bases = ["java"]
-apt_packages = ["make"]
-
-[build.versions]
-java = "17"
-```
-
-Then `agentic build claude` creates `java-app-claude` with the Java layer, while the default `agentic-claude` remains untouched.
+See [Per-project image set](recipes.md#per-project-image-set) for an example.
 
 ### `docker_context`
 
@@ -476,45 +462,3 @@ Run `agentic config` to see the merged result of all active `.agenticrc.toml` fi
 ```
 agentic config
 ```
-
-## Tool-specific proxy examples
-
-Concrete walkthroughs for routing a tool's own proxy setting through the `agentic-proxy:3128` egress sidecar (see [Pointing a tool's own proxy setting at the egress proxy](#pointing-a-tools-own-proxy-setting-at-the-egress-proxy)).
-
-### Maven
-
-Maven only reads proxy settings from `settings.xml`'s `<proxies>` section, not `MAVEN_OPTS` or the standard proxy env vars. Mount a `settings.xml` pointing at `agentic-proxy:3128`, with a `<proxy>` entry per URL scheme - Maven matches `<protocol>` against the repository URL (not the connection to the proxy itself), and most registries including Maven Central serve over `https`:
-
-```xml
-<!-- settings.xml -->
-<settings>
-  <proxies>
-    <proxy>
-      <id>agentic-proxy-http</id>
-      <active>true</active>
-      <protocol>http</protocol>
-      <host>agentic-proxy</host>
-      <port>3128</port>
-    </proxy>
-    <proxy>
-      <id>agentic-proxy-https</id>
-      <active>true</active>
-      <protocol>https</protocol>
-      <host>agentic-proxy</host>
-      <port>3128</port>
-    </proxy>
-  </proxies>
-</settings>
-```
-
-```toml
-# .agenticrc.toml
-[run]
-secrets = ["maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml"]
-
-[run.proxy]
-enabled = true
-allowed_hosts = ["repo.maven.apache.org"]
-```
-
-Pointing `<proxies>` at an _external_ corporate proxy instead would bypass agentic's egress allowlist entirely, since that traffic never reaches the `agentic-proxy` sidecar - only routing through `agentic-proxy` keeps Maven's traffic subject to `allowed_hosts`.

@@ -1,0 +1,30 @@
+# Overview
+
+Agentic CLI runs agentic coding tools (Claude Code, GitHub Copilot, OpenCode) inside isolated Docker containers. Each tool gets a read-only filesystem with only the mounts it needs - your workspace and its own config directory. Nothing else is accessible, no root, no leftover state when the container exits.
+
+## Security model
+
+Containers run with:
+
+- Read-only filesystem
+- All Linux capabilities dropped
+- No privilege escalation (`no-new-privileges`)
+- Host UID/GID mapping - the container process runs as your user, so file permissions on mounted directories work correctly
+- `/tmp` limited to 1 GB
+- Isolated Docker network (`agentic-net`) - containers cannot reach other containers on the host, only the internet
+- Optional egress allowlist proxy - restrict a tool to a configurable set of hosts and log every connection attempt (see [config.md](config.md#keys))
+- Optional Docker-in-Docker - a per-run rootless Docker daemon in a separate sidecar, reached over mutual TLS; the tool container itself keeps every constraint above and never sees the host's Docker socket (see [docker-in-docker.md](docker-in-docker.md))
+
+When a tool needs to write somewhere (config, cache, temp files), it gets a targeted mount - a named volume or bind mount for persistent state, or a tmpfs for ephemeral scratch space. Nothing gets write access unless explicitly granted.
+
+See [volume-mounts.md](volume-mounts.md) for a per-tool breakdown of what's mounted and why, and [security-model.md](security-model.md) for what each layer stops and the risk that's left.
+
+These constraints (and what's installed) are also written into each tool's own global instructions file at run time, so the model itself knows what it can and can't do up front - see [Environment instructions](usage.md#environment-instructions).
+
+## Motivation
+
+Agentic coding tools are powerful - but that power comes at a cost. They do come with guard rails, but they still run with the same permissions as your user. You're trusting the tool not to access anything you didn't intend to give it - and that's a hard sell if you want to experiment without fully trusting the tool. Agentic runs the tool in a locked-down container instead, so it can only touch what you explicitly hand it. Docker Sandboxes offers a VM boundary instead - see [Comparison](comparison.md) for the trade-offs.
+
+Beyond isolation, agentic also aims to make working with these tools practical day-to-day: a single command to build or update any tool, and a flexible configuration system that works globally or per-project so the right settings are always picked up automatically.
+
+It's also a side project for learning how to build and work with AI-assisted tooling.

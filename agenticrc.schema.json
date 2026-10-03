@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/dylanvgils/agentic-cli/main/agenticrc.schema.json",
   "title": "agentic-cli .agenticrc.toml",
-  "description": "Per-project configuration for the agentic CLI. See docs/02-config.md for the full reference.",
+  "description": "Per-project configuration for the agentic CLI. See docs/config.md for the full reference.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

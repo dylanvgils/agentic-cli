@@ -162,7 +162,7 @@ The rootless Docker-in-Docker sidecar (`internal/docker/dind.go`) is the only co
 
 ### Keeping docs in sync
 
-Any change that affects user-facing behaviour must be reflected in `README.md` (commands, flags, config, examples).
+Any change that affects user-facing behaviour must be reflected in the matching `docs/` page (commands, flags, config, examples). `README.md` is an overview only - update it just when the change touches what it covers (feature list, install, quick start, core commands, security summary, docs index). A new `docs/` page gets a line in `docs/README.md` and the README docs index.
 
 Use `-` (hyphen) in all file content, never `—` (em dash) or `–` (en dash).
 

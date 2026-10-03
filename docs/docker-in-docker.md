@@ -12,7 +12,7 @@ agentic build claude --base docker
 agentic claude --dind
 ```
 
-Or enable it per project in `.agenticrc.toml` - see [`[run.dind]`](02-config.md#keys) for the config reference:
+Or enable it per project in `.agenticrc.toml` - see [`[run.dind]`](config.md#keys) for the config reference:
 
 ```toml
 [run.dind]
@@ -23,7 +23,7 @@ The Docker host must allow unprivileged user namespaces (the default on Docker D
 
 ## How it stays isolated
 
-- The tool container keeps every restriction listed under [Security model](01-overview.md#security-model); it only gains `DOCKER_HOST` and a client cert.
+- The tool container keeps every restriction listed under [Security model](overview.md#security-model); it only gains `DOCKER_HOST` and a client cert.
 - The daemon runs as your user (like the tool container), inside a user namespace, never `--privileged`. Files that inner containers write to `/workspace` as root are owned by you. Every other inner-container id maps to a dedicated range starting at 2,000,000,000 that no host account owns, not to your own subuid range. Running agentic as root with `--dind` is refused. To create that namespace the sidecar (only) gets namespace-scoped capabilities, an unconfined AppArmor profile, and `/dev/net/tun`.
 - The sidecar keeps a seccomp filter: Docker's default profile, minus kernel interfaces nested containers don't need (`bpf`, `perf_event_open`, `syslog`, ...). Keyring syscalls stay blocked.
 - The sidecar image (`agentic-dind`) is built locally from the upstream rootless image with every setuid/setgid bit removed, so nothing in it can become root. The id-map helpers get only `CAP_SETUID`/`CAP_SETGID`. It is rebuilt with a fresh base pull at least weekly.
@@ -37,20 +37,6 @@ The Docker host must allow unprivileged user namespaces (the default on Docker D
 - The agent can start containers with namespace-scoped `CAP_SYS_ADMIN`/`CAP_NET_ADMIN`, which exposes kernel interfaces (e.g. nf_tables, mounts, nested user namespaces) that a plain container can't reach. Isolation then rests on the host kernel's user-namespace code, so keep the Docker host's kernel patched.
 - The sidecar gets the same `--pids-limit`/`--cpus`/`--memory` as the tool container, on top of the tool's own, so a run can use up to twice those limits. Images and volumes live on the Docker host's disk with no size limit.
 
-See [Security model](04-security-model.md) for how this fits with the other layers and what risk is left.
+See [Security model](security-model.md) for how this fits with the other layers and what risk is left.
 
-## Example: devcontainers
-
-To test devcontainers, add Node.js and the devcontainer CLI, then run `devcontainer up --workspace-folder /workspace` from inside the tool:
-
-```toml
-[build]
-bases = ["node", "docker"]
-
-[[build.custom_installs]]
-name = "devcontainer-cli"
-run = ["npm install -g --prefix /usr/local @devcontainers/cli"]
-
-[run.dind]
-enabled = true
-```
+See [Devcontainers](recipes.md#devcontainers) for testing devcontainers through the sidecar.
