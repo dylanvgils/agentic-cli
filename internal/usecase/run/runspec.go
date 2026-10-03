@@ -32,8 +32,7 @@ type Input struct {
 	Limits         docker.ResourceLimits
 	DryRun         bool
 	Registry       string
-	ProxyEnabled   bool
-	ProxyMonitor   bool
+	ProxyMode      docker.ProxyMode
 	DindEnabled    bool
 	// Sidecar limit flags; empty falls back to config
 	DindLimits docker.ResourceLimits
@@ -62,7 +61,7 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	limits := resolve.ResourceLimitsFor(in.Limits, rc)
 	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
 
-	if err := validateEnv(env, in.ProxyEnabled, in.DindEnabled); err != nil {
+	if err := validateEnv(env, in.ProxyMode.Enabled(), in.DindEnabled); err != nil {
 		return docker.RunSpec{}, err
 	}
 
@@ -78,13 +77,13 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	// In proxy or dind mode the tool container attaches to a per-run network
 	// instead of agentic-net; startProxy ensures agentic-net itself for the
 	// sidecar's egress connection, so skip the redundant check here.
-	if !in.ProxyEnabled && !in.DindEnabled {
+	if !in.ProxyMode.Enabled() && !in.DindEnabled {
 		if err := EnsureNetwork(); err != nil {
 			return docker.RunSpec{}, err
 		}
 	}
 
-	logDir, err := proxyLogDir(in.ToolHome, in.ProxyEnabled)
+	logDir, err := proxyLogDir(in.ToolHome, in.ProxyMode.Enabled())
 	if err != nil {
 		return docker.RunSpec{}, err
 	}
@@ -99,9 +98,13 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		WithTmpfsMounts(toolConfig.Runtime.TmpfsMounts()...).
 		WithLimits(limits).
 		WithDryRun(in.DryRun).
-		WithProxy(in.ProxyEnabled, tools.ProxyImage, resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc), logDir, in.ProxyMonitor).
-		WithDind(in.DindEnabled, tools.DindImage).
-		WithDindLimits(dindLimits).
+		WithProxy(docker.ProxySpec{
+			Mode:   in.ProxyMode,
+			Image:  tools.ProxyImage,
+			Allow:  resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc),
+			LogDir: logDir,
+		}).
+		WithDind(docker.DindSpec{Enabled: in.DindEnabled, Image: tools.DindImage, Limits: dindLimits}).
 		Build()
 
 	return rs, nil

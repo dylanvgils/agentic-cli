@@ -40,38 +40,25 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 }
 
 func TestRunSpecBuilder_WithProxy(t *testing.T) {
+	// Arrange
+	spec := ProxySpec{Mode: ProxyMonitor, Image: "agentic-proxy", Allow: []string{".anthropic.com"}, LogDir: "/home/user/.agentic/proxy"}
+
 	// Act
-	result := NewRunSpec("agentic-claude").
-		WithProxy(true, "agentic-proxy", []string{".anthropic.com"}, "/home/user/.agentic/proxy", true).
-		Build()
+	result := NewRunSpec("agentic-claude").WithProxy(spec).Build()
 
 	// Assert
-	assert.True(t, result.ProxyEnabled)
-	assert.Equal(t, "agentic-proxy", result.ProxyImage)
-	assert.Equal(t, []string{".anthropic.com"}, result.ProxyAllow)
-	assert.Equal(t, "/home/user/.agentic/proxy", result.ProxyLogDir)
-	assert.True(t, result.ProxyMonitor)
+	assert.Equal(t, spec, result.Proxy)
 }
 
 func TestRunSpecBuilder_WithDind(t *testing.T) {
+	// Arrange
+	spec := DindSpec{Enabled: true, Image: "docker:29-dind-rootless", Limits: ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}
+
 	// Act
-	result := NewRunSpec("agentic-claude").
-		WithDind(true, "docker:29-dind-rootless").
-		Build()
+	result := NewRunSpec("agentic-claude").WithDind(spec).Build()
 
 	// Assert
-	assert.True(t, result.DindEnabled)
-	assert.Equal(t, "docker:29-dind-rootless", result.DindImage)
-}
-
-func TestRunSpecBuilder_WithDindLimits(t *testing.T) {
-	// Act
-	result := NewRunSpec("agentic-claude").
-		WithDindLimits(ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}).
-		Build()
-
-	// Assert
-	assert.Equal(t, ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}, result.DindLimits)
+	assert.Equal(t, spec, result.Dind)
 }
 
 func TestRunSpecBuilder_WithVolumes_variadic(t *testing.T) {

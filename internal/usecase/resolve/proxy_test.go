@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,11 +14,10 @@ func TestProxyMode(t *testing.T) {
 
 	t.Run("no flag and no config defaults off", func(t *testing.T) {
 		// Act
-		gotEnabled, gotMonitor := ProxyMode(ProxyInput{}, &config.AgenticRC{})
+		result := ProxyMode(ProxyInput{}, &config.AgenticRC{})
 
 		// Assert
-		assert.False(t, gotEnabled)
-		assert.False(t, gotMonitor)
+		assert.Equal(t, docker.ProxyOff, result)
 	})
 
 	t.Run("config enabled is honored", func(t *testing.T) {
@@ -25,11 +25,10 @@ func TestProxyMode(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}
 
 		// Act
-		gotEnabled, gotMonitor := ProxyMode(ProxyInput{}, rc)
+		result := ProxyMode(ProxyInput{}, rc)
 
 		// Assert
-		assert.True(t, gotEnabled)
-		assert.False(t, gotMonitor)
+		assert.Equal(t, docker.ProxyEnforce, result)
 	})
 
 	t.Run("proxy flag overrides config disabled", func(t *testing.T) {
@@ -37,11 +36,10 @@ func TestProxyMode(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled}}}
 
 		// Act
-		gotEnabled, gotMonitor := ProxyMode(ProxyInput{ProxyFlag: true}, rc)
+		result := ProxyMode(ProxyInput{ProxyFlag: true}, rc)
 
 		// Assert
-		assert.True(t, gotEnabled)
-		assert.False(t, gotMonitor)
+		assert.Equal(t, docker.ProxyEnforce, result)
 	})
 
 	t.Run("no-proxy flag overrides config enabled", func(t *testing.T) {
@@ -49,29 +47,26 @@ func TestProxyMode(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}
 
 		// Act
-		gotEnabled, gotMonitor := ProxyMode(ProxyInput{NoProxy: true}, rc)
+		result := ProxyMode(ProxyInput{NoProxy: true}, rc)
 
 		// Assert
-		assert.False(t, gotEnabled)
-		assert.False(t, gotMonitor)
+		assert.Equal(t, docker.ProxyOff, result)
 	})
 
 	t.Run("proxy-monitor flag enables monitor mode", func(t *testing.T) {
 		// Act
-		gotEnabled, gotMonitor := ProxyMode(ProxyInput{MonitorFlag: true}, &config.AgenticRC{})
+		result := ProxyMode(ProxyInput{MonitorFlag: true}, &config.AgenticRC{})
 
 		// Assert
-		assert.True(t, gotEnabled)
-		assert.True(t, gotMonitor)
+		assert.Equal(t, docker.ProxyMonitor, result)
 	})
 
 	t.Run("no-proxy flag overrides proxy-monitor flag", func(t *testing.T) {
 		// Act
-		gotEnabled, gotMonitor := ProxyMode(ProxyInput{MonitorFlag: true, NoProxy: true}, &config.AgenticRC{})
+		result := ProxyMode(ProxyInput{MonitorFlag: true, NoProxy: true}, &config.AgenticRC{})
 
 		// Assert
-		assert.False(t, gotEnabled)
-		assert.False(t, gotMonitor)
+		assert.Equal(t, docker.ProxyOff, result)
 	})
 
 	t.Run("config mode monitor implies enabled", func(t *testing.T) {
@@ -79,11 +74,10 @@ func TestProxyMode(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Mode: config.ModeMonitor}}}
 
 		// Act
-		gotEnabled, gotMonitor := ProxyMode(ProxyInput{}, rc)
+		result := ProxyMode(ProxyInput{}, rc)
 
 		// Assert
-		assert.True(t, gotEnabled)
-		assert.True(t, gotMonitor)
+		assert.Equal(t, docker.ProxyMonitor, result)
 	})
 
 	t.Run("config enabled false wins over config mode monitor", func(t *testing.T) {
@@ -91,11 +85,10 @@ func TestProxyMode(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled, Mode: config.ModeMonitor}}}
 
 		// Act
-		gotEnabled, gotMonitor := ProxyMode(ProxyInput{}, rc)
+		result := ProxyMode(ProxyInput{}, rc)
 
 		// Assert
-		assert.False(t, gotEnabled)
-		assert.False(t, gotMonitor)
+		assert.Equal(t, docker.ProxyOff, result)
 	})
 }
 

@@ -24,6 +24,24 @@ const proxyHostAlias = "agentic-proxy"
 // proxyLogMountDir is where the host log directory is mounted inside the proxy.
 const proxyLogMountDir = "/var/log/agentic-proxy"
 
+// Proxy modes; ProxyOff is the zero value, so a RunSpec without one runs no proxy.
+const (
+	ProxyOff ProxyMode = iota
+	ProxyEnforce
+	ProxyMonitor
+)
+
+// ProxyMode selects whether the egress proxy runs and whether it blocks or only logs disallowed hosts.
+type ProxyMode int
+
+// ProxySpec configures the egress proxy sidecar; unless Mode is ProxyOff, the tool reaches out only through it.
+type ProxySpec struct {
+	Mode   ProxyMode
+	Image  string   // proxy sidecar image
+	Allow  []string // merged allowlist (tool baseline + user hosts)
+	LogDir string   // host dir for JSON-lines access logs
+}
+
 // proxyHandle identifies the per-run proxy network, sidecar container, and host-side access log.
 type proxyHandle struct {
 	id        string
@@ -32,6 +50,11 @@ type proxyHandle struct {
 	logPath   string
 	allow     []string
 	monitor   bool
+}
+
+// Enabled reports whether the proxy runs, in either mode.
+func (m ProxyMode) Enabled() bool {
+	return m != ProxyOff
 }
 
 // newProxyHandle derives the per-run proxy resource names without creating any docker resources, so it is safe for dry runs.
@@ -46,9 +69,9 @@ func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 		id:        id,
 		network:   name,
 		container: name,
-		logPath:   filepath.Join(rs.ProxyLogDir, proxyLogFileName(id)),
-		allow:     rs.ProxyAllow,
-		monitor:   rs.ProxyMonitor,
+		logPath:   filepath.Join(rs.Proxy.LogDir, proxyLogFileName(id)),
+		allow:     rs.Proxy.Allow,
+		monitor:   rs.Proxy.Mode == ProxyMonitor,
 	}, nil
 }
 
@@ -190,7 +213,7 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 
 // setupProxy configures rs for proxy mode if enabled, returning the env args to inject and a cleanup func to defer.
 func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
-	if !rs.ProxyEnabled {
+	if !rs.Proxy.Mode.Enabled() {
 		return nil, func() {}, nil
 	}
 
@@ -208,7 +231,7 @@ func dryRunProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 	}
 	rs.network = handle.network
 
-	return proxyEnvArgs(rs.DindEnabled), func() {}, nil
+	return proxyEnvArgs(rs.Dind.Enabled), func() {}, nil
 }
 
 // launchProxy starts the sidecar and returns a cleanup that tears it down and prints the access summary.
@@ -228,7 +251,7 @@ func launchProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 		stop()
 		handle.PrintSummary(os.Stderr)
 	}
-	return proxyEnvArgs(rs.DindEnabled), cleanup, nil
+	return proxyEnvArgs(rs.Dind.Enabled), cleanup, nil
 }
 
 // runArgs builds the `docker run` arguments for the hardened proxy sidecar, registering
@@ -254,8 +277,8 @@ func (h proxyHandle) runArgs(rs RunSpec) []string {
 		arg("env", proxy.EnvLog+"="+containerLog),
 		arg("env", proxy.EnvTZOffset+"="+strconv.Itoa(tzOffset)),
 		arg("env", proxy.EnvMonitor+"="+strconv.FormatBool(h.monitor)),
-		arg("volume", rs.ProxyLogDir+":"+proxyLogMountDir),
-		rs.ProxyImage,
+		arg("volume", rs.Proxy.LogDir+":"+proxyLogMountDir),
+		rs.Proxy.Image,
 	)
 }
 

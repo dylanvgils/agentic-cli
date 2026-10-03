@@ -126,7 +126,7 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, rs.DindLimits)
+		assert.Equal(t, docker.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, rs.Dind.Limits)
 	})
 
 	t.Run("dind limits override tool limits", func(t *testing.T) {
@@ -143,7 +143,7 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ResourceLimits{PidsLimit: "4096", CPUs: "2", Memory: "16g"}, rs.DindLimits)
+		assert.Equal(t, docker.ResourceLimits{PidsLimit: "4096", CPUs: "2", Memory: "16g"}, rs.Dind.Limits)
 		assert.Equal(t, "2g", rs.Limits.Memory, "tool limit is unaffected")
 	})
 
@@ -231,7 +231,7 @@ func TestBuild(t *testing.T) {
 	t.Run("proxy wired with merged allowlist and image", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyEnabled: true}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
 
 		// Act
@@ -239,10 +239,10 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.True(t, rs.ProxyEnabled)
-		assert.Equal(t, tools.ProxyImage, rs.ProxyImage)
-		assert.Equal(t, []string{".anthropic.com", ".claude.ai", ".claude.com", "extra.example.com"}, rs.ProxyAllow)
-		assert.NotEmpty(t, rs.ProxyLogDir)
+		assert.Equal(t, docker.ProxyEnforce, rs.Proxy.Mode)
+		assert.Equal(t, tools.ProxyImage, rs.Proxy.Image)
+		assert.Equal(t, []string{".anthropic.com", ".claude.ai", ".claude.com", "extra.example.com"}, rs.Proxy.Allow)
+		assert.NotEmpty(t, rs.Proxy.LogDir)
 	})
 
 	t.Run("proxy off leaves spec unproxied", func(t *testing.T) {
@@ -255,52 +255,51 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.False(t, rs.ProxyEnabled)
-		assert.Empty(t, rs.ProxyLogDir)
+		assert.Equal(t, docker.ProxyOff, rs.Proxy.Mode)
+		assert.Empty(t, rs.Proxy.LogDir)
 	})
 
 	t.Run("proxy enabled skips agentic-net check since startProxy ensures it itself", func(t *testing.T) {
 		// Arrange
 		stubEnsureNetwork(t, func() error { return fmt.Errorf("network error") })
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyEnabled: true}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce}
 
 		// Act
 		rs, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		assert.True(t, rs.ProxyEnabled)
+		assert.Equal(t, docker.ProxyEnforce, rs.Proxy.Mode)
 	})
 
 	t.Run("proxy monitor wired", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyEnabled: true, ProxyMonitor: true}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyMonitor}
 
 		// Act
 		rs, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		assert.True(t, rs.ProxyEnabled)
-		assert.True(t, rs.ProxyMonitor)
+		assert.Equal(t, docker.ProxyMonitor, rs.Proxy.Mode)
 	})
 
 	t.Run("dind wired with sidecar image and docker hub allowlisted", func(t *testing.T) {
 		// Arrange
 		stubEnsureNetwork(t, func() error { return fmt.Errorf("network error") })
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyEnabled: true, DindEnabled: true}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce, DindEnabled: true}
 
 		// Act
 		rs, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert - agentic-net is skipped since the tool joins a per-run network
 		require.NoError(t, err)
-		assert.True(t, rs.DindEnabled)
-		assert.Equal(t, tools.DindImage, rs.DindImage)
-		assert.Contains(t, rs.ProxyAllow, "registry-1.docker.io")
+		assert.True(t, rs.Dind.Enabled)
+		assert.Equal(t, tools.DindImage, rs.Dind.Image)
+		assert.Contains(t, rs.Proxy.Allow, "registry-1.docker.io")
 	})
 
 	t.Run("dind rejects env overriding the docker host", func(t *testing.T) {

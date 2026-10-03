@@ -56,17 +56,16 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	proxyEnabled, proxyMonitor := resolveProxyMode(cmd, rc)
+	proxyMode := resolveProxyMode(cmd, rc)
 	dindEnabled := resolveDindEnabled(cmd, rc)
 
 	target := run.Target{ToolName: toolName, ImageName: imageName}
 	input := run.Input{
-		ToolHome:     toolHome,
-		Limits:       resolveResourceLimitFlags(cmd),
-		ProxyEnabled: proxyEnabled,
-		ProxyMonitor: proxyMonitor,
-		DindEnabled:  dindEnabled,
-		DindLimits:   resolveDindResourceLimitFlags(cmd),
+		ToolHome:    toolHome,
+		Limits:      resolveResourceLimitFlags(cmd),
+		ProxyMode:   proxyMode,
+		DindEnabled: dindEnabled,
+		DindLimits:  resolveDindResourceLimitFlags(cmd),
 	}
 
 	content, err := run.PreviewInstructions(target, input, tools.Configs[toolName], rc)

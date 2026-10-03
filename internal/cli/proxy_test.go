@@ -22,11 +22,10 @@ func Test_resolveProxyMode(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}
 
 		// Act
-		gotEnabled, gotMonitor := resolveProxyMode(runToolCmd, rc)
+		result := resolveProxyMode(runToolCmd, rc)
 
 		// Assert
-		assert.True(t, gotEnabled)
-		assert.False(t, gotMonitor)
+		assert.Equal(t, docker.ProxyEnforce, result)
 	})
 
 	t.Run("no-proxy flag propagates", func(t *testing.T) {
@@ -38,11 +37,10 @@ func Test_resolveProxyMode(t *testing.T) {
 		})
 
 		// Act
-		gotEnabled, gotMonitor := resolveProxyMode(runToolCmd, &config.AgenticRC{})
+		result := resolveProxyMode(runToolCmd, &config.AgenticRC{})
 
 		// Assert
-		assert.False(t, gotEnabled)
-		assert.False(t, gotMonitor)
+		assert.Equal(t, docker.ProxyOff, result)
 	})
 
 	t.Run("proxy-monitor flag propagates", func(t *testing.T) {
@@ -54,11 +52,10 @@ func Test_resolveProxyMode(t *testing.T) {
 		})
 
 		// Act
-		gotEnabled, gotMonitor := resolveProxyMode(runToolCmd, &config.AgenticRC{})
+		result := resolveProxyMode(runToolCmd, &config.AgenticRC{})
 
 		// Assert
-		assert.True(t, gotEnabled)
-		assert.True(t, gotMonitor)
+		assert.Equal(t, docker.ProxyMonitor, result)
 	})
 }
 

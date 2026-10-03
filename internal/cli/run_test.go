@@ -116,8 +116,8 @@ func TestRunTool(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		rs, _ := get()
-		assert.True(t, rs.DindEnabled)
-		assert.Equal(t, tools.DindImage, rs.DindImage)
+		assert.True(t, rs.Dind.Enabled)
+		assert.Equal(t, tools.DindImage, rs.Dind.Image)
 	})
 
 	t.Run("dind flag without docker layer fails before running", func(t *testing.T) {

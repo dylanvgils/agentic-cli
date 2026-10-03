@@ -1,6 +1,9 @@
 package resolve
 
-import "github.com/dylanvgils/agentic-cli/internal/config"
+import (
+	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/docker"
+)
 
 // dindRegistryHosts are the Docker Hub endpoints image pulls need.
 var dindRegistryHosts = []string{"registry-1.docker.io", "auth.docker.io", "production.cloudflare.docker.com"}
@@ -12,26 +15,30 @@ type ProxyInput struct {
 	ProxyFlag   bool
 }
 
-// ProxyMode resolves whether the proxy is enabled and enforcing vs. monitoring. Flags win over config; --no-proxy/enabled=false always wins; monitor implies enabled.
-func ProxyMode(in ProxyInput, rc *config.AgenticRC) (enabled, monitor bool) {
+// ProxyMode resolves whether the proxy is off, enforcing or monitoring. Flags win over config; --no-proxy/enabled=false always wins; monitor implies enabled.
+func ProxyMode(in ProxyInput, rc *config.AgenticRC) docker.ProxyMode {
 	if in.NoProxy {
-		return false, false
+		return docker.ProxyOff
 	}
 	if in.MonitorFlag {
-		return true, true
+		return docker.ProxyMonitor
 	}
 	if in.ProxyFlag {
-		return true, false
+		return docker.ProxyEnforce
 	}
 
 	if rc.Run.Proxy.Enabled != nil && !*rc.Run.Proxy.Enabled {
-		return false, false
+		return docker.ProxyOff
 	}
 	if rc.Run.Proxy.Mode == config.ModeMonitor {
-		return true, true
+		return docker.ProxyMonitor
 	}
 
-	return rc.Run.Proxy.Enabled != nil && *rc.Run.Proxy.Enabled, false
+	if rc.Run.Proxy.Enabled != nil && *rc.Run.Proxy.Enabled {
+		return docker.ProxyEnforce
+	}
+
+	return docker.ProxyOff
 }
 
 // ProxyAllowList merges the tool's allowlist with user hosts, plus Docker Hub when dind is on.
