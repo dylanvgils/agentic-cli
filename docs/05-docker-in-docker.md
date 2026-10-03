@@ -39,9 +39,9 @@ The Docker host must allow unprivileged user namespaces (the default on Docker D
 
 See [Security model](04-security-model.md) for how this fits with the other layers and what risk is left.
 
-## Testing devcontainers
+## Example: devcontainers
 
-Add Node.js and the devcontainer CLI, then run `devcontainer up --workspace-folder /workspace` from inside the tool:
+To test devcontainers, add Node.js and the devcontainer CLI, then run `devcontainer up --workspace-folder /workspace` from inside the tool:
 
 ```toml
 [build]
