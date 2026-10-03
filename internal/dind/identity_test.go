@@ -1,4 +1,4 @@
-package docker
+package dind
 
 import (
 	"os"
@@ -9,35 +9,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_currentDindIdentity(t *testing.T) {
+func TestNewIdentity(t *testing.T) {
 	t.Run("uses the host uid and gid", func(t *testing.T) {
-		// Arrange
-		stubHostUserGroup(t, "1234:5678")
-
 		// Act
-		id, err := currentDindIdentity()
+		id, err := NewIdentity("1234:5678")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "1234:5678", id.userGroup())
+		assert.Equal(t, "1234:5678", id.UserGroup())
 	})
 
 	t.Run("refuses root", func(t *testing.T) {
-		// Arrange
-		stubHostUserGroup(t, "0:0")
-
 		// Act
-		_, err := currentDindIdentity()
+		_, err := NewIdentity("0:0")
 
 		// Assert
 		require.ErrorContains(t, err, "refuses to run as root")
 	})
 }
 
-func TestDindIdentityFiles(t *testing.T) {
+func TestIdentity_files(t *testing.T) {
 	t.Run("maps the host uid to the dedicated subordinate range only", func(t *testing.T) {
 		// Arrange
-		id := dindIdentity{uid: "1234", gid: "5678"}
+		id := Identity{uid: "1234", gid: "5678"}
 
 		// Act
 		files := id.files()
@@ -52,7 +46,7 @@ func TestDindIdentityFiles(t *testing.T) {
 
 	t.Run("primary group root is not duplicated", func(t *testing.T) {
 		// Arrange
-		id := dindIdentity{uid: "1234", gid: "0"}
+		id := Identity{uid: "1234", gid: "0"}
 
 		// Act
 		files := id.files()
@@ -62,16 +56,16 @@ func TestDindIdentityFiles(t *testing.T) {
 	})
 }
 
-func Test_writeDindIdentityFiles(t *testing.T) {
+func TestWriteIdentityFiles(t *testing.T) {
 	// Arrange
 	dir := filepath.Join(t.TempDir(), "etc")
 
 	// Act
-	err := writeDindIdentityFiles(dir, dindIdentity{uid: "1234", gid: "5678"})
+	err := WriteIdentityFiles(dir, Identity{uid: "1234", gid: "5678"})
 
 	// Assert
 	require.NoError(t, err)
-	for _, name := range dindIdentityFiles {
+	for _, name := range IdentityFiles {
 		_, statErr := os.Stat(filepath.Join(dir, name))
 		assert.NoError(t, statErr, name)
 	}

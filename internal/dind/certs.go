@@ -1,4 +1,4 @@
-package docker
+package dind
 
 import (
 	"crypto/ecdsa"
@@ -15,13 +15,13 @@ import (
 	"time"
 )
 
-// dindCertValidity bounds how long a per-run cert is usable; a leaked cert is worthless once the run's CA is gone anyway.
-const dindCertValidity = 30 * 24 * time.Hour
+// certValidity bounds how long a per-run cert is usable; a leaked cert is worthless once the run's CA is gone anyway.
+const certValidity = 30 * 24 * time.Hour
 
 // Subdirectories of a per-run cert dir; the sidecar's entrypoint expects $DOCKER_TLS_CERTDIR/server.
 const (
-	dindServerCertSubdir = "server"
-	dindClientCertSubdir = "client"
+	ServerCertSubdir = "server"
+	ClientCertSubdir = "client"
 )
 
 // certPair is a signed certificate and its private key, PEM-encoded.
@@ -30,9 +30,9 @@ type certPair struct {
 	keyPEM  []byte
 }
 
-// writeDindCerts generates a throwaway CA plus a server and client cert under dir. The CA key
+// WriteCerts generates a throwaway CA plus a server and client cert under dir. The CA key
 // only ever lives in memory, so nothing on disk can mint further certs for this daemon.
-func writeDindCerts(dir string, serverNames []string) error {
+func WriteCerts(dir string, serverNames []string) error {
 	ca, caKey, caPEM, err := newCA()
 	if err != nil {
 		return err
@@ -48,10 +48,10 @@ func writeDindCerts(dir string, serverNames []string) error {
 		return err
 	}
 
-	if err := writeCertDir(filepath.Join(dir, dindServerCertSubdir), caPEM, server); err != nil {
+	if err := writeCertDir(filepath.Join(dir, ServerCertSubdir), caPEM, server); err != nil {
 		return err
 	}
-	return writeCertDir(filepath.Join(dir, dindClientCertSubdir), caPEM, client)
+	return writeCertDir(filepath.Join(dir, ClientCertSubdir), caPEM, client)
 }
 
 // newCA returns a self-signed CA cert, its in-memory key, and the cert as PEM.
@@ -133,7 +133,7 @@ func certTemplate(cn string) (*x509.Certificate, error) {
 		SerialNumber: serial,
 		Subject:      pkix.Name{CommonName: cn},
 		NotBefore:    now.Add(-time.Minute),
-		NotAfter:     now.Add(dindCertValidity),
+		NotAfter:     now.Add(certValidity),
 	}, nil
 }
 

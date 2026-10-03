@@ -28,6 +28,8 @@ A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copil
 
 The egress proxy sidecar (`internal/proxy`) runs as its own minimal binary, `agentic-proxy` (entrypoint `cmd/proxy/main.go`), built into a separate image. It must only import `internal/proxy` - never `internal/docker`, `internal/tools`, or `internal/cli` - so the proxy container's binary stays free of the CLI's Docker-orchestration code.
 
+The Docker-in-Docker sidecar is split the same way: `internal/dind` generates its per-run files (TLS certs, seccomp profile, `/etc` identity) and must not import `internal/docker`; starting, wiring, and cleaning up the sidecar container lives in `internal/docker/dind.go`, next to the proxy's `internal/docker/proxy.go`.
+
 ## Key commands
 
 ```bash
@@ -156,7 +158,7 @@ Always check shell scripts with `shellcheck` before committing. Fix all warnings
 
 `--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`, `--user $(id -u):$(id -g)`, `--network agentic-net`. Do not relax these. If a tool needs write access, use a targeted tmpfs or volume mount instead. `agentic-net` is a custom bridge that isolates containers from other host containers; it is created on demand by `EnsureNetwork()` in `internal/docker/network.go` and removed on full `agentic clean`.
 
-The rootless Docker-in-Docker sidecar (`internal/docker/dind.go`) is the only container allowed extra capabilities, unconfined AppArmor, and no `no-new-privileges`, because rootlesskit needs them to create its user namespace. It keeps a seccomp filter derived from Docker's default (`internal/docker/dind_seccomp.go`) - never switch it to `unconfined`. Never move these flags onto the tool container, never use `--privileged`, and never mount the host's Docker socket.
+The rootless Docker-in-Docker sidecar (`internal/docker/dind.go`) is the only container allowed extra capabilities, unconfined AppArmor, and no `no-new-privileges`, because rootlesskit needs them to create its user namespace. It keeps a seccomp filter derived from Docker's default (`internal/dind/seccomp.go`) - never switch it to `unconfined`. Never move these flags onto the tool container, never use `--privileged`, and never mount the host's Docker socket.
 
 ### Keeping docs in sync
 

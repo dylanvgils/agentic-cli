@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/dind"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 )
 
@@ -31,13 +33,16 @@ const (
 	// dindClientCertPath is where the tool container sees its client cert.
 	dindClientCertPath = "/run/secrets/docker"
 
-	// dindEtcSubdir holds the generated /etc identity files (see dindIdentity).
+	// dindEtcSubdir holds the generated /etc identity files (see dind.Identity).
 	dindEtcSubdir = "etc"
 
 	// dindConfigSubdir holds the tool's writable DOCKER_CONFIG (buildx state, logins), mounted at dindConfigPath.
 	dindConfigSubdir = "config"
 	dindConfigPath   = "/run/docker-config"
 )
+
+// hostUserGroup is a test-stubbable indirection into platform.UserGroup.
+var hostUserGroup = platform.UserGroup
 
 var (
 	// Readiness wait for dockerd, and how much sidecar log to show if it never answers; vars so tests can shorten them.
@@ -58,7 +63,7 @@ var dindCapabilities = []string{
 
 // dindSecurityOpts relax only what rootlesskit needs to create a user namespace and mount procfs
 // inside it (Docker's AppArmor profile denies mount); seccomp stays on via a derived profile
-// (see dindSeccompProfile). no-new-privileges is deliberately absent: it would stop newuidmap
+// (see dind.WriteSeccompProfile). no-new-privileges is deliberately absent: it would stop newuidmap
 // and newgidmap from gaining their file capabilities.
 var dindSecurityOpts = []string{
 	"apparmor=unconfined",
@@ -80,7 +85,7 @@ var dindReservedEnvNames = map[string]bool{
 // dindHandle identifies the per-run Docker sidecar, the network it shares with the tool, and its host-side run dir.
 type dindHandle struct {
 	id          string
-	identity    dindIdentity
+	identity    dind.Identity
 	container   string
 	network     string
 	ownsNetwork bool
@@ -95,7 +100,7 @@ func newDindHandle(rs RunSpec) (dindHandle, error) {
 		return dindHandle{}, err
 	}
 
-	identity, err := currentDindIdentity()
+	identity, err := dind.NewIdentity(hostUserGroup())
 	if err != nil {
 		return dindHandle{}, err
 	}
@@ -136,15 +141,15 @@ func (h dindHandle) runArgs(rs RunSpec) []string {
 		arg("cpus", rs.CPUs),
 		arg("memory", rs.Memory),
 		// Same identity as the tool container: inner-container writes to /workspace land as the host user
-		arg("user", h.identity.userGroup()),
-		arg("env", "HOME="+dindHome),
+		arg("user", h.identity.UserGroup()),
+		arg("env", "HOME="+dind.Home),
 		arg("cap-drop", "ALL"),
 	}
 
 	for _, capability := range dindCapabilities {
 		args = append(args, arg("cap-add", capability))
 	}
-	args = append(args, arg("security-opt", "seccomp="+filepath.Join(h.runDir, dindSeccompFileName)))
+	args = append(args, arg("security-opt", "seccomp="+filepath.Join(h.runDir, dind.SeccompFileName)))
 	for _, opt := range dindSecurityOpts {
 		args = append(args, arg("security-opt", opt))
 	}
@@ -157,12 +162,12 @@ func (h dindHandle) runArgs(rs RunSpec) []string {
 		arg("tmpfs", "/run:rw,mode=1777"),
 		arg("tmpfs", "/tmp:rw,mode=1777"),
 		arg("env", "DOCKER_TLS_CERTDIR="+dindCertMountDir),
-		arg("volume", h.certVolume(dindServerCertSubdir, dindCertMountDir+"/"+dindServerCertSubdir)),
+		arg("volume", h.certVolume(dind.ServerCertSubdir, dindCertMountDir+"/"+dind.ServerCertSubdir)),
 		// The client cert lets waitReady probe dockerd over the same TLS path the tool uses
-		arg("volume", h.certVolume(dindClientCertSubdir, dindCertMountDir+"/"+dindClientCertSubdir)),
+		arg("volume", h.certVolume(dind.ClientCertSubdir, dindCertMountDir+"/"+dind.ClientCertSubdir)),
 	)
 
-	for _, name := range dindIdentityFiles {
+	for _, name := range dind.IdentityFiles {
 		args = append(args, arg("volume", mount.NormalizeMountSpec(filepath.Join(h.runDir, dindEtcSubdir, name)+":/etc/"+name)+":ro"))
 	}
 
@@ -185,7 +190,7 @@ func (h dindHandle) toolArgs() []string {
 		arg("env", "DOCKER_TLS_VERIFY=1"),
 		arg("env", "DOCKER_CERT_PATH="+dindClientCertPath),
 		arg("env", "DOCKER_CONFIG="+dindConfigPath),
-		arg("volume", h.certVolume(dindClientCertSubdir, dindClientCertPath)),
+		arg("volume", h.certVolume(dind.ClientCertSubdir, dindClientCertPath)),
 		arg("volume", configDir),
 	}
 }
@@ -198,7 +203,7 @@ func (h dindHandle) certVolume(subdir, containerPath string) string {
 
 // waitReady polls dockerd over TLS until it answers or dindReadyTimeout passes, attaching the sidecar's log tail on failure.
 func (h dindHandle) waitReady() error {
-	clientCerts := dindCertMountDir + "/" + dindClientCertSubdir
+	clientCerts := dindCertMountDir + "/" + dind.ClientCertSubdir
 	probe := []string{
 		"exec",
 		arg("env", "DOCKER_HOST=tcp://localhost:"+dindPort),
@@ -261,7 +266,7 @@ func startDind(rs RunSpec) (dindHandle, error) {
 	if err := os.MkdirAll(h.runDir, 0o700); err != nil {
 		return dindHandle{}, fmt.Errorf("create dind run dir: %w", err)
 	}
-	if err := writeDindCerts(h.runDir, []string{dindHostAlias, "localhost", "127.0.0.1", "::1"}); err != nil {
+	if err := dind.WriteCerts(h.runDir, []string{dindHostAlias, "localhost", "127.0.0.1", "::1"}); err != nil {
 		h.Stop()
 		return dindHandle{}, err
 	}
@@ -269,11 +274,11 @@ func startDind(rs RunSpec) (dindHandle, error) {
 		h.Stop()
 		return dindHandle{}, err
 	}
-	if err := writeDindSeccompProfile(filepath.Join(h.runDir, dindSeccompFileName)); err != nil {
+	if err := dind.WriteSeccompProfile(filepath.Join(h.runDir, dind.SeccompFileName)); err != nil {
 		h.Stop()
 		return dindHandle{}, err
 	}
-	if err := writeDindIdentityFiles(filepath.Join(h.runDir, dindEtcSubdir), h.identity); err != nil {
+	if err := dind.WriteIdentityFiles(filepath.Join(h.runDir, dindEtcSubdir), h.identity); err != nil {
 		h.Stop()
 		return dindHandle{}, err
 	}

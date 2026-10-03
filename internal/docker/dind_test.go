@@ -254,28 +254,15 @@ func Test_writeDindClientConfig(t *testing.T) {
 	})
 }
 
-func TestNewDindHandle(t *testing.T) {
-	t.Run("refuses to run the sidecar as root", func(t *testing.T) {
-		// Arrange
-		stubHostUserGroup(t, "0:0")
+func Test_newDindHandle(t *testing.T) {
+	// Arrange
+	stubHostUserGroup(t, "1000:1000")
 
-		// Act
-		_, err := newDindHandle(RunSpec{ToolHome: t.TempDir()})
+	// Act
+	handle, err := newDindHandle(RunSpec{ToolHome: t.TempDir()})
 
-		// Assert
-		require.ErrorContains(t, err, "refuses to run as root")
-	})
-
-	t.Run("creates its own network when no proxy network exists", func(t *testing.T) {
-		// Arrange
-		stubHostUserGroup(t, "1000:1000")
-
-		// Act
-		handle, err := newDindHandle(RunSpec{ToolHome: t.TempDir()})
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, handle.ownsNetwork)
-		assert.True(t, strings.HasPrefix(handle.network, "agentic-dind-"))
-	})
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, handle.ownsNetwork)
+	assert.True(t, strings.HasPrefix(handle.network, "agentic-dind-"))
 }

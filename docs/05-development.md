@@ -14,7 +14,8 @@ agentic-cli/
     ├── cleanup/                 # Capture helper for propagating deferred cleanup errors without masking an earlier error
     ├── cli/                     # Cobra commands (build, update, clean, inspect, run, …)
     ├── config/                  # .agenticrc.toml loading and run spec
-    ├── docker/                  # Build, update, run, clean, inspect, volume orchestration
+    ├── dind/                    # Docker-in-Docker sidecar per-run files: TLS certs, seccomp profile, /etc identity
+    ├── docker/                  # Build, update, run, clean, inspect, volume, and sidecar (proxy, dind) orchestration
     ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
     ├── git/                     # Thin wrapper over the host git binary (CheckAvailable, Clone, FetchReset)
     ├── housekeeping/            # Host-side cleanup not tied to a tool run, the proxy server, or docker orchestration (e.g. pruning proxy logs)
@@ -36,6 +37,8 @@ agentic-cli/
 ```
 
 `cmd/proxy` only imports `internal/proxy` - never `internal/docker`, `internal/tools`, or `internal/cli` - so the `agentic-proxy` binary that runs inside the (untrusted-traffic-handling) sidecar container stays free of the CLI's code.
+
+`internal/dind` generates the Docker-in-Docker sidecar's per-run files and must not import `internal/docker`; the sidecar's container orchestration lives in `internal/docker/dind.go`, alongside `internal/docker/proxy.go` for the proxy.
 
 No static Dockerfile files exist. All Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/tools/bases.go` (base and extra layers) and each tool's `Stage` func. See [04-dockerfile-dsl.md](04-dockerfile-dsl.md) for the DSL reference.
 
@@ -189,9 +192,9 @@ The resolved version for each layer and the final apt package list are persisted
 
 ## Docker-in-Docker sidecar image
 
-`agentic run --dind` builds the global `agentic-dind` image lazily (`ensureDindImage`) from `tools.GenerateDindDockerfile`: the upstream `docker:<version>-dind-rootless` image with setuid/setgid bits stripped and file capabilities on `newuidmap`/`newgidmap`. It always builds with `--pull` and is rebuilt when missing, built by another CLI version, or older than 7 days. `agentic clean` removes it.
+`agentic run --dind` builds the global `agentic-dind` image lazily (`ensureDindImage`) from `tools.GenerateDindDockerfile`: the upstream `docker:<version>-dind-rootless` image with setuid/setgid bits stripped and file capabilities on `newuidmap`/`newgidmap`. It always builds with `--pull` and is rebuilt when missing, built by another CLI version, or older than 7 days (`tools.DindImageMaxAge`). `agentic clean` removes it.
 
-The sidecar's seccomp profile is derived at run time (`dindSeccompProfile`) from Docker's default profile, vendored verbatim in `internal/docker/dind_seccomp_default.json`. To refresh it, re-copy `seccomp/default.json` from [moby/profiles](https://github.com/moby/profiles) and update the commit noted on `dindSeccompDefault`; `Test_dindSeccompProfile` checks the derived rules still hold.
+The sidecar's seccomp profile is derived at run time (`deriveSeccompProfile`) from Docker's default profile, vendored verbatim in `internal/dind/seccomp_default.json`. To refresh it, re-copy `seccomp/default.json` from [moby/profiles](https://github.com/moby/profiles) and update the commit noted on `seccompDefault`; `Test_deriveSeccompProfile` checks the derived rules still hold.
 
 ## Building the proxy image locally
 

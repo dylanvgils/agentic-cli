@@ -1,8 +1,6 @@
 package docker
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -225,22 +223,6 @@ func findCall(calls []dockerCall, prefix ...string) []string {
 		}
 	}
 	return nil
-}
-
-// loadCertSide parses a dind cert dir's ca.pem into a pool and cert.pem into a certificate.
-func loadCertSide(t *testing.T, dir string) (*x509.CertPool, *x509.Certificate) {
-	t.Helper()
-	caPEM, err := os.ReadFile(filepath.Join(dir, "ca.pem"))
-	require.NoError(t, err)
-	roots := x509.NewCertPool()
-	require.True(t, roots.AppendCertsFromPEM(caPEM))
-
-	pair, err := tls.LoadX509KeyPair(filepath.Join(dir, "cert.pem"), filepath.Join(dir, "key.pem"))
-	require.NoError(t, err)
-	leaf, err := x509.ParseCertificate(pair.Certificate[0])
-	require.NoError(t, err)
-
-	return roots, leaf
 }
 
 // stubRunInteractiveError replaces runInteractive with a stub that always returns err.

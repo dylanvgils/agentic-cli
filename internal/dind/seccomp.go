@@ -1,4 +1,4 @@
-package docker
+package dind
 
 import (
 	_ "embed"
@@ -8,29 +8,29 @@ import (
 	"slices"
 )
 
-// dindSeccompFileName is the per-run profile's name inside the run dir.
-const dindSeccompFileName = "seccomp.json"
+// SeccompFileName is the per-run profile's name inside the run dir.
+const SeccompFileName = "seccomp.json"
 
 // errnoENOSYS makes a syscall look unimplemented, which callers like runc treat as "feature absent" rather than a hard failure.
 const errnoENOSYS = 38
 
-// dindSeccompDefault is Docker's default seccomp profile, vendored verbatim from
+// seccompDefault is Docker's default seccomp profile, vendored verbatim from
 // github.com/moby/profiles (seccomp/default.json @ 6fe7deb, 2026-09-17); refresh by re-copying.
 //
-//go:embed dind_seccomp_default.json
-var dindSeccompDefault []byte
+//go:embed seccomp_default.json
+var seccompDefault []byte
 
-// dindSeccompDropped are syscalls the default profile unlocks with CAP_SYS_ADMIN (or other caps)
+// seccompDropped are syscalls the default profile unlocks with CAP_SYS_ADMIN (or other caps)
 // that neither rootless dockerd nor typical inner containers need; keeping them blocked keeps
 // eBPF, perf, the kernel log and fanotify out of reach.
-var dindSeccompDropped = []string{
+var seccompDropped = []string{
 	"bpf", "fanotify_init", "lookup_dcookie", "perf_event_open", "quotactl", "quotactl_fd", "syslog",
 }
 
-// dindSeccompExtraRules are what nested runc needs beyond the default profile: pivot_root to enter
+// seccompExtraRules are what nested runc needs beyond the default profile: pivot_root to enter
 // an inner container's rootfs, and keyring syscalls failing with ENOSYS (which runc tolerates)
 // instead of the default EPERM (which it doesn't) - so keyrings stay blocked.
-var dindSeccompExtraRules = []map[string]any{
+var seccompExtraRules = []map[string]any{
 	{
 		"names":    []string{"pivot_root"},
 		"action":   "SCMP_ACT_ALLOW",
@@ -43,11 +43,11 @@ var dindSeccompExtraRules = []map[string]any{
 	},
 }
 
-// dindSeccompProfile derives the sidecar's profile from Docker's default: dindSeccompDropped
-// removed from every allow rule, dindSeccompExtraRules appended, everything else untouched.
-func dindSeccompProfile() ([]byte, error) {
+// deriveSeccompProfile derives the sidecar's profile from Docker's default: seccompDropped
+// removed from every allow rule, seccompExtraRules appended, everything else untouched.
+func deriveSeccompProfile() ([]byte, error) {
 	var profile map[string]any
-	if err := json.Unmarshal(dindSeccompDefault, &profile); err != nil {
+	if err := json.Unmarshal(seccompDefault, &profile); err != nil {
 		return nil, fmt.Errorf("parse vendored seccomp profile: %w", err)
 	}
 
@@ -56,7 +56,7 @@ func dindSeccompProfile() ([]byte, error) {
 		return nil, fmt.Errorf("vendored seccomp profile has no syscalls list")
 	}
 
-	kept := make([]any, 0, len(rules)+len(dindSeccompExtraRules))
+	kept := make([]any, 0, len(rules)+len(seccompExtraRules))
 	for _, raw := range rules {
 		rule, ok := raw.(map[string]any)
 		if !ok || rule["action"] != "SCMP_ACT_ALLOW" {
@@ -72,7 +72,7 @@ func dindSeccompProfile() ([]byte, error) {
 		kept = append(kept, rule)
 	}
 
-	for _, rule := range dindSeccompExtraRules {
+	for _, rule := range seccompExtraRules {
 		kept = append(kept, rule)
 	}
 	profile["syscalls"] = kept
@@ -80,9 +80,9 @@ func dindSeccompProfile() ([]byte, error) {
 	return json.MarshalIndent(profile, "", "  ")
 }
 
-// writeDindSeccompProfile writes the derived profile to path; the docker CLI reads it client-side, so a host path works with any daemon.
-func writeDindSeccompProfile(path string) error {
-	content, err := dindSeccompProfile()
+// WriteSeccompProfile writes the derived profile to path; the docker CLI reads it client-side, so a host path works with any daemon.
+func WriteSeccompProfile(path string) error {
+	content, err := deriveSeccompProfile()
 	if err != nil {
 		return err
 	}
@@ -92,12 +92,12 @@ func writeDindSeccompProfile(path string) error {
 	return nil
 }
 
-// withoutDroppedSyscalls returns a rule's names minus dindSeccompDropped.
+// withoutDroppedSyscalls returns a rule's names minus seccompDropped.
 func withoutDroppedSyscalls(raw any) []any {
 	names, _ := raw.([]any)
 	result := make([]any, 0, len(names))
 	for _, name := range names {
-		if s, ok := name.(string); ok && slices.Contains(dindSeccompDropped, s) {
+		if s, ok := name.(string); ok && slices.Contains(seccompDropped, s) {
 			continue
 		}
 		result = append(result, name)

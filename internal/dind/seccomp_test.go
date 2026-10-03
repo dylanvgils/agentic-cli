@@ -1,4 +1,4 @@
-package docker
+package dind
 
 import (
 	"encoding/json"
@@ -11,24 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// seccompRule mirrors the fields of a profile rule the tests inspect.
-type seccompRule struct {
-	Names    []string `json:"names"`
-	Action   string   `json:"action"`
-	ErrnoRet *int     `json:"errnoRet"`
-	Includes struct {
-		Caps []string `json:"caps"`
-	} `json:"includes"`
-}
-
-// seccompProfile mirrors the top-level fields of a profile the tests inspect.
-type seccompProfile struct {
-	DefaultAction string        `json:"defaultAction"`
-	Syscalls      []seccompRule `json:"syscalls"`
-}
-
-func Test_dindSeccompProfile(t *testing.T) {
-	content, err := dindSeccompProfile()
+func Test_deriveSeccompProfile(t *testing.T) {
+	content, err := deriveSeccompProfile()
 	require.NoError(t, err)
 	var profile seccompProfile
 	require.NoError(t, json.Unmarshal(content, &profile))
@@ -52,7 +36,7 @@ func Test_dindSeccompProfile(t *testing.T) {
 	})
 
 	t.Run("never allows dropped kernel interfaces", func(t *testing.T) {
-		for _, name := range dindSeccompDropped {
+		for _, name := range seccompDropped {
 			// Act
 			allowed := allowedAnywhere(profile, name)
 
@@ -77,13 +61,13 @@ func Test_dindSeccompProfile(t *testing.T) {
 	t.Run("leaves the vendored default untouched otherwise", func(t *testing.T) {
 		// Arrange
 		var base seccompProfile
-		require.NoError(t, json.Unmarshal(dindSeccompDefault, &base))
+		require.NoError(t, json.Unmarshal(seccompDefault, &base))
 
 		// Act
 		var missing []string
 		for _, rule := range base.Syscalls {
 			for _, name := range rule.Names {
-				if slices.Contains(dindSeccompDropped, name) {
+				if slices.Contains(seccompDropped, name) {
 					continue
 				}
 				if _, found := findRule(profile, name, rule.Action); !found {
@@ -97,45 +81,16 @@ func Test_dindSeccompProfile(t *testing.T) {
 	})
 }
 
-func Test_writeDindSeccompProfile(t *testing.T) {
+func TestWriteSeccompProfile(t *testing.T) {
 	// Arrange
 	path := filepath.Join(t.TempDir(), "seccomp.json")
 
 	// Act
-	err := writeDindSeccompProfile(path)
+	err := WriteSeccompProfile(path)
 
 	// Assert
 	require.NoError(t, err)
 	content, readErr := os.ReadFile(path)
 	require.NoError(t, readErr)
 	assert.True(t, json.Valid(content))
-}
-
-// allowedAnywhere reports whether any allow rule in profile names syscall.
-func allowedAnywhere(profile seccompProfile, syscall string) bool {
-	_, found := findRule(profile, syscall, "SCMP_ACT_ALLOW")
-	return found
-}
-
-// allowedWithSysAdmin reports whether syscall is allowed unconditionally or when CAP_SYS_ADMIN is held.
-func allowedWithSysAdmin(profile seccompProfile, syscall string) bool {
-	for _, rule := range profile.Syscalls {
-		if rule.Action != "SCMP_ACT_ALLOW" || !slices.Contains(rule.Names, syscall) {
-			continue
-		}
-		if len(rule.Includes.Caps) == 0 || slices.Contains(rule.Includes.Caps, "CAP_SYS_ADMIN") {
-			return true
-		}
-	}
-	return false
-}
-
-// findRule returns the first rule with action that names syscall.
-func findRule(profile seccompProfile, syscall, action string) (seccompRule, bool) {
-	for _, rule := range profile.Syscalls {
-		if rule.Action == action && slices.Contains(rule.Names, syscall) {
-			return rule, true
-		}
-	}
-	return seccompRule{}, false
 }
