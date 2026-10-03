@@ -30,17 +30,29 @@ var seccompDropped = []string{
 // seccompExtraRules are what nested runc needs beyond the default profile: pivot_root to enter
 // an inner container's rootfs, and keyring syscalls failing with ENOSYS (which runc tolerates)
 // instead of the default EPERM (which it doesn't) - so keyrings stay blocked.
-var seccompExtraRules = []map[string]any{
-	{
+var seccompExtraRules = []any{
+	map[string]any{
 		"names":    []string{"pivot_root"},
 		"action":   "SCMP_ACT_ALLOW",
 		"includes": map[string]any{"caps": []string{"CAP_SYS_ADMIN"}},
 	},
-	{
+	map[string]any{
 		"names":    []string{"add_key", "keyctl", "request_key"},
 		"action":   "SCMP_ACT_ERRNO",
 		"errnoRet": errnoENOSYS,
 	},
+}
+
+// WriteSeccompProfile writes the derived profile to path; the docker CLI reads it client-side, so a host path works with any daemon.
+func WriteSeccompProfile(path string) error {
+	content, err := deriveSeccompProfile()
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		return fmt.Errorf("write seccomp profile: %w", err)
+	}
+	return nil
 }
 
 // deriveSeccompProfile derives the sidecar's profile from Docker's default: seccompDropped
@@ -55,12 +67,18 @@ func deriveSeccompProfile() ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("vendored seccomp profile has no syscalls list")
 	}
+	profile["syscalls"] = append(withoutDroppedRules(rules), seccompExtraRules...)
 
-	kept := make([]any, 0, len(rules)+len(seccompExtraRules))
+	return json.MarshalIndent(profile, "", "  ")
+}
+
+// withoutDroppedRules strips seccompDropped from every allow rule, removing rules left with no names.
+func withoutDroppedRules(rules []any) []any {
+	result := make([]any, 0, len(rules)+len(seccompExtraRules))
 	for _, raw := range rules {
 		rule, ok := raw.(map[string]any)
 		if !ok || rule["action"] != "SCMP_ACT_ALLOW" {
-			kept = append(kept, raw)
+			result = append(result, raw)
 			continue
 		}
 
@@ -69,27 +87,9 @@ func deriveSeccompProfile() ([]byte, error) {
 			continue
 		}
 		rule["names"] = names
-		kept = append(kept, rule)
+		result = append(result, rule)
 	}
-
-	for _, rule := range seccompExtraRules {
-		kept = append(kept, rule)
-	}
-	profile["syscalls"] = kept
-
-	return json.MarshalIndent(profile, "", "  ")
-}
-
-// WriteSeccompProfile writes the derived profile to path; the docker CLI reads it client-side, so a host path works with any daemon.
-func WriteSeccompProfile(path string) error {
-	content, err := deriveSeccompProfile()
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(path, content, 0o600); err != nil {
-		return fmt.Errorf("write seccomp profile: %w", err)
-	}
-	return nil
+	return result
 }
 
 // withoutDroppedSyscalls returns a rule's names minus seccompDropped.
