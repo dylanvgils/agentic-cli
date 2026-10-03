@@ -20,9 +20,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// dindImageMaxAge bounds how stale the sidecar image may get before a run rebuilds it, pulling the patched upstream base.
-const dindImageMaxAge = 7 * 24 * time.Hour
-
 var (
 	toolHome           string
 	extraVolumes       []string
@@ -239,13 +236,13 @@ func requireDockerLayer(image, tool string) error {
 }
 
 // ensureDindImage builds the sidecar image if missing, and rebuilds it when stamped by another CLI
-// version or older than dindImageMaxAge; a failed refresh of an existing image only warns, so offline runs still work.
+// version or older than tools.DindImageMaxAge; a failed refresh of an existing image only warns, so offline runs still work.
 func ensureDindImage(cmd *cobra.Command) error {
 	info, err := inspectImage(tools.DindImage)
 	if err != nil {
 		return err
 	}
-	if info != nil && info.CLIVersion == buildinfo.Version && !info.BuiltBefore(time.Now().Add(-dindImageMaxAge)) {
+	if info != nil && info.CLIVersion == buildinfo.Version && !info.BuiltBefore(time.Now().Add(-tools.DindImageMaxAge)) {
 		return nil
 	}
 

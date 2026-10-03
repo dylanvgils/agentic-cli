@@ -1,6 +1,10 @@
 package tools
 
-import df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
+import (
+	"time"
+
+	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
+)
 
 const (
 	// DindImageSuffix names the Docker sidecar image's tool label.
@@ -9,6 +13,9 @@ const (
 	// DindImage is the hardened Docker-in-Docker sidecar image. Like ProxyImage it is global, not
 	// namespaced: content only depends on CLI version and registry.
 	DindImage = "agentic-" + DindImageSuffix
+
+	// DindImageMaxAge bounds how stale the sidecar image may get before a run rebuilds it, pulling the patched upstream base.
+	DindImageMaxAge = 7 * 24 * time.Hour
 
 	// dindUser is the upstream image's preconfigured rootless user.
 	dindUser = "rootless"

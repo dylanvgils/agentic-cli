@@ -470,7 +470,7 @@ func TestEnsureDindImage(t *testing.T) {
 
 	t.Run("stale image is rebuilt to pick up base patches", func(t *testing.T) {
 		// Arrange
-		stale := formatTestLabelTime(time.Now().Add(-dindImageMaxAge - time.Hour))
+		stale := formatTestLabelTime(time.Now().Add(-tools.DindImageMaxAge - time.Hour))
 		stubInspectImage(t, &docker.ImageInfo{CLIVersion: buildinfo.Version, Built: stale}, nil)
 		built := false
 		stubBuildDindImage(t, func(string, tools.BuildOptions) error {
