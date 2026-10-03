@@ -296,7 +296,7 @@ func stubSidecarOrphanGrace(t *testing.T, d time.Duration) {
 	t.Cleanup(func() { sidecarOrphanGrace = orig })
 }
 
-// stubOwnedResources stubs dockerRun so `ps` and `network ls` return the given rows, recording every call.
+// stubOwnedResources stubs `ps` and `network ls` output, recording every call.
 func stubOwnedResources(t *testing.T, containers, networks string) func() []dockerCall {
 	t.Helper()
 	var calls []dockerCall
@@ -313,7 +313,7 @@ func stubOwnedResources(t *testing.T, containers, networks string) func() []dock
 	return func() []dockerCall { return calls }
 }
 
-// ownedRow formats a docker list row as ownedFormat renders it.
+// ownedRow formats a row as ownedFormat renders it.
 func ownedRow(name, owner string, age time.Duration) string {
 	return name + "\t" + owner + "\t" + formatLabelTime(time.Now().Add(-age)) + "\n"
 }

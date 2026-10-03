@@ -61,7 +61,7 @@ type RunSpec struct {
 	// network is the docker network the tool attaches to; empty means NetworkName, proxy or dind mode sets a per-run net.
 	network string
 
-	// container is the tool container's name, recorded on sidecars as their owner.
+	// container is the tool container's name, the sidecars' owner.
 	container string
 }
 
@@ -99,7 +99,7 @@ func IsReservedEnvName(key string, proxyEnabled bool) bool {
 	return reservedConfigNames[key]
 }
 
-// guardSignals routes interrupt/terminate/hangup signals to a channel so deferred cleanup still runs; stop uninstalls it.
+// guardSignals routes interrupt/terminate signals to a channel so deferred cleanup still runs; stop uninstalls it.
 func guardSignals() (signals <-chan os.Signal, stop func()) {
 	ch := make(chan os.Signal, 1)
 	// SIGHUP covers a closed terminal

@@ -52,10 +52,10 @@ const (
 
 	// -- Sidecar ownership --
 
-	// LabelOwner records the tool container a sidecar or its network serves, so orphans can be swept.
+	// LabelOwner records the tool container a sidecar or its network serves.
 	LabelOwner = "agentic.owner"
 
-	// LabelStarted records when a sidecar or its network was created, for the orphan sweep's grace period.
+	// LabelStarted records when a sidecar or its network was created.
 	LabelStarted = "agentic.started"
 
 	// -- Cache --

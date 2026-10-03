@@ -7,18 +7,25 @@ import (
 	"time"
 )
 
-// sidecarOrphanGrace spares a concurrent run's sidecars while its tool container doesn't exist yet;
-// it must outlast proxy startup plus dindReadyTimeout.
+// sidecarOrphanGrace spares a starting run's sidecars; must outlast dindReadyTimeout.
 var sidecarOrphanGrace = 5 * time.Minute
 
-// ownedResource is a sidecar container or network stamped by ownerLabels.
+// ownedResource is a sidecar container or network carrying ownerLabels.
 type ownedResource struct {
 	name    string
 	owner   string
 	started time.Time
 }
 
-// ownerLabels returns the --label flags tying a sidecar or its network to the tool container it serves.
+// isOrphan reports whether r's owner is gone and r is past the grace period; unlabelled ones never are.
+func (r ownedResource) isOrphan(existing map[string]bool) bool {
+	if r.owner == "" || existing[r.owner] || r.started.IsZero() {
+		return false
+	}
+	return time.Since(r.started) >= sidecarOrphanGrace
+}
+
+// ownerLabels tie a sidecar or its network to its tool container.
 func ownerLabels(rs RunSpec) []string {
 	return []string{
 		label(LabelOwner, rs.container),
@@ -26,13 +33,10 @@ func ownerLabels(rs RunSpec) []string {
 	}
 }
 
-// setupSidecars removes crashed runs' sidecars, then starts this run's proxy and dind; cleanup stops both.
+// setupSidecars sweeps orphans, then starts the proxy and dind; cleanup stops both.
 func setupSidecars(rs *RunSpec) (args []string, cleanup func(), err error) {
 	if !rs.DryRun {
-		// A crashed run never reaches its deferred cleanup, so remove its sidecars here
-		if err := sweepOrphanedSidecars(rs.ToolHome); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not remove orphaned sidecars: %v\n", err)
-		}
+		warnOnSweepError(sweepOrphanedSidecars(rs.ToolHome))
 	}
 
 	proxyEnv, proxyCleanup, err := setupProxy(rs)
@@ -54,50 +58,66 @@ func setupSidecars(rs *RunSpec) (args []string, cleanup func(), err error) {
 	return append(proxyEnv, dindArgs...), cleanup, nil
 }
 
-// sweepOrphanedSidecars removes sidecars and networks whose tool container is gone, e.g. after the CLI was killed,
-// then stale dind run dirs; individual removals are best-effort so a racing run can't make it fail.
+// warnOnSweepError reports a failed sweep without failing the run.
+func warnOnSweepError(err error) {
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not remove orphaned sidecars: %v\n", err)
+	}
+}
+
+// sweepOrphanedSidecars removes sidecars, networks and run dirs whose tool container is gone; removals are best-effort.
 func sweepOrphanedSidecars(toolHome string) error {
-	containers, existing, err := listOwnedContainers()
+	existing, err := removeOrphanedContainers()
 	if err != nil {
 		return err
 	}
-	for _, name := range orphaned(containers, existing) {
-		_, _ = dockerRun("rm", arg("force"), arg("volumes"), name)
-	}
-
-	networks, err := listOwned("network", "ls", arg("format", ownedFormat(".Name")), arg("filter", "label="+LabelOwner))
-	if err != nil {
+	if err := removeOrphanedNetworks(existing); err != nil {
 		return err
 	}
-	for _, name := range orphaned(networks, existing) {
-		_, _ = dockerRun("network", "rm", name)
-	}
 
-	// Without a tool home the run dir base would be relative to the working directory
+	// Else the run dir base would be relative to the cwd
 	if toolHome == "" {
 		return nil
 	}
 	return sweepDindRunDirs(toolHome)
 }
 
-// listOwnedContainers returns the owned containers plus the names of all agentic containers, existing or stopped.
-func listOwnedContainers() (owned []ownedResource, existing map[string]bool, err error) {
+// removeOrphanedContainers removes orphaned sidecars and returns the names of all agentic containers.
+func removeOrphanedContainers() (existing map[string]bool, err error) {
 	all, err := listOwned("ps", arg("all"), arg("format", ownedFormat(".Names")), labelFilter(LabelProject, LabelProjectVal))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	existing = make(map[string]bool, len(all))
 	for _, r := range all {
 		existing[r.name] = true
-		if r.owner != "" {
-			owned = append(owned, r)
+	}
+
+	for _, r := range all {
+		if r.isOrphan(existing) {
+			_, _ = dockerRun("rm", arg("force"), arg("volumes"), r.name)
 		}
 	}
-	return owned, existing, nil
+	return existing, nil
 }
 
-// listOwned runs a docker list command formatted with ownedFormat and parses its rows.
+// removeOrphanedNetworks removes sidecar networks whose owner isn't in existing.
+func removeOrphanedNetworks(existing map[string]bool) error {
+	networks, err := listOwned("network", "ls", arg("format", ownedFormat(".Name")), arg("filter", "label="+LabelOwner))
+	if err != nil {
+		return err
+	}
+
+	for _, r := range networks {
+		if r.isOrphan(existing) {
+			_, _ = dockerRun("network", "rm", r.name)
+		}
+	}
+	return nil
+}
+
+// listOwned runs a docker list command and parses its ownedFormat rows.
 func listOwned(args ...string) ([]ownedResource, error) {
 	out, err := dockerRun(args...)
 	if err != nil {
@@ -106,35 +126,25 @@ func listOwned(args ...string) ([]ownedResource, error) {
 
 	var result []ownedResource
 	for line := range strings.Lines(out) {
-		fields := strings.Split(strings.TrimRight(line, "\r\n"), "\t")
-		if len(fields) != 3 || fields[0] == "" {
-			continue
+		if r, ok := parseOwnedRow(line); ok {
+			result = append(result, r)
 		}
-
-		r := ownedResource{name: fields[0], owner: fields[1]}
-		r.started, _ = parseLabelTime(fields[2])
-		result = append(result, r)
 	}
 	return result, nil
 }
 
-// orphaned returns the names of resources whose owner isn't existing and that are older than sidecarOrphanGrace;
-// ones without an owner or a parseable start time are left alone.
-func orphaned(resources []ownedResource, existing map[string]bool) []string {
-	var names []string
-	for _, r := range resources {
-		if r.owner == "" || existing[r.owner] || r.started.IsZero() {
-			continue
-		}
-		if time.Since(r.started) < sidecarOrphanGrace {
-			continue
-		}
-		names = append(names, r.name)
+// parseOwnedRow parses one ownedFormat row; an unparseable start time is left zero.
+func parseOwnedRow(line string) (ownedResource, bool) {
+	fields := strings.Split(strings.TrimRight(line, "\r\n"), "\t")
+	if len(fields) != 3 || fields[0] == "" {
+		return ownedResource{}, false
 	}
-	return names
+
+	started, _ := parseLabelTime(fields[2])
+	return ownedResource{name: fields[0], owner: fields[1], started: started}, true
 }
 
-// ownedFormat lists a resource's name, owner and start time, tab-separated; nameField is .Names for containers, .Name for networks.
+// ownedFormat renders name, owner and start time; nameField is .Names or .Name for networks.
 func ownedFormat(nameField string) string {
 	return "{{" + nameField + "}}\t{{.Label \"" + LabelOwner + "\"}}\t{{.Label \"" + LabelStarted + "\"}}"
 }

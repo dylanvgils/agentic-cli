@@ -28,7 +28,7 @@ func networkOrDefault(network string) string {
 	return network
 }
 
-// buildRunArgs assembles the tool container's full `docker run` args around the sidecar args.
+// buildRunArgs assembles the tool container's `docker run` args.
 func buildRunArgs(rs RunSpec, sidecarArgs, toolArgs []string) ([]string, error) {
 	secretArgs, err := buildSecretArgs(rs)
 	if err != nil {
@@ -56,7 +56,7 @@ func buildBaseArgs(rs RunSpec) []string {
 	return []string{
 		// Run container read-only, remove when done
 		"run", "--rm", "--read-only",
-		// Identify the container in `docker ps`/logs; randomized per run, and the owner sidecars point at
+		// Identify the container in `docker ps`/logs; randomized per run
 		arg("name", rs.container),
 		label(LabelProject, LabelProjectVal),
 		// Limit the number of PIDs (processes) the container can spawn
