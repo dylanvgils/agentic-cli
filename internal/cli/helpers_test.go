@@ -195,7 +195,7 @@ func stubCleanSweepProxyResources(t *testing.T, fn func() error) {
 	t.Cleanup(func() { clean.SweepProxyResources = orig })
 }
 
-func stubCleanSweepDindResources(t *testing.T, fn func() error) {
+func stubCleanSweepDindResources(t *testing.T, fn func(string) error) {
 	t.Helper()
 	orig := clean.SweepDindResources
 	clean.SweepDindResources = fn

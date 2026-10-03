@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/require"
@@ -215,6 +216,33 @@ func stubDindReadyTimeout(t *testing.T) {
 	t.Cleanup(func() { dindReadyTimeout, dindPollInterval = origTimeout, origInterval })
 }
 
+// stubDindReadyTimeoutLong makes the dind readiness wait long enough that only a fail-fast path can end it within a test.
+func stubDindReadyTimeoutLong(t *testing.T) {
+	t.Helper()
+	orig := dindReadyTimeout
+	dindReadyTimeout = time.Hour
+	t.Cleanup(func() { dindReadyTimeout = orig })
+}
+
+// stubDindProbe stubs dockerRun so the readiness probe always fails and `inspect` reports running as the given state.
+func stubDindProbe(t *testing.T, running string) func() []dockerCall {
+	t.Helper()
+	var calls []dockerCall
+	stubDockerRun(t, func(args ...string) (string, error) {
+		calls = append(calls, dockerCall{args: args})
+		switch args[0] {
+		case "exec":
+			return "", fmt.Errorf("stub: dockerd not ready")
+		case "inspect":
+			return running + "\n", nil
+		case "logs":
+			return "rootlesskit: failed to setup UID/GID map", nil
+		}
+		return "", nil
+	})
+	return func() []dockerCall { return calls }
+}
+
 // findCall returns the args of the first recorded call whose leading args equal prefix, or nil.
 func findCall(calls []dockerCall, prefix ...string) []string {
 	for _, c := range calls {
@@ -239,4 +267,23 @@ func stubHostUserGroup(t *testing.T, val string) {
 	orig := hostUserGroup
 	hostUserGroup = func() string { return val }
 	t.Cleanup(func() { hostUserGroup = orig })
+}
+
+// stubDindRunDirGrace replaces dindRunDirGrace with d for the duration of the test.
+func stubDindRunDirGrace(t *testing.T, d time.Duration) {
+	t.Helper()
+	orig := dindRunDirGrace
+	dindRunDirGrace = d
+	t.Cleanup(func() { dindRunDirGrace = orig })
+}
+
+// makeDindRunDir creates toolHome/dind/<name> holding a key file, backdated by age, and returns its path.
+func makeDindRunDir(t *testing.T, toolHome, name string, age time.Duration) string {
+	t.Helper()
+	dir := filepath.Join(toolHome, dindDirName, name)
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "key.pem"), []byte("key"), 0o600))
+	past := time.Now().Add(-age)
+	require.NoError(t, os.Chtimes(dir, past, past))
+	return dir
 }

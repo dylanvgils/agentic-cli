@@ -34,7 +34,7 @@ func stubSweepProxyResources(t *testing.T, fn func() error) {
 	t.Cleanup(func() { SweepProxyResources = orig })
 }
 
-func stubSweepDindResources(t *testing.T, fn func() error) {
+func stubSweepDindResources(t *testing.T, fn func(string) error) {
 	t.Helper()
 	orig := SweepDindResources
 	SweepDindResources = fn

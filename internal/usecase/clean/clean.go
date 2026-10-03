@@ -43,8 +43,8 @@ func Apply(targets []Target) error {
 	return nil
 }
 
-// GlobalResources removes agentic's shared, non-tool-specific Docker resources: base images, the proxy and Docker sidecar images, leftover sidecar resources, and the agentic-net network.
-func GlobalResources() error {
+// GlobalResources removes agentic's shared, non-tool-specific Docker resources: base images, the proxy and Docker sidecar images, leftover sidecar resources (including per-run dirs under toolHome), and the agentic-net network.
+func GlobalResources(toolHome string) error {
 	logging.Step("base")
 	if err := CleanBaseImages(); err != nil {
 		return err
@@ -58,7 +58,7 @@ func GlobalResources() error {
 		return err
 	}
 	// Sidecars may sit on a proxy network, so they go first
-	if err := SweepDindResources(); err != nil {
+	if err := SweepDindResources(toolHome); err != nil {
 		return err
 	}
 	if err := SweepProxyResources(); err != nil {

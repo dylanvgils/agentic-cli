@@ -48,7 +48,7 @@ func dindStage(registry string) df.Stage {
 			{Comment: "Fail the build if any setuid/setgid binary is left", Lines: []string{
 				`test -z "$(find / -xdev -type f -perm /6000)"`,
 			}},
-			{Comment: "Let whichever host uid the sidecar runs as own its data-root (the anonymous volume copies these perms)", Lines: []string{
+			{Comment: "Let whichever host uid the sidecar runs as create its data-root inside the volume (the anonymous volume copies these perms)", Lines: []string{
 				`chmod 1777 /home/rootless/.local/share/docker`,
 			}},
 		}}).

@@ -2,9 +2,12 @@ package docker
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -39,17 +42,31 @@ const (
 	// dindConfigSubdir holds the tool's writable DOCKER_CONFIG (buildx state, logins), mounted at dindConfigPath.
 	dindConfigSubdir = "config"
 	dindConfigPath   = "/run/docker-config"
+
+	// dindDataRoot is a subdir of the image's VOLUME (mode 1777, owned by the image user) that dockerd creates
+	// itself, so it owns it and can chmod it; the VOLUME root is unmapped in the user namespace unless the host uid is 1000.
+	dindDataRoot = dind.Home + "/.local/share/docker/data"
+
+	// dindProbeTimeout bounds each in-sidecar readiness probe (seconds), so a dockerd that accepts but never answers can't stall it.
+	dindProbeTimeout = "10"
 )
 
 // hostUserGroup is a test-stubbable indirection into platform.UserGroup.
 var hostUserGroup = platform.UserGroup
 
 var (
-	// Readiness wait for dockerd, and how much sidecar log to show if it never answers; vars so tests can shorten them.
-	dindReadyTimeout  = 90 * time.Second
-	dindPollInterval  = time.Second
-	dindLogTailOnFail = "30"
+	// Readiness wait for dockerd, progress cadence, and how much sidecar log to show if it never answers; vars so tests can shorten them.
+	dindReadyTimeout     = 90 * time.Second
+	dindPollInterval     = time.Second
+	dindProgressInterval = 15 * time.Second
+	dindLogTailOnFail    = "30"
 )
+
+// dindRunDirGrace spares a run dir whose sidecar isn't started yet from a concurrent run's sweep; a var so tests can shorten it.
+var dindRunDirGrace = 10 * time.Minute
+
+// dindRunIDPattern matches randID output, so the run-dir sweep never touches anything agentic didn't create.
+var dindRunIDPattern = regexp.MustCompile(`^[0-9a-f]{12}$`)
 
 // dindCapabilities is the sidecar's capability bounding set. Rootless dockerd starts as the host user
 // with no effective capabilities on the host; these only become usable inside the user namespace
@@ -132,7 +149,8 @@ func (h dindHandle) Stop() {
 // runArgs builds the `docker run` arguments for the rootless dockerd sidecar.
 func (h dindHandle) runArgs(rs RunSpec) []string {
 	args := []string{
-		"run", "--detach", "--rm", "--read-only",
+		// No --rm: a crashed sidecar keeps its logs for waitReady; Stop and SweepDindResources remove it
+		"run", "--detach", "--read-only",
 		arg("name", h.container),
 		arg("network", h.network),
 		arg("network-alias", dindHostAlias),
@@ -158,7 +176,7 @@ func (h dindHandle) runArgs(rs RunSpec) []string {
 	}
 
 	args = append(args,
-		// dockerd's runtime dir (XDG_RUNTIME_DIR=/run/user/<uid>) and scratch space; the data-root is the image's VOLUME
+		// dockerd's runtime dir (XDG_RUNTIME_DIR=/run/user/<uid>) and scratch space; the data-root lives in the image's VOLUME
 		arg("tmpfs", "/run:rw,mode=1777"),
 		arg("tmpfs", "/tmp:rw,mode=1777"),
 		arg("env", "DOCKER_TLS_CERTDIR="+dindCertMountDir),
@@ -179,7 +197,8 @@ func (h dindHandle) runArgs(rs RunSpec) []string {
 		args = append(args, proxyEnvArgs(false)...)
 	}
 
-	return append(args, rs.DindImage)
+	// Trailing flags are passed through to dockerd by the image's entrypoint
+	return append(args, rs.DindImage, arg("data-root", dindDataRoot))
 }
 
 // toolArgs returns the env, read-only client-cert mount and writable config mount pointing the tool's docker CLI at the sidecar.
@@ -201,8 +220,9 @@ func (h dindHandle) certVolume(subdir, containerPath string) string {
 	return spec + ":ro"
 }
 
-// waitReady polls dockerd over TLS until it answers or dindReadyTimeout passes, attaching the sidecar's log tail on failure.
-func (h dindHandle) waitReady() error {
+// waitReady polls dockerd over TLS until it answers, failing early if the sidecar exits, dindReadyTimeout
+// passes, or interrupt fires; attaches the sidecar's log tail on failure.
+func (h dindHandle) waitReady(interrupt <-chan os.Signal) error {
 	clientCerts := dindCertMountDir + "/" + dind.ClientCertSubdir
 	probe := []string{
 		"exec",
@@ -210,22 +230,46 @@ func (h dindHandle) waitReady() error {
 		arg("env", "DOCKER_TLS_VERIFY=1"),
 		arg("env", "DOCKER_CERT_PATH="+clientCerts),
 		h.container,
+		"timeout", dindProbeTimeout,
 		"docker", "version", arg("format", "{{.Server.Version}}"),
 	}
 
-	deadline := time.Now().Add(dindReadyTimeout)
+	start := time.Now()
+	lastProgress := start
+	reason := fmt.Sprintf("did not become ready within %s", dindReadyTimeout)
 	for {
 		if _, err := dockerRun(probe...); err == nil {
 			return nil
 		}
-		if time.Now().After(deadline) {
+
+		if h.exited() {
+			reason = "exited before becoming ready"
 			break
 		}
-		time.Sleep(dindPollInterval)
+		if time.Since(start) > dindReadyTimeout {
+			break
+		}
+
+		if time.Since(lastProgress) >= dindProgressInterval {
+			fmt.Fprintf(os.Stderr, "still waiting for docker sidecar (%s)...\n", time.Since(start).Round(time.Second))
+			lastProgress = time.Now()
+		}
+
+		select {
+		case <-interrupt:
+			return fmt.Errorf("docker sidecar startup interrupted")
+		case <-time.After(dindPollInterval):
+		}
 	}
 
 	logs, _ := dockerRun("logs", arg("tail", dindLogTailOnFail), h.container)
-	return fmt.Errorf("docker sidecar did not become ready within %s:\n%s", dindReadyTimeout, strings.TrimSpace(logs))
+	return fmt.Errorf("docker sidecar %s:\n%s", reason, strings.TrimSpace(logs))
+}
+
+// exited reports whether the sidecar has stopped or vanished, so waitReady stops polling a dead daemon.
+func (h dindHandle) exited() bool {
+	out, err := dockerRun("inspect", arg("format", "{{.State.Running}}"), h.container)
+	return err != nil || strings.TrimSpace(out) == "false"
 }
 
 // IsReservedDindEnvName reports whether key is an env var the Docker sidecar manages.
@@ -233,9 +277,9 @@ func IsReservedDindEnvName(key string) bool {
 	return dindReservedEnvNames[key]
 }
 
-// SweepDindResources idempotently removes leftover sidecars (with their data volumes) and per-run
-// networks from interrupted runs, scoped to agentic-managed resources.
-func SweepDindResources() error {
+// SweepDindResources idempotently removes leftover sidecars (with their data volumes), per-run
+// networks and per-run dirs under toolHome from interrupted runs, scoped to agentic-managed resources.
+func SweepDindResources(toolHome string) error {
 	listContainerArgs := []string{
 		"ps", arg("all"), arg("quiet"),
 		labelFilter(LabelProject, LabelProjectVal),
@@ -252,12 +296,21 @@ func SweepDindResources() error {
 		nameFilter(dindNetworkPrefix),
 	}
 	removeNetworkArgs := []string{"network", "rm"}
-	return runIfAny(listNetworkArgs, removeNetworkArgs)
+	if err := runIfAny(listNetworkArgs, removeNetworkArgs); err != nil {
+		return err
+	}
+
+	return sweepDindRunDirs(toolHome)
 }
 
 // startDind generates per-run certs, provisions the network (unless joining the proxy's), starts
-// the sidecar and waits for dockerd; cleans up whatever it created on any failure.
-func startDind(rs RunSpec) (dindHandle, error) {
+// the sidecar and waits for dockerd (abandoned if interrupt fires); cleans up whatever it created on any failure.
+func startDind(rs RunSpec, interrupt <-chan os.Signal) (dindHandle, error) {
+	// A crashed run never reaches Stop, so heal its leftovers (keys, registry logins) here instead of waiting for `agentic clean`
+	if err := sweepDindRunDirs(rs.ToolHome); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not remove stale docker sidecar dirs: %v\n", err)
+	}
+
 	h, err := newDindHandle(rs)
 	if err != nil {
 		return dindHandle{}, err
@@ -296,12 +349,57 @@ func startDind(rs RunSpec) (dindHandle, error) {
 		return dindHandle{}, fmt.Errorf("start docker sidecar: %w", err)
 	}
 
-	if err := h.waitReady(); err != nil {
+	if err := h.waitReady(interrupt); err != nil {
 		h.Stop()
 		return dindHandle{}, err
 	}
 
 	return h, nil
+}
+
+// sweepDindRunDirs removes per-run dirs under toolHome whose sidecar container is gone, sparing
+// ones younger than dindRunDirGrace; a missing dind dir is a no-op.
+func sweepDindRunDirs(toolHome string) error {
+	base := filepath.Join(toolHome, dindDirName)
+	entries, err := os.ReadDir(base)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read dind dir: %w", err)
+	}
+
+	listArgs := []string{
+		"ps", arg("all"), arg("format", "{{.Names}}"),
+		labelFilter(LabelProject, LabelProjectVal),
+		nameFilter(dindHostAlias),
+	}
+	out, err := dockerRun(listArgs...)
+	if err != nil {
+		return err
+	}
+
+	live := make(map[string]bool)
+	for _, name := range strings.Fields(out) {
+		live[strings.TrimPrefix(name, dindHostAlias+"-")] = true
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() || !dindRunIDPattern.MatchString(entry.Name()) || live[entry.Name()] {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil || time.Since(info.ModTime()) < dindRunDirGrace {
+			continue
+		}
+
+		if err := os.RemoveAll(filepath.Join(base, entry.Name())); err != nil {
+			return fmt.Errorf("remove stale dind run dir: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // workspaceVolumes returns the tool's volume specs targeting /workspace (the project bind plus any

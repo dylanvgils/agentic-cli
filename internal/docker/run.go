@@ -145,7 +145,7 @@ func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 	// signals suppresses Go's default termination so deferred cleanup
 	// runs after the tool container (which the terminal also signals)
 	// exits and runInteractive returns.
-	stop := guardSignals()
+	_, stop := guardSignals()
 
 	cleanup = func() {
 		// Stop the sidecar before reading its log: it may still be writing
@@ -179,14 +179,16 @@ func setupDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
 		return handle.toolArgs(), func() {}, nil
 	}
 
+	// Guard before starting so Ctrl-C during the readiness wait aborts it and still removes the sidecar
+	interrupt, stop := guardSignals()
 	fmt.Fprintln(os.Stderr, "starting docker sidecar...")
-	handle, err := startDind(*rs)
+	handle, err := startDind(*rs, interrupt)
 	if err != nil {
+		stop()
 		return nil, nil, err
 	}
 	rs.network = handle.network
 
-	stop := guardSignals()
 	cleanup = func() {
 		handle.Stop()
 		stop()
@@ -194,10 +196,10 @@ func setupDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
 	return handle.toolArgs(), cleanup, nil
 }
 
-// guardSignals installs a no-op interrupt/terminate handler and returns a func to uninstall it,
-// keeping the process alive long enough to run deferred proxy cleanup on Ctrl-C.
-func guardSignals() func() {
+// guardSignals captures interrupt/terminate signals on the returned channel instead of exiting, keeping
+// the process alive long enough to run deferred sidecar cleanup on Ctrl-C; stop uninstalls the handler.
+func guardSignals() (signals <-chan os.Signal, stop func()) {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
-	return func() { signal.Stop(ch) }
+	return ch, func() { signal.Stop(ch) }
 }
