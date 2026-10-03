@@ -7,13 +7,6 @@ import (
 	"syscall"
 )
 
-// Default resource limits, used by usecase/run.resolveResourceLimits as the last fallback.
-const (
-	DefaultPidsLimit = "1024"
-	DefaultCPUs      = "4"
-	DefaultMemory    = "4g"
-)
-
 // proxyEnvNames are the env vars the egress proxy injects; overriding one via --env would silently break allowlist enforcement.
 var proxyEnvNames = map[string]bool{
 	"HTTP_PROXY":  true,
@@ -41,9 +34,7 @@ type RunSpec struct {
 	Env            []string
 	SkipEntrypoint bool
 	TmpfsMounts    []string
-	PidsLimit      string
-	CPUs           string
-	Memory         string
+	Limits         ResourceLimits
 	DryRun         bool
 
 	// Egress proxy. When ProxyEnabled, the tool reaches out only through a sidecar that enforces
@@ -55,11 +46,9 @@ type RunSpec struct {
 	ProxyMonitor bool     // log the allowlist verdict without enforcing it
 
 	// Docker-in-Docker sidecar, reachable at DOCKER_HOST over mutual TLS
-	DindEnabled   bool
-	DindImage     string
-	DindPidsLimit string
-	DindCPUs      string
-	DindMemory    string
+	DindEnabled bool
+	DindImage   string
+	DindLimits  ResourceLimits
 
 	// network is the docker network the tool attaches to; empty means NetworkName, proxy or dind mode sets a per-run net.
 	network string

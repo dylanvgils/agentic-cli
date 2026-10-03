@@ -167,8 +167,10 @@ func Test_dindHandle_runArgs(t *testing.T) {
 	t.Run("hardened rootless sidecar", func(t *testing.T) {
 		// Arrange
 		rs := RunSpec{
-			DindImage: "docker:29-dind-rootless", PidsLimit: "1024", CPUs: "4", Memory: "4g",
-			DindPidsLimit: "2048", DindCPUs: "2", DindMemory: "8g", container: "agentic-claude-abc",
+			DindImage:  "docker:29-dind-rootless",
+			Limits:     ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"},
+			DindLimits: ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"},
+			container:  "agentic-claude-abc",
 		}
 
 		// Act

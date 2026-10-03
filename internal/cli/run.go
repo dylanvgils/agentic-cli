@@ -136,9 +136,6 @@ func runTool(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	pidsLimit, cpus, memory := resolveResourceLimitFlags(cmd)
-	dindPidsLimit, dindCPUs, dindMemory := resolveDindResourceLimitFlags(cmd)
-
 	target := run.Target{
 		ToolName:       parsedArgs.toolName,
 		ImageName:      parsedArgs.imageName,
@@ -150,17 +147,13 @@ func runTool(cmd *cobra.Command, args []string) error {
 		Secrets:        flagSecrets,
 		ReadOnlyMounts: flagReadOnlyMounts,
 		Env:            flagEnv,
-		PidsLimit:      pidsLimit,
-		CPUs:           cpus,
-		Memory:         memory,
+		Limits:         resolveResourceLimitFlags(cmd),
 		DryRun:         dryRun,
 		Registry:       collectRegistry(cmd),
 		ProxyEnabled:   proxyEnabled,
 		ProxyMonitor:   proxyMonitor,
 		DindEnabled:    dindEnabled,
-		DindPidsLimit:  dindPidsLimit,
-		DindCPUs:       dindCPUs,
-		DindMemory:     dindMemory,
+		DindLimits:     resolveDindResourceLimitFlags(cmd),
 	}
 
 	rs, cleanupInstructions, err := run.BuildWithInstructions(target, input, toolConfig, rc)

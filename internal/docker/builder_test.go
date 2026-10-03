@@ -23,9 +23,7 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 		WithSecrets("token:/run/secrets/token").
 		WithSkipEntrypoint(true).
 		WithTmpfsMounts("/tmp", "/run").
-		WithPidsLimit("512").
-		WithCPUs("2").
-		WithMemory("2g").
+		WithLimits(ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}).
 		WithDryRun(true).
 		Build()
 
@@ -37,9 +35,7 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 	assert.Equal(t, []string{"token:/run/secrets/token"}, result.Secrets)
 	assert.True(t, result.SkipEntrypoint)
 	assert.Equal(t, []string{"/tmp", "/run"}, result.TmpfsMounts)
-	assert.Equal(t, "512", result.PidsLimit)
-	assert.Equal(t, "2", result.CPUs)
-	assert.Equal(t, "2g", result.Memory)
+	assert.Equal(t, ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, result.Limits)
 	assert.True(t, result.DryRun)
 }
 
@@ -71,13 +67,11 @@ func TestRunSpecBuilder_WithDind(t *testing.T) {
 func TestRunSpecBuilder_WithDindLimits(t *testing.T) {
 	// Act
 	result := NewRunSpec("agentic-claude").
-		WithDindLimits("2048", "2", "8g").
+		WithDindLimits(ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}).
 		Build()
 
 	// Assert
-	assert.Equal(t, "2048", result.DindPidsLimit)
-	assert.Equal(t, "2", result.DindCPUs)
-	assert.Equal(t, "8g", result.DindMemory)
+	assert.Equal(t, ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}, result.DindLimits)
 }
 
 func TestRunSpecBuilder_WithVolumes_variadic(t *testing.T) {

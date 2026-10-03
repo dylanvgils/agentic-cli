@@ -5,13 +5,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 )
 
-// ResourceLimits holds the resolved container resource limits.
-type ResourceLimits struct {
-	PidsLimit string
-	CPUs      string
-	Memory    string
-}
-
 // Volumes merges the tool's built-in mounts, --volume flag values, and .agenticrc.toml extra_mounts, in that order.
 func Volumes(toolMounts, extra []string, rc *config.AgenticRC) []string {
 	volumes := append([]string{}, toolMounts...)
@@ -50,29 +43,9 @@ func Env(flags []string, rc *config.AgenticRC) []string {
 }
 
 // ResourceLimitsFor resolves each limit through flag, then rc, then hardcoded default.
-func ResourceLimitsFor(pidsLimit, cpus, memory string, rc *config.AgenticRC) ResourceLimits {
+func ResourceLimitsFor(flags docker.ResourceLimits, rc *config.AgenticRC) docker.ResourceLimits {
 	run := rc.Run
-	if pidsLimit == "" {
-		pidsLimit = run.PidsLimit
-	}
-	if cpus == "" {
-		cpus = run.CPUs
-	}
-	if memory == "" {
-		memory = run.Memory
-	}
+	rcLimits := docker.ResourceLimits{PidsLimit: run.PidsLimit, CPUs: run.CPUs, Memory: run.Memory}
 
-	return ResourceLimits{
-		PidsLimit: resolveLimit(pidsLimit, docker.DefaultPidsLimit),
-		CPUs:      resolveLimit(cpus, docker.DefaultCPUs),
-		Memory:    resolveLimit(memory, docker.DefaultMemory),
-	}
-}
-
-// resolveLimit returns val if non-empty, otherwise fallback.
-func resolveLimit(val, fallback string) string {
-	if val != "" {
-		return val
-	}
-	return fallback
+	return flags.Or(rcLimits).Or(docker.DefaultLimits)
 }

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/spf13/cobra"
@@ -66,11 +67,8 @@ func addResourceLimitFlags(cmd *cobra.Command) {
 }
 
 // resolveResourceLimitFlags returns the --pids-limit, --cpus, and --memory flag values.
-func resolveResourceLimitFlags(cmd *cobra.Command) (pidsLimit, cpus, memory string) {
-	pidsLimit, _ = cmd.Flags().GetString("pids-limit")
-	cpus, _ = cmd.Flags().GetString("cpus")
-	memory, _ = cmd.Flags().GetString("memory")
-	return pidsLimit, cpus, memory
+func resolveResourceLimitFlags(cmd *cobra.Command) docker.ResourceLimits {
+	return limitFlags(cmd, "pids-limit", "cpus", "memory")
 }
 
 // addProxyFlags registers the mutually exclusive --proxy, --no-proxy, and --proxy-monitor flags shared by the run and instructions commands.
@@ -92,11 +90,8 @@ func addDindFlags(cmd *cobra.Command) {
 }
 
 // resolveDindResourceLimitFlags returns the --dind-* limit flag values.
-func resolveDindResourceLimitFlags(cmd *cobra.Command) (pidsLimit, cpus, memory string) {
-	pidsLimit, _ = cmd.Flags().GetString("dind-pids-limit")
-	cpus, _ = cmd.Flags().GetString("dind-cpus")
-	memory, _ = cmd.Flags().GetString("dind-memory")
-	return pidsLimit, cpus, memory
+func resolveDindResourceLimitFlags(cmd *cobra.Command) docker.ResourceLimits {
+	return limitFlags(cmd, "dind-pids-limit", "dind-cpus", "dind-memory")
 }
 
 // resolveDindEnabled reads the dind flags and resolves them against rc.
@@ -172,4 +167,13 @@ func exactFlagValue(cmd *cobra.Command, name string) *[]string {
 	}
 	v, _ := cmd.Flags().GetStringSlice(name)
 	return &v
+}
+
+// limitFlags reads the named PID, CPU and memory flags into ResourceLimits.
+func limitFlags(cmd *cobra.Command, pidsLimitFlag, cpusFlag, memoryFlag string) docker.ResourceLimits {
+	pidsLimit, _ := cmd.Flags().GetString(pidsLimitFlag)
+	cpus, _ := cmd.Flags().GetString(cpusFlag)
+	memory, _ := cmd.Flags().GetString(memoryFlag)
+
+	return docker.ResourceLimits{PidsLimit: pidsLimit, CPUs: cpus, Memory: memory}
 }

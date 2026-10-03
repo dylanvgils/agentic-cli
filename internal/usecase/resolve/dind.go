@@ -1,6 +1,9 @@
 package resolve
 
-import "github.com/dylanvgils/agentic-cli/internal/config"
+import (
+	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/docker"
+)
 
 // DindInput carries the flag-derived values DindEnabled needs.
 type DindInput struct {
@@ -21,21 +24,9 @@ func DindEnabled(in DindInput, rc *config.AgenticRC) bool {
 }
 
 // DindResourceLimitsFor resolves each sidecar limit: flag, then [run.dind], then the tool's limit.
-func DindResourceLimitsFor(pidsLimit, cpus, memory string, rc *config.AgenticRC, tool ResourceLimits) ResourceLimits {
+func DindResourceLimitsFor(flags docker.ResourceLimits, rc *config.AgenticRC, tool docker.ResourceLimits) docker.ResourceLimits {
 	dind := rc.Run.Dind
-	if pidsLimit == "" {
-		pidsLimit = dind.PidsLimit
-	}
-	if cpus == "" {
-		cpus = dind.CPUs
-	}
-	if memory == "" {
-		memory = dind.Memory
-	}
+	rcLimits := docker.ResourceLimits{PidsLimit: dind.PidsLimit, CPUs: dind.CPUs, Memory: dind.Memory}
 
-	return ResourceLimits{
-		PidsLimit: resolveLimit(pidsLimit, tool.PidsLimit),
-		CPUs:      resolveLimit(cpus, tool.CPUs),
-		Memory:    resolveLimit(memory, tool.Memory),
-	}
+	return flags.Or(rcLimits).Or(tool)
 }

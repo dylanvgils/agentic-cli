@@ -60,11 +60,11 @@ func buildBaseArgs(rs RunSpec) []string {
 		arg("name", rs.container),
 		label(LabelProject, LabelProjectVal),
 		// Limit the number of PIDs (processes) the container can spawn
-		arg("pids-limit", rs.PidsLimit),
+		arg("pids-limit", rs.Limits.PidsLimit),
 		// Maximum number of CPUs the container can utilize
-		arg("cpus", rs.CPUs),
+		arg("cpus", rs.Limits.CPUs),
 		// Maximum memory the container can use
-		arg("memory", rs.Memory),
+		arg("memory", rs.Limits.Memory),
 		// Security: isolate from other host containers (proxy mode swaps this
 		// for a per-run internal network with no direct egress)
 		arg("network", networkOrDefault(rs.network)),

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -111,9 +112,7 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "512", rs.PidsLimit)
-		assert.Equal(t, "2", rs.CPUs)
-		assert.Equal(t, "2g", rs.Memory)
+		assert.Equal(t, docker.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, rs.Limits)
 	})
 
 	t.Run("dind limits inherit tool limits", func(t *testing.T) {
@@ -127,15 +126,13 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "512", rs.DindPidsLimit)
-		assert.Equal(t, "2", rs.DindCPUs)
-		assert.Equal(t, "2g", rs.DindMemory)
+		assert.Equal(t, docker.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, rs.DindLimits)
 	})
 
 	t.Run("dind limits override tool limits", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), DindMemory: "16g"}
+		in := Input{ToolHome: t.TempDir(), DindLimits: docker.ResourceLimits{Memory: "16g"}}
 		rc := &config.AgenticRC{Run: config.RCRun{
 			PidsLimit: "512", CPUs: "2", Memory: "2g",
 			Dind: config.RCDind{PidsLimit: "4096", Memory: "8g"},
@@ -146,10 +143,8 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "4096", rs.DindPidsLimit)
-		assert.Equal(t, "2", rs.DindCPUs)
-		assert.Equal(t, "16g", rs.DindMemory)
-		assert.Equal(t, "2g", rs.Memory, "tool limit is unaffected")
+		assert.Equal(t, docker.ResourceLimits{PidsLimit: "4096", CPUs: "2", Memory: "16g"}, rs.DindLimits)
+		assert.Equal(t, "2g", rs.Limits.Memory, "tool limit is unaffected")
 	})
 
 	t.Run("dry run wired", func(t *testing.T) {

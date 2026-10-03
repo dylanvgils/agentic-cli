@@ -29,18 +29,14 @@ type Input struct {
 	Secrets        []string
 	ReadOnlyMounts []string
 	Env            []string
-	PidsLimit      string
-	CPUs           string
-	Memory         string
+	Limits         docker.ResourceLimits
 	DryRun         bool
 	Registry       string
 	ProxyEnabled   bool
 	ProxyMonitor   bool
 	DindEnabled    bool
 	// Sidecar limit flags; empty falls back to config
-	DindPidsLimit string
-	DindCPUs      string
-	DindMemory    string
+	DindLimits docker.ResourceLimits
 	// InstructionsMount is the mount spec for this run's instructions snapshot, empty when disabled.
 	InstructionsMount string
 }
@@ -63,8 +59,8 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	volumes = append(volumes, readOnlyMountSpecs(resolve.ReadOnlyMounts(in.ReadOnlyMounts, rc))...)
 	secrets := resolve.Secrets(in.Secrets, rc)
 	env := resolve.Env(in.Env, rc)
-	limits := resolve.ResourceLimitsFor(in.PidsLimit, in.CPUs, in.Memory, rc)
-	dindLimits := resolve.DindResourceLimitsFor(in.DindPidsLimit, in.DindCPUs, in.DindMemory, rc, limits)
+	limits := resolve.ResourceLimitsFor(in.Limits, rc)
+	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
 
 	if err := validateEnv(env, in.ProxyEnabled, in.DindEnabled); err != nil {
 		return docker.RunSpec{}, err
@@ -101,13 +97,11 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		WithEnv(env...).
 		WithSkipEntrypoint(target.SkipEntrypoint).
 		WithTmpfsMounts(toolConfig.Runtime.TmpfsMounts()...).
-		WithPidsLimit(limits.PidsLimit).
-		WithCPUs(limits.CPUs).
-		WithMemory(limits.Memory).
+		WithLimits(limits).
 		WithDryRun(in.DryRun).
 		WithProxy(in.ProxyEnabled, tools.ProxyImage, resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc), logDir, in.ProxyMonitor).
 		WithDind(in.DindEnabled, tools.DindImage).
-		WithDindLimits(dindLimits.PidsLimit, dindLimits.CPUs, dindLimits.Memory).
+		WithDindLimits(dindLimits).
 		Build()
 
 	return rs, nil

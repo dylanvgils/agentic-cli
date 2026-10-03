@@ -61,8 +61,8 @@ func BuildInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc 
 	}
 
 	containerHome := docker.ResolveContainerHome(target.ImageName)
-	limits := resolve.ResourceLimitsFor(in.PidsLimit, in.CPUs, in.Memory, rc)
-	dindLimits := resolve.DindResourceLimitsFor(in.DindPidsLimit, in.DindCPUs, in.DindMemory, rc, limits)
+	limits := resolve.ResourceLimitsFor(in.Limits, rc)
+	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
 
 	var b strings.Builder
 	b.WriteString("# Agentic container environment\n\n")
@@ -162,7 +162,7 @@ func tmpfsPath(spec, containerHome string) string {
 	return path
 }
 
-func writeResourceLimitsSection(b *strings.Builder, limits resolve.ResourceLimits) {
+func writeResourceLimitsSection(b *strings.Builder, limits docker.ResourceLimits) {
 	b.WriteString("## Resource limits\n\n")
 	fmt.Fprintf(b, "- Max processes (pids-limit): %s\n", limits.PidsLimit)
 	fmt.Fprintf(b, "- CPUs: %s\n", limits.CPUs)
@@ -198,7 +198,7 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 }
 
 // writeDockerSection is only written when the Docker sidecar is enabled.
-func writeDockerSection(b *strings.Builder, in Input, limits resolve.ResourceLimits) {
+func writeDockerSection(b *strings.Builder, in Input, limits docker.ResourceLimits) {
 	if !in.DindEnabled {
 		return
 	}
