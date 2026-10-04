@@ -15,6 +15,7 @@ agentic-cli/
 │   ├── cleanup/                 # Capture helper for propagating deferred cleanup errors without masking an earlier error
 │   ├── cli/                     # Cobra commands (build, update, clean, inspect, run, …)
 │   ├── config/                  # .agenticrc.toml loading and run spec
+│   ├── credentials/             # Resolves [[run.proxy.credentials]] presets and secret files into the proxy's header rules (host side)
 │   ├── dind/                    # Docker-in-Docker sidecar per-run files: TLS cert dirs, seccomp profile, /etc identity
 │   ├── docker/                  # Build, update, run, clean, inspect, volume, and sidecar (proxy, dind) orchestration
 │   ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
@@ -44,6 +45,8 @@ agentic-cli/
 `internal/dind` generates the Docker-in-Docker sidecar's per-run files and must not import `internal/docker`; the sidecar's container orchestration lives in `internal/docker/dind.go`, alongside `internal/docker/proxy.go` for the proxy.
 
 `internal/certs` issues the per-run CAs and leaf certs used by `internal/dind` and the proxy; it imports only the standard library so `agentic-proxy` can link it.
+
+`internal/credentials` reads secrets on the host and hands them to the proxy as `proxy.Credential` values, validated with the proxy's own rules; `internal/proxy` never imports it.
 
 No static Dockerfile files exist. All Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/tools/bases.go` (base and extra layers) and each tool's `Stage` func. See [dockerfile-dsl.md](dockerfile-dsl.md) for the DSL reference.
 
