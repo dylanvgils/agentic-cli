@@ -75,9 +75,10 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	}
 	env = append(env, placeholders...)
 
-	// The entrypoint builds the proxy CA bundle, so skipping it breaks TLS to credential hosts
-	if target.SkipEntrypoint && len(in.Credentials) > 0 {
-		logging.Warnf("skipping the entrypoint: TLS to proxy credential hosts will fail, as the proxy CA is not trusted")
+	if len(in.Credentials) > 0 {
+		if err := checkProxyTrust(target); err != nil {
+			return docker.RunSpec{}, err
+		}
 	}
 
 	// Tells entrypoint.sh exactly which names to register instead of globbing.

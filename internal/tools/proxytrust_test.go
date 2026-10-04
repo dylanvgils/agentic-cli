@@ -75,6 +75,7 @@ func TestToolEntrypoints_trustProxyCA(t *testing.T) {
 			execAt := strings.Index(result, "exec "+name)
 			require.NotEqual(t, -1, trust)
 			assert.Less(t, trust, execAt)
+			assert.Contains(t, result, "LABEL "+ProxyTrustLabel+"=true", "run checks the label before passing the CA")
 		})
 	}
 }

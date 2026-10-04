@@ -73,6 +73,7 @@ func opencodeStage(prevStage string) df.Stage {
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/opencode"}).
 		Add(df.Env{Key: "OPENCODE_DISABLE_AUTOUPDATE", Value: "true"}).
 		Add(df.Workdir{Path: mount.WorkspaceContainerPath}).
+		Add(proxyTrustLabel()).
 		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
 		Build()
 }

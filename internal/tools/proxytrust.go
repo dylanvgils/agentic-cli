@@ -8,6 +8,9 @@ const (
 	// ProxyCAEnvName carries the proxy CA cert PEM into the tool container; set by agentic when proxy credentials are configured.
 	ProxyCAEnvName = "AGENTIC_PROXY_CA"
 
+	// ProxyTrustLabel marks a tool image whose entrypoint runs proxyTrustBlock; older images ignore ProxyCAEnvName.
+	ProxyTrustLabel = "agentic.proxy-trust"
+
 	// proxyCABundlePath is the tmpfs file the entrypoint writes the system bundle plus the proxy CA to.
 	proxyCABundlePath = "/tmp/agentic-ca-bundle.crt"
 
@@ -36,4 +39,9 @@ func proxyTrustBlock() df.Block {
 	lines = append(lines, "  unset "+ProxyCAEnvName, "fi")
 
 	return df.Block{Comment: "Trust the egress proxy's CA for credential hosts", Lines: lines}
+}
+
+// proxyTrustLabel marks the image as running proxyTrustBlock; add it next to the entrypoint that does.
+func proxyTrustLabel() df.Label {
+	return df.Label{Key: ProxyTrustLabel, Value: "true"}
 }

@@ -24,6 +24,7 @@ type ImageInfo struct {
 	Pulled         string // agentic.pulled label
 	CLIVersion     string // agentic.version label (CLI version that built this image)
 	CacheBust      string // agentic.cachebust label (CACHEBUST build-arg baked into the tool stage)
+	ProxyTrust     bool   // agentic.proxy-trust label (entrypoint trusts the proxy CA)
 	Size           string // formatted size from docker image ls
 }
 
@@ -59,6 +60,7 @@ func InspectImage(name string) (*ImageInfo, error) {
 		Pulled:         result.Config.Labels[LabelPulled],
 		CLIVersion:     result.Config.Labels[LabelCLIVersion],
 		CacheBust:      result.Config.Labels[LabelCacheBust],
+		ProxyTrust:     result.Config.Labels[LabelProxyTrust] == "true",
 		Size:           imageSize(name),
 	}, nil
 }

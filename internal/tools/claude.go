@@ -106,6 +106,7 @@ func claudeStage(prevStage string) df.Stage {
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/claude"}).
 		Add(df.Env{Key: "DISABLE_AUTOUPDATER", Value: "1"}).
 		Add(df.Workdir{Path: mount.WorkspaceContainerPath}).
+		Add(proxyTrustLabel()).
 		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
 		Build()
 }

@@ -120,6 +120,7 @@ func copilotStage(prevStage string) df.Stage {
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/copilot"}).
 		Add(df.Env{Key: "COPILOT_AUTO_UPDATE", Value: "false"}).
 		Add(df.Workdir{Path: mount.WorkspaceContainerPath}).
+		Add(proxyTrustLabel()).
 		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
 		Build()
 }
