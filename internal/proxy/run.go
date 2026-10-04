@@ -125,17 +125,9 @@ func loadInjector(caDir, credsPath string) (*Injector, error) {
 		return nil, fmt.Errorf("%s and %s must be set together", EnvCADir, EnvCredentials)
 	}
 
-	certPEM, err := os.ReadFile(filepath.Join(caDir, CACertFile))
+	ca, err := loadCA(caDir)
 	if err != nil {
-		return nil, fmt.Errorf("read proxy CA: %w", err)
-	}
-	keyPEM, err := os.ReadFile(filepath.Join(caDir, CAKeyFile))
-	if err != nil {
-		return nil, fmt.Errorf("read proxy CA key: %w", err)
-	}
-	ca, err := certs.LoadCA(certPEM, keyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("load proxy CA: %w", err)
+		return nil, err
 	}
 
 	creds, err := LoadCredentials(credsPath)
@@ -143,4 +135,23 @@ func loadInjector(caDir, credsPath string) (*Injector, error) {
 		return nil, err
 	}
 	return NewInjector(ca, creds), nil
+}
+
+// loadCA reads the CA from CACertFile and CAKeyFile in dir.
+func loadCA(dir string) (certs.CA, error) {
+	certPEM, err := os.ReadFile(filepath.Join(dir, CACertFile))
+	if err != nil {
+		return certs.CA{}, fmt.Errorf("read proxy CA: %w", err)
+	}
+
+	keyPEM, err := os.ReadFile(filepath.Join(dir, CAKeyFile))
+	if err != nil {
+		return certs.CA{}, fmt.Errorf("read proxy CA key: %w", err)
+	}
+
+	ca, err := certs.LoadCA(certPEM, keyPEM)
+	if err != nil {
+		return certs.CA{}, fmt.Errorf("load proxy CA: %w", err)
+	}
+	return ca, nil
 }

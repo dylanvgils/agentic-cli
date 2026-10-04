@@ -167,16 +167,15 @@ func Test_loadInjector(t *testing.T) {
 		assert.Equal(t, []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}, inject.rulesFor("api.example.test"))
 	})
 
-	t.Run("missing ca key is an error", func(t *testing.T) {
+	t.Run("invalid ca is an error", func(t *testing.T) {
 		// Arrange
-		caDir := writeTestCADir(t)
-		require.NoError(t, os.Remove(filepath.Join(caDir, CAKeyFile)))
+		caDir := t.TempDir()
 
 		// Act
 		_, err := loadInjector(caDir, credsPath)
 
 		// Assert
-		assert.ErrorContains(t, err, "read proxy CA key")
+		assert.ErrorContains(t, err, "read proxy CA")
 	})
 
 	t.Run("invalid credentials are an error", func(t *testing.T) {
@@ -189,5 +188,47 @@ func Test_loadInjector(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "no rules")
+	})
+}
+
+func Test_loadCA(t *testing.T) {
+	t.Run("loads the ca files", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+
+		// Act
+		ca, err := loadCA(caDir)
+
+		// Assert
+		require.NoError(t, err)
+		certPEM, readErr := os.ReadFile(filepath.Join(caDir, CACertFile))
+		require.NoError(t, readErr)
+		assert.Equal(t, certPEM, ca.CertPEM())
+	})
+
+	t.Run("missing key is an error", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+		require.NoError(t, os.Remove(filepath.Join(caDir, CAKeyFile)))
+
+		// Act
+		_, err := loadCA(caDir)
+
+		// Assert
+		assert.ErrorContains(t, err, "read proxy CA key")
+	})
+
+	t.Run("mismatched key is an error", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+		otherKey, err := os.ReadFile(filepath.Join(writeTestCADir(t), CAKeyFile))
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(caDir, CAKeyFile), otherKey, 0o600))
+
+		// Act
+		_, err = loadCA(caDir)
+
+		// Assert
+		assert.ErrorContains(t, err, "load proxy CA")
 	})
 }
