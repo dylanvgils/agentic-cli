@@ -23,17 +23,9 @@ type KeyPair struct {
 	key  *ecdsa.PrivateKey
 }
 
-// IssueLeaf issues a cert signed by p (a CA from NewCA) for one usage; names become DNS or IP SANs.
-func (p KeyPair) IssueLeaf(cn string, usage x509.ExtKeyUsage, names []string) (KeyPair, error) {
-	tmpl, err := certTemplate(cn)
-	if err != nil {
-		return KeyPair{}, err
-	}
-	tmpl.KeyUsage = x509.KeyUsageDigitalSignature
-	tmpl.ExtKeyUsage = []x509.ExtKeyUsage{usage}
-	addSANs(tmpl, names)
-
-	return issue(tmpl, &p)
+// CA is a KeyPair that may sign leaf certs; only NewCA creates one.
+type CA struct {
+	KeyPair
 }
 
 // CertPEM returns the certificate PEM-encoded.
@@ -51,17 +43,34 @@ func (p KeyPair) KeyPEM() ([]byte, error) {
 }
 
 // NewCA returns a self-signed CA named cn that may only sign leaf certs.
-func NewCA(cn string) (KeyPair, error) {
+func NewCA(cn string) (CA, error) {
 	tmpl, err := certTemplate(cn)
 	if err != nil {
-		return KeyPair{}, err
+		return CA{}, err
 	}
 	tmpl.IsCA = true
 	tmpl.BasicConstraintsValid = true
 	tmpl.MaxPathLenZero = true
 	tmpl.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature
 
-	return issue(tmpl, nil)
+	pair, err := issue(tmpl, nil)
+	if err != nil {
+		return CA{}, err
+	}
+	return CA{KeyPair: pair}, nil
+}
+
+// IssueLeaf issues a cert signed by c for one usage; names become DNS or IP SANs.
+func (c CA) IssueLeaf(cn string, usage x509.ExtKeyUsage, names []string) (KeyPair, error) {
+	tmpl, err := certTemplate(cn)
+	if err != nil {
+		return KeyPair{}, err
+	}
+	tmpl.KeyUsage = x509.KeyUsageDigitalSignature
+	tmpl.ExtKeyUsage = []x509.ExtKeyUsage{usage}
+	addSANs(tmpl, names)
+
+	return issue(tmpl, &c.KeyPair)
 }
 
 // certTemplate returns a template with a random serial and the per-run validity window.

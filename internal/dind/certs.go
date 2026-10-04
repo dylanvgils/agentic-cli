@@ -40,7 +40,7 @@ func WriteCerts(dir string, serverNames []string) error {
 
 // writeCertDir writes ca.pem, cert.pem and key.pem. Files are world-readable for the sidecar's
 // user; the 0700 run dir keeps other host users out.
-func writeCertDir(dir string, ca, leaf certs.KeyPair) error {
+func writeCertDir(dir string, ca certs.CA, leaf certs.KeyPair) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create cert dir: %w", err)
 	}
