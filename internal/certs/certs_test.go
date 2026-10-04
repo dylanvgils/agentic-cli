@@ -24,8 +24,7 @@ func TestNewCA(t *testing.T) {
 }
 
 func TestIssueLeaf(t *testing.T) {
-	ca, err := NewCA("test CA")
-	require.NoError(t, err)
+	ca := newTestCA(t)
 
 	t.Run("leaf verifies against the ca for its usage", func(t *testing.T) {
 		// Act
@@ -33,8 +32,7 @@ func TestIssueLeaf(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		_, verifyErr := leaf.cert.Verify(x509.VerifyOptions{Roots: caPool(ca), DNSName: "example.test", KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}})
-		assert.NoError(t, verifyErr)
+		assert.NoError(t, verifyLeaf(ca, leaf, x509.ExtKeyUsageServerAuth, "example.test"))
 		assert.False(t, leaf.cert.IsCA)
 	})
 
@@ -44,9 +42,22 @@ func TestIssueLeaf(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		_, verifyErr := leaf.cert.Verify(x509.VerifyOptions{Roots: caPool(ca), KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}})
-		assert.Error(t, verifyErr)
+		assert.Error(t, verifyLeaf(ca, leaf, x509.ExtKeyUsageServerAuth, ""))
 	})
+}
+
+func TestKeyPairPEM(t *testing.T) {
+	// Arrange
+	leaf := issueTestLeaf(t, newTestCA(t), x509.ExtKeyUsageServerAuth, "example.test")
+
+	// Act
+	keyPEM, err := leaf.KeyPEM()
+
+	// Assert
+	require.NoError(t, err)
+	pair, pairErr := tls.X509KeyPair(leaf.CertPEM(), keyPEM)
+	require.NoError(t, pairErr)
+	assert.Equal(t, leaf.cert.Raw, pair.Certificate[0])
 }
 
 func Test_addSANs(t *testing.T) {
@@ -61,21 +72,4 @@ func Test_addSANs(t *testing.T) {
 	require.Len(t, tmpl.IPAddresses, 2)
 	assert.True(t, tmpl.IPAddresses[0].Equal(net.ParseIP("127.0.0.1")))
 	assert.True(t, tmpl.IPAddresses[1].Equal(net.ParseIP("::1")))
-}
-
-func TestKeyPairPEM(t *testing.T) {
-	// Arrange
-	ca, err := NewCA("test CA")
-	require.NoError(t, err)
-	leaf, err := ca.IssueLeaf("server", x509.ExtKeyUsageServerAuth, []string{"example.test"})
-	require.NoError(t, err)
-
-	// Act
-	keyPEM, err := leaf.KeyPEM()
-
-	// Assert
-	require.NoError(t, err)
-	pair, pairErr := tls.X509KeyPair(leaf.CertPEM(), keyPEM)
-	require.NoError(t, pairErr)
-	assert.Equal(t, leaf.cert.Raw, pair.Certificate[0])
 }
