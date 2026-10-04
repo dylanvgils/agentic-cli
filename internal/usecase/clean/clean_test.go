@@ -188,13 +188,14 @@ func TestGlobalResources(t *testing.T) {
 			return nil
 		})
 		var swept []string
-		var sweptHome string
+		var sweptHomes []string
 		stubSweepDindResources(t, func(toolHome string) error {
-			sweptHome = toolHome
+			sweptHomes = append(sweptHomes, toolHome)
 			swept = append(swept, "dind")
 			return nil
 		})
-		stubSweepProxyResources(t, func() error {
+		stubSweepProxyResources(t, func(toolHome string) error {
+			sweptHomes = append(sweptHomes, toolHome)
 			swept = append(swept, "proxy")
 			return nil
 		})
@@ -215,7 +216,7 @@ func TestGlobalResources(t *testing.T) {
 		assert.Contains(t, cleaned, tools.ProxyImage)
 		assert.Contains(t, cleaned, tools.DindImage)
 		assert.Equal(t, []string{"dind", "proxy"}, swept, "sidecars must go before the proxy networks they sit on")
-		assert.Equal(t, "/agentic-home", sweptHome)
+		assert.Equal(t, []string{"/agentic-home", "/agentic-home"}, sweptHomes)
 		assert.True(t, networkRemoved)
 		assert.Contains(t, out, "=> base")
 		assert.Contains(t, out, "=> "+tools.ProxyImage)
@@ -267,7 +268,7 @@ func TestGlobalResources(t *testing.T) {
 		stubCleanBaseImages(t, func() error { return nil })
 		stubCleanImage(t, func(string) error { return nil })
 		stubSweepDindResources(t, func(string) error { return nil })
-		stubSweepProxyResources(t, func() error { return fmt.Errorf("sweep failed") })
+		stubSweepProxyResources(t, func(string) error { return fmt.Errorf("sweep failed") })
 
 		// Act
 		err := GlobalResources("/agentic-home")
@@ -282,7 +283,7 @@ func TestGlobalResources(t *testing.T) {
 		stubCleanBaseImages(t, func() error { return nil })
 		stubCleanImage(t, func(string) error { return nil })
 		stubSweepDindResources(t, func(string) error { return nil })
-		stubSweepProxyResources(t, func() error { return nil })
+		stubSweepProxyResources(t, func(string) error { return nil })
 		stubRemoveNetwork(t, func() error { return fmt.Errorf("network removal failed") })
 
 		// Act

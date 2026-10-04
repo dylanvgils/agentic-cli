@@ -56,7 +56,8 @@ type ProxySpec struct {
 	Credentials []proxy.Credential
 }
 
-// proxyHandle identifies the per-run proxy network, sidecar container, host-side access log and injected credentials.
+// proxyHandle identifies the per-run proxy network, sidecar container, host-side access log, injected credentials
+// and the run dir holding the tool's trust files, which is empty without credentials.
 type proxyHandle struct {
 	id          string
 	network     string
@@ -65,6 +66,7 @@ type proxyHandle struct {
 	allow       []string
 	monitor     bool
 	credentials []proxy.Credential
+	runDir      string
 }
 
 // Enabled reports whether the proxy runs, in either mode.
@@ -80,7 +82,7 @@ func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 	}
 
 	name := proxyHostAlias + "-" + id
-	return proxyHandle{
+	h := proxyHandle{
 		id:          id,
 		network:     name,
 		container:   name,
@@ -88,7 +90,11 @@ func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 		allow:       rs.Proxy.Allow,
 		monitor:     rs.Proxy.Mode == ProxyMonitor,
 		credentials: rs.Proxy.Credentials,
-	}, nil
+	}
+	if len(h.credentials) > 0 {
+		h.runDir = filepath.Join(rs.ToolHome, proxyDirName, id)
+	}
+	return h, nil
 }
 
 // proxyEnvArgs returns the --env flags pointing the tool at the proxy, keyed on the static
@@ -111,10 +117,13 @@ func proxyEnvArgs(dind bool) []string {
 	}
 }
 
-// Stop removes the proxy sidecar, its volume and its internal network; idempotent and error-ignoring, so it is safe to defer.
+// Stop removes the proxy sidecar, its volume, its internal network and the run dir; idempotent and error-ignoring, so it is safe to defer.
 func (h proxyHandle) Stop() {
 	_, _ = dockerRun("rm", "--force", "--volumes", h.container)
 	_, _ = dockerRun("network", "rm", h.network)
+	if h.runDir != "" {
+		_ = os.RemoveAll(h.runDir)
+	}
 }
 
 // PrintSummary reports hosts actually blocked in normal mode, or hosts that would have been
@@ -201,7 +210,13 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 		return proxyHandle{}, err
 	}
 
+	ca, err := h.prepareTrust(rs)
+	if err != nil {
+		return proxyHandle{}, err
+	}
+
 	if err := EnsureNetwork(); err != nil {
+		h.Stop()
 		return proxyHandle{}, err
 	}
 
@@ -213,15 +228,16 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 	createArgs = append(createArgs, ownerLabels(rs)...)
 	createArgs = append(createArgs, h.network)
 	if _, err := dockerRun(createArgs...); err != nil {
+		h.Stop()
 		return proxyHandle{}, fmt.Errorf("create proxy network: %w", err)
 	}
 
 	if _, err := dockerRun(h.createArgs(rs)...); err != nil {
-		_, _ = dockerRun("network", "rm", h.network)
+		h.Stop()
 		return proxyHandle{}, fmt.Errorf("create proxy: %w", err)
 	}
 
-	if err := h.copyCredentials(); err != nil {
+	if err := h.copyCredentials(ca); err != nil {
 		h.Stop()
 		return proxyHandle{}, err
 	}
@@ -244,7 +260,7 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 	return h, nil
 }
 
-// setupProxy configures rs for proxy mode if enabled, returning the env args to inject and a cleanup func to defer.
+// setupProxy configures rs for proxy mode if enabled, returning the tool args (proxy env, CA trust) to inject and a cleanup func to defer.
 func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 	if !rs.Proxy.Mode.Enabled() {
 		return nil, func() {}, nil
@@ -269,7 +285,7 @@ func dryRunProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 		return nil, nil, err
 	}
 
-	return proxyEnvArgs(rs.Dind.Enabled), func() {}, nil
+	return append(proxyEnvArgs(rs.Dind.Enabled), handle.trustArgs()...), func() {}, nil
 }
 
 // launchProxy starts the sidecar and returns a cleanup that tears it down and prints the access summary.
@@ -299,7 +315,7 @@ func launchProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 		stop()
 		handle.PrintSummary(logging.Err)
 	}
-	return proxyEnvArgs(rs.Dind.Enabled), cleanup, nil
+	return append(proxyEnvArgs(rs.Dind.Enabled), handle.trustArgs()...), cleanup, nil
 }
 
 // createArgs builds the `docker create` arguments for the hardened proxy sidecar, registering
@@ -362,9 +378,9 @@ func (h proxyHandle) checkStarted() error {
 	}
 }
 
-// SweepProxyResources idempotently removes leftover per-run proxy containers (with their volume) and internal
-// networks (e.g. from an interrupted run), scoped to agentic-managed resources named with proxyHostAlias.
-func SweepProxyResources() error {
+// SweepProxyResources idempotently removes leftover per-run proxy containers (with their volume), internal networks
+// and run dirs (e.g. from an interrupted run), scoped to agentic-managed resources named with proxyHostAlias, plus the CA bundle cache.
+func SweepProxyResources(toolHome string) error {
 	listContainerArgs := []string{
 		"ps", arg("all"), arg("quiet"),
 		labelFilter(LabelProject, LabelProjectVal),
@@ -381,7 +397,14 @@ func SweepProxyResources() error {
 		nameFilter(proxyHostAlias),
 	}
 	removeNetworkArgs := []string{"network", "rm"}
-	return runIfAny(listNetworkArgs, removeNetworkArgs)
+	if err := runIfAny(listNetworkArgs, removeNetworkArgs); err != nil {
+		return err
+	}
+
+	if err := sweepRunDirs(toolHome, proxyDirName, proxyHostAlias); err != nil {
+		return err
+	}
+	return RemoveCABundleCache(toolHome)
 }
 
 // proxyLogFileName is shared by the host logPath and the in-container AGENTIC_PROXY_LOG path so they name the same file.

@@ -20,14 +20,14 @@ type archiveFile struct {
 	content []byte
 }
 
-// copyCredentials streams a CA scoped to the credential hosts and the credential list into the created
-// container's volume, so neither touches the host disk; a no-op without credentials.
-func (h proxyHandle) copyCredentials() error {
+// copyCredentials streams ca, its key and the credential list into the created container's volume,
+// so neither the key nor the secrets touch the host disk; a no-op without credentials.
+func (h proxyHandle) copyCredentials(ca certs.CA) error {
 	if len(h.credentials) == 0 {
 		return nil
 	}
 
-	archive, err := credentialArchive(h.credentials)
+	archive, err := credentialArchive(ca, h.credentials)
 	if err != nil {
 		return err
 	}
@@ -39,9 +39,9 @@ func (h proxyHandle) copyCredentials() error {
 	return nil
 }
 
-// credentialArchive returns a tar of the proxy CA, its key and creds, as 0600 files owned by the host user.
-func credentialArchive(creds []proxy.Credential) ([]byte, error) {
-	files, err := credentialFiles(creds)
+// credentialArchive returns a tar of ca, its key and creds, as 0600 files owned by the host user.
+func credentialArchive(ca certs.CA, creds []proxy.Credential) ([]byte, error) {
+	files, err := credentialFiles(ca, creds)
 	if err != nil {
 		return nil, err
 	}
@@ -53,12 +53,8 @@ func credentialArchive(creds []proxy.Credential) ([]byte, error) {
 	return tarFiles(files, uid, gid)
 }
 
-// credentialFiles issues a CA scoped to the credential hosts and returns it, its key and creds as proxy files.
-func credentialFiles(creds []proxy.Credential) ([]archiveFile, error) {
-	ca, err := certs.NewScopedCA("agentic proxy CA", proxy.CredentialHosts(creds))
-	if err != nil {
-		return nil, err
-	}
+// credentialFiles returns ca, its key and creds as proxy files.
+func credentialFiles(ca certs.CA, creds []proxy.Credential) ([]archiveFile, error) {
 	keyPEM, err := ca.KeyPEM()
 	if err != nil {
 		return nil, err

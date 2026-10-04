@@ -42,6 +42,9 @@ func credentialSetup(in Input, volumes, secrets, env []string, containerHome str
 	if !in.ProxyMode.Enabled() {
 		return nil, fmt.Errorf("proxy credentials need the egress proxy, which is disabled")
 	}
+	if slices.ContainsFunc(env, func(entry string) bool { return envKey(entry) == docker.ProxyCAEnvName }) {
+		return nil, fmt.Errorf("--env: %q is set by agentic when proxy credentials are configured", docker.ProxyCAEnvName)
+	}
 
 	if err := checkCredentialPaths(in.Credentials, volumes, secrets, in.ToolHome, containerHome); err != nil {
 		return nil, err
@@ -64,7 +67,7 @@ func credentialEnv(resolved []credentials.Resolved, env []string, dindEnabled bo
 	var result []string
 	for _, r := range resolved {
 		for _, name := range r.Env {
-			if docker.IsReservedEnvName(name, true) || (dindEnabled && docker.IsReservedDindEnvName(name)) {
+			if docker.IsReservedEnvName(name, true) || name == docker.ProxyCAEnvName || (dindEnabled && docker.IsReservedDindEnvName(name)) {
 				return nil, fmt.Errorf("credential env %q is managed by agentic", name)
 			}
 			if slices.ContainsFunc(env, func(entry string) bool { return envKey(entry) == name }) {

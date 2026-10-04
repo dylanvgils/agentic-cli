@@ -222,7 +222,7 @@ func stubCleanListAllImages(t *testing.T, fn func(...docker.ImageFilter) ([]*doc
 	t.Cleanup(func() { clean.ListAllImages = orig })
 }
 
-func stubCleanSweepProxyResources(t *testing.T, fn func() error) {
+func stubCleanSweepProxyResources(t *testing.T, fn func(string) error) {
 	t.Helper()
 	orig := clean.SweepProxyResources
 	clean.SweepProxyResources = fn

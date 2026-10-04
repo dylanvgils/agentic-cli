@@ -1,12 +1,10 @@
 package docker
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/dind"
 	"github.com/stretchr/testify/assert"
@@ -339,96 +337,6 @@ func TestSweepDindResources(t *testing.T) {
 	assert.Equal(t, []string{"rm", "--force", "--volumes", "id1"}, calls[1])
 	assert.Contains(t, calls[2], "--filter=name=agentic-dind")
 	assert.Equal(t, []string{"network", "rm", "id1"}, calls[3])
-}
-
-func Test_sweepDindRunDirs(t *testing.T) {
-	stubDindRunDirGrace(t, time.Minute)
-
-	t.Run("removes a stale dir whose sidecar is gone", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "", nil)
-		toolHome := t.TempDir()
-		dir := makeDindRunDir(t, toolHome, "0123456789ab", time.Hour)
-
-		// Act
-		err := sweepDindRunDirs(toolHome)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NoDirExists(t, dir)
-	})
-
-	t.Run("keeps a dir whose sidecar still exists", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "agentic-docker-0123456789ab\n", nil)
-		toolHome := t.TempDir()
-		dir := makeDindRunDir(t, toolHome, "0123456789ab", time.Hour)
-
-		// Act
-		err := sweepDindRunDirs(toolHome)
-
-		// Assert
-		require.NoError(t, err)
-		assert.DirExists(t, dir)
-	})
-
-	t.Run("keeps a dir younger than the grace period", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "", nil)
-		toolHome := t.TempDir()
-		dir := makeDindRunDir(t, toolHome, "0123456789ab", 0)
-
-		// Act
-		err := sweepDindRunDirs(toolHome)
-
-		// Assert
-		require.NoError(t, err)
-		assert.DirExists(t, dir, "a concurrent run may not have started its sidecar yet")
-	})
-
-	t.Run("ignores entries that are not run ids", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "", nil)
-		toolHome := t.TempDir()
-		dir := makeDindRunDir(t, toolHome, "not-a-run-id", time.Hour)
-
-		// Act
-		err := sweepDindRunDirs(toolHome)
-
-		// Assert
-		require.NoError(t, err)
-		assert.DirExists(t, dir)
-	})
-
-	t.Run("missing dind dir is a no-op without calling docker", func(t *testing.T) {
-		// Arrange
-		called := false
-		stubDockerRun(t, func(...string) (string, error) {
-			called = true
-			return "", nil
-		})
-
-		// Act
-		err := sweepDindRunDirs(t.TempDir())
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, called)
-	})
-
-	t.Run("docker error propagates and keeps dirs", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("daemon down"))
-		toolHome := t.TempDir()
-		dir := makeDindRunDir(t, toolHome, "0123456789ab", time.Hour)
-
-		// Act
-		err := sweepDindRunDirs(toolHome)
-
-		// Assert
-		require.Error(t, err)
-		assert.DirExists(t, dir, "without the live list a running sidecar's certs could be deleted")
-	})
 }
 
 func TestIsReservedDindEnvName(t *testing.T) {

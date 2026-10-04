@@ -29,7 +29,7 @@ func stubCleanBaseImages(t *testing.T, fn func() error) {
 	t.Cleanup(func() { CleanBaseImages = orig })
 }
 
-func stubSweepProxyResources(t *testing.T, fn func() error) {
+func stubSweepProxyResources(t *testing.T, fn func(string) error) {
 	t.Helper()
 	orig := SweepProxyResources
 	SweepProxyResources = fn

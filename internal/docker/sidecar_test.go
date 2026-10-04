@@ -2,6 +2,7 @@ package docker
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -177,16 +178,108 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 
 	t.Run("sweeps run dirs left behind by crashed runs", func(t *testing.T) {
 		// Arrange
-		stubDindRunDirGrace(t, time.Minute)
+		stubRunDirGrace(t, time.Minute)
 		stubOwnedResources(t, "", "")
 		toolHome := t.TempDir()
-		stale := makeDindRunDir(t, toolHome, "0123456789ab", time.Hour)
+		staleDind := makeRunDir(t, toolHome, dindDirName, "0123456789ab", time.Hour)
+		staleProxy := makeRunDir(t, toolHome, proxyDirName, "0123456789ab", time.Hour)
 
 		// Act
 		err := sweepOrphanedSidecars(toolHome)
 
 		// Assert
 		require.NoError(t, err)
-		assert.NoDirExists(t, stale)
+		assert.NoDirExists(t, staleDind)
+		assert.NoDirExists(t, staleProxy)
+	})
+}
+
+func Test_sweepRunDirs(t *testing.T) {
+	stubRunDirGrace(t, time.Minute)
+
+	t.Run("removes a stale dir whose sidecar is gone", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "", nil)
+		toolHome := t.TempDir()
+		dir := makeRunDir(t, toolHome, dindDirName, "0123456789ab", time.Hour)
+
+		// Act
+		err := sweepRunDirs(toolHome, dindDirName, dindHostAlias)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NoDirExists(t, dir)
+	})
+
+	t.Run("keeps a dir whose sidecar still exists", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "agentic-docker-0123456789ab\n", nil)
+		toolHome := t.TempDir()
+		dir := makeRunDir(t, toolHome, dindDirName, "0123456789ab", time.Hour)
+
+		// Act
+		err := sweepRunDirs(toolHome, dindDirName, dindHostAlias)
+
+		// Assert
+		require.NoError(t, err)
+		assert.DirExists(t, dir)
+	})
+
+	t.Run("keeps a dir younger than the grace period", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "", nil)
+		toolHome := t.TempDir()
+		dir := makeRunDir(t, toolHome, dindDirName, "0123456789ab", 0)
+
+		// Act
+		err := sweepRunDirs(toolHome, dindDirName, dindHostAlias)
+
+		// Assert
+		require.NoError(t, err)
+		assert.DirExists(t, dir, "a concurrent run may not have started its sidecar yet")
+	})
+
+	t.Run("ignores entries that are not run ids", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "", nil)
+		toolHome := t.TempDir()
+		dir := makeRunDir(t, toolHome, dindDirName, "not-a-run-id", time.Hour)
+
+		// Act
+		err := sweepRunDirs(toolHome, dindDirName, dindHostAlias)
+
+		// Assert
+		require.NoError(t, err)
+		assert.DirExists(t, dir)
+	})
+
+	t.Run("missing run dir base is a no-op without calling docker", func(t *testing.T) {
+		// Arrange
+		called := false
+		stubDockerRun(t, func(...string) (string, error) {
+			called = true
+			return "", nil
+		})
+
+		// Act
+		err := sweepRunDirs(t.TempDir(), dindDirName, dindHostAlias)
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, called)
+	})
+
+	t.Run("docker error propagates and keeps dirs", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "", fmt.Errorf("daemon down"))
+		toolHome := t.TempDir()
+		dir := makeRunDir(t, toolHome, dindDirName, "0123456789ab", time.Hour)
+
+		// Act
+		err := sweepRunDirs(toolHome, dindDirName, dindHostAlias)
+
+		// Assert
+		require.Error(t, err)
+		assert.DirExists(t, dir, "without the live list a running sidecar's certs could be deleted")
 	})
 }

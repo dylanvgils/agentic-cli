@@ -2,12 +2,9 @@ package docker
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -61,12 +58,6 @@ var (
 	dindProgressInterval = 15 * time.Second
 	dindLogTailOnFail    = "30"
 )
-
-// dindRunDirGrace keeps a concurrent run's not-yet-started run dir from being swept.
-var dindRunDirGrace = 10 * time.Minute
-
-// dindRunIDPattern matches randID output, so the sweep only touches dirs agentic created.
-var dindRunIDPattern = regexp.MustCompile(`^[0-9a-f]{12}$`)
 
 // dindCapabilities is the sidecar's bounding set; they only take effect inside rootlesskit's user namespace.
 // A cap missing here can never be regained by dockerd or its containers, even inside a nested user namespace.
@@ -311,7 +302,7 @@ func SweepDindResources(toolHome string) error {
 		return err
 	}
 
-	return sweepDindRunDirs(toolHome)
+	return sweepRunDirs(toolHome, dindDirName, dindHostAlias)
 }
 
 // startDind writes the per-run files, starts the sidecar and waits for dockerd; cleans up on failure.
@@ -410,50 +401,6 @@ func launchDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
 		stop()
 	}
 	return handle.toolArgs(), cleanup, nil
-}
-
-// sweepDindRunDirs removes run dirs whose sidecar is gone, sparing ones younger than dindRunDirGrace.
-func sweepDindRunDirs(toolHome string) error {
-	base := filepath.Join(toolHome, dindDirName)
-	entries, err := os.ReadDir(base)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("read dind dir: %w", err)
-	}
-
-	listArgs := []string{
-		"ps", arg("all"), arg("format", "{{.Names}}"),
-		labelFilter(LabelProject, LabelProjectVal),
-		nameFilter(dindHostAlias),
-	}
-	out, err := dockerRun(listArgs...)
-	if err != nil {
-		return err
-	}
-
-	live := make(map[string]bool)
-	for name := range strings.FieldsSeq(out) {
-		live[strings.TrimPrefix(name, dindHostAlias+"-")] = true
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() || !dindRunIDPattern.MatchString(entry.Name()) || live[entry.Name()] {
-			continue
-		}
-
-		info, err := entry.Info()
-		if err != nil || time.Since(info.ModTime()) < dindRunDirGrace {
-			continue
-		}
-
-		if err := os.RemoveAll(filepath.Join(base, entry.Name())); err != nil {
-			return fmt.Errorf("remove stale dind run dir: %w", err)
-		}
-	}
-
-	return nil
 }
 
 // workspaceVolumes returns the tool's /workspace volume specs, so the sidecar sees the same paths and :ro overlays.

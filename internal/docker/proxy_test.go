@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/certs"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
@@ -117,6 +118,23 @@ func TestNewProxyHandle(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, handle.monitor)
 	})
+
+	t.Run("run dir is set only with credentials", func(t *testing.T) {
+		// Arrange
+		creds := []proxy.Credential{{Hosts: []string{"api.example.test"}}}
+		with := RunSpec{ToolHome: "/agentic-home", Proxy: ProxySpec{Credentials: creds}}
+		without := RunSpec{ToolHome: "/agentic-home"}
+
+		// Act
+		withHandle, withErr := newProxyHandle(with)
+		withoutHandle, withoutErr := newProxyHandle(without)
+
+		// Assert
+		require.NoError(t, withErr)
+		require.NoError(t, withoutErr)
+		assert.Equal(t, filepath.Join("/agentic-home", proxyDirName, withHandle.id), withHandle.runDir)
+		assert.Empty(t, withoutHandle.runDir)
+	})
 }
 
 func TestProxyMode_Enabled(t *testing.T) {
@@ -163,6 +181,20 @@ func TestProxyHandleStop(t *testing.T) {
 		require.Len(t, calls, 2)
 		assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-proxy-abc"}, calls[0].args)
 		assert.Equal(t, []string{"network", "rm", "agentic-proxy-abc"}, calls[1].args)
+	})
+
+	t.Run("removes the run dir", func(t *testing.T) {
+		// Arrange
+		stubDockerRunCapture(t)
+		runDir := filepath.Join(t.TempDir(), "abc")
+		require.NoError(t, os.MkdirAll(runDir, 0o700))
+		handle := proxyHandle{container: "agentic-proxy-abc", network: "agentic-proxy-abc", runDir: runDir}
+
+		// Act
+		handle.Stop()
+
+		// Assert
+		assert.NoDirExists(t, runDir)
 	})
 }
 
@@ -326,6 +358,7 @@ func Test_setupProxy(t *testing.T) {
 
 func TestStartProxy_credentials(t *testing.T) {
 	stubProxySettleTime(t, 0)
+	stubSystemCABundle(t, testSystemBundle, nil)
 	creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
 
 	t.Run("copies a scoped CA and the credentials into the volume before start", func(t *testing.T) {
@@ -345,7 +378,7 @@ func TestStartProxy_credentials(t *testing.T) {
 			callsAtCopy = len(calls)
 			return orig(r, args...)
 		}
-		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
+		rs := RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
 
 		// Act
 		handle, err := startProxy(rs)
@@ -382,13 +415,22 @@ func TestStartProxy_credentials(t *testing.T) {
 		ca, err := certs.LoadCA(files[proxy.CACertFile].content, files[proxy.CAKeyFile].content)
 		require.NoError(t, err)
 		assert.True(t, ca.Scoped())
+
+		caPEM := files[proxy.CACertFile].content
+		bundle, err := os.ReadFile(filepath.Join(handle.runDir, proxyBundleFile))
+		require.NoError(t, err)
+		assert.Equal(t, testSystemBundle+string(caPEM), string(bundle), "the tool must trust the CA the proxy got")
+		toolCA, err := os.ReadFile(filepath.Join(handle.runDir, proxyCAFile))
+		require.NoError(t, err)
+		assert.Equal(t, caPEM, toolCA)
+		assert.NoFileExists(t, filepath.Join(handle.runDir, proxy.CAKeyFile), "the CA key must stay in the proxy")
 	})
 
 	t.Run("removes the container and its volume when the copy fails", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t)
 		stubDockerRunStdinCapture(t, fmt.Errorf("stub: cp failed"))
-		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
+		rs := RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
 
 		// Act
 		_, err := startProxy(rs)
@@ -397,6 +439,8 @@ func TestStartProxy_credentials(t *testing.T) {
 		require.ErrorContains(t, err, "copy proxy credentials")
 		assert.NotNil(t, findCall(get(), "rm", "--force", "--volumes"))
 		assert.Nil(t, findCall(get(), "start"))
+		entries, _ := os.ReadDir(filepath.Join(rs.ToolHome, proxyDirName))
+		assert.Empty(t, entries, "the run dir must go with the proxy")
 	})
 
 	t.Run("removes the proxy when it exits on start", func(t *testing.T) {
@@ -410,7 +454,7 @@ func TestStartProxy_credentials(t *testing.T) {
 			return "", nil
 		})
 		stubDockerRunStdinCapture(t, nil)
-		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
+		rs := RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
 
 		// Act
 		_, err := startProxy(rs)
@@ -421,11 +465,27 @@ func TestStartProxy_credentials(t *testing.T) {
 		assert.Nil(t, findCall(calls, "network", "connect"))
 	})
 
+	t.Run("fails before creating anything when the system bundle is unreadable", func(t *testing.T) {
+		// Arrange
+		stubSystemCABundle(t, "", fmt.Errorf("stub: no bundle"))
+		get := stubDockerRunCapture(t)
+		rs := RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
+
+		// Act
+		_, err := startProxy(rs)
+
+		// Assert
+		require.ErrorContains(t, err, "no bundle")
+		assert.Nil(t, findCall(get(), "create"))
+		entries, _ := os.ReadDir(filepath.Join(rs.ToolHome, proxyDirName))
+		assert.Empty(t, entries)
+	})
+
 	t.Run("without credentials nothing is copied or mounted", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t)
 		stdin := stubDockerRunStdinCapture(t, nil)
-		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir()}}
+		rs := RunSpec{ToolHome: t.TempDir(), Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir()}}
 
 		// Act
 		_, err := startProxy(rs)
@@ -436,6 +496,7 @@ func TestStartProxy_credentials(t *testing.T) {
 		createArgs := findCall(get(), "create")
 		assert.False(t, hasArgWithPrefix(createArgs, "--env=AGENTIC_PROXY_CA_DIR="))
 		assert.NotContains(t, createArgs, "--volume="+proxyRunMountDir)
+		assert.NoDirExists(t, filepath.Join(rs.ToolHome, proxyDirName))
 	})
 }
 
@@ -488,18 +549,40 @@ func Test_dryRunProxy(t *testing.T) {
 		calls := stubDockerRunCapture(t)
 		stdin := stubDockerRunStdinCapture(t, nil)
 		creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
-		rs := RunSpec{DryRun: true, Proxy: ProxySpec{Mode: ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
+		rs := RunSpec{DryRun: true, ToolHome: t.TempDir(), Proxy: ProxySpec{Mode: ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
 
 		// Act
+		var toolArgs []string
 		out := captureStdout(t, func() {
-			_, _, err := dryRunProxy(&rs)
+			var err error
+			toolArgs, _, err = dryRunProxy(&rs)
 			require.NoError(t, err)
 		})
 
 		// Assert
+		assert.Contains(t, toolArgs, "--env="+ProxyCAEnvName+"="+proxyCAContainerPath)
 		assert.Contains(t, out, "--volume="+proxyRunMountDir)
 		assert.NotContains(t, out, "test-secret")
 		assert.Empty(t, calls())
 		assert.Empty(t, stdin())
+		assert.NoDirExists(t, filepath.Join(rs.ToolHome, proxyDirName))
 	})
+}
+
+func TestSweepProxyResources(t *testing.T) {
+	// Arrange
+	stubRunDirGrace(t, time.Minute)
+	stubDockerRunFixed(t, "", nil)
+	toolHome := t.TempDir()
+	stale := makeRunDir(t, toolHome, proxyDirName, "0123456789ab", time.Hour)
+	cacheDir := filepath.Join(toolHome, caBundleCacheDir)
+	require.NoError(t, os.MkdirAll(cacheDir, 0o700))
+
+	// Act
+	err := SweepProxyResources(toolHome)
+
+	// Assert
+	require.NoError(t, err)
+	assert.NoDirExists(t, stale)
+	assert.NoDirExists(t, cacheDir)
 }
