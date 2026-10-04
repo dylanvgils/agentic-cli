@@ -279,3 +279,47 @@ func TestApproveCredentials(t *testing.T) {
 		assert.Equal(t, "def", cfg.ApprovedCredentials["/example.test/.agenticrc.toml"])
 	})
 }
+
+func TestPendingCredentials(t *testing.T) {
+	creds := []RCCredential{{Preset: "anthropic", Secret: "/example.test/key"}}
+	cfg := &CliConfig{ApprovedCredentials: map[string]string{"/approved/.agenticrc.toml": CredentialsHash(creds)}}
+
+	t.Run("approved layer is not pending", func(t *testing.T) {
+		// Arrange
+		layers := []RCLayer{{Path: "/approved/.agenticrc.toml", RC: &AgenticRC{Run: RCRun{Proxy: RCProxy{Credentials: creds}}}}}
+
+		// Act
+		pending := cfg.PendingCredentials(layers)
+
+		// Assert
+		assert.Empty(t, pending)
+	})
+
+	t.Run("layer without credentials is not pending", func(t *testing.T) {
+		// Arrange
+		layers := []RCLayer{{Path: "/plain/.agenticrc.toml", RC: &AgenticRC{}}}
+
+		// Act
+		pending := cfg.PendingCredentials(layers)
+
+		// Assert
+		assert.Empty(t, pending)
+	})
+
+	t.Run("new and changed layers are pending in order", func(t *testing.T) {
+		// Arrange
+		changed := []RCCredential{{Preset: "anthropic", Secret: "/example.test/other"}}
+		layers := []RCLayer{
+			{Path: "/approved/.agenticrc.toml", RC: &AgenticRC{Run: RCRun{Proxy: RCProxy{Credentials: changed}}}},
+			{Path: "/new/.agenticrc.toml", RC: &AgenticRC{Run: RCRun{Proxy: RCProxy{Credentials: creds}}}},
+		}
+
+		// Act
+		pending := cfg.PendingCredentials(layers)
+
+		// Assert
+		require.Len(t, pending, 2)
+		assert.Equal(t, "/approved/.agenticrc.toml", pending[0].Path)
+		assert.Equal(t, "/new/.agenticrc.toml", pending[1].Path)
+	})
+}

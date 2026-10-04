@@ -84,6 +84,18 @@ func (config *CliConfig) CredentialsApproved(path, hash string) bool {
 	return config.ApprovedCredentials[evalSymlinks(path)] == hash
 }
 
+// PendingCredentials returns the layers whose credential entries are new or changed since the user last approved them.
+func (config *CliConfig) PendingCredentials(layers []RCLayer) []RCLayer {
+	var pending []RCLayer
+	for _, layer := range layers {
+		creds := layer.RC.Run.Proxy.Credentials
+		if len(creds) > 0 && !config.CredentialsApproved(layer.Path, CredentialsHash(creds)) {
+			pending = append(pending, layer)
+		}
+	}
+	return pending
+}
+
 // ApproveCredentials records hash as the approved credential entries for the config file at path and saves the config.
 func (config *CliConfig) ApproveCredentials(path, hash, toolHome string) error {
 	if config.ApprovedCredentials == nil {

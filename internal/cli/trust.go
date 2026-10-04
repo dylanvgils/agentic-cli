@@ -45,16 +45,8 @@ func checkCredentials(layers []config.RCLayer, toolHome string) error {
 		return fmt.Errorf("load trust config: %w", err)
 	}
 
-	for _, layer := range layers {
+	for _, layer := range cfg.PendingCredentials(layers) {
 		creds := layer.RC.Run.Proxy.Credentials
-		if len(creds) == 0 {
-			continue
-		}
-
-		hash := config.CredentialsHash(creds)
-		if cfg.CredentialsApproved(layer.Path, hash) {
-			continue
-		}
 
 		if !isTerminal() {
 			return fmt.Errorf("proxy credentials in %s are new or changed; run interactively to approve them", layer.Path)
@@ -70,7 +62,7 @@ func checkCredentials(layers []config.RCLayer, toolHome string) error {
 			return fmt.Errorf("proxy credentials in %s not approved", layer.Path)
 		}
 
-		if err := cfg.ApproveCredentials(layer.Path, hash, toolHome); err != nil {
+		if err := cfg.ApproveCredentials(layer.Path, config.CredentialsHash(creds), toolHome); err != nil {
 			return fmt.Errorf("save credential approval: %w", err)
 		}
 	}
