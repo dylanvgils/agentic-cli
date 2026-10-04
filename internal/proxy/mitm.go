@@ -104,7 +104,7 @@ func (i *Injector) serve(client net.Conn, leaf *tls.Certificate, host, port stri
 	tlsConn := tls.Server(client, &tls.Config{
 		Certificates: []tls.Certificate{*leaf},
 		NextProtos:   []string{"http/1.1"},
-		MinVersion:   tls.VersionTLS12,
+		MinVersion:   tls.VersionTLS13,
 	})
 
 	_ = client.SetDeadline(time.Now().Add(dialTimeout))
