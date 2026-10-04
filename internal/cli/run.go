@@ -223,15 +223,42 @@ func ensureDindImage(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	if info != nil && info.CLIVersion == buildinfo.Version && !info.BuiltBefore(time.Now().Add(-tools.DindImageMaxAge)) {
+
+	reason := sidecarImageRefreshReason(info, tools.DindImageMaxAge)
+	if reason == "" {
 		return nil
 	}
 
-	logging.Step(tools.DindImage)
+	logging.Infof("%s %s (%s)...", buildVerb(info), tools.DindImage, reason)
 	err = buildDindImage(tools.DindImage, tools.BuildOptions{Registry: collectRegistry(cmd)})
 	if err != nil && info != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not refresh %s, using the existing image: %v\n", tools.DindImage, err)
+		logging.Warnf("could not refresh %s, using the existing image: %v", tools.DindImage, err)
 		return nil
 	}
 	return err
+}
+
+// sidecarImageRefreshReason says why a sidecar image needs a (re)build, or "" if it is current; maxAge 0 skips the age check.
+func sidecarImageRefreshReason(info *docker.ImageInfo, maxAge time.Duration) string {
+	if info == nil {
+		return "image missing"
+	}
+
+	if info.CLIVersion != buildinfo.Version {
+		return "built by a different agentic version"
+	}
+
+	if maxAge > 0 && info.BuiltBefore(time.Now().Add(-maxAge)) {
+		return fmt.Sprintf("older than %d days", int(maxAge.Hours()/24))
+	}
+
+	return ""
+}
+
+// buildVerb picks "building" for a missing image and "rebuilding" for an existing one.
+func buildVerb(info *docker.ImageInfo) string {
+	if info == nil {
+		return "building"
+	}
+	return "rebuilding"
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -165,7 +166,7 @@ func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc
 	names = make([]string, len(results))
 	for i, r := range results {
 		if r.Stale {
-			fmt.Fprintf(os.Stderr, "warning: marketplace %q: %v; using existing clone\n", r.Entry.Name, r.Warning)
+			logging.Warnf("marketplace %q: %v; using existing clone", r.Entry.Name, r.Warning)
 		}
 		mounts[i] = toolConfig.Runtime.MarketplaceMount(r.Entry.Name, r.Entry.URL)
 		names[i] = r.Entry.Name
@@ -184,12 +185,12 @@ func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not record marketplace usage: %v\n", err)
+		logging.Warnf("could not record marketplace usage: %v", err)
 		return
 	}
 
 	if err := RecordMarketplaceUsage(baseDir, results, cwd); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not record marketplace usage: %v\n", err)
+		logging.Warnf("could not record marketplace usage: %v", err)
 	}
 }
 

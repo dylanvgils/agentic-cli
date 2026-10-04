@@ -2,11 +2,11 @@ package run
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
@@ -24,7 +24,7 @@ func (s InstructionsSnapshot) Cleanup() {
 		return
 	}
 	if err := s.finalize(); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not save instructions: %v\n", err)
+		logging.Warnf("could not save instructions: %v", err)
 	}
 }
 

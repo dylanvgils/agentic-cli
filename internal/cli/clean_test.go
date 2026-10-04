@@ -26,6 +26,7 @@ func Test_runClean(t *testing.T) {
 		// together when no tool arg is given; output formatting and per-target cleanup mechanics
 		// are covered by internal/usecase/clean's own tests.
 		t.Chdir(t.TempDir())
+		logBuf := stubErrLog(t)
 		var cleaned []string
 		stubCleanCleanImage(t, func(image string) error {
 			cleaned = append(cleaned, image)
@@ -47,6 +48,7 @@ func Test_runClean(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, cleaned, "agentic-claude")
 		assert.True(t, basesCleaned)
+		assert.Contains(t, logBuf.String(), "agentic: removing 3 image(s): ")
 	})
 
 	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {

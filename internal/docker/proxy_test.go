@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -234,10 +235,10 @@ func TestProxyHandlePrintSummary(t *testing.T) {
 		var buf strings.Builder
 
 		// Act
-		handle.PrintSummary(&buf)
+		handle.PrintSummary(logging.New(&buf))
 
 		// Assert
-		assert.Contains(t, buf.String(), "agentic proxy blocked 1 request(s) to: evil.com")
+		assert.Contains(t, buf.String(), "agentic: proxy blocked 1 request(s) to: evil.com")
 		assert.NotContains(t, buf.String(), "monitor mode")
 	})
 
@@ -251,10 +252,10 @@ func TestProxyHandlePrintSummary(t *testing.T) {
 		var buf strings.Builder
 
 		// Act
-		handle.PrintSummary(&buf)
+		handle.PrintSummary(logging.New(&buf))
 
 		// Assert
-		assert.Contains(t, buf.String(), "agentic proxy (monitor mode) observed 2 request(s); 1 would be blocked under the current allowlist: evil.com")
+		assert.Contains(t, buf.String(), "agentic: proxy (monitor mode) observed 2 request(s); 1 would be blocked under the current allowlist: evil.com")
 		assert.Contains(t, buf.String(), "--proxy-monitor")
 	})
 
@@ -265,7 +266,7 @@ func TestProxyHandlePrintSummary(t *testing.T) {
 		var buf strings.Builder
 
 		// Act
-		handle.PrintSummary(&buf)
+		handle.PrintSummary(logging.New(&buf))
 
 		// Assert
 		assert.Empty(t, buf.String())

@@ -418,6 +418,7 @@ func Test_ensureDindImage(t *testing.T) {
 
 	t.Run("missing image is built", func(t *testing.T) {
 		// Arrange
+		logBuf := stubErrLog(t)
 		stubInspectImage(t, nil, nil)
 		var builtImage string
 		stubBuildDindImage(t, func(image string, _ tools.BuildOptions) error {
@@ -431,11 +432,13 @@ func Test_ensureDindImage(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, tools.DindImage, builtImage)
+		assert.Contains(t, logBuf.String(), "agentic: building agentic-dind (image missing)...")
 	})
 
 	t.Run("stale image is rebuilt to pick up base patches", func(t *testing.T) {
 		// Arrange
 		stale := formatTestLabelTime(time.Now().Add(-tools.DindImageMaxAge - time.Hour))
+		logBuf := stubErrLog(t)
 		stubInspectImage(t, &docker.ImageInfo{CLIVersion: buildinfo.Version, Built: stale}, nil)
 		built := false
 		stubBuildDindImage(t, func(string, tools.BuildOptions) error {
@@ -449,6 +452,7 @@ func Test_ensureDindImage(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, built)
+		assert.Contains(t, logBuf.String(), "agentic: rebuilding agentic-dind (older than 7 days)...")
 	})
 
 	t.Run("failed refresh of an existing image only warns", func(t *testing.T) {
@@ -473,5 +477,81 @@ func Test_ensureDindImage(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "offline")
+	})
+}
+
+func Test_sidecarImageRefreshReason(t *testing.T) {
+	fresh := formatTestLabelTime(time.Now())
+
+	t.Run("missing image", func(t *testing.T) {
+		// Act
+		reason := sidecarImageRefreshReason(nil, tools.DindImageMaxAge)
+
+		// Assert
+		assert.Equal(t, "image missing", reason)
+	})
+
+	t.Run("different CLI version", func(t *testing.T) {
+		// Arrange
+		info := &docker.ImageInfo{CLIVersion: "v0.0.0", Built: fresh}
+
+		// Act
+		reason := sidecarImageRefreshReason(info, tools.DindImageMaxAge)
+
+		// Assert
+		assert.Equal(t, "built by a different agentic version", reason)
+	})
+
+	t.Run("older than max age", func(t *testing.T) {
+		// Arrange
+		stale := formatTestLabelTime(time.Now().Add(-tools.DindImageMaxAge - time.Hour))
+		info := &docker.ImageInfo{CLIVersion: buildinfo.Version, Built: stale}
+
+		// Act
+		reason := sidecarImageRefreshReason(info, tools.DindImageMaxAge)
+
+		// Assert
+		assert.Equal(t, "older than 7 days", reason)
+	})
+
+	t.Run("zero max age skips the age check", func(t *testing.T) {
+		// Arrange
+		stale := formatTestLabelTime(time.Now().Add(-tools.DindImageMaxAge - time.Hour))
+		info := &docker.ImageInfo{CLIVersion: buildinfo.Version, Built: stale}
+
+		// Act
+		reason := sidecarImageRefreshReason(info, 0)
+
+		// Assert
+		assert.Empty(t, reason)
+	})
+
+	t.Run("current image", func(t *testing.T) {
+		// Arrange
+		info := &docker.ImageInfo{CLIVersion: buildinfo.Version, Built: fresh}
+
+		// Act
+		reason := sidecarImageRefreshReason(info, tools.DindImageMaxAge)
+
+		// Assert
+		assert.Empty(t, reason)
+	})
+}
+
+func Test_buildVerb(t *testing.T) {
+	t.Run("missing image is built", func(t *testing.T) {
+		// Act
+		verb := buildVerb(nil)
+
+		// Assert
+		assert.Equal(t, "building", verb)
+	})
+
+	t.Run("existing image is rebuilt", func(t *testing.T) {
+		// Act
+		verb := buildVerb(&docker.ImageInfo{})
+
+		// Assert
+		assert.Equal(t, "rebuilding", verb)
 	})
 }

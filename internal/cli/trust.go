@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
 
 var trustStdin io.Reader = os.Stdin
@@ -30,7 +31,7 @@ func checkTrust(dir, toolHome string, trustFlag bool) error {
 		return fmt.Errorf("directory %q is not trusted; run interactively or pass --trust-dir to approve", dir)
 	}
 
-	fmt.Printf("Trust directory %s? [y/N] ", dir)
+	logging.Promptf("trust directory %s? [y/N] ", dir)
 	scanner := bufio.NewScanner(trustStdin)
 	scanner.Scan()
 	if answer := strings.TrimSpace(scanner.Text()); answer == "y" || answer == "Y" {

@@ -25,15 +25,14 @@ func TestRunVolumeCreate(t *testing.T) {
 	t.Run("prints created", func(t *testing.T) {
 		// Arrange
 		stubCreateVolume(t, func(string) error { return nil })
+		logBuf := stubErrLog(t)
 
 		// Act
-		out := captureLog(t, func() {
-			err := runVolumeCreate(volumesCreateCmd, []string{"maven"})
-			require.NoError(t, err)
-		})
+		err := runVolumeCreate(volumesCreateCmd, []string{"maven"})
 
 		// Assert
-		assert.Contains(t, out, "=> created: maven")
+		require.NoError(t, err)
+		assert.Contains(t, logBuf.String(), "agentic: created volume maven")
 	})
 
 	t.Run("error propagates", func(t *testing.T) {
@@ -96,15 +95,14 @@ func TestRunVolumeRemove(t *testing.T) {
 	t.Run("named prints deleted", func(t *testing.T) {
 		// Arrange
 		stubRemoveVolume(t, func(string) error { return nil })
+		logBuf := stubErrLog(t)
 
 		// Act
-		out := captureLog(t, func() {
-			err := runVolumeRemove(volumesRemoveCmd, []string{"maven"})
-			require.NoError(t, err)
-		})
+		err := runVolumeRemove(volumesRemoveCmd, []string{"maven"})
 
 		// Assert
-		assert.Contains(t, out, "=> deleted: maven")
+		require.NoError(t, err)
+		assert.Contains(t, logBuf.String(), "agentic: removed volume maven")
 	})
 
 	t.Run("named error propagates", func(t *testing.T) {
@@ -125,20 +123,20 @@ func TestRunVolumeRemove(t *testing.T) {
 		stubListVolumeNames(t, func() ([]string, error) { return nil, nil })
 		var removeCalled bool
 		stubRemoveVolume(t, func(string) error { removeCalled = true; return nil })
+		logBuf := stubErrLog(t)
 
 		// Act
-		out := captureStdout(t, func() {
-			err := runVolumeRemove(volumesRemoveCmd, nil)
-			require.NoError(t, err)
-		})
+		err := runVolumeRemove(volumesRemoveCmd, nil)
 
 		// Assert
-		assert.Contains(t, out, "No agentic-managed volumes found.")
+		require.NoError(t, err)
+		assert.Contains(t, logBuf.String(), "agentic: no agentic-managed volumes found")
 		assert.False(t, removeCalled)
 	})
 
 	t.Run("no name confirmed y removes all", func(t *testing.T) {
 		// Arrange
+		logBuf := stubErrLog(t)
 		stubListVolumeNames(t, func() ([]string, error) {
 			return []string{"maven", "gradle"}, nil
 		})
@@ -152,6 +150,7 @@ func TestRunVolumeRemove(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"maven", "gradle"}, removed)
+		assert.Contains(t, logBuf.String(), "agentic: removing 2 volume(s)")
 	})
 
 	t.Run("no name confirmed upper y removes all", func(t *testing.T) {

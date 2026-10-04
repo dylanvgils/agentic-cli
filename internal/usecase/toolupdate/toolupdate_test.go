@@ -187,6 +187,7 @@ func Test_notify(t *testing.T) {
 		assert.Contains(t, out, "1.3.0")
 		assert.Contains(t, out, "1.2.3")
 		assert.Contains(t, out, "agentic update claude")
+		assert.Contains(t, out, "agentic: claude update available")
 	})
 
 	t.Run("returns true when terminal and user confirms", func(t *testing.T) {

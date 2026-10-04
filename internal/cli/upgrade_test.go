@@ -109,16 +109,15 @@ func TestRunUpgrade(t *testing.T) {
 		origVersion := buildinfo.Version
 		buildinfo.Version = "v1.0.0"
 		t.Cleanup(func() { buildinfo.Version = origVersion })
+		logBuf := stubErrLog(t)
 
 		// Act
-		out := captureLog(t, func() {
-			err := runUpgrade(upgradeCmd, nil)
-			require.NoError(t, err)
-		})
+		err := runUpgrade(upgradeCmd, nil)
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, "v1.0.0", updateCalledWith)
-		assert.Contains(t, out, "updating")
+		assert.Contains(t, logBuf.String(), "updating")
 	})
 
 	t.Run("force skips pre-release check", func(t *testing.T) {

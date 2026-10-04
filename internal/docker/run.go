@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
 
 // proxyEnvNames are the env vars the egress proxy injects; overriding one via --env would silently break allowlist enforcement.
@@ -70,6 +72,9 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 		_, err := fmt.Fprintln(os.Stdout, "docker", shellJoin(args))
 		return err
 	}
+
+	// Set agentic startup messages apart from the tool output
+	logging.Separate()
 	return runInteractive(args...)
 }
 

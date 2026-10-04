@@ -33,10 +33,12 @@ type Scope struct {
 	All        bool
 }
 
-// Resolve returns the update targets for scope: every image across all namespaces (All), or the named tools in one namespace.
-func Resolve(scope Scope, opts tools.BuildOptions, pullExplicit bool) ([]Target, error) {
+// Resolve returns the update targets for scope: every image across all namespaces (All), or the named tools in one namespace,
+// plus the images skipped because they were never built (scoped mode without tool args only).
+func Resolve(scope Scope, opts tools.BuildOptions, pullExplicit bool) (targets []Target, skipped []string, err error) {
 	if scope.All {
-		return resolveAll(scope.FilterTool, opts, pullExplicit)
+		targets, err = resolveAll(scope.FilterTool, opts, pullExplicit)
+		return targets, nil, err
 	}
 	return resolveScoped(scope.Names, scope.HasArgs, scope.Namespace, opts, pullExplicit)
 }
@@ -63,23 +65,22 @@ func resolveAll(filterTool string, opts tools.BuildOptions, pullExplicit bool) (
 	return targets, nil
 }
 
-func resolveScoped(names []string, hasArgs bool, namespace string, opts tools.BuildOptions, pullExplicit bool) ([]Target, error) {
+func resolveScoped(names []string, hasArgs bool, namespace string, opts tools.BuildOptions, pullExplicit bool) (targets []Target, skipped []string, err error) {
 	skipUnbuilt := !hasArgs
-	var targets []Target
 
 	for _, name := range names {
 		image, err := tools.ImageName(name, namespace)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		info, err := InspectImage(image)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		if skipUnbuilt && info == nil {
-			logging.Stepf("%s (skipped - not built)", image)
+			skipped = append(skipped, image)
 			continue
 		}
 
@@ -92,7 +93,7 @@ func resolveScoped(names []string, hasArgs bool, namespace string, opts tools.Bu
 		targets = append(targets, Target{Name: name, Image: image, Opts: toolOpts})
 	}
 
-	return targets, nil
+	return targets, skipped, nil
 }
 
 // applyPullThrottle leaves opts.Pull untouched if --pull was explicit or there's no image to check; otherwise it disables auto-pull if agentic.pulled shows a pull within autoPullInterval.

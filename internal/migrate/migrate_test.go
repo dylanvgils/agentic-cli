@@ -99,6 +99,7 @@ func TestRun(t *testing.T) {
 func TestApplyPending(t *testing.T) {
 	t.Run("applies every pending migration newer than current.Version", func(t *testing.T) {
 		// Arrange
+		logBuf := stubErrLog(t)
 		toolHome := t.TempDir()
 		var calls []int
 		pending := []Migration{
@@ -116,10 +117,12 @@ func TestApplyPending(t *testing.T) {
 		s, err := loadState(toolHome)
 		require.NoError(t, err)
 		assert.Equal(t, 2, s.Version)
+		assert.Contains(t, logBuf.String(), "agentic: migrating agentic home to schema v2...")
 	})
 
 	t.Run("skips migrations at or below current.Version", func(t *testing.T) {
 		// Arrange
+		logBuf := stubErrLog(t)
 		toolHome := t.TempDir()
 		var calls int
 		pending := []Migration{
@@ -133,6 +136,7 @@ func TestApplyPending(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, applied)
 		assert.Zero(t, calls)
+		assert.Empty(t, logBuf.String(), "nothing pending means no migrating line")
 	})
 
 	t.Run("stops at the first failing migration and does not advance past it", func(t *testing.T) {

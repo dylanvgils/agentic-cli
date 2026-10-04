@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/dind"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
@@ -262,7 +263,7 @@ func (h dindHandle) waitReady(interrupt <-chan os.Signal) error {
 		}
 
 		if time.Since(lastProgress) >= dindProgressInterval {
-			fmt.Fprintf(os.Stderr, "still waiting for docker sidecar (%s)...\n", time.Since(start).Round(time.Second))
+			logging.Infof("still waiting for docker sidecar (%s)...", time.Since(start).Round(time.Second))
 			lastProgress = time.Now()
 		}
 
@@ -396,7 +397,7 @@ func launchDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
 	// Guard first so Ctrl-C during startup still removes the sidecar
 	interrupt, stop := guardSignals()
 
-	fmt.Fprintln(os.Stderr, "starting docker sidecar...")
+	logging.Infof("starting docker sidecar...")
 	handle, err := startDind(*rs, interrupt)
 	if err != nil {
 		stop()

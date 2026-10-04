@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -56,7 +56,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	pullExplicit := cmd.Flags().Changed("pull")
 
 	if opts.SkipInstallChecksum {
-		logging.Detail("warning: --skip-install-checksum disables install script integrity verification")
+		logging.Warnf("--skip-install-checksum disables install script integrity verification")
 	}
 
 	var tool string
@@ -88,18 +88,27 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		All:        all,
 	}
 
-	targets, err := update.Resolve(scope, opts, pullExplicit)
+	targets, skipped, err := update.Resolve(scope, opts, pullExplicit)
 	if err != nil {
 		return err
 	}
 
 	if len(targets) == 0 {
 		if all {
-			fmt.Println("No agentic images found. Run 'agentic build' first.")
+			logging.Infof("no agentic images found; run 'agentic build' first")
 		} else if len(args) == 0 {
-			fmt.Println("No tools are built. Run 'agentic build' first.")
+			logging.Infof("no tools are built; run 'agentic build' first")
 		}
 		return nil
+	}
+
+	images := make([]string, len(targets))
+	for i, t := range targets {
+		images[i] = t.Image
+	}
+	logging.Infof("updating %d image(s): %s", len(images), strings.Join(images, ", "))
+	for _, image := range skipped {
+		logging.Stepf("%s (skipped - not built)", image)
 	}
 
 	for _, t := range targets {

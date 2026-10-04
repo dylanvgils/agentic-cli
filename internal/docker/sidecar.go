@@ -1,10 +1,10 @@
 package docker
 
 import (
-	"fmt"
-	"os"
 	"strings"
 	"time"
+
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
 
 // sidecarOrphanGrace spares a starting run's sidecars; must outlast dindReadyTimeout.
@@ -61,7 +61,7 @@ func setupSidecars(rs *RunSpec) (args []string, cleanup func(), err error) {
 // warnOnSweepError reports a failed sweep without failing the run.
 func warnOnSweepError(err error) {
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not remove orphaned sidecars: %v\n", err)
+		logging.Warnf("could not remove orphaned sidecars: %v", err)
 	}
 }
 

@@ -1,9 +1,9 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/spf13/cobra"
 )
@@ -35,12 +35,7 @@ func runMigrate(_ *cobra.Command, _ []string) error {
 	}
 
 	if len(applied) == 0 {
-		fmt.Println("already up to date")
-		return nil
-	}
-
-	for _, m := range applied {
-		fmt.Printf("applied migration %d: %s\n", m.Version, m.Description)
+		logging.Infof("already up to date")
 	}
 
 	return nil

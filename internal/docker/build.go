@@ -8,7 +8,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/cleanup"
-	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
@@ -19,7 +18,6 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 		if err := verifyAptPackages(opts.AptPackages, opts.Registry); err != nil {
 			return err
 		}
-		logging.Step("Building image...")
 	}
 
 	content, err := tools.GenerateDockerfile(tool, opts)

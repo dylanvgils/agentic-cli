@@ -2,8 +2,10 @@ package cli
 
 import (
 	"os"
+	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
 	"github.com/spf13/cobra"
@@ -57,6 +59,14 @@ func runClean(cmd *cobra.Command, args []string) error {
 	targets, err := clean.Resolve(scope)
 	if err != nil {
 		return err
+	}
+
+	if len(targets) > 0 {
+		labels := make([]string, len(targets))
+		for i, t := range targets {
+			labels[i] = t.Label
+		}
+		logging.Infof("removing %d image(s): %s", len(labels), strings.Join(labels, ", "))
 	}
 
 	if err := clean.Apply(targets); err != nil {

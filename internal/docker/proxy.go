@@ -6,13 +6,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 )
@@ -103,20 +103,23 @@ func (h proxyHandle) Stop() {
 
 // PrintSummary reports hosts actually blocked in normal mode, or hosts that would have been
 // blocked under the current allowlist in monitor mode, since nothing is blocked there.
-func (h proxyHandle) PrintSummary(w io.Writer) {
+func (h proxyHandle) PrintSummary(l *logging.Logger) {
 	hosts, denied := h.hostsByDecision(proxy.DecisionDeny)
 	if denied == 0 {
 		return
 	}
 
+	// Blank line separates the summary from the tool output above it
+	fmt.Fprintln(l.Writer())
+
 	if h.monitor {
-		fmt.Fprintf(w, "\nagentic proxy (monitor mode) observed %d request(s); %d would be blocked under the current allowlist: %s\n", h.totalRequests(), denied, strings.Join(hosts, ", "))
-		fmt.Fprintln(w, "add the ones you want to allow to [run.proxy] allowed_hosts, then drop --proxy-monitor.")
+		l.Infof("proxy (monitor mode) observed %d request(s); %d would be blocked under the current allowlist: %s", h.totalRequests(), denied, strings.Join(hosts, ", "))
+		l.Detail("add the ones you want to allow to [run.proxy] allowed_hosts, then drop --proxy-monitor.")
 		return
 	}
 
-	fmt.Fprintf(w, "\nagentic proxy blocked %d request(s) to: %s\n", denied, strings.Join(hosts, ", "))
-	fmt.Fprintln(w, "add them to [run.proxy] allowed_hosts (or pass --no-proxy) to permit.")
+	l.Infof("proxy blocked %d request(s) to: %s", denied, strings.Join(hosts, ", "))
+	l.Detail("add them to [run.proxy] allowed_hosts (or pass --no-proxy) to permit.")
 }
 
 // hostsByDecision reads the access log and returns the unique hosts logged with decision (first-seen order) and the matching total.
@@ -236,6 +239,7 @@ func dryRunProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 
 // launchProxy starts the sidecar and returns a cleanup that tears it down and prints the access summary.
 func launchProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
+	logging.Infof("starting egress proxy...")
 	handle, err := startProxy(*rs)
 	if err != nil {
 		return nil, nil, err
@@ -249,7 +253,7 @@ func launchProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 		// Stop before reading the log so late denials make the summary
 		handle.Stop()
 		stop()
-		handle.PrintSummary(os.Stderr)
+		handle.PrintSummary(logging.Err)
 	}
 	return proxyEnvArgs(rs.Dind.Enabled), cleanup, nil
 }

@@ -34,7 +34,7 @@ func runUpgrade(_ *cobra.Command, _ []string) error {
 	target := upgradeVersion
 
 	if target == "" {
-		logging.Step("checking for updates...")
+		logging.Infof("checking for updates...")
 
 		latest, err := fetchLatestVersion()
 		if err != nil {
@@ -49,7 +49,7 @@ func runUpgrade(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	logging.Stepf("updating %s -> %s...", buildinfo.Version, target)
+	logging.Infof("updating %s -> %s...", buildinfo.Version, target)
 
 	if err := performUpdate(target); err != nil {
 		return fmt.Errorf("update failed: %w", err)
