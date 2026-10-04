@@ -62,4 +62,62 @@ func TestLoadCredentials(t *testing.T) {
 			assert.ErrorContains(t, err, want)
 		}
 	})
+
+	t.Run("wildcard and malformed hosts are rejected", func(t *testing.T) {
+		for _, host := range []string{"*.example.test", ".example.test", "*.", ".", "", "api..example.test", "-api.example.test", "api_key.example.test", "api.example.test:443"} {
+			// Arrange
+			path := writeTestFile(t, "creds.json", `[{"hosts":["`+host+`"],"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`)
+
+			// Act
+			_, err := LoadCredentials(path)
+
+			// Assert
+			assert.ErrorContains(t, err, "invalid host", host)
+		}
+	})
+
+	t.Run("exact hostnames and ips are accepted", func(t *testing.T) {
+		// Arrange
+		path := writeTestFile(t, "creds.json", `[{"hosts":["API.example.test.","127.0.0.1","::1"],"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`)
+
+		// Act
+		_, err := LoadCredentials(path)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("host listed in two credentials is rejected", func(t *testing.T) {
+		// Arrange
+		path := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"rules":[{"header":"X-Api-Key","value":"a"}]},{"hosts":["API.example.test."],"rules":[{"header":"X-Api-Key","value":"b"}]}]`)
+
+		// Act
+		_, err := LoadCredentials(path)
+
+		// Assert
+		assert.ErrorContains(t, err, "listed more than once")
+	})
+
+	t.Run("invalid headers are rejected", func(t *testing.T) {
+		cases := map[string]string{
+			`invalid header name "X Api"`:            `{"header":"X Api","value":"test-secret"}`,
+			`invalid header name "X(Api)"`:           `{"header":"X(Api)","value":"test-secret"}`,
+			`invalid header name "X-Ápi"`:            `{"header":"X-Ápi","value":"test-secret"}`,
+			"header host cannot be injected":         `{"header":"host","value":"evil.test"}`,
+			"header Connection cannot be injected":   `{"header":"Connection","value":"close"}`,
+			"invalid value for header X-Nul":         `{"header":"X-Nul","value":"a\u0000b"}`,
+			"invalid value for header X-Del":         `{"header":"X-Del","value":"a\u007fb"}`,
+			"invalid value for header X-Empty-Value": `{"header":"X-Empty-Value","value":""}`,
+		}
+		for want, rule := range cases {
+			// Arrange
+			path := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"rules":[`+rule+`]}]`)
+
+			// Act
+			_, err := LoadCredentials(path)
+
+			// Assert
+			assert.ErrorContains(t, err, want)
+		}
+	})
 }

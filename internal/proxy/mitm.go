@@ -9,27 +9,27 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/certs"
 )
 
+// idleTimeout closes intercepted client connections left idle between requests.
+const idleTimeout = 90 * time.Second
+
+// blockedMethods are refused inside an intercepted tunnel: TRACE/TRACK echo the injected headers back, CONNECT would re-tunnel.
+var blockedMethods = []string{http.MethodConnect, http.MethodTrace, "TRACK"}
+
 // Injector terminates TLS for credentialed hosts and sets their headers before forwarding.
 type Injector struct {
 	ca        certs.CA
-	creds     []hostRules
+	rules     map[string][]InjectRule // keyed by normalized exact host
 	transport http.RoundTripper
 
 	mutex  sync.Mutex
 	leaves map[string]*tls.Certificate // per host, issued on first use
-}
-
-// hostRules is a Credential with its hosts compiled for matching.
-type hostRules struct {
-	hosts *Allowlist
-	rules []InjectRule
 }
 
 // oneConnListener serves a single conn, blocking Accept until it closes.
@@ -48,14 +48,16 @@ type closeNotifyConn struct {
 
 // NewInjector builds an Injector issuing leaves from ca for the hosts in creds.
 func NewInjector(ca certs.CA, creds []Credential) *Injector {
-	compiled := make([]hostRules, 0, len(creds))
+	rules := make(map[string][]InjectRule)
 	for _, cred := range creds {
-		compiled = append(compiled, hostRules{hosts: NewAllowlist(cred.Hosts), rules: cred.Rules})
+		for _, host := range cred.Hosts {
+			rules[normalizeHost(host)] = cred.Rules
+		}
 	}
 
 	return &Injector{
 		ca:     ca,
-		creds:  compiled,
+		rules:  rules,
 		leaves: make(map[string]*tls.Certificate),
 		transport: &http.Transport{
 			DialContext:         (&net.Dialer{Timeout: dialTimeout}).DialContext,
@@ -65,24 +67,16 @@ func NewInjector(ca certs.CA, creds []Credential) *Injector {
 	}
 }
 
-// rulesFor returns the first matching credential's rules; safe on a nil Injector.
+// rulesFor returns the rules for exactly host; safe on a nil Injector.
 func (i *Injector) rulesFor(host string) []InjectRule {
 	if i == nil {
 		return nil
 	}
-
-	for _, cred := range i.creds {
-		if cred.hosts.matchesHost(host) {
-			return cred.rules
-		}
-	}
-	return nil
+	return i.rules[normalizeHost(host)]
 }
 
-// leaf returns the cached server cert for host, issuing it on first use.
+// leaf returns the cached server cert for host, already normalized by the caller, issuing it on first use.
 func (i *Injector) leaf(host string) (*tls.Certificate, error) {
-	host = strings.ToLower(host)
-
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
@@ -113,7 +107,11 @@ func (i *Injector) serve(client net.Conn, leaf *tls.Certificate, host, port stri
 	}
 	_ = client.SetDeadline(time.Time{})
 
-	server := &http.Server{Handler: i.reverseProxy(host, port, rules)}
+	server := &http.Server{
+		Handler:           blockMethods(i.reverseProxy(host, port, rules)),
+		ReadHeaderTimeout: dialTimeout,
+		IdleTimeout:       idleTimeout,
+	}
 	_ = server.Serve(newOneConnListener(tlsConn))
 }
 
@@ -156,6 +154,17 @@ func (s *Server) intercept(w http.ResponseWriter, host, port string, rules []Inj
 	}
 
 	s.inject.serve(client, leaf, host, port, rules)
+}
+
+// blockMethods answers blockedMethods with 405 instead of forwarding them.
+func blockMethods(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if slices.Contains(blockedMethods, r.Method) {
+			http.Error(w, "method not allowed by agentic proxy", http.StatusMethodNotAllowed)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // newOneConnListener returns a listener yielding conn once.

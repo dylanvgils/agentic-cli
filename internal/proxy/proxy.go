@@ -38,6 +38,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // handleConnect tunnels a CONNECT request to the upstream host after checking the allowlist; denied hosts get a 403 unless in monitor mode.
 func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	host, port := splitHostPort(r.Host)
+	host = normalizeHost(host)
 	rules := s.inject.rulesFor(host)
 
 	if !s.admit(ProtocolHTTPS, host, port, len(rules) > 0) {

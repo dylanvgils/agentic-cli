@@ -93,6 +93,41 @@ func TestServerConnectInject(t *testing.T) {
 		assert.Equal(t, "data: one\n", line)
 	})
 
+	t.Run("trace is refused before reaching the upstream", func(t *testing.T) {
+		// Arrange
+		inject, roots := newTestInjector(t, upstream, creds)
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+
+		req, err := http.NewRequest(http.MethodTrace, upstream.URL+"/echo", nil)
+		require.NoError(t, err)
+
+		// Act
+		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
+
+		// Assert
+		require.NoError(t, err)
+		defer resp.Body.Close() //nolint:errcheck
+		body, _ := io.ReadAll(resp.Body)
+		assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
+		assert.NotContains(t, string(body), "real-secret")
+	})
+
+	t.Run("trailing-dot host shares the normalized cert", func(t *testing.T) {
+		// Arrange
+		inject, _ := newTestInjector(t, upstream, creds)
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+
+		// Act
+		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost+".", upstreamPort))
+		defer conn.Close() //nolint:errcheck
+
+		// Assert
+		assert.Len(t, inject.leaves, 1)
+		assert.Contains(t, inject.leaves, upstreamHost)
+	})
+
 	t.Run("monitor mode still injects for a denied host", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
@@ -177,46 +212,42 @@ func TestServerConnectInject(t *testing.T) {
 }
 
 func Test_rulesFor(t *testing.T) {
-	first := []InjectRule{{Header: "X-Api-Key", Value: "first"}}
-	second := []InjectRule{{Header: "X-Api-Key", Value: "second"}}
-	inject := NewInjector(newTestProxyCA(t), []Credential{
-		{Hosts: []string{"api.example.test"}, Rules: first},
-		{Hosts: []string{"*.example.test"}, Rules: second},
-	})
+	rules := []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}
+	inject := NewInjector(newTestProxyCA(t), []Credential{{Hosts: []string{"api.example.test"}, Rules: rules}})
 
 	t.Run("nil injector has no rules", func(t *testing.T) {
 		// Arrange
 		var none *Injector
 
 		// Act
-		rules := none.rulesFor("api.example.test")
+		got := none.rulesFor("api.example.test")
 
 		// Assert
-		assert.Nil(t, rules)
+		assert.Nil(t, got)
 	})
 
-	t.Run("first matching credential wins", func(t *testing.T) {
+	t.Run("exact host matches regardless of case and trailing dot", func(t *testing.T) {
 		// Act
-		rules := inject.rulesFor("API.example.test")
+		got := inject.rulesFor("API.example.test.")
 
 		// Assert
-		assert.Equal(t, first, rules)
+		assert.Equal(t, rules, got)
 	})
 
-	t.Run("wildcard matches a subdomain", func(t *testing.T) {
+	t.Run("subdomain of a credentialed host has no rules", func(t *testing.T) {
 		// Act
-		rules := inject.rulesFor("uploads.example.test")
+		got := inject.rulesFor("evil.api.example.test")
 
 		// Assert
-		assert.Equal(t, second, rules)
+		assert.Nil(t, got)
 	})
 
 	t.Run("unmatched host has no rules", func(t *testing.T) {
 		// Act
-		rules := inject.rulesFor("example-test.evil")
+		got := inject.rulesFor("example-test.evil")
 
 		// Assert
-		assert.Nil(t, rules)
+		assert.Nil(t, got)
 	})
 }
 
@@ -227,10 +258,43 @@ func Test_leaf(t *testing.T) {
 	require.NoError(t, err)
 
 	// Act
-	again, err := inject.leaf("API.example.test")
+	again, err := inject.leaf("api.example.test")
 
 	// Assert
 	require.NoError(t, err)
 	assert.Same(t, first, again)
 	assert.Equal(t, []string{"api.example.test"}, again.Leaf.DNSNames)
+}
+
+func Test_blockMethods(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	handler := blockMethods(next)
+
+	t.Run("header-reflecting and tunnel methods are refused", func(t *testing.T) {
+		for _, method := range []string{http.MethodTrace, "TRACK", http.MethodConnect} {
+			// Arrange
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(method, "https://api.example.test/", nil)
+
+			// Act
+			handler.ServeHTTP(rec, req)
+
+			// Assert
+			assert.Equal(t, http.StatusMethodNotAllowed, rec.Code, method)
+		}
+	})
+
+	t.Run("other methods are forwarded", func(t *testing.T) {
+		for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodOptions} {
+			// Arrange
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(method, "https://api.example.test/", nil)
+
+			// Act
+			handler.ServeHTTP(rec, req)
+
+			// Assert
+			assert.Equal(t, http.StatusNoContent, rec.Code, method)
+		}
+	})
 }
