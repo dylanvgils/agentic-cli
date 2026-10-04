@@ -21,13 +21,13 @@ func TestServerConnect(t *testing.T) {
 		t.Cleanup(proxy.Close)
 
 		// Act
-		resp := connect(t, proxy.Listener.Addr().String(), "evil.com:443")
+		resp := connect(t, proxy.Listener.Addr().String(), "evil.test:443")
 		defer resp.Body.Close() //nolint:errcheck
 
 		// Assert
 		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 		assert.Contains(t, logBuf.String(), `"decision":"deny"`)
-		assert.Contains(t, logBuf.String(), `"host":"evil.com"`)
+		assert.Contains(t, logBuf.String(), `"host":"evil.test"`)
 		assert.Contains(t, logBuf.String(), `"protocol":"https"`)
 		assert.Contains(t, logBuf.String(), `"enforced":true`)
 	})
@@ -88,7 +88,7 @@ func TestServerHTTP(t *testing.T) {
 		t.Cleanup(proxy.Close)
 
 		// Act
-		resp := proxyGet(t, proxy.URL, "http://evil.com/")
+		resp := proxyGet(t, proxy.URL, "http://evil.test/")
 		defer resp.Body.Close() //nolint:errcheck
 
 		// Assert

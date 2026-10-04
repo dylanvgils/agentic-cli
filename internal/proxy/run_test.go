@@ -12,7 +12,7 @@ import (
 func TestConfigFromEnv(t *testing.T) {
 	t.Run("parses comma-separated hosts and trims blanks", func(t *testing.T) {
 		// Arrange
-		t.Setenv(EnvAllow, " api.anthropic.com , ,.github.com ")
+		t.Setenv(EnvAllow, " api.example.test , ,.example.test ")
 		t.Setenv(EnvLog, "/var/log/proxy.jsonl")
 		t.Setenv(EnvAddr, ":9999")
 
@@ -20,7 +20,7 @@ func TestConfigFromEnv(t *testing.T) {
 		cfg := ConfigFromEnv()
 
 		// Assert
-		assert.Equal(t, []string{"api.anthropic.com", ".github.com"}, cfg.AllowedHosts)
+		assert.Equal(t, []string{"api.example.test", ".example.test"}, cfg.AllowedHosts)
 		assert.Equal(t, "/var/log/proxy.jsonl", cfg.LogPath)
 		assert.Equal(t, ":9999", cfg.Addr)
 	})
@@ -136,7 +136,7 @@ func TestOpenLog(t *testing.T) {
 }
 
 func Test_loadInjector(t *testing.T) {
-	credsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.anthropic.com"],"rules":[{"header":"x-api-key","value":"sk-test"}]}]`)
+	credsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`)
 
 	t.Run("neither set disables injection", func(t *testing.T) {
 		// Act
@@ -164,7 +164,7 @@ func Test_loadInjector(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []InjectRule{{Header: "x-api-key", Value: "sk-test"}}, inject.rulesFor("api.anthropic.com"))
+		assert.Equal(t, []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}, inject.rulesFor("api.example.test"))
 	})
 
 	t.Run("missing ca key is an error", func(t *testing.T) {
@@ -182,7 +182,7 @@ func Test_loadInjector(t *testing.T) {
 	t.Run("invalid credentials are an error", func(t *testing.T) {
 		// Arrange
 		caDir := writeTestCADir(t)
-		badPath := writeTestFile(t, "creds.json", `[{"hosts":["a.test"]}]`)
+		badPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"]}]`)
 
 		// Act
 		_, err := loadInjector(caDir, badPath)

@@ -11,14 +11,14 @@ import (
 func TestLoadCredentials(t *testing.T) {
 	t.Run("parses hosts and rules", func(t *testing.T) {
 		// Arrange
-		path := writeTestFile(t, "creds.json", `[{"hosts":["api.anthropic.com"],"rules":[{"header":"x-api-key","value":"sk-test"}]}]`)
+		path := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`)
 
 		// Act
 		creds, err := LoadCredentials(path)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []Credential{{Hosts: []string{"api.anthropic.com"}, Rules: []InjectRule{{Header: "x-api-key", Value: "sk-test"}}}}, creds)
+		assert.Equal(t, []Credential{{Hosts: []string{"api.example.test"}, Rules: []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}, creds)
 	})
 
 	t.Run("missing file is an error", func(t *testing.T) {
@@ -45,11 +45,11 @@ func TestLoadCredentials(t *testing.T) {
 
 	t.Run("incomplete credentials are rejected", func(t *testing.T) {
 		cases := map[string]string{
-			"no hosts":                 `[{"rules":[{"header":"x-api-key","value":"sk"}]}]`,
-			"no rules":                 `[{"hosts":["a.test"]}]`,
-			`invalid header name ""`:   `[{"hosts":["a.test"],"rules":[{"header":"","value":"sk"}]}]`,
-			`invalid header name "a:"`: `[{"hosts":["a.test"],"rules":[{"header":"a:","value":"sk"}]}]`,
-			"invalid value":            `[{"hosts":["a.test"],"rules":[{"header":"x-api-key","value":"sk\r\nX-Evil: 1"}]}]`,
+			"no hosts":                 `[{"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`,
+			"no rules":                 `[{"hosts":["api.example.test"]}]`,
+			`invalid header name ""`:   `[{"hosts":["api.example.test"],"rules":[{"header":"","value":"test-secret"}]}]`,
+			`invalid header name "a:"`: `[{"hosts":["api.example.test"],"rules":[{"header":"a:","value":"test-secret"}]}]`,
+			"invalid value":            `[{"hosts":["api.example.test"],"rules":[{"header":"X-Api-Key","value":"test-secret\r\nX-Injected: 1"}]}]`,
 		}
 		for want, content := range cases {
 			// Arrange
