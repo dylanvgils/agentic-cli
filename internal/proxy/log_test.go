@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,8 +19,8 @@ func TestLoggerLog(t *testing.T) {
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
-		logger.Log(ProtocolHTTPS, "api.anthropic.com", "443", DecisionAllow, true)
-		logger.Log(ProtocolHTTP, "evil.com", "443", DecisionDeny, true)
+		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.anthropic.com", Port: "443", Decision: DecisionAllow, Enforced: true})
+		logger.Log(Entry{Protocol: ProtocolHTTP, Host: "evil.com", Port: "443", Decision: DecisionDeny, Enforced: true})
 
 		// Assert
 		lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
@@ -48,7 +49,7 @@ func TestLoggerLog(t *testing.T) {
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
-		logger.Log(ProtocolHTTPS, "evil.com", "443", DecisionDeny, false)
+		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "evil.com", Port: "443", Decision: DecisionDeny, Enforced: false})
 
 		// Assert
 		var entry Entry
@@ -64,8 +65,8 @@ func TestLoggerLog(t *testing.T) {
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
-		logger.Log(ProtocolHTTPS, "api.anthropic.com", "443", DecisionAllow, true)
-		logger.Log(ProtocolHTTP, "evil.com", "443", DecisionDeny, true)
+		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.anthropic.com", Port: "443", Decision: DecisionAllow, Enforced: true})
+		logger.Log(Entry{Protocol: ProtocolHTTP, Host: "evil.com", Port: "443", Decision: DecisionDeny, Enforced: true})
 
 		// Assert
 		lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
@@ -81,12 +82,28 @@ func TestLoggerLog(t *testing.T) {
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
-		logger.Log(ProtocolHTTPS, "evil.com", "443", DecisionDeny, false)
+		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "evil.com", Port: "443", Decision: DecisionDeny, Enforced: false})
 
 		// Assert
 		lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
 		require.Len(t, lines, 1)
 		assert.Equal(t, "2026-06-17T12:00:00Z [DENY]  https evil.com:443 (monitor)", string(lines[0]))
+	})
+
+	t.Run("injected tunnel is tagged and recorded", func(t *testing.T) {
+		// Arrange
+		var jsonBuf, humanBuf bytes.Buffer
+		logger := NewLogger(&jsonBuf, &humanBuf, nil)
+		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
+
+		// Act
+		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.anthropic.com", Port: "443", Decision: DecisionAllow, Enforced: true, Injected: true})
+
+		// Assert
+		var entry Entry
+		require.NoError(t, json.Unmarshal(bytes.TrimSpace(jsonBuf.Bytes()), &entry))
+		assert.True(t, entry.Injected)
+		assert.Equal(t, "2026-06-17T12:00:00Z [ALLOW] https api.anthropic.com:443 (injected)", strings.TrimSpace(humanBuf.String()))
 	})
 
 	t.Run("human destination uses the configured location", func(t *testing.T) {
@@ -97,7 +114,7 @@ func TestLoggerLog(t *testing.T) {
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
-		logger.Log(ProtocolHTTPS, "api.anthropic.com", "443", DecisionAllow, true)
+		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.anthropic.com", Port: "443", Decision: DecisionAllow, Enforced: true})
 
 		// Assert
 		lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
@@ -110,6 +127,6 @@ func TestLoggerLog(t *testing.T) {
 		logger := NewLogger(nil, nil, nil)
 
 		// Act + Assert
-		assert.NotPanics(t, func() { logger.Log(ProtocolHTTPS, "api.anthropic.com", "443", DecisionAllow, true) })
+		assert.NotPanics(t, func() { logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.anthropic.com", Port: "443", Decision: DecisionAllow, Enforced: true}) })
 	})
 }

@@ -45,7 +45,11 @@ func (a *Allowlist) Allows(host, port string) bool {
 	if !slices.Contains(DefaultPorts, port) {
 		return false
 	}
+	return a.matchesHost(host)
+}
 
+// matchesHost reports whether host matches an entry, ignoring the port.
+func (a *Allowlist) matchesHost(host string) bool {
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
 	if a.exact[host] {
 		return true

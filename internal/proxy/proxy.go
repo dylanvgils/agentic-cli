@@ -18,11 +18,13 @@ type Server struct {
 	allow   *Allowlist
 	logger  *Logger
 	monitor bool
+	inject  *Injector // nil disables credential injection
 }
 
-// NewServer builds a Server recording to logger, enforcing allow unless monitor is true.
-func NewServer(allow *Allowlist, logger *Logger, monitor bool) *Server {
-	return &Server{allow: allow, logger: logger, monitor: monitor}
+// NewServer builds a Server recording to logger, enforcing allow unless monitor is true and
+// injecting credentials through inject when non-nil.
+func NewServer(allow *Allowlist, logger *Logger, monitor bool, inject *Injector) *Server {
+	return &Server{allow: allow, logger: logger, monitor: monitor, inject: inject}
 }
 
 // ServeHTTP handles both CONNECT (HTTPS tunnels) and plain HTTP forwarding.
@@ -35,17 +37,19 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleConnect tunnels a CONNECT request to the upstream host after checking the allowlist; denied hosts get a 403 unless in monitor mode.
+// Credentialed hosts are TLS-terminated by the injector instead of tunneled blindly.
 func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	host, port := splitHostPort(r.Host)
+	rules := s.inject.rulesFor(host)
 
-	if !s.allow.Allows(host, port) {
-		s.logger.Log(ProtocolHTTPS, host, port, DecisionDeny, !s.monitor)
-		if !s.monitor {
-			http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
-			return
-		}
-	} else {
-		s.logger.Log(ProtocolHTTPS, host, port, DecisionAllow, !s.monitor)
+	if !s.admit(ProtocolHTTPS, host, port, len(rules) > 0) {
+		http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
+		return
+	}
+
+	if len(rules) > 0 {
+		s.intercept(w, host, port, rules)
+		return
 	}
 
 	upstream, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), dialTimeout)
@@ -70,20 +74,16 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleHTTP forwards a plain (non-TLS) HTTP request to the upstream host after checking the allowlist, unless in monitor mode.
+// Credentials are never injected over plain HTTP.
 func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	host, port := splitHostPort(r.Host)
 	if port == "" {
 		port = "80"
 	}
 
-	if !s.allow.Allows(host, port) {
-		s.logger.Log(ProtocolHTTP, host, port, DecisionDeny, !s.monitor)
-		if !s.monitor {
-			http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
-			return
-		}
-	} else {
-		s.logger.Log(ProtocolHTTP, host, port, DecisionAllow, !s.monitor)
+	if !s.admit(ProtocolHTTP, host, port, false) {
+		http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
+		return
 	}
 
 	r.RequestURI = ""
@@ -101,6 +101,27 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
+}
+
+// admit logs the allowlist verdict and reports whether to forward; monitor mode always forwards.
+func (s *Server) admit(protocol Protocol, host, port string, inject bool) bool {
+	allowed := s.allow.Allows(host, port)
+	forward := allowed || s.monitor
+
+	decision := DecisionDeny
+	if allowed {
+		decision = DecisionAllow
+	}
+
+	s.logger.Log(Entry{
+		Protocol: protocol,
+		Host:     host,
+		Port:     port,
+		Decision: decision,
+		Enforced: !s.monitor,
+		Injected: inject && forward,
+	})
+	return forward
 }
 
 // hijack takes over the underlying TCP connection from the ResponseWriter for a CONNECT tunnel.

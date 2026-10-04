@@ -5,9 +5,11 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -42,6 +44,11 @@ func (p KeyPair) KeyPEM() ([]byte, error) {
 	return pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}), nil
 }
 
+// TLSCertificate returns the pair as a tls.Certificate for serving.
+func (p KeyPair) TLSCertificate() tls.Certificate {
+	return tls.Certificate{Certificate: [][]byte{p.cert.Raw}, PrivateKey: p.key, Leaf: p.cert}
+}
+
 // NewCA returns a self-signed CA named cn that may only sign leaf certs.
 func NewCA(cn string) (CA, error) {
 	tmpl, err := certTemplate(cn)
@@ -71,6 +78,35 @@ func (c CA) IssueLeaf(cn string, usage x509.ExtKeyUsage, names []string) (KeyPai
 	addSANs(tmpl, names)
 
 	return issue(tmpl, &c.KeyPair)
+}
+
+// LoadCA parses a CA written by CertPEM and KeyPEM, rejecting non-CA certs and mismatched keys.
+func LoadCA(certPEM, keyPEM []byte) (CA, error) {
+	certBlock, _ := pem.Decode(certPEM)
+	if certBlock == nil || certBlock.Type != "CERTIFICATE" {
+		return CA{}, errors.New("CA cert: no CERTIFICATE PEM block")
+	}
+	cert, err := x509.ParseCertificate(certBlock.Bytes)
+	if err != nil {
+		return CA{}, fmt.Errorf("parse CA cert: %w", err)
+	}
+	if !cert.IsCA {
+		return CA{}, fmt.Errorf("cert %s is not a CA", cert.Subject.CommonName)
+	}
+
+	keyBlock, _ := pem.Decode(keyPEM)
+	if keyBlock == nil || keyBlock.Type != "EC PRIVATE KEY" {
+		return CA{}, errors.New("CA key: no EC PRIVATE KEY PEM block")
+	}
+	key, err := x509.ParseECPrivateKey(keyBlock.Bytes)
+	if err != nil {
+		return CA{}, fmt.Errorf("parse CA key: %w", err)
+	}
+	if !key.PublicKey.Equal(cert.PublicKey) {
+		return CA{}, fmt.Errorf("CA key does not match cert %s", cert.Subject.CommonName)
+	}
+
+	return CA{KeyPair: KeyPair{cert: cert, key: key}}, nil
 }
 
 // certTemplate returns a template with a random serial and the per-run validity window.

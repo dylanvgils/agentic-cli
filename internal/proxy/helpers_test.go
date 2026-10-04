@@ -2,12 +2,19 @@ package proxy
 
 import (
 	"bufio"
+	"crypto/tls"
+	"crypto/x509"
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/certs"
 	"github.com/stretchr/testify/require"
 )
 
@@ -88,4 +95,60 @@ func proxyGet(t *testing.T, proxyURL, target string) *http.Response {
 	resp, err := client.Do(parsed)
 	require.NoError(t, err)
 	return resp
+}
+
+// newTestInjector returns an Injector for creds whose upstream transport trusts upstream's cert, and a pool trusting its CA.
+func newTestInjector(t *testing.T, upstream *httptest.Server, creds []Credential) (*Injector, *x509.CertPool) {
+	t.Helper()
+
+	ca := newTestProxyCA(t)
+	inject := NewInjector(ca, creds)
+	inject.transport = upstream.Client().Transport
+
+	roots := x509.NewCertPool()
+	require.True(t, roots.AppendCertsFromPEM(ca.CertPEM()))
+	return inject, roots
+}
+
+// httpsClientVia returns a client sending requests through proxyURL and trusting only roots.
+func httpsClientVia(t *testing.T, proxyURL string, roots *x509.CertPool) *http.Client {
+	t.Helper()
+
+	parsed, err := url.Parse(proxyURL)
+	require.NoError(t, err)
+
+	transport := &http.Transport{Proxy: http.ProxyURL(parsed), TLSClientConfig: &tls.Config{RootCAs: roots}}
+	t.Cleanup(transport.CloseIdleConnections)
+	return &http.Client{Transport: transport, Timeout: 5 * time.Second}
+}
+
+// writeTestCADir writes a fresh CA as CACertFile/CAKeyFile into a temp dir and returns it.
+func writeTestCADir(t *testing.T) string {
+	t.Helper()
+
+	ca := newTestProxyCA(t)
+	keyPEM, err := ca.KeyPEM()
+	require.NoError(t, err)
+
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, CACertFile), ca.CertPEM(), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, CAKeyFile), keyPEM, 0o600))
+	return dir
+}
+
+// writeTestFile writes content to name in a temp dir and returns its path.
+func writeTestFile(t *testing.T, name, content string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), name)
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	return path
+}
+
+// newTestProxyCA returns a fresh CA, failing the test on error.
+func newTestProxyCA(t *testing.T) certs.CA {
+	t.Helper()
+	ca, err := certs.NewCA("test proxy CA")
+	require.NoError(t, err)
+	return ca
 }

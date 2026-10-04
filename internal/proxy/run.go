@@ -5,9 +5,11 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/certs"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 )
 
@@ -20,11 +22,19 @@ const DefaultAddr = ":" + Port
 // Environment variables passed from the host to the proxy container - internal wiring between
 // StartProxy (host) and the agentic-proxy binary (see cmd/proxy/main.go), not user-facing config.
 const (
-	EnvAllow    = "AGENTIC_PROXY_ALLOW"     // comma-separated allowed hosts
-	EnvLog      = "AGENTIC_PROXY_LOG"       // JSON-lines access-log path
-	EnvAddr     = "AGENTIC_PROXY_ADDR"      // override listen address
-	EnvTZOffset = "AGENTIC_PROXY_TZ_OFFSET" // host UTC offset in seconds, for the human-readable log line
-	EnvMonitor  = "AGENTIC_PROXY_MONITOR"   // "true" to log without enforcing the allowlist
+	EnvAllow       = "AGENTIC_PROXY_ALLOW"       // comma-separated allowed hosts
+	EnvLog         = "AGENTIC_PROXY_LOG"         // JSON-lines access-log path
+	EnvAddr        = "AGENTIC_PROXY_ADDR"        // override listen address
+	EnvTZOffset    = "AGENTIC_PROXY_TZ_OFFSET"   // host UTC offset in seconds, for the human-readable log line
+	EnvMonitor     = "AGENTIC_PROXY_MONITOR"     // "true" to log without enforcing the allowlist
+	EnvCADir       = "AGENTIC_PROXY_CA_DIR"      // dir holding CACertFile and CAKeyFile for credential injection
+	EnvCredentials = "AGENTIC_PROXY_CREDENTIALS" // JSON credential list path (see LoadCredentials)
+)
+
+// Files in the EnvCADir directory.
+const (
+	CACertFile = "ca.pem"
+	CAKeyFile  = "ca-key.pem"
 )
 
 // ConfigFromEnv builds a Config from the proxy environment variables.
@@ -41,6 +51,8 @@ func ConfigFromEnv() Config {
 		LogPath:         logPath,
 		TZOffsetSeconds: offset,
 		Monitor:         monitor,
+		CADir:           os.Getenv(EnvCADir),
+		CredentialsPath: os.Getenv(EnvCredentials),
 	}
 }
 
@@ -51,6 +63,8 @@ type Config struct {
 	LogPath         string   // JSON-lines access log file; always also written to stdout
 	TZOffsetSeconds int      // host UTC offset shown in the stdout human-readable line; the JSON log always stays UTC
 	Monitor         bool     // log the allowlist verdict without enforcing it
+	CADir           string   // per-run CA for credential injection; set together with CredentialsPath
+	CredentialsPath string   // JSON credential list; empty disables injection
 }
 
 // Run starts the forward proxy and blocks until it stops serving.
@@ -66,8 +80,13 @@ func Run(cfg Config) error {
 	}
 	defer closeLog()
 
+	inject, err := loadInjector(cfg.CADir, cfg.CredentialsPath)
+	if err != nil {
+		return err
+	}
+
 	location := time.FixedZone("", cfg.TZOffsetSeconds)
-	server := NewServer(NewAllowlist(cfg.AllowedHosts), NewLogger(jsonWriter(logFile), os.Stdout, location), cfg.Monitor)
+	server := NewServer(NewAllowlist(cfg.AllowedHosts), NewLogger(jsonWriter(logFile), os.Stdout, location), cfg.Monitor, inject)
 
 	httpServer := &http.Server{
 		Addr:    addr,
@@ -95,4 +114,34 @@ func jsonWriter(f *os.File) io.Writer {
 		return nil
 	}
 	return f
+}
+
+// loadInjector builds an Injector from the CA in caDir and the credentials at credsPath; both empty
+// disables injection, and setting only one is an error so a half-wired run fails closed.
+func loadInjector(caDir, credsPath string) (*Injector, error) {
+	if caDir == "" && credsPath == "" {
+		return nil, nil
+	}
+	if caDir == "" || credsPath == "" {
+		return nil, fmt.Errorf("%s and %s must be set together", EnvCADir, EnvCredentials)
+	}
+
+	certPEM, err := os.ReadFile(filepath.Join(caDir, CACertFile))
+	if err != nil {
+		return nil, fmt.Errorf("read proxy CA: %w", err)
+	}
+	keyPEM, err := os.ReadFile(filepath.Join(caDir, CAKeyFile))
+	if err != nil {
+		return nil, fmt.Errorf("read proxy CA key: %w", err)
+	}
+	ca, err := certs.LoadCA(certPEM, keyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("load proxy CA: %w", err)
+	}
+
+	creds, err := LoadCredentials(credsPath)
+	if err != nil {
+		return nil, err
+	}
+	return NewInjector(ca, creds), nil
 }

@@ -69,6 +69,19 @@ func TestConfigFromEnv(t *testing.T) {
 		assert.True(t, cfg.Monitor)
 	})
 
+	t.Run("reads the ca dir and credentials path", func(t *testing.T) {
+		// Arrange
+		t.Setenv(EnvCADir, "/run/agentic/proxy/ca")
+		t.Setenv(EnvCredentials, "/run/agentic/proxy/credentials.json")
+
+		// Act
+		cfg := ConfigFromEnv()
+
+		// Assert
+		assert.Equal(t, "/run/agentic/proxy/ca", cfg.CADir)
+		assert.Equal(t, "/run/agentic/proxy/credentials.json", cfg.CredentialsPath)
+	})
+
 	t.Run("missing or invalid monitor defaults to false", func(t *testing.T) {
 		// Arrange
 		t.Setenv(EnvMonitor, "not-a-bool")
@@ -119,5 +132,62 @@ func TestOpenLog(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
+	})
+}
+
+func Test_loadInjector(t *testing.T) {
+	credsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.anthropic.com"],"rules":[{"header":"x-api-key","value":"sk-test"}]}]`)
+
+	t.Run("neither set disables injection", func(t *testing.T) {
+		// Act
+		inject, err := loadInjector("", "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Nil(t, inject)
+	})
+
+	t.Run("only one set is an error", func(t *testing.T) {
+		// Act
+		_, err := loadInjector("", credsPath)
+
+		// Assert
+		assert.ErrorContains(t, err, "must be set together")
+	})
+
+	t.Run("loads the ca and credentials", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+
+		// Act
+		inject, err := loadInjector(caDir, credsPath)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []InjectRule{{Header: "x-api-key", Value: "sk-test"}}, inject.rulesFor("api.anthropic.com"))
+	})
+
+	t.Run("missing ca key is an error", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+		require.NoError(t, os.Remove(filepath.Join(caDir, CAKeyFile)))
+
+		// Act
+		_, err := loadInjector(caDir, credsPath)
+
+		// Assert
+		assert.ErrorContains(t, err, "read proxy CA key")
+	})
+
+	t.Run("invalid credentials are an error", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+		badPath := writeTestFile(t, "creds.json", `[{"hosts":["a.test"]}]`)
+
+		// Act
+		_, err := loadInjector(caDir, badPath)
+
+		// Assert
+		assert.ErrorContains(t, err, "no rules")
 	})
 }
