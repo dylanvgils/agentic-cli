@@ -29,13 +29,27 @@ type fileSource struct {
 
 // Resolve reads the file, refusing anything but a regular file of at most maxSecretSize bytes.
 func (s fileSource) Resolve() ([]byte, error) {
+	// Check before opening: opening a FIFO blocks until a writer appears
+	info, err := os.Stat(s.path)
+	if err != nil {
+		return nil, fmt.Errorf("read secret: %w", err)
+	}
+	if err := checkRegular(info); err != nil {
+		return nil, fmt.Errorf("read secret %s: %w", s.path, err)
+	}
+
 	file, err := os.Open(s.path)
 	if err != nil {
 		return nil, fmt.Errorf("read secret: %w", err)
 	}
 	defer func() { _ = file.Close() }()
 
-	if err := checkRegular(file); err != nil {
+	// Check again in case the path was swapped after the first check
+	info, err = file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("read secret %s: %w", s.path, err)
+	}
+	if err := checkRegular(info); err != nil {
 		return nil, fmt.Errorf("read secret %s: %w", s.path, err)
 	}
 
@@ -93,11 +107,7 @@ func cutHomePrefix(path string) (string, bool) {
 }
 
 // checkRegular refuses directories, devices, pipes and other non-regular files.
-func checkRegular(file *os.File) error {
-	info, err := file.Stat()
-	if err != nil {
-		return err
-	}
+func checkRegular(info os.FileInfo) error {
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("not a regular file")
 	}
