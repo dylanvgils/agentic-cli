@@ -13,6 +13,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -382,6 +383,7 @@ func TestStartProxy_credentials(t *testing.T) {
 		ca, err := certs.LoadCA(files[proxy.CACertFile].content, files[proxy.CAKeyFile].content)
 		require.NoError(t, err)
 		assert.True(t, ca.Scoped())
+		assert.Equal(t, files[proxy.CACertFile].content, handle.caPEM, "the tool must trust the CA the proxy got")
 	})
 
 	t.Run("removes the container and its volume when the copy fails", func(t *testing.T) {
@@ -491,12 +493,15 @@ func Test_dryRunProxy(t *testing.T) {
 		rs := RunSpec{DryRun: true, Proxy: ProxySpec{Mode: ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
 
 		// Act
+		var toolArgs []string
 		out := captureStdout(t, func() {
-			_, _, err := dryRunProxy(&rs)
+			var err error
+			toolArgs, _, err = dryRunProxy(&rs)
 			require.NoError(t, err)
 		})
 
 		// Assert
+		assert.Contains(t, toolArgs, "--env="+tools.ProxyCAEnvName+"="+dryRunCAPlaceholder)
 		assert.Contains(t, out, "--volume="+proxyRunMountDir)
 		assert.NotContains(t, out, "test-secret")
 		assert.Empty(t, calls())

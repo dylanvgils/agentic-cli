@@ -315,7 +315,7 @@ func TestRunContainer(t *testing.T) {
 
 func TestIsReservedEnvName(t *testing.T) {
 	t.Run("config names reserved regardless of proxy", func(t *testing.T) {
-		for _, key := range []string{"TOOL_HOME", "CONTAINER_HOME"} {
+		for _, key := range []string{"TOOL_HOME", "CONTAINER_HOME", "AGENTIC_PROXY_CA"} {
 			assert.True(t, IsReservedEnvName(key, false), key)
 			assert.True(t, IsReservedEnvName(key, true), key)
 		}

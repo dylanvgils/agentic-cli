@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
 // proxyEnvNames are the env vars the egress proxy injects; overriding one via --env would silently break allowlist enforcement.
@@ -24,6 +25,7 @@ var reservedConfigNames = map[string]bool{
 	"TOOL_HOME":            true,
 	"CONTAINER_HOME":       true,
 	"AGENTIC_MARKETPLACES": true,
+	tools.ProxyCAEnvName:   true,
 }
 
 // RunSpec collects everything needed to run a container.

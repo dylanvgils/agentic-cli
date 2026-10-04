@@ -56,7 +56,8 @@ type ProxySpec struct {
 	Credentials []proxy.Credential
 }
 
-// proxyHandle identifies the per-run proxy network, sidecar container, host-side access log and injected credentials.
+// proxyHandle identifies the per-run proxy network, sidecar container, host-side access log, injected credentials
+// and the CA cert the proxy signs them with, set once started.
 type proxyHandle struct {
 	id          string
 	network     string
@@ -65,6 +66,7 @@ type proxyHandle struct {
 	allow       []string
 	monitor     bool
 	credentials []proxy.Credential
+	caPEM       []byte
 }
 
 // Enabled reports whether the proxy runs, in either mode.
@@ -221,10 +223,12 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 		return proxyHandle{}, fmt.Errorf("create proxy: %w", err)
 	}
 
-	if err := h.copyCredentials(); err != nil {
+	caPEM, err := h.copyCredentials()
+	if err != nil {
 		h.Stop()
 		return proxyHandle{}, err
 	}
+	h.caPEM = caPEM
 
 	if _, err := dockerRun("start", h.container); err != nil {
 		h.Stop()
@@ -244,7 +248,7 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 	return h, nil
 }
 
-// setupProxy configures rs for proxy mode if enabled, returning the env args to inject and a cleanup func to defer.
+// setupProxy configures rs for proxy mode if enabled, returning the tool args (proxy env, CA trust) to inject and a cleanup func to defer.
 func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 	if !rs.Proxy.Mode.Enabled() {
 		return nil, func() {}, nil
@@ -269,7 +273,7 @@ func dryRunProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 		return nil, nil, err
 	}
 
-	return proxyEnvArgs(rs.Dind.Enabled), func() {}, nil
+	return append(proxyEnvArgs(rs.Dind.Enabled), handle.trustArgs()...), func() {}, nil
 }
 
 // launchProxy starts the sidecar and returns a cleanup that tears it down and prints the access summary.
@@ -299,7 +303,7 @@ func launchProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 		stop()
 		handle.PrintSummary(logging.Err)
 	}
-	return proxyEnvArgs(rs.Dind.Enabled), cleanup, nil
+	return append(proxyEnvArgs(rs.Dind.Enabled), handle.trustArgs()...), cleanup, nil
 }
 
 // createArgs builds the `docker create` arguments for the hardened proxy sidecar, registering

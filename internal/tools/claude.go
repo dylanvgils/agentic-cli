@@ -78,6 +78,7 @@ func claudeStage(prevStage string) df.Stage {
 						`done < <(claude plugin marketplace list --json 2>/dev/null | jq -r '.[] | select(.source=="directory") | [.name, .installLocation] | @tsv' 2>/dev/null)`,
 					},
 				},
+				proxyTrustBlock(),
 				{Lines: []string{`exec claude "$@"`}},
 			},
 		}).
@@ -105,6 +106,7 @@ func claudeStage(prevStage string) df.Stage {
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/claude"}).
 		Add(df.Env{Key: "DISABLE_AUTOUPDATER", Value: "1"}).
 		Add(df.Workdir{Path: mount.WorkspaceContainerPath}).
+		Add(proxyTrustLabel()).
 		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
 		Build()
 }

@@ -21,6 +21,7 @@ import (
 func TestBuild(t *testing.T) {
 	stubEnsureNamedVolumes(t, func([]string, string, string, string) error { return nil })
 	stubEnsureNetwork(t, func() error { return nil })
+	stubInspectImage(t, func(string) (*docker.ImageInfo, error) { return &docker.ImageInfo{ProxyTrust: true}, nil })
 
 	t.Run("volumes wired", func(t *testing.T) {
 		// Arrange
@@ -305,6 +306,41 @@ func TestBuild(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []proxy.Credential{cred}, rs.Proxy.Credentials)
 		assert.Contains(t, rs.Env, "EXAMPLE_API_KEY="+credentials.Placeholder)
+	})
+
+	t.Run("proxy credentials warn when the entrypoint is skipped", func(t *testing.T) {
+		for _, skip := range []bool{true, false} {
+			// Arrange
+			stderr := stubLoggingErr(t)
+			target := Target{ToolName: "claude", ImageName: "agentic-claude", SkipEntrypoint: skip}
+			cred := proxy.Credential{Hosts: []string{"api.example.test"}}
+			in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce, Credentials: []credentials.Resolved{{Proxy: []proxy.Credential{cred}}}}
+
+			// Act
+			_, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+			// Assert
+			require.NoError(t, err)
+			if skip {
+				assert.Contains(t, stderr.String(), "proxy CA is not trusted")
+			} else {
+				assert.Empty(t, stderr.String())
+			}
+		}
+	})
+
+	t.Run("proxy credentials refused on an image without proxy trust", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, func(string) (*docker.ImageInfo, error) { return &docker.ImageInfo{}, nil })
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		cred := proxy.Credential{Hosts: []string{"api.example.test"}}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce, Credentials: []credentials.Resolved{{Proxy: []proxy.Credential{cred}}}}
+
+		// Act
+		_, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		assert.ErrorContains(t, err, "agentic update claude")
 	})
 
 	t.Run("proxy credentials rejected when the secret is mounted", func(t *testing.T) {

@@ -75,6 +75,12 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	}
 	env = append(env, placeholders...)
 
+	if len(in.Credentials) > 0 {
+		if err := checkProxyTrust(target); err != nil {
+			return docker.RunSpec{}, err
+		}
+	}
+
 	// Tells entrypoint.sh exactly which names to register instead of globbing.
 	if len(marketplaceNames) > 0 {
 		env = append(env, "AGENTIC_MARKETPLACES="+strings.Join(marketplaceNames, ","))

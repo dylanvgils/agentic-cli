@@ -9,7 +9,9 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
 // ResolveCredentials reads the secrets of every credential the layers declare, refusing to run while any layer's entries are unapproved.
@@ -42,6 +44,9 @@ func credentialSetup(in Input, volumes, secrets, env []string, containerHome str
 	if !in.ProxyMode.Enabled() {
 		return nil, fmt.Errorf("proxy credentials need the egress proxy, which is disabled")
 	}
+	if i := slices.IndexFunc(env, func(entry string) bool { return isProxyTrustEnvName(envKey(entry)) }); i >= 0 {
+		return nil, fmt.Errorf("--env: %q is set by agentic when proxy credentials are configured", envKey(env[i]))
+	}
 
 	if err := checkCredentialPaths(in.Credentials, volumes, secrets, in.ToolHome, containerHome); err != nil {
 		return nil, err
@@ -64,7 +69,7 @@ func credentialEnv(resolved []credentials.Resolved, env []string, dindEnabled bo
 	var result []string
 	for _, r := range resolved {
 		for _, name := range r.Env {
-			if docker.IsReservedEnvName(name, true) || (dindEnabled && docker.IsReservedDindEnvName(name)) {
+			if docker.IsReservedEnvName(name, true) || isProxyTrustEnvName(name) || (dindEnabled && docker.IsReservedDindEnvName(name)) {
 				return nil, fmt.Errorf("credential env %q is managed by agentic", name)
 			}
 			if slices.ContainsFunc(env, func(entry string) bool { return envKey(entry) == name }) {
@@ -100,4 +105,27 @@ func checkCredentialPaths(resolved []credentials.Resolved, volumes, secrets []st
 func envKey(entry string) string {
 	key, _, _ := strings.Cut(entry, "=")
 	return key
+}
+
+// isProxyTrustEnvName reports whether name carries the proxy CA or is pointed at its bundle by the tool's entrypoint.
+func isProxyTrustEnvName(name string) bool {
+	return name == tools.ProxyCAEnvName || slices.Contains(tools.ProxyTrustEnvNames, name)
+}
+
+// checkProxyTrust makes sure the tool can trust the proxy CA its entrypoint adds: it warns when the entrypoint is
+// skipped and refuses an image whose entrypoint predates it, since TLS to credential hosts would fail either way.
+func checkProxyTrust(target Target) error {
+	if target.SkipEntrypoint {
+		logging.Warnf("skipping the entrypoint: TLS to proxy credential hosts will fail, as the proxy CA is not trusted")
+		return nil
+	}
+
+	info, err := InspectImage(target.ImageName)
+	if err != nil {
+		return fmt.Errorf("inspect %s: %w", target.ImageName, err)
+	}
+	if info == nil || info.ProxyTrust {
+		return nil
+	}
+	return fmt.Errorf("%s can't trust the proxy CA, so TLS to credential hosts would fail; rebuild it with \"agentic update %s\"", target.ImageName, target.ToolName)
 }

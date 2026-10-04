@@ -42,6 +42,9 @@ const (
 	// LabelToolVersion records the detected tool version, read via its version script (see runVersionScript).
 	LabelToolVersion = "agentic.tool.version"
 
+	// LabelProxyTrust marks a tool image whose entrypoint trusts the proxy CA, set by its Dockerfile.
+	LabelProxyTrust = tools.ProxyTrustLabel
+
 	// -- Timestamps --
 
 	// LabelBuilt records the UTC timestamp at which the image was built.
