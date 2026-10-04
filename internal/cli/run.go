@@ -83,7 +83,13 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("working directory %q is on a network share; Docker cannot bind-mount UNC paths", cwd)
 	}
 
-	rc, err := config.FindAndLoad(cwd)
+	// Load the layers once so the credentials approved below are the ones the run uses
+	layers, err := config.FindLayers(cwd)
+	if err != nil {
+		return err
+	}
+
+	rc, err := config.Merge(layers)
 	if err != nil {
 		return err
 	}
@@ -112,6 +118,10 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := checkTrust(cwd, toolHome, trustDir); err != nil {
+		return err
+	}
+
+	if err := checkCredentials(layers, toolHome); err != nil {
 		return err
 	}
 

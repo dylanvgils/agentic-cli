@@ -18,6 +18,7 @@ Stored in `$AGENTIC_HOME/agentic.json` (default `~/.agentic/agentic.json`). Mach
 | `proxy_log_retention_days` | scalar | Days to keep egress proxy access logs before they're pruned automatically. Default: `3`.                                      | -                  |
 | `last_update_check`        | scalar | Timestamp of the last automatic update check. Managed automatically - do not edit by hand.                                    | -                  |
 | `last_tool_version_check`  | object | Per-tool timestamps of the last automatic tool-update check, keyed by tool name. Managed automatically - do not edit by hand. | -                  |
+| `approved_credentials`     | object | Hash of each `.agenticrc.toml`'s approved `[[run.proxy.credentials]]` entries, keyed by file path. A new or changed entry prompts again, and non-interactive runs fail until it is approved. Managed automatically - do not edit by hand. | -                  |
 
 ### Registry proxy
 

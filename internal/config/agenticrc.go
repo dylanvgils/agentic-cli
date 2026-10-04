@@ -2,12 +2,16 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 )
@@ -147,19 +151,12 @@ func MarketplacesFor(rc *AgenticRC, tool string) []RCMarketplace {
 
 // FindAndLoad walks up from startDir merging .agenticrc.toml layers (stopping at root=true): scalar keys take the innermost value, list keys accumulate outermost-first.
 func FindAndLoad(startDir string) (*AgenticRC, error) {
-	paths := collectPaths(startDir)
-
-	configs, err := loadConfigs(paths)
+	layers, err := FindLayers(startDir)
 	if err != nil {
 		return nil, err
 	}
 
-	merged := mergeConfigs(configs)
-	if err := validateUniqueCustomInstalls(merged.Build.CustomInstalls); err != nil {
-		return nil, err
-	}
-
-	return merged, nil
+	return Merge(layers)
 }
 
 // FindLayers returns the .agenticrc.toml layers that FindAndLoad would merge, ordered outermost-to-innermost, each paired with its source path.
@@ -184,6 +181,29 @@ func FindLayers(startDir string) ([]RCLayer, error) {
 	}
 
 	return layers, nil
+}
+
+// Merge combines layers ordered outermost-to-innermost, as returned by FindLayers, the same way FindAndLoad does.
+func Merge(layers []RCLayer) (*AgenticRC, error) {
+	configs := make([]*AgenticRC, 0, len(layers))
+	for i := len(layers) - 1; i >= 0; i-- {
+		configs = append(configs, layers[i].RC)
+	}
+
+	merged := mergeConfigs(configs)
+	if err := validateUniqueCustomInstalls(merged.Build.CustomInstalls); err != nil {
+		return nil, err
+	}
+
+	return merged, nil
+}
+
+// CredentialsHash fingerprints a layer's credential entries so a change to any of them can be detected.
+func CredentialsHash(creds []RCCredential) string {
+	// A slice of plain structs always marshals
+	data, _ := json.Marshal(creds)
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 // SplitEnvValues splits a comma-separated value string and skips empty parts.
@@ -219,24 +239,6 @@ func collectPaths(startDir string) []string {
 	}
 
 	return paths
-}
-
-func loadConfigs(paths []string) ([]*AgenticRC, error) {
-	var configs []*AgenticRC
-
-	for _, path := range paths {
-		rc, err := loadRC(path)
-		if err != nil {
-			return nil, err
-		}
-		configs = append(configs, rc)
-
-		if rc.Root {
-			break
-		}
-	}
-
-	return configs, nil
 }
 
 func mergeConfigs(configs []*AgenticRC) *AgenticRC {
@@ -376,7 +378,7 @@ func loadRC(path string) (*AgenticRC, error) {
 	return rc, nil
 }
 
-// validateCredential checks the entry's shape; hosts, headers and presets are checked when it is resolved.
+// validateCredential checks the entry's shape and characters; hosts, headers and presets are checked when it is resolved.
 func validateCredential(cred RCCredential) error {
 	if cred.Secret == "" {
 		return fmt.Errorf("secret must not be empty")
@@ -388,6 +390,14 @@ func validateCredential(cred RCCredential) error {
 	}
 	if cred.Preset == "" && (len(cred.Hosts) == 0 || cred.Header == "") {
 		return fmt.Errorf("set either preset or both hosts and header")
+	}
+
+	// Escape sequences could disguise the entry in the approval prompt
+	fields := append([]string{cred.Preset, cred.Header, cred.Format, cred.Secret}, cred.Hosts...)
+	for _, field := range append(fields, cred.Env...) {
+		if strings.ContainsFunc(field, func(r rune) bool { return !unicode.IsPrint(r) }) {
+			return fmt.Errorf("value %q contains control or non-printable characters", field)
+		}
 	}
 	return nil
 }

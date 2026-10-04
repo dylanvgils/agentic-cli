@@ -94,57 +94,6 @@ func TestCollectPaths(t *testing.T) {
 	})
 }
 
-func TestLoadConfigs(t *testing.T) {
-	t.Run("empty", func(t *testing.T) {
-		// Act
-		configs, err := loadConfigs(nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, configs)
-	})
-
-	t.Run("single file", func(t *testing.T) {
-		// Arrange
-		path := writeRC(t, "[run]\ncpus = \"4\"\n")
-
-		// Act
-		configs, err := loadConfigs([]string{path})
-
-		// Assert
-		require.NoError(t, err)
-		require.Len(t, configs, 1)
-		assert.Equal(t, "4", configs[0].Run.CPUs)
-	})
-
-	t.Run("stops at root true", func(t *testing.T) {
-		// Arrange
-		withRoot := writeRC(t, "root = true\n[run]\ncpus = \"4\"\n")
-		shouldSkip := writeRC(t, "[run]\ncpus = \"1\"\n")
-
-		// Act
-		configs, err := loadConfigs([]string{withRoot, shouldSkip})
-
-		// Assert - second file not loaded
-		require.NoError(t, err)
-		assert.Len(t, configs, 1)
-		assert.Equal(t, "4", configs[0].Run.CPUs)
-	})
-
-	t.Run("returns error on invalid file and stops", func(t *testing.T) {
-		// Arrange
-		invalid := writeRC(t, "not valid toml [[[")
-		valid := writeRC(t, "[run]\ncpus = \"4\"\n")
-
-		// Act
-		configs, err := loadConfigs([]string{invalid, valid})
-
-		// Assert - error propagated, valid file after it not loaded
-		assert.ErrorContains(t, err, invalid)
-		assert.Empty(t, configs)
-	})
-}
-
 func TestMergeConfigs(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		// Act
@@ -721,6 +670,28 @@ secret = "/example/secret"
 		}
 	})
 
+	t.Run("control characters in proxy credentials return error", func(t *testing.T) {
+		entries := []string{
+			"hosts = [\"evil.example.test\\u001b[2K\"]\nheader = \"X-Token\"\nsecret = \"/s\"\n",
+			"hosts = [\"api.example.test\"]\nheader = \"X-Token\\r\"\nsecret = \"/s\"\n",
+			"hosts = [\"api.example.test\"]\nheader = \"X-Token\"\nformat = \"Bearer %s\\n\"\nsecret = \"/s\"\n",
+			"preset = \"anthropic\"\nsecret = \"/s\\u001b[2K\\rhidden\"\n",
+			"preset = \"anthropic\\u0007\"\nsecret = \"/s\"\n",
+			"preset = \"anthropic\"\nenv = [\"KEY\\u202e\"]\nsecret = \"/s\"\n",
+		}
+		for _, entry := range entries {
+			// Arrange
+			path := writeRC(t, "[[run.proxy.credentials]]\n"+entry)
+
+			// Act
+			_, err := loadRC(path)
+
+			// Assert
+			assert.ErrorContains(t, err, "non-printable characters", entry)
+			assert.ErrorContains(t, err, path)
+		}
+	})
+
 	t.Run("run.instructions key", func(t *testing.T) {
 		// Act
 		rc := mustParseRC(t, "[run.instructions]\nenabled = false\ncustom = \"Always run go test before finishing.\"\n")
@@ -1064,5 +1035,94 @@ func TestFindAndLoad(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, "name must be unique across")
 		assert.Nil(t, rc)
+	})
+}
+
+func TestMerge(t *testing.T) {
+	t.Run("no layers returns empty", func(t *testing.T) {
+		// Act
+		rc, err := Merge(nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, rc.Run.Proxy.Credentials)
+	})
+
+	t.Run("innermost scalar wins and lists accumulate outermost first", func(t *testing.T) {
+		// Arrange
+		layers := []RCLayer{
+			{Path: "/outer", RC: &AgenticRC{Run: RCRun{
+				RCLimits: RCLimits{CPUs: "2"},
+				Proxy:    RCProxy{Credentials: []RCCredential{{Preset: "github", Secret: "/example.test/gh"}}},
+			}}},
+			{Path: "/inner", RC: &AgenticRC{Run: RCRun{
+				RCLimits: RCLimits{CPUs: "8"},
+				Proxy:    RCProxy{Credentials: []RCCredential{{Preset: "anthropic", Secret: "/example.test/key"}}},
+			}}},
+		}
+
+		// Act
+		rc, err := Merge(layers)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "8", rc.Run.CPUs)
+		require.Len(t, rc.Run.Proxy.Credentials, 2)
+		assert.Equal(t, "github", rc.Run.Proxy.Credentials[0].Preset)
+		assert.Equal(t, "anthropic", rc.Run.Proxy.Credentials[1].Preset)
+	})
+
+	t.Run("duplicate custom install name returns error", func(t *testing.T) {
+		// Arrange
+		install := RCCustomInstall{Name: "helm", Run: []string{"true"}}
+		layers := []RCLayer{
+			{Path: "/outer", RC: &AgenticRC{Build: RCBuild{CustomInstalls: []RCCustomInstall{install}}}},
+			{Path: "/inner", RC: &AgenticRC{Build: RCBuild{CustomInstalls: []RCCustomInstall{install}}}},
+		}
+
+		// Act
+		rc, err := Merge(layers)
+
+		// Assert
+		assert.ErrorContains(t, err, "must be unique")
+		assert.Nil(t, rc)
+	})
+}
+
+func TestCredentialsHash(t *testing.T) {
+	base := []RCCredential{{Preset: "anthropic", Secret: "/example.test/key"}}
+
+	t.Run("same entries hash equal", func(t *testing.T) {
+		// Arrange
+		same := []RCCredential{{Preset: "anthropic", Secret: "/example.test/key"}}
+
+		// Act
+		got := CredentialsHash(same)
+
+		// Assert
+		assert.Equal(t, CredentialsHash(base), got)
+	})
+
+	t.Run("changed secret path changes hash", func(t *testing.T) {
+		// Arrange
+		changed := []RCCredential{{Preset: "anthropic", Secret: "/example.test/other"}}
+
+		// Act
+		got := CredentialsHash(changed)
+
+		// Assert
+		assert.NotEqual(t, CredentialsHash(base), got)
+	})
+
+	t.Run("added host changes hash", func(t *testing.T) {
+		// Arrange
+		before := []RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Token", Secret: "/example.test/token"}}
+		after := []RCCredential{{Hosts: []string{"api.example.test", "echo.example.test"}, Header: "X-Token", Secret: "/example.test/token"}}
+
+		// Act
+		got := CredentialsHash(after)
+
+		// Assert
+		assert.NotEqual(t, CredentialsHash(before), got)
 	})
 }
