@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -478,4 +480,28 @@ func Test_ensureDindImage(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, "offline")
 	})
+}
+
+func Test_describeInjection(t *testing.T) {
+	// Arrange
+	creds := []credentials.Resolved{
+		{
+			Proxy: []proxy.Credential{
+				{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}},
+				{Hosts: []string{"git.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Basic test-secret"}}},
+			},
+			Source: "/home/user/.secrets/example",
+		},
+		{
+			Proxy:  []proxy.Credential{{Hosts: []string{"other.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Bearer test-secret"}}}},
+			Source: "/home/user/.secrets/other",
+		},
+	}
+
+	// Act
+	desc := describeInjection(creds)
+
+	// Assert
+	assert.Equal(t, "api.example.test, git.example.test (/home/user/.secrets/example); other.example.test (/home/user/.secrets/other)", desc)
+	assert.NotContains(t, desc, "test-secret")
 }

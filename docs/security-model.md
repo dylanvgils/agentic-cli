@@ -37,12 +37,15 @@ Everything inside "Docker host" shares one Linux kernel. That's the boundary all
 | **Mounts**: only `/workspace`, the tool's own home dir, and read-only secrets | Reading the rest of your files (`~/.ssh`, other repos, browser data) | Reading everything that *is* mounted, including its own credentials and secrets; editing the workspace | `internal/tools/<tool>.go`, `internal/mount` |
 | **Network** `agentic-net` | Reaching other containers on your Docker host | Reaching the internet | `internal/docker/network.go` |
 | **Egress proxy** (opt-in, `--proxy`): tool sits on an `--internal` network whose only way out is the proxy | Talking to hosts not on the allowlist; every attempt is logged | Sending data to an allowlisted host (filtering is by host, not content) | `internal/proxy`, `internal/docker/proxy.go` |
+| **Credential injection** (opt-in, `[[run.proxy.credentials]]`): the proxy holds API keys and sets them as headers for their hosts; the tool sees a placeholder | Reading or leaking a configured API key | Using the key through its hosts during the run; OAuth tokens in the tool home; Copilot's exchanged token | `internal/proxy`, `internal/credentials`, `internal/usecase/run/credentials.go` |
 | **DinD sidecar** (opt-in, `--dind`): rootless dockerd in its own container, mTLS, seccomp filter, no setuid binaries, sees only `/workspace` | Access to the host's Docker socket (= root on your machine); host files outside `/workspace` | Inner containers get namespaced `SYS_ADMIN`/`NET_ADMIN`, so more kernel surface; an inner container can read the sidecar's own files (incl. its TLS key); `docker push` to an allowlisted registry | `internal/docker/dind.go`, `internal/dind` - see [Docker-in-Docker](docker-in-docker.md) |
 | **Build**: tool install scripts checksum-verified against a pinned SHA256 | A tampered or swapped install script | A malicious release of the tool itself | `internal/tools` |
 
 ## Configuring the layers
 
 An egress allowlist proxy can restrict a tool's outbound traffic to a configurable set of hosts and log every connection attempt - fail-closed, so anything not on the allowlist is blocked. Toggle it per run with `--proxy` / `--no-proxy`; use `--proxy-monitor` to log without blocking anything, useful for discovering a new tool's egress needs before writing an allowlist. See [Configuration](config.md#keys) for the `[run.proxy]` config reference and setup details.
+
+`[[run.proxy.credentials]]` moves static API keys (Anthropic, OpenAI, GitHub, or any header-based token) out of the tool container: the proxy injects them into HTTPS requests to their hosts, and new or changed entries need your approval. See [Credential injection](config.md#credential-injection).
 
 `read_only_mounts` in `.agenticrc.toml` (or `--read-only-mount`) forces a specific sub-path (e.g. a credentials directory) read-only while its parent mount stays writable. See [Configuration](config.md#keys) for the `read_only_mounts` config reference.
 
@@ -63,7 +66,7 @@ If one of these breaks, a layer above stops meaning anything:
 What no layer covers today:
 
 - **Shared kernel**: a kernel exploit escapes every container. Only a VM boundary (Kata, gVisor, [Docker Sandboxes](comparison.md)) fixes this. Keep the host kernel patched.
-- **Credentials in reach**: the agent can read its own API token and any `--secret` you mount, and use them from any allowed host.
+- **Credentials in reach**: the agent can read its OAuth login token in the tool home and any `--secret` you mount, and use them from any allowed host. API keys configured as [proxy credentials](config.md#credential-injection) stay out of reach, but the agent can still use them through their hosts during the run.
 - **Workspace tampering**: the agent can edit git hooks, `Makefile`, `package.json` scripts, etc. They run on *your* machine the next time you use them outside the container. Review diffs.
 - **Exfiltration to allowed hosts**: without `--proxy` the internet is open; with it, data can still go to any allowlisted host.
 

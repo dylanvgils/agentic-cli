@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
@@ -135,6 +136,9 @@ func runTool(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if len(creds) > 0 && !dryRun {
+		logging.Infof("injecting credentials for %s", describeInjection(creds))
+	}
 
 	if proxyMode.Enabled() && !dryRun {
 		if err := ensureProxyImage(cmd); err != nil {
@@ -255,4 +259,13 @@ func ensureDindImage(cmd *cobra.Command) error {
 		return nil
 	}
 	return err
+}
+
+// describeInjection lists each credential's hosts and secret source for the per-run notice; never the secret itself.
+func describeInjection(creds []credentials.Resolved) string {
+	parts := make([]string, 0, len(creds))
+	for _, cred := range creds {
+		parts = append(parts, fmt.Sprintf("%s (%s)", strings.Join(cred.Hosts(), ", "), cred.Source))
+	}
+	return strings.Join(parts, "; ")
 }

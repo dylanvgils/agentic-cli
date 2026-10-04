@@ -7,7 +7,7 @@ Runs agentic coding tools in isolated, read-only Docker containers - each with o
 - **Per-project config** - `.agenticrc.toml` files merge up the directory tree; namespaces keep separate image sets per project
 - **Pluggable runtimes** - add Node.js, Java, .NET, or Go on top of the base image, with version pinning
 - **Persistent state** - named volumes and read-only secret mounts survive across container runs
-- **Egress allowlist proxy** - optionally restrict and log a tool's outbound network access
+- **Egress allowlist proxy** - optionally restrict and log a tool's outbound network access, and inject API keys so the agent never sees them
 - **Docker-in-Docker** - optionally give a tool its own rootless Docker daemon, never the host's socket
 
 → [Full overview and motivation](docs/overview.md)
@@ -62,7 +62,7 @@ Tools: `claude` (Claude Code), `copilot` (GitHub Copilot CLI), `opencode` (OpenC
 
 ## 🔒 Security
 
-Containers run read-only with all capabilities dropped, no privilege escalation, your own uid/gid, and on an isolated Docker network. Opt-in layers add an egress allowlist proxy (`--proxy`) and a rootless Docker-in-Docker sidecar (`--dind`). See [Security model](docs/security-model.md) for what each layer stops and the risk that's left.
+Containers run read-only with all capabilities dropped, no privilege escalation, your own uid/gid, and on an isolated Docker network. Opt-in layers add an egress allowlist proxy (`--proxy`), proxy-injected API keys the agent never sees (`[[run.proxy.credentials]]`), and a rootless Docker-in-Docker sidecar (`--dind`). See [Security model](docs/security-model.md) for what each layer stops and the risk that's left.
 
 ## 📚 Documentation
 

@@ -136,6 +136,8 @@ agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.x
 
 For persisting secrets via `.agenticrc.toml`, see [Configuration](config.md).
 
+A mounted secret is readable by the agent. For an API key the tool only sends as a header (Anthropic, OpenAI, a GitHub token, ...), use [credential injection](config.md#credential-injection) instead: the egress proxy adds the key to requests and the container only sees a placeholder.
+
 ## Environment variables
 
 Use `--env` / `-e` to set an environment variable in the container, either as a literal `KEY=VALUE` or a bare `KEY` to forward the host's current value:
