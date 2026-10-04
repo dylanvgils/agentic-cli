@@ -106,15 +106,33 @@ func TestNewScopedCA(t *testing.T) {
 
 func TestCAScoped(t *testing.T) {
 	t.Run("scoped ca reports scoped", func(t *testing.T) {
+		for _, name := range []string{"127.0.0.1", "api.example.test"} {
+			// Arrange
+			ca, err := NewScopedCA("test CA", []string{name})
+			require.NoError(t, err)
+
+			// Act
+			scoped := ca.Scoped()
+
+			// Assert
+			assert.True(t, scoped, name)
+		}
+	})
+
+	t.Run("dns constraints without ip constraints is not scoped", func(t *testing.T) {
 		// Arrange
-		ca, err := NewScopedCA("test CA", []string{"127.0.0.1"})
+		tmpl, err := caTemplate("test CA")
+		require.NoError(t, err)
+		tmpl.PermittedDNSDomainsCritical = true
+		tmpl.PermittedDNSDomains = []string{"api.example.test"}
+		ca, err := selfSign(tmpl)
 		require.NoError(t, err)
 
 		// Act
 		scoped := ca.Scoped()
 
 		// Assert
-		assert.True(t, scoped)
+		assert.False(t, scoped)
 	})
 
 	t.Run("plain ca is not scoped", func(t *testing.T) {

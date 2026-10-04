@@ -71,9 +71,11 @@ func NewScopedCA(cn string, names []string) (CA, error) {
 	return selfSign(tmpl)
 }
 
-// Scoped reports whether c carries critical name constraints, as set by NewScopedCA.
+// Scoped reports whether c constrains both DNS names and IPs critically, as NewScopedCA does.
 func (c CA) Scoped() bool {
-	return c.cert.PermittedDNSDomainsCritical && len(c.cert.PermittedDNSDomains) > 0
+	dnsScoped := len(c.cert.PermittedDNSDomains) > 0
+	ipScoped := len(c.cert.PermittedIPRanges) > 0 || len(c.cert.ExcludedIPRanges) > 0
+	return c.cert.PermittedDNSDomainsCritical && dnsScoped && ipScoped
 }
 
 // IssueLeaf issues a cert signed by c for one usage; names become DNS or IP SANs.

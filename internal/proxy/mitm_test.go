@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"strings"
 	"testing"
 	"time"
@@ -37,6 +38,7 @@ func TestServerConnectInject(t *testing.T) {
 	upstreamAddr := upstream.Listener.Addr().String()
 	upstreamHost, upstreamPort := splitHostPort(upstreamAddr)
 	stubDefaultPorts(t, upstreamPort)
+	stubInjectPort(t, upstreamPort)
 	creds := []Credential{{Hosts: []string{upstreamHost}, Rules: []InjectRule{{Header: "X-Api-Key", Value: "real-secret"}}}}
 
 	t.Run("header is injected over the client's value", func(t *testing.T) {
@@ -231,6 +233,31 @@ func TestServerConnectInject(t *testing.T) {
 		assert.NotContains(t, logBuf.String(), `"injected"`)
 	})
 
+	t.Run("credentialed host on another port tunnels without issuing a cert", func(t *testing.T) {
+		// Arrange
+		echoHost, echoPort := startEchoServer(t)
+		stubDefaultPorts(t, echoPort)
+		echoCreds := []Credential{{Hosts: []string{echoHost}, Rules: creds[0].Rules}}
+		inject, _ := newTestInjector(t, upstream, echoCreds)
+		var logBuf bytes.Buffer
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{echoHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+
+		// Act
+		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(echoHost, echoPort))
+		defer conn.Close() //nolint:errcheck
+		_, err := conn.Write([]byte("ping"))
+		require.NoError(t, err)
+		echo := make([]byte, 4)
+		_, err = io.ReadFull(conn, echo)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "ping", string(echo))
+		assert.Empty(t, inject.leaves)
+		assert.NotContains(t, logBuf.String(), `"injected"`)
+	})
+
 	t.Run("plain http to a credentialed host is not injected", func(t *testing.T) {
 		// Arrange
 		plain := httptest.NewServer(mux)
@@ -262,7 +289,7 @@ func Test_rulesFor(t *testing.T) {
 		var none *Injector
 
 		// Act
-		got := none.rulesFor("api.example.test")
+		got := none.rulesFor("api.example.test", "443")
 
 		// Assert
 		assert.Nil(t, got)
@@ -270,7 +297,7 @@ func Test_rulesFor(t *testing.T) {
 
 	t.Run("exact host matches regardless of case and trailing dot", func(t *testing.T) {
 		// Act
-		got := inject.rulesFor("API.example.test.")
+		got := inject.rulesFor("API.example.test.", "443")
 
 		// Assert
 		assert.Equal(t, rules, got)
@@ -278,7 +305,7 @@ func Test_rulesFor(t *testing.T) {
 
 	t.Run("subdomain of a credentialed host has no rules", func(t *testing.T) {
 		// Act
-		got := inject.rulesFor("evil.api.example.test")
+		got := inject.rulesFor("evil.api.example.test", "443")
 
 		// Assert
 		assert.Nil(t, got)
@@ -286,11 +313,47 @@ func Test_rulesFor(t *testing.T) {
 
 	t.Run("unmatched host has no rules", func(t *testing.T) {
 		// Act
-		got := inject.rulesFor("example-test.evil")
+		got := inject.rulesFor("example-test.evil", "443")
 
 		// Assert
 		assert.Nil(t, got)
 	})
+
+	t.Run("credentialed host on another port has no rules", func(t *testing.T) {
+		for _, port := range []string{"80", "8443", ""} {
+			// Act
+			got := inject.rulesFor("api.example.test", port)
+
+			// Assert
+			assert.Nil(t, got, port)
+		}
+	})
+}
+
+func Test_reverseProxy(t *testing.T) {
+	inject := NewInjector(newTestProxyCA(t, "api.example.test"), nil)
+	cases := map[string]struct{ host, port string }{
+		"api.example.test":      {"api.example.test", "443"},
+		"api.example.test:8443": {"api.example.test", "8443"},
+		"[::1]":                 {"::1", "443"},
+		"[::1]:8443":            {"::1", "8443"},
+		"127.0.0.1":             {"127.0.0.1", "443"},
+	}
+
+	for want, target := range cases {
+		t.Run("targets "+want, func(t *testing.T) {
+			// Arrange
+			in := httptest.NewRequest(http.MethodGet, "https://evil.test/path", nil)
+			pr := &httputil.ProxyRequest{In: in, Out: in.Clone(in.Context())}
+
+			// Act
+			inject.reverseProxy(target.host, target.port, nil).Rewrite(pr)
+
+			// Assert
+			assert.Equal(t, want, pr.Out.URL.Host)
+			assert.Equal(t, "/path", pr.Out.URL.Path)
+		})
+	}
 }
 
 func Test_leaf(t *testing.T) {

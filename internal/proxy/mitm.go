@@ -20,6 +20,9 @@ import (
 // idleTimeout closes intercepted client connections left idle between requests.
 const idleTimeout = 90 * time.Second
 
+// injectPort is the only port intercepted for injection; other ports to a credentialed host tunnel untouched.
+var injectPort = "443"
+
 // blockedMethods are refused inside an intercepted tunnel: TRACE/TRACK echo the injected headers back, CONNECT would re-tunnel.
 var blockedMethods = []string{http.MethodConnect, http.MethodTrace, "TRACK"}
 
@@ -68,9 +71,9 @@ func NewInjector(ca certs.CA, creds []Credential) *Injector {
 	}
 }
 
-// rulesFor returns the rules for exactly host; safe on a nil Injector.
-func (i *Injector) rulesFor(host string) []InjectRule {
-	if i == nil {
+// rulesFor returns the rules for exactly host on injectPort; safe on a nil Injector.
+func (i *Injector) rulesFor(host, port string) []InjectRule {
+	if i == nil || port != injectPort {
 		return nil
 	}
 	return i.rules[normalizeHost(host)]
@@ -140,10 +143,8 @@ func (i *Injector) serve(tlsConn *tls.Conn, host, port string, rules []InjectRul
 
 // reverseProxy forwards to host:port, never the request's Host, with rules applied.
 func (i *Injector) reverseProxy(host, port string, rules []InjectRule) *httputil.ReverseProxy {
-	target := &url.URL{Scheme: "https", Host: host}
-	if port != "443" {
-		target.Host = net.JoinHostPort(host, port)
-	}
+	// JoinHostPort brackets IPv6; the default port is then dropped to keep the Host header clean
+	target := &url.URL{Scheme: "https", Host: strings.TrimSuffix(net.JoinHostPort(host, port), ":443")}
 
 	return &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {

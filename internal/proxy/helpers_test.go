@@ -48,6 +48,14 @@ func stubDefaultPorts(t *testing.T, ports ...string) {
 	t.Cleanup(func() { DefaultPorts = prev })
 }
 
+// stubInjectPort replaces injectPort for a test, restoring it on cleanup.
+func stubInjectPort(t *testing.T, port string) {
+	t.Helper()
+	prev := injectPort
+	injectPort = port
+	t.Cleanup(func() { injectPort = prev })
+}
+
 // startEchoServer starts a TCP echo server torn down on cleanup, returning its host and port.
 func startEchoServer(t *testing.T) (host, port string) {
 	t.Helper()

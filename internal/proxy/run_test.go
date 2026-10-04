@@ -165,7 +165,7 @@ func Test_loadInjector(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}, inject.rulesFor("api.example.test"))
+		assert.Equal(t, []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}, inject.rulesFor("api.example.test", "443"))
 	})
 
 	t.Run("invalid ca is an error", func(t *testing.T) {

@@ -39,7 +39,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	host, port := splitHostPort(r.Host)
 	host = normalizeHost(host)
-	rules := s.inject.rulesFor(host)
+	rules := s.inject.rulesFor(host, port)
 
 	entry, forward := s.verdict(ProtocolHTTPS, host, port)
 	if !forward {
