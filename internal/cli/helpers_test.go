@@ -2,8 +2,10 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -420,4 +422,30 @@ func stubBuildDindImage(t *testing.T, fn func(image string, opts tools.BuildOpti
 // formatTestLabelTime formats t like agentic's image timestamp labels.
 func formatTestLabelTime(t time.Time) string {
 	return t.UTC().Format("2006-01-02T15:04:05Z")
+}
+
+func stubTrustStdin(t *testing.T, input string) {
+	t.Helper()
+	orig := trustStdin
+	trustStdin = strings.NewReader(input)
+	t.Cleanup(func() { trustStdin = orig })
+}
+
+func stubIsTerminal(t *testing.T, terminal bool) {
+	t.Helper()
+	orig := isTerminal
+	isTerminal = func() bool { return terminal }
+	t.Cleanup(func() { isTerminal = orig })
+}
+
+// credentialLayer writes a .agenticrc.toml with one credential entry reading secret and returns its layer.
+func credentialLayer(t *testing.T, secret string) config.RCLayer {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), ".agenticrc.toml")
+	content := fmt.Sprintf("[[run.proxy.credentials]]\npreset = \"anthropic\"\nsecret = %q\n", secret)
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+	layers, err := config.FindLayers(filepath.Dir(path))
+	require.NoError(t, err)
+	return layers[len(layers)-1]
 }

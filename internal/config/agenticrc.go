@@ -2,6 +2,9 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -147,19 +150,12 @@ func MarketplacesFor(rc *AgenticRC, tool string) []RCMarketplace {
 
 // FindAndLoad walks up from startDir merging .agenticrc.toml layers (stopping at root=true): scalar keys take the innermost value, list keys accumulate outermost-first.
 func FindAndLoad(startDir string) (*AgenticRC, error) {
-	paths := collectPaths(startDir)
-
-	configs, err := loadConfigs(paths)
+	layers, err := FindLayers(startDir)
 	if err != nil {
 		return nil, err
 	}
 
-	merged := mergeConfigs(configs)
-	if err := validateUniqueCustomInstalls(merged.Build.CustomInstalls); err != nil {
-		return nil, err
-	}
-
-	return merged, nil
+	return Merge(layers)
 }
 
 // FindLayers returns the .agenticrc.toml layers that FindAndLoad would merge, ordered outermost-to-innermost, each paired with its source path.
@@ -184,6 +180,29 @@ func FindLayers(startDir string) ([]RCLayer, error) {
 	}
 
 	return layers, nil
+}
+
+// Merge combines layers ordered outermost-to-innermost, as returned by FindLayers, the same way FindAndLoad does.
+func Merge(layers []RCLayer) (*AgenticRC, error) {
+	configs := make([]*AgenticRC, 0, len(layers))
+	for i := len(layers) - 1; i >= 0; i-- {
+		configs = append(configs, layers[i].RC)
+	}
+
+	merged := mergeConfigs(configs)
+	if err := validateUniqueCustomInstalls(merged.Build.CustomInstalls); err != nil {
+		return nil, err
+	}
+
+	return merged, nil
+}
+
+// CredentialsHash fingerprints a layer's credential entries so a change to any of them can be detected.
+func CredentialsHash(creds []RCCredential) string {
+	// A slice of plain structs always marshals
+	data, _ := json.Marshal(creds)
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 // SplitEnvValues splits a comma-separated value string and skips empty parts.
@@ -219,24 +238,6 @@ func collectPaths(startDir string) []string {
 	}
 
 	return paths
-}
-
-func loadConfigs(paths []string) ([]*AgenticRC, error) {
-	var configs []*AgenticRC
-
-	for _, path := range paths {
-		rc, err := loadRC(path)
-		if err != nil {
-			return nil, err
-		}
-		configs = append(configs, rc)
-
-		if rc.Root {
-			break
-		}
-	}
-
-	return configs, nil
 }
 
 func mergeConfigs(configs []*AgenticRC) *AgenticRC {

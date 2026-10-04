@@ -20,6 +20,8 @@ type CliConfig struct {
 	LastUpdateCheck       *time.Time           `json:"last_update_check,omitempty"`
 	ProxyLogRetentionDays int                  `json:"proxy_log_retention_days,omitempty"`
 	LastToolVersionCheck  map[string]time.Time `json:"last_tool_version_check,omitempty"`
+	// ApprovedCredentials maps a .agenticrc.toml path to the CredentialsHash of the entries the user approved
+	ApprovedCredentials map[string]string `json:"approved_credentials,omitempty"`
 }
 
 // LoadConfig reads $AGENTIC_HOME/agentic.json, returning an empty CliConfig if the file does not exist.
@@ -71,16 +73,31 @@ func (config *CliConfig) IsTrusted(dir string) bool {
 	return false
 }
 
+// Trust appends dir to the trusted directories and saves the config.
+func (config *CliConfig) Trust(dir, toolHome string) error {
+	config.TrustedDirs = append(config.TrustedDirs, dir)
+	return config.Save(toolHome)
+}
+
+// CredentialsApproved reports whether the user approved the credential entries with hash in the config file at path.
+func (config *CliConfig) CredentialsApproved(path, hash string) bool {
+	return config.ApprovedCredentials[evalSymlinks(path)] == hash
+}
+
+// ApproveCredentials records hash as the approved credential entries for the config file at path and saves the config.
+func (config *CliConfig) ApproveCredentials(path, hash, toolHome string) error {
+	if config.ApprovedCredentials == nil {
+		config.ApprovedCredentials = make(map[string]string)
+	}
+
+	config.ApprovedCredentials[evalSymlinks(path)] = hash
+	return config.Save(toolHome)
+}
+
 // evalSymlinks resolves symlinks in path, falling back to path on error.
 func evalSymlinks(path string) string {
 	if real, err := filepath.EvalSymlinks(path); err == nil {
 		return real
 	}
 	return path
-}
-
-// Trust appends dir to the trusted directories and saves the config.
-func (config *CliConfig) Trust(dir, toolHome string) error {
-	config.TrustedDirs = append(config.TrustedDirs, dir)
-	return config.Save(toolHome)
 }
