@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -21,7 +22,8 @@ type archiveFile struct {
 }
 
 // copyCredentials issues a CA scoped to the credential hosts and streams it, its key and the credential list into the
-// created container's volume, so neither the key nor the secrets touch the host disk; returns the CA cert, nil without credentials.
+// created container's volume, which lives on the Docker host's disk until the proxy deletes the secret files at startup;
+// returns the CA cert, nil without credentials.
 func (h proxyHandle) copyCredentials() (caPEM []byte, err error) {
 	if len(h.credentials) == 0 {
 		return nil, nil
@@ -36,14 +38,14 @@ func (h proxyHandle) copyCredentials() (caPEM []byte, err error) {
 		return nil, err
 	}
 
-	// --archive keeps the tar's owner, so the proxy user can read the 0600 files
+	// --archive keeps the tar's owner, so the proxy user can read the 0600 files and delete them from its 0700 dir
 	if _, err := dockerRunStdin(bytes.NewReader(archive), "cp", arg("archive"), "-", h.container+":"+proxyRunMountDir); err != nil {
 		return nil, fmt.Errorf("copy proxy credentials: %w", err)
 	}
 	return ca.CertPEM(), nil
 }
 
-// credentialArchive returns a tar of ca, its key and creds, as 0600 files owned by the host user.
+// credentialArchive returns a tar of ca, its key and creds in proxyCredentialsSubdir, all owned by the host user.
 func credentialArchive(ca certs.CA, creds []proxy.Credential) ([]byte, error) {
 	files, err := credentialFiles(ca, creds)
 	if err != nil {
@@ -54,7 +56,7 @@ func credentialArchive(ca certs.CA, creds []proxy.Credential) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return tarFiles(files, uid, gid)
+	return tarFiles(proxyCredentialsSubdir, files, uid, gid)
 }
 
 // credentialFiles returns ca, its key and creds as proxy files.
@@ -75,13 +77,26 @@ func credentialFiles(ca certs.CA, creds []proxy.Credential) ([]archiveFile, erro
 	}, nil
 }
 
-// tarFiles returns a tar of files as 0600 regular files owned by uid:gid.
-func tarFiles(files []archiveFile, uid, gid int) ([]byte, error) {
+// tarFiles returns a tar of files as 0600 regular files in a 0700 dir, all owned by uid:gid.
+func tarFiles(dir string, files []archiveFile, uid, gid int) ([]byte, error) {
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
+
+	dirHeader := &tar.Header{
+		Typeflag: tar.TypeDir,
+		Name:     dir + "/",
+		Mode:     0o700,
+		Uid:      uid,
+		Gid:      gid,
+		ModTime:  time.Now(),
+	}
+	if err := tw.WriteHeader(dirHeader); err != nil {
+		return nil, fmt.Errorf("archive proxy %s: %w", dir, err)
+	}
+
 	for _, file := range files {
 		header := &tar.Header{
-			Name:    file.name,
+			Name:    path.Join(dir, file.name),
 			Mode:    0o600,
 			Size:    int64(len(file.content)),
 			Uid:     uid,

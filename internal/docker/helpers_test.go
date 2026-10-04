@@ -366,6 +366,23 @@ func readTar(t *testing.T, archive []byte) map[string]tarFile {
 	}
 }
 
+// stubProxyDocker records dockerRun calls, answering network inspect with a test subnet and container inspect with running.
+func stubProxyDocker(t *testing.T, running string) func() []dockerCall {
+	t.Helper()
+	var calls []dockerCall
+	stubDockerRun(t, func(args ...string) (string, error) {
+		calls = append(calls, dockerCall{args: args})
+		switch {
+		case len(args) > 1 && args[0] == "network" && args[1] == "inspect":
+			return "172.30.0.0/16 \n", nil
+		case args[0] == "inspect":
+			return running, nil
+		}
+		return "", nil
+	})
+	return func() []dockerCall { return calls }
+}
+
 // stubProxySettleTime replaces proxySettleTime with d for the duration of the test.
 func stubProxySettleTime(t *testing.T, d time.Duration) {
 	t.Helper()

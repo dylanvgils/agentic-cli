@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"archive/tar"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,14 +13,20 @@ func Test_tarFiles(t *testing.T) {
 	files := []archiveFile{{"ca.pem", []byte("test-cert")}, {"credentials.json", []byte("[]")}}
 
 	// Act
-	archive, err := tarFiles(files, 1234, 5678)
+	archive, err := tarFiles("credentials", files, 1234, 5678)
 
 	// Assert
 	require.NoError(t, err)
 	got := readTar(t, archive)
-	require.Len(t, got, 2)
+	require.Len(t, got, 3)
+
+	dir := got["credentials/"]
+	assert.Equal(t, byte(tar.TypeDir), dir.header.Typeflag)
+	assert.Equal(t, int64(0o700), dir.header.Mode)
+	assert.Equal(t, 1234, dir.header.Uid, "the proxy user must own the dir to delete the files")
+
 	for _, file := range files {
-		entry := got[file.name]
+		entry := got["credentials/"+file.name]
 		assert.Equal(t, file.content, entry.content)
 		assert.Equal(t, int64(0o600), entry.header.Mode)
 		assert.Equal(t, 1234, entry.header.Uid)

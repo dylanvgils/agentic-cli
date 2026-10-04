@@ -24,8 +24,17 @@ const proxyHostAlias = "agentic-proxy"
 // proxyRunMountDir is the proxy's anonymous volume holding the CA and credentials, copied in before it starts.
 const proxyRunMountDir = "/run/agentic-proxy"
 
-// proxyCredentialsFile holds the credential list in proxyRunMountDir.
+// proxyCredentialsSubdir is the proxy-owned dir in proxyRunMountDir holding the files, so the proxy can delete them once loaded.
+const proxyCredentialsSubdir = "credentials"
+
+// proxyCredentialsDir is proxyCredentialsSubdir inside the proxy container.
+const proxyCredentialsDir = proxyRunMountDir + "/" + proxyCredentialsSubdir
+
+// proxyCredentialsFile holds the credential list in proxyCredentialsDir.
 const proxyCredentialsFile = "credentials.json"
+
+// dryRunClientNetsPlaceholder stands in for the per-run network's subnets in dry-run output, as the network isn't created.
+const dryRunClientNetsPlaceholder = "<proxy network subnets>"
 
 // proxyLogMountDir is where the host log directory is mounted inside the proxy.
 const proxyLogMountDir = "/var/log/agentic-proxy"
@@ -56,8 +65,8 @@ type ProxySpec struct {
 	Credentials []proxy.Credential
 }
 
-// proxyHandle identifies the per-run proxy network, sidecar container, host-side access log, injected credentials
-// and the CA cert the proxy signs them with, set once started.
+// proxyHandle identifies the per-run proxy network, sidecar container, host-side access log, injected credentials,
+// the network's subnets that may use them, and the CA cert the proxy signs them with, set once started.
 type proxyHandle struct {
 	id          string
 	network     string
@@ -66,6 +75,7 @@ type proxyHandle struct {
 	allow       []string
 	monitor     bool
 	credentials []proxy.Credential
+	clientNets  []string
 	caPEM       []byte
 }
 
@@ -218,6 +228,15 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 		return proxyHandle{}, fmt.Errorf("create proxy network: %w", err)
 	}
 
+	// The proxy also joins the shared egress network, so only this run's network may use the credentials
+	if len(h.credentials) > 0 {
+		h.clientNets, err = networkSubnets(h.network)
+		if err != nil {
+			_, _ = dockerRun("network", "rm", h.network)
+			return proxyHandle{}, err
+		}
+	}
+
 	if _, err := dockerRun(h.createArgs(rs)...); err != nil {
 		_, _ = dockerRun("network", "rm", h.network)
 		return proxyHandle{}, fmt.Errorf("create proxy: %w", err)
@@ -334,10 +353,16 @@ func (h proxyHandle) createArgs(rs RunSpec) []string {
 	)
 
 	if len(h.credentials) > 0 {
+		clientNets := strings.Join(h.clientNets, ",")
+		if clientNets == "" {
+			clientNets = dryRunClientNetsPlaceholder
+		}
+
 		args = append(args,
-			arg("env", proxy.EnvCADir+"="+proxyRunMountDir),
-			arg("env", proxy.EnvCredentials+"="+proxyRunMountDir+"/"+proxyCredentialsFile),
-			// Anonymous, so it is removed with the container and has no host path
+			arg("env", proxy.EnvCADir+"="+proxyCredentialsDir),
+			arg("env", proxy.EnvCredentials+"="+proxyCredentialsDir+"/"+proxyCredentialsFile),
+			arg("env", proxy.EnvClientNets+"="+clientNets),
+			// Anonymous, so it is removed with the container; the proxy deletes the secret files once loaded
 			arg("volume", proxyRunMountDir),
 		)
 	}
