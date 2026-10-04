@@ -33,7 +33,7 @@ func Check(home string, rc *config.AgenticRC, toolName, image string, update Upd
 	}
 
 	if err := update(toolName, image); err != nil {
-		return fmt.Errorf("=> update failed: %v\n   run: agentic update %s", err, toolName)
+		return fmt.Errorf("update failed: %v\n   run: agentic update %s", err, toolName)
 	}
 
 	return nil
@@ -85,12 +85,12 @@ func shouldCheck(lastChecks map[string]time.Time, tool string) bool {
 // notify prints an update notice to stderr and, on a TTY, prompts to update, returning whether the user confirmed; otherwise it just suggests `agentic update <tool>`.
 func notify(toolName, installed, latest string) bool {
 	if !IsTerminal() {
-		Notify.Stepf("%s update available: %s (current: %s) - run: agentic update %s",
+		Notify.Infof("%s update available: %s (current: %s) - run: agentic update %s",
 			toolName, latest, installed, toolName)
 		return false
 	}
 
-	fmt.Fprintf(Notify.Writer(), "=> %s update available: %s (current: %s)\n   update now? [y/N] ",
+	Notify.Promptf("%s update available: %s (current: %s) - update now? [y/N] ",
 		toolName, latest, installed)
 
 	scanner := bufio.NewScanner(Stdin)

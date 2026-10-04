@@ -45,6 +45,10 @@ func run(toolHome string, pending []Migration) ([]Migration, error) {
 
 // applyPending applies every migration in pending newer than current.Version, persisting state after each step.
 func applyPending(toolHome string, pending []Migration, current state) ([]Migration, error) {
+	if latest := latestVersion(pending); latest > current.Version {
+		logging.Infof("migrating agentic home to schema v%d...", latest)
+	}
+
 	var applied []Migration
 	for _, migration := range pending {
 		if migration.Version <= current.Version {

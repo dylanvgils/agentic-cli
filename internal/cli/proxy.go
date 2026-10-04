@@ -75,6 +75,7 @@ func runProxyBuildOrUpdate(cmd *cobra.Command, noCache bool) error {
 		return err
 	}
 
+	logging.Infof("building %s", tools.ProxyImage)
 	if err := buildProxyImageNow(opts); err != nil {
 		return err
 	}
@@ -89,16 +90,16 @@ func runProxyClean(cmd *cobra.Command, _ []string) error {
 	}
 
 	if logs, _ := cmd.Flags().GetBool("logs"); logs {
-		logging.Step("proxy logs")
+		logging.Infof("removing proxy logs")
 		pruneProxyLogs(filepath.Join(toolHome, config.LogsDirName), 0)
 	}
 
 	return nil
 }
 
-// cleanProxyImage removes the proxy image; shared by `agentic proxy clean` and the no-arg `agentic clean`'s global sweep.
+// cleanProxyImage removes the proxy image for `agentic proxy clean`; `agentic clean`'s global sweep has its own copy in internal/usecase/clean.
 func cleanProxyImage() error {
-	logging.Step(tools.ProxyImage)
+	logging.Infof("removing %s", tools.ProxyImage)
 	return cleanImage(tools.ProxyImage)
 }
 
@@ -117,15 +118,17 @@ func ensureProxyImage(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	if info != nil && info.CLIVersion == buildinfo.Version {
+
+	reason := docker.ImageRefreshReason(info, 0)
+	if reason == "" {
 		return nil
 	}
 
+	logging.Infof("building %s (%s)...", tools.ProxyImage, reason)
 	return buildProxyImageNow(tools.BuildOptions{Registry: collectRegistry(cmd)})
 }
 
 // buildProxyImageNow builds the proxy image unconditionally; the caller decides whether to check for an existing image first.
 func buildProxyImageNow(opts tools.BuildOptions) error {
-	logging.Step(tools.ProxyImage)
 	return buildProxyImage(tools.ProxyImage, buildinfo.Version, buildinfo.DevSourceDir(tools.ProxyModulePath), opts)
 }

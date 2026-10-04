@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
@@ -223,14 +221,16 @@ func ensureDindImage(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	if info != nil && info.CLIVersion == buildinfo.Version && !info.BuiltBefore(time.Now().Add(-tools.DindImageMaxAge)) {
+
+	reason := docker.ImageRefreshReason(info, tools.DindImageMaxAge)
+	if reason == "" {
 		return nil
 	}
 
-	logging.Step(tools.DindImage)
+	logging.Infof("building %s (%s)...", tools.DindImage, reason)
 	err = buildDindImage(tools.DindImage, tools.BuildOptions{Registry: collectRegistry(cmd)})
 	if err != nil && info != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not refresh %s, using the existing image: %v\n", tools.DindImage, err)
+		logging.Warnf("could not refresh %s, using the existing image: %v", tools.DindImage, err)
 		return nil
 	}
 	return err

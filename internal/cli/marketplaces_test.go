@@ -113,6 +113,7 @@ func TestRunMarketplacesPrune(t *testing.T) {
 		// Arrange: dirKept holds a live "foo" alongside a dead "bar" (PruneKept + PruneDropped);
 		// dirRemoved holds only a dead entry (PruneRemoved); dirUntracked has no registry entry (PruneNoRecord).
 		withTempToolHome(t)
+		logBuf := stubErrLog(t)
 		baseDir := filepath.Join(toolHome, "marketplaces")
 		projFoo := t.TempDir()
 		projBar := t.TempDir() // no longer declares this marketplace
@@ -141,6 +142,7 @@ func TestRunMarketplacesPrune(t *testing.T) {
 		assert.Contains(t, out, "dropped: bar (no project references it")
 		assert.Contains(t, out, "removed: gone (no project references it)")
 		assert.Contains(t, out, "dirUntracked: no usage record")
+		assert.Contains(t, logBuf.String(), "agentic: pruning 4 marketplace(s)")
 
 		// Assert: filesystem and registry reflect Prune's decisions
 		assert.DirExists(t, filepath.Join(baseDir, dirKept))

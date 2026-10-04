@@ -96,6 +96,7 @@ func Test_ensureProxyImage(t *testing.T) {
 
 	t.Run("rebuilds when CLI version does not match image label", func(t *testing.T) {
 		// Arrange
+		logBuf := stubErrLog(t)
 		stubInspectImage(t, &docker.ImageInfo{Image: tools.ProxyImage, CLIVersion: "v0.0.0"}, nil)
 		var built string
 		stubBuildProxyImage(t, func(image, _, _ string, _ tools.BuildOptions) error {
@@ -109,12 +110,14 @@ func Test_ensureProxyImage(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, tools.ProxyImage, built)
+		assert.Contains(t, logBuf.String(), "agentic: building agentic-proxy (built by a different agentic version)...")
 	})
 }
 
 func Test_runProxyBuildOrUpdate(t *testing.T) {
 	t.Run("build does not force no-cache by default", func(t *testing.T) {
 		// Arrange
+		logBuf := stubErrLog(t)
 		var capturedOpts tools.BuildOptions
 		stubBuildProxyImage(t, func(_, _, _ string, opts tools.BuildOptions) error {
 			capturedOpts = opts
@@ -129,6 +132,7 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.False(t, capturedOpts.NoCache)
+		assert.Contains(t, logBuf.String(), "agentic: building agentic-proxy")
 	})
 
 	t.Run("build --no-cache forces a fresh build", func(t *testing.T) {
@@ -213,6 +217,7 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 func Test_runProxyClean(t *testing.T) {
 	t.Run("removes the proxy image", func(t *testing.T) {
 		// Arrange
+		logBuf := stubErrLog(t)
 		var cleaned string
 		stubCleanImage(t, func(image string) error {
 			cleaned = image
@@ -225,6 +230,7 @@ func Test_runProxyClean(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, tools.ProxyImage, cleaned)
+		assert.Contains(t, logBuf.String(), "agentic: removing agentic-proxy")
 	})
 
 	t.Run("leaves logs alone without --logs", func(t *testing.T) {
@@ -243,6 +249,7 @@ func Test_runProxyClean(t *testing.T) {
 
 	t.Run("--logs wipes all proxy logs regardless of age", func(t *testing.T) {
 		// Arrange
+		logBuf := stubErrLog(t)
 		withTempToolHome(t)
 		stubCleanImage(t, func(string) error { return nil })
 		var dir string
@@ -260,6 +267,7 @@ func Test_runProxyClean(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, filepath.Join(toolHome, config.LogsDirName), dir)
 		assert.Zero(t, maxAge)
+		assert.Contains(t, logBuf.String(), "agentic: removing proxy logs")
 	})
 
 	t.Run("propagates cleanImage error before touching logs", func(t *testing.T) {

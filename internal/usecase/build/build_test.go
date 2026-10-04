@@ -76,6 +76,7 @@ func TestDryRun(t *testing.T) {
 func TestApply(t *testing.T) {
 	t.Run("all tools when no args", func(t *testing.T) {
 		// Arrange
+		logBuf := stubErrLog(t)
 		var built []string
 		stubBuildTool(t, func(tool, _ string, _ tools.BuildOptions) error {
 			built = append(built, tool)
@@ -88,6 +89,7 @@ func TestApply(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"claude", "copilot", "opencode"}, built)
+		assert.Contains(t, logBuf.String(), "agentic: building 3 image(s): agentic-claude, agentic-copilot, agentic-opencode")
 	})
 
 	t.Run("single tool when arg given", func(t *testing.T) {

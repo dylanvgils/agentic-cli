@@ -49,3 +49,37 @@ func TestDetailf(t *testing.T) {
 	// Assert
 	assert.Equal(t, "   version: 1.0.0\n", buf.String())
 }
+
+func TestInfof(t *testing.T) {
+	// Arrange
+	buf := stubErr(t)
+
+	// Act
+	Infof("starting %s...", "proxy")
+
+	// Assert
+	assert.Equal(t, "agentic: starting proxy...\n", buf.String())
+}
+
+func TestWarnf(t *testing.T) {
+	// Arrange
+	buf := stubErr(t)
+
+	// Act
+	Warnf("could not %s", "sweep")
+
+	// Assert
+	assert.Equal(t, "agentic: warning: could not sweep\n", buf.String())
+}
+
+func TestSeparate(t *testing.T) {
+	// Arrange
+	buf := stubErr(t)
+	Infof("starting proxy...")
+
+	// Act
+	Separate()
+
+	// Assert
+	assert.Equal(t, "agentic: starting proxy...\n\n", buf.String())
+}

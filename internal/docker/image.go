@@ -1,9 +1,11 @@
 package docker
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
@@ -90,6 +92,23 @@ func BuiltTools() (map[string]bool, error) {
 		return nil, err
 	}
 	return builtToolsFromImages(images), nil
+}
+
+// ImageRefreshReason says why an agentic-built image (e.g. a sidecar) needs a rebuild, or "" if it is current; maxAge 0 skips the age check.
+func ImageRefreshReason(info *ImageInfo, maxAge time.Duration) string {
+	if info == nil {
+		return "image missing"
+	}
+
+	if info.CLIVersion != buildinfo.Version {
+		return "built by a different agentic version"
+	}
+
+	if maxAge > 0 && info.BuiltBefore(time.Now().Add(-maxAge)) {
+		return fmt.Sprintf("older than %d days", int(maxAge.Hours()/24))
+	}
+
+	return ""
 }
 
 func builtToolsFromImages(images []*ImageInfo) map[string]bool {

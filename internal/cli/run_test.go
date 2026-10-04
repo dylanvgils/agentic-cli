@@ -418,6 +418,7 @@ func Test_ensureDindImage(t *testing.T) {
 
 	t.Run("missing image is built", func(t *testing.T) {
 		// Arrange
+		logBuf := stubErrLog(t)
 		stubInspectImage(t, nil, nil)
 		var builtImage string
 		stubBuildDindImage(t, func(image string, _ tools.BuildOptions) error {
@@ -431,11 +432,13 @@ func Test_ensureDindImage(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, tools.DindImage, builtImage)
+		assert.Contains(t, logBuf.String(), "agentic: building agentic-dind (image missing)...")
 	})
 
 	t.Run("stale image is rebuilt to pick up base patches", func(t *testing.T) {
 		// Arrange
 		stale := formatTestLabelTime(time.Now().Add(-tools.DindImageMaxAge - time.Hour))
+		logBuf := stubErrLog(t)
 		stubInspectImage(t, &docker.ImageInfo{CLIVersion: buildinfo.Version, Built: stale}, nil)
 		built := false
 		stubBuildDindImage(t, func(string, tools.BuildOptions) error {
@@ -449,6 +452,7 @@ func Test_ensureDindImage(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, built)
+		assert.Contains(t, logBuf.String(), "agentic: building agentic-dind (older than 7 days)...")
 	})
 
 	t.Run("failed refresh of an existing image only warns", func(t *testing.T) {

@@ -53,7 +53,7 @@ func runVolumeCreate(_ *cobra.Command, args []string) error {
 	if err := createVolume(name); err != nil {
 		return err
 	}
-	logging.Stepf("created: %s", name)
+	logging.Infof("created volume %s", name)
 	return nil
 }
 
@@ -71,7 +71,7 @@ func runVolumeRemove(_ *cobra.Command, args []string) error {
 		if err := removeVolume(args[0]); err != nil {
 			return err
 		}
-		logging.Stepf("deleted: %s", args[0])
+		logging.Infof("removed volume %s", args[0])
 		return nil
 	}
 
@@ -80,7 +80,7 @@ func runVolumeRemove(_ *cobra.Command, args []string) error {
 		return err
 	}
 	if len(names) == 0 {
-		fmt.Println("No agentic-managed volumes found.")
+		logging.Infof("no agentic-managed volumes found")
 		return nil
 	}
 
@@ -89,7 +89,7 @@ func runVolumeRemove(_ *cobra.Command, args []string) error {
 		fmt.Printf("  %s\n", n)
 	}
 
-	fmt.Print("Remove all agentic-managed volumes? [y/N] ")
+	logging.Promptf("remove all agentic-managed volumes? [y/N] ")
 	scanner := bufio.NewScanner(volumesStdin)
 	scanner.Scan()
 	answer := strings.TrimSpace(scanner.Text())
@@ -97,6 +97,7 @@ func runVolumeRemove(_ *cobra.Command, args []string) error {
 		return nil
 	}
 
+	logging.Infof("removing %d volume(s)", len(names))
 	for _, n := range names {
 		if err := removeVolume(n); err != nil {
 			return err

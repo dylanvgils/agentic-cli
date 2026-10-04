@@ -176,6 +176,7 @@ func TestApply(t *testing.T) {
 func TestGlobalResources(t *testing.T) {
 	t.Run("cleans base, proxy image, sweeps, and removes network", func(t *testing.T) {
 		// Arrange
+		logBuf := stubErrLog(t)
 		var cleaned []string
 		stubCleanImage(t, func(image string) error {
 			cleaned = append(cleaned, image)
@@ -219,6 +220,7 @@ func TestGlobalResources(t *testing.T) {
 		assert.Contains(t, out, "=> base")
 		assert.Contains(t, out, "=> "+tools.ProxyImage)
 		assert.Contains(t, out, "=> network")
+		assert.Contains(t, logBuf.String(), "agentic: removing shared resources: base images, agentic-proxy, agentic-dind, sidecars, agentic-net")
 	})
 
 	t.Run("cleanBaseImages error propagates", func(t *testing.T) {

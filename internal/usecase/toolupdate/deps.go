@@ -16,6 +16,6 @@ var (
 	IsTerminal        func() bool                                            = platform.IsTerminal
 	Stdin             io.Reader                                              = os.Stdin
 
-	// Notify is a separate stderr-writing Logger for update prompts, distinct from the shared stdout logging.Log used for build/run progress.
-	Notify = logging.New(os.Stderr)
+	// Notify is the Logger for update notices and prompts; it shares logging.Err so they count as run output.
+	Notify = logging.Err
 )

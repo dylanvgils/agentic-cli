@@ -108,7 +108,7 @@ func TestResolve(t *testing.T) {
 		})
 
 		// Act
-		targets, err := Resolve(Scope{All: true, FilterTool: "claude"}, tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, _, err := Resolve(Scope{All: true, FilterTool: "claude"}, tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -121,7 +121,7 @@ func TestResolve(t *testing.T) {
 		stubInspectImage(t, nil, nil)
 
 		// Act
-		targets, err := Resolve(Scope{Names: []string{"claude"}, HasArgs: true, Namespace: "agentic"}, tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, _, err := Resolve(Scope{Names: []string{"claude"}, HasArgs: true, Namespace: "agentic"}, tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -136,7 +136,7 @@ func Test_resolveScoped(t *testing.T) {
 		stubInspectImage(t, nil, nil)
 
 		// Act
-		targets, err := resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, _, err := resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -144,17 +144,20 @@ func Test_resolveScoped(t *testing.T) {
 		assert.Equal(t, "claude", targets[0].Name)
 	})
 
-	t.Run("mixed built recovers opts from label for built tools", func(t *testing.T) {
+	t.Run("mixed built recovers opts for built tools and reports unbuilt ones as skipped", func(t *testing.T) {
 		// Arrange - first tool not built, remaining tools return this built image
 		stubInspectImageSequence(t, nil, &docker.ImageInfo{Version: "1.0.0", Base: "node@24,java@21"})
 
 		// Act
-		targets, err := resolveScoped(tools.Names(), false, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, skipped, err := resolveScoped(tools.Names(), false, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Len(t, targets, len(tools.Names())-1)
 		assert.NotEmpty(t, targets[0].Opts.BaseOverride)
+		unbuilt, err := tools.ImageName(tools.Names()[0], "agentic")
+		require.NoError(t, err)
+		assert.Equal(t, []string{unbuilt}, skipped)
 	})
 
 	t.Run("inspectImage error propagates", func(t *testing.T) {
@@ -162,7 +165,7 @@ func Test_resolveScoped(t *testing.T) {
 		stubInspectImage(t, nil, fmt.Errorf("daemon not running"))
 
 		// Act
-		_, err := resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		_, _, err := resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.Error(t, err)
@@ -170,7 +173,7 @@ func Test_resolveScoped(t *testing.T) {
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		_, err := resolveScoped([]string{"nonexistent"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		_, _, err := resolveScoped([]string{"nonexistent"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.Error(t, err)
@@ -183,7 +186,7 @@ func Test_resolveScoped(t *testing.T) {
 		stubInspectImage(t, &docker.ImageInfo{Pulled: freshLabel}, nil)
 
 		// Act - pullExplicit is false, so the fresh label should disable Pull
-		targets, err := resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Pull: true, Versions: map[string]string{}}, false)
+		targets, _, err := resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Pull: true, Versions: map[string]string{}}, false)
 
 		// Assert
 		require.NoError(t, err)

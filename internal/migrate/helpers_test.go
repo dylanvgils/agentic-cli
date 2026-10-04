@@ -1,19 +1,11 @@
-package build
+package migrate
 
 import (
 	"bytes"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
-
-func stubBuildTool(t *testing.T, fn func(tool, image string, opts tools.BuildOptions) error) {
-	t.Helper()
-	orig := BuildTool
-	BuildTool = fn
-	t.Cleanup(func() { BuildTool = orig })
-}
 
 // stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.
 func stubErrLog(t *testing.T) *bytes.Buffer {

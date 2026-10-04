@@ -50,6 +50,34 @@ func captureLog(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
+// stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.
+func stubErrLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+
+	var buf bytes.Buffer
+	orig := logging.Err
+	logging.Err = logging.New(&buf)
+	t.Cleanup(func() { logging.Err = orig })
+
+	return &buf
+}
+
+// stubLogs points logging.Log and logging.Err at one buffer, so a test can check ordering across stdout and stderr output.
+func stubLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+
+	var buf bytes.Buffer
+	origLog, origErr := logging.Log, logging.Err
+	logging.Log = logging.New(&buf)
+	logging.Err = logging.New(&buf)
+	t.Cleanup(func() {
+		logging.Log = origLog
+		logging.Err = origErr
+	})
+
+	return &buf
+}
+
 // captureRunContainer stubs runContainer, run's ensure-volumes/network calls, and inspectImage, returning a getter for the captured RunSpec and tool args.
 func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	t.Helper()
@@ -308,6 +336,13 @@ func stubUpdateInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
 	t.Helper()
 	orig := update.InspectImage
 	update.InspectImage = func(_ string) (*docker.ImageInfo, error) { return info, err }
+	t.Cleanup(func() { update.InspectImage = orig })
+}
+
+func stubUpdateInspectImageFunc(t *testing.T, fn func(image string) (*docker.ImageInfo, error)) {
+	t.Helper()
+	orig := update.InspectImage
+	update.InspectImage = fn
 	t.Cleanup(func() { update.InspectImage = orig })
 }
 

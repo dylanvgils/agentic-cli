@@ -47,7 +47,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	names := toolNames(args)
 
 	if opts.SkipInstallChecksum {
-		logging.Detail("warning: --skip-install-checksum disables install script integrity verification")
+		logging.Warnf("--skip-install-checksum disables install script integrity verification")
 	}
 
 	if dryRun {

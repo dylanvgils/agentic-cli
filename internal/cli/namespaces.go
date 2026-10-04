@@ -58,7 +58,7 @@ func runNamespacesPrune(cmd *cobra.Command, _ []string) error {
 
 	namespace := resolveNamespace(cmd, rc)
 
-	fmt.Printf("Remove all images in namespace %q? [y/N] ", namespace)
+	logging.Promptf("remove all images in namespace %q? [y/N] ", namespace)
 	scanner := bufio.NewScanner(namespacesStdin)
 	scanner.Scan()
 	if answer := strings.TrimSpace(scanner.Text()); answer != "y" && answer != "Y" {
@@ -103,10 +103,11 @@ func pruneNamespace(namespace string) error {
 	}
 
 	if len(images) == 0 {
-		fmt.Printf("no images found in namespace %q\n", namespace)
+		logging.Infof("no images found in namespace %q", namespace)
 		return nil
 	}
 
+	logging.Infof("removing %d image(s) in namespace %q", len(images), namespace)
 	for _, image := range images {
 		logging.Stepf("%s/%s", image.Namespace, image.Tool)
 		if err := cleanImage(image.Image); err != nil {

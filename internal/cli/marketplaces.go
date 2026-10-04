@@ -103,6 +103,9 @@ func runMarketplacesPrune(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
+	if len(report) > 0 {
+		logging.Infof("pruning %d marketplace(s)", len(report))
+	}
 	for _, a := range report {
 		switch a.Kind {
 		case marketplace.PruneNoRecord:

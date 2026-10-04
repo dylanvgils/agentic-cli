@@ -1,9 +1,11 @@
 package clean
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
 
 func stubListAllImages(t *testing.T, fn func(...docker.ImageFilter) ([]*docker.ImageInfo, error)) {
@@ -46,4 +48,16 @@ func stubRemoveNetwork(t *testing.T, fn func() error) {
 	orig := RemoveNetwork
 	RemoveNetwork = fn
 	t.Cleanup(func() { RemoveNetwork = orig })
+}
+
+// stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.
+func stubErrLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+
+	var buf bytes.Buffer
+	orig := logging.Err
+	logging.Err = logging.New(&buf)
+	t.Cleanup(func() { logging.Err = orig })
+
+	return &buf
 }

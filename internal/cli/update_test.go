@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -142,15 +143,40 @@ func TestRunUpdate(t *testing.T) {
 	t.Run("no tools built prints message", func(t *testing.T) {
 		// Arrange
 		stubUpdateInspectImage(t, nil, nil)
+		logBuf := stubErrLog(t)
 
 		// Act
-		out := captureStdout(t, func() {
-			err := runUpdate(updateCmd, []string{})
-			require.NoError(t, err)
-		})
+		err := runUpdate(updateCmd, []string{})
 
 		// Assert
-		assert.Contains(t, out, "No tools are built.")
+		require.NoError(t, err)
+		assert.Contains(t, logBuf.String(), "agentic: no tools are built")
+	})
+
+	t.Run("unbuilt tools are listed as skipped after the summary", func(t *testing.T) {
+		// Arrange
+		logBuf := stubLogs(t)
+		stubUpdateUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		stubUpdateInspectImageFunc(t, func(image string) (*docker.ImageInfo, error) {
+			if strings.HasSuffix(image, "-claude") {
+				return &docker.ImageInfo{Version: "1.0.0"}, nil
+			}
+			return nil, nil
+		})
+		stubPruneImages(t, func() error { return nil })
+		stubPruneBuildCache(t, func() error { return nil })
+
+		// Act
+		err := runUpdate(updateCmd, []string{})
+
+		// Assert
+		require.NoError(t, err)
+		out := logBuf.String()
+		summary := strings.Index(out, "agentic: updating 1 image(s): ")
+		skipped := strings.Index(out, "-copilot (skipped - not built)")
+		require.NotEqual(t, -1, summary)
+		require.NotEqual(t, -1, skipped)
+		assert.Less(t, summary, skipped, "skipped lines follow the summary")
 	})
 
 	t.Run("all flag with no images prints message", func(t *testing.T) {
@@ -160,19 +186,19 @@ func TestRunUpdate(t *testing.T) {
 		cmd := updateCmd
 		require.NoError(t, cmd.Flags().Set("all", "true"))
 		defer cmd.Flags().Set("all", "false") //nolint:errcheck
+		logBuf := stubErrLog(t)
 
 		// Act
-		out := captureStdout(t, func() {
-			err := runUpdate(cmd, []string{})
-			require.NoError(t, err)
-		})
+		err := runUpdate(cmd, []string{})
 
 		// Assert
-		assert.Contains(t, out, "No agentic images found")
+		require.NoError(t, err)
+		assert.Contains(t, logBuf.String(), "agentic: no agentic images found")
 	})
 
 	t.Run("all flag updates all images and prunes", func(t *testing.T) {
 		// Arrange
+		logBuf := stubErrLog(t)
 		var updated []string
 		stubUpdateUpdateTool(t, func(tool, _ string, _ tools.BuildOptions) error {
 			updated = append(updated, tool)
@@ -198,6 +224,7 @@ func TestRunUpdate(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"claude", "copilot"}, updated)
+		assert.Contains(t, logBuf.String(), "agentic: updating 2 image(s): ")
 	})
 
 	t.Run("all flag clears rc config base for per-image recovery", func(t *testing.T) {

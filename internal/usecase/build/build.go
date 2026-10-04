@@ -28,13 +28,21 @@ func DryRun(names []string, opts tools.BuildOptions) error {
 	return nil
 }
 
-// Apply builds each tool image in names under namespace, reporting the base/apt overrides in effect for each.
+// Apply builds each tool image in names under namespace, announcing the batch and reporting the base/apt overrides in effect for each.
 func Apply(names []string, namespace string, opts tools.BuildOptions) error {
-	for _, name := range names {
+	images := make([]string, len(names))
+	for i, name := range names {
 		image, err := tools.ImageName(name, namespace)
 		if err != nil {
 			return err
 		}
+		images[i] = image
+	}
+
+	logging.Infof("building %d image(s): %s", len(images), strings.Join(images, ", "))
+
+	for i, name := range names {
+		image := images[i]
 
 		logging.Step(image)
 		if len(opts.BaseOverride) > 0 {

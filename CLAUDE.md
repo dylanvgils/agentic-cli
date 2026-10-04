@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - [Dockerfile DSL (`internal/dockerfile`)](#dockerfile-dsl-internaldockerfile)
   - [Cobra command init functions](#cobra-command-init-functions)
   - [Go style](#go-style)
+  - [Logging](#logging)
   - [Linting](#linting)
   - [File structure](#file-structure)
   - [Splitting code across files in a package](#splitting-code-across-files-in-a-package)
@@ -91,6 +92,17 @@ func init() {
 
 - Use blank lines between logical blocks within a function to aid readability (e.g. between groups of related `if` statements, between `switch` case groups)
 - Keep comments short and to the point - one line unless multi-line is genuinely needed
+
+### Logging
+
+All user-facing status output goes through `internal/logging` - never ad-hoc `fmt.Fprint*(os.Stdout/os.Stderr, ...)`:
+
+- `logging.Step`/`Detail` (stdout, `=> ` / indented) for per-item headings and details, e.g. build/update/inspect.
+- Action commands (build, update, clean, prune, ...) print one `logging.Infof` summary line saying what they're about to do (`building 2 image(s): ...`) before their `=>` items; single-object actions use just that line. Display commands (inspect, list, `--dry-run`) print no summary.
+- `logging.Infof`/`Warnf`/`Promptf` (stderr, dimmed `agentic: ` prefix) for anything printed during `agentic run`, including run-triggered image builds and update prompts, so it stands out from the tool's output.
+- A function that takes a writer for testability takes a `*logging.Logger` instead (tests pass `logging.New(&buf)`).
+
+Exceptions: dry-run `docker ...` command lines (stay plain and copy-pasteable) and the `agentic-proxy` binary, which must not import `internal/logging`.
 
 ### Linting
 

@@ -20,7 +20,7 @@ func verifyAptPackages(packages []string, registry string) error {
 		return nil
 	}
 
-	logging.Step("Verifying apt packages...")
+	logging.Detail("verifying apt packages...")
 
 	debianImage := tools.DebianImageFor(registry)
 	if err := runInteractive("pull", debianImage); err != nil {

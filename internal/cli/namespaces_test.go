@@ -156,6 +156,7 @@ func TestRunNamespacesPrune(t *testing.T) {
 func Test_pruneNamespace(t *testing.T) {
 	t.Run("calls cleanImage for each image in the namespace", func(t *testing.T) {
 		// Arrange
+		logBuf := stubErrLog(t)
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
 				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
@@ -174,6 +175,7 @@ func Test_pruneNamespace(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"agentic-claude", "agentic-copilot"}, cleaned)
+		assert.Contains(t, logBuf.String(), "agentic: removing 2 image(s) in namespace \"agentic\"")
 	})
 
 	t.Run("passes namespace filter to listAllImages", func(t *testing.T) {
@@ -200,15 +202,14 @@ func Test_pruneNamespace(t *testing.T) {
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, nil
 		})
+		logBuf := stubErrLog(t)
 
 		// Act
-		out := captureStdout(t, func() {
-			err := pruneNamespace("agentic")
-			require.NoError(t, err)
-		})
+		err := pruneNamespace("agentic")
 
 		// Assert
-		assert.Contains(t, out, "no images found in namespace")
+		require.NoError(t, err)
+		assert.Contains(t, logBuf.String(), "agentic: no images found in namespace \"agentic\"")
 	})
 
 	t.Run("docker list error propagates", func(t *testing.T) {
