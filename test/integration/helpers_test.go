@@ -7,16 +7,23 @@ import (
 	"encoding/hex"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
 // agenticCmd returns an agentic command running in workDir with the test AGENTIC_HOME and TMPDIR.
 func agenticCmd(args ...string) *exec.Cmd {
+	return agenticCmdIn(workDir, args...)
+}
+
+// agenticCmdIn is agenticCmd running in dir.
+func agenticCmdIn(dir string, args ...string) *exec.Cmd {
 	cmd := exec.Command(agenticBin, args...)
-	cmd.Dir = workDir
+	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "AGENTIC_HOME="+agenticHome, "TMPDIR="+tmpDir)
 	return cmd
 }
@@ -24,10 +31,16 @@ func agenticCmd(args ...string) *exec.Cmd {
 // runInTool runs script with sh inside the test tool container, passing flags to agentic run, and returns the combined output.
 func runInTool(t *testing.T, script string, flags ...string) string {
 	t.Helper()
+	return runInToolIn(t, workDir, script, flags...)
+}
+
+// runInToolIn is runInTool with dir as the cwd, so its .agenticrc.toml applies.
+func runInToolIn(t *testing.T, dir, script string, flags ...string) string {
+	t.Helper()
 	args := append([]string{"run", "--trust-dir"}, flags...)
 	args = append(args, testTool, "--", "sh", "-c", script)
 
-	out, err := agenticCmd(args...).CombinedOutput()
+	out, err := agenticCmdIn(dir, args...).CombinedOutput()
 	t.Logf("agentic %s\n%s", strings.Join(args, " "), out)
 	require.NoError(t, err)
 	return string(out)
@@ -66,4 +79,34 @@ func docker(t *testing.T, args ...string) {
 	t.Helper()
 	out, err := exec.Command("docker", args...).CombinedOutput()
 	require.NoError(t, err, string(out))
+}
+
+// approveCredentials records the credentials in the .agenticrc.toml at rcPath as approved, as the trust prompt would.
+func approveCredentials(t *testing.T, rcPath string) {
+	t.Helper()
+	layers, err := config.FindLayers(filepath.Dir(rcPath))
+	require.NoError(t, err)
+	cfg, err := config.LoadConfig(agenticHome)
+	require.NoError(t, err)
+
+	for _, layer := range layers {
+		if creds := layer.RC.Run.Proxy.Credentials; len(creds) > 0 {
+			require.NoError(t, cfg.ApproveCredentials(layer.Path, config.CredentialsHash(creds), agenticHome))
+		}
+	}
+}
+
+// proxyLog returns every proxy access log written under the test AGENTIC_HOME, concatenated.
+func proxyLog(t *testing.T) string {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(agenticHome, "logs", "proxy_*.jsonl"))
+	require.NoError(t, err)
+
+	var log strings.Builder
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		log.Write(data)
+	}
+	return log.String()
 }

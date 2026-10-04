@@ -206,6 +206,60 @@ allowed_hosts = [
 ]
 ```
 
+#### Credential injection
+
+`[[run.proxy.credentials]]` keeps API keys out of the tool container. The proxy sidecar holds the real secret and sets it as a header on HTTPS requests to the entry's hosts. Inside the container, the entry's env vars only hold the placeholder `agentic-proxy-managed`, so tools that refuse to start without a key still run.
+
+| Key      | Type   | Description                                                                                                                                         |
+| -------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `preset` | string | `anthropic`, `openai` or `github` (see below). Can't be combined with `hosts`, `header` or `format`.                                               |
+| `hosts`  | list   | Exact hostnames or IPs to inject into, no wildcards. Required without `preset`.                                                                     |
+| `header` | string | Header to set, e.g. `"Authorization"`. Required without `preset`. Hop-by-hop headers and `Host`/`Content-Length` are refused.                       |
+| `format` | string | Wraps the secret, with exactly one `%s`, e.g. `"Bearer %s"`. Default: the bare secret.                                                              |
+| `env`    | list   | Tool env vars set to the placeholder. Replaces a preset's own list.                                                                                 |
+| `secret` | string | Required. Host file holding the secret: an absolute path, or one starting with `~`/`$HOME`. One line, at most 64 KiB. Other sources (`keychain:`) are reserved. |
+
+| Preset      | Hosts and header                                                                                              | Env                         |
+| ----------- | ------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `anthropic` | `api.anthropic.com`: `X-Api-Key: <secret>`                                                                    | `ANTHROPIC_API_KEY`         |
+| `openai`    | `api.openai.com`: `Authorization: Bearer <secret>`                                                            | `OPENAI_API_KEY`            |
+| `github`    | `api.github.com`: `Authorization: Bearer <secret>`; `github.com`: basic auth as `x-access-token`, for git over HTTPS | `GITHUB_TOKEN`, `GH_TOKEN`  |
+
+```toml
+[[run.proxy.credentials]]
+preset = "anthropic"
+secret = "~/.secrets/anthropic_key"
+
+[[run.proxy.credentials]]
+hosts = ["api.example.com"]
+header = "Authorization"
+format = "Token %s"
+env = ["EXAMPLE_TOKEN"]
+secret = "~/.secrets/example_token"
+```
+
+How it works:
+
+- **Proxy on**: credentials turn the proxy on in enforce mode (monitor mode still applies if set), and their hosts join the allowlist. `--no-proxy` or `enabled = false` together with credentials is an error.
+- **Only credential hosts are decrypted**: the proxy terminates TLS for them with a per-run CA that can only sign those hosts, and always overwrites the header. Every other host stays an end-to-end encrypted tunnel. Plain HTTP is never injected, and terminated hosts speak HTTP/1.1. Access log entries for them carry `"injected": true`.
+- **Secrets stay on the host side**: agentic reads each secret at the start of the run and copies it straight into the proxy sidecar, which is removed with its data when the run ends. A secret file inside the current directory or inside any path mounted into the tool container is refused, as the agent could read or replace it.
+- **Approval**: entries need your approval when they first appear in an `.agenticrc.toml` and again whenever they change, since an agent can edit config files in the workspace. The prompt lists each entry's preset or hosts and secret path; non-interactive runs fail until approved. Approvals live in `approved_credentials` in `agentic.json`. Each run then prints `agentic: injecting credentials for <hosts> (<secret path>)`.
+- **Merging**: entries accumulate across config levels like `allowed_hosts`. A host may appear in only one entry.
+
+The tool trusts the per-run CA through its entrypoint, which appends it to the system bundle and points `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `GIT_SSL_CAINFO`, `REQUESTS_CA_BUNDLE` and `NODE_EXTRA_CA_CERTS` at the result. That covers OpenSSL, Go, curl, git, Python and Node/Bun. With credentials configured:
+
+- These vars, `AGENTIC_PROXY_CA` and the entries' `env` names can't be set via `env` or `--env`.
+- Images built before this feature fail with a hint to run `agentic update <tool>`.
+- `agentic run <tool> -- <cmd>` skips the entrypoint, so it only warns: TLS to credential hosts fails in that run.
+- Java uses its own truststore and doesn't see the CA.
+
+Limitations:
+
+- **Static keys only**: OAuth logins (Claude subscription, Copilot device flow) keep their token in the tool home, as before. Note that setting a key's env var (e.g. `ANTHROPIC_API_KEY`) switches the tool to API-key auth.
+- **Copilot**: the `github` preset injects the GitHub token, but Copilot trades it for a short-lived Copilot token that comes back in a response body, where the agent can read it.
+- **Use, not theft**: the agent can't read the key, but it can still make authenticated requests to the credential's hosts while the run lasts.
+- **Docker-in-Docker**: containers started through `--dind` don't trust the proxy CA, so TLS to credential hosts fails there.
+
 #### Pointing a tool's own proxy setting at the egress proxy
 
 `HTTP_PROXY`/`HTTPS_PROXY` (and lowercase variants) are auto-injected whenever the proxy is enabled, so most tools need no extra configuration. Some tools ignore these env vars and require a literal host:port instead - Maven is an example: it only reads proxy settings from `settings.xml`'s `<proxies>` section, not `MAVEN_OPTS` or the standard proxy env vars.
@@ -261,7 +315,7 @@ Usage is tracked in `$AGENTIC_HOME/marketplaces/.usage.json`, keyed by clone + l
 
 Multiple `.agenticrc.toml` files merge. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
 
-- **List keys** (`bases`, `apt_packages`, `custom_installs`, `extra_mounts`, `read_only_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `marketplaces`): values from all levels accumulate, outermost first.
+- **List keys** (`bases`, `apt_packages`, `custom_installs`, `extra_mounts`, `read_only_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `proxy.credentials`, `marketplaces`): values from all levels accumulate, outermost first.
 - **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`, `docker_context`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
 - **`instructions.custom`**: text from all levels accumulates like a list key (outermost first, joined by a blank line), rather than the innermost overriding it - each layer's text is additive context, not a single setting. `instructions.enabled` is a scalar key: the innermost (child) value wins.
 - **`versions` table**: each layer name is resolved independently - innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
@@ -368,7 +422,7 @@ read_only_mounts = ["$PWD/.git:/workspace/.git", "$PWD/.credentials:/workspace/.
 
 `.agenticrc.toml` `env` entries and `-e`/`--env` flags accumulate, but on a duplicate key `-e` wins - RC entries apply first, and the last `--env` for a given key takes effect, matching `docker run -e` itself.
 
-`-e`/`--env` values are visible inside the container and via `docker inspect`/`ps` - use `-s`/`--secret` for tokens or credentials instead.
+`-e`/`--env` values are visible inside the container and via `docker inspect`/`ps` - use `-s`/`--secret` for tokens or credentials instead, or [credential injection](#credential-injection) for API keys the agent shouldn't see at all.
 
 `TZ` is auto-forwarded from the host's detected timezone, alongside the terminal-capability vars (`COLORTERM`, `TERM`, `NO_COLOR`, `FORCE_COLOR`); an explicit `-e TZ=...` or `.agenticrc.toml` `env` entry overrides it like any other auto-forwarded var.
 
