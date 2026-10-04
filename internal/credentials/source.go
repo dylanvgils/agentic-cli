@@ -35,20 +35,13 @@ func (s fileSource) Resolve() ([]byte, error) {
 	}
 	defer func() { _ = file.Close() }()
 
-	info, err := file.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("read secret: %w", err)
-	}
-	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("read secret %s: not a regular file", s.path)
+	if err := checkRegular(file); err != nil {
+		return nil, fmt.Errorf("read secret %s: %w", s.path, err)
 	}
 
-	data, err := io.ReadAll(io.LimitReader(file, maxSecretSize+1))
+	data, err := readLimited(file)
 	if err != nil {
-		return nil, fmt.Errorf("read secret: %w", err)
-	}
-	if len(data) > maxSecretSize {
-		return nil, fmt.Errorf("read secret %s: larger than %d bytes", s.path, maxSecretSize)
+		return nil, fmt.Errorf("read secret %s: %w", s.path, err)
 	}
 	return data, nil
 }
@@ -76,17 +69,49 @@ func ParseSource(spec string) (SecretSource, error) {
 
 // expandHome replaces a leading ~, $HOME or ${HOME} with the user's home directory.
 func expandHome(path string) (string, error) {
+	rest, ok := cutHomePrefix(path)
+	if !ok {
+		return path, nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("expand home in %q: %w", path, err)
+	}
+	return home + rest, nil
+}
+
+// cutHomePrefix strips a leading ~, $HOME or ${HOME} that is the whole path or followed by a separator.
+func cutHomePrefix(path string) (string, bool) {
 	for _, prefix := range []string{"~", "${HOME}", "$HOME"} {
 		rest, ok := strings.CutPrefix(path, prefix)
-		if !ok || (rest != "" && rest[0] != '/' && rest[0] != filepath.Separator) {
-			continue
+		if ok && (rest == "" || rest[0] == '/' || rest[0] == filepath.Separator) {
+			return rest, true
 		}
-
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("expand %s: %w", prefix, err)
-		}
-		return home + rest, nil
 	}
-	return path, nil
+	return "", false
+}
+
+// checkRegular refuses directories, devices, pipes and other non-regular files.
+func checkRegular(file *os.File) error {
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("not a regular file")
+	}
+	return nil
+}
+
+// readLimited reads file, failing if it holds more than maxSecretSize bytes.
+func readLimited(file *os.File) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(file, maxSecretSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxSecretSize {
+		return nil, fmt.Errorf("larger than %d bytes", maxSecretSize)
+	}
+	return data, nil
 }
