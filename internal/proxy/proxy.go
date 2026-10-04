@@ -21,8 +21,7 @@ type Server struct {
 	inject  *Injector // nil disables credential injection
 }
 
-// NewServer builds a Server recording to logger, enforcing allow unless monitor is true and
-// injecting credentials through inject when non-nil.
+// NewServer builds a Server enforcing allow unless monitor; a nil inject disables injection.
 func NewServer(allow *Allowlist, logger *Logger, monitor bool, inject *Injector) *Server {
 	return &Server{allow: allow, logger: logger, monitor: monitor, inject: inject}
 }
@@ -37,7 +36,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleConnect tunnels a CONNECT request to the upstream host after checking the allowlist; denied hosts get a 403 unless in monitor mode.
-// Credentialed hosts are TLS-terminated by the injector instead of tunneled blindly.
 func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	host, port := splitHostPort(r.Host)
 	rules := s.inject.rulesFor(host)
@@ -74,7 +72,6 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleHTTP forwards a plain (non-TLS) HTTP request to the upstream host after checking the allowlist, unless in monitor mode.
-// Credentials are never injected over plain HTTP.
 func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	host, port := splitHostPort(r.Host)
 	if port == "" {
@@ -103,7 +100,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, resp.Body)
 }
 
-// admit logs the allowlist verdict and reports whether to forward; monitor mode always forwards.
+// admit logs the verdict and reports whether to forward; monitor mode always forwards.
 func (s *Server) admit(protocol Protocol, host, port string, inject bool) bool {
 	allowed := s.allow.Allows(host, port)
 	forward := allowed || s.monitor

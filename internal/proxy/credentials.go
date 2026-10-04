@@ -7,19 +7,19 @@ import (
 	"strings"
 )
 
-// Credential is a set of headers the proxy sets on HTTPS requests to any of Hosts.
+// Credential is the headers set on HTTPS requests to Hosts.
 type Credential struct {
-	Hosts []string     `json:"hosts"` // exact or leading-dot/"*." wildcard, as in Allowlist
+	Hosts []string     `json:"hosts"` // matched like Allowlist entries
 	Rules []InjectRule `json:"rules"`
 }
 
-// InjectRule sets Header to Value, overwriting whatever the client sent; Value is formatted by the host.
+// InjectRule overwrites Header with Value, already formatted by the host.
 type InjectRule struct {
 	Header string `json:"header"`
 	Value  string `json:"value"`
 }
 
-// LoadCredentials reads the JSON credential list written by the host, failing closed on any incomplete entry.
+// LoadCredentials reads the host-written JSON credential list, rejecting incomplete entries.
 func LoadCredentials(path string) ([]Credential, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -39,7 +39,7 @@ func LoadCredentials(path string) ([]Credential, error) {
 	return creds, nil
 }
 
-// validateCredential rejects a credential without hosts or rules, or with an unusable rule.
+// validateCredential requires hosts and rules with valid headers.
 func validateCredential(cred Credential) error {
 	if len(cred.Hosts) == 0 {
 		return fmt.Errorf("no hosts")

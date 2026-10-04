@@ -79,7 +79,7 @@ func (c CA) IssueLeaf(cn string, usage x509.ExtKeyUsage, names []string) (KeyPai
 	return issue(tmpl, &c.KeyPair)
 }
 
-// LoadCA parses a CA written by CertPEM and KeyPEM, rejecting non-CA certs and mismatched keys.
+// LoadCA parses a CA written by CertPEM and KeyPEM.
 func LoadCA(certPEM, keyPEM []byte) (CA, error) {
 	cert, err := parseCert(certPEM)
 	if err != nil {
@@ -194,7 +194,7 @@ func parseKey(data []byte) (*ecdsa.PrivateKey, error) {
 	return key, nil
 }
 
-// decodePEM returns the bytes of the first PEM block in data, which must be of blockType.
+// decodePEM returns the first PEM block's bytes if it is of blockType.
 func decodePEM(data []byte, blockType string) ([]byte, error) {
 	block, _ := pem.Decode(data)
 	if block == nil || block.Type != blockType {

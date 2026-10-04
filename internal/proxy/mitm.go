@@ -16,8 +16,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/certs"
 )
 
-// Injector terminates TLS for credentialed hosts with leaves from a per-run CA and sets their
-// headers before forwarding upstream. Every other host keeps a blind CONNECT tunnel.
+// Injector terminates TLS for credentialed hosts and sets their headers before forwarding.
 type Injector struct {
 	ca        certs.CA
 	creds     []hostRules
@@ -33,7 +32,7 @@ type hostRules struct {
 	rules []InjectRule
 }
 
-// oneConnListener hands a single conn to http.Server.Serve, then blocks Accept until that conn closes.
+// oneConnListener serves a single conn, blocking Accept until it closes.
 type oneConnListener struct {
 	conns chan net.Conn
 	done  chan struct{}
@@ -66,7 +65,7 @@ func NewInjector(ca certs.CA, creds []Credential) *Injector {
 	}
 }
 
-// rulesFor returns the rules of the first credential matching host, or nil; safe on a nil Injector.
+// rulesFor returns the first matching credential's rules; safe on a nil Injector.
 func (i *Injector) rulesFor(host string) []InjectRule {
 	if i == nil {
 		return nil
@@ -100,8 +99,7 @@ func (i *Injector) leaf(host string) (*tls.Certificate, error) {
 	return &cert, nil
 }
 
-// serve terminates TLS on client with leaf and reverse-proxies each request to host:port with rules
-// applied, blocking until the client connection closes.
+// serve terminates TLS on client and proxies its requests until it closes.
 func (i *Injector) serve(client net.Conn, leaf *tls.Certificate, host, port string, rules []InjectRule) {
 	tlsConn := tls.Server(client, &tls.Config{
 		Certificates: []tls.Certificate{*leaf},
@@ -119,7 +117,7 @@ func (i *Injector) serve(client net.Conn, leaf *tls.Certificate, host, port stri
 	_ = server.Serve(newOneConnListener(tlsConn))
 }
 
-// reverseProxy forwards to https://host:port - never to the request's own Host - with rules set.
+// reverseProxy forwards to host:port, never the request's Host, with rules applied.
 func (i *Injector) reverseProxy(host, port string, rules []InjectRule) *httputil.ReverseProxy {
 	target := &url.URL{Scheme: "https", Host: host}
 	if port != "443" {
@@ -134,11 +132,11 @@ func (i *Injector) reverseProxy(host, port string, rules []InjectRule) *httputil
 			}
 		},
 		Transport:     i.transport,
-		FlushInterval: -1, // stream SSE responses as they arrive
+		FlushInterval: -1, // stream SSE
 	}
 }
 
-// intercept answers the CONNECT for an allowed credentialed host and hands the tunnel to the injector.
+// intercept accepts the CONNECT and hands the tunnel to the injector.
 func (s *Server) intercept(w http.ResponseWriter, host, port string, rules []InjectRule) {
 	leaf, err := s.inject.leaf(host)
 	if err != nil {

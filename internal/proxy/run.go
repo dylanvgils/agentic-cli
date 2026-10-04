@@ -27,7 +27,7 @@ const (
 	EnvAddr        = "AGENTIC_PROXY_ADDR"        // override listen address
 	EnvTZOffset    = "AGENTIC_PROXY_TZ_OFFSET"   // host UTC offset in seconds, for the human-readable log line
 	EnvMonitor     = "AGENTIC_PROXY_MONITOR"     // "true" to log without enforcing the allowlist
-	EnvCADir       = "AGENTIC_PROXY_CA_DIR"      // dir holding CACertFile and CAKeyFile for credential injection
+	EnvCADir       = "AGENTIC_PROXY_CA_DIR"      // dir holding CACertFile and CAKeyFile
 	EnvCredentials = "AGENTIC_PROXY_CREDENTIALS" // JSON credential list path (see LoadCredentials)
 )
 
@@ -63,7 +63,7 @@ type Config struct {
 	LogPath         string   // JSON-lines access log file; always also written to stdout
 	TZOffsetSeconds int      // host UTC offset shown in the stdout human-readable line; the JSON log always stays UTC
 	Monitor         bool     // log the allowlist verdict without enforcing it
-	CADir           string   // per-run CA for credential injection; set together with CredentialsPath
+	CADir           string   // per-run CA dir; set with CredentialsPath
 	CredentialsPath string   // JSON credential list; empty disables injection
 }
 
@@ -116,8 +116,7 @@ func jsonWriter(f *os.File) io.Writer {
 	return f
 }
 
-// loadInjector builds an Injector from the CA in caDir and the credentials at credsPath; both empty
-// disables injection, and setting only one is an error so a half-wired run fails closed.
+// loadInjector returns nil when both are empty and fails when only one is set.
 func loadInjector(caDir, credsPath string) (*Injector, error) {
 	if caDir == "" && credsPath == "" {
 		return nil, nil
