@@ -125,7 +125,17 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	proxyMode := resolveProxyMode(cmd, rc)
+	proxyMode, err := resolveProxyMode(cmd, rc)
+	if err != nil {
+		return err
+	}
+
+	// Credentials force the proxy on (see resolve.ProxyMode), so this is a no-op when it is off
+	creds, err := run.ResolveCredentials(layers, toolHome)
+	if err != nil {
+		return err
+	}
+
 	if proxyMode.Enabled() && !dryRun {
 		if err := ensureProxyImage(cmd); err != nil {
 			return err
@@ -161,6 +171,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		ProxyMode:      proxyMode,
 		DindEnabled:    dindEnabled,
 		DindLimits:     resolveDindResourceLimitFlags(cmd),
+		Credentials:    creds,
 	}
 
 	rs, cleanupInstructions, err := run.BuildWithInstructions(target, input, toolConfig, rc)

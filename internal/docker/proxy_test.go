@@ -1,12 +1,17 @@
 package docker
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/certs"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +35,7 @@ func TestStartProxy(t *testing.T) {
 			switch {
 			case c.args[0] == "network" && c.args[1] == "create":
 				createArgs = c.args
-			case c.args[0] == "run":
+			case c.args[0] == "create":
 				runArgs = c.args
 			case c.args[0] == "network" && c.args[1] == "connect":
 				connectArgs = c.args
@@ -41,7 +46,6 @@ func TestStartProxy(t *testing.T) {
 		assert.Contains(t, createArgs, handle.network)
 		assert.Contains(t, createArgs, "--label=agentic.owner=agentic-claude-abc", "the network is swept with its owner")
 
-		assert.Contains(t, runArgs, "--detach")
 		assert.Contains(t, runArgs, "--read-only")
 		assert.Contains(t, runArgs, "--network-alias=agentic-proxy")
 		assert.Contains(t, runArgs, "--cap-drop=ALL")
@@ -59,7 +63,7 @@ func TestStartProxy(t *testing.T) {
 
 	t.Run("removes network when sidecar fails to start", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, "network inspect", "run")
+		get := stubDockerRunCapture(t, "network inspect", "create")
 		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: "/tmp/agentic/proxy"}}
 
 		// Act
@@ -157,7 +161,7 @@ func TestProxyHandleStop(t *testing.T) {
 		// Assert
 		calls := get()
 		require.Len(t, calls, 2)
-		assert.Equal(t, []string{"rm", "-f", "agentic-proxy-abc"}, calls[0].args)
+		assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-proxy-abc"}, calls[0].args)
 		assert.Equal(t, []string{"network", "rm", "agentic-proxy-abc"}, calls[1].args)
 	})
 }
@@ -317,5 +321,185 @@ func Test_setupProxy(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, env)
 		assert.Nil(t, cleanup)
+	})
+}
+
+func TestStartProxy_credentials(t *testing.T) {
+	stubProxySettleTime(t, 0)
+	creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
+
+	t.Run("copies a scoped CA and the credentials into the volume before start", func(t *testing.T) {
+		// Arrange
+		var callsAtCopy int
+		var calls []dockerCall
+		stubDockerRun(t, func(args ...string) (string, error) {
+			calls = append(calls, dockerCall{args: args})
+			if args[0] == "inspect" {
+				return "true", nil
+			}
+			return "", nil
+		})
+		stdin := stubDockerRunStdinCapture(t, nil)
+		orig := dockerRunStdin
+		dockerRunStdin = func(r io.Reader, args ...string) (string, error) {
+			callsAtCopy = len(calls)
+			return orig(r, args...)
+		}
+		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
+
+		// Act
+		handle, err := startProxy(rs)
+
+		// Assert
+		require.NoError(t, err)
+		createArgs := findCall(calls, "create")
+		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_CA_DIR="+proxyRunMountDir)
+		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_CREDENTIALS="+proxyRunMountDir+"/"+proxyCredentialsFile)
+		assert.Contains(t, createArgs, "--volume="+proxyRunMountDir, "an anonymous volume has no host path")
+		for _, arg := range createArgs {
+			assert.NotContains(t, arg, "test-secret")
+		}
+
+		require.Len(t, stdin(), 1)
+		assert.Equal(t, []string{"cp", "--archive", "-", handle.container + ":" + proxyRunMountDir}, stdin()[0].args)
+		assert.Nil(t, findCall(calls[:callsAtCopy], "start", handle.container), "credentials must be in place before the proxy starts")
+		assert.NotNil(t, findCall(calls[callsAtCopy:], "start", handle.container))
+
+		files := readTar(t, stdin()[0].input)
+		uid, gid, err := parseUserGroup(platform.UserGroup())
+		require.NoError(t, err)
+		for _, name := range []string{proxy.CACertFile, proxy.CAKeyFile, proxyCredentialsFile} {
+			require.Contains(t, files, name)
+			assert.Equal(t, int64(0o600), files[name].header.Mode, name)
+			assert.Equal(t, uid, files[name].header.Uid, name)
+			assert.Equal(t, gid, files[name].header.Gid, name)
+		}
+
+		var loaded []proxy.Credential
+		require.NoError(t, json.Unmarshal(files[proxyCredentialsFile].content, &loaded))
+		assert.Equal(t, creds, loaded)
+
+		ca, err := certs.LoadCA(files[proxy.CACertFile].content, files[proxy.CAKeyFile].content)
+		require.NoError(t, err)
+		assert.True(t, ca.Scoped())
+	})
+
+	t.Run("removes the container and its volume when the copy fails", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t)
+		stubDockerRunStdinCapture(t, fmt.Errorf("stub: cp failed"))
+		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
+
+		// Act
+		_, err := startProxy(rs)
+
+		// Assert
+		require.ErrorContains(t, err, "copy proxy credentials")
+		assert.NotNil(t, findCall(get(), "rm", "--force", "--volumes"))
+		assert.Nil(t, findCall(get(), "start"))
+	})
+
+	t.Run("removes the proxy when it exits on start", func(t *testing.T) {
+		// Arrange
+		var calls []dockerCall
+		stubDockerRun(t, func(args ...string) (string, error) {
+			calls = append(calls, dockerCall{args: args})
+			if args[0] == "inspect" {
+				return "false", nil
+			}
+			return "", nil
+		})
+		stubDockerRunStdinCapture(t, nil)
+		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
+
+		// Act
+		_, err := startProxy(rs)
+
+		// Assert
+		require.ErrorContains(t, err, "proxy exited on start")
+		assert.NotNil(t, findCall(calls, "rm", "--force", "--volumes"))
+		assert.Nil(t, findCall(calls, "network", "connect"))
+	})
+
+	t.Run("without credentials nothing is copied or mounted", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t)
+		stdin := stubDockerRunStdinCapture(t, nil)
+		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir()}}
+
+		// Act
+		_, err := startProxy(rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, stdin())
+		createArgs := findCall(get(), "create")
+		assert.False(t, hasArgWithPrefix(createArgs, "--env=AGENTIC_PROXY_CA_DIR="))
+		assert.NotContains(t, createArgs, "--volume="+proxyRunMountDir)
+	})
+}
+
+func Test_proxyHandle_checkStarted(t *testing.T) {
+	stubProxySettleTime(t, 0)
+	creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
+
+	t.Run("running proxy passes", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{"inspect": "true\n"})
+		handle := proxyHandle{container: "agentic-proxy-abc", credentials: creds}
+
+		// Act
+		err := handle.checkStarted()
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("exited proxy fails with its logs", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{"inspect": "false\n", "logs": "load proxy CA: bad key\n"})
+		handle := proxyHandle{container: "agentic-proxy-abc", credentials: creds}
+
+		// Act
+		err := handle.checkStarted()
+
+		// Assert
+		assert.ErrorContains(t, err, "proxy exited on start")
+		assert.ErrorContains(t, err, "load proxy CA: bad key")
+	})
+
+	t.Run("without credentials nothing is checked", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t)
+		handle := proxyHandle{container: "agentic-proxy-abc"}
+
+		// Act
+		err := handle.checkStarted()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, get())
+	})
+}
+
+func Test_dryRunProxy(t *testing.T) {
+	t.Run("credentials print no secret and touch nothing", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t)
+		stdin := stubDockerRunStdinCapture(t, nil)
+		creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
+		rs := RunSpec{DryRun: true, Proxy: ProxySpec{Mode: ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
+
+		// Act
+		out := captureStdout(t, func() {
+			_, _, err := dryRunProxy(&rs)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "--volume="+proxyRunMountDir)
+		assert.NotContains(t, out, "test-secret")
+		assert.Empty(t, calls())
+		assert.Empty(t, stdin())
 	})
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
@@ -37,6 +38,8 @@ type Input struct {
 	DindEnabled    bool
 	// Sidecar limit flags; empty falls back to config
 	DindLimits docker.ResourceLimits
+	// Credentials are the approved proxy credentials, from ResolveCredentials
+	Credentials []credentials.Resolved
 	// InstructionsMount is the mount spec for this run's instructions snapshot, empty when disabled.
 	InstructionsMount string
 }
@@ -65,6 +68,12 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	if err := validateEnv(env, in.ProxyMode.Enabled(), in.DindEnabled); err != nil {
 		return docker.RunSpec{}, err
 	}
+
+	placeholders, err := credentialSetup(in, volumes, secrets, env, containerHome)
+	if err != nil {
+		return docker.RunSpec{}, err
+	}
+	env = append(env, placeholders...)
 
 	// Tells entrypoint.sh exactly which names to register instead of globbing.
 	if len(marketplaceNames) > 0 {
@@ -100,10 +109,11 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		WithLimits(limits).
 		WithDryRun(in.DryRun).
 		WithProxy(docker.ProxySpec{
-			Mode:   in.ProxyMode,
-			Image:  tools.ProxyImage,
-			Allow:  resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc),
-			LogDir: logDir,
+			Mode:        in.ProxyMode,
+			Image:       tools.ProxyImage,
+			Allow:       resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc),
+			LogDir:      logDir,
+			Credentials: proxyCredentials(in.Credentials),
 		}).
 		WithDind(docker.DindSpec{Enabled: in.DindEnabled, Image: tools.DindImage, Limits: dindLimits}).
 		Build()

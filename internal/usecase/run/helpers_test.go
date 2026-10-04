@@ -2,9 +2,11 @@ package run
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/stretchr/testify/require"
@@ -68,4 +70,28 @@ func stubInspectImage(t *testing.T, fn func(name string) (*docker.ImageInfo, err
 	orig := InspectImage
 	InspectImage = fn
 	t.Cleanup(func() { InspectImage = orig })
+}
+
+// credentialLayer returns a config layer declaring one generic credential reading secret.
+func credentialLayer(t *testing.T, secret string) config.RCLayer {
+	t.Helper()
+	rc := &config.AgenticRC{}
+	rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: secret}}
+	return config.RCLayer{Path: filepath.Join(t.TempDir(), ".agenticrc.toml"), RC: rc}
+}
+
+// approveCredentials records layer's credentials as approved in toolHome's agentic.json.
+func approveCredentials(t *testing.T, layer config.RCLayer, toolHome string) {
+	t.Helper()
+	cfg, err := config.LoadConfig(toolHome)
+	require.NoError(t, err)
+	require.NoError(t, cfg.ApproveCredentials(layer.Path, config.CredentialsHash(layer.RC.Run.Proxy.Credentials), toolHome))
+}
+
+// stubCaseInsensitivePaths sets whether path checks ignore case for the duration of the test.
+func stubCaseInsensitivePaths(t *testing.T, val bool) {
+	t.Helper()
+	orig := caseInsensitivePaths
+	caseInsensitivePaths = val
+	t.Cleanup(func() { caseInsensitivePaths = orig })
 }

@@ -22,9 +22,10 @@ func Test_resolveProxyMode(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}
 
 		// Act
-		result := resolveProxyMode(runToolCmd, rc)
+		result, err := resolveProxyMode(runToolCmd, rc)
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, docker.ProxyEnforce, result)
 	})
 
@@ -37,9 +38,10 @@ func Test_resolveProxyMode(t *testing.T) {
 		})
 
 		// Act
-		result := resolveProxyMode(runToolCmd, &config.AgenticRC{})
+		result, err := resolveProxyMode(runToolCmd, &config.AgenticRC{})
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, docker.ProxyOff, result)
 	})
 
@@ -52,9 +54,10 @@ func Test_resolveProxyMode(t *testing.T) {
 		})
 
 		// Act
-		result := resolveProxyMode(runToolCmd, &config.AgenticRC{})
+		result, err := resolveProxyMode(runToolCmd, &config.AgenticRC{})
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, docker.ProxyMonitor, result)
 	})
 }

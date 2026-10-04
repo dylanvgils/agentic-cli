@@ -24,6 +24,8 @@ type Resolved struct {
 	Env []string
 	// Source describes where the secret came from, for display
 	Source string
+	// Path is the host file the secret was read from, empty for non-file sources
+	Path string
 }
 
 // Hosts returns every host the entry injects into.
@@ -54,6 +56,22 @@ func Resolve(entries []config.RCCredential) ([]Resolved, error) {
 		return nil, fmt.Errorf("credentials: %w", err)
 	}
 	return resolved, nil
+}
+
+// Hosts returns the hosts entries inject into without reading any secret; an entry Resolve would reject for its preset or format is skipped.
+func Hosts(entries []config.RCCredential) []string {
+	var hosts []string
+	for _, entry := range entries {
+		targets, _, err := expand(entry)
+		if err != nil {
+			continue
+		}
+
+		for _, target := range targets {
+			hosts = append(hosts, target.hosts...)
+		}
+	}
+	return hosts
 }
 
 // resolveEntry expands entry and fills in its secret.
@@ -91,7 +109,12 @@ func resolveEntry(entry config.RCCredential) (Resolved, error) {
 		creds = append(creds, cred)
 	}
 
-	return Resolved{Proxy: creds, Env: env, Source: source.String()}, nil
+	var path string
+	if file, ok := source.(fileSource); ok {
+		path = file.path
+	}
+
+	return Resolved{Proxy: creds, Env: env, Source: source.String(), Path: path}, nil
 }
 
 // expand returns the entry's targets and env, from its preset or its own hosts and header; an explicit env replaces a preset's.

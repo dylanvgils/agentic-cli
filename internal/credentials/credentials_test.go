@@ -38,6 +38,7 @@ func TestResolve(t *testing.T) {
 			},
 			Env:    []string{"EXAMPLE_TOKEN", "EXAMPLE_KEY"},
 			Source: secret,
+			Path:   secret,
 		}}, resolved)
 	})
 
@@ -63,6 +64,7 @@ func TestResolve(t *testing.T) {
 			Proxy:  []proxy.Credential{{Hosts: []string{"api.custom.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Token test-secret;"}}}},
 			Env:    []string{"CUSTOM_TOKEN"},
 			Source: secret,
+			Path:   secret,
 		}}, resolved)
 	})
 
@@ -176,4 +178,37 @@ func TestResolved_Hosts(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, []string{"api.example.test", "git.example.test"}, hosts)
+}
+
+func TestHosts(t *testing.T) {
+	stubPresets(t, map[string]preset{
+		"example": {
+			targets: []target{
+				{hosts: []string{"api.example.test"}, header: "X-Api-Key", value: bare},
+				{hosts: []string{"git.example.test"}, header: "Authorization", value: bearer},
+			},
+		},
+	})
+
+	t.Run("expands presets and generic entries without reading secrets", func(t *testing.T) {
+		// Arrange
+		entries := []config.RCCredential{
+			{Preset: "example", Secret: "/missing/secret"},
+			{Hosts: []string{"api.custom.test"}, Header: "X-Api-Key", Secret: "/missing/secret"},
+		}
+
+		// Act
+		hosts := Hosts(entries)
+
+		// Assert
+		assert.Equal(t, []string{"api.example.test", "git.example.test", "api.custom.test"}, hosts)
+	})
+
+	t.Run("unknown preset is skipped", func(t *testing.T) {
+		// Act
+		hosts := Hosts([]config.RCCredential{{Preset: "unknown", Secret: "/missing/secret"}})
+
+		// Assert
+		assert.Empty(t, hosts)
+	})
 }

@@ -3,6 +3,7 @@ package proxy
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -12,6 +13,9 @@ import (
 
 // maxHostLen is the longest DNS name accepted as a credential host.
 const maxHostLen = 253
+
+// redacted replaces a header value wherever a rule is printed or logged.
+const redacted = "[redacted]"
 
 // reservedHeaders are dropped or overridden by the reverse proxy, so injecting them would silently do nothing.
 var reservedHeaders = []string{
@@ -36,6 +40,35 @@ type Credential struct {
 type InjectRule struct {
 	Header string `json:"header"`
 	Value  string `json:"value"`
+}
+
+// String hides Value, so printing a rule never leaks the secret.
+func (r InjectRule) String() string {
+	return r.Header + ": " + redacted
+}
+
+// GoString hides Value from %#v.
+func (r InjectRule) GoString() string {
+	return fmt.Sprintf("proxy.InjectRule{Header:%q, Value:%q}", r.Header, redacted)
+}
+
+// LogValue hides Value from slog.
+func (r InjectRule) LogValue() slog.Value {
+	return slog.GroupValue(slog.String("header", r.Header), slog.String("value", redacted))
+}
+
+// CredentialHosts returns every host in creds, normalized and without duplicates.
+func CredentialHosts(creds []Credential) []string {
+	var hosts []string
+	for _, cred := range creds {
+		for _, host := range cred.Hosts {
+			host = normalizeHost(host)
+			if !slices.Contains(hosts, host) {
+				hosts = append(hosts, host)
+			}
+		}
+	}
+	return hosts
 }
 
 // LoadCredentials reads the host-written JSON credential list, rejecting invalid entries and hosts listed twice.

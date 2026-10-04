@@ -51,7 +51,7 @@ func TestCleanImage(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, 3, callNum)
-		assert.Equal(t, []string{"rm", "--force", "c1", "c2"}, rmArgs)
+		assert.Equal(t, []string{"rm", "--force", "--volumes", "c1", "c2"}, rmArgs)
 	})
 
 	t.Run("with images removes images", func(t *testing.T) {

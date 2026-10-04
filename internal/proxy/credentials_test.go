@@ -1,6 +1,9 @@
 package proxy
 
 import (
+	"bytes"
+	"fmt"
+	"log/slog"
 	"path/filepath"
 	"testing"
 
@@ -145,4 +148,57 @@ func TestValidateCredentials(t *testing.T) {
 		require.Error(t, err)
 		assert.NotContains(t, err.Error(), "test-secret")
 	})
+}
+
+func TestInjectRule(t *testing.T) {
+	rule := InjectRule{Header: "X-Api-Key", Value: "test-secret"}
+
+	t.Run("fmt verbs hide the value", func(t *testing.T) {
+		for _, verb := range []string{"%v", "%+v", "%#v", "%s"} {
+			// Act
+			out := fmt.Sprintf(verb, rule)
+
+			// Assert
+			assert.NotContains(t, out, "test-secret", verb)
+			assert.Contains(t, out, "X-Api-Key", verb)
+		}
+	})
+
+	t.Run("nested in a credential the value stays hidden", func(t *testing.T) {
+		// Arrange
+		cred := Credential{Hosts: []string{"api.example.test"}, Rules: []InjectRule{rule}}
+
+		// Act
+		out := fmt.Sprintf("%+v", cred)
+
+		// Assert
+		assert.NotContains(t, out, "test-secret")
+	})
+
+	t.Run("slog hides the value", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&buf, nil))
+
+		// Act
+		logger.Info("rule", "rule", rule)
+
+		// Assert
+		assert.NotContains(t, buf.String(), "test-secret")
+		assert.Contains(t, buf.String(), "X-Api-Key")
+	})
+}
+
+func TestCredentialHosts(t *testing.T) {
+	// Arrange
+	creds := []Credential{
+		{Hosts: []string{"API.example.test.", "a.example.test"}},
+		{Hosts: []string{"api.example.test", "b.example.test"}},
+	}
+
+	// Act
+	hosts := CredentialHosts(creds)
+
+	// Assert
+	assert.Equal(t, []string{"api.example.test", "a.example.test", "b.example.test"}, hosts)
 }
