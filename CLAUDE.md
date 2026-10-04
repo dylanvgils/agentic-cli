@@ -31,6 +31,8 @@ The egress proxy sidecar (`internal/proxy`) runs as its own minimal binary, `age
 
 The Docker-in-Docker sidecar is split the same way: `internal/dind` generates its per-run files (TLS certs, seccomp profile, `/etc` identity) and must not import `internal/docker`; starting, wiring, and cleaning up the sidecar container lives in `internal/docker/dind.go`, next to the proxy's `internal/docker/proxy.go`.
 
+`internal/certs` issues the per-run CAs and leaf certs shared by `internal/dind` and the proxy; it must import only the standard library so `agentic-proxy` can link it.
+
 ## Key commands
 
 ```bash

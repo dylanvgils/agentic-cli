@@ -11,10 +11,11 @@ agentic-cli/
 │   └── proxy/                   # Thin entrypoint for the agentic-proxy binary (main.go only)
 ├── internal/
 │   ├── buildinfo/               # Build-time version/commit metadata and dev-build classification
+│   ├── certs/                   # Per-run throwaway CAs and leaf certs (stdlib only, shared by dind and the proxy)
 │   ├── cleanup/                 # Capture helper for propagating deferred cleanup errors without masking an earlier error
 │   ├── cli/                     # Cobra commands (build, update, clean, inspect, run, …)
 │   ├── config/                  # .agenticrc.toml loading and run spec
-│   ├── dind/                    # Docker-in-Docker sidecar per-run files: TLS certs, seccomp profile, /etc identity
+│   ├── dind/                    # Docker-in-Docker sidecar per-run files: TLS cert dirs, seccomp profile, /etc identity
 │   ├── docker/                  # Build, update, run, clean, inspect, volume, and sidecar (proxy, dind) orchestration
 │   ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
 │   ├── git/                     # Thin wrapper over the host git binary (CheckAvailable, Clone, FetchReset)
@@ -41,6 +42,8 @@ agentic-cli/
 `cmd/proxy` only imports `internal/proxy` - never `internal/docker`, `internal/tools`, or `internal/cli` - so the `agentic-proxy` binary that runs inside the (untrusted-traffic-handling) sidecar container stays free of the CLI's code.
 
 `internal/dind` generates the Docker-in-Docker sidecar's per-run files and must not import `internal/docker`; the sidecar's container orchestration lives in `internal/docker/dind.go`, alongside `internal/docker/proxy.go` for the proxy.
+
+`internal/certs` issues the per-run CAs and leaf certs used by `internal/dind` and the proxy; it imports only the standard library so `agentic-proxy` can link it.
 
 No static Dockerfile files exist. All Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/tools/bases.go` (base and extra layers) and each tool's `Stage` func. See [dockerfile-dsl.md](dockerfile-dsl.md) for the DSL reference.
 
