@@ -46,25 +46,33 @@ func checkCredentials(layers []config.RCLayer, toolHome string) error {
 	}
 
 	for _, layer := range cfg.PendingCredentials(layers) {
-		creds := layer.RC.Run.Proxy.Credentials
-
-		if !isTerminal() {
-			return fmt.Errorf("proxy credentials in %s are new or changed; run interactively to approve them", layer.Path)
+		if err := promptCredentials(layer); err != nil {
+			return err
 		}
 
-		logging.Warnf("%s declares new or changed proxy credentials:", layer.Path)
-		for _, cred := range creds {
-			logging.Warnf("  %s", describeCredential(cred))
-		}
-
-		logging.Promptf("allow the proxy to read these secrets and send them to these hosts? [y/N] ")
-		if !confirmed() {
-			return fmt.Errorf("proxy credentials in %s not approved", layer.Path)
-		}
-
-		if err := cfg.ApproveCredentials(layer.Path, config.CredentialsHash(creds), toolHome); err != nil {
+		hash := config.CredentialsHash(layer.RC.Run.Proxy.Credentials)
+		if err := cfg.ApproveCredentials(layer.Path, hash, toolHome); err != nil {
 			return fmt.Errorf("save credential approval: %w", err)
 		}
+	}
+
+	return nil
+}
+
+// promptCredentials shows a layer's credential entries and returns an error unless the user approves them.
+func promptCredentials(layer config.RCLayer) error {
+	if !isTerminal() {
+		return fmt.Errorf("proxy credentials in %s are new or changed; run interactively to approve them", layer.Path)
+	}
+
+	logging.Warnf("%s declares new or changed proxy credentials:", layer.Path)
+	for _, cred := range layer.RC.Run.Proxy.Credentials {
+		logging.Warnf("  %s", describeCredential(cred))
+	}
+
+	logging.Promptf("allow the proxy to read these secrets and send them to these hosts? [y/N] ")
+	if !confirmed() {
+		return fmt.Errorf("proxy credentials in %s not approved", layer.Path)
 	}
 
 	return nil
