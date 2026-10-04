@@ -670,6 +670,28 @@ secret = "/example/secret"
 		}
 	})
 
+	t.Run("control characters in proxy credentials return error", func(t *testing.T) {
+		entries := []string{
+			"hosts = [\"evil.example.test\\u001b[2K\"]\nheader = \"X-Token\"\nsecret = \"/s\"\n",
+			"hosts = [\"api.example.test\"]\nheader = \"X-Token\\r\"\nsecret = \"/s\"\n",
+			"hosts = [\"api.example.test\"]\nheader = \"X-Token\"\nformat = \"Bearer %s\\n\"\nsecret = \"/s\"\n",
+			"preset = \"anthropic\"\nsecret = \"/s\\u001b[2K\\rhidden\"\n",
+			"preset = \"anthropic\\u0007\"\nsecret = \"/s\"\n",
+			"preset = \"anthropic\"\nenv = [\"KEY\\u202e\"]\nsecret = \"/s\"\n",
+		}
+		for _, entry := range entries {
+			// Arrange
+			path := writeRC(t, "[[run.proxy.credentials]]\n"+entry)
+
+			// Act
+			_, err := loadRC(path)
+
+			// Assert
+			assert.ErrorContains(t, err, "non-printable characters", entry)
+			assert.ErrorContains(t, err, path)
+		}
+	})
+
 	t.Run("run.instructions key", func(t *testing.T) {
 		// Act
 		rc := mustParseRC(t, "[run.instructions]\nenabled = false\ncustom = \"Always run go test before finishing.\"\n")

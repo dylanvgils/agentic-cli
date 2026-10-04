@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -65,7 +66,7 @@ func promptCredentials(layer config.RCLayer) error {
 		return fmt.Errorf("proxy credentials in %s are new or changed; run interactively to approve them", layer.Path)
 	}
 
-	logging.Infof("%s declares new or changed proxy credentials:", layer.Path)
+	logging.Infof("%q declares new or changed proxy credentials:", layer.Path)
 	for _, cred := range layer.RC.Run.Proxy.Credentials {
 		logging.Infof("  %s", describeCredential(cred))
 	}
@@ -78,16 +79,16 @@ func promptCredentials(layer config.RCLayer) error {
 	return nil
 }
 
-// describeCredential summarizes where an entry's secret is read from and where it is sent.
+// describeCredential summarizes where an entry's secret is read from and where it is sent, quoting each value so escape sequences print as text.
 func describeCredential(cred config.RCCredential) string {
-	target := "preset " + cred.Preset
+	target := fmt.Sprintf("preset %q", cred.Preset)
 	if cred.Preset == "" {
-		target = fmt.Sprintf("header %s on %s", cred.Header, strings.Join(cred.Hosts, ", "))
+		target = fmt.Sprintf("header %q on %s", cred.Header, quoteAll(cred.Hosts))
 	}
 
-	desc := fmt.Sprintf("%s, secret %s", target, cred.Secret)
+	desc := fmt.Sprintf("%s, secret %q", target, cred.Secret)
 	if len(cred.Env) > 0 {
-		desc += ", env " + strings.Join(cred.Env, ", ")
+		desc += ", env " + quoteAll(cred.Env)
 	}
 	return desc
 }
@@ -109,4 +110,13 @@ func confirmed() bool {
 
 	answer := strings.TrimSpace(string(line))
 	return answer == "y" || answer == "Y"
+}
+
+// quoteAll quotes each value and joins them with commas.
+func quoteAll(values []string) string {
+	quoted := make([]string, len(values))
+	for i, value := range values {
+		quoted[i] = strconv.Quote(value)
+	}
+	return strings.Join(quoted, ", ")
 }

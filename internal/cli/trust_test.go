@@ -155,7 +155,7 @@ func Test_checkCredentials(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, logs.String(), "agentic:   preset anthropic, secret /example.test/key\n")
+		assert.Contains(t, logs.String(), "agentic:   preset \"anthropic\", secret \"/example.test/key\"\n")
 		cfg, err := config.LoadConfig(toolHomeDir)
 		require.NoError(t, err)
 		assert.True(t, cfg.CredentialsApproved(layer.Path, config.CredentialsHash(layer.RC.Run.Proxy.Credentials)))
@@ -217,7 +217,7 @@ func Test_describeCredential(t *testing.T) {
 		desc := describeCredential(cred)
 
 		// Assert
-		assert.Equal(t, "preset github, secret ~/.secrets/gh", desc)
+		assert.Equal(t, `preset "github", secret "~/.secrets/gh"`, desc)
 	})
 
 	t.Run("custom hosts with env", func(t *testing.T) {
@@ -233,7 +233,22 @@ func Test_describeCredential(t *testing.T) {
 		desc := describeCredential(cred)
 
 		// Assert
-		assert.Equal(t, "header X-Token on api.example.test, *.example.test, secret /example.test/token, env EXAMPLE_TOKEN", desc)
+		assert.Equal(t, `header "X-Token" on "api.example.test", "*.example.test", secret "/example.test/token", env "EXAMPLE_TOKEN"`, desc)
+	})
+
+	t.Run("escape sequences print as text", func(t *testing.T) {
+		// Arrange
+		cred := config.RCCredential{
+			Hosts:  []string{"evil.example.test\x1b[2K\r"},
+			Header: "X-Token",
+			Secret: "/example.test/key\u202e",
+		}
+
+		// Act
+		desc := describeCredential(cred)
+
+		// Assert
+		assert.Equal(t, `header "X-Token" on "evil.example.test\x1b[2K\r", secret "/example.test/key\u202e"`, desc)
 	})
 }
 

@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 )
@@ -377,7 +378,7 @@ func loadRC(path string) (*AgenticRC, error) {
 	return rc, nil
 }
 
-// validateCredential checks the entry's shape; hosts, headers and presets are checked when it is resolved.
+// validateCredential checks the entry's shape and characters; hosts, headers and presets are checked when it is resolved.
 func validateCredential(cred RCCredential) error {
 	if cred.Secret == "" {
 		return fmt.Errorf("secret must not be empty")
@@ -389,6 +390,14 @@ func validateCredential(cred RCCredential) error {
 	}
 	if cred.Preset == "" && (len(cred.Hosts) == 0 || cred.Header == "") {
 		return fmt.Errorf("set either preset or both hosts and header")
+	}
+
+	// Escape sequences could disguise the entry in the approval prompt
+	fields := append([]string{cred.Preset, cred.Header, cred.Format, cred.Secret}, cred.Hosts...)
+	for _, field := range append(fields, cred.Env...) {
+		if strings.ContainsFunc(field, func(r rune) bool { return !unicode.IsPrint(r) }) {
+			return fmt.Errorf("value %q contains control or non-printable characters", field)
+		}
 	}
 	return nil
 }
