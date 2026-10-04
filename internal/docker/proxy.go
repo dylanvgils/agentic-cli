@@ -1,9 +1,7 @@
 package docker
 
 import (
-	"archive/tar"
 	"bufio"
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -14,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/certs"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
@@ -277,15 +274,24 @@ func dryRunProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 
 // launchProxy starts the sidecar and returns a cleanup that tears it down and prints the access summary.
 func launchProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
+	// Guard first so Ctrl-C during startup still removes the sidecar and its credentials volume
+	interrupt, stop := guardSignals()
+
 	logging.Infof("starting egress proxy...")
 	handle, err := startProxy(*rs)
 	if err != nil {
+		stop()
 		return nil, nil, err
 	}
-	rs.network = handle.network
 
-	// Capture Ctrl-C so the deferred cleanup still runs after the tool exits
-	_, stop := guardSignals()
+	select {
+	case <-interrupt:
+		handle.Stop()
+		stop()
+		return nil, nil, fmt.Errorf("interrupted while starting egress proxy")
+	default:
+	}
+	rs.network = handle.network
 
 	cleanup = func() {
 		// Stop before reading the log so late denials make the summary
@@ -335,25 +341,6 @@ func (h proxyHandle) createArgs(rs RunSpec) []string {
 	return append(args, rs.Proxy.Image)
 }
 
-// copyCredentials streams a CA scoped to the credential hosts and the credential list into the created
-// container's volume, so neither touches the host disk; a no-op without credentials.
-func (h proxyHandle) copyCredentials() error {
-	if len(h.credentials) == 0 {
-		return nil
-	}
-
-	archive, err := credentialArchive(h.credentials)
-	if err != nil {
-		return err
-	}
-
-	// --archive keeps the tar's owner, so the proxy user can read the 0600 files
-	if _, err := dockerRunStdin(bytes.NewReader(archive), "cp", arg("archive"), "-", h.container+":"+proxyRunMountDir); err != nil {
-		return fmt.Errorf("copy proxy credentials: %w", err)
-	}
-	return nil
-}
-
 // checkStarted fails if a credentialed proxy exits within proxySettleTime, e.g. on a CA or credentials it can't load;
 // only credentials add a startup step that fails on bad input, so other runs skip the wait.
 func (h proxyHandle) checkStarted() error {
@@ -395,78 +382,6 @@ func SweepProxyResources() error {
 	}
 	removeNetworkArgs := []string{"network", "rm"}
 	return runIfAny(listNetworkArgs, removeNetworkArgs)
-}
-
-// credentialArchive returns a tar of the proxy CA, its key and creds, as 0600 files owned by the host user.
-func credentialArchive(creds []proxy.Credential) ([]byte, error) {
-	ca, err := certs.NewScopedCA("agentic proxy CA", proxy.CredentialHosts(creds))
-	if err != nil {
-		return nil, err
-	}
-	keyPEM, err := ca.KeyPEM()
-	if err != nil {
-		return nil, err
-	}
-	credsJSON, err := json.Marshal(creds)
-	if err != nil {
-		return nil, fmt.Errorf("encode proxy credentials: %w", err)
-	}
-
-	uid, gid, err := parseUserGroup(platform.UserGroup())
-	if err != nil {
-		return nil, err
-	}
-
-	files := []struct {
-		name    string
-		content []byte
-	}{
-		{proxy.CACertFile, ca.CertPEM()},
-		{proxy.CAKeyFile, keyPEM},
-		{proxyCredentialsFile, credsJSON},
-	}
-
-	var buf bytes.Buffer
-	tw := tar.NewWriter(&buf)
-	for _, file := range files {
-		header := &tar.Header{
-			Name:    file.name,
-			Mode:    0o600,
-			Size:    int64(len(file.content)),
-			Uid:     uid,
-			Gid:     gid,
-			ModTime: time.Now(),
-		}
-		if err := tw.WriteHeader(header); err != nil {
-			return nil, fmt.Errorf("archive proxy %s: %w", file.name, err)
-		}
-		if _, err := tw.Write(file.content); err != nil {
-			return nil, fmt.Errorf("archive proxy %s: %w", file.name, err)
-		}
-	}
-	if err := tw.Close(); err != nil {
-		return nil, fmt.Errorf("archive proxy credentials: %w", err)
-	}
-
-	return buf.Bytes(), nil
-}
-
-// parseUserGroup splits a "uid:gid" string as returned by platform.UserGroup.
-func parseUserGroup(userGroup string) (uid, gid int, err error) {
-	u, g, ok := strings.Cut(userGroup, ":")
-	if !ok {
-		return 0, 0, fmt.Errorf("invalid user %q: expected uid:gid", userGroup)
-	}
-
-	uid, err = strconv.Atoi(u)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid uid in %q: %w", userGroup, err)
-	}
-	gid, err = strconv.Atoi(g)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid gid in %q: %w", userGroup, err)
-	}
-	return uid, gid, nil
 }
 
 // proxyLogFileName is shared by the host logPath and the in-container AGENTIC_PROXY_LOG path so they name the same file.

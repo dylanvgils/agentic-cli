@@ -2,11 +2,11 @@ package docker
 
 import "strings"
 
-// CleanImage removes all containers using image and the image itself.
+// CleanImage removes all containers using image (with their anonymous volumes, e.g. the proxy's credentials) and the image itself.
 func CleanImage(image string) error {
 	if err := runIfAny(
 		[]string{"ps", arg("all"), arg("quiet"), labelFilter(LabelProject, LabelProjectVal), arg("filter", "ancestor="+image)},
-		[]string{"rm", arg("force")},
+		[]string{"rm", arg("force"), arg("volumes")},
 	); err != nil {
 		return err
 	}
