@@ -24,7 +24,7 @@ agentic-cli/
 │   ├── mount/                   # Volume mount spec builder
 │   ├── output/                  # CLI output formatting
 │   ├── platform/                # Platform-specific paths and utilities
-│   ├── proxy/                   # Egress allowlist proxy: server, allowlist, JSON-lines logger
+│   ├── proxy/                   # Egress allowlist proxy: server, allowlist, JSON-lines logger, TLS-terminating credential injection
 │   ├── selfupdate/              # Downloads and installs new releases from GitHub
 │   ├── tools/                   # Per-tool stage funcs, mounts, setup, and base layers
 │   └── usecase/                 # Business logic extracted out of internal/cli commands (see below)

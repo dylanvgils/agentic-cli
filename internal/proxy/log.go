@@ -37,6 +37,8 @@ type Entry struct {
 	Decision Decision  `json:"decision"`
 	// Enforced reports whether Decision was acted on; always false in monitor mode, where a "deny" is only observed, not blocked.
 	Enforced bool `json:"enforced"`
+	// Injected reports whether the tunnel was TLS-terminated to inject credentials.
+	Injected bool `json:"injected,omitempty"`
 }
 
 // Logger writes each access record as a JSON line (always UTC) to an optional file and as a
@@ -63,30 +65,26 @@ func NewLogger(file, human io.Writer, location *time.Location) *Logger {
 	return l
 }
 
-// Log records a single connection attempt; enforced is Entry.Enforced - pass false from monitor mode.
-func (l *Logger) Log(protocol Protocol, host, port string, decision Decision, enforced bool) {
+// Log records a single connection attempt, stamping entry.Time with the current time.
+func (l *Logger) Log(entry Entry) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
-	entry := Entry{
-		Time:     l.now().UTC(),
-		Protocol: protocol,
-		Host:     host,
-		Port:     port,
-		Decision: decision,
-		Enforced: enforced,
-	}
+	entry.Time = l.now().UTC()
 
 	if l.encoder != nil {
 		_ = l.encoder.Encode(entry)
 	}
 
 	if l.human != nil {
-		level := "[" + strings.ToUpper(string(decision)) + "]"
-		tag := ""
-		if !enforced {
-			tag = " (monitor)"
+		level := "[" + strings.ToUpper(string(entry.Decision)) + "]"
+		tags := ""
+		if !entry.Enforced {
+			tags += " (monitor)"
 		}
-		fmt.Fprintf(l.human, "%s %-7s %-5s %s:%s%s\n", entry.Time.In(l.location).Format(time.RFC3339), level, protocol, host, port, tag)
+		if entry.Injected {
+			tags += " (injected)"
+		}
+		fmt.Fprintf(l.human, "%s %-7s %-5s %s:%s%s\n", entry.Time.In(l.location).Format(time.RFC3339), level, entry.Protocol, entry.Host, entry.Port, tags)
 	}
 }

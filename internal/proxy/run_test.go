@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/certs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,7 +13,7 @@ import (
 func TestConfigFromEnv(t *testing.T) {
 	t.Run("parses comma-separated hosts and trims blanks", func(t *testing.T) {
 		// Arrange
-		t.Setenv(EnvAllow, " api.anthropic.com , ,.github.com ")
+		t.Setenv(EnvAllow, " api.example.test , ,.example.test ")
 		t.Setenv(EnvLog, "/var/log/proxy.jsonl")
 		t.Setenv(EnvAddr, ":9999")
 
@@ -20,7 +21,7 @@ func TestConfigFromEnv(t *testing.T) {
 		cfg := ConfigFromEnv()
 
 		// Assert
-		assert.Equal(t, []string{"api.anthropic.com", ".github.com"}, cfg.AllowedHosts)
+		assert.Equal(t, []string{"api.example.test", ".example.test"}, cfg.AllowedHosts)
 		assert.Equal(t, "/var/log/proxy.jsonl", cfg.LogPath)
 		assert.Equal(t, ":9999", cfg.Addr)
 	})
@@ -67,6 +68,19 @@ func TestConfigFromEnv(t *testing.T) {
 
 		// Assert
 		assert.True(t, cfg.Monitor)
+	})
+
+	t.Run("reads the ca dir and credentials path", func(t *testing.T) {
+		// Arrange
+		t.Setenv(EnvCADir, "/run/agentic/proxy/ca")
+		t.Setenv(EnvCredentials, "/run/agentic/proxy/credentials.json")
+
+		// Act
+		cfg := ConfigFromEnv()
+
+		// Assert
+		assert.Equal(t, "/run/agentic/proxy/ca", cfg.CADir)
+		assert.Equal(t, "/run/agentic/proxy/credentials.json", cfg.CredentialsPath)
 	})
 
 	t.Run("missing or invalid monitor defaults to false", func(t *testing.T) {
@@ -119,5 +133,120 @@ func TestOpenLog(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
+	})
+}
+
+func Test_loadInjector(t *testing.T) {
+	credsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`)
+
+	t.Run("neither set disables injection", func(t *testing.T) {
+		// Act
+		inject, err := loadInjector("", "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Nil(t, inject)
+	})
+
+	t.Run("only one set is an error", func(t *testing.T) {
+		// Act
+		_, err := loadInjector("", credsPath)
+
+		// Assert
+		assert.ErrorContains(t, err, "must be set together")
+	})
+
+	t.Run("loads the ca and credentials", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+
+		// Act
+		inject, err := loadInjector(caDir, credsPath)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}, inject.rulesFor("api.example.test", "443"))
+	})
+
+	t.Run("invalid ca is an error", func(t *testing.T) {
+		// Arrange
+		caDir := t.TempDir()
+
+		// Act
+		_, err := loadInjector(caDir, credsPath)
+
+		// Assert
+		assert.ErrorContains(t, err, "read proxy CA")
+	})
+
+	t.Run("invalid credentials are an error", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+		badPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"]}]`)
+
+		// Act
+		_, err := loadInjector(caDir, badPath)
+
+		// Assert
+		assert.ErrorContains(t, err, "no rules")
+	})
+}
+
+func Test_loadCA(t *testing.T) {
+	t.Run("loads the ca files", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+
+		// Act
+		ca, err := loadCA(caDir)
+
+		// Assert
+		require.NoError(t, err)
+		certPEM, readErr := os.ReadFile(filepath.Join(caDir, CACertFile))
+		require.NoError(t, readErr)
+		assert.Equal(t, certPEM, ca.CertPEM())
+	})
+
+	t.Run("missing key is an error", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+		require.NoError(t, os.Remove(filepath.Join(caDir, CAKeyFile)))
+
+		// Act
+		_, err := loadCA(caDir)
+
+		// Assert
+		assert.ErrorContains(t, err, "read proxy CA key")
+	})
+
+	t.Run("mismatched key is an error", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+		otherKey, err := os.ReadFile(filepath.Join(writeTestCADir(t), CAKeyFile))
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(caDir, CAKeyFile), otherKey, 0o600))
+
+		// Act
+		_, err = loadCA(caDir)
+
+		// Assert
+		assert.ErrorContains(t, err, "load proxy CA")
+	})
+
+	t.Run("unscoped ca is an error", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+		unscoped, err := certs.NewCA("unscoped CA")
+		require.NoError(t, err)
+		keyPEM, err := unscoped.KeyPEM()
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(caDir, CACertFile), unscoped.CertPEM(), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(caDir, CAKeyFile), keyPEM, 0o600))
+
+		// Act
+		_, err = loadCA(caDir)
+
+		// Assert
+		assert.ErrorContains(t, err, "must be name-constrained")
 	})
 }

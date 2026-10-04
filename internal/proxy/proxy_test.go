@@ -17,17 +17,17 @@ func TestServerConnect(t *testing.T) {
 	t.Run("denied host returns 403 and logs deny", func(t *testing.T) {
 		// Arrange
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf, nil, nil), false))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf, nil, nil), false, nil))
 		t.Cleanup(proxy.Close)
 
 		// Act
-		resp := connect(t, proxy.Listener.Addr().String(), "evil.com:443")
+		resp := connect(t, proxy.Listener.Addr().String(), "evil.test:443")
 		defer resp.Body.Close() //nolint:errcheck
 
 		// Assert
 		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 		assert.Contains(t, logBuf.String(), `"decision":"deny"`)
-		assert.Contains(t, logBuf.String(), `"host":"evil.com"`)
+		assert.Contains(t, logBuf.String(), `"host":"evil.test"`)
 		assert.Contains(t, logBuf.String(), `"protocol":"https"`)
 		assert.Contains(t, logBuf.String(), `"enforced":true`)
 	})
@@ -38,7 +38,7 @@ func TestServerConnect(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false))
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -62,7 +62,7 @@ func TestServerConnect(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf, nil, nil), true))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf, nil, nil), true, nil))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -84,11 +84,11 @@ func TestServerConnect(t *testing.T) {
 func TestServerHTTP(t *testing.T) {
 	t.Run("denied host returns 403", func(t *testing.T) {
 		// Arrange
-		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(io.Discard, nil, nil), false))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(io.Discard, nil, nil), false, nil))
 		t.Cleanup(proxy.Close)
 
 		// Act
-		resp := proxyGet(t, proxy.URL, "http://evil.com/")
+		resp := proxyGet(t, proxy.URL, "http://evil.test/")
 		defer resp.Body.Close() //nolint:errcheck
 
 		// Assert
@@ -104,7 +104,7 @@ func TestServerHTTP(t *testing.T) {
 		upstreamHost, upstreamPort := splitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
 		stubDefaultPorts(t, upstreamPort)
 
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false))
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, nil))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -125,7 +125,7 @@ func TestServerHTTP(t *testing.T) {
 		t.Cleanup(upstream.Close)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf, nil, nil), true))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf, nil, nil), true, nil))
 		t.Cleanup(proxy.Close)
 
 		// Act

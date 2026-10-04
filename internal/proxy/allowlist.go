@@ -45,8 +45,12 @@ func (a *Allowlist) Allows(host, port string) bool {
 	if !slices.Contains(DefaultPorts, port) {
 		return false
 	}
+	return a.matchesHost(host)
+}
 
-	host = strings.ToLower(strings.TrimSuffix(host, "."))
+// matchesHost reports whether host matches an entry, ignoring the port.
+func (a *Allowlist) matchesHost(host string) bool {
+	host = normalizeHost(host)
 	if a.exact[host] {
 		return true
 	}
@@ -59,6 +63,11 @@ func (a *Allowlist) Allows(host, port string) bool {
 	}
 
 	return false
+}
+
+// normalizeHost lower-cases host and drops a trailing root dot, so equivalent spellings compare equal.
+func normalizeHost(host string) string {
+	return strings.ToLower(strings.TrimSuffix(host, "."))
 }
 
 // wildcardSuffix returns the normalized ".example.com" suffix for a wildcard entry, or ok=false for an exact entry.
