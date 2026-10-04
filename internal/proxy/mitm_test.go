@@ -3,11 +3,14 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"crypto/x509"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +21,9 @@ func TestServerConnectInject(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/echo", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, r.Header.Get("X-Api-Key")+"|"+r.Host)
+	})
+	mux.HandleFunc("/aliases", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, strings.Join(r.Header.Values("X_Api_Key"), ","))
 	})
 	mux.HandleFunc("/sse", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -91,6 +97,42 @@ func TestServerConnectInject(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "data: one\n", line)
+	})
+
+	t.Run("underscore alias of the injected header is stripped", func(t *testing.T) {
+		// Arrange
+		inject, roots := newTestInjector(t, upstream, creds)
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+
+		req, err := http.NewRequest(http.MethodGet, upstream.URL+"/aliases", nil)
+		require.NoError(t, err)
+		req.Header.Set("X_Api_Key", "attacker")
+
+		// Act
+		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
+
+		// Assert
+		require.NoError(t, err)
+		defer resp.Body.Close() //nolint:errcheck
+		body, _ := io.ReadAll(resp.Body)
+		assert.Empty(t, string(body))
+	})
+
+	t.Run("client rejecting the cert is logged as not injected", func(t *testing.T) {
+		// Arrange
+		inject, _ := newTestInjector(t, upstream, creds)
+		var logBuf syncBuffer
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+
+		// Act
+		_, err := httpsClientVia(t, proxy.URL, x509.NewCertPool()).Get(upstream.URL + "/echo")
+
+		// Assert
+		require.Error(t, err)
+		assert.Eventually(t, func() bool { return strings.Contains(logBuf.String(), `"decision":"allow"`) }, 5*time.Second, 10*time.Millisecond)
+		assert.NotContains(t, logBuf.String(), `"injected"`)
 	})
 
 	t.Run("trace is refused before reaching the upstream", func(t *testing.T) {
@@ -213,7 +255,7 @@ func TestServerConnectInject(t *testing.T) {
 
 func Test_rulesFor(t *testing.T) {
 	rules := []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}
-	inject := NewInjector(newTestProxyCA(t), []Credential{{Hosts: []string{"api.example.test"}, Rules: rules}})
+	inject := NewInjector(newTestProxyCA(t, "api.example.test"), []Credential{{Hosts: []string{"api.example.test"}, Rules: rules}})
 
 	t.Run("nil injector has no rules", func(t *testing.T) {
 		// Arrange
@@ -253,7 +295,7 @@ func Test_rulesFor(t *testing.T) {
 
 func Test_leaf(t *testing.T) {
 	// Arrange
-	inject := NewInjector(newTestProxyCA(t), nil)
+	inject := NewInjector(newTestProxyCA(t, "api.example.test"), nil)
 	first, err := inject.leaf("api.example.test")
 	require.NoError(t, err)
 
@@ -297,4 +339,21 @@ func Test_blockMethods(t *testing.T) {
 			assert.Equal(t, http.StatusNoContent, rec.Code, method)
 		}
 	})
+}
+
+func Test_dropAliases(t *testing.T) {
+	// Arrange
+	header := http.Header{
+		"X-Api-Key":     {"client"},
+		"X_api_key":     {"underscore"},
+		"X_API-KEY":     {"mixed"},
+		"X-Api-Keys":    {"other"},
+		"Authorization": {"kept"},
+	}
+
+	// Act
+	dropAliases(header, "x-api-key")
+
+	// Assert
+	assert.Equal(t, http.Header{"X-Api-Keys": {"other"}, "Authorization": {"kept"}}, header)
 }

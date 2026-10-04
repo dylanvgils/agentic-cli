@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/certs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -230,5 +231,22 @@ func Test_loadCA(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "load proxy CA")
+	})
+
+	t.Run("unscoped ca is an error", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+		unscoped, err := certs.NewCA("unscoped CA")
+		require.NoError(t, err)
+		keyPEM, err := unscoped.KeyPEM()
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(caDir, CACertFile), unscoped.CertPEM(), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(caDir, CAKeyFile), keyPEM, 0o600))
+
+		// Act
+		_, err = loadCA(caDir)
+
+		// Assert
+		assert.ErrorContains(t, err, "must be name-constrained")
 	})
 }

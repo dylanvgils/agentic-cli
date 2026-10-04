@@ -10,6 +10,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -93,8 +94,25 @@ func (i *Injector) leaf(host string) (*tls.Certificate, error) {
 	return &cert, nil
 }
 
-// serve terminates TLS on client and proxies its requests until it closes.
-func (i *Injector) serve(client net.Conn, leaf *tls.Certificate, host, port string, rules []InjectRule) {
+// handshake hijacks the CONNECT and completes TLS as host, answering with an error if it fails before the hijack.
+func (i *Injector) handshake(w http.ResponseWriter, host string) (*tls.Conn, error) {
+	leaf, err := i.leaf(host)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+
+	client, err := hijack(w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+
+	if _, err := io.WriteString(client, "HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil {
+		_ = client.Close()
+		return nil, err
+	}
+
 	tlsConn := tls.Server(client, &tls.Config{
 		Certificates: []tls.Certificate{*leaf},
 		NextProtos:   []string{"http/1.1"},
@@ -103,10 +121,15 @@ func (i *Injector) serve(client net.Conn, leaf *tls.Certificate, host, port stri
 
 	_ = client.SetDeadline(time.Now().Add(dialTimeout))
 	if err := tlsConn.Handshake(); err != nil {
-		return
+		_ = client.Close()
+		return nil, fmt.Errorf("client handshake for %s: %w", host, err)
 	}
 	_ = client.SetDeadline(time.Time{})
+	return tlsConn, nil
+}
 
+// serve proxies requests on the client's TLS conn to host:port until it closes.
+func (i *Injector) serve(tlsConn *tls.Conn, host, port string, rules []InjectRule) {
 	server := &http.Server{
 		Handler:           blockMethods(i.reverseProxy(host, port, rules)),
 		ReadHeaderTimeout: dialTimeout,
@@ -126,6 +149,7 @@ func (i *Injector) reverseProxy(host, port string, rules []InjectRule) *httputil
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(target)
 			for _, rule := range rules {
+				dropAliases(pr.Out.Header, rule.Header)
 				pr.Out.Header.Set(rule.Header, rule.Value)
 			}
 		},
@@ -134,26 +158,17 @@ func (i *Injector) reverseProxy(host, port string, rules []InjectRule) *httputil
 	}
 }
 
-// intercept accepts the CONNECT and hands the tunnel to the injector.
-func (s *Server) intercept(w http.ResponseWriter, host, port string, rules []InjectRule) {
-	leaf, err := s.inject.leaf(host)
+// intercept terminates the CONNECT's TLS and serves it with rules, logging entry as injected only after the client handshake succeeds.
+func (s *Server) intercept(w http.ResponseWriter, entry Entry, rules []InjectRule) {
+	tlsConn, err := s.inject.handshake(w, entry.Host)
+	entry.Injected = err == nil
+	s.logger.Log(entry)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	defer func() { _ = tlsConn.Close() }()
 
-	client, err := hijack(w)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer func() { _ = client.Close() }()
-
-	if _, err := io.WriteString(client, "HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil {
-		return
-	}
-
-	s.inject.serve(client, leaf, host, port, rules)
+	s.inject.serve(tlsConn, entry.Host, entry.Port, rules)
 }
 
 // blockMethods answers blockedMethods with 405 instead of forwarding them.
@@ -165,6 +180,21 @@ func blockMethods(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// dropAliases deletes headers an upstream may read as name, e.g. X_Api_Key for X-Api-Key in CGI-style backends.
+func dropAliases(header http.Header, name string) {
+	want := headerAlias(name)
+	for key := range header {
+		if headerAlias(key) == want {
+			delete(header, key)
+		}
+	}
+}
+
+// headerAlias folds case and treats "_" as "-", the way CGI-style backends compare header names.
+func headerAlias(name string) string {
+	return strings.ReplaceAll(strings.ToLower(name), "_", "-")
 }
 
 // newOneConnListener returns a listener yielding conn once.

@@ -50,20 +50,30 @@ func (p KeyPair) TLSCertificate() tls.Certificate {
 
 // NewCA returns a self-signed CA named cn that may only sign leaf certs.
 func NewCA(cn string) (CA, error) {
-	tmpl, err := certTemplate(cn)
+	tmpl, err := caTemplate(cn)
 	if err != nil {
 		return CA{}, err
 	}
-	tmpl.IsCA = true
-	tmpl.BasicConstraintsValid = true
-	tmpl.MaxPathLenZero = true
-	tmpl.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature
+	return selfSign(tmpl)
+}
 
-	pair, err := issue(tmpl, nil)
+// NewScopedCA returns a CA like NewCA whose critical name constraints permit only names (and their subdomains), so its key can't impersonate other hosts.
+func NewScopedCA(cn string, names []string) (CA, error) {
+	if len(names) == 0 {
+		return CA{}, fmt.Errorf("scoped CA %s needs at least one name", cn)
+	}
+
+	tmpl, err := caTemplate(cn)
 	if err != nil {
 		return CA{}, err
 	}
-	return CA{KeyPair: pair}, nil
+	constrainNames(tmpl, names)
+	return selfSign(tmpl)
+}
+
+// Scoped reports whether c carries critical name constraints, as set by NewScopedCA.
+func (c CA) Scoped() bool {
+	return c.cert.PermittedDNSDomainsCritical && len(c.cert.PermittedDNSDomains) > 0
 }
 
 // IssueLeaf issues a cert signed by c for one usage; names become DNS or IP SANs.
@@ -98,6 +108,59 @@ func LoadCA(certPEM, keyPEM []byte) (CA, error) {
 	}
 
 	return CA{KeyPair: KeyPair{cert: cert, key: key}}, nil
+}
+
+// caTemplate returns a template for a CA that may sign leaves but no intermediates.
+func caTemplate(cn string) (*x509.Certificate, error) {
+	tmpl, err := certTemplate(cn)
+	if err != nil {
+		return nil, err
+	}
+	tmpl.IsCA = true
+	tmpl.BasicConstraintsValid = true
+	tmpl.MaxPathLenZero = true
+	tmpl.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature
+	return tmpl, nil
+}
+
+// selfSign issues tmpl signed by its own key as a CA.
+func selfSign(tmpl *x509.Certificate) (CA, error) {
+	pair, err := issue(tmpl, nil)
+	if err != nil {
+		return CA{}, err
+	}
+	return CA{KeyPair: pair}, nil
+}
+
+// constrainNames permits only names on tmpl; a name type without entries is shut off, as an empty permitted list allows everything.
+func constrainNames(tmpl *x509.Certificate, names []string) {
+	tmpl.PermittedDNSDomainsCritical = true
+
+	for _, name := range names {
+		if ip := net.ParseIP(name); ip != nil {
+			tmpl.PermittedIPRanges = append(tmpl.PermittedIPRanges, singleIP(ip))
+		} else {
+			tmpl.PermittedDNSDomains = append(tmpl.PermittedDNSDomains, name)
+		}
+	}
+
+	if len(tmpl.PermittedDNSDomains) == 0 {
+		tmpl.PermittedDNSDomains = []string{"invalid"} // RFC 6761 reserved, never a real host
+	}
+	if len(tmpl.PermittedIPRanges) == 0 {
+		tmpl.ExcludedIPRanges = []*net.IPNet{
+			{IP: net.IPv4zero.To4(), Mask: net.CIDRMask(0, 32)},
+			{IP: net.IPv6zero, Mask: net.CIDRMask(0, 128)},
+		}
+	}
+}
+
+// singleIP returns a range holding only ip, sized for its address family.
+func singleIP(ip net.IP) *net.IPNet {
+	if v4 := ip.To4(); v4 != nil {
+		return &net.IPNet{IP: v4, Mask: net.CIDRMask(32, 32)}
+	}
+	return &net.IPNet{IP: ip, Mask: net.CIDRMask(128, 128)}
 }
 
 // certTemplate returns a template with a random serial and the per-run validity window.

@@ -153,5 +153,8 @@ func loadCA(dir string) (certs.CA, error) {
 	if err != nil {
 		return certs.CA{}, fmt.Errorf("load proxy CA: %w", err)
 	}
+	if !ca.Scoped() {
+		return certs.CA{}, fmt.Errorf("proxy CA must be name-constrained to the credential hosts")
+	}
 	return ca, nil
 }

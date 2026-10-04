@@ -41,15 +41,19 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	host = normalizeHost(host)
 	rules := s.inject.rulesFor(host)
 
-	if !s.admit(ProtocolHTTPS, host, port, len(rules) > 0) {
+	entry, forward := s.verdict(ProtocolHTTPS, host, port)
+	if !forward {
+		s.logger.Log(entry)
 		http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
 		return
 	}
 
+	// intercept logs once the client handshake shows whether injection happens
 	if len(rules) > 0 {
-		s.intercept(w, host, port, rules)
+		s.intercept(w, entry, rules)
 		return
 	}
+	s.logger.Log(entry)
 
 	upstream, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), dialTimeout)
 	if err != nil {
@@ -79,7 +83,9 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		port = "80"
 	}
 
-	if !s.admit(ProtocolHTTP, host, port, false) {
+	entry, forward := s.verdict(ProtocolHTTP, host, port)
+	s.logger.Log(entry)
+	if !forward {
 		http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
 		return
 	}
@@ -101,25 +107,23 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, resp.Body)
 }
 
-// admit logs the verdict and reports whether to forward; monitor mode always forwards.
-func (s *Server) admit(protocol Protocol, host, port string, inject bool) bool {
+// verdict returns the unlogged access entry and whether to forward; monitor mode always forwards.
+func (s *Server) verdict(protocol Protocol, host, port string) (Entry, bool) {
 	allowed := s.allow.Allows(host, port)
-	forward := allowed || s.monitor
 
 	decision := DecisionDeny
 	if allowed {
 		decision = DecisionAllow
 	}
 
-	s.logger.Log(Entry{
+	entry := Entry{
 		Protocol: protocol,
 		Host:     host,
 		Port:     port,
 		Decision: decision,
 		Enforced: !s.monitor,
-		Injected: inject && forward,
-	})
-	return forward
+	}
+	return entry, allowed || s.monitor
 }
 
 // hijack takes over the underlying TCP connection from the ResponseWriter for a CONNECT tunnel.

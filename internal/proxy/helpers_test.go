@@ -11,12 +11,34 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/certs"
 	"github.com/stretchr/testify/require"
 )
+
+// syncBuffer is a strings.Builder safe to read while the proxy writes to it.
+type syncBuffer struct {
+	mutex sync.Mutex
+	buf   strings.Builder
+}
+
+// Write appends p under the lock.
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+	return b.buf.Write(p)
+}
+
+// String returns the contents written so far.
+func (b *syncBuffer) String() string {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+	return b.buf.String()
+}
 
 // stubDefaultPorts replaces DefaultPorts for a test, restoring it on cleanup.
 func stubDefaultPorts(t *testing.T, ports ...string) {
@@ -101,7 +123,12 @@ func proxyGet(t *testing.T, proxyURL, target string) *http.Response {
 func newTestInjector(t *testing.T, upstream *httptest.Server, creds []Credential) (*Injector, *x509.CertPool) {
 	t.Helper()
 
-	ca := newTestProxyCA(t)
+	var hosts []string
+	for _, cred := range creds {
+		hosts = append(hosts, cred.Hosts...)
+	}
+
+	ca := newTestProxyCA(t, hosts...)
 	inject := NewInjector(ca, creds)
 	inject.transport = upstream.Client().Transport
 
@@ -122,11 +149,11 @@ func httpsClientVia(t *testing.T, proxyURL string, roots *x509.CertPool) *http.C
 	return &http.Client{Transport: transport, Timeout: 5 * time.Second}
 }
 
-// writeTestCADir writes a fresh CA as CACertFile/CAKeyFile into a temp dir and returns it.
+// writeTestCADir writes a fresh CA scoped to api.example.test as CACertFile/CAKeyFile into a temp dir and returns it.
 func writeTestCADir(t *testing.T) string {
 	t.Helper()
 
-	ca := newTestProxyCA(t)
+	ca := newTestProxyCA(t, "api.example.test")
 	keyPEM, err := ca.KeyPEM()
 	require.NoError(t, err)
 
@@ -145,10 +172,10 @@ func writeTestFile(t *testing.T, name, content string) string {
 	return path
 }
 
-// newTestProxyCA returns a fresh CA, failing the test on error.
-func newTestProxyCA(t *testing.T) certs.CA {
+// newTestProxyCA returns a fresh CA scoped to names, failing the test on error.
+func newTestProxyCA(t *testing.T, names ...string) certs.CA {
 	t.Helper()
-	ca, err := certs.NewCA("test proxy CA")
+	ca, err := certs.NewScopedCA("test proxy CA", names)
 	require.NoError(t, err)
 	return ca
 }

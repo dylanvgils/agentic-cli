@@ -23,6 +23,112 @@ func TestNewCA(t *testing.T) {
 	assert.NoError(t, ca.cert.CheckSignatureFrom(ca.cert))
 }
 
+func TestNewScopedCA(t *testing.T) {
+	t.Run("leaf for a permitted name or its subdomain verifies", func(t *testing.T) {
+		// Arrange
+		ca, err := NewScopedCA("test CA", []string{"api.example.test"})
+		require.NoError(t, err)
+
+		for _, name := range []string{"api.example.test", "eu.api.example.test"} {
+			leaf := issueTestLeaf(t, ca, x509.ExtKeyUsageServerAuth, name)
+
+			// Act
+			err := verifyLeaf(ca, leaf, x509.ExtKeyUsageServerAuth, name)
+
+			// Assert
+			assert.NoError(t, err, name)
+		}
+	})
+
+	t.Run("leaf for any other name is rejected", func(t *testing.T) {
+		// Arrange
+		ca, err := NewScopedCA("test CA", []string{"api.example.test"})
+		require.NoError(t, err)
+
+		for _, name := range []string{"example.test", "evil.test", "127.0.0.1", "::1"} {
+			leaf := issueTestLeaf(t, ca, x509.ExtKeyUsageServerAuth, name)
+
+			// Act
+			err := verifyLeaf(ca, leaf, x509.ExtKeyUsageServerAuth, name)
+
+			// Assert
+			assert.ErrorContains(t, err, "not authorized to sign for this name", name)
+		}
+	})
+
+	t.Run("ip-only scope permits only those ips", func(t *testing.T) {
+		// Arrange
+		ca, err := NewScopedCA("test CA", []string{"127.0.0.1", "::1"})
+		require.NoError(t, err)
+		cases := map[string]bool{"127.0.0.1": true, "::1": true, "127.0.0.2": false, "::2": false, "api.example.test": false}
+
+		for name, permitted := range cases {
+			leaf := issueTestLeaf(t, ca, x509.ExtKeyUsageServerAuth, name)
+
+			// Act
+			err := verifyLeaf(ca, leaf, x509.ExtKeyUsageServerAuth, name)
+
+			// Assert
+			if permitted {
+				assert.NoError(t, err, name)
+			} else {
+				assert.ErrorContains(t, err, "not authorized to sign for this name", name)
+			}
+		}
+	})
+
+	t.Run("constraints are critical and survive a reload", func(t *testing.T) {
+		// Arrange
+		ca, err := NewScopedCA("test CA", []string{"api.example.test"})
+		require.NoError(t, err)
+		keyPEM, err := ca.KeyPEM()
+		require.NoError(t, err)
+
+		// Act
+		loaded, err := LoadCA(ca.CertPEM(), keyPEM)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, loaded.cert.PermittedDNSDomainsCritical)
+		assert.Equal(t, []string{"api.example.test"}, loaded.cert.PermittedDNSDomains)
+		assert.True(t, loaded.cert.IsCA)
+		assert.True(t, loaded.cert.MaxPathLenZero)
+	})
+
+	t.Run("no names is an error", func(t *testing.T) {
+		// Act
+		_, err := NewScopedCA("test CA", nil)
+
+		// Assert
+		assert.ErrorContains(t, err, "needs at least one name")
+	})
+}
+
+func TestCAScoped(t *testing.T) {
+	t.Run("scoped ca reports scoped", func(t *testing.T) {
+		// Arrange
+		ca, err := NewScopedCA("test CA", []string{"127.0.0.1"})
+		require.NoError(t, err)
+
+		// Act
+		scoped := ca.Scoped()
+
+		// Assert
+		assert.True(t, scoped)
+	})
+
+	t.Run("plain ca is not scoped", func(t *testing.T) {
+		// Arrange
+		ca := newTestCA(t)
+
+		// Act
+		scoped := ca.Scoped()
+
+		// Assert
+		assert.False(t, scoped)
+	})
+}
+
 func TestIssueLeaf(t *testing.T) {
 	ca := newTestCA(t)
 
