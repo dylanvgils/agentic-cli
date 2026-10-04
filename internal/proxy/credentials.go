@@ -50,25 +50,33 @@ func LoadCredentials(path string) ([]Credential, error) {
 		return nil, fmt.Errorf("parse proxy credentials %q: %w", path, err)
 	}
 
+	if err := ValidateCredentials(creds); err != nil {
+		return nil, err
+	}
+	return creds, nil
+}
+
+// ValidateCredentials rejects invalid entries and hosts listed twice; errors never contain header values.
+func ValidateCredentials(creds []Credential) error {
 	seen := make(map[string]bool)
 	for i, cred := range creds {
-		if err := validateCredential(cred); err != nil {
-			return nil, fmt.Errorf("proxy credential %d: %w", i, err)
+		if err := ValidateCredential(cred); err != nil {
+			return fmt.Errorf("proxy credential %d: %w", i, err)
 		}
 
 		for _, host := range cred.Hosts {
 			host = normalizeHost(host)
 			if seen[host] {
-				return nil, fmt.Errorf("proxy credential %d: host %s is listed more than once", i, host)
+				return fmt.Errorf("host %s is listed in more than one credential", host)
 			}
 			seen[host] = true
 		}
 	}
-	return creds, nil
+	return nil
 }
 
-// validateCredential requires exact hosts and rules with valid headers.
-func validateCredential(cred Credential) error {
+// ValidateCredential requires exact hosts and rules with valid headers; errors never contain header values.
+func ValidateCredential(cred Credential) error {
 	if len(cred.Hosts) == 0 {
 		return fmt.Errorf("no hosts")
 	}

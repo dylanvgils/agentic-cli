@@ -62,7 +62,21 @@ type RCProxy struct {
 	Enabled      *bool    `toml:"enabled"`
 	AllowedHosts []string `toml:"allowed_hosts"`
 	// Mode selects how the proxy enforces AllowedHosts: "enforce" (default) blocks disallowed hosts, "monitor" only logs the verdict.
-	Mode string `toml:"mode"`
+	Mode        string         `toml:"mode"`
+	Credentials []RCCredential `toml:"credentials"`
+}
+
+// RCCredential declares a secret the proxy injects as a header; set either Preset or Hosts+Header.
+type RCCredential struct {
+	Preset string   `toml:"preset"`
+	Hosts  []string `toml:"hosts"`
+	Header string   `toml:"header"`
+	// Format wraps the secret, e.g. "Bearer %s"; empty means the bare secret
+	Format string `toml:"format"`
+	// Env lists tool env vars set to a placeholder so tools that require a key still start
+	Env []string `toml:"env"`
+	// Secret is where the value is read from, e.g. a file path
+	Secret string `toml:"secret"`
 }
 
 // RCDind holds Docker-in-Docker sidecar settings from a .agenticrc.toml file.
@@ -281,6 +295,7 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 		resRun.Secrets = append(resRun.Secrets, run.Secrets...)
 		resRun.Env = append(resRun.Env, run.Env...)
 		resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)
+		resRun.Proxy.Credentials = append(resRun.Proxy.Credentials, run.Proxy.Credentials...)
 		resRun.Instructions.Custom = appendInstructions(resRun.Instructions.Custom, run.Instructions.Custom)
 		resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
 		resBuild.Bases = append(resBuild.Bases, build.Bases...)
@@ -335,6 +350,12 @@ func loadRC(path string) (*AgenticRC, error) {
 		return nil, fmt.Errorf("%s: invalid [run.proxy] mode %q: must be %q or %q", path, mode, ModeEnforce, ModeMonitor)
 	}
 
+	for i, cred := range rc.Run.Proxy.Credentials {
+		if err := validateCredential(cred); err != nil {
+			return nil, fmt.Errorf("%s: [[run.proxy.credentials]] entry %d: %w", path, i+1, err)
+		}
+	}
+
 	for _, marketplace := range rc.Marketplaces {
 		if err := validateMarketplace(marketplace); err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
@@ -353,6 +374,22 @@ func loadRC(path string) (*AgenticRC, error) {
 	}
 
 	return rc, nil
+}
+
+// validateCredential checks the entry's shape; hosts, headers and presets are checked when it is resolved.
+func validateCredential(cred RCCredential) error {
+	if cred.Secret == "" {
+		return fmt.Errorf("secret must not be empty")
+	}
+
+	custom := len(cred.Hosts) > 0 || cred.Header != "" || cred.Format != ""
+	if cred.Preset != "" && custom {
+		return fmt.Errorf("preset %q cannot be combined with hosts, header or format", cred.Preset)
+	}
+	if cred.Preset == "" && (len(cred.Hosts) == 0 || cred.Header == "") {
+		return fmt.Errorf("set either preset or both hosts and header")
+	}
+	return nil
 }
 
 func validateMarketplace(marketplace RCMarketplace) error {

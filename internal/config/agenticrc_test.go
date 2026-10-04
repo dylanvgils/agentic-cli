@@ -286,6 +286,18 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, []string{"parent.example.com", "child.example.com"}, result.Run.Proxy.AllowedHosts)
 	})
 
+	t.Run("proxy credentials accumulate outermost first", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Run: RCRun{Proxy: RCProxy{Credentials: []RCCredential{{Preset: "child-preset", Secret: "/child"}}}}}
+		parent := &AgenticRC{Run: RCRun{Proxy: RCProxy{Credentials: []RCCredential{{Preset: "parent-preset", Secret: "/parent"}}}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, []RCCredential{{Preset: "parent-preset", Secret: "/parent"}, {Preset: "child-preset", Secret: "/child"}}, result.Run.Proxy.Credentials)
+	})
+
 	t.Run("proxy enabled child wins over parent", func(t *testing.T) {
 		// Arrange
 		childFalse := false
@@ -663,6 +675,50 @@ memory = "2g"
 		// Assert
 		assert.ErrorContains(t, err, "invalid [run.proxy] mode")
 		assert.ErrorContains(t, err, path)
+	})
+
+	t.Run("proxy credentials key", func(t *testing.T) {
+		// Arrange
+		content := `
+[[run.proxy.credentials]]
+preset = "example"
+secret = "~/.example/secret"
+
+[[run.proxy.credentials]]
+hosts = ["api.example.test"]
+header = "Authorization"
+format = "Bearer %s"
+env = ["EXAMPLE_TOKEN"]
+secret = "/example/secret"
+`
+		// Act
+		rc := mustParseRC(t, content)
+
+		// Assert
+		assert.Equal(t, []RCCredential{
+			{Preset: "example", Secret: "~/.example/secret"},
+			{Hosts: []string{"api.example.test"}, Header: "Authorization", Format: "Bearer %s", Env: []string{"EXAMPLE_TOKEN"}, Secret: "/example/secret"},
+		}, rc.Run.Proxy.Credentials)
+	})
+
+	t.Run("invalid proxy credentials return error with path", func(t *testing.T) {
+		cases := map[string]string{
+			"secret must not be empty":                   "preset = \"example\"\n",
+			"cannot be combined with hosts":              "preset = \"example\"\nhosts = [\"api.example.test\"]\nsecret = \"/s\"\n",
+			"cannot be combined with hosts, header":      "preset = \"example\"\nheader = \"X-Api-Key\"\nsecret = \"/s\"\n",
+			"set either preset or both hosts and header": "hosts = [\"api.example.test\"]\nsecret = \"/s\"\n",
+		}
+		for want, entry := range cases {
+			// Arrange
+			path := writeRC(t, "[[run.proxy.credentials]]\n"+entry)
+
+			// Act
+			_, err := loadRC(path)
+
+			// Assert
+			assert.ErrorContains(t, err, want)
+			assert.ErrorContains(t, err, path)
+		}
 	})
 
 	t.Run("run.instructions key", func(t *testing.T) {

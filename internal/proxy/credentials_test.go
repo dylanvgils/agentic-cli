@@ -95,7 +95,7 @@ func TestLoadCredentials(t *testing.T) {
 		_, err := LoadCredentials(path)
 
 		// Assert
-		assert.ErrorContains(t, err, "listed more than once")
+		assert.ErrorContains(t, err, "listed in more than one credential")
 	})
 
 	t.Run("invalid headers are rejected", func(t *testing.T) {
@@ -119,5 +119,30 @@ func TestLoadCredentials(t *testing.T) {
 			// Assert
 			assert.ErrorContains(t, err, want)
 		}
+	})
+}
+
+func TestValidateCredentials(t *testing.T) {
+	t.Run("valid credentials pass", func(t *testing.T) {
+		// Arrange
+		creds := []Credential{{Hosts: []string{"api.example.test"}, Rules: []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
+
+		// Act
+		err := ValidateCredentials(creds)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("error does not contain the header value", func(t *testing.T) {
+		// Arrange
+		creds := []Credential{{Hosts: []string{"api.example.test"}, Rules: []InjectRule{{Header: "X-Api-Key", Value: "test-secret\n"}}}}
+
+		// Act
+		err := ValidateCredentials(creds)
+
+		// Assert
+		require.Error(t, err)
+		assert.NotContains(t, err.Error(), "test-secret")
 	})
 }
