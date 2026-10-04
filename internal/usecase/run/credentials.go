@@ -10,6 +10,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
 // ResolveCredentials reads the secrets of every credential the layers declare, refusing to run while any layer's entries are unapproved.
@@ -42,8 +43,8 @@ func credentialSetup(in Input, volumes, secrets, env []string, containerHome str
 	if !in.ProxyMode.Enabled() {
 		return nil, fmt.Errorf("proxy credentials need the egress proxy, which is disabled")
 	}
-	if slices.ContainsFunc(env, func(entry string) bool { return envKey(entry) == docker.ProxyCAEnvName }) {
-		return nil, fmt.Errorf("--env: %q is set by agentic when proxy credentials are configured", docker.ProxyCAEnvName)
+	if i := slices.IndexFunc(env, func(entry string) bool { return isProxyTrustEnvName(envKey(entry)) }); i >= 0 {
+		return nil, fmt.Errorf("--env: %q is set by agentic when proxy credentials are configured", envKey(env[i]))
 	}
 
 	if err := checkCredentialPaths(in.Credentials, volumes, secrets, in.ToolHome, containerHome); err != nil {
@@ -67,7 +68,7 @@ func credentialEnv(resolved []credentials.Resolved, env []string, dindEnabled bo
 	var result []string
 	for _, r := range resolved {
 		for _, name := range r.Env {
-			if docker.IsReservedEnvName(name, true) || name == docker.ProxyCAEnvName || (dindEnabled && docker.IsReservedDindEnvName(name)) {
+			if docker.IsReservedEnvName(name, true) || isProxyTrustEnvName(name) || (dindEnabled && docker.IsReservedDindEnvName(name)) {
 				return nil, fmt.Errorf("credential env %q is managed by agentic", name)
 			}
 			if slices.ContainsFunc(env, func(entry string) bool { return envKey(entry) == name }) {
@@ -103,4 +104,9 @@ func checkCredentialPaths(resolved []credentials.Resolved, volumes, secrets []st
 func envKey(entry string) string {
 	key, _, _ := strings.Cut(entry, "=")
 	return key
+}
+
+// isProxyTrustEnvName reports whether name carries the proxy CA or is pointed at its bundle by the tool's entrypoint.
+func isProxyTrustEnvName(name string) bool {
+	return name == tools.ProxyCAEnvName || slices.Contains(tools.ProxyTrustEnvNames, name)
 }

@@ -42,8 +42,12 @@ func opencodeStage(prevStage string) df.Stage {
 		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
 		Add(createContainerUser("opencode")...).
 		Add(df.Heredoc{
-			Dest:  "/usr/local/bin/entrypoint.sh",
-			Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail", `exec opencode "$@"`},
+			Dest: "/usr/local/bin/entrypoint.sh",
+			Blocks: []df.Block{
+				{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
+				proxyTrustBlock(),
+				{Lines: []string{`exec opencode "$@"`}},
+			},
 		}).
 		Add(df.Arg{Key: "OPENCODE_INSTALL_CHECKSUM", Default: DefaultChecksums.OpencodeInstall}).
 		Add(df.Run{Blocks: []df.Block{

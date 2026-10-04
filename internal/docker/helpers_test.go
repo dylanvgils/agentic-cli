@@ -17,9 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testSystemBundle stands in for an image's system CA bundle.
-const testSystemBundle = "-----BEGIN CERTIFICATE-----\ntest-system-cert\n-----END CERTIFICATE-----\n"
-
 // dockerCall records a single dockerRun invocation.
 type dockerCall struct {
 	args []string
@@ -288,18 +285,18 @@ func stubHostUserGroup(t *testing.T, val string) {
 	t.Cleanup(func() { hostUserGroup = orig })
 }
 
-// stubRunDirGrace replaces runDirGrace with d for the duration of the test.
-func stubRunDirGrace(t *testing.T, d time.Duration) {
+// stubDindRunDirGrace replaces dindRunDirGrace with d for the duration of the test.
+func stubDindRunDirGrace(t *testing.T, d time.Duration) {
 	t.Helper()
-	orig := runDirGrace
-	runDirGrace = d
-	t.Cleanup(func() { runDirGrace = orig })
+	orig := dindRunDirGrace
+	dindRunDirGrace = d
+	t.Cleanup(func() { dindRunDirGrace = orig })
 }
 
-// makeRunDir creates toolHome/dirName/<name> holding a key file, backdated by age, and returns its path.
-func makeRunDir(t *testing.T, toolHome, dirName, name string, age time.Duration) string {
+// makeDindRunDir creates toolHome/dind/<name> holding a key file, backdated by age, and returns its path.
+func makeDindRunDir(t *testing.T, toolHome, name string, age time.Duration) string {
 	t.Helper()
-	dir := filepath.Join(toolHome, dirName, name)
+	dir := filepath.Join(toolHome, dindDirName, name)
 	require.NoError(t, os.MkdirAll(dir, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "key.pem"), []byte("key"), 0o600))
 	past := time.Now().Add(-age)
@@ -393,32 +390,4 @@ func captureStdout(t *testing.T, fn func()) string {
 	out, err := io.ReadAll(r)
 	require.NoError(t, err)
 	return string(out)
-}
-
-// stubSystemCABundle replaces loadSystemCABundle with a stub returning bundle and err for the duration of the test.
-func stubSystemCABundle(t *testing.T, bundle string, err error) {
-	t.Helper()
-	orig := loadSystemCABundle
-	loadSystemCABundle = func(string, string) ([]byte, error) { return []byte(bundle), err }
-	t.Cleanup(func() { loadSystemCABundle = orig })
-}
-
-// stubCABundleDocker stubs the docker calls of a CA bundle extraction: inspect returns imageID,
-// create returns "stub-container" and cp writes bundle to its destination; returns the recorded calls.
-func stubCABundleDocker(t *testing.T, imageID, bundle string) func() []dockerCall {
-	t.Helper()
-	var calls []dockerCall
-	stubDockerRun(t, func(args ...string) (string, error) {
-		calls = append(calls, dockerCall{args: args})
-		switch args[0] {
-		case "image":
-			return imageID, nil
-		case "create":
-			return "stub-container\n", nil
-		case "cp":
-			return "", os.WriteFile(args[len(args)-1], []byte(bundle), 0o644)
-		}
-		return "", nil
-	})
-	return func() []dockerCall { return calls }
 }

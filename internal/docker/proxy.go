@@ -57,7 +57,7 @@ type ProxySpec struct {
 }
 
 // proxyHandle identifies the per-run proxy network, sidecar container, host-side access log, injected credentials
-// and the run dir holding the tool's trust files, which is empty without credentials.
+// and the CA cert the proxy signs them with, set once started.
 type proxyHandle struct {
 	id          string
 	network     string
@@ -66,7 +66,7 @@ type proxyHandle struct {
 	allow       []string
 	monitor     bool
 	credentials []proxy.Credential
-	runDir      string
+	caPEM       []byte
 }
 
 // Enabled reports whether the proxy runs, in either mode.
@@ -82,7 +82,7 @@ func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 	}
 
 	name := proxyHostAlias + "-" + id
-	h := proxyHandle{
+	return proxyHandle{
 		id:          id,
 		network:     name,
 		container:   name,
@@ -90,11 +90,7 @@ func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 		allow:       rs.Proxy.Allow,
 		monitor:     rs.Proxy.Mode == ProxyMonitor,
 		credentials: rs.Proxy.Credentials,
-	}
-	if len(h.credentials) > 0 {
-		h.runDir = filepath.Join(rs.ToolHome, proxyDirName, id)
-	}
-	return h, nil
+	}, nil
 }
 
 // proxyEnvArgs returns the --env flags pointing the tool at the proxy, keyed on the static
@@ -117,13 +113,10 @@ func proxyEnvArgs(dind bool) []string {
 	}
 }
 
-// Stop removes the proxy sidecar, its volume, its internal network and the run dir; idempotent and error-ignoring, so it is safe to defer.
+// Stop removes the proxy sidecar, its volume and its internal network; idempotent and error-ignoring, so it is safe to defer.
 func (h proxyHandle) Stop() {
 	_, _ = dockerRun("rm", "--force", "--volumes", h.container)
 	_, _ = dockerRun("network", "rm", h.network)
-	if h.runDir != "" {
-		_ = os.RemoveAll(h.runDir)
-	}
 }
 
 // PrintSummary reports hosts actually blocked in normal mode, or hosts that would have been
@@ -210,13 +203,7 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 		return proxyHandle{}, err
 	}
 
-	ca, err := h.prepareTrust(rs)
-	if err != nil {
-		return proxyHandle{}, err
-	}
-
 	if err := EnsureNetwork(); err != nil {
-		h.Stop()
 		return proxyHandle{}, err
 	}
 
@@ -228,19 +215,20 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 	createArgs = append(createArgs, ownerLabels(rs)...)
 	createArgs = append(createArgs, h.network)
 	if _, err := dockerRun(createArgs...); err != nil {
-		h.Stop()
 		return proxyHandle{}, fmt.Errorf("create proxy network: %w", err)
 	}
 
 	if _, err := dockerRun(h.createArgs(rs)...); err != nil {
-		h.Stop()
+		_, _ = dockerRun("network", "rm", h.network)
 		return proxyHandle{}, fmt.Errorf("create proxy: %w", err)
 	}
 
-	if err := h.copyCredentials(ca); err != nil {
+	caPEM, err := h.copyCredentials()
+	if err != nil {
 		h.Stop()
 		return proxyHandle{}, err
 	}
+	h.caPEM = caPEM
 
 	if _, err := dockerRun("start", h.container); err != nil {
 		h.Stop()
@@ -378,9 +366,9 @@ func (h proxyHandle) checkStarted() error {
 	}
 }
 
-// SweepProxyResources idempotently removes leftover per-run proxy containers (with their volume), internal networks
-// and run dirs (e.g. from an interrupted run), scoped to agentic-managed resources named with proxyHostAlias, plus the CA bundle cache.
-func SweepProxyResources(toolHome string) error {
+// SweepProxyResources idempotently removes leftover per-run proxy containers (with their volume) and internal
+// networks (e.g. from an interrupted run), scoped to agentic-managed resources named with proxyHostAlias.
+func SweepProxyResources() error {
 	listContainerArgs := []string{
 		"ps", arg("all"), arg("quiet"),
 		labelFilter(LabelProject, LabelProjectVal),
@@ -397,14 +385,7 @@ func SweepProxyResources(toolHome string) error {
 		nameFilter(proxyHostAlias),
 	}
 	removeNetworkArgs := []string{"network", "rm"}
-	if err := runIfAny(listNetworkArgs, removeNetworkArgs); err != nil {
-		return err
-	}
-
-	if err := sweepRunDirs(toolHome, proxyDirName, proxyHostAlias); err != nil {
-		return err
-	}
-	return RemoveCABundleCache(toolHome)
+	return runIfAny(listNetworkArgs, removeNetworkArgs)
 }
 
 // proxyLogFileName is shared by the host logPath and the in-container AGENTIC_PROXY_LOG path so they name the same file.

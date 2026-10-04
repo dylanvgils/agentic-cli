@@ -60,7 +60,7 @@ func TestDryRun(t *testing.T) {
 		// Assert
 		assert.False(t, scriptCalled)
 		assert.Contains(t, out, "FROM")
-		assert.NotContains(t, out, "proxy")
+		assert.NotContains(t, out, "AS proxy", "the proxy image builds separately")
 	})
 
 	t.Run("unknown tool returns error", func(t *testing.T) {

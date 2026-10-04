@@ -1,6 +1,7 @@
 package run
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/stretchr/testify/require"
 )
@@ -94,4 +96,14 @@ func stubCaseInsensitivePaths(t *testing.T, val bool) {
 	orig := caseInsensitivePaths
 	caseInsensitivePaths = val
 	t.Cleanup(func() { caseInsensitivePaths = orig })
+}
+
+// stubLoggingErr redirects logging.Err to a buffer for the duration of the test and returns it.
+func stubLoggingErr(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	orig := logging.Err
+	logging.Err = logging.New(&buf)
+	t.Cleanup(func() { logging.Err = orig })
+	return &buf
 }

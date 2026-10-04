@@ -78,6 +78,7 @@ func claudeStage(prevStage string) df.Stage {
 						`done < <(claude plugin marketplace list --json 2>/dev/null | jq -r '.[] | select(.source=="directory") | [.name, .installLocation] | @tsv' 2>/dev/null)`,
 					},
 				},
+				proxyTrustBlock(),
 				{Lines: []string{`exec claude "$@"`}},
 			},
 		}).

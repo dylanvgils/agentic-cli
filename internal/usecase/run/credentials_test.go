@@ -79,8 +79,8 @@ func Test_credentialSetup(t *testing.T) {
 		assert.ErrorContains(t, err, "need the egress proxy")
 	})
 
-	t.Run("refuses an env entry for the proxy CA var", func(t *testing.T) {
-		for _, entry := range []string{"NODE_EXTRA_CA_CERTS=/certs/example.pem", "NODE_EXTRA_CA_CERTS"} {
+	t.Run("refuses an env entry for a proxy trust var", func(t *testing.T) {
+		for _, entry := range []string{"AGENTIC_PROXY_CA=test-ca", "SSL_CERT_FILE=/certs/example.pem", "NODE_EXTRA_CA_CERTS"} {
 			// Arrange
 			in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce, Credentials: resolved}
 
@@ -136,7 +136,7 @@ func Test_credentialEnv(t *testing.T) {
 	})
 
 	t.Run("refuses names agentic manages", func(t *testing.T) {
-		for _, name := range []string{"HTTPS_PROXY", "TOOL_HOME", "NODE_EXTRA_CA_CERTS"} {
+		for _, name := range []string{"HTTPS_PROXY", "TOOL_HOME", "AGENTIC_PROXY_CA", "GIT_SSL_CAINFO"} {
 			// Arrange
 			resolved := []credentials.Resolved{{Env: []string{name}}}
 

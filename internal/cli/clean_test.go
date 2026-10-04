@@ -37,7 +37,7 @@ func Test_runClean(t *testing.T) {
 			basesCleaned = true
 			return nil
 		})
-		stubCleanSweepProxyResources(t, func(string) error { return nil })
+		stubCleanSweepProxyResources(t, func() error { return nil })
 		stubCleanSweepDindResources(t, func(string) error { return nil })
 		stubCleanRemoveNetwork(t, func() error { return nil })
 
@@ -112,7 +112,7 @@ func Test_runClean(t *testing.T) {
 			basesCleaned = true
 			return nil
 		})
-		stubCleanSweepProxyResources(t, func(string) error { return nil })
+		stubCleanSweepProxyResources(t, func() error { return nil })
 		stubCleanSweepDindResources(t, func(string) error { return nil })
 		cmd := newTestCleanCmd()
 		require.NoError(t, cmd.Flags().Set("all", "true"))

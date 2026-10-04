@@ -20,23 +20,27 @@ type archiveFile struct {
 	content []byte
 }
 
-// copyCredentials streams ca, its key and the credential list into the created container's volume,
-// so neither the key nor the secrets touch the host disk; a no-op without credentials.
-func (h proxyHandle) copyCredentials(ca certs.CA) error {
+// copyCredentials issues a CA scoped to the credential hosts and streams it, its key and the credential list into the
+// created container's volume, so neither the key nor the secrets touch the host disk; returns the CA cert, nil without credentials.
+func (h proxyHandle) copyCredentials() (caPEM []byte, err error) {
 	if len(h.credentials) == 0 {
-		return nil
+		return nil, nil
 	}
 
+	ca, err := certs.NewScopedCA("agentic proxy CA", proxy.CredentialHosts(h.credentials))
+	if err != nil {
+		return nil, err
+	}
 	archive, err := credentialArchive(ca, h.credentials)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// --archive keeps the tar's owner, so the proxy user can read the 0600 files
 	if _, err := dockerRunStdin(bytes.NewReader(archive), "cp", arg("archive"), "-", h.container+":"+proxyRunMountDir); err != nil {
-		return fmt.Errorf("copy proxy credentials: %w", err)
+		return nil, fmt.Errorf("copy proxy credentials: %w", err)
 	}
-	return nil
+	return ca.CertPEM(), nil
 }
 
 // credentialArchive returns a tar of ca, its key and creds, as 0600 files owned by the host user.

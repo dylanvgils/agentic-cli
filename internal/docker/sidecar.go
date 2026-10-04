@@ -1,12 +1,6 @@
 package docker
 
 import (
-	"errors"
-	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -15,12 +9,6 @@ import (
 
 // sidecarOrphanGrace spares a starting run's sidecars; must outlast dindReadyTimeout.
 var sidecarOrphanGrace = 5 * time.Minute
-
-// runDirGrace keeps a concurrent run's not-yet-started run dir from being swept.
-var runDirGrace = 10 * time.Minute
-
-// runIDPattern matches randID output, so the sweep only touches dirs agentic created.
-var runIDPattern = regexp.MustCompile(`^[0-9a-f]{12}$`)
 
 // ownedResource is a sidecar container or network carrying ownerLabels.
 type ownedResource struct {
@@ -91,10 +79,7 @@ func sweepOrphanedSidecars(toolHome string) error {
 	if toolHome == "" {
 		return nil
 	}
-	if err := sweepRunDirs(toolHome, dindDirName, dindHostAlias); err != nil {
-		return err
-	}
-	return sweepRunDirs(toolHome, proxyDirName, proxyHostAlias)
+	return sweepDindRunDirs(toolHome)
 }
 
 // removeOrphanedContainers removes orphaned sidecars and returns the names of all agentic containers.
@@ -162,48 +147,4 @@ func parseOwnedRow(line string) (ownedResource, bool) {
 // ownedFormat renders name, owner and start time; nameField is .Names or .Name for networks.
 func ownedFormat(nameField string) string {
 	return "{{" + nameField + "}}\t{{.Label \"" + LabelOwner + "\"}}\t{{.Label \"" + LabelStarted + "\"}}"
-}
-
-// sweepRunDirs removes toolHome/dirName/<id> dirs whose containerPrefix-<id> sidecar is gone, sparing ones younger than runDirGrace.
-func sweepRunDirs(toolHome, dirName, containerPrefix string) error {
-	base := filepath.Join(toolHome, dirName)
-	entries, err := os.ReadDir(base)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("read %s dir: %w", dirName, err)
-	}
-
-	listArgs := []string{
-		"ps", arg("all"), arg("format", "{{.Names}}"),
-		labelFilter(LabelProject, LabelProjectVal),
-		nameFilter(containerPrefix),
-	}
-	out, err := dockerRun(listArgs...)
-	if err != nil {
-		return err
-	}
-
-	live := make(map[string]bool)
-	for name := range strings.FieldsSeq(out) {
-		live[strings.TrimPrefix(name, containerPrefix+"-")] = true
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() || !runIDPattern.MatchString(entry.Name()) || live[entry.Name()] {
-			continue
-		}
-
-		info, err := entry.Info()
-		if err != nil || time.Since(info.ModTime()) < runDirGrace {
-			continue
-		}
-
-		if err := os.RemoveAll(filepath.Join(base, entry.Name())); err != nil {
-			return fmt.Errorf("remove stale %s run dir: %w", dirName, err)
-		}
-	}
-
-	return nil
 }

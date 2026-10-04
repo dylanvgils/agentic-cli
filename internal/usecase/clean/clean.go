@@ -63,7 +63,7 @@ func GlobalResources(toolHome string) error {
 	if err := SweepDindResources(toolHome); err != nil {
 		return err
 	}
-	if err := SweepProxyResources(toolHome); err != nil {
+	if err := SweepProxyResources(); err != nil {
 		return err
 	}
 

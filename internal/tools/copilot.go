@@ -111,6 +111,7 @@ func copilotStage(prevStage string) df.Stage {
 						`done < <(copilot plugin marketplace list 2>/dev/null | awk '{i=index($0,"(Local: "); if (!i) next; name=$0; sub(/ \(Local:.*/,"",name); sub(/^.*[ \t]/,"",name); loc=substr($0,i+8); sub(/\)$/,"",loc); printf "%s\t%s\n",name,loc}')`,
 					},
 				},
+				proxyTrustBlock(),
 				{Lines: []string{`exec copilot "$@"`}},
 			},
 		}).
