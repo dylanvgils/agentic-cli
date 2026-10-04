@@ -1,88 +1,15 @@
 package run
 
 import (
-	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
 // caseInsensitivePaths reports whether host paths differing only in case name the same file, as on default macOS and Windows filesystems.
 var caseInsensitivePaths = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
-
-// pinMountSymlinks swaps a bind or secret host path for its real path when a symlink inside cwd leads there,
-// so the agent can't retarget the link between the mount checks and docker run.
-func pinMountSymlinks(volumes, secrets []string, toolHome, containerHome string) (pinnedVolumes, pinnedSecrets []string) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return volumes, secrets
-	}
-
-	for _, volume := range volumes {
-		expanded := mount.ExpandMountSpec(volume, toolHome, containerHome)
-		host := mount.HostPart(expanded)
-		if real, ok := workspaceSymlinkTarget(host, cwd); ok && !mount.IsNamedVolume(expanded) {
-			volume = real + expanded[len(host):]
-		}
-		pinnedVolumes = append(pinnedVolumes, volume)
-	}
-
-	for _, secret := range secrets {
-		name, rest, ok := strings.Cut(secret, ":")
-		if ok {
-			expanded := mount.ExpandMountSpec(rest, toolHome, containerHome)
-			host := mount.HostPart(expanded)
-			if real, ok := workspaceSymlinkTarget(host, cwd); ok {
-				secret = name + ":" + real + expanded[len(host):]
-			}
-		}
-		pinnedSecrets = append(pinnedSecrets, secret)
-	}
-	return pinnedVolumes, pinnedSecrets
-}
-
-// checkConfigNotMounted refuses any mount exposing agentic.json; write access would let the agent trust dirs or approve its own credentials.
-func checkConfigNotMounted(volumes, secrets []string, toolHome, containerHome string) error {
-	file := config.ConfigFile(toolHome)
-	if root, ok := findRoot(file, mountedHostPaths(volumes, secrets, toolHome, containerHome)); ok {
-		return fmt.Errorf("mount %s would expose %s to the tool container; mount a narrower path", root, file)
-	}
-	return nil
-}
-
-// workspaceSymlinkTarget returns host's real path when a symlink at or below cwd changes where it leads.
-func workspaceSymlinkTarget(host, cwd string) (string, bool) {
-	abs, err := filepath.Abs(host)
-	if err != nil {
-		return "", false
-	}
-	realCwd, err := filepath.EvalSymlinks(cwd)
-	if err != nil {
-		return "", false
-	}
-
-	for _, base := range []string{cwd, realCwd} {
-		rel, err := filepath.Rel(base, abs)
-		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			continue
-		}
-
-		real, err := filepath.EvalSymlinks(abs)
-		if err != nil {
-			// Missing paths hold no symlink; docker creates them as plain dirs
-			return "", false
-		}
-		if real != filepath.Join(realCwd, rel) {
-			return real, true
-		}
-		return "", false
-	}
-	return "", false
-}
 
 // mountedHostPaths returns the expanded host side of every bind mount and secret mount.
 func mountedHostPaths(volumes, secrets []string, toolHome, containerHome string) []string {

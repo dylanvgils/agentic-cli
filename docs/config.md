@@ -344,8 +344,6 @@ Per-layer version resolution (highest to lowest priority):
 
 These accumulate too: the `-v`/`-s` flag values and RC values are collected independently and combined at runtime.
 
-A mount (bind or secret) that would expose `$AGENTIC_HOME/agentic.json` - the agentic home itself or any parent, such as `~` - is refused, since that file records trusted directories and approvals. Mount a narrower path instead. A host path that leads through a symlink inside the workspace is mounted by its real path, resolved once at startup, so the link can't be retargeted mid-start.
-
 ### `read_only_mounts`
 
 Each entry forces one sub-path read-only, even though its parent directory (`$PWD`, a tool's own state dir, ...) stays writable - useful for keeping a credentials sub-directory or similar off-limits to writes without splitting it into a separate, fully-read-only mount elsewhere. Under the hood this relies on plain Docker bind-mount behavior: agentic places `read_only_mounts` entries last in the assembled mount list, so they shadow any overlapping read-write mount for that sub-path specifically (the same mechanism marketplace mounts already use to stay read-only alongside a tool's writable state). Order in the TOML file itself doesn't matter - agentic always places these last regardless of where they appear.

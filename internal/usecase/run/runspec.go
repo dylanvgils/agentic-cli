@@ -65,12 +65,6 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	limits := resolve.ResourceLimitsFor(in.Limits, rc)
 	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
 
-	// Pin before checking, so the checked paths are the mounted ones
-	volumes, secrets = pinMountSymlinks(volumes, secrets, in.ToolHome, containerHome)
-	if err := checkConfigNotMounted(volumes, secrets, in.ToolHome, containerHome); err != nil {
-		return docker.RunSpec{}, err
-	}
-
 	if err := validateEnv(env, in.ProxyMode.Enabled(), in.DindEnabled); err != nil {
 		return docker.RunSpec{}, err
 	}
