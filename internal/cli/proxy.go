@@ -119,12 +119,12 @@ func ensureProxyImage(cmd *cobra.Command) error {
 		return err
 	}
 
-	reason := sidecarImageRefreshReason(info, 0)
+	reason := docker.ImageRefreshReason(info, 0)
 	if reason == "" {
 		return nil
 	}
 
-	logging.Infof("%s %s (%s)...", buildVerb(info), tools.ProxyImage, reason)
+	logging.Infof("building %s (%s)...", tools.ProxyImage, reason)
 	return buildProxyImageNow(tools.BuildOptions{Registry: collectRegistry(cmd)})
 }
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -516,5 +517,63 @@ func TestImageInfoBuiltBefore(t *testing.T) {
 
 		// Assert
 		assert.True(t, result)
+	})
+}
+
+func TestImageRefreshReason(t *testing.T) {
+	maxAge := 7 * 24 * time.Hour
+	fresh := formatLabelTime(time.Now())
+	stale := formatLabelTime(time.Now().Add(-maxAge - time.Hour))
+
+	t.Run("missing image", func(t *testing.T) {
+		// Act
+		reason := ImageRefreshReason(nil, maxAge)
+
+		// Assert
+		assert.Equal(t, "image missing", reason)
+	})
+
+	t.Run("different CLI version", func(t *testing.T) {
+		// Arrange
+		info := &ImageInfo{CLIVersion: "v0.0.0", Built: fresh}
+
+		// Act
+		reason := ImageRefreshReason(info, maxAge)
+
+		// Assert
+		assert.Equal(t, "built by a different agentic version", reason)
+	})
+
+	t.Run("older than max age", func(t *testing.T) {
+		// Arrange
+		info := &ImageInfo{CLIVersion: buildinfo.Version, Built: stale}
+
+		// Act
+		reason := ImageRefreshReason(info, maxAge)
+
+		// Assert
+		assert.Equal(t, "older than 7 days", reason)
+	})
+
+	t.Run("zero max age skips the age check", func(t *testing.T) {
+		// Arrange
+		info := &ImageInfo{CLIVersion: buildinfo.Version, Built: stale}
+
+		// Act
+		reason := ImageRefreshReason(info, 0)
+
+		// Assert
+		assert.Empty(t, reason)
+	})
+
+	t.Run("current image", func(t *testing.T) {
+		// Arrange
+		info := &ImageInfo{CLIVersion: buildinfo.Version, Built: fresh}
+
+		// Act
+		reason := ImageRefreshReason(info, maxAge)
+
+		// Assert
+		assert.Empty(t, reason)
 	})
 }

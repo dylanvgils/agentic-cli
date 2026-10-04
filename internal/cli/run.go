@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
@@ -224,41 +222,16 @@ func ensureDindImage(cmd *cobra.Command) error {
 		return err
 	}
 
-	reason := sidecarImageRefreshReason(info, tools.DindImageMaxAge)
+	reason := docker.ImageRefreshReason(info, tools.DindImageMaxAge)
 	if reason == "" {
 		return nil
 	}
 
-	logging.Infof("%s %s (%s)...", buildVerb(info), tools.DindImage, reason)
+	logging.Infof("building %s (%s)...", tools.DindImage, reason)
 	err = buildDindImage(tools.DindImage, tools.BuildOptions{Registry: collectRegistry(cmd)})
 	if err != nil && info != nil {
 		logging.Warnf("could not refresh %s, using the existing image: %v", tools.DindImage, err)
 		return nil
 	}
 	return err
-}
-
-// sidecarImageRefreshReason says why a sidecar image needs a (re)build, or "" if it is current; maxAge 0 skips the age check.
-func sidecarImageRefreshReason(info *docker.ImageInfo, maxAge time.Duration) string {
-	if info == nil {
-		return "image missing"
-	}
-
-	if info.CLIVersion != buildinfo.Version {
-		return "built by a different agentic version"
-	}
-
-	if maxAge > 0 && info.BuiltBefore(time.Now().Add(-maxAge)) {
-		return fmt.Sprintf("older than %d days", int(maxAge.Hours()/24))
-	}
-
-	return ""
-}
-
-// buildVerb picks "building" for a missing image and "rebuilding" for an existing one.
-func buildVerb(info *docker.ImageInfo) string {
-	if info == nil {
-		return "building"
-	}
-	return "rebuilding"
 }

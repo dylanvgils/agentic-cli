@@ -110,7 +110,7 @@ func Test_ensureProxyImage(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, tools.ProxyImage, built)
-		assert.Contains(t, logBuf.String(), "agentic: rebuilding agentic-proxy (built by a different agentic version)...")
+		assert.Contains(t, logBuf.String(), "agentic: building agentic-proxy (built by a different agentic version)...")
 	})
 }
 
