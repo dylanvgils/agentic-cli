@@ -155,7 +155,7 @@ func Test_checkCredentials(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, logs.String(), "preset anthropic, secret /example.test/key")
+		assert.Contains(t, logs.String(), "agentic:   preset anthropic, secret /example.test/key\n")
 		cfg, err := config.LoadConfig(toolHomeDir)
 		require.NoError(t, err)
 		assert.True(t, cfg.CredentialsApproved(layer.Path, config.CredentialsHash(layer.RC.Run.Proxy.Credentials)))

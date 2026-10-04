@@ -65,9 +65,9 @@ func promptCredentials(layer config.RCLayer) error {
 		return fmt.Errorf("proxy credentials in %s are new or changed; run interactively to approve them", layer.Path)
 	}
 
-	logging.Warnf("%s declares new or changed proxy credentials:", layer.Path)
+	logging.Infof("%s declares new or changed proxy credentials:", layer.Path)
 	for _, cred := range layer.RC.Run.Proxy.Credentials {
-		logging.Warnf("  %s", describeCredential(cred))
+		logging.Infof("  %s", describeCredential(cred))
 	}
 
 	logging.Promptf("allow the proxy to read these secrets and send them to these hosts? [y/N] ")
