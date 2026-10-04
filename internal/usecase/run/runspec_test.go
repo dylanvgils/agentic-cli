@@ -8,9 +8,11 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -284,6 +286,43 @@ func TestBuild(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, docker.ProxyMonitor, rs.Proxy.Mode)
+	})
+
+	t.Run("proxy credentials wired with placeholder env", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		cred := proxy.Credential{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}
+		in := Input{
+			ToolHome:    t.TempDir(),
+			ProxyMode:   docker.ProxyEnforce,
+			Credentials: []credentials.Resolved{{Proxy: []proxy.Credential{cred}, Env: []string{"EXAMPLE_API_KEY"}}},
+		}
+
+		// Act
+		rs, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []proxy.Credential{cred}, rs.Proxy.Credentials)
+		assert.Contains(t, rs.Env, "EXAMPLE_API_KEY="+credentials.Placeholder)
+	})
+
+	t.Run("proxy credentials rejected when the secret is mounted", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		dir := t.TempDir()
+		in := Input{
+			ToolHome:    t.TempDir(),
+			Volumes:     []string{dir + ":/data"},
+			ProxyMode:   docker.ProxyEnforce,
+			Credentials: []credentials.Resolved{{Path: filepath.Join(dir, "token")}},
+		}
+
+		// Act
+		_, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		assert.ErrorContains(t, err, "which the tool container can access")
 	})
 
 	t.Run("dind wired with sidecar image and docker hub allowlisted", func(t *testing.T) {

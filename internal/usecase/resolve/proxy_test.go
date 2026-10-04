@@ -6,17 +6,20 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProxyMode(t *testing.T) {
 	enabled := true
 	disabled := false
+	creds := []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example/token"}}
 
 	t.Run("no flag and no config defaults off", func(t *testing.T) {
 		// Act
-		result := ProxyMode(ProxyInput{}, &config.AgenticRC{})
+		result, err := ProxyMode(ProxyInput{}, &config.AgenticRC{})
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, docker.ProxyOff, result)
 	})
 
@@ -25,9 +28,10 @@ func TestProxyMode(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}
 
 		// Act
-		result := ProxyMode(ProxyInput{}, rc)
+		result, err := ProxyMode(ProxyInput{}, rc)
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, docker.ProxyEnforce, result)
 	})
 
@@ -36,9 +40,10 @@ func TestProxyMode(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled}}}
 
 		// Act
-		result := ProxyMode(ProxyInput{ProxyFlag: true}, rc)
+		result, err := ProxyMode(ProxyInput{ProxyFlag: true}, rc)
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, docker.ProxyEnforce, result)
 	})
 
@@ -47,25 +52,28 @@ func TestProxyMode(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}
 
 		// Act
-		result := ProxyMode(ProxyInput{NoProxy: true}, rc)
+		result, err := ProxyMode(ProxyInput{NoProxy: true}, rc)
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, docker.ProxyOff, result)
 	})
 
 	t.Run("proxy-monitor flag enables monitor mode", func(t *testing.T) {
 		// Act
-		result := ProxyMode(ProxyInput{MonitorFlag: true}, &config.AgenticRC{})
+		result, err := ProxyMode(ProxyInput{MonitorFlag: true}, &config.AgenticRC{})
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, docker.ProxyMonitor, result)
 	})
 
 	t.Run("no-proxy flag overrides proxy-monitor flag", func(t *testing.T) {
 		// Act
-		result := ProxyMode(ProxyInput{MonitorFlag: true, NoProxy: true}, &config.AgenticRC{})
+		result, err := ProxyMode(ProxyInput{MonitorFlag: true, NoProxy: true}, &config.AgenticRC{})
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, docker.ProxyOff, result)
 	})
 
@@ -74,9 +82,10 @@ func TestProxyMode(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Mode: config.ModeMonitor}}}
 
 		// Act
-		result := ProxyMode(ProxyInput{}, rc)
+		result, err := ProxyMode(ProxyInput{}, rc)
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, docker.ProxyMonitor, result)
 	})
 
@@ -85,14 +94,86 @@ func TestProxyMode(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled, Mode: config.ModeMonitor}}}
 
 		// Act
-		result := ProxyMode(ProxyInput{}, rc)
+		result, err := ProxyMode(ProxyInput{}, rc)
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, docker.ProxyOff, result)
+	})
+
+	t.Run("credentials turn the proxy on", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: creds}}}
+
+		// Act
+		result, err := ProxyMode(ProxyInput{}, rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, docker.ProxyEnforce, result)
+	})
+
+	t.Run("credentials keep monitor mode", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: creds}}}
+
+		// Act
+		result, err := ProxyMode(ProxyInput{MonitorFlag: true}, rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, docker.ProxyMonitor, result)
+	})
+
+	t.Run("no-proxy flag with credentials is an error", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: creds}}}
+
+		// Act
+		_, err := ProxyMode(ProxyInput{NoProxy: true}, rc)
+
+		// Assert
+		assert.ErrorContains(t, err, "--no-proxy cannot be used")
+	})
+
+	t.Run("config enabled false with credentials is an error", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled, Credentials: creds}}}
+
+		// Act
+		_, err := ProxyMode(ProxyInput{}, rc)
+
+		// Assert
+		assert.ErrorContains(t, err, "enabled = false cannot be used")
+	})
+
+	t.Run("proxy flag overrides config disabled with credentials", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled, Credentials: creds}}}
+
+		// Act
+		result, err := ProxyMode(ProxyInput{ProxyFlag: true}, rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, docker.ProxyEnforce, result)
 	})
 }
 
 func TestProxyAllowList(t *testing.T) {
+	t.Run("credential hosts come after rc hosts", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.AllowedHosts = []string{"extra.example.com"}
+		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.custom.test"}, Header: "X-Api-Key", Secret: "/example/token"}}
+
+		// Act
+		result := ProxyAllowList([]string{"api.example.com"}, false, rc)
+
+		// Assert
+		assert.Equal(t, []string{"api.example.com", "extra.example.com", "api.custom.test"}, result)
+	})
+
 	t.Run("merges tool baseline with rc-configured hosts", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}

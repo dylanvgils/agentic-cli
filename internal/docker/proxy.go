@@ -1,7 +1,9 @@
 package docker
 
 import (
+	"archive/tar"
 	"bufio"
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -12,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/certs"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
@@ -20,6 +23,12 @@ import (
 // proxyHostAlias is the proxy's stable network alias, registered alongside its randomized
 // container name so tools needing a literal host:port can hardcode it; safe to reuse across concurrent runs since aliases are scoped per-network.
 const proxyHostAlias = "agentic-proxy"
+
+// proxyRunMountDir is the proxy's anonymous volume holding the CA and credentials, copied in before it starts.
+const proxyRunMountDir = "/run/agentic-proxy"
+
+// proxyCredentialsFile holds the credential list in proxyRunMountDir.
+const proxyCredentialsFile = "credentials.json"
 
 // proxyLogMountDir is where the host log directory is mounted inside the proxy.
 const proxyLogMountDir = "/var/log/agentic-proxy"
@@ -40,16 +49,19 @@ type ProxySpec struct {
 	Image  string   // proxy sidecar image
 	Allow  []string // merged allowlist (tool baseline + user hosts)
 	LogDir string   // host dir for JSON-lines access logs
+	// Credentials are the headers the proxy injects; they hold secrets, so never print them
+	Credentials []proxy.Credential
 }
 
-// proxyHandle identifies the per-run proxy network, sidecar container, and host-side access log.
+// proxyHandle identifies the per-run proxy network, sidecar container, host-side access log and injected credentials.
 type proxyHandle struct {
-	id        string
-	network   string
-	container string
-	logPath   string
-	allow     []string
-	monitor   bool
+	id          string
+	network     string
+	container   string
+	logPath     string
+	allow       []string
+	monitor     bool
+	credentials []proxy.Credential
 }
 
 // Enabled reports whether the proxy runs, in either mode.
@@ -66,12 +78,13 @@ func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 
 	name := proxyHostAlias + "-" + id
 	return proxyHandle{
-		id:        id,
-		network:   name,
-		container: name,
-		logPath:   filepath.Join(rs.Proxy.LogDir, proxyLogFileName(id)),
-		allow:     rs.Proxy.Allow,
-		monitor:   rs.Proxy.Mode == ProxyMonitor,
+		id:          id,
+		network:     name,
+		container:   name,
+		logPath:     filepath.Join(rs.Proxy.LogDir, proxyLogFileName(id)),
+		allow:       rs.Proxy.Allow,
+		monitor:     rs.Proxy.Mode == ProxyMonitor,
+		credentials: rs.Proxy.Credentials,
 	}, nil
 }
 
@@ -95,9 +108,9 @@ func proxyEnvArgs(dind bool) []string {
 	}
 }
 
-// Stop removes the proxy sidecar and its internal network; idempotent and error-ignoring, so it is safe to defer.
+// Stop removes the proxy sidecar, its volume and its internal network; idempotent and error-ignoring, so it is safe to defer.
 func (h proxyHandle) Stop() {
-	_, _ = dockerRun("rm", "-f", h.container)
+	_, _ = dockerRun("rm", "--force", "--volumes", h.container)
 	_, _ = dockerRun("network", "rm", h.network)
 }
 
@@ -177,8 +190,8 @@ func (h proxyHandle) totalRequests() int {
 	return total
 }
 
-// startProxy provisions the per-run internal network and proxy sidecar, wiring the sidecar to
-// the egress network; cleans up whatever it created on any failure.
+// startProxy provisions the per-run internal network and proxy sidecar, copying in any credentials before it starts
+// and wiring it to the egress network; cleans up whatever it created on any failure.
 func startProxy(rs RunSpec) (proxyHandle, error) {
 	h, err := newProxyHandle(rs)
 	if err != nil {
@@ -200,8 +213,18 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 		return proxyHandle{}, fmt.Errorf("create proxy network: %w", err)
 	}
 
-	if _, err := dockerRun(h.runArgs(rs)...); err != nil {
+	if _, err := dockerRun(h.createArgs(rs)...); err != nil {
 		_, _ = dockerRun("network", "rm", h.network)
+		return proxyHandle{}, fmt.Errorf("create proxy: %w", err)
+	}
+
+	if err := h.copyCredentials(); err != nil {
+		h.Stop()
+		return proxyHandle{}, err
+	}
+
+	if _, err := dockerRun("start", h.container); err != nil {
+		h.Stop()
 		return proxyHandle{}, fmt.Errorf("start proxy: %w", err)
 	}
 
@@ -234,6 +257,11 @@ func dryRunProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 	}
 	rs.network = handle.network
 
+	// Shows no secrets: those are only copied in before start
+	if _, err := fmt.Fprintln(os.Stdout, "docker", shellJoin(handle.createArgs(*rs))); err != nil {
+		return nil, nil, err
+	}
+
 	return proxyEnvArgs(rs.Dind.Enabled), func() {}, nil
 }
 
@@ -258,14 +286,14 @@ func launchProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 	return proxyEnvArgs(rs.Dind.Enabled), cleanup, nil
 }
 
-// runArgs builds the `docker run` arguments for the hardened proxy sidecar, registering
+// createArgs builds the `docker create` arguments for the hardened proxy sidecar, registering
 // proxyHostAlias on the per-run network so tool config can reference a stable hostname.
-func (h proxyHandle) runArgs(rs RunSpec) []string {
+func (h proxyHandle) createArgs(rs RunSpec) []string {
 	containerLog := proxyLogMountDir + "/" + proxyLogFileName(h.id)
 	_, tzOffset := time.Now().Zone()
 
 	args := []string{
-		"run", "--detach", "--rm", "--read-only",
+		"create", "--rm", "--read-only",
 		arg("name", h.container),
 		arg("network", h.network),
 		arg("network-alias", proxyHostAlias),
@@ -276,17 +304,46 @@ func (h proxyHandle) runArgs(rs RunSpec) []string {
 	}
 	args = append(args, ownerLabels(rs)...)
 
-	return append(args,
+	args = append(args,
 		arg("env", proxy.EnvAllow+"="+strings.Join(h.allow, ",")),
 		arg("env", proxy.EnvLog+"="+containerLog),
 		arg("env", proxy.EnvTZOffset+"="+strconv.Itoa(tzOffset)),
 		arg("env", proxy.EnvMonitor+"="+strconv.FormatBool(h.monitor)),
 		arg("volume", rs.Proxy.LogDir+":"+proxyLogMountDir),
-		rs.Proxy.Image,
 	)
+
+	if len(h.credentials) > 0 {
+		args = append(args,
+			arg("env", proxy.EnvCADir+"="+proxyRunMountDir),
+			arg("env", proxy.EnvCredentials+"="+proxyRunMountDir+"/"+proxyCredentialsFile),
+			// Anonymous, so it is removed with the container and has no host path
+			arg("volume", proxyRunMountDir),
+		)
+	}
+
+	return append(args, rs.Proxy.Image)
 }
 
-// SweepProxyResources idempotently removes leftover per-run proxy containers and internal
+// copyCredentials streams a CA scoped to the credential hosts and the credential list into the created
+// container's volume, so neither touches the host disk; a no-op without credentials.
+func (h proxyHandle) copyCredentials() error {
+	if len(h.credentials) == 0 {
+		return nil
+	}
+
+	archive, err := credentialArchive(h.credentials)
+	if err != nil {
+		return err
+	}
+
+	// --archive keeps the tar's owner, so the proxy user can read the 0600 files
+	if _, err := dockerRunStdin(bytes.NewReader(archive), "cp", arg("archive"), "-", h.container+":"+proxyRunMountDir); err != nil {
+		return fmt.Errorf("copy proxy credentials: %w", err)
+	}
+	return nil
+}
+
+// SweepProxyResources idempotently removes leftover per-run proxy containers (with their volume) and internal
 // networks (e.g. from an interrupted run), scoped to agentic-managed resources named with proxyHostAlias.
 func SweepProxyResources() error {
 	listContainerArgs := []string{
@@ -294,7 +351,7 @@ func SweepProxyResources() error {
 		labelFilter(LabelProject, LabelProjectVal),
 		nameFilter(proxyHostAlias),
 	}
-	removeContainerArgs := []string{"rm", arg("force")}
+	removeContainerArgs := []string{"rm", arg("force"), arg("volumes")}
 	if err := runIfAny(listContainerArgs, removeContainerArgs); err != nil {
 		return err
 	}
@@ -306,6 +363,78 @@ func SweepProxyResources() error {
 	}
 	removeNetworkArgs := []string{"network", "rm"}
 	return runIfAny(listNetworkArgs, removeNetworkArgs)
+}
+
+// credentialArchive returns a tar of the proxy CA, its key and creds, as 0600 files owned by the host user.
+func credentialArchive(creds []proxy.Credential) ([]byte, error) {
+	ca, err := certs.NewScopedCA("agentic proxy CA", proxy.CredentialHosts(creds))
+	if err != nil {
+		return nil, err
+	}
+	keyPEM, err := ca.KeyPEM()
+	if err != nil {
+		return nil, err
+	}
+	credsJSON, err := json.Marshal(creds)
+	if err != nil {
+		return nil, fmt.Errorf("encode proxy credentials: %w", err)
+	}
+
+	uid, gid, err := parseUserGroup(platform.UserGroup())
+	if err != nil {
+		return nil, err
+	}
+
+	files := []struct {
+		name    string
+		content []byte
+	}{
+		{proxy.CACertFile, ca.CertPEM()},
+		{proxy.CAKeyFile, keyPEM},
+		{proxyCredentialsFile, credsJSON},
+	}
+
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	for _, file := range files {
+		header := &tar.Header{
+			Name:    file.name,
+			Mode:    0o600,
+			Size:    int64(len(file.content)),
+			Uid:     uid,
+			Gid:     gid,
+			ModTime: time.Now(),
+		}
+		if err := tw.WriteHeader(header); err != nil {
+			return nil, fmt.Errorf("archive proxy %s: %w", file.name, err)
+		}
+		if _, err := tw.Write(file.content); err != nil {
+			return nil, fmt.Errorf("archive proxy %s: %w", file.name, err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		return nil, fmt.Errorf("archive proxy credentials: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+// parseUserGroup splits a "uid:gid" string as returned by platform.UserGroup.
+func parseUserGroup(userGroup string) (uid, gid int, err error) {
+	u, g, ok := strings.Cut(userGroup, ":")
+	if !ok {
+		return 0, 0, fmt.Errorf("invalid user %q: expected uid:gid", userGroup)
+	}
+
+	uid, err = strconv.Atoi(u)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid uid in %q: %w", userGroup, err)
+	}
+	gid, err = strconv.Atoi(g)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid gid in %q: %w", userGroup, err)
+	}
+	return uid, gid, nil
 }
 
 // proxyLogFileName is shared by the host logPath and the in-container AGENTIC_PROXY_LOG path so they name the same file.

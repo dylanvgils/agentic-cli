@@ -1,7 +1,11 @@
 package docker
 
 import (
+	"archive/tar"
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,6 +20,18 @@ import (
 // dockerCall records a single dockerRun invocation.
 type dockerCall struct {
 	args []string
+}
+
+// dockerStdinCall records a single dockerRunStdin invocation.
+type dockerStdinCall struct {
+	args  []string
+	input []byte
+}
+
+// tarFile is one file read back from a tar archive.
+type tarFile struct {
+	header  *tar.Header
+	content []byte
 }
 
 // stubDocker writes a shell script named "docker" to a temp dir and prepends it to PATH.
@@ -316,4 +332,36 @@ func stubOwnedResources(t *testing.T, containers, networks string) func() []dock
 // ownedRow formats a row as ownedFormat renders it.
 func ownedRow(name, owner string, age time.Duration) string {
 	return name + "\t" + owner + "\t" + formatLabelTime(time.Now().Add(-age)) + "\n"
+}
+
+// stubDockerRunStdinCapture replaces dockerRunStdin with a stub returning err that records each call's args and input.
+func stubDockerRunStdinCapture(t *testing.T, err error) func() []dockerStdinCall {
+	t.Helper()
+	var calls []dockerStdinCall
+	orig := dockerRunStdin
+	dockerRunStdin = func(r io.Reader, args ...string) (string, error) {
+		input, readErr := io.ReadAll(r)
+		require.NoError(t, readErr)
+		calls = append(calls, dockerStdinCall{args: args, input: input})
+		return "", err
+	}
+	t.Cleanup(func() { dockerRunStdin = orig })
+	return func() []dockerStdinCall { return calls }
+}
+
+// readTar returns each regular file in archive by name, with its header.
+func readTar(t *testing.T, archive []byte) map[string]tarFile {
+	t.Helper()
+	files := make(map[string]tarFile)
+	tr := tar.NewReader(bytes.NewReader(archive))
+	for {
+		header, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			return files
+		}
+		require.NoError(t, err)
+		content, err := io.ReadAll(tr)
+		require.NoError(t, err)
+		files[header.Name] = tarFile{header: header, content: content}
+	}
 }

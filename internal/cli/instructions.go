@@ -56,7 +56,10 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	proxyMode := resolveProxyMode(cmd, rc)
+	proxyMode, err := resolveProxyMode(cmd, rc)
+	if err != nil {
+		return err
+	}
 	dindEnabled := resolveDindEnabled(cmd, rc)
 
 	target := run.Target{ToolName: toolName, ImageName: imageName}
