@@ -23,8 +23,8 @@ type KeyPair struct {
 	key  *ecdsa.PrivateKey
 }
 
-// IssueLeaf issues a cert signed by ca for one usage; names become DNS or IP SANs.
-func (ca KeyPair) IssueLeaf(cn string, usage x509.ExtKeyUsage, names []string) (KeyPair, error) {
+// IssueLeaf issues a cert signed by p (a CA from NewCA) for one usage; names become DNS or IP SANs.
+func (p KeyPair) IssueLeaf(cn string, usage x509.ExtKeyUsage, names []string) (KeyPair, error) {
 	tmpl, err := certTemplate(cn)
 	if err != nil {
 		return KeyPair{}, err
@@ -33,7 +33,7 @@ func (ca KeyPair) IssueLeaf(cn string, usage x509.ExtKeyUsage, names []string) (
 	tmpl.ExtKeyUsage = []x509.ExtKeyUsage{usage}
 	addSANs(tmpl, names)
 
-	return issue(tmpl, &ca)
+	return issue(tmpl, &p)
 }
 
 // CertPEM returns the certificate PEM-encoded.
