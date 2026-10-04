@@ -110,3 +110,39 @@ func TestRemoveNetwork(t *testing.T) {
 		assert.ErrorContains(t, err, "network rm failed")
 	})
 }
+
+func Test_networkSubnets(t *testing.T) {
+	t.Run("returns every subnet", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "172.30.0.0/16 fd00::/64 \n", nil)
+
+		// Act
+		subnets, err := networkSubnets("agentic-proxy-abc")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"172.30.0.0/16", "fd00::/64"}, subnets)
+	})
+
+	t.Run("no subnet is an error", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "\n", nil)
+
+		// Act
+		_, err := networkSubnets("agentic-proxy-abc")
+
+		// Assert
+		assert.ErrorContains(t, err, "has no subnet")
+	})
+
+	t.Run("inspect failure is an error", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, "", fmt.Errorf("stub: inspect failed"))
+
+		// Act
+		_, err := networkSubnets("agentic-proxy-abc")
+
+		// Assert
+		assert.ErrorContains(t, err, "inspect agentic-proxy-abc subnets")
+	})
+}

@@ -29,6 +29,7 @@ const (
 	EnvMonitor     = "AGENTIC_PROXY_MONITOR"     // "true" to log without enforcing the allowlist
 	EnvCADir       = "AGENTIC_PROXY_CA_DIR"      // dir holding CACertFile and CAKeyFile
 	EnvCredentials = "AGENTIC_PROXY_CREDENTIALS" // JSON credential list path (see LoadCredentials)
+	EnvClientNets  = "AGENTIC_PROXY_CLIENT_NETS" // comma-separated CIDRs allowed to use the proxy; required with credentials
 )
 
 // Files in the EnvCADir directory.
@@ -53,6 +54,7 @@ func ConfigFromEnv() Config {
 		Monitor:         monitor,
 		CADir:           os.Getenv(EnvCADir),
 		CredentialsPath: os.Getenv(EnvCredentials),
+		ClientNets:      config.SplitEnvValues(os.Getenv(EnvClientNets)),
 	}
 }
 
@@ -65,6 +67,7 @@ type Config struct {
 	Monitor         bool     // log the allowlist verdict without enforcing it
 	CADir           string   // per-run CA dir; set with CredentialsPath
 	CredentialsPath string   // JSON credential list; empty disables injection
+	ClientNets      []string // CIDRs allowed to use the proxy; empty allows any client
 }
 
 // Run starts the forward proxy and blocks until it stops serving.
@@ -88,9 +91,14 @@ func Run(cfg Config) error {
 	location := time.FixedZone("", cfg.TZOffsetSeconds)
 	server := NewServer(NewAllowlist(cfg.AllowedHosts), NewLogger(jsonWriter(logFile), os.Stdout, location), cfg.Monitor, inject)
 
+	handler, err := clientHandler(server, cfg.ClientNets, inject != nil)
+	if err != nil {
+		return err
+	}
+
 	httpServer := &http.Server{
 		Addr:    addr,
-		Handler: server,
+		Handler: handler,
 	}
 	return httpServer.ListenAndServe()
 }
@@ -116,7 +124,8 @@ func jsonWriter(f *os.File) io.Writer {
 	return f
 }
 
-// loadInjector returns nil when both are empty and fails when only one is set.
+// loadInjector returns nil when both are empty and fails when only one is set; once loaded, the CA key and credentials
+// files are removed, so the secrets don't stay on the Docker host's disk for the whole run.
 func loadInjector(caDir, credsPath string) (*Injector, error) {
 	if caDir == "" && credsPath == "" {
 		return nil, nil
@@ -134,7 +143,18 @@ func loadInjector(caDir, credsPath string) (*Injector, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	removeSecretFiles(filepath.Join(caDir, CAKeyFile), credsPath)
 	return NewInjector(ca, creds), nil
+}
+
+// removeSecretFiles deletes paths, warning instead of failing since the volume is removed with the container anyway.
+func removeSecretFiles(paths ...string) {
+	for _, path := range paths {
+		if err := os.Remove(path); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not remove %s: %v\n", path, err)
+		}
+	}
 }
 
 // loadCA reads the CA from CACertFile and CAKeyFile in dir.

@@ -83,6 +83,17 @@ func TestConfigFromEnv(t *testing.T) {
 		assert.Equal(t, "/run/agentic/proxy/credentials.json", cfg.CredentialsPath)
 	})
 
+	t.Run("reads the client networks", func(t *testing.T) {
+		// Arrange
+		t.Setenv(EnvClientNets, "172.30.0.0/16, fd00::/64")
+
+		// Act
+		cfg := ConfigFromEnv()
+
+		// Assert
+		assert.Equal(t, []string{"172.30.0.0/16", "fd00::/64"}, cfg.ClientNets)
+	})
+
 	t.Run("missing or invalid monitor defaults to false", func(t *testing.T) {
 		// Arrange
 		t.Setenv(EnvMonitor, "not-a-bool")
@@ -159,13 +170,42 @@ func Test_loadInjector(t *testing.T) {
 	t.Run("loads the ca and credentials", func(t *testing.T) {
 		// Arrange
 		caDir := writeTestCADir(t)
+		ownCredsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`)
 
 		// Act
-		inject, err := loadInjector(caDir, credsPath)
+		inject, err := loadInjector(caDir, ownCredsPath)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}, inject.rulesFor("api.example.test", "443"))
+	})
+
+	t.Run("removes the key and credentials files once loaded", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+		ownCredsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`)
+
+		// Act
+		_, err := loadInjector(caDir, ownCredsPath)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NoFileExists(t, filepath.Join(caDir, CAKeyFile))
+		assert.NoFileExists(t, ownCredsPath)
+		assert.FileExists(t, filepath.Join(caDir, CACertFile), "the cert holds no secret")
+	})
+
+	t.Run("keeps the files when loading fails", func(t *testing.T) {
+		// Arrange
+		caDir := writeTestCADir(t)
+		badPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"]}]`)
+
+		// Act
+		_, err := loadInjector(caDir, badPath)
+
+		// Assert
+		require.Error(t, err)
+		assert.FileExists(t, filepath.Join(caDir, CAKeyFile))
 	})
 
 	t.Run("invalid ca is an error", func(t *testing.T) {

@@ -43,3 +43,17 @@ func RemoveNetwork() error {
 	_, err = dockerRun("network", "rm", NetworkName)
 	return err
 }
+
+// networkSubnets returns the subnets docker assigned to network, failing if it has none.
+func networkSubnets(network string) ([]string, error) {
+	out, err := dockerRun("network", "inspect", arg("format", "{{range .IPAM.Config}}{{.Subnet}} {{end}}"), network)
+	if err != nil {
+		return nil, fmt.Errorf("inspect %s subnets: %w", network, err)
+	}
+
+	subnets := strings.Fields(out)
+	if len(subnets) == 0 {
+		return nil, fmt.Errorf("network %s has no subnet", network)
+	}
+	return subnets, nil
+}
