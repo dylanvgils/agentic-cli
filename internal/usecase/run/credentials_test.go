@@ -230,27 +230,3 @@ func Test_checkCredentialPaths(t *testing.T) {
 		assert.ErrorContains(t, err, "which the tool container can access")
 	})
 }
-
-func Test_within(t *testing.T) {
-	t.Run("sibling with a shared prefix is outside", func(t *testing.T) {
-		// Arrange
-		root := filepath.Join(t.TempDir(), "data")
-
-		// Act
-		result := within(root+"-other", root)
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("root itself is within", func(t *testing.T) {
-		// Arrange
-		root := t.TempDir()
-
-		// Act
-		result := within(root, root)
-
-		// Assert
-		assert.True(t, result)
-	})
-}

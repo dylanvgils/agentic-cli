@@ -3,14 +3,12 @@ package run
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 )
 
@@ -96,61 +94,6 @@ func checkCredentialPaths(resolved []credentials.Resolved, volumes, secrets []st
 	}
 
 	return nil
-}
-
-// mountedHostPaths returns the host side of every bind mount and secret mount.
-func mountedHostPaths(volumes, secrets []string, toolHome, containerHome string) []string {
-	var paths []string
-	for _, volume := range volumes {
-		expanded := mount.ExpandMountSpec(volume, toolHome, containerHome)
-		if !mount.IsNamedVolume(expanded) {
-			paths = append(paths, mount.HostPart(expanded))
-		}
-	}
-
-	for _, secret := range secrets {
-		if _, rest, ok := strings.Cut(secret, ":"); ok {
-			paths = append(paths, mount.HostPart(rest))
-		}
-	}
-	return paths
-}
-
-// findRoot returns the first root containing path, comparing both the literal and the symlink-resolved forms.
-func findRoot(path string, roots []string) (string, bool) {
-	for _, root := range roots {
-		if within(path, root) {
-			return root, true
-		}
-	}
-	return "", false
-}
-
-// within reports whether path is root or below it, as written or once symlinks are resolved.
-func within(path, root string) bool {
-	for _, p := range pathForms(path) {
-		for _, r := range pathForms(root) {
-			rel, err := filepath.Rel(r, p)
-			if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// pathForms returns path made absolute and, when it differs, with symlinks resolved.
-func pathForms(path string) []string {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return []string{path}
-	}
-
-	real, err := filepath.EvalSymlinks(abs)
-	if err != nil || real == abs {
-		return []string{abs}
-	}
-	return []string{abs, real}
 }
 
 // envKey returns the name part of a KEY=VALUE or bare KEY entry.

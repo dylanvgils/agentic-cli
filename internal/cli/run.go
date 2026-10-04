@@ -130,6 +130,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Credentials force the proxy on (see resolve.ProxyMode), so this is a no-op when it is off
 	creds, err := run.ResolveCredentials(layers, toolHome)
 	if err != nil {
 		return err

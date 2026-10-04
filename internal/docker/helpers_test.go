@@ -365,3 +365,29 @@ func readTar(t *testing.T, archive []byte) map[string]tarFile {
 		files[header.Name] = tarFile{header: header, content: content}
 	}
 }
+
+// stubProxySettleTime replaces proxySettleTime with d for the duration of the test.
+func stubProxySettleTime(t *testing.T, d time.Duration) {
+	t.Helper()
+	orig := proxySettleTime
+	proxySettleTime = d
+	t.Cleanup(func() { proxySettleTime = orig })
+}
+
+// captureStdout returns what fn writes to os.Stdout.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	orig := os.Stdout
+	os.Stdout = w
+	t.Cleanup(func() { os.Stdout = orig })
+
+	fn()
+
+	require.NoError(t, w.Close())
+	os.Stdout = orig
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+	return string(out)
+}

@@ -44,6 +44,8 @@ Everything inside "Docker host" shares one Linux kernel. That's the boundary all
 
 An egress allowlist proxy can restrict a tool's outbound traffic to a configurable set of hosts and log every connection attempt - fail-closed, so anything not on the allowlist is blocked. Toggle it per run with `--proxy` / `--no-proxy`; use `--proxy-monitor` to log without blocking anything, useful for discovering a new tool's egress needs before writing an allowlist. See [Configuration](config.md#keys) for the `[run.proxy]` config reference and setup details.
 
+agentic refuses any mount that would expose `$AGENTIC_HOME/agentic.json`, where it records trusted directories and approvals, so the agent can't edit it to trust or approve things itself. See [Configuration](config.md#extra_mounts-and-secrets).
+
 `read_only_mounts` in `.agenticrc.toml` (or `--read-only-mount`) forces a specific sub-path (e.g. a credentials directory) read-only while its parent mount stays writable. See [Configuration](config.md#keys) for the `read_only_mounts` config reference.
 
 At build time, the Claude/Copilot/OpenCode install scripts are downloaded, checksum-verified against a pinned SHA256, then executed - not piped straight into `bash`. A daily scheduled job re-checks each script against the live upstream URL and opens a PR if it has changed, so the pinned checksum stays current without pinning the tool's own version. If a build ever breaks on a stale checksum before that PR lands, `--skip-install-checksum` bypasses verification for that build.

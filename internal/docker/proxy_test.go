@@ -325,6 +325,7 @@ func Test_setupProxy(t *testing.T) {
 }
 
 func TestStartProxy_credentials(t *testing.T) {
+	stubProxySettleTime(t, 0)
 	creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
 
 	t.Run("copies a scoped CA and the credentials into the volume before start", func(t *testing.T) {
@@ -333,6 +334,9 @@ func TestStartProxy_credentials(t *testing.T) {
 		var calls []dockerCall
 		stubDockerRun(t, func(args ...string) (string, error) {
 			calls = append(calls, dockerCall{args: args})
+			if args[0] == "inspect" {
+				return "true", nil
+			}
 			return "", nil
 		})
 		stdin := stubDockerRunStdinCapture(t, nil)
@@ -395,6 +399,28 @@ func TestStartProxy_credentials(t *testing.T) {
 		assert.Nil(t, findCall(get(), "start"))
 	})
 
+	t.Run("removes the proxy when it exits on start", func(t *testing.T) {
+		// Arrange
+		var calls []dockerCall
+		stubDockerRun(t, func(args ...string) (string, error) {
+			calls = append(calls, dockerCall{args: args})
+			if args[0] == "inspect" {
+				return "false", nil
+			}
+			return "", nil
+		})
+		stubDockerRunStdinCapture(t, nil)
+		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
+
+		// Act
+		_, err := startProxy(rs)
+
+		// Assert
+		require.ErrorContains(t, err, "proxy exited on start")
+		assert.NotNil(t, findCall(calls, "rm", "--force", "--volumes"))
+		assert.Nil(t, findCall(calls, "network", "connect"))
+	})
+
 	t.Run("without credentials nothing is copied or mounted", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t)
@@ -410,6 +436,71 @@ func TestStartProxy_credentials(t *testing.T) {
 		createArgs := findCall(get(), "create")
 		assert.False(t, hasArgWithPrefix(createArgs, "--env=AGENTIC_PROXY_CA_DIR="))
 		assert.NotContains(t, createArgs, "--volume="+proxyRunMountDir)
+	})
+}
+
+func Test_proxyHandle_checkStarted(t *testing.T) {
+	stubProxySettleTime(t, 0)
+	creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
+
+	t.Run("running proxy passes", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{"inspect": "true\n"})
+		handle := proxyHandle{container: "agentic-proxy-abc", credentials: creds}
+
+		// Act
+		err := handle.checkStarted()
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("exited proxy fails with its logs", func(t *testing.T) {
+		// Arrange
+		stubDockerRunBySubcmd(t, map[string]string{"inspect": "false\n", "logs": "load proxy CA: bad key\n"})
+		handle := proxyHandle{container: "agentic-proxy-abc", credentials: creds}
+
+		// Act
+		err := handle.checkStarted()
+
+		// Assert
+		assert.ErrorContains(t, err, "proxy exited on start")
+		assert.ErrorContains(t, err, "load proxy CA: bad key")
+	})
+
+	t.Run("without credentials nothing is checked", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t)
+		handle := proxyHandle{container: "agentic-proxy-abc"}
+
+		// Act
+		err := handle.checkStarted()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, get())
+	})
+}
+
+func Test_dryRunProxy(t *testing.T) {
+	t.Run("credentials print no secret and touch nothing", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t)
+		stdin := stubDockerRunStdinCapture(t, nil)
+		creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
+		rs := RunSpec{DryRun: true, Proxy: ProxySpec{Mode: ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
+
+		// Act
+		out := captureStdout(t, func() {
+			_, _, err := dryRunProxy(&rs)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "--volume="+proxyRunMountDir)
+		assert.NotContains(t, out, "test-secret")
+		assert.Empty(t, calls())
+		assert.Empty(t, stdin())
 	})
 }
 

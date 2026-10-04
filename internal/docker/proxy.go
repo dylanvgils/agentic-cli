@@ -40,6 +40,12 @@ const (
 	ProxyMonitor
 )
 
+// Startup check settings for a credentialed proxy; vars so tests can shorten them.
+var (
+	proxySettleTime   = 500 * time.Millisecond
+	proxyPollInterval = 50 * time.Millisecond
+)
+
 // ProxyMode selects whether the egress proxy runs and whether it blocks or only logs disallowed hosts.
 type ProxyMode int
 
@@ -227,6 +233,10 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 		h.Stop()
 		return proxyHandle{}, fmt.Errorf("start proxy: %w", err)
 	}
+	if err := h.checkStarted(); err != nil {
+		h.Stop()
+		return proxyHandle{}, err
+	}
 
 	connectArgs := []string{"network", "connect", NetworkName, h.container}
 	if _, err := dockerRun(connectArgs...); err != nil {
@@ -293,7 +303,8 @@ func (h proxyHandle) createArgs(rs RunSpec) []string {
 	_, tzOffset := time.Now().Zone()
 
 	args := []string{
-		"create", "--rm", "--read-only",
+		// No --rm, so a proxy that exits on start keeps its logs for checkStarted
+		"create", "--read-only",
 		arg("name", h.container),
 		arg("network", h.network),
 		arg("network-alias", proxyHostAlias),
@@ -341,6 +352,27 @@ func (h proxyHandle) copyCredentials() error {
 		return fmt.Errorf("copy proxy credentials: %w", err)
 	}
 	return nil
+}
+
+// checkStarted fails if a credentialed proxy exits within proxySettleTime, e.g. on a CA or credentials it can't load;
+// only credentials add a startup step that fails on bad input, so other runs skip the wait.
+func (h proxyHandle) checkStarted() error {
+	if len(h.credentials) == 0 {
+		return nil
+	}
+
+	deadline := time.Now().Add(proxySettleTime)
+	for {
+		out, err := dockerRun("inspect", arg("format", "{{.State.Running}}"), h.container)
+		if err != nil || strings.TrimSpace(out) != "true" {
+			logs, _ := dockerRun("logs", arg("tail", "20"), h.container)
+			return fmt.Errorf("proxy exited on start:\n%s", strings.TrimSpace(logs))
+		}
+		if !time.Now().Before(deadline) {
+			return nil
+		}
+		time.Sleep(proxyPollInterval)
+	}
 }
 
 // SweepProxyResources idempotently removes leftover per-run proxy containers (with their volume) and internal

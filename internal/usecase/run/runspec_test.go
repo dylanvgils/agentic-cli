@@ -288,6 +288,18 @@ func TestBuild(t *testing.T) {
 		assert.Equal(t, docker.ProxyMonitor, rs.Proxy.Mode)
 	})
 
+	t.Run("mount exposing agentic.json is refused", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir(), Volumes: []string{"$TOOL_HOME:/agentic"}}
+
+		// Act
+		_, err := Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		assert.ErrorContains(t, err, "agentic.json")
+	})
+
 	t.Run("proxy credentials wired with placeholder env", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
