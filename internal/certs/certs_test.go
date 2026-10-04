@@ -136,3 +136,24 @@ func Test_addSANs(t *testing.T) {
 	assert.True(t, tmpl.IPAddresses[0].Equal(net.ParseIP("127.0.0.1")))
 	assert.True(t, tmpl.IPAddresses[1].Equal(net.ParseIP("::1")))
 }
+
+func Test_decodePEM(t *testing.T) {
+	ca := newTestCA(t)
+
+	t.Run("returns the bytes of a matching block", func(t *testing.T) {
+		// Act
+		der, err := decodePEM(ca.CertPEM(), "CERTIFICATE")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, ca.cert.Raw, der)
+	})
+
+	t.Run("rejects a block of another type", func(t *testing.T) {
+		// Act
+		_, err := decodePEM(ca.CertPEM(), "EC PRIVATE KEY")
+
+		// Assert
+		assert.ErrorContains(t, err, "no EC PRIVATE KEY PEM block")
+	})
+}

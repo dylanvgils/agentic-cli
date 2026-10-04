@@ -9,7 +9,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -25,7 +24,7 @@ type KeyPair struct {
 	key  *ecdsa.PrivateKey
 }
 
-// CA is a KeyPair that may sign leaf certs; only NewCA creates one.
+// CA is a KeyPair that may sign leaf certs; only NewCA and LoadCA create one.
 type CA struct {
 	KeyPair
 }
@@ -82,25 +81,17 @@ func (c CA) IssueLeaf(cn string, usage x509.ExtKeyUsage, names []string) (KeyPai
 
 // LoadCA parses a CA written by CertPEM and KeyPEM, rejecting non-CA certs and mismatched keys.
 func LoadCA(certPEM, keyPEM []byte) (CA, error) {
-	certBlock, _ := pem.Decode(certPEM)
-	if certBlock == nil || certBlock.Type != "CERTIFICATE" {
-		return CA{}, errors.New("CA cert: no CERTIFICATE PEM block")
-	}
-	cert, err := x509.ParseCertificate(certBlock.Bytes)
+	cert, err := parseCert(certPEM)
 	if err != nil {
-		return CA{}, fmt.Errorf("parse CA cert: %w", err)
+		return CA{}, err
 	}
 	if !cert.IsCA {
 		return CA{}, fmt.Errorf("cert %s is not a CA", cert.Subject.CommonName)
 	}
 
-	keyBlock, _ := pem.Decode(keyPEM)
-	if keyBlock == nil || keyBlock.Type != "EC PRIVATE KEY" {
-		return CA{}, errors.New("CA key: no EC PRIVATE KEY PEM block")
-	}
-	key, err := x509.ParseECPrivateKey(keyBlock.Bytes)
+	key, err := parseKey(keyPEM)
 	if err != nil {
-		return CA{}, fmt.Errorf("parse CA key: %w", err)
+		return CA{}, err
 	}
 	if !key.PublicKey.Equal(cert.PublicKey) {
 		return CA{}, fmt.Errorf("CA key does not match cert %s", cert.Subject.CommonName)
@@ -173,4 +164,41 @@ func addSANs(tmpl *x509.Certificate, names []string) {
 			tmpl.DNSNames = append(tmpl.DNSNames, name)
 		}
 	}
+}
+
+// parseCert decodes a CertPEM-encoded certificate.
+func parseCert(data []byte) (*x509.Certificate, error) {
+	der, err := decodePEM(data, "CERTIFICATE")
+	if err != nil {
+		return nil, err
+	}
+
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		return nil, fmt.Errorf("parse cert: %w", err)
+	}
+	return cert, nil
+}
+
+// parseKey decodes a KeyPEM-encoded private key.
+func parseKey(data []byte) (*ecdsa.PrivateKey, error) {
+	der, err := decodePEM(data, "EC PRIVATE KEY")
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := x509.ParseECPrivateKey(der)
+	if err != nil {
+		return nil, fmt.Errorf("parse key: %w", err)
+	}
+	return key, nil
+}
+
+// decodePEM returns the bytes of the first PEM block in data, which must be of blockType.
+func decodePEM(data []byte, blockType string) ([]byte, error) {
+	block, _ := pem.Decode(data)
+	if block == nil || block.Type != blockType {
+		return nil, fmt.Errorf("no %s PEM block", blockType)
+	}
+	return block.Bytes, nil
 }
