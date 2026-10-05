@@ -3,9 +3,6 @@
 Agentic is configured through two layers, applied in order of increasing specificity: `.agenticrc.toml` project files, then CLI flags. List-type settings accumulate across all layers; scalar settings use the most specific value.
 
 `AGENTIC_HOME` is the one exception - a plain environment variable, since it must be resolvable before any `.agenticrc.toml` can even be located (default `$HOME/.agentic`).
-
-> Older versions supported a second, redundant configuration path via `AGENTIC_*` environment variables (`AGENTIC_NAMESPACE`, `AGENTIC_APT_PACKAGES`, `AGENTIC_BASE_OVERRIDE`, `AGENTIC_<LAYER>_VERSION`, `AGENTIC_PIDS_LIMIT`, `AGENTIC_CPUS`, `AGENTIC_MEMORY`, `AGENTIC_EXTRA_MOUNTS`, `AGENTIC_SECRETS`). These have been removed - use the equivalent CLI flag or `.agenticrc.toml` field instead (see the tables below).
-
 ## `agentic.json` (global config)
 
 Stored in `$AGENTIC_HOME/agentic.json` (default `~/.agentic/agentic.json`). Machine-level settings applied to all projects; edit directly with any text editor.
@@ -169,6 +166,9 @@ The generated block opens with a precedence note - it only describes the contain
 
 **`[run.proxy]` section** - egress allowlist proxy
 
+> [!WARNING]
+> **Beta** - the egress proxy and credential injection are under active development. Config keys and behavior may change between releases, and they haven't had the same testing as the core container hardening. Issue reports are welcome.
+
 | Key             | Type   | Description                                                                                                                                                                                                               | CLI flag                 | Default     |
 | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ----------- |
 | `enabled`       | bool   | Route the tool's egress through the allowlist proxy. `enabled` is a pointer internally so an inner config can explicitly disable a proxy enabled by an outer one.                                                         | `--proxy` / `--no-proxy` | `false`     |
@@ -207,6 +207,9 @@ allowed_hosts = [
 ```
 
 #### Credential injection
+
+> [!WARNING]
+> **Beta** - see the note on [`[run.proxy]`](#keys).
 
 `[[run.proxy.credentials]]` keeps API keys out of the tool container. The proxy sidecar holds the real secret and sets it as a header on HTTPS requests to the entry's hosts. Inside the container, the entry's env vars only hold the placeholder `agentic-proxy-managed`, so tools that refuse to start without a key still run.
 
@@ -255,7 +258,7 @@ The tool trusts the per-run CA through its entrypoint, which appends it to the s
 
 Limitations:
 
-- **Static keys only**: OAuth logins (Claude subscription, Copilot device flow) keep their token in the tool home, as before. Note that setting a key's env var (e.g. `ANTHROPIC_API_KEY`) switches the tool to API-key auth.
+- **Static keys only**: OAuth logins (Claude subscription, Copilot device flow) keep their token in the tool home. Note that setting a key's env var (e.g. `ANTHROPIC_API_KEY`) switches the tool to API-key auth.
 - **Copilot**: the `github` preset injects the GitHub token, but Copilot trades it for a short-lived Copilot token that comes back in a response body, where the agent can read it.
 - **Use, not theft**: the agent can't read the key, but it can still make authenticated requests to the credential's hosts while the run lasts.
 - **Docker-in-Docker**: containers started through `--dind` don't trust the proxy CA, so TLS to credential hosts fails there.
@@ -267,6 +270,9 @@ Limitations:
 For these cases, the sidecar is reachable at the stable hostname `agentic-proxy:3128` - unlike its actual Docker container name (randomized per run), this hostname is safe to hardcode once in the tool's own config. See [Maven through the egress proxy](recipes.md#maven-through-the-egress-proxy) for a walkthrough.
 
 **`[run.dind]` section** - rootless Docker-in-Docker sidecar
+
+> [!WARNING]
+> **Beta** - see [Docker-in-Docker](docker-in-docker.md).
 
 | Key          | Type   | Description                                                                                                                                                                                                      | CLI flag               | Default      |
 | ------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------ |

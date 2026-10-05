@@ -1,5 +1,8 @@
 # Docker-in-Docker
 
+> [!WARNING]
+> **Beta** - Docker-in-Docker is under active development. Config keys and behavior may change between releases, and it hasn't had the same testing as the core container hardening. Issue reports are welcome.
+
 Tools never get the host's Docker socket - that would hand the agent root on your machine. Instead, `--dind` (or `enabled = true` under `[run.dind]`) starts a separate, per-run **rootless** Docker daemon in a sidecar container, so the tool can build images, run containers, use `docker compose`, or test devcontainers.
 
 ## Usage

@@ -216,7 +216,7 @@ Sidecars and their networks carry `agentic.owner` (the tool container name) and 
 
 The proxy image runs as a sidecar container whenever `--proxy` is enabled. It installs the minimal `agentic-proxy` binary (entrypoint `cmd/proxy/main.go`, built from the `cmd/proxy` package - not the CLI's `agentic` binary) and is built separately from the tool images via `agentic proxy build`/`agentic proxy update`, or lazily by `agentic run --proxy` the first time it's missing (`ensureProxyImage`). `agentic build` never builds it. Unlike tool images, the proxy image is global (tagged `agentic-proxy`), not namespaced.
 
-The proxy is unreleased, so it can only be built from local source for now. Local builds default `VERSION` to `dev`, which makes the proxy Dockerfile compile from the local source tree instead of installing a published module - detected by walking up from `$PWD` looking for the module's `go.mod`, so run these from the repository root:
+Released builds `go install` the published `cmd/proxy` module at their own version. Local builds default `VERSION` to `dev`, which makes the proxy Dockerfile compile from the local source tree instead - detected by walking up from `$PWD` looking for the module's `go.mod`, so run these from the repository root:
 
 ```bash
 make build                          # compile the CLI binary (version = "dev")
