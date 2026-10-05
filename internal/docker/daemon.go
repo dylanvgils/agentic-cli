@@ -6,8 +6,8 @@ import "errors"
 var ErrDaemonNotRunning = errors.New("docker is not running. Start Docker and try again")
 
 // CheckDaemon returns ErrDaemonNotRunning if `docker info` shows the daemon is unreachable.
-func CheckDaemon() error {
-	if _, err := dockerRun("info"); err != nil {
+func (c *Client) CheckDaemon() error {
+	if _, err := c.run("info"); err != nil {
 		return ErrDaemonNotRunning
 	}
 	return nil

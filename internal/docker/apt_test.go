@@ -10,18 +10,18 @@ import (
 )
 
 func Test_verifyAptPackages(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("empty packages skips docker call", func(t *testing.T) {
 		// Arrange
 		called := false
-		orig := runInteractive
-		runInteractive = func(_ ...string) error {
+		stubRunInteractiveFunc(t, client, func(_ ...string) error {
 			called = true
 			return nil
-		}
-		t.Cleanup(func() { runInteractive = orig })
+		})
 
 		// Act
-		err := verifyAptPackages(nil, "")
+		err := client.verifyAptPackages(nil, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -30,11 +30,11 @@ func Test_verifyAptPackages(t *testing.T) {
 
 	t.Run("pulls image before checking packages", func(t *testing.T) {
 		// Arrange
-		get := stubRunInteractive(t)
-		stubDockerRunFixed(t, "", nil)
+		get := stubRunInteractive(t, client)
+		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		err := verifyAptPackages([]string{"make"}, "")
+		err := client.verifyAptPackages([]string{"make"}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -44,11 +44,11 @@ func Test_verifyAptPackages(t *testing.T) {
 
 	t.Run("pulls registry-prefixed image when registry set", func(t *testing.T) {
 		// Arrange
-		get := stubRunInteractive(t)
-		stubDockerRunFixed(t, "", nil)
+		get := stubRunInteractive(t, client)
+		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		err := verifyAptPackages([]string{"make"}, "myregistry.example.com")
+		err := client.verifyAptPackages([]string{"make"}, "myregistry.example.com")
 
 		// Assert
 		require.NoError(t, err)
@@ -57,11 +57,11 @@ func Test_verifyAptPackages(t *testing.T) {
 
 	t.Run("returns specific error for missing packages", func(t *testing.T) {
 		// Arrange
-		stubRunInteractive(t)
-		stubDockerRunFixed(t, "badpkg\n", nil)
+		stubRunInteractive(t, client)
+		stubDockerRunFixed(t, client, "badpkg\n", nil)
 
 		// Act
-		err := verifyAptPackages([]string{"make", "badpkg"}, "")
+		err := client.verifyAptPackages([]string{"make", "badpkg"}, "")
 
 		// Assert
 		require.Error(t, err)
@@ -72,12 +72,10 @@ func Test_verifyAptPackages(t *testing.T) {
 
 	t.Run("pull error returns error", func(t *testing.T) {
 		// Arrange
-		orig := runInteractive
-		runInteractive = func(_ ...string) error { return fmt.Errorf("pull failed") }
-		t.Cleanup(func() { runInteractive = orig })
+		stubRunInteractiveFunc(t, client, func(_ ...string) error { return fmt.Errorf("pull failed") })
 
 		// Act
-		err := verifyAptPackages([]string{"make"}, "")
+		err := client.verifyAptPackages([]string{"make"}, "")
 
 		// Assert
 		require.Error(t, err)
@@ -86,16 +84,18 @@ func Test_verifyAptPackages(t *testing.T) {
 }
 
 func Test_missingAptPackages(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("passes packages as arguments", func(t *testing.T) {
 		// Arrange
 		var capturedArgs []string
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			capturedArgs = args
 			return "", nil
 		})
 
 		// Act
-		_, err := missingAptPackages([]string{"make", "gcc"}, "debian:bookworm-slim")
+		_, err := client.missingAptPackages([]string{"make", "gcc"}, "debian:bookworm-slim")
 
 		// Assert
 		require.NoError(t, err)
@@ -107,13 +107,13 @@ func Test_missingAptPackages(t *testing.T) {
 	t.Run("uses the provided image name", func(t *testing.T) {
 		// Arrange
 		var capturedArgs []string
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			capturedArgs = args
 			return "", nil
 		})
 
 		// Act
-		_, err := missingAptPackages([]string{"make"}, "myregistry.example.com/debian:bookworm-slim")
+		_, err := client.missingAptPackages([]string{"make"}, "myregistry.example.com/debian:bookworm-slim")
 
 		// Assert
 		require.NoError(t, err)
@@ -122,10 +122,10 @@ func Test_missingAptPackages(t *testing.T) {
 
 	t.Run("returns missing package names from output", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "curl\nbadpkg\n", nil)
+		stubDockerRunFixed(t, client, "curl\nbadpkg\n", nil)
 
 		// Act
-		missing, err := missingAptPackages([]string{"make", "curl", "badpkg"}, "debian:bookworm-slim")
+		missing, err := client.missingAptPackages([]string{"make", "curl", "badpkg"}, "debian:bookworm-slim")
 
 		// Assert
 		require.NoError(t, err)
@@ -134,10 +134,10 @@ func Test_missingAptPackages(t *testing.T) {
 
 	t.Run("returns empty for all packages found", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", nil)
+		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		missing, err := missingAptPackages([]string{"make", "gcc"}, "debian:bookworm-slim")
+		missing, err := client.missingAptPackages([]string{"make", "gcc"}, "debian:bookworm-slim")
 
 		// Assert
 		require.NoError(t, err)
@@ -146,10 +146,10 @@ func Test_missingAptPackages(t *testing.T) {
 
 	t.Run("docker error returns error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("exit status 1"))
+		stubDockerRunFixed(t, client, "", fmt.Errorf("exit status 1"))
 
 		// Act
-		missing, err := missingAptPackages([]string{"make"}, "debian:bookworm-slim")
+		missing, err := client.missingAptPackages([]string{"make"}, "debian:bookworm-slim")
 
 		// Assert
 		require.Error(t, err)

@@ -9,14 +9,15 @@ import (
 
 func TestPruneImages(t *testing.T) {
 	// Arrange
+	client := newTestClient()
 	var capturedArgs []string
-	stubDockerRun(t, func(args ...string) (string, error) {
+	stubDockerRun(t, client, func(args ...string) (string, error) {
 		capturedArgs = args
 		return "", nil
 	})
 
 	// Act
-	err := PruneImages()
+	err := client.PruneImages()
 
 	// Assert
 	require.NoError(t, err)
@@ -25,14 +26,15 @@ func TestPruneImages(t *testing.T) {
 
 func TestPruneBuildCache(t *testing.T) {
 	// Arrange
+	client := newTestClient()
 	var capturedArgs []string
-	stubDockerRun(t, func(args ...string) (string, error) {
+	stubDockerRun(t, client, func(args ...string) (string, error) {
 		capturedArgs = args
 		return "", nil
 	})
 
 	// Act
-	err := PruneBuildCache()
+	err := client.PruneBuildCache()
 
 	// Assert
 	require.NoError(t, err)

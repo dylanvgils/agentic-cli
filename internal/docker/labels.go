@@ -218,7 +218,7 @@ func imageLabelPairs(info ImageInfo) []struct{ key, value string } {
 }
 
 // stampLabels relabels image with LabelProject plus every non-empty label in info.
-func stampLabels(image string, info ImageInfo) {
+func (c *Client) stampLabels(image string, info ImageInfo) {
 	args := []string{"build", label(LabelProject, LabelProjectVal)}
 
 	for _, p := range imageLabelPairs(info) {
@@ -228,17 +228,17 @@ func stampLabels(image string, info ImageInfo) {
 	}
 
 	args = append(args, arg("tag", image), "-")
-	_, _ = dockerRunStdin(strings.NewReader("FROM "+image+"\n"), args...)
+	_, _ = c.runStdin(strings.NewReader("FROM "+image+"\n"), args...)
 }
 
 // stampImageLabels detects base and tool versions from the built image and stamps them via stampLabels.
-func stampImageLabels(image, tool string, extras []string, aptPkgs []string, versions map[string]string, customInstalls []string, cacheBust string) {
+func (c *Client) stampImageLabels(image, tool string, extras []string, aptPkgs []string, versions map[string]string, customInstalls []string, cacheBust string) {
 	layers := append([]string{tools.BaseLayer}, extras...)
 
 	info := ImageInfo{
 		Namespace:      strings.TrimSuffix(image, "-"+tool),
 		Tool:           tool,
-		Base:           collectBaseLabel(image, extras),
+		Base:           c.collectBaseLabel(image, extras),
 		VersionArgs:    buildVersionArgsLabel(layers, versions),
 		Apt:            strings.Join(aptPkgs, ","),
 		CustomInstalls: strings.Join(customInstalls, ","),
@@ -246,7 +246,7 @@ func stampImageLabels(image, tool string, extras []string, aptPkgs []string, ver
 		CLIVersion:     buildinfo.Version,
 		CacheBust:      cacheBust,
 	}
-	info.Version = runVersionScript(image, versionScript(tool))
+	info.Version = c.runVersionScript(image, versionScript(tool))
 
-	stampLabels(image, info)
+	c.stampLabels(image, info)
 }

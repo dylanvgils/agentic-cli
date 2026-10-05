@@ -9,15 +9,17 @@ import (
 )
 
 func TestListRunningContainers(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("parses containers and derives namespace/tool from image name", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t,
+		stubDockerRunFixed(t, client,
 			`{"Names":"agentic-claude-ab12","Image":"agentic-claude","Status":"Up 5 minutes"}`+"\n"+
 				`{"Names":"myproject-copilot-cd34","Image":"myproject-copilot","Status":"Up 1 minute"}`,
 			nil)
 
 		// Act
-		containers, err := ListRunningContainers()
+		containers, err := client.ListRunningContainers()
 
 		// Assert
 		require.NoError(t, err)
@@ -34,10 +36,10 @@ func TestListRunningContainers(t *testing.T) {
 
 	t.Run("unrecognized image leaves namespace and tool blank", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, `{"Names":"mystery","Image":"not-an-agentic-image","Status":"Up 2 minutes"}`, nil)
+		stubDockerRunFixed(t, client, `{"Names":"mystery","Image":"not-an-agentic-image","Status":"Up 2 minutes"}`, nil)
 
 		// Act
-		containers, err := ListRunningContainers()
+		containers, err := client.ListRunningContainers()
 
 		// Assert
 		require.NoError(t, err)
@@ -48,10 +50,10 @@ func TestListRunningContainers(t *testing.T) {
 
 	t.Run("no running containers returns empty slice", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", nil)
+		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		containers, err := ListRunningContainers()
+		containers, err := client.ListRunningContainers()
 
 		// Assert
 		require.NoError(t, err)
@@ -60,10 +62,10 @@ func TestListRunningContainers(t *testing.T) {
 
 	t.Run("docker error returns error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("docker daemon not running"))
+		stubDockerRunFixed(t, client, "", fmt.Errorf("docker daemon not running"))
 
 		// Act
-		containers, err := ListRunningContainers()
+		containers, err := client.ListRunningContainers()
 
 		// Assert
 		require.Error(t, err)
@@ -73,13 +75,13 @@ func TestListRunningContainers(t *testing.T) {
 	t.Run("filters on the agentic project label", func(t *testing.T) {
 		// Arrange
 		var calls [][]string
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			calls = append(calls, args)
 			return "", nil
 		})
 
 		// Act
-		_, err := ListRunningContainers()
+		_, err := client.ListRunningContainers()
 
 		// Assert
 		require.NoError(t, err)

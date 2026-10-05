@@ -7,52 +7,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_withContext(t *testing.T) {
-	t.Run("returns args unchanged when context unset", func(t *testing.T) {
-		// Arrange
-		SetContext("")
-		t.Cleanup(func() { SetContext("") })
-
-		// Act
-		result := withContext([]string{"build", "-t", "img"})
-
-		// Assert
-		assert.Equal(t, []string{"build", "-t", "img"}, result)
-	})
-
-	t.Run("prepends --context flag when context set", func(t *testing.T) {
-		// Arrange
-		SetContext("prod")
-		t.Cleanup(func() { SetContext("") })
-
-		// Act
-		result := withContext([]string{"build", "-t", "img"})
-
-		// Assert
-		assert.Equal(t, []string{"--context", "prod", "build", "-t", "img"}, result)
-	})
-}
-
-func TestSetContext(t *testing.T) {
-	t.Run("Context reflects the value set", func(t *testing.T) {
-		// Arrange
-		t.Cleanup(func() { SetContext("") })
-
-		// Act
-		SetContext("staging")
-
-		// Assert
-		assert.Equal(t, "staging", Context())
-	})
-}
-
 func TestListContexts(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("calls docker with format", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
+		get := stubDockerRunCapture(t, client)
 
 		// Act
-		_, err := ListContexts()
+		_, err := client.ListContexts()
 
 		// Assert
 		require.NoError(t, err)
@@ -63,10 +26,10 @@ func TestListContexts(t *testing.T) {
 
 	t.Run("splits lines", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "default\nprod\n", nil)
+		stubDockerRunFixed(t, client, "default\nprod\n", nil)
 
 		// Act
-		names, err := ListContexts()
+		names, err := client.ListContexts()
 
 		// Assert
 		require.NoError(t, err)
@@ -75,10 +38,10 @@ func TestListContexts(t *testing.T) {
 
 	t.Run("empty output returns empty", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", nil)
+		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		names, err := ListContexts()
+		names, err := client.ListContexts()
 
 		// Assert
 		require.NoError(t, err)
@@ -87,10 +50,10 @@ func TestListContexts(t *testing.T) {
 
 	t.Run("propagates error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunCapture(t, "context ls")
+		stubDockerRunCapture(t, client, "context ls")
 
 		// Act
-		_, err := ListContexts()
+		_, err := client.ListContexts()
 
 		// Assert
 		assert.Error(t, err)

@@ -113,6 +113,7 @@ type DindSpec struct {
 
 // dindHandle identifies the per-run sidecar, its network and its run dir.
 type dindHandle struct {
+	client      *Client
 	id          string
 	identity    dind.Identity
 	container   string
@@ -123,7 +124,7 @@ type dindHandle struct {
 
 // newDindHandle derives the per-run resource names without creating anything, so it is safe for dry runs.
 // In proxy mode the sidecar joins the proxy's network so its egress is confined too.
-func newDindHandle(rs RunSpec) (dindHandle, error) {
+func (c *Client) newDindHandle(rs RunSpec) (dindHandle, error) {
 	id, err := randID()
 	if err != nil {
 		return dindHandle{}, err
@@ -135,6 +136,7 @@ func newDindHandle(rs RunSpec) (dindHandle, error) {
 	}
 
 	h := dindHandle{
+		client:    c,
 		id:        id,
 		identity:  identity,
 		container: dindHostAlias + "-" + id,
@@ -151,9 +153,9 @@ func newDindHandle(rs RunSpec) (dindHandle, error) {
 
 // Stop removes the sidecar, its data volume, its own network and the run dir; safe to defer.
 func (h dindHandle) Stop() {
-	_, _ = dockerRun("rm", "--force", "--volumes", h.container)
+	_, _ = h.client.run("rm", "--force", "--volumes", h.container)
 	if h.ownsNetwork {
-		_, _ = dockerRun("network", "rm", h.network)
+		_, _ = h.client.run("network", "rm", h.network)
 	}
 	_ = os.RemoveAll(h.runDir)
 }
@@ -250,7 +252,7 @@ func (h dindHandle) waitReady(interrupt <-chan os.Signal) error {
 	lastProgress := start
 	reason := fmt.Sprintf("did not become ready within %s", dindReadyTimeout)
 	for {
-		if _, err := dockerRun(probe...); err == nil {
+		if _, err := h.client.run(probe...); err == nil {
 			return nil
 		}
 
@@ -274,13 +276,13 @@ func (h dindHandle) waitReady(interrupt <-chan os.Signal) error {
 		}
 	}
 
-	logs, _ := dockerRun("logs", arg("tail", dindLogTailOnFail), h.container)
+	logs, _ := h.client.run("logs", arg("tail", dindLogTailOnFail), h.container)
 	return fmt.Errorf("docker sidecar %s:\n%s", reason, strings.TrimSpace(logs))
 }
 
 // exited reports whether the sidecar has stopped or vanished.
 func (h dindHandle) exited() bool {
-	out, err := dockerRun("inspect", arg("format", "{{.State.Running}}"), h.container)
+	out, err := h.client.run("inspect", arg("format", "{{.State.Running}}"), h.container)
 	return err != nil || strings.TrimSpace(out) == "false"
 }
 
@@ -290,14 +292,14 @@ func IsReservedDindEnvName(key string) bool {
 }
 
 // SweepDindResources removes sidecars, networks and run dirs left behind by interrupted runs.
-func SweepDindResources(toolHome string) error {
+func (c *Client) SweepDindResources(toolHome string) error {
 	listContainerArgs := []string{
 		"ps", arg("all"), arg("quiet"),
 		labelFilter(LabelProject, LabelProjectVal),
 		nameFilter(dindHostAlias),
 	}
 	removeContainerArgs := []string{"rm", arg("force"), arg("volumes")}
-	if err := runIfAny(listContainerArgs, removeContainerArgs); err != nil {
+	if err := c.runIfAny(listContainerArgs, removeContainerArgs); err != nil {
 		return err
 	}
 
@@ -307,16 +309,16 @@ func SweepDindResources(toolHome string) error {
 		nameFilter(dindNetworkPrefix),
 	}
 	removeNetworkArgs := []string{"network", "rm"}
-	if err := runIfAny(listNetworkArgs, removeNetworkArgs); err != nil {
+	if err := c.runIfAny(listNetworkArgs, removeNetworkArgs); err != nil {
 		return err
 	}
 
-	return sweepDindRunDirs(toolHome)
+	return c.sweepDindRunDirs(toolHome)
 }
 
 // startDind writes the per-run files, starts the sidecar and waits for dockerd; cleans up on failure.
-func startDind(rs RunSpec, interrupt <-chan os.Signal) (dindHandle, error) {
-	h, err := newDindHandle(rs)
+func (c *Client) startDind(rs RunSpec, interrupt <-chan os.Signal) (dindHandle, error) {
+	h, err := c.newDindHandle(rs)
 	if err != nil {
 		return dindHandle{}, err
 	}
@@ -345,13 +347,13 @@ func startDind(rs RunSpec, interrupt <-chan os.Signal) (dindHandle, error) {
 		createArgs := []string{"network", "create", label(LabelProject, LabelProjectVal)}
 		createArgs = append(createArgs, ownerLabels(rs)...)
 		createArgs = append(createArgs, h.network)
-		if _, err := dockerRun(createArgs...); err != nil {
+		if _, err := c.run(createArgs...); err != nil {
 			h.Stop()
 			return dindHandle{}, fmt.Errorf("create dind network: %w", err)
 		}
 	}
 
-	if _, err := dockerRun(h.runArgs(rs)...); err != nil {
+	if _, err := c.run(h.runArgs(rs)...); err != nil {
 		h.Stop()
 		return dindHandle{}, fmt.Errorf("start docker sidecar: %w", err)
 	}
@@ -365,20 +367,20 @@ func startDind(rs RunSpec, interrupt <-chan os.Signal) (dindHandle, error) {
 }
 
 // setupDind starts the Docker sidecar if enabled, returning the tool args and a cleanup func to defer.
-func setupDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
+func (c *Client) setupDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
 	if !rs.Dind.Enabled {
 		return nil, func() {}, nil
 	}
 
 	if rs.DryRun {
-		return dryRunDind(rs)
+		return c.dryRunDind(rs)
 	}
-	return launchDind(rs)
+	return c.launchDind(rs)
 }
 
 // dryRunDind prints the sidecar command and returns the tool args without provisioning anything.
-func dryRunDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
-	handle, err := newDindHandle(*rs)
+func (c *Client) dryRunDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
+	handle, err := c.newDindHandle(*rs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -393,12 +395,12 @@ func dryRunDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
 }
 
 // launchDind starts the sidecar and returns a cleanup that removes it.
-func launchDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
+func (c *Client) launchDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
 	// Guard first so Ctrl-C during startup still removes the sidecar
 	interrupt, stop := guardSignals()
 
 	logging.Infof("starting docker sidecar...")
-	handle, err := startDind(*rs, interrupt)
+	handle, err := c.startDind(*rs, interrupt)
 	if err != nil {
 		stop()
 		return nil, nil, err
@@ -413,7 +415,7 @@ func launchDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
 }
 
 // sweepDindRunDirs removes run dirs whose sidecar is gone, sparing ones younger than dindRunDirGrace.
-func sweepDindRunDirs(toolHome string) error {
+func (c *Client) sweepDindRunDirs(toolHome string) error {
 	base := filepath.Join(toolHome, dindDirName)
 	entries, err := os.ReadDir(base)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -428,7 +430,7 @@ func sweepDindRunDirs(toolHome string) error {
 		labelFilter(LabelProject, LabelProjectVal),
 		nameFilter(dindHostAlias),
 	}
-	out, err := dockerRun(listArgs...)
+	out, err := c.run(listArgs...)
 	if err != nil {
 		return err
 	}

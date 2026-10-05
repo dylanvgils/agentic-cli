@@ -10,12 +10,12 @@ import (
 
 // UpdateTool rebuilds tool, or if already up to date and opts.Pull is false, just restamps
 // labels; otherwise it recovers base/version/apt labels from the existing image and rebuilds.
-func UpdateTool(tool, image string, opts tools.BuildOptions) error {
+func (c *Client) UpdateTool(tool, image string, opts tools.BuildOptions) error {
 	hasUserApt := len(opts.AptPackages) > 0
 	userPkgs := opts.AptPackages
 	opts.VerifyApt = hasUserApt
 
-	info, err := InspectImage(image)
+	info, err := c.InspectImage(image)
 	upToDate := false
 	if err == nil && info != nil {
 		upToDate = isUpToDate(tool, info.Version)
@@ -23,7 +23,7 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 		if !opts.NoCache && !opts.Pull && upToDate {
 			info.Built = buildBuiltLabel()
 			info.CLIVersion = buildinfo.Version
-			stampLabels(image, *info)
+			c.stampLabels(image, *info)
 			return nil
 		}
 
@@ -50,7 +50,7 @@ func UpdateTool(tool, image string, opts tools.BuildOptions) error {
 		opts.CacheBust = NewCacheBust()
 	}
 
-	return BuildTool(tool, image, opts)
+	return c.BuildTool(tool, image, opts)
 }
 
 // LatestToolVersion fetches tool's latest upstream version and compares it against

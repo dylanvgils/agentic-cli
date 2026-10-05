@@ -22,8 +22,8 @@ type containerListResult struct {
 }
 
 // ListRunningContainers returns all currently running agentic-managed containers.
-func ListRunningContainers() ([]*ContainerInfo, error) {
-	out, err := dockerRun("ps", arg("format", "{{json .}}"), labelFilter(LabelProject, LabelProjectVal))
+func (c *Client) ListRunningContainers() ([]*ContainerInfo, error) {
+	out, err := c.run("ps", arg("format", "{{json .}}"), labelFilter(LabelProject, LabelProjectVal))
 	if err != nil {
 		return nil, err
 	}

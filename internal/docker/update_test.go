@@ -12,19 +12,19 @@ import (
 )
 
 func TestUpdateTool(t *testing.T) {
-	origStdin := dockerRunStdin
-	dockerRunStdin = func(_ io.Reader, _ ...string) (string, error) { return "", nil }
-	t.Cleanup(func() { dockerRunStdin = origStdin })
+	client := newTestClient()
+
+	stubDockerRunStdin(t, client, func(_ io.Reader, _ ...string) (string, error) { return "", nil })
 
 	t.Run("recovers build from label", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Size":1048576,"Config":{"Labels":{"agentic.base":"node@24.0.0,java@21.0.1"}}}`,
 		})
-		getDockerfiles := stubRunInteractiveCapturingDockerfile(t)
+		getDockerfiles := stubRunInteractiveCapturingDockerfile(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
 
 		// Assert - the java extra recovered from the label is added as a stage
 		require.NoError(t, err)
@@ -35,13 +35,13 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("respects existing base override", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Size":1048576,"Config":{"Labels":{"agentic.base":"node@24.0.0,dotnet@8.0"}}}`,
 		})
-		getDockerfiles := stubRunInteractiveCapturingDockerfile(t)
+		getDockerfiles := stubRunInteractiveCapturingDockerfile(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{BaseOverride: []string{"java"}})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{BaseOverride: []string{"java"}})
 
 		// Assert - explicit BaseOverride wins over the dotnet recovered from the label
 		require.NoError(t, err)
@@ -53,13 +53,13 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("base-exact skips label recovery even when override is empty", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Size":1048576,"Config":{"Labels":{"agentic.base":"node@24.0.0,java@21.0.1"}}}`,
 		})
-		getDockerfiles := stubRunInteractiveCapturingDockerfile(t)
+		getDockerfiles := stubRunInteractiveCapturingDockerfile(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{BaseOverride: []string{}, BaseExact: true})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{BaseOverride: []string{}, BaseExact: true})
 
 		// Assert - neither java nor node extra is recovered from the label
 		require.NoError(t, err)
@@ -71,13 +71,13 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("recovers layer versions from label", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Size":1048576,"Config":{"Labels":{"agentic.base":"node@24.0.0,java@21.0.1","agentic.version-args":"node@24,java@17"}}}`,
 		})
-		getDockerfiles := stubRunInteractiveCapturingDockerfile(t)
+		getDockerfiles := stubRunInteractiveCapturingDockerfile(t, client)
 
 		// Act - no --java flag passed, so the recovered override must be the one used
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -88,13 +88,13 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("user-provided version flag wins over recovered label", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Size":1048576,"Config":{"Labels":{"agentic.base":"node@24.0.0,java@21.0.1","agentic.version-args":"node@24,java@17"}}}`,
 		})
-		getDockerfiles := stubRunInteractiveCapturingDockerfile(t)
+		getDockerfiles := stubRunInteractiveCapturingDockerfile(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{"java": "21"}})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{"java": "21"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -105,13 +105,13 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("recovers apt packages from label", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Size":1048576,"Config":{"Labels":{"agentic.apt":"make,gcc"}}}`,
 		})
-		getCalls := stubRunInteractiveAll(t)
+		getCalls := stubRunInteractiveAll(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -121,13 +121,13 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("merges label apt packages with user-provided packages", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Size":1048576,"Config":{"Labels":{"agentic.apt":"make"}}}`,
 		})
-		getCalls := stubRunInteractiveAll(t)
+		getCalls := stubRunInteractiveAll(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{AptPackages: []string{"gcc"}})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{AptPackages: []string{"gcc"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -136,13 +136,13 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("apt-exact skips label apt recovery", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Size":1048576,"Config":{"Labels":{"agentic.apt":"make"}}}`,
 		})
-		getDockerfiles := stubRunInteractiveCapturingDockerfile(t)
+		getDockerfiles := stubRunInteractiveCapturingDockerfile(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{AptPackages: []string{"gcc"}, AptExact: true})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{AptPackages: []string{"gcc"}, AptExact: true})
 
 		// Assert - the recovered "make" package does not survive, only the exact "gcc" does
 		require.NoError(t, err)
@@ -154,13 +154,13 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("skips verification when all user packages already in image", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.apt":"make,gcc"}}}`,
 		})
-		getCalls := stubRunInteractiveAll(t)
+		getCalls := stubRunInteractiveAll(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{AptPackages: []string{"make"}})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{AptPackages: []string{"make"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -171,13 +171,13 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("verifies when user provides package not in image", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.apt":"make"}}}`,
 		})
-		getCalls := stubRunInteractiveAll(t)
+		getCalls := stubRunInteractiveAll(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{AptPackages: []string{"gcc"}})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{AptPackages: []string{"gcc"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -192,14 +192,14 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("skips rebuild when installed version matches latest", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3"}}}`,
 		})
 		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
-		getCalls := stubRunInteractiveAll(t)
+		getCalls := stubRunInteractiveAll(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -208,14 +208,14 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("rebuilds when upstream has a newer version", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3"}}}`,
 		})
 		stubLatestVersion(t, "claude", func() (string, error) { return "9.9.9", nil })
-		getCalls := stubRunInteractiveAll(t)
+		getCalls := stubRunInteractiveAll(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -224,14 +224,14 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("rebuilds when upstream check fails", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3"}}}`,
 		})
 		stubLatestVersion(t, "claude", func() (string, error) { return "", errors.New("network error") })
-		getCalls := stubRunInteractiveAll(t)
+		getCalls := stubRunInteractiveAll(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -240,14 +240,14 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("no-cache bypasses the up-to-date check", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3"}}}`,
 		})
 		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
-		getCalls := stubRunInteractiveAll(t)
+		getCalls := stubRunInteractiveAll(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{NoCache: true})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{NoCache: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -256,14 +256,14 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("pull bypasses the up-to-date check so base layers still get refreshed", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3"}}}`,
 		})
 		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
-		getCalls := stubRunInteractiveAll(t)
+		getCalls := stubRunInteractiveAll(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{Pull: true})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{Pull: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -272,14 +272,14 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("pull-only rebuild of an up-to-date tool does not bust the tool stage cache", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3"}}}`,
 		})
 		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
-		getCalls := stubRunInteractiveAll(t)
+		getCalls := stubRunInteractiveAll(t, client)
 
 		// Act - up to date, rebuild only runs so --pull can refresh base layers
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{Pull: true})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{Pull: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -294,14 +294,14 @@ func TestUpdateTool(t *testing.T) {
 		// Arrange - image already carries the CACHEBUST value its tool stage was
 		// last actually built with; a pull-only rebuild must resolve to that same
 		// cached layer, not to whatever unrelated build last used an empty CACHEBUST
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3","agentic.cachebust":"2026-08-21T07:18:37Z"}}}`,
 		})
 		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
-		getCalls := stubRunInteractiveAll(t)
+		getCalls := stubRunInteractiveAll(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{Pull: true})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{Pull: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -312,14 +312,14 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("skips rebuild when up to date and pull is false", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3"}}}`,
 		})
 		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
-		getCalls := stubRunInteractiveAll(t)
+		getCalls := stubRunInteractiveAll(t, client)
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{Pull: false})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{Pull: false})
 
 		// Assert
 		require.NoError(t, err)
@@ -329,22 +329,20 @@ func TestUpdateTool(t *testing.T) {
 	t.Run("restamps labels via stampLabels when up to date and pull is false", func(t *testing.T) {
 		// Arrange - existing image carries base/apt labels that must be
 		// carried forward unchanged since nothing actually changed
-		stubDockerRunBySubcmd(t, map[string]string{
+		stubDockerRunBySubcmd(t, client, map[string]string{
 			"inspect": `{"Id":"sha256:abcdef","Config":{"Labels":{"agentic.tool.version":"1.2.3","agentic.namespace":"agentic","agentic.tool":"claude","agentic.apt":"make,gcc","agentic.base":"node@24.0.0"}}}`,
 		})
 		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
-		getCalls := stubRunInteractiveAll(t)
+		getCalls := stubRunInteractiveAll(t, client)
 
 		var capturedArgs []string
-		origStdin := dockerRunStdin
-		dockerRunStdin = func(_ io.Reader, args ...string) (string, error) {
+		stubDockerRunStdin(t, client, func(_ io.Reader, args ...string) (string, error) {
 			capturedArgs = args
 			return "", nil
-		}
-		t.Cleanup(func() { dockerRunStdin = origStdin })
+		})
 
 		// Act
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -364,11 +362,11 @@ func TestUpdateTool(t *testing.T) {
 
 	t.Run("always sets cachebust build arg", func(t *testing.T) {
 		// Arrange
-		stubDockerRunBySubcmd(t, nil)
-		getCalls := stubRunInteractiveAll(t)
+		stubDockerRunBySubcmd(t, client, nil)
+		getCalls := stubRunInteractiveAll(t, client)
 
 		// Act - confirm UpdateTool sets a CacheBust value that triggers the CACHEBUST build arg on the tool stage
-		err := UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
+		err := client.UpdateTool("claude", "agentic-claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)

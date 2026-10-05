@@ -27,10 +27,12 @@ const fullImageJSON = `{
 }`
 
 func TestInspectImage(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("all fields", func(t *testing.T) {
 		// Arrange
 		callNum := 0
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			callNum++
 			switch callNum {
 			case 1:
@@ -42,7 +44,7 @@ func TestInspectImage(t *testing.T) {
 		})
 
 		// Act
-		info, err := InspectImage("agentic-claude")
+		info, err := client.InspectImage("agentic-claude")
 
 		// Assert
 		require.NoError(t, err)
@@ -63,7 +65,7 @@ func TestInspectImage(t *testing.T) {
 	t.Run("no labels", func(t *testing.T) {
 		// Arrange
 		callNum := 0
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			callNum++
 			if callNum == 1 {
 				return `{"Id":"sha256:a1b2c3d4e5f6abcdef012345","Config":{"Labels":{}}}`, nil
@@ -72,7 +74,7 @@ func TestInspectImage(t *testing.T) {
 		})
 
 		// Act
-		info, err := InspectImage("agentic-claude")
+		info, err := client.InspectImage("agentic-claude")
 
 		// Assert
 		require.NoError(t, err)
@@ -86,10 +88,10 @@ func TestInspectImage(t *testing.T) {
 
 	t.Run("docker error returns nil", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("No such image: agentic-missing"))
+		stubDockerRunFixed(t, client, "", fmt.Errorf("No such image: agentic-missing"))
 
 		// Act
-		info, err := InspectImage("agentic-missing")
+		info, err := client.InspectImage("agentic-missing")
 
 		// Assert
 		require.NoError(t, err)
@@ -98,10 +100,10 @@ func TestInspectImage(t *testing.T) {
 
 	t.Run("malformed JSON returns error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "not json", nil)
+		stubDockerRunFixed(t, client, "not json", nil)
 
 		// Act
-		info, err := InspectImage("agentic-claude")
+		info, err := client.InspectImage("agentic-claude")
 
 		// Assert
 		require.Error(t, err)
@@ -112,7 +114,7 @@ func TestInspectImage(t *testing.T) {
 		// Arrange
 		callNum := 0
 		var inspectArgs, lsArgs []string
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			callNum++
 			switch callNum {
 			case 1:
@@ -126,7 +128,7 @@ func TestInspectImage(t *testing.T) {
 		})
 
 		// Act
-		_, err := InspectImage("agentic-opencode")
+		_, err := client.InspectImage("agentic-opencode")
 
 		// Assert
 		require.NoError(t, err)
@@ -244,12 +246,14 @@ func Test_resolveToolName(t *testing.T) {
 }
 
 func Test_listAllRepositories(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("returns repository names from docker output", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "agentic-claude\nmyproject-copilot\n", nil)
+		stubDockerRunFixed(t, client, "agentic-claude\nmyproject-copilot\n", nil)
 
 		// Act
-		repos, err := listAllRepositories()
+		repos, err := client.listAllRepositories()
 
 		// Assert
 		require.NoError(t, err)
@@ -258,10 +262,10 @@ func Test_listAllRepositories(t *testing.T) {
 
 	t.Run("skips none repositories", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "<none>", nil)
+		stubDockerRunFixed(t, client, "<none>", nil)
 
 		// Act
-		repos, err := listAllRepositories()
+		repos, err := client.listAllRepositories()
 
 		// Assert
 		require.NoError(t, err)
@@ -270,10 +274,10 @@ func Test_listAllRepositories(t *testing.T) {
 
 	t.Run("docker error propagates", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("docker daemon not running"))
+		stubDockerRunFixed(t, client, "", fmt.Errorf("docker daemon not running"))
 
 		// Act
-		_, err := listAllRepositories()
+		_, err := client.listAllRepositories()
 
 		// Assert
 		require.Error(t, err)
@@ -282,13 +286,13 @@ func Test_listAllRepositories(t *testing.T) {
 	t.Run("passes label filter", func(t *testing.T) {
 		// Arrange
 		var capturedArgs []string
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			capturedArgs = args
 			return "", nil
 		})
 
 		// Act
-		_, err := listAllRepositories()
+		_, err := client.listAllRepositories()
 
 		// Assert
 		require.NoError(t, err)
@@ -298,13 +302,13 @@ func Test_listAllRepositories(t *testing.T) {
 	t.Run("passes extra filters", func(t *testing.T) {
 		// Arrange
 		var capturedArgs []string
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			capturedArgs = args
 			return "", nil
 		})
 
 		// Act
-		_, err := listAllRepositories(ToolFilter("claude"))
+		_, err := client.listAllRepositories(ToolFilter("claude"))
 
 		// Assert
 		require.NoError(t, err)
@@ -313,11 +317,13 @@ func Test_listAllRepositories(t *testing.T) {
 }
 
 func TestListAllImages(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("returns parsed images", func(t *testing.T) {
 		// Arrange
 		myprojectJSON := `{"Id":"sha256:b2c3d4e5f6a7bcdef012345678901234567890","Config":{"Labels":{"agentic.tool":"claude","agentic.namespace":"myproject"}}}`
 		callNum := 0
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			callNum++
 			switch callNum {
 			case 1: // images --filter label=project=agentic-cli
@@ -335,7 +341,7 @@ func TestListAllImages(t *testing.T) {
 		})
 
 		// Act
-		images, err := ListAllImages()
+		images, err := client.ListAllImages()
 
 		// Assert
 		require.NoError(t, err)
@@ -349,7 +355,7 @@ func TestListAllImages(t *testing.T) {
 	t.Run("mixed tools from label", func(t *testing.T) {
 		// Arrange
 		callNum := 0
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			callNum++
 			switch callNum {
 			case 1: // images --filter
@@ -367,7 +373,7 @@ func TestListAllImages(t *testing.T) {
 		})
 
 		// Act
-		images, err := ListAllImages()
+		images, err := client.ListAllImages()
 
 		// Assert
 		require.NoError(t, err)
@@ -379,7 +385,7 @@ func TestListAllImages(t *testing.T) {
 	t.Run("skips images where inspect returns nil", func(t *testing.T) {
 		// Arrange
 		callNum := 0
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			callNum++
 			switch callNum {
 			case 1: // images --filter
@@ -395,7 +401,7 @@ func TestListAllImages(t *testing.T) {
 		})
 
 		// Act
-		images, err := ListAllImages()
+		images, err := client.ListAllImages()
 
 		// Assert
 		require.NoError(t, err)
@@ -405,12 +411,14 @@ func TestListAllImages(t *testing.T) {
 }
 
 func TestBuiltTools(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("docker error propagates", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("docker daemon not running"))
+		stubDockerRunFixed(t, client, "", fmt.Errorf("docker daemon not running"))
 
 		// Act
-		result, err := BuiltTools()
+		result, err := client.BuiltTools()
 
 		// Assert
 		require.Error(t, err)
@@ -454,12 +462,14 @@ func Test_builtToolsFromImages(t *testing.T) {
 }
 
 func TestImageSize(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("returns size", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "1.23GB", nil)
+		stubDockerRunFixed(t, client, "1.23GB", nil)
 
 		// Act
-		size := imageSize("agentic-claude")
+		size := client.imageSize("agentic-claude")
 
 		// Assert
 		assert.Equal(t, "1.23GB", size)
@@ -467,10 +477,10 @@ func TestImageSize(t *testing.T) {
 
 	t.Run("error returns empty", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("docker error"))
+		stubDockerRunFixed(t, client, "", fmt.Errorf("docker error"))
 
 		// Act
-		size := imageSize("agentic-claude")
+		size := client.imageSize("agentic-claude")
 
 		// Assert
 		assert.Empty(t, size)

@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -8,12 +9,14 @@ import (
 )
 
 func TestCheckDaemon(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("returns nil when daemon running", func(t *testing.T) {
 		// Arrange
-		stubDocker(t, `exit 0`)
+		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		err := CheckDaemon()
+		err := client.CheckDaemon()
 
 		// Assert
 		require.NoError(t, err)
@@ -21,10 +24,10 @@ func TestCheckDaemon(t *testing.T) {
 
 	t.Run("returns ErrDaemonNotRunning when daemon down", func(t *testing.T) {
 		// Arrange
-		stubDocker(t, `exit 1`)
+		stubDockerRunFixed(t, client, "", errors.New("stub: daemon down"))
 
 		// Act
-		err := CheckDaemon()
+		err := client.CheckDaemon()
 
 		// Assert
 		assert.Equal(t, ErrDaemonNotRunning, err)
