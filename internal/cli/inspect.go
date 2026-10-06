@@ -71,7 +71,7 @@ func runInspectTable(namespace string) error {
 		filters = append(filters, docker.NamespaceFilter(namespace))
 	}
 
-	images, err := listAllImages(filters...)
+	images, err := dockerClient.ListAllImages(filters...)
 	if err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func writeAllTable(images []*docker.ImageInfo) error {
 }
 
 func printAllNamespaceDetail(tool, namespace string) error {
-	images, err := listAllImages(docker.ToolFilter(tool))
+	images, err := dockerClient.ListAllImages(docker.ToolFilter(tool))
 	if err != nil {
 		return err
 	}
@@ -168,7 +168,7 @@ func printImageDetail(tool, namespace string) error {
 	if err != nil {
 		return err
 	}
-	info, err := inspectImage(image)
+	info, err := dockerClient.InspectImage(image)
 	if err != nil {
 		return err
 	}

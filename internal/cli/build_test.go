@@ -14,7 +14,7 @@ func TestRunBuild(t *testing.T) {
 	t.Run("no cache flag sets opt", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
-		stubBuildDocker(t, &fakeBuildDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
+		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
 			capturedOpts = opts
 			return nil
 		}})
@@ -35,7 +35,7 @@ func TestRunBuild(t *testing.T) {
 	t.Run("skip install checksum flag sets opt", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
-		stubBuildDocker(t, &fakeBuildDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
+		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
 			capturedOpts = opts
 			return nil
 		}})
@@ -56,7 +56,7 @@ func TestRunBuild(t *testing.T) {
 	t.Run("pull flag defaults false", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
-		stubBuildDocker(t, &fakeBuildDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
+		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
 			capturedOpts = opts
 			return nil
 		}})
@@ -74,7 +74,7 @@ func TestRunBuild(t *testing.T) {
 	t.Run("pull flag sets opt", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
-		stubBuildDocker(t, &fakeBuildDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
+		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
 			capturedOpts = opts
 			return nil
 		}})
@@ -96,7 +96,7 @@ func TestRunBuild(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())
 		var capturedOpts tools.BuildOptions
-		stubBuildDocker(t, &fakeBuildDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
+		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
 			capturedOpts = opts
 			return nil
 		}})
@@ -117,7 +117,7 @@ func TestRunBuild(t *testing.T) {
 	t.Run("dry run flag prints dockerfile and skips build", func(t *testing.T) {
 		// Arrange
 		var buildCalled bool
-		stubBuildDocker(t, &fakeBuildDocker{buildTool: func(_, _ string, _ tools.BuildOptions) error {
+		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, _ tools.BuildOptions) error {
 			buildCalled = true
 			return nil
 		}})
@@ -153,7 +153,7 @@ func TestRunBuild(t *testing.T) {
 	t.Run("node flag sets opt", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
-		stubBuildDocker(t, &fakeBuildDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
+		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
 			capturedOpts = opts
 			return nil
 		}})
@@ -174,7 +174,7 @@ func TestRunBuild(t *testing.T) {
 	t.Run("go flag sets opt", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
-		stubBuildDocker(t, &fakeBuildDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
+		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
 			capturedOpts = opts
 			return nil
 		}})

@@ -16,7 +16,7 @@ func TestRunUpdate(t *testing.T) {
 	t.Run("no cache flag sets opt", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
@@ -40,7 +40,7 @@ func TestRunUpdate(t *testing.T) {
 	t.Run("skip install checksum flag sets opt", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
@@ -64,7 +64,7 @@ func TestRunUpdate(t *testing.T) {
 	t.Run("pull flag defaults true", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
@@ -85,7 +85,7 @@ func TestRunUpdate(t *testing.T) {
 	t.Run("pull flag can be disabled", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
@@ -112,7 +112,7 @@ func TestRunUpdate(t *testing.T) {
 	t.Run("dry run flag prints dockerfile and skips update", func(t *testing.T) {
 		// Arrange
 		var updateCalled bool
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(_, _ string, _ tools.BuildOptions) error {
 				updateCalled = true
 				return nil
@@ -136,7 +136,7 @@ func TestRunUpdate(t *testing.T) {
 	t.Run("stops on first update error", func(t *testing.T) {
 		// Arrange
 		var updated []string
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(tool, _ string, _ tools.BuildOptions) error {
 				updated = append(updated, tool)
 				return fmt.Errorf("fail on %s", tool)
@@ -154,7 +154,7 @@ func TestRunUpdate(t *testing.T) {
 
 	t.Run("no tools built prints message", func(t *testing.T) {
 		// Arrange
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			inspectImage: inspectReturns(nil, nil),
 		})
 		logBuf := stubErrLog(t)
@@ -170,7 +170,7 @@ func TestRunUpdate(t *testing.T) {
 	t.Run("unbuilt tools are listed as skipped after the summary", func(t *testing.T) {
 		// Arrange
 		logBuf := stubLogs(t)
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			inspectImage: func(image string) (*docker.ImageInfo, error) {
 				if strings.HasSuffix(image, "-claude") {
 					return &docker.ImageInfo{Version: "1.0.0"}, nil
@@ -196,7 +196,7 @@ func TestRunUpdate(t *testing.T) {
 
 	t.Run("all flag with no images prints message", func(t *testing.T) {
 		// Arrange
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) { return nil, nil },
 		})
 
@@ -217,7 +217,7 @@ func TestRunUpdate(t *testing.T) {
 		// Arrange
 		logBuf := stubErrLog(t)
 		var updated []string
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(tool, _ string, _ tools.BuildOptions) error {
 				updated = append(updated, tool)
 				return nil
@@ -254,7 +254,7 @@ func TestRunUpdate(t *testing.T) {
 		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\nbases = [\"java\"]\n"), 0o600))
 
 		var capturedOpts []tools.BuildOptions
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = append(capturedOpts, opts)
 				return nil
@@ -291,7 +291,7 @@ func TestRunUpdate(t *testing.T) {
 		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\nbases = [\"java\"]\n"), 0o600))
 
 		var capturedOpts tools.BuildOptions
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
@@ -316,7 +316,7 @@ func TestRunUpdate(t *testing.T) {
 		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\napt_packages = [\"make\"]\n"), 0o600))
 
 		var capturedOpts tools.BuildOptions
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
@@ -340,7 +340,7 @@ func TestRunUpdate(t *testing.T) {
 		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\nbases = [\"java\"]\n"), 0o600))
 
 		var capturedOpts tools.BuildOptions
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
@@ -371,7 +371,7 @@ func TestRunUpdate(t *testing.T) {
 		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\napt_packages = [\"make\"]\n"), 0o600))
 
 		var capturedOpts tools.BuildOptions
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
@@ -401,7 +401,7 @@ func TestRunUpdate(t *testing.T) {
 		t.Chdir(t.TempDir())
 
 		var capturedOpts []tools.BuildOptions
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = append(capturedOpts, opts)
 				return nil
@@ -439,7 +439,7 @@ func TestRunUpdate(t *testing.T) {
 	t.Run("all flag with tool arg updates only that tool across namespaces", func(t *testing.T) {
 		// Arrange
 		var updated []string
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(tool, _ string, _ tools.BuildOptions) error {
 				updated = append(updated, tool)
 				return nil
@@ -471,7 +471,7 @@ func TestRunUpdate(t *testing.T) {
 	t.Run("all flag shares cache-bust value across targets", func(t *testing.T) {
 		// Arrange
 		var capturedOpts []tools.BuildOptions
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = append(capturedOpts, opts)
 				return nil

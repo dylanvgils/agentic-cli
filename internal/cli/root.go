@@ -75,7 +75,7 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// resolveContext resolves the active Docker context from --docker-context, .agenticrc.toml, or agentic.json and sets it for this process; if none are set, the docker CLI's own context resolution applies.
+// resolveContext resolves the active Docker context from --docker-context, .agenticrc.toml, or agentic.json and builds dockerClient for it; if none are set, the docker CLI's own context resolution applies.
 func resolveContext(cmd *cobra.Command) {
 	rc, err := config.FindAndLoadFromCwd()
 	if err != nil {
@@ -83,7 +83,7 @@ func resolveContext(cmd *cobra.Command) {
 	}
 
 	flagVal, _ := cmd.Flags().GetString("docker-context")
-	setContext(resolve.DockerContext(flagVal, rc, toolHome))
+	dockerClient = newDockerClient(resolve.DockerContext(flagVal, rc, toolHome))
 }
 
 // checkDocker verifies the Docker daemon is reachable before any subcommand that needs it runs.
@@ -97,7 +97,7 @@ func checkDocker(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	return checkDockerDaemon()
+	return dockerClient.CheckDaemon()
 }
 
 // checkGit verifies git is on the host PATH before `run` starts a tool that needs it to sync configured marketplaces.
@@ -121,7 +121,7 @@ func checkGit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !run.New(runDocker).ToolNeedsMarketplaceSync(toolConfig, rc, args[0]) {
+	if !run.New(dockerClient).ToolNeedsMarketplaceSync(toolConfig, rc, args[0]) {
 		return nil
 	}
 
@@ -140,8 +140,8 @@ func inCommandChain(cmd *cobra.Command, names []string) bool {
 
 // pruneResources silently removes agentic-owned dangling images and build cache.
 func pruneResources() {
-	_ = pruneImages()
-	_ = pruneBuildCache()
+	_ = dockerClient.PruneImages()
+	_ = dockerClient.PruneBuildCache()
 }
 
 func rootRun(cmd *cobra.Command, _ []string) error {

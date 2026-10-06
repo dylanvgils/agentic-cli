@@ -104,7 +104,7 @@ func TestRunTool(t *testing.T) {
 		withTempToolHome(t)
 		get := captureRunContainer(t)
 		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)
-		stubRunDocker(t, &fakeRunDocker{inspectImage: inspectReturns(&docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)})
+		stubDocker(t, &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)})
 		stubBuildDindImage(t, func(string, tools.BuildOptions) error { return nil })
 		require.NoError(t, runToolCmd.Flags().Set("dind", "true"))
 		t.Cleanup(func() {
@@ -186,7 +186,7 @@ func TestRunTool(t *testing.T) {
 		stubToolUpdateIsTerminal(t, true)
 		stubToolUpdateStdin(t, "y\n")
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
-		stubUpdateDocker(t, &fakeUpdateDocker{})
+		stubDocker(t, &fakeDocker{})
 
 		// Act
 		err := runTool(runToolCmd, []string{"claude"})
@@ -205,7 +205,7 @@ func TestRunTool(t *testing.T) {
 		stubToolUpdateIsTerminal(t, true)
 		stubToolUpdateStdin(t, "y\n")
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
-		stubUpdateDocker(t, &fakeUpdateDocker{
+		stubDocker(t, &fakeDocker{
 			updateTool: func(_, _ string, _ tools.BuildOptions) error { return fmt.Errorf("build failed") },
 		})
 

@@ -56,7 +56,7 @@ func runClean(cmd *cobra.Command, args []string) error {
 		All:        all,
 	}
 
-	svc := clean.New(cleanDocker)
+	svc := clean.New(dockerClient)
 	targets, err := svc.Resolve(scope)
 	if err != nil {
 		return err

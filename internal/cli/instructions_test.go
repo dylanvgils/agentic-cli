@@ -11,7 +11,7 @@ import (
 )
 
 func TestRunInstructions(t *testing.T) {
-	stubRunDocker(t, &fakeRunDocker{})
+	stubDocker(t, &fakeDocker{})
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Arrange

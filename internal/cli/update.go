@@ -72,7 +72,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		opts.AptPackages = nil
 	}
 
-	svc := update.New(updateDocker)
+	svc := update.New(dockerClient)
 
 	if dryRun {
 		return svc.DryRun(tool, namespace, opts)

@@ -29,7 +29,7 @@ func Test_runClean(t *testing.T) {
 		logBuf := stubErrLog(t)
 		var cleaned []string
 		basesCleaned := false
-		stubCleanDocker(t, &fakeCleanDocker{
+		stubDocker(t, &fakeDocker{
 			cleanImage: func(image string) error {
 				cleaned = append(cleaned, image)
 				return nil
@@ -66,7 +66,7 @@ func Test_runClean(t *testing.T) {
 
 	t.Run("propagates error from cleanTargets", func(t *testing.T) {
 		// Arrange
-		stubCleanDocker(t, &fakeCleanDocker{
+		stubDocker(t, &fakeDocker{
 			cleanImage: func(image string) error { return fmt.Errorf("fail on %s", image) },
 		})
 
@@ -80,7 +80,7 @@ func Test_runClean(t *testing.T) {
 	t.Run("args present skips global resources", func(t *testing.T) {
 		// Arrange
 		basesCleaned := false
-		stubCleanDocker(t, &fakeCleanDocker{
+		stubDocker(t, &fakeDocker{
 			cleanBaseImages: func() error {
 				basesCleaned = true
 				return nil
@@ -100,7 +100,7 @@ func Test_runClean(t *testing.T) {
 		t.Chdir(t.TempDir())
 		var cleaned []string
 		basesCleaned := false
-		stubCleanDocker(t, &fakeCleanDocker{
+		stubDocker(t, &fakeDocker{
 			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 				return []*docker.ImageInfo{
 					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
@@ -132,7 +132,7 @@ func Test_runClean(t *testing.T) {
 	t.Run("all flag with tool arg skips base", func(t *testing.T) {
 		// Arrange
 		basesCleaned := false
-		stubCleanDocker(t, &fakeCleanDocker{
+		stubDocker(t, &fakeDocker{
 			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 				return []*docker.ImageInfo{
 					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
