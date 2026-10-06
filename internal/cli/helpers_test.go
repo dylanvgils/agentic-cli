@@ -23,6 +23,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// fakeBuildDocker implements build.Docker; a nil field succeeds with a zero value.
+type fakeBuildDocker struct {
+	buildTool func(tool, image string, opts tools.BuildOptions) error
+}
+
+func (f *fakeBuildDocker) BuildTool(tool, image string, opts tools.BuildOptions) error {
+	if f.buildTool == nil {
+		return nil
+	}
+	return f.buildTool(tool, image, opts)
+}
+
 // fakeCleanDocker implements clean.Docker; a nil field succeeds with a zero value.
 type fakeCleanDocker struct {
 	listAllImages       func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
@@ -256,11 +268,11 @@ func stubBuiltTools(t *testing.T, fn func() (map[string]bool, error)) {
 	t.Cleanup(func() { builtTools = orig })
 }
 
-func stubBuildTool(t *testing.T, fn func(tool, image string, opts tools.BuildOptions) error) {
+func stubBuildDocker(t *testing.T, d build.Docker) {
 	t.Helper()
-	orig := build.BuildTool
-	build.BuildTool = fn
-	t.Cleanup(func() { build.BuildTool = orig })
+	orig := buildDocker
+	buildDocker = d
+	t.Cleanup(func() { buildDocker = orig })
 }
 
 func stubBuildProxyImage(t *testing.T, fn func(image, version, sourceDir string, opts tools.BuildOptions) error) {

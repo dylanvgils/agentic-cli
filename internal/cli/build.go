@@ -54,7 +54,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		return build.DryRun(names, opts)
 	}
 
-	if err := build.Apply(names, namespace, opts); err != nil {
+	if err := build.New(buildDocker).Apply(names, namespace, opts); err != nil {
 		return err
 	}
 
