@@ -6,28 +6,21 @@ A plain-language map of how agentic isolates a tool: each layer, what it stops, 
 
 ```mermaid
 flowchart LR
-    subgraph host[Your machine]
-        ws[(workspace)]
-        th[(tool home)]
-        sec[(secrets)]
-        subgraph docker[Docker host - shared kernel]
-            tool[Tool container]
-            proxy["Egress proxy<br/>(--proxy)"]
-            dind["DinD sidecar<br/>(--dind)"]
-            inner[Inner containers]
-        end
+    files[("workspace, tool home,<br/>secrets")]
+    subgraph docker[Docker host - shared kernel]
+        tool[Tool container]
+        proxy["Egress proxy<br/>(--proxy)"]
+        dind["DinD sidecar<br/>(--dind)"]
     end
     net((Internet))
 
-    ws -- rw --> tool
-    th -- rw --> tool
-    sec -- ro --> tool
-    ws -- rw --> dind
-    tool -- HTTP/S --> proxy -- allowlisted hosts --> net
-    tool -- mTLS --> dind --> inner
-    dind -- HTTP/S --> proxy
-    tool -.->|without proxy| net
-    dind -.->|without proxy| net
+    files --> tool
+    tool --> dind
+    tool --> proxy
+    dind --> proxy
+    proxy -- allowlisted hosts --> net
+    tool -.-> net
+    dind -.-> net
 ```
 
 How to read it:
