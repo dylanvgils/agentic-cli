@@ -123,7 +123,7 @@ Each entry becomes its own Dockerfile stage `RUN`, inserted after any `--base` e
 
 | Key                | Type   | Description                                                                                                                                                                                                                                                                                                                                                               | CLI flag            | Default |
 | ------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ------- |
-| `extra_mounts`     | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`, `$PWD`                                                                                                                                                                                                | `-v`                | -       |
+| `extra_mounts`     | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`, `$PWD`. Bind mounts are read-only unless you add `:rw`.                                                                                                                                               | `-v`                | -       |
 | `read_only_mounts` | list   | Sub-paths to force read-only even when their parent mount is writable. Format: `host/path:container/path` (`:ro` is always applied - any suffix you give is ignored), or a bare `sub/path` with no `:` as shorthand for a path relative to the workspace (expands to `$PWD/sub/path:/workspace/sub/path`). Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`, `$PWD` | `--read-only-mount` | -       |
 | `secrets`          | list   | Files to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`. Supports `~`, `$HOME`, `$CONTAINER_HOME` (container path only)                                                                                                                                                                            | `-s`                | -       |
 | `env`              | list   | Environment variables to set in the container. Format: `KEY=VALUE`, or bare `KEY` to forward the host's current value. Cannot target a reserved name (see [env](#env) below)                                                                                                                                                                                              | `-e`                | -       |
@@ -404,6 +404,8 @@ Per-layer version resolution (highest to lowest priority):
 
 These accumulate too: the `-v`/`-s` flag values and RC values are collected independently and combined at runtime.
 
+Bind mounts from either source are read-only unless the entry ends in `:rw` (e.g. `"~/repo2:/repo2:rw"`); named volumes stay read-write.
+
 ### `read_only_mounts`
 
 Each entry forces one sub-path read-only, even though its parent directory (`$PWD`, a tool's own state dir, ...) stays writable - useful for keeping a credentials sub-directory or similar off-limits to writes without splitting it into a separate, fully-read-only mount elsewhere. Under the hood this relies on plain Docker bind-mount behavior: agentic places `read_only_mounts` entries last in the assembled mount list, so they shadow any overlapping read-write mount for that sub-path specifically (the same mechanism marketplace mounts already use to stay read-only alongside a tool's writable state). Order in the TOML file itself doesn't matter - agentic always places these last regardless of where they appear.
@@ -518,8 +520,8 @@ These placeholders expand in mount strings (`extra_mounts`, `read_only_mounts`, 
 Use single quotes (or escape the `$`) so the shell doesn't expand the variables before passing them to `agentic`:
 
 ```bash
-agentic run -v '$TOOL_HOME/custom:$CONTAINER_HOME/.custom' claude
-agentic run -v '~/.m2:$CONTAINER_HOME/.m2' -v '~/.gradle:$CONTAINER_HOME/.gradle' claude
+agentic run -v '$TOOL_HOME/custom:$CONTAINER_HOME/.custom:rw' claude
+agentic run -v '~/.m2:$CONTAINER_HOME/.m2:rw' -v '~/.gradle:$CONTAINER_HOME/.gradle:rw' claude
 ```
 
 ## Inspecting the merged config

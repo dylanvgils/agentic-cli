@@ -56,7 +56,7 @@ func init() {
 	runToolCmd.Flags().StringVar(&toolHome, "home", defaultHome,
 		"agentic data directory (overrides $AGENTIC_HOME)")
 	runToolCmd.Flags().StringArrayVarP(&extraVolumes, "volume", "v", nil,
-		"additional volume mount (format: host:container[:options]); repeatable")
+		"additional volume mount (format: host:container[:options]); bind mounts are read-only unless options include rw; repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagSecrets, "secret", "s", nil,
 		"secret file to mount read-only into the container (format: name:/path[:/container/path]); repeatable")
 	runToolCmd.Flags().StringArrayVar(&flagReadOnlyMounts, "read-only-mount", nil,

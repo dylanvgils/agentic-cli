@@ -43,6 +43,25 @@ func TestVolumes(t *testing.T) {
 		assert.Len(t, toolMounts, 1, "original toolMounts slice should not be modified")
 		assert.Len(t, result, 2)
 	})
+
+	t.Run("user bind mounts default to read-only", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{ExtraMounts: []string{"/host/rc:/mnt/rc"}}}
+
+		// Act
+		result := Volumes(nil, []string{"/host/flag:/mnt/flag"}, rc)
+
+		// Assert
+		assert.Equal(t, []string{"/host/flag:/mnt/flag:ro", "/host/rc:/mnt/rc:ro"}, result)
+	})
+
+	t.Run("tool bind mounts stay read-write", func(t *testing.T) {
+		// Act
+		result := Volumes([]string{"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude"}, nil, &config.AgenticRC{})
+
+		// Assert
+		assert.Equal(t, []string{"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude"}, result)
+	})
 }
 
 func TestReadOnlyMounts(t *testing.T) {
