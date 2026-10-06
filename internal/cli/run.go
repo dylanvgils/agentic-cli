@@ -107,7 +107,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 
 	updater := func(tool, image string) error {
-		return update.ApplyRecovered(tool, image, rc)
+		return update.New(updateDocker).ApplyRecovered(tool, image, rc)
 	}
 	if err := toolupdate.Check(toolHome, rc, parsedArgs.toolName, parsedArgs.imageName, updater); err != nil {
 		return err

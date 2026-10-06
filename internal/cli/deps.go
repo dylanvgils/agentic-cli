@@ -8,6 +8,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 )
 
 var (
@@ -36,5 +37,6 @@ var (
 	saveMarketplaceRegistry = marketplace.SaveRegistry
 
 	// Transitional until cli holds a single Docker client.
-	cleanDocker clean.Docker = docker.Default()
+	cleanDocker  clean.Docker  = docker.Default()
+	updateDocker update.Docker = docker.Default()
 )

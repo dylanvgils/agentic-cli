@@ -75,6 +75,34 @@ func (f *fakeCleanDocker) RemoveNetwork() error {
 	return f.removeNetwork()
 }
 
+// fakeUpdateDocker implements update.Docker; a nil field succeeds with a zero value.
+type fakeUpdateDocker struct {
+	listAllImages func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
+	inspectImage  func(string) (*docker.ImageInfo, error)
+	updateTool    func(tool, image string, opts tools.BuildOptions) error
+}
+
+func (f *fakeUpdateDocker) ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+	if f.listAllImages == nil {
+		return nil, nil
+	}
+	return f.listAllImages(filters...)
+}
+
+func (f *fakeUpdateDocker) InspectImage(name string) (*docker.ImageInfo, error) {
+	if f.inspectImage == nil {
+		return nil, nil
+	}
+	return f.inspectImage(name)
+}
+
+func (f *fakeUpdateDocker) UpdateTool(tool, image string, opts tools.BuildOptions) error {
+	if f.updateTool == nil {
+		return nil
+	}
+	return f.updateTool(tool, image, opts)
+}
+
 // captureStdout replaces os.Stdout with a pipe and returns what was written; for logging.Step/Detail-based output, use captureLog instead.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
@@ -351,32 +379,16 @@ func stubPruneProxyLogs(t *testing.T, fn func(dir string, maxAge time.Duration))
 	t.Cleanup(func() { pruneProxyLogs = orig })
 }
 
-func stubUpdateInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
+func stubUpdateDocker(t *testing.T, d update.Docker) {
 	t.Helper()
-	orig := update.InspectImage
-	update.InspectImage = func(_ string) (*docker.ImageInfo, error) { return info, err }
-	t.Cleanup(func() { update.InspectImage = orig })
+	orig := updateDocker
+	updateDocker = d
+	t.Cleanup(func() { updateDocker = orig })
 }
 
-func stubUpdateInspectImageFunc(t *testing.T, fn func(image string) (*docker.ImageInfo, error)) {
-	t.Helper()
-	orig := update.InspectImage
-	update.InspectImage = fn
-	t.Cleanup(func() { update.InspectImage = orig })
-}
-
-func stubUpdateListAllImages(t *testing.T, fn func(...docker.ImageFilter) ([]*docker.ImageInfo, error)) {
-	t.Helper()
-	orig := update.ListAllImages
-	update.ListAllImages = fn
-	t.Cleanup(func() { update.ListAllImages = orig })
-}
-
-func stubUpdateUpdateTool(t *testing.T, fn func(tool, image string, opts tools.BuildOptions) error) {
-	t.Helper()
-	orig := update.UpdateTool
-	update.UpdateTool = fn
-	t.Cleanup(func() { update.UpdateTool = orig })
+// inspectReturns returns an InspectImage func that always yields info and err.
+func inspectReturns(info *docker.ImageInfo, err error) func(string) (*docker.ImageInfo, error) {
+	return func(string) (*docker.ImageInfo, error) { return info, err }
 }
 
 func stubLatestToolVersion(t *testing.T, fn func(tool, installedLabel string) (string, bool, bool)) {

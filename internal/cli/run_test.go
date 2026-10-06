@@ -186,7 +186,7 @@ func TestRunTool(t *testing.T) {
 		stubToolUpdateIsTerminal(t, true)
 		stubToolUpdateStdin(t, "y\n")
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
-		stubUpdateUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return nil })
+		stubUpdateDocker(t, &fakeUpdateDocker{})
 
 		// Act
 		err := runTool(runToolCmd, []string{"claude"})
@@ -205,7 +205,9 @@ func TestRunTool(t *testing.T) {
 		stubToolUpdateIsTerminal(t, true)
 		stubToolUpdateStdin(t, "y\n")
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
-		stubUpdateUpdateTool(t, func(_, _ string, _ tools.BuildOptions) error { return fmt.Errorf("build failed") })
+		stubUpdateDocker(t, &fakeUpdateDocker{
+			updateTool: func(_, _ string, _ tools.BuildOptions) error { return fmt.Errorf("build failed") },
+		})
 
 		// Act
 		err := runTool(runToolCmd, []string{"claude"})
