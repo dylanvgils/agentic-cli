@@ -13,7 +13,7 @@ agentic build claude --pull           # refresh base images, keep the rest of th
 
 ## Runtime layers
 
-Debian is the root layer. `--base` adds runtimes on top of it (Node.js is installed with NVM):
+Debian is the root layer. It always includes curl, wget, git, gpg, jq and Python 3 (interpreter and standard library, no pip). `--base` adds runtimes on top of it (Node.js is installed with NVM):
 
 ```
 debian (base stage)

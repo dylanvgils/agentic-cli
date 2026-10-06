@@ -46,7 +46,7 @@ root = true
 
 [build]
 bases = ["java"]
-apt_packages = ["make", "gcc", "jq"]
+apt_packages = ["make", "gcc", "ripgrep"]
 
 [build.versions]
 java = "17"
