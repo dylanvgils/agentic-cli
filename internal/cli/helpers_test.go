@@ -103,6 +103,18 @@ func (f *fakeUpdateDocker) UpdateTool(tool, image string, opts tools.BuildOption
 	return f.updateTool(tool, image, opts)
 }
 
+// fakeToolupdateDocker implements toolupdate.Docker; a nil field succeeds with a zero value.
+type fakeToolupdateDocker struct {
+	inspectImage func(string) (*docker.ImageInfo, error)
+}
+
+func (f *fakeToolupdateDocker) InspectImage(image string) (*docker.ImageInfo, error) {
+	if f.inspectImage == nil {
+		return nil, nil
+	}
+	return f.inspectImage(image)
+}
+
 // captureStdout replaces os.Stdout with a pipe and returns what was written; for logging.Step/Detail-based output, use captureLog instead.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
@@ -188,8 +200,7 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	origInspect := inspectImage
 	inspectImage = fakeInspect
 
-	origToolUpdateInspect := toolupdate.InspectImage
-	toolupdate.InspectImage = fakeInspect
+	stubToolupdateDocker(t, &fakeToolupdateDocker{inspectImage: fakeInspect})
 
 	origRunInspect := run.InspectImage
 	run.InspectImage = fakeInspect
@@ -199,7 +210,6 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 		run.EnsureNamedVolumes = origEnsure
 		run.EnsureNetwork = origEnsureNet
 		inspectImage = origInspect
-		toolupdate.InspectImage = origToolUpdateInspect
 		run.InspectImage = origRunInspect
 	})
 
@@ -389,6 +399,13 @@ func stubUpdateDocker(t *testing.T, d update.Docker) {
 // inspectReturns returns an InspectImage func that always yields info and err.
 func inspectReturns(info *docker.ImageInfo, err error) func(string) (*docker.ImageInfo, error) {
 	return func(string) (*docker.ImageInfo, error) { return info, err }
+}
+
+func stubToolupdateDocker(t *testing.T, d toolupdate.Docker) {
+	t.Helper()
+	orig := toolupdateDocker
+	toolupdateDocker = d
+	t.Cleanup(func() { toolupdateDocker = orig })
 }
 
 func stubLatestToolVersion(t *testing.T, fn func(tool, installedLabel string) (string, bool, bool)) {
