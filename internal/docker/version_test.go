@@ -119,7 +119,7 @@ func TestCollectExtraVersions(t *testing.T) {
 
 		// Assert
 		assert.Empty(t, result)
-		assert.Equal(t, 0, calls, "dockerRun should not be called for empty extras")
+		assert.Equal(t, 0, calls, "docker should not be called for empty extras")
 	})
 
 	t.Run("detects version for each extra", func(t *testing.T) {
@@ -159,7 +159,7 @@ func TestCollectBaseLabel(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, "", result)
-		assert.Equal(t, 0, calls, "dockerRun should not be called for empty extras")
+		assert.Equal(t, 0, calls, "docker should not be called for empty extras")
 	})
 
 	t.Run("with extras returns detected versions", func(t *testing.T) {

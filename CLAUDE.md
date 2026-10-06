@@ -194,7 +194,7 @@ Use `-` (hyphen) in all file content, never `—` (em dash) or `–` (en dash).
 
 ### Mount handling
 
-`CONTAINER_HOME` is resolved at runtime from the image's `TOOL_HOME` env var via `docker.ResolveContainerHome` in `internal/docker/inspect.go`. Mount strings support two placeholders expanded by `mount.ExpandMountSpec` / `mount.ExpandTmpfsSpec` in `internal/mount/volume.go` (called from `internal/docker/run.go`) before the `docker run` call:
+`CONTAINER_HOME` is resolved at runtime from the image's `TOOL_HOME` env var via `Client.ResolveContainerHome` in `internal/docker/inspect.go`. Mount strings support two placeholders expanded by `mount.ExpandMountSpec` / `mount.ExpandTmpfsSpec` in `internal/mount/volume.go` (called from `internal/docker/run.go`) before the `docker run` call:
 
 - `$TOOL_HOME` / `${TOOL_HOME}` - host-side agentic data dir; use on the left (host path) side of `:`
 - `$CONTAINER_HOME` / `${CONTAINER_HOME}` - container home dir; use on the right (container path) side of `:`

@@ -9,7 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/selfupdate"
 )
 
-// Indirects the calls Check makes, so callers can fake them in tests (seam convention, see internal/cli/deps.go).
+// Indirects the calls Check makes, so callers can fake them in tests.
 var (
 	LatestVersion func() (string, error) = selfupdate.LatestVersion
 	Update        func(string) error     = selfupdate.Update
