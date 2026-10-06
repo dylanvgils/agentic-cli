@@ -2,7 +2,7 @@ package tools
 
 // layerPackages lists the apt packages each layer needs; extras declare only what "base" doesn't already have.
 var layerPackages = map[string][]string{
-	"base":   {"curl", "wget", "git", "gpg", "ca-certificates", "tzdata", "jq"},
+	"base":   {"curl", "wget", "git", "gpg", "ca-certificates", "tzdata", "jq", "python3"},
 	"dotnet": {"apt-transport-https"},
 	"java":   {"apt-transport-https"},
 }
