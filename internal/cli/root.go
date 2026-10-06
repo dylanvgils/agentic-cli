@@ -8,6 +8,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
@@ -83,7 +84,7 @@ func resolveContext(cmd *cobra.Command) {
 	}
 
 	flagVal, _ := cmd.Flags().GetString("docker-context")
-	dockerClient = newDockerClient(resolve.DockerContext(flagVal, rc, toolHome))
+	dockerClient = docker.New(resolve.DockerContext(flagVal, rc, toolHome))
 }
 
 // checkDocker verifies the Docker daemon is reachable before any subcommand that needs it runs.

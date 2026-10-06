@@ -382,18 +382,11 @@ func stubDocker(t *testing.T, d *fakeDocker) {
 	t.Cleanup(func() { *f = prev })
 }
 
-// stubNewDockerClient makes newDockerClient pass each resolved context to fn and keep the test's fakeDocker.
-func stubNewDockerClient(t *testing.T, fn func(ctx string)) {
+// restoreDockerClient puts dockerClient back when the test ends, for code under test that rebuilds it.
+func restoreDockerClient(t *testing.T) {
 	t.Helper()
-	stubDocker(t, &fakeDocker{})
-	f := dockerClient.(*fakeDocker)
-
-	orig := newDockerClient
-	newDockerClient = func(ctx string) dockerAPI {
-		fn(ctx)
-		return f
-	}
-	t.Cleanup(func() { newDockerClient = orig })
+	orig := dockerClient
+	t.Cleanup(func() { dockerClient = orig })
 }
 
 // captureRunContainer stubs RunContainer and InspectImage, returning a getter for the captured RunSpec and tool args.

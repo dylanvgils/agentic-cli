@@ -34,11 +34,3 @@ func TestDefaultDeps(t *testing.T) {
 		})
 	}
 }
-
-func Test_newDockerClient(t *testing.T) {
-	// Act
-	client := newDockerClient("prod")
-
-	// Assert
-	assert.Equal(t, "prod", client.Context())
-}

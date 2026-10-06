@@ -23,9 +23,6 @@ var (
 	loadMarketplaceRegistry = marketplace.LoadRegistry
 	saveMarketplaceRegistry = marketplace.SaveRegistry
 
-	// newDockerClient builds the client for the resolved Docker context.
-	newDockerClient = func(ctx string) dockerAPI { return docker.New(ctx) }
-
 	// dockerClient is the Docker client every command uses; persistentPreRunE rebuilds it for the resolved context.
 	dockerClient dockerAPI = docker.New("")
 )
