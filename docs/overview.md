@@ -12,6 +12,8 @@ See [Security model](security-model.md) for what each layer stops, and [Volume m
 
 ## Motivation
 
-Coding agents have guard rails, but they still run with all of your user's permissions. Agentic runs them in a locked-down container instead, so they can only touch what you hand them. It also makes daily use easy: one command to build or update a tool, and config that's picked up per project automatically.
+Agentic coding tools are powerful - but that power comes at a cost. They do come with guard rails, but they still run with the same permissions as your user. You're trusting the tool not to access anything you didn't intend to give it - and that's a hard sell if you want to experiment without fully trusting the tool. Agentic runs the tool in a locked-down container instead, so it can only touch what you explicitly hand it. Docker Sandboxes offers a VM boundary instead - see [Comparison](comparison.md) for the trade-offs.
 
-[Docker Sandboxes](comparison.md) offers a VM boundary instead. Agentic is also a side project for learning to build AI-assisted tooling.
+Beyond isolation, agentic also aims to make working with these tools practical day-to-day: a single command to build or update any tool, and a flexible configuration system that works globally or per-project so the right settings are always picked up automatically.
+
+It's also a side project for learning how to build and work with AI-assisted tooling.

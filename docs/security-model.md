@@ -25,9 +25,12 @@ flowchart LR
     ws -- rw --> dind
     tool -- HTTP/S --> proxy -- allowlisted hosts --> net
     tool -- mTLS --> dind --> inner
+    dind -.->|with --proxy| proxy
+    tool -.->|without --proxy| net
+    dind -.->|without --proxy| net
 ```
 
-Everything inside "Docker host" shares one Linux kernel. That's the boundary all layers below ultimately rest on.
+Everything inside "Docker host" shares one Linux kernel. That's the boundary all layers below ultimately rest on. Without `--proxy`, both the tool and the DinD sidecar (with its inner containers) reach the internet directly.
 
 ## Layers
 
@@ -41,7 +44,7 @@ Everything inside "Docker host" shares one Linux kernel. That's the boundary all
 | **Network** `agentic-net` | Reaching other containers on your Docker host | Reaching the internet | `internal/docker/network.go` |
 | **Egress proxy** (opt-in, beta, `--proxy`): tool sits on an `--internal` network whose only way out is the proxy | Talking to hosts not on the allowlist; every attempt is logged | Sending data to an allowlisted host (filtering is by host, not content) | `internal/proxy`, `internal/docker/proxy.go` |
 | **Credential injection** (opt-in, beta, `[[run.proxy.credentials]]`): the proxy holds API keys and sets them as headers for their hosts; the tool sees a placeholder | Reading or leaking a configured API key; containers outside the run's network (e.g. another agentic run) using it | Using the key through its hosts during the run; OAuth tokens in the tool home; Copilot's exchanged token | `internal/proxy`, `internal/credentials`, `internal/usecase/run/credentials.go` |
-| **DinD sidecar** (opt-in, beta, `--dind`): rootless dockerd in its own container, mTLS, seccomp filter, no setuid binaries, sees only `/workspace` | Access to the host's Docker socket (= root on your machine); host files outside `/workspace` | Inner containers get namespaced `SYS_ADMIN`/`NET_ADMIN`, so more kernel surface; an inner container can read the sidecar's own files (incl. its TLS key); `docker push` to an allowlisted registry | `internal/docker/dind.go`, `internal/dind` - see [Docker-in-Docker](docker-in-docker.md) |
+| **DinD sidecar** (opt-in, beta, `--dind`): rootless dockerd in its own container, mTLS, seccomp filter, no setuid binaries, sees only `/workspace` | Access to the host's Docker socket (= root on your machine); host files outside `/workspace` | Inner containers get namespaced `SYS_ADMIN`/`NET_ADMIN`, so more kernel surface; an inner container can read the sidecar's own files (incl. its TLS key); direct internet access without `--proxy`; `docker push` to an allowlisted registry | `internal/docker/dind.go`, `internal/dind` - see [Docker-in-Docker](docker-in-docker.md) |
 | **Build**: tool install scripts checksum-verified against a pinned SHA256 | A tampered or swapped install script | A malicious release of the tool itself | `internal/tools` |
 
 ## Turning layers on
@@ -69,7 +72,7 @@ What no layer covers today:
 - **Shared kernel**: a kernel exploit escapes every container. Only a VM boundary (Kata, gVisor, [Docker Sandboxes](comparison.md)) fixes this. Keep the host kernel patched.
 - **Credentials in reach**: the agent can read its OAuth login token in the tool home and any `--secret` you mount, and use them from any allowed host. [Proxy-injected API keys](egress-proxy.md#credential-injection) stay out of reach, but can still be used.
 - **Workspace tampering**: the agent can edit git hooks, `Makefile`, `package.json` scripts, etc. They run on *your* machine the next time you use them outside the container. Review diffs.
-- **Exfiltration to allowed hosts**: without `--proxy` the internet is open; with it, data can still go to any allowlisted host.
+- **Exfiltration to allowed hosts**: without `--proxy` the internet is open to the tool and the DinD sidecar; with it, data can still go to any allowlisted host.
 
 ## Check it yourself
 
