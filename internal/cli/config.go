@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -18,6 +19,37 @@ var configCmd = &cobra.Command{
 	Long:  `Show the merged configuration from agentic.json and all .agenticrc.toml files.`,
 	Args:  cobra.NoArgs,
 	RunE:  showConfig,
+}
+
+// fieldPrinter prints project config fields one after another, keeping the first write error and skipping the rest.
+type fieldPrinter struct {
+	w      io.Writer
+	layers []config.RCLayer
+	err    error
+}
+
+func (p *fieldPrinter) scalar(label string, get func(*config.AgenticRC) string, defaultVal string) {
+	if p.err == nil {
+		p.err = printScalarField(p.w, label, p.layers, get, defaultVal)
+	}
+}
+
+func (p *fieldPrinter) list(label string, get func(*config.AgenticRC) []string) {
+	if p.err == nil {
+		p.err = printListField(p.w, label, p.layers, get)
+	}
+}
+
+func (p *fieldPrinter) boolean(label string, get func(*config.AgenticRC) *bool, defaultVal bool) {
+	if p.err == nil {
+		p.err = printBoolField(p.w, label, p.layers, get, defaultVal)
+	}
+}
+
+func (p *fieldPrinter) bases() {
+	if p.err == nil {
+		p.err = printBasesField(p.w, p.layers)
+	}
 }
 
 func init() {
@@ -58,46 +90,22 @@ func showConfig(cmd *cobra.Command, _ []string) error {
 }
 
 func printGlobalConfig(w io.Writer, home string, cfg *config.CliConfig) error {
-	if _, err := fmt.Fprintf(w, "Global (%s)\n", filepath.Join(home, "agentic.json")); err != nil {
-		return err
-	}
-
-	if cfg.Registry != "" {
-		if _, err := fmt.Fprintf(w, "  registry: %s\n", cfg.Registry); err != nil {
-			return err
-		}
-	} else {
-		if _, err := fmt.Fprintln(w, "  registry: (not set)"); err != nil {
-			return err
-		}
-	}
-
-	if cfg.DockerContext != "" {
-		if _, err := fmt.Fprintf(w, "  docker_context: %s\n", cfg.DockerContext); err != nil {
-			return err
-		}
-	} else {
-		if _, err := fmt.Fprintln(w, "  docker_context: (not set)"); err != nil {
-			return err
-		}
-	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Global (%s)\n", filepath.Join(home, "agentic.json"))
+	fmt.Fprintf(&b, "  registry: %s\n", orNotSet(cfg.Registry))
+	fmt.Fprintf(&b, "  docker_context: %s\n", orNotSet(cfg.DockerContext))
 
 	if len(cfg.TrustedDirs) == 0 {
-		_, err := fmt.Fprintln(w, "  trusted_dirs: (none)")
-		return err
-	}
-
-	if _, err := fmt.Fprintln(w, "  trusted_dirs:"); err != nil {
-		return err
-	}
-
-	for _, dir := range cfg.TrustedDirs {
-		if _, err := fmt.Fprintf(w, "    - %s\n", dir); err != nil {
-			return err
+		b.WriteString("  trusted_dirs: (none)\n")
+	} else {
+		b.WriteString("  trusted_dirs:\n")
+		for _, dir := range cfg.TrustedDirs {
+			fmt.Fprintf(&b, "    - %s\n", dir)
 		}
 	}
 
-	return nil
+	_, err := io.WriteString(w, b.String())
+	return err
 }
 
 func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
@@ -120,79 +128,47 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	pidsLimit := func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
 	cpus := func(rc *config.AgenticRC) string { return rc.Run.CPUs }
 	memory := func(rc *config.AgenticRC) string { return rc.Run.Memory }
-	extraMounts := func(rc *config.AgenticRC) []string { return rc.Run.ExtraMounts }
-	readOnlyMounts := func(rc *config.AgenticRC) []string { return rc.Run.ReadOnlyMounts }
-	aptPackages := func(rc *config.AgenticRC) []string { return rc.Build.AptPackages }
-	customInstalls := func(rc *config.AgenticRC) []string {
-		names := make([]string, len(rc.Build.CustomInstalls))
-		for i, ci := range rc.Build.CustomInstalls {
-			names[i] = ci.Name
-		}
-		return names
-	}
-	secrets := func(rc *config.AgenticRC) []string { return rc.Run.Secrets }
-	proxyEnabled := func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
-	proxyMode := func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }
-	proxyAllowedHosts := func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts }
-	dindEnabled := func(rc *config.AgenticRC) *bool { return rc.Run.Dind.Enabled }
-	dindPidsLimit := func(rc *config.AgenticRC) string { return rc.Run.Dind.PidsLimit }
-	dindCPUs := func(rc *config.AgenticRC) string { return rc.Run.Dind.CPUs }
-	dindMemory := func(rc *config.AgenticRC) string { return rc.Run.Dind.Memory }
 
-	if err := printScalarField(w, "namespace", layers, func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace); err != nil {
-		return err
-	}
-	if err := printScalarField(w, "docker_context", layers, func(rc *config.AgenticRC) string { return rc.DockerContext }, ""); err != nil {
-		return err
-	}
-	if err := printBasesField(w, layers); err != nil {
-		return err
-	}
-	if err := printListField(w, "apt_packages", layers, aptPackages); err != nil {
-		return err
-	}
-	if err := printListField(w, "custom_installs", layers, customInstalls); err != nil {
-		return err
-	}
-	if err := printScalarField(w, "pids_limit", layers, pidsLimit, docker.DefaultPidsLimit); err != nil {
-		return err
-	}
-	if err := printScalarField(w, "cpus", layers, cpus, docker.DefaultCPUs); err != nil {
-		return err
-	}
-	if err := printScalarField(w, "memory", layers, memory, docker.DefaultMemory); err != nil {
-		return err
-	}
-	if err := printListField(w, "extra_mounts", layers, extraMounts); err != nil {
-		return err
-	}
-	if err := printListField(w, "read_only_mounts", layers, readOnlyMounts); err != nil {
-		return err
-	}
-	if err := printListField(w, "secrets", layers, secrets); err != nil {
-		return err
-	}
-	if err := printBoolField(w, "proxy.enabled", layers, proxyEnabled, false); err != nil {
-		return err
-	}
-	if err := printScalarField(w, "proxy.mode", layers, proxyMode, config.ModeEnforce); err != nil {
-		return err
-	}
-	if err := printListField(w, "proxy.allowed_hosts", layers, proxyAllowedHosts); err != nil {
-		return err
-	}
-	if err := printBoolField(w, "dind.enabled", layers, dindEnabled, false); err != nil {
-		return err
-	}
+	p := &fieldPrinter{w: w, layers: layers}
+	p.scalar("namespace", func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace)
+	p.scalar("docker_context", func(rc *config.AgenticRC) string { return rc.DockerContext }, "")
+	p.bases()
+	p.list("apt_packages", func(rc *config.AgenticRC) []string { return rc.Build.AptPackages })
+	p.list("custom_installs", customInstallNames)
+	p.scalar("pids_limit", pidsLimit, docker.DefaultPidsLimit)
+	p.scalar("cpus", cpus, docker.DefaultCPUs)
+	p.scalar("memory", memory, docker.DefaultMemory)
+	p.list("extra_mounts", func(rc *config.AgenticRC) []string { return rc.Run.ExtraMounts })
+	p.list("read_only_mounts", func(rc *config.AgenticRC) []string { return rc.Run.ReadOnlyMounts })
+	p.list("secrets", func(rc *config.AgenticRC) []string { return rc.Run.Secrets })
+	p.boolean("proxy.enabled", func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }, false)
+	p.scalar("proxy.mode", func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }, config.ModeEnforce)
+	p.list("proxy.allowed_hosts", func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts })
+	p.boolean("dind.enabled", func(rc *config.AgenticRC) *bool { return rc.Run.Dind.Enabled }, false)
 
 	// Unset dind limits inherit the tool's
-	if err := printScalarField(w, "dind.pids_limit", layers, dindPidsLimit, effectiveScalar(layers, pidsLimit, docker.DefaultPidsLimit)); err != nil {
-		return err
+	p.scalar("dind.pids_limit", func(rc *config.AgenticRC) string { return rc.Run.Dind.PidsLimit }, effectiveScalar(layers, pidsLimit, docker.DefaultPidsLimit))
+	p.scalar("dind.cpus", func(rc *config.AgenticRC) string { return rc.Run.Dind.CPUs }, effectiveScalar(layers, cpus, docker.DefaultCPUs))
+	p.scalar("dind.memory", func(rc *config.AgenticRC) string { return rc.Run.Dind.Memory }, effectiveScalar(layers, memory, docker.DefaultMemory))
+
+	return p.err
+}
+
+// customInstallNames returns the names of rc's custom installs.
+func customInstallNames(rc *config.AgenticRC) []string {
+	names := make([]string, len(rc.Build.CustomInstalls))
+	for i, ci := range rc.Build.CustomInstalls {
+		names[i] = ci.Name
 	}
-	if err := printScalarField(w, "dind.cpus", layers, dindCPUs, effectiveScalar(layers, cpus, docker.DefaultCPUs)); err != nil {
-		return err
+	return names
+}
+
+// orNotSet returns v, or "(not set)" when it is empty.
+func orNotSet(v string) string {
+	if v == "" {
+		return "(not set)"
 	}
-	return printScalarField(w, "dind.memory", layers, dindMemory, effectiveScalar(layers, memory, docker.DefaultMemory))
+	return v
 }
 
 // printScalarField prints a scalar config field: innermost RC value wins, else defaultVal tagged (default), else "(not set)".

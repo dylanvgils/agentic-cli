@@ -66,25 +66,9 @@ func runMarketplacesList(_ *cobra.Command, _ []string) error {
 	}
 
 	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	if _, err := fmt.Fprintln(writer, "NAME\tURL\tREFERENCED BY\tSTALE"); err != nil {
-		return err
-	}
-
-	for _, dirName := range dirNames {
-		entries := registry.Marketplaces[dirName]
-		if len(entries) == 0 {
-			if _, err := fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", dirName, "(untracked)", "(untracked)", "-"); err != nil {
-				return err
-			}
-			continue
-		}
-
-		for _, entry := range entries {
-			row := fmt.Sprintf("%s\t%s\t%s\t%s\n", entry.Name, entry.URL, formatProjects(entry.Projects), yesNo(entry.Stale))
-			if _, err := fmt.Fprint(writer, row); err != nil {
-				return err
-			}
-		}
+	fmt.Fprintln(writer, "NAME\tURL\tREFERENCED BY\tSTALE")
+	for _, row := range marketplaceRows(registry, dirNames) {
+		fmt.Fprintln(writer, row)
 	}
 
 	return writer.Flush()
@@ -120,6 +104,23 @@ func runMarketplacesPrune(_ *cobra.Command, _ []string) error {
 	}
 
 	return saveMarketplaceRegistry(baseDir, updated)
+}
+
+// marketplaceRows returns one tab-separated row per registry entry of each clone dir, or an untracked row for a dir with none.
+func marketplaceRows(registry *marketplace.Registry, dirNames []string) []string {
+	var rows []string
+	for _, dirName := range dirNames {
+		entries := registry.Marketplaces[dirName]
+		if len(entries) == 0 {
+			rows = append(rows, dirName+"\t(untracked)\t(untracked)\t-")
+			continue
+		}
+
+		for _, entry := range entries {
+			rows = append(rows, fmt.Sprintf("%s\t%s\t%s\t%s", entry.Name, entry.URL, formatProjects(entry.Projects), yesNo(entry.Stale)))
+		}
+	}
+	return rows
 }
 
 func formatProjects(projects []string) string {

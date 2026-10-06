@@ -297,6 +297,16 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 }
 
+// failingWriter fails every write and counts the attempts.
+type failingWriter struct {
+	calls int
+}
+
+func (w *failingWriter) Write([]byte) (int, error) {
+	w.calls++
+	return 0, fmt.Errorf("write failed")
+}
+
 // captureStdout replaces os.Stdout with a pipe and returns what was written; for logging.Step/Detail-based output, use captureLog instead.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
@@ -569,6 +579,31 @@ func stubVolumeStdin(t *testing.T, input string) {
 func stubBuildDindImage(t *testing.T, fn func(image string, opts tools.BuildOptions) error) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{buildDindImage: fn})
+}
+
+// stubSidecarBuilds reports both sidecar images missing and records which ones get built.
+func stubSidecarBuilds(t *testing.T) *[]string {
+	t.Helper()
+	var built []string
+	stubDocker(t, &fakeDocker{
+		inspectImage: inspectReturns(nil, nil),
+		buildProxyImage: func(image, _, _ string, _ tools.BuildOptions) error {
+			built = append(built, image)
+			return nil
+		},
+		buildDindImage: func(image string, _ tools.BuildOptions) error {
+			built = append(built, image)
+			return nil
+		},
+	})
+	return &built
+}
+
+func stubDryRun(t *testing.T, val bool) {
+	t.Helper()
+	prev := dryRun
+	dryRun = val
+	t.Cleanup(func() { dryRun = prev })
 }
 
 func stubTrustStdin(t *testing.T, input string) {

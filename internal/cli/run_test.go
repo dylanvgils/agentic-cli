@@ -398,6 +398,63 @@ func TestParseArgs(t *testing.T) {
 	})
 }
 
+func Test_ensureSidecarImages(t *testing.T) {
+	withTempToolHome(t)
+	cmd := &cobra.Command{Use: "test"}
+
+	t.Run("dry run builds nothing", func(t *testing.T) {
+		// Arrange
+		stubDryRun(t, true)
+		built := stubSidecarBuilds(t)
+
+		// Act
+		err := ensureSidecarImages(cmd, true, true)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, *built)
+	})
+
+	t.Run("proxy only builds the proxy image", func(t *testing.T) {
+		// Arrange
+		stubLogs(t)
+		built := stubSidecarBuilds(t)
+
+		// Act
+		err := ensureSidecarImages(cmd, true, false)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{tools.ProxyImage}, *built)
+	})
+
+	t.Run("dind only builds the dind image", func(t *testing.T) {
+		// Arrange
+		stubLogs(t)
+		built := stubSidecarBuilds(t)
+
+		// Act
+		err := ensureSidecarImages(cmd, false, true)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{tools.DindImage}, *built)
+	})
+
+	t.Run("both enabled builds both images", func(t *testing.T) {
+		// Arrange
+		stubLogs(t)
+		built := stubSidecarBuilds(t)
+
+		// Act
+		err := ensureSidecarImages(cmd, true, true)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{tools.ProxyImage, tools.DindImage}, *built)
+	})
+}
+
 func Test_ensureDindImage(t *testing.T) {
 	withTempToolHome(t)
 	cmd := &cobra.Command{Use: "test"}

@@ -760,3 +760,25 @@ func Test_readOnlyMountSpecs(t *testing.T) {
 		assert.Equal(t, []string{"$PWD/secrets/foo:/workspace/secrets/foo:ro"}, result)
 	})
 }
+
+func Test_runVolumes(t *testing.T) {
+	// Arrange
+	toolConfig := tools.ToolConfig{Runtime: tools.RuntimeConfig{Mounts: func() []string { return []string{"/tool:/tool"} }}}
+	in := Input{
+		Volumes:           []string{"/flag:/flag:rw"},
+		InstructionsMount: "/snapshot.md:/instructions.md",
+		ReadOnlyMounts:    []string{"/secret:/secret"},
+	}
+
+	// Act
+	result := runVolumes(toolConfig, in, &config.AgenticRC{}, []string{"/marketplace:/marketplace"})
+
+	// Assert
+	assert.Equal(t, []string{
+		"/tool:/tool",
+		"/flag:/flag:rw",
+		"/marketplace:/marketplace",
+		"/snapshot.md:/instructions.md",
+		"/secret:/secret:ro",
+	}, result)
+}

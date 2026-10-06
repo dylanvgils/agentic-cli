@@ -410,3 +410,66 @@ func TestPrintProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "dind.memory: 4g  (default)")
 	})
 }
+
+func Test_fieldPrinter(t *testing.T) {
+	layers := []config.RCLayer{{Path: "/projects/a/.agenticrc.toml", RC: &config.AgenticRC{Namespace: "team"}}}
+	namespace := func(rc *config.AgenticRC) string { return rc.Namespace }
+
+	t.Run("prints each field in order", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		p := &fieldPrinter{w: &buf, layers: layers}
+
+		// Act
+		p.scalar("namespace", namespace, "")
+		p.boolean("proxy.enabled", func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }, false)
+
+		// Assert
+		require.NoError(t, p.err)
+		assert.Equal(t, "  namespace: team  [/projects/a/.agenticrc.toml]\n  proxy.enabled: false  (default)\n", buf.String())
+	})
+
+	t.Run("stops writing after the first error", func(t *testing.T) {
+		// Arrange
+		w := &failingWriter{}
+		p := &fieldPrinter{w: w, layers: layers}
+
+		// Act
+		p.scalar("namespace", namespace, "")
+		p.list("secrets", func(rc *config.AgenticRC) []string { return rc.Run.Secrets })
+
+		// Assert
+		assert.ErrorContains(t, p.err, "write failed")
+		assert.Equal(t, 1, w.calls)
+	})
+}
+
+func Test_customInstallNames(t *testing.T) {
+	// Arrange
+	rc := &config.AgenticRC{}
+	rc.Build.CustomInstalls = []config.RCCustomInstall{{Name: "golangci-lint"}, {Name: "terraform"}}
+
+	// Act
+	result := customInstallNames(rc)
+
+	// Assert
+	assert.Equal(t, []string{"golangci-lint", "terraform"}, result)
+}
+
+func Test_orNotSet(t *testing.T) {
+	t.Run("empty is not set", func(t *testing.T) {
+		// Act
+		result := orNotSet("")
+
+		// Assert
+		assert.Equal(t, "(not set)", result)
+	})
+
+	t.Run("value is returned as is", func(t *testing.T) {
+		// Act
+		result := orNotSet("registry.example.test")
+
+		// Assert
+		assert.Equal(t, "registry.example.test", result)
+	})
+}

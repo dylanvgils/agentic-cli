@@ -75,6 +75,11 @@ func runVolumeRemove(_ *cobra.Command, args []string) error {
 		return nil
 	}
 
+	return removeAllVolumes()
+}
+
+// removeAllVolumes lists every agentic-managed volume and removes them once the user confirms.
+func removeAllVolumes() error {
 	names, err := dockerClient.ListVolumeNames()
 	if err != nil {
 		return err
@@ -84,16 +89,7 @@ func runVolumeRemove(_ *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Println("Volumes to remove:")
-	for _, n := range names {
-		fmt.Printf("  %s\n", n)
-	}
-
-	logging.Promptf("remove all agentic-managed volumes? [y/N] ")
-	scanner := bufio.NewScanner(volumesStdin)
-	scanner.Scan()
-	answer := strings.TrimSpace(scanner.Text())
-	if answer != "y" && answer != "Y" {
+	if !confirmVolumeRemoval(names) {
 		return nil
 	}
 
@@ -105,4 +101,18 @@ func runVolumeRemove(_ *cobra.Command, args []string) error {
 		logging.Stepf("deleted: %s", n)
 	}
 	return nil
+}
+
+// confirmVolumeRemoval lists names and asks the user to confirm removing them all.
+func confirmVolumeRemoval(names []string) bool {
+	fmt.Println("Volumes to remove:")
+	for _, n := range names {
+		fmt.Printf("  %s\n", n)
+	}
+
+	logging.Promptf("remove all agentic-managed volumes? [y/N] ")
+	scanner := bufio.NewScanner(volumesStdin)
+	scanner.Scan()
+	answer := strings.TrimSpace(scanner.Text())
+	return answer == "y" || answer == "Y"
 }

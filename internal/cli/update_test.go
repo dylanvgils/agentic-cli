@@ -8,6 +8,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -503,4 +504,52 @@ func TestRunUpdate(t *testing.T) {
 		assert.NotEmpty(t, capturedOpts[0].CacheBust)
 		assert.Equal(t, capturedOpts[0].CacheBust, capturedOpts[1].CacheBust)
 	})
+}
+
+func Test_logNothingToUpdate(t *testing.T) {
+	t.Run("all says no images are found", func(t *testing.T) {
+		// Arrange
+		logBuf := stubErrLog(t)
+
+		// Act
+		logNothingToUpdate(true, false)
+
+		// Assert
+		assert.Contains(t, logBuf.String(), "no agentic images found")
+	})
+
+	t.Run("no args says no tools are built", func(t *testing.T) {
+		// Arrange
+		logBuf := stubErrLog(t)
+
+		// Act
+		logNothingToUpdate(false, false)
+
+		// Assert
+		assert.Contains(t, logBuf.String(), "no tools are built")
+	})
+
+	t.Run("a named tool says nothing", func(t *testing.T) {
+		// Arrange
+		logBuf := stubErrLog(t)
+
+		// Act
+		logNothingToUpdate(false, true)
+
+		// Assert
+		assert.Empty(t, logBuf.String())
+	})
+}
+
+func Test_logUpdatePlan(t *testing.T) {
+	// Arrange
+	logBuf := stubLogs(t)
+	targets := []update.Target{{Name: "claude", Image: "agentic-claude"}, {Name: "copilot", Image: "agentic-copilot"}}
+
+	// Act
+	logUpdatePlan(targets, []string{"agentic-opencode"})
+
+	// Assert
+	assert.Contains(t, logBuf.String(), "updating 2 image(s): agentic-claude, agentic-copilot")
+	assert.Contains(t, logBuf.String(), "agentic-opencode (skipped - not built)")
 }

@@ -41,18 +41,11 @@ func runClean(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	namespace := resolveNamespace(cmd, rc)
 	all, _ := cmd.Flags().GetBool("all")
-
-	var filterTool string
-	if len(args) > 0 {
-		filterTool = args[0]
-	}
-
 	scope := clean.Scope{
 		Names:      toolNames(args),
-		FilterTool: filterTool,
-		Namespace:  namespace,
+		FilterTool: firstArg(args),
+		Namespace:  resolveNamespace(cmd, rc),
 		All:        all,
 	}
 
@@ -62,14 +55,7 @@ func runClean(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if len(targets) > 0 {
-		labels := make([]string, len(targets))
-		for i, t := range targets {
-			labels[i] = t.Label
-		}
-		logging.Infof("removing %d image(s): %s", len(labels), strings.Join(labels, ", "))
-	}
-
+	logCleanPlan(targets)
 	if err := svc.Apply(targets); err != nil {
 		return err
 	}
@@ -79,4 +65,17 @@ func runClean(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// logCleanPlan prints the summary line of images about to be removed, or nothing when there are none.
+func logCleanPlan(targets []clean.Target) {
+	if len(targets) == 0 {
+		return
+	}
+
+	labels := make([]string, len(targets))
+	for i, t := range targets {
+		labels[i] = t.Label
+	}
+	logging.Infof("removing %d image(s): %s", len(labels), strings.Join(labels, ", "))
 }
