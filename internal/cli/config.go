@@ -41,9 +41,7 @@ func (p *fieldPrinter) generalFields() {
 
 // buildFields prints the [build] fields.
 func (p *fieldPrinter) buildFields() {
-	var (
-		aptPackages = func(rc *config.AgenticRC) []string { return rc.Build.AptPackages }
-	)
+	aptPackages := func(rc *config.AgenticRC) []string { return rc.Build.AptPackages }
 
 	p.bases()
 	p.list("apt_packages", aptPackages)

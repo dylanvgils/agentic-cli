@@ -76,11 +76,11 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(targets) == 0 {
-		logNothingToUpdate(all, len(args) > 0)
+		logNothingToUpdate(scope)
 		return nil
 	}
 
-	logUpdatePlan(targets, skipped)
+	logUpdateSummary(targets, skipped)
 	for _, t := range targets {
 		if err := svc.Apply(t.Name, t.Image, t.Opts); err != nil {
 			return err
@@ -110,17 +110,18 @@ func updateOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOp
 	return opts
 }
 
-// logNothingToUpdate explains why there's nothing to update; a named tool that isn't built says nothing.
-func logNothingToUpdate(all, hasArgs bool) {
-	if all {
+// logNothingToUpdate explains why scope matched nothing; a named tool that isn't built says nothing.
+func logNothingToUpdate(scope update.Scope) {
+	switch {
+	case scope.All:
 		logging.Infof("no agentic images found; run 'agentic build' first")
-	} else if !hasArgs {
+	case !scope.HasArgs:
 		logging.Infof("no tools are built; run 'agentic build' first")
 	}
 }
 
-// logUpdatePlan prints the summary line of images to update, then each unbuilt image that was skipped.
-func logUpdatePlan(targets []update.Target, skipped []string) {
+// logUpdateSummary prints the summary line of images to update, then each unbuilt image that was skipped.
+func logUpdateSummary(targets []update.Target, skipped []string) {
 	images := make([]string, len(targets))
 	for i, t := range targets {
 		images[i] = t.Image

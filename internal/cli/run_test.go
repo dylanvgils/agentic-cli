@@ -14,6 +14,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -404,54 +405,57 @@ func Test_ensureSidecarImages(t *testing.T) {
 
 	t.Run("dry run builds nothing", func(t *testing.T) {
 		// Arrange
-		stubDryRun(t, true)
 		built := stubSidecarBuilds(t)
+		input := run.Input{DryRun: true, ProxyMode: docker.ProxyEnforce, DindEnabled: true}
 
 		// Act
-		err := ensureSidecarImages(cmd, true, true)
+		err := ensureSidecarImages(cmd, input)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Empty(t, *built)
+		assert.Empty(t, built())
 	})
 
 	t.Run("proxy only builds the proxy image", func(t *testing.T) {
 		// Arrange
 		stubLogs(t)
 		built := stubSidecarBuilds(t)
+		input := run.Input{ProxyMode: docker.ProxyEnforce}
 
 		// Act
-		err := ensureSidecarImages(cmd, true, false)
+		err := ensureSidecarImages(cmd, input)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{tools.ProxyImage}, *built)
+		assert.Equal(t, []string{tools.ProxyImage}, built())
 	})
 
 	t.Run("dind only builds the dind image", func(t *testing.T) {
 		// Arrange
 		stubLogs(t)
 		built := stubSidecarBuilds(t)
+		input := run.Input{DindEnabled: true}
 
 		// Act
-		err := ensureSidecarImages(cmd, false, true)
+		err := ensureSidecarImages(cmd, input)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{tools.DindImage}, *built)
+		assert.Equal(t, []string{tools.DindImage}, built())
 	})
 
 	t.Run("both enabled builds both images", func(t *testing.T) {
 		// Arrange
 		stubLogs(t)
 		built := stubSidecarBuilds(t)
+		input := run.Input{ProxyMode: docker.ProxyEnforce, DindEnabled: true}
 
 		// Act
-		err := ensureSidecarImages(cmd, true, true)
+		err := ensureSidecarImages(cmd, input)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{tools.ProxyImage, tools.DindImage}, *built)
+		assert.Equal(t, []string{tools.ProxyImage, tools.DindImage}, built())
 	})
 }
 

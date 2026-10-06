@@ -56,12 +56,20 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	input, err := previewInput(cmd, rc)
+	proxyMode, err := resolveProxyMode(cmd, rc)
 	if err != nil {
 		return err
 	}
 
 	target := run.Target{ToolName: toolName, ImageName: imageName}
+	input := run.Input{
+		ToolHome:    toolHome,
+		Limits:      resolveResourceLimitFlags(cmd),
+		ProxyMode:   proxyMode,
+		DindEnabled: resolveDindEnabled(cmd, rc),
+		DindLimits:  resolveDindResourceLimitFlags(cmd),
+	}
+
 	content, err := run.New(dockerClient).PreviewInstructions(target, input, tools.Configs[toolName], rc)
 	if err != nil {
 		return err
@@ -75,20 +83,4 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 
 	fmt.Print(content)
 	return nil
-}
-
-// previewInput collects the flags that change the generated instructions; mounts, env and credentials don't.
-func previewInput(cmd *cobra.Command, rc *config.AgenticRC) (run.Input, error) {
-	proxyMode, err := resolveProxyMode(cmd, rc)
-	if err != nil {
-		return run.Input{}, err
-	}
-
-	return run.Input{
-		ToolHome:    toolHome,
-		Limits:      resolveResourceLimitFlags(cmd),
-		ProxyMode:   proxyMode,
-		DindEnabled: resolveDindEnabled(cmd, rc),
-		DindLimits:  resolveDindResourceLimitFlags(cmd),
-	}, nil
 }

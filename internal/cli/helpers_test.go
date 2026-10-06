@@ -581,8 +581,8 @@ func stubBuildDindImage(t *testing.T, fn func(image string, opts tools.BuildOpti
 	stubDocker(t, &fakeDocker{buildDindImage: fn})
 }
 
-// stubSidecarBuilds reports both sidecar images missing and records which ones get built.
-func stubSidecarBuilds(t *testing.T) *[]string {
+// stubSidecarBuilds reports both sidecar images missing and returns a getter for the images built.
+func stubSidecarBuilds(t *testing.T) func() []string {
 	t.Helper()
 	var built []string
 	stubDocker(t, &fakeDocker{
@@ -596,14 +596,7 @@ func stubSidecarBuilds(t *testing.T) *[]string {
 			return nil
 		},
 	})
-	return &built
-}
-
-func stubDryRun(t *testing.T, val bool) {
-	t.Helper()
-	prev := dryRun
-	dryRun = val
-	t.Cleanup(func() { dryRun = prev })
+	return func() []string { return built }
 }
 
 func stubTrustStdin(t *testing.T, input string) {

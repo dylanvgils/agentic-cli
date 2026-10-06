@@ -55,7 +55,7 @@ func runClean(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	logCleanPlan(targets)
+	logCleanSummary(targets)
 	if err := svc.Apply(targets); err != nil {
 		return err
 	}
@@ -67,8 +67,8 @@ func runClean(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// logCleanPlan prints the summary line of images about to be removed, or nothing when there are none.
-func logCleanPlan(targets []clean.Target) {
+// logCleanSummary prints the summary line of images about to be removed, or nothing when there are none.
+func logCleanSummary(targets []clean.Target) {
 	if len(targets) == 0 {
 		return
 	}

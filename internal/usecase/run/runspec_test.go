@@ -769,9 +769,10 @@ func Test_runVolumes(t *testing.T) {
 		InstructionsMount: "/snapshot.md:/instructions.md",
 		ReadOnlyMounts:    []string{"/secret:/secret"},
 	}
+	req := buildRequest{in: in, toolConfig: toolConfig, rc: &config.AgenticRC{}}
 
 	// Act
-	result := runVolumes(toolConfig, in, &config.AgenticRC{}, []string{"/marketplace:/marketplace"})
+	result := runVolumes(req, []string{"/marketplace:/marketplace"})
 
 	// Assert
 	assert.Equal(t, []string{

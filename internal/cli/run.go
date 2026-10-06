@@ -45,21 +45,21 @@ type parsedArgs struct {
 	skipEntrypoint bool
 }
 
-// runRequest is what `agentic run` resolved from the working dir, config and args.
-type runRequest struct {
+// invocation is an `agentic run` call resolved against the working dir's config.
+type invocation struct {
+	parsedArgs
 	cwd        string
 	layers     []config.RCLayer
 	rc         *config.AgenticRC
-	args       parsedArgs
 	toolConfig tools.ToolConfig
 }
 
 // target returns the tool and image the run is for.
-func (r runRequest) target() run.Target {
+func (inv invocation) target() run.Target {
 	return run.Target{
-		ToolName:       r.args.toolName,
-		ImageName:      r.args.imageName,
-		SkipEntrypoint: r.args.skipEntrypoint,
+		ToolName:       inv.toolName,
+		ImageName:      inv.imageName,
+		SkipEntrypoint: inv.skipEntrypoint,
 	}
 }
 
@@ -97,105 +97,97 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	}
 
-	req, err := loadRunRequest(cmd, args)
+	inv, err := parseInvocation(cmd, args)
 	if err != nil {
 		return err
 	}
 
-	if err := prepareTool(req); err != nil {
+	if err := requireImage(inv.imageName, inv.toolName); err != nil {
 		return err
 	}
+	if err := checkToolUpdate(inv); err != nil {
+		return err
+	}
+	if err := inv.toolConfig.Runtime.Setup(toolHome); err != nil {
+		return fmt.Errorf("setup %s: %w", inv.toolName, err)
+	}
 
-	if err := approveRun(req); err != nil {
+	if err := checkTrust(inv.cwd, toolHome, trustDir); err != nil {
+		return err
+	}
+	if err := checkCredentials(inv.layers, toolHome); err != nil {
 		return err
 	}
 
 	svc := run.New(dockerClient)
 
-	input, err := resolveRunInput(cmd, svc, req)
+	input, err := resolveRunInput(cmd, svc, inv)
 	if err != nil {
 		return err
 	}
+	if err := ensureSidecarImages(cmd, input); err != nil {
+		return err
+	}
 
-	rs, cleanupInstructions, err := svc.BuildWithInstructions(req.target(), input, req.toolConfig, req.rc)
+	rs, cleanupInstructions, err := svc.BuildWithInstructions(inv.target(), input, inv.toolConfig, inv.rc)
 	if err != nil {
 		return err
 	}
 	defer cleanupInstructions()
 
-	return dockerClient.RunContainer(rs, req.args.toolArgs)
+	return dockerClient.RunContainer(rs, inv.toolArgs)
 }
 
-// loadRunRequest resolves the working dir, project config and tool/image from args.
-func loadRunRequest(cmd *cobra.Command, args []string) (runRequest, error) {
+// parseInvocation loads the working dir's config layers and parses the tool, image and tool args from args.
+func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
 	cwd, _ := os.Getwd()
 	if mount.IsUNCPath(cwd) {
-		return runRequest{}, fmt.Errorf("working directory %q is on a network share; Docker cannot bind-mount UNC paths", cwd)
+		return invocation{}, fmt.Errorf("working directory %q is on a network share; Docker cannot bind-mount UNC paths", cwd)
 	}
 
 	// Load the layers once so the credentials approved later are the ones the run uses
 	layers, err := config.FindLayers(cwd)
 	if err != nil {
-		return runRequest{}, err
+		return invocation{}, err
 	}
 
 	rc, err := config.Merge(layers)
 	if err != nil {
-		return runRequest{}, err
+		return invocation{}, err
 	}
 
 	parsed, err := parseArgs(args, resolveNamespace(cmd, rc))
 	if err != nil {
-		return runRequest{}, err
+		return invocation{}, err
 	}
 
-	return runRequest{
+	return invocation{
+		parsedArgs: parsed,
 		cwd:        cwd,
 		layers:     layers,
 		rc:         rc,
-		args:       parsed,
 		toolConfig: tools.Configs[parsed.toolName],
 	}, nil
 }
 
-// prepareTool makes sure the image exists, offers a due tool update, and creates the tool's host files.
-func prepareTool(req runRequest) error {
-	if err := requireImage(req.args.imageName, req.args.toolName); err != nil {
-		return err
-	}
-
+// checkToolUpdate offers a due update of the tool and applies it when accepted.
+func checkToolUpdate(inv invocation) error {
 	updater := func(tool, image string) error {
-		return update.New(dockerClient).ApplyRecovered(tool, image, req.rc)
-	}
-	if err := toolupdate.New(dockerClient).Check(toolHome, req.rc, req.args.toolName, req.args.imageName, updater); err != nil {
-		return err
+		return update.New(dockerClient).ApplyRecovered(tool, image, inv.rc)
 	}
 
-	if err := req.toolConfig.Runtime.Setup(toolHome); err != nil {
-		return fmt.Errorf("setup %s: %w", req.args.toolName, err)
-	}
-
-	return nil
+	return toolupdate.New(dockerClient).Check(toolHome, inv.rc, inv.toolName, inv.imageName, updater)
 }
 
-// approveRun asks the user to trust the working dir and approve any new or changed proxy credentials.
-func approveRun(req runRequest) error {
-	if err := checkTrust(req.cwd, toolHome, trustDir); err != nil {
-		return err
-	}
-
-	return checkCredentials(req.layers, toolHome)
-}
-
-// resolveRunInput resolves the proxy, credentials and dind settings, ensures their sidecar images, and collects the run flags.
-func resolveRunInput(cmd *cobra.Command, svc *run.Service, req runRequest) (run.Input, error) {
-	proxyMode, err := resolveProxyMode(cmd, req.rc)
+// resolveRunInput resolves the proxy, credentials and dind settings and collects the run flags.
+func resolveRunInput(cmd *cobra.Command, svc *run.Service, inv invocation) (run.Input, error) {
+	proxyMode, err := resolveProxyMode(cmd, inv.rc)
 	if err != nil {
 		return run.Input{}, err
 	}
 
 	// Credentials force the proxy on (see resolve.ProxyMode), so this is a no-op when it is off
-	creds, err := svc.ResolveCredentials(req.layers, toolHome)
+	creds, err := svc.ResolveCredentials(inv.layers, toolHome)
 	if err != nil {
 		return run.Input{}, err
 	}
@@ -203,15 +195,11 @@ func resolveRunInput(cmd *cobra.Command, svc *run.Service, req runRequest) (run.
 		logging.Infof("injecting credentials for %s", describeInjection(creds))
 	}
 
-	dindEnabled := resolveDindEnabled(cmd, req.rc)
+	dindEnabled := resolveDindEnabled(cmd, inv.rc)
 	if dindEnabled {
-		if err := svc.RequireDockerLayer(req.args.imageName, req.args.toolName); err != nil {
+		if err := svc.RequireDockerLayer(inv.imageName, inv.toolName); err != nil {
 			return run.Input{}, err
 		}
-	}
-
-	if err := ensureSidecarImages(cmd, proxyMode.Enabled(), dindEnabled); err != nil {
-		return run.Input{}, err
 	}
 
 	return run.Input{
@@ -283,19 +271,19 @@ func requireImage(image, tool string) error {
 		image, tool, noun, strings.Join(namespaces, ", "), tool)
 }
 
-// ensureSidecarImages builds the enabled sidecars' images when needed; a dry run builds nothing.
-func ensureSidecarImages(cmd *cobra.Command, proxyEnabled, dindEnabled bool) error {
-	if dryRun {
+// ensureSidecarImages builds the images of the sidecars input enables when needed; a dry run builds nothing.
+func ensureSidecarImages(cmd *cobra.Command, input run.Input) error {
+	if input.DryRun {
 		return nil
 	}
 
-	if proxyEnabled {
+	if input.ProxyMode.Enabled() {
 		if err := ensureProxyImage(cmd); err != nil {
 			return err
 		}
 	}
 
-	if dindEnabled {
+	if input.DindEnabled {
 		return ensureDindImage(cmd)
 	}
 

@@ -512,7 +512,7 @@ func Test_logNothingToUpdate(t *testing.T) {
 		logBuf := stubErrLog(t)
 
 		// Act
-		logNothingToUpdate(true, false)
+		logNothingToUpdate(update.Scope{All: true})
 
 		// Assert
 		assert.Contains(t, logBuf.String(), "no agentic images found")
@@ -523,7 +523,7 @@ func Test_logNothingToUpdate(t *testing.T) {
 		logBuf := stubErrLog(t)
 
 		// Act
-		logNothingToUpdate(false, false)
+		logNothingToUpdate(update.Scope{})
 
 		// Assert
 		assert.Contains(t, logBuf.String(), "no tools are built")
@@ -534,20 +534,20 @@ func Test_logNothingToUpdate(t *testing.T) {
 		logBuf := stubErrLog(t)
 
 		// Act
-		logNothingToUpdate(false, true)
+		logNothingToUpdate(update.Scope{HasArgs: true})
 
 		// Assert
 		assert.Empty(t, logBuf.String())
 	})
 }
 
-func Test_logUpdatePlan(t *testing.T) {
+func Test_logUpdateSummary(t *testing.T) {
 	// Arrange
 	logBuf := stubLogs(t)
 	targets := []update.Target{{Name: "claude", Image: "agentic-claude"}, {Name: "copilot", Image: "agentic-copilot"}}
 
 	// Act
-	logUpdatePlan(targets, []string{"agentic-opencode"})
+	logUpdateSummary(targets, []string{"agentic-opencode"})
 
 	// Assert
 	assert.Contains(t, logBuf.String(), "updating 2 image(s): agentic-claude, agentic-copilot")
