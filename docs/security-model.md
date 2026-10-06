@@ -25,6 +25,9 @@ flowchart LR
     ws -- rw --> dind
     tool -- HTTP/S --> proxy -- allowlisted hosts --> net
     tool -- mTLS --> dind --> inner
+    dind -- HTTP/S --> proxy
+    tool -.->|without proxy| net
+    dind -.->|without proxy| net
 ```
 
 Everything inside "Docker host" shares one Linux kernel. That's the boundary all layers below ultimately rest on.
