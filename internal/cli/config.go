@@ -28,24 +28,100 @@ type fieldPrinter struct {
 	err    error
 }
 
+// generalFields prints the top-level fields.
+func (p *fieldPrinter) generalFields() {
+	var (
+		namespace     = func(rc *config.AgenticRC) string { return rc.Namespace }
+		dockerContext = func(rc *config.AgenticRC) string { return rc.DockerContext }
+	)
+
+	p.scalar("namespace", namespace, config.DefaultNamespace)
+	p.scalar("docker_context", dockerContext, "")
+}
+
+// buildFields prints the [build] fields.
+func (p *fieldPrinter) buildFields() {
+	var (
+		aptPackages = func(rc *config.AgenticRC) []string { return rc.Build.AptPackages }
+	)
+
+	p.bases()
+	p.list("apt_packages", aptPackages)
+	p.list("custom_installs", customInstallNames)
+}
+
+// runFields prints the [run] limits and mounts.
+func (p *fieldPrinter) runFields() {
+	var (
+		pidsLimit      = func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
+		cpus           = func(rc *config.AgenticRC) string { return rc.Run.CPUs }
+		memory         = func(rc *config.AgenticRC) string { return rc.Run.Memory }
+		extraMounts    = func(rc *config.AgenticRC) []string { return rc.Run.ExtraMounts }
+		readOnlyMounts = func(rc *config.AgenticRC) []string { return rc.Run.ReadOnlyMounts }
+		secrets        = func(rc *config.AgenticRC) []string { return rc.Run.Secrets }
+	)
+
+	p.scalar("pids_limit", pidsLimit, docker.DefaultPidsLimit)
+	p.scalar("cpus", cpus, docker.DefaultCPUs)
+	p.scalar("memory", memory, docker.DefaultMemory)
+	p.list("extra_mounts", extraMounts)
+	p.list("read_only_mounts", readOnlyMounts)
+	p.list("secrets", secrets)
+}
+
+// proxyFields prints the [run.proxy] fields.
+func (p *fieldPrinter) proxyFields() {
+	var (
+		enabled      = func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
+		mode         = func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }
+		allowedHosts = func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts }
+	)
+
+	p.boolean("proxy.enabled", enabled, false)
+	p.scalar("proxy.mode", mode, config.ModeEnforce)
+	p.list("proxy.allowed_hosts", allowedHosts)
+}
+
+// dindFields prints the [run.dind] fields; unset limits inherit the tool's.
+func (p *fieldPrinter) dindFields() {
+	var (
+		enabled       = func(rc *config.AgenticRC) *bool { return rc.Run.Dind.Enabled }
+		pidsLimit     = func(rc *config.AgenticRC) string { return rc.Run.Dind.PidsLimit }
+		cpus          = func(rc *config.AgenticRC) string { return rc.Run.Dind.CPUs }
+		memory        = func(rc *config.AgenticRC) string { return rc.Run.Dind.Memory }
+		toolPidsLimit = func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
+		toolCPUs      = func(rc *config.AgenticRC) string { return rc.Run.CPUs }
+		toolMemory    = func(rc *config.AgenticRC) string { return rc.Run.Memory }
+	)
+
+	p.boolean("dind.enabled", enabled, false)
+	p.scalar("dind.pids_limit", pidsLimit, effectiveScalar(p.layers, toolPidsLimit, docker.DefaultPidsLimit))
+	p.scalar("dind.cpus", cpus, effectiveScalar(p.layers, toolCPUs, docker.DefaultCPUs))
+	p.scalar("dind.memory", memory, effectiveScalar(p.layers, toolMemory, docker.DefaultMemory))
+}
+
+// scalar prints a scalar field via printScalarField.
 func (p *fieldPrinter) scalar(label string, get func(*config.AgenticRC) string, defaultVal string) {
 	if p.err == nil {
 		p.err = printScalarField(p.w, label, p.layers, get, defaultVal)
 	}
 }
 
+// list prints a list field via printListField.
 func (p *fieldPrinter) list(label string, get func(*config.AgenticRC) []string) {
 	if p.err == nil {
 		p.err = printListField(p.w, label, p.layers, get)
 	}
 }
 
+// boolean prints a bool field via printBoolField.
 func (p *fieldPrinter) boolean(label string, get func(*config.AgenticRC) *bool, defaultVal bool) {
 	if p.err == nil {
 		p.err = printBoolField(p.w, label, p.layers, get, defaultVal)
 	}
 }
 
+// bases prints the bases field via printBasesField.
 func (p *fieldPrinter) bases() {
 	if p.err == nil {
 		p.err = printBasesField(p.w, p.layers)
@@ -74,6 +150,7 @@ func showConfig(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+
 	layers, err := config.FindLayers(cwd)
 	if err != nil {
 		return err
@@ -83,9 +160,11 @@ func showConfig(cmd *cobra.Command, _ []string) error {
 	if err := printGlobalConfig(w, toolHome, cliConfig); err != nil {
 		return err
 	}
+
 	if _, err := fmt.Fprintln(w); err != nil {
 		return err
 	}
+
 	return printProjectConfig(w, layers)
 }
 
@@ -125,31 +204,12 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 		return err
 	}
 
-	pidsLimit := func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
-	cpus := func(rc *config.AgenticRC) string { return rc.Run.CPUs }
-	memory := func(rc *config.AgenticRC) string { return rc.Run.Memory }
-
 	p := &fieldPrinter{w: w, layers: layers}
-	p.scalar("namespace", func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace)
-	p.scalar("docker_context", func(rc *config.AgenticRC) string { return rc.DockerContext }, "")
-	p.bases()
-	p.list("apt_packages", func(rc *config.AgenticRC) []string { return rc.Build.AptPackages })
-	p.list("custom_installs", customInstallNames)
-	p.scalar("pids_limit", pidsLimit, docker.DefaultPidsLimit)
-	p.scalar("cpus", cpus, docker.DefaultCPUs)
-	p.scalar("memory", memory, docker.DefaultMemory)
-	p.list("extra_mounts", func(rc *config.AgenticRC) []string { return rc.Run.ExtraMounts })
-	p.list("read_only_mounts", func(rc *config.AgenticRC) []string { return rc.Run.ReadOnlyMounts })
-	p.list("secrets", func(rc *config.AgenticRC) []string { return rc.Run.Secrets })
-	p.boolean("proxy.enabled", func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }, false)
-	p.scalar("proxy.mode", func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }, config.ModeEnforce)
-	p.list("proxy.allowed_hosts", func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts })
-	p.boolean("dind.enabled", func(rc *config.AgenticRC) *bool { return rc.Run.Dind.Enabled }, false)
-
-	// Unset dind limits inherit the tool's
-	p.scalar("dind.pids_limit", func(rc *config.AgenticRC) string { return rc.Run.Dind.PidsLimit }, effectiveScalar(layers, pidsLimit, docker.DefaultPidsLimit))
-	p.scalar("dind.cpus", func(rc *config.AgenticRC) string { return rc.Run.Dind.CPUs }, effectiveScalar(layers, cpus, docker.DefaultCPUs))
-	p.scalar("dind.memory", func(rc *config.AgenticRC) string { return rc.Run.Dind.Memory }, effectiveScalar(layers, memory, docker.DefaultMemory))
+	p.generalFields()
+	p.buildFields()
+	p.runFields()
+	p.proxyFields()
+	p.dindFields()
 
 	return p.err
 }
@@ -179,10 +239,12 @@ func printScalarField(w io.Writer, label string, layers []config.RCLayer, get fu
 			return err
 		}
 	}
+
 	if defaultVal != "" {
 		_, err := fmt.Fprintf(w, "  %s: %s  (default)\n", label, defaultVal)
 		return err
 	}
+
 	_, err := fmt.Fprintf(w, "  %s: (not set)\n", label)
 	return err
 }
@@ -194,6 +256,7 @@ func effectiveScalar(layers []config.RCLayer, get func(*config.AgenticRC) string
 			return v
 		}
 	}
+
 	return defaultVal
 }
 
@@ -205,6 +268,7 @@ func printBoolField(w io.Writer, label string, layers []config.RCLayer, get func
 			return err
 		}
 	}
+
 	_, err := fmt.Fprintf(w, "  %s: %t  (default)\n", label, defaultVal)
 	return err
 }

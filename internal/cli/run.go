@@ -28,6 +28,16 @@ var (
 	trustDir           bool
 )
 
+var runToolCmd = &cobra.Command{
+	Use:               "run [flags] <tool> [args...]",
+	Short:             "Run a tool container",
+	Long:              `Run a tool container in the current directory.`,
+	Args:              cobra.ArbitraryArgs,
+	ValidArgsFunction: builtToolNamesFunc,
+	RunE:              runTool,
+	Hidden:            false,
+}
+
 type parsedArgs struct {
 	toolName       string
 	imageName      string
@@ -44,14 +54,13 @@ type runRequest struct {
 	toolConfig tools.ToolConfig
 }
 
-var runToolCmd = &cobra.Command{
-	Use:               "run [flags] <tool> [args...]",
-	Short:             "Run a tool container",
-	Long:              `Run a tool container in the current directory.`,
-	Args:              cobra.ArbitraryArgs,
-	ValidArgsFunction: builtToolNamesFunc,
-	RunE:              runTool,
-	Hidden:            false,
+// target returns the tool and image the run is for.
+func (r runRequest) target() run.Target {
+	return run.Target{
+		ToolName:       r.args.toolName,
+		ImageName:      r.args.imageName,
+		SkipEntrypoint: r.args.skipEntrypoint,
+	}
 }
 
 func init() {
@@ -81,15 +90,6 @@ func init() {
 	addDindFlags(runToolCmd)
 	addNamespaceFlag(runToolCmd)
 	addRegistryFlag(runToolCmd)
-}
-
-// target returns the tool and image the run is for.
-func (r runRequest) target() run.Target {
-	return run.Target{
-		ToolName:       r.args.toolName,
-		ImageName:      r.args.imageName,
-		SkipEntrypoint: r.args.skipEntrypoint,
-	}
 }
 
 func runTool(cmd *cobra.Command, args []string) error {
