@@ -44,15 +44,13 @@ Everything inside "Docker host" shares one Linux kernel. That's the boundary all
 | **DinD sidecar** (opt-in, beta, `--dind`): rootless dockerd in its own container, mTLS, seccomp filter, no setuid binaries, sees only `/workspace` | Access to the host's Docker socket (= root on your machine); host files outside `/workspace` | Inner containers get namespaced `SYS_ADMIN`/`NET_ADMIN`, so more kernel surface; an inner container can read the sidecar's own files (incl. its TLS key); `docker push` to an allowlisted registry | `internal/docker/dind.go`, `internal/dind` - see [Docker-in-Docker](docker-in-docker.md) |
 | **Build**: tool install scripts checksum-verified against a pinned SHA256 | A tampered or swapped install script | A malicious release of the tool itself | `internal/tools` |
 
-## Configuring the layers
+## Turning layers on
 
-An egress allowlist proxy can restrict a tool's outbound traffic to a configurable set of hosts and log every connection attempt - fail-closed, so anything not on the allowlist is blocked. Toggle it per run with `--proxy` / `--no-proxy`; use `--proxy-monitor` to log without blocking anything, useful for discovering a new tool's egress needs before writing an allowlist. See [Configuration](config.md#keys) for the `[run.proxy]` config reference and setup details.
+- Egress proxy and credential injection: `--proxy`, `--proxy-monitor`, `[[run.proxy.credentials]]`. See [Egress proxy](egress-proxy.md).
+- DinD sidecar: `--dind`. See [Docker-in-Docker](docker-in-docker.md).
+- Read-only sub-paths: [`read_only_mounts`](config.md#read_only_mounts).
 
-`[[run.proxy.credentials]]` moves static API keys (Anthropic, OpenAI, GitHub, or any header-based token) out of the tool container: the proxy injects them into HTTPS requests to their hosts, and new or changed entries need your approval. See [Credential injection](config.md#credential-injection).
-
-`read_only_mounts` in `.agenticrc.toml` (or `--read-only-mount`) forces a specific sub-path (e.g. a credentials directory) read-only while its parent mount stays writable. See [Configuration](config.md#keys) for the `read_only_mounts` config reference.
-
-At build time, the Claude/Copilot/OpenCode install scripts are downloaded, checksum-verified against a pinned SHA256, then executed - not piped straight into `bash`. A daily scheduled job re-checks each script against the live upstream URL and opens a PR if it has changed, so the pinned checksum stays current without pinning the tool's own version. If a build ever breaks on a stale checksum before that PR lands, `--skip-install-checksum` bypasses verification for that build.
+Install scripts for Claude, Copilot and OpenCode are checked against a pinned SHA256 before they run, not piped straight into `bash`. A daily job opens a PR when an upstream script changes. If a build fails on a stale checksum before that PR lands, `--skip-install-checksum` skips the check for that build.
 
 ## Rules that must never break
 
@@ -69,7 +67,7 @@ If one of these breaks, a layer above stops meaning anything:
 What no layer covers today:
 
 - **Shared kernel**: a kernel exploit escapes every container. Only a VM boundary (Kata, gVisor, [Docker Sandboxes](comparison.md)) fixes this. Keep the host kernel patched.
-- **Credentials in reach**: the agent can read its OAuth login token in the tool home and any `--secret` you mount, and use them from any allowed host. API keys configured as [proxy credentials](config.md#credential-injection) stay out of reach, but the agent can still use them through their hosts during the run.
+- **Credentials in reach**: the agent can read its OAuth login token in the tool home and any `--secret` you mount, and use them from any allowed host. [Proxy-injected API keys](egress-proxy.md#credential-injection) stay out of reach, but can still be used.
 - **Workspace tampering**: the agent can edit git hooks, `Makefile`, `package.json` scripts, etc. They run on *your* machine the next time you use them outside the container. Review diffs.
 - **Exfiltration to allowed hosts**: without `--proxy` the internet is open; with it, data can still go to any allowlisted host.
 

@@ -3,43 +3,45 @@
 > [!WARNING]
 > **Beta** - Docker-in-Docker is under active development. Config keys and behavior may change between releases, and it hasn't had the same testing as the core container hardening. Issue reports are welcome.
 
-Tools never get the host's Docker socket - that would hand the agent root on your machine. Instead, `--dind` (or `enabled = true` under `[run.dind]`) starts a separate, per-run **rootless** Docker daemon in a sidecar container, so the tool can build images, run containers, use `docker compose`, or test devcontainers.
+Tools never get the host's Docker socket, because that would give the agent root on your machine. Instead, `--dind` starts a separate **rootless** Docker daemon in a per-run sidecar. The tool can then build images, run containers, use `docker compose`, or test devcontainers.
 
 ## Usage
 
 ```bash
-# The image needs the Docker CLI layer (once)
-agentic build claude --base docker
-
-# Run with its own Docker daemon
+agentic build claude --base docker   # once: add the Docker CLI layer
 agentic claude --dind
 ```
 
-Or enable it per project in `.agenticrc.toml` - see [`[run.dind]`](config.md#keys) for the config reference:
+Or enable it per project with [`[run.dind]`](config.md#rundind):
 
 ```toml
 [run.dind]
 enabled = true
+memory = "8g" # sidecar only
 ```
 
-The Docker host must allow unprivileged user namespaces (the default on Docker Desktop and most Linux distributions). If the sidecar fails to start, the error includes its logs.
+The Docker host must allow unprivileged user namespaces (the default on Docker Desktop and most Linux distributions). If the sidecar fails to start, the error includes its logs. `agentic config` shows the resolved `[run.dind]` settings. See [Devcontainers](recipes.md#devcontainers) for an example.
 
 ## How it stays isolated
 
-- The tool container keeps every restriction listed under [Security model](overview.md#security-model); it only gains `DOCKER_HOST` and a client cert.
-- The daemon runs as your user (like the tool container), inside a user namespace, never `--privileged`. Files that inner containers write to `/workspace` as root are owned by you. Every other inner-container id maps to a dedicated range starting at 2,000,000,000 that no host account owns, not to your own subuid range. Running agentic as root with `--dind` is refused. To create that namespace the sidecar (only) gets namespace-scoped capabilities, an unconfined AppArmor profile, and `/dev/net/tun`.
-- The sidecar keeps a seccomp filter: Docker's default profile, minus kernel interfaces nested containers don't need (`bpf`, `perf_event_open`, `syslog`, ...). Keyring syscalls stay blocked.
-- The sidecar image (`agentic-dind`) is built locally from the upstream rootless image with every setuid/setgid bit removed, so nothing in it can become root. The id-map helpers get only `CAP_SETUID`/`CAP_SETGID`. It is rebuilt with a fresh base pull at least weekly.
-- The tool reaches the daemon over mutual TLS with throwaway per-run certs. The CA key never touches disk, and containers started through the daemon can't drive it unless they bind-mount the daemon's socket or certs.
-- The daemon only sees `/workspace` (with any `read_only_mounts` under it still read-only) - not the tool home, secrets, or the rest of your filesystem.
-- Images, containers, and volumes are discarded when the run ends. Per-run certs and Docker config (including any `docker login` credentials) are removed too. If a run crashed, the next `agentic` run removes its sidecar, data, and certs once they are a few minutes old, and `agentic clean` removes them right away. Published ports are reachable from the tool at `agentic-docker:<port>`, never from the host.
-- With `--proxy`, the sidecar shares the tool's internal network, so pulls, builds, and containers only reach the outside through the allowlist. Docker Hub is allowlisted automatically; add other registries (e.g. `ghcr.io`, `mcr.microsoft.com`) to `allowed_hosts`. The proxy filters by host only, so an allowlisted registry can also be pushed to.
+- **Tool container**: it keeps all of its [restrictions](security-model.md#layers) and only gains a client cert and the `DOCKER_*` env vars. `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CONFIG` and `DOCKER_CONTEXT` are managed by agentic and can't be overridden.
+- **Rootless daemon**: it runs as your user in a user namespace, never `--privileged`. Running agentic as root with `--dind` is refused.
+- **Id mapping**: files that inner containers write to `/workspace` as root are owned by you. All other inner ids map to a range from 2,000,000,000 that no host account owns.
+- **Sidecar privileges**: only the sidecar gets namespace-scoped capabilities, unconfined AppArmor and `/dev/net/tun`, which it needs to create the user namespace.
+- **Seccomp**: Docker's default profile, minus kernel interfaces nested containers don't need (`bpf`, `perf_event_open`, `syslog`, ...). Keyring syscalls stay blocked.
+- **Image**: `agentic-dind` is built locally from `docker:<version>-dind-rootless`, with all setuid/setgid bits removed. Only the id-map helpers get `CAP_SETUID`/`CAP_SETGID`. It is rebuilt with a fresh pull at least weekly.
+- **Mutual TLS**: per-run throwaway certs, and the CA key never touches disk. Inner containers can't drive the daemon unless they bind-mount its socket or certs.
+- **Filesystem**: the daemon sees only `/workspace` (`read_only_mounts` under it stay read-only), not the tool home, secrets or anything else.
+- **Cleanup**: images, containers, volumes, certs and Docker config (including `docker login` credentials) are removed when the run ends. After a crash, the next `agentic` run removes them once they are a few minutes old, and `agentic clean` removes them right away.
+- **Ports**: published ports are reachable from the tool at `agentic-docker:<port>`, never from the host.
+- **With `--proxy`**: the sidecar shares the tool's internal network, so pulls, builds and containers go through the allowlist. The Docker CLI config passes the proxy to containers and builds. Docker Hub is allowed automatically. Add other registries (e.g. `ghcr.io`) to `allowed_hosts`.
 
 ## Trade-offs
 
-- The agent can start containers with namespace-scoped `CAP_SYS_ADMIN`/`CAP_NET_ADMIN`, which exposes kernel interfaces (e.g. nf_tables, mounts, nested user namespaces) that a plain container can't reach. Isolation then rests on the host kernel's user-namespace code, so keep the Docker host's kernel patched.
-- The sidecar has its own `--pids-limit`/`--cpus`/`--memory`, on top of the tool's, shared by everything the daemon runs. They default to the tool's limits (so a run can use up to twice them); set `[run.dind]` `pids_limit`/`cpus`/`memory` or `--dind-pids-limit`/`--dind-cpus`/`--dind-memory` to size the daemon separately. Images and volumes live on the Docker host's disk with no size limit.
+- Inner containers get namespace-scoped `CAP_SYS_ADMIN`/`CAP_NET_ADMIN`, which exposes kernel interfaces (nf_tables, mounts, nested user namespaces) that a plain container can't reach. Keep the host kernel patched.
+- The proxy filters by host only, so the agent can also push to an allowed registry.
+- The sidecar's limits default to the tool's, so a run can use up to twice them. Images and volumes use the Docker host's disk with no size limit.
+- An inner container can read the sidecar's own files, including its TLS key.
+- Proxy-injected credentials don't work in inner containers (see [Limitations](egress-proxy.md#limitations)).
 
-See [Security model](security-model.md) for how this fits with the other layers and what risk is left.
-
-See [Devcontainers](recipes.md#devcontainers) for testing devcontainers through the sidecar.
+See [Security model](security-model.md) for how this fits with the other layers.

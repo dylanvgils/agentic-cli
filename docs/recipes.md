@@ -4,9 +4,9 @@ Worked setups for common cases.
 
 ## Java build tools
 
-Maven and Gradle are **not** included in the Java base image. Instead, use the wrappers that come with your project (`mvnw` / `gradlew`). Wrappers are committed to the repo and download the exact build tool version the project requires on first run - this avoids version mismatches and keeps the image lean.
+Maven and Gradle aren't in the Java image. Use the project's wrappers (`mvnw` / `gradlew`), which download the exact version the project needs.
 
-To generate a wrapper if your project doesn't have one yet:
+To add a wrapper:
 
 ```bash
 # Maven
@@ -16,13 +16,13 @@ mvn wrapper:wrapper
 gradle wrapper
 ```
 
-Use named volumes to persist the download cache across container runs:
+Keep the download cache in named volumes:
 
 ```bash
 agentic run -v 'maven:$CONTAINER_HOME/.m2' -v 'gradle:$CONTAINER_HOME/.gradle' claude
 ```
 
-Or add to `.agenticrc.toml` in the repo root so the whole team picks it up:
+Or share it with the team through `.agenticrc.toml`:
 
 ```toml
 # .agenticrc.toml
@@ -35,9 +35,7 @@ extra_mounts = [
 
 ## Maven through the egress proxy
 
-With `--proxy` on, Maven needs its own proxy setting pointed at the `agentic-proxy:3128` sidecar (background: [Pointing a tool's own proxy setting at the egress proxy](config.md#pointing-a-tools-own-proxy-setting-at-the-egress-proxy)).
-
-Maven only reads proxy settings from `settings.xml`'s `<proxies>` section, not `MAVEN_OPTS` or the standard proxy env vars. Mount a `settings.xml` pointing at `agentic-proxy:3128`, with a `<proxy>` entry per URL scheme - Maven matches `<protocol>` against the repository URL (not the connection to the proxy itself), and most registries including Maven Central serve over `https`:
+Maven ignores the proxy env vars, so with `--proxy` on, mount a `settings.xml` that points at `agentic-proxy:3128` ([why](egress-proxy.md#tools-that-ignore-proxy-env-vars)). Maven matches `<protocol>` against the repository URL, so add a `<proxy>` for each scheme:
 
 ```xml
 <!-- settings.xml -->
@@ -71,11 +69,11 @@ enabled = true
 allowed_hosts = ["repo.maven.apache.org"]
 ```
 
-Pointing `<proxies>` at an _external_ corporate proxy instead would bypass agentic's egress allowlist entirely, since that traffic never reaches the `agentic-proxy` sidecar - only routing through `agentic-proxy` keeps Maven's traffic subject to `allowed_hosts`.
+Don't point `<proxies>` at an external corporate proxy, because that traffic would skip the allowlist.
 
 ## Per-project image set
 
-Building separate images for a Java project:
+Separate images for a Java project:
 
 ```toml
 # ~/projects/java-app/.agenticrc.toml
@@ -89,11 +87,11 @@ apt_packages = ["make"]
 java = "17"
 ```
 
-Then `agentic build claude` creates `java-app-claude` with the Java layer, while the default `agentic-claude` remains untouched.
+`agentic build claude` then creates `java-app-claude` and leaves `agentic-claude` untouched.
 
 ## Devcontainers
 
-To test devcontainers, add Node.js and the devcontainer CLI, then run `devcontainer up --workspace-folder /workspace` from inside the tool:
+Add Node.js and the devcontainer CLI, enable [DinD](docker-in-docker.md), then run `devcontainer up --workspace-folder /workspace` from inside the tool:
 
 ```toml
 [build]

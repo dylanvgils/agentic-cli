@@ -1,30 +1,17 @@
 # Overview
 
-Agentic CLI runs agentic coding tools (Claude Code, GitHub Copilot, OpenCode) inside isolated Docker containers. Each tool gets a read-only filesystem with only the mounts it needs - your workspace and its own config directory. Nothing else is accessible, no root, no leftover state when the container exits.
+Agentic CLI runs agentic coding tools (Claude Code, GitHub Copilot, OpenCode) in isolated Docker containers. A tool sees only your workspace and its own config directory. It runs without root, on a read-only filesystem, and leaves nothing behind when it exits.
 
-## Security model
+## Security
 
-Containers run with:
+Containers run read-only as your own user, with all capabilities dropped, no privilege escalation, resource limits, and an isolated network. A tool that needs to write somewhere gets a targeted mount, and nothing else is writable. Opt-in layers add an [egress proxy](egress-proxy.md) and a [Docker-in-Docker sidecar](docker-in-docker.md).
 
-- Read-only filesystem
-- All Linux capabilities dropped
-- No privilege escalation (`no-new-privileges`)
-- Host UID/GID mapping - the container process runs as your user, so file permissions on mounted directories work correctly
-- `/tmp` limited to 1 GB
-- Isolated Docker network (`agentic-net`) - containers cannot reach other containers on the host, only the internet
-- Optional egress allowlist proxy - restrict a tool to a configurable set of hosts and log every connection attempt (see [config.md](config.md#keys))
-- Optional Docker-in-Docker - a per-run rootless Docker daemon in a separate sidecar, reached over mutual TLS; the tool container itself keeps every constraint above and never sees the host's Docker socket (see [docker-in-docker.md](docker-in-docker.md))
+Each run also tells the model about these limits through [environment instructions](config.md#runinstructions).
 
-When a tool needs to write somewhere (config, cache, temp files), it gets a targeted mount - a named volume or bind mount for persistent state, or a tmpfs for ephemeral scratch space. Nothing gets write access unless explicitly granted.
-
-See [volume-mounts.md](volume-mounts.md) for a per-tool breakdown of what's mounted and why, and [security-model.md](security-model.md) for what each layer stops and the risk that's left.
-
-These constraints (and what's installed) are also written into each tool's own global instructions file at run time, so the model itself knows what it can and can't do up front - see [Environment instructions](usage.md#environment-instructions).
+See [Security model](security-model.md) for what each layer stops, and [Volume mounts](volume-mounts.md) for what's mounted.
 
 ## Motivation
 
-Agentic coding tools are powerful - but that power comes at a cost. They do come with guard rails, but they still run with the same permissions as your user. You're trusting the tool not to access anything you didn't intend to give it - and that's a hard sell if you want to experiment without fully trusting the tool. Agentic runs the tool in a locked-down container instead, so it can only touch what you explicitly hand it. Docker Sandboxes offers a VM boundary instead - see [Comparison](comparison.md) for the trade-offs.
+Coding agents have guard rails, but they still run with all of your user's permissions. Agentic runs them in a locked-down container instead, so they can only touch what you hand them. It also makes daily use easy: one command to build or update a tool, and config that's picked up per project automatically.
 
-Beyond isolation, agentic also aims to make working with these tools practical day-to-day: a single command to build or update any tool, and a flexible configuration system that works globally or per-project so the right settings are always picked up automatically.
-
-It's also a side project for learning how to build and work with AI-assisted tooling.
+[Docker Sandboxes](comparison.md) offers a VM boundary instead. Agentic is also a side project for learning to build AI-assisted tooling.

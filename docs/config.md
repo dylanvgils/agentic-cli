@@ -1,25 +1,32 @@
 # Configuration
 
-Agentic is configured through two layers, applied in order of increasing specificity: `.agenticrc.toml` project files, then CLI flags. List-type settings accumulate across all layers; scalar settings use the most specific value.
+Agentic reads settings from three places:
 
-`AGENTIC_HOME` is the one exception - a plain environment variable, since it must be resolvable before any `.agenticrc.toml` can even be located (default `$HOME/.agentic`).
-## `agentic.json` (global config)
+- `agentic.json` holds machine-wide settings.
+- `.agenticrc.toml` files hold per-directory settings.
+- CLI flags hold per-run settings.
 
-Stored in `$AGENTIC_HOME/agentic.json` (default `~/.agentic/agentic.json`). Machine-level settings applied to all projects; edit directly with any text editor.
+For a scalar setting, the most specific value wins. List settings add up across all three (see [Precedence](#precedence)). Run `agentic config` to see the merged result for the current directory and which file set each value.
 
-| Key                        | Type   | Description                                                                                                                   | CLI flag           |
-| -------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| `trusted_dirs`             | list   | Directories trusted to run tools from without an interactive prompt                                                           | `--trust-dir`      |
-| `registry`                 | scalar | Registry prefix for base image pulls (e.g. `myregistry.example.com`). See below.                                              | `--registry`       |
-| `docker_context`           | scalar | Machine-wide default Docker context. See [`docker_context`](#docker_context) below.                                           | `--docker-context` |
-| `proxy_log_retention_days` | scalar | Days to keep egress proxy access logs before they're pruned automatically. Default: `3`.                                      | -                  |
-| `last_update_check`        | scalar | Timestamp of the last automatic update check. Managed automatically - do not edit by hand.                                    | -                  |
-| `last_tool_version_check`  | object | Per-tool timestamps of the last automatic tool-update check, keyed by tool name. Managed automatically - do not edit by hand. | -                  |
-| `approved_credentials`     | object | Hash of each `.agenticrc.toml`'s approved `[[run.proxy.credentials]]` entries, keyed by file path. A new or changed entry prompts again, and non-interactive runs fail until it is approved. Managed automatically - do not edit by hand. | -                  |
+`AGENTIC_HOME` (default `$HOME/.agentic`) is a plain environment variable. It has to be known before any config file can be found.
+
+## `agentic.json`
+
+Stored at `$AGENTIC_HOME/agentic.json`. Edit it with any text editor.
+
+| Key                        | Type   | Description                                                             | CLI flag           |
+| -------------------------- | ------ | ----------------------------------------------------------------------- | ------------------ |
+| `trusted_dirs`             | list   | Directories you can run tools from without an interactive trust prompt | `--trust-dir`      |
+| `registry`                 | scalar | Registry prefix for base image pulls. See [Registry proxy](#registry-proxy). | `--registry`       |
+| `docker_context`           | scalar | Machine-wide default Docker context. See [Precedence](#precedence).     | `--docker-context` |
+| `proxy_log_retention_days` | scalar | Days to keep [egress proxy](egress-proxy.md) logs. Default: `3`.        | -                  |
+| `last_update_check`        | scalar | Managed automatically.                                                  | -                  |
+| `last_tool_version_check`  | object | Managed automatically.                                                  | -                  |
+| `approved_credentials`     | object | Your [credential](egress-proxy.md#credential-injection) approvals. Managed automatically. | -                  |
 
 ### Registry proxy
 
-To pull Docker Hub images through a registry proxy (Harbor, Nexus, Artifactory, AWS ECR pull-through cache), set `registry`:
+To pull Docker Hub images through a registry proxy (Harbor, Nexus, Artifactory, an ECR pull-through cache), set `registry`. Agentic prefixes every base image name with it. Run `docker login` for the registry yourself.
 
 ```json
 {
@@ -27,23 +34,11 @@ To pull Docker Hub images through a registry proxy (Harbor, Nexus, Artifactory, 
 }
 ```
 
-Agentic prefixes all base image names with this value at build time. Authentication is out of scope - run `docker login myregistry.example.com` once.
+`--registry` overrides it for one build: `agentic build claude --registry myregistry.example.com`.
 
-`--registry` overrides `agentic.json` for a single build:
+## `.agenticrc.toml`
 
-```bash
-agentic build claude --registry myregistry.example.com
-```
-
-Run `agentic config` to see the active registry setting.
-
-## `.agenticrc.toml` files
-
-Place `.agenticrc.toml` in any directory to apply settings there and in subdirectories. `agentic` walks up from `$PWD`, collecting every `.agenticrc.toml` found, and stops at a file with `root = true` or the filesystem root.
-
-### File format
-
-Standard [TOML](https://toml.io). Build-time and runtime settings live in separate `[build]` and `[run]` sections; `root` and `namespace` are top-level keys.
+A `.agenticrc.toml` applies to its directory and all subdirectories. `agentic` walks up from `$PWD` and collects every file it finds. The walk stops at a file with `root = true`, or at the filesystem root. See [Merge semantics](#merge-semantics) for how the files combine.
 
 ```toml
 # .agenticrc.toml
@@ -63,48 +58,43 @@ env = ["NODE_OPTIONS=--max-old-space-size=4096"]
 pids_limit = "2048"
 ```
 
-### Editor validation and autocomplete
+### Editor validation
 
-A JSON Schema for `.agenticrc.toml` is published at [`agenticrc.schema.json`](../agenticrc.schema.json). Point your `.agenticrc.toml` at it with a `#:schema` comment on the first line:
-
-```toml
-#:schema ./agenticrc.schema.json
-root = true
-```
-
-From a project outside this repo, reference it by URL instead:
+Add a `#:schema` comment on the first line to get validation and autocomplete from [`taplo`](https://taplo.tamasfe.dev/)-based editors, such as VS Code's "Even Better TOML" extension or Neovim's `taplo` server:
 
 ```toml
 #:schema https://raw.githubusercontent.com/dylanvgils/agentic-cli/main/agenticrc.schema.json
 ```
 
-This is read by [`taplo`](https://taplo.tamasfe.dev/), the TOML toolkit behind VSCode's "Even Better TOML" extension - it works the same way in any other taplo-backed editor integration, including Neovim via `nvim-lspconfig`'s `taplo` server.
+Inside this repo, use the local file instead: `#:schema ./agenticrc.schema.json`.
 
-### Keys
+### Top-level keys
 
-**Top-level**
+| Key              | Type   | Description                                                                                  | Default   |
+| ---------------- | ------ | -------------------------------------------------------------------------------------------- | --------- |
+| `root`           | bool   | Stop the upward directory walk at this file                                                  | -         |
+| `namespace`      | string | Image namespace. Images are named `<namespace>-<tool>`. See [Per-project image set](recipes.md#per-project-image-set). | `agentic` |
+| `docker_context` | string | [Docker context](usage.md#docker-context) to use for this project                            | -         |
 
-| Key              | Type   | Description                                                                                                            | Default   |
-| ---------------- | ------ | ---------------------------------------------------------------------------------------------------------------------- | --------- |
-| `root`           | bool   | Stop the upward directory walk at this file                                                                            | -         |
-| `namespace`      | string | Image namespace. Images are named `<namespace>-<tool>` (e.g. `myproject-claude`). Allows multiple image sets per tool. | `agentic` |
-| `docker_context` | string | Docker context to use for this project. See [`docker_context`](#docker_context) below.                                 | -         |
+### `[build]`
 
-**`[build]` section** - applied at `agentic build` / `agentic update` time
+Applied by `agentic build` and `agentic update`. See [Images](images.md) for what each setting does to the image.
 
-| Key               | Type           | Description                                                                                                                                                                   | CLI flag                  | Default |
-| ----------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------- |
-| `bases`           | list           | Extra runtime layers to add on top of the node base (e.g. `["java", "dotnet"]`). Accumulates across RC layers and with `--base`; `--base-exact` replaces it entirely instead. | `--base` / `--base-exact` | -       |
-| `apt_packages`    | list           | Extra Debian packages to install in the base image. Accumulates across RC layers and with `--apt`; `--apt-exact` replaces it entirely instead.                                | `--apt` / `--apt-exact`   | -       |
-| `versions`        | TOML table     | Per-layer version pins. Written as `[build.versions]` with `node`, `java`, `dotnet`, `go`, or `docker` keys. Innermost value wins per key.                                              | `--<layer>`               | -       |
-| `custom_installs` | list of tables | Non-apt tools installed via arbitrary shell commands. See `[[build.custom_installs]]` below.                                                                                  | -                         | -       |
+| Key               | Type           | Description                                                                 | CLI flag                  |
+| ----------------- | -------------- | --------------------------------------------------------------------------- | ------------------------- |
+| `bases`           | list           | Extra runtime layers (e.g. `["java", "dotnet"]`)                            | `--base` / `--base-exact` |
+| `apt_packages`    | list           | Extra Debian packages                                                       | `--apt` / `--apt-exact`   |
+| `versions`        | table          | `[build.versions]` pins for `node`, `java`, `dotnet`, `go` or `docker`      | `--<layer>`               |
+| `custom_installs` | list of tables | Tools installed with shell commands. See below.                             | -                         |
 
-**`[[build.custom_installs]]`** - non-apt tools (e.g. `helm`, `golangci-lint`) installed via arbitrary shell commands, applied unconditionally at build time - not gated by a `--<name>` flag the way `bases` extras are
+### `[[build.custom_installs]]`
 
-| Key    | Type   | Description                                                                                                                                                                          | Default |
-| ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
-| `name` | string | Identifier for this install; must match `^[a-zA-Z0-9._-]+$`, unique across all merged `.agenticrc.toml` layers. Shown as a comment in the generated `RUN` and in `agentic config`.   | -       |
-| `run`  | list   | Shell commands run as-is, in declaration order, in one Docker `RUN` layer per entry. No sandboxing, checksum, or allowlist - same trust level as a Dockerfile checked into the repo. | -       |
+Installs a tool that isn't available through apt (e.g. `helm`, `golangci-lint`).
+
+| Key    | Type   | Description                                                                                        |
+| ------ | ------ | -------------------------------------------------------------------------------------------------- |
+| `name` | string | Identifier, must match `^[a-zA-Z0-9._-]+$` and be unique across all merged files. Shown in the generated `RUN` and in `agentic config`. |
+| `run`  | list   | Shell commands, each its own `RUN` layer, run as-is. No sandboxing, checksum or allowlist: the same trust level as a Dockerfile in the repo. |
 
 ```toml
 [[build.custom_installs]]
@@ -115,29 +105,51 @@ run = [
 ]
 ```
 
-Each entry becomes its own Dockerfile stage `RUN`, inserted after any `--base` extras (`docker`/`dotnet`/`go`/`java`/`node`) and before the tool's own install step - so a custom install can rely on any requested extra's toolchain being on `PATH` (e.g. a `go install`-based install can assume `--base go` already ran). rc-only: no CLI flag equivalent, unlike `bases`/`apt_packages`. Unlike those two, `agentic update` does not ignore `custom_installs` from rc - it always reflects the current file, since there's no per-image label recovery for it (the `agentic.custom-installs` label is informational only, shown by `agentic inspect <tool>` - it's never read back to decide what to rebuild). Editing an entry's `run` always takes effect on the next `build`/`update` via normal Docker layer-cache invalidation on the changed `RUN` command.
+- These run after the `bases` layers and before the tool install, so they can use any requested runtime (e.g. `go install` with `--base go`).
+- Commands run as root. Install into `/usr/local/bin` or `/opt`, not `$HOME`, because the container user can't use root-owned files in its home.
+- There's no CLI flag for this setting. `agentic update` always uses the current file, and editing `run` rebuilds that layer.
 
-`custom_installs` commands run as root, in a build stage before the container's non-root tool user is created (the same ordering `apt_packages`/`bases` already use). Install into a root-owned system path such as `/usr/local/bin` or `/opt` rather than `$HOME` - files written under the tool user's home directory will end up root-owned, and containers run `--read-only` as a non-root user at runtime, so such files would be unusable.
+### `[run]`
 
-**`[run]` section** - applied at `agentic run` time
+Applied by `agentic run`.
 
-| Key                | Type   | Description                                                                                                                                                                                                                                                                                                                                                               | CLI flag            | Default |
-| ------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ------- |
-| `extra_mounts`     | list   | Extra mounts passed to `docker run`. Bind: `host/path:container/path`. Named volume: `name:container/path`. Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`, `$PWD`. Bind mounts are read-only unless you add `:rw`.                                                                                                                                               | `-v`                | -       |
-| `read_only_mounts` | list   | Sub-paths to force read-only even when their parent mount is writable. Format: `host/path:container/path` (`:ro` is always applied - any suffix you give is ignored), or a bare `sub/path` with no `:` as shorthand for a path relative to the workspace (expands to `$PWD/sub/path:/workspace/sub/path`). Supports `~`, `$HOME`, `$TOOL_HOME`, `$CONTAINER_HOME`, `$PWD` | `--read-only-mount` | -       |
-| `secrets`          | list   | Files to mount read-only into the container. Format: `name:/path/to/file[:/container/path]`. Defaults to `/run/secrets/<name>`. Supports `~`, `$HOME`, `$CONTAINER_HOME` (container path only)                                                                                                                                                                            | `-s`                | -       |
-| `env`              | list   | Environment variables to set in the container. Format: `KEY=VALUE`, or bare `KEY` to forward the host's current value. Cannot target a reserved name (see [env](#env) below)                                                                                                                                                                                              | `-e`                | -       |
-| `pids_limit`       | string | Container PID limit (e.g. `"1024"`)                                                                                                                                                                                                                                                                                                                                       | `--pids-limit`      | `1024`  |
-| `cpus`             | string | Container CPU limit (e.g. `"4"`)                                                                                                                                                                                                                                                                                                                                          | `--cpus`            | `4`     |
-| `memory`           | string | Container memory limit (e.g. `"8g"`)                                                                                                                                                                                                                                                                                                                                      | `--memory`          | `4g`    |
-| `check_updates`    | bool   | Periodically check upstream for a newer tool version during `agentic run` (at most once every 6 hours per tool) and offer to update. A pointer internally so an inner config can explicitly disable a check enabled by an outer one.                                                                                                                                      | -                   | `true`  |
+| Key                | Type   | Description                                                                                                       | CLI flag            | Default |
+| ------------------ | ------ | ----------------------------------------------------------------------------------------------------------------- | ------------------- | ------- |
+| `extra_mounts`     | list   | Bind mounts or named volumes, with the same syntax as [`-v`](usage.md#named-docker-volumes)                       | `-v`                | -       |
+| `read_only_mounts` | list   | Sub-paths forced read-only inside a writable mount. See below.                                                    | `--read-only-mount` | -       |
+| `secrets`          | list   | Files mounted read-only, with the same format as [`-s`](usage.md#secrets)                                         | `-s`                | -       |
+| `env`              | list   | `KEY=VALUE`, or bare `KEY` to forward the host value. See [Environment variables](usage.md#environment-variables). | `-e`                | -       |
+| `pids_limit`       | string | Container PID limit                                                                                               | `--pids-limit`      | `1024`  |
+| `cpus`             | string | Container CPU limit                                                                                               | `--cpus`            | `4`     |
+| `memory`           | string | Container memory limit (e.g. `"8g"`)                                                                              | `--memory`          | `4g`    |
+| `check_updates`    | bool   | Check for a newer tool version on run. See [Versions and updates](images.md#versions-and-updates).               | -                   | `true`  |
 
-**`[run.instructions]` section** - environment instructions written into each tool's global instructions file (see [Environment instructions](usage.md#environment-instructions))
+Mount paths support [placeholders](#mount-variable-expansion).
 
-| Key       | Type   | Description                                                                                                                                                 | Default |
-| --------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `enabled` | bool   | Write the generated environment-instructions block. A pointer internally so an inner config can explicitly disable a block enabled by an outer one.         | `true`  |
-| `custom`  | string | Free text appended after the generated sections. Accumulates across RC layers like a list key (outermost first, separated by a blank line), not overridden. | -       |
+#### `read_only_mounts`
+
+Each entry makes one sub-path read-only while its parent mount stays writable, e.g. to protect a credentials directory. Entries always mount last, so they win over any overlapping mount. `:ro` is always applied, so any suffix you add is ignored. A bare entry with no `:` is relative to the workspace:
+
+```toml
+[run]
+read_only_mounts = [".git", ".credentials"]
+# same as ["$PWD/.git:/workspace/.git", "$PWD/.credentials:/workspace/.credentials"]
+```
+
+### `[run.instructions]`
+
+Controls the environment-instructions block that each run writes into the tool's own global instructions file:
+
+| Tool        | File                                |
+| ----------- | ----------------------------------- |
+| Claude Code | `~/.claude/CLAUDE.md`               |
+| OpenCode    | `~/.config/opencode/AGENTS.md`      |
+| Copilot CLI | `~/.copilot/copilot-instructions.md` |
+
+| Key       | Type   | Description                                                   | Default |
+| --------- | ------ | ------------------------------------------------------------- | ------- |
+| `enabled` | bool   | Write the block                                               | `true`  |
+| `custom`  | string | Text appended after the generated sections                    | -       |
 
 ```toml
 [run.instructions]
@@ -146,87 +158,47 @@ Always run `go test ./...` before considering a task finished.
 """
 ```
 
-Written into the tool's own global instructions file - `~/.claude/CLAUDE.md` (Claude Code), `~/.config/opencode/AGENTS.md` (OpenCode), `~/.copilot/copilot-instructions.md` (Copilot CLI) - a location each tool already reads automatically on startup, separate from any project-level `CLAUDE.md`/`AGENTS.md` you own in the repo, so it never collides with your own instructions.
+The block tells the model about its environment, and says the project's own `CLAUDE.md`/`AGENTS.md` wins on conflicts. It covers:
 
-The block is delimited by markers and only the content between them is ever replaced - anything else in the file, whether added by hand or by the tool itself at runtime (e.g. Claude Code's own memory/"remember this" feature), is left untouched across runs, including when `enabled = false` turns the block off entirely. Each run gets its own private, freshly-generated snapshot of the file for the container's lifetime, so concurrent runs of the same tool across projects never bleed instructions, resource limits, or proxy settings into each other; anything added to the file during a run is folded back into the persisted copy once the container exits.
+- **What's installed**: the base toolchain, runtimes, apt packages and custom installs, read from the built image. The base toolchain is listed even before the first build.
+- **What's restricted**: the read-only filesystem, writable paths, resource limits and dropped privileges.
+- **Network**, with `--proxy`: no direct internet access, the allowlist, and a note to tell you about blocked hosts so you can allow them.
+- **Docker**, with `--dind`: how to reach the sidecar daemon and its ports, and that only `/workspace` is shared with it.
 
-Preview the exact content a run would write, without starting a container:
+The rest of the file is left alone, including notes the tool saves there itself, even with `enabled = false`. Each run works on a private copy of the file, so concurrent runs don't affect each other. Changes made during the run are copied back when the container exits.
 
-```bash
-agentic instructions claude
-agentic instructions claude --proxy
-```
+Preview the block with `agentic instructions claude` (add `--proxy` to include the network section).
 
-The generated block opens with a precedence note - it only describes the container environment, not coding conventions, so the project's own instructions file (`CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`) wins on conflicts. It then covers:
-
-- **What's installed** - base toolchain (a static default, listed even before the image is built), extra runtimes, apt packages, and custom installs, read from the built image's labels so they reflect what's actually running, not a possibly stale `.agenticrc.toml`
-- **What's restricted** - read-only filesystem, writable paths, resource limits, dropped privileges
-- **Network access**, when the egress proxy is enabled - no direct internet access, plus the allowlist when enforced, with the same "tell the user so they can add it" note for a blocked host
-- **Docker**, when `--dind` is enabled - how to reach the sidecar daemon and its published ports, and that only `/workspace` is shared with it
-
-**`[run.proxy]` section** - egress allowlist proxy
+### `[run.proxy]`
 
 > [!WARNING]
-> **Beta** - the egress proxy and credential injection are under active development. Config keys and behavior may change between releases, and they haven't had the same testing as the core container hardening. Issue reports are welcome.
+> **Beta** - see [Egress proxy](egress-proxy.md).
 
-| Key             | Type   | Description                                                                                                                                                                                                               | CLI flag                 | Default     |
-| --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ----------- |
-| `enabled`       | bool   | Route the tool's egress through the allowlist proxy. `enabled` is a pointer internally so an inner config can explicitly disable a proxy enabled by an outer one.                                                         | `--proxy` / `--no-proxy` | `false`     |
-| `mode`          | string | `"enforce"` blocks disallowed hosts; `"monitor"` logs the allowlist verdict without blocking anything. Setting `mode = "monitor"` implies the proxy is enabled, unless `enabled = false` is also set (which always wins). | `--proxy-monitor`        | `"enforce"` |
-| `allowed_hosts` | list   | Extra hosts to permit, merged on top of the tool's baseline. Exact match (e.g. `"api.github.com"`), or a leading-dot / `*.` entry to match a domain and all its subdomains (e.g. `".github.com"`).                        | -                        | -           |
+| Key             | Type   | Description                                                                                       | CLI flag                 | Default     |
+| --------------- | ------ | ------------------------------------------------------------------------------------------------- | ------------------------ | ----------- |
+| `enabled`       | bool   | Route egress through the allowlist proxy                                                          | `--proxy` / `--no-proxy` | `false`     |
+| `mode`          | string | `"enforce"` blocks hosts not on the allowlist, `"monitor"` only logs them. `"monitor"` turns the proxy on unless `enabled = false`. | `--proxy-monitor`        | `"enforce"` |
+| `allowed_hosts` | list   | Hosts added to the tool's baseline. Exact (`"api.github.com"`), or `.`/`*.` prefix for a domain and its subdomains (`".github.com"`). | -                        | -           |
 
-When enabled, the tool container loses direct internet access and reaches the outside only through a proxy sidecar on a per-run internal Docker network. Blocked hosts print at the end of the run; every attempt is logged as JSON lines under `$AGENTIC_HOME/logs/` (as `proxy_<id>.jsonl`). The sidecar is reachable via auto-injected `HTTP_PROXY`/`HTTPS_PROXY`, or at the stable alias `agentic-proxy:3128` for tools needing a literal hostname (see [below](#pointing-a-tools-own-proxy-setting-at-the-egress-proxy)). The sidecar and its network are removed when the run ends; if a run crashed, the next `agentic` run removes them once they are a few minutes old, and `agentic clean` removes them right away.
-
-`--proxy-monitor` (or `mode = "monitor"`) never blocks - every host succeeds, including ones missing from the allowlist. The access log still records the real verdict (`"decision": "allow"` or `"deny"`), tagged `"enforced": false`; `docker logs` lines get a `(monitor)` suffix. At the end of the run, agentic reports the hosts that _would_ have been blocked, so you can fill the allowlist gap before switching to real `--proxy` enforcement. Use this to discover a new tool's egress needs before writing an allowlist.
-
-Each proxy-enabled run prunes access logs older than a retention window (default 3 days), set via `proxy_log_retention_days` in `agentic.json` (host-level, not per-project). To wipe all logs regardless of age, run `agentic proxy clean --logs`.
-
-Each tool ships a baseline allowlist that `allowed_hosts` merges on top of. The proxy image builds on demand on the first `--proxy` run, or explicitly via `agentic proxy build`/`agentic proxy update` (see [Development](development.md#building-the-proxy-image-locally)).
-
-| Tool       | Baseline host        | Purpose                             |
-| ---------- | -------------------- | ----------------------------------- |
-| `claude`   | `.anthropic.com`     | Claude API and telemetry subdomains |
-| `claude`   | `.claude.ai`         | installer and asset downloads       |
-| `claude`   | `.claude.com`        | OAuth/login flow                    |
-| `copilot`  | `.githubcopilot.com` | Copilot API and subdomains          |
-| `copilot`  | `api.github.com`     | GitHub API used for authentication  |
-| `opencode` | `opencode.ai`        | OpenCode auth and update checks     |
-
-OpenCode is multi-provider, so only its own auth/update host is included by default - add your chosen model-provider hosts via `allowed_hosts`.
-
-`agentic config` shows resolved `proxy.enabled`, `proxy.mode`, and `proxy.allowed_hosts` (plus `dind.enabled` and the sidecar limits `dind.pids_limit`, `dind.cpus`, `dind.memory`) for the current directory, tagged with the `.agenticrc.toml` that set them (tool baseline hosts aren't included - they're fixed per tool, not configurable).
-
-```toml
-[run.proxy]
-enabled = true
-mode = "monitor" # or "enforce" (default)
-allowed_hosts = [
-  "registry.npmjs.org",
-  ".github.com",
-]
-```
-
-#### Credential injection
+### `[[run.proxy.credentials]]`
 
 > [!WARNING]
-> **Beta** - see the note on [`[run.proxy]`](#keys).
+> **Beta** - see [Credential injection](egress-proxy.md#credential-injection).
 
-`[[run.proxy.credentials]]` keeps API keys out of the tool container. The proxy sidecar holds the real secret and sets it as a header on HTTPS requests to the entry's hosts. Inside the container, the entry's env vars only hold the placeholder `agentic-proxy-managed`, so tools that refuse to start without a key still run.
+| Key      | Type   | Description                                                                                              |
+| -------- | ------ | -------------------------------------------------------------------------------------------------------- |
+| `preset` | string | `anthropic`, `openai` or `github`. Can't be combined with `hosts`, `header` or `format`.                 |
+| `hosts`  | list   | Exact hostnames or IPs, no wildcards. Required without `preset`. A host may appear in only one entry.    |
+| `header` | string | Header to set, e.g. `"Authorization"`. Required without `preset`. Hop-by-hop, `Host` and `Content-Length` are refused. |
+| `format` | string | Wraps the secret, with exactly one `%s`, e.g. `"Bearer %s"`. Default: the bare secret.                   |
+| `env`    | list   | Tool env vars set to the placeholder. Replaces a preset's own list.                                      |
+| `secret` | string | Required. Host file with the secret: an absolute path, or one starting with `~`/`$HOME`. One line, at most 64 KiB. Other sources (`keychain:`) are reserved. |
 
-| Key      | Type   | Description                                                                                                                                         |
-| -------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `preset` | string | `anthropic`, `openai` or `github` (see below). Can't be combined with `hosts`, `header` or `format`.                                               |
-| `hosts`  | list   | Exact hostnames or IPs to inject into, no wildcards. Required without `preset`.                                                                     |
-| `header` | string | Header to set, e.g. `"Authorization"`. Required without `preset`. Hop-by-hop headers and `Host`/`Content-Length` are refused.                       |
-| `format` | string | Wraps the secret, with exactly one `%s`, e.g. `"Bearer %s"`. Default: the bare secret.                                                              |
-| `env`    | list   | Tool env vars set to the placeholder. Replaces a preset's own list.                                                                                 |
-| `secret` | string | Required. Host file holding the secret: an absolute path, or one starting with `~`/`$HOME`. One line, at most 64 KiB. Other sources (`keychain:`) are reserved. |
-
-| Preset      | Hosts and header                                                                                              | Env                         |
-| ----------- | ------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `anthropic` | `api.anthropic.com`: `X-Api-Key: <secret>`                                                                    | `ANTHROPIC_API_KEY`         |
-| `openai`    | `api.openai.com`: `Authorization: Bearer <secret>`                                                            | `OPENAI_API_KEY`            |
-| `github`    | `api.github.com`: `Authorization: Bearer <secret>`; `github.com`: basic auth as `x-access-token`, for git over HTTPS | `GITHUB_TOKEN`, `GH_TOKEN`  |
+| Preset      | Hosts and header                                                                                                      | Env                        |
+| ----------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `anthropic` | `api.anthropic.com`: `X-Api-Key: <secret>`                                                                            | `ANTHROPIC_API_KEY`        |
+| `openai`    | `api.openai.com`: `Authorization: Bearer <secret>`                                                                    | `OPENAI_API_KEY`           |
+| `github`    | `api.github.com`: `Authorization: Bearer <secret>`; `github.com`: basic auth as `x-access-token`, for git over HTTPS | `GITHUB_TOKEN`, `GH_TOKEN` |
 
 ```toml
 [[run.proxy.credentials]]
@@ -241,67 +213,32 @@ env = ["EXAMPLE_TOKEN"]
 secret = "~/.secrets/example_token"
 ```
 
-How it works:
-
-- **Proxy on**: credentials turn the proxy on in enforce mode (monitor mode still applies if set), and their hosts join the allowlist. `--no-proxy` or `enabled = false` together with credentials is an error.
-- **Only credential hosts are decrypted**: the proxy terminates TLS for them with a per-run CA that can only sign those hosts, and always overwrites the header. Every other host stays an end-to-end encrypted tunnel. Plain HTTP is never injected, and terminated hosts speak HTTP/1.1. Access log entries for them carry `"injected": true`.
-- **Secrets stay on the host side**: agentic reads each secret at the start of the run and copies it straight into the proxy sidecar, which is removed with its data when the run ends. A secret file inside the current directory or inside any path mounted into the tool container is refused, as the agent could read or replace it.
-- **Approval**: entries need your approval when they first appear in an `.agenticrc.toml` and again whenever they change, since an agent can edit config files in the workspace. The prompt lists each entry's preset or hosts and secret path; non-interactive runs fail until approved. Approvals live in `approved_credentials` in `agentic.json`. Each run then prints `agentic: injecting credentials for <hosts> (<secret path>)`.
-- **Merging**: entries accumulate across config levels like `allowed_hosts`. A host may appear in only one entry.
-
-The tool trusts the per-run CA through its entrypoint, which appends it to the system bundle and points `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `GIT_SSL_CAINFO`, `REQUESTS_CA_BUNDLE` and `NODE_EXTRA_CA_CERTS` at the result. That covers OpenSSL, Go, curl, git, Python and Node/Bun. With credentials configured:
-
-- These vars, `AGENTIC_PROXY_CA` and the entries' `env` names can't be set via `env` or `--env`.
-- Images built before this feature fail with a hint to run `agentic update <tool>`.
-- `agentic run <tool> -- <cmd>` skips the entrypoint, so it only warns: TLS to credential hosts fails in that run.
-- Java uses its own truststore and doesn't see the CA.
-
-Limitations:
-
-- **Static keys only**: OAuth logins (Claude subscription, Copilot device flow) keep their token in the tool home. Note that setting a key's env var (e.g. `ANTHROPIC_API_KEY`) switches the tool to API-key auth.
-- **Copilot**: the `github` preset injects the GitHub token, but Copilot trades it for a short-lived Copilot token that comes back in a response body, where the agent can read it.
-- **Use, not theft**: the agent can't read the key, but it can still make authenticated requests to the credential's hosts while the run lasts.
-- **Docker-in-Docker**: containers started through `--dind` don't trust the proxy CA, so TLS to credential hosts fails there.
-
-#### Pointing a tool's own proxy setting at the egress proxy
-
-`HTTP_PROXY`/`HTTPS_PROXY` (and lowercase variants) are auto-injected whenever the proxy is enabled, so most tools need no extra configuration. Some tools ignore these env vars and require a literal host:port instead - Maven is an example: it only reads proxy settings from `settings.xml`'s `<proxies>` section, not `MAVEN_OPTS` or the standard proxy env vars.
-
-For these cases, the sidecar is reachable at the stable hostname `agentic-proxy:3128` - unlike its actual Docker container name (randomized per run), this hostname is safe to hardcode once in the tool's own config. See [Maven through the egress proxy](recipes.md#maven-through-the-egress-proxy) for a walkthrough.
-
-**`[run.dind]` section** - rootless Docker-in-Docker sidecar
+### `[run.dind]`
 
 > [!WARNING]
 > **Beta** - see [Docker-in-Docker](docker-in-docker.md).
 
-| Key          | Type   | Description                                                                                                                                                                                                      | CLI flag               | Default      |
-| ------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------ |
-| `enabled`    | bool   | Start a per-run rootless Docker daemon sidecar the tool reaches via `DOCKER_HOST`. The image needs the `docker` base layer (`--base docker`). A pointer internally, so an inner config can disable an outer one. | `--dind` / `--no-dind` | `false`      |
-| `pids_limit` | string | Sidecar PID limit, shared by everything the daemon runs. Unset inherits the tool container's `pids_limit`.                                                                                                       | `--dind-pids-limit`    | tool's value |
-| `cpus`       | string | Sidecar CPU limit. Unset inherits the tool container's `cpus`.                                                                                                                                                   | `--dind-cpus`          | tool's value |
-| `memory`     | string | Sidecar memory limit (e.g. `"8g"`). Unset inherits the tool container's `memory`.                                                                                                                                | `--dind-memory`        | tool's value |
+| Key          | Type   | Description                                                             | CLI flag               | Default      |
+| ------------ | ------ | ----------------------------------------------------------------------- | ---------------------- | ------------ |
+| `enabled`    | bool   | Start a per-run rootless Docker sidecar. Needs `--base docker`.         | `--dind` / `--no-dind` | `false`      |
+| `pids_limit` | string | Sidecar PID limit                                                       | `--dind-pids-limit`    | tool's value |
+| `cpus`       | string | Sidecar CPU limit                                                       | `--dind-cpus`          | tool's value |
+| `memory`     | string | Sidecar memory limit (e.g. `"8g"`)                                      | `--dind-memory`        | tool's value |
 
-When enabled, `agentic run` generates throwaway TLS certs, builds the hardened `agentic-dind` image if needed (from `docker:<version>-dind-rootless`, setuid bits stripped, rebuilt at least weekly), starts it as your uid (inner-container ids map to a dedicated unused range from 2,000,000,000) with a derived seccomp profile on a per-run network (or the proxy's internal network when `--proxy` is on), waits for the daemon, and removes the sidecar, its images, and the certs when the run ends. `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CONFIG`, and `DOCKER_CONTEXT` are managed for the run and can't be overridden via `env`. With the proxy on, Docker Hub hosts are added to the allowlist automatically, and the CLI's `config.json` passes the proxy into containers and builds started through the sidecar. See [Docker-in-Docker](docker-in-docker.md) for the isolation model, and [Devcontainers](recipes.md#devcontainers) for an example.
+### `[[marketplaces]]`
 
-```toml
-[run.dind]
-enabled = true
-memory = "8g" # sidecar only; pids_limit and cpus inherit the tool's
-```
+Git-based plugin marketplaces to sync on the host and mount read-only into tool containers. See [Marketplaces](usage.md#marketplaces) for how syncing and cleanup work.
 
-**`[[marketplaces]]`** - git-based plugin marketplaces (skills, agents, commands, hooks, MCP servers, synced and mounted together as a single unit) to sync onto the host and mount read-only into every applicable tool's container
-
-| Key     | Type   | Description                                                                                                                                                                                                                                                                                                     | Default               |
-| ------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `name`  | string | Identifier for this marketplace. Must match `^[a-zA-Z0-9._-]+$` - becomes a container mount path segment. Not required to be globally unique: the host clone is keyed by `url` alone, so two projects may give the same `url` different `name`s (or the same `name` to different `url`s) without any collision. | -                     |
-| `url`   | string | Git URL to clone (anything `git clone` accepts - `https://`, `git@host:...`, etc).                                                                                                                                                                                                                              | -                     |
-| `tools` | list   | Tool names this marketplace is mounted into (currently `claude`, `copilot`). Omit to mount into every tool that supports marketplaces.                                                                                                                                                                          | every supporting tool |
+| Key     | Type   | Description                                                                                     | Default               |
+| ------- | ------ | ----------------------------------------------------------------------------------------------- | --------------------- |
+| `name`  | string | Local name, must match `^[a-zA-Z0-9._-]+$`. Used as the mount path `~/marketplaces/<name>`.     | -                     |
+| `url`   | string | Any URL `git clone` accepts                                                                     | -                     |
+| `tools` | list   | Tools to mount it into (`claude`, `copilot`)                                                    | every supporting tool |
 
 ```toml
 [[marketplaces]]
 name = "acme-plugins"
 url  = "git@github.com:acme/plugin-marketplace.git"
-# tools omitted -> mounted into every tool that supports it (claude, copilot)
 
 [[marketplaces]]
 name = "claude-only-thing"
@@ -309,32 +246,19 @@ url  = "git@github.com:acme/claude-extras.git"
 tools = ["claude"]
 ```
 
-Before each `agentic run`/`agentic <tool>`, every applicable marketplace is synced on the host - cloned if new, or `git fetch` + `git reset --hard @{upstream}` if already cloned - using the invoking user's own git auth (SSH agent, credential helper, `~/.netrc`); no credentials enter the container. Requires `git` on the host `PATH`. A failed first clone fails the run; a failed fetch on an already-cloned marketplace just warns and reuses the (possibly stale) existing clone.
+## Merge semantics
 
-The clone is bind-mounted read-only, so the container itself never touches git. Clones are shared across tools and projects: the host path is `$AGENTIC_HOME/marketplaces/<slug>-<hash>/`, a pure function of `url` (`<hash>` a short hash of it, `<slug>` a label derived from it - not from `name`), so any project referencing the same `url` reuses the same clone regardless of the local `name` it gives it. Each tool mounts it at the neutral, agentic-owned path `~/marketplaces/<name>` rather than inside its own config tree, so it never collides with marketplace state a tool persists for itself.
+The file closest to the filesystem root is the _outermost_. The file in `$PWD` is the _innermost_.
 
-Mounting isn't registering: each tool only recognizes marketplaces it has explicitly added to its own config, not whatever is present on disk. So each tool's `entrypoint.sh` adds every currently-mounted name (`claude`/`copilot plugin marketplace add <dir>`) and removes any previously-registered, agentic-managed marketplace that's no longer mounted (`... remove <name>`) - so deleting a `[[marketplaces]]` entry cleans itself up the next time that project runs. Copilot warns rather than fails on error, and (unlike Claude) has no `--json` list output, so its entrypoint parses the plain `NAME (Local: PATH)` lines from `copilot plugin marketplace list` instead - see `internal/tools/copilot.go`.
+- **List keys** (`bases`, `apt_packages`, `custom_installs`, `extra_mounts`, `read_only_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `proxy.credentials`, `marketplaces`) add up, outermost first.
+- **Scalar keys** take the innermost value. Booleans count as scalars, so `enabled = false` in an inner file overrides an outer `true`.
+- **`versions`** is resolved per key, so a child can pin `java` and still inherit `node`.
+- **`instructions.custom`** adds up like a list, joined by blank lines.
 
-Usage is tracked in `$AGENTIC_HOME/marketplaces/.usage.json`, keyed by clone + local `name`, so multiple projects can share a clone under different names. `agentic marketplaces list` shows every clone and which project(s)/name(s) reference it (a clone under two names shows as two rows sharing a URL); `agentic marketplaces prune` deletes clones with no live project reference left, re-checking each recorded project's current config first - a clone survives as long as any one of its recorded names is still live. A clone with no usage record (e.g. placed manually) is left alone. `agentic clean` does not touch marketplace clones.
-
-### Merge semantics
-
-Multiple `.agenticrc.toml` files merge. The walk starts at `$PWD` and moves upward, so the file closest to the root is the _outermost_ and the file in `$PWD` is the _innermost_.
-
-- **List keys** (`bases`, `apt_packages`, `custom_installs`, `extra_mounts`, `read_only_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `proxy.credentials`, `marketplaces`): values from all levels accumulate, outermost first.
-- **Scalar keys** (`pids_limit`, `cpus`, `memory`, `namespace`, `docker_context`): the innermost (child) value wins; outer files fill in any keys the inner file does not set.
-- **`instructions.custom`**: text from all levels accumulates like a list key (outermost first, joined by a blank line), rather than the innermost overriding it - each layer's text is additive context, not a single setting. `instructions.enabled` is a scalar key: the innermost (child) value wins.
-- **`versions` table**: each layer name is resolved independently - innermost value wins per key, so a child can pin `java` without affecting `node` inherited from a parent.
-
-```
-~/projects/.agenticrc.toml              ← outermost (root=true stops the walk here)
-~/projects/my-project/.agenticrc.toml  ← innermost ($PWD)
-```
-
-Given these two files:
+Example, with `root = true` keeping configs above `~/projects` out:
 
 ```toml
-# ~/projects/.agenticrc.toml
+# ~/projects/.agenticrc.toml (outermost)
 root = true
 
 [build]
@@ -345,7 +269,7 @@ cpus = "4"
 ```
 
 ```toml
-# ~/projects/my-project/.agenticrc.toml
+# ~/projects/my-project/.agenticrc.toml (innermost)
 [build]
 apt_packages = ["gcc"]
 
@@ -353,181 +277,44 @@ apt_packages = ["gcc"]
 cpus = "8"
 ```
 
-The effective configuration is `apt_packages = ["make", "gcc"]` and `cpus = "8"` (child wins for scalars).
+Result: `apt_packages = ["make", "gcc"]` and `cpus = "8"`.
 
 ## Precedence
 
-Scalar settings (`namespace`, `cpus`, `memory`, `pids_limit`, `versions`, `docker_context`) resolve down this chain, stopping at the first source that sets a value:
+The first source that sets a scalar wins:
 
-```mermaid
-flowchart TD
-    A["CLI flag<br/>(--cpus, --namespace, --java, ...)"] -->|set| Z[Effective value]
-    A -->|not set| B[".agenticrc.toml<br/>innermost file wins"]
-    B -->|set| Z
-    B -->|not set| C["agentic.json<br/>(docker_context only)"]
-    C -->|set| Z
-    C -->|not set| D[Built-in default]
-    D --> Z
-```
+| Setting                        | Resolution order                                                                         |
+| ------------------------------ | ---------------------------------------------------------------------------------------- |
+| `namespace`                    | `--namespace`, then the innermost file, then `agentic`                                   |
+| `versions`                     | `--<layer>` (e.g. `--java 17`), then `[build.versions]`, then the bundled default        |
+| `pids_limit`, `cpus`, `memory` | flag, then the innermost file, then `1024` / `4` / `4g`                                  |
+| `[run.dind]` limits            | `--dind-*` flag, then `[run.dind]`, then the tool's resolved value                       |
+| `docker_context`               | `--docker-context`, then the innermost file, then `agentic.json`, then the Docker CLI's own choice (including `DOCKER_CONTEXT`) |
 
-List settings (`bases`, `apt_packages`, `extra_mounts`, `read_only_mounts`, `secrets`, `env`, `marketplaces`) don't follow this chain - every source contributes and the values accumulate, as described under [Merge semantics](#merge-semantics) above. The per-key sections below cover the exact accumulation order for each.
+List settings combine instead:
 
-### `apt_packages`
+| Setting                   | How it combines                                                                     |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| `bases`, `apt_packages`   | Files (outermost first), then `--base`/`--apt`. Duplicates removed.                 |
+| `extra_mounts`, `secrets` | Files and `-v`/`-s` combined                                                        |
+| `read_only_mounts`        | `--read-only-mount` first, then files                                               |
+| `env`                     | Files, then `-e`. The last value for a key wins. Some names are [reserved](usage.md#environment-variables). |
 
-Packages accumulate across both sources:
-
-1. `.agenticrc.toml` files (outermost first)
-2. `--apt` flag
-
-Duplicates are removed while preserving order. The resolved list is verified with `apt-cache show` before the build starts (fail-fast).
-
-`--apt-exact` bypasses this accumulation entirely: it replaces the resolved list outright, ignoring every `.agenticrc.toml` layer's `apt_packages`. For `agentic update`, it also wins over the previously-built image's per-image label recovery, which otherwise reuses whatever packages the image was last built with. Pass `--apt-exact=` (empty) to install no extra packages at all, even if some are configured. `--apt` and `--apt-exact` are mutually exclusive.
-
-### `bases`
-
-Extra runtime layers accumulate across RC files and the `--base` flag:
-
-1. `.agenticrc.toml` files (outermost first)
-2. `--base` flag (appended, deduplicated)
-
-`--base-exact` bypasses this accumulation entirely: it replaces the resolved list outright, ignoring every `.agenticrc.toml` layer's `bases`. For `agentic update`, it also wins over the previously-built image's per-image label recovery, which otherwise reuses whatever extras the image was last built with. Pass `--base-exact=` (empty) to build with debian only, even if extras are configured. `--base` and `--base-exact` are mutually exclusive.
-
-### `versions`
-
-Per-layer version resolution (highest to lowest priority):
-
-1. `--<layer>` flag (e.g. `--java 17`)
-2. `.agenticrc.toml` `[build.versions]` - innermost value wins per key
-3. Built-in default (from the bundled `versions.json`)
-
-### `extra_mounts` and `secrets`
-
-These accumulate too: the `-v`/`-s` flag values and RC values are collected independently and combined at runtime.
-
-Bind mounts from either source are read-only unless the entry ends in `:rw` (e.g. `"~/repo2:/repo2:rw"`); named volumes stay read-write.
-
-### `read_only_mounts`
-
-Each entry forces one sub-path read-only, even though its parent directory (`$PWD`, a tool's own state dir, ...) stays writable - useful for keeping a credentials sub-directory or similar off-limits to writes without splitting it into a separate, fully-read-only mount elsewhere. Under the hood this relies on plain Docker bind-mount behavior: agentic places `read_only_mounts` entries last in the assembled mount list, so they shadow any overlapping read-write mount for that sub-path specifically (the same mechanism marketplace mounts already use to stay read-only alongside a tool's writable state). Order in the TOML file itself doesn't matter - agentic always places these last regardless of where they appear.
-
-A bare entry with no `:` is shorthand for a path relative to the workspace - it expands to the same sub-path on both sides, under `$PWD` on the host and `/workspace` in the container:
-
-```toml
-[run]
-read_only_mounts = [".git", ".credentials"]
-```
-
-is equivalent to:
-
-```toml
-[run]
-read_only_mounts = ["$PWD/.git:/workspace/.git", "$PWD/.credentials:/workspace/.credentials"]
-```
-
-`--read-only-mount` sets the same thing per invocation and accumulates with the config list (`--read-only-mount` values first, then `read_only_mounts`).
-
-### `env`
-
-`.agenticrc.toml` `env` entries and `-e`/`--env` flags accumulate, but on a duplicate key `-e` wins - RC entries apply first, and the last `--env` for a given key takes effect, matching `docker run -e` itself.
-
-`-e`/`--env` values are visible inside the container and via `docker inspect`/`ps` - use `-s`/`--secret` for tokens or credentials instead, or [credential injection](#credential-injection) for API keys the agent shouldn't see at all.
-
-`TZ` is auto-forwarded from the host's detected timezone, alongside the terminal-capability vars (`COLORTERM`, `TERM`, `NO_COLOR`, `FORCE_COLOR`); an explicit `-e TZ=...` or `.agenticrc.toml` `env` entry overrides it like any other auto-forwarded var.
-
-### `namespace`
-
-Resolution priority (highest to lowest):
-
-1. `--namespace` flag
-2. `.agenticrc.toml` `namespace` - innermost (child) value wins
-3. Built-in default (`agentic`)
-
-With the default namespace, images are named `agentic-claude`, `agentic-copilot`, etc.
-
-See [Per-project image set](recipes.md#per-project-image-set) for an example.
-
-### `docker_context`
-
-Selects which [Docker context](https://docs.docker.com/engine/manage-resources/contexts/) `agentic` talks to - useful with multiple Docker contexts (e.g. local + remote) when you want a specific one instead of whatever's currently active.
-
-Resolution priority (highest to lowest):
-
-1. `--docker-context` flag
-2. `.agenticrc.toml` `docker_context` - innermost (child) value wins
-3. `agentic.json` `docker_context` (machine-wide default)
-4. Unset - defers to the docker CLI's own context resolution, unchanged (including its `DOCKER_CONTEXT` environment variable, if set)
-
-```toml
-# .agenticrc.toml
-docker_context = "prod"
-```
-
-`--docker-context` tab-completes against `docker context ls`. `agentic status` prints the active context (when non-default) above the container table, and `agentic config` shows the resolved value from both `agentic.json` and the merged `.agenticrc.toml` layers.
-
-### Scalar settings (`pids_limit`, `cpus`, `memory`)
-
-Resolution priority (highest to lowest):
-
-1. CLI flag (`--pids-limit`, `--cpus`, `--memory`) on `agentic run`
-2. `.agenticrc.toml` - innermost (child) value wins
-3. Built-in default (`1024`, `4`, `4g`)
-
-The Docker sidecar's limits resolve the same way through `--dind-pids-limit`/`--dind-cpus`/`--dind-memory` and `[run.dind]`, then fall back to the tool's resolved value instead of the built-in default.
-
-## Using `root = true`
-
-`root = true` marks a boundary in the directory walk - useful for monorepos with a shared config at the repo root and per-project configs in subdirectories, without picking up configs from outside the repo:
-
-```toml
-# ~/projects/.agenticrc.toml - shared config for all projects
-root = true
-
-[build]
-apt_packages = ["make"]
-
-[run]
-secrets = ["gh-token:~/.secrets/gh_token"]
-```
-
-```toml
-# ~/projects/my-project/.agenticrc.toml - project-specific additions
-[build]
-apt_packages = ["gcc"]
-
-[run]
-extra_mounts = ["maven:$CONTAINER_HOME/.m2"]
-cpus = "8"
-```
-
-Running `agentic` from `~/projects/my-project` merges both files and stops; `~/projects` is not traversed further even if a `.agenticrc.toml` exists above it.
+`--base-exact` and `--apt-exact` replace the list instead of adding to it. They ignore config files and, during `agentic update`, the list the image was built with. `--base-exact=` or `--apt-exact=` (empty) means none at all. Each can't be combined with its non-exact flag.
 
 ## Mount variable expansion
 
-These placeholders expand in mount strings (`extra_mounts`, `read_only_mounts`, `-v`, `--read-only-mount`) at runtime, so paths aren't hardcoded per machine or per tool:
+Mount strings (`extra_mounts`, `read_only_mounts`, `-v`, `--read-only-mount`) expand these placeholders at runtime. The `${VAR}` form works too.
 
-| Placeholder         | Side of `:`       | Expands to                                                                  |
-| ------------------- | ----------------- | --------------------------------------------------------------------------- |
-| `~`                 | host (left)       | Your home directory                                                         |
-| `$HOME`             | host (left)       | Same as above                                                               |
-| `${HOME}`           | host (left)       | Same as above                                                               |
-| `$TOOL_HOME`        | host (left)       | Agentic data directory (e.g. `~/.agentic`)                                  |
-| `${TOOL_HOME}`      | host (left)       | Same as above                                                               |
-| `$PWD`              | host (left)       | Current working directory (the same directory bind-mounted as `/workspace`) |
-| `${PWD}`            | host (left)       | Same as above                                                               |
-| `$CONTAINER_HOME`   | container (right) | Container home directory (e.g. `/home/claude`)                              |
-| `${CONTAINER_HOME}` | container (right) | Same as above                                                               |
+| Placeholder       | Side of `:`       | Expands to                                 |
+| ----------------- | ----------------- | ------------------------------------------ |
+| `~`, `$HOME`      | host (left)       | Your home directory                        |
+| `$TOOL_HOME`      | host (left)       | Agentic data directory (e.g. `~/.agentic`) |
+| `$PWD`            | host (left)       | Current directory, mounted as `/workspace` |
+| `$CONTAINER_HOME` | container (right) | Container home (e.g. `/home/claude`)       |
 
-Use single quotes (or escape the `$`) so the shell doesn't expand the variables before passing them to `agentic`:
+Single-quote them so your shell doesn't expand them first:
 
 ```bash
 agentic run -v '$TOOL_HOME/custom:$CONTAINER_HOME/.custom:rw' claude
-agentic run -v '~/.m2:$CONTAINER_HOME/.m2:rw' -v '~/.gradle:$CONTAINER_HOME/.gradle:rw' claude
-```
-
-## Inspecting the merged config
-
-Run `agentic config` to see the merged result of all active `.agenticrc.toml` files for the current directory:
-
-```
-agentic config
 ```

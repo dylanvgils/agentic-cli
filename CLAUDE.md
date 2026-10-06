@@ -34,6 +34,8 @@ The Docker-in-Docker sidecar is split the same way: `internal/dind` generates it
 
 `internal/certs` issues the per-run CAs and leaf certs shared by `internal/dind` and the proxy; it must import only the standard library so `agentic-proxy` can link it.
 
+`internal/credentials` reads secrets on the host and hands them to the proxy as `proxy.Credential` values; `internal/proxy` must never import it.
+
 ## Key commands
 
 ```bash
