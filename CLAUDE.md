@@ -61,6 +61,7 @@ Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-sp
 ### Docker access
 
 - All Docker calls go through a `*docker.Client` (`docker.New(ctx)`); never add package-level Docker funcs or mutable Docker state.
+- `Client` methods are Docker operations, optionally scoped to agentic's labels; deciding what their results mean (e.g. whether to rebuild) belongs in the calling usecase or command.
 - `internal/cli` holds the one client in `dockerClient`, rebuilt for the resolved context in `persistentPreRunE`, and calls it through its `dockerAPI` interface (`internal/cli/deps.go`).
 - Each usecase declares a small `Docker` interface of only the methods it uses, in its `deps.go`, with a compile-time check `var _ Docker = (*docker.Client)(nil)` in `deps_test.go`.
 - A usecase holds it in `type Service struct{ docker Docker }`, built with `New(d Docker) *Service`. Every exported entry point is a `Service` method; an unexported helper is a method only if it calls Docker. Callers name the instance `svc`.

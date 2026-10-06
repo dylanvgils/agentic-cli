@@ -16,7 +16,8 @@ import (
 type fakeDocker struct {
 	listAllImages func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	inspectImage  func(string) (*docker.ImageInfo, error)
-	updateTool    func(tool, image string, opts tools.BuildOptions) error
+	buildTool     func(tool, image string, opts tools.BuildOptions) error
+	restampImage  func(image string, info docker.ImageInfo)
 }
 
 func (f *fakeDocker) ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -33,11 +34,17 @@ func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
 	return f.inspectImage(name)
 }
 
-func (f *fakeDocker) UpdateTool(tool, image string, opts tools.BuildOptions) error {
-	if f.updateTool == nil {
+func (f *fakeDocker) BuildTool(tool, image string, opts tools.BuildOptions) error {
+	if f.buildTool == nil {
 		return nil
 	}
-	return f.updateTool(tool, image, opts)
+	return f.buildTool(tool, image, opts)
+}
+
+func (f *fakeDocker) RestampImage(image string, info docker.ImageInfo) {
+	if f.restampImage != nil {
+		f.restampImage(image, info)
+	}
 }
 
 // inspectReturns returns an InspectImage func that always yields info and err.
@@ -55,11 +62,18 @@ func inspectSequence(results ...*docker.ImageInfo) func(string) (*docker.ImageIn
 	}
 }
 
-func stubLatestToolVersion(t *testing.T, latest string, newer, ok bool) {
+// stubLatestToolVersion makes LatestToolVersion return latest, newer, ok and returns a getter for how often it was called.
+func stubLatestToolVersion(t *testing.T, latest string, newer, ok bool) func() int {
 	t.Helper()
+	calls := 0
 	orig := LatestToolVersion
-	LatestToolVersion = func(string, string) (string, bool, bool) { return latest, newer, ok }
+	LatestToolVersion = func(string, string) (string, bool, bool) {
+		calls++
+		return latest, newer, ok
+	}
 	t.Cleanup(func() { LatestToolVersion = orig })
+
+	return func() int { return calls }
 }
 
 // captureStdout replaces os.Stdout with a pipe and returns what was written (e.g. DryRun's Dockerfile output); for logging.Step/Detail output, use captureLog.

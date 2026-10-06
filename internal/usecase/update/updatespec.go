@@ -3,6 +3,8 @@ package update
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -99,9 +101,19 @@ func (s *Service) Apply(name, image string, opts tools.BuildOptions) error {
 		logging.Detail("apt: (none, exact)")
 	}
 
-	s.reportBeforeUpdate(name, image)
+	info, err := s.docker.InspectImage(image)
+	if err != nil {
+		info = nil
+	}
 
-	return s.docker.UpdateTool(name, image, opts)
+	upToDate := false
+	if info != nil {
+		latest, newer, ok := LatestToolVersion(name, info.Version)
+		reportBeforeUpdate(info.Version, latest, newer, ok)
+		upToDate = ok && !newer
+	}
+
+	return s.rebuild(name, image, info, upToDate, opts)
 }
 
 func (s *Service) resolveAll(filterTool string, opts tools.BuildOptions, pullExplicit bool) ([]Target, error) {
@@ -157,24 +169,42 @@ func (s *Service) resolveScoped(names []string, hasArgs bool, namespace string, 
 	return targets, skipped, nil
 }
 
-// reportBeforeUpdate prints the predicted version line, skipping unbuilt or inconclusive cases.
-func (s *Service) reportBeforeUpdate(name, image string) {
-	info, err := s.docker.InspectImage(image)
-	if err != nil || info == nil {
-		return
+// rebuild restamps an up-to-date image, or rebuilds it with base/version/apt recovered from info's labels.
+func (s *Service) rebuild(tool, image string, info *docker.ImageInfo, upToDate bool, opts tools.BuildOptions) error {
+	hasUserApt := len(opts.AptPackages) > 0
+	userPkgs := opts.AptPackages
+	opts.VerifyApt = hasUserApt
+
+	if info != nil {
+		if !opts.NoCache && !opts.Pull && upToDate {
+			s.docker.RestampImage(image, *info)
+			return nil
+		}
+
+		opts.BaseOverride = docker.RecoveredBaseOverride(info, opts)
+
+		if info.VersionArgs != "" {
+			opts.Versions = mergeVersions(docker.RecoverVersionArgs(info.VersionArgs), opts.Versions)
+		}
+
+		var recoveredPkgs []string
+		opts.AptPackages, recoveredPkgs = docker.RecoveredAptPackages(info, opts)
+		if recoveredPkgs != nil {
+			opts.VerifyApt = hasUserApt && hasNewAptPackages(userPkgs, recoveredPkgs)
+		}
 	}
 
-	before := docker.ParseVersion(info.Version)
-	latest, newer, ok := LatestToolVersion(name, info.Version)
-	if !ok {
-		return
+	if !opts.NoCache && upToDate {
+		// Reuse the existing CacheBust (LabelCacheBust) instead of clearing it,
+		// or Docker's cache falls back to a stale unrelated build.
+		if info != nil {
+			opts.CacheBust = info.CacheBust
+		}
+	} else if opts.CacheBust == "" {
+		opts.CacheBust = docker.NewCacheBust()
 	}
 
-	if newer {
-		reportVersionChange(before, latest)
-	} else {
-		reportVersionChange(before, before)
-	}
+	return s.docker.BuildTool(tool, image, opts)
 }
 
 // applyPullThrottle leaves opts.Pull untouched if --pull was explicit or there's no image to check; otherwise it disables auto-pull if agentic.pulled shows a pull within autoPullInterval.
@@ -196,6 +226,20 @@ func recoverOpts(info *docker.ImageInfo, opts tools.BuildOptions) tools.BuildOpt
 	return opts
 }
 
+// reportBeforeUpdate prints the predicted version line from an upstream check, skipping inconclusive ones.
+func reportBeforeUpdate(installedLabel, latest string, newer, ok bool) {
+	if !ok {
+		return
+	}
+
+	before := docker.ParseVersion(installedLabel)
+	if newer {
+		reportVersionChange(before, latest)
+	} else {
+		reportVersionChange(before, before)
+	}
+}
+
 // reportVersionChange prints "version: X -> Y" or "version: X (up to date)".
 func reportVersionChange(before, after string) {
 	if after == "" {
@@ -212,4 +256,28 @@ func reportVersionChange(before, after string) {
 	} else {
 		logging.Detailf("version: %s (up to date)", after)
 	}
+}
+
+// mergeVersions combines recovered per-layer versions with user overrides, with overrides winning.
+func mergeVersions(recovered, overrides map[string]string) map[string]string {
+	merged := make(map[string]string, len(recovered)+len(overrides))
+	maps.Copy(merged, recovered)
+
+	for name, ver := range overrides {
+		if ver != "" {
+			merged[name] = ver
+		}
+	}
+
+	return merged
+}
+
+// hasNewAptPackages returns true if any package in requested is not present in existing.
+func hasNewAptPackages(requested, existing []string) bool {
+	for _, pkg := range requested {
+		if !slices.Contains(existing, pkg) {
+			return true
+		}
+	}
+	return false
 }

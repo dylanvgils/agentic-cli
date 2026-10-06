@@ -217,6 +217,13 @@ func imageLabelPairs(info ImageInfo) []struct{ key, value string } {
 	}
 }
 
+// RestampImage marks image as freshly built by this CLI, keeping its other labels from info.
+func (c *Client) RestampImage(image string, info ImageInfo) {
+	info.Built = buildBuiltLabel()
+	info.CLIVersion = buildinfo.Version
+	c.stampLabels(image, info)
+}
+
 // stampLabels relabels image with LabelProject plus every non-empty label in info.
 func (c *Client) stampLabels(image string, info ImageInfo) {
 	args := []string{"build", label(LabelProject, LabelProjectVal)}

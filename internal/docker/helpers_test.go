@@ -144,43 +144,6 @@ func stubRunInteractive(t *testing.T, client *Client) func() []string {
 	return func() []string { return capturedArgs }
 }
 
-// stubRunInteractiveCapturingDockerfile replaces client.runInteractive with a mock recording the
-// rendered Dockerfile content for each "build" call, read from the --file= path before removal.
-func stubRunInteractiveCapturingDockerfile(t *testing.T, client *Client) func() []string {
-	t.Helper()
-	var contents []string
-
-	stubRunInteractiveFunc(t, client, func(args ...string) error {
-		for _, a := range args {
-			path, ok := strings.CutPrefix(a, "--file=")
-			if !ok {
-				continue
-			}
-			content, err := os.ReadFile(path)
-			require.NoError(t, err)
-			contents = append(contents, string(content))
-		}
-		return nil
-	})
-
-	return func() []string { return contents }
-}
-
-// stubRunInteractiveAll replaces client.runInteractive with a mock that records every call.
-func stubRunInteractiveAll(t *testing.T, client *Client) func() [][]string {
-	t.Helper()
-	var calls [][]string
-
-	stubRunInteractiveFunc(t, client, func(args ...string) error {
-		cp := make([]string, len(args))
-		copy(cp, args)
-		calls = append(calls, cp)
-		return nil
-	})
-
-	return func() [][]string { return calls }
-}
-
 // stubRunInteractiveFunc replaces client.runInteractive with fn for the duration of the test.
 func stubRunInteractiveFunc(t *testing.T, client *Client, fn func(...string) error) {
 	t.Helper()

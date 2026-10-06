@@ -16,7 +16,7 @@ func TestDryRun(t *testing.T) {
 	t.Run("prints dockerfile skips script", func(t *testing.T) {
 		// Arrange
 		var scriptCalled bool
-		d := &fakeDocker{updateTool: func(_, _ string, _ tools.BuildOptions) error {
+		d := &fakeDocker{buildTool: func(_, _ string, _ tools.BuildOptions) error {
 			scriptCalled = true
 			return nil
 		}}
@@ -460,7 +460,7 @@ func TestApply(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{
 			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
-			updateTool: func(_, _ string, _ tools.BuildOptions) error {
+			buildTool: func(_, _ string, _ tools.BuildOptions) error {
 				return fmt.Errorf("docker daemon not running")
 			},
 		}
@@ -471,6 +471,104 @@ func TestApply(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "docker daemon not running")
+	})
+
+	t.Run("up-to-date image is restamped instead of rebuilt", func(t *testing.T) {
+		// Arrange
+		stubLatestToolVersion(t, "1.0.0", false, true)
+		var restamped, built bool
+		d := &fakeDocker{
+			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
+			restampImage: func(string, docker.ImageInfo) { restamped = true },
+			buildTool: func(_, _ string, _ tools.BuildOptions) error {
+				built = true
+				return nil
+			},
+		}
+
+		// Act
+		err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, restamped)
+		assert.False(t, built)
+	})
+
+	t.Run("newer upstream version rebuilds", func(t *testing.T) {
+		// Arrange
+		stubLatestToolVersion(t, "2.0.0", true, true)
+		var built bool
+		d := &fakeDocker{
+			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
+			buildTool: func(_, _ string, _ tools.BuildOptions) error {
+				built = true
+				return nil
+			},
+		}
+
+		// Act
+		err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, built)
+	})
+
+	t.Run("inconclusive upstream check rebuilds", func(t *testing.T) {
+		// Arrange
+		var built bool
+		d := &fakeDocker{
+			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
+			buildTool: func(_, _ string, _ tools.BuildOptions) error {
+				built = true
+				return nil
+			},
+		}
+
+		// Act
+		err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, built)
+	})
+
+	t.Run("inspect error rebuilds without checking upstream", func(t *testing.T) {
+		// Arrange
+		calls := stubLatestToolVersion(t, "1.0.0", false, true)
+		var built bool
+		d := &fakeDocker{
+			inspectImage: inspectReturns(nil, fmt.Errorf("docker daemon unreachable")),
+			buildTool: func(_, _ string, _ tools.BuildOptions) error {
+				built = true
+				return nil
+			},
+		}
+
+		// Act
+		err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, built)
+		assert.Zero(t, calls())
+	})
+
+	t.Run("fetches the upstream version once for both the report and the decision", func(t *testing.T) {
+		// Arrange
+		calls := stubLatestToolVersion(t, "2.0.0", true, true)
+		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil)}
+
+		// Act
+		out := captureLog(t, func() {
+			err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, 1, calls())
+		assert.Contains(t, out, "   version: 1.0.0 -> 2.0.0")
 	})
 }
 
@@ -607,12 +705,14 @@ func Test_applyPullThrottle(t *testing.T) {
 }
 
 func TestApplyRecovered(t *testing.T) {
+	stubLatestToolVersion(t, "", false, false)
+
 	t.Run("recovers opts from existing image and rebuilds", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
 		d := &fakeDocker{
 			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0", Base: "node@24,java@21"}, nil),
-			updateTool: func(_, _ string, opts tools.BuildOptions) error {
+			buildTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
 			},
@@ -631,7 +731,7 @@ func TestApplyRecovered(t *testing.T) {
 		var capturedOpts tools.BuildOptions
 		d := &fakeDocker{
 			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
-			updateTool: func(_, _ string, opts tools.BuildOptions) error {
+			buildTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
 			},
@@ -650,7 +750,7 @@ func TestApplyRecovered(t *testing.T) {
 		// Arrange
 		var called bool
 		d := &fakeDocker{
-			updateTool: func(tool, image string, _ tools.BuildOptions) error {
+			buildTool: func(tool, image string, _ tools.BuildOptions) error {
 				called = true
 				assert.Equal(t, "claude", tool)
 				assert.Equal(t, "agentic-claude", image)
@@ -669,7 +769,7 @@ func TestApplyRecovered(t *testing.T) {
 	t.Run("update error propagates", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{
-			updateTool: func(_, _ string, _ tools.BuildOptions) error { return fmt.Errorf("build failed") },
+			buildTool: func(_, _ string, _ tools.BuildOptions) error { return fmt.Errorf("build failed") },
 		}
 
 		// Act
@@ -677,5 +777,297 @@ func TestApplyRecovered(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
+	})
+}
+
+func Test_rebuild(t *testing.T) {
+	captureOpts := func(opts *tools.BuildOptions, built *bool) *fakeDocker {
+		return &fakeDocker{buildTool: func(_, _ string, o tools.BuildOptions) error {
+			*opts = o
+			*built = true
+			return nil
+		}}
+	}
+
+	t.Run("recovers base from label", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+		info := &docker.ImageInfo{Base: "node@24.0.0,java@21.0.1"}
+
+		// Act
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, opts.BaseOverride, "java")
+	})
+
+	t.Run("respects existing base override", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+		info := &docker.ImageInfo{Base: "node@24.0.0,dotnet@8.0"}
+
+		// Act
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{BaseOverride: []string{"java"}})
+
+		// Assert - explicit BaseOverride wins over the dotnet recovered from the label
+		require.NoError(t, err)
+		assert.Equal(t, []string{"java"}, opts.BaseOverride)
+	})
+
+	t.Run("base-exact skips label recovery even when override is empty", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+		info := &docker.ImageInfo{Base: "node@24.0.0,java@21.0.1"}
+
+		// Act
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{BaseOverride: []string{}, BaseExact: true})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, opts.BaseOverride)
+	})
+
+	t.Run("recovers layer versions from label", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+		info := &docker.ImageInfo{Base: "node@24.0.0,java@21.0.1", VersionArgs: "node@24,java@17"}
+
+		// Act - no --java flag passed, so the recovered version must be the one used
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "17", opts.Versions["java"])
+	})
+
+	t.Run("user-provided version flag wins over recovered label", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+		info := &docker.ImageInfo{Base: "node@24.0.0,java@21.0.1", VersionArgs: "node@24,java@17"}
+
+		// Act
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{Versions: map[string]string{"java": "21"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "21", opts.Versions["java"])
+	})
+
+	t.Run("recovers apt packages from label", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+		info := &docker.ImageInfo{Apt: "make,gcc"}
+
+		// Act
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{"make", "gcc"}, opts.AptPackages)
+	})
+
+	t.Run("merges label apt packages with user-provided packages", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+		info := &docker.ImageInfo{Apt: "make"}
+
+		// Act
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{"make", "gcc"}, opts.AptPackages)
+	})
+
+	t.Run("apt-exact skips label apt recovery", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+		info := &docker.ImageInfo{Apt: "make"}
+
+		// Act
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}, AptExact: true})
+
+		// Assert - the recovered "make" package does not survive, only the exact "gcc" does
+		require.NoError(t, err)
+		assert.Equal(t, []string{"gcc"}, opts.AptPackages)
+	})
+
+	t.Run("skips verification when all user packages already in image", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+		info := &docker.ImageInfo{Apt: "make,gcc"}
+
+		// Act
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"make"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, opts.VerifyApt)
+	})
+
+	t.Run("verifies when user provides package not in image", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+		info := &docker.ImageInfo{Apt: "make"}
+
+		// Act
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, opts.VerifyApt)
+	})
+
+	t.Run("up to date with pull false restamps instead of rebuilding", func(t *testing.T) {
+		// Arrange
+		var built bool
+		var restamped *docker.ImageInfo
+		d := &fakeDocker{
+			buildTool: func(_, _ string, _ tools.BuildOptions) error {
+				built = true
+				return nil
+			},
+			restampImage: func(_ string, info docker.ImageInfo) { restamped = &info },
+		}
+		info := &docker.ImageInfo{Version: "1.2.3", Apt: "make,gcc"}
+
+		// Act
+		err := New(d).rebuild("claude", "agentic-claude", info, true, tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, built, "up-to-date path must not invoke a full docker build")
+		require.NotNil(t, restamped)
+		assert.Equal(t, "make,gcc", restamped.Apt, "unchanged labels must be carried forward")
+	})
+
+	t.Run("no-cache bypasses the up-to-date check", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+
+		// Act
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{NoCache: true})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, built)
+	})
+
+	t.Run("pull bypasses the up-to-date check so base layers still get refreshed", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+
+		// Act
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{Pull: true})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, built)
+	})
+
+	t.Run("pull-only rebuild of an up-to-date tool does not bust the tool stage cache", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+
+		// Act
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{Pull: true})
+
+		// Assert - an empty CacheBust means no CACHEBUST build arg, so the tool stage isn't reinstalled
+		require.NoError(t, err)
+		assert.Empty(t, opts.CacheBust)
+	})
+
+	t.Run("pull-only rebuild reuses the recorded cachebust instead of falling back to a stale build", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+		info := &docker.ImageInfo{Version: "1.2.3", CacheBust: "2026-08-21T07:18:37Z"}
+
+		// Act
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, true, tools.BuildOptions{Pull: true})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "2026-08-21T07:18:37Z", opts.CacheBust)
+	})
+
+	t.Run("not up to date always sets a cachebust", func(t *testing.T) {
+		// Arrange
+		var opts tools.BuildOptions
+		var built bool
+
+		// Act
+		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", nil, false, tools.BuildOptions{})
+
+		// Assert - a non-empty CacheBust makes the tool build skip cache via --build-arg=CACHEBUST=<value>
+		require.NoError(t, err)
+		assert.True(t, built)
+		assert.NotEmpty(t, opts.CacheBust)
+	})
+}
+
+func Test_mergeVersions(t *testing.T) {
+	t.Run("overrides win over recovered", func(t *testing.T) {
+		// Act
+		result := mergeVersions(map[string]string{"node": "24", "java": "17"}, map[string]string{"java": "21"})
+
+		// Assert
+		assert.Equal(t, map[string]string{"node": "24", "java": "21"}, result)
+	})
+
+	t.Run("empty override values are ignored", func(t *testing.T) {
+		// Act
+		result := mergeVersions(map[string]string{"node": "24"}, map[string]string{"node": "", "java": "17"})
+
+		// Assert
+		assert.Equal(t, map[string]string{"node": "24", "java": "17"}, result)
+	})
+
+	t.Run("no recovered values returns overrides", func(t *testing.T) {
+		// Act
+		result := mergeVersions(nil, map[string]string{"java": "17"})
+
+		// Assert
+		assert.Equal(t, map[string]string{"java": "17"}, result)
+	})
+}
+
+func Test_hasNewAptPackages(t *testing.T) {
+	t.Run("all packages in existing returns false", func(t *testing.T) {
+		// Act
+		result := hasNewAptPackages([]string{"make", "gcc"}, []string{"make", "gcc", "jq"})
+
+		// Assert
+		assert.False(t, result)
+	})
+
+	t.Run("new package returns true", func(t *testing.T) {
+		// Act
+		result := hasNewAptPackages([]string{"make", "curl"}, []string{"make"})
+
+		// Assert
+		assert.True(t, result)
+	})
+
+	t.Run("empty requested returns false", func(t *testing.T) {
+		// Act
+		result := hasNewAptPackages(nil, []string{"make"})
+
+		// Assert
+		assert.False(t, result)
 	})
 }

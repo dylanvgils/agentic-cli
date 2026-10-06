@@ -16,6 +16,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,7 +25,7 @@ type fakeDocker struct {
 	context               string
 	checkDaemon           func() error
 	buildTool             func(tool, image string, opts tools.BuildOptions) error
-	updateTool            func(tool, image string, opts tools.BuildOptions) error
+	restampImage          func(image string, info docker.ImageInfo)
 	buildProxyImage       func(image, version, sourceDir string, opts tools.BuildOptions) error
 	buildDindImage        func(image string, opts tools.BuildOptions) error
 	inspectImage          func(string) (*docker.ImageInfo, error)
@@ -64,11 +65,10 @@ func (f *fakeDocker) BuildTool(tool, image string, opts tools.BuildOptions) erro
 	return f.buildTool(tool, image, opts)
 }
 
-func (f *fakeDocker) UpdateTool(tool, image string, opts tools.BuildOptions) error {
-	if f.updateTool == nil {
-		return nil
+func (f *fakeDocker) RestampImage(image string, info docker.ImageInfo) {
+	if f.restampImage != nil {
+		f.restampImage(image, info)
 	}
-	return f.updateTool(tool, image, opts)
 }
 
 func (f *fakeDocker) BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) error {
@@ -229,8 +229,8 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.buildTool != nil {
 		f.buildTool = o.buildTool
 	}
-	if o.updateTool != nil {
-		f.updateTool = o.updateTool
+	if o.restampImage != nil {
+		f.restampImage = o.restampImage
 	}
 	if o.buildProxyImage != nil {
 		f.buildProxyImage = o.buildProxyImage
@@ -515,6 +515,13 @@ func stubLatestToolVersion(t *testing.T, fn func(tool, installedLabel string) (s
 	orig := toolupdate.LatestToolVersion
 	toolupdate.LatestToolVersion = fn
 	t.Cleanup(func() { toolupdate.LatestToolVersion = orig })
+}
+
+func stubUpdateLatestToolVersion(t *testing.T, latest string, newer, ok bool) {
+	t.Helper()
+	orig := update.LatestToolVersion
+	update.LatestToolVersion = func(string, string) (string, bool, bool) { return latest, newer, ok }
+	t.Cleanup(func() { update.LatestToolVersion = orig })
 }
 
 func stubToolUpdateStdin(t *testing.T, input string) {

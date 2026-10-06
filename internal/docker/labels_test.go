@@ -9,6 +9,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLabel_buildsFlag(t *testing.T) {
@@ -508,4 +509,29 @@ func TestRecoverExtras(t *testing.T) {
 		// Assert
 		assert.Nil(t, result)
 	})
+}
+
+func TestRestampImage(t *testing.T) {
+	// Arrange
+	client := newTestClient()
+	var capturedArgs []string
+	stubDockerRunStdin(t, client, func(_ io.Reader, args ...string) (string, error) {
+		capturedArgs = args
+		return "", nil
+	})
+	info := ImageInfo{Namespace: "agentic", Tool: "claude", Version: "1.2.3", Apt: "make,gcc", Base: "node@24.0.0", Built: "2020-01-01T00:00:00Z", CLIVersion: "old"}
+
+	// Act
+	client.RestampImage("agentic-claude", info)
+
+	// Assert
+	require.NotEmpty(t, capturedArgs, "expected a relabel-only build via runStdin")
+	assert.Contains(t, capturedArgs, "--label=agentic.tool=claude")
+	assert.Contains(t, capturedArgs, "--label=agentic.namespace=agentic")
+	assert.Contains(t, capturedArgs, "--label=agentic.apt=make,gcc", "unchanged labels must be carried forward")
+	assert.Contains(t, capturedArgs, "--label=agentic.base=node@24.0.0", "unchanged labels must be carried forward")
+	assert.NotContains(t, capturedArgs, "--label=agentic.built=2020-01-01T00:00:00Z", "expected a fresh agentic.built label")
+	assert.NotContains(t, capturedArgs, "--label=agentic.version=old", "expected the current CLI version label")
+	assert.True(t, hasArgWithPrefix(capturedArgs, "--label=agentic.built="))
+	assert.True(t, hasArgWithPrefix(capturedArgs, "--label=agentic.version="))
 }

@@ -13,11 +13,13 @@ import (
 )
 
 func TestRunUpdate(t *testing.T) {
+	stubUpdateLatestToolVersion(t, "", false, false)
+
 	t.Run("no cache flag sets opt", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
 		stubDocker(t, &fakeDocker{
-			updateTool: func(_, _ string, opts tools.BuildOptions) error {
+			buildTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
 			},
@@ -41,7 +43,7 @@ func TestRunUpdate(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
 		stubDocker(t, &fakeDocker{
-			updateTool: func(_, _ string, opts tools.BuildOptions) error {
+			buildTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
 			},
@@ -65,7 +67,7 @@ func TestRunUpdate(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
 		stubDocker(t, &fakeDocker{
-			updateTool: func(_, _ string, opts tools.BuildOptions) error {
+			buildTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
 			},
@@ -86,7 +88,7 @@ func TestRunUpdate(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
 		stubDocker(t, &fakeDocker{
-			updateTool: func(_, _ string, opts tools.BuildOptions) error {
+			buildTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
 			},
@@ -113,7 +115,7 @@ func TestRunUpdate(t *testing.T) {
 		// Arrange
 		var updateCalled bool
 		stubDocker(t, &fakeDocker{
-			updateTool: func(_, _ string, _ tools.BuildOptions) error {
+			buildTool: func(_, _ string, _ tools.BuildOptions) error {
 				updateCalled = true
 				return nil
 			},
@@ -137,7 +139,7 @@ func TestRunUpdate(t *testing.T) {
 		// Arrange
 		var updated []string
 		stubDocker(t, &fakeDocker{
-			updateTool: func(tool, _ string, _ tools.BuildOptions) error {
+			buildTool: func(tool, _ string, _ tools.BuildOptions) error {
 				updated = append(updated, tool)
 				return fmt.Errorf("fail on %s", tool)
 			},
@@ -218,7 +220,7 @@ func TestRunUpdate(t *testing.T) {
 		logBuf := stubErrLog(t)
 		var updated []string
 		stubDocker(t, &fakeDocker{
-			updateTool: func(tool, _ string, _ tools.BuildOptions) error {
+			buildTool: func(tool, _ string, _ tools.BuildOptions) error {
 				updated = append(updated, tool)
 				return nil
 			},
@@ -255,7 +257,7 @@ func TestRunUpdate(t *testing.T) {
 
 		var capturedOpts []tools.BuildOptions
 		stubDocker(t, &fakeDocker{
-			updateTool: func(_, _ string, opts tools.BuildOptions) error {
+			buildTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = append(capturedOpts, opts)
 				return nil
 			},
@@ -292,7 +294,7 @@ func TestRunUpdate(t *testing.T) {
 
 		var capturedOpts tools.BuildOptions
 		stubDocker(t, &fakeDocker{
-			updateTool: func(_, _ string, opts tools.BuildOptions) error {
+			buildTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
 			},
@@ -317,7 +319,7 @@ func TestRunUpdate(t *testing.T) {
 
 		var capturedOpts tools.BuildOptions
 		stubDocker(t, &fakeDocker{
-			updateTool: func(_, _ string, opts tools.BuildOptions) error {
+			buildTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
 			},
@@ -341,7 +343,7 @@ func TestRunUpdate(t *testing.T) {
 
 		var capturedOpts tools.BuildOptions
 		stubDocker(t, &fakeDocker{
-			updateTool: func(_, _ string, opts tools.BuildOptions) error {
+			buildTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
 			},
@@ -372,7 +374,7 @@ func TestRunUpdate(t *testing.T) {
 
 		var capturedOpts tools.BuildOptions
 		stubDocker(t, &fakeDocker{
-			updateTool: func(_, _ string, opts tools.BuildOptions) error {
+			buildTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
 			},
@@ -402,7 +404,7 @@ func TestRunUpdate(t *testing.T) {
 
 		var capturedOpts []tools.BuildOptions
 		stubDocker(t, &fakeDocker{
-			updateTool: func(_, _ string, opts tools.BuildOptions) error {
+			buildTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = append(capturedOpts, opts)
 				return nil
 			},
@@ -440,7 +442,7 @@ func TestRunUpdate(t *testing.T) {
 		// Arrange
 		var updated []string
 		stubDocker(t, &fakeDocker{
-			updateTool: func(tool, _ string, _ tools.BuildOptions) error {
+			buildTool: func(tool, _ string, _ tools.BuildOptions) error {
 				updated = append(updated, tool)
 				return nil
 			},
@@ -472,7 +474,7 @@ func TestRunUpdate(t *testing.T) {
 		// Arrange
 		var capturedOpts []tools.BuildOptions
 		stubDocker(t, &fakeDocker{
-			updateTool: func(_, _ string, opts tools.BuildOptions) error {
+			buildTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = append(capturedOpts, opts)
 				return nil
 			},
