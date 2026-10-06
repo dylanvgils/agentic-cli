@@ -121,7 +121,7 @@ func checkGit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !run.ToolNeedsMarketplaceSync(toolConfig, rc, args[0]) {
+	if !run.New(runDocker).ToolNeedsMarketplaceSync(toolConfig, rc, args[0]) {
 		return nil
 	}
 

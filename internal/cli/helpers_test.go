@@ -115,6 +115,42 @@ func (f *fakeUpdateDocker) UpdateTool(tool, image string, opts tools.BuildOption
 	return f.updateTool(tool, image, opts)
 }
 
+// fakeRunDocker implements run.Docker; a nil field succeeds with a zero value.
+type fakeRunDocker struct {
+	inspectImage         func(string) (*docker.ImageInfo, error)
+	resolveContainerHome func(string) string
+	ensureNamedVolumes   func(volumes []string, toolHome, containerHome, chownImage string) error
+	ensureNetwork        func() error
+}
+
+func (f *fakeRunDocker) InspectImage(name string) (*docker.ImageInfo, error) {
+	if f.inspectImage == nil {
+		return nil, nil
+	}
+	return f.inspectImage(name)
+}
+
+func (f *fakeRunDocker) ResolveContainerHome(image string) string {
+	if f.resolveContainerHome == nil {
+		return ""
+	}
+	return f.resolveContainerHome(image)
+}
+
+func (f *fakeRunDocker) EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage string) error {
+	if f.ensureNamedVolumes == nil {
+		return nil
+	}
+	return f.ensureNamedVolumes(volumes, toolHome, containerHome, chownImage)
+}
+
+func (f *fakeRunDocker) EnsureNetwork() error {
+	if f.ensureNetwork == nil {
+		return nil
+	}
+	return f.ensureNetwork()
+}
+
 // fakeToolupdateDocker implements toolupdate.Docker; a nil field succeeds with a zero value.
 type fakeToolupdateDocker struct {
 	inspectImage func(string) (*docker.ImageInfo, error)
@@ -197,14 +233,6 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 		return nil
 	}
 
-	origEnsure := run.EnsureNamedVolumes
-	run.EnsureNamedVolumes = func(volumes []string, toolHome, containerHome, chownImage string) error {
-		return nil
-	}
-
-	origEnsureNet := run.EnsureNetwork
-	run.EnsureNetwork = func() error { return nil }
-
 	fakeInspect := func(name string) (*docker.ImageInfo, error) {
 		return &docker.ImageInfo{Image: name}, nil
 	}
@@ -213,16 +241,11 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	inspectImage = fakeInspect
 
 	stubToolupdateDocker(t, &fakeToolupdateDocker{inspectImage: fakeInspect})
-
-	origRunInspect := run.InspectImage
-	run.InspectImage = fakeInspect
+	stubRunDocker(t, &fakeRunDocker{inspectImage: fakeInspect})
 
 	t.Cleanup(func() {
 		runContainer = origRun
-		run.EnsureNamedVolumes = origEnsure
-		run.EnsureNetwork = origEnsureNet
 		inspectImage = origInspect
-		run.InspectImage = origRunInspect
 	})
 
 	return func() (docker.RunSpec, []string) { return capturedSpec, capturedArgs }
@@ -324,11 +347,11 @@ func stubInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
 	t.Cleanup(func() { inspectImage = orig })
 }
 
-func stubRunInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
+func stubRunDocker(t *testing.T, d run.Docker) {
 	t.Helper()
-	orig := run.InspectImage
-	run.InspectImage = func(_ string) (*docker.ImageInfo, error) { return info, err }
-	t.Cleanup(func() { run.InspectImage = orig })
+	orig := runDocker
+	runDocker = d
+	t.Cleanup(func() { runDocker = orig })
 }
 
 func stubListAllImages(t *testing.T, fn func(...docker.ImageFilter) ([]*docker.ImageInfo, error)) {

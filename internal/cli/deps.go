@@ -9,6 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 )
@@ -43,4 +44,5 @@ var (
 	cleanDocker      clean.Docker      = docker.Default()
 	updateDocker     update.Docker     = docker.Default()
 	toolupdateDocker toolupdate.Docker = docker.Default()
+	runDocker        run.Docker        = docker.Default()
 )

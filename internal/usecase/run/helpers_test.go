@@ -14,6 +14,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// fakeDocker implements Docker; a nil field succeeds with a zero value.
+type fakeDocker struct {
+	inspectImage         func(string) (*docker.ImageInfo, error)
+	resolveContainerHome func(string) string
+	ensureNamedVolumes   func(volumes []string, toolHome, containerHome, chownImage string) error
+	ensureNetwork        func() error
+}
+
+func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
+	if f.inspectImage == nil {
+		return nil, nil
+	}
+	return f.inspectImage(name)
+}
+
+func (f *fakeDocker) ResolveContainerHome(image string) string {
+	if f.resolveContainerHome == nil {
+		return ""
+	}
+	return f.resolveContainerHome(image)
+}
+
+func (f *fakeDocker) EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage string) error {
+	if f.ensureNamedVolumes == nil {
+		return nil
+	}
+	return f.ensureNamedVolumes(volumes, toolHome, containerHome, chownImage)
+}
+
+func (f *fakeDocker) EnsureNetwork() error {
+	if f.ensureNetwork == nil {
+		return nil
+	}
+	return f.ensureNetwork()
+}
+
 // findVolumeSuffix returns the one volume spec ending with suffix, failing the test if there isn't exactly one match.
 func findVolumeSuffix(t *testing.T, volumes []string, suffix string) string {
 	t.Helper()
@@ -39,20 +75,6 @@ func appendFile(path, content string) error {
 	return err
 }
 
-func stubEnsureNamedVolumes(t *testing.T, fn func(volumes []string, toolHome, containerHome, chownImage string) error) {
-	t.Helper()
-	orig := EnsureNamedVolumes
-	EnsureNamedVolumes = fn
-	t.Cleanup(func() { EnsureNamedVolumes = orig })
-}
-
-func stubEnsureNetwork(t *testing.T, fn func() error) {
-	t.Helper()
-	orig := EnsureNetwork
-	EnsureNetwork = fn
-	t.Cleanup(func() { EnsureNetwork = orig })
-}
-
 func stubSyncMarketplaces(t *testing.T, fn func([]marketplace.Entry, func(marketplace.Entry) string) ([]marketplace.Result, error)) {
 	t.Helper()
 	orig := SyncMarketplaces
@@ -65,13 +87,6 @@ func stubRecordMarketplaceUsage(t *testing.T, fn func(baseDir string, results []
 	orig := RecordMarketplaceUsage
 	RecordMarketplaceUsage = fn
 	t.Cleanup(func() { RecordMarketplaceUsage = orig })
-}
-
-func stubInspectImage(t *testing.T, fn func(name string) (*docker.ImageInfo, error)) {
-	t.Helper()
-	orig := InspectImage
-	InspectImage = fn
-	t.Cleanup(func() { InspectImage = orig })
 }
 
 // credentialLayer returns a config layer declaring one generic credential reading secret.

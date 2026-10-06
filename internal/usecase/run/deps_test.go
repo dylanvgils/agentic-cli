@@ -9,17 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var _ Docker = (*docker.Client)(nil)
+
 func TestDefaultDeps(t *testing.T) {
-	t.Run("EnsureNamedVolumes defaults to docker.EnsureNamedVolumes", func(t *testing.T) {
-		// Assert
-		assert.Equal(t, reflect.ValueOf(docker.EnsureNamedVolumes).Pointer(), reflect.ValueOf(EnsureNamedVolumes).Pointer())
-	})
-
-	t.Run("EnsureNetwork defaults to docker.EnsureNetwork", func(t *testing.T) {
-		// Assert
-		assert.Equal(t, reflect.ValueOf(docker.EnsureNetwork).Pointer(), reflect.ValueOf(EnsureNetwork).Pointer())
-	})
-
 	t.Run("SyncMarketplaces defaults to marketplace.Sync", func(t *testing.T) {
 		// Assert
 		assert.Equal(t, reflect.ValueOf(marketplace.Sync).Pointer(), reflect.ValueOf(SyncMarketplaces).Pointer())

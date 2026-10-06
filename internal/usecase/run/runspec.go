@@ -17,6 +17,11 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
+// Service builds RunSpecs and run-time instructions for `agentic run`.
+type Service struct {
+	docker Docker
+}
+
 // Target identifies the tool and image a RunSpec is being built for.
 type Target struct {
 	ToolName       string
@@ -44,9 +49,14 @@ type Input struct {
 	InstructionsMount string
 }
 
+// New returns a Service that talks to Docker through d.
+func New(d Docker) *Service {
+	return &Service{docker: d}
+}
+
 // Build assembles the docker.RunSpec for target, syncing marketplaces and ensuring the named volumes/network it depends on exist.
-func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, error) {
-	containerHome := docker.ResolveContainerHome(target.ImageName)
+func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, error) {
+	containerHome := s.docker.ResolveContainerHome(target.ImageName)
 
 	marketplaceMounts, marketplaceNames, err := syncToolMarketplaces(in.ToolHome, target.ToolName, toolConfig, rc)
 	if err != nil {
@@ -76,7 +86,7 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	env = append(env, placeholders...)
 
 	if len(in.Credentials) > 0 {
-		if err := checkProxyTrust(target); err != nil {
+		if err := s.checkProxyTrust(target); err != nil {
 			return docker.RunSpec{}, err
 		}
 	}
@@ -86,7 +96,7 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 		env = append(env, "AGENTIC_MARKETPLACES="+strings.Join(marketplaceNames, ","))
 	}
 
-	if err := EnsureNamedVolumes(volumes, in.ToolHome, containerHome, tools.BusyboxImageFor(in.Registry)); err != nil {
+	if err := s.docker.EnsureNamedVolumes(volumes, in.ToolHome, containerHome, tools.BusyboxImageFor(in.Registry)); err != nil {
 		return docker.RunSpec{}, err
 	}
 
@@ -94,7 +104,7 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 	// instead of agentic-net; startProxy ensures agentic-net itself for the
 	// sidecar's egress connection, so skip the redundant check here.
 	if !in.ProxyMode.Enabled() && !in.DindEnabled {
-		if err := EnsureNetwork(); err != nil {
+		if err := s.docker.EnsureNetwork(); err != nil {
 			return docker.RunSpec{}, err
 		}
 	}
@@ -128,20 +138,20 @@ func Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.Agen
 }
 
 // BuildWithInstructions wraps Build with this run's instructions snapshot mounted in; the returned cleanup func must always be deferred, even on error.
-func BuildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, func(), error) {
-	content, err := BuildInstructions(target, in, toolConfig, rc)
+func (s *Service) BuildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, func(), error) {
+	content, err := s.BuildInstructions(target, in, toolConfig, rc)
 	if err != nil {
 		return docker.RunSpec{}, func() {}, fmt.Errorf("build instructions for %s: %w", target.ToolName, err)
 	}
 
-	snapshot, err := PrepareInstructions(in.ToolHome, toolConfig, content)
+	snapshot, err := s.PrepareInstructions(in.ToolHome, toolConfig, content)
 	if err != nil {
 		return docker.RunSpec{}, func() {}, fmt.Errorf("prepare instructions for %s: %w", target.ToolName, err)
 	}
 
 	in.InstructionsMount = snapshot.MountSpec
 
-	rs, err := Build(target, in, toolConfig, rc)
+	rs, err := s.Build(target, in, toolConfig, rc)
 	if err != nil {
 		snapshot.Cleanup()
 		return docker.RunSpec{}, func() {}, err
@@ -151,7 +161,12 @@ func BuildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig,
 }
 
 // ToolNeedsMarketplaceSync reports whether tool supports marketplace mounting and has at least one marketplace configured.
-func ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, tool string) bool {
+func (s *Service) ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, tool string) bool {
+	return needsMarketplaceSync(toolConfig, rc, tool)
+}
+
+// needsMarketplaceSync backs ToolNeedsMarketplaceSync for callers without a Service.
+func needsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, tool string) bool {
 	if toolConfig.Runtime.MarketplaceMount == nil {
 		return false
 	}
@@ -160,7 +175,7 @@ func ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC,
 
 // syncToolMarketplaces syncs tool's configured marketplaces and returns each mount spec plus name.
 func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc *config.AgenticRC) (mounts, names []string, err error) {
-	if !ToolNeedsMarketplaceSync(toolConfig, rc, tool) {
+	if !needsMarketplaceSync(toolConfig, rc, tool) {
 		return nil, nil, nil
 	}
 

@@ -104,7 +104,7 @@ func TestRunTool(t *testing.T) {
 		withTempToolHome(t)
 		get := captureRunContainer(t)
 		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)
-		stubRunInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)
+		stubRunDocker(t, &fakeRunDocker{inspectImage: inspectReturns(&docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)})
 		stubBuildDindImage(t, func(string, tools.BuildOptions) error { return nil })
 		require.NoError(t, runToolCmd.Flags().Set("dind", "true"))
 		t.Cleanup(func() {

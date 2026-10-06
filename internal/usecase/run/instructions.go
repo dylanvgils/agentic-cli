@@ -29,7 +29,7 @@ func (s InstructionsSnapshot) Cleanup() {
 }
 
 // PrepareInstructions stages content into a private per-run snapshot file and returns its mount spec, or strips any stale managed block in place when content is empty.
-func PrepareInstructions(toolHome string, toolConfig tools.ToolConfig, content string) (InstructionsSnapshot, error) {
+func (s *Service) PrepareInstructions(toolHome string, toolConfig tools.ToolConfig, content string) (InstructionsSnapshot, error) {
 	if content == "" {
 		return InstructionsSnapshot{}, toolConfig.Runtime.WriteInstructions(toolHome, "")
 	}
@@ -50,17 +50,17 @@ func PrepareInstructions(toolHome string, toolConfig tools.ToolConfig, content s
 }
 
 // BuildInstructions assembles the environment-instructions Markdown for the tool's global instructions file, or "" when disabled via [run.instructions].
-func BuildInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (string, error) {
+func (s *Service) BuildInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (string, error) {
 	if !instructionsEnabled(rc) {
 		return "", nil
 	}
 
-	info, err := InspectImage(target.ImageName)
+	info, err := s.docker.InspectImage(target.ImageName)
 	if err != nil {
 		return "", fmt.Errorf("inspect %s: %w", target.ImageName, err)
 	}
 
-	containerHome := docker.ResolveContainerHome(target.ImageName)
+	containerHome := s.docker.ResolveContainerHome(target.ImageName)
 	limits := resolve.ResourceLimitsFor(in.Limits, rc)
 	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
 
@@ -81,8 +81,8 @@ func BuildInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc 
 }
 
 // PreviewInstructions returns the effective content a run would write, without touching any files.
-func PreviewInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (string, error) {
-	content, err := BuildInstructions(target, in, toolConfig, rc)
+func (s *Service) PreviewInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (string, error) {
+	content, err := s.BuildInstructions(target, in, toolConfig, rc)
 	if err != nil {
 		return "", err
 	}

@@ -15,7 +15,7 @@ import (
 )
 
 // ResolveCredentials reads the secrets of every credential the layers declare, refusing to run while any layer's entries are unapproved.
-func ResolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials.Resolved, error) {
+func (s *Service) ResolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials.Resolved, error) {
 	rc, err := config.Merge(layers)
 	if err != nil {
 		return nil, err
@@ -34,6 +34,24 @@ func ResolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials
 	}
 
 	return credentials.Resolve(rc.Run.Proxy.Credentials)
+}
+
+// checkProxyTrust makes sure the tool can trust the proxy CA its entrypoint adds: it warns when the entrypoint is
+// skipped and refuses an image whose entrypoint predates it, since TLS to credential hosts would fail either way.
+func (s *Service) checkProxyTrust(target Target) error {
+	if target.SkipEntrypoint {
+		logging.Warnf("skipping the entrypoint: TLS to proxy credential hosts will fail, as the proxy CA is not trusted")
+		return nil
+	}
+
+	info, err := s.docker.InspectImage(target.ImageName)
+	if err != nil {
+		return fmt.Errorf("inspect %s: %w", target.ImageName, err)
+	}
+	if info == nil || info.ProxyTrust {
+		return nil
+	}
+	return fmt.Errorf("%s can't trust the proxy CA, so TLS to credential hosts would fail; rebuild it with \"agentic update %s\"", target.ImageName, target.ToolName)
 }
 
 // credentialSetup checks in.Credentials against the run and returns the placeholder env for the tool; a no-op without credentials.
@@ -110,22 +128,4 @@ func envKey(entry string) string {
 // isProxyTrustEnvName reports whether name carries the proxy CA or is pointed at its bundle by the tool's entrypoint.
 func isProxyTrustEnvName(name string) bool {
 	return name == tools.ProxyCAEnvName || slices.Contains(tools.ProxyTrustEnvNames, name)
-}
-
-// checkProxyTrust makes sure the tool can trust the proxy CA its entrypoint adds: it warns when the entrypoint is
-// skipped and refuses an image whose entrypoint predates it, since TLS to credential hosts would fail either way.
-func checkProxyTrust(target Target) error {
-	if target.SkipEntrypoint {
-		logging.Warnf("skipping the entrypoint: TLS to proxy credential hosts will fail, as the proxy CA is not trusted")
-		return nil
-	}
-
-	info, err := InspectImage(target.ImageName)
-	if err != nil {
-		return fmt.Errorf("inspect %s: %w", target.ImageName, err)
-	}
-	if info == nil || info.ProxyTrust {
-		return nil
-	}
-	return fmt.Errorf("%s can't trust the proxy CA, so TLS to credential hosts would fail; rebuild it with \"agentic update %s\"", target.ImageName, target.ToolName)
 }

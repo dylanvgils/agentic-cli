@@ -131,8 +131,10 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	svc := run.New(runDocker)
+
 	// Credentials force the proxy on (see resolve.ProxyMode), so this is a no-op when it is off
-	creds, err := run.ResolveCredentials(layers, toolHome)
+	creds, err := svc.ResolveCredentials(layers, toolHome)
 	if err != nil {
 		return err
 	}
@@ -148,7 +150,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 
 	dindEnabled := resolveDindEnabled(cmd, rc)
 	if dindEnabled {
-		if err := run.RequireDockerLayer(parsedArgs.imageName, parsedArgs.toolName); err != nil {
+		if err := svc.RequireDockerLayer(parsedArgs.imageName, parsedArgs.toolName); err != nil {
 			return err
 		}
 		if !dryRun {
@@ -178,7 +180,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		Credentials:    creds,
 	}
 
-	rs, cleanupInstructions, err := run.BuildWithInstructions(target, input, toolConfig, rc)
+	rs, cleanupInstructions, err := svc.BuildWithInstructions(target, input, toolConfig, rc)
 	if err != nil {
 		return err
 	}
