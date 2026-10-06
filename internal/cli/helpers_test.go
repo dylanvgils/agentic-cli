@@ -27,7 +27,6 @@ type fakeDocker struct {
 	updateTool            func(tool, image string, opts tools.BuildOptions) error
 	buildProxyImage       func(image, version, sourceDir string, opts tools.BuildOptions) error
 	buildDindImage        func(image string, opts tools.BuildOptions) error
-	builtTools            func() (map[string]bool, error)
 	inspectImage          func(string) (*docker.ImageInfo, error)
 	listAllImages         func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	cleanImage            func(string) error
@@ -84,13 +83,6 @@ func (f *fakeDocker) BuildDindImage(image string, opts tools.BuildOptions) error
 		return nil
 	}
 	return f.buildDindImage(image, opts)
-}
-
-func (f *fakeDocker) BuiltTools() (map[string]bool, error) {
-	if f.builtTools == nil {
-		return nil, nil
-	}
-	return f.builtTools()
 }
 
 func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
@@ -245,9 +237,6 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 	if o.buildDindImage != nil {
 		f.buildDindImage = o.buildDindImage
-	}
-	if o.builtTools != nil {
-		f.builtTools = o.builtTools
 	}
 	if o.inspectImage != nil {
 		f.inspectImage = o.inspectImage
@@ -440,11 +429,6 @@ func writeTrustConfig(t *testing.T, toolHome string, dirs []string) {
 	t.Helper()
 	cfg := &config.CliConfig{TrustedDirs: dirs}
 	require.NoError(t, cfg.Save(toolHome))
-}
-
-func stubBuiltTools(t *testing.T, fn func() (map[string]bool, error)) {
-	t.Helper()
-	stubDocker(t, &fakeDocker{builtTools: fn})
 }
 
 func stubBuildProxyImage(t *testing.T, fn func(image, version, sourceDir string, opts tools.BuildOptions) error) {

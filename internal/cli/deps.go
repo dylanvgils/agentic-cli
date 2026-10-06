@@ -40,7 +40,6 @@ type dockerAPI interface {
 	BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) error
 	BuildDindImage(image string, opts tools.BuildOptions) error
 	RunContainer(rs docker.RunSpec, toolArgs []string) error
-	BuiltTools() (map[string]bool, error)
 	PruneImages() error
 	PruneBuildCache() error
 	CreateVolume(name string) error

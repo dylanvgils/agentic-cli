@@ -87,15 +87,6 @@ func (c *Client) ListAllImages(filters ...ImageFilter) ([]*ImageInfo, error) {
 	return images, nil
 }
 
-// BuiltTools returns the set of tool names that have at least one built image.
-func (c *Client) BuiltTools() (map[string]bool, error) {
-	images, err := c.ListAllImages()
-	if err != nil {
-		return nil, err
-	}
-	return builtToolsFromImages(images), nil
-}
-
 // ImageRefreshReason says why an agentic-built image (e.g. a sidecar) needs a rebuild, or "" if it is current; maxAge 0 skips the age check.
 func ImageRefreshReason(info *ImageInfo, maxAge time.Duration) string {
 	if info == nil {
@@ -111,14 +102,6 @@ func ImageRefreshReason(info *ImageInfo, maxAge time.Duration) string {
 	}
 
 	return ""
-}
-
-func builtToolsFromImages(images []*ImageInfo) map[string]bool {
-	built := make(map[string]bool)
-	for _, img := range images {
-		built[img.Tool] = true
-	}
-	return built
 }
 
 // parseImageName splits an image name into namespace and tool by matching its suffix against
