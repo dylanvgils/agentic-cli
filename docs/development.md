@@ -69,38 +69,9 @@ curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/b
 # or (slower, not recommended upstream): go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 ```
 
-## Adding a new tool
+## Adding a tool or runtime layer
 
-1. Create `internal/tools/<name>.go` implementing four functions:
-   - `<name>Stage(prevStage string) dockerfile.Stage` - return the tool's Dockerfile stage using the [Dockerfile DSL](dockerfile-dsl.md); `prevStage` is the name of the preceding base stage to `FROM`
-   - `setup<Name>(toolHome string) error` - create any host-side directories or files the tool needs before first run (e.g. pre-creating a credentials file so the read-only root filesystem doesn't block the first write)
-   - `<name>Mounts() []string` - return the list of bind/volume mounts using helpers from `internal/mount`
-   - `<name>TmpfsMounts() []string` - return any tmpfs mounts (every tool needs at least `/tmp`)
-
-   Reuse the shared helpers in `internal/tools/helpers.go` inside the stage func:
-   - `createContainerUser(name string) []df.Instruction` - declares `HOST_UID`/`HOST_GID` build args, removes any conflicting user, and creates the container user. Spread into `Add`: `Add(createContainerUser("mytool")...)`
-   - `aptInstallRun(pkgs []string) df.Run` - builds a standard apt update → install → cleanup `RUN` block
-
-   Use `mount.VolumeMount(host, container)` and `mount.TmpfsMount(path, opts)` from `internal/mount`, with the [mount placeholders](config.md#mount-variable-expansion). Never relax the security flags, see [CLAUDE.md](../CLAUDE.md#security-constraints-enforced-in-internaldockerrungo).
-
-2. Register in `internal/tools/tools.go` `Configs` map:
-
-   ```go
-   "mytool": {
-       Build:   BuildConfig{Stage: mytoolStage},
-       Runtime: RuntimeConfig{TmpfsMounts: mytoolTmpfsMounts, Setup: setupMytool, Mounts: mytoolMounts, AllowedHosts: mytoolAllowedHosts},
-   },
-   ```
-
-   `AllowedHosts` is the tool's [baseline allowlist](egress-proxy.md#baseline-allowlist). Define it as a package-level `var` in `internal/tools/<name>.go` (see the other tools for examples).
-
-## Adding a new base runtime
-
-1. Add a new case to `extraStage()` in `internal/tools/bases.go` (follow the `nodeStage`/`javaStage`/`dotnetStage`/`goStage` pattern). The stage func receives `prevStage` and `ver` - build FROM `prevStage` and apply the version as a build arg default.
-
-2. Add the name to `knownExtras` in `internal/tools/bases.go` and add a human-readable label to `LayerFlagDesc` in the same file. The `--<name>` version flag is registered automatically from these two maps.
-
-3. If the new layer needs apt packages installed in the base stage (e.g. `apt-transport-https` for Java), add them to `layerPackages` in `internal/tools/packages.go` under the layer's name. `collectPackages` merges them with the base packages and any user-supplied `--apt` packages automatically.
+See [Tool structure](../CLAUDE.md#tool-structure) and [Adding a new runtime layer](../CLAUDE.md#adding-a-new-runtime-layer) in CLAUDE.md.
 
 Each image stores its resolved versions and apt list as labels (`agentic.version-args`, `agentic.apt`, see `internal/docker/labels.go`). `agentic update` reads them back (`RecoverVersionArgs`, `RecoverApt`) to rebuild with the same layers.
 
