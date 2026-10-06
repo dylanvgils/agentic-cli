@@ -4,208 +4,151 @@
 agentic <command> [args...]
 ```
 
-Run tool commands from within a git repository. The current directory is mounted as `/workspace` inside the container.
+Run tools from inside a git repository. The current directory is mounted as `/workspace` in the container.
 
 ## Commands
 
-Run `agentic help <command>` (or `agentic <command> --help`) for the full list of flags.
+Run `agentic help <command>` for all flags.
 
-| Command                                       | Description                                                                                        |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `run <tool> [args...]`                        | Run a tool in an isolated Docker container                                                         |
-| `run <tool> -- <cmd> [args]`                  | Override the entrypoint and run a shell command directly                                           |
-| `build [tool]`                                | Build tool image(s). Builds all tools if unspecified                                               |
-| `update [tool]`                               | Update tool image(s) to latest version                                                             |
-| `clean [tool]`                                | Remove tool image(s). No-arg form removes everything agentic created                               |
-| `inspect [tool]`                              | Show built images, or full detail for one tool                                                     |
-| `instructions <tool>`                         | Preview the [environment instructions](#environment-instructions) without starting a container    |
-| `status`                                      | Show whether the Docker backend is running and list running agentic containers                     |
-| `config`                                      | Show the merged configuration from agentic.json and all .agenticrc.toml files                      |
-| `namespaces <list\|prune>`                    | List namespaces, or remove all images in one                                                       |
-| `volumes <create\|list\|remove> [name]`       | Manage named Docker volumes created by agentic                                                     |
-| `marketplaces <list\|prune>`                  | Manage marketplace clones downloaded by `agentic run`                                              |
-| `proxy <build\|update\|clean>`                | Manage the egress proxy image                                                                      |
-| `migrate`                                     | Apply any pending migrations to `$AGENTIC_HOME`'s on-disk layout (runs automatically)              |
-| `upgrade`                                     | Upgrade the agentic binary to the latest release                                                   |
-| `version`                                     | Show version information                                                                           |
-| `completion <bash\|zsh\|fish\|powershell>`    | Generate shell completion script for the specified shell                                           |
-| `aliases`                                     | Print shell alias definitions for installed tools                                                  |
+| Command                                    | Description                                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `run <tool> [args...]`                     | Run a tool in an isolated container                                                  |
+| `run <tool> -- <cmd> [args]`               | Run a command (e.g. `bash`) instead of the tool                                      |
+| `build [tool]`                             | Build tool image(s), all tools by default. See [Images](images.md).                  |
+| `update [tool]`                            | Rebuild image(s) with the latest tool version                                        |
+| `clean [tool]`                             | Remove tool image(s). With no tool, removes everything agentic created.              |
+| `inspect [tool]`                           | Show built images, or full detail for one tool                                       |
+| `instructions <tool>`                      | Preview the [environment instructions](config.md#runinstructions)                    |
+| `status`                                   | Show whether Docker is running and list running agentic containers                   |
+| `config`                                   | Show the merged [configuration](config.md)                                           |
+| `namespaces <list\|prune>`                 | List namespaces, or remove all images in one                                         |
+| `volumes <create\|list\|remove> [name]`    | Manage [named volumes](#named-docker-volumes)                                        |
+| `marketplaces <list\|prune>`               | Manage [marketplace](#marketplaces) clones                                           |
+| `proxy <build\|update\|clean>`             | Manage the [egress proxy](egress-proxy.md) image                                     |
+| `migrate`                                  | Migrate `$AGENTIC_HOME`'s on-disk layout (runs automatically)                        |
+| `upgrade`                                  | Upgrade agentic to the latest release                                                |
+| `version`                                  | Show version information                                                             |
+| `completion <bash\|zsh\|fish\|powershell>` | Print a [shell completion](#shell-completion) script                                 |
+| `aliases`                                  | Print [shell aliases](#shell-aliases) for installed tools                            |
 
-### Tools
-
-| Tool       | Description        |
-| ---------- | ------------------ |
-| `claude`   | Claude Code CLI    |
-| `copilot`  | GitHub Copilot CLI |
-| `opencode` | OpenCode CLI       |
+Tools: `claude` (Claude Code), `copilot` (GitHub Copilot CLI), `opencode` (OpenCode).
 
 ## Examples
 
-For building and updating images (runtimes, version pinning, apt packages), see [Images](images.md).
-
 ```bash
-# Update to latest version (checks upstream first; rebuilds only if newer or base images changed)
-agentic update
+agentic run claude                   # run a tool
+agentic run claude -- bash           # open a shell in the tool container
+agentic update                       # update all tools (rebuilds only when something changed)
 
-# Clean / inspect images
-agentic clean
-agentic clean claude
-agentic inspect                      # table of all agentic images in the active namespace
-agentic inspect claude               # full detail for active namespace's claude image
-agentic inspect claude --all         # detail for all namespaces' claude image
+agentic inspect                      # all images in the active namespace
+agentic inspect claude --all         # claude images in every namespace
 
-# Build a project-specific image set (images are named <namespace>-<tool>)
+# A separate image set for one project (images are named <namespace>-<tool>)
 agentic build claude --namespace myproject --base node,java --apt make
-agentic inspect                      # shows both agentic-claude and myproject-claude
 agentic run --namespace myproject claude
-agentic update --all                 # update every agentic image across all namespaces
-
-# Run a tool
-agentic run claude
-
-# Run a shell command instead of the tool entrypoint
-agentic run claude -- bash
-
-# Mount named Docker volumes (auto-created on first use)
-agentic run -v 'maven:$CONTAINER_HOME/.m2' -v 'gradle:$CONTAINER_HOME/.gradle' claude
-
-# Mount bind-mount volumes (host paths) - read-only unless you add :rw
-agentic run -v '~/notes:/notes' claude
-agentic run -v '~/.m2:$CONTAINER_HOME/.m2:rw' claude
-
-# Mount a secret file read-only at /run/secrets/<name>
-agentic run -s 'copilot_token:~/.secrets/copilot_token' copilot
-
-# Override the tool home directory
-agentic run --home /opt/agentic claude
-
-# Print completion script
-agentic completion zsh
+agentic update --all                 # update every namespace
 ```
 
 ## Shell completion
 
-Tab completion is available for bash, zsh, fish, and PowerShell. Add one of the following to your shell config to activate it:
+Add one line to your shell config:
 
 ```bash
-# zsh - add to ~/.zshrc
-source <(agentic completion zsh)
-
-# bash - add to ~/.bashrc
-source <(agentic completion bash)
-
-# fish - add to ~/.config/fish/config.fish
-agentic completion fish | source
-
-# PowerShell - add to your $PROFILE
-agentic completion powershell | Out-String | Invoke-Expression
+source <(agentic completion zsh)                               # ~/.zshrc
+source <(agentic completion bash)                              # ~/.bashrc
+agentic completion fish | source                               # ~/.config/fish/config.fish
+agentic completion powershell | Out-String | Invoke-Expression # $PROFILE
 ```
 
-Tool names are discovered dynamically at completion time, so new tools are picked up automatically without regenerating the script.
+Tool names are looked up when you press tab, so you don't need to regenerate the script for new tools.
 
 ## Shell aliases
 
-Shell aliases let you run tools directly (e.g., `copilot` instead of `agentic run copilot`). The shell is detected automatically. Add to your shell config to activate them:
+Aliases let you type `copilot` instead of `agentic run copilot`. The shell is detected automatically. Only tools with a built image get an alias.
 
 ```bash
-# bash/zsh - add to ~/.bashrc or ~/.zshrc
-source <(agentic aliases)
-
-# fish - add to ~/.config/fish/config.fish
-agentic aliases | source
-
-# PowerShell - add to your $PROFILE
-agentic aliases | Out-String | Invoke-Expression
+source <(agentic aliases)                               # bash/zsh
+agentic aliases | source                                # fish
+agentic aliases | Out-String | Invoke-Expression        # PowerShell
 ```
-
-Only tools with a built image produce an alias, so sourcing the output never creates broken aliases for uninstalled tools.
 
 ## Secrets
 
-Use `--secret` / `-s` to mount a secret file read-only into the container:
+`-s`/`--secret` mounts a file read-only, using the format `name:/path/to/file[:/container/path]`. Without a container path, the file goes to `/run/secrets/<name>`. Paths support `~`, `$HOME` and (on the container side) `$CONTAINER_HOME`.
 
 ```bash
 agentic run -s 'copilot_token:~/.secrets/copilot_token' copilot
-```
-
-Secrets use the format `name:/path/to/file[:/container/path]`. The `~`, `$HOME`, and `${HOME}` prefixes are expanded to your home directory. Without a container path the file is mounted at `/run/secrets/<name>`; with one it is mounted at the specified path (supports `$CONTAINER_HOME`):
-
-```bash
-# Mount Maven settings.xml at the path Maven expects
 agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml' claude
 ```
 
-For persisting secrets via `.agenticrc.toml`, see [Configuration](config.md).
-
-A mounted secret is readable by the agent. For an API key the tool only sends as a header (Anthropic, OpenAI, a GitHub token, ...), use [credential injection](config.md#credential-injection) instead: the egress proxy adds the key to requests and the container only sees a placeholder.
+The agent can read mounted secrets. For API keys, use [credential injection](egress-proxy.md#credential-injection) so the agent only sees a placeholder.
 
 ## Environment variables
 
-Use `--env` / `-e` to set an environment variable in the container, either as a literal `KEY=VALUE` or a bare `KEY` to forward the host's current value:
+`-e`/`--env` sets `KEY=VALUE`, or forwards the host value with a bare `KEY` (skipped if unset):
 
 ```bash
 agentic run -e NODE_OPTIONS=--max-old-space-size=4096 claude
-agentic run -e CI claude   # forwards the host's CI value, omitted if unset
+agentic run -e CI claude
 ```
 
-The container's `TZ` is also auto-detected from the host and forwarded automatically, so its clock matches the host instead of defaulting to UTC - override it the same way as any other var (`agentic run -e TZ=UTC claude`).
-
-See [Configuration](config.md) for names agentic already manages that can't be overridden this way, and for persisting variables via `.agenticrc.toml`. Values set with `--env` are visible inside the container and via `docker inspect`/`ps`, so use `--secret` / `-s` for tokens or credentials instead.
+- Values are visible inside the container and in `docker inspect`. Use `--secret` for tokens.
+- Names agentic manages are refused: `TOOL_HOME`, `CONTAINER_HOME`, `AGENTIC_MARKETPLACES` and `AGENTIC_PROXY_CA` always; the proxy vars with `--proxy`; the `DOCKER_*` vars with [`--dind`](docker-in-docker.md#how-it-stays-isolated); the CA and credential vars with [credential injection](egress-proxy.md#credential-injection).
+- `TZ` and the terminal vars (`COLORTERM`, `TERM`, `NO_COLOR`, `FORCE_COLOR`) are forwarded from the host automatically. Override them like any other var (`-e TZ=UTC`).
 
 ## Named Docker volumes
 
-The `-v` flag supports both bind mounts (host paths) and named Docker volumes - named volumes are created automatically on first use and persist across container runs, no host path required.
-
-Bind mounts from `-v` and `extra_mounts` are **read-only by default**, so the agent can't change host files you only meant to share. Add `:rw` to make one writable (e.g. `-v '~/repo2:/repo2:rw'`); other Docker options combine with it (`:rw,z`). Named volumes stay read-write, since they hold agentic-managed state like build caches. Your workspace (`/workspace`) and the tool's own state directories are always writable.
-
-See [Examples](#examples) above for the mount syntax, [Configuration](config.md) for `.agenticrc.toml` persistence, and [Volume mounts](volume-mounts.md) for a per-tool breakdown of what's mounted automatically and why.
-
-### Managing volumes
-
-Use `agentic volumes` to inspect and clean up agentic-managed volumes:
+`-v` takes a bind mount (`host/path:container/path`) or a named volume (`name:container/path`). Named volumes are created on first use and persist across runs. Paths support [placeholders](config.md#mount-variable-expansion).
 
 ```bash
-agentic volumes create maven      # Create a named volume
-agentic volumes list              # List all agentic-managed volumes (alias: ls)
-agentic volumes remove maven      # Remove a specific volume (alias: rm)
-agentic volumes remove            # Remove all agentic-managed volumes
+agentic run -v 'maven:$CONTAINER_HOME/.m2' claude    # named volume, read-write
+agentic run -v '~/notes:/notes' claude               # bind mount, read-only
+agentic run -v '~/.m2:$CONTAINER_HOME/.m2:rw' claude # bind mount, writable
+```
+
+- Bind mounts are **read-only unless you add `:rw`**, so the agent can't change host files you only meant to share. Other Docker options can follow it (`:rw,z`).
+- Named volumes, `/workspace` and the tool's own state directories are always writable.
+- See [Volume mounts](volume-mounts.md) for what each tool gets mounted automatically.
+
+Manage volumes with `agentic volumes`:
+
+```bash
+agentic volumes create maven
+agentic volumes list              # alias: ls
+agentic volumes remove maven      # alias: rm
+agentic volumes remove            # remove all agentic volumes
 ```
 
 ## Docker context
 
-If Docker is configured with multiple [contexts](https://docs.docker.com/engine/manage-resources/contexts/), use `--docker-context` (tab-completes against `docker context ls`) to target a specific one instead of whichever is currently active:
+`--docker-context` picks a [Docker context](https://docs.docker.com/engine/manage-resources/contexts/) other than the active one, and tab-completes from `docker context ls`. `agentic status` shows the context in use when it isn't the default. Set a default with [`docker_context`](config.md#top-level-keys).
 
 ```bash
 agentic --docker-context prod build claude
 ```
 
-For persisting a default via `.agenticrc.toml` or `agentic.json`, see [`docker_context`](config.md#docker_context).
+## Data directory
 
-## Tool home directory
+`$AGENTIC_HOME` (default `~/.agentic`) holds:
 
-Each tool stores its configuration under `$AGENTIC_HOME/tools/`:
+- `tools/<tool>/` - each tool's state. See [Volume mounts](volume-mounts.md) for the paths.
+- `marketplaces/` - [marketplace](#marketplaces) clones
+- `logs/` - agentic's own logs, e.g. `proxy_<id>.jsonl`
 
-| Tool       | Config path                                                               |
-| ---------- | -------------------------------------------------------------------------- |
-| `claude`   | `$AGENTIC_HOME/tools/claude/`, `$AGENTIC_HOME/tools/claude/.claude.json`  |
-| `copilot`  | `$AGENTIC_HOME/tools/copilot/`                                            |
-| `opencode` | `$AGENTIC_HOME/tools/opencode/` (data, share, state, cache, config)       |
+`--home` overrides it for one run: `agentic run --home /opt/agentic claude`.
 
-`$AGENTIC_HOME/marketplaces/<slug>-<hash>/` holds host-side clones of any `[[marketplaces]]` configured in `.agenticrc.toml` - shared across tools and mounted read-only into each applicable tool's container. The clone is keyed by the marketplace's `url` alone, so two projects referencing the same URL always share one clone, even under different local names. See [Configuration](config.md) for the full `[[marketplaces]]` reference.
+## Marketplaces
 
-`$AGENTIC_HOME/logs/` holds log files written by agentic's own components, named by type - proxy access logs are written there as `proxy_<id>.jsonl`.
+[`[[marketplaces]]`](config.md#marketplaces) entries are git plugin repos (skills, agents, commands, hooks, MCP servers) shared with tool containers.
 
-### Managing marketplaces
-
-Marketplaces are downloaded implicitly the first time `agentic run` needs them - no separate install step. Use `agentic marketplaces` to see what's downloaded and clean up clones no longer used:
+- Before each run, agentic clones or updates each marketplace on the host (`git fetch` + `git reset --hard`). It uses your own git auth, so no credentials enter the container. `git` must be on your `PATH`.
+- A failed first clone fails the run. A failed update only warns and reuses the existing clone.
+- Clones live in `$AGENTIC_HOME/marketplaces/<slug>-<hash>/`, keyed by `url`. Projects that use the same URL share one clone, even under different names. Usage is tracked in `.usage.json` there.
+- Each clone is mounted read-only at `~/marketplaces/<name>` and registered with the tool. Removing an entry unregisters it on the next run. Copilot only warns when registration fails.
 
 ```bash
-agentic marketplaces list    # List synced clones and the name(s)/project(s) referencing each (alias: ls)
-agentic marketplaces prune   # Remove clones no project references anymore, under any name
+agentic marketplaces list    # one row per clone and name, with the projects using it (alias: ls)
+agentic marketplaces prune   # remove clones no project uses anymore
 ```
 
-`prune` only drops a clone once no known project references it under any name - see [Configuration](config.md) for the exact rules.
-
-## Environment instructions
-
-Every `agentic run` writes a generated block - what's installed, what's restricted, and the network situation - into the tool's own global instructions file (`CLAUDE.md`, `AGENTS.md`, `copilot-instructions.md`), so the model knows the container's constraints up front. Append your own notes via `custom` under `[run.instructions]` in `.agenticrc.toml`, or turn it off with `enabled = false`. See [Configuration](config.md#keys) for the full reference.
+`prune` checks each project's current config first, and keeps a clone while any of its names is still in use. It leaves alone clones that agentic didn't create (e.g. ones you placed by hand). `agentic clean` doesn't touch clones.

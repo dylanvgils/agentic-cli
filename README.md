@@ -69,11 +69,12 @@ Containers run read-only with all capabilities dropped, no privilege escalation,
 - [Overview](docs/overview.md) - what agentic is and why
 - [Comparison](docs/comparison.md) - agentic vs Docker Sandboxes (`sbx`)
 - [Installation](docs/installation.md) - install, uninstall, upgrade, build from source
-- [Usage](docs/usage.md) - commands, examples, secrets, env vars, volumes, tool home
+- [Usage](docs/usage.md) - commands, examples, secrets, env vars, volumes, marketplaces
 - [Images](docs/images.md) - base images, runtimes, versions, apt packages, custom installs
 - [Configuration](docs/config.md) - `.agenticrc.toml` and `agentic.json` reference
 - [Volume mounts](docs/volume-mounts.md) - what's mounted into each tool and why
 - [Security model](docs/security-model.md) - isolation layers and leftover risk
+- [Egress proxy](docs/egress-proxy.md) - the allowlist proxy and credential injection (beta)
 - [Docker-in-Docker](docs/docker-in-docker.md) - the rootless Docker sidecar (beta)
 - [Recipes](docs/recipes.md) - Java, Maven through the proxy, per-project images, devcontainers
 - [Dockerfile DSL](docs/dockerfile-dsl.md) - how images are generated

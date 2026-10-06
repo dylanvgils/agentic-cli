@@ -40,15 +40,9 @@ agentic-cli/
     └── integration/             # Black-box tests driving the agentic binary against a real Docker daemon (`integration` build tag)
 ```
 
-`cmd/proxy` only imports `internal/proxy` - never `internal/docker`, `internal/tools`, or `internal/cli` - so the `agentic-proxy` binary that runs inside the (untrusted-traffic-handling) sidecar container stays free of the CLI's code.
+Package boundaries (what each sidecar package may import) are listed in [CLAUDE.md](../CLAUDE.md#what-this-is).
 
-`internal/dind` generates the Docker-in-Docker sidecar's per-run files and must not import `internal/docker`; the sidecar's container orchestration lives in `internal/docker/dind.go`, alongside `internal/docker/proxy.go` for the proxy.
-
-`internal/certs` issues the per-run CAs and leaf certs used by `internal/dind` and the proxy; it imports only the standard library so `agentic-proxy` can link it.
-
-`internal/credentials` reads secrets on the host and hands them to the proxy as `proxy.Credential` values, validated with the proxy's own rules; `internal/proxy` never imports it.
-
-No static Dockerfile files exist. All Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/tools/bases.go` (base and extra layers) and each tool's `Stage` func. See [dockerfile-dsl.md](dockerfile-dsl.md) for the DSL reference.
+Dockerfiles are generated in Go, see [Dockerfile DSL](dockerfile-dsl.md).
 
 ## Build & test
 
@@ -61,150 +55,29 @@ make dist           # cross-platform binaries → dist/
 make docker-dist    # same via Docker (no local Go needed)
 ```
 
-Changes to the CLI take effect immediately after `make build` - no container rebuild needed. Changes to stage funcs in `internal/tools/` or `internal/docker/` require an `agentic build` to rebuild the affected image.
+CLI changes take effect after `make build`. Changes to stage funcs in `internal/tools/` or `internal/docker/` need an `agentic build` to rebuild the image.
 
-Integration tests live in `test/integration/` behind the `integration` build tag. They build the binary and an `agentic-itest-claude` image (a few minutes on the first run, cached after), then drive `agentic run` like a user would. They skip when Docker is unavailable, and the resource-limit checks skip when the daemon runs without cgroups (e.g. rootless without systemd). CI runs them in a separate job. This repo's `.agenticrc.toml` enables the DinD sidecar (and the egress proxy in monitor mode), so they also run inside an agentic container.
+Integration tests build the binary and an `agentic-itest-claude` image (slow on the first run, cached after), then drive `agentic run` like a user would. They skip without Docker, and the resource-limit checks skip without cgroups (e.g. rootless without systemd). CI runs them in a separate job. This repo's `.agenticrc.toml` enables DinD (and the proxy in monitor mode), so they also run inside an agentic container.
 
-## Go conventions
+## Conventions
 
-### File structure
-
-Within each `.go` file, order elements as follows:
-
-1. Package declaration
-2. Import block - two groups separated by a blank line: stdlib, then everything else (alphabetical within each group)
-3. Constants (`const` blocks)
-4. Package-level variables (`var` blocks)
-5. Type declarations (structs, interfaces) - ordered by dependency/importance
-6. Constructors and methods - grouped with their type; constructor first, then exported methods, then unexported methods
-7. Standalone functions - exported functions first, then unexported helpers
-
-### Cobra command init functions
-
-Every `init()` in an `internal/cli/*.go` file must follow this order:
-
-1. `rootCmd.AddCommand(xCmd)` - command registration
-2. Command-specific flags declared inline (`xCmd.Flags()...`)
-3. Calls to shared flag helpers (`addBuildFlags`, `addNamespaceFlag`, `addAllFlag`, etc.)
-
-```go
-func init() {
-    rootCmd.AddCommand(buildCmd)
-
-    buildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
-
-    addBuildFlags(buildCmd)
-    addNamespaceFlag(buildCmd)
-}
-```
-
-### Style
-
-- Use blank lines between logical blocks within a function to aid readability (e.g. between groups of related `if` statements, between `switch` case groups)
-
-### Linting
-
-Install `golangci-lint` locally, pinned to the version CI uses (v2.12.2):
+Code style, tests and lint rules are in [CLAUDE.md](../CLAUDE.md#code-conventions). Install `golangci-lint` at the version CI uses:
 
 ```bash
 curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.12.2
+# or: brew install golangci-lint
+# or (slower, not recommended upstream): go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 ```
 
-Or via Homebrew on macOS:
+## Adding a tool or runtime layer
 
-```bash
-brew install golangci-lint
-```
+See [Tool structure](../CLAUDE.md#tool-structure) and [Adding a new runtime layer](../CLAUDE.md#adding-a-new-runtime-layer) in CLAUDE.md.
 
-`go install` also works but isn't recommended upstream (slower, no guaranteed reproducibility) - if you use it anyway:
-
-```bash
-go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
-```
-
-Run `make lint` (or `golangci-lint run ./...`) before committing; CI runs the same check via `golangci-lint-action` and fails the build on any issue. Config lives in `.golangci.yml` at the repo root - it uses the default linter set (`errcheck`, `govet`, `staticcheck`, `ineffassign`, `unused`) plus an `errcheck` exclusion for `fmt.Fprint*`/`fmt.Print*`. When a `Close`/`Unsetenv`/`RemoveAll`-style call's error is intentionally ignored, suppress it with a trailing `//nolint:errcheck` comment in test files, or wrap it as `defer func() { _ = x.Close() }()` in non-test code.
-
-### Tests
-
-- Always add tests for new code
-- Use Arrange-Act-Assert (AAA) with `// Arrange`, `// Act`, `// Assert` comment labels and a blank line between sections
-- Omit `// Arrange` only when there is genuinely nothing to set up
-- Use `// Act + Assert` only when a single call is inseparably both (e.g. `assert.Panics`)
-- Assign the result of the function under test to a variable in `// Act` so `// Assert` can reference it - do not inline the call inside the assertion
-- When a function has multiple test cases, group them under a single parent function using `t.Run` subtests; name the parent after the function under test (e.g. `TestBuildImage`). A function with only one test case stays as a flat top-level function
-- Subtest names use lowercase sentence style derived from the scenario (e.g. `"first arg is build"`, `"noCache adds no-cache flag"`)
-- Place shared setup that applies to all subtests at the top of the parent function body, before the first `t.Run` call; subtests with no additional setup omit `// Arrange`
-- Test helper functions that need cleanup must register it via `t.Cleanup` internally - do not return a restore/teardown func for callers to defer
-- All shared test helpers live in `helpers_test.go` in the same package; do not define helpers inside individual test files
-- Name all stub helpers with a `stub` prefix (e.g. `stubDockerRun`, `stubRunInteractive`); pure utilities that are not stubs are exempt (e.g. `argAfter`)
-- Integration tests go in `test/integration/` with `//go:build integration`; build docker fixtures with the `fakeContainer`/`fakeNetwork` builders in `fakeresource_test.go`
-
-Example structure:
-
-```go
-func TestBuildImage(t *testing.T) {
-    get := stubRunInteractive(t) // shared setup - no // Arrange label needed at subtest level
-
-    t.Run("first arg is build", func(t *testing.T) {
-        // Act
-        err := buildImage(...)
-        // Assert
-        assert.Equal(t, "build", get()[0])
-    })
-
-    t.Run("noCache adds no-cache flag", func(t *testing.T) {
-        // Arrange
-        opts := tools.BuildOptions{NoCache: true}
-        // Act
-        err := buildImage(..., opts)
-        // Assert
-        assert.Contains(t, get(), "--no-cache")
-    })
-}
-```
-
-## Adding a new tool
-
-1. Create `internal/tools/<name>.go` implementing four functions:
-   - `<name>Stage(prevStage string) dockerfile.Stage` - return the tool's Dockerfile stage using the [Dockerfile DSL](dockerfile-dsl.md); `prevStage` is the name of the preceding base stage to `FROM`
-   - `setup<Name>(toolHome string) error` - create any host-side directories or files the tool needs before first run (e.g. pre-creating a credentials file so the read-only root filesystem doesn't block the first write)
-   - `<name>Mounts() []string` - return the list of bind/volume mounts using helpers from `internal/mount`
-   - `<name>TmpfsMounts() []string` - return any tmpfs mounts (every tool needs at least `/tmp`)
-
-   Reuse the shared helpers in `internal/tools/helpers.go` inside the stage func:
-   - `createContainerUser(name string) []df.Instruction` - declares `HOST_UID`/`HOST_GID` build args, removes any conflicting user, and creates the container user. Spread into `Add`: `Add(createContainerUser("mytool")...)`
-   - `aptInstallRun(pkgs []string) df.Run` - builds a standard apt update → install → cleanup `RUN` block
-
-   Use `mount.VolumeMount(host, container)` and `mount.TmpfsMount(path, opts)` from `internal/mount`. Mount strings support two placeholder variables expanded at runtime:
-   - `$TOOL_HOME` (host side) - expands to the agentic data dir (e.g. `~/.agentic`)
-   - `$CONTAINER_HOME` (container side) - expands to the container home dir, resolved from the image's `TOOL_HOME` env var
-
-   Security constraints (`--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`) are enforced in `internal/docker/run.go`. Do not relax them. If the tool needs to write somewhere, use a targeted tmpfs or volume mount - not a relaxed security flag.
-
-2. Register in `internal/tools/tools.go` `Configs` map:
-
-   ```go
-   "mytool": {
-       Build:   BuildConfig{Stage: mytoolStage},
-       Runtime: RuntimeConfig{TmpfsMounts: mytoolTmpfsMounts, Setup: setupMytool, Mounts: mytoolMounts, AllowedHosts: mytoolAllowedHosts},
-   },
-   ```
-
-   `AllowedHosts` is the tool's baseline egress allowlist. When the proxy is enabled, these hosts are permitted by default; the user merges additional hosts on top via `allowed_hosts` in `.agenticrc.toml`. Define it as a package-level `var` in `internal/tools/<name>.go` (see the other tools for examples).
-
-## Adding a new base runtime
-
-1. Add a new case to `extraStage()` in `internal/tools/bases.go` (follow the `nodeStage`/`javaStage`/`dotnetStage`/`goStage` pattern). The stage func receives `prevStage` and `ver` - build FROM `prevStage` and apply the version as a build arg default.
-
-2. Add the name to `knownExtras` in `internal/tools/bases.go` and add a human-readable label to `LayerFlagDesc` in the same file. The `--<name>` version flag is registered automatically from these two maps.
-
-3. If the new layer needs apt packages installed in the base stage (e.g. `apt-transport-https` for Java), add them to `layerPackages` in `internal/tools/packages.go` under the layer's name. `collectPackages` merges them with the base packages and any user-supplied `--apt` packages automatically.
-
-The resolved version for each layer and the final apt package list are persisted as Docker labels (`agentic.version-args`, `agentic.apt` - see `internal/docker/labels.go`) when an image is built. `agentic update` reads these labels back (`RecoverVersionArgs`, `RecoverApt`) to reconstruct the original build flags, which is why base/extra layers stay cache-hits across an update even though `.agenticrc.toml`'s `bases`/`apt_packages` are ignored at that point - only an explicit `--base`/`--apt` flag overrides the recovered value.
+Each image stores its resolved versions and apt list as labels (`agentic.version-args`, `agentic.apt`, see `internal/docker/labels.go`). `agentic update` reads them back (`RecoverVersionArgs`, `RecoverApt`) to rebuild with the same layers.
 
 ## Docker-in-Docker sidecar image
 
-`agentic run --dind` builds the global `agentic-dind` image lazily (`ensureDindImage`) from `tools.GenerateDindDockerfile`: the upstream `docker:<version>-dind-rootless` image with setuid/setgid bits stripped and file capabilities on `newuidmap`/`newgidmap`. It always builds with `--pull` and is rebuilt when missing, built by another CLI version, or older than 7 days (`tools.DindImageMaxAge`). `agentic clean` removes it.
+`agentic run --dind` builds the global `agentic-dind` image lazily (`ensureDindImage`) from `tools.GenerateDindDockerfile` (see [Image](docker-in-docker.md#how-it-stays-isolated)). It always builds with `--pull` and is rebuilt when missing, built by another CLI version, or older than 7 days (`tools.DindImageMaxAge`). `agentic clean` removes it.
 
 The sidecar's seccomp profile is derived at run time (`deriveSeccompProfile`) from Docker's default profile, vendored verbatim in `internal/dind/seccomp_default.json`. To refresh it, re-copy `seccomp/default.json` from [moby/profiles](https://github.com/moby/profiles) and update the commit noted on `seccompDefault`; `Test_deriveSeccompProfile` checks the derived rules still hold.
 
@@ -214,7 +87,7 @@ Sidecars and their networks carry `agentic.owner` (the tool container name) and 
 
 ## Building the proxy image locally
 
-The proxy image runs as a sidecar container whenever `--proxy` is enabled. It installs the minimal `agentic-proxy` binary (entrypoint `cmd/proxy/main.go`, built from the `cmd/proxy` package - not the CLI's `agentic` binary) and is built separately from the tool images via `agentic proxy build`/`agentic proxy update`, or lazily by `agentic run --proxy` the first time it's missing (`ensureProxyImage`). `agentic build` never builds it. Unlike tool images, the proxy image is global (tagged `agentic-proxy`), not namespaced.
+The global `agentic-proxy` image installs the `agentic-proxy` binary from `cmd/proxy`. `agentic build` never builds it; `ensureProxyImage` builds it on the first `--proxy` run.
 
 Released builds `go install` the published `cmd/proxy` module at their own version. Local builds default `VERSION` to `dev`, which makes the proxy Dockerfile compile from the local source tree instead - detected by walking up from `$PWD` looking for the module's `go.mod`, so run these from the repository root:
 
@@ -223,7 +96,7 @@ make build                          # compile the CLI binary (version = "dev")
 ./bin/agentic run --proxy claude    # compiles the proxy from local source on first use
 ```
 
-`ensureProxyImage` only builds the proxy image when one doesn't already exist - it never checks whether an existing image is stale. After editing `internal/proxy/`, `cmd/proxy/main.go`, or any other code the proxy binary links in, force a fresh build:
+An existing image is never treated as stale. After editing code the proxy links in, rebuild it:
 
 ```bash
 ./bin/agentic proxy update    # always rebuilds agentic-proxy with --no-cache
@@ -231,9 +104,7 @@ make build                          # compile the CLI binary (version = "dev")
 
 ## Releasing
 
-Releases are automated. When a PR is merged to `main` and CI passes, `.github/scripts/next-tag.sh` inspects the commits since the last tag and pushes a new annotated git tag if any releaseable commit is found.
-
-Bump rules follow the [Conventional Commits](https://www.conventionalcommits.org/) convention:
+When a PR merges to `main` and CI passes, `.github/scripts/next-tag.sh` tags a release if any commit since the last tag needs one, following [Conventional Commits](https://www.conventionalcommits.org/):
 
 | Commit type                                                         | Bump       |
 | ------------------------------------------------------------------- | ---------- |
@@ -242,9 +113,7 @@ Bump rules follow the [Conventional Commits](https://www.conventionalcommits.org
 | `fix:`, `perf:`, `refactor:`                                        | patch      |
 | `chore:`, `docs:`, `ci:`, `test:`, `style:`, `build:`               | no release |
 
-Scoped variants (e.g. `feat(tool):`) are treated the same as their unscoped form.
-
-The script can be run locally for a dry-run:
+Scoped variants (`feat(tool):`) count the same. Dry-run it locally:
 
 ```bash
 .github/scripts/next-tag.sh          # next tag based on latest git tag
@@ -253,22 +122,10 @@ The script can be run locally for a dry-run:
 
 ## Debugging
 
-To get a shell inside a container instead of running the tool, use `--` to override the entrypoint:
+Open a shell in the container with `agentic run <tool> -- bash` ([Usage](usage.md#examples)), then for example:
 
 ```bash
-agentic run claude -- bash
-agentic run opencode -- bash
-```
-
-From there you can inspect the filesystem, check environment variables, or run the tool manually to see raw output. Some useful starting points:
-
-```bash
-# Check what's mounted and where
-mount | grep -v "^cgroup\|^proc\|^tmpfs"
-
-# Verify the tool is on PATH and check its version
-which claude && claude --version
-
-# Inspect environment variables (API keys, TOOL_HOME, etc.)
-env | sort
+mount | grep -v "^cgroup\|^proc\|^tmpfs"   # what is mounted where
+which claude && claude --version         # tool on PATH
+env | sort                               # environment variables
 ```
