@@ -50,18 +50,53 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	namespace := resolveNamespace(cmd, rc)
-	opts := buildOptsFromFlags(cmd, rc)
-	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	opts := updateOptsFromFlags(cmd, rc)
+	svc := update.New(dockerClient)
+
+	if dryRun, _ := cmd.Flags().GetBool("dry-run"); dryRun {
+		return svc.DryRun(firstArg(args), namespace, opts)
+	}
+
+	// Generate the cache-bust value once so multiple targets for the same tool
+	// (e.g. --all updating it across namespaces) can still share cached layers.
+	opts.CacheBust = docker.NewCacheBust()
+
 	all, _ := cmd.Flags().GetBool("all")
-	pullExplicit := cmd.Flags().Changed("pull")
+	scope := update.Scope{
+		Names:      toolNames(args),
+		HasArgs:    len(args) > 0,
+		FilterTool: firstArg(args),
+		Namespace:  namespace,
+		All:        all,
+	}
+
+	targets, skipped, err := svc.Resolve(scope, opts, cmd.Flags().Changed("pull"))
+	if err != nil {
+		return err
+	}
+
+	if len(targets) == 0 {
+		logNothingToUpdate(scope)
+		return nil
+	}
+
+	logUpdateSummary(targets, skipped)
+	for _, t := range targets {
+		if err := svc.Apply(t.Name, t.Image, t.Opts); err != nil {
+			return err
+		}
+	}
+
+	pruneResources()
+	return nil
+}
+
+// updateOptsFromFlags returns the build options for an update, keeping each image's own bases/apt unless a flag overrides them.
+func updateOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOptions {
+	opts := buildOptsFromFlags(cmd, rc)
 
 	if opts.SkipInstallChecksum {
 		logging.Warnf("--skip-install-checksum disables install script integrity verification")
-	}
-
-	var tool string
-	if len(args) > 0 {
-		tool = args[0]
 	}
 
 	// RC config bases/apt must not prevent per-image label recovery; only an explicit --base/--base-exact or --apt/--apt-exact flag overrides what the image was built with.
@@ -72,53 +107,28 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		opts.AptPackages = nil
 	}
 
-	svc := update.New(dockerClient)
+	return opts
+}
 
-	if dryRun {
-		return svc.DryRun(tool, namespace, opts)
+// logNothingToUpdate explains why scope matched nothing; a named tool that isn't built says nothing.
+func logNothingToUpdate(scope update.Scope) {
+	switch {
+	case scope.All:
+		logging.Infof("no agentic images found; run 'agentic build' first")
+	case !scope.HasArgs:
+		logging.Infof("no tools are built; run 'agentic build' first")
 	}
+}
 
-	// Generate the cache-bust value once so multiple targets for the same tool
-	// (e.g. --all updating it across namespaces) can still share cached layers.
-	opts.CacheBust = docker.NewCacheBust()
-
-	scope := update.Scope{
-		Names:      toolNames(args),
-		HasArgs:    len(args) > 0,
-		FilterTool: tool,
-		Namespace:  namespace,
-		All:        all,
-	}
-
-	targets, skipped, err := svc.Resolve(scope, opts, pullExplicit)
-	if err != nil {
-		return err
-	}
-
-	if len(targets) == 0 {
-		if all {
-			logging.Infof("no agentic images found; run 'agentic build' first")
-		} else if len(args) == 0 {
-			logging.Infof("no tools are built; run 'agentic build' first")
-		}
-		return nil
-	}
-
+// logUpdateSummary prints the summary line of images to update, then each unbuilt image that was skipped.
+func logUpdateSummary(targets []update.Target, skipped []string) {
 	images := make([]string, len(targets))
 	for i, t := range targets {
 		images[i] = t.Image
 	}
+
 	logging.Infof("updating %d image(s): %s", len(images), strings.Join(images, ", "))
 	for _, image := range skipped {
 		logging.Stepf("%s (skipped - not built)", image)
 	}
-
-	for _, t := range targets {
-		if err := svc.Apply(t.Name, t.Image, t.Opts); err != nil {
-			return err
-		}
-	}
-
-	pruneResources()
-	return nil
 }

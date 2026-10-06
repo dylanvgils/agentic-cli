@@ -155,3 +155,36 @@ func TestRunMarketplacesPrune(t *testing.T) {
 		assert.NotContains(t, updated.Marketplaces, dirRemoved)
 	})
 }
+
+func Test_marketplaceRows(t *testing.T) {
+	t.Run("tracked dir lists one row per entry", func(t *testing.T) {
+		// Arrange
+		project := t.TempDir()
+		registry := &marketplace.Registry{Marketplaces: map[string][]marketplace.RegistryEntry{
+			"acme-dir": {
+				{Name: "acme", URL: "git@example.test:acme.git", Projects: []string{project}},
+				{Name: "acme-fork", URL: "git@example.test:fork.git", Stale: true},
+			},
+		}}
+
+		// Act
+		rows := marketplaceRows(registry, []string{"acme-dir"})
+
+		// Assert
+		assert.Equal(t, []string{
+			"acme\tgit@example.test:acme.git\t" + project + "\tno",
+			"acme-fork\tgit@example.test:fork.git\t(untracked)\tyes",
+		}, rows)
+	})
+
+	t.Run("dir without entries is untracked", func(t *testing.T) {
+		// Arrange
+		registry := &marketplace.Registry{}
+
+		// Act
+		rows := marketplaceRows(registry, []string{"orphan-dir"})
+
+		// Assert
+		assert.Equal(t, []string{"orphan-dir\t(untracked)\t(untracked)\t-"}, rows)
+	})
+}

@@ -361,3 +361,21 @@ func TestToolNames(t *testing.T) {
 		assert.Equal(t, []string{"claude"}, result)
 	})
 }
+
+func Test_firstArg(t *testing.T) {
+	t.Run("no args returns empty", func(t *testing.T) {
+		// Act
+		result := firstArg(nil)
+
+		// Assert
+		assert.Empty(t, result)
+	})
+
+	t.Run("returns the first arg", func(t *testing.T) {
+		// Act
+		result := firstArg([]string{"claude", "extra"})
+
+		// Assert
+		assert.Equal(t, "claude", result)
+	})
+}

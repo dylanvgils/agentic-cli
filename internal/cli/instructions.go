@@ -60,14 +60,13 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	dindEnabled := resolveDindEnabled(cmd, rc)
 
 	target := run.Target{ToolName: toolName, ImageName: imageName}
 	input := run.Input{
 		ToolHome:    toolHome,
 		Limits:      resolveResourceLimitFlags(cmd),
 		ProxyMode:   proxyMode,
-		DindEnabled: dindEnabled,
+		DindEnabled: resolveDindEnabled(cmd, rc),
 		DindLimits:  resolveDindResourceLimitFlags(cmd),
 	}
 

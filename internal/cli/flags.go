@@ -160,6 +160,14 @@ func toolNames(args []string) []string {
 	return tools.Names()
 }
 
+// firstArg returns args[0], or "" when there are no args.
+func firstArg(args []string) string {
+	if len(args) > 0 {
+		return args[0]
+	}
+	return ""
+}
+
 // exactFlagValue returns name's flag value if explicitly passed, or nil otherwise, so resolve can distinguish "not set" from "set empty".
 func exactFlagValue(cmd *cobra.Command, name string) *[]string {
 	if !cmd.Flags().Changed(name) {
