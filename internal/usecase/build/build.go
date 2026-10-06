@@ -55,7 +55,7 @@ func (s *Service) Apply(names []string, namespace string, opts tools.BuildOption
 }
 
 // DryRun prints the generated Dockerfile for each tool in names instead of building it.
-func DryRun(names []string, opts tools.BuildOptions) error {
+func (s *Service) DryRun(names []string, opts tools.BuildOptions) error {
 	for _, name := range names {
 		logging.Step(name)
 		content, err := tools.GenerateDockerfile(name, opts)

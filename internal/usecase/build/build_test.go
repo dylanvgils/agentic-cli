@@ -43,21 +43,29 @@ func captureLog(t *testing.T, fn func()) string {
 }
 
 func TestDryRun(t *testing.T) {
-	t.Run("prints dockerfile", func(t *testing.T) {
+	t.Run("prints dockerfile without building", func(t *testing.T) {
+		// Arrange
+		var buildCalled bool
+		d := &fakeDocker{buildTool: func(_, _ string, _ tools.BuildOptions) error {
+			buildCalled = true
+			return nil
+		}}
+
 		// Act
 		out := captureStdout(t, func() {
-			err := DryRun([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d).DryRun([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
 		// Assert
+		assert.False(t, buildCalled)
 		assert.Contains(t, out, "FROM")
 		assert.NotContains(t, out, "AS proxy", "the proxy image builds separately")
 	})
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		err := DryRun([]string{"nonexistent"}, tools.BuildOptions{Versions: map[string]string{}})
+		err := New(&fakeDocker{}).DryRun([]string{"nonexistent"}, tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
