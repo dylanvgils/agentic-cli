@@ -7,6 +7,11 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
+// Service removes agentic-owned images and shared Docker resources.
+type Service struct {
+	docker Docker
+}
+
 // Target is one image to remove, with the label to report it under.
 type Target struct {
 	Label string
@@ -23,19 +28,24 @@ type Scope struct {
 	All        bool
 }
 
+// New returns a Service that talks to Docker through d.
+func New(d Docker) *Service {
+	return &Service{docker: d}
+}
+
 // Resolve returns the clean targets for scope: every agentic image across all namespaces (All), or the named tools in one namespace.
-func Resolve(scope Scope) ([]Target, error) {
+func (s *Service) Resolve(scope Scope) ([]Target, error) {
 	if scope.All {
-		return resolveAll(scope.FilterTool)
+		return s.resolveAll(scope.FilterTool)
 	}
 	return resolveScoped(scope.Names, scope.Namespace)
 }
 
 // Apply removes each target's image, reporting progress.
-func Apply(targets []Target) error {
+func (s *Service) Apply(targets []Target) error {
 	for _, t := range targets {
 		logging.Step(t.Label)
-		if err := CleanImage(t.Image); err != nil {
+		if err := s.docker.CleanImage(t.Image); err != nil {
 			return err
 		}
 	}
@@ -44,46 +54,46 @@ func Apply(targets []Target) error {
 }
 
 // GlobalResources removes agentic's shared Docker resources: base and sidecar images, leftover sidecar resources, and agentic-net.
-func GlobalResources(toolHome string) error {
+func (s *Service) GlobalResources(toolHome string) error {
 	logging.Infof("removing shared resources: base images, %s, %s, sidecars, %s", tools.ProxyImage, tools.DindImage, docker.NetworkName)
 
 	logging.Step("base")
-	if err := CleanBaseImages(); err != nil {
+	if err := s.docker.CleanBaseImages(); err != nil {
 		return err
 	}
 
-	if err := cleanProxyImage(); err != nil {
+	if err := s.cleanProxyImage(); err != nil {
 		return err
 	}
 	logging.Step(tools.DindImage)
-	if err := CleanImage(tools.DindImage); err != nil {
+	if err := s.docker.CleanImage(tools.DindImage); err != nil {
 		return err
 	}
 	// Sidecars may sit on a proxy network, so they go first
-	if err := SweepDindResources(toolHome); err != nil {
+	if err := s.docker.SweepDindResources(toolHome); err != nil {
 		return err
 	}
-	if err := SweepProxyResources(); err != nil {
+	if err := s.docker.SweepProxyResources(); err != nil {
 		return err
 	}
 
 	logging.Step("network")
-	return RemoveNetwork()
+	return s.docker.RemoveNetwork()
 }
 
 // cleanProxyImage removes the proxy image; duplicated from internal/cli/proxy.go since this package can't depend on internal/cli.
-func cleanProxyImage() error {
+func (s *Service) cleanProxyImage() error {
 	logging.Step(tools.ProxyImage)
-	return CleanImage(tools.ProxyImage)
+	return s.docker.CleanImage(tools.ProxyImage)
 }
 
-func resolveAll(filterTool string) ([]Target, error) {
+func (s *Service) resolveAll(filterTool string) ([]Target, error) {
 	var filters []docker.ImageFilter
 	if filterTool != "" {
 		filters = append(filters, docker.ToolFilter(filterTool))
 	}
 
-	images, err := ListAllImages(filters...)
+	images, err := s.docker.ListAllImages(filters...)
 	if err != nil {
 		return nil, err
 	}

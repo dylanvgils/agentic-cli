@@ -30,15 +30,17 @@ func TestResolve(t *testing.T) {
 	t.Run("all scope dispatches to resolveAll", func(t *testing.T) {
 		// Arrange
 		var capturedFilters []docker.ImageFilter
-		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			capturedFilters = filters
-			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
-			}, nil
-		})
+		d := &fakeDocker{
+			listAllImages: func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+				capturedFilters = filters
+				return []*docker.ImageInfo{
+					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+				}, nil
+			},
+		}
 
 		// Act
-		targets, err := Resolve(Scope{All: true, FilterTool: "claude"})
+		targets, err := New(d).Resolve(Scope{All: true, FilterTool: "claude"})
 
 		// Assert
 		require.NoError(t, err)
@@ -48,7 +50,7 @@ func TestResolve(t *testing.T) {
 
 	t.Run("scoped resolve dispatches to resolveScoped", func(t *testing.T) {
 		// Act
-		targets, err := Resolve(Scope{Names: []string{"claude"}, Namespace: "agentic"})
+		targets, err := New(&fakeDocker{}).Resolve(Scope{Names: []string{"claude"}, Namespace: "agentic"})
 
 		// Assert
 		require.NoError(t, err)
@@ -83,15 +85,17 @@ func Test_resolveAll(t *testing.T) {
 	t.Run("tool arg applies filter", func(t *testing.T) {
 		// Arrange
 		var capturedFilters []docker.ImageFilter
-		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			capturedFilters = filters
-			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
-			}, nil
-		})
+		d := &fakeDocker{
+			listAllImages: func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+				capturedFilters = filters
+				return []*docker.ImageInfo{
+					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+				}, nil
+			},
+		}
 
 		// Act
-		_, err := resolveAll("claude")
+		_, err := New(d).resolveAll("claude")
 
 		// Assert
 		require.NoError(t, err)
@@ -100,12 +104,14 @@ func Test_resolveAll(t *testing.T) {
 
 	t.Run("listAllImages error propagates", func(t *testing.T) {
 		// Arrange
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return nil, fmt.Errorf("docker error")
-		})
+		d := &fakeDocker{
+			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+				return nil, fmt.Errorf("docker error")
+			},
+		}
 
 		// Act
-		_, err := resolveAll("")
+		_, err := New(d).resolveAll("")
 
 		// Assert
 		require.Error(t, err)
@@ -113,15 +119,17 @@ func Test_resolveAll(t *testing.T) {
 
 	t.Run("skips the proxy image since GlobalResources handles it separately", func(t *testing.T) {
 		// Arrange
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Image: "agentic-proxy", Namespace: "agentic", Tool: "proxy"},
-				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
-			}, nil
-		})
+		d := &fakeDocker{
+			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+				return []*docker.ImageInfo{
+					{Image: "agentic-proxy", Namespace: "agentic", Tool: "proxy"},
+					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+				}, nil
+			},
+		}
 
 		// Act
-		targets, err := resolveAll("")
+		targets, err := New(d).resolveAll("")
 
 		// Assert
 		require.NoError(t, err)
@@ -139,14 +147,16 @@ func TestApply(t *testing.T) {
 	t.Run("cleans each target", func(t *testing.T) {
 		// Arrange
 		var cleaned []string
-		stubCleanImage(t, func(image string) error {
-			cleaned = append(cleaned, image)
-			return nil
-		})
+		d := &fakeDocker{
+			cleanImage: func(image string) error {
+				cleaned = append(cleaned, image)
+				return nil
+			},
+		}
 
 		// Act
 		out := captureStdout(t, func() {
-			err := Apply(targets)
+			err := New(d).Apply(targets)
 			require.NoError(t, err)
 		})
 
@@ -159,13 +169,15 @@ func TestApply(t *testing.T) {
 	t.Run("stops on first error", func(t *testing.T) {
 		// Arrange
 		var cleaned []string
-		stubCleanImage(t, func(image string) error {
-			cleaned = append(cleaned, image)
-			return fmt.Errorf("fail on %s", image)
-		})
+		d := &fakeDocker{
+			cleanImage: func(image string) error {
+				cleaned = append(cleaned, image)
+				return fmt.Errorf("fail on %s", image)
+			},
+		}
 
 		// Act
-		err := Apply(targets)
+		err := New(d).Apply(targets)
 
 		// Assert
 		require.Error(t, err)
@@ -178,35 +190,37 @@ func TestGlobalResources(t *testing.T) {
 		// Arrange
 		logBuf := stubErrLog(t)
 		var cleaned []string
-		stubCleanImage(t, func(image string) error {
-			cleaned = append(cleaned, image)
-			return nil
-		})
 		basesCleaned := false
-		stubCleanBaseImages(t, func() error {
-			basesCleaned = true
-			return nil
-		})
 		var swept []string
 		var sweptHome string
-		stubSweepDindResources(t, func(toolHome string) error {
-			sweptHome = toolHome
-			swept = append(swept, "dind")
-			return nil
-		})
-		stubSweepProxyResources(t, func() error {
-			swept = append(swept, "proxy")
-			return nil
-		})
 		networkRemoved := false
-		stubRemoveNetwork(t, func() error {
-			networkRemoved = true
-			return nil
-		})
+		d := &fakeDocker{
+			cleanImage: func(image string) error {
+				cleaned = append(cleaned, image)
+				return nil
+			},
+			cleanBaseImages: func() error {
+				basesCleaned = true
+				return nil
+			},
+			sweepDindResources: func(toolHome string) error {
+				sweptHome = toolHome
+				swept = append(swept, "dind")
+				return nil
+			},
+			sweepProxyResources: func() error {
+				swept = append(swept, "proxy")
+				return nil
+			},
+			removeNetwork: func() error {
+				networkRemoved = true
+				return nil
+			},
+		}
 
 		// Act
 		out := captureStdout(t, func() {
-			err := GlobalResources("/agentic-home")
+			err := New(d).GlobalResources("/agentic-home")
 			require.NoError(t, err)
 		})
 
@@ -225,10 +239,10 @@ func TestGlobalResources(t *testing.T) {
 
 	t.Run("cleanBaseImages error propagates", func(t *testing.T) {
 		// Arrange
-		stubCleanBaseImages(t, func() error { return fmt.Errorf("base cleanup failed") })
+		d := &fakeDocker{cleanBaseImages: func() error { return fmt.Errorf("base cleanup failed") }}
 
 		// Act
-		err := GlobalResources("/agentic-home")
+		err := New(d).GlobalResources("/agentic-home")
 
 		// Assert
 		require.Error(t, err)
@@ -237,11 +251,10 @@ func TestGlobalResources(t *testing.T) {
 
 	t.Run("cleanImage error for proxy propagates", func(t *testing.T) {
 		// Arrange
-		stubCleanBaseImages(t, func() error { return nil })
-		stubCleanImage(t, func(string) error { return fmt.Errorf("proxy cleanup failed") })
+		d := &fakeDocker{cleanImage: func(string) error { return fmt.Errorf("proxy cleanup failed") }}
 
 		// Act
-		err := GlobalResources("/agentic-home")
+		err := New(d).GlobalResources("/agentic-home")
 
 		// Assert
 		require.Error(t, err)
@@ -250,12 +263,10 @@ func TestGlobalResources(t *testing.T) {
 
 	t.Run("sweepDindResources error propagates", func(t *testing.T) {
 		// Arrange
-		stubCleanBaseImages(t, func() error { return nil })
-		stubCleanImage(t, func(string) error { return nil })
-		stubSweepDindResources(t, func(string) error { return fmt.Errorf("dind sweep failed") })
+		d := &fakeDocker{sweepDindResources: func(string) error { return fmt.Errorf("dind sweep failed") }}
 
 		// Act
-		err := GlobalResources("/agentic-home")
+		err := New(d).GlobalResources("/agentic-home")
 
 		// Assert
 		require.Error(t, err)
@@ -264,13 +275,10 @@ func TestGlobalResources(t *testing.T) {
 
 	t.Run("sweepProxyResources error propagates", func(t *testing.T) {
 		// Arrange
-		stubCleanBaseImages(t, func() error { return nil })
-		stubCleanImage(t, func(string) error { return nil })
-		stubSweepDindResources(t, func(string) error { return nil })
-		stubSweepProxyResources(t, func() error { return fmt.Errorf("sweep failed") })
+		d := &fakeDocker{sweepProxyResources: func() error { return fmt.Errorf("sweep failed") }}
 
 		// Act
-		err := GlobalResources("/agentic-home")
+		err := New(d).GlobalResources("/agentic-home")
 
 		// Assert
 		require.Error(t, err)
@@ -279,14 +287,10 @@ func TestGlobalResources(t *testing.T) {
 
 	t.Run("removeNetwork error propagates", func(t *testing.T) {
 		// Arrange
-		stubCleanBaseImages(t, func() error { return nil })
-		stubCleanImage(t, func(string) error { return nil })
-		stubSweepDindResources(t, func(string) error { return nil })
-		stubSweepProxyResources(t, func() error { return nil })
-		stubRemoveNetwork(t, func() error { return fmt.Errorf("network removal failed") })
+		d := &fakeDocker{removeNetwork: func() error { return fmt.Errorf("network removal failed") }}
 
 		// Act
-		err := GlobalResources("/agentic-home")
+		err := New(d).GlobalResources("/agentic-home")
 
 		// Assert
 		require.Error(t, err)

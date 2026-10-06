@@ -13,6 +13,9 @@ func SetContext(ctx string) { std.context = ctx }
 // Context returns the Docker context of the shared Client.
 func Context() string { return std.Context() }
 
+// Default returns the shared Client.
+func Default() *Client { return std }
+
 func BuildDindImage(image string, opts tools.BuildOptions) error {
 	return std.BuildDindImage(image, opts)
 }

@@ -8,46 +8,56 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
 
-func stubListAllImages(t *testing.T, fn func(...docker.ImageFilter) ([]*docker.ImageInfo, error)) {
-	t.Helper()
-	orig := ListAllImages
-	ListAllImages = fn
-	t.Cleanup(func() { ListAllImages = orig })
+// fakeDocker implements Docker; a nil field succeeds with a zero value.
+type fakeDocker struct {
+	listAllImages       func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
+	cleanImage          func(string) error
+	cleanBaseImages     func() error
+	sweepProxyResources func() error
+	sweepDindResources  func(string) error
+	removeNetwork       func() error
 }
 
-func stubCleanImage(t *testing.T, fn func(string) error) {
-	t.Helper()
-	orig := CleanImage
-	CleanImage = fn
-	t.Cleanup(func() { CleanImage = orig })
+func (f *fakeDocker) ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+	if f.listAllImages == nil {
+		return nil, nil
+	}
+	return f.listAllImages(filters...)
 }
 
-func stubCleanBaseImages(t *testing.T, fn func() error) {
-	t.Helper()
-	orig := CleanBaseImages
-	CleanBaseImages = fn
-	t.Cleanup(func() { CleanBaseImages = orig })
+func (f *fakeDocker) CleanImage(image string) error {
+	if f.cleanImage == nil {
+		return nil
+	}
+	return f.cleanImage(image)
 }
 
-func stubSweepProxyResources(t *testing.T, fn func() error) {
-	t.Helper()
-	orig := SweepProxyResources
-	SweepProxyResources = fn
-	t.Cleanup(func() { SweepProxyResources = orig })
+func (f *fakeDocker) CleanBaseImages() error {
+	if f.cleanBaseImages == nil {
+		return nil
+	}
+	return f.cleanBaseImages()
 }
 
-func stubSweepDindResources(t *testing.T, fn func(string) error) {
-	t.Helper()
-	orig := SweepDindResources
-	SweepDindResources = fn
-	t.Cleanup(func() { SweepDindResources = orig })
+func (f *fakeDocker) SweepProxyResources() error {
+	if f.sweepProxyResources == nil {
+		return nil
+	}
+	return f.sweepProxyResources()
 }
 
-func stubRemoveNetwork(t *testing.T, fn func() error) {
-	t.Helper()
-	orig := RemoveNetwork
-	RemoveNetwork = fn
-	t.Cleanup(func() { RemoveNetwork = orig })
+func (f *fakeDocker) SweepDindResources(toolHome string) error {
+	if f.sweepDindResources == nil {
+		return nil
+	}
+	return f.sweepDindResources(toolHome)
+}
+
+func (f *fakeDocker) RemoveNetwork() error {
+	if f.removeNetwork == nil {
+		return nil
+	}
+	return f.removeNetwork()
 }
 
 // stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.

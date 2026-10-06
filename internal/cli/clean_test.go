@@ -28,18 +28,17 @@ func Test_runClean(t *testing.T) {
 		t.Chdir(t.TempDir())
 		logBuf := stubErrLog(t)
 		var cleaned []string
-		stubCleanCleanImage(t, func(image string) error {
-			cleaned = append(cleaned, image)
-			return nil
-		})
 		basesCleaned := false
-		stubCleanCleanBaseImages(t, func() error {
-			basesCleaned = true
-			return nil
+		stubCleanDocker(t, &fakeCleanDocker{
+			cleanImage: func(image string) error {
+				cleaned = append(cleaned, image)
+				return nil
+			},
+			cleanBaseImages: func() error {
+				basesCleaned = true
+				return nil
+			},
 		})
-		stubCleanSweepProxyResources(t, func() error { return nil })
-		stubCleanSweepDindResources(t, func(string) error { return nil })
-		stubCleanRemoveNetwork(t, func() error { return nil })
 
 		// Act
 		err := runClean(newTestCleanCmd(), []string{})
@@ -67,7 +66,9 @@ func Test_runClean(t *testing.T) {
 
 	t.Run("propagates error from cleanTargets", func(t *testing.T) {
 		// Arrange
-		stubCleanCleanImage(t, func(image string) error { return fmt.Errorf("fail on %s", image) })
+		stubCleanDocker(t, &fakeCleanDocker{
+			cleanImage: func(image string) error { return fmt.Errorf("fail on %s", image) },
+		})
 
 		// Act
 		err := runClean(newTestCleanCmd(), []string{})
@@ -78,11 +79,12 @@ func Test_runClean(t *testing.T) {
 
 	t.Run("args present skips global resources", func(t *testing.T) {
 		// Arrange
-		stubCleanCleanImage(t, func(string) error { return nil })
 		basesCleaned := false
-		stubCleanCleanBaseImages(t, func() error {
-			basesCleaned = true
-			return nil
+		stubCleanDocker(t, &fakeCleanDocker{
+			cleanBaseImages: func() error {
+				basesCleaned = true
+				return nil
+			},
 		})
 
 		// Act
@@ -96,24 +98,24 @@ func Test_runClean(t *testing.T) {
 	t.Run("all flag cleans across namespaces and base", func(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())
-		stubCleanListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
-				{Image: "work-claude", Namespace: "work", Tool: "claude"},
-			}, nil
-		})
 		var cleaned []string
-		stubCleanCleanImage(t, func(image string) error {
-			cleaned = append(cleaned, image)
-			return nil
-		})
 		basesCleaned := false
-		stubCleanCleanBaseImages(t, func() error {
-			basesCleaned = true
-			return nil
+		stubCleanDocker(t, &fakeCleanDocker{
+			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+				return []*docker.ImageInfo{
+					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+					{Image: "work-claude", Namespace: "work", Tool: "claude"},
+				}, nil
+			},
+			cleanImage: func(image string) error {
+				cleaned = append(cleaned, image)
+				return nil
+			},
+			cleanBaseImages: func() error {
+				basesCleaned = true
+				return nil
+			},
 		})
-		stubCleanSweepProxyResources(t, func() error { return nil })
-		stubCleanSweepDindResources(t, func(string) error { return nil })
 		cmd := newTestCleanCmd()
 		require.NoError(t, cmd.Flags().Set("all", "true"))
 
@@ -129,16 +131,17 @@ func Test_runClean(t *testing.T) {
 
 	t.Run("all flag with tool arg skips base", func(t *testing.T) {
 		// Arrange
-		stubCleanListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
-			}, nil
-		})
-		stubCleanCleanImage(t, func(_ string) error { return nil })
 		basesCleaned := false
-		stubCleanCleanBaseImages(t, func() error {
-			basesCleaned = true
-			return nil
+		stubCleanDocker(t, &fakeCleanDocker{
+			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+				return []*docker.ImageInfo{
+					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+				}, nil
+			},
+			cleanBaseImages: func() error {
+				basesCleaned = true
+				return nil
+			},
 		})
 		cmd := newTestCleanCmd()
 		require.NoError(t, cmd.Flags().Set("all", "true"))

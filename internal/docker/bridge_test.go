@@ -16,3 +16,15 @@ func TestSetContext(t *testing.T) {
 	// Assert
 	assert.Equal(t, "staging", Context())
 }
+
+func TestDefault(t *testing.T) {
+	// Arrange
+	t.Cleanup(func() { SetContext("") })
+	SetContext("staging")
+
+	// Act
+	client := Default()
+
+	// Assert
+	assert.Equal(t, "staging", client.Context())
+}

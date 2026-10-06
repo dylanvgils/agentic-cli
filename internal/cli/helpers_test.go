@@ -23,6 +23,58 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// fakeCleanDocker implements clean.Docker; a nil field succeeds with a zero value.
+type fakeCleanDocker struct {
+	listAllImages       func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
+	cleanImage          func(string) error
+	cleanBaseImages     func() error
+	sweepProxyResources func() error
+	sweepDindResources  func(string) error
+	removeNetwork       func() error
+}
+
+func (f *fakeCleanDocker) ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+	if f.listAllImages == nil {
+		return nil, nil
+	}
+	return f.listAllImages(filters...)
+}
+
+func (f *fakeCleanDocker) CleanImage(image string) error {
+	if f.cleanImage == nil {
+		return nil
+	}
+	return f.cleanImage(image)
+}
+
+func (f *fakeCleanDocker) CleanBaseImages() error {
+	if f.cleanBaseImages == nil {
+		return nil
+	}
+	return f.cleanBaseImages()
+}
+
+func (f *fakeCleanDocker) SweepProxyResources() error {
+	if f.sweepProxyResources == nil {
+		return nil
+	}
+	return f.sweepProxyResources()
+}
+
+func (f *fakeCleanDocker) SweepDindResources(toolHome string) error {
+	if f.sweepDindResources == nil {
+		return nil
+	}
+	return f.sweepDindResources(toolHome)
+}
+
+func (f *fakeCleanDocker) RemoveNetwork() error {
+	if f.removeNetwork == nil {
+		return nil
+	}
+	return f.removeNetwork()
+}
+
 // captureStdout replaces os.Stdout with a pipe and returns what was written; for logging.Step/Detail-based output, use captureLog instead.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
@@ -201,46 +253,11 @@ func stubCleanImage(t *testing.T, fn func(string) error) {
 	t.Cleanup(func() { cleanImage = orig })
 }
 
-func stubCleanCleanImage(t *testing.T, fn func(string) error) {
+func stubCleanDocker(t *testing.T, d clean.Docker) {
 	t.Helper()
-	orig := clean.CleanImage
-	clean.CleanImage = fn
-	t.Cleanup(func() { clean.CleanImage = orig })
-}
-
-func stubCleanCleanBaseImages(t *testing.T, fn func() error) {
-	t.Helper()
-	orig := clean.CleanBaseImages
-	clean.CleanBaseImages = fn
-	t.Cleanup(func() { clean.CleanBaseImages = orig })
-}
-
-func stubCleanListAllImages(t *testing.T, fn func(...docker.ImageFilter) ([]*docker.ImageInfo, error)) {
-	t.Helper()
-	orig := clean.ListAllImages
-	clean.ListAllImages = fn
-	t.Cleanup(func() { clean.ListAllImages = orig })
-}
-
-func stubCleanSweepProxyResources(t *testing.T, fn func() error) {
-	t.Helper()
-	orig := clean.SweepProxyResources
-	clean.SweepProxyResources = fn
-	t.Cleanup(func() { clean.SweepProxyResources = orig })
-}
-
-func stubCleanSweepDindResources(t *testing.T, fn func(string) error) {
-	t.Helper()
-	orig := clean.SweepDindResources
-	clean.SweepDindResources = fn
-	t.Cleanup(func() { clean.SweepDindResources = orig })
-}
-
-func stubCleanRemoveNetwork(t *testing.T, fn func() error) {
-	t.Helper()
-	orig := clean.RemoveNetwork
-	clean.RemoveNetwork = fn
-	t.Cleanup(func() { clean.RemoveNetwork = orig })
+	orig := cleanDocker
+	cleanDocker = d
+	t.Cleanup(func() { cleanDocker = orig })
 }
 
 func stubCreateVolume(t *testing.T, fn func(string) error) {

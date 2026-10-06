@@ -56,7 +56,8 @@ func runClean(cmd *cobra.Command, args []string) error {
 		All:        all,
 	}
 
-	targets, err := clean.Resolve(scope)
+	svc := clean.New(cleanDocker)
+	targets, err := svc.Resolve(scope)
 	if err != nil {
 		return err
 	}
@@ -69,12 +70,12 @@ func runClean(cmd *cobra.Command, args []string) error {
 		logging.Infof("removing %d image(s): %s", len(labels), strings.Join(labels, ", "))
 	}
 
-	if err := clean.Apply(targets); err != nil {
+	if err := svc.Apply(targets); err != nil {
 		return err
 	}
 
 	if len(args) == 0 {
-		return clean.GlobalResources(toolHome)
+		return svc.GlobalResources(toolHome)
 	}
 
 	return nil
