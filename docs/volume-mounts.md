@@ -2,7 +2,7 @@
 
 Each tool container runs with a read-only filesystem. Any path a tool needs to write to must be explicitly mounted - either as a bind mount from the host, a named Docker volume for persistent state, or a tmpfs for ephemeral scratch space.
 
-This page documents the mounts agentic sets up automatically for each tool. For user-configurable extra mounts (`-v`, `.agenticrc.toml`), see the [Named Docker volumes](usage.md#named-docker-volumes) in the usage docs.
+This page documents the mounts agentic sets up automatically for each tool. For user-configurable extra mounts (`-v`, `.agenticrc.toml`), see the [Named Docker volumes](usage.md#named-docker-volumes) in the usage docs - those bind mounts are read-only unless you add `:rw`.
 
 ## Common mounts (all tools)
 

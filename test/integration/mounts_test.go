@@ -48,4 +48,19 @@ func TestToolMounts(t *testing.T) {
 		assert.Contains(t, out, "workspace=rw")
 		assert.Contains(t, out, "locked=ro")
 	})
+
+	t.Run("extra bind mount is read-only unless rw", func(t *testing.T) {
+		// Arrange
+		defaultDir := tempDirIn(t, rootDir)
+		rwDir := tempDirIn(t, rootDir)
+		script := `touch /mnt/default/x 2>/dev/null && echo default=rw || echo default=ro; ` +
+			`touch /mnt/rw/x 2>/dev/null && echo opted=rw || echo opted=ro`
+
+		// Act
+		out := runInTool(t, script, "-v", defaultDir+":/mnt/default", "-v", rwDir+":/mnt/rw:rw")
+
+		// Assert
+		assert.Contains(t, out, "default=ro")
+		assert.Contains(t, out, "opted=rw")
+	})
 }

@@ -69,8 +69,9 @@ agentic run claude -- bash
 # Mount named Docker volumes (auto-created on first use)
 agentic run -v 'maven:$CONTAINER_HOME/.m2' -v 'gradle:$CONTAINER_HOME/.gradle' claude
 
-# Mount bind-mount volumes (host paths)
-agentic run -v '~/.m2:$CONTAINER_HOME/.m2' claude
+# Mount bind-mount volumes (host paths) - read-only unless you add :rw
+agentic run -v '~/notes:/notes' claude
+agentic run -v '~/.m2:$CONTAINER_HOME/.m2:rw' claude
 
 # Mount a secret file read-only at /run/secrets/<name>
 agentic run -s 'copilot_token:~/.secrets/copilot_token' copilot
@@ -153,7 +154,11 @@ See [Configuration](config.md) for names agentic already manages that can't be o
 
 ## Named Docker volumes
 
-The `-v` flag supports both bind mounts (host paths) and named Docker volumes - named volumes are created automatically on first use and persist across container runs, no host path required. See [Examples](#examples) above for the mount syntax, [Configuration](config.md) for `.agenticrc.toml` persistence, and [Volume mounts](volume-mounts.md) for a per-tool breakdown of what's mounted automatically and why.
+The `-v` flag supports both bind mounts (host paths) and named Docker volumes - named volumes are created automatically on first use and persist across container runs, no host path required.
+
+Bind mounts from `-v` and `extra_mounts` are **read-only by default**, so the agent can't change host files you only meant to share. Add `:rw` to make one writable (e.g. `-v '~/repo2:/repo2:rw'`); other Docker options combine with it (`:rw,z`). Named volumes stay read-write, since they hold agentic-managed state like build caches. Your workspace (`/workspace`) and the tool's own state directories are always writable.
+
+See [Examples](#examples) above for the mount syntax, [Configuration](config.md) for `.agenticrc.toml` persistence, and [Volume mounts](volume-mounts.md) for a per-tool breakdown of what's mounted automatically and why.
 
 ### Managing volumes
 

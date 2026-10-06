@@ -26,6 +26,35 @@ func TestVolumeMount(t *testing.T) {
 	})
 }
 
+func TestReadOnlyByDefault(t *testing.T) {
+	cases := []struct {
+		name string
+		spec string
+		want string
+	}{
+		{"bind mount without options becomes read-only", "/host/a:/a", "/host/a:/a:ro"},
+		{"bind mount with rw stays read-write", "/host/a:/a:rw", "/host/a:/a:rw"},
+		{"bind mount with ro is unchanged", "/host/a:/a:ro", "/host/a:/a:ro"},
+		{"other options get ro appended", "/host/a:/a:z", "/host/a:/a:z,ro"},
+		{"rw among other options stays read-write", "/host/a:/a:rw,z", "/host/a:/a:rw,z"},
+		{"trailing colon gets ro", "/host/a:/a:", "/host/a:/a:ro"},
+		{"named volume is unchanged", "maven:$CONTAINER_HOME/.m2", "maven:$CONTAINER_HOME/.m2"},
+		{"home placeholder bind mount becomes read-only", "~/.m2:$CONTAINER_HOME/.m2", "~/.m2:$CONTAINER_HOME/.m2:ro"},
+		{"windows drive path becomes read-only", `C:\host\a:/a`, `C:\host\a:/a:ro`},
+		{"spec without container part is unchanged", "/host/a", "/host/a"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Act
+			result := ReadOnlyByDefault(c.spec)
+
+			// Assert
+			assert.Equal(t, c.want, result)
+		})
+	}
+}
+
 func TestSplitMountHost(t *testing.T) {
 	t.Run("unix path", func(t *testing.T) {
 		// Act

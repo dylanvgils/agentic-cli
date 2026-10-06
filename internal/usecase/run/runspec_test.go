@@ -25,14 +25,14 @@ func TestBuild(t *testing.T) {
 	t.Run("volumes wired", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), Volumes: []string{"/host:/container"}}
+		in := Input{ToolHome: t.TempDir(), Volumes: []string{"/host:/container:rw"}}
 
 		// Act
 		rs, err := New(d).Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, rs.Volumes, "/host:/container")
+		assert.Contains(t, rs.Volumes, "/host:/container:rw")
 	})
 
 	t.Run("instructions mount wired after the tool's base mounts", func(t *testing.T) {

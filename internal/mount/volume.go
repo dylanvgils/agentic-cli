@@ -29,6 +29,26 @@ func VolumeMount(host, container string, opts ...VolumeOptions) string {
 	return s
 }
 
+// ReadOnlyByDefault adds the ro option to a bind-mount spec that sets neither ro nor rw; named volumes and specs without a container part are returned unchanged.
+func ReadOnlyByDefault(spec string) string {
+	_, rest := splitMountHost(spec)
+	if rest == "" || IsNamedVolume(spec) {
+		return spec
+	}
+
+	_, opts, hasOpts := strings.Cut(rest[1:], ":")
+	if !hasOpts || opts == "" {
+		return strings.TrimSuffix(spec, ":") + ":ro"
+	}
+
+	for _, opt := range strings.Split(opts, ",") {
+		if opt == "ro" || opt == "rw" {
+			return spec
+		}
+	}
+	return spec + ",ro"
+}
+
 // ExpandMountSpec expands variables in a volume mount spec (host:container[:opts]), host-side vars on the host part and container-side on the rest.
 func ExpandMountSpec(spec, toolHome, containerHome string) string {
 	host, rest := splitMountHost(spec)

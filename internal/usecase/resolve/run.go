@@ -3,13 +3,17 @@ package resolve
 import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
-// Volumes merges the tool's built-in mounts, --volume flag values, and .agenticrc.toml extra_mounts, in that order.
+// Volumes merges the tool's built-in mounts, --volume flag values, and .agenticrc.toml extra_mounts, in that order; user bind mounts are read-only unless they set rw.
 func Volumes(toolMounts, extra []string, rc *config.AgenticRC) []string {
 	volumes := append([]string{}, toolMounts...)
-	volumes = append(volumes, extra...)
-	volumes = append(volumes, rc.Run.ExtraMounts...)
+
+	userMounts := append(append([]string{}, extra...), rc.Run.ExtraMounts...)
+	for _, spec := range userMounts {
+		volumes = append(volumes, mount.ReadOnlyByDefault(spec))
+	}
 
 	return volumes
 }
