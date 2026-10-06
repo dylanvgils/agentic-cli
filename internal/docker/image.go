@@ -104,6 +104,15 @@ func ImageRefreshReason(info *ImageInfo, maxAge time.Duration) string {
 	return ""
 }
 
+// BuiltTools returns the set of tool names that have at least one image in images.
+func BuiltTools(images []*ImageInfo) map[string]bool {
+	built := make(map[string]bool)
+	for _, img := range images {
+		built[img.Tool] = true
+	}
+	return built
+}
+
 // parseImageName splits an image name into namespace and tool by matching its suffix against
 // the known tool names, e.g. "myproject-claude" -> ("myproject", "claude", true).
 func parseImageName(image string) (namespace, tool string, ok bool) {

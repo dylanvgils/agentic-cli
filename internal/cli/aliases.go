@@ -38,7 +38,7 @@ func runAliases(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	printAliases(shell, builtTools(images))
+	printAliases(shell, docker.BuiltTools(images))
 	return nil
 }
 
@@ -48,15 +48,6 @@ func printAliases(shell string, built map[string]bool) {
 			fmt.Println(aliasLineFor(shell, name))
 		}
 	}
-}
-
-// builtTools returns the set of tool names that have at least one image in images.
-func builtTools(images []*docker.ImageInfo) map[string]bool {
-	built := make(map[string]bool)
-	for _, img := range images {
-		built[img.Tool] = true
-	}
-	return built
 }
 
 func detectShell() string {

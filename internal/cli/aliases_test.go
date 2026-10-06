@@ -383,38 +383,3 @@ func Test_reloadLineFor(t *testing.T) {
 		assert.Equal(t, "function agentic-reload { agentic aliases | Out-String | Invoke-Expression }", result)
 	})
 }
-
-func Test_builtTools(t *testing.T) {
-	t.Run("empty image list returns empty map", func(t *testing.T) {
-		// Act
-		result := builtTools(nil)
-
-		// Assert
-		assert.Empty(t, result)
-	})
-
-	t.Run("images populate map by tool name", func(t *testing.T) {
-		// Arrange
-		images := []*docker.ImageInfo{{Tool: "claude"}, {Tool: "copilot"}}
-
-		// Act
-		result := builtTools(images)
-
-		// Assert
-		assert.True(t, result["claude"])
-		assert.True(t, result["copilot"])
-		assert.False(t, result["opencode"])
-	})
-
-	t.Run("duplicate tool names collapse to one entry", func(t *testing.T) {
-		// Arrange
-		images := []*docker.ImageInfo{{Tool: "claude"}, {Tool: "claude"}}
-
-		// Act
-		result := builtTools(images)
-
-		// Assert
-		assert.Len(t, result, 1)
-		assert.True(t, result["claude"])
-	})
-}
