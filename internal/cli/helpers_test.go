@@ -16,6 +16,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,10 +25,9 @@ type fakeDocker struct {
 	context               string
 	checkDaemon           func() error
 	buildTool             func(tool, image string, opts tools.BuildOptions) error
-	updateTool            func(tool, image string, opts tools.BuildOptions) error
+	restampImage          func(image string, info docker.ImageInfo)
 	buildProxyImage       func(image, version, sourceDir string, opts tools.BuildOptions) error
 	buildDindImage        func(image string, opts tools.BuildOptions) error
-	builtTools            func() (map[string]bool, error)
 	inspectImage          func(string) (*docker.ImageInfo, error)
 	listAllImages         func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	cleanImage            func(string) error
@@ -65,11 +65,10 @@ func (f *fakeDocker) BuildTool(tool, image string, opts tools.BuildOptions) erro
 	return f.buildTool(tool, image, opts)
 }
 
-func (f *fakeDocker) UpdateTool(tool, image string, opts tools.BuildOptions) error {
-	if f.updateTool == nil {
-		return nil
+func (f *fakeDocker) RestampImage(image string, info docker.ImageInfo) {
+	if f.restampImage != nil {
+		f.restampImage(image, info)
 	}
-	return f.updateTool(tool, image, opts)
 }
 
 func (f *fakeDocker) BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) error {
@@ -84,13 +83,6 @@ func (f *fakeDocker) BuildDindImage(image string, opts tools.BuildOptions) error
 		return nil
 	}
 	return f.buildDindImage(image, opts)
-}
-
-func (f *fakeDocker) BuiltTools() (map[string]bool, error) {
-	if f.builtTools == nil {
-		return nil, nil
-	}
-	return f.builtTools()
 }
 
 func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
@@ -237,17 +229,14 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.buildTool != nil {
 		f.buildTool = o.buildTool
 	}
-	if o.updateTool != nil {
-		f.updateTool = o.updateTool
+	if o.restampImage != nil {
+		f.restampImage = o.restampImage
 	}
 	if o.buildProxyImage != nil {
 		f.buildProxyImage = o.buildProxyImage
 	}
 	if o.buildDindImage != nil {
 		f.buildDindImage = o.buildDindImage
-	}
-	if o.builtTools != nil {
-		f.builtTools = o.builtTools
 	}
 	if o.inspectImage != nil {
 		f.inspectImage = o.inspectImage
@@ -442,11 +431,6 @@ func writeTrustConfig(t *testing.T, toolHome string, dirs []string) {
 	require.NoError(t, cfg.Save(toolHome))
 }
 
-func stubBuiltTools(t *testing.T, fn func() (map[string]bool, error)) {
-	t.Helper()
-	stubDocker(t, &fakeDocker{builtTools: fn})
-}
-
 func stubBuildProxyImage(t *testing.T, fn func(image, version, sourceDir string, opts tools.BuildOptions) error) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{buildProxyImage: fn})
@@ -531,6 +515,13 @@ func stubLatestToolVersion(t *testing.T, fn func(tool, installedLabel string) (s
 	orig := toolupdate.LatestToolVersion
 	toolupdate.LatestToolVersion = fn
 	t.Cleanup(func() { toolupdate.LatestToolVersion = orig })
+}
+
+func stubUpdateLatestToolVersion(t *testing.T, latest string, newer, ok bool) {
+	t.Helper()
+	orig := update.LatestToolVersion
+	update.LatestToolVersion = func(string, string) (string, bool, bool) { return latest, newer, ok }
+	t.Cleanup(func() { update.LatestToolVersion = orig })
 }
 
 func stubToolUpdateStdin(t *testing.T, input string) {

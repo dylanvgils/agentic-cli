@@ -206,7 +206,7 @@ func TestRunTool(t *testing.T) {
 		stubToolUpdateStdin(t, "y\n")
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		stubDocker(t, &fakeDocker{
-			updateTool: func(_, _ string, _ tools.BuildOptions) error { return fmt.Errorf("build failed") },
+			buildTool: func(_, _ string, _ tools.BuildOptions) error { return fmt.Errorf("build failed") },
 		})
 
 		// Act

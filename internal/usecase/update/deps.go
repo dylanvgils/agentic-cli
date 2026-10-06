@@ -12,5 +12,6 @@ var LatestToolVersion = docker.LatestToolVersion
 type Docker interface {
 	ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	InspectImage(name string) (*docker.ImageInfo, error)
-	UpdateTool(tool, image string, opts tools.BuildOptions) error
+	BuildTool(tool, image string, opts tools.BuildOptions) error
+	RestampImage(image string, info docker.ImageInfo)
 }

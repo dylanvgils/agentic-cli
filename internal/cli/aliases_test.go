@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,7 +13,6 @@ func TestRunAliases(t *testing.T) {
 	t.Run("prints bash preamble and reload alias", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error { return nil })
-		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
@@ -29,7 +29,6 @@ func TestRunAliases(t *testing.T) {
 	t.Run("prints fish preamble and reload function", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error { return nil })
-		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/usr/bin/fish")
 
 		// Act
@@ -46,7 +45,6 @@ func TestRunAliases(t *testing.T) {
 	t.Run("prints powershell preamble and reload function", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error { return nil })
-		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/usr/bin/pwsh")
 
 		// Act
@@ -63,7 +61,6 @@ func TestRunAliases(t *testing.T) {
 	t.Run("prints powershell preamble and reload function on windows", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error { return nil })
-		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		stubCurrentGOOS(t, "windows")
 		t.Setenv("SHELL", "")
 
@@ -81,7 +78,6 @@ func TestRunAliases(t *testing.T) {
 	t.Run("not built tools emit no tool aliases", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error { return nil })
-		stubBuiltTools(t, func() (map[string]bool, error) { return nil, nil })
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
@@ -99,8 +95,8 @@ func TestRunAliases(t *testing.T) {
 	t.Run("only built tools get aliases", func(t *testing.T) {
 		// Arrange - only claude is built
 		stubCheckDockerDaemon(t, func() error { return nil })
-		stubBuiltTools(t, func() (map[string]bool, error) {
-			return map[string]bool{"claude": true}, nil
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{{Tool: "claude"}}, nil
 		})
 		t.Setenv("SHELL", "/bin/bash")
 
@@ -119,8 +115,8 @@ func TestRunAliases(t *testing.T) {
 	t.Run("built tools emit bash alias lines", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error { return nil })
-		stubBuiltTools(t, func() (map[string]bool, error) {
-			return map[string]bool{"claude": true, "copilot": true, "opencode": true}, nil
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{{Tool: "claude"}, {Tool: "copilot"}, {Tool: "opencode"}}, nil
 		})
 		t.Setenv("SHELL", "/bin/bash")
 
@@ -139,8 +135,8 @@ func TestRunAliases(t *testing.T) {
 	t.Run("built tools emit powershell function lines", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error { return nil })
-		stubBuiltTools(t, func() (map[string]bool, error) {
-			return map[string]bool{"claude": true, "copilot": true, "opencode": true}, nil
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{{Tool: "claude"}, {Tool: "copilot"}, {Tool: "opencode"}}, nil
 		})
 		t.Setenv("SHELL", "/usr/bin/pwsh")
 
@@ -175,10 +171,10 @@ func TestRunAliases(t *testing.T) {
 		assert.NotContains(t, out, "alias opencode=")
 	})
 
-	t.Run("built tools error prints preamble and reload but no tool aliases", func(t *testing.T) {
+	t.Run("image list error prints preamble and reload but no tool aliases", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error { return nil })
-		stubBuiltTools(t, func() (map[string]bool, error) {
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, fmt.Errorf("image list failed")
 		})
 		t.Setenv("SHELL", "/bin/bash")
