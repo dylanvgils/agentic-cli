@@ -6,22 +6,28 @@ A plain-language map of how agentic isolates a tool: each layer, what it stops, 
 
 ```mermaid
 flowchart LR
-    mounts[(Workspace, tool home,<br/>secrets)]
-    subgraph kernel[Shared host kernel]
-        tool[Tool container]
-        dind[DinD sidecar<br/>opt-in]
-        egress{{"Egress<br/>open, or allowlist with --proxy"}}
+    subgraph host[Your machine]
+        ws[(workspace)]
+        th[(tool home)]
+        sec[(secrets)]
+        subgraph docker[Docker host - shared kernel]
+            tool[Tool container]
+            proxy[Egress proxy<br/>opt-in]
+            dind[DinD sidecar<br/>opt-in]
+            inner[Inner containers]
+        end
     end
     net((Internet))
 
-    mounts --> tool
-    tool --> dind
-    tool --> egress
-    dind --> egress
-    egress --> net
+    ws -- rw --> tool
+    th -- rw --> tool
+    sec -- ro --> tool
+    ws -- rw --> dind
+    tool -- HTTP/S --> proxy -- allowlisted hosts --> net
+    tool -- mTLS --> dind --> inner
 ```
 
-Everything inside the box shares one Linux kernel. That's the boundary all layers below ultimately rest on.
+Everything inside "Docker host" shares one Linux kernel. That's the boundary all layers below ultimately rest on.
 
 ## Layers
 
