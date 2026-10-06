@@ -12,8 +12,8 @@ flowchart LR
         sec[(secrets)]
         subgraph docker[Docker host - shared kernel]
             tool[Tool container]
-            proxy[Egress proxy<br/>opt-in]
-            dind[DinD sidecar<br/>opt-in]
+            proxy["Egress proxy<br/>(--proxy)"]
+            dind["DinD sidecar<br/>(--dind)"]
             inner[Inner containers]
         end
     end
@@ -30,7 +30,12 @@ flowchart LR
     dind -.->|without proxy| net
 ```
 
-Everything inside "Docker host" shares one Linux kernel. That's the boundary all layers below ultimately rest on.
+How to read it:
+
+- **Files**: the tool only sees what's mounted: the workspace and its own home (writable), and secrets (read-only). The DinD sidecar only sees the workspace.
+- **Docker**: the tool talks to its own DinD sidecar over mTLS, never to the host's Docker daemon. Inner containers run inside the sidecar.
+- **Network**: with `--proxy`, all traffic from the tool and the sidecar goes through the egress proxy, which only lets allowlisted hosts through. Without it (dotted lines), both reach the internet directly.
+- **Kernel**: everything inside "Docker host" shares one Linux kernel. That's the boundary all layers below ultimately rest on.
 
 ## Layers
 
