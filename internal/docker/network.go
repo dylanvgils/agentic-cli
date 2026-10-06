@@ -8,8 +8,8 @@ import (
 const NetworkName = "agentic-net"
 
 // EnsureNetwork creates agentic-net if it does not exist.
-func EnsureNetwork() error {
-	if _, err := dockerRun("network", "inspect", NetworkName); err == nil {
+func (c *Client) EnsureNetwork() error {
+	if _, err := c.run("network", "inspect", NetworkName); err == nil {
 		return nil
 	}
 
@@ -19,19 +19,19 @@ func EnsureNetwork() error {
 		NetworkName,
 	}
 
-	_, err := dockerRun(createArgs...)
+	_, err := c.run(createArgs...)
 	return err
 }
 
 // RemoveNetwork removes agentic-net if it exists and is agentic-managed; returns nil if it does not exist.
-func RemoveNetwork() error {
+func (c *Client) RemoveNetwork() error {
 	inspectArgs := []string{
 		"network", "inspect",
 		arg("format", `{{index .Labels "project"}}`),
 		NetworkName,
 	}
 
-	out, err := dockerRun(inspectArgs...)
+	out, err := c.run(inspectArgs...)
 	if err != nil {
 		return nil
 	}
@@ -40,13 +40,13 @@ func RemoveNetwork() error {
 		return fmt.Errorf("'%s' is not an agentic-managed network", NetworkName)
 	}
 
-	_, err = dockerRun("network", "rm", NetworkName)
+	_, err = c.run("network", "rm", NetworkName)
 	return err
 }
 
 // networkSubnets returns the subnets docker assigned to network, failing if it has none.
-func networkSubnets(network string) ([]string, error) {
-	out, err := dockerRun("network", "inspect", arg("format", "{{range .IPAM.Config}}{{.Subnet}} {{end}}"), network)
+func (c *Client) networkSubnets(network string) ([]string, error) {
+	out, err := c.run("network", "inspect", arg("format", "{{range .IPAM.Config}}{{.Subnet}} {{end}}"), network)
 	if err != nil {
 		return nil, fmt.Errorf("inspect %s subnets: %w", network, err)
 	}

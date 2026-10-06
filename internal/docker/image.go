@@ -35,8 +35,8 @@ func (i ImageInfo) BuiltBefore(cutoff time.Time) bool {
 }
 
 // InspectImage returns metadata for the given Docker image, or nil, nil if it does not exist.
-func InspectImage(name string) (*ImageInfo, error) {
-	result, err := inspectImage(name)
+func (c *Client) InspectImage(name string) (*ImageInfo, error) {
+	result, err := c.inspectImage(name)
 	if err != nil {
 		return nil, err
 	}
@@ -61,20 +61,20 @@ func InspectImage(name string) (*ImageInfo, error) {
 		CLIVersion:     result.Config.Labels[LabelCLIVersion],
 		CacheBust:      result.Config.Labels[LabelCacheBust],
 		ProxyTrust:     result.Config.Labels[LabelProxyTrust] == "true",
-		Size:           imageSize(name),
+		Size:           c.imageSize(name),
 	}, nil
 }
 
 // ListAllImages returns metadata for every agentic-managed image; optional filters (e.g. ToolFilter) narrow the result set.
-func ListAllImages(filters ...ImageFilter) ([]*ImageInfo, error) {
-	repos, err := listAllRepositories(filters...)
+func (c *Client) ListAllImages(filters ...ImageFilter) ([]*ImageInfo, error) {
+	repos, err := c.listAllRepositories(filters...)
 	if err != nil {
 		return nil, err
 	}
 
 	var images []*ImageInfo
 	for _, repo := range repos {
-		info, err := InspectImage(repo)
+		info, err := c.InspectImage(repo)
 		if err != nil {
 			return nil, err
 		}
@@ -88,8 +88,8 @@ func ListAllImages(filters ...ImageFilter) ([]*ImageInfo, error) {
 }
 
 // BuiltTools returns the set of tool names that have at least one built image.
-func BuiltTools() (map[string]bool, error) {
-	images, err := ListAllImages()
+func (c *Client) BuiltTools() (map[string]bool, error) {
+	images, err := c.ListAllImages()
 	if err != nil {
 		return nil, err
 	}
@@ -157,8 +157,8 @@ func extractShortID(id string) string {
 }
 
 // imageSize returns the formatted size of a Docker image, or empty string if unavailable.
-func imageSize(name string) string {
-	out, err := dockerRun("image", "ls", arg("format", "{{.Size}}"), referenceFilter(name))
+func (c *Client) imageSize(name string) string {
+	out, err := c.run("image", "ls", arg("format", "{{.Size}}"), referenceFilter(name))
 	size := strings.TrimSpace(out)
 	if err != nil || size == "" {
 		return ""
@@ -167,7 +167,7 @@ func imageSize(name string) string {
 }
 
 // listAllRepositories returns the repository names of every agentic-managed image, narrowed by any filters.
-func listAllRepositories(filters ...ImageFilter) ([]string, error) {
+func (c *Client) listAllRepositories(filters ...ImageFilter) ([]string, error) {
 	args := []string{
 		"images",
 		arg("format", "{{.Repository}}"),
@@ -177,7 +177,7 @@ func listAllRepositories(filters ...ImageFilter) ([]string, error) {
 		args = append(args, string(f))
 	}
 
-	out, err := dockerRun(args...)
+	out, err := c.run(args...)
 	if err != nil {
 		return nil, err
 	}

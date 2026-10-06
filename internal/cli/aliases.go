@@ -28,11 +28,11 @@ func runAliases(_ *cobra.Command, _ []string) error {
 	fmt.Println(preambleFor(shell))
 	fmt.Println(reloadLineFor(shell))
 
-	if checkDockerDaemon() != nil {
+	if dockerClient.CheckDaemon() != nil {
 		return nil
 	}
 
-	built, err := builtTools()
+	built, err := dockerClient.BuiltTools()
 	if err != nil {
 		return nil
 	}

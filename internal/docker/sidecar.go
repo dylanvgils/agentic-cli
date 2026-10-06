@@ -34,18 +34,18 @@ func ownerLabels(rs RunSpec) []string {
 }
 
 // setupSidecars sweeps orphans, then starts the proxy and dind; cleanup stops both.
-func setupSidecars(rs *RunSpec) (args []string, cleanup func(), err error) {
+func (c *Client) setupSidecars(rs *RunSpec) (args []string, cleanup func(), err error) {
 	if !rs.DryRun {
-		warnOnSweepError(sweepOrphanedSidecars(rs.ToolHome))
+		warnOnSweepError(c.sweepOrphanedSidecars(rs.ToolHome))
 	}
 
-	proxyEnv, proxyCleanup, err := setupProxy(rs)
+	proxyEnv, proxyCleanup, err := c.setupProxy(rs)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// After the proxy, so the sidecar can join its network
-	dindArgs, dindCleanup, err := setupDind(rs)
+	dindArgs, dindCleanup, err := c.setupDind(rs)
 	if err != nil {
 		proxyCleanup()
 		return nil, nil, err
@@ -66,12 +66,12 @@ func warnOnSweepError(err error) {
 }
 
 // sweepOrphanedSidecars removes sidecars, networks and run dirs whose tool container is gone; removals are best-effort.
-func sweepOrphanedSidecars(toolHome string) error {
-	existing, err := removeOrphanedContainers()
+func (c *Client) sweepOrphanedSidecars(toolHome string) error {
+	existing, err := c.removeOrphanedContainers()
 	if err != nil {
 		return err
 	}
-	if err := removeOrphanedNetworks(existing); err != nil {
+	if err := c.removeOrphanedNetworks(existing); err != nil {
 		return err
 	}
 
@@ -79,12 +79,12 @@ func sweepOrphanedSidecars(toolHome string) error {
 	if toolHome == "" {
 		return nil
 	}
-	return sweepDindRunDirs(toolHome)
+	return c.sweepDindRunDirs(toolHome)
 }
 
 // removeOrphanedContainers removes orphaned sidecars and returns the names of all agentic containers.
-func removeOrphanedContainers() (existing map[string]bool, err error) {
-	all, err := listOwned("ps", arg("all"), arg("format", ownedFormat(".Names")), labelFilter(LabelProject, LabelProjectVal))
+func (c *Client) removeOrphanedContainers() (existing map[string]bool, err error) {
+	all, err := c.listOwned("ps", arg("all"), arg("format", ownedFormat(".Names")), labelFilter(LabelProject, LabelProjectVal))
 	if err != nil {
 		return nil, err
 	}
@@ -96,30 +96,30 @@ func removeOrphanedContainers() (existing map[string]bool, err error) {
 
 	for _, r := range all {
 		if r.isOrphan(existing) {
-			_, _ = dockerRun("rm", arg("force"), arg("volumes"), r.name)
+			_, _ = c.run("rm", arg("force"), arg("volumes"), r.name)
 		}
 	}
 	return existing, nil
 }
 
 // removeOrphanedNetworks removes sidecar networks whose owner isn't in existing.
-func removeOrphanedNetworks(existing map[string]bool) error {
-	networks, err := listOwned("network", "ls", arg("format", ownedFormat(".Name")), arg("filter", "label="+LabelOwner))
+func (c *Client) removeOrphanedNetworks(existing map[string]bool) error {
+	networks, err := c.listOwned("network", "ls", arg("format", ownedFormat(".Name")), arg("filter", "label="+LabelOwner))
 	if err != nil {
 		return err
 	}
 
 	for _, r := range networks {
 		if r.isOrphan(existing) {
-			_, _ = dockerRun("network", "rm", r.name)
+			_, _ = c.run("network", "rm", r.name)
 		}
 	}
 	return nil
 }
 
 // listOwned runs a docker list command and parses its ownedFormat rows.
-func listOwned(args ...string) ([]ownedResource, error) {
-	out, err := dockerRun(args...)
+func (c *Client) listOwned(args ...string) ([]ownedResource, error) {
+	out, err := c.run(args...)
 	if err != nil {
 		return nil, err
 	}

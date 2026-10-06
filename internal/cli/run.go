@@ -107,9 +107,9 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 
 	updater := func(tool, image string) error {
-		return update.ApplyRecovered(tool, image, rc)
+		return update.New(dockerClient).ApplyRecovered(tool, image, rc)
 	}
-	if err := toolupdate.Check(toolHome, rc, parsedArgs.toolName, parsedArgs.imageName, updater); err != nil {
+	if err := toolupdate.New(dockerClient).Check(toolHome, rc, parsedArgs.toolName, parsedArgs.imageName, updater); err != nil {
 		return err
 	}
 
@@ -131,8 +131,10 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	svc := run.New(dockerClient)
+
 	// Credentials force the proxy on (see resolve.ProxyMode), so this is a no-op when it is off
-	creds, err := run.ResolveCredentials(layers, toolHome)
+	creds, err := svc.ResolveCredentials(layers, toolHome)
 	if err != nil {
 		return err
 	}
@@ -148,7 +150,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 
 	dindEnabled := resolveDindEnabled(cmd, rc)
 	if dindEnabled {
-		if err := run.RequireDockerLayer(parsedArgs.imageName, parsedArgs.toolName); err != nil {
+		if err := svc.RequireDockerLayer(parsedArgs.imageName, parsedArgs.toolName); err != nil {
 			return err
 		}
 		if !dryRun {
@@ -178,13 +180,13 @@ func runTool(cmd *cobra.Command, args []string) error {
 		Credentials:    creds,
 	}
 
-	rs, cleanupInstructions, err := run.BuildWithInstructions(target, input, toolConfig, rc)
+	rs, cleanupInstructions, err := svc.BuildWithInstructions(target, input, toolConfig, rc)
 	if err != nil {
 		return err
 	}
 	defer cleanupInstructions()
 
-	return runContainer(rs, parsedArgs.toolArgs)
+	return dockerClient.RunContainer(rs, parsedArgs.toolArgs)
 }
 
 func parseArgs(args []string, namespace string) (parsedArgs, error) {
@@ -210,7 +212,7 @@ func parseArgs(args []string, namespace string) (parsedArgs, error) {
 
 // requireImage errors if the image doesn't exist locally, hinting at --namespace if the tool has images under other namespaces.
 func requireImage(image, tool string) error {
-	info, err := inspectImage(image)
+	info, err := dockerClient.InspectImage(image)
 	if err != nil {
 		return err
 	}
@@ -218,7 +220,7 @@ func requireImage(image, tool string) error {
 		return nil
 	}
 
-	images, err := listAllImages(docker.ToolFilter(tool))
+	images, err := dockerClient.ListAllImages(docker.ToolFilter(tool))
 	if err != nil {
 		return err
 	}
@@ -242,7 +244,7 @@ func requireImage(image, tool string) error {
 
 // ensureDindImage builds the sidecar image if missing, outdated or stale; a failed refresh only warns so offline runs work.
 func ensureDindImage(cmd *cobra.Command) error {
-	info, err := inspectImage(tools.DindImage)
+	info, err := dockerClient.InspectImage(tools.DindImage)
 	if err != nil {
 		return err
 	}
@@ -253,7 +255,7 @@ func ensureDindImage(cmd *cobra.Command) error {
 	}
 
 	logging.Infof("building %s (%s)...", tools.DindImage, reason)
-	err = buildDindImage(tools.DindImage, tools.BuildOptions{Registry: collectRegistry(cmd)})
+	err = dockerClient.BuildDindImage(tools.DindImage, tools.BuildOptions{Registry: collectRegistry(cmd)})
 	if err != nil && info != nil {
 		logging.Warnf("could not refresh %s, using the existing image: %v", tools.DindImage, err)
 		return nil

@@ -9,12 +9,14 @@ import (
 )
 
 func TestEnsureNetwork(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("existing network skips create", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
+		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := EnsureNetwork()
+		err := client.EnsureNetwork()
 
 		// Assert
 		require.NoError(t, err)
@@ -25,10 +27,10 @@ func TestEnsureNetwork(t *testing.T) {
 
 	t.Run("missing network creates with label", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, "network inspect")
+		get := stubDockerRunCapture(t, client, "network inspect")
 
 		// Act
-		err := EnsureNetwork()
+		err := client.EnsureNetwork()
 
 		// Assert
 		require.NoError(t, err)
@@ -40,10 +42,10 @@ func TestEnsureNetwork(t *testing.T) {
 
 	t.Run("create fails returns error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunCapture(t, "network inspect", "network create")
+		stubDockerRunCapture(t, client, "network inspect", "network create")
 
 		// Act
-		err := EnsureNetwork()
+		err := client.EnsureNetwork()
 
 		// Assert
 		assert.Error(t, err)
@@ -51,12 +53,14 @@ func TestEnsureNetwork(t *testing.T) {
 }
 
 func TestRemoveNetwork(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("network does not exist returns nil", func(t *testing.T) {
 		// Arrange
-		stubDockerRunCapture(t, "network inspect")
+		stubDockerRunCapture(t, client, "network inspect")
 
 		// Act
-		err := RemoveNetwork()
+		err := client.RemoveNetwork()
 
 		// Assert
 		require.NoError(t, err)
@@ -64,10 +68,10 @@ func TestRemoveNetwork(t *testing.T) {
 
 	t.Run("wrong label returns error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "other-project\n", nil)
+		stubDockerRunFixed(t, client, "other-project\n", nil)
 
 		// Act
-		err := RemoveNetwork()
+		err := client.RemoveNetwork()
 
 		// Assert
 		assert.ErrorContains(t, err, "not an agentic-managed network")
@@ -76,7 +80,7 @@ func TestRemoveNetwork(t *testing.T) {
 	t.Run("agentic-managed network calls rm", func(t *testing.T) {
 		// Arrange
 		var calls []dockerCall
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			calls = append(calls, dockerCall{args: args})
 			if args[0] == "network" && args[1] == "inspect" {
 				return "agentic-cli\n", nil
@@ -85,7 +89,7 @@ func TestRemoveNetwork(t *testing.T) {
 		})
 
 		// Act
-		err := RemoveNetwork()
+		err := client.RemoveNetwork()
 
 		// Assert
 		require.NoError(t, err)
@@ -96,7 +100,7 @@ func TestRemoveNetwork(t *testing.T) {
 
 	t.Run("rm fails propagates error", func(t *testing.T) {
 		// Arrange
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			if args[0] == "network" && args[1] == "inspect" {
 				return "agentic-cli\n", nil
 			}
@@ -104,7 +108,7 @@ func TestRemoveNetwork(t *testing.T) {
 		})
 
 		// Act
-		err := RemoveNetwork()
+		err := client.RemoveNetwork()
 
 		// Assert
 		assert.ErrorContains(t, err, "network rm failed")
@@ -112,12 +116,14 @@ func TestRemoveNetwork(t *testing.T) {
 }
 
 func Test_networkSubnets(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("returns every subnet", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "172.30.0.0/16 fd00::/64 \n", nil)
+		stubDockerRunFixed(t, client, "172.30.0.0/16 fd00::/64 \n", nil)
 
 		// Act
-		subnets, err := networkSubnets("agentic-proxy-abc")
+		subnets, err := client.networkSubnets("agentic-proxy-abc")
 
 		// Assert
 		require.NoError(t, err)
@@ -126,10 +132,10 @@ func Test_networkSubnets(t *testing.T) {
 
 	t.Run("no subnet is an error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "\n", nil)
+		stubDockerRunFixed(t, client, "\n", nil)
 
 		// Act
-		_, err := networkSubnets("agentic-proxy-abc")
+		_, err := client.networkSubnets("agentic-proxy-abc")
 
 		// Assert
 		assert.ErrorContains(t, err, "has no subnet")
@@ -137,10 +143,10 @@ func Test_networkSubnets(t *testing.T) {
 
 	t.Run("inspect failure is an error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("stub: inspect failed"))
+		stubDockerRunFixed(t, client, "", fmt.Errorf("stub: inspect failed"))
 
 		// Act
-		_, err := networkSubnets("agentic-proxy-abc")
+		_, err := client.networkSubnets("agentic-proxy-abc")
 
 		// Assert
 		assert.ErrorContains(t, err, "inspect agentic-proxy-abc subnets")

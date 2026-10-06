@@ -9,12 +9,14 @@ import (
 )
 
 func TestEnsureNamedVolumes(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("skips absolute path", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
+		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := EnsureNamedVolumes([]string{"/host/path:/container"}, "", "", "")
+		err := client.EnsureNamedVolumes([]string{"/host/path:/container"}, "", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -23,10 +25,10 @@ func TestEnsureNamedVolumes(t *testing.T) {
 
 	t.Run("skips tool home expanded", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
+		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := EnsureNamedVolumes([]string{"$TOOL_HOME/data:/container"}, "/home/.agentic", "", "")
+		err := client.EnsureNamedVolumes([]string{"$TOOL_HOME/data:/container"}, "/home/.agentic", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -35,10 +37,10 @@ func TestEnsureNamedVolumes(t *testing.T) {
 
 	t.Run("skips Windows absolute path", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
+		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := EnsureNamedVolumes([]string{`C:\Users\foo:/container`}, "", "", "")
+		err := client.EnsureNamedVolumes([]string{`C:\Users\foo:/container`}, "", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -47,10 +49,10 @@ func TestEnsureNamedVolumes(t *testing.T) {
 
 	t.Run("skips Windows absolute path lowercase", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
+		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := EnsureNamedVolumes([]string{`c:\data:/container`}, "", "", "")
+		err := client.EnsureNamedVolumes([]string{`c:\data:/container`}, "", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -59,10 +61,10 @@ func TestEnsureNamedVolumes(t *testing.T) {
 
 	t.Run("skips empty left", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
+		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := EnsureNamedVolumes([]string{":/container"}, "", "", "")
+		err := client.EnsureNamedVolumes([]string{":/container"}, "", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -71,10 +73,10 @@ func TestEnsureNamedVolumes(t *testing.T) {
 
 	t.Run("existing volume skips create and chown", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t) // inspect succeeds -> volume exists
+		get := stubDockerRunCapture(t, client) // inspect succeeds -> volume exists
 
 		// Act
-		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "", "")
+		err := client.EnsureNamedVolumes([]string{"maven:/container"}, "", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -85,10 +87,10 @@ func TestEnsureNamedVolumes(t *testing.T) {
 
 	t.Run("new volume creates and chowns", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, "volume inspect")
+		get := stubDockerRunCapture(t, client, "volume inspect")
 
 		// Act
-		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "", "busybox")
+		err := client.EnsureNamedVolumes([]string{"maven:/container"}, "", "", "busybox")
 
 		// Assert
 		require.NoError(t, err)
@@ -105,10 +107,10 @@ func TestEnsureNamedVolumes(t *testing.T) {
 
 	t.Run("create fails returns error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunCapture(t, "volume inspect", "volume create")
+		stubDockerRunCapture(t, client, "volume inspect", "volume create")
 
 		// Act
-		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "", "")
+		err := client.EnsureNamedVolumes([]string{"maven:/container"}, "", "", "")
 
 		// Assert
 		assert.ErrorContains(t, err, "create volume maven")
@@ -116,10 +118,10 @@ func TestEnsureNamedVolumes(t *testing.T) {
 
 	t.Run("chown fails returns error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunCapture(t, "volume inspect", "run")
+		stubDockerRunCapture(t, client, "volume inspect", "run")
 
 		// Act
-		err := EnsureNamedVolumes([]string{"maven:/container"}, "", "", "")
+		err := client.EnsureNamedVolumes([]string{"maven:/container"}, "", "", "")
 
 		// Assert
 		assert.ErrorContains(t, err, "chown volume maven")
@@ -127,10 +129,10 @@ func TestEnsureNamedVolumes(t *testing.T) {
 
 	t.Run("multiple volumes", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, "volume inspect")
+		get := stubDockerRunCapture(t, client, "volume inspect")
 
 		// Act
-		err := EnsureNamedVolumes([]string{
+		err := client.EnsureNamedVolumes([]string{
 			"/host:/container",
 			"maven:/m2",
 			"gradle:/gradle",
@@ -152,10 +154,10 @@ func TestEnsureNamedVolumes(t *testing.T) {
 
 	t.Run("empty list", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
+		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := EnsureNamedVolumes([]string{}, "", "", "")
+		err := client.EnsureNamedVolumes([]string{}, "", "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -164,12 +166,14 @@ func TestEnsureNamedVolumes(t *testing.T) {
 }
 
 func TestCreateVolume(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("calls docker with label", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
+		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := CreateVolume("maven")
+		err := client.CreateVolume("maven")
 
 		// Assert
 		require.NoError(t, err)
@@ -180,10 +184,10 @@ func TestCreateVolume(t *testing.T) {
 
 	t.Run("wraps error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunCapture(t, "volume create")
+		stubDockerRunCapture(t, client, "volume create")
 
 		// Act
-		err := CreateVolume("maven")
+		err := client.CreateVolume("maven")
 
 		// Assert
 		assert.ErrorContains(t, err, "create volume maven")
@@ -191,12 +195,14 @@ func TestCreateVolume(t *testing.T) {
 }
 
 func TestListVolumes(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("calls with filter", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
+		get := stubDockerRunCapture(t, client)
 
 		// Act
-		_, err := ListVolumes()
+		_, err := client.ListVolumes()
 
 		// Assert
 		require.NoError(t, err)
@@ -207,10 +213,10 @@ func TestListVolumes(t *testing.T) {
 
 	t.Run("returns output", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "DRIVER    VOLUME NAME\nlocal     maven\n", nil)
+		stubDockerRunFixed(t, client, "DRIVER    VOLUME NAME\nlocal     maven\n", nil)
 
 		// Act
-		out, err := ListVolumes()
+		out, err := client.ListVolumes()
 
 		// Assert
 		require.NoError(t, err)
@@ -219,10 +225,10 @@ func TestListVolumes(t *testing.T) {
 
 	t.Run("propagates error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunCapture(t, "volume ls")
+		stubDockerRunCapture(t, client, "volume ls")
 
 		// Act
-		_, err := ListVolumes()
+		_, err := client.ListVolumes()
 
 		// Assert
 		assert.Error(t, err)
@@ -230,12 +236,14 @@ func TestListVolumes(t *testing.T) {
 }
 
 func TestListVolumeNames(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("calls docker with quiet and filter", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
+		get := stubDockerRunCapture(t, client)
 
 		// Act
-		_, err := ListVolumeNames()
+		_, err := client.ListVolumeNames()
 
 		// Assert
 		require.NoError(t, err)
@@ -247,10 +255,10 @@ func TestListVolumeNames(t *testing.T) {
 
 	t.Run("splits lines", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "maven\ngradle\n", nil)
+		stubDockerRunFixed(t, client, "maven\ngradle\n", nil)
 
 		// Act
-		names, err := ListVolumeNames()
+		names, err := client.ListVolumeNames()
 
 		// Assert
 		require.NoError(t, err)
@@ -259,10 +267,10 @@ func TestListVolumeNames(t *testing.T) {
 
 	t.Run("empty output returns empty", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", nil)
+		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		names, err := ListVolumeNames()
+		names, err := client.ListVolumeNames()
 
 		// Assert
 		require.NoError(t, err)
@@ -271,10 +279,10 @@ func TestListVolumeNames(t *testing.T) {
 
 	t.Run("propagates error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunCapture(t, "volume ls")
+		stubDockerRunCapture(t, client, "volume ls")
 
 		// Act
-		_, err := ListVolumeNames()
+		_, err := client.ListVolumeNames()
 
 		// Assert
 		assert.Error(t, err)
@@ -282,10 +290,12 @@ func TestListVolumeNames(t *testing.T) {
 }
 
 func TestRemoveVolume(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("valid label calls rm", func(t *testing.T) {
 		// Arrange
 		var calls []dockerCall
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			calls = append(calls, dockerCall{args: args})
 			if args[0] == "volume" && args[1] == "inspect" {
 				return "agentic-cli\n", nil
@@ -294,7 +304,7 @@ func TestRemoveVolume(t *testing.T) {
 		})
 
 		// Act
-		err := RemoveVolume("maven")
+		err := client.RemoveVolume("maven")
 
 		// Assert
 		require.NoError(t, err)
@@ -306,10 +316,10 @@ func TestRemoveVolume(t *testing.T) {
 
 	t.Run("inspect fails returns error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunCapture(t, "volume inspect")
+		stubDockerRunCapture(t, client, "volume inspect")
 
 		// Act
-		err := RemoveVolume("maven")
+		err := client.RemoveVolume("maven")
 
 		// Assert
 		assert.ErrorContains(t, err, "not an agentic-managed volume")
@@ -317,10 +327,10 @@ func TestRemoveVolume(t *testing.T) {
 
 	t.Run("wrong label returns error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "other-project\n", nil)
+		stubDockerRunFixed(t, client, "other-project\n", nil)
 
 		// Act
-		err := RemoveVolume("maven")
+		err := client.RemoveVolume("maven")
 
 		// Assert
 		assert.ErrorContains(t, err, "not an agentic-managed volume")
@@ -328,7 +338,7 @@ func TestRemoveVolume(t *testing.T) {
 
 	t.Run("rm fails propagates error", func(t *testing.T) {
 		// Arrange
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			if args[0] == "volume" && args[1] == "inspect" {
 				return "agentic-cli\n", nil
 			}
@@ -336,7 +346,7 @@ func TestRemoveVolume(t *testing.T) {
 		})
 
 		// Act
-		err := RemoveVolume("maven")
+		err := client.RemoveVolume("maven")
 
 		// Assert
 		assert.ErrorContains(t, err, "volume rm failed")

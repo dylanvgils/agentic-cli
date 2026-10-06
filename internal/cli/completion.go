@@ -21,7 +21,7 @@ var builtToolNamesFunc = func(cmd *cobra.Command, args []string, _ string) ([]st
 	var names []string
 	for _, name := range tools.Names() {
 		imageName, _ := tools.ImageName(name, namespace)
-		if info, err := inspectImage(imageName); err == nil && info != nil {
+		if info, err := dockerClient.InspectImage(imageName); err == nil && info != nil {
 			names = append(names, name)
 		}
 	}
@@ -29,7 +29,7 @@ var builtToolNamesFunc = func(cmd *cobra.Command, args []string, _ string) ([]st
 }
 
 var namespacesFunc = func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-	images, err := listAllImages()
+	images, err := dockerClient.ListAllImages()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
@@ -50,7 +50,7 @@ var volumeNamesFunc = func(_ *cobra.Command, args []string, _ string) ([]string,
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	names, err := listVolumeNames()
+	names, err := dockerClient.ListVolumeNames()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
@@ -58,7 +58,7 @@ var volumeNamesFunc = func(_ *cobra.Command, args []string, _ string) ([]string,
 }
 
 var dockerContextsFunc = func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-	names, err := listContexts()
+	names, err := dockerClient.ListContexts()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}

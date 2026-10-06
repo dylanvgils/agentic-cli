@@ -13,9 +13,9 @@ import (
 )
 
 // BuildTool generates a multi-stage Dockerfile for the named tool, builds it, and stamps labels with the detected tool version.
-func BuildTool(tool, image string, opts tools.BuildOptions) error {
+func (c *Client) BuildTool(tool, image string, opts tools.BuildOptions) error {
 	if opts.VerifyApt {
-		if err := verifyAptPackages(opts.AptPackages, opts.Registry); err != nil {
+		if err := c.verifyAptPackages(opts.AptPackages, opts.Registry); err != nil {
 			return err
 		}
 	}
@@ -25,7 +25,7 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 		return err
 	}
 
-	if err := buildFromContent(content, image, tool, opts); err != nil {
+	if err := c.buildFromContent(content, image, tool, opts); err != nil {
 		return fmt.Errorf("tool image: %w", err)
 	}
 
@@ -33,14 +33,14 @@ func BuildTool(tool, image string, opts tools.BuildOptions) error {
 	for i, install := range opts.CustomInstalls {
 		customInstallNames[i] = install.Name
 	}
-	stampImageLabels(image, tool, opts.BaseOverride, opts.AptPackages, opts.Versions, customInstallNames, opts.CacheBust)
+	c.stampImageLabels(image, tool, opts.BaseOverride, opts.AptPackages, opts.Versions, customInstallNames, opts.CacheBust)
 
 	return nil
 }
 
 // BuildProxyImage generates the egress proxy Dockerfile and builds it: a released version
 // installs the published module, a dev version compiles sourceDir (the agentic module root).
-func BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) (retErr error) {
+func (c *Client) BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) (retErr error) {
 	content := tools.GenerateProxyDockerfile(version, opts.Registry)
 
 	tmpDir, err := writeTempDockerfile(content)
@@ -66,7 +66,7 @@ func BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) 
 	}
 
 	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
-	if err := runInteractive(sidecarImageBuildArgs(dockerfilePath, image, tools.ProxyImageSuffix, context, opts)...); err != nil {
+	if err := c.runInteractive(sidecarImageBuildArgs(dockerfilePath, image, tools.ProxyImageSuffix, context, opts)...); err != nil {
 		return fmt.Errorf("proxy image: %w", err)
 	}
 
@@ -74,7 +74,7 @@ func BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) 
 }
 
 // BuildDindImage builds the Docker sidecar image, always pulling the upstream base for security patches.
-func BuildDindImage(image string, opts tools.BuildOptions) (retErr error) {
+func (c *Client) BuildDindImage(image string, opts tools.BuildOptions) (retErr error) {
 	tmpDir, err := writeTempDockerfile(tools.GenerateDindDockerfile(opts.Registry))
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func BuildDindImage(image string, opts tools.BuildOptions) (retErr error) {
 
 	opts.Pull = true
 	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
-	if err := runInteractive(sidecarImageBuildArgs(dockerfilePath, image, tools.DindImageSuffix, tmpDir, opts)...); err != nil {
+	if err := c.runInteractive(sidecarImageBuildArgs(dockerfilePath, image, tools.DindImageSuffix, tmpDir, opts)...); err != nil {
 		return fmt.Errorf("docker sidecar image: %w", err)
 	}
 
@@ -123,7 +123,7 @@ func sidecarImageBuildArgs(dockerfilePath, image, toolLabel, context string, opt
 }
 
 // buildFromContent writes content to a temp Dockerfile and builds the image.
-func buildFromContent(content, image, tool string, opts tools.BuildOptions) (retErr error) {
+func (c *Client) buildFromContent(content, image, tool string, opts tools.BuildOptions) (retErr error) {
 	tmpDir, err := writeTempDockerfile(content)
 	if err != nil {
 		return err
@@ -136,7 +136,7 @@ func buildFromContent(content, image, tool string, opts tools.BuildOptions) (ret
 		return nil
 	})
 
-	return buildImage(tmpDir, image, tool, opts)
+	return c.buildImage(tmpDir, image, tool, opts)
 }
 
 // writeTempDockerfile writes content as a Dockerfile in a fresh temp dir, returned as the build context.
@@ -156,8 +156,8 @@ func writeTempDockerfile(content string) (tmpDir string, err error) {
 }
 
 // buildImage runs docker build for the tool image.
-func buildImage(tmpDir, image, tool string, opts tools.BuildOptions) error {
-	return runInteractive(buildImageArgs(tmpDir, image, tool, opts)...)
+func (c *Client) buildImage(tmpDir, image, tool string, opts tools.BuildOptions) error {
+	return c.runInteractive(buildImageArgs(tmpDir, image, tool, opts)...)
 }
 
 // buildImageArgs computes the docker build args for the tool image.

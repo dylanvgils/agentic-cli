@@ -15,13 +15,298 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/stretchr/testify/require"
 )
+
+// fakeDocker implements dockerAPI; a nil field succeeds with a zero value.
+type fakeDocker struct {
+	context               string
+	checkDaemon           func() error
+	buildTool             func(tool, image string, opts tools.BuildOptions) error
+	updateTool            func(tool, image string, opts tools.BuildOptions) error
+	buildProxyImage       func(image, version, sourceDir string, opts tools.BuildOptions) error
+	buildDindImage        func(image string, opts tools.BuildOptions) error
+	builtTools            func() (map[string]bool, error)
+	inspectImage          func(string) (*docker.ImageInfo, error)
+	listAllImages         func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
+	cleanImage            func(string) error
+	cleanBaseImages       func() error
+	pruneImages           func() error
+	pruneBuildCache       func() error
+	resolveContainerHome  func(string) string
+	runContainer          func(rs docker.RunSpec, toolArgs []string) error
+	listRunningContainers func() ([]*docker.ContainerInfo, error)
+	ensureNetwork         func() error
+	removeNetwork         func() error
+	ensureNamedVolumes    func(volumes []string, toolHome, containerHome, chownImage string) error
+	createVolume          func(string) error
+	listVolumes           func() (string, error)
+	listVolumeNames       func() ([]string, error)
+	removeVolume          func(string) error
+	sweepProxyResources   func() error
+	sweepDindResources    func(string) error
+	listContexts          func() ([]string, error)
+}
+
+func (f *fakeDocker) Context() string { return f.context }
+
+func (f *fakeDocker) CheckDaemon() error {
+	if f.checkDaemon == nil {
+		return nil
+	}
+	return f.checkDaemon()
+}
+
+func (f *fakeDocker) BuildTool(tool, image string, opts tools.BuildOptions) error {
+	if f.buildTool == nil {
+		return nil
+	}
+	return f.buildTool(tool, image, opts)
+}
+
+func (f *fakeDocker) UpdateTool(tool, image string, opts tools.BuildOptions) error {
+	if f.updateTool == nil {
+		return nil
+	}
+	return f.updateTool(tool, image, opts)
+}
+
+func (f *fakeDocker) BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) error {
+	if f.buildProxyImage == nil {
+		return nil
+	}
+	return f.buildProxyImage(image, version, sourceDir, opts)
+}
+
+func (f *fakeDocker) BuildDindImage(image string, opts tools.BuildOptions) error {
+	if f.buildDindImage == nil {
+		return nil
+	}
+	return f.buildDindImage(image, opts)
+}
+
+func (f *fakeDocker) BuiltTools() (map[string]bool, error) {
+	if f.builtTools == nil {
+		return nil, nil
+	}
+	return f.builtTools()
+}
+
+func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
+	if f.inspectImage == nil {
+		return nil, nil
+	}
+	return f.inspectImage(name)
+}
+
+func (f *fakeDocker) ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+	if f.listAllImages == nil {
+		return nil, nil
+	}
+	return f.listAllImages(filters...)
+}
+
+func (f *fakeDocker) CleanImage(image string) error {
+	if f.cleanImage == nil {
+		return nil
+	}
+	return f.cleanImage(image)
+}
+
+func (f *fakeDocker) CleanBaseImages() error {
+	if f.cleanBaseImages == nil {
+		return nil
+	}
+	return f.cleanBaseImages()
+}
+
+func (f *fakeDocker) PruneImages() error {
+	if f.pruneImages == nil {
+		return nil
+	}
+	return f.pruneImages()
+}
+
+func (f *fakeDocker) PruneBuildCache() error {
+	if f.pruneBuildCache == nil {
+		return nil
+	}
+	return f.pruneBuildCache()
+}
+
+func (f *fakeDocker) ResolveContainerHome(image string) string {
+	if f.resolveContainerHome == nil {
+		return ""
+	}
+	return f.resolveContainerHome(image)
+}
+
+func (f *fakeDocker) RunContainer(rs docker.RunSpec, toolArgs []string) error {
+	if f.runContainer == nil {
+		return nil
+	}
+	return f.runContainer(rs, toolArgs)
+}
+
+func (f *fakeDocker) ListRunningContainers() ([]*docker.ContainerInfo, error) {
+	if f.listRunningContainers == nil {
+		return nil, nil
+	}
+	return f.listRunningContainers()
+}
+
+func (f *fakeDocker) EnsureNetwork() error {
+	if f.ensureNetwork == nil {
+		return nil
+	}
+	return f.ensureNetwork()
+}
+
+func (f *fakeDocker) RemoveNetwork() error {
+	if f.removeNetwork == nil {
+		return nil
+	}
+	return f.removeNetwork()
+}
+
+func (f *fakeDocker) EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage string) error {
+	if f.ensureNamedVolumes == nil {
+		return nil
+	}
+	return f.ensureNamedVolumes(volumes, toolHome, containerHome, chownImage)
+}
+
+func (f *fakeDocker) CreateVolume(name string) error {
+	if f.createVolume == nil {
+		return nil
+	}
+	return f.createVolume(name)
+}
+
+func (f *fakeDocker) ListVolumes() (string, error) {
+	if f.listVolumes == nil {
+		return "", nil
+	}
+	return f.listVolumes()
+}
+
+func (f *fakeDocker) ListVolumeNames() ([]string, error) {
+	if f.listVolumeNames == nil {
+		return nil, nil
+	}
+	return f.listVolumeNames()
+}
+
+func (f *fakeDocker) RemoveVolume(name string) error {
+	if f.removeVolume == nil {
+		return nil
+	}
+	return f.removeVolume(name)
+}
+
+func (f *fakeDocker) SweepProxyResources() error {
+	if f.sweepProxyResources == nil {
+		return nil
+	}
+	return f.sweepProxyResources()
+}
+
+func (f *fakeDocker) SweepDindResources(toolHome string) error {
+	if f.sweepDindResources == nil {
+		return nil
+	}
+	return f.sweepDindResources(toolHome)
+}
+
+func (f *fakeDocker) ListContexts() ([]string, error) {
+	if f.listContexts == nil {
+		return nil, nil
+	}
+	return f.listContexts()
+}
+
+// overlay copies o's set fields onto f.
+func (f *fakeDocker) overlay(o *fakeDocker) {
+	if o.context != "" {
+		f.context = o.context
+	}
+	if o.checkDaemon != nil {
+		f.checkDaemon = o.checkDaemon
+	}
+	if o.buildTool != nil {
+		f.buildTool = o.buildTool
+	}
+	if o.updateTool != nil {
+		f.updateTool = o.updateTool
+	}
+	if o.buildProxyImage != nil {
+		f.buildProxyImage = o.buildProxyImage
+	}
+	if o.buildDindImage != nil {
+		f.buildDindImage = o.buildDindImage
+	}
+	if o.builtTools != nil {
+		f.builtTools = o.builtTools
+	}
+	if o.inspectImage != nil {
+		f.inspectImage = o.inspectImage
+	}
+	if o.listAllImages != nil {
+		f.listAllImages = o.listAllImages
+	}
+	if o.cleanImage != nil {
+		f.cleanImage = o.cleanImage
+	}
+	if o.cleanBaseImages != nil {
+		f.cleanBaseImages = o.cleanBaseImages
+	}
+	if o.pruneImages != nil {
+		f.pruneImages = o.pruneImages
+	}
+	if o.pruneBuildCache != nil {
+		f.pruneBuildCache = o.pruneBuildCache
+	}
+	if o.resolveContainerHome != nil {
+		f.resolveContainerHome = o.resolveContainerHome
+	}
+	if o.runContainer != nil {
+		f.runContainer = o.runContainer
+	}
+	if o.listRunningContainers != nil {
+		f.listRunningContainers = o.listRunningContainers
+	}
+	if o.ensureNetwork != nil {
+		f.ensureNetwork = o.ensureNetwork
+	}
+	if o.removeNetwork != nil {
+		f.removeNetwork = o.removeNetwork
+	}
+	if o.ensureNamedVolumes != nil {
+		f.ensureNamedVolumes = o.ensureNamedVolumes
+	}
+	if o.createVolume != nil {
+		f.createVolume = o.createVolume
+	}
+	if o.listVolumes != nil {
+		f.listVolumes = o.listVolumes
+	}
+	if o.listVolumeNames != nil {
+		f.listVolumeNames = o.listVolumeNames
+	}
+	if o.removeVolume != nil {
+		f.removeVolume = o.removeVolume
+	}
+	if o.sweepProxyResources != nil {
+		f.sweepProxyResources = o.sweepProxyResources
+	}
+	if o.sweepDindResources != nil {
+		f.sweepDindResources = o.sweepDindResources
+	}
+	if o.listContexts != nil {
+		f.listContexts = o.listContexts
+	}
+}
 
 // captureStdout replaces os.Stdout with a pipe and returns what was written; for logging.Step/Detail-based output, use captureLog instead.
 func captureStdout(t *testing.T, fn func()) string {
@@ -80,47 +365,45 @@ func stubLogs(t *testing.T) *bytes.Buffer {
 	return &buf
 }
 
-// captureRunContainer stubs runContainer, run's ensure-volumes/network calls, and inspectImage, returning a getter for the captured RunSpec and tool args.
+// stubDocker installs a fakeDocker as dockerClient if the test has none yet, and overlays d's set fields on it until the test ends.
+func stubDocker(t *testing.T, d *fakeDocker) {
+	t.Helper()
+
+	f, ok := dockerClient.(*fakeDocker)
+	if !ok {
+		orig := dockerClient
+		f = &fakeDocker{}
+		dockerClient = f
+		t.Cleanup(func() { dockerClient = orig })
+	}
+
+	prev := *f
+	f.overlay(d)
+	t.Cleanup(func() { *f = prev })
+}
+
+// restoreDockerClient puts dockerClient back when the test ends, for code under test that rebuilds it.
+func restoreDockerClient(t *testing.T) {
+	t.Helper()
+	orig := dockerClient
+	t.Cleanup(func() { dockerClient = orig })
+}
+
+// captureRunContainer stubs RunContainer and InspectImage, returning a getter for the captured RunSpec and tool args.
 func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	t.Helper()
 	var capturedSpec docker.RunSpec
 	var capturedArgs []string
 
-	origRun := runContainer
-	runContainer = func(rs docker.RunSpec, args []string) error {
-		capturedSpec = rs
-		capturedArgs = args
-		return nil
-	}
-
-	origEnsure := run.EnsureNamedVolumes
-	run.EnsureNamedVolumes = func(volumes []string, toolHome, containerHome, chownImage string) error {
-		return nil
-	}
-
-	origEnsureNet := run.EnsureNetwork
-	run.EnsureNetwork = func() error { return nil }
-
-	fakeInspect := func(name string) (*docker.ImageInfo, error) {
-		return &docker.ImageInfo{Image: name}, nil
-	}
-
-	origInspect := inspectImage
-	inspectImage = fakeInspect
-
-	origToolUpdateInspect := toolupdate.InspectImage
-	toolupdate.InspectImage = fakeInspect
-
-	origRunInspect := run.InspectImage
-	run.InspectImage = fakeInspect
-
-	t.Cleanup(func() {
-		runContainer = origRun
-		run.EnsureNamedVolumes = origEnsure
-		run.EnsureNetwork = origEnsureNet
-		inspectImage = origInspect
-		toolupdate.InspectImage = origToolUpdateInspect
-		run.InspectImage = origRunInspect
+	stubDocker(t, &fakeDocker{
+		runContainer: func(rs docker.RunSpec, args []string) error {
+			capturedSpec = rs
+			capturedArgs = args
+			return nil
+		},
+		inspectImage: func(name string) (*docker.ImageInfo, error) {
+			return &docker.ImageInfo{Image: name}, nil
+		},
 	})
 
 	return func() (docker.RunSpec, []string) { return capturedSpec, capturedArgs }
@@ -161,30 +444,17 @@ func writeTrustConfig(t *testing.T, toolHome string, dirs []string) {
 
 func stubBuiltTools(t *testing.T, fn func() (map[string]bool, error)) {
 	t.Helper()
-	orig := builtTools
-	builtTools = fn
-	t.Cleanup(func() { builtTools = orig })
-}
-
-func stubBuildTool(t *testing.T, fn func(tool, image string, opts tools.BuildOptions) error) {
-	t.Helper()
-	orig := build.BuildTool
-	build.BuildTool = fn
-	t.Cleanup(func() { build.BuildTool = orig })
+	stubDocker(t, &fakeDocker{builtTools: fn})
 }
 
 func stubBuildProxyImage(t *testing.T, fn func(image, version, sourceDir string, opts tools.BuildOptions) error) {
 	t.Helper()
-	orig := buildProxyImage
-	buildProxyImage = fn
-	t.Cleanup(func() { buildProxyImage = orig })
+	stubDocker(t, &fakeDocker{buildProxyImage: fn})
 }
 
 func stubCheckDockerDaemon(t *testing.T, fn func() error) {
 	t.Helper()
-	orig := checkDockerDaemon
-	checkDockerDaemon = fn
-	t.Cleanup(func() { checkDockerDaemon = orig })
+	stubDocker(t, &fakeDocker{checkDaemon: fn})
 }
 
 func stubMigrateRun(t *testing.T, fn func(string) ([]migrate.Migration, error)) {
@@ -196,135 +466,57 @@ func stubMigrateRun(t *testing.T, fn func(string) ([]migrate.Migration, error)) 
 
 func stubCleanImage(t *testing.T, fn func(string) error) {
 	t.Helper()
-	orig := cleanImage
-	cleanImage = fn
-	t.Cleanup(func() { cleanImage = orig })
-}
-
-func stubCleanCleanImage(t *testing.T, fn func(string) error) {
-	t.Helper()
-	orig := clean.CleanImage
-	clean.CleanImage = fn
-	t.Cleanup(func() { clean.CleanImage = orig })
-}
-
-func stubCleanCleanBaseImages(t *testing.T, fn func() error) {
-	t.Helper()
-	orig := clean.CleanBaseImages
-	clean.CleanBaseImages = fn
-	t.Cleanup(func() { clean.CleanBaseImages = orig })
-}
-
-func stubCleanListAllImages(t *testing.T, fn func(...docker.ImageFilter) ([]*docker.ImageInfo, error)) {
-	t.Helper()
-	orig := clean.ListAllImages
-	clean.ListAllImages = fn
-	t.Cleanup(func() { clean.ListAllImages = orig })
-}
-
-func stubCleanSweepProxyResources(t *testing.T, fn func() error) {
-	t.Helper()
-	orig := clean.SweepProxyResources
-	clean.SweepProxyResources = fn
-	t.Cleanup(func() { clean.SweepProxyResources = orig })
-}
-
-func stubCleanSweepDindResources(t *testing.T, fn func(string) error) {
-	t.Helper()
-	orig := clean.SweepDindResources
-	clean.SweepDindResources = fn
-	t.Cleanup(func() { clean.SweepDindResources = orig })
-}
-
-func stubCleanRemoveNetwork(t *testing.T, fn func() error) {
-	t.Helper()
-	orig := clean.RemoveNetwork
-	clean.RemoveNetwork = fn
-	t.Cleanup(func() { clean.RemoveNetwork = orig })
+	stubDocker(t, &fakeDocker{cleanImage: fn})
 }
 
 func stubCreateVolume(t *testing.T, fn func(string) error) {
 	t.Helper()
-	orig := createVolume
-	createVolume = fn
-	t.Cleanup(func() { createVolume = orig })
+	stubDocker(t, &fakeDocker{createVolume: fn})
 }
 
 func stubInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
 	t.Helper()
-	orig := inspectImage
-	inspectImage = func(_ string) (*docker.ImageInfo, error) { return info, err }
-	t.Cleanup(func() { inspectImage = orig })
-}
-
-func stubRunInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
-	t.Helper()
-	orig := run.InspectImage
-	run.InspectImage = func(_ string) (*docker.ImageInfo, error) { return info, err }
-	t.Cleanup(func() { run.InspectImage = orig })
+	stubDocker(t, &fakeDocker{inspectImage: inspectReturns(info, err)})
 }
 
 func stubListAllImages(t *testing.T, fn func(...docker.ImageFilter) ([]*docker.ImageInfo, error)) {
 	t.Helper()
-	orig := listAllImages
-	listAllImages = fn
-	t.Cleanup(func() { listAllImages = orig })
+	stubDocker(t, &fakeDocker{listAllImages: fn})
 }
 
 func stubListRunningContainers(t *testing.T, fn func() ([]*docker.ContainerInfo, error)) {
 	t.Helper()
-	orig := listRunningContainers
-	listRunningContainers = fn
-	t.Cleanup(func() { listRunningContainers = orig })
+	stubDocker(t, &fakeDocker{listRunningContainers: fn})
 }
 
 func stubListVolumeNames(t *testing.T, fn func() ([]string, error)) {
 	t.Helper()
-	orig := listVolumeNames
-	listVolumeNames = fn
-	t.Cleanup(func() { listVolumeNames = orig })
+	stubDocker(t, &fakeDocker{listVolumeNames: fn})
 }
 
 func stubListVolumes(t *testing.T, fn func() (string, error)) {
 	t.Helper()
-	orig := listVolumes
-	listVolumes = fn
-	t.Cleanup(func() { listVolumes = orig })
-}
-
-func stubSetContext(t *testing.T, fn func(string)) {
-	t.Helper()
-	orig := setContext
-	setContext = fn
-	t.Cleanup(func() { setContext = orig })
+	stubDocker(t, &fakeDocker{listVolumes: fn})
 }
 
 func stubListContexts(t *testing.T, fn func() ([]string, error)) {
 	t.Helper()
-	orig := listContexts
-	listContexts = fn
-	t.Cleanup(func() { listContexts = orig })
+	stubDocker(t, &fakeDocker{listContexts: fn})
 }
 
 func stubPruneImages(t *testing.T, fn func() error) {
 	t.Helper()
-	orig := pruneImages
-	pruneImages = fn
-	t.Cleanup(func() { pruneImages = orig })
+	stubDocker(t, &fakeDocker{pruneImages: fn})
 }
 
 func stubPruneBuildCache(t *testing.T, fn func() error) {
 	t.Helper()
-	orig := pruneBuildCache
-	pruneBuildCache = fn
-	t.Cleanup(func() { pruneBuildCache = orig })
+	stubDocker(t, &fakeDocker{pruneBuildCache: fn})
 }
 
 func stubRemoveVolume(t *testing.T, fn func(string) error) {
 	t.Helper()
-	orig := removeVolume
-	removeVolume = fn
-	t.Cleanup(func() { removeVolume = orig })
+	stubDocker(t, &fakeDocker{removeVolume: fn})
 }
 
 func stubPruneProxyLogs(t *testing.T, fn func(dir string, maxAge time.Duration)) {
@@ -332,34 +524,6 @@ func stubPruneProxyLogs(t *testing.T, fn func(dir string, maxAge time.Duration))
 	orig := pruneProxyLogs
 	pruneProxyLogs = fn
 	t.Cleanup(func() { pruneProxyLogs = orig })
-}
-
-func stubUpdateInspectImage(t *testing.T, info *docker.ImageInfo, err error) {
-	t.Helper()
-	orig := update.InspectImage
-	update.InspectImage = func(_ string) (*docker.ImageInfo, error) { return info, err }
-	t.Cleanup(func() { update.InspectImage = orig })
-}
-
-func stubUpdateInspectImageFunc(t *testing.T, fn func(image string) (*docker.ImageInfo, error)) {
-	t.Helper()
-	orig := update.InspectImage
-	update.InspectImage = fn
-	t.Cleanup(func() { update.InspectImage = orig })
-}
-
-func stubUpdateListAllImages(t *testing.T, fn func(...docker.ImageFilter) ([]*docker.ImageInfo, error)) {
-	t.Helper()
-	orig := update.ListAllImages
-	update.ListAllImages = fn
-	t.Cleanup(func() { update.ListAllImages = orig })
-}
-
-func stubUpdateUpdateTool(t *testing.T, fn func(tool, image string, opts tools.BuildOptions) error) {
-	t.Helper()
-	orig := update.UpdateTool
-	update.UpdateTool = fn
-	t.Cleanup(func() { update.UpdateTool = orig })
 }
 
 func stubLatestToolVersion(t *testing.T, fn func(tool, installedLabel string) (string, bool, bool)) {
@@ -411,17 +575,9 @@ func stubVolumeStdin(t *testing.T, input string) {
 	t.Cleanup(func() { volumesStdin = orig })
 }
 
-// stubBuildDindImage replaces buildDindImage with fn for the duration of the test.
 func stubBuildDindImage(t *testing.T, fn func(image string, opts tools.BuildOptions) error) {
 	t.Helper()
-	orig := buildDindImage
-	buildDindImage = fn
-	t.Cleanup(func() { buildDindImage = orig })
-}
-
-// formatTestLabelTime formats t like agentic's image timestamp labels.
-func formatTestLabelTime(t time.Time) string {
-	return t.UTC().Format("2006-01-02T15:04:05Z")
+	stubDocker(t, &fakeDocker{buildDindImage: fn})
 }
 
 func stubTrustStdin(t *testing.T, input string) {
@@ -436,6 +592,16 @@ func stubIsTerminal(t *testing.T, terminal bool) {
 	orig := isTerminal
 	isTerminal = func() bool { return terminal }
 	t.Cleanup(func() { isTerminal = orig })
+}
+
+// inspectReturns returns an InspectImage func that always yields info and err.
+func inspectReturns(info *docker.ImageInfo, err error) func(string) (*docker.ImageInfo, error) {
+	return func(string) (*docker.ImageInfo, error) { return info, err }
+}
+
+// formatTestLabelTime formats t like agentic's image timestamp labels.
+func formatTestLabelTime(t time.Time) string {
+	return t.UTC().Format("2006-01-02T15:04:05Z")
 }
 
 // credentialLayer writes a .agenticrc.toml with one credential entry reading secret and returns its layer.

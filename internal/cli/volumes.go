@@ -50,7 +50,7 @@ func init() {
 
 func runVolumeCreate(_ *cobra.Command, args []string) error {
 	name := args[0]
-	if err := createVolume(name); err != nil {
+	if err := dockerClient.CreateVolume(name); err != nil {
 		return err
 	}
 	logging.Infof("created volume %s", name)
@@ -58,7 +58,7 @@ func runVolumeCreate(_ *cobra.Command, args []string) error {
 }
 
 func runVolumeList(_ *cobra.Command, _ []string) error {
-	out, err := listVolumes()
+	out, err := dockerClient.ListVolumes()
 	if err != nil {
 		return err
 	}
@@ -68,14 +68,14 @@ func runVolumeList(_ *cobra.Command, _ []string) error {
 
 func runVolumeRemove(_ *cobra.Command, args []string) error {
 	if len(args) == 1 {
-		if err := removeVolume(args[0]); err != nil {
+		if err := dockerClient.RemoveVolume(args[0]); err != nil {
 			return err
 		}
 		logging.Infof("removed volume %s", args[0])
 		return nil
 	}
 
-	names, err := listVolumeNames()
+	names, err := dockerClient.ListVolumeNames()
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func runVolumeRemove(_ *cobra.Command, args []string) error {
 
 	logging.Infof("removing %d volume(s)", len(names))
 	for _, n := range names {
-		if err := removeVolume(n); err != nil {
+		if err := dockerClient.RemoveVolume(n); err != nil {
 			return err
 		}
 		logging.Stepf("deleted: %s", n)

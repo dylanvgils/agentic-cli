@@ -17,8 +17,6 @@ func newTestStatusCmd(t *testing.T) (*cobra.Command, *bytes.Buffer) {
 	var buf bytes.Buffer
 	cmd := &cobra.Command{}
 	cmd.SetOut(&buf)
-	docker.SetContext("")
-	t.Cleanup(func() { docker.SetContext("") })
 	return cmd, &buf
 }
 
@@ -92,7 +90,7 @@ func TestRunStatus(t *testing.T) {
 	t.Run("docker context set prints header before daemon status", func(t *testing.T) {
 		// Arrange
 		cmd, buf := newTestStatusCmd(t)
-		docker.SetContext("prod")
+		stubDocker(t, &fakeDocker{context: "prod"})
 		stubCheckDockerDaemon(t, func() error { return nil })
 		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) { return nil, nil })
 

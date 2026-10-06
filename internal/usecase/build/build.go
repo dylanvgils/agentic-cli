@@ -5,31 +5,22 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
-// BuildTool indirects the docker call so callers can fake it in tests (seam convention, see internal/cli/root.go).
-var BuildTool = docker.BuildTool
+// Service builds tool images for `agentic build`.
+type Service struct {
+	docker Docker
+}
 
-// DryRun prints the generated Dockerfile for each tool in names instead of building it.
-func DryRun(names []string, opts tools.BuildOptions) error {
-	for _, name := range names {
-		logging.Step(name)
-		content, err := tools.GenerateDockerfile(name, opts)
-		if err != nil {
-			return err
-		}
-		if _, err := fmt.Println(content); err != nil {
-			return err
-		}
-	}
-	return nil
+// New returns a Service that talks to Docker through d.
+func New(d Docker) *Service {
+	return &Service{docker: d}
 }
 
 // Apply builds each tool image in names under namespace, announcing the batch and reporting the base/apt overrides in effect for each.
-func Apply(names []string, namespace string, opts tools.BuildOptions) error {
+func (s *Service) Apply(names []string, namespace string, opts tools.BuildOptions) error {
 	images := make([]string, len(names))
 	for i, name := range names {
 		image, err := tools.ImageName(name, namespace)
@@ -56,7 +47,22 @@ func Apply(names []string, namespace string, opts tools.BuildOptions) error {
 			logging.Detail("apt: (none, exact)")
 		}
 
-		if err := BuildTool(name, image, opts); err != nil {
+		if err := s.docker.BuildTool(name, image, opts); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// DryRun prints the generated Dockerfile for each tool in names instead of building it.
+func (s *Service) DryRun(names []string, opts tools.BuildOptions) error {
+	for _, name := range names {
+		logging.Step(name)
+		content, err := tools.GenerateDockerfile(name, opts)
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Println(content); err != nil {
 			return err
 		}
 	}

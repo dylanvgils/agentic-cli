@@ -8,11 +8,16 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
-func stubBuildTool(t *testing.T, fn func(tool, image string, opts tools.BuildOptions) error) {
-	t.Helper()
-	orig := BuildTool
-	BuildTool = fn
-	t.Cleanup(func() { BuildTool = orig })
+// fakeDocker implements Docker; a nil field succeeds with a zero value.
+type fakeDocker struct {
+	buildTool func(tool, image string, opts tools.BuildOptions) error
+}
+
+func (f *fakeDocker) BuildTool(tool, image string, opts tools.BuildOptions) error {
+	if f.buildTool == nil {
+		return nil
+	}
+	return f.buildTool(tool, image, opts)
 }
 
 // stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.

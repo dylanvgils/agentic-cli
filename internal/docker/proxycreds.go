@@ -39,7 +39,7 @@ func (h proxyHandle) copyCredentials() (caPEM []byte, err error) {
 	}
 
 	// --archive keeps the tar's owner, so the proxy user can read the 0600 files and delete them from its 0700 dir
-	if _, err := dockerRunStdin(bytes.NewReader(archive), "cp", arg("archive"), "-", h.container+":"+proxyRunMountDir); err != nil {
+	if _, err := h.client.runStdin(bytes.NewReader(archive), "cp", arg("archive"), "-", h.container+":"+proxyRunMountDir); err != nil {
 		return nil, fmt.Errorf("copy proxy credentials: %w", err)
 	}
 	return ca.CertPEM(), nil

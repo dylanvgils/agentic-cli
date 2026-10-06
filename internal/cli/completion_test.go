@@ -47,11 +47,7 @@ func TestBuiltToolNamesFunc(t *testing.T) {
 
 	t.Run("inspect error", func(t *testing.T) {
 		// Arrange
-		orig := inspectImage
-		inspectImage = func(_ string) (*docker.ImageInfo, error) {
-			return nil, assert.AnError
-		}
-		defer func() { inspectImage = orig }()
+		stubInspectImage(t, nil, assert.AnError)
 
 		// Act
 		names, directive := builtToolNamesFunc(&cobra.Command{}, nil, "")
@@ -64,14 +60,12 @@ func TestBuiltToolNamesFunc(t *testing.T) {
 	t.Run("some built", func(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())
-		orig := inspectImage
-		inspectImage = func(name string) (*docker.ImageInfo, error) {
+		stubDocker(t, &fakeDocker{inspectImage: func(name string) (*docker.ImageInfo, error) {
 			if name == "agentic-claude" {
 				return &docker.ImageInfo{Image: name, ID: "abc"}, nil
 			}
 			return nil, nil
-		}
-		defer func() { inspectImage = orig }()
+		}})
 
 		// Act
 		names, directive := builtToolNamesFunc(&cobra.Command{}, nil, "")

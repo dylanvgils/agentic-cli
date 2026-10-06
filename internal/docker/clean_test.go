@@ -9,16 +9,18 @@ import (
 )
 
 func TestCleanImage(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("no containers no images makes no remove calls", func(t *testing.T) {
 		// Arrange
 		var calls [][]string
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			calls = append(calls, args)
 			return "", nil
 		})
 
 		// Act
-		err := CleanImage("agentic-claude")
+		err := client.CleanImage("agentic-claude")
 
 		// Assert
 		require.NoError(t, err)
@@ -31,7 +33,7 @@ func TestCleanImage(t *testing.T) {
 		// Arrange
 		callNum := 0
 		var rmArgs []string
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			callNum++
 			switch callNum {
 			case 1: // docker ps
@@ -46,7 +48,7 @@ func TestCleanImage(t *testing.T) {
 		})
 
 		// Act
-		err := CleanImage("agentic-claude")
+		err := client.CleanImage("agentic-claude")
 
 		// Assert
 		require.NoError(t, err)
@@ -58,7 +60,7 @@ func TestCleanImage(t *testing.T) {
 		// Arrange
 		callNum := 0
 		var rmiArgs []string
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			callNum++
 			switch callNum {
 			case 1: // docker ps - no containers
@@ -73,7 +75,7 @@ func TestCleanImage(t *testing.T) {
 		})
 
 		// Act
-		err := CleanImage("agentic-claude")
+		err := client.CleanImage("agentic-claude")
 
 		// Assert
 		require.NoError(t, err)
@@ -83,10 +85,10 @@ func TestCleanImage(t *testing.T) {
 
 	t.Run("ps error returns error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("docker daemon not running"))
+		stubDockerRunFixed(t, client, "", fmt.Errorf("docker daemon not running"))
 
 		// Act
-		err := CleanImage("agentic-claude")
+		err := client.CleanImage("agentic-claude")
 
 		// Assert
 		require.Error(t, err)
@@ -95,7 +97,7 @@ func TestCleanImage(t *testing.T) {
 	t.Run("rm error returns error", func(t *testing.T) {
 		// Arrange
 		callNum := 0
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			callNum++
 			if callNum == 1 {
 				return "container1", nil
@@ -104,7 +106,7 @@ func TestCleanImage(t *testing.T) {
 		})
 
 		// Act
-		err := CleanImage("agentic-claude")
+		err := client.CleanImage("agentic-claude")
 
 		// Assert
 		require.Error(t, err)
@@ -114,7 +116,7 @@ func TestCleanImage(t *testing.T) {
 	t.Run("images error returns error", func(t *testing.T) {
 		// Arrange
 		callNum := 0
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			callNum++
 			if callNum == 1 {
 				return "", nil
@@ -123,7 +125,7 @@ func TestCleanImage(t *testing.T) {
 		})
 
 		// Act
-		err := CleanImage("agentic-claude")
+		err := client.CleanImage("agentic-claude")
 
 		// Assert
 		require.Error(t, err)
@@ -133,7 +135,7 @@ func TestCleanImage(t *testing.T) {
 	t.Run("rmi error returns error", func(t *testing.T) {
 		// Arrange
 		callNum := 0
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			callNum++
 			switch callNum {
 			case 1: // ps - no containers
@@ -147,7 +149,7 @@ func TestCleanImage(t *testing.T) {
 		})
 
 		// Act
-		err := CleanImage("agentic-claude")
+		err := client.CleanImage("agentic-claude")
 
 		// Assert
 		require.Error(t, err)
@@ -156,16 +158,18 @@ func TestCleanImage(t *testing.T) {
 }
 
 func TestCleanBaseImages(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("no matching images makes no rmi call", func(t *testing.T) {
 		// Arrange
 		var calls [][]string
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			calls = append(calls, args)
 			return "ubuntu\nnginx\nalpine", nil
 		})
 
 		// Act
-		err := CleanBaseImages()
+		err := client.CleanBaseImages()
 
 		// Assert
 		require.NoError(t, err)
@@ -177,7 +181,7 @@ func TestCleanBaseImages(t *testing.T) {
 		// Arrange
 		callNum := 0
 		var rmiArgs []string
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			callNum++
 			if callNum == 1 {
 				return "ubuntu\nagentic-base-java\nagentic-base-dotnet\nnginx", nil
@@ -187,7 +191,7 @@ func TestCleanBaseImages(t *testing.T) {
 		})
 
 		// Act
-		err := CleanBaseImages()
+		err := client.CleanBaseImages()
 
 		// Assert
 		require.NoError(t, err)
@@ -197,10 +201,10 @@ func TestCleanBaseImages(t *testing.T) {
 
 	t.Run("images error returns error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("docker daemon not running"))
+		stubDockerRunFixed(t, client, "", fmt.Errorf("docker daemon not running"))
 
 		// Act
-		err := CleanBaseImages()
+		err := client.CleanBaseImages()
 
 		// Assert
 		require.Error(t, err)
@@ -209,7 +213,7 @@ func TestCleanBaseImages(t *testing.T) {
 	t.Run("rmi error returns error", func(t *testing.T) {
 		// Arrange
 		callNum := 0
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			callNum++
 			if callNum == 1 {
 				return "agentic-base-java", nil
@@ -218,7 +222,7 @@ func TestCleanBaseImages(t *testing.T) {
 		})
 
 		// Act
-		err := CleanBaseImages()
+		err := client.CleanBaseImages()
 
 		// Assert
 		require.Error(t, err)

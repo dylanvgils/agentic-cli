@@ -11,6 +11,8 @@ import (
 )
 
 func TestRunInstructions(t *testing.T) {
+	stubDocker(t, &fakeDocker{})
+
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())

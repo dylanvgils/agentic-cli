@@ -12,12 +12,14 @@ import (
 func TestRequireDockerLayer(t *testing.T) {
 	t.Run("image with docker layer passes", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, func(string) (*docker.ImageInfo, error) {
-			return &docker.ImageInfo{Image: "agentic-claude", Base: "node@24.1.0,docker@29.8.2"}, nil
-		})
+		d := &fakeDocker{
+			inspectImage: func(string) (*docker.ImageInfo, error) {
+				return &docker.ImageInfo{Image: "agentic-claude", Base: "node@24.1.0,docker@29.8.2"}, nil
+			},
+		}
 
 		// Act
-		err := RequireDockerLayer("agentic-claude", "claude")
+		err := New(d).RequireDockerLayer("agentic-claude", "claude")
 
 		// Assert
 		require.NoError(t, err)
@@ -25,12 +27,14 @@ func TestRequireDockerLayer(t *testing.T) {
 
 	t.Run("image without docker layer hints at rebuild", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, func(string) (*docker.ImageInfo, error) {
-			return &docker.ImageInfo{Image: "agentic-claude", Base: "node@24.1.0"}, nil
-		})
+		d := &fakeDocker{
+			inspectImage: func(string) (*docker.ImageInfo, error) {
+				return &docker.ImageInfo{Image: "agentic-claude", Base: "node@24.1.0"}, nil
+			},
+		}
 
 		// Act
-		err := RequireDockerLayer("agentic-claude", "claude")
+		err := New(d).RequireDockerLayer("agentic-claude", "claude")
 
 		// Assert
 		require.Error(t, err)
@@ -39,12 +43,14 @@ func TestRequireDockerLayer(t *testing.T) {
 
 	t.Run("inspect error propagates", func(t *testing.T) {
 		// Arrange
-		stubInspectImage(t, func(string) (*docker.ImageInfo, error) {
-			return nil, fmt.Errorf("docker daemon not running")
-		})
+		d := &fakeDocker{
+			inspectImage: func(string) (*docker.ImageInfo, error) {
+				return nil, fmt.Errorf("docker daemon not running")
+			},
+		}
 
 		// Act
-		err := RequireDockerLayer("agentic-claude", "claude")
+		err := New(d).RequireDockerLayer("agentic-claude", "claude")
 
 		// Assert
 		require.ErrorContains(t, err, "docker daemon not running")

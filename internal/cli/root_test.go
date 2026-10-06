@@ -214,10 +214,9 @@ func TestCheckGit(t *testing.T) {
 }
 
 func TestResolveContext(t *testing.T) {
-	t.Run("passes the resolved flag value to setContext", func(t *testing.T) {
+	t.Run("builds the docker client for the resolved flag value", func(t *testing.T) {
 		// Arrange
-		var got string
-		stubSetContext(t, func(ctx string) { got = ctx })
+		restoreDockerClient(t)
 		cmd := &cobra.Command{}
 		cmd.Flags().String("docker-context", "", "")
 		require.NoError(t, cmd.Flags().Set("docker-context", "prod"))
@@ -226,16 +225,14 @@ func TestResolveContext(t *testing.T) {
 		resolveContext(cmd)
 
 		// Assert
-		assert.Equal(t, "prod", got)
+		assert.Equal(t, "prod", dockerClient.Context())
 	})
 }
 
 func TestPersistentPreRunE(t *testing.T) {
-	t.Run("resolves docker context before checking the daemon", func(t *testing.T) {
+	t.Run("resolves the docker context", func(t *testing.T) {
 		// Arrange
-		var got string
-		stubSetContext(t, func(ctx string) { got = ctx })
-		stubCheckDockerDaemon(t, func() error { return nil })
+		restoreDockerClient(t)
 		stubMigrateRun(t, func(string) ([]migrate.Migration, error) { return nil, nil })
 		cmd := &cobra.Command{Use: "status"}
 		cmd.Flags().String("docker-context", "", "")
@@ -248,15 +245,12 @@ func TestPersistentPreRunE(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "prod", got)
+		assert.Equal(t, "prod", dockerClient.Context())
 	})
 
 	t.Run("migration failure aborts the command", func(t *testing.T) {
 		// Arrange
-		stubSetContext(t, func(string) {})
-		stubCheckDockerDaemon(t, func() error {
-			return errors.New("should not be called")
-		})
+		restoreDockerClient(t)
 		stubMigrateRun(t, func(string) ([]migrate.Migration, error) {
 			return nil, errors.New("migration failed")
 		})
@@ -274,8 +268,7 @@ func TestPersistentPreRunE(t *testing.T) {
 
 	t.Run("skips the migration check for excluded commands", func(t *testing.T) {
 		// Arrange
-		stubSetContext(t, func(string) {})
-		stubCheckDockerDaemon(t, func() error { return nil })
+		restoreDockerClient(t)
 		stubMigrateRun(t, func(string) ([]migrate.Migration, error) {
 			return nil, errors.New("should not be called")
 		})

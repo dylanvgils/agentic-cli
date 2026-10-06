@@ -72,8 +72,10 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		opts.AptPackages = nil
 	}
 
+	svc := update.New(dockerClient)
+
 	if dryRun {
-		return update.DryRun(tool, namespace, opts)
+		return svc.DryRun(tool, namespace, opts)
 	}
 
 	// Generate the cache-bust value once so multiple targets for the same tool
@@ -88,7 +90,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		All:        all,
 	}
 
-	targets, skipped, err := update.Resolve(scope, opts, pullExplicit)
+	targets, skipped, err := svc.Resolve(scope, opts, pullExplicit)
 	if err != nil {
 		return err
 	}
@@ -112,7 +114,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, t := range targets {
-		if err := update.Apply(t.Name, t.Image, t.Opts); err != nil {
+		if err := svc.Apply(t.Name, t.Image, t.Opts); err != nil {
 			return err
 		}
 	}

@@ -13,8 +13,8 @@ type imageInspectResult struct {
 }
 
 // ResolveContainerHome reads image's TOOL_HOME env var, falling back to "/root" if unavailable.
-func ResolveContainerHome(image string) string {
-	out, err := dockerRun("inspect", arg("format", "{{json .Config.Env}}"), image)
+func (c *Client) ResolveContainerHome(image string) string {
+	out, err := c.run("inspect", arg("format", "{{json .Config.Env}}"), image)
 	if err != nil {
 		return "/root"
 	}
@@ -33,8 +33,8 @@ func ResolveContainerHome(image string) string {
 	return "/root"
 }
 
-func inspectImage(name string) (*imageInspectResult, error) {
-	out, err := dockerRun("inspect", arg("format", "{{json .}}"), name)
+func (c *Client) inspectImage(name string) (*imageInspectResult, error) {
+	out, err := c.run("inspect", arg("format", "{{json .}}"), name)
 	if err != nil {
 		return nil, nil
 	}

@@ -50,11 +50,13 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		logging.Warnf("--skip-install-checksum disables install script integrity verification")
 	}
 
+	svc := build.New(dockerClient)
+
 	if dryRun {
-		return build.DryRun(names, opts)
+		return svc.DryRun(names, opts)
 	}
 
-	if err := build.Apply(names, namespace, opts); err != nil {
+	if err := svc.Apply(names, namespace, opts); err != nil {
 		return err
 	}
 

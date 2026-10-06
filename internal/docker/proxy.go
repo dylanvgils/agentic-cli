@@ -68,6 +68,7 @@ type ProxySpec struct {
 // proxyHandle identifies the per-run proxy network, sidecar container, host-side access log, injected credentials,
 // the network's subnets that may use them, and the CA cert the proxy signs them with, set once started.
 type proxyHandle struct {
+	client      *Client
 	id          string
 	network     string
 	container   string
@@ -85,7 +86,7 @@ func (m ProxyMode) Enabled() bool {
 }
 
 // newProxyHandle derives the per-run proxy resource names without creating any docker resources, so it is safe for dry runs.
-func newProxyHandle(rs RunSpec) (proxyHandle, error) {
+func (c *Client) newProxyHandle(rs RunSpec) (proxyHandle, error) {
 	id, err := randID()
 	if err != nil {
 		return proxyHandle{}, err
@@ -93,6 +94,7 @@ func newProxyHandle(rs RunSpec) (proxyHandle, error) {
 
 	name := proxyHostAlias + "-" + id
 	return proxyHandle{
+		client:      c,
 		id:          id,
 		network:     name,
 		container:   name,
@@ -125,8 +127,8 @@ func proxyEnvArgs(dind bool) []string {
 
 // Stop removes the proxy sidecar, its volume and its internal network; idempotent and error-ignoring, so it is safe to defer.
 func (h proxyHandle) Stop() {
-	_, _ = dockerRun("rm", "--force", "--volumes", h.container)
-	_, _ = dockerRun("network", "rm", h.network)
+	_, _ = h.client.run("rm", "--force", "--volumes", h.container)
+	_, _ = h.client.run("network", "rm", h.network)
 }
 
 // PrintSummary reports hosts actually blocked in normal mode, or hosts that would have been
@@ -207,13 +209,13 @@ func (h proxyHandle) totalRequests() int {
 
 // startProxy provisions the per-run internal network and proxy sidecar, copying in any credentials before it starts
 // and wiring it to the egress network; cleans up whatever it created on any failure.
-func startProxy(rs RunSpec) (proxyHandle, error) {
-	h, err := newProxyHandle(rs)
+func (c *Client) startProxy(rs RunSpec) (proxyHandle, error) {
+	h, err := c.newProxyHandle(rs)
 	if err != nil {
 		return proxyHandle{}, err
 	}
 
-	if err := EnsureNetwork(); err != nil {
+	if err := c.EnsureNetwork(); err != nil {
 		return proxyHandle{}, err
 	}
 
@@ -224,21 +226,21 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 	}
 	createArgs = append(createArgs, ownerLabels(rs)...)
 	createArgs = append(createArgs, h.network)
-	if _, err := dockerRun(createArgs...); err != nil {
+	if _, err := c.run(createArgs...); err != nil {
 		return proxyHandle{}, fmt.Errorf("create proxy network: %w", err)
 	}
 
 	// The proxy also joins the shared egress network, so only this run's network may use the credentials
 	if len(h.credentials) > 0 {
-		h.clientNets, err = networkSubnets(h.network)
+		h.clientNets, err = c.networkSubnets(h.network)
 		if err != nil {
-			_, _ = dockerRun("network", "rm", h.network)
+			_, _ = c.run("network", "rm", h.network)
 			return proxyHandle{}, err
 		}
 	}
 
-	if _, err := dockerRun(h.createArgs(rs)...); err != nil {
-		_, _ = dockerRun("network", "rm", h.network)
+	if _, err := c.run(h.createArgs(rs)...); err != nil {
+		_, _ = c.run("network", "rm", h.network)
 		return proxyHandle{}, fmt.Errorf("create proxy: %w", err)
 	}
 
@@ -249,7 +251,7 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 	}
 	h.caPEM = caPEM
 
-	if _, err := dockerRun("start", h.container); err != nil {
+	if _, err := c.run("start", h.container); err != nil {
 		h.Stop()
 		return proxyHandle{}, fmt.Errorf("start proxy: %w", err)
 	}
@@ -259,7 +261,7 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 	}
 
 	connectArgs := []string{"network", "connect", NetworkName, h.container}
-	if _, err := dockerRun(connectArgs...); err != nil {
+	if _, err := c.run(connectArgs...); err != nil {
 		h.Stop()
 		return proxyHandle{}, fmt.Errorf("connect proxy to %s: %w", NetworkName, err)
 	}
@@ -268,20 +270,20 @@ func startProxy(rs RunSpec) (proxyHandle, error) {
 }
 
 // setupProxy configures rs for proxy mode if enabled, returning the tool args (proxy env, CA trust) to inject and a cleanup func to defer.
-func setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
+func (c *Client) setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 	if !rs.Proxy.Mode.Enabled() {
 		return nil, func() {}, nil
 	}
 
 	if rs.DryRun {
-		return dryRunProxy(rs)
+		return c.dryRunProxy(rs)
 	}
-	return launchProxy(rs)
+	return c.launchProxy(rs)
 }
 
 // dryRunProxy reflects the proxy network and env in the printed command without provisioning anything.
-func dryRunProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
-	handle, err := newProxyHandle(*rs)
+func (c *Client) dryRunProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
+	handle, err := c.newProxyHandle(*rs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -296,12 +298,12 @@ func dryRunProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 }
 
 // launchProxy starts the sidecar and returns a cleanup that tears it down and prints the access summary.
-func launchProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
+func (c *Client) launchProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 	// Guard first so Ctrl-C during startup still removes the sidecar and its credentials volume
 	interrupt, stop := guardSignals()
 
 	logging.Infof("starting egress proxy...")
-	handle, err := startProxy(*rs)
+	handle, err := c.startProxy(*rs)
 	if err != nil {
 		stop()
 		return nil, nil, err
@@ -379,9 +381,9 @@ func (h proxyHandle) checkStarted() error {
 
 	deadline := time.Now().Add(proxySettleTime)
 	for {
-		out, err := dockerRun("inspect", arg("format", "{{.State.Running}}"), h.container)
+		out, err := h.client.run("inspect", arg("format", "{{.State.Running}}"), h.container)
 		if err != nil || strings.TrimSpace(out) != "true" {
-			logs, _ := dockerRun("logs", arg("tail", "20"), h.container)
+			logs, _ := h.client.run("logs", arg("tail", "20"), h.container)
 			return fmt.Errorf("proxy exited on start:\n%s", strings.TrimSpace(logs))
 		}
 		if !time.Now().Before(deadline) {
@@ -393,14 +395,14 @@ func (h proxyHandle) checkStarted() error {
 
 // SweepProxyResources idempotently removes leftover per-run proxy containers (with their volume) and internal
 // networks (e.g. from an interrupted run), scoped to agentic-managed resources named with proxyHostAlias.
-func SweepProxyResources() error {
+func (c *Client) SweepProxyResources() error {
 	listContainerArgs := []string{
 		"ps", arg("all"), arg("quiet"),
 		labelFilter(LabelProject, LabelProjectVal),
 		nameFilter(proxyHostAlias),
 	}
 	removeContainerArgs := []string{"rm", arg("force"), arg("volumes")}
-	if err := runIfAny(listContainerArgs, removeContainerArgs); err != nil {
+	if err := c.runIfAny(listContainerArgs, removeContainerArgs); err != nil {
 		return err
 	}
 
@@ -410,7 +412,7 @@ func SweepProxyResources() error {
 		nameFilter(proxyHostAlias),
 	}
 	removeNetworkArgs := []string{"network", "rm"}
-	return runIfAny(listNetworkArgs, removeNetworkArgs)
+	return c.runIfAny(listNetworkArgs, removeNetworkArgs)
 }
 
 // proxyLogFileName is shared by the host logPath and the in-container AGENTIC_PROXY_LOG path so they name the same file.

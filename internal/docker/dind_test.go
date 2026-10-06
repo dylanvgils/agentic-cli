@@ -14,16 +14,18 @@ import (
 )
 
 func Test_startDind(t *testing.T) {
+	client := newTestClient()
+
 	stubDindReadyTimeout(t)
 	stubHostUserGroup(t, "1234:5678")
 
 	t.Run("creates own network, writes run files and probes the sidecar", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
+		get := stubDockerRunCapture(t, client)
 		rs := RunSpec{ToolHome: t.TempDir(), container: "agentic-claude-abc", Dind: DindSpec{Image: "dind"}}
 
 		// Act
-		handle, err := startDind(rs, nil)
+		handle, err := client.startDind(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -42,11 +44,11 @@ func Test_startDind(t *testing.T) {
 
 	t.Run("joins the proxy network instead of creating one", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
+		get := stubDockerRunCapture(t, client)
 		rs := RunSpec{ToolHome: t.TempDir(), network: "agentic-proxy-abc", Proxy: ProxySpec{Mode: ProxyEnforce}, Dind: DindSpec{Image: "dind"}}
 
 		// Act
-		handle, err := startDind(rs, nil)
+		handle, err := client.startDind(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -58,12 +60,12 @@ func Test_startDind(t *testing.T) {
 
 	t.Run("tears everything down when dockerd never becomes ready", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, "exec")
+		get := stubDockerRunCapture(t, client, "exec")
 		toolHome := t.TempDir()
 		rs := RunSpec{ToolHome: toolHome, Dind: DindSpec{Image: "dind"}}
 
 		// Act
-		_, err := startDind(rs, nil)
+		_, err := client.startDind(rs, nil)
 
 		// Assert
 		require.Error(t, err)
@@ -76,12 +78,12 @@ func Test_startDind(t *testing.T) {
 
 	t.Run("removes network and certs when sidecar fails to start", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, "run")
+		get := stubDockerRunCapture(t, client, "run")
 		toolHome := t.TempDir()
 		rs := RunSpec{ToolHome: toolHome, Dind: DindSpec{Image: "dind"}}
 
 		// Act
-		_, err := startDind(rs, nil)
+		_, err := client.startDind(rs, nil)
 
 		// Assert
 		require.Error(t, err)
@@ -92,17 +94,19 @@ func Test_startDind(t *testing.T) {
 }
 
 func Test_setupDind(t *testing.T) {
+	client := newTestClient()
+
 	stubDindReadyTimeout(t)
 	stubHostUserGroup(t, "1234:5678")
 
 	t.Run("dry run sets own network without docker calls or files", func(t *testing.T) {
 		// Arrange
-		calls := stubDockerRunCapture(t)
+		calls := stubDockerRunCapture(t, client)
 		toolHome := t.TempDir()
 		rs := RunSpec{ToolHome: toolHome, DryRun: true, Dind: DindSpec{Image: "dind", Enabled: true}}
 
 		// Act
-		args, cleanup, err := setupDind(&rs)
+		args, cleanup, err := client.setupDind(&rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -115,11 +119,11 @@ func Test_setupDind(t *testing.T) {
 
 	t.Run("dry run keeps proxy network", func(t *testing.T) {
 		// Arrange
-		stubDockerRunCapture(t)
+		stubDockerRunCapture(t, client)
 		rs := RunSpec{ToolHome: t.TempDir(), DryRun: true, network: "agentic-proxy-abc", Proxy: ProxySpec{Mode: ProxyEnforce}, Dind: DindSpec{Image: "dind", Enabled: true}}
 
 		// Act
-		_, _, err := setupDind(&rs)
+		_, _, err := client.setupDind(&rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -128,12 +132,12 @@ func Test_setupDind(t *testing.T) {
 
 	t.Run("cleanup removes the sidecar", func(t *testing.T) {
 		// Arrange
-		calls := stubDockerRunCapture(t)
+		calls := stubDockerRunCapture(t, client)
 		toolHome := t.TempDir()
 		rs := RunSpec{ToolHome: toolHome, Dind: DindSpec{Image: "dind", Enabled: true}}
 
 		// Act
-		_, cleanup, err := setupDind(&rs)
+		_, cleanup, err := client.setupDind(&rs)
 		cleanup()
 
 		// Assert
@@ -146,11 +150,11 @@ func Test_setupDind(t *testing.T) {
 
 	t.Run("propagates startDind error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunCapture(t, "run")
+		stubDockerRunCapture(t, client, "run")
 		rs := RunSpec{ToolHome: t.TempDir(), Dind: DindSpec{Image: "dind", Enabled: true}}
 
 		// Act
-		args, cleanup, err := setupDind(&rs)
+		args, cleanup, err := client.setupDind(&rs)
 
 		// Assert
 		assert.Error(t, err)
@@ -214,11 +218,13 @@ func Test_dindHandle_runArgs(t *testing.T) {
 }
 
 func Test_dindHandle_waitReady(t *testing.T) {
-	handle := dindHandle{container: "agentic-docker-abc"}
+	client := newTestClient()
+
+	handle := dindHandle{client: client, container: "agentic-docker-abc"}
 
 	t.Run("returns once dockerd answers", func(t *testing.T) {
 		// Arrange
-		stubDockerRunCapture(t)
+		stubDockerRunCapture(t, client)
 
 		// Act
 		err := handle.waitReady(nil)
@@ -230,7 +236,7 @@ func Test_dindHandle_waitReady(t *testing.T) {
 	t.Run("times out with logs when dockerd never answers", func(t *testing.T) {
 		// Arrange
 		stubDindReadyTimeout(t)
-		stubDindProbe(t, "true")
+		stubDindProbe(t, client, "true")
 
 		// Act
 		err := handle.waitReady(nil)
@@ -244,7 +250,7 @@ func Test_dindHandle_waitReady(t *testing.T) {
 	t.Run("fails fast when the sidecar exits", func(t *testing.T) {
 		// Arrange
 		stubDindReadyTimeoutLong(t)
-		stubDindProbe(t, "false")
+		stubDindProbe(t, client, "false")
 
 		// Act
 		err := handle.waitReady(nil)
@@ -256,7 +262,7 @@ func Test_dindHandle_waitReady(t *testing.T) {
 	t.Run("stops waiting when interrupted", func(t *testing.T) {
 		// Arrange
 		stubDindReadyTimeoutLong(t)
-		stubDindProbe(t, "true")
+		stubDindProbe(t, client, "true")
 		interrupt := make(chan os.Signal, 1)
 		interrupt <- os.Interrupt
 
@@ -269,12 +275,14 @@ func Test_dindHandle_waitReady(t *testing.T) {
 }
 
 func Test_dindHandle_Stop(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("removes owned network", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
+		get := stubDockerRunCapture(t, client)
 		runDir := filepath.Join(t.TempDir(), "abc")
 		require.NoError(t, os.MkdirAll(runDir, 0o700))
-		handle := dindHandle{container: "agentic-docker-abc", network: "agentic-dind-abc", ownsNetwork: true, runDir: runDir}
+		handle := dindHandle{client: client, container: "agentic-docker-abc", network: "agentic-dind-abc", ownsNetwork: true, runDir: runDir}
 
 		// Act
 		handle.Stop()
@@ -289,8 +297,8 @@ func Test_dindHandle_Stop(t *testing.T) {
 
 	t.Run("leaves a shared proxy network alone", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t)
-		handle := dindHandle{container: "agentic-docker-abc", network: "agentic-proxy-abc", runDir: t.TempDir()}
+		get := stubDockerRunCapture(t, client)
+		handle := dindHandle{client: client, container: "agentic-docker-abc", network: "agentic-proxy-abc", runDir: t.TempDir()}
 
 		// Act
 		handle.Stop()
@@ -320,8 +328,9 @@ func Test_dindHandle_toolArgs(t *testing.T) {
 
 func TestSweepDindResources(t *testing.T) {
 	// Arrange
+	client := newTestClient()
 	var calls [][]string
-	stubDockerRun(t, func(args ...string) (string, error) {
+	stubDockerRun(t, client, func(args ...string) (string, error) {
 		calls = append(calls, args)
 		if args[0] == "ps" || (args[0] == "network" && args[1] == "ls") {
 			return "id1\n", nil
@@ -330,7 +339,7 @@ func TestSweepDindResources(t *testing.T) {
 	})
 
 	// Act
-	err := SweepDindResources(t.TempDir())
+	err := client.SweepDindResources(t.TempDir())
 
 	// Assert
 	require.NoError(t, err)
@@ -342,16 +351,18 @@ func TestSweepDindResources(t *testing.T) {
 }
 
 func Test_sweepDindRunDirs(t *testing.T) {
+	client := newTestClient()
+
 	stubDindRunDirGrace(t, time.Minute)
 
 	t.Run("removes a stale dir whose sidecar is gone", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", nil)
+		stubDockerRunFixed(t, client, "", nil)
 		toolHome := t.TempDir()
 		dir := makeDindRunDir(t, toolHome, "0123456789ab", time.Hour)
 
 		// Act
-		err := sweepDindRunDirs(toolHome)
+		err := client.sweepDindRunDirs(toolHome)
 
 		// Assert
 		require.NoError(t, err)
@@ -360,12 +371,12 @@ func Test_sweepDindRunDirs(t *testing.T) {
 
 	t.Run("keeps a dir whose sidecar still exists", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "agentic-docker-0123456789ab\n", nil)
+		stubDockerRunFixed(t, client, "agentic-docker-0123456789ab\n", nil)
 		toolHome := t.TempDir()
 		dir := makeDindRunDir(t, toolHome, "0123456789ab", time.Hour)
 
 		// Act
-		err := sweepDindRunDirs(toolHome)
+		err := client.sweepDindRunDirs(toolHome)
 
 		// Assert
 		require.NoError(t, err)
@@ -374,12 +385,12 @@ func Test_sweepDindRunDirs(t *testing.T) {
 
 	t.Run("keeps a dir younger than the grace period", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", nil)
+		stubDockerRunFixed(t, client, "", nil)
 		toolHome := t.TempDir()
 		dir := makeDindRunDir(t, toolHome, "0123456789ab", 0)
 
 		// Act
-		err := sweepDindRunDirs(toolHome)
+		err := client.sweepDindRunDirs(toolHome)
 
 		// Assert
 		require.NoError(t, err)
@@ -388,12 +399,12 @@ func Test_sweepDindRunDirs(t *testing.T) {
 
 	t.Run("ignores entries that are not run ids", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", nil)
+		stubDockerRunFixed(t, client, "", nil)
 		toolHome := t.TempDir()
 		dir := makeDindRunDir(t, toolHome, "not-a-run-id", time.Hour)
 
 		// Act
-		err := sweepDindRunDirs(toolHome)
+		err := client.sweepDindRunDirs(toolHome)
 
 		// Assert
 		require.NoError(t, err)
@@ -403,13 +414,13 @@ func Test_sweepDindRunDirs(t *testing.T) {
 	t.Run("missing dind dir is a no-op without calling docker", func(t *testing.T) {
 		// Arrange
 		called := false
-		stubDockerRun(t, func(...string) (string, error) {
+		stubDockerRun(t, client, func(...string) (string, error) {
 			called = true
 			return "", nil
 		})
 
 		// Act
-		err := sweepDindRunDirs(t.TempDir())
+		err := client.sweepDindRunDirs(t.TempDir())
 
 		// Assert
 		require.NoError(t, err)
@@ -418,12 +429,12 @@ func Test_sweepDindRunDirs(t *testing.T) {
 
 	t.Run("docker error propagates and keeps dirs", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("daemon down"))
+		stubDockerRunFixed(t, client, "", fmt.Errorf("daemon down"))
 		toolHome := t.TempDir()
 		dir := makeDindRunDir(t, toolHome, "0123456789ab", time.Hour)
 
 		// Act
-		err := sweepDindRunDirs(toolHome)
+		err := client.sweepDindRunDirs(toolHome)
 
 		// Assert
 		require.Error(t, err)
@@ -505,10 +516,11 @@ func Test_writeDindClientConfig(t *testing.T) {
 
 func Test_newDindHandle(t *testing.T) {
 	// Arrange
+	client := newTestClient()
 	stubHostUserGroup(t, "1000:1000")
 
 	// Act
-	handle, err := newDindHandle(RunSpec{ToolHome: t.TempDir()})
+	handle, err := client.newDindHandle(RunSpec{ToolHome: t.TempDir()})
 
 	// Assert
 	require.NoError(t, err)

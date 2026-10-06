@@ -100,7 +100,7 @@ func runProxyClean(cmd *cobra.Command, _ []string) error {
 // cleanProxyImage removes the proxy image for `agentic proxy clean`; `agentic clean`'s global sweep has its own copy in internal/usecase/clean.
 func cleanProxyImage() error {
 	logging.Infof("removing %s", tools.ProxyImage)
-	return cleanImage(tools.ProxyImage)
+	return dockerClient.CleanImage(tools.ProxyImage)
 }
 
 // resolveProxyMode reads the proxy-related flags and resolves them against rc into the effective proxy mode.
@@ -114,7 +114,7 @@ func resolveProxyMode(cmd *cobra.Command, rc *config.AgenticRC) (docker.ProxyMod
 
 // ensureProxyImage builds the proxy image if missing or stamped with a different CLI version, so `--proxy` picks up proxy changes shipped with a CLI update.
 func ensureProxyImage(cmd *cobra.Command) error {
-	info, err := inspectImage(tools.ProxyImage)
+	info, err := dockerClient.InspectImage(tools.ProxyImage)
 	if err != nil {
 		return err
 	}
@@ -130,5 +130,5 @@ func ensureProxyImage(cmd *cobra.Command) error {
 
 // buildProxyImageNow builds the proxy image unconditionally; the caller decides whether to check for an existing image first.
 func buildProxyImageNow(opts tools.BuildOptions) error {
-	return buildProxyImage(tools.ProxyImage, buildinfo.Version, buildinfo.DevSourceDir(tools.ProxyModulePath), opts)
+	return dockerClient.BuildProxyImage(tools.ProxyImage, buildinfo.Version, buildinfo.DevSourceDir(tools.ProxyModulePath), opts)
 }

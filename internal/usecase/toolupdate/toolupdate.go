@@ -14,16 +14,26 @@ import (
 // checkInterval bounds how often `agentic run` re-checks a tool's upstream version.
 const checkInterval = 6 * time.Hour
 
+// Service checks for and offers upstream tool updates during `agentic run`.
+type Service struct {
+	docker Docker
+}
+
 // Updater installs an update for tool/image, supplied by the caller so this package doesn't need to know how build options are recovered.
 type Updater func(tool, image string) error
 
+// New returns a Service that talks to Docker through d.
+func New(d Docker) *Service {
+	return &Service{docker: d}
+}
+
 // Check checks upstream for a newer version of toolName at most once per checkInterval and, on a TTY, offers to apply it via update; only a confirmed update that fails returns an error.
-func Check(home string, rc *config.AgenticRC, toolName, image string, update Updater) error {
+func (s *Service) Check(home string, rc *config.AgenticRC, toolName, image string, update Updater) error {
 	if rc.Run.CheckUpdates != nil && !*rc.Run.CheckUpdates {
 		return nil
 	}
 
-	installed, latest, ok := fetchIfDue(home, toolName, image)
+	installed, latest, ok := s.fetchIfDue(home, toolName, image)
 	if !ok {
 		return nil
 	}
@@ -40,7 +50,7 @@ func Check(home string, rc *config.AgenticRC, toolName, image string, update Upd
 }
 
 // fetchIfDue fetches toolName's latest upstream version if due, saves the check timestamp on success (so a failed fetch retries instead of backing off), and returns (installed, latest, true) if newer.
-func fetchIfDue(home, toolName, image string) (installed, latest string, ok bool) {
+func (s *Service) fetchIfDue(home, toolName, image string) (installed, latest string, ok bool) {
 	cfg, err := config.LoadConfig(home)
 	if err != nil {
 		return "", "", false
@@ -50,7 +60,7 @@ func fetchIfDue(home, toolName, image string) (installed, latest string, ok bool
 		return "", "", false
 	}
 
-	info, err := InspectImage(image)
+	info, err := s.docker.InspectImage(image)
 	if err != nil || info == nil {
 		return "", "", false
 	}

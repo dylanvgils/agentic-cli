@@ -93,11 +93,13 @@ func TestWriteTempDockerfile(t *testing.T) {
 }
 
 func TestBuildImage(t *testing.T) {
-	get := stubRunInteractive(t)
+	client := newTestClient()
+
+	get := stubRunInteractive(t, client)
 
 	t.Run("first arg is build", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -106,7 +108,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("includes file flag", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -115,7 +117,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("context is tmpDir", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -125,7 +127,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("always includes tag flag", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -134,7 +136,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("noCache adds no-cache flag", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{NoCache: true})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{NoCache: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -147,7 +149,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("noCache also adds pull flag", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{NoCache: true})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{NoCache: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -156,7 +158,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("pull adds pull flag", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{Pull: true})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{Pull: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -165,7 +167,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("pull flag absent by default", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -174,7 +176,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("pull stamps pull-last label", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{Pull: true})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{Pull: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -190,7 +192,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("noCache also stamps pull-last label", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{NoCache: true})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{NoCache: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -206,7 +208,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("pull-last label absent without pull or no-cache", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -217,7 +219,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("cacheBust adds build arg with its value", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{CacheBust: "shared-value"})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{CacheBust: "shared-value"})
 
 		// Assert
 		require.NoError(t, err)
@@ -228,7 +230,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("noCache takes precedence over cacheBust", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{
 			NoCache:   true,
 			CacheBust: "shared-value",
 		})
@@ -244,7 +246,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("skipInstallChecksum adds build arg", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{SkipInstallChecksum: true})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{SkipInstallChecksum: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -253,7 +255,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("skipInstallChecksum build arg absent by default", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -264,7 +266,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("noCache flags absent by default", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -277,7 +279,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("always includes host UID and GID", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -288,7 +290,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("debianVersion adds build arg", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{Versions: map[string]string{"debian": "trixie-slim"}})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{Versions: map[string]string{"debian": "trixie-slim"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -297,7 +299,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("empty debianVersion omits build arg", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -314,7 +316,7 @@ func TestBuildImage(t *testing.T) {
 		}
 
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", opts)
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", opts)
 
 		// Assert
 		require.NoError(t, err)
@@ -326,7 +328,7 @@ func TestBuildImage(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"node"}}
 
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", opts)
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", opts)
 
 		// Assert
 		require.NoError(t, err)
@@ -343,7 +345,7 @@ func TestBuildImage(t *testing.T) {
 		}
 
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", opts)
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", opts)
 
 		// Assert
 		require.NoError(t, err)
@@ -360,7 +362,7 @@ func TestBuildImage(t *testing.T) {
 		}
 
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", opts)
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", opts)
 
 		// Assert
 		require.NoError(t, err)
@@ -371,7 +373,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("always includes project label", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -380,7 +382,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("always includes built label", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -396,7 +398,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("always includes cli-version label", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -405,7 +407,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("always includes namespace label", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "ns-claude", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "ns-claude", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -414,7 +416,7 @@ func TestBuildImage(t *testing.T) {
 
 	t.Run("always includes tool label", func(t *testing.T) {
 		// Act
-		err := buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -424,10 +426,11 @@ func TestBuildImage(t *testing.T) {
 
 func TestBuildFromContent_wiresDockerfileAndImageBuild(t *testing.T) {
 	// Arrange
-	get := stubRunInteractive(t)
+	client := newTestClient()
+	get := stubRunInteractive(t, client)
 
 	// Act
-	err := buildFromContent("FROM scratch\n", "agentic-test", "claude", tools.BuildOptions{})
+	err := client.buildFromContent("FROM scratch\n", "agentic-test", "claude", tools.BuildOptions{})
 
 	// Assert
 	require.NoError(t, err)
@@ -437,12 +440,14 @@ func TestBuildFromContent_wiresDockerfileAndImageBuild(t *testing.T) {
 }
 
 func TestBuildProxyImage(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("released version installs the published module from an isolated context", func(t *testing.T) {
 		// Arrange
-		get := stubRunInteractiveCapture(t)
+		get := stubRunInteractiveCapture(t, client)
 
 		// Act
-		err := BuildProxyImage("default-proxy", "v1.2.3", "", tools.BuildOptions{})
+		err := client.BuildProxyImage("default-proxy", "v1.2.3", "", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -455,11 +460,11 @@ func TestBuildProxyImage(t *testing.T) {
 
 	t.Run("dev version compiles the supplied source tree as context", func(t *testing.T) {
 		// Arrange
-		get := stubRunInteractiveCapture(t)
+		get := stubRunInteractiveCapture(t, client)
 		src := t.TempDir()
 
 		// Act
-		err := BuildProxyImage("default-proxy", "dev", src, tools.BuildOptions{})
+		err := client.BuildProxyImage("default-proxy", "dev", src, tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -471,10 +476,10 @@ func TestBuildProxyImage(t *testing.T) {
 
 	t.Run("dev version without source tree errors", func(t *testing.T) {
 		// Arrange
-		stubRunInteractiveCapture(t)
+		stubRunInteractiveCapture(t, client)
 
 		// Act
-		err := BuildProxyImage("default-proxy", "dev", "", tools.BuildOptions{})
+		err := client.BuildProxyImage("default-proxy", "dev", "", tools.BuildOptions{})
 
 		// Assert
 		require.Error(t, err)
@@ -483,10 +488,10 @@ func TestBuildProxyImage(t *testing.T) {
 
 	t.Run("does not include a namespace label", func(t *testing.T) {
 		// Arrange - the proxy image is global, not namespaced (see tools.ProxyImage)
-		get := stubRunInteractiveCapture(t)
+		get := stubRunInteractiveCapture(t, client)
 
 		// Act
-		err := BuildProxyImage("agentic-proxy", "v1.2.3", "", tools.BuildOptions{})
+		err := client.BuildProxyImage("agentic-proxy", "v1.2.3", "", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -498,10 +503,10 @@ func TestBuildProxyImage(t *testing.T) {
 
 	t.Run("always includes tool label", func(t *testing.T) {
 		// Arrange
-		get := stubRunInteractiveCapture(t)
+		get := stubRunInteractiveCapture(t, client)
 
 		// Act
-		err := BuildProxyImage("myproject-proxy", "v1.2.3", "", tools.BuildOptions{})
+		err := client.BuildProxyImage("myproject-proxy", "v1.2.3", "", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -511,10 +516,10 @@ func TestBuildProxyImage(t *testing.T) {
 
 	t.Run("noCache also adds pull flag", func(t *testing.T) {
 		// Arrange
-		get := stubRunInteractiveCapture(t)
+		get := stubRunInteractiveCapture(t, client)
 
 		// Act
-		err := BuildProxyImage("agentic-proxy", "v1.2.3", "", tools.BuildOptions{NoCache: true})
+		err := client.BuildProxyImage("agentic-proxy", "v1.2.3", "", tools.BuildOptions{NoCache: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -524,10 +529,10 @@ func TestBuildProxyImage(t *testing.T) {
 
 	t.Run("pull adds pull flag", func(t *testing.T) {
 		// Arrange
-		get := stubRunInteractiveCapture(t)
+		get := stubRunInteractiveCapture(t, client)
 
 		// Act
-		err := BuildProxyImage("agentic-proxy", "v1.2.3", "", tools.BuildOptions{Pull: true})
+		err := client.BuildProxyImage("agentic-proxy", "v1.2.3", "", tools.BuildOptions{Pull: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -537,10 +542,10 @@ func TestBuildProxyImage(t *testing.T) {
 
 	t.Run("pull flag absent by default", func(t *testing.T) {
 		// Arrange
-		get := stubRunInteractiveCapture(t)
+		get := stubRunInteractiveCapture(t, client)
 
 		// Act
-		err := BuildProxyImage("agentic-proxy", "v1.2.3", "", tools.BuildOptions{})
+		err := client.BuildProxyImage("agentic-proxy", "v1.2.3", "", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -550,12 +555,14 @@ func TestBuildProxyImage(t *testing.T) {
 }
 
 func TestBuildDindImage(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("builds the hardened dockerfile with the dind tool label", func(t *testing.T) {
 		// Arrange
-		get := stubRunInteractiveCapture(t)
+		get := stubRunInteractiveCapture(t, client)
 
 		// Act
-		err := BuildDindImage("agentic-dind", tools.BuildOptions{})
+		err := client.BuildDindImage("agentic-dind", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -567,10 +574,10 @@ func TestBuildDindImage(t *testing.T) {
 
 	t.Run("always pulls the upstream base", func(t *testing.T) {
 		// Arrange
-		get := stubRunInteractiveCapture(t)
+		get := stubRunInteractiveCapture(t, client)
 
 		// Act
-		err := BuildDindImage("agentic-dind", tools.BuildOptions{})
+		err := client.BuildDindImage("agentic-dind", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -580,10 +587,10 @@ func TestBuildDindImage(t *testing.T) {
 
 	t.Run("build failure is wrapped", func(t *testing.T) {
 		// Arrange
-		stubRunInteractiveError(t, errors.New("boom"))
+		stubRunInteractiveError(t, client, errors.New("boom"))
 
 		// Act
-		err := BuildDindImage("agentic-dind", tools.BuildOptions{})
+		err := client.BuildDindImage("agentic-dind", tools.BuildOptions{})
 
 		// Assert
 		require.ErrorContains(t, err, "docker sidecar image: boom")

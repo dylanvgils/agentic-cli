@@ -21,19 +21,19 @@ func init() {
 func runStatus(cmd *cobra.Command, _ []string) error {
 	out := cmd.OutOrStdout()
 
-	if err := checkDockerDaemon(); err != nil {
+	if err := dockerClient.CheckDaemon(); err != nil {
 		_, err := fmt.Fprintln(out, "Docker: not running")
 		return err
 	}
 
-	containers, err := listRunningContainers()
+	containers, err := dockerClient.ListRunningContainers()
 	if err != nil {
 		return err
 	}
 
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 
-	if ctx := docker.Context(); ctx != "" {
+	if ctx := dockerClient.Context(); ctx != "" {
 		if _, err := fmt.Fprintf(w, "Docker context:\t%s\n", ctx); err != nil {
 			return err
 		}

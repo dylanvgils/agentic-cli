@@ -71,7 +71,7 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 		DindLimits:  resolveDindResourceLimitFlags(cmd),
 	}
 
-	content, err := run.PreviewInstructions(target, input, tools.Configs[toolName], rc)
+	content, err := run.New(dockerClient).PreviewInstructions(target, input, tools.Configs[toolName], rc)
 	if err != nil {
 		return err
 	}

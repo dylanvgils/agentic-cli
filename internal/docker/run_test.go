@@ -10,15 +10,17 @@ import (
 )
 
 func TestRunContainer(t *testing.T) {
-	get := stubRunInteractive(t)
-	stubDockerRunCapture(t)
+	client := newTestClient()
+
+	get := stubRunInteractive(t, client)
+	stubDockerRunCapture(t, client)
 
 	t.Run("security args", func(t *testing.T) {
 		// Arrange
 		rs := RunSpec{Image: "agentic-claude"}
 
 		// Act
-		err := RunContainer(rs, nil)
+		err := client.RunContainer(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -33,7 +35,7 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("names the tool container after its image", func(t *testing.T) {
 		// Act
-		err := RunContainer(RunSpec{Image: "agentic-claude"}, nil)
+		err := client.RunContainer(RunSpec{Image: "agentic-claude"}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -42,14 +44,14 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("proxy mode swaps network and injects proxy env", func(t *testing.T) {
 		// Arrange
-		stubDockerRunCapture(t, "network inspect")
+		stubDockerRunCapture(t, client, "network inspect")
 		rs := RunSpec{
 			Image: "agentic-claude",
 			Proxy: ProxySpec{Mode: ProxyEnforce, Image: "default-proxy", Allow: []string{"api.anthropic.com"}, LogDir: t.TempDir()},
 		}
 
 		// Act
-		err := RunContainer(rs, nil)
+		err := client.RunContainer(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -63,11 +65,11 @@ func TestRunContainer(t *testing.T) {
 		// Arrange
 		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
-		stubDockerRunCapture(t)
+		stubDockerRunCapture(t, client)
 		rs := RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Dind: DindSpec{Enabled: true, Image: "dind"}}
 
 		// Act
-		err := RunContainer(rs, nil)
+		err := client.RunContainer(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -85,7 +87,7 @@ func TestRunContainer(t *testing.T) {
 		// Arrange
 		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
-		calls := stubDockerRunCapture(t, "network inspect")
+		calls := stubDockerRunCapture(t, client, "network inspect")
 		rs := RunSpec{
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),
@@ -94,7 +96,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := RunContainer(rs, nil)
+		err := client.RunContainer(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -116,7 +118,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := RunContainer(rs, nil)
+		err := client.RunContainer(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -132,7 +134,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := RunContainer(rs, nil)
+		err := client.RunContainer(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -146,7 +148,7 @@ func TestRunContainer(t *testing.T) {
 		rs := RunSpec{Image: "agentic-claude"}
 
 		// Act
-		err := RunContainer(rs, []string{"--resume"})
+		err := client.RunContainer(rs, []string{"--resume"})
 
 		// Assert
 		require.NoError(t, err)
@@ -165,7 +167,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := RunContainer(rs, nil)
+		err := client.RunContainer(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -181,7 +183,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := RunContainer(rs, nil)
+		err := client.RunContainer(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -198,7 +200,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := RunContainer(rs, nil)
+		err := client.RunContainer(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -216,7 +218,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err = RunContainer(rs, nil)
+		err = client.RunContainer(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -234,7 +236,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err = RunContainer(rs, nil)
+		err = client.RunContainer(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -252,7 +254,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err = RunContainer(rs, nil)
+		err = client.RunContainer(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -267,7 +269,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := RunContainer(rs, nil)
+		err := client.RunContainer(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -283,7 +285,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := RunContainer(rs, nil)
+		err := client.RunContainer(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -298,7 +300,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act + Assert
-		assert.ErrorContains(t, RunContainer(rs, nil), "empty container path")
+		assert.ErrorContains(t, client.RunContainer(rs, nil), "empty container path")
 	})
 
 	t.Run("secrets invalid format", func(t *testing.T) {
@@ -309,7 +311,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act + Assert
-		assert.ErrorContains(t, RunContainer(rs, nil), "invalid secret")
+		assert.ErrorContains(t, client.RunContainer(rs, nil), "invalid secret")
 	})
 }
 

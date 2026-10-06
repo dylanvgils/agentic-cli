@@ -52,14 +52,14 @@ type RunSpec struct {
 	container string
 }
 
-func RunContainer(rs RunSpec, toolArgs []string) error {
+func (c *Client) RunContainer(rs RunSpec, toolArgs []string) error {
 	id, err := randID()
 	if err != nil {
 		return err
 	}
 	rs.container = rs.Image + "-" + id
 
-	sidecarArgs, cleanup, err := setupSidecars(&rs)
+	sidecarArgs, cleanup, err := c.setupSidecars(&rs)
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func RunContainer(rs RunSpec, toolArgs []string) error {
 
 	// Set agentic startup messages apart from the tool output
 	logging.Separate()
-	return runInteractive(args...)
+	return c.runInteractive(args...)
 }
 
 // IsReservedEnvName reports whether key is an env var agentic already manages, so a user-supplied

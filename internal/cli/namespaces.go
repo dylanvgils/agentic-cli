@@ -69,7 +69,7 @@ func runNamespacesPrune(cmd *cobra.Command, _ []string) error {
 }
 
 func listNamespaces() error {
-	images, err := listAllImages()
+	images, err := dockerClient.ListAllImages()
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func listNamespaces() error {
 }
 
 func pruneNamespace(namespace string) error {
-	images, err := listAllImages(docker.NamespaceFilter(namespace))
+	images, err := dockerClient.ListAllImages(docker.NamespaceFilter(namespace))
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func pruneNamespace(namespace string) error {
 	logging.Infof("removing %d image(s) in namespace %q", len(images), namespace)
 	for _, image := range images {
 		logging.Stepf("%s/%s", image.Namespace, image.Tool)
-		if err := cleanImage(image.Image); err != nil {
+		if err := dockerClient.CleanImage(image.Image); err != nil {
 			return err
 		}
 	}

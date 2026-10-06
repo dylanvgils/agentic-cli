@@ -23,13 +23,15 @@ func Test_ownerLabels(t *testing.T) {
 }
 
 func Test_setupSidecars(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("sweeps orphaned sidecars first", func(t *testing.T) {
 		// Arrange
-		calls := stubDockerRunCapture(t)
+		calls := stubDockerRunCapture(t, client)
 		rs := RunSpec{Image: "agentic-claude"}
 
 		// Act
-		_, _, err := setupSidecars(&rs)
+		_, _, err := client.setupSidecars(&rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -38,11 +40,11 @@ func Test_setupSidecars(t *testing.T) {
 
 	t.Run("dry run does not sweep", func(t *testing.T) {
 		// Arrange
-		calls := stubDockerRunCapture(t)
+		calls := stubDockerRunCapture(t, client)
 		rs := RunSpec{Image: "agentic-claude", DryRun: true}
 
 		// Act
-		_, _, err := setupSidecars(&rs)
+		_, _, err := client.setupSidecars(&rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -53,7 +55,7 @@ func Test_setupSidecars(t *testing.T) {
 		// Arrange
 		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
-		calls := stubDockerRunCapture(t, "network inspect", "exec")
+		calls := stubDockerRunCapture(t, client, "network inspect", "exec")
 		rs := RunSpec{
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),
@@ -62,7 +64,7 @@ func Test_setupSidecars(t *testing.T) {
 		}
 
 		// Act
-		_, _, err := setupSidecars(&rs)
+		_, _, err := client.setupSidecars(&rs)
 
 		// Assert
 		require.Error(t, err)
@@ -77,17 +79,19 @@ func Test_setupSidecars(t *testing.T) {
 }
 
 func Test_sweepOrphanedSidecars(t *testing.T) {
+	client := newTestClient()
+
 	stubSidecarOrphanGrace(t, 5*time.Minute)
 
 	t.Run("removes an old sidecar and network whose owner is gone", func(t *testing.T) {
 		// Arrange
-		get := stubOwnedResources(t,
+		get := stubOwnedResources(t, client,
 			ownedRow("agentic-docker-abc", "agentic-claude-gone", time.Hour),
 			ownedRow("agentic-dind-abc", "agentic-claude-gone", time.Hour),
 		)
 
 		// Act
-		err := sweepOrphanedSidecars("")
+		err := client.sweepOrphanedSidecars("")
 
 		// Assert
 		require.NoError(t, err)
@@ -98,13 +102,13 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 
 	t.Run("keeps a sidecar younger than the grace period", func(t *testing.T) {
 		// Arrange
-		get := stubOwnedResources(t,
+		get := stubOwnedResources(t, client,
 			ownedRow("agentic-proxy-abc", "agentic-claude-starting", time.Minute),
 			ownedRow("agentic-proxy-abc", "agentic-claude-starting", time.Minute),
 		)
 
 		// Act
-		err := sweepOrphanedSidecars("")
+		err := client.sweepOrphanedSidecars("")
 
 		// Assert
 		require.NoError(t, err)
@@ -116,10 +120,10 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 	t.Run("keeps a sidecar whose owner still exists", func(t *testing.T) {
 		// Arrange
 		containers := ownedRow("agentic-claude-abc", "", 0) + ownedRow("agentic-proxy-abc", "agentic-claude-abc", time.Hour)
-		get := stubOwnedResources(t, containers, ownedRow("agentic-proxy-abc", "agentic-claude-abc", time.Hour))
+		get := stubOwnedResources(t, client, containers, ownedRow("agentic-proxy-abc", "agentic-claude-abc", time.Hour))
 
 		// Act
-		err := sweepOrphanedSidecars("")
+		err := client.sweepOrphanedSidecars("")
 
 		// Assert
 		require.NoError(t, err)
@@ -131,10 +135,10 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 	t.Run("ignores resources without an owner or start time", func(t *testing.T) {
 		// Arrange
 		containers := "agentic-proxy-old\t\t\n" + "agentic-docker-old\tagentic-claude-gone\t\n"
-		get := stubOwnedResources(t, containers, "")
+		get := stubOwnedResources(t, client, containers, "")
 
 		// Act
-		err := sweepOrphanedSidecars("")
+		err := client.sweepOrphanedSidecars("")
 
 		// Assert
 		require.NoError(t, err)
@@ -145,7 +149,7 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 		// Arrange
 		containers := ownedRow("agentic-docker-a", "agentic-claude-gone", time.Hour) + ownedRow("agentic-docker-b", "agentic-claude-gone", time.Hour)
 		var removed []string
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			switch args[0] {
 			case "ps":
 				return containers, nil
@@ -157,7 +161,7 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 		})
 
 		// Act
-		err := sweepOrphanedSidecars("")
+		err := client.sweepOrphanedSidecars("")
 
 		// Assert
 		require.NoError(t, err)
@@ -166,10 +170,10 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 
 	t.Run("list error propagates", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", errors.New("stub: daemon down"))
+		stubDockerRunFixed(t, client, "", errors.New("stub: daemon down"))
 
 		// Act
-		err := sweepOrphanedSidecars("")
+		err := client.sweepOrphanedSidecars("")
 
 		// Assert
 		assert.ErrorContains(t, err, "daemon down")
@@ -178,12 +182,12 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 	t.Run("sweeps run dirs left behind by crashed runs", func(t *testing.T) {
 		// Arrange
 		stubDindRunDirGrace(t, time.Minute)
-		stubOwnedResources(t, "", "")
+		stubOwnedResources(t, client, "", "")
 		toolHome := t.TempDir()
 		stale := makeDindRunDir(t, toolHome, "0123456789ab", time.Hour)
 
 		// Act
-		err := sweepOrphanedSidecars(toolHome)
+		err := client.sweepOrphanedSidecars(toolHome)
 
 		// Assert
 		require.NoError(t, err)

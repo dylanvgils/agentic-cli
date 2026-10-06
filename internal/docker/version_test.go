@@ -66,12 +66,14 @@ func TestParseVersion_delegatesToExtractVersion(t *testing.T) {
 }
 
 func TestRunVersionScript(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("returns detected version", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "1.2.3\n", nil)
+		stubDockerRunFixed(t, client, "1.2.3\n", nil)
 
 		// Act
-		result := runVersionScript("agentic-claude", "agentic-version-claude")
+		result := client.runVersionScript("agentic-claude", "agentic-version-claude")
 
 		// Assert
 		assert.Equal(t, "1.2.3", result)
@@ -79,10 +81,10 @@ func TestRunVersionScript(t *testing.T) {
 
 	t.Run("docker run error returns empty", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("not found"))
+		stubDockerRunFixed(t, client, "", fmt.Errorf("not found"))
 
 		// Act
-		result := runVersionScript("agentic-claude", "agentic-version-claude")
+		result := client.runVersionScript("agentic-claude", "agentic-version-claude")
 
 		// Assert
 		assert.Equal(t, "", result)
@@ -91,13 +93,13 @@ func TestRunVersionScript(t *testing.T) {
 	t.Run("runs without network so the tool can't self-update mid-detection", func(t *testing.T) {
 		// Arrange
 		var capturedArgs []string
-		stubDockerRun(t, func(args ...string) (string, error) {
+		stubDockerRun(t, client, func(args ...string) (string, error) {
 			capturedArgs = args
 			return "1.2.3\n", nil
 		})
 
 		// Act
-		runVersionScript("agentic-claude", "agentic-version-claude")
+		client.runVersionScript("agentic-claude", "agentic-version-claude")
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--network=none")
@@ -105,13 +107,15 @@ func TestRunVersionScript(t *testing.T) {
 }
 
 func TestCollectExtraVersions(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("empty extras returns empty map", func(t *testing.T) {
 		// Arrange
 		calls := 0
-		stubDockerRun(t, func(_ ...string) (string, error) { calls++; return "", nil })
+		stubDockerRun(t, client, func(_ ...string) (string, error) { calls++; return "", nil })
 
 		// Act
-		result := collectExtraVersions("agentic-base", nil)
+		result := client.collectExtraVersions("agentic-base", nil)
 
 		// Assert
 		assert.Empty(t, result)
@@ -120,10 +124,10 @@ func TestCollectExtraVersions(t *testing.T) {
 
 	t.Run("detects version for each extra", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "21.0.1\n", nil)
+		stubDockerRunFixed(t, client, "21.0.1\n", nil)
 
 		// Act
-		result := collectExtraVersions("agentic-base", []string{"java", "python"})
+		result := client.collectExtraVersions("agentic-base", []string{"java", "python"})
 
 		// Assert
 		assert.Equal(t, "21.0.1", result["java"])
@@ -132,10 +136,10 @@ func TestCollectExtraVersions(t *testing.T) {
 
 	t.Run("docker run error stores empty string", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("fail"))
+		stubDockerRunFixed(t, client, "", fmt.Errorf("fail"))
 
 		// Act
-		result := collectExtraVersions("agentic-base", []string{"java"})
+		result := client.collectExtraVersions("agentic-base", []string{"java"})
 
 		// Assert
 		assert.Equal(t, "", result["java"])
@@ -143,13 +147,15 @@ func TestCollectExtraVersions(t *testing.T) {
 }
 
 func TestCollectBaseLabel(t *testing.T) {
+	client := newTestClient()
+
 	t.Run("no extras returns empty string", func(t *testing.T) {
 		// Arrange
 		calls := 0
-		stubDockerRun(t, func(_ ...string) (string, error) { calls++; return "", nil })
+		stubDockerRun(t, client, func(_ ...string) (string, error) { calls++; return "", nil })
 
 		// Act
-		result := collectBaseLabel("agentic-base", nil)
+		result := client.collectBaseLabel("agentic-base", nil)
 
 		// Assert
 		assert.Equal(t, "", result)
@@ -158,10 +164,10 @@ func TestCollectBaseLabel(t *testing.T) {
 
 	t.Run("with extras returns detected versions", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "21.0.1\n", nil)
+		stubDockerRunFixed(t, client, "21.0.1\n", nil)
 
 		// Act
-		result := collectBaseLabel("agentic-base", []string{"java"})
+		result := client.collectBaseLabel("agentic-base", []string{"java"})
 
 		// Assert
 		assert.Equal(t, "java@21.0.1", result)
@@ -169,10 +175,10 @@ func TestCollectBaseLabel(t *testing.T) {
 
 	t.Run("version detection fails returns partial label", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, "", fmt.Errorf("not found"))
+		stubDockerRunFixed(t, client, "", fmt.Errorf("not found"))
 
 		// Act
-		result := collectBaseLabel("agentic-base", []string{"java"})
+		result := client.collectBaseLabel("agentic-base", []string{"java"})
 
 		// Assert
 		assert.Equal(t, "java", result)

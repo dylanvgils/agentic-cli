@@ -17,12 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// dockerCall records a single dockerRun invocation.
+// dockerCall records a single run invocation.
 type dockerCall struct {
 	args []string
 }
 
-// dockerStdinCall records a single dockerRunStdin invocation.
+// dockerStdinCall records a single runStdin invocation.
 type dockerStdinCall struct {
 	args  []string
 	input []byte
@@ -34,6 +34,33 @@ type tarFile struct {
 	content []byte
 }
 
+// fakeRunner is the runner of a newTestClient; unset funcs fail like a missing docker binary.
+type fakeRunner struct {
+	run            func(args ...string) (string, error)
+	runStdin       func(r io.Reader, args ...string) (string, error)
+	runInteractive func(args ...string) error
+}
+
+func (f *fakeRunner) Run(r io.Reader, args ...string) (string, error) {
+	if r != nil {
+		if f.runStdin == nil {
+			return "", fmt.Errorf("fake: unexpected docker %v", args)
+		}
+		return f.runStdin(r, args...)
+	}
+	if f.run == nil {
+		return "", fmt.Errorf("fake: unexpected docker %v", args)
+	}
+	return f.run(args...)
+}
+
+func (f *fakeRunner) RunInteractive(args ...string) error {
+	if f.runInteractive == nil {
+		return fmt.Errorf("fake: unexpected docker %v", args)
+	}
+	return f.runInteractive(args...)
+}
+
 // stubDocker writes a shell script named "docker" to a temp dir and prepends it to PATH.
 func stubDocker(t *testing.T, script string) {
 	t.Helper()
@@ -43,24 +70,35 @@ func stubDocker(t *testing.T, script string) {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
-// stubDockerRun replaces dockerRun with fn for the duration of the test.
-func stubDockerRun(t *testing.T, fn func(...string) (string, error)) {
-	t.Helper()
-	orig := dockerRun
-	dockerRun = fn
-	t.Cleanup(func() { dockerRun = orig })
+// newTestClient returns a Client backed by a fakeRunner, for the stub helpers below.
+func newTestClient() *Client {
+	return &Client{runner: &fakeRunner{}}
 }
 
-// stubDockerRunFixed stubs dockerRun to always return a fixed output and error.
-func stubDockerRunFixed(t *testing.T, output string, err error) {
-	t.Helper()
-	stubDockerRun(t, func(_ ...string) (string, error) { return output, err })
+// fakeOf returns the fakeRunner behind a newTestClient.
+func fakeOf(client *Client) *fakeRunner {
+	return client.runner.(*fakeRunner)
 }
 
-// stubDockerRunBySubcmd stubs dockerRun, routing by first arg.
-func stubDockerRunBySubcmd(t *testing.T, responses map[string]string) {
+// stubDockerRun replaces client.run with fn for the duration of the test.
+func stubDockerRun(t *testing.T, client *Client, fn func(...string) (string, error)) {
 	t.Helper()
-	stubDockerRun(t, func(args ...string) (string, error) {
+	f := fakeOf(client)
+	orig := f.run
+	f.run = fn
+	t.Cleanup(func() { f.run = orig })
+}
+
+// stubDockerRunFixed stubs client.run to always return a fixed output and error.
+func stubDockerRunFixed(t *testing.T, client *Client, output string, err error) {
+	t.Helper()
+	stubDockerRun(t, client, func(_ ...string) (string, error) { return output, err })
+}
+
+// stubDockerRunBySubcmd stubs client.run, routing by first arg.
+func stubDockerRunBySubcmd(t *testing.T, client *Client, responses map[string]string) {
+	t.Helper()
+	stubDockerRun(t, client, func(args ...string) (string, error) {
 		if out, ok := responses[args[0]]; ok {
 			return out, nil
 		}
@@ -68,9 +106,9 @@ func stubDockerRunBySubcmd(t *testing.T, responses map[string]string) {
 	})
 }
 
-// stubDockerRunCapture replaces dockerRun with a stub that records calls and fails any
+// stubDockerRunCapture replaces client.run with a stub that records calls and fails any
 // "verb sub" pair (e.g. "volume inspect") listed in failSubcmds.
-func stubDockerRunCapture(t *testing.T, failSubcmds ...string) func() []dockerCall {
+func stubDockerRunCapture(t *testing.T, client *Client, failSubcmds ...string) func() []dockerCall {
 	t.Helper()
 	var calls []dockerCall
 	failing := make(map[string]bool, len(failSubcmds))
@@ -78,7 +116,7 @@ func stubDockerRunCapture(t *testing.T, failSubcmds ...string) func() []dockerCa
 		failing[s] = true
 	}
 
-	stubDockerRun(t, func(args ...string) (string, error) {
+	stubDockerRun(t, client, func(args ...string) (string, error) {
 		calls = append(calls, dockerCall{args: args})
 		key := args[0]
 		if len(args) > 1 && !strings.HasPrefix(args[1], "-") {
@@ -93,29 +131,26 @@ func stubDockerRunCapture(t *testing.T, failSubcmds ...string) func() []dockerCa
 	return func() []dockerCall { return calls }
 }
 
-// stubRunInteractive replaces runInteractive with a mock that records the args of the most recent call.
-func stubRunInteractive(t *testing.T) func() []string {
+// stubRunInteractive replaces client.runInteractive with a mock that records the args of the most recent call.
+func stubRunInteractive(t *testing.T, client *Client) func() []string {
 	t.Helper()
 	var capturedArgs []string
 
-	orig := runInteractive
-	runInteractive = func(args ...string) error {
+	stubRunInteractiveFunc(t, client, func(args ...string) error {
 		capturedArgs = args
 		return nil
-	}
-	t.Cleanup(func() { runInteractive = orig })
+	})
 
 	return func() []string { return capturedArgs }
 }
 
-// stubRunInteractiveCapturingDockerfile replaces runInteractive with a mock recording the
+// stubRunInteractiveCapturingDockerfile replaces client.runInteractive with a mock recording the
 // rendered Dockerfile content for each "build" call, read from the --file= path before removal.
-func stubRunInteractiveCapturingDockerfile(t *testing.T) func() []string {
+func stubRunInteractiveCapturingDockerfile(t *testing.T, client *Client) func() []string {
 	t.Helper()
 	var contents []string
 
-	orig := runInteractive
-	runInteractive = func(args ...string) error {
+	stubRunInteractiveFunc(t, client, func(args ...string) error {
 		for _, a := range args {
 			path, ok := strings.CutPrefix(a, "--file=")
 			if !ok {
@@ -126,27 +161,33 @@ func stubRunInteractiveCapturingDockerfile(t *testing.T) func() []string {
 			contents = append(contents, string(content))
 		}
 		return nil
-	}
-	t.Cleanup(func() { runInteractive = orig })
+	})
 
 	return func() []string { return contents }
 }
 
-// stubRunInteractiveAll replaces runInteractive with a mock that records every call.
-func stubRunInteractiveAll(t *testing.T) func() [][]string {
+// stubRunInteractiveAll replaces client.runInteractive with a mock that records every call.
+func stubRunInteractiveAll(t *testing.T, client *Client) func() [][]string {
 	t.Helper()
 	var calls [][]string
 
-	orig := runInteractive
-	runInteractive = func(args ...string) error {
+	stubRunInteractiveFunc(t, client, func(args ...string) error {
 		cp := make([]string, len(args))
 		copy(cp, args)
 		calls = append(calls, cp)
 		return nil
-	}
-	t.Cleanup(func() { runInteractive = orig })
+	})
 
 	return func() [][]string { return calls }
+}
+
+// stubRunInteractiveFunc replaces client.runInteractive with fn for the duration of the test.
+func stubRunInteractiveFunc(t *testing.T, client *Client, fn func(...string) error) {
+	t.Helper()
+	f := fakeOf(client)
+	orig := f.runInteractive
+	f.runInteractive = fn
+	t.Cleanup(func() { f.runInteractive = orig })
 }
 
 // stubIsTerminal replaces isTerminal with a stub that returns val for the duration of the test.
@@ -175,15 +216,14 @@ func argAfter(args []string, flag string) string {
 	return ""
 }
 
-// stubRunInteractiveCapture captures the last runInteractive call's args and, if present, its
+// stubRunInteractiveCapture captures the last client.runInteractive call's args and, if present, its
 // --file Dockerfile content (read inside the stub before the temp file is removed).
-func stubRunInteractiveCapture(t *testing.T) func() (args []string, dockerfile string) {
+func stubRunInteractiveCapture(t *testing.T, client *Client) func() (args []string, dockerfile string) {
 	t.Helper()
 	var capturedArgs []string
 	var content string
 
-	orig := runInteractive
-	runInteractive = func(a ...string) error {
+	stubRunInteractiveFunc(t, client, func(a ...string) error {
 		capturedArgs = a
 		for _, x := range a {
 			if p, ok := strings.CutPrefix(x, "--file="); ok {
@@ -193,8 +233,7 @@ func stubRunInteractiveCapture(t *testing.T) func() (args []string, dockerfile s
 			}
 		}
 		return nil
-	}
-	t.Cleanup(func() { runInteractive = orig })
+	})
 
 	return func() ([]string, string) { return capturedArgs, content }
 }
@@ -240,11 +279,11 @@ func stubDindReadyTimeoutLong(t *testing.T) {
 	t.Cleanup(func() { dindReadyTimeout = orig })
 }
 
-// stubDindProbe stubs dockerRun so the readiness probe always fails and `inspect` reports running as the given state.
-func stubDindProbe(t *testing.T, running string) func() []dockerCall {
+// stubDindProbe stubs client.run so the readiness probe always fails and `inspect` reports running as the given state.
+func stubDindProbe(t *testing.T, client *Client, running string) func() []dockerCall {
 	t.Helper()
 	var calls []dockerCall
-	stubDockerRun(t, func(args ...string) (string, error) {
+	stubDockerRun(t, client, func(args ...string) (string, error) {
 		calls = append(calls, dockerCall{args: args})
 		switch args[0] {
 		case "exec":
@@ -269,12 +308,10 @@ func findCall(calls []dockerCall, prefix ...string) []string {
 	return nil
 }
 
-// stubRunInteractiveError replaces runInteractive with a stub that always returns err.
-func stubRunInteractiveError(t *testing.T, err error) {
+// stubRunInteractiveError replaces client.runInteractive with a stub that always returns err.
+func stubRunInteractiveError(t *testing.T, client *Client, err error) {
 	t.Helper()
-	orig := runInteractive
-	runInteractive = func(...string) error { return err }
-	t.Cleanup(func() { runInteractive = orig })
+	stubRunInteractiveFunc(t, client, func(...string) error { return err })
 }
 
 // stubHostUserGroup replaces hostUserGroup with a stub that returns val for the duration of the test.
@@ -313,10 +350,10 @@ func stubSidecarOrphanGrace(t *testing.T, d time.Duration) {
 }
 
 // stubOwnedResources stubs `ps` and `network ls` output, recording every call.
-func stubOwnedResources(t *testing.T, containers, networks string) func() []dockerCall {
+func stubOwnedResources(t *testing.T, client *Client, containers, networks string) func() []dockerCall {
 	t.Helper()
 	var calls []dockerCall
-	stubDockerRun(t, func(args ...string) (string, error) {
+	stubDockerRun(t, client, func(args ...string) (string, error) {
 		calls = append(calls, dockerCall{args: args})
 		switch {
 		case args[0] == "ps":
@@ -334,18 +371,25 @@ func ownedRow(name, owner string, age time.Duration) string {
 	return name + "\t" + owner + "\t" + formatLabelTime(time.Now().Add(-age)) + "\n"
 }
 
-// stubDockerRunStdinCapture replaces dockerRunStdin with a stub returning err that records each call's args and input.
-func stubDockerRunStdinCapture(t *testing.T, err error) func() []dockerStdinCall {
+// stubDockerRunStdin replaces client.runStdin with fn for the duration of the test.
+func stubDockerRunStdin(t *testing.T, client *Client, fn func(io.Reader, ...string) (string, error)) {
+	t.Helper()
+	f := fakeOf(client)
+	orig := f.runStdin
+	f.runStdin = fn
+	t.Cleanup(func() { f.runStdin = orig })
+}
+
+// stubDockerRunStdinCapture stubs client.runStdin to return err, recording each call's args and input.
+func stubDockerRunStdinCapture(t *testing.T, client *Client, err error) func() []dockerStdinCall {
 	t.Helper()
 	var calls []dockerStdinCall
-	orig := dockerRunStdin
-	dockerRunStdin = func(r io.Reader, args ...string) (string, error) {
+	stubDockerRunStdin(t, client, func(r io.Reader, args ...string) (string, error) {
 		input, readErr := io.ReadAll(r)
 		require.NoError(t, readErr)
 		calls = append(calls, dockerStdinCall{args: args, input: input})
 		return "", err
-	}
-	t.Cleanup(func() { dockerRunStdin = orig })
+	})
 	return func() []dockerStdinCall { return calls }
 }
 
@@ -366,11 +410,11 @@ func readTar(t *testing.T, archive []byte) map[string]tarFile {
 	}
 }
 
-// stubProxyDocker records dockerRun calls, answering network inspect with a test subnet and container inspect with running.
-func stubProxyDocker(t *testing.T, running string) func() []dockerCall {
+// stubProxyDocker records client.run calls, answering network inspect with a test subnet and container inspect with running.
+func stubProxyDocker(t *testing.T, client *Client, running string) func() []dockerCall {
 	t.Helper()
 	var calls []dockerCall
-	stubDockerRun(t, func(args ...string) (string, error) {
+	stubDockerRun(t, client, func(args ...string) (string, error) {
 		calls = append(calls, dockerCall{args: args})
 		switch {
 		case len(args) > 1 && args[0] == "network" && args[1] == "inspect":

@@ -12,30 +12,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var _ dockerAPI = (*docker.Client)(nil)
+
 func TestDefaultDeps(t *testing.T) {
 	cases := []struct {
 		name string
 		want any
 		got  any
 	}{
-		{"checkDockerDaemon", docker.CheckDaemon, checkDockerDaemon},
-		{"buildProxyImage", docker.BuildProxyImage, buildProxyImage},
-		{"runContainer", docker.RunContainer, runContainer},
-		{"inspectImage", docker.InspectImage, inspectImage},
-		{"builtTools", docker.BuiltTools, builtTools},
-		{"listAllImages", docker.ListAllImages, listAllImages},
-		{"cleanImage", docker.CleanImage, cleanImage},
-		{"pruneImages", docker.PruneImages, pruneImages},
-		{"pruneBuildCache", docker.PruneBuildCache, pruneBuildCache},
 		{"pruneProxyLogs", housekeeping.PruneProxyLogs, pruneProxyLogs},
-		{"createVolume", docker.CreateVolume, createVolume},
-		{"listVolumes", docker.ListVolumes, listVolumes},
-		{"listVolumeNames", docker.ListVolumeNames, listVolumeNames},
-		{"removeVolume", docker.RemoveVolume, removeVolume},
-		{"listRunningContainers", docker.ListRunningContainers, listRunningContainers},
 		{"isTerminal", platform.IsTerminal, isTerminal},
-		{"setContext", docker.SetContext, setContext},
-		{"listContexts", docker.ListContexts, listContexts},
 		{"checkGitAvailable", git.CheckAvailable, checkGitAvailable},
 		{"loadMarketplaceRegistry", marketplace.LoadRegistry, loadMarketplaceRegistry},
 		{"saveMarketplaceRegistry", marketplace.SaveRegistry, saveMarketplaceRegistry},

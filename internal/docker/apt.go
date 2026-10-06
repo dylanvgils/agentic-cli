@@ -15,7 +15,7 @@ done`
 
 // verifyAptPackages checks that all named packages exist in the debian apt index before the
 // Docker build starts, so a missing package fails fast with a clear error.
-func verifyAptPackages(packages []string, registry string) error {
+func (c *Client) verifyAptPackages(packages []string, registry string) error {
 	if len(packages) == 0 {
 		return nil
 	}
@@ -23,11 +23,11 @@ func verifyAptPackages(packages []string, registry string) error {
 	logging.Detail("verifying apt packages...")
 
 	debianImage := tools.DebianImageFor(registry)
-	if err := runInteractive("pull", debianImage); err != nil {
+	if err := c.runInteractive("pull", debianImage); err != nil {
 		return fmt.Errorf("failed to pull verification image: %w", err)
 	}
 
-	missing, err := missingAptPackages(packages, debianImage)
+	missing, err := c.missingAptPackages(packages, debianImage)
 	if err != nil {
 		return err
 	}
@@ -40,9 +40,9 @@ func verifyAptPackages(packages []string, registry string) error {
 }
 
 // missingAptPackages returns names from packages absent from the debian apt index; image must already be pulled.
-func missingAptPackages(packages []string, image string) ([]string, error) {
+func (c *Client) missingAptPackages(packages []string, image string) ([]string, error) {
 	args := append([]string{"run", arg("rm"), image, "sh", "-c", aptCheckScript, "--"}, packages...)
-	out, err := dockerRun(args...)
+	out, err := c.run(args...)
 	if err != nil {
 		return nil, fmt.Errorf("apt package verification failed: %w", err)
 	}
