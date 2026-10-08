@@ -88,11 +88,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	req, err := runRequest(cmd, inv)
-	if err != nil {
-		return err
-	}
-
+	req := runRequest(cmd, inv)
 	prompter := ttyPrompter{}
 	rs, cleanup, err := run.New(dockerClient).Prepare(req, prompter)
 	defer cleanup()
@@ -135,13 +131,8 @@ func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
 	}, nil
 }
 
-// runRequest collects the run flags and resolves the proxy and dind settings against inv's config.
-func runRequest(cmd *cobra.Command, inv invocation) (run.Request, error) {
-	proxyMode, err := resolveProxyMode(cmd, inv.rc)
-	if err != nil {
-		return run.Request{}, err
-	}
-
+// runRequest collects the run flags and resolves the dind setting against inv's config; Prepare resolves the proxy mode.
+func runRequest(cmd *cobra.Command, inv invocation) run.Request {
 	applyUpdate := func(tool, image string) error {
 		return update.New(dockerClient).ApplyRecovered(tool, image, inv.rc)
 	}
@@ -157,6 +148,7 @@ func runRequest(cmd *cobra.Command, inv invocation) (run.Request, error) {
 		Layers:     inv.layers,
 		RC:         inv.rc,
 		TrustDir:   trustDir,
+		Proxy:      proxyInput(cmd),
 		Input: run.Input{
 			ToolHome:       toolHome,
 			Volumes:        extraVolumes,
@@ -166,12 +158,11 @@ func runRequest(cmd *cobra.Command, inv invocation) (run.Request, error) {
 			Limits:         resolveResourceLimitFlags(cmd),
 			DryRun:         dryRun,
 			Registry:       collectRegistry(cmd),
-			ProxyMode:      proxyMode,
 			DindEnabled:    resolveDindEnabled(cmd, inv.rc),
 			DindLimits:     resolveDindResourceLimitFlags(cmd),
 		},
 		ApplyUpdate: applyUpdate,
-	}, nil
+	}
 }
 
 func parseArgs(args []string, namespace string) (parsedArgs, error) {

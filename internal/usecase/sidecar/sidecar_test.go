@@ -65,7 +65,26 @@ func TestEnsure(t *testing.T) {
 	})
 }
 
-func TestEnsureProxy(t *testing.T) {
+func TestBuildProxy(t *testing.T) {
+	// Arrange
+	var image, version string
+	var opts tools.BuildOptions
+	svc := New(&fakeDocker{buildProxyImage: func(i, v, _ string, o tools.BuildOptions) error {
+		image, version, opts = i, v, o
+		return nil
+	}})
+
+	// Act
+	err := svc.BuildProxy(tools.BuildOptions{NoCache: true})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, tools.ProxyImage, image)
+	assert.Equal(t, buildinfo.Version, version)
+	assert.True(t, opts.NoCache)
+}
+
+func Test_ensureProxy(t *testing.T) {
 	t.Run("builds the image when missing", func(t *testing.T) {
 		// Arrange
 		stubErrLog(t)
@@ -78,7 +97,7 @@ func TestEnsureProxy(t *testing.T) {
 		}})
 
 		// Act
-		err := svc.EnsureProxy("registry.example.test")
+		err := svc.ensureProxy("registry.example.test")
 
 		// Assert
 		require.NoError(t, err)
@@ -98,7 +117,7 @@ func TestEnsureProxy(t *testing.T) {
 		})
 
 		// Act
-		err := svc.EnsureProxy("")
+		err := svc.ensureProxy("")
 
 		// Assert
 		require.NoError(t, err)
@@ -112,7 +131,7 @@ func TestEnsureProxy(t *testing.T) {
 		fake.inspectImage = inspectReturns(&docker.ImageInfo{Image: tools.ProxyImage, CLIVersion: "v0.0.0"}, nil)
 
 		// Act
-		err := New(fake).EnsureProxy("")
+		err := New(fake).ensureProxy("")
 
 		// Assert
 		require.NoError(t, err)
@@ -121,7 +140,7 @@ func TestEnsureProxy(t *testing.T) {
 	})
 }
 
-func TestEnsureDind(t *testing.T) {
+func Test_ensureDind(t *testing.T) {
 	fresh := formatTestLabelTime(time.Now())
 
 	t.Run("current image is reused", func(t *testing.T) {
@@ -130,7 +149,7 @@ func TestEnsureDind(t *testing.T) {
 		fake.inspectImage = inspectReturns(&docker.ImageInfo{CLIVersion: buildinfo.Version, Built: fresh}, nil)
 
 		// Act
-		err := New(fake).EnsureDind("")
+		err := New(fake).ensureDind("")
 
 		// Assert
 		require.NoError(t, err)
@@ -143,7 +162,7 @@ func TestEnsureDind(t *testing.T) {
 		fake, built := recordBuilds()
 
 		// Act
-		err := New(fake).EnsureDind("")
+		err := New(fake).ensureDind("")
 
 		// Assert
 		require.NoError(t, err)
@@ -159,7 +178,7 @@ func TestEnsureDind(t *testing.T) {
 		fake.inspectImage = inspectReturns(&docker.ImageInfo{CLIVersion: buildinfo.Version, Built: stale}, nil)
 
 		// Act
-		err := New(fake).EnsureDind("")
+		err := New(fake).ensureDind("")
 
 		// Assert
 		require.NoError(t, err)
@@ -176,7 +195,7 @@ func TestEnsureDind(t *testing.T) {
 		})
 
 		// Act
-		err := svc.EnsureDind("")
+		err := svc.ensureDind("")
 
 		// Assert
 		require.NoError(t, err)
@@ -189,28 +208,9 @@ func TestEnsureDind(t *testing.T) {
 		svc := New(&fakeDocker{buildDindImage: func(string, tools.BuildOptions) error { return fmt.Errorf("offline") }})
 
 		// Act
-		err := svc.EnsureDind("")
+		err := svc.ensureDind("")
 
 		// Assert
 		assert.ErrorContains(t, err, "offline")
 	})
-}
-
-func TestBuildProxy(t *testing.T) {
-	// Arrange
-	var image, version string
-	var opts tools.BuildOptions
-	svc := New(&fakeDocker{buildProxyImage: func(i, v, _ string, o tools.BuildOptions) error {
-		image, version, opts = i, v, o
-		return nil
-	}})
-
-	// Act
-	err := svc.BuildProxy(tools.BuildOptions{NoCache: true})
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, tools.ProxyImage, image)
-	assert.Equal(t, buildinfo.Version, version)
-	assert.True(t, opts.NoCache)
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 )
@@ -20,7 +21,9 @@ type Request struct {
 	Layers   []config.RCLayer
 	RC       *config.AgenticRC
 	TrustDir bool
-	// Input is the flag-derived input; Prepare fills in Credentials
+	// Proxy holds the proxy flags; Prepare resolves them into Input.ProxyMode after the approvals
+	Proxy resolve.ProxyInput
+	// Input is the flag-derived input; Prepare fills in ProxyMode and Credentials
 	Input Input
 	// ApplyUpdate installs a tool update the user accepted
 	ApplyUpdate toolupdate.Updater
@@ -33,7 +36,7 @@ func (s *Service) Prepare(req Request, prompter Prompter) (docker.RunSpec, func(
 		return docker.RunSpec{}, func() {}, err
 	}
 
-	if err := s.checkApprovals(req, prompter); err != nil {
+	if err := checkApprovals(req, prompter); err != nil {
 		return docker.RunSpec{}, func() {}, err
 	}
 
@@ -65,21 +68,18 @@ func (s *Service) checkTool(req Request, prompter Prompter) error {
 	return nil
 }
 
-// checkApprovals has the user trust the working dir and approve new or changed proxy credentials.
-func (s *Service) checkApprovals(req Request, prompter Prompter) error {
-	if err := s.checkTrust(req.Cwd, req.Input.ToolHome, req.TrustDir, prompter); err != nil {
-		return err
-	}
-
-	return s.checkCredentials(req.Layers, req.Input.ToolHome, prompter)
-}
-
-// sidecarInput resolves the approved credentials into req's input and readies the sidecars it enables; a dry run builds no images.
+// sidecarInput resolves the proxy mode and approved credentials into req's input and readies the sidecars it enables; a dry run builds no images.
 func (s *Service) sidecarInput(req Request) (Input, error) {
 	in := req.Input
 
+	proxyMode, err := resolve.ProxyMode(req.Proxy, req.RC)
+	if err != nil {
+		return Input{}, err
+	}
+	in.ProxyMode = proxyMode
+
 	// Credentials force the proxy on (see resolve.ProxyMode), so this is a no-op when it is off
-	creds, err := s.resolveCredentials(req.Layers, in.ToolHome)
+	creds, err := resolveCredentials(req.Layers, in.ToolHome)
 	if err != nil {
 		return Input{}, err
 	}
@@ -101,4 +101,13 @@ func (s *Service) sidecarInput(req Request) (Input, error) {
 	}
 
 	return in, nil
+}
+
+// checkApprovals has the user trust the working dir and approve new or changed proxy credentials.
+func checkApprovals(req Request, prompter Prompter) error {
+	if err := checkTrust(req.Cwd, req.Input.ToolHome, req.TrustDir, prompter); err != nil {
+		return err
+	}
+
+	return checkCredentials(req.Layers, req.Input.ToolHome, prompter)
 }

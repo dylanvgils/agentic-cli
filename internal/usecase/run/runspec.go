@@ -43,7 +43,7 @@ type Input struct {
 	DindEnabled    bool
 	// Sidecar limit flags; empty falls back to config
 	DindLimits docker.ResourceLimits
-	// Credentials are the approved proxy credentials, from ResolveCredentials
+	// Credentials are the approved proxy credentials; Prepare fills them in
 	Credentials []credentials.Resolved
 	// InstructionsMount is the mount spec for this run's instructions snapshot, empty when disabled.
 	InstructionsMount string

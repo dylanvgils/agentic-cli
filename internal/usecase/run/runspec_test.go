@@ -319,7 +319,7 @@ func TestBuild(t *testing.T) {
 	t.Run("proxy credentials warn when the entrypoint is skipped", func(t *testing.T) {
 		for _, skip := range []bool{true, false} {
 			// Arrange
-			stderr := stubLoggingErr(t)
+			stderr := stubErrLog(t)
 			target := Target{ToolName: "claude", ImageName: "agentic-claude", SkipEntrypoint: skip}
 			cred := proxy.Credential{Hosts: []string{"api.example.test"}}
 			in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce, Credentials: []credentials.Resolved{{Proxy: []proxy.Credential{cred}}}}

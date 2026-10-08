@@ -21,7 +21,7 @@ func Test_resolveCredentials(t *testing.T) {
 		layers := []config.RCLayer{{Path: "/example/.agenticrc.toml", RC: &config.AgenticRC{}}}
 
 		// Act
-		resolved, err := New(&fakeDocker{}).resolveCredentials(layers, t.TempDir())
+		resolved, err := resolveCredentials(layers, t.TempDir())
 
 		// Assert
 		require.NoError(t, err)
@@ -33,7 +33,7 @@ func Test_resolveCredentials(t *testing.T) {
 		layer := credentialLayer(t, "/missing/secret")
 
 		// Act
-		_, err := New(&fakeDocker{}).resolveCredentials([]config.RCLayer{layer}, t.TempDir())
+		_, err := resolveCredentials([]config.RCLayer{layer}, t.TempDir())
 
 		// Assert
 		assert.ErrorContains(t, err, "not approved")
@@ -48,7 +48,7 @@ func Test_resolveCredentials(t *testing.T) {
 		approveCredentials(t, layer, toolHome)
 
 		// Act
-		resolved, err := New(&fakeDocker{}).resolveCredentials([]config.RCLayer{layer}, toolHome)
+		resolved, err := resolveCredentials([]config.RCLayer{layer}, toolHome)
 
 		// Assert
 		require.NoError(t, err)
@@ -298,7 +298,7 @@ func Test_checkProxyTrust(t *testing.T) {
 
 	t.Run("a skipped entrypoint warns without inspecting the image", func(t *testing.T) {
 		// Arrange
-		stderr := stubLoggingErr(t)
+		stderr := stubErrLog(t)
 		inspected := false
 		d := &fakeDocker{
 			inspectImage: func(string) (*docker.ImageInfo, error) {

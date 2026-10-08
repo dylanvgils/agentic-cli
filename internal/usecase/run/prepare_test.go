@@ -7,6 +7,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -99,6 +100,24 @@ func TestPrepare(t *testing.T) {
 		assert.Empty(t, p.credentialsAsked)
 	})
 
+	t.Run("--no-proxy with credentials fails after the approvals", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		layer := credentialLayer(t, "/example.test/key")
+		req.Layers = []config.RCLayer{layer}
+		req.RC.Run.Proxy.Credentials = layer.RC.Run.Proxy.Credentials
+		req.Proxy = resolve.ProxyInput{NoProxy: true}
+		p := &fakePrompter{}
+
+		// Act
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, p)
+		defer cleanup()
+
+		// Assert
+		require.ErrorContains(t, err, "--no-proxy cannot be used")
+		assert.Equal(t, []string{layer.Path}, p.credentialsAsked)
+	})
+
 	t.Run("dind without the docker layer fails before building sidecars", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
@@ -120,9 +139,9 @@ func TestPrepare(t *testing.T) {
 
 	t.Run("enabled sidecar images are built when missing", func(t *testing.T) {
 		// Arrange
-		stubLoggingErr(t)
+		stubErrLog(t)
 		req := newPrepareRequest(t)
-		req.Input.ProxyMode = docker.ProxyMonitor
+		req.Proxy = resolve.ProxyInput{MonitorFlag: true}
 		var builds []string
 		d := &fakeDocker{
 			inspectImage: func(name string) (*docker.ImageInfo, error) {
@@ -146,7 +165,7 @@ func TestPrepare(t *testing.T) {
 	t.Run("dry run builds no sidecar images", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Input.ProxyMode = docker.ProxyMonitor
+		req.Proxy = resolve.ProxyInput{MonitorFlag: true}
 		req.Input.DryRun = true
 		var builds []string
 		d := &fakeDocker{

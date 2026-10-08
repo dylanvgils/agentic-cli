@@ -174,8 +174,8 @@ func stubCaseInsensitivePaths(t *testing.T, val bool) {
 	t.Cleanup(func() { caseInsensitivePaths = orig })
 }
 
-// stubLoggingErr redirects logging.Err to a buffer for the duration of the test and returns it.
-func stubLoggingErr(t *testing.T) *bytes.Buffer {
+// stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.
+func stubErrLog(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	var buf bytes.Buffer
 	orig := logging.Err

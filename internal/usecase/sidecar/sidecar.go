@@ -21,20 +21,25 @@ func New(d Docker) *Service {
 // Ensure refreshes the image of each enabled sidecar when needed.
 func (s *Service) Ensure(proxy, dind bool, registry string) error {
 	if proxy {
-		if err := s.EnsureProxy(registry); err != nil {
+		if err := s.ensureProxy(registry); err != nil {
 			return err
 		}
 	}
 
 	if dind {
-		return s.EnsureDind(registry)
+		return s.ensureDind(registry)
 	}
 
 	return nil
 }
 
-// EnsureProxy builds the proxy image if missing or stamped with a different CLI version, so `--proxy` picks up proxy changes shipped with a CLI update.
-func (s *Service) EnsureProxy(registry string) error {
+// BuildProxy builds the proxy image unconditionally.
+func (s *Service) BuildProxy(opts tools.BuildOptions) error {
+	return s.docker.BuildProxyImage(tools.ProxyImage, buildinfo.Version, buildinfo.DevSourceDir(tools.ProxyModulePath), opts)
+}
+
+// ensureProxy builds the proxy image if missing or stamped with a different CLI version, so `--proxy` picks up proxy changes shipped with a CLI update.
+func (s *Service) ensureProxy(registry string) error {
 	info, err := s.docker.InspectImage(tools.ProxyImage)
 	if err != nil {
 		return err
@@ -49,8 +54,8 @@ func (s *Service) EnsureProxy(registry string) error {
 	return s.BuildProxy(tools.BuildOptions{Registry: registry})
 }
 
-// EnsureDind builds the DinD image if missing, outdated or stale; a failed refresh only warns so offline runs work.
-func (s *Service) EnsureDind(registry string) error {
+// ensureDind builds the DinD image if missing, outdated or stale; a failed refresh only warns so offline runs work.
+func (s *Service) ensureDind(registry string) error {
 	info, err := s.docker.InspectImage(tools.DindImage)
 	if err != nil {
 		return err
@@ -68,9 +73,4 @@ func (s *Service) EnsureDind(registry string) error {
 		return nil
 	}
 	return err
-}
-
-// BuildProxy builds the proxy image unconditionally.
-func (s *Service) BuildProxy(opts tools.BuildOptions) error {
-	return s.docker.BuildProxyImage(tools.ProxyImage, buildinfo.Version, buildinfo.DevSourceDir(tools.ProxyModulePath), opts)
 }

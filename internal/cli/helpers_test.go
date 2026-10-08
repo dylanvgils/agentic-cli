@@ -591,9 +591,9 @@ func stubFlag(t *testing.T, cmd *cobra.Command, name, value string) {
 	t.Cleanup(func() {
 		// A slice flag appends on every Set after the first, so replace its value instead
 		if slice, ok := flag.Value.(interface{ Replace([]string) error }); ok {
-			_ = slice.Replace(sliceDefault(flag.DefValue))
+			slice.Replace(sliceDefault(flag.DefValue)) //nolint:errcheck
 		} else {
-			_ = flag.Value.Set(flag.DefValue)
+			flag.Value.Set(flag.DefValue) //nolint:errcheck
 		}
 		flag.Changed = false
 	})

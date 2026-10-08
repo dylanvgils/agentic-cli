@@ -7,7 +7,7 @@ import (
 )
 
 // checkTrust errors unless dir is trusted, trusting it first when trustFlag is set or prompter approves.
-func (s *Service) checkTrust(dir, toolHome string, trustFlag bool, prompter Prompter) error {
+func checkTrust(dir, toolHome string, trustFlag bool, prompter Prompter) error {
 	cfg, err := config.LoadConfig(toolHome)
 	if err != nil {
 		return fmt.Errorf("load trust config: %w", err)
@@ -27,7 +27,7 @@ func (s *Service) checkTrust(dir, toolHome string, trustFlag bool, prompter Prom
 }
 
 // checkCredentials has prompter approve each layer's proxy credentials when they first appear and whenever they change, since an agent can edit a config file in the workspace.
-func (s *Service) checkCredentials(layers []config.RCLayer, toolHome string, prompter Prompter) error {
+func checkCredentials(layers []config.RCLayer, toolHome string, prompter Prompter) error {
 	cfg, err := config.LoadConfig(toolHome)
 	if err != nil {
 		return fmt.Errorf("load trust config: %w", err)

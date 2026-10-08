@@ -106,9 +106,14 @@ func cleanProxyImage() error {
 
 // resolveProxyMode reads the proxy-related flags and resolves them against rc into the effective proxy mode.
 func resolveProxyMode(cmd *cobra.Command, rc *config.AgenticRC) (docker.ProxyMode, error) {
+	return resolve.ProxyMode(proxyInput(cmd), rc)
+}
+
+// proxyInput reads the proxy-related flags.
+func proxyInput(cmd *cobra.Command) resolve.ProxyInput {
 	noProxy, _ := cmd.Flags().GetBool("no-proxy")
 	monitorFlag, _ := cmd.Flags().GetBool("proxy-monitor")
 	proxyFlag, _ := cmd.Flags().GetBool("proxy")
 
-	return resolve.ProxyMode(resolve.ProxyInput{NoProxy: noProxy, MonitorFlag: monitorFlag, ProxyFlag: proxyFlag}, rc)
+	return resolve.ProxyInput{NoProxy: noProxy, MonitorFlag: monitorFlag, ProxyFlag: proxyFlag}
 }
