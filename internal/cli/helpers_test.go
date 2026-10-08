@@ -17,6 +17,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
 
@@ -314,6 +315,8 @@ func captureStdout(t *testing.T, fn func()) string {
 	require.NoError(t, err)
 	orig := os.Stdout
 	os.Stdout = w
+	// Restore even when fn fails a require and exits the test early
+	t.Cleanup(func() { os.Stdout = orig })
 	fn()
 	w.Close() //nolint:errcheck
 	os.Stdout = orig
@@ -576,4 +579,31 @@ func credentialLayer(t *testing.T, secret string) config.RCLayer {
 	layers, err := config.FindLayers(filepath.Dir(path))
 	require.NoError(t, err)
 	return layers[len(layers)-1]
+}
+
+// stubFlag sets cmd's flag name to value for the duration of the test, then restores its default and Changed state.
+func stubFlag(t *testing.T, cmd *cobra.Command, name, value string) {
+	t.Helper()
+	flag := cmd.Flags().Lookup(name)
+	require.NotNil(t, flag, "unknown flag %q", name)
+	require.NoError(t, cmd.Flags().Set(name, value))
+
+	t.Cleanup(func() {
+		// A slice flag appends on every Set after the first, so replace its value instead
+		if slice, ok := flag.Value.(interface{ Replace([]string) error }); ok {
+			_ = slice.Replace(sliceDefault(flag.DefValue))
+		} else {
+			_ = flag.Value.Set(flag.DefValue)
+		}
+		flag.Changed = false
+	})
+}
+
+// sliceDefault parses a slice flag's DefValue, e.g. "[a,b]", back into its values.
+func sliceDefault(defValue string) []string {
+	inner := strings.Trim(defValue, "[]")
+	if inner == "" {
+		return nil
+	}
+	return strings.Split(inner, ",")
 }

@@ -103,8 +103,7 @@ func TestRunBuild(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, buildCmd.Flags().Set("base", "java"))
-		defer buildCmd.Flags().Set("base", "") //nolint:errcheck
+		stubFlag(t, buildCmd, "base", "java")
 
 		// Act
 		err := runBuild(buildCmd, []string{"claude"})
