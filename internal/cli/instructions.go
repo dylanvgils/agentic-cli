@@ -56,21 +56,20 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	proxyMode, err := resolveProxyMode(cmd, rc)
-	if err != nil {
-		return err
+	req := run.Request{
+		Target:  run.Target{ToolName: toolName, ImageName: imageName},
+		Tool:    tools.Configs[toolName],
+		Project: run.Project{RC: rc},
+		Flags: run.Flags{
+			ToolHome:   toolHome,
+			Proxy:      proxyInput(cmd),
+			Dind:       dindInput(cmd),
+			Limits:     resolveResourceLimitFlags(cmd),
+			DindLimits: resolveDindResourceLimitFlags(cmd),
+		},
 	}
 
-	target := run.Target{ToolName: toolName, ImageName: imageName}
-	input := run.Input{
-		ToolHome:    toolHome,
-		Limits:      resolveResourceLimitFlags(cmd),
-		ProxyMode:   proxyMode,
-		DindEnabled: resolveDindEnabled(cmd, rc),
-		DindLimits:  resolveDindResourceLimitFlags(cmd),
-	}
-
-	content, err := run.New(dockerClient).PreviewInstructions(target, input, tools.Configs[toolName], rc)
+	content, err := run.New(dockerClient).PreviewInstructions(req)
 	if err != nil {
 		return err
 	}

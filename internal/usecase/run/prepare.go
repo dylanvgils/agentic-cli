@@ -86,38 +86,22 @@ func (s *Service) checkTool(req Request, prompter Prompter) error {
 	return nil
 }
 
-// runInput resolves req's flags against the project config into Build's input and readies the sidecars it enables; a dry run builds no images.
+// runInput resolves req's flags and approved credentials into Build's input and readies the sidecars it enables; a dry run builds no images.
 func (s *Service) runInput(req Request) (Input, error) {
-	flags, rc := req.Flags, req.Project.RC
-
-	proxyMode, err := resolve.ProxyMode(flags.Proxy, rc)
+	in, err := resolveInput(req.Flags, req.Project.RC)
 	if err != nil {
 		return Input{}, err
 	}
 
 	// Credentials force the proxy on (see resolve.ProxyMode), so this is a no-op when it is off
-	creds, err := resolveCredentials(req.Project.Layers, flags.ToolHome)
+	creds, err := resolveCredentials(req.Project.Layers, in.ToolHome)
 	if err != nil {
 		return Input{}, err
 	}
-	if len(creds) > 0 && !flags.DryRun {
+	if len(creds) > 0 && !in.DryRun {
 		logging.Infof("injecting credentials for %s", describeInjection(creds))
 	}
-
-	in := Input{
-		ToolHome:       flags.ToolHome,
-		Volumes:        flags.Volumes,
-		Secrets:        flags.Secrets,
-		ReadOnlyMounts: flags.ReadOnlyMounts,
-		Env:            flags.Env,
-		Limits:         flags.Limits,
-		DryRun:         flags.DryRun,
-		Registry:       flags.Registry,
-		ProxyMode:      proxyMode,
-		DindEnabled:    resolve.DindEnabled(flags.Dind, rc),
-		DindLimits:     flags.DindLimits,
-		Credentials:    creds,
-	}
+	in.Credentials = creds
 
 	if in.DindEnabled {
 		if err := s.requireDockerLayer(req.Target.ImageName, req.Target.ToolName); err != nil {
@@ -143,4 +127,26 @@ func checkApprovals(req Request, prompter Prompter) error {
 	}
 
 	return checkCredentials(req.Project.Layers, home, prompter)
+}
+
+// resolveInput resolves flags against rc into Build's input, minus the credentials only a run reads.
+func resolveInput(flags Flags, rc *config.AgenticRC) (Input, error) {
+	proxyMode, err := resolve.ProxyMode(flags.Proxy, rc)
+	if err != nil {
+		return Input{}, err
+	}
+
+	return Input{
+		ToolHome:       flags.ToolHome,
+		Volumes:        flags.Volumes,
+		Secrets:        flags.Secrets,
+		ReadOnlyMounts: flags.ReadOnlyMounts,
+		Env:            flags.Env,
+		Limits:         flags.Limits,
+		DryRun:         flags.DryRun,
+		Registry:       flags.Registry,
+		ProxyMode:      proxyMode,
+		DindEnabled:    resolve.DindEnabled(flags.Dind, rc),
+		DindLimits:     flags.DindLimits,
+	}, nil
 }

@@ -94,11 +94,6 @@ func resolveDindResourceLimitFlags(cmd *cobra.Command) docker.ResourceLimits {
 	return limitFlags(cmd, "dind-pids-limit", "dind-cpus", "dind-memory")
 }
 
-// resolveDindEnabled reads the dind flags and resolves them against rc.
-func resolveDindEnabled(cmd *cobra.Command, rc *config.AgenticRC) bool {
-	return resolve.DindEnabled(dindInput(cmd), rc)
-}
-
 // dindInput reads the dind flags.
 func dindInput(cmd *cobra.Command) resolve.DindInput {
 	dindFlag, _ := cmd.Flags().GetBool("dind")

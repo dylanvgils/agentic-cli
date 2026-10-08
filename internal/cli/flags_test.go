@@ -6,6 +6,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -187,17 +188,33 @@ func Test_addDindFlags(t *testing.T) {
 	})
 }
 
-func Test_resolveDindEnabled(t *testing.T) {
-	// Arrange
-	cmd := &cobra.Command{Use: "test"}
-	addDindFlags(cmd)
-	require.NoError(t, cmd.Flags().Set("dind", "true"))
+// Test_dindInput only confirms each flag maps to the right resolve.DindInput field; precedence is covered by TestDindEnabled in internal/usecase/resolve.
+func Test_dindInput(t *testing.T) {
+	t.Run("dind flag maps to DindFlag", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+		addDindFlags(cmd)
+		require.NoError(t, cmd.Flags().Set("dind", "true"))
 
-	// Act
-	result := resolveDindEnabled(cmd, &config.AgenticRC{})
+		// Act
+		result := dindInput(cmd)
 
-	// Assert
-	assert.True(t, result)
+		// Assert
+		assert.Equal(t, resolve.DindInput{DindFlag: true}, result)
+	})
+
+	t.Run("no-dind flag maps to NoDindFlag", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+		addDindFlags(cmd)
+		require.NoError(t, cmd.Flags().Set("no-dind", "true"))
+
+		// Act
+		result := dindInput(cmd)
+
+		// Assert
+		assert.Equal(t, resolve.DindInput{NoDindFlag: true}, result)
+	})
 }
 
 func Test_resolveDindResourceLimitFlags(t *testing.T) {

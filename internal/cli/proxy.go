@@ -6,7 +6,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
@@ -102,11 +101,6 @@ func runProxyClean(cmd *cobra.Command, _ []string) error {
 func cleanProxyImage() error {
 	logging.Infof("removing %s", tools.ProxyImage)
 	return dockerClient.CleanImage(tools.ProxyImage)
-}
-
-// resolveProxyMode reads the proxy-related flags and resolves them against rc into the effective proxy mode.
-func resolveProxyMode(cmd *cobra.Command, rc *config.AgenticRC) (docker.ProxyMode, error) {
-	return resolve.ProxyMode(proxyInput(cmd), rc)
 }
 
 // proxyInput reads the proxy-related flags.

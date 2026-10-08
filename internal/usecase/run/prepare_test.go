@@ -200,3 +200,55 @@ func TestPrepare(t *testing.T) {
 		assert.Empty(t, builds)
 	})
 }
+
+func Test_resolveInput(t *testing.T) {
+	t.Run("copies the flags and resolves proxy and dind against the config", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+		flags := Flags{
+			ToolHome:       "/example.test/home",
+			DryRun:         true,
+			Registry:       "registry.example.test",
+			Proxy:          resolve.ProxyInput{MonitorFlag: true},
+			Dind:           resolve.DindInput{DindFlag: true},
+			Volumes:        []string{"/example.test/a:/a"},
+			Secrets:        []string{"token:/example.test/token"},
+			ReadOnlyMounts: []string{"/example.test/b:/b"},
+			Env:            []string{"FOO=bar"},
+			Limits:         docker.ResourceLimits{CPUs: "2"},
+			DindLimits:     docker.ResourceLimits{Memory: "1g"},
+		}
+
+		// Act
+		in, err := resolveInput(flags, rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, Input{
+			ToolHome:       "/example.test/home",
+			Volumes:        []string{"/example.test/a:/a"},
+			Secrets:        []string{"token:/example.test/token"},
+			ReadOnlyMounts: []string{"/example.test/b:/b"},
+			Env:            []string{"FOO=bar"},
+			Limits:         docker.ResourceLimits{CPUs: "2"},
+			DryRun:         true,
+			Registry:       "registry.example.test",
+			ProxyMode:      docker.ProxyMonitor,
+			DindEnabled:    true,
+			DindLimits:     docker.ResourceLimits{Memory: "1g"},
+		}, in)
+	})
+
+	t.Run("a proxy conflict is an error", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
+		flags := Flags{Proxy: resolve.ProxyInput{NoProxy: true}}
+
+		// Act
+		_, err := resolveInput(flags, rc)
+
+		// Assert
+		require.ErrorContains(t, err, "--no-proxy cannot be used")
+	})
+}
