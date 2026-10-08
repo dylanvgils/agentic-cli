@@ -135,7 +135,7 @@ agentic --docker-context prod build claude
 - `marketplaces/` - [marketplace](#marketplaces) clones
 - `logs/` - agentic's own logs, e.g. `proxy_<id>.jsonl`
 
-`--home` overrides it for one run: `agentic run --home /opt/agentic claude`.
+`--home` overrides it for one command, and every command accepts it: `agentic --home /opt/agentic run claude`.
 
 ## Marketplaces
 

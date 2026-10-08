@@ -1,10 +1,7 @@
 package cli
 
 import (
-	"os"
-
 	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/spf13/cobra"
 )
 
@@ -18,14 +15,6 @@ var migrateCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(migrateCmd)
-
-	defaultHome := platform.ToolHomeDefault()
-	if env := os.Getenv("AGENTIC_HOME"); env != "" {
-		defaultHome = env
-	}
-
-	migrateCmd.Flags().StringVar(&toolHome, "home", defaultHome,
-		"agentic data directory (overrides $AGENTIC_HOME)")
 }
 
 func runMigrate(_ *cobra.Command, _ []string) error {

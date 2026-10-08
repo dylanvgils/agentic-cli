@@ -211,6 +211,18 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, "8", result.Build.Versions["dotnet"])
 	})
 
+	t.Run("empty inner version falls through to the outer value", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Build: RCBuild{Versions: map[string]string{"node": "", "java": ""}}}
+		parent := &AgenticRC{Build: RCBuild{Versions: map[string]string{"node": "22"}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert - empty values are unset, so java stays out of the map and build uses its default
+		assert.Equal(t, map[string]string{"node": "22"}, result.Build.Versions)
+	})
+
 	t.Run("single config", func(t *testing.T) {
 		// Arrange
 		rc := &AgenticRC{Run: RCRun{RCLimits: RCLimits{CPUs: "4"}, ExtraMounts: []string{"vol:/mnt"}}}

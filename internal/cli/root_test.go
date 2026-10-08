@@ -44,6 +44,22 @@ func TestCheckDocker(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("shell completion skips check", func(t *testing.T) {
+		// Arrange
+		stubCheckDockerDaemon(t, func() error {
+			return errors.New("should not be called")
+		})
+		fakeRoot := &cobra.Command{Use: "agentic"}
+		completeCmd := &cobra.Command{Use: cobra.ShellCompRequestCmd}
+		fakeRoot.AddCommand(completeCmd)
+
+		// Act
+		err := checkDocker(completeCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+	})
+
 	t.Run("completion subcommand skips check", func(t *testing.T) {
 		// Arrange - `agentic completion bash` reaches persistentPreRunE with cmd.Name()=="bash",
 		// which is not in noDockerCmds; the ancestor walk must find "completion" instead.
@@ -283,6 +299,24 @@ func TestPersistentPreRunE(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 	})
+
+	t.Run("shell completion skips the migration check", func(t *testing.T) {
+		// Arrange
+		restoreDockerClient(t)
+		stubMigrateRun(t, func(string) ([]migrate.Migration, error) {
+			return nil, errors.New("should not be called")
+		})
+		cmd := &cobra.Command{Use: cobra.ShellCompRequestCmd}
+		cmd.Flags().String("docker-context", "", "")
+		fakeRoot := &cobra.Command{Use: "agentic"}
+		fakeRoot.AddCommand(cmd)
+
+		// Act
+		err := persistentPreRunE(cmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+	})
 }
 
 func TestInCommandChain(t *testing.T) {
@@ -371,4 +405,21 @@ func TestPruneResources(t *testing.T) {
 		// Act + Assert
 		assert.NotPanics(t, pruneResources)
 	})
+}
+
+// TestHomeFlag checks --home stays one root flag that no command shadows with its own.
+func TestHomeFlag(t *testing.T) {
+	// Arrange
+	var own []string
+
+	// Act
+	for _, cmd := range rootCmd.Commands() {
+		if cmd.LocalNonPersistentFlags().Lookup("home") != nil || cmd.PersistentFlags().Lookup("home") != nil {
+			own = append(own, cmd.Name())
+		}
+	}
+
+	// Assert
+	require.NotNil(t, rootCmd.PersistentFlags().Lookup("home"))
+	assert.Empty(t, own)
 }

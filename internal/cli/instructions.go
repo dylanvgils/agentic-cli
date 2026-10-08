@@ -2,11 +2,9 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/spf13/cobra"
@@ -27,14 +25,6 @@ var instructionsCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(instructionsCmd)
-
-	defaultHome := platform.ToolHomeDefault()
-	if env := os.Getenv("AGENTIC_HOME"); env != "" {
-		defaultHome = env
-	}
-
-	instructionsCmd.Flags().StringVar(&toolHome, "home", defaultHome,
-		"agentic data directory (overrides $AGENTIC_HOME)")
 
 	addResourceLimitFlags(instructionsCmd)
 	addProxyFlags(instructionsCmd)
