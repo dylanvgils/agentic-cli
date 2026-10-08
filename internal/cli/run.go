@@ -6,14 +6,12 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/spf13/cobra"
 )
 
 var (
-	toolHome           string
 	extraVolumes       []string
 	flagSecrets        []string
 	flagReadOnlyMounts []string
@@ -51,13 +49,6 @@ type invocation struct {
 func init() {
 	rootCmd.AddCommand(runToolCmd)
 
-	defaultHome := platform.ToolHomeDefault()
-	if env := os.Getenv("AGENTIC_HOME"); env != "" {
-		defaultHome = env
-	}
-
-	runToolCmd.Flags().StringVar(&toolHome, "home", defaultHome,
-		"agentic data directory (overrides $AGENTIC_HOME)")
 	runToolCmd.Flags().StringArrayVarP(&extraVolumes, "volume", "v", nil,
 		"additional volume mount (format: host:container[:options]); bind mounts are read-only unless options include rw; repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagSecrets, "secret", "s", nil,

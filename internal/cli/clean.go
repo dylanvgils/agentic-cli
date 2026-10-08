@@ -1,12 +1,10 @@
 package cli
 
 import (
-	"os"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
 	"github.com/spf13/cobra"
 )
@@ -22,14 +20,6 @@ var cleanCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(cleanCmd)
-
-	defaultHome := platform.ToolHomeDefault()
-	if env := os.Getenv("AGENTIC_HOME"); env != "" {
-		defaultHome = env
-	}
-
-	cleanCmd.Flags().StringVar(&toolHome, "home", defaultHome,
-		"agentic data directory (overrides $AGENTIC_HOME)")
 
 	addNamespaceFlag(cleanCmd)
 	addAllFlag(cleanCmd)

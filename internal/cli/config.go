@@ -9,7 +9,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/spf13/cobra"
 )
 
@@ -128,14 +127,6 @@ func (p *fieldPrinter) bases() {
 
 func init() {
 	rootCmd.AddCommand(configCmd)
-
-	defaultHome := platform.ToolHomeDefault()
-	if env := os.Getenv("AGENTIC_HOME"); env != "" {
-		defaultHome = env
-	}
-
-	configCmd.Flags().StringVar(&toolHome, "home", defaultHome,
-		"agentic data directory (overrides $AGENTIC_HOME)")
 }
 
 func showConfig(cmd *cobra.Command, _ []string) error {

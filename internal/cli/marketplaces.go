@@ -9,7 +9,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/spf13/cobra"
 )
 
@@ -37,14 +36,6 @@ var marketplacesPruneCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(marketplacesCmd)
 	marketplacesCmd.AddCommand(marketplacesListCmd, marketplacesPruneCmd)
-
-	defaultHome := platform.ToolHomeDefault()
-	if env := os.Getenv("AGENTIC_HOME"); env != "" {
-		defaultHome = env
-	}
-
-	marketplacesCmd.PersistentFlags().StringVar(&toolHome, "home", defaultHome,
-		"agentic data directory (overrides $AGENTIC_HOME)")
 }
 
 func runMarketplacesList(_ *cobra.Command, _ []string) error {
