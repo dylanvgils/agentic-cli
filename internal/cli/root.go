@@ -9,6 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
@@ -17,12 +18,18 @@ import (
 )
 
 var (
+	// toolHome is the agentic data directory, from the root --home flag.
+	toolHome string
+
+	// completionCmds are Cobra's hidden commands behind shell tab completion, which must stay quiet and fast.
+	completionCmds = []string{cobra.ShellCompRequestCmd, cobra.ShellCompNoDescRequestCmd}
+
 	// noDockerCmds lists subcommands that do not require a running Docker daemon.
-	noDockerCmds = []string{"completion", "aliases", "version", "upgrade", "status", "marketplaces", "instructions", "migrate"}
+	noDockerCmds = append([]string{"completion", "aliases", "version", "upgrade", "status", "marketplaces", "instructions", "migrate"}, completionCmds...)
 	// noUpdateCmds lists subcommands that skip the automatic update check.
-	noUpdateCmds = []string{"completion", "aliases", "upgrade"}
+	noUpdateCmds = append([]string{"completion", "aliases", "upgrade"}, completionCmds...)
 	// noMigrateCmds lists subcommands that skip the automatic migration check.
-	noMigrateCmds = []string{"completion", "aliases", "upgrade", "migrate"}
+	noMigrateCmds = append([]string{"completion", "aliases", "upgrade", "migrate"}, completionCmds...)
 )
 
 var rootCmd = &cobra.Command{
@@ -38,6 +45,13 @@ isolated Docker containers with read-only filesystems and dropped capabilities.`
 }
 
 func init() {
+	defaultHome := platform.ToolHomeDefault()
+	if env := os.Getenv("AGENTIC_HOME"); env != "" {
+		defaultHome = env
+	}
+
+	rootCmd.PersistentFlags().StringVar(&toolHome, "home", defaultHome,
+		"agentic data directory (overrides $AGENTIC_HOME)")
 	rootCmd.PersistentFlags().String("docker-context", "",
 		"Docker context to use (overrides .agenticrc.toml and agentic.json)")
 	_ = rootCmd.RegisterFlagCompletionFunc("docker-context", dockerContextsFunc)
