@@ -94,6 +94,11 @@ func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc
 	return newRunSpec(req, volumes, secrets, env, logDir), nil
 }
 
+// ToolNeedsMarketplaceSync reports whether tool supports marketplace mounting and has at least one marketplace configured.
+func (s *Service) ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, tool string) bool {
+	return needsMarketplaceSync(toolConfig, rc, tool)
+}
+
 // buildWithInstructions wraps Build with this run's instructions snapshot mounted in; the returned cleanup func must always be deferred, even on error.
 func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, func(), error) {
 	content, err := s.BuildInstructions(target, in, toolConfig, rc)
@@ -115,11 +120,6 @@ func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tool
 	}
 
 	return rs, snapshot.Cleanup, nil
-}
-
-// ToolNeedsMarketplaceSync reports whether tool supports marketplace mounting and has at least one marketplace configured.
-func (s *Service) ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, tool string) bool {
-	return needsMarketplaceSync(toolConfig, rc, tool)
 }
 
 // runEnv resolves the tool's env, refusing managed names, and adds the credential placeholders and marketplace names.
