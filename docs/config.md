@@ -252,7 +252,7 @@ The file closest to the filesystem root is the _outermost_. The file in `$PWD` i
 
 - **List keys** (`bases`, `apt_packages`, `custom_installs`, `extra_mounts`, `read_only_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `proxy.credentials`, `marketplaces`) add up, outermost first.
 - **Scalar keys** take the innermost value. Booleans count as scalars, so `enabled = false` in an inner file overrides an outer `true`.
-- **`versions`** is resolved per key, so a child can pin `java` and still inherit `node`.
+- **`versions`** is resolved per key, so a child can pin `java` and still inherit `node`. An empty value counts as unset.
 - **`instructions.custom`** adds up like a list, joined by blank lines.
 
 Example, with `root = true` keeping configs above `~/projects` out:

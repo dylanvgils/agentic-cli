@@ -282,8 +282,9 @@ func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 			resRun.CheckUpdates = run.CheckUpdates
 		}
 
+		// An empty version is unset, like the other scalars, so an outer layer's value still applies
 		for key, val := range rc.Build.Versions {
-			if _, exists := result.Build.Versions[key]; !exists {
+			if _, exists := result.Build.Versions[key]; !exists && val != "" {
 				result.Build.Versions[key] = val
 			}
 		}
