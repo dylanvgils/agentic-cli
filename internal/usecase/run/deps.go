@@ -1,6 +1,7 @@
 package run
 
 import (
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 )
@@ -17,4 +18,10 @@ type Docker interface {
 	ResolveContainerHome(image string) string
 	EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage string) error
 	EnsureNetwork() error
+}
+
+// Prompter asks the user to approve what a run needs; a nil error means approved.
+type Prompter interface {
+	TrustDir(dir string) error
+	ApproveCredentials(layer config.RCLayer) error
 }

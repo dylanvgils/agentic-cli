@@ -97,7 +97,7 @@ func TestRunNamespacesPrune(t *testing.T) {
 		setup(t)
 		var cleaned []string
 		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
-		stubNamespacesStdin(t, "y\n")
+		stubStdin(t, "y\n")
 
 		// Act
 		err := runNamespacesPrune(namespacesPruneCmd, nil)
@@ -112,7 +112,7 @@ func TestRunNamespacesPrune(t *testing.T) {
 		setup(t)
 		var cleaned []string
 		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
-		stubNamespacesStdin(t, "Y\n")
+		stubStdin(t, "Y\n")
 
 		// Act
 		err := runNamespacesPrune(namespacesPruneCmd, nil)
@@ -127,7 +127,7 @@ func TestRunNamespacesPrune(t *testing.T) {
 		setup(t)
 		var cleanCalled bool
 		stubCleanImage(t, func(string) error { cleanCalled = true; return nil })
-		stubNamespacesStdin(t, "n\n")
+		stubStdin(t, "n\n")
 
 		// Act
 		err := runNamespacesPrune(namespacesPruneCmd, nil)
@@ -142,7 +142,7 @@ func TestRunNamespacesPrune(t *testing.T) {
 		setup(t)
 		var cleanCalled bool
 		stubCleanImage(t, func(string) error { cleanCalled = true; return nil })
-		stubNamespacesStdin(t, "\n")
+		stubStdin(t, "\n")
 
 		// Act
 		err := runNamespacesPrune(namespacesPruneCmd, nil)

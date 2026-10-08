@@ -2,9 +2,7 @@
 package toolupdate
 
 import (
-	"bufio"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -19,6 +17,9 @@ type Service struct {
 	docker Docker
 }
 
+// Confirm tells the user an update from installed to latest is available and reports whether to apply it now.
+type Confirm func(tool, installed, latest string) bool
+
 // Updater installs an update for tool/image, supplied by the caller so this package doesn't need to know how build options are recovered.
 type Updater func(tool, image string) error
 
@@ -27,8 +28,8 @@ func New(d Docker) *Service {
 	return &Service{docker: d}
 }
 
-// Check checks upstream for a newer version of toolName at most once per checkInterval and, on a TTY, offers to apply it via update; only a confirmed update that fails returns an error.
-func (s *Service) Check(home string, rc *config.AgenticRC, toolName, image string, update Updater) error {
+// Check checks upstream for a newer version of toolName at most once per checkInterval and applies it via update when confirm agrees; only a confirmed update that fails returns an error.
+func (s *Service) Check(home string, rc *config.AgenticRC, toolName, image string, confirm Confirm, update Updater) error {
 	if rc.Run.CheckUpdates != nil && !*rc.Run.CheckUpdates {
 		return nil
 	}
@@ -38,7 +39,7 @@ func (s *Service) Check(home string, rc *config.AgenticRC, toolName, image strin
 		return nil
 	}
 
-	if !notify(toolName, installed, latest) {
+	if !confirm(toolName, installed, latest) {
 		return nil
 	}
 
@@ -90,19 +91,4 @@ func shouldCheck(lastChecks map[string]time.Time, tool string) bool {
 		return true
 	}
 	return time.Since(last) >= checkInterval
-}
-
-// notify prints an update notice to stderr and, on a TTY, prompts to update, returning whether the user confirmed; otherwise it just suggests `agentic update <tool>`.
-func notify(toolName, installed, latest string) bool {
-	if !IsTerminal() {
-		Notify.Infof("%s update available: %s (current: %s) - run: agentic update %s",
-			toolName, latest, installed, toolName)
-		return false
-	}
-
-	Notify.Promptf("%s update available: %s (current: %s) - update now? [y/N] ",
-		toolName, latest, installed)
-
-	scanner := bufio.NewScanner(Stdin)
-	return scanner.Scan() && strings.EqualFold(strings.TrimSpace(scanner.Text()), "y")
 }

@@ -180,8 +180,8 @@ func TestRunTool(t *testing.T) {
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
 		get := captureRunContainer(t)
-		stubToolUpdateIsTerminal(t, true)
-		stubToolUpdateStdin(t, "y\n")
+		stubIsTerminal(t, true)
+		stubStdin(t, "y\n")
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		stubDocker(t, &fakeDocker{})
 
@@ -199,8 +199,8 @@ func TestRunTool(t *testing.T) {
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
 		get := captureRunContainer(t)
-		stubToolUpdateIsTerminal(t, true)
-		stubToolUpdateStdin(t, "y\n")
+		stubIsTerminal(t, true)
+		stubStdin(t, "y\n")
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		stubDocker(t, &fakeDocker{
 			buildTool: func(_, _ string, _ tools.BuildOptions) error { return fmt.Errorf("build failed") },

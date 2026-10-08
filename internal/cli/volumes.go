@@ -1,17 +1,11 @@
 package cli
 
 import (
-	"bufio"
 	"fmt"
-	"io"
-	"os"
-	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/spf13/cobra"
 )
-
-var volumesStdin io.Reader = os.Stdin
 
 var volumesCmd = &cobra.Command{
 	Use:   "volumes",
@@ -111,8 +105,5 @@ func confirmVolumeRemoval(names []string) bool {
 	}
 
 	logging.Promptf("remove all agentic-managed volumes? [y/N] ")
-	scanner := bufio.NewScanner(volumesStdin)
-	scanner.Scan()
-	answer := strings.TrimSpace(scanner.Text())
-	return answer == "y" || answer == "Y"
+	return confirmed()
 }

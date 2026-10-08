@@ -434,13 +434,6 @@ func withTempToolHome(t *testing.T) {
 	t.Cleanup(func() { toolHome = orig })
 }
 
-// writeTrustConfig saves a CliConfig with the given trusted dirs into toolHome.
-func writeTrustConfig(t *testing.T, toolHome string, dirs []string) {
-	t.Helper()
-	cfg := &config.CliConfig{TrustedDirs: dirs}
-	require.NoError(t, cfg.Save(toolHome))
-}
-
 func stubBuildProxyImage(t *testing.T, fn func(image, version, sourceDir string, opts tools.BuildOptions) error) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{buildProxyImage: fn})
@@ -534,20 +527,6 @@ func stubUpdateLatestToolVersion(t *testing.T, latest string, newer, ok bool) {
 	t.Cleanup(func() { update.LatestToolVersion = orig })
 }
 
-func stubToolUpdateStdin(t *testing.T, input string) {
-	t.Helper()
-	orig := toolupdate.Stdin
-	toolupdate.Stdin = strings.NewReader(input)
-	t.Cleanup(func() { toolupdate.Stdin = orig })
-}
-
-func stubToolUpdateIsTerminal(t *testing.T, terminal bool) {
-	t.Helper()
-	orig := toolupdate.IsTerminal
-	toolupdate.IsTerminal = func() bool { return terminal }
-	t.Cleanup(func() { toolupdate.IsTerminal = orig })
-}
-
 func stubCheckGitAvailable(t *testing.T, err error) {
 	t.Helper()
 	orig := checkGitAvailable
@@ -562,30 +541,17 @@ func stubCurrentGOOS(t *testing.T, goos string) {
 	t.Cleanup(func() { currentGOOS = orig })
 }
 
-func stubNamespacesStdin(t *testing.T, input string) {
-	t.Helper()
-	orig := namespacesStdin
-	namespacesStdin = strings.NewReader(input)
-	t.Cleanup(func() { namespacesStdin = orig })
-}
-
-func stubVolumeStdin(t *testing.T, input string) {
-	t.Helper()
-	orig := volumesStdin
-	volumesStdin = strings.NewReader(input)
-	t.Cleanup(func() { volumesStdin = orig })
-}
-
 func stubBuildDindImage(t *testing.T, fn func(image string, opts tools.BuildOptions) error) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{buildDindImage: fn})
 }
 
-func stubTrustStdin(t *testing.T, input string) {
+// stubStdin makes every confirmation prompt read input for the duration of the test.
+func stubStdin(t *testing.T, input string) {
 	t.Helper()
-	orig := trustStdin
-	trustStdin = strings.NewReader(input)
-	t.Cleanup(func() { trustStdin = orig })
+	orig := stdin
+	stdin = strings.NewReader(input)
+	t.Cleanup(func() { stdin = orig })
 }
 
 func stubIsTerminal(t *testing.T, terminal bool) {

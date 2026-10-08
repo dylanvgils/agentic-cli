@@ -1,7 +1,6 @@
 package toolupdate
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -24,20 +23,6 @@ func stubLatestToolVersion(t *testing.T, fn func(tool, installedLabel string) (s
 	orig := LatestToolVersion
 	LatestToolVersion = fn
 	t.Cleanup(func() { LatestToolVersion = orig })
-}
-
-func stubIsTerminal(t *testing.T, terminal bool) {
-	t.Helper()
-	orig := IsTerminal
-	IsTerminal = func() bool { return terminal }
-	t.Cleanup(func() { IsTerminal = orig })
-}
-
-func stubStdin(t *testing.T, input string) {
-	t.Helper()
-	orig := Stdin
-	Stdin = strings.NewReader(input)
-	t.Cleanup(func() { Stdin = orig })
 }
 
 // inspectReturns returns an InspectImage func that always yields info and err.

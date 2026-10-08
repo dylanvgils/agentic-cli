@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"io"
+	"os"
+
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/git"
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
@@ -22,6 +25,9 @@ var (
 	checkGitAvailable       = git.CheckAvailable
 	loadMarketplaceRegistry = marketplace.LoadRegistry
 	saveMarketplaceRegistry = marketplace.SaveRegistry
+
+	// stdin is where every confirmation prompt reads its answer.
+	stdin io.Reader = os.Stdin
 
 	// dockerClient is the Docker client every command uses; persistentPreRunE rebuilds it for the resolved context.
 	dockerClient dockerAPI = docker.New("")

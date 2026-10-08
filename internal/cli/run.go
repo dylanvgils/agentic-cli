@@ -113,14 +113,14 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("setup %s: %w", inv.toolName, err)
 	}
 
-	if err := checkTrust(inv.cwd, toolHome, trustDir); err != nil {
-		return err
-	}
-	if err := checkCredentials(inv.layers, toolHome); err != nil {
-		return err
-	}
-
 	svc := run.New(dockerClient)
+
+	if err := svc.CheckTrust(inv.cwd, toolHome, trustDir, ttyPrompter{}); err != nil {
+		return err
+	}
+	if err := svc.CheckCredentials(inv.layers, toolHome, ttyPrompter{}); err != nil {
+		return err
+	}
 
 	input, err := resolveRunInput(cmd, svc, inv)
 	if err != nil {
@@ -179,7 +179,7 @@ func checkToolUpdate(inv invocation) error {
 		return update.New(dockerClient).ApplyRecovered(tool, image, inv.rc)
 	}
 
-	return toolupdate.New(dockerClient).Check(toolHome, inv.rc, inv.toolName, inv.imageName, updater)
+	return toolupdate.New(dockerClient).Check(toolHome, inv.rc, inv.toolName, inv.imageName, ttyPrompter{}.OfferToolUpdate, updater)
 }
 
 // resolveRunInput resolves the proxy, credentials and dind settings and collects the run flags.

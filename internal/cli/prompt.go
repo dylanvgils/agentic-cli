@@ -2,8 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"io"
-	"os"
 	"strconv"
 	"strings"
 
@@ -11,57 +9,25 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
 
-var trustStdin io.Reader = os.Stdin
+// ttyPrompter asks the user on the terminal; without one it refuses with a hint on how to approve instead.
+type ttyPrompter struct{}
 
-func checkTrust(dir, toolHome string, trustFlag bool) error {
-	config, err := config.LoadConfig(toolHome)
-	if err != nil {
-		return fmt.Errorf("load trust config: %w", err)
-	}
-
-	if config.IsTrusted(dir) {
-		return nil
-	}
-
-	if trustFlag {
-		return config.Trust(dir, toolHome)
-	}
-
+// TrustDir asks whether to trust dir.
+func (ttyPrompter) TrustDir(dir string) error {
 	if !isTerminal() {
 		return fmt.Errorf("directory %q is not trusted; run interactively or pass --trust-dir to approve", dir)
 	}
 
 	logging.Promptf("trust directory %s? [y/N] ", dir)
-	if confirmed() {
-		return config.Trust(dir, toolHome)
-	}
-
-	return fmt.Errorf("directory not trusted")
-}
-
-// checkCredentials asks the user to approve each layer's proxy credentials when they first appear and whenever they change, since an agent can edit a config file in the workspace.
-func checkCredentials(layers []config.RCLayer, toolHome string) error {
-	cfg, err := config.LoadConfig(toolHome)
-	if err != nil {
-		return fmt.Errorf("load trust config: %w", err)
-	}
-
-	for _, layer := range cfg.PendingCredentials(layers) {
-		if err := promptCredentials(layer); err != nil {
-			return err
-		}
-
-		hash := config.CredentialsHash(layer.RC.Run.Proxy.Credentials)
-		if err := cfg.ApproveCredentials(layer.Path, hash, toolHome); err != nil {
-			return fmt.Errorf("save credential approval: %w", err)
-		}
+	if !confirmed() {
+		return fmt.Errorf("directory not trusted")
 	}
 
 	return nil
 }
 
-// promptCredentials shows a layer's credential entries and returns an error unless the user approves them.
-func promptCredentials(layer config.RCLayer) error {
+// ApproveCredentials shows a layer's credential entries and returns an error unless the user approves them.
+func (ttyPrompter) ApproveCredentials(layer config.RCLayer) error {
 	if !isTerminal() {
 		return fmt.Errorf("proxy credentials in %s are new or changed; run interactively to approve them", layer.Path)
 	}
@@ -79,6 +45,17 @@ func promptCredentials(layer config.RCLayer) error {
 	return nil
 }
 
+// OfferToolUpdate announces an available tool update and, on a terminal, asks whether to apply it now; otherwise it just suggests `agentic update <tool>`.
+func (ttyPrompter) OfferToolUpdate(tool, installed, latest string) bool {
+	if !isTerminal() {
+		logging.Infof("%s update available: %s (current: %s) - run: agentic update %s", tool, latest, installed, tool)
+		return false
+	}
+
+	logging.Promptf("%s update available: %s (current: %s) - update now? [y/N] ", tool, latest, installed)
+	return confirmed()
+}
+
 // describeCredential summarizes where an entry's secret is read from and where it is sent, quoting each value so escape sequences print as text.
 func describeCredential(cred config.RCCredential) string {
 	target := fmt.Sprintf("preset %q", cred.Preset)
@@ -93,13 +70,13 @@ func describeCredential(cred config.RCCredential) string {
 	return desc
 }
 
-// confirmed reads one line from trustStdin and reports whether it is y or Y.
+// confirmed reads one line from stdin and reports whether it is y or Y.
 func confirmed() bool {
 	// Read byte by byte so a later prompt still gets its own line
 	var line []byte
 	buf := make([]byte, 1)
 	for {
-		n, err := trustStdin.Read(buf)
+		n, err := stdin.Read(buf)
 		if n == 1 && buf[0] != '\n' {
 			line = append(line, buf[0])
 		}

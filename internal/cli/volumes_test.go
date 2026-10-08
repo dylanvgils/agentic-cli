@@ -142,7 +142,7 @@ func TestRunVolumeRemove(t *testing.T) {
 		})
 		var removed []string
 		stubRemoveVolume(t, func(name string) error { removed = append(removed, name); return nil })
-		stubVolumeStdin(t, "y\n")
+		stubStdin(t, "y\n")
 
 		// Act
 		err := runVolumeRemove(volumesRemoveCmd, nil)
@@ -160,7 +160,7 @@ func TestRunVolumeRemove(t *testing.T) {
 		})
 		var removed []string
 		stubRemoveVolume(t, func(name string) error { removed = append(removed, name); return nil })
-		stubVolumeStdin(t, "Y\n")
+		stubStdin(t, "Y\n")
 
 		// Act
 		err := runVolumeRemove(volumesRemoveCmd, nil)
@@ -177,7 +177,7 @@ func TestRunVolumeRemove(t *testing.T) {
 		})
 		var removeCalled bool
 		stubRemoveVolume(t, func(string) error { removeCalled = true; return nil })
-		stubVolumeStdin(t, "n\n")
+		stubStdin(t, "n\n")
 
 		// Act
 		err := runVolumeRemove(volumesRemoveCmd, nil)
@@ -194,7 +194,7 @@ func TestRunVolumeRemove(t *testing.T) {
 		})
 		var removeCalled bool
 		stubRemoveVolume(t, func(string) error { removeCalled = true; return nil })
-		stubVolumeStdin(t, "\n")
+		stubStdin(t, "\n")
 
 		// Act
 		err := runVolumeRemove(volumesRemoveCmd, nil)
@@ -227,7 +227,7 @@ func TestRunVolumeRemove(t *testing.T) {
 			removeCalled++
 			return fmt.Errorf("remove failed")
 		})
-		stubVolumeStdin(t, "y\n")
+		stubStdin(t, "y\n")
 
 		// Act
 		err := runVolumeRemove(volumesRemoveCmd, nil)
@@ -243,7 +243,7 @@ func TestRunVolumeRemove(t *testing.T) {
 			return []string{"maven", "gradle"}, nil
 		})
 		stubRemoveVolume(t, func(string) error { return nil })
-		stubVolumeStdin(t, "n\n")
+		stubStdin(t, "n\n")
 
 		// Act
 		out := captureStdout(t, func() {

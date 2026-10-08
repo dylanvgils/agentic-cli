@@ -50,6 +50,31 @@ func (f *fakeDocker) EnsureNetwork() error {
 	return f.ensureNetwork()
 }
 
+// fakePrompter implements Prompter, recording what it was asked; a nil field approves.
+type fakePrompter struct {
+	trustDir           func(string) error
+	approveCredentials func(config.RCLayer) error
+
+	trustAsked       []string
+	credentialsAsked []string
+}
+
+func (f *fakePrompter) TrustDir(dir string) error {
+	f.trustAsked = append(f.trustAsked, dir)
+	if f.trustDir == nil {
+		return nil
+	}
+	return f.trustDir(dir)
+}
+
+func (f *fakePrompter) ApproveCredentials(layer config.RCLayer) error {
+	f.credentialsAsked = append(f.credentialsAsked, layer.Path)
+	if f.approveCredentials == nil {
+		return nil
+	}
+	return f.approveCredentials(layer)
+}
+
 // findVolumeSuffix returns the one volume spec ending with suffix, failing the test if there isn't exactly one match.
 func findVolumeSuffix(t *testing.T, volumes []string, suffix string) string {
 	t.Helper()
