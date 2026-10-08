@@ -6,114 +6,41 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// Test_resolveProxyMode only confirms each flag maps to the right resolve.ProxyInput field; precedence is covered by TestProxyMode in internal/usecase/resolve.
-func Test_resolveProxyMode(t *testing.T) {
-	t.Run("no flags reads rc value", func(t *testing.T) {
+// Test_proxyInput only confirms each flag maps to the right resolve.ProxyInput field; precedence is covered by TestProxyMode in internal/usecase/resolve.
+func Test_proxyInput(t *testing.T) {
+	t.Run("no flags leaves every field unset", func(t *testing.T) {
 		// Arrange
-		enabled := true
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}
+		cmd := &cobra.Command{Use: "test"}
+		addProxyFlags(cmd)
 
 		// Act
-		result, err := resolveProxyMode(runToolCmd, rc)
+		result := proxyInput(cmd)
 
 		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyEnforce, result)
+		assert.Equal(t, resolve.ProxyInput{}, result)
 	})
 
-	t.Run("no-proxy flag propagates", func(t *testing.T) {
+	t.Run("each flag maps to its field", func(t *testing.T) {
 		// Arrange
-		require.NoError(t, runToolCmd.Flags().Set("no-proxy", "true"))
-		t.Cleanup(func() {
-			_ = runToolCmd.Flags().Set("no-proxy", "false")
-			runToolCmd.Flags().Lookup("no-proxy").Changed = false
-		})
+		cmd := &cobra.Command{Use: "test"}
+		addProxyFlags(cmd)
+		require.NoError(t, cmd.Flags().Set("no-proxy", "true"))
+		require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
+		require.NoError(t, cmd.Flags().Set("proxy", "true"))
 
 		// Act
-		result, err := resolveProxyMode(runToolCmd, &config.AgenticRC{})
+		result := proxyInput(cmd)
 
 		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyOff, result)
-	})
-
-	t.Run("proxy-monitor flag propagates", func(t *testing.T) {
-		// Arrange
-		require.NoError(t, runToolCmd.Flags().Set("proxy-monitor", "true"))
-		t.Cleanup(func() {
-			_ = runToolCmd.Flags().Set("proxy-monitor", "false")
-			runToolCmd.Flags().Lookup("proxy-monitor").Changed = false
-		})
-
-		// Act
-		result, err := resolveProxyMode(runToolCmd, &config.AgenticRC{})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyMonitor, result)
-	})
-}
-
-func Test_ensureProxyImage(t *testing.T) {
-	t.Run("builds the image when missing", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		var built string
-		stubBuildProxyImage(t, func(image, _, _ string, _ tools.BuildOptions) error {
-			built = image
-			return nil
-		})
-
-		// Act
-		err := ensureProxyImage(runToolCmd)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, tools.ProxyImage, built)
-	})
-
-	t.Run("skips build when image already exists at current version", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Image: tools.ProxyImage, CLIVersion: buildinfo.Version}, nil)
-		built := false
-		stubBuildProxyImage(t, func(string, string, string, tools.BuildOptions) error {
-			built = true
-			return nil
-		})
-
-		// Act
-		err := ensureProxyImage(runToolCmd)
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, built)
-	})
-
-	t.Run("rebuilds when CLI version does not match image label", func(t *testing.T) {
-		// Arrange
-		logBuf := stubErrLog(t)
-		stubInspectImage(t, &docker.ImageInfo{Image: tools.ProxyImage, CLIVersion: "v0.0.0"}, nil)
-		var built string
-		stubBuildProxyImage(t, func(image, _, _ string, _ tools.BuildOptions) error {
-			built = image
-			return nil
-		})
-
-		// Act
-		err := ensureProxyImage(runToolCmd)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, tools.ProxyImage, built)
-		assert.Contains(t, logBuf.String(), "agentic: building agentic-proxy (built by a different agentic version)...")
+		assert.Equal(t, resolve.ProxyInput{NoProxy: true, MonitorFlag: true, ProxyFlag: true}, result)
 	})
 }
 

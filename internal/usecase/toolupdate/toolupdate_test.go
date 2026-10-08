@@ -1,15 +1,12 @@
 package toolupdate
 
 import (
-	"bytes"
 	"errors"
-	"io"
 	"testing"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -167,64 +164,10 @@ func Test_fetchIfDue(t *testing.T) {
 	})
 }
 
-func Test_notify(t *testing.T) {
-	t.Run("prints one-liner and returns false when not a terminal", func(t *testing.T) {
-		// Arrange
-		stubIsTerminal(t, false)
-
-		var errBuf bytes.Buffer
-		orig := Notify
-		Notify = logging.New(&errBuf)
-		t.Cleanup(func() { Notify = orig })
-
-		// Act
-		confirmed := notify("claude", "1.2.3", "1.3.0")
-
-		// Assert
-		assert.False(t, confirmed)
-		out := errBuf.String()
-		assert.Contains(t, out, "claude")
-		assert.Contains(t, out, "1.3.0")
-		assert.Contains(t, out, "1.2.3")
-		assert.Contains(t, out, "agentic update claude")
-		assert.Contains(t, out, "agentic: claude update available")
-	})
-
-	t.Run("returns true when terminal and user confirms", func(t *testing.T) {
-		// Arrange
-		stubIsTerminal(t, true)
-		stubStdin(t, "y\n")
-
-		origNotify := Notify
-		Notify = logging.New(io.Discard)
-		t.Cleanup(func() { Notify = origNotify })
-
-		// Act
-		confirmed := notify("claude", "1.2.3", "1.3.0")
-
-		// Assert
-		assert.True(t, confirmed)
-	})
-
-	t.Run("returns false when terminal and user declines", func(t *testing.T) {
-		// Arrange
-		stubIsTerminal(t, true)
-		stubStdin(t, "n\n")
-
-		origNotify := Notify
-		Notify = logging.New(io.Discard)
-		t.Cleanup(func() { Notify = origNotify })
-
-		// Act
-		confirmed := notify("claude", "1.2.3", "1.3.0")
-
-		// Assert
-		assert.False(t, confirmed)
-	})
-}
-
 func TestCheck(t *testing.T) {
 	noopUpdate := func(string, string) error { return nil }
+	confirmYes := func(string, string, string) bool { return true }
+	confirmNo := func(string, string, string) bool { return false }
 
 	t.Run("skips when check_updates is false in rc", func(t *testing.T) {
 		// Arrange
@@ -238,7 +181,7 @@ func TestCheck(t *testing.T) {
 		})
 
 		// Act
-		err := New(&fakeDocker{}).Check(home, rc, "claude", "agentic-claude", noopUpdate)
+		err := New(&fakeDocker{}).Check(home, rc, "claude", "agentic-claude", confirmNo, noopUpdate)
 
 		// Assert
 		require.NoError(t, err)
@@ -257,7 +200,7 @@ func TestCheck(t *testing.T) {
 		})
 
 		// Act
-		err := New(d).Check(home, rc, "claude", "agentic-claude", noopUpdate)
+		err := New(d).Check(home, rc, "claude", "agentic-claude", confirmNo, noopUpdate)
 
 		// Assert
 		require.NoError(t, err)
@@ -277,7 +220,7 @@ func TestCheck(t *testing.T) {
 		})
 
 		// Act
-		err := New(d).Check(home, rc, "claude", "agentic-claude", noopUpdate)
+		err := New(d).Check(home, rc, "claude", "agentic-claude", confirmNo, noopUpdate)
 
 		// Assert
 		require.NoError(t, err)
@@ -290,19 +233,24 @@ func TestCheck(t *testing.T) {
 		rc := &config.AgenticRC{}
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
-		stubIsTerminal(t, true)
-		stubStdin(t, "y\n")
 		var updateCalledWith string
 		update := func(tool, image string) error {
 			updateCalledWith = tool + ":" + image
 			return nil
 		}
 
+		var offered string
+		confirm := func(tool, installed, latest string) bool {
+			offered = tool + " " + installed + " -> " + latest
+			return true
+		}
+
 		// Act
-		err := New(d).Check(home, rc, "claude", "agentic-claude", update)
+		err := New(d).Check(home, rc, "claude", "agentic-claude", confirm, update)
 
 		// Assert
 		require.NoError(t, err)
+		assert.Equal(t, "claude 1.2.3 -> 1.3.0", offered)
 		assert.Equal(t, "claude:agentic-claude", updateCalledWith)
 	})
 
@@ -312,12 +260,10 @@ func TestCheck(t *testing.T) {
 		rc := &config.AgenticRC{}
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
-		stubIsTerminal(t, true)
-		stubStdin(t, "y\n")
 		update := func(string, string) error { return errors.New("build failed") }
 
 		// Act
-		err := New(d).Check(home, rc, "claude", "agentic-claude", update)
+		err := New(d).Check(home, rc, "claude", "agentic-claude", confirmYes, update)
 
 		// Assert
 		require.Error(t, err)
@@ -332,7 +278,6 @@ func TestCheck(t *testing.T) {
 		rc := &config.AgenticRC{}
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
-		stubIsTerminal(t, false)
 		called := false
 		update := func(string, string) error {
 			called = true
@@ -340,7 +285,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).Check(home, rc, "claude", "agentic-claude", update)
+		err := New(d).Check(home, rc, "claude", "agentic-claude", confirmNo, update)
 
 		// Assert
 		require.NoError(t, err)

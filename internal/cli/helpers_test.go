@@ -17,6 +17,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
 
@@ -314,6 +315,8 @@ func captureStdout(t *testing.T, fn func()) string {
 	require.NoError(t, err)
 	orig := os.Stdout
 	os.Stdout = w
+	// Restore even when fn fails a require and exits the test early
+	t.Cleanup(func() { os.Stdout = orig })
 	fn()
 	w.Close() //nolint:errcheck
 	os.Stdout = orig
@@ -434,13 +437,6 @@ func withTempToolHome(t *testing.T) {
 	t.Cleanup(func() { toolHome = orig })
 }
 
-// writeTrustConfig saves a CliConfig with the given trusted dirs into toolHome.
-func writeTrustConfig(t *testing.T, toolHome string, dirs []string) {
-	t.Helper()
-	cfg := &config.CliConfig{TrustedDirs: dirs}
-	require.NoError(t, cfg.Save(toolHome))
-}
-
 func stubBuildProxyImage(t *testing.T, fn func(image, version, sourceDir string, opts tools.BuildOptions) error) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{buildProxyImage: fn})
@@ -534,20 +530,6 @@ func stubUpdateLatestToolVersion(t *testing.T, latest string, newer, ok bool) {
 	t.Cleanup(func() { update.LatestToolVersion = orig })
 }
 
-func stubToolUpdateStdin(t *testing.T, input string) {
-	t.Helper()
-	orig := toolupdate.Stdin
-	toolupdate.Stdin = strings.NewReader(input)
-	t.Cleanup(func() { toolupdate.Stdin = orig })
-}
-
-func stubToolUpdateIsTerminal(t *testing.T, terminal bool) {
-	t.Helper()
-	orig := toolupdate.IsTerminal
-	toolupdate.IsTerminal = func() bool { return terminal }
-	t.Cleanup(func() { toolupdate.IsTerminal = orig })
-}
-
 func stubCheckGitAvailable(t *testing.T, err error) {
 	t.Helper()
 	orig := checkGitAvailable
@@ -562,48 +544,17 @@ func stubCurrentGOOS(t *testing.T, goos string) {
 	t.Cleanup(func() { currentGOOS = orig })
 }
 
-func stubNamespacesStdin(t *testing.T, input string) {
-	t.Helper()
-	orig := namespacesStdin
-	namespacesStdin = strings.NewReader(input)
-	t.Cleanup(func() { namespacesStdin = orig })
-}
-
-func stubVolumeStdin(t *testing.T, input string) {
-	t.Helper()
-	orig := volumesStdin
-	volumesStdin = strings.NewReader(input)
-	t.Cleanup(func() { volumesStdin = orig })
-}
-
 func stubBuildDindImage(t *testing.T, fn func(image string, opts tools.BuildOptions) error) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{buildDindImage: fn})
 }
 
-// stubSidecarBuilds reports both sidecar images missing and returns a getter for the images built.
-func stubSidecarBuilds(t *testing.T) func() []string {
+// stubStdin makes every confirmation prompt read input for the duration of the test.
+func stubStdin(t *testing.T, input string) {
 	t.Helper()
-	var built []string
-	stubDocker(t, &fakeDocker{
-		inspectImage: inspectReturns(nil, nil),
-		buildProxyImage: func(image, _, _ string, _ tools.BuildOptions) error {
-			built = append(built, image)
-			return nil
-		},
-		buildDindImage: func(image string, _ tools.BuildOptions) error {
-			built = append(built, image)
-			return nil
-		},
-	})
-	return func() []string { return built }
-}
-
-func stubTrustStdin(t *testing.T, input string) {
-	t.Helper()
-	orig := trustStdin
-	trustStdin = strings.NewReader(input)
-	t.Cleanup(func() { trustStdin = orig })
+	orig := stdin
+	stdin = strings.NewReader(input)
+	t.Cleanup(func() { stdin = orig })
 }
 
 func stubIsTerminal(t *testing.T, terminal bool) {
@@ -618,11 +569,6 @@ func inspectReturns(info *docker.ImageInfo, err error) func(string) (*docker.Ima
 	return func(string) (*docker.ImageInfo, error) { return info, err }
 }
 
-// formatTestLabelTime formats t like agentic's image timestamp labels.
-func formatTestLabelTime(t time.Time) string {
-	return t.UTC().Format("2006-01-02T15:04:05Z")
-}
-
 // credentialLayer writes a .agenticrc.toml with one credential entry reading secret and returns its layer.
 func credentialLayer(t *testing.T, secret string) config.RCLayer {
 	t.Helper()
@@ -633,4 +579,31 @@ func credentialLayer(t *testing.T, secret string) config.RCLayer {
 	layers, err := config.FindLayers(filepath.Dir(path))
 	require.NoError(t, err)
 	return layers[len(layers)-1]
+}
+
+// stubFlag sets cmd's flag name to value for the duration of the test, then restores its default and Changed state.
+func stubFlag(t *testing.T, cmd *cobra.Command, name, value string) {
+	t.Helper()
+	flag := cmd.Flags().Lookup(name)
+	require.NotNil(t, flag, "unknown flag %q", name)
+	require.NoError(t, cmd.Flags().Set(name, value))
+
+	t.Cleanup(func() {
+		// A slice flag appends on every Set after the first, so replace its value instead
+		if slice, ok := flag.Value.(interface{ Replace([]string) error }); ok {
+			slice.Replace(sliceDefault(flag.DefValue)) //nolint:errcheck
+		} else {
+			flag.Value.Set(flag.DefValue) //nolint:errcheck
+		}
+		flag.Changed = false
+	})
+}
+
+// sliceDefault parses a slice flag's DefValue, e.g. "[a,b]", back into its values.
+func sliceDefault(defValue string) []string {
+	inner := strings.Trim(defValue, "[]")
+	if inner == "" {
+		return nil
+	}
+	return strings.Split(inner, ",")
 }

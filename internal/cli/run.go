@@ -3,18 +3,12 @@ package cli
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/credentials"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
 )
 
@@ -52,15 +46,6 @@ type invocation struct {
 	layers     []config.RCLayer
 	rc         *config.AgenticRC
 	toolConfig tools.ToolConfig
-}
-
-// target returns the tool and image the run is for.
-func (inv invocation) target() run.Target {
-	return run.Target{
-		ToolName:       inv.toolName,
-		ImageName:      inv.imageName,
-		SkipEntrypoint: inv.skipEntrypoint,
-	}
 }
 
 func init() {
@@ -102,38 +87,12 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := requireImage(inv.imageName, inv.toolName); err != nil {
-		return err
-	}
-	if err := checkToolUpdate(inv); err != nil {
-		return err
-	}
-	if err := inv.toolConfig.Runtime.Setup(toolHome); err != nil {
-		return fmt.Errorf("setup %s: %w", inv.toolName, err)
-	}
-
-	if err := checkTrust(inv.cwd, toolHome, trustDir); err != nil {
-		return err
-	}
-	if err := checkCredentials(inv.layers, toolHome); err != nil {
-		return err
-	}
-
-	svc := run.New(dockerClient)
-
-	input, err := resolveRunInput(cmd, svc, inv)
+	req := runRequest(cmd, inv)
+	rs, cleanup, err := run.New(dockerClient).Prepare(req, ttyPrompter{})
+	defer cleanup()
 	if err != nil {
 		return err
 	}
-	if err := ensureSidecarImages(cmd, input); err != nil {
-		return err
-	}
-
-	rs, cleanupInstructions, err := svc.BuildWithInstructions(inv.target(), input, inv.toolConfig, inv.rc)
-	if err != nil {
-		return err
-	}
-	defer cleanupInstructions()
 
 	return dockerClient.RunContainer(rs, inv.toolArgs)
 }
@@ -170,52 +129,35 @@ func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
 	}, nil
 }
 
-// checkToolUpdate offers a due update of the tool and applies it when accepted.
-func checkToolUpdate(inv invocation) error {
-	updater := func(tool, image string) error {
-		return update.New(dockerClient).ApplyRecovered(tool, image, inv.rc)
+// runRequest collects the run flags for inv; Prepare resolves them against inv's config.
+func runRequest(cmd *cobra.Command, inv invocation) run.Request {
+	return run.Request{
+		Target: run.Target{
+			ToolName:       inv.toolName,
+			ImageName:      inv.imageName,
+			SkipEntrypoint: inv.skipEntrypoint,
+		},
+		Tool: inv.toolConfig,
+		Project: run.Project{
+			Dir:    inv.cwd,
+			Layers: inv.layers,
+			RC:     inv.rc,
+		},
+		Flags: run.Flags{
+			ToolHome:       toolHome,
+			TrustDir:       trustDir,
+			DryRun:         dryRun,
+			Registry:       collectRegistry(cmd),
+			Proxy:          proxyInput(cmd),
+			Dind:           dindInput(cmd),
+			Volumes:        extraVolumes,
+			Secrets:        flagSecrets,
+			ReadOnlyMounts: flagReadOnlyMounts,
+			Env:            flagEnv,
+			Limits:         resolveResourceLimitFlags(cmd),
+			DindLimits:     resolveDindResourceLimitFlags(cmd),
+		},
 	}
-
-	return toolupdate.New(dockerClient).Check(toolHome, inv.rc, inv.toolName, inv.imageName, updater)
-}
-
-// resolveRunInput resolves the proxy, credentials and dind settings and collects the run flags.
-func resolveRunInput(cmd *cobra.Command, svc *run.Service, inv invocation) (run.Input, error) {
-	proxyMode, err := resolveProxyMode(cmd, inv.rc)
-	if err != nil {
-		return run.Input{}, err
-	}
-
-	// Credentials force the proxy on (see resolve.ProxyMode), so this is a no-op when it is off
-	creds, err := svc.ResolveCredentials(inv.layers, toolHome)
-	if err != nil {
-		return run.Input{}, err
-	}
-	if len(creds) > 0 && !dryRun {
-		logging.Infof("injecting credentials for %s", describeInjection(creds))
-	}
-
-	dindEnabled := resolveDindEnabled(cmd, inv.rc)
-	if dindEnabled {
-		if err := svc.RequireDockerLayer(inv.imageName, inv.toolName); err != nil {
-			return run.Input{}, err
-		}
-	}
-
-	return run.Input{
-		ToolHome:       toolHome,
-		Volumes:        extraVolumes,
-		Secrets:        flagSecrets,
-		ReadOnlyMounts: flagReadOnlyMounts,
-		Env:            flagEnv,
-		Limits:         resolveResourceLimitFlags(cmd),
-		DryRun:         dryRun,
-		Registry:       collectRegistry(cmd),
-		ProxyMode:      proxyMode,
-		DindEnabled:    dindEnabled,
-		DindLimits:     resolveDindResourceLimitFlags(cmd),
-		Credentials:    creds,
-	}, nil
 }
 
 func parseArgs(args []string, namespace string) (parsedArgs, error) {
@@ -237,85 +179,4 @@ func parseArgs(args []string, namespace string) (parsedArgs, error) {
 		toolArgs:       toolArgs,
 		skipEntrypoint: skipEntrypoint,
 	}, nil
-}
-
-// requireImage errors if the image doesn't exist locally, hinting at --namespace if the tool has images under other namespaces.
-func requireImage(image, tool string) error {
-	info, err := dockerClient.InspectImage(image)
-	if err != nil {
-		return err
-	}
-	if info != nil {
-		return nil
-	}
-
-	images, err := dockerClient.ListAllImages(docker.ToolFilter(tool))
-	if err != nil {
-		return err
-	}
-
-	var namespaces []string
-	for _, img := range images {
-		namespaces = append(namespaces, img.Namespace)
-	}
-
-	if len(namespaces) == 0 {
-		return fmt.Errorf("image %q not found; run \"agentic build %s\" to build it", image, tool)
-	}
-
-	noun := "namespace"
-	if len(namespaces) > 1 {
-		noun = "namespaces"
-	}
-	return fmt.Errorf("image %q not found; %q is available under %s %s - use --namespace or run \"agentic build %s\"",
-		image, tool, noun, strings.Join(namespaces, ", "), tool)
-}
-
-// ensureSidecarImages builds the images of the sidecars input enables when needed; a dry run builds nothing.
-func ensureSidecarImages(cmd *cobra.Command, input run.Input) error {
-	if input.DryRun {
-		return nil
-	}
-
-	if input.ProxyMode.Enabled() {
-		if err := ensureProxyImage(cmd); err != nil {
-			return err
-		}
-	}
-
-	if input.DindEnabled {
-		return ensureDindImage(cmd)
-	}
-
-	return nil
-}
-
-// ensureDindImage builds the sidecar image if missing, outdated or stale; a failed refresh only warns so offline runs work.
-func ensureDindImage(cmd *cobra.Command) error {
-	info, err := dockerClient.InspectImage(tools.DindImage)
-	if err != nil {
-		return err
-	}
-
-	reason := docker.ImageRefreshReason(info, tools.DindImageMaxAge)
-	if reason == "" {
-		return nil
-	}
-
-	logging.Infof("building %s (%s)...", tools.DindImage, reason)
-	err = dockerClient.BuildDindImage(tools.DindImage, tools.BuildOptions{Registry: collectRegistry(cmd)})
-	if err != nil && info != nil {
-		logging.Warnf("could not refresh %s, using the existing image: %v", tools.DindImage, err)
-		return nil
-	}
-	return err
-}
-
-// describeInjection lists each credential's hosts and secret source for the per-run notice; never the secret itself.
-func describeInjection(creds []credentials.Resolved) string {
-	parts := make([]string, 0, len(creds))
-	for _, cred := range creds {
-		parts = append(parts, fmt.Sprintf("%s (%s)", strings.Join(cred.Hosts(), ", "), cred.Source))
-	}
-	return strings.Join(parts, "; ")
 }

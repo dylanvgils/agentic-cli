@@ -32,7 +32,8 @@ agentic-cli/
 │       ├── build/               # Builds (or dry-run prints) tool images for `agentic build`
 │       ├── clean/               # Resolves and removes tool images and global Docker resources for `agentic clean`
 │       ├── resolve/             # Merges CLI flags, .agenticrc.toml, and agentic.json into the effective value of every setting agentic supports
-│       ├── run/                 # Builds docker.RunSpec for `agentic run` from resolved settings - marketplace sync, resource limits
+│       ├── run/                 # Prepares `agentic run`: image, update, trust and credential checks, sidecar images, then the docker.RunSpec
+│       ├── sidecar/             # Builds the proxy and DinD sidecar images and decides when they need a refresh
 │       ├── toolupdate/          # Checks for and applies upstream tool version updates on `agentic run`
 │       ├── update/              # Resolves and applies `agentic update` targets - build-option recovery, --pull throttling
 │       └── upgradecheck/        # Checks for and offers to apply a newer agentic CLI release, on any command's PersistentPreRunE
@@ -77,7 +78,7 @@ Each image stores its resolved versions and apt list as labels (`agentic.version
 
 ## Docker-in-Docker sidecar image
 
-`agentic run --dind` builds the global `agentic-dind` image lazily (`ensureDindImage`) from `tools.GenerateDindDockerfile` (see [Image](docker-in-docker.md#how-it-stays-isolated)). It always builds with `--pull` and is rebuilt when missing, built by another CLI version, or older than 7 days (`tools.DindImageMaxAge`). `agentic clean` removes it.
+`agentic run --dind` builds the global `agentic-dind` image lazily (`ensureDind` in `internal/usecase/sidecar`) from `tools.GenerateDindDockerfile` (see [Image](docker-in-docker.md#how-it-stays-isolated)). It always builds with `--pull` and is rebuilt when missing, built by another CLI version, or older than 7 days (`tools.DindImageMaxAge`). `agentic clean` removes it.
 
 The sidecar's seccomp profile is derived at run time (`deriveSeccompProfile`) from Docker's default profile, vendored verbatim in `internal/dind/seccomp_default.json`. To refresh it, re-copy `seccomp/default.json` from [moby/profiles](https://github.com/moby/profiles) and update the commit noted on `seccompDefault`; `Test_deriveSeccompProfile` checks the derived rules still hold.
 
@@ -87,7 +88,7 @@ Sidecars and their networks carry `agentic.owner` (the tool container name) and 
 
 ## Building the proxy image locally
 
-The global `agentic-proxy` image installs the `agentic-proxy` binary from `cmd/proxy`. `agentic build` never builds it; `ensureProxyImage` builds it on the first `--proxy` run.
+The global `agentic-proxy` image installs the `agentic-proxy` binary from `cmd/proxy`. `agentic build` never builds it; `ensureProxy` in `internal/usecase/sidecar` builds it on the first `--proxy` run.
 
 Released builds `go install` the published `cmd/proxy` module at their own version. Local builds default `VERSION` to `dev`, which makes the proxy Dockerfile compile from the local source tree instead - detected by walking up from `$PWD` looking for the module's `go.mod`, so run these from the repository root:
 

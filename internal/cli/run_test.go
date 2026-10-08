@@ -6,16 +6,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
-	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
-	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -184,8 +178,8 @@ func TestRunTool(t *testing.T) {
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
 		get := captureRunContainer(t)
-		stubToolUpdateIsTerminal(t, true)
-		stubToolUpdateStdin(t, "y\n")
+		stubIsTerminal(t, true)
+		stubStdin(t, "y\n")
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		stubDocker(t, &fakeDocker{})
 
@@ -203,8 +197,8 @@ func TestRunTool(t *testing.T) {
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
 		get := captureRunContainer(t)
-		stubToolUpdateIsTerminal(t, true)
-		stubToolUpdateStdin(t, "y\n")
+		stubIsTerminal(t, true)
+		stubStdin(t, "y\n")
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		stubDocker(t, &fakeDocker{
 			buildTool: func(_, _ string, _ tools.BuildOptions) error { return fmt.Errorf("build failed") },
@@ -217,132 +211,6 @@ func TestRunTool(t *testing.T) {
 		require.Error(t, err)
 		rs, _ := get()
 		assert.Empty(t, rs.Image, "RunContainer should not be called when the confirmed update fails")
-	})
-}
-
-func TestRequireImage(t *testing.T) {
-	t.Run("image exists returns nil", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude"}, nil)
-
-		// Act
-		err := requireImage("agentic-claude", "claude")
-
-		// Assert
-		require.NoError(t, err)
-	})
-
-	t.Run("inspect error propagates", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, fmt.Errorf("docker daemon not running"))
-
-		// Act
-		err := requireImage("agentic-claude", "claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "docker daemon not running")
-	})
-
-	t.Run("passes tool filter to list", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		var got []docker.ImageFilter
-		stubListAllImages(t, func(f ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			got = f
-			return nil, nil
-		})
-
-		// Act
-		_ = requireImage("agentic-claude", "claude")
-
-		// Assert
-		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, got)
-	})
-
-	t.Run("no alternatives suggests build", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) { return nil, nil })
-
-		// Act
-		err := requireImage("agentic-claude", "claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "agentic-claude")
-		assert.Contains(t, err.Error(), "agentic build claude")
-	})
-
-	t.Run("alternative namespace suggests --namespace", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{{Namespace: "myproject"}}, nil
-		})
-
-		// Act
-		err := requireImage("agentic-claude", "claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "agentic-claude")
-		assert.Contains(t, err.Error(), "myproject")
-		assert.Contains(t, err.Error(), "--namespace")
-	})
-
-	t.Run("multiple alternative namespaces lists all", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Namespace: "myproject"},
-				{Namespace: "work"},
-			}, nil
-		})
-
-		// Act
-		err := requireImage("agentic-claude", "claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "myproject")
-		assert.Contains(t, err.Error(), "work")
-		assert.Contains(t, err.Error(), "--namespace")
-	})
-
-	t.Run("single namespace uses singular noun", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{{Namespace: "myproject"}}, nil
-		})
-
-		// Act
-		err := requireImage("agentic-claude", "claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "namespace ")
-		assert.NotContains(t, err.Error(), "namespaces ")
-	})
-
-	t.Run("multiple namespaces uses plural noun", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Namespace: "myproject"},
-				{Namespace: "work"},
-			}, nil
-		})
-
-		// Act
-		err := requireImage("agentic-claude", "claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "namespaces ")
 	})
 }
 
@@ -397,174 +265,4 @@ func TestParseArgs(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "bogus")
 	})
-}
-
-func Test_ensureSidecarImages(t *testing.T) {
-	withTempToolHome(t)
-	cmd := &cobra.Command{Use: "test"}
-
-	t.Run("dry run builds nothing", func(t *testing.T) {
-		// Arrange
-		built := stubSidecarBuilds(t)
-		input := run.Input{DryRun: true, ProxyMode: docker.ProxyEnforce, DindEnabled: true}
-
-		// Act
-		err := ensureSidecarImages(cmd, input)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, built())
-	})
-
-	t.Run("proxy only builds the proxy image", func(t *testing.T) {
-		// Arrange
-		stubLogs(t)
-		built := stubSidecarBuilds(t)
-		input := run.Input{ProxyMode: docker.ProxyEnforce}
-
-		// Act
-		err := ensureSidecarImages(cmd, input)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{tools.ProxyImage}, built())
-	})
-
-	t.Run("dind only builds the dind image", func(t *testing.T) {
-		// Arrange
-		stubLogs(t)
-		built := stubSidecarBuilds(t)
-		input := run.Input{DindEnabled: true}
-
-		// Act
-		err := ensureSidecarImages(cmd, input)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{tools.DindImage}, built())
-	})
-
-	t.Run("both enabled builds both images", func(t *testing.T) {
-		// Arrange
-		stubLogs(t)
-		built := stubSidecarBuilds(t)
-		input := run.Input{ProxyMode: docker.ProxyEnforce, DindEnabled: true}
-
-		// Act
-		err := ensureSidecarImages(cmd, input)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{tools.ProxyImage, tools.DindImage}, built())
-	})
-}
-
-func Test_ensureDindImage(t *testing.T) {
-	withTempToolHome(t)
-	cmd := &cobra.Command{Use: "test"}
-	fresh := formatTestLabelTime(time.Now())
-
-	t.Run("current image is reused", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{CLIVersion: buildinfo.Version, Built: fresh}, nil)
-		built := false
-		stubBuildDindImage(t, func(string, tools.BuildOptions) error {
-			built = true
-			return nil
-		})
-
-		// Act
-		err := ensureDindImage(cmd)
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, built)
-	})
-
-	t.Run("missing image is built", func(t *testing.T) {
-		// Arrange
-		logBuf := stubErrLog(t)
-		stubInspectImage(t, nil, nil)
-		var builtImage string
-		stubBuildDindImage(t, func(image string, _ tools.BuildOptions) error {
-			builtImage = image
-			return nil
-		})
-
-		// Act
-		err := ensureDindImage(cmd)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, tools.DindImage, builtImage)
-		assert.Contains(t, logBuf.String(), "agentic: building agentic-dind (image missing)...")
-	})
-
-	t.Run("stale image is rebuilt to pick up base patches", func(t *testing.T) {
-		// Arrange
-		stale := formatTestLabelTime(time.Now().Add(-tools.DindImageMaxAge - time.Hour))
-		logBuf := stubErrLog(t)
-		stubInspectImage(t, &docker.ImageInfo{CLIVersion: buildinfo.Version, Built: stale}, nil)
-		built := false
-		stubBuildDindImage(t, func(string, tools.BuildOptions) error {
-			built = true
-			return nil
-		})
-
-		// Act
-		err := ensureDindImage(cmd)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, built)
-		assert.Contains(t, logBuf.String(), "agentic: building agentic-dind (older than 7 days)...")
-	})
-
-	t.Run("failed refresh of an existing image only warns", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{CLIVersion: "older", Built: fresh}, nil)
-		stubBuildDindImage(t, func(string, tools.BuildOptions) error { return fmt.Errorf("offline") })
-
-		// Act
-		err := ensureDindImage(cmd)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("failed build of a missing image errors", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		stubBuildDindImage(t, func(string, tools.BuildOptions) error { return fmt.Errorf("offline") })
-
-		// Act
-		err := ensureDindImage(cmd)
-
-		// Assert
-		assert.ErrorContains(t, err, "offline")
-	})
-}
-
-func Test_describeInjection(t *testing.T) {
-	// Arrange
-	creds := []credentials.Resolved{
-		{
-			Proxy: []proxy.Credential{
-				{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}},
-				{Hosts: []string{"git.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Basic test-secret"}}},
-			},
-			Source: "/home/user/.secrets/example",
-		},
-		{
-			Proxy:  []proxy.Credential{{Hosts: []string{"other.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Bearer test-secret"}}}},
-			Source: "/home/user/.secrets/other",
-		},
-	}
-
-	// Act
-	desc := describeInjection(creds)
-
-	// Assert
-	assert.Equal(t, "api.example.test, git.example.test (/home/user/.secrets/example); other.example.test (/home/user/.secrets/other)", desc)
-	assert.NotContains(t, desc, "test-secret")
 }

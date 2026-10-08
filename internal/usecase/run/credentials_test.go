@@ -10,17 +10,18 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestResolveCredentials(t *testing.T) {
+func Test_resolveCredentials(t *testing.T) {
 	t.Run("no credentials resolves nothing", func(t *testing.T) {
 		// Arrange
 		layers := []config.RCLayer{{Path: "/example/.agenticrc.toml", RC: &config.AgenticRC{}}}
 
 		// Act
-		resolved, err := New(&fakeDocker{}).ResolveCredentials(layers, t.TempDir())
+		resolved, err := resolveCredentials(layers, t.TempDir())
 
 		// Assert
 		require.NoError(t, err)
@@ -32,7 +33,7 @@ func TestResolveCredentials(t *testing.T) {
 		layer := credentialLayer(t, "/missing/secret")
 
 		// Act
-		_, err := New(&fakeDocker{}).ResolveCredentials([]config.RCLayer{layer}, t.TempDir())
+		_, err := resolveCredentials([]config.RCLayer{layer}, t.TempDir())
 
 		// Assert
 		assert.ErrorContains(t, err, "not approved")
@@ -47,7 +48,7 @@ func TestResolveCredentials(t *testing.T) {
 		approveCredentials(t, layer, toolHome)
 
 		// Act
-		resolved, err := New(&fakeDocker{}).ResolveCredentials([]config.RCLayer{layer}, toolHome)
+		resolved, err := resolveCredentials([]config.RCLayer{layer}, toolHome)
 
 		// Assert
 		require.NoError(t, err)
@@ -297,7 +298,7 @@ func Test_checkProxyTrust(t *testing.T) {
 
 	t.Run("a skipped entrypoint warns without inspecting the image", func(t *testing.T) {
 		// Arrange
-		stderr := stubLoggingErr(t)
+		stderr := stubErrLog(t)
 		inspected := false
 		d := &fakeDocker{
 			inspectImage: func(string) (*docker.ImageInfo, error) {
@@ -315,4 +316,28 @@ func Test_checkProxyTrust(t *testing.T) {
 		assert.Contains(t, stderr.String(), "proxy CA is not trusted")
 		assert.False(t, inspected)
 	})
+}
+
+func Test_describeInjection(t *testing.T) {
+	// Arrange
+	creds := []credentials.Resolved{
+		{
+			Proxy: []proxy.Credential{
+				{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}},
+				{Hosts: []string{"git.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Basic test-secret"}}},
+			},
+			Source: "/home/user/.secrets/example",
+		},
+		{
+			Proxy:  []proxy.Credential{{Hosts: []string{"other.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Bearer test-secret"}}}},
+			Source: "/home/user/.secrets/other",
+		},
+	}
+
+	// Act
+	desc := describeInjection(creds)
+
+	// Assert
+	assert.Equal(t, "api.example.test, git.example.test (/home/user/.secrets/example); other.example.test (/home/user/.secrets/other)", desc)
+	assert.NotContains(t, desc, "test-secret")
 }

@@ -353,11 +353,7 @@ func TestRunUpdate(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, updateCmd.Flags().Set("base-exact", ""))
-		t.Cleanup(func() {
-			updateCmd.Flags().Set("base-exact", "") //nolint:errcheck
-			updateCmd.Flags().Lookup("base-exact").Changed = false
-		})
+		stubFlag(t, updateCmd, "base-exact", "")
 
 		// Act
 		err := runUpdate(updateCmd, []string{"claude"})
@@ -384,11 +380,7 @@ func TestRunUpdate(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, updateCmd.Flags().Set("apt-exact", ""))
-		t.Cleanup(func() {
-			updateCmd.Flags().Set("apt-exact", "") //nolint:errcheck
-			updateCmd.Flags().Lookup("apt-exact").Changed = false
-		})
+		stubFlag(t, updateCmd, "apt-exact", "")
 
 		// Act
 		err := runUpdate(updateCmd, []string{"claude"})
@@ -421,13 +413,8 @@ func TestRunUpdate(t *testing.T) {
 		stubPruneBuildCache(t, func() error { return nil })
 
 		cmd := updateCmd
-		require.NoError(t, cmd.Flags().Set("all", "true"))
-		require.NoError(t, cmd.Flags().Set("base", "java"))
-		t.Cleanup(func() {
-			cmd.Flags().Set("all", "false") //nolint:errcheck
-			cmd.Flags().Set("base", "")     //nolint:errcheck
-			cmd.Flags().Lookup("base").Changed = false
-		})
+		stubFlag(t, cmd, "all", "true")
+		stubFlag(t, cmd, "base", "java")
 
 		// Act
 		err := runUpdate(cmd, []string{})

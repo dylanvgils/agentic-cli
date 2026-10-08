@@ -9,6 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -339,17 +340,15 @@ func TestPrepareInstructions(t *testing.T) {
 }
 
 func TestPreviewInstructions(t *testing.T) {
-	target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-
 	t.Run("merges the persisted host file's content into the preview", func(t *testing.T) {
 		// Arrange
-		toolHome := t.TempDir()
-		require.NoError(t, tools.Configs["claude"].Runtime.Setup(toolHome))
-		hostPath := tools.Configs["claude"].Runtime.InstructionsHostPath(toolHome)
+		req := newPrepareRequest(t)
+		require.NoError(t, req.Tool.Runtime.Setup(req.Flags.ToolHome))
+		hostPath := req.Tool.Runtime.InstructionsHostPath(req.Flags.ToolHome)
 		require.NoError(t, os.WriteFile(hostPath, []byte("my own global notes\n"), 0o640))
 
 		// Act
-		content, err := New(&fakeDocker{}).PreviewInstructions(target, Input{ToolHome: toolHome}, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}).PreviewInstructions(req)
 
 		// Assert
 		require.NoError(t, err)
@@ -359,10 +358,10 @@ func TestPreviewInstructions(t *testing.T) {
 
 	t.Run("host file that does not exist yet is not an error", func(t *testing.T) {
 		// Arrange
-		toolHome := t.TempDir()
+		req := newPrepareRequest(t)
 
 		// Act
-		content, err := New(&fakeDocker{}).PreviewInstructions(target, Input{ToolHome: toolHome}, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}).PreviewInstructions(req)
 
 		// Assert
 		require.NoError(t, err)
@@ -371,15 +370,42 @@ func TestPreviewInstructions(t *testing.T) {
 
 	t.Run("disabled via config returns empty string without reading the host file", func(t *testing.T) {
 		// Arrange
+		req := newPrepareRequest(t)
 		disabled := false
-		rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Enabled: &disabled}}}
+		req.Project.RC.Run.Instructions.Enabled = &disabled
 
 		// Act
-		content, err := New(&fakeDocker{}).PreviewInstructions(target, Input{}, tools.Configs["claude"], rc)
+		content, err := New(&fakeDocker{}).PreviewInstructions(req)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, content)
+	})
+
+	t.Run("proxy flags are resolved like a run", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Flags.Proxy = resolve.ProxyInput{ProxyFlag: true}
+
+		// Act
+		content, err := New(&fakeDocker{}).PreviewInstructions(req)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, content, "## Network")
+	})
+
+	t.Run("a proxy conflict errors like a run", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Project.RC.Run.Proxy.Credentials = credentialLayer(t, "/example.test/key").RC.Run.Proxy.Credentials
+		req.Flags.Proxy = resolve.ProxyInput{NoProxy: true}
+
+		// Act
+		_, err := New(&fakeDocker{}).PreviewInstructions(req)
+
+		// Assert
+		require.ErrorContains(t, err, "--no-proxy cannot be used")
 	})
 }
 

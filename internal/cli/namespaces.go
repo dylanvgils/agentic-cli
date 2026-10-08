@@ -1,12 +1,8 @@
 package cli
 
 import (
-	"bufio"
 	"fmt"
-	"io"
-	"os"
 	"slices"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -14,8 +10,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
-
-var namespacesStdin io.Reader = os.Stdin
 
 var namespacesCmd = &cobra.Command{
 	Use:     "namespaces",
@@ -59,9 +53,7 @@ func runNamespacesPrune(cmd *cobra.Command, _ []string) error {
 	namespace := resolveNamespace(cmd, rc)
 
 	logging.Promptf("remove all images in namespace %q? [y/N] ", namespace)
-	scanner := bufio.NewScanner(namespacesStdin)
-	scanner.Scan()
-	if answer := strings.TrimSpace(scanner.Text()); answer != "y" && answer != "Y" {
+	if !confirmed() {
 		return nil
 	}
 

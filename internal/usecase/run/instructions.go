@@ -80,9 +80,14 @@ func (s *Service) BuildInstructions(target Target, in Input, toolConfig tools.To
 	return b.String(), nil
 }
 
-// PreviewInstructions returns the effective content a run would write, without touching any files.
-func (s *Service) PreviewInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (string, error) {
-	content, err := s.BuildInstructions(target, in, toolConfig, rc)
+// PreviewInstructions returns the effective content a run of req would write, without prompting or touching any files.
+func (s *Service) PreviewInstructions(req Request) (string, error) {
+	in, err := resolveInput(req.Flags, req.Project.RC)
+	if err != nil {
+		return "", err
+	}
+
+	content, err := s.BuildInstructions(req.Target, in, req.Tool, req.Project.RC)
 	if err != nil {
 		return "", err
 	}
@@ -90,7 +95,7 @@ func (s *Service) PreviewInstructions(target Target, in Input, toolConfig tools.
 		return "", nil
 	}
 
-	hostPath := toolConfig.Runtime.InstructionsHostPath(in.ToolHome)
+	hostPath := req.Tool.Runtime.InstructionsHostPath(in.ToolHome)
 
 	return tools.MergedInstructions(hostPath, content)
 }

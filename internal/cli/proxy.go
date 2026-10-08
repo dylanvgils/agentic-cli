@@ -6,10 +6,10 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/spf13/cobra"
 )
 
@@ -76,7 +76,7 @@ func runProxyBuildOrUpdate(cmd *cobra.Command, noCache bool) error {
 	}
 
 	logging.Infof("building %s", tools.ProxyImage)
-	if err := buildProxyImageNow(opts); err != nil {
+	if err := sidecar.New(dockerClient).BuildProxy(opts); err != nil {
 		return err
 	}
 
@@ -103,32 +103,11 @@ func cleanProxyImage() error {
 	return dockerClient.CleanImage(tools.ProxyImage)
 }
 
-// resolveProxyMode reads the proxy-related flags and resolves them against rc into the effective proxy mode.
-func resolveProxyMode(cmd *cobra.Command, rc *config.AgenticRC) (docker.ProxyMode, error) {
+// proxyInput reads the proxy-related flags.
+func proxyInput(cmd *cobra.Command) resolve.ProxyInput {
 	noProxy, _ := cmd.Flags().GetBool("no-proxy")
 	monitorFlag, _ := cmd.Flags().GetBool("proxy-monitor")
 	proxyFlag, _ := cmd.Flags().GetBool("proxy")
 
-	return resolve.ProxyMode(resolve.ProxyInput{NoProxy: noProxy, MonitorFlag: monitorFlag, ProxyFlag: proxyFlag}, rc)
-}
-
-// ensureProxyImage builds the proxy image if missing or stamped with a different CLI version, so `--proxy` picks up proxy changes shipped with a CLI update.
-func ensureProxyImage(cmd *cobra.Command) error {
-	info, err := dockerClient.InspectImage(tools.ProxyImage)
-	if err != nil {
-		return err
-	}
-
-	reason := docker.ImageRefreshReason(info, 0)
-	if reason == "" {
-		return nil
-	}
-
-	logging.Infof("building %s (%s)...", tools.ProxyImage, reason)
-	return buildProxyImageNow(tools.BuildOptions{Registry: collectRegistry(cmd)})
-}
-
-// buildProxyImageNow builds the proxy image unconditionally; the caller decides whether to check for an existing image first.
-func buildProxyImageNow(opts tools.BuildOptions) error {
-	return dockerClient.BuildProxyImage(tools.ProxyImage, buildinfo.Version, buildinfo.DevSourceDir(tools.ProxyModulePath), opts)
+	return resolve.ProxyInput{NoProxy: noProxy, MonitorFlag: monitorFlag, ProxyFlag: proxyFlag}
 }

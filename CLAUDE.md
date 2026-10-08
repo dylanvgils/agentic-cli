@@ -40,7 +40,7 @@ Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-sp
 
 ### Extracting a package out of `internal/cli`
 
-`internal/cli` stays a thin presentation layer: a command's `RunE` parses flags, calls into one or more domain packages, and prints/returns the result. Move logic into its own package under `internal/usecase/` (named for what it does, e.g. `build`, `clean`, `resolve`, `run`, `toolupdate`, `update`, `upgradecheck`) only when it is independent of `*cobra.Command` and makes multi-step decisions gluing together more than one domain package - not just a single delegating call. A command that's a single delegating call, or mostly presentation formatting over one domain package (`inspect.go`, `config.go`, `marketplaces.go`, `namespaces.go`, `status.go`, `trust.go`, `volumes.go`, etc.), doesn't need this - don't create a package-per-command mapping mechanically.
+`internal/cli` stays a thin presentation layer: a command's `RunE` parses flags, calls into one or more domain packages, and prints/returns the result. Move logic into its own package under `internal/usecase/` (named for what it does, e.g. `build`, `clean`, `resolve`, `run`, `sidecar`, `toolupdate`, `update`, `upgradecheck`) only when it is independent of `*cobra.Command` and makes multi-step decisions gluing together more than one domain package - not just a single delegating call. A command that's a single delegating call, or mostly presentation formatting over one domain package (`inspect.go`, `config.go`, `marketplaces.go`, `namespaces.go`, `prompt.go`, `status.go`, `volumes.go`, etc.), doesn't need this - don't create a package-per-command mapping mechanically.
 
 ### Docker access
 
@@ -50,6 +50,7 @@ Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-sp
 - Each usecase that calls Docker declares a small `Docker` interface of only the methods it uses, in its `deps.go`, with a compile-time check `var _ Docker = (*docker.Client)(nil)` in `deps_test.go`.
 - A usecase holds it in `type Service struct{ docker Docker }`, built with `New(d Docker) *Service`. Every exported entry point is a `Service` method; an unexported helper is a method only if it calls Docker. Callers name the instance `svc`.
 - Non-Docker seams (marketplace sync, stdin, TTY checks) stay package-level vars in `deps.go`.
+- A usecase that needs the user to approve something takes a small interface or func the cli implements (e.g. `run.Prompter`, `toolupdate.Confirm`); it never reads stdin itself.
 - Tests use a hand-written `fakeDocker` in `helpers_test.go` with one func field per method; a nil field succeeds with a zero value. In `internal/cli`, `stubDocker(t, &fakeDocker{...})` overlays fields on the test's fake until the test ends.
 
 ### Adding a new runtime layer
