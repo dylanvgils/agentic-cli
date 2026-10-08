@@ -7,10 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
-	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -216,132 +214,6 @@ func TestRunTool(t *testing.T) {
 	})
 }
 
-func TestRequireImage(t *testing.T) {
-	t.Run("image exists returns nil", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude"}, nil)
-
-		// Act
-		err := requireImage("agentic-claude", "claude")
-
-		// Assert
-		require.NoError(t, err)
-	})
-
-	t.Run("inspect error propagates", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, fmt.Errorf("docker daemon not running"))
-
-		// Act
-		err := requireImage("agentic-claude", "claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "docker daemon not running")
-	})
-
-	t.Run("passes tool filter to list", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		var got []docker.ImageFilter
-		stubListAllImages(t, func(f ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			got = f
-			return nil, nil
-		})
-
-		// Act
-		_ = requireImage("agentic-claude", "claude")
-
-		// Assert
-		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, got)
-	})
-
-	t.Run("no alternatives suggests build", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) { return nil, nil })
-
-		// Act
-		err := requireImage("agentic-claude", "claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "agentic-claude")
-		assert.Contains(t, err.Error(), "agentic build claude")
-	})
-
-	t.Run("alternative namespace suggests --namespace", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{{Namespace: "myproject"}}, nil
-		})
-
-		// Act
-		err := requireImage("agentic-claude", "claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "agentic-claude")
-		assert.Contains(t, err.Error(), "myproject")
-		assert.Contains(t, err.Error(), "--namespace")
-	})
-
-	t.Run("multiple alternative namespaces lists all", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Namespace: "myproject"},
-				{Namespace: "work"},
-			}, nil
-		})
-
-		// Act
-		err := requireImage("agentic-claude", "claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "myproject")
-		assert.Contains(t, err.Error(), "work")
-		assert.Contains(t, err.Error(), "--namespace")
-	})
-
-	t.Run("single namespace uses singular noun", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{{Namespace: "myproject"}}, nil
-		})
-
-		// Act
-		err := requireImage("agentic-claude", "claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "namespace ")
-		assert.NotContains(t, err.Error(), "namespaces ")
-	})
-
-	t.Run("multiple namespaces uses plural noun", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Namespace: "myproject"},
-				{Namespace: "work"},
-			}, nil
-		})
-
-		// Act
-		err := requireImage("agentic-claude", "claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "namespaces ")
-	})
-}
-
 func TestParseArgs(t *testing.T) {
 	t.Run("tool name and image name", func(t *testing.T) {
 		// Act
@@ -393,28 +265,4 @@ func TestParseArgs(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "bogus")
 	})
-}
-
-func Test_describeInjection(t *testing.T) {
-	// Arrange
-	creds := []credentials.Resolved{
-		{
-			Proxy: []proxy.Credential{
-				{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}},
-				{Hosts: []string{"git.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Basic test-secret"}}},
-			},
-			Source: "/home/user/.secrets/example",
-		},
-		{
-			Proxy:  []proxy.Credential{{Hosts: []string{"other.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Bearer test-secret"}}}},
-			Source: "/home/user/.secrets/other",
-		},
-	}
-
-	// Act
-	desc := describeInjection(creds)
-
-	// Assert
-	assert.Equal(t, "api.example.test, git.example.test (/home/user/.secrets/example); other.example.test (/home/user/.secrets/other)", desc)
-	assert.NotContains(t, desc, "test-secret")
 }

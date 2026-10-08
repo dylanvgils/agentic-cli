@@ -6,8 +6,8 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 )
 
-// CheckTrust errors unless dir is trusted, trusting it first when trustFlag is set or p approves.
-func (s *Service) CheckTrust(dir, toolHome string, trustFlag bool, p Prompter) error {
+// checkTrust errors unless dir is trusted, trusting it first when trustFlag is set or prompter approves.
+func (s *Service) checkTrust(dir, toolHome string, trustFlag bool, prompter Prompter) error {
 	cfg, err := config.LoadConfig(toolHome)
 	if err != nil {
 		return fmt.Errorf("load trust config: %w", err)
@@ -18,7 +18,7 @@ func (s *Service) CheckTrust(dir, toolHome string, trustFlag bool, p Prompter) e
 	}
 
 	if !trustFlag {
-		if err := p.TrustDir(dir); err != nil {
+		if err := prompter.TrustDir(dir); err != nil {
 			return err
 		}
 	}
@@ -26,15 +26,15 @@ func (s *Service) CheckTrust(dir, toolHome string, trustFlag bool, p Prompter) e
 	return cfg.Trust(dir, toolHome)
 }
 
-// CheckCredentials has p approve each layer's proxy credentials when they first appear and whenever they change, since an agent can edit a config file in the workspace.
-func (s *Service) CheckCredentials(layers []config.RCLayer, toolHome string, p Prompter) error {
+// checkCredentials has prompter approve each layer's proxy credentials when they first appear and whenever they change, since an agent can edit a config file in the workspace.
+func (s *Service) checkCredentials(layers []config.RCLayer, toolHome string, prompter Prompter) error {
 	cfg, err := config.LoadConfig(toolHome)
 	if err != nil {
 		return fmt.Errorf("load trust config: %w", err)
 	}
 
 	for _, layer := range cfg.PendingCredentials(layers) {
-		if err := p.ApproveCredentials(layer); err != nil {
+		if err := prompter.ApproveCredentials(layer); err != nil {
 			return err
 		}
 

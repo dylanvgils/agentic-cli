@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCheckTrust(t *testing.T) {
+func Test_checkTrust(t *testing.T) {
 	svc := New(&fakeDocker{})
 
 	t.Run("already trusted skips prompt", func(t *testing.T) {
@@ -21,7 +21,7 @@ func TestCheckTrust(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		err := svc.CheckTrust(dir, toolHome, false, p)
+		err := svc.checkTrust(dir, toolHome, false, p)
 
 		// Assert
 		require.NoError(t, err)
@@ -35,7 +35,7 @@ func TestCheckTrust(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		err := svc.CheckTrust(dir, toolHome, true, p)
+		err := svc.checkTrust(dir, toolHome, true, p)
 
 		// Assert
 		require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestCheckTrust(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		err := svc.CheckTrust(dir, toolHome, false, p)
+		err := svc.checkTrust(dir, toolHome, false, p)
 
 		// Assert
 		require.NoError(t, err)
@@ -69,7 +69,7 @@ func TestCheckTrust(t *testing.T) {
 		p := &fakePrompter{trustDir: func(string) error { return errors.New("directory not trusted") }}
 
 		// Act
-		err := svc.CheckTrust(dir, toolHome, false, p)
+		err := svc.checkTrust(dir, toolHome, false, p)
 
 		// Assert
 		require.EqualError(t, err, "directory not trusted")
@@ -79,7 +79,7 @@ func TestCheckTrust(t *testing.T) {
 	})
 }
 
-func TestCheckCredentials(t *testing.T) {
+func Test_checkCredentials(t *testing.T) {
 	svc := New(&fakeDocker{})
 
 	t.Run("layer without credentials skips prompt", func(t *testing.T) {
@@ -89,7 +89,7 @@ func TestCheckCredentials(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		err := svc.CheckCredentials(layers, toolHome, p)
+		err := svc.checkCredentials(layers, toolHome, p)
 
 		// Assert
 		require.NoError(t, err)
@@ -103,7 +103,7 @@ func TestCheckCredentials(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		err := svc.CheckCredentials([]config.RCLayer{layer}, toolHome, p)
+		err := svc.checkCredentials([]config.RCLayer{layer}, toolHome, p)
 
 		// Assert
 		require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestCheckCredentials(t *testing.T) {
 		p := &fakePrompter{approveCredentials: func(config.RCLayer) error { return errors.New("not approved") }}
 
 		// Act
-		err := svc.CheckCredentials([]config.RCLayer{layer}, toolHome, p)
+		err := svc.checkCredentials([]config.RCLayer{layer}, toolHome, p)
 
 		// Assert
 		require.EqualError(t, err, "not approved")
@@ -137,7 +137,7 @@ func TestCheckCredentials(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		err := svc.CheckCredentials([]config.RCLayer{layer}, toolHome, p)
+		err := svc.checkCredentials([]config.RCLayer{layer}, toolHome, p)
 
 		// Assert
 		require.NoError(t, err)
@@ -153,7 +153,7 @@ func TestCheckCredentials(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		err := svc.CheckCredentials([]config.RCLayer{layer}, toolHome, p)
+		err := svc.checkCredentials([]config.RCLayer{layer}, toolHome, p)
 
 		// Assert
 		require.NoError(t, err)

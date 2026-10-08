@@ -436,7 +436,7 @@ func TestBuild(t *testing.T) {
 	})
 }
 
-func TestBuildWithInstructions(t *testing.T) {
+func Test_buildWithInstructions(t *testing.T) {
 	d := &fakeDocker{}
 
 	// BuildInstructions' own content rules (sections, formatting) are covered by
@@ -452,7 +452,7 @@ func TestBuildWithInstructions(t *testing.T) {
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(in.ToolHome))
 
 		// Act
-		rs, cleanup, err := New(d).BuildWithInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+		rs, cleanup, err := New(d).buildWithInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -468,7 +468,7 @@ func TestBuildWithInstructions(t *testing.T) {
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 		in := Input{ToolHome: t.TempDir()}
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(in.ToolHome))
-		rs, cleanup, err := New(d).BuildWithInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+		rs, cleanup, err := New(d).buildWithInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
 		require.NoError(t, err)
 		instructionsVolume := findVolumeSuffix(t, rs.Volumes, ":$CONTAINER_HOME/.claude/CLAUDE.md")
 		snapshotPath := mount.HostPart(instructionsVolume)
@@ -490,7 +490,7 @@ func TestBuildWithInstructions(t *testing.T) {
 		require.NoError(t, err)
 
 		// Act
-		_, cleanup, err := New(d).BuildWithInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+		_, cleanup, err := New(d).buildWithInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.Error(t, err)

@@ -94,8 +94,8 @@ func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc
 	return newRunSpec(req, volumes, secrets, env, logDir), nil
 }
 
-// BuildWithInstructions wraps Build with this run's instructions snapshot mounted in; the returned cleanup func must always be deferred, even on error.
-func (s *Service) BuildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, func(), error) {
+// buildWithInstructions wraps Build with this run's instructions snapshot mounted in; the returned cleanup func must always be deferred, even on error.
+func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, func(), error) {
 	content, err := s.BuildInstructions(target, in, toolConfig, rc)
 	if err != nil {
 		return docker.RunSpec{}, func() {}, fmt.Errorf("build instructions for %s: %w", target.ToolName, err)

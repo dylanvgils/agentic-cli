@@ -14,8 +14,8 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
-// ResolveCredentials reads the secrets of every credential the layers declare, refusing to run while any layer's entries are unapproved.
-func (s *Service) ResolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials.Resolved, error) {
+// resolveCredentials reads the secrets of every credential the layers declare, refusing to run while any layer's entries are unapproved.
+func (s *Service) resolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials.Resolved, error) {
 	rc, err := config.Merge(layers)
 	if err != nil {
 		return nil, err
@@ -24,7 +24,7 @@ func (s *Service) ResolveCredentials(layers []config.RCLayer, toolHome string) (
 		return nil, nil
 	}
 
-	// Checked here too, so no entrypoint can read a secret the user hasn't approved
+	// Checked here too, so no caller can read a secret the user hasn't approved
 	cfg, err := config.LoadConfig(toolHome)
 	if err != nil {
 		return nil, fmt.Errorf("load credential approvals: %w", err)
@@ -128,4 +128,13 @@ func envKey(entry string) string {
 // isProxyTrustEnvName reports whether name carries the proxy CA or is pointed at its bundle by the tool's entrypoint.
 func isProxyTrustEnvName(name string) bool {
 	return name == tools.ProxyCAEnvName || slices.Contains(tools.ProxyTrustEnvNames, name)
+}
+
+// describeInjection lists each credential's hosts and secret source for the per-run notice; never the secret itself.
+func describeInjection(creds []credentials.Resolved) string {
+	parts := make([]string, 0, len(creds))
+	for _, cred := range creds {
+		parts = append(parts, fmt.Sprintf("%s (%s)", strings.Join(cred.Hosts(), ", "), cred.Source))
+	}
+	return strings.Join(parts, "; ")
 }

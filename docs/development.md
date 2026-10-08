@@ -32,7 +32,7 @@ agentic-cli/
 │       ├── build/               # Builds (or dry-run prints) tool images for `agentic build`
 │       ├── clean/               # Resolves and removes tool images and global Docker resources for `agentic clean`
 │       ├── resolve/             # Merges CLI flags, .agenticrc.toml, and agentic.json into the effective value of every setting agentic supports
-│       ├── run/                 # Builds docker.RunSpec for `agentic run` from resolved settings - marketplace sync, resource limits
+│       ├── run/                 # Prepares `agentic run`: image, update, trust and credential checks, sidecar images, then the docker.RunSpec
 │       ├── sidecar/             # Builds the proxy and DinD sidecar images and decides when they need a refresh
 │       ├── toolupdate/          # Checks for and applies upstream tool version updates on `agentic run`
 │       ├── update/              # Resolves and applies `agentic update` targets - build-option recovery, --pull throttling

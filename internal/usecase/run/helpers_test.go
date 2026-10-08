@@ -11,6 +11,8 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,6 +22,9 @@ type fakeDocker struct {
 	resolveContainerHome func(string) string
 	ensureNamedVolumes   func(volumes []string, toolHome, containerHome, chownImage string) error
 	ensureNetwork        func() error
+	listAllImages        func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
+	buildProxyImage      func(image, version, sourceDir string, opts tools.BuildOptions) error
+	buildDindImage       func(image string, opts tools.BuildOptions) error
 }
 
 func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
@@ -50,13 +55,36 @@ func (f *fakeDocker) EnsureNetwork() error {
 	return f.ensureNetwork()
 }
 
-// fakePrompter implements Prompter, recording what it was asked; a nil field approves.
+func (f *fakeDocker) ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+	if f.listAllImages == nil {
+		return nil, nil
+	}
+	return f.listAllImages(filters...)
+}
+
+func (f *fakeDocker) BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) error {
+	if f.buildProxyImage == nil {
+		return nil
+	}
+	return f.buildProxyImage(image, version, sourceDir, opts)
+}
+
+func (f *fakeDocker) BuildDindImage(image string, opts tools.BuildOptions) error {
+	if f.buildDindImage == nil {
+		return nil
+	}
+	return f.buildDindImage(image, opts)
+}
+
+// fakePrompter implements Prompter, recording what it was asked; a nil field approves, except tool updates, which it declines.
 type fakePrompter struct {
 	trustDir           func(string) error
 	approveCredentials func(config.RCLayer) error
+	offerToolUpdate    func(tool, installed, latest string) bool
 
 	trustAsked       []string
 	credentialsAsked []string
+	updatesOffered   []string
 }
 
 func (f *fakePrompter) TrustDir(dir string) error {
@@ -73,6 +101,14 @@ func (f *fakePrompter) ApproveCredentials(layer config.RCLayer) error {
 		return nil
 	}
 	return f.approveCredentials(layer)
+}
+
+func (f *fakePrompter) OfferToolUpdate(tool, installed, latest string) bool {
+	f.updatesOffered = append(f.updatesOffered, tool)
+	if f.offerToolUpdate == nil {
+		return false
+	}
+	return f.offerToolUpdate(tool, installed, latest)
 }
 
 // findVolumeSuffix returns the one volume spec ending with suffix, failing the test if there isn't exactly one match.
@@ -146,4 +182,28 @@ func stubLoggingErr(t *testing.T) *bytes.Buffer {
 	logging.Err = logging.New(&buf)
 	t.Cleanup(func() { logging.Err = orig })
 	return &buf
+}
+
+// newPrepareRequest returns a Request for claude in a fresh home and cwd, with the tool update check disabled.
+func newPrepareRequest(t *testing.T) Request {
+	t.Helper()
+	checkUpdates := false
+	rc := &config.AgenticRC{}
+	rc.Run.CheckUpdates = &checkUpdates
+
+	return Request{
+		Target:     Target{ToolName: "claude", ImageName: "agentic-claude"},
+		ToolConfig: tools.Configs["claude"],
+		Cwd:        t.TempDir(),
+		RC:         rc,
+		Input:      Input{ToolHome: t.TempDir()},
+	}
+}
+
+// stubLatestToolVersion makes the tool update check see latest as newer for the duration of the test.
+func stubLatestToolVersion(t *testing.T, latest string) {
+	t.Helper()
+	orig := toolupdate.LatestToolVersion
+	toolupdate.LatestToolVersion = func(string, string) (string, bool, bool) { return latest, true, true }
+	t.Cleanup(func() { toolupdate.LatestToolVersion = orig })
 }

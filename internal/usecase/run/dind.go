@@ -7,8 +7,8 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 )
 
-// RequireDockerLayer errors if image lacks the docker layer that --dind needs.
-func (s *Service) RequireDockerLayer(image, tool string) error {
+// requireDockerLayer errors if image lacks the docker layer that --dind needs.
+func (s *Service) requireDockerLayer(image, tool string) error {
 	info, err := s.docker.InspectImage(image)
 	if err != nil {
 		return err
