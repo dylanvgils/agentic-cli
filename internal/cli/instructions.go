@@ -50,13 +50,7 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 		Target:  run.Target{ToolName: toolName, ImageName: imageName},
 		Tool:    tools.Configs[toolName],
 		Project: run.Project{RC: rc},
-		Flags: run.Flags{
-			ToolHome:   toolHome,
-			Proxy:      proxyInput(cmd),
-			Dind:       dindInput(cmd),
-			Limits:     resolveResourceLimitFlags(cmd),
-			DindLimits: resolveDindResourceLimitFlags(cmd),
-		},
+		Flags:   runtimeFlags(cmd),
 	}
 
 	content, err := run.New(dockerClient).PreviewInstructions(req)

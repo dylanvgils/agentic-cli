@@ -34,15 +34,7 @@ var namespacesFunc = func(_ *cobra.Command, _ []string, _ string) ([]string, cob
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	seen := make(map[string]bool)
-	var names []string
-	for _, image := range images {
-		if image.Namespace != "" && !seen[image.Namespace] {
-			seen[image.Namespace] = true
-			names = append(names, image.Namespace)
-		}
-	}
-	return names, cobra.ShellCompDirectiveNoFileComp
+	return uniqueNamespaces(images), cobra.ShellCompDirectiveNoFileComp
 }
 
 var volumeNamesFunc = func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {

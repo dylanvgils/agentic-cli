@@ -3,8 +3,10 @@ package cli
 import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/spf13/cobra"
 )
 
@@ -94,12 +96,32 @@ func resolveDindResourceLimitFlags(cmd *cobra.Command) docker.ResourceLimits {
 	return limitFlags(cmd, "dind-pids-limit", "dind-cpus", "dind-memory")
 }
 
+// proxyInput reads the proxy-related flags.
+func proxyInput(cmd *cobra.Command) resolve.ProxyInput {
+	noProxy, _ := cmd.Flags().GetBool("no-proxy")
+	monitorFlag, _ := cmd.Flags().GetBool("proxy-monitor")
+	proxyFlag, _ := cmd.Flags().GetBool("proxy")
+
+	return resolve.ProxyInput{NoProxy: noProxy, MonitorFlag: monitorFlag, ProxyFlag: proxyFlag}
+}
+
 // dindInput reads the dind flags.
 func dindInput(cmd *cobra.Command) resolve.DindInput {
 	dindFlag, _ := cmd.Flags().GetBool("dind")
 	noDindFlag, _ := cmd.Flags().GetBool("no-dind")
 
 	return resolve.DindInput{DindFlag: dindFlag, NoDindFlag: noDindFlag}
+}
+
+// runtimeFlags reads the flags run and instructions share: home, proxy, dind and resource limits.
+func runtimeFlags(cmd *cobra.Command) run.Flags {
+	return run.Flags{
+		ToolHome:   toolHome,
+		Proxy:      proxyInput(cmd),
+		Dind:       dindInput(cmd),
+		Limits:     resolveResourceLimitFlags(cmd),
+		DindLimits: resolveDindResourceLimitFlags(cmd),
+	}
 }
 
 // buildOptsFromFlags constructs a BuildOptions from the command's flags and the project config.
@@ -124,17 +146,6 @@ func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOpt
 	return resolve.BuildOptions(in, rc)
 }
 
-// collectBases merges extra base layers from the project config with those from the --base flag.
-func collectBases(cmd *cobra.Command, rc *config.AgenticRC) []string {
-	flagBases, _ := cmd.Flags().GetStringSlice("base")
-	return resolve.Bases(flagBases, rc)
-}
-
-// collectVersions builds the per-layer version map with RC values as defaults, overridden by CLI flags.
-func collectVersions(cmd *cobra.Command, rc *config.AgenticRC) map[string]string {
-	return resolve.Versions(collectVersionOverrides(cmd), rc)
-}
-
 // collectVersionOverrides reads every registered --<layer> flag into a map, omitting unset ones.
 func collectVersionOverrides(cmd *cobra.Command) map[string]string {
 	overrides := make(map[string]string, len(tools.KnownLayers()))
@@ -146,10 +157,11 @@ func collectVersionOverrides(cmd *cobra.Command) map[string]string {
 	return overrides
 }
 
-// collectAptPackages merges apt packages from the project config with those from the --apt flag.
-func collectAptPackages(cmd *cobra.Command, rc *config.AgenticRC) []string {
-	flagPkgs, _ := cmd.Flags().GetStringSlice("apt")
-	return resolve.AptPackages(flagPkgs, rc)
+// warnSkipInstallChecksum warns that opts turns off install script verification.
+func warnSkipInstallChecksum(opts tools.BuildOptions) {
+	if opts.SkipInstallChecksum {
+		logging.Warnf("--skip-install-checksum disables install script integrity verification")
+	}
 }
 
 // toolNames returns the single tool name from args, or all known tool names when args is empty.

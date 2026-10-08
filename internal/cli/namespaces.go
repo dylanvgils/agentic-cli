@@ -60,21 +60,14 @@ func runNamespacesPrune(cmd *cobra.Command, _ []string) error {
 	return pruneNamespace(namespace)
 }
 
+// listNamespaces prints each namespace that has an agentic image, sorted.
 func listNamespaces() error {
 	images, err := dockerClient.ListAllImages()
 	if err != nil {
 		return err
 	}
 
-	seen := make(map[string]bool)
-	var namespaces []string
-	for _, image := range images {
-		if image.Namespace != "" && !seen[image.Namespace] {
-			seen[image.Namespace] = true
-			namespaces = append(namespaces, image.Namespace)
-		}
-	}
-
+	namespaces := uniqueNamespaces(images)
 	if len(namespaces) == 0 {
 		fmt.Println("(no agentic images found)")
 		return nil
@@ -88,6 +81,7 @@ func listNamespaces() error {
 	return nil
 }
 
+// pruneNamespace removes every agentic image in namespace.
 func pruneNamespace(namespace string) error {
 	images, err := dockerClient.ListAllImages(docker.NamespaceFilter(namespace))
 	if err != nil {
@@ -108,4 +102,17 @@ func pruneNamespace(namespace string) error {
 	}
 
 	return nil
+}
+
+// uniqueNamespaces returns the namespaces of images once each, in the order first seen.
+func uniqueNamespaces(images []*docker.ImageInfo) []string {
+	seen := make(map[string]bool)
+	var namespaces []string
+	for _, image := range images {
+		if image.Namespace != "" && !seen[image.Namespace] {
+			seen[image.Namespace] = true
+			namespaces = append(namespaces, image.Namespace)
+		}
+	}
+	return namespaces
 }

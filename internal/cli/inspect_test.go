@@ -366,52 +366,13 @@ func Test_printAllNamespaceDetail(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := printAllNamespaceDetail("claude", "")
+			err := printAllNamespaceDetail("claude")
 			require.NoError(t, err)
 		})
 
 		// Assert
 		assert.Contains(t, out, "agentic-claude")
 		assert.Contains(t, out, "work-claude")
-	})
-
-	t.Run("with namespace shows matching tool and namespace only", func(t *testing.T) {
-		// Arrange
-		workInfo := &docker.ImageInfo{
-			Image: "work-claude", Namespace: "work", Tool: "claude",
-			ID: "deadbeef1234", Version: "2.0", Base: "node@24", Built: "2026-05-02", Size: "600MB",
-		}
-		otherInfo := &docker.ImageInfo{Image: "work-copilot", Namespace: "work", Tool: "copilot"}
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{builtInfo, workInfo, otherInfo}, nil
-		})
-
-		// Act
-		out := captureStdout(t, func() {
-			err := printAllNamespaceDetail("claude", "work")
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "work-claude")
-		assert.NotContains(t, out, "agentic-claude")
-		assert.NotContains(t, out, "work-copilot")
-	})
-
-	t.Run("with namespace and no match prints not-found message", func(t *testing.T) {
-		// Arrange
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return nil, nil
-		})
-
-		// Act
-		out := captureStdout(t, func() {
-			err := printAllNamespaceDetail("claude", "other")
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, `no images found for tool "claude"`)
 	})
 
 	t.Run("no match prints message", func(t *testing.T) {
@@ -422,7 +383,7 @@ func Test_printAllNamespaceDetail(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := printAllNamespaceDetail("unknown", "")
+			err := printAllNamespaceDetail("unknown")
 			require.NoError(t, err)
 		})
 
@@ -437,7 +398,7 @@ func Test_printAllNamespaceDetail(t *testing.T) {
 		})
 
 		// Act
-		err := printAllNamespaceDetail("claude", "")
+		err := printAllNamespaceDetail("claude")
 
 		// Assert
 		require.Error(t, err)
@@ -453,7 +414,7 @@ func Test_printAllNamespaceDetail(t *testing.T) {
 		})
 
 		// Act
-		err := printAllNamespaceDetail("claude", "")
+		err := printAllNamespaceDetail("claude")
 		require.NoError(t, err)
 
 		// Assert

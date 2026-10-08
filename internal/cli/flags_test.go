@@ -7,6 +7,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -188,6 +189,36 @@ func Test_addDindFlags(t *testing.T) {
 	})
 }
 
+// Test_proxyInput only confirms each flag maps to the right resolve.ProxyInput field; precedence is covered by TestProxyMode in internal/usecase/resolve.
+func Test_proxyInput(t *testing.T) {
+	t.Run("no flags leaves every field unset", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+		addProxyFlags(cmd)
+
+		// Act
+		result := proxyInput(cmd)
+
+		// Assert
+		assert.Equal(t, resolve.ProxyInput{}, result)
+	})
+
+	t.Run("each flag maps to its field", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+		addProxyFlags(cmd)
+		require.NoError(t, cmd.Flags().Set("no-proxy", "true"))
+		require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
+		require.NoError(t, cmd.Flags().Set("proxy", "true"))
+
+		// Act
+		result := proxyInput(cmd)
+
+		// Assert
+		assert.Equal(t, resolve.ProxyInput{NoProxy: true, MonitorFlag: true, ProxyFlag: true}, result)
+	})
+}
+
 // Test_dindInput only confirms each flag maps to the right resolve.DindInput field; precedence is covered by TestDindEnabled in internal/usecase/resolve.
 func Test_dindInput(t *testing.T) {
 	t.Run("dind flag maps to DindFlag", func(t *testing.T) {
@@ -244,59 +275,6 @@ func Test_resolveResourceLimitFlags(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, docker.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, result)
-}
-
-func newBuildCmd(t *testing.T) *cobra.Command {
-	t.Helper()
-	cmd := &cobra.Command{Use: "test"}
-	addBuildFlags(cmd)
-	return cmd
-}
-
-// TestCollectBases, TestCollectVersions, and TestCollectAptPackages only confirm the flag value is read and passed through; merge/precedence is covered by internal/usecase/resolve.
-func TestCollectBases(t *testing.T) {
-	t.Run("flag value is read and merged via resolve.Bases", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
-		cmd := newBuildCmd(t)
-		require.NoError(t, cmd.Flags().Set("base", "dotnet"))
-
-		// Act
-		result := collectBases(cmd, rc)
-
-		// Assert - sorted by canonical extras order
-		assert.Equal(t, []string{"dotnet", "java"}, result)
-	})
-}
-
-func TestCollectVersions(t *testing.T) {
-	t.Run("flag value is read and merged via resolve.Versions", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}
-		cmd := newBuildCmd(t)
-		require.NoError(t, cmd.Flags().Set("java", "21"))
-
-		// Act
-		result := collectVersions(cmd, rc)
-
-		// Assert
-		assert.Equal(t, "21", result["java"])
-	})
-}
-
-func TestCollectAptPackages(t *testing.T) {
-	t.Run("flag value is read and merged via resolve.AptPackages", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
-		cmd := newBuildCmd(t)
-		require.NoError(t, cmd.Flags().Set("apt", "gcc"))
-
-		// Act
-		result := collectAptPackages(cmd, rc)
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc"}, result)
-	})
 }
 
 func TestBuildOptsFromFlags(t *testing.T) {
@@ -395,4 +373,53 @@ func Test_firstArg(t *testing.T) {
 		// Assert
 		assert.Equal(t, "claude", result)
 	})
+}
+
+func Test_warnSkipInstallChecksum(t *testing.T) {
+	t.Run("warns when the checksum is skipped", func(t *testing.T) {
+		// Arrange
+		logs := stubErrLog(t)
+
+		// Act
+		warnSkipInstallChecksum(tools.BuildOptions{SkipInstallChecksum: true})
+
+		// Assert
+		assert.Contains(t, logs.String(), "--skip-install-checksum disables install script integrity verification")
+	})
+
+	t.Run("stays quiet otherwise", func(t *testing.T) {
+		// Arrange
+		logs := stubErrLog(t)
+
+		// Act
+		warnSkipInstallChecksum(tools.BuildOptions{})
+
+		// Assert
+		assert.Empty(t, logs.String())
+	})
+}
+
+func Test_runtimeFlags(t *testing.T) {
+	// Arrange
+	withTempToolHome(t)
+	cmd := &cobra.Command{Use: "test"}
+	addResourceLimitFlags(cmd)
+	addProxyFlags(cmd)
+	addDindFlags(cmd)
+	require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
+	require.NoError(t, cmd.Flags().Set("dind", "true"))
+	require.NoError(t, cmd.Flags().Set("cpus", "2"))
+	require.NoError(t, cmd.Flags().Set("dind-memory", "1g"))
+
+	// Act
+	flags := runtimeFlags(cmd)
+
+	// Assert
+	assert.Equal(t, run.Flags{
+		ToolHome:   toolHome,
+		Proxy:      resolve.ProxyInput{MonitorFlag: true},
+		Dind:       resolve.DindInput{DindFlag: true},
+		Limits:     docker.ResourceLimits{CPUs: "2"},
+		DindLimits: docker.ResourceLimits{Memory: "1g"},
+	}, flags)
 }

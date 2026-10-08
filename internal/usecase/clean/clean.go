@@ -62,7 +62,8 @@ func (s *Service) GlobalResources(toolHome string) error {
 		return err
 	}
 
-	if err := s.cleanProxyImage(); err != nil {
+	logging.Step(tools.ProxyImage)
+	if err := s.docker.CleanImage(tools.ProxyImage); err != nil {
 		return err
 	}
 	logging.Step(tools.DindImage)
@@ -79,12 +80,6 @@ func (s *Service) GlobalResources(toolHome string) error {
 
 	logging.Step("network")
 	return s.docker.RemoveNetwork()
-}
-
-// cleanProxyImage removes the proxy image; duplicated from internal/cli/proxy.go since this package can't depend on internal/cli.
-func (s *Service) cleanProxyImage() error {
-	logging.Step(tools.ProxyImage)
-	return s.docker.CleanImage(tools.ProxyImage)
 }
 
 func (s *Service) resolveAll(filterTool string) ([]Target, error) {
