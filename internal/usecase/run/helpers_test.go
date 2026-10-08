@@ -13,6 +13,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,6 +26,8 @@ type fakeDocker struct {
 	listAllImages        func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	buildProxyImage      func(image, version, sourceDir string, opts tools.BuildOptions) error
 	buildDindImage       func(image string, opts tools.BuildOptions) error
+	buildTool            func(tool, image string, opts tools.BuildOptions) error
+	restampImage         func(image string, info docker.ImageInfo)
 }
 
 func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
@@ -74,6 +77,19 @@ func (f *fakeDocker) BuildDindImage(image string, opts tools.BuildOptions) error
 		return nil
 	}
 	return f.buildDindImage(image, opts)
+}
+
+func (f *fakeDocker) BuildTool(tool, image string, opts tools.BuildOptions) error {
+	if f.buildTool == nil {
+		return nil
+	}
+	return f.buildTool(tool, image, opts)
+}
+
+func (f *fakeDocker) RestampImage(image string, info docker.ImageInfo) {
+	if f.restampImage != nil {
+		f.restampImage(image, info)
+	}
 }
 
 // fakePrompter implements Prompter, recording what it was asked; a nil field approves, except tool updates, which it declines.
@@ -192,11 +208,10 @@ func newPrepareRequest(t *testing.T) Request {
 	rc.Run.CheckUpdates = &checkUpdates
 
 	return Request{
-		Target:     Target{ToolName: "claude", ImageName: "agentic-claude"},
-		ToolConfig: tools.Configs["claude"],
-		Cwd:        t.TempDir(),
-		RC:         rc,
-		Input:      Input{ToolHome: t.TempDir()},
+		Target:  Target{ToolName: "claude", ImageName: "agentic-claude"},
+		Tool:    tools.Configs["claude"],
+		Project: Project{Dir: t.TempDir(), RC: rc},
+		Flags:   Flags{ToolHome: t.TempDir()},
 	}
 }
 
@@ -206,4 +221,22 @@ func stubLatestToolVersion(t *testing.T, latest string) {
 	orig := toolupdate.LatestToolVersion
 	toolupdate.LatestToolVersion = func(string, string) (string, bool, bool) { return latest, true, true }
 	t.Cleanup(func() { toolupdate.LatestToolVersion = orig })
+}
+
+// stubUpdateLatestToolVersion makes an applied tool update see latest as newer, so it rebuilds without a network lookup.
+func stubUpdateLatestToolVersion(t *testing.T, latest string) {
+	t.Helper()
+	orig := update.LatestToolVersion
+	update.LatestToolVersion = func(string, string) (string, bool, bool) { return latest, true, true }
+	t.Cleanup(func() { update.LatestToolVersion = orig })
+}
+
+// stubLog redirects logging.Log to a buffer for the duration of the test and returns it.
+func stubLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	orig := logging.Log
+	logging.Log = logging.New(&buf)
+	t.Cleanup(func() { logging.Log = orig })
+	return &buf
 }

@@ -9,7 +9,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
 )
 
@@ -89,8 +88,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 
 	req := runRequest(cmd, inv)
-	prompter := ttyPrompter{}
-	rs, cleanup, err := run.New(dockerClient).Prepare(req, prompter)
+	rs, cleanup, err := run.New(dockerClient).Prepare(req, ttyPrompter{})
 	defer cleanup()
 	if err != nil {
 		return err
@@ -131,37 +129,34 @@ func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
 	}, nil
 }
 
-// runRequest collects the run flags and resolves the dind setting against inv's config; Prepare resolves the proxy mode.
+// runRequest collects the run flags for inv; Prepare resolves them against inv's config.
 func runRequest(cmd *cobra.Command, inv invocation) run.Request {
-	applyUpdate := func(tool, image string) error {
-		return update.New(dockerClient).ApplyRecovered(tool, image, inv.rc)
-	}
-
 	return run.Request{
 		Target: run.Target{
 			ToolName:       inv.toolName,
 			ImageName:      inv.imageName,
 			SkipEntrypoint: inv.skipEntrypoint,
 		},
-		ToolConfig: inv.toolConfig,
-		Cwd:        inv.cwd,
-		Layers:     inv.layers,
-		RC:         inv.rc,
-		TrustDir:   trustDir,
-		Proxy:      proxyInput(cmd),
-		Input: run.Input{
+		Tool: inv.toolConfig,
+		Project: run.Project{
+			Dir:    inv.cwd,
+			Layers: inv.layers,
+			RC:     inv.rc,
+		},
+		Flags: run.Flags{
 			ToolHome:       toolHome,
+			TrustDir:       trustDir,
+			DryRun:         dryRun,
+			Registry:       collectRegistry(cmd),
+			Proxy:          proxyInput(cmd),
+			Dind:           dindInput(cmd),
 			Volumes:        extraVolumes,
 			Secrets:        flagSecrets,
 			ReadOnlyMounts: flagReadOnlyMounts,
 			Env:            flagEnv,
 			Limits:         resolveResourceLimitFlags(cmd),
-			DryRun:         dryRun,
-			Registry:       collectRegistry(cmd),
-			DindEnabled:    resolveDindEnabled(cmd, inv.rc),
 			DindLimits:     resolveDindResourceLimitFlags(cmd),
 		},
-		ApplyUpdate: applyUpdate,
 	}
 }
 

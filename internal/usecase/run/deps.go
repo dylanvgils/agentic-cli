@@ -6,6 +6,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 )
 
 // Indirects the marketplace calls this package makes, so callers can fake them in tests.
@@ -14,10 +15,11 @@ var (
 	RecordMarketplaceUsage = marketplace.RecordUsage
 )
 
-// Docker is the subset of *docker.Client this package uses, including what the sidecar and toolupdate usecases it runs need.
+// Docker is the subset of *docker.Client this package uses, including what the sidecar, toolupdate and update usecases it runs need.
 type Docker interface {
 	sidecar.Docker
 	toolupdate.Docker
+	update.Docker
 
 	ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	ResolveContainerHome(image string) string

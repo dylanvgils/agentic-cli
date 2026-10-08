@@ -47,17 +47,20 @@ func TestPrepare(t *testing.T) {
 	t.Run("declined tool update still runs", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.RC.Run.CheckUpdates = nil
+		req.Project.RC.Run.CheckUpdates = nil
 		stubLatestToolVersion(t, "2.0.0")
 		applied := false
-		req.ApplyUpdate = func(string, string) error {
-			applied = true
-			return nil
+		d := &fakeDocker{
+			inspectImage: built,
+			buildTool: func(string, string, tools.BuildOptions) error {
+				applied = true
+				return nil
+			},
 		}
 		p := &fakePrompter{}
 
 		// Act
-		rs, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, p)
+		rs, cleanup, err := New(d).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -70,17 +73,27 @@ func TestPrepare(t *testing.T) {
 	t.Run("failed tool update stops before the trust prompt", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.RC.Run.CheckUpdates = nil
+		req.Project.RC.Run.CheckUpdates = nil
 		stubLatestToolVersion(t, "2.0.0")
-		req.ApplyUpdate = func(string, string) error { return errors.New("build failed") }
+		stubUpdateLatestToolVersion(t, "2.0.0")
+		stubLog(t)
+		var rebuilt []string
+		d := &fakeDocker{
+			inspectImage: built,
+			buildTool: func(tool, _ string, _ tools.BuildOptions) error {
+				rebuilt = append(rebuilt, tool)
+				return errors.New("build failed")
+			},
+		}
 		p := &fakePrompter{offerToolUpdate: func(string, string, string) bool { return true }}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, p)
+		_, cleanup, err := New(d).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
 		require.ErrorContains(t, err, "build failed")
+		assert.Equal(t, []string{"claude"}, rebuilt)
 		assert.Empty(t, p.trustAsked)
 	})
 
@@ -88,7 +101,7 @@ func TestPrepare(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		layer := credentialLayer(t, "/example.test/key")
-		req.Layers = []config.RCLayer{layer}
+		req.Project.Layers = []config.RCLayer{layer}
 		p := &fakePrompter{trustDir: func(string) error { return errors.New("directory not trusted") }}
 
 		// Act
@@ -104,9 +117,9 @@ func TestPrepare(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		layer := credentialLayer(t, "/example.test/key")
-		req.Layers = []config.RCLayer{layer}
-		req.RC.Run.Proxy.Credentials = layer.RC.Run.Proxy.Credentials
-		req.Proxy = resolve.ProxyInput{NoProxy: true}
+		req.Project.Layers = []config.RCLayer{layer}
+		req.Project.RC.Run.Proxy.Credentials = layer.RC.Run.Proxy.Credentials
+		req.Flags.Proxy = resolve.ProxyInput{NoProxy: true}
 		p := &fakePrompter{}
 
 		// Act
@@ -121,7 +134,7 @@ func TestPrepare(t *testing.T) {
 	t.Run("dind without the docker layer fails before building sidecars", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Input.DindEnabled = true
+		req.Flags.Dind = resolve.DindInput{DindFlag: true}
 		var builds []string
 		d := &fakeDocker{
 			inspectImage:   built,
@@ -141,7 +154,7 @@ func TestPrepare(t *testing.T) {
 		// Arrange
 		stubErrLog(t)
 		req := newPrepareRequest(t)
-		req.Proxy = resolve.ProxyInput{MonitorFlag: true}
+		req.Flags.Proxy = resolve.ProxyInput{MonitorFlag: true}
 		var builds []string
 		d := &fakeDocker{
 			inspectImage: func(name string) (*docker.ImageInfo, error) {
@@ -165,8 +178,8 @@ func TestPrepare(t *testing.T) {
 	t.Run("dry run builds no sidecar images", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Proxy = resolve.ProxyInput{MonitorFlag: true}
-		req.Input.DryRun = true
+		req.Flags.Proxy = resolve.ProxyInput{MonitorFlag: true}
+		req.Flags.DryRun = true
 		var builds []string
 		d := &fakeDocker{
 			inspectImage: func(name string) (*docker.ImageInfo, error) {
