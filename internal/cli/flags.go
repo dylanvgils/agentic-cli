@@ -124,17 +124,6 @@ func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOpt
 	return resolve.BuildOptions(in, rc)
 }
 
-// collectBases merges extra base layers from the project config with those from the --base flag.
-func collectBases(cmd *cobra.Command, rc *config.AgenticRC) []string {
-	flagBases, _ := cmd.Flags().GetStringSlice("base")
-	return resolve.Bases(flagBases, rc)
-}
-
-// collectVersions builds the per-layer version map with RC values as defaults, overridden by CLI flags.
-func collectVersions(cmd *cobra.Command, rc *config.AgenticRC) map[string]string {
-	return resolve.Versions(collectVersionOverrides(cmd), rc)
-}
-
 // collectVersionOverrides reads every registered --<layer> flag into a map, omitting unset ones.
 func collectVersionOverrides(cmd *cobra.Command) map[string]string {
 	overrides := make(map[string]string, len(tools.KnownLayers()))
@@ -144,12 +133,6 @@ func collectVersionOverrides(cmd *cobra.Command) map[string]string {
 		}
 	}
 	return overrides
-}
-
-// collectAptPackages merges apt packages from the project config with those from the --apt flag.
-func collectAptPackages(cmd *cobra.Command, rc *config.AgenticRC) []string {
-	flagPkgs, _ := cmd.Flags().GetStringSlice("apt")
-	return resolve.AptPackages(flagPkgs, rc)
 }
 
 // toolNames returns the single tool name from args, or all known tool names when args is empty.

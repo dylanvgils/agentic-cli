@@ -14,7 +14,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 )
 
@@ -38,7 +37,6 @@ type dockerAPI interface {
 	build.Docker
 	clean.Docker
 	update.Docker
-	toolupdate.Docker
 	run.Docker
 	sidecar.Docker
 

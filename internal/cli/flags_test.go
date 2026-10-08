@@ -246,59 +246,6 @@ func Test_resolveResourceLimitFlags(t *testing.T) {
 	assert.Equal(t, docker.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, result)
 }
 
-func newBuildCmd(t *testing.T) *cobra.Command {
-	t.Helper()
-	cmd := &cobra.Command{Use: "test"}
-	addBuildFlags(cmd)
-	return cmd
-}
-
-// TestCollectBases, TestCollectVersions, and TestCollectAptPackages only confirm the flag value is read and passed through; merge/precedence is covered by internal/usecase/resolve.
-func TestCollectBases(t *testing.T) {
-	t.Run("flag value is read and merged via resolve.Bases", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
-		cmd := newBuildCmd(t)
-		require.NoError(t, cmd.Flags().Set("base", "dotnet"))
-
-		// Act
-		result := collectBases(cmd, rc)
-
-		// Assert - sorted by canonical extras order
-		assert.Equal(t, []string{"dotnet", "java"}, result)
-	})
-}
-
-func TestCollectVersions(t *testing.T) {
-	t.Run("flag value is read and merged via resolve.Versions", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}
-		cmd := newBuildCmd(t)
-		require.NoError(t, cmd.Flags().Set("java", "21"))
-
-		// Act
-		result := collectVersions(cmd, rc)
-
-		// Assert
-		assert.Equal(t, "21", result["java"])
-	})
-}
-
-func TestCollectAptPackages(t *testing.T) {
-	t.Run("flag value is read and merged via resolve.AptPackages", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
-		cmd := newBuildCmd(t)
-		require.NoError(t, cmd.Flags().Set("apt", "gcc"))
-
-		// Act
-		result := collectAptPackages(cmd, rc)
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc"}, result)
-	})
-}
-
 func TestBuildOptsFromFlags(t *testing.T) {
 	t.Run("base flag values accumulate and merge with rc", func(t *testing.T) {
 		// Arrange

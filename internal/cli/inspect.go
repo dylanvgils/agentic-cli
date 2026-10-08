@@ -58,7 +58,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 	}
 
 	if all {
-		return printAllNamespaceDetail(tool, "")
+		return printAllNamespaceDetail(tool)
 	}
 
 	logging.Stepf("%s/%s", namespace, tool)
@@ -139,7 +139,7 @@ func writeAllTable(images []*docker.ImageInfo) error {
 	return w.Flush()
 }
 
-func printAllNamespaceDetail(tool, namespace string) error {
+func printAllNamespaceDetail(tool string) error {
 	images, err := dockerClient.ListAllImages(docker.ToolFilter(tool))
 	if err != nil {
 		return err
@@ -147,7 +147,7 @@ func printAllNamespaceDetail(tool, namespace string) error {
 
 	found := false
 	for _, info := range images {
-		if info.Tool != tool || (namespace != "" && info.Namespace != namespace) {
+		if info.Tool != tool {
 			continue
 		}
 
