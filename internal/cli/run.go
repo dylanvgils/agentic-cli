@@ -122,6 +122,15 @@ func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
 
 // runRequest collects the run flags for inv; Prepare resolves them against inv's config.
 func runRequest(cmd *cobra.Command, inv invocation) run.Request {
+	flags := runtimeFlags(cmd)
+	flags.TrustDir = trustDir
+	flags.DryRun = dryRun
+	flags.Registry = collectRegistry(cmd)
+	flags.Volumes = extraVolumes
+	flags.Secrets = flagSecrets
+	flags.ReadOnlyMounts = flagReadOnlyMounts
+	flags.Env = flagEnv
+
 	return run.Request{
 		Target: run.Target{
 			ToolName:       inv.toolName,
@@ -134,20 +143,7 @@ func runRequest(cmd *cobra.Command, inv invocation) run.Request {
 			Layers: inv.layers,
 			RC:     inv.rc,
 		},
-		Flags: run.Flags{
-			ToolHome:       toolHome,
-			TrustDir:       trustDir,
-			DryRun:         dryRun,
-			Registry:       collectRegistry(cmd),
-			Proxy:          proxyInput(cmd),
-			Dind:           dindInput(cmd),
-			Volumes:        extraVolumes,
-			Secrets:        flagSecrets,
-			ReadOnlyMounts: flagReadOnlyMounts,
-			Env:            flagEnv,
-			Limits:         resolveResourceLimitFlags(cmd),
-			DindLimits:     resolveDindResourceLimitFlags(cmd),
-		},
+		Flags: flags,
 	}
 }
 

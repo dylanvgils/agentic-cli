@@ -95,9 +95,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 func updateOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOptions {
 	opts := buildOptsFromFlags(cmd, rc)
 
-	if opts.SkipInstallChecksum {
-		logging.Warnf("--skip-install-checksum disables install script integrity verification")
-	}
+	warnSkipInstallChecksum(opts)
 
 	// RC config bases/apt must not prevent per-image label recovery; only an explicit --base/--base-exact or --apt/--apt-exact flag overrides what the image was built with.
 	if !cmd.Flags().Changed("base") && !cmd.Flags().Changed("base-exact") {

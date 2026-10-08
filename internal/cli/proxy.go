@@ -8,7 +8,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/spf13/cobra"
 )
@@ -69,10 +68,7 @@ func runProxyBuildOrUpdate(cmd *cobra.Command, noCache bool) error {
 	opts := tools.BuildOptions{NoCache: noCache, Registry: collectRegistry(cmd)}
 
 	if dryRun, _ := cmd.Flags().GetBool("dry-run"); dryRun {
-		logging.Step(tools.ProxyImage)
-		content := tools.GenerateProxyDockerfile(buildinfo.Version, opts.Registry)
-		_, err := fmt.Println(content)
-		return err
+		return printProxyDockerfile(opts.Registry)
 	}
 
 	logging.Infof("building %s", tools.ProxyImage)
@@ -85,7 +81,8 @@ func runProxyBuildOrUpdate(cmd *cobra.Command, noCache bool) error {
 }
 
 func runProxyClean(cmd *cobra.Command, _ []string) error {
-	if err := cleanProxyImage(); err != nil {
+	logging.Infof("removing %s", tools.ProxyImage)
+	if err := dockerClient.CleanImage(tools.ProxyImage); err != nil {
 		return err
 	}
 
@@ -97,17 +94,10 @@ func runProxyClean(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// cleanProxyImage removes the proxy image for `agentic proxy clean`; `agentic clean`'s global sweep has its own copy in internal/usecase/clean.
-func cleanProxyImage() error {
-	logging.Infof("removing %s", tools.ProxyImage)
-	return dockerClient.CleanImage(tools.ProxyImage)
-}
-
-// proxyInput reads the proxy-related flags.
-func proxyInput(cmd *cobra.Command) resolve.ProxyInput {
-	noProxy, _ := cmd.Flags().GetBool("no-proxy")
-	monitorFlag, _ := cmd.Flags().GetBool("proxy-monitor")
-	proxyFlag, _ := cmd.Flags().GetBool("proxy")
-
-	return resolve.ProxyInput{NoProxy: noProxy, MonitorFlag: monitorFlag, ProxyFlag: proxyFlag}
+// printProxyDockerfile prints the proxy image's generated Dockerfile for --dry-run.
+func printProxyDockerfile(registry string) error {
+	logging.Step(tools.ProxyImage)
+	content := tools.GenerateProxyDockerfile(buildinfo.Version, registry)
+	_, err := fmt.Println(content)
+	return err
 }

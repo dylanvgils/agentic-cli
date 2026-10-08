@@ -243,3 +243,19 @@ func Test_pruneNamespace(t *testing.T) {
 		assert.Contains(t, err.Error(), "remove failed")
 	})
 }
+
+func Test_uniqueNamespaces(t *testing.T) {
+	// Arrange
+	images := []*docker.ImageInfo{
+		{Namespace: "work"},
+		{Namespace: ""},
+		{Namespace: "agentic"},
+		{Namespace: "work"},
+	}
+
+	// Act
+	namespaces := uniqueNamespaces(images)
+
+	// Assert - first-seen order, no empty or repeated names
+	assert.Equal(t, []string{"work", "agentic"}, namespaces)
+}

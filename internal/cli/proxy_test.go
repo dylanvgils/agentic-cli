@@ -8,41 +8,9 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// Test_proxyInput only confirms each flag maps to the right resolve.ProxyInput field; precedence is covered by TestProxyMode in internal/usecase/resolve.
-func Test_proxyInput(t *testing.T) {
-	t.Run("no flags leaves every field unset", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-		addProxyFlags(cmd)
-
-		// Act
-		result := proxyInput(cmd)
-
-		// Assert
-		assert.Equal(t, resolve.ProxyInput{}, result)
-	})
-
-	t.Run("each flag maps to its field", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-		addProxyFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("no-proxy", "true"))
-		require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
-		require.NoError(t, cmd.Flags().Set("proxy", "true"))
-
-		// Act
-		result := proxyInput(cmd)
-
-		// Assert
-		assert.Equal(t, resolve.ProxyInput{NoProxy: true, MonitorFlag: true, ProxyFlag: true}, result)
-	})
-}
 
 func Test_runProxyBuildOrUpdate(t *testing.T) {
 	t.Run("build does not force no-cache by default", func(t *testing.T) {

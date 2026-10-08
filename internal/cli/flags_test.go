@@ -7,6 +7,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -188,6 +189,36 @@ func Test_addDindFlags(t *testing.T) {
 	})
 }
 
+// Test_proxyInput only confirms each flag maps to the right resolve.ProxyInput field; precedence is covered by TestProxyMode in internal/usecase/resolve.
+func Test_proxyInput(t *testing.T) {
+	t.Run("no flags leaves every field unset", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+		addProxyFlags(cmd)
+
+		// Act
+		result := proxyInput(cmd)
+
+		// Assert
+		assert.Equal(t, resolve.ProxyInput{}, result)
+	})
+
+	t.Run("each flag maps to its field", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+		addProxyFlags(cmd)
+		require.NoError(t, cmd.Flags().Set("no-proxy", "true"))
+		require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
+		require.NoError(t, cmd.Flags().Set("proxy", "true"))
+
+		// Act
+		result := proxyInput(cmd)
+
+		// Assert
+		assert.Equal(t, resolve.ProxyInput{NoProxy: true, MonitorFlag: true, ProxyFlag: true}, result)
+	})
+}
+
 // Test_dindInput only confirms each flag maps to the right resolve.DindInput field; precedence is covered by TestDindEnabled in internal/usecase/resolve.
 func Test_dindInput(t *testing.T) {
 	t.Run("dind flag maps to DindFlag", func(t *testing.T) {
@@ -342,4 +373,53 @@ func Test_firstArg(t *testing.T) {
 		// Assert
 		assert.Equal(t, "claude", result)
 	})
+}
+
+func Test_warnSkipInstallChecksum(t *testing.T) {
+	t.Run("warns when the checksum is skipped", func(t *testing.T) {
+		// Arrange
+		logs := stubErrLog(t)
+
+		// Act
+		warnSkipInstallChecksum(tools.BuildOptions{SkipInstallChecksum: true})
+
+		// Assert
+		assert.Contains(t, logs.String(), "--skip-install-checksum disables install script integrity verification")
+	})
+
+	t.Run("stays quiet otherwise", func(t *testing.T) {
+		// Arrange
+		logs := stubErrLog(t)
+
+		// Act
+		warnSkipInstallChecksum(tools.BuildOptions{})
+
+		// Assert
+		assert.Empty(t, logs.String())
+	})
+}
+
+func Test_runtimeFlags(t *testing.T) {
+	// Arrange
+	withTempToolHome(t)
+	cmd := &cobra.Command{Use: "test"}
+	addResourceLimitFlags(cmd)
+	addProxyFlags(cmd)
+	addDindFlags(cmd)
+	require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
+	require.NoError(t, cmd.Flags().Set("dind", "true"))
+	require.NoError(t, cmd.Flags().Set("cpus", "2"))
+	require.NoError(t, cmd.Flags().Set("dind-memory", "1g"))
+
+	// Act
+	flags := runtimeFlags(cmd)
+
+	// Assert
+	assert.Equal(t, run.Flags{
+		ToolHome:   toolHome,
+		Proxy:      resolve.ProxyInput{MonitorFlag: true},
+		Dind:       resolve.DindInput{DindFlag: true},
+		Limits:     docker.ResourceLimits{CPUs: "2"},
+		DindLimits: docker.ResourceLimits{Memory: "1g"},
+	}, flags)
 }
