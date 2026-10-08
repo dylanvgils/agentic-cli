@@ -7,10 +7,10 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 )
@@ -34,11 +34,10 @@ type dockerAPI interface {
 	update.Docker
 	toolupdate.Docker
 	run.Docker
+	sidecar.Docker
 
 	Context() string
 	CheckDaemon() error
-	BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) error
-	BuildDindImage(image string, opts tools.BuildOptions) error
 	RunContainer(rs docker.RunSpec, toolArgs []string) error
 	PruneImages() error
 	PruneBuildCache() error

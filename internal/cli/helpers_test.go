@@ -581,24 +581,6 @@ func stubBuildDindImage(t *testing.T, fn func(image string, opts tools.BuildOpti
 	stubDocker(t, &fakeDocker{buildDindImage: fn})
 }
 
-// stubSidecarBuilds reports both sidecar images missing and returns a getter for the images built.
-func stubSidecarBuilds(t *testing.T) func() []string {
-	t.Helper()
-	var built []string
-	stubDocker(t, &fakeDocker{
-		inspectImage: inspectReturns(nil, nil),
-		buildProxyImage: func(image, _, _ string, _ tools.BuildOptions) error {
-			built = append(built, image)
-			return nil
-		},
-		buildDindImage: func(image string, _ tools.BuildOptions) error {
-			built = append(built, image)
-			return nil
-		},
-	})
-	return func() []string { return built }
-}
-
 func stubTrustStdin(t *testing.T, input string) {
 	t.Helper()
 	orig := trustStdin
@@ -616,11 +598,6 @@ func stubIsTerminal(t *testing.T, terminal bool) {
 // inspectReturns returns an InspectImage func that always yields info and err.
 func inspectReturns(info *docker.ImageInfo, err error) func(string) (*docker.ImageInfo, error) {
 	return func(string) (*docker.ImageInfo, error) { return info, err }
-}
-
-// formatTestLabelTime formats t like agentic's image timestamp labels.
-func formatTestLabelTime(t time.Time) string {
-	return t.UTC().Format("2006-01-02T15:04:05Z")
 }
 
 // credentialLayer writes a .agenticrc.toml with one credential entry reading secret and returns its layer.

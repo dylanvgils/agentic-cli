@@ -40,7 +40,7 @@ Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-sp
 
 ### Extracting a package out of `internal/cli`
 
-`internal/cli` stays a thin presentation layer: a command's `RunE` parses flags, calls into one or more domain packages, and prints/returns the result. Move logic into its own package under `internal/usecase/` (named for what it does, e.g. `build`, `clean`, `resolve`, `run`, `toolupdate`, `update`, `upgradecheck`) only when it is independent of `*cobra.Command` and makes multi-step decisions gluing together more than one domain package - not just a single delegating call. A command that's a single delegating call, or mostly presentation formatting over one domain package (`inspect.go`, `config.go`, `marketplaces.go`, `namespaces.go`, `status.go`, `trust.go`, `volumes.go`, etc.), doesn't need this - don't create a package-per-command mapping mechanically.
+`internal/cli` stays a thin presentation layer: a command's `RunE` parses flags, calls into one or more domain packages, and prints/returns the result. Move logic into its own package under `internal/usecase/` (named for what it does, e.g. `build`, `clean`, `resolve`, `run`, `sidecar`, `toolupdate`, `update`, `upgradecheck`) only when it is independent of `*cobra.Command` and makes multi-step decisions gluing together more than one domain package - not just a single delegating call. A command that's a single delegating call, or mostly presentation formatting over one domain package (`inspect.go`, `config.go`, `marketplaces.go`, `namespaces.go`, `status.go`, `trust.go`, `volumes.go`, etc.), doesn't need this - don't create a package-per-command mapping mechanically.
 
 ### Docker access
 

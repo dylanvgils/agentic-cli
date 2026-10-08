@@ -13,6 +13,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
@@ -125,8 +126,10 @@ func runTool(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := ensureSidecarImages(cmd, input); err != nil {
-		return err
+	if !input.DryRun {
+		if err := sidecar.New(dockerClient).Ensure(input.ProxyMode.Enabled(), input.DindEnabled, input.Registry); err != nil {
+			return err
+		}
 	}
 
 	rs, cleanupInstructions, err := svc.BuildWithInstructions(inv.target(), input, inv.toolConfig, inv.rc)
@@ -269,46 +272,6 @@ func requireImage(image, tool string) error {
 	}
 	return fmt.Errorf("image %q not found; %q is available under %s %s - use --namespace or run \"agentic build %s\"",
 		image, tool, noun, strings.Join(namespaces, ", "), tool)
-}
-
-// ensureSidecarImages builds the images of the sidecars input enables when needed; a dry run builds nothing.
-func ensureSidecarImages(cmd *cobra.Command, input run.Input) error {
-	if input.DryRun {
-		return nil
-	}
-
-	if input.ProxyMode.Enabled() {
-		if err := ensureProxyImage(cmd); err != nil {
-			return err
-		}
-	}
-
-	if input.DindEnabled {
-		return ensureDindImage(cmd)
-	}
-
-	return nil
-}
-
-// ensureDindImage builds the sidecar image if missing, outdated or stale; a failed refresh only warns so offline runs work.
-func ensureDindImage(cmd *cobra.Command) error {
-	info, err := dockerClient.InspectImage(tools.DindImage)
-	if err != nil {
-		return err
-	}
-
-	reason := docker.ImageRefreshReason(info, tools.DindImageMaxAge)
-	if reason == "" {
-		return nil
-	}
-
-	logging.Infof("building %s (%s)...", tools.DindImage, reason)
-	err = dockerClient.BuildDindImage(tools.DindImage, tools.BuildOptions{Registry: collectRegistry(cmd)})
-	if err != nil && info != nil {
-		logging.Warnf("could not refresh %s, using the existing image: %v", tools.DindImage, err)
-		return nil
-	}
-	return err
 }
 
 // describeInjection lists each credential's hosts and secret source for the per-run notice; never the secret itself.

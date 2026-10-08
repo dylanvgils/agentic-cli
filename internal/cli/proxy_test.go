@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -59,61 +58,6 @@ func Test_resolveProxyMode(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, docker.ProxyMonitor, result)
-	})
-}
-
-func Test_ensureProxyImage(t *testing.T) {
-	t.Run("builds the image when missing", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		var built string
-		stubBuildProxyImage(t, func(image, _, _ string, _ tools.BuildOptions) error {
-			built = image
-			return nil
-		})
-
-		// Act
-		err := ensureProxyImage(runToolCmd)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, tools.ProxyImage, built)
-	})
-
-	t.Run("skips build when image already exists at current version", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Image: tools.ProxyImage, CLIVersion: buildinfo.Version}, nil)
-		built := false
-		stubBuildProxyImage(t, func(string, string, string, tools.BuildOptions) error {
-			built = true
-			return nil
-		})
-
-		// Act
-		err := ensureProxyImage(runToolCmd)
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, built)
-	})
-
-	t.Run("rebuilds when CLI version does not match image label", func(t *testing.T) {
-		// Arrange
-		logBuf := stubErrLog(t)
-		stubInspectImage(t, &docker.ImageInfo{Image: tools.ProxyImage, CLIVersion: "v0.0.0"}, nil)
-		var built string
-		stubBuildProxyImage(t, func(image, _, _ string, _ tools.BuildOptions) error {
-			built = image
-			return nil
-		})
-
-		// Act
-		err := ensureProxyImage(runToolCmd)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, tools.ProxyImage, built)
-		assert.Contains(t, logBuf.String(), "agentic: building agentic-proxy (built by a different agentic version)...")
 	})
 }
 

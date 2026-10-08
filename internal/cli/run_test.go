@@ -6,16 +6,12 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -396,152 +392,6 @@ func TestParseArgs(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "bogus")
-	})
-}
-
-func Test_ensureSidecarImages(t *testing.T) {
-	withTempToolHome(t)
-	cmd := &cobra.Command{Use: "test"}
-
-	t.Run("dry run builds nothing", func(t *testing.T) {
-		// Arrange
-		built := stubSidecarBuilds(t)
-		input := run.Input{DryRun: true, ProxyMode: docker.ProxyEnforce, DindEnabled: true}
-
-		// Act
-		err := ensureSidecarImages(cmd, input)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, built())
-	})
-
-	t.Run("proxy only builds the proxy image", func(t *testing.T) {
-		// Arrange
-		stubLogs(t)
-		built := stubSidecarBuilds(t)
-		input := run.Input{ProxyMode: docker.ProxyEnforce}
-
-		// Act
-		err := ensureSidecarImages(cmd, input)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{tools.ProxyImage}, built())
-	})
-
-	t.Run("dind only builds the dind image", func(t *testing.T) {
-		// Arrange
-		stubLogs(t)
-		built := stubSidecarBuilds(t)
-		input := run.Input{DindEnabled: true}
-
-		// Act
-		err := ensureSidecarImages(cmd, input)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{tools.DindImage}, built())
-	})
-
-	t.Run("both enabled builds both images", func(t *testing.T) {
-		// Arrange
-		stubLogs(t)
-		built := stubSidecarBuilds(t)
-		input := run.Input{ProxyMode: docker.ProxyEnforce, DindEnabled: true}
-
-		// Act
-		err := ensureSidecarImages(cmd, input)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{tools.ProxyImage, tools.DindImage}, built())
-	})
-}
-
-func Test_ensureDindImage(t *testing.T) {
-	withTempToolHome(t)
-	cmd := &cobra.Command{Use: "test"}
-	fresh := formatTestLabelTime(time.Now())
-
-	t.Run("current image is reused", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{CLIVersion: buildinfo.Version, Built: fresh}, nil)
-		built := false
-		stubBuildDindImage(t, func(string, tools.BuildOptions) error {
-			built = true
-			return nil
-		})
-
-		// Act
-		err := ensureDindImage(cmd)
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, built)
-	})
-
-	t.Run("missing image is built", func(t *testing.T) {
-		// Arrange
-		logBuf := stubErrLog(t)
-		stubInspectImage(t, nil, nil)
-		var builtImage string
-		stubBuildDindImage(t, func(image string, _ tools.BuildOptions) error {
-			builtImage = image
-			return nil
-		})
-
-		// Act
-		err := ensureDindImage(cmd)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, tools.DindImage, builtImage)
-		assert.Contains(t, logBuf.String(), "agentic: building agentic-dind (image missing)...")
-	})
-
-	t.Run("stale image is rebuilt to pick up base patches", func(t *testing.T) {
-		// Arrange
-		stale := formatTestLabelTime(time.Now().Add(-tools.DindImageMaxAge - time.Hour))
-		logBuf := stubErrLog(t)
-		stubInspectImage(t, &docker.ImageInfo{CLIVersion: buildinfo.Version, Built: stale}, nil)
-		built := false
-		stubBuildDindImage(t, func(string, tools.BuildOptions) error {
-			built = true
-			return nil
-		})
-
-		// Act
-		err := ensureDindImage(cmd)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, built)
-		assert.Contains(t, logBuf.String(), "agentic: building agentic-dind (older than 7 days)...")
-	})
-
-	t.Run("failed refresh of an existing image only warns", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{CLIVersion: "older", Built: fresh}, nil)
-		stubBuildDindImage(t, func(string, tools.BuildOptions) error { return fmt.Errorf("offline") })
-
-		// Act
-		err := ensureDindImage(cmd)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("failed build of a missing image errors", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-		stubBuildDindImage(t, func(string, tools.BuildOptions) error { return fmt.Errorf("offline") })
-
-		// Act
-		err := ensureDindImage(cmd)
-
-		// Assert
-		assert.ErrorContains(t, err, "offline")
 	})
 }
 
