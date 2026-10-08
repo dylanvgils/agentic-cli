@@ -6,9 +6,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -249,94 +251,6 @@ func TestRunUpdate(t *testing.T) {
 		assert.Contains(t, logBuf.String(), "agentic: updating 2 image(s): ")
 	})
 
-	t.Run("all flag clears rc config base for per-image recovery", func(t *testing.T) {
-		// Arrange - simulate an RC config with build.bases = ["java"] in a temp dir.
-		// Without the fix, opts.BaseOverride = "java" (from RC) would prevent per-image
-		// recovery, and every image would be rebuilt with "java" regardless of its label.
-		t.Chdir(t.TempDir())
-		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\nbases = [\"java\"]\n"), 0o600))
-
-		var capturedOpts []tools.BuildOptions
-		stubDocker(t, &fakeDocker{
-			buildTool: func(_, _ string, opts tools.BuildOptions) error {
-				capturedOpts = append(capturedOpts, opts)
-				return nil
-			},
-			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
-			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-				return []*docker.ImageInfo{
-					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "go@1.23"},
-					{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "dotnet@8"},
-				}, nil
-			},
-		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
-
-		cmd := updateCmd
-		require.NoError(t, cmd.Flags().Set("all", "true"))
-		defer cmd.Flags().Set("all", "false") //nolint:errcheck
-
-		// Act
-		err := runUpdate(cmd, []string{})
-
-		// Assert - each image uses its own label-recovered base, not "java" from RC
-		require.NoError(t, err)
-		require.Len(t, capturedOpts, 2)
-		assert.NotEqual(t, []string{"java"}, capturedOpts[0].BaseOverride)
-		assert.NotEqual(t, []string{"java"}, capturedOpts[1].BaseOverride)
-		assert.NotEqual(t, capturedOpts[0].BaseOverride, capturedOpts[1].BaseOverride)
-	})
-
-	t.Run("rc config base does not override per-image label for single tool", func(t *testing.T) {
-		// Arrange - RC config with build.bases = ["java"]; image was built with go only.
-		t.Chdir(t.TempDir())
-		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\nbases = [\"java\"]\n"), 0o600))
-
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{
-			buildTool: func(_, _ string, opts tools.BuildOptions) error {
-				capturedOpts = opts
-				return nil
-			},
-			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0", Base: "go@1.23"}, nil),
-		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
-
-		// Act
-		err := runUpdate(updateCmd, []string{"claude"})
-
-		// Assert - image's own base recovered from label, not java from RC
-		require.NoError(t, err)
-		assert.NotEmpty(t, capturedOpts.BaseOverride)
-		assert.NotEqual(t, []string{"java"}, capturedOpts.BaseOverride)
-	})
-
-	t.Run("rc config apt does not override per-image label for single tool", func(t *testing.T) {
-		// Arrange - RC config with build.apt_packages = ["make"]; image was built with cmake only.
-		t.Chdir(t.TempDir())
-		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\napt_packages = [\"make\"]\n"), 0o600))
-
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{
-			buildTool: func(_, _ string, opts tools.BuildOptions) error {
-				capturedOpts = opts
-				return nil
-			},
-			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0", Apt: "cmake"}, nil),
-		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
-
-		// Act
-		err := runUpdate(updateCmd, []string{"claude"})
-
-		// Assert - image's own apt packages recovered from label, RC config apt not injected
-		require.NoError(t, err)
-		assert.Equal(t, []string{"cmake"}, capturedOpts.AptPackages)
-	})
-
 	t.Run("base-exact overrides rc bases and per-image label recovery, even when empty", func(t *testing.T) {
 		// Arrange - RC config with build.bases = ["java"]; image was built with go only.
 		t.Chdir(t.TempDir())
@@ -391,41 +305,6 @@ func TestRunUpdate(t *testing.T) {
 		assert.True(t, capturedOpts.AptExact)
 	})
 
-	t.Run("all flag with explicit base flag applies base to all images", func(t *testing.T) {
-		// Arrange - use a temp dir (no RC config) so the only base is the explicit flag.
-		t.Chdir(t.TempDir())
-
-		var capturedOpts []tools.BuildOptions
-		stubDocker(t, &fakeDocker{
-			buildTool: func(_, _ string, opts tools.BuildOptions) error {
-				capturedOpts = append(capturedOpts, opts)
-				return nil
-			},
-			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
-			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-				return []*docker.ImageInfo{
-					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},
-					{Image: "work-copilot", Namespace: "work", Tool: "copilot", Base: "node@24,dotnet@8"},
-				}, nil
-			},
-		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
-
-		cmd := updateCmd
-		stubFlag(t, cmd, "all", "true")
-		stubFlag(t, cmd, "base", "java")
-
-		// Act
-		err := runUpdate(cmd, []string{})
-
-		// Assert - explicit --base java must reach every target unchanged
-		require.NoError(t, err)
-		require.Len(t, capturedOpts, 2)
-		assert.Equal(t, []string{"java"}, capturedOpts[0].BaseOverride)
-		assert.Equal(t, []string{"java"}, capturedOpts[1].BaseOverride)
-	})
-
 	t.Run("all flag with tool arg updates only that tool across namespaces", func(t *testing.T) {
 		// Arrange
 		var updated []string
@@ -456,40 +335,6 @@ func TestRunUpdate(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"claude", "claude"}, updated)
-	})
-
-	t.Run("all flag shares cache-bust value across targets", func(t *testing.T) {
-		// Arrange
-		var capturedOpts []tools.BuildOptions
-		stubDocker(t, &fakeDocker{
-			buildTool: func(_, _ string, opts tools.BuildOptions) error {
-				capturedOpts = append(capturedOpts, opts)
-				return nil
-			},
-			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
-			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-				return []*docker.ImageInfo{
-					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},
-					{Image: "work-claude", Namespace: "work", Tool: "claude", Base: "node@24"},
-				}, nil
-			},
-		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
-
-		cmd := updateCmd
-		require.NoError(t, cmd.Flags().Set("all", "true"))
-		defer cmd.Flags().Set("all", "false") //nolint:errcheck
-
-		// Act
-		err := runUpdate(cmd, []string{})
-
-		// Assert - same tool rebuilt across two namespaces should reuse the same
-		// CacheBust value, so Docker can serve cached tool-stage layers for the second build
-		require.NoError(t, err)
-		require.Len(t, capturedOpts, 2)
-		assert.NotEmpty(t, capturedOpts[0].CacheBust)
-		assert.Equal(t, capturedOpts[0].CacheBust, capturedOpts[1].CacheBust)
 	})
 }
 
@@ -539,4 +384,37 @@ func Test_logUpdateSummary(t *testing.T) {
 	// Assert
 	assert.Contains(t, logBuf.String(), "updating 2 image(s): agentic-claude, agentic-copilot")
 	assert.Contains(t, logBuf.String(), "agentic-opencode (skipped - not built)")
+}
+
+// Test_updateOptsFromFlags only checks which flags count as given; the rule itself is covered by TestUpdateOptions in internal/usecase/resolve.
+func Test_updateOptsFromFlags(t *testing.T) {
+	withTempToolHome(t)
+	rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}, AptPackages: []string{"jq"}}}
+
+	t.Run("no flags drops the config bases and apt", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+		addBuildFlags(cmd)
+
+		// Act
+		opts := updateOptsFromFlags(cmd, rc)
+
+		// Assert
+		assert.Nil(t, opts.BaseOverride)
+		assert.Nil(t, opts.AptPackages)
+	})
+
+	t.Run("each flag pair counts on its own", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{Use: "test"}
+		addBuildFlags(cmd)
+		require.NoError(t, cmd.Flags().Set("apt-exact", "curl"))
+
+		// Act
+		opts := updateOptsFromFlags(cmd, rc)
+
+		// Assert - --apt-exact sets apt only; bases still come from the image
+		assert.Nil(t, opts.BaseOverride)
+		assert.Equal(t, []string{"curl"}, opts.AptPackages)
+	})
 }

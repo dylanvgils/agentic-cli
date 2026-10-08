@@ -4,9 +4,9 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
 )
@@ -51,15 +51,13 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 	namespace := resolveNamespace(cmd, rc)
 	opts := updateOptsFromFlags(cmd, rc)
+	warnSkipInstallChecksum(opts)
+
 	svc := update.New(dockerClient)
 
 	if dryRun, _ := cmd.Flags().GetBool("dry-run"); dryRun {
 		return svc.DryRun(firstArg(args), namespace, opts)
 	}
-
-	// Generate the cache-bust value once so multiple targets for the same tool
-	// (e.g. --all updating it across namespaces) can still share cached layers.
-	opts.CacheBust = docker.NewCacheBust()
 
 	all, _ := cmd.Flags().GetBool("all")
 	scope := update.Scope{
@@ -81,31 +79,20 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	logUpdateSummary(targets, skipped)
-	for _, t := range targets {
-		if err := svc.Apply(t.Name, t.Image, t.Opts); err != nil {
-			return err
-		}
+	if err := svc.ApplyAll(targets); err != nil {
+		return err
 	}
 
 	pruneResources()
 	return nil
 }
 
-// updateOptsFromFlags returns the build options for an update, keeping each image's own bases/apt unless a flag overrides them.
+// updateOptsFromFlags returns the build options for an update; see resolve.UpdateOptions for why config bases/apt need an explicit flag.
 func updateOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOptions {
-	opts := buildOptsFromFlags(cmd, rc)
+	baseSet := cmd.Flags().Changed("base") || cmd.Flags().Changed("base-exact")
+	aptSet := cmd.Flags().Changed("apt") || cmd.Flags().Changed("apt-exact")
 
-	warnSkipInstallChecksum(opts)
-
-	// RC config bases/apt must not prevent per-image label recovery; only an explicit --base/--base-exact or --apt/--apt-exact flag overrides what the image was built with.
-	if !cmd.Flags().Changed("base") && !cmd.Flags().Changed("base-exact") {
-		opts.BaseOverride = nil
-	}
-	if !cmd.Flags().Changed("apt") && !cmd.Flags().Changed("apt-exact") {
-		opts.AptPackages = nil
-	}
-
-	return opts
+	return resolve.UpdateOptions(buildInput(cmd), baseSet, aptSet, rc)
 }
 
 // logNothingToUpdate explains why scope matched nothing; a named tool that isn't built says nothing.
