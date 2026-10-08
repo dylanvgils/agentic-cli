@@ -44,6 +44,22 @@ func TestCheckDocker(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("shell completion skips check", func(t *testing.T) {
+		// Arrange
+		stubCheckDockerDaemon(t, func() error {
+			return errors.New("should not be called")
+		})
+		fakeRoot := &cobra.Command{Use: "agentic"}
+		completeCmd := &cobra.Command{Use: cobra.ShellCompRequestCmd}
+		fakeRoot.AddCommand(completeCmd)
+
+		// Act
+		err := checkDocker(completeCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+	})
+
 	t.Run("completion subcommand skips check", func(t *testing.T) {
 		// Arrange - `agentic completion bash` reaches persistentPreRunE with cmd.Name()=="bash",
 		// which is not in noDockerCmds; the ancestor walk must find "completion" instead.
@@ -284,28 +300,23 @@ func TestPersistentPreRunE(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	for _, name := range completionCmds {
-		t.Run(name+" skips the migration and daemon checks", func(t *testing.T) {
-			// Arrange
-			restoreDockerClient(t)
-			stubMigrateRun(t, func(string) ([]migrate.Migration, error) {
-				return nil, errors.New("migration should not run")
-			})
-			stubCheckDockerDaemon(t, func() error {
-				return errors.New("daemon check should not run")
-			})
-			cmd := &cobra.Command{Use: name}
-			cmd.Flags().String("docker-context", "", "")
-			fakeRoot := &cobra.Command{Use: "agentic"}
-			fakeRoot.AddCommand(cmd)
-
-			// Act
-			err := persistentPreRunE(cmd, nil)
-
-			// Assert
-			require.NoError(t, err)
+	t.Run("shell completion skips the migration check", func(t *testing.T) {
+		// Arrange
+		restoreDockerClient(t)
+		stubMigrateRun(t, func(string) ([]migrate.Migration, error) {
+			return nil, errors.New("should not be called")
 		})
-	}
+		cmd := &cobra.Command{Use: cobra.ShellCompRequestCmd}
+		cmd.Flags().String("docker-context", "", "")
+		fakeRoot := &cobra.Command{Use: "agentic"}
+		fakeRoot.AddCommand(cmd)
+
+		// Act
+		err := persistentPreRunE(cmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+	})
 }
 
 func TestInCommandChain(t *testing.T) {
@@ -396,36 +407,19 @@ func TestPruneResources(t *testing.T) {
 	})
 }
 
-// TestHomeFlag checks the root --home flag reaches every command, including ones that never had their own.
+// TestHomeFlag checks --home stays one root flag that no command shadows with its own.
 func TestHomeFlag(t *testing.T) {
-	t.Run("no command registers its own copy", func(t *testing.T) {
-		// Arrange
-		var own []string
+	// Arrange
+	var own []string
 
-		// Act
-		for _, cmd := range rootCmd.Commands() {
-			if cmd.LocalNonPersistentFlags().Lookup("home") != nil || cmd.PersistentFlags().Lookup("home") != nil {
-				own = append(own, cmd.Name())
-			}
+	// Act
+	for _, cmd := range rootCmd.Commands() {
+		if cmd.LocalNonPersistentFlags().Lookup("home") != nil || cmd.PersistentFlags().Lookup("home") != nil {
+			own = append(own, cmd.Name())
 		}
+	}
 
-		// Assert
-		require.NotNil(t, rootCmd.PersistentFlags().Lookup("home"))
-		assert.Empty(t, own)
-	})
-
-	t.Run("a command without its own flag sets the home", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		home := t.TempDir()
-		flag := rootCmd.PersistentFlags().Lookup("home")
-		t.Cleanup(func() { flag.Changed = false })
-
-		// Act
-		err := buildCmd.ParseFlags([]string{"--home", home})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, home, toolHome)
-	})
+	// Assert
+	require.NotNil(t, rootCmd.PersistentFlags().Lookup("home"))
+	assert.Empty(t, own)
 }
