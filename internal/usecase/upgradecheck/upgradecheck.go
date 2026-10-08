@@ -2,9 +2,6 @@
 package upgradecheck
 
 import (
-	"bufio"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
@@ -12,8 +9,11 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/selfupdate"
 )
 
-// Check checks GitHub for a newer release at most once per CheckInterval; on a TTY it prompts to update, otherwise it suggests `agentic upgrade` on stderr.
-func Check(home string) {
+// Confirm tells the user an upgrade from installed to latest is available and reports whether to apply it now.
+type Confirm func(installed, latest string) bool
+
+// Check checks GitHub for a newer release at most once per CheckInterval and applies it when confirm agrees, then exits.
+func Check(home string, confirm Confirm) {
 	if buildinfo.IsDevBuild() {
 		return
 	}
@@ -23,7 +23,7 @@ func Check(home string) {
 		return
 	}
 
-	notifyUpdate(latest)
+	offerUpdate(latest, confirm)
 }
 
 // fetchUpdateIfDue fetches the latest GitHub version if the check interval has elapsed, saves the check timestamp, and returns (latest, true) if it's newer.
@@ -53,26 +53,20 @@ func fetchUpdateIfDue(home string) (string, bool) {
 	return latest, true
 }
 
-// notifyUpdate prints an update notice to stderr; on a TTY it prompts to update, otherwise it suggests `agentic upgrade`.
-func notifyUpdate(latest string) {
-	if !IsTerminal() {
-		Notify.Stepf("agentic update available: %s (current: %s) - run: agentic upgrade", latest, buildinfo.Version)
+// offerUpdate applies latest and exits when confirm agrees: 0 once updated, 1 if the update fails.
+func offerUpdate(latest string, confirm Confirm) {
+	if !confirm(buildinfo.Version, latest) {
 		return
 	}
 
-	fmt.Fprintf(Notify.Writer(), "=> agentic update available: %s (current: %s)\n   update now? [y/N] ", latest, buildinfo.Version)
+	Notify.Step("updating...")
 
-	scanner := bufio.NewScanner(Stdin)
-	if scanner.Scan() && strings.EqualFold(strings.TrimSpace(scanner.Text()), "y") {
-		Notify.Step("updating...")
-
-		if err := Update(latest); err != nil {
-			Notify.Stepf("update failed: %v", err)
-			Notify.Detail("run: agentic upgrade")
-			Exit(1)
-		} else {
-			Notify.Stepf("updated to %s", latest)
-			Exit(0)
-		}
+	if err := Update(latest); err != nil {
+		Notify.Stepf("update failed: %v", err)
+		Notify.Detail("run: agentic upgrade")
+		Exit(1)
+	} else {
+		Notify.Stepf("updated to %s", latest)
+		Exit(0)
 	}
 }

@@ -151,6 +151,48 @@ func Test_ttyPrompter_OfferToolUpdate(t *testing.T) {
 	})
 }
 
+func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
+	t.Run("no tty prints one-liner and declines", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, false)
+		logs := stubErrLog(t)
+
+		// Act
+		result := ttyPrompter{}.OfferUpgrade("v1.0.0", "v1.1.0")
+
+		// Assert
+		assert.False(t, result)
+		assert.Equal(t, "=> agentic update available: v1.1.0 (current: v1.0.0) - run: agentic upgrade\n", logs.String())
+	})
+
+	t.Run("tty answers y accepts", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, true)
+		stubStdin(t, "y\n")
+		logs := stubErrLog(t)
+
+		// Act
+		result := ttyPrompter{}.OfferUpgrade("v1.0.0", "v1.1.0")
+
+		// Assert
+		assert.True(t, result)
+		assert.Equal(t, "=> agentic update available: v1.1.0 (current: v1.0.0)\n   update now? [y/N] ", logs.String())
+	})
+
+	t.Run("tty answers n declines", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, true)
+		stubStdin(t, "n\n")
+		stubErrLog(t)
+
+		// Act
+		result := ttyPrompter{}.OfferUpgrade("v1.0.0", "v1.1.0")
+
+		// Assert
+		assert.False(t, result)
+	})
+}
+
 func Test_describeCredential(t *testing.T) {
 	t.Run("preset", func(t *testing.T) {
 		// Arrange

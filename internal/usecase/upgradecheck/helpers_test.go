@@ -34,13 +34,6 @@ func stubUpdateCapture(t *testing.T, err error) *string {
 	return &calledWith
 }
 
-func stubIsTerminal(t *testing.T, terminal bool) {
-	t.Helper()
-	orig := IsTerminal
-	IsTerminal = func() bool { return terminal }
-	t.Cleanup(func() { IsTerminal = orig })
-}
-
 // stubStderrCapture redirects Notify to a buffer for the duration of the test.
 func stubStderrCapture(t *testing.T) *bytes.Buffer {
 	t.Helper()

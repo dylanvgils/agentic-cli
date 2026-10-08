@@ -70,7 +70,7 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	}
 
 	if cmd.Parent() != nil && !inCommandChain(cmd, noUpdateCmds) {
-		upgradecheck.Check(toolHome)
+		upgradecheck.Check(toolHome, ttyPrompter{}.OfferUpgrade)
 	}
 
 	return nil

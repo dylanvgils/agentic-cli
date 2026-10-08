@@ -2,14 +2,11 @@ package upgradecheck
 
 import (
 	"errors"
-	"io"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,9 +22,10 @@ func TestCheck(t *testing.T) {
 		}
 		t.Cleanup(func() { LatestVersion = orig })
 		home := t.TempDir()
+		confirm := func(string, string) bool { return true }
 
 		// Act
-		Check(home)
+		Check(home, confirm)
 
 		// Assert
 		assert.False(t, fetchCalled)
@@ -131,40 +129,36 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 	})
 }
 
-func Test_notifyUpdate(t *testing.T) {
+func Test_offerUpdate(t *testing.T) {
 	origVersion := buildinfo.Version
 	buildinfo.Version = "v1.0.0"
 	t.Cleanup(func() { buildinfo.Version = origVersion })
 
-	t.Run("prints one-liner to stderr when not a terminal", func(t *testing.T) {
+	t.Run("asks confirm with installed and latest", func(t *testing.T) {
 		// Arrange
-		stubIsTerminal(t, false)
-		errBuf := stubStderrCapture(t)
+		var installed, latest string
+		confirm := func(i, l string) bool {
+			installed, latest = i, l
+			return false
+		}
 
 		// Act
-		notifyUpdate("v1.1.0")
+		offerUpdate("v1.1.0", confirm)
 
 		// Assert
-		out := errBuf.String()
-		assert.Contains(t, out, "v1.1.0")
-		assert.Contains(t, out, "v1.0.0")
-		assert.Contains(t, out, "upgrade")
+		assert.Equal(t, "v1.0.0", installed)
+		assert.Equal(t, "v1.1.0", latest)
 	})
 
-	t.Run("prompts and updates when terminal and user confirms", func(t *testing.T) {
+	t.Run("updates and exits 0 when confirmed", func(t *testing.T) {
 		// Arrange
-		stubIsTerminal(t, true)
 		updateCalledWith := stubUpdateCapture(t, nil)
-
-		origStdin := Stdin
-		Stdin = strings.NewReader("y\n")
-		t.Cleanup(func() { Stdin = origStdin })
-
 		errBuf := stubStderrCapture(t)
 		exitCode := stubExitCapture(t)
+		confirm := func(string, string) bool { return true }
 
 		// Act
-		notifyUpdate("v1.1.0")
+		offerUpdate("v1.1.0", confirm)
 
 		// Assert
 		assert.Equal(t, "v1.1.0", *updateCalledWith)
@@ -172,43 +166,35 @@ func Test_notifyUpdate(t *testing.T) {
 		assert.Equal(t, 0, *exitCode)
 	})
 
-	t.Run("exits with code 1 when terminal, user confirms, and update fails", func(t *testing.T) {
+	t.Run("exits 1 when confirmed and the update fails", func(t *testing.T) {
 		// Arrange
-		stubIsTerminal(t, true)
 		stubUpdate(t, errors.New("network error"))
-
-		origStdin := Stdin
-		Stdin = strings.NewReader("y\n")
-		t.Cleanup(func() { Stdin = origStdin })
-
 		errBuf := stubStderrCapture(t)
 		exitCode := stubExitCapture(t)
+		confirm := func(string, string) bool { return true }
 
 		// Act
-		notifyUpdate("v1.1.0")
+		offerUpdate("v1.1.0", confirm)
 
 		// Assert
 		assert.Contains(t, errBuf.String(), "update failed")
 		assert.Equal(t, 1, *exitCode)
 	})
 
-	t.Run("skips update when terminal and user declines", func(t *testing.T) {
+	t.Run("skips update when declined", func(t *testing.T) {
 		// Arrange
-		stubIsTerminal(t, true)
 		updateCalled := stubUpdateCapture(t, nil)
-
-		origStdin := Stdin
-		Stdin = strings.NewReader("n\n")
-		t.Cleanup(func() { Stdin = origStdin })
-
-		origNotify := Notify
-		Notify = logging.New(io.Discard)
-		t.Cleanup(func() { Notify = origNotify })
+		exited := false
+		origExit := Exit
+		Exit = func(int) { exited = true }
+		t.Cleanup(func() { Exit = origExit })
+		confirm := func(string, string) bool { return false }
 
 		// Act
-		notifyUpdate("v1.1.0")
+		offerUpdate("v1.1.0", confirm)
 
 		// Assert
 		assert.Empty(t, *updateCalled)
+		assert.False(t, exited)
 	})
 }

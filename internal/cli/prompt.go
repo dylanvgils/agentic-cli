@@ -56,6 +56,18 @@ func (ttyPrompter) OfferToolUpdate(tool, installed, latest string) bool {
 	return confirmed()
 }
 
+// OfferUpgrade announces a newer agentic release and, on a terminal, asks whether to upgrade now; otherwise it just suggests `agentic upgrade`.
+func (ttyPrompter) OfferUpgrade(installed, latest string) bool {
+	if !isTerminal() {
+		logging.Err.Stepf("agentic update available: %s (current: %s) - run: agentic upgrade", latest, installed)
+		return false
+	}
+
+	logging.Err.Stepf("agentic update available: %s (current: %s)", latest, installed)
+	fmt.Fprint(logging.Err.Writer(), "   update now? [y/N] ")
+	return confirmed()
+}
+
 // describeCredential summarizes where an entry's secret is read from and where it is sent, quoting each value so escape sequences print as text.
 func describeCredential(cred config.RCCredential) string {
 	target := fmt.Sprintf("preset %q", cred.Preset)
