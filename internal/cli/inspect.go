@@ -65,6 +65,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 	return printImageDetail(tool, namespace)
 }
 
+// runInspectTable prints the image table for namespace, or for every namespace when it is empty.
 func runInspectTable(namespace string) error {
 	var filters []docker.ImageFilter
 	if namespace != "" {
@@ -94,6 +95,7 @@ func runInspectTable(namespace string) error {
 	return writeAllTable(images)
 }
 
+// writeNamespaceTable prints one namespace's images, one row per tool.
 func writeNamespaceTable(namespace string, images []*docker.ImageInfo) error {
 	fmt.Printf("Namespace: %s\n\n", namespace)
 
@@ -116,6 +118,7 @@ func writeNamespaceTable(namespace string, images []*docker.ImageInfo) error {
 	return w.Flush()
 }
 
+// writeAllTable prints every agentic image with its namespace column.
 func writeAllTable(images []*docker.ImageInfo) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	if _, err := fmt.Fprintln(w, "NAMESPACE\tTOOL\tVERSION\tBASE\tBUILT\tSIZE"); err != nil {
@@ -139,6 +142,7 @@ func writeAllTable(images []*docker.ImageInfo) error {
 	return w.Flush()
 }
 
+// printAllNamespaceDetail prints the detail of tool's image in every namespace.
 func printAllNamespaceDetail(tool string) error {
 	images, err := dockerClient.ListAllImages(docker.ToolFilter(tool))
 	if err != nil {
@@ -163,6 +167,7 @@ func printAllNamespaceDetail(tool string) error {
 	return nil
 }
 
+// printImageDetail prints the detail of tool's image in namespace.
 func printImageDetail(tool, namespace string) error {
 	image, err := tools.ImageName(tool, namespace)
 	if err != nil {
@@ -182,6 +187,7 @@ func printImageDetail(tool, namespace string) error {
 	return nil
 }
 
+// printInfoDetail prints one image's labels, with placeholders for missing ones.
 func printInfoDetail(info *docker.ImageInfo) {
 	version := info.Version
 	if version == "" {
@@ -213,6 +219,7 @@ func printInfoDetail(info *docker.ImageInfo) {
 	fmt.Printf("  size:     %s\n", size)
 }
 
+// imageRow returns the table cells of info, with a dash for missing values.
 func imageRow(info *docker.ImageInfo) (version, base, built, size string) {
 	return orDash(info.Version),
 		orDash(truncate(info.Base, baseMaxLength)),
@@ -220,6 +227,7 @@ func imageRow(info *docker.ImageInfo) (version, base, built, size string) {
 		orDash(info.Size)
 }
 
+// truncate cuts s to max characters and marks the cut with "...".
 func truncate(s string, max int) string {
 	if len(s) <= max {
 		return s
@@ -227,6 +235,7 @@ func truncate(s string, max int) string {
 	return s[:max] + "..."
 }
 
+// orDash returns s, or "-" when it is empty.
 func orDash(s string) string {
 	if s == "" {
 		return "-"

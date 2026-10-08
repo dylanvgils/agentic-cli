@@ -60,6 +60,7 @@ func runNamespacesPrune(cmd *cobra.Command, _ []string) error {
 	return pruneNamespace(namespace)
 }
 
+// listNamespaces prints each namespace that has an agentic image, sorted.
 func listNamespaces() error {
 	images, err := dockerClient.ListAllImages()
 	if err != nil {
@@ -80,6 +81,7 @@ func listNamespaces() error {
 	return nil
 }
 
+// pruneNamespace removes every agentic image in namespace.
 func pruneNamespace(namespace string) error {
 	images, err := dockerClient.ListAllImages(docker.NamespaceFilter(namespace))
 	if err != nil {

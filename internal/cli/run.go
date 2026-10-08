@@ -12,12 +12,12 @@ import (
 )
 
 var (
-	extraVolumes       []string
+	flagVolumes        []string
 	flagSecrets        []string
 	flagReadOnlyMounts []string
 	flagEnv            []string
-	dryRun             bool
-	trustDir           bool
+	flagDryRun         bool
+	flagTrustDir       bool
 )
 
 var runToolCmd = &cobra.Command{
@@ -27,7 +27,6 @@ var runToolCmd = &cobra.Command{
 	Args:              cobra.ArbitraryArgs,
 	ValidArgsFunction: builtToolNamesFunc,
 	RunE:              runTool,
-	Hidden:            false,
 }
 
 type parsedArgs struct {
@@ -49,7 +48,7 @@ type invocation struct {
 func init() {
 	rootCmd.AddCommand(runToolCmd)
 
-	runToolCmd.Flags().StringArrayVarP(&extraVolumes, "volume", "v", nil,
+	runToolCmd.Flags().StringArrayVarP(&flagVolumes, "volume", "v", nil,
 		"additional volume mount (format: host:container[:options]); bind mounts are read-only unless options include rw; repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagSecrets, "secret", "s", nil,
 		"secret file to mount read-only into the container (format: name:/path[:/container/path]); repeatable")
@@ -57,8 +56,8 @@ func init() {
 		"sub-path to force read-only, applied after other mounts (format: host:container); repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagEnv, "env", "e", nil,
 		"environment variable to set in the container (format: KEY=VALUE, or KEY to forward the host value); repeatable")
-	runToolCmd.Flags().BoolVar(&dryRun, "dry-run", false, "print the docker command without running it")
-	runToolCmd.Flags().BoolVar(&trustDir, "trust-dir", false, "trust the current directory and save it to config")
+	runToolCmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "print the docker command without running it")
+	runToolCmd.Flags().BoolVar(&flagTrustDir, "trust-dir", false, "trust the current directory and save it to config")
 	runToolCmd.Flags().SetInterspersed(false)
 
 	addResourceLimitFlags(runToolCmd)
@@ -123,10 +122,10 @@ func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
 // runRequest collects the run flags for inv; Prepare resolves them against inv's config.
 func runRequest(cmd *cobra.Command, inv invocation) run.Request {
 	flags := runtimeFlags(cmd)
-	flags.TrustDir = trustDir
-	flags.DryRun = dryRun
+	flags.TrustDir = flagTrustDir
+	flags.DryRun = flagDryRun
 	flags.Registry = collectRegistry(cmd)
-	flags.Volumes = extraVolumes
+	flags.Volumes = flagVolumes
 	flags.Secrets = flagSecrets
 	flags.ReadOnlyMounts = flagReadOnlyMounts
 	flags.Env = flagEnv
@@ -147,6 +146,7 @@ func runRequest(cmd *cobra.Command, inv invocation) run.Request {
 	}
 }
 
+// parseArgs splits args into the tool, its image in namespace and the tool args; a leading "--" skips the entrypoint.
 func parseArgs(args []string, namespace string) (parsedArgs, error) {
 	toolName := args[0]
 	imageName, err := tools.ImageName(toolName, namespace)
