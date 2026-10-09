@@ -389,6 +389,16 @@ func TestBuildLayers(t *testing.T) {
 	})
 }
 
+func TestKnownExtras(t *testing.T) {
+	// Act
+	result := KnownExtras()
+	result[0] = "changed"
+
+	// Assert - the extras without the base layer, as a copy callers can't use to edit the list
+	assert.Equal(t, "docker", knownExtras[0])
+	assert.NotContains(t, KnownExtras(), BaseLayer)
+}
+
 func Test_knownLayers(t *testing.T) {
 	// Act
 	result := KnownLayers()

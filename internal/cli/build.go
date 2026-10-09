@@ -53,10 +53,5 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		return svc.DryRun(names, opts)
 	}
 
-	if err := svc.Apply(names, namespace, opts); err != nil {
-		return err
-	}
-
-	pruneResources()
-	return nil
+	return svc.Apply(names, namespace, opts)
 }

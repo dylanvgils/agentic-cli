@@ -153,12 +153,6 @@ func inCommandChain(cmd *cobra.Command, names []string) bool {
 	return false
 }
 
-// pruneResources silently removes agentic-owned dangling images and build cache.
-func pruneResources() {
-	_ = dockerClient.PruneImages()
-	_ = dockerClient.PruneBuildCache()
-}
-
 func rootRun(cmd *cobra.Command, _ []string) error {
 	return cmd.Help()
 }

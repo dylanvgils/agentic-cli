@@ -6,6 +6,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
@@ -116,6 +117,14 @@ func (s *Service) runInput(req Request) (Input, error) {
 	}
 
 	return in, nil
+}
+
+// CheckProjectDir refuses a working dir Docker can't bind-mount; run it before reading the dir's config.
+func CheckProjectDir(dir string) error {
+	if mount.IsUNCPath(dir) {
+		return fmt.Errorf("working directory %q is on a network share; Docker cannot bind-mount UNC paths", dir)
+	}
+	return nil
 }
 
 // checkApprovals has the user trust the working dir and approve new or changed proxy credentials.

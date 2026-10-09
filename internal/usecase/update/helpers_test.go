@@ -18,6 +18,7 @@ type fakeDocker struct {
 	inspectImage  func(string) (*docker.ImageInfo, error)
 	buildTool     func(tool, image string, opts tools.BuildOptions) error
 	restampImage  func(image string, info docker.ImageInfo)
+	pruneDangling func() error
 }
 
 func (f *fakeDocker) ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -45,6 +46,13 @@ func (f *fakeDocker) RestampImage(image string, info docker.ImageInfo) {
 	if f.restampImage != nil {
 		f.restampImage(image, info)
 	}
+}
+
+func (f *fakeDocker) PruneDangling() error {
+	if f.pruneDangling == nil {
+		return nil
+	}
+	return f.pruneDangling()
 }
 
 // inspectReturns returns an InspectImage func that always yields info and err.

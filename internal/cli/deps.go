@@ -43,8 +43,6 @@ type dockerAPI interface {
 	Context() string
 	CheckDaemon() error
 	RunContainer(rs docker.RunSpec, toolArgs []string) error
-	PruneImages() error
-	PruneBuildCache() error
 	CreateVolume(name string) error
 	ListVolumes() (string, error)
 	ListVolumeNames() ([]string, error)

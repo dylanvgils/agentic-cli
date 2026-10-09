@@ -35,7 +35,7 @@ All stages go into one multi-stage Dockerfile and are built in a single `docker 
 | `--base node,java --java 17` | debian + Node.js + Java 17     |
 | `--node 22`                  | debian + Node.js v22           |
 
-`--base` adds to the `bases` in `.agenticrc.toml`. `--base-exact` replaces them (see [Precedence](config.md#precedence)).
+`--base` adds to the `bases` in `.agenticrc.toml`. `--base-exact` replaces them (see [Precedence](config.md#precedence)). Both tab-complete the layer names.
 
 ## Versions and updates
 

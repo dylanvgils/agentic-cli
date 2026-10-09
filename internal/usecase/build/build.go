@@ -19,7 +19,8 @@ func New(d Docker) *Service {
 	return &Service{docker: d}
 }
 
-// Apply builds each tool image in names under namespace, announcing the batch and reporting the base/apt overrides in effect for each.
+// Apply builds each tool image in names under namespace, announcing the batch and reporting the base/apt overrides in effect for each,
+// then prunes the dangling images and build cache the builds left behind.
 func (s *Service) Apply(names []string, namespace string, opts tools.BuildOptions) error {
 	images := make([]string, len(names))
 	for i, name := range names {
@@ -51,6 +52,9 @@ func (s *Service) Apply(names []string, namespace string, opts tools.BuildOption
 			return err
 		}
 	}
+
+	// Best effort: a failed cleanup never fails the build
+	_ = s.docker.PruneDangling()
 	return nil
 }
 

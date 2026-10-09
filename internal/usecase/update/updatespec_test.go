@@ -349,6 +349,37 @@ func TestApplyAll(t *testing.T) {
 		require.ErrorContains(t, err, "build failed")
 		assert.Equal(t, []string{"agentic-claude"}, built)
 	})
+
+	t.Run("prunes after every target succeeds", func(t *testing.T) {
+		// Arrange
+		pruned := false
+		d := &fakeDocker{pruneDangling: func() error { pruned = true; return nil }}
+
+		// Act
+		var err error
+		captureLog(t, func() { err = New(d).ApplyAll(targets) })
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, pruned)
+	})
+
+	t.Run("a failed target skips the prune", func(t *testing.T) {
+		// Arrange
+		pruned := false
+		d := &fakeDocker{
+			buildTool:     func(string, string, tools.BuildOptions) error { return errors.New("build failed") },
+			pruneDangling: func() error { pruned = true; return nil },
+		}
+
+		// Act
+		var err error
+		captureLog(t, func() { err = New(d).ApplyAll(targets) })
+
+		// Assert
+		require.ErrorContains(t, err, "build failed")
+		assert.False(t, pruned)
+	})
 }
 
 func TestApply(t *testing.T) {
