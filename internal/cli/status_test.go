@@ -128,6 +128,6 @@ func TestWriteContainerStatus(t *testing.T) {
 		assert.Contains(t, out, "NAME")
 		assert.Contains(t, out, "agentic-claude-ab12")
 		assert.Contains(t, out, "mystery")
-		assert.Contains(t, out, "-") // dashed blank namespace/tool for the unrecognized image
+		assert.Regexp(t, `mystery\s+-\s+-\s+not-an-agentic-image\s+Up 1 minute`, out) // blank namespace and tool are dashed
 	})
 }

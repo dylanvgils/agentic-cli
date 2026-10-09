@@ -55,8 +55,9 @@ func Test_runInspect(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		// Assert
-		assert.Contains(t, out, "agentic")
+		// Assert - the all-namespaces table, not one namespace's
+		assert.Contains(t, out, "NAMESPACE")
+		assert.NotContains(t, out, "Namespace: ")
 		assert.Contains(t, out, "work")
 	})
 
