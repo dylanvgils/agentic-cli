@@ -40,7 +40,8 @@ All stages go into one multi-stage Dockerfile and are built in a single `docker 
 ## Versions and updates
 
 - Default versions are built into the binary (see `agentic build --help`). Pin one per build with `--debian`, `--node`, `--java`, `--dotnet`, `--go` or `--docker`, or per project with [`[build.versions]`](config.md#build).
-- `agentic update` reuses the runtimes, versions and apt packages the image was built with, and ignores `bases`/`apt_packages` in `.agenticrc.toml`. Only an explicit `--base`, `--apt`, `--<layer>` or `--*-exact` flag changes them. Unchanged layers stay cached. `--no-cache` rebuilds them anyway.
+- `agentic update` reuses the runtimes, versions, apt packages and custom installs the image was built with, and ignores `[build]` in `.agenticrc.toml`. Only an explicit `--base`, `--apt`, `--<layer>` or `--*-exact` flag changes them, and `agentic build` picks up config edits. Unchanged layers stay cached. `--no-cache` rebuilds them anyway.
+- Custom installs are kept in the [data directory](usage.md#data-directory). If an image's aren't there (built on another machine, by an older agentic, or the directory was wiped), `agentic update` takes their commands from `.agenticrc.toml` and warns about any it can't find.
 - `agentic update` prints `version: X -> Y` (or `X (up to date)`) before it starts.
 - Base images use floating tags, so registries publish patches under the same tag. `agentic update` pulls them at most once every 24h per image, even when the tool is current. `--pull` forces a check and `--pull=false` turns it off. `agentic build` only pulls with `--pull`.
 - `agentic run` checks for a newer tool version at most every 6 hours, and in a terminal offers to update first. Saying no, or a non-interactive run, prints a notice and starts the current version. Turn it off with `check_updates = false` under `[run]`.

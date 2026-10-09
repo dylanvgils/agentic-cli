@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -103,4 +104,23 @@ func captureLog(t *testing.T, fn func()) string {
 	fn()
 
 	return buf.String()
+}
+
+// stubErrLog swaps logging.Err for a buffer until the test ends.
+func stubErrLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+
+	var buf bytes.Buffer
+	orig := logging.Err
+	logging.Err = logging.New(&buf)
+	t.Cleanup(func() { logging.Err = orig })
+
+	return &buf
+}
+
+// storeCustomInstalls saves installs to the custom installs store under home and returns their hash.
+func storeCustomInstalls(t *testing.T, home string, installs ...config.RCCustomInstall) string {
+	t.Helper()
+	require.NoError(t, config.SaveCustomInstalls(home, installs))
+	return config.CustomInstallsHash(installs)
 }

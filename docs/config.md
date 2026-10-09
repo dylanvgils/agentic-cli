@@ -78,7 +78,7 @@ Inside this repo, use the local file instead: `#:schema ./agenticrc.schema.json`
 
 ### `[build]`
 
-Applied by `agentic build` and `agentic update`. See [Images](images.md) for what each setting does to the image.
+Applied by `agentic build`. See [Images](images.md) for what each setting does to the image, and what `agentic update` keeps.
 
 | Key               | Type           | Description                                                                 | CLI flag                  |
 | ----------------- | -------------- | --------------------------------------------------------------------------- | ------------------------- |
@@ -107,7 +107,7 @@ run = [
 
 - These run after the `bases` layers and before the tool install, so they can use any requested runtime (e.g. `go install` with `--base go`).
 - Commands run as root. Install into `/usr/local/bin` or `/opt`, not `$HOME`, because the container user can't use root-owned files in its home.
-- There's no CLI flag for this setting. `agentic update` always uses the current file, and editing `run` rebuilds that layer.
+- There's no CLI flag for this setting. Editing `run` rebuilds that layer on the next `agentic build`.
 
 ### `[run]`
 

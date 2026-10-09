@@ -53,7 +53,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	opts := updateOptsFromFlags(cmd, rc)
 	warnSkipInstallChecksum(opts)
 
-	svc := update.New(dockerClient)
+	svc := update.New(dockerClient, toolHome)
 
 	if dryRun, _ := cmd.Flags().GetBool("dry-run"); dryRun {
 		return svc.DryRun(firstArg(args), namespace, opts)

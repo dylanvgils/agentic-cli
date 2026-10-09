@@ -39,7 +39,7 @@ func runClean(cmd *cobra.Command, args []string) error {
 		All:        all,
 	}
 
-	svc := clean.New(dockerClient)
+	svc := clean.New(dockerClient, toolHome)
 	targets, err := svc.Resolve(scope)
 	if err != nil {
 		return err
@@ -51,7 +51,7 @@ func runClean(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(args) == 0 {
-		return svc.GlobalResources(toolHome)
+		return svc.GlobalResources()
 	}
 
 	return nil

@@ -24,7 +24,7 @@ func TestDryRun(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := New(d).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, t.TempDir()).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -35,7 +35,7 @@ func TestDryRun(t *testing.T) {
 
 	t.Run("without tool arg returns error", func(t *testing.T) {
 		// Act
-		err := New(&fakeDocker{}).DryRun("", "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(&fakeDocker{}, t.TempDir()).DryRun("", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
@@ -48,7 +48,7 @@ func TestDryRun(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := New(d).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, t.TempDir()).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -63,7 +63,7 @@ func TestDryRun(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := New(d).DryRun("claude", "agentic", opts)
+			err := New(d, t.TempDir()).DryRun("claude", "agentic", opts)
 			require.NoError(t, err)
 		})
 
@@ -74,7 +74,7 @@ func TestDryRun(t *testing.T) {
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		err := New(&fakeDocker{}).DryRun("nonexistent", "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(&fakeDocker{}, t.TempDir()).DryRun("nonexistent", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
@@ -88,7 +88,7 @@ func TestDryRun(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := New(d).DryRun("claude", "agentic", opts)
+			err := New(d, t.TempDir()).DryRun("claude", "agentic", opts)
 			require.NoError(t, err)
 		})
 
@@ -109,7 +109,7 @@ func TestResolve(t *testing.T) {
 		}}
 
 		// Act
-		targets, _, err := New(d).Resolve(Scope{All: true, FilterTool: "claude"}, tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, _, err := New(d, t.TempDir()).Resolve(Scope{All: true, FilterTool: "claude"}, tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestResolve(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(nil, nil)}
 
 		// Act
-		targets, _, err := New(d).Resolve(Scope{Names: []string{"claude"}, HasArgs: true, Namespace: "agentic"}, tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, _, err := New(d, t.TempDir()).Resolve(Scope{Names: []string{"claude"}, HasArgs: true, Namespace: "agentic"}, tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -137,7 +137,7 @@ func Test_resolveScoped(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(nil, nil)}
 
 		// Act
-		targets, _, err := New(d).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, _, err := New(d, t.TempDir()).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -150,7 +150,7 @@ func Test_resolveScoped(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectSequence(nil, &docker.ImageInfo{Version: "1.0.0", Base: "node@24,java@21"})}
 
 		// Act
-		targets, skipped, err := New(d).resolveScoped(tools.Names(), false, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, skipped, err := New(d, t.TempDir()).resolveScoped(tools.Names(), false, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -166,7 +166,7 @@ func Test_resolveScoped(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(nil, fmt.Errorf("daemon not running"))}
 
 		// Act
-		_, _, err := New(d).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		_, _, err := New(d, t.TempDir()).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.Error(t, err)
@@ -174,7 +174,7 @@ func Test_resolveScoped(t *testing.T) {
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		_, _, err := New(&fakeDocker{}).resolveScoped([]string{"nonexistent"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		_, _, err := New(&fakeDocker{}, t.TempDir()).resolveScoped([]string{"nonexistent"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.Error(t, err)
@@ -187,7 +187,7 @@ func Test_resolveScoped(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Pulled: freshLabel}, nil)}
 
 		// Act - pullExplicit is false, so the fresh label should disable Pull
-		targets, _, err := New(d).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Pull: true, Versions: map[string]string{}}, false)
+		targets, _, err := New(d, t.TempDir()).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Pull: true, Versions: map[string]string{}}, false)
 
 		// Assert
 		require.NoError(t, err)
@@ -207,7 +207,7 @@ func Test_resolveAll(t *testing.T) {
 		}}
 
 		// Act
-		targets, err := New(d).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, err := New(d, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -225,7 +225,7 @@ func Test_resolveAll(t *testing.T) {
 		}}
 
 		// Act
-		targets, err := New(d).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, err := New(d, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -243,7 +243,7 @@ func Test_resolveAll(t *testing.T) {
 		}}
 
 		// Act
-		targets, err := New(d).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, err := New(d, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert - each target gets its own label-recovered base, not a shared one
 		require.NoError(t, err)
@@ -251,6 +251,28 @@ func Test_resolveAll(t *testing.T) {
 		assert.NotEmpty(t, targets[0].Opts.BaseOverride)
 		assert.NotEmpty(t, targets[1].Opts.BaseOverride)
 		assert.NotEqual(t, targets[0].Opts.BaseOverride, targets[1].Opts.BaseOverride)
+	})
+
+	t.Run("custom installs stay with the image they were built into", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		helmHash := storeCustomInstalls(t, home, config.RCCustomInstall{Name: "helm", Run: []string{"echo helm"}})
+		d := &fakeDocker{listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+				{Image: "work-claude", Namespace: "work", Tool: "claude", CustomInstalls: "helm", CustomInstallsHash: helmHash},
+			}, nil
+		}}
+		opts := tools.BuildOptions{CustomInstalls: []config.RCCustomInstall{{Name: "golangci-lint", Run: []string{"echo lint"}}}}
+
+		// Act
+		targets, err := New(d, home).resolveAll("", opts, true)
+
+		// Assert - the cwd config's golangci-lint isn't added to either image
+		require.NoError(t, err)
+		require.Len(t, targets, 2)
+		assert.Empty(t, targets[0].Opts.CustomInstalls)
+		assert.Equal(t, []config.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}, targets[1].Opts.CustomInstalls)
 	})
 
 	t.Run("recovers apt independently from each image label", func(t *testing.T) {
@@ -263,7 +285,7 @@ func Test_resolveAll(t *testing.T) {
 		}}
 
 		// Act
-		targets, err := New(d).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, err := New(d, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -279,7 +301,7 @@ func Test_resolveAll(t *testing.T) {
 		}}
 
 		// Act
-		_, err := New(d).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
+		_, err := New(d, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.Error(t, err)
@@ -297,7 +319,7 @@ func Test_resolveAll(t *testing.T) {
 		}}
 
 		// Act
-		targets, err := New(d).resolveAll("claude", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, err := New(d, t.TempDir()).resolveAll("claude", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -324,7 +346,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d).ApplyAll(targets) })
+		captureLog(t, func() { err = New(d, t.TempDir()).ApplyAll(targets) })
 
 		// Assert - the same value lets Docker reuse the tool stage for the second namespace
 		require.NoError(t, err)
@@ -343,7 +365,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d).ApplyAll(targets) })
+		captureLog(t, func() { err = New(d, t.TempDir()).ApplyAll(targets) })
 
 		// Assert
 		require.ErrorContains(t, err, "build failed")
@@ -361,7 +383,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -376,7 +398,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -390,7 +412,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -405,7 +427,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -420,7 +442,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d).Apply("claude", "agentic-claude", opts)
+			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
 
@@ -434,7 +456,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -449,7 +471,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d).Apply("claude", "agentic-claude", opts)
+			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
 
@@ -463,7 +485,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -478,7 +500,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d).Apply("claude", "agentic-claude", opts)
+			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
 
@@ -493,7 +515,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d).Apply("claude", "agentic-claude", opts)
+			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
 
@@ -511,7 +533,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
@@ -532,7 +554,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
@@ -553,7 +575,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
@@ -572,7 +594,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
@@ -592,7 +614,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
@@ -607,7 +629,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -655,7 +677,7 @@ func Test_reportVersionChange(t *testing.T) {
 func Test_recoverOpts(t *testing.T) {
 	t.Run("recovers base from label when not explicitly set", func(t *testing.T) {
 		// Act
-		result := recoverOpts(&docker.ImageInfo{Base: "node@24,java@21"}, tools.BuildOptions{})
+		result := recoverOpts(t.TempDir(), &docker.ImageInfo{Base: "node@24,java@21"}, tools.BuildOptions{})
 
 		// Assert
 		assert.NotEmpty(t, result.BaseOverride)
@@ -663,7 +685,7 @@ func Test_recoverOpts(t *testing.T) {
 
 	t.Run("explicit base takes precedence", func(t *testing.T) {
 		// Act
-		result := recoverOpts(&docker.ImageInfo{Base: "node@24,go@1.22"}, tools.BuildOptions{BaseOverride: []string{"java"}})
+		result := recoverOpts(t.TempDir(), &docker.ImageInfo{Base: "node@24,go@1.22"}, tools.BuildOptions{BaseOverride: []string{"java"}})
 
 		// Assert
 		assert.Equal(t, []string{"java"}, result.BaseOverride)
@@ -671,7 +693,7 @@ func Test_recoverOpts(t *testing.T) {
 
 	t.Run("recovers apt from label when not explicitly set", func(t *testing.T) {
 		// Act
-		result := recoverOpts(&docker.ImageInfo{Base: "node@24", Apt: "make,gcc"}, tools.BuildOptions{})
+		result := recoverOpts(t.TempDir(), &docker.ImageInfo{Base: "node@24", Apt: "make,gcc"}, tools.BuildOptions{})
 
 		// Assert
 		assert.NotEmpty(t, result.AptPackages)
@@ -679,7 +701,7 @@ func Test_recoverOpts(t *testing.T) {
 
 	t.Run("explicit apt merged with recovered packages", func(t *testing.T) {
 		// Act
-		result := recoverOpts(&docker.ImageInfo{Base: "node@24", Apt: "make,gcc"}, tools.BuildOptions{AptPackages: []string{"cmake"}})
+		result := recoverOpts(t.TempDir(), &docker.ImageInfo{Base: "node@24", Apt: "make,gcc"}, tools.BuildOptions{AptPackages: []string{"cmake"}})
 
 		// Assert
 		assert.Equal(t, []string{"make", "gcc", "cmake"}, result.AptPackages)
@@ -687,7 +709,7 @@ func Test_recoverOpts(t *testing.T) {
 
 	t.Run("base-exact skips recovery even when empty", func(t *testing.T) {
 		// Act
-		result := recoverOpts(&docker.ImageInfo{Base: "node@24,java@21"}, tools.BuildOptions{BaseOverride: []string{}, BaseExact: true})
+		result := recoverOpts(t.TempDir(), &docker.ImageInfo{Base: "node@24,java@21"}, tools.BuildOptions{BaseOverride: []string{}, BaseExact: true})
 
 		// Assert
 		assert.Empty(t, result.BaseOverride)
@@ -695,10 +717,70 @@ func Test_recoverOpts(t *testing.T) {
 
 	t.Run("apt-exact skips recovery", func(t *testing.T) {
 		// Act
-		result := recoverOpts(&docker.ImageInfo{Base: "node@24", Apt: "make,gcc"}, tools.BuildOptions{AptPackages: []string{"cmake"}, AptExact: true})
+		result := recoverOpts(t.TempDir(), &docker.ImageInfo{Base: "node@24", Apt: "make,gcc"}, tools.BuildOptions{AptPackages: []string{"cmake"}, AptExact: true})
 
 		// Assert
 		assert.Equal(t, []string{"cmake"}, result.AptPackages)
+	})
+
+	t.Run("recovers custom installs from the store", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		hash := storeCustomInstalls(t, home, config.RCCustomInstall{Name: "helm", Run: []string{"echo helm"}})
+
+		// Act
+		result := recoverOpts(home, &docker.ImageInfo{CustomInstalls: "helm", CustomInstallsHash: hash}, tools.BuildOptions{})
+
+		// Assert
+		assert.Equal(t, []config.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}, result.CustomInstalls)
+	})
+}
+
+func Test_recoverCustomInstalls(t *testing.T) {
+	configHelm := config.RCCustomInstall{Name: "helm", Run: []string{"echo config"}}
+
+	t.Run("stored installs win over config", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		hash := storeCustomInstalls(t, home, config.RCCustomInstall{Name: "helm", Run: []string{"echo helm"}})
+
+		// Act
+		installs := recoverCustomInstalls(home, &docker.ImageInfo{CustomInstalls: "helm", CustomInstallsHash: hash}, []config.RCCustomInstall{configHelm})
+
+		// Assert
+		assert.Equal(t, []config.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}, installs)
+	})
+
+	t.Run("image without custom installs ignores config", func(t *testing.T) {
+		// Act
+		installs := recoverCustomInstalls(t.TempDir(), &docker.ImageInfo{}, []config.RCCustomInstall{configHelm})
+
+		// Assert
+		assert.Empty(t, installs)
+	})
+
+	t.Run("unstored installs are looked up by name in config", func(t *testing.T) {
+		// Arrange
+		info := &docker.ImageInfo{Image: "agentic-claude", CustomInstalls: "helm", CustomInstallsHash: config.CustomInstallsHash([]config.RCCustomInstall{configHelm})}
+
+		// Act
+		installs := recoverCustomInstalls(t.TempDir(), info, []config.RCCustomInstall{{Name: "kubectl"}, configHelm})
+
+		// Assert
+		assert.Equal(t, []config.RCCustomInstall{configHelm}, installs)
+	})
+
+	t.Run("names missing from config are dropped with a warning", func(t *testing.T) {
+		// Arrange
+		errLog := stubErrLog(t)
+		info := &docker.ImageInfo{Image: "agentic-claude", CustomInstalls: "helm,terraform"}
+
+		// Act
+		installs := recoverCustomInstalls(t.TempDir(), info, []config.RCCustomInstall{configHelm})
+
+		// Assert
+		assert.Equal(t, []config.RCCustomInstall{configHelm}, installs)
+		assert.Contains(t, errLog.String(), "agentic-claude: custom installs terraform not found")
 	})
 }
 
@@ -764,18 +846,20 @@ func TestApplyRecovered(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
+		err := New(d, t.TempDir()).ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
 		assert.NotEmpty(t, capturedOpts.BaseOverride)
 	})
 
-	t.Run("custom installs come from rc, not label recovery", func(t *testing.T) {
+	t.Run("custom installs come from the image, not rc", func(t *testing.T) {
 		// Arrange
+		home := t.TempDir()
+		lintHash := storeCustomInstalls(t, home, config.RCCustomInstall{Name: "golangci-lint", Run: []string{"echo lint"}})
 		var capturedOpts tools.BuildOptions
 		d := &fakeDocker{
-			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
+			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0", CustomInstalls: "golangci-lint", CustomInstallsHash: lintHash}, nil),
 			buildTool: func(_, _ string, opts tools.BuildOptions) error {
 				capturedOpts = opts
 				return nil
@@ -784,11 +868,11 @@ func TestApplyRecovered(t *testing.T) {
 		rc := &config.AgenticRC{Build: config.RCBuild{CustomInstalls: []config.RCCustomInstall{{Name: "helm", Run: []string{"true"}}}}}
 
 		// Act
-		err := New(d).ApplyRecovered("claude", "agentic-claude", rc)
+		err := New(d, home).ApplyRecovered("claude", "agentic-claude", rc)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, rc.Build.CustomInstalls, capturedOpts.CustomInstalls)
+		assert.Equal(t, []config.RCCustomInstall{{Name: "golangci-lint", Run: []string{"echo lint"}}}, capturedOpts.CustomInstalls)
 	})
 
 	t.Run("missing image still rebuilds with empty opts", func(t *testing.T) {
@@ -804,7 +888,7 @@ func TestApplyRecovered(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
+		err := New(d, t.TempDir()).ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -818,7 +902,7 @@ func TestApplyRecovered(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
+		err := New(d, t.TempDir()).ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
 
 		// Assert
 		require.Error(t, err)
@@ -834,6 +918,23 @@ func Test_rebuild(t *testing.T) {
 		}}
 	}
 
+	t.Run("stores custom installs before building", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		var opts tools.BuildOptions
+		var built bool
+		installs := []config.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
+
+		// Act
+		err := New(captureOpts(&opts, &built), home).rebuild("claude", "agentic-claude", nil, false, tools.BuildOptions{CustomInstalls: installs})
+
+		// Assert
+		require.NoError(t, err)
+		stored, ok := config.LoadCustomInstalls(home, config.CustomInstallsHash(installs))
+		assert.True(t, ok)
+		assert.Equal(t, installs, stored)
+	})
+
 	t.Run("recovers base from label", func(t *testing.T) {
 		// Arrange
 		var opts tools.BuildOptions
@@ -841,7 +942,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Base: "node@24.0.0,java@21.0.1"}
 
 		// Act
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -855,7 +956,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Base: "node@24.0.0,dotnet@8.0"}
 
 		// Act
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{BaseOverride: []string{"java"}})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{BaseOverride: []string{"java"}})
 
 		// Assert - explicit BaseOverride wins over the dotnet recovered from the label
 		require.NoError(t, err)
@@ -869,7 +970,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Base: "node@24.0.0,java@21.0.1"}
 
 		// Act
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{BaseOverride: []string{}, BaseExact: true})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{BaseOverride: []string{}, BaseExact: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -883,7 +984,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Base: "node@24.0.0,java@21.0.1", VersionArgs: "node@24,java@17"}
 
 		// Act - no --java flag passed, so the recovered version must be the one used
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -897,7 +998,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Base: "node@24.0.0,java@21.0.1", VersionArgs: "node@24,java@17"}
 
 		// Act
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{Versions: map[string]string{"java": "21"}})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{Versions: map[string]string{"java": "21"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -911,7 +1012,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Apt: "make,gcc"}
 
 		// Act
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -925,7 +1026,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Apt: "make"}
 
 		// Act
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -939,7 +1040,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Apt: "make"}
 
 		// Act
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}, AptExact: true})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}, AptExact: true})
 
 		// Assert - the recovered "make" package does not survive, only the exact "gcc" does
 		require.NoError(t, err)
@@ -953,7 +1054,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Apt: "make,gcc"}
 
 		// Act
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"make"}})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"make"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -967,7 +1068,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Apt: "make"}
 
 		// Act
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -988,7 +1089,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Version: "1.2.3", Apt: "make,gcc"}
 
 		// Act
-		err := New(d).rebuild("claude", "agentic-claude", info, true, tools.BuildOptions{})
+		err := New(d, t.TempDir()).rebuild("claude", "agentic-claude", info, true, tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -1003,7 +1104,7 @@ func Test_rebuild(t *testing.T) {
 		var built bool
 
 		// Act
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{NoCache: true})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{NoCache: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -1016,7 +1117,7 @@ func Test_rebuild(t *testing.T) {
 		var built bool
 
 		// Act
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{Pull: true})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{Pull: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -1029,7 +1130,7 @@ func Test_rebuild(t *testing.T) {
 		var built bool
 
 		// Act
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{Pull: true})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{Pull: true})
 
 		// Assert - an empty CacheBust means no CACHEBUST build arg, so the tool stage isn't reinstalled
 		require.NoError(t, err)
@@ -1043,7 +1144,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Version: "1.2.3", CacheBust: "2026-08-21T07:18:37Z"}
 
 		// Act
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", info, true, tools.BuildOptions{Pull: true})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, true, tools.BuildOptions{Pull: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -1056,7 +1157,7 @@ func Test_rebuild(t *testing.T) {
 		var built bool
 
 		// Act
-		err := New(captureOpts(&opts, &built)).rebuild("claude", "agentic-claude", nil, false, tools.BuildOptions{})
+		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", nil, false, tools.BuildOptions{})
 
 		// Assert - a non-empty CacheBust makes the tool build skip cache via --build-arg=CACHEBUST=<value>
 		require.NoError(t, err)

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
@@ -35,9 +36,12 @@ const (
 	// RecoverApt so `agentic update` can merge in new packages without dropping old ones.
 	LabelApt = "agentic.apt"
 
-	// LabelCustomInstalls records the comma-separated custom_installs names, for `agentic
-	// inspect` display only - always read fresh from .agenticrc.toml on build, unlike LabelApt.
+	// LabelCustomInstalls records the comma-separated custom_installs names, for `agentic inspect` and the instructions block.
 	LabelCustomInstalls = "agentic.custom-installs"
+
+	// LabelCustomInstallsHash records config.CustomInstallsHash of the custom_installs, the key `agentic update`
+	// uses to read their run commands back from $AGENTIC_HOME instead of the current .agenticrc.toml.
+	LabelCustomInstallsHash = "agentic.custom-installs.hash"
 
 	// LabelToolVersion records the detected tool version, read via its version script (see runVersionScript).
 	LabelToolVersion = "agentic.tool.version"
@@ -210,6 +214,7 @@ func imageLabelPairs(info ImageInfo) []struct{ key, value string } {
 		{LabelVersionArgs, info.VersionArgs},
 		{LabelApt, info.Apt},
 		{LabelCustomInstalls, info.CustomInstalls},
+		{LabelCustomInstallsHash, info.CustomInstallsHash},
 		{LabelBuilt, info.Built},
 		{LabelPulled, info.Pulled},
 		{LabelCLIVersion, info.CLIVersion},
@@ -239,19 +244,25 @@ func (c *Client) stampLabels(image string, info ImageInfo) {
 }
 
 // stampImageLabels detects base and tool versions from the built image and stamps them via stampLabels.
-func (c *Client) stampImageLabels(image, tool string, extras []string, aptPkgs []string, versions map[string]string, customInstalls []string, cacheBust string) {
+func (c *Client) stampImageLabels(image, tool string, extras []string, aptPkgs []string, versions map[string]string, customInstalls []config.RCCustomInstall, cacheBust string) {
 	layers := append([]string{tools.BaseLayer}, extras...)
 
+	customInstallNames := make([]string, len(customInstalls))
+	for i, install := range customInstalls {
+		customInstallNames[i] = install.Name
+	}
+
 	info := ImageInfo{
-		Namespace:      strings.TrimSuffix(image, "-"+tool),
-		Tool:           tool,
-		Base:           c.collectBaseLabel(image, extras),
-		VersionArgs:    buildVersionArgsLabel(layers, versions),
-		Apt:            strings.Join(aptPkgs, ","),
-		CustomInstalls: strings.Join(customInstalls, ","),
-		Built:          buildBuiltLabel(),
-		CLIVersion:     buildinfo.Version,
-		CacheBust:      cacheBust,
+		Namespace:          strings.TrimSuffix(image, "-"+tool),
+		Tool:               tool,
+		Base:               c.collectBaseLabel(image, extras),
+		VersionArgs:        buildVersionArgsLabel(layers, versions),
+		Apt:                strings.Join(aptPkgs, ","),
+		CustomInstalls:     strings.Join(customInstallNames, ","),
+		CustomInstallsHash: config.CustomInstallsHash(customInstalls),
+		Built:              buildBuiltLabel(),
+		CLIVersion:         buildinfo.Version,
+		CacheBust:          cacheBust,
 	}
 	info.Version = c.runVersionScript(image, versionScript(tool))
 
