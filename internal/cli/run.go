@@ -88,6 +88,9 @@ func runTool(cmd *cobra.Command, args []string) error {
 // parseInvocation loads the working dir's config layers and parses the tool, image and tool args from args.
 func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
 	cwd, _ := os.Getwd()
+	if err := run.CheckProjectDir(cwd); err != nil {
+		return invocation{}, err
+	}
 
 	// Load the layers once so the credentials approved later are the ones the run uses
 	layers, err := config.FindLayers(cwd)

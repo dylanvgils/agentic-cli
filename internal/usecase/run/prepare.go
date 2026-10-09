@@ -49,10 +49,6 @@ type Flags struct {
 // Prepare runs every check and host-side step `agentic run` needs, asking prompter where the user must approve, and returns
 // the RunSpec plus a cleanup func that must always be deferred, even on error.
 func (s *Service) Prepare(req Request, prompter Prompter) (docker.RunSpec, func(), error) {
-	if err := checkProjectDir(req.Project.Dir); err != nil {
-		return docker.RunSpec{}, func() {}, err
-	}
-
 	if err := s.checkTool(req, prompter); err != nil {
 		return docker.RunSpec{}, func() {}, err
 	}
@@ -123,8 +119,8 @@ func (s *Service) runInput(req Request) (Input, error) {
 	return in, nil
 }
 
-// checkProjectDir refuses a working dir Docker can't bind-mount.
-func checkProjectDir(dir string) error {
+// CheckProjectDir refuses a working dir Docker can't bind-mount; run it before reading the dir's config.
+func CheckProjectDir(dir string) error {
 	if mount.IsUNCPath(dir) {
 		return fmt.Errorf("working directory %q is on a network share; Docker cannot bind-mount UNC paths", dir)
 	}
