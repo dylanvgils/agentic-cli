@@ -71,6 +71,21 @@ func TestPrepare(t *testing.T) {
 		assert.Empty(t, p.trustAsked)
 	})
 
+	t.Run("tool setup error is wrapped with the tool name", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		tool := tools.Configs["claude"]
+		tool.Runtime.Setup = func(string) error { return errors.New("disk full") }
+		req.Tool = tool
+
+		// Act
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, &fakePrompter{})
+		defer cleanup()
+
+		// Assert
+		require.EqualError(t, err, "setup claude: disk full")
+	})
+
 	t.Run("refused trust stops before the credentials prompt", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
@@ -103,6 +118,73 @@ func TestPrepare(t *testing.T) {
 		// Assert
 		require.ErrorContains(t, err, "--no-proxy cannot be used")
 		assert.Equal(t, []string{layer.Path}, p.credentialsAsked)
+	})
+
+	t.Run("approved credentials reach the run spec", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		req := newCredentialRequest(t)
+
+		// Act
+		rs, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, &fakePrompter{})
+		defer cleanup()
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, rs.Proxy.Credentials, 1)
+		assert.Equal(t, []string{"api.example.test"}, rs.Proxy.Credentials[0].Hosts)
+	})
+
+	t.Run("approved credentials print the injection notice", func(t *testing.T) {
+		// Arrange
+		stderr := stubErrLog(t)
+		req := newCredentialRequest(t)
+
+		// Act
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, &fakePrompter{})
+		defer cleanup()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, stderr.String(), "injecting credentials for api.example.test")
+	})
+
+	t.Run("dry run with approved credentials prints no injection notice", func(t *testing.T) {
+		// Arrange
+		stderr := stubErrLog(t)
+		req := newCredentialRequest(t)
+		req.Flags.DryRun = true
+
+		// Act
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, &fakePrompter{})
+		defer cleanup()
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotContains(t, stderr.String(), "injecting credentials")
+	})
+
+	t.Run("sidecar build error is returned", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		req := newPrepareRequest(t)
+		req.Flags.Proxy = resolve.ProxyInput{MonitorFlag: true}
+		d := &fakeDocker{
+			inspectImage: func(name string) (*docker.ImageInfo, error) {
+				if name == tools.ProxyImage {
+					return nil, nil
+				}
+				return built(name)
+			},
+			buildProxyImage: func(string, string, string, tools.BuildOptions) error { return errors.New("proxy build failed") },
+		}
+
+		// Act
+		_, cleanup, err := New(d).Prepare(req, &fakePrompter{})
+		defer cleanup()
+
+		// Assert
+		require.EqualError(t, err, "proxy build failed")
 	})
 
 	t.Run("dind without the docker layer fails before building sidecars", func(t *testing.T) {

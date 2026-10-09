@@ -52,6 +52,20 @@ func TestEnsure(t *testing.T) {
 		assert.Equal(t, []string{tools.ProxyImage, tools.DindImage}, built())
 	})
 
+	t.Run("proxy build error stops before the dind step", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		fake, built := recordBuilds()
+		fake.buildProxyImage = func(string, string, string, tools.BuildOptions) error { return fmt.Errorf("proxy build failed") }
+
+		// Act
+		err := New(fake).Ensure(true, true, "")
+
+		// Assert
+		require.EqualError(t, err, "proxy build failed")
+		assert.Empty(t, built())
+	})
+
 	t.Run("neither enabled builds nothing", func(t *testing.T) {
 		// Arrange
 		fake, built := recordBuilds()
