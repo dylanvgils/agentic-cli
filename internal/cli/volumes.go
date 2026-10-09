@@ -99,9 +99,10 @@ func removeAllVolumes() error {
 
 // confirmVolumeRemoval lists names and asks the user to confirm removing them all.
 func confirmVolumeRemoval(names []string) bool {
-	fmt.Println("Volumes to remove:")
+	// On stderr with the prompt, so the list and the question stay together
+	logging.Infof("volumes to remove:")
 	for _, n := range names {
-		fmt.Printf("  %s\n", n)
+		logging.Err.Detail(n)
 	}
 
 	logging.Promptf("remove all agentic-managed volumes? [y/N] ")
