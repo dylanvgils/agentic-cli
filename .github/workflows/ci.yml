@@ -43,3 +43,4 @@ jobs:
     needs: [pr-checks]
     if: ${{ !cancelled() && (needs.pr-checks.result == 'success' || needs.pr-checks.result == 'skipped') }}
     uses: ./.github/workflows/validate.yml
+    secrets: inherit
