@@ -35,14 +35,17 @@ jobs:
 
       - name: Verify branch
         run: |
-          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
-            echo "release must run from main, got ${{ github.ref }}"
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "release must run from main, got $GITHUB_REF"
             exit 1
           fi
 
       - name: Resolve release tag
         id: resolve
-        run: .github/scripts/resolve-release-tag.sh "${{ inputs.tag }}" "${{ github.event_name }}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG_INPUT: ${{ inputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: .github/scripts/resolve-release-tag.sh "$TAG_INPUT" "$EVENT_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Create and push tag
         if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.create == 'true'

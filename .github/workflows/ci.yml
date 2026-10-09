@@ -19,7 +19,9 @@ jobs:
           fetch-depth: 0
 
       - name: Validate PR title
-        run: .github/scripts/validate-title.sh "${{ github.event.pull_request.title }}"
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: .github/scripts/validate-title.sh "$PR_TITLE"
 
       - name: Update checksums
         if: github.actor == 'renovate[bot]'
