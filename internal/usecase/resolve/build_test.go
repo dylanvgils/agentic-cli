@@ -241,3 +241,25 @@ func TestBuildOptions(t *testing.T) {
 		assert.False(t, opts.VerifyApt)
 	})
 }
+
+func TestUpdateOptions(t *testing.T) {
+	rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}, AptPackages: []string{"jq"}}}
+
+	t.Run("config bases and apt are dropped without a flag", func(t *testing.T) {
+		// Act
+		opts := UpdateOptions(BuildInput{}, false, false, rc)
+
+		// Assert - the image keeps what it was built with
+		assert.Nil(t, opts.BaseOverride)
+		assert.Nil(t, opts.AptPackages)
+	})
+
+	t.Run("a set but empty flag keeps the config values", func(t *testing.T) {
+		// Act
+		opts := UpdateOptions(BuildInput{}, true, true, rc)
+
+		// Assert
+		assert.Equal(t, []string{"java"}, opts.BaseOverride)
+		assert.Equal(t, []string{"jq"}, opts.AptPackages)
+	})
+}

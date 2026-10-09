@@ -78,6 +78,19 @@ func (s *Service) DryRun(tool, namespace string, opts tools.BuildOptions) error 
 	return err
 }
 
+// ApplyAll rebuilds every target in order, stopping at the first failure. All targets share one cache-bust value, so a tool
+// updated in several namespaces (e.g. --all) can reuse its cached layers.
+func (s *Service) ApplyAll(targets []Target) error {
+	cacheBust := docker.NewCacheBust()
+	for _, t := range targets {
+		t.Opts.CacheBust = cacheBust
+		if err := s.Apply(t.Name, t.Image, t.Opts); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ApplyRecovered rebuilds image for tool, reusing installed build options where possible; it's the toolupdate.Updater for `agentic run`'s auto-update prompt, so unlike `agentic update` it never exits the process.
 func (s *Service) ApplyRecovered(tool, image string, rc *config.AgenticRC) error {
 	opts := tools.BuildOptions{CustomInstalls: rc.Build.CustomInstalls}

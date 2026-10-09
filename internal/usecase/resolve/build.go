@@ -49,6 +49,21 @@ func BuildOptions(in BuildInput, rc *config.AgenticRC) tools.BuildOptions {
 	return opts
 }
 
+// UpdateOptions is BuildOptions for `agentic update`: config bases and apt packages never override what an image was built with,
+// so they only apply when baseSet or aptSet says the matching --base/--base-exact or --apt/--apt-exact flag was given.
+func UpdateOptions(in BuildInput, baseSet, aptSet bool, rc *config.AgenticRC) tools.BuildOptions {
+	opts := BuildOptions(in, rc)
+
+	if !baseSet {
+		opts.BaseOverride = nil
+	}
+	if !aptSet {
+		opts.AptPackages = nil
+	}
+
+	return opts
+}
+
 // Bases merges extra base layers from the project config with flagBases.
 func Bases(flagBases []string, rc *config.AgenticRC) []string {
 	return tools.SortExtras(tools.MergePackages(rc.Build.Bases, flagBases))

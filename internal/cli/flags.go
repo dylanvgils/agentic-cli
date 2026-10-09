@@ -126,13 +126,18 @@ func runtimeFlags(cmd *cobra.Command) run.Flags {
 
 // buildOptsFromFlags constructs a BuildOptions from the command's flags and the project config.
 func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOptions {
+	return resolve.BuildOptions(buildInput(cmd), rc)
+}
+
+// buildInput reads the build flags.
+func buildInput(cmd *cobra.Command) resolve.BuildInput {
 	flagBases, _ := cmd.Flags().GetStringSlice("base")
 	flagApt, _ := cmd.Flags().GetStringSlice("apt")
 	noCache, _ := cmd.Flags().GetBool("no-cache")
 	pull, _ := cmd.Flags().GetBool("pull")
 	skipInstallChecksum, _ := cmd.Flags().GetBool("skip-install-checksum")
 
-	in := resolve.BuildInput{
+	return resolve.BuildInput{
 		Bases:               flagBases,
 		BasesExact:          exactFlagValue(cmd, "base-exact"),
 		VersionOverrides:    collectVersionOverrides(cmd),
@@ -143,7 +148,6 @@ func buildOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOpt
 		Registry:            collectRegistry(cmd),
 		SkipInstallChecksum: skipInstallChecksum,
 	}
-	return resolve.BuildOptions(in, rc)
 }
 
 // collectVersionOverrides reads every registered --<layer> flag into a map, omitting unset ones.

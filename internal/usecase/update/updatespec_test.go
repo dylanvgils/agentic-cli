@@ -1,6 +1,7 @@
 package update
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -303,6 +304,50 @@ func Test_resolveAll(t *testing.T) {
 		require.Len(t, targets, 1)
 		assert.Equal(t, "claude", targets[0].Name)
 		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, capturedFilters)
+	})
+}
+
+func TestApplyAll(t *testing.T) {
+	stubLatestToolVersion(t, "", false, false)
+	targets := []Target{
+		{Name: "claude", Image: "agentic-claude"},
+		{Name: "claude", Image: "work-claude"},
+	}
+
+	t.Run("targets share one cache-bust value", func(t *testing.T) {
+		// Arrange
+		var busts []string
+		d := &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
+			busts = append(busts, opts.CacheBust)
+			return nil
+		}}
+
+		// Act
+		var err error
+		captureLog(t, func() { err = New(d).ApplyAll(targets) })
+
+		// Assert - the same value lets Docker reuse the tool stage for the second namespace
+		require.NoError(t, err)
+		require.Len(t, busts, 2)
+		assert.NotEmpty(t, busts[0])
+		assert.Equal(t, busts[0], busts[1])
+	})
+
+	t.Run("stops at the first failure", func(t *testing.T) {
+		// Arrange
+		var built []string
+		d := &fakeDocker{buildTool: func(_, image string, _ tools.BuildOptions) error {
+			built = append(built, image)
+			return errors.New("build failed")
+		}}
+
+		// Act
+		var err error
+		captureLog(t, func() { err = New(d).ApplyAll(targets) })
+
+		// Assert
+		require.ErrorContains(t, err, "build failed")
+		assert.Equal(t, []string{"agentic-claude"}, built)
 	})
 }
 
