@@ -32,11 +32,11 @@ print_previous_tag() {
   fi
 }
 
-if [ "$EVENT_NAME" = "schedule" ] || { [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -z "$TAG_INPUT" ]; }; then
+if [[ "$EVENT_NAME" == "schedule" || ( "$EVENT_NAME" == "workflow_dispatch" && -z "$TAG_INPUT" ) ]]; then
   NEXT=$("$SCRIPT_DIR/next-tag.sh" "$LAST")
   echo "auto-computed next tag is '${NEXT:-<none>}'" >&2
 
-  if [ -z "$NEXT" ]; then
+  if [[ -z "$NEXT" ]]; then
     echo "nothing to release since $LAST" >&2
     echo "skip=true"
     exit 0
@@ -54,7 +54,7 @@ if ! echo "$TAG_INPUT" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
   exit 1
 fi
 
-if [ "$TAG_INPUT" = "$LAST" ]; then
+if [[ "$TAG_INPUT" = "$LAST" ]]; then
   # Re-releasing the current latest tag: either it's already fully released
   # (goreleaser will error "already exists"), or a previous run failed
   # partway through publishing it. Either way, this is an explicit request
@@ -76,7 +76,7 @@ if git rev-parse "$TAG_INPUT" >/dev/null 2>&1; then
 fi
 
 NEWEST=$(printf '%s\n%s\n' "$LAST" "$TAG_INPUT" | sort -V | tail -n1)
-if [ "$NEWEST" != "$TAG_INPUT" ]; then
+if [[ "$NEWEST" != "$TAG_INPUT" ]]; then
   echo "tag $TAG_INPUT is not newer than the current latest tag $LAST" >&2
   exit 1
 fi

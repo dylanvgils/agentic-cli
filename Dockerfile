@@ -30,7 +30,7 @@ RUN \
   && . /etc/os-release \
   \
   # Fetch checksum from the official API
-  && EXPECTED_SHA=$(curl -fsSL "https://go.dev/dl/?mode=json&include=all" \
+  && EXPECTED_SHA=$(curl --proto '=https' --tlsv1.2 -fsSL "https://go.dev/dl/?mode=json&include=all" \
   | jq -r --arg ver "go${GO_VERSION}" \
   --arg arch "${GO_ARCH}" \
   '.[].files[] | select(.version == $ver and .os == "linux" and .arch == $arch and .kind == "archive") | .sha256') \
@@ -40,7 +40,7 @@ RUN \
   \
   # Download and verify
   && TARBALL="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" \
-  && curl -fsSL "https://go.dev/dl/${TARBALL}" -o /tmp/go.tar.gz \
+  && curl --proto '=https' --tlsv1.2 -fsSL "https://go.dev/dl/${TARBALL}" -o /tmp/go.tar.gz \
   && echo "${EXPECTED_SHA}  /tmp/go.tar.gz" | sha256sum -c - \
   \
   # Install and clean up

@@ -21,17 +21,17 @@ check_one() {
   expected=$(jq -r --arg n "$name" '.[$n]' "$CHECKSUMS_FILE")
   actual=$(curl -fsSL "$url" | sha256sum | cut -d' ' -f1)
 
-  if [ -z "$actual" ]; then
+  if [[ -z "$actual" ]]; then
     echo "$name: failed to fetch $url" >&2
     return 1
   fi
 
-  if [ "$actual" = "$expected" ]; then
+  if [[ "$actual" = "$expected" ]]; then
     echo "$name checksum OK"
     return 0
   fi
 
-  if [ "$FIX" = false ]; then
+  if [[ "$FIX" = false ]]; then
     echo "$name checksum in $CHECKSUMS_FILE is stale"
     echo "  expected: $expected"
     echo "  actual:   $actual"
@@ -48,7 +48,7 @@ check_one() {
 # Runs check_one over a newline-separated "<name> <url>" list, tracking failures in $status.
 run_checks() {
   while read -r name url; do
-    [ -n "$name" ] || continue
+    [[ -n "$name" ]] || continue
     check_one "$name" "$url" || status=1
   done <<< "$1"
 }
@@ -57,7 +57,7 @@ run_checks() {
 
 FIX=false
 PINNED_ONLY=false
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
     --fix) FIX=true; shift ;;
     --pinned-only) PINNED_ONLY=true; shift ;;
@@ -78,6 +78,6 @@ opencode_install https://opencode.ai/install"
 status=0
 
 run_checks "$PINNED_ENTRIES"
-[ "$PINNED_ONLY" = true ] || run_checks "$LIVE_ENTRIES"
+[[ "$PINNED_ONLY" = true ]] || run_checks "$LIVE_ENTRIES"
 
 exit "$status"
