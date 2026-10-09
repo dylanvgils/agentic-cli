@@ -23,28 +23,36 @@ type Confirm func(tool, installed, latest string) bool
 // Updater installs an update for tool/image, supplied by the caller so this package doesn't need to know how build options are recovered.
 type Updater func(tool, image string) error
 
+// Request names the tool image to check and where its check timestamp and run config live.
+type Request struct {
+	Home  string
+	RC    *config.AgenticRC
+	Tool  string
+	Image string
+}
+
 // New returns a Service that talks to Docker through d.
 func New(d Docker) *Service {
 	return &Service{docker: d}
 }
 
-// Check checks upstream for a newer version of toolName at most once per checkInterval and applies it via update when confirm agrees; only a confirmed update that fails returns an error.
-func (s *Service) Check(home string, rc *config.AgenticRC, toolName, image string, confirm Confirm, update Updater) error {
-	if rc.Run.CheckUpdates != nil && !*rc.Run.CheckUpdates {
+// Check checks upstream for a newer version of req.Tool at most once per checkInterval and applies it via update when confirm agrees; only a confirmed update that fails returns an error.
+func (s *Service) Check(req Request, confirm Confirm, update Updater) error {
+	if req.RC.Run.CheckUpdates != nil && !*req.RC.Run.CheckUpdates {
 		return nil
 	}
 
-	installed, latest, ok := s.fetchIfDue(home, toolName, image)
+	installed, latest, ok := s.fetchIfDue(req.Home, req.Tool, req.Image)
 	if !ok {
 		return nil
 	}
 
-	if !confirm(toolName, installed, latest) {
+	if !confirm(req.Tool, installed, latest) {
 		return nil
 	}
 
-	if err := update(toolName, image); err != nil {
-		return fmt.Errorf("update failed: %v\n   run: agentic update %s", err, toolName)
+	if err := update(req.Tool, req.Image); err != nil {
+		return fmt.Errorf("update failed: %v\n   run: agentic update %s", err, req.Tool)
 	}
 
 	return nil

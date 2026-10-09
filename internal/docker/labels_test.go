@@ -358,7 +358,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		client.stampImageLabels("myproject-claude", "claude", nil, nil, nil, nil, "")
+		client.stampImageLabels("myproject-claude", "claude", tools.BuildOptions{})
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelNamespace+"=myproject")
@@ -370,7 +370,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		client.stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil, "")
+		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{})
 
 		// Assert
 		assert.True(t, hasArgWithPrefix(capturedArgs, "--label="+LabelBuilt+"="),
@@ -384,7 +384,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		client.stampImageLabels("agentic-claude", "claude", nil, []string{"make", "gcc"}, nil, nil, "")
+		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{AptPackages: []string{"make", "gcc"}})
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelApt+"=make,gcc")
@@ -396,7 +396,7 @@ func TestStampImageLabels(t *testing.T) {
 		installs := []config.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}, {Name: "golangci-lint", Run: []string{"echo lint"}}}
 
 		// Act
-		client.stampImageLabels("agentic-claude", "claude", nil, nil, nil, installs, "")
+		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{CustomInstalls: installs})
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelCustomInstalls+"=helm,golangci-lint")
@@ -408,7 +408,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		client.stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil, "")
+		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{})
 
 		// Assert
 		assert.False(t, hasArgWithPrefix(capturedArgs, "--label="+LabelCustomInstalls))
@@ -419,7 +419,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, client, "21.0.1\n", nil)
 
 		// Act
-		client.stampImageLabels("agentic-claude", "claude", []string{"java"}, nil, nil, nil, "")
+		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{BaseOverride: []string{"java"}})
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelBase+"=java@21.0.1")
@@ -430,7 +430,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		client.stampImageLabels("agentic-claude", "claude", []string{"java"}, nil, map[string]string{"java": "17"}, nil, "")
+		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{"java": "17"}})
 
 		// Assert
 		found := false
@@ -448,7 +448,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, client, "1.2.3\n", nil)
 
 		// Act
-		client.stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil, "")
+		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{})
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelToolVersion+"=1.2.3")
@@ -459,7 +459,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, client, "", fmt.Errorf("version script not found"))
 
 		// Act
-		client.stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil, "")
+		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{})
 
 		// Assert
 		for _, a := range capturedArgs {
@@ -473,7 +473,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		client.stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil, "2026-08-21T07:18:37Z")
+		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{CacheBust: "2026-08-21T07:18:37Z"})
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelCacheBust+"=2026-08-21T07:18:37Z")
@@ -484,7 +484,7 @@ func TestStampImageLabels(t *testing.T) {
 		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		client.stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil, "")
+		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{})
 
 		// Assert
 		assert.False(t, hasArgWithPrefix(capturedArgs, "--label="+LabelCacheBust+"="),

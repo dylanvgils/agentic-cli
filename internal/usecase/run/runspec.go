@@ -78,20 +78,24 @@ func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc
 		return docker.RunSpec{}, err
 	}
 
-	volumes := runVolumes(req, marketplaceMounts)
-	secrets := resolve.Secrets(in.Secrets, rc)
+	mounts := mountSet{
+		volumes:       runVolumes(req, marketplaceMounts),
+		secrets:       resolve.Secrets(in.Secrets, rc),
+		toolHome:      in.ToolHome,
+		containerHome: req.containerHome,
+	}
 
-	env, err := s.runEnv(req, volumes, secrets, marketplaceNames)
+	env, err := s.runEnv(req, mounts, marketplaceNames)
 	if err != nil {
 		return docker.RunSpec{}, err
 	}
 
-	logDir, err := s.prepareHost(req, volumes)
+	logDir, err := s.prepareHost(req, mounts.volumes)
 	if err != nil {
 		return docker.RunSpec{}, err
 	}
 
-	return newRunSpec(req, volumes, secrets, env, logDir), nil
+	return newRunSpec(req, mounts, env, logDir), nil
 }
 
 // ToolNeedsMarketplaceSync reports whether tool supports marketplace mounting and has at least one marketplace configured.
@@ -123,7 +127,7 @@ func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tool
 }
 
 // runEnv resolves the tool's env, refusing managed names, and adds the credential placeholders and marketplace names.
-func (s *Service) runEnv(req buildRequest, volumes, secrets, marketplaceNames []string) ([]string, error) {
+func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []string) ([]string, error) {
 	in := req.in
 
 	env := resolve.Env(in.Env, req.rc)
@@ -131,7 +135,7 @@ func (s *Service) runEnv(req buildRequest, volumes, secrets, marketplaceNames []
 		return nil, err
 	}
 
-	placeholders, err := credentialSetup(in, volumes, secrets, env, req.containerHome)
+	placeholders, err := credentialSetup(in, mounts, env)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +196,7 @@ func runVolumes(req buildRequest, marketplaceMounts []string) []string {
 }
 
 // newRunSpec assembles the RunSpec from the resolved run parts, including the proxy and dind sidecar specs.
-func newRunSpec(req buildRequest, volumes, secrets, env []string, logDir string) docker.RunSpec {
+func newRunSpec(req buildRequest, mounts mountSet, env []string, logDir string) docker.RunSpec {
 	in, rc, toolConfig := req.in, req.rc, req.toolConfig
 	limits := resolve.ResourceLimitsFor(in.Limits, rc)
 	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
@@ -200,8 +204,8 @@ func newRunSpec(req buildRequest, volumes, secrets, env []string, logDir string)
 	return docker.NewRunSpec(req.target.ImageName).
 		WithToolHome(in.ToolHome).
 		WithContainerHome(req.containerHome).
-		WithVolumes(volumes...).
-		WithSecrets(secrets...).
+		WithVolumes(mounts.volumes...).
+		WithSecrets(mounts.secrets...).
 		WithEnv(env...).
 		WithSkipEntrypoint(req.target.SkipEntrypoint).
 		WithTmpfsMounts(toolConfig.Runtime.TmpfsMounts()...).

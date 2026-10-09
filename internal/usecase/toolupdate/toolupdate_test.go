@@ -173,9 +173,13 @@ func TestCheck(t *testing.T) {
 
 	t.Run("skips when check_updates is false in rc", func(t *testing.T) {
 		// Arrange
-		home := t.TempDir()
 		disabled := false
-		rc := &config.AgenticRC{Run: config.RCRun{CheckUpdates: &disabled}}
+		req := Request{
+			Home:  t.TempDir(),
+			RC:    &config.AgenticRC{Run: config.RCRun{CheckUpdates: &disabled}},
+			Tool:  "claude",
+			Image: "agentic-claude",
+		}
 		var fetchCalled bool
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) {
 			fetchCalled = true
@@ -183,7 +187,7 @@ func TestCheck(t *testing.T) {
 		})
 
 		// Act
-		err := New(&fakeDocker{}).Check(home, rc, "claude", "agentic-claude", confirmNo, noopUpdate)
+		err := New(&fakeDocker{}).Check(req, confirmNo, noopUpdate)
 
 		// Assert
 		require.NoError(t, err)
@@ -192,8 +196,7 @@ func TestCheck(t *testing.T) {
 
 	t.Run("runs check when check_updates is nil", func(t *testing.T) {
 		// Arrange
-		home := t.TempDir()
-		rc := &config.AgenticRC{}
+		req := Request{Home: t.TempDir(), RC: &config.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
 		var fetchCalled bool
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) {
@@ -202,7 +205,7 @@ func TestCheck(t *testing.T) {
 		})
 
 		// Act
-		err := New(d).Check(home, rc, "claude", "agentic-claude", confirmNo, noopUpdate)
+		err := New(d).Check(req, confirmNo, noopUpdate)
 
 		// Assert
 		require.NoError(t, err)
@@ -211,9 +214,13 @@ func TestCheck(t *testing.T) {
 
 	t.Run("runs check when check_updates is true", func(t *testing.T) {
 		// Arrange
-		home := t.TempDir()
 		enabled := true
-		rc := &config.AgenticRC{Run: config.RCRun{CheckUpdates: &enabled}}
+		req := Request{
+			Home:  t.TempDir(),
+			RC:    &config.AgenticRC{Run: config.RCRun{CheckUpdates: &enabled}},
+			Tool:  "claude",
+			Image: "agentic-claude",
+		}
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
 		var fetchCalled bool
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) {
@@ -222,7 +229,7 @@ func TestCheck(t *testing.T) {
 		})
 
 		// Act
-		err := New(d).Check(home, rc, "claude", "agentic-claude", confirmNo, noopUpdate)
+		err := New(d).Check(req, confirmNo, noopUpdate)
 
 		// Assert
 		require.NoError(t, err)
@@ -231,8 +238,7 @@ func TestCheck(t *testing.T) {
 
 	t.Run("calls update with tool and image when confirmed", func(t *testing.T) {
 		// Arrange
-		home := t.TempDir()
-		rc := &config.AgenticRC{}
+		req := Request{Home: t.TempDir(), RC: &config.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		var updateCalledWith string
@@ -248,7 +254,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).Check(home, rc, "claude", "agentic-claude", confirm, update)
+		err := New(d).Check(req, confirm, update)
 
 		// Assert
 		require.NoError(t, err)
@@ -258,14 +264,13 @@ func TestCheck(t *testing.T) {
 
 	t.Run("returns formatted error when update fails", func(t *testing.T) {
 		// Arrange
-		home := t.TempDir()
-		rc := &config.AgenticRC{}
+		req := Request{Home: t.TempDir(), RC: &config.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		update := func(string, string) error { return errors.New("build failed") }
 
 		// Act
-		err := New(d).Check(home, rc, "claude", "agentic-claude", confirmYes, update)
+		err := New(d).Check(req, confirmYes, update)
 
 		// Assert
 		require.Error(t, err)
@@ -276,8 +281,7 @@ func TestCheck(t *testing.T) {
 
 	t.Run("does not call update when not confirmed", func(t *testing.T) {
 		// Arrange
-		home := t.TempDir()
-		rc := &config.AgenticRC{}
+		req := Request{Home: t.TempDir(), RC: &config.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		called := false
@@ -287,7 +291,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).Check(home, rc, "claude", "agentic-claude", confirmNo, update)
+		err := New(d).Check(req, confirmNo, update)
 
 		// Assert
 		require.NoError(t, err)

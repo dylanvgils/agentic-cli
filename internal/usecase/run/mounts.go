@@ -11,19 +11,27 @@ import (
 // caseInsensitivePaths reports whether host paths differing only in case name the same file, as on default macOS and Windows filesystems.
 var caseInsensitivePaths = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
 
-// mountedHostPaths returns the expanded host side of every bind mount and secret mount.
-func mountedHostPaths(volumes, secrets []string, toolHome, containerHome string) []string {
+// mountSet is the tool container's volume and secret specs, plus the homes their placeholders expand to.
+type mountSet struct {
+	volumes       []string
+	secrets       []string
+	toolHome      string
+	containerHome string
+}
+
+// hostPaths returns the expanded host side of every bind mount and secret mount.
+func (m mountSet) hostPaths() []string {
 	var paths []string
-	for _, volume := range volumes {
-		expanded := mount.ExpandMountSpec(volume, toolHome, containerHome)
+	for _, volume := range m.volumes {
+		expanded := mount.ExpandMountSpec(volume, m.toolHome, m.containerHome)
 		if !mount.IsNamedVolume(expanded) {
 			paths = append(paths, mount.HostPart(expanded))
 		}
 	}
 
-	for _, secret := range secrets {
+	for _, secret := range m.secrets {
 		if _, rest, ok := strings.Cut(secret, ":"); ok {
-			paths = append(paths, mount.HostPart(mount.ExpandMountSpec(rest, toolHome, containerHome)))
+			paths = append(paths, mount.HostPart(mount.ExpandMountSpec(rest, m.toolHome, m.containerHome)))
 		}
 	}
 	return paths
