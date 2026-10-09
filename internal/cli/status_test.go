@@ -15,6 +15,7 @@ func Test_runStatus(t *testing.T) {
 	t.Run("daemon not running reports status without listing containers", func(t *testing.T) {
 		// Arrange
 		cmd, buf := newTestStatusCmd(t)
+		stubCurrentContext(t, func() (string, error) { return "desktop-linux", nil })
 		stubCheckDockerDaemon(t, func() error { return docker.ErrDaemonNotRunning })
 		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) {
 			t.Fatal("listRunningContainers should not be called when the daemon is down")
@@ -26,12 +27,13 @@ func Test_runStatus(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "Docker: not running\n", buf.String())
+		assert.Equal(t, "Docker:          not running\nDocker context:  desktop-linux\n", buf.String())
 	})
 
 	t.Run("daemon running with no containers prints zero count", func(t *testing.T) {
 		// Arrange
 		cmd, buf := newTestStatusCmd(t)
+		stubCurrentContext(t, func() (string, error) { return "desktop-linux", nil })
 		stubCheckDockerDaemon(t, func() error { return nil })
 		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) { return nil, nil })
 
@@ -40,7 +42,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "Docker:              running\nContainers running:  0\n", buf.String())
+		assert.Equal(t, "Docker:              running\nDocker context:      desktop-linux\nContainers running:  0\n", buf.String())
 	})
 
 	t.Run("daemon running with containers prints table", func(t *testing.T) {
@@ -78,7 +80,22 @@ func Test_runStatus(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("docker context set prints header before daemon status", func(t *testing.T) {
+	t.Run("context lookup error prints dash", func(t *testing.T) {
+		// Arrange
+		cmd, buf := newTestStatusCmd(t)
+		stubCurrentContext(t, func() (string, error) { return "", fmt.Errorf("docker error") })
+		stubCheckDockerDaemon(t, func() error { return nil })
+		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) { return nil, nil })
+
+		// Act
+		err := runStatus(cmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "Docker context:      -\n")
+	})
+
+	t.Run("explicit docker context prints under daemon status", func(t *testing.T) {
 		// Arrange
 		cmd, buf := newTestStatusCmd(t)
 		stubDocker(t, &fakeDocker{context: "prod"})
@@ -90,7 +107,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "Docker context:      prod\nDocker:              running\nContainers running:  0\n", buf.String())
+		assert.Equal(t, "Docker:              running\nDocker context:      prod\nContainers running:  0\n", buf.String())
 	})
 }
 

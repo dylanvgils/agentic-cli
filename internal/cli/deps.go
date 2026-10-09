@@ -41,6 +41,7 @@ type dockerAPI interface {
 	sidecar.Docker
 
 	Context() string
+	CurrentContext() (string, error)
 	CheckDaemon() error
 	RunContainer(rs docker.RunSpec, toolArgs []string) error
 	CreateVolume(name string) error
