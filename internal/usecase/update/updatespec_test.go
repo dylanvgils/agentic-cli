@@ -379,7 +379,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d).ApplyAll(targets) })
+		captureLog(t, func() { err = New(d, t.TempDir()).ApplyAll(targets) })
 
 		// Assert
 		require.NoError(t, err)
@@ -396,7 +396,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d).ApplyAll(targets) })
+		captureLog(t, func() { err = New(d, t.TempDir()).ApplyAll(targets) })
 
 		// Assert
 		require.ErrorContains(t, err, "build failed")

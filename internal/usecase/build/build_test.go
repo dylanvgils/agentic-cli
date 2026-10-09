@@ -269,7 +269,7 @@ func TestApply(t *testing.T) {
 		d := &fakeDocker{pruneDangling: func() error { pruned = true; return nil }}
 
 		// Act
-		err := New(d).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
@@ -286,7 +286,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.ErrorContains(t, err, "build failed")
@@ -299,7 +299,7 @@ func TestApply(t *testing.T) {
 		d := &fakeDocker{pruneDangling: func() error { return errors.New("prune failed") }}
 
 		// Act
-		err := New(d).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
