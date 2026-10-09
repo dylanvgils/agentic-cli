@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 )
@@ -179,5 +180,24 @@ func Test_dockerContextsFunc(t *testing.T) {
 		// Assert
 		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
 		assert.Empty(t, names)
+	})
+}
+
+func Test_baseLayersFunc(t *testing.T) {
+	t.Run("suggests every extra layer", func(t *testing.T) {
+		// Act
+		names, directive := baseLayersFunc(nil, nil, "")
+
+		// Assert
+		assert.Equal(t, tools.KnownExtras(), names)
+		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+	})
+
+	t.Run("after a comma suggests the remaining layers with the listed prefix", func(t *testing.T) {
+		// Act
+		names, _ := baseLayersFunc(nil, nil, "node,java,")
+
+		// Assert
+		assert.Equal(t, []string{"node,java,docker", "node,java,dotnet", "node,java,go"}, names)
 	})
 }

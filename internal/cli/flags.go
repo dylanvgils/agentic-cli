@@ -56,6 +56,8 @@ func addBuildFlags(cmd *cobra.Command) {
 
 	cmd.MarkFlagsMutuallyExclusive("base", "base-exact")
 	cmd.MarkFlagsMutuallyExclusive("apt", "apt-exact")
+	_ = cmd.RegisterFlagCompletionFunc("base", baseLayersFunc)
+	_ = cmd.RegisterFlagCompletionFunc("base-exact", baseLayersFunc)
 
 	addRegistryFlag(cmd)
 	addVersionFlags(cmd)
