@@ -71,17 +71,27 @@ func (s *Service) fetchIfDue(home, toolName, image string) (installed, latest st
 		return "", "", false
 	}
 
-	if cfg.LastToolVersionCheck == nil {
-		cfg.LastToolVersionCheck = make(map[string]time.Time)
-	}
-	cfg.LastToolVersionCheck[toolName] = time.Now()
-	_ = cfg.Save(home)
+	_ = MarkChecked(home, toolName)
 
 	if !newer {
 		return "", "", false
 	}
 
 	return docker.ParseVersion(info.Version), latestVersion, true
+}
+
+// MarkChecked records tool as checked now, so `agentic run` skips its upstream check for checkInterval.
+func MarkChecked(home, tool string) error {
+	cfg, err := config.LoadConfig(home)
+	if err != nil {
+		return err
+	}
+
+	if cfg.LastToolVersionCheck == nil {
+		cfg.LastToolVersionCheck = make(map[string]time.Time)
+	}
+	cfg.LastToolVersionCheck[tool] = time.Now()
+	return cfg.Save(home)
 }
 
 // shouldCheck reports whether tool is due for a check: never checked, or the interval has elapsed.

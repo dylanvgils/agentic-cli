@@ -402,6 +402,37 @@ func TestApplyAll(t *testing.T) {
 		require.ErrorContains(t, err, "build failed")
 		assert.False(t, pruned)
 	})
+
+	t.Run("successful update records update check", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+
+		// Act
+		var err error
+		captureLog(t, func() { err = New(&fakeDocker{}, home).ApplyAll(targets) })
+
+		// Assert
+		require.NoError(t, err)
+		cfg, err := config.LoadConfig(home)
+		require.NoError(t, err)
+		assert.Contains(t, cfg.LastToolVersionCheck, "claude")
+	})
+
+	t.Run("failed update records no update check", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		d := &fakeDocker{buildTool: func(string, string, tools.BuildOptions) error { return errors.New("build failed") }}
+
+		// Act
+		var err error
+		captureLog(t, func() { err = New(d, home).ApplyAll(targets) })
+
+		// Assert
+		require.Error(t, err)
+		cfg, err := config.LoadConfig(home)
+		require.NoError(t, err)
+		assert.NotContains(t, cfg.LastToolVersionCheck, "claude")
+	})
 }
 
 func TestApply(t *testing.T) {

@@ -294,3 +294,39 @@ func TestCheck(t *testing.T) {
 		assert.False(t, called)
 	})
 }
+
+func TestMarkChecked(t *testing.T) {
+	t.Run("saves timestamp when none recorded", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		before := time.Now()
+
+		// Act
+		err := MarkChecked(home, "claude")
+
+		// Assert
+		require.NoError(t, err)
+		cfg, err := config.LoadConfig(home)
+		require.NoError(t, err)
+		require.Contains(t, cfg.LastToolVersionCheck, "claude")
+		assert.False(t, cfg.LastToolVersionCheck["claude"].Before(before))
+	})
+
+	t.Run("keeps other tools' timestamps", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		other := time.Now().Add(-2 * time.Hour)
+		cfg := &config.CliConfig{LastToolVersionCheck: map[string]time.Time{"copilot": other}}
+		require.NoError(t, cfg.Save(home))
+
+		// Act
+		err := MarkChecked(home, "claude")
+
+		// Assert
+		require.NoError(t, err)
+		reloaded, err := config.LoadConfig(home)
+		require.NoError(t, err)
+		assert.Contains(t, reloaded.LastToolVersionCheck, "claude")
+		assert.True(t, other.Equal(reloaded.LastToolVersionCheck["copilot"]))
+	})
+}

@@ -304,4 +304,35 @@ func TestApply(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 	})
+
+	t.Run("successful build records update check", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		home := t.TempDir()
+
+		// Act
+		err := New(&fakeDocker{}, home).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		cfg, err := config.LoadConfig(home)
+		require.NoError(t, err)
+		assert.Contains(t, cfg.LastToolVersionCheck, "claude")
+	})
+
+	t.Run("failed build records no update check", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		home := t.TempDir()
+		d := &fakeDocker{buildTool: func(string, string, tools.BuildOptions) error { return errors.New("build failed") }}
+
+		// Act
+		err := New(d, home).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.Error(t, err)
+		cfg, err := config.LoadConfig(home)
+		require.NoError(t, err)
+		assert.NotContains(t, cfg.LastToolVersionCheck, "claude")
+	})
 }

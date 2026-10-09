@@ -44,7 +44,7 @@ All stages go into one multi-stage Dockerfile and are built in a single `docker 
 - Custom installs are kept in the [data directory](usage.md#data-directory). If an image's aren't there (built on another machine, by an older agentic, or the directory was wiped), `agentic update` takes their commands from `.agenticrc.toml` and warns about any it can't find.
 - `agentic update` prints `version: X -> Y` (or `X (up to date)`) before it starts.
 - Base images use floating tags, so registries publish patches under the same tag. `agentic update` pulls them at most once every 24h per image, even when the tool is current. `--pull` forces a check and `--pull=false` turns it off. `agentic build` only pulls with `--pull`.
-- `agentic run` checks for a newer tool version at most every 6 hours, and in a terminal offers to update first. Saying no, or a non-interactive run, prints a notice and starts the current version. Turn it off with `check_updates = false` under `[run]`.
+- `agentic run` checks for a newer tool version at most every 6 hours, and in a terminal offers to update first. Saying no, or a non-interactive run, prints a notice and starts the current version. A successful `agentic build` or `agentic update` of the tool restarts that 6-hour wait. Turn it off with `check_updates = false` under `[run]`.
 
 ## Extra apt packages
 
