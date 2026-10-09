@@ -59,7 +59,8 @@ var dockerContextsFunc = func(_ *cobra.Command, _ []string, _ string) ([]string,
 	return names, cobra.ShellCompDirectiveNoFileComp
 }
 
-// baseLayersFunc completes --base and --base-exact with the known extra layers, after any already listed comma-separated.
+// baseLayersFunc completes --base and --base-exact with the known extra layers, after any already listed comma-separated;
+// it adds no trailing space so another ",layer" can follow.
 var baseLayersFunc = func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	prefix := ""
 	listed := map[string]bool{}
@@ -76,5 +77,5 @@ var baseLayersFunc = func(_ *cobra.Command, _ []string, toComplete string) ([]st
 			names = append(names, prefix+name)
 		}
 	}
-	return names, cobra.ShellCompDirectiveNoFileComp
+	return names, cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveNoSpace
 }

@@ -190,7 +190,7 @@ func Test_baseLayersFunc(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, tools.KnownExtras(), names)
-		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp|cobra.ShellCompDirectiveNoSpace, directive)
 	})
 
 	t.Run("after a comma suggests the remaining layers with the listed prefix", func(t *testing.T) {
