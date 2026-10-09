@@ -73,10 +73,11 @@ func (s *Service) checkTool(req Request, prompter Prompter) error {
 		return err
 	}
 
+	updateReq := toolupdate.Request{Home: home, RC: rc, Tool: target.ToolName, Image: target.ImageName}
 	apply := func(tool, image string) error {
 		return update.New(s.docker, home).ApplyRecovered(tool, image, rc)
 	}
-	if err := toolupdate.New(s.docker).Check(home, rc, target.ToolName, target.ImageName, prompter.OfferToolUpdate, apply); err != nil {
+	if err := toolupdate.New(s.docker).Check(updateReq, prompter.OfferToolUpdate, apply); err != nil {
 		return err
 	}
 

@@ -11,13 +11,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_mountedHostPaths(t *testing.T) {
+func Test_mountSet_hostPaths(t *testing.T) {
 	// Arrange
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	mounts := mountSet{
+		volumes:       []string{"agentic-cache:/cache"},
+		secrets:       []string{"token:~/token", "other:$HOME/other:/run/other"},
+		toolHome:      t.TempDir(),
+		containerHome: "/home/agent",
+	}
 
 	// Act
-	paths := mountedHostPaths([]string{"agentic-cache:/cache"}, []string{"token:~/token", "other:$HOME/other:/run/other"}, t.TempDir(), "/home/agent")
+	paths := mounts.hostPaths()
 
 	// Assert
 	assert.Equal(t, []string{filepath.Join(home, "token"), filepath.Join(home, "other")}, paths)

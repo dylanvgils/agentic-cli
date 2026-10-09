@@ -55,7 +55,7 @@ func resolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials
 }
 
 // credentialSetup checks in.Credentials against the run and returns the placeholder env for the tool; a no-op without credentials.
-func credentialSetup(in Input, volumes, secrets, env []string, containerHome string) ([]string, error) {
+func credentialSetup(in Input, mounts mountSet, env []string) ([]string, error) {
 	if len(in.Credentials) == 0 {
 		return nil, nil
 	}
@@ -66,7 +66,7 @@ func credentialSetup(in Input, volumes, secrets, env []string, containerHome str
 		return nil, fmt.Errorf("--env: %q is set by agentic when proxy credentials are configured", envKey(env[i]))
 	}
 
-	if err := checkCredentialPaths(in.Credentials, volumes, secrets, in.ToolHome, containerHome); err != nil {
+	if err := checkCredentialPaths(in.Credentials, mounts); err != nil {
 		return nil, err
 	}
 	return credentialEnv(in.Credentials, env, in.DindEnabled)
@@ -101,8 +101,8 @@ func credentialEnv(resolved []credentials.Resolved, env []string, dindEnabled bo
 
 // checkCredentialPaths refuses secrets inside cwd or a host path mounted into the tool container.
 // Approval covers a secret's path, not its content, so the agent must not be able to read or replace the file.
-func checkCredentialPaths(resolved []credentials.Resolved, volumes, secrets []string, toolHome, containerHome string) error {
-	roots := mountedHostPaths(volumes, secrets, toolHome, containerHome)
+func checkCredentialPaths(resolved []credentials.Resolved, mounts mountSet) error {
+	roots := mounts.hostPaths()
 	if cwd, err := os.Getwd(); err == nil {
 		roots = append(roots, cwd)
 	}

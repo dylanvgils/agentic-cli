@@ -29,7 +29,7 @@ func (c *Client) BuildTool(tool, image string, opts tools.BuildOptions) error {
 		return fmt.Errorf("tool image: %w", err)
 	}
 
-	c.stampImageLabels(image, tool, opts.BaseOverride, opts.AptPackages, opts.Versions, opts.CustomInstalls, opts.CacheBust)
+	c.stampImageLabels(image, tool, opts)
 
 	return nil
 }

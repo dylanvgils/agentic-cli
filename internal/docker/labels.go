@@ -244,25 +244,25 @@ func (c *Client) stampLabels(image string, info ImageInfo) {
 }
 
 // stampImageLabels detects base and tool versions from the built image and stamps them via stampLabels.
-func (c *Client) stampImageLabels(image, tool string, extras []string, aptPkgs []string, versions map[string]string, customInstalls []config.RCCustomInstall, cacheBust string) {
-	layers := append([]string{tools.BaseLayer}, extras...)
+func (c *Client) stampImageLabels(image, tool string, opts tools.BuildOptions) {
+	layers := append([]string{tools.BaseLayer}, opts.BaseOverride...)
 
-	customInstallNames := make([]string, len(customInstalls))
-	for i, install := range customInstalls {
+	customInstallNames := make([]string, len(opts.CustomInstalls))
+	for i, install := range opts.CustomInstalls {
 		customInstallNames[i] = install.Name
 	}
 
 	info := ImageInfo{
 		Namespace:          strings.TrimSuffix(image, "-"+tool),
 		Tool:               tool,
-		Base:               c.collectBaseLabel(image, extras),
-		VersionArgs:        buildVersionArgsLabel(layers, versions),
-		Apt:                strings.Join(aptPkgs, ","),
+		Base:               c.collectBaseLabel(image, opts.BaseOverride),
+		VersionArgs:        buildVersionArgsLabel(layers, opts.Versions),
+		Apt:                strings.Join(opts.AptPackages, ","),
 		CustomInstalls:     strings.Join(customInstallNames, ","),
-		CustomInstallsHash: config.CustomInstallsHash(customInstalls),
+		CustomInstallsHash: config.CustomInstallsHash(opts.CustomInstalls),
 		Built:              buildBuiltLabel(),
 		CLIVersion:         buildinfo.Version,
-		CacheBust:          cacheBust,
+		CacheBust:          opts.CacheBust,
 	}
 	info.Version = c.runVersionScript(image, versionScript(tool))
 

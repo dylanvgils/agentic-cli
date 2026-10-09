@@ -63,7 +63,7 @@ func Test_credentialSetup(t *testing.T) {
 
 	t.Run("no credentials is a no-op even with the proxy off", func(t *testing.T) {
 		// Act
-		env, err := credentialSetup(Input{}, nil, nil, nil, "/home/agent")
+		env, err := credentialSetup(Input{}, mountSet{}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -72,10 +72,10 @@ func Test_credentialSetup(t *testing.T) {
 
 	t.Run("credentials without the proxy are an error", func(t *testing.T) {
 		// Arrange
-		in := Input{ToolHome: t.TempDir(), Credentials: resolved}
+		in := Input{Credentials: resolved}
 
 		// Act
-		_, err := credentialSetup(in, nil, nil, nil, "/home/agent")
+		_, err := credentialSetup(in, mountSet{}, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "need the egress proxy")
@@ -85,10 +85,10 @@ func Test_credentialSetup(t *testing.T) {
 		for _, entry := range []string{"AGENTIC_PROXY_CA=test-ca", "SSL_CERT_FILE=/certs/example.pem", "NODE_EXTRA_CA_CERTS"} {
 			t.Run(entry, func(t *testing.T) {
 				// Arrange
-				in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce, Credentials: resolved}
+				in := Input{ProxyMode: docker.ProxyEnforce, Credentials: resolved}
 
 				// Act
-				_, err := credentialSetup(in, nil, nil, []string{entry}, "/home/agent")
+				_, err := credentialSetup(in, mountSet{}, []string{entry})
 
 				// Assert
 				assert.ErrorContains(t, err, "set by agentic when proxy credentials are configured")
@@ -98,10 +98,11 @@ func Test_credentialSetup(t *testing.T) {
 
 	t.Run("credentials with the proxy return placeholders", func(t *testing.T) {
 		// Arrange
-		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyMonitor, Credentials: resolved}
+		in := Input{ProxyMode: docker.ProxyMonitor, Credentials: resolved}
+		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
 
 		// Act
-		env, err := credentialSetup(in, nil, nil, nil, "/home/agent")
+		env, err := credentialSetup(in, mounts, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -174,10 +175,14 @@ func Test_checkCredentialPaths(t *testing.T) {
 	t.Run("secret outside every mount is accepted", func(t *testing.T) {
 		// Arrange
 		resolved := []credentials.Resolved{{Path: filepath.Join(t.TempDir(), "token")}}
-		volumes := []string{t.TempDir() + ":/data", "agentic-cache:/cache"}
+		mounts := mountSet{
+			volumes:       []string{t.TempDir() + ":/data", "agentic-cache:/cache"},
+			toolHome:      t.TempDir(),
+			containerHome: "/home/agent",
+		}
 
 		// Act
-		err := checkCredentialPaths(resolved, volumes, nil, t.TempDir(), "/home/agent")
+		err := checkCredentialPaths(resolved, mounts)
 
 		// Assert
 		assert.NoError(t, err)
@@ -187,9 +192,10 @@ func Test_checkCredentialPaths(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
 		resolved := []credentials.Resolved{{Path: filepath.Join(dir, "nested", "token")}}
+		mounts := mountSet{volumes: []string{dir + ":/data:ro"}, toolHome: t.TempDir(), containerHome: "/home/agent"}
 
 		// Act
-		err := checkCredentialPaths(resolved, []string{dir + ":/data:ro"}, nil, t.TempDir(), "/home/agent")
+		err := checkCredentialPaths(resolved, mounts)
 
 		// Assert
 		assert.ErrorContains(t, err, "which the tool container can access")
@@ -199,9 +205,14 @@ func Test_checkCredentialPaths(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()
 		resolved := []credentials.Resolved{{Path: filepath.Join(toolHome, "claude", "token")}}
+		mounts := mountSet{
+			volumes:       []string{"$TOOL_HOME/claude:$CONTAINER_HOME/.claude"},
+			toolHome:      toolHome,
+			containerHome: "/home/agent",
+		}
 
 		// Act
-		err := checkCredentialPaths(resolved, []string{"$TOOL_HOME/claude:$CONTAINER_HOME/.claude"}, nil, toolHome, "/home/agent")
+		err := checkCredentialPaths(resolved, mounts)
 
 		// Assert
 		assert.ErrorContains(t, err, "which the tool container can access")
@@ -211,9 +222,10 @@ func Test_checkCredentialPaths(t *testing.T) {
 		// Arrange
 		path := filepath.Join(t.TempDir(), "token")
 		resolved := []credentials.Resolved{{Path: path}}
+		mounts := mountSet{secrets: []string{"token:" + path}, toolHome: t.TempDir(), containerHome: "/home/agent"}
 
 		// Act
-		err := checkCredentialPaths(resolved, nil, []string{"token:" + path}, t.TempDir(), "/home/agent")
+		err := checkCredentialPaths(resolved, mounts)
 
 		// Assert
 		assert.ErrorContains(t, err, "which the tool container can access")
@@ -226,7 +238,7 @@ func Test_checkCredentialPaths(t *testing.T) {
 		resolved := []credentials.Resolved{{Path: filepath.Join(cwd, "token")}}
 
 		// Act
-		err = checkCredentialPaths(resolved, nil, nil, t.TempDir(), "/home/agent")
+		err = checkCredentialPaths(resolved, mountSet{})
 
 		// Assert
 		assert.ErrorContains(t, err, "which the tool container can access")
@@ -243,9 +255,10 @@ func Test_checkCredentialPaths(t *testing.T) {
 		link := filepath.Join(t.TempDir(), "token")
 		require.NoError(t, os.Symlink(target, link))
 		resolved := []credentials.Resolved{{Path: link}}
+		mounts := mountSet{volumes: []string{mounted + ":/data"}, toolHome: t.TempDir(), containerHome: "/home/agent"}
 
 		// Act
-		err := checkCredentialPaths(resolved, []string{mounted + ":/data"}, nil, t.TempDir(), "/home/agent")
+		err := checkCredentialPaths(resolved, mounts)
 
 		// Assert
 		assert.ErrorContains(t, err, "which the tool container can access")
