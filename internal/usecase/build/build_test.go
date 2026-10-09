@@ -2,11 +2,13 @@ package build
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +55,7 @@ func TestDryRun(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := New(d).DryRun([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, t.TempDir()).DryRun([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -65,7 +67,7 @@ func TestDryRun(t *testing.T) {
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		err := New(&fakeDocker{}).DryRun([]string{"nonexistent"}, tools.BuildOptions{Versions: map[string]string{}})
+		err := New(&fakeDocker{}, t.TempDir()).DryRun([]string{"nonexistent"}, tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
@@ -74,6 +76,22 @@ func TestDryRun(t *testing.T) {
 }
 
 func TestApply(t *testing.T) {
+	t.Run("stores custom installs before building", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		home := t.TempDir()
+		installs := []config.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
+
+		// Act
+		err := New(&fakeDocker{}, home).Apply([]string{"claude"}, "agentic", tools.BuildOptions{CustomInstalls: installs})
+
+		// Assert
+		require.NoError(t, err)
+		stored, ok := config.LoadCustomInstalls(home, config.CustomInstallsHash(installs))
+		assert.True(t, ok)
+		assert.Equal(t, installs, stored)
+	})
+
 	t.Run("all tools when no args", func(t *testing.T) {
 		// Arrange
 		logBuf := stubErrLog(t)
@@ -84,7 +102,7 @@ func TestApply(t *testing.T) {
 		}}
 
 		// Act
-		err := New(d).Apply([]string{"claude", "copilot", "opencode"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, t.TempDir()).Apply([]string{"claude", "copilot", "opencode"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
@@ -102,7 +120,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -119,7 +137,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(&fakeDocker{}).Apply([]string{"claude"}, "agentic", opts)
+			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
 
@@ -133,7 +151,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(&fakeDocker{}).Apply([]string{"claude"}, "agentic", opts)
+			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
 
@@ -147,7 +165,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(&fakeDocker{}).Apply([]string{"claude"}, "agentic", opts)
+			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
 
@@ -158,7 +176,7 @@ func TestApply(t *testing.T) {
 	t.Run("apt packages hidden when empty", func(t *testing.T) {
 		// Act
 		out := captureLog(t, func() {
-			err := New(&fakeDocker{}).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -169,7 +187,7 @@ func TestApply(t *testing.T) {
 	t.Run("base override hidden when empty", func(t *testing.T) {
 		// Act
 		out := captureLog(t, func() {
-			err := New(&fakeDocker{}).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -183,7 +201,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(&fakeDocker{}).Apply([]string{"claude"}, "agentic", opts)
+			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
 
@@ -197,7 +215,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(&fakeDocker{}).Apply([]string{"claude"}, "agentic", opts)
+			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
 
@@ -212,7 +230,7 @@ func TestApply(t *testing.T) {
 		}}
 
 		// Act
-		err := New(d).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
@@ -221,7 +239,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		err := New(&fakeDocker{}).Apply([]string{"nonexistent"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"nonexistent"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
@@ -237,10 +255,53 @@ func TestApply(t *testing.T) {
 		}}
 
 		// Act
-		err := New(d).Apply([]string{"claude", "copilot", "opencode"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, t.TempDir()).Apply([]string{"claude", "copilot", "opencode"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
 		assert.Len(t, built, 1)
+	})
+
+	t.Run("prunes after the builds succeed", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		pruned := false
+		d := &fakeDocker{pruneDangling: func() error { pruned = true; return nil }}
+
+		// Act
+		err := New(d).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, pruned)
+	})
+
+	t.Run("a failed build skips the prune", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		pruned := false
+		d := &fakeDocker{
+			buildTool:     func(string, string, tools.BuildOptions) error { return errors.New("build failed") },
+			pruneDangling: func() error { pruned = true; return nil },
+		}
+
+		// Act
+		err := New(d).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.ErrorContains(t, err, "build failed")
+		assert.False(t, pruned)
+	})
+
+	t.Run("a failed prune does not fail the build", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		d := &fakeDocker{pruneDangling: func() error { return errors.New("prune failed") }}
+
+		// Act
+		err := New(d).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
 	})
 }

@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -39,6 +40,11 @@ func BusyboxImageFor(registry string) string {
 // KnownLayers returns all runtime layers in registration order: base first, then extras.
 func KnownLayers() []string {
 	return append([]string{BaseLayer}, knownExtras...)
+}
+
+// KnownExtras returns the extra base layers --base accepts, in alphabetical order.
+func KnownExtras() []string {
+	return slices.Clone(knownExtras)
 }
 
 // BuildLayers returns the ordered layers for a build: the base layer followed by the requested extras.

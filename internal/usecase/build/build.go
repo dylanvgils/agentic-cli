@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
@@ -12,14 +13,16 @@ import (
 // Service builds tool images for `agentic build`.
 type Service struct {
 	docker Docker
+	home   string // agentic data dir, for the custom installs store
 }
 
-// New returns a Service that talks to Docker through d.
-func New(d Docker) *Service {
-	return &Service{docker: d}
+// New returns a Service that talks to Docker through d and keeps custom installs under home.
+func New(d Docker, home string) *Service {
+	return &Service{docker: d, home: home}
 }
 
-// Apply builds each tool image in names under namespace, announcing the batch and reporting the base/apt overrides in effect for each.
+// Apply builds each tool image in names under namespace, announcing the batch and reporting the base/apt overrides in effect for each,
+// then prunes the dangling images and build cache the builds left behind.
 func (s *Service) Apply(names []string, namespace string, opts tools.BuildOptions) error {
 	images := make([]string, len(names))
 	for i, name := range names {
@@ -31,6 +34,10 @@ func (s *Service) Apply(names []string, namespace string, opts tools.BuildOption
 	}
 
 	logging.Infof("building %d image(s): %s", len(images), strings.Join(images, ", "))
+
+	if err := config.SaveCustomInstalls(s.home, opts.CustomInstalls); err != nil {
+		return fmt.Errorf("saving custom installs: %w", err)
+	}
 
 	for i, name := range names {
 		image := images[i]
@@ -51,6 +58,9 @@ func (s *Service) Apply(names []string, namespace string, opts tools.BuildOption
 			return err
 		}
 	}
+
+	// Best effort: a failed cleanup never fails the build
+	_ = s.docker.PruneDangling()
 	return nil
 }
 

@@ -51,8 +51,10 @@ func BuildOptions(in BuildInput, rc *config.AgenticRC) tools.BuildOptions {
 
 // UpdateOptions is BuildOptions for `agentic update`: config bases and apt packages never override what an image was built with,
 // so they only apply when baseSet or aptSet says the matching --base/--base-exact or --apt/--apt-exact flag was given.
+// Config versions never apply, only --<layer> flags; custom installs are recovered from the image by the update usecase.
 func UpdateOptions(in BuildInput, baseSet, aptSet bool, rc *config.AgenticRC) tools.BuildOptions {
 	opts := BuildOptions(in, rc)
+	opts.Versions = Versions(in.VersionOverrides, &config.AgenticRC{})
 
 	if !baseSet {
 		opts.BaseOverride = nil

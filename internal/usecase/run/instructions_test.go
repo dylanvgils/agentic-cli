@@ -171,6 +171,7 @@ func TestBuildInstructions(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, content, "no direct internet access")
+		assert.Contains(t, content, "  - .anthropic.com\n")
 		assert.Contains(t, content, "extra.example.com")
 		assert.Contains(t, content, "tell the user why so they can add it to allowed_hosts")
 	})
@@ -217,13 +218,15 @@ func TestBuildInstructions(t *testing.T) {
 	t.Run("docker section lists the sidecar limits", func(t *testing.T) {
 		// Arrange
 		in := Input{DindEnabled: true, DindLimits: docker.ResourceLimits{CPUs: "2"}}
+		rc := &config.AgenticRC{}
+		rc.Run.Dind.Memory = "6g"
 
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}).BuildInstructions(target, in, tools.Configs["claude"], rc)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, content, " 2 CPUs,")
+		assert.Contains(t, content, fmt.Sprintf("%s processes, 2 CPUs, 6g memory", docker.DefaultPidsLimit))
 	})
 
 	t.Run("docker section and allowlist cover registries with proxy", func(t *testing.T) {
@@ -236,6 +239,7 @@ func TestBuildInstructions(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, content, "Image pulls, builds and containers go through the same egress proxy")
+		assert.Contains(t, content, "  - registry-1.docker.io\n")
 	})
 
 	t.Run("custom instructions appended when set", func(t *testing.T) {
@@ -366,6 +370,19 @@ func TestPreviewInstructions(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, content, "## Network")
+	})
+
+	t.Run("a proxy conflict errors like a run", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Project.RC.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
+		req.Flags.Proxy = resolve.ProxyInput{NoProxy: true}
+
+		// Act
+		_, err := New(&fakeDocker{}).PreviewInstructions(req)
+
+		// Assert
+		require.ErrorContains(t, err, "--no-proxy cannot be used")
 	})
 }
 

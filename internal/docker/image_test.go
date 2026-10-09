@@ -21,6 +21,7 @@ const fullImageJSON = `{
 			"agentic.built": "2026-05-01",
 			"agentic.version": "v1.0.0",
 			"agentic.custom-installs": "helm,golangci-lint",
+			"agentic.custom-installs.hash": "abc123",
 			"agentic.proxy-trust": "true"
 		}
 	}
@@ -59,6 +60,7 @@ func TestInspectImage(t *testing.T) {
 		assert.Equal(t, "v1.0.0", info.CLIVersion)
 		assert.Equal(t, "1.23GB", info.Size)
 		assert.Equal(t, "helm,golangci-lint", info.CustomInstalls)
+		assert.Equal(t, "abc123", info.CustomInstallsHash)
 		assert.True(t, info.ProxyTrust)
 	})
 

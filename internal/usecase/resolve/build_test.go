@@ -254,6 +254,17 @@ func TestUpdateOptions(t *testing.T) {
 		assert.Nil(t, opts.AptPackages)
 	})
 
+	t.Run("config versions are dropped, flag versions kept", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17", "node": "22"}}}
+
+		// Act
+		opts := UpdateOptions(BuildInput{VersionOverrides: map[string]string{"node": "24"}}, false, false, rc)
+
+		// Assert
+		assert.Equal(t, map[string]string{"node": "24"}, opts.Versions)
+	})
+
 	t.Run("a set but empty flag keeps the config values", func(t *testing.T) {
 		// Act
 		opts := UpdateOptions(BuildInput{}, true, true, rc)

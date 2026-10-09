@@ -71,6 +71,33 @@ func TestPrepare(t *testing.T) {
 		assert.Empty(t, p.trustAsked)
 	})
 
+	t.Run("declined tool update still runs", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Project.RC.Run.CheckUpdates = nil
+		stubLatestToolVersion(t, "2.0.0")
+		stubLog(t)
+		rebuilt := false
+		d := &fakeDocker{
+			inspectImage: built,
+			buildTool: func(string, string, tools.BuildOptions) error {
+				rebuilt = true
+				return nil
+			},
+		}
+		p := &fakePrompter{}
+
+		// Act
+		rs, cleanup, err := New(d).Prepare(req, p)
+		defer cleanup()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"claude"}, p.updatesOffered)
+		assert.False(t, rebuilt)
+		assert.Equal(t, "agentic-claude", rs.Image)
+	})
+
 	t.Run("tool setup error is wrapped with the tool name", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
@@ -254,6 +281,24 @@ func TestPrepare(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, builds)
+	})
+}
+
+func TestCheckProjectDir(t *testing.T) {
+	t.Run("network share is refused", func(t *testing.T) {
+		// Act
+		err := CheckProjectDir("//server.example.test/share/project")
+
+		// Assert
+		require.ErrorContains(t, err, "is on a network share")
+	})
+
+	t.Run("local dir is allowed", func(t *testing.T) {
+		// Act
+		err := CheckProjectDir(t.TempDir())
+
+		// Assert
+		require.NoError(t, err)
 	})
 }
 

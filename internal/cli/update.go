@@ -53,7 +53,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	opts := updateOptsFromFlags(cmd, rc)
 	warnSkipInstallChecksum(opts)
 
-	svc := update.New(dockerClient)
+	svc := update.New(dockerClient, toolHome)
 
 	if dryRun, _ := cmd.Flags().GetBool("dry-run"); dryRun {
 		return svc.DryRun(firstArg(args), namespace, opts)
@@ -79,12 +79,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	logUpdateSummary(targets, skipped)
-	if err := svc.ApplyAll(targets); err != nil {
-		return err
-	}
-
-	pruneResources()
-	return nil
+	return svc.ApplyAll(targets)
 }
 
 // updateOptsFromFlags returns the build options for an update; see resolve.UpdateOptions for why config bases/apt need an explicit flag.

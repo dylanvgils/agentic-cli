@@ -33,9 +33,15 @@ func (s *Service) Ensure(proxy, dind bool, registry string) error {
 	return nil
 }
 
-// BuildProxy builds the proxy image unconditionally.
+// BuildProxy builds the proxy image unconditionally for `agentic proxy build/update`, then prunes what the build left behind.
 func (s *Service) BuildProxy(opts tools.BuildOptions) error {
-	return s.docker.BuildProxyImage(tools.ProxyImage, buildinfo.Version, buildinfo.DevSourceDir(tools.ProxyModulePath), opts)
+	if err := s.buildProxy(opts); err != nil {
+		return err
+	}
+
+	// Best effort: a failed cleanup never fails the build
+	_ = s.docker.PruneDangling()
+	return nil
 }
 
 // ensureProxy builds the proxy image if missing or stamped with a different CLI version, so `--proxy` picks up proxy changes shipped with a CLI update.
@@ -51,7 +57,7 @@ func (s *Service) ensureProxy(registry string) error {
 	}
 
 	logging.Infof("building %s (%s)...", tools.ProxyImage, reason)
-	return s.BuildProxy(tools.BuildOptions{Registry: registry})
+	return s.buildProxy(tools.BuildOptions{Registry: registry})
 }
 
 // ensureDind builds the DinD image if missing, outdated or stale; a failed refresh only warns so offline runs work.
@@ -73,4 +79,9 @@ func (s *Service) ensureDind(registry string) error {
 		return nil
 	}
 	return err
+}
+
+// buildProxy builds the proxy image; ensureProxy uses it directly so `agentic run` never prunes.
+func (s *Service) buildProxy(opts tools.BuildOptions) error {
+	return s.docker.BuildProxyImage(tools.ProxyImage, buildinfo.Version, buildinfo.DevSourceDir(tools.ProxyModulePath), opts)
 }

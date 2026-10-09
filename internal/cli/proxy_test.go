@@ -21,8 +21,6 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 
 		// Act
 		err := runProxyBuild(proxyBuildCmd, nil)
@@ -40,8 +38,6 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 		stubFlag(t, proxyBuildCmd, "no-cache", "true")
 
 		// Act
@@ -59,8 +55,6 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 
 		// Act
 		err := runProxyUpdate(proxyUpdateCmd, nil)

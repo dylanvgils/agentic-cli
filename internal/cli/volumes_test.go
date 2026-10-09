@@ -203,23 +203,20 @@ func Test_runVolumeRemove(t *testing.T) {
 		assert.Equal(t, 1, removeCalled, "should stop after first error")
 	})
 
-	t.Run("no name prints volumes before prompt", func(t *testing.T) {
+	t.Run("no name lists volumes right before the prompt", func(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) {
 			return []string{"maven", "gradle"}, nil
 		})
 		stubRemoveVolume(t, func(string) error { return nil })
 		stubStdin(t, "n\n")
+		logBuf := stubErrLog(t)
 
 		// Act
-		out := captureStdout(t, func() {
-			err := runVolumeRemove(volumesRemoveCmd, nil)
-			require.NoError(t, err)
-		})
+		err := runVolumeRemove(volumesRemoveCmd, nil)
 
-		// Assert
-		assert.Contains(t, out, "Volumes to remove:")
-		assert.Contains(t, out, "  maven")
-		assert.Contains(t, out, "  gradle")
+		// Assert - list and prompt share stderr, list first
+		require.NoError(t, err)
+		assert.Equal(t, "agentic: volumes to remove:\n   maven\n   gradle\nagentic: remove all agentic-managed volumes? [y/N] ", logBuf.String())
 	})
 }

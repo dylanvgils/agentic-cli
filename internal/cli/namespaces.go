@@ -52,12 +52,23 @@ func runNamespacesPrune(cmd *cobra.Command, _ []string) error {
 
 	namespace := resolveNamespace(cmd, rc)
 
+	images, err := dockerClient.ListAllImages(docker.NamespaceFilter(namespace))
+	if err != nil {
+		return err
+	}
+
+	// Only ask when there is something to remove
+	if len(images) == 0 {
+		logging.Infof("no images found in namespace %q", namespace)
+		return nil
+	}
+
 	logging.Promptf("remove all images in namespace %q? [y/N] ", namespace)
 	if !confirmed() {
 		return nil
 	}
 
-	return pruneNamespace(namespace)
+	return removeNamespaceImages(namespace, images)
 }
 
 // listNamespaces prints each namespace that has an agentic image, sorted.
@@ -81,18 +92,8 @@ func listNamespaces() error {
 	return nil
 }
 
-// pruneNamespace removes every agentic image in namespace.
-func pruneNamespace(namespace string) error {
-	images, err := dockerClient.ListAllImages(docker.NamespaceFilter(namespace))
-	if err != nil {
-		return err
-	}
-
-	if len(images) == 0 {
-		logging.Infof("no images found in namespace %q", namespace)
-		return nil
-	}
-
+// removeNamespaceImages removes images, which all belong to namespace.
+func removeNamespaceImages(namespace string, images []*docker.ImageInfo) error {
 	logging.Infof("removing %d image(s) in namespace %q", len(images), namespace)
 	for _, image := range images {
 		logging.Stepf("%s/%s", image.Namespace, image.Tool)

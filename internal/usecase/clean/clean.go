@@ -2,6 +2,7 @@
 package clean
 
 import (
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -10,6 +11,7 @@ import (
 // Service removes agentic-owned images and shared Docker resources.
 type Service struct {
 	docker Docker
+	home   string // agentic data dir, for the custom installs store and sidecar state
 }
 
 // Target is one image to remove, with the label to report it under.
@@ -28,9 +30,9 @@ type Scope struct {
 	All        bool
 }
 
-// New returns a Service that talks to Docker through d.
-func New(d Docker) *Service {
-	return &Service{docker: d}
+// New returns a Service that talks to Docker through d and cleans agentic state under home.
+func New(d Docker, home string) *Service {
+	return &Service{docker: d, home: home}
 }
 
 // Resolve returns the clean targets for scope: every agentic image across all namespaces (All), or the named tools in one namespace.
@@ -41,8 +43,10 @@ func (s *Service) Resolve(scope Scope) ([]Target, error) {
 	return resolveScoped(scope.Names, scope.Namespace)
 }
 
-// Apply removes each target's image, reporting progress.
+// Apply removes each target's image, reporting progress, then the stored custom installs no image uses anymore.
 func (s *Service) Apply(targets []Target) error {
+	before, beforeErr := s.customInstallsHashes()
+
 	for _, t := range targets {
 		logging.Step(t.Label)
 		if err := s.docker.CleanImage(t.Image); err != nil {
@@ -50,11 +54,14 @@ func (s *Service) Apply(targets []Target) error {
 		}
 	}
 
+	if beforeErr == nil {
+		s.pruneCustomInstalls(before)
+	}
 	return nil
 }
 
 // GlobalResources removes agentic's shared Docker resources: base and sidecar images, leftover sidecar resources, and agentic-net.
-func (s *Service) GlobalResources(toolHome string) error {
+func (s *Service) GlobalResources() error {
 	logging.Infof("removing shared resources: base images, %s, %s, sidecars, %s", tools.ProxyImage, tools.DindImage, docker.NetworkName)
 
 	logging.Step("base")
@@ -71,7 +78,7 @@ func (s *Service) GlobalResources(toolHome string) error {
 		return err
 	}
 	// Sidecars may sit on a proxy network, so they go first
-	if err := s.docker.SweepDindResources(toolHome); err != nil {
+	if err := s.docker.SweepDindResources(s.home); err != nil {
 		return err
 	}
 	if err := s.docker.SweepProxyResources(); err != nil {
@@ -102,6 +109,37 @@ func (s *Service) resolveAll(filterTool string) ([]Target, error) {
 	}
 
 	return targets, nil
+}
+
+// customInstallsHashes returns the custom installs hashes recorded on agentic's images.
+func (s *Service) customInstallsHashes() (map[string]bool, error) {
+	images, err := s.docker.ListAllImages()
+	if err != nil {
+		return nil, err
+	}
+
+	hashes := make(map[string]bool)
+	for _, info := range images {
+		if info.CustomInstallsHash != "" {
+			hashes[info.CustomInstallsHash] = true
+		}
+	}
+	return hashes, nil
+}
+
+// pruneCustomInstalls deletes the stored custom installs of hashes in before that no image records anymore. Best-effort:
+// only hashes seen in this Docker context are touched, so other contexts' images keep theirs.
+func (s *Service) pruneCustomInstalls(before map[string]bool) {
+	after, err := s.customInstallsHashes()
+	if err != nil {
+		return
+	}
+
+	for hash := range before {
+		if !after[hash] {
+			_ = config.RemoveCustomInstalls(s.home, hash)
+		}
+	}
 }
 
 func resolveScoped(names []string, namespace string) ([]Target, error) {

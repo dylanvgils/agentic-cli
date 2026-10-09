@@ -72,12 +72,7 @@ func runProxyBuildOrUpdate(cmd *cobra.Command, noCache bool) error {
 	}
 
 	logging.Infof("building %s", tools.ProxyImage)
-	if err := sidecar.New(dockerClient).BuildProxy(opts); err != nil {
-		return err
-	}
-
-	pruneResources()
-	return nil
+	return sidecar.New(dockerClient).BuildProxy(opts)
 }
 
 func runProxyClean(cmd *cobra.Command, _ []string) error {

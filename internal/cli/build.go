@@ -47,16 +47,11 @@ func runBuild(cmd *cobra.Command, args []string) error {
 
 	warnSkipInstallChecksum(opts)
 
-	svc := build.New(dockerClient)
+	svc := build.New(dockerClient, toolHome)
 
 	if dryRun {
 		return svc.DryRun(names, opts)
 	}
 
-	if err := svc.Apply(names, namespace, opts); err != nil {
-		return err
-	}
-
-	pruneResources()
-	return nil
+	return svc.Apply(names, namespace, opts)
 }
