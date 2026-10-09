@@ -111,6 +111,22 @@ func TestBuildProxy(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, pruned)
 	})
+
+	t.Run("build error is returned without pruning", func(t *testing.T) {
+		// Arrange
+		pruned := false
+		svc := New(&fakeDocker{
+			buildProxyImage: func(string, string, string, tools.BuildOptions) error { return fmt.Errorf("build failed") },
+			pruneDangling:   func() error { pruned = true; return nil },
+		})
+
+		// Act
+		err := svc.BuildProxy(tools.BuildOptions{})
+
+		// Assert
+		require.ErrorContains(t, err, "build failed")
+		assert.False(t, pruned)
+	})
 }
 
 func Test_ensureProxy(t *testing.T) {
@@ -165,7 +181,7 @@ func Test_ensureProxy(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{tools.ProxyImage}, built())
-		assert.Contains(t, logBuf.String(), "building agentic-proxy")
+		assert.Contains(t, logBuf.String(), "building agentic-proxy (built by a different agentic version)")
 	})
 
 	t.Run("never prunes, so agentic run leaves the build cache alone", func(t *testing.T) {
@@ -210,7 +226,7 @@ func Test_ensureDind(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{tools.DindImage}, built())
-		assert.Contains(t, logBuf.String(), "building agentic-dind")
+		assert.Contains(t, logBuf.String(), "building agentic-dind (image missing)")
 	})
 
 	t.Run("stale image is rebuilt to pick up base patches", func(t *testing.T) {
@@ -226,7 +242,7 @@ func Test_ensureDind(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{tools.DindImage}, built())
-		assert.Contains(t, logBuf.String(), "building agentic-dind")
+		assert.Contains(t, logBuf.String(), "building agentic-dind (older than")
 	})
 
 	t.Run("failed refresh of an existing image only warns", func(t *testing.T) {

@@ -311,13 +311,18 @@ func Test_inCommandChain(t *testing.T) {
 func TestHomeFlag(t *testing.T) {
 	// Arrange
 	var own []string
-
-	// Act
-	for _, cmd := range rootCmd.Commands() {
-		if cmd.LocalNonPersistentFlags().Lookup("home") != nil || cmd.PersistentFlags().Lookup("home") != nil {
-			own = append(own, cmd.Name())
+	var walk func(cmd *cobra.Command)
+	walk = func(cmd *cobra.Command) {
+		for _, sub := range cmd.Commands() {
+			if sub.LocalNonPersistentFlags().Lookup("home") != nil || sub.PersistentFlags().Lookup("home") != nil {
+				own = append(own, sub.CommandPath())
+			}
+			walk(sub)
 		}
 	}
+
+	// Act
+	walk(rootCmd)
 
 	// Assert
 	require.NotNil(t, rootCmd.PersistentFlags().Lookup("home"))
