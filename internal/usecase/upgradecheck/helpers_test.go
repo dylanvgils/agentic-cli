@@ -4,25 +4,53 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
 
-func stubLatestVersion(t *testing.T, v string, err error) {
+// stubBuildVersion sets buildinfo.Version for the duration of the test.
+func stubBuildVersion(t *testing.T, v string) {
 	t.Helper()
+	orig := buildinfo.Version
+	buildinfo.Version = v
+	t.Cleanup(func() { buildinfo.Version = orig })
+}
+
+// stubExit records the exit code Exit was called with instead of exiting; -1 means it was never called.
+func stubExit(t *testing.T) *int {
+	t.Helper()
+	code := -1
+	orig := Exit
+	Exit = func(c int) { code = c }
+	t.Cleanup(func() { Exit = orig })
+	return &code
+}
+
+// stubLatestVersion makes LatestVersion return v and err, reporting whether it was called.
+func stubLatestVersion(t *testing.T, v string, err error) *bool {
+	t.Helper()
+	var called bool
 	orig := LatestVersion
-	LatestVersion = func() (string, error) { return v, err }
+	LatestVersion = func() (string, error) {
+		called = true
+		return v, err
+	}
 	t.Cleanup(func() { LatestVersion = orig })
+	return &called
 }
 
-func stubUpdate(t *testing.T, err error) {
+// stubNotify redirects Notify to a buffer for the duration of the test.
+func stubNotify(t *testing.T) *bytes.Buffer {
 	t.Helper()
-	orig := Update
-	Update = func(_ string) error { return err }
-	t.Cleanup(func() { Update = orig })
+	var buf bytes.Buffer
+	orig := Notify
+	Notify = logging.New(&buf)
+	t.Cleanup(func() { Notify = orig })
+	return &buf
 }
 
-// stubUpdateCapture records the version Update was called with, returning err.
-func stubUpdateCapture(t *testing.T, err error) *string {
+// stubUpdate records the version Update was called with, returning err.
+func stubUpdate(t *testing.T, err error) *string {
 	t.Helper()
 	var calledWith string
 	orig := Update
@@ -32,24 +60,4 @@ func stubUpdateCapture(t *testing.T, err error) *string {
 	}
 	t.Cleanup(func() { Update = orig })
 	return &calledWith
-}
-
-// stubStderrCapture redirects Notify to a buffer for the duration of the test.
-func stubStderrCapture(t *testing.T) *bytes.Buffer {
-	t.Helper()
-	var buf bytes.Buffer
-	orig := Notify
-	Notify = logging.New(&buf)
-	t.Cleanup(func() { Notify = orig })
-	return &buf
-}
-
-// stubExitCapture records the exit code Exit was called with instead of exiting.
-func stubExitCapture(t *testing.T) *int {
-	t.Helper()
-	var code int
-	orig := Exit
-	Exit = func(c int) { code = c }
-	t.Cleanup(func() { Exit = orig })
-	return &code
 }

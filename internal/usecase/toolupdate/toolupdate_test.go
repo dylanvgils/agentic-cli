@@ -124,9 +124,10 @@ func Test_fetchIfDue(t *testing.T) {
 		before := time.Now()
 
 		// Act
-		New(d).fetchIfDue(home, "claude", "agentic-claude")
+		_, _, ok := New(d).fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
+		require.True(t, ok)
 		cfg, err := config.LoadConfig(home)
 		require.NoError(t, err)
 		require.Contains(t, cfg.LastToolVersionCheck, "claude")
@@ -140,9 +141,10 @@ func Test_fetchIfDue(t *testing.T) {
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "", false, false })
 
 		// Act
-		New(d).fetchIfDue(home, "claude", "agentic-claude")
+		_, _, ok := New(d).fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
+		require.False(t, ok)
 		cfg, err := config.LoadConfig(home)
 		require.NoError(t, err)
 		assert.NotContains(t, cfg.LastToolVersionCheck, "claude")

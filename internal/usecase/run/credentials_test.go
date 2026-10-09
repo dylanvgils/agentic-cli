@@ -83,14 +83,16 @@ func Test_credentialSetup(t *testing.T) {
 
 	t.Run("refuses an env entry for a proxy trust var", func(t *testing.T) {
 		for _, entry := range []string{"AGENTIC_PROXY_CA=test-ca", "SSL_CERT_FILE=/certs/example.pem", "NODE_EXTRA_CA_CERTS"} {
-			// Arrange
-			in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce, Credentials: resolved}
+			t.Run(entry, func(t *testing.T) {
+				// Arrange
+				in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce, Credentials: resolved}
 
-			// Act
-			_, err := credentialSetup(in, nil, nil, []string{entry}, "/home/agent")
+				// Act
+				_, err := credentialSetup(in, nil, nil, []string{entry}, "/home/agent")
 
-			// Assert
-			assert.ErrorContains(t, err, "set by agentic when proxy credentials are configured", entry)
+				// Assert
+				assert.ErrorContains(t, err, "set by agentic when proxy credentials are configured")
+			})
 		}
 	})
 
@@ -126,27 +128,31 @@ func Test_credentialEnv(t *testing.T) {
 
 	t.Run("refuses an env entry for the same name", func(t *testing.T) {
 		for _, entry := range []string{"EXAMPLE_TOKEN=value", "EXAMPLE_TOKEN"} {
-			// Arrange
-			resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}
+			t.Run(entry, func(t *testing.T) {
+				// Arrange
+				resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}
 
-			// Act
-			_, err := credentialEnv(resolved, []string{entry}, false)
+				// Act
+				_, err := credentialEnv(resolved, []string{entry}, false)
 
-			// Assert
-			assert.ErrorContains(t, err, "set by a proxy credential", entry)
+				// Assert
+				assert.ErrorContains(t, err, "set by a proxy credential")
+			})
 		}
 	})
 
 	t.Run("refuses names agentic manages", func(t *testing.T) {
 		for _, name := range []string{"HTTPS_PROXY", "TOOL_HOME", "AGENTIC_PROXY_CA", "GIT_SSL_CAINFO"} {
-			// Arrange
-			resolved := []credentials.Resolved{{Env: []string{name}}}
+			t.Run(name, func(t *testing.T) {
+				// Arrange
+				resolved := []credentials.Resolved{{Env: []string{name}}}
 
-			// Act
-			_, err := credentialEnv(resolved, nil, false)
+				// Act
+				_, err := credentialEnv(resolved, nil, false)
 
-			// Assert
-			assert.ErrorContains(t, err, "managed by agentic", name)
+				// Assert
+				assert.ErrorContains(t, err, "managed by agentic")
+			})
 		}
 	})
 
