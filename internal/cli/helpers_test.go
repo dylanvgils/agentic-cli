@@ -47,9 +47,17 @@ type fakeDocker struct {
 	sweepProxyResources   func() error
 	sweepDindResources    func(string) error
 	listContexts          func() ([]string, error)
+	currentContext        func() (string, error)
 }
 
 func (f *fakeDocker) Context() string { return f.context }
+
+func (f *fakeDocker) CurrentContext() (string, error) {
+	if f.currentContext == nil {
+		return f.context, nil
+	}
+	return f.currentContext()
+}
 
 func (f *fakeDocker) CheckDaemon() error {
 	if f.checkDaemon == nil {
@@ -295,6 +303,9 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.listContexts != nil {
 		f.listContexts = o.listContexts
 	}
+	if o.currentContext != nil {
+		f.currentContext = o.currentContext
+	}
 }
 
 // failingWriter fails every write and counts the attempts.
@@ -478,6 +489,11 @@ func stubListVolumes(t *testing.T, fn func() (string, error)) {
 func stubListContexts(t *testing.T, fn func() ([]string, error)) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{listContexts: fn})
+}
+
+func stubCurrentContext(t *testing.T, fn func() (string, error)) {
+	t.Helper()
+	stubDocker(t, &fakeDocker{currentContext: fn})
 }
 
 func stubPruneImages(t *testing.T, fn func() error) {

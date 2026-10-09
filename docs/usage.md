@@ -121,7 +121,7 @@ agentic volumes remove            # remove all agentic volumes
 
 ## Docker context
 
-`--docker-context` picks a [Docker context](https://docs.docker.com/engine/manage-resources/contexts/) other than the active one, and tab-completes from `docker context ls`. `agentic status` shows the context in use when it isn't the default. Set a default with [`docker_context`](config.md#top-level-keys).
+`--docker-context` picks a [Docker context](https://docs.docker.com/engine/manage-resources/contexts/) other than the active one, and tab-completes from `docker context ls`. `agentic status` shows the context in use. Set a default with [`docker_context`](config.md#top-level-keys).
 
 ```bash
 agentic --docker-context prod build claude
