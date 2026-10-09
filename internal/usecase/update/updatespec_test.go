@@ -324,7 +324,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d).ApplyAll(targets) })
+		captureLog(t, func() { err = New(d).ApplyAll(t.TempDir(), targets) })
 
 		// Assert - the same value lets Docker reuse the tool stage for the second namespace
 		require.NoError(t, err)
@@ -343,11 +343,44 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d).ApplyAll(targets) })
+		captureLog(t, func() { err = New(d).ApplyAll(t.TempDir(), targets) })
 
 		// Assert
 		require.ErrorContains(t, err, "build failed")
 		assert.Equal(t, []string{"agentic-claude"}, built)
+	})
+
+	t.Run("successful update records update check", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+
+		// Act
+		var err error
+		captureLog(t, func() { err = New(&fakeDocker{}).ApplyAll(home, targets) })
+
+		// Assert
+		require.NoError(t, err)
+		cfg, err := config.LoadConfig(home)
+		require.NoError(t, err)
+		assert.Contains(t, cfg.LastToolVersionCheck, "claude")
+	})
+
+	t.Run("failed update records no update check", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		d := &fakeDocker{buildTool: func(_, _ string, _ tools.BuildOptions) error {
+			return errors.New("build failed")
+		}}
+
+		// Act
+		var err error
+		captureLog(t, func() { err = New(d).ApplyAll(home, targets) })
+
+		// Assert
+		require.Error(t, err)
+		cfg, err := config.LoadConfig(home)
+		require.NoError(t, err)
+		assert.NotContains(t, cfg.LastToolVersionCheck, "claude")
 	})
 }
 

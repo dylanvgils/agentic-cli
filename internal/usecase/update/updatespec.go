@@ -12,6 +12,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 )
 
 // autoPullInterval bounds how often an automatic --pull may hit the registry again for the same image.
@@ -79,13 +80,17 @@ func (s *Service) DryRun(tool, namespace string, opts tools.BuildOptions) error 
 }
 
 // ApplyAll rebuilds every target in order, stopping at the first failure. All targets share one cache-bust value, so a tool
-// updated in several namespaces (e.g. --all) can reuse its cached layers.
-func (s *Service) ApplyAll(targets []Target) error {
+// updated in several namespaces (e.g. --all) can reuse its cached layers. Each update resets `agentic run`'s update check timer in toolHome.
+func (s *Service) ApplyAll(toolHome string, targets []Target) error {
 	cacheBust := docker.NewCacheBust()
 	for _, t := range targets {
 		t.Opts.CacheBust = cacheBust
 		if err := s.Apply(t.Name, t.Image, t.Opts); err != nil {
 			return err
+		}
+
+		if err := toolupdate.MarkChecked(toolHome, t.Name); err != nil {
+			logging.Warnf("could not record update check for %s: %v", t.Name, err)
 		}
 	}
 	return nil

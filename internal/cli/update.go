@@ -79,7 +79,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	logUpdateSummary(targets, skipped)
-	if err := svc.ApplyAll(targets); err != nil {
+	if err := svc.ApplyAll(toolHome, targets); err != nil {
 		return err
 	}
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 )
 
 // Service builds tool images for `agentic build`.
@@ -20,7 +21,8 @@ func New(d Docker) *Service {
 }
 
 // Apply builds each tool image in names under namespace, announcing the batch and reporting the base/apt overrides in effect for each.
-func (s *Service) Apply(names []string, namespace string, opts tools.BuildOptions) error {
+// A fresh build has the latest tool, so it resets `agentic run`'s update check timer in toolHome.
+func (s *Service) Apply(toolHome string, names []string, namespace string, opts tools.BuildOptions) error {
 	images := make([]string, len(names))
 	for i, name := range names {
 		image, err := tools.ImageName(name, namespace)
@@ -49,6 +51,10 @@ func (s *Service) Apply(names []string, namespace string, opts tools.BuildOption
 
 		if err := s.docker.BuildTool(name, image, opts); err != nil {
 			return err
+		}
+
+		if err := toolupdate.MarkChecked(toolHome, name); err != nil {
+			logging.Warnf("could not record update check for %s: %v", name, err)
 		}
 	}
 	return nil
