@@ -9,14 +9,14 @@ echo "last tag is $LAST" >&2
 
 COMMITS=$(git log "${LAST}..HEAD" --format="%s")
 BODIES=$(git log "${LAST}..HEAD" --format="%b")
-if [ -z "$COMMITS" ]; then
+if [[ -z "$COMMITS" ]]; then
   echo "no commits since $LAST" >&2
 else
   echo "commits since $LAST:" >&2
   echo "  ${COMMITS//$'\n'/$'\n  '}" >&2
 fi
 
-if [ -z "$COMMITS" ]; then
+if [[ -z "$COMMITS" ]]; then
   exit 0
 fi
 
@@ -31,9 +31,9 @@ while IFS= read -r msg; do
   if echo "$msg" | grep -qE '^[a-z]+(\([^)]+\))?!:'; then
     BUMP="major"; break
   elif echo "$msg" | grep -qE '^feat(\([^)]+\))?:'; then
-    [ "$BUMP" != "major" ] && BUMP="minor"
+    [[ "$BUMP" != "major" ]] && BUMP="minor"
   elif echo "$msg" | grep -qE '^(fix|perf|refactor)(\([^)]+\))?:'; then
-    [ "$BUMP" = "none" ] && BUMP="patch"
+    [[ "$BUMP" = "none" ]] && BUMP="patch"
   fi
 done <<< "$COMMITS"
 
@@ -44,7 +44,7 @@ fi
 
 echo "bump level is $BUMP" >&2
 
-if [ "$BUMP" = "none" ]; then
+if [[ "$BUMP" = "none" ]]; then
   exit 0
 fi
 
