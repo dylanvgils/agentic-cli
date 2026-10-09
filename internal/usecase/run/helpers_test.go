@@ -28,6 +28,7 @@ type fakeDocker struct {
 	buildDindImage       func(image string, opts tools.BuildOptions) error
 	buildTool            func(tool, image string, opts tools.BuildOptions) error
 	restampImage         func(image string, info docker.ImageInfo)
+	pruneDangling        func() error
 }
 
 func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
@@ -90,6 +91,13 @@ func (f *fakeDocker) RestampImage(image string, info docker.ImageInfo) {
 	if f.restampImage != nil {
 		f.restampImage(image, info)
 	}
+}
+
+func (f *fakeDocker) PruneDangling() error {
+	if f.pruneDangling == nil {
+		return nil
+	}
+	return f.pruneDangling()
 }
 
 // fakePrompter implements Prompter, recording what it was asked; a nil field approves, except tool updates, which it declines.

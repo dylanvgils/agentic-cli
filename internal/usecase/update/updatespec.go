@@ -78,8 +78,8 @@ func (s *Service) DryRun(tool, namespace string, opts tools.BuildOptions) error 
 	return err
 }
 
-// ApplyAll rebuilds every target in order, stopping at the first failure. All targets share one cache-bust value, so a tool
-// updated in several namespaces (e.g. --all) can reuse its cached layers.
+// ApplyAll rebuilds every target in order, stopping at the first failure, then prunes what the builds left behind. All targets
+// share one cache-bust value, so a tool updated in several namespaces (e.g. --all) can reuse its cached layers.
 func (s *Service) ApplyAll(targets []Target) error {
 	cacheBust := docker.NewCacheBust()
 	for _, t := range targets {
@@ -88,6 +88,9 @@ func (s *Service) ApplyAll(targets []Target) error {
 			return err
 		}
 	}
+
+	// Best effort: a failed cleanup never fails the update
+	_ = s.docker.PruneDangling()
 	return nil
 }
 

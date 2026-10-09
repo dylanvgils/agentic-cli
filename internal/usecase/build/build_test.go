@@ -2,6 +2,7 @@ package build
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -242,5 +243,48 @@ func TestApply(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Len(t, built, 1)
+	})
+
+	t.Run("prunes after the builds succeed", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		pruned := false
+		d := &fakeDocker{pruneDangling: func() error { pruned = true; return nil }}
+
+		// Act
+		err := New(d).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, pruned)
+	})
+
+	t.Run("a failed build skips the prune", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		pruned := false
+		d := &fakeDocker{
+			buildTool:     func(string, string, tools.BuildOptions) error { return errors.New("build failed") },
+			pruneDangling: func() error { pruned = true; return nil },
+		}
+
+		// Act
+		err := New(d).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.ErrorContains(t, err, "build failed")
+		assert.False(t, pruned)
+	})
+
+	t.Run("a failed prune does not fail the build", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		d := &fakeDocker{pruneDangling: func() error { return errors.New("prune failed") }}
+
+		// Act
+		err := New(d).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
 	})
 }

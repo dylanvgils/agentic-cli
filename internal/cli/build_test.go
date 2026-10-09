@@ -21,8 +21,6 @@ func Test_runBuild(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		}})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 
 		stubFlag(t, buildCmd, "no-cache", "true")
 
@@ -41,8 +39,6 @@ func Test_runBuild(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		}})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 
 		stubFlag(t, buildCmd, "skip-install-checksum", "true")
 
@@ -61,8 +57,6 @@ func Test_runBuild(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		}})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 
 		stubFlag(t, buildCmd, "pull", "true")
 
@@ -116,8 +110,6 @@ func Test_runBuild(t *testing.T) {
 			capturedOpts = opts
 			return nil
 		}})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 
 		stubFlag(t, buildCmd, "node", "22")
 
