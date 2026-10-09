@@ -2,9 +2,13 @@ package cli
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -439,4 +443,26 @@ func Test_customInstallNames(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, []string{"golangci-lint", "terraform"}, result)
+}
+
+func Test_showConfig(t *testing.T) {
+	// Arrange
+	withTempToolHome(t)
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("root = true\nnamespace = \"work\"\n"), 0o600))
+	t.Chdir(dir)
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+
+	// Act
+	err := showConfig(cmd, nil)
+
+	// Assert - the global section, then the project layers from the working dir
+	require.NoError(t, err)
+	out := buf.String()
+	assert.Contains(t, out, "Global (")
+	assert.Contains(t, out, "Project (.agenticrc.toml, 1 file)")
+	assert.Contains(t, out, "work")
+	assert.Less(t, strings.Index(out, "Global ("), strings.Index(out, "Project ("))
 }

@@ -1,11 +1,15 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -120,6 +124,20 @@ func Test_runTool(t *testing.T) {
 		_, toolArgs := get()
 		assert.Equal(t, []string{"--dangerously-skip-permissions"}, toolArgs)
 	})
+
+	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		rcPath := filepath.Join(dir, ".agenticrc.toml")
+		require.NoError(t, os.WriteFile(rcPath, []byte("not valid toml [[["), 0o644))
+		t.Chdir(dir)
+
+		// Act
+		err := runTool(runToolCmd, []string{"claude"})
+
+		// Assert
+		assert.ErrorContains(t, err, rcPath)
+	})
 }
 
 func Test_parseArgs(t *testing.T) {
@@ -173,4 +191,37 @@ func Test_parseArgs(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "bogus")
 	})
+}
+
+func Test_runRequest(t *testing.T) {
+	// Arrange
+	withTempToolHome(t)
+	stubFlag(t, runToolCmd, "trust-dir", "true")
+	stubFlag(t, runToolCmd, "dry-run", "true")
+	stubFlag(t, runToolCmd, "volume", "/example.test/a:/a")
+	stubFlag(t, runToolCmd, "secret", "token:/example.test/token")
+	stubFlag(t, runToolCmd, "read-only-mount", "/example.test/b:/b")
+	stubFlag(t, runToolCmd, "env", "FOO=bar")
+	stubFlag(t, runToolCmd, "registry", "registry.example.test")
+	stubFlag(t, runToolCmd, "proxy", "true")
+	inv := invocation{
+		parsedArgs: parsedArgs{toolName: "claude", imageName: "agentic-claude", skipEntrypoint: true},
+		cwd:        "/example.test/project",
+		rc:         &config.AgenticRC{},
+	}
+
+	// Act
+	req := runRequest(runToolCmd, inv)
+
+	// Assert - run-only flags land next to the shared runtimeFlags
+	assert.Equal(t, run.Target{ToolName: "claude", ImageName: "agentic-claude", SkipEntrypoint: true}, req.Target)
+	assert.Equal(t, "/example.test/project", req.Project.Dir)
+	assert.True(t, req.Flags.TrustDir)
+	assert.True(t, req.Flags.DryRun)
+	assert.True(t, req.Flags.Proxy.ProxyFlag)
+	assert.Equal(t, "registry.example.test", req.Flags.Registry)
+	assert.Equal(t, []string{"/example.test/a:/a"}, req.Flags.Volumes)
+	assert.Equal(t, []string{"token:/example.test/token"}, req.Flags.Secrets)
+	assert.Equal(t, []string{"/example.test/b:/b"}, req.Flags.ReadOnlyMounts)
+	assert.Equal(t, []string{"FOO=bar"}, req.Flags.Env)
 }

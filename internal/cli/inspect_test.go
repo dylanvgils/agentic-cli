@@ -69,6 +69,39 @@ func Test_runInspect(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "bogus")
 	})
+
+	t.Run("tool arg shows that tool's image in the namespace", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, builtInfo, nil)
+
+		// Act
+		out := captureStdout(t, func() {
+			err := runInspect(inspectCmd, []string{"claude"})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "agentic-claude (a1b2c3d4e5f6)")
+	})
+
+	t.Run("tool arg with --all shows the tool in every namespace", func(t *testing.T) {
+		// Arrange
+		workInfo := &docker.ImageInfo{Image: "work-claude", Namespace: "work", Tool: "claude"}
+		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{builtInfo, workInfo}, nil
+		})
+		stubFlag(t, inspectCmd, "all", "true")
+
+		// Act
+		out := captureStdout(t, func() {
+			err := runInspect(inspectCmd, []string{"claude"})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "agentic-claude (a1b2c3d4e5f6)")
+		assert.Contains(t, out, "work-claude")
+	})
 }
 
 func Test_runInspectTable(t *testing.T) {
@@ -339,6 +372,22 @@ func Test_printImageDetail(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "bogus")
+	})
+
+	t.Run("shows apt packages when present", func(t *testing.T) {
+		// Arrange
+		info := *builtInfo
+		info.Apt = "jq,curl"
+		stubInspectImage(t, &info, nil)
+
+		// Act
+		out := captureStdout(t, func() {
+			err := printImageDetail("claude", "agentic")
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, "apt:      jq,curl")
 	})
 }
 
