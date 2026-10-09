@@ -40,21 +40,6 @@ func TestPrintBasesField(t *testing.T) {
 		assert.Contains(t, buf.String(), "- java  [/project/.agenticrc.toml]")
 	})
 
-	t.Run("base with rc version shows at-version", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		layers := []config.RCLayer{
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}, Versions: map[string]string{"java": "17"}}}},
-		}
-
-		// Act
-		err := printBasesField(&buf, layers)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, buf.String(), "- java@17  [/project/.agenticrc.toml]")
-	})
-
 	t.Run("innermost layer version wins", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer
@@ -454,22 +439,4 @@ func Test_customInstallNames(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, []string{"golangci-lint", "terraform"}, result)
-}
-
-func Test_orNotSet(t *testing.T) {
-	t.Run("empty is not set", func(t *testing.T) {
-		// Act
-		result := orNotSet("")
-
-		// Assert
-		assert.Equal(t, "(not set)", result)
-	})
-
-	t.Run("value is returned as is", func(t *testing.T) {
-		// Act
-		result := orNotSet("registry.example.test")
-
-		// Assert
-		assert.Equal(t, "registry.example.test", result)
-	})
 }

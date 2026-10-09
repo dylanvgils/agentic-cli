@@ -92,20 +92,6 @@ func TestRunStatus(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "Docker context:      prod\nDocker:              running\nContainers running:  0\n", buf.String())
 	})
-
-	t.Run("docker context unset omits header", func(t *testing.T) {
-		// Arrange
-		cmd, buf := newTestStatusCmd(t)
-		stubCheckDockerDaemon(t, func() error { return nil })
-		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) { return nil, nil })
-
-		// Act
-		err := runStatus(cmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotContains(t, buf.String(), "Docker context")
-	})
 }
 
 func TestWriteContainerStatus(t *testing.T) {

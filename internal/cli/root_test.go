@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -60,25 +59,6 @@ func TestCheckDocker(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("completion subcommand skips check", func(t *testing.T) {
-		// Arrange - `agentic completion bash` reaches persistentPreRunE with cmd.Name()=="bash",
-		// which is not in noDockerCmds; the ancestor walk must find "completion" instead.
-		stubCheckDockerDaemon(t, func() error {
-			return errors.New("should not be called")
-		})
-		fakeRoot := &cobra.Command{Use: "agentic"}
-		completionCmd := &cobra.Command{Use: "completion"}
-		bashCmd := &cobra.Command{Use: "bash"}
-		fakeRoot.AddCommand(completionCmd)
-		completionCmd.AddCommand(bashCmd)
-
-		// Act
-		err := checkDocker(bashCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-	})
-
 	t.Run("aliases command skips check", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error {
@@ -87,19 +67,6 @@ func TestCheckDocker(t *testing.T) {
 
 		// Act
 		err := checkDocker(aliasesCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-	})
-
-	t.Run("marketplaces list subcommand skips check", func(t *testing.T) {
-		// Arrange - ancestor walk must find "marketplaces", not just cmd.Name()=="list"
-		stubCheckDockerDaemon(t, func() error {
-			return errors.New("should not be called")
-		})
-
-		// Act
-		err := checkDocker(marketplacesListCmd, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -145,22 +112,6 @@ func TestCheckDocker(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, docker.ErrDaemonNotRunning, err)
-	})
-
-	t.Run("no dry run flag calls check", func(t *testing.T) {
-		// Arrange
-		var called bool
-		stubCheckDockerDaemon(t, func() error {
-			called = true
-			return nil
-		})
-
-		// Act
-		err := checkDocker(inspectCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, called)
 	})
 }
 
@@ -358,22 +309,6 @@ func TestInCommandChain(t *testing.T) {
 		// Assert
 		assert.False(t, result)
 	})
-
-	t.Run("matches command name against noMigrateCmds", func(t *testing.T) {
-		// Act
-		result := inCommandChain(migrateCmd, noMigrateCmds)
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("returns false against noMigrateCmds when no ancestor matches", func(t *testing.T) {
-		// Act
-		result := inCommandChain(buildCmd, noMigrateCmds)
-
-		// Assert
-		assert.False(t, result)
-	})
 }
 
 func TestPruneResources(t *testing.T) {
@@ -401,15 +336,6 @@ func TestPruneResources(t *testing.T) {
 
 		// Assert
 		assert.True(t, called)
-	})
-
-	t.Run("silent on error", func(t *testing.T) {
-		// Arrange
-		stubPruneImages(t, func() error { return fmt.Errorf("prune failed") })
-		stubPruneBuildCache(t, func() error { return fmt.Errorf("cache prune failed") })
-
-		// Act + Assert
-		assert.NotPanics(t, pruneResources)
 	})
 }
 

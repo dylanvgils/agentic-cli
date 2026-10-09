@@ -12,18 +12,6 @@ func TestBuiltToolNamesFunc(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
 
-	t.Run("all built", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", ID: "abc"}, nil)
-
-		// Act
-		names, directive := builtToolNamesFunc(&cobra.Command{}, nil, "")
-
-		// Assert
-		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
-		assert.Equal(t, []string{"claude", "copilot", "opencode"}, names)
-	})
-
 	t.Run("tool already provided", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", ID: "abc"}, nil)

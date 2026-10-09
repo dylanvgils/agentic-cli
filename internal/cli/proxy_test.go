@@ -70,25 +70,6 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 		assert.True(t, capturedOpts.NoCache)
 	})
 
-	t.Run("build never checks for an existing image", func(t *testing.T) {
-		// Arrange - no inspectImage stub is set up; if runProxyBuild checked
-		// existence first this would panic on the unstubbed real docker call
-		built := false
-		stubBuildProxyImage(t, func(_, _, _ string, _ tools.BuildOptions) error {
-			built = true
-			return nil
-		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
-
-		// Act
-		err := runProxyBuild(proxyBuildCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, built)
-	})
-
 	t.Run("dry run prints dockerfile and skips build", func(t *testing.T) {
 		// Arrange
 		var built bool

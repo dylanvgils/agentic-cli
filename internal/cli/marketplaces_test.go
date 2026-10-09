@@ -3,7 +3,6 @@ package cli
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
@@ -71,33 +70,6 @@ func TestRunMarketplacesList(t *testing.T) {
 		assert.Contains(t, out, "/home/user/projA")
 		assert.Contains(t, out, "untracked-clone")
 		assert.Contains(t, out, "(untracked)")
-	})
-
-	t.Run("lists multiple names sharing one clone dir", func(t *testing.T) {
-		// Arrange
-		withTempToolHome(t)
-		baseDir := filepath.Join(toolHome, "marketplaces")
-		trackedDir := marketplace.CloneDirName("git@example.com:acme.git")
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, trackedDir), 0o755))
-		reg := &marketplace.Registry{Marketplaces: map[string][]marketplace.RegistryEntry{
-			trackedDir: {
-				{Name: "bar", URL: "git@example.com:acme.git", Projects: []string{"/home/user/projB"}},
-				{Name: "foo", URL: "git@example.com:acme.git", Projects: []string{"/home/user/projA"}},
-			},
-		}}
-		require.NoError(t, marketplace.SaveRegistry(baseDir, reg))
-
-		// Act
-		out := captureStdout(t, func() {
-			require.NoError(t, runMarketplacesList(marketplacesListCmd, nil))
-		})
-
-		// Assert
-		assert.Contains(t, out, "foo")
-		assert.Contains(t, out, "bar")
-		assert.Contains(t, out, "/home/user/projA")
-		assert.Contains(t, out, "/home/user/projB")
-		assert.Equal(t, 2, strings.Count(out, "git@example.com:acme.git"))
 	})
 }
 

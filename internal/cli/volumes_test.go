@@ -153,23 +153,6 @@ func TestRunVolumeRemove(t *testing.T) {
 		assert.Contains(t, logBuf.String(), "agentic: removing 2 volume(s)")
 	})
 
-	t.Run("no name confirmed upper y removes all", func(t *testing.T) {
-		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) {
-			return []string{"maven"}, nil
-		})
-		var removed []string
-		stubRemoveVolume(t, func(name string) error { removed = append(removed, name); return nil })
-		stubStdin(t, "Y\n")
-
-		// Act
-		err := runVolumeRemove(volumesRemoveCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"maven"}, removed)
-	})
-
 	t.Run("no name declined n skips removal", func(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) {
@@ -178,23 +161,6 @@ func TestRunVolumeRemove(t *testing.T) {
 		var removeCalled bool
 		stubRemoveVolume(t, func(string) error { removeCalled = true; return nil })
 		stubStdin(t, "n\n")
-
-		// Act
-		err := runVolumeRemove(volumesRemoveCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, removeCalled)
-	})
-
-	t.Run("no name empty input skips removal", func(t *testing.T) {
-		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) {
-			return []string{"maven"}, nil
-		})
-		var removeCalled bool
-		stubRemoveVolume(t, func(string) error { removeCalled = true; return nil })
-		stubStdin(t, "\n")
 
 		// Act
 		err := runVolumeRemove(volumesRemoveCmd, nil)

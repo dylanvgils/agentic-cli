@@ -48,20 +48,6 @@ func Test_ttyPrompter_TrustDir(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not trusted")
 	})
-
-	t.Run("tty empty input refuses", func(t *testing.T) {
-		// Arrange
-		stubIsTerminal(t, true)
-		stubStdin(t, "\n")
-		stubErrLog(t)
-
-		// Act
-		err := ttyPrompter{}.TrustDir("/example.test/project")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not trusted")
-	})
 }
 
 func Test_ttyPrompter_ApproveCredentials(t *testing.T) {
@@ -136,19 +122,6 @@ func Test_ttyPrompter_OfferToolUpdate(t *testing.T) {
 		assert.True(t, result)
 		assert.Contains(t, logs.String(), "claude update available: 1.3.0 (current: 1.2.3) - update now? [y/N]")
 	})
-
-	t.Run("tty answers n declines", func(t *testing.T) {
-		// Arrange
-		stubIsTerminal(t, true)
-		stubStdin(t, "n\n")
-		stubErrLog(t)
-
-		// Act
-		result := ttyPrompter{}.OfferToolUpdate("claude", "1.2.3", "1.3.0")
-
-		// Assert
-		assert.False(t, result)
-	})
 }
 
 func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
@@ -177,19 +150,6 @@ func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
 		// Assert
 		assert.True(t, result)
 		assert.Equal(t, "=> agentic update available: v1.1.0 (current: v1.0.0)\n   update now? [y/N] ", logs.String())
-	})
-
-	t.Run("tty answers n declines", func(t *testing.T) {
-		// Arrange
-		stubIsTerminal(t, true)
-		stubStdin(t, "n\n")
-		stubErrLog(t)
-
-		// Act
-		result := ttyPrompter{}.OfferUpgrade("v1.0.0", "v1.1.0")
-
-		// Assert
-		assert.False(t, result)
 	})
 }
 

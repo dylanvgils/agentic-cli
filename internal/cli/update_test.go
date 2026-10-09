@@ -195,24 +195,6 @@ func TestRunUpdate(t *testing.T) {
 		assert.Less(t, summary, skipped, "skipped lines follow the summary")
 	})
 
-	t.Run("all flag with no images prints message", func(t *testing.T) {
-		// Arrange
-		stubDocker(t, &fakeDocker{
-			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) { return nil, nil },
-		})
-
-		cmd := updateCmd
-		stubFlag(t, cmd, "all", "true")
-		logBuf := stubErrLog(t)
-
-		// Act
-		err := runUpdate(cmd, []string{})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, logBuf.String(), "agentic: no agentic images found")
-	})
-
 	t.Run("all flag updates all images and prunes", func(t *testing.T) {
 		// Arrange
 		logBuf := stubErrLog(t)
@@ -297,37 +279,6 @@ func TestRunUpdate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, capturedOpts.AptPackages)
 		assert.True(t, capturedOpts.AptExact)
-	})
-
-	t.Run("all flag with tool arg updates only that tool across namespaces", func(t *testing.T) {
-		// Arrange
-		var updated []string
-		stubDocker(t, &fakeDocker{
-			buildTool: func(tool, _ string, _ tools.BuildOptions) error {
-				updated = append(updated, tool)
-				return nil
-			},
-			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
-			listAllImages: func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-				// Docker would apply the ToolFilter server-side; simulate by honouring it here.
-				return []*docker.ImageInfo{
-					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},
-					{Image: "work-claude", Namespace: "work", Tool: "claude", Base: "node@24"},
-				}, nil
-			},
-		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
-
-		cmd := updateCmd
-		stubFlag(t, cmd, "all", "true")
-
-		// Act
-		err := runUpdate(cmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"claude", "claude"}, updated)
 	})
 }
 

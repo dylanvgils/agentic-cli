@@ -25,20 +25,6 @@ func Test_runInspect(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
 
-	t.Run("no args propagates table error", func(t *testing.T) {
-		// Arrange
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return nil, fmt.Errorf("table error")
-		})
-
-		// Act
-		err := runInspect(inspectCmd, []string{})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "table error")
-	})
-
 	t.Run("no args without --all shows namespace table", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {

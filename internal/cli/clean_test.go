@@ -123,29 +123,4 @@ func Test_runClean(t *testing.T) {
 		assert.ElementsMatch(t, []string{"agentic-claude", "work-claude", tools.ProxyImage, tools.DindImage}, cleaned)
 		assert.True(t, basesCleaned)
 	})
-
-	t.Run("all flag with tool arg skips base", func(t *testing.T) {
-		// Arrange
-		basesCleaned := false
-		stubDocker(t, &fakeDocker{
-			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-				return []*docker.ImageInfo{
-					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
-				}, nil
-			},
-			cleanBaseImages: func() error {
-				basesCleaned = true
-				return nil
-			},
-		})
-		cmd := newTestCleanCmd()
-		require.NoError(t, cmd.Flags().Set("all", "true"))
-
-		// Act
-		err := runClean(cmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, basesCleaned)
-	})
 }

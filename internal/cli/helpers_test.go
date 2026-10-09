@@ -15,7 +15,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
@@ -411,19 +410,6 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	return func() (docker.RunSpec, []string) { return capturedSpec, capturedArgs }
 }
 
-// findVolumeByContainerPath returns the one volume spec ending in containerPath, failing the test if there isn't exactly one match.
-func findVolumeByContainerPath(t *testing.T, volumes []string, containerPath string) string {
-	t.Helper()
-	var matches []string
-	for _, v := range volumes {
-		if strings.HasSuffix(v, ":"+containerPath) {
-			matches = append(matches, v)
-		}
-	}
-	require.Len(t, matches, 1, "expected exactly one volume mounted at %s, got %v", containerPath, volumes)
-	return matches[0]
-}
-
 // withTempToolHome sets toolHome to a temp dir and pre-trusts the dirs tests run in (os.TempDir() for t.Chdir, cwd otherwise).
 func withTempToolHome(t *testing.T) {
 	t.Helper()
@@ -514,13 +500,6 @@ func stubPruneProxyLogs(t *testing.T, fn func(dir string, maxAge time.Duration))
 	orig := pruneProxyLogs
 	pruneProxyLogs = fn
 	t.Cleanup(func() { pruneProxyLogs = orig })
-}
-
-func stubLatestToolVersion(t *testing.T, fn func(tool, installedLabel string) (string, bool, bool)) {
-	t.Helper()
-	orig := toolupdate.LatestToolVersion
-	toolupdate.LatestToolVersion = fn
-	t.Cleanup(func() { toolupdate.LatestToolVersion = orig })
 }
 
 func stubUpdateLatestToolVersion(t *testing.T, latest string, newer, ok bool) {

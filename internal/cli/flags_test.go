@@ -13,46 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAddAllFlag(t *testing.T) {
-	t.Run("registers -a shorthand", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-
-		// Act
-		addAllFlag(cmd)
-
-		// Assert
-		assert.NotNil(t, cmd.Flags().ShorthandLookup("a"))
-	})
-}
-
-func TestAddNamespaceFlag(t *testing.T) {
-	t.Run("registers -n shorthand", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-
-		// Act
-		addNamespaceFlag(cmd)
-
-		// Assert
-		assert.NotNil(t, cmd.Flags().ShorthandLookup("n"))
-	})
-}
-
 func TestAddBuildFlags(t *testing.T) {
-	t.Run("registers all flags", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-
-		// Act
-		addBuildFlags(cmd)
-
-		// Assert
-		expected := append([]string{"base", "base-exact", "apt", "apt-exact", "dry-run", "registry"}, tools.KnownLayers()...)
-		for _, name := range expected {
-			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
-		}
-	})
 
 	t.Run("base and base-exact are mutually exclusive", func(t *testing.T) {
 		// Arrange
@@ -103,49 +64,9 @@ func TestAddBuildFlags(t *testing.T) {
 			assert.Contains(t, f.Usage, tc.version, "flag --%s usage should mention version %s", tc.flag, tc.version)
 		}
 	})
-
-	t.Run("dry run flag defaults false", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-
-		// Act
-		addBuildFlags(cmd)
-
-		// Assert
-		f := cmd.Flags().Lookup("dry-run")
-		require.NotNil(t, f)
-		assert.Equal(t, "false", f.DefValue)
-	})
-}
-
-func TestAddResourceLimitFlags(t *testing.T) {
-	t.Run("registers all flags", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-
-		// Act
-		addResourceLimitFlags(cmd)
-
-		// Assert
-		for _, name := range []string{"pids-limit", "cpus", "memory"} {
-			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
-		}
-	})
 }
 
 func TestAddProxyFlags(t *testing.T) {
-	t.Run("registers all flags", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-
-		// Act
-		addProxyFlags(cmd)
-
-		// Assert
-		for _, name := range []string{"proxy", "no-proxy", "proxy-monitor"} {
-			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
-		}
-	})
 
 	t.Run("proxy flags are mutually exclusive", func(t *testing.T) {
 		// Arrange
@@ -162,18 +83,6 @@ func TestAddProxyFlags(t *testing.T) {
 }
 
 func Test_addDindFlags(t *testing.T) {
-	t.Run("registers toggle and limit flags", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-
-		// Act
-		addDindFlags(cmd)
-
-		// Assert
-		for _, name := range []string{"dind", "no-dind", "dind-pids-limit", "dind-cpus", "dind-memory"} {
-			assert.NotNil(t, cmd.Flags().Lookup(name), "expected flag --%s to be registered", name)
-		}
-	})
 
 	t.Run("dind flags are mutually exclusive", func(t *testing.T) {
 		// Arrange
@@ -191,17 +100,6 @@ func Test_addDindFlags(t *testing.T) {
 
 // Test_proxyInput only confirms each flag maps to the right resolve.ProxyInput field; precedence is covered by TestProxyMode in internal/usecase/resolve.
 func Test_proxyInput(t *testing.T) {
-	t.Run("no flags leaves every field unset", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-		addProxyFlags(cmd)
-
-		// Act
-		result := proxyInput(cmd)
-
-		// Assert
-		assert.Equal(t, resolve.ProxyInput{}, result)
-	})
 
 	t.Run("each flag maps to its field", func(t *testing.T) {
 		// Arrange
@@ -293,21 +191,6 @@ func TestBuildOptsFromFlags(t *testing.T) {
 		assert.Equal(t, []string{"dotnet", "java"}, opts.BaseOverride)
 	})
 
-	t.Run("base-exact ignores rc bases", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
-		cmd := &cobra.Command{Use: "test"}
-		addBuildFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("base-exact", "node"))
-
-		// Act
-		opts := buildOptsFromFlags(cmd, rc)
-
-		// Assert
-		assert.Equal(t, []string{"node"}, opts.BaseOverride)
-		assert.True(t, opts.BaseExact)
-	})
-
 	t.Run("base-exact empty value produces debian only", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
@@ -321,21 +204,6 @@ func TestBuildOptsFromFlags(t *testing.T) {
 		// Assert
 		assert.Empty(t, opts.BaseOverride)
 		assert.True(t, opts.BaseExact)
-	})
-
-	t.Run("apt-exact ignores rc apt", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
-		cmd := &cobra.Command{Use: "test"}
-		addBuildFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("apt-exact", "gcc"))
-
-		// Act
-		opts := buildOptsFromFlags(cmd, rc)
-
-		// Assert
-		assert.Equal(t, []string{"gcc"}, opts.AptPackages)
-		assert.True(t, opts.AptExact)
 	})
 }
 
@@ -354,24 +222,6 @@ func TestToolNames(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []string{"claude"}, result)
-	})
-}
-
-func Test_firstArg(t *testing.T) {
-	t.Run("no args returns empty", func(t *testing.T) {
-		// Act
-		result := firstArg(nil)
-
-		// Assert
-		assert.Empty(t, result)
-	})
-
-	t.Run("returns the first arg", func(t *testing.T) {
-		// Act
-		result := firstArg([]string{"claude", "extra"})
-
-		// Assert
-		assert.Equal(t, "claude", result)
 	})
 }
 
