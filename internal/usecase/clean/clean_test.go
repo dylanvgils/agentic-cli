@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -40,7 +41,7 @@ func TestResolve(t *testing.T) {
 		}
 
 		// Act
-		targets, err := New(d).Resolve(Scope{All: true, FilterTool: "claude"})
+		targets, err := New(d, t.TempDir()).Resolve(Scope{All: true, FilterTool: "claude"})
 
 		// Assert
 		require.NoError(t, err)
@@ -50,7 +51,7 @@ func TestResolve(t *testing.T) {
 
 	t.Run("scoped resolve dispatches to resolveScoped", func(t *testing.T) {
 		// Act
-		targets, err := New(&fakeDocker{}).Resolve(Scope{Names: []string{"claude"}, Namespace: "agentic"})
+		targets, err := New(&fakeDocker{}, t.TempDir()).Resolve(Scope{Names: []string{"claude"}, Namespace: "agentic"})
 
 		// Assert
 		require.NoError(t, err)
@@ -95,7 +96,7 @@ func Test_resolveAll(t *testing.T) {
 		}
 
 		// Act
-		_, err := New(d).resolveAll("claude")
+		_, err := New(d, t.TempDir()).resolveAll("claude")
 
 		// Assert
 		require.NoError(t, err)
@@ -111,7 +112,7 @@ func Test_resolveAll(t *testing.T) {
 		}
 
 		// Act
-		_, err := New(d).resolveAll("")
+		_, err := New(d, t.TempDir()).resolveAll("")
 
 		// Assert
 		require.Error(t, err)
@@ -129,7 +130,7 @@ func Test_resolveAll(t *testing.T) {
 		}
 
 		// Act
-		targets, err := New(d).resolveAll("")
+		targets, err := New(d, t.TempDir()).resolveAll("")
 
 		// Assert
 		require.NoError(t, err)
@@ -156,7 +157,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := New(d).Apply(targets)
+			err := New(d, t.TempDir()).Apply(targets)
 			require.NoError(t, err)
 		})
 
@@ -164,6 +165,67 @@ func TestApply(t *testing.T) {
 		assert.Equal(t, []string{"agentic-claude", "agentic-copilot"}, cleaned)
 		assert.Contains(t, out, "=> agentic-claude")
 		assert.Contains(t, out, "=> agentic-copilot")
+	})
+
+	t.Run("removes stored custom installs no image uses anymore", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		helm := []config.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
+		lint := []config.RCCustomInstall{{Name: "golangci-lint", Run: []string{"echo lint"}}}
+		require.NoError(t, config.SaveCustomInstalls(home, helm))
+		require.NoError(t, config.SaveCustomInstalls(home, lint))
+		images := map[string]*docker.ImageInfo{
+			"agentic-claude":  {Image: "agentic-claude", CustomInstallsHash: config.CustomInstallsHash(helm)},
+			"agentic-copilot": {Image: "agentic-copilot", CustomInstallsHash: config.CustomInstallsHash(lint)},
+			"work-claude":     {Image: "work-claude", CustomInstallsHash: config.CustomInstallsHash(lint)},
+		}
+		d := &fakeDocker{
+			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+				var remaining []*docker.ImageInfo
+				for _, info := range images {
+					remaining = append(remaining, info)
+				}
+				return remaining, nil
+			},
+			cleanImage: func(image string) error {
+				delete(images, image)
+				return nil
+			},
+		}
+
+		// Act
+		captureStdout(t, func() {
+			err := New(d, home).Apply(targets)
+			require.NoError(t, err)
+		})
+
+		// Assert - lint is still used by work-claude
+		_, helmStored := config.LoadCustomInstalls(home, config.CustomInstallsHash(helm))
+		_, lintStored := config.LoadCustomInstalls(home, config.CustomInstallsHash(lint))
+		assert.False(t, helmStored)
+		assert.True(t, lintStored)
+	})
+
+	t.Run("listing failure leaves stored custom installs alone", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		helm := []config.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
+		require.NoError(t, config.SaveCustomInstalls(home, helm))
+		d := &fakeDocker{
+			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+				return nil, fmt.Errorf("docker error")
+			},
+		}
+
+		// Act
+		captureStdout(t, func() {
+			err := New(d, home).Apply(targets)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		_, stored := config.LoadCustomInstalls(home, config.CustomInstallsHash(helm))
+		assert.True(t, stored)
 	})
 
 	t.Run("stops on first error", func(t *testing.T) {
@@ -177,7 +239,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).Apply(targets)
+		err := New(d, t.TempDir()).Apply(targets)
 
 		// Assert
 		require.Error(t, err)
@@ -220,7 +282,7 @@ func TestGlobalResources(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := New(d).GlobalResources("/agentic-home")
+			err := New(d, "/agentic-home").GlobalResources()
 			require.NoError(t, err)
 		})
 
@@ -242,7 +304,7 @@ func TestGlobalResources(t *testing.T) {
 		d := &fakeDocker{cleanBaseImages: func() error { return fmt.Errorf("base cleanup failed") }}
 
 		// Act
-		err := New(d).GlobalResources("/agentic-home")
+		err := New(d, "/agentic-home").GlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -254,7 +316,7 @@ func TestGlobalResources(t *testing.T) {
 		d := &fakeDocker{cleanImage: func(string) error { return fmt.Errorf("proxy cleanup failed") }}
 
 		// Act
-		err := New(d).GlobalResources("/agentic-home")
+		err := New(d, "/agentic-home").GlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -266,7 +328,7 @@ func TestGlobalResources(t *testing.T) {
 		d := &fakeDocker{sweepDindResources: func(string) error { return fmt.Errorf("dind sweep failed") }}
 
 		// Act
-		err := New(d).GlobalResources("/agentic-home")
+		err := New(d, "/agentic-home").GlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -278,7 +340,7 @@ func TestGlobalResources(t *testing.T) {
 		d := &fakeDocker{sweepProxyResources: func() error { return fmt.Errorf("sweep failed") }}
 
 		// Act
-		err := New(d).GlobalResources("/agentic-home")
+		err := New(d, "/agentic-home").GlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -290,7 +352,7 @@ func TestGlobalResources(t *testing.T) {
 		d := &fakeDocker{removeNetwork: func() error { return fmt.Errorf("network removal failed") }}
 
 		// Act
-		err := New(d).GlobalResources("/agentic-home")
+		err := New(d, "/agentic-home").GlobalResources()
 
 		// Assert
 		require.Error(t, err)

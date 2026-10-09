@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -269,6 +270,7 @@ func TestImageLabelPairs(t *testing.T) {
 		LabelVersionArgs,
 		LabelApt,
 		LabelCustomInstalls,
+		LabelCustomInstallsHash,
 		LabelBuilt,
 		LabelPulled,
 		LabelCLIVersion,
@@ -388,15 +390,28 @@ func TestStampImageLabels(t *testing.T) {
 		assert.Contains(t, capturedArgs, "--label="+LabelApt+"=make,gcc")
 	})
 
-	t.Run("includes custom installs label with names", func(t *testing.T) {
+	t.Run("includes custom installs names and hash labels", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, client, "", nil)
+		installs := []config.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}, {Name: "golangci-lint", Run: []string{"echo lint"}}}
+
+		// Act
+		client.stampImageLabels("agentic-claude", "claude", nil, nil, nil, installs, "")
+
+		// Assert
+		assert.Contains(t, capturedArgs, "--label="+LabelCustomInstalls+"=helm,golangci-lint")
+		assert.Contains(t, capturedArgs, "--label="+LabelCustomInstallsHash+"="+config.CustomInstallsHash(installs))
+	})
+
+	t.Run("omits custom installs labels without installs", func(t *testing.T) {
 		// Arrange
 		stubDockerRunFixed(t, client, "", nil)
 
 		// Act
-		client.stampImageLabels("agentic-claude", "claude", nil, nil, nil, []string{"helm", "golangci-lint"}, "")
+		client.stampImageLabels("agentic-claude", "claude", nil, nil, nil, nil, "")
 
 		// Assert
-		assert.Contains(t, capturedArgs, "--label="+LabelCustomInstalls+"=helm,golangci-lint")
+		assert.False(t, hasArgWithPrefix(capturedArgs, "--label="+LabelCustomInstalls))
 	})
 
 	t.Run("includes base label", func(t *testing.T) {

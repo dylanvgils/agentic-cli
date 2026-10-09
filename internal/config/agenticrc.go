@@ -108,8 +108,8 @@ type RCMarketplace struct {
 
 // RCCustomInstall declares one non-apt tool to install via arbitrary shell commands, applied unconditionally at build time (no --<name> gate).
 type RCCustomInstall struct {
-	Name string   `toml:"name"`
-	Run  []string `toml:"run"`
+	Name string   `toml:"name" json:"name"`
+	Run  []string `toml:"run" json:"run"`
 }
 
 // AgenticRC holds the parsed contents of a .agenticrc.toml project config file.

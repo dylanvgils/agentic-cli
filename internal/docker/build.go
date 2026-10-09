@@ -29,11 +29,7 @@ func (c *Client) BuildTool(tool, image string, opts tools.BuildOptions) error {
 		return fmt.Errorf("tool image: %w", err)
 	}
 
-	customInstallNames := make([]string, len(opts.CustomInstalls))
-	for i, install := range opts.CustomInstalls {
-		customInstallNames[i] = install.Name
-	}
-	c.stampImageLabels(image, tool, opts.BaseOverride, opts.AptPackages, opts.Versions, customInstallNames, opts.CacheBust)
+	c.stampImageLabels(image, tool, opts.BaseOverride, opts.AptPackages, opts.Versions, opts.CustomInstalls, opts.CacheBust)
 
 	return nil
 }

@@ -48,7 +48,7 @@ Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-sp
 - `Client` methods are Docker operations, optionally scoped to agentic's labels; deciding what their results mean (e.g. whether to rebuild) belongs in the calling usecase or command.
 - `internal/cli` holds the one client in `dockerClient`, rebuilt for the resolved context in `persistentPreRunE`, and calls it through its `dockerAPI` interface (`internal/cli/deps.go`).
 - Each usecase that calls Docker declares a small `Docker` interface of only the methods it uses, in its `deps.go`, with a compile-time check `var _ Docker = (*docker.Client)(nil)` in `deps_test.go`.
-- A usecase holds it in `type Service struct{ docker Docker }`, built with `New(d Docker) *Service`. Every exported entry point is a `Service` method; an unexported helper is a method only if it calls Docker. Callers name the instance `svc`.
+- A usecase holds it in `type Service struct{ docker Docker }`, built with `New(d Docker) *Service`. One that also reads or writes the agentic data dir adds a `home string` field (`New(d Docker, home string)`). Every exported entry point is a `Service` method; an unexported helper is a method only if it calls Docker. Callers name the instance `svc`.
 - Non-Docker seams (marketplace sync, stdin, TTY checks) stay package-level vars in `deps.go`.
 - A usecase that needs the user to approve something takes a small interface or func the cli implements (e.g. `run.Prompter`, `toolupdate.Confirm`); it never reads stdin itself.
 - Tests use a hand-written `fakeDocker` in `helpers_test.go` with one func field per method; a nil field succeeds with a zero value. In `internal/cli`, `stubDocker(t, &fakeDocker{...})` overlays fields on the test's fake until the test ends.

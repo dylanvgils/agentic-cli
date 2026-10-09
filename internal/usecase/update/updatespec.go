@@ -20,6 +20,7 @@ const autoPullInterval = 24 * time.Hour
 // Service resolves and rebuilds tool images for `agentic update`.
 type Service struct {
 	docker Docker
+	home   string // agentic data dir, for the custom installs store
 }
 
 // Target is one tool image to rebuild, with its resolved build options.
@@ -40,9 +41,9 @@ type Scope struct {
 	All        bool
 }
 
-// New returns a Service that talks to Docker through d.
-func New(d Docker) *Service {
-	return &Service{docker: d}
+// New returns a Service that talks to Docker through d and keeps custom installs under home.
+func New(d Docker, home string) *Service {
+	return &Service{docker: d, home: home}
 }
 
 // Resolve returns the update targets for scope: every image across all namespaces (All), or the named tools in one namespace,
@@ -64,7 +65,7 @@ func (s *Service) DryRun(tool, namespace string, opts tools.BuildOptions) error 
 	image, err := tools.ImageName(tool, namespace)
 	if err == nil {
 		if info, iErr := s.docker.InspectImage(image); iErr == nil && info != nil {
-			opts = recoverOpts(info, opts)
+			opts = recoverOpts(s.home, info, opts)
 		}
 	}
 
@@ -98,7 +99,7 @@ func (s *Service) ApplyAll(targets []Target) error {
 func (s *Service) ApplyRecovered(tool, image string, rc *config.AgenticRC) error {
 	opts := tools.BuildOptions{CustomInstalls: rc.Build.CustomInstalls}
 	if info, err := s.docker.InspectImage(image); err == nil && info != nil {
-		opts = recoverOpts(info, opts)
+		opts = recoverOpts(s.home, info, opts)
 	}
 	return s.Apply(tool, image, opts)
 }
@@ -148,7 +149,7 @@ func (s *Service) resolveAll(filterTool string, opts tools.BuildOptions, pullExp
 		if _, ok := tools.Configs[info.Tool]; !ok {
 			continue
 		}
-		toolOpts := applyPullThrottle(recoverOpts(info, opts), info, pullExplicit)
+		toolOpts := applyPullThrottle(recoverOpts(s.home, info, opts), info, pullExplicit)
 		targets = append(targets, Target{Name: info.Tool, Image: info.Image, Opts: toolOpts})
 	}
 	return targets, nil
@@ -175,7 +176,7 @@ func (s *Service) resolveScoped(names []string, hasArgs bool, namespace string, 
 
 		toolOpts := opts
 		if info != nil {
-			toolOpts = recoverOpts(info, opts)
+			toolOpts = recoverOpts(s.home, info, opts)
 		}
 		toolOpts = applyPullThrottle(toolOpts, info, pullExplicit)
 
@@ -220,6 +221,10 @@ func (s *Service) rebuild(tool, image string, info *docker.ImageInfo, upToDate b
 		opts.CacheBust = docker.NewCacheBust()
 	}
 
+	if err := config.SaveCustomInstalls(s.home, opts.CustomInstalls); err != nil {
+		return fmt.Errorf("saving custom installs: %w", err)
+	}
+
 	return s.docker.BuildTool(tool, image, opts)
 }
 
@@ -236,10 +241,40 @@ func applyPullThrottle(opts tools.BuildOptions, info *docker.ImageInfo, pullExpl
 	return opts
 }
 
-func recoverOpts(info *docker.ImageInfo, opts tools.BuildOptions) tools.BuildOptions {
+// recoverOpts fills opts from what info was built with; opts.CustomInstalls (the project config's) is only a fallback, see recoverCustomInstalls.
+func recoverOpts(home string, info *docker.ImageInfo, opts tools.BuildOptions) tools.BuildOptions {
 	opts.BaseOverride = docker.RecoveredBaseOverride(info, opts)
 	opts.AptPackages, _ = docker.RecoveredAptPackages(info, opts)
+	opts.CustomInstalls = recoverCustomInstalls(home, info, opts.CustomInstalls)
 	return opts
+}
+
+// recoverCustomInstalls returns the custom installs info was built with from the store under home. When they aren't stored
+// (an older image, or built from another machine), it looks the image's install names up in configInstalls and warns about any missing.
+func recoverCustomInstalls(home string, info *docker.ImageInfo, configInstalls []config.RCCustomInstall) []config.RCCustomInstall {
+	if installs, ok := config.LoadCustomInstalls(home, info.CustomInstallsHash); ok {
+		return installs
+	}
+
+	var installs []config.RCCustomInstall
+	var missing []string
+	for name := range strings.SplitSeq(info.CustomInstalls, ",") {
+		if name == "" {
+			continue
+		}
+
+		idx := slices.IndexFunc(configInstalls, func(ci config.RCCustomInstall) bool { return ci.Name == name })
+		if idx < 0 {
+			missing = append(missing, name)
+			continue
+		}
+		installs = append(installs, configInstalls[idx])
+	}
+
+	if len(missing) > 0 {
+		logging.Warnf("%s: custom installs %s not found in .agenticrc.toml, rebuilding without them", info.Image, strings.Join(missing, ", "))
+	}
+	return installs
 }
 
 // reportBeforeUpdate prints the predicted version line from an upstream check, skipping inconclusive ones.
