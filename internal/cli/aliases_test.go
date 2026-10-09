@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunAliases(t *testing.T) {
+func Test_runAliases(t *testing.T) {
 	t.Run("prints bash preamble and reload alias", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error { return nil })

@@ -61,7 +61,7 @@ func Test_listNamespaces(t *testing.T) {
 	})
 }
 
-func TestRunNamespacesPrune(t *testing.T) {
+func Test_runNamespacesPrune(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
 

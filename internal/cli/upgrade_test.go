@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunUpgrade(t *testing.T) {
+func Test_runUpgrade(t *testing.T) {
 	t.Run("prints already up to date when no newer version", func(t *testing.T) {
 		// Arrange
 		stubFetchLatestVersion(t, "v1.0.0", nil)

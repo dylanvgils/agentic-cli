@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunTool(t *testing.T) {
+func Test_runTool(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
 
@@ -122,7 +122,7 @@ func TestRunTool(t *testing.T) {
 	})
 }
 
-func TestParseArgs(t *testing.T) {
+func Test_parseArgs(t *testing.T) {
 	t.Run("tool name and image name", func(t *testing.T) {
 		// Act
 		result, err := parseArgs([]string{"claude"}, "agentic")

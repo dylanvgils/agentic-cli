@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAddBuildFlags(t *testing.T) {
+func Test_addBuildFlags(t *testing.T) {
 
 	t.Run("base and base-exact are mutually exclusive", func(t *testing.T) {
 		// Arrange
@@ -44,77 +44,59 @@ func TestAddBuildFlags(t *testing.T) {
 	t.Run("version flag usage reflects default versions", func(t *testing.T) {
 		// Arrange
 		cmd := &cobra.Command{Use: "test"}
+
+		// Act
 		addBuildFlags(cmd)
 
-		var cases []struct {
-			flag    string
-			version string
-		}
-		for _, name := range tools.KnownLayers() {
-			cases = append(cases, struct {
-				flag    string
-				version string
-			}{name, tools.DefaultVersions.ForLayer(name)})
-		}
-
 		// Assert
-		for _, tc := range cases {
-			f := cmd.Flags().Lookup(tc.flag)
-			require.NotNil(t, f, "flag --%s not registered", tc.flag)
-			assert.Contains(t, f.Usage, tc.version, "flag --%s usage should mention version %s", tc.flag, tc.version)
+		for _, name := range tools.KnownLayers() {
+			f := cmd.Flags().Lookup(name)
+			require.NotNil(t, f, "flag --%s not registered", name)
+			assert.Contains(t, f.Usage, tools.DefaultVersions.ForLayer(name), "flag --%s usage should mention its default version", name)
 		}
 	})
 }
 
-func TestAddProxyFlags(t *testing.T) {
+func Test_addProxyFlags(t *testing.T) {
+	// Arrange
+	cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
+	addProxyFlags(cmd)
+	cmd.SetArgs([]string{"--proxy", "--no-proxy"})
 
-	t.Run("proxy flags are mutually exclusive", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
-		addProxyFlags(cmd)
-		cmd.SetArgs([]string{"--proxy", "--no-proxy"})
+	// Act
+	err := cmd.Execute()
 
-		// Act
-		err := cmd.Execute()
-
-		// Assert
-		assert.Error(t, err)
-	})
+	// Assert
+	assert.Error(t, err)
 }
 
 func Test_addDindFlags(t *testing.T) {
+	// Arrange
+	cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
+	addDindFlags(cmd)
+	cmd.SetArgs([]string{"--dind", "--no-dind"})
 
-	t.Run("dind flags are mutually exclusive", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
-		addDindFlags(cmd)
-		cmd.SetArgs([]string{"--dind", "--no-dind"})
+	// Act
+	err := cmd.Execute()
 
-		// Act
-		err := cmd.Execute()
-
-		// Assert
-		assert.Error(t, err)
-	})
+	// Assert
+	assert.Error(t, err)
 }
 
 // Test_proxyInput only confirms each flag maps to the right resolve.ProxyInput field; precedence is covered by TestProxyMode in internal/usecase/resolve.
 func Test_proxyInput(t *testing.T) {
+	// Arrange
+	cmd := &cobra.Command{Use: "test"}
+	addProxyFlags(cmd)
+	require.NoError(t, cmd.Flags().Set("no-proxy", "true"))
+	require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
+	require.NoError(t, cmd.Flags().Set("proxy", "true"))
 
-	t.Run("each flag maps to its field", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-		addProxyFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("no-proxy", "true"))
-		require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
-		require.NoError(t, cmd.Flags().Set("proxy", "true"))
+	// Act
+	result := proxyInput(cmd)
 
-		// Act
-		result := proxyInput(cmd)
-
-		// Assert
-		assert.Equal(t, resolve.ProxyInput{NoProxy: true, MonitorFlag: true, ProxyFlag: true}, result)
-	})
+	// Assert
+	assert.Equal(t, resolve.ProxyInput{NoProxy: true, MonitorFlag: true, ProxyFlag: true}, result)
 }
 
 // Test_dindInput only confirms each flag maps to the right resolve.DindInput field; precedence is covered by TestDindEnabled in internal/usecase/resolve.
@@ -175,7 +157,7 @@ func Test_resolveResourceLimitFlags(t *testing.T) {
 	assert.Equal(t, docker.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, result)
 }
 
-func TestBuildOptsFromFlags(t *testing.T) {
+func Test_buildOptsFromFlags(t *testing.T) {
 	t.Run("base flag values accumulate and merge with rc", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
@@ -207,7 +189,7 @@ func TestBuildOptsFromFlags(t *testing.T) {
 	})
 }
 
-func TestToolNames(t *testing.T) {
+func Test_toolNames(t *testing.T) {
 	t.Run("no args returns all tools", func(t *testing.T) {
 		// Act
 		result := toolNames([]string{})

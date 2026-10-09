@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunVolumeCreate(t *testing.T) {
+func Test_runVolumeCreate(t *testing.T) {
 	t.Run("calls create volume", func(t *testing.T) {
 		// Arrange
 		var got string
@@ -47,7 +47,7 @@ func TestRunVolumeCreate(t *testing.T) {
 	})
 }
 
-func TestRunVolumeList(t *testing.T) {
+func Test_runVolumeList(t *testing.T) {
 	t.Run("prints raw output", func(t *testing.T) {
 		// Arrange
 		stubListVolumes(t, func() (string, error) {
@@ -78,7 +78,7 @@ func TestRunVolumeList(t *testing.T) {
 	})
 }
 
-func TestRunVolumeRemove(t *testing.T) {
+func Test_runVolumeRemove(t *testing.T) {
 	t.Run("named calls remove volume", func(t *testing.T) {
 		// Arrange
 		var got string

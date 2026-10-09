@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunStatus(t *testing.T) {
+func Test_runStatus(t *testing.T) {
 	t.Run("daemon not running reports status without listing containers", func(t *testing.T) {
 		// Arrange
 		cmd, buf := newTestStatusCmd(t)
@@ -94,7 +94,7 @@ func TestRunStatus(t *testing.T) {
 	})
 }
 
-func TestWriteContainerStatus(t *testing.T) {
+func Test_writeContainerStatus(t *testing.T) {
 	t.Run("no containers prints nothing", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer

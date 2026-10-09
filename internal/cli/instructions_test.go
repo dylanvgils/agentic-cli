@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunInstructions(t *testing.T) {
+func Test_runInstructions(t *testing.T) {
 	stubDocker(t, &fakeDocker{})
 
 	t.Run("unknown tool returns error", func(t *testing.T) {

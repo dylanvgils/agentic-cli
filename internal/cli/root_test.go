@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCheckDocker(t *testing.T) {
+func Test_checkDocker(t *testing.T) {
 	t.Run("root command skips check", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error {
@@ -115,7 +115,7 @@ func TestCheckDocker(t *testing.T) {
 	})
 }
 
-func TestCheckGit(t *testing.T) {
+func Test_checkGit(t *testing.T) {
 	runCmd := &cobra.Command{Use: "run"}
 
 	t.Run("non-run command skips check", func(t *testing.T) {
@@ -180,26 +180,22 @@ func TestCheckGit(t *testing.T) {
 	})
 }
 
-func TestResolveContext(t *testing.T) {
-	// Keep the repo's own .agenticrc.toml out of the test
+func Test_resolveContext(t *testing.T) {
+	// Arrange - keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
+	restoreDockerClient(t)
+	cmd := &cobra.Command{}
+	cmd.Flags().String("docker-context", "", "")
+	require.NoError(t, cmd.Flags().Set("docker-context", "prod"))
 
-	t.Run("builds the docker client for the resolved flag value", func(t *testing.T) {
-		// Arrange
-		restoreDockerClient(t)
-		cmd := &cobra.Command{}
-		cmd.Flags().String("docker-context", "", "")
-		require.NoError(t, cmd.Flags().Set("docker-context", "prod"))
+	// Act
+	resolveContext(cmd)
 
-		// Act
-		resolveContext(cmd)
-
-		// Assert
-		assert.Equal(t, "prod", dockerClient.Context())
-	})
+	// Assert
+	assert.Equal(t, "prod", dockerClient.Context())
 }
 
-func TestPersistentPreRunE(t *testing.T) {
+func Test_persistentPreRunE(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
 
@@ -276,7 +272,7 @@ func TestPersistentPreRunE(t *testing.T) {
 	})
 }
 
-func TestInCommandChain(t *testing.T) {
+func Test_inCommandChain(t *testing.T) {
 	t.Run("matches command name", func(t *testing.T) {
 		// Act
 		result := inCommandChain(aliasesCmd, noUpdateCmds)
@@ -311,7 +307,7 @@ func TestInCommandChain(t *testing.T) {
 	})
 }
 
-func TestPruneResources(t *testing.T) {
+func Test_pruneResources(t *testing.T) {
 	t.Run("calls pruneImages", func(t *testing.T) {
 		// Arrange
 		var called bool

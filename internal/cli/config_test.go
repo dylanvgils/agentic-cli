@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPrintBasesField(t *testing.T) {
+func Test_printBasesField(t *testing.T) {
 	t.Run("no bases shows none", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer
@@ -80,7 +80,7 @@ func TestPrintBasesField(t *testing.T) {
 	})
 }
 
-func TestPrintGlobalConfig(t *testing.T) {
+func Test_printGlobalConfig(t *testing.T) {
 	t.Run("empty config", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer
@@ -142,7 +142,7 @@ func TestPrintGlobalConfig(t *testing.T) {
 	})
 }
 
-func TestPrintScalarField(t *testing.T) {
+func Test_printScalarField(t *testing.T) {
 	get := func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
 
 	t.Run("rc value shown when set", func(t *testing.T) {
@@ -185,7 +185,7 @@ func TestPrintScalarField(t *testing.T) {
 	})
 }
 
-func TestPrintBoolField(t *testing.T) {
+func Test_printBoolField(t *testing.T) {
 	get := func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
 
 	t.Run("no layer sets it shows default", func(t *testing.T) {
@@ -237,7 +237,7 @@ func TestPrintBoolField(t *testing.T) {
 	})
 }
 
-func TestPrintProjectConfig(t *testing.T) {
+func Test_printProjectConfig(t *testing.T) {
 	t.Run("no layers", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer

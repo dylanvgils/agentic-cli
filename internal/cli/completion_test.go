@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBuiltToolNamesFunc(t *testing.T) {
+func Test_builtToolNamesFunc(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
 
@@ -67,7 +67,7 @@ func TestBuiltToolNamesFunc(t *testing.T) {
 	})
 }
 
-func TestNamespacesFunc(t *testing.T) {
+func Test_namespacesFunc(t *testing.T) {
 	t.Run("returns unique namespaces", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -118,7 +118,7 @@ func TestNamespacesFunc(t *testing.T) {
 	})
 }
 
-func TestVolumeNamesFunc(t *testing.T) {
+func Test_volumeNamesFunc(t *testing.T) {
 	t.Run("returns volume names", func(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven", "gradle"}, nil })
@@ -156,7 +156,7 @@ func TestVolumeNamesFunc(t *testing.T) {
 	})
 }
 
-func TestDockerContextsFunc(t *testing.T) {
+func Test_dockerContextsFunc(t *testing.T) {
 	t.Run("returns context names", func(t *testing.T) {
 		// Arrange
 		stubListContexts(t, func() ([]string, error) { return []string{"default", "prod"}, nil })
