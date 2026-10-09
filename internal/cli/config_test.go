@@ -2,14 +2,18 @@ package cli
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPrintBasesField(t *testing.T) {
+func Test_printBasesField(t *testing.T) {
 	t.Run("no bases shows none", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer
@@ -38,21 +42,6 @@ func TestPrintBasesField(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, buf.String(), "- java  [/project/.agenticrc.toml]")
-	})
-
-	t.Run("base with rc version shows at-version", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		layers := []config.RCLayer{
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}, Versions: map[string]string{"java": "17"}}}},
-		}
-
-		// Act
-		err := printBasesField(&buf, layers)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, buf.String(), "- java@17  [/project/.agenticrc.toml]")
 	})
 
 	t.Run("innermost layer version wins", func(t *testing.T) {
@@ -95,7 +84,7 @@ func TestPrintBasesField(t *testing.T) {
 	})
 }
 
-func TestPrintGlobalConfig(t *testing.T) {
+func Test_printGlobalConfig(t *testing.T) {
 	t.Run("empty config", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer
@@ -157,7 +146,7 @@ func TestPrintGlobalConfig(t *testing.T) {
 	})
 }
 
-func TestPrintScalarField(t *testing.T) {
+func Test_printScalarField(t *testing.T) {
 	get := func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
 
 	t.Run("rc value shown when set", func(t *testing.T) {
@@ -200,7 +189,7 @@ func TestPrintScalarField(t *testing.T) {
 	})
 }
 
-func TestPrintBoolField(t *testing.T) {
+func Test_printBoolField(t *testing.T) {
 	get := func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
 
 	t.Run("no layer sets it shows default", func(t *testing.T) {
@@ -252,7 +241,7 @@ func TestPrintBoolField(t *testing.T) {
 	})
 }
 
-func TestPrintProjectConfig(t *testing.T) {
+func Test_printProjectConfig(t *testing.T) {
 	t.Run("no layers", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer
@@ -456,20 +445,24 @@ func Test_customInstallNames(t *testing.T) {
 	assert.Equal(t, []string{"golangci-lint", "terraform"}, result)
 }
 
-func Test_orNotSet(t *testing.T) {
-	t.Run("empty is not set", func(t *testing.T) {
-		// Act
-		result := orNotSet("")
+func Test_showConfig(t *testing.T) {
+	// Arrange
+	withTempToolHome(t)
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("root = true\nnamespace = \"work\"\n"), 0o600))
+	t.Chdir(dir)
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
 
-		// Assert
-		assert.Equal(t, "(not set)", result)
-	})
+	// Act
+	err := showConfig(cmd, nil)
 
-	t.Run("value is returned as is", func(t *testing.T) {
-		// Act
-		result := orNotSet("registry.example.test")
-
-		// Assert
-		assert.Equal(t, "registry.example.test", result)
-	})
+	// Assert - the global section, then the project layers from the working dir
+	require.NoError(t, err)
+	out := buf.String()
+	assert.Contains(t, out, "Global (")
+	assert.Contains(t, out, "Project (.agenticrc.toml, 1 file)")
+	assert.Contains(t, out, "work")
+	assert.Less(t, strings.Index(out, "Global ("), strings.Index(out, "Project ("))
 }

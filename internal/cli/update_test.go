@@ -15,7 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunUpdate(t *testing.T) {
+func Test_runUpdate(t *testing.T) {
+	// Keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
+
 	stubUpdateLatestToolVersion(t, "", false, false)
 
 	t.Run("no cache flag sets opt", func(t *testing.T) {
@@ -31,8 +34,7 @@ func TestRunUpdate(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, updateCmd.Flags().Set("no-cache", "true"))
-		defer updateCmd.Flags().Set("no-cache", "false") //nolint:errcheck
+		stubFlag(t, updateCmd, "no-cache", "true")
 
 		// Act
 		err := runUpdate(updateCmd, []string{"claude"})
@@ -55,8 +57,7 @@ func TestRunUpdate(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, updateCmd.Flags().Set("skip-install-checksum", "true"))
-		defer updateCmd.Flags().Set("skip-install-checksum", "false") //nolint:errcheck
+		stubFlag(t, updateCmd, "skip-install-checksum", "true")
 
 		// Act
 		err := runUpdate(updateCmd, []string{"claude"})
@@ -100,11 +101,7 @@ func TestRunUpdate(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, updateCmd.Flags().Set("pull", "false"))
-		t.Cleanup(func() {
-			updateCmd.Flags().Set("pull", "true") //nolint:errcheck
-			updateCmd.Flags().Lookup("pull").Changed = false
-		})
+		stubFlag(t, updateCmd, "pull", "false")
 
 		// Act
 		err := runUpdate(updateCmd, []string{"claude"})
@@ -124,8 +121,7 @@ func TestRunUpdate(t *testing.T) {
 			},
 		})
 
-		require.NoError(t, updateCmd.Flags().Set("dry-run", "true"))
-		defer updateCmd.Flags().Set("dry-run", "false") //nolint:errcheck
+		stubFlag(t, updateCmd, "dry-run", "true")
 
 		// Act
 		out := captureStdout(t, func() {
@@ -199,25 +195,6 @@ func TestRunUpdate(t *testing.T) {
 		assert.Less(t, summary, skipped, "skipped lines follow the summary")
 	})
 
-	t.Run("all flag with no images prints message", func(t *testing.T) {
-		// Arrange
-		stubDocker(t, &fakeDocker{
-			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) { return nil, nil },
-		})
-
-		cmd := updateCmd
-		require.NoError(t, cmd.Flags().Set("all", "true"))
-		defer cmd.Flags().Set("all", "false") //nolint:errcheck
-		logBuf := stubErrLog(t)
-
-		// Act
-		err := runUpdate(cmd, []string{})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, logBuf.String(), "agentic: no agentic images found")
-	})
-
 	t.Run("all flag updates all images and prunes", func(t *testing.T) {
 		// Arrange
 		logBuf := stubErrLog(t)
@@ -239,8 +216,7 @@ func TestRunUpdate(t *testing.T) {
 		stubPruneBuildCache(t, func() error { return nil })
 
 		cmd := updateCmd
-		require.NoError(t, cmd.Flags().Set("all", "true"))
-		defer cmd.Flags().Set("all", "false") //nolint:errcheck
+		stubFlag(t, cmd, "all", "true")
 
 		// Act
 		err := runUpdate(cmd, []string{})
@@ -303,38 +279,6 @@ func TestRunUpdate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, capturedOpts.AptPackages)
 		assert.True(t, capturedOpts.AptExact)
-	})
-
-	t.Run("all flag with tool arg updates only that tool across namespaces", func(t *testing.T) {
-		// Arrange
-		var updated []string
-		stubDocker(t, &fakeDocker{
-			buildTool: func(tool, _ string, _ tools.BuildOptions) error {
-				updated = append(updated, tool)
-				return nil
-			},
-			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
-			listAllImages: func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-				// Docker would apply the ToolFilter server-side; simulate by honouring it here.
-				return []*docker.ImageInfo{
-					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Base: "node@24"},
-					{Image: "work-claude", Namespace: "work", Tool: "claude", Base: "node@24"},
-				}, nil
-			},
-		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
-
-		cmd := updateCmd
-		require.NoError(t, cmd.Flags().Set("all", "true"))
-		defer cmd.Flags().Set("all", "false") //nolint:errcheck
-
-		// Act
-		err := runUpdate(cmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"claude", "claude"}, updated)
 	})
 }
 

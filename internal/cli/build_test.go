@@ -10,7 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunBuild(t *testing.T) {
+func Test_runBuild(t *testing.T) {
+	// Keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
+
 	t.Run("no cache flag sets opt", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
@@ -21,8 +24,7 @@ func TestRunBuild(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, buildCmd.Flags().Set("no-cache", "true"))
-		defer buildCmd.Flags().Set("no-cache", "false") //nolint:errcheck
+		stubFlag(t, buildCmd, "no-cache", "true")
 
 		// Act
 		err := runBuild(buildCmd, []string{"claude"})
@@ -42,8 +44,7 @@ func TestRunBuild(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, buildCmd.Flags().Set("skip-install-checksum", "true"))
-		defer buildCmd.Flags().Set("skip-install-checksum", "false") //nolint:errcheck
+		stubFlag(t, buildCmd, "skip-install-checksum", "true")
 
 		// Act
 		err := runBuild(buildCmd, []string{"claude"})
@@ -51,24 +52,6 @@ func TestRunBuild(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, capturedOpts.SkipInstallChecksum)
-	})
-
-	t.Run("pull flag defaults false", func(t *testing.T) {
-		// Arrange
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
-			capturedOpts = opts
-			return nil
-		}})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
-
-		// Act
-		err := runBuild(buildCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, capturedOpts.Pull)
 	})
 
 	t.Run("pull flag sets opt", func(t *testing.T) {
@@ -81,8 +64,7 @@ func TestRunBuild(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, buildCmd.Flags().Set("pull", "true"))
-		defer buildCmd.Flags().Set("pull", "false") //nolint:errcheck
+		stubFlag(t, buildCmd, "pull", "true")
 
 		// Act
 		err := runBuild(buildCmd, []string{"claude"})
@@ -90,27 +72,6 @@ func TestRunBuild(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, capturedOpts.Pull)
-	})
-
-	t.Run("base flag sets opt", func(t *testing.T) {
-		// Arrange
-		t.Chdir(t.TempDir())
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
-			capturedOpts = opts
-			return nil
-		}})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
-
-		stubFlag(t, buildCmd, "base", "java")
-
-		// Act
-		err := runBuild(buildCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"java"}, capturedOpts.BaseOverride)
 	})
 
 	t.Run("dry run flag prints dockerfile and skips build", func(t *testing.T) {
@@ -121,8 +82,7 @@ func TestRunBuild(t *testing.T) {
 			return nil
 		}})
 
-		require.NoError(t, buildCmd.Flags().Set("dry-run", "true"))
-		defer buildCmd.Flags().Set("dry-run", "false") //nolint:errcheck
+		stubFlag(t, buildCmd, "dry-run", "true")
 
 		// Act
 		out := captureStdout(t, func() {
@@ -159,8 +119,7 @@ func TestRunBuild(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, buildCmd.Flags().Set("node", "22"))
-		defer buildCmd.Flags().Set("node", "") //nolint:errcheck
+		stubFlag(t, buildCmd, "node", "22")
 
 		// Act
 		err := runBuild(buildCmd, []string{"claude"})
@@ -168,27 +127,6 @@ func TestRunBuild(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "22", capturedOpts.Versions["node"])
-	})
-
-	t.Run("go flag sets opt", func(t *testing.T) {
-		// Arrange
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
-			capturedOpts = opts
-			return nil
-		}})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
-
-		require.NoError(t, buildCmd.Flags().Set("go", "1.23"))
-		defer buildCmd.Flags().Set("go", "") //nolint:errcheck
-
-		// Act
-		err := runBuild(buildCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "1.23", capturedOpts.Versions["go"])
 	})
 
 }

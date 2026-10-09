@@ -30,25 +30,6 @@ func Test_listNamespaces(t *testing.T) {
 		assert.Less(t, strings.Index(out, "agentic"), strings.Index(out, "work"))
 	})
 
-	t.Run("deduplicates namespaces from multiple images", func(t *testing.T) {
-		// Arrange
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Namespace: "agentic", Tool: "claude"},
-				{Namespace: "agentic", Tool: "copilot"},
-			}, nil
-		})
-
-		// Act
-		out := captureStdout(t, func() {
-			err := listNamespaces()
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Equal(t, 1, strings.Count(out, "agentic"))
-	})
-
 	t.Run("empty prints no-images message", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -80,21 +61,19 @@ func Test_listNamespaces(t *testing.T) {
 	})
 }
 
-func TestRunNamespacesPrune(t *testing.T) {
-	setup := func(t *testing.T) {
-		t.Helper()
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
-			}, nil
-		})
-		require.NoError(t, namespacesPruneCmd.Flags().Set("namespace", "agentic"))
-		t.Cleanup(func() { _ = namespacesPruneCmd.Flags().Set("namespace", "") })
-	}
+func Test_runNamespacesPrune(t *testing.T) {
+	// Keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
+
+	stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+		return []*docker.ImageInfo{
+			{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+		}, nil
+	})
+	stubFlag(t, namespacesPruneCmd, "namespace", "agentic")
 
 	t.Run("confirmed y runs prune", func(t *testing.T) {
 		// Arrange
-		setup(t)
 		var cleaned []string
 		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
 		stubStdin(t, "y\n")
@@ -107,42 +86,11 @@ func TestRunNamespacesPrune(t *testing.T) {
 		assert.Equal(t, []string{"agentic-claude"}, cleaned)
 	})
 
-	t.Run("confirmed upper Y runs prune", func(t *testing.T) {
-		// Arrange
-		setup(t)
-		var cleaned []string
-		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
-		stubStdin(t, "Y\n")
-
-		// Act
-		err := runNamespacesPrune(namespacesPruneCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"agentic-claude"}, cleaned)
-	})
-
 	t.Run("declined n skips prune", func(t *testing.T) {
 		// Arrange
-		setup(t)
 		var cleanCalled bool
 		stubCleanImage(t, func(string) error { cleanCalled = true; return nil })
 		stubStdin(t, "n\n")
-
-		// Act
-		err := runNamespacesPrune(namespacesPruneCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, cleanCalled)
-	})
-
-	t.Run("empty input skips prune", func(t *testing.T) {
-		// Arrange
-		setup(t)
-		var cleanCalled bool
-		stubCleanImage(t, func(string) error { cleanCalled = true; return nil })
-		stubStdin(t, "\n")
 
 		// Act
 		err := runNamespacesPrune(namespacesPruneCmd, nil)

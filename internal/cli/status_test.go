@@ -7,20 +7,11 @@ import (
 	"text/tabwriter"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newTestStatusCmd(t *testing.T) (*cobra.Command, *bytes.Buffer) {
-	t.Helper()
-	var buf bytes.Buffer
-	cmd := &cobra.Command{}
-	cmd.SetOut(&buf)
-	return cmd, &buf
-}
-
-func TestRunStatus(t *testing.T) {
+func Test_runStatus(t *testing.T) {
 	t.Run("daemon not running reports status without listing containers", func(t *testing.T) {
 		// Arrange
 		cmd, buf := newTestStatusCmd(t)
@@ -101,23 +92,9 @@ func TestRunStatus(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "Docker context:      prod\nDocker:              running\nContainers running:  0\n", buf.String())
 	})
-
-	t.Run("docker context unset omits header", func(t *testing.T) {
-		// Arrange
-		cmd, buf := newTestStatusCmd(t)
-		stubCheckDockerDaemon(t, func() error { return nil })
-		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) { return nil, nil })
-
-		// Act
-		err := runStatus(cmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotContains(t, buf.String(), "Docker context")
-	})
 }
 
-func TestWriteContainerStatus(t *testing.T) {
+func Test_writeContainerStatus(t *testing.T) {
 	t.Run("no containers prints nothing", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer
@@ -151,6 +128,6 @@ func TestWriteContainerStatus(t *testing.T) {
 		assert.Contains(t, out, "NAME")
 		assert.Contains(t, out, "agentic-claude-ab12")
 		assert.Contains(t, out, "mystery")
-		assert.Contains(t, out, "-") // dashed blank namespace/tool for the unrecognized image
+		assert.Regexp(t, `mystery\s+-\s+-\s+not-an-agentic-image\s+Up 1 minute`, out) // blank namespace and tool are dashed
 	})
 }

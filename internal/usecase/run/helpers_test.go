@@ -215,6 +215,18 @@ func newPrepareRequest(t *testing.T) Request {
 	}
 }
 
+// newCredentialRequest returns newPrepareRequest with one proxy credential declared, reading a test-secret file.
+func newCredentialRequest(t *testing.T) Request {
+	t.Helper()
+	req := newPrepareRequest(t)
+	secret := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(secret, []byte("test-secret\n"), 0o600))
+	layer := credentialLayer(t, secret)
+	req.Project.Layers = []config.RCLayer{layer}
+	req.Project.RC.Run.Proxy.Credentials = layer.RC.Run.Proxy.Credentials
+	return req
+}
+
 // stubLatestToolVersion makes the tool update check see latest as newer for the duration of the test.
 func stubLatestToolVersion(t *testing.T, latest string) {
 	t.Helper()

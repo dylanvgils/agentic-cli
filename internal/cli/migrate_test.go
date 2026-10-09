@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunMigrate(t *testing.T) {
+func Test_runMigrate(t *testing.T) {
 	t.Run("prints already up to date", func(t *testing.T) {
 		// Arrange
 		stubMigrateRun(t, func(string) ([]migrate.Migration, error) { return nil, nil })

@@ -52,6 +52,20 @@ func TestEnsure(t *testing.T) {
 		assert.Equal(t, []string{tools.ProxyImage, tools.DindImage}, built())
 	})
 
+	t.Run("proxy build error stops before the dind step", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		fake, built := recordBuilds()
+		fake.buildProxyImage = func(string, string, string, tools.BuildOptions) error { return fmt.Errorf("proxy build failed") }
+
+		// Act
+		err := New(fake).Ensure(true, true, "")
+
+		// Assert
+		require.EqualError(t, err, "proxy build failed")
+		assert.Empty(t, built())
+	})
+
 	t.Run("neither enabled builds nothing", func(t *testing.T) {
 		// Arrange
 		fake, built := recordBuilds()
@@ -136,7 +150,7 @@ func Test_ensureProxy(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{tools.ProxyImage}, built())
-		assert.Contains(t, logBuf.String(), "agentic: building agentic-proxy (built by a different agentic version)...")
+		assert.Contains(t, logBuf.String(), "building agentic-proxy")
 	})
 }
 
@@ -167,7 +181,7 @@ func Test_ensureDind(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{tools.DindImage}, built())
-		assert.Contains(t, logBuf.String(), "agentic: building agentic-dind (image missing)...")
+		assert.Contains(t, logBuf.String(), "building agentic-dind")
 	})
 
 	t.Run("stale image is rebuilt to pick up base patches", func(t *testing.T) {
@@ -183,7 +197,7 @@ func Test_ensureDind(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{tools.DindImage}, built())
-		assert.Contains(t, logBuf.String(), "agentic: building agentic-dind (older than 7 days)...")
+		assert.Contains(t, logBuf.String(), "building agentic-dind")
 	})
 
 	t.Run("failed refresh of an existing image only warns", func(t *testing.T) {

@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,13 +13,8 @@ import (
 func TestCheck(t *testing.T) {
 	t.Run("skips when version is dev", func(t *testing.T) {
 		// Arrange
-		var fetchCalled bool
-		orig := LatestVersion
-		LatestVersion = func() (string, error) {
-			fetchCalled = true
-			return "v1.1.0", nil
-		}
-		t.Cleanup(func() { LatestVersion = orig })
+		stubBuildVersion(t, "dev")
+		fetchCalled := stubLatestVersion(t, "v1.1.0", nil)
 		home := t.TempDir()
 		confirm := func(string, string) bool { return true }
 
@@ -28,35 +22,47 @@ func TestCheck(t *testing.T) {
 		Check(home, confirm)
 
 		// Assert
-		assert.False(t, fetchCalled)
+		assert.False(t, *fetchCalled)
+	})
+
+	t.Run("offers a due newer release", func(t *testing.T) {
+		// Arrange
+		stubBuildVersion(t, "v1.0.0")
+		stubLatestVersion(t, "v1.1.0", nil)
+		stubUpdate(t, nil)
+		stubNotify(t)
+		stubExit(t)
+		home := t.TempDir()
+		var offered string
+		confirm := func(_, latest string) bool {
+			offered = latest
+			return true
+		}
+
+		// Act
+		Check(home, confirm)
+
+		// Assert
+		assert.Equal(t, "v1.1.0", offered)
 	})
 }
 
 func Test_fetchUpdateIfDue(t *testing.T) {
+	stubBuildVersion(t, "v1.0.0")
+
 	t.Run("returns false when within check interval", func(t *testing.T) {
 		// Arrange
-		var fetchCalled bool
-		orig := LatestVersion
-		LatestVersion = func() (string, error) {
-			fetchCalled = true
-			return "v1.1.0", nil
-		}
-		t.Cleanup(func() { LatestVersion = orig })
-
+		fetchCalled := stubLatestVersion(t, "v1.1.0", nil)
 		home := t.TempDir()
 		lastCheck := time.Now().Add(-1 * time.Hour)
 		cfg := &config.CliConfig{LastUpdateCheck: &lastCheck}
 		require.NoError(t, cfg.Save(home))
 
-		origVersion := buildinfo.Version
-		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = origVersion })
-
 		// Act
 		latest, ok := fetchUpdateIfDue(home)
 
 		// Assert
-		assert.False(t, fetchCalled)
+		assert.False(t, *fetchCalled)
 		assert.False(t, ok)
 		assert.Empty(t, latest)
 	})
@@ -65,9 +71,6 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 		// Arrange
 		stubLatestVersion(t, "", errors.New("network error"))
 		home := t.TempDir()
-		origVersion := buildinfo.Version
-		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
 		latest, ok := fetchUpdateIfDue(home)
@@ -77,13 +80,25 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 		assert.Empty(t, latest)
 	})
 
+	t.Run("does not save LastUpdateCheck when fetch fails", func(t *testing.T) {
+		// Arrange
+		stubLatestVersion(t, "", errors.New("network error"))
+		home := t.TempDir()
+
+		// Act
+		_, ok := fetchUpdateIfDue(home)
+
+		// Assert
+		require.False(t, ok)
+		cfg, err := config.LoadConfig(home)
+		require.NoError(t, err)
+		assert.Nil(t, cfg.LastUpdateCheck)
+	})
+
 	t.Run("returns false when already up to date", func(t *testing.T) {
 		// Arrange
 		stubLatestVersion(t, "v1.0.0", nil)
 		home := t.TempDir()
-		origVersion := buildinfo.Version
-		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
 		latest, ok := fetchUpdateIfDue(home)
@@ -97,18 +112,16 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 		// Arrange
 		stubLatestVersion(t, "v1.0.0", nil)
 		home := t.TempDir()
-		origVersion := buildinfo.Version
-		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = origVersion })
 		before := time.Now()
 
 		// Act
-		fetchUpdateIfDue(home)
+		_, ok := fetchUpdateIfDue(home)
 
 		// Assert
+		require.False(t, ok)
 		cfg, err := config.LoadConfig(home)
 		require.NoError(t, err)
-		assert.NotNil(t, cfg.LastUpdateCheck)
+		require.NotNil(t, cfg.LastUpdateCheck)
 		assert.True(t, cfg.LastUpdateCheck.After(before))
 	})
 
@@ -116,9 +129,6 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 		// Arrange
 		stubLatestVersion(t, "v1.1.0", nil)
 		home := t.TempDir()
-		origVersion := buildinfo.Version
-		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = origVersion })
 
 		// Act
 		latest, ok := fetchUpdateIfDue(home)
@@ -130,9 +140,7 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 }
 
 func Test_offerUpdate(t *testing.T) {
-	origVersion := buildinfo.Version
-	buildinfo.Version = "v1.0.0"
-	t.Cleanup(func() { buildinfo.Version = origVersion })
+	stubBuildVersion(t, "v1.0.0")
 
 	t.Run("asks confirm with installed and latest", func(t *testing.T) {
 		// Arrange
@@ -152,9 +160,9 @@ func Test_offerUpdate(t *testing.T) {
 
 	t.Run("updates and exits 0 when confirmed", func(t *testing.T) {
 		// Arrange
-		updateCalledWith := stubUpdateCapture(t, nil)
-		errBuf := stubStderrCapture(t)
-		exitCode := stubExitCapture(t)
+		updateCalledWith := stubUpdate(t, nil)
+		errBuf := stubNotify(t)
+		exitCode := stubExit(t)
 		confirm := func(string, string) bool { return true }
 
 		// Act
@@ -169,8 +177,8 @@ func Test_offerUpdate(t *testing.T) {
 	t.Run("exits 1 when confirmed and the update fails", func(t *testing.T) {
 		// Arrange
 		stubUpdate(t, errors.New("network error"))
-		errBuf := stubStderrCapture(t)
-		exitCode := stubExitCapture(t)
+		errBuf := stubNotify(t)
+		exitCode := stubExit(t)
 		confirm := func(string, string) bool { return true }
 
 		// Act
@@ -183,18 +191,15 @@ func Test_offerUpdate(t *testing.T) {
 
 	t.Run("skips update when declined", func(t *testing.T) {
 		// Arrange
-		updateCalled := stubUpdateCapture(t, nil)
-		exited := false
-		origExit := Exit
-		Exit = func(int) { exited = true }
-		t.Cleanup(func() { Exit = origExit })
+		updateCalledWith := stubUpdate(t, nil)
+		exitCode := stubExit(t)
 		confirm := func(string, string) bool { return false }
 
 		// Act
 		offerUpdate("v1.1.0", confirm)
 
 		// Assert
-		assert.Empty(t, *updateCalled)
-		assert.False(t, exited)
+		assert.Empty(t, *updateCalledWith)
+		assert.Equal(t, -1, *exitCode)
 	})
 }

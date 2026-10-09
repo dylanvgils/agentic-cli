@@ -54,9 +54,10 @@ func Test_requireImage(t *testing.T) {
 		})
 
 		// Act
-		_ = svc.requireImage("agentic-claude", "claude")
+		err := svc.requireImage("agentic-claude", "claude")
 
 		// Assert
+		require.Error(t, err)
 		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, got)
 	})
 

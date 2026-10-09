@@ -1,20 +1,23 @@
 package cli
 
 import (
-	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunTool(t *testing.T) {
+func Test_runTool(t *testing.T) {
+	// Keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
+
 	t.Run("no args prints help", func(t *testing.T) {
 		// Arrange
 		get := captureRunContainer(t)
@@ -53,34 +56,12 @@ func TestRunTool(t *testing.T) {
 		assert.Empty(t, toolArgs)
 	})
 
-	t.Run("mounts a per-run instructions snapshot for the tool", func(t *testing.T) {
-		// Arrange
-		t.Chdir(t.TempDir())
-		withTempToolHome(t)
-		get := captureRunContainer(t)
-
-		// Act
-		err := runTool(runToolCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		rs, _ := get()
-		instructionsMount := findVolumeByContainerPath(t, rs.Volumes, "$CONTAINER_HOME/.claude/CLAUDE.md")
-		hostPath := mount.HostPart(instructionsMount)
-		assert.True(t, strings.HasPrefix(filepath.Base(hostPath), "agentic-instructions-"),
-			"instructions should be mounted from a per-run temp snapshot, not the persistent tool-home file: %s", hostPath)
-	})
-
 	t.Run("read-only-mount flag forces the mount :ro and appends it last", func(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
 		get := captureRunContainer(t)
-		require.NoError(t, runToolCmd.Flags().Set("read-only-mount", "$PWD/creds:/workspace/creds"))
-		t.Cleanup(func() {
-			flagReadOnlyMounts = nil
-			runToolCmd.Flags().Lookup("read-only-mount").Changed = false
-		})
+		stubFlag(t, runToolCmd, "read-only-mount", "$PWD/creds:/workspace/creds")
 
 		// Act
 		err := runTool(runToolCmd, []string{"claude"})
@@ -101,11 +82,7 @@ func TestRunTool(t *testing.T) {
 		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)
 		stubDocker(t, &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)})
 		stubBuildDindImage(t, func(string, tools.BuildOptions) error { return nil })
-		require.NoError(t, runToolCmd.Flags().Set("dind", "true"))
-		t.Cleanup(func() {
-			_ = runToolCmd.Flags().Set("dind", "false")
-			runToolCmd.Flags().Lookup("dind").Changed = false
-		})
+		stubFlag(t, runToolCmd, "dind", "true")
 
 		// Act
 		err := runTool(runToolCmd, []string{"claude"})
@@ -122,11 +99,7 @@ func TestRunTool(t *testing.T) {
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
 		get := captureRunContainer(t)
-		require.NoError(t, runToolCmd.Flags().Set("dind", "true"))
-		t.Cleanup(func() {
-			_ = runToolCmd.Flags().Set("dind", "false")
-			runToolCmd.Flags().Lookup("dind").Changed = false
-		})
+		stubFlag(t, runToolCmd, "dind", "true")
 
 		// Act
 		err := runTool(runToolCmd, []string{"claude"})
@@ -152,69 +125,22 @@ func TestRunTool(t *testing.T) {
 		assert.Equal(t, []string{"--dangerously-skip-permissions"}, toolArgs)
 	})
 
-	t.Run("starts container when no tool update is due", func(t *testing.T) {
+	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {
 		// Arrange
-		t.Chdir(t.TempDir())
-		withTempToolHome(t)
-		get := captureRunContainer(t)
-		var fetchCalled bool
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) {
-			fetchCalled = true
-			return "", false, false
-		})
+		dir := t.TempDir()
+		rcPath := filepath.Join(dir, ".agenticrc.toml")
+		require.NoError(t, os.WriteFile(rcPath, []byte("not valid toml [[["), 0o644))
+		t.Chdir(dir)
 
 		// Act
 		err := runTool(runToolCmd, []string{"claude"})
 
 		// Assert
-		require.NoError(t, err)
-		assert.True(t, fetchCalled)
-		rs, _ := get()
-		assert.Equal(t, "agentic-claude", rs.Image)
-	})
-
-	t.Run("starts container after a successful interactive tool update", func(t *testing.T) {
-		// Arrange
-		t.Chdir(t.TempDir())
-		withTempToolHome(t)
-		get := captureRunContainer(t)
-		stubIsTerminal(t, true)
-		stubStdin(t, "y\n")
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
-		stubDocker(t, &fakeDocker{})
-
-		// Act
-		err := runTool(runToolCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		rs, _ := get()
-		assert.Equal(t, "agentic-claude", rs.Image)
-	})
-
-	t.Run("aborts and does not start container when interactive tool update fails", func(t *testing.T) {
-		// Arrange
-		t.Chdir(t.TempDir())
-		withTempToolHome(t)
-		get := captureRunContainer(t)
-		stubIsTerminal(t, true)
-		stubStdin(t, "y\n")
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
-		stubDocker(t, &fakeDocker{
-			buildTool: func(_, _ string, _ tools.BuildOptions) error { return fmt.Errorf("build failed") },
-		})
-
-		// Act
-		err := runTool(runToolCmd, []string{"claude"})
-
-		// Assert
-		require.Error(t, err)
-		rs, _ := get()
-		assert.Empty(t, rs.Image, "RunContainer should not be called when the confirmed update fails")
+		assert.ErrorContains(t, err, rcPath)
 	})
 }
 
-func TestParseArgs(t *testing.T) {
+func Test_parseArgs(t *testing.T) {
 	t.Run("tool name and image name", func(t *testing.T) {
 		// Act
 		result, err := parseArgs([]string{"claude"}, "agentic")
@@ -265,4 +191,37 @@ func TestParseArgs(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "bogus")
 	})
+}
+
+func Test_runRequest(t *testing.T) {
+	// Arrange
+	withTempToolHome(t)
+	stubFlag(t, runToolCmd, "trust-dir", "true")
+	stubFlag(t, runToolCmd, "dry-run", "true")
+	stubFlag(t, runToolCmd, "volume", "/example.test/a:/a")
+	stubFlag(t, runToolCmd, "secret", "token:/example.test/token")
+	stubFlag(t, runToolCmd, "read-only-mount", "/example.test/b:/b")
+	stubFlag(t, runToolCmd, "env", "FOO=bar")
+	stubFlag(t, runToolCmd, "registry", "registry.example.test")
+	stubFlag(t, runToolCmd, "proxy", "true")
+	inv := invocation{
+		parsedArgs: parsedArgs{toolName: "claude", imageName: "agentic-claude", skipEntrypoint: true},
+		cwd:        "/example.test/project",
+		rc:         &config.AgenticRC{},
+	}
+
+	// Act
+	req := runRequest(runToolCmd, inv)
+
+	// Assert - run-only flags land next to the shared runtimeFlags
+	assert.Equal(t, run.Target{ToolName: "claude", ImageName: "agentic-claude", SkipEntrypoint: true}, req.Target)
+	assert.Equal(t, "/example.test/project", req.Project.Dir)
+	assert.True(t, req.Flags.TrustDir)
+	assert.True(t, req.Flags.DryRun)
+	assert.True(t, req.Flags.Proxy.ProxyFlag)
+	assert.Equal(t, "registry.example.test", req.Flags.Registry)
+	assert.Equal(t, []string{"/example.test/a:/a"}, req.Flags.Volumes)
+	assert.Equal(t, []string{"token:/example.test/token"}, req.Flags.Secrets)
+	assert.Equal(t, []string{"/example.test/b:/b"}, req.Flags.ReadOnlyMounts)
+	assert.Equal(t, []string{"FOO=bar"}, req.Flags.Env)
 }

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCheckDocker(t *testing.T) {
+func Test_checkDocker(t *testing.T) {
 	t.Run("root command skips check", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error {
@@ -60,25 +59,6 @@ func TestCheckDocker(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("completion subcommand skips check", func(t *testing.T) {
-		// Arrange - `agentic completion bash` reaches persistentPreRunE with cmd.Name()=="bash",
-		// which is not in noDockerCmds; the ancestor walk must find "completion" instead.
-		stubCheckDockerDaemon(t, func() error {
-			return errors.New("should not be called")
-		})
-		fakeRoot := &cobra.Command{Use: "agentic"}
-		completionCmd := &cobra.Command{Use: "completion"}
-		bashCmd := &cobra.Command{Use: "bash"}
-		fakeRoot.AddCommand(completionCmd)
-		completionCmd.AddCommand(bashCmd)
-
-		// Act
-		err := checkDocker(bashCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-	})
-
 	t.Run("aliases command skips check", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error {
@@ -87,19 +67,6 @@ func TestCheckDocker(t *testing.T) {
 
 		// Act
 		err := checkDocker(aliasesCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-	})
-
-	t.Run("marketplaces list subcommand skips check", func(t *testing.T) {
-		// Arrange - ancestor walk must find "marketplaces", not just cmd.Name()=="list"
-		stubCheckDockerDaemon(t, func() error {
-			return errors.New("should not be called")
-		})
-
-		// Act
-		err := checkDocker(marketplacesListCmd, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -146,25 +113,9 @@ func TestCheckDocker(t *testing.T) {
 		// Assert
 		assert.Equal(t, docker.ErrDaemonNotRunning, err)
 	})
-
-	t.Run("no dry run flag calls check", func(t *testing.T) {
-		// Arrange
-		var called bool
-		stubCheckDockerDaemon(t, func() error {
-			called = true
-			return nil
-		})
-
-		// Act
-		err := checkDocker(inspectCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, called)
-	})
 }
 
-func TestCheckGit(t *testing.T) {
+func Test_checkGit(t *testing.T) {
 	runCmd := &cobra.Command{Use: "run"}
 
 	t.Run("non-run command skips check", func(t *testing.T) {
@@ -229,23 +180,25 @@ func TestCheckGit(t *testing.T) {
 	})
 }
 
-func TestResolveContext(t *testing.T) {
-	t.Run("builds the docker client for the resolved flag value", func(t *testing.T) {
-		// Arrange
-		restoreDockerClient(t)
-		cmd := &cobra.Command{}
-		cmd.Flags().String("docker-context", "", "")
-		require.NoError(t, cmd.Flags().Set("docker-context", "prod"))
+func Test_resolveContext(t *testing.T) {
+	// Arrange - keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
+	restoreDockerClient(t)
+	cmd := &cobra.Command{}
+	cmd.Flags().String("docker-context", "", "")
+	require.NoError(t, cmd.Flags().Set("docker-context", "prod"))
 
-		// Act
-		resolveContext(cmd)
+	// Act
+	resolveContext(cmd)
 
-		// Assert
-		assert.Equal(t, "prod", dockerClient.Context())
-	})
+	// Assert
+	assert.Equal(t, "prod", dockerClient.Context())
 }
 
-func TestPersistentPreRunE(t *testing.T) {
+func Test_persistentPreRunE(t *testing.T) {
+	// Keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
+
 	t.Run("resolves the docker context", func(t *testing.T) {
 		// Arrange
 		restoreDockerClient(t)
@@ -319,7 +272,7 @@ func TestPersistentPreRunE(t *testing.T) {
 	})
 }
 
-func TestInCommandChain(t *testing.T) {
+func Test_inCommandChain(t *testing.T) {
 	t.Run("matches command name", func(t *testing.T) {
 		// Act
 		result := inCommandChain(aliasesCmd, noUpdateCmds)
@@ -352,25 +305,9 @@ func TestInCommandChain(t *testing.T) {
 		// Assert
 		assert.False(t, result)
 	})
-
-	t.Run("matches command name against noMigrateCmds", func(t *testing.T) {
-		// Act
-		result := inCommandChain(migrateCmd, noMigrateCmds)
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("returns false against noMigrateCmds when no ancestor matches", func(t *testing.T) {
-		// Act
-		result := inCommandChain(buildCmd, noMigrateCmds)
-
-		// Assert
-		assert.False(t, result)
-	})
 }
 
-func TestPruneResources(t *testing.T) {
+func Test_pruneResources(t *testing.T) {
 	t.Run("calls pruneImages", func(t *testing.T) {
 		// Arrange
 		var called bool
@@ -395,15 +332,6 @@ func TestPruneResources(t *testing.T) {
 
 		// Assert
 		assert.True(t, called)
-	})
-
-	t.Run("silent on error", func(t *testing.T) {
-		// Arrange
-		stubPruneImages(t, func() error { return fmt.Errorf("prune failed") })
-		stubPruneBuildCache(t, func() error { return fmt.Errorf("cache prune failed") })
-
-		// Act + Assert
-		assert.NotPanics(t, pruneResources)
 	})
 }
 

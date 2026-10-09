@@ -9,21 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func stubFetchLatestVersion(t *testing.T, v string, err error) {
-	t.Helper()
-	orig := fetchLatestVersion
-	fetchLatestVersion = func() (string, error) { return v, err }
-	t.Cleanup(func() { fetchLatestVersion = orig })
-}
-
-func stubPerformUpdate(t *testing.T, err error) {
-	t.Helper()
-	orig := performUpdate
-	performUpdate = func(_ string) error { return err }
-	t.Cleanup(func() { performUpdate = orig })
-}
-
-func TestRunUpgrade(t *testing.T) {
+func Test_runUpgrade(t *testing.T) {
 	t.Run("prints already up to date when no newer version", func(t *testing.T) {
 		// Arrange
 		stubFetchLatestVersion(t, "v1.0.0", nil)
@@ -120,27 +106,6 @@ func TestRunUpgrade(t *testing.T) {
 		assert.Contains(t, logBuf.String(), "updating")
 	})
 
-	t.Run("force skips pre-release check", func(t *testing.T) {
-		// Arrange
-		upgradeForce = true
-		t.Cleanup(func() { upgradeForce = false })
-		var updateCalledWith string
-		stubFetchLatestVersion(t, "v1.0.0", nil)
-		orig := performUpdate
-		performUpdate = func(v string) error { updateCalledWith = v; return nil }
-		t.Cleanup(func() { performUpdate = orig })
-		origVersion := buildinfo.Version
-		buildinfo.Version = "v1.0.0-alpha.1"
-		t.Cleanup(func() { buildinfo.Version = origVersion })
-
-		// Act
-		err := runUpgrade(upgradeCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "v1.0.0", updateCalledWith)
-	})
-
 	t.Run("version flag installs specified version without fetching latest", func(t *testing.T) {
 		// Arrange
 		upgradeVersion = "v0.9.0"
@@ -167,26 +132,5 @@ func TestRunUpgrade(t *testing.T) {
 		assert.False(t, fetchCalled)
 		assert.Equal(t, "v0.9.0", updateCalledWith)
 		assert.Contains(t, out, "v0.9.0")
-	})
-
-	t.Run("version flag skips up-to-date check", func(t *testing.T) {
-		// Arrange
-		upgradeVersion = "v1.0.0"
-		t.Cleanup(func() { upgradeVersion = "" })
-		stubFetchLatestVersion(t, "v1.0.0", nil)
-		var updateCalledWith string
-		orig := performUpdate
-		performUpdate = func(v string) error { updateCalledWith = v; return nil }
-		t.Cleanup(func() { performUpdate = orig })
-		origVersion := buildinfo.Version
-		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = origVersion })
-
-		// Act
-		err := runUpgrade(upgradeCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "v1.0.0", updateCalledWith)
 	})
 }

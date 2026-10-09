@@ -8,18 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBuiltToolNamesFunc(t *testing.T) {
-	t.Run("all built", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", ID: "abc"}, nil)
-
-		// Act
-		names, directive := builtToolNamesFunc(&cobra.Command{}, nil, "")
-
-		// Assert
-		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
-		assert.Equal(t, []string{"claude", "copilot", "opencode"}, names)
-	})
+func Test_builtToolNamesFunc(t *testing.T) {
+	// Keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
 
 	t.Run("tool already provided", func(t *testing.T) {
 		// Arrange
@@ -76,7 +67,7 @@ func TestBuiltToolNamesFunc(t *testing.T) {
 	})
 }
 
-func TestNamespacesFunc(t *testing.T) {
+func Test_namespacesFunc(t *testing.T) {
 	t.Run("returns unique namespaces", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -127,7 +118,7 @@ func TestNamespacesFunc(t *testing.T) {
 	})
 }
 
-func TestVolumeNamesFunc(t *testing.T) {
+func Test_volumeNamesFunc(t *testing.T) {
 	t.Run("returns volume names", func(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven", "gradle"}, nil })
@@ -165,7 +156,7 @@ func TestVolumeNamesFunc(t *testing.T) {
 	})
 }
 
-func TestDockerContextsFunc(t *testing.T) {
+func Test_dockerContextsFunc(t *testing.T) {
 	t.Run("returns context names", func(t *testing.T) {
 		// Arrange
 		stubListContexts(t, func() ([]string, error) { return []string{"default", "prod"}, nil })

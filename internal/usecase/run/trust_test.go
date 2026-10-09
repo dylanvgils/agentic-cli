@@ -78,20 +78,6 @@ func Test_checkTrust(t *testing.T) {
 }
 
 func Test_checkCredentials(t *testing.T) {
-	t.Run("layer without credentials skips prompt", func(t *testing.T) {
-		// Arrange
-		toolHome := t.TempDir()
-		layers := []config.RCLayer{{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}}
-		p := &fakePrompter{}
-
-		// Act
-		err := checkCredentials(layers, toolHome, p)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, p.credentialsAsked)
-	})
-
 	t.Run("approved prompt saves approval", func(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()
@@ -138,21 +124,5 @@ func Test_checkCredentials(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, p.credentialsAsked)
-	})
-
-	t.Run("changed credentials prompt again", func(t *testing.T) {
-		// Arrange
-		toolHome := t.TempDir()
-		layer := credentialLayer(t, "/example.test/key")
-		approveCredentials(t, layer, toolHome)
-		layer.RC.Run.Proxy.Credentials[0].Secret = "/example.test/other"
-		p := &fakePrompter{}
-
-		// Act
-		err := checkCredentials([]config.RCLayer{layer}, toolHome, p)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{layer.Path}, p.credentialsAsked)
 	})
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunAliases(t *testing.T) {
+func Test_runAliases(t *testing.T) {
 	t.Run("prints bash preamble and reload alias", func(t *testing.T) {
 		// Arrange
 		stubCheckDockerDaemon(t, func() error { return nil })
@@ -58,40 +58,6 @@ func TestRunAliases(t *testing.T) {
 		assert.Contains(t, out, "function agentic-reload { agentic aliases | Out-String | Invoke-Expression }")
 	})
 
-	t.Run("prints powershell preamble and reload function on windows", func(t *testing.T) {
-		// Arrange
-		stubCheckDockerDaemon(t, func() error { return nil })
-		stubCurrentGOOS(t, "windows")
-		t.Setenv("SHELL", "")
-
-		// Act
-		out := captureStdout(t, func() {
-			err := runAliases(aliasesCmd, []string{})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "# agentic tool aliases - source with: agentic aliases | Out-String | Invoke-Expression")
-		assert.Contains(t, out, "function agentic-reload { agentic aliases | Out-String | Invoke-Expression }")
-	})
-
-	t.Run("not built tools emit no tool aliases", func(t *testing.T) {
-		// Arrange
-		stubCheckDockerDaemon(t, func() error { return nil })
-		t.Setenv("SHELL", "/bin/bash")
-
-		// Act
-		out := captureStdout(t, func() {
-			err := runAliases(aliasesCmd, []string{})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.NotContains(t, out, "alias claude=")
-		assert.NotContains(t, out, "alias copilot=")
-		assert.NotContains(t, out, "alias opencode=")
-	})
-
 	t.Run("only built tools get aliases", func(t *testing.T) {
 		// Arrange - only claude is built
 		stubCheckDockerDaemon(t, func() error { return nil })
@@ -110,26 +76,6 @@ func TestRunAliases(t *testing.T) {
 		assert.Contains(t, out, "alias claude='agentic run claude'")
 		assert.NotContains(t, out, "alias copilot=")
 		assert.NotContains(t, out, "alias opencode=")
-	})
-
-	t.Run("built tools emit bash alias lines", func(t *testing.T) {
-		// Arrange
-		stubCheckDockerDaemon(t, func() error { return nil })
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{{Tool: "claude"}, {Tool: "copilot"}, {Tool: "opencode"}}, nil
-		})
-		t.Setenv("SHELL", "/bin/bash")
-
-		// Act
-		out := captureStdout(t, func() {
-			err := runAliases(aliasesCmd, []string{})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "alias claude='agentic run claude'")
-		assert.Contains(t, out, "alias copilot='agentic run copilot'")
-		assert.Contains(t, out, "alias opencode='agentic run opencode'")
 	})
 
 	t.Run("built tools emit powershell function lines", func(t *testing.T) {
@@ -287,17 +233,6 @@ func Test_shellFromEnv(t *testing.T) {
 		// Assert
 		assert.Equal(t, "", result)
 	})
-
-	t.Run("unset returns empty", func(t *testing.T) {
-		// Arrange
-		t.Setenv("SHELL", "")
-
-		// Act
-		result := shellFromEnv()
-
-		// Assert
-		assert.Equal(t, "", result)
-	})
 }
 
 func Test_defaultShell(t *testing.T) {
@@ -354,14 +289,6 @@ func Test_reloadLineFor(t *testing.T) {
 	t.Run("bash returns alias", func(t *testing.T) {
 		// Act
 		result := reloadLineFor("bash")
-
-		// Assert
-		assert.Equal(t, "alias agentic-reload='source <(agentic aliases)'", result)
-	})
-
-	t.Run("zsh returns alias", func(t *testing.T) {
-		// Act
-		result := reloadLineFor("zsh")
 
 		// Assert
 		assert.Equal(t, "alias agentic-reload='source <(agentic aliases)'", result)

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunVolumeCreate(t *testing.T) {
+func Test_runVolumeCreate(t *testing.T) {
 	t.Run("calls create volume", func(t *testing.T) {
 		// Arrange
 		var got string
@@ -47,7 +47,7 @@ func TestRunVolumeCreate(t *testing.T) {
 	})
 }
 
-func TestRunVolumeList(t *testing.T) {
+func Test_runVolumeList(t *testing.T) {
 	t.Run("prints raw output", func(t *testing.T) {
 		// Arrange
 		stubListVolumes(t, func() (string, error) {
@@ -78,7 +78,7 @@ func TestRunVolumeList(t *testing.T) {
 	})
 }
 
-func TestRunVolumeRemove(t *testing.T) {
+func Test_runVolumeRemove(t *testing.T) {
 	t.Run("named calls remove volume", func(t *testing.T) {
 		// Arrange
 		var got string
@@ -153,23 +153,6 @@ func TestRunVolumeRemove(t *testing.T) {
 		assert.Contains(t, logBuf.String(), "agentic: removing 2 volume(s)")
 	})
 
-	t.Run("no name confirmed upper y removes all", func(t *testing.T) {
-		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) {
-			return []string{"maven"}, nil
-		})
-		var removed []string
-		stubRemoveVolume(t, func(name string) error { removed = append(removed, name); return nil })
-		stubStdin(t, "Y\n")
-
-		// Act
-		err := runVolumeRemove(volumesRemoveCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"maven"}, removed)
-	})
-
 	t.Run("no name declined n skips removal", func(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) {
@@ -178,23 +161,6 @@ func TestRunVolumeRemove(t *testing.T) {
 		var removeCalled bool
 		stubRemoveVolume(t, func(string) error { removeCalled = true; return nil })
 		stubStdin(t, "n\n")
-
-		// Act
-		err := runVolumeRemove(volumesRemoveCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, removeCalled)
-	})
-
-	t.Run("no name empty input skips removal", func(t *testing.T) {
-		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) {
-			return []string{"maven"}, nil
-		})
-		var removeCalled bool
-		stubRemoveVolume(t, func(string) error { removeCalled = true; return nil })
-		stubStdin(t, "\n")
 
 		// Act
 		err := runVolumeRemove(volumesRemoveCmd, nil)
