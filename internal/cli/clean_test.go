@@ -8,19 +8,14 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newTestCleanCmd() *cobra.Command {
-	cmd := &cobra.Command{}
-	addNamespaceFlag(cmd)
-	addAllFlag(cmd)
-	return cmd
-}
-
 func Test_runClean(t *testing.T) {
+	// Keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
+
 	t.Run("cleans images and global resources when no args", func(t *testing.T) {
 		// Arrange - confirms runClean wires clean.Resolve -> clean.Apply -> clean.GlobalResources
 		// together when no tool arg is given; output formatting and per-target cleanup mechanics

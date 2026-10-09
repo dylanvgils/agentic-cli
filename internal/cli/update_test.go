@@ -16,6 +16,9 @@ import (
 )
 
 func TestRunUpdate(t *testing.T) {
+	// Keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
+
 	stubUpdateLatestToolVersion(t, "", false, false)
 
 	t.Run("no cache flag sets opt", func(t *testing.T) {
@@ -31,8 +34,7 @@ func TestRunUpdate(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, updateCmd.Flags().Set("no-cache", "true"))
-		defer updateCmd.Flags().Set("no-cache", "false") //nolint:errcheck
+		stubFlag(t, updateCmd, "no-cache", "true")
 
 		// Act
 		err := runUpdate(updateCmd, []string{"claude"})
@@ -55,8 +57,7 @@ func TestRunUpdate(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, updateCmd.Flags().Set("skip-install-checksum", "true"))
-		defer updateCmd.Flags().Set("skip-install-checksum", "false") //nolint:errcheck
+		stubFlag(t, updateCmd, "skip-install-checksum", "true")
 
 		// Act
 		err := runUpdate(updateCmd, []string{"claude"})
@@ -100,11 +101,7 @@ func TestRunUpdate(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, updateCmd.Flags().Set("pull", "false"))
-		t.Cleanup(func() {
-			updateCmd.Flags().Set("pull", "true") //nolint:errcheck
-			updateCmd.Flags().Lookup("pull").Changed = false
-		})
+		stubFlag(t, updateCmd, "pull", "false")
 
 		// Act
 		err := runUpdate(updateCmd, []string{"claude"})
@@ -124,8 +121,7 @@ func TestRunUpdate(t *testing.T) {
 			},
 		})
 
-		require.NoError(t, updateCmd.Flags().Set("dry-run", "true"))
-		defer updateCmd.Flags().Set("dry-run", "false") //nolint:errcheck
+		stubFlag(t, updateCmd, "dry-run", "true")
 
 		// Act
 		out := captureStdout(t, func() {
@@ -206,8 +202,7 @@ func TestRunUpdate(t *testing.T) {
 		})
 
 		cmd := updateCmd
-		require.NoError(t, cmd.Flags().Set("all", "true"))
-		defer cmd.Flags().Set("all", "false") //nolint:errcheck
+		stubFlag(t, cmd, "all", "true")
 		logBuf := stubErrLog(t)
 
 		// Act
@@ -239,8 +234,7 @@ func TestRunUpdate(t *testing.T) {
 		stubPruneBuildCache(t, func() error { return nil })
 
 		cmd := updateCmd
-		require.NoError(t, cmd.Flags().Set("all", "true"))
-		defer cmd.Flags().Set("all", "false") //nolint:errcheck
+		stubFlag(t, cmd, "all", "true")
 
 		// Act
 		err := runUpdate(cmd, []string{})
@@ -326,8 +320,7 @@ func TestRunUpdate(t *testing.T) {
 		stubPruneBuildCache(t, func() error { return nil })
 
 		cmd := updateCmd
-		require.NoError(t, cmd.Flags().Set("all", "true"))
-		defer cmd.Flags().Set("all", "false") //nolint:errcheck
+		stubFlag(t, cmd, "all", "true")
 
 		// Act
 		err := runUpdate(cmd, []string{"claude"})

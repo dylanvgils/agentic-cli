@@ -11,6 +11,9 @@ import (
 )
 
 func TestRunBuild(t *testing.T) {
+	// Keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
+
 	t.Run("no cache flag sets opt", func(t *testing.T) {
 		// Arrange
 		var capturedOpts tools.BuildOptions
@@ -21,8 +24,7 @@ func TestRunBuild(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, buildCmd.Flags().Set("no-cache", "true"))
-		defer buildCmd.Flags().Set("no-cache", "false") //nolint:errcheck
+		stubFlag(t, buildCmd, "no-cache", "true")
 
 		// Act
 		err := runBuild(buildCmd, []string{"claude"})
@@ -42,8 +44,7 @@ func TestRunBuild(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, buildCmd.Flags().Set("skip-install-checksum", "true"))
-		defer buildCmd.Flags().Set("skip-install-checksum", "false") //nolint:errcheck
+		stubFlag(t, buildCmd, "skip-install-checksum", "true")
 
 		// Act
 		err := runBuild(buildCmd, []string{"claude"})
@@ -81,8 +82,7 @@ func TestRunBuild(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, buildCmd.Flags().Set("pull", "true"))
-		defer buildCmd.Flags().Set("pull", "false") //nolint:errcheck
+		stubFlag(t, buildCmd, "pull", "true")
 
 		// Act
 		err := runBuild(buildCmd, []string{"claude"})
@@ -121,8 +121,7 @@ func TestRunBuild(t *testing.T) {
 			return nil
 		}})
 
-		require.NoError(t, buildCmd.Flags().Set("dry-run", "true"))
-		defer buildCmd.Flags().Set("dry-run", "false") //nolint:errcheck
+		stubFlag(t, buildCmd, "dry-run", "true")
 
 		// Act
 		out := captureStdout(t, func() {
@@ -159,8 +158,7 @@ func TestRunBuild(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, buildCmd.Flags().Set("node", "22"))
-		defer buildCmd.Flags().Set("node", "") //nolint:errcheck
+		stubFlag(t, buildCmd, "node", "22")
 
 		// Act
 		err := runBuild(buildCmd, []string{"claude"})
@@ -180,8 +178,7 @@ func TestRunBuild(t *testing.T) {
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
 
-		require.NoError(t, buildCmd.Flags().Set("go", "1.23"))
-		defer buildCmd.Flags().Set("go", "") //nolint:errcheck
+		stubFlag(t, buildCmd, "go", "1.23")
 
 		// Act
 		err := runBuild(buildCmd, []string{"claude"})

@@ -9,6 +9,9 @@ import (
 )
 
 func TestBuiltToolNamesFunc(t *testing.T) {
+	// Keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
+
 	t.Run("all built", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", ID: "abc"}, nil)

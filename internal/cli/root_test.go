@@ -230,6 +230,9 @@ func TestCheckGit(t *testing.T) {
 }
 
 func TestResolveContext(t *testing.T) {
+	// Keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
+
 	t.Run("builds the docker client for the resolved flag value", func(t *testing.T) {
 		// Arrange
 		restoreDockerClient(t)
@@ -246,6 +249,9 @@ func TestResolveContext(t *testing.T) {
 }
 
 func TestPersistentPreRunE(t *testing.T) {
+	// Keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
+
 	t.Run("resolves the docker context", func(t *testing.T) {
 		// Arrange
 		restoreDockerClient(t)

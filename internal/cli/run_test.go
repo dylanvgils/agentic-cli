@@ -15,6 +15,9 @@ import (
 )
 
 func TestRunTool(t *testing.T) {
+	// Keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
+
 	t.Run("no args prints help", func(t *testing.T) {
 		// Arrange
 		get := captureRunContainer(t)
@@ -76,11 +79,7 @@ func TestRunTool(t *testing.T) {
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
 		get := captureRunContainer(t)
-		require.NoError(t, runToolCmd.Flags().Set("read-only-mount", "$PWD/creds:/workspace/creds"))
-		t.Cleanup(func() {
-			flagReadOnlyMounts = nil
-			runToolCmd.Flags().Lookup("read-only-mount").Changed = false
-		})
+		stubFlag(t, runToolCmd, "read-only-mount", "$PWD/creds:/workspace/creds")
 
 		// Act
 		err := runTool(runToolCmd, []string{"claude"})
@@ -101,11 +100,7 @@ func TestRunTool(t *testing.T) {
 		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)
 		stubDocker(t, &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)})
 		stubBuildDindImage(t, func(string, tools.BuildOptions) error { return nil })
-		require.NoError(t, runToolCmd.Flags().Set("dind", "true"))
-		t.Cleanup(func() {
-			_ = runToolCmd.Flags().Set("dind", "false")
-			runToolCmd.Flags().Lookup("dind").Changed = false
-		})
+		stubFlag(t, runToolCmd, "dind", "true")
 
 		// Act
 		err := runTool(runToolCmd, []string{"claude"})
@@ -122,11 +117,7 @@ func TestRunTool(t *testing.T) {
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
 		get := captureRunContainer(t)
-		require.NoError(t, runToolCmd.Flags().Set("dind", "true"))
-		t.Cleanup(func() {
-			_ = runToolCmd.Flags().Set("dind", "false")
-			runToolCmd.Flags().Lookup("dind").Changed = false
-		})
+		stubFlag(t, runToolCmd, "dind", "true")
 
 		// Act
 		err := runTool(runToolCmd, []string{"claude"})

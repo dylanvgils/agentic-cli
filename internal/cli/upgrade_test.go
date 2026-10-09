@@ -9,20 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func stubFetchLatestVersion(t *testing.T, v string, err error) {
-	t.Helper()
-	orig := fetchLatestVersion
-	fetchLatestVersion = func() (string, error) { return v, err }
-	t.Cleanup(func() { fetchLatestVersion = orig })
-}
-
-func stubPerformUpdate(t *testing.T, err error) {
-	t.Helper()
-	orig := performUpdate
-	performUpdate = func(_ string) error { return err }
-	t.Cleanup(func() { performUpdate = orig })
-}
-
 func TestRunUpgrade(t *testing.T) {
 	t.Run("prints already up to date when no newer version", func(t *testing.T) {
 		// Arrange

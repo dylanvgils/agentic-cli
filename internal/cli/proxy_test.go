@@ -42,8 +42,7 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 		})
 		stubPruneImages(t, func() error { return nil })
 		stubPruneBuildCache(t, func() error { return nil })
-		require.NoError(t, proxyBuildCmd.Flags().Set("no-cache", "true"))
-		defer proxyBuildCmd.Flags().Set("no-cache", "false") //nolint:errcheck
+		stubFlag(t, proxyBuildCmd, "no-cache", "true")
 
 		// Act
 		err := runProxyBuild(proxyBuildCmd, nil)
@@ -97,8 +96,7 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 			built = true
 			return nil
 		})
-		require.NoError(t, proxyBuildCmd.Flags().Set("dry-run", "true"))
-		defer proxyBuildCmd.Flags().Set("dry-run", "false") //nolint:errcheck
+		stubFlag(t, proxyBuildCmd, "dry-run", "true")
 
 		// Act
 		out := captureStdout(t, func() {
@@ -153,10 +151,7 @@ func Test_runProxyClean(t *testing.T) {
 		var dir string
 		var maxAge time.Duration
 		stubPruneProxyLogs(t, func(d string, m time.Duration) { dir, maxAge = d, m })
-		require.NoError(t, proxyCleanCmd.Flags().Set("logs", "true"))
-		t.Cleanup(func() {
-			_ = proxyCleanCmd.Flags().Set("logs", "false")
-		})
+		stubFlag(t, proxyCleanCmd, "logs", "true")
 
 		// Act
 		err := runProxyClean(proxyCleanCmd, nil)
@@ -173,10 +168,7 @@ func Test_runProxyClean(t *testing.T) {
 		stubCleanImage(t, func(string) error { return fmt.Errorf("clean failed") })
 		pruned := false
 		stubPruneProxyLogs(t, func(string, time.Duration) { pruned = true })
-		require.NoError(t, proxyCleanCmd.Flags().Set("logs", "true"))
-		t.Cleanup(func() {
-			_ = proxyCleanCmd.Flags().Set("logs", "false")
-		})
+		stubFlag(t, proxyCleanCmd, "logs", "true")
 
 		// Act
 		err := runProxyClean(proxyCleanCmd, nil)

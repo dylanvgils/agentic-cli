@@ -22,6 +22,9 @@ var builtInfo = &docker.ImageInfo{
 }
 
 func Test_runInspect(t *testing.T) {
+	// Keep the repo's own .agenticrc.toml out of the test
+	t.Chdir(t.TempDir())
+
 	t.Run("no args propagates table error", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -58,8 +61,7 @@ func Test_runInspect(t *testing.T) {
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{builtInfo, workInfo}, nil
 		})
-		require.NoError(t, inspectCmd.Flags().Set("all", "true"))
-		defer inspectCmd.Flags().Set("all", "false") //nolint:errcheck
+		stubFlag(t, inspectCmd, "all", "true")
 
 		// Act
 		out := captureStdout(t, func() {

@@ -607,3 +607,39 @@ func sliceDefault(defValue string) []string {
 	}
 	return strings.Split(inner, ",")
 }
+
+func newTestCleanCmd() *cobra.Command {
+	cmd := &cobra.Command{}
+	addNamespaceFlag(cmd)
+	addAllFlag(cmd)
+	return cmd
+}
+
+// writeMarketplaceRC writes a minimal .agenticrc.toml declaring one marketplace into dir.
+func writeMarketplaceRC(t *testing.T, dir, name, url string) {
+	t.Helper()
+	content := "root = true\n\n[[marketplaces]]\nname = \"" + name + "\"\nurl = \"" + url + "\"\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte(content), 0o644))
+}
+
+func newTestStatusCmd(t *testing.T) (*cobra.Command, *bytes.Buffer) {
+	t.Helper()
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+	return cmd, &buf
+}
+
+func stubFetchLatestVersion(t *testing.T, v string, err error) {
+	t.Helper()
+	orig := fetchLatestVersion
+	fetchLatestVersion = func() (string, error) { return v, err }
+	t.Cleanup(func() { fetchLatestVersion = orig })
+}
+
+func stubPerformUpdate(t *testing.T, err error) {
+	t.Helper()
+	orig := performUpdate
+	performUpdate = func(_ string) error { return err }
+	t.Cleanup(func() { performUpdate = orig })
+}

@@ -7,18 +7,9 @@ import (
 	"text/tabwriter"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func newTestStatusCmd(t *testing.T) (*cobra.Command, *bytes.Buffer) {
-	t.Helper()
-	var buf bytes.Buffer
-	cmd := &cobra.Command{}
-	cmd.SetOut(&buf)
-	return cmd, &buf
-}
 
 func TestRunStatus(t *testing.T) {
 	t.Run("daemon not running reports status without listing containers", func(t *testing.T) {
