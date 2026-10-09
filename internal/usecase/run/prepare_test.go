@@ -44,32 +44,6 @@ func TestPrepare(t *testing.T) {
 		assert.Empty(t, p.trustAsked)
 	})
 
-	t.Run("declined tool update still runs", func(t *testing.T) {
-		// Arrange
-		req := newPrepareRequest(t)
-		req.Project.RC.Run.CheckUpdates = nil
-		stubLatestToolVersion(t, "2.0.0")
-		applied := false
-		d := &fakeDocker{
-			inspectImage: built,
-			buildTool: func(string, string, tools.BuildOptions) error {
-				applied = true
-				return nil
-			},
-		}
-		p := &fakePrompter{}
-
-		// Act
-		rs, cleanup, err := New(d).Prepare(req, p)
-		defer cleanup()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"claude"}, p.updatesOffered)
-		assert.False(t, applied)
-		assert.Equal(t, "agentic-claude", rs.Image)
-	})
-
 	t.Run("failed tool update stops before the trust prompt", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)

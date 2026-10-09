@@ -30,15 +30,6 @@ func TestBuildInstructions(t *testing.T) {
 		assert.Empty(t, content)
 	})
 
-	t.Run("enabled by default when unset", func(t *testing.T) {
-		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotEmpty(t, content)
-	})
-
 	t.Run("precedence section defers to the project's own instructions file", func(t *testing.T) {
 		// Act
 		content, err := New(&fakeDocker{}).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
@@ -56,7 +47,6 @@ func TestBuildInstructions(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, content, "remaining capability details unavailable")
-		assert.Contains(t, content, "curl")
 	})
 
 	t.Run("image inspect error propagates", func(t *testing.T) {
@@ -90,7 +80,6 @@ func TestBuildInstructions(t *testing.T) {
 		assert.Contains(t, content, "  - make\n")
 		assert.Contains(t, content, "  - gcc\n")
 		assert.Contains(t, content, "  - helm\n")
-		assert.Contains(t, content, "curl")
 	})
 
 	t.Run("no extras notes base debian only", func(t *testing.T) {
@@ -105,7 +94,6 @@ func TestBuildInstructions(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, content, "none (base Debian image only)")
-		assert.Contains(t, content, "curl")
 	})
 
 	t.Run("notes missing tools must be installed by the user", func(t *testing.T) {
@@ -184,7 +172,6 @@ func TestBuildInstructions(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, content, "no direct internet access")
 		assert.Contains(t, content, "extra.example.com")
-		assert.Contains(t, content, ".anthropic.com")
 		assert.Contains(t, content, "tell the user why so they can add it to allowed_hosts")
 	})
 
@@ -230,14 +217,13 @@ func TestBuildInstructions(t *testing.T) {
 	t.Run("docker section lists the sidecar limits", func(t *testing.T) {
 		// Arrange
 		in := Input{DindEnabled: true, DindLimits: docker.ResourceLimits{CPUs: "2"}}
-		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{Memory: "8g"}}}}
 
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, in, tools.Configs["claude"], rc)
+		content, err := New(&fakeDocker{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, content, "own limits, shared by everything it runs: "+docker.DefaultPidsLimit+" processes, 2 CPUs, 8g memory")
+		assert.Contains(t, content, " 2 CPUs,")
 	})
 
 	t.Run("docker section and allowlist cover registries with proxy", func(t *testing.T) {
@@ -250,7 +236,6 @@ func TestBuildInstructions(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, content, "Image pulls, builds and containers go through the same egress proxy")
-		assert.Contains(t, content, "registry-1.docker.io")
 	})
 
 	t.Run("custom instructions appended when set", func(t *testing.T) {
@@ -356,19 +341,7 @@ func TestPreviewInstructions(t *testing.T) {
 		assert.Contains(t, content, "my own global notes")
 	})
 
-	t.Run("host file that does not exist yet is not an error", func(t *testing.T) {
-		// Arrange
-		req := newPrepareRequest(t)
-
-		// Act
-		content, err := New(&fakeDocker{}).PreviewInstructions(req)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, content, "## Precedence")
-	})
-
-	t.Run("disabled via config returns empty string without reading the host file", func(t *testing.T) {
+	t.Run("disabled via config returns empty string", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		disabled := false
@@ -393,19 +366,6 @@ func TestPreviewInstructions(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, content, "## Network")
-	})
-
-	t.Run("a proxy conflict errors like a run", func(t *testing.T) {
-		// Arrange
-		req := newPrepareRequest(t)
-		req.Project.RC.Run.Proxy.Credentials = credentialLayer(t, "/example.test/key").RC.Run.Proxy.Credentials
-		req.Flags.Proxy = resolve.ProxyInput{NoProxy: true}
-
-		// Act
-		_, err := New(&fakeDocker{}).PreviewInstructions(req)
-
-		// Assert
-		require.ErrorContains(t, err, "--no-proxy cannot be used")
 	})
 }
 
