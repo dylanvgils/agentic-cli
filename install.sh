@@ -45,7 +45,7 @@ install_from_release() {
 
   echo "Fetching latest release..."
   local version
-  version=$(curl -fsSL https://api.github.com/repos/dylanvgils/agentic-cli/releases/latest |
+  version=$(curl --proto '=https' --tlsv1.2 -fsSL https://api.github.com/repos/dylanvgils/agentic-cli/releases/latest |
     grep '"tag_name"' |
     sed 's/.*"tag_name": *"v\([^"]*\)".*/\1/')
 
@@ -64,8 +64,8 @@ install_from_release() {
   trap "rm -rf '${tmpdir}'" EXIT
 
   echo "Downloading agentic ${version} for ${OS}/${ARCH}..."
-  curl -fsSL "${url}" -o "${tmpdir}/${archive}"
-  curl -fsSL "${checksums_url}" -o "${tmpdir}/checksums.txt"
+  curl --proto '=https' --tlsv1.2 -fsSL "${url}" -o "${tmpdir}/${archive}"
+  curl --proto '=https' --tlsv1.2 -fsSL "${checksums_url}" -o "${tmpdir}/checksums.txt"
 
   echo "Verifying checksum..."
   local expected
