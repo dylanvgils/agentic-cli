@@ -121,7 +121,7 @@ agentic volumes remove            # remove all agentic volumes
 
 ## Docker context
 
-`--docker-context` picks a [Docker context](https://docs.docker.com/engine/manage-resources/contexts/) other than the active one, and tab-completes from `docker context ls`. `agentic status` shows the context in use when it isn't the default. Set a default with [`docker_context`](config.md#top-level-keys).
+`--docker-context` picks a [Docker context](https://docs.docker.com/engine/manage-resources/contexts/) other than the active one, and tab-completes from `docker context ls`. `agentic status` shows the context in use. Set a default with [`docker_context`](config.md#top-level-keys).
 
 ```bash
 agentic --docker-context prod build claude
@@ -134,6 +134,7 @@ agentic --docker-context prod build claude
 - `tools/<tool>/` - each tool's state. See [Volume mounts](volume-mounts.md) for the paths.
 - `marketplaces/` - [marketplace](#marketplaces) clones
 - `logs/` - agentic's own logs, e.g. `proxy_<id>.jsonl`
+- `custom-installs/` - the [custom installs](config.md#buildcustom_installs) each image was built with, so `agentic update` can rebuild them. `agentic clean` removes the ones no image uses anymore.
 
 `--home` overrides it for one command, and every command accepts it: `agentic --home /opt/agentic run claude`.
 

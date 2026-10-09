@@ -80,22 +80,53 @@ func TestEnsure(t *testing.T) {
 }
 
 func TestBuildProxy(t *testing.T) {
-	// Arrange
-	var image, version string
-	var opts tools.BuildOptions
-	svc := New(&fakeDocker{buildProxyImage: func(i, v, _ string, o tools.BuildOptions) error {
-		image, version, opts = i, v, o
-		return nil
-	}})
+	t.Run("builds the proxy image for this CLI version", func(t *testing.T) {
+		// Arrange
+		var image, version string
+		var opts tools.BuildOptions
+		svc := New(&fakeDocker{buildProxyImage: func(i, v, _ string, o tools.BuildOptions) error {
+			image, version, opts = i, v, o
+			return nil
+		}})
 
-	// Act
-	err := svc.BuildProxy(tools.BuildOptions{NoCache: true})
+		// Act
+		err := svc.BuildProxy(tools.BuildOptions{NoCache: true})
 
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, tools.ProxyImage, image)
-	assert.Equal(t, buildinfo.Version, version)
-	assert.True(t, opts.NoCache)
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, tools.ProxyImage, image)
+		assert.Equal(t, buildinfo.Version, version)
+		assert.True(t, opts.NoCache)
+	})
+
+	t.Run("prunes after a successful build", func(t *testing.T) {
+		// Arrange
+		pruned := false
+		svc := New(&fakeDocker{pruneDangling: func() error { pruned = true; return nil }})
+
+		// Act
+		err := svc.BuildProxy(tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, pruned)
+	})
+
+	t.Run("build error is returned without pruning", func(t *testing.T) {
+		// Arrange
+		pruned := false
+		svc := New(&fakeDocker{
+			buildProxyImage: func(string, string, string, tools.BuildOptions) error { return fmt.Errorf("build failed") },
+			pruneDangling:   func() error { pruned = true; return nil },
+		})
+
+		// Act
+		err := svc.BuildProxy(tools.BuildOptions{})
+
+		// Assert
+		require.ErrorContains(t, err, "build failed")
+		assert.False(t, pruned)
+	})
 }
 
 func Test_ensureProxy(t *testing.T) {
@@ -150,7 +181,21 @@ func Test_ensureProxy(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{tools.ProxyImage}, built())
-		assert.Contains(t, logBuf.String(), "building agentic-proxy")
+		assert.Contains(t, logBuf.String(), "building agentic-proxy (built by a different agentic version)")
+	})
+
+	t.Run("never prunes, so agentic run leaves the build cache alone", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		pruned := false
+		svc := New(&fakeDocker{pruneDangling: func() error { pruned = true; return nil }})
+
+		// Act
+		err := svc.ensureProxy("")
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, pruned)
 	})
 }
 
@@ -181,7 +226,7 @@ func Test_ensureDind(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{tools.DindImage}, built())
-		assert.Contains(t, logBuf.String(), "building agentic-dind")
+		assert.Contains(t, logBuf.String(), "building agentic-dind (image missing)")
 	})
 
 	t.Run("stale image is rebuilt to pick up base patches", func(t *testing.T) {
@@ -197,7 +242,7 @@ func Test_ensureDind(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{tools.DindImage}, built())
-		assert.Contains(t, logBuf.String(), "building agentic-dind")
+		assert.Contains(t, logBuf.String(), "building agentic-dind (older than")
 	})
 
 	t.Run("failed refresh of an existing image only warns", func(t *testing.T) {

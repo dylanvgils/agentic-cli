@@ -307,45 +307,22 @@ func Test_inCommandChain(t *testing.T) {
 	})
 }
 
-func Test_pruneResources(t *testing.T) {
-	t.Run("calls pruneImages", func(t *testing.T) {
-		// Arrange
-		var called bool
-		stubPruneImages(t, func() error { called = true; return nil })
-		stubPruneBuildCache(t, func() error { return nil })
-
-		// Act
-		pruneResources()
-
-		// Assert
-		assert.True(t, called)
-	})
-
-	t.Run("calls pruneBuildCache", func(t *testing.T) {
-		// Arrange
-		var called bool
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { called = true; return nil })
-
-		// Act
-		pruneResources()
-
-		// Assert
-		assert.True(t, called)
-	})
-}
-
 // TestHomeFlag checks --home stays one root flag that no command shadows with its own.
 func TestHomeFlag(t *testing.T) {
 	// Arrange
 	var own []string
-
-	// Act
-	for _, cmd := range rootCmd.Commands() {
-		if cmd.LocalNonPersistentFlags().Lookup("home") != nil || cmd.PersistentFlags().Lookup("home") != nil {
-			own = append(own, cmd.Name())
+	var walk func(cmd *cobra.Command)
+	walk = func(cmd *cobra.Command) {
+		for _, sub := range cmd.Commands() {
+			if sub.LocalNonPersistentFlags().Lookup("home") != nil || sub.PersistentFlags().Lookup("home") != nil {
+				own = append(own, sub.CommandPath())
+			}
+			walk(sub)
 		}
 	}
+
+	// Act
+	walk(rootCmd)
 
 	// Assert
 	require.NotNil(t, rootCmd.PersistentFlags().Lookup("home"))

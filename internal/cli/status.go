@@ -19,11 +19,16 @@ func init() {
 }
 
 func runStatus(cmd *cobra.Command, _ []string) error {
-	out := cmd.OutOrStdout()
+	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+
+	// A failed lookup shouldn't hide the rest of the status
+	ctx, _ := dockerClient.CurrentContext()
 
 	if err := dockerClient.CheckDaemon(); err != nil {
-		_, err := fmt.Fprintln(out, "Docker: not running")
-		return err
+		if _, err := fmt.Fprintf(w, "Docker:\tnot running\nDocker context:\t%s\n", orDash(ctx)); err != nil {
+			return err
+		}
+		return w.Flush()
 	}
 
 	containers, err := dockerClient.ListRunningContainers()
@@ -31,15 +36,7 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-
-	if ctx := dockerClient.Context(); ctx != "" {
-		if _, err := fmt.Fprintf(w, "Docker context:\t%s\n", ctx); err != nil {
-			return err
-		}
-	}
-
-	if _, err := fmt.Fprintf(w, "Docker:\trunning\nContainers running:\t%d\n", len(containers)); err != nil {
+	if _, err := fmt.Fprintf(w, "Docker:\trunning\nDocker context:\t%s\nContainers running:\t%d\n", orDash(ctx), len(containers)); err != nil {
 		return err
 	}
 

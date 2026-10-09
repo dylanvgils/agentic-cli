@@ -31,8 +31,6 @@ func Test_runUpdate(t *testing.T) {
 			},
 			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
 		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 
 		stubFlag(t, updateCmd, "no-cache", "true")
 
@@ -54,8 +52,6 @@ func Test_runUpdate(t *testing.T) {
 			},
 			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
 		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 
 		stubFlag(t, updateCmd, "skip-install-checksum", "true")
 
@@ -77,8 +73,6 @@ func Test_runUpdate(t *testing.T) {
 			},
 			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
 		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 
 		// Act
 		err := runUpdate(updateCmd, []string{"claude"})
@@ -98,8 +92,6 @@ func Test_runUpdate(t *testing.T) {
 			},
 			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
 		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 
 		stubFlag(t, updateCmd, "pull", "false")
 
@@ -179,8 +171,6 @@ func Test_runUpdate(t *testing.T) {
 				return nil, nil
 			},
 		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 
 		// Act
 		err := runUpdate(updateCmd, []string{})
@@ -195,7 +185,7 @@ func Test_runUpdate(t *testing.T) {
 		assert.Less(t, summary, skipped, "skipped lines follow the summary")
 	})
 
-	t.Run("all flag updates all images and prunes", func(t *testing.T) {
+	t.Run("all flag updates all images", func(t *testing.T) {
 		// Arrange
 		logBuf := stubErrLog(t)
 		var updated []string
@@ -212,8 +202,6 @@ func Test_runUpdate(t *testing.T) {
 				}, nil
 			},
 		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 
 		cmd := updateCmd
 		stubFlag(t, cmd, "all", "true")
@@ -240,8 +228,6 @@ func Test_runUpdate(t *testing.T) {
 			},
 			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0", Base: "go@1.23"}, nil),
 		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 
 		stubFlag(t, updateCmd, "base-exact", "")
 
@@ -267,8 +253,6 @@ func Test_runUpdate(t *testing.T) {
 			},
 			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0", Apt: "cmake"}, nil),
 		})
-		stubPruneImages(t, func() error { return nil })
-		stubPruneBuildCache(t, func() error { return nil })
 
 		stubFlag(t, updateCmd, "apt-exact", "")
 

@@ -11,21 +11,22 @@ import (
 
 // ImageInfo holds metadata about a built tool image.
 type ImageInfo struct {
-	Image          string
-	Namespace      string // image namespace (e.g. "agentic", "myproject")
-	Tool           string // tool name (e.g. "claude", "copilot")
-	ID             string // 12-char short ID
-	Version        string // agentic.tool.version label
-	Base           string // agentic.base label
-	VersionArgs    string // agentic.version-args label (layer name@version pairs used to build, e.g. "node@24,java@17")
-	Apt            string // agentic.apt label (comma-separated apt packages)
-	CustomInstalls string // agentic.custom-installs label (comma-separated custom install names)
-	Built          string // agentic.built label
-	Pulled         string // agentic.pulled label
-	CLIVersion     string // agentic.version label (CLI version that built this image)
-	CacheBust      string // agentic.cachebust label (CACHEBUST build-arg baked into the tool stage)
-	ProxyTrust     bool   // agentic.proxy-trust label (entrypoint trusts the proxy CA)
-	Size           string // formatted size from docker image ls
+	Image              string
+	Namespace          string // image namespace (e.g. "agentic", "myproject")
+	Tool               string // tool name (e.g. "claude", "copilot")
+	ID                 string // 12-char short ID
+	Version            string // agentic.tool.version label
+	Base               string // agentic.base label
+	VersionArgs        string // agentic.version-args label (layer name@version pairs used to build, e.g. "node@24,java@17")
+	Apt                string // agentic.apt label (comma-separated apt packages)
+	CustomInstalls     string // agentic.custom-installs label (comma-separated custom install names)
+	CustomInstallsHash string // agentic.custom-installs.hash label (key of the stored custom installs)
+	Built              string // agentic.built label
+	Pulled             string // agentic.pulled label
+	CLIVersion         string // agentic.version label (CLI version that built this image)
+	CacheBust          string // agentic.cachebust label (CACHEBUST build-arg baked into the tool stage)
+	ProxyTrust         bool   // agentic.proxy-trust label (entrypoint trusts the proxy CA)
+	Size               string // formatted size from docker image ls
 }
 
 // BuiltBefore reports whether the agentic.built label predates cutoff; a missing or invalid label counts as before.
@@ -47,21 +48,22 @@ func (c *Client) InspectImage(name string) (*ImageInfo, error) {
 	namespace, tool := resolveToolName(name, result.Config.Labels[LabelTool], result.Config.Labels[LabelNamespace])
 
 	return &ImageInfo{
-		Image:          name,
-		Namespace:      namespace,
-		Tool:           tool,
-		ID:             extractShortID(result.ID),
-		Version:        result.Config.Labels[LabelToolVersion],
-		Base:           result.Config.Labels[LabelBase],
-		VersionArgs:    result.Config.Labels[LabelVersionArgs],
-		Apt:            result.Config.Labels[LabelApt],
-		CustomInstalls: result.Config.Labels[LabelCustomInstalls],
-		Built:          result.Config.Labels[LabelBuilt],
-		Pulled:         result.Config.Labels[LabelPulled],
-		CLIVersion:     result.Config.Labels[LabelCLIVersion],
-		CacheBust:      result.Config.Labels[LabelCacheBust],
-		ProxyTrust:     result.Config.Labels[LabelProxyTrust] == "true",
-		Size:           c.imageSize(name),
+		Image:              name,
+		Namespace:          namespace,
+		Tool:               tool,
+		ID:                 extractShortID(result.ID),
+		Version:            result.Config.Labels[LabelToolVersion],
+		Base:               result.Config.Labels[LabelBase],
+		VersionArgs:        result.Config.Labels[LabelVersionArgs],
+		Apt:                result.Config.Labels[LabelApt],
+		CustomInstalls:     result.Config.Labels[LabelCustomInstalls],
+		CustomInstallsHash: result.Config.Labels[LabelCustomInstallsHash],
+		Built:              result.Config.Labels[LabelBuilt],
+		Pulled:             result.Config.Labels[LabelPulled],
+		CLIVersion:         result.Config.Labels[LabelCLIVersion],
+		CacheBust:          result.Config.Labels[LabelCacheBust],
+		ProxyTrust:         result.Config.Labels[LabelProxyTrust] == "true",
+		Size:               c.imageSize(name),
 	}, nil
 }
 

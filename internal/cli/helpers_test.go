@@ -32,8 +32,7 @@ type fakeDocker struct {
 	listAllImages         func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	cleanImage            func(string) error
 	cleanBaseImages       func() error
-	pruneImages           func() error
-	pruneBuildCache       func() error
+	pruneDangling         func() error
 	resolveContainerHome  func(string) string
 	runContainer          func(rs docker.RunSpec, toolArgs []string) error
 	listRunningContainers func() ([]*docker.ContainerInfo, error)
@@ -47,9 +46,17 @@ type fakeDocker struct {
 	sweepProxyResources   func() error
 	sweepDindResources    func(string) error
 	listContexts          func() ([]string, error)
+	currentContext        func() (string, error)
 }
 
 func (f *fakeDocker) Context() string { return f.context }
+
+func (f *fakeDocker) CurrentContext() (string, error) {
+	if f.currentContext == nil {
+		return f.context, nil
+	}
+	return f.currentContext()
+}
 
 func (f *fakeDocker) CheckDaemon() error {
 	if f.checkDaemon == nil {
@@ -113,18 +120,11 @@ func (f *fakeDocker) CleanBaseImages() error {
 	return f.cleanBaseImages()
 }
 
-func (f *fakeDocker) PruneImages() error {
-	if f.pruneImages == nil {
+func (f *fakeDocker) PruneDangling() error {
+	if f.pruneDangling == nil {
 		return nil
 	}
-	return f.pruneImages()
-}
-
-func (f *fakeDocker) PruneBuildCache() error {
-	if f.pruneBuildCache == nil {
-		return nil
-	}
-	return f.pruneBuildCache()
+	return f.pruneDangling()
 }
 
 func (f *fakeDocker) ResolveContainerHome(image string) string {
@@ -250,11 +250,8 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.cleanBaseImages != nil {
 		f.cleanBaseImages = o.cleanBaseImages
 	}
-	if o.pruneImages != nil {
-		f.pruneImages = o.pruneImages
-	}
-	if o.pruneBuildCache != nil {
-		f.pruneBuildCache = o.pruneBuildCache
+	if o.pruneDangling != nil {
+		f.pruneDangling = o.pruneDangling
 	}
 	if o.resolveContainerHome != nil {
 		f.resolveContainerHome = o.resolveContainerHome
@@ -294,6 +291,9 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 	if o.listContexts != nil {
 		f.listContexts = o.listContexts
+	}
+	if o.currentContext != nil {
+		f.currentContext = o.currentContext
 	}
 }
 
@@ -480,14 +480,9 @@ func stubListContexts(t *testing.T, fn func() ([]string, error)) {
 	stubDocker(t, &fakeDocker{listContexts: fn})
 }
 
-func stubPruneImages(t *testing.T, fn func() error) {
+func stubCurrentContext(t *testing.T, fn func() (string, error)) {
 	t.Helper()
-	stubDocker(t, &fakeDocker{pruneImages: fn})
-}
-
-func stubPruneBuildCache(t *testing.T, fn func() error) {
-	t.Helper()
-	stubDocker(t, &fakeDocker{pruneBuildCache: fn})
+	stubDocker(t, &fakeDocker{currentContext: fn})
 }
 
 func stubRemoveVolume(t *testing.T, fn func(string) error) {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -18,6 +19,7 @@ type fakeDocker struct {
 	inspectImage  func(string) (*docker.ImageInfo, error)
 	buildTool     func(tool, image string, opts tools.BuildOptions) error
 	restampImage  func(image string, info docker.ImageInfo)
+	pruneDangling func() error
 }
 
 func (f *fakeDocker) ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -45,6 +47,13 @@ func (f *fakeDocker) RestampImage(image string, info docker.ImageInfo) {
 	if f.restampImage != nil {
 		f.restampImage(image, info)
 	}
+}
+
+func (f *fakeDocker) PruneDangling() error {
+	if f.pruneDangling == nil {
+		return nil
+	}
+	return f.pruneDangling()
 }
 
 // inspectReturns returns an InspectImage func that always yields info and err.
@@ -103,4 +112,23 @@ func captureLog(t *testing.T, fn func()) string {
 	fn()
 
 	return buf.String()
+}
+
+// stubErrLog swaps logging.Err for a buffer until the test ends.
+func stubErrLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+
+	var buf bytes.Buffer
+	orig := logging.Err
+	logging.Err = logging.New(&buf)
+	t.Cleanup(func() { logging.Err = orig })
+
+	return &buf
+}
+
+// storeCustomInstalls saves installs to the custom installs store under home and returns their hash.
+func storeCustomInstalls(t *testing.T, home string, installs ...config.RCCustomInstall) string {
+	t.Helper()
+	require.NoError(t, config.SaveCustomInstalls(home, installs))
+	return config.CustomInstallsHash(installs)
 }

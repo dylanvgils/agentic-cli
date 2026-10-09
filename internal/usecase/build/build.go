@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
@@ -13,16 +14,17 @@ import (
 // Service builds tool images for `agentic build`.
 type Service struct {
 	docker Docker
+	home   string // agentic data dir, for the custom installs store and update check timestamps
 }
 
-// New returns a Service that talks to Docker through d.
-func New(d Docker) *Service {
-	return &Service{docker: d}
+// New returns a Service that talks to Docker through d and keeps custom installs under home.
+func New(d Docker, home string) *Service {
+	return &Service{docker: d, home: home}
 }
 
-// Apply builds each tool image in names under namespace, announcing the batch and reporting the base/apt overrides in effect for each.
-// A fresh build has the latest tool, so it resets `agentic run`'s update check timer in toolHome.
-func (s *Service) Apply(toolHome string, names []string, namespace string, opts tools.BuildOptions) error {
+// Apply builds each tool image in names under namespace, announcing the batch and reporting the base/apt overrides in effect for each,
+// then prunes the dangling images and build cache the builds left behind. A fresh build has the latest tool, so it resets `agentic run`'s update check timer.
+func (s *Service) Apply(names []string, namespace string, opts tools.BuildOptions) error {
 	images := make([]string, len(names))
 	for i, name := range names {
 		image, err := tools.ImageName(name, namespace)
@@ -33,6 +35,10 @@ func (s *Service) Apply(toolHome string, names []string, namespace string, opts 
 	}
 
 	logging.Infof("building %d image(s): %s", len(images), strings.Join(images, ", "))
+
+	if err := config.SaveCustomInstalls(s.home, opts.CustomInstalls); err != nil {
+		return fmt.Errorf("saving custom installs: %w", err)
+	}
 
 	for i, name := range names {
 		image := images[i]
@@ -53,10 +59,13 @@ func (s *Service) Apply(toolHome string, names []string, namespace string, opts 
 			return err
 		}
 
-		if err := toolupdate.MarkChecked(toolHome, name); err != nil {
+		if err := toolupdate.MarkChecked(s.home, name); err != nil {
 			logging.Warnf("could not record update check for %s: %v", name, err)
 		}
 	}
+
+	// Best effort: a failed cleanup never fails the build
+	_ = s.docker.PruneDangling()
 	return nil
 }
 
