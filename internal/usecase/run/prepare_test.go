@@ -30,6 +30,22 @@ func TestPrepare(t *testing.T) {
 		assert.Equal(t, "agentic-claude", rs.Image)
 	})
 
+	t.Run("network share working dir is refused before any check", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Project.Dir = "//server.example.test/share/project"
+		inspected := false
+		d := &fakeDocker{inspectImage: func(string) (*docker.ImageInfo, error) { inspected = true; return nil, nil }}
+
+		// Act
+		_, cleanup, err := New(d).Prepare(req, &fakePrompter{})
+		defer cleanup()
+
+		// Assert
+		require.ErrorContains(t, err, "is on a network share")
+		assert.False(t, inspected)
+	})
+
 	t.Run("missing image stops before any prompt", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)

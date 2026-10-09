@@ -1,11 +1,9 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/spf13/cobra"
@@ -90,9 +88,6 @@ func runTool(cmd *cobra.Command, args []string) error {
 // parseInvocation loads the working dir's config layers and parses the tool, image and tool args from args.
 func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
 	cwd, _ := os.Getwd()
-	if mount.IsUNCPath(cwd) {
-		return invocation{}, fmt.Errorf("working directory %q is on a network share; Docker cannot bind-mount UNC paths", cwd)
-	}
 
 	// Load the layers once so the credentials approved later are the ones the run uses
 	layers, err := config.FindLayers(cwd)
