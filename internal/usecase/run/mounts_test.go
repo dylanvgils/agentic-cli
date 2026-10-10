@@ -1,6 +1,7 @@
 package run
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +32,26 @@ func Test_mountSet_hostPaths(t *testing.T) {
 	assert.Equal(t, []string{filepath.Join(home, "token"), filepath.Join(home, "other")}, paths)
 }
 
-func Test_mountSet_pinSymlinks(t *testing.T) {
+func Test_newMountSet(t *testing.T) {
+	// Arrange
+	ws := chdirSymlinkWorkspace(t)
+	req := buildRequest{
+		in:            Input{ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data"}, Secrets: []string{"token:$PWD/link/token"}},
+		toolConfig:    tools.Configs["claude"],
+		rc:            &config.AgenticRC{},
+		containerHome: "/home/agent",
+	}
+
+	// Act
+	mounts, err := newMountSet(req, nil)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Contains(t, mounts.volumes, ws.real+":/data:ro")
+	assert.Equal(t, []string{"token:" + filepath.Join(ws.real, "token")}, mounts.secrets)
+}
+
+func Test_mountSet_resolveMounts(t *testing.T) {
 	ws := chdirSymlinkWorkspace(t)
 	toolHome := t.TempDir()
 
@@ -39,12 +60,12 @@ func Test_mountSet_pinSymlinks(t *testing.T) {
 		mounts := mountSet{volumes: []string{"$PWD/link:/data"}, secrets: []string{"token:$PWD/link/token"}, toolHome: toolHome, containerHome: "/home/agent"}
 
 		// Act
-		pinned, err := mounts.pinSymlinks()
+		resolved, err := mounts.resolveMounts()
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{ws.real + ":/data"}, pinned.volumes)
-		assert.Equal(t, []string{"token:" + filepath.Join(ws.real, "token")}, pinned.secrets)
+		assert.Equal(t, []string{ws.real + ":/data"}, resolved.volumes)
+		assert.Equal(t, []string{"token:" + filepath.Join(ws.real, "token")}, resolved.secrets)
 	})
 
 	t.Run("escaping secret is refused", func(t *testing.T) {
@@ -52,10 +73,21 @@ func Test_mountSet_pinSymlinks(t *testing.T) {
 		mounts := mountSet{secrets: []string{"key:$PWD/escape/id_ed25519"}, toolHome: toolHome, containerHome: "/home/agent"}
 
 		// Act
-		_, err := mounts.pinSymlinks()
+		_, err := mounts.resolveMounts()
 
 		// Assert
 		assert.ErrorContains(t, err, "leads through a workspace symlink")
+	})
+
+	t.Run("mount exposing agentic.json is refused", func(t *testing.T) {
+		// Arrange
+		mounts := mountSet{volumes: []string{"$TOOL_HOME:/agentic"}, toolHome: toolHome, containerHome: "/home/agent"}
+
+		// Act
+		_, err := mounts.resolveMounts()
+
+		// Assert
+		assert.ErrorContains(t, err, "would expose")
 	})
 }
 
@@ -298,4 +330,34 @@ func Test_resolveExisting(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, filepath.Join(ws.outside, "missing"), real)
+}
+
+func Test_pinAll(t *testing.T) {
+	t.Run("pins every spec in order", func(t *testing.T) {
+		// Arrange
+		pin := func(spec string) (string, error) { return spec + ":pinned", nil }
+
+		// Act
+		pinned, err := pinAll([]string{"a", "b"}, pin)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"a:pinned", "b:pinned"}, pinned)
+	})
+
+	t.Run("stops at the first error", func(t *testing.T) {
+		// Arrange
+		var seen []string
+		pin := func(spec string) (string, error) {
+			seen = append(seen, spec)
+			return "", errors.New("refused")
+		}
+
+		// Act
+		_, err := pinAll([]string{"a", "b"}, pin)
+
+		// Assert
+		assert.EqualError(t, err, "refused")
+		assert.Equal(t, []string{"a"}, seen)
+	})
 }

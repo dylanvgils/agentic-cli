@@ -9,6 +9,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
 // caseInsensitivePaths reports whether host paths differing only in case name the same file, as on default macOS and Windows filesystems.
@@ -20,6 +21,17 @@ type mountSet struct {
 	secrets       []string
 	toolHome      string
 	containerHome string
+}
+
+// newMountSet assembles the run's volumes and secrets and resolves them, so an unchecked set never reaches docker.
+func newMountSet(req buildRequest, marketplaceMounts []string) (mountSet, error) {
+	m := mountSet{
+		volumes:       runVolumes(req, marketplaceMounts),
+		secrets:       resolve.Secrets(req.in.Secrets, req.rc),
+		toolHome:      req.in.ToolHome,
+		containerHome: req.containerHome,
+	}
+	return m.resolveMounts()
 }
 
 // hostPaths returns the expanded host side of every bind mount and secret mount.
@@ -40,8 +52,8 @@ func (m mountSet) hostPaths() []string {
 	return paths
 }
 
-// pinSymlinks replaces host paths redirected by a workspace symlink with their real path, refusing links out of cwd.
-func (m mountSet) pinSymlinks() (mountSet, error) {
+// resolveMounts pins workspace symlinks to their real paths, then refuses mounts exposing agentic.json.
+func (m mountSet) resolveMounts() (mountSet, error) {
 	volumes, err := pinAll(m.volumes, m.pinVolume)
 	if err != nil {
 		return mountSet{}, err
@@ -53,6 +65,9 @@ func (m mountSet) pinSymlinks() (mountSet, error) {
 	}
 
 	m.volumes, m.secrets = volumes, secrets
+	if err := m.checkConfigNotMounted(); err != nil {
+		return mountSet{}, err
+	}
 	return m, nil
 }
 
