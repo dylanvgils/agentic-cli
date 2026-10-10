@@ -29,6 +29,8 @@ type fakeResource struct {
 	name    string
 	labels  []string
 	network string
+	aliases []string
+	port    string
 	cmd     []string
 }
 
@@ -60,9 +62,21 @@ func (f *fakeResource) onNetwork(network string) *fakeResource {
 	return f
 }
 
+// withAlias gives the container a DNS alias on its network.
+func (f *fakeResource) withAlias(alias string) *fakeResource {
+	f.aliases = append(f.aliases, alias)
+	return f
+}
+
 // listening makes the container run a TCP server on listenPort.
 func (f *fakeResource) listening() *fakeResource {
-	f.cmd = []string{"nc", "-lk", listenPort}
+	return f.listeningOn(listenPort)
+}
+
+// listeningOn makes the container run a TCP server on port.
+func (f *fakeResource) listeningOn(port string) *fakeResource {
+	f.port = port
+	f.cmd = []string{"nc", "-lk", port}
 	return f
 }
 
@@ -80,6 +94,9 @@ func (f *fakeResource) create() *fakeResource {
 	}
 	if f.network != "" {
 		args = append(args, "--network", f.network)
+	}
+	for _, a := range f.aliases {
+		args = append(args, "--network-alias", a)
 	}
 
 	if f.kind == "container" {
@@ -111,10 +128,10 @@ func (f *fakeResource) ip() string {
 	return strings.TrimSpace(string(out))
 }
 
-// awaitListening waits until the container accepts connections on listenPort.
+// awaitListening waits until the container accepts connections on its port.
 func (f *fakeResource) awaitListening() {
 	f.t.Helper()
 	require.Eventually(f.t, func() bool {
-		return exec.Command("docker", "exec", f.name, "nc", "-z", "127.0.0.1", listenPort).Run() == nil
+		return exec.Command("docker", "exec", f.name, "nc", "-z", "127.0.0.1", f.port).Run() == nil
 	}, 10*time.Second, 100*time.Millisecond, "fake container %s never started listening", f.name)
 }

@@ -100,6 +100,17 @@ func approveSettings(rcPath string) error {
 	return nil
 }
 
+// proxyWorkDir returns a work dir whose approved .agenticrc.toml adds hosts to the proxy allowlist.
+func proxyWorkDir(t *testing.T, hosts ...string) string {
+	t.Helper()
+	dir := tempDirIn(t, rootDir)
+	rcPath := filepath.Join(dir, ".agenticrc.toml")
+	rc := rcContents + "\n[run.proxy]\nallowed_hosts = [\"" + strings.Join(hosts, `", "`) + "\"]\n"
+	require.NoError(t, os.WriteFile(rcPath, []byte(rc), 0o644))
+	require.NoError(t, approveSettings(rcPath))
+	return dir
+}
+
 // proxyLog returns every proxy access log written under the test AGENTIC_HOME, concatenated.
 func proxyLog(t *testing.T) string {
 	t.Helper()

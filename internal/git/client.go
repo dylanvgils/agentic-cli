@@ -12,7 +12,7 @@ var Timeout = 45 * time.Second
 
 // run is a test-stubbable indirection over `git <args...>`, run in dir (empty = inherit the process's cwd).
 var run = func(ctx context.Context, dir string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := exec.CommandContext(ctx, "git", args...) // NOSONAR - the user's own git from PATH is intended
 	cmd.Dir = dir
 	return cmd.CombinedOutput()
 }

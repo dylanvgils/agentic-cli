@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -53,9 +54,14 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		s.intercept(w, entry, rules)
 		return
 	}
-	s.logger.Log(entry)
 
-	upstream, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), dialTimeout)
+	ctx := withPrivateOK(r.Context(), s.allow.exactMatch(host))
+	upstream, err := upstreamDialer.DialContext(ctx, "tcp", net.JoinHostPort(host, port)) // NOSONAR - allowlisted host, address guard in upstreamDialer
+	if errors.Is(err, errBlockedAddr) {
+		s.refuseBlocked(w, entry)
+		return
+	}
+	s.logger.Log(entry)
 	if err != nil {
 		http.Error(w, "upstream dial failed: "+err.Error(), http.StatusBadGateway)
 		return
@@ -84,14 +90,20 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	entry, forward := s.verdict(ProtocolHTTP, host, port)
-	s.logger.Log(entry)
 	if !forward {
+		s.logger.Log(entry)
 		http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
 		return
 	}
 
 	r.RequestURI = ""
-	resp, err := http.DefaultTransport.RoundTrip(r)
+	ctx := withPrivateOK(r.Context(), s.allow.exactMatch(host))
+	resp, err := upstreamTransport.RoundTrip(r.WithContext(ctx))
+	if errors.Is(err, errBlockedAddr) {
+		s.refuseBlocked(w, entry)
+		return
+	}
+	s.logger.Log(entry)
 	if err != nil {
 		http.Error(w, "upstream request failed: "+err.Error(), http.StatusBadGateway)
 		return
@@ -124,6 +136,15 @@ func (s *Server) verdict(protocol Protocol, host, port string) (Entry, bool) {
 		Enforced: !s.monitor,
 	}
 	return entry, allowed || s.monitor
+}
+
+// refuseBlocked logs entry as denied by the address guard, which monitor mode also enforces, and answers 403.
+func (s *Server) refuseBlocked(w http.ResponseWriter, entry Entry) {
+	entry.Decision = DecisionDeny
+	entry.Enforced = true
+	entry.Reason = ReasonBlockedAddr
+	s.logger.Log(entry)
+	http.Error(w, errBlockedAddr.Error(), http.StatusForbidden)
 }
 
 // hijack takes over the underlying TCP connection from the ResponseWriter for a CONNECT tunnel.

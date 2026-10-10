@@ -223,7 +223,7 @@ func Test_proxyEnvArgs(t *testing.T) {
 	})
 }
 
-func TestProxyHandleHostsByDecision(t *testing.T) {
+func TestProxyHandleHostsMatching(t *testing.T) {
 	t.Run("collects unique denied hosts and total", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
@@ -238,7 +238,7 @@ func TestProxyHandleHostsByDecision(t *testing.T) {
 		handle := proxyHandle{logPath: logPath}
 
 		// Act
-		hosts, total := handle.hostsByDecision(proxy.DecisionDeny)
+		hosts, total := handle.hostsMatching(deniedByAllowlist)
 
 		// Assert
 		assert.Equal(t, []string{"evil.com", "tracker.net"}, hosts)
@@ -250,7 +250,7 @@ func TestProxyHandleHostsByDecision(t *testing.T) {
 		handle := proxyHandle{logPath: filepath.Join(t.TempDir(), "absent.jsonl")}
 
 		// Act
-		hosts, total := handle.hostsByDecision(proxy.DecisionDeny)
+		hosts, total := handle.hostsMatching(deniedByAllowlist)
 
 		// Assert
 		assert.Empty(t, hosts)
@@ -298,6 +298,37 @@ func TestProxyHandlePrintSummary(t *testing.T) {
 		// Assert
 		assert.Contains(t, buf.String(), "agentic: proxy (monitor mode) observed 2 request(s); 1 would be blocked under the current allowlist: evil.com")
 		assert.Contains(t, buf.String(), "--proxy-monitor")
+	})
+
+	t.Run("guard refusals are reported apart from allowlist blocks", func(t *testing.T) {
+		// Arrange
+		logPath := writeLog(t,
+			`{"host":"evil.com","decision":"deny"}`,
+			`{"host":"localhost","decision":"deny","reason":"blocked-address"}`,
+		)
+		handle := proxyHandle{logPath: logPath}
+		var buf strings.Builder
+
+		// Act
+		handle.PrintSummary(logging.New(&buf))
+
+		// Assert
+		assert.Contains(t, buf.String(), "agentic: proxy blocked 1 request(s) to: evil.com")
+		assert.Contains(t, buf.String(), "agentic: proxy refused 1 request(s) to local or private addresses: localhost")
+	})
+
+	t.Run("monitor mode reports guard refusals as refused, not would-be-blocked", func(t *testing.T) {
+		// Arrange
+		logPath := writeLog(t, `{"host":"localhost","decision":"deny","enforced":true,"reason":"blocked-address"}`)
+		handle := proxyHandle{logPath: logPath, monitor: true}
+		var buf strings.Builder
+
+		// Act
+		handle.PrintSummary(logging.New(&buf))
+
+		// Assert
+		assert.Contains(t, buf.String(), "agentic: proxy refused 1 request(s) to local or private addresses: localhost")
+		assert.NotContains(t, buf.String(), "would be blocked")
 	})
 
 	t.Run("nothing denied prints nothing", func(t *testing.T) {

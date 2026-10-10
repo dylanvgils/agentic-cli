@@ -114,3 +114,23 @@ func TestAllowlistAllows(t *testing.T) {
 		assert.Len(t, al.suffixes, 1)
 	})
 }
+
+func Test_Allowlist_exactMatch(t *testing.T) {
+	al := NewAllowlist([]string{"Registry.Example.Test", ".example.test"})
+
+	t.Run("exact entry matches ignoring case and root dot", func(t *testing.T) {
+		// Act
+		exact := al.exactMatch("registry.example.test.")
+
+		// Assert
+		assert.True(t, exact)
+	})
+
+	t.Run("wildcard match is not exact", func(t *testing.T) {
+		// Act
+		exact := al.exactMatch("other.example.test")
+
+		// Assert
+		assert.False(t, exact)
+	})
+}
