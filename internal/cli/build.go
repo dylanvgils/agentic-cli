@@ -42,7 +42,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 
 	namespace := resolveNamespace(cmd, rc)
 	opts := buildOptsFromFlags(cmd, rc)
-	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	dryRun, _ := cmd.Flags().GetBool(dryRunFlagName)
 	names := toolNames(args)
 
 	warnSkipInstallChecksum(opts)

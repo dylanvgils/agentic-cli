@@ -10,8 +10,13 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
-// ToolsDirName is the subdirectory under $TOOL_HOME where each tool's persistent state lives.
-const ToolsDirName = "tools"
+const (
+	// ToolsDirName is the subdirectory under $TOOL_HOME where each tool's persistent state lives.
+	ToolsDirName = "tools"
+
+	// toolHomeVar is the host-side mount placeholder for the agentic data directory.
+	toolHomeVar = "$TOOL_HOME"
+)
 
 // Configs maps tool names to their container configuration.
 var Configs = map[string]ToolConfig{

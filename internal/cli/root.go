@@ -17,6 +17,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const dockerContextFlagName = "docker-context"
+
 var (
 	// toolHome is the agentic data directory, from the root --home flag.
 	toolHome string
@@ -52,9 +54,9 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&toolHome, "home", defaultHome,
 		"agentic data directory (overrides $AGENTIC_HOME)")
-	rootCmd.PersistentFlags().String("docker-context", "",
+	rootCmd.PersistentFlags().String(dockerContextFlagName, "",
 		"Docker context to use (overrides .agenticrc.toml and agentic.json)")
-	_ = rootCmd.RegisterFlagCompletionFunc("docker-context", dockerContextsFunc)
+	_ = rootCmd.RegisterFlagCompletionFunc(dockerContextFlagName, dockerContextsFunc)
 }
 
 // Execute the Agentic CLI
@@ -105,7 +107,7 @@ func resolveContext(cmd *cobra.Command) error {
 		rc = &config.AgenticRC{}
 	}
 
-	flagVal, _ := cmd.Flags().GetString("docker-context")
+	flagVal, _ := cmd.Flags().GetString(dockerContextFlagName)
 	if flagVal == "" {
 		if err := run.CheckContextTrust(cwd, toolHome, layers, flagTrustDir, ttyPrompter{}); err != nil {
 			return err

@@ -32,14 +32,14 @@ func copilotTmpfsMounts() []string {
 func copilotMounts() []string {
 	return []string{
 		mount.VolumeMount("$PWD", mount.WorkspaceContainerPath),
-		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "copilot"), "$CONTAINER_HOME/.copilot"),
+		mount.VolumeMount(path.Join(toolHomeVar, ToolsDirName, "copilot"), "$CONTAINER_HOME/.copilot"),
 	}
 }
 
 // copilotMarketplaceMount mounts a synced marketplace clone read-only; entrypoint.sh registers it.
 func copilotMarketplaceMount(name, url string) string {
 	return mount.VolumeMount(
-		path.Join("$TOOL_HOME", marketplace.MarketplacesDirName, marketplace.CloneDirName(url)),
+		path.Join(toolHomeVar, marketplace.MarketplacesDirName, marketplace.CloneDirName(url)),
 		path.Join("$CONTAINER_HOME", marketplace.MarketplacesDirName, name),
 		mount.VolumeOptions{ReadOnly: true},
 	)
@@ -47,7 +47,7 @@ func copilotMarketplaceMount(name, url string) string {
 
 func copilotStage(prevStage string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
-		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(pipefailShell).
 		Add(createContainerUser("copilot")...).
 		Add(df.Arg{Key: "COPILOT_INSTALL_CHECKSUM", Default: DefaultChecksums.CopilotInstall}).
 		Add(df.Run{Blocks: []df.Block{
@@ -63,10 +63,7 @@ func copilotStage(prevStage string) df.Stage {
 				`rm /tmp/copilot_install.sh`,
 			}},
 		}}).
-		Add(df.Heredoc{
-			Dest:  "/usr/local/bin/" + versionScript("copilot"),
-			Lines: []string{"#!/bin/sh", "copilot --version"},
-		}).
+		Add(versionCheckScript("copilot", "copilot --version")).
 		Add(df.Heredoc{
 			Dest: "/usr/local/bin/entrypoint.sh",
 			Blocks: []df.Block{

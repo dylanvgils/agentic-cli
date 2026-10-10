@@ -33,15 +33,15 @@ func claudeTmpfsMounts() []string {
 func claudeMounts() []string {
 	return []string{
 		mount.VolumeMount("$PWD", mount.WorkspaceContainerPath),
-		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "claude", "data"), "$CONTAINER_HOME/.claude"),
-		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "claude", ".claude.json"), "$CONTAINER_HOME/.claude.json"),
+		mount.VolumeMount(path.Join(toolHomeVar, ToolsDirName, "claude", "data"), "$CONTAINER_HOME/.claude"),
+		mount.VolumeMount(path.Join(toolHomeVar, ToolsDirName, "claude", ".claude.json"), "$CONTAINER_HOME/.claude.json"),
 	}
 }
 
 // claudeMarketplaceMount mounts a synced marketplace clone read-only outside Claude's own state tree.
 func claudeMarketplaceMount(name, url string) string {
 	return mount.VolumeMount(
-		path.Join("$TOOL_HOME", marketplace.MarketplacesDirName, marketplace.CloneDirName(url)),
+		path.Join(toolHomeVar, marketplace.MarketplacesDirName, marketplace.CloneDirName(url)),
 		path.Join("$CONTAINER_HOME", marketplace.MarketplacesDirName, name),
 		mount.VolumeOptions{ReadOnly: true},
 	)
@@ -49,7 +49,7 @@ func claudeMarketplaceMount(name, url string) string {
 
 func claudeStage(prevStage string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
-		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(pipefailShell).
 		Add(createContainerUser("claude")...).
 		Add(df.Heredoc{
 			Dest: "/usr/local/bin/entrypoint.sh",
@@ -99,10 +99,7 @@ func claudeStage(prevStage string) df.Stage {
 			}},
 			{Lines: []string{`mkdir -p "/home/claude/.claude"`}},
 		}}).
-		Add(df.Heredoc{
-			Dest:  "/usr/local/bin/" + versionScript("claude"),
-			Lines: []string{"#!/bin/sh", "claude --version"},
-		}).
+		Add(versionCheckScript("claude", "claude --version")).
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/claude"}).
 		Add(df.Env{Key: "DISABLE_AUTOUPDATER", Value: "1"}).
 		Add(df.Workdir{Path: mount.WorkspaceContainerPath}).

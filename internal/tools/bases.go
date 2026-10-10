@@ -115,7 +115,7 @@ func nodeStage(prevStage, ver string) df.Stage {
 		Add(nvmArg).
 		Add(nvmChecksumArg).
 		Add(df.Env{Key: "NVM_DIR", Value: "/usr/local/nvm"}).
-		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(pipefailShell).
 		Add(df.Run{Blocks: []df.Block{
 			{Lines: []string{`mkdir -p "$NVM_DIR"`}},
 			{Comment: "Download, verify and install NVM", Chain: true, Lines: []string{
@@ -136,17 +136,14 @@ func nodeStage(prevStage, ver string) df.Stage {
 				`nvm cache clear`,
 			}},
 		}}).
-		Add(df.Heredoc{
-			Dest:  "/usr/local/bin/" + versionScript("node"),
-			Lines: []string{"#!/bin/sh", "node --version"},
-		}).
+		Add(versionCheckScript("node", "node --version")).
 		Build()
 }
 
 // customInstallsStage builds one RUN per declared custom install; applied unconditionally, not gated by a --<name> flag like the extras.
 func customInstallsStage(prevStage string, installs []config.RCCustomInstall) df.Stage {
 	stage := df.NewStage(df.From{Image: prevStage, As: "custom-installs"}).
-		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}})
+		Add(pipefailShell)
 	for _, install := range installs {
 		blocks := make([]df.Block, len(install.Run))
 		for i, line := range install.Run {
@@ -166,7 +163,7 @@ func javaStage(prevStage, ver string) df.Stage {
 
 	return df.NewStage(df.From{Image: prevStage, As: "java"}).
 		Add(versionArg).
-		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(pipefailShell).
 		Add(df.Run{Blocks: []df.Block{
 			{
 				Comment: "Add Adoptium GPG key",
@@ -188,10 +185,7 @@ func javaStage(prevStage, ver string) df.Stage {
 				`rm -rf /var/lib/apt/lists/*`,
 			}},
 		}}).
-		Add(df.Heredoc{
-			Dest:  "/usr/local/bin/" + versionScript("java"),
-			Lines: []string{"#!/bin/sh", "java --version"},
-		}).
+		Add(versionCheckScript("java", "java --version")).
 		Build()
 }
 
@@ -225,10 +219,7 @@ func dotnetStage(prevStage, ver string) df.Stage {
 				`rm -rf /var/lib/apt/lists/*`,
 			}},
 		}}).
-		Add(df.Heredoc{
-			Dest:  "/usr/local/bin/" + versionScript("dotnet"),
-			Lines: []string{"#!/bin/sh", "dotnet --version"},
-		}).
+		Add(versionCheckScript("dotnet", "dotnet --version")).
 		Build()
 }
 
@@ -241,7 +232,7 @@ func goStage(prevStage, ver string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "go"}).
 		Add(versionArg).
 		Add(df.Arg{Key: "TARGETARCH"}).
-		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(pipefailShell).
 		Add(df.Run{Blocks: []df.Block{
 			{
 				Comment: "Map Docker arch to Go arch",
@@ -278,10 +269,7 @@ func goStage(prevStage, ver string) df.Stage {
 			}},
 		}}).
 		Add(df.Env{Key: "PATH", Value: "${PATH}:/usr/local/go/bin"}).
-		Add(df.Heredoc{
-			Dest:  "/usr/local/bin/" + versionScript("go"),
-			Lines: []string{"#!/bin/sh", "go version"},
-		}).
+		Add(versionCheckScript("go", "go version")).
 		Build()
 }
 
@@ -294,7 +282,7 @@ func dockerStage(prevStage, ver string) df.Stage {
 
 	return df.NewStage(df.From{Image: prevStage, As: "docker"}).
 		Add(versionArg).
-		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(pipefailShell).
 		Add(df.Run{Blocks: []df.Block{
 			{Comment: "Add Docker GPG key", Chain: true, Lines: []string{
 				`install -m 0755 -d /etc/apt/keyrings`,
@@ -326,9 +314,6 @@ func dockerStage(prevStage, ver string) df.Stage {
 				`rm -rf /var/lib/apt/lists/*`,
 			}},
 		}}).
-		Add(df.Heredoc{
-			Dest:  "/usr/local/bin/" + versionScript("docker"),
-			Lines: []string{"#!/bin/sh", "docker --version"},
-		}).
+		Add(versionCheckScript("docker", "docker --version")).
 		Build()
 }

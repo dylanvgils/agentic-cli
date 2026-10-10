@@ -10,6 +10,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	baseExactFlagName    = "base-exact"
+	aptExactFlagName     = "apt-exact"
+	noProxyFlagName      = "no-proxy"
+	proxyMonitorFlagName = "proxy-monitor"
+	noDindFlagName       = "no-dind"
+	dryRunFlagName       = "dry-run"
+)
+
 // addNamespaceFlag registers the --namespace flag on the given command.
 func addNamespaceFlag(cmd *cobra.Command) {
 	cmd.Flags().StringP("namespace", "n", "", "image namespace (overrides .agenticrc.toml namespace)")
@@ -48,16 +57,16 @@ func collectRegistry(cmd *cobra.Command) string {
 // addBuildFlags registers the base/apt/dry-run flags shared by build and update; --no-cache is registered separately since its description differs between them.
 func addBuildFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSlice("base", nil, "extra runtime(s) to layer on top of debian; repeatable or comma-separated (e.g. --base node --base java or --base node,java)")
-	cmd.Flags().StringSlice("base-exact", nil, "extra runtime(s) to layer on top of debian, replacing .agenticrc.toml's bases entirely instead of merging with it; repeatable or comma-separated; pass --base-exact= for debian only")
+	cmd.Flags().StringSlice(baseExactFlagName, nil, "extra runtime(s) to layer on top of debian, replacing .agenticrc.toml's bases entirely instead of merging with it; repeatable or comma-separated; pass --base-exact= for debian only")
 	cmd.Flags().StringSlice("apt", nil, "apt packages to install in the base stage; repeatable or comma-separated (e.g. --apt make --apt gcc or --apt make,gcc)")
-	cmd.Flags().StringSlice("apt-exact", nil, "apt packages to install in the base stage, replacing .agenticrc.toml's apt_packages entirely instead of merging with it; repeatable or comma-separated; pass --apt-exact= for none")
-	cmd.Flags().Bool("dry-run", false, "print generated Dockerfile without building")
+	cmd.Flags().StringSlice(aptExactFlagName, nil, "apt packages to install in the base stage, replacing .agenticrc.toml's apt_packages entirely instead of merging with it; repeatable or comma-separated; pass --apt-exact= for none")
+	cmd.Flags().Bool(dryRunFlagName, false, "print generated Dockerfile without building")
 	cmd.Flags().Bool("skip-install-checksum", false, "bypass checksum verification of Claude/Copilot/OpenCode install scripts; only use if a build is broken by a stale pinned checksum")
 
-	cmd.MarkFlagsMutuallyExclusive("base", "base-exact")
-	cmd.MarkFlagsMutuallyExclusive("apt", "apt-exact")
+	cmd.MarkFlagsMutuallyExclusive("base", baseExactFlagName)
+	cmd.MarkFlagsMutuallyExclusive("apt", aptExactFlagName)
 	_ = cmd.RegisterFlagCompletionFunc("base", baseLayersFunc)
-	_ = cmd.RegisterFlagCompletionFunc("base-exact", baseLayersFunc)
+	_ = cmd.RegisterFlagCompletionFunc(baseExactFlagName, baseLayersFunc)
 
 	addRegistryFlag(cmd)
 	addVersionFlags(cmd)
@@ -78,19 +87,19 @@ func resolveResourceLimitFlags(cmd *cobra.Command) docker.ResourceLimits {
 // addProxyFlags registers the mutually exclusive --proxy, --no-proxy, and --proxy-monitor flags shared by the run and instructions commands.
 func addProxyFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("proxy", false, "route egress through the allowlist proxy (overrides config)")
-	cmd.Flags().Bool("no-proxy", false, "disable the egress proxy for this run (overrides config)")
-	cmd.Flags().Bool("proxy-monitor", false, "route egress through the proxy without blocking, logging every host (overrides config)")
-	cmd.MarkFlagsMutuallyExclusive("proxy", "no-proxy", "proxy-monitor")
+	cmd.Flags().Bool(noProxyFlagName, false, "disable the egress proxy for this run (overrides config)")
+	cmd.Flags().Bool(proxyMonitorFlagName, false, "route egress through the proxy without blocking, logging every host (overrides config)")
+	cmd.MarkFlagsMutuallyExclusive("proxy", noProxyFlagName, proxyMonitorFlagName)
 }
 
 // addDindFlags registers the exclusive --dind/--no-dind pair and the sidecar limit flags.
 func addDindFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("dind", false, "start a rootless Docker daemon sidecar the tool can use (overrides config; needs the docker base layer)")
-	cmd.Flags().Bool("no-dind", false, "disable the Docker daemon sidecar for this run (overrides config)")
+	cmd.Flags().Bool(noDindFlagName, false, "disable the Docker daemon sidecar for this run (overrides config)")
 	cmd.Flags().String("dind-pids-limit", "", "Docker sidecar PID limit (defaults to the tool's)")
 	cmd.Flags().String("dind-cpus", "", "Docker sidecar CPU limit (defaults to the tool's)")
 	cmd.Flags().String("dind-memory", "", "Docker sidecar memory limit (defaults to the tool's)")
-	cmd.MarkFlagsMutuallyExclusive("dind", "no-dind")
+	cmd.MarkFlagsMutuallyExclusive("dind", noDindFlagName)
 }
 
 // resolveDindResourceLimitFlags returns the --dind-* limit flag values.
@@ -100,8 +109,8 @@ func resolveDindResourceLimitFlags(cmd *cobra.Command) docker.ResourceLimits {
 
 // proxyInput reads the proxy-related flags.
 func proxyInput(cmd *cobra.Command) resolve.ProxyInput {
-	noProxy, _ := cmd.Flags().GetBool("no-proxy")
-	monitorFlag, _ := cmd.Flags().GetBool("proxy-monitor")
+	noProxy, _ := cmd.Flags().GetBool(noProxyFlagName)
+	monitorFlag, _ := cmd.Flags().GetBool(proxyMonitorFlagName)
 	proxyFlag, _ := cmd.Flags().GetBool("proxy")
 
 	return resolve.ProxyInput{NoProxy: noProxy, MonitorFlag: monitorFlag, ProxyFlag: proxyFlag}
@@ -110,7 +119,7 @@ func proxyInput(cmd *cobra.Command) resolve.ProxyInput {
 // dindInput reads the dind flags.
 func dindInput(cmd *cobra.Command) resolve.DindInput {
 	dindFlag, _ := cmd.Flags().GetBool("dind")
-	noDindFlag, _ := cmd.Flags().GetBool("no-dind")
+	noDindFlag, _ := cmd.Flags().GetBool(noDindFlagName)
 
 	return resolve.DindInput{DindFlag: dindFlag, NoDindFlag: noDindFlag}
 }
@@ -141,10 +150,10 @@ func buildInput(cmd *cobra.Command) resolve.BuildInput {
 
 	return resolve.BuildInput{
 		Bases:               flagBases,
-		BasesExact:          exactFlagValue(cmd, "base-exact"),
+		BasesExact:          exactFlagValue(cmd, baseExactFlagName),
 		VersionOverrides:    collectVersionOverrides(cmd),
 		AptPackages:         flagApt,
-		AptPackagesExact:    exactFlagValue(cmd, "apt-exact"),
+		AptPackagesExact:    exactFlagValue(cmd, aptExactFlagName),
 		NoCache:             noCache,
 		Pull:                pull,
 		Registry:            collectRegistry(cmd),

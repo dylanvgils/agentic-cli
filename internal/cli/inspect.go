@@ -14,7 +14,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const baseMaxLength = 32
+const (
+	baseMaxLength = 32
+
+	// unknownValue is shown for image fields that can't be read.
+	unknownValue = "(unknown)"
+)
 
 var inspectCmd = &cobra.Command{
 	Use:   "inspect [tool]",
@@ -195,15 +200,15 @@ func printInfoDetail(info *docker.ImageInfo) {
 	}
 	base := info.Base
 	if base == "" {
-		base = "(unknown)"
+		base = unknownValue
 	}
 	built := info.Built
 	if built == "" {
-		built = "(unknown)"
+		built = unknownValue
 	}
 	size := info.Size
 	if size == "" {
-		size = "(unknown)"
+		size = unknownValue
 	}
 
 	fmt.Printf("  image:    %s (%s)\n", info.Image, info.ID)
@@ -227,12 +232,12 @@ func imageRow(info *docker.ImageInfo) (version, base, built, size string) {
 		orDash(info.Size)
 }
 
-// truncate cuts s to max characters and marks the cut with "...".
-func truncate(s string, max int) string {
-	if len(s) <= max {
+// truncate cuts s to n characters and marks the cut with "...".
+func truncate(s string, n int) string {
+	if len(s) <= n {
 		return s
 	}
-	return s[:max] + "..."
+	return s[:n] + "..."
 }
 
 // orDash returns s, or "-" when it is empty.

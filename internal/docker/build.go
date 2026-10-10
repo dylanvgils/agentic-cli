@@ -173,7 +173,7 @@ func buildImageArgs(tmpDir, image, tool string, opts tools.BuildOptions) []strin
 	if opts.NoCache {
 		args = append(args, arg("no-cache"))
 	} else if opts.CacheBust != "" {
-		args = append(args, arg("build-arg", "CACHEBUST="+opts.CacheBust))
+		args = append(args, buildArg("CACHEBUST", opts.CacheBust))
 	}
 
 	if opts.NoCache || opts.Pull {
@@ -181,18 +181,18 @@ func buildImageArgs(tmpDir, image, tool string, opts tools.BuildOptions) []strin
 	}
 
 	if opts.SkipInstallChecksum {
-		args = append(args, arg("build-arg", "SKIP_INSTALL_CHECKSUM=true"))
+		args = append(args, buildArg("SKIP_INSTALL_CHECKSUM", "true"))
 	}
 
 	args = append(
 		args,
-		arg("build-arg", "HOST_UID="+platform.GetUID()),
-		arg("build-arg", "HOST_GID="+platform.GetGID()),
+		buildArg("HOST_UID", platform.GetUID()),
+		buildArg("HOST_GID", platform.GetGID()),
 	)
 
 	for _, name := range tools.BuildLayers(opts.BaseOverride) {
 		if ver := opts.Versions[name]; ver != "" {
-			args = append(args, arg("build-arg", strings.ToUpper(name)+"_VERSION="+ver))
+			args = append(args, buildArg(strings.ToUpper(name)+"_VERSION", ver))
 		}
 	}
 
@@ -202,4 +202,9 @@ func buildImageArgs(tmpDir, image, tool string, opts tools.BuildOptions) []strin
 		tmpDir)
 
 	return args
+}
+
+// buildArg returns a --build-arg flag setting name to value.
+func buildArg(name, value string) string {
+	return arg("build-arg", name+"="+value)
 }

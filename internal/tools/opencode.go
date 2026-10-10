@@ -29,17 +29,17 @@ func opencodeTmpfsMounts() []string {
 func opencodeMounts() []string {
 	return []string{
 		mount.VolumeMount("$PWD", mount.WorkspaceContainerPath),
-		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "opencode", "data"), "$CONTAINER_HOME/.opencode"),
-		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "opencode", "share"), "$CONTAINER_HOME/.local/share/opencode"),
-		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "opencode", "state"), "$CONTAINER_HOME/.local/state/opencode"),
-		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "opencode", "cache"), "$CONTAINER_HOME/.cache/opencode"),
-		mount.VolumeMount(path.Join("$TOOL_HOME", ToolsDirName, "opencode", "config"), "$CONTAINER_HOME/.config/opencode"),
+		mount.VolumeMount(path.Join(toolHomeVar, ToolsDirName, "opencode", "data"), "$CONTAINER_HOME/.opencode"),
+		mount.VolumeMount(path.Join(toolHomeVar, ToolsDirName, "opencode", "share"), "$CONTAINER_HOME/.local/share/opencode"),
+		mount.VolumeMount(path.Join(toolHomeVar, ToolsDirName, "opencode", "state"), "$CONTAINER_HOME/.local/state/opencode"),
+		mount.VolumeMount(path.Join(toolHomeVar, ToolsDirName, "opencode", "cache"), "$CONTAINER_HOME/.cache/opencode"),
+		mount.VolumeMount(path.Join(toolHomeVar, ToolsDirName, "opencode", "config"), "$CONTAINER_HOME/.config/opencode"),
 	}
 }
 
 func opencodeStage(prevStage string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
-		Add(df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}).
+		Add(pipefailShell).
 		Add(createContainerUser("opencode")...).
 		Add(df.Heredoc{
 			Dest: "/usr/local/bin/entrypoint.sh",
@@ -65,10 +65,7 @@ func opencodeStage(prevStage string) df.Stage {
 			{Lines: []string{"mv /root/.opencode/bin/opencode /usr/local/bin/opencode"}},
 			{Lines: []string{"rm -rf /root/.opencode"}},
 		}}).
-		Add(df.Heredoc{
-			Dest:  "/usr/local/bin/" + versionScript("opencode"),
-			Lines: []string{"#!/bin/sh", "opencode --version"},
-		}).
+		Add(versionCheckScript("opencode", "opencode --version")).
 		Add(df.User{Name: "opencode"}).
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/opencode"}).
 		Add(df.Env{Key: "OPENCODE_DISABLE_AUTOUPDATE", Value: "true"}).
