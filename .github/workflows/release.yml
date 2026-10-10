@@ -17,6 +17,8 @@ concurrency:
 jobs:
   validate:
     uses: ./.github/workflows/validate.yml
+    with:
+      sonar: false
 
   tag:
     needs: [validate]
