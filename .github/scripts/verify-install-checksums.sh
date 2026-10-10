@@ -47,10 +47,11 @@ check_one() {
 
 # Runs check_one over a newline-separated "<name> <url>" list, tracking failures in $status.
 run_checks() {
+  local entries="$1"
   while read -r name url; do
     [[ -n "$name" ]] || continue
     check_one "$name" "$url" || status=1
-  done <<< "$1"
+  done <<< "$entries"
 }
 
 # --- main ---

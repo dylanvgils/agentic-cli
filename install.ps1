@@ -91,36 +91,39 @@ function Install-FromRelease {
   }
 }
 
+function Uninstall {
+  if (Test-Path $InstallPath) {
+    Remove-Item -Force $InstallPath
+    Write-Host "Removed $InstallPath"
+  }
+
+  if ((Test-Path $InstallDir) -and -not (Get-ChildItem $InstallDir)) {
+    Remove-Item -Force -Recurse $InstallDir
+  }
+
+  if (Test-Path $DataDir) {
+    $confirm = Read-Host "Remove data directory $DataDir? [y/N]"
+    if ($confirm -match '^[Yy]$') {
+      Remove-Item -Force -Recurse $DataDir
+      Write-Host "Removed $DataDir"
+    }
+  }
+
+  $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+  if ($userPath -like "*$InstallDir*") {
+    $newPath = ($userPath -split ";" | Where-Object { $_ -ne $InstallDir }) -join ";"
+    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+    Write-Host "Removed $InstallDir from user PATH"
+  }
+}
+
 # --- Main ---
 
 function Main {
   $script:Arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
 
   if ($Remove) {
-    if (Test-Path $InstallPath) {
-      Remove-Item -Force $InstallPath
-      Write-Host "Removed $InstallPath"
-    }
-
-    if ((Test-Path $InstallDir) -and -not (Get-ChildItem $InstallDir)) {
-      Remove-Item -Force -Recurse $InstallDir
-    }
-
-    if (Test-Path $DataDir) {
-      $confirm = Read-Host "Remove data directory $DataDir? [y/N]"
-      if ($confirm -match '^[Yy]$') {
-        Remove-Item -Force -Recurse $DataDir
-        Write-Host "Removed $DataDir"
-      }
-    }
-
-    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    if ($userPath -like "*$InstallDir*") {
-      $newPath = ($userPath -split ";" | Where-Object { $_ -ne $InstallDir }) -join ";"
-      [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-      Write-Host "Removed $InstallDir from user PATH"
-    }
-
+    Uninstall
     exit 0
   }
 
