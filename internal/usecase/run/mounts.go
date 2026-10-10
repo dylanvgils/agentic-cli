@@ -77,12 +77,15 @@ func (m mountSet) checkResolvable() error {
 			return err
 		}
 
+		if isProcPath(abs) {
+			return fmt.Errorf("mount %s goes through /proc; mount the real path instead", host)
+		}
+
 		real, err := resolvePrefix(abs)
 		if err != nil {
 			return fmt.Errorf("mount %s can't be resolved: %w", host, err)
 		}
-
-		if isProcPath(abs) || isProcPath(real) {
+		if isProcPath(real) {
 			return fmt.Errorf("mount %s goes through /proc; mount the real path instead", host)
 		}
 	}
