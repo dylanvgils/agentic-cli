@@ -167,6 +167,8 @@ The block tells the model about its environment, and says the project's own `CLA
 
 The rest of the file is left alone, including notes the tool saves there itself, even with `enabled = false`. Each run works on a private copy of the file, so concurrent runs don't affect each other. Changes made during the run are copied back when the container exits.
 
+The file must be a regular file: agentic refuses a symlink there, since the tool can write that directory and could otherwise redirect the copy-back to any host file.
+
 Preview the block with `agentic instructions claude` (add `--proxy` to include the network section).
 
 ### `[run.proxy]`

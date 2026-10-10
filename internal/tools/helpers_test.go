@@ -2,10 +2,12 @@ package tools
 
 import (
 	"os"
+	"runtime"
 	"testing"
 
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_createContainerUser(t *testing.T) {
@@ -75,4 +77,13 @@ func appendFile(path, content string) error {
 
 	_, err = f.WriteString(content)
 	return err
+}
+
+// symlinkOrSkip creates link pointing at target, skipping the test where symlinks need privileges.
+func symlinkOrSkip(t *testing.T, target, link string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks need privileges on windows")
+	}
+	require.NoError(t, os.Symlink(target, link))
 }

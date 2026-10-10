@@ -10,51 +10,46 @@ import (
 )
 
 func Test_runInstructions(t *testing.T) {
+	// Arrange
 	stubDocker(t, &fakeDocker{})
+	t.Chdir(t.TempDir())
+
+	// Act
+	var err error
+	out := captureStdout(t, func() {
+		err = runInstructions(instructionsCmd, []string{"claude"})
+	})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Contains(t, out, "## Installed toolchains")
+	assert.Contains(t, out, "## Filesystem")
+}
+
+func Test_instructionsRequest(t *testing.T) {
+	t.Run("request targets the tool's image in the resolved namespace", func(t *testing.T) {
+		// Arrange
+		t.Chdir(t.TempDir())
+
+		// Act
+		req, namespace, err := instructionsRequest(instructionsCmd, "claude")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "claude", req.Target.ToolName)
+		assert.Contains(t, req.Target.ImageName, "claude")
+		assert.NotEmpty(t, namespace)
+	})
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())
 
 		// Act
-		err := runInstructions(instructionsCmd, []string{"bogus"})
+		_, _, err := instructionsRequest(instructionsCmd, "bogus")
 
 		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "bogus")
-	})
-
-	t.Run("prints generated content", func(t *testing.T) {
-		// Arrange
-		t.Chdir(t.TempDir())
-
-		// Act
-		out := captureStdout(t, func() {
-			err := runInstructions(instructionsCmd, []string{"claude"})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "## Installed toolchains")
-		assert.Contains(t, out, "## Filesystem")
-	})
-
-	t.Run("disabled via config prints notice instead of content", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-		rcPath := filepath.Join(dir, ".agenticrc.toml")
-		require.NoError(t, os.WriteFile(rcPath, []byte("[run.instructions]\nenabled = false\n"), 0o644))
-		t.Chdir(dir)
-
-		// Act
-		out := captureStdout(t, func() {
-			err := runInstructions(instructionsCmd, []string{"claude"})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "disabled via .agenticrc.toml")
-		assert.NotContains(t, out, "## Installed toolchains")
+		assert.ErrorContains(t, err, "bogus")
 	})
 
 	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {
@@ -65,9 +60,31 @@ func Test_runInstructions(t *testing.T) {
 		t.Chdir(dir)
 
 		// Act
-		err := runInstructions(instructionsCmd, []string{"claude"})
+		_, _, err := instructionsRequest(instructionsCmd, "claude")
 
 		// Assert
 		assert.ErrorContains(t, err, rcPath)
+	})
+}
+
+func Test_printInstructions(t *testing.T) {
+	t.Run("content is printed under its heading", func(t *testing.T) {
+		// Act
+		var logs string
+		out := captureStdout(t, func() {
+			logs = captureLog(t, func() { printInstructions("agentic/claude", "## Filesystem\n") })
+		})
+
+		// Assert
+		assert.Contains(t, logs, "agentic/claude")
+		assert.Equal(t, "## Filesystem\n", out)
+	})
+
+	t.Run("empty content prints the disabled notice", func(t *testing.T) {
+		// Act
+		logs := captureLog(t, func() { printInstructions("agentic/claude", "") })
+
+		// Assert
+		assert.Contains(t, logs, "disabled via .agenticrc.toml")
 	})
 }
