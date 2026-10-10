@@ -87,7 +87,7 @@ func approveSettings(rcPath string) error {
 	if err != nil {
 		return err
 	}
-	cfg, err := config.LoadConfig(agenticHome)
+	cfg, err := config.LoadState(agenticHome)
 	if err != nil {
 		return err
 	}

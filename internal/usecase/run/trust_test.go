@@ -76,7 +76,7 @@ func Test_checkTrust(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()
 		dir := t.TempDir()
-		cfg := &config.CliConfig{}
+		cfg := &config.State{}
 		require.NoError(t, cfg.Trust(dir, toolHome))
 		p := &fakePrompter{}
 
@@ -101,7 +101,7 @@ func Test_checkTrust(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, p.trustAsked)
-		cfg, err := config.LoadConfig(toolHome)
+		cfg, err := config.LoadState(toolHome)
 		require.NoError(t, err)
 		assert.Contains(t, cfg.TrustedDirs, dir)
 	})
@@ -119,7 +119,7 @@ func Test_checkTrust(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{dir}, p.trustAsked)
-		cfg, err := config.LoadConfig(toolHome)
+		cfg, err := config.LoadState(toolHome)
 		require.NoError(t, err)
 		assert.Contains(t, cfg.TrustedDirs, dir)
 	})
@@ -135,7 +135,7 @@ func Test_checkTrust(t *testing.T) {
 
 		// Assert
 		require.EqualError(t, err, "directory not trusted")
-		cfg, err := config.LoadConfig(toolHome)
+		cfg, err := config.LoadState(toolHome)
 		require.NoError(t, err)
 		assert.NotContains(t, cfg.TrustedDirs, dir)
 	})
@@ -160,7 +160,7 @@ func Test_checkSettings(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, [][]string{{"run.extra_mounts"}}, p.settingsAsked)
-		cfg, err := config.LoadConfig(toolHome)
+		cfg, err := config.LoadState(toolHome)
 		require.NoError(t, err)
 		assert.Empty(t, cfg.ChangedSettings(layer))
 	})
@@ -176,7 +176,7 @@ func Test_checkSettings(t *testing.T) {
 
 		// Assert
 		require.EqualError(t, err, "settings not approved")
-		cfg, err := config.LoadConfig(toolHome)
+		cfg, err := config.LoadState(toolHome)
 		require.NoError(t, err)
 		assert.NotEmpty(t, cfg.ChangedSettings(layer))
 	})

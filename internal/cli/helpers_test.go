@@ -423,7 +423,7 @@ func withTempToolHome(t *testing.T) {
 		require.NoError(t, err)
 		trusted = append(trusted, real)
 	}
-	cfg := &config.CliConfig{TrustedDirs: trusted}
+	cfg := &config.State{TrustedDirs: trusted}
 	require.NoError(t, cfg.Save(homeDir))
 	orig := toolHome
 	toolHome = homeDir

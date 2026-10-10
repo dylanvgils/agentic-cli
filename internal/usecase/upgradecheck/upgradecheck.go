@@ -28,12 +28,12 @@ func Check(home string, confirm Confirm) {
 
 // fetchUpdateIfDue fetches the latest GitHub version if the check interval has elapsed, saves the check timestamp, and returns (latest, true) if it's newer.
 func fetchUpdateIfDue(home string) (string, bool) {
-	config, err := config.LoadConfig(home)
+	state, err := config.LoadState(home)
 	if err != nil {
 		return "", false
 	}
 
-	if !selfupdate.ShouldCheck(config.LastUpdateCheck) {
+	if !selfupdate.ShouldCheck(state.LastUpdateCheck) {
 		return "", false
 	}
 
@@ -43,8 +43,8 @@ func fetchUpdateIfDue(home string) (string, bool) {
 	}
 
 	now := time.Now()
-	config.LastUpdateCheck = &now
-	_ = config.Save(home)
+	state.LastUpdateCheck = &now
+	_ = state.Save(home)
 
 	if !selfupdate.IsNewer(buildinfo.Version, latest) {
 		return "", false

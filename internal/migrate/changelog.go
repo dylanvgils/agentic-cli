@@ -6,4 +6,5 @@ import "github.com/dylanvgils/agentic-cli/internal/migrate/migrations"
 var changelog = []Migration{
 	{Version: 1, Description: "baseline", Apply: migrations.Baseline},
 	{Version: 2, Description: "relocate tool state under tools/ and proxy logs under logs/ with a proxy_ prefix", Apply: migrations.MoveToolAndProxyDirs},
+	{Version: 3, Description: "move trust, approvals and update checks from agentic.json to state.json", Apply: migrations.SplitStateFile},
 }

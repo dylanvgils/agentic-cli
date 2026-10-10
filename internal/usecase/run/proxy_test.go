@@ -17,10 +17,7 @@ func Test_proxyRetentionDays(t *testing.T) {
 	t.Run("uses the value configured in agentic.json", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
-		cfg, err := config.LoadConfig(home)
-		require.NoError(t, err)
-		cfg.ProxyLogRetentionDays = 30
-		require.NoError(t, cfg.Save(home))
+		require.NoError(t, os.WriteFile(config.ConfigFile(home), []byte(`{"proxy_log_retention_days":30}`), 0o640))
 
 		// Act
 		result := proxyRetentionDays(home)
@@ -54,10 +51,7 @@ func Test_proxyLogDir(t *testing.T) {
 	t.Run("creates the log dir and prunes old logs", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
-		cfg, err := config.LoadConfig(home)
-		require.NoError(t, err)
-		cfg.ProxyLogRetentionDays = 1
-		require.NoError(t, cfg.Save(home))
+		require.NoError(t, os.WriteFile(config.ConfigFile(home), []byte(`{"proxy_log_retention_days":1}`), 0o640))
 		logDir := filepath.Join(home, config.LogsDirName)
 		require.NoError(t, os.MkdirAll(logDir, 0o750))
 		oldLog := filepath.Join(logDir, proxy.LogFilePrefix+"old.jsonl")

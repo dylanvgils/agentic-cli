@@ -46,8 +46,7 @@ func TestRegistry(t *testing.T) {
 	t.Run("flag takes priority over config", func(t *testing.T) {
 		// Arrange
 		homeDir := t.TempDir()
-		cfg := &config.CliConfig{Registry: "config.example.com"}
-		require.NoError(t, cfg.Save(homeDir))
+		require.NoError(t, os.WriteFile(config.ConfigFile(homeDir), []byte(`{"registry":"config.example.com"}`), 0o640))
 
 		// Act
 		result := Registry("flag.example.com", homeDir)
@@ -59,8 +58,7 @@ func TestRegistry(t *testing.T) {
 	t.Run("falls back to agentic.json when flag not set", func(t *testing.T) {
 		// Arrange
 		homeDir := t.TempDir()
-		cfg := &config.CliConfig{Registry: "config.example.com"}
-		require.NoError(t, cfg.Save(homeDir))
+		require.NoError(t, os.WriteFile(config.ConfigFile(homeDir), []byte(`{"registry":"config.example.com"}`), 0o640))
 
 		// Act
 		result := Registry("", homeDir)
@@ -94,7 +92,7 @@ func TestDockerContext(t *testing.T) {
 	t.Run("flag wins over everything", func(t *testing.T) {
 		// Arrange
 		homeDir := t.TempDir()
-		require.NoError(t, (&config.CliConfig{DockerContext: "fromconfig"}).Save(homeDir))
+		require.NoError(t, os.WriteFile(config.ConfigFile(homeDir), []byte(`{"docker_context":"fromconfig"}`), 0o640))
 		rc := &config.AgenticRC{DockerContext: "fromrc"}
 
 		// Act
@@ -107,7 +105,7 @@ func TestDockerContext(t *testing.T) {
 	t.Run("rc value wins over agentic.json", func(t *testing.T) {
 		// Arrange
 		homeDir := t.TempDir()
-		require.NoError(t, (&config.CliConfig{DockerContext: "fromconfig"}).Save(homeDir))
+		require.NoError(t, os.WriteFile(config.ConfigFile(homeDir), []byte(`{"docker_context":"fromconfig"}`), 0o640))
 		rc := &config.AgenticRC{DockerContext: "fromrc"}
 
 		// Act
@@ -120,7 +118,7 @@ func TestDockerContext(t *testing.T) {
 	t.Run("agentic.json wins when rc unset", func(t *testing.T) {
 		// Arrange
 		homeDir := t.TempDir()
-		require.NoError(t, (&config.CliConfig{DockerContext: "fromconfig"}).Save(homeDir))
+		require.NoError(t, os.WriteFile(config.ConfigFile(homeDir), []byte(`{"docker_context":"fromconfig"}`), 0o640))
 
 		// Act
 		result := DockerContext("", nil, homeDir)

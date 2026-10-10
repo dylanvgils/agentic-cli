@@ -315,7 +315,7 @@ func TestApply(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		cfg, err := config.LoadConfig(home)
+		cfg, err := config.LoadState(home)
 		require.NoError(t, err)
 		assert.Contains(t, cfg.LastToolVersionCheck, "claude")
 	})
@@ -331,7 +331,7 @@ func TestApply(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		cfg, err := config.LoadConfig(home)
+		cfg, err := config.LoadState(home)
 		require.NoError(t, err)
 		assert.NotContains(t, cfg.LastToolVersionCheck, "claude")
 	})

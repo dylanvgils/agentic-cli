@@ -2,7 +2,7 @@
 
 Agentic reads settings from three places:
 
-- `agentic.json` holds machine-wide settings.
+- `agentic.json` holds machine-wide settings. Trust and approvals live next to it in [`state.json`](#statejson).
 - `.agenticrc.toml` files hold per-directory settings.
 - CLI flags hold per-run settings.
 
@@ -12,17 +12,13 @@ For a scalar setting, the most specific value wins. List settings add up across 
 
 ## `agentic.json`
 
-Stored at `$AGENTIC_HOME/agentic.json`. Edit it with any text editor.
+Stored at `$AGENTIC_HOME/agentic.json`. Edit it with any text editor; agentic only reads it.
 
 | Key                        | Type   | Description                                                             | CLI flag           |
 | -------------------------- | ------ | ----------------------------------------------------------------------- | ------------------ |
-| `trusted_dirs`             | list   | Directories you can run tools from without an interactive trust prompt, stored as real paths | `--trust-dir`      |
 | `registry`                 | scalar | Registry prefix for base image pulls. See [Registry proxy](#registry-proxy). | `--registry`       |
 | `docker_context`           | scalar | Machine-wide default Docker context. See [Precedence](#precedence).     | `--docker-context` |
 | `proxy_log_retention_days` | scalar | Days to keep [egress proxy](egress-proxy.md) logs. Default: `3`.        | -                  |
-| `last_update_check`        | scalar | Managed automatically.                                                  | -                  |
-| `last_tool_version_check`  | object | Managed automatically.                                                  | -                  |
-| `approved_settings`        | object | Your [setting approvals](#setting-approval). Managed automatically. | -                  |
 
 ### Registry proxy
 
@@ -35,6 +31,17 @@ To pull Docker Hub images through a registry proxy (Harbor, Nexus, Artifactory, 
 ```
 
 `--registry` overrides it for one build: `agentic build claude --registry myregistry.example.com`.
+
+## `state.json`
+
+Agentic records what it learns at `$AGENTIC_HOME/state.json`, apart from your settings. Delete an entry to revoke it, or the whole file to reset all trust and approvals. Older versions kept these keys in `agentic.json`; the next `agentic` command moves them here.
+
+| Key                       | Description                                                               |
+| ------------------------- | ------------------------------------------------------------------------- |
+| `trusted_dirs`            | Directories you trusted, by prompt or `--trust-dir`, stored as real paths |
+| `approved_settings`       | Your [setting approvals](#setting-approval) per `.agenticrc.toml`         |
+| `last_update_check`       | When agentic last checked for a new release                               |
+| `last_tool_version_check` | When agentic last checked each tool for an update                         |
 
 ## `.agenticrc.toml`
 
@@ -336,7 +343,7 @@ agentic run -v '$TOOL_HOME/custom:$CONTAINER_HOME/.custom:rw' claude
 
 Before a run starts, agentic checks every bind mount and secret:
 
-- A mount that would expose `$AGENTIC_HOME/agentic.json` (the agentic home or a parent, such as `~`) is refused, since that file records trusted directories and approvals.
+- A mount that would expose `$AGENTIC_HOME/agentic.json` or `state.json` (the agentic home or a parent, such as `~`) is refused, since they hold machine-wide settings, trusted directories and approvals.
 - A path through a symlink inside the workspace is refused, so a planted `.git -> ~/.ssh` can't be mounted via `read_only_mounts = [".git"]`. Mount the real path instead.
 - A path under `/proc`, or one agentic can't resolve, is refused.
 

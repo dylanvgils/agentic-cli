@@ -24,12 +24,12 @@ func CheckContextTrust(dir, toolHome string, layers []config.RCLayer, trustFlag 
 
 // checkTrust errors unless dir is trusted, trusting it first when trustFlag is set or prompter approves.
 func checkTrust(dir, toolHome string, trustFlag bool, prompter Prompter) error {
-	cfg, err := config.LoadConfig(toolHome)
+	state, err := config.LoadState(toolHome)
 	if err != nil {
-		return fmt.Errorf("load trust config: %w", err)
+		return fmt.Errorf("load trust state: %w", err)
 	}
 
-	if cfg.IsTrusted(dir) {
+	if state.IsTrusted(dir) {
 		return nil
 	}
 
@@ -39,18 +39,18 @@ func checkTrust(dir, toolHome string, trustFlag bool, prompter Prompter) error {
 		}
 	}
 
-	return cfg.Trust(dir, toolHome)
+	return state.Trust(dir, toolHome)
 }
 
 // checkSettings has prompter approve each layer's guarded settings whenever they change, since the agent can edit any config file in a dir it ran in.
 func checkSettings(layers []config.RCLayer, toolHome string, prompter Prompter) error {
-	cfg, err := config.LoadConfig(toolHome)
+	state, err := config.LoadState(toolHome)
 	if err != nil {
-		return fmt.Errorf("load trust config: %w", err)
+		return fmt.Errorf("load trust state: %w", err)
 	}
 
 	for _, layer := range layers {
-		changed := cfg.ChangedSettings(layer)
+		changed := state.ChangedSettings(layer)
 		if len(changed) == 0 {
 			continue
 		}
@@ -59,7 +59,7 @@ func checkSettings(layers []config.RCLayer, toolHome string, prompter Prompter) 
 			return err
 		}
 
-		if err := cfg.ApproveSettings(layer, toolHome); err != nil {
+		if err := state.ApproveSettings(layer, toolHome); err != nil {
 			return fmt.Errorf("save settings approval: %w", err)
 		}
 	}

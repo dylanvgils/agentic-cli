@@ -85,20 +85,22 @@ func Test_printBasesField(t *testing.T) {
 }
 
 func Test_printGlobalConfig(t *testing.T) {
+	state := &config.State{}
+
 	t.Run("empty config", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer
 		cfg := &config.CliConfig{}
 
 		// Act
-		err := printGlobalConfig(&buf, "/home/user/.agentic", cfg)
+		err := printGlobalConfig(&buf, "/home/user/.agentic", cfg, state)
 
 		// Assert
 		require.NoError(t, err)
 		out := buf.String()
 		assert.Contains(t, out, "Global (/home/user/.agentic/agentic.json)")
 		assert.Contains(t, out, "registry: (not set)")
-		assert.Contains(t, out, "trusted_dirs: (none)")
+		assert.Contains(t, out, "trusted_dirs: (none)  [/home/user/.agentic/state.json]")
 	})
 
 	t.Run("with registry", func(t *testing.T) {
@@ -107,7 +109,7 @@ func Test_printGlobalConfig(t *testing.T) {
 		cfg := &config.CliConfig{Registry: "myregistry.example.com"}
 
 		// Act
-		err := printGlobalConfig(&buf, "/home/user/.agentic", cfg)
+		err := printGlobalConfig(&buf, "/home/user/.agentic", cfg, state)
 
 		// Assert
 		require.NoError(t, err)
@@ -121,7 +123,7 @@ func Test_printGlobalConfig(t *testing.T) {
 		cfg := &config.CliConfig{DockerContext: "prod"}
 
 		// Act
-		err := printGlobalConfig(&buf, "/home/user/.agentic", cfg)
+		err := printGlobalConfig(&buf, "/home/user/.agentic", cfg, state)
 
 		// Assert
 		require.NoError(t, err)
@@ -132,10 +134,10 @@ func Test_printGlobalConfig(t *testing.T) {
 	t.Run("with dirs", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer
-		cfg := &config.CliConfig{TrustedDirs: []string{"/home/user/projects", "/home/user/work"}}
+		trusted := &config.State{TrustedDirs: []string{"/home/user/projects", "/home/user/work"}}
 
 		// Act
-		err := printGlobalConfig(&buf, "/home/user/.agentic", cfg)
+		err := printGlobalConfig(&buf, "/home/user/.agentic", &config.CliConfig{}, trusted)
 
 		// Assert
 		require.NoError(t, err)

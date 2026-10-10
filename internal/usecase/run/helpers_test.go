@@ -193,10 +193,10 @@ func credentialLayer(t *testing.T, secret string) config.RCLayer {
 	return config.RCLayer{Path: filepath.Join(t.TempDir(), ".agenticrc.toml"), RC: rc}
 }
 
-// approveSettings records layer's guarded settings as approved in toolHome's agentic.json.
+// approveSettings records layer's guarded settings as approved in toolHome's state.json.
 func approveSettings(t *testing.T, layer config.RCLayer, toolHome string) {
 	t.Helper()
-	cfg, err := config.LoadConfig(toolHome)
+	cfg, err := config.LoadState(toolHome)
 	require.NoError(t, err)
 	require.NoError(t, cfg.ApproveSettings(layer, toolHome))
 }
