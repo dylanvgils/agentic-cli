@@ -89,7 +89,7 @@ func (config *CliConfig) Trust(dir, toolHome string) error {
 
 // CredentialsApproved reports whether the user approved the credential entries with hash in the config file at path.
 func (config *CliConfig) CredentialsApproved(path, hash string) bool {
-	return config.ApprovedCredentials[evalSymlinks(path)] == hash
+	return config.ApprovedCredentials[approvalKey(path)] == hash
 }
 
 // PendingCredentials returns the layers whose credential entries are new or changed since the user last approved them.
@@ -110,7 +110,7 @@ func (config *CliConfig) ApproveCredentials(path, hash, toolHome string) error {
 		config.ApprovedCredentials = make(map[string]string)
 	}
 
-	config.ApprovedCredentials[evalSymlinks(path)] = hash
+	config.ApprovedCredentials[approvalKey(path)] = hash
 	return config.Save(toolHome)
 }
 
@@ -119,10 +119,11 @@ func ConfigFile(toolHome string) string {
 	return filepath.Join(toolHome, "agentic.json")
 }
 
-// evalSymlinks resolves symlinks in path, falling back to path on error.
-func evalSymlinks(path string) string {
-	if real, err := filepath.EvalSymlinks(path); err == nil {
-		return real
+// approvalKey returns path with its dir resolved but not the file itself, so a config file linked to another project's gets its own approval.
+func approvalKey(path string) string {
+	dir := filepath.Dir(path)
+	if real, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = real
 	}
-	return path
+	return filepath.Join(dir, filepath.Base(path))
 }

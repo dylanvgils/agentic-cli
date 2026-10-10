@@ -301,22 +301,38 @@ func TestCredentialsApproved(t *testing.T) {
 		assert.False(t, result)
 	})
 
-	t.Run("symlinked path matches its target", func(t *testing.T) {
+	t.Run("path through a symlinked dir matches its real path", func(t *testing.T) {
 		// Arrange
-		dir := t.TempDir()
-		target := filepath.Join(dir, ".agenticrc.toml")
-		require.NoError(t, os.WriteFile(target, nil, 0o644))
-		link := filepath.Join(dir, "link.toml")
-		require.NoError(t, os.Symlink(target, link))
-		real, err := filepath.EvalSymlinks(target)
+		real, err := filepath.EvalSymlinks(t.TempDir())
 		require.NoError(t, err)
-		linked := &CliConfig{ApprovedCredentials: map[string]string{real: "abc"}}
+		link := filepath.Join(t.TempDir(), "link")
+		symlinkOrSkip(t, real, link)
+		linked := &CliConfig{ApprovedCredentials: map[string]string{filepath.Join(real, ".agenticrc.toml"): "abc"}}
 
 		// Act
-		result := linked.CredentialsApproved(link, "abc")
+		result := linked.CredentialsApproved(filepath.Join(link, ".agenticrc.toml"), "abc")
 
 		// Assert
 		assert.True(t, result)
+	})
+
+	t.Run("config file linked to an approved one needs its own approval", func(t *testing.T) {
+		// Arrange
+		approvedDir, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
+		approved := filepath.Join(approvedDir, ".agenticrc.toml")
+		require.NoError(t, os.WriteFile(approved, nil, 0o644))
+		workspace, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
+		planted := filepath.Join(workspace, ".agenticrc.toml")
+		symlinkOrSkip(t, approved, planted)
+		linked := &CliConfig{ApprovedCredentials: map[string]string{approved: "abc"}}
+
+		// Act
+		result := linked.CredentialsApproved(planted, "abc")
+
+		// Assert
+		assert.False(t, result)
 	})
 }
 
