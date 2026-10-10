@@ -34,7 +34,6 @@ env = ["EXAMPLE_API_KEY"]
 secret = "` + secretPath + `"
 `
 	require.NoError(t, os.WriteFile(rcPath, []byte(rc), 0o644))
-	approveCredentials(t, rcPath)
 	require.NoError(t, approveSettings(rcPath))
 
 	t.Run("env holds the placeholder, not the secret", func(t *testing.T) {

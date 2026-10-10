@@ -60,12 +60,12 @@ func (s *Service) Check(req Request, confirm Confirm, update Updater) error {
 
 // fetchIfDue fetches toolName's latest upstream version if due, saves the check timestamp on success (so a failed fetch retries instead of backing off), and returns (installed, latest, true) if newer.
 func (s *Service) fetchIfDue(home, toolName, image string) (installed, latest string, ok bool) {
-	cfg, err := config.LoadConfig(home)
+	state, err := config.LoadState(home)
 	if err != nil {
 		return "", "", false
 	}
 
-	if !shouldCheck(cfg.LastToolVersionCheck, toolName) {
+	if !shouldCheck(state.LastToolVersionCheck, toolName) {
 		return "", "", false
 	}
 
@@ -90,16 +90,16 @@ func (s *Service) fetchIfDue(home, toolName, image string) (installed, latest st
 
 // MarkChecked records tool as checked now, so `agentic run` skips its upstream check for checkInterval.
 func MarkChecked(home, tool string) error {
-	cfg, err := config.LoadConfig(home)
+	state, err := config.LoadState(home)
 	if err != nil {
 		return err
 	}
 
-	if cfg.LastToolVersionCheck == nil {
-		cfg.LastToolVersionCheck = make(map[string]time.Time)
+	if state.LastToolVersionCheck == nil {
+		state.LastToolVersionCheck = make(map[string]time.Time)
 	}
-	cfg.LastToolVersionCheck[tool] = time.Now()
-	return cfg.Save(home)
+	state.LastToolVersionCheck[tool] = time.Now()
+	return state.Save(home)
 }
 
 // shouldCheck reports whether tool is due for a check: never checked, or the interval has elapsed.

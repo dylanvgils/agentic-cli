@@ -58,7 +58,7 @@ func (m mountSet) hostPaths() []string {
 	return paths
 }
 
-// checkMounts refuses unresolvable mounts, mounts through a workspace symlink and mounts exposing agentic.json.
+// checkMounts refuses unresolvable mounts, mounts through a workspace symlink and mounts exposing agentic.json or state.json.
 func (m mountSet) checkMounts() error {
 	if err := m.checkResolvable(); err != nil {
 		return err
@@ -107,11 +107,12 @@ func (m mountSet) checkSymlinks() error {
 	return nil
 }
 
-// checkConfigNotMounted refuses any mount exposing agentic.json, so the agent can't trust dirs or approve credentials itself.
+// checkConfigNotMounted refuses any mount exposing agentic.json or state.json, so the agent can't change machine-wide settings, trust dirs or approve settings itself.
 func (m mountSet) checkConfigNotMounted() error {
-	file := config.ConfigFile(m.toolHome)
-	if root, ok := findRoot(file, m.hostPaths()); ok {
-		return fmt.Errorf("mount %s would expose %s to the tool container; mount a narrower path", root, file)
+	for _, file := range []string{config.ConfigFile(m.toolHome), config.StateFile(m.toolHome)} {
+		if root, ok := findRoot(file, m.hostPaths()); ok {
+			return fmt.Errorf("mount %s would expose %s to the tool container; mount a narrower path", root, file)
+		}
 	}
 	return nil
 }

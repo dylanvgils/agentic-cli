@@ -102,15 +102,13 @@ func (f *fakeDocker) PruneDangling() error {
 
 // fakePrompter implements Prompter, recording what it was asked; a nil field approves, except tool updates, which it declines.
 type fakePrompter struct {
-	trustDir           func(string) error
-	approveCredentials func(config.RCLayer) error
-	approveSettings    func(config.RCLayer, []config.GuardedSetting) error
-	offerToolUpdate    func(tool, installed, latest string) bool
+	trustDir        func(string) error
+	approveSettings func(config.RCLayer, []config.GuardedSetting) error
+	offerToolUpdate func(tool, installed, latest string) bool
 
-	trustAsked       []string
-	credentialsAsked []string
-	settingsAsked    [][]string
-	updatesOffered   []string
+	trustAsked     []string
+	settingsAsked  [][]string
+	updatesOffered []string
 }
 
 func (f *fakePrompter) TrustDir(dir string) error {
@@ -119,14 +117,6 @@ func (f *fakePrompter) TrustDir(dir string) error {
 		return nil
 	}
 	return f.trustDir(dir)
-}
-
-func (f *fakePrompter) ApproveCredentials(layer config.RCLayer) error {
-	f.credentialsAsked = append(f.credentialsAsked, layer.Path)
-	if f.approveCredentials == nil {
-		return nil
-	}
-	return f.approveCredentials(layer)
 }
 
 func (f *fakePrompter) ApproveSettings(layer config.RCLayer, changed []config.GuardedSetting) error {
@@ -203,12 +193,12 @@ func credentialLayer(t *testing.T, secret string) config.RCLayer {
 	return config.RCLayer{Path: filepath.Join(t.TempDir(), ".agenticrc.toml"), RC: rc}
 }
 
-// approveCredentials records layer's credentials as approved in toolHome's agentic.json.
-func approveCredentials(t *testing.T, layer config.RCLayer, toolHome string) {
+// approveSettings records layer's guarded settings as approved in toolHome's state.json.
+func approveSettings(t *testing.T, layer config.RCLayer, toolHome string) {
 	t.Helper()
-	cfg, err := config.LoadConfig(toolHome)
+	cfg, err := config.LoadState(toolHome)
 	require.NoError(t, err)
-	require.NoError(t, cfg.ApproveCredentials(layer.Path, config.CredentialsHash(layer.RC.Run.Proxy.Credentials), toolHome))
+	require.NoError(t, cfg.ApproveSettings(layer, toolHome))
 }
 
 // stubCaseInsensitivePaths sets whether path checks ignore case for the duration of the test.

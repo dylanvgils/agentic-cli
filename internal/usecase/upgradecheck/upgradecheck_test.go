@@ -55,7 +55,7 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 		fetchCalled := stubLatestVersion(t, "v1.1.0", nil)
 		home := t.TempDir()
 		lastCheck := time.Now().Add(-1 * time.Hour)
-		cfg := &config.CliConfig{LastUpdateCheck: &lastCheck}
+		cfg := &config.State{LastUpdateCheck: &lastCheck}
 		require.NoError(t, cfg.Save(home))
 
 		// Act
@@ -90,7 +90,7 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 
 		// Assert
 		require.False(t, ok)
-		cfg, err := config.LoadConfig(home)
+		cfg, err := config.LoadState(home)
 		require.NoError(t, err)
 		assert.Nil(t, cfg.LastUpdateCheck)
 	})
@@ -119,7 +119,7 @@ func Test_fetchUpdateIfDue(t *testing.T) {
 
 		// Assert
 		require.False(t, ok)
-		cfg, err := config.LoadConfig(home)
+		cfg, err := config.LoadState(home)
 		require.NoError(t, err)
 		require.NotNil(t, cfg.LastUpdateCheck)
 		assert.True(t, cfg.LastUpdateCheck.After(before))

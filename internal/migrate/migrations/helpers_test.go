@@ -14,3 +14,10 @@ func assertFileContent(t *testing.T, path, want string) {
 	require.NoError(t, err)
 	assert.Equal(t, want, string(got))
 }
+
+func assertJSONFile(t *testing.T, path, want string) {
+	t.Helper()
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.JSONEq(t, want, string(got))
+}

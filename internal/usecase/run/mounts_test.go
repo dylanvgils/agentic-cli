@@ -197,6 +197,17 @@ func Test_mountSet_checkConfigNotMounted(t *testing.T) {
 		// Assert
 		assert.EqualError(t, err, "mount "+toolHome+" would expose "+config.ConfigFile(toolHome)+" to the tool container; mount a narrower path")
 	})
+
+	t.Run("mount of state.json itself is refused", func(t *testing.T) {
+		// Arrange
+		mounts := mountSet{volumes: []string{"$TOOL_HOME/state.json:/state.json"}, toolHome: toolHome, containerHome: "/home/agent"}
+
+		// Act
+		err := mounts.checkConfigNotMounted()
+
+		// Assert
+		assert.EqualError(t, err, "mount "+config.StateFile(toolHome)+" would expose "+config.StateFile(toolHome)+" to the tool container; mount a narrower path")
+	})
 }
 
 func Test_within(t *testing.T) {

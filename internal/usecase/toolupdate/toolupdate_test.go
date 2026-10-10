@@ -48,7 +48,7 @@ func Test_fetchIfDue(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
 		lastCheck := time.Now().Add(-1 * time.Hour)
-		cfg := &config.CliConfig{LastToolVersionCheck: map[string]time.Time{"claude": lastCheck}}
+		cfg := &config.State{LastToolVersionCheck: map[string]time.Time{"claude": lastCheck}}
 		require.NoError(t, cfg.Save(home))
 		var fetchCalled bool
 		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) {
@@ -128,7 +128,7 @@ func Test_fetchIfDue(t *testing.T) {
 
 		// Assert
 		require.True(t, ok)
-		cfg, err := config.LoadConfig(home)
+		cfg, err := config.LoadState(home)
 		require.NoError(t, err)
 		require.Contains(t, cfg.LastToolVersionCheck, "claude")
 		assert.True(t, cfg.LastToolVersionCheck["claude"].After(before))
@@ -145,7 +145,7 @@ func Test_fetchIfDue(t *testing.T) {
 
 		// Assert
 		require.False(t, ok)
-		cfg, err := config.LoadConfig(home)
+		cfg, err := config.LoadState(home)
 		require.NoError(t, err)
 		assert.NotContains(t, cfg.LastToolVersionCheck, "claude")
 	})
@@ -310,7 +310,7 @@ func TestMarkChecked(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		cfg, err := config.LoadConfig(home)
+		cfg, err := config.LoadState(home)
 		require.NoError(t, err)
 		require.Contains(t, cfg.LastToolVersionCheck, "claude")
 		assert.False(t, cfg.LastToolVersionCheck["claude"].Before(before))
@@ -320,7 +320,7 @@ func TestMarkChecked(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
 		other := time.Now().Add(-2 * time.Hour)
-		cfg := &config.CliConfig{LastToolVersionCheck: map[string]time.Time{"copilot": other}}
+		cfg := &config.State{LastToolVersionCheck: map[string]time.Time{"copilot": other}}
 		require.NoError(t, cfg.Save(home))
 
 		// Act
@@ -328,7 +328,7 @@ func TestMarkChecked(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		reloaded, err := config.LoadConfig(home)
+		reloaded, err := config.LoadState(home)
 		require.NoError(t, err)
 		assert.Contains(t, reloaded.LastToolVersionCheck, "claude")
 		assert.True(t, other.Equal(reloaded.LastToolVersionCheck["copilot"]))

@@ -134,6 +134,11 @@ func showConfig(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	state, err := config.LoadState(toolHome)
+	if err != nil {
+		return err
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -145,7 +150,7 @@ func showConfig(cmd *cobra.Command, _ []string) error {
 	}
 
 	w := cmd.OutOrStdout()
-	if err := printGlobalConfig(w, toolHome, cliConfig); err != nil {
+	if err := printGlobalConfig(w, toolHome, cliConfig, state); err != nil {
 		return err
 	}
 
@@ -156,17 +161,18 @@ func showConfig(cmd *cobra.Command, _ []string) error {
 	return printProjectConfig(w, layers)
 }
 
-func printGlobalConfig(w io.Writer, home string, cfg *config.CliConfig) error {
+func printGlobalConfig(w io.Writer, home string, cfg *config.CliConfig, state *config.State) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Global (%s)\n", config.ConfigFile(home))
 	fmt.Fprintf(&b, "  registry: %s\n", orNotSet(cfg.Registry))
 	fmt.Fprintf(&b, "  docker_context: %s\n", orNotSet(cfg.DockerContext))
 
-	if len(cfg.TrustedDirs) == 0 {
-		b.WriteString("  trusted_dirs: (none)\n")
+	stateFile := config.StateFile(home)
+	if len(state.TrustedDirs) == 0 {
+		fmt.Fprintf(&b, "  trusted_dirs: (none)  [%s]\n", stateFile)
 	} else {
-		b.WriteString("  trusted_dirs:\n")
-		for _, dir := range cfg.TrustedDirs {
+		fmt.Fprintf(&b, "  trusted_dirs:  [%s]\n", stateFile)
+		for _, dir := range state.TrustedDirs {
 			fmt.Fprintf(&b, "    - %s\n", dir)
 		}
 	}

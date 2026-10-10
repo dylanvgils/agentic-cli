@@ -43,12 +43,14 @@ func resolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials
 	}
 
 	// Checked here too, so no caller can read a secret the user hasn't approved
-	cfg, err := config.LoadConfig(toolHome)
+	state, err := config.LoadState(toolHome)
 	if err != nil {
 		return nil, fmt.Errorf("load credential approvals: %w", err)
 	}
-	if pending := cfg.PendingCredentials(layers); len(pending) > 0 {
-		return nil, fmt.Errorf("proxy credentials in %s are new or changed and not approved", pending[0].Path)
+	for _, layer := range layers {
+		if slices.ContainsFunc(state.ChangedSettings(layer), func(s config.GuardedSetting) bool { return s.Key == config.CredentialsSetting }) {
+			return nil, fmt.Errorf("proxy credentials in %s are new or changed and not approved", layer.Path)
+		}
 	}
 
 	return credentials.Resolve(rc.Run.Proxy.Credentials)

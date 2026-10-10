@@ -68,10 +68,6 @@ func (s *Service) Prepare(req Request, prompter Prompter) (docker.RunSpec, func(
 		return docker.RunSpec{}, func() {}, err
 	}
 
-	if err := checkCredentials(req.Project.Layers, home, prompter); err != nil {
-		return docker.RunSpec{}, func() {}, err
-	}
-
 	in, err := s.runInput(req)
 	if err != nil {
 		return docker.RunSpec{}, func() {}, err

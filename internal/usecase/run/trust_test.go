@@ -76,7 +76,7 @@ func Test_checkTrust(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()
 		dir := t.TempDir()
-		cfg := &config.CliConfig{}
+		cfg := &config.State{}
 		require.NoError(t, cfg.Trust(dir, toolHome))
 		p := &fakePrompter{}
 
@@ -101,7 +101,7 @@ func Test_checkTrust(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, p.trustAsked)
-		cfg, err := config.LoadConfig(toolHome)
+		cfg, err := config.LoadState(toolHome)
 		require.NoError(t, err)
 		assert.Contains(t, cfg.TrustedDirs, dir)
 	})
@@ -119,7 +119,7 @@ func Test_checkTrust(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{dir}, p.trustAsked)
-		cfg, err := config.LoadConfig(toolHome)
+		cfg, err := config.LoadState(toolHome)
 		require.NoError(t, err)
 		assert.Contains(t, cfg.TrustedDirs, dir)
 	})
@@ -135,7 +135,7 @@ func Test_checkTrust(t *testing.T) {
 
 		// Assert
 		require.EqualError(t, err, "directory not trusted")
-		cfg, err := config.LoadConfig(toolHome)
+		cfg, err := config.LoadState(toolHome)
 		require.NoError(t, err)
 		assert.NotContains(t, cfg.TrustedDirs, dir)
 	})
@@ -160,7 +160,7 @@ func Test_checkSettings(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, [][]string{{"run.extra_mounts"}}, p.settingsAsked)
-		cfg, err := config.LoadConfig(toolHome)
+		cfg, err := config.LoadState(toolHome)
 		require.NoError(t, err)
 		assert.Empty(t, cfg.ChangedSettings(layer))
 	})
@@ -176,7 +176,7 @@ func Test_checkSettings(t *testing.T) {
 
 		// Assert
 		require.EqualError(t, err, "settings not approved")
-		cfg, err := config.LoadConfig(toolHome)
+		cfg, err := config.LoadState(toolHome)
 		require.NoError(t, err)
 		assert.NotEmpty(t, cfg.ChangedSettings(layer))
 	})
@@ -193,55 +193,5 @@ func Test_checkSettings(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Len(t, p.settingsAsked, 2)
-	})
-}
-
-func Test_checkCredentials(t *testing.T) {
-	t.Run("approved prompt saves approval", func(t *testing.T) {
-		// Arrange
-		toolHome := t.TempDir()
-		layer := credentialLayer(t, "/example.test/key")
-		p := &fakePrompter{}
-
-		// Act
-		err := checkCredentials([]config.RCLayer{layer}, toolHome, p)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{layer.Path}, p.credentialsAsked)
-		cfg, err := config.LoadConfig(toolHome)
-		require.NoError(t, err)
-		assert.True(t, cfg.CredentialsApproved(layer.Path, config.CredentialsHash(layer.RC.Run.Proxy.Credentials)))
-	})
-
-	t.Run("refused prompt returns its error and saves nothing", func(t *testing.T) {
-		// Arrange
-		toolHome := t.TempDir()
-		layer := credentialLayer(t, "/example.test/key")
-		p := &fakePrompter{approveCredentials: func(config.RCLayer) error { return errors.New("not approved") }}
-
-		// Act
-		err := checkCredentials([]config.RCLayer{layer}, toolHome, p)
-
-		// Assert
-		require.EqualError(t, err, "not approved")
-		cfg, err := config.LoadConfig(toolHome)
-		require.NoError(t, err)
-		assert.False(t, cfg.CredentialsApproved(layer.Path, config.CredentialsHash(layer.RC.Run.Proxy.Credentials)))
-	})
-
-	t.Run("approved credentials skip prompt", func(t *testing.T) {
-		// Arrange
-		toolHome := t.TempDir()
-		layer := credentialLayer(t, "/example.test/key")
-		approveCredentials(t, layer, toolHome)
-		p := &fakePrompter{}
-
-		// Act
-		err := checkCredentials([]config.RCLayer{layer}, toolHome, p)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, p.credentialsAsked)
 	})
 }
