@@ -369,7 +369,7 @@ func (c *Client) startDind(rs RunSpec, interrupt <-chan os.Signal) (dindHandle, 
 // setupDind starts the Docker sidecar if enabled, returning the tool args and a cleanup func to defer.
 func (c *Client) setupDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
 	if !rs.Dind.Enabled {
-		return nil, func() {}, nil
+		return nil, noCleanup, nil
 	}
 
 	if rs.DryRun {
@@ -391,7 +391,7 @@ func (c *Client) dryRunDind(rs *RunSpec) (toolArgs []string, cleanup func(), err
 	if _, err := fmt.Fprintln(os.Stdout, "docker", shellJoin(handle.runArgs(*rs))); err != nil {
 		return nil, nil, err
 	}
-	return handle.toolArgs(), func() {}, nil
+	return handle.toolArgs(), noCleanup, nil
 }
 
 // launchDind starts the sidecar and returns a cleanup that removes it.

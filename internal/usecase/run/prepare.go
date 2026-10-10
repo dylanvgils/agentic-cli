@@ -52,25 +52,25 @@ func (s *Service) Prepare(req Request, prompter Prompter) (docker.RunSpec, func(
 	home := req.Flags.ToolHome
 
 	if err := s.requireImage(req.Target.ImageName, req.Target.ToolName); err != nil {
-		return docker.RunSpec{}, func() {}, err
+		return docker.RunSpec{}, noCleanup, err
 	}
 
 	// Before anything acts on the project config, which the agent can edit
 	if err := checkTrust(req.Project.Dir, home, req.Flags.TrustDir, prompter); err != nil {
-		return docker.RunSpec{}, func() {}, err
+		return docker.RunSpec{}, noCleanup, err
 	}
 
 	if err := checkSettings(req.Project.Layers, home, prompter); err != nil {
-		return docker.RunSpec{}, func() {}, err
+		return docker.RunSpec{}, noCleanup, err
 	}
 
 	if err := s.checkTool(req, prompter); err != nil {
-		return docker.RunSpec{}, func() {}, err
+		return docker.RunSpec{}, noCleanup, err
 	}
 
 	in, err := s.runInput(req)
 	if err != nil {
-		return docker.RunSpec{}, func() {}, err
+		return docker.RunSpec{}, noCleanup, err
 	}
 
 	return s.buildWithInstructions(req.Target, in, req.Tool, req.Project.RC)
@@ -155,4 +155,9 @@ func resolveInput(flags Flags, rc *config.AgenticRC) (Input, error) {
 		DindEnabled:    resolve.DindEnabled(flags.Dind, rc),
 		DindLimits:     flags.DindLimits,
 	}, nil
+}
+
+// noCleanup is the cleanup for paths that set nothing up.
+func noCleanup() {
+	// Nothing to undo
 }

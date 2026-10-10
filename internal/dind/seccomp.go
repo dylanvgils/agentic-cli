@@ -1,7 +1,7 @@
 package dind
 
 import (
-	_ "embed"
+	_ "embed" // for go:embed
 	"encoding/json"
 	"fmt"
 	"os"

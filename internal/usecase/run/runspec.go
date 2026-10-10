@@ -105,12 +105,12 @@ func (s *Service) ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *conf
 func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, func(), error) {
 	content, err := s.BuildInstructions(target, in, toolConfig, rc)
 	if err != nil {
-		return docker.RunSpec{}, func() {}, fmt.Errorf("build instructions for %s: %w", target.ToolName, err)
+		return docker.RunSpec{}, noCleanup, fmt.Errorf("build instructions for %s: %w", target.ToolName, err)
 	}
 
 	snapshot, err := s.PrepareInstructions(in.ToolHome, toolConfig, content)
 	if err != nil {
-		return docker.RunSpec{}, func() {}, fmt.Errorf("prepare instructions for %s: %w", target.ToolName, err)
+		return docker.RunSpec{}, noCleanup, fmt.Errorf("prepare instructions for %s: %w", target.ToolName, err)
 	}
 
 	in.InstructionsMount = snapshot.MountSpec
@@ -118,7 +118,7 @@ func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tool
 	rs, err := s.Build(target, in, toolConfig, rc)
 	if err != nil {
 		snapshot.Cleanup()
-		return docker.RunSpec{}, func() {}, err
+		return docker.RunSpec{}, noCleanup, err
 	}
 
 	return rs, snapshot.Cleanup, nil

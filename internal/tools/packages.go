@@ -28,7 +28,7 @@ func MergePackages(base, additional []string) []string {
 }
 
 // collectPackages merges the base packages, extra layers' packages, and user-supplied apt packages, deduplicating.
-func collectPackages(extras []string, userPkgs []string) []string {
+func collectPackages(extras, userPkgs []string) []string {
 	return MergePackages(expandPackages(extras), userPkgs)
 }
 
