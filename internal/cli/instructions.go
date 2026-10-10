@@ -33,24 +33,9 @@ func init() {
 }
 
 func runInstructions(cmd *cobra.Command, args []string) error {
-	rc, err := config.FindAndLoadFromCwd()
+	req, namespace, err := instructionsRequest(cmd, args[0])
 	if err != nil {
 		return err
-	}
-
-	toolName := args[0]
-	namespace := resolveNamespace(cmd, rc)
-
-	imageName, err := tools.ImageName(toolName, namespace)
-	if err != nil {
-		return err
-	}
-
-	req := run.Request{
-		Target:  run.Target{ToolName: toolName, ImageName: imageName},
-		Tool:    tools.Configs[toolName],
-		Project: run.Project{RC: rc},
-		Flags:   runtimeFlags(cmd),
 	}
 
 	content, err := run.New(dockerClient).PreviewInstructions(req)
@@ -58,12 +43,38 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	logging.Stepf("%s/%s", namespace, toolName)
+	printInstructions(namespace+"/"+req.Target.ToolName, content)
+	return nil
+}
+
+// instructionsRequest builds the request PreviewInstructions needs from the cwd config, returning the resolved namespace too.
+func instructionsRequest(cmd *cobra.Command, toolName string) (run.Request, string, error) {
+	rc, err := config.FindAndLoadFromCwd()
+	if err != nil {
+		return run.Request{}, "", err
+	}
+
+	namespace := resolveNamespace(cmd, rc)
+	imageName, err := tools.ImageName(toolName, namespace)
+	if err != nil {
+		return run.Request{}, "", err
+	}
+
+	return run.Request{
+		Target:  run.Target{ToolName: toolName, ImageName: imageName},
+		Tool:    tools.Configs[toolName],
+		Project: run.Project{RC: rc},
+		Flags:   runtimeFlags(cmd),
+	}, namespace, nil
+}
+
+// printInstructions prints content under heading, or a notice when the config disables it.
+func printInstructions(heading, content string) {
+	logging.Step(heading)
 	if content == "" {
-		fmt.Println("(environment instructions disabled via .agenticrc.toml [run.instructions] enabled = false)")
-		return nil
+		logging.Detail("(environment instructions disabled via .agenticrc.toml [run.instructions] enabled = false)")
+		return
 	}
 
 	fmt.Print(content)
-	return nil
 }
