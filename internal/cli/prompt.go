@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -15,10 +16,10 @@ type ttyPrompter struct{}
 // TrustDir asks whether to trust dir.
 func (ttyPrompter) TrustDir(dir string) error {
 	if !isTerminal() {
-		return fmt.Errorf("directory %q is not trusted; run interactively or pass --trust-dir to approve", dir)
+		return fmt.Errorf("directory %s is not trusted; run interactively or pass --trust-dir to approve", describeDir(dir))
 	}
 
-	logging.Promptf("trust directory %s? [y/N] ", dir)
+	logging.Promptf("trust directory %s? [y/N] ", describeDir(dir))
 	if !confirmed() {
 		return fmt.Errorf("directory not trusted")
 	}
@@ -108,4 +109,12 @@ func quoteAll(values []string) string {
 		quoted[i] = strconv.Quote(value)
 	}
 	return strings.Join(quoted, ", ")
+}
+
+// describeDir adds where dir really leads when it goes through a symlink, e.g. a link the agent planted.
+func describeDir(dir string) string {
+	if real, err := filepath.EvalSymlinks(dir); err == nil && real != dir {
+		return dir + " (-> " + real + ")"
+	}
+	return dir
 }

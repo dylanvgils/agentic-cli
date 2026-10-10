@@ -75,7 +75,8 @@ func (config *CliConfig) IsTrusted(dir string) bool {
 
 // Trust appends dir to the trusted directories and saves the config.
 func (config *CliConfig) Trust(dir, toolHome string) error {
-	config.TrustedDirs = append(config.TrustedDirs, dir)
+	// The real path, so retargeting a symlinked dir later needs a new approval
+	config.TrustedDirs = append(config.TrustedDirs, evalSymlinks(dir))
 	return config.Save(toolHome)
 }
 
