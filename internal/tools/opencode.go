@@ -99,5 +99,5 @@ func opencodeInstructionsHostPath(toolHome string) string {
 
 // writeOpencodeInstructions writes content to OpenCode's global AGENTS.md.
 func writeOpencodeInstructions(toolHome, content string) error {
-	return writeManagedInstructions(opencodeInstructionsHostPath(toolHome), content)
+	return writeManagedInstructions(toolHome, opencodeInstructionsHostPath(toolHome), content)
 }

@@ -1,8 +1,11 @@
 package tools
 
 import (
+	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,8 +22,17 @@ const (
 )
 
 // MergedInstructions returns hostPath's preserved content merged with block, without touching any files.
-func MergedInstructions(hostPath, block string) (string, error) {
-	existing, err := readInstructions(hostPath)
+func MergedInstructions(toolHome, hostPath, block string) (string, error) {
+	root, name, err := openToolsRoot(toolHome, hostPath)
+	if errors.Is(err, fs.ErrNotExist) {
+		return mergeInstructions("", block), nil
+	}
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = root.Close() }()
+
+	existing, err := readInstructions(root, name)
 	if err != nil {
 		return "", err
 	}
@@ -29,13 +41,19 @@ func MergedInstructions(hostPath, block string) (string, error) {
 }
 
 // PrepareInstructionsSnapshot writes the merged content to a new, uniquely-named file in the OS temp dir, returning its path - so each run gets a private mount instead of sharing one live file.
-func PrepareInstructionsSnapshot(hostPath, block string) (string, error) {
-	merged, err := MergedInstructions(hostPath, block)
+func PrepareInstructionsSnapshot(toolHome, hostPath, block string) (string, error) {
+	root, name, err := createToolsRoot(toolHome, hostPath)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = root.Close() }()
+
+	existing, err := readInstructions(root, name)
 	if err != nil {
 		return "", err
 	}
 
-	if err := ensureHostFile(hostPath); err != nil {
+	if err := ensureHostFile(root, name); err != nil {
 		return "", err
 	}
 
@@ -45,7 +63,7 @@ func PrepareInstructionsSnapshot(hostPath, block string) (string, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	if _, err := f.WriteString(merged); err != nil {
+	if _, err := f.WriteString(mergeInstructions(existing, block)); err != nil {
 		_ = os.Remove(f.Name())
 		return "", err
 	}
@@ -53,28 +71,8 @@ func PrepareInstructionsSnapshot(hostPath, block string) (string, error) {
 	return f.Name(), nil
 }
 
-// ensureHostFile creates hostPath if missing, so Docker doesn't auto-create it as root when mounting the snapshot over it.
-func ensureHostFile(hostPath string) error {
-	if info, err := os.Lstat(hostPath); err == nil {
-		return checkRegular(hostPath, info)
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-
-	if err := os.MkdirAll(filepath.Dir(hostPath), 0o750); err != nil {
-		return err
-	}
-
-	// O_EXCL refuses to follow a dangling link to its target
-	f, err := os.OpenFile(hostPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o640)
-	if err != nil {
-		return err
-	}
-	return f.Close()
-}
-
 // FinalizeInstructionsSnapshot strips the managed block from snapshotPath and persists the rest back to hostPath, then removes snapshotPath.
-func FinalizeInstructionsSnapshot(hostPath, snapshotPath string) error {
+func FinalizeInstructionsSnapshot(toolHome, hostPath, snapshotPath string) error {
 	defer func() { _ = os.Remove(snapshotPath) }()
 
 	f, err := os.Open(snapshotPath)
@@ -88,12 +86,17 @@ func FinalizeInstructionsSnapshot(hostPath, snapshotPath string) error {
 		return err
 	}
 
-	preserved := stripManaged(content)
-	if err := os.MkdirAll(filepath.Dir(hostPath), 0o750); err != nil {
+	root, name, err := createToolsRoot(toolHome, hostPath)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Close() }()
+
+	if err := root.MkdirAll(filepath.Dir(name), 0o750); err != nil {
 		return err
 	}
 
-	return writeInstructions(hostPath, preserved)
+	return writeInstructions(root, name, stripManaged(content))
 }
 
 // stripManaged removes the agentic-managed block from existing, or returns it untouched if the markers are missing or malformed.
@@ -117,8 +120,14 @@ func stripManaged(existing string) string {
 }
 
 // writeManagedInstructions writes block into path, replacing only the managed section and leaving the rest untouched.
-func writeManagedInstructions(path, block string) error {
-	existing, err := readInstructions(path)
+func writeManagedInstructions(toolHome, path, block string) error {
+	root, name, err := createToolsRoot(toolHome, path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Close() }()
+
+	existing, err := readInstructions(root, name)
 	if err != nil {
 		return err
 	}
@@ -126,41 +135,87 @@ func writeManagedInstructions(path, block string) error {
 		return nil
 	}
 
-	return writeInstructions(path, mergeInstructions(existing, block))
+	if err := root.MkdirAll(filepath.Dir(name), 0o750); err != nil {
+		return err
+	}
+	return writeInstructions(root, name, mergeInstructions(existing, block))
 }
 
-// readInstructions reads path, empty when missing; the instructions file sits in the agent-writable tool home, so only a regular file is read.
-func readInstructions(path string) (string, error) {
-	info, err := os.Lstat(path)
+// createToolsRoot is openToolsRoot, creating the tools dir first.
+func createToolsRoot(toolHome, path string) (*os.Root, string, error) {
+	if err := os.MkdirAll(filepath.Join(toolHome, ToolsDirName), 0o750); err != nil {
+		return nil, "", err
+	}
+	return openToolsRoot(toolHome, path)
+}
+
+// openToolsRoot opens the tools dir under toolHome as a root and returns path relative to it, so a tool dir the agent swaps for a link can't lead reads or writes outside it.
+func openToolsRoot(toolHome, path string) (*os.Root, string, error) {
+	dir := filepath.Join(toolHome, ToolsDirName)
+	name, err := filepath.Rel(dir, path)
+	if err != nil || !filepath.IsLocal(name) {
+		return nil, "", fmt.Errorf("%s is outside %s", path, dir)
+	}
+
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, "", err
+	}
+	return root, name, nil
+}
+
+// ensureHostFile creates name if missing, so Docker doesn't auto-create it as root when mounting the snapshot over it.
+func ensureHostFile(root *os.Root, name string) error {
+	if info, err := root.Lstat(name); err == nil {
+		return checkRegular(name, info)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	if err := root.MkdirAll(filepath.Dir(name), 0o750); err != nil {
+		return err
+	}
+
+	// O_EXCL refuses to follow a dangling link to its target
+	f, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o640)
+	if err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+// readInstructions reads name, empty when missing; the instructions file sits in the agent-writable tool home, so only a regular file is read.
+func readInstructions(root *os.Root, name string) (string, error) {
+	info, err := root.Lstat(name)
 	if os.IsNotExist(err) {
 		return "", nil
 	}
 	if err != nil {
 		return "", err
 	}
-	if err := checkRegular(path, info); err != nil {
+	if err := checkRegular(name, info); err != nil {
 		return "", err
 	}
 
-	f, err := openRegular(path, info)
+	f, err := openRegular(root, name, info)
 	if err != nil {
 		return "", err
 	}
 	defer func() { _ = f.Close() }()
 
-	return readCapped(f, path)
+	return readCapped(f, name)
 }
 
-// openRegular opens path and refuses it unless it is still the regular file checked, so a link or FIFO swapped in after Lstat can't redirect or hang the read.
-func openRegular(path string, checked os.FileInfo) (*os.File, error) {
-	f, err := platform.OpenNoFollow(path)
+// openRegular opens name and refuses it unless it is still the regular file checked, so a link or FIFO swapped in after Lstat can't redirect or hang the read.
+func openRegular(root *os.Root, name string, checked os.FileInfo) (*os.File, error) {
+	f, err := platform.OpenInRoot(root, name)
 	if err != nil {
 		return nil, err
 	}
 
 	opened, err := f.Stat()
 	if err == nil && (!opened.Mode().IsRegular() || !os.SameFile(checked, opened)) {
-		err = fmt.Errorf("%s changed while reading it", path)
+		err = fmt.Errorf("%s changed while reading it", name)
 	}
 	if err != nil {
 		_ = f.Close()
@@ -181,14 +236,14 @@ func readCapped(r io.Reader, path string) (string, error) {
 	return string(data), nil
 }
 
-// writeInstructions replaces path via a temp file and rename, so a planted symlink is replaced instead of followed.
-func writeInstructions(path, content string) error {
-	f, err := os.CreateTemp(filepath.Dir(path), ".agentic-instructions-*")
+// writeInstructions replaces name via a temp file and rename, so a planted symlink is replaced instead of followed.
+func writeInstructions(root *os.Root, name, content string) error {
+	tmp := filepath.Join(filepath.Dir(name), ".agentic-instructions-"+rand.Text())
+	f, err := root.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
-	tmp := f.Name()
-	defer func() { _ = os.Remove(tmp) }()
+	defer func() { _ = root.Remove(tmp) }()
 
 	_, err = f.WriteString(content)
 	if err == nil {
@@ -203,7 +258,7 @@ func writeInstructions(path, content string) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	return root.Rename(tmp, name)
 }
 
 // checkRegular refuses anything but a regular file, such as a symlink the agent planted to redirect a host read or write.

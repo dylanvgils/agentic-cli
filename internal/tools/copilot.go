@@ -141,5 +141,5 @@ func copilotInstructionsHostPath(toolHome string) string {
 
 // writeCopilotInstructions writes content to Copilot CLI's global instructions file.
 func writeCopilotInstructions(toolHome, content string) error {
-	return writeManagedInstructions(copilotInstructionsHostPath(toolHome), content)
+	return writeManagedInstructions(toolHome, copilotInstructionsHostPath(toolHome), content)
 }
