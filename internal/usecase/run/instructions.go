@@ -36,7 +36,7 @@ func (s *Service) PrepareInstructions(toolHome string, toolConfig tools.ToolConf
 
 	hostPath := toolConfig.Runtime.InstructionsHostPath(toolHome)
 
-	snapshotPath, err := tools.PrepareInstructionsSnapshot(hostPath, content)
+	snapshotPath, err := tools.PrepareInstructionsSnapshot(toolHome, hostPath, content)
 	if err != nil {
 		return InstructionsSnapshot{}, err
 	}
@@ -44,7 +44,7 @@ func (s *Service) PrepareInstructions(toolHome string, toolConfig tools.ToolConf
 	return InstructionsSnapshot{
 		MountSpec: mount.VolumeMount(snapshotPath, toolConfig.Runtime.InstructionsContainerPath),
 		finalize: func() error {
-			return tools.FinalizeInstructionsSnapshot(hostPath, snapshotPath)
+			return tools.FinalizeInstructionsSnapshot(toolHome, hostPath, snapshotPath)
 		},
 	}, nil
 }
@@ -97,7 +97,7 @@ func (s *Service) PreviewInstructions(req Request) (string, error) {
 
 	hostPath := req.Tool.Runtime.InstructionsHostPath(in.ToolHome)
 
-	return tools.MergedInstructions(hostPath, content)
+	return tools.MergedInstructions(in.ToolHome, hostPath, content)
 }
 
 func instructionsEnabled(rc *config.AgenticRC) bool {

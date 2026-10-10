@@ -2,6 +2,7 @@ package tools
 
 import (
 	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 
@@ -86,4 +87,22 @@ func symlinkOrSkip(t *testing.T, target, link string) {
 		t.Skip("symlinks need privileges on windows")
 	}
 	require.NoError(t, os.Symlink(target, link))
+}
+
+// newToolsPath returns a fresh tool home with its tools dir created, and the host path of name inside that dir.
+func newToolsPath(t *testing.T, name ...string) (string, string) {
+	t.Helper()
+	toolHome := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(toolHome, ToolsDirName), 0o750))
+	return toolHome, filepath.Join(append([]string{toolHome, ToolsDirName}, name...)...)
+}
+
+// openTestRoot opens a fresh temp dir as a root, closed on cleanup.
+func openTestRoot(t *testing.T) (*os.Root, string) {
+	t.Helper()
+	dir := t.TempDir()
+	root, err := os.OpenRoot(dir)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = root.Close() })
+	return root, dir
 }

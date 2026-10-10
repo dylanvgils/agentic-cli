@@ -136,5 +136,5 @@ func claudeInstructionsHostPath(toolHome string) string {
 
 // writeClaudeInstructions writes content to Claude Code's global CLAUDE.md.
 func writeClaudeInstructions(toolHome, content string) error {
-	return writeManagedInstructions(claudeInstructionsHostPath(toolHome), content)
+	return writeManagedInstructions(toolHome, claudeInstructionsHostPath(toolHome), content)
 }
