@@ -1,5 +1,16 @@
 # Agentic CLI
 
+[![CI](https://github.com/dylanvgils/agentic-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/dylanvgils/agentic-cli/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/dylanvgils/agentic-cli)](https://github.com/dylanvgils/agentic-cli/releases/latest)
+[![Go version](https://img.shields.io/github/go-mod/go-version/dylanvgils/agentic-cli)](go.mod)
+[![License](https://img.shields.io/github/license/dylanvgils/agentic-cli)](LICENSE)
+
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=agentic-cli&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=agentic-cli)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=agentic-cli&metric=coverage)](https://sonarcloud.io/summary/new_code?id=agentic-cli)
+[![Security](https://sonarcloud.io/api/project_badges/measure?project=agentic-cli&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=agentic-cli)
+[![Reliability](https://sonarcloud.io/api/project_badges/measure?project=agentic-cli&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=agentic-cli)
+[![Maintainability](https://sonarcloud.io/api/project_badges/measure?project=agentic-cli&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=agentic-cli)
+
 Runs agentic coding tools in isolated, read-only Docker containers - each with only the minimal mounts it needs: your workspace and its own config directory. No root, no extra capabilities, no leftovers when done.
 
 - **Multiple tools** - Claude Code, GitHub Copilot CLI, OpenCode, run the same way
