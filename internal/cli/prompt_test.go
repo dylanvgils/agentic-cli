@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -47,6 +50,36 @@ func Test_ttyPrompter_TrustDir(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not trusted")
+	})
+}
+
+func Test_describeDir(t *testing.T) {
+	t.Run("plain dir is shown as is", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+
+		// Act
+		got := describeDir(dir)
+
+		// Assert
+		assert.Equal(t, dir, got)
+	})
+
+	t.Run("symlinked dir shows where it leads", func(t *testing.T) {
+		// Arrange
+		if runtime.GOOS == "windows" {
+			t.Skip("symlinks need privileges on windows")
+		}
+		real, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
+		link := filepath.Join(t.TempDir(), "sub")
+		require.NoError(t, os.Symlink(real, link))
+
+		// Act
+		got := describeDir(link)
+
+		// Assert
+		assert.Equal(t, link+" (-> "+real+")", got)
 	})
 }
 

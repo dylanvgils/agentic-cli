@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -189,19 +190,44 @@ func TestIsTrusted(t *testing.T) {
 	})
 }
 
-func TestTrust_appendsAndPersists(t *testing.T) {
-	// Arrange
-	dir := t.TempDir()
-	cfg := &CliConfig{}
+func TestTrust(t *testing.T) {
+	t.Run("appends and persists", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		cfg := &CliConfig{}
 
-	// Act
-	err := cfg.Trust("/new/dir", dir)
+		// Act
+		err := cfg.Trust("/new/dir", dir)
 
-	// Assert
-	require.NoError(t, err)
-	reloaded, err := LoadConfig(dir)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"/new/dir"}, reloaded.TrustedDirs)
+		// Assert
+		require.NoError(t, err)
+		reloaded, err := LoadConfig(dir)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"/new/dir"}, reloaded.TrustedDirs)
+	})
+
+	t.Run("symlinked dir is stored by its real path, so retargeting it needs a new approval", func(t *testing.T) {
+		// Arrange
+		if runtime.GOOS == "windows" {
+			t.Skip("symlinks need privileges on windows")
+		}
+		home := t.TempDir()
+		approved, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
+		link := filepath.Join(t.TempDir(), "sub")
+		require.NoError(t, os.Symlink(approved, link))
+		cfg := &CliConfig{}
+
+		// Act
+		err = cfg.Trust(link, home)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{approved}, cfg.TrustedDirs)
+		require.NoError(t, os.Remove(link))
+		require.NoError(t, os.Symlink(t.TempDir(), link))
+		assert.False(t, cfg.IsTrusted(link), "a retargeted link must not inherit the old approval")
+	})
 }
 
 func TestCredentialsApproved(t *testing.T) {
