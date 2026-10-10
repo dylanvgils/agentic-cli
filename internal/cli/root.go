@@ -67,7 +67,9 @@ func Execute() {
 
 // persistentPreRunE is rootCmd's PersistentPreRunE: resolves the Docker context, migrates TOOL_HOME if needed, checks Docker/git, and offers an upgrade if available.
 func persistentPreRunE(cmd *cobra.Command, args []string) error {
-	resolveContext(cmd)
+	if err := resolveContext(cmd); err != nil {
+		return err
+	}
 
 	if cmd.Parent() != nil && !inCommandChain(cmd, noMigrateCmds) {
 		if _, err := migrateRun(toolHome); err != nil {
@@ -91,14 +93,27 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 }
 
 // resolveContext resolves the active Docker context from --docker-context, .agenticrc.toml, or agentic.json and builds dockerClient for it; if none are set, the docker CLI's own context resolution applies.
-func resolveContext(cmd *cobra.Command) {
-	rc, err := config.FindAndLoadFromCwd()
+func resolveContext(cmd *cobra.Command) error {
+	cwd, _ := os.Getwd()
+	layers, err := config.FindLayers(cwd)
+	if err != nil {
+		layers = nil
+	}
+
+	rc, err := config.Merge(layers)
 	if err != nil {
 		rc = &config.AgenticRC{}
 	}
 
 	flagVal, _ := cmd.Flags().GetString("docker-context")
+	if flagVal == "" {
+		if err := run.CheckContextTrust(cwd, toolHome, layers, flagTrustDir, ttyPrompter{}); err != nil {
+			return err
+		}
+	}
+
 	dockerClient = docker.New(resolve.DockerContext(flagVal, rc, toolHome))
+	return nil
 }
 
 // checkDocker verifies the Docker daemon is reachable before any subcommand that needs it runs.

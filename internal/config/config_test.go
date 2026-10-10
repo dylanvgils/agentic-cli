@@ -3,7 +3,6 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -128,11 +127,17 @@ func TestSave_lastToolVersionCheckRoundTrips(t *testing.T) {
 }
 
 func TestIsTrusted(t *testing.T) {
-	cfg := &CliConfig{TrustedDirs: []string{"/home/user/projects"}}
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	projects := filepath.Join(base, "projects")
+	for _, dir := range []string{"projects/foo", "other", "projects-evil"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(base, dir), 0o750))
+	}
+	cfg := &CliConfig{TrustedDirs: []string{projects}}
 
 	t.Run("exact match", func(t *testing.T) {
 		// Act
-		result := cfg.IsTrusted("/home/user/projects")
+		result := cfg.IsTrusted(projects)
 
 		// Assert
 		assert.True(t, result)
@@ -140,7 +145,7 @@ func TestIsTrusted(t *testing.T) {
 
 	t.Run("parent match", func(t *testing.T) {
 		// Act
-		result := cfg.IsTrusted("/home/user/projects/foo")
+		result := cfg.IsTrusted(filepath.Join(projects, "foo"))
 
 		// Assert
 		assert.True(t, result)
@@ -148,7 +153,7 @@ func TestIsTrusted(t *testing.T) {
 
 	t.Run("no match", func(t *testing.T) {
 		// Act
-		result := cfg.IsTrusted("/home/user/other")
+		result := cfg.IsTrusted(filepath.Join(base, "other"))
 
 		// Assert
 		assert.False(t, result)
@@ -156,10 +161,21 @@ func TestIsTrusted(t *testing.T) {
 
 	t.Run("prefix without separator no match", func(t *testing.T) {
 		// Act
-		result := cfg.IsTrusted("/home/user/projects-evil")
+		result := cfg.IsTrusted(filepath.Join(base, "projects-evil"))
 
 		// Assert
 		assert.False(t, result)
+	})
+
+	t.Run("entry with a trailing separator still matches", func(t *testing.T) {
+		// Arrange
+		cfg := &CliConfig{TrustedDirs: []string{projects + string(filepath.Separator)}}
+
+		// Act
+		result := cfg.IsTrusted(filepath.Join(projects, "foo"))
+
+		// Assert
+		assert.True(t, result)
 	})
 
 	t.Run("empty config", func(t *testing.T) {
@@ -167,20 +183,24 @@ func TestIsTrusted(t *testing.T) {
 		cfg := &CliConfig{}
 
 		// Act
-		result := cfg.IsTrusted("/anything")
+		result := cfg.IsTrusted(base)
+
+		// Assert
+		assert.False(t, result)
+	})
+
+	t.Run("missing dir is not trusted", func(t *testing.T) {
+		// Act
+		result := cfg.IsTrusted(filepath.Join(projects, "missing"))
 
 		// Assert
 		assert.False(t, result)
 	})
 
 	t.Run("symlink dir matches", func(t *testing.T) {
-		// Arrange: create a real dir and a symlink pointing to it
-		real := t.TempDir()
+		// Arrange
 		link := filepath.Join(t.TempDir(), "link")
-		if err := os.Symlink(real, link); err != nil {
-			t.Skip("cannot create symlink:", err)
-		}
-		cfg := &CliConfig{TrustedDirs: []string{real}}
+		symlinkOrSkip(t, projects, link)
 
 		// Act
 		result := cfg.IsTrusted(link)
@@ -188,34 +208,58 @@ func TestIsTrusted(t *testing.T) {
 		// Assert
 		assert.True(t, result, "symlinked dir should be trusted when its target is trusted")
 	})
+
+	t.Run("entry that is a symlink is compared as stored", func(t *testing.T) {
+		// Arrange
+		link := filepath.Join(t.TempDir(), "link")
+		symlinkOrSkip(t, filepath.Join(base, "other"), link)
+		cfg := &CliConfig{TrustedDirs: []string{link}}
+
+		// Act
+		result := cfg.IsTrusted(filepath.Join(base, "other"))
+
+		// Assert
+		assert.False(t, result, "an entry the agent can retarget must not trust where it points")
+	})
 }
 
 func TestTrust(t *testing.T) {
 	t.Run("appends and persists", func(t *testing.T) {
 		// Arrange
-		dir := t.TempDir()
+		home := t.TempDir()
+		dir, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
 		cfg := &CliConfig{}
 
 		// Act
-		err := cfg.Trust("/new/dir", dir)
+		err = cfg.Trust(dir, home)
 
 		// Assert
 		require.NoError(t, err)
-		reloaded, err := LoadConfig(dir)
+		reloaded, err := LoadConfig(home)
 		require.NoError(t, err)
-		assert.Equal(t, []string{"/new/dir"}, reloaded.TrustedDirs)
+		assert.Equal(t, []string{dir}, reloaded.TrustedDirs)
+	})
+
+	t.Run("dir that can't be resolved is not trusted", func(t *testing.T) {
+		// Arrange
+		cfg := &CliConfig{}
+
+		// Act
+		err := cfg.Trust(filepath.Join(t.TempDir(), "missing"), t.TempDir())
+
+		// Assert
+		assert.Error(t, err)
+		assert.Empty(t, cfg.TrustedDirs)
 	})
 
 	t.Run("symlinked dir is stored by its real path, so retargeting it needs a new approval", func(t *testing.T) {
 		// Arrange
-		if runtime.GOOS == "windows" {
-			t.Skip("symlinks need privileges on windows")
-		}
 		home := t.TempDir()
 		approved, err := filepath.EvalSymlinks(t.TempDir())
 		require.NoError(t, err)
 		link := filepath.Join(t.TempDir(), "sub")
-		require.NoError(t, os.Symlink(approved, link))
+		symlinkOrSkip(t, approved, link)
 		cfg := &CliConfig{}
 
 		// Act
@@ -257,22 +301,38 @@ func TestCredentialsApproved(t *testing.T) {
 		assert.False(t, result)
 	})
 
-	t.Run("symlinked path matches its target", func(t *testing.T) {
+	t.Run("path through a symlinked dir matches its real path", func(t *testing.T) {
 		// Arrange
-		dir := t.TempDir()
-		target := filepath.Join(dir, ".agenticrc.toml")
-		require.NoError(t, os.WriteFile(target, nil, 0o644))
-		link := filepath.Join(dir, "link.toml")
-		require.NoError(t, os.Symlink(target, link))
-		real, err := filepath.EvalSymlinks(target)
+		real, err := filepath.EvalSymlinks(t.TempDir())
 		require.NoError(t, err)
-		linked := &CliConfig{ApprovedCredentials: map[string]string{real: "abc"}}
+		link := filepath.Join(t.TempDir(), "link")
+		symlinkOrSkip(t, real, link)
+		linked := &CliConfig{ApprovedCredentials: map[string]string{filepath.Join(real, ".agenticrc.toml"): "abc"}}
 
 		// Act
-		result := linked.CredentialsApproved(link, "abc")
+		result := linked.CredentialsApproved(filepath.Join(link, ".agenticrc.toml"), "abc")
 
 		// Assert
 		assert.True(t, result)
+	})
+
+	t.Run("config file linked to an approved one needs its own approval", func(t *testing.T) {
+		// Arrange
+		approvedDir, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
+		approved := filepath.Join(approvedDir, ".agenticrc.toml")
+		require.NoError(t, os.WriteFile(approved, nil, 0o644))
+		workspace, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
+		planted := filepath.Join(workspace, ".agenticrc.toml")
+		symlinkOrSkip(t, approved, planted)
+		linked := &CliConfig{ApprovedCredentials: map[string]string{approved: "abc"}}
+
+		// Act
+		result := linked.CredentialsApproved(planted, "abc")
+
+		// Assert
+		assert.False(t, result)
 	})
 }
 
@@ -356,4 +416,96 @@ func TestConfigFile(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, filepath.Join("/example.test/agentic", "agentic.json"), path)
+}
+
+func TestChangedSettings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".agenticrc.toml")
+	mounts := func(m ...string) RCLayer {
+		rc := &AgenticRC{}
+		rc.Run.ExtraMounts = m
+		return RCLayer{Path: path, RC: rc}
+	}
+
+	t.Run("unset setting never approved is unchanged", func(t *testing.T) {
+		// Arrange
+		cfg := &CliConfig{}
+
+		// Act
+		changed := cfg.ChangedSettings(mounts())
+
+		// Assert
+		assert.Empty(t, changed)
+	})
+
+	t.Run("new setting is changed", func(t *testing.T) {
+		// Arrange
+		cfg := &CliConfig{}
+
+		// Act
+		changed := cfg.ChangedSettings(mounts("~/.example:/x:rw"))
+
+		// Assert
+		assert.Equal(t, []GuardedSetting{{"run.extra_mounts", []string{"~/.example:/x:rw"}}}, changed)
+	})
+
+	t.Run("approved setting is unchanged", func(t *testing.T) {
+		// Arrange
+		cfg := &CliConfig{}
+		require.NoError(t, cfg.ApproveSettings(mounts("~/.example:/x:rw"), t.TempDir()))
+
+		// Act
+		changed := cfg.ChangedSettings(mounts("~/.example:/x:rw"))
+
+		// Assert
+		assert.Empty(t, changed)
+	})
+
+	t.Run("cleared approved setting is changed", func(t *testing.T) {
+		// Arrange
+		cfg := &CliConfig{}
+		require.NoError(t, cfg.ApproveSettings(mounts("~/.example:/x:rw"), t.TempDir()))
+
+		// Act
+		changed := cfg.ChangedSettings(mounts())
+
+		// Assert
+		require.Len(t, changed, 1)
+		assert.Equal(t, "run.extra_mounts", changed[0].Key)
+	})
+
+	t.Run("config file linked to an approved one needs its own approval", func(t *testing.T) {
+		// Arrange
+		cfg := &CliConfig{}
+		require.NoError(t, cfg.ApproveSettings(mounts("~/.example:/x:rw"), t.TempDir()))
+		planted := filepath.Join(t.TempDir(), ".agenticrc.toml")
+		symlinkOrSkip(t, path, planted)
+		layer := mounts("~/.example:/x:rw")
+		layer.Path = planted
+
+		// Act
+		changed := cfg.ChangedSettings(layer)
+
+		// Assert
+		assert.Len(t, changed, 1)
+	})
+}
+
+func TestApproveSettings(t *testing.T) {
+	// Arrange
+	home := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	rc := &AgenticRC{Namespace: "work"}
+	layer := RCLayer{Path: filepath.Join(dir, ".agenticrc.toml"), RC: rc}
+	cfg := &CliConfig{}
+
+	// Act
+	err = cfg.ApproveSettings(layer, home)
+
+	// Assert
+	require.NoError(t, err)
+	reloaded, err := LoadConfig(home)
+	require.NoError(t, err)
+	approved := reloaded.ApprovedSettings[layer.Path]
+	assert.Equal(t, map[string]string{"namespace": GuardedSetting{"namespace", "work"}.hash()}, approved)
 }

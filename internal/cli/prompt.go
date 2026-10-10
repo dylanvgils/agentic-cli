@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -41,6 +42,25 @@ func (ttyPrompter) ApproveCredentials(layer config.RCLayer) error {
 	logging.Promptf("allow the proxy to read these secrets and send them to these hosts? [y/N] ")
 	if !confirmed() {
 		return fmt.Errorf("proxy credentials in %s not approved", layer.Path)
+	}
+
+	return nil
+}
+
+// ApproveSettings shows a layer's changed guarded settings and returns an error unless the user approves them.
+func (ttyPrompter) ApproveSettings(layer config.RCLayer, changed []config.GuardedSetting) error {
+	if !isTerminal() {
+		return fmt.Errorf("settings in %s that reach outside the container changed (%s); run interactively to approve them", layer.Path, settingKeys(changed))
+	}
+
+	logging.Infof("%q changed settings that reach outside the container:", layer.Path)
+	for _, setting := range changed {
+		logging.Infof("  %s", describeSetting(setting))
+	}
+
+	logging.Promptf("apply these settings? [y/N] ")
+	if !confirmed() {
+		return fmt.Errorf("settings in %s not approved", layer.Path)
 	}
 
 	return nil
@@ -117,4 +137,24 @@ func describeDir(dir string) string {
 		return dir + " (-> " + real + ")"
 	}
 	return dir
+}
+
+// describeSetting renders setting as key = value, or as unset when cleared.
+func describeSetting(setting config.GuardedSetting) string {
+	if !setting.IsSet() {
+		return setting.Key + " (unset)"
+	}
+
+	// Config values are plain data and always marshal
+	data, _ := json.Marshal(setting.Value)
+	return setting.Key + " = " + string(data)
+}
+
+// settingKeys returns the keys of settings, comma-separated.
+func settingKeys(settings []config.GuardedSetting) string {
+	keys := make([]string, 0, len(settings))
+	for _, setting := range settings {
+		keys = append(keys, setting.Key)
+	}
+	return strings.Join(keys, ", ")
 }

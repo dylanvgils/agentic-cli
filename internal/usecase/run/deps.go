@@ -31,5 +31,6 @@ type Docker interface {
 type Prompter interface {
 	TrustDir(dir string) error
 	ApproveCredentials(layer config.RCLayer) error
+	ApproveSettings(layer config.RCLayer, changed []config.GuardedSetting) error
 	OfferToolUpdate(tool, installed, latest string) bool
 }

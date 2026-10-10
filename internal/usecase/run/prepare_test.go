@@ -2,6 +2,7 @@ package run
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -44,31 +45,29 @@ func TestPrepare(t *testing.T) {
 		assert.Empty(t, p.trustAsked)
 	})
 
-	t.Run("failed tool update stops before the trust prompt", func(t *testing.T) {
+	t.Run("refused trust stops before the tool update and setup", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		req.Project.RC.Run.CheckUpdates = nil
 		stubLatestToolVersion(t, "2.0.0")
-		stubUpdateLatestToolVersion(t, "2.0.0")
 		stubLog(t)
-		var rebuilt []string
-		d := &fakeDocker{
-			inspectImage: built,
-			buildTool: func(tool, _ string, _ tools.BuildOptions) error {
-				rebuilt = append(rebuilt, tool)
-				return errors.New("build failed")
-			},
+		tool := tools.Configs["claude"]
+		setUp := false
+		tool.Runtime.Setup = func(string) error {
+			setUp = true
+			return nil
 		}
-		p := &fakePrompter{offerToolUpdate: func(string, string, string) bool { return true }}
+		req.Tool = tool
+		p := &fakePrompter{trustDir: func(string) error { return errors.New("directory not trusted") }}
 
 		// Act
-		_, cleanup, err := New(d).Prepare(req, p)
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
-		require.ErrorContains(t, err, "build failed")
-		assert.Equal(t, []string{"claude"}, rebuilt)
-		assert.Empty(t, p.trustAsked)
+		require.EqualError(t, err, "directory not trusted")
+		assert.Empty(t, p.updatesOffered)
+		assert.False(t, setUp)
 	})
 
 	t.Run("declined tool update still runs", func(t *testing.T) {
@@ -111,6 +110,26 @@ func TestPrepare(t *testing.T) {
 
 		// Assert
 		require.EqualError(t, err, "setup claude: disk full")
+	})
+
+	t.Run("refused settings stop before the tool update", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Project.RC.Run.CheckUpdates = nil
+		stubLatestToolVersion(t, "2.0.0")
+		stubLog(t)
+		rc := &config.AgenticRC{}
+		rc.Run.ExtraMounts = []string{"~/.example:/x:rw"}
+		req.Project.Layers = []config.RCLayer{{Path: filepath.Join(req.Project.Dir, ".agenticrc.toml"), RC: rc}}
+		p := &fakePrompter{approveSettings: func(config.RCLayer, []config.GuardedSetting) error { return errors.New("settings not approved") }}
+
+		// Act
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, p)
+		defer cleanup()
+
+		// Assert
+		require.EqualError(t, err, "settings not approved")
+		assert.Empty(t, p.updatesOffered)
 	})
 
 	t.Run("refused trust stops before the credentials prompt", func(t *testing.T) {

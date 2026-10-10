@@ -14,7 +14,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/stretchr/testify/require"
 )
 
@@ -105,10 +104,12 @@ func (f *fakeDocker) PruneDangling() error {
 type fakePrompter struct {
 	trustDir           func(string) error
 	approveCredentials func(config.RCLayer) error
+	approveSettings    func(config.RCLayer, []config.GuardedSetting) error
 	offerToolUpdate    func(tool, installed, latest string) bool
 
 	trustAsked       []string
 	credentialsAsked []string
+	settingsAsked    [][]string
 	updatesOffered   []string
 }
 
@@ -126,6 +127,18 @@ func (f *fakePrompter) ApproveCredentials(layer config.RCLayer) error {
 		return nil
 	}
 	return f.approveCredentials(layer)
+}
+
+func (f *fakePrompter) ApproveSettings(layer config.RCLayer, changed []config.GuardedSetting) error {
+	var keys []string
+	for _, setting := range changed {
+		keys = append(keys, setting.Key)
+	}
+	f.settingsAsked = append(f.settingsAsked, keys)
+	if f.approveSettings == nil {
+		return nil
+	}
+	return f.approveSettings(layer, changed)
 }
 
 func (f *fakePrompter) OfferToolUpdate(tool, installed, latest string) bool {
@@ -249,14 +262,6 @@ func stubLatestToolVersion(t *testing.T, latest string) {
 	orig := toolupdate.LatestToolVersion
 	toolupdate.LatestToolVersion = func(string, string) (string, bool, bool) { return latest, true, true }
 	t.Cleanup(func() { toolupdate.LatestToolVersion = orig })
-}
-
-// stubUpdateLatestToolVersion makes an applied tool update see latest as newer, so it rebuilds without a network lookup.
-func stubUpdateLatestToolVersion(t *testing.T, latest string) {
-	t.Helper()
-	orig := update.LatestToolVersion
-	update.LatestToolVersion = func(string, string) (string, bool, bool) { return latest, true, true }
-	t.Cleanup(func() { update.LatestToolVersion = orig })
 }
 
 // stubLog redirects logging.Log to a buffer for the duration of the test and returns it.

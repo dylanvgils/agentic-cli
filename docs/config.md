@@ -16,13 +16,14 @@ Stored at `$AGENTIC_HOME/agentic.json`. Edit it with any text editor.
 
 | Key                        | Type   | Description                                                             | CLI flag           |
 | -------------------------- | ------ | ----------------------------------------------------------------------- | ------------------ |
-| `trusted_dirs`             | list   | Directories you can run tools from without an interactive trust prompt, saved by real path so a retargeted symlink asks again | `--trust-dir`      |
+| `trusted_dirs`             | list   | Directories you can run tools from without an interactive trust prompt, stored as real paths | `--trust-dir`      |
 | `registry`                 | scalar | Registry prefix for base image pulls. See [Registry proxy](#registry-proxy). | `--registry`       |
 | `docker_context`           | scalar | Machine-wide default Docker context. See [Precedence](#precedence).     | `--docker-context` |
 | `proxy_log_retention_days` | scalar | Days to keep [egress proxy](egress-proxy.md) logs. Default: `3`.        | -                  |
 | `last_update_check`        | scalar | Managed automatically.                                                  | -                  |
 | `last_tool_version_check`  | object | Managed automatically.                                                  | -                  |
 | `approved_credentials`     | object | Your [credential](egress-proxy.md#credential-injection) approvals. Managed automatically. | -                  |
+| `approved_settings`        | object | Your [setting approvals](#setting-approval). Managed automatically. | -                  |
 
 ### Registry proxy
 
@@ -247,6 +248,17 @@ name = "claude-only-thing"
 url  = "git@github.com:acme/claude-extras.git"
 tools = ["claude"]
 ```
+
+## Setting approval
+
+The agent can edit `.agenticrc.toml` files in directories it ran in, so changes to these keys in any of them need your approval on the next run. Non-interactive runs fail until approved.
+
+- `root`, `namespace`, `docker_context`, `marketplaces`
+- `build.custom_installs`
+- `run.extra_mounts`, `run.read_only_mounts`, `run.secrets`, `run.env`
+- `run.proxy.enabled`, `run.proxy.mode`, `run.proxy.allowed_hosts`, `run.dind.enabled`
+
+`agentic build` and `agentic update` don't ask, so review the diff first.
 
 ## Merge semantics
 

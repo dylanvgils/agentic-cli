@@ -181,18 +181,38 @@ func Test_checkGit(t *testing.T) {
 }
 
 func Test_resolveContext(t *testing.T) {
-	// Arrange - keep the repo's own .agenticrc.toml out of the test
-	t.Chdir(t.TempDir())
-	restoreDockerClient(t)
-	cmd := &cobra.Command{}
-	cmd.Flags().String("docker-context", "", "")
-	require.NoError(t, cmd.Flags().Set("docker-context", "prod"))
+	t.Run("flag sets the context", func(t *testing.T) {
+		// Arrange - keep the repo's own .agenticrc.toml out of the test
+		t.Chdir(t.TempDir())
+		restoreDockerClient(t)
+		cmd := &cobra.Command{}
+		cmd.Flags().String("docker-context", "", "")
+		require.NoError(t, cmd.Flags().Set("docker-context", "prod"))
 
-	// Act
-	resolveContext(cmd)
+		// Act
+		err := resolveContext(cmd)
 
-	// Assert
-	assert.Equal(t, "prod", dockerClient.Context())
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "prod", dockerClient.Context())
+	})
+
+	t.Run("context from an untrusted workspace config is refused", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte(`docker_context = "prod"`), 0o644))
+		t.Chdir(dir)
+		restoreDockerClient(t)
+		stubToolHome(t, t.TempDir())
+		cmd := &cobra.Command{}
+		cmd.Flags().String("docker-context", "", "")
+
+		// Act
+		err := resolveContext(cmd)
+
+		// Assert
+		assert.ErrorContains(t, err, "is not trusted")
+	})
 }
 
 func Test_persistentPreRunE(t *testing.T) {

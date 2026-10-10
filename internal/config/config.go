@@ -22,6 +22,8 @@ type CliConfig struct {
 	LastToolVersionCheck  map[string]time.Time `json:"last_tool_version_check,omitempty"`
 	// ApprovedCredentials maps a .agenticrc.toml path to the CredentialsHash of the entries the user approved
 	ApprovedCredentials map[string]string `json:"approved_credentials,omitempty"`
+	// ApprovedSettings maps a .agenticrc.toml path to the hash of each guarded setting the user approved; a missing key was approved unset
+	ApprovedSettings map[string]map[string]string `json:"approved_settings,omitempty"`
 }
 
 // LoadConfig reads $AGENTIC_HOME/agentic.json, returning an empty CliConfig if the file does not exist.
@@ -54,18 +56,21 @@ func (config *CliConfig) Save(toolHome string) error {
 	return os.WriteFile(ConfigFile(toolHome), data, 0o640)
 }
 
-// IsTrusted reports whether dir exactly matches or is nested under a trusted entry, resolving symlinks on both sides so e.g. macOS's /var and /private/var compare equal.
+// IsTrusted reports whether dir, once symlinks are resolved, is a trusted entry or below one; entries compare as stored, since a link inside one could otherwise widen trust.
 func (config *CliConfig) IsTrusted(dir string) bool {
-	realDir := evalSymlinks(dir)
+	realDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return false
+	}
 
 	for _, trusted := range config.TrustedDirs {
-		realTrusted := evalSymlinks(trusted)
+		trusted = filepath.Clean(trusted)
 
-		if realDir == realTrusted {
+		if realDir == trusted {
 			return true
 		}
 
-		if strings.HasPrefix(realDir, realTrusted+string(filepath.Separator)) {
+		if strings.HasPrefix(realDir, trusted+string(filepath.Separator)) {
 			return true
 		}
 	}
@@ -73,16 +78,20 @@ func (config *CliConfig) IsTrusted(dir string) bool {
 	return false
 }
 
-// Trust appends dir to the trusted directories and saves the config.
+// Trust appends dir's real path to the trusted directories and saves the config, so retargeting a symlinked dir later needs a new approval.
 func (config *CliConfig) Trust(dir, toolHome string) error {
-	// The real path, so retargeting a symlinked dir later needs a new approval
-	config.TrustedDirs = append(config.TrustedDirs, evalSymlinks(dir))
+	realDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return err
+	}
+
+	config.TrustedDirs = append(config.TrustedDirs, realDir)
 	return config.Save(toolHome)
 }
 
 // CredentialsApproved reports whether the user approved the credential entries with hash in the config file at path.
 func (config *CliConfig) CredentialsApproved(path, hash string) bool {
-	return config.ApprovedCredentials[evalSymlinks(path)] == hash
+	return config.ApprovedCredentials[approvalKey(path)] == hash
 }
 
 // PendingCredentials returns the layers whose credential entries are new or changed since the user last approved them.
@@ -103,7 +112,40 @@ func (config *CliConfig) ApproveCredentials(path, hash, toolHome string) error {
 		config.ApprovedCredentials = make(map[string]string)
 	}
 
-	config.ApprovedCredentials[evalSymlinks(path)] = hash
+	config.ApprovedCredentials[approvalKey(path)] = hash
+	return config.Save(toolHome)
+}
+
+// ChangedSettings returns the guarded settings of layer that differ from what the user last approved for its file; never-approved settings count as approved unset.
+func (config *CliConfig) ChangedSettings(layer RCLayer) []GuardedSetting {
+	approved := config.ApprovedSettings[approvalKey(layer.Path)]
+
+	var changed []GuardedSetting
+	for _, setting := range GuardedSettings(layer.RC) {
+		want, ok := approved[setting.Key]
+		if !ok {
+			want = GuardedSetting{}.hash()
+		}
+		if setting.hash() != want {
+			changed = append(changed, setting)
+		}
+	}
+	return changed
+}
+
+// ApproveSettings records layer's guarded settings as approved for its file and saves the config.
+func (config *CliConfig) ApproveSettings(layer RCLayer, toolHome string) error {
+	hashes := make(map[string]string)
+	for _, setting := range GuardedSettings(layer.RC) {
+		if setting.IsSet() {
+			hashes[setting.Key] = setting.hash()
+		}
+	}
+
+	if config.ApprovedSettings == nil {
+		config.ApprovedSettings = make(map[string]map[string]string)
+	}
+	config.ApprovedSettings[approvalKey(layer.Path)] = hashes
 	return config.Save(toolHome)
 }
 
@@ -112,10 +154,11 @@ func ConfigFile(toolHome string) string {
 	return filepath.Join(toolHome, "agentic.json")
 }
 
-// evalSymlinks resolves symlinks in path, falling back to path on error.
-func evalSymlinks(path string) string {
-	if real, err := filepath.EvalSymlinks(path); err == nil {
-		return real
+// approvalKey returns path with its dir resolved but not the file itself, so a config file linked to another project's gets its own approval.
+func approvalKey(path string) string {
+	dir := filepath.Dir(path)
+	if real, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = real
 	}
-	return path
+	return filepath.Join(dir, filepath.Base(path))
 }
