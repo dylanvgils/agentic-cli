@@ -251,7 +251,7 @@ tools = ["claude"]
 
 ## Setting approval
 
-The agent can edit the `.agenticrc.toml` in your current directory, so changes there to these keys need your approval on the next run. Non-interactive runs fail until approved.
+The agent can edit `.agenticrc.toml` files in directories it ran in, so changes to these keys in any of them need your approval on the next run. Non-interactive runs fail until approved.
 
 - `root`, `namespace`, `docker_context`, `marketplaces`
 - `build.custom_installs`

@@ -28,7 +28,7 @@ func TestCheckContextTrust(t *testing.T) {
 		assert.Equal(t, []string{dir}, p.trustAsked)
 	})
 
-	t.Run("context set in a parent dir's config does not ask", func(t *testing.T) {
+	t.Run("context set in a parent dir's config asks for approval, not trust", func(t *testing.T) {
 		// Arrange
 		parent := t.TempDir()
 		dir := filepath.Join(parent, "project")
@@ -40,6 +40,7 @@ func TestCheckContextTrust(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, p.trustAsked)
+		assert.Equal(t, [][]string{{"docker_context"}}, p.settingsAsked)
 	})
 
 	t.Run("trusted dir still approves its changed settings", func(t *testing.T) {
@@ -147,15 +148,14 @@ func Test_checkSettings(t *testing.T) {
 		return config.RCLayer{Path: filepath.Join(dir, ".agenticrc.toml"), RC: rc}
 	}
 
-	t.Run("changed settings in the dir's own config are approved and saved", func(t *testing.T) {
+	t.Run("changed settings are approved and saved", func(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()
-		dir := t.TempDir()
-		layer := mountLayer(dir)
+		layer := mountLayer(t.TempDir())
 		p := &fakePrompter{}
 
 		// Act
-		err := checkSettings(dir, []config.RCLayer{layer}, toolHome, p)
+		err := checkSettings([]config.RCLayer{layer}, toolHome, p)
 
 		// Assert
 		require.NoError(t, err)
@@ -168,12 +168,11 @@ func Test_checkSettings(t *testing.T) {
 	t.Run("refused approval returns its error and saves nothing", func(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()
-		dir := t.TempDir()
-		layer := mountLayer(dir)
+		layer := mountLayer(t.TempDir())
 		p := &fakePrompter{approveSettings: func(config.RCLayer, []config.GuardedSetting) error { return errors.New("settings not approved") }}
 
 		// Act
-		err := checkSettings(dir, []config.RCLayer{layer}, toolHome, p)
+		err := checkSettings([]config.RCLayer{layer}, toolHome, p)
 
 		// Assert
 		require.EqualError(t, err, "settings not approved")
@@ -182,17 +181,18 @@ func Test_checkSettings(t *testing.T) {
 		assert.NotEmpty(t, cfg.ChangedSettings(layer))
 	})
 
-	t.Run("config above the dir is not asked about", func(t *testing.T) {
+	t.Run("every config file is asked about", func(t *testing.T) {
 		// Arrange
 		parent := t.TempDir()
+		layers := []config.RCLayer{mountLayer(parent), mountLayer(filepath.Join(parent, "project"))}
 		p := &fakePrompter{}
 
 		// Act
-		err := checkSettings(filepath.Join(parent, "project"), []config.RCLayer{mountLayer(parent)}, t.TempDir(), p)
+		err := checkSettings(layers, t.TempDir(), p)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Empty(t, p.settingsAsked)
+		assert.Len(t, p.settingsAsked, 2)
 	})
 }
 

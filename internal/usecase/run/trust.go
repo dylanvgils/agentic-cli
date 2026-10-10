@@ -3,21 +3,23 @@ package run
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 )
 
-// CheckContextTrust has the user trust dir and approve its own config file's guarded settings before a docker_context set there picks the Docker daemon, since the agent can edit that file.
+// CheckContextTrust has the user approve changed settings before a docker_context from a config file picks the Docker daemon, and trust dir first when its own file sets it.
 func CheckContextTrust(dir, toolHome string, layers []config.RCLayer, trustFlag bool, prompter Prompter) error {
-	layer, ok := workspaceLayer(dir, layers)
-	if !ok || layer.RC.DockerContext == "" {
+	if !slices.ContainsFunc(layers, func(l config.RCLayer) bool { return l.RC.DockerContext != "" }) {
 		return nil
 	}
 
-	if err := checkTrust(dir, toolHome, trustFlag, prompter); err != nil {
-		return err
+	if layer, ok := workspaceLayer(dir, layers); ok && layer.RC.DockerContext != "" {
+		if err := checkTrust(dir, toolHome, trustFlag, prompter); err != nil {
+			return err
+		}
 	}
-	return checkSettings(dir, layers, toolHome, prompter)
+	return checkSettings(layers, toolHome, prompter)
 }
 
 // checkTrust errors unless dir is trusted, trusting it first when trustFlag is set or prompter approves.
@@ -40,29 +42,26 @@ func checkTrust(dir, toolHome string, trustFlag bool, prompter Prompter) error {
 	return cfg.Trust(dir, toolHome)
 }
 
-// checkSettings has prompter approve the guarded settings of dir's own config file whenever they change, since the agent can edit that file but not the ones above dir.
-func checkSettings(dir string, layers []config.RCLayer, toolHome string, prompter Prompter) error {
-	layer, ok := workspaceLayer(dir, layers)
-	if !ok {
-		return nil
-	}
-
+// checkSettings has prompter approve each layer's guarded settings whenever they change, since the agent can edit any config file in a dir it ran in.
+func checkSettings(layers []config.RCLayer, toolHome string, prompter Prompter) error {
 	cfg, err := config.LoadConfig(toolHome)
 	if err != nil {
 		return fmt.Errorf("load trust config: %w", err)
 	}
 
-	changed := cfg.ChangedSettings(layer)
-	if len(changed) == 0 {
-		return nil
-	}
+	for _, layer := range layers {
+		changed := cfg.ChangedSettings(layer)
+		if len(changed) == 0 {
+			continue
+		}
 
-	if err := prompter.ApproveSettings(layer, changed); err != nil {
-		return err
-	}
+		if err := prompter.ApproveSettings(layer, changed); err != nil {
+			return err
+		}
 
-	if err := cfg.ApproveSettings(layer, toolHome); err != nil {
-		return fmt.Errorf("save settings approval: %w", err)
+		if err := cfg.ApproveSettings(layer, toolHome); err != nil {
+			return fmt.Errorf("save settings approval: %w", err)
+		}
 	}
 	return nil
 }
