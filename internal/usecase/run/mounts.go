@@ -48,35 +48,22 @@ func (m mountSet) pinSymlinks() (mountSet, error) {
 		return m, nil
 	}
 
-	pinned := m
-	pinned.volumes = nil
+	pinned := mountSet{toolHome: m.toolHome, containerHome: m.containerHome}
 	for _, volume := range m.volumes {
-		expanded := mount.ExpandMountSpec(volume, m.toolHome, m.containerHome)
-		if !mount.IsNamedVolume(expanded) {
-			host := mount.HostPart(expanded)
-			real, err := pinnedHost(host, cwd)
-			if err != nil {
+		if !mount.IsNamedVolume(mount.ExpandMountSpec(volume, m.toolHome, m.containerHome)) {
+			if volume, err = m.pinSpec(volume, cwd); err != nil {
 				return mountSet{}, err
-			}
-			if real != "" {
-				volume = real + expanded[len(host):]
 			}
 		}
 		pinned.volumes = append(pinned.volumes, volume)
 	}
 
-	pinned.secrets = nil
 	for _, secret := range m.secrets {
 		if name, rest, ok := strings.Cut(secret, ":"); ok {
-			expanded := mount.ExpandMountSpec(rest, m.toolHome, m.containerHome)
-			host := mount.HostPart(expanded)
-			real, err := pinnedHost(host, cwd)
-			if err != nil {
+			if rest, err = m.pinSpec(rest, cwd); err != nil {
 				return mountSet{}, err
 			}
-			if real != "" {
-				secret = name + ":" + real + expanded[len(host):]
-			}
+			secret = name + ":" + rest
 		}
 		pinned.secrets = append(pinned.secrets, secret)
 	}
@@ -90,6 +77,17 @@ func (m mountSet) checkConfigNotMounted() error {
 		return fmt.Errorf("mount %s would expose %s to the tool container; mount a narrower path", root, file)
 	}
 	return nil
+}
+
+// pinSpec expands spec and swaps its host part for the real path when a workspace symlink leads elsewhere; otherwise spec is returned as written.
+func (m mountSet) pinSpec(spec, cwd string) (string, error) {
+	expanded := mount.ExpandMountSpec(spec, m.toolHome, m.containerHome)
+	host := mount.HostPart(expanded)
+	real, err := pinnedHost(host, cwd)
+	if err != nil || real == "" {
+		return spec, err
+	}
+	return real + expanded[len(host):], nil
 }
 
 // findRoot returns the first root containing path.
