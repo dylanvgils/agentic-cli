@@ -23,7 +23,7 @@ type mountSet struct {
 	containerHome string
 }
 
-// newMountSet assembles the run's volumes and secrets and resolves them, so an unchecked set never reaches docker.
+// newMountSet assembles the run's volumes and secrets and checks them, so an unchecked set never reaches docker.
 func newMountSet(req buildRequest, marketplaceMounts []string) (mountSet, error) {
 	m := mountSet{
 		volumes:       runVolumes(req, marketplaceMounts),
@@ -31,7 +31,11 @@ func newMountSet(req buildRequest, marketplaceMounts []string) (mountSet, error)
 		toolHome:      req.in.ToolHome,
 		containerHome: req.containerHome,
 	}
-	return m.resolveMounts()
+
+	if err := m.checkMounts(); err != nil {
+		return mountSet{}, err
+	}
+	return m, nil
 }
 
 // hostPaths returns the expanded host side of every bind mount and secret mount.
@@ -52,23 +56,27 @@ func (m mountSet) hostPaths() []string {
 	return paths
 }
 
-// resolveMounts pins workspace symlinks to their real paths, then refuses mounts exposing agentic.json.
-func (m mountSet) resolveMounts() (mountSet, error) {
-	volumes, err := pinAll(m.volumes, m.pinVolume)
+// checkMounts refuses mounts through a workspace symlink and mounts exposing agentic.json.
+func (m mountSet) checkMounts() error {
+	if err := m.checkSymlinks(); err != nil {
+		return err
+	}
+	return m.checkConfigNotMounted()
+}
+
+// checkSymlinks refuses host paths through a symlink inside cwd, since docker follows it on the host, e.g. a planted .git -> ~/.ssh.
+func (m mountSet) checkSymlinks() error {
+	cwd, err := os.Getwd()
 	if err != nil {
-		return mountSet{}, err
+		return err
 	}
 
-	secrets, err := pinAll(m.secrets, m.pinSecret)
-	if err != nil {
-		return mountSet{}, err
+	for _, host := range m.hostPaths() {
+		if link, ok := workspaceSymlink(host, cwd); ok {
+			return fmt.Errorf("mount %s goes through workspace symlink %s; mount the real path instead", host, link)
+		}
 	}
-
-	m.volumes, m.secrets = volumes, secrets
-	if err := m.checkConfigNotMounted(); err != nil {
-		return mountSet{}, err
-	}
-	return m, nil
+	return nil
 }
 
 // checkConfigNotMounted refuses any mount exposing agentic.json, so the agent can't trust dirs or approve credentials itself.
@@ -78,58 +86,6 @@ func (m mountSet) checkConfigNotMounted() error {
 		return fmt.Errorf("mount %s would expose %s to the tool container; mount a narrower path", root, file)
 	}
 	return nil
-}
-
-// pinVolume pins a bind mount; named volumes stay as written.
-func (m mountSet) pinVolume(spec string) (string, error) {
-	if mount.IsNamedVolume(mount.ExpandMountSpec(spec, m.toolHome, m.containerHome)) {
-		return spec, nil
-	}
-	return m.pinHost(spec)
-}
-
-// pinSecret pins the path of a name:path secret.
-func (m mountSet) pinSecret(spec string) (string, error) {
-	name, path, ok := strings.Cut(spec, ":")
-	if !ok {
-		return spec, nil
-	}
-
-	pinned, err := m.pinHost(path)
-	return name + ":" + pinned, err
-}
-
-// pinHost replaces the host part of spec with its real path, or returns spec as written when no workspace link redirects it.
-func (m mountSet) pinHost(spec string) (string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return spec, nil
-	}
-
-	expanded := mount.ExpandMountSpec(spec, m.toolHome, m.containerHome)
-	host := mount.HostPart(expanded)
-	real, err := realWorkspacePath(host, cwd)
-	if err != nil || real == "" {
-		return spec, err
-	}
-
-	if hasMountMeta(real) {
-		return "", fmt.Errorf("mount %s leads to %s, whose name holds $, ~ or :; rename it", host, real)
-	}
-	return real + strings.TrimPrefix(expanded, host), nil
-}
-
-// pinAll applies pin to every spec, stopping at the first error.
-func pinAll(specs []string, pin func(string) (string, error)) ([]string, error) {
-	var pinned []string
-	for _, spec := range specs {
-		p, err := pin(spec)
-		if err != nil {
-			return nil, err
-		}
-		pinned = append(pinned, p)
-	}
-	return pinned, nil
 }
 
 // findRoot returns the first root containing path.
@@ -174,55 +130,19 @@ func pathForms(path string) []string {
 	return forms
 }
 
-// realWorkspacePath returns where a workspace symlink redirects host, empty without one, and an error when it leads out of cwd or dangles.
-func realWorkspacePath(host, cwd string) (string, error) {
-	rel, ok := workspaceRel(host, cwd)
-	if !ok {
-		return "", nil
-	}
-
-	realCwd := resolveExisting(cwd)
-	written := filepath.Join(realCwd, rel)
-	real := resolveExisting(written)
-	if !within(real, cwd) {
-		return "", fmt.Errorf("mount %s leads through a workspace symlink to %s; mount the real path instead", host, real)
-	}
-
-	if link, ok := danglingLink(real, realCwd); ok {
-		return "", fmt.Errorf("mount %s leads through workspace symlink %s, whose target is missing", host, link)
-	}
-
-	if real == written {
-		return "", nil
-	}
-	return real, nil
-}
-
-// workspaceRel returns host relative to the shallowest prefix of host that resolves to cwd; ok is false outside cwd.
-func workspaceRel(host, cwd string) (string, bool) {
+// workspaceSymlink returns the first symlink below cwd that host goes through, dangling ones included.
+func workspaceSymlink(host, cwd string) (string, bool) {
 	abs, err := filepath.Abs(host)
 	if err != nil {
 		return "", false
 	}
 
-	realCwd := resolveExisting(cwd)
-	rel, ok := "", false
-	for p := abs; ; p = filepath.Dir(p) {
-		// The shallowest match keeps any links below cwd in rel
-		if real := resolveExisting(p); real == realCwd || (caseInsensitivePaths && strings.EqualFold(real, realCwd)) {
-			rel, _ = filepath.Rel(p, abs)
-			ok = true
-		}
-
-		if filepath.Dir(p) == p {
-			return rel, ok
-		}
+	root, ok := workspaceRoot(abs, cwd)
+	if !ok {
+		return "", false
 	}
-}
 
-// danglingLink returns the first symlink below base in path, which resolveExisting leaves only when its target is missing.
-func danglingLink(path, base string) (string, bool) {
-	for p := path; strings.HasPrefix(p, base+string(filepath.Separator)); p = filepath.Dir(p) {
+	for p := abs; p != root && p != filepath.Dir(p); p = filepath.Dir(p) {
 		if info, err := os.Lstat(p); err == nil && info.Mode()&os.ModeSymlink != 0 {
 			return p, true
 		}
@@ -230,9 +150,19 @@ func danglingLink(path, base string) (string, bool) {
 	return "", false
 }
 
-// hasMountMeta reports whether path holds a character agentic expands ($, ~) or docker splits on (:), outside a drive letter.
-func hasMountMeta(path string) bool {
-	return strings.ContainsAny(strings.TrimPrefix(path, filepath.VolumeName(path)), "$~:")
+// workspaceRoot returns the shallowest prefix of abs that resolves to cwd, so links below cwd stay in the part checked.
+func workspaceRoot(abs, cwd string) (string, bool) {
+	realCwd := resolveExisting(cwd)
+	root, ok := "", false
+	for p := abs; ; p = filepath.Dir(p) {
+		if real := resolveExisting(p); real == realCwd || (caseInsensitivePaths && strings.EqualFold(real, realCwd)) {
+			root, ok = p, true
+		}
+
+		if filepath.Dir(p) == p {
+			return root, ok
+		}
+	}
 }
 
 // isInside reports whether a filepath.Rel result stays inside its base.

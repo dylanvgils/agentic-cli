@@ -213,7 +213,7 @@ func TestBuild(t *testing.T) {
 		_, err := New(d).Build(target, in, tools.Configs["claude"], rc)
 
 		// Assert
-		assert.ErrorContains(t, err, "leads through a workspace symlink")
+		assert.ErrorContains(t, err, "goes through workspace symlink")
 	})
 
 	t.Run("ensure named volumes error propagates", func(t *testing.T) {

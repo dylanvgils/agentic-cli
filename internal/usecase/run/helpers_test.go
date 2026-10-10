@@ -284,7 +284,6 @@ func chdirSymlinkWorkspace(t *testing.T) symlinkWorkspace {
 
 	real := filepath.Join(dir, "real")
 	require.NoError(t, os.MkdirAll(filepath.Join(real, "sub"), 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(real, "token"), []byte("test-secret"), 0o600))
 	require.NoError(t, os.Symlink(real, filepath.Join(dir, "link")))
 	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "escape")))
 	return symlinkWorkspace{dir: dir, real: real, outside: outside}
