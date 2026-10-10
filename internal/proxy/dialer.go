@@ -22,7 +22,7 @@ var (
 	alwaysBlocked = []netip.Prefix{netip.MustParsePrefix("0.0.0.0/8")}
 
 	// privateRanges holds private ranges IsPrivate misses (CGNAT).
-	privateRanges = []netip.Prefix{netip.MustParsePrefix("100.64.0.0/10")}
+	privateRanges = []netip.Prefix{netip.MustParsePrefix("100.64.0.0/10")} // NOSONAR - a range to refuse, not an address to reach
 
 	// upstreamDialer checks each resolved address before connecting, so DNS can't point an allowed name inward.
 	upstreamDialer = &net.Dialer{Timeout: dialTimeout, ControlContext: guardAddr}
