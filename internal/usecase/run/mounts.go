@@ -1,7 +1,9 @@
 package run
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -56,12 +58,38 @@ func (m mountSet) hostPaths() []string {
 	return paths
 }
 
-// checkMounts refuses mounts through a workspace symlink and mounts exposing agentic.json.
+// checkMounts refuses unresolvable mounts, mounts through a workspace symlink and mounts exposing agentic.json.
 func (m mountSet) checkMounts() error {
+	if err := m.checkResolvable(); err != nil {
+		return err
+	}
 	if err := m.checkSymlinks(); err != nil {
 		return err
 	}
 	return m.checkConfigNotMounted()
+}
+
+// checkResolvable refuses host paths agentic can't fully resolve or that lead into /proc, since the daemon may follow links there the other checks can't see, e.g. /proc/1/root.
+func (m mountSet) checkResolvable() error {
+	for _, host := range m.hostPaths() {
+		abs, err := filepath.Abs(host)
+		if err != nil {
+			return err
+		}
+
+		if isProcPath(abs) {
+			return fmt.Errorf("mount %s goes through /proc; mount the real path instead", host)
+		}
+
+		real, err := resolvePrefix(abs)
+		if err != nil {
+			return fmt.Errorf("mount %s can't be resolved: %w", host, err)
+		}
+		if isProcPath(real) {
+			return fmt.Errorf("mount %s goes through /proc; mount the real path instead", host)
+		}
+	}
+	return nil
 }
 
 // checkSymlinks refuses host paths through a symlink inside cwd, since docker follows it on the host, e.g. a planted .git -> ~/.ssh.
@@ -170,17 +198,35 @@ func isInside(rel string) bool {
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
-// resolveExisting resolves symlinks in the longest existing prefix of abs, so a path not created yet still resolves.
+// isProcPath reports whether abs is /proc or below it.
+func isProcPath(abs string) bool {
+	return abs == "/proc" || strings.HasPrefix(abs, "/proc/")
+}
+
+// resolveExisting resolves symlinks in the longest existing prefix of abs, so a path not created yet still resolves; abs as is when that fails.
 func resolveExisting(abs string) string {
+	real, err := resolvePrefix(abs)
+	if err != nil {
+		return abs
+	}
+	return real
+}
+
+// resolvePrefix resolves symlinks in the longest existing prefix of abs, failing on any error but a missing path.
+func resolvePrefix(abs string) (string, error) {
 	dir, rest := abs, ""
 	for {
-		if real, err := filepath.EvalSymlinks(dir); err == nil {
-			return filepath.Join(real, rest)
+		real, err := filepath.EvalSymlinks(dir)
+		if err == nil {
+			return filepath.Join(real, rest), nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return "", err
 		}
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return abs
+			return abs, nil
 		}
 		rest = filepath.Join(filepath.Base(dir), rest)
 		dir = parent

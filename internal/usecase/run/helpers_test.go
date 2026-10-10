@@ -293,3 +293,18 @@ func chdirSymlinkWorkspace(t *testing.T) symlinkWorkspace {
 	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "escape")))
 	return symlinkWorkspace{dir: dir, real: real, outside: outside}
 }
+
+// stubUnresolvablePath returns a path through a link inside a dir agentic can't search, like /proc/1/root for a non-root user.
+func stubUnresolvablePath(t *testing.T) string {
+	t.Helper()
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("needs unix permissions that bind the current user")
+	}
+
+	locked := filepath.Join(t.TempDir(), "locked")
+	require.NoError(t, os.Mkdir(locked, 0o700))
+	require.NoError(t, os.Symlink("/", filepath.Join(locked, "root")))
+	require.NoError(t, os.Chmod(locked, 0))
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+	return filepath.Join(locked, "root", "home")
+}
