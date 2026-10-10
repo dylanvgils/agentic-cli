@@ -112,6 +112,10 @@ func (m mountSet) pinHost(spec string) (string, error) {
 	if err != nil || real == "" {
 		return spec, err
 	}
+
+	if hasMountMeta(real) {
+		return "", fmt.Errorf("mount %s leads to %s, whose name holds $, ~ or :; rename it", host, real)
+	}
 	return real + strings.TrimPrefix(expanded, host), nil
 }
 
@@ -170,39 +174,65 @@ func pathForms(path string) []string {
 	return forms
 }
 
-// realWorkspacePath returns where a workspace symlink redirects host, empty without one, and an error when it leads out of cwd.
+// realWorkspacePath returns where a workspace symlink redirects host, empty without one, and an error when it leads out of cwd or dangles.
 func realWorkspacePath(host, cwd string) (string, error) {
 	rel, ok := workspaceRel(host, cwd)
 	if !ok {
 		return "", nil
 	}
 
-	// Only links below cwd count
-	written := filepath.Join(resolveExisting(cwd), rel)
+	realCwd := resolveExisting(cwd)
+	written := filepath.Join(realCwd, rel)
 	real := resolveExisting(written)
-	if real == written {
-		return "", nil
-	}
-
 	if !within(real, cwd) {
 		return "", fmt.Errorf("mount %s leads through a workspace symlink to %s; mount the real path instead", host, real)
+	}
+
+	if link, ok := danglingLink(real, realCwd); ok {
+		return "", fmt.Errorf("mount %s leads through workspace symlink %s, whose target is missing", host, link)
+	}
+
+	if real == written {
+		return "", nil
 	}
 	return real, nil
 }
 
-// workspaceRel returns host relative to cwd or cwd's real path; ok is false outside both.
+// workspaceRel returns host relative to the shallowest prefix of host that resolves to cwd; ok is false outside cwd.
 func workspaceRel(host, cwd string) (string, bool) {
 	abs, err := filepath.Abs(host)
 	if err != nil {
 		return "", false
 	}
 
-	for _, base := range []string{cwd, resolveExisting(cwd)} {
-		if rel, err := filepath.Rel(base, abs); err == nil && isInside(rel) {
-			return rel, true
+	realCwd := resolveExisting(cwd)
+	rel, ok := "", false
+	for p := abs; ; p = filepath.Dir(p) {
+		// The shallowest match keeps any links below cwd in rel
+		if real := resolveExisting(p); real == realCwd || (caseInsensitivePaths && strings.EqualFold(real, realCwd)) {
+			rel, _ = filepath.Rel(p, abs)
+			ok = true
+		}
+
+		if filepath.Dir(p) == p {
+			return rel, ok
+		}
+	}
+}
+
+// danglingLink returns the first symlink below base in path, which resolveExisting leaves only when its target is missing.
+func danglingLink(path, base string) (string, bool) {
+	for p := path; strings.HasPrefix(p, base+string(filepath.Separator)); p = filepath.Dir(p) {
+		if info, err := os.Lstat(p); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			return p, true
 		}
 	}
 	return "", false
+}
+
+// hasMountMeta reports whether path holds a character agentic expands ($, ~) or docker splits on (:), outside a drive letter.
+func hasMountMeta(path string) bool {
+	return strings.ContainsAny(strings.TrimPrefix(path, filepath.VolumeName(path)), "$~:")
 }
 
 // isInside reports whether a filepath.Rel result stays inside its base.

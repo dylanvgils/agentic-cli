@@ -165,6 +165,18 @@ func Test_mountSet_pinHost(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "$PWD:/workspace", spec)
 	})
+
+	t.Run("real path that would expand again is refused", func(t *testing.T) {
+		// Arrange
+		require.NoError(t, os.Mkdir(filepath.Join(ws.dir, "x~"), 0o700))
+		require.NoError(t, os.Symlink("x~", filepath.Join(ws.dir, "tilde")))
+
+		// Act
+		_, err := mounts.pinHost("$PWD/tilde:/data")
+
+		// Assert
+		assert.ErrorContains(t, err, "rename it")
+	})
 }
 
 func Test_within(t *testing.T) {
@@ -260,6 +272,17 @@ func Test_realWorkspacePath(t *testing.T) {
 		assert.ErrorContains(t, err, "leads through a workspace symlink to "+ws.outside)
 	})
 
+	t.Run("dangling workspace link is refused", func(t *testing.T) {
+		// Arrange
+		require.NoError(t, os.Symlink(filepath.Join(ws.outside, "missing", "deep"), filepath.Join(ws.dir, "dangling")))
+
+		// Act
+		_, err := realWorkspacePath(filepath.Join(ws.dir, "dangling"), ws.dir)
+
+		// Assert
+		assert.ErrorContains(t, err, "whose target is missing")
+	})
+
 	t.Run("path outside cwd returns empty", func(t *testing.T) {
 		// Act
 		real, err := realWorkspacePath(ws.outside, ws.dir)
@@ -280,6 +303,49 @@ func Test_workspaceRel(t *testing.T) {
 		// Assert
 		assert.True(t, ok)
 		assert.Equal(t, filepath.Join("a", "b"), rel)
+	})
+
+	t.Run("path through an alias of cwd is inside", func(t *testing.T) {
+		// Arrange
+		if runtime.GOOS == "windows" {
+			t.Skip("symlinks need privileges on windows")
+		}
+		alias := filepath.Join(t.TempDir(), "alias")
+		require.NoError(t, os.Symlink(cwd, alias))
+
+		// Act
+		rel, ok := workspaceRel(filepath.Join(alias, "a"), cwd)
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, "a", rel)
+	})
+
+	t.Run("case-insensitive filesystems ignore case", func(t *testing.T) {
+		// Arrange
+		stubCaseInsensitivePaths(t, true)
+
+		// Act
+		rel, ok := workspaceRel(filepath.Join(strings.ToUpper(cwd), "a"), cwd)
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, "a", rel)
+	})
+
+	t.Run("link below cwd stays in rel", func(t *testing.T) {
+		// Arrange
+		if runtime.GOOS == "windows" {
+			t.Skip("symlinks need privileges on windows")
+		}
+		require.NoError(t, os.Symlink(".", filepath.Join(cwd, "self")))
+
+		// Act
+		rel, ok := workspaceRel(filepath.Join(cwd, "self", "a"), cwd)
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, filepath.Join("self", "a"), rel)
 	})
 
 	t.Run("path written via a symlinked cwd's real path is inside", func(t *testing.T) {
@@ -359,5 +425,50 @@ func Test_pinAll(t *testing.T) {
 		// Assert
 		assert.EqualError(t, err, "refused")
 		assert.Equal(t, []string{"a"}, seen)
+	})
+}
+
+func Test_danglingLink(t *testing.T) {
+	ws := chdirSymlinkWorkspace(t)
+
+	t.Run("link with a missing target is found", func(t *testing.T) {
+		// Arrange
+		link := filepath.Join(ws.dir, "gone")
+		require.NoError(t, os.Symlink(filepath.Join(ws.dir, "missing"), link))
+
+		// Act
+		found, ok := danglingLink(filepath.Join(link, "a"), ws.dir)
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, link, found)
+	})
+
+	t.Run("plain missing path has none", func(t *testing.T) {
+		// Act
+		_, ok := danglingLink(filepath.Join(ws.real, "missing", "a"), ws.dir)
+
+		// Assert
+		assert.False(t, ok)
+	})
+}
+
+func Test_hasMountMeta(t *testing.T) {
+	t.Run("expandable or splitting characters are found", func(t *testing.T) {
+		for _, path := range []string{"/ws/x~", "/ws/$PWD", "/ws/a:/etc"} {
+			// Act
+			found := hasMountMeta(path)
+
+			// Assert
+			assert.True(t, found, path)
+		}
+	})
+
+	t.Run("plain path has none", func(t *testing.T) {
+		// Act
+		found := hasMountMeta("/ws/real-dir.d")
+
+		// Assert
+		assert.False(t, found)
 	})
 }
