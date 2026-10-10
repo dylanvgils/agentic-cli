@@ -45,7 +45,7 @@ func Test_resolveCredentials(t *testing.T) {
 		secret := filepath.Join(t.TempDir(), "token")
 		require.NoError(t, os.WriteFile(secret, []byte("test-secret\n"), 0o600))
 		layer := credentialLayer(t, secret)
-		approveCredentials(t, layer, toolHome)
+		approveSettings(t, layer, toolHome)
 
 		// Act
 		resolved, err := resolveCredentials([]config.RCLayer{layer}, toolHome)

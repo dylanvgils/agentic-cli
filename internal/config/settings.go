@@ -7,6 +7,9 @@ import (
 	"reflect"
 )
 
+// CredentialsSetting is the guarded key of the proxy credentials, which read host secrets and send them out.
+const CredentialsSetting = "run.proxy.credentials"
+
 // GuardedSetting is a key of a config file that reaches past the container, so changing it needs the user's approval.
 type GuardedSetting struct {
 	Key   string
@@ -51,6 +54,7 @@ func GuardedSettings(rc *AgenticRC) []GuardedSetting {
 		{"run.proxy.enabled", rc.Run.Proxy.Enabled},
 		{"run.proxy.mode", rc.Run.Proxy.Mode},
 		{"run.proxy.allowed_hosts", rc.Run.Proxy.AllowedHosts},
+		{CredentialsSetting, rc.Run.Proxy.Credentials},
 		{"run.dind.enabled", rc.Run.Dind.Enabled},
 	}
 }

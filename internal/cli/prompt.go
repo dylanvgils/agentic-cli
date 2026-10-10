@@ -4,12 +4,31 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
+
+// settingEffects says in a few words what each guarded setting controls, so the prompt shows what approving it allows.
+var settingEffects = map[string]string{
+	"root":                    "stops loading .agenticrc.toml files above this one",
+	"namespace":               "which image set runs are started from",
+	"docker_context":          "which Docker daemon runs the container",
+	"marketplaces":            "plugin repos cloned and mounted into the container",
+	"build.custom_installs":   "shell commands run at build time, unsandboxed",
+	"run.extra_mounts":        "host paths mounted into the container",
+	"run.read_only_mounts":    "host paths mounted read-only into the container",
+	"run.secrets":             "host files mounted as secrets",
+	"run.env":                 "host environment passed into the container",
+	"run.proxy.enabled":       "whether egress is limited to the allowlist proxy",
+	"run.proxy.mode":          "whether hosts off the allowlist are blocked or only logged",
+	"run.proxy.allowed_hosts": "hosts the container may reach",
+	config.CredentialsSetting: "host secrets the proxy reads and sends to these hosts",
+	"run.dind.enabled":        "whether the container gets its own Docker daemon",
+}
 
 // ttyPrompter asks the user on the terminal; without one it refuses with a hint on how to approve instead.
 type ttyPrompter struct{}
@@ -28,34 +47,20 @@ func (ttyPrompter) TrustDir(dir string) error {
 	return nil
 }
 
-// ApproveCredentials shows a layer's credential entries and returns an error unless the user approves them.
-func (ttyPrompter) ApproveCredentials(layer config.RCLayer) error {
-	if !isTerminal() {
-		return fmt.Errorf("proxy credentials in %s are new or changed; run interactively to approve them", layer.Path)
-	}
-
-	logging.Infof("%q declares new or changed proxy credentials:", layer.Path)
-	for _, cred := range layer.RC.Run.Proxy.Credentials {
-		logging.Infof("  %s", describeCredential(cred))
-	}
-
-	logging.Promptf("allow the proxy to read these secrets and send them to these hosts? [y/N] ")
-	if !confirmed() {
-		return fmt.Errorf("proxy credentials in %s not approved", layer.Path)
-	}
-
-	return nil
-}
-
 // ApproveSettings shows a layer's changed guarded settings and returns an error unless the user approves them.
 func (ttyPrompter) ApproveSettings(layer config.RCLayer, changed []config.GuardedSetting) error {
 	if !isTerminal() {
 		return fmt.Errorf("settings in %s that reach outside the container changed (%s); run interactively to approve them", layer.Path, settingKeys(changed))
 	}
 
-	logging.Infof("%q changed settings that reach outside the container:", layer.Path)
+	logging.Infof("%q has new or changed settings that reach outside the container.", layer.Path)
+	logging.Infof("the agent can edit this file, so approve only changes you made or expect:")
 	for _, setting := range changed {
-		logging.Infof("  %s", describeSetting(setting))
+		header, values := describeSetting(setting)
+		logging.Err.Step(header)
+		for _, value := range values {
+			logging.Err.Detail(value)
+		}
 	}
 
 	logging.Promptf("apply these settings? [y/N] ")
@@ -89,18 +94,18 @@ func (ttyPrompter) OfferUpgrade(installed, latest string) bool {
 	return confirmed()
 }
 
-// describeCredential summarizes where an entry's secret is read from and where it is sent, quoting each value so escape sequences print as text.
-func describeCredential(cred config.RCCredential) string {
+// describeCredential summarizes where an entry's secret is sent, plus where it is read from and its env vars, quoting each value so escape sequences print as text.
+func describeCredential(cred config.RCCredential) (string, []string) {
 	target := fmt.Sprintf("preset %q", cred.Preset)
 	if cred.Preset == "" {
 		target = fmt.Sprintf("header %q on %s", cred.Header, quoteAll(cred.Hosts))
 	}
 
-	desc := fmt.Sprintf("%s, secret %q", target, cred.Secret)
+	details := []string{fmt.Sprintf("secret %q", cred.Secret)}
 	if len(cred.Env) > 0 {
-		desc += ", env " + quoteAll(cred.Env)
+		details = append(details, "env "+quoteAll(cred.Env))
 	}
-	return desc
+	return target, details
 }
 
 // confirmed reads one line from stdin and reports whether it is y or Y.
@@ -139,15 +144,49 @@ func describeDir(dir string) string {
 	return dir
 }
 
-// describeSetting renders setting as key = value, or as unset when cleared.
-func describeSetting(setting config.GuardedSetting) string {
+// describeSetting renders setting as a header with its key and effect, plus its value lines with one or more per list item; a cleared setting has no values.
+func describeSetting(setting config.GuardedSetting) (string, []string) {
+	header := setting.Key + " - " + settingEffects[setting.Key]
 	if !setting.IsSet() {
-		return setting.Key + " (unset)"
+		return header + " (removed)", nil
+	}
+
+	values := []any{setting.Value}
+	if v := reflect.ValueOf(setting.Value); v.Kind() == reflect.Slice {
+		values = make([]any, v.Len())
+		for i := range values {
+			values[i] = v.Index(i).Interface()
+		}
+	}
+
+	var lines []string
+	for _, value := range values {
+		lines = append(lines, describeValue(value)...)
+	}
+	return header, lines
+}
+
+// describeValue renders a custom install as its name with one quoted command per line, a credential as where it is sent with its details below, and any other value as json.
+func describeValue(value any) []string {
+	switch value := value.(type) {
+	case config.RCCustomInstall:
+		lines := []string{strconv.Quote(value.Name) + ":"}
+		for _, command := range value.Run {
+			lines = append(lines, "  "+strconv.Quote(command))
+		}
+		return lines
+	case config.RCCredential:
+		target, details := describeCredential(value)
+		lines := []string{target}
+		for _, detail := range details {
+			lines = append(lines, "  "+detail)
+		}
+		return lines
 	}
 
 	// Config values are plain data and always marshal
-	data, _ := json.Marshal(setting.Value)
-	return setting.Key + " = " + string(data)
+	data, _ := json.Marshal(value)
+	return []string{string(data)}
 }
 
 // settingKeys returns the keys of settings, comma-separated.

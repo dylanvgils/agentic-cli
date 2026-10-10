@@ -132,7 +132,7 @@ func TestPrepare(t *testing.T) {
 		assert.Empty(t, p.updatesOffered)
 	})
 
-	t.Run("refused trust stops before the credentials prompt", func(t *testing.T) {
+	t.Run("refused trust stops before the settings prompt", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		layer := credentialLayer(t, "/example.test/key")
@@ -145,7 +145,7 @@ func TestPrepare(t *testing.T) {
 
 		// Assert
 		require.EqualError(t, err, "directory not trusted")
-		assert.Empty(t, p.credentialsAsked)
+		assert.Empty(t, p.settingsAsked)
 	})
 
 	t.Run("--no-proxy with credentials fails after the approvals", func(t *testing.T) {
@@ -163,7 +163,7 @@ func TestPrepare(t *testing.T) {
 
 		// Assert
 		require.ErrorContains(t, err, "--no-proxy cannot be used")
-		assert.Equal(t, []string{layer.Path}, p.credentialsAsked)
+		assert.Equal(t, [][]string{{config.CredentialsSetting}}, p.settingsAsked)
 	})
 
 	t.Run("approved credentials reach the run spec", func(t *testing.T) {

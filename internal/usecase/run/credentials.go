@@ -47,8 +47,10 @@ func resolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials
 	if err != nil {
 		return nil, fmt.Errorf("load credential approvals: %w", err)
 	}
-	if pending := cfg.PendingCredentials(layers); len(pending) > 0 {
-		return nil, fmt.Errorf("proxy credentials in %s are new or changed and not approved", pending[0].Path)
+	for _, layer := range layers {
+		if slices.ContainsFunc(cfg.ChangedSettings(layer), func(s config.GuardedSetting) bool { return s.Key == config.CredentialsSetting }) {
+			return nil, fmt.Errorf("proxy credentials in %s are new or changed and not approved", layer.Path)
+		}
 	}
 
 	return credentials.Resolve(rc.Run.Proxy.Credentials)

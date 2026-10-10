@@ -2,9 +2,6 @@
 package config
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -196,14 +193,6 @@ func Merge(layers []RCLayer) (*AgenticRC, error) {
 	}
 
 	return merged, nil
-}
-
-// CredentialsHash fingerprints a layer's credential entries so a change to any of them can be detected.
-func CredentialsHash(creds []RCCredential) string {
-	// A slice of plain structs always marshals
-	data, _ := json.Marshal(creds)
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
 }
 
 // SplitEnvValues splits a comma-separated value string and skips empty parts.

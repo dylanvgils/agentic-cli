@@ -550,18 +550,6 @@ func inspectReturns(info *docker.ImageInfo, err error) func(string) (*docker.Ima
 	return func(string) (*docker.ImageInfo, error) { return info, err }
 }
 
-// credentialLayer writes a .agenticrc.toml with one credential entry reading secret and returns its layer.
-func credentialLayer(t *testing.T, secret string) config.RCLayer {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), ".agenticrc.toml")
-	content := fmt.Sprintf("[[run.proxy.credentials]]\npreset = \"anthropic\"\nsecret = %q\n", secret)
-	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
-
-	layers, err := config.FindLayers(filepath.Dir(path))
-	require.NoError(t, err)
-	return layers[len(layers)-1]
-}
-
 // stubFlag sets cmd's flag name to value for the duration of the test, then restores its default and Changed state.
 func stubFlag(t *testing.T, cmd *cobra.Command, name, value string) {
 	t.Helper()

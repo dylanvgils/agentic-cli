@@ -22,7 +22,6 @@ Stored at `$AGENTIC_HOME/agentic.json`. Edit it with any text editor.
 | `proxy_log_retention_days` | scalar | Days to keep [egress proxy](egress-proxy.md) logs. Default: `3`.        | -                  |
 | `last_update_check`        | scalar | Managed automatically.                                                  | -                  |
 | `last_tool_version_check`  | object | Managed automatically.                                                  | -                  |
-| `approved_credentials`     | object | Your [credential](egress-proxy.md#credential-injection) approvals. Managed automatically. | -                  |
 | `approved_settings`        | object | Your [setting approvals](#setting-approval). Managed automatically. | -                  |
 
 ### Registry proxy
@@ -251,12 +250,12 @@ tools = ["claude"]
 
 ## Setting approval
 
-The agent can edit `.agenticrc.toml` files in directories it ran in, so changes to these keys in any of them need your approval on the next run. Non-interactive runs fail until approved.
+The agent can edit `.agenticrc.toml` files in directories it ran in, so changes to these keys in any of them need your approval on the next run. The prompt shows what each changed key controls and its new value. Non-interactive runs fail until approved, and a config file symlinked to another project's asks again.
 
 - `root`, `namespace`, `docker_context`, `marketplaces`
 - `build.custom_installs`
 - `run.extra_mounts`, `run.read_only_mounts`, `run.secrets`, `run.env`
-- `run.proxy.enabled`, `run.proxy.mode`, `run.proxy.allowed_hosts`, `run.dind.enabled`
+- `run.proxy.enabled`, `run.proxy.mode`, `run.proxy.allowed_hosts`, `run.proxy.credentials`, `run.dind.enabled`
 
 `agentic build` and `agentic update` don't ask, so review the diff first.
 

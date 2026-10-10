@@ -274,142 +274,6 @@ func TestTrust(t *testing.T) {
 	})
 }
 
-func TestCredentialsApproved(t *testing.T) {
-	cfg := &CliConfig{ApprovedCredentials: map[string]string{"/example.test/.agenticrc.toml": "abc"}}
-
-	t.Run("matching hash", func(t *testing.T) {
-		// Act
-		result := cfg.CredentialsApproved("/example.test/.agenticrc.toml", "abc")
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("different hash", func(t *testing.T) {
-		// Act
-		result := cfg.CredentialsApproved("/example.test/.agenticrc.toml", "def")
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("unknown path", func(t *testing.T) {
-		// Act
-		result := cfg.CredentialsApproved("/other.test/.agenticrc.toml", "abc")
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("path through a symlinked dir matches its real path", func(t *testing.T) {
-		// Arrange
-		real, err := filepath.EvalSymlinks(t.TempDir())
-		require.NoError(t, err)
-		link := filepath.Join(t.TempDir(), "link")
-		symlinkOrSkip(t, real, link)
-		linked := &CliConfig{ApprovedCredentials: map[string]string{filepath.Join(real, ".agenticrc.toml"): "abc"}}
-
-		// Act
-		result := linked.CredentialsApproved(filepath.Join(link, ".agenticrc.toml"), "abc")
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("config file linked to an approved one needs its own approval", func(t *testing.T) {
-		// Arrange
-		approvedDir, err := filepath.EvalSymlinks(t.TempDir())
-		require.NoError(t, err)
-		approved := filepath.Join(approvedDir, ".agenticrc.toml")
-		require.NoError(t, os.WriteFile(approved, nil, 0o644))
-		workspace, err := filepath.EvalSymlinks(t.TempDir())
-		require.NoError(t, err)
-		planted := filepath.Join(workspace, ".agenticrc.toml")
-		symlinkOrSkip(t, approved, planted)
-		linked := &CliConfig{ApprovedCredentials: map[string]string{approved: "abc"}}
-
-		// Act
-		result := linked.CredentialsApproved(planted, "abc")
-
-		// Assert
-		assert.False(t, result)
-	})
-}
-
-func TestApproveCredentials(t *testing.T) {
-	t.Run("persists the hash", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-		cfg := &CliConfig{}
-
-		// Act
-		err := cfg.ApproveCredentials("/example.test/.agenticrc.toml", "abc", dir)
-
-		// Assert
-		require.NoError(t, err)
-		reloaded, err := LoadConfig(dir)
-		require.NoError(t, err)
-		assert.Equal(t, map[string]string{"/example.test/.agenticrc.toml": "abc"}, reloaded.ApprovedCredentials)
-	})
-
-	t.Run("replaces an earlier approval", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-		cfg := &CliConfig{ApprovedCredentials: map[string]string{"/example.test/.agenticrc.toml": "abc"}}
-
-		// Act
-		err := cfg.ApproveCredentials("/example.test/.agenticrc.toml", "def", dir)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "def", cfg.ApprovedCredentials["/example.test/.agenticrc.toml"])
-	})
-}
-
-func TestPendingCredentials(t *testing.T) {
-	creds := []RCCredential{{Preset: "anthropic", Secret: "/example.test/key"}}
-	cfg := &CliConfig{ApprovedCredentials: map[string]string{"/approved/.agenticrc.toml": CredentialsHash(creds)}}
-
-	t.Run("approved layer is not pending", func(t *testing.T) {
-		// Arrange
-		layers := []RCLayer{{Path: "/approved/.agenticrc.toml", RC: &AgenticRC{Run: RCRun{Proxy: RCProxy{Credentials: creds}}}}}
-
-		// Act
-		pending := cfg.PendingCredentials(layers)
-
-		// Assert
-		assert.Empty(t, pending)
-	})
-
-	t.Run("layer without credentials is not pending", func(t *testing.T) {
-		// Arrange
-		layers := []RCLayer{{Path: "/plain/.agenticrc.toml", RC: &AgenticRC{}}}
-
-		// Act
-		pending := cfg.PendingCredentials(layers)
-
-		// Assert
-		assert.Empty(t, pending)
-	})
-
-	t.Run("new and changed layers are pending in order", func(t *testing.T) {
-		// Arrange
-		changed := []RCCredential{{Preset: "anthropic", Secret: "/example.test/other"}}
-		layers := []RCLayer{
-			{Path: "/approved/.agenticrc.toml", RC: &AgenticRC{Run: RCRun{Proxy: RCProxy{Credentials: changed}}}},
-			{Path: "/new/.agenticrc.toml", RC: &AgenticRC{Run: RCRun{Proxy: RCProxy{Credentials: creds}}}},
-		}
-
-		// Act
-		pending := cfg.PendingCredentials(layers)
-
-		// Assert
-		require.Len(t, pending, 2)
-		assert.Equal(t, "/approved/.agenticrc.toml", pending[0].Path)
-		assert.Equal(t, "/new/.agenticrc.toml", pending[1].Path)
-	})
-}
-
 func TestConfigFile(t *testing.T) {
 	// Act
 	path := ConfigFile("/example.test/agentic")
@@ -487,6 +351,22 @@ func TestChangedSettings(t *testing.T) {
 
 		// Assert
 		assert.Len(t, changed, 1)
+	})
+
+	t.Run("approved file reached through a linked dir is unchanged", func(t *testing.T) {
+		// Arrange
+		cfg := &CliConfig{}
+		require.NoError(t, cfg.ApproveSettings(mounts("~/.example:/x:rw"), t.TempDir()))
+		link := filepath.Join(t.TempDir(), "link")
+		symlinkOrSkip(t, filepath.Dir(path), link)
+		layer := mounts("~/.example:/x:rw")
+		layer.Path = filepath.Join(link, ".agenticrc.toml")
+
+		// Act
+		changed := cfg.ChangedSettings(layer)
+
+		// Assert
+		assert.Empty(t, changed)
 	})
 }
 

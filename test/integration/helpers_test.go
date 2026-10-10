@@ -81,21 +81,6 @@ func docker(t *testing.T, args ...string) {
 	require.NoError(t, err, string(out))
 }
 
-// approveCredentials records the credentials in the .agenticrc.toml at rcPath as approved, as the trust prompt would.
-func approveCredentials(t *testing.T, rcPath string) {
-	t.Helper()
-	layers, err := config.FindLayers(filepath.Dir(rcPath))
-	require.NoError(t, err)
-	cfg, err := config.LoadConfig(agenticHome)
-	require.NoError(t, err)
-
-	for _, layer := range layers {
-		if creds := layer.RC.Run.Proxy.Credentials; len(creds) > 0 {
-			require.NoError(t, cfg.ApproveCredentials(layer.Path, config.CredentialsHash(creds), agenticHome))
-		}
-	}
-}
-
 // approveSettings records the guarded settings in the .agenticrc.toml at rcPath as approved, as the settings prompt would.
 func approveSettings(rcPath string) error {
 	layers, err := config.FindLayers(filepath.Dir(rcPath))

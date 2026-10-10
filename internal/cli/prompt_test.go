@@ -83,51 +83,6 @@ func Test_describeDir(t *testing.T) {
 	})
 }
 
-func Test_ttyPrompter_ApproveCredentials(t *testing.T) {
-	t.Run("no tty returns hint to run interactively", func(t *testing.T) {
-		// Arrange
-		layer := credentialLayer(t, "/example.test/key")
-		stubIsTerminal(t, false)
-
-		// Act
-		err := ttyPrompter{}.ApproveCredentials(layer)
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "run interactively")
-	})
-
-	t.Run("tty answers y lists entries and approves", func(t *testing.T) {
-		// Arrange
-		layer := credentialLayer(t, "/example.test/key")
-		stubIsTerminal(t, true)
-		stubStdin(t, "y\n")
-		logs := stubErrLog(t)
-
-		// Act
-		err := ttyPrompter{}.ApproveCredentials(layer)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, logs.String(), "agentic:   preset \"anthropic\", secret \"/example.test/key\"\n")
-	})
-
-	t.Run("tty answers n refuses", func(t *testing.T) {
-		// Arrange
-		layer := credentialLayer(t, "/example.test/key")
-		stubIsTerminal(t, true)
-		stubStdin(t, "n\n")
-		stubErrLog(t)
-
-		// Act
-		err := ttyPrompter{}.ApproveCredentials(layer)
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not approved")
-	})
-}
-
 func Test_ttyPrompter_ApproveSettings(t *testing.T) {
 	layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
 	changed := []config.GuardedSetting{{Key: "run.extra_mounts", Value: []string{"~/.example:/x:rw"}}}
@@ -155,7 +110,8 @@ func Test_ttyPrompter_ApproveSettings(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, logs.String(), "agentic:   run.extra_mounts = [\"~/.example:/x:rw\"]\n")
+		assert.Contains(t, logs.String(), "approve only changes you made or expect")
+		assert.Contains(t, logs.String(), "=> run.extra_mounts - host paths mounted into the container\n   \"~/.example:/x:rw\"\n")
 	})
 
 	t.Run("tty answers n refuses", func(t *testing.T) {
@@ -263,10 +219,11 @@ func Test_describeCredential(t *testing.T) {
 		cred := config.RCCredential{Preset: "github", Secret: "~/.secrets/gh"}
 
 		// Act
-		desc := describeCredential(cred)
+		target, details := describeCredential(cred)
 
 		// Assert
-		assert.Equal(t, `preset "github", secret "~/.secrets/gh"`, desc)
+		assert.Equal(t, `preset "github"`, target)
+		assert.Equal(t, []string{`secret "~/.secrets/gh"`}, details)
 	})
 
 	t.Run("custom hosts with env", func(t *testing.T) {
@@ -279,10 +236,11 @@ func Test_describeCredential(t *testing.T) {
 		}
 
 		// Act
-		desc := describeCredential(cred)
+		target, details := describeCredential(cred)
 
 		// Assert
-		assert.Equal(t, `header "X-Token" on "api.example.test", "*.example.test", secret "/example.test/token", env "EXAMPLE_TOKEN"`, desc)
+		assert.Equal(t, `header "X-Token" on "api.example.test", "*.example.test"`, target)
+		assert.Equal(t, []string{`secret "/example.test/token"`, `env "EXAMPLE_TOKEN"`}, details)
 	})
 
 	t.Run("escape sequences print as text", func(t *testing.T) {
@@ -294,32 +252,102 @@ func Test_describeCredential(t *testing.T) {
 		}
 
 		// Act
-		desc := describeCredential(cred)
+		target, details := describeCredential(cred)
 
 		// Assert
-		assert.Equal(t, `header "X-Token" on "evil.example.test\x1b[2K\r", secret "/example.test/key\u202e"`, desc)
+		assert.Equal(t, `header "X-Token" on "evil.example.test\x1b[2K\r"`, target)
+		assert.Equal(t, []string{`secret "/example.test/key\u202e"`}, details)
 	})
 }
 
 func Test_describeSetting(t *testing.T) {
-	t.Run("set value is shown as json", func(t *testing.T) {
+	t.Run("scalar value is shown as json under its key and effect", func(t *testing.T) {
 		// Arrange
 		disabled := false
 
 		// Act
-		described := describeSetting(config.GuardedSetting{Key: "run.proxy.enabled", Value: &disabled})
+		header, values := describeSetting(config.GuardedSetting{Key: "run.proxy.enabled", Value: &disabled})
 
 		// Assert
-		assert.Equal(t, "run.proxy.enabled = false", described)
+		assert.Equal(t, "run.proxy.enabled - "+settingEffects["run.proxy.enabled"], header)
+		assert.Equal(t, []string{"false"}, values)
 	})
 
-	t.Run("cleared value is shown as unset", func(t *testing.T) {
+	t.Run("list value is shown one item per line", func(t *testing.T) {
 		// Act
-		described := describeSetting(config.GuardedSetting{Key: "run.read_only_mounts", Value: []string(nil)})
+		_, values := describeSetting(config.GuardedSetting{Key: "run.env", Value: []string{"A", "B"}})
 
 		// Assert
-		assert.Equal(t, "run.read_only_mounts (unset)", described)
+		assert.Equal(t, []string{`"A"`, `"B"`}, values)
 	})
+
+	t.Run("cleared value is shown as removed", func(t *testing.T) {
+		// Act
+		header, values := describeSetting(config.GuardedSetting{Key: "run.read_only_mounts", Value: []string(nil)})
+
+		// Assert
+		assert.Equal(t, "run.read_only_mounts - "+settingEffects["run.read_only_mounts"]+" (removed)", header)
+		assert.Empty(t, values)
+	})
+}
+
+func Test_describeValue(t *testing.T) {
+	t.Run("custom install shows its name and one command per line", func(t *testing.T) {
+		// Arrange
+		install := config.RCCustomInstall{Name: "example", Run: []string{"curl -fsSL https://example.test/install.sh | sh", "example --version"}}
+
+		// Act
+		lines := describeValue(install)
+
+		// Assert
+		assert.Equal(t, []string{`"example":`, `  "curl -fsSL https://example.test/install.sh | sh"`, `  "example --version"`}, lines)
+	})
+
+	t.Run("custom install command escape sequences print as text", func(t *testing.T) {
+		// Arrange
+		install := config.RCCustomInstall{Name: "example", Run: []string{"true\x1b[2K\r"}}
+
+		// Act
+		lines := describeValue(install)
+
+		// Assert
+		assert.Equal(t, `  "true\x1b[2K\r"`, lines[1])
+	})
+
+	t.Run("credential shows where it is sent with its details below", func(t *testing.T) {
+		// Arrange
+		cred := config.RCCredential{Preset: "github", Secret: "~/.secrets/gh"}
+
+		// Act
+		lines := describeValue(cred)
+
+		// Assert
+		assert.Equal(t, []string{`preset "github"`, `  secret "~/.secrets/gh"`}, lines)
+	})
+
+	t.Run("other value is shown as json", func(t *testing.T) {
+		// Act
+		lines := describeValue("~/.example:/x:rw")
+
+		// Assert
+		assert.Equal(t, []string{`"~/.example:/x:rw"`}, lines)
+	})
+}
+
+func Test_settingEffects(t *testing.T) {
+	// Arrange
+	settings := config.GuardedSettings(&config.AgenticRC{})
+
+	// Act
+	var missing []string
+	for _, setting := range settings {
+		if settingEffects[setting.Key] == "" {
+			missing = append(missing, setting.Key)
+		}
+	}
+
+	// Assert
+	assert.Empty(t, missing)
 }
 
 func Test_settingKeys(t *testing.T) {
