@@ -327,9 +327,9 @@ Before a run starts, agentic checks every bind mount and secret:
 
 - A mount that would expose `$AGENTIC_HOME/agentic.json` (the agentic home or a parent, such as `~`) is refused, since that file records trusted directories and approvals.
 - A path through a symlink inside the workspace is refused, so a planted `.git -> ~/.ssh` can't be mounted via `read_only_mounts = [".git"]`. Mount the real path instead.
-- A path under `/proc`, or one agentic can't fully resolve (e.g. through a directory you can't read), is refused, since the Docker daemon may follow links there that agentic can't check.
+- A path under `/proc`, or one agentic can't resolve, is refused.
 
-These checks have limits:
+Not covered:
 
-- They run once, before `docker run`. A path swapped for a symlink in between, for example by a concurrent run in the same workspace, isn't caught. With `--dind` that gap includes the sidecar's startup, up to 90 seconds.
-- Symlinks are only checked inside the workspace. If you mount a directory `:rw` and also mount a path below it, the agent can replace that path with a link to any host directory before the next run.
+- A path swapped for a symlink after the check.
+- A symlink planted inside another `:rw` mount.
