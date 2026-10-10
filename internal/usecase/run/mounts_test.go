@@ -88,6 +88,63 @@ func Test_mountSet_checkMounts(t *testing.T) {
 	})
 }
 
+func Test_mountSet_checkResolvable(t *testing.T) {
+	toolHome := t.TempDir()
+
+	t.Run("missing path is accepted", func(t *testing.T) {
+		// Arrange
+		mounts := mountSet{volumes: []string{filepath.Join(t.TempDir(), "missing", "dir") + ":/data"}, toolHome: toolHome, containerHome: "/home/agent"}
+
+		// Act
+		err := mounts.checkResolvable()
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("path that can't be resolved is refused", func(t *testing.T) {
+		// Arrange
+		host := stubUnresolvablePath(t)
+		mounts := mountSet{volumes: []string{host + ":/h:rw"}, toolHome: toolHome, containerHome: "/home/agent"}
+
+		// Act
+		err := mounts.checkResolvable()
+
+		// Assert
+		assert.ErrorContains(t, err, "mount "+host+" can't be resolved")
+	})
+
+	t.Run("proc path is refused", func(t *testing.T) {
+		// Arrange
+		if runtime.GOOS == "windows" {
+			t.Skip("no /proc on windows")
+		}
+		mounts := mountSet{secrets: []string{"key:/proc/1/root/home"}, toolHome: toolHome, containerHome: "/home/agent"}
+
+		// Act
+		err := mounts.checkResolvable()
+
+		// Assert
+		assert.EqualError(t, err, "mount /proc/1/root/home goes through /proc; mount the real path instead")
+	})
+
+	t.Run("link into proc is refused", func(t *testing.T) {
+		// Arrange
+		if runtime.GOOS != "linux" {
+			t.Skip("needs /proc")
+		}
+		link := filepath.Join(t.TempDir(), "fd")
+		require.NoError(t, os.Symlink("/proc/self/fd", link))
+		mounts := mountSet{volumes: []string{link + ":/fd"}, toolHome: toolHome, containerHome: "/home/agent"}
+
+		// Act
+		err := mounts.checkResolvable()
+
+		// Assert
+		assert.ErrorContains(t, err, "goes through /proc")
+	})
+}
+
 func Test_mountSet_checkSymlinks(t *testing.T) {
 	ws := chdirSymlinkWorkspace(t)
 	toolHome := t.TempDir()
@@ -227,14 +284,71 @@ func Test_isInside(t *testing.T) {
 }
 
 func Test_resolveExisting(t *testing.T) {
-	// Arrange
-	ws := chdirSymlinkWorkspace(t)
+	t.Run("missing path resolves through its existing parent", func(t *testing.T) {
+		// Arrange
+		ws := chdirSymlinkWorkspace(t)
 
-	// Act
-	real := resolveExisting(filepath.Join(ws.dir, "escape", "missing"))
+		// Act
+		real := resolveExisting(filepath.Join(ws.dir, "escape", "missing"))
 
-	// Assert
-	assert.Equal(t, filepath.Join(ws.outside, "missing"), real)
+		// Assert
+		assert.Equal(t, filepath.Join(ws.outside, "missing"), real)
+	})
+
+	t.Run("unresolvable path is kept as is", func(t *testing.T) {
+		// Arrange
+		host := stubUnresolvablePath(t)
+
+		// Act
+		real := resolveExisting(host)
+
+		// Assert
+		assert.Equal(t, host, real)
+	})
+}
+
+func Test_resolvePrefix(t *testing.T) {
+	t.Run("missing path resolves through its existing parent", func(t *testing.T) {
+		// Arrange
+		ws := chdirSymlinkWorkspace(t)
+
+		// Act
+		real, err := resolvePrefix(filepath.Join(ws.dir, "escape", "missing", "leaf"))
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(ws.outside, "missing", "leaf"), real)
+	})
+
+	t.Run("error other than a missing path fails", func(t *testing.T) {
+		// Arrange
+		host := stubUnresolvablePath(t)
+
+		// Act
+		_, err := resolvePrefix(host)
+
+		// Assert
+		assert.ErrorIs(t, err, os.ErrPermission)
+	})
+}
+
+func Test_isProcPath(t *testing.T) {
+	t.Run("proc and paths below it match", func(t *testing.T) {
+		// Act
+		root, below := isProcPath("/proc"), isProcPath("/proc/1/root")
+
+		// Assert
+		assert.True(t, root)
+		assert.True(t, below)
+	})
+
+	t.Run("name sharing the prefix does not match", func(t *testing.T) {
+		// Act
+		match := isProcPath("/processes")
+
+		// Assert
+		assert.False(t, match)
+	})
 }
 
 func Test_workspaceSymlink(t *testing.T) {
