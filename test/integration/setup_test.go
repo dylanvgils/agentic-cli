@@ -92,7 +92,7 @@ func run(m *testing.M) int {
 	return m.Run()
 }
 
-// setup builds the binary, writes the work dir config, builds the test tool image and runs it once.
+// setup builds the binary, writes the work dir config, builds the test tool and proxy images and runs the tool once.
 func setup(root string) error {
 	var err error
 	rootDir, err = filepath.Abs(root)
@@ -125,6 +125,13 @@ func setup(root string) error {
 	done = logStep("building " + testNamespace + "-" + testTool + " image")
 	if out, err := agenticCmd("build", testTool).CombinedOutput(); err != nil {
 		return fmt.Errorf("build %s image: %w\n%s", testTool, err, out)
+	}
+	done()
+
+	// Otherwise a proxy image from older source would run the proxy tests
+	done = logStep("building agentic-proxy image")
+	if out, err := agenticCmd("proxy", "build").CombinedOutput(); err != nil {
+		return fmt.Errorf("build proxy image: %w\n%s", err, out)
 	}
 	done()
 
