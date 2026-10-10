@@ -54,18 +54,21 @@ func (config *CliConfig) Save(toolHome string) error {
 	return os.WriteFile(ConfigFile(toolHome), data, 0o640)
 }
 
-// IsTrusted reports whether dir exactly matches or is nested under a trusted entry, resolving symlinks on both sides so e.g. macOS's /var and /private/var compare equal.
+// IsTrusted reports whether dir, once symlinks are resolved, is a trusted entry or below one; entries compare as stored, since a link inside one could otherwise widen trust.
 func (config *CliConfig) IsTrusted(dir string) bool {
-	realDir := evalSymlinks(dir)
+	realDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return false
+	}
 
 	for _, trusted := range config.TrustedDirs {
-		realTrusted := evalSymlinks(trusted)
+		trusted = filepath.Clean(trusted)
 
-		if realDir == realTrusted {
+		if realDir == trusted {
 			return true
 		}
 
-		if strings.HasPrefix(realDir, realTrusted+string(filepath.Separator)) {
+		if strings.HasPrefix(realDir, trusted+string(filepath.Separator)) {
 			return true
 		}
 	}
@@ -73,10 +76,14 @@ func (config *CliConfig) IsTrusted(dir string) bool {
 	return false
 }
 
-// Trust appends dir to the trusted directories and saves the config.
+// Trust appends dir's real path to the trusted directories and saves the config, so retargeting a symlinked dir later needs a new approval.
 func (config *CliConfig) Trust(dir, toolHome string) error {
-	// The real path, so retargeting a symlinked dir later needs a new approval
-	config.TrustedDirs = append(config.TrustedDirs, evalSymlinks(dir))
+	realDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return err
+	}
+
+	config.TrustedDirs = append(config.TrustedDirs, realDir)
 	return config.Save(toolHome)
 }
 

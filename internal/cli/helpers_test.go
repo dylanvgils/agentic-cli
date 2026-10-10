@@ -416,7 +416,14 @@ func withTempToolHome(t *testing.T) {
 	homeDir := t.TempDir()
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
-	cfg := &config.CliConfig{TrustedDirs: []string{os.TempDir(), cwd}}
+	var trusted []string
+	for _, dir := range []string{os.TempDir(), cwd} {
+		// Real paths, since trusted entries compare as stored (macOS's /var is a link)
+		real, err := filepath.EvalSymlinks(dir)
+		require.NoError(t, err)
+		trusted = append(trusted, real)
+	}
+	cfg := &config.CliConfig{TrustedDirs: trusted}
 	require.NoError(t, cfg.Save(homeDir))
 	orig := toolHome
 	toolHome = homeDir

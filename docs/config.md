@@ -16,7 +16,7 @@ Stored at `$AGENTIC_HOME/agentic.json`. Edit it with any text editor.
 
 | Key                        | Type   | Description                                                             | CLI flag           |
 | -------------------------- | ------ | ----------------------------------------------------------------------- | ------------------ |
-| `trusted_dirs`             | list   | Directories you can run tools from without an interactive trust prompt, saved by real path so a retargeted symlink asks again | `--trust-dir`      |
+| `trusted_dirs`             | list   | Directories you can run tools from without an interactive trust prompt, matched by real path, so a retargeted symlink asks again and hand-added entries must be real paths | `--trust-dir`      |
 | `registry`                 | scalar | Registry prefix for base image pulls. See [Registry proxy](#registry-proxy). | `--registry`       |
 | `docker_context`           | scalar | Machine-wide default Docker context. See [Precedence](#precedence).     | `--docker-context` |
 | `proxy_log_retention_days` | scalar | Days to keep [egress proxy](egress-proxy.md) logs. Default: `3`.        | -                  |

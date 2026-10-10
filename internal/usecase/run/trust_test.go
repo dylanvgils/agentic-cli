@@ -2,6 +2,7 @@ package run
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -29,11 +30,12 @@ func Test_checkTrust(t *testing.T) {
 	t.Run("trust flag trusts without prompting", func(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()
-		dir := t.TempDir()
+		dir, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
 		p := &fakePrompter{}
 
 		// Act
-		err := checkTrust(dir, toolHome, true, p)
+		err = checkTrust(dir, toolHome, true, p)
 
 		// Assert
 		require.NoError(t, err)
@@ -46,11 +48,12 @@ func Test_checkTrust(t *testing.T) {
 	t.Run("approved prompt trusts dir", func(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()
-		dir := t.TempDir()
+		dir, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
 		p := &fakePrompter{}
 
 		// Act
-		err := checkTrust(dir, toolHome, false, p)
+		err = checkTrust(dir, toolHome, false, p)
 
 		// Assert
 		require.NoError(t, err)
