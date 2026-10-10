@@ -15,6 +15,8 @@ type runner interface {
 	Run(r io.Reader, args ...string) (string, error)
 	// RunInteractive executes `docker <args>` with stdin/stdout/stderr inherited from the current process.
 	RunInteractive(args ...string) error
+	// Stream executes `docker <args>` with stdout written to w; stderr goes into the error.
+	Stream(w io.Writer, args ...string) error
 }
 
 // Client runs docker commands against one Docker context.
@@ -52,6 +54,11 @@ func (c *Client) runInteractive(args ...string) error {
 	return c.runner.RunInteractive(c.withContext(args)...)
 }
 
+// stream executes `docker <args>` with stdout written to w.
+func (c *Client) stream(w io.Writer, args ...string) error {
+	return c.runner.Stream(w, c.withContext(args)...)
+}
+
 // withContext prepends "--context <name>" to args when a context is set.
 func (c *Client) withContext(args []string) []string {
 	if c.context == "" {
@@ -78,4 +85,15 @@ func (execRunner) RunInteractive(args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func (execRunner) Stream(w io.Writer, args ...string) error {
+	cmd := exec.Command("docker", args...) // NOSONAR - the user's own docker from PATH is intended
+	cmd.Stdout = w
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("docker %v: %w\n%s", args, err, stderr.String())
+	}
+	return nil
 }

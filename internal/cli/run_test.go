@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -138,6 +140,54 @@ func Test_runTool(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, rcPath)
 	})
+
+	t.Run("unknown runtime returns error", func(t *testing.T) {
+		// Arrange
+		stubFlag(t, runToolCmd, "runtime", "podman")
+
+		// Act
+		err := runTool(runToolCmd, []string{"claude"})
+
+		// Assert
+		assert.ErrorContains(t, err, `unknown runtime "podman"`)
+	})
+
+	t.Run("msb runtime loads the image into msb and runs it there", func(t *testing.T) {
+		// Arrange
+		t.Chdir(t.TempDir())
+		withTempToolHome(t)
+		get := captureRunContainer(t)
+		stubDocker(t, &fakeDocker{saveImage: func(image string, w io.Writer) error {
+			_, err := io.WriteString(w, "tar:"+image)
+			return err
+		}})
+		var loaded string
+		var ranSpec docker.RunSpec
+		var ranArgs []string
+		stubMsb(t, &fakeMsb{
+			loadImage: func(r io.Reader) error {
+				b, err := io.ReadAll(r)
+				loaded = string(b)
+				return err
+			},
+			run: func(rs docker.RunSpec, toolArgs []string) error {
+				ranSpec, ranArgs = rs, toolArgs
+				return nil
+			},
+		})
+		stubFlag(t, runToolCmd, "runtime", "msb")
+
+		// Act
+		err := runTool(runToolCmd, []string{"claude", "--help"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "tar:agentic-claude", loaded)
+		assert.Equal(t, "agentic-claude", ranSpec.Image)
+		assert.Equal(t, []string{"--help"}, ranArgs)
+		rs, _ := get()
+		assert.Empty(t, rs.Image, "RunContainer should not be called")
+	})
 }
 
 func Test_parseArgs(t *testing.T) {
@@ -224,4 +274,65 @@ func Test_runRequest(t *testing.T) {
 	assert.Equal(t, []string{"token:/example.test/token"}, req.Flags.Secrets)
 	assert.Equal(t, []string{"/example.test/b:/b"}, req.Flags.ReadOnlyMounts)
 	assert.Equal(t, []string{"FOO=bar"}, req.Flags.Env)
+}
+
+func Test_runMsb(t *testing.T) {
+	t.Run("returns a failed save and does not run", func(t *testing.T) {
+		// Arrange
+		stubDocker(t, &fakeDocker{saveImage: func(string, io.Writer) error { return errors.New("boom") }})
+		ran := false
+		stubMsb(t, &fakeMsb{
+			loadImage: func(r io.Reader) error {
+				_, err := io.ReadAll(r)
+				return err
+			},
+			run: func(docker.RunSpec, []string) error {
+				ran = true
+				return nil
+			},
+		})
+
+		// Act
+		err := runMsb(docker.RunSpec{Image: "agentic-claude"}, nil)
+
+		// Assert
+		assert.ErrorContains(t, err, "boom")
+		assert.False(t, ran)
+	})
+
+	t.Run("warns about ignored settings before loading", func(t *testing.T) {
+		// Arrange
+		stubDocker(t, &fakeDocker{})
+		logs := stubLogs(t)
+		var logsAtLoad string
+		stubMsb(t, &fakeMsb{loadImage: func(r io.Reader) error {
+			logsAtLoad = logs.String()
+			_, err := io.ReadAll(r)
+			return err
+		}})
+		rs := docker.RunSpec{Image: "agentic-claude", Dind: docker.DindSpec{Enabled: true}}
+
+		// Act
+		err := runMsb(rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, logsAtLoad, "--runtime msb ignores --dind")
+	})
+
+	t.Run("dry run skips the image load", func(t *testing.T) {
+		// Arrange
+		loaded := false
+		stubMsb(t, &fakeMsb{loadImage: func(io.Reader) error {
+			loaded = true
+			return nil
+		}})
+
+		// Act
+		err := runMsb(docker.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, loaded)
+	})
 }

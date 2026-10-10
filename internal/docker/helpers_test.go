@@ -39,6 +39,7 @@ type fakeRunner struct {
 	run            func(args ...string) (string, error)
 	runStdin       func(r io.Reader, args ...string) (string, error)
 	runInteractive func(args ...string) error
+	stream         func(w io.Writer, args ...string) error
 }
 
 func (f *fakeRunner) Run(r io.Reader, args ...string) (string, error) {
@@ -59,6 +60,13 @@ func (f *fakeRunner) RunInteractive(args ...string) error {
 		return fmt.Errorf("fake: unexpected docker %v", args)
 	}
 	return f.runInteractive(args...)
+}
+
+func (f *fakeRunner) Stream(w io.Writer, args ...string) error {
+	if f.stream == nil {
+		return fmt.Errorf("fake: unexpected docker %v", args)
+	}
+	return f.stream(w, args...)
 }
 
 // stubDocker writes a shell script named "docker" to a temp dir and prepends it to PATH.

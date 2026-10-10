@@ -101,6 +101,36 @@ func TestClient_runInteractive(t *testing.T) {
 	})
 }
 
+func TestClient_stream(t *testing.T) {
+	t.Run("writes stdout to the writer", func(t *testing.T) {
+		// Arrange
+		stubDocker(t, `printf '%s\n' "$@"; echo noise >&2`)
+		client := New("prod")
+		var out strings.Builder
+
+		// Act
+		err := client.stream(&out, "save", "img")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "--context\nprod\nsave\nimg\n", out.String())
+	})
+
+	t.Run("returns stderr in the error on failure", func(t *testing.T) {
+		// Arrange
+		stubDocker(t, `echo boom >&2; exit 1`)
+		client := New("")
+		var out strings.Builder
+
+		// Act
+		err := client.stream(&out, "save", "img")
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "boom")
+	})
+}
+
 func TestClient_withContext(t *testing.T) {
 	t.Run("returns args unchanged when context unset", func(t *testing.T) {
 		// Arrange

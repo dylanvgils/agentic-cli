@@ -2,6 +2,7 @@ package docker
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -87,6 +88,14 @@ func (c *Client) ListAllImages(filters ...ImageFilter) ([]*ImageInfo, error) {
 	}
 
 	return images, nil
+}
+
+// SaveImage streams the image as a `docker save` tar archive to w.
+func (c *Client) SaveImage(image string, w io.Writer) error {
+	if err := c.stream(w, "save", image); err != nil {
+		return fmt.Errorf("save image %s: %w", image, err)
+	}
+	return nil
 }
 
 // ImageRefreshReason says why an agentic-built image (e.g. a sidecar) needs a rebuild, or "" if it is current; maxAge 0 skips the age check.

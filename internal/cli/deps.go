@@ -9,6 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
+	"github.com/dylanvgils/agentic-cli/internal/msb"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
@@ -30,6 +31,9 @@ var (
 
 	// dockerClient is the Docker client every command uses; persistentPreRunE rebuilds it for the resolved context.
 	dockerClient dockerAPI = docker.New("")
+
+	// msbClient runs tools for `agentic run --runtime msb`.
+	msbClient msbAPI = msb.New()
 )
 
 // dockerAPI is the subset of *docker.Client the cli and the usecases it calls use.
@@ -44,10 +48,17 @@ type dockerAPI interface {
 	CurrentContext() (string, error)
 	CheckDaemon() error
 	RunContainer(rs docker.RunSpec, toolArgs []string) error
+	SaveImage(image string, w io.Writer) error
 	CreateVolume(name string) error
 	ListVolumes() (string, error)
 	ListVolumeNames() ([]string, error)
 	RemoveVolume(name string) error
 	ListRunningContainers() ([]*docker.ContainerInfo, error)
 	ListContexts() ([]string, error)
+}
+
+// msbAPI is the subset of *msb.Client the cli uses.
+type msbAPI interface {
+	LoadImage(r io.Reader) error
+	Run(rs docker.RunSpec, toolArgs []string) error
 }
