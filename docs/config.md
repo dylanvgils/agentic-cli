@@ -331,5 +331,5 @@ Before a run starts, agentic checks every bind mount and secret:
 
 These checks have limits:
 
-- They run once, before `docker run`. A path swapped for a symlink in between, for example by a concurrent run in the same workspace, isn't caught.
+- They run once, before `docker run`. A path swapped for a symlink in between, for example by a concurrent run in the same workspace, isn't caught. With `--dind` that gap includes the sidecar's startup, up to 90 seconds.
 - Symlinks are only checked inside the workspace. If you mount a directory `:rw` and also mount a path below it, the agent can replace that path with a link to any host directory before the next run.
