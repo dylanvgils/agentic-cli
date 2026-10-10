@@ -44,31 +44,29 @@ func TestPrepare(t *testing.T) {
 		assert.Empty(t, p.trustAsked)
 	})
 
-	t.Run("failed tool update stops before the trust prompt", func(t *testing.T) {
+	t.Run("refused trust stops before the tool update and setup", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		req.Project.RC.Run.CheckUpdates = nil
 		stubLatestToolVersion(t, "2.0.0")
-		stubUpdateLatestToolVersion(t, "2.0.0")
 		stubLog(t)
-		var rebuilt []string
-		d := &fakeDocker{
-			inspectImage: built,
-			buildTool: func(tool, _ string, _ tools.BuildOptions) error {
-				rebuilt = append(rebuilt, tool)
-				return errors.New("build failed")
-			},
+		tool := tools.Configs["claude"]
+		setUp := false
+		tool.Runtime.Setup = func(string) error {
+			setUp = true
+			return nil
 		}
-		p := &fakePrompter{offerToolUpdate: func(string, string, string) bool { return true }}
+		req.Tool = tool
+		p := &fakePrompter{trustDir: func(string) error { return errors.New("directory not trusted") }}
 
 		// Act
-		_, cleanup, err := New(d).Prepare(req, p)
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
-		require.ErrorContains(t, err, "build failed")
-		assert.Equal(t, []string{"claude"}, rebuilt)
-		assert.Empty(t, p.trustAsked)
+		require.EqualError(t, err, "directory not trusted")
+		assert.Empty(t, p.updatesOffered)
+		assert.False(t, setUp)
 	})
 
 	t.Run("declined tool update still runs", func(t *testing.T) {

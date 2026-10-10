@@ -624,3 +624,11 @@ func stubPerformUpdate(t *testing.T, err error) {
 	performUpdate = func(_ string) error { return err }
 	t.Cleanup(func() { performUpdate = orig })
 }
+
+// stubToolHome points toolHome at dir.
+func stubToolHome(t *testing.T, dir string) {
+	t.Helper()
+	orig := toolHome
+	toolHome = dir
+	t.Cleanup(func() { toolHome = orig })
+}

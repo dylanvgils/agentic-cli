@@ -49,11 +49,22 @@ type Flags struct {
 // Prepare runs every check and host-side step `agentic run` needs, asking prompter where the user must approve, and returns
 // the RunSpec plus a cleanup func that must always be deferred, even on error.
 func (s *Service) Prepare(req Request, prompter Prompter) (docker.RunSpec, func(), error) {
+	home := req.Flags.ToolHome
+
+	if err := s.requireImage(req.Target.ImageName, req.Target.ToolName); err != nil {
+		return docker.RunSpec{}, func() {}, err
+	}
+
+	// Before anything acts on the project config, which the agent can edit
+	if err := checkTrust(req.Project.Dir, home, req.Flags.TrustDir, prompter); err != nil {
+		return docker.RunSpec{}, func() {}, err
+	}
+
 	if err := s.checkTool(req, prompter); err != nil {
 		return docker.RunSpec{}, func() {}, err
 	}
 
-	if err := checkApprovals(req, prompter); err != nil {
+	if err := checkCredentials(req.Project.Layers, home, prompter); err != nil {
 		return docker.RunSpec{}, func() {}, err
 	}
 
@@ -65,13 +76,9 @@ func (s *Service) Prepare(req Request, prompter Prompter) (docker.RunSpec, func(
 	return s.buildWithInstructions(req.Target, in, req.Tool, req.Project.RC)
 }
 
-// checkTool makes sure the tool image exists, offers a due tool update and creates the tool's host files.
+// checkTool offers a due tool update and creates the tool's host files.
 func (s *Service) checkTool(req Request, prompter Prompter) error {
 	target, home, rc := req.Target, req.Flags.ToolHome, req.Project.RC
-
-	if err := s.requireImage(target.ImageName, target.ToolName); err != nil {
-		return err
-	}
 
 	updateReq := toolupdate.Request{Home: home, RC: rc, Tool: target.ToolName, Image: target.ImageName}
 	apply := func(tool, image string) error {
@@ -126,17 +133,6 @@ func CheckProjectDir(dir string) error {
 		return fmt.Errorf("working directory %q is on a network share; Docker cannot bind-mount UNC paths", dir)
 	}
 	return nil
-}
-
-// checkApprovals has the user trust the working dir and approve new or changed proxy credentials.
-func checkApprovals(req Request, prompter Prompter) error {
-	home := req.Flags.ToolHome
-
-	if err := checkTrust(req.Project.Dir, home, req.Flags.TrustDir, prompter); err != nil {
-		return err
-	}
-
-	return checkCredentials(req.Project.Layers, home, prompter)
 }
 
 // resolveInput resolves flags against rc into Build's input, minus the credentials only a run reads.

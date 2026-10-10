@@ -14,7 +14,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/stretchr/testify/require"
 )
 
@@ -249,14 +248,6 @@ func stubLatestToolVersion(t *testing.T, latest string) {
 	orig := toolupdate.LatestToolVersion
 	toolupdate.LatestToolVersion = func(string, string) (string, bool, bool) { return latest, true, true }
 	t.Cleanup(func() { toolupdate.LatestToolVersion = orig })
-}
-
-// stubUpdateLatestToolVersion makes an applied tool update see latest as newer, so it rebuilds without a network lookup.
-func stubUpdateLatestToolVersion(t *testing.T, latest string) {
-	t.Helper()
-	orig := update.LatestToolVersion
-	update.LatestToolVersion = func(string, string) (string, bool, bool) { return latest, true, true }
-	t.Cleanup(func() { update.LatestToolVersion = orig })
 }
 
 // stubLog redirects logging.Log to a buffer for the duration of the test and returns it.

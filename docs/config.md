@@ -74,7 +74,7 @@ Inside this repo, use the local file instead: `#:schema ./agenticrc.schema.json`
 | ---------------- | ------ | -------------------------------------------------------------------------------------------- | --------- |
 | `root`           | bool   | Stop the upward directory walk at this file                                                  | -         |
 | `namespace`      | string | Image namespace. Images are named `<namespace>-<tool>`. See [Per-project image set](recipes.md#per-project-image-set). | `agentic` |
-| `docker_context` | string | [Docker context](usage.md#docker-context) to use for this project                            | -         |
+| `docker_context` | string | [Docker context](usage.md#docker-context) to use for this project; set in the current dir's own file, it asks you to trust the dir first | -         |
 
 ### `[build]`
 

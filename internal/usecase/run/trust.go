@@ -2,9 +2,20 @@ package run
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 )
+
+// CheckContextTrust has the user trust dir before a docker_context set in dir's own config file picks the Docker daemon, since the agent can edit that file.
+func CheckContextTrust(dir, toolHome string, layers []config.RCLayer, trustFlag bool, prompter Prompter) error {
+	for _, layer := range layers {
+		if layer.RC.DockerContext != "" && filepath.Dir(layer.Path) == dir {
+			return checkTrust(dir, toolHome, trustFlag, prompter)
+		}
+	}
+	return nil
+}
 
 // checkTrust errors unless dir is trusted, trusting it first when trustFlag is set or prompter approves.
 func checkTrust(dir, toolHome string, trustFlag bool, prompter Prompter) error {

@@ -10,6 +10,53 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCheckContextTrust(t *testing.T) {
+	contextLayer := func(dir string) config.RCLayer {
+		return config.RCLayer{Path: filepath.Join(dir, ".agenticrc.toml"), RC: &config.AgenticRC{DockerContext: "prod"}}
+	}
+
+	t.Run("context set in the dir's own config asks for trust", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		p := &fakePrompter{trustDir: func(string) error { return errors.New("directory not trusted") }}
+
+		// Act
+		err := CheckContextTrust(dir, t.TempDir(), []config.RCLayer{contextLayer(dir)}, false, p)
+
+		// Assert
+		require.EqualError(t, err, "directory not trusted")
+		assert.Equal(t, []string{dir}, p.trustAsked)
+	})
+
+	t.Run("context set in a parent dir's config does not ask", func(t *testing.T) {
+		// Arrange
+		parent := t.TempDir()
+		dir := filepath.Join(parent, "project")
+		p := &fakePrompter{}
+
+		// Act
+		err := CheckContextTrust(dir, t.TempDir(), []config.RCLayer{contextLayer(parent)}, false, p)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, p.trustAsked)
+	})
+
+	t.Run("config without a context does not ask", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		layer := config.RCLayer{Path: filepath.Join(dir, ".agenticrc.toml"), RC: &config.AgenticRC{}}
+		p := &fakePrompter{}
+
+		// Act
+		err := CheckContextTrust(dir, t.TempDir(), []config.RCLayer{layer}, false, p)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, p.trustAsked)
+	})
+}
+
 func Test_checkTrust(t *testing.T) {
 	t.Run("already trusted skips prompt", func(t *testing.T) {
 		// Arrange
