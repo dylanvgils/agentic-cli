@@ -323,3 +323,11 @@ func TestPendingCredentials(t *testing.T) {
 		assert.Equal(t, "/new/.agenticrc.toml", pending[1].Path)
 	})
 }
+
+func TestConfigFile(t *testing.T) {
+	// Act
+	path := ConfigFile("/example.test/agentic")
+
+	// Assert
+	assert.Equal(t, filepath.Join("/example.test/agentic", "agentic.json"), path)
+}

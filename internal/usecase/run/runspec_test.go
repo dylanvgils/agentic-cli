@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 
@@ -200,6 +201,37 @@ func TestBuild(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, rs.SkipEntrypoint)
+	})
+
+	t.Run("mount exposing agentic.json is refused", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir(), Volumes: []string{"$TOOL_HOME:/agentic"}}
+
+		// Act
+		_, err := New(d).Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		assert.ErrorContains(t, err, "agentic.json")
+	})
+
+	t.Run("read-only mount through a planted symlink out of cwd is refused", func(t *testing.T) {
+		// Arrange
+		if runtime.GOOS == "windows" {
+			t.Skip("symlinks need privileges on windows")
+		}
+		workspace := t.TempDir()
+		t.Chdir(workspace)
+		require.NoError(t, os.Symlink(t.TempDir(), filepath.Join(workspace, ".git")))
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir()}
+		rc := &config.AgenticRC{Run: config.RCRun{ReadOnlyMounts: []string{".git"}}}
+
+		// Act
+		_, err := New(d).Build(target, in, tools.Configs["claude"], rc)
+
+		// Assert
+		assert.ErrorContains(t, err, "leads through a workspace symlink")
 	})
 
 	t.Run("ensure named volumes error propagates", func(t *testing.T) {

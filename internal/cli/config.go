@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -159,7 +158,7 @@ func showConfig(cmd *cobra.Command, _ []string) error {
 
 func printGlobalConfig(w io.Writer, home string, cfg *config.CliConfig) error {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Global (%s)\n", filepath.Join(home, "agentic.json"))
+	fmt.Fprintf(&b, "Global (%s)\n", config.ConfigFile(home))
 	fmt.Fprintf(&b, "  registry: %s\n", orNotSet(cfg.Registry))
 	fmt.Fprintf(&b, "  docker_context: %s\n", orNotSet(cfg.DockerContext))
 

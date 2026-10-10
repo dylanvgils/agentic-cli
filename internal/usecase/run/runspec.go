@@ -85,6 +85,15 @@ func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc
 		containerHome: req.containerHome,
 	}
 
+	// Pin before checking, so the checked paths are the mounted ones
+	mounts, err = mounts.pinSymlinks()
+	if err != nil {
+		return docker.RunSpec{}, err
+	}
+	if err := mounts.checkConfigNotMounted(); err != nil {
+		return docker.RunSpec{}, err
+	}
+
 	env, err := s.runEnv(req, mounts, marketplaceNames)
 	if err != nil {
 		return docker.RunSpec{}, err

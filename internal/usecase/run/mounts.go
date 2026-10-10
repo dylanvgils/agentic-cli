@@ -1,10 +1,13 @@
 package run
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 )
 
@@ -35,6 +38,58 @@ func (m mountSet) hostPaths() []string {
 		}
 	}
 	return paths
+}
+
+// pinSymlinks swaps a bind or secret host path for its real path when a symlink inside cwd leads there, so the checks
+// see what docker will mount. A link leading out of cwd is refused: the agent may have planted it, e.g. .git -> ~/.ssh.
+func (m mountSet) pinSymlinks() (mountSet, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return m, nil
+	}
+
+	pinned := m
+	pinned.volumes = nil
+	for _, volume := range m.volumes {
+		expanded := mount.ExpandMountSpec(volume, m.toolHome, m.containerHome)
+		if !mount.IsNamedVolume(expanded) {
+			host := mount.HostPart(expanded)
+			real, err := pinnedHost(host, cwd)
+			if err != nil {
+				return mountSet{}, err
+			}
+			if real != "" {
+				volume = real + expanded[len(host):]
+			}
+		}
+		pinned.volumes = append(pinned.volumes, volume)
+	}
+
+	pinned.secrets = nil
+	for _, secret := range m.secrets {
+		if name, rest, ok := strings.Cut(secret, ":"); ok {
+			expanded := mount.ExpandMountSpec(rest, m.toolHome, m.containerHome)
+			host := mount.HostPart(expanded)
+			real, err := pinnedHost(host, cwd)
+			if err != nil {
+				return mountSet{}, err
+			}
+			if real != "" {
+				secret = name + ":" + real + expanded[len(host):]
+			}
+		}
+		pinned.secrets = append(pinned.secrets, secret)
+	}
+	return pinned, nil
+}
+
+// checkConfigNotMounted refuses any mount exposing agentic.json; write access would let the agent trust dirs or approve its own credentials.
+func (m mountSet) checkConfigNotMounted() error {
+	file := config.ConfigFile(m.toolHome)
+	if root, ok := findRoot(file, m.hostPaths()); ok {
+		return fmt.Errorf("mount %s would expose %s to the tool container; mount a narrower path", root, file)
+	}
+	return nil
 }
 
 // findRoot returns the first root containing path.
@@ -78,6 +133,46 @@ func pathForms(path string) []string {
 		}
 	}
 	return forms
+}
+
+// pinnedHost returns host's real path when a workspace symlink leads elsewhere in cwd, empty when no link is involved,
+// and an error when the link leads out of cwd.
+func pinnedHost(host, cwd string) (string, error) {
+	real, ok := workspaceSymlinkTarget(host, cwd)
+	if !ok {
+		return "", nil
+	}
+	if !within(real, cwd) {
+		return "", fmt.Errorf("mount %s leads through a workspace symlink to %s; mount the real path instead", host, real)
+	}
+	return real, nil
+}
+
+// workspaceSymlinkTarget returns host's real path when a symlink at or below cwd changes where it leads.
+func workspaceSymlinkTarget(host, cwd string) (string, bool) {
+	abs, err := filepath.Abs(host)
+	if err != nil {
+		return "", false
+	}
+	realCwd, err := filepath.EvalSymlinks(cwd)
+	if err != nil {
+		return "", false
+	}
+
+	for _, base := range []string{cwd, realCwd} {
+		rel, err := filepath.Rel(base, abs)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			continue
+		}
+
+		// Resolves a missing leaf too: docker would create it wherever a parent link leads
+		real := resolveExisting(abs)
+		if real != filepath.Join(realCwd, rel) {
+			return real, true
+		}
+		return "", false
+	}
+	return "", false
 }
 
 // resolveExisting resolves symlinks in the longest existing prefix of abs, so a path not created yet still resolves.
