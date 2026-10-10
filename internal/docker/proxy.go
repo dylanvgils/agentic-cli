@@ -36,7 +36,7 @@ const proxyCredentialsFile = "credentials.json"
 // dryRunClientNetsPlaceholder stands in for the per-run network's subnets in dry-run output, as the network isn't created.
 const dryRunClientNetsPlaceholder = "<proxy network subnets>"
 
-// proxyLogMountDir is where the host log directory is mounted inside the proxy.
+// proxyLogMountDir is where the run's log file is mounted inside the proxy.
 const proxyLogMountDir = "/var/log/agentic-proxy"
 
 // Proxy modes; ProxyOff is the zero value, so a RunSpec without one runs no proxy.
@@ -239,6 +239,11 @@ func (c *Client) startProxy(rs RunSpec) (proxyHandle, error) {
 		}
 	}
 
+	if err := h.createLogFile(); err != nil {
+		_, _ = c.run("network", "rm", h.network)
+		return proxyHandle{}, err
+	}
+
 	if _, err := c.run(h.createArgs(rs)...); err != nil {
 		_, _ = c.run("network", "rm", h.network)
 		return proxyHandle{}, fmt.Errorf("create proxy: %w", err)
@@ -351,7 +356,8 @@ func (h proxyHandle) createArgs(rs RunSpec) []string {
 		arg("env", proxy.EnvLog+"="+containerLog),
 		arg("env", proxy.EnvTZOffset+"="+strconv.Itoa(tzOffset)),
 		arg("env", proxy.EnvMonitor+"="+strconv.FormatBool(h.monitor)),
-		arg("volume", rs.Proxy.LogDir+":"+proxyLogMountDir),
+		// Only this run's file, so the proxy can't touch other logs
+		arg("volume", h.logPath+":"+containerLog),
 	)
 
 	if len(h.credentials) > 0 {
@@ -370,6 +376,15 @@ func (h proxyHandle) createArgs(rs RunSpec) []string {
 	}
 
 	return append(args, rs.Proxy.Image)
+}
+
+// createLogFile creates the run's empty log file, so Docker bind-mounts a file instead of creating a root-owned dir.
+func (h proxyHandle) createLogFile() error {
+	f, err := os.OpenFile(h.logPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("create proxy log: %w", err)
+	}
+	return f.Close()
 }
 
 // checkStarted fails if a credentialed proxy exits within proxySettleTime, e.g. on a CA or credentials it can't load;

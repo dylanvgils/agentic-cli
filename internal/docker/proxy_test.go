@@ -24,7 +24,7 @@ func TestStartProxy(t *testing.T) {
 	t.Run("creates internal network, hardened sidecar, and egress link", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client, "network inspect")
-		rs := RunSpec{container: "agentic-claude-abc", Proxy: ProxySpec{Image: "default-proxy", Allow: []string{"api.anthropic.com"}, LogDir: "/tmp/agentic/proxy"}}
+		rs := RunSpec{container: "agentic-claude-abc", Proxy: ProxySpec{Image: "default-proxy", Allow: []string{"api.anthropic.com"}, LogDir: t.TempDir()}}
 
 		// Act
 		handle, err := client.startProxy(rs)
@@ -56,6 +56,8 @@ func TestStartProxy(t *testing.T) {
 		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_ALLOW=api.anthropic.com")
 		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_MONITOR=false")
 		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_LOG="+proxyLogMountDir+"/"+proxy.LogFilePrefix+handle.id+".jsonl")
+		assert.Contains(t, runArgs, "--volume="+handle.logPath+":"+proxyLogMountDir+"/"+proxy.LogFilePrefix+handle.id+".jsonl", "only the run's own log file is mounted")
+		assert.FileExists(t, handle.logPath)
 		assert.True(t, hasArgWithPrefix(runArgs, "--env=AGENTIC_PROXY_TZ_OFFSET="))
 		assert.Contains(t, runArgs, "--label=agentic.owner=agentic-claude-abc")
 		assert.True(t, hasArgWithPrefix(runArgs, "--label=agentic.started="))
@@ -67,7 +69,7 @@ func TestStartProxy(t *testing.T) {
 	t.Run("removes network when sidecar fails to start", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client, "network inspect", "create")
-		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: "/tmp/agentic/proxy"}}
+		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir()}}
 
 		// Act
 		_, err := client.startProxy(rs)
@@ -81,6 +83,34 @@ func TestStartProxy(t *testing.T) {
 			}
 		}
 		assert.True(t, sawNetworkRm, "expected network rm cleanup after failed run")
+	})
+}
+
+func Test_proxyHandle_createLogFile(t *testing.T) {
+	t.Run("creates an empty file", func(t *testing.T) {
+		// Arrange
+		h := proxyHandle{logPath: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}
+
+		// Act
+		err := h.createLogFile()
+
+		// Assert
+		require.NoError(t, err)
+		got, err := os.ReadFile(h.logPath)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("existing file is refused", func(t *testing.T) {
+		// Arrange
+		h := proxyHandle{logPath: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}
+		require.NoError(t, os.WriteFile(h.logPath, nil, 0o600))
+
+		// Act
+		err := h.createLogFile()
+
+		// Assert
+		assert.ErrorContains(t, err, "create proxy log")
 	})
 }
 
