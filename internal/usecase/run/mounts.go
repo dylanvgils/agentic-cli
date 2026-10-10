@@ -40,37 +40,23 @@ func (m mountSet) hostPaths() []string {
 	return paths
 }
 
-// pinSymlinks swaps a bind or secret host path for its real path when a symlink inside cwd leads there, so the checks
-// see what docker will mount. A link leading out of cwd is refused: the agent may have planted it, e.g. .git -> ~/.ssh.
+// pinSymlinks replaces host paths redirected by a workspace symlink with their real path, refusing links out of cwd.
 func (m mountSet) pinSymlinks() (mountSet, error) {
-	cwd, err := os.Getwd()
+	volumes, err := pinAll(m.volumes, m.pinVolume)
 	if err != nil {
-		return m, nil
+		return mountSet{}, err
 	}
 
-	pinned := mountSet{toolHome: m.toolHome, containerHome: m.containerHome}
-	for _, volume := range m.volumes {
-		if !mount.IsNamedVolume(mount.ExpandMountSpec(volume, m.toolHome, m.containerHome)) {
-			if volume, err = m.pinSpec(volume, cwd); err != nil {
-				return mountSet{}, err
-			}
-		}
-		pinned.volumes = append(pinned.volumes, volume)
+	secrets, err := pinAll(m.secrets, m.pinSecret)
+	if err != nil {
+		return mountSet{}, err
 	}
 
-	for _, secret := range m.secrets {
-		if name, rest, ok := strings.Cut(secret, ":"); ok {
-			if rest, err = m.pinSpec(rest, cwd); err != nil {
-				return mountSet{}, err
-			}
-			secret = name + ":" + rest
-		}
-		pinned.secrets = append(pinned.secrets, secret)
-	}
-	return pinned, nil
+	m.volumes, m.secrets = volumes, secrets
+	return m, nil
 }
 
-// checkConfigNotMounted refuses any mount exposing agentic.json; write access would let the agent trust dirs or approve its own credentials.
+// checkConfigNotMounted refuses any mount exposing agentic.json, so the agent can't trust dirs or approve credentials itself.
 func (m mountSet) checkConfigNotMounted() error {
 	file := config.ConfigFile(m.toolHome)
 	if root, ok := findRoot(file, m.hostPaths()); ok {
@@ -79,15 +65,52 @@ func (m mountSet) checkConfigNotMounted() error {
 	return nil
 }
 
-// pinSpec expands spec and swaps its host part for the real path when a workspace symlink leads elsewhere; otherwise spec is returned as written.
-func (m mountSet) pinSpec(spec, cwd string) (string, error) {
+// pinVolume pins a bind mount; named volumes stay as written.
+func (m mountSet) pinVolume(spec string) (string, error) {
+	if mount.IsNamedVolume(mount.ExpandMountSpec(spec, m.toolHome, m.containerHome)) {
+		return spec, nil
+	}
+	return m.pinHost(spec)
+}
+
+// pinSecret pins the path of a name:path secret.
+func (m mountSet) pinSecret(spec string) (string, error) {
+	name, path, ok := strings.Cut(spec, ":")
+	if !ok {
+		return spec, nil
+	}
+
+	pinned, err := m.pinHost(path)
+	return name + ":" + pinned, err
+}
+
+// pinHost replaces the host part of spec with its real path, or returns spec as written when no workspace link redirects it.
+func (m mountSet) pinHost(spec string) (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return spec, nil
+	}
+
 	expanded := mount.ExpandMountSpec(spec, m.toolHome, m.containerHome)
 	host := mount.HostPart(expanded)
-	real, err := pinnedHost(host, cwd)
+	real, err := realWorkspacePath(host, cwd)
 	if err != nil || real == "" {
 		return spec, err
 	}
-	return real + expanded[len(host):], nil
+	return real + strings.TrimPrefix(expanded, host), nil
+}
+
+// pinAll applies pin to every spec, stopping at the first error.
+func pinAll(specs []string, pin func(string) (string, error)) ([]string, error) {
+	var pinned []string
+	for _, spec := range specs {
+		p, err := pin(spec)
+		if err != nil {
+			return nil, err
+		}
+		pinned = append(pinned, p)
+	}
+	return pinned, nil
 }
 
 // findRoot returns the first root containing path.
@@ -104,8 +127,7 @@ func findRoot(path string, roots []string) (string, bool) {
 func within(path, root string) bool {
 	for _, p := range pathForms(path) {
 		for _, r := range pathForms(root) {
-			rel, err := filepath.Rel(r, p)
-			if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			if rel, err := filepath.Rel(r, p); err == nil && isInside(rel) {
 				return true
 			}
 		}
@@ -133,44 +155,44 @@ func pathForms(path string) []string {
 	return forms
 }
 
-// pinnedHost returns host's real path when a workspace symlink leads elsewhere in cwd, empty when no link is involved,
-// and an error when the link leads out of cwd.
-func pinnedHost(host, cwd string) (string, error) {
-	real, ok := workspaceSymlinkTarget(host, cwd)
+// realWorkspacePath returns where a workspace symlink redirects host, empty without one, and an error when it leads out of cwd.
+func realWorkspacePath(host, cwd string) (string, error) {
+	rel, ok := workspaceRel(host, cwd)
 	if !ok {
 		return "", nil
 	}
+
+	// Only links below cwd count
+	written := filepath.Join(resolveExisting(cwd), rel)
+	real := resolveExisting(written)
+	if real == written {
+		return "", nil
+	}
+
 	if !within(real, cwd) {
 		return "", fmt.Errorf("mount %s leads through a workspace symlink to %s; mount the real path instead", host, real)
 	}
 	return real, nil
 }
 
-// workspaceSymlinkTarget returns host's real path when a symlink at or below cwd changes where it leads.
-func workspaceSymlinkTarget(host, cwd string) (string, bool) {
+// workspaceRel returns host relative to cwd or cwd's real path; ok is false outside both.
+func workspaceRel(host, cwd string) (string, bool) {
 	abs, err := filepath.Abs(host)
 	if err != nil {
 		return "", false
 	}
-	realCwd, err := filepath.EvalSymlinks(cwd)
-	if err != nil {
-		return "", false
-	}
 
-	for _, base := range []string{cwd, realCwd} {
-		rel, err := filepath.Rel(base, abs)
-		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			continue
+	for _, base := range []string{cwd, resolveExisting(cwd)} {
+		if rel, err := filepath.Rel(base, abs); err == nil && isInside(rel) {
+			return rel, true
 		}
-
-		// Resolves a missing leaf too: docker would create it wherever a parent link leads
-		real := resolveExisting(abs)
-		if real != filepath.Join(realCwd, rel) {
-			return real, true
-		}
-		return "", false
 	}
 	return "", false
+}
+
+// isInside reports whether a filepath.Rel result stays inside its base.
+func isInside(rel string) bool {
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // resolveExisting resolves symlinks in the longest existing prefix of abs, so a path not created yet still resolves.

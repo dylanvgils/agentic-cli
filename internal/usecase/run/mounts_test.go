@@ -31,98 +31,40 @@ func Test_mountSet_hostPaths(t *testing.T) {
 }
 
 func Test_mountSet_pinSymlinks(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("symlinks need privileges on windows")
-	}
-	workspace := t.TempDir()
-	t.Chdir(workspace)
-	target := filepath.Join(workspace, "real")
-	require.NoError(t, os.MkdirAll(filepath.Join(target, "sub"), 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(target, "token"), []byte("test-secret"), 0o600))
-	require.NoError(t, os.Symlink(target, filepath.Join(workspace, "link")))
-	realTarget, err := filepath.EvalSymlinks(target)
-	require.NoError(t, err)
-	outside := t.TempDir()
-	require.NoError(t, os.Symlink(outside, filepath.Join(workspace, "escape")))
+	ws := chdirSymlinkWorkspace(t)
+	toolHome := t.TempDir()
 
-	t.Run("workspace symlink is pinned to its target", func(t *testing.T) {
+	t.Run("volumes and secrets are pinned", func(t *testing.T) {
 		// Arrange
-		mounts := mountSet{volumes: []string{"$PWD/link:/data:ro"}, toolHome: t.TempDir(), containerHome: "/home/agent"}
+		mounts := mountSet{volumes: []string{"$PWD/link:/data"}, secrets: []string{"token:$PWD/link/token"}, toolHome: toolHome, containerHome: "/home/agent"}
 
 		// Act
 		pinned, err := mounts.pinSymlinks()
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{realTarget + ":/data:ro"}, pinned.volumes)
+		assert.Equal(t, []string{ws.real + ":/data"}, pinned.volumes)
+		assert.Equal(t, []string{"token:" + filepath.Join(ws.real, "token")}, pinned.secrets)
 	})
 
-	t.Run("path below a workspace symlink is pinned", func(t *testing.T) {
+	t.Run("escaping secret is refused", func(t *testing.T) {
 		// Arrange
-		mounts := mountSet{volumes: []string{"$PWD/link/sub:/data"}, toolHome: t.TempDir(), containerHome: "/home/agent"}
+		mounts := mountSet{secrets: []string{"key:$PWD/escape/id_ed25519"}, toolHome: toolHome, containerHome: "/home/agent"}
 
 		// Act
-		pinned, err := mounts.pinSymlinks()
+		_, err := mounts.pinSymlinks()
 
 		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{filepath.Join(realTarget, "sub") + ":/data"}, pinned.volumes)
-	})
-
-	t.Run("secret through a workspace symlink is pinned", func(t *testing.T) {
-		// Arrange
-		mounts := mountSet{secrets: []string{"token:$PWD/link/token"}, toolHome: t.TempDir(), containerHome: "/home/agent"}
-
-		// Act
-		pinned, err := mounts.pinSymlinks()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"token:" + filepath.Join(realTarget, "token")}, pinned.secrets)
-	})
-
-	t.Run("workspace symlink leading out of cwd is refused", func(t *testing.T) {
-		// Arrange
-		cases := []mountSet{
-			{volumes: []string{"$PWD/escape:/workspace/.git:ro"}},
-			{volumes: []string{"$PWD/escape/missing:/data"}},
-			{secrets: []string{"key:$PWD/escape/id_ed25519"}},
-		}
-
-		for _, mounts := range cases {
-			mounts.toolHome, mounts.containerHome = t.TempDir(), "/home/agent"
-
-			// Act
-			_, err := mounts.pinSymlinks()
-
-			// Assert
-			assert.ErrorContains(t, err, "leads through a workspace symlink")
-		}
-	})
-
-	t.Run("plain paths, outside symlinks and named volumes stay as written", func(t *testing.T) {
-		// Arrange
-		outsideLink := filepath.Join(t.TempDir(), "link")
-		require.NoError(t, os.Symlink(outside, outsideLink))
-		volumes := []string{"$PWD:/workspace", outsideLink + ":/data", "agentic-cache:/cache", "$PWD/missing:/missing"}
-		mounts := mountSet{volumes: volumes, toolHome: t.TempDir(), containerHome: "/home/agent"}
-
-		// Act
-		pinned, err := mounts.pinSymlinks()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, volumes, pinned.volumes)
+		assert.ErrorContains(t, err, "leads through a workspace symlink")
 	})
 }
 
 func Test_mountSet_checkConfigNotMounted(t *testing.T) {
 	toolHome := t.TempDir()
 
-	t.Run("tool subdir mounts are accepted", func(t *testing.T) {
+	t.Run("mounts beside agentic.json are accepted", func(t *testing.T) {
 		// Arrange
-		volumes := []string{"$TOOL_HOME/tools/claude/data:$CONTAINER_HOME/.claude", t.TempDir() + ":/data"}
-		mounts := mountSet{volumes: volumes, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{volumes: []string{"$TOOL_HOME/tools/claude/data:$CONTAINER_HOME/.claude"}, toolHome: toolHome, containerHome: "/home/agent"}
 
 		// Act
 		err := mounts.checkConfigNotMounted()
@@ -131,45 +73,65 @@ func Test_mountSet_checkConfigNotMounted(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("mounting the agentic home or a parent is refused", func(t *testing.T) {
-		for _, volume := range []string{"$TOOL_HOME:/agentic", filepath.Dir(toolHome) + ":/parent:ro"} {
-			// Arrange
-			mounts := mountSet{volumes: []string{volume}, toolHome: toolHome, containerHome: "/home/agent"}
-
-			// Act
-			err := mounts.checkConfigNotMounted()
-
-			// Assert
-			assert.ErrorContains(t, err, "would expose "+config.ConfigFile(toolHome), volume)
-		}
-	})
-
-	t.Run("secret pointing at agentic.json is refused", func(t *testing.T) {
+	t.Run("mount containing agentic.json is refused", func(t *testing.T) {
 		// Arrange
-		mounts := mountSet{secrets: []string{"cfg:$TOOL_HOME/agentic.json"}, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{volumes: []string{"$TOOL_HOME:/agentic"}, toolHome: toolHome, containerHome: "/home/agent"}
 
 		// Act
 		err := mounts.checkConfigNotMounted()
 
 		// Assert
-		assert.ErrorContains(t, err, "would expose")
+		assert.EqualError(t, err, "mount "+toolHome+" would expose "+config.ConfigFile(toolHome)+" to the tool container; mount a narrower path")
 	})
+}
 
-	t.Run("real path of a symlinked agentic home is refused before agentic.json exists", func(t *testing.T) {
-		// Arrange
-		if runtime.GOOS == "windows" {
-			t.Skip("symlinks need privileges on windows")
-		}
-		realHome := t.TempDir()
-		linkedHome := filepath.Join(t.TempDir(), "agentic")
-		require.NoError(t, os.Symlink(realHome, linkedHome))
-		mounts := mountSet{volumes: []string{realHome + ":/agentic"}, toolHome: linkedHome, containerHome: "/home/agent"}
+func Test_mountSet_pinVolume(t *testing.T) {
+	// Arrange
+	ws := chdirSymlinkWorkspace(t)
+	require.NoError(t, os.Symlink(ws.real, filepath.Join(ws.dir, "agentic-cache")))
+	mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
 
+	// Act
+	spec, err := mounts.pinVolume("agentic-cache:/cache")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "agentic-cache:/cache", spec, "a named volume must not turn into a bind mount of a same-named workspace link")
+}
+
+func Test_mountSet_pinSecret(t *testing.T) {
+	// Arrange
+	ws := chdirSymlinkWorkspace(t)
+	mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
+
+	// Act
+	spec, err := mounts.pinSecret("token:$PWD/link/token")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "token:"+filepath.Join(ws.real, "token"), spec)
+}
+
+func Test_mountSet_pinHost(t *testing.T) {
+	ws := chdirSymlinkWorkspace(t)
+	mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
+
+	t.Run("pinned host keeps the container side and options", func(t *testing.T) {
 		// Act
-		err := mounts.checkConfigNotMounted()
+		spec, err := mounts.pinHost("$PWD/link:/data:ro")
 
 		// Assert
-		assert.ErrorContains(t, err, "would expose")
+		require.NoError(t, err)
+		assert.Equal(t, ws.real+":/data:ro", spec)
+	})
+
+	t.Run("spec without a workspace link stays as written", func(t *testing.T) {
+		// Act
+		spec, err := mounts.pinHost("$PWD:/workspace")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "$PWD:/workspace", spec)
 	})
 }
 
@@ -235,4 +197,105 @@ func Test_within(t *testing.T) {
 		// Assert
 		assert.True(t, result)
 	})
+}
+
+func Test_realWorkspacePath(t *testing.T) {
+	ws := chdirSymlinkWorkspace(t)
+
+	t.Run("path without a link returns empty", func(t *testing.T) {
+		// Act
+		real, err := realWorkspacePath(filepath.Join(ws.dir, "real", "missing"), ws.dir)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, real)
+	})
+
+	t.Run("path below a link inside cwd returns its real path", func(t *testing.T) {
+		// Act
+		real, err := realWorkspacePath(filepath.Join(ws.dir, "link", "sub"), ws.dir)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(ws.real, "sub"), real)
+	})
+
+	t.Run("link out of cwd is refused", func(t *testing.T) {
+		// Act
+		_, err := realWorkspacePath(filepath.Join(ws.dir, "escape"), ws.dir)
+
+		// Assert
+		assert.ErrorContains(t, err, "leads through a workspace symlink to "+ws.outside)
+	})
+
+	t.Run("path outside cwd returns empty", func(t *testing.T) {
+		// Act
+		real, err := realWorkspacePath(ws.outside, ws.dir)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, real)
+	})
+}
+
+func Test_workspaceRel(t *testing.T) {
+	cwd := t.TempDir()
+
+	t.Run("path inside cwd is relative to it", func(t *testing.T) {
+		// Act
+		rel, ok := workspaceRel(filepath.Join(cwd, "a", "b"), cwd)
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, filepath.Join("a", "b"), rel)
+	})
+
+	t.Run("path written via a symlinked cwd's real path is inside", func(t *testing.T) {
+		// Arrange
+		if runtime.GOOS == "windows" {
+			t.Skip("symlinks need privileges on windows")
+		}
+		linkedCwd := filepath.Join(t.TempDir(), "cwd")
+		require.NoError(t, os.Symlink(cwd, linkedCwd))
+		realCwd, err := filepath.EvalSymlinks(cwd)
+		require.NoError(t, err)
+
+		// Act
+		rel, ok := workspaceRel(filepath.Join(realCwd, "a"), linkedCwd)
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, "a", rel)
+	})
+}
+
+func Test_isInside(t *testing.T) {
+	t.Run("parent references are outside", func(t *testing.T) {
+		for _, rel := range []string{"..", filepath.Join("..", "x")} {
+			// Act
+			inside := isInside(rel)
+
+			// Assert
+			assert.False(t, inside, rel)
+		}
+	})
+
+	t.Run("name starting with dots is inside", func(t *testing.T) {
+		// Act
+		inside := isInside("..foo")
+
+		// Assert
+		assert.True(t, inside)
+	})
+}
+
+func Test_resolveExisting(t *testing.T) {
+	// Arrange
+	ws := chdirSymlinkWorkspace(t)
+
+	// Act
+	real := resolveExisting(filepath.Join(ws.dir, "escape", "missing"))
+
+	// Assert
+	assert.Equal(t, filepath.Join(ws.outside, "missing"), real)
 }

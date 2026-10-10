@@ -69,7 +69,7 @@ What no layer covers today:
 
 - **Shared kernel**: a kernel exploit escapes every container. Only a VM boundary (Kata, gVisor, [Docker Sandboxes](comparison.md)) fixes this. Keep the host kernel patched.
 - **Credentials in reach**: the agent can read its OAuth login token in the tool home and any `--secret` you mount, and use them from any allowed host. [Proxy-injected API keys](egress-proxy.md#credential-injection) stay out of reach, but can still be used.
-- **Workspace tampering**: the agent can edit git hooks, `Makefile`, `package.json` scripts, etc. They run on *your* machine the next time you use them outside the container. It can also edit the workspace `.agenticrc.toml`, e.g. drop a credential entry and mount its secret through `secrets` on your next run. Review diffs.
+- **Workspace tampering**: the agent can edit git hooks, `Makefile`, `package.json` scripts, etc. They run on *your* machine the next time you use them outside the container. The same goes for `.agenticrc.toml`, e.g. swapping a credential entry for a `secrets` mount of the key. Review diffs.
 - **Exfiltration to allowed hosts**: without `--proxy` the internet is open to the tool and the DinD sidecar; with it, data can still go to any allowlisted host.
 
 ## Check it yourself

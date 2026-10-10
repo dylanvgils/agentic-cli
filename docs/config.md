@@ -323,6 +323,6 @@ agentic run -v '$TOOL_HOME/custom:$CONTAINER_HOME/.custom:rw' claude
 
 Before a run starts, agentic checks every bind mount and secret:
 
-- A mount that would expose `$AGENTIC_HOME/agentic.json` (the agentic home itself or a parent, such as `~`) is refused, since that file records trusted directories and approvals. Mount a narrower path instead.
-- A path that leads through a symlink inside the workspace is mounted by its real path, resolved once at startup.
-- A workspace symlink that leads out of the workspace is refused, so a planted link such as `.git -> ~/.ssh` can't mount a host path through `read_only_mounts = [".git"]`. Mount the real path instead.
+- A mount that would expose `$AGENTIC_HOME/agentic.json` (the agentic home or a parent, such as `~`) is refused, since that file records trusted directories and approvals.
+- A path through a symlink inside the workspace is mounted by its real path, resolved once at startup.
+- A workspace symlink that leads out of the workspace is refused, so a planted `.git -> ~/.ssh` can't be mounted via `read_only_mounts = [".git"]`.

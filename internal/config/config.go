@@ -106,7 +106,7 @@ func (config *CliConfig) ApproveCredentials(path, hash, toolHome string) error {
 	return config.Save(toolHome)
 }
 
-// ConfigFile returns the path of agentic.json, which records trusted dirs and approved credentials, so it must never be mounted into a container.
+// ConfigFile returns the path of agentic.json, which must never be mounted into a container.
 func ConfigFile(toolHome string) string {
 	return filepath.Join(toolHome, "agentic.json")
 }

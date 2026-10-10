@@ -85,7 +85,7 @@ func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc
 		containerHome: req.containerHome,
 	}
 
-	// Pin before checking, so the checked paths are the mounted ones
+	// Pin first, so the checks see the mounted paths
 	mounts, err = mounts.pinSymlinks()
 	if err != nil {
 		return docker.RunSpec{}, err
