@@ -45,8 +45,9 @@ func TestProxyAddressGuard(t *testing.T) {
 		// Act
 		out := runInToolIn(t, dir, connectScript("localhost"), "--proxy")
 
-		// Assert
+		// Assert - the reason proves the guard refused it, not the allowlist
 		assert.Contains(t, out, "connect=403")
+		assert.Contains(t, proxyLog(t), `"host":"localhost","port":"80","decision":"deny","enforced":true,"reason":"blocked-address"`)
 	})
 }
 

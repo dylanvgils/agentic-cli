@@ -113,12 +113,12 @@ func TestLoggerLog(t *testing.T) {
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
-		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionDeny, Enforced: true, Reason: reasonBlockedAddr})
+		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionDeny, Enforced: true, Reason: ReasonBlockedAddr})
 
 		// Assert
 		var entry Entry
 		require.NoError(t, json.Unmarshal(bytes.TrimSpace(jsonBuf.Bytes()), &entry))
-		assert.Equal(t, reasonBlockedAddr, entry.Reason)
+		assert.Equal(t, ReasonBlockedAddr, entry.Reason)
 		assert.Equal(t, "2026-06-17T12:00:00Z [DENY]  https api.example.test:443 (blocked-address)", strings.TrimSpace(humanBuf.String()))
 	})
 

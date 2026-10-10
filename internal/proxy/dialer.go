@@ -11,27 +11,38 @@ import (
 	"time"
 )
 
-// reasonBlockedAddr is the log reason for an allowed host refused by the address guard.
-const reasonBlockedAddr = "blocked-address"
-
 var (
 	// errBlockedAddr marks a dial refused because the destination resolved to a local or private address.
 	errBlockedAddr = errors.New("destination resolves to a blocked address")
 
-	// alwaysBlocked holds ranges the stdlib checks miss; 0.0.0.0/8 reaches the proxy itself on Linux.
-	alwaysBlocked = []netip.Prefix{netip.MustParsePrefix("0.0.0.0/8")}
+	// alwaysBlocked holds ranges the stdlib checks miss: "this network" (reaches the proxy itself on Linux),
+	// deprecated IPv4-compatible and site-local IPv6, and cloud metadata endpoints outside link-local.
+	// NOSONAR on each line: ranges to refuse, not addresses to reach
+	alwaysBlocked = mustParsePrefixes(
+		"0.0.0.0/8",          // NOSONAR
+		"::/96",              // NOSONAR
+		"fec0::/10",          // NOSONAR
+		"fd00:ec2::254/128",  // NOSONAR - AWS IPv6 metadata
+		"100.100.100.200/32", // NOSONAR - Alibaba metadata
+		"168.63.129.16/32",   // NOSONAR - Azure WireServer
+	)
 
-	// privateRanges holds private ranges IsPrivate misses (CGNAT).
-	privateRanges = []netip.Prefix{netip.MustParsePrefix("100.64.0.0/10")} // NOSONAR - a range to refuse, not an address to reach
+	// privateRanges holds private ranges IsPrivate misses: CGNAT, IETF protocol assignments and benchmarking (fake-IP VPNs).
+	privateRanges = mustParsePrefixes("100.64.0.0/10", "192.0.0.0/24", "198.18.0.0/15") // NOSONAR - ranges to refuse, not addresses to reach
+
+	// nat64Prefix and sixToFourPrefix embed an IPv4 address, which is checked instead.
+	nat64Prefix     = netip.MustParsePrefix("64:ff9b::/96") // NOSONAR - a prefix to decode, not an address to reach
+	sixToFourPrefix = netip.MustParsePrefix("2002::/16")    // NOSONAR - a prefix to decode, not an address to reach
 
 	// upstreamDialer checks each resolved address before connecting, so DNS can't point an allowed name inward.
 	upstreamDialer = &net.Dialer{Timeout: dialTimeout, ControlContext: guardAddr}
 
 	// upstreamTransport forwards plain HTTP requests through upstreamDialer.
 	upstreamTransport = &http.Transport{
-		DialContext:     upstreamDialer.DialContext,
-		MaxIdleConns:    100,
-		IdleConnTimeout: 90 * time.Second,
+		DialContext:         upstreamDialer.DialContext,
+		TLSHandshakeTimeout: dialTimeout,
+		MaxIdleConns:        100,
+		IdleConnTimeout:     90 * time.Second,
 	}
 )
 
@@ -70,7 +81,7 @@ func guardAddr(ctx context.Context, _, address string, _ syscall.RawConn) error 
 
 // blockedAddr reports whether addr is local, link-local or multicast, or private without privateOK.
 func blockedAddr(addr netip.Addr, privateOK bool) bool {
-	addr = addr.Unmap()
+	addr = embeddedIPv4(addr.Unmap())
 	if addr.IsLoopback() || addr.IsLinkLocalUnicast() || addr.IsMulticast() || addr.IsUnspecified() || inPrefixes(addr, alwaysBlocked) {
 		return true
 	}
@@ -88,4 +99,25 @@ func inPrefixes(addr netip.Addr, prefixes []netip.Prefix) bool {
 		}
 	}
 	return false
+}
+
+// embeddedIPv4 returns the IPv4 address inside a NAT64 or 6to4 address, else addr.
+func embeddedIPv4(addr netip.Addr) netip.Addr {
+	b := addr.As16()
+	switch {
+	case nat64Prefix.Contains(addr):
+		return netip.AddrFrom4([4]byte(b[12:16]))
+	case sixToFourPrefix.Contains(addr):
+		return netip.AddrFrom4([4]byte(b[2:6]))
+	}
+	return addr
+}
+
+// mustParsePrefixes parses CIDRs, panicking on a malformed one.
+func mustParsePrefixes(cidrs ...string) []netip.Prefix {
+	prefixes := make([]netip.Prefix, 0, len(cidrs))
+	for _, cidr := range cidrs {
+		prefixes = append(prefixes, netip.MustParsePrefix(cidr))
+	}
+	return prefixes
 }

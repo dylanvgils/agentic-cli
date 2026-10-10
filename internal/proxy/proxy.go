@@ -142,7 +142,7 @@ func (s *Server) verdict(protocol Protocol, host, port string) (Entry, bool) {
 func (s *Server) refuseBlocked(w http.ResponseWriter, entry Entry) {
 	entry.Decision = DecisionDeny
 	entry.Enforced = true
-	entry.Reason = reasonBlockedAddr
+	entry.Reason = ReasonBlockedAddr
 	s.logger.Log(entry)
 	http.Error(w, errBlockedAddr.Error(), http.StatusForbidden)
 }

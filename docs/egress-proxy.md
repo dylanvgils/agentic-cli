@@ -37,10 +37,12 @@ allowed_hosts = ["registry.npmjs.org", ".github.com"]
 
 ### Local and private addresses
 
-The proxy checks the IP an allowed host resolves to, so a DNS record can't point it at your machine or network. This also applies in monitor mode. A refused attempt gets a 403 and is logged as `"decision": "deny"` with `"reason": "blocked-address"`.
+The proxy checks the IP an allowed host resolves to, so a DNS record can't point it at your machine or network. This also applies in monitor mode, where hosts not on the allowlist get the wildcard rules. A refused attempt gets a 403, is logged as `"decision": "deny"` with `"reason": "blocked-address"`, and is listed apart from blocked hosts at the end of the run.
 
-- **Always refused**: loopback, link-local (incl. the `169.254.169.254` cloud metadata address), unspecified and multicast addresses.
-- **Refused for wildcard entries**: private ranges (`10/8`, `172.16/12`, `192.168/16`, `100.64/10`, `fc00::/7`). An exact entry like `"artifactory.corp.example"` may resolve to one, so list internal hosts exactly.
+- **Always refused**: loopback, link-local (incl. the `169.254.169.254` cloud metadata address), unspecified and multicast addresses, and the AWS, Azure and Alibaba metadata endpoints outside link-local.
+- **Refused for wildcard entries**: private ranges (`10/8`, `172.16/12`, `192.168/16`, `100.64/10`, `198.18/15`, `fc00::/7`). An exact entry like `"artifactory.corp.example"` may resolve to one, so list internal hosts exactly.
+- **NAT64 and 6to4 addresses** are checked by the IPv4 address inside them.
+- **With credential injection**, the tunnel is logged as allowed first, then each refused request gets its own deny entry.
 
 ### Baseline allowlist
 

@@ -3,13 +3,20 @@
 package platform
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
 // timezone resolves the host's IANA timezone name via tzutil, translating its Windows-specific name to the IANA equivalent.
 func timezone() string {
-	out, err := exec.Command("tzutil", "/g").Output() // NOSONAR - system tzutil from PATH is intended
+	// The system copy, never one found on PATH or relative to the cwd
+	root := os.Getenv("SystemRoot")
+	if !filepath.IsAbs(root) {
+		return ""
+	}
+	out, err := exec.Command(filepath.Join(root, "System32", "tzutil.exe"), "/g").Output()
 	if err != nil {
 		return ""
 	}

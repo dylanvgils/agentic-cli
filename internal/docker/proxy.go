@@ -131,29 +131,36 @@ func (h proxyHandle) Stop() {
 	_, _ = h.client.run("network", "rm", h.network)
 }
 
-// PrintSummary reports hosts actually blocked in normal mode, or hosts that would have been
-// blocked under the current allowlist in monitor mode, since nothing is blocked there.
+// PrintSummary reports hosts the allowlist blocked, or would have blocked in monitor mode, and
+// separately hosts the address guard refused, which it does in both modes.
 func (h proxyHandle) PrintSummary(l *logging.Logger) {
-	hosts, denied := h.hostsByDecision(proxy.DecisionDeny)
-	if denied == 0 {
+	hosts, denied := h.hostsMatching(deniedByAllowlist)
+	refusedHosts, refused := h.hostsMatching(refusedByGuard)
+	if denied == 0 && refused == 0 {
 		return
 	}
 
 	// Blank line separates the summary from the tool output above it
 	fmt.Fprintln(l.Writer())
 
-	if h.monitor {
+	switch {
+	case denied == 0:
+	case h.monitor:
 		l.Infof("proxy (monitor mode) observed %d request(s); %d would be blocked under the current allowlist: %s", h.totalRequests(), denied, strings.Join(hosts, ", "))
 		l.Detail("add the ones you want to allow to [run.proxy] allowed_hosts, then drop --proxy-monitor.")
-		return
+	default:
+		l.Infof("proxy blocked %d request(s) to: %s", denied, strings.Join(hosts, ", "))
+		l.Detail("add them to [run.proxy] allowed_hosts (or pass --no-proxy) to permit.")
 	}
 
-	l.Infof("proxy blocked %d request(s) to: %s", denied, strings.Join(hosts, ", "))
-	l.Detail("add them to [run.proxy] allowed_hosts (or pass --no-proxy) to permit.")
+	if refused > 0 {
+		l.Infof("proxy refused %d request(s) to local or private addresses: %s", refused, strings.Join(refusedHosts, ", "))
+		l.Detail("list an internal host exactly in [run.proxy] allowed_hosts to permit its private address; loopback and link-local stay refused.")
+	}
 }
 
-// hostsByDecision reads the access log and returns the unique hosts logged with decision (first-seen order) and the matching total.
-func (h proxyHandle) hostsByDecision(decision proxy.Decision) (hosts []string, total int) {
+// hostsMatching reads the access log and returns the unique hosts of entries matching match (first-seen order) and their total.
+func (h proxyHandle) hostsMatching(match func(proxy.Entry) bool) (hosts []string, total int) {
 	f, err := os.Open(h.logPath)
 	if err != nil {
 		return nil, 0
@@ -167,7 +174,7 @@ func (h proxyHandle) hostsByDecision(decision proxy.Decision) (hosts []string, t
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
 			continue
 		}
-		if entry.Decision != decision {
+		if !match(entry) {
 			continue
 		}
 
@@ -442,4 +449,14 @@ func randID() (string, error) {
 		return "", fmt.Errorf("generate proxy id: %w", err)
 	}
 	return hex.EncodeToString(buf), nil
+}
+
+// deniedByAllowlist reports whether entry was denied because its host isn't on the allowlist.
+func deniedByAllowlist(entry proxy.Entry) bool {
+	return entry.Decision == proxy.DecisionDeny && entry.Reason == ""
+}
+
+// refusedByGuard reports whether the address guard refused entry.
+func refusedByGuard(entry proxy.Entry) bool {
+	return entry.Reason == proxy.ReasonBlockedAddr
 }

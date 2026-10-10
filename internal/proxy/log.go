@@ -17,6 +17,9 @@ const (
 	DecisionDeny  Decision = "deny"
 )
 
+// ReasonBlockedAddr is the log reason for an allowed host refused by the address guard.
+const ReasonBlockedAddr = "blocked-address"
+
 // Protocol records how the client reached the proxy: an HTTP CONNECT tunnel (HTTPS) or a plain HTTP forward.
 type Protocol string
 
@@ -39,7 +42,7 @@ type Entry struct {
 	Enforced bool `json:"enforced"`
 	// Injected reports whether the tunnel was TLS-terminated to inject credentials.
 	Injected bool `json:"injected,omitempty"`
-	// Reason says why an allowed host was still refused, e.g. reasonBlockedAddr.
+	// Reason says why an allowed host was still refused, e.g. ReasonBlockedAddr.
 	Reason string `json:"reason,omitempty"`
 }
 
