@@ -100,10 +100,10 @@ type RCLimits struct {
 
 // RCMarketplace declares one git-based plugin marketplace to sync and mount into tool containers.
 type RCMarketplace struct {
-	Name string `toml:"name"`
-	URL  string `toml:"url"`
+	Name string `toml:"name" json:"name"`
+	URL  string `toml:"url" json:"url"`
 	// Tools restricts which tools this marketplace is mounted into; empty means every tool.
-	Tools []string `toml:"tools"`
+	Tools []string `toml:"tools" json:"tools,omitempty"`
 }
 
 // RCCustomInstall declares one non-apt tool to install via arbitrary shell commands, applied unconditionally at build time (no --<name> gate).

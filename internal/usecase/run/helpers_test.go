@@ -104,10 +104,12 @@ func (f *fakeDocker) PruneDangling() error {
 type fakePrompter struct {
 	trustDir           func(string) error
 	approveCredentials func(config.RCLayer) error
+	approveSettings    func(config.RCLayer, []config.GuardedSetting) error
 	offerToolUpdate    func(tool, installed, latest string) bool
 
 	trustAsked       []string
 	credentialsAsked []string
+	settingsAsked    [][]string
 	updatesOffered   []string
 }
 
@@ -125,6 +127,18 @@ func (f *fakePrompter) ApproveCredentials(layer config.RCLayer) error {
 		return nil
 	}
 	return f.approveCredentials(layer)
+}
+
+func (f *fakePrompter) ApproveSettings(layer config.RCLayer, changed []config.GuardedSetting) error {
+	var keys []string
+	for _, setting := range changed {
+		keys = append(keys, setting.Key)
+	}
+	f.settingsAsked = append(f.settingsAsked, keys)
+	if f.approveSettings == nil {
+		return nil
+	}
+	return f.approveSettings(layer, changed)
 }
 
 func (f *fakePrompter) OfferToolUpdate(tool, installed, latest string) bool {

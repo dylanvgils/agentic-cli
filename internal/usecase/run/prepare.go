@@ -60,6 +60,10 @@ func (s *Service) Prepare(req Request, prompter Prompter) (docker.RunSpec, func(
 		return docker.RunSpec{}, func() {}, err
 	}
 
+	if err := checkSettings(req.Project.Dir, req.Project.Layers, home, prompter); err != nil {
+		return docker.RunSpec{}, func() {}, err
+	}
+
 	if err := s.checkTool(req, prompter); err != nil {
 		return docker.RunSpec{}, func() {}, err
 	}

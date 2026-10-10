@@ -128,6 +128,10 @@ func setup(root string) error {
 	}
 	done()
 
+	if err := approveSettings(filepath.Join(workDir, ".agenticrc.toml")); err != nil {
+		return fmt.Errorf("approve work dir settings: %w", err)
+	}
+
 	// Also creates agentic-net, which the network tests attach fakes to
 	done = logStep("first agentic run")
 	if out, err := agenticCmd("run", "--trust-dir", testTool, "--", "true").CombinedOutput(); err != nil {

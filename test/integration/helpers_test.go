@@ -96,6 +96,25 @@ func approveCredentials(t *testing.T, rcPath string) {
 	}
 }
 
+// approveSettings records the guarded settings in the .agenticrc.toml at rcPath as approved, as the settings prompt would.
+func approveSettings(rcPath string) error {
+	layers, err := config.FindLayers(filepath.Dir(rcPath))
+	if err != nil {
+		return err
+	}
+	cfg, err := config.LoadConfig(agenticHome)
+	if err != nil {
+		return err
+	}
+
+	for _, layer := range layers {
+		if layer.Path == rcPath {
+			return cfg.ApproveSettings(layer, agenticHome)
+		}
+	}
+	return nil
+}
+
 // proxyLog returns every proxy access log written under the test AGENTIC_HOME, concatenated.
 func proxyLog(t *testing.T) string {
 	t.Helper()

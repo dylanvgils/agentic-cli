@@ -22,6 +22,8 @@ type CliConfig struct {
 	LastToolVersionCheck  map[string]time.Time `json:"last_tool_version_check,omitempty"`
 	// ApprovedCredentials maps a .agenticrc.toml path to the CredentialsHash of the entries the user approved
 	ApprovedCredentials map[string]string `json:"approved_credentials,omitempty"`
+	// ApprovedSettings maps a .agenticrc.toml path to the hash of each guarded setting the user approved; a missing key was approved unset
+	ApprovedSettings map[string]map[string]string `json:"approved_settings,omitempty"`
 }
 
 // LoadConfig reads $AGENTIC_HOME/agentic.json, returning an empty CliConfig if the file does not exist.
@@ -111,6 +113,39 @@ func (config *CliConfig) ApproveCredentials(path, hash, toolHome string) error {
 	}
 
 	config.ApprovedCredentials[approvalKey(path)] = hash
+	return config.Save(toolHome)
+}
+
+// ChangedSettings returns the guarded settings of layer that differ from what the user last approved for its file; never-approved settings count as approved unset.
+func (config *CliConfig) ChangedSettings(layer RCLayer) []GuardedSetting {
+	approved := config.ApprovedSettings[approvalKey(layer.Path)]
+
+	var changed []GuardedSetting
+	for _, setting := range GuardedSettings(layer.RC) {
+		want, ok := approved[setting.Key]
+		if !ok {
+			want = GuardedSetting{}.hash()
+		}
+		if setting.hash() != want {
+			changed = append(changed, setting)
+		}
+	}
+	return changed
+}
+
+// ApproveSettings records layer's guarded settings as approved for its file and saves the config.
+func (config *CliConfig) ApproveSettings(layer RCLayer, toolHome string) error {
+	hashes := make(map[string]string)
+	for _, setting := range GuardedSettings(layer.RC) {
+		if setting.IsSet() {
+			hashes[setting.Key] = setting.hash()
+		}
+	}
+
+	if config.ApprovedSettings == nil {
+		config.ApprovedSettings = make(map[string]map[string]string)
+	}
+	config.ApprovedSettings[approvalKey(layer.Path)] = hashes
 	return config.Save(toolHome)
 }
 

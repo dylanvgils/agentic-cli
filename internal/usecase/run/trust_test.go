@@ -42,6 +42,19 @@ func TestCheckContextTrust(t *testing.T) {
 		assert.Empty(t, p.trustAsked)
 	})
 
+	t.Run("trusted dir still approves its changed settings", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		p := &fakePrompter{approveSettings: func(config.RCLayer, []config.GuardedSetting) error { return errors.New("settings not approved") }}
+
+		// Act
+		err := CheckContextTrust(dir, t.TempDir(), []config.RCLayer{contextLayer(dir)}, true, p)
+
+		// Assert
+		require.EqualError(t, err, "settings not approved")
+		assert.Equal(t, [][]string{{"docker_context"}}, p.settingsAsked)
+	})
+
 	t.Run("config without a context does not ask", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
@@ -124,6 +137,62 @@ func Test_checkTrust(t *testing.T) {
 		cfg, err := config.LoadConfig(toolHome)
 		require.NoError(t, err)
 		assert.NotContains(t, cfg.TrustedDirs, dir)
+	})
+}
+
+func Test_checkSettings(t *testing.T) {
+	mountLayer := func(dir string) config.RCLayer {
+		rc := &config.AgenticRC{}
+		rc.Run.ExtraMounts = []string{"~/.example:/x:rw"}
+		return config.RCLayer{Path: filepath.Join(dir, ".agenticrc.toml"), RC: rc}
+	}
+
+	t.Run("changed settings in the dir's own config are approved and saved", func(t *testing.T) {
+		// Arrange
+		toolHome := t.TempDir()
+		dir := t.TempDir()
+		layer := mountLayer(dir)
+		p := &fakePrompter{}
+
+		// Act
+		err := checkSettings(dir, []config.RCLayer{layer}, toolHome, p)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, [][]string{{"run.extra_mounts"}}, p.settingsAsked)
+		cfg, err := config.LoadConfig(toolHome)
+		require.NoError(t, err)
+		assert.Empty(t, cfg.ChangedSettings(layer))
+	})
+
+	t.Run("refused approval returns its error and saves nothing", func(t *testing.T) {
+		// Arrange
+		toolHome := t.TempDir()
+		dir := t.TempDir()
+		layer := mountLayer(dir)
+		p := &fakePrompter{approveSettings: func(config.RCLayer, []config.GuardedSetting) error { return errors.New("settings not approved") }}
+
+		// Act
+		err := checkSettings(dir, []config.RCLayer{layer}, toolHome, p)
+
+		// Assert
+		require.EqualError(t, err, "settings not approved")
+		cfg, err := config.LoadConfig(toolHome)
+		require.NoError(t, err)
+		assert.NotEmpty(t, cfg.ChangedSettings(layer))
+	})
+
+	t.Run("config above the dir is not asked about", func(t *testing.T) {
+		// Arrange
+		parent := t.TempDir()
+		p := &fakePrompter{}
+
+		// Act
+		err := checkSettings(filepath.Join(parent, "project"), []config.RCLayer{mountLayer(parent)}, t.TempDir(), p)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, p.settingsAsked)
 	})
 }
 

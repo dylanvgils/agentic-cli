@@ -23,6 +23,7 @@ Stored at `$AGENTIC_HOME/agentic.json`. Edit it with any text editor.
 | `last_update_check`        | scalar | Managed automatically.                                                  | -                  |
 | `last_tool_version_check`  | object | Managed automatically.                                                  | -                  |
 | `approved_credentials`     | object | Your [credential](egress-proxy.md#credential-injection) approvals. Managed automatically. | -                  |
+| `approved_settings`        | object | Your [setting approvals](#setting-approval). Managed automatically. | -                  |
 
 ### Registry proxy
 
@@ -247,6 +248,19 @@ name = "claude-only-thing"
 url  = "git@github.com:acme/claude-extras.git"
 tools = ["claude"]
 ```
+
+## Setting approval
+
+The agent can edit the `.agenticrc.toml` in the directory you run from, so agentic asks you to approve the settings there that reach outside the container. It asks when one first appears and whenever one changes or is removed. Non-interactive runs fail until you approve.
+
+The guarded keys:
+
+- `root`, `namespace`, `docker_context`, `[[marketplaces]]`
+- `build.custom_installs`
+- `run.extra_mounts`, `run.read_only_mounts`, `run.secrets`, `run.env`
+- `run.proxy.enabled`, `run.proxy.mode`, `run.proxy.allowed_hosts`, `run.dind.enabled`
+
+Files in parent directories never ask, since the agent can't write them. [Credentials](egress-proxy.md#credential-injection) have their own approval. Approvals belong to the file's own path, like credential approvals. `agentic build` and `agentic update` don't ask, so review the diff before running them in a directory an agent has worked in.
 
 ## Merge semantics
 

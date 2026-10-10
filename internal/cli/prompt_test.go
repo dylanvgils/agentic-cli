@@ -128,6 +128,51 @@ func Test_ttyPrompter_ApproveCredentials(t *testing.T) {
 	})
 }
 
+func Test_ttyPrompter_ApproveSettings(t *testing.T) {
+	layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
+	changed := []config.GuardedSetting{{Key: "run.extra_mounts", Value: []string{"~/.example:/x:rw"}}}
+
+	t.Run("no tty names the changed keys and hints to run interactively", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, false)
+
+		// Act
+		err := ttyPrompter{}.ApproveSettings(layer, changed)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "(run.extra_mounts); run interactively")
+	})
+
+	t.Run("tty answers y lists the settings and approves", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, true)
+		stubStdin(t, "y\n")
+		logs := stubErrLog(t)
+
+		// Act
+		err := ttyPrompter{}.ApproveSettings(layer, changed)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, logs.String(), "agentic:   run.extra_mounts = [\"~/.example:/x:rw\"]\n")
+	})
+
+	t.Run("tty answers n refuses", func(t *testing.T) {
+		// Arrange
+		stubIsTerminal(t, true)
+		stubStdin(t, "n\n")
+		stubErrLog(t)
+
+		// Act
+		err := ttyPrompter{}.ApproveSettings(layer, changed)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not approved")
+	})
+}
+
 func Test_ttyPrompter_OfferToolUpdate(t *testing.T) {
 	t.Run("no tty prints one-liner and declines", func(t *testing.T) {
 		// Arrange
@@ -254,6 +299,38 @@ func Test_describeCredential(t *testing.T) {
 		// Assert
 		assert.Equal(t, `header "X-Token" on "evil.example.test\x1b[2K\r", secret "/example.test/key\u202e"`, desc)
 	})
+}
+
+func Test_describeSetting(t *testing.T) {
+	t.Run("set value is shown as json", func(t *testing.T) {
+		// Arrange
+		disabled := false
+
+		// Act
+		described := describeSetting(config.GuardedSetting{Key: "run.proxy.enabled", Value: &disabled})
+
+		// Assert
+		assert.Equal(t, "run.proxy.enabled = false", described)
+	})
+
+	t.Run("cleared value is shown as unset", func(t *testing.T) {
+		// Act
+		described := describeSetting(config.GuardedSetting{Key: "run.read_only_mounts", Value: []string(nil)})
+
+		// Assert
+		assert.Equal(t, "run.read_only_mounts (unset)", described)
+	})
+}
+
+func Test_settingKeys(t *testing.T) {
+	// Arrange
+	settings := []config.GuardedSetting{{Key: "root"}, {Key: "run.env"}}
+
+	// Act
+	keys := settingKeys(settings)
+
+	// Assert
+	assert.Equal(t, "root, run.env", keys)
 }
 
 func Test_confirmed(t *testing.T) {

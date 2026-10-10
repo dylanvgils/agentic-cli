@@ -417,3 +417,95 @@ func TestConfigFile(t *testing.T) {
 	// Assert
 	assert.Equal(t, filepath.Join("/example.test/agentic", "agentic.json"), path)
 }
+
+func TestChangedSettings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".agenticrc.toml")
+	mounts := func(m ...string) RCLayer {
+		rc := &AgenticRC{}
+		rc.Run.ExtraMounts = m
+		return RCLayer{Path: path, RC: rc}
+	}
+
+	t.Run("unset setting never approved is unchanged", func(t *testing.T) {
+		// Arrange
+		cfg := &CliConfig{}
+
+		// Act
+		changed := cfg.ChangedSettings(mounts())
+
+		// Assert
+		assert.Empty(t, changed)
+	})
+
+	t.Run("new setting is changed", func(t *testing.T) {
+		// Arrange
+		cfg := &CliConfig{}
+
+		// Act
+		changed := cfg.ChangedSettings(mounts("~/.example:/x:rw"))
+
+		// Assert
+		assert.Equal(t, []GuardedSetting{{"run.extra_mounts", []string{"~/.example:/x:rw"}}}, changed)
+	})
+
+	t.Run("approved setting is unchanged", func(t *testing.T) {
+		// Arrange
+		cfg := &CliConfig{}
+		require.NoError(t, cfg.ApproveSettings(mounts("~/.example:/x:rw"), t.TempDir()))
+
+		// Act
+		changed := cfg.ChangedSettings(mounts("~/.example:/x:rw"))
+
+		// Assert
+		assert.Empty(t, changed)
+	})
+
+	t.Run("cleared approved setting is changed", func(t *testing.T) {
+		// Arrange
+		cfg := &CliConfig{}
+		require.NoError(t, cfg.ApproveSettings(mounts("~/.example:/x:rw"), t.TempDir()))
+
+		// Act
+		changed := cfg.ChangedSettings(mounts())
+
+		// Assert
+		require.Len(t, changed, 1)
+		assert.Equal(t, "run.extra_mounts", changed[0].Key)
+	})
+
+	t.Run("config file linked to an approved one needs its own approval", func(t *testing.T) {
+		// Arrange
+		cfg := &CliConfig{}
+		require.NoError(t, cfg.ApproveSettings(mounts("~/.example:/x:rw"), t.TempDir()))
+		planted := filepath.Join(t.TempDir(), ".agenticrc.toml")
+		symlinkOrSkip(t, path, planted)
+		layer := mounts("~/.example:/x:rw")
+		layer.Path = planted
+
+		// Act
+		changed := cfg.ChangedSettings(layer)
+
+		// Assert
+		assert.Len(t, changed, 1)
+	})
+}
+
+func TestApproveSettings(t *testing.T) {
+	// Arrange
+	home := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	rc := &AgenticRC{Namespace: "work"}
+	layer := RCLayer{Path: filepath.Join(dir, ".agenticrc.toml"), RC: rc}
+	cfg := &CliConfig{}
+
+	// Act
+	err = cfg.ApproveSettings(layer, home)
+
+	// Assert
+	require.NoError(t, err)
+	reloaded, err := LoadConfig(home)
+	require.NoError(t, err)
+	approved := reloaded.ApprovedSettings[layer.Path]
+	assert.Equal(t, map[string]string{"namespace": GuardedSetting{"namespace", "work"}.hash()}, approved)
+}

@@ -2,6 +2,7 @@ package run
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -109,6 +110,26 @@ func TestPrepare(t *testing.T) {
 
 		// Assert
 		require.EqualError(t, err, "setup claude: disk full")
+	})
+
+	t.Run("refused settings stop before the tool update", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Project.RC.Run.CheckUpdates = nil
+		stubLatestToolVersion(t, "2.0.0")
+		stubLog(t)
+		rc := &config.AgenticRC{}
+		rc.Run.ExtraMounts = []string{"~/.example:/x:rw"}
+		req.Project.Layers = []config.RCLayer{{Path: filepath.Join(req.Project.Dir, ".agenticrc.toml"), RC: rc}}
+		p := &fakePrompter{approveSettings: func(config.RCLayer, []config.GuardedSetting) error { return errors.New("settings not approved") }}
+
+		// Act
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, p)
+		defer cleanup()
+
+		// Assert
+		require.EqualError(t, err, "settings not approved")
+		assert.Empty(t, p.updatesOffered)
 	})
 
 	t.Run("refused trust stops before the credentials prompt", func(t *testing.T) {
