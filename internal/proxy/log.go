@@ -39,6 +39,8 @@ type Entry struct {
 	Enforced bool `json:"enforced"`
 	// Injected reports whether the tunnel was TLS-terminated to inject credentials.
 	Injected bool `json:"injected,omitempty"`
+	// Reason says why an allowed host was still refused, e.g. reasonBlockedAddr.
+	Reason string `json:"reason,omitempty"`
 }
 
 // Logger writes each access record as a JSON line (always UTC) to an optional file and as a
@@ -84,6 +86,9 @@ func (l *Logger) Log(entry Entry) {
 		}
 		if entry.Injected {
 			tags += " (injected)"
+		}
+		if entry.Reason != "" {
+			tags += " (" + entry.Reason + ")"
 		}
 		fmt.Fprintf(l.human, "%s %-7s %-5s %s:%s%s\n", entry.Time.In(l.location).Format(time.RFC3339), level, entry.Protocol, entry.Host, entry.Port, tags)
 	}

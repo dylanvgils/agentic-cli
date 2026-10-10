@@ -35,6 +35,13 @@ allowed_hosts = ["registry.npmjs.org", ".github.com"]
 
 `--proxy-monitor` (or `mode = "monitor"`) never blocks. The log still records the real `"decision"` (`"allow"` or `"deny"`), tagged `"enforced": false`, and `docker logs` lines get a `(monitor)` suffix. The run ends with the hosts that _would_ have been blocked. Use it to find a tool's egress needs before you switch to enforcement.
 
+### Local and private addresses
+
+The proxy checks the IP an allowed host resolves to, so a DNS record can't point it at your machine or network. This also applies in monitor mode. A refused attempt gets a 403 and is logged as `"decision": "deny"` with `"reason": "blocked-address"`.
+
+- **Always refused**: loopback, link-local (incl. the `169.254.169.254` cloud metadata address), unspecified and multicast addresses.
+- **Refused for wildcard entries**: private ranges (`10/8`, `172.16/12`, `192.168/16`, `100.64/10`, `fc00::/7`). An exact entry like `"artifactory.corp.example"` may resolve to one, so list internal hosts exactly.
+
 ### Baseline allowlist
 
 Each tool allows these hosts by default. `allowed_hosts` adds to them.

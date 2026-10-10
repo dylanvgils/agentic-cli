@@ -65,6 +65,11 @@ func (a *Allowlist) matchesHost(host string) bool {
 	return false
 }
 
+// exactMatch reports whether host matches an exact entry, which may then resolve to a private address.
+func (a *Allowlist) exactMatch(host string) bool {
+	return a.exact[normalizeHost(host)]
+}
+
 // normalizeHost lower-cases host and drops a trailing root dot, so equivalent spellings compare equal.
 func normalizeHost(host string) string {
 	return strings.ToLower(strings.TrimSuffix(host, "."))

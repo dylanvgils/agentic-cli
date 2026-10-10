@@ -3,6 +3,7 @@ package proxy
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -64,7 +65,7 @@ func NewInjector(ca certs.CA, creds []Credential) *Injector {
 		rules:  rules,
 		leaves: make(map[string]*tls.Certificate),
 		transport: &http.Transport{
-			DialContext:         (&net.Dialer{Timeout: dialTimeout}).DialContext,
+			DialContext:         upstreamDialer.DialContext,
 			TLSHandshakeTimeout: dialTimeout,
 			ForceAttemptHTTP2:   true,
 		},
@@ -131,10 +132,10 @@ func (i *Injector) handshake(w http.ResponseWriter, host string) (*tls.Conn, err
 	return tlsConn, nil
 }
 
-// serve proxies requests on the client's TLS conn to host:port until it closes.
-func (i *Injector) serve(tlsConn *tls.Conn, host, port string, rules []InjectRule) {
+// serve answers requests on the client's TLS conn with handler until it closes.
+func (i *Injector) serve(tlsConn *tls.Conn, handler http.Handler) {
 	server := &http.Server{
-		Handler:           blockMethods(i.reverseProxy(host, port, rules)),
+		Handler:           blockMethods(handler),
 		ReadHeaderTimeout: dialTimeout,
 		IdleTimeout:       idleTimeout,
 	}
@@ -169,7 +170,15 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, rules []InjectRul
 	}
 	defer func() { _ = tlsConn.Close() }()
 
-	s.inject.serve(tlsConn, entry.Host, entry.Port, rules)
+	reverse := s.inject.reverseProxy(entry.Host, entry.Port, rules)
+	reverse.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
+		if errors.Is(err, errBlockedAddr) {
+			s.refuseBlocked(w, entry)
+			return
+		}
+		http.Error(w, "upstream request failed: "+err.Error(), http.StatusBadGateway)
+	}
+	s.inject.serve(tlsConn, allowPrivate(reverse, s.allow.exactMatch(entry.Host)))
 }
 
 // blockMethods answers blockedMethods with 405 instead of forwarding them.

@@ -63,6 +63,27 @@ func TestServerConnectInject(t *testing.T) {
 		assert.Contains(t, logBuf.String(), `"injected":true`)
 	})
 
+	t.Run("credentialed host resolving to a blocked address returns 403 and logs the reason", func(t *testing.T) {
+		// Arrange
+		inject, roots := newTestInjector(t, upstream, creds)
+		guarded := upstream.Client().Transport.(*http.Transport).Clone()
+		guarded.DialContext = upstreamDialer.DialContext
+		inject.transport = guarded
+
+		var logBuf bytes.Buffer
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+
+		// Act
+		resp, err := httpsClientVia(t, proxy.URL, roots).Get(upstream.URL + "/echo")
+
+		// Assert
+		require.NoError(t, err)
+		defer resp.Body.Close() //nolint:errcheck
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":true,"injected":true,"reason":"blocked-address"`)
+	})
+
 	t.Run("request host header cannot redirect the upstream", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
@@ -210,6 +231,7 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("host without a credential tunnels without issuing a cert", func(t *testing.T) {
 		// Arrange
+		stubAllowLocal(t)
 		echoHost, echoPort := startEchoServer(t)
 		stubDefaultPorts(t, echoPort)
 		other := []Credential{{Hosts: []string{"other.test"}, Rules: creds[0].Rules}}
@@ -235,6 +257,7 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("credentialed host on another port tunnels without issuing a cert", func(t *testing.T) {
 		// Arrange
+		stubAllowLocal(t)
 		echoHost, echoPort := startEchoServer(t)
 		stubDefaultPorts(t, echoPort)
 		echoCreds := []Credential{{Hosts: []string{echoHost}, Rules: creds[0].Rules}}
@@ -260,6 +283,7 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("plain http to a credentialed host is not injected", func(t *testing.T) {
 		// Arrange
+		stubAllowLocal(t)
 		plain := httptest.NewServer(mux)
 		t.Cleanup(plain.Close)
 		plainHost, plainPort := splitHostPort(plain.Listener.Addr().String())

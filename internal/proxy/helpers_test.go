@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -54,6 +55,20 @@ func stubInjectPort(t *testing.T, port string) {
 	prev := injectPort
 	injectPort = port
 	t.Cleanup(func() { injectPort = prev })
+}
+
+// stubIsBlocked replaces the address guard's check for a test, restoring it on cleanup.
+func stubIsBlocked(t *testing.T, fn func(netip.Addr, bool) bool) {
+	t.Helper()
+	prev := isBlocked
+	isBlocked = fn
+	t.Cleanup(func() { isBlocked = prev })
+}
+
+// stubAllowLocal lets the address guard pass every address, so tests can use loopback upstreams.
+func stubAllowLocal(t *testing.T) {
+	t.Helper()
+	stubIsBlocked(t, func(netip.Addr, bool) bool { return false })
 }
 
 // startEchoServer starts a TCP echo server torn down on cleanup, returning its host and port.
