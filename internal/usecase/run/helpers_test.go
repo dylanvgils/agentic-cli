@@ -277,11 +277,11 @@ func chdirSymlinkWorkspace(t *testing.T) symlinkWorkspace {
 	require.NoError(t, err)
 	t.Chdir(dir)
 
-	real := filepath.Join(dir, "real")
-	require.NoError(t, os.MkdirAll(filepath.Join(real, "sub"), 0o700))
-	require.NoError(t, os.Symlink(real, filepath.Join(dir, "link")))
+	realDir := filepath.Join(dir, "real")
+	require.NoError(t, os.MkdirAll(filepath.Join(realDir, "sub"), 0o700))
+	require.NoError(t, os.Symlink(realDir, filepath.Join(dir, "link")))
 	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "escape")))
-	return symlinkWorkspace{dir: dir, real: real, outside: outside}
+	return symlinkWorkspace{dir: dir, real: realDir, outside: outside}
 }
 
 // stubUnresolvablePath returns a path through a link inside a dir agentic can't search, like /proc/1/root for a non-root user.

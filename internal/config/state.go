@@ -120,8 +120,8 @@ func StateFile(toolHome string) string {
 // approvalKey returns path with its dir resolved but not the file itself, so a config file linked to another project's gets its own approval.
 func approvalKey(path string) string {
 	dir := filepath.Dir(path)
-	if real, err := filepath.EvalSymlinks(dir); err == nil {
-		dir = real
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = resolved
 	}
 	return filepath.Join(dir, filepath.Base(path))
 }

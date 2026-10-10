@@ -262,12 +262,12 @@ func Test_within(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("symlinks need privileges on windows")
 		}
-		real := t.TempDir()
+		target := t.TempDir()
 		link := filepath.Join(t.TempDir(), "link")
-		require.NoError(t, os.Symlink(real, link))
+		require.NoError(t, os.Symlink(target, link))
 
 		// Act
-		result := within(filepath.Join(link, "missing", "file"), real)
+		result := within(filepath.Join(link, "missing", "file"), target)
 
 		// Assert
 		assert.True(t, result)
@@ -300,10 +300,10 @@ func Test_resolveExisting(t *testing.T) {
 		ws := chdirSymlinkWorkspace(t)
 
 		// Act
-		real := resolveExisting(filepath.Join(ws.dir, "escape", "missing"))
+		resolved := resolveExisting(filepath.Join(ws.dir, "escape", "missing"))
 
 		// Assert
-		assert.Equal(t, filepath.Join(ws.outside, "missing"), real)
+		assert.Equal(t, filepath.Join(ws.outside, "missing"), resolved)
 	})
 
 	t.Run("unresolvable path is kept as is", func(t *testing.T) {
@@ -311,10 +311,10 @@ func Test_resolveExisting(t *testing.T) {
 		host := stubUnresolvablePath(t)
 
 		// Act
-		real := resolveExisting(host)
+		resolved := resolveExisting(host)
 
 		// Assert
-		assert.Equal(t, host, real)
+		assert.Equal(t, host, resolved)
 	})
 }
 
@@ -324,11 +324,11 @@ func Test_resolvePrefix(t *testing.T) {
 		ws := chdirSymlinkWorkspace(t)
 
 		// Act
-		real, err := resolvePrefix(filepath.Join(ws.dir, "escape", "missing", "leaf"))
+		resolved, err := resolvePrefix(filepath.Join(ws.dir, "escape", "missing", "leaf"))
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, filepath.Join(ws.outside, "missing", "leaf"), real)
+		assert.Equal(t, filepath.Join(ws.outside, "missing", "leaf"), resolved)
 	})
 
 	t.Run("error other than a missing path fails", func(t *testing.T) {

@@ -419,9 +419,9 @@ func withTempToolHome(t *testing.T) {
 	var trusted []string
 	for _, dir := range []string{os.TempDir(), cwd} {
 		// Real paths, since trusted entries compare as stored (macOS's /var is a link)
-		real, err := filepath.EvalSymlinks(dir)
+		resolved, err := filepath.EvalSymlinks(dir)
 		require.NoError(t, err)
-		trusted = append(trusted, real)
+		trusted = append(trusted, resolved)
 	}
 	cfg := &config.State{TrustedDirs: trusted}
 	require.NoError(t, cfg.Save(homeDir))

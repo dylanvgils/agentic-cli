@@ -81,11 +81,11 @@ func (m mountSet) checkResolvable() error {
 			return fmt.Errorf("mount %s goes through /proc; mount the real path instead", host)
 		}
 
-		real, err := resolvePrefix(abs)
+		resolved, err := resolvePrefix(abs)
 		if err != nil {
 			return fmt.Errorf("mount %s can't be resolved: %w", host, err)
 		}
-		if isProcPath(real) {
+		if isProcPath(resolved) {
 			return fmt.Errorf("mount %s goes through /proc; mount the real path instead", host)
 		}
 	}
@@ -147,8 +147,8 @@ func pathForms(path string) []string {
 	}
 
 	forms := []string{abs}
-	if real := resolveExisting(abs); real != abs {
-		forms = append(forms, real)
+	if resolved := resolveExisting(abs); resolved != abs {
+		forms = append(forms, resolved)
 	}
 
 	if caseInsensitivePaths {
@@ -184,7 +184,7 @@ func workspaceRoot(abs, cwd string) (string, bool) {
 	realCwd := resolveExisting(cwd)
 	root, ok := "", false
 	for p := abs; ; p = filepath.Dir(p) {
-		if real := resolveExisting(p); real == realCwd || (caseInsensitivePaths && strings.EqualFold(real, realCwd)) {
+		if resolved := resolveExisting(p); resolved == realCwd || (caseInsensitivePaths && strings.EqualFold(resolved, realCwd)) {
 			root, ok = p, true
 		}
 
@@ -206,20 +206,20 @@ func isProcPath(abs string) bool {
 
 // resolveExisting resolves symlinks in the longest existing prefix of abs, so a path not created yet still resolves; abs as is when that fails.
 func resolveExisting(abs string) string {
-	real, err := resolvePrefix(abs)
+	resolved, err := resolvePrefix(abs)
 	if err != nil {
 		return abs
 	}
-	return real
+	return resolved
 }
 
 // resolvePrefix resolves symlinks in the longest existing prefix of abs, failing on any error but a missing path.
 func resolvePrefix(abs string) (string, error) {
 	dir, rest := abs, ""
 	for {
-		real, err := filepath.EvalSymlinks(dir)
+		resolved, err := filepath.EvalSymlinks(dir)
 		if err == nil {
-			return filepath.Join(real, rest), nil
+			return filepath.Join(resolved, rest), nil
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
 			return "", err

@@ -70,16 +70,16 @@ func Test_describeDir(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("symlinks need privileges on windows")
 		}
-		real, err := filepath.EvalSymlinks(t.TempDir())
+		resolved, err := filepath.EvalSymlinks(t.TempDir())
 		require.NoError(t, err)
 		link := filepath.Join(t.TempDir(), "sub")
-		require.NoError(t, os.Symlink(real, link))
+		require.NoError(t, os.Symlink(resolved, link))
 
 		// Act
 		got := describeDir(link)
 
 		// Assert
-		assert.Equal(t, link+" (-> "+real+")", got)
+		assert.Equal(t, link+" (-> "+resolved+")", got)
 	})
 }
 
