@@ -202,6 +202,20 @@ func TestBuild(t *testing.T) {
 		assert.True(t, rs.SkipEntrypoint)
 	})
 
+	t.Run("read-only mount through a planted symlink out of cwd is refused", func(t *testing.T) {
+		// Arrange
+		chdirSymlinkWorkspace(t)
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir()}
+		rc := &config.AgenticRC{Run: config.RCRun{ReadOnlyMounts: []string{"escape"}}}
+
+		// Act
+		_, err := New(d).Build(target, in, tools.Configs["claude"], rc)
+
+		// Assert
+		assert.ErrorContains(t, err, "goes through workspace symlink")
+	})
+
 	t.Run("ensure named volumes error propagates", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{

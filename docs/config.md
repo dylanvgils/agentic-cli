@@ -318,3 +318,10 @@ Single-quote them so your shell doesn't expand them first:
 ```bash
 agentic run -v '$TOOL_HOME/custom:$CONTAINER_HOME/.custom:rw' claude
 ```
+
+## Mount safety
+
+Before a run starts, agentic checks every bind mount and secret:
+
+- A mount that would expose `$AGENTIC_HOME/agentic.json` (the agentic home or a parent, such as `~`) is refused, since that file records trusted directories and approvals.
+- A path through a symlink inside the workspace is refused, so a planted `.git -> ~/.ssh` can't be mounted via `read_only_mounts = [".git"]`. Mount the real path instead.

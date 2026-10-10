@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -135,6 +136,13 @@ func (f *fakePrompter) OfferToolUpdate(tool, installed, latest string) bool {
 	return f.offerToolUpdate(tool, installed, latest)
 }
 
+// symlinkWorkspace is a cwd with real/, link -> real and escape -> outside.
+type symlinkWorkspace struct {
+	dir     string
+	real    string
+	outside string
+}
+
 // findVolumeSuffix returns the one volume spec ending with suffix, failing the test if there isn't exactly one match.
 func findVolumeSuffix(t *testing.T, volumes []string, suffix string) string {
 	t.Helper()
@@ -259,4 +267,24 @@ func stubLog(t *testing.T) *bytes.Buffer {
 	logging.Log = logging.New(&buf)
 	t.Cleanup(func() { logging.Log = orig })
 	return &buf
+}
+
+// chdirSymlinkWorkspace makes a fresh symlinkWorkspace the cwd.
+func chdirSymlinkWorkspace(t *testing.T) symlinkWorkspace {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks need privileges on windows")
+	}
+
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	outside, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	t.Chdir(dir)
+
+	real := filepath.Join(dir, "real")
+	require.NoError(t, os.MkdirAll(filepath.Join(real, "sub"), 0o700))
+	require.NoError(t, os.Symlink(real, filepath.Join(dir, "link")))
+	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "escape")))
+	return symlinkWorkspace{dir: dir, real: real, outside: outside}
 }

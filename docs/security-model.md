@@ -38,7 +38,7 @@ How to read it:
 | Layer | What it stops | What it doesn't stop | Code |
 | --- | --- | --- | --- |
 | **Tool container**: read-only root, all capabilities dropped, `no-new-privileges`, your uid/gid, pid/cpu/memory limits | Changing the system, becoming root, fork bombs and runaway memory | Anything it can do with the mounts it's given; a kernel bug | `internal/docker/runargs.go` |
-| **Mounts**: only `/workspace`, the tool's own home dir, read-only secrets, and extra `-v`/`extra_mounts` bind mounts (read-only unless `:rw`) | Reading the rest of your files (`~/.ssh`, other repos, browser data) | Reading everything that *is* mounted, including its own credentials and secrets; editing the workspace | `internal/tools/<tool>.go`, `internal/mount` |
+| **Mounts**: only `/workspace`, the tool's own home dir, read-only secrets, and extra `-v`/`extra_mounts` bind mounts (read-only unless `:rw`) | Reading the rest of your files (`~/.ssh`, other repos, browser data); [mount tricks](config.md#mount-safety) via planted symlinks or `agentic.json` | Reading everything that *is* mounted, including its own credentials and secrets; editing the workspace | `internal/tools/<tool>.go`, `internal/mount` |
 | **Network** `agentic-net` | Reaching other containers on your Docker host | Reaching the internet | `internal/docker/network.go` |
 | **Egress proxy** (opt-in, beta, `--proxy`): tool sits on an `--internal` network whose only way out is the proxy | Talking to hosts not on the allowlist; every attempt is logged | Sending data to an allowlisted host (filtering is by host, not content) | `internal/proxy`, `internal/docker/proxy.go` |
 | **Credential injection** (opt-in, beta, `[[run.proxy.credentials]]`): the proxy holds API keys and sets them as headers for their hosts; the tool sees a placeholder | Reading or leaking a configured API key; containers outside the run's network (e.g. another agentic run) using it | Using the key through its hosts during the run; OAuth tokens in the tool home; Copilot's exchanged token | `internal/proxy`, `internal/credentials`, `internal/usecase/run/credentials.go` |
@@ -69,7 +69,7 @@ What no layer covers today:
 
 - **Shared kernel**: a kernel exploit escapes every container. Only a VM boundary (Kata, gVisor, [Docker Sandboxes](comparison.md)) fixes this. Keep the host kernel patched.
 - **Credentials in reach**: the agent can read its OAuth login token in the tool home and any `--secret` you mount, and use them from any allowed host. [Proxy-injected API keys](egress-proxy.md#credential-injection) stay out of reach, but can still be used.
-- **Workspace tampering**: the agent can edit git hooks, `Makefile`, `package.json` scripts, etc. They run on *your* machine the next time you use them outside the container. Review diffs.
+- **Workspace tampering**: the agent can edit git hooks, `Makefile`, `package.json` scripts, etc. They run on *your* machine the next time you use them outside the container. The same goes for `.agenticrc.toml`, e.g. swapping a credential entry for a `secrets` mount of the key. Review diffs.
 - **Exfiltration to allowed hosts**: without `--proxy` the internet is open to the tool and the DinD sidecar; with it, data can still go to any allowlisted host.
 
 ## Check it yourself

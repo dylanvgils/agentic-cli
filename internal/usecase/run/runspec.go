@@ -78,11 +78,9 @@ func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc
 		return docker.RunSpec{}, err
 	}
 
-	mounts := mountSet{
-		volumes:       runVolumes(req, marketplaceMounts),
-		secrets:       resolve.Secrets(in.Secrets, rc),
-		toolHome:      in.ToolHome,
-		containerHome: req.containerHome,
+	mounts, err := newMountSet(req, marketplaceMounts)
+	if err != nil {
+		return docker.RunSpec{}, err
 	}
 
 	env, err := s.runEnv(req, mounts, marketplaceNames)

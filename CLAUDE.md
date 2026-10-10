@@ -1,205 +1,65 @@
 # CLAUDE.md
 
-## What this is
-
-A Go CLI + Docker framework for running agentic coding tools (Claude Code, Copilot, OpenCode) in isolated containers. The Go binary (`agentic`, entrypoint `cmd/cli/main.go`, Cobra command tree in `internal/cli`) handles all commands and generates Dockerfiles programmatically at build time - no static Dockerfile files exist. Development means editing Go source, then linting with `golangci-lint run ./...` (or `make lint`), testing with `go test ./...`, and building/running containers.
-
-The egress proxy sidecar (`internal/proxy`) runs as its own minimal binary, `agentic-proxy` (entrypoint `cmd/proxy/main.go`), built into a separate image. It must only import `internal/proxy` - never `internal/docker`, `internal/tools`, or `internal/cli` - so the proxy container's binary stays free of the CLI's Docker-orchestration code.
-
-The Docker-in-Docker sidecar is split the same way: `internal/dind` generates its per-run files (TLS certs, seccomp profile, `/etc` identity) and must not import `internal/docker`; starting, wiring, and cleaning up the sidecar container lives in `internal/docker/dind.go`, next to the proxy's `internal/docker/proxy.go`.
-
-`internal/certs` issues the per-run CAs and leaf certs shared by `internal/dind` and the proxy; it must import only the standard library so `agentic-proxy` can link it.
-
-`internal/credentials` reads secrets on the host and hands them to the proxy as `proxy.Credential` values; `internal/proxy` must never import it.
-
-## Development commands
+Go CLI (`agentic`, `cmd/cli`, Cobra tree in `internal/cli`) that runs agentic coding tools in hardened containers. Dockerfiles are generated from Go (`internal/dockerfile` DSL); no static Dockerfiles exist.
 
 ```bash
-make build              # compile to bin/agentic
+make build              # bin/agentic; CLI changes need this, stage changes also need `agentic build`
 make test               # unit tests
 make lint               # golangci-lint, same as CI
-make test-integration   # integration tests against a real Docker daemon
-make verify-checksums   # check pinned install-script checksums (fix-checksums to update them)
+make test-integration   # against a real Docker daemon
+make verify-checksums   # pinned install-script checksums (fix-checksums to update)
 ```
 
-CLI changes take effect after `make build`. Changes to stage funcs need an `agentic build` to rebuild the image. See `docs/usage.md` for the user-facing commands.
+## Import boundaries
 
-## Code conventions
+- `agentic-proxy` (`cmd/proxy`) imports only `internal/proxy`, never `internal/docker`, `tools`, `cli` or `logging`.
+- `internal/dind` (sidecar files) never imports `internal/docker`; the sidecar's container lifecycle lives in `internal/docker/dind.go`.
+- `internal/certs` imports only the standard library.
+- `internal/proxy` never imports `internal/credentials`.
 
-### Tool structure
+## Security rules
 
-Adding a new tool means a `ToolConfig` entry in the `Configs` map in `internal/tools/tools.go` plus an `internal/tools/<name>.go` implementing its funcs. Use `claude` as the template:
+- The tool container keeps `--read-only`, `--cap-drop=ALL`, `no-new-privileges`, the host uid/gid and an isolated network (`internal/docker/runargs.go`). Need writes? Add a targeted tmpfs or volume.
+- Only the DinD sidecar gets extra capabilities, unconfined AppArmor and no `no-new-privileges`. Its seccomp filter is never `unconfined`. Never `--privileged`, never mount the host's Docker socket.
+- With `--proxy` the tool's network is `--internal`, so the proxy is its only way out.
+- Tool volumes and secrets come only from `newMountSet` (`internal/usecase/run/mounts.go`), which refuses mounts through workspace symlinks or exposing `agentic.json`. Never add mounts to the `RunSpec` around it.
 
-- `Build: BuildConfig{Stage, LatestVersion}` - `<name>Stage(prevStage string) dockerfile.Stage` builds `FROM prevStage`; `LatestVersion` fetches the upstream version.
-- `Runtime: RuntimeConfig{...}` - `Setup` (create host files before first run), `Mounts`, `TmpfsMounts` (at least `/tmp`), `AllowedHosts` (the proxy baseline), `MarketplaceMount` (nil if unsupported), and the instructions fields `WriteInstructions`, `InstructionsHostPath`, `InstructionsContainerPath`.
-- Reuse `createContainerUser` and `aptInstallRun` from `internal/tools/helpers.go`, and `mount.VolumeMount`/`mount.TmpfsMount` for mounts.
+## Architecture
 
-Dockerfiles are generated at build time by composing `dockerfile.Stage` values from `internal/tools/bases.go` (base layers) and the tool's `Stage` func. The DSL lives in `internal/dockerfile/`. No static Dockerfile files exist.
+- `internal/cli` is presentation only: parse flags, call domain packages, print. Logic moves to `internal/usecase/<what-it-does>` only when it's independent of `*cobra.Command` and glues several domain packages together; no package per command.
+- All Docker calls go through `*docker.Client`; no package-level Docker funcs or state. Client methods are operations; deciding what results mean belongs to the caller. `internal/cli` holds the one client in `dockerClient` (rebuilt in `persistentPreRunE`) behind its `dockerAPI` interface.
+- A usecase that calls Docker declares a `Docker` interface of only the methods it uses in `deps.go` (`var _ Docker = (*docker.Client)(nil)` in `deps_test.go`) and holds it in `type Service struct{ docker Docker }` from `New(d)`, plus `home string` if it touches the data dir. Exported entry points are `Service` methods; unexported helpers only if they call Docker. Callers name it `svc`.
+- Non-Docker seams stay package-level vars in `deps.go`. User approval goes through an interface or func the cli implements; usecases never read stdin.
+- New tool: a `Configs` entry in `internal/tools/tools.go` plus `internal/tools/<name>.go`, using `claude` as the template. Its `Stage` builds `FROM prevStage`; `TmpfsMounts` includes at least `/tmp`; `MarketplaceMount` is nil if unsupported. Reuse `createContainerUser`, `aptInstallRun`, `mount.VolumeMount`/`TmpfsMount`.
+- New runtime layer: a case in `extraStage()` and names in `knownExtras`/`LayerFlagDesc` (`bases.go`), a default in `Versions`/`ForLayer`/`versions.json`, and any base-stage apt packages in `layerPackages`. The `--<name>` flag registers itself.
 
-Tool execution is handled entirely by the Go CLI (`agentic run <tool>`). Tool-specific mount configuration and setup live in `internal/tools/<tool>.go`.
+## Code style
 
-### Extracting a package out of `internal/cli`
+- File order: imports (stdlib, then others), consts, vars, types (by dependency), then constructor + methods per type (exported first), then standalone funcs (exported first, strictly by export status).
+- Put a function in the file that owns its subject, not next to its caller, even if it has side effects. Move it (and its tests) only when its subject changes.
+- Comments: short, one line unless more is genuinely needed. Blank lines between logical blocks.
+- Cobra `init()`: `AddCommand`, then the command's own flags, then shared flag helpers.
+- DSL: install steps use `df.Run{Blocks: ...}`, version check scripts `df.Heredoc`. One `df.Block` per logical phase; independent commands get their own block; a multi-line command is several `Lines` in one block; `Chain: true` for `&&`-chained lines. Pipelines need a `pipefail` `df.Shell` first.
+- Output goes through `internal/logging`, never `fmt.Fprint*(os.Stdout/Stderr)`. `Step`/`Detail` for items; action commands print one `Infof` summary first (single-object actions only that line), display commands none; during `agentic run` use `Infof`/`Warnf`/`Promptf`. Take a `*logging.Logger`, not a writer (tests pass `logging.New(&buf)`). Exception: dry-run `docker ...` lines stay plain.
+- Ignored `Close`-style errors: `//nolint:errcheck` in tests, `defer func() { _ = x.Close() }()` elsewhere.
+- Run `make lint` and `shellcheck` (fix, or disable inline with a reason) before committing.
+- Use `-`, never em or en dashes, in all files.
+- Mount strings: `$TOOL_HOME`, `~`, `$HOME`, `$PWD` on the host (left) side, `$CONTAINER_HOME` on the container (right) side. Single-quote them or escape `$` in the shell.
 
-`internal/cli` stays a thin presentation layer: a command's `RunE` parses flags, calls into one or more domain packages, and prints/returns the result. Move logic into its own package under `internal/usecase/` (named for what it does, e.g. `build`, `clean`, `resolve`, `run`, `sidecar`, `toolupdate`, `update`, `upgradecheck`) only when it is independent of `*cobra.Command` and makes multi-step decisions gluing together more than one domain package - not just a single delegating call. A command that's a single delegating call, or mostly presentation formatting over one domain package (`inspect.go`, `config.go`, `marketplaces.go`, `namespaces.go`, `prompt.go`, `status.go`, `volumes.go`, etc.), doesn't need this - don't create a package-per-command mapping mechanically.
+## Tests
 
-### Docker access
+- Always test new code, only the function's own responsibility (not its helpers' logic).
+- AAA with `// Arrange`, `// Act`, `// Assert` and blank lines between. Any setup before the act gets `// Arrange`; shared setup at the top of the parent doesn't. `// Act + Assert` only for calls like `assert.Panics`.
+- Assign the result in Act; don't call inside the assertion.
+- Name `TestFunc` / `Test_func` (`Test_type_method` for methods). Several cases go in `t.Run` subtests with lowercase sentence names; a single case stays flat.
+- Shared helpers live in `helpers_test.go`, register cleanup with `t.Cleanup`, and are named `stub...` when they stub.
+- Docker tests use a hand-written `fakeDocker` (one func field per method; nil succeeds). In `internal/cli` use `stubDocker(t, &fakeDocker{...})`.
+- Integration tests: `test/integration/`, `//go:build integration`, fixtures from the `fakeContainer`/`fakeNetwork` builders in `fakeresource_test.go` (the one exception to `helpers_test.go`).
 
-- All Docker calls go through a `*docker.Client` (`docker.New(ctx)`); never add package-level Docker funcs or mutable Docker state.
-- `Client` methods are Docker operations, optionally scoped to agentic's labels; deciding what their results mean (e.g. whether to rebuild) belongs in the calling usecase or command.
-- `internal/cli` holds the one client in `dockerClient`, rebuilt for the resolved context in `persistentPreRunE`, and calls it through its `dockerAPI` interface (`internal/cli/deps.go`).
-- Each usecase that calls Docker declares a small `Docker` interface of only the methods it uses, in its `deps.go`, with a compile-time check `var _ Docker = (*docker.Client)(nil)` in `deps_test.go`.
-- A usecase holds it in `type Service struct{ docker Docker }`, built with `New(d Docker) *Service`. One that also reads or writes the agentic data dir adds a `home string` field (`New(d Docker, home string)`). Every exported entry point is a `Service` method; an unexported helper is a method only if it calls Docker. Callers name the instance `svc`.
-- Non-Docker seams (marketplace sync, stdin, TTY checks) stay package-level vars in `deps.go`.
-- A usecase that needs the user to approve something takes a small interface or func the cli implements (e.g. `run.Prompter`, `toolupdate.Confirm`); it never reads stdin itself.
-- Tests use a hand-written `fakeDocker` in `helpers_test.go` with one func field per method; a nil field succeeds with a zero value. In `internal/cli`, `stubDocker(t, &fakeDocker{...})` overlays fields on the test's fake until the test ends.
+## Docs
 
-### Adding a new runtime layer
-
-1. Add a case to `extraStage()` in `internal/tools/bases.go`, following the `javaStage`/`dotnetStage`/`goStage` pattern.
-2. Add the name to `knownExtras` and a label to `LayerFlagDesc` in the same file. The `--<name>` version flag is registered from these automatically (`addVersionFlags`).
-3. Add the default version: a field on `Versions`, a case in `Versions.ForLayer` (`internal/tools/versions.go`), and a key in `versions.json`.
-4. If the layer needs apt packages in the base stage, add them to `layerPackages` in `internal/tools/packages.go`.
-
-### Dockerfile DSL (`internal/dockerfile`)
-
-Install steps use `df.Run{Blocks: []df.Block{...}}`; version check scripts use `df.Heredoc`. Block conventions:
-
-- **Block = logical group**: each `Block` is one phase of work; the renderer joins blocks with `&&`.
-- **Independent commands** within a group each get their own `Block` (one `Lines` entry).
-- **Multi-line single commands** (pipelines, subshells) use multiple `Lines` entries within one `Block` - the renderer joins them with `\` continuation.
-- **`&&`-chained commands** within one block: set `Chain: true` on the `Block` and list the commands as `Lines` - the renderer joins them with `\\\n  &&`.
-- Stages that use pipelines need `df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}` before the `Run`.
-
-### Cobra command init functions
-
-Every `init()` in an `internal/cli/*.go` file must follow this order:
-
-1. `rootCmd.AddCommand(xCmd)` - command registration
-2. Command-specific flags declared inline (`xCmd.Flags()...`)
-3. Calls to shared flag helpers (`addBuildFlags`, `addNamespaceFlag`, `addAllFlag`, etc.)
-
-```go
-func init() {
-    rootCmd.AddCommand(buildCmd)
-
-    buildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
-
-    addBuildFlags(buildCmd)
-    addNamespaceFlag(buildCmd)
-}
-```
-
-### Go style
-
-- Use blank lines between logical blocks within a function to aid readability (e.g. between groups of related `if` statements, between `switch` case groups)
-- Keep comments short and to the point - one line unless multi-line is genuinely needed
-
-### Logging
-
-All user-facing status output goes through `internal/logging` - never ad-hoc `fmt.Fprint*(os.Stdout/os.Stderr, ...)`:
-
-- `logging.Step`/`Detail` (stdout, `=> ` / indented) for per-item headings and details, e.g. build/update/inspect.
-- Action commands (build, update, clean, prune, ...) print one `logging.Infof` summary line saying what they're about to do (`building 2 image(s): ...`) before their `=>` items; single-object actions use just that line. Display commands (inspect, list, `--dry-run`) print no summary.
-- `logging.Infof`/`Warnf`/`Promptf` (stderr, dimmed `agentic: ` prefix) for anything printed during `agentic run`, including run-triggered image builds and update prompts, so it stands out from the tool's output.
-- A function that takes a writer for testability takes a `*logging.Logger` instead (tests pass `logging.New(&buf)`).
-
-Exceptions: dry-run `docker ...` command lines (stay plain and copy-pasteable) and the `agentic-proxy` binary, which must not import `internal/logging`.
-
-### Linting
-
-Run `golangci-lint run ./...` (or `make lint`) before committing; CI runs the same command and fails the build on any issue. Config lives in `.golangci.yml` at the repo root - it uses the default linter set (`errcheck`, `govet`, `staticcheck`, `ineffassign`, `unused`) plus an `errcheck` exclusion for `fmt.Fprint*`/`fmt.Print*`. When a `Close`/`Unsetenv`/`RemoveAll`-style call's error is intentionally ignored, suppress it with a trailing `//nolint:errcheck` comment in test files, or wrap it as `defer func() { _ = x.Close() }()` in non-test code.
-
-### File structure
-
-Within each `.go` file, order elements as follows:
-
-1. Package declaration
-2. Import block - two groups separated by a blank line: stdlib, then everything else (alphabetical within each group)
-3. Constants (`const` blocks)
-4. Package-level variables (`var` blocks)
-5. Type declarations (structs, interfaces) - ordered by dependency/importance
-6. Constructors and methods - grouped with their type; constructor first, then exported methods, then unexported methods
-7. Standalone functions - exported functions first, then unexported helpers. Group strictly by export status, not by caller/helper proximity - don't slot an exported function next to the unexported one that calls it if that breaks the exported-first grouping
-
-### Splitting code across files in a package
-
-Group functions by what they're about, not by when they were added, whether they have a side effect, or which other function currently calls them. A function belongs in the file that owns its subject, even if producing its result requires a side effect (a write, a shell-out) or calling into another file's helpers for inputs - that alone is never a reason to keep it next to its caller instead. Move a helper (and its tests to the matching `_test.go`) when its actual subject changes, not to keep related code physically close.
-
-### Go tests
-
-- Always add tests for new code
-- Use Arrange-Act-Assert (AAA) in every test: `// Arrange`, `// Act`, `// Assert` comment labels with a blank line between sections
-- Omit `// Arrange` only when there is genuinely nothing to set up - if a subtest contains any setup statement before the act (stub configuration, variable declarations, flag setting, etc.), even a single line, label it `// Arrange`
-- Use `// Act + Assert` only when a single call is inseparably both (e.g. `assert.Panics`)
-- Assign the result of the function under test to a variable in `// Act` so `// Assert` can reference it - do not inline the call inside the assertion
-- Name a test after the function under test: `TestFuncName` for exported functions, `Test_funcName` for unexported ones (e.g. `Test_buildImage`)
-- When a function has multiple test cases, group them under a single parent function using `t.Run` subtests. A function with only one test case stays as a flat top-level function
-- Subtest names use lowercase sentence style derived from the scenario (e.g. `"first arg is build"`, `"noCache adds no-cache flag"`)
-- Place shared setup that applies to all subtests at the top of the parent function body, before the first `t.Run` call; subtests with no additional setup omit `// Arrange`
-- Test helper functions that need cleanup must register it via `t.Cleanup` internally - do not return a restore/teardown func for callers to defer
-- All shared test helpers live in `helpers_test.go` in the same package; do not define helpers inside individual test files
-- Name all stub helpers with a `stub` prefix (e.g. `stubDockerRun`, `stubRunInteractive`); pure utilities that are not stubs are exempt (e.g. `argAfter`)
-- Integration tests go in `test/integration/` with `//go:build integration` and run via `make test-integration`; build docker fixtures with the `fakeContainer`/`fakeNetwork` builders in `fakeresource_test.go` (the one exception to the `helpers_test.go` rule)
-
-Example structure:
-
-```go
-func Test_buildImage(t *testing.T) {
-    client := New("")
-    get := stubRunInteractive(t, client) // shared setup - no // Arrange label needed at subtest level
-
-    t.Run("first arg is build", func(t *testing.T) {
-        // Act
-        err := client.buildImage(...)
-
-        // Assert
-        require.NoError(t, err)
-        assert.Equal(t, "build", get()[0])
-    })
-
-    t.Run("noCache adds no-cache flag", func(t *testing.T) {
-        // Arrange
-        opts := tools.BuildOptions{NoCache: true}
-
-        // Act
-        err := client.buildImage(..., opts)
-
-        // Assert
-        require.NoError(t, err)
-        assert.Contains(t, get(), "--no-cache")
-    })
-}
-```
-
-### Shell scripts
-
-Always check shell scripts with `shellcheck` before committing. Fix all warnings unless there is a specific reason to suppress a rule (add an inline `# shellcheck disable=SCxxxx` comment with a brief reason).
-
-### Security constraints (enforced in `internal/docker/runargs.go`)
-
-`--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`, `--user $(id -u):$(id -g)`, and an isolated network. Do not relax these. If a tool needs write access, use a targeted tmpfs or volume mount instead.
-
-By default the tool runs on `agentic-net`, a custom bridge that isolates it from other host containers. `Client.EnsureNetwork` in `internal/docker/network.go` creates it on demand, and a full `agentic clean` removes it. With `--proxy` or `--dind`, the tool runs on a per-run network instead (`networkOrDefault`). With `--proxy` that network is `--internal`, so the proxy is the only way out.
-
-The rootless Docker-in-Docker sidecar (`internal/docker/dind.go`) is the only container allowed extra capabilities, unconfined AppArmor, and no `no-new-privileges`, because rootlesskit needs them to create its user namespace. It keeps a seccomp filter derived from Docker's default (`internal/dind/seccomp.go`) - never switch it to `unconfined`. Never move these flags onto the tool container, never use `--privileged`, and never mount the host's Docker socket.
-
-### Keeping docs in sync
-
-Any change that affects user-facing behaviour must be reflected in the matching `docs/` page (commands, flags, config, examples). `README.md` is an overview only - update it just when the change touches what it covers (feature list, install, quick start, core commands, security summary, docs index). A new `docs/` page gets a line in `docs/README.md` and the README docs index.
-
-- Write each fact once, on the page that owns it. Other pages link to it in at most one line, without summarizing it first. Grep `docs/` before adding a fact.
-- Keep paragraphs to about 3 sentences and table cells to one. Use bullets for conditions and steps.
-- Leave out implementation details users can't act on (`internal/` paths, label names, pointer semantics). Contributor details go in `docs/development.md` or this file.
+- User-facing changes update the matching `docs/` page. Touch `README.md` only for what it covers; a new page gets a line in `docs/README.md` and the README index.
+- Each fact lives on one page; others link in one line. Grep `docs/` first.
+- Paragraphs about 3 sentences, table cells one; bullets for conditions and steps.
+- No internals users can't act on; contributor details go in `docs/development.md` or here.
 - Never condense or rewrite personal sections such as Motivation in `docs/overview.md`.
-
-Use `-` (hyphen) in all file content, never `—` (em dash) or `–` (en dash).
-
-### Mount handling
-
-`CONTAINER_HOME` is resolved at runtime from the image's `TOOL_HOME` env var via `Client.ResolveContainerHome` in `internal/docker/inspect.go`. `mount.ExpandMountSpec` / `mount.ExpandTmpfsSpec` in `internal/mount/volume.go` expand placeholders in mount strings before the `docker run` call. The `$VAR` ones also accept `${VAR}`:
-
-- `$TOOL_HOME` - host-side agentic data dir. Use it on the left (host path) side of `:`.
-- `~`, `$HOME`, `$PWD` - host paths, left side only.
-- `$CONTAINER_HOME` - container home dir. Use it on the right (container path) side of `:`.
-
-Always use single quotes or escape `$` when passing mount strings through the shell.

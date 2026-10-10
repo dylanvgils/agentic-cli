@@ -26,7 +26,7 @@ type CliConfig struct {
 
 // LoadConfig reads $AGENTIC_HOME/agentic.json, returning an empty CliConfig if the file does not exist.
 func LoadConfig(toolHome string) (*CliConfig, error) {
-	path := filepath.Join(toolHome, "agentic.json")
+	path := ConfigFile(toolHome)
 
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -51,7 +51,7 @@ func (config *CliConfig) Save(toolHome string) error {
 		return err
 	}
 
-	return os.WriteFile(filepath.Join(toolHome, "agentic.json"), data, 0o640)
+	return os.WriteFile(ConfigFile(toolHome), data, 0o640)
 }
 
 // IsTrusted reports whether dir exactly matches or is nested under a trusted entry, resolving symlinks on both sides so e.g. macOS's /var and /private/var compare equal.
@@ -104,6 +104,11 @@ func (config *CliConfig) ApproveCredentials(path, hash, toolHome string) error {
 
 	config.ApprovedCredentials[evalSymlinks(path)] = hash
 	return config.Save(toolHome)
+}
+
+// ConfigFile returns the path of agentic.json, which must never be mounted into a container.
+func ConfigFile(toolHome string) string {
+	return filepath.Join(toolHome, "agentic.json")
 }
 
 // evalSymlinks resolves symlinks in path, falling back to path on error.
