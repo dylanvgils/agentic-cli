@@ -61,7 +61,7 @@ func (c *Client) withContext(args []string) []string {
 }
 
 func (execRunner) Run(r io.Reader, args ...string) (string, error) {
-	cmd := exec.Command("docker", args...)
+	cmd := exec.Command("docker", args...) // NOSONAR - the user's own docker from PATH is intended
 	cmd.Stdin = r
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
@@ -73,7 +73,7 @@ func (execRunner) Run(r io.Reader, args ...string) (string, error) {
 }
 
 func (execRunner) RunInteractive(args ...string) error {
-	cmd := exec.Command("docker", args...)
+	cmd := exec.Command("docker", args...) // NOSONAR - the user's own docker from PATH is intended
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

@@ -109,7 +109,7 @@ func (c *Client) newProxyHandle(rs RunSpec) (proxyHandle, error) {
 // proxyHostAlias so the URL is stable despite the container name being randomized per run.
 // NO_PROXY excludes loopback (and the dind sidecar) only - not a security boundary; the internal network blocks every other route.
 func proxyEnvArgs(dind bool) []string {
-	url := "http://" + proxyHostAlias + ":" + proxy.Port
+	url := "http://" + proxyHostAlias + ":" + proxy.Port // NOSONAR - proxy on the internal network; HTTPS stays TLS via CONNECT
 	noProxy := "localhost,127.0.0.1"
 	if dind {
 		// Otherwise the docker CLI would route DOCKER_HOST through the proxy

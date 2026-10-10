@@ -56,7 +56,7 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := withPrivateOK(r.Context(), s.allow.exactMatch(host))
-	upstream, err := upstreamDialer.DialContext(ctx, "tcp", net.JoinHostPort(host, port))
+	upstream, err := upstreamDialer.DialContext(ctx, "tcp", net.JoinHostPort(host, port)) // NOSONAR - allowlisted host, address guard in upstreamDialer
 	if errors.Is(err, errBlockedAddr) {
 		s.refuseBlocked(w, entry)
 		return

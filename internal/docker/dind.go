@@ -485,7 +485,7 @@ func writeDindClientConfig(dir string, proxyEnabled bool) error {
 		return nil
 	}
 
-	url := "http://" + proxyHostAlias + ":" + proxy.Port
+	url := "http://" + proxyHostAlias + ":" + proxy.Port // NOSONAR - proxy on the internal network; HTTPS stays TLS via CONNECT
 	cfg := map[string]any{
 		"proxies": map[string]any{
 			"default": map[string]string{

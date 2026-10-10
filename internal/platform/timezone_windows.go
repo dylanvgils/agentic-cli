@@ -9,7 +9,7 @@ import (
 
 // timezone resolves the host's IANA timezone name via tzutil, translating its Windows-specific name to the IANA equivalent.
 func timezone() string {
-	out, err := exec.Command("tzutil", "/g").Output()
+	out, err := exec.Command("tzutil", "/g").Output() // NOSONAR - system tzutil from PATH is intended
 	if err != nil {
 		return ""
 	}
