@@ -1,7 +1,7 @@
 package tools
 
 import (
-	_ "embed"
+	_ "embed" // for go:embed
 	"encoding/json"
 	"log"
 )

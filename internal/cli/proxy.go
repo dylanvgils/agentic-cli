@@ -44,9 +44,9 @@ func init() {
 	proxyCmd.AddCommand(proxyBuildCmd, proxyUpdateCmd, proxyCleanCmd)
 
 	proxyBuildCmd.Flags().Bool("no-cache", false, "disable Docker layer cache for a fully fresh build")
-	proxyBuildCmd.Flags().Bool("dry-run", false, "print the generated Dockerfile instead of building")
+	proxyBuildCmd.Flags().Bool(dryRunFlagName, false, "print the generated Dockerfile instead of building")
 
-	proxyUpdateCmd.Flags().Bool("dry-run", false, "print the generated Dockerfile instead of building")
+	proxyUpdateCmd.Flags().Bool(dryRunFlagName, false, "print the generated Dockerfile instead of building")
 
 	proxyCleanCmd.Flags().Bool("logs", false, "also remove all proxy access logs, regardless of age")
 
@@ -67,7 +67,7 @@ func runProxyUpdate(cmd *cobra.Command, _ []string) error {
 func runProxyBuildOrUpdate(cmd *cobra.Command, noCache bool) error {
 	opts := tools.BuildOptions{NoCache: noCache, Registry: collectRegistry(cmd)}
 
-	if dryRun, _ := cmd.Flags().GetBool("dry-run"); dryRun {
+	if dryRun, _ := cmd.Flags().GetBool(dryRunFlagName); dryRun {
 		return printProxyDockerfile(opts.Registry)
 	}
 

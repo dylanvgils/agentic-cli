@@ -105,7 +105,8 @@ main() {
   local from_source=0
 
   while [[ $# -gt 0 ]]; do
-    case "$1" in
+    local arg="$1"
+    case "${arg}" in
     --remove | -r)
       remove=1
       shift
@@ -115,7 +116,7 @@ main() {
       shift
       ;;
     *)
-      echo "Unknown argument: $1" >&2
+      echo "Unknown argument: ${arg}" >&2
       exit 1
       ;;
     esac

@@ -277,7 +277,7 @@ func (c *Client) startProxy(rs RunSpec) (proxyHandle, error) {
 // setupProxy configures rs for proxy mode if enabled, returning the tool args (proxy env, CA trust) to inject and a cleanup func to defer.
 func (c *Client) setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
 	if !rs.Proxy.Mode.Enabled() {
-		return nil, func() {}, nil
+		return nil, noCleanup, nil
 	}
 
 	if rs.DryRun {
@@ -299,7 +299,7 @@ func (c *Client) dryRunProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), er
 		return nil, nil, err
 	}
 
-	return append(proxyEnvArgs(rs.Dind.Enabled), handle.trustArgs()...), func() {}, nil
+	return append(proxyEnvArgs(rs.Dind.Enabled), handle.trustArgs()...), noCleanup, nil
 }
 
 // launchProxy starts the sidecar and returns a cleanup that tears it down and prints the access summary.

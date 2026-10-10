@@ -25,8 +25,9 @@ echo "event=$EVENT_NAME tag_input='$TAG_INPUT' last=$LAST" >&2
 # (e.g. LAST fell back to the synthetic v0.0.0 because no tags exist yet).
 # GoReleaser treats an empty GORELEASER_PREVIOUS_TAG as "no previous tag".
 print_previous_tag() {
-  if git rev-parse "$1" >/dev/null 2>&1; then
-    echo "previous_tag=$1"
+  local tag="$1"
+  if git rev-parse "$tag" >/dev/null 2>&1; then
+    echo "previous_tag=$tag"
   else
     echo "previous_tag="
   fi

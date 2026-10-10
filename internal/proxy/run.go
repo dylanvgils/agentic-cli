@@ -106,7 +106,7 @@ func Run(cfg Config) error {
 // openLog opens the JSON-lines log file; an empty path means no file (entries still print to stdout).
 func openLog(path string) (file *os.File, closeFn func(), err error) {
 	if path == "" {
-		return nil, func() {}, nil
+		return nil, func() { /* no file to close */ }, nil
 	}
 
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)

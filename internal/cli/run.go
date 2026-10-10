@@ -54,7 +54,7 @@ func init() {
 		"sub-path to force read-only, applied after other mounts (format: host:container); repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagEnv, "env", "e", nil,
 		"environment variable to set in the container (format: KEY=VALUE, or KEY to forward the host value); repeatable")
-	runToolCmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "print the docker command without running it")
+	runToolCmd.Flags().BoolVar(&flagDryRun, dryRunFlagName, false, "print the docker command without running it")
 	runToolCmd.Flags().BoolVar(&flagTrustDir, "trust-dir", false, "trust the current directory and save it to config")
 	runToolCmd.Flags().SetInterspersed(false)
 

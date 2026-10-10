@@ -55,7 +55,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 	svc := update.New(dockerClient, toolHome)
 
-	if dryRun, _ := cmd.Flags().GetBool("dry-run"); dryRun {
+	if dryRun, _ := cmd.Flags().GetBool(dryRunFlagName); dryRun {
 		return svc.DryRun(firstArg(args), namespace, opts)
 	}
 
@@ -84,8 +84,8 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 // updateOptsFromFlags returns the build options for an update; see resolve.UpdateOptions for why config bases/apt need an explicit flag.
 func updateOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOptions {
-	baseSet := cmd.Flags().Changed("base") || cmd.Flags().Changed("base-exact")
-	aptSet := cmd.Flags().Changed("apt") || cmd.Flags().Changed("apt-exact")
+	baseSet := cmd.Flags().Changed("base") || cmd.Flags().Changed(baseExactFlagName)
+	aptSet := cmd.Flags().Changed("apt") || cmd.Flags().Changed(aptExactFlagName)
 
 	return resolve.UpdateOptions(buildInput(cmd), baseSet, aptSet, rc)
 }

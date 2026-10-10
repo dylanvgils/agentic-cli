@@ -148,3 +148,8 @@ func parseOwnedRow(line string) (ownedResource, bool) {
 func ownedFormat(nameField string) string {
 	return "{{" + nameField + "}}\t{{.Label \"" + LabelOwner + "\"}}\t{{.Label \"" + LabelStarted + "\"}}"
 }
+
+// noCleanup is the cleanup for paths that set nothing up.
+func noCleanup() {
+	// Nothing to undo
+}

@@ -6,6 +6,9 @@ import (
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
+// pipefailShell makes RUN fail when any command in a pipeline fails.
+var pipefailShell = df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}
+
 // aptInstallRun builds a standard apt update → install --no-install-recommends → cleanup Run block.
 func aptInstallRun(pkgs []string) df.Run {
 	return df.Run{Blocks: []df.Block{
@@ -48,5 +51,13 @@ func createContainerUser(name string) []df.Instruction {
 				fmt.Sprintf(`useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique %s`, name),
 			}},
 		}},
+	}
+}
+
+// versionCheckScript writes the version-check helper script for tool that runs command.
+func versionCheckScript(tool, command string) df.Heredoc {
+	return df.Heredoc{
+		Dest:  "/usr/local/bin/" + versionScript(tool),
+		Lines: []string{"#!/bin/sh", command},
 	}
 }

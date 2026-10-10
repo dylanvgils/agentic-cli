@@ -138,8 +138,8 @@ func quoteAll(values []string) string {
 
 // describeDir adds where dir really leads when it goes through a symlink, e.g. a link the agent planted.
 func describeDir(dir string) string {
-	if real, err := filepath.EvalSymlinks(dir); err == nil && real != dir {
-		return dir + " (-> " + real + ")"
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil && resolved != dir {
+		return dir + " (-> " + resolved + ")"
 	}
 	return dir
 }

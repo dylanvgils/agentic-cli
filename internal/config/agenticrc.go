@@ -233,69 +233,81 @@ func collectPaths(startDir string) []string {
 func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 	result := &AgenticRC{}
 	result.Build.Versions = make(map[string]string)
-	resRun := &result.Run
-	resBuild := &result.Build
 
 	for _, rc := range configs {
-		run := rc.Run
-
-		if result.Namespace == "" {
-			result.Namespace = rc.Namespace
-		}
-
-		if result.DockerContext == "" {
-			result.DockerContext = rc.DockerContext
-		}
-
-		resRun.RCLimits = mergeLimits(resRun.RCLimits, run.RCLimits)
-
-		if resRun.Proxy.Enabled == nil {
-			resRun.Proxy.Enabled = run.Proxy.Enabled
-		}
-
-		if resRun.Proxy.Mode == "" {
-			resRun.Proxy.Mode = run.Proxy.Mode
-		}
-
-		if resRun.Dind.Enabled == nil {
-			resRun.Dind.Enabled = run.Dind.Enabled
-		}
-
-		resRun.Dind.RCLimits = mergeLimits(resRun.Dind.RCLimits, run.Dind.RCLimits)
-
-		if resRun.Instructions.Enabled == nil {
-			resRun.Instructions.Enabled = run.Instructions.Enabled
-		}
-
-		if resRun.CheckUpdates == nil {
-			resRun.CheckUpdates = run.CheckUpdates
-		}
-
-		// An empty version is unset, like the other scalars, so an outer layer's value still applies
-		for key, val := range rc.Build.Versions {
-			if _, exists := result.Build.Versions[key]; !exists && val != "" {
-				result.Build.Versions[key] = val
-			}
-		}
+		mergeScalars(result, rc)
 	}
 
 	for i := len(configs) - 1; i >= 0; i-- {
-		run := configs[i].Run
-		build := configs[i].Build
-		resRun.ExtraMounts = append(resRun.ExtraMounts, run.ExtraMounts...)
-		resRun.ReadOnlyMounts = append(resRun.ReadOnlyMounts, run.ReadOnlyMounts...)
-		resRun.Secrets = append(resRun.Secrets, run.Secrets...)
-		resRun.Env = append(resRun.Env, run.Env...)
-		resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)
-		resRun.Proxy.Credentials = append(resRun.Proxy.Credentials, run.Proxy.Credentials...)
-		resRun.Instructions.Custom = appendInstructions(resRun.Instructions.Custom, run.Instructions.Custom)
-		resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
-		resBuild.Bases = append(resBuild.Bases, build.Bases...)
-		resBuild.CustomInstalls = append(resBuild.CustomInstalls, build.CustomInstalls...)
-		result.Marketplaces = append(result.Marketplaces, configs[i].Marketplaces...)
+		appendLists(result, configs[i])
 	}
 
 	return result
+}
+
+// mergeScalars fills result's unset scalars and versions from rc, so the first layer that sets one wins.
+func mergeScalars(result, rc *AgenticRC) {
+	resRun := &result.Run
+	run := rc.Run
+
+	if result.Namespace == "" {
+		result.Namespace = rc.Namespace
+	}
+
+	if result.DockerContext == "" {
+		result.DockerContext = rc.DockerContext
+	}
+
+	resRun.RCLimits = mergeLimits(resRun.RCLimits, run.RCLimits)
+
+	if resRun.Proxy.Enabled == nil {
+		resRun.Proxy.Enabled = run.Proxy.Enabled
+	}
+
+	if resRun.Proxy.Mode == "" {
+		resRun.Proxy.Mode = run.Proxy.Mode
+	}
+
+	if resRun.Dind.Enabled == nil {
+		resRun.Dind.Enabled = run.Dind.Enabled
+	}
+
+	resRun.Dind.RCLimits = mergeLimits(resRun.Dind.RCLimits, run.Dind.RCLimits)
+
+	if resRun.Instructions.Enabled == nil {
+		resRun.Instructions.Enabled = run.Instructions.Enabled
+	}
+
+	if resRun.CheckUpdates == nil {
+		resRun.CheckUpdates = run.CheckUpdates
+	}
+
+	// An empty version is unset, like the other scalars, so an outer layer's value still applies
+	for key, val := range rc.Build.Versions {
+		if _, exists := result.Build.Versions[key]; !exists && val != "" {
+			result.Build.Versions[key] = val
+		}
+	}
+}
+
+// appendLists appends rc's lists and custom instructions to result's.
+func appendLists(result, rc *AgenticRC) {
+	resRun := &result.Run
+	resBuild := &result.Build
+	run := rc.Run
+	build := rc.Build
+
+	resRun.ExtraMounts = append(resRun.ExtraMounts, run.ExtraMounts...)
+	resRun.ReadOnlyMounts = append(resRun.ReadOnlyMounts, run.ReadOnlyMounts...)
+	resRun.Secrets = append(resRun.Secrets, run.Secrets...)
+	resRun.Env = append(resRun.Env, run.Env...)
+	resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)
+	resRun.Proxy.Credentials = append(resRun.Proxy.Credentials, run.Proxy.Credentials...)
+	resRun.Instructions.Custom = appendInstructions(resRun.Instructions.Custom, run.Instructions.Custom)
+	resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
+	resBuild.Bases = append(resBuild.Bases, build.Bases...)
+	resBuild.CustomInstalls = append(resBuild.CustomInstalls, build.CustomInstalls...)
+	result.Marketplaces = append(result.Marketplaces, rc.Marketplaces...)
 }
 
 // appendInstructions joins two layers' custom-instructions text, skipping an empty side.
