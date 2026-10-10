@@ -25,6 +25,35 @@ func TestSplitStateFile(t *testing.T) {
 		assertJSONFile(t, filepath.Join(home, "state.json"), `{"trusted_dirs":["/example.test/projects"],"last_update_check":"2026-01-01T00:00:00Z","last_tool_version_check":{"claude":"2026-01-01T00:00:00Z"},"approved_settings":{"/example.test/.agenticrc.toml":{"root":"abc"}}}`)
 	})
 
+	t.Run("drops obsolete credential approvals", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		legacy := `{"registry":"registry.example.test","approved_credentials":{"/example.test/.agenticrc.toml":"abc"},"trusted_dirs":["/example.test/projects"]}`
+		require.NoError(t, os.WriteFile(filepath.Join(home, "agentic.json"), []byte(legacy), 0o640))
+
+		// Act
+		err := SplitStateFile(home)
+
+		// Assert
+		require.NoError(t, err)
+		assertJSONFile(t, filepath.Join(home, "agentic.json"), `{"registry":"registry.example.test"}`)
+		assertJSONFile(t, filepath.Join(home, "state.json"), `{"trusted_dirs":["/example.test/projects"]}`)
+	})
+
+	t.Run("drops obsolete credential approvals without state keys to move", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(home, "agentic.json"), []byte(`{"registry":"registry.example.test","approved_credentials":{}}`), 0o640))
+
+		// Act
+		err := SplitStateFile(home)
+
+		// Assert
+		require.NoError(t, err)
+		assertJSONFile(t, filepath.Join(home, "agentic.json"), `{"registry":"registry.example.test"}`)
+		assert.NoFileExists(t, filepath.Join(home, "state.json"))
+	})
+
 	t.Run("no-op without state keys", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
