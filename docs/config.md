@@ -16,7 +16,7 @@ Stored at `$AGENTIC_HOME/agentic.json`. Edit it with any text editor.
 
 | Key                        | Type   | Description                                                             | CLI flag           |
 | -------------------------- | ------ | ----------------------------------------------------------------------- | ------------------ |
-| `trusted_dirs`             | list   | Directories you can run tools from without an interactive trust prompt, matched by real path, so a retargeted symlink asks again and hand-added entries must be real paths | `--trust-dir`      |
+| `trusted_dirs`             | list   | Directories you can run tools from without an interactive trust prompt, stored as real paths | `--trust-dir`      |
 | `registry`                 | scalar | Registry prefix for base image pulls. See [Registry proxy](#registry-proxy). | `--registry`       |
 | `docker_context`           | scalar | Machine-wide default Docker context. See [Precedence](#precedence).     | `--docker-context` |
 | `proxy_log_retention_days` | scalar | Days to keep [egress proxy](egress-proxy.md) logs. Default: `3`.        | -                  |
@@ -75,7 +75,7 @@ Inside this repo, use the local file instead: `#:schema ./agenticrc.schema.json`
 | ---------------- | ------ | -------------------------------------------------------------------------------------------- | --------- |
 | `root`           | bool   | Stop the upward directory walk at this file                                                  | -         |
 | `namespace`      | string | Image namespace. Images are named `<namespace>-<tool>`. See [Per-project image set](recipes.md#per-project-image-set). | `agentic` |
-| `docker_context` | string | [Docker context](usage.md#docker-context) to use for this project; set in the current dir's own file, it asks you to trust the dir first | -         |
+| `docker_context` | string | [Docker context](usage.md#docker-context) to use for this project                            | -         |
 
 ### `[build]`
 
@@ -251,16 +251,14 @@ tools = ["claude"]
 
 ## Setting approval
 
-The agent can edit the `.agenticrc.toml` in the directory you run from, so agentic asks you to approve the settings there that reach outside the container. It asks when one first appears and whenever one changes or is removed. Non-interactive runs fail until you approve.
+The agent can edit the `.agenticrc.toml` in your current directory, so changes there to these keys need your approval on the next run. Non-interactive runs fail until approved.
 
-The guarded keys:
-
-- `root`, `namespace`, `docker_context`, `[[marketplaces]]`
+- `root`, `namespace`, `docker_context`, `marketplaces`
 - `build.custom_installs`
 - `run.extra_mounts`, `run.read_only_mounts`, `run.secrets`, `run.env`
 - `run.proxy.enabled`, `run.proxy.mode`, `run.proxy.allowed_hosts`, `run.dind.enabled`
 
-Files in parent directories never ask, since the agent can't write them. [Credentials](egress-proxy.md#credential-injection) have their own approval. Approvals belong to the file's own path, like credential approvals. `agentic build` and `agentic update` don't ask, so review the diff before running them in a directory an agent has worked in.
+`agentic build` and `agentic update` don't ask, so review the diff first.
 
 ## Merge semantics
 
