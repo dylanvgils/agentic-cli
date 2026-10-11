@@ -156,10 +156,10 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 	return env, nil
 }
 
-// prepareHost creates the named volumes and network the run needs, and returns the proxy log dir (empty without the proxy).
-// microsandbox creates its own volumes and uses no Docker network, so it skips both.
+// prepareHost creates the Docker named volumes and network a Docker run needs, and returns the proxy log dir (empty without the proxy).
 func (s *Service) prepareHost(req buildRequest, volumes []string) (string, error) {
 	in := req.in
+	// msb creates its named volumes itself and doesn't use agentic-net
 	dockerRun := in.Runtime != RuntimeMicrosandbox
 
 	if dockerRun {

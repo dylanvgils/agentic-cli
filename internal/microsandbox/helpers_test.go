@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,11 +68,6 @@ func captureStdout(t *testing.T, fn func()) string {
 	out, err := io.ReadAll(r)
 	require.NoError(t, err)
 	return string(out)
-}
-
-// hostOwner returns the uid/gid mount options msb gets for the host user.
-func hostOwner() string {
-	return "uid=" + platform.GetUID() + ",gid=" + platform.GetGID()
 }
 
 // stubHostTimezone replaces hostTimezone with a stub that returns val for the duration of the test.
