@@ -45,6 +45,56 @@ func TestPrepare(t *testing.T) {
 		assert.Empty(t, p.trustAsked)
 	})
 
+	t.Run("missing msb stops before the image check and any prompt", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Flags.Runtime = RuntimeMicrosandbox
+		inspected := false
+		d := &fakeDocker{inspectImage: func(name string) (*docker.ImageInfo, error) {
+			inspected = true
+			return built(name)
+		}}
+		p := &fakePrompter{}
+		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
+
+		// Act
+		_, cleanup, err := New(d, m).Prepare(req, p)
+		defer cleanup()
+
+		// Assert
+		require.EqualError(t, err, "msb not found on PATH")
+		assert.False(t, inspected)
+		assert.Empty(t, p.trustAsked)
+	})
+
+	t.Run("docker runtime doesn't check for msb", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
+
+		// Act
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, m).Prepare(req, &fakePrompter{})
+		defer cleanup()
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("microsandbox dry run doesn't check for msb", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Flags.Runtime = RuntimeMicrosandbox
+		req.Flags.DryRun = true
+		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
+
+		// Act
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, m).Prepare(req, &fakePrompter{})
+		defer cleanup()
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
 	t.Run("refused trust stops before the tool update and setup", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
