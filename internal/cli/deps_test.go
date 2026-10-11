@@ -15,9 +15,9 @@ import (
 
 var _ dockerAPI = (*docker.Client)(nil)
 
-func Test_microsandboxClient(t *testing.T) {
+func Test_msbClient(t *testing.T) {
 	// Assert
-	assert.IsType(t, &microsandbox.Client{}, microsandboxClient)
+	assert.IsType(t, &microsandbox.Client{}, msbClient)
 }
 
 func TestDefaultDeps(t *testing.T) {

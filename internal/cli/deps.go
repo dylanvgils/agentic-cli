@@ -32,8 +32,8 @@ var (
 	// dockerClient is the Docker client every command uses; persistentPreRunE rebuilds it for the resolved context.
 	dockerClient dockerAPI = docker.New("")
 
-	// microsandboxClient runs tools for `agentic run --runtime microsandbox`.
-	microsandboxClient run.Microsandbox = microsandbox.New()
+	// msbClient runs tools for `agentic run --runtime microsandbox`.
+	msbClient run.Microsandbox = microsandbox.New()
 )
 
 // dockerAPI is the subset of *docker.Client the cli and the usecases it calls use.

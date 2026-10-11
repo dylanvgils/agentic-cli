@@ -441,12 +441,12 @@ func (f *fakeMicrosandbox) Run(rs docker.RunSpec, toolArgs []string) error {
 	return f.run(rs, toolArgs)
 }
 
-// stubMicrosandbox installs f as microsandboxClient until the test ends.
+// stubMicrosandbox installs f as msbClient until the test ends.
 func stubMicrosandbox(t *testing.T, f *fakeMicrosandbox) {
 	t.Helper()
-	orig := microsandboxClient
-	microsandboxClient = f
-	t.Cleanup(func() { microsandboxClient = orig })
+	orig := msbClient
+	msbClient = f
+	t.Cleanup(func() { msbClient = orig })
 }
 
 // withTempToolHome sets toolHome to a temp dir and pre-trusts the dirs tests run in (os.TempDir() for t.Chdir, cwd otherwise).
