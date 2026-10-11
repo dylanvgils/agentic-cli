@@ -10,20 +10,22 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 )
 
-// proxyLogDir returns (creating and pruning) the host log dir when the proxy is enabled, else an empty string.
-func proxyLogDir(toolHome string, proxyEnabled bool) (string, error) {
+// proxyLogDir returns the host log dir when the proxy is enabled, else an empty string.
+func proxyLogDir(toolHome string, proxyEnabled bool) string {
 	if !proxyEnabled {
-		return "", nil
+		return ""
 	}
+	return filepath.Join(toolHome, config.LogsDirName)
+}
 
-	dir := filepath.Join(toolHome, config.LogsDirName)
+// prepareProxyLogDir creates dir and prunes the proxy logs in it older than toolHome's retention window.
+func prepareProxyLogDir(dir, toolHome string) error {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return "", fmt.Errorf("create log dir: %w", err)
+		return fmt.Errorf("create log dir: %w", err)
 	}
 
 	housekeeping.PruneProxyLogs(dir, time.Duration(proxyRetentionDays(toolHome))*24*time.Hour)
-
-	return dir, nil
+	return nil
 }
 
 // proxyRetentionDays resolves the proxy log retention window from agentic.json (a host-level setting, not .agenticrc.toml/a flag), falling back to the default when unset.

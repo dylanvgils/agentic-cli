@@ -88,7 +88,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return svc.Run(req.Flags.Runtime, rs, inv.toolArgs)
+	return svc.Run(req, rs, inv.toolArgs)
 }
 
 // parseInvocation loads the working dir's config layers and parses the tool, image and tool args from args.

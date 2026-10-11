@@ -19,15 +19,15 @@ const (
 
 var runtimes = []Runtime{RuntimeDocker, RuntimeMicrosandbox}
 
-// Run executes rs with toolArgs on runtime.
-func (s *Service) Run(runtime Runtime, rs docker.RunSpec, toolArgs []string) error {
-	switch runtime {
-	case RuntimeDocker:
-		return s.docker.RunContainer(rs, toolArgs)
+// Run executes rs with toolArgs on req's runtime, which first readies its own host resources; an empty runtime is Docker.
+func (s *Service) Run(req Request, rs docker.RunSpec, toolArgs []string) error {
+	switch req.Flags.Runtime {
+	case RuntimeDocker, "":
+		return s.runDocker(req, rs, toolArgs)
 	case RuntimeMicrosandbox:
 		return s.runMicrosandbox(rs, toolArgs)
 	default:
-		return unknownRuntimeError(string(runtime))
+		return unknownRuntimeError(string(req.Flags.Runtime))
 	}
 }
 

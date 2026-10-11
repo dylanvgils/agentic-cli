@@ -66,7 +66,7 @@ func New(d Docker, m Microsandbox) *Service {
 	return &Service{docker: d, microsandbox: m}
 }
 
-// Build assembles the docker.RunSpec for target, syncing marketplaces and ensuring the named volumes/network it depends on exist.
+// Build assembles the docker.RunSpec for target, syncing marketplaces; the runtime readies its own host resources in Run.
 func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, error) {
 	req := buildRequest{
 		target:        target,
@@ -91,11 +91,7 @@ func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc
 		return docker.RunSpec{}, err
 	}
 
-	logDir, err := s.prepareHost(req, mounts.volumes)
-	if err != nil {
-		return docker.RunSpec{}, err
-	}
-
+	logDir := proxyLogDir(in.ToolHome, in.ProxyMode.Enabled())
 	return newRunSpec(req, mounts, env, logDir), nil
 }
 
@@ -154,30 +150,6 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 	}
 
 	return env, nil
-}
-
-// prepareHost creates the Docker named volumes and network a Docker run needs, and returns the proxy log dir (empty without the proxy).
-func (s *Service) prepareHost(req buildRequest, volumes []string) (string, error) {
-	in := req.in
-	// msb creates its named volumes itself and doesn't use agentic-net
-	dockerRun := in.Runtime != RuntimeMicrosandbox
-
-	if dockerRun {
-		if err := s.docker.EnsureNamedVolumes(volumes, in.ToolHome, req.containerHome, tools.BusyboxImageFor(in.Registry)); err != nil {
-			return "", err
-		}
-	}
-
-	// In proxy or dind mode the tool container attaches to a per-run network
-	// instead of agentic-net; startProxy ensures agentic-net itself for the
-	// sidecar's egress connection, so skip the redundant check here.
-	if dockerRun && !in.ProxyMode.Enabled() && !in.DindEnabled {
-		if err := s.docker.EnsureNetwork(); err != nil {
-			return "", err
-		}
-	}
-
-	return proxyLogDir(in.ToolHome, in.ProxyMode.Enabled())
 }
 
 // needsMarketplaceSync backs ToolNeedsMarketplaceSync for callers without a Service.

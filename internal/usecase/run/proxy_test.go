@@ -41,14 +41,40 @@ func Test_proxyRetentionDays(t *testing.T) {
 func Test_proxyLogDir(t *testing.T) {
 	t.Run("returns empty string when proxy is disabled", func(t *testing.T) {
 		// Act
-		dir, err := proxyLogDir(t.TempDir(), false)
+		dir := proxyLogDir("/example.test/home", false)
 
 		// Assert
-		require.NoError(t, err)
 		assert.Empty(t, dir)
 	})
 
-	t.Run("creates the log dir and prunes old logs", func(t *testing.T) {
+	t.Run("returns the logs dir in the tool home without creating it", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+
+		// Act
+		dir := proxyLogDir(home, true)
+
+		// Assert
+		assert.Equal(t, filepath.Join(home, config.LogsDirName), dir)
+		assert.NoDirExists(t, dir)
+	})
+}
+
+func Test_prepareProxyLogDir(t *testing.T) {
+	t.Run("creates the log dir", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		logDir := filepath.Join(home, config.LogsDirName)
+
+		// Act
+		err := prepareProxyLogDir(logDir, home)
+
+		// Assert
+		require.NoError(t, err)
+		assert.DirExists(t, logDir)
+	})
+
+	t.Run("prunes logs older than the retention window", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
 		require.NoError(t, os.WriteFile(config.ConfigFile(home), []byte(`{"proxy_log_retention_days":1}`), 0o640))
@@ -60,11 +86,10 @@ func Test_proxyLogDir(t *testing.T) {
 		require.NoError(t, os.Chtimes(oldLog, old, old))
 
 		// Act
-		dir, err := proxyLogDir(home, true)
+		err := prepareProxyLogDir(logDir, home)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, logDir, dir)
 		assert.NoFileExists(t, oldLog)
 	})
 }
