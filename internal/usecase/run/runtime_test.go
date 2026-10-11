@@ -36,10 +36,14 @@ func Test_Service_Run(t *testing.T) {
 		// Arrange
 		dockerRan := false
 		var ranSpec docker.RunSpec
-		svc := New(&fakeDocker{runContainer: func(docker.RunSpec, []string) error {
-			dockerRan = true
-			return nil
-		}}, &fakeMicrosandbox{run: func(rs docker.RunSpec, _ []string) error {
+		d := &fakeDocker{
+			inspectImage: inspectImageID("abc123"),
+			runContainer: func(docker.RunSpec, []string) error {
+				dockerRan = true
+				return nil
+			},
+		}
+		svc := New(d, &fakeMicrosandbox{run: func(rs docker.RunSpec, _ []string) error {
 			ranSpec = rs
 			return nil
 		}})
@@ -49,7 +53,7 @@ func Test_Service_Run(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "agentic-claude", ranSpec.Image)
+		assert.Equal(t, "agentic-claude:abc123", ranSpec.Image)
 		assert.False(t, dockerRan)
 	})
 

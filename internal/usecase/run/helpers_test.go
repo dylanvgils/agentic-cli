@@ -117,17 +117,40 @@ func (f *fakeDocker) RunContainer(rs docker.RunSpec, toolArgs []string) error {
 	return f.runContainer(rs, toolArgs)
 }
 
-// fakeMicrosandbox implements Microsandbox; a nil field succeeds.
-type fakeMicrosandbox struct {
-	loadImage func(r io.Reader) error
-	run       func(rs docker.RunSpec, toolArgs []string) error
+// inspectImageID returns an InspectImage func reporting every image with id.
+func inspectImageID(id string) func(string) (*docker.ImageInfo, error) {
+	return func(name string) (*docker.ImageInfo, error) {
+		return &docker.ImageInfo{Image: name, ID: id}, nil
+	}
 }
 
-func (f *fakeMicrosandbox) LoadImage(r io.Reader) error {
+// fakeMicrosandbox implements Microsandbox; a nil field succeeds.
+type fakeMicrosandbox struct {
+	loadImage   func(r io.Reader, tag string) error
+	imageRefs   func() ([]string, error)
+	removeImage func(ref string) error
+	run         func(rs docker.RunSpec, toolArgs []string) error
+}
+
+func (f *fakeMicrosandbox) LoadImage(r io.Reader, tag string) error {
 	if f.loadImage == nil {
 		return nil
 	}
-	return f.loadImage(r)
+	return f.loadImage(r, tag)
+}
+
+func (f *fakeMicrosandbox) ImageRefs() ([]string, error) {
+	if f.imageRefs == nil {
+		return nil, nil
+	}
+	return f.imageRefs()
+}
+
+func (f *fakeMicrosandbox) RemoveImage(ref string) error {
+	if f.removeImage == nil {
+		return nil
+	}
+	return f.removeImage(ref)
 }
 
 func (f *fakeMicrosandbox) Run(rs docker.RunSpec, toolArgs []string) error {
