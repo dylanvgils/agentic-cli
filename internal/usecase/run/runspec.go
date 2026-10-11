@@ -157,17 +157,21 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 }
 
 // prepareHost creates the named volumes and network the run needs, and returns the proxy log dir (empty without the proxy).
+// microsandbox creates its own volumes and uses no Docker network, so it skips both.
 func (s *Service) prepareHost(req buildRequest, volumes []string) (string, error) {
 	in := req.in
+	dockerRun := in.Runtime != RuntimeMicrosandbox
 
-	if err := s.docker.EnsureNamedVolumes(volumes, in.ToolHome, req.containerHome, tools.BusyboxImageFor(in.Registry)); err != nil {
-		return "", err
+	if dockerRun {
+		if err := s.docker.EnsureNamedVolumes(volumes, in.ToolHome, req.containerHome, tools.BusyboxImageFor(in.Registry)); err != nil {
+			return "", err
+		}
 	}
 
 	// In proxy or dind mode the tool container attaches to a per-run network
 	// instead of agentic-net; startProxy ensures agentic-net itself for the
 	// sidecar's egress connection, so skip the redundant check here.
-	if !in.ProxyMode.Enabled() && !in.DindEnabled {
+	if dockerRun && !in.ProxyMode.Enabled() && !in.DindEnabled {
 		if err := s.docker.EnsureNetwork(); err != nil {
 			return "", err
 		}

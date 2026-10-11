@@ -65,7 +65,10 @@ func TestClient_Run(t *testing.T) {
 func TestIgnored(t *testing.T) {
 	t.Run("empty for a plain run with bind mounts", func(t *testing.T) {
 		// Arrange
-		rs := docker.RunSpec{Volumes: []string{"/host/project:/workspace"}, Secrets: []string{"token:/host/token"}}
+		rs := docker.RunSpec{
+			Volumes: []string{"/host/project:/workspace", "cache:/cache"},
+			Secrets: []string{"token:/host/token"},
+		}
 
 		// Act
 		ignored := Ignored(rs)
@@ -91,7 +94,6 @@ func TestIgnored(t *testing.T) {
 			"the egress proxy (egress is unfiltered)",
 			"credential injection",
 			"--dind",
-			"named volume cache",
 		}, ignored)
 	})
 }
@@ -204,7 +206,7 @@ func Test_buildTmpfsArgs(t *testing.T) {
 }
 
 func Test_buildVolumeArgs(t *testing.T) {
-	t.Run("maps bind mounts and skips named volumes", func(t *testing.T) {
+	t.Run("maps bind mounts and named volumes", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
 		rs := docker.RunSpec{Volumes: []string{dir + ":/workspace:rw", "cache-vol:/cache"}}
@@ -214,7 +216,7 @@ func Test_buildVolumeArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-dir", dir + ":/workspace"}, args)
+		assert.Equal(t, []string{"--mount-dir", dir + ":/workspace", "--mount-named", "cache-vol:/cache:" + hostOwner()}, args)
 	})
 
 	t.Run("returns an invalid mount's error", func(t *testing.T) {
@@ -223,6 +225,43 @@ func Test_buildVolumeArgs(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "invalid volume")
+	})
+}
+
+func Test_buildNamedVolumeArgs(t *testing.T) {
+	t.Run("owns the volume by the host user", func(t *testing.T) {
+		// Act
+		args, err := buildNamedVolumeArgs("maven:/home/claude/.m2", "", "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"--mount-named", "maven:/home/claude/.m2:" + hostOwner()}, args)
+	})
+
+	t.Run("keeps ro and drops other options", func(t *testing.T) {
+		// Act
+		args, err := buildNamedVolumeArgs("maven:/home/claude/.m2:ro,z", "", "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"--mount-named", "maven:/home/claude/.m2:ro," + hostOwner()}, args)
+	})
+
+	t.Run("expands the guest home", func(t *testing.T) {
+		// Act
+		args, err := buildNamedVolumeArgs("maven:$CONTAINER_HOME/.m2", "", "/home/claude")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"--mount-named", "maven:/home/claude/.m2:" + hostOwner()}, args)
+	})
+
+	t.Run("errors without a guest path", func(t *testing.T) {
+		// Act
+		_, err := buildNamedVolumeArgs("maven", "", "")
+
+		// Assert
+		assert.ErrorContains(t, err, `invalid volume "maven"`)
 	})
 }
 
