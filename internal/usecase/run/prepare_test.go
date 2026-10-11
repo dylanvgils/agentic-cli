@@ -67,6 +67,21 @@ func TestPrepare(t *testing.T) {
 		assert.Empty(t, p.trustAsked)
 	})
 
+	t.Run("microsandbox with proxy credentials stops before any prompt", func(t *testing.T) {
+		// Arrange
+		req := newCredentialRequest(t)
+		req.Flags.Runtime = RuntimeMicrosandbox
+		p := &fakePrompter{}
+
+		// Act
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, &fakeMicrosandbox{}).Prepare(req, p)
+		defer cleanup()
+
+		// Assert
+		require.ErrorContains(t, err, "use --runtime docker")
+		assert.Empty(t, p.trustAsked)
+	})
+
 	t.Run("docker runtime doesn't check for msb", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)

@@ -2,8 +2,10 @@ package run
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
@@ -128,6 +130,21 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 		assert.Equal(t, tools.BusyboxImageFor("registry.example.test"), gotChownImage)
 	})
 
+	t.Run("creates the proxy log dir when the proxy is on", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		logDir := filepath.Join(home, config.LogsDirName)
+		d := &fakeDocker{inspectImage: func(name string) (*docker.ImageInfo, error) { return &docker.ImageInfo{Image: name}, nil }}
+		rs := docker.RunSpec{ToolHome: home, Proxy: docker.ProxySpec{Mode: docker.ProxyEnforce, LogDir: logDir}}
+
+		// Act
+		err := New(d, nil).prepareDockerHost(rs, "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.DirExists(t, logDir)
+	})
+
 	t.Run("builds missing sidecar images", func(t *testing.T) {
 		// Arrange
 		stubErrLog(t)
@@ -139,7 +156,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 				return nil
 			},
 		}
-		rs := docker.RunSpec{Proxy: docker.ProxySpec{Mode: docker.ProxyMonitor}}
+		rs := newProxyRunSpec(t, docker.ProxyMonitor)
 
 		// Act
 		err := New(d, nil).prepareDockerHost(rs, "")
@@ -156,7 +173,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 			inspectImage:    proxyMissing,
 			buildProxyImage: func(string, string, string, tools.BuildOptions) error { return errors.New("proxy build failed") },
 		}
-		rs := docker.RunSpec{Proxy: docker.ProxySpec{Mode: docker.ProxyMonitor}}
+		rs := newProxyRunSpec(t, docker.ProxyMonitor)
 
 		// Act
 		err := New(d, nil).prepareDockerHost(rs, "")
@@ -182,7 +199,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 			inspectImage:  func(name string) (*docker.ImageInfo, error) { return &docker.ImageInfo{Image: name}, nil },
 			ensureNetwork: func() error { return errors.New("network error") },
 		}
-		rs := docker.RunSpec{Proxy: docker.ProxySpec{Mode: docker.ProxyEnforce}}
+		rs := newProxyRunSpec(t, docker.ProxyEnforce)
 
 		// Act
 		err := New(d, nil).prepareDockerHost(rs, "")

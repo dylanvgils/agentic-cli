@@ -1,6 +1,7 @@
 package run
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -10,6 +11,19 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 )
+
+// checkMicrosandbox refuses proxy credentials, whose placeholders nothing in the VM would swap for the real secrets, and a
+// missing msb; a dry run makes no msb calls, so it skips the msb check.
+func (s *Service) checkMicrosandbox(req Request) error {
+	if len(req.Project.RC.Run.Proxy.Credentials) > 0 {
+		return errors.New("credential injection needs the egress proxy, which --runtime microsandbox doesn't support yet; use --runtime docker")
+	}
+
+	if req.Flags.DryRun {
+		return nil
+	}
+	return s.microsandbox.Available()
+}
 
 // runMicrosandbox runs rs's image in microsandbox, loading it from Docker first unless msb already holds this exact image; a dry run only prints the msb command.
 func (s *Service) runMicrosandbox(rs docker.RunSpec, toolArgs []string) error {

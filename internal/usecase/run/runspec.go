@@ -91,11 +91,7 @@ func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc
 		return docker.RunSpec{}, err
 	}
 
-	logDir, err := proxyLogDir(in.ToolHome, in.ProxyMode.Enabled())
-	if err != nil {
-		return docker.RunSpec{}, err
-	}
-
+	logDir := proxyLogDir(in.ToolHome, in.ProxyMode.Enabled())
 	return newRunSpec(req, mounts, env, logDir), nil
 }
 

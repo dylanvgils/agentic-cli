@@ -51,9 +51,9 @@ type Flags struct {
 func (s *Service) Prepare(req Request, prompter Prompter) (docker.RunSpec, func(), error) {
 	home := req.Flags.ToolHome
 
-	// Before any prompt, so a missing msb doesn't waste the user's approvals; a dry run makes no msb calls
-	if req.Flags.Runtime == RuntimeMicrosandbox && !req.Flags.DryRun {
-		if err := s.microsandbox.Available(); err != nil {
+	// Before any prompt, so a run microsandbox can't do doesn't waste the user's approvals
+	if req.Flags.Runtime == RuntimeMicrosandbox {
+		if err := s.checkMicrosandbox(req); err != nil {
 			return docker.RunSpec{}, noCleanup, err
 		}
 	}

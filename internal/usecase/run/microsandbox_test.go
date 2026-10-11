@@ -10,6 +10,49 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func Test_Service_checkMicrosandbox(t *testing.T) {
+	t.Run("refuses proxy credentials without checking for msb", func(t *testing.T) {
+		// Arrange
+		req := newCredentialRequest(t)
+		checked := false
+		m := &fakeMicrosandbox{available: func() error {
+			checked = true
+			return nil
+		}}
+
+		// Act
+		err := New(&fakeDocker{}, m).checkMicrosandbox(req)
+
+		// Assert
+		assert.ErrorContains(t, err, "credential injection needs the egress proxy")
+		assert.False(t, checked)
+	})
+
+	t.Run("returns a missing msb", func(t *testing.T) {
+		// Arrange
+		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
+
+		// Act
+		err := New(&fakeDocker{}, m).checkMicrosandbox(newPrepareRequest(t))
+
+		// Assert
+		assert.EqualError(t, err, "msb not found on PATH")
+	})
+
+	t.Run("dry run skips the msb check", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Flags.DryRun = true
+		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
+
+		// Act
+		err := New(&fakeDocker{}, m).checkMicrosandbox(req)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+}
+
 func Test_Service_runMicrosandbox(t *testing.T) {
 	t.Run("runs the image pinned to its Docker ID", func(t *testing.T) {
 		// Arrange

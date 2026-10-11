@@ -117,6 +117,13 @@ func (f *fakeDocker) RunContainer(rs docker.RunSpec, toolArgs []string) error {
 	return f.runContainer(rs, toolArgs)
 }
 
+// newProxyRunSpec returns a RunSpec with the proxy in mode and its log dir in a temp tool home, as Build sets it.
+func newProxyRunSpec(t *testing.T, mode docker.ProxyMode) docker.RunSpec {
+	t.Helper()
+	home := t.TempDir()
+	return docker.RunSpec{ToolHome: home, Proxy: docker.ProxySpec{Mode: mode, LogDir: proxyLogDir(home, true)}}
+}
+
 // runtimeRequest returns a Request that runs on runtime.
 func runtimeRequest(runtime Runtime) Request {
 	return Request{Flags: Flags{Runtime: runtime}}
