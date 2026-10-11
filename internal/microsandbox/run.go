@@ -150,7 +150,7 @@ func buildVolumeArgs(rs docker.RunSpec) ([]string, error) {
 	return args, nil
 }
 
-// buildSecretArgs mounts each secret read-only at /run/secrets/<name> or its given container path.
+// buildSecretArgs mounts each secret read-only at /run/secrets/<name> or its given guest path.
 func buildSecretArgs(rs docker.RunSpec) ([]string, error) {
 	var args []string
 	for _, secret := range rs.Secrets {
@@ -159,14 +159,14 @@ func buildSecretArgs(rs docker.RunSpec) ([]string, error) {
 			return nil, fmt.Errorf("invalid secret %q: expected name:/path[:/container/path]", secret)
 		}
 
-		hostPath, containerPath, found := mount.SplitHostContainer(rest)
+		hostPath, guestPath, found := mount.SplitHostContainer(rest)
 		if !found {
-			containerPath = "/run/secrets/" + name
-		} else if containerPath == "" {
+			guestPath = "/run/secrets/" + name
+		} else if guestPath == "" {
 			return nil, fmt.Errorf("invalid secret %q: empty container path", secret)
 		}
 
-		mountArgs, err := buildMountArgs(hostPath+":"+containerPath+":ro", rs.ToolHome, rs.ContainerHome)
+		mountArgs, err := buildMountArgs(hostPath+":"+guestPath+":ro", rs.ToolHome, rs.ContainerHome)
 		if err != nil {
 			return nil, err
 		}
@@ -217,15 +217,15 @@ func isNamedVolume(volume string, rs docker.RunSpec) bool {
 }
 
 // buildMountArgs maps a bind mount spec to --mount-file or --mount-dir, keeping only the ro/rw option.
-func buildMountArgs(volume, toolHome, containerHome string) ([]string, error) {
-	spec := mount.NormalizeMountSpec(mount.ExpandMountSpec(volume, toolHome, containerHome))
+func buildMountArgs(volume, toolHome, guestHome string) ([]string, error) {
+	spec := mount.NormalizeMountSpec(mount.ExpandMountSpec(volume, toolHome, guestHome))
 	host, rest, ok := mount.SplitHostContainer(spec)
 	if !ok {
 		return nil, fmt.Errorf("invalid volume %q: expected host:container[:options]", volume)
 	}
 
-	container, options, _ := strings.Cut(rest, ":")
-	target := host + ":" + container
+	guest, options, _ := strings.Cut(rest, ":")
+	target := host + ":" + guest
 	if slices.Contains(strings.Split(options, ","), "ro") {
 		target += ":ro"
 	}
@@ -237,9 +237,9 @@ func buildMountArgs(volume, toolHome, containerHome string) ([]string, error) {
 	return []string{flag, target}, nil
 }
 
-// tmpfsPath returns the expanded container path of a tmpfs spec, dropping Docker's options.
-func tmpfsPath(spec, containerHome string) string {
-	path, _, _ := strings.Cut(mount.ExpandTmpfsSpec(spec, containerHome), ":")
+// tmpfsPath returns the expanded guest path of a tmpfs spec, dropping Docker's options.
+func tmpfsPath(spec, guestHome string) string {
+	path, _, _ := strings.Cut(mount.ExpandTmpfsSpec(spec, guestHome), ":")
 	return path
 }
 

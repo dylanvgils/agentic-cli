@@ -240,7 +240,7 @@ func Test_buildSecretArgs(t *testing.T) {
 		assert.Equal(t, []string{"--mount-file", file + ":/run/secrets/token:ro"}, args)
 	})
 
-	t.Run("uses an explicit container path", func(t *testing.T) {
+	t.Run("uses an explicit guest path", func(t *testing.T) {
 		// Arrange
 		file := filepath.Join(t.TempDir(), "token")
 		require.NoError(t, os.WriteFile(file, []byte("test-secret"), 0o600))
@@ -341,7 +341,7 @@ func Test_buildMountArgs(t *testing.T) {
 		assert.Equal(t, []string{"--mount-dir", dir + ":/workspace:ro"}, args)
 	})
 
-	t.Run("errors without a container path", func(t *testing.T) {
+	t.Run("errors without a guest path", func(t *testing.T) {
 		// Act
 		_, err := buildMountArgs(dir, "", "")
 
