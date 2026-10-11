@@ -9,7 +9,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 )
@@ -76,7 +75,7 @@ func (s *Service) Prepare(req Request, prompter Prompter) (docker.RunSpec, func(
 		return docker.RunSpec{}, noCleanup, err
 	}
 
-	in, err := s.runWithStdin(req)
+	in, err := runInput(req)
 	if err != nil {
 		return docker.RunSpec{}, noCleanup, err
 	}
@@ -103,8 +102,16 @@ func (s *Service) checkTool(req Request, prompter Prompter) error {
 	return nil
 }
 
-// runWithStdin resolves req's flags and approved credentials into Build's input and readies the sidecars it enables; a dry run builds no images.
-func (s *Service) runWithStdin(req Request) (Input, error) {
+// CheckProjectDir refuses a working dir Docker can't bind-mount; run it before reading the dir's config.
+func CheckProjectDir(dir string) error {
+	if mount.IsUNCPath(dir) {
+		return fmt.Errorf("working directory %q is on a network share; Docker cannot bind-mount UNC paths", dir)
+	}
+	return nil
+}
+
+// runInput resolves req's flags and approved credentials into Build's input.
+func runInput(req Request) (Input, error) {
 	in, err := resolveInput(req.Flags, req.Project.RC)
 	if err != nil {
 		return Input{}, err
@@ -120,27 +127,7 @@ func (s *Service) runWithStdin(req Request) (Input, error) {
 	}
 	in.Credentials = creds
 
-	if in.DindEnabled {
-		if err := s.requireDockerLayer(req.Target.ImageName, req.Target.ToolName); err != nil {
-			return Input{}, err
-		}
-	}
-
-	if !in.DryRun {
-		if err := sidecar.New(s.docker).Ensure(in.ProxyMode.Enabled(), in.DindEnabled, in.Registry); err != nil {
-			return Input{}, err
-		}
-	}
-
 	return in, nil
-}
-
-// CheckProjectDir refuses a working dir Docker can't bind-mount; run it before reading the dir's config.
-func CheckProjectDir(dir string) error {
-	if mount.IsUNCPath(dir) {
-		return fmt.Errorf("working directory %q is on a network share; Docker cannot bind-mount UNC paths", dir)
-	}
-	return nil
 }
 
 // resolveInput resolves flags against rc into Build's input, minus the credentials only a run reads.

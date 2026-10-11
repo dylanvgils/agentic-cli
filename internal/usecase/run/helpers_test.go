@@ -117,6 +117,11 @@ func (f *fakeDocker) RunContainer(rs docker.RunSpec, toolArgs []string) error {
 	return f.runContainer(rs, toolArgs)
 }
 
+// runtimeRequest returns a Request that runs on runtime.
+func runtimeRequest(runtime Runtime) Request {
+	return Request{Flags: Flags{Runtime: runtime}}
+}
+
 // inspectImageID returns an InspectImage func reporting every image with id.
 func inspectImageID(id string) func(string) (*docker.ImageInfo, error) {
 	return func(name string) (*docker.ImageInfo, error) {

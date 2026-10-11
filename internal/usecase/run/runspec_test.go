@@ -216,57 +216,6 @@ func TestBuild(t *testing.T) {
 		assert.ErrorContains(t, err, "goes through workspace symlink")
 	})
 
-	t.Run("ensure named volumes error propagates", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{
-			inspectImage:       trusted,
-			ensureNamedVolumes: func([]string, string, string, string) error { return fmt.Errorf("volume error") },
-		}
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir()}
-
-		// Act
-		_, err := New(d, nil).Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "volume error")
-	})
-
-	t.Run("ensure network error propagates", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{
-			inspectImage:  trusted,
-			ensureNetwork: func() error { return fmt.Errorf("network error") },
-		}
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir()}
-
-		// Act
-		_, err := New(d, nil).Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "network error")
-	})
-
-	t.Run("microsandbox skips the Docker volumes and network", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{
-			inspectImage:       trusted,
-			ensureNamedVolumes: func([]string, string, string, string) error { return fmt.Errorf("volume error") },
-			ensureNetwork:      func() error { return fmt.Errorf("network error") },
-		}
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), Runtime: RuntimeMicrosandbox}
-
-		// Act
-		_, err := New(d, nil).Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
 	t.Run("proxy wired with merged allowlist and image", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
@@ -296,23 +245,6 @@ func TestBuild(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, docker.ProxyOff, rs.Proxy.Mode)
 		assert.Empty(t, rs.Proxy.LogDir)
-	})
-
-	t.Run("proxy enabled skips agentic-net check since startProxy ensures it itself", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{
-			inspectImage:  trusted,
-			ensureNetwork: func() error { return fmt.Errorf("network error") },
-		}
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce}
-
-		// Act
-		rs, err := New(d, nil).Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyEnforce, rs.Proxy.Mode)
 	})
 
 	t.Run("proxy monitor wired", func(t *testing.T) {
@@ -383,10 +315,7 @@ func TestBuild(t *testing.T) {
 
 	t.Run("dind wired with sidecar image and docker hub allowlisted", func(t *testing.T) {
 		// Arrange
-		d := &fakeDocker{
-			inspectImage:  trusted,
-			ensureNetwork: func() error { return fmt.Errorf("network error") },
-		}
+		d := &fakeDocker{inspectImage: trusted}
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce, DindEnabled: true}
 
