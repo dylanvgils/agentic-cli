@@ -1,15 +1,9 @@
 package cli
 
 import (
-	"fmt"
-	"io"
 	"os"
-	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/msb"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/spf13/cobra"
@@ -23,12 +17,6 @@ var (
 	flagDryRun         bool
 	flagTrustDir       bool
 	flagRuntime        string
-)
-
-// Values of the hidden, experimental --runtime flag.
-const (
-	runtimeDocker = "docker"
-	runtimeMsb    = "msb"
 )
 
 var runToolCmd = &cobra.Command{
@@ -69,7 +57,7 @@ func init() {
 		"environment variable to set in the container (format: KEY=VALUE, or KEY to forward the host value); repeatable")
 	runToolCmd.Flags().BoolVar(&flagDryRun, dryRunFlagName, false, "print the docker command without running it")
 	runToolCmd.Flags().BoolVar(&flagTrustDir, "trust-dir", false, "trust the current directory and save it to config")
-	runToolCmd.Flags().StringVar(&flagRuntime, "runtime", runtimeDocker, "experimental: where the tool runs (docker or msb)")
+	runToolCmd.Flags().StringVar(&flagRuntime, "runtime", string(run.RuntimeDocker), "experimental: where the tool runs (docker or msb)")
 	_ = runToolCmd.Flags().MarkHidden("runtime")
 	runToolCmd.Flags().SetInterspersed(false)
 
@@ -85,8 +73,9 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	}
 
-	if flagRuntime != runtimeDocker && flagRuntime != runtimeMsb {
-		return fmt.Errorf("unknown runtime %q: expected %s or %s", flagRuntime, runtimeDocker, runtimeMsb)
+	runtime, err := run.ParseRuntime(flagRuntime)
+	if err != nil {
+		return err
 	}
 
 	inv, err := parseInvocation(cmd, args)
@@ -94,37 +83,15 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	svc := run.New(dockerClient)
 	req := runRequest(cmd, inv)
-	rs, cleanup, err := run.New(dockerClient).Prepare(req, ttyPrompter{})
+	rs, cleanup, err := svc.Prepare(req, ttyPrompter{})
 	defer cleanup()
 	if err != nil {
 		return err
 	}
 
-	if flagRuntime == runtimeMsb {
-		return runMsb(rs, inv.toolArgs)
-	}
-	return dockerClient.RunContainer(rs, inv.toolArgs)
-}
-
-// runMsb loads the tool image from Docker into msb, then runs it there; a dry run only prints the msb command.
-func runMsb(rs docker.RunSpec, toolArgs []string) error {
-	if ignored := msb.Ignored(rs); len(ignored) > 0 {
-		logging.Warnf("--runtime msb ignores %s", strings.Join(ignored, ", "))
-	}
-
-	if !rs.DryRun {
-		logging.Stepf("Loading %s into microsandbox", rs.Image)
-
-		pr, pw := io.Pipe()
-		go func() { _ = pw.CloseWithError(dockerClient.SaveImage(rs.Image, pw)) }()
-		if err := msbClient.LoadImage(pr); err != nil {
-			_ = pr.CloseWithError(err)
-			return err
-		}
-	}
-
-	return msbClient.Run(rs, toolArgs)
+	return svc.Run(runtime, rs, inv.toolArgs)
 }
 
 // parseInvocation loads the working dir's config layers and parses the tool, image and tool args from args.

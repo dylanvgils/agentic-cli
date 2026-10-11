@@ -15,6 +15,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
@@ -421,7 +422,7 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	return func() (docker.RunSpec, []string) { return capturedSpec, capturedArgs }
 }
 
-// fakeMsb is a hand-written msbAPI; nil funcs succeed.
+// fakeMsb is a hand-written run.Msb; nil funcs succeed.
 type fakeMsb struct {
 	loadImage func(r io.Reader) error
 	run       func(rs docker.RunSpec, toolArgs []string) error
@@ -441,12 +442,12 @@ func (f *fakeMsb) Run(rs docker.RunSpec, toolArgs []string) error {
 	return f.run(rs, toolArgs)
 }
 
-// stubMsb installs f as msbClient until the test ends.
+// stubMsb installs f as run.MsbClient until the test ends.
 func stubMsb(t *testing.T, f *fakeMsb) {
 	t.Helper()
-	orig := msbClient
-	msbClient = f
-	t.Cleanup(func() { msbClient = orig })
+	orig := run.MsbClient
+	run.MsbClient = f
+	t.Cleanup(func() { run.MsbClient = orig })
 }
 
 // withTempToolHome sets toolHome to a temp dir and pre-trusts the dirs tests run in (os.TempDir() for t.Chdir, cwd otherwise).

@@ -2,6 +2,7 @@ package run
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -29,6 +30,8 @@ type fakeDocker struct {
 	buildTool            func(tool, image string, opts tools.BuildOptions) error
 	restampImage         func(image string, info docker.ImageInfo)
 	pruneDangling        func() error
+	saveImage            func(image string, w io.Writer) error
+	runContainer         func(rs docker.RunSpec, toolArgs []string) error
 }
 
 func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
@@ -98,6 +101,40 @@ func (f *fakeDocker) PruneDangling() error {
 		return nil
 	}
 	return f.pruneDangling()
+}
+
+func (f *fakeDocker) SaveImage(image string, w io.Writer) error {
+	if f.saveImage == nil {
+		return nil
+	}
+	return f.saveImage(image, w)
+}
+
+func (f *fakeDocker) RunContainer(rs docker.RunSpec, toolArgs []string) error {
+	if f.runContainer == nil {
+		return nil
+	}
+	return f.runContainer(rs, toolArgs)
+}
+
+// fakeMsb implements Msb; a nil field succeeds.
+type fakeMsb struct {
+	loadImage func(r io.Reader) error
+	run       func(rs docker.RunSpec, toolArgs []string) error
+}
+
+func (f *fakeMsb) LoadImage(r io.Reader) error {
+	if f.loadImage == nil {
+		return nil
+	}
+	return f.loadImage(r)
+}
+
+func (f *fakeMsb) Run(rs docker.RunSpec, toolArgs []string) error {
+	if f.run == nil {
+		return nil
+	}
+	return f.run(rs, toolArgs)
 }
 
 // fakePrompter implements Prompter, recording what it was asked; a nil field approves, except tool updates, which it declines.
@@ -183,6 +220,14 @@ func stubRecordMarketplaceUsage(t *testing.T, fn func(baseDir string, results []
 	orig := RecordMarketplaceUsage
 	RecordMarketplaceUsage = fn
 	t.Cleanup(func() { RecordMarketplaceUsage = orig })
+}
+
+// stubMsb installs f as MsbClient until the test ends.
+func stubMsb(t *testing.T, f *fakeMsb) {
+	t.Helper()
+	orig := MsbClient
+	MsbClient = f
+	t.Cleanup(func() { MsbClient = orig })
 }
 
 // credentialLayer returns a config layer declaring one generic credential reading secret.
