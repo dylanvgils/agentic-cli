@@ -70,16 +70,6 @@ func captureStdout(t *testing.T, fn func()) string {
 	return string(out)
 }
 
-// argAfter returns the value immediately following flag in args, or "".
-func argAfter(args []string, flag string) string {
-	for i, a := range args {
-		if a == flag && i+1 < len(args) {
-			return args[i+1]
-		}
-	}
-	return ""
-}
-
 // stubHostTimezone replaces hostTimezone with a stub that returns val for the duration of the test.
 func stubHostTimezone(t *testing.T, val string) {
 	t.Helper()

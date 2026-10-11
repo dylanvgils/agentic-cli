@@ -29,28 +29,13 @@ func Test_Service_runMicrosandbox(t *testing.T) {
 		assert.Equal(t, "agentic-claude:abc123", ranImage)
 	})
 
-	t.Run("missing image returns error", func(t *testing.T) {
-		// Arrange
-		svc := New(&fakeDocker{}, &fakeMicrosandbox{})
-
-		// Act
-		err := svc.runMicrosandbox(docker.RunSpec{Image: "agentic-claude"}, nil)
-
-		// Assert
-		assert.ErrorContains(t, err, "image agentic-claude not found")
-	})
-
-	t.Run("returns a failed save and does not run", func(t *testing.T) {
+	t.Run("returns a failed load and does not run", func(t *testing.T) {
 		// Arrange
 		ran := false
-		d := &fakeDocker{
-			inspectImage: inspectImageID("abc123"),
-			saveImage:    func(string, io.Writer) error { return errors.New("boom") },
-		}
-		svc := New(d, &fakeMicrosandbox{
+		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{
 			loadImage: func(r io.Reader, _ string) error {
-				_, err := io.ReadAll(r)
-				return err
+				_, _ = io.ReadAll(r)
+				return errors.New("boom")
 			},
 			run: func(docker.RunSpec, []string) error {
 				ran = true
@@ -117,7 +102,44 @@ func Test_Service_runMicrosandbox(t *testing.T) {
 	})
 }
 
-func Test_Service_loadIntoMicrosandbox(t *testing.T) {
+func Test_Service_microsandboxRef(t *testing.T) {
+	t.Run("tags the image with its Docker ID", func(t *testing.T) {
+		// Arrange
+		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{})
+
+		// Act
+		ref, err := svc.microsandboxRef("agentic-claude")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "agentic-claude:abc123", ref)
+	})
+
+	t.Run("missing image returns error", func(t *testing.T) {
+		// Arrange
+		svc := New(&fakeDocker{}, &fakeMicrosandbox{})
+
+		// Act
+		_, err := svc.microsandboxRef("agentic-claude")
+
+		// Assert
+		assert.ErrorContains(t, err, "image agentic-claude not found")
+	})
+
+	t.Run("inspect error is wrapped", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{inspectImage: func(string) (*docker.ImageInfo, error) { return nil, errors.New("daemon down") }}
+		svc := New(d, &fakeMicrosandbox{})
+
+		// Act
+		_, err := svc.microsandboxRef("agentic-claude")
+
+		// Assert
+		assert.ErrorContains(t, err, "inspect agentic-claude: daemon down")
+	})
+}
+
+func Test_Service_ensureMicrosandboxImage(t *testing.T) {
 	t.Run("skips the load when msb already holds the ref", func(t *testing.T) {
 		// Arrange
 		saved, loaded := false, false
@@ -134,7 +156,7 @@ func Test_Service_loadIntoMicrosandbox(t *testing.T) {
 		})
 
 		// Act
-		err := svc.loadIntoMicrosandbox("agentic-claude", "agentic-claude:abc123")
+		err := svc.ensureMicrosandboxImage("agentic-claude", "agentic-claude:abc123")
 
 		// Assert
 		require.NoError(t, err)
@@ -142,30 +164,24 @@ func Test_Service_loadIntoMicrosandbox(t *testing.T) {
 		assert.False(t, loaded)
 	})
 
-	t.Run("loads the saved image under the ref when msb lacks it", func(t *testing.T) {
+	t.Run("loads the image under the ref when msb lacks it", func(t *testing.T) {
 		// Arrange
-		var gotTag, gotInput string
-		d := &fakeDocker{saveImage: func(image string, w io.Writer) error {
-			_, err := io.WriteString(w, "tar:"+image)
-			return err
-		}}
-		svc := New(d, &fakeMicrosandbox{
+		var gotTag string
+		svc := New(&fakeDocker{}, &fakeMicrosandbox{
 			imageRefs: func() ([]string, error) { return []string{"agentic-claude:old111"}, nil },
 			loadImage: func(r io.Reader, tag string) error {
 				gotTag = tag
-				b, err := io.ReadAll(r)
-				gotInput = string(b)
+				_, err := io.ReadAll(r)
 				return err
 			},
 		})
 
 		// Act
-		err := svc.loadIntoMicrosandbox("agentic-claude", "agentic-claude:abc123")
+		err := svc.ensureMicrosandboxImage("agentic-claude", "agentic-claude:abc123")
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude:abc123", gotTag)
-		assert.Equal(t, "tar:agentic-claude", gotInput)
 	})
 
 	t.Run("listing error returns before loading", func(t *testing.T) {
@@ -180,7 +196,7 @@ func Test_Service_loadIntoMicrosandbox(t *testing.T) {
 		})
 
 		// Act
-		err := svc.loadIntoMicrosandbox("agentic-claude", "agentic-claude:abc123")
+		err := svc.ensureMicrosandboxImage("agentic-claude", "agentic-claude:abc123")
 
 		// Assert
 		assert.ErrorContains(t, err, "msb down")
@@ -203,7 +219,7 @@ func Test_Service_loadIntoMicrosandbox(t *testing.T) {
 		})
 
 		// Act
-		err := svc.loadIntoMicrosandbox("agentic-claude", "agentic-claude:abc123")
+		err := svc.ensureMicrosandboxImage("agentic-claude", "agentic-claude:abc123")
 
 		// Assert
 		assert.ErrorContains(t, err, "load failed")
@@ -226,11 +242,51 @@ func Test_Service_loadIntoMicrosandbox(t *testing.T) {
 		})
 
 		// Act
-		err := svc.loadIntoMicrosandbox("agentic-claude", "agentic-claude:abc123")
+		err := svc.ensureMicrosandboxImage("agentic-claude", "agentic-claude:abc123")
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"agentic-claude:old111"}, removed)
+	})
+}
+
+func Test_Service_loadIntoMicrosandbox(t *testing.T) {
+	t.Run("streams the saved image into msb under the ref", func(t *testing.T) {
+		// Arrange
+		var gotTag, gotInput string
+		d := &fakeDocker{saveImage: func(image string, w io.Writer) error {
+			_, err := io.WriteString(w, "tar:"+image)
+			return err
+		}}
+		svc := New(d, &fakeMicrosandbox{loadImage: func(r io.Reader, tag string) error {
+			gotTag = tag
+			b, err := io.ReadAll(r)
+			gotInput = string(b)
+			return err
+		}})
+
+		// Act
+		err := svc.loadIntoMicrosandbox("agentic-claude", "agentic-claude:abc123")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "agentic-claude:abc123", gotTag)
+		assert.Equal(t, "tar:agentic-claude", gotInput)
+	})
+
+	t.Run("a failed save fails the load", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{saveImage: func(string, io.Writer) error { return errors.New("boom") }}
+		svc := New(d, &fakeMicrosandbox{loadImage: func(r io.Reader, _ string) error {
+			_, err := io.ReadAll(r)
+			return err
+		}})
+
+		// Act
+		err := svc.loadIntoMicrosandbox("agentic-claude", "agentic-claude:abc123")
+
+		// Assert
+		assert.ErrorContains(t, err, "boom")
 	})
 }
 

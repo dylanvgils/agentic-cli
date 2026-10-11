@@ -17,29 +17,35 @@ func (s *Service) runMicrosandbox(rs docker.RunSpec, toolArgs []string) error {
 		logging.Warnf("--runtime microsandbox ignores %s", strings.Join(ignored, ", "))
 	}
 
-	info, err := s.docker.InspectImage(rs.Image)
+	ref, err := s.microsandboxRef(rs.Image)
 	if err != nil {
-		return fmt.Errorf("inspect %s: %w", rs.Image, err)
+		return err
 	}
-	if info == nil {
-		return fmt.Errorf("image %s not found", rs.Image)
-	}
-
-	// The ID tag pins the run to this exact Docker image
-	image := rs.Image
-	rs.Image = image + ":" + info.ID
 
 	if !rs.DryRun {
-		if err := s.loadIntoMicrosandbox(image, rs.Image); err != nil {
+		if err := s.ensureMicrosandboxImage(rs.Image, ref); err != nil {
 			return err
 		}
 	}
 
+	rs.Image = ref
 	return s.microsandbox.Run(rs, toolArgs)
 }
 
-// loadIntoMicrosandbox loads image into msb as ref unless msb already holds ref, then removes image's older refs.
-func (s *Service) loadIntoMicrosandbox(image, ref string) error {
+// microsandboxRef returns image tagged with its Docker image ID, which pins a run to this exact image.
+func (s *Service) microsandboxRef(image string) (string, error) {
+	info, err := s.docker.InspectImage(image)
+	if err != nil {
+		return "", fmt.Errorf("inspect %s: %w", image, err)
+	}
+	if info == nil {
+		return "", fmt.Errorf("image %s not found", image)
+	}
+	return image + ":" + info.ID, nil
+}
+
+// ensureMicrosandboxImage loads image into msb as ref unless msb already holds ref, then removes image's older refs.
+func (s *Service) ensureMicrosandboxImage(image, ref string) error {
 	refs, err := s.microsandbox.ImageRefs()
 	if err != nil {
 		return err
@@ -48,6 +54,16 @@ func (s *Service) loadIntoMicrosandbox(image, ref string) error {
 		return nil
 	}
 
+	if err := s.loadIntoMicrosandbox(image, ref); err != nil {
+		return err
+	}
+
+	s.removeStaleRefs(refs, image, ref)
+	return nil
+}
+
+// loadIntoMicrosandbox streams `docker save image` into `msb load`, tagging the result as ref.
+func (s *Service) loadIntoMicrosandbox(image, ref string) error {
 	logging.Stepf("Loading %s into microsandbox", image)
 
 	pr, pw := io.Pipe()
@@ -56,8 +72,6 @@ func (s *Service) loadIntoMicrosandbox(image, ref string) error {
 		_ = pr.CloseWithError(err)
 		return err
 	}
-
-	s.removeStaleRefs(refs, image, ref)
 	return nil
 }
 
