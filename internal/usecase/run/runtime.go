@@ -11,21 +11,21 @@ import (
 // Runtime is where a prepared run executes.
 type Runtime string
 
-// Runtimes `agentic run` supports; msb is experimental.
+// Runtimes `agentic run` supports; microsandbox is experimental.
 const (
-	RuntimeDocker Runtime = "docker"
-	RuntimeMsb    Runtime = "msb"
+	RuntimeDocker       Runtime = "docker"
+	RuntimeMicrosandbox Runtime = "microsandbox"
 )
 
-var runtimes = []Runtime{RuntimeDocker, RuntimeMsb}
+var runtimes = []Runtime{RuntimeDocker, RuntimeMicrosandbox}
 
 // Run executes rs with toolArgs on runtime.
 func (s *Service) Run(runtime Runtime, rs docker.RunSpec, toolArgs []string) error {
 	switch runtime {
 	case RuntimeDocker:
 		return s.docker.RunContainer(rs, toolArgs)
-	case RuntimeMsb:
-		return s.runMsb(rs, toolArgs)
+	case RuntimeMicrosandbox:
+		return s.runMicrosandbox(rs, toolArgs)
 	default:
 		return unknownRuntimeError(string(runtime))
 	}

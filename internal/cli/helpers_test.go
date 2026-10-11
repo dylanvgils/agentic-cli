@@ -422,32 +422,32 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	return func() (docker.RunSpec, []string) { return capturedSpec, capturedArgs }
 }
 
-// fakeMsb is a hand-written run.Msb; nil funcs succeed.
-type fakeMsb struct {
+// fakeMicrosandbox is a hand-written run.Microsandbox; nil funcs succeed.
+type fakeMicrosandbox struct {
 	loadImage func(r io.Reader) error
 	run       func(rs docker.RunSpec, toolArgs []string) error
 }
 
-func (f *fakeMsb) LoadImage(r io.Reader) error {
+func (f *fakeMicrosandbox) LoadImage(r io.Reader) error {
 	if f.loadImage == nil {
 		return nil
 	}
 	return f.loadImage(r)
 }
 
-func (f *fakeMsb) Run(rs docker.RunSpec, toolArgs []string) error {
+func (f *fakeMicrosandbox) Run(rs docker.RunSpec, toolArgs []string) error {
 	if f.run == nil {
 		return nil
 	}
 	return f.run(rs, toolArgs)
 }
 
-// stubMsb installs f as run.MsbClient until the test ends.
-func stubMsb(t *testing.T, f *fakeMsb) {
+// stubMicrosandbox installs f as run.MicrosandboxClient until the test ends.
+func stubMicrosandbox(t *testing.T, f *fakeMicrosandbox) {
 	t.Helper()
-	orig := run.MsbClient
-	run.MsbClient = f
-	t.Cleanup(func() { run.MsbClient = orig })
+	orig := run.MicrosandboxClient
+	run.MicrosandboxClient = f
+	t.Cleanup(func() { run.MicrosandboxClient = orig })
 }
 
 // withTempToolHome sets toolHome to a temp dir and pre-trusts the dirs tests run in (os.TempDir() for t.Chdir, cwd otherwise).

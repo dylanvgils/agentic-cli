@@ -1,4 +1,4 @@
-package msb
+package microsandbox
 
 import (
 	"os"

@@ -151,7 +151,7 @@ func Test_runTool(t *testing.T) {
 		assert.ErrorContains(t, err, `unknown runtime "podman"`)
 	})
 
-	t.Run("msb runtime loads the image into msb and runs it there", func(t *testing.T) {
+	t.Run("microsandbox runtime loads the image into microsandbox and runs it there", func(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
@@ -163,7 +163,7 @@ func Test_runTool(t *testing.T) {
 		var loaded string
 		var ranSpec docker.RunSpec
 		var ranArgs []string
-		stubMsb(t, &fakeMsb{
+		stubMicrosandbox(t, &fakeMicrosandbox{
 			loadImage: func(r io.Reader) error {
 				b, err := io.ReadAll(r)
 				loaded = string(b)
@@ -174,7 +174,7 @@ func Test_runTool(t *testing.T) {
 				return nil
 			},
 		})
-		stubFlag(t, runToolCmd, "runtime", "msb")
+		stubFlag(t, runToolCmd, "runtime", "microsandbox")
 
 		// Act
 		err := runTool(runToolCmd, []string{"claude", "--help"})

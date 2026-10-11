@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Service_runMsb(t *testing.T) {
+func Test_Service_runMicrosandbox(t *testing.T) {
 	t.Run("returns a failed save and does not run", func(t *testing.T) {
 		// Arrange
 		svc := New(&fakeDocker{saveImage: func(string, io.Writer) error { return errors.New("boom") }})
 		ran := false
-		stubMsb(t, &fakeMsb{
+		stubMicrosandbox(t, &fakeMicrosandbox{
 			loadImage: func(r io.Reader) error {
 				_, err := io.ReadAll(r)
 				return err
@@ -27,7 +27,7 @@ func Test_Service_runMsb(t *testing.T) {
 		})
 
 		// Act
-		err := svc.runMsb(docker.RunSpec{Image: "agentic-claude"}, nil)
+		err := svc.runMicrosandbox(docker.RunSpec{Image: "agentic-claude"}, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "boom")
@@ -39,7 +39,7 @@ func Test_Service_runMsb(t *testing.T) {
 		svc := New(&fakeDocker{})
 		logs := stubErrLog(t)
 		var logsAtLoad string
-		stubMsb(t, &fakeMsb{loadImage: func(r io.Reader) error {
+		stubMicrosandbox(t, &fakeMicrosandbox{loadImage: func(r io.Reader) error {
 			logsAtLoad = logs.String()
 			_, err := io.ReadAll(r)
 			return err
@@ -47,24 +47,24 @@ func Test_Service_runMsb(t *testing.T) {
 		rs := docker.RunSpec{Image: "agentic-claude", Dind: docker.DindSpec{Enabled: true}}
 
 		// Act
-		err := svc.runMsb(rs, nil)
+		err := svc.runMicrosandbox(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, logsAtLoad, "--runtime msb ignores --dind")
+		assert.Contains(t, logsAtLoad, "--runtime microsandbox ignores --dind")
 	})
 
 	t.Run("dry run skips the image load", func(t *testing.T) {
 		// Arrange
 		svc := New(&fakeDocker{})
 		loaded := false
-		stubMsb(t, &fakeMsb{loadImage: func(io.Reader) error {
+		stubMicrosandbox(t, &fakeMicrosandbox{loadImage: func(io.Reader) error {
 			loaded = true
 			return nil
 		}})
 
 		// Act
-		err := svc.runMsb(docker.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
+		err := svc.runMicrosandbox(docker.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
 
 		// Assert
 		require.NoError(t, err)

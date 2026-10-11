@@ -58,7 +58,7 @@ func init() {
 		"environment variable to set in the container (format: KEY=VALUE, or KEY to forward the host value); repeatable")
 	runToolCmd.Flags().BoolVar(&flagDryRun, dryRunFlagName, false, "print the docker command without running it")
 	runToolCmd.Flags().BoolVar(&flagTrustDir, "trust-dir", false, "trust the current directory and save it to config")
-	runToolCmd.Flags().StringVar(&flagRuntime, "runtime", string(run.RuntimeDocker), "experimental: where the tool runs (docker or msb)")
+	runToolCmd.Flags().StringVar(&flagRuntime, "runtime", string(run.RuntimeDocker), "experimental: where the tool runs (docker or microsandbox)")
 	_ = runToolCmd.Flags().MarkHidden("runtime")
 	runToolCmd.Flags().SetInterspersed(false)
 

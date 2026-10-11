@@ -17,9 +17,9 @@ func Test_Service_Run(t *testing.T) {
 			ranSpec, ranArgs = rs, toolArgs
 			return nil
 		}})
-		msbRan := false
-		stubMsb(t, &fakeMsb{run: func(docker.RunSpec, []string) error {
-			msbRan = true
+		microsandboxRan := false
+		stubMicrosandbox(t, &fakeMicrosandbox{run: func(docker.RunSpec, []string) error {
+			microsandboxRan = true
 			return nil
 		}})
 
@@ -30,10 +30,10 @@ func Test_Service_Run(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude", ranSpec.Image)
 		assert.Equal(t, []string{"--help"}, ranArgs)
-		assert.False(t, msbRan)
+		assert.False(t, microsandboxRan)
 	})
 
-	t.Run("msb runs in microsandbox", func(t *testing.T) {
+	t.Run("microsandbox runs through the microsandbox client", func(t *testing.T) {
 		// Arrange
 		dockerRan := false
 		svc := New(&fakeDocker{runContainer: func(docker.RunSpec, []string) error {
@@ -41,13 +41,13 @@ func Test_Service_Run(t *testing.T) {
 			return nil
 		}})
 		var ranSpec docker.RunSpec
-		stubMsb(t, &fakeMsb{run: func(rs docker.RunSpec, _ []string) error {
+		stubMicrosandbox(t, &fakeMicrosandbox{run: func(rs docker.RunSpec, _ []string) error {
 			ranSpec = rs
 			return nil
 		}})
 
 		// Act
-		err := svc.Run(RuntimeMsb, docker.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
+		err := svc.Run(RuntimeMicrosandbox, docker.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -70,11 +70,11 @@ func Test_Service_Run(t *testing.T) {
 func TestParseRuntime(t *testing.T) {
 	t.Run("known name returns its runtime", func(t *testing.T) {
 		// Act
-		runtime, err := ParseRuntime("msb")
+		runtime, err := ParseRuntime("microsandbox")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, RuntimeMsb, runtime)
+		assert.Equal(t, RuntimeMicrosandbox, runtime)
 	})
 
 	t.Run("unknown name lists the supported runtimes", func(t *testing.T) {
@@ -82,6 +82,6 @@ func TestParseRuntime(t *testing.T) {
 		_, err := ParseRuntime("podman")
 
 		// Assert
-		assert.EqualError(t, err, `unknown runtime "podman": expected docker or msb`)
+		assert.EqualError(t, err, `unknown runtime "podman": expected docker or microsandbox`)
 	})
 }

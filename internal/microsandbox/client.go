@@ -1,5 +1,5 @@
-// Package msb runs the microsandbox CLI (msb) as a subprocess.
-package msb
+// Package microsandbox runs the microsandbox CLI (msb) as a subprocess.
+package microsandbox
 
 import (
 	"bytes"

@@ -117,20 +117,20 @@ func (f *fakeDocker) RunContainer(rs docker.RunSpec, toolArgs []string) error {
 	return f.runContainer(rs, toolArgs)
 }
 
-// fakeMsb implements Msb; a nil field succeeds.
-type fakeMsb struct {
+// fakeMicrosandbox implements Microsandbox; a nil field succeeds.
+type fakeMicrosandbox struct {
 	loadImage func(r io.Reader) error
 	run       func(rs docker.RunSpec, toolArgs []string) error
 }
 
-func (f *fakeMsb) LoadImage(r io.Reader) error {
+func (f *fakeMicrosandbox) LoadImage(r io.Reader) error {
 	if f.loadImage == nil {
 		return nil
 	}
 	return f.loadImage(r)
 }
 
-func (f *fakeMsb) Run(rs docker.RunSpec, toolArgs []string) error {
+func (f *fakeMicrosandbox) Run(rs docker.RunSpec, toolArgs []string) error {
 	if f.run == nil {
 		return nil
 	}
@@ -222,12 +222,12 @@ func stubRecordMarketplaceUsage(t *testing.T, fn func(baseDir string, results []
 	t.Cleanup(func() { RecordMarketplaceUsage = orig })
 }
 
-// stubMsb installs f as MsbClient until the test ends.
-func stubMsb(t *testing.T, f *fakeMsb) {
+// stubMicrosandbox installs f as MicrosandboxClient until the test ends.
+func stubMicrosandbox(t *testing.T, f *fakeMicrosandbox) {
 	t.Helper()
-	orig := MsbClient
-	MsbClient = f
-	t.Cleanup(func() { MsbClient = orig })
+	orig := MicrosandboxClient
+	MicrosandboxClient = f
+	t.Cleanup(func() { MicrosandboxClient = orig })
 }
 
 // credentialLayer returns a config layer declaring one generic credential reading secret.

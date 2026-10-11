@@ -6,13 +6,13 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
-	"github.com/dylanvgils/agentic-cli/internal/msb"
+	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 	"github.com/stretchr/testify/assert"
 )
 
 var (
-	_ Docker = (*docker.Client)(nil)
-	_ Msb    = (*msb.Client)(nil)
+	_ Docker       = (*docker.Client)(nil)
+	_ Microsandbox = (*microsandbox.Client)(nil)
 )
 
 func TestDefaultDeps(t *testing.T) {
@@ -26,8 +26,8 @@ func TestDefaultDeps(t *testing.T) {
 		assert.Equal(t, reflect.ValueOf(marketplace.RecordUsage).Pointer(), reflect.ValueOf(RecordMarketplaceUsage).Pointer())
 	})
 
-	t.Run("MsbClient defaults to an msb.Client", func(t *testing.T) {
+	t.Run("MicrosandboxClient defaults to an microsandbox.Client", func(t *testing.T) {
 		// Assert
-		assert.IsType(t, &msb.Client{}, MsbClient)
+		assert.IsType(t, &microsandbox.Client{}, MicrosandboxClient)
 	})
 }
