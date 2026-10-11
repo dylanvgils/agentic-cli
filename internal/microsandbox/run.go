@@ -50,9 +50,6 @@ func Ignored(rs docker.RunSpec) []string {
 	if rs.Dind.Enabled {
 		ignored = append(ignored, "--dind")
 	}
-	if len(rs.Secrets) > 0 {
-		ignored = append(ignored, "secrets")
-	}
 	for _, volume := range rs.Volumes {
 		if isNamedVolume(volume, rs) {
 			ignored = append(ignored, "named volume "+mount.HostPart(volume))
@@ -73,6 +70,11 @@ func buildRunArgs(rs docker.RunSpec, toolArgs []string) ([]string, error) {
 		return nil, err
 	}
 
+	secretArgs, err := buildSecretArgs(rs)
+	if err != nil {
+		return nil, err
+	}
+
 	entrypointArgs, toolArgs, err := buildEntrypointArgs(rs, toolArgs)
 	if err != nil {
 		return nil, err
@@ -83,6 +85,7 @@ func buildRunArgs(rs docker.RunSpec, toolArgs []string) ([]string, error) {
 	args = append(args, buildEnvArgs(rs)...)
 	args = append(args, buildTmpfsArgs(rs)...)
 	args = append(args, volumeArgs...)
+	args = append(args, secretArgs...)
 	args = append(args, entrypointArgs...)
 	args = append(args, rs.Image)
 
@@ -139,6 +142,31 @@ func buildVolumeArgs(rs docker.RunSpec) ([]string, error) {
 			continue
 		}
 		mountArgs, err := buildMountArgs(volume, rs.ToolHome, rs.ContainerHome)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, mountArgs...)
+	}
+	return args, nil
+}
+
+// buildSecretArgs mounts each secret read-only at /run/secrets/<name> or its given container path.
+func buildSecretArgs(rs docker.RunSpec) ([]string, error) {
+	var args []string
+	for _, secret := range rs.Secrets {
+		name, rest, ok := strings.Cut(secret, ":")
+		if !ok {
+			return nil, fmt.Errorf("invalid secret %q: expected name:/path[:/container/path]", secret)
+		}
+
+		hostPath, containerPath, found := mount.SplitHostContainer(rest)
+		if !found {
+			containerPath = "/run/secrets/" + name
+		} else if containerPath == "" {
+			return nil, fmt.Errorf("invalid secret %q: empty container path", secret)
+		}
+
+		mountArgs, err := buildMountArgs(hostPath+":"+containerPath+":ro", rs.ToolHome, rs.ContainerHome)
 		if err != nil {
 			return nil, err
 		}
