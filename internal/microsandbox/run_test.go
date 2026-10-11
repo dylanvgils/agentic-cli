@@ -3,6 +3,7 @@ package microsandbox
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -116,45 +117,26 @@ func Test_buildRunArgs(t *testing.T) {
 		assert.NotContains(t, args, "--")
 	})
 
-	t.Run("maps limits and ignores the pids limit", func(t *testing.T) {
+	t.Run("puts the flags before the image", func(t *testing.T) {
 		// Arrange
-		rs := docker.RunSpec{Image: "img", Limits: docker.ResourceLimits{PidsLimit: "1024", CPUs: "1.5", Memory: "4g"}}
+		rs := docker.RunSpec{
+			Image:         "img",
+			ContainerHome: "/home/claude",
+			Limits:        docker.ResourceLimits{CPUs: "2"},
+			TmpfsMounts:   []string{"/tmp"},
+		}
 
 		// Act
 		args, err := buildRunArgs(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "2", argAfter(args, "--cpus"))
-		assert.Equal(t, "4G", argAfter(args, "--memory"))
-		assert.NotContains(t, args, "1024")
+		assert.Equal(t, "run", args[0])
+		assert.Less(t, slices.Index(args, "--cpus"), slices.Index(args, "img"))
+		assert.Less(t, slices.Index(args, "--tmpfs"), slices.Index(args, "img"))
 	})
 
-	t.Run("passes the resolved env", func(t *testing.T) {
-		// Arrange
-		rs := docker.RunSpec{Image: "img", Env: []string{"CI=true"}}
-
-		// Act
-		args, err := buildRunArgs(rs, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Subset(t, args, []string{"--env", "CI=true"})
-	})
-
-	t.Run("mounts tmpfs paths without docker options", func(t *testing.T) {
-		// Arrange
-		rs := docker.RunSpec{Image: "img", ContainerHome: "/home/claude", TmpfsMounts: []string{"$CONTAINER_HOME/.cache:exec,size=1g"}}
-
-		// Act
-		args, err := buildRunArgs(rs, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "/home/claude/.cache", argAfter(args, "--tmpfs"))
-	})
-
-	t.Run("skipping the entrypoint makes the first tool arg the entrypoint", func(t *testing.T) {
+	t.Run("passes only the tool args the entrypoint leaves", func(t *testing.T) {
 		// Arrange
 		rs := docker.RunSpec{Image: "img", SkipEntrypoint: true}
 
@@ -163,22 +145,10 @@ func Test_buildRunArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "bash", argAfter(args, "--entrypoint"))
-		assert.Equal(t, []string{"img", "--", "-l"}, args[len(args)-3:])
+		assert.Equal(t, []string{"--entrypoint", "bash", "img", "--", "-l"}, args[len(args)-5:])
 	})
 
-	t.Run("skipping the entrypoint without a command errors", func(t *testing.T) {
-		// Arrange
-		rs := docker.RunSpec{Image: "img", SkipEntrypoint: true}
-
-		// Act
-		_, err := buildRunArgs(rs, nil)
-
-		// Assert
-		assert.ErrorContains(t, err, "needs a command")
-	})
-
-	t.Run("rejects an invalid cpus value", func(t *testing.T) {
+	t.Run("returns a helper's error", func(t *testing.T) {
 		// Arrange
 		rs := docker.RunSpec{Image: "img", Limits: docker.ResourceLimits{CPUs: "many"}}
 
@@ -187,6 +157,101 @@ func Test_buildRunArgs(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, `invalid cpus "many"`)
+	})
+}
+
+func Test_buildLimitArgs(t *testing.T) {
+	t.Run("maps limits and ignores the pids limit", func(t *testing.T) {
+		// Act
+		args, err := buildLimitArgs(docker.ResourceLimits{PidsLimit: "1024", CPUs: "1.5", Memory: "4g"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"--cpus", "2", "--memory", "4G"}, args)
+	})
+
+	t.Run("rejects an invalid cpus value", func(t *testing.T) {
+		// Act
+		_, err := buildLimitArgs(docker.ResourceLimits{CPUs: "many"})
+
+		// Assert
+		assert.ErrorContains(t, err, `invalid cpus "many"`)
+	})
+}
+
+func Test_buildEnvArgs(t *testing.T) {
+	// Arrange
+	clearTerminalEnv(t)
+	stubHostTimezone(t, "")
+
+	// Act
+	args := buildEnvArgs(docker.RunSpec{Env: []string{"CI=true"}})
+
+	// Assert
+	assert.Equal(t, []string{"--env", "CI=true"}, args)
+}
+
+func Test_buildTmpfsArgs(t *testing.T) {
+	// Arrange
+	rs := docker.RunSpec{ContainerHome: "/home/claude", TmpfsMounts: []string{"/tmp", "$CONTAINER_HOME/.cache:exec,size=1g"}}
+
+	// Act
+	args := buildTmpfsArgs(rs)
+
+	// Assert
+	assert.Equal(t, []string{"--tmpfs", "/tmp", "--tmpfs", "/home/claude/.cache"}, args)
+}
+
+func Test_buildVolumeArgs(t *testing.T) {
+	t.Run("maps bind mounts and skips named volumes", func(t *testing.T) {
+		// Arrange
+		dir := t.TempDir()
+		rs := docker.RunSpec{Volumes: []string{dir + ":/workspace:rw", "cache-vol:/cache"}}
+
+		// Act
+		args, err := buildVolumeArgs(rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"--mount-dir", dir + ":/workspace"}, args)
+	})
+
+	t.Run("returns an invalid mount's error", func(t *testing.T) {
+		// Act
+		_, err := buildVolumeArgs(docker.RunSpec{Volumes: []string{"/example.test/only-host"}})
+
+		// Assert
+		assert.ErrorContains(t, err, "invalid volume")
+	})
+}
+
+func Test_buildEntrypointArgs(t *testing.T) {
+	t.Run("keeps the image's entrypoint by default", func(t *testing.T) {
+		// Act
+		args, rest, err := buildEntrypointArgs(docker.RunSpec{}, []string{"--help"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, args)
+		assert.Equal(t, []string{"--help"}, rest)
+	})
+
+	t.Run("skipping the entrypoint makes the first tool arg the entrypoint", func(t *testing.T) {
+		// Act
+		args, rest, err := buildEntrypointArgs(docker.RunSpec{SkipEntrypoint: true}, []string{"bash", "-l"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"--entrypoint", "bash"}, args)
+		assert.Equal(t, []string{"-l"}, rest)
+	})
+
+	t.Run("skipping the entrypoint without a command errors", func(t *testing.T) {
+		// Act
+		_, _, err := buildEntrypointArgs(docker.RunSpec{SkipEntrypoint: true}, nil)
+
+		// Assert
+		assert.ErrorContains(t, err, "--runtime microsandbox needs a command")
 	})
 }
 

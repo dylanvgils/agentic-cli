@@ -33,7 +33,9 @@ type Docker interface {
 
 // Microsandbox is the subset of *microsandbox.Client this package uses.
 type Microsandbox interface {
-	LoadImage(r io.Reader) error
+	LoadImage(r io.Reader, tag string) error
+	ImageRefs() ([]string, error)
+	RemoveImage(ref string) error
 	Run(rs docker.RunSpec, toolArgs []string) error
 }
 

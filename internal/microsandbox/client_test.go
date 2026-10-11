@@ -17,16 +17,16 @@ func TestNew(t *testing.T) {
 }
 
 func Test_execRunner_Run(t *testing.T) {
-	t.Run("pipes stdin and captures output", func(t *testing.T) {
+	t.Run("captures output", func(t *testing.T) {
 		// Arrange
-		stubMsb(t, `printf '%s\n' "$@"; cat`)
+		stubMsb(t, `printf '%s\n' "$@"`)
 
 		// Act
-		out, err := execRunner{}.Run(strings.NewReader("tar"), "load")
+		out, err := execRunner{}.Run("images", "--quiet")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "load\ntar", out)
+		assert.Equal(t, "images\n--quiet\n", out)
 	})
 
 	t.Run("returns output in the error on failure", func(t *testing.T) {
@@ -34,7 +34,7 @@ func Test_execRunner_Run(t *testing.T) {
 		stubMsb(t, `echo boom; exit 1`)
 
 		// Act
-		_, err := execRunner{}.Run(nil, "load")
+		_, err := execRunner{}.Run("load")
 
 		// Assert
 		require.Error(t, err)
@@ -46,7 +46,32 @@ func Test_execRunner_Run(t *testing.T) {
 		t.Setenv("PATH", t.TempDir())
 
 		// Act
-		_, err := execRunner{}.Run(nil, "load")
+		_, err := execRunner{}.Run("load")
+
+		// Assert
+		assert.ErrorIs(t, err, errNotInstalled)
+	})
+}
+
+func Test_execRunner_RunWithStdin(t *testing.T) {
+	t.Run("pipes stdin and captures output", func(t *testing.T) {
+		// Arrange
+		stubMsb(t, `printf '%s\n' "$@"; cat`)
+
+		// Act
+		out, err := execRunner{}.RunWithStdin(strings.NewReader("tar"), "load")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "load\ntar", out)
+	})
+
+	t.Run("refuses when msb is not installed", func(t *testing.T) {
+		// Arrange
+		t.Setenv("PATH", t.TempDir())
+
+		// Act
+		_, err := execRunner{}.RunWithStdin(strings.NewReader("tar"), "load")
 
 		// Assert
 		assert.ErrorIs(t, err, errNotInstalled)

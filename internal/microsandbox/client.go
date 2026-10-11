@@ -15,8 +15,10 @@ var errNotInstalled = errors.New("msb not found on PATH; install microsandbox (d
 
 // runner executes msb CLI invocations; tests swap in a fake.
 type runner interface {
-	// Run executes `msb <args>` with r piped to stdin (nil = no stdin) and returns combined stdout+stderr.
-	Run(r io.Reader, args ...string) (string, error)
+	// Run executes `msb <args>` and returns combined stdout+stderr.
+	Run(args ...string) (string, error)
+	// RunWithStdin executes `msb <args>` with r piped to stdin and returns combined stdout+stderr.
+	RunWithStdin(r io.Reader, args ...string) (string, error)
 	// RunInteractive executes `msb <args>` with stdin/stdout/stderr inherited from the current process.
 	RunInteractive(args ...string) error
 }
@@ -34,14 +36,45 @@ func New() *Client {
 	return &Client{runner: execRunner{}}
 }
 
-func (execRunner) Run(r io.Reader, args ...string) (string, error) {
-	bin, err := lookPath()
+func (execRunner) Run(args ...string) (string, error) {
+	cmd, err := command(args...)
 	if err != nil {
 		return "", err
 	}
+	return output(cmd, args)
+}
 
-	cmd := exec.Command(bin, args...) // NOSONAR - the user's own msb from PATH is intended
+func (execRunner) RunWithStdin(r io.Reader, args ...string) (string, error) {
+	cmd, err := command(args...)
+	if err != nil {
+		return "", err
+	}
 	cmd.Stdin = r
+	return output(cmd, args)
+}
+
+func (execRunner) RunInteractive(args ...string) error {
+	cmd, err := command(args...)
+	if err != nil {
+		return err
+	}
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// command returns an `msb <args>` command for the msb binary on PATH.
+func command(args ...string) (*exec.Cmd, error) {
+	bin, err := lookPath()
+	if err != nil {
+		return nil, err
+	}
+	return exec.Command(bin, args...), nil // NOSONAR - the user's own msb from PATH is intended
+}
+
+// output runs cmd and returns its combined stdout+stderr, which the error includes on failure.
+func output(cmd *exec.Cmd, args []string) (string, error) {
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
@@ -49,19 +82,6 @@ func (execRunner) Run(r io.Reader, args ...string) (string, error) {
 		return "", fmt.Errorf("msb %v: %w\n%s", args, err, buf.String())
 	}
 	return buf.String(), nil
-}
-
-func (execRunner) RunInteractive(args ...string) error {
-	bin, err := lookPath()
-	if err != nil {
-		return err
-	}
-
-	cmd := exec.Command(bin, args...) // NOSONAR - the user's own msb from PATH is intended
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 // lookPath finds the msb binary on PATH.

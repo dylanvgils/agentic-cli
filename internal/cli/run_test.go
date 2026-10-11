@@ -156,15 +156,20 @@ func Test_runTool(t *testing.T) {
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
 		get := captureRunContainer(t)
-		stubDocker(t, &fakeDocker{saveImage: func(image string, w io.Writer) error {
-			_, err := io.WriteString(w, "tar:"+image)
-			return err
-		}})
+		stubDocker(t, &fakeDocker{
+			inspectImage: func(name string) (*docker.ImageInfo, error) {
+				return &docker.ImageInfo{Image: name, ID: "abc123"}, nil
+			},
+			saveImage: func(image string, w io.Writer) error {
+				_, err := io.WriteString(w, "tar:"+image)
+				return err
+			},
+		})
 		var loaded string
 		var ranSpec docker.RunSpec
 		var ranArgs []string
 		stubMicrosandbox(t, &fakeMicrosandbox{
-			loadImage: func(r io.Reader) error {
+			loadImage: func(r io.Reader, _ string) error {
 				b, err := io.ReadAll(r)
 				loaded = string(b)
 				return err
@@ -182,7 +187,7 @@ func Test_runTool(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "tar:agentic-claude", loaded)
-		assert.Equal(t, "agentic-claude", ranSpec.Image)
+		assert.Equal(t, "agentic-claude:abc123", ranSpec.Image)
 		assert.Equal(t, []string{"--help"}, ranArgs)
 		rs, _ := get()
 		assert.Empty(t, rs.Image, "RunContainer should not be called")

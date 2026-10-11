@@ -69,7 +69,7 @@ func (s *Service) Prepare(req Request, prompter Prompter) (docker.RunSpec, func(
 		return docker.RunSpec{}, noCleanup, err
 	}
 
-	in, err := s.runInput(req)
+	in, err := s.runWithStdin(req)
 	if err != nil {
 		return docker.RunSpec{}, noCleanup, err
 	}
@@ -96,8 +96,8 @@ func (s *Service) checkTool(req Request, prompter Prompter) error {
 	return nil
 }
 
-// runInput resolves req's flags and approved credentials into Build's input and readies the sidecars it enables; a dry run builds no images.
-func (s *Service) runInput(req Request) (Input, error) {
+// runWithStdin resolves req's flags and approved credentials into Build's input and readies the sidecars it enables; a dry run builds no images.
+func (s *Service) runWithStdin(req Request) (Input, error) {
 	in, err := resolveInput(req.Flags, req.Project.RC)
 	if err != nil {
 		return Input{}, err

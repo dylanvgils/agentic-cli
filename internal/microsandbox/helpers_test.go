@@ -12,15 +12,23 @@ import (
 
 // fakeRunner is the runner of a newTestClient; unset funcs fail like a missing msb binary.
 type fakeRunner struct {
-	run            func(r io.Reader, args ...string) (string, error)
+	run            func(args ...string) (string, error)
+	runWithStdin   func(r io.Reader, args ...string) (string, error)
 	runInteractive func(args ...string) error
 }
 
-func (f *fakeRunner) Run(r io.Reader, args ...string) (string, error) {
+func (f *fakeRunner) Run(args ...string) (string, error) {
 	if f.run == nil {
 		return "", fmt.Errorf("fake: unexpected msb %v", args)
 	}
-	return f.run(r, args...)
+	return f.run(args...)
+}
+
+func (f *fakeRunner) RunWithStdin(r io.Reader, args ...string) (string, error) {
+	if f.runWithStdin == nil {
+		return "", fmt.Errorf("fake: unexpected msb %v", args)
+	}
+	return f.runWithStdin(r, args...)
 }
 
 func (f *fakeRunner) RunInteractive(args ...string) error {
@@ -60,16 +68,6 @@ func captureStdout(t *testing.T, fn func()) string {
 	out, err := io.ReadAll(r)
 	require.NoError(t, err)
 	return string(out)
-}
-
-// argAfter returns the value immediately following flag in args, or "".
-func argAfter(args []string, flag string) string {
-	for i, a := range args {
-		if a == flag && i+1 < len(args) {
-			return args[i+1]
-		}
-	}
-	return ""
 }
 
 // stubHostTimezone replaces hostTimezone with a stub that returns val for the duration of the test.
