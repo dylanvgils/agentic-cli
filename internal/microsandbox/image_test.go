@@ -59,7 +59,7 @@ func TestImageRefs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"images", "-q"}, gotArgs)
+		assert.Equal(t, []string{"images", "--quiet"}, gotArgs)
 		assert.Equal(t, []string{"agentic-claude:abc123", "python:latest"}, refs)
 	})
 

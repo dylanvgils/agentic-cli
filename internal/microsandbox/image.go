@@ -16,7 +16,7 @@ func (c *Client) LoadImage(r io.Reader, tag string) error {
 
 // ImageRefs lists the references of the images in msb's image store.
 func (c *Client) ImageRefs() ([]string, error) {
-	out, err := c.runner.Run("images", "-q")
+	out, err := c.runner.Run("images", "--quiet")
 	if err != nil {
 		return nil, fmt.Errorf("list msb images: %w", err)
 	}

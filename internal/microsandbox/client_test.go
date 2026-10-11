@@ -22,11 +22,11 @@ func Test_execRunner_Run(t *testing.T) {
 		stubMsb(t, `printf '%s\n' "$@"`)
 
 		// Act
-		out, err := execRunner{}.Run("images", "-q")
+		out, err := execRunner{}.Run("images", "--quiet")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "images\n-q\n", out)
+		assert.Equal(t, "images\n--quiet\n", out)
 	})
 
 	t.Run("returns output in the error on failure", func(t *testing.T) {
