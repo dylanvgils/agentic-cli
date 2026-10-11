@@ -15,7 +15,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
@@ -442,12 +441,12 @@ func (f *fakeMicrosandbox) Run(rs docker.RunSpec, toolArgs []string) error {
 	return f.run(rs, toolArgs)
 }
 
-// stubMicrosandbox installs f as run.MicrosandboxClient until the test ends.
+// stubMicrosandbox installs f as microsandboxClient until the test ends.
 func stubMicrosandbox(t *testing.T, f *fakeMicrosandbox) {
 	t.Helper()
-	orig := run.MicrosandboxClient
-	run.MicrosandboxClient = f
-	t.Cleanup(func() { run.MicrosandboxClient = orig })
+	orig := microsandboxClient
+	microsandboxClient = f
+	t.Cleanup(func() { microsandboxClient = orig })
 }
 
 // withTempToolHome sets toolHome to a temp dir and pre-trusts the dirs tests run in (os.TempDir() for t.Chdir, cwd otherwise).

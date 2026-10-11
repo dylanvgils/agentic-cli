@@ -20,11 +20,11 @@ func (s *Service) runMicrosandbox(rs docker.RunSpec, toolArgs []string) error {
 
 		pr, pw := io.Pipe()
 		go func() { _ = pw.CloseWithError(s.docker.SaveImage(rs.Image, pw)) }()
-		if err := MicrosandboxClient.LoadImage(pr); err != nil {
+		if err := s.microsandbox.LoadImage(pr); err != nil {
 			_ = pr.CloseWithError(err)
 			return err
 		}
 	}
 
-	return MicrosandboxClient.Run(rs, toolArgs)
+	return s.microsandbox.Run(rs, toolArgs)
 }

@@ -6,7 +6,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
-	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
@@ -16,9 +15,6 @@ import (
 var (
 	SyncMarketplaces       = marketplace.Sync
 	RecordMarketplaceUsage = marketplace.RecordUsage
-
-	// MicrosandboxClient runs tools on RuntimeMicrosandbox.
-	MicrosandboxClient Microsandbox = microsandbox.New()
 )
 
 // Docker is the subset of *docker.Client this package uses, including what the sidecar, toolupdate and update usecases it runs need.

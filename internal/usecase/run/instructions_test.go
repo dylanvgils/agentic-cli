@@ -23,7 +23,7 @@ func TestBuildInstructions(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Enabled: &disabled}}}
 
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, Input{}, tools.Configs["claude"], rc)
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], rc)
 
 		// Assert
 		require.NoError(t, err)
@@ -32,7 +32,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("precedence section defers to the project's own instructions file", func(t *testing.T) {
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("image not found notes capabilities are unavailable", func(t *testing.T) {
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestBuildInstructions(t *testing.T) {
 		}
 
 		// Act
-		_, err := New(d).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
+		_, err := New(d, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		assert.ErrorContains(t, err, "docker daemon unreachable")
@@ -71,7 +71,7 @@ func TestBuildInstructions(t *testing.T) {
 		}
 
 		// Act
-		content, err := New(d).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(d, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -89,7 +89,7 @@ func TestBuildInstructions(t *testing.T) {
 		}
 
 		// Act
-		content, err := New(d).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(d, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("notes missing tools must be installed by the user", func(t *testing.T) {
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("base toolchain always listed", func(t *testing.T) {
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("filesystem section lists tmpfs paths", func(t *testing.T) {
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, Input{}, tools.Configs["copilot"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, Input{}, tools.Configs["copilot"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("resource limits reflect resolved defaults", func(t *testing.T) {
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("resource limits note they are configurable", func(t *testing.T) {
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -153,7 +153,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("network section omitted when proxy disabled", func(t *testing.T) {
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestBuildInstructions(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
 
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, in, tools.Configs["claude"], rc)
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], rc)
 
 		// Assert
 		require.NoError(t, err)
@@ -182,7 +182,7 @@ func TestBuildInstructions(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
 
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, in, tools.Configs["claude"], rc)
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], rc)
 
 		// Assert
 		require.NoError(t, err)
@@ -194,7 +194,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("docker section omitted when dind disabled", func(t *testing.T) {
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -206,7 +206,7 @@ func TestBuildInstructions(t *testing.T) {
 		in := Input{DindEnabled: true}
 
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -222,7 +222,7 @@ func TestBuildInstructions(t *testing.T) {
 		rc.Run.Dind.Memory = "6g"
 
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, in, tools.Configs["claude"], rc)
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], rc)
 
 		// Assert
 		require.NoError(t, err)
@@ -234,7 +234,7 @@ func TestBuildInstructions(t *testing.T) {
 		in := Input{DindEnabled: true, ProxyMode: docker.ProxyEnforce}
 
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -247,7 +247,7 @@ func TestBuildInstructions(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Custom: "Always run go test before finishing."}}}
 
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, Input{}, tools.Configs["claude"], rc)
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], rc)
 
 		// Assert
 		require.NoError(t, err)
@@ -257,7 +257,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("custom section omitted when unset", func(t *testing.T) {
 		// Act
-		content, err := New(&fakeDocker{}).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -274,7 +274,7 @@ func TestPrepareInstructions(t *testing.T) {
 		hostPath := tools.Configs["claude"].Runtime.InstructionsHostPath(toolHome)
 
 		// Act
-		snapshot, err := New(&fakeDocker{}).PrepareInstructions(toolHome, tools.Configs["claude"], "")
+		snapshot, err := New(&fakeDocker{}, nil).PrepareInstructions(toolHome, tools.Configs["claude"], "")
 
 		// Assert
 		require.NoError(t, err)
@@ -290,7 +290,7 @@ func TestPrepareInstructions(t *testing.T) {
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(toolHome))
 
 		// Act
-		snapshot, err := New(&fakeDocker{}).PrepareInstructions(toolHome, tools.Configs["claude"], "generated block")
+		snapshot, err := New(&fakeDocker{}, nil).PrepareInstructions(toolHome, tools.Configs["claude"], "generated block")
 
 		// Assert
 		require.NoError(t, err)
@@ -310,7 +310,7 @@ func TestPrepareInstructions(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(toolHome))
-		snapshot, err := New(&fakeDocker{}).PrepareInstructions(toolHome, tools.Configs["claude"], "generated block")
+		snapshot, err := New(&fakeDocker{}, nil).PrepareInstructions(toolHome, tools.Configs["claude"], "generated block")
 		require.NoError(t, err)
 		snapshotPath := mount.HostPart(snapshot.MountSpec)
 		require.NoError(t, appendFile(snapshotPath, "\nuser note\n"))
@@ -337,7 +337,7 @@ func TestPreviewInstructions(t *testing.T) {
 		require.NoError(t, os.WriteFile(hostPath, []byte("my own global notes\n"), 0o640))
 
 		// Act
-		content, err := New(&fakeDocker{}).PreviewInstructions(req)
+		content, err := New(&fakeDocker{}, nil).PreviewInstructions(req)
 
 		// Assert
 		require.NoError(t, err)
@@ -352,7 +352,7 @@ func TestPreviewInstructions(t *testing.T) {
 		req.Project.RC.Run.Instructions.Enabled = &disabled
 
 		// Act
-		content, err := New(&fakeDocker{}).PreviewInstructions(req)
+		content, err := New(&fakeDocker{}, nil).PreviewInstructions(req)
 
 		// Assert
 		require.NoError(t, err)
@@ -365,7 +365,7 @@ func TestPreviewInstructions(t *testing.T) {
 		req.Flags.Proxy = resolve.ProxyInput{ProxyFlag: true}
 
 		// Act
-		content, err := New(&fakeDocker{}).PreviewInstructions(req)
+		content, err := New(&fakeDocker{}, nil).PreviewInstructions(req)
 
 		// Assert
 		require.NoError(t, err)
@@ -379,7 +379,7 @@ func TestPreviewInstructions(t *testing.T) {
 		req.Flags.Proxy = resolve.ProxyInput{NoProxy: true}
 
 		// Act
-		_, err := New(&fakeDocker{}).PreviewInstructions(req)
+		_, err := New(&fakeDocker{}, nil).PreviewInstructions(req)
 
 		// Assert
 		require.ErrorContains(t, err, "--no-proxy cannot be used")

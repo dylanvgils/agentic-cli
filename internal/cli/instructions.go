@@ -38,7 +38,7 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	content, err := run.New(dockerClient).PreviewInstructions(req)
+	content, err := run.New(dockerClient, microsandboxClient).PreviewInstructions(req)
 	if err != nil {
 		return err
 	}

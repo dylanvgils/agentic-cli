@@ -23,7 +23,7 @@ func TestPrepare(t *testing.T) {
 		req := newPrepareRequest(t)
 
 		// Act
-		rs, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, &fakePrompter{})
+		rs, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -37,7 +37,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{}).Prepare(req, p)
+		_, cleanup, err := New(&fakeDocker{}, nil).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -61,7 +61,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{trustDir: func(string) error { return errors.New("directory not trusted") }}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, p)
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -87,7 +87,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		rs, cleanup, err := New(d).Prepare(req, p)
+		rs, cleanup, err := New(d, nil).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -105,7 +105,7 @@ func TestPrepare(t *testing.T) {
 		req.Tool = tool
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, &fakePrompter{})
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -124,7 +124,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{approveSettings: func(config.RCLayer, []config.GuardedSetting) error { return errors.New("settings not approved") }}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, p)
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -140,7 +140,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{trustDir: func(string) error { return errors.New("directory not trusted") }}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, p)
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -158,7 +158,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, p)
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -172,7 +172,7 @@ func TestPrepare(t *testing.T) {
 		req := newCredentialRequest(t)
 
 		// Act
-		rs, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, &fakePrompter{})
+		rs, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -187,7 +187,7 @@ func TestPrepare(t *testing.T) {
 		req := newCredentialRequest(t)
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, &fakePrompter{})
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -202,7 +202,7 @@ func TestPrepare(t *testing.T) {
 		req.Flags.DryRun = true
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}).Prepare(req, &fakePrompter{})
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -226,7 +226,7 @@ func TestPrepare(t *testing.T) {
 		}
 
 		// Act
-		_, cleanup, err := New(d).Prepare(req, &fakePrompter{})
+		_, cleanup, err := New(d, nil).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -244,7 +244,7 @@ func TestPrepare(t *testing.T) {
 		}
 
 		// Act
-		_, cleanup, err := New(d).Prepare(req, &fakePrompter{})
+		_, cleanup, err := New(d, nil).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -269,7 +269,7 @@ func TestPrepare(t *testing.T) {
 		}
 
 		// Act
-		_, cleanup, err := New(d).Prepare(req, &fakePrompter{})
+		_, cleanup, err := New(d, nil).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -294,7 +294,7 @@ func TestPrepare(t *testing.T) {
 		}
 
 		// Act
-		_, cleanup, err := New(d).Prepare(req, &fakePrompter{})
+		_, cleanup, err := New(d, nil).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert

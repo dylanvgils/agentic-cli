@@ -13,9 +13,8 @@ import (
 func Test_Service_runMicrosandbox(t *testing.T) {
 	t.Run("returns a failed save and does not run", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{saveImage: func(string, io.Writer) error { return errors.New("boom") }})
 		ran := false
-		stubMicrosandbox(t, &fakeMicrosandbox{
+		svc := New(&fakeDocker{saveImage: func(string, io.Writer) error { return errors.New("boom") }}, &fakeMicrosandbox{
 			loadImage: func(r io.Reader) error {
 				_, err := io.ReadAll(r)
 				return err
@@ -36,10 +35,9 @@ func Test_Service_runMicrosandbox(t *testing.T) {
 
 	t.Run("warns about ignored settings before loading", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{})
 		logs := stubErrLog(t)
 		var logsAtLoad string
-		stubMicrosandbox(t, &fakeMicrosandbox{loadImage: func(r io.Reader) error {
+		svc := New(&fakeDocker{}, &fakeMicrosandbox{loadImage: func(r io.Reader) error {
 			logsAtLoad = logs.String()
 			_, err := io.ReadAll(r)
 			return err
@@ -56,9 +54,8 @@ func Test_Service_runMicrosandbox(t *testing.T) {
 
 	t.Run("dry run skips the image load", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{})
 		loaded := false
-		stubMicrosandbox(t, &fakeMicrosandbox{loadImage: func(io.Reader) error {
+		svc := New(&fakeDocker{}, &fakeMicrosandbox{loadImage: func(io.Reader) error {
 			loaded = true
 			return nil
 		}})

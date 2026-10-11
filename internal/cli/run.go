@@ -79,7 +79,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	svc := run.New(dockerClient)
+	svc := run.New(dockerClient, microsandboxClient)
 	req := runRequest(cmd, inv)
 	rs, cleanup, err := svc.Prepare(req, ttyPrompter{})
 	defer cleanup()

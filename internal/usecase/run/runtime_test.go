@@ -13,12 +13,11 @@ func Test_Service_Run(t *testing.T) {
 		// Arrange
 		var ranSpec docker.RunSpec
 		var ranArgs []string
+		microsandboxRan := false
 		svc := New(&fakeDocker{runContainer: func(rs docker.RunSpec, toolArgs []string) error {
 			ranSpec, ranArgs = rs, toolArgs
 			return nil
-		}})
-		microsandboxRan := false
-		stubMicrosandbox(t, &fakeMicrosandbox{run: func(docker.RunSpec, []string) error {
+		}}, &fakeMicrosandbox{run: func(docker.RunSpec, []string) error {
 			microsandboxRan = true
 			return nil
 		}})
@@ -36,12 +35,11 @@ func Test_Service_Run(t *testing.T) {
 	t.Run("microsandbox runs through the microsandbox client", func(t *testing.T) {
 		// Arrange
 		dockerRan := false
+		var ranSpec docker.RunSpec
 		svc := New(&fakeDocker{runContainer: func(docker.RunSpec, []string) error {
 			dockerRan = true
 			return nil
-		}})
-		var ranSpec docker.RunSpec
-		stubMicrosandbox(t, &fakeMicrosandbox{run: func(rs docker.RunSpec, _ []string) error {
+		}}, &fakeMicrosandbox{run: func(rs docker.RunSpec, _ []string) error {
 			ranSpec = rs
 			return nil
 		}})
@@ -57,7 +55,7 @@ func Test_Service_Run(t *testing.T) {
 
 	t.Run("unknown runtime returns error", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{})
+		svc := New(&fakeDocker{}, nil)
 
 		// Act
 		err := svc.Run(Runtime("podman"), docker.RunSpec{}, nil)

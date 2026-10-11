@@ -26,8 +26,4 @@ func TestDefaultDeps(t *testing.T) {
 		assert.Equal(t, reflect.ValueOf(marketplace.RecordUsage).Pointer(), reflect.ValueOf(RecordMarketplaceUsage).Pointer())
 	})
 
-	t.Run("MicrosandboxClient defaults to an microsandbox.Client", func(t *testing.T) {
-		// Assert
-		assert.IsType(t, &microsandbox.Client{}, MicrosandboxClient)
-	})
 }

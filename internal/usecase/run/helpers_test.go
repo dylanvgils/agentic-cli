@@ -222,14 +222,6 @@ func stubRecordMarketplaceUsage(t *testing.T, fn func(baseDir string, results []
 	t.Cleanup(func() { RecordMarketplaceUsage = orig })
 }
 
-// stubMicrosandbox installs f as MicrosandboxClient until the test ends.
-func stubMicrosandbox(t *testing.T, f *fakeMicrosandbox) {
-	t.Helper()
-	orig := MicrosandboxClient
-	MicrosandboxClient = f
-	t.Cleanup(func() { MicrosandboxClient = orig })
-}
-
 // credentialLayer returns a config layer declaring one generic credential reading secret.
 func credentialLayer(t *testing.T, secret string) config.RCLayer {
 	t.Helper()

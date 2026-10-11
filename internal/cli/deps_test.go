@@ -8,11 +8,17 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/git"
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/stretchr/testify/assert"
 )
 
 var _ dockerAPI = (*docker.Client)(nil)
+
+func Test_microsandboxClient(t *testing.T) {
+	// Assert
+	assert.IsType(t, &microsandbox.Client{}, microsandboxClient)
+}
 
 func TestDefaultDeps(t *testing.T) {
 	cases := []struct {

@@ -19,7 +19,8 @@ import (
 
 // Service builds RunSpecs and run-time instructions for `agentic run`.
 type Service struct {
-	docker Docker
+	docker       Docker
+	microsandbox Microsandbox
 }
 
 // Target identifies the tool and image a RunSpec is being built for.
@@ -58,9 +59,9 @@ type buildRequest struct {
 	containerHome string
 }
 
-// New returns a Service that talks to Docker through d.
-func New(d Docker) *Service {
-	return &Service{docker: d}
+// New returns a Service that talks to Docker through d and to microsandbox through m.
+func New(d Docker, m Microsandbox) *Service {
+	return &Service{docker: d, microsandbox: m}
 }
 
 // Build assembles the docker.RunSpec for target, syncing marketplaces and ensuring the named volumes/network it depends on exist.

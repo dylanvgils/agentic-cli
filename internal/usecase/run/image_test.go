@@ -19,7 +19,7 @@ func Test_requireImage(t *testing.T) {
 		// Arrange
 		svc := New(&fakeDocker{inspectImage: func(string) (*docker.ImageInfo, error) {
 			return &docker.ImageInfo{Image: "agentic-claude"}, nil
-		}})
+		}}, nil)
 
 		// Act
 		err := svc.requireImage("agentic-claude", "claude")
@@ -32,7 +32,7 @@ func Test_requireImage(t *testing.T) {
 		// Arrange
 		svc := New(&fakeDocker{inspectImage: func(string) (*docker.ImageInfo, error) {
 			return nil, fmt.Errorf("docker daemon not running")
-		}})
+		}}, nil)
 
 		// Act
 		err := svc.requireImage("agentic-claude", "claude")
@@ -51,7 +51,7 @@ func Test_requireImage(t *testing.T) {
 				got = f
 				return nil, nil
 			},
-		})
+		}, nil)
 
 		// Act
 		err := svc.requireImage("agentic-claude", "claude")
@@ -63,7 +63,7 @@ func Test_requireImage(t *testing.T) {
 
 	t.Run("no alternatives suggests build", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{inspectImage: missing, listAllImages: listing()})
+		svc := New(&fakeDocker{inspectImage: missing, listAllImages: listing()}, nil)
 
 		// Act
 		err := svc.requireImage("agentic-claude", "claude")
@@ -76,7 +76,7 @@ func Test_requireImage(t *testing.T) {
 
 	t.Run("alternative namespace suggests --namespace with singular noun", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{inspectImage: missing, listAllImages: listing(&docker.ImageInfo{Namespace: "myproject"})})
+		svc := New(&fakeDocker{inspectImage: missing, listAllImages: listing(&docker.ImageInfo{Namespace: "myproject"})}, nil)
 
 		// Act
 		err := svc.requireImage("agentic-claude", "claude")
@@ -94,7 +94,7 @@ func Test_requireImage(t *testing.T) {
 		svc := New(&fakeDocker{
 			inspectImage:  missing,
 			listAllImages: listing(&docker.ImageInfo{Namespace: "myproject"}, &docker.ImageInfo{Namespace: "work"}),
-		})
+		}, nil)
 
 		// Act
 		err := svc.requireImage("agentic-claude", "claude")
