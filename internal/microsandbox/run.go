@@ -50,11 +50,6 @@ func Ignored(rs docker.RunSpec) []string {
 	if rs.Dind.Enabled {
 		ignored = append(ignored, "--dind")
 	}
-	for _, volume := range rs.Volumes {
-		if isNamedVolume(volume, rs) {
-			ignored = append(ignored, "named volume "+mount.HostPart(volume))
-		}
-	}
 	return ignored
 }
 
@@ -134,14 +129,15 @@ func buildTmpfsArgs(rs docker.RunSpec) []string {
 	return args
 }
 
-// buildVolumeArgs maps the bind mounts to mount flags, skipping named volumes (see Ignored).
+// buildVolumeArgs maps the bind mounts and named volumes to mount flags.
 func buildVolumeArgs(rs docker.RunSpec) ([]string, error) {
 	var args []string
 	for _, volume := range rs.Volumes {
+		build := buildMountArgs
 		if isNamedVolume(volume, rs) {
-			continue
+			build = buildNamedVolumeArgs
 		}
-		mountArgs, err := buildMountArgs(volume, rs.ToolHome, rs.ContainerHome)
+		mountArgs, err := build(volume, rs.ToolHome, rs.ContainerHome)
 		if err != nil {
 			return nil, err
 		}
@@ -216,17 +212,15 @@ func isNamedVolume(volume string, rs docker.RunSpec) bool {
 	return mount.IsNamedVolume(mount.ExpandMountSpec(volume, rs.ToolHome, rs.ContainerHome))
 }
 
-// buildMountArgs maps a bind mount spec to --mount-file or --mount-dir, keeping only the ro/rw option.
+// buildMountArgs maps a bind mount spec to --mount-file or --mount-dir, keeping only the ro option.
 func buildMountArgs(volume, toolHome, guestHome string) ([]string, error) {
-	spec := mount.NormalizeMountSpec(mount.ExpandMountSpec(volume, toolHome, guestHome))
-	host, rest, ok := mount.SplitHostContainer(spec)
-	if !ok {
-		return nil, fmt.Errorf("invalid volume %q: expected host:container[:options]", volume)
+	host, guest, readOnly, err := parseMountSpec(volume, toolHome, guestHome)
+	if err != nil {
+		return nil, err
 	}
 
-	guest, options, _ := strings.Cut(rest, ":")
 	target := host + ":" + guest
-	if slices.Contains(strings.Split(options, ","), "ro") {
+	if readOnly {
 		target += ":ro"
 	}
 
@@ -235,6 +229,38 @@ func buildMountArgs(volume, toolHome, guestHome string) ([]string, error) {
 		flag = "--mount-file"
 	}
 	return []string{flag, target}, nil
+}
+
+// buildNamedVolumeArgs maps a named volume spec to --mount-named, owned by the host user like the image user, keeping only the ro option.
+func buildNamedVolumeArgs(volume, toolHome, guestHome string) ([]string, error) {
+	name, guest, readOnly, err := parseMountSpec(volume, toolHome, guestHome)
+	if err != nil {
+		return nil, err
+	}
+
+	options := ownerOptions()
+	if readOnly {
+		options = "ro," + options
+	}
+	return []string{"--mount-named", name + ":" + guest + ":" + options}, nil
+}
+
+// parseMountSpec expands and normalizes a source:guest[:options] mount spec, reporting whether its options include ro.
+func parseMountSpec(volume, toolHome, guestHome string) (source, guest string, readOnly bool, err error) {
+	spec := mount.NormalizeMountSpec(mount.ExpandMountSpec(volume, toolHome, guestHome))
+	source, rest, ok := mount.SplitHostContainer(spec)
+	if !ok {
+		return "", "", false, fmt.Errorf("invalid volume %q: expected host:container[:options]", volume)
+	}
+
+	guest, options, _ := strings.Cut(rest, ":")
+	readOnly = slices.Contains(strings.Split(options, ","), "ro")
+	return source, guest, readOnly, nil
+}
+
+// ownerOptions returns msb's mount owner options for the host uid/gid, which the image user is created with.
+func ownerOptions() string {
+	return "uid=" + platform.GetUID() + ",gid=" + platform.GetGID()
 }
 
 // tmpfsPath returns the expanded guest path of a tmpfs spec, dropping Docker's options.

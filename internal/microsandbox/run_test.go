@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,7 +66,10 @@ func TestClient_Run(t *testing.T) {
 func TestIgnored(t *testing.T) {
 	t.Run("empty for a plain run with bind mounts", func(t *testing.T) {
 		// Arrange
-		rs := docker.RunSpec{Volumes: []string{"/host/project:/workspace"}, Secrets: []string{"token:/host/token"}}
+		rs := docker.RunSpec{
+			Volumes: []string{"/host/project:/workspace", "cache:/cache"},
+			Secrets: []string{"token:/host/token"},
+		}
 
 		// Act
 		ignored := Ignored(rs)
@@ -91,7 +95,6 @@ func TestIgnored(t *testing.T) {
 			"the egress proxy (egress is unfiltered)",
 			"credential injection",
 			"--dind",
-			"named volume cache",
 		}, ignored)
 	})
 }
@@ -204,7 +207,7 @@ func Test_buildTmpfsArgs(t *testing.T) {
 }
 
 func Test_buildVolumeArgs(t *testing.T) {
-	t.Run("maps bind mounts and skips named volumes", func(t *testing.T) {
+	t.Run("maps bind mounts and named volumes", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
 		rs := docker.RunSpec{Volumes: []string{dir + ":/workspace:rw", "cache-vol:/cache"}}
@@ -214,7 +217,7 @@ func Test_buildVolumeArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-dir", dir + ":/workspace"}, args)
+		assert.Equal(t, []string{"--mount-dir", dir + ":/workspace", "--mount-named", "cache-vol:/cache:" + ownerOptions()}, args)
 	})
 
 	t.Run("returns an invalid mount's error", func(t *testing.T) {
@@ -223,6 +226,34 @@ func Test_buildVolumeArgs(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "invalid volume")
+	})
+}
+
+func Test_buildNamedVolumeArgs(t *testing.T) {
+	t.Run("owns the volume by the host user", func(t *testing.T) {
+		// Act
+		args, err := buildNamedVolumeArgs("maven:/home/claude/.m2", "", "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"--mount-named", "maven:/home/claude/.m2:" + ownerOptions()}, args)
+	})
+
+	t.Run("adds ro before the owner", func(t *testing.T) {
+		// Act
+		args, err := buildNamedVolumeArgs("maven:/home/claude/.m2:ro", "", "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"--mount-named", "maven:/home/claude/.m2:ro," + ownerOptions()}, args)
+	})
+
+	t.Run("returns a parse error", func(t *testing.T) {
+		// Act
+		_, err := buildNamedVolumeArgs("maven", "", "")
+
+		// Assert
+		assert.ErrorContains(t, err, `invalid volume "maven"`)
 	})
 }
 
@@ -323,31 +354,68 @@ func Test_buildMountArgs(t *testing.T) {
 		assert.Equal(t, []string{"--mount-file", file + ":/home/claude/.claude.json"}, args)
 	})
 
-	t.Run("expands variables", func(t *testing.T) {
+	t.Run("adds ro to the target", func(t *testing.T) {
 		// Act
-		args, err := buildMountArgs("$TOOL_HOME:$CONTAINER_HOME/.claude", dir, "/home/claude")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-dir", dir + ":/home/claude/.claude"}, args)
-	})
-
-	t.Run("keeps ro and drops other options", func(t *testing.T) {
-		// Act
-		args, err := buildMountArgs(dir+":/workspace:ro,z", "", "")
+		args, err := buildMountArgs(dir+":/workspace:ro", "", "")
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"--mount-dir", dir + ":/workspace:ro"}, args)
 	})
 
-	t.Run("errors without a guest path", func(t *testing.T) {
+	t.Run("returns a parse error", func(t *testing.T) {
 		// Act
 		_, err := buildMountArgs(dir, "", "")
 
 		// Assert
 		assert.ErrorContains(t, err, "expected host:container")
 	})
+}
+
+func Test_parseMountSpec(t *testing.T) {
+	t.Run("expands host and guest variables", func(t *testing.T) {
+		// Act
+		source, guest, _, err := parseMountSpec("$TOOL_HOME:$CONTAINER_HOME/.claude", "/example.test/home", "/home/claude")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "/example.test/home", source)
+		assert.Equal(t, "/home/claude/.claude", guest)
+	})
+
+	t.Run("reports ro among the options", func(t *testing.T) {
+		// Act
+		_, _, readOnly, err := parseMountSpec("maven:/cache:z,ro", "", "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, readOnly)
+	})
+
+	t.Run("rw is not read-only", func(t *testing.T) {
+		// Act
+		_, _, readOnly, err := parseMountSpec("maven:/cache:rw", "", "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, readOnly)
+	})
+
+	t.Run("errors without a guest path", func(t *testing.T) {
+		// Act
+		_, _, _, err := parseMountSpec("maven", "", "")
+
+		// Assert
+		assert.ErrorContains(t, err, `invalid volume "maven": expected host:container[:options]`)
+	})
+}
+
+func Test_ownerOptions(t *testing.T) {
+	// Act
+	options := ownerOptions()
+
+	// Assert
+	assert.Equal(t, "uid="+platform.GetUID()+",gid="+platform.GetGID(), options)
 }
 
 func Test_resolveEnv(t *testing.T) {

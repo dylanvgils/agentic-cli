@@ -250,6 +250,23 @@ func TestBuild(t *testing.T) {
 		assert.Contains(t, err.Error(), "network error")
 	})
 
+	t.Run("microsandbox skips the Docker volumes and network", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{
+			inspectImage:       trusted,
+			ensureNamedVolumes: func([]string, string, string, string) error { return fmt.Errorf("volume error") },
+			ensureNetwork:      func() error { return fmt.Errorf("network error") },
+		}
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir(), Runtime: RuntimeMicrosandbox}
+
+		// Act
+		_, err := New(d, nil).Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
 	t.Run("proxy wired with merged allowlist and image", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
