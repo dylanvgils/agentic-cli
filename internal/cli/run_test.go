@@ -274,4 +274,3 @@ func Test_runRequest(t *testing.T) {
 	assert.Equal(t, []string{"/example.test/b:/b"}, req.Flags.ReadOnlyMounts)
 	assert.Equal(t, []string{"FOO=bar"}, req.Flags.Env)
 }
-

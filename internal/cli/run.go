@@ -38,6 +38,7 @@ type parsedArgs struct {
 // invocation is an `agentic run` call resolved against the working dir's config.
 type invocation struct {
 	parsedArgs
+	runtime    run.Runtime
 	cwd        string
 	layers     []config.RCLayer
 	rc         *config.AgenticRC
@@ -73,11 +74,6 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	}
 
-	runtime, err := run.ParseRuntime(flagRuntime)
-	if err != nil {
-		return err
-	}
-
 	inv, err := parseInvocation(cmd, args)
 	if err != nil {
 		return err
@@ -91,11 +87,16 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return svc.Run(runtime, rs, inv.toolArgs)
+	return svc.Run(inv.runtime, rs, inv.toolArgs)
 }
 
-// parseInvocation loads the working dir's config layers and parses the tool, image and tool args from args.
+// parseInvocation parses the runtime, loads the working dir's config layers and parses the tool, image and tool args from args.
 func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
+	runtime, err := run.ParseRuntime(flagRuntime)
+	if err != nil {
+		return invocation{}, err
+	}
+
 	cwd, _ := os.Getwd()
 	if err := run.CheckProjectDir(cwd); err != nil {
 		return invocation{}, err
@@ -119,6 +120,7 @@ func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
 
 	return invocation{
 		parsedArgs: parsed,
+		runtime:    runtime,
 		cwd:        cwd,
 		layers:     layers,
 		rc:         rc,
