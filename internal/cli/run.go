@@ -16,7 +16,6 @@ var (
 	flagEnv            []string
 	flagDryRun         bool
 	flagTrustDir       bool
-	flagRuntime        string
 )
 
 var runToolCmd = &cobra.Command{
@@ -38,7 +37,6 @@ type parsedArgs struct {
 // invocation is an `agentic run` call resolved against the working dir's config.
 type invocation struct {
 	parsedArgs
-	runtime    run.Runtime
 	cwd        string
 	layers     []config.RCLayer
 	rc         *config.AgenticRC
@@ -58,13 +56,12 @@ func init() {
 		"environment variable to set in the container (format: KEY=VALUE, or KEY to forward the host value); repeatable")
 	runToolCmd.Flags().BoolVar(&flagDryRun, dryRunFlagName, false, "print the docker command without running it")
 	runToolCmd.Flags().BoolVar(&flagTrustDir, "trust-dir", false, "trust the current directory and save it to config")
-	runToolCmd.Flags().StringVar(&flagRuntime, "runtime", string(run.RuntimeDocker), "experimental: where the tool runs (docker or microsandbox)")
-	_ = runToolCmd.Flags().MarkHidden("runtime")
 	runToolCmd.Flags().SetInterspersed(false)
 
 	addResourceLimitFlags(runToolCmd)
 	addProxyFlags(runToolCmd)
 	addDindFlags(runToolCmd)
+	addRuntimeFlag(runToolCmd)
 	addNamespaceFlag(runToolCmd)
 	addRegistryFlag(runToolCmd)
 }
@@ -79,24 +76,23 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	req, err := runRequest(cmd, inv)
+	if err != nil {
+		return err
+	}
+
 	svc := run.New(dockerClient, msbClient)
-	req := runRequest(cmd, inv)
 	rs, cleanup, err := svc.Prepare(req, ttyPrompter{})
 	defer cleanup()
 	if err != nil {
 		return err
 	}
 
-	return svc.Run(inv.runtime, rs, inv.toolArgs)
+	return svc.Run(req.Flags.Runtime, rs, inv.toolArgs)
 }
 
-// parseInvocation parses the runtime, loads the working dir's config layers and parses the tool, image and tool args from args.
+// parseInvocation loads the working dir's config layers and parses the tool, image and tool args from args.
 func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
-	runtime, err := run.ParseRuntime(flagRuntime)
-	if err != nil {
-		return invocation{}, err
-	}
-
 	cwd, _ := os.Getwd()
 	if err := run.CheckProjectDir(cwd); err != nil {
 		return invocation{}, err
@@ -120,7 +116,6 @@ func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
 
 	return invocation{
 		parsedArgs: parsed,
-		runtime:    runtime,
 		cwd:        cwd,
 		layers:     layers,
 		rc:         rc,
@@ -129,8 +124,12 @@ func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
 }
 
 // runRequest collects the run flags for inv; Prepare resolves them against inv's config.
-func runRequest(cmd *cobra.Command, inv invocation) run.Request {
-	flags := runtimeFlags(cmd)
+func runRequest(cmd *cobra.Command, inv invocation) (run.Request, error) {
+	flags, err := runtimeFlags(cmd)
+	if err != nil {
+		return run.Request{}, err
+	}
+
 	flags.TrustDir = flagTrustDir
 	flags.DryRun = flagDryRun
 	flags.Registry = collectRegistry(cmd)
@@ -138,7 +137,6 @@ func runRequest(cmd *cobra.Command, inv invocation) run.Request {
 	flags.Secrets = flagSecrets
 	flags.ReadOnlyMounts = flagReadOnlyMounts
 	flags.Env = flagEnv
-	flags.Runtime = inv.runtime
 
 	return run.Request{
 		Target: run.Target{
@@ -153,7 +151,7 @@ func runRequest(cmd *cobra.Command, inv invocation) run.Request {
 			RC:     inv.rc,
 		},
 		Flags: flags,
-	}
+	}, nil
 }
 
 // parseArgs splits args into the tool, its image in namespace and the tool args; a leading "--" skips the entrypoint.

@@ -29,6 +29,7 @@ func init() {
 	addResourceLimitFlags(instructionsCmd)
 	addProxyFlags(instructionsCmd)
 	addDindFlags(instructionsCmd)
+	addRuntimeFlag(instructionsCmd)
 	addNamespaceFlag(instructionsCmd)
 }
 
@@ -60,11 +61,16 @@ func instructionsRequest(cmd *cobra.Command, toolName string) (run.Request, stri
 		return run.Request{}, "", err
 	}
 
+	flags, err := runtimeFlags(cmd)
+	if err != nil {
+		return run.Request{}, "", err
+	}
+
 	return run.Request{
 		Target:  run.Target{ToolName: toolName, ImageName: imageName},
 		Tool:    tools.Configs[toolName],
 		Project: run.Project{RC: rc},
-		Flags:   runtimeFlags(cmd),
+		Flags:   flags,
 	}, namespace, nil
 }
 

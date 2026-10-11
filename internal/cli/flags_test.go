@@ -232,26 +232,59 @@ func Test_warnSkipInstallChecksum(t *testing.T) {
 }
 
 func Test_runtimeFlags(t *testing.T) {
-	// Arrange
 	withTempToolHome(t)
-	cmd := &cobra.Command{Use: "test"}
-	addResourceLimitFlags(cmd)
-	addProxyFlags(cmd)
-	addDindFlags(cmd)
-	require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
-	require.NoError(t, cmd.Flags().Set("dind", "true"))
-	require.NoError(t, cmd.Flags().Set("cpus", "2"))
-	require.NoError(t, cmd.Flags().Set("dind-memory", "1g"))
 
-	// Act
-	flags := runtimeFlags(cmd)
+	newCmd := func() *cobra.Command {
+		cmd := &cobra.Command{Use: "test"}
+		addResourceLimitFlags(cmd)
+		addProxyFlags(cmd)
+		addDindFlags(cmd)
+		addRuntimeFlag(cmd)
+		return cmd
+	}
 
-	// Assert
-	assert.Equal(t, run.Flags{
-		ToolHome:   toolHome,
-		Proxy:      resolve.ProxyInput{MonitorFlag: true},
-		Dind:       resolve.DindInput{DindFlag: true},
-		Limits:     docker.ResourceLimits{CPUs: "2"},
-		DindLimits: docker.ResourceLimits{Memory: "1g"},
-	}, flags)
+	t.Run("reads the shared flags", func(t *testing.T) {
+		// Arrange
+		cmd := newCmd()
+		require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
+		require.NoError(t, cmd.Flags().Set("dind", "true"))
+		require.NoError(t, cmd.Flags().Set("cpus", "2"))
+		require.NoError(t, cmd.Flags().Set("dind-memory", "1g"))
+		require.NoError(t, cmd.Flags().Set("runtime", "microsandbox"))
+
+		// Act
+		flags, err := runtimeFlags(cmd)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, run.Flags{
+			ToolHome:   toolHome,
+			Proxy:      resolve.ProxyInput{MonitorFlag: true},
+			Dind:       resolve.DindInput{DindFlag: true},
+			Limits:     docker.ResourceLimits{CPUs: "2"},
+			DindLimits: docker.ResourceLimits{Memory: "1g"},
+			Runtime:    run.RuntimeMicrosandbox,
+		}, flags)
+	})
+
+	t.Run("runtime defaults to docker", func(t *testing.T) {
+		// Act
+		flags, err := runtimeFlags(newCmd())
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, run.RuntimeDocker, flags.Runtime)
+	})
+
+	t.Run("unknown runtime returns error", func(t *testing.T) {
+		// Arrange
+		cmd := newCmd()
+		require.NoError(t, cmd.Flags().Set("runtime", "podman"))
+
+		// Act
+		_, err := runtimeFlags(cmd)
+
+		// Assert
+		assert.ErrorContains(t, err, `unknown runtime "podman"`)
+	})
 }
