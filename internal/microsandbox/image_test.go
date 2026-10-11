@@ -15,7 +15,7 @@ func TestLoadImage(t *testing.T) {
 		// Arrange
 		var gotArgs []string
 		var gotInput string
-		client := newTestClient(&fakeRunner{run: func(r io.Reader, args ...string) (string, error) {
+		client := newTestClient(&fakeRunner{runWithStdin: func(r io.Reader, args ...string) (string, error) {
 			gotArgs = args
 			b, err := io.ReadAll(r)
 			gotInput = string(b)
@@ -33,7 +33,7 @@ func TestLoadImage(t *testing.T) {
 
 	t.Run("wraps the error", func(t *testing.T) {
 		// Arrange
-		client := newTestClient(&fakeRunner{run: func(io.Reader, ...string) (string, error) {
+		client := newTestClient(&fakeRunner{runWithStdin: func(io.Reader, ...string) (string, error) {
 			return "", errors.New("boom")
 		}})
 
@@ -49,7 +49,7 @@ func TestImageRefs(t *testing.T) {
 	t.Run("returns one ref per non-empty line", func(t *testing.T) {
 		// Arrange
 		var gotArgs []string
-		client := newTestClient(&fakeRunner{run: func(_ io.Reader, args ...string) (string, error) {
+		client := newTestClient(&fakeRunner{run: func(args ...string) (string, error) {
 			gotArgs = args
 			return "agentic-claude:abc123\n\n  python:latest  \n", nil
 		}})
@@ -65,7 +65,7 @@ func TestImageRefs(t *testing.T) {
 
 	t.Run("wraps the error", func(t *testing.T) {
 		// Arrange
-		client := newTestClient(&fakeRunner{run: func(io.Reader, ...string) (string, error) {
+		client := newTestClient(&fakeRunner{run: func(...string) (string, error) {
 			return "", errors.New("boom")
 		}})
 
@@ -81,7 +81,7 @@ func TestRemoveImage(t *testing.T) {
 	t.Run("runs msb rmi for the ref", func(t *testing.T) {
 		// Arrange
 		var gotArgs []string
-		client := newTestClient(&fakeRunner{run: func(_ io.Reader, args ...string) (string, error) {
+		client := newTestClient(&fakeRunner{run: func(args ...string) (string, error) {
 			gotArgs = args
 			return "", nil
 		}})
@@ -96,7 +96,7 @@ func TestRemoveImage(t *testing.T) {
 
 	t.Run("wraps the error", func(t *testing.T) {
 		// Arrange
-		client := newTestClient(&fakeRunner{run: func(io.Reader, ...string) (string, error) {
+		client := newTestClient(&fakeRunner{run: func(...string) (string, error) {
 			return "", errors.New("in use")
 		}})
 

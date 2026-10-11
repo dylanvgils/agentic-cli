@@ -12,15 +12,23 @@ import (
 
 // fakeRunner is the runner of a newTestClient; unset funcs fail like a missing msb binary.
 type fakeRunner struct {
-	run            func(r io.Reader, args ...string) (string, error)
+	run            func(args ...string) (string, error)
+	runWithStdin   func(r io.Reader, args ...string) (string, error)
 	runInteractive func(args ...string) error
 }
 
-func (f *fakeRunner) Run(r io.Reader, args ...string) (string, error) {
+func (f *fakeRunner) Run(args ...string) (string, error) {
 	if f.run == nil {
 		return "", fmt.Errorf("fake: unexpected msb %v", args)
 	}
-	return f.run(r, args...)
+	return f.run(args...)
+}
+
+func (f *fakeRunner) RunWithStdin(r io.Reader, args ...string) (string, error) {
+	if f.runWithStdin == nil {
+		return "", fmt.Errorf("fake: unexpected msb %v", args)
+	}
+	return f.runWithStdin(r, args...)
 }
 
 func (f *fakeRunner) RunInteractive(args ...string) error {
