@@ -50,9 +50,6 @@ func Ignored(rs docker.RunSpec) []string {
 	if rs.Dind.Enabled {
 		ignored = append(ignored, "--dind")
 	}
-	if len(rs.Secrets) > 0 {
-		ignored = append(ignored, "secrets")
-	}
 	for _, volume := range rs.Volumes {
 		if isNamedVolume(volume, rs) {
 			ignored = append(ignored, "named volume "+mount.HostPart(volume))
@@ -73,6 +70,11 @@ func buildRunArgs(rs docker.RunSpec, toolArgs []string) ([]string, error) {
 		return nil, err
 	}
 
+	secretArgs, err := buildSecretArgs(rs)
+	if err != nil {
+		return nil, err
+	}
+
 	entrypointArgs, toolArgs, err := buildEntrypointArgs(rs, toolArgs)
 	if err != nil {
 		return nil, err
@@ -83,6 +85,7 @@ func buildRunArgs(rs docker.RunSpec, toolArgs []string) ([]string, error) {
 	args = append(args, buildEnvArgs(rs)...)
 	args = append(args, buildTmpfsArgs(rs)...)
 	args = append(args, volumeArgs...)
+	args = append(args, secretArgs...)
 	args = append(args, entrypointArgs...)
 	args = append(args, rs.Image)
 
@@ -147,6 +150,31 @@ func buildVolumeArgs(rs docker.RunSpec) ([]string, error) {
 	return args, nil
 }
 
+// buildSecretArgs mounts each secret read-only at /run/secrets/<name> or its given guest path.
+func buildSecretArgs(rs docker.RunSpec) ([]string, error) {
+	var args []string
+	for _, secret := range rs.Secrets {
+		name, rest, ok := strings.Cut(secret, ":")
+		if !ok {
+			return nil, fmt.Errorf("invalid secret %q: expected name:/path[:/container/path]", secret)
+		}
+
+		hostPath, guestPath, found := mount.SplitHostContainer(rest)
+		if !found {
+			guestPath = "/run/secrets/" + name
+		} else if guestPath == "" {
+			return nil, fmt.Errorf("invalid secret %q: empty container path", secret)
+		}
+
+		mountArgs, err := buildMountArgs(hostPath+":"+guestPath+":ro", rs.ToolHome, rs.ContainerHome)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, mountArgs...)
+	}
+	return args, nil
+}
+
 // buildEntrypointArgs makes the first tool arg the entrypoint when rs skips the image's own, returning the flag and the remaining tool args.
 func buildEntrypointArgs(rs docker.RunSpec, toolArgs []string) (args, rest []string, err error) {
 	if !rs.SkipEntrypoint {
@@ -189,15 +217,15 @@ func isNamedVolume(volume string, rs docker.RunSpec) bool {
 }
 
 // buildMountArgs maps a bind mount spec to --mount-file or --mount-dir, keeping only the ro/rw option.
-func buildMountArgs(volume, toolHome, containerHome string) ([]string, error) {
-	spec := mount.NormalizeMountSpec(mount.ExpandMountSpec(volume, toolHome, containerHome))
+func buildMountArgs(volume, toolHome, guestHome string) ([]string, error) {
+	spec := mount.NormalizeMountSpec(mount.ExpandMountSpec(volume, toolHome, guestHome))
 	host, rest, ok := mount.SplitHostContainer(spec)
 	if !ok {
 		return nil, fmt.Errorf("invalid volume %q: expected host:container[:options]", volume)
 	}
 
-	container, options, _ := strings.Cut(rest, ":")
-	target := host + ":" + container
+	guest, options, _ := strings.Cut(rest, ":")
+	target := host + ":" + guest
 	if slices.Contains(strings.Split(options, ","), "ro") {
 		target += ":ro"
 	}
@@ -209,9 +237,9 @@ func buildMountArgs(volume, toolHome, containerHome string) ([]string, error) {
 	return []string{flag, target}, nil
 }
 
-// tmpfsPath returns the expanded container path of a tmpfs spec, dropping Docker's options.
-func tmpfsPath(spec, containerHome string) string {
-	path, _, _ := strings.Cut(mount.ExpandTmpfsSpec(spec, containerHome), ":")
+// tmpfsPath returns the expanded guest path of a tmpfs spec, dropping Docker's options.
+func tmpfsPath(spec, guestHome string) string {
+	path, _, _ := strings.Cut(mount.ExpandTmpfsSpec(spec, guestHome), ":")
 	return path
 }
 

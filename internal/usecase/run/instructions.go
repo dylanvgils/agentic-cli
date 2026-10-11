@@ -162,7 +162,7 @@ func writeMissingToolsNote(b *strings.Builder, runtime Runtime) {
 	b.WriteString("If a task needs a missing tool, tell the user why it's needed so they can add it (e.g. via custom_installs in .agenticrc.toml) and rebuild the image.\n\n")
 }
 
-// writeFilesystemSection notes the microVM's root as private rather than read-only, and skips secrets, which it doesn't mount.
+// writeFilesystemSection notes the microVM's root as private rather than read-only.
 func writeFilesystemSection(b *strings.Builder, toolConfig tools.ToolConfig, containerHome string, runtime Runtime) {
 	vm := runtime == RuntimeMicrosandbox
 	env := "container"
@@ -180,11 +180,11 @@ func writeFilesystemSection(b *strings.Builder, toolConfig tools.ToolConfig, con
 		fmt.Fprintf(b, "- `%s` is writable but ephemeral (cleared when the %s exits).\n", tmpfsPath(spec, containerHome), env)
 	}
 
+	b.WriteString("- Any mounted secrets under `/run/secrets/` are read-only.\n")
 	if vm {
-		b.WriteString("- Writes outside mounted directories stay inside this VM and never reach the user's machine.\n\n")
-	} else {
-		b.WriteString("- Any mounted secrets under `/run/secrets/` are read-only.\n\n")
+		b.WriteString("- Writes outside mounted directories stay inside this VM and never reach the user's machine.\n")
 	}
+	b.WriteString("\n")
 }
 
 // tmpfsPath extracts the container-side path from a tmpfs mount spec, expanding $CONTAINER_HOME.

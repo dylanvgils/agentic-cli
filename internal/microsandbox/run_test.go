@@ -65,7 +65,7 @@ func TestClient_Run(t *testing.T) {
 func TestIgnored(t *testing.T) {
 	t.Run("empty for a plain run with bind mounts", func(t *testing.T) {
 		// Arrange
-		rs := docker.RunSpec{Volumes: []string{"/host/project:/workspace"}}
+		rs := docker.RunSpec{Volumes: []string{"/host/project:/workspace"}, Secrets: []string{"token:/host/token"}}
 
 		// Act
 		ignored := Ignored(rs)
@@ -91,7 +91,6 @@ func TestIgnored(t *testing.T) {
 			"the egress proxy (egress is unfiltered)",
 			"credential injection",
 			"--dind",
-			"secrets",
 			"named volume cache",
 		}, ignored)
 	})
@@ -124,6 +123,7 @@ func Test_buildRunArgs(t *testing.T) {
 			ContainerHome: "/home/claude",
 			Limits:        docker.ResourceLimits{CPUs: "2"},
 			TmpfsMounts:   []string{"/tmp"},
+			Secrets:       []string{"token:/example.test/token"},
 		}
 
 		// Act
@@ -134,6 +134,7 @@ func Test_buildRunArgs(t *testing.T) {
 		assert.Equal(t, "run", args[0])
 		assert.Less(t, slices.Index(args, "--cpus"), slices.Index(args, "img"))
 		assert.Less(t, slices.Index(args, "--tmpfs"), slices.Index(args, "img"))
+		assert.Less(t, slices.Index(args, "/example.test/token:/run/secrets/token:ro"), slices.Index(args, "img"))
 	})
 
 	t.Run("passes only the tool args the entrypoint leaves", func(t *testing.T) {
@@ -225,6 +226,50 @@ func Test_buildVolumeArgs(t *testing.T) {
 	})
 }
 
+func Test_buildSecretArgs(t *testing.T) {
+	t.Run("mounts a secret file read-only under /run/secrets", func(t *testing.T) {
+		// Arrange
+		file := filepath.Join(t.TempDir(), "token")
+		require.NoError(t, os.WriteFile(file, []byte("test-secret"), 0o600))
+
+		// Act
+		args, err := buildSecretArgs(docker.RunSpec{Secrets: []string{"token:" + file}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"--mount-file", file + ":/run/secrets/token:ro"}, args)
+	})
+
+	t.Run("uses an explicit guest path", func(t *testing.T) {
+		// Arrange
+		file := filepath.Join(t.TempDir(), "token")
+		require.NoError(t, os.WriteFile(file, []byte("test-secret"), 0o600))
+
+		// Act
+		args, err := buildSecretArgs(docker.RunSpec{Secrets: []string{"token:" + file + ":/etc/app/token"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"--mount-file", file + ":/etc/app/token:ro"}, args)
+	})
+
+	t.Run("rejects a secret without a path", func(t *testing.T) {
+		// Act
+		_, err := buildSecretArgs(docker.RunSpec{Secrets: []string{"token"}})
+
+		// Assert
+		assert.ErrorContains(t, err, `invalid secret "token": expected name:/path[:/container/path]`)
+	})
+
+	t.Run("rejects an empty container path", func(t *testing.T) {
+		// Act
+		_, err := buildSecretArgs(docker.RunSpec{Secrets: []string{"token:/example.test/token:"}})
+
+		// Assert
+		assert.ErrorContains(t, err, "empty container path")
+	})
+}
+
 func Test_buildEntrypointArgs(t *testing.T) {
 	t.Run("keeps the image's entrypoint by default", func(t *testing.T) {
 		// Act
@@ -296,7 +341,7 @@ func Test_buildMountArgs(t *testing.T) {
 		assert.Equal(t, []string{"--mount-dir", dir + ":/workspace:ro"}, args)
 	})
 
-	t.Run("errors without a container path", func(t *testing.T) {
+	t.Run("errors without a guest path", func(t *testing.T) {
 		// Act
 		_, err := buildMountArgs(dir, "", "")
 
