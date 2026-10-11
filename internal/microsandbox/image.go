@@ -8,7 +8,7 @@ import (
 
 // LoadImage loads a `docker save` tar archive read from r into msb's image store, adding tag as a local reference.
 func (c *Client) LoadImage(r io.Reader, tag string) error {
-	if _, err := c.runner.RunWithStdin(r, "load", "--tag", tag); err != nil {
+	if _, err := c.runner.RunWithStdin(r, "load", arg("tag", tag)); err != nil {
 		return fmt.Errorf("load image into msb: %w", err)
 	}
 	return nil
@@ -16,7 +16,7 @@ func (c *Client) LoadImage(r io.Reader, tag string) error {
 
 // ImageRefs lists the references of the images in msb's image store.
 func (c *Client) ImageRefs() ([]string, error) {
-	out, err := c.runner.Run("images", "--quiet")
+	out, err := c.runner.Run("images", arg("quiet"))
 	if err != nil {
 		return nil, fmt.Errorf("list msb images: %w", err)
 	}

@@ -100,12 +100,12 @@ func buildLimitArgs(limits docker.ResourceLimits) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid cpus %q: %w", limits.CPUs, err)
 		}
-		args = append(args, "--cpus", strconv.Itoa(int(math.Ceil(cpus))))
+		args = append(args, arg("cpus", strconv.Itoa(int(math.Ceil(cpus)))))
 	}
 
 	// msb spells units in upper case (512M, 4G)
 	if limits.Memory != "" {
-		args = append(args, "--memory", strings.ToUpper(limits.Memory))
+		args = append(args, arg("memory", strings.ToUpper(limits.Memory)))
 	}
 
 	return args, nil
@@ -115,7 +115,7 @@ func buildLimitArgs(limits docker.ResourceLimits) ([]string, error) {
 func buildEnvArgs(rs docker.RunSpec) []string {
 	var args []string
 	for _, entry := range resolveEnv(rs.Env) {
-		args = append(args, "--env", entry)
+		args = append(args, arg("env", entry))
 	}
 	return args
 }
@@ -124,7 +124,7 @@ func buildEnvArgs(rs docker.RunSpec) []string {
 func buildTmpfsArgs(rs docker.RunSpec) []string {
 	var args []string
 	for _, spec := range rs.TmpfsMounts {
-		args = append(args, "--tmpfs", tmpfsPath(spec, rs.ContainerHome))
+		args = append(args, arg("tmpfs", tmpfsPath(spec, rs.ContainerHome)))
 	}
 	return args
 }
@@ -179,7 +179,7 @@ func buildEntrypointArgs(rs docker.RunSpec, toolArgs []string) (args, rest []str
 	if len(toolArgs) == 0 {
 		return nil, nil, errors.New("skipping the entrypoint with --runtime microsandbox needs a command")
 	}
-	return []string{"--entrypoint", toolArgs[0]}, toolArgs[1:], nil
+	return []string{arg("entrypoint", toolArgs[0])}, toolArgs[1:], nil
 }
 
 // resolveEnv returns the sandbox env as KEY=VALUE: forwarded terminal vars and host timezone, then
@@ -224,11 +224,11 @@ func buildMountArgs(volume, toolHome, guestHome string) ([]string, error) {
 		target += ":ro"
 	}
 
-	flag := "--mount-dir"
+	flag := "mount-dir"
 	if info, err := os.Stat(host); err == nil && !info.IsDir() {
-		flag = "--mount-file"
+		flag = "mount-file"
 	}
-	return []string{flag, target}, nil
+	return []string{arg(flag, target)}, nil
 }
 
 // buildNamedVolumeArgs maps a named volume spec to --mount-named, owned by the host user like the image user, keeping only the ro option.
@@ -242,7 +242,7 @@ func buildNamedVolumeArgs(volume, toolHome, guestHome string) ([]string, error) 
 	if readOnly {
 		options = "ro," + options
 	}
-	return []string{"--mount-named", name + ":" + guest + ":" + options}, nil
+	return []string{arg("mount-named", name+":"+guest+":"+options)}, nil
 }
 
 // parseMountSpec expands and normalizes a source:guest[:options] mount spec, reporting whether its options include ro.
