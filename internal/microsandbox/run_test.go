@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -125,7 +126,6 @@ func Test_buildRunArgs(t *testing.T) {
 			Image:         "img",
 			ContainerHome: "/home/claude",
 			Limits:        docker.ResourceLimits{CPUs: "2"},
-			TmpfsMounts:   []string{"/tmp"},
 			Secrets:       []string{"token:/example.test/token"},
 		}
 
@@ -136,10 +136,22 @@ func Test_buildRunArgs(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "run", args[0])
 		image := slices.Index(args, "img")
-		for _, flag := range []string{"--cpus=2", "--tmpfs=/tmp", "--mount-dir=/example.test/token:/run/secrets/token:ro"} {
+		for _, flag := range []string{"--cpus=2", "--mount-dir=/example.test/token:/run/secrets/token:ro"} {
 			assert.Contains(t, args, flag)
 			assert.Less(t, slices.Index(args, flag), image)
 		}
+	})
+
+	t.Run("leaves out the tool's tmpfs mounts, since the VM root is writable", func(t *testing.T) {
+		// Arrange
+		rs := docker.RunSpec{Image: "img", TmpfsMounts: []string{"/tmp:exec,size=1g"}}
+
+		// Act
+		args, err := buildRunArgs(rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotContains(t, strings.Join(args, " "), "tmpfs")
 	})
 
 	t.Run("passes only the tool args the entrypoint leaves", func(t *testing.T) {
@@ -195,17 +207,6 @@ func Test_buildEnvArgs(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, []string{"--env=CI=true"}, args)
-}
-
-func Test_buildTmpfsArgs(t *testing.T) {
-	// Arrange
-	rs := docker.RunSpec{ContainerHome: "/home/claude", TmpfsMounts: []string{"/tmp", "$CONTAINER_HOME/.cache:exec,size=1g"}}
-
-	// Act
-	args := buildTmpfsArgs(rs)
-
-	// Assert
-	assert.Equal(t, []string{"--tmpfs=/tmp", "--tmpfs=/home/claude/.cache"}, args)
 }
 
 func Test_buildVolumeArgs(t *testing.T) {

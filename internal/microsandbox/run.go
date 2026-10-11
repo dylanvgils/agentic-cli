@@ -78,7 +78,6 @@ func buildRunArgs(rs docker.RunSpec, toolArgs []string) ([]string, error) {
 	args := []string{"run"}
 	args = append(args, limitArgs...)
 	args = append(args, buildEnvArgs(rs)...)
-	args = append(args, buildTmpfsArgs(rs)...)
 	args = append(args, volumeArgs...)
 	args = append(args, secretArgs...)
 	args = append(args, entrypointArgs...)
@@ -116,15 +115,6 @@ func buildEnvArgs(rs docker.RunSpec) []string {
 	var args []string
 	for _, entry := range resolveEnv(rs.Env) {
 		args = append(args, arg("env", entry))
-	}
-	return args
-}
-
-// buildTmpfsArgs maps the tmpfs mounts to --tmpfs flags, dropping Docker's options.
-func buildTmpfsArgs(rs docker.RunSpec) []string {
-	var args []string
-	for _, spec := range rs.TmpfsMounts {
-		args = append(args, arg("tmpfs", tmpfsPath(spec, rs.ContainerHome)))
 	}
 	return args
 }
@@ -261,12 +251,6 @@ func parseMountSpec(volume, toolHome, guestHome string) (source, guest string, r
 // ownerOptions returns msb's mount owner options for the host uid/gid, which the image user is created with.
 func ownerOptions() string {
 	return "uid=" + platform.GetUID() + ",gid=" + platform.GetGID()
-}
-
-// tmpfsPath returns the expanded guest path of a tmpfs spec, dropping Docker's options.
-func tmpfsPath(spec, guestHome string) string {
-	path, _, _ := strings.Cut(mount.ExpandTmpfsSpec(spec, guestHome), ":")
-	return path
 }
 
 // shellJoin renders args as a shell command line, single-quoting any arg that needs it.
