@@ -35,6 +35,7 @@ type fakeDocker struct {
 	pruneDangling         func() error
 	resolveContainerHome  func(string) string
 	runContainer          func(rs docker.RunSpec, toolArgs []string) error
+	saveImage             func(image string, w io.Writer) error
 	listRunningContainers func() ([]*docker.ContainerInfo, error)
 	ensureNetwork         func() error
 	removeNetwork         func() error
@@ -139,6 +140,13 @@ func (f *fakeDocker) RunContainer(rs docker.RunSpec, toolArgs []string) error {
 		return nil
 	}
 	return f.runContainer(rs, toolArgs)
+}
+
+func (f *fakeDocker) SaveImage(image string, w io.Writer) error {
+	if f.saveImage == nil {
+		return nil
+	}
+	return f.saveImage(image, w)
 }
 
 func (f *fakeDocker) ListRunningContainers() ([]*docker.ContainerInfo, error) {
@@ -258,6 +266,9 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 	if o.runContainer != nil {
 		f.runContainer = o.runContainer
+	}
+	if o.saveImage != nil {
+		f.saveImage = o.saveImage
 	}
 	if o.listRunningContainers != nil {
 		f.listRunningContainers = o.listRunningContainers
@@ -408,6 +419,34 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 	})
 
 	return func() (docker.RunSpec, []string) { return capturedSpec, capturedArgs }
+}
+
+// fakeMicrosandbox is a hand-written run.Microsandbox; nil funcs succeed.
+type fakeMicrosandbox struct {
+	loadImage func(r io.Reader) error
+	run       func(rs docker.RunSpec, toolArgs []string) error
+}
+
+func (f *fakeMicrosandbox) LoadImage(r io.Reader) error {
+	if f.loadImage == nil {
+		return nil
+	}
+	return f.loadImage(r)
+}
+
+func (f *fakeMicrosandbox) Run(rs docker.RunSpec, toolArgs []string) error {
+	if f.run == nil {
+		return nil
+	}
+	return f.run(rs, toolArgs)
+}
+
+// stubMicrosandbox installs f as msbClient until the test ends.
+func stubMicrosandbox(t *testing.T, f *fakeMicrosandbox) {
+	t.Helper()
+	orig := msbClient
+	msbClient = f
+	t.Cleanup(func() { msbClient = orig })
 }
 
 // withTempToolHome sets toolHome to a temp dir and pre-trusts the dirs tests run in (os.TempDir() for t.Chdir, cwd otherwise).

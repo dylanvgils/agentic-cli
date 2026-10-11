@@ -29,6 +29,7 @@ func init() {
 	addResourceLimitFlags(instructionsCmd)
 	addProxyFlags(instructionsCmd)
 	addDindFlags(instructionsCmd)
+	addRuntimeFlag(instructionsCmd)
 	addNamespaceFlag(instructionsCmd)
 }
 
@@ -38,7 +39,7 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	content, err := run.New(dockerClient).PreviewInstructions(req)
+	content, err := run.New(dockerClient, msbClient).PreviewInstructions(req)
 	if err != nil {
 		return err
 	}
@@ -60,11 +61,16 @@ func instructionsRequest(cmd *cobra.Command, toolName string) (run.Request, stri
 		return run.Request{}, "", err
 	}
 
+	flags, err := runtimeFlags(cmd)
+	if err != nil {
+		return run.Request{}, "", err
+	}
+
 	return run.Request{
 		Target:  run.Target{ToolName: toolName, ImageName: imageName},
 		Tool:    tools.Configs[toolName],
 		Project: run.Project{RC: rc},
-		Flags:   runtimeFlags(cmd),
+		Flags:   flags,
 	}, namespace, nil
 }
 

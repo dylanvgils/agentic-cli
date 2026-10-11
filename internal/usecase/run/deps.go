@@ -1,6 +1,8 @@
 package run
 
 import (
+	"io"
+
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
@@ -25,6 +27,14 @@ type Docker interface {
 	ResolveContainerHome(image string) string
 	EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage string) error
 	EnsureNetwork() error
+	SaveImage(image string, w io.Writer) error
+	RunContainer(rs docker.RunSpec, toolArgs []string) error
+}
+
+// Microsandbox is the subset of *microsandbox.Client this package uses.
+type Microsandbox interface {
+	LoadImage(r io.Reader) error
+	Run(rs docker.RunSpec, toolArgs []string) error
 }
 
 // Prompter asks the user to approve what a run needs; a nil error means approved.

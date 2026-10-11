@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,6 +51,31 @@ func Test_instructionsRequest(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "bogus")
+	})
+
+	t.Run("runtime flag lands in the request", func(t *testing.T) {
+		// Arrange
+		t.Chdir(t.TempDir())
+		stubFlag(t, instructionsCmd, "runtime", "microsandbox")
+
+		// Act
+		req, _, err := instructionsRequest(instructionsCmd, "claude")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, run.RuntimeMicrosandbox, req.Flags.Runtime)
+	})
+
+	t.Run("unknown runtime returns error", func(t *testing.T) {
+		// Arrange
+		t.Chdir(t.TempDir())
+		stubFlag(t, instructionsCmd, "runtime", "podman")
+
+		// Act
+		_, _, err := instructionsRequest(instructionsCmd, "claude")
+
+		// Assert
+		assert.ErrorContains(t, err, `unknown runtime "podman"`)
 	})
 
 	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {

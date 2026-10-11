@@ -19,7 +19,7 @@ func Test_requireDockerLayer(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).requireDockerLayer("agentic-claude", "claude")
+		err := New(d, nil).requireDockerLayer("agentic-claude", "claude")
 
 		// Assert
 		require.NoError(t, err)
@@ -34,7 +34,7 @@ func Test_requireDockerLayer(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).requireDockerLayer("agentic-claude", "claude")
+		err := New(d, nil).requireDockerLayer("agentic-claude", "claude")
 
 		// Assert
 		require.Error(t, err)
@@ -50,7 +50,7 @@ func Test_requireDockerLayer(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).requireDockerLayer("agentic-claude", "claude")
+		err := New(d, nil).requireDockerLayer("agentic-claude", "claude")
 
 		// Assert
 		require.ErrorContains(t, err, "docker daemon not running")

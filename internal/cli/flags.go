@@ -102,6 +102,12 @@ func addDindFlags(cmd *cobra.Command) {
 	cmd.MarkFlagsMutuallyExclusive("dind", noDindFlagName)
 }
 
+// addRuntimeFlag registers the hidden, experimental --runtime flag shared by the run and instructions commands.
+func addRuntimeFlag(cmd *cobra.Command) {
+	cmd.Flags().String("runtime", string(run.RuntimeDocker), "experimental: where the tool runs (docker or microsandbox)")
+	_ = cmd.Flags().MarkHidden("runtime")
+}
+
 // resolveDindResourceLimitFlags returns the --dind-* limit flag values.
 func resolveDindResourceLimitFlags(cmd *cobra.Command) docker.ResourceLimits {
 	return limitFlags(cmd, "dind-pids-limit", "dind-cpus", "dind-memory")
@@ -124,15 +130,22 @@ func dindInput(cmd *cobra.Command) resolve.DindInput {
 	return resolve.DindInput{DindFlag: dindFlag, NoDindFlag: noDindFlag}
 }
 
-// runtimeFlags reads the flags run and instructions share: home, proxy, dind and resource limits.
-func runtimeFlags(cmd *cobra.Command) run.Flags {
+// runtimeFlags reads the flags run and instructions share: home, runtime, proxy, dind and resource limits.
+func runtimeFlags(cmd *cobra.Command) (run.Flags, error) {
+	name, _ := cmd.Flags().GetString("runtime")
+	runtime, err := run.ParseRuntime(name)
+	if err != nil {
+		return run.Flags{}, err
+	}
+
 	return run.Flags{
 		ToolHome:   toolHome,
 		Proxy:      proxyInput(cmd),
 		Dind:       dindInput(cmd),
 		Limits:     resolveResourceLimitFlags(cmd),
 		DindLimits: resolveDindResourceLimitFlags(cmd),
-	}
+		Runtime:    runtime,
+	}, nil
 }
 
 // buildOptsFromFlags constructs a BuildOptions from the command's flags and the project config.

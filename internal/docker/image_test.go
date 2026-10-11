@@ -1,7 +1,10 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -136,6 +139,42 @@ func TestInspectImage(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, inspectArgs, "agentic-opencode")
 		assert.Contains(t, lsArgs, "--filter=reference=agentic-opencode")
+	})
+}
+
+func TestSaveImage(t *testing.T) {
+	client := newTestClient()
+
+	t.Run("streams docker save to the writer", func(t *testing.T) {
+		// Arrange
+		var gotArgs []string
+		fakeOf(client).stream = func(w io.Writer, args ...string) error {
+			gotArgs = args
+			_, err := io.WriteString(w, "tar-bytes")
+			return err
+		}
+		t.Cleanup(func() { fakeOf(client).stream = nil })
+		var out strings.Builder
+
+		// Act
+		err := client.SaveImage("agentic-claude", &out)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"save", "agentic-claude"}, gotArgs)
+		assert.Equal(t, "tar-bytes", out.String())
+	})
+
+	t.Run("wraps the error", func(t *testing.T) {
+		// Arrange
+		fakeOf(client).stream = func(io.Writer, ...string) error { return errors.New("boom") }
+		t.Cleanup(func() { fakeOf(client).stream = nil })
+
+		// Act
+		err := client.SaveImage("agentic-claude", io.Discard)
+
+		// Assert
+		assert.ErrorContains(t, err, "save image agentic-claude: boom")
 	})
 }
 

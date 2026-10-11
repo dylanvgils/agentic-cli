@@ -61,6 +61,7 @@ func init() {
 	addResourceLimitFlags(runToolCmd)
 	addProxyFlags(runToolCmd)
 	addDindFlags(runToolCmd)
+	addRuntimeFlag(runToolCmd)
 	addNamespaceFlag(runToolCmd)
 	addRegistryFlag(runToolCmd)
 }
@@ -75,14 +76,19 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	req := runRequest(cmd, inv)
-	rs, cleanup, err := run.New(dockerClient).Prepare(req, ttyPrompter{})
+	req, err := runRequest(cmd, inv)
+	if err != nil {
+		return err
+	}
+
+	svc := run.New(dockerClient, msbClient)
+	rs, cleanup, err := svc.Prepare(req, ttyPrompter{})
 	defer cleanup()
 	if err != nil {
 		return err
 	}
 
-	return dockerClient.RunContainer(rs, inv.toolArgs)
+	return svc.Run(req.Flags.Runtime, rs, inv.toolArgs)
 }
 
 // parseInvocation loads the working dir's config layers and parses the tool, image and tool args from args.
@@ -118,8 +124,12 @@ func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
 }
 
 // runRequest collects the run flags for inv; Prepare resolves them against inv's config.
-func runRequest(cmd *cobra.Command, inv invocation) run.Request {
-	flags := runtimeFlags(cmd)
+func runRequest(cmd *cobra.Command, inv invocation) (run.Request, error) {
+	flags, err := runtimeFlags(cmd)
+	if err != nil {
+		return run.Request{}, err
+	}
+
 	flags.TrustDir = flagTrustDir
 	flags.DryRun = flagDryRun
 	flags.Registry = collectRegistry(cmd)
@@ -141,7 +151,7 @@ func runRequest(cmd *cobra.Command, inv invocation) run.Request {
 			RC:     inv.rc,
 		},
 		Flags: flags,
-	}
+	}, nil
 }
 
 // parseArgs splits args into the tool, its image in namespace and the tool args; a leading "--" skips the entrypoint.

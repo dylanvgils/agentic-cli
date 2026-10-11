@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -138,6 +139,54 @@ func Test_runTool(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, rcPath)
 	})
+
+	t.Run("unknown runtime returns error", func(t *testing.T) {
+		// Arrange
+		stubFlag(t, runToolCmd, "runtime", "podman")
+
+		// Act
+		err := runTool(runToolCmd, []string{"claude"})
+
+		// Assert
+		assert.ErrorContains(t, err, `unknown runtime "podman"`)
+	})
+
+	t.Run("microsandbox runtime loads the image into microsandbox and runs it there", func(t *testing.T) {
+		// Arrange
+		t.Chdir(t.TempDir())
+		withTempToolHome(t)
+		get := captureRunContainer(t)
+		stubDocker(t, &fakeDocker{saveImage: func(image string, w io.Writer) error {
+			_, err := io.WriteString(w, "tar:"+image)
+			return err
+		}})
+		var loaded string
+		var ranSpec docker.RunSpec
+		var ranArgs []string
+		stubMicrosandbox(t, &fakeMicrosandbox{
+			loadImage: func(r io.Reader) error {
+				b, err := io.ReadAll(r)
+				loaded = string(b)
+				return err
+			},
+			run: func(rs docker.RunSpec, toolArgs []string) error {
+				ranSpec, ranArgs = rs, toolArgs
+				return nil
+			},
+		})
+		stubFlag(t, runToolCmd, "runtime", "microsandbox")
+
+		// Act
+		err := runTool(runToolCmd, []string{"claude", "--help"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "tar:agentic-claude", loaded)
+		assert.Equal(t, "agentic-claude", ranSpec.Image)
+		assert.Equal(t, []string{"--help"}, ranArgs)
+		rs, _ := get()
+		assert.Empty(t, rs.Image, "RunContainer should not be called")
+	})
 }
 
 func Test_parseArgs(t *testing.T) {
@@ -204,6 +253,7 @@ func Test_runRequest(t *testing.T) {
 	stubFlag(t, runToolCmd, "env", "FOO=bar")
 	stubFlag(t, runToolCmd, "registry", "registry.example.test")
 	stubFlag(t, runToolCmd, "proxy", "true")
+	stubFlag(t, runToolCmd, "runtime", "microsandbox")
 	inv := invocation{
 		parsedArgs: parsedArgs{toolName: "claude", imageName: "agentic-claude", skipEntrypoint: true},
 		cwd:        "/example.test/project",
@@ -211,9 +261,10 @@ func Test_runRequest(t *testing.T) {
 	}
 
 	// Act
-	req := runRequest(runToolCmd, inv)
+	req, err := runRequest(runToolCmd, inv)
 
 	// Assert - run-only flags land next to the shared runtimeFlags
+	require.NoError(t, err)
 	assert.Equal(t, run.Target{ToolName: "claude", ImageName: "agentic-claude", SkipEntrypoint: true}, req.Target)
 	assert.Equal(t, "/example.test/project", req.Project.Dir)
 	assert.True(t, req.Flags.TrustDir)
@@ -224,4 +275,5 @@ func Test_runRequest(t *testing.T) {
 	assert.Equal(t, []string{"token:/example.test/token"}, req.Flags.Secrets)
 	assert.Equal(t, []string{"/example.test/b:/b"}, req.Flags.ReadOnlyMounts)
 	assert.Equal(t, []string{"FOO=bar"}, req.Flags.Env)
+	assert.Equal(t, run.RuntimeMicrosandbox, req.Flags.Runtime)
 }

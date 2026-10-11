@@ -8,6 +8,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/git"
 	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
@@ -30,6 +31,9 @@ var (
 
 	// dockerClient is the Docker client every command uses; persistentPreRunE rebuilds it for the resolved context.
 	dockerClient dockerAPI = docker.New("")
+
+	// msbClient runs tools for `agentic run --runtime microsandbox`.
+	msbClient run.Microsandbox = microsandbox.New()
 )
 
 // dockerAPI is the subset of *docker.Client the cli and the usecases it calls use.
@@ -43,7 +47,6 @@ type dockerAPI interface {
 	Context() string
 	CurrentContext() (string, error)
 	CheckDaemon() error
-	RunContainer(rs docker.RunSpec, toolArgs []string) error
 	CreateVolume(name string) error
 	ListVolumes() (string, error)
 	ListVolumeNames() ([]string, error)
