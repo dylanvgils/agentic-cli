@@ -36,6 +36,12 @@ func New() *Client {
 	return &Client{runner: execRunner{}}
 }
 
+// Available returns an error with an install hint when msb is not on PATH.
+func (c *Client) Available() error {
+	_, err := lookPath()
+	return err
+}
+
 func (execRunner) Run(args ...string) (string, error) {
 	cmd, err := command(args...)
 	if err != nil {

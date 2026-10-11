@@ -16,6 +16,30 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, execRunner{}, client.runner)
 }
 
+func TestClient_Available(t *testing.T) {
+	t.Run("nil when msb is on PATH", func(t *testing.T) {
+		// Arrange
+		stubMsb(t, "true")
+
+		// Act
+		err := New().Available()
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("install hint when msb is missing", func(t *testing.T) {
+		// Arrange
+		t.Setenv("PATH", t.TempDir())
+
+		// Act
+		err := New().Available()
+
+		// Assert
+		assert.ErrorIs(t, err, errNotInstalled)
+	})
+}
+
 func Test_execRunner_Run(t *testing.T) {
 	t.Run("captures output", func(t *testing.T) {
 		// Arrange

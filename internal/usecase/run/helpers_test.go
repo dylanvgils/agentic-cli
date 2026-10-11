@@ -126,10 +126,18 @@ func inspectImageID(id string) func(string) (*docker.ImageInfo, error) {
 
 // fakeMicrosandbox implements Microsandbox; a nil field succeeds.
 type fakeMicrosandbox struct {
+	available   func() error
 	loadImage   func(r io.Reader, tag string) error
 	imageRefs   func() ([]string, error)
 	removeImage func(ref string) error
 	run         func(rs docker.RunSpec, toolArgs []string) error
+}
+
+func (f *fakeMicrosandbox) Available() error {
+	if f.available == nil {
+		return nil
+	}
+	return f.available()
 }
 
 func (f *fakeMicrosandbox) LoadImage(r io.Reader, tag string) error {
