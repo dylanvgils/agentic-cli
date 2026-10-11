@@ -135,9 +135,11 @@ func Test_buildRunArgs(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "run", args[0])
-		assert.Less(t, slices.Index(args, "--cpus"), slices.Index(args, "img"))
-		assert.Less(t, slices.Index(args, "--tmpfs"), slices.Index(args, "img"))
-		assert.Less(t, slices.Index(args, "/example.test/token:/run/secrets/token:ro"), slices.Index(args, "img"))
+		image := slices.Index(args, "img")
+		for _, flag := range []string{"--cpus=2", "--tmpfs=/tmp", "--mount-dir=/example.test/token:/run/secrets/token:ro"} {
+			assert.Contains(t, args, flag)
+			assert.Less(t, slices.Index(args, flag), image)
+		}
 	})
 
 	t.Run("passes only the tool args the entrypoint leaves", func(t *testing.T) {
@@ -149,7 +151,7 @@ func Test_buildRunArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--entrypoint", "bash", "img", "--", "-l"}, args[len(args)-5:])
+		assert.Equal(t, []string{"--entrypoint=bash", "img", "--", "-l"}, args[len(args)-4:])
 	})
 
 	t.Run("returns a helper's error", func(t *testing.T) {
@@ -171,7 +173,7 @@ func Test_buildLimitArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--cpus", "2", "--memory", "4G"}, args)
+		assert.Equal(t, []string{"--cpus=2", "--memory=4G"}, args)
 	})
 
 	t.Run("rejects an invalid cpus value", func(t *testing.T) {
@@ -192,7 +194,7 @@ func Test_buildEnvArgs(t *testing.T) {
 	args := buildEnvArgs(docker.RunSpec{Env: []string{"CI=true"}})
 
 	// Assert
-	assert.Equal(t, []string{"--env", "CI=true"}, args)
+	assert.Equal(t, []string{"--env=CI=true"}, args)
 }
 
 func Test_buildTmpfsArgs(t *testing.T) {
@@ -203,7 +205,7 @@ func Test_buildTmpfsArgs(t *testing.T) {
 	args := buildTmpfsArgs(rs)
 
 	// Assert
-	assert.Equal(t, []string{"--tmpfs", "/tmp", "--tmpfs", "/home/claude/.cache"}, args)
+	assert.Equal(t, []string{"--tmpfs=/tmp", "--tmpfs=/home/claude/.cache"}, args)
 }
 
 func Test_buildVolumeArgs(t *testing.T) {
@@ -217,7 +219,7 @@ func Test_buildVolumeArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-dir", dir + ":/workspace", "--mount-named", "cache-vol:/cache:" + ownerOptions()}, args)
+		assert.Equal(t, []string{"--mount-dir=" + dir + ":/workspace", "--mount-named=cache-vol:/cache:" + ownerOptions()}, args)
 	})
 
 	t.Run("returns an invalid mount's error", func(t *testing.T) {
@@ -236,7 +238,7 @@ func Test_buildNamedVolumeArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-named", "maven:/home/claude/.m2:" + ownerOptions()}, args)
+		assert.Equal(t, []string{"--mount-named=maven:/home/claude/.m2:" + ownerOptions()}, args)
 	})
 
 	t.Run("adds ro before the owner", func(t *testing.T) {
@@ -245,7 +247,7 @@ func Test_buildNamedVolumeArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-named", "maven:/home/claude/.m2:ro," + ownerOptions()}, args)
+		assert.Equal(t, []string{"--mount-named=maven:/home/claude/.m2:ro," + ownerOptions()}, args)
 	})
 
 	t.Run("returns a parse error", func(t *testing.T) {
@@ -268,7 +270,7 @@ func Test_buildSecretArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-file", file + ":/run/secrets/token:ro"}, args)
+		assert.Equal(t, []string{"--mount-file=" + file + ":/run/secrets/token:ro"}, args)
 	})
 
 	t.Run("uses an explicit guest path", func(t *testing.T) {
@@ -281,7 +283,7 @@ func Test_buildSecretArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-file", file + ":/etc/app/token:ro"}, args)
+		assert.Equal(t, []string{"--mount-file=" + file + ":/etc/app/token:ro"}, args)
 	})
 
 	t.Run("rejects a secret without a path", func(t *testing.T) {
@@ -318,7 +320,7 @@ func Test_buildEntrypointArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--entrypoint", "bash"}, args)
+		assert.Equal(t, []string{"--entrypoint=bash"}, args)
 		assert.Equal(t, []string{"-l"}, rest)
 	})
 
@@ -342,7 +344,7 @@ func Test_buildMountArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-dir", dir + ":/workspace"}, args)
+		assert.Equal(t, []string{"--mount-dir=" + dir + ":/workspace"}, args)
 	})
 
 	t.Run("mounts a file with --mount-file", func(t *testing.T) {
@@ -351,7 +353,7 @@ func Test_buildMountArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-file", file + ":/home/claude/.claude.json"}, args)
+		assert.Equal(t, []string{"--mount-file=" + file + ":/home/claude/.claude.json"}, args)
 	})
 
 	t.Run("adds ro to the target", func(t *testing.T) {
@@ -360,7 +362,7 @@ func Test_buildMountArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-dir", dir + ":/workspace:ro"}, args)
+		assert.Equal(t, []string{"--mount-dir=" + dir + ":/workspace:ro"}, args)
 	})
 
 	t.Run("returns a parse error", func(t *testing.T) {

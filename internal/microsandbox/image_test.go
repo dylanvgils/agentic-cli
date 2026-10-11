@@ -27,7 +27,7 @@ func TestLoadImage(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"load", "--tag", "agentic-claude:abc123"}, gotArgs)
+		assert.Equal(t, []string{"load", "--tag=agentic-claude:abc123"}, gotArgs)
 		assert.Equal(t, "tar-bytes", gotInput)
 	})
 
