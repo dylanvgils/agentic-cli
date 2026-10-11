@@ -138,6 +138,7 @@ func runRequest(cmd *cobra.Command, inv invocation) run.Request {
 	flags.Secrets = flagSecrets
 	flags.ReadOnlyMounts = flagReadOnlyMounts
 	flags.Env = flagEnv
+	flags.Runtime = inv.runtime
 
 	return run.Request{
 		Target: run.Target{

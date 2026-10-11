@@ -242,6 +242,66 @@ func TestBuildInstructions(t *testing.T) {
 		assert.Contains(t, content, "  - registry-1.docker.io\n")
 	})
 
+	t.Run("microsandbox describes a VM instead of the hardened container", func(t *testing.T) {
+		// Arrange
+		in := Input{Runtime: RuntimeMicrosandbox, Limits: docker.ResourceLimits{CPUs: "3", Memory: "6g"}}
+
+		// Act
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["copilot"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, content, "inside an agentic-cli microVM")
+		assert.Contains(t, content, "## Precedence")
+		assert.Contains(t, content, "- Base toolchain (always installed):\n")
+		assert.Contains(t, content, "there is no sudo")
+		assert.Contains(t, content, ".cache")
+		assert.Contains(t, content, "- CPUs: 3\n- Memory: 6g\n")
+		assert.NotContains(t, content, "read-only")
+		assert.NotContains(t, content, "pids")
+		assert.NotContains(t, content, "capabilities dropped")
+	})
+
+	t.Run("microsandbox omits the proxy and sidecar even when enabled", func(t *testing.T) {
+		// Arrange
+		in := Input{Runtime: RuntimeMicrosandbox, ProxyMode: docker.ProxyEnforce, DindEnabled: true}
+
+		// Act
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotContains(t, content, "## Network")
+		assert.NotContains(t, content, "egress proxy")
+		assert.NotContains(t, content, "sidecar")
+		assert.Contains(t, content, "no Docker daemon in this VM")
+	})
+
+	t.Run("microsandbox omits the docker section when dind disabled", func(t *testing.T) {
+		// Arrange
+		in := Input{Runtime: RuntimeMicrosandbox}
+
+		// Act
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotContains(t, content, "## Docker")
+	})
+
+	t.Run("microsandbox still appends custom instructions", func(t *testing.T) {
+		// Arrange
+		in := Input{Runtime: RuntimeMicrosandbox}
+		rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Custom: "Always run go test before finishing."}}}
+
+		// Act
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, content, "Always run go test before finishing.")
+	})
+
 	t.Run("custom instructions appended when set", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Custom: "Always run go test before finishing."}}}

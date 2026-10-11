@@ -44,6 +44,8 @@ type Input struct {
 	DindEnabled    bool
 	// Sidecar limit flags; empty falls back to config
 	DindLimits docker.ResourceLimits
+	// Runtime is where the run executes; empty means Docker
+	Runtime Runtime
 	// Credentials are the approved proxy credentials; Prepare fills them in
 	Credentials []credentials.Resolved
 	// InstructionsMount is the mount spec for this run's instructions snapshot, empty when disabled.

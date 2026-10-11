@@ -337,6 +337,7 @@ func Test_resolveInput(t *testing.T) {
 			Env:            []string{"FOO=bar"},
 			Limits:         docker.ResourceLimits{CPUs: "2"},
 			DindLimits:     docker.ResourceLimits{Memory: "1g"},
+			Runtime:        RuntimeMicrosandbox,
 		}
 
 		// Act
@@ -356,6 +357,7 @@ func Test_resolveInput(t *testing.T) {
 			ProxyMode:      docker.ProxyMonitor,
 			DindEnabled:    true,
 			DindLimits:     docker.ResourceLimits{Memory: "1g"},
+			Runtime:        RuntimeMicrosandbox,
 		}, in)
 	})
 

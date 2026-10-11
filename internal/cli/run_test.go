@@ -255,6 +255,7 @@ func Test_runRequest(t *testing.T) {
 	stubFlag(t, runToolCmd, "proxy", "true")
 	inv := invocation{
 		parsedArgs: parsedArgs{toolName: "claude", imageName: "agentic-claude", skipEntrypoint: true},
+		runtime:    run.RuntimeMicrosandbox,
 		cwd:        "/example.test/project",
 		rc:         &config.AgenticRC{},
 	}
@@ -273,4 +274,5 @@ func Test_runRequest(t *testing.T) {
 	assert.Equal(t, []string{"token:/example.test/token"}, req.Flags.Secrets)
 	assert.Equal(t, []string{"/example.test/b:/b"}, req.Flags.ReadOnlyMounts)
 	assert.Equal(t, []string{"FOO=bar"}, req.Flags.Env)
+	assert.Equal(t, run.RuntimeMicrosandbox, req.Flags.Runtime)
 }

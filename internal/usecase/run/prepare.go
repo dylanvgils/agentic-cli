@@ -44,6 +44,7 @@ type Flags struct {
 	Env            []string
 	Limits         docker.ResourceLimits
 	DindLimits     docker.ResourceLimits
+	Runtime        Runtime
 }
 
 // Prepare runs every check and host-side step `agentic run` needs, asking prompter where the user must approve, and returns
@@ -154,6 +155,7 @@ func resolveInput(flags Flags, rc *config.AgenticRC) (Input, error) {
 		ProxyMode:      proxyMode,
 		DindEnabled:    resolve.DindEnabled(flags.Dind, rc),
 		DindLimits:     flags.DindLimits,
+		Runtime:        flags.Runtime,
 	}, nil
 }
 

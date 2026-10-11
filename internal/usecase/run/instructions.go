@@ -65,16 +65,21 @@ func (s *Service) BuildInstructions(target Target, in Input, toolConfig tools.To
 	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
 
 	var b strings.Builder
-	b.WriteString("# Agentic container environment\n\n")
-	b.WriteString("This tool is running inside an agentic-cli container. The sections below describe what's installed and what's restricted, so operations that will fail are clear up front.\n\n")
+	if in.Runtime == RuntimeMicrosandbox {
+		writeMicrosandboxSections(&b, info, toolConfig, containerHome, limits, in)
+	} else {
+		b.WriteString("# Agentic container environment\n\n")
+		b.WriteString("This tool is running inside an agentic-cli container. The sections below describe what's installed and what's restricted, so operations that will fail are clear up front.\n\n")
 
-	writePrecedenceSection(&b)
-	writeCapabilitiesSection(&b, info)
-	writeFilesystemSection(&b, toolConfig, containerHome)
-	writeResourceLimitsSection(&b, limits)
-	writePrivilegeSection(&b)
-	writeNetworkSection(&b, toolConfig, rc, in)
-	writeDockerSection(&b, in, dindLimits)
+		writePrecedenceSection(&b)
+		writeCapabilitiesSection(&b, info)
+		writeMissingToolsNote(&b)
+		writeFilesystemSection(&b, toolConfig, containerHome)
+		writeResourceLimitsSection(&b, limits)
+		writePrivilegeSection(&b)
+		writeNetworkSection(&b, toolConfig, rc, in)
+		writeDockerSection(&b, in, dindLimits)
+	}
 	writeCustomSection(&b, rc)
 
 	return b.String(), nil
@@ -108,7 +113,7 @@ func instructionsEnabled(rc *config.AgenticRC) bool {
 // writePrecedenceSection scopes the generated block to environment facts, deferring to the project's own instructions file on conflicts.
 func writePrecedenceSection(b *strings.Builder) {
 	b.WriteString("## Precedence\n\n")
-	b.WriteString("These auto-generated notes describe the container environment, not project or personal conventions - they don't apply to anything you or the tool have added to this file yourself. If this project has its own instructions file (CLAUDE.md, AGENTS.md, copilot-instructions.md), follow it whenever it conflicts with anything below.\n\n")
+	b.WriteString("These auto-generated notes describe this environment, not project or personal conventions - they don't apply to anything you or the tool have added to this file yourself. If this project has its own instructions file (CLAUDE.md, AGENTS.md, copilot-instructions.md), follow it whenever it conflicts with anything below.\n\n")
 }
 
 func writeCapabilitiesSection(b *strings.Builder, info *docker.ImageInfo) {
@@ -117,7 +122,6 @@ func writeCapabilitiesSection(b *strings.Builder, info *docker.ImageInfo) {
 
 	if info == nil {
 		b.WriteString("(image not built yet - remaining capability details unavailable)\n")
-		writeMissingToolsNote(b)
 		return
 	}
 
@@ -132,7 +136,6 @@ func writeCapabilitiesSection(b *strings.Builder, info *docker.ImageInfo) {
 	if info.CustomInstalls != "" {
 		writeSubList(b, "Custom installs", strings.Split(info.CustomInstalls, ","))
 	}
-	writeMissingToolsNote(b)
 }
 
 // writeSubList writes label as a bullet followed by each item as a nested bullet.
@@ -218,6 +221,36 @@ func writeDockerSection(b *strings.Builder, in Input, limits docker.ResourceLimi
 		b.WriteString("- Image pulls, builds and containers go through the same egress proxy and allowlist; a registry other than Docker Hub must be added to allowed_hosts.\n")
 	}
 	b.WriteString("\n")
+}
+
+// writeMicrosandboxSections describes a microsandbox VM, which has no read-only root, pids limit, egress proxy or Docker daemon.
+func writeMicrosandboxSections(b *strings.Builder, info *docker.ImageInfo, toolConfig tools.ToolConfig, containerHome string, limits docker.ResourceLimits, in Input) {
+	b.WriteString("# Agentic microVM environment\n\n")
+	b.WriteString("This tool is running inside an agentic-cli microVM with its own kernel. The sections below describe what's installed and what's restricted, so operations that will fail are clear up front.\n\n")
+
+	writePrecedenceSection(b)
+	writeCapabilitiesSection(b, info)
+	b.WriteString("\nAnything not listed above cannot be installed or run - there is no sudo and apt needs root. If a task needs a missing tool, tell the user why it's needed so they can add it (e.g. via custom_installs in .agenticrc.toml) and rebuild the image.\n\n")
+
+	b.WriteString("## Filesystem\n\n")
+	b.WriteString("- `/workspace` (the current project) is writable and shared with the user's machine.\n")
+	for _, spec := range toolConfig.Runtime.TmpfsMounts() {
+		fmt.Fprintf(b, "- `%s` is writable but ephemeral (cleared when the VM exits).\n", tmpfsPath(spec, containerHome))
+	}
+	b.WriteString("- Writes outside mounted directories stay inside this VM and never reach the user's machine.\n\n")
+
+	b.WriteString("## Resource limits\n\n")
+	fmt.Fprintf(b, "- CPUs: %s\n", limits.CPUs)
+	fmt.Fprintf(b, "- Memory: %s\n", limits.Memory)
+	b.WriteString("\nThese are configurable, not hard caps - if a task needs more, tell the user why so they can raise cpus/memory in .agenticrc.toml (or the --cpus/--memory flags) and rerun.\n\n")
+
+	b.WriteString("## Privileges\n\n")
+	b.WriteString("- Running as a non-root user; `sudo` and system package installs will not work.\n\n")
+
+	if in.DindEnabled {
+		b.WriteString("## Docker\n\n")
+		b.WriteString("- There is no Docker daemon in this VM, so `docker` commands will fail.\n\n")
+	}
 }
 
 func writeCustomSection(b *strings.Builder, rc *config.AgenticRC) {
