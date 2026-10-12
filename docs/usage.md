@@ -22,7 +22,7 @@ Run `agentic help <command>` for all flags.
 | `status`                                   | Show whether Docker is running and list running agentic containers                   |
 | `config`                                   | Show the merged [configuration](config.md)                                           |
 | `namespaces <list\|prune>`                 | List namespaces, or remove all images in one                                         |
-| `volumes <create\|list\|remove> [name]`    | Manage [named volumes](#named-docker-volumes)                                        |
+| `volumes <create\|list\|remove> [name]`    | Manage [named volumes](#named-volumes)                                               |
 | `marketplaces <list\|prune>`               | Manage [marketplace](#marketplaces) clones                                           |
 | `proxy <build\|update\|clean>`             | Manage the [egress proxy](egress-proxy.md) image                                     |
 | `migrate`                                  | Migrate `$AGENTIC_HOME`'s on-disk layout (runs automatically)                        |
@@ -96,7 +96,7 @@ agentic run -e CI claude
 - Names agentic manages are refused: `TOOL_HOME`, `CONTAINER_HOME`, `AGENTIC_MARKETPLACES` and `AGENTIC_PROXY_CA` always; the proxy vars with `--proxy`; the `DOCKER_*` vars with [`--dind`](docker-in-docker.md#how-it-stays-isolated); the CA and credential vars with [credential injection](egress-proxy.md#credential-injection).
 - `TZ` and the terminal vars (`COLORTERM`, `TERM`, `NO_COLOR`, `FORCE_COLOR`) are forwarded from the host automatically. Override them like any other var (`-e TZ=UTC`).
 
-## Named Docker volumes
+## Named volumes
 
 `-v` takes a bind mount (`host/path:container/path`) or a named volume (`name:container/path`). Named volumes are created on first use and persist across runs. Paths support [placeholders](config.md#mount-variable-expansion).
 
@@ -118,6 +118,8 @@ agentic volumes list              # alias: ls
 agentic volumes remove maven      # alias: rm
 agentic volumes remove            # remove all agentic volumes
 ```
+
+With the microsandbox runtime, msb stores the volume as `agentic-<name>`, so agentic can tell its volumes from yours. `list` and `remove` cover these too; `create` is Docker-only, since msb creates volumes on first use.
 
 ## Docker context
 

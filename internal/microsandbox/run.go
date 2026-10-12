@@ -15,6 +15,9 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
+// volumePrefix marks agentic's msb named volumes, since msb volumes have no labels.
+const volumePrefix = "agentic-"
+
 // Run runs the tool described by rs in a microsandbox VM, skipping what Ignored lists; the image must already be loaded.
 func (c *Client) Run(rs sandbox.RunSpec, toolArgs []string) error {
 	args, err := buildRunArgs(rs, toolArgs)
@@ -182,7 +185,7 @@ func buildMountArgs(volume, toolHome, guestHome string) ([]string, error) {
 	return []string{arg(flag, target)}, nil
 }
 
-// buildNamedVolumeArgs maps a named volume spec to --mount-named, owned by the host user like the image user, keeping only the ro option.
+// buildNamedVolumeArgs maps a named volume spec to --mount-named on its prefixed msb volume, owned by the host user like the image user, keeping only the ro option.
 func buildNamedVolumeArgs(volume, toolHome, guestHome string) ([]string, error) {
 	name, guest, readOnly, err := parseMountSpec(volume, toolHome, guestHome)
 	if err != nil {
@@ -193,7 +196,7 @@ func buildNamedVolumeArgs(volume, toolHome, guestHome string) ([]string, error) 
 	if readOnly {
 		options = "ro," + options
 	}
-	return []string{arg("mount-named", name+":"+guest+":"+options)}, nil
+	return []string{arg("mount-named", volumePrefix+name+":"+guest+":"+options)}, nil
 }
 
 // parseMountSpec expands and normalizes a source:guest[:options] mount spec, reporting whether its options include ro.

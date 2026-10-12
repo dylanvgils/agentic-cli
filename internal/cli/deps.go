@@ -15,6 +15,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/volumes"
 )
 
 var (
@@ -30,7 +31,7 @@ var (
 	// dockerClient is the Docker client every command uses; persistentPreRunE rebuilds it for the resolved context.
 	dockerClient dockerAPI = docker.New("")
 
-	// msbClient runs tools for `agentic run --runtime microsandbox`.
+	// msbClient runs tools for `agentic run --runtime microsandbox` and manages their images and volumes.
 	msbClient msbAPI = microsandbox.New()
 )
 
@@ -41,14 +42,13 @@ type dockerAPI interface {
 	update.Docker
 	run.Docker
 	sidecar.Docker
+	volumes.Docker
 
 	Context() string
 	CurrentContext() (string, error)
 	CheckDaemon() error
 	CreateVolume(name string) error
 	ListVolumes() (string, error)
-	ListVolumeNames() ([]string, error)
-	RemoveVolume(name string) error
 	ListRunningContainers() ([]*docker.ContainerInfo, error)
 	ListContexts() ([]string, error)
 }
@@ -57,4 +57,5 @@ type dockerAPI interface {
 type msbAPI interface {
 	run.Microsandbox
 	clean.Runtime
+	volumes.Microsandbox
 }

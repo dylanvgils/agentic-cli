@@ -115,6 +115,20 @@ func (f *fakeDocker) CleanImage(image string) error {
 	return f.cleanImage(image)
 }
 
+func (f *fakeMicrosandbox) ListVolumeNames() ([]string, error) {
+	if f.listVolumeNames == nil {
+		return nil, nil
+	}
+	return f.listVolumeNames()
+}
+
+func (f *fakeMicrosandbox) RemoveVolume(name string) error {
+	if f.removeVolume == nil {
+		return nil
+	}
+	return f.removeVolume(name)
+}
+
 func (f *fakeDocker) CleanBaseImages() error {
 	if f.cleanBaseImages == nil {
 		return nil
@@ -424,12 +438,14 @@ func captureRunContainer(t *testing.T) func() (sandbox.RunSpec, []string) {
 
 // fakeMicrosandbox is a hand-written msbAPI; nil funcs succeed.
 type fakeMicrosandbox struct {
-	available   func() error
-	loadImage   func(r io.Reader, tag string) error
-	imageRefs   func() ([]string, error)
-	removeImage func(ref string) error
-	run         func(rs sandbox.RunSpec, toolArgs []string) error
-	cleanImage  func(image string) error
+	available       func() error
+	loadImage       func(r io.Reader, tag string) error
+	imageRefs       func() ([]string, error)
+	removeImage     func(ref string) error
+	run             func(rs sandbox.RunSpec, toolArgs []string) error
+	cleanImage      func(image string) error
+	listVolumeNames func() ([]string, error)
+	removeVolume    func(name string) error
 }
 
 func (f *fakeMicrosandbox) Available() error {
