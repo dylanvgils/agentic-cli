@@ -27,6 +27,14 @@ func clearTerminalEnv(t *testing.T) {
 	}
 }
 
+// stubHostUsesPowerShell replaces hostUsesPowerShell with a stub that returns val for the duration of the test.
+func stubHostUsesPowerShell(t *testing.T, val bool) {
+	t.Helper()
+	orig := hostUsesPowerShell
+	hostUsesPowerShell = func() bool { return val }
+	t.Cleanup(func() { hostUsesPowerShell = orig })
+}
+
 // stubLogs routes agentic-prefixed messages into the returned buffer for the duration of the test.
 func stubLogs(t *testing.T) *bytes.Buffer {
 	t.Helper()
