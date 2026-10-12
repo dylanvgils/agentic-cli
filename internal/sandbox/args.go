@@ -24,15 +24,24 @@ func Arg(name string, value ...string) string {
 	return "--" + name + "=" + value[0]
 }
 
-// ShellJoin renders args as a shell command line, single-quoting any arg that needs it.
-func ShellJoin(args []string) string {
-	parts := make([]string, len(args))
+// ShellCommand renders name and args as a shell command, one arg per line after the subcommand, quoting any arg that needs it.
+func ShellCommand(name string, args []string) string {
+	var b strings.Builder
+	b.WriteString(name)
 	for i, arg := range args {
-		if strings.ContainsAny(arg, " \t$'") {
-			parts[i] = "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
-		} else {
-			parts[i] = arg
+		sep := " "
+		if i > 0 {
+			sep = " \\\n  "
 		}
+		b.WriteString(sep + shellQuote(arg))
 	}
-	return strings.Join(parts, " ")
+	return b.String()
+}
+
+// shellQuote single-quotes arg if the shell would otherwise split or expand it.
+func shellQuote(arg string) string {
+	if strings.ContainsAny(arg, " \t$'") {
+		return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
+	}
+	return arg
 }

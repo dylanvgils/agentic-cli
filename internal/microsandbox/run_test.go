@@ -43,7 +43,7 @@ func TestClient_Run(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Regexp(t, `^msb run .*agentic-claude\n$`, out)
+		assert.Regexp(t, `(?s)^msb run \\\n.*  agentic-claude\n$`, out)
 	})
 
 	t.Run("runs with unsupported features left out", func(t *testing.T) {

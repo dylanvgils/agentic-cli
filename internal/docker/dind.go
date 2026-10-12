@@ -378,7 +378,7 @@ func (c *Client) dryRunDind(rs *toolRun) (toolArgs []string, cleanup func(), err
 		rs.network = handle.network
 	}
 
-	if _, err := fmt.Fprintln(os.Stdout, "docker", sandbox.ShellJoin(handle.runArgs(*rs))); err != nil {
+	if _, err := fmt.Fprintln(os.Stdout, sandbox.ShellCommand("docker", handle.runArgs(*rs))); err != nil {
 		return nil, nil, err
 	}
 	return handle.toolArgs(), noCleanup, nil

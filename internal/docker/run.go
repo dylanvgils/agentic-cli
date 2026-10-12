@@ -59,7 +59,7 @@ func (c *Client) RunContainer(spec sandbox.RunSpec, toolArgs []string) error {
 	}
 
 	if rs.DryRun {
-		_, err := fmt.Fprintln(os.Stdout, "docker", sandbox.ShellJoin(args))
+		_, err := fmt.Fprintln(os.Stdout, sandbox.ShellCommand("docker", args))
 		return err
 	}
 

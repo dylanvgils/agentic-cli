@@ -23,7 +23,7 @@ func (c *Client) Run(rs sandbox.RunSpec, toolArgs []string) error {
 	}
 
 	if rs.DryRun {
-		_, err := fmt.Fprintln(os.Stdout, "msb", sandbox.ShellJoin(args))
+		_, err := fmt.Fprintln(os.Stdout, sandbox.ShellCommand("msb", args))
 		return err
 	}
 

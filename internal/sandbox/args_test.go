@@ -47,10 +47,20 @@ func TestArg(t *testing.T) {
 	})
 }
 
-func TestShellJoin(t *testing.T) {
-	// Act
-	line := ShellJoin([]string{"run", "--env", "A=b c", "--env", "B=$X", "it's"})
+func TestShellCommand(t *testing.T) {
+	t.Run("puts each arg after the subcommand on its own line", func(t *testing.T) {
+		// Act
+		cmd := ShellCommand("docker", []string{"run", "--env=A=b c", "--env=B=$X", "it's"})
 
-	// Assert
-	assert.Equal(t, `run --env 'A=b c' --env 'B=$X' 'it'\''s'`, line)
+		// Assert
+		assert.Equal(t, "docker run \\\n  '--env=A=b c' \\\n  '--env=B=$X' \\\n  'it'\\''s'", cmd)
+	})
+
+	t.Run("keeps a lone subcommand on one line", func(t *testing.T) {
+		// Act
+		cmd := ShellCommand("docker", []string{"run"})
+
+		// Assert
+		assert.Equal(t, "docker run", cmd)
+	})
 }
