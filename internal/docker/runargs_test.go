@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,7 +13,7 @@ import (
 func TestBuildBaseArgs(t *testing.T) {
 	t.Run("security flags", func(t *testing.T) {
 		// Act
-		args := buildBaseArgs(RunSpec{Image: "agentic-claude"})
+		args := buildBaseArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}})
 
 		// Assert
 		assert.Contains(t, args, "run")
@@ -25,7 +26,7 @@ func TestBuildBaseArgs(t *testing.T) {
 
 	t.Run("name and label", func(t *testing.T) {
 		// Act
-		args := buildBaseArgs(RunSpec{Image: "agentic-claude", container: "agentic-claude-0123456789ab"})
+		args := buildBaseArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}, container: "agentic-claude-0123456789ab"})
 
 		// Assert
 		assert.Contains(t, args, "--name=agentic-claude-0123456789ab")
@@ -34,10 +35,10 @@ func TestBuildBaseArgs(t *testing.T) {
 
 	t.Run("resource limits from spec", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{
+		rs := toolRun{RunSpec: sandbox.RunSpec{
 			Image:  "agentic-claude",
-			Limits: ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
-		}
+			Limits: sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
+		}}
 
 		// Act
 		args := buildBaseArgs(rs)
@@ -76,7 +77,7 @@ func TestBuildTTYArgs(t *testing.T) {
 
 func TestBuildEnvArgs(t *testing.T) {
 	// Arrange
-	rs := RunSpec{Env: []string{"MAVEN_OPTS=-Dfoo=bar"}}
+	rs := sandbox.RunSpec{Env: []string{"MAVEN_OPTS=-Dfoo=bar"}}
 
 	// Act
 	args := buildEnvArgs(rs)
@@ -88,7 +89,7 @@ func TestBuildEnvArgs(t *testing.T) {
 func TestBuildTmpfsArgs(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		// Act
-		args := buildTmpfsArgs(RunSpec{Image: "agentic-claude"})
+		args := buildTmpfsArgs(sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Assert
 		assert.Empty(t, args)
@@ -96,7 +97,7 @@ func TestBuildTmpfsArgs(t *testing.T) {
 
 	t.Run("expands container home", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:         "agentic-copilot",
 			ContainerHome: "/home/user",
 			TmpfsMounts:   []string{"/tmp:exec,size=1g", "$CONTAINER_HOME/.cache:exec,size=1g"},
@@ -116,7 +117,7 @@ func TestBuildTmpfsArgs(t *testing.T) {
 func TestBuildVolumeArgs(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		// Act
-		args := buildVolumeArgs(RunSpec{Image: "agentic-claude"})
+		args := buildVolumeArgs(sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Assert
 		assert.Empty(t, args)
@@ -124,7 +125,7 @@ func TestBuildVolumeArgs(t *testing.T) {
 
 	t.Run("expands tool home", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:    "agentic-claude",
 			ToolHome: "/home/.agentic",
 			Volumes:  []string{"/host:/container", "$TOOL_HOME/data:/data"},
@@ -144,7 +145,7 @@ func TestBuildVolumeArgs(t *testing.T) {
 func TestBuildSecretArgs(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:   "agentic-copilot",
 			Secrets: []string{"mytoken:/tmp/token"},
 		}
@@ -159,7 +160,7 @@ func TestBuildSecretArgs(t *testing.T) {
 
 	t.Run("invalid format", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:   "agentic-copilot",
 			Secrets: []string{"badformat"},
 		}
@@ -176,7 +177,7 @@ func TestBuildSecretArgs(t *testing.T) {
 		home, err := os.UserHomeDir()
 		require.NoError(t, err)
 
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:   "agentic-copilot",
 			Secrets: []string{"mytoken:~/secrets/token"},
 		}

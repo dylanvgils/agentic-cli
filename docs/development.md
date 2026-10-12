@@ -26,13 +26,14 @@ agentic-cli/
 │   ├── output/                  # CLI output formatting
 │   ├── platform/                # Platform-specific paths and utilities
 │   ├── proxy/                   # Egress allowlist proxy: server, allowlist, JSON-lines logger, TLS-terminating credential injection
+│   ├── sandbox/                 # Runtime-neutral run spec (RunSpec, limits, proxy and dind specs) and helpers shared by the runtimes
 │   ├── selfupdate/              # Downloads and installs new releases from GitHub
 │   ├── tools/                   # Per-tool stage funcs, mounts, setup, and base layers
 │   └── usecase/                 # Business logic extracted out of internal/cli commands (see below)
 │       ├── build/               # Builds (or dry-run prints) tool images for `agentic build`
 │       ├── clean/               # Resolves and removes tool images and global Docker resources for `agentic clean`
 │       ├── resolve/             # Merges CLI flags, .agenticrc.toml, and agentic.json into the effective value of every setting agentic supports
-│       ├── run/                 # Prepares `agentic run`: image, update, trust and credential checks, sidecar images, then the docker.RunSpec
+│       ├── run/                 # Prepares `agentic run`: image, update, trust and credential checks, sidecar images, then the sandbox.RunSpec
 │       ├── sidecar/             # Builds the proxy and DinD sidecar images and decides when they need a refresh
 │       ├── toolupdate/          # Checks for and applies upstream tool version updates on `agentic run`
 │       ├── update/              # Resolves and applies `agentic update` targets - build-option recovery, --pull throttling

@@ -26,7 +26,7 @@ func (r ownedResource) isOrphan(existing map[string]bool) bool {
 }
 
 // ownerLabels tie a sidecar or its network to its tool container.
-func ownerLabels(rs RunSpec) []string {
+func ownerLabels(rs toolRun) []string {
 	return []string{
 		label(LabelOwner, rs.container),
 		label(LabelStarted, formatLabelTime(time.Now())),
@@ -34,7 +34,7 @@ func ownerLabels(rs RunSpec) []string {
 }
 
 // setupSidecars sweeps orphans, then starts the proxy and dind; cleanup stops both.
-func (c *Client) setupSidecars(rs *RunSpec) (args []string, cleanup func(), err error) {
+func (c *Client) setupSidecars(rs *toolRun) (args []string, cleanup func(), err error) {
 	if !rs.DryRun {
 		warnOnSweepError(c.sweepOrphanedSidecars(rs.ToolHome))
 	}

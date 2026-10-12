@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +20,7 @@ func TestProxyMode(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyOff, result)
+		assert.Equal(t, sandbox.ProxyOff, result)
 	})
 
 	t.Run("config enabled is honored", func(t *testing.T) {
@@ -32,7 +32,7 @@ func TestProxyMode(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyEnforce, result)
+		assert.Equal(t, sandbox.ProxyEnforce, result)
 	})
 
 	t.Run("proxy flag overrides config disabled", func(t *testing.T) {
@@ -44,7 +44,7 @@ func TestProxyMode(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyEnforce, result)
+		assert.Equal(t, sandbox.ProxyEnforce, result)
 	})
 
 	t.Run("no-proxy flag overrides config enabled", func(t *testing.T) {
@@ -56,7 +56,7 @@ func TestProxyMode(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyOff, result)
+		assert.Equal(t, sandbox.ProxyOff, result)
 	})
 
 	t.Run("proxy-monitor flag enables monitor mode", func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestProxyMode(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyMonitor, result)
+		assert.Equal(t, sandbox.ProxyMonitor, result)
 	})
 
 	t.Run("no-proxy flag overrides proxy-monitor flag", func(t *testing.T) {
@@ -74,7 +74,7 @@ func TestProxyMode(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyOff, result)
+		assert.Equal(t, sandbox.ProxyOff, result)
 	})
 
 	t.Run("config mode monitor implies enabled", func(t *testing.T) {
@@ -86,7 +86,7 @@ func TestProxyMode(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyMonitor, result)
+		assert.Equal(t, sandbox.ProxyMonitor, result)
 	})
 
 	t.Run("config enabled false wins over config mode monitor", func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestProxyMode(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyOff, result)
+		assert.Equal(t, sandbox.ProxyOff, result)
 	})
 
 	t.Run("credentials turn the proxy on", func(t *testing.T) {
@@ -110,7 +110,7 @@ func TestProxyMode(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyEnforce, result)
+		assert.Equal(t, sandbox.ProxyEnforce, result)
 	})
 
 	t.Run("credentials keep monitor mode", func(t *testing.T) {
@@ -122,7 +122,7 @@ func TestProxyMode(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyMonitor, result)
+		assert.Equal(t, sandbox.ProxyMonitor, result)
 	})
 
 	t.Run("no-proxy flag with credentials is an error", func(t *testing.T) {
@@ -156,7 +156,7 @@ func TestProxyMode(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyEnforce, result)
+		assert.Equal(t, sandbox.ProxyEnforce, result)
 	})
 }
 

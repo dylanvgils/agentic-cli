@@ -7,6 +7,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
@@ -309,8 +310,8 @@ func Test_resolveInput(t *testing.T) {
 			Secrets:        []string{"token:/example.test/token"},
 			ReadOnlyMounts: []string{"/example.test/b:/b"},
 			Env:            []string{"FOO=bar"},
-			Limits:         docker.ResourceLimits{CPUs: "2"},
-			DindLimits:     docker.ResourceLimits{Memory: "1g"},
+			Limits:         sandbox.ResourceLimits{CPUs: "2"},
+			DindLimits:     sandbox.ResourceLimits{Memory: "1g"},
 			Runtime:        RuntimeMicrosandbox,
 		}
 
@@ -325,12 +326,12 @@ func Test_resolveInput(t *testing.T) {
 			Secrets:        []string{"token:/example.test/token"},
 			ReadOnlyMounts: []string{"/example.test/b:/b"},
 			Env:            []string{"FOO=bar"},
-			Limits:         docker.ResourceLimits{CPUs: "2"},
+			Limits:         sandbox.ResourceLimits{CPUs: "2"},
 			DryRun:         true,
 			Registry:       "registry.example.test",
-			ProxyMode:      docker.ProxyMonitor,
+			ProxyMode:      sandbox.ProxyMonitor,
 			DindEnabled:    true,
-			DindLimits:     docker.ResourceLimits{Memory: "1g"},
+			DindLimits:     sandbox.ResourceLimits{Memory: "1g"},
 			Runtime:        RuntimeMicrosandbox,
 		}, in)
 	})

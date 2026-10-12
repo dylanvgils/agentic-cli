@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
@@ -17,7 +16,7 @@ import (
 )
 
 // Run runs the tool described by rs in a microsandbox VM, skipping what Ignored lists; the image must already be loaded.
-func (c *Client) Run(rs docker.RunSpec, toolArgs []string) error {
+func (c *Client) Run(rs sandbox.RunSpec, toolArgs []string) error {
 	args, err := buildRunArgs(rs, toolArgs)
 	if err != nil {
 		return err
@@ -34,7 +33,7 @@ func (c *Client) Run(rs docker.RunSpec, toolArgs []string) error {
 }
 
 // Ignored lists the parts of rs that msb runs don't honor yet.
-func Ignored(rs docker.RunSpec) []string {
+func Ignored(rs sandbox.RunSpec) []string {
 	var ignored []string
 	if rs.Proxy.Mode.Enabled() {
 		ignored = append(ignored, "the egress proxy (egress is unfiltered)")
@@ -49,7 +48,7 @@ func Ignored(rs docker.RunSpec) []string {
 }
 
 // buildRunArgs assembles the `msb run` args for rs.
-func buildRunArgs(rs docker.RunSpec, toolArgs []string) ([]string, error) {
+func buildRunArgs(rs sandbox.RunSpec, toolArgs []string) ([]string, error) {
 	limitArgs, err := buildLimitArgs(rs.Limits)
 	if err != nil {
 		return nil, err
@@ -86,7 +85,7 @@ func buildRunArgs(rs docker.RunSpec, toolArgs []string) ([]string, error) {
 }
 
 // buildLimitArgs maps the CPU and memory limits to msb flags; msb takes whole CPUs, so fractions round up.
-func buildLimitArgs(limits docker.ResourceLimits) ([]string, error) {
+func buildLimitArgs(limits sandbox.ResourceLimits) ([]string, error) {
 	var args []string
 
 	if limits.CPUs != "" {
@@ -106,7 +105,7 @@ func buildLimitArgs(limits docker.ResourceLimits) ([]string, error) {
 }
 
 // buildEnvArgs maps the resolved sandbox env to --env flags.
-func buildEnvArgs(rs docker.RunSpec) []string {
+func buildEnvArgs(rs sandbox.RunSpec) []string {
 	var args []string
 	for _, entry := range sandbox.ResolveEnv(rs.Env) {
 		args = append(args, arg("env", entry))
@@ -115,7 +114,7 @@ func buildEnvArgs(rs docker.RunSpec) []string {
 }
 
 // buildVolumeArgs maps the bind mounts and named volumes to mount flags.
-func buildVolumeArgs(rs docker.RunSpec) ([]string, error) {
+func buildVolumeArgs(rs sandbox.RunSpec) ([]string, error) {
 	var args []string
 	for _, volume := range rs.Volumes {
 		build := buildMountArgs
@@ -132,7 +131,7 @@ func buildVolumeArgs(rs docker.RunSpec) ([]string, error) {
 }
 
 // buildSecretArgs mounts each secret read-only at /run/secrets/<name> or its given guest path.
-func buildSecretArgs(rs docker.RunSpec) ([]string, error) {
+func buildSecretArgs(rs sandbox.RunSpec) ([]string, error) {
 	var args []string
 	for _, secret := range rs.Secrets {
 		hostPath, guestPath, err := mount.ParseSecretSpec(secret)
@@ -150,7 +149,7 @@ func buildSecretArgs(rs docker.RunSpec) ([]string, error) {
 }
 
 // buildEntrypointArgs makes the first tool arg the entrypoint when rs skips the image's own, returning the flag and the remaining tool args.
-func buildEntrypointArgs(rs docker.RunSpec, toolArgs []string) (args, rest []string, err error) {
+func buildEntrypointArgs(rs sandbox.RunSpec, toolArgs []string) (args, rest []string, err error) {
 	if !rs.SkipEntrypoint {
 		return nil, toolArgs, nil
 	}
@@ -161,7 +160,7 @@ func buildEntrypointArgs(rs docker.RunSpec, toolArgs []string) (args, rest []str
 }
 
 // isNamedVolume reports whether volume mounts a Docker named volume rather than a host path.
-func isNamedVolume(volume string, rs docker.RunSpec) bool {
+func isNamedVolume(volume string, rs sandbox.RunSpec) bool {
 	return mount.IsNamedVolume(mount.ExpandMountSpec(volume, rs.ToolHome, rs.ContainerHome))
 }
 

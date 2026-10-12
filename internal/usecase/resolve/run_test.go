@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -160,7 +160,7 @@ func TestResourceLimitsFor(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
 
 		// Act
-		result := ResourceLimitsFor(docker.ResourceLimits{}, rc)
+		result := ResourceLimitsFor(sandbox.ResourceLimits{}, rc)
 
 		// Assert
 		assert.Equal(t, "512", result.PidsLimit)
@@ -173,7 +173,7 @@ func TestResourceLimitsFor(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
 
 		// Act
-		result := ResourceLimitsFor(docker.ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"}, rc)
+		result := ResourceLimitsFor(sandbox.ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"}, rc)
 
 		// Assert
 		assert.Equal(t, "1024", result.PidsLimit)
@@ -186,7 +186,7 @@ func TestResourceLimitsFor(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
 
 		// Act
-		result := ResourceLimitsFor(docker.ResourceLimits{PidsLimit: "1024"}, rc)
+		result := ResourceLimitsFor(sandbox.ResourceLimits{PidsLimit: "1024"}, rc)
 
 		// Assert
 		assert.Equal(t, "1024", result.PidsLimit)
@@ -196,11 +196,11 @@ func TestResourceLimitsFor(t *testing.T) {
 
 	t.Run("falls back to hardcoded default when nothing else set", func(t *testing.T) {
 		// Act
-		result := ResourceLimitsFor(docker.ResourceLimits{}, &config.AgenticRC{})
+		result := ResourceLimitsFor(sandbox.ResourceLimits{}, &config.AgenticRC{})
 
 		// Assert - always resolved, never left empty
-		assert.Equal(t, docker.DefaultPidsLimit, result.PidsLimit)
-		assert.Equal(t, docker.DefaultCPUs, result.CPUs)
-		assert.Equal(t, docker.DefaultMemory, result.Memory)
+		assert.Equal(t, sandbox.DefaultPidsLimit, result.PidsLimit)
+		assert.Equal(t, sandbox.DefaultCPUs, result.CPUs)
+		assert.Equal(t, sandbox.DefaultMemory, result.Memory)
 	})
 }

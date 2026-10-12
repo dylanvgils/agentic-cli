@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -43,11 +43,11 @@ func TestDindEnabled(t *testing.T) {
 }
 
 func TestDindResourceLimitsFor(t *testing.T) {
-	tool := docker.ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"}
+	tool := sandbox.ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"}
 
 	t.Run("inherits tool limits when nothing set", func(t *testing.T) {
 		// Act
-		result := DindResourceLimitsFor(docker.ResourceLimits{}, &config.AgenticRC{}, tool)
+		result := DindResourceLimitsFor(sandbox.ResourceLimits{}, &config.AgenticRC{}, tool)
 
 		// Assert
 		assert.Equal(t, tool, result)
@@ -58,10 +58,10 @@ func TestDindResourceLimitsFor(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{PidsLimit: "2048", Memory: "8g"}}}}
 
 		// Act
-		result := DindResourceLimitsFor(docker.ResourceLimits{}, rc, tool)
+		result := DindResourceLimitsFor(sandbox.ResourceLimits{}, rc, tool)
 
 		// Assert
-		assert.Equal(t, docker.ResourceLimits{PidsLimit: "2048", CPUs: "4", Memory: "8g"}, result)
+		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "2048", CPUs: "4", Memory: "8g"}, result)
 	})
 
 	t.Run("flag takes precedence over rc", func(t *testing.T) {
@@ -69,9 +69,9 @@ func TestDindResourceLimitsFor(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}}}
 
 		// Act
-		result := DindResourceLimitsFor(docker.ResourceLimits{CPUs: "1", Memory: "16g"}, rc, tool)
+		result := DindResourceLimitsFor(sandbox.ResourceLimits{CPUs: "1", Memory: "16g"}, rc, tool)
 
 		// Assert
-		assert.Equal(t, docker.ResourceLimits{PidsLimit: "2048", CPUs: "1", Memory: "16g"}, result)
+		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "2048", CPUs: "1", Memory: "16g"}, result)
 	})
 }

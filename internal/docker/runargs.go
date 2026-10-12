@@ -15,18 +15,18 @@ func networkOrDefault(network string) string {
 }
 
 // buildRunArgs assembles the tool container's `docker run` args.
-func buildRunArgs(rs RunSpec, sidecarArgs, toolArgs []string) ([]string, error) {
-	secretArgs, err := buildSecretArgs(rs)
+func buildRunArgs(rs toolRun, sidecarArgs, toolArgs []string) ([]string, error) {
+	secretArgs, err := buildSecretArgs(rs.RunSpec)
 	if err != nil {
 		return nil, err
 	}
 
 	args := buildBaseArgs(rs)
 	args = append(args, buildTTYArgs()...)
-	args = append(args, buildEnvArgs(rs)...)
+	args = append(args, buildEnvArgs(rs.RunSpec)...)
 	args = append(args, sidecarArgs...)
-	args = append(args, buildTmpfsArgs(rs)...)
-	args = append(args, buildVolumeArgs(rs)...)
+	args = append(args, buildTmpfsArgs(rs.RunSpec)...)
+	args = append(args, buildVolumeArgs(rs.RunSpec)...)
 	args = append(args, secretArgs...)
 
 	if rs.SkipEntrypoint {
@@ -38,7 +38,7 @@ func buildRunArgs(rs RunSpec, sidecarArgs, toolArgs []string) ([]string, error) 
 }
 
 // buildBaseArgs builds the mandatory security and resource-limit args for running the container with minimal permissions.
-func buildBaseArgs(rs RunSpec) []string {
+func buildBaseArgs(rs toolRun) []string {
 	return []string{
 		// Run container read-only, remove when done
 		"run", "--rm", "--read-only",
@@ -72,7 +72,7 @@ func buildTTYArgs() []string {
 }
 
 // buildEnvArgs maps the resolved container env to --env flags.
-func buildEnvArgs(rs RunSpec) []string {
+func buildEnvArgs(rs sandbox.RunSpec) []string {
 	var args []string
 	for _, entry := range sandbox.ResolveEnv(rs.Env) {
 		args = append(args, arg("env", entry))
@@ -81,7 +81,7 @@ func buildEnvArgs(rs RunSpec) []string {
 }
 
 // buildTmpfsArgs builds --tmpfs flags with variable expansion.
-func buildTmpfsArgs(rs RunSpec) []string {
+func buildTmpfsArgs(rs sandbox.RunSpec) []string {
 	args := make([]string, 0, len(rs.TmpfsMounts))
 	for _, t := range rs.TmpfsMounts {
 		expanded := mount.ExpandTmpfsSpec(t, rs.ContainerHome)
@@ -91,7 +91,7 @@ func buildTmpfsArgs(rs RunSpec) []string {
 }
 
 // buildVolumeArgs builds --volume flags with variable expansion.
-func buildVolumeArgs(rs RunSpec) []string {
+func buildVolumeArgs(rs sandbox.RunSpec) []string {
 	args := make([]string, 0, len(rs.Volumes))
 	for _, volume := range rs.Volumes {
 		expanded := mount.ExpandMountSpec(volume, rs.ToolHome, rs.ContainerHome)
@@ -101,7 +101,7 @@ func buildVolumeArgs(rs RunSpec) []string {
 }
 
 // buildSecretArgs builds read-only secret volume flags, erroring on a malformed secret spec.
-func buildSecretArgs(rs RunSpec) ([]string, error) {
+func buildSecretArgs(rs sandbox.RunSpec) ([]string, error) {
 	args := make([]string, 0, len(rs.Secrets))
 	for _, secret := range rs.Secrets {
 		hostPath, containerPath, err := mount.ParseSecretSpec(secret)

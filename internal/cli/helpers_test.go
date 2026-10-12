@@ -14,6 +14,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
@@ -34,7 +35,7 @@ type fakeDocker struct {
 	cleanBaseImages       func() error
 	pruneDangling         func() error
 	resolveContainerHome  func(string) string
-	runContainer          func(rs docker.RunSpec, toolArgs []string) error
+	runContainer          func(rs sandbox.RunSpec, toolArgs []string) error
 	saveImage             func(image string, w io.Writer) error
 	listRunningContainers func() ([]*docker.ContainerInfo, error)
 	ensureNetwork         func() error
@@ -135,7 +136,7 @@ func (f *fakeDocker) ResolveContainerHome(image string) string {
 	return f.resolveContainerHome(image)
 }
 
-func (f *fakeDocker) RunContainer(rs docker.RunSpec, toolArgs []string) error {
+func (f *fakeDocker) RunContainer(rs sandbox.RunSpec, toolArgs []string) error {
 	if f.runContainer == nil {
 		return nil
 	}
@@ -402,13 +403,13 @@ func restoreDockerClient(t *testing.T) {
 }
 
 // captureRunContainer stubs RunContainer and InspectImage, returning a getter for the captured RunSpec and tool args.
-func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
+func captureRunContainer(t *testing.T) func() (sandbox.RunSpec, []string) {
 	t.Helper()
-	var capturedSpec docker.RunSpec
+	var capturedSpec sandbox.RunSpec
 	var capturedArgs []string
 
 	stubDocker(t, &fakeDocker{
-		runContainer: func(rs docker.RunSpec, args []string) error {
+		runContainer: func(rs sandbox.RunSpec, args []string) error {
 			capturedSpec = rs
 			capturedArgs = args
 			return nil
@@ -418,7 +419,7 @@ func captureRunContainer(t *testing.T) func() (docker.RunSpec, []string) {
 		},
 	})
 
-	return func() (docker.RunSpec, []string) { return capturedSpec, capturedArgs }
+	return func() (sandbox.RunSpec, []string) { return capturedSpec, capturedArgs }
 }
 
 // fakeMicrosandbox is a hand-written run.Microsandbox; nil funcs succeed.
@@ -427,7 +428,7 @@ type fakeMicrosandbox struct {
 	loadImage   func(r io.Reader, tag string) error
 	imageRefs   func() ([]string, error)
 	removeImage func(ref string) error
-	run         func(rs docker.RunSpec, toolArgs []string) error
+	run         func(rs sandbox.RunSpec, toolArgs []string) error
 }
 
 func (f *fakeMicrosandbox) Available() error {
@@ -458,7 +459,7 @@ func (f *fakeMicrosandbox) RemoveImage(ref string) error {
 	return f.removeImage(ref)
 }
 
-func (f *fakeMicrosandbox) Run(rs docker.RunSpec, toolArgs []string) error {
+func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec, toolArgs []string) error {
 	if f.run == nil {
 		return nil
 	}

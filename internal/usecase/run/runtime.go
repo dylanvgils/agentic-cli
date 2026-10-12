@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // Runtime is where a prepared run executes.
@@ -20,7 +20,7 @@ const (
 var runtimes = []Runtime{RuntimeDocker, RuntimeMicrosandbox}
 
 // Run executes rs with toolArgs on req's runtime, which first readies its own host resources; an empty runtime is Docker.
-func (s *Service) Run(req Request, rs docker.RunSpec, toolArgs []string) error {
+func (s *Service) Run(req Request, rs sandbox.RunSpec, toolArgs []string) error {
 	switch req.Flags.Runtime {
 	case RuntimeDocker, "":
 		return s.runDocker(req, rs, toolArgs)

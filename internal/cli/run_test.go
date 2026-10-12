@@ -9,6 +9,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/stretchr/testify/assert"
@@ -166,7 +167,7 @@ func Test_runTool(t *testing.T) {
 			},
 		})
 		var loaded string
-		var ranSpec docker.RunSpec
+		var ranSpec sandbox.RunSpec
 		var ranArgs []string
 		stubMicrosandbox(t, &fakeMicrosandbox{
 			loadImage: func(r io.Reader, _ string) error {
@@ -174,7 +175,7 @@ func Test_runTool(t *testing.T) {
 				loaded = string(b)
 				return err
 			},
-			run: func(rs docker.RunSpec, toolArgs []string) error {
+			run: func(rs sandbox.RunSpec, toolArgs []string) error {
 				ranSpec, ranArgs = rs, toolArgs
 				return nil
 			},

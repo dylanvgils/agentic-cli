@@ -8,6 +8,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
@@ -191,7 +192,7 @@ func tmpfsPath(spec, containerHome string) string {
 }
 
 // writeResourceLimitsSection leaves out the pids limit for microsandbox, which has none.
-func writeResourceLimitsSection(b *strings.Builder, limits docker.ResourceLimits, runtime Runtime) {
+func writeResourceLimitsSection(b *strings.Builder, limits sandbox.ResourceLimits, runtime Runtime) {
 	vm := runtime == RuntimeMicrosandbox
 
 	b.WriteString("## Resource limits\n\n")
@@ -229,7 +230,7 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 	b.WriteString("## Network\n\n")
 	b.WriteString("- All network egress routes through an egress proxy - there is no direct internet access.\n")
 
-	if in.ProxyMode == docker.ProxyMonitor {
+	if in.ProxyMode == sandbox.ProxyMonitor {
 		b.WriteString("\n")
 		return
 	}
@@ -242,7 +243,7 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 }
 
 // writeDockerSection is only written when the Docker sidecar is enabled; microsandbox ignores it, so it only warns there's no daemon.
-func writeDockerSection(b *strings.Builder, in Input, limits docker.ResourceLimits) {
+func writeDockerSection(b *strings.Builder, in Input, limits sandbox.ResourceLimits) {
 	if !in.DindEnabled {
 		return
 	}

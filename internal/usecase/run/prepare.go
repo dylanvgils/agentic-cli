@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
@@ -41,43 +41,43 @@ type Flags struct {
 	Secrets        []string
 	ReadOnlyMounts []string
 	Env            []string
-	Limits         docker.ResourceLimits
-	DindLimits     docker.ResourceLimits
+	Limits         sandbox.ResourceLimits
+	DindLimits     sandbox.ResourceLimits
 	Runtime        Runtime
 }
 
 // Prepare runs every check and host-side step `agentic run` needs, asking prompter where the user must approve, and returns
 // the RunSpec plus a cleanup func that must always be deferred, even on error.
-func (s *Service) Prepare(req Request, prompter Prompter) (docker.RunSpec, func(), error) {
+func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func(), error) {
 	home := req.Flags.ToolHome
 
 	// Before any prompt, so a run microsandbox can't do doesn't waste the user's approvals
 	if req.Flags.Runtime == RuntimeMicrosandbox {
 		if err := s.checkMicrosandbox(req); err != nil {
-			return docker.RunSpec{}, noCleanup, err
+			return sandbox.RunSpec{}, noCleanup, err
 		}
 	}
 
 	if err := s.requireImage(req.Target.ImageName, req.Target.ToolName); err != nil {
-		return docker.RunSpec{}, noCleanup, err
+		return sandbox.RunSpec{}, noCleanup, err
 	}
 
 	// Before anything acts on the project config, which the agent can edit
 	if err := checkTrust(req.Project.Dir, home, req.Flags.TrustDir, prompter); err != nil {
-		return docker.RunSpec{}, noCleanup, err
+		return sandbox.RunSpec{}, noCleanup, err
 	}
 
 	if err := checkSettings(req.Project.Layers, home, prompter); err != nil {
-		return docker.RunSpec{}, noCleanup, err
+		return sandbox.RunSpec{}, noCleanup, err
 	}
 
 	if err := s.checkTool(req, prompter); err != nil {
-		return docker.RunSpec{}, noCleanup, err
+		return sandbox.RunSpec{}, noCleanup, err
 	}
 
 	in, err := runInput(req)
 	if err != nil {
-		return docker.RunSpec{}, noCleanup, err
+		return sandbox.RunSpec{}, noCleanup, err
 	}
 
 	return s.buildWithInstructions(req.Target, in, req.Tool, req.Project.RC)

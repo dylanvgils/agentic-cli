@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +24,7 @@ func TestClient_Run(t *testing.T) {
 		}})
 
 		// Act
-		err := client.Run(docker.RunSpec{Image: "agentic-claude"}, []string{"--help"})
+		err := client.Run(sandbox.RunSpec{Image: "agentic-claude"}, []string{"--help"})
 
 		// Assert
 		require.NoError(t, err)
@@ -35,7 +35,7 @@ func TestClient_Run(t *testing.T) {
 	t.Run("dry run prints the command without running it", func(t *testing.T) {
 		// Arrange
 		client := newTestClient(&fakeRunner{})
-		rs := docker.RunSpec{Image: "agentic-claude", DryRun: true}
+		rs := sandbox.RunSpec{Image: "agentic-claude", DryRun: true}
 
 		// Act
 		var err error
@@ -53,7 +53,7 @@ func TestClient_Run(t *testing.T) {
 			gotArgs = args
 			return nil
 		}})
-		rs := docker.RunSpec{Image: "agentic-claude", Dind: docker.DindSpec{Enabled: true}, Volumes: []string{"go-cache:/cache"}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}, Volumes: []string{"go-cache:/cache"}}
 
 		// Act
 		err := client.Run(rs, nil)
@@ -67,7 +67,7 @@ func TestClient_Run(t *testing.T) {
 func TestIgnored(t *testing.T) {
 	t.Run("empty for a plain run with bind mounts", func(t *testing.T) {
 		// Arrange
-		rs := docker.RunSpec{
+		rs := sandbox.RunSpec{
 			Volumes: []string{"/host/project:/workspace", "cache:/cache"},
 			Secrets: []string{"token:/host/token"},
 		}
@@ -81,9 +81,9 @@ func TestIgnored(t *testing.T) {
 
 	t.Run("lists every unsupported feature", func(t *testing.T) {
 		// Arrange
-		rs := docker.RunSpec{
-			Proxy:   docker.ProxySpec{Mode: docker.ProxyEnforce, Credentials: []proxy.Credential{{}}},
-			Dind:    docker.DindSpec{Enabled: true},
+		rs := sandbox.RunSpec{
+			Proxy:   sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Credentials: []proxy.Credential{{}}},
+			Dind:    sandbox.DindSpec{Enabled: true},
 			Secrets: []string{"token:/host/token"},
 			Volumes: []string{"cache:/cache", "/host/project:/workspace"},
 		}
@@ -103,7 +103,7 @@ func TestIgnored(t *testing.T) {
 func Test_buildRunArgs(t *testing.T) {
 	t.Run("passes the image and tool args after --", func(t *testing.T) {
 		// Act
-		args, err := buildRunArgs(docker.RunSpec{Image: "agentic-claude"}, []string{"-p", "hi"})
+		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"}, []string{"-p", "hi"})
 
 		// Assert
 		require.NoError(t, err)
@@ -112,7 +112,7 @@ func Test_buildRunArgs(t *testing.T) {
 
 	t.Run("omits -- without tool args", func(t *testing.T) {
 		// Act
-		args, err := buildRunArgs(docker.RunSpec{Image: "agentic-claude"}, nil)
+		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -122,10 +122,10 @@ func Test_buildRunArgs(t *testing.T) {
 
 	t.Run("puts the flags before the image", func(t *testing.T) {
 		// Arrange
-		rs := docker.RunSpec{
+		rs := sandbox.RunSpec{
 			Image:         "img",
 			ContainerHome: "/home/claude",
-			Limits:        docker.ResourceLimits{CPUs: "2"},
+			Limits:        sandbox.ResourceLimits{CPUs: "2"},
 			Secrets:       []string{"token:/example.test/token"},
 		}
 
@@ -144,7 +144,7 @@ func Test_buildRunArgs(t *testing.T) {
 
 	t.Run("leaves out the tool's tmpfs mounts, since the VM root is writable", func(t *testing.T) {
 		// Arrange
-		rs := docker.RunSpec{Image: "img", TmpfsMounts: []string{"/tmp:exec,size=1g"}}
+		rs := sandbox.RunSpec{Image: "img", TmpfsMounts: []string{"/tmp:exec,size=1g"}}
 
 		// Act
 		args, err := buildRunArgs(rs, nil)
@@ -156,7 +156,7 @@ func Test_buildRunArgs(t *testing.T) {
 
 	t.Run("passes only the tool args the entrypoint leaves", func(t *testing.T) {
 		// Arrange
-		rs := docker.RunSpec{Image: "img", SkipEntrypoint: true}
+		rs := sandbox.RunSpec{Image: "img", SkipEntrypoint: true}
 
 		// Act
 		args, err := buildRunArgs(rs, []string{"bash", "-l"})
@@ -168,7 +168,7 @@ func Test_buildRunArgs(t *testing.T) {
 
 	t.Run("returns a helper's error", func(t *testing.T) {
 		// Arrange
-		rs := docker.RunSpec{Image: "img", Limits: docker.ResourceLimits{CPUs: "many"}}
+		rs := sandbox.RunSpec{Image: "img", Limits: sandbox.ResourceLimits{CPUs: "many"}}
 
 		// Act
 		_, err := buildRunArgs(rs, nil)
@@ -181,7 +181,7 @@ func Test_buildRunArgs(t *testing.T) {
 func Test_buildLimitArgs(t *testing.T) {
 	t.Run("maps limits and ignores the pids limit", func(t *testing.T) {
 		// Act
-		args, err := buildLimitArgs(docker.ResourceLimits{PidsLimit: "1024", CPUs: "1.5", Memory: "4g"})
+		args, err := buildLimitArgs(sandbox.ResourceLimits{PidsLimit: "1024", CPUs: "1.5", Memory: "4g"})
 
 		// Assert
 		require.NoError(t, err)
@@ -190,7 +190,7 @@ func Test_buildLimitArgs(t *testing.T) {
 
 	t.Run("rejects an invalid cpus value", func(t *testing.T) {
 		// Act
-		_, err := buildLimitArgs(docker.ResourceLimits{CPUs: "many"})
+		_, err := buildLimitArgs(sandbox.ResourceLimits{CPUs: "many"})
 
 		// Assert
 		assert.ErrorContains(t, err, `invalid cpus "many"`)
@@ -199,7 +199,7 @@ func Test_buildLimitArgs(t *testing.T) {
 
 func Test_buildEnvArgs(t *testing.T) {
 	// Act
-	args := buildEnvArgs(docker.RunSpec{Env: []string{"CI=true"}})
+	args := buildEnvArgs(sandbox.RunSpec{Env: []string{"CI=true"}})
 
 	// Assert
 	assert.Contains(t, args, "--env=CI=true")
@@ -209,7 +209,7 @@ func Test_buildVolumeArgs(t *testing.T) {
 	t.Run("maps bind mounts and named volumes", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
-		rs := docker.RunSpec{Volumes: []string{dir + ":/workspace:rw", "cache-vol:/cache"}}
+		rs := sandbox.RunSpec{Volumes: []string{dir + ":/workspace:rw", "cache-vol:/cache"}}
 
 		// Act
 		args, err := buildVolumeArgs(rs)
@@ -221,7 +221,7 @@ func Test_buildVolumeArgs(t *testing.T) {
 
 	t.Run("returns an invalid mount's error", func(t *testing.T) {
 		// Act
-		_, err := buildVolumeArgs(docker.RunSpec{Volumes: []string{"/example.test/only-host"}})
+		_, err := buildVolumeArgs(sandbox.RunSpec{Volumes: []string{"/example.test/only-host"}})
 
 		// Assert
 		assert.ErrorContains(t, err, "invalid volume")
@@ -263,7 +263,7 @@ func Test_buildSecretArgs(t *testing.T) {
 		require.NoError(t, os.WriteFile(file, []byte("test-secret"), 0o600))
 
 		// Act
-		args, err := buildSecretArgs(docker.RunSpec{Secrets: []string{"token:" + file}})
+		args, err := buildSecretArgs(sandbox.RunSpec{Secrets: []string{"token:" + file}})
 
 		// Assert
 		require.NoError(t, err)
@@ -272,7 +272,7 @@ func Test_buildSecretArgs(t *testing.T) {
 
 	t.Run("returns a parse error", func(t *testing.T) {
 		// Act
-		_, err := buildSecretArgs(docker.RunSpec{Secrets: []string{"token"}})
+		_, err := buildSecretArgs(sandbox.RunSpec{Secrets: []string{"token"}})
 
 		// Assert
 		assert.ErrorContains(t, err, `invalid secret "token"`)
@@ -282,7 +282,7 @@ func Test_buildSecretArgs(t *testing.T) {
 func Test_buildEntrypointArgs(t *testing.T) {
 	t.Run("keeps the image's entrypoint by default", func(t *testing.T) {
 		// Act
-		args, rest, err := buildEntrypointArgs(docker.RunSpec{}, []string{"--help"})
+		args, rest, err := buildEntrypointArgs(sandbox.RunSpec{}, []string{"--help"})
 
 		// Assert
 		require.NoError(t, err)
@@ -292,7 +292,7 @@ func Test_buildEntrypointArgs(t *testing.T) {
 
 	t.Run("skipping the entrypoint makes the first tool arg the entrypoint", func(t *testing.T) {
 		// Act
-		args, rest, err := buildEntrypointArgs(docker.RunSpec{SkipEntrypoint: true}, []string{"bash", "-l"})
+		args, rest, err := buildEntrypointArgs(sandbox.RunSpec{SkipEntrypoint: true}, []string{"bash", "-l"})
 
 		// Assert
 		require.NoError(t, err)
@@ -302,7 +302,7 @@ func Test_buildEntrypointArgs(t *testing.T) {
 
 	t.Run("skipping the entrypoint without a command errors", func(t *testing.T) {
 		// Act
-		_, _, err := buildEntrypointArgs(docker.RunSpec{SkipEntrypoint: true}, nil)
+		_, _, err := buildEntrypointArgs(sandbox.RunSpec{SkipEntrypoint: true}, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "--runtime microsandbox needs a command")

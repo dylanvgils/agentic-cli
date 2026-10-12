@@ -2,7 +2,7 @@ package resolve
 
 import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // DindInput carries the flag-derived values DindEnabled needs.
@@ -24,6 +24,6 @@ func DindEnabled(in DindInput, rc *config.AgenticRC) bool {
 }
 
 // DindResourceLimitsFor resolves each sidecar limit: flag, then [run.dind], then the tool's limit.
-func DindResourceLimitsFor(flags docker.ResourceLimits, rc *config.AgenticRC, tool docker.ResourceLimits) docker.ResourceLimits {
-	return flags.Or(docker.ResourceLimits(rc.Run.Dind.RCLimits)).Or(tool)
+func DindResourceLimitsFor(flags sandbox.ResourceLimits, rc *config.AgenticRC, tool sandbox.ResourceLimits) sandbox.ResourceLimits {
+	return flags.Or(sandbox.ResourceLimits(rc.Run.Dind.RCLimits)).Or(tool)
 }

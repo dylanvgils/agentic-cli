@@ -2,8 +2,8 @@ package cli
 
 import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
@@ -80,7 +80,7 @@ func addResourceLimitFlags(cmd *cobra.Command) {
 }
 
 // resolveResourceLimitFlags returns the --pids-limit, --cpus, and --memory flag values.
-func resolveResourceLimitFlags(cmd *cobra.Command) docker.ResourceLimits {
+func resolveResourceLimitFlags(cmd *cobra.Command) sandbox.ResourceLimits {
 	return limitFlags(cmd, "pids-limit", "cpus", "memory")
 }
 
@@ -109,7 +109,7 @@ func addRuntimeFlag(cmd *cobra.Command) {
 }
 
 // resolveDindResourceLimitFlags returns the --dind-* limit flag values.
-func resolveDindResourceLimitFlags(cmd *cobra.Command) docker.ResourceLimits {
+func resolveDindResourceLimitFlags(cmd *cobra.Command) sandbox.ResourceLimits {
 	return limitFlags(cmd, "dind-pids-limit", "dind-cpus", "dind-memory")
 }
 
@@ -218,10 +218,10 @@ func exactFlagValue(cmd *cobra.Command, name string) *[]string {
 }
 
 // limitFlags reads the named PID, CPU and memory flags into ResourceLimits.
-func limitFlags(cmd *cobra.Command, pidsLimitFlag, cpusFlag, memoryFlag string) docker.ResourceLimits {
+func limitFlags(cmd *cobra.Command, pidsLimitFlag, cpusFlag, memoryFlag string) sandbox.ResourceLimits {
 	pidsLimit, _ := cmd.Flags().GetString(pidsLimitFlag)
 	cpus, _ := cmd.Flags().GetString(cpusFlag)
 	memory, _ := cmd.Flags().GetString(memoryFlag)
 
-	return docker.ResourceLimits{PidsLimit: pidsLimit, CPUs: cpus, Memory: memory}
+	return sandbox.ResourceLimits{PidsLimit: pidsLimit, CPUs: cpus, Memory: memory}
 }
