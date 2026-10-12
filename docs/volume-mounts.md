@@ -1,6 +1,6 @@
 # Volume mounts
 
-The root filesystem is read-only, so every path a tool writes to is mounted explicitly. This page lists the mounts agentic adds for each tool. For your own mounts, see [Named Docker volumes](usage.md#named-docker-volumes).
+The root filesystem is read-only, so every path a tool writes to is mounted explicitly. This page lists the mounts agentic adds for each tool. For your own mounts, see [Named volumes](usage.md#named-volumes).
 
 ## All tools
 

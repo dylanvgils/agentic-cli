@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/volumes"
 )
 
 var builtToolNamesFunc = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
@@ -44,9 +46,16 @@ var volumeNamesFunc = func(_ *cobra.Command, args []string, _ string) ([]string,
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	names, err := dockerClient.ListVolumeNames()
+	all, err := volumes.New(dockerClient, msbClient).List()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	var names []string
+	for _, v := range all {
+		if !slices.Contains(names, v.Name) {
+			names = append(names, v.Name)
+		}
 	}
 	return names, cobra.ShellCompDirectiveNoFileComp
 }

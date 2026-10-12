@@ -122,7 +122,7 @@ Applied by `agentic run`.
 
 | Key                | Type   | Description                                                                                                       | CLI flag            | Default |
 | ------------------ | ------ | ----------------------------------------------------------------------------------------------------------------- | ------------------- | ------- |
-| `extra_mounts`     | list   | Bind mounts or named volumes, with the same syntax as [`-v`](usage.md#named-docker-volumes)                       | `-v`                | -       |
+| `extra_mounts`     | list   | Bind mounts or named volumes, with the same syntax as [`-v`](usage.md#named-volumes)                              | `-v`                | -       |
 | `read_only_mounts` | list   | Sub-paths forced read-only inside a writable mount. See below.                                                    | `--read-only-mount` | -       |
 | `secrets`          | list   | Files mounted read-only, with the same format as [`-s`](usage.md#secrets)                                         | `-s`                | -       |
 | `env`              | list   | `KEY=VALUE`, or bare `KEY` to forward the host value. See [Environment variables](usage.md#environment-variables). | `-e`                | -       |

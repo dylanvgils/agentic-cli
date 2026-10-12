@@ -216,7 +216,7 @@ func Test_buildVolumeArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-dir=" + dir + ":/workspace", "--mount-named=cache-vol:/cache:" + ownerOptions()}, args)
+		assert.Equal(t, []string{"--mount-dir=" + dir + ":/workspace", "--mount-named=agentic-cache-vol:/cache:" + ownerOptions()}, args)
 	})
 
 	t.Run("returns an invalid mount's error", func(t *testing.T) {
@@ -235,7 +235,7 @@ func Test_buildNamedVolumeArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-named=maven:/home/claude/.m2:" + ownerOptions()}, args)
+		assert.Equal(t, []string{"--mount-named=agentic-maven:/home/claude/.m2:" + ownerOptions()}, args)
 	})
 
 	t.Run("adds ro before the owner", func(t *testing.T) {
@@ -244,7 +244,7 @@ func Test_buildNamedVolumeArgs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-named=maven:/home/claude/.m2:ro," + ownerOptions()}, args)
+		assert.Equal(t, []string{"--mount-named=agentic-maven:/home/claude/.m2:ro," + ownerOptions()}, args)
 	})
 
 	t.Run("returns a parse error", func(t *testing.T) {
