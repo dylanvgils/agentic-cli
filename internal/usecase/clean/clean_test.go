@@ -41,7 +41,7 @@ func TestResolve(t *testing.T) {
 		}
 
 		// Act
-		targets, err := New(d, t.TempDir()).Resolve(Scope{All: true, FilterTool: "claude"})
+		targets, err := New(t.TempDir(), d).Resolve(Scope{All: true, FilterTool: "claude"})
 
 		// Assert
 		require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestResolve(t *testing.T) {
 
 	t.Run("scoped resolve dispatches to resolveScoped", func(t *testing.T) {
 		// Act
-		targets, err := New(&fakeDocker{}, t.TempDir()).Resolve(Scope{Names: []string{"claude"}, Namespace: "agentic"})
+		targets, err := New(t.TempDir(), &fakeDocker{}).Resolve(Scope{Names: []string{"claude"}, Namespace: "agentic"})
 
 		// Assert
 		require.NoError(t, err)
@@ -96,7 +96,7 @@ func Test_resolveAll(t *testing.T) {
 		}
 
 		// Act
-		_, err := New(d, t.TempDir()).resolveAll("claude")
+		_, err := New(t.TempDir(), d).resolveAll("claude")
 
 		// Assert
 		require.NoError(t, err)
@@ -112,7 +112,7 @@ func Test_resolveAll(t *testing.T) {
 		}
 
 		// Act
-		_, err := New(d, t.TempDir()).resolveAll("")
+		_, err := New(t.TempDir(), d).resolveAll("")
 
 		// Assert
 		require.Error(t, err)
@@ -130,7 +130,7 @@ func Test_resolveAll(t *testing.T) {
 		}
 
 		// Act
-		targets, err := New(d, t.TempDir()).resolveAll("")
+		targets, err := New(t.TempDir(), d).resolveAll("")
 
 		// Assert
 		require.NoError(t, err)
@@ -157,7 +157,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := New(d, t.TempDir()).Apply(targets)
+			err := New(t.TempDir(), d).Apply(targets)
 			require.NoError(t, err)
 		})
 
@@ -165,6 +165,53 @@ func TestApply(t *testing.T) {
 		assert.Equal(t, []string{"agentic-claude", "agentic-copilot"}, cleaned)
 		assert.Contains(t, out, "=> agentic-claude")
 		assert.Contains(t, out, "=> agentic-copilot")
+	})
+
+	t.Run("cleans each target from the other runtimes", func(t *testing.T) {
+		// Arrange
+		var cleaned []string
+		m := &fakeRuntime{
+			cleanImage: func(image string) error {
+				cleaned = append(cleaned, image)
+				return nil
+			},
+		}
+
+		// Act
+		captureStdout(t, func() {
+			err := New(t.TempDir(), &fakeDocker{}, m).Apply(targets)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, []string{"agentic-claude", "agentic-copilot"}, cleaned)
+	})
+
+	t.Run("warns and goes on when another runtime fails", func(t *testing.T) {
+		// Arrange
+		errLog := stubErrLog(t)
+		var cleaned []string
+		d := &fakeDocker{
+			cleanImage: func(image string) error {
+				cleaned = append(cleaned, image)
+				return nil
+			},
+		}
+		m := &fakeRuntime{
+			cleanImage: func(image string) error {
+				return fmt.Errorf("fail on %s", image)
+			},
+		}
+
+		// Act
+		captureStdout(t, func() {
+			err := New(t.TempDir(), d, m).Apply(targets)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, []string{"agentic-claude", "agentic-copilot"}, cleaned)
+		assert.Contains(t, errLog.String(), "kept agentic-claude: fail on agentic-claude")
 	})
 
 	t.Run("removes stored custom installs no image uses anymore", func(t *testing.T) {
@@ -195,7 +242,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		captureStdout(t, func() {
-			err := New(d, home).Apply(targets)
+			err := New(home, d).Apply(targets)
 			require.NoError(t, err)
 		})
 
@@ -219,7 +266,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		captureStdout(t, func() {
-			err := New(d, home).Apply(targets)
+			err := New(home, d).Apply(targets)
 			require.NoError(t, err)
 		})
 
@@ -239,7 +286,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, t.TempDir()).Apply(targets)
+		err := New(t.TempDir(), d).Apply(targets)
 
 		// Assert
 		require.Error(t, err)
@@ -282,7 +329,7 @@ func TestGlobalResources(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := New(d, "/agentic-home").GlobalResources()
+			err := New("/agentic-home", d).GlobalResources()
 			require.NoError(t, err)
 		})
 
@@ -304,7 +351,7 @@ func TestGlobalResources(t *testing.T) {
 		d := &fakeDocker{cleanBaseImages: func() error { return fmt.Errorf("base cleanup failed") }}
 
 		// Act
-		err := New(d, "/agentic-home").GlobalResources()
+		err := New("/agentic-home", d).GlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -316,7 +363,7 @@ func TestGlobalResources(t *testing.T) {
 		d := &fakeDocker{cleanImage: func(string) error { return fmt.Errorf("proxy cleanup failed") }}
 
 		// Act
-		err := New(d, "/agentic-home").GlobalResources()
+		err := New("/agentic-home", d).GlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -328,7 +375,7 @@ func TestGlobalResources(t *testing.T) {
 		d := &fakeDocker{sweepDindResources: func(string) error { return fmt.Errorf("dind sweep failed") }}
 
 		// Act
-		err := New(d, "/agentic-home").GlobalResources()
+		err := New("/agentic-home", d).GlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -340,7 +387,7 @@ func TestGlobalResources(t *testing.T) {
 		d := &fakeDocker{sweepProxyResources: func() error { return fmt.Errorf("sweep failed") }}
 
 		// Act
-		err := New(d, "/agentic-home").GlobalResources()
+		err := New("/agentic-home", d).GlobalResources()
 
 		// Assert
 		require.Error(t, err)
@@ -352,7 +399,7 @@ func TestGlobalResources(t *testing.T) {
 		d := &fakeDocker{removeNetwork: func() error { return fmt.Errorf("network removal failed") }}
 
 		// Act
-		err := New(d, "/agentic-home").GlobalResources()
+		err := New("/agentic-home", d).GlobalResources()
 
 		// Assert
 		require.Error(t, err)

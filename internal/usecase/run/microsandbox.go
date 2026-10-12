@@ -64,7 +64,7 @@ func (s *Service) ensureMicrosandboxImage(image, ref string) error {
 	if err != nil {
 		return err
 	}
-	if slices.ContainsFunc(refs, func(r string) bool { return sameRef(r, ref) }) {
+	if slices.ContainsFunc(refs, func(r string) bool { return microsandbox.SameRef(r, ref) }) {
 		return nil
 	}
 
@@ -91,31 +91,14 @@ func (s *Service) loadIntoMicrosandbox(image, ref string) error {
 
 // removeStaleRefs removes refs to image other than keep and latest; a ref msb can't remove (e.g. in use) is skipped.
 func (s *Service) removeStaleRefs(refs []string, image, keep string) {
-	repo, _ := splitRef(image)
+	repo, _ := microsandbox.SplitRef(image)
 	for _, ref := range refs {
-		refRepo, tag := splitRef(ref)
-		if refRepo != repo || tag == "latest" || sameRef(ref, keep) {
+		refRepo, tag := microsandbox.SplitRef(ref)
+		if refRepo != repo || tag == "latest" || microsandbox.SameRef(ref, keep) {
 			continue
 		}
 		if err := s.microsandbox.RemoveImage(ref); err != nil {
 			logging.Infof("kept old microsandbox image %s: %v", ref, err)
 		}
 	}
-}
-
-// sameRef reports whether a and b name the same repository and tag, ignoring a registry or namespace prefix msb may add.
-func sameRef(a, b string) bool {
-	aRepo, aTag := splitRef(a)
-	bRepo, bTag := splitRef(b)
-	return aRepo == bRepo && aTag == bTag
-}
-
-// splitRef returns ref's repository name without any registry or namespace prefix, and its tag ("latest" when unset).
-func splitRef(ref string) (repo, tag string) {
-	name := ref[strings.LastIndex(ref, "/")+1:]
-	repo, tag, ok := strings.Cut(name, ":")
-	if !ok {
-		tag = "latest"
-	}
-	return repo, tag
 }

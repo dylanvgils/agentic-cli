@@ -31,7 +31,7 @@ var (
 	dockerClient dockerAPI = docker.New("")
 
 	// msbClient runs tools for `agentic run --runtime microsandbox`.
-	msbClient run.Microsandbox = microsandbox.New()
+	msbClient msbAPI = microsandbox.New()
 )
 
 // dockerAPI is the subset of *docker.Client the cli and the usecases it calls use.
@@ -51,4 +51,10 @@ type dockerAPI interface {
 	RemoveVolume(name string) error
 	ListRunningContainers() ([]*docker.ContainerInfo, error)
 	ListContexts() ([]string, error)
+}
+
+// msbAPI is the subset of *microsandbox.Client the usecases the cli calls use.
+type msbAPI interface {
+	run.Microsandbox
+	clean.Runtime
 }
