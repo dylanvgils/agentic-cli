@@ -15,12 +15,6 @@ func (c *Client) CleanImage(image string) error {
 
 	repo, _ := SplitRef(image)
 	var tags []string
-	defer func() {
-		if len(tags) > 0 {
-			logging.Detailf("microsandbox %s (%s)", repo, strings.Join(tags, ", "))
-		}
-	}()
-
 	for _, ref := range refs {
 		refRepo, tag := SplitRef(ref)
 		if refRepo != repo {
@@ -30,6 +24,10 @@ func (c *Client) CleanImage(image string) error {
 			return err
 		}
 		tags = append(tags, tag)
+	}
+
+	if len(tags) > 0 {
+		logging.Detailf("microsandbox %s (%s)", repo, strings.Join(tags, ", "))
 	}
 	return nil
 }
