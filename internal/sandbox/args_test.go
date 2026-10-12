@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestArg(t *testing.T) {
@@ -47,10 +48,24 @@ func TestArg(t *testing.T) {
 	})
 }
 
-func TestShellCommand(t *testing.T) {
+func TestPrintDryRun(t *testing.T) {
+	// Arrange
+	logs := stubLogs(t)
+
+	// Act
+	var err error
+	out := captureStdout(t, func() { err = PrintDryRun("tool container", "docker", []string{"run", "--rm"}) })
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "docker run \\\n  --rm\n", out)
+	assert.Equal(t, "agentic: tool container:\n\n", logs.String())
+}
+
+func Test_shellCommand(t *testing.T) {
 	t.Run("puts each arg after the subcommand on its own line", func(t *testing.T) {
 		// Act
-		cmd := ShellCommand("docker", []string{"run", "--env=A=b c", "--env=B=$X", "it's"})
+		cmd := shellCommand("docker", []string{"run", "--env=A=b c", "--env=B=$X", "it's"})
 
 		// Assert
 		assert.Equal(t, "docker run \\\n  '--env=A=b c' \\\n  '--env=B=$X' \\\n  'it'\\''s'", cmd)
@@ -58,7 +73,7 @@ func TestShellCommand(t *testing.T) {
 
 	t.Run("keeps a lone subcommand on one line", func(t *testing.T) {
 		// Act
-		cmd := ShellCommand("docker", []string{"run"})
+		cmd := shellCommand("docker", []string{"run"})
 
 		// Assert
 		assert.Equal(t, "docker run", cmd)

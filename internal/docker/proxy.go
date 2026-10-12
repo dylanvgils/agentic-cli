@@ -278,7 +278,7 @@ func (c *Client) dryRunProxy(rs *toolRun) (proxyEnv []string, cleanup func(), er
 	rs.network = handle.network
 
 	// Shows no secrets: those are only copied in before start
-	if _, err := fmt.Fprintln(os.Stdout, sandbox.ShellCommand("docker", handle.createArgs(*rs))); err != nil {
+	if err := sandbox.PrintDryRun("egress proxy", "docker", handle.createArgs(*rs)); err != nil {
 		return nil, nil, err
 	}
 

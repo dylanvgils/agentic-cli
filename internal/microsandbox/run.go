@@ -23,8 +23,7 @@ func (c *Client) Run(rs sandbox.RunSpec, toolArgs []string) error {
 	}
 
 	if rs.DryRun {
-		_, err := fmt.Fprintln(os.Stdout, sandbox.ShellCommand("msb", args))
-		return err
+		return sandbox.PrintDryRun("tool VM", "msb", args)
 	}
 
 	// Set agentic startup messages apart from the tool output
