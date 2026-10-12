@@ -20,6 +20,8 @@ var validEnvName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 type Resolved struct {
 	// Proxy holds the hosts and formatted header values; it contains the secret, so never log or print it
 	Proxy []proxy.Credential
+	// Secret is the raw value, for runtimes that substitute it themselves; never log or print it
+	Secret string
 	// Env lists the tool env vars to set to Placeholder
 	Env []string
 	// Source describes where the secret came from, for display
@@ -114,7 +116,7 @@ func resolveEntry(entry config.RCCredential) (Resolved, error) {
 		path = file.path
 	}
 
-	return Resolved{Proxy: creds, Env: env, Source: source.String(), Path: path}, nil
+	return Resolved{Proxy: creds, Secret: secret, Env: env, Source: source.String(), Path: path}, nil
 }
 
 // expand returns the entry's targets and env, from its preset or its own hosts and header; an explicit env replaces a preset's.

@@ -1,7 +1,6 @@
 package run
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -12,11 +11,16 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
-// checkMicrosandbox refuses proxy credentials, whose placeholders nothing in the VM would swap for the real secrets, and a
+// checkMicrosandbox refuses proxy credentials without env, which nothing in the VM could carry msb's placeholder in, and a
 // missing msb; a dry run makes no msb calls, so it skips the msb check.
 func (s *Service) checkMicrosandbox(req Request) error {
-	if len(req.Project.RC.Run.Proxy.Credentials) > 0 {
-		return errors.New("credential injection needs the egress proxy, which --runtime microsandbox doesn't support yet; use --runtime docker")
+	for _, entry := range req.Project.RC.Run.Proxy.Credentials {
+		if entry.Preset == "" && len(entry.Env) == 0 {
+			return fmt.Errorf("credential for %s needs env with --runtime microsandbox, as the tool must send msb's placeholder", strings.Join(entry.Hosts, ", "))
+		}
+		if entry.Format != "" {
+			logging.Warnf("--runtime microsandbox ignores the credential format for %s; the tool sends the header itself", strings.Join(entry.Hosts, ", "))
+		}
 	}
 
 	if req.Flags.DryRun {

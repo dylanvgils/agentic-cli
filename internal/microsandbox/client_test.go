@@ -1,6 +1,8 @@
 package microsandbox
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -103,12 +105,29 @@ func Test_execRunner_RunWithStdin(t *testing.T) {
 }
 
 func Test_execRunner_RunInteractive(t *testing.T) {
-	// Arrange
-	t.Setenv("PATH", t.TempDir())
+	t.Run("adds env to msb's environment", func(t *testing.T) {
+		// Arrange
+		out := filepath.Join(t.TempDir(), "env")
+		stubMsb(t, `echo "$EXAMPLE_TOKEN" > "`+out+`"`)
 
-	// Act
-	err := execRunner{}.RunInteractive("run", "img")
+		// Act
+		err := execRunner{}.RunInteractive([]string{"EXAMPLE_TOKEN=test-secret"}, "run", "img")
 
-	// Assert
-	assert.ErrorIs(t, err, errNotInstalled)
+		// Assert
+		require.NoError(t, err)
+		got, err := os.ReadFile(out)
+		require.NoError(t, err)
+		assert.Equal(t, "test-secret\n", string(got))
+	})
+
+	t.Run("missing msb", func(t *testing.T) {
+		// Arrange
+		t.Setenv("PATH", t.TempDir())
+
+		// Act
+		err := execRunner{}.RunInteractive(nil, "run", "img")
+
+		// Assert
+		assert.ErrorIs(t, err, errNotInstalled)
+	})
 }

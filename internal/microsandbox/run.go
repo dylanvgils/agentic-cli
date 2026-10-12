@@ -15,6 +15,9 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
+// placeholderPrefix starts the placeholder msb puts in the guest for a secret, e.g. $MSB_GITHUB_TOKEN.
+const placeholderPrefix = "$MSB_"
+
 // Run runs the tool described by rs in a microsandbox VM, skipping what Ignored lists; the image must already be loaded.
 func (c *Client) Run(rs sandbox.RunSpec, toolArgs []string) error {
 	args, err := buildRunArgs(rs, toolArgs)
@@ -28,7 +31,7 @@ func (c *Client) Run(rs sandbox.RunSpec, toolArgs []string) error {
 
 	// Set agentic startup messages apart from the tool output
 	logging.Separate()
-	return c.runner.RunInteractive(args...)
+	return c.runner.RunInteractive(credentialEnv(rs), args...)
 }
 
 // Ignored lists the parts of rs that msb runs don't honor yet.
@@ -36,9 +39,6 @@ func Ignored(rs sandbox.RunSpec) []string {
 	var ignored []string
 	if rs.Proxy.Mode.Enabled() {
 		ignored = append(ignored, "the egress proxy (egress is unfiltered)")
-	}
-	if len(rs.Proxy.Credentials) > 0 {
-		ignored = append(ignored, "credential injection")
 	}
 	if rs.Dind.Enabled {
 		ignored = append(ignored, "--dind")
@@ -73,6 +73,7 @@ func buildRunArgs(rs sandbox.RunSpec, toolArgs []string) ([]string, error) {
 	args = append(args, buildEnvArgs(rs)...)
 	args = append(args, volumeArgs...)
 	args = append(args, secretArgs...)
+	args = append(args, buildCredentialArgs(rs)...)
 	args = append(args, entrypointArgs...)
 	args = append(args, rs.Image)
 
@@ -147,6 +148,26 @@ func buildSecretArgs(rs sandbox.RunSpec) ([]string, error) {
 	return args, nil
 }
 
+// buildCredentialArgs maps each credential to a --secret flag msb substitutes only in its headers on its hosts,
+// plus an --env flag giving each alias the same placeholder.
+func buildCredentialArgs(rs sandbox.RunSpec) []string {
+	var args []string
+	for _, cred := range rs.Credentials {
+		headers := make([]string, len(cred.Headers))
+		for i, header := range cred.Headers {
+			headers[i] = strings.ToLower(header)
+		}
+
+		spec := cred.Name + ":headers=[" + strings.Join(headers, ",") + "]@" + strings.Join(cred.Hosts, ",")
+		args = append(args, arg("secret", spec))
+
+		for _, alias := range cred.Aliases {
+			args = append(args, arg("env", alias+"="+placeholderPrefix+cred.Name))
+		}
+	}
+	return args
+}
+
 // buildEntrypointArgs makes the first tool arg the entrypoint when rs skips the image's own, returning the flag and the remaining tool args.
 func buildEntrypointArgs(rs sandbox.RunSpec, toolArgs []string) (args, rest []string, err error) {
 	if !rs.SkipEntrypoint {
@@ -156,6 +177,15 @@ func buildEntrypointArgs(rs sandbox.RunSpec, toolArgs []string) (args, rest []st
 		return nil, nil, errors.New("skipping the entrypoint with --runtime microsandbox needs a command")
 	}
 	return []string{arg("entrypoint", toolArgs[0])}, toolArgs[1:], nil
+}
+
+// credentialEnv returns NAME=secret for each credential, for the msb process only: msb reads secrets from its own env, so they never reach its args.
+func credentialEnv(rs sandbox.RunSpec) []string {
+	env := make([]string, 0, len(rs.Credentials))
+	for _, cred := range rs.Credentials {
+		env = append(env, cred.Name+"="+cred.Secret)
+	}
+	return env
 }
 
 // isNamedVolume reports whether volume mounts a Docker named volume rather than a host path.

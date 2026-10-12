@@ -109,23 +109,84 @@ func Test_credentialSetup(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{"EXAMPLE_API_KEY=" + credentials.Placeholder}, env)
 	})
-}
-
-func Test_credentialEnv(t *testing.T) {
-	t.Run("sets each env var to the placeholder", func(t *testing.T) {
+	t.Run("microsandbox gets no placeholders but the same checks", func(t *testing.T) {
 		// Arrange
-		resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN", "EXAMPLE_KEY"}}, {Env: []string{"OTHER_TOKEN"}}}
+		in := Input{ProxyMode: sandbox.ProxyEnforce, Runtime: RuntimeMicrosandbox, Credentials: resolved}
+		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
 
 		// Act
-		env, err := credentialEnv(resolved, nil, false)
+		env, err := credentialSetup(in, mounts, nil)
+		_, overrideErr := credentialSetup(in, mounts, []string{"EXAMPLE_API_KEY=value"})
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{
-			"EXAMPLE_TOKEN=" + credentials.Placeholder,
-			"EXAMPLE_KEY=" + credentials.Placeholder,
-			"OTHER_TOKEN=" + credentials.Placeholder,
-		}, env)
+		assert.Empty(t, env)
+		assert.ErrorContains(t, overrideErr, "set by a proxy credential")
+	})
+}
+
+func Test_sandboxCredentials(t *testing.T) {
+	t.Run("names each entry after its first env var with every host and header", func(t *testing.T) {
+		// Arrange
+		resolved := []credentials.Resolved{{
+			Proxy: []proxy.Credential{
+				{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Bearer test-secret"}}},
+				{Hosts: []string{"git.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Basic test-secret"}}},
+			},
+			Secret: "test-secret",
+			Env:    []string{"EXAMPLE_TOKEN", "EXAMPLE_KEY"},
+		}}
+
+		// Act
+		creds := sandboxCredentials(resolved)
+
+		// Assert
+		assert.Equal(t, []sandbox.Credential{{
+			Name:    "EXAMPLE_TOKEN",
+			Aliases: []string{"EXAMPLE_KEY"},
+			Hosts:   []string{"api.example.test", "git.example.test"},
+			Headers: []string{"Authorization"},
+			Secret:  "test-secret",
+		}}, creds)
+	})
+
+	t.Run("leaves out an entry without env", func(t *testing.T) {
+		// Arrange
+		resolved := []credentials.Resolved{{Proxy: []proxy.Credential{{Hosts: []string{"api.example.test"}}}, Secret: "test-secret"}}
+
+		// Act
+		creds := sandboxCredentials(resolved)
+
+		// Assert
+		assert.Empty(t, creds)
+	})
+}
+
+func Test_credentialEnv(t *testing.T) {
+	// Arrange
+	resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN", "EXAMPLE_KEY"}}, {Env: []string{"OTHER_TOKEN"}}}
+
+	// Act
+	env := credentialEnv(resolved)
+
+	// Assert
+	assert.Equal(t, []string{
+		"EXAMPLE_TOKEN=" + credentials.Placeholder,
+		"EXAMPLE_KEY=" + credentials.Placeholder,
+		"OTHER_TOKEN=" + credentials.Placeholder,
+	}, env)
+}
+
+func Test_checkCredentialEnv(t *testing.T) {
+	t.Run("accepts names nothing else sets", func(t *testing.T) {
+		// Arrange
+		resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}
+
+		// Act
+		err := checkCredentialEnv(resolved, []string{"OTHER=value"}, false)
+
+		// Assert
+		assert.NoError(t, err)
 	})
 
 	t.Run("refuses an env entry for the same name", func(t *testing.T) {
@@ -135,7 +196,7 @@ func Test_credentialEnv(t *testing.T) {
 				resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}
 
 				// Act
-				_, err := credentialEnv(resolved, []string{entry}, false)
+				err := checkCredentialEnv(resolved, []string{entry}, false)
 
 				// Assert
 				assert.ErrorContains(t, err, "set by a proxy credential")
@@ -150,7 +211,7 @@ func Test_credentialEnv(t *testing.T) {
 				resolved := []credentials.Resolved{{Env: []string{name}}}
 
 				// Act
-				_, err := credentialEnv(resolved, nil, false)
+				err := checkCredentialEnv(resolved, nil, false)
 
 				// Assert
 				assert.ErrorContains(t, err, "managed by agentic")
@@ -163,8 +224,8 @@ func Test_credentialEnv(t *testing.T) {
 		resolved := []credentials.Resolved{{Env: []string{"DOCKER_HOST"}}}
 
 		// Act
-		_, withoutDind := credentialEnv(resolved, nil, false)
-		_, withDind := credentialEnv(resolved, nil, true)
+		withoutDind := checkCredentialEnv(resolved, nil, false)
+		withDind := checkCredentialEnv(resolved, nil, true)
 
 		// Assert
 		assert.NoError(t, withoutDind)

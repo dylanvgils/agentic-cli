@@ -68,7 +68,7 @@ func TestPrepare(t *testing.T) {
 		assert.Empty(t, p.trustAsked)
 	})
 
-	t.Run("microsandbox with proxy credentials stops before any prompt", func(t *testing.T) {
+	t.Run("microsandbox with a credential it can't use stops before any prompt", func(t *testing.T) {
 		// Arrange
 		req := newCredentialRequest(t)
 		req.Flags.Runtime = RuntimeMicrosandbox
@@ -79,7 +79,7 @@ func TestPrepare(t *testing.T) {
 		defer cleanup()
 
 		// Assert
-		require.ErrorContains(t, err, "use --runtime docker")
+		require.ErrorContains(t, err, "needs env with --runtime microsandbox")
 		assert.Empty(t, p.trustAsked)
 	})
 

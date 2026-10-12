@@ -18,7 +18,7 @@ func TestClient_Run(t *testing.T) {
 	t.Run("runs msb interactively", func(t *testing.T) {
 		// Arrange
 		var gotArgs []string
-		client := newTestClient(&fakeRunner{runInteractive: func(args ...string) error {
+		client := newTestClient(&fakeRunner{runInteractive: func(_ []string, args ...string) error {
 			gotArgs = args
 			return nil
 		}})
@@ -46,10 +46,47 @@ func TestClient_Run(t *testing.T) {
 		assert.Regexp(t, `(?s)^msb run \\\n.*  agentic-claude\n$`, out)
 	})
 
+	t.Run("passes credential secrets in msb's env, never in its args", func(t *testing.T) {
+		// Arrange
+		var gotEnv, gotArgs []string
+		client := newTestClient(&fakeRunner{runInteractive: func(env []string, args ...string) error {
+			gotEnv, gotArgs = env, args
+			return nil
+		}})
+		rs := sandbox.RunSpec{Image: "agentic-claude", Credentials: []sandbox.Credential{
+			{Name: "EXAMPLE_TOKEN", Hosts: []string{"api.example.test"}, Headers: []string{"Authorization"}, Secret: "test-secret"},
+		}}
+
+		// Act
+		err := client.Run(rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"EXAMPLE_TOKEN=test-secret"}, gotEnv)
+		assert.NotContains(t, strings.Join(gotArgs, " "), "test-secret")
+	})
+
+	t.Run("dry run never prints credential secrets", func(t *testing.T) {
+		// Arrange
+		client := newTestClient(&fakeRunner{})
+		rs := sandbox.RunSpec{Image: "agentic-claude", DryRun: true, Credentials: []sandbox.Credential{
+			{Name: "EXAMPLE_TOKEN", Hosts: []string{"api.example.test"}, Headers: []string{"Authorization"}, Secret: "test-secret"},
+		}}
+
+		// Act
+		var err error
+		out := captureStdout(t, func() { err = client.Run(rs, nil) })
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, out, "--secret=EXAMPLE_TOKEN:headers=[authorization]@api.example.test")
+		assert.NotContains(t, out, "test-secret")
+	})
+
 	t.Run("runs with unsupported features left out", func(t *testing.T) {
 		// Arrange
 		var gotArgs []string
-		client := newTestClient(&fakeRunner{runInteractive: func(args ...string) error {
+		client := newTestClient(&fakeRunner{runInteractive: func(_ []string, args ...string) error {
 			gotArgs = args
 			return nil
 		}})
@@ -94,7 +131,6 @@ func TestIgnored(t *testing.T) {
 		// Assert
 		assert.Equal(t, []string{
 			"the egress proxy (egress is unfiltered)",
-			"credential injection",
 			"--dind",
 		}, ignored)
 	})
@@ -277,6 +313,60 @@ func Test_buildSecretArgs(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, `invalid secret "token"`)
 	})
+}
+
+func Test_buildCredentialArgs(t *testing.T) {
+	t.Run("binds each secret to its lowercased headers and hosts", func(t *testing.T) {
+		// Arrange
+		rs := sandbox.RunSpec{Credentials: []sandbox.Credential{
+			{Name: "EXAMPLE_TOKEN", Hosts: []string{"api.example.test", "git.example.test"}, Headers: []string{"Authorization"}, Secret: "test-secret"},
+			{Name: "OTHER_KEY", Hosts: []string{"api.other.test"}, Headers: []string{"X-Api-Key", "Authorization"}, Secret: "test-secret"},
+		}}
+
+		// Act
+		args := buildCredentialArgs(rs)
+
+		// Assert
+		assert.Equal(t, []string{
+			"--secret=EXAMPLE_TOKEN:headers=[authorization]@api.example.test,git.example.test",
+			"--secret=OTHER_KEY:headers=[x-api-key,authorization]@api.other.test",
+		}, args)
+	})
+
+	t.Run("gives aliases the same placeholder", func(t *testing.T) {
+		// Arrange
+		rs := sandbox.RunSpec{Credentials: []sandbox.Credential{
+			{Name: "EXAMPLE_TOKEN", Aliases: []string{"EXAMPLE_KEY"}, Hosts: []string{"api.example.test"}, Headers: []string{"Authorization"}},
+		}}
+
+		// Act
+		args := buildCredentialArgs(rs)
+
+		// Assert
+		assert.Equal(t, "--env=EXAMPLE_KEY=$MSB_EXAMPLE_TOKEN", args[1])
+	})
+
+	t.Run("no credentials add no flags", func(t *testing.T) {
+		// Act
+		args := buildCredentialArgs(sandbox.RunSpec{})
+
+		// Assert
+		assert.Empty(t, args)
+	})
+}
+
+func Test_credentialEnv(t *testing.T) {
+	// Arrange
+	rs := sandbox.RunSpec{Credentials: []sandbox.Credential{
+		{Name: "EXAMPLE_TOKEN", Aliases: []string{"EXAMPLE_KEY"}, Secret: "test-secret"},
+		{Name: "OTHER_KEY", Secret: "other-secret"},
+	}}
+
+	// Act
+	env := credentialEnv(rs)
+
+	// Assert
+	assert.Equal(t, []string{"EXAMPLE_TOKEN=test-secret", "OTHER_KEY=other-secret"}, env)
 }
 
 func Test_buildEntrypointArgs(t *testing.T) {

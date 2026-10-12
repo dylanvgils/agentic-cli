@@ -139,7 +139,8 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 	}
 	env = append(env, placeholders...)
 
-	if len(in.Credentials) > 0 {
+	// microsandbox trusts its own CA, not the proxy's
+	if len(in.Credentials) > 0 && in.Runtime != RuntimeMicrosandbox {
 		if err := s.checkProxyTrust(req.target); err != nil {
 			return nil, err
 		}
@@ -189,6 +190,7 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, logDir string) 
 		WithTmpfsMounts(toolConfig.Runtime.TmpfsMounts()...).
 		WithLimits(limits).
 		WithDryRun(in.DryRun).
+		WithCredentials(sandboxCredentials(in.Credentials)...).
 		WithProxy(sandbox.ProxySpec{
 			Mode:        in.ProxyMode,
 			Image:       tools.ProxyImage,
