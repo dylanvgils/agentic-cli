@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
@@ -474,6 +474,16 @@ func stubMicrosandbox(t *testing.T, f *fakeMicrosandbox) {
 	t.Cleanup(func() { msbClient = orig })
 }
 
+// writeProxyLog writes a proxy access log under the current toolHome's logs dir and returns its path.
+func writeProxyLog(t *testing.T) string {
+	t.Helper()
+	dir := filepath.Join(toolHome, config.LogsDirName)
+	require.NoError(t, os.MkdirAll(dir, 0o750))
+	path := filepath.Join(dir, proxy.LogFilePrefix+"run.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte("{}\n"), 0o600))
+	return path
+}
+
 // withTempToolHome sets toolHome to a temp dir and pre-trusts the dirs tests run in (os.TempDir() for t.Chdir, cwd otherwise).
 func withTempToolHome(t *testing.T) {
 	t.Helper()
@@ -559,13 +569,6 @@ func stubCurrentContext(t *testing.T, fn func() (string, error)) {
 func stubRemoveVolume(t *testing.T, fn func(string) error) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{removeVolume: fn})
-}
-
-func stubPruneProxyLogs(t *testing.T, fn func(dir string, maxAge time.Duration)) {
-	t.Helper()
-	orig := pruneProxyLogs
-	pruneProxyLogs = fn
-	t.Cleanup(func() { pruneProxyLogs = orig })
 }
 
 func stubUpdateLatestToolVersion(t *testing.T, latest string, newer, ok bool) {

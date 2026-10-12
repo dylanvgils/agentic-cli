@@ -7,8 +7,11 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 )
+
+// defaultProxyLogRetentionDays is how long proxy access logs are kept when no retention period is configured.
+const defaultProxyLogRetentionDays = 3
 
 // proxyLogDir returns the host log dir when the proxy is enabled, else an empty string.
 func proxyLogDir(toolHome string, proxyEnabled bool) string {
@@ -24,7 +27,7 @@ func prepareProxyLogDir(dir, toolHome string) error {
 		return fmt.Errorf("create log dir: %w", err)
 	}
 
-	housekeeping.PruneProxyLogs(dir, time.Duration(proxyRetentionDays(toolHome))*24*time.Hour)
+	proxy.PruneLogs(dir, time.Duration(proxyRetentionDays(toolHome))*24*time.Hour)
 	return nil
 }
 
@@ -33,5 +36,5 @@ func proxyRetentionDays(toolHome string) int {
 	if cfg, err := config.LoadConfig(toolHome); err == nil && cfg.ProxyLogRetentionDays > 0 {
 		return cfg.ProxyLogRetentionDays
 	}
-	return housekeeping.DefaultProxyLogRetentionDays
+	return defaultProxyLogRetentionDays
 }

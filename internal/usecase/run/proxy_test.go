@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +33,7 @@ func Test_proxyRetentionDays(t *testing.T) {
 		result := proxyRetentionDays(home)
 
 		// Assert
-		assert.Equal(t, housekeeping.DefaultProxyLogRetentionDays, result)
+		assert.Equal(t, defaultProxyLogRetentionDays, result)
 	})
 }
 

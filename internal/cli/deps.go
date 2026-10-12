@@ -6,7 +6,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/git"
-	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
@@ -20,7 +19,6 @@ import (
 
 var (
 	migrateRun              = migrate.Run
-	pruneProxyLogs          = housekeeping.PruneProxyLogs
 	isTerminal              = platform.IsTerminal
 	checkGitAvailable       = git.CheckAvailable
 	loadMarketplaceRegistry = marketplace.LoadRegistry
