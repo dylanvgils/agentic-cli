@@ -422,13 +422,14 @@ func captureRunContainer(t *testing.T) func() (sandbox.RunSpec, []string) {
 	return func() (sandbox.RunSpec, []string) { return capturedSpec, capturedArgs }
 }
 
-// fakeMicrosandbox is a hand-written run.Microsandbox; nil funcs succeed.
+// fakeMicrosandbox is a hand-written msbAPI; nil funcs succeed.
 type fakeMicrosandbox struct {
 	available   func() error
 	loadImage   func(r io.Reader, tag string) error
 	imageRefs   func() ([]string, error)
 	removeImage func(ref string) error
 	run         func(rs sandbox.RunSpec, toolArgs []string) error
+	cleanImage  func(image string) error
 }
 
 func (f *fakeMicrosandbox) Available() error {
@@ -464,6 +465,13 @@ func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec, toolArgs []string) error {
 		return nil
 	}
 	return f.run(rs, toolArgs)
+}
+
+func (f *fakeMicrosandbox) CleanImage(image string) error {
+	if f.cleanImage == nil {
+		return nil
+	}
+	return f.cleanImage(image)
 }
 
 // stubMicrosandbox installs f as msbClient until the test ends.

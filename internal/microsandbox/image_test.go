@@ -107,3 +107,50 @@ func TestRemoveImage(t *testing.T) {
 		assert.ErrorContains(t, err, "remove msb image agentic-claude:abc123: in use")
 	})
 }
+
+func TestSameRef(t *testing.T) {
+	t.Run("ignores a registry prefix", func(t *testing.T) {
+		// Act
+		same := SameRef("docker.io/library/agentic-claude:abc123", "agentic-claude:abc123")
+
+		// Assert
+		assert.True(t, same)
+	})
+
+	t.Run("different tag differs", func(t *testing.T) {
+		// Act
+		same := SameRef("agentic-claude:old111", "agentic-claude:abc123")
+
+		// Assert
+		assert.False(t, same)
+	})
+}
+
+func TestSplitRef(t *testing.T) {
+	t.Run("name and tag", func(t *testing.T) {
+		// Act
+		repo, tag := SplitRef("agentic-claude:abc123")
+
+		// Assert
+		assert.Equal(t, "agentic-claude", repo)
+		assert.Equal(t, "abc123", tag)
+	})
+
+	t.Run("drops a registry and namespace prefix", func(t *testing.T) {
+		// Act
+		repo, tag := SplitRef("registry.example.test:5000/library/agentic-claude:abc123")
+
+		// Assert
+		assert.Equal(t, "agentic-claude", repo)
+		assert.Equal(t, "abc123", tag)
+	})
+
+	t.Run("no tag means latest", func(t *testing.T) {
+		// Act
+		repo, tag := SplitRef("agentic-claude")
+
+		// Assert
+		assert.Equal(t, "agentic-claude", repo)
+		assert.Equal(t, "latest", tag)
+	})
+}

@@ -8,10 +8,11 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
-// Service removes agentic-owned images and shared Docker resources.
+// Service removes agentic-owned images from every runtime and shared Docker resources.
 type Service struct {
-	docker Docker
-	home   string // agentic data dir, for the custom installs store and sidecar state
+	docker   Docker
+	runtimes []Runtime // other runtimes holding copies of the tool images, cleaned best-effort
+	home     string    // agentic data dir, for the custom installs store and sidecar state
 }
 
 // Target is one image to remove, with the label to report it under.
@@ -30,9 +31,9 @@ type Scope struct {
 	All        bool
 }
 
-// New returns a Service that talks to Docker through d and cleans agentic state under home.
-func New(d Docker, home string) *Service {
-	return &Service{docker: d, home: home}
+// New returns a Service that cleans agentic state under home, and tool images from Docker and the other runtimes.
+func New(home string, d Docker, runtimes ...Runtime) *Service {
+	return &Service{docker: d, runtimes: runtimes, home: home}
 }
 
 // Resolve returns the clean targets for scope: every agentic image across all namespaces (All), or the named tools in one namespace.
@@ -43,7 +44,7 @@ func (s *Service) Resolve(scope Scope) ([]Target, error) {
 	return resolveScoped(scope.Names, scope.Namespace)
 }
 
-// Apply removes each target's image, reporting progress, then the stored custom installs no image uses anymore.
+// Apply removes each target's image from Docker and every other runtime, reporting progress, then the stored custom installs no image uses anymore.
 func (s *Service) Apply(targets []Target) error {
 	before, beforeErr := s.customInstallsHashes()
 
@@ -51,6 +52,11 @@ func (s *Service) Apply(targets []Target) error {
 		logging.Step(t.Label)
 		if err := s.docker.CleanImage(t.Image); err != nil {
 			return err
+		}
+		for _, r := range s.runtimes {
+			if err := r.CleanImage(t.Image); err != nil {
+				logging.Warnf("kept %s: %v", t.Image, err)
+			}
 		}
 	}
 
