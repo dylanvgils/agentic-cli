@@ -57,31 +57,43 @@ func TestClient_run(t *testing.T) {
 	})
 }
 
-func TestClient_runStdin(t *testing.T) {
+func TestClient_runWithStdin(t *testing.T) {
 	t.Run("pipes stdin", func(t *testing.T) {
 		// Arrange
 		stubDocker(t, `cat`)
 		client := New("")
 
 		// Act
-		out, err := client.runStdin(strings.NewReader("hello\n"), "build", "-")
+		out, err := client.runWithStdin(strings.NewReader("hello\n"), "build", "-")
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "hello\n", out)
 	})
 
-	t.Run("nil stdin does not block", func(t *testing.T) {
+	t.Run("prepends --context to the executed command", func(t *testing.T) {
 		// Arrange
-		stubDocker(t, `echo ok`)
-		client := New("")
+		stubDocker(t, `printf '%s\n' "$@"`)
+		client := New("prod")
 
 		// Act
-		out, err := client.runStdin(nil, "info")
+		out, err := client.runWithStdin(strings.NewReader(""), "build", "-")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "ok\n", out)
+		assert.Equal(t, "--context\nprod\nbuild\n-\n", out)
+	})
+
+	t.Run("returns error with output on failure", func(t *testing.T) {
+		// Arrange
+		stubDocker(t, `echo boom; exit 1`)
+		client := New("")
+
+		// Act
+		_, err := client.runWithStdin(strings.NewReader(""), "build", "-")
+
+		// Assert
+		assert.ErrorContains(t, err, "boom")
 	})
 }
 

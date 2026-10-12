@@ -22,7 +22,7 @@ type dockerCall struct {
 	args []string
 }
 
-// dockerStdinCall records a single runStdin invocation.
+// dockerStdinCall records a single runWithStdin invocation.
 type dockerStdinCall struct {
 	args  []string
 	input []byte
@@ -37,22 +37,23 @@ type tarFile struct {
 // fakeRunner is the runner of a newTestClient; unset funcs fail like a missing docker binary.
 type fakeRunner struct {
 	run            func(args ...string) (string, error)
-	runStdin       func(r io.Reader, args ...string) (string, error)
+	runWithStdin   func(r io.Reader, args ...string) (string, error)
 	runInteractive func(args ...string) error
 	stream         func(w io.Writer, args ...string) error
 }
 
-func (f *fakeRunner) Run(r io.Reader, args ...string) (string, error) {
-	if r != nil {
-		if f.runStdin == nil {
-			return "", fmt.Errorf("fake: unexpected docker %v", args)
-		}
-		return f.runStdin(r, args...)
-	}
+func (f *fakeRunner) Run(args ...string) (string, error) {
 	if f.run == nil {
 		return "", fmt.Errorf("fake: unexpected docker %v", args)
 	}
 	return f.run(args...)
+}
+
+func (f *fakeRunner) RunWithStdin(r io.Reader, args ...string) (string, error) {
+	if f.runWithStdin == nil {
+		return "", fmt.Errorf("fake: unexpected docker %v", args)
+	}
+	return f.runWithStdin(r, args...)
 }
 
 func (f *fakeRunner) RunInteractive(args ...string) error {
@@ -342,20 +343,20 @@ func ownedRow(name, owner string, age time.Duration) string {
 	return name + "\t" + owner + "\t" + formatLabelTime(time.Now().Add(-age)) + "\n"
 }
 
-// stubDockerRunStdin replaces client.runStdin with fn for the duration of the test.
-func stubDockerRunStdin(t *testing.T, client *Client, fn func(io.Reader, ...string) (string, error)) {
+// stubDockerRunWithStdin replaces client.runWithStdin with fn for the duration of the test.
+func stubDockerRunWithStdin(t *testing.T, client *Client, fn func(io.Reader, ...string) (string, error)) {
 	t.Helper()
 	f := fakeOf(client)
-	orig := f.runStdin
-	f.runStdin = fn
-	t.Cleanup(func() { f.runStdin = orig })
+	orig := f.runWithStdin
+	f.runWithStdin = fn
+	t.Cleanup(func() { f.runWithStdin = orig })
 }
 
-// stubDockerRunStdinCapture stubs client.runStdin to return err, recording each call's args and input.
-func stubDockerRunStdinCapture(t *testing.T, client *Client, err error) func() []dockerStdinCall {
+// stubDockerRunWithStdinCapture stubs client.runWithStdin to return err, recording each call's args and input.
+func stubDockerRunWithStdinCapture(t *testing.T, client *Client, err error) func() []dockerStdinCall {
 	t.Helper()
 	var calls []dockerStdinCall
-	stubDockerRunStdin(t, client, func(r io.Reader, args ...string) (string, error) {
+	stubDockerRunWithStdin(t, client, func(r io.Reader, args ...string) (string, error) {
 		input, readErr := io.ReadAll(r)
 		require.NoError(t, readErr)
 		calls = append(calls, dockerStdinCall{args: args, input: input})
