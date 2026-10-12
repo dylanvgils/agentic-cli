@@ -404,10 +404,10 @@ func TestStartProxy_credentials(t *testing.T) {
 		// Arrange
 		var callsAtCopy int
 		get := stubProxyDocker(t, client, "true")
-		stdin := stubDockerRunStdinCapture(t, client, nil)
+		stdin := stubDockerRunWithStdinCapture(t, client, nil)
 		f := fakeOf(client)
-		orig := f.runStdin
-		f.runStdin = func(r io.Reader, args ...string) (string, error) {
+		orig := f.runWithStdin
+		f.runWithStdin = func(r io.Reader, args ...string) (string, error) {
 			callsAtCopy = len(get())
 			return orig(r, args...)
 		}
@@ -457,7 +457,7 @@ func TestStartProxy_credentials(t *testing.T) {
 	t.Run("removes the container and its volume when the copy fails", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
-		stubDockerRunStdinCapture(t, client, fmt.Errorf("stub: cp failed"))
+		stubDockerRunWithStdinCapture(t, client, fmt.Errorf("stub: cp failed"))
 		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
 
 		// Act
@@ -472,7 +472,7 @@ func TestStartProxy_credentials(t *testing.T) {
 	t.Run("removes the network when its subnets can't be read", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
-		stdin := stubDockerRunStdinCapture(t, client, nil)
+		stdin := stubDockerRunWithStdinCapture(t, client, nil)
 		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
 
 		// Act
@@ -488,7 +488,7 @@ func TestStartProxy_credentials(t *testing.T) {
 	t.Run("removes the proxy when it exits on start", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "false")
-		stubDockerRunStdinCapture(t, client, nil)
+		stubDockerRunWithStdinCapture(t, client, nil)
 		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
 
 		// Act
@@ -503,7 +503,7 @@ func TestStartProxy_credentials(t *testing.T) {
 	t.Run("without credentials nothing is copied or mounted", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
-		stdin := stubDockerRunStdinCapture(t, client, nil)
+		stdin := stubDockerRunWithStdinCapture(t, client, nil)
 		rs := RunSpec{Proxy: ProxySpec{Image: "default-proxy", LogDir: t.TempDir()}}
 
 		// Act
@@ -570,7 +570,7 @@ func Test_dryRunProxy(t *testing.T) {
 	t.Run("credentials print no secret and touch nothing", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
-		stdin := stubDockerRunStdinCapture(t, client, nil)
+		stdin := stubDockerRunWithStdinCapture(t, client, nil)
 		creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
 		rs := RunSpec{DryRun: true, Proxy: ProxySpec{Mode: ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}
 

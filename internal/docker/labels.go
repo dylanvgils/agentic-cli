@@ -240,7 +240,7 @@ func (c *Client) stampLabels(image string, info ImageInfo) {
 	}
 
 	args = append(args, arg("tag", image), "-")
-	_, _ = c.runStdin(strings.NewReader("FROM "+image+"\n"), args...)
+	_, _ = c.runWithStdin(strings.NewReader("FROM "+image+"\n"), args...)
 }
 
 // stampImageLabels detects base and tool versions from the built image and stamps them via stampLabels.

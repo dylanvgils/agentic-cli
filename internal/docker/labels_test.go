@@ -282,7 +282,7 @@ func TestStampLabels(t *testing.T) {
 	client := newTestClient()
 
 	var capturedArgs []string
-	stubDockerRunStdin(t, client, func(_ io.Reader, args ...string) (string, error) {
+	stubDockerRunWithStdin(t, client, func(_ io.Reader, args ...string) (string, error) {
 		capturedArgs = args
 		return "", nil
 	})
@@ -348,7 +348,7 @@ func TestStampImageLabels(t *testing.T) {
 	client := newTestClient()
 
 	var capturedArgs []string
-	stubDockerRunStdin(t, client, func(_ io.Reader, args ...string) (string, error) {
+	stubDockerRunWithStdin(t, client, func(_ io.Reader, args ...string) (string, error) {
 		capturedArgs = args
 		return "", nil
 	})
@@ -530,7 +530,7 @@ func TestRestampImage(t *testing.T) {
 	// Arrange
 	client := newTestClient()
 	var capturedArgs []string
-	stubDockerRunStdin(t, client, func(_ io.Reader, args ...string) (string, error) {
+	stubDockerRunWithStdin(t, client, func(_ io.Reader, args ...string) (string, error) {
 		capturedArgs = args
 		return "", nil
 	})
@@ -540,7 +540,7 @@ func TestRestampImage(t *testing.T) {
 	client.RestampImage("agentic-claude", info)
 
 	// Assert
-	require.NotEmpty(t, capturedArgs, "expected a relabel-only build via runStdin")
+	require.NotEmpty(t, capturedArgs, "expected a relabel-only build via runWithStdin")
 	assert.Contains(t, capturedArgs, "--label=agentic.tool=claude")
 	assert.Contains(t, capturedArgs, "--label=agentic.namespace=agentic")
 	assert.Contains(t, capturedArgs, "--label=agentic.apt=make,gcc", "unchanged labels must be carried forward")
