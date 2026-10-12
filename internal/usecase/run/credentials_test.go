@@ -82,21 +82,6 @@ func Test_credentialSetup(t *testing.T) {
 		assert.ErrorContains(t, err, "need the egress proxy")
 	})
 
-	t.Run("refuses an env entry for a proxy trust var", func(t *testing.T) {
-		for _, entry := range []string{"AGENTIC_PROXY_CA=test-ca", "SSL_CERT_FILE=/certs/example.pem", "NODE_EXTRA_CA_CERTS"} {
-			t.Run(entry, func(t *testing.T) {
-				// Arrange
-				in := Input{ProxyMode: sandbox.ProxyEnforce, Credentials: resolved}
-
-				// Act
-				_, err := credentialSetup(in, mountSet{}, []string{entry})
-
-				// Assert
-				assert.ErrorContains(t, err, "set by agentic when proxy credentials are configured")
-			})
-		}
-	})
-
 	t.Run("credentials with the proxy return placeholders", func(t *testing.T) {
 		// Arrange
 		in := Input{ProxyMode: sandbox.ProxyMonitor, Credentials: resolved}
@@ -187,6 +172,21 @@ func Test_checkCredentialEnv(t *testing.T) {
 
 		// Assert
 		assert.NoError(t, err)
+	})
+
+	t.Run("refuses an env entry for a proxy trust var", func(t *testing.T) {
+		for _, entry := range []string{"AGENTIC_PROXY_CA=test-ca", "SSL_CERT_FILE=/certs/example.pem", "NODE_EXTRA_CA_CERTS"} {
+			t.Run(entry, func(t *testing.T) {
+				// Arrange
+				resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}
+
+				// Act
+				err := checkCredentialEnv(resolved, []string{entry}, false)
+
+				// Assert
+				assert.ErrorContains(t, err, "set by agentic when proxy credentials are configured")
+			})
+		}
 	})
 
 	t.Run("refuses an env entry for the same name", func(t *testing.T) {

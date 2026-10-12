@@ -65,9 +65,6 @@ func credentialSetup(in Input, mounts mountSet, env []string) ([]string, error) 
 	if !in.ProxyMode.Enabled() {
 		return nil, fmt.Errorf("proxy credentials need the egress proxy, which is disabled")
 	}
-	if i := slices.IndexFunc(env, func(entry string) bool { return isProxyTrustEnvName(envKey(entry)) }); i >= 0 {
-		return nil, fmt.Errorf("--env: %q is set by agentic when proxy credentials are configured", envKey(env[i]))
-	}
 
 	if err := checkCredentialPaths(in.Credentials, mounts); err != nil {
 		return nil, err
@@ -101,20 +98,11 @@ func sandboxCredentials(resolved []credentials.Resolved) []sandbox.Credential {
 			continue
 		}
 
-		var headers []string
-		for _, cred := range r.Proxy {
-			for _, rule := range cred.Rules {
-				if !slices.Contains(headers, rule.Header) {
-					headers = append(headers, rule.Header)
-				}
-			}
-		}
-
 		creds = append(creds, sandbox.Credential{
 			Name:    r.Env[0],
 			Aliases: r.Env[1:],
 			Hosts:   r.Hosts(),
-			Headers: headers,
+			Headers: r.Headers(),
 			Secret:  r.Secret,
 		})
 	}
@@ -132,8 +120,13 @@ func credentialEnv(resolved []credentials.Resolved) []string {
 	return result
 }
 
-// checkCredentialEnv refuses credential env names agentic manages or env sets, since a forwarded host value would leak the real secret.
+// checkCredentialEnv refuses env entries for the proxy trust vars, and credential env names agentic manages or env sets,
+// since a forwarded host value would leak the real secret.
 func checkCredentialEnv(resolved []credentials.Resolved, env []string, dindEnabled bool) error {
+	if i := slices.IndexFunc(env, func(entry string) bool { return isProxyTrustEnvName(envKey(entry)) }); i >= 0 {
+		return fmt.Errorf("--env: %q is set by agentic when proxy credentials are configured", envKey(env[i]))
+	}
+
 	for _, r := range resolved {
 		for _, name := range r.Env {
 			if docker.IsReservedEnvName(name, true) || isProxyTrustEnvName(name) || (dindEnabled && docker.IsReservedDindEnvName(name)) {

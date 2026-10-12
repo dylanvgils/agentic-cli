@@ -182,6 +182,20 @@ func TestResolved_Hosts(t *testing.T) {
 	assert.Equal(t, []string{"api.example.test", "git.example.test"}, hosts)
 }
 
+func TestResolved_Headers(t *testing.T) {
+	// Arrange
+	resolved := Resolved{Proxy: []proxy.Credential{
+		{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization"}, {Header: "X-Api-Key"}}},
+		{Hosts: []string{"git.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization"}}},
+	}}
+
+	// Act
+	headers := resolved.Headers()
+
+	// Assert
+	assert.Equal(t, []string{"Authorization", "X-Api-Key"}, headers)
+}
+
 func TestHosts(t *testing.T) {
 	stubPresets(t, map[string]preset{
 		"example": {

@@ -4,6 +4,7 @@ package credentials
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -37,6 +38,19 @@ func (r Resolved) Hosts() []string {
 		hosts = append(hosts, cred.Hosts...)
 	}
 	return hosts
+}
+
+// Headers returns each header the entry injects, once.
+func (r Resolved) Headers() []string {
+	var headers []string
+	for _, cred := range r.Proxy {
+		for _, rule := range cred.Rules {
+			if !slices.Contains(headers, rule.Header) {
+				headers = append(headers, rule.Header)
+			}
+		}
+	}
+	return headers
 }
 
 // Resolve reads each entry's secret and formats its header values, failing on invalid entries or a host claimed twice.
