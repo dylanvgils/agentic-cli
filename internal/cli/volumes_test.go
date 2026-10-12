@@ -50,43 +50,24 @@ func Test_runVolumeCreate(t *testing.T) {
 func Test_runVolumeList(t *testing.T) {
 	stubMicrosandbox(t, &fakeMicrosandbox{})
 
-	t.Run("prints raw output", func(t *testing.T) {
+	t.Run("lists the volumes grouped by runtime", func(t *testing.T) {
 		// Arrange
-		stubListVolumes(t, func() (string, error) {
-			return "DRIVER    VOLUME NAME\nlocal     maven\n", nil
-		})
-
-		// Act
-		out := captureStdout(t, func() {
-			err := runVolumeList(volumesListCmd, nil)
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Equal(t, "DRIVER    VOLUME NAME\nlocal     maven\n", out)
-	})
-
-	t.Run("lists msb volumes under their runtime", func(t *testing.T) {
-		// Arrange
-		stubListVolumes(t, func() (string, error) { return "DRIVER    VOLUME NAME\n", nil })
-		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven"}, nil })
+		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven", "npm"}, nil })
 		stubMicrosandbox(t, &fakeMicrosandbox{listVolumeNames: func() ([]string, error) { return []string{"gradle"}, nil }})
 		var err error
 
 		// Act
-		logs := captureLog(t, func() {
-			captureStdout(t, func() { err = runVolumeList(volumesListCmd, nil) })
-		})
+		logs := captureLog(t, func() { err = runVolumeList(volumesListCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "=> microsandbox\n   gradle\n", logs)
+		assert.Equal(t, "=> docker\n   maven\n   npm\n=> microsandbox\n   gradle\n", logs)
 	})
 
 	t.Run("error propagates", func(t *testing.T) {
 		// Arrange
-		stubListVolumes(t, func() (string, error) {
-			return "", fmt.Errorf("docker daemon not running")
+		stubListVolumeNames(t, func() ([]string, error) {
+			return nil, fmt.Errorf("docker daemon not running")
 		})
 
 		// Act

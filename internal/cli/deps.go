@@ -48,7 +48,6 @@ type dockerAPI interface {
 	CurrentContext() (string, error)
 	CheckDaemon() error
 	CreateVolume(name string) error
-	ListVolumes() (string, error)
 	ListRunningContainers() ([]*docker.ContainerInfo, error)
 	ListContexts() ([]string, error)
 }

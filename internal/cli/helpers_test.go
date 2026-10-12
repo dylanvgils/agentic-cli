@@ -42,7 +42,6 @@ type fakeDocker struct {
 	removeNetwork         func() error
 	ensureNamedVolumes    func(volumes []string, toolHome, containerHome, chownImage string) error
 	createVolume          func(string) error
-	listVolumes           func() (string, error)
 	listVolumeNames       func() ([]string, error)
 	removeVolume          func(string) error
 	sweepProxyResources   func() error
@@ -199,13 +198,6 @@ func (f *fakeDocker) CreateVolume(name string) error {
 	return f.createVolume(name)
 }
 
-func (f *fakeDocker) ListVolumes() (string, error) {
-	if f.listVolumes == nil {
-		return "", nil
-	}
-	return f.listVolumes()
-}
-
 func (f *fakeDocker) ListVolumeNames() ([]string, error) {
 	if f.listVolumeNames == nil {
 		return nil, nil
@@ -299,9 +291,6 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 	if o.createVolume != nil {
 		f.createVolume = o.createVolume
-	}
-	if o.listVolumes != nil {
-		f.listVolumes = o.listVolumes
 	}
 	if o.listVolumeNames != nil {
 		f.listVolumeNames = o.listVolumeNames
@@ -573,11 +562,6 @@ func stubListRunningContainers(t *testing.T, fn func() ([]*docker.ContainerInfo,
 func stubListVolumeNames(t *testing.T, fn func() ([]string, error)) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{listVolumeNames: fn})
-}
-
-func stubListVolumes(t *testing.T, fn func() (string, error)) {
-	t.Helper()
-	stubDocker(t, &fakeDocker{listVolumes: fn})
 }
 
 func stubListContexts(t *testing.T, fn func() ([]string, error)) {

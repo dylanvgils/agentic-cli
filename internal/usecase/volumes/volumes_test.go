@@ -88,6 +88,58 @@ func Test_Service_Remove(t *testing.T) {
 	})
 }
 
+func Test_Service_RemoveAll(t *testing.T) {
+	t.Run("removes each volume from its runtime and reports it", func(t *testing.T) {
+		// Arrange
+		logs := stubLog(t)
+		var removed []string
+		d := &fakeDocker{removeVolume: func(n string) error { removed = append(removed, "docker "+n); return nil }}
+		m := &fakeMsb{removeVolume: func(n string) error { removed = append(removed, "msb "+n); return nil }}
+		vols := []Volume{{Name: "maven", Runtime: RuntimeDocker}, {Name: "gradle", Runtime: RuntimeMicrosandbox}}
+
+		// Act
+		err := New(d, m).RemoveAll(vols)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"docker maven", "msb gradle"}, removed)
+		assert.Equal(t, "=> deleted: maven\n=> deleted: gradle (microsandbox)\n", logs.String())
+	})
+
+	t.Run("stops at the first error", func(t *testing.T) {
+		// Arrange
+		stubLog(t)
+		calls := 0
+		d := &fakeDocker{removeVolume: func(string) error { calls++; return errors.New("in use") }}
+		vols := []Volume{{Name: "maven", Runtime: RuntimeDocker}, {Name: "npm", Runtime: RuntimeDocker}}
+
+		// Act
+		err := New(d, &fakeMsb{}).RemoveAll(vols)
+
+		// Assert
+		assert.ErrorContains(t, err, "in use")
+		assert.Equal(t, 1, calls)
+	})
+}
+
+func Test_Volume_Label(t *testing.T) {
+	t.Run("names a docker volume plainly", func(t *testing.T) {
+		// Act
+		label := Volume{Name: "maven", Runtime: RuntimeDocker}.Label()
+
+		// Assert
+		assert.Equal(t, "maven", label)
+	})
+
+	t.Run("marks another runtime's volume", func(t *testing.T) {
+		// Act
+		label := Volume{Name: "maven", Runtime: RuntimeMicrosandbox}.Label()
+
+		// Assert
+		assert.Equal(t, "maven (microsandbox)", label)
+	})
+}
+
 func Test_Service_RemoveNamed(t *testing.T) {
 	t.Run("removes the volume from every runtime that holds it", func(t *testing.T) {
 		// Arrange

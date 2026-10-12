@@ -33,11 +33,6 @@ func (c *Client) CreateVolume(name string) error {
 	return nil
 }
 
-// ListVolumes returns the raw output of docker volume ls filtered to agentic-managed volumes.
-func (c *Client) ListVolumes() (string, error) {
-	return c.run("volume", "ls", labelFilter(LabelProject, LabelProjectVal))
-}
-
 // ListVolumeNames returns only the names of agentic-managed volumes (no header row).
 func (c *Client) ListVolumeNames() ([]string, error) {
 	out, err := c.run("volume", "ls", arg("quiet"), labelFilter(LabelProject, LabelProjectVal))

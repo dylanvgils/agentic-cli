@@ -1,7 +1,11 @@
 // Package volumes lists and removes agentic's named volumes across the Docker and microsandbox runtimes.
 package volumes
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/dylanvgils/agentic-cli/internal/logging"
+)
 
 // Runtimes a Volume can live in.
 const (
@@ -19,6 +23,14 @@ type Service struct {
 type Volume struct {
 	Name    string
 	Runtime string
+}
+
+// Label names v, marking the volumes that aren't Docker's with their runtime.
+func (v Volume) Label() string {
+	if v.Runtime == RuntimeDocker {
+		return v.Name
+	}
+	return v.Name + " (" + v.Runtime + ")"
 }
 
 // New returns a Service over Docker and microsandbox volumes.
@@ -50,6 +62,17 @@ func (s *Service) Remove(v Volume) error {
 		return s.msb.RemoveVolume(v.Name)
 	}
 	return s.docker.RemoveVolume(v.Name)
+}
+
+// RemoveAll removes each of vols from its runtime, reporting progress; it stops at the first error.
+func (s *Service) RemoveAll(vols []Volume) error {
+	for _, v := range vols {
+		if err := s.Remove(v); err != nil {
+			return err
+		}
+		logging.Stepf("deleted: %s", v.Label())
+	}
+	return nil
 }
 
 // RemoveNamed removes name from every runtime that holds it.

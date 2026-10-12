@@ -194,47 +194,6 @@ func TestCreateVolume(t *testing.T) {
 	})
 }
 
-func TestListVolumes(t *testing.T) {
-	client := newTestClient()
-
-	t.Run("calls with filter", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
-
-		// Act
-		_, err := client.ListVolumes()
-
-		// Assert
-		require.NoError(t, err)
-		calls := get()
-		require.Len(t, calls, 1)
-		assert.Equal(t, []string{"volume", "ls", "--filter=label=project=agentic-cli"}, calls[0].args)
-	})
-
-	t.Run("returns output", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "DRIVER    VOLUME NAME\nlocal     maven\n", nil)
-
-		// Act
-		out, err := client.ListVolumes()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "DRIVER    VOLUME NAME\nlocal     maven\n", out)
-	})
-
-	t.Run("propagates error", func(t *testing.T) {
-		// Arrange
-		stubDockerRunCapture(t, client, "volume ls")
-
-		// Act
-		_, err := client.ListVolumes()
-
-		// Assert
-		assert.Error(t, err)
-	})
-}
-
 func TestListVolumeNames(t *testing.T) {
 	client := newTestClient()
 
