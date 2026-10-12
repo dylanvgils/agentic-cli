@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
@@ -71,7 +72,7 @@ func (c *Client) RunContainer(rs RunSpec, toolArgs []string) error {
 	}
 
 	if rs.DryRun {
-		_, err := fmt.Fprintln(os.Stdout, "docker", shellJoin(args))
+		_, err := fmt.Fprintln(os.Stdout, "docker", sandbox.ShellJoin(args))
 		return err
 	}
 

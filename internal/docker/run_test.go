@@ -331,7 +331,7 @@ func TestIsReservedEnvName(t *testing.T) {
 	})
 
 	t.Run("terminal vars are not reserved", func(t *testing.T) {
-		for _, key := range terminalCapabilityEnvNames {
+		for _, key := range []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"} {
 			assert.False(t, IsReservedEnvName(key, true), key)
 		}
 	})

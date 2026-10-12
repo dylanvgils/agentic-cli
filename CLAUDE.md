@@ -15,6 +15,7 @@ make verify-checksums   # pinned install-script checksums (fix-checksums to upda
 - `agentic-proxy` (`cmd/proxy`) imports only `internal/proxy`, never `internal/docker`, `tools`, `cli` or `logging`.
 - `internal/dind` (sidecar files) never imports `internal/docker`; the sidecar's container lifecycle lives in `internal/docker/dind.go`.
 - `internal/certs` imports only the standard library.
+- `internal/sandbox` (shared by the docker and microsandbox runtimes) never imports `internal/docker`, `microsandbox`, `cli` or `usecase`.
 - `internal/proxy` never imports `internal/credentials`.
 
 ## Security rules

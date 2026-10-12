@@ -13,13 +13,8 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
-
-// terminalEnvNames are host vars forwarded into the sandbox, the same set the docker runtime forwards.
-var terminalEnvNames = []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"}
-
-// hostTimezone is a test-stubbable indirection into platform.Timezone.
-var hostTimezone = platform.Timezone
 
 // Run runs the tool described by rs in a microsandbox VM, skipping what Ignored lists; the image must already be loaded.
 func (c *Client) Run(rs docker.RunSpec, toolArgs []string) error {
@@ -29,7 +24,7 @@ func (c *Client) Run(rs docker.RunSpec, toolArgs []string) error {
 	}
 
 	if rs.DryRun {
-		_, err := fmt.Fprintln(os.Stdout, "msb", shellJoin(args))
+		_, err := fmt.Fprintln(os.Stdout, "msb", sandbox.ShellJoin(args))
 		return err
 	}
 
@@ -113,7 +108,7 @@ func buildLimitArgs(limits docker.ResourceLimits) ([]string, error) {
 // buildEnvArgs maps the resolved sandbox env to --env flags.
 func buildEnvArgs(rs docker.RunSpec) []string {
 	var args []string
-	for _, entry := range resolveEnv(rs.Env) {
+	for _, entry := range sandbox.ResolveEnv(rs.Env) {
 		args = append(args, arg("env", entry))
 	}
 	return args
@@ -140,16 +135,9 @@ func buildVolumeArgs(rs docker.RunSpec) ([]string, error) {
 func buildSecretArgs(rs docker.RunSpec) ([]string, error) {
 	var args []string
 	for _, secret := range rs.Secrets {
-		name, rest, ok := strings.Cut(secret, ":")
-		if !ok {
-			return nil, fmt.Errorf("invalid secret %q: expected name:/path[:/container/path]", secret)
-		}
-
-		hostPath, guestPath, found := mount.SplitHostContainer(rest)
-		if !found {
-			guestPath = "/run/secrets/" + name
-		} else if guestPath == "" {
-			return nil, fmt.Errorf("invalid secret %q: empty container path", secret)
+		hostPath, guestPath, err := mount.ParseSecretSpec(secret)
+		if err != nil {
+			return nil, err
 		}
 
 		mountArgs, err := buildMountArgs(hostPath+":"+guestPath+":ro", rs.ToolHome, rs.ContainerHome)
@@ -170,31 +158,6 @@ func buildEntrypointArgs(rs docker.RunSpec, toolArgs []string) (args, rest []str
 		return nil, nil, errors.New("skipping the entrypoint with --runtime microsandbox needs a command")
 	}
 	return []string{arg("entrypoint", toolArgs[0])}, toolArgs[1:], nil
-}
-
-// resolveEnv returns the sandbox env as KEY=VALUE: forwarded terminal vars and host timezone, then
-// env entries ("KEY=VALUE", or bare "KEY" to forward the host's value); later entries win.
-func resolveEnv(env []string) []string {
-	var resolved []string
-	for _, key := range terminalEnvNames {
-		if val := os.Getenv(key); val != "" {
-			resolved = append(resolved, key+"="+val)
-		}
-	}
-
-	if tz := hostTimezone(); tz != "" {
-		resolved = append(resolved, "TZ="+tz)
-	}
-
-	for _, entry := range env {
-		if key, _, ok := strings.Cut(entry, "="); ok {
-			resolved = append(resolved, entry)
-		} else if val, set := os.LookupEnv(key); set {
-			resolved = append(resolved, key+"="+val)
-		}
-	}
-
-	return resolved
 }
 
 // isNamedVolume reports whether volume mounts a Docker named volume rather than a host path.
@@ -251,17 +214,4 @@ func parseMountSpec(volume, toolHome, guestHome string) (source, guest string, r
 // ownerOptions returns msb's mount owner options for the host uid/gid, which the image user is created with.
 func ownerOptions() string {
 	return "uid=" + platform.GetUID() + ",gid=" + platform.GetGID()
-}
-
-// shellJoin renders args as a shell command line, single-quoting any arg that needs it.
-func shellJoin(args []string) string {
-	parts := make([]string, len(args))
-	for i, arg := range args {
-		if strings.ContainsAny(arg, " \t$'") {
-			parts[i] = "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
-		} else {
-			parts[i] = arg
-		}
-	}
-	return strings.Join(parts, " ")
 }

@@ -198,15 +198,11 @@ func Test_buildLimitArgs(t *testing.T) {
 }
 
 func Test_buildEnvArgs(t *testing.T) {
-	// Arrange
-	clearTerminalEnv(t)
-	stubHostTimezone(t, "")
-
 	// Act
 	args := buildEnvArgs(docker.RunSpec{Env: []string{"CI=true"}})
 
 	// Assert
-	assert.Equal(t, []string{"--env=CI=true"}, args)
+	assert.Contains(t, args, "--env=CI=true")
 }
 
 func Test_buildVolumeArgs(t *testing.T) {
@@ -274,33 +270,12 @@ func Test_buildSecretArgs(t *testing.T) {
 		assert.Equal(t, []string{"--mount-file=" + file + ":/run/secrets/token:ro"}, args)
 	})
 
-	t.Run("uses an explicit guest path", func(t *testing.T) {
-		// Arrange
-		file := filepath.Join(t.TempDir(), "token")
-		require.NoError(t, os.WriteFile(file, []byte("test-secret"), 0o600))
-
-		// Act
-		args, err := buildSecretArgs(docker.RunSpec{Secrets: []string{"token:" + file + ":/etc/app/token"}})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-file=" + file + ":/etc/app/token:ro"}, args)
-	})
-
-	t.Run("rejects a secret without a path", func(t *testing.T) {
+	t.Run("returns a parse error", func(t *testing.T) {
 		// Act
 		_, err := buildSecretArgs(docker.RunSpec{Secrets: []string{"token"}})
 
 		// Assert
-		assert.ErrorContains(t, err, `invalid secret "token": expected name:/path[:/container/path]`)
-	})
-
-	t.Run("rejects an empty container path", func(t *testing.T) {
-		// Act
-		_, err := buildSecretArgs(docker.RunSpec{Secrets: []string{"token:/example.test/token:"}})
-
-		// Assert
-		assert.ErrorContains(t, err, "empty container path")
+		assert.ErrorContains(t, err, `invalid secret "token"`)
 	})
 }
 
@@ -419,41 +394,4 @@ func Test_ownerOptions(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, "uid="+platform.GetUID()+",gid="+platform.GetGID(), options)
-}
-
-func Test_resolveEnv(t *testing.T) {
-	t.Run("forwards set terminal vars and the host timezone first", func(t *testing.T) {
-		// Arrange
-		clearTerminalEnv(t)
-		t.Setenv("TERM", "xterm-256color")
-		stubHostTimezone(t, "Europe/Amsterdam")
-
-		// Act
-		env := resolveEnv(nil)
-
-		// Assert
-		assert.Equal(t, []string{"TERM=xterm-256color", "TZ=Europe/Amsterdam"}, env)
-	})
-
-	t.Run("passes KEY=VALUE and forwards bare keys set on the host", func(t *testing.T) {
-		// Arrange
-		clearTerminalEnv(t)
-		stubHostTimezone(t, "")
-		t.Setenv("CI", "true")
-		os.Unsetenv("AGENTIC_NONEXISTENT_VAR") //nolint:errcheck
-
-		// Act
-		env := resolveEnv([]string{"MAVEN_OPTS=-Dfoo=bar", "CI", "AGENTIC_NONEXISTENT_VAR"})
-
-		// Assert
-		assert.Equal(t, []string{"MAVEN_OPTS=-Dfoo=bar", "CI=true"}, env)
-	})
-}
-
-func Test_shellJoin(t *testing.T) {
-	// Act
-	line := shellJoin([]string{"run", "--env", "A=b c", "--env", "B=$X", "it's"})
-
-	// Assert
-	assert.Equal(t, `run --env 'A=b c' --env 'B=$X' 'it'\''s'`, line)
 }

@@ -1,24 +1,10 @@
 package docker
 
 import (
-	"fmt"
-	"os"
-	"strings"
-
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
-
-var (
-	// isTerminal is a test-stubbable indirection into platform.IsTerminal.
-	isTerminal = platform.IsTerminal
-	// hostTimezone is a test-stubbable indirection into platform.Timezone.
-	hostTimezone = platform.Timezone
-)
-
-// terminalCapabilityEnvNames are host vars auto-forwarded into the container; not reserved, so
-// a user-supplied --env entry for one of these can override it (a cosmetic preference, not enforced).
-var terminalCapabilityEnvNames = []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"}
 
 // networkOrDefault returns the configured network, or NetworkName when unset.
 func networkOrDefault(network string) string {
@@ -85,23 +71,12 @@ func buildTTYArgs() []string {
 	return nil
 }
 
-// buildEnvArgs builds --env flags: auto-forwarded terminal capabilities and host timezone, then
-// rs.Env entries ("KEY=VALUE", or bare "KEY" to forward the host's current value).
+// buildEnvArgs maps the resolved container env to --env flags.
 func buildEnvArgs(rs RunSpec) []string {
-	args := forwardEnvArg(terminalCapabilityEnvNames...)
-
-	if tz := hostTimezone(); tz != "" {
-		args = append(args, arg("env", "TZ="+tz))
+	var args []string
+	for _, entry := range sandbox.ResolveEnv(rs.Env) {
+		args = append(args, arg("env", entry))
 	}
-
-	for _, entry := range rs.Env {
-		if key, _, ok := strings.Cut(entry, "="); ok {
-			args = append(args, arg("env", entry))
-		} else if value, set := os.LookupEnv(key); set {
-			args = append(args, arg("env", key+"="+value))
-		}
-	}
-
 	return args
 }
 
@@ -125,20 +100,13 @@ func buildVolumeArgs(rs RunSpec) []string {
 	return args
 }
 
-// buildSecretArgs builds read-only secret volume flags, erroring on a malformed "name:/path[:/container/path]" entry.
+// buildSecretArgs builds read-only secret volume flags, erroring on a malformed secret spec.
 func buildSecretArgs(rs RunSpec) ([]string, error) {
 	args := make([]string, 0, len(rs.Secrets))
 	for _, secret := range rs.Secrets {
-		name, rest, ok := strings.Cut(secret, ":")
-		if !ok {
-			return nil, fmt.Errorf("invalid secret %q: expected name:/path[:/container/path]", secret)
-		}
-
-		hostPath, containerPath, found := mount.SplitHostContainer(rest)
-		if !found {
-			containerPath = "/run/secrets/" + name
-		} else if containerPath == "" {
-			return nil, fmt.Errorf("invalid secret %q: empty container path", secret)
+		hostPath, containerPath, err := mount.ParseSecretSpec(secret)
+		if err != nil {
+			return nil, err
 		}
 
 		spec := mount.ExpandMountSpec(hostPath+":"+containerPath, rs.ToolHome, rs.ContainerHome)

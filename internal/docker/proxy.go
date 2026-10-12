@@ -15,6 +15,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // proxyHostAlias is the proxy's stable network alias, registered alongside its randomized
@@ -302,7 +303,7 @@ func (c *Client) dryRunProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), er
 	rs.network = handle.network
 
 	// Shows no secrets: those are only copied in before start
-	if _, err := fmt.Fprintln(os.Stdout, "docker", shellJoin(handle.createArgs(*rs))); err != nil {
+	if _, err := fmt.Fprintln(os.Stdout, "docker", sandbox.ShellJoin(handle.createArgs(*rs))); err != nil {
 		return nil, nil, err
 	}
 
