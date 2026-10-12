@@ -14,20 +14,26 @@ func (c *Client) CleanImage(image string) error {
 	}
 
 	repo, _ := SplitRef(image)
-	var tags []string
-	for _, ref := range refs {
-		refRepo, tag := SplitRef(ref)
-		if refRepo != repo {
-			continue
-		}
+	matching, tags := repoRefs(refs, repo)
+	for _, ref := range matching {
 		if err := c.RemoveImage(ref); err != nil {
 			return err
 		}
-		tags = append(tags, tag)
 	}
 
 	if len(tags) > 0 {
 		logging.Detailf("microsandbox %s (%s)", repo, strings.Join(tags, ", "))
 	}
 	return nil
+}
+
+// repoRefs returns the refs of repo among refs, and their tags.
+func repoRefs(refs []string, repo string) (matching, tags []string) {
+	for _, ref := range refs {
+		if refRepo, tag := SplitRef(ref); refRepo == repo {
+			matching = append(matching, ref)
+			tags = append(tags, tag)
+		}
+	}
+	return matching, tags
 }

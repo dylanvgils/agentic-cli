@@ -59,3 +59,12 @@ func TestCleanImage(t *testing.T) {
 		assert.ErrorContains(t, err, "remove msb image agentic-claude:abc123: in use")
 	})
 }
+
+func Test_repoRefs(t *testing.T) {
+	// Act
+	matching, tags := repoRefs([]string{"agentic-claude:abc123", "agentic-codex:abc123", "docker.io/library/agentic-claude"}, "agentic-claude")
+
+	// Assert
+	assert.Equal(t, []string{"agentic-claude:abc123", "docker.io/library/agentic-claude"}, matching)
+	assert.Equal(t, []string{"abc123", "latest"}, tags)
+}
