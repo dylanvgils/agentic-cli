@@ -8,34 +8,34 @@ import (
 )
 
 func TestParseSecretSpec(t *testing.T) {
-	t.Run("defaults the container path to /run/secrets/<name>", func(t *testing.T) {
+	t.Run("defaults the target to /run/secrets/<name>", func(t *testing.T) {
 		// Act
-		host, container, err := ParseSecretSpec("token:/example.test/token")
+		host, target, err := ParseSecretSpec("token:/example.test/token")
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "/example.test/token", host)
-		assert.Equal(t, "/run/secrets/token", container)
+		assert.Equal(t, "/run/secrets/token", target)
 	})
 
-	t.Run("uses an explicit container path", func(t *testing.T) {
+	t.Run("uses an explicit target", func(t *testing.T) {
 		// Act
-		host, container, err := ParseSecretSpec("token:/example.test/token:/etc/app/token")
+		host, target, err := ParseSecretSpec("token:/example.test/token:/etc/app/token")
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "/example.test/token", host)
-		assert.Equal(t, "/etc/app/token", container)
+		assert.Equal(t, "/etc/app/token", target)
 	})
 
 	t.Run("keeps a Windows drive letter in the host path", func(t *testing.T) {
 		// Act
-		host, container, err := ParseSecretSpec(`token:C:\secrets\token`)
+		host, target, err := ParseSecretSpec(`token:C:\secrets\token`)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, `C:\secrets\token`, host)
-		assert.Equal(t, "/run/secrets/token", container)
+		assert.Equal(t, "/run/secrets/token", target)
 	})
 
 	t.Run("rejects a secret without a path", func(t *testing.T) {
@@ -46,7 +46,7 @@ func TestParseSecretSpec(t *testing.T) {
 		assert.ErrorContains(t, err, `invalid secret "token": expected name:/path[:/container/path]`)
 	})
 
-	t.Run("rejects an empty container path", func(t *testing.T) {
+	t.Run("rejects an empty target", func(t *testing.T) {
 		// Act
 		_, _, err := ParseSecretSpec("token:/example.test/token:")
 
