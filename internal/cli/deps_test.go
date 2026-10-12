@@ -6,10 +6,10 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/git"
-	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,7 +26,7 @@ func TestDefaultDeps(t *testing.T) {
 		want any
 		got  any
 	}{
-		{"pruneProxyLogs", housekeeping.PruneProxyLogs, pruneProxyLogs},
+		{"pruneProxyLogs", proxy.PruneLogs, pruneProxyLogs},
 		{"isTerminal", platform.IsTerminal, isTerminal},
 		{"checkGitAvailable", git.CheckAvailable, checkGitAvailable},
 		{"loadMarketplaceRegistry", marketplace.LoadRegistry, loadMarketplaceRegistry},

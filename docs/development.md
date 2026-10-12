@@ -20,12 +20,11 @@ agentic-cli/
 │   ├── docker/                  # Build, update, run, clean, inspect, volume, and sidecar (proxy, dind) orchestration
 │   ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
 │   ├── git/                     # Thin wrapper over the host git binary (CheckAvailable, Clone, FetchReset)
-│   ├── housekeeping/            # Host-side cleanup not tied to a tool run, the proxy server, or docker orchestration (e.g. pruning proxy logs)
 │   ├── marketplace/             # Syncs git-based plugin marketplace repos onto the host and tracks per-clone usage
 │   ├── mount/                   # Volume mount spec builder
 │   ├── output/                  # CLI output formatting
 │   ├── platform/                # Platform-specific paths and utilities
-│   ├── proxy/                   # Egress allowlist proxy: server, allowlist, JSON-lines logger, TLS-terminating credential injection
+│   ├── proxy/                   # Egress allowlist proxy: server, allowlist, JSON-lines logger and log pruning, TLS-terminating credential injection
 │   ├── sandbox/                 # Runtime-neutral run spec (RunSpec, limits, proxy and dind specs) and helpers shared by the runtimes
 │   ├── selfupdate/              # Downloads and installs new releases from GitHub
 │   ├── tools/                   # Per-tool stage funcs, mounts, setup, and base layers

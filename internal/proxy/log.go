@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -94,5 +96,26 @@ func (l *Logger) Log(entry Entry) {
 			tags += " (" + entry.Reason + ")"
 		}
 		fmt.Fprintf(l.human, "%s %-7s %-5s %s:%s%s\n", entry.Time.In(l.location).Format(time.RFC3339), level, entry.Protocol, entry.Host, entry.Port, tags)
+	}
+}
+
+// PruneLogs removes access-log files in dir older than maxAge (maxAge <= 0 removes all). Best-effort: never fails the caller.
+func PruneLogs(dir string, maxAge time.Duration) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+
+	cutoff := time.Now().Add(-maxAge)
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasPrefix(entry.Name(), LogFilePrefix) || filepath.Ext(entry.Name()) != ".jsonl" {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil || info.ModTime().After(cutoff) {
+			continue
+		}
+		_ = os.Remove(filepath.Join(dir, entry.Name()))
 	}
 }
