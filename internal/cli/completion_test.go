@@ -124,14 +124,14 @@ func Test_volumeNamesFunc(t *testing.T) {
 
 	t.Run("returns volume names", func(t *testing.T) {
 		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven", "gradle"}, nil })
+		stubListVolumeNames(t, func() ([]string, error) { return []string{"gradle", "maven"}, nil })
 
 		// Act
 		names, directive := volumeNamesFunc(&cobra.Command{}, nil, "")
 
 		// Assert
 		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
-		assert.Equal(t, []string{"maven", "gradle"}, names)
+		assert.Equal(t, []string{"gradle", "maven"}, names)
 	})
 
 	t.Run("adds msb volume names once", func(t *testing.T) {

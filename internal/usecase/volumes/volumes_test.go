@@ -223,3 +223,15 @@ func Test_Service_RemoveNamed(t *testing.T) {
 		assert.ErrorContains(t, err, "in use")
 	})
 }
+
+func Test_named(t *testing.T) {
+	// Act
+	volumes := named([]string{"npm", "gradle", "maven"}, RuntimeMicrosandbox)
+
+	// Assert
+	assert.Equal(t, []Volume{
+		{Name: "gradle", Runtime: RuntimeMicrosandbox},
+		{Name: "maven", Runtime: RuntimeMicrosandbox},
+		{Name: "npm", Runtime: RuntimeMicrosandbox},
+	}, volumes)
+}

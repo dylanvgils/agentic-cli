@@ -157,7 +157,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		// Arrange
 		logBuf := stubErrLog(t)
 		stubListVolumeNames(t, func() ([]string, error) {
-			return []string{"maven", "gradle"}, nil
+			return []string{"gradle", "maven"}, nil
 		})
 		var removed []string
 		stubRemoveVolume(t, func(name string) error { removed = append(removed, name); return nil })
@@ -168,7 +168,7 @@ func Test_runVolumeRemove(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"maven", "gradle"}, removed)
+		assert.Equal(t, []string{"gradle", "maven"}, removed)
 		assert.Contains(t, logBuf.String(), "agentic: removing 2 volume(s)")
 	})
 
@@ -205,7 +205,7 @@ func Test_runVolumeRemove(t *testing.T) {
 	t.Run("no name remove error propagates", func(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) {
-			return []string{"maven", "gradle"}, nil
+			return []string{"gradle", "maven"}, nil
 		})
 		var removeCalled int
 		stubRemoveVolume(t, func(string) error {
@@ -225,7 +225,7 @@ func Test_runVolumeRemove(t *testing.T) {
 	t.Run("no name lists volumes right before the prompt", func(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) {
-			return []string{"maven", "gradle"}, nil
+			return []string{"gradle", "maven"}, nil
 		})
 		stubRemoveVolume(t, func(string) error { return nil })
 		stubStdin(t, "n\n")
@@ -236,7 +236,7 @@ func Test_runVolumeRemove(t *testing.T) {
 
 		// Assert - list and prompt share stderr, list first
 		require.NoError(t, err)
-		assert.Equal(t, "agentic: volumes to remove:\n   maven\n   gradle\nagentic: remove all agentic-managed volumes? [y/N] ", logBuf.String())
+		assert.Equal(t, "agentic: volumes to remove:\n   gradle\n   maven\nagentic: remove all agentic-managed volumes? [y/N] ", logBuf.String())
 	})
 
 	t.Run("no name removes msb volumes too, marked by runtime", func(t *testing.T) {

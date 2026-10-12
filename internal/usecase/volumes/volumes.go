@@ -104,10 +104,10 @@ func (s *Service) msbVolumes() ([]Volume, error) {
 	return named(names, RuntimeMicrosandbox), nil
 }
 
-// named pairs each of names with runtime.
+// named pairs each of names with runtime, sorted by name so every runtime lists in the same order.
 func named(names []string, runtime string) []Volume {
 	volumes := make([]Volume, 0, len(names))
-	for _, n := range names {
+	for _, n := range slices.Sorted(slices.Values(names)) {
 		volumes = append(volumes, Volume{Name: n, Runtime: runtime})
 	}
 	return volumes
