@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +18,7 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("security args", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{Image: "agentic-claude"}
+		rs := sandbox.RunSpec{Image: "agentic-claude"}
 
 		// Act
 		err := client.RunContainer(rs, nil)
@@ -35,7 +36,7 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("names the tool container after its image", func(t *testing.T) {
 		// Act
-		err := client.RunContainer(RunSpec{Image: "agentic-claude"}, nil)
+		err := client.RunContainer(sandbox.RunSpec{Image: "agentic-claude"}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -45,9 +46,9 @@ func TestRunContainer(t *testing.T) {
 	t.Run("proxy mode swaps network and injects proxy env", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "network inspect")
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image: "agentic-claude",
-			Proxy: ProxySpec{Mode: ProxyEnforce, Image: "default-proxy", Allow: []string{"api.anthropic.com"}, LogDir: t.TempDir()},
+			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Image: "default-proxy", Allow: []string{"api.anthropic.com"}, LogDir: t.TempDir()},
 		}
 
 		// Act
@@ -66,7 +67,7 @@ func TestRunContainer(t *testing.T) {
 		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
 		stubDockerRunCapture(t, client)
-		rs := RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Dind: DindSpec{Enabled: true, Image: "dind"}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true, Image: "dind"}}
 
 		// Act
 		err := client.RunContainer(rs, nil)
@@ -88,11 +89,11 @@ func TestRunContainer(t *testing.T) {
 		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
 		calls := stubDockerRunCapture(t, client, "network inspect")
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),
-			Proxy:    ProxySpec{Mode: ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir()},
-			Dind:     DindSpec{Enabled: true, Image: "dind"},
+			Proxy:    sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir()},
+			Dind:     sandbox.DindSpec{Enabled: true, Image: "dind"},
 		}
 
 		// Act
@@ -112,7 +113,7 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("tmpfs mounts", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:       "agentic-claude",
 			TmpfsMounts: []string{"/tmp:exec,size=1g"},
 		}
@@ -127,7 +128,7 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("tmpfs mounts expand container home", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:         "agentic-copilot",
 			ContainerHome: "/home/user",
 			TmpfsMounts:   []string{"/tmp:exec,size=1g", "$CONTAINER_HOME/.cache:exec,size=1g"},
@@ -145,7 +146,7 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("image and tool args", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{Image: "agentic-claude"}
+		rs := sandbox.RunSpec{Image: "agentic-claude"}
 
 		// Act
 		err := client.RunContainer(rs, []string{"--resume"})
@@ -161,7 +162,7 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("skip entrypoint", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:          "agentic-claude",
 			SkipEntrypoint: true,
 		}
@@ -176,7 +177,7 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("volumes", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:    "agentic-claude",
 			ToolHome: "/home/.agentic",
 			Volumes:  []string{"/host:/container", "$TOOL_HOME/data:/data"},
@@ -194,7 +195,7 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("secrets", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:   "agentic-copilot",
 			Secrets: []string{"mytoken:/tmp/token"},
 		}
@@ -212,7 +213,7 @@ func TestRunContainer(t *testing.T) {
 		home, err := os.UserHomeDir()
 		require.NoError(t, err)
 
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:   "agentic-copilot",
 			Secrets: []string{"mytoken:~/secrets/token"},
 		}
@@ -230,7 +231,7 @@ func TestRunContainer(t *testing.T) {
 		home, err := os.UserHomeDir()
 		require.NoError(t, err)
 
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:   "agentic-copilot",
 			Secrets: []string{"mytoken:$HOME/secrets/token"},
 		}
@@ -248,7 +249,7 @@ func TestRunContainer(t *testing.T) {
 		home, err := os.UserHomeDir()
 		require.NoError(t, err)
 
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:   "agentic-copilot",
 			Secrets: []string{"mytoken:${HOME}/secrets/token"},
 		}
@@ -263,7 +264,7 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("secrets with explicit container path", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:   "agentic-copilot",
 			Secrets: []string{"maven-settings:/tmp/settings.xml:/root/.m2/settings.xml"},
 		}
@@ -278,7 +279,7 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("secrets with $CONTAINER_HOME in container path", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:         "agentic-copilot",
 			ContainerHome: "/root",
 			Secrets:       []string{"maven-settings:/tmp/settings.xml:$CONTAINER_HOME/.m2/settings.xml"},
@@ -294,7 +295,7 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("secrets empty target path", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:   "agentic-copilot",
 			Secrets: []string{"mytoken:/tmp/token:"},
 		}
@@ -305,7 +306,7 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("secrets invalid format", func(t *testing.T) {
 		// Arrange
-		rs := RunSpec{
+		rs := sandbox.RunSpec{
 			Image:   "agentic-copilot",
 			Secrets: []string{"badformat"},
 		}

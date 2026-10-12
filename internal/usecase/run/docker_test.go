@@ -7,6 +7,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,14 +24,14 @@ func Test_Service_runDocker(t *testing.T) {
 				calls = append(calls, "volumes")
 				return nil
 			},
-			runContainer: func(docker.RunSpec, []string) error {
+			runContainer: func(sandbox.RunSpec, []string) error {
 				calls = append(calls, "run")
 				return nil
 			},
 		}
 
 		// Act
-		err := New(d, nil).runDocker(req, docker.RunSpec{Image: "agentic-claude"}, nil)
+		err := New(d, nil).runDocker(req, sandbox.RunSpec{Image: "agentic-claude"}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -42,14 +43,14 @@ func Test_Service_runDocker(t *testing.T) {
 		ran := false
 		d := &fakeDocker{
 			ensureNamedVolumes: func([]string, string, string, string) error { return errors.New("volume error") },
-			runContainer: func(docker.RunSpec, []string) error {
+			runContainer: func(sandbox.RunSpec, []string) error {
 				ran = true
 				return nil
 			},
 		}
 
 		// Act
-		err := New(d, nil).runDocker(req, docker.RunSpec{Image: "agentic-claude"}, nil)
+		err := New(d, nil).runDocker(req, sandbox.RunSpec{Image: "agentic-claude"}, nil)
 
 		// Assert
 		assert.EqualError(t, err, "volume error")
@@ -64,14 +65,14 @@ func Test_Service_runDocker(t *testing.T) {
 				setUp = true
 				return nil
 			},
-			runContainer: func(docker.RunSpec, []string) error {
+			runContainer: func(sandbox.RunSpec, []string) error {
 				ran = true
 				return nil
 			},
 		}
 
 		// Act
-		err := New(d, nil).runDocker(req, docker.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
+		err := New(d, nil).runDocker(req, sandbox.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -91,7 +92,7 @@ func Test_Service_runDocker(t *testing.T) {
 				return nil
 			},
 		}
-		rs := docker.RunSpec{Image: "agentic-claude", Dind: docker.DindSpec{Enabled: true}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}}
 
 		// Act
 		err := New(d, nil).runDocker(req, rs, nil)
@@ -119,7 +120,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 			gotVolumes, gotChownImage = volumes, chownImage
 			return nil
 		}}
-		rs := docker.RunSpec{Volumes: []string{"maven:/cache"}}
+		rs := sandbox.RunSpec{Volumes: []string{"maven:/cache"}}
 
 		// Act
 		err := New(d, nil).prepareDockerHost(rs, "registry.example.test")
@@ -135,7 +136,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 		home := t.TempDir()
 		logDir := filepath.Join(home, config.LogsDirName)
 		d := &fakeDocker{inspectImage: func(name string) (*docker.ImageInfo, error) { return &docker.ImageInfo{Image: name}, nil }}
-		rs := docker.RunSpec{ToolHome: home, Proxy: docker.ProxySpec{Mode: docker.ProxyEnforce, LogDir: logDir}}
+		rs := sandbox.RunSpec{ToolHome: home, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: logDir}}
 
 		// Act
 		err := New(d, nil).prepareDockerHost(rs, "")
@@ -156,7 +157,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 				return nil
 			},
 		}
-		rs := newProxyRunSpec(t, docker.ProxyMonitor)
+		rs := newProxyRunSpec(t, sandbox.ProxyMonitor)
 
 		// Act
 		err := New(d, nil).prepareDockerHost(rs, "")
@@ -173,7 +174,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 			inspectImage:    proxyMissing,
 			buildProxyImage: func(string, string, string, tools.BuildOptions) error { return errors.New("proxy build failed") },
 		}
-		rs := newProxyRunSpec(t, docker.ProxyMonitor)
+		rs := newProxyRunSpec(t, sandbox.ProxyMonitor)
 
 		// Act
 		err := New(d, nil).prepareDockerHost(rs, "")
@@ -187,7 +188,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 		d := &fakeDocker{ensureNetwork: func() error { return errors.New("network error") }}
 
 		// Act
-		err := New(d, nil).prepareDockerHost(docker.RunSpec{}, "")
+		err := New(d, nil).prepareDockerHost(sandbox.RunSpec{}, "")
 
 		// Assert
 		assert.EqualError(t, err, "network error")
@@ -199,7 +200,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 			inspectImage:  func(name string) (*docker.ImageInfo, error) { return &docker.ImageInfo{Image: name}, nil },
 			ensureNetwork: func() error { return errors.New("network error") },
 		}
-		rs := newProxyRunSpec(t, docker.ProxyEnforce)
+		rs := newProxyRunSpec(t, sandbox.ProxyEnforce)
 
 		// Act
 		err := New(d, nil).prepareDockerHost(rs, "")

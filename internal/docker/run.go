@@ -29,22 +29,9 @@ var reservedConfigNames = map[string]bool{
 	tools.ProxyCAEnvName:   true,
 }
 
-// RunSpec collects everything needed to run a container.
-type RunSpec struct {
-	Image          string
-	ToolHome       string
-	ContainerHome  string
-	Volumes        []string
-	Secrets        []string
-	Env            []string
-	SkipEntrypoint bool
-	TmpfsMounts    []string
-	Limits         ResourceLimits
-	DryRun         bool
-
-	// Sidecars
-	Proxy ProxySpec
-	Dind  DindSpec
+// toolRun is a RunSpec plus the per-run Docker state RunContainer derives from it.
+type toolRun struct {
+	sandbox.RunSpec
 
 	// network is the docker network the tool attaches to; empty means NetworkName, proxy or dind mode sets a per-run net.
 	network string
@@ -53,12 +40,12 @@ type RunSpec struct {
 	container string
 }
 
-func (c *Client) RunContainer(rs RunSpec, toolArgs []string) error {
+func (c *Client) RunContainer(spec sandbox.RunSpec, toolArgs []string) error {
 	id, err := randID()
 	if err != nil {
 		return err
 	}
-	rs.container = rs.Image + "-" + id
+	rs := toolRun{RunSpec: spec, container: spec.Image + "-" + id}
 
 	sidecarArgs, cleanup, err := c.setupSidecars(&rs)
 	if err != nil {

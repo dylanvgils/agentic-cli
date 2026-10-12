@@ -2,8 +2,8 @@ package resolve
 
 import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // Volumes merges the tool's built-in mounts, --volume flag values, and .agenticrc.toml extra_mounts, in that order; user bind mounts are read-only unless they set rw.
@@ -47,6 +47,6 @@ func Env(flags []string, rc *config.AgenticRC) []string {
 }
 
 // ResourceLimitsFor resolves each limit through flag, then rc, then hardcoded default.
-func ResourceLimitsFor(flags docker.ResourceLimits, rc *config.AgenticRC) docker.ResourceLimits {
-	return flags.Or(docker.ResourceLimits(rc.Run.RCLimits)).Or(docker.DefaultLimits)
+func ResourceLimitsFor(flags sandbox.ResourceLimits, rc *config.AgenticRC) sandbox.ResourceLimits {
+	return flags.Or(sandbox.ResourceLimits(rc.Run.RCLimits)).Or(sandbox.DefaultLimits)
 }

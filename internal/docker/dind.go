@@ -101,13 +101,6 @@ var dindReservedEnvNames = map[string]bool{
 	"DOCKER_CONFIG":     true,
 }
 
-// DindSpec configures the rootless Docker daemon sidecar the tool reaches over mutual TLS.
-type DindSpec struct {
-	Enabled bool
-	Image   string
-	Limits  ResourceLimits
-}
-
 // dindHandle identifies the per-run sidecar, its network and its run dir.
 type dindHandle struct {
 	client      *Client
@@ -121,7 +114,7 @@ type dindHandle struct {
 
 // newDindHandle derives the per-run resource names without creating anything, so it is safe for dry runs.
 // In proxy mode the sidecar joins the proxy's network so its egress is confined too.
-func (c *Client) newDindHandle(rs RunSpec) (dindHandle, error) {
+func (c *Client) newDindHandle(rs toolRun) (dindHandle, error) {
 	id, err := randID()
 	if err != nil {
 		return dindHandle{}, err
@@ -158,7 +151,7 @@ func (h dindHandle) Stop() {
 }
 
 // runArgs builds the `docker run` arguments for the rootless dockerd sidecar.
-func (h dindHandle) runArgs(rs RunSpec) []string {
+func (h dindHandle) runArgs(rs toolRun) []string {
 	args := []string{
 		// No --rm, so a crashed sidecar keeps its logs for waitReady
 		"run", "--detach", "--read-only",
@@ -201,7 +194,7 @@ func (h dindHandle) runArgs(rs RunSpec) []string {
 		args = append(args, arg("volume", mount.NormalizeMountSpec(filepath.Join(h.runDir, dindEtcSubdir, name)+":/etc/"+name)+":ro"))
 	}
 
-	for _, volume := range workspaceVolumes(rs) {
+	for _, volume := range workspaceVolumes(rs.RunSpec) {
 		args = append(args, arg("volume", volume))
 	}
 
@@ -314,7 +307,7 @@ func (c *Client) SweepDindResources(toolHome string) error {
 }
 
 // startDind writes the per-run files, starts the sidecar and waits for dockerd; cleans up on failure.
-func (c *Client) startDind(rs RunSpec, interrupt <-chan os.Signal) (dindHandle, error) {
+func (c *Client) startDind(rs toolRun, interrupt <-chan os.Signal) (dindHandle, error) {
 	h, err := c.newDindHandle(rs)
 	if err != nil {
 		return dindHandle{}, err
@@ -364,7 +357,7 @@ func (c *Client) startDind(rs RunSpec, interrupt <-chan os.Signal) (dindHandle, 
 }
 
 // setupDind starts the Docker sidecar if enabled, returning the tool args and a cleanup func to defer.
-func (c *Client) setupDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
+func (c *Client) setupDind(rs *toolRun) (toolArgs []string, cleanup func(), err error) {
 	if !rs.Dind.Enabled {
 		return nil, noCleanup, nil
 	}
@@ -376,7 +369,7 @@ func (c *Client) setupDind(rs *RunSpec) (toolArgs []string, cleanup func(), err 
 }
 
 // dryRunDind prints the sidecar command and returns the tool args without provisioning anything.
-func (c *Client) dryRunDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
+func (c *Client) dryRunDind(rs *toolRun) (toolArgs []string, cleanup func(), err error) {
 	handle, err := c.newDindHandle(*rs)
 	if err != nil {
 		return nil, nil, err
@@ -392,7 +385,7 @@ func (c *Client) dryRunDind(rs *RunSpec) (toolArgs []string, cleanup func(), err
 }
 
 // launchDind starts the sidecar and returns a cleanup that removes it.
-func (c *Client) launchDind(rs *RunSpec) (toolArgs []string, cleanup func(), err error) {
+func (c *Client) launchDind(rs *toolRun) (toolArgs []string, cleanup func(), err error) {
 	// Guard first so Ctrl-C during startup still removes the sidecar
 	interrupt, stop := guardSignals()
 
@@ -456,7 +449,7 @@ func (c *Client) sweepDindRunDirs(toolHome string) error {
 }
 
 // workspaceVolumes returns the tool's /workspace volume specs, so the sidecar sees the same paths and :ro overlays.
-func workspaceVolumes(rs RunSpec) []string {
+func workspaceVolumes(rs sandbox.RunSpec) []string {
 	var result []string
 	for _, volume := range rs.Volumes {
 		expanded := mount.NormalizeMountSpec(mount.ExpandMountSpec(volume, rs.ToolHome, rs.ContainerHome))

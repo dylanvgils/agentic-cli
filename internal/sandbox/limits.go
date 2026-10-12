@@ -1,4 +1,4 @@
-package docker
+package sandbox
 
 // Default resource limits, the last fallback when neither flags nor config set one.
 const (

@@ -5,7 +5,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // dindRegistryHosts are the Docker Hub endpoints image pulls need.
@@ -19,20 +19,20 @@ type ProxyInput struct {
 }
 
 // ProxyMode resolves whether the proxy is off, enforcing or monitoring; credentials turn it on and refuse an explicit off.
-func ProxyMode(in ProxyInput, rc *config.AgenticRC) (docker.ProxyMode, error) {
+func ProxyMode(in ProxyInput, rc *config.AgenticRC) (sandbox.ProxyMode, error) {
 	mode := configuredProxyMode(in, rc)
 	if mode.Enabled() || len(rc.Run.Proxy.Credentials) == 0 {
 		return mode, nil
 	}
 
 	if in.NoProxy {
-		return docker.ProxyOff, fmt.Errorf("--no-proxy cannot be used with [[run.proxy.credentials]], which the proxy injects")
+		return sandbox.ProxyOff, fmt.Errorf("--no-proxy cannot be used with [[run.proxy.credentials]], which the proxy injects")
 	}
 	if rc.Run.Proxy.Enabled != nil && !*rc.Run.Proxy.Enabled {
-		return docker.ProxyOff, fmt.Errorf("[run.proxy] enabled = false cannot be used with [[run.proxy.credentials]], which the proxy injects")
+		return sandbox.ProxyOff, fmt.Errorf("[run.proxy] enabled = false cannot be used with [[run.proxy.credentials]], which the proxy injects")
 	}
 
-	return docker.ProxyEnforce, nil
+	return sandbox.ProxyEnforce, nil
 }
 
 // ProxyAllowList merges the tool's allowlist with user hosts and credential hosts, plus Docker Hub when dind is on.
@@ -46,27 +46,27 @@ func ProxyAllowList(toolAllowedHosts []string, dindEnabled bool, rc *config.Agen
 }
 
 // configuredProxyMode applies flags, then config, ignoring credentials. --no-proxy/enabled=false always wins; monitor implies enabled.
-func configuredProxyMode(in ProxyInput, rc *config.AgenticRC) docker.ProxyMode {
+func configuredProxyMode(in ProxyInput, rc *config.AgenticRC) sandbox.ProxyMode {
 	if in.NoProxy {
-		return docker.ProxyOff
+		return sandbox.ProxyOff
 	}
 	if in.MonitorFlag {
-		return docker.ProxyMonitor
+		return sandbox.ProxyMonitor
 	}
 	if in.ProxyFlag {
-		return docker.ProxyEnforce
+		return sandbox.ProxyEnforce
 	}
 
 	if rc.Run.Proxy.Enabled != nil && !*rc.Run.Proxy.Enabled {
-		return docker.ProxyOff
+		return sandbox.ProxyOff
 	}
 	if rc.Run.Proxy.Mode == config.ModeMonitor {
-		return docker.ProxyMonitor
+		return sandbox.ProxyMonitor
 	}
 
 	if rc.Run.Proxy.Enabled != nil && *rc.Run.Proxy.Enabled {
-		return docker.ProxyEnforce
+		return sandbox.ProxyEnforce
 	}
 
-	return docker.ProxyOff
+	return sandbox.ProxyOff
 }

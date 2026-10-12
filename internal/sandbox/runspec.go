@@ -1,4 +1,22 @@
-package docker
+package sandbox
+
+// RunSpec describes the tool run a user asked for, independent of the runtime that executes it.
+type RunSpec struct {
+	Image          string
+	ToolHome       string
+	ContainerHome  string
+	Volumes        []string
+	Secrets        []string
+	Env            []string
+	SkipEntrypoint bool
+	TmpfsMounts    []string
+	Limits         ResourceLimits
+	DryRun         bool
+
+	// Sidecars
+	Proxy ProxySpec
+	Dind  DindSpec
+}
 
 // RunSpecBuilder constructs a RunSpec via a fluent interface.
 type RunSpecBuilder struct {

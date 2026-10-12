@@ -3,7 +3,7 @@ package run
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -11,19 +11,19 @@ import (
 func Test_Service_Run(t *testing.T) {
 	t.Run("docker runs the container", func(t *testing.T) {
 		// Arrange
-		var ranSpec docker.RunSpec
+		var ranSpec sandbox.RunSpec
 		var ranArgs []string
 		microsandboxRan := false
-		svc := New(&fakeDocker{runContainer: func(rs docker.RunSpec, toolArgs []string) error {
+		svc := New(&fakeDocker{runContainer: func(rs sandbox.RunSpec, toolArgs []string) error {
 			ranSpec, ranArgs = rs, toolArgs
 			return nil
-		}}, &fakeMicrosandbox{run: func(docker.RunSpec, []string) error {
+		}}, &fakeMicrosandbox{run: func(sandbox.RunSpec, []string) error {
 			microsandboxRan = true
 			return nil
 		}})
 
 		// Act
-		err := svc.Run(runtimeRequest(RuntimeDocker), docker.RunSpec{Image: "agentic-claude"}, []string{"--help"})
+		err := svc.Run(runtimeRequest(RuntimeDocker), sandbox.RunSpec{Image: "agentic-claude"}, []string{"--help"})
 
 		// Assert
 		require.NoError(t, err)
@@ -35,21 +35,21 @@ func Test_Service_Run(t *testing.T) {
 	t.Run("microsandbox runs through the microsandbox client", func(t *testing.T) {
 		// Arrange
 		dockerRan := false
-		var ranSpec docker.RunSpec
+		var ranSpec sandbox.RunSpec
 		d := &fakeDocker{
 			inspectImage: inspectImageID("abc123"),
-			runContainer: func(docker.RunSpec, []string) error {
+			runContainer: func(sandbox.RunSpec, []string) error {
 				dockerRan = true
 				return nil
 			},
 		}
-		svc := New(d, &fakeMicrosandbox{run: func(rs docker.RunSpec, _ []string) error {
+		svc := New(d, &fakeMicrosandbox{run: func(rs sandbox.RunSpec, _ []string) error {
 			ranSpec = rs
 			return nil
 		}})
 
 		// Act
-		err := svc.Run(runtimeRequest(RuntimeMicrosandbox), docker.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
+		err := svc.Run(runtimeRequest(RuntimeMicrosandbox), sandbox.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -60,13 +60,13 @@ func Test_Service_Run(t *testing.T) {
 	t.Run("empty runtime runs on docker", func(t *testing.T) {
 		// Arrange
 		dockerRan := false
-		svc := New(&fakeDocker{runContainer: func(docker.RunSpec, []string) error {
+		svc := New(&fakeDocker{runContainer: func(sandbox.RunSpec, []string) error {
 			dockerRan = true
 			return nil
 		}}, nil)
 
 		// Act
-		err := svc.Run(Request{}, docker.RunSpec{Image: "agentic-claude"}, nil)
+		err := svc.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude"}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -78,7 +78,7 @@ func Test_Service_Run(t *testing.T) {
 		svc := New(&fakeDocker{}, nil)
 
 		// Act
-		err := svc.Run(runtimeRequest(Runtime("podman")), docker.RunSpec{}, nil)
+		err := svc.Run(runtimeRequest(Runtime("podman")), sandbox.RunSpec{}, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, `unknown runtime "podman"`)

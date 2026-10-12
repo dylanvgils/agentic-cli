@@ -40,31 +40,11 @@ const dryRunClientNetsPlaceholder = "<proxy network subnets>"
 // proxyLogMountDir is where the run's log file is mounted inside the proxy.
 const proxyLogMountDir = "/var/log/agentic-proxy"
 
-// Proxy modes; ProxyOff is the zero value, so a RunSpec without one runs no proxy.
-const (
-	ProxyOff ProxyMode = iota
-	ProxyEnforce
-	ProxyMonitor
-)
-
 // Startup check settings for a credentialed proxy; vars so tests can shorten them.
 var (
 	proxySettleTime   = 500 * time.Millisecond
 	proxyPollInterval = 50 * time.Millisecond
 )
-
-// ProxyMode selects whether the egress proxy runs and whether it blocks or only logs disallowed hosts.
-type ProxyMode int
-
-// ProxySpec configures the egress proxy sidecar; unless Mode is ProxyOff, the tool reaches out only through it.
-type ProxySpec struct {
-	Mode   ProxyMode
-	Image  string   // proxy sidecar image
-	Allow  []string // merged allowlist (tool baseline + user hosts)
-	LogDir string   // host dir for JSON-lines access logs
-	// Credentials are the headers the proxy injects; they hold secrets, so never print them
-	Credentials []proxy.Credential
-}
 
 // proxyHandle identifies the per-run proxy network, sidecar container, host-side access log, injected credentials,
 // the network's subnets that may use them, and the CA cert the proxy signs them with, set once started.
@@ -81,13 +61,8 @@ type proxyHandle struct {
 	caPEM       []byte
 }
 
-// Enabled reports whether the proxy runs, in either mode.
-func (m ProxyMode) Enabled() bool {
-	return m != ProxyOff
-}
-
 // newProxyHandle derives the per-run proxy resource names without creating any docker resources, so it is safe for dry runs.
-func (c *Client) newProxyHandle(rs RunSpec) (proxyHandle, error) {
+func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 	id, err := randID()
 	if err != nil {
 		return proxyHandle{}, err
@@ -101,7 +76,7 @@ func (c *Client) newProxyHandle(rs RunSpec) (proxyHandle, error) {
 		container:   name,
 		logPath:     filepath.Join(rs.Proxy.LogDir, proxyLogFileName(id)),
 		allow:       rs.Proxy.Allow,
-		monitor:     rs.Proxy.Mode == ProxyMonitor,
+		monitor:     rs.Proxy.Mode == sandbox.ProxyMonitor,
 		credentials: rs.Proxy.Credentials,
 	}, nil
 }
@@ -217,7 +192,7 @@ func (h proxyHandle) totalRequests() int {
 
 // startProxy provisions the per-run internal network and proxy sidecar, copying in any credentials before it starts
 // and wiring it to the egress network; cleans up whatever it created on any failure.
-func (c *Client) startProxy(rs RunSpec) (proxyHandle, error) {
+func (c *Client) startProxy(rs toolRun) (proxyHandle, error) {
 	h, err := c.newProxyHandle(rs)
 	if err != nil {
 		return proxyHandle{}, err
@@ -283,7 +258,7 @@ func (c *Client) startProxy(rs RunSpec) (proxyHandle, error) {
 }
 
 // setupProxy configures rs for proxy mode if enabled, returning the tool args (proxy env, CA trust) to inject and a cleanup func to defer.
-func (c *Client) setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
+func (c *Client) setupProxy(rs *toolRun) (proxyEnv []string, cleanup func(), err error) {
 	if !rs.Proxy.Mode.Enabled() {
 		return nil, noCleanup, nil
 	}
@@ -295,7 +270,7 @@ func (c *Client) setupProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err
 }
 
 // dryRunProxy reflects the proxy network and env in the printed command without provisioning anything.
-func (c *Client) dryRunProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
+func (c *Client) dryRunProxy(rs *toolRun) (proxyEnv []string, cleanup func(), err error) {
 	handle, err := c.newProxyHandle(*rs)
 	if err != nil {
 		return nil, nil, err
@@ -311,7 +286,7 @@ func (c *Client) dryRunProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), er
 }
 
 // launchProxy starts the sidecar and returns a cleanup that tears it down and prints the access summary.
-func (c *Client) launchProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), err error) {
+func (c *Client) launchProxy(rs *toolRun) (proxyEnv []string, cleanup func(), err error) {
 	// Guard first so Ctrl-C during startup still removes the sidecar and its credentials volume
 	interrupt, stop := guardSignals()
 
@@ -342,7 +317,7 @@ func (c *Client) launchProxy(rs *RunSpec) (proxyEnv []string, cleanup func(), er
 
 // createArgs builds the `docker create` arguments for the hardened proxy sidecar, registering
 // proxyHostAlias on the per-run network so tool config can reference a stable hostname.
-func (h proxyHandle) createArgs(rs RunSpec) []string {
+func (h proxyHandle) createArgs(rs toolRun) []string {
 	containerLog := proxyLogMountDir + "/" + proxyLogFileName(h.id)
 	_, tzOffset := time.Now().Zone()
 

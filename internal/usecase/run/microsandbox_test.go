@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,14 +59,14 @@ func Test_Service_runMicrosandbox(t *testing.T) {
 		// Arrange
 		var ranImage string
 		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{
-			run: func(rs docker.RunSpec, _ []string) error {
+			run: func(rs sandbox.RunSpec, _ []string) error {
 				ranImage = rs.Image
 				return nil
 			},
 		})
 
 		// Act
-		err := svc.runMicrosandbox(docker.RunSpec{Image: "agentic-claude"}, nil)
+		err := svc.runMicrosandbox(sandbox.RunSpec{Image: "agentic-claude"}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -80,14 +81,14 @@ func Test_Service_runMicrosandbox(t *testing.T) {
 				_, _ = io.ReadAll(r)
 				return errors.New("boom")
 			},
-			run: func(docker.RunSpec, []string) error {
+			run: func(sandbox.RunSpec, []string) error {
 				ran = true
 				return nil
 			},
 		})
 
 		// Act
-		err := svc.runMicrosandbox(docker.RunSpec{Image: "agentic-claude"}, nil)
+		err := svc.runMicrosandbox(sandbox.RunSpec{Image: "agentic-claude"}, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "boom")
@@ -105,7 +106,7 @@ func Test_Service_runMicrosandbox(t *testing.T) {
 				return err
 			},
 		})
-		rs := docker.RunSpec{Image: "agentic-claude", Dind: docker.DindSpec{Enabled: true}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}}
 
 		// Act
 		err := svc.runMicrosandbox(rs, nil)
@@ -128,14 +129,14 @@ func Test_Service_runMicrosandbox(t *testing.T) {
 				loaded = true
 				return nil
 			},
-			run: func(rs docker.RunSpec, _ []string) error {
+			run: func(rs sandbox.RunSpec, _ []string) error {
 				ranImage = rs.Image
 				return nil
 			},
 		})
 
 		// Act
-		err := svc.runMicrosandbox(docker.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
+		err := svc.runMicrosandbox(sandbox.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
 
 		// Assert
 		require.NoError(t, err)

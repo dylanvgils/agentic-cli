@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/spf13/cobra"
 )
 
@@ -57,9 +57,9 @@ func (p *fieldPrinter) runFields() {
 		secrets        = func(rc *config.AgenticRC) []string { return rc.Run.Secrets }
 	)
 
-	p.scalar("pids_limit", pidsLimit, docker.DefaultPidsLimit)
-	p.scalar("cpus", cpus, docker.DefaultCPUs)
-	p.scalar("memory", memory, docker.DefaultMemory)
+	p.scalar("pids_limit", pidsLimit, sandbox.DefaultPidsLimit)
+	p.scalar("cpus", cpus, sandbox.DefaultCPUs)
+	p.scalar("memory", memory, sandbox.DefaultMemory)
 	p.list("extra_mounts", extraMounts)
 	p.list("read_only_mounts", readOnlyMounts)
 	p.list("secrets", secrets)
@@ -91,9 +91,9 @@ func (p *fieldPrinter) dindFields() {
 	)
 
 	p.boolean("dind.enabled", enabled, false)
-	p.scalar("dind.pids_limit", pidsLimit, effectiveScalar(p.layers, toolPidsLimit, docker.DefaultPidsLimit))
-	p.scalar("dind.cpus", cpus, effectiveScalar(p.layers, toolCPUs, docker.DefaultCPUs))
-	p.scalar("dind.memory", memory, effectiveScalar(p.layers, toolMemory, docker.DefaultMemory))
+	p.scalar("dind.pids_limit", pidsLimit, effectiveScalar(p.layers, toolPidsLimit, sandbox.DefaultPidsLimit))
+	p.scalar("dind.cpus", cpus, effectiveScalar(p.layers, toolCPUs, sandbox.DefaultCPUs))
+	p.scalar("dind.memory", memory, effectiveScalar(p.layers, toolMemory, sandbox.DefaultMemory))
 }
 
 // scalar prints a scalar field via printScalarField.

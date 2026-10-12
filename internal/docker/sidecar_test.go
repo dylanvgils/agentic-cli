@@ -5,13 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_ownerLabels(t *testing.T) {
 	// Arrange
-	rs := RunSpec{container: "agentic-claude-abc"}
+	rs := toolRun{container: "agentic-claude-abc"}
 
 	// Act
 	labels := ownerLabels(rs)
@@ -28,7 +29,7 @@ func Test_setupSidecars(t *testing.T) {
 	t.Run("sweeps orphaned sidecars first", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
-		rs := RunSpec{Image: "agentic-claude"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}}
 
 		// Act
 		_, _, err := client.setupSidecars(&rs)
@@ -41,7 +42,7 @@ func Test_setupSidecars(t *testing.T) {
 	t.Run("dry run does not sweep", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
-		rs := RunSpec{Image: "agentic-claude", DryRun: true}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", DryRun: true}}
 
 		// Act
 		_, _, err := client.setupSidecars(&rs)
@@ -56,12 +57,12 @@ func Test_setupSidecars(t *testing.T) {
 		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
 		calls := stubDockerRunCapture(t, client, "network inspect", "exec")
-		rs := RunSpec{
+		rs := toolRun{RunSpec: sandbox.RunSpec{
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),
-			Proxy:    ProxySpec{Mode: ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir()},
-			Dind:     DindSpec{Enabled: true, Image: "dind"},
-		}
+			Proxy:    sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir()},
+			Dind:     sandbox.DindSpec{Enabled: true, Image: "dind"},
+		}}
 
 		// Act
 		_, _, err := client.setupSidecars(&rs)

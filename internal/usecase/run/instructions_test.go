@@ -8,6 +8,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
@@ -136,9 +137,9 @@ func TestBuildInstructions(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, content, docker.DefaultPidsLimit)
-		assert.Contains(t, content, docker.DefaultCPUs)
-		assert.Contains(t, content, docker.DefaultMemory)
+		assert.Contains(t, content, sandbox.DefaultPidsLimit)
+		assert.Contains(t, content, sandbox.DefaultCPUs)
+		assert.Contains(t, content, sandbox.DefaultMemory)
 	})
 
 	t.Run("resource limits note they are configurable", func(t *testing.T) {
@@ -162,7 +163,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("network section lists allowlist when enforcing", func(t *testing.T) {
 		// Arrange
-		in := Input{ProxyMode: docker.ProxyEnforce}
+		in := Input{ProxyMode: sandbox.ProxyEnforce}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
 
 		// Act
@@ -178,7 +179,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("network section omits host list in monitor mode", func(t *testing.T) {
 		// Arrange
-		in := Input{ProxyMode: docker.ProxyMonitor}
+		in := Input{ProxyMode: sandbox.ProxyMonitor}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
 
 		// Act
@@ -217,7 +218,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("docker section lists the sidecar limits", func(t *testing.T) {
 		// Arrange
-		in := Input{DindEnabled: true, DindLimits: docker.ResourceLimits{CPUs: "2"}}
+		in := Input{DindEnabled: true, DindLimits: sandbox.ResourceLimits{CPUs: "2"}}
 		rc := &config.AgenticRC{}
 		rc.Run.Dind.Memory = "6g"
 
@@ -226,12 +227,12 @@ func TestBuildInstructions(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, content, fmt.Sprintf("%s processes, 2 CPUs, 6g memory", docker.DefaultPidsLimit))
+		assert.Contains(t, content, fmt.Sprintf("%s processes, 2 CPUs, 6g memory", sandbox.DefaultPidsLimit))
 	})
 
 	t.Run("docker section and allowlist cover registries with proxy", func(t *testing.T) {
 		// Arrange
-		in := Input{DindEnabled: true, ProxyMode: docker.ProxyEnforce}
+		in := Input{DindEnabled: true, ProxyMode: sandbox.ProxyEnforce}
 
 		// Act
 		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
@@ -244,7 +245,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("microsandbox describes a VM instead of the hardened container", func(t *testing.T) {
 		// Arrange
-		in := Input{Runtime: RuntimeMicrosandbox, Limits: docker.ResourceLimits{CPUs: "3", Memory: "6g"}}
+		in := Input{Runtime: RuntimeMicrosandbox, Limits: sandbox.ResourceLimits{CPUs: "3", Memory: "6g"}}
 
 		// Act
 		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["copilot"], &config.AgenticRC{})
@@ -266,7 +267,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("microsandbox omits the proxy and sidecar even when enabled", func(t *testing.T) {
 		// Arrange
-		in := Input{Runtime: RuntimeMicrosandbox, ProxyMode: docker.ProxyEnforce, DindEnabled: true}
+		in := Input{Runtime: RuntimeMicrosandbox, ProxyMode: sandbox.ProxyEnforce, DindEnabled: true}
 
 		// Act
 		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})

@@ -1,13 +1,13 @@
 package run
 
 import (
-	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 )
 
 // runDocker readies the Docker-only host resources rs needs, then runs it; a dry run only checks the image and prints.
-func (s *Service) runDocker(req Request, rs docker.RunSpec, toolArgs []string) error {
+func (s *Service) runDocker(req Request, rs sandbox.RunSpec, toolArgs []string) error {
 	if rs.Dind.Enabled {
 		if err := s.requireDockerLayer(rs.Image, req.Target.ToolName); err != nil {
 			return err
@@ -24,7 +24,7 @@ func (s *Service) runDocker(req Request, rs docker.RunSpec, toolArgs []string) e
 }
 
 // prepareDockerHost creates rs's named volumes and proxy log dir, builds missing sidecar images and ensures agentic-net when the tool joins it.
-func (s *Service) prepareDockerHost(rs docker.RunSpec, registry string) error {
+func (s *Service) prepareDockerHost(rs sandbox.RunSpec, registry string) error {
 	if err := s.docker.EnsureNamedVolumes(rs.Volumes, rs.ToolHome, rs.ContainerHome, tools.BusyboxImageFor(registry)); err != nil {
 		return err
 	}

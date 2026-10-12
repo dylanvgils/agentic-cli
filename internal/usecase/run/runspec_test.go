@@ -13,6 +13,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -114,7 +115,7 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, rs.Limits)
+		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, rs.Limits)
 	})
 
 	t.Run("dind limits inherit tool limits", func(t *testing.T) {
@@ -128,13 +129,13 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, rs.Dind.Limits)
+		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, rs.Dind.Limits)
 	})
 
 	t.Run("dind limits override tool limits", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), DindLimits: docker.ResourceLimits{Memory: "16g"}}
+		in := Input{ToolHome: t.TempDir(), DindLimits: sandbox.ResourceLimits{Memory: "16g"}}
 		rc := &config.AgenticRC{Run: config.RCRun{
 			RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
 			Dind:     config.RCDind{RCLimits: config.RCLimits{PidsLimit: "4096", Memory: "8g"}},
@@ -145,7 +146,7 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ResourceLimits{PidsLimit: "4096", CPUs: "2", Memory: "16g"}, rs.Dind.Limits)
+		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "4096", CPUs: "2", Memory: "16g"}, rs.Dind.Limits)
 		assert.Equal(t, "2g", rs.Limits.Memory, "tool limit is unaffected")
 	})
 
@@ -219,7 +220,7 @@ func TestBuild(t *testing.T) {
 	t.Run("proxy wired with merged allowlist and image", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyEnforce}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
 
 		// Act
@@ -227,7 +228,7 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyEnforce, rs.Proxy.Mode)
+		assert.Equal(t, sandbox.ProxyEnforce, rs.Proxy.Mode)
 		assert.Equal(t, tools.ProxyImage, rs.Proxy.Image)
 		assert.Equal(t, []string{".anthropic.com", ".claude.ai", ".claude.com", "extra.example.com"}, rs.Proxy.Allow)
 		assert.NotEmpty(t, rs.Proxy.LogDir)
@@ -243,21 +244,21 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyOff, rs.Proxy.Mode)
+		assert.Equal(t, sandbox.ProxyOff, rs.Proxy.Mode)
 		assert.Empty(t, rs.Proxy.LogDir)
 	})
 
 	t.Run("proxy monitor wired", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyMonitor}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyMonitor}
 
 		// Act
 		rs, err := New(d, nil).Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, docker.ProxyMonitor, rs.Proxy.Mode)
+		assert.Equal(t, sandbox.ProxyMonitor, rs.Proxy.Mode)
 	})
 
 	t.Run("proxy credentials wired with placeholder env", func(t *testing.T) {
@@ -266,7 +267,7 @@ func TestBuild(t *testing.T) {
 		cred := proxy.Credential{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}
 		in := Input{
 			ToolHome:    t.TempDir(),
-			ProxyMode:   docker.ProxyEnforce,
+			ProxyMode:   sandbox.ProxyEnforce,
 			Credentials: []credentials.Resolved{{Proxy: []proxy.Credential{cred}, Env: []string{"EXAMPLE_API_KEY"}}},
 		}
 
@@ -286,7 +287,7 @@ func TestBuild(t *testing.T) {
 		}
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 		cred := proxy.Credential{Hosts: []string{"api.example.test"}}
-		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce, Credentials: []credentials.Resolved{{Proxy: []proxy.Credential{cred}}}}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyEnforce, Credentials: []credentials.Resolved{{Proxy: []proxy.Credential{cred}}}}
 
 		// Act
 		_, err := New(d, nil).Build(target, in, tools.Configs["claude"], &config.AgenticRC{})
@@ -302,7 +303,7 @@ func TestBuild(t *testing.T) {
 		in := Input{
 			ToolHome:    t.TempDir(),
 			Volumes:     []string{dir + ":/data"},
-			ProxyMode:   docker.ProxyEnforce,
+			ProxyMode:   sandbox.ProxyEnforce,
 			Credentials: []credentials.Resolved{{Path: filepath.Join(dir, "token")}},
 		}
 
@@ -317,7 +318,7 @@ func TestBuild(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{inspectImage: trusted}
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyMode: docker.ProxyEnforce, DindEnabled: true}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyEnforce, DindEnabled: true}
 
 		// Act
 		rs, err := New(d, nil).Build(target, in, tools.Configs["claude"], &config.AgenticRC{})

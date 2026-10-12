@@ -11,6 +11,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -85,7 +86,7 @@ func Test_credentialSetup(t *testing.T) {
 		for _, entry := range []string{"AGENTIC_PROXY_CA=test-ca", "SSL_CERT_FILE=/certs/example.pem", "NODE_EXTRA_CA_CERTS"} {
 			t.Run(entry, func(t *testing.T) {
 				// Arrange
-				in := Input{ProxyMode: docker.ProxyEnforce, Credentials: resolved}
+				in := Input{ProxyMode: sandbox.ProxyEnforce, Credentials: resolved}
 
 				// Act
 				_, err := credentialSetup(in, mountSet{}, []string{entry})
@@ -98,7 +99,7 @@ func Test_credentialSetup(t *testing.T) {
 
 	t.Run("credentials with the proxy return placeholders", func(t *testing.T) {
 		// Arrange
-		in := Input{ProxyMode: docker.ProxyMonitor, Credentials: resolved}
+		in := Input{ProxyMode: sandbox.ProxyMonitor, Credentials: resolved}
 		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
 
 		// Act

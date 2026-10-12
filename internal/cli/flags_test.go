@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
@@ -139,7 +139,7 @@ func Test_resolveDindResourceLimitFlags(t *testing.T) {
 	result := resolveDindResourceLimitFlags(cmd)
 
 	// Assert
-	assert.Equal(t, docker.ResourceLimits{CPUs: "2", Memory: "8g"}, result)
+	assert.Equal(t, sandbox.ResourceLimits{CPUs: "2", Memory: "8g"}, result)
 }
 
 func Test_resolveResourceLimitFlags(t *testing.T) {
@@ -154,7 +154,7 @@ func Test_resolveResourceLimitFlags(t *testing.T) {
 	result := resolveResourceLimitFlags(cmd)
 
 	// Assert
-	assert.Equal(t, docker.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, result)
+	assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, result)
 }
 
 func Test_buildOptsFromFlags(t *testing.T) {
@@ -261,8 +261,8 @@ func Test_runtimeFlags(t *testing.T) {
 			ToolHome:   toolHome,
 			Proxy:      resolve.ProxyInput{MonitorFlag: true},
 			Dind:       resolve.DindInput{DindFlag: true},
-			Limits:     docker.ResourceLimits{CPUs: "2"},
-			DindLimits: docker.ResourceLimits{Memory: "1g"},
+			Limits:     sandbox.ResourceLimits{CPUs: "2"},
+			DindLimits: sandbox.ResourceLimits{Memory: "1g"},
 			Runtime:    run.RuntimeMicrosandbox,
 		}, flags)
 	})

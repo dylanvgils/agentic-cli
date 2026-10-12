@@ -28,6 +28,7 @@ make verify-checksums   # pinned install-script checksums (fix-checksums to upda
 ## Architecture
 
 - `internal/cli` is presentation only: parse flags, call domain packages, print. Logic moves to `internal/usecase/<what-it-does>` only when it's independent of `*cobra.Command` and glues several domain packages together; no package per command.
+- `sandbox.RunSpec` describes the run the user asked for; each runtime (`docker`, `microsandbox`) turns it into its own args and keeps per-run state private (docker's `toolRun`).
 - All Docker calls go through `*docker.Client`; no package-level Docker funcs or state. Client methods are operations; deciding what results mean belongs to the caller. `internal/cli` holds the one client in `dockerClient` (rebuilt in `persistentPreRunE`) behind its `dockerAPI` interface.
 - A usecase that calls Docker declares a `Docker` interface of only the methods it uses in `deps.go` (`var _ Docker = (*docker.Client)(nil)` in `deps_test.go`) and holds it in `type Service struct{ docker Docker }` from `New(d)`, plus `home string` if it touches the data dir. Other runtime clients (microsandbox) follow the same pattern: an interface in `deps.go`, a `Service` field, a `New` param, one client in `internal/cli/deps.go`. Exported entry points are `Service` methods; unexported helpers only if they call Docker. Callers name it `svc`.
 - Non-Docker seams stay package-level vars in `deps.go`. User approval goes through an interface or func the cli implements; usecases never read stdin.

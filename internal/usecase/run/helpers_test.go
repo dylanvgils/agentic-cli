@@ -13,6 +13,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,7 @@ type fakeDocker struct {
 	restampImage         func(image string, info docker.ImageInfo)
 	pruneDangling        func() error
 	saveImage            func(image string, w io.Writer) error
-	runContainer         func(rs docker.RunSpec, toolArgs []string) error
+	runContainer         func(rs sandbox.RunSpec, toolArgs []string) error
 }
 
 func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
@@ -110,7 +111,7 @@ func (f *fakeDocker) SaveImage(image string, w io.Writer) error {
 	return f.saveImage(image, w)
 }
 
-func (f *fakeDocker) RunContainer(rs docker.RunSpec, toolArgs []string) error {
+func (f *fakeDocker) RunContainer(rs sandbox.RunSpec, toolArgs []string) error {
 	if f.runContainer == nil {
 		return nil
 	}
@@ -118,10 +119,10 @@ func (f *fakeDocker) RunContainer(rs docker.RunSpec, toolArgs []string) error {
 }
 
 // newProxyRunSpec returns a RunSpec with the proxy in mode and its log dir in a temp tool home, as Build sets it.
-func newProxyRunSpec(t *testing.T, mode docker.ProxyMode) docker.RunSpec {
+func newProxyRunSpec(t *testing.T, mode sandbox.ProxyMode) sandbox.RunSpec {
 	t.Helper()
 	home := t.TempDir()
-	return docker.RunSpec{ToolHome: home, Proxy: docker.ProxySpec{Mode: mode, LogDir: proxyLogDir(home, true)}}
+	return sandbox.RunSpec{ToolHome: home, Proxy: sandbox.ProxySpec{Mode: mode, LogDir: proxyLogDir(home, true)}}
 }
 
 // runtimeRequest returns a Request that runs on runtime.
@@ -142,7 +143,7 @@ type fakeMicrosandbox struct {
 	loadImage   func(r io.Reader, tag string) error
 	imageRefs   func() ([]string, error)
 	removeImage func(ref string) error
-	run         func(rs docker.RunSpec, toolArgs []string) error
+	run         func(rs sandbox.RunSpec, toolArgs []string) error
 }
 
 func (f *fakeMicrosandbox) Available() error {
@@ -173,7 +174,7 @@ func (f *fakeMicrosandbox) RemoveImage(ref string) error {
 	return f.removeImage(ref)
 }
 
-func (f *fakeMicrosandbox) Run(rs docker.RunSpec, toolArgs []string) error {
+func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec, toolArgs []string) error {
 	if f.run == nil {
 		return nil
 	}

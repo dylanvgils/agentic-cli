@@ -1,4 +1,4 @@
-// Package run builds the docker.RunSpec for `agentic run`, syncing marketplaces and assembling resolved volumes, secrets, env vars, and resource limits.
+// Package run builds the sandbox.RunSpec for `agentic run`, syncing marketplaces and assembling resolved volumes, secrets, env vars, and resource limits.
 package run
 
 import (
@@ -13,6 +13,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
@@ -37,13 +38,13 @@ type Input struct {
 	Secrets        []string
 	ReadOnlyMounts []string
 	Env            []string
-	Limits         docker.ResourceLimits
+	Limits         sandbox.ResourceLimits
 	DryRun         bool
 	Registry       string
-	ProxyMode      docker.ProxyMode
+	ProxyMode      sandbox.ProxyMode
 	DindEnabled    bool
 	// Sidecar limit flags; empty falls back to config
-	DindLimits docker.ResourceLimits
+	DindLimits sandbox.ResourceLimits
 	// Runtime is where the run executes; empty means Docker
 	Runtime Runtime
 	// Credentials are the approved proxy credentials; Prepare fills them in
@@ -66,8 +67,8 @@ func New(d Docker, m Microsandbox) *Service {
 	return &Service{docker: d, microsandbox: m}
 }
 
-// Build assembles the docker.RunSpec for target, syncing marketplaces; the runtime readies its own host resources in Run.
-func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, error) {
+// Build assembles the sandbox.RunSpec for target, syncing marketplaces; the runtime readies its own host resources in Run.
+func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (sandbox.RunSpec, error) {
 	req := buildRequest{
 		target:        target,
 		in:            in,
@@ -78,17 +79,17 @@ func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc
 
 	marketplaceMounts, marketplaceNames, err := syncToolMarketplaces(in.ToolHome, target.ToolName, toolConfig, rc)
 	if err != nil {
-		return docker.RunSpec{}, err
+		return sandbox.RunSpec{}, err
 	}
 
 	mounts, err := newMountSet(req, marketplaceMounts)
 	if err != nil {
-		return docker.RunSpec{}, err
+		return sandbox.RunSpec{}, err
 	}
 
 	env, err := s.runEnv(req, mounts, marketplaceNames)
 	if err != nil {
-		return docker.RunSpec{}, err
+		return sandbox.RunSpec{}, err
 	}
 
 	logDir := proxyLogDir(in.ToolHome, in.ProxyMode.Enabled())
@@ -101,15 +102,15 @@ func (s *Service) ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *conf
 }
 
 // buildWithInstructions wraps Build with this run's instructions snapshot mounted in; the returned cleanup func must always be deferred, even on error.
-func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (docker.RunSpec, func(), error) {
+func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (sandbox.RunSpec, func(), error) {
 	content, err := s.BuildInstructions(target, in, toolConfig, rc)
 	if err != nil {
-		return docker.RunSpec{}, noCleanup, fmt.Errorf("build instructions for %s: %w", target.ToolName, err)
+		return sandbox.RunSpec{}, noCleanup, fmt.Errorf("build instructions for %s: %w", target.ToolName, err)
 	}
 
 	snapshot, err := s.PrepareInstructions(in.ToolHome, toolConfig, content)
 	if err != nil {
-		return docker.RunSpec{}, noCleanup, fmt.Errorf("prepare instructions for %s: %w", target.ToolName, err)
+		return sandbox.RunSpec{}, noCleanup, fmt.Errorf("prepare instructions for %s: %w", target.ToolName, err)
 	}
 
 	in.InstructionsMount = snapshot.MountSpec
@@ -117,7 +118,7 @@ func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tool
 	rs, err := s.Build(target, in, toolConfig, rc)
 	if err != nil {
 		snapshot.Cleanup()
-		return docker.RunSpec{}, noCleanup, err
+		return sandbox.RunSpec{}, noCleanup, err
 	}
 
 	return rs, snapshot.Cleanup, nil
@@ -173,12 +174,12 @@ func runVolumes(req buildRequest, marketplaceMounts []string) []string {
 }
 
 // newRunSpec assembles the RunSpec from the resolved run parts, including the proxy and dind sidecar specs.
-func newRunSpec(req buildRequest, mounts mountSet, env []string, logDir string) docker.RunSpec {
+func newRunSpec(req buildRequest, mounts mountSet, env []string, logDir string) sandbox.RunSpec {
 	in, rc, toolConfig := req.in, req.rc, req.toolConfig
 	limits := resolve.ResourceLimitsFor(in.Limits, rc)
 	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
 
-	return docker.NewRunSpec(req.target.ImageName).
+	return sandbox.NewRunSpec(req.target.ImageName).
 		WithToolHome(in.ToolHome).
 		WithContainerHome(req.containerHome).
 		WithVolumes(mounts.volumes...).
@@ -188,14 +189,14 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, logDir string) 
 		WithTmpfsMounts(toolConfig.Runtime.TmpfsMounts()...).
 		WithLimits(limits).
 		WithDryRun(in.DryRun).
-		WithProxy(docker.ProxySpec{
+		WithProxy(sandbox.ProxySpec{
 			Mode:        in.ProxyMode,
 			Image:       tools.ProxyImage,
 			Allow:       resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc),
 			LogDir:      logDir,
 			Credentials: proxyCredentials(in.Credentials),
 		}).
-		WithDind(docker.DindSpec{Enabled: in.DindEnabled, Image: tools.DindImage, Limits: dindLimits}).
+		WithDind(sandbox.DindSpec{Enabled: in.DindEnabled, Image: tools.DindImage, Limits: dindLimits}).
 		Build()
 }
 
