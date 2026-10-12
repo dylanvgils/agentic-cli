@@ -43,7 +43,7 @@ func TestParseSecretSpec(t *testing.T) {
 		_, _, err := ParseSecretSpec("token")
 
 		// Assert
-		assert.ErrorContains(t, err, `invalid secret "token": expected name:/path[:/container/path]`)
+		assert.ErrorContains(t, err, `invalid secret "token": expected name:/path[:/target/path]`)
 	})
 
 	t.Run("rejects an empty target", func(t *testing.T) {
@@ -51,6 +51,6 @@ func TestParseSecretSpec(t *testing.T) {
 		_, _, err := ParseSecretSpec("token:/example.test/token:")
 
 		// Assert
-		assert.ErrorContains(t, err, `invalid secret "token:/example.test/token:": empty container path`)
+		assert.ErrorContains(t, err, `invalid secret "token:/example.test/token:": empty target path`)
 	})
 }

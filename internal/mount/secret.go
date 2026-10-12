@@ -9,7 +9,7 @@ import (
 func ParseSecretSpec(spec string) (host, target string, err error) {
 	name, rest, ok := strings.Cut(spec, ":")
 	if !ok {
-		return "", "", fmt.Errorf("invalid secret %q: expected name:/path[:/container/path]", spec)
+		return "", "", fmt.Errorf("invalid secret %q: expected name:/path[:/target/path]", spec)
 	}
 
 	host, target, found := SplitHostContainer(rest)
@@ -17,7 +17,7 @@ func ParseSecretSpec(spec string) (host, target string, err error) {
 		return host, "/run/secrets/" + name, nil
 	}
 	if target == "" {
-		return "", "", fmt.Errorf("invalid secret %q: empty container path", spec)
+		return "", "", fmt.Errorf("invalid secret %q: empty target path", spec)
 	}
 	return host, target, nil
 }
