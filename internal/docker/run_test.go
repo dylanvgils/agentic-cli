@@ -292,7 +292,7 @@ func TestRunContainer(t *testing.T) {
 		assert.Contains(t, get(), "--volume=/tmp/settings.xml:/root/.m2/settings.xml:ro")
 	})
 
-	t.Run("secrets empty container path", func(t *testing.T) {
+	t.Run("secrets empty target path", func(t *testing.T) {
 		// Arrange
 		rs := RunSpec{
 			Image:   "agentic-copilot",
@@ -300,7 +300,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act + Assert
-		assert.ErrorContains(t, client.RunContainer(rs, nil), "empty container path")
+		assert.ErrorContains(t, client.RunContainer(rs, nil), "empty target path")
 	})
 
 	t.Run("secrets invalid format", func(t *testing.T) {
@@ -331,7 +331,7 @@ func TestIsReservedEnvName(t *testing.T) {
 	})
 
 	t.Run("terminal vars are not reserved", func(t *testing.T) {
-		for _, key := range terminalCapabilityEnvNames {
+		for _, key := range []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"} {
 			assert.False(t, IsReservedEnvName(key, true), key)
 		}
 	})

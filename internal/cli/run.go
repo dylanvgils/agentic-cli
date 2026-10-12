@@ -49,7 +49,7 @@ func init() {
 	runToolCmd.Flags().StringArrayVarP(&flagVolumes, "volume", "v", nil,
 		"additional volume mount (format: host:container[:options]); bind mounts are read-only unless options include rw; repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagSecrets, "secret", "s", nil,
-		"secret file to mount read-only into the container (format: name:/path[:/container/path]); repeatable")
+		"secret file to mount read-only into the container (format: name:/path[:/target/path]); repeatable")
 	runToolCmd.Flags().StringArrayVar(&flagReadOnlyMounts, "read-only-mount", nil,
 		"sub-path to force read-only, applied after other mounts (format: host:container); repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagEnv, "env", "e", nil,

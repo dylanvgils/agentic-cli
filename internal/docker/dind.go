@@ -14,8 +14,8 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/dind"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 const (
@@ -50,9 +50,6 @@ const (
 	// dindProbeTimeout bounds each readiness probe in seconds, so a hung dockerd can't stall it.
 	dindProbeTimeout = "10"
 )
-
-// hostUserGroup is a test-stubbable indirection into platform.UserGroup.
-var hostUserGroup = platform.UserGroup
 
 // Readiness wait settings; vars so tests can shorten them.
 var (
@@ -388,7 +385,7 @@ func (c *Client) dryRunDind(rs *RunSpec) (toolArgs []string, cleanup func(), err
 		rs.network = handle.network
 	}
 
-	if _, err := fmt.Fprintln(os.Stdout, "docker", shellJoin(handle.runArgs(*rs))); err != nil {
+	if _, err := fmt.Fprintln(os.Stdout, "docker", sandbox.ShellJoin(handle.runArgs(*rs))); err != nil {
 		return nil, nil, err
 	}
 	return handle.toolArgs(), noCleanup, nil

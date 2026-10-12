@@ -74,7 +74,7 @@ agentic aliases | Out-String | Invoke-Expression        # PowerShell
 
 ## Secrets
 
-`-s`/`--secret` mounts a file read-only, using the format `name:/path/to/file[:/container/path]`. Without a container path, the file goes to `/run/secrets/<name>`. Paths support `~`, `$HOME` and (on the container side) `$CONTAINER_HOME`.
+`-s`/`--secret` mounts a file read-only, using the format `name:/path/to/file[:/target/path]`. Without a target path, the file goes to `/run/secrets/<name>`. Paths support `~`, `$HOME` and (on the container side) `$CONTAINER_HOME`.
 
 ```bash
 agentic run -s 'copilot_token:~/.secrets/copilot_token' copilot
