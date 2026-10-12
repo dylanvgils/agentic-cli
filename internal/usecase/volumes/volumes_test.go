@@ -21,22 +21,6 @@ func Test_Service_List(t *testing.T) {
 		assert.Equal(t, []Volume{{Name: "maven", Runtime: RuntimeDocker}, {Name: "gradle", Runtime: RuntimeMicrosandbox}}, volumes)
 	})
 
-	t.Run("skips msb when it isn't installed", func(t *testing.T) {
-		// Arrange
-		msb := &fakeMsb{
-			available:       func() error { return errors.New("msb not found") },
-			listVolumeNames: func() ([]string, error) { return nil, errors.New("unexpected") },
-		}
-		svc := New(&fakeDocker{listVolumeNames: namesFunc("maven")}, msb)
-
-		// Act
-		volumes, err := svc.List()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []Volume{{Name: "maven", Runtime: RuntimeDocker}}, volumes)
-	})
-
 	t.Run("returns a docker listing error", func(t *testing.T) {
 		// Arrange
 		svc := New(&fakeDocker{listVolumeNames: func() ([]string, error) { return nil, errors.New("daemon down") }}, &fakeMsb{})
@@ -137,6 +121,46 @@ func Test_Volume_Label(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, "maven (microsandbox)", label)
+	})
+}
+
+func Test_Service_msbVolumes(t *testing.T) {
+	t.Run("returns msb volumes", func(t *testing.T) {
+		// Arrange
+		svc := New(&fakeDocker{}, &fakeMsb{listVolumeNames: namesFunc("gradle")})
+
+		// Act
+		volumes, err := svc.msbVolumes()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []Volume{{Name: "gradle", Runtime: RuntimeMicrosandbox}}, volumes)
+	})
+
+	t.Run("returns none when msb isn't installed", func(t *testing.T) {
+		// Arrange
+		msb := &fakeMsb{
+			available:       func() error { return errors.New("msb not found") },
+			listVolumeNames: func() ([]string, error) { return nil, errors.New("unexpected") },
+		}
+
+		// Act
+		volumes, err := New(&fakeDocker{}, msb).msbVolumes()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, volumes)
+	})
+
+	t.Run("returns a listing error", func(t *testing.T) {
+		// Arrange
+		svc := New(&fakeDocker{}, &fakeMsb{listVolumeNames: func() ([]string, error) { return nil, errors.New("boom") }})
+
+		// Act
+		_, err := svc.msbVolumes()
+
+		// Assert
+		assert.ErrorContains(t, err, "boom")
 	})
 }
 

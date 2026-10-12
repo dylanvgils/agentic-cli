@@ -3,6 +3,7 @@ package volumes
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
@@ -38,22 +39,18 @@ func New(d Docker, m Microsandbox) *Service {
 	return &Service{docker: d, msb: m}
 }
 
-// List returns agentic's Docker volumes, then its msb volumes when msb is installed.
+// List returns agentic's Docker volumes, then its msb volumes.
 func (s *Service) List() ([]Volume, error) {
 	names, err := s.docker.ListVolumeNames()
 	if err != nil {
 		return nil, err
 	}
-	volumes := named(names, RuntimeDocker)
 
-	if s.msb.Available() != nil {
-		return volumes, nil
-	}
-	msbNames, err := s.msb.ListVolumeNames()
+	msbVolumes, err := s.msbVolumes()
 	if err != nil {
 		return nil, err
 	}
-	return append(volumes, named(msbNames, RuntimeMicrosandbox)...), nil
+	return append(named(names, RuntimeDocker), msbVolumes...), nil
 }
 
 // Remove removes v from its runtime.
@@ -77,26 +74,34 @@ func (s *Service) RemoveAll(vols []Volume) error {
 
 // RemoveNamed removes name from every runtime that holds it.
 func (s *Service) RemoveNamed(name string) error {
-	volumes, err := s.List()
+	all, err := s.List()
 	if err != nil {
 		return err
 	}
 
-	found := false
-	for _, v := range volumes {
-		if v.Name != name {
-			continue
-		}
-		found = true
+	matches := slices.DeleteFunc(all, func(v Volume) bool { return v.Name != name })
+	if len(matches) == 0 {
+		return fmt.Errorf("'%s' is not an agentic-managed volume", name)
+	}
+	for _, v := range matches {
 		if err := s.Remove(v); err != nil {
 			return err
 		}
 	}
-
-	if !found {
-		return fmt.Errorf("'%s' is not an agentic-managed volume", name)
-	}
 	return nil
+}
+
+// msbVolumes returns agentic's msb volumes, or none when msb isn't installed.
+func (s *Service) msbVolumes() ([]Volume, error) {
+	if s.msb.Available() != nil {
+		return nil, nil
+	}
+
+	names, err := s.msb.ListVolumeNames()
+	if err != nil {
+		return nil, err
+	}
+	return named(names, RuntimeMicrosandbox), nil
 }
 
 // named pairs each of names with runtime.
