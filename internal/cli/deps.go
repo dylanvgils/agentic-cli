@@ -10,7 +10,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
-	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
@@ -20,7 +19,6 @@ import (
 
 var (
 	migrateRun              = migrate.Run
-	pruneProxyLogs          = proxy.PruneLogs
 	isTerminal              = platform.IsTerminal
 	checkGitAvailable       = git.CheckAvailable
 	loadMarketplaceRegistry = marketplace.LoadRegistry

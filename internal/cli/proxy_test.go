@@ -2,11 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -106,16 +103,16 @@ func Test_runProxyClean(t *testing.T) {
 
 	t.Run("leaves logs alone without --logs", func(t *testing.T) {
 		// Arrange
+		withTempToolHome(t)
 		stubCleanImage(t, func(string) error { return nil })
-		pruned := false
-		stubPruneProxyLogs(t, func(string, time.Duration) { pruned = true })
+		log := writeProxyLog(t)
 
 		// Act
 		err := runProxyClean(proxyCleanCmd, nil)
 
 		// Assert
 		require.NoError(t, err)
-		assert.False(t, pruned)
+		assert.FileExists(t, log)
 	})
 
 	t.Run("--logs wipes all proxy logs regardless of age", func(t *testing.T) {
@@ -123,9 +120,7 @@ func Test_runProxyClean(t *testing.T) {
 		logBuf := stubErrLog(t)
 		withTempToolHome(t)
 		stubCleanImage(t, func(string) error { return nil })
-		var dir string
-		var maxAge time.Duration
-		stubPruneProxyLogs(t, func(d string, m time.Duration) { dir, maxAge = d, m })
+		log := writeProxyLog(t)
 		stubFlag(t, proxyCleanCmd, "logs", "true")
 
 		// Act
@@ -133,16 +128,15 @@ func Test_runProxyClean(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, filepath.Join(toolHome, config.LogsDirName), dir)
-		assert.Zero(t, maxAge)
+		assert.NoFileExists(t, log)
 		assert.Contains(t, logBuf.String(), "agentic: removing proxy logs")
 	})
 
 	t.Run("propagates cleanImage error before touching logs", func(t *testing.T) {
 		// Arrange
+		withTempToolHome(t)
 		stubCleanImage(t, func(string) error { return fmt.Errorf("clean failed") })
-		pruned := false
-		stubPruneProxyLogs(t, func(string, time.Duration) { pruned = true })
+		log := writeProxyLog(t)
 		stubFlag(t, proxyCleanCmd, "logs", "true")
 
 		// Act
@@ -150,6 +144,6 @@ func Test_runProxyClean(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.False(t, pruned)
+		assert.FileExists(t, log)
 	})
 }

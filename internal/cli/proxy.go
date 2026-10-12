@@ -7,6 +7,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/spf13/cobra"
@@ -83,7 +84,7 @@ func runProxyClean(cmd *cobra.Command, _ []string) error {
 
 	if logs, _ := cmd.Flags().GetBool("logs"); logs {
 		logging.Infof("removing proxy logs")
-		pruneProxyLogs(filepath.Join(toolHome, config.LogsDirName), 0)
+		proxy.PruneLogs(filepath.Join(toolHome, config.LogsDirName), 0)
 	}
 
 	return nil
