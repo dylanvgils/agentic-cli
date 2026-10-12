@@ -1,8 +1,12 @@
 package microsandbox
 
-import "github.com/dylanvgils/agentic-cli/internal/logging"
+import (
+	"strings"
 
-// CleanImage removes every ref of image's repository from msb's image store, reporting each one.
+	"github.com/dylanvgils/agentic-cli/internal/logging"
+)
+
+// CleanImage removes every ref of image's repository from msb's image store, reporting the removed tags in one line.
 func (c *Client) CleanImage(image string) error {
 	refs, err := c.ImageRefs()
 	if err != nil {
@@ -10,14 +14,22 @@ func (c *Client) CleanImage(image string) error {
 	}
 
 	repo, _ := SplitRef(image)
+	var tags []string
+	defer func() {
+		if len(tags) > 0 {
+			logging.Detailf("microsandbox %s (%s)", repo, strings.Join(tags, ", "))
+		}
+	}()
+
 	for _, ref := range refs {
-		if refRepo, _ := SplitRef(ref); refRepo != repo {
+		refRepo, tag := SplitRef(ref)
+		if refRepo != repo {
 			continue
 		}
 		if err := c.RemoveImage(ref); err != nil {
 			return err
 		}
-		logging.Detailf("microsandbox %s", ref)
+		tags = append(tags, tag)
 	}
 	return nil
 }

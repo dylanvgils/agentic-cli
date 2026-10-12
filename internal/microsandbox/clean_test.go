@@ -9,7 +9,7 @@ import (
 )
 
 func TestCleanImage(t *testing.T) {
-	t.Run("removes and reports every ref of the repository", func(t *testing.T) {
+	t.Run("removes every ref of the repository and reports the tags in one line", func(t *testing.T) {
 		// Arrange
 		logs := stubLog(t)
 		var removed []string
@@ -27,7 +27,7 @@ func TestCleanImage(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"agentic-claude:abc123", "agentic-claude:latest"}, removed)
-		assert.Equal(t, "   microsandbox agentic-claude:abc123\n   microsandbox agentic-claude:latest\n", logs.String())
+		assert.Equal(t, "   microsandbox agentic-claude (abc123, latest)\n", logs.String())
 	})
 
 	t.Run("returns a listing error", func(t *testing.T) {
