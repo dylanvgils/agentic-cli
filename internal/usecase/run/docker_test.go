@@ -13,7 +13,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Service_runDocker(t *testing.T) {
+func Test_dockerRunner_Capabilities(t *testing.T) {
+	// Arrange
+	want := sandbox.Capabilities{Proxy: true}
+	r := dockerRunner{docker: &fakeDocker{capabilities: func() sandbox.Capabilities { return want }}}
+
+	// Act
+	caps := r.Capabilities()
+
+	// Assert
+	assert.Equal(t, want, caps)
+}
+
+func Test_dockerRunner_Check(t *testing.T) {
+	// Arrange
+	req := newCredentialRequest(t)
+	req.Flags.Dind.DindFlag = true
+
+	// Act
+	err := dockerRunner{docker: &fakeDocker{}}.Check(req)
+
+	// Assert
+	assert.NoError(t, err)
+}
+
+func Test_dockerRunner_Run(t *testing.T) {
 	req := Request{Target: Target{ToolName: "claude"}}
 
 	t.Run("readies the host before running", func(t *testing.T) {
@@ -31,7 +55,7 @@ func Test_Service_runDocker(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, nil).runDocker(req, sandbox.RunSpec{Image: "agentic-claude"}, nil)
+		err := dockerRunner{docker: d}.Run(req, sandbox.RunSpec{Image: "agentic-claude"}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -50,7 +74,7 @@ func Test_Service_runDocker(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, nil).runDocker(req, sandbox.RunSpec{Image: "agentic-claude"}, nil)
+		err := dockerRunner{docker: d}.Run(req, sandbox.RunSpec{Image: "agentic-claude"}, nil)
 
 		// Assert
 		assert.EqualError(t, err, "volume error")
@@ -72,7 +96,7 @@ func Test_Service_runDocker(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, nil).runDocker(req, sandbox.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
+		err := dockerRunner{docker: d}.Run(req, sandbox.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -95,7 +119,7 @@ func Test_Service_runDocker(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}}
 
 		// Act
-		err := New(d, nil).runDocker(req, rs, nil)
+		err := dockerRunner{docker: d}.Run(req, rs, nil)
 
 		// Assert
 		require.ErrorContains(t, err, "--base docker")
@@ -103,7 +127,7 @@ func Test_Service_runDocker(t *testing.T) {
 	})
 }
 
-func Test_Service_prepareDockerHost(t *testing.T) {
+func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 	// The proxy image is missing, so Ensure builds it
 	proxyMissing := func(name string) (*docker.ImageInfo, error) {
 		if name == tools.ProxyImage {
@@ -123,7 +147,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 		rs := sandbox.RunSpec{Volumes: []string{"maven:/cache"}}
 
 		// Act
-		err := New(d, nil).prepareDockerHost(rs, "registry.example.test")
+		err := dockerRunner{docker: d}.prepareDockerHost(rs, "registry.example.test")
 
 		// Assert
 		require.NoError(t, err)
@@ -139,7 +163,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 		rs := sandbox.RunSpec{ToolHome: home, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: logDir}}
 
 		// Act
-		err := New(d, nil).prepareDockerHost(rs, "")
+		err := dockerRunner{docker: d}.prepareDockerHost(rs, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -160,7 +184,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 		rs := newProxyRunSpec(t, sandbox.ProxyMonitor)
 
 		// Act
-		err := New(d, nil).prepareDockerHost(rs, "")
+		err := dockerRunner{docker: d}.prepareDockerHost(rs, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -177,7 +201,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 		rs := newProxyRunSpec(t, sandbox.ProxyMonitor)
 
 		// Act
-		err := New(d, nil).prepareDockerHost(rs, "")
+		err := dockerRunner{docker: d}.prepareDockerHost(rs, "")
 
 		// Assert
 		assert.EqualError(t, err, "proxy build failed")
@@ -188,7 +212,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 		d := &fakeDocker{ensureNetwork: func() error { return errors.New("network error") }}
 
 		// Act
-		err := New(d, nil).prepareDockerHost(sandbox.RunSpec{}, "")
+		err := dockerRunner{docker: d}.prepareDockerHost(sandbox.RunSpec{}, "")
 
 		// Assert
 		assert.EqualError(t, err, "network error")
@@ -203,7 +227,7 @@ func Test_Service_prepareDockerHost(t *testing.T) {
 		rs := newProxyRunSpec(t, sandbox.ProxyEnforce)
 
 		// Act
-		err := New(d, nil).prepareDockerHost(rs, "")
+		err := dockerRunner{docker: d}.prepareDockerHost(rs, "")
 
 		// Assert
 		assert.NoError(t, err)

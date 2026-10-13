@@ -1,7 +1,6 @@
 package run
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -9,88 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func Test_Service_capabilities(t *testing.T) {
-	dockerCaps := sandbox.Capabilities{Proxy: true}
-	msbCaps := sandbox.Capabilities{CredentialInjection: true}
-	svc := New(
-		&fakeDocker{capabilities: func() sandbox.Capabilities { return dockerCaps }},
-		&fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return msbCaps }},
-	)
-
-	t.Run("docker and the empty runtime ask docker", func(t *testing.T) {
-		// Act
-		docker := svc.capabilities(RuntimeDocker)
-		empty := svc.capabilities("")
-
-		// Assert
-		assert.Equal(t, dockerCaps, docker)
-		assert.Equal(t, dockerCaps, empty)
-	})
-
-	t.Run("microsandbox asks msb", func(t *testing.T) {
-		// Act
-		caps := svc.capabilities(RuntimeMicrosandbox)
-
-		// Assert
-		assert.Equal(t, msbCaps, caps)
-	})
-
-	t.Run("an unknown runtime offers nothing", func(t *testing.T) {
-		// Act
-		caps := svc.capabilities("podman")
-
-		// Assert
-		assert.Equal(t, sandbox.Capabilities{}, caps)
-	})
-}
-
-func Test_Service_checkRuntime(t *testing.T) {
-	t.Run("docker passes every feature", func(t *testing.T) {
-		// Arrange
-		req := newCredentialRequest(t)
-		req.Flags.Proxy.ProxyFlag = true
-		req.Flags.Dind.DindFlag = true
-
-		// Act
-		err := New(&fakeDocker{}, nil).checkRuntime(req)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("a missing capability stops before the msb checks", func(t *testing.T) {
-		// Arrange
-		req := newPrepareRequest(t)
-		req.Flags.Runtime = RuntimeMicrosandbox
-		req.Flags.Proxy.ProxyFlag = true
-		checked := false
-		m := &fakeMicrosandbox{available: func() error {
-			checked = true
-			return nil
-		}}
-
-		// Act
-		err := New(&fakeDocker{}, m).checkRuntime(req)
-
-		// Assert
-		assert.ErrorContains(t, err, "does not support the egress proxy")
-		assert.False(t, checked)
-	})
-
-	t.Run("microsandbox runs its own checks", func(t *testing.T) {
-		// Arrange
-		req := newPrepareRequest(t)
-		req.Flags.Runtime = RuntimeMicrosandbox
-		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
-
-		// Act
-		err := New(&fakeDocker{}, m).checkRuntime(req)
-
-		// Assert
-		assert.EqualError(t, err, "msb not found on PATH")
-	})
-}
 
 func Test_requiredCapabilities(t *testing.T) {
 	enabled := true

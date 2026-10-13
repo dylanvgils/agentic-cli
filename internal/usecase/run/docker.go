@@ -6,26 +6,41 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 )
 
-// runDocker readies the Docker-only host resources rs needs, then runs it; a dry run only checks the image and prints.
-func (s *Service) runDocker(req Request, rs sandbox.RunSpec, toolArgs []string) error {
+// dockerRunner runs tools in hardened Docker containers.
+type dockerRunner struct {
+	docker Docker
+}
+
+// Capabilities reports what Docker runs offer.
+func (r dockerRunner) Capabilities() sandbox.Capabilities {
+	return r.docker.Capabilities()
+}
+
+// Check accepts every run, as Docker needs nothing beyond the capabilities.
+func (r dockerRunner) Check(Request) error {
+	return nil
+}
+
+// Run readies the Docker-only host resources rs needs, then runs it; a dry run only checks the image and prints.
+func (r dockerRunner) Run(req Request, rs sandbox.RunSpec, toolArgs []string) error {
 	if rs.Dind.Enabled {
-		if err := s.requireDockerLayer(rs.Image, req.Target.ToolName); err != nil {
+		if err := r.requireDockerLayer(rs.Image, req.Target.ToolName); err != nil {
 			return err
 		}
 	}
 
 	if !rs.DryRun {
-		if err := s.prepareDockerHost(rs, req.Flags.Registry); err != nil {
+		if err := r.prepareDockerHost(rs, req.Flags.Registry); err != nil {
 			return err
 		}
 	}
 
-	return s.docker.RunContainer(rs, toolArgs)
+	return r.docker.RunContainer(rs, toolArgs)
 }
 
 // prepareDockerHost creates rs's named volumes and proxy log dir, builds missing sidecar images and ensures agentic-net when the tool joins it.
-func (s *Service) prepareDockerHost(rs sandbox.RunSpec, registry string) error {
-	if err := s.docker.EnsureNamedVolumes(rs.Volumes, rs.ToolHome, rs.ContainerHome, tools.BusyboxImageFor(registry)); err != nil {
+func (r dockerRunner) prepareDockerHost(rs sandbox.RunSpec, registry string) error {
+	if err := r.docker.EnsureNamedVolumes(rs.Volumes, rs.ToolHome, rs.ContainerHome, tools.BusyboxImageFor(registry)); err != nil {
 		return err
 	}
 
@@ -36,7 +51,7 @@ func (s *Service) prepareDockerHost(rs sandbox.RunSpec, registry string) error {
 		}
 	}
 
-	if err := sidecar.New(s.docker).Ensure(proxy, dind, registry); err != nil {
+	if err := sidecar.New(r.docker).Ensure(proxy, dind, registry); err != nil {
 		return err
 	}
 
@@ -46,5 +61,5 @@ func (s *Service) prepareDockerHost(rs sandbox.RunSpec, registry string) error {
 	if proxy || dind {
 		return nil
 	}
-	return s.docker.EnsureNetwork()
+	return r.docker.EnsureNetwork()
 }

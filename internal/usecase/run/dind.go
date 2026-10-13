@@ -8,8 +8,8 @@ import (
 )
 
 // requireDockerLayer errors if image lacks the docker layer that --dind needs.
-func (s *Service) requireDockerLayer(image, tool string) error {
-	info, err := s.docker.InspectImage(image)
+func (r dockerRunner) requireDockerLayer(image, tool string) error {
+	info, err := r.docker.InspectImage(image)
 	if err != nil {
 		return err
 	}
