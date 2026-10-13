@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -310,16 +309,6 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.currentContext != nil {
 		f.currentContext = o.currentContext
 	}
-}
-
-// failingWriter fails every write and counts the attempts.
-type failingWriter struct {
-	calls int
-}
-
-func (w *failingWriter) Write([]byte) (int, error) {
-	w.calls++
-	return 0, fmt.Errorf("write failed")
 }
 
 // captureStdout replaces os.Stdout with a pipe and returns what was written; for logging.Step/Detail-based output, use captureLog instead.

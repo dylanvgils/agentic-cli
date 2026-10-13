@@ -8,81 +8,11 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func Test_printBasesField(t *testing.T) {
-	t.Run("no bases shows none", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		layers := []config.RCLayer{
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}},
-		}
-
-		// Act
-		err := printBasesField(&buf, layers)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "  bases: (none)\n", buf.String())
-	})
-
-	t.Run("base without version shows plain name", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		layers := []config.RCLayer{
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}},
-		}
-
-		// Act
-		err := printBasesField(&buf, layers)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, buf.String(), "- java  [/project/.agenticrc.toml]")
-	})
-
-	t.Run("innermost layer version wins", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		layers := []config.RCLayer{
-			{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}, Versions: map[string]string{"java": "11"}}}},
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}},
-		}
-
-		// Act
-		err := printBasesField(&buf, layers)
-
-		// Assert
-		require.NoError(t, err)
-		out := buf.String()
-		assert.Contains(t, out, "- java@17  [/home/.agenticrc.toml]")
-		assert.NotContains(t, out, "java@11")
-	})
-
-	t.Run("multiple layers show all entries with correct attribution", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		layers := []config.RCLayer{
-			{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}},
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"dotnet"}}}},
-		}
-
-		// Act
-		err := printBasesField(&buf, layers)
-
-		// Assert
-		require.NoError(t, err)
-		out := buf.String()
-		assert.Contains(t, out, "- java  [/home/.agenticrc.toml]")
-		assert.Contains(t, out, "- dotnet  [/project/.agenticrc.toml]")
-		javaIdx := bytes.Index(buf.Bytes(), []byte("- java"))
-		dotnetIdx := bytes.Index(buf.Bytes(), []byte("- dotnet"))
-		assert.Less(t, javaIdx, dotnetIdx)
-	})
-}
 
 func Test_printGlobalConfig(t *testing.T) {
 	state := &config.State{}
@@ -148,101 +78,6 @@ func Test_printGlobalConfig(t *testing.T) {
 	})
 }
 
-func Test_printScalarField(t *testing.T) {
-	get := func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
-
-	t.Run("rc value shown when set", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		layers := []config.RCLayer{
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "100"}}}},
-		}
-
-		// Act
-		err := printScalarField(&buf, "pids_limit", layers, get, "1024")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "  pids_limit: 100  [/project/.agenticrc.toml]\n", buf.String())
-	})
-
-	t.Run("default shown when no rc value", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-
-		// Act
-		err := printScalarField(&buf, "pids_limit", nil, get, "1024")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "  pids_limit: 1024  (default)\n", buf.String())
-	})
-
-	t.Run("not set shown when no rc value or default", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-
-		// Act
-		err := printScalarField(&buf, "pids_limit", nil, get, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "  pids_limit: (not set)\n", buf.String())
-	})
-}
-
-func Test_printBoolField(t *testing.T) {
-	get := func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
-
-	t.Run("no layer sets it shows default", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		layers := []config.RCLayer{
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}},
-		}
-
-		// Act
-		err := printBoolField(&buf, "proxy.enabled", layers, get, false)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "  proxy.enabled: false  (default)\n", buf.String())
-	})
-
-	t.Run("layer sets true shows true with path", func(t *testing.T) {
-		// Arrange
-		enabled := true
-		var buf bytes.Buffer
-		layers := []config.RCLayer{
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}},
-		}
-
-		// Act
-		err := printBoolField(&buf, "proxy.enabled", layers, get, false)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "  proxy.enabled: true  [/project/.agenticrc.toml]\n", buf.String())
-	})
-
-	t.Run("innermost layer wins over outer layer", func(t *testing.T) {
-		// Arrange
-		outer, inner := true, false
-		var buf bytes.Buffer
-		layers := []config.RCLayer{
-			{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &outer}}}},
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &inner}}}},
-		}
-
-		// Act
-		err := printBoolField(&buf, "proxy.enabled", layers, get, false)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "  proxy.enabled: false  [/project/.agenticrc.toml]\n", buf.String())
-	})
-}
-
 func Test_printProjectConfig(t *testing.T) {
 	t.Run("no layers", func(t *testing.T) {
 		// Arrange
@@ -253,54 +88,55 @@ func Test_printProjectConfig(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		out := buf.String()
-		assert.Contains(t, out, "Project (.agenticrc.toml)")
-		assert.Contains(t, out, "no .agenticrc.toml files found")
+		assert.Equal(t, "Project (.agenticrc.toml)\n  (no .agenticrc.toml files found)\n", buf.String())
 	})
 
-	t.Run("single layer", func(t *testing.T) {
+	t.Run("groups keys under table headers", func(t *testing.T) {
 		// Arrange
-		enabled := true
 		var buf bytes.Buffer
-		layers := []config.RCLayer{
-			{
-				Path: "/project/.agenticrc.toml",
-				RC: &config.AgenticRC{
-					Namespace:     "myproject",
-					DockerContext: "prod",
-					Build: config.RCBuild{
-						AptPackages: []string{"make"}, Bases: []string{"java"}, Versions: map[string]string{"java": "17"},
-						CustomInstalls: []config.RCCustomInstall{{Name: "helm", Run: []string{"true"}}},
-					},
-					Run: config.RCRun{
-						RCLimits: config.RCLimits{PidsLimit: "100", CPUs: "2", Memory: "4g"},
-						Mounts:   []string{"vol:/mnt"}, Secrets: []string{"tok:/run/s/t"},
-						Proxy: config.RCProxy{Enabled: &enabled, Mode: config.ModeMonitor, AllowedHosts: []string{".github.com"}},
-					},
-				},
-			},
-		}
+		layers := []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}}}
 
 		// Act
 		err := printProjectConfig(&buf, layers)
 
 		// Assert
 		require.NoError(t, err)
-		out := buf.String()
-		assert.Contains(t, out, "Project (.agenticrc.toml, 1 file)")
-		assert.Contains(t, out, "namespace: myproject  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "docker_context: prod  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "pids_limit: 100  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "cpus: 2  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "memory: 4g  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "- vol:/mnt  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "- make  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "- java@17  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "- helm  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "- tok:/run/s/t  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "proxy.enabled: true  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "proxy.mode: monitor  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "- .github.com  [/project/.agenticrc.toml]")
+		want := `Project (.agenticrc.toml, 1 file)
+  namespace: agentic  (default)
+  docker_context: (not set)
+  marketplaces: (none)
+
+  [build]
+    bases: (none)
+    apt_packages: (none)
+    custom_installs: (none)
+
+  [run]
+    pids_limit: 1024  (default)
+    cpus: 4  (default)
+    memory: 4g  (default)
+    mounts: (none)
+    secrets: (none)
+    env: (none)
+    check_updates: true  (default)
+
+  [run.instructions]
+    enabled: true  (default)
+    custom: (none)
+
+  [run.proxy]
+    enabled: false  (default)
+    mode: enforce  (default)
+    allowed_hosts: (none)
+    credentials: (none)
+
+  [run.dind]
+    enabled: false  (default)
+    pids_limit: 1024  (default)
+    cpus: 4  (default)
+    memory: 4g  (default)
+`
+		assert.Equal(t, want, buf.String())
 	})
 
 	t.Run("multi layers source attribution", func(t *testing.T) {
@@ -318,7 +154,7 @@ func Test_printProjectConfig(t *testing.T) {
 				Path: "/project/.agenticrc.toml",
 				RC: &config.AgenticRC{
 					Build: config.RCBuild{AptPackages: []string{"gcc"}},
-					Run:   config.RCRun{RCLimits: config.RCLimits{CPUs: "8", PidsLimit: "100"}, Mounts: []string{"child-vol:/mnt/c"}},
+					Run:   config.RCRun{RCLimits: config.RCLimits{CPUs: "8"}, Mounts: []string{"child-vol:/mnt/c"}},
 				},
 			},
 		}
@@ -330,108 +166,237 @@ func Test_printProjectConfig(t *testing.T) {
 		require.NoError(t, err)
 		out := buf.String()
 		assert.Contains(t, out, "Project (.agenticrc.toml, 2 files)")
-		assert.Contains(t, out, "cpus: 8  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "pids_limit: 100  [/project/.agenticrc.toml]")
-		assert.Contains(t, out, "memory: 4g  (default)")
-		assert.Contains(t, out, "- parent-vol:/mnt/p  [/home/.agenticrc.toml]")
-		assert.Contains(t, out, "- child-vol:/mnt/c  [/project/.agenticrc.toml]")
-		parentIdx := bytes.Index(buf.Bytes(), []byte("parent-vol"))
-		childIdx := bytes.Index(buf.Bytes(), []byte("child-vol"))
-		assert.Less(t, parentIdx, childIdx)
-		assert.Contains(t, out, "- make  [/home/.agenticrc.toml]")
-		assert.Contains(t, out, "- gcc  [/project/.agenticrc.toml]")
-		makeIdx := bytes.Index(buf.Bytes(), []byte("- make"))
-		gccIdx := bytes.Index(buf.Bytes(), []byte("- gcc"))
-		assert.Less(t, makeIdx, gccIdx)
-	})
-
-	t.Run("dind limits inherit tool values unless set", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		layers := []config.RCLayer{
-			{
-				Path: "/project/.agenticrc.toml",
-				RC: &config.AgenticRC{Run: config.RCRun{
-					RCLimits: config.RCLimits{CPUs: "8", PidsLimit: "100"},
-					Dind:     config.RCDind{RCLimits: config.RCLimits{Memory: "16g"}},
-				}},
-			},
-		}
-
-		// Act
-		err := printProjectConfig(&buf, layers)
-
-		// Assert
-		require.NoError(t, err)
-		out := buf.String()
-		assert.Contains(t, out, "dind.pids_limit: 100  (default)")
-		assert.Contains(t, out, "dind.cpus: 8  (default)")
-		assert.Contains(t, out, "dind.memory: 16g  [/project/.agenticrc.toml]")
-	})
-
-	t.Run("no values shows defaults", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		layers := []config.RCLayer{
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}},
-		}
-
-		// Act
-		err := printProjectConfig(&buf, layers)
-
-		// Assert
-		require.NoError(t, err)
-		out := buf.String()
-		assert.Contains(t, out, "namespace: agentic  (default)")
-		assert.Contains(t, out, "pids_limit: 1024  (default)")
-		assert.Contains(t, out, "cpus: 4  (default)")
-		assert.Contains(t, out, "memory: 4g  (default)")
-		assert.Contains(t, out, "apt_packages: (none)")
-		assert.Contains(t, out, "custom_installs: (none)")
-		assert.Contains(t, out, "bases: (none)")
-		assert.Contains(t, out, "mounts: (none)")
-		assert.Contains(t, out, "secrets: (none)")
-		assert.Contains(t, out, "proxy.enabled: false  (default)")
-		assert.Contains(t, out, "proxy.mode: enforce  (default)")
-		assert.Contains(t, out, "proxy.allowed_hosts: (none)")
-		assert.Contains(t, out, "dind.enabled: false  (default)")
-		assert.Contains(t, out, "dind.pids_limit: 1024  (default)")
-		assert.Contains(t, out, "dind.cpus: 4  (default)")
-		assert.Contains(t, out, "dind.memory: 4g  (default)")
+		assert.Contains(t, out, "    cpus: 8  [/project/.agenticrc.toml]")
+		assert.Contains(t, out, "      - make  [/home/.agenticrc.toml]\n      - gcc  [/project/.agenticrc.toml]\n")
+		assert.Contains(t, out, "      - parent-vol:/mnt/p  [/home/.agenticrc.toml]\n      - child-vol:/mnt/c  [/project/.agenticrc.toml]\n")
 	})
 }
 
-func Test_fieldPrinter(t *testing.T) {
-	layers := []config.RCLayer{{Path: "/projects/a/.agenticrc.toml", RC: &config.AgenticRC{Namespace: "team"}}}
+func Test_projectSections(t *testing.T) {
+	t.Run("dind limits inherit tool values unless set", func(t *testing.T) {
+		// Arrange
+		layers := []config.RCLayer{{
+			Path: "/project/.agenticrc.toml",
+			RC: &config.AgenticRC{Run: config.RCRun{
+				RCLimits: config.RCLimits{CPUs: "8", PidsLimit: "100"},
+				Dind:     config.RCDind{RCLimits: config.RCLimits{Memory: "16g"}},
+			}},
+		}}
+
+		// Act
+		sections := projectSections(layers)
+
+		// Assert
+		dind := sections[len(sections)-1]
+		assert.Equal(t, "run.dind", dind.header)
+		assert.Equal(t, []field{
+			{key: "enabled", entries: []entry{{value: "false"}}},
+			{key: "pids_limit", entries: []entry{{value: "100"}}},
+			{key: "cpus", entries: []entry{{value: "8"}}},
+			{key: "memory", entries: []entry{{value: "16g", source: "/project/.agenticrc.toml"}}},
+		}, dind.fields)
+	})
+
+	t.Run("bases show the innermost version", func(t *testing.T) {
+		// Arrange
+		layers := []config.RCLayer{
+			{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java", "go"}, Versions: map[string]string{"java": "11"}}}},
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}},
+		}
+
+		// Act
+		sections := projectSections(layers)
+
+		// Assert
+		bases := sections[1].fields[0]
+		assert.Equal(t, []entry{
+			{value: "java@17", source: "/home/.agenticrc.toml"},
+			{value: "go", source: "/home/.agenticrc.toml"},
+		}, bases.entries)
+	})
+}
+
+func Test_limitFields(t *testing.T) {
+	// Arrange
+	layers := []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{CPUs: "8"}}}}}
+	get := func(rc *config.AgenticRC) config.RCLimits { return rc.Run.RCLimits }
+
+	// Act
+	fields := limitFields(layers, get, sandbox.DefaultLimits)
+
+	// Assert
+	assert.Equal(t, []field{
+		{key: "pids_limit", entries: []entry{{value: "1024"}}},
+		{key: "cpus", entries: []entry{{value: "8", source: "/project/.agenticrc.toml"}}},
+		{key: "memory", entries: []entry{{value: "4g"}}},
+	}, fields)
+}
+
+func Test_scalarField(t *testing.T) {
 	namespace := func(rc *config.AgenticRC) string { return rc.Namespace }
 
-	t.Run("prints each field in order", func(t *testing.T) {
+	t.Run("innermost layer wins", func(t *testing.T) {
 		// Arrange
-		var buf bytes.Buffer
-		p := &fieldPrinter{w: &buf, layers: layers}
+		layers := []config.RCLayer{
+			{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Namespace: "outer"}},
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Namespace: "inner"}},
+		}
 
 		// Act
-		p.scalar("namespace", namespace, "")
-		p.boolean("proxy.enabled", func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }, false)
+		f := scalarField(layers, "namespace", namespace, "agentic")
 
 		// Assert
-		require.NoError(t, p.err)
-		assert.Equal(t, "  namespace: team  [/projects/a/.agenticrc.toml]\n  proxy.enabled: false  (default)\n", buf.String())
+		assert.Equal(t, field{key: "namespace", entries: []entry{{value: "inner", source: "/project/.agenticrc.toml"}}}, f)
 	})
 
-	t.Run("stops writing after the first error", func(t *testing.T) {
+	t.Run("default when no layer sets it", func(t *testing.T) {
 		// Arrange
-		w := &failingWriter{}
-		p := &fieldPrinter{w: w, layers: layers}
+		layers := []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}}}
 
 		// Act
-		p.scalar("namespace", namespace, "")
-		p.list("secrets", func(rc *config.AgenticRC) []string { return rc.Run.Secrets })
+		f := scalarField(layers, "namespace", namespace, "agentic")
 
 		// Assert
-		assert.ErrorContains(t, p.err, "write failed")
-		assert.Equal(t, 1, w.calls)
+		assert.Equal(t, field{key: "namespace", entries: []entry{{value: "agentic"}}}, f)
 	})
+
+	t.Run("no entry without value or default", func(t *testing.T) {
+		// Arrange
+		layers := []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}}}
+
+		// Act
+		f := scalarField(layers, "namespace", namespace, "")
+
+		// Assert
+		assert.Equal(t, field{key: "namespace"}, f)
+	})
+}
+
+func Test_boolField(t *testing.T) {
+	enabled := func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
+
+	t.Run("innermost layer that sets it wins", func(t *testing.T) {
+		// Arrange
+		on, off := true, false
+		layers := []config.RCLayer{
+			{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &on}}}},
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &off}}}},
+		}
+
+		// Act
+		f := boolField(layers, "enabled", enabled, true)
+
+		// Assert
+		assert.Equal(t, field{key: "enabled", entries: []entry{{value: "false", source: "/project/.agenticrc.toml"}}}, f)
+	})
+
+	t.Run("default when no layer sets it", func(t *testing.T) {
+		// Arrange
+		layers := []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}}}
+
+		// Act
+		f := boolField(layers, "enabled", enabled, true)
+
+		// Assert
+		assert.Equal(t, field{key: "enabled", entries: []entry{{value: "true"}}}, f)
+	})
+}
+
+func Test_listField(t *testing.T) {
+	// Arrange
+	layers := []config.RCLayer{
+		{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Secrets: []string{"a:/run/a"}}}},
+		{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Secrets: []string{"b:/run/b"}}}},
+	}
+	secrets := func(rc *config.AgenticRC) []string { return rc.Run.Secrets }
+
+	// Act
+	f := listField(layers, "secrets", secrets)
+
+	// Assert
+	assert.Equal(t, field{key: "secrets", list: true, entries: []entry{
+		{value: "a:/run/a", source: "/home/.agenticrc.toml"},
+		{value: "b:/run/b", source: "/project/.agenticrc.toml"},
+	}}, f)
+}
+
+func Test_innermost(t *testing.T) {
+	layers := []config.RCLayer{
+		{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Namespace: "outer"}},
+		{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}},
+	}
+	namespace := func(rc *config.AgenticRC) string { return rc.Namespace }
+
+	t.Run("skips layers where it is unset", func(t *testing.T) {
+		// Act
+		v, path, ok := innermost(layers, namespace, func(v string) bool { return v != "" })
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, "outer", v)
+		assert.Equal(t, "/home/.agenticrc.toml", path)
+	})
+
+	t.Run("not found when no layer sets it", func(t *testing.T) {
+		// Act
+		_, _, ok := innermost(layers, namespace, func(string) bool { return false })
+
+		// Assert
+		assert.False(t, ok)
+	})
+}
+
+func Test_writeSection(t *testing.T) {
+	fields := []field{{key: "enabled", entries: []entry{{value: "true"}}}}
+
+	t.Run("top level has no header", func(t *testing.T) {
+		// Arrange
+		var b strings.Builder
+
+		// Act
+		writeSection(&b, section{fields: fields})
+
+		// Assert
+		assert.Equal(t, "  enabled: true  (default)\n", b.String())
+	})
+
+	t.Run("table indents its fields under the header", func(t *testing.T) {
+		// Arrange
+		var b strings.Builder
+
+		// Act
+		writeSection(&b, section{header: "run.proxy", fields: fields})
+
+		// Assert
+		assert.Equal(t, "\n  [run.proxy]\n    enabled: true  (default)\n", b.String())
+	})
+}
+
+func Test_writeField(t *testing.T) {
+	tests := []struct {
+		name string
+		f    field
+		want string
+	}{
+		{"scalar from a layer", field{key: "cpus", entries: []entry{{value: "8", source: "/p/.agenticrc.toml"}}}, "  cpus: 8  [/p/.agenticrc.toml]\n"},
+		{"scalar default", field{key: "cpus", entries: []entry{{value: "4"}}}, "  cpus: 4  (default)\n"},
+		{"scalar not set", field{key: "docker_context"}, "  docker_context: (not set)\n"},
+		{"empty list", field{key: "secrets", list: true}, "  secrets: (none)\n"},
+		{"list entries", field{key: "secrets", list: true, entries: []entry{{value: "a", source: "/p/.agenticrc.toml"}}}, "  secrets:\n    - a  [/p/.agenticrc.toml]\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			var b strings.Builder
+
+			// Act
+			writeField(&b, tt.f, "  ")
+
+			// Assert
+			assert.Equal(t, tt.want, b.String())
+		})
+	}
 }
 
 func Test_customInstallNames(t *testing.T) {
@@ -444,6 +409,73 @@ func Test_customInstallNames(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, []string{"golangci-lint", "terraform"}, result)
+}
+
+func Test_envKeys(t *testing.T) {
+	// Arrange
+	rc := &config.AgenticRC{Run: config.RCRun{Env: []string{"TOKEN=test-secret", "HOME_DIR"}}}
+
+	// Act
+	result := envKeys(rc)
+
+	// Assert
+	assert.Equal(t, []string{"TOKEN", "HOME_DIR"}, result)
+}
+
+func Test_credentialNames(t *testing.T) {
+	// Arrange
+	rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: []config.RCCredential{
+		{Preset: "anthropic", Secret: "~/.secrets/a"},
+		{Hosts: []string{"api.example.test", "upload.example.test"}, Header: "Authorization", Secret: "~/.secrets/b"},
+	}}}}
+
+	// Act
+	result := credentialNames(rc)
+
+	// Assert
+	assert.Equal(t, []string{"anthropic", "api.example.test, upload.example.test"}, result)
+}
+
+func Test_marketplaceNames(t *testing.T) {
+	// Arrange
+	rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{
+		{Name: "acme", URL: "https://git.example.test/acme.git"},
+		{Name: "team", URL: "https://git.example.test/team.git", Tools: []string{"claude", "copilot"}},
+	}}
+
+	// Act
+	result := marketplaceNames(rc)
+
+	// Assert
+	assert.Equal(t, []string{
+		"acme (https://git.example.test/acme.git)",
+		"team (https://git.example.test/team.git) tools: claude, copilot",
+	}, result)
+}
+
+func Test_customInstructions(t *testing.T) {
+	tests := []struct {
+		name   string
+		custom string
+		want   []string
+	}{
+		{"unset", "", nil},
+		{"one line", "Use make.\n", []string{"(1 line)"}},
+		{"several lines", "Use make.\nRun lint.\n", []string{"(2 lines)"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Custom: tt.custom}}}
+
+			// Act
+			result := customInstructions(rc)
+
+			// Assert
+			assert.Equal(t, tt.want, result)
+		})
+	}
 }
 
 func Test_showConfig(t *testing.T) {
