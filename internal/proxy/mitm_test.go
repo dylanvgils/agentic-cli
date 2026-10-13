@@ -381,18 +381,35 @@ func Test_reverseProxy(t *testing.T) {
 }
 
 func Test_leaf(t *testing.T) {
-	// Arrange
-	inject := NewInjector(newTestProxyCA(t, "api.example.test"), nil)
-	first, err := inject.leaf("api.example.test")
-	require.NoError(t, err)
+	t.Run("caches the cert per host", func(t *testing.T) {
+		// Arrange
+		inject := NewInjector(newTestProxyCA(t, "api.example.test"), nil)
+		first, err := inject.leaf("api.example.test")
+		require.NoError(t, err)
 
-	// Act
-	again, err := inject.leaf("api.example.test")
+		// Act
+		again, err := inject.leaf("api.example.test")
 
-	// Assert
-	require.NoError(t, err)
-	assert.Same(t, first, again)
-	assert.Equal(t, []string{"api.example.test"}, again.Leaf.DNSNames)
+		// Assert
+		require.NoError(t, err)
+		assert.Same(t, first, again)
+		assert.Equal(t, []string{"api.example.test"}, again.Leaf.DNSNames)
+	})
+
+	t.Run("an IP host gets an IP SAN and a CN that isn't a hostname", func(t *testing.T) {
+		// Arrange
+		inject := NewInjector(newTestProxyCA(t, "203.0.113.7"), nil)
+
+		// Act
+		cert, err := inject.leaf("203.0.113.7")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "agentic proxy", cert.Leaf.Subject.CommonName)
+		assert.Empty(t, cert.Leaf.DNSNames)
+		require.Len(t, cert.Leaf.IPAddresses, 1)
+		assert.Equal(t, "203.0.113.7", cert.Leaf.IPAddresses[0].String())
+	})
 }
 
 func Test_blockMethods(t *testing.T) {
