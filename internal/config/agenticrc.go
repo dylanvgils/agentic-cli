@@ -71,13 +71,11 @@ type RCProxy struct {
 	Credentials []RCCredential `toml:"credentials"`
 }
 
-// RCCredential declares a secret the proxy injects as a header; set either Preset or Hosts+Header.
+// RCCredential declares a secret swapped in for a placeholder the tool sends in a header; set either Preset or Hosts+Header.
 type RCCredential struct {
 	Preset string   `toml:"preset"`
 	Hosts  []string `toml:"hosts"`
 	Header string   `toml:"header"`
-	// Format is deprecated and ignored with a warning, as the tool builds the header itself
-	Format string `toml:"format"`
 	// Env lists tool env vars set to a placeholder so tools that require a key still start
 	Env []string `toml:"env"`
 	// Secret is where the value is read from, e.g. a file path
@@ -396,16 +394,16 @@ func validateCredential(cred RCCredential) error {
 		return fmt.Errorf("secret must not be empty")
 	}
 
-	custom := len(cred.Hosts) > 0 || cred.Header != "" || cred.Format != ""
+	custom := len(cred.Hosts) > 0 || cred.Header != ""
 	if cred.Preset != "" && custom {
-		return fmt.Errorf("preset %q cannot be combined with hosts, header or format", cred.Preset)
+		return fmt.Errorf("preset %q cannot be combined with hosts or header", cred.Preset)
 	}
 	if cred.Preset == "" && (len(cred.Hosts) == 0 || cred.Header == "") {
 		return fmt.Errorf("set either preset or both hosts and header")
 	}
 
 	// Escape sequences could disguise the entry in the approval prompt
-	fields := append([]string{cred.Preset, cred.Header, cred.Format, cred.Secret}, cred.Hosts...)
+	fields := append([]string{cred.Preset, cred.Header, cred.Secret}, cred.Hosts...)
 	for _, field := range append(fields, cred.Env...) {
 		if strings.ContainsFunc(field, func(r rune) bool { return !unicode.IsPrint(r) }) {
 			return fmt.Errorf("value %q contains control or non-printable characters", field)

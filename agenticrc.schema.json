@@ -135,7 +135,7 @@
                   "preset": {
                     "type": "string",
                     "enum": ["anthropic", "openai", "github"],
-                    "description": "Well-known service preset. Can't be combined with hosts, header or format."
+                    "description": "Well-known service preset. Can't be combined with hosts or header."
                   },
                   "hosts": {
                     "type": "array",
@@ -146,11 +146,6 @@
                   "header": {
                     "type": "string",
                     "description": "Header the tool sends the placeholder in, e.g. \"Authorization\". Required without preset. Hop-by-hop, Host and Content-Length are refused."
-                  },
-                  "format": {
-                    "type": "string",
-                    "description": "Deprecated and ignored with a warning: the tool builds the header itself.",
-                    "deprecated": true
                   },
                   "env": {
                     "type": "array",
@@ -166,7 +161,7 @@
                 "oneOf": [
                   {
                     "required": ["preset"],
-                    "not": { "anyOf": [{ "required": ["hosts"] }, { "required": ["header"] }, { "required": ["format"] }] }
+                    "not": { "anyOf": [{ "required": ["hosts"] }, { "required": ["header"] }] }
                   },
                   {
                     "required": ["hosts", "header", "env"],

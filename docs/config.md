@@ -185,10 +185,9 @@ Preview the block with `agentic instructions claude` (add `--proxy` to include t
 
 | Key      | Type   | Description                                                                                              |
 | -------- | ------ | -------------------------------------------------------------------------------------------------------- |
-| `preset` | string | `anthropic`, `openai` or `github`. Can't be combined with `hosts`, `header` or `format`.                 |
+| `preset` | string | `anthropic`, `openai` or `github`. Can't be combined with `hosts` or `header`.                           |
 | `hosts`  | list   | Exact hostnames or IPs, no wildcards. Required without `preset`. A host may appear in only one entry.    |
 | `header` | string | Header the tool sends the placeholder in, e.g. `"Authorization"`. Required without `preset`. Hop-by-hop, `Host` and `Content-Length` are refused. |
-| `format` | string | Deprecated and ignored with a warning: the tool builds the header itself.                               |
 | `env`    | list   | Tool env vars set to the placeholder. Required without `preset`; replaces a preset's own list.          |
 | `secret` | string | Required. Host file with the secret: an absolute path, or one starting with `~`/`$HOME`. One line, at most 64 KiB. Other sources (`keychain:`) are reserved. |
 

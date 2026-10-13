@@ -636,7 +636,6 @@ secret = "~/.example/secret"
 [[run.proxy.credentials]]
 hosts = ["api.example.test"]
 header = "Authorization"
-format = "Bearer %s"
 env = ["EXAMPLE_TOKEN"]
 secret = "/example/secret"
 `
@@ -646,7 +645,7 @@ secret = "/example/secret"
 		// Assert
 		assert.Equal(t, []RCCredential{
 			{Preset: "example", Secret: "~/.example/secret"},
-			{Hosts: []string{"api.example.test"}, Header: "Authorization", Format: "Bearer %s", Env: []string{"EXAMPLE_TOKEN"}, Secret: "/example/secret"},
+			{Hosts: []string{"api.example.test"}, Header: "Authorization", Env: []string{"EXAMPLE_TOKEN"}, Secret: "/example/secret"},
 		}, rc.Run.Proxy.Credentials)
 	})
 
@@ -654,7 +653,7 @@ secret = "/example/secret"
 		cases := map[string]string{
 			"secret must not be empty":                   "preset = \"example\"\n",
 			"cannot be combined with hosts":              "preset = \"example\"\nhosts = [\"api.example.test\"]\nsecret = \"/s\"\n",
-			"cannot be combined with hosts, header":      "preset = \"example\"\nheader = \"X-Api-Key\"\nsecret = \"/s\"\n",
+			"cannot be combined with hosts or header":    "preset = \"example\"\nheader = \"X-Api-Key\"\nsecret = \"/s\"\n",
 			"set either preset or both hosts and header": "hosts = [\"api.example.test\"]\nsecret = \"/s\"\n",
 		}
 		for want, entry := range cases {
@@ -674,7 +673,6 @@ secret = "/example/secret"
 		entries := []string{
 			"hosts = [\"evil.example.test\\u001b[2K\"]\nheader = \"X-Token\"\nsecret = \"/s\"\n",
 			"hosts = [\"api.example.test\"]\nheader = \"X-Token\\r\"\nsecret = \"/s\"\n",
-			"hosts = [\"api.example.test\"]\nheader = \"X-Token\"\nformat = \"Bearer %s\\n\"\nsecret = \"/s\"\n",
 			"preset = \"anthropic\"\nsecret = \"/s\\u001b[2K\\rhidden\"\n",
 			"preset = \"anthropic\\u0007\"\nsecret = \"/s\"\n",
 			"preset = \"anthropic\"\nenv = [\"KEY\\u202e\"]\nsecret = \"/s\"\n",
