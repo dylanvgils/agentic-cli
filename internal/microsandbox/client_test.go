@@ -42,6 +42,47 @@ func TestClient_Available(t *testing.T) {
 	})
 }
 
+func TestClient_Version(t *testing.T) {
+	t.Run("parses the version from msb --version", func(t *testing.T) {
+		// Arrange
+		var capturedArgs []string
+		client := newTestClient(&fakeRunner{run: func(args ...string) (string, error) {
+			capturedArgs = args
+			return "msb 0.2.6\n", nil
+		}})
+
+		// Act
+		result, err := client.Version()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "0.2.6", result)
+		assert.Equal(t, []string{"--version"}, capturedArgs)
+	})
+
+	t.Run("msb error propagates", func(t *testing.T) {
+		// Arrange
+		client := newTestClient(&fakeRunner{run: func(...string) (string, error) { return "", errNotInstalled }})
+
+		// Act
+		_, err := client.Version()
+
+		// Assert
+		require.ErrorIs(t, err, errNotInstalled)
+	})
+
+	t.Run("output without a version errors", func(t *testing.T) {
+		// Arrange
+		client := newTestClient(&fakeRunner{run: func(...string) (string, error) { return "msb\n", nil }})
+
+		// Act
+		_, err := client.Version()
+
+		// Assert
+		require.Error(t, err)
+	})
+}
+
 func Test_execRunner_Run(t *testing.T) {
 	t.Run("captures output", func(t *testing.T) {
 		// Arrange

@@ -12,6 +12,15 @@ func ParseVersion(s string) string {
 	return versionRe.FindString(s)
 }
 
+// Version returns the docker CLI's own version, which needs no running daemon.
+func (c *Client) Version() (string, error) {
+	out, err := c.run("version", arg("format", "{{.Client.Version}}"))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
 // runVersionScript runs script network-less so a self-updating tool can't change its reported version mid-detection.
 func (c *Client) runVersionScript(image, script string) string {
 	out, err := c.run("run", arg("rm"), arg("network", "none"), arg("entrypoint", ""), image, script)

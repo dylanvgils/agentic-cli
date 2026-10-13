@@ -12,6 +12,8 @@ import (
 )
 
 func Test_runStatus(t *testing.T) {
+	stubMicrosandbox(t, &fakeMicrosandbox{})
+
 	t.Run("daemon not running reports status without listing containers", func(t *testing.T) {
 		// Arrange
 		cmd, buf := newTestStatusCmd(t)
@@ -27,7 +29,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "Docker:          not running\nDocker context:  desktop-linux\n", buf.String())
+		assert.Equal(t, "Docker:          not running\nDocker context:  desktop-linux\nMicrosandbox:    installed\n", buf.String())
 	})
 
 	t.Run("daemon running with no containers prints zero count", func(t *testing.T) {
@@ -42,7 +44,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "Docker:              running\nDocker context:      desktop-linux\nContainers running:  0\n", buf.String())
+		assert.Equal(t, "Docker:              running\nDocker context:      desktop-linux\nMicrosandbox:        installed\nContainers running:  0\n", buf.String())
 	})
 
 	t.Run("daemon running with containers prints table", func(t *testing.T) {
@@ -107,7 +109,31 @@ func Test_runStatus(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "Docker:              running\nDocker context:      prod\nContainers running:  0\n", buf.String())
+		assert.Equal(t, "Docker:              running\nDocker context:      prod\nMicrosandbox:        installed\nContainers running:  0\n", buf.String())
+	})
+}
+
+func Test_msbStatus(t *testing.T) {
+	t.Run("installed", func(t *testing.T) {
+		// Arrange
+		stubMicrosandbox(t, &fakeMicrosandbox{})
+
+		// Act
+		status := msbStatus()
+
+		// Assert
+		assert.Equal(t, "installed", status)
+	})
+
+	t.Run("not installed", func(t *testing.T) {
+		// Arrange
+		stubMicrosandbox(t, &fakeMicrosandbox{available: func() error { return fmt.Errorf("msb not found") }})
+
+		// Act
+		status := msbStatus()
+
+		// Assert
+		assert.Equal(t, "not installed", status)
 	})
 }
 

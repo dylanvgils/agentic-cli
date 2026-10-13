@@ -14,6 +14,9 @@ var versionCmd = &cobra.Command{
 	RunE:  runVersion,
 }
 
+// versionField is one "key : value" line of version output.
+type versionField struct{ key, val string }
+
 func init() {
 	rootCmd.AddCommand(versionCmd)
 }
@@ -25,26 +28,48 @@ func runVersion(cmd *cobra.Command, _ []string) error {
 
 func versionOutput() string {
 	out := "agentic version " + buildinfo.Version
-	if extras := versionExtras(); extras != "" {
-		out += "\n\n" + extras
+	for _, section := range []string{versionExtras(), runtimeVersions()} {
+		if section != "" {
+			out += "\n\n" + section
+		}
 	}
 	return out
 }
 
 func versionExtras() string {
-	meta := []struct{ key, val string }{
+	return formatFields([]versionField{
 		{"commit", buildinfo.Commit},
 		{"built by", buildinfo.InstallMethod},
 		{"built date", buildinfo.BuildDate},
-	}
+	})
+}
 
+// runtimeVersions lists the versions of the installed runtime CLIs agentic drives.
+func runtimeVersions() string {
+	return formatFields([]versionField{
+		{"docker", versionOrEmpty(dockerClient.Version)},
+		{"microsandbox", versionOrEmpty(msbClient.Version)},
+	})
+}
+
+// formatFields renders fields as aligned "key : value" lines, skipping empty values.
+func formatFields(fields []versionField) string {
 	var lines []string
 
-	for _, m := range meta {
-		if m.val != "" {
-			lines = append(lines, fmt.Sprintf("%-12s: %s", m.key, m.val))
+	for _, f := range fields {
+		if f.val != "" {
+			lines = append(lines, fmt.Sprintf("%-13s: %s", f.key, f.val))
 		}
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// versionOrEmpty returns the version fn reports, or "" when it fails (e.g. the binary isn't installed).
+func versionOrEmpty(fn func() (string, error)) string {
+	v, err := fn()
+	if err != nil {
+		return ""
+	}
+	return v
 }

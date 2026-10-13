@@ -8,10 +8,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 )
 
 // errNotInstalled is returned when the msb binary is not on PATH.
 var errNotInstalled = errors.New("msb not found on PATH; install microsandbox (docs.microsandbox.dev)")
+
+var versionRe = regexp.MustCompile(`[0-9]+(\.[0-9]+)+`)
 
 // runner executes msb CLI invocations; tests swap in a fake.
 type runner interface {
@@ -40,6 +43,20 @@ func New() *Client {
 func (c *Client) Available() error {
 	_, err := lookPath()
 	return err
+}
+
+// Version returns the installed msb version.
+func (c *Client) Version() (string, error) {
+	out, err := c.runner.Run("--version")
+	if err != nil {
+		return "", err
+	}
+
+	v := versionRe.FindString(out)
+	if v == "" {
+		return "", fmt.Errorf("no version in msb --version output: %q", out)
+	}
+	return v, nil
 }
 
 func (execRunner) Run(args ...string) (string, error) {
