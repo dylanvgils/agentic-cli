@@ -18,8 +18,13 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/certs"
 )
 
-// idleTimeout closes intercepted client connections left idle between requests.
-const idleTimeout = 90 * time.Second
+const (
+	// idleTimeout closes intercepted client connections left idle between requests.
+	idleTimeout = 90 * time.Second
+
+	// leafCommonName names every leaf; OpenSSL checks a hostname-like CN against the CA's DNS constraints, which reject an IP host's CN
+	leafCommonName = "agentic proxy"
+)
 
 // injectPort is the only port intercepted for injection; other ports to a credentialed host tunnel untouched.
 var injectPort = "443"
@@ -89,7 +94,7 @@ func (i *Injector) leaf(host string) (*tls.Certificate, error) {
 		return cert, nil
 	}
 
-	pair, err := i.ca.IssueLeaf(host, x509.ExtKeyUsageServerAuth, []string{host})
+	pair, err := i.ca.IssueLeaf(leafCommonName, x509.ExtKeyUsageServerAuth, []string{host})
 	if err != nil {
 		return nil, fmt.Errorf("issue leaf for %s: %w", host, err)
 	}
