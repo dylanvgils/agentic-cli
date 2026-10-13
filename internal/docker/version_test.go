@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExtractVersion(t *testing.T) {
@@ -63,6 +64,38 @@ func TestParseVersion_delegatesToExtractVersion(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, "3.7.0", result)
+}
+
+func TestClient_Version(t *testing.T) {
+	client := newTestClient()
+
+	t.Run("returns the trimmed client version", func(t *testing.T) {
+		// Arrange
+		var capturedArgs []string
+		stubDockerRun(t, client, func(args ...string) (string, error) {
+			capturedArgs = args
+			return "29.9.0\n", nil
+		})
+
+		// Act
+		result, err := client.Version()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "29.9.0", result)
+		assert.Equal(t, []string{"version", "--format={{.Client.Version}}"}, capturedArgs)
+	})
+
+	t.Run("docker error propagates", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, client, "", fmt.Errorf("docker not found"))
+
+		// Act
+		_, err := client.Version()
+
+		// Assert
+		require.Error(t, err)
+	})
 }
 
 func TestRunVersionScript(t *testing.T) {

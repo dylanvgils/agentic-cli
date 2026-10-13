@@ -48,6 +48,7 @@ type fakeDocker struct {
 	sweepDindResources    func(string) error
 	listContexts          func() ([]string, error)
 	currentContext        func() (string, error)
+	version               func() (string, error)
 }
 
 func (f *fakeDocker) Context() string { return f.context }
@@ -233,6 +234,13 @@ func (f *fakeDocker) ListContexts() ([]string, error) {
 	return f.listContexts()
 }
 
+func (f *fakeDocker) Version() (string, error) {
+	if f.version == nil {
+		return "", nil
+	}
+	return f.version()
+}
+
 // overlay copies o's set fields onto f.
 func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.context != "" {
@@ -309,6 +317,9 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 	if o.currentContext != nil {
 		f.currentContext = o.currentContext
+	}
+	if o.version != nil {
+		f.version = o.version
 	}
 }
 
@@ -435,6 +446,7 @@ type fakeMicrosandbox struct {
 	cleanImage      func(image string) error
 	listVolumeNames func() ([]string, error)
 	removeVolume    func(name string) error
+	version         func() (string, error)
 }
 
 func (f *fakeMicrosandbox) Available() error {
@@ -477,6 +489,13 @@ func (f *fakeMicrosandbox) CleanImage(image string) error {
 		return nil
 	}
 	return f.cleanImage(image)
+}
+
+func (f *fakeMicrosandbox) Version() (string, error) {
+	if f.version == nil {
+		return "", nil
+	}
+	return f.version()
 }
 
 // stubMicrosandbox installs f as msbClient until the test ends.

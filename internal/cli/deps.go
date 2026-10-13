@@ -50,6 +50,7 @@ type dockerAPI interface {
 	CreateVolume(name string) error
 	ListRunningContainers() ([]*docker.ContainerInfo, error)
 	ListContexts() ([]string, error)
+	Version() (string, error)
 }
 
 // msbAPI is the subset of *microsandbox.Client the usecases the cli calls use.
@@ -57,4 +58,7 @@ type msbAPI interface {
 	run.Microsandbox
 	clean.Runtime
 	volumes.Microsandbox
+
+	Available() error
+	Version() (string, error)
 }

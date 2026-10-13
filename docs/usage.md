@@ -19,7 +19,7 @@ Run `agentic help <command>` for all flags.
 | `clean [tool]`                             | Remove tool image(s). With no tool, removes everything agentic created.              |
 | `inspect [tool]`                           | Show built images, or full detail for one tool                                       |
 | `instructions <tool>`                      | Preview the [environment instructions](config.md#runinstructions)                    |
-| `status`                                   | Show whether Docker is running and list running agentic containers                   |
+| `status`                                   | Show Docker and msb availability, and list running agentic containers                |
 | `config`                                   | Show the merged [configuration](config.md)                                           |
 | `namespaces <list\|prune>`                 | List namespaces, or remove all images in one                                         |
 | `volumes <create\|list\|remove> [name]`    | Manage [named volumes](#named-volumes)                                               |
@@ -27,7 +27,7 @@ Run `agentic help <command>` for all flags.
 | `proxy <build\|update\|clean>`             | Manage the [egress proxy](egress-proxy.md) image                                     |
 | `migrate`                                  | Migrate `$AGENTIC_HOME`'s on-disk layout (runs automatically)                        |
 | `upgrade`                                  | Upgrade agentic to the latest release                                                |
-| `version`                                  | Show version information                                                             |
+| `version`                                  | Show version information, including the Docker CLI and msb versions                  |
 | `completion <bash\|zsh\|fish\|powershell>` | Print a [shell completion](#shell-completion) script                                 |
 | `aliases`                                  | Print [shell aliases](#shell-aliases) for installed tools                            |
 
