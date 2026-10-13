@@ -313,7 +313,7 @@ func TestCheckProjectDir(t *testing.T) {
 }
 
 func Test_resolveInput(t *testing.T) {
-	proxyInjects := sandbox.Capabilities{Proxy: true, CredentialInjection: true, CredentialsViaProxy: true}
+	dockerCaps := sandbox.Capabilities{Proxy: true, Dind: true, CredentialInjection: true, CredentialsViaProxy: true}
 
 	t.Run("copies the flags and resolves proxy and dind against the config", func(t *testing.T) {
 		// Arrange
@@ -333,7 +333,7 @@ func Test_resolveInput(t *testing.T) {
 		}
 
 		// Act
-		in, err := resolveInput(flags, rc, proxyInjects)
+		in, err := resolveInput(flags, rc, dockerCaps)
 
 		// Assert
 		require.NoError(t, err)
@@ -359,10 +359,22 @@ func Test_resolveInput(t *testing.T) {
 		flags := Flags{Proxy: resolve.ProxyInput{NoProxy: true}}
 
 		// Act
-		_, err := resolveInput(flags, rc, proxyInjects)
+		_, err := resolveInput(flags, rc, dockerCaps)
 
 		// Assert
 		require.ErrorContains(t, err, "--no-proxy cannot be used")
+	})
+
+	t.Run("dind stays off on a runtime without a daemon", func(t *testing.T) {
+		// Arrange
+		flags := Flags{Dind: resolve.DindInput{DindFlag: true}}
+
+		// Act
+		in, err := resolveInput(flags, &config.AgenticRC{}, sandbox.Capabilities{CredentialInjection: true})
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, in.DindEnabled)
 	})
 
 	t.Run("credentials leave the proxy off when the runtime injects them", func(t *testing.T) {

@@ -136,6 +136,9 @@ func resolveInput(flags Flags, rc *config.AgenticRC, caps sandbox.Capabilities) 
 		return Input{}, err
 	}
 
+	// A runtime without a daemon ignores dind, so its env names and registry hosts stay free
+	dind := caps.Dind && resolve.DindEnabled(flags.Dind, rc)
+
 	return Input{
 		ToolHome:    flags.ToolHome,
 		Volumes:     flags.Volumes,
@@ -145,7 +148,7 @@ func resolveInput(flags Flags, rc *config.AgenticRC, caps sandbox.Capabilities) 
 		DryRun:      flags.DryRun,
 		Registry:    flags.Registry,
 		ProxyMode:   proxyMode,
-		DindEnabled: resolve.DindEnabled(flags.Dind, rc),
+		DindEnabled: dind,
 		DindLimits:  flags.DindLimits,
 		Runtime:     flags.Runtime,
 	}, nil
