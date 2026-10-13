@@ -3,10 +3,12 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -20,6 +22,9 @@ const DefaultNamespace = "agentic"
 
 // validRCEntryName matches safe path-segment/identifier characters, used for both marketplace and custom-install names.
 var validRCEntryName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+// validMemory matches a docker memory size: a number with an optional b, k, m or g unit.
+var validMemory = regexp.MustCompile(`^[0-9]+[bkmgBKMG]?$`)
 
 // ModeEnforce and ModeMonitor are the only valid RCProxy.Mode values, besides unset "" (treated as ModeEnforce).
 const (
@@ -352,6 +357,13 @@ func loadRC(path string) (*AgenticRC, error) {
 		return nil, fmt.Errorf("%s: invalid [run.proxy] mode %q: must be %q or %q", path, mode, ModeEnforce, ModeMonitor)
 	}
 
+	if err := validateLimits(rc.Run.RCLimits); err != nil {
+		return nil, fmt.Errorf("%s: [run] %w", path, err)
+	}
+	if err := validateLimits(rc.Run.Dind.RCLimits); err != nil {
+		return nil, fmt.Errorf("%s: [run.dind] %w", path, err)
+	}
+
 	for i, cred := range rc.Run.Proxy.Credentials {
 		if err := validateCredential(cred); err != nil {
 			return nil, fmt.Errorf("%s: [[run.proxy.credentials]] entry %d: %w", path, i+1, err)
@@ -397,6 +409,27 @@ func validateCredential(cred RCCredential) error {
 	for _, field := range append(fields, cred.Env...) {
 		if strings.ContainsFunc(field, func(r rune) bool { return !unicode.IsPrint(r) }) {
 			return fmt.Errorf("value %q contains control or non-printable characters", field)
+		}
+	}
+	return nil
+}
+
+// validateLimits refuses limits that are malformed or zero or below, which docker reads as no limit, so a file the agent can
+// edit can't lift them without a prompt.
+func validateLimits(limits RCLimits) error {
+	if limits.PidsLimit != "" {
+		if n, err := strconv.Atoi(limits.PidsLimit); err != nil || n <= 0 {
+			return fmt.Errorf("pids_limit %q: must be a positive whole number", limits.PidsLimit)
+		}
+	}
+	if limits.CPUs != "" {
+		if n, err := strconv.ParseFloat(limits.CPUs, 64); err != nil || !(n > 0) || math.IsInf(n, 0) {
+			return fmt.Errorf("cpus %q: must be a positive number", limits.CPUs)
+		}
+	}
+	if limits.Memory != "" {
+		if !validMemory.MatchString(limits.Memory) || strings.Trim(limits.Memory, "0bkmgBKMG") == "" {
+			return fmt.Errorf("memory %q: must be a positive size, e.g. \"8g\"", limits.Memory)
 		}
 	}
 	return nil

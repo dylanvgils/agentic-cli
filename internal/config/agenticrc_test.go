@@ -825,6 +825,18 @@ secret = "/example/secret"
 		assert.ErrorContains(t, err, path)
 	})
 
+	t.Run("limit that lifts the limit returns error with path", func(t *testing.T) {
+		// Arrange
+		path := writeRC(t, "[run.dind]\npids_limit = \"-1\"\n")
+
+		// Act
+		_, err := loadRC(path)
+
+		// Assert
+		assert.ErrorContains(t, err, "[run.dind] pids_limit")
+		assert.ErrorContains(t, err, path)
+	})
+
 	t.Run("syntax error returns error with path", func(t *testing.T) {
 		// Arrange
 		path := writeRC(t, "not valid toml [[[")
@@ -846,6 +858,49 @@ secret = "/example/secret"
 		assert.Empty(t, rc.Run.CPUs)
 		assert.Empty(t, rc.Run.Memory)
 	})
+}
+
+func Test_validateLimits(t *testing.T) {
+	t.Run("positive limits pass", func(t *testing.T) {
+		// Arrange
+		limits := RCLimits{PidsLimit: "2048", CPUs: "1.5", Memory: "8g"}
+
+		// Act
+		err := validateLimits(limits)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("unset limits pass", func(t *testing.T) {
+		// Act
+		err := validateLimits(RCLimits{})
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	tests := []struct {
+		name   string
+		limits RCLimits
+		want   string
+	}{
+		{"unlimited pids", RCLimits{PidsLimit: "-1"}, "pids_limit"},
+		{"zero pids", RCLimits{PidsLimit: "0"}, "pids_limit"},
+		{"zero cpus", RCLimits{CPUs: "0"}, "cpus"},
+		{"infinite cpus", RCLimits{CPUs: "Inf"}, "cpus"},
+		{"zero memory", RCLimits{Memory: "0g"}, "memory"},
+		{"malformed memory", RCLimits{Memory: "-1"}, "memory"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name+" is refused", func(t *testing.T) {
+			// Act
+			err := validateLimits(tt.limits)
+
+			// Assert
+			assert.ErrorContains(t, err, tt.want)
+		})
+	}
 }
 
 func TestFindLayers(t *testing.T) {
