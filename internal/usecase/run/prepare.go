@@ -50,11 +50,9 @@ type Flags struct {
 func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func(), error) {
 	home := req.Flags.ToolHome
 
-	// Before any prompt, so a run microsandbox can't do doesn't waste the user's approvals
-	if req.Flags.Runtime == RuntimeMicrosandbox {
-		if err := s.checkMicrosandbox(req); err != nil {
-			return sandbox.RunSpec{}, noCleanup, err
-		}
+	// Before any prompt, so a run the runtime can't do doesn't waste the user's approvals
+	if err := s.checkRuntime(req); err != nil {
+		return sandbox.RunSpec{}, noCleanup, err
 	}
 
 	if err := s.requireImage(req.Target.ImageName, req.Target.ToolName); err != nil {
@@ -74,7 +72,7 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
-	in, err := runInput(req)
+	in, err := runInput(req, s.capabilities(req.Flags.Runtime))
 	if err != nil {
 		return sandbox.RunSpec{}, noCleanup, err
 	}
@@ -109,14 +107,13 @@ func CheckProjectDir(dir string) error {
 	return nil
 }
 
-// runInput resolves req's flags and approved credentials into Build's input.
-func runInput(req Request) (Input, error) {
-	in, err := resolveInput(req.Flags, req.Project.RC)
+// runInput resolves req's flags and approved credentials into Build's input for a runtime offering caps.
+func runInput(req Request, caps sandbox.Capabilities) (Input, error) {
+	in, err := resolveInput(req.Flags, req.Project.RC, caps)
 	if err != nil {
 		return Input{}, err
 	}
 
-	// Credentials force the proxy on (see resolve.ProxyMode), so this is a no-op when it is off
 	creds, err := resolveCredentials(req.Project.Layers, in.ToolHome)
 	if err != nil {
 		return Input{}, err
@@ -129,9 +126,9 @@ func runInput(req Request) (Input, error) {
 	return in, nil
 }
 
-// resolveInput resolves flags against rc into Build's input, minus the credentials only a run reads.
-func resolveInput(flags Flags, rc *config.AgenticRC) (Input, error) {
-	proxyMode, err := resolve.ProxyMode(flags.Proxy, rc)
+// resolveInput resolves flags against rc into Build's input for a runtime offering caps, minus the credentials only a run reads.
+func resolveInput(flags Flags, rc *config.AgenticRC, caps sandbox.Capabilities) (Input, error) {
+	proxyMode, err := resolve.ProxyMode(flags.Proxy, rc, caps.CredentialsViaProxy)
 	if err != nil {
 		return Input{}, err
 	}

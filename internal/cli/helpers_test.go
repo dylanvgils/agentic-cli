@@ -11,6 +11,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
@@ -51,6 +52,11 @@ type fakeDocker struct {
 }
 
 func (f *fakeDocker) Context() string { return f.context }
+
+// Capabilities returns Docker's real capabilities, which tests have no reason to change.
+func (f *fakeDocker) Capabilities() sandbox.Capabilities {
+	return (&docker.Client{}).Capabilities()
+}
 
 func (f *fakeDocker) CurrentContext() (string, error) {
 	if f.currentContext == nil {
@@ -436,6 +442,11 @@ type fakeMicrosandbox struct {
 	listVolumeNames func() ([]string, error)
 	removeVolume    func(name string) error
 	version         func() (string, error)
+}
+
+// Capabilities returns msb's real capabilities, which tests have no reason to change.
+func (f *fakeMicrosandbox) Capabilities() sandbox.Capabilities {
+	return (&microsandbox.Client{}).Capabilities()
 }
 
 func (f *fakeMicrosandbox) Available() error {

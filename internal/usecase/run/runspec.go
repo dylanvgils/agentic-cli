@@ -131,14 +131,15 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 		return nil, err
 	}
 
-	placeholders, err := credentialSetup(in, mounts, env)
+	caps := s.capabilities(in.Runtime)
+	placeholders, err := credentialSetup(in, caps, mounts, env)
 	if err != nil {
 		return nil, err
 	}
 	env = append(env, placeholders...)
 
-	// microsandbox trusts its own CA, not the proxy's
-	if len(in.Credentials) > 0 && in.Runtime != RuntimeMicrosandbox {
+	// Only proxy injection needs the tool to trust the proxy CA
+	if len(in.Credentials) > 0 && caps.CredentialsViaProxy {
 		if err := s.checkProxyTrust(req.target); err != nil {
 			return nil, err
 		}

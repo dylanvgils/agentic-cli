@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,6 +16,14 @@ func TestNew(t *testing.T) {
 	// Assert
 	assert.Equal(t, "prod", client.Context())
 	assert.Equal(t, execRunner{}, client.runner)
+}
+
+func TestClient_Capabilities(t *testing.T) {
+	// Act
+	caps := New("").Capabilities()
+
+	// Assert
+	assert.Equal(t, sandbox.Capabilities{Proxy: true, Dind: true, CredentialInjection: true, CredentialsViaProxy: true, PidsLimit: true}, caps)
 }
 
 func TestClient_run(t *testing.T) {

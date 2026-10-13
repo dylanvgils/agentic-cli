@@ -65,15 +65,17 @@ func (s *Service) BuildInstructions(target Target, in Input, toolConfig tools.To
 	limits := resolve.ResourceLimitsFor(in.Limits, rc)
 	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
 
+	caps := s.capabilities(in.Runtime)
+
 	var b strings.Builder
 	writeIntro(&b, in.Runtime)
 	writePrecedenceSection(&b)
 	writeCapabilitiesSection(&b, info, in.Runtime)
 	writeFilesystemSection(&b, toolConfig, containerHome, in.Runtime)
-	writeResourceLimitsSection(&b, limits, in.Runtime)
+	writeResourceLimitsSection(&b, limits, caps)
 	writePrivilegeSection(&b, in.Runtime)
-	writeNetworkSection(&b, toolConfig, rc, in)
-	writeDockerSection(&b, in, dindLimits)
+	writeNetworkSection(&b, toolConfig, rc, in, caps)
+	writeDockerSection(&b, in, caps, dindLimits)
 	writeCustomSection(&b, rc)
 
 	return b.String(), nil
@@ -81,7 +83,7 @@ func (s *Service) BuildInstructions(target Target, in Input, toolConfig tools.To
 
 // PreviewInstructions returns the effective content a run of req would write, without prompting or touching any files.
 func (s *Service) PreviewInstructions(req Request) (string, error) {
-	in, err := resolveInput(req.Flags, req.Project.RC)
+	in, err := resolveInput(req.Flags, req.Project.RC, s.capabilities(req.Flags.Runtime))
 	if err != nil {
 		return "", err
 	}
@@ -191,18 +193,16 @@ func tmpfsPath(spec, containerHome string) string {
 	return path
 }
 
-// writeResourceLimitsSection leaves out the pids limit for microsandbox, which has none.
-func writeResourceLimitsSection(b *strings.Builder, limits sandbox.ResourceLimits, runtime Runtime) {
-	vm := runtime == RuntimeMicrosandbox
-
+// writeResourceLimitsSection leaves out the pids limit for a runtime without one.
+func writeResourceLimitsSection(b *strings.Builder, limits sandbox.ResourceLimits, caps sandbox.Capabilities) {
 	b.WriteString("## Resource limits\n\n")
-	if !vm {
+	if caps.PidsLimit {
 		fmt.Fprintf(b, "- Max processes (pids-limit): %s\n", limits.PidsLimit)
 	}
 	fmt.Fprintf(b, "- CPUs: %s\n", limits.CPUs)
 	fmt.Fprintf(b, "- Memory: %s\n", limits.Memory)
 
-	if vm {
+	if !caps.PidsLimit {
 		b.WriteString("\nThese are configurable, not hard caps - if a task needs more, tell the user why so they can raise cpus/memory in .agenticrc.toml (or the --cpus/--memory flags) and rerun.\n\n")
 	} else {
 		b.WriteString("\nThese are configurable, not hard caps - if a task needs more, tell the user why so they can raise pids_limit/cpus/memory in .agenticrc.toml (or the --pids-limit/--cpus/--memory flags) and rerun.\n\n")
@@ -221,9 +221,9 @@ func writePrivilegeSection(b *strings.Builder, runtime Runtime) {
 	b.WriteString("- `sudo`, system package installs, and binding privileged ports will not work.\n\n")
 }
 
-// writeNetworkSection is only written when the proxy is enabled and the runtime honors it; the allowlist itself is omitted in monitor mode, since nothing is actually blocked there.
-func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *config.AgenticRC, in Input) {
-	if !in.ProxyMode.Enabled() || in.Runtime == RuntimeMicrosandbox {
+// writeNetworkSection is only written when the proxy is enabled and the runtime offers it; the allowlist itself is omitted in monitor mode, since nothing is actually blocked there.
+func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *config.AgenticRC, in Input, caps sandbox.Capabilities) {
+	if !in.ProxyMode.Enabled() || !caps.Proxy {
 		return
 	}
 
@@ -242,14 +242,14 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 	b.WriteString("\nAnything not listed above is blocked. If a task needs a host that isn't reachable, tell the user why so they can add it to allowed_hosts in .agenticrc.toml and rerun.\n\n")
 }
 
-// writeDockerSection is only written when the Docker sidecar is enabled; microsandbox ignores it, so it only warns there's no daemon.
-func writeDockerSection(b *strings.Builder, in Input, limits sandbox.ResourceLimits) {
+// writeDockerSection is only written when the Docker sidecar is enabled; a runtime without one only warns there's no daemon.
+func writeDockerSection(b *strings.Builder, in Input, caps sandbox.Capabilities, limits sandbox.ResourceLimits) {
 	if !in.DindEnabled {
 		return
 	}
 
 	b.WriteString("## Docker\n\n")
-	if in.Runtime == RuntimeMicrosandbox {
+	if !caps.Dind {
 		b.WriteString("- There is no Docker daemon in this VM, so `docker` commands will fail.\n\n")
 		return
 	}

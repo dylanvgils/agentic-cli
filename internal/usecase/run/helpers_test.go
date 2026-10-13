@@ -13,14 +13,16 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/stretchr/testify/require"
 )
 
-// fakeDocker implements Docker; a nil field succeeds with a zero value.
+// fakeDocker implements Docker; a nil field succeeds with a zero value, except capabilities, which defaults to Docker's.
 type fakeDocker struct {
+	capabilities         func() sandbox.Capabilities
 	inspectImage         func(string) (*docker.ImageInfo, error)
 	resolveContainerHome func(string) string
 	ensureNamedVolumes   func(volumes []string, toolHome, containerHome, chownImage string) error
@@ -33,6 +35,13 @@ type fakeDocker struct {
 	pruneDangling        func() error
 	saveImage            func(image string, w io.Writer) error
 	runContainer         func(rs sandbox.RunSpec, toolArgs []string) error
+}
+
+func (f *fakeDocker) Capabilities() sandbox.Capabilities {
+	if f.capabilities == nil {
+		return (&docker.Client{}).Capabilities()
+	}
+	return f.capabilities()
 }
 
 func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
@@ -137,13 +146,21 @@ func inspectImageID(id string) func(string) (*docker.ImageInfo, error) {
 	}
 }
 
-// fakeMicrosandbox implements Microsandbox; a nil field succeeds.
+// fakeMicrosandbox implements Microsandbox; a nil field succeeds, except capabilities, which defaults to msb's.
 type fakeMicrosandbox struct {
-	available   func() error
-	loadImage   func(r io.Reader, tag string) error
-	imageRefs   func() ([]string, error)
-	removeImage func(ref string) error
-	run         func(rs sandbox.RunSpec, toolArgs []string) error
+	capabilities func() sandbox.Capabilities
+	available    func() error
+	loadImage    func(r io.Reader, tag string) error
+	imageRefs    func() ([]string, error)
+	removeImage  func(ref string) error
+	run          func(rs sandbox.RunSpec, toolArgs []string) error
+}
+
+func (f *fakeMicrosandbox) Capabilities() sandbox.Capabilities {
+	if f.capabilities == nil {
+		return (&microsandbox.Client{}).Capabilities()
+	}
+	return f.capabilities()
 }
 
 func (f *fakeMicrosandbox) Available() error {

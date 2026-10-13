@@ -124,27 +124,6 @@ func Test_Service_runMicrosandbox(t *testing.T) {
 		assert.False(t, ran)
 	})
 
-	t.Run("warns about ignored settings before loading", func(t *testing.T) {
-		// Arrange
-		logs := stubErrLog(t)
-		var logsAtLoad string
-		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{
-			loadImage: func(r io.Reader, _ string) error {
-				logsAtLoad = logs.String()
-				_, err := io.ReadAll(r)
-				return err
-			},
-		})
-		rs := sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}}
-
-		// Act
-		err := svc.runMicrosandbox(rs, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, logsAtLoad, "--runtime microsandbox ignores --dind")
-	})
-
 	t.Run("dry run makes no msb image calls", func(t *testing.T) {
 		// Arrange
 		listed, loaded := false, false

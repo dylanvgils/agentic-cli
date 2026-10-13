@@ -18,10 +18,11 @@ type ProxyInput struct {
 	ProxyFlag   bool
 }
 
-// ProxyMode resolves whether the proxy is off, enforcing or monitoring; credentials turn it on and refuse an explicit off.
-func ProxyMode(in ProxyInput, rc *config.AgenticRC) (sandbox.ProxyMode, error) {
-	mode := configuredProxyMode(in, rc)
-	if mode.Enabled() || len(rc.Run.Proxy.Credentials) == 0 {
+// ProxyMode resolves whether the proxy is off, enforcing or monitoring; when proxyInjects, credentials turn it on and refuse an
+// explicit off.
+func ProxyMode(in ProxyInput, rc *config.AgenticRC, proxyInjects bool) (sandbox.ProxyMode, error) {
+	mode := RequestedProxyMode(in, rc)
+	if mode.Enabled() || !proxyInjects || len(rc.Run.Proxy.Credentials) == 0 {
 		return mode, nil
 	}
 
@@ -45,8 +46,8 @@ func ProxyAllowList(toolAllowedHosts []string, dindEnabled bool, rc *config.Agen
 	return append(allow, credentials.Hosts(rc.Run.Proxy.Credentials)...)
 }
 
-// configuredProxyMode applies flags, then config, ignoring credentials. --no-proxy/enabled=false always wins; monitor implies enabled.
-func configuredProxyMode(in ProxyInput, rc *config.AgenticRC) sandbox.ProxyMode {
+// RequestedProxyMode applies flags, then config, ignoring credentials. --no-proxy/enabled=false always wins; monitor implies enabled.
+func RequestedProxyMode(in ProxyInput, rc *config.AgenticRC) sandbox.ProxyMode {
 	if in.NoProxy {
 		return sandbox.ProxyOff
 	}

@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // runner executes docker CLI invocations; tests swap in a fake.
@@ -39,6 +41,11 @@ func New(context string) *Client {
 // Context returns the Docker context the client runs against.
 func (c *Client) Context() string {
 	return c.context
+}
+
+// Capabilities reports what Docker runs offer.
+func (c *Client) Capabilities() sandbox.Capabilities {
+	return sandbox.Capabilities{Proxy: true, Dind: true, CredentialInjection: true, CredentialsViaProxy: true, PidsLimit: true}
 }
 
 // run executes `docker <args>` and returns combined stdout+stderr.

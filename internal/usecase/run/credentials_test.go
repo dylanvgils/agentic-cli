@@ -61,10 +61,12 @@ func Test_resolveCredentials(t *testing.T) {
 
 func Test_credentialSetup(t *testing.T) {
 	resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_API_KEY"}}}
+	proxyInjects := sandbox.Capabilities{Proxy: true, CredentialInjection: true, CredentialsViaProxy: true}
+	runtimeInjects := sandbox.Capabilities{CredentialInjection: true}
 
 	t.Run("no credentials is a no-op even with the proxy off", func(t *testing.T) {
 		// Act
-		env, err := credentialSetup(Input{}, mountSet{}, nil)
+		env, err := credentialSetup(Input{}, proxyInjects, mountSet{}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -76,7 +78,7 @@ func Test_credentialSetup(t *testing.T) {
 		in := Input{Credentials: resolved}
 
 		// Act
-		_, err := credentialSetup(in, mountSet{}, nil)
+		_, err := credentialSetup(in, proxyInjects, mountSet{}, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "need the egress proxy")
@@ -88,20 +90,21 @@ func Test_credentialSetup(t *testing.T) {
 		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
 
 		// Act
-		env, err := credentialSetup(in, mounts, nil)
+		env, err := credentialSetup(in, proxyInjects, mounts, nil)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"EXAMPLE_API_KEY=" + credentials.Placeholder}, env)
 	})
-	t.Run("microsandbox gets no placeholders but the same checks", func(t *testing.T) {
+
+	t.Run("a runtime that injects itself needs no proxy and gets no placeholders, but the same checks", func(t *testing.T) {
 		// Arrange
-		in := Input{ProxyMode: sandbox.ProxyEnforce, Runtime: RuntimeMicrosandbox, Credentials: resolved}
+		in := Input{Credentials: resolved}
 		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
 
 		// Act
-		env, err := credentialSetup(in, mounts, nil)
-		_, overrideErr := credentialSetup(in, mounts, []string{"EXAMPLE_API_KEY=value"})
+		env, err := credentialSetup(in, runtimeInjects, mounts, nil)
+		_, overrideErr := credentialSetup(in, runtimeInjects, mounts, []string{"EXAMPLE_API_KEY=value"})
 
 		// Assert
 		require.NoError(t, err)

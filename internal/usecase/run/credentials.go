@@ -57,12 +57,13 @@ func resolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials
 	return credentials.Resolve(rc.Run.Proxy.Credentials)
 }
 
-// credentialSetup checks in.Credentials against the run and returns the placeholder env for a Docker tool; a no-op without credentials.
-func credentialSetup(in Input, mounts mountSet, env []string) ([]string, error) {
+// credentialSetup checks in.Credentials against the run and, when the proxy injects them, returns the tool's placeholder env; a
+// no-op without credentials.
+func credentialSetup(in Input, caps sandbox.Capabilities, mounts mountSet, env []string) ([]string, error) {
 	if len(in.Credentials) == 0 {
 		return nil, nil
 	}
-	if !in.ProxyMode.Enabled() {
+	if caps.CredentialsViaProxy && !in.ProxyMode.Enabled() {
 		return nil, fmt.Errorf("proxy credentials need the egress proxy, which is disabled")
 	}
 
@@ -73,8 +74,8 @@ func credentialSetup(in Input, mounts mountSet, env []string) ([]string, error) 
 		return nil, err
 	}
 
-	// microsandbox puts its own placeholders in the guest
-	if in.Runtime == RuntimeMicrosandbox {
+	// Without the proxy, the runtime puts its own placeholders in the guest
+	if !caps.CredentialsViaProxy {
 		return nil, nil
 	}
 	return credentialEnv(in.Credentials), nil

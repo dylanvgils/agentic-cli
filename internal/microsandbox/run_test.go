@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/platform"
-	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -98,41 +97,6 @@ func TestClient_Run(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.NotContains(t, gotArgs, "go-cache:/cache")
-	})
-}
-
-func TestIgnored(t *testing.T) {
-	t.Run("empty for a plain run with bind mounts", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{
-			Volumes: []string{"/host/project:/workspace", "cache:/cache"},
-			Secrets: []string{"token:/host/token"},
-		}
-
-		// Act
-		ignored := Ignored(rs)
-
-		// Assert
-		assert.Empty(t, ignored)
-	})
-
-	t.Run("lists every unsupported feature", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{
-			Proxy:   sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Credentials: []proxy.Credential{{}}},
-			Dind:    sandbox.DindSpec{Enabled: true},
-			Secrets: []string{"token:/host/token"},
-			Volumes: []string{"cache:/cache", "/host/project:/workspace"},
-		}
-
-		// Act
-		ignored := Ignored(rs)
-
-		// Assert
-		assert.Equal(t, []string{
-			"the egress proxy (egress is unfiltered)",
-			"--dind",
-		}, ignored)
 	})
 }
 
