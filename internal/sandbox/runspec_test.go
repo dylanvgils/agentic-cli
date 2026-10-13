@@ -22,7 +22,7 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 		WithVolumes("/host:/container", "/a:/b").
 		WithSecrets("token:/run/secrets/token").
 		WithSkipEntrypoint(true).
-		WithTmpfsMounts("/tmp", "/run").
+		WithEphemeralDirs(EphemeralDir{Path: "/tmp"}, EphemeralDir{Path: "/run"}).
 		WithLimits(ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}).
 		WithDryRun(true).
 		Build()
@@ -34,7 +34,7 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 	assert.Equal(t, []string{"/host:/container", "/a:/b"}, result.Volumes)
 	assert.Equal(t, []string{"token:/run/secrets/token"}, result.Secrets)
 	assert.True(t, result.SkipEntrypoint)
-	assert.Equal(t, []string{"/tmp", "/run"}, result.TmpfsMounts)
+	assert.Equal(t, []EphemeralDir{{Path: "/tmp"}, {Path: "/run"}}, result.EphemeralDirs)
 	assert.Equal(t, ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, result.Limits)
 	assert.True(t, result.DryRun)
 }
@@ -131,28 +131,28 @@ func TestRunSpecBuilder_WithSecrets_variadic(t *testing.T) {
 	})
 }
 
-func TestRunSpecBuilder_WithTmpfsMounts_variadic(t *testing.T) {
+func TestRunSpecBuilder_WithEphemeralDirs_variadic(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		// Act
-		result := NewRunSpec("img").WithTmpfsMounts().Build()
+		result := NewRunSpec("img").WithEphemeralDirs().Build()
 
 		// Assert
-		assert.Nil(t, result.TmpfsMounts)
+		assert.Nil(t, result.EphemeralDirs)
 	})
 
 	t.Run("single", func(t *testing.T) {
 		// Act
-		result := NewRunSpec("img").WithTmpfsMounts("/tmp").Build()
+		result := NewRunSpec("img").WithEphemeralDirs(EphemeralDir{Path: "/tmp"}).Build()
 
 		// Assert
-		assert.Equal(t, []string{"/tmp"}, result.TmpfsMounts)
+		assert.Equal(t, []EphemeralDir{{Path: "/tmp"}}, result.EphemeralDirs)
 	})
 
 	t.Run("multiple", func(t *testing.T) {
 		// Act
-		result := NewRunSpec("img").WithTmpfsMounts("/tmp", "/run").Build()
+		result := NewRunSpec("img").WithEphemeralDirs(EphemeralDir{Path: "/tmp"}, EphemeralDir{Path: "/run"}).Build()
 
 		// Assert
-		assert.Equal(t, []string{"/tmp", "/run"}, result.TmpfsMounts)
+		assert.Equal(t, []EphemeralDir{{Path: "/tmp"}, {Path: "/run"}}, result.EphemeralDirs)
 	})
 }

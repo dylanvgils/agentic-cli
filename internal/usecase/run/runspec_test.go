@@ -139,7 +139,7 @@ func TestBuild(t *testing.T) {
 		assert.True(t, rs.DryRun)
 	})
 
-	t.Run("tmpfs mounts wired", func(t *testing.T) {
+	t.Run("ephemeral dirs wired", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 		in := Input{ToolHome: t.TempDir()}
@@ -149,7 +149,7 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.NotEmpty(t, rs.TmpfsMounts)
+		assert.NotEmpty(t, rs.EphemeralDirs)
 	})
 
 	t.Run("tool home wired", func(t *testing.T) {

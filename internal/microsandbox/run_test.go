@@ -142,9 +142,9 @@ func Test_buildRunArgs(t *testing.T) {
 		}
 	})
 
-	t.Run("leaves out the tool's tmpfs mounts, since the VM root is writable", func(t *testing.T) {
+	t.Run("leaves out the ephemeral dirs, since the VM root is writable", func(t *testing.T) {
 		// Arrange
-		rs := sandbox.RunSpec{Image: "img", TmpfsMounts: []string{"/tmp:exec,size=1g"}}
+		rs := sandbox.RunSpec{Image: "img", EphemeralDirs: []sandbox.EphemeralDir{{Path: "/tmp", Size: "1g"}}}
 
 		// Act
 		args, err := buildRunArgs(rs, nil)

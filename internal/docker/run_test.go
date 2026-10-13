@@ -114,8 +114,8 @@ func TestRunContainer(t *testing.T) {
 	t.Run("tmpfs mounts", func(t *testing.T) {
 		// Arrange
 		rs := sandbox.RunSpec{
-			Image:       "agentic-claude",
-			TmpfsMounts: []string{"/tmp:exec,size=1g"},
+			Image:         "agentic-claude",
+			EphemeralDirs: []sandbox.EphemeralDir{{Path: "/tmp", Size: "1g"}},
 		}
 
 		// Act
@@ -131,7 +131,7 @@ func TestRunContainer(t *testing.T) {
 		rs := sandbox.RunSpec{
 			Image:         "agentic-copilot",
 			ContainerHome: "/home/user",
-			TmpfsMounts:   []string{"/tmp:exec,size=1g", "$CONTAINER_HOME/.cache:exec,size=1g"},
+			EphemeralDirs: []sandbox.EphemeralDir{{Path: "/tmp", Size: "1g"}, {Path: "$CONTAINER_HOME/.cache", Size: "1g"}},
 		}
 
 		// Act

@@ -185,7 +185,7 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, logDir string) 
 		WithSecrets(mounts.secrets...).
 		WithEnv(env...).
 		WithSkipEntrypoint(req.target.SkipEntrypoint).
-		WithTmpfsMounts(toolConfig.Runtime.TmpfsMounts()...).
+		WithEphemeralDirs(toolConfig.Runtime.EphemeralDirs()...).
 		WithLimits(limits).
 		WithDryRun(in.DryRun).
 		WithCredentials(sandboxCredentials(in.Credentials)...).

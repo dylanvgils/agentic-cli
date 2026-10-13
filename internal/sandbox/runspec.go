@@ -9,7 +9,7 @@ type RunSpec struct {
 	Secrets        []string
 	Env            []string
 	SkipEntrypoint bool
-	TmpfsMounts    []string
+	EphemeralDirs  []EphemeralDir
 	Limits         ResourceLimits
 	DryRun         bool
 	// Credentials hold secrets, so never print them
@@ -18,6 +18,12 @@ type RunSpec struct {
 	// Sidecars
 	Proxy ProxySpec
 	Dind  DindSpec
+}
+
+// EphemeralDir is a dir the tool may write outside its mounts, emptied when the run exits; Path may use $CONTAINER_HOME.
+type EphemeralDir struct {
+	Path string
+	Size string // cap on its contents, e.g. "1g"; empty means the runtime's default
 }
 
 // RunSpecBuilder constructs a RunSpec via a fluent interface.
@@ -29,7 +35,7 @@ type RunSpecBuilder struct {
 	secrets        []string
 	env            []string
 	skipEntrypoint bool
-	tmpfsMounts    []string
+	ephemeralDirs  []EphemeralDir
 	limits         ResourceLimits
 	dryRun         bool
 	credentials    []Credential
@@ -78,9 +84,9 @@ func (b *RunSpecBuilder) WithSkipEntrypoint(skip bool) *RunSpecBuilder {
 	return b
 }
 
-// WithTmpfsMounts appends temporary filesystem mount paths.
-func (b *RunSpecBuilder) WithTmpfsMounts(mounts ...string) *RunSpecBuilder {
-	b.tmpfsMounts = append(b.tmpfsMounts, mounts...)
+// WithEphemeralDirs appends dirs the tool may write that are emptied when the run exits.
+func (b *RunSpecBuilder) WithEphemeralDirs(dirs ...EphemeralDir) *RunSpecBuilder {
+	b.ephemeralDirs = append(b.ephemeralDirs, dirs...)
 	return b
 }
 
@@ -124,7 +130,7 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		Secrets:        b.secrets,
 		Env:            b.env,
 		SkipEntrypoint: b.skipEntrypoint,
-		TmpfsMounts:    b.tmpfsMounts,
+		EphemeralDirs:  b.ephemeralDirs,
 		Limits:         b.limits,
 		DryRun:         b.dryRun,
 		Credentials:    b.credentials,

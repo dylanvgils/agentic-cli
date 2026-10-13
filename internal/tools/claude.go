@@ -9,6 +9,7 @@ import (
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // claudeLatestVersionURL is the URL claude.ai/install.sh resolves before picking a binary, matching what the install step below fetches.
@@ -24,9 +25,9 @@ var claudeAllowedHosts = []string{
 	".claude.com",    // OAuth/login flow
 }
 
-func claudeTmpfsMounts() []string {
-	return []string{
-		mount.TmpfsMount("/tmp", mount.TmpfsOptions{Exec: true, Size: "1g"}),
+func claudeEphemeralDirs() []sandbox.EphemeralDir {
+	return []sandbox.EphemeralDir{
+		{Path: "/tmp", Size: "1g"},
 	}
 }
 
