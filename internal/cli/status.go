@@ -10,7 +10,7 @@ import (
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Show Docker and msb status and running agentic containers",
+	Short: "Show Docker and microsandbox status and running agentic containers",
 	RunE:  runStatus,
 }
 

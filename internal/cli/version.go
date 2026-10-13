@@ -48,7 +48,7 @@ func versionExtras() string {
 func runtimeVersions() string {
 	return formatFields([]versionField{
 		{"docker", versionOrEmpty(dockerClient.Version)},
-		{"msb", versionOrEmpty(msbClient.Version)},
+		{"microsandbox", versionOrEmpty(msbClient.Version)},
 	})
 }
 
@@ -58,7 +58,7 @@ func formatFields(fields []versionField) string {
 
 	for _, f := range fields {
 		if f.val != "" {
-			lines = append(lines, fmt.Sprintf("%-12s: %s", f.key, f.val))
+			lines = append(lines, fmt.Sprintf("%-13s: %s", f.key, f.val))
 		}
 	}
 

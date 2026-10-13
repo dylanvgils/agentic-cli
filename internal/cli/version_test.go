@@ -49,7 +49,7 @@ func Test_versionOutput(t *testing.T) {
 		out := versionOutput()
 
 		// Assert
-		assert.Equal(t, "agentic version 1.2.3\n\ncommit      : a1b2c3d", out)
+		assert.Equal(t, "agentic version 1.2.3\n\ncommit       : a1b2c3d", out)
 	})
 
 	t.Run("runtime versions in their own section", func(t *testing.T) {
@@ -64,7 +64,7 @@ func Test_versionOutput(t *testing.T) {
 		out := versionOutput()
 
 		// Assert
-		assert.Equal(t, "agentic version 1.2.3\n\ncommit      : a1b2c3d\n\ndocker      : 29.9.0", out)
+		assert.Equal(t, "agentic version 1.2.3\n\ncommit       : a1b2c3d\n\ndocker       : 29.9.0", out)
 	})
 }
 
@@ -101,7 +101,7 @@ func Test_versionExtras(t *testing.T) {
 		out := versionExtras()
 
 		// Assert
-		expected := "commit      : a1b2c3d\nbuilt by    : make\nbuilt date  : 2026-05-18"
+		expected := "commit       : a1b2c3d\nbuilt by     : make\nbuilt date   : 2026-05-18"
 		assert.Equal(t, expected, out)
 	})
 
@@ -115,7 +115,7 @@ func Test_versionExtras(t *testing.T) {
 		out := versionExtras()
 
 		// Assert
-		expected := "commit      : a1b2c3d\nbuilt date  : 2026-05-18"
+		expected := "commit       : a1b2c3d\nbuilt date   : 2026-05-18"
 		assert.Equal(t, expected, out)
 	})
 }
@@ -130,7 +130,7 @@ func Test_runtimeVersions(t *testing.T) {
 		out := runtimeVersions()
 
 		// Assert
-		assert.Equal(t, "docker      : 29.9.0\nmsb         : 0.2.6", out)
+		assert.Equal(t, "docker       : 29.9.0\nmicrosandbox : 0.2.6", out)
 	})
 
 	t.Run("msb not installed omits its line", func(t *testing.T) {
@@ -142,7 +142,7 @@ func Test_runtimeVersions(t *testing.T) {
 		out := runtimeVersions()
 
 		// Assert
-		assert.Equal(t, "docker      : 29.9.0", out)
+		assert.Equal(t, "docker       : 29.9.0", out)
 	})
 }
 
