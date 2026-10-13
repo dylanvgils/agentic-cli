@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -156,7 +157,7 @@ func projectSections(layers []config.RCLayer) []section {
 			listField(layers, "custom", customInstructions),
 		}},
 		{header: "run.proxy", fields: []field{
-			boolField(layers, "enabled", func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }, false),
+			boolField(layers, "enabled", func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }, proxyEnabledDefault(layers)),
 			scalarField(layers, "mode", func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }, config.ModeEnforce),
 			listField(layers, "allowed_hosts", func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts }),
 			listField(layers, "credentials", credentialNames),
@@ -165,6 +166,16 @@ func projectSections(layers []config.RCLayer) []section {
 			boolField(layers, "enabled", func(rc *config.AgenticRC) *bool { return rc.Run.Dind.Enabled }, false),
 		}, dindLimits...)},
 	}
+}
+
+// proxyEnabledDefault reports whether the proxy runs when no layer sets enabled: monitor mode or credentials turn it on.
+func proxyEnabledDefault(layers []config.RCLayer) bool {
+	mode, _, _ := innermost(layers, func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }, func(v string) bool { return v != "" })
+	if mode == config.ModeMonitor {
+		return true
+	}
+
+	return slices.ContainsFunc(layers, func(l config.RCLayer) bool { return len(l.RC.Run.Proxy.Credentials) > 0 })
 }
 
 // limitFields returns the pids_limit, cpus and memory fields of the limits get picks, falling back to def.

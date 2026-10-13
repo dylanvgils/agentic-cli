@@ -62,18 +62,6 @@ func TestResolve(t *testing.T) {
 		assert.Nil(t, resolved[0].Git)
 	})
 
-	t.Run("format changes nothing, as the tool sends the header itself", func(t *testing.T) {
-		// Arrange
-		entry := config.RCCredential{Hosts: []string{"api.custom.test"}, Header: "Authorization", Format: "Token %s", Env: []string{"CUSTOM_TOKEN"}, Secret: secret}
-
-		// Act
-		resolved, err := Resolve([]config.RCCredential{entry})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "test-secret", resolved[0].Secret)
-	})
-
 	t.Run("entries merged from several config levels resolve in order", func(t *testing.T) {
 		// Act
 		resolved, err := Resolve([]config.RCCredential{{Preset: "example", Secret: secret}, {Preset: "other", Secret: secret}})

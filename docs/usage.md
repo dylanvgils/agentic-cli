@@ -98,7 +98,7 @@ agentic run -e CI claude
 
 ## Named volumes
 
-`-v` takes a bind mount (`host/path:container/path`) or a named volume (`name:container/path`). Named volumes are created on first use and persist across runs. Paths support [placeholders](config.md#mount-variable-expansion).
+`--volume` takes a bind mount (`host/path:container/path`) or a named volume (`name:container/path`). Named volumes are created on first use and persist across runs. Paths support [placeholders](config.md#mount-variable-expansion).
 
 ```bash
 agentic run -v 'maven:$CONTAINER_HOME/.m2' claude    # named volume, read-write

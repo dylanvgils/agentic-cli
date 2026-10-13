@@ -167,7 +167,7 @@ func Test_runTool(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "tar:agentic-claude", loaded)
+		assert.Equal(t, "tar:agentic-claude:latest", loaded)
 		assert.Equal(t, "agentic-claude:abc123", ranSpec.Image)
 		assert.Equal(t, []string{"--help"}, ranArgs)
 		rs, _ := get()

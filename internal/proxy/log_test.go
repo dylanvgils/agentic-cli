@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -148,6 +149,26 @@ func TestLoggerLog(t *testing.T) {
 		assert.NotPanics(t, func() {
 			logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionAllow, Enforced: true})
 		})
+	})
+}
+
+func TestDisplayHost(t *testing.T) {
+	t.Run("plain host is unchanged", func(t *testing.T) {
+		// Act
+		host := DisplayHost("api.example.test")
+
+		// Assert
+		assert.Equal(t, "api.example.test", host)
+	})
+
+	t.Run("non-printable or non-ASCII host is quoted", func(t *testing.T) {
+		for _, raw := range []string{"evil\u202e.test", "evil.test\tok", "b\u00fccher.test"} {
+			// Act
+			host := DisplayHost(raw)
+
+			// Assert
+			assert.Equal(t, strconv.QuoteToASCII(raw), host, raw)
+		}
 	})
 }
 

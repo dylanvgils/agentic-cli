@@ -51,7 +51,7 @@ func init() {
 		"secret file to mount read-only into the container (format: name:/path[:/target/path]); repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagEnv, "env", "e", nil,
 		"environment variable to set in the container (format: KEY=VALUE, or KEY to forward the host value); repeatable")
-	runToolCmd.Flags().BoolVar(&flagDryRun, dryRunFlagName, false, "print the docker command without running it")
+	runToolCmd.Flags().BoolVar(&flagDryRun, dryRunFlagName, false, "print the runtime command without running it")
 	runToolCmd.Flags().BoolVar(&flagTrustDir, "trust-dir", false, "trust the current directory and save it to config")
 	runToolCmd.Flags().SetInterspersed(false)
 

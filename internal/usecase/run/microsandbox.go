@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
@@ -77,17 +78,30 @@ func (r microsandboxRunner) ensureMicrosandboxImage(image, ref string) error {
 	return nil
 }
 
-// loadIntoMicrosandbox streams `docker save image` into `msb load`, tagging the result as ref.
+// loadIntoMicrosandbox streams `docker save image` into `msb load`, tagging the result as ref; a failed save is reported over the
+// load error it causes.
 func (r microsandboxRunner) loadIntoMicrosandbox(image, ref string) error {
 	logging.Stepf("Loading %s into microsandbox", image)
 
-	pr, pw := io.Pipe()
-	go func() { _ = pw.CloseWithError(r.docker.SaveImage(image, pw)) }()
-	if err := r.microsandbox.LoadImage(pr, ref); err != nil {
-		_ = pr.CloseWithError(err)
-		return err
+	// An untagged name would save every tag of the repo
+	if !strings.Contains(image[strings.LastIndex(image, "/")+1:], ":") {
+		image += ":latest"
 	}
-	return nil
+
+	pr, pw := io.Pipe()
+	saved := make(chan error, 1)
+	go func() {
+		err := r.docker.SaveImage(image, pw)
+		_ = pw.CloseWithError(err)
+		saved <- err
+	}()
+
+	loadErr := r.microsandbox.LoadImage(pr, ref)
+	_ = pr.CloseWithError(loadErr)
+	if saveErr := <-saved; saveErr != nil {
+		return saveErr
+	}
+	return loadErr
 }
 
 // removeStaleRefs removes refs to image other than keep and latest; a ref msb can't remove (e.g. in use) is skipped.

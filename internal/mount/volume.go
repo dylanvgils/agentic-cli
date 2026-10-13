@@ -85,9 +85,14 @@ func IsNamedVolume(spec string) bool {
 }
 
 // NormalizeMountSpec normalizes the host-side path of a mount spec to OS-native separators; the container side is always Linux and left unchanged.
+// A relative path keeps its leading ./ so cleaning never turns it into a named volume, e.g. ./data into data.
 func NormalizeMountSpec(spec string) string {
 	host, rest := splitMountHost(spec)
-	return filepath.Clean(host) + rest
+	cleaned := filepath.Clean(host)
+	if !IsNamedVolume(spec) && validVolumeName.MatchString(cleaned) {
+		cleaned = "." + string(filepath.Separator) + cleaned
+	}
+	return cleaned + rest
 }
 
 // IsUNCPath reports whether path is a UNC path (starts with \\ or //).

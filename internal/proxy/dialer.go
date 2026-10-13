@@ -15,12 +15,17 @@ var (
 	// errBlockedAddr marks a dial refused because the destination resolved to a local or private address.
 	errBlockedAddr = errors.New("destination resolves to a blocked address")
 
-	// alwaysBlocked holds ranges the stdlib checks miss: "this network" (reaches the proxy itself on Linux),
-	// deprecated IPv4-compatible and site-local IPv6, and cloud metadata endpoints outside link-local.
+	// alwaysBlocked holds ranges the stdlib checks miss: "this network" (reaches the proxy itself on Linux), reserved IPv4,
+	// deprecated IPv4-compatible and site-local IPv6, translators that embed an IPv4 we don't decode, and cloud metadata
+	// endpoints outside link-local.
 	// NOSONAR on each line: ranges to refuse, not addresses to reach
 	alwaysBlocked = mustParsePrefixes(
 		"0.0.0.0/8",          // NOSONAR
+		"240.0.0.0/4",        // NOSONAR - reserved and broadcast
 		"::/96",              // NOSONAR
+		"::ffff:0:0:0/96",    // NOSONAR - SIIT
+		"64:ff9b:1::/48",     // NOSONAR - local-use NAT64
+		"2001::/32",          // NOSONAR - Teredo
 		"fec0::/10",          // NOSONAR
 		"fd00:ec2::254/128",  // NOSONAR - AWS IPv6 metadata
 		"100.100.100.200/32", // NOSONAR - Alibaba metadata

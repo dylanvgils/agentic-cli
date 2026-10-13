@@ -216,6 +216,48 @@ func Test_projectSections(t *testing.T) {
 	})
 }
 
+func Test_proxyEnabledDefault(t *testing.T) {
+	t.Run("off without monitor mode or credentials", func(t *testing.T) {
+		// Arrange
+		layers := []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}}}
+
+		// Act
+		enabled := proxyEnabledDefault(layers)
+
+		// Assert
+		assert.False(t, enabled)
+	})
+
+	t.Run("on when the innermost mode is monitor", func(t *testing.T) {
+		// Arrange
+		layers := []config.RCLayer{
+			{Path: "/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Mode: config.ModeEnforce}}}},
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Mode: config.ModeMonitor}}}},
+		}
+
+		// Act
+		enabled := proxyEnabledDefault(layers)
+
+		// Assert
+		assert.True(t, enabled)
+	})
+
+	t.Run("on when any layer has credentials", func(t *testing.T) {
+		// Arrange
+		creds := []config.RCCredential{{Preset: "github", Secret: "~/.config/test-secret"}}
+		layers := []config.RCLayer{
+			{Path: "/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: creds}}}},
+			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}},
+		}
+
+		// Act
+		enabled := proxyEnabledDefault(layers)
+
+		// Assert
+		assert.True(t, enabled)
+	})
+}
+
 func Test_limitFields(t *testing.T) {
 	// Arrange
 	layers := []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{CPUs: "8"}}}}}

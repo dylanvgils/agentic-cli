@@ -205,20 +205,6 @@ func Test_checkCredentialConfig(t *testing.T) {
 		// Assert
 		assert.EqualError(t, err, "credential for api.example.test needs env, as the tool must send the placeholder")
 	})
-
-	t.Run("warns that format is ignored", func(t *testing.T) {
-		// Arrange
-		errLog := stubErrLog(t)
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Env: []string{"EXAMPLE_TOKEN"}, Format: "Token %s"}}
-
-		// Act
-		err := checkCredentialConfig(rc)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, errLog.String(), "the credential format for api.example.test is ignored")
-	})
 }
 
 func Test_checkCredentialEnv(t *testing.T) {

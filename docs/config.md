@@ -123,14 +123,14 @@ Applied by `agentic run`.
 | Key                | Type   | Description                                                                                                       | CLI flag            | Default |
 | ------------------ | ------ | ----------------------------------------------------------------------------------------------------------------- | ------------------- | ------- |
 | `mounts`           | list   | Bind mounts or named volumes, with the same syntax as [`--volume`](usage.md#named-volumes)                        | `--volume`          | -       |
-| `secrets`          | list   | Files mounted read-only, with the same format as [`-s`](usage.md#secrets)                                         | `-s`                | -       |
-| `env`              | list   | `KEY=VALUE`, or bare `KEY` to forward the host value. See [Environment variables](usage.md#environment-variables). | `-e`                | -       |
+| `secrets`          | list   | Files mounted read-only, with the same format as [`--secret`](usage.md#secrets)                                   | `--secret`          | -       |
+| `env`              | list   | `KEY=VALUE`, or bare `KEY` to forward the host value. See [Environment variables](usage.md#environment-variables). | `--env`             | -       |
 | `pids_limit`       | string | Container PID limit                                                                                               | `--pids-limit`      | `1024`  |
 | `cpus`             | string | Container CPU limit                                                                                               | `--cpus`            | `4`     |
 | `memory`           | string | Container memory limit (e.g. `"8g"`)                                                                              | `--memory`          | `4g`    |
 | `check_updates`    | bool   | Check for a newer tool version on run. See [Versions and updates](images.md#versions-and-updates).               | -                   | `true`  |
 
-Mount paths support [placeholders](#mount-variable-expansion).
+Mount paths support [placeholders](#mount-variable-expansion). Limits in files must be positive, as docker reads zero or below as no limit; only the flags can lift them.
 
 ### `[run.instructions]`
 
@@ -185,10 +185,9 @@ Preview the block with `agentic instructions claude` (add `--proxy` to include t
 
 | Key      | Type   | Description                                                                                              |
 | -------- | ------ | -------------------------------------------------------------------------------------------------------- |
-| `preset` | string | `anthropic`, `openai` or `github`. Can't be combined with `hosts`, `header` or `format`.                 |
+| `preset` | string | `anthropic`, `openai` or `github`. Can't be combined with `hosts` or `header`.                           |
 | `hosts`  | list   | Exact hostnames or IPs, no wildcards. Required without `preset`. A host may appear in only one entry.    |
 | `header` | string | Header the tool sends the placeholder in, e.g. `"Authorization"`. Required without `preset`. Hop-by-hop, `Host` and `Content-Length` are refused. |
-| `format` | string | Deprecated and ignored with a warning: the tool builds the header itself.                               |
 | `env`    | list   | Tool env vars set to the placeholder. Required without `preset`; replaces a preset's own list.          |
 | `secret` | string | Required. Host file with the secret: an absolute path, or one starting with `~`/`$HOME`. One line, at most 64 KiB. Other sources (`keychain:`) are reserved. |
 
@@ -305,7 +304,7 @@ List settings combine instead:
 | ------------------------- | ----------------------------------------------------------------------------------- |
 | `bases`, `apt_packages`   | Files (outermost first), then `--base`/`--apt`. Duplicates removed.                 |
 | `mounts`, `secrets`       | Files and `--volume`/`--secret` combined                                            |
-| `env`                     | Files, then `-e`. The last value for a key wins. Some names are [reserved](usage.md#environment-variables). |
+| `env`                     | Files, then `--env`. The last value for a key wins. Some names are [reserved](usage.md#environment-variables). |
 
 `--base-exact` and `--apt-exact` replace the list instead of adding to it. They ignore config files and, during `agentic update`, the list the image was built with. `--base-exact=` or `--apt-exact=` (empty) means none at all. Each can't be combined with its non-exact flag.
 

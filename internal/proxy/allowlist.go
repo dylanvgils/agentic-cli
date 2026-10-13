@@ -17,12 +17,12 @@ type Allowlist struct {
 	suffixes []string // normalized to ".example.com", matches the domain and subdomains
 }
 
-// NewAllowlist builds an Allowlist from raw entries, skipping blank ones and lower-casing the rest for case-insensitive matching.
+// NewAllowlist builds an Allowlist from raw entries, skipping blank ones and normalizing the rest like the hosts they match.
 func NewAllowlist(entries []string) *Allowlist {
 	allowList := &Allowlist{exact: make(map[string]bool)}
 
 	for _, raw := range entries {
-		entry := strings.ToLower(strings.TrimSpace(raw))
+		entry := normalizeHost(strings.TrimSpace(raw))
 		if entry == "" {
 			continue
 		}

@@ -79,15 +79,12 @@ func credentialSetup(in Input, caps sandbox.Capabilities, mounts mountSet, env [
 	return gitHelperEnv(in.Credentials), nil
 }
 
-// checkCredentialConfig refuses credentials without env, which no tool could send the placeholder in, and warns that format
-// is ignored; it reads only config, so it runs before any prompt.
+// checkCredentialConfig refuses credentials without env, which no tool could send the placeholder in; it reads only config, so
+// it runs before any prompt.
 func checkCredentialConfig(rc *config.AgenticRC) error {
 	for _, entry := range rc.Run.Proxy.Credentials {
 		if entry.Preset == "" && len(entry.Env) == 0 {
 			return fmt.Errorf("credential for %s needs env, as the tool must send the placeholder", strings.Join(entry.Hosts, ", "))
-		}
-		if entry.Format != "" {
-			logging.Warnf("the credential format for %s is ignored; the tool sends the header itself", describeEntry(entry))
 		}
 	}
 	return nil
@@ -194,12 +191,4 @@ func describeInjection(creds []credentials.Resolved) string {
 		parts = append(parts, fmt.Sprintf("%s (%s)", strings.Join(cred.Hosts, ", "), cred.Source))
 	}
 	return strings.Join(parts, "; ")
-}
-
-// describeEntry names a config entry in messages by its preset or hosts.
-func describeEntry(entry config.RCCredential) string {
-	if entry.Preset != "" {
-		return "preset " + entry.Preset
-	}
-	return strings.Join(entry.Hosts, ", ")
 }

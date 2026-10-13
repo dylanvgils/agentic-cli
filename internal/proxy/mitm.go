@@ -185,10 +185,10 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) 
 	s.inject.serve(tlsConn, allowPrivate(reverse, s.allow.exactMatch(entry.Host)))
 }
 
-// blockMethods answers blockedMethods with 405 instead of forwarding them.
+// blockMethods answers blockedMethods in any case with 405 instead of forwarding them, as some upstreams ignore method case.
 func blockMethods(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if slices.Contains(blockedMethods, r.Method) {
+		if slices.ContainsFunc(blockedMethods, func(m string) bool { return strings.EqualFold(m, r.Method) }) {
 			http.Error(w, "method not allowed by agentic proxy", http.StatusMethodNotAllowed)
 			return
 		}
