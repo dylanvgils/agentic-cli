@@ -128,6 +128,56 @@
               "type": "array",
               "items": { "type": "string" },
               "description": "Extra hosts to permit, merged on top of the tool's baseline. Exact match, or a leading-dot / *. entry to match a domain and all its subdomains."
+            },
+            "credentials": {
+              "type": "array",
+              "description": "Beta. Secrets the proxy injects as a header on HTTPS requests to their hosts; the container only sees a placeholder. Turns the proxy on. Accumulates across RC layers.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["secret"],
+                "properties": {
+                  "preset": {
+                    "type": "string",
+                    "enum": ["anthropic", "openai", "github"],
+                    "description": "Well-known service preset. Can't be combined with hosts, header or format."
+                  },
+                  "hosts": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "minItems": 1,
+                    "description": "Exact hostnames or IPs, no wildcards. Required without preset. A host may appear in only one entry."
+                  },
+                  "header": {
+                    "type": "string",
+                    "description": "Header to set, e.g. \"Authorization\". Required without preset. Hop-by-hop, Host and Content-Length are refused."
+                  },
+                  "format": {
+                    "type": "string",
+                    "description": "Wraps the secret, with exactly one %s, e.g. \"Bearer %s\". Default: the bare secret."
+                  },
+                  "env": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Tool env vars set to the placeholder. Replaces a preset's own list."
+                  },
+                  "secret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Host file with the secret: an absolute path, or one starting with ~/$HOME. One line, at most 64 KiB."
+                  }
+                },
+                "oneOf": [
+                  {
+                    "required": ["preset"],
+                    "not": { "anyOf": [{ "required": ["hosts"] }, { "required": ["header"] }, { "required": ["format"] }] }
+                  },
+                  {
+                    "required": ["hosts", "header"],
+                    "not": { "required": ["preset"] }
+                  }
+                ]
+              }
             }
           }
         },
@@ -139,6 +189,18 @@
             "enabled": {
               "type": "boolean",
               "description": "Start a per-run rootless Docker daemon sidecar the tool can reach via DOCKER_HOST. The image needs the docker base layer. Default: false."
+            },
+            "pids_limit": {
+              "type": "string",
+              "description": "Sidecar PID limit. Default: the tool's value."
+            },
+            "cpus": {
+              "type": "string",
+              "description": "Sidecar CPU limit. Default: the tool's value."
+            },
+            "memory": {
+              "type": "string",
+              "description": "Sidecar memory limit (e.g. \"8g\"). Default: the tool's value."
             }
           }
         },
