@@ -10,6 +10,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/dind"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +24,7 @@ func Test_startDind(t *testing.T) {
 	t.Run("creates own network, writes run files and probes the sidecar", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Image: "dind"}}, container: "agentic-claude-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: t.TempDir(), Dind: sandbox.DindSpec{}}, container: "agentic-claude-abc"}
 
 		// Act
 		handle, err := client.startDind(rs, nil)
@@ -46,7 +47,7 @@ func Test_startDind(t *testing.T) {
 	t.Run("joins the proxy network instead of creating one", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: t.TempDir(), Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}, Dind: sandbox.DindSpec{Image: "dind"}}, network: "agentic-proxy-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: t.TempDir(), Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}, Dind: sandbox.DindSpec{}}, network: "agentic-proxy-abc"}
 
 		// Act
 		handle, err := client.startDind(rs, nil)
@@ -63,7 +64,7 @@ func Test_startDind(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client, "exec")
 		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: toolHome, Dind: sandbox.DindSpec{Image: "dind"}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: toolHome, Dind: sandbox.DindSpec{}}}
 
 		// Act
 		_, err := client.startDind(rs, nil)
@@ -81,7 +82,7 @@ func Test_startDind(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client, "run")
 		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: toolHome, Dind: sandbox.DindSpec{Image: "dind"}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: toolHome, Dind: sandbox.DindSpec{}}}
 
 		// Act
 		_, err := client.startDind(rs, nil)
@@ -104,7 +105,7 @@ func Test_setupDind(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
 		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: toolHome, DryRun: true, Dind: sandbox.DindSpec{Image: "dind", Enabled: true}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: toolHome, DryRun: true, Dind: sandbox.DindSpec{Enabled: true}}}
 
 		// Act
 		args, cleanup, err := client.setupDind(&rs)
@@ -121,7 +122,7 @@ func Test_setupDind(t *testing.T) {
 	t.Run("dry run keeps proxy network", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: t.TempDir(), DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}, Dind: sandbox.DindSpec{Image: "dind", Enabled: true}}, network: "agentic-proxy-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: t.TempDir(), DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}, Dind: sandbox.DindSpec{Enabled: true}}, network: "agentic-proxy-abc"}
 
 		// Act
 		_, _, err := client.setupDind(&rs)
@@ -135,7 +136,7 @@ func Test_setupDind(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
 		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: toolHome, Dind: sandbox.DindSpec{Image: "dind", Enabled: true}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: toolHome, Dind: sandbox.DindSpec{Enabled: true}}}
 
 		// Act
 		_, cleanup, err := client.setupDind(&rs)
@@ -152,7 +153,7 @@ func Test_setupDind(t *testing.T) {
 	t.Run("propagates startDind error", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "run")
-		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Image: "dind", Enabled: true}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}}
 
 		// Act
 		args, cleanup, err := client.setupDind(&rs)
@@ -173,7 +174,7 @@ func Test_dindHandle_runArgs(t *testing.T) {
 		// Arrange
 		rs := toolRun{RunSpec: sandbox.RunSpec{
 			Limits: sandbox.ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"},
-			Dind:   sandbox.DindSpec{Image: "docker:29-dind-rootless", Limits: sandbox.ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}},
+			Dind:   sandbox.DindSpec{Limits: sandbox.ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}},
 		}, container: "agentic-claude-abc"}
 
 		// Act
@@ -202,12 +203,12 @@ func Test_dindHandle_runArgs(t *testing.T) {
 		assert.Contains(t, args, "--volume="+filepath.Join(handle.runDir, "server")+":/certs/server:ro")
 		assert.Contains(t, args, "--volume="+filepath.Join(handle.runDir, "etc", "subuid")+":/etc/subuid:ro")
 		assert.False(t, hasArgWithPrefix(args, "--env=HTTP_PROXY="), "no proxy env without proxy mode")
-		assert.Equal(t, []string{"docker:29-dind-rootless", "--data-root=/home/rootless/.local/share/docker/data"}, args[len(args)-2:], "dockerd must own its data-root to chmod it")
+		assert.Equal(t, []string{tools.DindImage, "--data-root=/home/rootless/.local/share/docker/data"}, args[len(args)-2:], "dockerd must own its data-root to chmod it")
 	})
 
 	t.Run("proxy mode routes egress through the proxy", func(t *testing.T) {
 		// Arrange
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}, Dind: sandbox.DindSpec{Image: "dind"}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}, Dind: sandbox.DindSpec{}}}
 
 		// Act
 		args := handle.runArgs(rs)

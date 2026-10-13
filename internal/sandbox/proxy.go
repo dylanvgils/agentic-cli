@@ -15,7 +15,6 @@ type ProxyMode int
 // ProxySpec configures the egress proxy sidecar; unless Mode is ProxyOff, the tool reaches out only through it.
 type ProxySpec struct {
 	Mode   ProxyMode
-	Image  string   // proxy sidecar image
 	Allow  []string // merged allowlist (tool baseline + user hosts)
 	LogDir string   // host dir for JSON-lines access logs
 	// Credentials are the headers the proxy injects; they hold secrets, so never print them

@@ -48,7 +48,7 @@ func TestRunContainer(t *testing.T) {
 		stubDockerRunCapture(t, client, "network inspect")
 		rs := sandbox.RunSpec{
 			Image: "agentic-claude",
-			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Image: "default-proxy", Allow: []string{"api.anthropic.com"}, LogDir: t.TempDir()},
+			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Allow: []string{"api.anthropic.com"}, LogDir: t.TempDir()},
 		}
 
 		// Act
@@ -67,7 +67,7 @@ func TestRunContainer(t *testing.T) {
 		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
 		stubDockerRunCapture(t, client)
-		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true, Image: "dind"}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
 
 		// Act
 		err := client.RunContainer(rs, nil)
@@ -92,8 +92,8 @@ func TestRunContainer(t *testing.T) {
 		rs := sandbox.RunSpec{
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),
-			Proxy:    sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir()},
-			Dind:     sandbox.DindSpec{Enabled: true, Image: "dind"},
+			Proxy:    sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()},
+			Dind:     sandbox.DindSpec{Enabled: true},
 		}
 
 		// Act

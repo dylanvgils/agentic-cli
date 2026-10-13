@@ -205,7 +205,6 @@ func TestBuild(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, sandbox.ProxyEnforce, rs.Proxy.Mode)
-		assert.Equal(t, tools.ProxyImage, rs.Proxy.Image)
 		assert.Equal(t, []string{".anthropic.com", ".claude.ai", ".claude.com", "extra.example.com"}, rs.Proxy.Allow)
 		assert.NotEmpty(t, rs.Proxy.LogDir)
 	})
@@ -324,7 +323,6 @@ func TestBuild(t *testing.T) {
 		// Assert - agentic-net is skipped since the tool joins a per-run network
 		require.NoError(t, err)
 		assert.True(t, rs.Dind.Enabled)
-		assert.Equal(t, tools.DindImage, rs.Dind.Image)
 		assert.Contains(t, rs.Proxy.Allow, "registry-1.docker.io")
 	})
 

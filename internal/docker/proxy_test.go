@@ -25,7 +25,7 @@ func TestStartProxy(t *testing.T) {
 	t.Run("creates internal network, hardened sidecar, and egress link", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client, "network inspect")
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Image: "default-proxy", Allow: []string{"api.anthropic.com"}, LogDir: t.TempDir()}}, container: "agentic-claude-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Allow: []string{"api.anthropic.com"}, LogDir: t.TempDir()}}, container: "agentic-claude-abc"}
 
 		// Act
 		handle, err := client.startProxy(rs)
@@ -62,7 +62,7 @@ func TestStartProxy(t *testing.T) {
 		assert.True(t, hasArgWithPrefix(runArgs, "--env=AGENTIC_PROXY_TZ_OFFSET="))
 		assert.Contains(t, runArgs, "--label=agentic.owner=agentic-claude-abc")
 		assert.True(t, hasArgWithPrefix(runArgs, "--label=agentic.started="))
-		assert.Equal(t, "default-proxy", runArgs[len(runArgs)-1])
+		assert.Equal(t, tools.ProxyImage, runArgs[len(runArgs)-1])
 
 		assert.Equal(t, []string{"network", "connect", NetworkName, handle.container}, connectArgs)
 	})
@@ -70,7 +70,7 @@ func TestStartProxy(t *testing.T) {
 	t.Run("removes network when sidecar fails to start", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client, "network inspect", "create")
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Image: "default-proxy", LogDir: t.TempDir()}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}}
 
 		// Act
 		_, err := client.startProxy(rs)
@@ -338,7 +338,7 @@ func Test_setupProxy(t *testing.T) {
 	t.Run("cleanup stops the sidecar", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client, "network inspect")
-		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir()}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
 
 		// Act
 		_, cleanup, err := client.setupProxy(&rs)
@@ -353,7 +353,7 @@ func Test_setupProxy(t *testing.T) {
 	t.Run("propagates startProxy error", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "network inspect", "network create")
-		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir()}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
 
 		// Act
 		env, cleanup, err := client.setupProxy(&rs)
@@ -382,7 +382,7 @@ func TestStartProxy_credentials(t *testing.T) {
 			callsAtCopy = len(get())
 			return orig(r, args...)
 		}
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir(), Credentials: creds}}}
 
 		// Act
 		handle, err := client.startProxy(rs)
@@ -429,7 +429,7 @@ func TestStartProxy_credentials(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
 		stubDockerRunWithStdinCapture(t, client, fmt.Errorf("stub: cp failed"))
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir(), Credentials: creds}}}
 
 		// Act
 		_, err := client.startProxy(rs)
@@ -444,7 +444,7 @@ func TestStartProxy_credentials(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
 		stdin := stubDockerRunWithStdinCapture(t, client, nil)
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir(), Credentials: creds}}}
 
 		// Act
 		_, err := client.startProxy(rs)
@@ -460,7 +460,7 @@ func TestStartProxy_credentials(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "false")
 		stubDockerRunWithStdinCapture(t, client, nil)
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir(), Credentials: creds}}}
 
 		// Act
 		_, err := client.startProxy(rs)
@@ -475,7 +475,7 @@ func TestStartProxy_credentials(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
 		stdin := stubDockerRunWithStdinCapture(t, client, nil)
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Image: "default-proxy", LogDir: t.TempDir()}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}}
 
 		// Act
 		_, err := client.startProxy(rs)
@@ -543,7 +543,7 @@ func Test_dryRunProxy(t *testing.T) {
 		calls := stubDockerRunCapture(t, client)
 		stdin := stubDockerRunWithStdinCapture(t, client, nil)
 		creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
-		rs := toolRun{RunSpec: sandbox.RunSpec{DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir(), Credentials: creds}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir(), Credentials: creds}}}
 
 		// Act
 		var toolArgs []string
