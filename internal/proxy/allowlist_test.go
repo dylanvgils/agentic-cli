@@ -82,6 +82,19 @@ func TestAllowlistAllows(t *testing.T) {
 		assert.True(t, allowed)
 	})
 
+	t.Run("entries with a trailing dot match", func(t *testing.T) {
+		// Arrange
+		al := NewAllowlist([]string{"api.example.test.", "*.example.org."})
+
+		// Act
+		exact := al.Allows("api.example.test", "443")
+		wildcard := al.Allows("sub.example.org", "443")
+
+		// Assert
+		assert.True(t, exact)
+		assert.True(t, wildcard)
+	})
+
 	t.Run("empty allowlist denies everything", func(t *testing.T) {
 		// Arrange
 		al := NewAllowlist(nil)
