@@ -534,8 +534,8 @@ func Test_blockMethods(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	handler := blockMethods(next)
 
-	t.Run("header-reflecting and tunnel methods are refused", func(t *testing.T) {
-		for _, method := range []string{http.MethodTrace, "TRACK", http.MethodConnect} {
+	t.Run("header-reflecting and tunnel methods are refused in any case", func(t *testing.T) {
+		for _, method := range []string{http.MethodTrace, "trace", "Track", http.MethodConnect} {
 			// Arrange
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(method, "https://api.example.test/", nil)
