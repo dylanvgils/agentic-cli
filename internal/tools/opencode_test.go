@@ -5,16 +5,17 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestOpencodeTmpfsMounts_returnsExpected(t *testing.T) {
+func TestOpencodeEphemeralDirs_returnsExpected(t *testing.T) {
 	// Act
-	mounts := opencodeTmpfsMounts()
+	dirs := opencodeEphemeralDirs()
 
 	// Assert
-	assert.Equal(t, []string{"/tmp:exec,size=1g"}, mounts)
+	assert.Equal(t, []sandbox.EphemeralDir{{Path: "/tmp", Size: "1g"}}, dirs)
 }
 
 func TestOpencodeMounts_returnsExpected(t *testing.T) {

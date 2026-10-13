@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 const (
@@ -28,7 +29,7 @@ var Configs = map[string]ToolConfig{
 		Runtime: RuntimeConfig{
 			Setup:                     setupClaude,
 			Mounts:                    claudeMounts,
-			TmpfsMounts:               claudeTmpfsMounts,
+			EphemeralDirs:             claudeEphemeralDirs,
 			AllowedHosts:              claudeAllowedHosts,
 			MarketplaceMount:          claudeMarketplaceMount,
 			WriteInstructions:         writeClaudeInstructions,
@@ -44,7 +45,7 @@ var Configs = map[string]ToolConfig{
 		Runtime: RuntimeConfig{
 			Setup:                     setupCopilot,
 			Mounts:                    copilotMounts,
-			TmpfsMounts:               copilotTmpfsMounts,
+			EphemeralDirs:             copilotEphemeralDirs,
 			AllowedHosts:              copilotAllowedHosts,
 			MarketplaceMount:          copilotMarketplaceMount,
 			WriteInstructions:         writeCopilotInstructions,
@@ -60,7 +61,7 @@ var Configs = map[string]ToolConfig{
 		Runtime: RuntimeConfig{
 			Setup:                     setupOpencode,
 			Mounts:                    opencodeMounts,
-			TmpfsMounts:               opencodeTmpfsMounts,
+			EphemeralDirs:             opencodeEphemeralDirs,
 			AllowedHosts:              opencodeAllowedHosts,
 			WriteInstructions:         writeOpencodeInstructions,
 			InstructionsHostPath:      opencodeInstructionsHostPath,
@@ -80,8 +81,9 @@ type BuildConfig struct {
 type RuntimeConfig struct {
 	Setup func(toolHome string) error
 	// Mounts is the tool's baseline volume mounts; user-configured mounts are merged on top.
-	Mounts      func() []string
-	TmpfsMounts func() []string
+	Mounts func() []string
+	// EphemeralDirs are the dirs the tool writes outside its mounts; it needs at least /tmp.
+	EphemeralDirs func() []sandbox.EphemeralDir
 	// AllowedHosts is the tool's baseline egress allowlist; user-configured hosts are merged on top.
 	AllowedHosts []string
 	// MarketplaceMount returns the mount spec for a synced marketplace clone; nil if unsupported.

@@ -178,19 +178,12 @@ func writeFilesystemSection(b *strings.Builder, toolConfig tools.ToolConfig, con
 	if vm {
 		b.WriteString("- Everything outside mounted directories, `/tmp` included, is writable but discarded when the VM exits and never reaches the user's machine.\n")
 	} else {
-		for _, spec := range toolConfig.Runtime.TmpfsMounts() {
-			fmt.Fprintf(b, "- `%s` is writable but ephemeral (cleared when the container exits).\n", tmpfsPath(spec, containerHome))
+		for _, p := range toolConfig.Runtime.EphemeralDirs() {
+			fmt.Fprintf(b, "- `%s` is writable but ephemeral (cleared when the container exits).\n", mount.ExpandTmpfsSpec(p.Path, containerHome))
 		}
 	}
 
 	b.WriteString("- Any mounted secrets under `/run/secrets/` are read-only.\n\n")
-}
-
-// tmpfsPath extracts the container-side path from a tmpfs mount spec, expanding $CONTAINER_HOME.
-func tmpfsPath(spec, containerHome string) string {
-	expanded := mount.ExpandTmpfsSpec(spec, containerHome)
-	path, _, _ := strings.Cut(expanded, ":")
-	return path
 }
 
 // writeResourceLimitsSection leaves out the pids limit for a runtime without one.

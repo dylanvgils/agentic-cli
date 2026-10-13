@@ -119,16 +119,19 @@ func TestBuildInstructions(t *testing.T) {
 		}
 	})
 
-	t.Run("filesystem section lists tmpfs paths", func(t *testing.T) {
+	t.Run("filesystem section lists the ephemeral dirs", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{resolveContainerHome: func(string) string { return "/home/agent" }}
+
 		// Act
-		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, Input{}, tools.Configs["copilot"], &config.AgenticRC{})
+		content, err := New(d, nil).BuildInstructions(target, Input{}, tools.Configs["copilot"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, content, "root filesystem is read-only")
 		assert.Contains(t, content, "/workspace")
-		assert.Contains(t, content, "/tmp")
-		assert.Contains(t, content, ".cache")
+		assert.Contains(t, content, "- `/tmp` is writable but ephemeral")
+		assert.Contains(t, content, "- `/home/agent/.cache` is writable but ephemeral")
 	})
 
 	t.Run("resource limits reflect resolved defaults", func(t *testing.T) {

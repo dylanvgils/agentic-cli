@@ -6,19 +6,20 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestCopilotTmpfsMounts_returnsExpected(t *testing.T) {
+func TestCopilotEphemeralDirs_returnsExpected(t *testing.T) {
 	// Act
-	mounts := copilotTmpfsMounts()
+	dirs := copilotEphemeralDirs()
 
 	// Assert
-	assert.Equal(t, []string{
-		"/tmp:exec,size=1g",
-		"$CONTAINER_HOME/.cache:exec,size=1g",
-	}, mounts)
+	assert.Equal(t, []sandbox.EphemeralDir{
+		{Path: "/tmp", Size: "1g"},
+		{Path: "$CONTAINER_HOME/.cache", Size: "1g"},
+	}, dirs)
 }
 
 func TestCopilotMounts(t *testing.T) {

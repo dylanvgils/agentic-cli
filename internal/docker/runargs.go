@@ -80,12 +80,12 @@ func buildEnvArgs(rs sandbox.RunSpec) []string {
 	return args
 }
 
-// buildTmpfsArgs builds --tmpfs flags with variable expansion.
+// buildTmpfsArgs mounts each ephemeral dir as an exec tmpfs, since the container root is read-only.
 func buildTmpfsArgs(rs sandbox.RunSpec) []string {
-	args := make([]string, 0, len(rs.TmpfsMounts))
-	for _, t := range rs.TmpfsMounts {
-		expanded := mount.ExpandTmpfsSpec(t, rs.ContainerHome)
-		args = append(args, arg("tmpfs", expanded))
+	args := make([]string, 0, len(rs.EphemeralDirs))
+	for _, p := range rs.EphemeralDirs {
+		path := mount.ExpandTmpfsSpec(p.Path, rs.ContainerHome)
+		args = append(args, arg("tmpfs", mount.TmpfsMount(path, mount.TmpfsOptions{Exec: true, Size: p.Size})))
 	}
 	return args
 }

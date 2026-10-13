@@ -6,16 +6,17 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestClaudeTmpfsMounts_returnsExpected(t *testing.T) {
+func TestClaudeEphemeralDirs_returnsExpected(t *testing.T) {
 	// Act
-	mounts := claudeTmpfsMounts()
+	dirs := claudeEphemeralDirs()
 
 	// Assert
-	assert.Equal(t, []string{"/tmp:exec,size=1g"}, mounts)
+	assert.Equal(t, []sandbox.EphemeralDir{{Path: "/tmp", Size: "1g"}}, dirs)
 }
 
 func TestClaudeMounts_returnsExpected(t *testing.T) {

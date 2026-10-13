@@ -7,6 +7,7 @@ import (
 
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // opencodeReleaseRepo is the GitHub repo the install script (opencode.ai/install) pulls releases from.
@@ -20,9 +21,9 @@ var opencodeAllowedHosts = []string{
 	"opencode.ai", // OpenCode auth and update checks
 }
 
-func opencodeTmpfsMounts() []string {
-	return []string{
-		mount.TmpfsMount("/tmp", mount.TmpfsOptions{Exec: true, Size: "1g"}),
+func opencodeEphemeralDirs() []sandbox.EphemeralDir {
+	return []sandbox.EphemeralDir{
+		{Path: "/tmp", Size: "1g"},
 	}
 }
 

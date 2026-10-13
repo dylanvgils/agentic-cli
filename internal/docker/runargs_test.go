@@ -6,6 +6,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -100,7 +101,7 @@ func TestBuildTmpfsArgs(t *testing.T) {
 		rs := sandbox.RunSpec{
 			Image:         "agentic-copilot",
 			ContainerHome: "/home/user",
-			TmpfsMounts:   []string{"/tmp:exec,size=1g", "$CONTAINER_HOME/.cache:exec,size=1g"},
+			EphemeralDirs: []sandbox.EphemeralDir{{Path: "/tmp", Size: "1g"}, {Path: "$CONTAINER_HOME/.cache", Size: "1g"}},
 		}
 
 		// Act
@@ -111,6 +112,25 @@ func TestBuildTmpfsArgs(t *testing.T) {
 			"--tmpfs=/tmp:exec,size=1g",
 			"--tmpfs=/home/user/.cache:exec,size=1g",
 		}, args)
+	})
+	t.Run("keeps every tool's tmpfs flags", func(t *testing.T) {
+		want := map[string][]string{
+			"claude":   {"--tmpfs=/tmp:exec,size=1g"},
+			"copilot":  {"--tmpfs=/tmp:exec,size=1g", "--tmpfs=/home/user/.cache:exec,size=1g"},
+			"opencode": {"--tmpfs=/tmp:exec,size=1g"},
+		}
+		require.Len(t, tools.Configs, len(want))
+
+		for name, tool := range tools.Configs {
+			// Arrange
+			rs := sandbox.RunSpec{ContainerHome: "/home/user", EphemeralDirs: tool.Runtime.EphemeralDirs()}
+
+			// Act
+			args := buildTmpfsArgs(rs)
+
+			// Assert
+			assert.Equal(t, want[name], args, name)
+		}
 	})
 }
 

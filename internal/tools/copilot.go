@@ -8,6 +8,7 @@ import (
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // copilotReleaseRepo is the GitHub repo the install script (gh.io/copilot-install) pulls releases from.
@@ -22,10 +23,10 @@ var copilotAllowedHosts = []string{
 	"api.github.com",     // GitHub API used for authentication
 }
 
-func copilotTmpfsMounts() []string {
-	return []string{
-		mount.TmpfsMount("/tmp", mount.TmpfsOptions{Exec: true, Size: "1g"}),
-		mount.TmpfsMount("$CONTAINER_HOME/.cache", mount.TmpfsOptions{Exec: true, Size: "1g"}),
+func copilotEphemeralDirs() []sandbox.EphemeralDir {
+	return []sandbox.EphemeralDir{
+		{Path: "/tmp", Size: "1g"},
+		{Path: "$CONTAINER_HOME/.cache", Size: "1g"},
 	}
 }
 
