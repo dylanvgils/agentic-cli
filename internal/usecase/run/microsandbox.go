@@ -31,10 +31,6 @@ func (s *Service) checkMicrosandbox(req Request) error {
 
 // runMicrosandbox runs rs's image in microsandbox, loading it from Docker first unless msb already holds this exact image; a dry run only prints the msb command.
 func (s *Service) runMicrosandbox(rs sandbox.RunSpec, toolArgs []string) error {
-	if ignored := microsandbox.Ignored(rs); len(ignored) > 0 {
-		logging.Warnf("--runtime microsandbox ignores %s", strings.Join(ignored, ", "))
-	}
-
 	ref, err := s.microsandboxRef(rs.Image)
 	if err != nil {
 		return err

@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // errNotInstalled is returned when the msb binary is not on PATH.
@@ -37,6 +39,11 @@ type execRunner struct{}
 // New returns a Client that runs the msb binary found on PATH.
 func New() *Client {
 	return &Client{runner: execRunner{}}
+}
+
+// Capabilities reports what msb runs offer; msb injects credentials itself.
+func (c *Client) Capabilities() sandbox.Capabilities {
+	return sandbox.Capabilities{CredentialInjection: true}
 }
 
 // Available returns an error with an install hint when msb is not on PATH.

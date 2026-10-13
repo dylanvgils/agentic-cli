@@ -83,6 +83,22 @@ func TestPrepare(t *testing.T) {
 		assert.Empty(t, p.trustAsked)
 	})
 
+	t.Run("microsandbox with the proxy on stops before any prompt", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Flags.Runtime = RuntimeMicrosandbox
+		req.Flags.Proxy.ProxyFlag = true
+		p := &fakePrompter{}
+
+		// Act
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, &fakeMicrosandbox{}).Prepare(req, p)
+		defer cleanup()
+
+		// Assert
+		require.ErrorContains(t, err, "does not support the egress proxy (--proxy)")
+		assert.Empty(t, p.trustAsked)
+	})
+
 	t.Run("docker runtime doesn't check for msb", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
@@ -297,6 +313,8 @@ func TestCheckProjectDir(t *testing.T) {
 }
 
 func Test_resolveInput(t *testing.T) {
+	proxyInjects := sandbox.Capabilities{Proxy: true, CredentialInjection: true, CredentialsViaProxy: true}
+
 	t.Run("copies the flags and resolves proxy and dind against the config", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
@@ -315,7 +333,7 @@ func Test_resolveInput(t *testing.T) {
 		}
 
 		// Act
-		in, err := resolveInput(flags, rc)
+		in, err := resolveInput(flags, rc, proxyInjects)
 
 		// Assert
 		require.NoError(t, err)
@@ -341,9 +359,22 @@ func Test_resolveInput(t *testing.T) {
 		flags := Flags{Proxy: resolve.ProxyInput{NoProxy: true}}
 
 		// Act
-		_, err := resolveInput(flags, rc)
+		_, err := resolveInput(flags, rc, proxyInjects)
 
 		// Assert
 		require.ErrorContains(t, err, "--no-proxy cannot be used")
+	})
+
+	t.Run("credentials leave the proxy off when the runtime injects them", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
+
+		// Act
+		in, err := resolveInput(Flags{}, rc, sandbox.Capabilities{CredentialInjection: true})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, sandbox.ProxyOff, in.ProxyMode)
 	})
 }

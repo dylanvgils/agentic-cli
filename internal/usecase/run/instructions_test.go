@@ -248,7 +248,7 @@ func TestBuildInstructions(t *testing.T) {
 		in := Input{Runtime: RuntimeMicrosandbox, Limits: sandbox.ResourceLimits{CPUs: "3", Memory: "6g"}}
 
 		// Act
-		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["copilot"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["copilot"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -265,12 +265,12 @@ func TestBuildInstructions(t *testing.T) {
 		assert.NotContains(t, content, "capabilities dropped")
 	})
 
-	t.Run("microsandbox omits the proxy and sidecar even when enabled", func(t *testing.T) {
+	t.Run("microsandbox omits the proxy and sidecar it lacks even when enabled", func(t *testing.T) {
 		// Arrange
 		in := Input{Runtime: RuntimeMicrosandbox, ProxyMode: sandbox.ProxyEnforce, DindEnabled: true}
 
 		// Act
-		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -285,7 +285,7 @@ func TestBuildInstructions(t *testing.T) {
 		in := Input{Runtime: RuntimeMicrosandbox}
 
 		// Act
-		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+		content, err := New(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -298,7 +298,7 @@ func TestBuildInstructions(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Custom: "Always run go test before finishing."}}}
 
 		// Act
-		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], rc)
+		content, err := New(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["claude"], rc)
 
 		// Assert
 		require.NoError(t, err)

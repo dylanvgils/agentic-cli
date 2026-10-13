@@ -23,7 +23,7 @@ const (
 	placeholderPrefix = "$MSB_"
 )
 
-// Run runs the tool described by rs in a microsandbox VM, skipping what Ignored lists; the image must already be loaded.
+// Run runs the tool described by rs in a microsandbox VM, skipping what Capabilities leaves out; the image must already be loaded.
 func (c *Client) Run(rs sandbox.RunSpec, toolArgs []string) error {
 	args, err := buildRunArgs(rs, toolArgs)
 	if err != nil {
@@ -37,18 +37,6 @@ func (c *Client) Run(rs sandbox.RunSpec, toolArgs []string) error {
 	// Set agentic startup messages apart from the tool output
 	logging.Separate()
 	return c.runner.RunInteractive(credentialEnv(rs), args...)
-}
-
-// Ignored lists the parts of rs that msb runs don't honor yet.
-func Ignored(rs sandbox.RunSpec) []string {
-	var ignored []string
-	if rs.Proxy.Mode.Enabled() {
-		ignored = append(ignored, "the egress proxy (egress is unfiltered)")
-	}
-	if rs.Dind.Enabled {
-		ignored = append(ignored, "--dind")
-	}
-	return ignored
 }
 
 // buildRunArgs assembles the `msb run` args for rs.

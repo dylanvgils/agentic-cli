@@ -30,10 +30,12 @@ type Docker interface {
 	EnsureNetwork() error
 	SaveImage(image string, w io.Writer) error
 	RunContainer(rs sandbox.RunSpec, toolArgs []string) error
+	Capabilities() sandbox.Capabilities
 }
 
 // Microsandbox is the subset of *microsandbox.Client this package uses.
 type Microsandbox interface {
+	Capabilities() sandbox.Capabilities
 	Available() error
 	LoadImage(r io.Reader, tag string) error
 	ImageRefs() ([]string, error)
