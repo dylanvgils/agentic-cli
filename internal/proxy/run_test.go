@@ -177,7 +177,9 @@ func Test_loadInjector(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}, inject.rulesFor("api.example.test", "443"))
+		cred, ok := inject.credentialFor("api.example.test", "443")
+		require.True(t, ok)
+		assert.Equal(t, []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}, cred.Rules)
 	})
 
 	t.Run("removes the key and credentials files once loaded", func(t *testing.T) {

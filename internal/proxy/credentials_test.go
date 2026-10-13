@@ -24,6 +24,23 @@ func TestLoadCredentials(t *testing.T) {
 		assert.Equal(t, []Credential{{Hosts: []string{"api.example.test"}, Rules: []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}, creds)
 	})
 
+	t.Run("parses a placeholder credential", func(t *testing.T) {
+		// Arrange
+		path := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"headers":["Authorization"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
+
+		// Act
+		creds, err := LoadCredentials(path)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []Credential{{
+			Hosts:       []string{"api.example.test"},
+			Headers:     []string{"Authorization"},
+			Placeholder: "agentic-0123456789abcdef",
+			Secret:      "test-secret",
+		}}, creds)
+	})
+
 	t.Run("missing file is an error", func(t *testing.T) {
 		// Arrange
 		path := filepath.Join(t.TempDir(), "missing.json")
@@ -148,6 +165,59 @@ func TestValidateCredentials(t *testing.T) {
 		require.Error(t, err)
 		assert.NotContains(t, err.Error(), "test-secret")
 	})
+	t.Run("a placeholder credential passes", func(t *testing.T) {
+		// Act
+		err := ValidateCredentials([]Credential{testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef")})
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("invalid placeholder credentials are rejected", func(t *testing.T) {
+		valid := testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef")
+		withRules, noHeaders, badHeader, reserved, short, badChars, badSecret := valid, valid, valid, valid, valid, valid, valid
+		withRules.Rules = []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}
+		noHeaders.Headers = nil
+		badHeader.Headers = []string{"X Api"}
+		reserved.Headers = []string{"Host"}
+		short.Placeholder = "agentic-short"
+		badChars.Placeholder = "agentic 0123456789abcdef"
+		badSecret.Secret = "test-secret\n"
+		cases := map[string]Credential{
+			"takes headers, not rules":        withRules,
+			"no headers":                      noHeaders,
+			`invalid header name "X Api"`:     badHeader,
+			"header Host cannot be injected":  reserved,
+			"placeholder must be at least 16": short,
+			"letters, digits, - or _":         badChars,
+			"invalid secret":                  badSecret,
+		}
+
+		for want, cred := range cases {
+			// Act
+			err := ValidateCredentials([]Credential{cred})
+
+			// Assert
+			assert.ErrorContains(t, err, want)
+			if err != nil {
+				assert.NotContains(t, err.Error(), "test-secret", want)
+			}
+		}
+	})
+
+	t.Run("overlapping placeholders are rejected", func(t *testing.T) {
+		// Arrange
+		creds := []Credential{
+			testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef"),
+			testPlaceholderCredential("git.example.test", "agentic-0123456789abcdef-2"),
+		}
+
+		// Act
+		err := ValidateCredentials(creds)
+
+		// Assert
+		assert.ErrorContains(t, err, "overlap")
+	})
 }
 
 func TestInjectRule(t *testing.T) {
@@ -186,6 +256,34 @@ func TestInjectRule(t *testing.T) {
 		// Assert
 		assert.NotContains(t, buf.String(), "test-secret")
 		assert.Contains(t, buf.String(), "X-Api-Key")
+	})
+}
+
+func TestCredential(t *testing.T) {
+	cred := testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef")
+
+	t.Run("fmt verbs hide the secret", func(t *testing.T) {
+		for _, verb := range []string{"%v", "%+v", "%#v", "%s"} {
+			// Act
+			out := fmt.Sprintf(verb, cred)
+
+			// Assert
+			assert.NotContains(t, out, "test-secret", verb)
+			assert.Contains(t, out, "agentic-0123456789abcdef", verb)
+		}
+	})
+
+	t.Run("slog hides the secret", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&buf, nil))
+
+		// Act
+		logger.Info("credential", "credential", cred)
+
+		// Assert
+		assert.NotContains(t, buf.String(), "test-secret")
+		assert.Contains(t, buf.String(), "api.example.test")
 	})
 }
 

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/x509"
+	"encoding/base64"
 	"io"
 	"net"
 	"net/http"
@@ -304,52 +305,159 @@ func TestServerConnectInject(t *testing.T) {
 	})
 }
 
-func Test_rulesFor(t *testing.T) {
-	rules := []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}
-	inject := NewInjector(newTestProxyCA(t, "api.example.test"), []Credential{{Hosts: []string{"api.example.test"}, Rules: rules}})
+func TestServerConnectSubstitute(t *testing.T) {
+	const placeholder = "agentic-0123456789abcdef"
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, r.Header.Get("Authorization")+"|"+r.Header.Get("X-Other"))
+	}))
+	t.Cleanup(upstream.Close)
 
-	t.Run("nil injector has no rules", func(t *testing.T) {
+	upstreamHost, upstreamPort := splitHostPort(upstream.Listener.Addr().String())
+	stubDefaultPorts(t, upstreamPort)
+	stubInjectPort(t, upstreamPort)
+	inject, roots := newTestInjector(t, upstream, []Credential{testPlaceholderCredential(upstreamHost, placeholder)})
+	proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+	t.Cleanup(proxy.Close)
+
+	cases := map[string]struct{ authorization, want string }{
+		"bearer placeholder is swapped": {"Bearer " + placeholder, "Bearer test-secret"},
+		"basic placeholder is swapped":  {"Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+placeholder)), "Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:test-secret"))},
+		"the tool's own value passes":   {"Bearer own-token", "Bearer own-token"},
+		"no header stays absent":        {"", ""},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			req, err := http.NewRequest(http.MethodGet, upstream.URL, nil)
+			require.NoError(t, err)
+			if c.authorization != "" {
+				req.Header.Set("Authorization", c.authorization)
+			}
+			req.Header.Set("X-Other", placeholder)
+
+			// Act
+			resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
+
+			// Assert
+			require.NoError(t, err)
+			defer resp.Body.Close() //nolint:errcheck
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Equal(t, c.want+"|"+placeholder, string(body), "headers the credential doesn't list keep the placeholder")
+		})
+	}
+}
+
+func Test_substitute(t *testing.T) {
+	cred := testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef")
+
+	t.Run("swaps the placeholder in every value of a listed header", func(t *testing.T) {
+		// Arrange
+		header := http.Header{"Authorization": {"Bearer agentic-0123456789abcdef", "Token agentic-0123456789abcdef"}}
+
+		// Act
+		substitute(header, cred)
+
+		// Assert
+		assert.Equal(t, []string{"Bearer test-secret", "Token test-secret"}, header.Values("Authorization"))
+	})
+
+	t.Run("leaves headers the credential doesn't list untouched", func(t *testing.T) {
+		// Arrange
+		header := http.Header{"X-Other": {"agentic-0123456789abcdef"}}
+
+		// Act
+		substitute(header, cred)
+
+		// Assert
+		assert.Equal(t, "agentic-0123456789abcdef", header.Get("X-Other"))
+	})
+
+	t.Run("drops aliases of a listed header", func(t *testing.T) {
+		// Arrange
+		header := http.Header{"X-Api-Key": {"agentic-0123456789abcdef"}, "X_api_key": {"agentic-0123456789abcdef"}}
+
+		// Act
+		substitute(header, cred)
+
+		// Assert
+		assert.Equal(t, http.Header{"X-Api-Key": {"test-secret"}}, header)
+	})
+}
+
+func Test_substituteValue(t *testing.T) {
+	const placeholder = "agentic-0123456789abcdef"
+	basic := func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }
+	cases := map[string]struct{ value, want string }{
+		"bare value":                           {placeholder, "test-secret"},
+		"bearer token":                         {"Bearer " + placeholder, "Bearer test-secret"},
+		"every occurrence":                     {placeholder + "," + placeholder, "test-secret,test-secret"},
+		"basic credential is decoded":          {"Basic " + basic("x-access-token:"+placeholder), "Basic " + basic("x-access-token:test-secret")},
+		"basic scheme in any case":             {"basic " + basic("user:"+placeholder), "basic " + basic("user:test-secret")},
+		"basic credential without placeholder": {"Basic " + basic("user:pass"), "Basic " + basic("user:pass")},
+		"basic with a plain-text placeholder":  {"Basic " + placeholder, "Basic test-secret"},
+		"no placeholder":                       {"Bearer own-token", "Bearer own-token"},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Act
+			got := substituteValue(c.value, placeholder, "test-secret")
+
+			// Assert
+			assert.Equal(t, c.want, got)
+		})
+	}
+}
+
+func Test_credentialFor(t *testing.T) {
+	cred := Credential{Hosts: []string{"api.example.test"}, Rules: []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}
+	inject := NewInjector(newTestProxyCA(t, "api.example.test"), []Credential{cred})
+
+	t.Run("nil injector has no credential", func(t *testing.T) {
 		// Arrange
 		var none *Injector
 
 		// Act
-		got := none.rulesFor("api.example.test", "443")
+		_, ok := none.credentialFor("api.example.test", "443")
 
 		// Assert
-		assert.Nil(t, got)
+		assert.False(t, ok)
 	})
 
 	t.Run("exact host matches regardless of case and trailing dot", func(t *testing.T) {
 		// Act
-		got := inject.rulesFor("API.example.test.", "443")
+		got, ok := inject.credentialFor("API.example.test.", "443")
 
 		// Assert
-		assert.Equal(t, rules, got)
+		require.True(t, ok)
+		assert.Equal(t, cred, got)
 	})
 
-	t.Run("subdomain of a credentialed host has no rules", func(t *testing.T) {
+	t.Run("subdomain of a credentialed host has no credential", func(t *testing.T) {
 		// Act
-		got := inject.rulesFor("evil.api.example.test", "443")
+		_, ok := inject.credentialFor("evil.api.example.test", "443")
 
 		// Assert
-		assert.Nil(t, got)
+		assert.False(t, ok)
 	})
 
-	t.Run("unmatched host has no rules", func(t *testing.T) {
+	t.Run("unmatched host has no credential", func(t *testing.T) {
 		// Act
-		got := inject.rulesFor("example-test.evil", "443")
+		_, ok := inject.credentialFor("example-test.evil", "443")
 
 		// Assert
-		assert.Nil(t, got)
+		assert.False(t, ok)
 	})
 
-	t.Run("credentialed host on another port has no rules", func(t *testing.T) {
+	t.Run("credentialed host on another port has no credential", func(t *testing.T) {
 		for _, port := range []string{"80", "8443", ""} {
 			// Act
-			got := inject.rulesFor("api.example.test", port)
+			_, ok := inject.credentialFor("api.example.test", port)
 
 			// Assert
-			assert.Nil(t, got, port)
+			assert.False(t, ok, port)
 		}
 	})
 }
@@ -371,7 +479,7 @@ func Test_reverseProxy(t *testing.T) {
 			pr := &httputil.ProxyRequest{In: in, Out: in.Clone(in.Context())}
 
 			// Act
-			inject.reverseProxy(target.host, target.port, nil).Rewrite(pr)
+			inject.reverseProxy(target.host, target.port, Credential{}).Rewrite(pr)
 
 			// Assert
 			assert.Equal(t, want, pr.Out.URL.Host)

@@ -3,6 +3,7 @@ package proxy
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -32,10 +33,10 @@ var injectPort = "443"
 // blockedMethods are refused inside an intercepted tunnel: TRACE/TRACK echo the injected headers back, CONNECT would re-tunnel.
 var blockedMethods = []string{http.MethodConnect, http.MethodTrace, "TRACK"}
 
-// Injector terminates TLS for credentialed hosts and sets their headers before forwarding.
+// Injector terminates TLS for credentialed hosts and puts their secrets in the headers before forwarding.
 type Injector struct {
 	ca        certs.CA
-	rules     map[string][]InjectRule // keyed by normalized exact host
+	creds     map[string]Credential // keyed by normalized exact host
 	transport http.RoundTripper
 
 	mutex  sync.Mutex
@@ -58,16 +59,16 @@ type closeNotifyConn struct {
 
 // NewInjector builds an Injector issuing leaves from ca for the hosts in creds.
 func NewInjector(ca certs.CA, creds []Credential) *Injector {
-	rules := make(map[string][]InjectRule)
+	byHost := make(map[string]Credential)
 	for _, cred := range creds {
 		for _, host := range cred.Hosts {
-			rules[normalizeHost(host)] = cred.Rules
+			byHost[normalizeHost(host)] = cred
 		}
 	}
 
 	return &Injector{
 		ca:     ca,
-		rules:  rules,
+		creds:  byHost,
 		leaves: make(map[string]*tls.Certificate),
 		transport: &http.Transport{
 			DialContext:         upstreamDialer.DialContext,
@@ -77,12 +78,13 @@ func NewInjector(ca certs.CA, creds []Credential) *Injector {
 	}
 }
 
-// rulesFor returns the rules for exactly host on injectPort; safe on a nil Injector.
-func (i *Injector) rulesFor(host, port string) []InjectRule {
+// credentialFor returns the credential for exactly host on injectPort; safe on a nil Injector.
+func (i *Injector) credentialFor(host, port string) (Credential, bool) {
 	if i == nil || port != injectPort {
-		return nil
+		return Credential{}, false
 	}
-	return i.rules[normalizeHost(host)]
+	cred, ok := i.creds[normalizeHost(host)]
+	return cred, ok
 }
 
 // leaf returns the cached server cert for host, already normalized by the caller, issuing it on first use.
@@ -147,15 +149,19 @@ func (i *Injector) serve(tlsConn *tls.Conn, handler http.Handler) {
 	_ = server.Serve(newOneConnListener(tlsConn))
 }
 
-// reverseProxy forwards to host:port, never the request's Host, with rules applied.
-func (i *Injector) reverseProxy(host, port string, rules []InjectRule) *httputil.ReverseProxy {
+// reverseProxy forwards to host:port, never the request's Host, with cred's secret put in the headers.
+func (i *Injector) reverseProxy(host, port string, cred Credential) *httputil.ReverseProxy {
 	// JoinHostPort brackets IPv6; the default port is then dropped to keep the Host header clean
 	target := &url.URL{Scheme: "https", Host: strings.TrimSuffix(net.JoinHostPort(host, port), ":443")}
 
 	return &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(target)
-			for _, rule := range rules {
+			if cred.Placeholder != "" {
+				substitute(pr.Out.Header, cred)
+				return
+			}
+			for _, rule := range cred.Rules {
 				dropAliases(pr.Out.Header, rule.Header)
 				pr.Out.Header.Set(rule.Header, rule.Value)
 			}
@@ -165,8 +171,8 @@ func (i *Injector) reverseProxy(host, port string, rules []InjectRule) *httputil
 	}
 }
 
-// intercept terminates the CONNECT's TLS and serves it with rules, logging entry as injected only after the client handshake succeeds.
-func (s *Server) intercept(w http.ResponseWriter, entry Entry, rules []InjectRule) {
+// intercept terminates the CONNECT's TLS and serves it with cred, logging entry as injected only after the client handshake succeeds.
+func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) {
 	tlsConn, err := s.inject.handshake(w, entry.Host)
 	entry.Injected = err == nil
 	s.logger.Log(entry)
@@ -175,7 +181,7 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, rules []InjectRul
 	}
 	defer func() { _ = tlsConn.Close() }()
 
-	reverse := s.inject.reverseProxy(entry.Host, entry.Port, rules)
+	reverse := s.inject.reverseProxy(entry.Host, entry.Port, cred)
 	reverse.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
 		if errors.Is(err, errBlockedAddr) {
 			s.refuseBlocked(w, entry)
@@ -195,6 +201,38 @@ func blockMethods(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// substitute swaps cred's placeholder for its secret in each of its headers the tool sent, and drops their aliases so the
+// secret reaches the upstream only under the canonical name.
+func substitute(header http.Header, cred Credential) {
+	for _, name := range cred.Headers {
+		canonical := http.CanonicalHeaderKey(name)
+		for key := range header {
+			if key != canonical && headerAlias(key) == headerAlias(canonical) {
+				delete(header, key)
+			}
+		}
+
+		values := header[canonical]
+		for i, value := range values {
+			values[i] = substituteValue(value, cred.Placeholder, cred.Secret)
+		}
+	}
+}
+
+// substituteValue replaces placeholder with secret in value, decoding a Basic credential first, as git and curl -u send
+// the placeholder base64-encoded.
+func substituteValue(value, placeholder, secret string) string {
+	scheme, encoded, found := strings.Cut(value, " ")
+	if found && strings.EqualFold(scheme, "Basic") {
+		decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encoded))
+		if err == nil && strings.Contains(string(decoded), placeholder) {
+			swapped := strings.ReplaceAll(string(decoded), placeholder, secret)
+			return scheme + " " + base64.StdEncoding.EncodeToString([]byte(swapped))
+		}
+	}
+	return strings.ReplaceAll(value, placeholder, secret)
 }
 
 // dropAliases deletes headers an upstream may read as name, e.g. X_Api_Key for X-Api-Key in CGI-style backends.
