@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -19,107 +20,31 @@ var configCmd = &cobra.Command{
 	RunE:  showConfig,
 }
 
-// fieldPrinter prints project config fields one after another, keeping the first write error and skipping the rest.
-type fieldPrinter struct {
-	w      io.Writer
-	layers []config.RCLayer
-	err    error
+// entry is one shown value and its source: a layer path, or "" for a default.
+type entry struct {
+	value  string
+	source string
 }
 
-// generalFields prints the top-level fields.
-func (p *fieldPrinter) generalFields() {
-	var (
-		namespace     = func(rc *config.AgenticRC) string { return rc.Namespace }
-		dockerContext = func(rc *config.AgenticRC) string { return rc.DockerContext }
-	)
-
-	p.scalar("namespace", namespace, config.DefaultNamespace)
-	p.scalar("docker_context", dockerContext, "")
+// field is one config key and its resolved entries.
+type field struct {
+	key     string
+	list    bool
+	entries []entry
 }
 
-// buildFields prints the [build] fields.
-func (p *fieldPrinter) buildFields() {
-	aptPackages := func(rc *config.AgenticRC) []string { return rc.Build.AptPackages }
-
-	p.bases()
-	p.list("apt_packages", aptPackages)
-	p.list("custom_installs", customInstallNames)
+// section is a TOML table and its fields; the top-level section has no header.
+type section struct {
+	header string
+	fields []field
 }
 
-// runFields prints the [run] limits and mounts.
-func (p *fieldPrinter) runFields() {
-	var (
-		pidsLimit = func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
-		cpus      = func(rc *config.AgenticRC) string { return rc.Run.CPUs }
-		memory    = func(rc *config.AgenticRC) string { return rc.Run.Memory }
-		mounts    = func(rc *config.AgenticRC) []string { return rc.Run.Mounts }
-		secrets   = func(rc *config.AgenticRC) []string { return rc.Run.Secrets }
-	)
-
-	p.scalar("pids_limit", pidsLimit, sandbox.DefaultPidsLimit)
-	p.scalar("cpus", cpus, sandbox.DefaultCPUs)
-	p.scalar("memory", memory, sandbox.DefaultMemory)
-	p.list("mounts", mounts)
-	p.list("secrets", secrets)
-}
-
-// proxyFields prints the [run.proxy] fields.
-func (p *fieldPrinter) proxyFields() {
-	var (
-		enabled      = func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }
-		mode         = func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }
-		allowedHosts = func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts }
-	)
-
-	p.boolean("proxy.enabled", enabled, false)
-	p.scalar("proxy.mode", mode, config.ModeEnforce)
-	p.list("proxy.allowed_hosts", allowedHosts)
-}
-
-// dindFields prints the [run.dind] fields; unset limits inherit the tool's.
-func (p *fieldPrinter) dindFields() {
-	var (
-		enabled       = func(rc *config.AgenticRC) *bool { return rc.Run.Dind.Enabled }
-		pidsLimit     = func(rc *config.AgenticRC) string { return rc.Run.Dind.PidsLimit }
-		cpus          = func(rc *config.AgenticRC) string { return rc.Run.Dind.CPUs }
-		memory        = func(rc *config.AgenticRC) string { return rc.Run.Dind.Memory }
-		toolPidsLimit = func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
-		toolCPUs      = func(rc *config.AgenticRC) string { return rc.Run.CPUs }
-		toolMemory    = func(rc *config.AgenticRC) string { return rc.Run.Memory }
-	)
-
-	p.boolean("dind.enabled", enabled, false)
-	p.scalar("dind.pids_limit", pidsLimit, effectiveScalar(p.layers, toolPidsLimit, sandbox.DefaultPidsLimit))
-	p.scalar("dind.cpus", cpus, effectiveScalar(p.layers, toolCPUs, sandbox.DefaultCPUs))
-	p.scalar("dind.memory", memory, effectiveScalar(p.layers, toolMemory, sandbox.DefaultMemory))
-}
-
-// scalar prints a scalar field via printScalarField.
-func (p *fieldPrinter) scalar(label string, get func(*config.AgenticRC) string, defaultVal string) {
-	if p.err == nil {
-		p.err = printScalarField(p.w, label, p.layers, get, defaultVal)
+// value returns the field's first value, or "" when it has none.
+func (f field) value() string {
+	if len(f.entries) == 0 {
+		return ""
 	}
-}
-
-// list prints a list field via printListField.
-func (p *fieldPrinter) list(label string, get func(*config.AgenticRC) []string) {
-	if p.err == nil {
-		p.err = printListField(p.w, label, p.layers, get)
-	}
-}
-
-// boolean prints a bool field via printBoolField.
-func (p *fieldPrinter) boolean(label string, get func(*config.AgenticRC) *bool, defaultVal bool) {
-	if p.err == nil {
-		p.err = printBoolField(p.w, label, p.layers, get, defaultVal)
-	}
-}
-
-// bases prints the bases field via printBasesField.
-func (p *fieldPrinter) bases() {
-	if p.err == nil {
-		p.err = printBasesField(p.w, p.layers)
-	}
+	return f.entries[0].value
 }
 
 func init() {
@@ -181,10 +106,7 @@ func printGlobalConfig(w io.Writer, home string, cfg *config.CliConfig, state *c
 
 func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if len(layers) == 0 {
-		if _, err := fmt.Fprintln(w, "Project (.agenticrc.toml)"); err != nil {
-			return err
-		}
-		_, err := fmt.Fprintln(w, "  (no .agenticrc.toml files found)")
+		_, err := io.WriteString(w, "Project (.agenticrc.toml)\n  (no .agenticrc.toml files found)\n")
 		return err
 	}
 
@@ -192,18 +114,165 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 	if len(layers) > 1 {
 		noun = "files"
 	}
-	if _, err := fmt.Fprintf(w, "Project (.agenticrc.toml, %d %s)\n", len(layers), noun); err != nil {
-		return err
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "Project (.agenticrc.toml, %d %s)\n", len(layers), noun)
+	for _, s := range projectSections(layers) {
+		writeSection(&b, s)
 	}
 
-	p := &fieldPrinter{w: w, layers: layers}
-	p.generalFields()
-	p.buildFields()
-	p.runFields()
-	p.proxyFields()
-	p.dindFields()
+	_, err := io.WriteString(w, b.String())
+	return err
+}
 
-	return p.err
+// projectSections resolves every project key against layers, grouped by TOML table.
+func projectSections(layers []config.RCLayer) []section {
+	versions := resolveEffectiveVersions(layers)
+	runLimits := limitFields(layers, func(rc *config.AgenticRC) config.RCLimits { return rc.Run.RCLimits }, sandbox.DefaultLimits)
+
+	// Unset sidecar limits inherit the tool's
+	dindDefaults := sandbox.ResourceLimits{PidsLimit: runLimits[0].value(), CPUs: runLimits[1].value(), Memory: runLimits[2].value()}
+	dindLimits := limitFields(layers, func(rc *config.AgenticRC) config.RCLimits { return rc.Run.Dind.RCLimits }, dindDefaults)
+
+	return []section{
+		{fields: []field{
+			scalarField(layers, "namespace", func(rc *config.AgenticRC) string { return rc.Namespace }, config.DefaultNamespace),
+			scalarField(layers, "docker_context", func(rc *config.AgenticRC) string { return rc.DockerContext }, ""),
+			listField(layers, "marketplaces", marketplaceNames),
+		}},
+		{header: "build", fields: []field{
+			listField(layers, "bases", func(rc *config.AgenticRC) []string { return baseNames(rc, versions) }),
+			listField(layers, "apt_packages", func(rc *config.AgenticRC) []string { return rc.Build.AptPackages }),
+			listField(layers, "custom_installs", customInstallNames),
+		}},
+		{header: "run", fields: append(runLimits,
+			listField(layers, "mounts", func(rc *config.AgenticRC) []string { return rc.Run.Mounts }),
+			listField(layers, "secrets", func(rc *config.AgenticRC) []string { return rc.Run.Secrets }),
+			listField(layers, "env", envKeys),
+			boolField(layers, "check_updates", func(rc *config.AgenticRC) *bool { return rc.Run.CheckUpdates }, true),
+		)},
+		{header: "run.instructions", fields: []field{
+			boolField(layers, "enabled", func(rc *config.AgenticRC) *bool { return rc.Run.Instructions.Enabled }, true),
+			listField(layers, "custom", customInstructions),
+		}},
+		{header: "run.proxy", fields: []field{
+			boolField(layers, "enabled", func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }, false),
+			scalarField(layers, "mode", func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }, config.ModeEnforce),
+			listField(layers, "allowed_hosts", func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts }),
+			listField(layers, "credentials", credentialNames),
+		}},
+		{header: "run.dind", fields: append([]field{
+			boolField(layers, "enabled", func(rc *config.AgenticRC) *bool { return rc.Run.Dind.Enabled }, false),
+		}, dindLimits...)},
+	}
+}
+
+// limitFields returns the pids_limit, cpus and memory fields of the limits get picks, falling back to def.
+func limitFields(layers []config.RCLayer, get func(*config.AgenticRC) config.RCLimits, def sandbox.ResourceLimits) []field {
+	return []field{
+		scalarField(layers, "pids_limit", func(rc *config.AgenticRC) string { return get(rc).PidsLimit }, def.PidsLimit),
+		scalarField(layers, "cpus", func(rc *config.AgenticRC) string { return get(rc).CPUs }, def.CPUs),
+		scalarField(layers, "memory", func(rc *config.AgenticRC) string { return get(rc).Memory }, def.Memory),
+	}
+}
+
+// scalarField resolves a string key: innermost layer wins, else def, else no entry.
+func scalarField(layers []config.RCLayer, key string, get func(*config.AgenticRC) string, def string) field {
+	isSet := func(v string) bool { return v != "" }
+	if v, path, ok := innermost(layers, get, isSet); ok {
+		return field{key: key, entries: []entry{{value: v, source: path}}}
+	}
+
+	if def != "" {
+		return field{key: key, entries: []entry{{value: def}}}
+	}
+
+	return field{key: key}
+}
+
+// boolField resolves a bool key: innermost layer that sets it wins, else def.
+func boolField(layers []config.RCLayer, key string, get func(*config.AgenticRC) *bool, def bool) field {
+	isSet := func(v *bool) bool { return v != nil }
+	if v, path, ok := innermost(layers, get, isSet); ok {
+		return field{key: key, entries: []entry{{value: strconv.FormatBool(*v), source: path}}}
+	}
+
+	return field{key: key, entries: []entry{{value: strconv.FormatBool(def)}}}
+}
+
+// listField resolves a list key: every layer's values, outermost first.
+func listField(layers []config.RCLayer, key string, get func(*config.AgenticRC) []string) field {
+	f := field{key: key, list: true}
+	for _, layer := range layers {
+		for _, v := range get(layer.RC) {
+			f.entries = append(f.entries, entry{value: v, source: layer.Path})
+		}
+	}
+
+	return f
+}
+
+// innermost returns the value from the innermost layer where isSet holds, and that layer's path.
+func innermost[T any](layers []config.RCLayer, get func(*config.AgenticRC) T, isSet func(T) bool) (T, string, bool) {
+	for i := len(layers) - 1; i >= 0; i-- {
+		if v := get(layers[i].RC); isSet(v) {
+			return v, layers[i].Path, true
+		}
+	}
+
+	var zero T
+	return zero, "", false
+}
+
+// writeSection writes s's header, if any, and its fields indented below it.
+func writeSection(b *strings.Builder, s section) {
+	indent := "  "
+	if s.header != "" {
+		fmt.Fprintf(b, "\n  [%s]\n", s.header)
+		indent = "    "
+	}
+
+	for _, f := range s.fields {
+		writeField(b, f, indent)
+	}
+}
+
+// writeField writes one key with its values, each tagged with its source layer or (default).
+func writeField(b *strings.Builder, f field, indent string) {
+	switch {
+	case len(f.entries) == 0 && f.list:
+		fmt.Fprintf(b, "%s%s: (none)\n", indent, f.key)
+	case len(f.entries) == 0:
+		fmt.Fprintf(b, "%s%s: (not set)\n", indent, f.key)
+	case f.list:
+		fmt.Fprintf(b, "%s%s:\n", indent, f.key)
+		for _, e := range f.entries {
+			fmt.Fprintf(b, "%s  - %s%s\n", indent, e.value, sourceTag(e.source))
+		}
+	default:
+		fmt.Fprintf(b, "%s%s: %s%s\n", indent, f.key, f.entries[0].value, sourceTag(f.entries[0].source))
+	}
+}
+
+// sourceTag returns the suffix naming where a value came from.
+func sourceTag(source string) string {
+	if source == "" {
+		return "  (default)"
+	}
+	return "  [" + source + "]"
+}
+
+// baseNames returns rc's bases, with their effective version inlined as name@version.
+func baseNames(rc *config.AgenticRC, versions map[string]string) []string {
+	names := make([]string, len(rc.Build.Bases))
+	for i, name := range rc.Build.Bases {
+		if v, ok := versions[name]; ok {
+			names[i] = name + "@" + v
+		} else {
+			names[i] = name
+		}
+	}
+	return names
 }
 
 // customInstallNames returns the names of rc's custom installs.
@@ -215,105 +284,59 @@ func customInstallNames(rc *config.AgenticRC) []string {
 	return names
 }
 
+// envKeys returns the keys of rc's env entries, leaving out values that may hold secrets.
+func envKeys(rc *config.AgenticRC) []string {
+	keys := make([]string, len(rc.Run.Env))
+	for i, env := range rc.Run.Env {
+		keys[i], _, _ = strings.Cut(env, "=")
+	}
+	return keys
+}
+
+// credentialNames returns each of rc's credentials as its preset, or its hosts when it has none.
+func credentialNames(rc *config.AgenticRC) []string {
+	names := make([]string, len(rc.Run.Proxy.Credentials))
+	for i, cred := range rc.Run.Proxy.Credentials {
+		names[i] = cred.Preset
+		if names[i] == "" {
+			names[i] = strings.Join(cred.Hosts, ", ")
+		}
+	}
+	return names
+}
+
+// marketplaceNames returns each of rc's marketplaces as "name (url)", plus the tools it is limited to.
+func marketplaceNames(rc *config.AgenticRC) []string {
+	names := make([]string, len(rc.Marketplaces))
+	for i, m := range rc.Marketplaces {
+		names[i] = fmt.Sprintf("%s (%s)", m.Name, m.URL)
+		if len(m.Tools) > 0 {
+			names[i] += " tools: " + strings.Join(m.Tools, ", ")
+		}
+	}
+	return names
+}
+
+// customInstructions summarizes rc's custom instructions by line count, since the text can be long.
+func customInstructions(rc *config.AgenticRC) []string {
+	custom := strings.TrimSpace(rc.Run.Instructions.Custom)
+	if custom == "" {
+		return nil
+	}
+
+	lines := strings.Count(custom, "\n") + 1
+	if lines == 1 {
+		return []string{"(1 line)"}
+	}
+	return []string{fmt.Sprintf("(%d lines)", lines)}
+}
+
 // orNotSet returns v, or "(not set)" when it is empty.
 func orNotSet(v string) string {
 	if v == "" {
 		return "(not set)"
 	}
 	return v
-}
-
-// printScalarField prints a scalar config field: innermost RC value wins, else defaultVal tagged (default), else "(not set)".
-func printScalarField(w io.Writer, label string, layers []config.RCLayer, get func(*config.AgenticRC) string, defaultVal string) error {
-	for i := len(layers) - 1; i >= 0; i-- {
-		if v := get(layers[i].RC); v != "" {
-			_, err := fmt.Fprintf(w, "  %s: %s  [%s]\n", label, v, layers[i].Path)
-			return err
-		}
-	}
-
-	if defaultVal != "" {
-		_, err := fmt.Fprintf(w, "  %s: %s  (default)\n", label, defaultVal)
-		return err
-	}
-
-	_, err := fmt.Fprintf(w, "  %s: (not set)\n", label)
-	return err
-}
-
-// effectiveScalar returns the innermost RC value for a scalar field, else defaultVal.
-func effectiveScalar(layers []config.RCLayer, get func(*config.AgenticRC) string, defaultVal string) string {
-	for i := len(layers) - 1; i >= 0; i-- {
-		if v := get(layers[i].RC); v != "" {
-			return v
-		}
-	}
-
-	return defaultVal
-}
-
-// printBoolField prints a bool config field; the innermost layer with a non-nil value wins, else defaultVal is shown tagged (default).
-func printBoolField(w io.Writer, label string, layers []config.RCLayer, get func(*config.AgenticRC) *bool, defaultVal bool) error {
-	for i := len(layers) - 1; i >= 0; i-- {
-		if v := get(layers[i].RC); v != nil {
-			_, err := fmt.Fprintf(w, "  %s: %t  [%s]\n", label, *v, layers[i].Path)
-			return err
-		}
-	}
-
-	_, err := fmt.Fprintf(w, "  %s: %t  (default)\n", label, defaultVal)
-	return err
-}
-
-// printListField prints a list config field, tagging each entry with its source layer, outermost-first.
-func printListField(w io.Writer, label string, layers []config.RCLayer, get func(*config.AgenticRC) []string) error {
-	type entry struct {
-		value string
-		path  string
-	}
-
-	var entries []entry
-	for _, layer := range layers {
-		for _, value := range get(layer.RC) {
-			entries = append(entries, entry{value: value, path: layer.Path})
-		}
-	}
-
-	if len(entries) == 0 {
-		_, err := fmt.Fprintf(w, "  %s: (none)\n", label)
-		return err
-	}
-
-	if _, err := fmt.Fprintf(w, "  %s:\n", label); err != nil {
-		return err
-	}
-
-	for _, entry := range entries {
-		if _, err := fmt.Fprintf(w, "    - %s  [%s]\n", entry.value, entry.path); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// printBasesField prints the bases list with versions inlined as basename@version.
-func printBasesField(w io.Writer, layers []config.RCLayer) error {
-	versions := resolveEffectiveVersions(layers)
-
-	getBases := func(rc *config.AgenticRC) []string {
-		result := make([]string, len(rc.Build.Bases))
-		for i, name := range rc.Build.Bases {
-			if v, ok := versions[name]; ok {
-				result[i] = name + "@" + v
-			} else {
-				result[i] = name
-			}
-		}
-		return result
-	}
-
-	return printListField(w, "bases", layers, getBases)
 }
 
 // resolveEffectiveVersions builds the version map for bases: innermost RC layer wins per key.
