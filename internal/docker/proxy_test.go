@@ -216,6 +216,20 @@ func TestProxyHandleHostsMatching(t *testing.T) {
 		assert.Equal(t, 3, total)
 	})
 
+	t.Run("hosts are made safe to print", func(t *testing.T) {
+		// Arrange
+		logPath := filepath.Join(t.TempDir(), "run.jsonl")
+		line := `{"time":"2026-06-17T12:00:00Z","host":"evil\u202e.test","port":"443","decision":"deny"}`
+		require.NoError(t, os.WriteFile(logPath, []byte(line+"\n"), 0o644))
+		handle := proxyHandle{logPath: logPath}
+
+		// Act
+		hosts, _ := handle.hostsMatching(deniedByAllowlist)
+
+		// Assert
+		assert.Equal(t, []string{`"evil\u202e.test"`}, hosts)
+	})
+
 	t.Run("missing log yields nothing", func(t *testing.T) {
 		// Arrange
 		handle := proxyHandle{logPath: filepath.Join(t.TempDir(), "absent.jsonl")}

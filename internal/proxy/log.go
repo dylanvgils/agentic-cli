@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -95,8 +96,19 @@ func (l *Logger) Log(entry Entry) {
 		if entry.Reason != "" {
 			tags += " (" + entry.Reason + ")"
 		}
-		fmt.Fprintf(l.human, "%s %-7s %-5s %s:%s%s\n", entry.Time.In(l.location).Format(time.RFC3339), level, entry.Protocol, entry.Host, entry.Port, tags)
+		fmt.Fprintf(l.human, "%s %-7s %-5s %s:%s%s\n", entry.Time.In(l.location).Format(time.RFC3339), level, entry.Protocol, DisplayHost(entry.Host), entry.Port, tags)
 	}
+}
+
+// DisplayHost returns host for a terminal, quoted when it has anything but printable ASCII, such as bidi overrides the tool
+// could use to spoof the line.
+func DisplayHost(host string) string {
+	for _, c := range host {
+		if c <= ' ' || c > '~' {
+			return strconv.QuoteToASCII(host)
+		}
+	}
+	return host
 }
 
 // PruneLogs removes access-log files in dir older than maxAge (maxAge <= 0 removes all). Best-effort: never fails the caller.

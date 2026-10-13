@@ -176,7 +176,7 @@ func (h proxyHandle) hostsMatching(match func(proxy.Entry) bool) (hosts []string
 		total++
 		if !seen[entry.Host] {
 			seen[entry.Host] = true
-			hosts = append(hosts, entry.Host)
+			hosts = append(hosts, proxy.DisplayHost(entry.Host))
 		}
 	}
 
