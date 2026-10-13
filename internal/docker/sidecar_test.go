@@ -60,8 +60,8 @@ func Test_setupSidecars(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),
-			Proxy:    sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Image: "default-proxy", LogDir: t.TempDir()},
-			Dind:     sandbox.DindSpec{Enabled: true, Image: "dind"},
+			Proxy:    sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()},
+			Dind:     sandbox.DindSpec{Enabled: true},
 		}}
 
 		// Act

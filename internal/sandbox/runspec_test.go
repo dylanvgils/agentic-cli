@@ -41,7 +41,7 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 
 func TestRunSpecBuilder_WithProxy(t *testing.T) {
 	// Arrange
-	spec := ProxySpec{Mode: ProxyMonitor, Image: "agentic-proxy", Allow: []string{".anthropic.com"}, LogDir: "/home/user/.agentic/proxy"}
+	spec := ProxySpec{Mode: ProxyMonitor, Allow: []string{".anthropic.com"}, LogDir: "/home/user/.agentic/proxy"}
 
 	// Act
 	result := NewRunSpec("agentic-claude").WithProxy(spec).Build()
@@ -64,7 +64,7 @@ func TestRunSpecBuilder_WithCredentials(t *testing.T) {
 
 func TestRunSpecBuilder_WithDind(t *testing.T) {
 	// Arrange
-	spec := DindSpec{Enabled: true, Image: "docker:29-dind-rootless", Limits: ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}
+	spec := DindSpec{Enabled: true, Limits: ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}
 
 	// Act
 	result := NewRunSpec("agentic-claude").WithDind(spec).Build()

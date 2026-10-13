@@ -16,6 +16,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
 // proxyHostAlias is the proxy's stable network alias, registered alongside its randomized
@@ -358,7 +359,7 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 		)
 	}
 
-	return append(args, rs.Proxy.Image)
+	return append(args, tools.ProxyImage)
 }
 
 // createLogFile creates the run's empty log file, so Docker bind-mounts a file instead of creating a root-owned dir.

@@ -16,6 +16,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
 const (
@@ -203,7 +204,7 @@ func (h dindHandle) runArgs(rs toolRun) []string {
 	}
 
 	// Trailing flags are passed through to dockerd
-	return append(args, rs.Dind.Image, arg("data-root", dindDataRoot))
+	return append(args, tools.DindImage, arg("data-root", dindDataRoot))
 }
 
 // toolArgs returns the env and mounts pointing the tool's docker CLI at the sidecar.
