@@ -96,13 +96,13 @@ func (b *RunSpecBuilder) WithLimits(limits ResourceLimits) *RunSpecBuilder {
 	return b
 }
 
-// WithDryRun sets whether to print the docker command without running it.
+// WithDryRun sets whether to print the runtime command without running it.
 func (b *RunSpecBuilder) WithDryRun(dryRun bool) *RunSpecBuilder {
 	b.dryRun = dryRun
 	return b
 }
 
-// WithCredentials appends secrets for runtimes that substitute them themselves.
+// WithCredentials appends the secrets each runtime places for substitution: the docker proxy or msb itself.
 func (b *RunSpecBuilder) WithCredentials(creds ...Credential) *RunSpecBuilder {
 	b.credentials = append(b.credentials, creds...)
 	return b
