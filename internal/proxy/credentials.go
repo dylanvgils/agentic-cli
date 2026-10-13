@@ -17,10 +17,10 @@ const maxHostLen = 253
 // minPlaceholderLen keeps placeholders long enough that no real header value contains one by chance.
 const minPlaceholderLen = 16
 
-// redacted replaces a header value wherever a rule is printed or logged.
+// redacted replaces a secret wherever a credential is printed or logged.
 const redacted = "[redacted]"
 
-// reservedHeaders are dropped or overridden by the reverse proxy, so injecting them would silently do nothing.
+// reservedHeaders are dropped or overridden by the reverse proxy, so a secret in them would silently go nowhere.
 var reservedHeaders = []string{
 	"Connection",
 	"Content-Length",
@@ -33,57 +33,32 @@ var reservedHeaders = []string{
 	"Upgrade",
 }
 
-// Credential is how HTTPS requests to Hosts get a secret: Rules overwrite headers with values the host formatted or, with a
-// Placeholder, the proxy swaps Placeholder for Secret in the tool's own Headers.
+// Credential is a secret for HTTPS requests to Hosts: the proxy swaps Placeholder for Secret in the tool's own Headers.
 type Credential struct {
-	Hosts       []string     `json:"hosts"` // exact hostnames or IPs; wildcards are rejected
-	Rules       []InjectRule `json:"rules,omitempty"`
-	Headers     []string     `json:"headers,omitempty"`
-	Placeholder string       `json:"placeholder,omitempty"`
-	Secret      string       `json:"secret,omitempty"`
-}
-
-// InjectRule overwrites Header with Value, already formatted by the host.
-type InjectRule struct {
-	Header string `json:"header"`
-	Value  string `json:"value"`
+	Hosts       []string `json:"hosts"` // exact hostnames or IPs; wildcards are rejected
+	Headers     []string `json:"headers"`
+	Placeholder string   `json:"placeholder"`
+	Secret      string   `json:"secret"`
 }
 
 // String hides Secret, so printing a credential never leaks it.
 func (c Credential) String() string {
-	return fmt.Sprintf("{Hosts:%v Rules:%v Headers:%v Placeholder:%s Secret:%s}", c.Hosts, c.Rules, c.Headers, c.Placeholder, redactedIfSet(c.Secret))
+	return fmt.Sprintf("{Hosts:%v Headers:%v Placeholder:%s Secret:%s}", c.Hosts, c.Headers, c.Placeholder, redactedIfSet(c.Secret))
 }
 
 // GoString hides Secret from %#v.
 func (c Credential) GoString() string {
-	return fmt.Sprintf("proxy.Credential{Hosts:%#v, Rules:%#v, Headers:%#v, Placeholder:%q, Secret:%q}",
-		c.Hosts, c.Rules, c.Headers, c.Placeholder, redactedIfSet(c.Secret))
+	return fmt.Sprintf("proxy.Credential{Hosts:%#v, Headers:%#v, Placeholder:%q, Secret:%q}", c.Hosts, c.Headers, c.Placeholder, redactedIfSet(c.Secret))
 }
 
 // LogValue hides Secret from slog.
 func (c Credential) LogValue() slog.Value {
 	return slog.GroupValue(
 		slog.Any("hosts", c.Hosts),
-		slog.Any("rules", c.Rules),
 		slog.Any("headers", c.Headers),
 		slog.String("placeholder", c.Placeholder),
 		slog.String("secret", redactedIfSet(c.Secret)),
 	)
-}
-
-// String hides Value, so printing a rule never leaks the secret.
-func (r InjectRule) String() string {
-	return r.Header + ": " + redacted
-}
-
-// GoString hides Value from %#v.
-func (r InjectRule) GoString() string {
-	return fmt.Sprintf("proxy.InjectRule{Header:%q, Value:%q}", r.Header, redacted)
-}
-
-// LogValue hides Value from slog.
-func (r InjectRule) LogValue() slog.Value {
-	return slog.GroupValue(slog.String("header", r.Header), slog.String("value", redacted))
 }
 
 // CredentialHosts returns every host in creds, normalized and without duplicates.
@@ -119,7 +94,7 @@ func LoadCredentials(path string) ([]Credential, error) {
 }
 
 // ValidateCredentials rejects invalid entries, hosts listed twice and placeholders that overlap; errors never contain
-// header values or secrets.
+// secrets.
 func ValidateCredentials(creds []Credential) error {
 	for i, cred := range creds {
 		if err := ValidateCredential(cred); err != nil {
@@ -133,17 +108,23 @@ func ValidateCredentials(creds []Credential) error {
 	return validatePlaceholders(creds)
 }
 
-// ValidateCredential requires exact hosts and either rules or a placeholder with valid headers; errors never contain header
-// values or secrets.
+// ValidateCredential requires exact hosts, valid headers, a placeholder no real value contains by chance and a secret a
+// header can carry; errors never contain the secret.
 func ValidateCredential(cred Credential) error {
 	if err := validateHosts(cred.Hosts); err != nil {
 		return err
 	}
-
-	if cred.Placeholder != "" {
-		return validateSubstitution(cred)
+	if err := validateHeaders(cred.Headers); err != nil {
+		return err
 	}
-	return validateRules(cred.Rules)
+
+	if !validPlaceholder(cred.Placeholder) {
+		return fmt.Errorf("placeholder must be at least %d letters, digits, - or _", minPlaceholderLen)
+	}
+	if !validHeaderValue(cred.Secret) {
+		return fmt.Errorf("invalid secret")
+	}
+	return nil
 }
 
 // validateUniqueHosts rejects a host listed in more than one credential.
@@ -163,17 +144,10 @@ func validateUniqueHosts(creds []Credential) error {
 
 // validatePlaceholders rejects a placeholder inside another, which would swap in the wrong secret.
 func validatePlaceholders(creds []Credential) error {
-	var placeholders []string
-	for _, cred := range creds {
-		if cred.Placeholder != "" {
-			placeholders = append(placeholders, cred.Placeholder)
-		}
-	}
-
-	for i, a := range placeholders {
-		for _, b := range placeholders[i+1:] {
-			if strings.Contains(a, b) || strings.Contains(b, a) {
-				return fmt.Errorf("placeholders %s and %s overlap", a, b)
+	for i, a := range creds {
+		for _, b := range creds[i+1:] {
+			if strings.Contains(a.Placeholder, b.Placeholder) || strings.Contains(b.Placeholder, a.Placeholder) {
+				return fmt.Errorf("placeholders %s and %s overlap", a.Placeholder, b.Placeholder)
 			}
 		}
 	}
@@ -190,42 +164,6 @@ func validateHosts(hosts []string) error {
 		if !validHost(normalizeHost(host)) {
 			return fmt.Errorf("invalid host %q: must be an exact hostname or IP, without wildcards", host)
 		}
-	}
-	return nil
-}
-
-// validateRules requires at least one rule, each with a header that can be injected and a value it can carry.
-func validateRules(rules []InjectRule) error {
-	if len(rules) == 0 {
-		return fmt.Errorf("no rules")
-	}
-
-	for _, rule := range rules {
-		if err := validateHeader(rule.Header); err != nil {
-			return err
-		}
-		if !validHeaderValue(rule.Value) {
-			return fmt.Errorf("invalid value for header %s", rule.Header)
-		}
-	}
-	return nil
-}
-
-// validateSubstitution checks a placeholder credential: no rules, valid headers, a placeholder no real value contains by
-// chance, and a secret a header can carry.
-func validateSubstitution(cred Credential) error {
-	if len(cred.Rules) > 0 {
-		return fmt.Errorf("a credential with a placeholder takes headers, not rules")
-	}
-	if err := validateHeaders(cred.Headers); err != nil {
-		return err
-	}
-
-	if !validPlaceholder(cred.Placeholder) {
-		return fmt.Errorf("placeholder must be at least %d letters, digits, - or _", minPlaceholderLen)
-	}
-	if !validHeaderValue(cred.Secret) {
-		return fmt.Errorf("invalid secret")
 	}
 	return nil
 }

@@ -157,14 +157,7 @@ func (i *Injector) reverseProxy(host, port string, cred Credential) *httputil.Re
 	return &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(target)
-			if cred.Placeholder != "" {
-				substitute(pr.Out.Header, cred)
-				return
-			}
-			for _, rule := range cred.Rules {
-				dropAliases(pr.Out.Header, rule.Header)
-				pr.Out.Header.Set(rule.Header, rule.Value)
-			}
+			substitute(pr.Out.Header, cred)
 		},
 		Transport:     i.transport,
 		FlushInterval: -1, // stream SSE
@@ -233,16 +226,6 @@ func substituteValue(value, placeholder, secret string) string {
 		}
 	}
 	return strings.ReplaceAll(value, placeholder, secret)
-}
-
-// dropAliases deletes headers an upstream may read as name, e.g. X_Api_Key for X-Api-Key in CGI-style backends.
-func dropAliases(header http.Header, name string) {
-	want := headerAlias(name)
-	for key := range header {
-		if headerAlias(key) == want {
-			delete(header, key)
-		}
-	}
 }
 
 // headerAlias folds case and treats "_" as "-", the way CGI-style backends compare header names.

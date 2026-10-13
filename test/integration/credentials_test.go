@@ -42,7 +42,7 @@ secret = "` + secretPath + `"
 
 		// Assert
 		assert.Contains(t, out, "agentic: injecting credentials for "+credentialHost+" ("+secretPath+")")
-		assert.Contains(t, out, "key=agentic-proxy-managed")
+		assert.Regexp(t, `key=agentic-[0-9a-f]{24}\n`, out)
 		assert.Contains(t, out, "leak=no")
 	})
 

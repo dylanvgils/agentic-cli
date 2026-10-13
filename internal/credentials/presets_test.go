@@ -23,21 +23,15 @@ func Test_presets(t *testing.T) {
 	require.NoError(t, err, "every preset passes the proxy's validation and claims distinct hosts")
 	for _, r := range resolved {
 		assert.NotEmpty(t, r.Env)
+		assert.NotEmpty(t, r.Headers)
 	}
 }
 
-func Test_bearer(t *testing.T) {
+func Test_presets_github(t *testing.T) {
 	// Act
-	value := bearer("test-secret")
+	github := presets["github"]
 
 	// Assert
-	assert.Equal(t, "Bearer test-secret", value)
-}
-
-func Test_gitBasic(t *testing.T) {
-	// Act
-	value := gitBasic("test-secret")
-
-	// Assert
-	assert.Equal(t, "Basic eC1hY2Nlc3MtdG9rZW46dGVzdC1zZWNyZXQ=", value)
+	assert.Equal(t, &GitAuth{Host: "github.com", User: "x-access-token"}, github.git)
+	assert.Contains(t, github.hosts, github.git.Host)
 }

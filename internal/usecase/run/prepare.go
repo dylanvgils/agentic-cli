@@ -54,6 +54,9 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 	if err := s.checkRuntime(req); err != nil {
 		return sandbox.RunSpec{}, noCleanup, err
 	}
+	if err := checkCredentialConfig(req.Project.RC); err != nil {
+		return sandbox.RunSpec{}, noCleanup, err
+	}
 
 	if err := s.requireImage(req.Target.ImageName, req.Target.ToolName); err != nil {
 		return sandbox.RunSpec{}, noCleanup, err

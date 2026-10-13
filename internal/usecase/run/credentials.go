@@ -33,6 +33,9 @@ func (s *Service) checkProxyTrust(target Target) error {
 	return fmt.Errorf("%s can't trust the proxy CA, so TLS to credential hosts would fail; rebuild it with \"agentic update %s\"", target.ImageName, target.ToolName)
 }
 
+// gitConfigEnvPrefix starts the env vars git reads config from, which the git credential helper is set through.
+const gitConfigEnvPrefix = "GIT_CONFIG_"
+
 // resolveCredentials reads the secrets of every credential the layers declare, refusing to run while any layer's entries are unapproved.
 func resolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials.Resolved, error) {
 	rc, err := config.Merge(layers)
@@ -57,8 +60,8 @@ func resolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials
 	return credentials.Resolve(rc.Run.Proxy.Credentials)
 }
 
-// credentialSetup checks in.Credentials against the run and, when the proxy injects them, returns the tool's placeholder env; a
-// no-op without credentials.
+// credentialSetup checks in.Credentials against the run and returns the tool's git helper env plus, when the proxy swaps
+// the placeholders, the placeholder env; a no-op without credentials.
 func credentialSetup(in Input, caps sandbox.Capabilities, mounts mountSet, env []string) ([]string, error) {
 	if len(in.Credentials) == 0 {
 		return nil, nil
@@ -74,51 +77,85 @@ func credentialSetup(in Input, caps sandbox.Capabilities, mounts mountSet, env [
 		return nil, err
 	}
 
+	gitEnv := gitHelperEnv(in.Credentials)
+
 	// Without the proxy, the runtime puts its own placeholders in the guest
 	if !caps.CredentialsViaProxy {
-		return nil, nil
+		return gitEnv, nil
 	}
-	return credentialEnv(in.Credentials), nil
+	return append(credentialEnv(in.Credentials), gitEnv...), nil
 }
 
-// proxyCredentials flattens resolved into the list the proxy injects.
+// checkCredentialConfig refuses credentials without env, which no tool could send the placeholder in, and warns that format
+// is ignored; it reads only config, so it runs before any prompt.
+func checkCredentialConfig(rc *config.AgenticRC) error {
+	for _, entry := range rc.Run.Proxy.Credentials {
+		if entry.Preset == "" && len(entry.Env) == 0 {
+			return fmt.Errorf("credential for %s needs env, as the tool must send the placeholder", strings.Join(entry.Hosts, ", "))
+		}
+		if entry.Format != "" {
+			logging.Warnf("the credential format for %s is ignored; the tool sends the header itself", describeEntry(entry))
+		}
+	}
+	return nil
+}
+
+// proxyCredentials maps resolved to the list the proxy swaps.
 func proxyCredentials(resolved []credentials.Resolved) []proxy.Credential {
-	var creds []proxy.Credential
+	creds := make([]proxy.Credential, 0, len(resolved))
 	for _, r := range resolved {
-		creds = append(creds, r.Proxy...)
+		creds = append(creds, r.ProxyCredential())
 	}
 	return creds
 }
 
-// sandboxCredentials maps each resolved entry to a sandbox.Credential named after its first env var; an entry without env is
-// left out, as nothing in the tool could carry its placeholder.
+// sandboxCredentials maps each resolved entry to a sandbox.Credential named after its first env var.
 func sandboxCredentials(resolved []credentials.Resolved) []sandbox.Credential {
-	var creds []sandbox.Credential
+	creds := make([]sandbox.Credential, 0, len(resolved))
 	for _, r := range resolved {
-		if len(r.Env) == 0 {
-			continue
-		}
-
 		creds = append(creds, sandbox.Credential{
 			Name:    r.Env[0],
 			Aliases: r.Env[1:],
-			Hosts:   r.Hosts(),
-			Headers: r.Headers(),
+			Hosts:   r.Hosts,
+			Headers: r.Headers,
 			Secret:  r.Secret,
 		})
 	}
 	return creds
 }
 
-// credentialEnv returns NAME=Placeholder for each credential env var.
+// credentialEnv returns NAME=placeholder for each credential env var.
 func credentialEnv(resolved []credentials.Resolved) []string {
 	var result []string
 	for _, r := range resolved {
 		for _, name := range r.Env {
-			result = append(result, name+"="+credentials.Placeholder)
+			result = append(result, name+"="+r.Placeholder)
 		}
 	}
 	return result
+}
+
+// gitHelperEnv sets a git credential helper for each credential covering git, answering its user and the placeholder in its
+// first env var; git reads it from env, as the tool's home is read-only. Nil when no credential covers git.
+func gitHelperEnv(resolved []credentials.Resolved) []string {
+	var helpers []string
+	for _, r := range resolved {
+		if r.Git == nil {
+			continue
+		}
+
+		i := len(helpers) / 2
+		helper := fmt.Sprintf(`!f() { echo username=%s; echo "password=$%s"; }; f`, r.Git.User, r.Env[0])
+		helpers = append(helpers,
+			fmt.Sprintf("%sKEY_%d=credential.https://%s.helper", gitConfigEnvPrefix, i, r.Git.Host),
+			fmt.Sprintf("%sVALUE_%d=%s", gitConfigEnvPrefix, i, helper),
+		)
+	}
+
+	if len(helpers) == 0 {
+		return nil
+	}
+	return append([]string{fmt.Sprintf("%sCOUNT=%d", gitConfigEnvPrefix, len(helpers)/2)}, helpers...)
 }
 
 // checkCredentialEnv refuses env entries for the proxy trust vars, and credential env names agentic manages or env sets,
@@ -126,6 +163,11 @@ func credentialEnv(resolved []credentials.Resolved) []string {
 func checkCredentialEnv(resolved []credentials.Resolved, env []string, dindEnabled bool) error {
 	if i := slices.IndexFunc(env, func(entry string) bool { return isProxyTrustEnvName(envKey(entry)) }); i >= 0 {
 		return fmt.Errorf("--env: %q is set by agentic when proxy credentials are configured", envKey(env[i]))
+	}
+
+	coversGit := slices.ContainsFunc(resolved, func(r credentials.Resolved) bool { return r.Git != nil })
+	if i := slices.IndexFunc(env, func(entry string) bool { return strings.HasPrefix(envKey(entry), gitConfigEnvPrefix) }); coversGit && i >= 0 {
+		return fmt.Errorf("--env: %q is set by agentic for the git credential helper", envKey(env[i]))
 	}
 
 	for _, r := range resolved {
@@ -176,7 +218,15 @@ func isProxyTrustEnvName(name string) bool {
 func describeInjection(creds []credentials.Resolved) string {
 	parts := make([]string, 0, len(creds))
 	for _, cred := range creds {
-		parts = append(parts, fmt.Sprintf("%s (%s)", strings.Join(cred.Hosts(), ", "), cred.Source))
+		parts = append(parts, fmt.Sprintf("%s (%s)", strings.Join(cred.Hosts, ", "), cred.Source))
 	}
 	return strings.Join(parts, "; ")
+}
+
+// describeEntry names a config entry in messages by its preset or hosts.
+func describeEntry(entry config.RCCredential) string {
+	if entry.Preset != "" {
+		return "preset " + entry.Preset
+	}
+	return strings.Join(entry.Hosts, ", ")
 }

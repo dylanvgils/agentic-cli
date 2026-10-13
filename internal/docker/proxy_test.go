@@ -369,7 +369,7 @@ func TestStartProxy_credentials(t *testing.T) {
 	client := newTestClient()
 
 	stubProxySettleTime(t, 0)
-	creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
+	creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}}
 
 	t.Run("copies a scoped CA and the credentials into the volume before start", func(t *testing.T) {
 		// Arrange
@@ -494,7 +494,7 @@ func Test_proxyHandle_checkStarted(t *testing.T) {
 	client := newTestClient()
 
 	stubProxySettleTime(t, 0)
-	creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
+	creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}}
 
 	t.Run("running proxy passes", func(t *testing.T) {
 		// Arrange
@@ -542,7 +542,7 @@ func Test_dryRunProxy(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
 		stdin := stubDockerRunWithStdinCapture(t, client, nil)
-		creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
+		creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}}
 		rs := toolRun{RunSpec: sandbox.RunSpec{DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir(), Credentials: creds}}}
 
 		// Act

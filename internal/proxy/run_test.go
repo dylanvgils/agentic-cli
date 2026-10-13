@@ -148,7 +148,7 @@ func TestOpenLog(t *testing.T) {
 }
 
 func Test_loadInjector(t *testing.T) {
-	credsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`)
+	credsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"headers":["X-Api-Key"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
 
 	t.Run("neither set disables injection", func(t *testing.T) {
 		// Act
@@ -170,7 +170,7 @@ func Test_loadInjector(t *testing.T) {
 	t.Run("loads the ca and credentials", func(t *testing.T) {
 		// Arrange
 		caDir := writeTestCADir(t)
-		ownCredsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`)
+		ownCredsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"headers":["X-Api-Key"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
 
 		// Act
 		inject, err := loadInjector(caDir, ownCredsPath)
@@ -179,13 +179,14 @@ func Test_loadInjector(t *testing.T) {
 		require.NoError(t, err)
 		cred, ok := inject.credentialFor("api.example.test", "443")
 		require.True(t, ok)
-		assert.Equal(t, []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}, cred.Rules)
+		assert.Equal(t, "test-secret", cred.Secret)
+		assert.Equal(t, []string{"X-Api-Key"}, cred.Headers)
 	})
 
 	t.Run("removes the key and credentials files once loaded", func(t *testing.T) {
 		// Arrange
 		caDir := writeTestCADir(t)
-		ownCredsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`)
+		ownCredsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"headers":["X-Api-Key"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
 
 		// Act
 		_, err := loadInjector(caDir, ownCredsPath)
@@ -230,7 +231,7 @@ func Test_loadInjector(t *testing.T) {
 		_, err := loadInjector(caDir, badPath)
 
 		// Assert
-		assert.ErrorContains(t, err, "no rules")
+		assert.ErrorContains(t, err, "no headers")
 	})
 }
 

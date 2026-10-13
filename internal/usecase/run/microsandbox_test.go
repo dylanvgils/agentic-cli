@@ -24,52 +24,6 @@ func Test_microsandboxRunner_Capabilities(t *testing.T) {
 }
 
 func Test_microsandboxRunner_Check(t *testing.T) {
-	t.Run("accepts proxy credentials with env", func(t *testing.T) {
-		// Arrange
-		req := newCredentialRequest(t)
-		req.Project.RC.Run.Proxy.Credentials[0].Env = []string{"EXAMPLE_API_KEY"}
-		m := &fakeMicrosandbox{available: func() error { return nil }}
-
-		// Act
-		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m}.Check(req)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("refuses a credential without env before checking for msb", func(t *testing.T) {
-		// Arrange
-		req := newCredentialRequest(t)
-		checked := false
-		m := &fakeMicrosandbox{available: func() error {
-			checked = true
-			return nil
-		}}
-
-		// Act
-		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m}.Check(req)
-
-		// Assert
-		assert.ErrorContains(t, err, "credential for api.example.test needs env")
-		assert.False(t, checked)
-	})
-
-	t.Run("warns that a credential format is ignored", func(t *testing.T) {
-		// Arrange
-		req := newCredentialRequest(t)
-		req.Project.RC.Run.Proxy.Credentials[0].Env = []string{"EXAMPLE_API_KEY"}
-		req.Project.RC.Run.Proxy.Credentials[0].Format = "Token %s"
-		errLog := stubErrLog(t)
-		m := &fakeMicrosandbox{available: func() error { return nil }}
-
-		// Act
-		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m}.Check(req)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, errLog.String(), "ignores the credential format for api.example.test")
-	})
-
 	t.Run("returns a missing msb", func(t *testing.T) {
 		// Arrange
 		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
