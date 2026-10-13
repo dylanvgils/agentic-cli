@@ -121,13 +121,35 @@ func LoadCredentials(path string) ([]Credential, error) {
 // ValidateCredentials rejects invalid entries, hosts listed twice and placeholders that overlap; errors never contain
 // header values or secrets.
 func ValidateCredentials(creds []Credential) error {
-	seen := make(map[string]bool)
-	var placeholders []string
 	for i, cred := range creds {
 		if err := ValidateCredential(cred); err != nil {
 			return fmt.Errorf("proxy credential %d: %w", i, err)
 		}
+	}
 
+	if err := validateUniqueHosts(creds); err != nil {
+		return err
+	}
+	return validatePlaceholders(creds)
+}
+
+// ValidateCredential requires exact hosts and either rules or a placeholder with valid headers; errors never contain header
+// values or secrets.
+func ValidateCredential(cred Credential) error {
+	if err := validateHosts(cred.Hosts); err != nil {
+		return err
+	}
+
+	if cred.Placeholder != "" {
+		return validateSubstitution(cred)
+	}
+	return validateRules(cred.Rules)
+}
+
+// validateUniqueHosts rejects a host listed in more than one credential.
+func validateUniqueHosts(creds []Credential) error {
+	seen := make(map[string]bool)
+	for _, cred := range creds {
 		for _, host := range cred.Hosts {
 			host = normalizeHost(host)
 			if seen[host] {
@@ -135,13 +157,19 @@ func ValidateCredentials(creds []Credential) error {
 			}
 			seen[host] = true
 		}
+	}
+	return nil
+}
 
+// validatePlaceholders rejects a placeholder inside another, which would swap in the wrong secret.
+func validatePlaceholders(creds []Credential) error {
+	var placeholders []string
+	for _, cred := range creds {
 		if cred.Placeholder != "" {
 			placeholders = append(placeholders, cred.Placeholder)
 		}
 	}
 
-	// One placeholder inside another would swap in the wrong secret
 	for i, a := range placeholders {
 		for _, b := range placeholders[i+1:] {
 			if strings.Contains(a, b) || strings.Contains(b, a) {
@@ -152,25 +180,27 @@ func ValidateCredentials(creds []Credential) error {
 	return nil
 }
 
-// ValidateCredential requires exact hosts and either rules or a placeholder with valid headers; errors never contain header
-// values or secrets.
-func ValidateCredential(cred Credential) error {
-	if len(cred.Hosts) == 0 {
+// validateHosts requires at least one host, each an exact hostname or IP.
+func validateHosts(hosts []string) error {
+	if len(hosts) == 0 {
 		return fmt.Errorf("no hosts")
 	}
-	for _, host := range cred.Hosts {
+
+	for _, host := range hosts {
 		if !validHost(normalizeHost(host)) {
 			return fmt.Errorf("invalid host %q: must be an exact hostname or IP, without wildcards", host)
 		}
 	}
+	return nil
+}
 
-	if cred.Placeholder != "" {
-		return validateSubstitution(cred)
-	}
-	if len(cred.Rules) == 0 {
+// validateRules requires at least one rule, each with a header that can be injected and a value it can carry.
+func validateRules(rules []InjectRule) error {
+	if len(rules) == 0 {
 		return fmt.Errorf("no rules")
 	}
-	for _, rule := range cred.Rules {
+
+	for _, rule := range rules {
 		if err := validateHeader(rule.Header); err != nil {
 			return err
 		}
@@ -187,13 +217,8 @@ func validateSubstitution(cred Credential) error {
 	if len(cred.Rules) > 0 {
 		return fmt.Errorf("a credential with a placeholder takes headers, not rules")
 	}
-	if len(cred.Headers) == 0 {
-		return fmt.Errorf("no headers")
-	}
-	for _, header := range cred.Headers {
-		if err := validateHeader(header); err != nil {
-			return err
-		}
+	if err := validateHeaders(cred.Headers); err != nil {
+		return err
 	}
 
 	if !validPlaceholder(cred.Placeholder) {
@@ -201,6 +226,20 @@ func validateSubstitution(cred Credential) error {
 	}
 	if !validHeaderValue(cred.Secret) {
 		return fmt.Errorf("invalid secret")
+	}
+	return nil
+}
+
+// validateHeaders requires at least one header, each one that can be injected.
+func validateHeaders(headers []string) error {
+	if len(headers) == 0 {
+		return fmt.Errorf("no headers")
+	}
+
+	for _, header := range headers {
+		if err := validateHeader(header); err != nil {
+			return err
+		}
 	}
 	return nil
 }
