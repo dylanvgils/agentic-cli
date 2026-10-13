@@ -202,3 +202,8 @@ func newTestProxyCA(t *testing.T, names ...string) certs.CA {
 	require.NoError(t, err)
 	return ca
 }
+
+// testPlaceholderCredential returns a valid placeholder credential for host swapping placeholder for test-secret in Authorization and X-Api-Key.
+func testPlaceholderCredential(host, placeholder string) Credential {
+	return Credential{Hosts: []string{host}, Headers: []string{"Authorization", "X-Api-Key"}, Placeholder: placeholder, Secret: "test-secret"}
+}

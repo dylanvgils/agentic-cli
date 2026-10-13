@@ -40,7 +40,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	host, port := splitHostPort(r.Host)
 	host = normalizeHost(host)
-	rules := s.inject.rulesFor(host, port)
+	cred, credentialed := s.inject.credentialFor(host, port)
 
 	entry, forward := s.verdict(ProtocolHTTPS, host, port)
 	if !forward {
@@ -50,8 +50,8 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// intercept logs once the client handshake shows whether injection happens
-	if len(rules) > 0 {
-		s.intercept(w, entry, rules)
+	if credentialed {
+		s.intercept(w, entry, cred)
 		return
 	}
 
