@@ -13,7 +13,7 @@ run = [
 ]
 
 [run]
-extra_mounts = [
+mounts = [
   "go-mod:$CONTAINER_HOME/go",
   "go-cache:$CONTAINER_HOME/.cache/go-build",
   "golangci-lint-cache:$CONTAINER_HOME/.cache/golangci-lint",

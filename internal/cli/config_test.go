@@ -273,8 +273,8 @@ func Test_printProjectConfig(t *testing.T) {
 						CustomInstalls: []config.RCCustomInstall{{Name: "helm", Run: []string{"true"}}},
 					},
 					Run: config.RCRun{
-						RCLimits:    config.RCLimits{PidsLimit: "100", CPUs: "2", Memory: "4g"},
-						ExtraMounts: []string{"vol:/mnt"}, ReadOnlyMounts: []string{"$PWD/secrets:/workspace/secrets"}, Secrets: []string{"tok:/run/s/t"},
+						RCLimits: config.RCLimits{PidsLimit: "100", CPUs: "2", Memory: "4g"},
+						Mounts:   []string{"vol:/mnt"}, Secrets: []string{"tok:/run/s/t"},
 						Proxy: config.RCProxy{Enabled: &enabled, Mode: config.ModeMonitor, AllowedHosts: []string{".github.com"}},
 					},
 				},
@@ -311,14 +311,14 @@ func Test_printProjectConfig(t *testing.T) {
 				Path: "/home/.agenticrc.toml",
 				RC: &config.AgenticRC{
 					Build: config.RCBuild{AptPackages: []string{"make"}},
-					Run:   config.RCRun{RCLimits: config.RCLimits{CPUs: "2"}, ExtraMounts: []string{"parent-vol:/mnt/p"}},
+					Run:   config.RCRun{RCLimits: config.RCLimits{CPUs: "2"}, Mounts: []string{"parent-vol:/mnt/p"}},
 				},
 			},
 			{
 				Path: "/project/.agenticrc.toml",
 				RC: &config.AgenticRC{
 					Build: config.RCBuild{AptPackages: []string{"gcc"}},
-					Run:   config.RCRun{RCLimits: config.RCLimits{CPUs: "8", PidsLimit: "100"}, ExtraMounts: []string{"child-vol:/mnt/c"}},
+					Run:   config.RCRun{RCLimits: config.RCLimits{CPUs: "8", PidsLimit: "100"}, Mounts: []string{"child-vol:/mnt/c"}},
 				},
 			},
 		}
@@ -389,8 +389,7 @@ func Test_printProjectConfig(t *testing.T) {
 		assert.Contains(t, out, "apt_packages: (none)")
 		assert.Contains(t, out, "custom_installs: (none)")
 		assert.Contains(t, out, "bases: (none)")
-		assert.Contains(t, out, "extra_mounts: (none)")
-		assert.Contains(t, out, "read_only_mounts: (none)")
+		assert.Contains(t, out, "mounts: (none)")
 		assert.Contains(t, out, "secrets: (none)")
 		assert.Contains(t, out, "proxy.enabled: false  (default)")
 		assert.Contains(t, out, "proxy.mode: enforce  (default)")

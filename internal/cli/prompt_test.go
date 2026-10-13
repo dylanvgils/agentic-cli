@@ -85,7 +85,7 @@ func Test_describeDir(t *testing.T) {
 
 func Test_ttyPrompter_ApproveSettings(t *testing.T) {
 	layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
-	changed := []config.GuardedSetting{{Key: "run.extra_mounts", Value: []string{"~/.example:/x:rw"}}}
+	changed := []config.GuardedSetting{{Key: "run.mounts", Value: []string{"~/.example:/x:rw"}}}
 
 	t.Run("no tty names the changed keys and hints to run interactively", func(t *testing.T) {
 		// Arrange
@@ -96,7 +96,7 @@ func Test_ttyPrompter_ApproveSettings(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "(run.extra_mounts); run interactively")
+		assert.Contains(t, err.Error(), "(run.mounts); run interactively")
 	})
 
 	t.Run("tty answers y lists the settings and approves", func(t *testing.T) {
@@ -111,7 +111,7 @@ func Test_ttyPrompter_ApproveSettings(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, logs.String(), "approve only changes you made or expect")
-		assert.Contains(t, logs.String(), "=> run.extra_mounts - host paths mounted into the container\n   \"~/.example:/x:rw\"\n")
+		assert.Contains(t, logs.String(), "=> run.mounts - host paths mounted into the container\n   \"~/.example:/x:rw\"\n")
 	})
 
 	t.Run("tty answers n refuses", func(t *testing.T) {
@@ -283,10 +283,10 @@ func Test_describeSetting(t *testing.T) {
 
 	t.Run("cleared value is shown as removed", func(t *testing.T) {
 		// Act
-		header, values := describeSetting(config.GuardedSetting{Key: "run.read_only_mounts", Value: []string(nil)})
+		header, values := describeSetting(config.GuardedSetting{Key: "run.secrets", Value: []string(nil)})
 
 		// Assert
-		assert.Equal(t, "run.read_only_mounts - "+settingEffects["run.read_only_mounts"]+" (removed)", header)
+		assert.Equal(t, "run.secrets - "+settingEffects["run.secrets"]+" (removed)", header)
 		assert.Empty(t, values)
 	})
 }

@@ -144,7 +144,7 @@ func Test_checkTrust(t *testing.T) {
 func Test_checkSettings(t *testing.T) {
 	mountLayer := func(dir string) config.RCLayer {
 		rc := &config.AgenticRC{}
-		rc.Run.ExtraMounts = []string{"~/.example:/x:rw"}
+		rc.Run.Mounts = []string{"~/.example:/x:rw"}
 		return config.RCLayer{Path: filepath.Join(dir, ".agenticrc.toml"), RC: rc}
 	}
 
@@ -159,7 +159,7 @@ func Test_checkSettings(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, [][]string{{"run.extra_mounts"}}, p.settingsAsked)
+		assert.Equal(t, [][]string{{"run.mounts"}}, p.settingsAsked)
 		cfg, err := config.LoadState(toolHome)
 		require.NoError(t, err)
 		assert.Empty(t, cfg.ChangedSettings(layer))

@@ -38,7 +38,7 @@ How to read it:
 | Layer | What it stops | What it doesn't stop | Code |
 | --- | --- | --- | --- |
 | **Tool container**: read-only root, all capabilities dropped, `no-new-privileges`, your uid/gid, pid/cpu/memory limits | Changing the system, becoming root, fork bombs and runaway memory | Anything it can do with the mounts it's given; a kernel bug | `internal/docker/runargs.go` |
-| **Mounts**: only `/workspace`, the tool's own home dir, read-only secrets, and extra `-v`/`extra_mounts` bind mounts (read-only unless `:rw`) | Reading the rest of your files (`~/.ssh`, other repos, browser data); [mount tricks](config.md#mount-safety) via planted symlinks or `agentic.json`/`state.json` | Reading everything that *is* mounted, including its own credentials and secrets; editing the workspace | `internal/tools/<tool>.go`, `internal/mount` |
+| **Mounts**: only `/workspace`, the tool's own home dir, read-only secrets, and extra `--volume`/`mounts` bind mounts (read-only unless `:rw`) | Reading the rest of your files (`~/.ssh`, other repos, browser data); [mount tricks](config.md#mount-safety) via planted symlinks or `agentic.json`/`state.json` | Reading everything that *is* mounted, including its own credentials and secrets; editing the workspace | `internal/tools/<tool>.go`, `internal/mount` |
 | **Network** `agentic-net` | Reaching other containers on your Docker host | Reaching the internet | `internal/docker/network.go` |
 | **Egress proxy** (opt-in, beta, `--proxy`): tool sits on an `--internal` network whose only way out is the proxy | Talking to hosts not on the allowlist; every attempt is logged | Sending data to an allowlisted host (filtering is by host, not content) | `internal/proxy`, `internal/docker/proxy.go` |
 | **Credential injection** (opt-in, beta, `[[run.proxy.credentials]]`): the proxy holds API keys and sets them as headers for their hosts; the tool sees a placeholder | Reading or leaking a configured API key; containers outside the run's network (e.g. another agentic run) using it | Using the key through its hosts during the run; OAuth tokens in the tool home; Copilot's exchanged token | `internal/proxy`, `internal/credentials`, `internal/usecase/run/credentials.go` |
@@ -49,7 +49,7 @@ How to read it:
 
 - Egress proxy and credential injection: `--proxy`, `--proxy-monitor`, `[[run.proxy.credentials]]`. See [Egress proxy](egress-proxy.md).
 - DinD sidecar: `--dind`. See [Docker-in-Docker](docker-in-docker.md).
-- Read-only sub-paths: [`read_only_mounts`](config.md#read_only_mounts).
+- Read-only workspace sub-paths: [`--volume` or `mounts`](usage.md#named-volumes).
 
 Install scripts for Claude, Copilot and OpenCode are checked against a pinned SHA256 before they run, not piped straight into `bash`. A daily job opens a PR when an upstream script changes. If a build fails on a stale checksum before that PR lands, `--skip-install-checksum` skips the check for that build.
 

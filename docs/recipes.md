@@ -27,7 +27,7 @@ Or share it with the team through `.agenticrc.toml`:
 ```toml
 # .agenticrc.toml
 [run]
-extra_mounts = [
+mounts = [
   "maven:$CONTAINER_HOME/.m2",
   "gradle:$CONTAINER_HOME/.gradle",
 ]

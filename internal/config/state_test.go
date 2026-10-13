@@ -205,7 +205,7 @@ func Test_State_ChangedSettings(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".agenticrc.toml")
 	mounts := func(m ...string) RCLayer {
 		rc := &AgenticRC{}
-		rc.Run.ExtraMounts = m
+		rc.Run.Mounts = m
 		return RCLayer{Path: path, RC: rc}
 	}
 
@@ -228,7 +228,7 @@ func Test_State_ChangedSettings(t *testing.T) {
 		changed := cfg.ChangedSettings(mounts("~/.example:/x:rw"))
 
 		// Assert
-		assert.Equal(t, []GuardedSetting{{"run.extra_mounts", []string{"~/.example:/x:rw"}}}, changed)
+		assert.Equal(t, []GuardedSetting{{"run.mounts", []string{"~/.example:/x:rw"}}}, changed)
 	})
 
 	t.Run("approved setting is unchanged", func(t *testing.T) {
@@ -253,7 +253,7 @@ func Test_State_ChangedSettings(t *testing.T) {
 
 		// Assert
 		require.Len(t, changed, 1)
-		assert.Equal(t, "run.extra_mounts", changed[0].Key)
+		assert.Equal(t, "run.mounts", changed[0].Key)
 	})
 
 	t.Run("config file linked to an approved one needs its own approval", func(t *testing.T) {

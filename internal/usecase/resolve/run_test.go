@@ -11,7 +11,7 @@ import (
 func TestVolumes(t *testing.T) {
 	t.Run("ordering", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{ExtraMounts: []string{"rcvol:/mnt/rc"}}}
+		rc := &config.AgenticRC{Run: config.RCRun{Mounts: []string{"rcvol:/mnt/rc"}}}
 
 		// Act
 		result := Volumes([]string{"tool:/mnt/tool"}, []string{"flagvol:/mnt/flag"}, rc)
@@ -46,7 +46,7 @@ func TestVolumes(t *testing.T) {
 
 	t.Run("user bind mounts default to read-only", func(t *testing.T) {
 		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{ExtraMounts: []string{"/host/rc:/mnt/rc"}}}
+		rc := &config.AgenticRC{Run: config.RCRun{Mounts: []string{"/host/rc:/mnt/rc"}}}
 
 		// Act
 		result := Volumes(nil, []string{"/host/flag:/mnt/flag"}, rc)
@@ -61,38 +61,6 @@ func TestVolumes(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []string{"$TOOL_HOME/claude/data:$CONTAINER_HOME/.claude"}, result)
-	})
-}
-
-func TestReadOnlyMounts(t *testing.T) {
-	t.Run("ordering", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{ReadOnlyMounts: []string{"rcro:/mnt/rc"}}}
-
-		// Act
-		result := ReadOnlyMounts([]string{"flagro:/mnt/flag"}, rc)
-
-		// Assert
-		assert.Equal(t, []string{
-			"flagro:/mnt/flag",
-			"rcro:/mnt/rc",
-		}, result)
-	})
-
-	t.Run("only flags", func(t *testing.T) {
-		// Act
-		result := ReadOnlyMounts([]string{"flagro:/mnt/flag"}, &config.AgenticRC{})
-
-		// Assert
-		assert.Equal(t, []string{"flagro:/mnt/flag"}, result)
-	})
-
-	t.Run("all empty returns nil", func(t *testing.T) {
-		// Act
-		result := ReadOnlyMounts(nil, &config.AgenticRC{})
-
-		// Assert
-		assert.Nil(t, result)
 	})
 }
 

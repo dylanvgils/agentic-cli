@@ -185,7 +185,7 @@ func TestPrepare(t *testing.T) {
 		stubLatestToolVersion(t, "2.0.0")
 		stubLog(t)
 		rc := &config.AgenticRC{}
-		rc.Run.ExtraMounts = []string{"~/.example:/x:rw"}
+		rc.Run.Mounts = []string{"~/.example:/x:rw"}
 		req.Project.Layers = []config.RCLayer{{Path: filepath.Join(req.Project.Dir, ".agenticrc.toml"), RC: rc}}
 		p := &fakePrompter{approveSettings: func(config.RCLayer, []config.GuardedSetting) error { return errors.New("settings not approved") }}
 
@@ -301,18 +301,17 @@ func Test_resolveInput(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
 		flags := Flags{
-			ToolHome:       "/example.test/home",
-			DryRun:         true,
-			Registry:       "registry.example.test",
-			Proxy:          resolve.ProxyInput{MonitorFlag: true},
-			Dind:           resolve.DindInput{DindFlag: true},
-			Volumes:        []string{"/example.test/a:/a"},
-			Secrets:        []string{"token:/example.test/token"},
-			ReadOnlyMounts: []string{"/example.test/b:/b"},
-			Env:            []string{"FOO=bar"},
-			Limits:         sandbox.ResourceLimits{CPUs: "2"},
-			DindLimits:     sandbox.ResourceLimits{Memory: "1g"},
-			Runtime:        RuntimeMicrosandbox,
+			ToolHome:   "/example.test/home",
+			DryRun:     true,
+			Registry:   "registry.example.test",
+			Proxy:      resolve.ProxyInput{MonitorFlag: true},
+			Dind:       resolve.DindInput{DindFlag: true},
+			Volumes:    []string{"/example.test/a:/a"},
+			Secrets:    []string{"token:/example.test/token"},
+			Env:        []string{"FOO=bar"},
+			Limits:     sandbox.ResourceLimits{CPUs: "2"},
+			DindLimits: sandbox.ResourceLimits{Memory: "1g"},
+			Runtime:    RuntimeMicrosandbox,
 		}
 
 		// Act
@@ -321,18 +320,17 @@ func Test_resolveInput(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, Input{
-			ToolHome:       "/example.test/home",
-			Volumes:        []string{"/example.test/a:/a"},
-			Secrets:        []string{"token:/example.test/token"},
-			ReadOnlyMounts: []string{"/example.test/b:/b"},
-			Env:            []string{"FOO=bar"},
-			Limits:         sandbox.ResourceLimits{CPUs: "2"},
-			DryRun:         true,
-			Registry:       "registry.example.test",
-			ProxyMode:      sandbox.ProxyMonitor,
-			DindEnabled:    true,
-			DindLimits:     sandbox.ResourceLimits{Memory: "1g"},
-			Runtime:        RuntimeMicrosandbox,
+			ToolHome:    "/example.test/home",
+			Volumes:     []string{"/example.test/a:/a"},
+			Secrets:     []string{"token:/example.test/token"},
+			Env:         []string{"FOO=bar"},
+			Limits:      sandbox.ResourceLimits{CPUs: "2"},
+			DryRun:      true,
+			Registry:    "registry.example.test",
+			ProxyMode:   sandbox.ProxyMonitor,
+			DindEnabled: true,
+			DindLimits:  sandbox.ResourceLimits{Memory: "1g"},
+			Runtime:     RuntimeMicrosandbox,
 		}, in)
 	})
 

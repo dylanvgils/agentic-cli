@@ -4,7 +4,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -56,24 +55,6 @@ func Test_runTool(t *testing.T) {
 		rs, toolArgs := get()
 		assert.Equal(t, "agentic-claude", rs.Image)
 		assert.Empty(t, toolArgs)
-	})
-
-	t.Run("read-only-mount flag forces the mount :ro and appends it last", func(t *testing.T) {
-		// Arrange
-		t.Chdir(t.TempDir())
-		withTempToolHome(t)
-		get := captureRunContainer(t)
-		stubFlag(t, runToolCmd, "read-only-mount", "$PWD/creds:/workspace/creds")
-
-		// Act
-		err := runTool(runToolCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		rs, _ := get()
-		require.Contains(t, rs.Volumes, "$PWD/creds:/workspace/creds:ro")
-		assert.Equal(t, len(rs.Volumes)-1, slices.Index(rs.Volumes, "$PWD/creds:/workspace/creds:ro"),
-			"flag-supplied read-only mount must be last so it shadows every other mount")
 	})
 
 	t.Run("dind flag enables the sidecar when the image has the docker layer", func(t *testing.T) {
@@ -255,7 +236,6 @@ func Test_runRequest(t *testing.T) {
 	stubFlag(t, runToolCmd, "dry-run", "true")
 	stubFlag(t, runToolCmd, "volume", "/example.test/a:/a")
 	stubFlag(t, runToolCmd, "secret", "token:/example.test/token")
-	stubFlag(t, runToolCmd, "read-only-mount", "/example.test/b:/b")
 	stubFlag(t, runToolCmd, "env", "FOO=bar")
 	stubFlag(t, runToolCmd, "registry", "registry.example.test")
 	stubFlag(t, runToolCmd, "proxy", "true")
@@ -279,7 +259,6 @@ func Test_runRequest(t *testing.T) {
 	assert.Equal(t, "registry.example.test", req.Flags.Registry)
 	assert.Equal(t, []string{"/example.test/a:/a"}, req.Flags.Volumes)
 	assert.Equal(t, []string{"token:/example.test/token"}, req.Flags.Secrets)
-	assert.Equal(t, []string{"/example.test/b:/b"}, req.Flags.ReadOnlyMounts)
 	assert.Equal(t, []string{"FOO=bar"}, req.Flags.Env)
 	assert.Equal(t, run.RuntimeMicrosandbox, req.Flags.Runtime)
 }

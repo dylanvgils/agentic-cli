@@ -108,6 +108,7 @@ agentic run -v '~/.m2:$CONTAINER_HOME/.m2:rw' claude # bind mount, writable
 
 - Bind mounts are **read-only unless you add `:rw`**, so the agent can't change host files you only meant to share. Other Docker options can follow it (`:rw,z`).
 - Named volumes, `/workspace` and the tool's own state directories are always writable.
+- To protect part of the workspace, mount it over itself: `--volume '$PWD/.git:/workspace/.git'` stays read-only while the rest of `/workspace` is writable.
 - See [Volume mounts](volume-mounts.md) for what each tool gets mounted automatically.
 
 Manage volumes with `agentic volumes`:
