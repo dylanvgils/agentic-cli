@@ -10,30 +10,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
-// capabilities returns what runtime offers; an unknown runtime offers nothing.
-func (s *Service) capabilities(runtime Runtime) sandbox.Capabilities {
-	switch runtime {
-	case RuntimeDocker, "":
-		return s.docker.Capabilities()
-	case RuntimeMicrosandbox:
-		return s.microsandbox.Capabilities()
-	default:
-		return sandbox.Capabilities{}
-	}
-}
-
-// checkRuntime refuses a run req's runtime can't do safely and warns about what it drops, then runs that runtime's own checks.
-func (s *Service) checkRuntime(req Request) error {
-	if err := checkCapabilities(req, s.capabilities(req.Flags.Runtime)); err != nil {
-		return err
-	}
-
-	if req.Flags.Runtime == RuntimeMicrosandbox {
-		return s.checkMicrosandbox(req)
-	}
-	return nil
-}
-
 // requiredCapabilities returns what a run with flags and rc needs; the proxy counts only when asked for, not when credentials force it.
 func requiredCapabilities(flags Flags, rc *config.AgenticRC) sandbox.Capabilities {
 	return sandbox.Capabilities{
