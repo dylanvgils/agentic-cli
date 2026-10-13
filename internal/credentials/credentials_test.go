@@ -28,9 +28,6 @@ func TestResolve(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		require.Len(t, resolved, 1)
-		r := resolved[0]
-		assert.Regexp(t, `^agentic-[0-9a-f]{24}$`, r.Placeholder)
-		r.Placeholder = ""
 		assert.Equal(t, Resolved{
 			Hosts:   []string{"api.example.test", "git.example.test"},
 			Headers: []string{"X-Api-Key", "Authorization"},
@@ -39,7 +36,7 @@ func TestResolve(t *testing.T) {
 			Source:  secret,
 			Path:    secret,
 			Git:     &GitAuth{Host: "git.example.test", User: "x-access-token"},
-		}, r)
+		}, resolved[0])
 	})
 
 	t.Run("explicit env replaces the preset env", func(t *testing.T) {
@@ -75,21 +72,6 @@ func TestResolve(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "test-secret", resolved[0].Secret)
-	})
-
-	t.Run("each entry gets its own placeholder, new each time", func(t *testing.T) {
-		// Arrange
-		entries := []config.RCCredential{{Preset: "example", Secret: secret}, {Preset: "other", Secret: secret}}
-
-		// Act
-		first, err := Resolve(entries)
-		require.NoError(t, err)
-		again, err := Resolve(entries)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotEqual(t, first[0].Placeholder, first[1].Placeholder)
-		assert.NotEqual(t, first[0].Placeholder, again[0].Placeholder)
 	})
 
 	t.Run("entries merged from several config levels resolve in order", func(t *testing.T) {
@@ -175,15 +157,19 @@ func TestResolve(t *testing.T) {
 	})
 }
 
-func TestResolved_ProxyCredential(t *testing.T) {
+func Test_validationCredential(t *testing.T) {
 	// Arrange
-	r := Resolved{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Env: []string{"EXAMPLE_TOKEN"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}
+	r := Resolved{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Env: []string{"EXAMPLE_TOKEN"}, Secret: "test-secret"}
 
 	// Act
-	cred := r.ProxyCredential()
+	first := validationCredential(r, 0)
+	second := validationCredential(r, 1)
 
 	// Assert
-	assert.Equal(t, proxy.Credential{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}, cred)
+	require.NoError(t, proxy.ValidateCredential(first))
+	assert.Equal(t, []string{"api.example.test"}, first.Hosts)
+	assert.Equal(t, "test-secret", first.Secret)
+	assert.NoError(t, proxy.ValidateCredentials([]proxy.Credential{first, {Hosts: []string{"git.example.test"}, Headers: second.Headers, Placeholder: second.Placeholder, Secret: second.Secret}}), "stand-ins never overlap")
 }
 
 func TestHosts(t *testing.T) {

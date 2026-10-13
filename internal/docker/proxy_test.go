@@ -369,7 +369,7 @@ func TestStartProxy_credentials(t *testing.T) {
 	client := newTestClient()
 
 	stubProxySettleTime(t, 0)
-	creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}}
+	creds := []sandbox.Credential{{Name: "EXAMPLE_API_KEY", Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"}}
 
 	t.Run("copies a scoped CA and the credentials into the volume before start", func(t *testing.T) {
 		// Arrange
@@ -382,7 +382,7 @@ func TestStartProxy_credentials(t *testing.T) {
 			callsAtCopy = len(get())
 			return orig(r, args...)
 		}
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir(), Credentials: creds}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Credentials: creds, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}}
 
 		// Act
 		handle, err := client.startProxy(rs)
@@ -417,7 +417,9 @@ func TestStartProxy_credentials(t *testing.T) {
 
 		var loaded []proxy.Credential
 		require.NoError(t, json.Unmarshal(files[proxyCredentialsSubdir+"/"+proxyCredentialsFile].content, &loaded))
-		assert.Equal(t, creds, loaded)
+		assert.Equal(t, handle.credentials, loaded)
+		require.Len(t, loaded, 1)
+		assert.Equal(t, "test-secret", loaded[0].Secret)
 
 		ca, err := certs.LoadCA(files[proxyCredentialsSubdir+"/"+proxy.CACertFile].content, files[proxyCredentialsSubdir+"/"+proxy.CAKeyFile].content)
 		require.NoError(t, err)
@@ -429,7 +431,7 @@ func TestStartProxy_credentials(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
 		stubDockerRunWithStdinCapture(t, client, fmt.Errorf("stub: cp failed"))
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir(), Credentials: creds}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Credentials: creds, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}}
 
 		// Act
 		_, err := client.startProxy(rs)
@@ -444,7 +446,7 @@ func TestStartProxy_credentials(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
 		stdin := stubDockerRunWithStdinCapture(t, client, nil)
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir(), Credentials: creds}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Credentials: creds, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}}
 
 		// Act
 		_, err := client.startProxy(rs)
@@ -460,7 +462,7 @@ func TestStartProxy_credentials(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "false")
 		stubDockerRunWithStdinCapture(t, client, nil)
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir(), Credentials: creds}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Credentials: creds, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}}
 
 		// Act
 		_, err := client.startProxy(rs)
@@ -542,8 +544,8 @@ func Test_dryRunProxy(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
 		stdin := stubDockerRunWithStdinCapture(t, client, nil)
-		creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}}
-		rs := toolRun{RunSpec: sandbox.RunSpec{DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir(), Credentials: creds}}}
+		creds := []sandbox.Credential{{Name: "EXAMPLE_API_KEY", Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{DryRun: true, Credentials: creds, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
 
 		// Act
 		var toolArgs []string
@@ -555,6 +557,7 @@ func Test_dryRunProxy(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, toolArgs, "--env="+tools.ProxyCAEnvName+"="+dryRunCAPlaceholder)
+		assert.Regexp(t, `--env=EXAMPLE_API_KEY=agentic-[0-9a-f]{24}`, strings.Join(toolArgs, " "))
 		assert.Contains(t, out, "--volume="+proxyRunMountDir)
 		assert.Contains(t, out, proxy.EnvClientNets+"="+dryRunClientNetsPlaceholder)
 		assert.NotContains(t, out, "test-secret")

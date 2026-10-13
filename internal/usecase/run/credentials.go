@@ -10,7 +10,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
@@ -60,8 +59,8 @@ func resolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials
 	return credentials.Resolve(rc.Run.Proxy.Credentials)
 }
 
-// credentialSetup checks in.Credentials against the run and returns the tool's git helper env plus, when the proxy swaps
-// the placeholders, the placeholder env; a no-op without credentials.
+// credentialSetup checks in.Credentials against the run and returns the tool's git helper env; the runtime sets the
+// placeholders itself. A no-op without credentials.
 func credentialSetup(in Input, caps sandbox.Capabilities, mounts mountSet, env []string) ([]string, error) {
 	if len(in.Credentials) == 0 {
 		return nil, nil
@@ -77,13 +76,7 @@ func credentialSetup(in Input, caps sandbox.Capabilities, mounts mountSet, env [
 		return nil, err
 	}
 
-	gitEnv := gitHelperEnv(in.Credentials)
-
-	// Without the proxy, the runtime puts its own placeholders in the guest
-	if !caps.CredentialsViaProxy {
-		return gitEnv, nil
-	}
-	return append(credentialEnv(in.Credentials), gitEnv...), nil
+	return gitHelperEnv(in.Credentials), nil
 }
 
 // checkCredentialConfig refuses credentials without env, which no tool could send the placeholder in, and warns that format
@@ -100,15 +93,6 @@ func checkCredentialConfig(rc *config.AgenticRC) error {
 	return nil
 }
 
-// proxyCredentials maps resolved to the list the proxy swaps.
-func proxyCredentials(resolved []credentials.Resolved) []proxy.Credential {
-	creds := make([]proxy.Credential, 0, len(resolved))
-	for _, r := range resolved {
-		creds = append(creds, r.ProxyCredential())
-	}
-	return creds
-}
-
 // sandboxCredentials maps each resolved entry to a sandbox.Credential named after its first env var.
 func sandboxCredentials(resolved []credentials.Resolved) []sandbox.Credential {
 	creds := make([]sandbox.Credential, 0, len(resolved))
@@ -122,17 +106,6 @@ func sandboxCredentials(resolved []credentials.Resolved) []sandbox.Credential {
 		})
 	}
 	return creds
-}
-
-// credentialEnv returns NAME=placeholder for each credential env var.
-func credentialEnv(resolved []credentials.Resolved) []string {
-	var result []string
-	for _, r := range resolved {
-		for _, name := range r.Env {
-			result = append(result, name+"="+r.Placeholder)
-		}
-	}
-	return result
 }
 
 // gitHelperEnv sets a git credential helper for each credential covering git, answering its user and the placeholder in its

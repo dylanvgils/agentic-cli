@@ -259,8 +259,8 @@ func TestPrepare(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		require.Len(t, rs.Proxy.Credentials, 1)
-		assert.Equal(t, []string{"api.example.test"}, rs.Proxy.Credentials[0].Hosts)
+		require.Len(t, rs.Credentials, 1)
+		assert.Equal(t, []string{"api.example.test"}, rs.Credentials[0].Hosts)
 	})
 
 	t.Run("approved credentials print the injection notice", func(t *testing.T) {

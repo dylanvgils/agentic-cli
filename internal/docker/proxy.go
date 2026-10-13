@@ -58,28 +58,46 @@ type proxyHandle struct {
 	allow       []string
 	monitor     bool
 	credentials []proxy.Credential
-	clientNets  []string
-	caPEM       []byte
+	// placeholderEnv sets each credential's env vars to its placeholder in the tool
+	placeholderEnv []string
+	clientNets     []string
+	caPEM          []byte
 }
 
-// newProxyHandle derives the per-run proxy resource names without creating any docker resources, so it is safe for dry runs.
+// newProxyHandle derives the per-run proxy resource names and credential placeholders without creating any docker
+// resources, so it is safe for dry runs.
 func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 	id, err := randID()
 	if err != nil {
 		return proxyHandle{}, err
 	}
 
+	creds, placeholderEnv, err := proxyCredentials(rs.Credentials)
+	if err != nil {
+		return proxyHandle{}, err
+	}
+
 	name := proxyHostAlias + "-" + id
 	return proxyHandle{
-		client:      c,
-		id:          id,
-		network:     name,
-		container:   name,
-		logPath:     filepath.Join(rs.Proxy.LogDir, proxyLogFileName(id)),
-		allow:       rs.Proxy.Allow,
-		monitor:     rs.Proxy.Mode == sandbox.ProxyMonitor,
-		credentials: rs.Proxy.Credentials,
+		client:         c,
+		id:             id,
+		network:        name,
+		container:      name,
+		logPath:        filepath.Join(rs.Proxy.LogDir, proxyLogFileName(id)),
+		allow:          rs.Proxy.Allow,
+		monitor:        rs.Proxy.Mode == sandbox.ProxyMonitor,
+		credentials:    creds,
+		placeholderEnv: placeholderEnv,
 	}, nil
+}
+
+// toolEnvArgs returns the --env flags the tool needs with this proxy: its URL, trust in its CA and the credential placeholders.
+func (h proxyHandle) toolEnvArgs(dind bool) []string {
+	args := append(proxyEnvArgs(dind), h.trustArgs()...)
+	for _, entry := range h.placeholderEnv {
+		args = append(args, arg("env", entry))
+	}
+	return args
 }
 
 // proxyEnvArgs returns the --env flags pointing the tool at the proxy, keyed on the static
@@ -283,7 +301,7 @@ func (c *Client) dryRunProxy(rs *toolRun) (proxyEnv []string, cleanup func(), er
 		return nil, nil, err
 	}
 
-	return append(proxyEnvArgs(rs.Dind.Enabled), handle.trustArgs()...), noCleanup, nil
+	return handle.toolEnvArgs(rs.Dind.Enabled), noCleanup, nil
 }
 
 // launchProxy starts the sidecar and returns a cleanup that tears it down and prints the access summary.
@@ -313,7 +331,7 @@ func (c *Client) launchProxy(rs *toolRun) (proxyEnv []string, cleanup func(), er
 		stop()
 		handle.PrintSummary(logging.Err)
 	}
-	return append(proxyEnvArgs(rs.Dind.Enabled), handle.trustArgs()...), cleanup, nil
+	return handle.toolEnvArgs(rs.Dind.Enabled), cleanup, nil
 }
 
 // createArgs builds the `docker create` arguments for the hardened proxy sidecar, registering

@@ -3,6 +3,8 @@ package docker
 import (
 	"archive/tar"
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"path"
@@ -13,7 +15,11 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/certs"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
+
+// placeholderPrefix starts every placeholder, so a tool's env shows the value is agentic's stand-in.
+const placeholderPrefix = "agentic-"
 
 // archiveFile is one file written into a tar archive.
 type archiveFile struct {
@@ -133,4 +139,36 @@ func parseUserGroup(userGroup string) (uid, gid int, err error) {
 		return 0, 0, fmt.Errorf("invalid gid in %q: %w", userGroup, err)
 	}
 	return uid, gid, nil
+}
+
+// proxyCredentials gives each credential a random placeholder for this run and returns the proxy's credentials plus the
+// tool env setting each credential's env vars to its placeholder.
+func proxyCredentials(creds []sandbox.Credential) ([]proxy.Credential, []string, error) {
+	var proxyCreds []proxy.Credential
+	var env []string
+	for _, cred := range creds {
+		placeholder, err := newPlaceholder()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		proxyCreds = append(proxyCreds, proxy.Credential{Hosts: cred.Hosts, Headers: cred.Headers, Placeholder: placeholder, Secret: cred.Secret})
+		for _, name := range append([]string{cred.Name}, cred.Aliases...) {
+			env = append(env, name+"="+placeholder)
+		}
+	}
+
+	if err := proxy.ValidateCredentials(proxyCreds); err != nil {
+		return nil, nil, fmt.Errorf("proxy credentials: %w", err)
+	}
+	return proxyCreds, env, nil
+}
+
+// newPlaceholder returns a random placeholder no real header value contains by chance.
+func newPlaceholder() (string, error) {
+	b := make([]byte, 12)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate placeholder: %w", err)
+	}
+	return placeholderPrefix + hex.EncodeToString(b), nil
 }
