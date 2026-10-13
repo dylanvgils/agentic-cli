@@ -289,7 +289,21 @@ func Test_microsandboxRunner_loadIntoMicrosandbox(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude:abc123", gotTag)
-		assert.Equal(t, "tar:agentic-claude", gotInput)
+		assert.Equal(t, "tar:agentic-claude:latest", gotInput)
+	})
+
+	t.Run("a failed save is reported over the load error", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{saveImage: func(string, io.Writer) error { return errors.New("save failed") }}
+		msb := microsandboxRunner{docker: d, microsandbox: &fakeMicrosandbox{loadImage: func(io.Reader, string) error {
+			return errors.New("truncated archive")
+		}}}
+
+		// Act
+		err := msb.loadIntoMicrosandbox("agentic-claude", "agentic-claude:abc123")
+
+		// Assert
+		assert.EqualError(t, err, "save failed")
 	})
 
 	t.Run("a failed save fails the load", func(t *testing.T) {
