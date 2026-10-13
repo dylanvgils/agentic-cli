@@ -126,7 +126,7 @@
             },
             "credentials": {
               "type": "array",
-              "description": "Beta. Secrets the proxy injects as a header on HTTPS requests to their hosts; the container only sees a placeholder. Turns the proxy on. Accumulates across RC layers.",
+              "description": "Beta. Secrets swapped in for a placeholder the tool sends in a header on HTTPS requests to their hosts; the container only sees the placeholder. Turns the proxy on. Accumulates across RC layers.",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
@@ -145,16 +145,17 @@
                   },
                   "header": {
                     "type": "string",
-                    "description": "Header to set, e.g. \"Authorization\". Required without preset. Hop-by-hop, Host and Content-Length are refused."
+                    "description": "Header the tool sends the placeholder in, e.g. \"Authorization\". Required without preset. Hop-by-hop, Host and Content-Length are refused."
                   },
                   "format": {
                     "type": "string",
-                    "description": "Wraps the secret, with exactly one %s, e.g. \"Bearer %s\". Default: the bare secret."
+                    "description": "Deprecated and ignored with a warning: the tool builds the header itself.",
+                    "deprecated": true
                   },
                   "env": {
                     "type": "array",
                     "items": { "type": "string" },
-                    "description": "Tool env vars set to the placeholder. Replaces a preset's own list."
+                    "description": "Tool env vars set to the placeholder. Required without preset; replaces a preset's own list."
                   },
                   "secret": {
                     "type": "string",
@@ -168,7 +169,7 @@
                     "not": { "anyOf": [{ "required": ["hosts"] }, { "required": ["header"] }, { "required": ["format"] }] }
                   },
                   {
-                    "required": ["hosts", "header"],
+                    "required": ["hosts", "header", "env"],
                     "not": { "required": ["preset"] }
                   }
                 ]

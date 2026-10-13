@@ -71,7 +71,7 @@ type RCCredential struct {
 	Preset string   `toml:"preset"`
 	Hosts  []string `toml:"hosts"`
 	Header string   `toml:"header"`
-	// Format wraps the secret, e.g. "Bearer %s"; empty means the bare secret
+	// Format is deprecated and ignored with a warning, as the tool builds the header itself
 	Format string `toml:"format"`
 	// Env lists tool env vars set to a placeholder so tools that require a key still start
 	Env []string `toml:"env"`
