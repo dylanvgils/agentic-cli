@@ -50,6 +50,18 @@ func TestRunSpecBuilder_WithProxy(t *testing.T) {
 	assert.Equal(t, spec, result.Proxy)
 }
 
+func TestRunSpecBuilder_WithCredentials(t *testing.T) {
+	// Arrange
+	first := Credential{Name: "EXAMPLE_TOKEN", Hosts: []string{"api.example.test"}, Secret: "test-secret"}
+	second := Credential{Name: "OTHER_TOKEN", Hosts: []string{"api.other.test"}, Secret: "test-secret"}
+
+	// Act
+	result := NewRunSpec("agentic-claude").WithCredentials(first).WithCredentials(second).Build()
+
+	// Assert
+	assert.Equal(t, []Credential{first, second}, result.Credentials)
+}
+
 func TestRunSpecBuilder_WithDind(t *testing.T) {
 	// Arrange
 	spec := DindSpec{Enabled: true, Image: "docker:29-dind-rootless", Limits: ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}

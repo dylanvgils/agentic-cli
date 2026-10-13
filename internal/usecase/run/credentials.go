@@ -11,6 +11,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
@@ -56,7 +57,7 @@ func resolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials
 	return credentials.Resolve(rc.Run.Proxy.Credentials)
 }
 
-// credentialSetup checks in.Credentials against the run and returns the placeholder env for the tool; a no-op without credentials.
+// credentialSetup checks in.Credentials against the run and returns the placeholder env for a Docker tool; a no-op without credentials.
 func credentialSetup(in Input, mounts mountSet, env []string) ([]string, error) {
 	if len(in.Credentials) == 0 {
 		return nil, nil
@@ -64,14 +65,19 @@ func credentialSetup(in Input, mounts mountSet, env []string) ([]string, error) 
 	if !in.ProxyMode.Enabled() {
 		return nil, fmt.Errorf("proxy credentials need the egress proxy, which is disabled")
 	}
-	if i := slices.IndexFunc(env, func(entry string) bool { return isProxyTrustEnvName(envKey(entry)) }); i >= 0 {
-		return nil, fmt.Errorf("--env: %q is set by agentic when proxy credentials are configured", envKey(env[i]))
-	}
 
 	if err := checkCredentialPaths(in.Credentials, mounts); err != nil {
 		return nil, err
 	}
-	return credentialEnv(in.Credentials, env, in.DindEnabled)
+	if err := checkCredentialEnv(in.Credentials, env, in.DindEnabled); err != nil {
+		return nil, err
+	}
+
+	// microsandbox puts its own placeholders in the guest
+	if in.Runtime == RuntimeMicrosandbox {
+		return nil, nil
+	}
+	return credentialEnv(in.Credentials), nil
 }
 
 // proxyCredentials flattens resolved into the list the proxy injects.
@@ -83,22 +89,55 @@ func proxyCredentials(resolved []credentials.Resolved) []proxy.Credential {
 	return creds
 }
 
-// credentialEnv returns NAME=Placeholder for each credential env var, refusing names agentic manages or env sets,
-// since a forwarded host value would leak the real secret.
-func credentialEnv(resolved []credentials.Resolved, env []string, dindEnabled bool) ([]string, error) {
+// sandboxCredentials maps each resolved entry to a sandbox.Credential named after its first env var; an entry without env is
+// left out, as nothing in the tool could carry its placeholder.
+func sandboxCredentials(resolved []credentials.Resolved) []sandbox.Credential {
+	var creds []sandbox.Credential
+	for _, r := range resolved {
+		if len(r.Env) == 0 {
+			continue
+		}
+
+		creds = append(creds, sandbox.Credential{
+			Name:    r.Env[0],
+			Aliases: r.Env[1:],
+			Hosts:   r.Hosts(),
+			Headers: r.Headers(),
+			Secret:  r.Secret,
+		})
+	}
+	return creds
+}
+
+// credentialEnv returns NAME=Placeholder for each credential env var.
+func credentialEnv(resolved []credentials.Resolved) []string {
 	var result []string
 	for _, r := range resolved {
 		for _, name := range r.Env {
-			if docker.IsReservedEnvName(name, true) || isProxyTrustEnvName(name) || (dindEnabled && docker.IsReservedDindEnvName(name)) {
-				return nil, fmt.Errorf("credential env %q is managed by agentic", name)
-			}
-			if slices.ContainsFunc(env, func(entry string) bool { return envKey(entry) == name }) {
-				return nil, fmt.Errorf("--env: %q is set by a proxy credential and cannot be overridden", name)
-			}
 			result = append(result, name+"="+credentials.Placeholder)
 		}
 	}
-	return result, nil
+	return result
+}
+
+// checkCredentialEnv refuses env entries for the proxy trust vars, and credential env names agentic manages or env sets,
+// since a forwarded host value would leak the real secret.
+func checkCredentialEnv(resolved []credentials.Resolved, env []string, dindEnabled bool) error {
+	if i := slices.IndexFunc(env, func(entry string) bool { return isProxyTrustEnvName(envKey(entry)) }); i >= 0 {
+		return fmt.Errorf("--env: %q is set by agentic when proxy credentials are configured", envKey(env[i]))
+	}
+
+	for _, r := range resolved {
+		for _, name := range r.Env {
+			if docker.IsReservedEnvName(name, true) || isProxyTrustEnvName(name) || (dindEnabled && docker.IsReservedDindEnvName(name)) {
+				return fmt.Errorf("credential env %q is managed by agentic", name)
+			}
+			if slices.ContainsFunc(env, func(entry string) bool { return envKey(entry) == name }) {
+				return fmt.Errorf("--env: %q is set by a proxy credential and cannot be overridden", name)
+			}
+		}
+	}
+	return nil
 }
 
 // checkCredentialPaths refuses secrets inside cwd or a host path mounted into the tool container.

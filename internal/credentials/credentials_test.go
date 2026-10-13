@@ -36,6 +36,7 @@ func TestResolve(t *testing.T) {
 				{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}},
 				{Hosts: []string{"git.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Bearer test-secret"}}},
 			},
+			Secret: "test-secret",
 			Env:    []string{"EXAMPLE_TOKEN", "EXAMPLE_KEY"},
 			Source: secret,
 			Path:   secret,
@@ -62,6 +63,7 @@ func TestResolve(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []Resolved{{
 			Proxy:  []proxy.Credential{{Hosts: []string{"api.custom.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Token test-secret;"}}}},
+			Secret: "test-secret",
 			Env:    []string{"CUSTOM_TOKEN"},
 			Source: secret,
 			Path:   secret,
@@ -178,6 +180,20 @@ func TestResolved_Hosts(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, []string{"api.example.test", "git.example.test"}, hosts)
+}
+
+func TestResolved_Headers(t *testing.T) {
+	// Arrange
+	resolved := Resolved{Proxy: []proxy.Credential{
+		{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization"}, {Header: "X-Api-Key"}}},
+		{Hosts: []string{"git.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization"}}},
+	}}
+
+	// Act
+	headers := resolved.Headers()
+
+	// Assert
+	assert.Equal(t, []string{"Authorization", "X-Api-Key"}, headers)
 }
 
 func TestHosts(t *testing.T) {

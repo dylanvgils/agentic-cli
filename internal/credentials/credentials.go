@@ -4,6 +4,7 @@ package credentials
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -20,6 +21,8 @@ var validEnvName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 type Resolved struct {
 	// Proxy holds the hosts and formatted header values; it contains the secret, so never log or print it
 	Proxy []proxy.Credential
+	// Secret is the raw value, for runtimes that substitute it themselves; never log or print it
+	Secret string
 	// Env lists the tool env vars to set to Placeholder
 	Env []string
 	// Source describes where the secret came from, for display
@@ -35,6 +38,19 @@ func (r Resolved) Hosts() []string {
 		hosts = append(hosts, cred.Hosts...)
 	}
 	return hosts
+}
+
+// Headers returns each header the entry injects, once.
+func (r Resolved) Headers() []string {
+	var headers []string
+	for _, cred := range r.Proxy {
+		for _, rule := range cred.Rules {
+			if !slices.Contains(headers, rule.Header) {
+				headers = append(headers, rule.Header)
+			}
+		}
+	}
+	return headers
 }
 
 // Resolve reads each entry's secret and formats its header values, failing on invalid entries or a host claimed twice.
@@ -114,7 +130,7 @@ func resolveEntry(entry config.RCCredential) (Resolved, error) {
 		path = file.path
 	}
 
-	return Resolved{Proxy: creds, Env: env, Source: source.String(), Path: path}, nil
+	return Resolved{Proxy: creds, Secret: secret, Env: env, Source: source.String(), Path: path}, nil
 }
 
 // expand returns the entry's targets and env, from its preset or its own hosts and header; an explicit env replaces a preset's.

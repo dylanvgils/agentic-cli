@@ -19,8 +19,8 @@ type runner interface {
 	Run(args ...string) (string, error)
 	// RunWithStdin executes `msb <args>` with r piped to stdin and returns combined stdout+stderr.
 	RunWithStdin(r io.Reader, args ...string) (string, error)
-	// RunInteractive executes `msb <args>` with stdin/stdout/stderr inherited from the current process.
-	RunInteractive(args ...string) error
+	// RunInteractive executes `msb <args>` with stdin/stdout/stderr inherited from the current process and env added to its environment.
+	RunInteractive(env []string, args ...string) error
 }
 
 // Client runs msb commands.
@@ -59,10 +59,13 @@ func (execRunner) RunWithStdin(r io.Reader, args ...string) (string, error) {
 	return output(cmd, args)
 }
 
-func (execRunner) RunInteractive(args ...string) error {
+func (execRunner) RunInteractive(env []string, args ...string) error {
 	cmd, err := command(args...)
 	if err != nil {
 		return err
+	}
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
 	}
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout

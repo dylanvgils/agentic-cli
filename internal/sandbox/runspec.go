@@ -12,6 +12,8 @@ type RunSpec struct {
 	TmpfsMounts    []string
 	Limits         ResourceLimits
 	DryRun         bool
+	// Credentials hold secrets, so never print them
+	Credentials []Credential
 
 	// Sidecars
 	Proxy ProxySpec
@@ -30,6 +32,7 @@ type RunSpecBuilder struct {
 	tmpfsMounts    []string
 	limits         ResourceLimits
 	dryRun         bool
+	credentials    []Credential
 	proxy          ProxySpec
 	dind           DindSpec
 }
@@ -93,6 +96,12 @@ func (b *RunSpecBuilder) WithDryRun(dryRun bool) *RunSpecBuilder {
 	return b
 }
 
+// WithCredentials appends secrets for runtimes that substitute them themselves.
+func (b *RunSpecBuilder) WithCredentials(creds ...Credential) *RunSpecBuilder {
+	b.credentials = append(b.credentials, creds...)
+	return b
+}
+
 // WithProxy confines the tool to an internal network reaching out only via the proxy sidecar.
 func (b *RunSpecBuilder) WithProxy(spec ProxySpec) *RunSpecBuilder {
 	b.proxy = spec
@@ -118,6 +127,7 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		TmpfsMounts:    b.tmpfsMounts,
 		Limits:         b.limits,
 		DryRun:         b.dryRun,
+		Credentials:    b.credentials,
 		Proxy:          b.proxy,
 		Dind:           b.dind,
 	}
