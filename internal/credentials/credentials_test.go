@@ -13,34 +13,33 @@ func TestResolve(t *testing.T) {
 	secret := writeSecret(t, "test-secret\n")
 	stubPresets(t, map[string]preset{
 		"example": {
-			targets: []target{
-				{hosts: []string{"api.example.test"}, header: "X-Api-Key", value: bare},
-				{hosts: []string{"git.example.test"}, header: "Authorization", value: bearer},
-			},
-			env: []string{"EXAMPLE_TOKEN", "EXAMPLE_KEY"},
+			hosts:   []string{"api.example.test", "git.example.test"},
+			headers: []string{"X-Api-Key", "Authorization"},
+			env:     []string{"EXAMPLE_TOKEN", "EXAMPLE_KEY"},
+			git:     &GitAuth{Host: "git.example.test", User: "x-access-token"},
 		},
-		"other": {
-			targets: []target{{hosts: []string{"api.other.test"}, header: "X-Api-Key", value: bare}},
-			env:     []string{"OTHER_TOKEN"},
-		},
+		"other": {hosts: []string{"api.other.test"}, headers: []string{"X-Api-Key"}, env: []string{"OTHER_TOKEN"}},
 	})
 
-	t.Run("preset expands to its targets and env", func(t *testing.T) {
+	t.Run("preset expands to its hosts, headers, env and git auth", func(t *testing.T) {
 		// Act
 		resolved, err := Resolve([]config.RCCredential{{Preset: "example", Secret: secret}})
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []Resolved{{
-			Proxy: []proxy.Credential{
-				{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}},
-				{Hosts: []string{"git.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Bearer test-secret"}}},
-			},
-			Secret: "test-secret",
-			Env:    []string{"EXAMPLE_TOKEN", "EXAMPLE_KEY"},
-			Source: secret,
-			Path:   secret,
-		}}, resolved)
+		require.Len(t, resolved, 1)
+		r := resolved[0]
+		assert.Regexp(t, `^agentic-[0-9a-f]{24}$`, r.Placeholder)
+		r.Placeholder = ""
+		assert.Equal(t, Resolved{
+			Hosts:   []string{"api.example.test", "git.example.test"},
+			Headers: []string{"X-Api-Key", "Authorization"},
+			Env:     []string{"EXAMPLE_TOKEN", "EXAMPLE_KEY"},
+			Secret:  "test-secret",
+			Source:  secret,
+			Path:    secret,
+			Git:     &GitAuth{Host: "git.example.test", User: "x-access-token"},
+		}, r)
 	})
 
 	t.Run("explicit env replaces the preset env", func(t *testing.T) {
@@ -52,31 +51,45 @@ func TestResolve(t *testing.T) {
 		assert.Equal(t, []string{"CUSTOM_TOKEN"}, resolved[0].Env)
 	})
 
-	t.Run("generic entry formats the secret", func(t *testing.T) {
+	t.Run("generic entry uses its own host, header and env", func(t *testing.T) {
 		// Arrange
-		entry := config.RCCredential{Hosts: []string{"api.custom.test"}, Header: "Authorization", Format: "Token %s;", Env: []string{"CUSTOM_TOKEN"}, Secret: secret}
+		entry := config.RCCredential{Hosts: []string{"api.custom.test"}, Header: "Authorization", Env: []string{"CUSTOM_TOKEN"}, Secret: secret}
 
 		// Act
 		resolved, err := Resolve([]config.RCCredential{entry})
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []Resolved{{
-			Proxy:  []proxy.Credential{{Hosts: []string{"api.custom.test"}, Rules: []proxy.InjectRule{{Header: "Authorization", Value: "Token test-secret;"}}}},
-			Secret: "test-secret",
-			Env:    []string{"CUSTOM_TOKEN"},
-			Source: secret,
-			Path:   secret,
-		}}, resolved)
+		assert.Equal(t, []string{"api.custom.test"}, resolved[0].Hosts)
+		assert.Equal(t, []string{"Authorization"}, resolved[0].Headers)
+		assert.Nil(t, resolved[0].Git)
 	})
 
-	t.Run("generic entry without format injects the bare secret", func(t *testing.T) {
+	t.Run("format changes nothing, as the tool sends the header itself", func(t *testing.T) {
+		// Arrange
+		entry := config.RCCredential{Hosts: []string{"api.custom.test"}, Header: "Authorization", Format: "Token %s", Env: []string{"CUSTOM_TOKEN"}, Secret: secret}
+
 		// Act
-		resolved, err := Resolve([]config.RCCredential{{Hosts: []string{"api.custom.test"}, Header: "X-Api-Key", Secret: secret}})
+		resolved, err := Resolve([]config.RCCredential{entry})
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "test-secret", resolved[0].Proxy[0].Rules[0].Value)
+		assert.Equal(t, "test-secret", resolved[0].Secret)
+	})
+
+	t.Run("each entry gets its own placeholder, new each time", func(t *testing.T) {
+		// Arrange
+		entries := []config.RCCredential{{Preset: "example", Secret: secret}, {Preset: "other", Secret: secret}}
+
+		// Act
+		first, err := Resolve(entries)
+		require.NoError(t, err)
+		again, err := Resolve(entries)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotEqual(t, first[0].Placeholder, first[1].Placeholder)
+		assert.NotEqual(t, first[0].Placeholder, again[0].Placeholder)
 	})
 
 	t.Run("entries merged from several config levels resolve in order", func(t *testing.T) {
@@ -85,8 +98,8 @@ func TestResolve(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"api.example.test", "git.example.test"}, resolved[0].Hosts())
-		assert.Equal(t, []string{"api.other.test"}, resolved[1].Hosts())
+		assert.Equal(t, []string{"api.example.test", "git.example.test"}, resolved[0].Hosts)
+		assert.Equal(t, []string{"api.other.test"}, resolved[1].Hosts)
 	})
 
 	t.Run("no entries resolve to nothing", func(t *testing.T) {
@@ -100,16 +113,13 @@ func TestResolve(t *testing.T) {
 
 	t.Run("invalid entries are rejected", func(t *testing.T) {
 		cases := map[string]config.RCCredential{
-			`unknown preset "bogus"`:                  {Preset: "bogus", Secret: secret},
-			"credential 1 (api.custom.test)":          {Hosts: []string{"api.custom.test"}, Header: "X Api", Secret: secret},
-			`invalid host "*.custom.test"`:            {Hosts: []string{"*.custom.test"}, Header: "X-Api-Key", Secret: secret},
-			"header Host cannot be injected":          {Hosts: []string{"api.custom.test"}, Header: "Host", Secret: secret},
-			"must contain exactly one %s":             {Hosts: []string{"api.custom.test"}, Header: "X-Api-Key", Format: "Bearer", Secret: secret},
-			`format "%s %s" must contain exactly one`: {Hosts: []string{"api.custom.test"}, Header: "X-Api-Key", Format: "%s %s", Secret: secret},
-			`format "%d %s" must contain exactly one`: {Hosts: []string{"api.custom.test"}, Header: "X-Api-Key", Format: "%d %s", Secret: secret},
-			"invalid value for header X-Api-Key":      {Hosts: []string{"api.custom.test"}, Header: "X-Api-Key", Format: "a\n%s", Secret: secret},
-			`invalid env name "BAD-NAME"`:             {Preset: "example", Env: []string{"BAD-NAME"}, Secret: secret},
-			`unsupported secret source "keychain:"`:   {Preset: "example", Secret: "keychain:example-item"},
+			`unknown preset "bogus"`:                {Preset: "bogus", Secret: secret},
+			"needs env":                             {Hosts: []string{"api.custom.test"}, Header: "X-Api-Key", Secret: secret},
+			"credential 1 (api.custom.test)":        {Hosts: []string{"api.custom.test"}, Header: "X Api", Env: []string{"CUSTOM_TOKEN"}, Secret: secret},
+			`invalid host "*.custom.test"`:          {Hosts: []string{"*.custom.test"}, Header: "X-Api-Key", Env: []string{"CUSTOM_TOKEN"}, Secret: secret},
+			"header Host cannot be injected":        {Hosts: []string{"api.custom.test"}, Header: "Host", Env: []string{"CUSTOM_TOKEN"}, Secret: secret},
+			`invalid env name "BAD-NAME"`:           {Preset: "example", Env: []string{"BAD-NAME"}, Secret: secret},
+			`unsupported secret source "keychain:"`: {Preset: "example", Secret: "keychain:example-item"},
 		}
 		for want, entry := range cases {
 			// Act
@@ -124,7 +134,7 @@ func TestResolve(t *testing.T) {
 		// Arrange
 		entries := []config.RCCredential{
 			{Preset: "example", Secret: secret},
-			{Hosts: []string{"API.example.test"}, Header: "Authorization", Secret: secret},
+			{Hosts: []string{"API.example.test"}, Header: "Authorization", Env: []string{"CUSTOM_TOKEN"}, Secret: secret},
 		}
 
 		// Act
@@ -155,55 +165,30 @@ func TestResolve(t *testing.T) {
 	t.Run("errors never contain the secret", func(t *testing.T) {
 		// Arrange
 		path := writeSecret(t, "test-secret\nsecond-line")
-		entries := [][]config.RCCredential{
-			{{Preset: "example", Secret: path}},
-			{{Hosts: []string{"api.custom.test"}, Header: "X-Api-Key", Format: "a\x01%s", Secret: secret}},
-		}
 
-		for _, entry := range entries {
-			// Act
-			_, err := Resolve(entry)
+		// Act
+		_, err := Resolve([]config.RCCredential{{Preset: "example", Secret: path}})
 
-			// Assert
-			require.Error(t, err)
-			assert.NotContains(t, err.Error(), "test-secret")
-		}
+		// Assert
+		require.Error(t, err)
+		assert.NotContains(t, err.Error(), "test-secret")
 	})
 }
 
-func TestResolved_Hosts(t *testing.T) {
+func TestResolved_ProxyCredential(t *testing.T) {
 	// Arrange
-	resolved := Resolved{Proxy: []proxy.Credential{{Hosts: []string{"api.example.test"}}, {Hosts: []string{"git.example.test"}}}}
+	r := Resolved{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Env: []string{"EXAMPLE_TOKEN"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}
 
 	// Act
-	hosts := resolved.Hosts()
+	cred := r.ProxyCredential()
 
 	// Assert
-	assert.Equal(t, []string{"api.example.test", "git.example.test"}, hosts)
-}
-
-func TestResolved_Headers(t *testing.T) {
-	// Arrange
-	resolved := Resolved{Proxy: []proxy.Credential{
-		{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization"}, {Header: "X-Api-Key"}}},
-		{Hosts: []string{"git.example.test"}, Rules: []proxy.InjectRule{{Header: "Authorization"}}},
-	}}
-
-	// Act
-	headers := resolved.Headers()
-
-	// Assert
-	assert.Equal(t, []string{"Authorization", "X-Api-Key"}, headers)
+	assert.Equal(t, proxy.Credential{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}, cred)
 }
 
 func TestHosts(t *testing.T) {
 	stubPresets(t, map[string]preset{
-		"example": {
-			targets: []target{
-				{hosts: []string{"api.example.test"}, header: "X-Api-Key", value: bare},
-				{hosts: []string{"git.example.test"}, header: "Authorization", value: bearer},
-			},
-		},
+		"example": {hosts: []string{"api.example.test", "git.example.test"}, headers: []string{"Authorization"}},
 	})
 
 	t.Run("expands presets and generic entries without reading secrets", func(t *testing.T) {

@@ -239,11 +239,11 @@ func TestBuild(t *testing.T) {
 	t.Run("proxy credentials wired with placeholder env", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		cred := proxy.Credential{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}
+		resolved := credentials.Resolved{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Env: []string{"EXAMPLE_API_KEY"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}
 		in := Input{
 			ToolHome:    t.TempDir(),
 			ProxyMode:   sandbox.ProxyEnforce,
-			Credentials: []credentials.Resolved{{Proxy: []proxy.Credential{cred}, Env: []string{"EXAMPLE_API_KEY"}}},
+			Credentials: []credentials.Resolved{resolved},
 		}
 
 		// Act
@@ -251,19 +251,19 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []proxy.Credential{cred}, rs.Proxy.Credentials)
-		assert.Contains(t, rs.Env, "EXAMPLE_API_KEY="+credentials.Placeholder)
+		assert.Equal(t, []proxy.Credential{resolved.ProxyCredential()}, rs.Proxy.Credentials)
+		assert.Contains(t, rs.Env, "EXAMPLE_API_KEY=agentic-0123456789abcdef")
 	})
 
 	t.Run("microsandbox credentials wired without the proxy, placeholder env or image inspect", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{}
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		cred := proxy.Credential{Hosts: []string{"api.example.test"}, Rules: []proxy.InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}
+		resolved := credentials.Resolved{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Env: []string{"EXAMPLE_API_KEY"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}
 		in := Input{
 			ToolHome:    t.TempDir(),
 			Runtime:     RuntimeMicrosandbox,
-			Credentials: []credentials.Resolved{{Proxy: []proxy.Credential{cred}, Secret: "test-secret", Env: []string{"EXAMPLE_API_KEY"}}},
+			Credentials: []credentials.Resolved{resolved},
 		}
 
 		// Act
@@ -271,7 +271,7 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.NotContains(t, rs.Env, "EXAMPLE_API_KEY="+credentials.Placeholder)
+		assert.NotContains(t, rs.Env, "EXAMPLE_API_KEY=agentic-0123456789abcdef")
 		assert.Equal(t, []sandbox.Credential{
 			{Name: "EXAMPLE_API_KEY", Aliases: []string{}, Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"},
 		}, rs.Credentials)
@@ -283,8 +283,8 @@ func TestBuild(t *testing.T) {
 			inspectImage: func(string) (*docker.ImageInfo, error) { return &docker.ImageInfo{}, nil },
 		}
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		cred := proxy.Credential{Hosts: []string{"api.example.test"}}
-		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyEnforce, Credentials: []credentials.Resolved{{Proxy: []proxy.Credential{cred}}}}
+		resolved := credentials.Resolved{Hosts: []string{"api.example.test"}, Env: []string{"EXAMPLE_API_KEY"}}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyEnforce, Credentials: []credentials.Resolved{resolved}}
 
 		// Act
 		_, err := New(d, nil).Build(target, in, tools.Configs["claude"], &config.AgenticRC{})

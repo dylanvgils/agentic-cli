@@ -287,7 +287,7 @@ func stubRecordMarketplaceUsage(t *testing.T, fn func(baseDir string, results []
 func credentialLayer(t *testing.T, secret string) config.RCLayer {
 	t.Helper()
 	rc := &config.AgenticRC{}
-	rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: secret}}
+	rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Env: []string{"EXAMPLE_API_KEY"}, Secret: secret}}
 	return config.RCLayer{Path: filepath.Join(t.TempDir(), ".agenticrc.toml"), RC: rc}
 }
 

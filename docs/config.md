@@ -187,16 +187,16 @@ Preview the block with `agentic instructions claude` (add `--proxy` to include t
 | -------- | ------ | -------------------------------------------------------------------------------------------------------- |
 | `preset` | string | `anthropic`, `openai` or `github`. Can't be combined with `hosts`, `header` or `format`.                 |
 | `hosts`  | list   | Exact hostnames or IPs, no wildcards. Required without `preset`. A host may appear in only one entry.    |
-| `header` | string | Header to set, e.g. `"Authorization"`. Required without `preset`. Hop-by-hop, `Host` and `Content-Length` are refused. |
-| `format` | string | Wraps the secret, with exactly one `%s`, e.g. `"Bearer %s"`. Default: the bare secret.                   |
-| `env`    | list   | Tool env vars set to the placeholder. Replaces a preset's own list.                                      |
+| `header` | string | Header the tool sends the placeholder in, e.g. `"Authorization"`. Required without `preset`. Hop-by-hop, `Host` and `Content-Length` are refused. |
+| `format` | string | Deprecated and ignored with a warning: the tool builds the header itself.                               |
+| `env`    | list   | Tool env vars set to the placeholder. Required without `preset`; replaces a preset's own list.          |
 | `secret` | string | Required. Host file with the secret: an absolute path, or one starting with `~`/`$HOME`. One line, at most 64 KiB. Other sources (`keychain:`) are reserved. |
 
-| Preset      | Hosts and header                                                                                                      | Env                        |
-| ----------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `anthropic` | `api.anthropic.com`: `X-Api-Key: <secret>`                                                                            | `ANTHROPIC_API_KEY`        |
-| `openai`    | `api.openai.com`: `Authorization: Bearer <secret>`                                                                    | `OPENAI_API_KEY`           |
-| `github`    | `api.github.com`: `Authorization: Bearer <secret>`; `github.com`: basic auth as `x-access-token`, for git over HTTPS | `GITHUB_TOKEN`, `GH_TOKEN` |
+| Preset      | Hosts and header                                                                              | Env                        |
+| ----------- | --------------------------------------------------------------------------------------------- | -------------------------- |
+| `anthropic` | `api.anthropic.com`: `X-Api-Key`                                                              | `ANTHROPIC_API_KEY`        |
+| `openai`    | `api.openai.com`: `Authorization`                                                             | `OPENAI_API_KEY`           |
+| `github`    | `api.github.com`, `github.com`: `Authorization`; a git credential helper as `x-access-token` | `GITHUB_TOKEN`, `GH_TOKEN` |
 
 ```toml
 [[run.proxy.credentials]]
@@ -206,7 +206,6 @@ secret = "~/.secrets/anthropic_key"
 [[run.proxy.credentials]]
 hosts = ["api.example.com"]
 header = "Authorization"
-format = "Token %s"
 env = ["EXAMPLE_TOKEN"]
 secret = "~/.secrets/example_token"
 ```

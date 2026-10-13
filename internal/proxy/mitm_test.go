@@ -40,9 +40,9 @@ func TestServerConnectInject(t *testing.T) {
 	upstreamHost, upstreamPort := splitHostPort(upstreamAddr)
 	stubDefaultPorts(t, upstreamPort)
 	stubInjectPort(t, upstreamPort)
-	creds := []Credential{{Hosts: []string{upstreamHost}, Rules: []InjectRule{{Header: "X-Api-Key", Value: "real-secret"}}}}
+	creds := []Credential{{Hosts: []string{upstreamHost}, Headers: []string{"X-Api-Key"}, Placeholder: testPlaceholder, Secret: "real-secret"}}
 
-	t.Run("header is injected over the client's value", func(t *testing.T) {
+	t.Run("placeholder in the client's header is swapped for the secret", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
 		var logBuf bytes.Buffer
@@ -51,7 +51,7 @@ func TestServerConnectInject(t *testing.T) {
 
 		req, err := http.NewRequest(http.MethodGet, upstream.URL+"/echo", nil)
 		require.NoError(t, err)
-		req.Header.Set("X-Api-Key", "agentic-proxy-managed")
+		req.Header.Set("X-Api-Key", testPlaceholder)
 
 		// Act
 		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
@@ -94,6 +94,7 @@ func TestServerConnectInject(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, upstream.URL+"/echo", nil)
 		require.NoError(t, err)
 		req.Host = "evil.test"
+		req.Header.Set("X-Api-Key", testPlaceholder)
 
 		// Act
 		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
@@ -123,7 +124,7 @@ func TestServerConnectInject(t *testing.T) {
 		assert.Equal(t, "data: one\n", line)
 	})
 
-	t.Run("underscore alias of the injected header is stripped", func(t *testing.T) {
+	t.Run("underscore alias of a credential header is stripped", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
 		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
@@ -131,7 +132,7 @@ func TestServerConnectInject(t *testing.T) {
 
 		req, err := http.NewRequest(http.MethodGet, upstream.URL+"/aliases", nil)
 		require.NoError(t, err)
-		req.Header.Set("X_Api_Key", "attacker")
+		req.Header.Set("X_Api_Key", testPlaceholder)
 
 		// Act
 		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
@@ -194,15 +195,19 @@ func TestServerConnectInject(t *testing.T) {
 		assert.Contains(t, inject.leaves, upstreamHost)
 	})
 
-	t.Run("monitor mode still injects for a denied host", func(t *testing.T) {
+	t.Run("monitor mode still swaps for a denied host", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
 		var logBuf bytes.Buffer
 		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf, nil, nil), true, inject))
 		t.Cleanup(proxy.Close)
 
+		req, err := http.NewRequest(http.MethodGet, upstream.URL+"/echo", nil)
+		require.NoError(t, err)
+		req.Header.Set("X-Api-Key", testPlaceholder)
+
 		// Act
-		resp, err := httpsClientVia(t, proxy.URL, roots).Get(upstream.URL + "/echo")
+		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
 
 		// Assert
 		require.NoError(t, err)
@@ -235,7 +240,7 @@ func TestServerConnectInject(t *testing.T) {
 		stubAllowLocal(t)
 		echoHost, echoPort := startEchoServer(t)
 		stubDefaultPorts(t, echoPort)
-		other := []Credential{{Hosts: []string{"other.test"}, Rules: creds[0].Rules}}
+		other := []Credential{{Hosts: []string{"other.test"}, Headers: creds[0].Headers, Placeholder: testPlaceholder, Secret: "real-secret"}}
 		inject, _ := newTestInjector(t, upstream, other)
 		var logBuf bytes.Buffer
 		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{echoHost}), NewLogger(&logBuf, nil, nil), false, inject))
@@ -261,7 +266,7 @@ func TestServerConnectInject(t *testing.T) {
 		stubAllowLocal(t)
 		echoHost, echoPort := startEchoServer(t)
 		stubDefaultPorts(t, echoPort)
-		echoCreds := []Credential{{Hosts: []string{echoHost}, Rules: creds[0].Rules}}
+		echoCreds := []Credential{{Hosts: []string{echoHost}, Headers: creds[0].Headers, Placeholder: testPlaceholder, Secret: "real-secret"}}
 		inject, _ := newTestInjector(t, upstream, echoCreds)
 		var logBuf bytes.Buffer
 		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{echoHost}), NewLogger(&logBuf, nil, nil), false, inject))
@@ -306,7 +311,7 @@ func TestServerConnectInject(t *testing.T) {
 }
 
 func TestServerConnectSubstitute(t *testing.T) {
-	const placeholder = "agentic-0123456789abcdef"
+	placeholder := testPlaceholder
 	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, r.Header.Get("Authorization")+"|"+r.Header.Get("X-Other"))
 	}))
@@ -350,7 +355,7 @@ func TestServerConnectSubstitute(t *testing.T) {
 }
 
 func Test_substitute(t *testing.T) {
-	cred := testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef")
+	cred := testPlaceholderCredential("api.example.test", testPlaceholder)
 
 	t.Run("swaps the placeholder in every value of a listed header", func(t *testing.T) {
 		// Arrange
@@ -365,29 +370,34 @@ func Test_substitute(t *testing.T) {
 
 	t.Run("leaves headers the credential doesn't list untouched", func(t *testing.T) {
 		// Arrange
-		header := http.Header{"X-Other": {"agentic-0123456789abcdef"}}
+		header := http.Header{"X-Other": {testPlaceholder}}
 
 		// Act
 		substitute(header, cred)
 
 		// Assert
-		assert.Equal(t, "agentic-0123456789abcdef", header.Get("X-Other"))
+		assert.Equal(t, testPlaceholder, header.Get("X-Other"))
 	})
 
-	t.Run("drops aliases of a listed header", func(t *testing.T) {
+	t.Run("drops aliases of a listed header and keeps near misses", func(t *testing.T) {
 		// Arrange
-		header := http.Header{"X-Api-Key": {"agentic-0123456789abcdef"}, "X_api_key": {"agentic-0123456789abcdef"}}
+		header := http.Header{
+			"X-Api-Key":  {testPlaceholder},
+			"X_api_key":  {testPlaceholder},
+			"X_API-KEY":  {"mixed"},
+			"X-Api-Keys": {"other"},
+		}
 
 		// Act
 		substitute(header, cred)
 
 		// Assert
-		assert.Equal(t, http.Header{"X-Api-Key": {"test-secret"}}, header)
+		assert.Equal(t, http.Header{"X-Api-Key": {"test-secret"}, "X-Api-Keys": {"other"}}, header)
 	})
 }
 
 func Test_substituteValue(t *testing.T) {
-	const placeholder = "agentic-0123456789abcdef"
+	placeholder := testPlaceholder
 	basic := func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }
 	cases := map[string]struct{ value, want string }{
 		"bare value":                           {placeholder, "test-secret"},
@@ -412,7 +422,7 @@ func Test_substituteValue(t *testing.T) {
 }
 
 func Test_credentialFor(t *testing.T) {
-	cred := Credential{Hosts: []string{"api.example.test"}, Rules: []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}
+	cred := testPlaceholderCredential("api.example.test", testPlaceholder)
 	inject := NewInjector(newTestProxyCA(t, "api.example.test"), []Credential{cred})
 
 	t.Run("nil injector has no credential", func(t *testing.T) {
@@ -551,21 +561,4 @@ func Test_blockMethods(t *testing.T) {
 			assert.Equal(t, http.StatusNoContent, rec.Code, method)
 		}
 	})
-}
-
-func Test_dropAliases(t *testing.T) {
-	// Arrange
-	header := http.Header{
-		"X-Api-Key":     {"client"},
-		"X_api_key":     {"underscore"},
-		"X_API-KEY":     {"mixed"},
-		"X-Api-Keys":    {"other"},
-		"Authorization": {"kept"},
-	}
-
-	// Act
-	dropAliases(header, "x-api-key")
-
-	// Assert
-	assert.Equal(t, http.Header{"X-Api-Keys": {"other"}, "Authorization": {"kept"}}, header)
 }

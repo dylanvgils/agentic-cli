@@ -12,18 +12,6 @@ import (
 )
 
 func TestLoadCredentials(t *testing.T) {
-	t.Run("parses hosts and rules", func(t *testing.T) {
-		// Arrange
-		path := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`)
-
-		// Act
-		creds, err := LoadCredentials(path)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []Credential{{Hosts: []string{"api.example.test"}, Rules: []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}, creds)
-	})
-
 	t.Run("parses a placeholder credential", func(t *testing.T) {
 		// Arrange
 		path := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"headers":["Authorization"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
@@ -65,11 +53,12 @@ func TestLoadCredentials(t *testing.T) {
 
 	t.Run("incomplete credentials are rejected", func(t *testing.T) {
 		cases := map[string]string{
-			"no hosts":                 `[{"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`,
-			"no rules":                 `[{"hosts":["api.example.test"]}]`,
-			`invalid header name ""`:   `[{"hosts":["api.example.test"],"rules":[{"header":"","value":"test-secret"}]}]`,
-			`invalid header name "a:"`: `[{"hosts":["api.example.test"],"rules":[{"header":"a:","value":"test-secret"}]}]`,
-			"invalid value":            `[{"hosts":["api.example.test"],"rules":[{"header":"X-Api-Key","value":"test-secret\r\nX-Injected: 1"}]}]`,
+			"no hosts":                 `[{"headers":["X-Api-Key"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`,
+			"no headers":               `[{"hosts":["api.example.test"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`,
+			`invalid header name ""`:   `[{"hosts":["api.example.test"],"headers":[""],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`,
+			`invalid header name "a:"`: `[{"hosts":["api.example.test"],"headers":["a:"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`,
+			"placeholder must be":      `[{"hosts":["api.example.test"],"headers":["X-Api-Key"],"secret":"test-secret"}]`,
+			"invalid secret":           `[{"hosts":["api.example.test"],"headers":["X-Api-Key"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret\r\nX-Injected: 1"}]`,
 		}
 		for want, content := range cases {
 			// Arrange
@@ -86,7 +75,7 @@ func TestLoadCredentials(t *testing.T) {
 	t.Run("wildcard and malformed hosts are rejected", func(t *testing.T) {
 		for _, host := range []string{"*.example.test", ".example.test", "*.", ".", "", "api..example.test", "-api.example.test", "api_key.example.test", "api.example.test:443"} {
 			// Arrange
-			path := writeTestFile(t, "creds.json", `[{"hosts":["`+host+`"],"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`)
+			path := writeTestFile(t, "creds.json", `[{"hosts":["`+host+`"],"headers":["X-Api-Key"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
 
 			// Act
 			_, err := LoadCredentials(path)
@@ -98,7 +87,7 @@ func TestLoadCredentials(t *testing.T) {
 
 	t.Run("exact hostnames and ips are accepted", func(t *testing.T) {
 		// Arrange
-		path := writeTestFile(t, "creds.json", `[{"hosts":["API.example.test.","127.0.0.1","::1"],"rules":[{"header":"X-Api-Key","value":"test-secret"}]}]`)
+		path := writeTestFile(t, "creds.json", `[{"hosts":["API.example.test.","127.0.0.1","::1"],"headers":["X-Api-Key"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
 
 		// Act
 		_, err := LoadCredentials(path)
@@ -109,7 +98,7 @@ func TestLoadCredentials(t *testing.T) {
 
 	t.Run("host listed in two credentials is rejected", func(t *testing.T) {
 		// Arrange
-		path := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"rules":[{"header":"X-Api-Key","value":"a"}]},{"hosts":["API.example.test."],"rules":[{"header":"X-Api-Key","value":"b"}]}]`)
+		path := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"headers":["X-Api-Key"],"placeholder":"agentic-aaaaaaaaaaaaaaaa","secret":"a"},{"hosts":["API.example.test."],"headers":["X-Api-Key"],"placeholder":"agentic-bbbbbbbbbbbbbbbb","secret":"b"}]`)
 
 		// Act
 		_, err := LoadCredentials(path)
@@ -120,18 +109,15 @@ func TestLoadCredentials(t *testing.T) {
 
 	t.Run("invalid headers are rejected", func(t *testing.T) {
 		cases := map[string]string{
-			`invalid header name "X Api"`:            `{"header":"X Api","value":"test-secret"}`,
-			`invalid header name "X(Api)"`:           `{"header":"X(Api)","value":"test-secret"}`,
-			`invalid header name "X-Ápi"`:            `{"header":"X-Ápi","value":"test-secret"}`,
-			"header host cannot be injected":         `{"header":"host","value":"evil.test"}`,
-			"header Connection cannot be injected":   `{"header":"Connection","value":"close"}`,
-			"invalid value for header X-Nul":         `{"header":"X-Nul","value":"a\u0000b"}`,
-			"invalid value for header X-Del":         `{"header":"X-Del","value":"a\u007fb"}`,
-			"invalid value for header X-Empty-Value": `{"header":"X-Empty-Value","value":""}`,
+			`invalid header name "X Api"`:          `"X Api"`,
+			`invalid header name "X(Api)"`:         `"X(Api)"`,
+			`invalid header name "X-Ápi"`:          `"X-Ápi"`,
+			"header host cannot be injected":       `"host"`,
+			"header Connection cannot be injected": `"Connection"`,
 		}
-		for want, rule := range cases {
+		for want, header := range cases {
 			// Arrange
-			path := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"rules":[`+rule+`]}]`)
+			path := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"headers":[`+header+`],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
 
 			// Act
 			_, err := LoadCredentials(path)
@@ -142,10 +128,26 @@ func TestLoadCredentials(t *testing.T) {
 	})
 }
 
+func TestValidateCredential(t *testing.T) {
+	t.Run("secrets a header can't carry are rejected", func(t *testing.T) {
+		for _, secret := range []string{"a\u0000b", "a\u007fb", "", "line\nbreak"} {
+			// Arrange
+			cred := testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef")
+			cred.Secret = secret
+
+			// Act
+			err := ValidateCredential(cred)
+
+			// Assert
+			assert.ErrorContains(t, err, "invalid secret", secret)
+		}
+	})
+}
+
 func TestValidateCredentials(t *testing.T) {
 	t.Run("valid credentials pass", func(t *testing.T) {
 		// Arrange
-		creds := []Credential{{Hosts: []string{"api.example.test"}, Rules: []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}}}
+		creds := []Credential{testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef")}
 
 		// Act
 		err := ValidateCredentials(creds)
@@ -154,9 +156,11 @@ func TestValidateCredentials(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("error does not contain the header value", func(t *testing.T) {
+	t.Run("error does not contain the secret", func(t *testing.T) {
 		// Arrange
-		creds := []Credential{{Hosts: []string{"api.example.test"}, Rules: []InjectRule{{Header: "X-Api-Key", Value: "test-secret\n"}}}}
+		cred := testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef")
+		cred.Secret = "test-secret\n"
+		creds := []Credential{cred}
 
 		// Act
 		err := ValidateCredentials(creds)
@@ -165,18 +169,9 @@ func TestValidateCredentials(t *testing.T) {
 		require.Error(t, err)
 		assert.NotContains(t, err.Error(), "test-secret")
 	})
-	t.Run("a placeholder credential passes", func(t *testing.T) {
-		// Act
-		err := ValidateCredentials([]Credential{testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef")})
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("invalid placeholder credentials are rejected", func(t *testing.T) {
+	t.Run("invalid credentials are rejected", func(t *testing.T) {
 		valid := testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef")
-		withRules, noHeaders, badHeader, reserved, short, badChars, badSecret := valid, valid, valid, valid, valid, valid, valid
-		withRules.Rules = []InjectRule{{Header: "X-Api-Key", Value: "test-secret"}}
+		noHeaders, badHeader, reserved, short, badChars, badSecret := valid, valid, valid, valid, valid, valid
 		noHeaders.Headers = nil
 		badHeader.Headers = []string{"X Api"}
 		reserved.Headers = []string{"Host"}
@@ -184,7 +179,6 @@ func TestValidateCredentials(t *testing.T) {
 		badChars.Placeholder = "agentic 0123456789abcdef"
 		badSecret.Secret = "test-secret\n"
 		cases := map[string]Credential{
-			"takes headers, not rules":        withRules,
 			"no headers":                      noHeaders,
 			`invalid header name "X Api"`:     badHeader,
 			"header Host cannot be injected":  reserved,
@@ -217,45 +211,6 @@ func TestValidateCredentials(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "overlap")
-	})
-}
-
-func TestInjectRule(t *testing.T) {
-	rule := InjectRule{Header: "X-Api-Key", Value: "test-secret"}
-
-	t.Run("fmt verbs hide the value", func(t *testing.T) {
-		for _, verb := range []string{"%v", "%+v", "%#v", "%s"} {
-			// Act
-			out := fmt.Sprintf(verb, rule)
-
-			// Assert
-			assert.NotContains(t, out, "test-secret", verb)
-			assert.Contains(t, out, "X-Api-Key", verb)
-		}
-	})
-
-	t.Run("nested in a credential the value stays hidden", func(t *testing.T) {
-		// Arrange
-		cred := Credential{Hosts: []string{"api.example.test"}, Rules: []InjectRule{rule}}
-
-		// Act
-		out := fmt.Sprintf("%+v", cred)
-
-		// Assert
-		assert.NotContains(t, out, "test-secret")
-	})
-
-	t.Run("slog hides the value", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		logger := slog.New(slog.NewTextHandler(&buf, nil))
-
-		// Act
-		logger.Info("rule", "rule", rule)
-
-		// Assert
-		assert.NotContains(t, buf.String(), "test-secret")
-		assert.Contains(t, buf.String(), "X-Api-Key")
 	})
 }
 
