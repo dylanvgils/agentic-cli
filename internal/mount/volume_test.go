@@ -2,6 +2,7 @@ package mount
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -235,6 +236,16 @@ func TestNormalizeMountSpec(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, "/host/data:/container/path", result)
+	})
+
+	t.Run("relative path stays a bind mount", func(t *testing.T) {
+		for _, spec := range []string{"./data:/data", "data/.:/data", "other/../data:/data"} {
+			// Act
+			result := NormalizeMountSpec(spec)
+
+			// Assert
+			assert.Equal(t, "."+string(filepath.Separator)+"data:/data", result, spec)
+		}
 	})
 
 	t.Run("container side untouched", func(t *testing.T) {
