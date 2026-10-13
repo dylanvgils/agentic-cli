@@ -74,15 +74,10 @@
       "description": "Settings applied at `agentic run` time.",
       "additionalProperties": false,
       "properties": {
-        "extra_mounts": {
+        "mounts": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Extra mounts passed to `docker run`. Bind: host/path:container/path. Named volume: name:container/path. Supports ~, $HOME, $TOOL_HOME, $CONTAINER_HOME, $PWD."
-        },
-        "read_only_mounts": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Sub-paths to force read-only even when their parent mount is writable. Format: host/path:container/path, or a bare sub/path shorthand relative to the workspace."
+          "description": "Mounts added to the tool container. Bind: host/path:container/path[:rw], read-only unless rw. Named volume: name:container/path. Supports ~, $HOME, $TOOL_HOME, $CONTAINER_HOME, $PWD."
         },
         "secrets": {
           "type": "array",

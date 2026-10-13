@@ -10,12 +10,11 @@ import (
 )
 
 var (
-	flagVolumes        []string
-	flagSecrets        []string
-	flagReadOnlyMounts []string
-	flagEnv            []string
-	flagDryRun         bool
-	flagTrustDir       bool
+	flagVolumes  []string
+	flagSecrets  []string
+	flagEnv      []string
+	flagDryRun   bool
+	flagTrustDir bool
 )
 
 var runToolCmd = &cobra.Command{
@@ -50,8 +49,6 @@ func init() {
 		"additional volume mount (format: host:container[:options]); bind mounts are read-only unless options include rw; repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagSecrets, "secret", "s", nil,
 		"secret file to mount read-only into the container (format: name:/path[:/target/path]); repeatable")
-	runToolCmd.Flags().StringArrayVar(&flagReadOnlyMounts, "read-only-mount", nil,
-		"sub-path to force read-only, applied after other mounts (format: host:container); repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagEnv, "env", "e", nil,
 		"environment variable to set in the container (format: KEY=VALUE, or KEY to forward the host value); repeatable")
 	runToolCmd.Flags().BoolVar(&flagDryRun, dryRunFlagName, false, "print the docker command without running it")
@@ -135,7 +132,6 @@ func runRequest(cmd *cobra.Command, inv invocation) (run.Request, error) {
 	flags.Registry = collectRegistry(cmd)
 	flags.Volumes = flagVolumes
 	flags.Secrets = flagSecrets
-	flags.ReadOnlyMounts = flagReadOnlyMounts
 	flags.Env = flagEnv
 
 	return run.Request{

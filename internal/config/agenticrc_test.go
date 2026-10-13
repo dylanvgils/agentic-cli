@@ -100,7 +100,7 @@ func TestMergeConfigs(t *testing.T) {
 		result := mergeConfigs(nil)
 
 		// Assert
-		assert.Empty(t, result.Run.ExtraMounts)
+		assert.Empty(t, result.Run.Mounts)
 		assert.Empty(t, result.Run.Secrets)
 		assert.Empty(t, result.Run.PidsLimit)
 		assert.Empty(t, result.Run.CPUs)
@@ -171,30 +171,18 @@ func TestMergeConfigs(t *testing.T) {
 
 	t.Run("lists accumulate outermost first", func(t *testing.T) {
 		// Arrange
-		child := &AgenticRC{Run: RCRun{ExtraMounts: []string{"child-vol:/mnt/c"}, Secrets: []string{"child-secret"}, Env: []string{"child-env=1"}}, Build: RCBuild{AptPackages: []string{"gcc"}, Bases: []string{"java"}}}
-		parent := &AgenticRC{Run: RCRun{ExtraMounts: []string{"parent-vol:/mnt/p"}, Secrets: []string{"parent-secret"}, Env: []string{"parent-env=1"}}, Build: RCBuild{AptPackages: []string{"make"}, Bases: []string{"dotnet"}}}
+		child := &AgenticRC{Run: RCRun{Mounts: []string{"child-vol:/mnt/c"}, Secrets: []string{"child-secret"}, Env: []string{"child-env=1"}}, Build: RCBuild{AptPackages: []string{"gcc"}, Bases: []string{"java"}}}
+		parent := &AgenticRC{Run: RCRun{Mounts: []string{"parent-vol:/mnt/p"}, Secrets: []string{"parent-secret"}, Env: []string{"parent-env=1"}}, Build: RCBuild{AptPackages: []string{"make"}, Bases: []string{"dotnet"}}}
 
 		// Act
 		result := mergeConfigs([]*AgenticRC{child, parent})
 
 		// Assert - parent (outermost) entries first
-		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, result.Run.ExtraMounts)
+		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, result.Run.Mounts)
 		assert.Equal(t, []string{"parent-secret", "child-secret"}, result.Run.Secrets)
 		assert.Equal(t, []string{"parent-env=1", "child-env=1"}, result.Run.Env)
 		assert.Equal(t, []string{"make", "gcc"}, result.Build.AptPackages)
 		assert.Equal(t, []string{"dotnet", "java"}, result.Build.Bases)
-	})
-
-	t.Run("read_only_mounts accumulate outermost first", func(t *testing.T) {
-		// Arrange
-		child := &AgenticRC{Run: RCRun{ReadOnlyMounts: []string{"$PWD/child:/workspace/child"}}}
-		parent := &AgenticRC{Run: RCRun{ReadOnlyMounts: []string{"$PWD/parent:/workspace/parent"}}}
-
-		// Act
-		result := mergeConfigs([]*AgenticRC{child, parent})
-
-		// Assert
-		assert.Equal(t, []string{"$PWD/parent:/workspace/parent", "$PWD/child:/workspace/child"}, result.Run.ReadOnlyMounts)
 	})
 
 	t.Run("versions innermost wins per key", func(t *testing.T) {
@@ -225,14 +213,14 @@ func TestMergeConfigs(t *testing.T) {
 
 	t.Run("single config", func(t *testing.T) {
 		// Arrange
-		rc := &AgenticRC{Run: RCRun{RCLimits: RCLimits{CPUs: "4"}, ExtraMounts: []string{"vol:/mnt"}}}
+		rc := &AgenticRC{Run: RCRun{RCLimits: RCLimits{CPUs: "4"}, Mounts: []string{"vol:/mnt"}}}
 
 		// Act
 		result := mergeConfigs([]*AgenticRC{rc})
 
 		// Assert
 		assert.Equal(t, "4", result.Run.CPUs)
-		assert.Equal(t, []string{"vol:/mnt"}, result.Run.ExtraMounts)
+		assert.Equal(t, []string{"vol:/mnt"}, result.Run.Mounts)
 	})
 
 	t.Run("proxy allowed_hosts accumulate outermost first", func(t *testing.T) {
@@ -515,7 +503,7 @@ node = "22"
 java = "17"
 
 [run]
-extra_mounts = ["vol1:/mnt/a", "vol2:/mnt/b"]
+mounts = ["vol1:/mnt/a", "vol2:/mnt/b"]
 secrets = ["token:/run/s/a", "key:/run/s/b"]
 pids_limit = "512"
 cpus = "2"
@@ -525,7 +513,7 @@ memory = "2g"
 		rc := mustParseRC(t, content)
 
 		// Assert
-		assert.Equal(t, []string{"vol1:/mnt/a", "vol2:/mnt/b"}, rc.Run.ExtraMounts)
+		assert.Equal(t, []string{"vol1:/mnt/a", "vol2:/mnt/b"}, rc.Run.Mounts)
 		assert.Equal(t, []string{"token:/run/s/a", "key:/run/s/b"}, rc.Run.Secrets)
 		assert.Equal(t, []string{"make", "gcc"}, rc.Build.AptPackages)
 		assert.Equal(t, []string{"java", "dotnet"}, rc.Build.Bases)
@@ -560,7 +548,7 @@ memory = "2g"
 		// Assert
 		assert.Equal(t, "4", rc.Run.CPUs)
 		assert.Equal(t, "4g", rc.Run.Memory)
-		assert.Empty(t, rc.Run.ExtraMounts)
+		assert.Empty(t, rc.Run.Mounts)
 	})
 
 	t.Run("dind limits", func(t *testing.T) {
@@ -579,25 +567,25 @@ memory = "2g"
 
 	t.Run("tilde in string values", func(t *testing.T) {
 		// Arrange
-		content := "[run]\nextra_mounts = [\"~/.cache:/cache\"]\nsecrets = [\"mytoken:~/.secrets/token\"]\n"
+		content := "[run]\nmounts = [\"~/.cache:/cache\"]\nsecrets = [\"mytoken:~/.secrets/token\"]\n"
 
 		// Act
 		rc := mustParseRC(t, content)
 
 		// Assert
-		assert.Equal(t, []string{"~/.cache:/cache"}, rc.Run.ExtraMounts)
+		assert.Equal(t, []string{"~/.cache:/cache"}, rc.Run.Mounts)
 		assert.Equal(t, []string{"mytoken:~/.secrets/token"}, rc.Run.Secrets)
 	})
 
 	t.Run("HOME env ref in string values", func(t *testing.T) {
 		// Arrange
-		content := "[run]\nextra_mounts = [\"$HOME/.cache:/cache\"]\nsecrets = [\"mytoken:${HOME}/.secrets/token\"]\n"
+		content := "[run]\nmounts = [\"$HOME/.cache:/cache\"]\nsecrets = [\"mytoken:${HOME}/.secrets/token\"]\n"
 
 		// Act
 		rc := mustParseRC(t, content)
 
 		// Assert
-		assert.Equal(t, []string{"$HOME/.cache:/cache"}, rc.Run.ExtraMounts)
+		assert.Equal(t, []string{"$HOME/.cache:/cache"}, rc.Run.Mounts)
 		assert.Equal(t, []string{"mytoken:${HOME}/.secrets/token"}, rc.Run.Secrets)
 	})
 
@@ -853,7 +841,7 @@ secret = "/example/secret"
 		rc := mustParseRC(t, "")
 
 		// Assert
-		assert.Empty(t, rc.Run.ExtraMounts)
+		assert.Empty(t, rc.Run.Mounts)
 		assert.Empty(t, rc.Run.PidsLimit)
 		assert.Empty(t, rc.Run.CPUs)
 		assert.Empty(t, rc.Run.Memory)
@@ -961,7 +949,7 @@ func TestFindAndLoadFromCwd(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, rc.Run.CPUs)
-		assert.Empty(t, rc.Run.ExtraMounts)
+		assert.Empty(t, rc.Run.Mounts)
 	})
 
 	t.Run("invalid file returns error", func(t *testing.T) {
@@ -992,7 +980,7 @@ func TestFindAndLoad(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Empty(t, rc.Run.ExtraMounts)
+		assert.Empty(t, rc.Run.Mounts)
 		assert.Empty(t, rc.Run.Secrets)
 		assert.Empty(t, rc.Run.PidsLimit)
 		assert.Empty(t, rc.Run.CPUs)
@@ -1004,8 +992,8 @@ func TestFindAndLoad(t *testing.T) {
 		parent := t.TempDir()
 		child := filepath.Join(parent, "sub")
 		require.NoError(t, os.Mkdir(child, 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(parent, ".agenticrc.toml"), []byte("root = true\n[run]\ncpus = \"2\"\nextra_mounts = [\"parent-vol:/mnt/p\"]\n"), 0o644))
-		require.NoError(t, os.WriteFile(filepath.Join(child, ".agenticrc.toml"), []byte("[run]\ncpus = \"8\"\nextra_mounts = [\"child-vol:/mnt/c\"]\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(parent, ".agenticrc.toml"), []byte("root = true\n[run]\ncpus = \"2\"\nmounts = [\"parent-vol:/mnt/p\"]\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(child, ".agenticrc.toml"), []byte("[run]\ncpus = \"8\"\nmounts = [\"child-vol:/mnt/c\"]\n"), 0o644))
 
 		// Act
 		rc, err := FindAndLoad(child)
@@ -1013,7 +1001,7 @@ func TestFindAndLoad(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "8", rc.Run.CPUs)
-		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, rc.Run.ExtraMounts)
+		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, rc.Run.Mounts)
 	})
 
 	t.Run("broken outer layer fails the whole load even when inner layer is valid", func(t *testing.T) {

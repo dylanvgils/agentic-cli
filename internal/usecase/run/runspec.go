@@ -12,7 +12,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
-	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
@@ -33,16 +32,15 @@ type Target struct {
 
 // Input carries the flag/env-derived values Build needs.
 type Input struct {
-	ToolHome       string
-	Volumes        []string
-	Secrets        []string
-	ReadOnlyMounts []string
-	Env            []string
-	Limits         sandbox.ResourceLimits
-	DryRun         bool
-	Registry       string
-	ProxyMode      sandbox.ProxyMode
-	DindEnabled    bool
+	ToolHome    string
+	Volumes     []string
+	Secrets     []string
+	Env         []string
+	Limits      sandbox.ResourceLimits
+	DryRun      bool
+	Registry    string
+	ProxyMode   sandbox.ProxyMode
+	DindEnabled bool
 	// Sidecar limit flags; empty falls back to config
 	DindLimits sandbox.ResourceLimits
 	// Runtime is where the run executes; empty means Docker
@@ -162,7 +160,7 @@ func needsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, too
 	return len(config.MarketplacesFor(rc, tool)) > 0
 }
 
-// runVolumes lists the tool's volume specs: config and flag mounts, marketplaces, instructions, then the forced read-only mounts.
+// runVolumes lists the tool's volume specs: config and flag mounts, marketplaces, then instructions.
 func runVolumes(req buildRequest, marketplaceMounts []string) []string {
 	volumes := resolve.Volumes(req.toolConfig.Runtime.Mounts(), req.in.Volumes, req.rc)
 	volumes = append(volumes, marketplaceMounts...)
@@ -170,8 +168,7 @@ func runVolumes(req buildRequest, marketplaceMounts []string) []string {
 		volumes = append(volumes, req.in.InstructionsMount)
 	}
 
-	// Must stay last: Docker lets the last --volume flag for a path win.
-	return append(volumes, readOnlyMountSpecs(resolve.ReadOnlyMounts(req.in.ReadOnlyMounts, req.rc))...)
+	return volumes
 }
 
 // newRunSpec assembles the RunSpec from the resolved run parts, including the proxy and dind sidecar specs.
@@ -252,27 +249,6 @@ func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 	if err := RecordMarketplaceUsage(baseDir, results, cwd); err != nil {
 		logging.Warnf("could not record marketplace usage: %v", err)
 	}
-}
-
-// readOnlyMountSpecs converts each entry into a forced-:ro volume spec; a no-colon entry expands to "$PWD/<path>:/workspace/<path>".
-func readOnlyMountSpecs(specs []string) []string {
-	out := make([]string, 0, len(specs))
-	for _, spec := range specs {
-		host, container := splitReadOnlyMountSpec(spec)
-		out = append(out, mount.VolumeMount(host, container, mount.VolumeOptions{ReadOnly: true}))
-	}
-	return out
-}
-
-// splitReadOnlyMountSpec splits a read-only mount entry, expanding the no-colon workspace-relative shorthand.
-func splitReadOnlyMountSpec(spec string) (host, container string) {
-	if !strings.Contains(spec, ":") {
-		return "$PWD/" + spec, mount.WorkspaceContainerPath + "/" + spec
-	}
-
-	host, container, _ = mount.SplitHostContainer(spec)
-	container = strings.TrimSuffix(strings.TrimSuffix(container, ":ro"), ":rw")
-	return host, container
 }
 
 // validateEnv rejects entries that override an env var agentic manages.

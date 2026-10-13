@@ -31,19 +31,18 @@ type Project struct {
 
 // Flags are a run's command-line settings, before Prepare resolves them against the project config.
 type Flags struct {
-	ToolHome       string
-	TrustDir       bool
-	DryRun         bool
-	Registry       string
-	Proxy          resolve.ProxyInput
-	Dind           resolve.DindInput
-	Volumes        []string
-	Secrets        []string
-	ReadOnlyMounts []string
-	Env            []string
-	Limits         sandbox.ResourceLimits
-	DindLimits     sandbox.ResourceLimits
-	Runtime        Runtime
+	ToolHome   string
+	TrustDir   bool
+	DryRun     bool
+	Registry   string
+	Proxy      resolve.ProxyInput
+	Dind       resolve.DindInput
+	Volumes    []string
+	Secrets    []string
+	Env        []string
+	Limits     sandbox.ResourceLimits
+	DindLimits sandbox.ResourceLimits
+	Runtime    Runtime
 }
 
 // Prepare runs every check and host-side step `agentic run` needs, asking prompter where the user must approve, and returns
@@ -138,18 +137,17 @@ func resolveInput(flags Flags, rc *config.AgenticRC) (Input, error) {
 	}
 
 	return Input{
-		ToolHome:       flags.ToolHome,
-		Volumes:        flags.Volumes,
-		Secrets:        flags.Secrets,
-		ReadOnlyMounts: flags.ReadOnlyMounts,
-		Env:            flags.Env,
-		Limits:         flags.Limits,
-		DryRun:         flags.DryRun,
-		Registry:       flags.Registry,
-		ProxyMode:      proxyMode,
-		DindEnabled:    resolve.DindEnabled(flags.Dind, rc),
-		DindLimits:     flags.DindLimits,
-		Runtime:        flags.Runtime,
+		ToolHome:    flags.ToolHome,
+		Volumes:     flags.Volumes,
+		Secrets:     flags.Secrets,
+		Env:         flags.Env,
+		Limits:      flags.Limits,
+		DryRun:      flags.DryRun,
+		Registry:    flags.Registry,
+		ProxyMode:   proxyMode,
+		DindEnabled: resolve.DindEnabled(flags.Dind, rc),
+		DindLimits:  flags.DindLimits,
+		Runtime:     flags.Runtime,
 	}, nil
 }
 

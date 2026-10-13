@@ -35,14 +35,15 @@ func TestToolMounts(t *testing.T) {
 		assert.Contains(t, out, "secret=ro")
 	})
 
-	t.Run("read-only mount blocks writes inside writable workspace", func(t *testing.T) {
+	t.Run("read-only sub-path mount blocks writes inside writable workspace", func(t *testing.T) {
 		// Arrange
-		locked := filepath.Base(tempDirIn(t, workDir))
+		lockedDir := tempDirIn(t, workDir)
+		locked := filepath.Base(lockedDir)
 		script := `touch /workspace/` + locked + `-ctl && rm /workspace/` + locked + `-ctl && echo workspace=rw; ` +
 			`touch /workspace/` + locked + `/x 2>/dev/null && echo locked=rw || echo locked=ro`
 
 		// Act
-		out := runInTool(t, script, "--read-only-mount", locked)
+		out := runInTool(t, script, "--volume", lockedDir+":/workspace/"+locked)
 
 		// Assert
 		assert.Contains(t, out, "workspace=rw")
@@ -57,7 +58,7 @@ func TestToolMounts(t *testing.T) {
 			`touch /mnt/rw/x 2>/dev/null && echo opted=rw || echo opted=ro`
 
 		// Act
-		out := runInTool(t, script, "-v", defaultDir+":/mnt/default", "-v", rwDir+":/mnt/rw:rw")
+		out := runInTool(t, script, "--volume", defaultDir+":/mnt/default", "--volume", rwDir+":/mnt/rw:rw")
 
 		// Assert
 		assert.Contains(t, out, "default=ro")

@@ -49,19 +49,17 @@ func (p *fieldPrinter) buildFields() {
 // runFields prints the [run] limits and mounts.
 func (p *fieldPrinter) runFields() {
 	var (
-		pidsLimit      = func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
-		cpus           = func(rc *config.AgenticRC) string { return rc.Run.CPUs }
-		memory         = func(rc *config.AgenticRC) string { return rc.Run.Memory }
-		extraMounts    = func(rc *config.AgenticRC) []string { return rc.Run.ExtraMounts }
-		readOnlyMounts = func(rc *config.AgenticRC) []string { return rc.Run.ReadOnlyMounts }
-		secrets        = func(rc *config.AgenticRC) []string { return rc.Run.Secrets }
+		pidsLimit = func(rc *config.AgenticRC) string { return rc.Run.PidsLimit }
+		cpus      = func(rc *config.AgenticRC) string { return rc.Run.CPUs }
+		memory    = func(rc *config.AgenticRC) string { return rc.Run.Memory }
+		mounts    = func(rc *config.AgenticRC) []string { return rc.Run.Mounts }
+		secrets   = func(rc *config.AgenticRC) []string { return rc.Run.Secrets }
 	)
 
 	p.scalar("pids_limit", pidsLimit, sandbox.DefaultPidsLimit)
 	p.scalar("cpus", cpus, sandbox.DefaultCPUs)
 	p.scalar("memory", memory, sandbox.DefaultMemory)
-	p.list("extra_mounts", extraMounts)
-	p.list("read_only_mounts", readOnlyMounts)
+	p.list("mounts", mounts)
 	p.list("secrets", secrets)
 }
 

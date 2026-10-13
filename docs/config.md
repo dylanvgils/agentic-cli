@@ -60,7 +60,7 @@ java = "17"
 node = "22"
 
 [run]
-extra_mounts = ["maven:$CONTAINER_HOME/.m2"]
+mounts = ["maven:$CONTAINER_HOME/.m2"]
 env = ["NODE_OPTIONS=--max-old-space-size=4096"]
 pids_limit = "2048"
 ```
@@ -122,8 +122,7 @@ Applied by `agentic run`.
 
 | Key                | Type   | Description                                                                                                       | CLI flag            | Default |
 | ------------------ | ------ | ----------------------------------------------------------------------------------------------------------------- | ------------------- | ------- |
-| `extra_mounts`     | list   | Bind mounts or named volumes, with the same syntax as [`-v`](usage.md#named-volumes)                              | `-v`                | -       |
-| `read_only_mounts` | list   | Sub-paths forced read-only inside a writable mount. See below.                                                    | `--read-only-mount` | -       |
+| `mounts`           | list   | Bind mounts or named volumes, with the same syntax as [`--volume`](usage.md#named-volumes)                        | `--volume`          | -       |
 | `secrets`          | list   | Files mounted read-only, with the same format as [`-s`](usage.md#secrets)                                         | `-s`                | -       |
 | `env`              | list   | `KEY=VALUE`, or bare `KEY` to forward the host value. See [Environment variables](usage.md#environment-variables). | `-e`                | -       |
 | `pids_limit`       | string | Container PID limit                                                                                               | `--pids-limit`      | `1024`  |
@@ -132,16 +131,6 @@ Applied by `agentic run`.
 | `check_updates`    | bool   | Check for a newer tool version on run. See [Versions and updates](images.md#versions-and-updates).               | -                   | `true`  |
 
 Mount paths support [placeholders](#mount-variable-expansion).
-
-#### `read_only_mounts`
-
-Each entry makes one sub-path read-only while its parent mount stays writable, e.g. to protect a credentials directory. Entries always mount last, so they win over any overlapping mount. `:ro` is always applied, so any suffix you add is ignored. A bare entry with no `:` is relative to the workspace:
-
-```toml
-[run]
-read_only_mounts = [".git", ".credentials"]
-# same as ["$PWD/.git:/workspace/.git", "$PWD/.credentials:/workspace/.credentials"]
-```
 
 ### `[run.instructions]`
 
@@ -261,7 +250,7 @@ The agent can edit `.agenticrc.toml` files in directories it ran in, so changes 
 
 - `root`, `namespace`, `docker_context`, `marketplaces`
 - `build.custom_installs`
-- `run.extra_mounts`, `run.read_only_mounts`, `run.secrets`, `run.env`
+- `run.mounts`, `run.secrets`, `run.env`
 - `run.proxy.enabled`, `run.proxy.mode`, `run.proxy.allowed_hosts`, `run.proxy.credentials`, `run.dind.enabled`
 
 `agentic build` and `agentic update` don't ask, so review the diff first.
@@ -270,7 +259,7 @@ The agent can edit `.agenticrc.toml` files in directories it ran in, so changes 
 
 The file closest to the filesystem root is the _outermost_. The file in `$PWD` is the _innermost_.
 
-- **List keys** (`bases`, `apt_packages`, `custom_installs`, `extra_mounts`, `read_only_mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `proxy.credentials`, `marketplaces`) add up, outermost first.
+- **List keys** (`bases`, `apt_packages`, `custom_installs`, `mounts`, `secrets`, `env`, `proxy.allowed_hosts`, `proxy.credentials`, `marketplaces`) add up, outermost first.
 - **Scalar keys** take the innermost value. Booleans count as scalars, so `enabled = false` in an inner file overrides an outer `true`.
 - **`versions`** is resolved per key, so a child can pin `java` and still inherit `node`. An empty value counts as unset.
 - **`instructions.custom`** adds up like a list, joined by blank lines.
@@ -316,15 +305,14 @@ List settings combine instead:
 | Setting                   | How it combines                                                                     |
 | ------------------------- | ----------------------------------------------------------------------------------- |
 | `bases`, `apt_packages`   | Files (outermost first), then `--base`/`--apt`. Duplicates removed.                 |
-| `extra_mounts`, `secrets` | Files and `-v`/`-s` combined                                                        |
-| `read_only_mounts`        | `--read-only-mount` first, then files                                               |
+| `mounts`, `secrets`       | Files and `--volume`/`--secret` combined                                            |
 | `env`                     | Files, then `-e`. The last value for a key wins. Some names are [reserved](usage.md#environment-variables). |
 
 `--base-exact` and `--apt-exact` replace the list instead of adding to it. They ignore config files and, during `agentic update`, the list the image was built with. `--base-exact=` or `--apt-exact=` (empty) means none at all. Each can't be combined with its non-exact flag.
 
 ## Mount variable expansion
 
-Mount strings (`extra_mounts`, `read_only_mounts`, `-v`, `--read-only-mount`) expand these placeholders at runtime. The `${VAR}` form works too.
+Mount strings (`mounts`, `--volume`) expand these placeholders at runtime. The `${VAR}` form works too.
 
 | Placeholder       | Side of `:`       | Expands to                                 |
 | ----------------- | ----------------- | ------------------------------------------ |
@@ -336,7 +324,7 @@ Mount strings (`extra_mounts`, `read_only_mounts`, `-v`, `--read-only-mount`) ex
 Single-quote them so your shell doesn't expand them first:
 
 ```bash
-agentic run -v '$TOOL_HOME/custom:$CONTAINER_HOME/.custom:rw' claude
+agentic run --volume '$TOOL_HOME/custom:$CONTAINER_HOME/.custom:rw' claude
 ```
 
 ## Mount safety
@@ -344,7 +332,7 @@ agentic run -v '$TOOL_HOME/custom:$CONTAINER_HOME/.custom:rw' claude
 Before a run starts, agentic checks every bind mount and secret:
 
 - A mount that would expose `$AGENTIC_HOME/agentic.json` or `state.json` (the agentic home or a parent, such as `~`) is refused, since they hold machine-wide settings, trusted directories and approvals.
-- A path through a symlink inside the workspace is refused, so a planted `.git -> ~/.ssh` can't be mounted via `read_only_mounts = [".git"]`. Mount the real path instead.
+- A path through a symlink inside the workspace is refused, so a planted `.git -> ~/.ssh` can't be mounted via `mounts = ["$PWD/.git:/workspace/.git"]`. Mount the real path instead.
 - A path under `/proc`, or one agentic can't resolve, is refused.
 
 Not covered:

@@ -37,13 +37,12 @@ type RCBuild struct {
 
 // RCRun holds runtime settings from a .agenticrc.toml file.
 type RCRun struct {
-	ExtraMounts    []string       `toml:"extra_mounts"`
-	ReadOnlyMounts []string       `toml:"read_only_mounts"`
-	Secrets        []string       `toml:"secrets"`
-	Env            []string       `toml:"env"`
-	Proxy          RCProxy        `toml:"proxy"`
-	Dind           RCDind         `toml:"dind"`
-	Instructions   RCInstructions `toml:"instructions"`
+	Mounts       []string       `toml:"mounts"`
+	Secrets      []string       `toml:"secrets"`
+	Env          []string       `toml:"env"`
+	Proxy        RCProxy        `toml:"proxy"`
+	Dind         RCDind         `toml:"dind"`
+	Instructions RCInstructions `toml:"instructions"`
 	// Tool limits
 	RCLimits
 	// CheckUpdates is a pointer so an inner config can explicitly disable a check an outer one enabled; nil or true means it runs.
@@ -297,8 +296,7 @@ func appendLists(result, rc *AgenticRC) {
 	run := rc.Run
 	build := rc.Build
 
-	resRun.ExtraMounts = append(resRun.ExtraMounts, run.ExtraMounts...)
-	resRun.ReadOnlyMounts = append(resRun.ReadOnlyMounts, run.ReadOnlyMounts...)
+	resRun.Mounts = append(resRun.Mounts, run.Mounts...)
 	resRun.Secrets = append(resRun.Secrets, run.Secrets...)
 	resRun.Env = append(resRun.Env, run.Env...)
 	resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)

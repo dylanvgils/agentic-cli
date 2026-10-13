@@ -6,26 +6,16 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
-// Volumes merges the tool's built-in mounts, --volume flag values, and .agenticrc.toml extra_mounts, in that order; user bind mounts are read-only unless they set rw.
+// Volumes merges the tool's built-in mounts, --volume flag values, and .agenticrc.toml mounts, in that order; user bind mounts are read-only unless they set rw.
 func Volumes(toolMounts, extra []string, rc *config.AgenticRC) []string {
 	volumes := append([]string{}, toolMounts...)
 
-	userMounts := append(append([]string{}, extra...), rc.Run.ExtraMounts...)
+	userMounts := append(append([]string{}, extra...), rc.Run.Mounts...)
 	for _, spec := range userMounts {
 		volumes = append(volumes, mount.ReadOnlyByDefault(spec))
 	}
 
 	return volumes
-}
-
-// ReadOnlyMounts merges --read-only-mount flags with read_only_mounts config, flags first (matching extra_mounts/secrets).
-func ReadOnlyMounts(flags []string, rc *config.AgenticRC) []string {
-	var mounts []string
-
-	mounts = append(mounts, flags...)
-	mounts = append(mounts, rc.Run.ReadOnlyMounts...)
-
-	return mounts
 }
 
 // Secrets merges --secret flags with .agenticrc.toml secrets, flags first.
