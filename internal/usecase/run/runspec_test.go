@@ -12,7 +12,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
-	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
@@ -236,10 +235,10 @@ func TestBuild(t *testing.T) {
 		assert.Equal(t, sandbox.ProxyMonitor, rs.Proxy.Mode)
 	})
 
-	t.Run("proxy credentials wired with placeholder env", func(t *testing.T) {
+	t.Run("proxy credentials wired for the docker runtime to place", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		resolved := credentials.Resolved{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Env: []string{"EXAMPLE_API_KEY"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}
+		resolved := credentials.Resolved{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Env: []string{"EXAMPLE_API_KEY"}, Secret: "test-secret"}
 		in := Input{
 			ToolHome:    t.TempDir(),
 			ProxyMode:   sandbox.ProxyEnforce,
@@ -251,15 +250,17 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []proxy.Credential{resolved.ProxyCredential()}, rs.Proxy.Credentials)
-		assert.Contains(t, rs.Env, "EXAMPLE_API_KEY=agentic-0123456789abcdef")
+		assert.Equal(t, []sandbox.Credential{
+			{Name: "EXAMPLE_API_KEY", Aliases: []string{}, Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"},
+		}, rs.Credentials)
+		assert.Equal(t, sandbox.ProxyEnforce, rs.Proxy.Mode)
 	})
 
 	t.Run("microsandbox credentials wired without the proxy, placeholder env or image inspect", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{}
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		resolved := credentials.Resolved{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Env: []string{"EXAMPLE_API_KEY"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}
+		resolved := credentials.Resolved{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Env: []string{"EXAMPLE_API_KEY"}, Secret: "test-secret"}
 		in := Input{
 			ToolHome:    t.TempDir(),
 			Runtime:     RuntimeMicrosandbox,
@@ -271,7 +272,6 @@ func TestBuild(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.NotContains(t, rs.Env, "EXAMPLE_API_KEY=agentic-0123456789abcdef")
 		assert.Equal(t, []sandbox.Credential{
 			{Name: "EXAMPLE_API_KEY", Aliases: []string{}, Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"},
 		}, rs.Credentials)

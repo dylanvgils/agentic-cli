@@ -10,7 +10,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,7 +59,7 @@ func Test_resolveCredentials(t *testing.T) {
 }
 
 func Test_credentialSetup(t *testing.T) {
-	resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_API_KEY"}, Placeholder: "agentic-0123456789abcdef"}}
+	resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_API_KEY"}}}
 	proxyInjects := sandbox.Capabilities{Proxy: true, CredentialInjection: true, CredentialsViaProxy: true}
 	runtimeInjects := sandbox.Capabilities{CredentialInjection: true}
 
@@ -84,7 +83,7 @@ func Test_credentialSetup(t *testing.T) {
 		assert.ErrorContains(t, err, "need the egress proxy")
 	})
 
-	t.Run("credentials with the proxy return placeholders", func(t *testing.T) {
+	t.Run("credentials with the proxy pass and leave the placeholders to the runtime", func(t *testing.T) {
 		// Arrange
 		in := Input{ProxyMode: sandbox.ProxyMonitor, Credentials: resolved}
 		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
@@ -94,12 +93,12 @@ func Test_credentialSetup(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"EXAMPLE_API_KEY=agentic-0123456789abcdef"}, env)
+		assert.Empty(t, env)
 	})
 
 	t.Run("a credential covering git adds the git helper for every runtime", func(t *testing.T) {
 		// Arrange
-		git := []credentials.Resolved{{Env: []string{"GITHUB_TOKEN"}, Placeholder: "agentic-0123456789abcdef", Git: &credentials.GitAuth{Host: "github.com", User: "x-access-token"}}}
+		git := []credentials.Resolved{{Env: []string{"GITHUB_TOKEN"}, Git: &credentials.GitAuth{Host: "github.com", User: "x-access-token"}}}
 		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
 
 		// Act
@@ -111,7 +110,6 @@ func Test_credentialSetup(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, proxyEnv, "GIT_CONFIG_COUNT=1")
 		assert.Contains(t, runtimeEnv, "GIT_CONFIG_COUNT=1")
-		assert.NotContains(t, runtimeEnv, "GITHUB_TOKEN=agentic-0123456789abcdef")
 	})
 
 	t.Run("a runtime that injects itself needs no proxy and gets no placeholders, but the same checks", func(t *testing.T) {
@@ -133,11 +131,10 @@ func Test_credentialSetup(t *testing.T) {
 func Test_sandboxCredentials(t *testing.T) {
 	// Arrange
 	resolved := []credentials.Resolved{{
-		Hosts:       []string{"api.example.test", "git.example.test"},
-		Headers:     []string{"Authorization"},
-		Env:         []string{"EXAMPLE_TOKEN", "EXAMPLE_KEY"},
-		Placeholder: "agentic-0123456789abcdef",
-		Secret:      "test-secret",
+		Hosts:   []string{"api.example.test", "git.example.test"},
+		Headers: []string{"Authorization"},
+		Env:     []string{"EXAMPLE_TOKEN", "EXAMPLE_KEY"},
+		Secret:  "test-secret",
 	}}
 
 	// Act
@@ -151,41 +148,6 @@ func Test_sandboxCredentials(t *testing.T) {
 		Headers: []string{"Authorization"},
 		Secret:  "test-secret",
 	}}, creds)
-}
-
-func Test_proxyCredentials(t *testing.T) {
-	// Arrange
-	resolved := []credentials.Resolved{{
-		Hosts:       []string{"api.example.test"},
-		Headers:     []string{"X-Api-Key"},
-		Env:         []string{"EXAMPLE_TOKEN"},
-		Placeholder: "agentic-0123456789abcdef",
-		Secret:      "test-secret",
-	}}
-
-	// Act
-	creds := proxyCredentials(resolved)
-
-	// Assert
-	assert.Equal(t, []proxy.Credential{{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}}, creds)
-}
-
-func Test_credentialEnv(t *testing.T) {
-	// Arrange
-	resolved := []credentials.Resolved{
-		{Env: []string{"EXAMPLE_TOKEN", "EXAMPLE_KEY"}, Placeholder: "agentic-aaaaaaaaaaaaaaaa"},
-		{Env: []string{"OTHER_TOKEN"}, Placeholder: "agentic-bbbbbbbbbbbbbbbb"},
-	}
-
-	// Act
-	env := credentialEnv(resolved)
-
-	// Assert
-	assert.Equal(t, []string{
-		"EXAMPLE_TOKEN=agentic-aaaaaaaaaaaaaaaa",
-		"EXAMPLE_KEY=agentic-aaaaaaaaaaaaaaaa",
-		"OTHER_TOKEN=agentic-bbbbbbbbbbbbbbbb",
-	}, env)
 }
 
 func Test_gitHelperEnv(t *testing.T) {

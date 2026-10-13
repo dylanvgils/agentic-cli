@@ -2,8 +2,6 @@
 package credentials
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"regexp"
 	"strings"
@@ -11,9 +9,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 )
-
-// placeholderPrefix starts every placeholder, so a tool's env shows the value is agentic's stand-in.
-const placeholderPrefix = "agentic-"
 
 // validEnvName matches a portable environment variable name.
 var validEnvName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -24,8 +19,6 @@ type Resolved struct {
 	Headers []string
 	// Env lists the tool env vars that carry the placeholder
 	Env []string
-	// Placeholder is a random stand-in for Secret, new each run, for runtimes that use agentic's own (the Docker proxy)
-	Placeholder string
 	// Secret is the raw value; never log or print it
 	Secret string
 	// Source describes where the secret came from, for display
@@ -42,13 +35,8 @@ type GitAuth struct {
 	User string
 }
 
-// ProxyCredential returns r as the agentic proxy's credential.
-func (r Resolved) ProxyCredential() proxy.Credential {
-	return proxy.Credential{Hosts: r.Hosts, Headers: r.Headers, Placeholder: r.Placeholder, Secret: r.Secret}
-}
-
-// Resolve reads each entry's secret and gives it a placeholder, failing on invalid entries, a host claimed twice or an
-// entry without env, which no tool could send the placeholder in.
+// Resolve reads each entry's secret, failing on invalid entries, a host claimed twice or an entry without env, which no
+// tool could send a placeholder in.
 func Resolve(entries []config.RCCredential) ([]Resolved, error) {
 	var resolved []Resolved
 	var all []proxy.Credential
@@ -58,7 +46,7 @@ func Resolve(entries []config.RCCredential) ([]Resolved, error) {
 			return nil, fmt.Errorf("credential %d (%s): %w", i+1, describe(entry), err)
 		}
 		resolved = append(resolved, r)
-		all = append(all, r.ProxyCredential())
+		all = append(all, validationCredential(r, i))
 	}
 
 	if err := proxy.ValidateCredentials(all); err != nil {
@@ -78,7 +66,7 @@ func Hosts(entries []config.RCCredential) []string {
 	return hosts
 }
 
-// resolveEntry expands entry, reads its secret and draws its placeholder.
+// resolveEntry expands entry and reads its secret.
 func resolveEntry(entry config.RCCredential) (Resolved, error) {
 	e, err := expand(entry)
 	if err != nil {
@@ -103,27 +91,21 @@ func resolveEntry(entry config.RCCredential) (Resolved, error) {
 		return Resolved{}, err
 	}
 
-	placeholder, err := newPlaceholder()
-	if err != nil {
-		return Resolved{}, err
-	}
-
 	var path string
 	if file, ok := source.(fileSource); ok {
 		path = file.path
 	}
 
 	r := Resolved{
-		Hosts:       e.hosts,
-		Headers:     e.headers,
-		Env:         e.env,
-		Placeholder: placeholder,
-		Secret:      secret,
-		Source:      source.String(),
-		Path:        path,
-		Git:         e.git,
+		Hosts:   e.hosts,
+		Headers: e.headers,
+		Env:     e.env,
+		Secret:  secret,
+		Source:  source.String(),
+		Path:    path,
+		Git:     e.git,
 	}
-	if err := proxy.ValidateCredential(r.ProxyCredential()); err != nil {
+	if err := proxy.ValidateCredential(validationCredential(r, 0)); err != nil {
 		return Resolved{}, err
 	}
 	return r, nil
@@ -146,13 +128,10 @@ func expand(entry config.RCCredential) (preset, error) {
 	return p, nil
 }
 
-// newPlaceholder returns a random placeholder no real header value contains by chance.
-func newPlaceholder() (string, error) {
-	b := make([]byte, 12)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("generate placeholder: %w", err)
-	}
-	return placeholderPrefix + hex.EncodeToString(b), nil
+// validationCredential returns r as a proxy credential with the i-th stand-in placeholder, so Resolve can check r against
+// the proxy's rules before the runtime draws the real placeholders.
+func validationCredential(r Resolved, i int) proxy.Credential {
+	return proxy.Credential{Hosts: r.Hosts, Headers: r.Headers, Placeholder: fmt.Sprintf("agentic-validate-%08d", i), Secret: r.Secret}
 }
 
 // readSecret resolves source and trims surrounding whitespace, rejecting empty or multi-line values.

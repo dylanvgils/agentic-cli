@@ -1,7 +1,5 @@
 package sandbox
 
-import "github.com/dylanvgils/agentic-cli/internal/proxy"
-
 // Proxy modes; ProxyOff is the zero value, so a RunSpec without one runs no proxy.
 const (
 	ProxyOff ProxyMode = iota
@@ -17,8 +15,6 @@ type ProxySpec struct {
 	Mode   ProxyMode
 	Allow  []string // merged allowlist (tool baseline + user hosts)
 	LogDir string   // host dir for JSON-lines access logs
-	// Credentials are the headers the proxy injects; they hold secrets, so never print them
-	Credentials []proxy.Credential
 }
 
 // Enabled reports whether the proxy runs, in either mode.
