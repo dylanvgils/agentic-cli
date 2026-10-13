@@ -60,6 +60,18 @@ func (f *fakeDocker) RemoveNetwork() error {
 	return f.removeNetwork()
 }
 
+// fakeRuntime implements Runtime; a nil field succeeds.
+type fakeRuntime struct {
+	cleanImage func(string) error
+}
+
+func (f *fakeRuntime) CleanImage(image string) error {
+	if f.cleanImage == nil {
+		return nil
+	}
+	return f.cleanImage(image)
+}
+
 // stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.
 func stubErrLog(t *testing.T) *bytes.Buffer {
 	t.Helper()

@@ -6,7 +6,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/git"
-	"github.com/dylanvgils/agentic-cli/internal/housekeeping"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
@@ -16,11 +15,11 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/volumes"
 )
 
 var (
 	migrateRun              = migrate.Run
-	pruneProxyLogs          = housekeeping.PruneProxyLogs
 	isTerminal              = platform.IsTerminal
 	checkGitAvailable       = git.CheckAvailable
 	loadMarketplaceRegistry = marketplace.LoadRegistry
@@ -32,8 +31,8 @@ var (
 	// dockerClient is the Docker client every command uses; persistentPreRunE rebuilds it for the resolved context.
 	dockerClient dockerAPI = docker.New("")
 
-	// msbClient runs tools for `agentic run --runtime microsandbox`.
-	msbClient run.Microsandbox = microsandbox.New()
+	// msbClient runs tools for `agentic run --runtime microsandbox` and manages their images and volumes.
+	msbClient msbAPI = microsandbox.New()
 )
 
 // dockerAPI is the subset of *docker.Client the cli and the usecases it calls use.
@@ -43,14 +42,19 @@ type dockerAPI interface {
 	update.Docker
 	run.Docker
 	sidecar.Docker
+	volumes.Docker
 
 	Context() string
 	CurrentContext() (string, error)
 	CheckDaemon() error
 	CreateVolume(name string) error
-	ListVolumes() (string, error)
-	ListVolumeNames() ([]string, error)
-	RemoveVolume(name string) error
 	ListRunningContainers() ([]*docker.ContainerInfo, error)
 	ListContexts() ([]string, error)
+}
+
+// msbAPI is the subset of *microsandbox.Client the usecases the cli calls use.
+type msbAPI interface {
+	run.Microsandbox
+	clean.Runtime
+	volumes.Microsandbox
 }

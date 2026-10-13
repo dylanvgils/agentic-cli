@@ -120,16 +120,30 @@ func Test_namespacesFunc(t *testing.T) {
 }
 
 func Test_volumeNamesFunc(t *testing.T) {
+	stubMicrosandbox(t, &fakeMicrosandbox{})
+
 	t.Run("returns volume names", func(t *testing.T) {
 		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven", "gradle"}, nil })
+		stubListVolumeNames(t, func() ([]string, error) { return []string{"gradle", "maven"}, nil })
 
 		// Act
 		names, directive := volumeNamesFunc(&cobra.Command{}, nil, "")
 
 		// Assert
 		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
-		assert.Equal(t, []string{"maven", "gradle"}, names)
+		assert.Equal(t, []string{"gradle", "maven"}, names)
+	})
+
+	t.Run("adds msb volume names once", func(t *testing.T) {
+		// Arrange
+		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven"}, nil })
+		stubMicrosandbox(t, &fakeMicrosandbox{listVolumeNames: func() ([]string, error) { return []string{"maven", "npm"}, nil }})
+
+		// Act
+		names, _ := volumeNamesFunc(&cobra.Command{}, nil, "")
+
+		// Assert
+		assert.Equal(t, []string{"maven", "npm"}, names)
 	})
 
 	t.Run("arg already provided returns empty", func(t *testing.T) {

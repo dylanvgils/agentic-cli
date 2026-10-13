@@ -1,12 +1,14 @@
 package microsandbox
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/stretchr/testify/require"
 )
 
@@ -68,4 +70,16 @@ func captureStdout(t *testing.T, fn func()) string {
 	out, err := io.ReadAll(r)
 	require.NoError(t, err)
 	return string(out)
+}
+
+// stubLog redirects logging.Log to a buffer until the test ends and returns it.
+func stubLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+
+	var buf bytes.Buffer
+	orig := logging.Log
+	logging.Log = logging.New(&buf)
+	t.Cleanup(func() { logging.Log = orig })
+
+	return &buf
 }

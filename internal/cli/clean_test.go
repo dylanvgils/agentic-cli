@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,8 @@ import (
 func Test_runClean(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
+	// Keep a host msb's images out of the test
+	stubMicrosandbox(t, &fakeMicrosandbox{})
 
 	t.Run("cleans images and global resources when no args", func(t *testing.T) {
 		// Arrange - confirms runClean wires clean.Resolve -> clean.Apply -> clean.GlobalResources
@@ -34,6 +37,13 @@ func Test_runClean(t *testing.T) {
 				return nil
 			},
 		})
+		var msbCleaned []string
+		stubMicrosandbox(t, &fakeMicrosandbox{
+			cleanImage: func(image string) error {
+				msbCleaned = append(msbCleaned, image)
+				return nil
+			},
+		})
 
 		// Act
 		err := runClean(newTestCleanCmd(), []string{})
@@ -41,8 +51,29 @@ func Test_runClean(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, cleaned, "agentic-claude")
+		assert.Contains(t, msbCleaned, "agentic-claude")
 		assert.True(t, basesCleaned)
 		assert.Contains(t, logBuf.String(), "agentic: removing 3 image(s): ")
+	})
+
+	t.Run("skips microsandbox when msb isn't installed", func(t *testing.T) {
+		// Arrange
+		stubDocker(t, &fakeDocker{})
+		msbCleaned := false
+		stubMicrosandbox(t, &fakeMicrosandbox{
+			available: func() error { return errors.New("msb not found") },
+			cleanImage: func(string) error {
+				msbCleaned = true
+				return nil
+			},
+		})
+
+		// Act
+		err := runClean(newTestCleanCmd(), []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, msbCleaned)
 	})
 
 	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {

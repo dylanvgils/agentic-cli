@@ -48,26 +48,26 @@ func Test_runVolumeCreate(t *testing.T) {
 }
 
 func Test_runVolumeList(t *testing.T) {
-	t.Run("prints raw output", func(t *testing.T) {
+	stubMicrosandbox(t, &fakeMicrosandbox{})
+
+	t.Run("lists the volumes grouped by runtime", func(t *testing.T) {
 		// Arrange
-		stubListVolumes(t, func() (string, error) {
-			return "DRIVER    VOLUME NAME\nlocal     maven\n", nil
-		})
+		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven", "npm"}, nil })
+		stubMicrosandbox(t, &fakeMicrosandbox{listVolumeNames: func() ([]string, error) { return []string{"gradle"}, nil }})
+		var err error
 
 		// Act
-		out := captureStdout(t, func() {
-			err := runVolumeList(volumesListCmd, nil)
-			require.NoError(t, err)
-		})
+		logs := captureLog(t, func() { err = runVolumeList(volumesListCmd, nil) })
 
 		// Assert
-		assert.Equal(t, "DRIVER    VOLUME NAME\nlocal     maven\n", out)
+		require.NoError(t, err)
+		assert.Equal(t, "=> docker\n   maven\n   npm\n=> microsandbox\n   gradle\n", logs)
 	})
 
 	t.Run("error propagates", func(t *testing.T) {
 		// Arrange
-		stubListVolumes(t, func() (string, error) {
-			return "", fmt.Errorf("docker daemon not running")
+		stubListVolumeNames(t, func() ([]string, error) {
+			return nil, fmt.Errorf("docker daemon not running")
 		})
 
 		// Act
@@ -79,8 +79,11 @@ func Test_runVolumeList(t *testing.T) {
 }
 
 func Test_runVolumeRemove(t *testing.T) {
+	stubMicrosandbox(t, &fakeMicrosandbox{})
+
 	t.Run("named calls remove volume", func(t *testing.T) {
 		// Arrange
+		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven"}, nil })
 		var got string
 		stubRemoveVolume(t, func(name string) error { got = name; return nil })
 
@@ -94,6 +97,7 @@ func Test_runVolumeRemove(t *testing.T) {
 
 	t.Run("named prints deleted", func(t *testing.T) {
 		// Arrange
+		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven"}, nil })
 		stubRemoveVolume(t, func(string) error { return nil })
 		logBuf := stubErrLog(t)
 
@@ -105,11 +109,26 @@ func Test_runVolumeRemove(t *testing.T) {
 		assert.Contains(t, logBuf.String(), "agentic: removed volume maven")
 	})
 
+	t.Run("named removes an msb volume", func(t *testing.T) {
+		// Arrange
+		stubListVolumeNames(t, func() ([]string, error) { return nil, nil })
+		var got string
+		stubMicrosandbox(t, &fakeMicrosandbox{
+			listVolumeNames: func() ([]string, error) { return []string{"maven"}, nil },
+			removeVolume:    func(name string) error { got = name; return nil },
+		})
+
+		// Act
+		err := runVolumeRemove(volumesRemoveCmd, []string{"maven"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "maven", got)
+	})
+
 	t.Run("named error propagates", func(t *testing.T) {
 		// Arrange
-		stubRemoveVolume(t, func(string) error {
-			return fmt.Errorf("'maven' is not an agentic-managed volume")
-		})
+		stubListVolumeNames(t, func() ([]string, error) { return nil, nil })
 
 		// Act
 		err := runVolumeRemove(volumesRemoveCmd, []string{"maven"})
@@ -138,7 +157,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		// Arrange
 		logBuf := stubErrLog(t)
 		stubListVolumeNames(t, func() ([]string, error) {
-			return []string{"maven", "gradle"}, nil
+			return []string{"gradle", "maven"}, nil
 		})
 		var removed []string
 		stubRemoveVolume(t, func(name string) error { removed = append(removed, name); return nil })
@@ -149,7 +168,7 @@ func Test_runVolumeRemove(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"maven", "gradle"}, removed)
+		assert.Equal(t, []string{"gradle", "maven"}, removed)
 		assert.Contains(t, logBuf.String(), "agentic: removing 2 volume(s)")
 	})
 
@@ -186,7 +205,7 @@ func Test_runVolumeRemove(t *testing.T) {
 	t.Run("no name remove error propagates", func(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) {
-			return []string{"maven", "gradle"}, nil
+			return []string{"gradle", "maven"}, nil
 		})
 		var removeCalled int
 		stubRemoveVolume(t, func(string) error {
@@ -206,7 +225,7 @@ func Test_runVolumeRemove(t *testing.T) {
 	t.Run("no name lists volumes right before the prompt", func(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) {
-			return []string{"maven", "gradle"}, nil
+			return []string{"gradle", "maven"}, nil
 		})
 		stubRemoveVolume(t, func(string) error { return nil })
 		stubStdin(t, "n\n")
@@ -217,6 +236,27 @@ func Test_runVolumeRemove(t *testing.T) {
 
 		// Assert - list and prompt share stderr, list first
 		require.NoError(t, err)
-		assert.Equal(t, "agentic: volumes to remove:\n   maven\n   gradle\nagentic: remove all agentic-managed volumes? [y/N] ", logBuf.String())
+		assert.Equal(t, "agentic: volumes to remove:\n   gradle\n   maven\nagentic: remove all agentic-managed volumes? [y/N] ", logBuf.String())
+	})
+
+	t.Run("no name removes msb volumes too, marked by runtime", func(t *testing.T) {
+		// Arrange
+		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven"}, nil })
+		var removed []string
+		stubRemoveVolume(t, func(name string) error { removed = append(removed, "docker "+name); return nil })
+		stubMicrosandbox(t, &fakeMicrosandbox{
+			listVolumeNames: func() ([]string, error) { return []string{"gradle"}, nil },
+			removeVolume:    func(name string) error { removed = append(removed, "msb "+name); return nil },
+		})
+		stubStdin(t, "y\n")
+		logBuf := stubErrLog(t)
+
+		// Act
+		err := runVolumeRemove(volumesRemoveCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"docker maven", "msb gradle"}, removed)
+		assert.Contains(t, logBuf.String(), "   gradle (microsandbox)\n")
 	})
 }

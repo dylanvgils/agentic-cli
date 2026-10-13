@@ -39,7 +39,13 @@ func runClean(cmd *cobra.Command, args []string) error {
 		All:        all,
 	}
 
-	svc := clean.New(dockerClient, toolHome)
+	// Only installed runtimes hold image copies
+	var runtimes []clean.Runtime
+	if msbClient.Available() == nil {
+		runtimes = append(runtimes, msbClient)
+	}
+
+	svc := clean.New(toolHome, dockerClient, runtimes...)
 	targets, err := svc.Resolve(scope)
 	if err != nil {
 		return err

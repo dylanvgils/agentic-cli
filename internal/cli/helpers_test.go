@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
@@ -42,7 +42,6 @@ type fakeDocker struct {
 	removeNetwork         func() error
 	ensureNamedVolumes    func(volumes []string, toolHome, containerHome, chownImage string) error
 	createVolume          func(string) error
-	listVolumes           func() (string, error)
 	listVolumeNames       func() ([]string, error)
 	removeVolume          func(string) error
 	sweepProxyResources   func() error
@@ -115,6 +114,20 @@ func (f *fakeDocker) CleanImage(image string) error {
 	return f.cleanImage(image)
 }
 
+func (f *fakeMicrosandbox) ListVolumeNames() ([]string, error) {
+	if f.listVolumeNames == nil {
+		return nil, nil
+	}
+	return f.listVolumeNames()
+}
+
+func (f *fakeMicrosandbox) RemoveVolume(name string) error {
+	if f.removeVolume == nil {
+		return nil
+	}
+	return f.removeVolume(name)
+}
+
 func (f *fakeDocker) CleanBaseImages() error {
 	if f.cleanBaseImages == nil {
 		return nil
@@ -183,13 +196,6 @@ func (f *fakeDocker) CreateVolume(name string) error {
 		return nil
 	}
 	return f.createVolume(name)
-}
-
-func (f *fakeDocker) ListVolumes() (string, error) {
-	if f.listVolumes == nil {
-		return "", nil
-	}
-	return f.listVolumes()
 }
 
 func (f *fakeDocker) ListVolumeNames() ([]string, error) {
@@ -285,9 +291,6 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 	if o.createVolume != nil {
 		f.createVolume = o.createVolume
-	}
-	if o.listVolumes != nil {
-		f.listVolumes = o.listVolumes
 	}
 	if o.listVolumeNames != nil {
 		f.listVolumeNames = o.listVolumeNames
@@ -422,13 +425,16 @@ func captureRunContainer(t *testing.T) func() (sandbox.RunSpec, []string) {
 	return func() (sandbox.RunSpec, []string) { return capturedSpec, capturedArgs }
 }
 
-// fakeMicrosandbox is a hand-written run.Microsandbox; nil funcs succeed.
+// fakeMicrosandbox is a hand-written msbAPI; nil funcs succeed.
 type fakeMicrosandbox struct {
-	available   func() error
-	loadImage   func(r io.Reader, tag string) error
-	imageRefs   func() ([]string, error)
-	removeImage func(ref string) error
-	run         func(rs sandbox.RunSpec, toolArgs []string) error
+	available       func() error
+	loadImage       func(r io.Reader, tag string) error
+	imageRefs       func() ([]string, error)
+	removeImage     func(ref string) error
+	run             func(rs sandbox.RunSpec, toolArgs []string) error
+	cleanImage      func(image string) error
+	listVolumeNames func() ([]string, error)
+	removeVolume    func(name string) error
 }
 
 func (f *fakeMicrosandbox) Available() error {
@@ -466,12 +472,29 @@ func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec, toolArgs []string) error {
 	return f.run(rs, toolArgs)
 }
 
+func (f *fakeMicrosandbox) CleanImage(image string) error {
+	if f.cleanImage == nil {
+		return nil
+	}
+	return f.cleanImage(image)
+}
+
 // stubMicrosandbox installs f as msbClient until the test ends.
 func stubMicrosandbox(t *testing.T, f *fakeMicrosandbox) {
 	t.Helper()
 	orig := msbClient
 	msbClient = f
 	t.Cleanup(func() { msbClient = orig })
+}
+
+// writeProxyLog writes a proxy access log under the current toolHome's logs dir and returns its path.
+func writeProxyLog(t *testing.T) string {
+	t.Helper()
+	dir := filepath.Join(toolHome, config.LogsDirName)
+	require.NoError(t, os.MkdirAll(dir, 0o750))
+	path := filepath.Join(dir, proxy.LogFilePrefix+"run.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte("{}\n"), 0o600))
+	return path
 }
 
 // withTempToolHome sets toolHome to a temp dir and pre-trusts the dirs tests run in (os.TempDir() for t.Chdir, cwd otherwise).
@@ -541,11 +564,6 @@ func stubListVolumeNames(t *testing.T, fn func() ([]string, error)) {
 	stubDocker(t, &fakeDocker{listVolumeNames: fn})
 }
 
-func stubListVolumes(t *testing.T, fn func() (string, error)) {
-	t.Helper()
-	stubDocker(t, &fakeDocker{listVolumes: fn})
-}
-
 func stubListContexts(t *testing.T, fn func() ([]string, error)) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{listContexts: fn})
@@ -559,13 +577,6 @@ func stubCurrentContext(t *testing.T, fn func() (string, error)) {
 func stubRemoveVolume(t *testing.T, fn func(string) error) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{removeVolume: fn})
-}
-
-func stubPruneProxyLogs(t *testing.T, fn func(dir string, maxAge time.Duration)) {
-	t.Helper()
-	orig := pruneProxyLogs
-	pruneProxyLogs = fn
-	t.Cleanup(func() { pruneProxyLogs = orig })
 }
 
 func stubUpdateLatestToolVersion(t *testing.T, latest string, newer, ok bool) {

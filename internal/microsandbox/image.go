@@ -37,3 +37,20 @@ func (c *Client) RemoveImage(ref string) error {
 	}
 	return nil
 }
+
+// SameRef reports whether a and b name the same repository and tag, ignoring a registry or namespace prefix msb may add.
+func SameRef(a, b string) bool {
+	aRepo, aTag := SplitRef(a)
+	bRepo, bTag := SplitRef(b)
+	return aRepo == bRepo && aTag == bTag
+}
+
+// SplitRef returns ref's repository name without any registry or namespace prefix, and its tag ("latest" when unset).
+func SplitRef(ref string) (repo, tag string) {
+	name := ref[strings.LastIndex(ref, "/")+1:]
+	repo, tag, ok := strings.Cut(name, ":")
+	if !ok {
+		tag = "latest"
+	}
+	return repo, tag
+}
