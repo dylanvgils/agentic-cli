@@ -51,11 +51,6 @@ func buildRunArgs(rs sandbox.RunSpec, toolArgs []string) ([]string, error) {
 		return nil, err
 	}
 
-	secretArgs, err := buildSecretArgs(rs)
-	if err != nil {
-		return nil, err
-	}
-
 	entrypointArgs, toolArgs, err := buildEntrypointArgs(rs, toolArgs)
 	if err != nil {
 		return nil, err
@@ -65,7 +60,6 @@ func buildRunArgs(rs sandbox.RunSpec, toolArgs []string) ([]string, error) {
 	args = append(args, limitArgs...)
 	args = append(args, sandbox.EnvArgs(rs.Env)...)
 	args = append(args, volumeArgs...)
-	args = append(args, secretArgs...)
 	args = append(args, buildCredentialArgs(rs)...)
 	args = append(args, entrypointArgs...)
 	args = append(args, rs.Image)
@@ -106,24 +100,6 @@ func buildVolumeArgs(rs sandbox.RunSpec) ([]string, error) {
 			build = buildNamedVolumeArgs
 		}
 		mountArgs, err := build(volume, rs.ToolHome, rs.ContainerHome)
-		if err != nil {
-			return nil, err
-		}
-		args = append(args, mountArgs...)
-	}
-	return args, nil
-}
-
-// buildSecretArgs mounts each secret read-only at /run/secrets/<name> or its given guest path.
-func buildSecretArgs(rs sandbox.RunSpec) ([]string, error) {
-	var args []string
-	for _, secret := range rs.Secrets {
-		hostPath, guestPath, err := mount.ParseSecretSpec(secret)
-		if err != nil {
-			return nil, err
-		}
-
-		mountArgs, err := buildMountArgs(hostPath+":"+guestPath+":ro", rs.ToolHome, rs.ContainerHome)
 		if err != nil {
 			return nil, err
 		}

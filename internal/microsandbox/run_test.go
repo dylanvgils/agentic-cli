@@ -126,7 +126,7 @@ func Test_buildRunArgs(t *testing.T) {
 			Image:         "img",
 			ContainerHome: "/home/claude",
 			Limits:        sandbox.ResourceLimits{CPUs: "2"},
-			Secrets:       []string{"token:/example.test/token"},
+			Volumes:       []string{"/example.test/data:/data"},
 		}
 
 		// Act
@@ -136,7 +136,7 @@ func Test_buildRunArgs(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "run", args[0])
 		image := slices.Index(args, "img")
-		for _, flag := range []string{"--cpus=2", "--mount-dir=/example.test/token:/run/secrets/token:ro"} {
+		for _, flag := range []string{"--cpus=2", "--mount-dir=/example.test/data:/data"} {
 			assert.Contains(t, args, flag)
 			assert.Less(t, slices.Index(args, flag), image)
 		}
@@ -245,29 +245,6 @@ func Test_buildNamedVolumeArgs(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, `invalid volume "maven"`)
-	})
-}
-
-func Test_buildSecretArgs(t *testing.T) {
-	t.Run("mounts a secret file read-only under /run/secrets", func(t *testing.T) {
-		// Arrange
-		file := filepath.Join(t.TempDir(), "token")
-		require.NoError(t, os.WriteFile(file, []byte("test-secret"), 0o600))
-
-		// Act
-		args, err := buildSecretArgs(sandbox.RunSpec{Secrets: []string{"token:" + file}})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-file=" + file + ":/run/secrets/token:ro"}, args)
-	})
-
-	t.Run("returns a parse error", func(t *testing.T) {
-		// Act
-		_, err := buildSecretArgs(sandbox.RunSpec{Secrets: []string{"token"}})
-
-		// Assert
-		assert.ErrorContains(t, err, `invalid secret "token"`)
 	})
 }
 

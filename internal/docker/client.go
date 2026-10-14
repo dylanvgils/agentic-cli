@@ -45,7 +45,7 @@ func (c *Client) Context() string {
 
 // Capabilities reports what Docker runs offer.
 func (c *Client) Capabilities() sandbox.Capabilities {
-	return sandbox.Capabilities{Proxy: true, Dind: true, CredentialInjection: true, CredentialsViaProxy: true, PidsLimit: true}
+	return sandbox.Capabilities{Proxy: true, Dind: true, CredentialInjection: true, CredentialsViaProxy: true, SecretMounts: true, PidsLimit: true}
 }
 
 // run executes `docker <args>` and returns combined stdout+stderr.

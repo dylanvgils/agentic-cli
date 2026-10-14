@@ -16,6 +16,7 @@ func requiredCapabilities(flags Flags, rc *config.AgenticRC) sandbox.Capabilitie
 		Proxy:               resolve.RequestedProxyMode(flags.Proxy, rc).Enabled(),
 		Dind:                resolve.DindEnabled(flags.Dind, rc),
 		CredentialInjection: len(rc.Run.Proxy.Credentials) > 0,
+		SecretMounts:        len(resolve.Secrets(flags.Secrets, rc)) > 0,
 		PidsLimit:           true,
 	}
 }
@@ -32,8 +33,14 @@ func checkCapabilities(req Request, offered sandbox.Capabilities) error {
 	if missing.CredentialInjection {
 		refused = append(refused, fmt.Sprintf("proxy credentials (%s)", credentialsSource(req)))
 	}
+	if missing.SecretMounts {
+		refused = append(refused, fmt.Sprintf("secret mounts (%s)", secretsSource(req)))
+	}
 	if len(refused) > 0 {
 		hint := "use --runtime docker"
+		if missing.SecretMounts {
+			hint = "use [[run.proxy.credentials]] so the tool only sees a placeholder, or " + hint
+		}
 		if missing.Proxy {
 			hint = "pass --no-proxy to run without the proxy, or " + hint
 		}
@@ -71,6 +78,14 @@ func dindSource(req Request) string {
 // credentialsSource names the innermost layer that declares proxy credentials.
 func credentialsSource(req Request) string {
 	return layerSource(req.Project.Layers, "[[run.proxy.credentials]]", func(rc *config.AgenticRC) bool { return len(rc.Run.Proxy.Credentials) > 0 })
+}
+
+// secretsSource names what asks for secret mounts in req: --secret, or run.secrets and the innermost layer setting it.
+func secretsSource(req Request) string {
+	if len(req.Flags.Secrets) > 0 {
+		return "--secret"
+	}
+	return layerSource(req.Project.Layers, "[run] secrets", func(rc *config.AgenticRC) bool { return len(rc.Run.Secrets) > 0 })
 }
 
 // layerSource returns key plus the path of the innermost layer where set holds, or key alone when none does.

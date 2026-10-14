@@ -58,6 +58,18 @@ func Test_requiredCapabilities(t *testing.T) {
 		assert.Equal(t, sandbox.Capabilities{CredentialInjection: true, PidsLimit: true}, need)
 	})
 
+	t.Run("secrets from flags or config ask for secret mounts", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+		rc.Run.Secrets = []string{"token:/example.test/token"}
+
+		// Act
+		need := requiredCapabilities(Flags{}, rc)
+
+		// Assert
+		assert.Equal(t, sandbox.Capabilities{SecretMounts: true, PidsLimit: true}, need)
+	})
+
 	t.Run("off switches drop the need", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
@@ -105,6 +117,19 @@ func Test_checkCapabilities(t *testing.T) {
 		assert.Contains(t, err.Error(), "the egress proxy (--proxy-monitor) or proxy credentials ([[run.proxy.credentials]] in "+req.Project.Layers[0].Path+")")
 	})
 
+	t.Run("missing secret mounts point to credential injection", func(t *testing.T) {
+		// Arrange
+		req := runtimeRequest(RuntimeMicrosandbox)
+		req.Project.RC = &config.AgenticRC{}
+		req.Flags.Secrets = []string{"token:/example.test/token"}
+
+		// Act
+		err := checkCapabilities(req, msb)
+
+		// Assert
+		assert.EqualError(t, err, "--runtime microsandbox does not support secret mounts (--secret); use [[run.proxy.credentials]] so the tool only sees a placeholder, or use --runtime docker")
+	})
+
 	t.Run("a runtime with every feature passes", func(t *testing.T) {
 		// Arrange
 		req := newCredentialRequest(t)
@@ -112,7 +137,7 @@ func Test_checkCapabilities(t *testing.T) {
 		req.Flags.Dind.DindFlag = true
 
 		// Act
-		err := checkCapabilities(req, sandbox.Capabilities{Proxy: true, Dind: true, CredentialInjection: true, PidsLimit: true})
+		err := checkCapabilities(req, sandbox.Capabilities{Proxy: true, Dind: true, CredentialInjection: true, SecretMounts: true, PidsLimit: true})
 
 		// Assert
 		assert.NoError(t, err)
@@ -248,6 +273,32 @@ func Test_credentialsSource(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, "[[run.proxy.credentials]] in /example.test/.agenticrc.toml", source)
+}
+
+func Test_secretsSource(t *testing.T) {
+	t.Run("names the flag", func(t *testing.T) {
+		// Arrange
+		req := Request{Flags: Flags{Secrets: []string{"token:/example.test/token"}}}
+
+		// Act
+		source := secretsSource(req)
+
+		// Assert
+		assert.Equal(t, "--secret", source)
+	})
+
+	t.Run("names the key and its layer", func(t *testing.T) {
+		// Arrange
+		layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
+		layer.RC.Run.Secrets = []string{"token:/example.test/token"}
+		req := Request{Project: Project{Layers: []config.RCLayer{layer}}}
+
+		// Act
+		source := secretsSource(req)
+
+		// Assert
+		assert.Equal(t, "[run] secrets in /example.test/.agenticrc.toml", source)
+	})
 }
 
 func Test_layerSource(t *testing.T) {

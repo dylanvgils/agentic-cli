@@ -10,6 +10,8 @@ type Capabilities struct {
 	CredentialInjection bool
 	// CredentialsViaProxy means the proxy injects the credentials, so they turn it on.
 	CredentialsViaProxy bool
+	// SecretMounts are host files mounted read-only into the tool.
+	SecretMounts bool
 	// PidsLimit is a cap on the number of processes.
 	PidsLimit bool
 }
@@ -20,6 +22,7 @@ func (c Capabilities) Missing(need Capabilities) Capabilities {
 		Proxy:               need.Proxy && !c.Proxy,
 		Dind:                need.Dind && !c.Dind,
 		CredentialInjection: need.CredentialInjection && !c.CredentialInjection,
+		SecretMounts:        need.SecretMounts && !c.SecretMounts,
 		PidsLimit:           need.PidsLimit && !c.PidsLimit,
 	}
 }

@@ -23,7 +23,7 @@ func TestClient_Capabilities(t *testing.T) {
 	caps := New("").Capabilities()
 
 	// Assert
-	assert.Equal(t, sandbox.Capabilities{Proxy: true, Dind: true, CredentialInjection: true, CredentialsViaProxy: true, PidsLimit: true}, caps)
+	assert.Equal(t, sandbox.Capabilities{Proxy: true, Dind: true, CredentialInjection: true, CredentialsViaProxy: true, SecretMounts: true, PidsLimit: true}, caps)
 }
 
 func TestClient_run(t *testing.T) {
