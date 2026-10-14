@@ -216,6 +216,24 @@ func TestProxyHandleHostsMatching(t *testing.T) {
 		assert.Equal(t, 3, total)
 	})
 
+	t.Run("a denied host whose upstream failed in monitor mode still counts", func(t *testing.T) {
+		// Arrange
+		logPath := filepath.Join(t.TempDir(), "run.jsonl")
+		lines := strings.Join([]string{
+			`{"time":"2026-06-17T12:00:00Z","host":"down.example.test","port":"443","decision":"deny","reason":"upstream-failed"}`,
+			`{"time":"2026-06-17T12:00:01Z","host":"local.example.test","port":"443","decision":"deny","reason":"blocked-address"}`,
+		}, "\n")
+		require.NoError(t, os.WriteFile(logPath, []byte(lines+"\n"), 0o644))
+		handle := proxyHandle{logPath: logPath}
+
+		// Act
+		hosts, total := handle.hostsMatching(deniedByAllowlist)
+
+		// Assert
+		assert.Equal(t, []string{"down.example.test"}, hosts)
+		assert.Equal(t, 1, total)
+	})
+
 	t.Run("hosts are made safe to print", func(t *testing.T) {
 		// Arrange
 		logPath := filepath.Join(t.TempDir(), "run.jsonl")
@@ -283,6 +301,39 @@ func TestProxyHandlePrintSummary(t *testing.T) {
 		// Assert
 		assert.Contains(t, buf.String(), "agentic: proxy (monitor mode) observed 2 request(s); 1 would be blocked under the current allowlist: evil.com")
 		assert.Contains(t, buf.String(), "--proxy-monitor")
+	})
+
+	t.Run("warns about credential hosts reached without the placeholder", func(t *testing.T) {
+		// Arrange
+		logPath := writeLog(t,
+			`{"host":"api.example.test","decision":"allow","injected":true}`,
+			`{"host":"api.example.test","decision":"allow","reason":"no-placeholder"}`,
+		)
+		handle := proxyHandle{logPath: logPath}
+		var buf strings.Builder
+
+		// Act
+		handle.PrintSummary(logging.New(&buf))
+
+		// Assert
+		assert.Contains(t, buf.String(), "agentic: warning: proxy saw 1 connection(s) to credential hosts without the placeholder, so they likely ran unauthenticated: api.example.test")
+		assert.NotContains(t, buf.String(), "blocked")
+	})
+
+	t.Run("monitor mode doesn't count a missed placeholder as another request or block", func(t *testing.T) {
+		// Arrange
+		logPath := writeLog(t,
+			`{"host":"evil.com","decision":"deny"}`,
+			`{"host":"api.example.test","decision":"deny","reason":"no-placeholder"}`,
+		)
+		handle := proxyHandle{logPath: logPath, monitor: true}
+		var buf strings.Builder
+
+		// Act
+		handle.PrintSummary(logging.New(&buf))
+
+		// Assert
+		assert.Contains(t, buf.String(), "observed 1 request(s); 1 would be blocked under the current allowlist: evil.com")
 	})
 
 	t.Run("guard refusals are reported apart from allowlist blocks", func(t *testing.T) {

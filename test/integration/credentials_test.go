@@ -4,7 +4,9 @@ package integration
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +18,9 @@ const (
 	credentialHost = "upstream.example.test"
 
 	credentialSecret = "test-secret-value"
+
+	// proxyCredentialsDir mirrors internal/docker's dir for the proxy's CA and credential files
+	proxyCredentialsDir = "/run/agentic-proxy/credentials"
 )
 
 // TestProxyCredentials checks the tool sees only the placeholder and trusts the proxy CA for credential hosts.
@@ -63,6 +68,49 @@ PATH=/tmp/shim:$PATH exec /usr/local/bin/entrypoint.sh`
 		// Assert
 		assert.Contains(t, out, "status=502")
 		assert.Contains(t, out, "tls=ok")
+		assert.Contains(t, out, "without the placeholder, so they likely ran unauthenticated: "+credentialHost)
 		assert.Contains(t, proxyLog(t), `"host":"`+credentialHost+`","port":"443","decision":"allow","enforced":true,"injected":true`)
+	})
+
+	t.Run("proxy deletes the CA key and credentials once loaded", func(t *testing.T) {
+		// Arrange
+		copyOut := func(proxy, file string) error {
+			return exec.Command("docker", "cp", proxy+":"+proxyCredentialsDir+"/"+file, "-").Run()
+		}
+		var keyErr, credsErr, certErr error
+
+		// Act
+		duringRun(t, dir, func() {
+			proxy := runningProxy(t)
+			keyErr = copyOut(proxy, "ca-key.pem")
+			credsErr = copyOut(proxy, "credentials.json")
+			certErr = copyOut(proxy, "ca.pem")
+		})
+
+		// Assert - the CA cert stays, which proves the path is right
+		assert.Error(t, keyErr)
+		assert.Error(t, credsErr)
+		assert.NoError(t, certErr)
+	})
+
+	t.Run("proxy refuses clients outside the run's network", func(t *testing.T) {
+		// Arrange
+		var out []byte
+
+		// Act - a container on the shared egress network the proxy also joins
+		duringRun(t, dir, func() {
+			proxy := runningProxy(t)
+			ip, err := exec.Command("docker", "inspect", "--format", `{{(index .NetworkSettings.Networks "agentic-net").IPAddress}}`, proxy).Output()
+			require.NoError(t, err)
+			proxyURL := "http://" + strings.TrimSpace(string(ip)) + ":3128"
+
+			out, err = exec.Command("docker", "run", "--rm", "--network", "agentic-net", "--entrypoint", "",
+				testNamespace+"-"+testTool, "curl", "-sS", "-m", "5", "-x", proxyURL, "-w", "\nstatus=%{http_code}", "http://"+credentialHost+"/").CombinedOutput()
+			require.NoError(t, err, string(out))
+		})
+
+		// Assert
+		assert.Contains(t, string(out), "client not on the agentic proxy network")
+		assert.Contains(t, string(out), "status=403")
 	})
 }

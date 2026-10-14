@@ -23,6 +23,13 @@ const (
 // ReasonBlockedAddr is the log reason for an allowed host refused by the address guard.
 const ReasonBlockedAddr = "blocked-address"
 
+// ReasonUpstreamFailed is the log reason for an allowed request the upstream couldn't serve, with the detail in Entry.Error.
+const ReasonUpstreamFailed = "upstream-failed"
+
+// ReasonNoPlaceholder is the log reason for a closed credential tunnel whose requests never carried the placeholder. It
+// repeats the tunnel's entry rather than counting a new attempt.
+const ReasonNoPlaceholder = "no-placeholder"
+
 // Protocol records how the client reached the proxy: an HTTP CONNECT tunnel (HTTPS) or a plain HTTP forward.
 type Protocol string
 
@@ -45,8 +52,10 @@ type Entry struct {
 	Enforced bool `json:"enforced"`
 	// Injected reports whether the tunnel was TLS-terminated to inject credentials.
 	Injected bool `json:"injected,omitempty"`
-	// Reason says why an allowed host was still refused, e.g. ReasonBlockedAddr.
+	// Reason says why an allowed host was still refused or failed, e.g. ReasonBlockedAddr.
 	Reason string `json:"reason,omitempty"`
+	// Error is the upstream failure detail, kept out of the response to the tool; never in the human line.
+	Error string `json:"error,omitempty"`
 }
 
 // Logger writes each access record as a JSON line (always UTC) to an optional file and as a
