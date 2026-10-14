@@ -83,6 +83,8 @@ agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.x
 
 The agent can read mounted secrets. For API keys, use [credential injection](egress-proxy.md#credential-injection) so the agent only sees a placeholder.
 
+The microsandbox runtime refuses secret mounts; use credential injection there instead.
+
 ## Environment variables
 
 `-e`/`--env` sets `KEY=VALUE`, or forwards the host value with a bare `KEY` (skipped if unset):
