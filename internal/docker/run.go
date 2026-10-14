@@ -28,7 +28,7 @@ var reservedConfigNames = map[string]bool{
 	tools.ProxyCAEnvName:   true,
 }
 
-// toolRun is a RunSpec plus the per-run Docker state RunContainer derives from it.
+// toolRun is a RunSpec plus the per-run Docker state StartSidecars derives from it.
 type toolRun struct {
 	sandbox.RunSpec
 
@@ -39,31 +39,52 @@ type toolRun struct {
 	container string
 }
 
-func (c *Client) RunContainer(spec sandbox.RunSpec, toolArgs []string) error {
+// Sidecars is a run whose proxy and dind sidecars StartSidecars started; RunTool starts its tool, StopSidecars stops them.
+type Sidecars struct {
+	run toolRun
+
+	// args point the tool at the sidecars
+	args []string
+
+	cleanup func()
+}
+
+// StartSidecars names spec's tool container and starts its sidecars; a dry run only prints them.
+func (c *Client) StartSidecars(spec sandbox.RunSpec) (Sidecars, error) {
 	id, err := randID()
 	if err != nil {
-		return err
+		return Sidecars{}, err
 	}
 	rs := toolRun{RunSpec: spec, container: spec.Image + "-" + id}
 
-	sidecarArgs, cleanup, err := c.setupSidecars(&rs)
+	args, cleanup, err := c.setupSidecars(&rs)
+	if err != nil {
+		return Sidecars{}, err
+	}
+	return Sidecars{run: rs, args: args, cleanup: cleanup}, nil
+}
+
+// RunTool runs the tool container of sc's run with toolArgs; a dry run only prints it.
+func (c *Client) RunTool(sc Sidecars, toolArgs []string) error {
+	args, err := buildRunArgs(sc.run, sc.args, toolArgs)
 	if err != nil {
 		return err
 	}
-	defer cleanup()
 
-	args, err := buildRunArgs(rs, sidecarArgs, toolArgs)
-	if err != nil {
-		return err
-	}
-
-	if rs.DryRun {
+	if sc.run.DryRun {
 		return sandbox.PrintDryRun("tool container", "docker", args)
 	}
 
 	// Set agentic startup messages apart from the tool output
 	logging.Separate()
 	return c.runInteractive(args...)
+}
+
+// StopSidecars stops and removes sc's sidecars.
+func (c *Client) StopSidecars(sc Sidecars) {
+	if sc.cleanup != nil {
+		sc.cleanup()
+	}
 }
 
 // IsReservedEnvName reports whether key is an env var agentic already manages, so a user-supplied

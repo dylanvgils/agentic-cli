@@ -29,7 +29,9 @@ type Docker interface {
 	EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage string) error
 	EnsureNetwork() error
 	SaveImage(image string, w io.Writer) error
-	RunContainer(rs sandbox.RunSpec, toolArgs []string) error
+	StartSidecars(rs sandbox.RunSpec) (docker.Sidecars, error)
+	RunTool(sidecars docker.Sidecars, toolArgs []string) error
+	StopSidecars(sidecars docker.Sidecars)
 	Capabilities() sandbox.Capabilities
 }
 

@@ -21,7 +21,8 @@ func (r dockerRunner) Check(Request) error {
 	return nil
 }
 
-// Run readies the Docker-only host resources rs needs, then runs it; a dry run only checks the image and prints.
+// Run readies the Docker-only host resources rs needs, starts its sidecars and runs it, checking the mounts again right
+// before the tool starts as the sidecars can take long enough for a path to change; a dry run only checks the image and prints.
 func (r dockerRunner) Run(req Request, rs sandbox.RunSpec, toolArgs []string) error {
 	if rs.Dind.Enabled {
 		if err := r.requireDockerLayer(rs.Image, req.Target.ToolName); err != nil {
@@ -35,7 +36,16 @@ func (r dockerRunner) Run(req Request, rs sandbox.RunSpec, toolArgs []string) er
 		}
 	}
 
-	return r.docker.RunContainer(rs, toolArgs)
+	sidecars, err := r.docker.StartSidecars(rs)
+	if err != nil {
+		return err
+	}
+	defer r.docker.StopSidecars(sidecars)
+
+	if err := recheckMounts(rs); err != nil {
+		return err
+	}
+	return r.docker.RunTool(sidecars, toolArgs)
 }
 
 // prepareDockerHost creates rs's named volumes and proxy log dir, builds missing sidecar images and ensures agentic-net when the tool joins it.

@@ -34,7 +34,9 @@ type fakeDocker struct {
 	restampImage         func(image string, info docker.ImageInfo)
 	pruneDangling        func() error
 	saveImage            func(image string, w io.Writer) error
-	runContainer         func(rs sandbox.RunSpec, toolArgs []string) error
+	startSidecars        func(rs sandbox.RunSpec) (docker.Sidecars, error)
+	runTool              func(sidecars docker.Sidecars, toolArgs []string) error
+	stopSidecars         func(sidecars docker.Sidecars)
 }
 
 func (f *fakeDocker) Capabilities() sandbox.Capabilities {
@@ -120,11 +122,24 @@ func (f *fakeDocker) SaveImage(image string, w io.Writer) error {
 	return f.saveImage(image, w)
 }
 
-func (f *fakeDocker) RunContainer(rs sandbox.RunSpec, toolArgs []string) error {
-	if f.runContainer == nil {
+func (f *fakeDocker) StartSidecars(rs sandbox.RunSpec) (docker.Sidecars, error) {
+	if f.startSidecars == nil {
+		return docker.Sidecars{}, nil
+	}
+	return f.startSidecars(rs)
+}
+
+func (f *fakeDocker) RunTool(sidecars docker.Sidecars, toolArgs []string) error {
+	if f.runTool == nil {
 		return nil
 	}
-	return f.runContainer(rs, toolArgs)
+	return f.runTool(sidecars, toolArgs)
+}
+
+func (f *fakeDocker) StopSidecars(sidecars docker.Sidecars) {
+	if f.stopSidecars != nil {
+		f.stopSidecars(sidecars)
+	}
 }
 
 // newProxyRunSpec returns a RunSpec with the proxy in mode and its log dir in a temp tool home, as Build sets it.
