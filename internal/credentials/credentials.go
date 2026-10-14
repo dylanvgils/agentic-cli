@@ -55,6 +55,17 @@ func Resolve(entries []config.RCCredential) ([]Resolved, error) {
 	return resolved, nil
 }
 
+// Check validates entries without reading any secret: known presets and env names a tool can send the placeholder in. It
+// runs before any prompt; Resolve repeats it.
+func Check(entries []config.RCCredential) error {
+	for i, entry := range entries {
+		if _, err := checkEntry(entry); err != nil {
+			return fmt.Errorf("credential %d (%s): %w", i+1, describe(entry), err)
+		}
+	}
+	return nil
+}
+
 // Hosts returns the hosts entries cover without reading any secret; an entry with an unknown preset is skipped.
 func Hosts(entries []config.RCCredential) []string {
 	var hosts []string
@@ -66,20 +77,29 @@ func Hosts(entries []config.RCCredential) []string {
 	return hosts
 }
 
-// resolveEntry expands entry and reads its secret.
-func resolveEntry(entry config.RCCredential) (Resolved, error) {
+// checkEntry expands entry and checks it has valid env names, which no tool could send the placeholder without.
+func checkEntry(entry config.RCCredential) (preset, error) {
 	e, err := expand(entry)
 	if err != nil {
-		return Resolved{}, err
+		return preset{}, err
 	}
 
 	if len(e.env) == 0 {
-		return Resolved{}, fmt.Errorf("needs env, as the tool must send the placeholder")
+		return preset{}, fmt.Errorf("needs env, as the tool must send the placeholder")
 	}
 	for _, name := range e.env {
 		if !validEnvName.MatchString(name) {
-			return Resolved{}, fmt.Errorf("invalid env name %q", name)
+			return preset{}, fmt.Errorf("invalid env name %q", name)
 		}
+	}
+	return e, nil
+}
+
+// resolveEntry checks entry and reads its secret.
+func resolveEntry(entry config.RCCredential) (Resolved, error) {
+	e, err := checkEntry(entry)
+	if err != nil {
+		return Resolved{}, err
 	}
 
 	source, err := ParseSource(entry.Secret)

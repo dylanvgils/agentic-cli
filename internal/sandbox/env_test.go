@@ -20,6 +20,18 @@ func TestResolveEnv(t *testing.T) {
 	assert.Equal(t, []string{"NO_COLOR=1", "TZ=America/New_York", "NO_COLOR=0", "TZ=UTC"}, env, "entries come last so they win")
 }
 
+func TestEnvArgs(t *testing.T) {
+	// Arrange
+	clearTerminalEnv(t)
+	stubHostTimezone(t, "")
+
+	// Act
+	args := EnvArgs([]string{"MAVEN_OPTS=-Dfoo=bar"})
+
+	// Assert
+	assert.Equal(t, []string{"--env=MAVEN_OPTS=-Dfoo=bar"}, args)
+}
+
 func Test_terminalEnv(t *testing.T) {
 	t.Run("forwards each set terminal var from the host", func(t *testing.T) {
 		// Arrange

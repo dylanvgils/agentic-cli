@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
@@ -54,7 +55,7 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 	if err := s.checkRuntime(req); err != nil {
 		return sandbox.RunSpec{}, noCleanup, err
 	}
-	if err := checkCredentialConfig(req.Project.RC); err != nil {
+	if err := credentials.Check(req.Project.RC.Run.Proxy.Credentials); err != nil {
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 

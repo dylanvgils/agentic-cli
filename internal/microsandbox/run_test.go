@@ -197,14 +197,6 @@ func Test_buildLimitArgs(t *testing.T) {
 	})
 }
 
-func Test_buildEnvArgs(t *testing.T) {
-	// Act
-	args := buildEnvArgs(sandbox.RunSpec{Env: []string{"CI=true"}})
-
-	// Assert
-	assert.Contains(t, args, "--env=CI=true")
-}
-
 func Test_buildVolumeArgs(t *testing.T) {
 	t.Run("maps bind mounts and named volumes", func(t *testing.T) {
 		// Arrange

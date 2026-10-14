@@ -76,17 +76,6 @@ func TestBuildTTYArgs(t *testing.T) {
 	})
 }
 
-func TestBuildEnvArgs(t *testing.T) {
-	// Arrange
-	rs := sandbox.RunSpec{Env: []string{"MAVEN_OPTS=-Dfoo=bar"}}
-
-	// Act
-	args := buildEnvArgs(rs)
-
-	// Assert
-	assert.Contains(t, args, "--env=MAVEN_OPTS=-Dfoo=bar")
-}
-
 func TestBuildTmpfsArgs(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		// Act

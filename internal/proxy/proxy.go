@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -85,8 +86,9 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 // handleHTTP forwards a plain (non-TLS) HTTP request to the upstream host after checking the allowlist, unless in monitor mode.
 func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	host, port := splitHostPort(r.Host)
+	host = normalizeHost(host)
 	if port == "" {
-		port = "80"
+		port = defaultPort(r.URL.Scheme)
 	}
 
 	entry, forward := s.verdict(ProtocolHTTP, host, port)
@@ -183,6 +185,15 @@ func splice(a, b net.Conn) {
 	}()
 
 	<-done
+}
+
+// defaultPort returns the port a forwarded request with scheme goes to when its URL names none: 443 for an https://
+// absolute-form request, which the transport sends over TLS, else 80.
+func defaultPort(scheme string) string {
+	if strings.EqualFold(scheme, "https") {
+		return "443"
+	}
+	return "80"
 }
 
 // splitHostPort separates "host:port", returning an empty port when none is present.
