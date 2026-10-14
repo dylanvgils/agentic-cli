@@ -33,6 +33,13 @@ func TestServerConnectInject(t *testing.T) {
 		w.(http.Flusher).Flush()
 		<-release
 	})
+	mux.HandleFunc("/reflect", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Echo-Api-Key", r.Header.Get("X-Api-Key"))
+	})
+	mux.HandleFunc("/drop", func(w http.ResponseWriter, _ *http.Request) {
+		conn, _, _ := w.(http.Hijacker).Hijack()
+		_ = conn.Close()
+	})
 	upstream := httptest.NewTLSServer(mux)
 	t.Cleanup(upstream.Close)
 
@@ -83,6 +90,89 @@ func TestServerConnectInject(t *testing.T) {
 		defer resp.Body.Close() //nolint:errcheck
 		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":true,"injected":true,"reason":"blocked-address"`)
+	})
+
+	t.Run("failed upstream returns a fixed 502 and logs the error", func(t *testing.T) {
+		// Arrange
+		inject, roots := newTestInjector(t, upstream, creds)
+		var logBuf syncBuffer
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+
+		// Act
+		resp, err := httpsClientVia(t, proxy.URL, roots).Get(upstream.URL + "/drop")
+
+		// Assert
+		require.NoError(t, err)
+		defer resp.Body.Close() //nolint:errcheck
+		body, _ := io.ReadAll(resp.Body)
+		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+		assert.Equal(t, "upstream unreachable via agentic proxy\n", string(body))
+		assert.Contains(t, logBuf.String(), `"reason":"upstream-failed","error":`)
+	})
+
+	t.Run("tunnel that never sent the placeholder is logged once it closes", func(t *testing.T) {
+		// Arrange
+		inject, roots := newTestInjector(t, upstream, creds)
+		var logBuf syncBuffer
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+		client := httpsClientVia(t, proxy.URL, roots)
+
+		// Act
+		resp, err := client.Get(upstream.URL + "/echo")
+		require.NoError(t, err)
+		_, _ = io.ReadAll(resp.Body)
+		resp.Body.Close() //nolint:errcheck
+		client.CloseIdleConnections()
+
+		// Assert
+		assert.Eventually(t, func() bool {
+			return strings.Contains(logBuf.String(), `"reason":"no-placeholder"`)
+		}, 2*time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("tunnel that sent the placeholder after an unauthenticated request is not logged", func(t *testing.T) {
+		// Arrange
+		inject, roots := newTestInjector(t, upstream, creds)
+		var logBuf syncBuffer
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+		client := httpsClientVia(t, proxy.URL, roots)
+		authed, err := http.NewRequest(http.MethodGet, upstream.URL+"/echo", nil)
+		require.NoError(t, err)
+		authed.Header.Set("X-Api-Key", testPlaceholder)
+
+		// Act
+		for _, req := range []*http.Request{mustGet(t, upstream.URL+"/echo"), authed} {
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			_, _ = io.ReadAll(resp.Body)
+			resp.Body.Close() //nolint:errcheck
+		}
+		client.CloseIdleConnections()
+
+		// Assert
+		assert.Never(t, func() bool {
+			return strings.Contains(logBuf.String(), `"reason":"no-placeholder"`)
+		}, 200*time.Millisecond, 10*time.Millisecond)
+	})
+
+	t.Run("secret echoed in a response header reaches the tool as the placeholder", func(t *testing.T) {
+		// Arrange
+		inject, roots := newTestInjector(t, upstream, creds)
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+		req := mustGet(t, upstream.URL+"/reflect")
+		req.Header.Set("X-Api-Key", testPlaceholder)
+
+		// Act
+		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
+
+		// Assert
+		require.NoError(t, err)
+		defer resp.Body.Close() //nolint:errcheck
+		assert.Equal(t, testPlaceholder, resp.Header.Get("X-Echo-Api-Key"))
 	})
 
 	t.Run("request host header cannot redirect the upstream", func(t *testing.T) {
@@ -354,6 +444,38 @@ func TestServerConnectSubstitute(t *testing.T) {
 	}
 }
 
+func Test_scrub(t *testing.T) {
+	cred := Credential{Placeholder: testPlaceholder, Secret: "test-secret"}
+
+	t.Run("swaps the secret back in every header", func(t *testing.T) {
+		// Arrange
+		header := http.Header{
+			"X-Echo-Auth": {"Bearer test-secret"},
+			"Location":    {"https://api.example.test/?token=test-secret", "test-secret,test-secret"},
+		}
+
+		// Act
+		scrub(header, cred)
+
+		// Assert
+		assert.Equal(t, http.Header{
+			"X-Echo-Auth": {"Bearer " + testPlaceholder},
+			"Location":    {"https://api.example.test/?token=" + testPlaceholder, testPlaceholder + "," + testPlaceholder},
+		}, header)
+	})
+
+	t.Run("leaves headers alone for an empty secret", func(t *testing.T) {
+		// Arrange
+		header := http.Header{"Content-Type": {"text/plain"}}
+
+		// Act
+		scrub(header, Credential{Placeholder: testPlaceholder})
+
+		// Assert
+		assert.Equal(t, http.Header{"Content-Type": {"text/plain"}}, header)
+	})
+}
+
 func Test_substitute(t *testing.T) {
 	cred := testPlaceholderCredential("api.example.test", testPlaceholder)
 
@@ -394,6 +516,31 @@ func Test_substitute(t *testing.T) {
 		// Assert
 		assert.Equal(t, http.Header{"X-Api-Key": {"test-secret"}, "X-Api-Keys": {"other"}}, header)
 	})
+}
+
+func Test_hasPlaceholder(t *testing.T) {
+	cred := Credential{Headers: []string{"Authorization"}, Placeholder: testPlaceholder, Secret: "test-secret"}
+	basic := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + testPlaceholder))
+	cases := map[string]struct {
+		header http.Header
+		want   bool
+	}{
+		"plain placeholder in a listed header":  {http.Header{"Authorization": {"Bearer " + testPlaceholder}}, true},
+		"basic-encoded placeholder":             {http.Header{"Authorization": {"Basic " + basic}}, true},
+		"listed header without the placeholder": {http.Header{"Authorization": {"Bearer own-token"}}, false},
+		"placeholder in an unlisted header":     {http.Header{"X-Api-Key": {testPlaceholder}}, false},
+		"no headers":                            {http.Header{}, false},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Act
+			got := hasPlaceholder(c.header, cred)
+
+			// Assert
+			assert.Equal(t, c.want, got)
+		})
+	}
 }
 
 func Test_substituteValue(t *testing.T) {

@@ -126,12 +126,13 @@ func (h proxyHandle) Stop() {
 	_, _ = h.client.run("network", "rm", h.network)
 }
 
-// PrintSummary reports hosts the allowlist blocked, or would have blocked in monitor mode, and
-// separately hosts the address guard refused, which it does in both modes.
+// PrintSummary reports hosts the allowlist blocked, or would have blocked in monitor mode, separately hosts the address
+// guard refused, which it does in both modes, and credential hosts the tool reached without the placeholder.
 func (h proxyHandle) PrintSummary(l *logging.Logger) {
 	hosts, denied := h.hostsMatching(deniedByAllowlist)
 	refusedHosts, refused := h.hostsMatching(refusedByGuard)
-	if denied == 0 && refused == 0 {
+	missedHosts, missed := h.hostsMatching(missedPlaceholder)
+	if denied == 0 && refused == 0 && missed == 0 {
 		return
 	}
 
@@ -151,6 +152,11 @@ func (h proxyHandle) PrintSummary(l *logging.Logger) {
 	if refused > 0 {
 		l.Infof("proxy refused %d request(s) to local or private addresses: %s", refused, strings.Join(refusedHosts, ", "))
 		l.Detail("list an internal host exactly in [run.proxy] allowed_hosts to permit its private address; loopback and link-local stay refused.")
+	}
+
+	if missed > 0 {
+		l.Warnf("proxy saw %d connection(s) to credential hosts without the placeholder, so they likely ran unauthenticated: %s", missed, strings.Join(missedHosts, ", "))
+		l.Detail("check that the tool reads one of the credential's env names and sends it in a listed header.")
 	}
 }
 
@@ -187,7 +193,8 @@ func (h proxyHandle) hostsMatching(match func(proxy.Entry) bool) (hosts []string
 	return hosts, total
 }
 
-// totalRequests reads the access log and returns the total connection attempts logged, regardless of decision.
+// totalRequests reads the access log and returns the total connection attempts logged, regardless of decision; a missed
+// placeholder entry repeats an attempt, so it isn't counted.
 func (h proxyHandle) totalRequests() int {
 	f, err := os.Open(h.logPath)
 	if err != nil {
@@ -199,7 +206,7 @@ func (h proxyHandle) totalRequests() int {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		var entry proxy.Entry
-		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil || missedPlaceholder(entry) {
 			continue
 		}
 		total++
@@ -446,9 +453,15 @@ func randID() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-// deniedByAllowlist reports whether entry was denied because its host isn't on the allowlist.
+// deniedByAllowlist reports whether entry was denied because its host isn't on the allowlist, even if monitor mode then let it
+// through to an upstream that failed.
 func deniedByAllowlist(entry proxy.Entry) bool {
-	return entry.Decision == proxy.DecisionDeny && entry.Reason == ""
+	return entry.Decision == proxy.DecisionDeny && entry.Reason != proxy.ReasonBlockedAddr && entry.Reason != proxy.ReasonNoPlaceholder
+}
+
+// missedPlaceholder reports whether entry is a credential tunnel whose requests never carried the placeholder.
+func missedPlaceholder(entry proxy.Entry) bool {
+	return entry.Reason == proxy.ReasonNoPlaceholder
 }
 
 // refusedByGuard reports whether the address guard refused entry.

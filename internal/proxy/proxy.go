@@ -61,11 +61,11 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		s.refuseBlocked(w, entry)
 		return
 	}
-	s.logger.Log(entry)
 	if err != nil {
-		http.Error(w, "upstream dial failed: "+err.Error(), http.StatusBadGateway)
+		s.failUpstream(w, entry, err)
 		return
 	}
+	s.logger.Log(entry)
 	defer func() { _ = upstream.Close() }()
 
 	client, err := hijack(w)
@@ -103,11 +103,11 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		s.refuseBlocked(w, entry)
 		return
 	}
-	s.logger.Log(entry)
 	if err != nil {
-		http.Error(w, "upstream request failed: "+err.Error(), http.StatusBadGateway)
+		s.failUpstream(w, entry, err)
 		return
 	}
+	s.logger.Log(entry)
 	defer func() { _ = resp.Body.Close() }()
 
 	for key, values := range resp.Header {
@@ -145,6 +145,14 @@ func (s *Server) refuseBlocked(w http.ResponseWriter, entry Entry) {
 	entry.Reason = ReasonBlockedAddr
 	s.logger.Log(entry)
 	http.Error(w, errBlockedAddr.Error(), http.StatusForbidden)
+}
+
+// failUpstream logs entry with err, which can name resolved IPs and the resolver, and answers a fixed 502 without it.
+func (s *Server) failUpstream(w http.ResponseWriter, entry Entry, err error) {
+	entry.Reason = ReasonUpstreamFailed
+	entry.Error = err.Error()
+	s.logger.Log(entry)
+	http.Error(w, "upstream unreachable via agentic proxy", http.StatusBadGateway)
 }
 
 // hijack takes over the underlying TCP connection from the ResponseWriter for a CONNECT tunnel.

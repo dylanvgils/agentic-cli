@@ -58,6 +58,27 @@ func TestServerConnect(t *testing.T) {
 		assert.Contains(t, logBuf.String(), `"protocol":"https"`)
 	})
 
+	t.Run("failed upstream returns a fixed 502 and logs the error", func(t *testing.T) {
+		// Arrange
+		stubAllowLocal(t)
+		upstreamHost, upstreamPort := closedPort(t)
+		stubDefaultPorts(t, upstreamPort)
+
+		var logBuf bytes.Buffer
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil))
+		t.Cleanup(proxy.Close)
+
+		// Act
+		resp := connect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
+		defer resp.Body.Close() //nolint:errcheck
+		body, _ := io.ReadAll(resp.Body)
+
+		// Assert
+		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+		assert.Equal(t, "upstream unreachable via agentic proxy\n", string(body))
+		assert.Contains(t, logBuf.String(), `"reason":"upstream-failed","error":"dial tcp `)
+	})
+
 	t.Run("monitor mode tunnels a denied host and logs deny unenforced", func(t *testing.T) {
 		// Arrange
 		stubAllowLocal(t)
@@ -195,6 +216,27 @@ func TestServerHTTP(t *testing.T) {
 		// Assert
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "hello", string(body))
+	})
+
+	t.Run("failed upstream returns a fixed 502 and logs the error", func(t *testing.T) {
+		// Arrange
+		stubAllowLocal(t)
+		upstreamHost, upstreamPort := closedPort(t)
+		stubDefaultPorts(t, upstreamPort)
+
+		var logBuf bytes.Buffer
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil))
+		t.Cleanup(proxy.Close)
+
+		// Act
+		resp := proxyGet(t, proxy.URL, "http://"+net.JoinHostPort(upstreamHost, upstreamPort))
+		defer resp.Body.Close() //nolint:errcheck
+		body, _ := io.ReadAll(resp.Body)
+
+		// Assert
+		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+		assert.Equal(t, "upstream unreachable via agentic proxy\n", string(body))
+		assert.Contains(t, logBuf.String(), `"reason":"upstream-failed","error":"dial tcp `)
 	})
 
 	t.Run("monitor mode forwards a denied host and logs deny unenforced", func(t *testing.T) {

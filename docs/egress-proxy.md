@@ -26,6 +26,7 @@ allowed_hosts = ["registry.npmjs.org", ".github.com"]
 - The tool container loses direct internet access. It reaches the outside only through a proxy sidecar on a per-run internal Docker network.
 - `HTTP_PROXY`/`HTTPS_PROXY` (and lowercase variants) are set automatically.
 - Blocked hosts are printed at the end of the run. Every attempt is logged as JSON lines in `$AGENTIC_HOME/logs/proxy_<id>.jsonl`.
+- When an upstream fails, the tool gets a plain 502. The log entry gets `"reason": "upstream-failed"` with the cause in `"error"`, which can name resolved IPs the tool shouldn't see.
 - Logs older than `proxy_log_retention_days` in `agentic.json` (default 3) are pruned on each proxy run. `agentic proxy clean --logs` wipes them all.
 - The sidecar and its network are removed when the run ends. After a crash, the next `agentic` run removes them once they are a few minutes old, and `agentic clean` removes them right away.
 - The proxy image builds on first use, or with `agentic proxy build`. `agentic proxy update` rebuilds it.
@@ -70,6 +71,7 @@ Some tools, like Maven, ignore those env vars and need a literal `host:port` in 
 - **Proxy on**: credentials turn the proxy on in enforce mode (monitor mode still applies if set), and their hosts join the allowlist. Combining them with `--no-proxy` or `enabled = false` is an error.
 - **Only credential hosts are decrypted**: the proxy terminates TLS only for those hosts, using a per-run CA that can sign nothing else. All other traffic stays an end-to-end encrypted tunnel. Plain HTTP is never touched. Terminated hosts use HTTP/1.1, and their log entries carry `"injected": true`.
 - **Only the placeholder is swapped**: in the entry's headers, decoding `Basic` auth first, and nowhere else. A request without the placeholder passes unchanged. Look-alike headers such as `X_Api_Key` for `X-Api-Key` are dropped.
+- **Missing placeholder warning**: if a connection to an entry's host never sends the placeholder, the run ends with a warning, as the tool likely ran unauthenticated. The log marks it `"reason": "no-placeholder"`.
 - **git**: with the `github` preset, agentic sets a git credential helper through `GIT_CONFIG_*` env vars. git over HTTPS then answers GitHub's challenge with `x-access-token` and the placeholder.
 - **Secrets stay on the host**: agentic reads each secret when the run starts and copies it into the sidecar, which is removed when the run ends. A secret file inside the current directory, or inside any path mounted into the container, is refused.
 - **Approval**: entries need your approval when they first appear and whenever they change, like other [guarded settings](config.md#setting-approval). Each run prints `agentic: injecting credentials for <hosts> (<secret path>)`.
@@ -82,4 +84,5 @@ Some tools, like Maven, ignore those env vars and need a literal `host:port` in 
 - **Copilot**: the `github` preset swaps in the GitHub token, but Copilot exchanges it for a short-lived token that comes back in a response body, where the agent can read it.
 - **Headers only**: a tool that sends the key in the URL or body, or signs requests with it (e.g. AWS SigV4), can't use a placeholder.
 - **Use, not theft**: the agent can't read the key, but it can still make authenticated requests to the key's hosts during the run.
+- **Echoed keys**: the proxy swaps the key back to the placeholder in response headers, but not in bodies. A credential host that echoes the request in its body hands the key to the tool.
 - **Gaps in CA trust**: `agentic run <tool> -- <cmd>` skips the entrypoint, and Java and containers started through `--dind` use their own trust stores. TLS to credential hosts fails in those cases.

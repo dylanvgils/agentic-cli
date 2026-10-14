@@ -71,6 +71,16 @@ func stubAllowLocal(t *testing.T) {
 	stubIsBlocked(t, func(netip.Addr, bool) bool { return false })
 }
 
+// closedPort returns a loopback host and port nothing listens on.
+func closedPort(t *testing.T) (host, port string) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	host, port = splitHostPort(listener.Addr().String())
+	require.NoError(t, listener.Close())
+	return host, port
+}
+
 // startEchoServer starts a TCP echo server torn down on cleanup, returning its host and port.
 func startEchoServer(t *testing.T) (host, port string) {
 	t.Helper()
@@ -158,6 +168,14 @@ func newTestInjector(t *testing.T, upstream *httptest.Server, creds []Credential
 	roots := x509.NewCertPool()
 	require.True(t, roots.AppendCertsFromPEM(ca.CertPEM()))
 	return inject, roots
+}
+
+// mustGet returns a GET request for target.
+func mustGet(t *testing.T, target string) *http.Request {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, target, nil)
+	require.NoError(t, err)
+	return req
 }
 
 // httpsClientVia returns a client sending requests through proxyURL and trusting only roots.

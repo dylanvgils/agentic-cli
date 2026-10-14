@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/certs"
@@ -149,7 +150,8 @@ func (i *Injector) serve(tlsConn *tls.Conn, handler http.Handler) {
 	_ = server.Serve(newOneConnListener(tlsConn))
 }
 
-// reverseProxy forwards to host:port, never the request's Host, with cred's secret put in the headers.
+// reverseProxy forwards to host:port, never the request's Host, with cred's secret put in the request headers and taken
+// back out of the response headers.
 func (i *Injector) reverseProxy(host, port string, cred Credential) *httputil.ReverseProxy {
 	// JoinHostPort brackets IPv6; the default port is then dropped to keep the Host header clean
 	target := &url.URL{Scheme: "https", Host: strings.TrimSuffix(net.JoinHostPort(host, port), ":443")}
@@ -159,12 +161,18 @@ func (i *Injector) reverseProxy(host, port string, cred Credential) *httputil.Re
 			pr.SetURL(target)
 			substitute(pr.Out.Header, cred)
 		},
+		ModifyResponse: func(resp *http.Response) error {
+			scrub(resp.Header, cred)
+			return nil
+		},
 		Transport:     i.transport,
 		FlushInterval: -1, // stream SSE
 	}
 }
 
 // intercept terminates the CONNECT's TLS and serves it with cred, logging entry as injected only after the client handshake succeeds.
+// A tunnel whose requests never carried the placeholder is logged again once it closes, as the tool then likely runs
+// unauthenticated; per tunnel, so git's unauthenticated first request before its 401 retry doesn't count.
 func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) {
 	tlsConn, err := s.inject.handshake(w, entry.Host)
 	entry.Injected = err == nil
@@ -180,9 +188,24 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) 
 			s.refuseBlocked(w, entry)
 			return
 		}
-		http.Error(w, "upstream request failed: "+err.Error(), http.StatusBadGateway)
+		s.failUpstream(w, entry, err)
 	}
-	s.inject.serve(tlsConn, allowPrivate(reverse, s.allow.exactMatch(entry.Host)))
+
+	var sawRequest, sawPlaceholder atomic.Bool
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawRequest.Store(true)
+		if hasPlaceholder(r.Header, cred) {
+			sawPlaceholder.Store(true)
+		}
+		reverse.ServeHTTP(w, r)
+	})
+	s.inject.serve(tlsConn, allowPrivate(handler, s.allow.exactMatch(entry.Host)))
+
+	if sawRequest.Load() && !sawPlaceholder.Load() {
+		entry.Injected = false
+		entry.Reason = ReasonNoPlaceholder
+		s.logger.Log(entry)
+	}
 }
 
 // blockMethods answers blockedMethods in any case with 405 instead of forwarding them, as some upstreams ignore method case.
@@ -212,6 +235,33 @@ func substitute(header http.Header, cred Credential) {
 			values[i] = substituteValue(value, cred.Placeholder, cred.Secret)
 		}
 	}
+}
+
+// scrub swaps cred's secret back to its placeholder in every header value, so an upstream echoing the request can't hand
+// the secret to the tool; bodies aren't scrubbed.
+func scrub(header http.Header, cred Credential) {
+	// An empty secret would put the placeholder between every byte
+	if cred.Secret == "" {
+		return
+	}
+
+	for _, values := range header {
+		for i, value := range values {
+			values[i] = strings.ReplaceAll(value, cred.Secret, cred.Placeholder)
+		}
+	}
+}
+
+// hasPlaceholder reports whether any of cred's headers in header carries its placeholder, plain or Basic-encoded.
+func hasPlaceholder(header http.Header, cred Credential) bool {
+	for _, name := range cred.Headers {
+		for _, value := range header.Values(name) {
+			if substituteValue(value, cred.Placeholder, cred.Secret) != value {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // substituteValue replaces placeholder with secret in value, decoding a Basic credential first, as git and curl -u send
