@@ -3,6 +3,7 @@ package run
 import (
 	"errors"
 	"io"
+	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -87,6 +88,26 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "boom")
+		assert.False(t, ran)
+	})
+
+	t.Run("mounts changed during the image load stop the run", func(t *testing.T) {
+		// Arrange
+		ws := chdirSymlinkWorkspace(t)
+		ran := false
+		msb := microsandboxRunner{docker: &fakeDocker{inspectImage: inspectImageID("abc123")}, microsandbox: &fakeMicrosandbox{
+			run: func(sandbox.RunSpec, []string) error {
+				ran = true
+				return nil
+			},
+		}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
+
+		// Act
+		err := msb.Run(Request{}, rs, nil)
+
+		// Assert
+		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
 		assert.False(t, ran)
 	})
 

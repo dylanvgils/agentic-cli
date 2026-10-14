@@ -21,7 +21,7 @@ func Test_runTool(t *testing.T) {
 
 	t.Run("no args prints help", func(t *testing.T) {
 		// Arrange
-		get := captureRunContainer(t)
+		get := captureToolRun(t)
 
 		// Act
 		err := runTool(runToolCmd, []string{})
@@ -29,7 +29,7 @@ func Test_runTool(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		rs, _ := get()
-		assert.Empty(t, rs.Image, "RunContainer should not be called when no args given")
+		assert.Empty(t, rs.Image, "the tool should not run when no args given")
 	})
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
@@ -45,7 +45,7 @@ func Test_runTool(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
-		get := captureRunContainer(t)
+		get := captureToolRun(t)
 
 		// Act
 		err := runTool(runToolCmd, []string{"claude"})
@@ -61,7 +61,7 @@ func Test_runTool(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
-		get := captureRunContainer(t)
+		get := captureToolRun(t)
 		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)
 		stubDocker(t, &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Image: "agentic-claude", Base: "docker@29.8.2"}, nil)})
 		stubBuildDindImage(t, func(string, tools.BuildOptions) error { return nil })
@@ -80,7 +80,7 @@ func Test_runTool(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
-		get := captureRunContainer(t)
+		get := captureToolRun(t)
 		stubFlag(t, runToolCmd, "dind", "true")
 
 		// Act
@@ -89,14 +89,14 @@ func Test_runTool(t *testing.T) {
 		// Assert
 		require.ErrorContains(t, err, "--base docker")
 		rs, _ := get()
-		assert.Empty(t, rs.Image, "RunContainer should not be called")
+		assert.Empty(t, rs.Image, "the tool should not run")
 	})
 
 	t.Run("passes tool args", func(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
-		get := captureRunContainer(t)
+		get := captureToolRun(t)
 
 		// Act
 		err := runTool(runToolCmd, []string{"claude", "--dangerously-skip-permissions"})
@@ -136,7 +136,7 @@ func Test_runTool(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
-		get := captureRunContainer(t)
+		get := captureToolRun(t)
 		stubDocker(t, &fakeDocker{
 			inspectImage: func(name string) (*docker.ImageInfo, error) {
 				return &docker.ImageInfo{Image: name, ID: "abc123"}, nil
@@ -171,7 +171,7 @@ func Test_runTool(t *testing.T) {
 		assert.Equal(t, "agentic-claude:abc123", ranSpec.Image)
 		assert.Equal(t, []string{"--help"}, ranArgs)
 		rs, _ := get()
-		assert.Empty(t, rs.Image, "RunContainer should not be called")
+		assert.Empty(t, rs.Image, "the tool should not run")
 	})
 }
 

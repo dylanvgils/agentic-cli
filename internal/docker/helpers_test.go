@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/require"
 )
@@ -138,6 +139,17 @@ func stubDockerRunCapture(t *testing.T, client *Client, failSubcmds ...string) f
 	})
 
 	return func() []dockerCall { return calls }
+}
+
+// startAndRunTool starts rs's sidecars, runs its tool with toolArgs and stops the sidecars, as the run usecase does.
+func startAndRunTool(client *Client, rs sandbox.RunSpec, toolArgs []string) error {
+	sidecars, err := client.StartSidecars(rs)
+	if err != nil {
+		return err
+	}
+	defer client.StopSidecars(sidecars)
+
+	return client.RunTool(sidecars, toolArgs)
 }
 
 // stubRunInteractive replaces client.runInteractive with a mock that records the args of the most recent call.

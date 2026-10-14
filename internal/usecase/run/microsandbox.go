@@ -31,7 +31,8 @@ func (r microsandboxRunner) Check(req Request) error {
 	return r.microsandbox.Available()
 }
 
-// Run runs rs's image in microsandbox, loading it from Docker first unless msb already holds this exact image; a dry run only prints the msb command.
+// Run runs rs's image in microsandbox, loading it from Docker first unless msb already holds this exact image and checking
+// the mounts again after the load; a dry run only prints the msb command.
 func (r microsandboxRunner) Run(_ Request, rs sandbox.RunSpec, toolArgs []string) error {
 	ref, err := r.microsandboxRef(rs.Image)
 	if err != nil {
@@ -42,6 +43,10 @@ func (r microsandboxRunner) Run(_ Request, rs sandbox.RunSpec, toolArgs []string
 		if err := r.ensureMicrosandboxImage(rs.Image, ref); err != nil {
 			return err
 		}
+	}
+
+	if err := recheckMounts(rs); err != nil {
+		return err
 	}
 
 	rs.Image = ref

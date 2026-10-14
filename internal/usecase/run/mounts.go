@@ -11,6 +11,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
@@ -113,6 +114,15 @@ func (m mountSet) checkConfigNotMounted() error {
 		if root, ok := findRoot(file, m.hostPaths()); ok {
 			return fmt.Errorf("mount %s would expose %s to the tool container; mount a narrower path", root, file)
 		}
+	}
+	return nil
+}
+
+// recheckMounts runs the mount checks on rs's volumes and secrets again.
+func recheckMounts(rs sandbox.RunSpec) error {
+	m := mountSet{volumes: rs.Volumes, secrets: rs.Secrets, toolHome: rs.ToolHome, containerHome: rs.ContainerHome}
+	if err := m.checkMounts(); err != nil {
+		return fmt.Errorf("mounts changed after the run was checked: %w", err)
 	}
 	return nil
 }

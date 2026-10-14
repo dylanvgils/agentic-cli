@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,10 +16,16 @@ func Test_Service_Run(t *testing.T) {
 		var ranSpec sandbox.RunSpec
 		var ranArgs []string
 		microsandboxRan := false
-		svc := New(&fakeDocker{runContainer: func(rs sandbox.RunSpec, toolArgs []string) error {
-			ranSpec, ranArgs = rs, toolArgs
-			return nil
-		}}, &fakeMicrosandbox{run: func(sandbox.RunSpec, []string) error {
+		svc := New(&fakeDocker{
+			startSidecars: func(rs sandbox.RunSpec) (docker.Sidecars, error) {
+				ranSpec = rs
+				return docker.Sidecars{}, nil
+			},
+			runTool: func(_ docker.Sidecars, toolArgs []string) error {
+				ranArgs = toolArgs
+				return nil
+			},
+		}, &fakeMicrosandbox{run: func(sandbox.RunSpec, []string) error {
 			microsandboxRan = true
 			return nil
 		}})
@@ -39,7 +46,7 @@ func Test_Service_Run(t *testing.T) {
 		var ranSpec sandbox.RunSpec
 		d := &fakeDocker{
 			inspectImage: inspectImageID("abc123"),
-			runContainer: func(sandbox.RunSpec, []string) error {
+			runTool: func(docker.Sidecars, []string) error {
 				dockerRan = true
 				return nil
 			},
@@ -61,7 +68,7 @@ func Test_Service_Run(t *testing.T) {
 	t.Run("empty runtime runs on docker", func(t *testing.T) {
 		// Arrange
 		dockerRan := false
-		svc := New(&fakeDocker{runContainer: func(sandbox.RunSpec, []string) error {
+		svc := New(&fakeDocker{runTool: func(docker.Sidecars, []string) error {
 			dockerRan = true
 			return nil
 		}}, nil)

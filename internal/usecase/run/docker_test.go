@@ -40,7 +40,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 func Test_dockerRunner_Run(t *testing.T) {
 	req := Request{Target: Target{ToolName: "claude"}}
 
-	t.Run("readies the host before running", func(t *testing.T) {
+	t.Run("readies the host, starts the sidecars, runs the tool, then stops the sidecars", func(t *testing.T) {
 		// Arrange
 		var calls []string
 		d := &fakeDocker{
@@ -48,10 +48,15 @@ func Test_dockerRunner_Run(t *testing.T) {
 				calls = append(calls, "volumes")
 				return nil
 			},
-			runContainer: func(sandbox.RunSpec, []string) error {
+			startSidecars: func(sandbox.RunSpec) (docker.Sidecars, error) {
+				calls = append(calls, "start")
+				return docker.Sidecars{}, nil
+			},
+			runTool: func(docker.Sidecars, []string) error {
 				calls = append(calls, "run")
 				return nil
 			},
+			stopSidecars: func(docker.Sidecars) { calls = append(calls, "stop") },
 		}
 
 		// Act
@@ -59,7 +64,50 @@ func Test_dockerRunner_Run(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"volumes", "run"}, calls)
+		assert.Equal(t, []string{"volumes", "start", "run", "stop"}, calls)
+	})
+
+	t.Run("mounts changed while the sidecars started stop the run and the sidecars", func(t *testing.T) {
+		// Arrange
+		ws := chdirSymlinkWorkspace(t)
+		ran, stopped := false, false
+		d := &fakeDocker{
+			runTool: func(docker.Sidecars, []string) error {
+				ran = true
+				return nil
+			},
+			stopSidecars: func(docker.Sidecars) { stopped = true },
+		}
+		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
+
+		// Act
+		err := dockerRunner{docker: d}.Run(req, rs, nil)
+
+		// Assert
+		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
+		assert.False(t, ran)
+		assert.True(t, stopped)
+	})
+
+	t.Run("a sidecar start error stops the run", func(t *testing.T) {
+		// Arrange
+		ran, stopped := false, false
+		d := &fakeDocker{
+			startSidecars: func(sandbox.RunSpec) (docker.Sidecars, error) { return docker.Sidecars{}, errors.New("proxy error") },
+			runTool: func(docker.Sidecars, []string) error {
+				ran = true
+				return nil
+			},
+			stopSidecars: func(docker.Sidecars) { stopped = true },
+		}
+
+		// Act
+		err := dockerRunner{docker: d}.Run(req, sandbox.RunSpec{Image: "agentic-claude"}, nil)
+
+		// Assert
+		assert.EqualError(t, err, "proxy error")
+		assert.False(t, ran)
+		assert.False(t, stopped)
 	})
 
 	t.Run("a host setup error stops the run", func(t *testing.T) {
@@ -67,7 +115,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		ran := false
 		d := &fakeDocker{
 			ensureNamedVolumes: func([]string, string, string, string) error { return errors.New("volume error") },
-			runContainer: func(sandbox.RunSpec, []string) error {
+			runTool: func(docker.Sidecars, []string) error {
 				ran = true
 				return nil
 			},
@@ -89,7 +137,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 				setUp = true
 				return nil
 			},
-			runContainer: func(sandbox.RunSpec, []string) error {
+			runTool: func(docker.Sidecars, []string) error {
 				ran = true
 				return nil
 			},

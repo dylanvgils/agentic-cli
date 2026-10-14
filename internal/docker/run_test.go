@@ -2,6 +2,7 @@ package docker
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/platform"
@@ -10,7 +11,37 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunContainer(t *testing.T) {
+func TestClient_StartSidecars(t *testing.T) {
+	client := newTestClient()
+
+	t.Run("names the tool container after its image", func(t *testing.T) {
+		// Arrange
+		stubDockerRunCapture(t, client)
+
+		// Act
+		sidecars, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, strings.HasPrefix(sidecars.run.container, "agentic-claude-"))
+	})
+
+	t.Run("a sidecar that fails to start returns its error", func(t *testing.T) {
+		// Arrange
+		stubHostUserGroup(t, "1000:1000")
+		stubDindReadyTimeout(t)
+		stubDockerRunCapture(t, client, "exec")
+		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
+
+		// Act
+		_, err := client.StartSidecars(rs)
+
+		// Assert
+		assert.ErrorContains(t, err, "docker sidecar")
+	})
+}
+
+func TestClient_RunTool(t *testing.T) {
 	client := newTestClient()
 
 	get := stubRunInteractive(t, client)
@@ -21,7 +52,7 @@ func TestRunContainer(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude"}
 
 		// Act
-		err := client.RunContainer(rs, nil)
+		err := startAndRunTool(client, rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -36,7 +67,7 @@ func TestRunContainer(t *testing.T) {
 
 	t.Run("names the tool container after its image", func(t *testing.T) {
 		// Act
-		err := client.RunContainer(sandbox.RunSpec{Image: "agentic-claude"}, nil)
+		err := startAndRunTool(client, sandbox.RunSpec{Image: "agentic-claude"}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -52,7 +83,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := client.RunContainer(rs, nil)
+		err := startAndRunTool(client, rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -70,7 +101,7 @@ func TestRunContainer(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
 
 		// Act
-		err := client.RunContainer(rs, nil)
+		err := startAndRunTool(client, rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -97,7 +128,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := client.RunContainer(rs, nil)
+		err := startAndRunTool(client, rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -119,7 +150,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := client.RunContainer(rs, nil)
+		err := startAndRunTool(client, rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -135,7 +166,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := client.RunContainer(rs, nil)
+		err := startAndRunTool(client, rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -149,7 +180,7 @@ func TestRunContainer(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude"}
 
 		// Act
-		err := client.RunContainer(rs, []string{"--resume"})
+		err := startAndRunTool(client, rs, []string{"--resume"})
 
 		// Assert
 		require.NoError(t, err)
@@ -168,7 +199,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := client.RunContainer(rs, nil)
+		err := startAndRunTool(client, rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -184,7 +215,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := client.RunContainer(rs, nil)
+		err := startAndRunTool(client, rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -201,7 +232,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := client.RunContainer(rs, nil)
+		err := startAndRunTool(client, rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -219,7 +250,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err = client.RunContainer(rs, nil)
+		err = startAndRunTool(client, rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -237,7 +268,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err = client.RunContainer(rs, nil)
+		err = startAndRunTool(client, rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -255,7 +286,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err = client.RunContainer(rs, nil)
+		err = startAndRunTool(client, rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -270,7 +301,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := client.RunContainer(rs, nil)
+		err := startAndRunTool(client, rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -286,7 +317,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act
-		err := client.RunContainer(rs, nil)
+		err := startAndRunTool(client, rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -301,7 +332,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act + Assert
-		assert.ErrorContains(t, client.RunContainer(rs, nil), "empty target path")
+		assert.ErrorContains(t, startAndRunTool(client, rs, nil), "empty target path")
 	})
 
 	t.Run("secrets invalid format", func(t *testing.T) {
@@ -312,7 +343,7 @@ func TestRunContainer(t *testing.T) {
 		}
 
 		// Act + Assert
-		assert.ErrorContains(t, client.RunContainer(rs, nil), "invalid secret")
+		assert.ErrorContains(t, startAndRunTool(client, rs, nil), "invalid secret")
 	})
 }
 
@@ -343,5 +374,38 @@ func TestIsReservedEnvName(t *testing.T) {
 
 		// Assert
 		assert.False(t, result)
+	})
+}
+
+func TestClient_StopSidecars(t *testing.T) {
+	client := newTestClient()
+
+	t.Run("removes the sidecars it started", func(t *testing.T) {
+		// Arrange
+		stubHostUserGroup(t, "1000:1000")
+		stubDindReadyTimeout(t)
+		calls := stubDockerRunCapture(t, client)
+		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
+		sidecars, err := client.StartSidecars(rs)
+		require.NoError(t, err)
+
+		// Act
+		client.StopSidecars(sidecars)
+
+		// Assert
+		rm := findCall(calls(), "rm", "--force", "--volumes")
+		require.NotNil(t, rm)
+		assert.True(t, hasArgWithPrefix(rm, dindHostAlias+"-"))
+	})
+
+	t.Run("zero value does nothing", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t, client)
+
+		// Act
+		client.StopSidecars(Sidecars{})
+
+		// Assert
+		assert.Empty(t, calls())
 	})
 }

@@ -35,7 +35,9 @@ type fakeDocker struct {
 	cleanBaseImages       func() error
 	pruneDangling         func() error
 	resolveContainerHome  func(string) string
-	runContainer          func(rs sandbox.RunSpec, toolArgs []string) error
+	startSidecars         func(rs sandbox.RunSpec) (docker.Sidecars, error)
+	runTool               func(sidecars docker.Sidecars, toolArgs []string) error
+	stopSidecars          func(sidecars docker.Sidecars)
 	saveImage             func(image string, w io.Writer) error
 	listRunningContainers func() ([]*docker.ContainerInfo, error)
 	ensureNetwork         func() error
@@ -155,11 +157,24 @@ func (f *fakeDocker) ResolveContainerHome(image string) string {
 	return f.resolveContainerHome(image)
 }
 
-func (f *fakeDocker) RunContainer(rs sandbox.RunSpec, toolArgs []string) error {
-	if f.runContainer == nil {
+func (f *fakeDocker) StartSidecars(rs sandbox.RunSpec) (docker.Sidecars, error) {
+	if f.startSidecars == nil {
+		return docker.Sidecars{}, nil
+	}
+	return f.startSidecars(rs)
+}
+
+func (f *fakeDocker) RunTool(sidecars docker.Sidecars, toolArgs []string) error {
+	if f.runTool == nil {
 		return nil
 	}
-	return f.runContainer(rs, toolArgs)
+	return f.runTool(sidecars, toolArgs)
+}
+
+func (f *fakeDocker) StopSidecars(sidecars docker.Sidecars) {
+	if f.stopSidecars != nil {
+		f.stopSidecars(sidecars)
+	}
 }
 
 func (f *fakeDocker) SaveImage(image string, w io.Writer) error {
@@ -284,8 +299,14 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.resolveContainerHome != nil {
 		f.resolveContainerHome = o.resolveContainerHome
 	}
-	if o.runContainer != nil {
-		f.runContainer = o.runContainer
+	if o.startSidecars != nil {
+		f.startSidecars = o.startSidecars
+	}
+	if o.runTool != nil {
+		f.runTool = o.runTool
+	}
+	if o.stopSidecars != nil {
+		f.stopSidecars = o.stopSidecars
 	}
 	if o.saveImage != nil {
 		f.saveImage = o.saveImage
@@ -411,15 +432,18 @@ func restoreDockerClient(t *testing.T) {
 	t.Cleanup(func() { dockerClient = orig })
 }
 
-// captureRunContainer stubs RunContainer and InspectImage, returning a getter for the captured RunSpec and tool args.
-func captureRunContainer(t *testing.T) func() (sandbox.RunSpec, []string) {
+// captureToolRun stubs StartSidecars, RunTool and InspectImage, returning a getter for the captured RunSpec and tool args.
+func captureToolRun(t *testing.T) func() (sandbox.RunSpec, []string) {
 	t.Helper()
 	var capturedSpec sandbox.RunSpec
 	var capturedArgs []string
 
 	stubDocker(t, &fakeDocker{
-		runContainer: func(rs sandbox.RunSpec, args []string) error {
+		startSidecars: func(rs sandbox.RunSpec) (docker.Sidecars, error) {
 			capturedSpec = rs
+			return docker.Sidecars{}, nil
+		},
+		runTool: func(_ docker.Sidecars, args []string) error {
 			capturedArgs = args
 			return nil
 		},

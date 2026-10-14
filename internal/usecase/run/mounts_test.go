@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -207,6 +208,37 @@ func Test_mountSet_checkConfigNotMounted(t *testing.T) {
 
 		// Assert
 		assert.EqualError(t, err, "mount "+config.StateFile(toolHome)+" would expose "+config.StateFile(toolHome)+" to the tool container; mount a narrower path")
+	})
+}
+
+func Test_recheckMounts(t *testing.T) {
+	ws := chdirSymlinkWorkspace(t)
+
+	t.Run("unchanged mounts pass", func(t *testing.T) {
+		// Arrange
+		rs := sandbox.RunSpec{ToolHome: t.TempDir(), Volumes: []string{"$PWD/real:/data:ro"}}
+
+		// Act
+		err := recheckMounts(rs)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("dir swapped for a symlink after the check is refused", func(t *testing.T) {
+		// Arrange
+		data := filepath.Join(ws.dir, "data")
+		require.NoError(t, os.Mkdir(data, 0o700))
+		rs := sandbox.RunSpec{ToolHome: t.TempDir(), Volumes: []string{"$PWD/data:/data:ro"}}
+		require.NoError(t, recheckMounts(rs))
+		require.NoError(t, os.Remove(data))
+		require.NoError(t, os.Symlink(ws.outside, data))
+
+		// Act
+		err := recheckMounts(rs)
+
+		// Assert
+		assert.EqualError(t, err, "mounts changed after the run was checked: mount "+data+" goes through workspace symlink "+data+"; mount the real path instead")
 	})
 }
 
