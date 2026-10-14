@@ -160,6 +160,45 @@ func Test_validationCredential(t *testing.T) {
 	assert.NoError(t, proxy.ValidateCredentials([]proxy.Credential{first, {Hosts: []string{"git.example.test"}, Headers: second.Headers, Placeholder: second.Placeholder, Secret: second.Secret}}), "stand-ins never overlap")
 }
 
+func TestCheck(t *testing.T) {
+	stubPresets(t, map[string]preset{
+		"example": {hosts: []string{"api.example.test"}, headers: []string{"Authorization"}, env: []string{"EXAMPLE_TOKEN"}},
+	})
+
+	t.Run("accepts presets and entries with env without reading secrets", func(t *testing.T) {
+		// Arrange
+		entries := []config.RCCredential{
+			{Preset: "example", Secret: "/missing/secret"},
+			{Hosts: []string{"api.custom.test"}, Header: "X-Api-Key", Env: []string{"CUSTOM_KEY"}, Secret: "/missing/secret"},
+		}
+
+		// Act
+		err := Check(entries)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("names the entry without env", func(t *testing.T) {
+		// Arrange
+		entries := []config.RCCredential{{Preset: "example"}, {Hosts: []string{"api.custom.test"}, Header: "X-Api-Key"}}
+
+		// Act
+		err := Check(entries)
+
+		// Assert
+		assert.EqualError(t, err, "credential 2 (api.custom.test): needs env, as the tool must send the placeholder")
+	})
+
+	t.Run("refuses an unknown preset", func(t *testing.T) {
+		// Act
+		err := Check([]config.RCCredential{{Preset: "unknown"}})
+
+		// Assert
+		assert.EqualError(t, err, `credential 1 (preset unknown): unknown preset "unknown"`)
+	})
+}
+
 func TestHosts(t *testing.T) {
 	stubPresets(t, map[string]preset{
 		"example": {hosts: []string{"api.example.test", "git.example.test"}, headers: []string{"Authorization"}},

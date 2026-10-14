@@ -79,17 +79,6 @@ func credentialSetup(in Input, caps sandbox.Capabilities, mounts mountSet, env [
 	return gitHelperEnv(in.Credentials), nil
 }
 
-// checkCredentialConfig refuses credentials without env, which no tool could send the placeholder in; it reads only config, so
-// it runs before any prompt.
-func checkCredentialConfig(rc *config.AgenticRC) error {
-	for _, entry := range rc.Run.Proxy.Credentials {
-		if entry.Preset == "" && len(entry.Env) == 0 {
-			return fmt.Errorf("credential for %s needs env, as the tool must send the placeholder", strings.Join(entry.Hosts, ", "))
-		}
-	}
-	return nil
-}
-
 // sandboxCredentials maps each resolved entry to a sandbox.Credential named after its first env var.
 func sandboxCredentials(resolved []credentials.Resolved) []sandbox.Credential {
 	creds := make([]sandbox.Credential, 0, len(resolved))

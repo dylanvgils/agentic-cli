@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"net"
@@ -195,6 +196,27 @@ func TestServerHTTP(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 
+	t.Run("https absolute-form is logged on port 443 with the normalized host", func(t *testing.T) {
+		// Arrange
+		var logBuf bytes.Buffer
+		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf, nil, nil), false, nil))
+		t.Cleanup(proxy.Close)
+		conn, err := net.Dial("tcp", proxy.Listener.Addr().String())
+		require.NoError(t, err)
+		defer conn.Close() //nolint:errcheck
+
+		// Act
+		_, err = io.WriteString(conn, "GET https://Evil.Test./ HTTP/1.1\r\nHost: Evil.Test.\r\n\r\n")
+		require.NoError(t, err)
+		resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+		require.NoError(t, err)
+		defer resp.Body.Close() //nolint:errcheck
+
+		// Assert
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+		assert.Contains(t, logBuf.String(), `"host":"evil.test","port":"443"`)
+	})
+
 	t.Run("allowed host is forwarded", func(t *testing.T) {
 		// Arrange
 		stubAllowLocal(t)
@@ -284,4 +306,23 @@ func TestServerHTTP(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":true,"reason":"blocked-address"`)
 	})
+}
+
+func Test_defaultPort(t *testing.T) {
+	cases := map[string]struct{ scheme, want string }{
+		"http":              {"http", "80"},
+		"https":             {"https", "443"},
+		"https in any case": {"HTTPS", "443"},
+		"no scheme":         {"", "80"},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Act
+			port := defaultPort(c.scheme)
+
+			// Assert
+			assert.Equal(t, c.want, port)
+		})
+	}
 }

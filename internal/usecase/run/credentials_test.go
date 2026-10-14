@@ -181,32 +181,6 @@ func Test_gitHelperEnv(t *testing.T) {
 	})
 }
 
-func Test_checkCredentialConfig(t *testing.T) {
-	t.Run("accepts presets and entries with env", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.Credentials = []config.RCCredential{{Preset: "github"}, {Hosts: []string{"api.example.test"}, Env: []string{"EXAMPLE_TOKEN"}}}
-
-		// Act
-		err := checkCredentialConfig(rc)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("refuses an entry without env", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}}}
-
-		// Act
-		err := checkCredentialConfig(rc)
-
-		// Assert
-		assert.EqualError(t, err, "credential for api.example.test needs env, as the tool must send the placeholder")
-	})
-}
-
 func Test_checkCredentialEnv(t *testing.T) {
 	t.Run("accepts names nothing else sets", func(t *testing.T) {
 		// Arrange

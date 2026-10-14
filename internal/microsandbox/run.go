@@ -63,7 +63,7 @@ func buildRunArgs(rs sandbox.RunSpec, toolArgs []string) ([]string, error) {
 
 	args := []string{"run"}
 	args = append(args, limitArgs...)
-	args = append(args, buildEnvArgs(rs)...)
+	args = append(args, sandbox.EnvArgs(rs.Env)...)
 	args = append(args, volumeArgs...)
 	args = append(args, secretArgs...)
 	args = append(args, buildCredentialArgs(rs)...)
@@ -95,15 +95,6 @@ func buildLimitArgs(limits sandbox.ResourceLimits) ([]string, error) {
 	}
 
 	return args, nil
-}
-
-// buildEnvArgs maps the resolved sandbox env to --env flags.
-func buildEnvArgs(rs sandbox.RunSpec) []string {
-	var args []string
-	for _, entry := range sandbox.ResolveEnv(rs.Env) {
-		args = append(args, arg("env", entry))
-	}
-	return args
 }
 
 // buildVolumeArgs maps the bind mounts and named volumes to mount flags.

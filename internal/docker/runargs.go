@@ -23,7 +23,7 @@ func buildRunArgs(rs toolRun, sidecarArgs, toolArgs []string) ([]string, error) 
 
 	args := buildBaseArgs(rs)
 	args = append(args, buildTTYArgs()...)
-	args = append(args, buildEnvArgs(rs.RunSpec)...)
+	args = append(args, sandbox.EnvArgs(rs.Env)...)
 	args = append(args, sidecarArgs...)
 	args = append(args, buildTmpfsArgs(rs.RunSpec)...)
 	args = append(args, buildVolumeArgs(rs.RunSpec)...)
@@ -69,15 +69,6 @@ func buildTTYArgs() []string {
 		return []string{arg("interactive"), arg("tty")}
 	}
 	return nil
-}
-
-// buildEnvArgs maps the resolved container env to --env flags.
-func buildEnvArgs(rs sandbox.RunSpec) []string {
-	var args []string
-	for _, entry := range sandbox.ResolveEnv(rs.Env) {
-		args = append(args, arg("env", entry))
-	}
-	return args
 }
 
 // buildTmpfsArgs mounts each ephemeral dir as an exec tmpfs, since the container root is read-only.

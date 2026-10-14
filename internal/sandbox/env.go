@@ -14,6 +14,15 @@ func ResolveEnv(env []string) []string {
 	return slices.Concat(terminalEnv(), timezoneEnv(), entryEnv(env))
 }
 
+// EnvArgs returns ResolveEnv(env) as --env flags, which both runtimes take.
+func EnvArgs(env []string) []string {
+	var args []string
+	for _, entry := range ResolveEnv(env) {
+		args = append(args, Arg("env", entry))
+	}
+	return args
+}
+
 // terminalEnv returns the terminal vars set on the host.
 func terminalEnv() []string {
 	var resolved []string
