@@ -3,7 +3,6 @@ package proxy
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -151,8 +150,8 @@ func (i *Injector) serve(tlsConn *tls.Conn, handler http.Handler) {
 }
 
 // reverseProxy forwards to host:port, never the request's Host, with cred's secret put in the request headers and taken
-// back out of the response headers.
-func (i *Injector) reverseProxy(host, port string, cred Credential) *httputil.ReverseProxy {
+// back out of the response headers by scrub.
+func (i *Injector) reverseProxy(host, port string, cred Credential, scrub *strings.Replacer) *httputil.ReverseProxy {
 	// JoinHostPort brackets IPv6; the default port is then dropped to keep the Host header clean
 	target := &url.URL{Scheme: "https", Host: strings.TrimSuffix(net.JoinHostPort(host, port), ":443")}
 
@@ -162,7 +161,7 @@ func (i *Injector) reverseProxy(host, port string, cred Credential) *httputil.Re
 			substitute(pr.Out.Header, cred)
 		},
 		ModifyResponse: func(resp *http.Response) error {
-			scrub(resp.Header, cred)
+			scrubHeader(resp.Header, scrub)
 			return nil
 		},
 		Transport:     i.transport,
@@ -182,8 +181,7 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) 
 	}
 	defer func() { _ = tlsConn.Close() }()
 
-	reverse := s.inject.reverseProxy(entry.Host, entry.Port, cred)
-	reverse.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
+	failed := func(w http.ResponseWriter, _ *http.Request, err error) {
 		if errors.Is(err, errBlockedAddr) {
 			s.refuseBlocked(w, entry)
 			return
@@ -197,7 +195,15 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) 
 		if hasPlaceholder(r.Header, cred) {
 			sawPlaceholder.Store(true)
 		}
-		reverse.ServeHTTP(w, r)
+
+		// Per request, as the Basic forms to scrub depend on what this request sent
+		scrub := newScrubber(r.Header, cred)
+		reverse := s.inject.reverseProxy(entry.Host, entry.Port, cred, scrub)
+		reverse.ErrorHandler = failed
+		reverse.ServeHTTP(&scrubWriter{ResponseWriter: w, scrub: scrub}, r)
+
+		// Trailers land in w's header after the body and are sent once the handler returns
+		scrubHeader(w.Header(), scrub)
 	})
 	s.inject.serve(tlsConn, allowPrivate(handler, s.allow.exactMatch(entry.Host)))
 
@@ -217,70 +223,6 @@ func blockMethods(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
-}
-
-// substitute swaps cred's placeholder for its secret in each of its headers the tool sent, and drops their aliases so the
-// secret reaches the upstream only under the canonical name.
-func substitute(header http.Header, cred Credential) {
-	for _, name := range cred.Headers {
-		canonical := http.CanonicalHeaderKey(name)
-		for key := range header {
-			if key != canonical && headerAlias(key) == headerAlias(canonical) {
-				delete(header, key)
-			}
-		}
-
-		values := header[canonical]
-		for i, value := range values {
-			values[i] = substituteValue(value, cred.Placeholder, cred.Secret)
-		}
-	}
-}
-
-// scrub swaps cred's secret back to its placeholder in every header value, so an upstream echoing the request can't hand
-// the secret to the tool; bodies aren't scrubbed.
-func scrub(header http.Header, cred Credential) {
-	// An empty secret would put the placeholder between every byte
-	if cred.Secret == "" {
-		return
-	}
-
-	for _, values := range header {
-		for i, value := range values {
-			values[i] = strings.ReplaceAll(value, cred.Secret, cred.Placeholder)
-		}
-	}
-}
-
-// hasPlaceholder reports whether any of cred's headers in header carries its placeholder, plain or Basic-encoded.
-func hasPlaceholder(header http.Header, cred Credential) bool {
-	for _, name := range cred.Headers {
-		for _, value := range header.Values(name) {
-			if substituteValue(value, cred.Placeholder, cred.Secret) != value {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// substituteValue replaces placeholder with secret in value, decoding a Basic credential first, as git and curl -u send
-// the placeholder base64-encoded.
-func substituteValue(value, placeholder, secret string) string {
-	scheme, encoded, found := strings.Cut(value, " ")
-	if found && strings.EqualFold(scheme, "Basic") {
-		decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encoded))
-		if err == nil && strings.Contains(string(decoded), placeholder) {
-			swapped := strings.ReplaceAll(string(decoded), placeholder, secret)
-			return scheme + " " + base64.StdEncoding.EncodeToString([]byte(swapped))
-		}
-	}
-	return strings.ReplaceAll(value, placeholder, secret)
-}
-
-// headerAlias folds case and treats "_" as "-", the way CGI-style backends compare header names.
-func headerAlias(name string) string {
-	return strings.ReplaceAll(strings.ToLower(name), "_", "-")
 }
 
 // newOneConnListener returns a listener yielding conn once.

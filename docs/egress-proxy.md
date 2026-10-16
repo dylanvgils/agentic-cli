@@ -84,5 +84,5 @@ Some tools, like Maven, ignore those env vars and need a literal `host:port` in 
 - **Copilot**: the `github` preset also covers the Copilot API hosts, including the remote GitHub MCP server. GHE.com data-residency tenants need a custom entry for their own Copilot hosts.
 - **Headers only**: a tool that sends the key in the URL or body, or signs requests with it (e.g. AWS SigV4), can't use a placeholder.
 - **Use, not theft**: the agent can't read the key, but it can still make authenticated requests to the key's hosts during the run.
-- **Echoed keys**: the proxy swaps the key back to the placeholder in response headers, but not in bodies. A credential host that echoes the request in its body hands the key to the tool.
+- **Echoed keys**: the proxy swaps the key back to the placeholder in response headers and trailers, also in the Basic-encoded form git sends, but not in bodies. A credential host that echoes the request in its body hands the key to the tool.
 - **Gaps in CA trust**: `agentic run <tool> -- <cmd>` skips the entrypoint, and Java and containers started through `--dind` use their own trust stores. TLS to credential hosts fails in those cases.

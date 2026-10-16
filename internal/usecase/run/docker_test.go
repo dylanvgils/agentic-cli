@@ -2,6 +2,7 @@ package run
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -67,16 +68,15 @@ func Test_dockerRunner_Run(t *testing.T) {
 		assert.Equal(t, []string{"volumes", "start", "run", "stop"}, calls)
 	})
 
-	t.Run("mounts changed while the sidecars started stop the run and the sidecars", func(t *testing.T) {
+	t.Run("mounts changed while the host was readied stop the run before the sidecars start", func(t *testing.T) {
 		// Arrange
 		ws := chdirSymlinkWorkspace(t)
-		ran, stopped := false, false
+		started := false
 		d := &fakeDocker{
-			runTool: func(docker.Sidecars, []string) error {
-				ran = true
-				return nil
+			startSidecars: func(sandbox.RunSpec) (docker.Sidecars, error) {
+				started = true
+				return docker.Sidecars{}, nil
 			},
-			stopSidecars: func(docker.Sidecars) { stopped = true },
 		}
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
 
@@ -85,6 +85,31 @@ func Test_dockerRunner_Run(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
+		assert.False(t, started)
+	})
+
+	t.Run("mounts changed while the sidecars started stop the run and the sidecars", func(t *testing.T) {
+		// Arrange
+		ws := chdirSymlinkWorkspace(t)
+		late := filepath.Join(ws.dir, "late")
+		ran, stopped := false, false
+		d := &fakeDocker{
+			startSidecars: func(sandbox.RunSpec) (docker.Sidecars, error) {
+				return docker.Sidecars{}, os.Symlink(ws.real, late)
+			},
+			runTool: func(docker.Sidecars, []string) error {
+				ran = true
+				return nil
+			},
+			stopSidecars: func(docker.Sidecars) { stopped = true },
+		}
+		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/late/sub:/data:ro"}}
+
+		// Act
+		err := dockerRunner{docker: d}.Run(req, rs, nil)
+
+		// Assert
+		assert.ErrorContains(t, err, "goes through workspace symlink "+late)
 		assert.False(t, ran)
 		assert.True(t, stopped)
 	})
