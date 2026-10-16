@@ -399,14 +399,14 @@ func (h proxyHandle) checkStarted() error {
 }
 
 // SweepProxyResources idempotently removes leftover per-run proxy containers (with their volume), e.g. from an
-// interrupted run, scoped to agentic-managed containers named with proxyHostAlias.
+// interrupted run, scoped to agentic-managed containers named with proxyHostAlias; active runs keep theirs.
 func (c *Client) SweepProxyResources() error {
 	listArgs := []string{
-		"ps", arg("all"), arg("quiet"),
+		"ps", arg("all"), arg("format", ownedFormat(".Names")),
 		labelFilter(LabelProject, LabelProjectVal),
 		nameFilter(proxyHostAlias),
 	}
-	return c.runIfAny(listArgs, []string{"rm", arg("force"), arg("volumes")})
+	return c.removeUnused(listArgs, []string{"rm", arg("force"), arg("volumes")})
 }
 
 // proxyLogFileName is shared by the host logPath and the in-container AGENTIC_PROXY_LOG path so they name the same file.

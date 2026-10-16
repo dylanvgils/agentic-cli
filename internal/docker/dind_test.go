@@ -279,23 +279,16 @@ func Test_dindHandle_toolArgs(t *testing.T) {
 func TestSweepDindResources(t *testing.T) {
 	// Arrange
 	client := newTestClient()
-	var calls [][]string
-	stubDockerRun(t, client, func(args ...string) (string, error) {
-		calls = append(calls, args)
-		if args[0] == "ps" {
-			return "id1\n", nil
-		}
-		return "", nil
-	})
+	get := stubUnusedSweep(t, client, "", ownedRow("agentic-docker-abc", "agentic-claude-gone", time.Hour))
 
 	// Act
 	err := client.SweepDindResources(t.TempDir())
 
 	// Assert
 	require.NoError(t, err)
-	require.Len(t, calls, 2)
-	assert.Contains(t, calls[0], "--filter=name=agentic-docker")
-	assert.Equal(t, []string{"rm", "--force", "--volumes", "id1"}, calls[1])
+	calls := get()
+	assert.Contains(t, calls[1].args, "--filter=name=agentic-docker")
+	assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-docker-abc"}, findCall(calls, "rm"))
 }
 
 func Test_sweepDindRunDirs(t *testing.T) {

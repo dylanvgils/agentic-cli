@@ -54,6 +54,7 @@ func Test_runClean(t *testing.T) {
 		assert.Contains(t, msbCleaned, "agentic-claude")
 		assert.True(t, basesCleaned)
 		assert.Contains(t, logBuf.String(), "agentic: removing 3 image(s): ")
+		assert.Contains(t, logBuf.String(), "\n\nagentic: removing shared resources", "a blank line sets the shared resources apart")
 	})
 
 	t.Run("skips microsandbox when msb isn't installed", func(t *testing.T) {

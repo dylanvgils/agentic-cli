@@ -342,6 +342,42 @@ func stubOwnedResources(t *testing.T, client *Client, containers, networks strin
 	return func() []dockerCall { return calls }
 }
 
+// stubUnusedSweep stubs the container name listing with names and every other list with owned, recording every call.
+func stubUnusedSweep(t *testing.T, client *Client, names, owned string) func() []dockerCall {
+	t.Helper()
+	var calls []dockerCall
+	stubDockerRun(t, client, func(args ...string) (string, error) {
+		calls = append(calls, dockerCall{args: args})
+		switch {
+		case slices.Contains(args, "--format={{.Names}}"):
+			return names, nil
+		case args[0] == "ps" || args[0] == "network" && args[1] == "ls":
+			return owned, nil
+		}
+		return "", nil
+	})
+	return func() []dockerCall { return calls }
+}
+
+// stubEgressNetwork stubs an agentic-managed agentic-net with attached as its container count; network rm returns rmErr.
+func stubEgressNetwork(t *testing.T, client *Client, attached string, rmErr error) func() []dockerCall {
+	t.Helper()
+	var calls []dockerCall
+	stubDockerRun(t, client, func(args ...string) (string, error) {
+		calls = append(calls, dockerCall{args: args})
+		switch {
+		case slices.Contains(args, "--format={{len .Containers}}"):
+			return attached, nil
+		case args[1] == "inspect":
+			return "agentic-cli\n", nil
+		case args[1] == "rm":
+			return "", rmErr
+		}
+		return "", nil
+	})
+	return func() []dockerCall { return calls }
+}
+
 // ownedRow formats a row as ownedFormat renders it.
 func ownedRow(name, owner string, age time.Duration) string {
 	return name + "\t" + owner + "\t" + formatLabelTime(time.Now().Add(-age)) + "\n"

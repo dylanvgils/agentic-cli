@@ -16,7 +16,7 @@ Run `agentic help <command>` for all flags.
 | `run <tool> -- <cmd> [args]`               | Run a command (e.g. `bash`) instead of the tool                                      |
 | `build [tool]`                             | Build tool image(s), all tools by default. See [Images](images.md).                  |
 | `update [tool]`                            | Rebuild image(s) with the latest tool version                                        |
-| `clean [tool]`                             | Remove tool image(s). With no tool, removes everything agentic created.              |
+| `clean [tool]`                             | Remove tool image(s), or everything agentic created. Skips what running tools use.   |
 | `inspect [tool]`                           | Show built images, or full detail for one tool                                       |
 | `instructions <tool>`                      | Preview the [environment instructions](config.md#runinstructions)                    |
 | `status`                                   | Show Docker and microsandbox availability, and list running agentic containers       |

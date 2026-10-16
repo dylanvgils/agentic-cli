@@ -57,6 +57,7 @@ func runClean(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(args) == 0 {
+		logging.Separate()
 		return svc.GlobalResources()
 	}
 
