@@ -139,9 +139,9 @@ func setup(root string) error {
 		return fmt.Errorf("approve work dir settings: %w", err)
 	}
 
-	// Also creates agentic-net, which the network tests attach fakes to
+	// With --proxy so it also creates agentic-net, the proxy's egress network the tests attach fakes to
 	done = logStep("first agentic run")
-	if out, err := agenticCmd("run", "--trust-dir", testTool, "--", "true").CombinedOutput(); err != nil {
+	if out, err := agenticCmd("run", "--trust-dir", "--proxy", testTool, "--", "true").CombinedOutput(); err != nil {
 		return fmt.Errorf("first run: %w\n%s", err, out)
 	}
 	done()

@@ -21,10 +21,10 @@ func Test_startDind(t *testing.T) {
 	stubDindReadyTimeout(t)
 	stubHostUserGroup(t, "1234:5678")
 
-	t.Run("creates own network, writes run files and probes the sidecar", func(t *testing.T) {
+	t.Run("joins the run network, writes run files and probes the sidecar", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: t.TempDir(), Dind: sandbox.DindSpec{}}, container: "agentic-claude-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: t.TempDir(), Dind: sandbox.DindSpec{}}, container: "agentic-claude-abc", network: "agentic-run-abc"}
 
 		// Act
 		handle, err := client.startDind(rs, nil)
@@ -32,32 +32,13 @@ func Test_startDind(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		calls := get()
-		createArgs := findCall(calls, "network", "create")
-		assert.Contains(t, createArgs, "--label=project=agentic-cli")
-		assert.Contains(t, createArgs, "--label=agentic.owner=agentic-claude-abc", "the network is swept with its owner")
-		assert.Equal(t, handle.network, createArgs[len(createArgs)-1])
-		assert.NotNil(t, findCall(calls, "run"))
+		assert.Nil(t, findCall(calls, "network", "create"), "setupSidecars owns the run network")
+		assert.Contains(t, findCall(calls, "run"), "--network=agentic-run-abc")
 		assert.NotNil(t, findCall(calls, "exec"), "should probe dockerd before returning")
 		assert.FileExists(t, filepath.Join(handle.runDir, "client", "cert.pem"))
 		assert.FileExists(t, filepath.Join(handle.runDir, "seccomp.json"))
 		assert.FileExists(t, filepath.Join(handle.runDir, "etc", "passwd"))
 		assert.DirExists(t, filepath.Join(handle.runDir, "config"))
-	})
-
-	t.Run("joins the proxy network instead of creating one", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: t.TempDir(), Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}, Dind: sandbox.DindSpec{}}, network: "agentic-proxy-abc"}
-
-		// Act
-		handle, err := client.startDind(rs, nil)
-
-		// Assert
-		require.NoError(t, err)
-		calls := get()
-		assert.False(t, handle.ownsNetwork)
-		assert.Nil(t, findCall(calls, "network", "create"))
-		assert.Contains(t, findCall(calls, "run"), "--network=agentic-proxy-abc")
 	})
 
 	t.Run("tears everything down when dockerd never becomes ready", func(t *testing.T) {
@@ -71,16 +52,14 @@ func Test_startDind(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		calls := get()
-		assert.NotNil(t, findCall(calls, "rm", "--force", "--volumes"))
-		assert.NotNil(t, findCall(calls, "network", "rm"))
+		assert.NotNil(t, findCall(get(), "rm", "--force", "--volumes"))
 		entries, _ := os.ReadDir(filepath.Join(toolHome, dindDirName))
 		assert.Empty(t, entries, "cert dir should be removed")
 	})
 
-	t.Run("removes network and certs when sidecar fails to start", func(t *testing.T) {
+	t.Run("removes certs when sidecar fails to start", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, client, "run")
+		stubDockerRunCapture(t, client, "run")
 		toolHome := t.TempDir()
 		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: toolHome, Dind: sandbox.DindSpec{}}}
 
@@ -89,7 +68,6 @@ func Test_startDind(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.NotNil(t, findCall(get(), "network", "rm"))
 		entries, _ := os.ReadDir(filepath.Join(toolHome, dindDirName))
 		assert.Empty(t, entries)
 	})
@@ -101,35 +79,21 @@ func Test_setupDind(t *testing.T) {
 	stubDindReadyTimeout(t)
 	stubHostUserGroup(t, "1234:5678")
 
-	t.Run("dry run sets own network without docker calls or files", func(t *testing.T) {
+	t.Run("dry run makes no docker calls or files", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
 		toolHome := t.TempDir()
 		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: toolHome, DryRun: true, Dind: sandbox.DindSpec{Enabled: true}}}
 
 		// Act
-		args, cleanup, err := client.setupDind(&rs)
+		args, cleanup, err := client.setupDind(rs)
 
 		// Assert
 		require.NoError(t, err)
-		assert.True(t, strings.HasPrefix(rs.network, dindNetworkPrefix+"-"))
 		assert.NotEmpty(t, args)
 		assert.Empty(t, calls(), "dry run must not invoke docker")
 		assert.NoDirExists(t, filepath.Join(toolHome, dindDirName), "dry run must not write certs")
 		require.NotPanics(t, cleanup)
-	})
-
-	t.Run("dry run keeps proxy network", func(t *testing.T) {
-		// Arrange
-		stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: t.TempDir(), DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}, Dind: sandbox.DindSpec{Enabled: true}}, network: "agentic-proxy-abc"}
-
-		// Act
-		_, _, err := client.setupDind(&rs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "agentic-proxy-abc", rs.network)
 	})
 
 	t.Run("cleanup removes the sidecar", func(t *testing.T) {
@@ -139,13 +103,14 @@ func Test_setupDind(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: toolHome, Dind: sandbox.DindSpec{Enabled: true}}}
 
 		// Act
-		_, cleanup, err := client.setupDind(&rs)
+		_, cleanup, err := client.setupDind(rs)
 		cleanup()
 
 		// Assert
 		require.NoError(t, err)
 		last := calls()[len(calls())-1]
-		assert.Equal(t, []string{"network", "rm", rs.network}, last.args)
+		assert.Equal(t, "rm", last.args[0])
+		assert.Nil(t, findCall(calls(), "network", "rm"), "setupSidecars owns the run network")
 		entries, _ := os.ReadDir(filepath.Join(toolHome, dindDirName))
 		assert.Empty(t, entries, "per-run certs should be removed")
 	})
@@ -156,7 +121,7 @@ func Test_setupDind(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}}
 
 		// Act
-		args, cleanup, err := client.setupDind(&rs)
+		args, cleanup, err := client.setupDind(rs)
 
 		// Assert
 		assert.Error(t, err)
@@ -168,14 +133,14 @@ func Test_setupDind(t *testing.T) {
 func Test_dindHandle_runArgs(t *testing.T) {
 	identity, err := dind.NewIdentity("1234:5678")
 	require.NoError(t, err)
-	handle := dindHandle{identity: identity, container: "agentic-docker-abc", network: "agentic-dind-abc", runDir: "/home/user/.agentic/dind/abc"}
+	handle := dindHandle{identity: identity, container: "agentic-docker-abc", runDir: "/home/user/.agentic/dind/abc"}
 
 	t.Run("hardened rootless sidecar", func(t *testing.T) {
 		// Arrange
 		rs := toolRun{RunSpec: sandbox.RunSpec{
 			Limits: sandbox.ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"},
 			Dind:   sandbox.DindSpec{Limits: sandbox.ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}},
-		}, container: "agentic-claude-abc"}
+		}, container: "agentic-claude-abc", network: "agentic-run-abc"}
 
 		// Act
 		args := handle.runArgs(rs)
@@ -184,7 +149,7 @@ func Test_dindHandle_runArgs(t *testing.T) {
 		assert.Contains(t, args, "--detach")
 		assert.NotContains(t, args, "--rm", "a crashed sidecar must keep its logs")
 		assert.Contains(t, args, "--read-only")
-		assert.Contains(t, args, "--network=agentic-dind-abc")
+		assert.Contains(t, args, "--network=agentic-run-abc")
 		assert.Contains(t, args, "--network-alias=agentic-docker")
 		assert.Contains(t, args, "--cap-drop=ALL")
 		assert.Contains(t, args, "--cap-add=SYS_ADMIN")
@@ -276,37 +241,21 @@ func Test_dindHandle_waitReady(t *testing.T) {
 }
 
 func Test_dindHandle_Stop(t *testing.T) {
+	// Arrange
 	client := newTestClient()
+	get := stubDockerRunCapture(t, client)
+	runDir := filepath.Join(t.TempDir(), "abc")
+	require.NoError(t, os.MkdirAll(runDir, 0o700))
+	handle := dindHandle{client: client, container: "agentic-docker-abc", runDir: runDir}
 
-	t.Run("removes owned network", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
-		runDir := filepath.Join(t.TempDir(), "abc")
-		require.NoError(t, os.MkdirAll(runDir, 0o700))
-		handle := dindHandle{client: client, container: "agentic-docker-abc", network: "agentic-dind-abc", ownsNetwork: true, runDir: runDir}
+	// Act
+	handle.Stop()
 
-		// Act
-		handle.Stop()
-
-		// Assert
-		calls := get()
-		require.Len(t, calls, 2)
-		assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-docker-abc"}, calls[0].args)
-		assert.Equal(t, []string{"network", "rm", "agentic-dind-abc"}, calls[1].args)
-		assert.NoDirExists(t, runDir)
-	})
-
-	t.Run("leaves a shared proxy network alone", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
-		handle := dindHandle{client: client, container: "agentic-docker-abc", network: "agentic-proxy-abc", runDir: t.TempDir()}
-
-		// Act
-		handle.Stop()
-
-		// Assert
-		assert.Nil(t, findCall(get(), "network", "rm"))
-	})
+	// Assert
+	calls := get()
+	require.Len(t, calls, 1, "the run network outlives the sidecar")
+	assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-docker-abc"}, calls[0].args)
+	assert.NoDirExists(t, runDir)
 }
 
 func Test_dindHandle_toolArgs(t *testing.T) {
@@ -333,7 +282,7 @@ func TestSweepDindResources(t *testing.T) {
 	var calls [][]string
 	stubDockerRun(t, client, func(args ...string) (string, error) {
 		calls = append(calls, args)
-		if args[0] == "ps" || (args[0] == "network" && args[1] == "ls") {
+		if args[0] == "ps" {
 			return "id1\n", nil
 		}
 		return "", nil
@@ -344,11 +293,9 @@ func TestSweepDindResources(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	require.Len(t, calls, 4)
+	require.Len(t, calls, 2)
 	assert.Contains(t, calls[0], "--filter=name=agentic-docker")
 	assert.Equal(t, []string{"rm", "--force", "--volumes", "id1"}, calls[1])
-	assert.Contains(t, calls[2], "--filter=name=agentic-dind")
-	assert.Equal(t, []string{"network", "rm", "id1"}, calls[3])
 }
 
 func Test_sweepDindRunDirs(t *testing.T) {
@@ -519,12 +466,13 @@ func Test_newDindHandle(t *testing.T) {
 	// Arrange
 	client := newTestClient()
 	stubHostUserGroup(t, "1000:1000")
+	toolHome := t.TempDir()
 
 	// Act
-	handle, err := client.newDindHandle(toolRun{RunSpec: sandbox.RunSpec{ToolHome: t.TempDir()}})
+	handle, err := client.newDindHandle(toolRun{RunSpec: sandbox.RunSpec{ToolHome: toolHome}})
 
 	// Assert
 	require.NoError(t, err)
-	assert.True(t, handle.ownsNetwork)
-	assert.True(t, strings.HasPrefix(handle.network, "agentic-dind-"))
+	assert.Equal(t, "agentic-docker-"+handle.id, handle.container)
+	assert.Equal(t, filepath.Join(toolHome, dindDirName, handle.id), handle.runDir)
 }

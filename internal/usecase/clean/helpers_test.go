@@ -15,6 +15,7 @@ type fakeDocker struct {
 	cleanBaseImages     func() error
 	sweepProxyResources func() error
 	sweepDindResources  func(string) error
+	sweepRunNetworks    func() error
 	removeNetwork       func() error
 }
 
@@ -51,6 +52,13 @@ func (f *fakeDocker) SweepDindResources(toolHome string) error {
 		return nil
 	}
 	return f.sweepDindResources(toolHome)
+}
+
+func (f *fakeDocker) SweepRunNetworks() error {
+	if f.sweepRunNetworks == nil {
+		return nil
+	}
+	return f.sweepRunNetworks()
 }
 
 func (f *fakeDocker) RemoveNetwork() error {

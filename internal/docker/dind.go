@@ -23,9 +23,6 @@ const (
 	// dindHostAlias is the sidecar's network alias, so DOCKER_HOST is stable across runs.
 	dindHostAlias = "agentic-docker"
 
-	// dindNetworkPrefix names the per-run network used when there's no proxy network to join.
-	dindNetworkPrefix = "agentic-dind"
-
 	// dindPort is dockerd's TLS port.
 	dindPort = "2376"
 
@@ -102,19 +99,16 @@ var dindReservedEnvNames = map[string]bool{
 	"DOCKER_CONFIG":     true,
 }
 
-// dindHandle identifies the per-run sidecar, its network and its run dir.
+// dindHandle identifies the per-run sidecar and its run dir.
 type dindHandle struct {
-	client      *Client
-	id          string
-	identity    dind.Identity
-	container   string
-	network     string
-	ownsNetwork bool
-	runDir      string
+	client    *Client
+	id        string
+	identity  dind.Identity
+	container string
+	runDir    string
 }
 
 // newDindHandle derives the per-run resource names without creating anything, so it is safe for dry runs.
-// In proxy mode the sidecar joins the proxy's network so its egress is confined too.
 func (c *Client) newDindHandle(rs toolRun) (dindHandle, error) {
 	id, err := randID()
 	if err != nil {
@@ -126,38 +120,29 @@ func (c *Client) newDindHandle(rs toolRun) (dindHandle, error) {
 		return dindHandle{}, err
 	}
 
-	h := dindHandle{
+	return dindHandle{
 		client:    c,
 		id:        id,
 		identity:  identity,
 		container: dindHostAlias + "-" + id,
-		network:   rs.network,
 		runDir:    filepath.Join(rs.ToolHome, dindDirName, id),
-	}
-	if h.network == "" {
-		h.network = dindNetworkPrefix + "-" + id
-		h.ownsNetwork = true
-	}
-
-	return h, nil
+	}, nil
 }
 
-// Stop removes the sidecar, its data volume, its own network and the run dir; safe to defer.
+// Stop removes the sidecar, its data volume and the run dir; safe to defer.
 func (h dindHandle) Stop() {
 	_, _ = h.client.run("rm", "--force", "--volumes", h.container)
-	if h.ownsNetwork {
-		_, _ = h.client.run("network", "rm", h.network)
-	}
 	_ = os.RemoveAll(h.runDir)
 }
 
-// runArgs builds the `docker run` arguments for the rootless dockerd sidecar.
+// runArgs builds the `docker run` arguments for the rootless dockerd sidecar, on rs's run network so with the proxy
+// its egress is confined too.
 func (h dindHandle) runArgs(rs toolRun) []string {
 	args := []string{
 		// No --rm, so a crashed sidecar keeps its logs for waitReady
 		"run", "--detach", "--read-only",
 		arg("name", h.container),
-		arg("network", h.network),
+		arg("network", rs.network),
 		arg("network-alias", dindHostAlias),
 		label(LabelProject, LabelProjectVal),
 		arg("pids-limit", rs.Dind.Limits.PidsLimit),
@@ -282,25 +267,14 @@ func IsReservedDindEnvName(key string) bool {
 	return dindReservedEnvNames[key]
 }
 
-// SweepDindResources removes sidecars, networks and run dirs left behind by interrupted runs.
+// SweepDindResources removes sidecars and run dirs left behind by interrupted runs.
 func (c *Client) SweepDindResources(toolHome string) error {
-	listContainerArgs := []string{
+	listArgs := []string{
 		"ps", arg("all"), arg("quiet"),
 		labelFilter(LabelProject, LabelProjectVal),
 		nameFilter(dindHostAlias),
 	}
-	removeContainerArgs := []string{"rm", arg("force"), arg("volumes")}
-	if err := c.runIfAny(listContainerArgs, removeContainerArgs); err != nil {
-		return err
-	}
-
-	listNetworkArgs := []string{
-		"network", "ls", arg("quiet"),
-		labelFilter(LabelProject, LabelProjectVal),
-		nameFilter(dindNetworkPrefix),
-	}
-	removeNetworkArgs := []string{"network", "rm"}
-	if err := c.runIfAny(listNetworkArgs, removeNetworkArgs); err != nil {
+	if err := c.runIfAny(listArgs, []string{"rm", arg("force"), arg("volumes")}); err != nil {
 		return err
 	}
 
@@ -334,16 +308,6 @@ func (c *Client) startDind(rs toolRun, interrupt <-chan os.Signal) (dindHandle, 
 		return dindHandle{}, err
 	}
 
-	if h.ownsNetwork {
-		createArgs := []string{"network", "create", label(LabelProject, LabelProjectVal)}
-		createArgs = append(createArgs, ownerLabels(rs)...)
-		createArgs = append(createArgs, h.network)
-		if _, err := c.run(createArgs...); err != nil {
-			h.Stop()
-			return dindHandle{}, fmt.Errorf("create dind network: %w", err)
-		}
-	}
-
 	if _, err := c.run(h.runArgs(rs)...); err != nil {
 		h.Stop()
 		return dindHandle{}, fmt.Errorf("start docker sidecar: %w", err)
@@ -358,7 +322,7 @@ func (c *Client) startDind(rs toolRun, interrupt <-chan os.Signal) (dindHandle, 
 }
 
 // setupDind starts the Docker sidecar if enabled, returning the tool args and a cleanup func to defer.
-func (c *Client) setupDind(rs *toolRun) (toolArgs []string, cleanup func(), err error) {
+func (c *Client) setupDind(rs toolRun) (toolArgs []string, cleanup func(), err error) {
 	if !rs.Dind.Enabled {
 		return nil, noCleanup, nil
 	}
@@ -370,33 +334,29 @@ func (c *Client) setupDind(rs *toolRun) (toolArgs []string, cleanup func(), err 
 }
 
 // dryRunDind prints the sidecar command and returns the tool args without provisioning anything.
-func (c *Client) dryRunDind(rs *toolRun) (toolArgs []string, cleanup func(), err error) {
-	handle, err := c.newDindHandle(*rs)
+func (c *Client) dryRunDind(rs toolRun) (toolArgs []string, cleanup func(), err error) {
+	handle, err := c.newDindHandle(rs)
 	if err != nil {
 		return nil, nil, err
 	}
-	if handle.ownsNetwork {
-		rs.network = handle.network
-	}
 
-	if err := sandbox.PrintDryRun("docker sidecar", "docker", handle.runArgs(*rs)); err != nil {
+	if err := sandbox.PrintDryRun("docker sidecar", "docker", handle.runArgs(rs)); err != nil {
 		return nil, nil, err
 	}
 	return handle.toolArgs(), noCleanup, nil
 }
 
 // launchDind starts the sidecar and returns a cleanup that removes it.
-func (c *Client) launchDind(rs *toolRun) (toolArgs []string, cleanup func(), err error) {
+func (c *Client) launchDind(rs toolRun) (toolArgs []string, cleanup func(), err error) {
 	// Guard first so Ctrl-C during startup still removes the sidecar
 	interrupt, stop := guardSignals()
 
 	logging.Infof("starting docker sidecar...")
-	handle, err := c.startDind(*rs, interrupt)
+	handle, err := c.startDind(rs, interrupt)
 	if err != nil {
 		stop()
 		return nil, nil, err
 	}
-	rs.network = handle.network
 
 	cleanup = func() {
 		handle.Stop()

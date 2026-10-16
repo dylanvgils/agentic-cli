@@ -6,14 +6,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
-// networkOrDefault returns the configured network, or NetworkName when unset.
-func networkOrDefault(network string) string {
-	if network == "" {
-		return NetworkName
-	}
-	return network
-}
-
 // buildRunArgs assembles the tool container's `docker run` args.
 func buildRunArgs(rs toolRun, sidecarArgs, toolArgs []string) ([]string, error) {
 	secretArgs, err := buildSecretArgs(rs.RunSpec)
@@ -51,9 +43,9 @@ func buildBaseArgs(rs toolRun) []string {
 		arg("cpus", rs.Limits.CPUs),
 		// Maximum memory the container can use
 		arg("memory", rs.Limits.Memory),
-		// Security: isolate from other host containers (proxy mode swaps this
-		// for a per-run internal network with no direct egress)
-		arg("network", networkOrDefault(rs.network)),
+		// Security: isolate from other runs and host containers; internal with
+		// the proxy, so there's no direct egress
+		arg("network", rs.network),
 		// Security: drop all capabilities
 		arg("cap-drop", "ALL"),
 		// Security: prevent privilege escalation

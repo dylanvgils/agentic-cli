@@ -35,7 +35,7 @@ const proxyCredentialsDir = proxyRunMountDir + "/" + proxyCredentialsSubdir
 // proxyCredentialsFile holds the credential list in proxyCredentialsDir.
 const proxyCredentialsFile = "credentials.json"
 
-// dryRunClientNetsPlaceholder stands in for the per-run network's subnets in dry-run output, as the network isn't created.
+// dryRunClientNetsPlaceholder stands in for the run network's subnets in dry-run output, as the network isn't created.
 const dryRunClientNetsPlaceholder = "<proxy network subnets>"
 
 // proxyLogMountDir is where the run's log file is mounted inside the proxy.
@@ -47,12 +47,11 @@ var (
 	proxyPollInterval = 50 * time.Millisecond
 )
 
-// proxyHandle identifies the per-run proxy network, sidecar container, host-side access log, injected credentials,
-// the network's subnets that may use them, and the CA cert the proxy signs them with, set once started.
+// proxyHandle identifies the per-run proxy sidecar container, host-side access log, injected credentials, the run
+// network's subnets that may use them, and the CA cert the proxy signs them with, set once started.
 type proxyHandle struct {
 	client      *Client
 	id          string
-	network     string
 	container   string
 	logPath     string
 	allow       []string
@@ -81,7 +80,6 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 	return proxyHandle{
 		client:         c,
 		id:             id,
-		network:        name,
 		container:      name,
 		logPath:        filepath.Join(rs.Proxy.LogDir, proxyLogFileName(id)),
 		allow:          rs.Proxy.Allow,
@@ -120,10 +118,9 @@ func proxyEnvArgs(dind bool) []string {
 	}
 }
 
-// Stop removes the proxy sidecar, its volume and its internal network; idempotent and error-ignoring, so it is safe to defer.
+// Stop removes the proxy sidecar and its volume; idempotent and error-ignoring, so it is safe to defer.
 func (h proxyHandle) Stop() {
 	_, _ = h.client.run("rm", "--force", "--volumes", h.container)
-	_, _ = h.client.run("network", "rm", h.network)
 }
 
 // PrintSummary reports hosts the allowlist blocked, or would have blocked in monitor mode, separately hosts the address
@@ -216,45 +213,31 @@ func (h proxyHandle) totalRequests() int {
 	return total
 }
 
-// startProxy provisions the per-run internal network and proxy sidecar, copying in any credentials before it starts
-// and wiring it to the egress network; cleans up whatever it created on any failure.
+// startProxy starts the proxy sidecar on rs's run network, copying in any credentials before it starts and wiring it
+// to the egress network; cleans up whatever it created on any failure.
 func (c *Client) startProxy(rs toolRun) (proxyHandle, error) {
 	h, err := c.newProxyHandle(rs)
 	if err != nil {
 		return proxyHandle{}, err
 	}
 
-	if err := c.EnsureNetwork(); err != nil {
+	if err := c.ensureEgressNetwork(); err != nil {
 		return proxyHandle{}, err
-	}
-
-	createArgs := []string{
-		"network", "create",
-		arg("internal"),
-		label(LabelProject, LabelProjectVal),
-	}
-	createArgs = append(createArgs, ownerLabels(rs)...)
-	createArgs = append(createArgs, h.network)
-	if _, err := c.run(createArgs...); err != nil {
-		return proxyHandle{}, fmt.Errorf("create proxy network: %w", err)
 	}
 
 	// The proxy also joins the shared egress network, so only this run's network may use the credentials
 	if len(h.credentials) > 0 {
-		h.clientNets, err = c.networkSubnets(h.network)
+		h.clientNets, err = c.networkSubnets(rs.network)
 		if err != nil {
-			_, _ = c.run("network", "rm", h.network)
 			return proxyHandle{}, err
 		}
 	}
 
 	if err := h.createLogFile(); err != nil {
-		_, _ = c.run("network", "rm", h.network)
 		return proxyHandle{}, err
 	}
 
 	if _, err := c.run(h.createArgs(rs)...); err != nil {
-		_, _ = c.run("network", "rm", h.network)
 		return proxyHandle{}, fmt.Errorf("create proxy: %w", err)
 	}
 
@@ -284,7 +267,7 @@ func (c *Client) startProxy(rs toolRun) (proxyHandle, error) {
 }
 
 // setupProxy configures rs for proxy mode if enabled, returning the tool args (proxy env, CA trust) to inject and a cleanup func to defer.
-func (c *Client) setupProxy(rs *toolRun) (proxyEnv []string, cleanup func(), err error) {
+func (c *Client) setupProxy(rs toolRun) (proxyEnv []string, cleanup func(), err error) {
 	if !rs.Proxy.Mode.Enabled() {
 		return nil, noCleanup, nil
 	}
@@ -295,16 +278,15 @@ func (c *Client) setupProxy(rs *toolRun) (proxyEnv []string, cleanup func(), err
 	return c.launchProxy(rs)
 }
 
-// dryRunProxy reflects the proxy network and env in the printed command without provisioning anything.
-func (c *Client) dryRunProxy(rs *toolRun) (proxyEnv []string, cleanup func(), err error) {
-	handle, err := c.newProxyHandle(*rs)
+// dryRunProxy prints the proxy command and returns the tool's proxy env without provisioning anything.
+func (c *Client) dryRunProxy(rs toolRun) (proxyEnv []string, cleanup func(), err error) {
+	handle, err := c.newProxyHandle(rs)
 	if err != nil {
 		return nil, nil, err
 	}
-	rs.network = handle.network
 
 	// Shows no secrets: those are only copied in before start
-	if err := sandbox.PrintDryRun("egress proxy", "docker", handle.createArgs(*rs)); err != nil {
+	if err := sandbox.PrintDryRun("egress proxy", "docker", handle.createArgs(rs)); err != nil {
 		return nil, nil, err
 	}
 
@@ -312,12 +294,12 @@ func (c *Client) dryRunProxy(rs *toolRun) (proxyEnv []string, cleanup func(), er
 }
 
 // launchProxy starts the sidecar and returns a cleanup that tears it down and prints the access summary.
-func (c *Client) launchProxy(rs *toolRun) (proxyEnv []string, cleanup func(), err error) {
+func (c *Client) launchProxy(rs toolRun) (proxyEnv []string, cleanup func(), err error) {
 	// Guard first so Ctrl-C during startup still removes the sidecar and its credentials volume
 	interrupt, stop := guardSignals()
 
 	logging.Infof("starting egress proxy...")
-	handle, err := c.startProxy(*rs)
+	handle, err := c.startProxy(rs)
 	if err != nil {
 		stop()
 		return nil, nil, err
@@ -330,7 +312,6 @@ func (c *Client) launchProxy(rs *toolRun) (proxyEnv []string, cleanup func(), er
 		return nil, nil, fmt.Errorf("interrupted while starting egress proxy")
 	default:
 	}
-	rs.network = handle.network
 
 	cleanup = func() {
 		// Stop before reading the log so late denials make the summary
@@ -342,7 +323,7 @@ func (c *Client) launchProxy(rs *toolRun) (proxyEnv []string, cleanup func(), er
 }
 
 // createArgs builds the `docker create` arguments for the hardened proxy sidecar, registering
-// proxyHostAlias on the per-run network so tool config can reference a stable hostname.
+// proxyHostAlias on the run network so tool config can reference a stable hostname.
 func (h proxyHandle) createArgs(rs toolRun) []string {
 	containerLog := proxyLogMountDir + "/" + proxyLogFileName(h.id)
 	_, tzOffset := time.Now().Zone()
@@ -351,7 +332,7 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 		// No --rm, so a proxy that exits on start keeps its logs for checkStarted
 		"create", "--read-only",
 		arg("name", h.container),
-		arg("network", h.network),
+		arg("network", rs.network),
 		arg("network-alias", proxyHostAlias),
 		arg("cap-drop", "ALL"),
 		arg("security-opt", "no-new-privileges:true"),
@@ -417,26 +398,15 @@ func (h proxyHandle) checkStarted() error {
 	}
 }
 
-// SweepProxyResources idempotently removes leftover per-run proxy containers (with their volume) and internal
-// networks (e.g. from an interrupted run), scoped to agentic-managed resources named with proxyHostAlias.
+// SweepProxyResources idempotently removes leftover per-run proxy containers (with their volume), e.g. from an
+// interrupted run, scoped to agentic-managed containers named with proxyHostAlias.
 func (c *Client) SweepProxyResources() error {
-	listContainerArgs := []string{
+	listArgs := []string{
 		"ps", arg("all"), arg("quiet"),
 		labelFilter(LabelProject, LabelProjectVal),
 		nameFilter(proxyHostAlias),
 	}
-	removeContainerArgs := []string{"rm", arg("force"), arg("volumes")}
-	if err := c.runIfAny(listContainerArgs, removeContainerArgs); err != nil {
-		return err
-	}
-
-	listNetworkArgs := []string{
-		"network", "ls", arg("quiet"),
-		labelFilter(LabelProject, LabelProjectVal),
-		nameFilter(proxyHostAlias),
-	}
-	removeNetworkArgs := []string{"network", "rm"}
-	return c.runIfAny(listNetworkArgs, removeNetworkArgs)
+	return c.runIfAny(listArgs, []string{"rm", arg("force"), arg("volumes")})
 }
 
 // proxyLogFileName is shared by the host logPath and the in-container AGENTIC_PROXY_LOG path so they name the same file.

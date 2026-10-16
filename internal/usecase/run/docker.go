@@ -73,7 +73,7 @@ func (r dockerRunner) Run(req Request, rs sandbox.RunSpec, toolArgs []string) er
 	return r.docker.RunTool(sidecars, toolArgs)
 }
 
-// prepareDockerHost creates rs's named volumes and proxy log dir, builds missing sidecar images and ensures agentic-net when the tool joins it.
+// prepareDockerHost creates rs's named volumes and proxy log dir and builds missing sidecar images.
 func (r dockerRunner) prepareDockerHost(rs sandbox.RunSpec, registry string) error {
 	if err := r.docker.EnsureNamedVolumes(rs.Volumes, rs.ToolHome, rs.ContainerHome, tools.BusyboxImageFor(registry)); err != nil {
 		return err
@@ -86,15 +86,5 @@ func (r dockerRunner) prepareDockerHost(rs sandbox.RunSpec, registry string) err
 		}
 	}
 
-	if err := sidecar.New(r.docker).Ensure(proxy, dind, registry); err != nil {
-		return err
-	}
-
-	// In proxy or dind mode the tool container attaches to a per-run network
-	// instead of agentic-net; startProxy ensures agentic-net itself for the
-	// sidecar's egress connection, so skip the redundant check here.
-	if proxy || dind {
-		return nil
-	}
-	return r.docker.EnsureNetwork()
+	return sidecar.New(r.docker).Ensure(proxy, dind, registry)
 }

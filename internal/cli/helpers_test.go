@@ -40,7 +40,6 @@ type fakeDocker struct {
 	stopSidecars          func(sidecars docker.Sidecars)
 	saveImage             func(image string, w io.Writer) error
 	listRunningContainers func() ([]*docker.ContainerInfo, error)
-	ensureNetwork         func() error
 	removeNetwork         func() error
 	ensureNamedVolumes    func(volumes []string, toolHome, containerHome, chownImage string) error
 	createVolume          func(string) error
@@ -48,6 +47,7 @@ type fakeDocker struct {
 	removeVolume          func(string) error
 	sweepProxyResources   func() error
 	sweepDindResources    func(string) error
+	sweepRunNetworks      func() error
 	listContexts          func() ([]string, error)
 	currentContext        func() (string, error)
 	version               func() (string, error)
@@ -192,13 +192,6 @@ func (f *fakeDocker) ListRunningContainers() ([]*docker.ContainerInfo, error) {
 	return f.listRunningContainers()
 }
 
-func (f *fakeDocker) EnsureNetwork() error {
-	if f.ensureNetwork == nil {
-		return nil
-	}
-	return f.ensureNetwork()
-}
-
 func (f *fakeDocker) RemoveNetwork() error {
 	if f.removeNetwork == nil {
 		return nil
@@ -246,6 +239,13 @@ func (f *fakeDocker) SweepDindResources(toolHome string) error {
 		return nil
 	}
 	return f.sweepDindResources(toolHome)
+}
+
+func (f *fakeDocker) SweepRunNetworks() error {
+	if f.sweepRunNetworks == nil {
+		return nil
+	}
+	return f.sweepRunNetworks()
 }
 
 func (f *fakeDocker) ListContexts() ([]string, error) {
@@ -323,9 +323,6 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.listRunningContainers != nil {
 		f.listRunningContainers = o.listRunningContainers
 	}
-	if o.ensureNetwork != nil {
-		f.ensureNetwork = o.ensureNetwork
-	}
 	if o.removeNetwork != nil {
 		f.removeNetwork = o.removeNetwork
 	}
@@ -346,6 +343,9 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 	if o.sweepDindResources != nil {
 		f.sweepDindResources = o.sweepDindResources
+	}
+	if o.sweepRunNetworks != nil {
+		f.sweepRunNetworks = o.sweepRunNetworks
 	}
 	if o.listContexts != nil {
 		f.listContexts = o.listContexts

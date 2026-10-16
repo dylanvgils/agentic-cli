@@ -33,27 +33,36 @@ func ownerLabels(rs toolRun) []string {
 	}
 }
 
-// setupSidecars sweeps orphans, then starts the proxy and dind; cleanup stops both.
-func (c *Client) setupSidecars(rs *toolRun) (args []string, cleanup func(), err error) {
+// setupSidecars sweeps orphans, creates the run network, then starts the proxy and dind on it; cleanup stops both and
+// removes the network last, once nothing is attached to it.
+func (c *Client) setupSidecars(rs toolRun) (args []string, cleanup func(), err error) {
+	networkCleanup := noCleanup
 	if !rs.DryRun {
 		warnOnSweepError(c.sweepOrphanedSidecars(rs.ToolHome))
+
+		if err := c.createRunNetwork(rs); err != nil {
+			return nil, nil, err
+		}
+		networkCleanup = func() { c.removeRunNetwork(rs.network) }
 	}
 
 	proxyEnv, proxyCleanup, err := c.setupProxy(rs)
 	if err != nil {
+		networkCleanup()
 		return nil, nil, err
 	}
 
-	// After the proxy, so the sidecar can join its network
 	dindArgs, dindCleanup, err := c.setupDind(rs)
 	if err != nil {
 		proxyCleanup()
+		networkCleanup()
 		return nil, nil, err
 	}
 
 	cleanup = func() {
 		dindCleanup()
 		proxyCleanup()
+		networkCleanup()
 	}
 	return append(proxyEnv, dindArgs...), cleanup, nil
 }
