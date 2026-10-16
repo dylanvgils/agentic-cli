@@ -40,7 +40,7 @@ func runClean(cmd *cobra.Command, args []string) error {
 	}
 
 	// Only installed runtimes hold image copies
-	var runtimes []clean.Runtime
+	var runtimes []clean.ImageCleaner
 	if msbClient.Available() == nil {
 		runtimes = append(runtimes, msbClient)
 	}

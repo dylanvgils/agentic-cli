@@ -421,7 +421,7 @@ func validateLimits(limits RCLimits) error {
 		}
 	}
 	if limits.CPUs != "" {
-		if n, err := strconv.ParseFloat(limits.CPUs, 64); err != nil || !(n > 0) || math.IsInf(n, 0) {
+		if n, err := strconv.ParseFloat(limits.CPUs, 64); err != nil || math.IsNaN(n) || n <= 0 || math.IsInf(n, 0) {
 			return fmt.Errorf("cpus %q: must be a positive number", limits.CPUs)
 		}
 	}

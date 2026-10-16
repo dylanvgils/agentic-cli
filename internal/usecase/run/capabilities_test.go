@@ -58,13 +58,24 @@ func Test_requiredCapabilities(t *testing.T) {
 		assert.Equal(t, sandbox.Capabilities{CredentialInjection: true, PidsLimit: true}, need)
 	})
 
-	t.Run("secrets from flags or config ask for secret mounts", func(t *testing.T) {
+	t.Run("secrets from config ask for secret mounts", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
 		rc.Run.Secrets = []string{"token:/example.test/token"}
 
 		// Act
 		need := requiredCapabilities(Flags{}, rc)
+
+		// Assert
+		assert.Equal(t, sandbox.Capabilities{SecretMounts: true, PidsLimit: true}, need)
+	})
+
+	t.Run("secrets from flags ask for secret mounts", func(t *testing.T) {
+		// Arrange
+		flags := Flags{Secrets: []string{"token:/example.test/token"}}
+
+		// Act
+		need := requiredCapabilities(flags, &config.AgenticRC{})
 
 		// Assert
 		assert.Equal(t, sandbox.Capabilities{SecretMounts: true, PidsLimit: true}, need)
@@ -101,6 +112,22 @@ func Test_checkCapabilities(t *testing.T) {
 
 		// Assert
 		assert.EqualError(t, err, "--runtime microsandbox does not support the egress proxy (--proxy); pass --no-proxy to run without the proxy, or use --runtime docker")
+	})
+
+	t.Run("a missing proxy asked for in config names the layer", func(t *testing.T) {
+		// Arrange
+		req := runtimeRequest(RuntimeMicrosandbox)
+		enabled := true
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.Enabled = &enabled
+		req.Project.RC = rc
+		req.Project.Layers = []config.RCLayer{{Path: "/example.test/project/.agenticrc.toml", RC: rc}}
+
+		// Act
+		err := checkCapabilities(req, msb)
+
+		// Assert
+		assert.EqualError(t, err, "--runtime microsandbox does not support the egress proxy ([run.proxy] enabled in /example.test/project/.agenticrc.toml); pass --no-proxy to run without the proxy, or use --runtime docker")
 	})
 
 	t.Run("missing proxy and credentials give one error", func(t *testing.T) {

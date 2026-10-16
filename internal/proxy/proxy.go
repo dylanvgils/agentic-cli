@@ -13,6 +13,9 @@ import (
 // dialTimeout bounds how long the proxy waits to establish an upstream connection.
 const dialTimeout = 30 * time.Second
 
+// proxyFailedText is the fixed body of a 500, so the tool never sees the proxy's internal error.
+const proxyFailedText = "agentic proxy error"
+
 // Server is a forward proxy that permits CONNECT tunnels and plain HTTP requests only to allowlisted
 // hosts, logging every attempt. In monitor mode it stops enforcing the allowlist but still logs
 // the real verdict, so a run can be observed without ever blocking it.
@@ -66,14 +69,14 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		s.failUpstream(w, entry, err)
 		return
 	}
-	s.logger.Log(entry)
 	defer func() { _ = upstream.Close() }()
 
 	client, err := hijack(w)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.failProxy(w, entry, err)
 		return
 	}
+	s.logger.Log(entry)
 	defer func() { _ = client.Close() }()
 
 	if _, err := io.WriteString(client, "HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil {
@@ -155,6 +158,14 @@ func (s *Server) failUpstream(w http.ResponseWriter, entry Entry, err error) {
 	entry.Error = err.Error()
 	s.logger.Log(entry)
 	http.Error(w, "upstream unreachable via agentic proxy", http.StatusBadGateway)
+}
+
+// failProxy logs entry with err, a failure of the proxy itself, and answers a fixed 500 without it.
+func (s *Server) failProxy(w http.ResponseWriter, entry Entry, err error) {
+	entry.Reason = ReasonProxyFailed
+	entry.Error = err.Error()
+	s.logger.Log(entry)
+	http.Error(w, proxyFailedText, http.StatusInternalServerError)
 }
 
 // hijack takes over the underlying TCP connection from the ResponseWriter for a CONNECT tunnel.

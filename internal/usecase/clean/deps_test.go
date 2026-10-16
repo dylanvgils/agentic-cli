@@ -6,6 +6,6 @@ import (
 )
 
 var (
-	_ Docker  = (*docker.Client)(nil)
-	_ Runtime = (*microsandbox.Client)(nil)
+	_ Docker       = (*docker.Client)(nil)
+	_ ImageCleaner = (*microsandbox.Client)(nil)
 )

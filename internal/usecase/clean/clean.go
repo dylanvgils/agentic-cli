@@ -11,8 +11,8 @@ import (
 // Service removes agentic-owned images from every runtime and shared Docker resources.
 type Service struct {
 	docker   Docker
-	runtimes []Runtime // other runtimes holding copies of the tool images, cleaned best-effort
-	home     string    // agentic data dir, for the custom installs store and sidecar state
+	runtimes []ImageCleaner // other runtimes holding copies of the tool images, cleaned best-effort
+	home     string         // agentic data dir, for the custom installs store and sidecar state
 }
 
 // Target is one image to remove, with the label to report it under.
@@ -32,7 +32,7 @@ type Scope struct {
 }
 
 // New returns a Service that cleans agentic state under home, and tool images from Docker and the other runtimes.
-func New(home string, d Docker, runtimes ...Runtime) *Service {
+func New(home string, d Docker, runtimes ...ImageCleaner) *Service {
 	return &Service{docker: d, runtimes: runtimes, home: home}
 }
 

@@ -315,6 +315,25 @@ func TestServerConnectInject(t *testing.T) {
 		assert.Empty(t, string(body))
 	})
 
+	t.Run("failed hijack returns a fixed 500 and logs the error", func(t *testing.T) {
+		// Arrange
+		inject, _ := newTestInjector(t, upstream, creds)
+		var logBuf syncBuffer
+		server := NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject)
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodConnect, "http://"+upstreamAddr, nil)
+		req.Host = upstreamAddr
+
+		// Act
+		server.ServeHTTP(w, req)
+
+		// Assert
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Equal(t, proxyFailedText+"\n", w.Body.String())
+		assert.Contains(t, logBuf.String(), `"reason":"proxy-failed","error":"connection does not support hijacking"`)
+		assert.NotContains(t, logBuf.String(), `"intercepted"`)
+	})
+
 	t.Run("client rejecting the cert is logged as not intercepted", func(t *testing.T) {
 		// Arrange
 		inject, _ := newTestInjector(t, upstream, creds)
@@ -327,7 +346,7 @@ func TestServerConnectInject(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.Eventually(t, func() bool { return strings.Contains(logBuf.String(), `"decision":"allow"`) }, 5*time.Second, 10*time.Millisecond)
+		assert.Eventually(t, func() bool { return strings.Contains(logBuf.String(), `"reason":"proxy-failed","error":`) }, 5*time.Second, 10*time.Millisecond)
 		assert.NotContains(t, logBuf.String(), `"intercepted"`)
 	})
 
