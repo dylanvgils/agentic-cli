@@ -10,8 +10,8 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
-// opencodeReleaseRepo is the GitHub repo the install script (opencode.ai/install) pulls releases from.
-const opencodeReleaseRepo = "anomalyco/opencode"
+// opencodeLatestVersionURL is the endpoint opencode.ai/v2/install resolves the latest version from.
+const opencodeLatestVersionURL = "https://opencode.ai/update/api/latest/cli/npm"
 
 // opencodeInstructionsContainerPath is the container-side mount target for a per-run instructions snapshot.
 const opencodeInstructionsContainerPath = "$CONTAINER_HOME/.config/opencode/AGENTS.md"
@@ -53,7 +53,7 @@ func opencodeStage(prevStage string) df.Stage {
 		Add(df.Arg{Key: "OPENCODE_INSTALL_CHECKSUM", Default: DefaultChecksums.OpencodeInstall}).
 		Add(df.Run{Blocks: []df.Block{
 			{Comment: "Download and verify install script, then run it", Lines: []string{
-				`curl -fsSL https://opencode.ai/install -o /tmp/opencode_install.sh;`,
+				`curl -fsSL https://opencode.ai/v2/install -o /tmp/opencode_install.sh;`,
 				`if [ "${SKIP_INSTALL_CHECKSUM}" = "true" ]; then`,
 				`echo "warning: skipping opencode install script checksum verification (--skip-install-checksum)" >&2;`,
 				`else`,
@@ -78,7 +78,7 @@ func opencodeStage(prevStage string) df.Stage {
 
 // opencodeLatestVersion fetches the latest OpenCode version available upstream.
 func opencodeLatestVersion() (string, error) {
-	return latestGithubTag(opencodeReleaseRepo)
+	return fetchJSONVersion(opencodeLatestVersionURL)
 }
 
 func setupOpencode(toolHome string) error {
