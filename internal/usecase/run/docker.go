@@ -22,7 +22,8 @@ func (r dockerRunner) Check(Request) error {
 }
 
 // Run readies the Docker-only host resources rs needs, starts its sidecars and runs it, checking the mounts again right
-// before the tool starts as the sidecars can take long enough for a path to change; a dry run only checks the image and prints.
+// before the sidecars and the tool start as readying them can take long enough for a path to change; a dry run only
+// checks the image and prints.
 func (r dockerRunner) Run(req Request, rs sandbox.RunSpec, toolArgs []string) error {
 	if rs.Dind.Enabled {
 		if err := r.requireDockerLayer(rs.Image, req.Target.ToolName); err != nil {
@@ -34,6 +35,11 @@ func (r dockerRunner) Run(req Request, rs sandbox.RunSpec, toolArgs []string) er
 		if err := r.prepareDockerHost(rs, req.Flags.Registry); err != nil {
 			return err
 		}
+	}
+
+	// The dind sidecar mounts the workspace too, and building sidecar images can take a while
+	if err := recheckMounts(rs); err != nil {
+		return err
 	}
 
 	sidecars, err := r.docker.StartSidecars(rs)

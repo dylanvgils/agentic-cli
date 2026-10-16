@@ -9,7 +9,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"net/http/httputil"
+	"net/textproto"
 	"strings"
 	"testing"
 	"time"
@@ -34,6 +36,14 @@ func TestServerConnectInject(t *testing.T) {
 		<-release
 	})
 	mux.HandleFunc("/reflect", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Echo-Api-Key", r.Header.Get("X-Api-Key"))
+	})
+	mux.HandleFunc("/reflect-late", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Hint", r.Header.Get("X-Api-Key"))
+		w.WriteHeader(http.StatusEarlyHints)
+		w.Header().Del("X-Hint")
+		w.Header().Set("Trailer", "X-Echo-Api-Key")
+		_, _ = io.WriteString(w, "ok")
 		w.Header().Set("X-Echo-Api-Key", r.Header.Get("X-Api-Key"))
 	})
 	mux.HandleFunc("/drop", func(w http.ResponseWriter, _ *http.Request) {
@@ -173,6 +183,51 @@ func TestServerConnectInject(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close() //nolint:errcheck
 		assert.Equal(t, testPlaceholder, resp.Header.Get("X-Echo-Api-Key"))
+	})
+
+	t.Run("basic-encoded secret echoed in a response header reaches the tool as the placeholder", func(t *testing.T) {
+		// Arrange
+		inject, roots := newTestInjector(t, upstream, creds)
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+		basic := "Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+testPlaceholder))
+		req := mustGet(t, upstream.URL+"/reflect")
+		req.Header.Set("X-Api-Key", basic)
+
+		// Act
+		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
+
+		// Assert
+		require.NoError(t, err)
+		defer resp.Body.Close() //nolint:errcheck
+		assert.Equal(t, basic, resp.Header.Get("X-Echo-Api-Key"))
+	})
+
+	t.Run("secret echoed in a 1xx header or trailer reaches the tool as the placeholder", func(t *testing.T) {
+		// Arrange
+		inject, roots := newTestInjector(t, upstream, creds)
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+
+		var hint string
+		trace := &httptrace.ClientTrace{Got1xxResponse: func(_ int, header textproto.MIMEHeader) error {
+			hint = header.Get("X-Hint")
+			return nil
+		}}
+		req := mustGet(t, upstream.URL+"/reflect-late")
+		req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
+		req.Header.Set("X-Api-Key", testPlaceholder)
+
+		// Act
+		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
+
+		// Assert
+		require.NoError(t, err)
+		defer resp.Body.Close() //nolint:errcheck
+		_, err = io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, testPlaceholder, hint)
+		assert.Equal(t, testPlaceholder, resp.Trailer.Get("X-Echo-Api-Key"))
 	})
 
 	t.Run("request host header cannot redirect the upstream", func(t *testing.T) {
@@ -444,35 +499,69 @@ func TestServerConnectSubstitute(t *testing.T) {
 	}
 }
 
-func Test_scrub(t *testing.T) {
-	cred := Credential{Placeholder: testPlaceholder, Secret: "test-secret"}
+func Test_scrubHeader(t *testing.T) {
+	// Arrange
+	header := http.Header{
+		"X-Echo-Auth": {"Bearer test-secret"},
+		"Location":    {"https://api.example.test/?token=test-secret", "test-secret,test-secret"},
+	}
 
-	t.Run("swaps the secret back in every header", func(t *testing.T) {
+	// Act
+	scrubHeader(header, strings.NewReplacer("test-secret", testPlaceholder))
+
+	// Assert
+	assert.Equal(t, http.Header{
+		"X-Echo-Auth": {"Bearer " + testPlaceholder},
+		"Location":    {"https://api.example.test/?token=" + testPlaceholder, testPlaceholder + "," + testPlaceholder},
+	}, header)
+}
+
+func Test_newScrubber(t *testing.T) {
+	cred := testPlaceholderCredential("api.example.test", testPlaceholder)
+	basic := func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }
+
+	t.Run("swaps the secret back to the placeholder", func(t *testing.T) {
 		// Arrange
-		header := http.Header{
-			"X-Echo-Auth": {"Bearer test-secret"},
-			"Location":    {"https://api.example.test/?token=test-secret", "test-secret,test-secret"},
-		}
+		scrub := newScrubber(http.Header{}, cred)
 
 		// Act
-		scrub(header, cred)
+		got := scrub.Replace("echo: Bearer test-secret")
 
 		// Assert
-		assert.Equal(t, http.Header{
-			"X-Echo-Auth": {"Bearer " + testPlaceholder},
-			"Location":    {"https://api.example.test/?token=" + testPlaceholder, testPlaceholder + "," + testPlaceholder},
-		}, header)
+		assert.Equal(t, "echo: Bearer "+testPlaceholder, got)
 	})
 
-	t.Run("leaves headers alone for an empty secret", func(t *testing.T) {
+	t.Run("swaps the basic-encoded secret back to the encoded placeholder the tool sent", func(t *testing.T) {
 		// Arrange
-		header := http.Header{"Content-Type": {"text/plain"}}
+		scrub := newScrubber(http.Header{"Authorization": {"Basic " + basic("x-access-token:"+testPlaceholder)}}, cred)
 
 		// Act
-		scrub(header, Credential{Placeholder: testPlaceholder})
+		got := scrub.Replace(`{"auth":"Basic ` + basic("x-access-token:test-secret") + `"}`)
 
 		// Assert
-		assert.Equal(t, http.Header{"Content-Type": {"text/plain"}}, header)
+		assert.Equal(t, `{"auth":"Basic `+basic("x-access-token:"+testPlaceholder)+`"}`, got)
+	})
+
+	t.Run("leaves basic values in headers the credential doesn't list alone", func(t *testing.T) {
+		// Arrange
+		scrub := newScrubber(http.Header{"X-Other": {"Basic " + basic("user:"+testPlaceholder)}}, cred)
+
+		// Act
+		got := scrub.Replace(basic("user:test-secret"))
+
+		// Assert
+		assert.Equal(t, basic("user:test-secret"), got)
+	})
+
+	t.Run("leaves values alone for an empty secret", func(t *testing.T) {
+		// Arrange
+		scrub := newScrubber(http.Header{}, Credential{Placeholder: testPlaceholder})
+
+		// Act
+		got := scrub.Replace("text/plain")
+
+		// Assert
+		assert.Equal(t, "text/plain", got)
 	})
 }
 
@@ -636,7 +725,7 @@ func Test_reverseProxy(t *testing.T) {
 			pr := &httputil.ProxyRequest{In: in, Out: in.Clone(in.Context())}
 
 			// Act
-			inject.reverseProxy(target.host, target.port, Credential{}).Rewrite(pr)
+			inject.reverseProxy(target.host, target.port, Credential{}, strings.NewReplacer()).Rewrite(pr)
 
 			// Assert
 			assert.Equal(t, want, pr.Out.URL.Host)

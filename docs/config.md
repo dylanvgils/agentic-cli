@@ -327,7 +327,7 @@ agentic run --volume '$TOOL_HOME/custom:$CONTAINER_HOME/.custom:rw' claude
 
 ## Mount safety
 
-Before a run starts, and again right before the tool starts (after the sidecars are up or the microsandbox image is loaded), agentic checks every bind mount and secret:
+Before a run starts, again right before the sidecars start, and once more right before the tool starts (after the sidecars are up or the microsandbox image is loaded), agentic checks every bind mount and secret:
 
 - A mount that would expose `$AGENTIC_HOME/agentic.json` or `state.json` (the agentic home or a parent, such as `~`) is refused, since they hold machine-wide settings, trusted directories and approvals.
 - A path through a symlink inside the workspace is refused, so a planted `.git -> ~/.ssh` can't be mounted via `mounts = ["$PWD/.git:/workspace/.git"]`. Mount the real path instead.
@@ -335,5 +335,5 @@ Before a run starts, and again right before the tool starts (after the sidecars 
 
 Not covered:
 
-- A path swapped for a symlink in the moment between the last check and Docker or msb mounting it. Only something already running in the workspace can do this, such as an agent from another run in the same project.
+- A path swapped for a symlink in the moment between a check and Docker or msb mounting it, such as while the proxy starts before the DinD sidecar mounts the workspace. Only something already running in the workspace can do this, such as an agent from another run in the same project.
 - A symlink planted inside another `:rw` mount.

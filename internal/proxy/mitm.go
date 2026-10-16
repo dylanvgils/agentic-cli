@@ -58,6 +58,12 @@ type closeNotifyConn struct {
 	listener *oneConnListener
 }
 
+// scrubWriter scrubs the headers of 1xx responses, which ReverseProxy writes without ModifyResponse.
+type scrubWriter struct {
+	http.ResponseWriter
+	scrub *strings.Replacer
+}
+
 // NewInjector builds an Injector issuing leaves from ca for the hosts in creds.
 func NewInjector(ca certs.CA, creds []Credential) *Injector {
 	byHost := make(map[string]Credential)
@@ -151,8 +157,8 @@ func (i *Injector) serve(tlsConn *tls.Conn, handler http.Handler) {
 }
 
 // reverseProxy forwards to host:port, never the request's Host, with cred's secret put in the request headers and taken
-// back out of the response headers.
-func (i *Injector) reverseProxy(host, port string, cred Credential) *httputil.ReverseProxy {
+// back out of the response headers by scrub.
+func (i *Injector) reverseProxy(host, port string, cred Credential, scrub *strings.Replacer) *httputil.ReverseProxy {
 	// JoinHostPort brackets IPv6; the default port is then dropped to keep the Host header clean
 	target := &url.URL{Scheme: "https", Host: strings.TrimSuffix(net.JoinHostPort(host, port), ":443")}
 
@@ -162,7 +168,7 @@ func (i *Injector) reverseProxy(host, port string, cred Credential) *httputil.Re
 			substitute(pr.Out.Header, cred)
 		},
 		ModifyResponse: func(resp *http.Response) error {
-			scrub(resp.Header, cred)
+			scrubHeader(resp.Header, scrub)
 			return nil
 		},
 		Transport:     i.transport,
@@ -182,8 +188,7 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) 
 	}
 	defer func() { _ = tlsConn.Close() }()
 
-	reverse := s.inject.reverseProxy(entry.Host, entry.Port, cred)
-	reverse.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
+	failed := func(w http.ResponseWriter, _ *http.Request, err error) {
 		if errors.Is(err, errBlockedAddr) {
 			s.refuseBlocked(w, entry)
 			return
@@ -197,7 +202,15 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) 
 		if hasPlaceholder(r.Header, cred) {
 			sawPlaceholder.Store(true)
 		}
-		reverse.ServeHTTP(w, r)
+
+		// Per request, as the Basic forms to scrub depend on what this request sent
+		scrub := newScrubber(r.Header, cred)
+		reverse := s.inject.reverseProxy(entry.Host, entry.Port, cred, scrub)
+		reverse.ErrorHandler = failed
+		reverse.ServeHTTP(&scrubWriter{ResponseWriter: w, scrub: scrub}, r)
+
+		// Trailers land in w's header after the body and are sent once the handler returns
+		scrubHeader(w.Header(), scrub)
 	})
 	s.inject.serve(tlsConn, allowPrivate(handler, s.allow.exactMatch(entry.Host)))
 
@@ -237,19 +250,36 @@ func substitute(header http.Header, cred Credential) {
 	}
 }
 
-// scrub swaps cred's secret back to its placeholder in every header value, so an upstream echoing the request can't hand
-// the secret to the tool; bodies aren't scrubbed.
-func scrub(header http.Header, cred Credential) {
-	// An empty secret would put the placeholder between every byte
-	if cred.Secret == "" {
-		return
-	}
-
+// scrubHeader swaps the secret back to its placeholder in every header value, so an upstream echoing the request can't
+// hand the secret to the tool; bodies aren't scrubbed.
+func scrubHeader(header http.Header, scrub *strings.Replacer) {
 	for _, values := range header {
 		for i, value := range values {
-			values[i] = strings.ReplaceAll(value, cred.Secret, cred.Placeholder)
+			values[i] = scrub.Replace(value)
 		}
 	}
+}
+
+// newScrubber returns a replacer swapping cred's secret back to its placeholder, also in the Basic-encoded form it was
+// injected as for the placeholders the tool sent in header.
+func newScrubber(header http.Header, cred Credential) *strings.Replacer {
+	// An empty secret would put the placeholder between every byte
+	if cred.Secret == "" {
+		return strings.NewReplacer()
+	}
+
+	// Encoded forms first, as the replacer tries its pairs in order
+	var pairs []string
+	for _, name := range cred.Headers {
+		for _, value := range header.Values(name) {
+			sent, ok := basicCredential(substituteValue(value, cred.Placeholder, cred.Secret))
+			original, _ := basicCredential(value)
+			if ok && sent != original {
+				pairs = append(pairs, sent, original)
+			}
+		}
+	}
+	return strings.NewReplacer(append(pairs, cred.Secret, cred.Placeholder)...)
 }
 
 // hasPlaceholder reports whether any of cred's headers in header carries its placeholder, plain or Basic-encoded.
@@ -267,15 +297,23 @@ func hasPlaceholder(header http.Header, cred Credential) bool {
 // substituteValue replaces placeholder with secret in value, decoding a Basic credential first, as git and curl -u send
 // the placeholder base64-encoded.
 func substituteValue(value, placeholder, secret string) string {
-	scheme, encoded, found := strings.Cut(value, " ")
-	if found && strings.EqualFold(scheme, "Basic") {
-		decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encoded))
+	if encoded, ok := basicCredential(value); ok {
+		decoded, err := base64.StdEncoding.DecodeString(encoded)
 		if err == nil && strings.Contains(string(decoded), placeholder) {
 			swapped := strings.ReplaceAll(string(decoded), placeholder, secret)
-			return scheme + " " + base64.StdEncoding.EncodeToString([]byte(swapped))
+			return strings.Replace(value, encoded, base64.StdEncoding.EncodeToString([]byte(swapped)), 1)
 		}
 	}
 	return strings.ReplaceAll(value, placeholder, secret)
+}
+
+// basicCredential returns the encoded credential of a Basic value.
+func basicCredential(value string) (string, bool) {
+	scheme, encoded, found := strings.Cut(value, " ")
+	if !found || !strings.EqualFold(scheme, "Basic") {
+		return "", false
+	}
+	return strings.TrimSpace(encoded), true
 }
 
 // headerAlias folds case and treats "_" as "-", the way CGI-style backends compare header names.
@@ -316,4 +354,17 @@ func (c *closeNotifyConn) Close() error {
 	err := c.Conn.Close()
 	_ = c.listener.Close()
 	return err
+}
+
+// WriteHeader scrubs the header before a 1xx response; final headers are already scrubbed in ModifyResponse.
+func (w *scrubWriter) WriteHeader(code int) {
+	if code < http.StatusOK {
+		scrubHeader(w.Header(), w.scrub)
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+// Unwrap lets http.ResponseController flush and hijack the wrapped writer.
+func (w *scrubWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }
