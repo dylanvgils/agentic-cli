@@ -58,7 +58,7 @@ func TestStartProxy(t *testing.T) {
 
 	t.Run("leaves the run network when the sidecar fails to start", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, client, "create")
+		get := stubDockerRunCapture(t, client, "network inspect", "create")
 		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
 
 		// Act
@@ -508,7 +508,15 @@ func TestStartProxy_credentials(t *testing.T) {
 
 	t.Run("creates nothing when the run network's subnets can't be read", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, client)
+		var calls []dockerCall
+		stubDockerRun(t, client, func(args ...string) (string, error) {
+			calls = append(calls, dockerCall{args: args})
+			if args[len(args)-1] == NetworkName {
+				return LabelProjectVal + "\n", nil
+			}
+			return "", nil
+		})
+		get := func() []dockerCall { return calls }
 		stdin := stubDockerRunWithStdinCapture(t, client, nil)
 		rs := toolRun{RunSpec: sandbox.RunSpec{Credentials: creds, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}}
 
@@ -538,7 +546,7 @@ func TestStartProxy_credentials(t *testing.T) {
 
 	t.Run("without credentials nothing is copied or mounted", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, client)
+		get := stubProxyDocker(t, client, "true")
 		stdin := stubDockerRunWithStdinCapture(t, client, nil)
 		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}}
 

@@ -393,6 +393,8 @@ func stubProxyDocker(t *testing.T, client *Client, running string) func() []dock
 	stubDockerRun(t, client, func(args ...string) (string, error) {
 		calls = append(calls, dockerCall{args: args})
 		switch {
+		case len(args) > 1 && args[0] == "network" && args[1] == "inspect" && args[len(args)-1] == NetworkName:
+			return LabelProjectVal + "\n", nil
 		case len(args) > 1 && args[0] == "network" && args[1] == "inspect":
 			return "172.30.0.0/16 \n", nil
 		case args[0] == "inspect":

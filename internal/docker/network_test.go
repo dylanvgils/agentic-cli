@@ -113,18 +113,32 @@ func TestSweepRunNetworks(t *testing.T) {
 func Test_ensureEgressNetwork(t *testing.T) {
 	client := newTestClient()
 
-	t.Run("existing network skips create", func(t *testing.T) {
+	t.Run("existing agentic-managed network skips create", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, client)
+		var calls [][]string
+		stubDockerRun(t, client, func(args ...string) (string, error) {
+			calls = append(calls, args)
+			return "agentic-cli\n", nil
+		})
 
 		// Act
 		err := client.ensureEgressNetwork()
 
 		// Assert
 		require.NoError(t, err)
-		calls := get()
 		require.Len(t, calls, 1)
-		assert.Equal(t, []string{"network", "inspect", NetworkName}, calls[0].args)
+		assert.Equal(t, "inspect", calls[0][1])
+	})
+
+	t.Run("existing network without the agentic label is an error", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, client, "other-project\n", nil)
+
+		// Act
+		err := client.ensureEgressNetwork()
+
+		// Assert
+		assert.ErrorContains(t, err, "not an agentic-managed network")
 	})
 
 	t.Run("missing network creates with label", func(t *testing.T) {
@@ -138,7 +152,6 @@ func Test_ensureEgressNetwork(t *testing.T) {
 		require.NoError(t, err)
 		calls := get()
 		require.Len(t, calls, 2)
-		assert.Equal(t, []string{"network", "inspect", NetworkName}, calls[0].args)
 		assert.Equal(t, []string{"network", "create", "--label=project=agentic-cli", NetworkName}, calls[1].args)
 	})
 

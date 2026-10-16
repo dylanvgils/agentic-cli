@@ -13,18 +13,12 @@ const runNetworkPrefix = "agentic-run"
 
 // RemoveNetwork removes agentic-net if it exists and is agentic-managed; returns nil if it does not exist.
 func (c *Client) RemoveNetwork() error {
-	inspectArgs := []string{
-		"network", "inspect",
-		arg("format", `{{index .Labels "project"}}`),
-		NetworkName,
-	}
-
-	out, err := c.run(inspectArgs...)
+	project, err := c.egressNetworkProject()
 	if err != nil {
 		return nil
 	}
 
-	if strings.TrimSpace(out) != LabelProjectVal {
+	if project != LabelProjectVal {
 		return fmt.Errorf("'%s' is not an agentic-managed network", NetworkName)
 	}
 
@@ -42,9 +36,25 @@ func (c *Client) SweepRunNetworks() error {
 	return c.runIfAny(listArgs, []string{"network", "rm"})
 }
 
-// ensureEgressNetwork creates agentic-net if it does not exist.
+// egressNetworkProject returns agentic-net's project label; an error means it does not exist.
+func (c *Client) egressNetworkProject() (string, error) {
+	inspectArgs := []string{
+		"network", "inspect",
+		arg("format", `{{index .Labels "project"}}`),
+		NetworkName,
+	}
+
+	out, err := c.run(inspectArgs...)
+	return strings.TrimSpace(out), err
+}
+
+// ensureEgressNetwork creates agentic-net if it does not exist, refusing one agentic didn't create, as others could
+// join it and use every run's proxy.
 func (c *Client) ensureEgressNetwork() error {
-	if _, err := c.run("network", "inspect", NetworkName); err == nil {
+	if project, err := c.egressNetworkProject(); err == nil {
+		if project != LabelProjectVal {
+			return fmt.Errorf("'%s' is not an agentic-managed network; remove it or run 'agentic clean'", NetworkName)
+		}
 		return nil
 	}
 
