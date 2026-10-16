@@ -195,7 +195,7 @@ Preview the block with `agentic instructions claude` (add `--proxy` to include t
 | ----------- | --------------------------------------------------------------------------------------------- | -------------------------- |
 | `anthropic` | `api.anthropic.com`: `X-Api-Key`                                                              | `ANTHROPIC_API_KEY`        |
 | `openai`    | `api.openai.com`: `Authorization`                                                             | `OPENAI_API_KEY`           |
-| `github`    | `api.github.com`, `github.com`: `Authorization`; a git credential helper as `x-access-token` | `GITHUB_TOKEN`, `GH_TOKEN` |
+| `github`    | `api.github.com`, `github.com`, `api.githubcopilot.com`, `api.{individual,business,enterprise}.githubcopilot.com`: `Authorization`; a git credential helper as `x-access-token` | `GITHUB_TOKEN`, `GH_TOKEN` |
 
 ```toml
 [[run.proxy.credentials]]
