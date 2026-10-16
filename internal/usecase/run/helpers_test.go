@@ -37,6 +37,7 @@ type fakeDocker struct {
 	startSidecars        func(rs sandbox.RunSpec) (docker.Sidecars, error)
 	runTool              func(sidecars docker.Sidecars, toolArgs []string) error
 	stopSidecars         func(sidecars docker.Sidecars)
+	serverVersion        func() (engine, version string, err error)
 }
 
 func (f *fakeDocker) Capabilities() sandbox.Capabilities {
@@ -44,6 +45,14 @@ func (f *fakeDocker) Capabilities() sandbox.Capabilities {
 		return (&docker.Client{}).Capabilities()
 	}
 	return f.capabilities()
+}
+
+// ServerVersion reports a Docker Engine at the minimum unless stubbed.
+func (f *fakeDocker) ServerVersion() (engine, version string, err error) {
+	if f.serverVersion == nil {
+		return dockerEngineName, minDockerEngine, nil
+	}
+	return f.serverVersion()
 }
 
 func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
@@ -165,6 +174,7 @@ func inspectImageID(id string) func(string) (*docker.ImageInfo, error) {
 type fakeMicrosandbox struct {
 	capabilities func() sandbox.Capabilities
 	available    func() error
+	version      func() (string, error)
 	loadImage    func(r io.Reader, tag string) error
 	imageRefs    func() ([]string, error)
 	removeImage  func(ref string) error
@@ -183,6 +193,14 @@ func (f *fakeMicrosandbox) Available() error {
 		return nil
 	}
 	return f.available()
+}
+
+// Version reports msb at the minimum unless stubbed.
+func (f *fakeMicrosandbox) Version() (string, error) {
+	if f.version == nil {
+		return minMicrosandbox, nil
+	}
+	return f.version()
 }
 
 func (f *fakeMicrosandbox) LoadImage(r io.Reader, tag string) error {

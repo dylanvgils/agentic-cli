@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -19,6 +20,36 @@ func (c *Client) Version() (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(out), nil
+}
+
+// ServerVersion returns the name and version of the daemon's engine component, e.g. "Engine" or "Podman Engine", falling
+// back to its first component; unlike Version it needs the daemon, and with a context it reads that context's daemon.
+func (c *Client) ServerVersion() (engine, version string, err error) {
+	out, err := c.run("version", arg("format", "{{range .Server.Components}}{{.Name}}\t{{.Version}}\n{{end}}"))
+	if err != nil {
+		return "", "", err
+	}
+
+	for line := range strings.Lines(out) {
+		// docker aligns the columns with spaces, and names can hold one
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+
+		name, v := strings.Join(fields[:len(fields)-1], " "), fields[len(fields)-1]
+		if engine == "" || strings.HasSuffix(name, "Engine") {
+			engine, version = name, v
+		}
+		if strings.HasSuffix(name, "Engine") {
+			break
+		}
+	}
+
+	if engine == "" {
+		return "", "", fmt.Errorf("no server components in docker version output: %q", out)
+	}
+	return engine, version, nil
 }
 
 // runVersionScript runs script network-less so a self-updating tool can't change its reported version mid-detection.

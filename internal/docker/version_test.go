@@ -98,6 +98,76 @@ func TestClient_Version(t *testing.T) {
 	})
 }
 
+func TestClient_ServerVersion(t *testing.T) {
+	client := newTestClient()
+
+	t.Run("returns the engine component", func(t *testing.T) {
+		// Arrange
+		var capturedArgs []string
+		stubDockerRun(t, client, func(args ...string) (string, error) {
+			capturedArgs = args
+			return "Engine              29.9.0\ncontainerd          v2.4.1\nrunc                1.5.2\n", nil
+		})
+
+		// Act
+		engine, version, err := client.ServerVersion()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "Engine", engine)
+		assert.Equal(t, "29.9.0", version)
+		assert.Equal(t, []string{"version", "--format={{range .Server.Components}}{{.Name}}\t{{.Version}}\n{{end}}"}, capturedArgs)
+	})
+
+	t.Run("keeps a name with a space", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, client, "Conmon              2.1.12\nPodman Engine       5.2.0\n", nil)
+
+		// Act
+		engine, version, err := client.ServerVersion()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "Podman Engine", engine)
+		assert.Equal(t, "5.2.0", version)
+	})
+
+	t.Run("falls back to the first component", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, client, "Daemon              1.0.0\nruntime             2.0.0\n", nil)
+
+		// Act
+		engine, version, err := client.ServerVersion()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "Daemon", engine)
+		assert.Equal(t, "1.0.0", version)
+	})
+
+	t.Run("no components is an error", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, client, "\n", nil)
+
+		// Act
+		_, _, err := client.ServerVersion()
+
+		// Assert
+		assert.ErrorContains(t, err, "no server components")
+	})
+
+	t.Run("docker error propagates", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, client, "", fmt.Errorf("cannot connect to the docker daemon"))
+
+		// Act
+		_, _, err := client.ServerVersion()
+
+		// Assert
+		assert.EqualError(t, err, "cannot connect to the docker daemon")
+	})
+}
+
 func TestRunVersionScript(t *testing.T) {
 	client := newTestClient()
 
