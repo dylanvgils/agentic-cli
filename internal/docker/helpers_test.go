@@ -174,18 +174,6 @@ func stubRunInteractiveFunc(t *testing.T, client *Client, fn func(...string) err
 	t.Cleanup(func() { f.runInteractive = orig })
 }
 
-// toolContainerName returns the --name value in a tool container's docker run args.
-func toolContainerName(t *testing.T, args []string) string {
-	t.Helper()
-	for _, a := range args {
-		if name, ok := strings.CutPrefix(a, "--name="); ok {
-			return name
-		}
-	}
-	t.Fatalf("no --name in %v", args)
-	return ""
-}
-
 // stubIsTerminal replaces isTerminal with a stub that returns val for the duration of the test.
 func stubIsTerminal(t *testing.T, val bool) {
 	t.Helper()

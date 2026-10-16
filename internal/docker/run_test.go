@@ -176,35 +176,6 @@ func TestClient_RunTool(t *testing.T) {
 		assert.Contains(t, args, "--tmpfs=/home/user/.cache:exec,size=1g")
 	})
 
-	t.Run("removes the tool container once docker run returns", func(t *testing.T) {
-		// Arrange
-		calls := stubDockerRunCapture(t, client)
-
-		// Act
-		err := startAndRunTool(client, sandbox.RunSpec{Image: "agentic-claude"}, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, calls(), dockerCall{args: []string{"rm", "--force", toolContainerName(t, get())}})
-	})
-
-	t.Run("removes the tool container when docker run fails", func(t *testing.T) {
-		// Arrange
-		calls := stubDockerRunCapture(t, client)
-		var name string
-		stubRunInteractiveFunc(t, client, func(args ...string) error {
-			name = toolContainerName(t, args)
-			return errors.New("stub: docker run detached")
-		})
-
-		// Act
-		err := startAndRunTool(client, sandbox.RunSpec{Image: "agentic-claude"}, nil)
-
-		// Assert
-		require.EqualError(t, err, "stub: docker run detached")
-		assert.Contains(t, calls(), dockerCall{args: []string{"rm", "--force", name}})
-	})
-
 	t.Run("image and tool args", func(t *testing.T) {
 		// Arrange
 		rs := sandbox.RunSpec{Image: "agentic-claude"}
@@ -437,5 +408,35 @@ func TestClient_StopSidecars(t *testing.T) {
 
 		// Assert
 		assert.Empty(t, calls())
+	})
+}
+
+func Test_Client_attachTool(t *testing.T) {
+	client := newTestClient()
+
+	t.Run("removes the tool container once docker run returns", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t, client)
+		stubRunInteractive(t, client)
+
+		// Act
+		err := client.attachTool("agentic-claude-test", []string{"run"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []dockerCall{{args: []string{"rm", "--force", "agentic-claude-test"}}}, calls())
+	})
+
+	t.Run("removes the tool container when docker run fails", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t, client)
+		stubRunInteractiveFunc(t, client, func(...string) error { return errors.New("stub: docker run detached") })
+
+		// Act
+		err := client.attachTool("agentic-claude-test", []string{"run"})
+
+		// Assert
+		require.EqualError(t, err, "stub: docker run detached")
+		assert.Equal(t, []dockerCall{{args: []string{"rm", "--force", "agentic-claude-test"}}}, calls())
 	})
 }
