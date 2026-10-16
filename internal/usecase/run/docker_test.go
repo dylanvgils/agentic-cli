@@ -327,30 +327,4 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 		// Assert
 		assert.EqualError(t, err, "proxy build failed")
 	})
-
-	t.Run("ensures agentic-net without sidecars", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{ensureNetwork: func() error { return errors.New("network error") }}
-
-		// Act
-		err := dockerRunner{docker: d}.prepareDockerHost(sandbox.RunSpec{}, "")
-
-		// Assert
-		assert.EqualError(t, err, "network error")
-	})
-
-	t.Run("skips agentic-net with a sidecar, which joins a per-run network", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{
-			inspectImage:  func(name string) (*docker.ImageInfo, error) { return &docker.ImageInfo{Image: name}, nil },
-			ensureNetwork: func() error { return errors.New("network error") },
-		}
-		rs := newProxyRunSpec(t, sandbox.ProxyEnforce)
-
-		// Act
-		err := dockerRunner{docker: d}.prepareDockerHost(rs, "")
-
-		// Assert
-		assert.NoError(t, err)
-	})
 }

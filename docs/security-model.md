@@ -27,7 +27,7 @@ How to read it:
 
 - **Files**: the tool only sees what's mounted: the workspace and its own home (writable), and secrets (read-only). The DinD sidecar only sees the workspace.
 - **Docker**: the tool talks to its own DinD sidecar over mTLS, never to the host's Docker daemon. Inner containers run inside the sidecar.
-- **Network**: with `--proxy`, all traffic from the tool and the sidecar goes through the egress proxy, which only lets allowlisted hosts through. Without it (dotted lines), both reach the internet directly.
+- **Network**: each run gets its own Docker network, shared only with its own sidecars. With `--proxy` that network is internal, so all traffic from the tool and the sidecar goes through the egress proxy, which only lets allowlisted hosts through. Without it (dotted lines), both reach the internet directly.
 - **Kernel**: everything inside "Docker host" shares one Linux kernel. That's the boundary all layers below ultimately rest on.
 
 ## Layers
@@ -39,8 +39,8 @@ How to read it:
 | --- | --- | --- | --- |
 | **Tool container**: read-only root, all capabilities dropped, `no-new-privileges`, your uid/gid, pid/cpu/memory limits | Changing the system, becoming root, fork bombs and runaway memory | Anything it can do with the mounts it's given; a kernel bug | `internal/docker/runargs.go` |
 | **Mounts**: only `/workspace`, the tool's own home dir, read-only secrets, and extra `--volume`/`mounts` bind mounts (read-only unless `:rw`) | Reading the rest of your files (`~/.ssh`, other repos, browser data); [mount tricks](config.md#mount-safety) via planted symlinks or `agentic.json`/`state.json` | Reading everything that *is* mounted, including its own credentials and secrets; editing the workspace | `internal/tools/<tool>.go`, `internal/mount` |
-| **Network** `agentic-net` | Reaching containers on other Docker networks | Reaching the internet; reaching other agentic runs without `--proxy`, which share `agentic-net` | `internal/docker/network.go` |
-| **Egress proxy** (opt-in, beta, `--proxy`): tool sits on an `--internal` network whose only way out is the proxy | Talking to hosts not on the allowlist; every attempt is logged | Sending data to an allowlisted host (filtering is by host, not content) | `internal/proxy`, `internal/docker/proxy.go` |
+| **Run network**: each run gets its own Docker network | Reaching other agentic runs and containers on other Docker networks | Reaching the internet, the Docker host and ports published on it, all without `--proxy` | `internal/docker/network.go` |
+| **Egress proxy** (opt-in, beta, `--proxy`): tool sits on an `--internal` network with no gateway on the Docker host, so its only way out is the proxy | Talking to hosts not on the allowlist or to services on the Docker host; every attempt is logged | Sending data to an allowlisted host (filtering is by host, not content) | `internal/proxy`, `internal/docker/proxy.go` |
 | **Credential injection** (opt-in, beta, `[[run.proxy.credentials]]`): the proxy holds API keys and swaps them in for the placeholder the tool sends to their hosts | Reading or leaking a configured API key; containers outside the run's network (e.g. another agentic run) using it | Using the key through its hosts during the run; OAuth tokens in the tool home | `internal/proxy`, `internal/credentials`, `internal/usecase/run/credentials.go` |
 | **DinD sidecar** (opt-in, beta, `--dind`): rootless dockerd in its own container, mTLS, seccomp filter, no setuid binaries, sees only `/workspace` | Access to the host's Docker socket (= root on your machine); host files outside `/workspace` | Inner containers get namespaced `SYS_ADMIN`/`NET_ADMIN`, so more kernel surface; an inner container can read the sidecar's own files (incl. its TLS key); direct internet access without `--proxy`; `docker push` to an allowlisted registry | `internal/docker/dind.go`, `internal/dind` - see [Docker-in-Docker](docker-in-docker.md) |
 | **Build**: tool install scripts checksum-verified against a pinned SHA256 | A tampered or swapped install script | A malicious release of the tool itself | `internal/tools` |
@@ -72,7 +72,6 @@ What no layer covers today:
 - **Workspace tampering**: the agent can edit git hooks, `Makefile`, `package.json` scripts, etc. They run on *your* machine the next time you use them outside the container. The same goes for `.agenticrc.toml`, though [risky keys](config.md#setting-approval) need your approval. Review diffs.
 - **Shared tool state**: hooks or MCP servers the agent plants in its tool home also run in your other projects. Use a separate `--home` for untrusted ones.
 - **Exfiltration to allowed hosts**: without `--proxy` the internet is open to the tool and the DinD sidecar; with it, data can still go to any allowlisted host.
-- **Shared network**: runs without `--proxy` share `agentic-net`, so one run's agent can reach services another run listens on.
 - **Killed agentic**: when its terminal closes or it gets `SIGTERM`, agentic removes the tool container and sidecars. If agentic is killed with `SIGKILL` or crashes, the tool keeps running without you. Check `docker ps` and remove it with `docker rm --force`.
 - **DNS on other engines**: Docker Engine before 26 forwards DNS lookups from the tool's `--internal` network to outside resolvers, so agentic refuses it. It can't check other engines, so with `--proxy` data may still leak there in names like `<data>.example.test`.
 

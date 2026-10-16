@@ -66,9 +66,10 @@ func (s *Service) Apply(targets []Target) error {
 	return nil
 }
 
-// GlobalResources removes agentic's shared Docker resources: base and sidecar images, leftover sidecar resources, and agentic-net.
+// GlobalResources removes agentic's shared Docker resources: base and sidecar images, leftover sidecars and run
+// networks, and agentic-net.
 func (s *Service) GlobalResources() error {
-	logging.Infof("removing shared resources: base images, %s, %s, sidecars, %s", tools.ProxyImage, tools.DindImage, docker.NetworkName)
+	logging.Infof("removing shared resources: base images, %s, %s, sidecars, run networks, %s", tools.ProxyImage, tools.DindImage, docker.NetworkName)
 
 	logging.Step("base")
 	if err := s.docker.CleanBaseImages(); err != nil {
@@ -83,11 +84,14 @@ func (s *Service) GlobalResources() error {
 	if err := s.docker.CleanImage(tools.DindImage); err != nil {
 		return err
 	}
-	// Sidecars may sit on a proxy network, so they go first
 	if err := s.docker.SweepDindResources(s.home); err != nil {
 		return err
 	}
 	if err := s.docker.SweepProxyResources(); err != nil {
+		return err
+	}
+	// Sidecars sit on a run network, so they go first
+	if err := s.docker.SweepRunNetworks(); err != nil {
 		return err
 	}
 

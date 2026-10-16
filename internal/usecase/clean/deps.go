@@ -15,5 +15,6 @@ type Docker interface {
 	CleanBaseImages() error
 	SweepProxyResources() error
 	SweepDindResources(toolHome string) error
+	SweepRunNetworks() error
 	RemoveNetwork() error
 }

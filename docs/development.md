@@ -84,7 +84,7 @@ The sidecar's seccomp profile is derived at run time (`deriveSeccompProfile`) fr
 
 ## Orphaned sidecars
 
-Sidecars and their networks carry `agentic.owner` (the tool container name) and `agentic.started` labels. If the CLI is killed, its cleanup never runs, so each run starts with `sweepOrphanedSidecars` (`internal/docker/sidecar.go`). It removes sidecars whose owner is gone and that are older than `sidecarOrphanGrace` (5 minutes, which spares a run that is still starting).
+Sidecars and run networks carry `agentic.owner` (the tool container name) and `agentic.started` labels. If the CLI is killed, its cleanup never runs, so each run starts with `sweepOrphanedSidecars` (`internal/docker/sidecar.go`). It removes sidecars and networks whose owner is gone and that are older than `sidecarOrphanGrace` (5 minutes, which spares a run that is still starting).
 
 ## Building the proxy image locally
 

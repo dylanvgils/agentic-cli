@@ -32,27 +32,78 @@ func Test_setupSidecars(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}}
 
 		// Act
-		_, _, err := client.setupSidecars(&rs)
+		_, _, err := client.setupSidecars(rs)
 
 		// Assert
 		require.NoError(t, err)
 		assert.NotNil(t, findCall(calls(), "ps"))
 	})
 
-	t.Run("dry run does not sweep", func(t *testing.T) {
+	t.Run("creates the run network after the sweep and removes it in cleanup", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t, client)
+		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}, network: "agentic-run-abc"}
+
+		// Act
+		_, cleanup, err := client.setupSidecars(rs)
+		cleanup()
+
+		// Assert
+		require.NoError(t, err)
+		got := calls()
+		assert.Equal(t, "ps", got[0].args[0])
+		createArgs := findCall(got, "network", "create")
+		assert.Equal(t, "agentic-run-abc", createArgs[len(createArgs)-1])
+		assert.Equal(t, []string{"network", "rm", "agentic-run-abc"}, got[len(got)-1].args)
+	})
+
+	t.Run("removes the run network when the proxy fails to start", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t, client, "network inspect", "create")
+		rs := toolRun{RunSpec: sandbox.RunSpec{
+			Image: "agentic-claude",
+			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()},
+		}, network: "agentic-run-abc"}
+
+		// Act
+		_, _, err := client.setupSidecars(rs)
+
+		// Assert
+		require.ErrorContains(t, err, "create proxy")
+		got := calls()
+		assert.Equal(t, []string{"network", "rm", "agentic-run-abc"}, got[len(got)-1].args)
+	})
+
+	t.Run("a failed network create starts no sidecar", func(t *testing.T) {
+		// Arrange
+		calls := stubDockerRunCapture(t, client, "network create")
+		rs := toolRun{RunSpec: sandbox.RunSpec{
+			Image: "agentic-claude",
+			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()},
+		}, network: "agentic-run-abc"}
+
+		// Act
+		_, _, err := client.setupSidecars(rs)
+
+		// Assert
+		require.ErrorContains(t, err, "create run network")
+		assert.Nil(t, findCall(calls(), "create"))
+	})
+
+	t.Run("dry run makes no docker calls", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
 		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", DryRun: true}}
 
 		// Act
-		_, _, err := client.setupSidecars(&rs)
+		_, _, err := client.setupSidecars(rs)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, calls())
 	})
 
-	t.Run("stops the proxy when dind fails to start", func(t *testing.T) {
+	t.Run("stops the proxy, then removes the run network, when dind fails to start", func(t *testing.T) {
 		// Arrange
 		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
@@ -62,20 +113,22 @@ func Test_setupSidecars(t *testing.T) {
 			ToolHome: t.TempDir(),
 			Proxy:    sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()},
 			Dind:     sandbox.DindSpec{Enabled: true},
-		}}
+		}, network: "agentic-run-abc"}
 
 		// Act
-		_, _, err := client.setupSidecars(&rs)
+		_, _, err := client.setupSidecars(rs)
 
 		// Assert
 		require.Error(t, err)
+		got := calls()
 		proxyRemoved := false
-		for _, c := range calls() {
+		for _, c := range got {
 			if c.args[0] == "rm" && hasArgWithPrefix(c.args, "agentic-proxy-") {
 				proxyRemoved = true
 			}
 		}
 		assert.True(t, proxyRemoved, "the proxy must not outlive a failed run")
+		assert.Equal(t, []string{"network", "rm", "agentic-run-abc"}, got[len(got)-1].args)
 	})
 }
 
@@ -88,7 +141,7 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 		// Arrange
 		get := stubOwnedResources(t, client,
 			ownedRow("agentic-docker-abc", "agentic-claude-gone", time.Hour),
-			ownedRow("agentic-dind-abc", "agentic-claude-gone", time.Hour),
+			ownedRow("agentic-run-abc", "agentic-claude-gone", time.Hour),
 		)
 
 		// Act
@@ -98,14 +151,14 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 		require.NoError(t, err)
 		calls := get()
 		assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-docker-abc"}, findCall(calls, "rm"))
-		assert.Equal(t, []string{"network", "rm", "agentic-dind-abc"}, findCall(calls, "network", "rm"))
+		assert.Equal(t, []string{"network", "rm", "agentic-run-abc"}, findCall(calls, "network", "rm"))
 	})
 
 	t.Run("keeps a sidecar younger than the grace period", func(t *testing.T) {
 		// Arrange
 		get := stubOwnedResources(t, client,
 			ownedRow("agentic-proxy-abc", "agentic-claude-starting", time.Minute),
-			ownedRow("agentic-proxy-abc", "agentic-claude-starting", time.Minute),
+			ownedRow("agentic-run-abc", "agentic-claude-starting", time.Minute),
 		)
 
 		// Act
@@ -121,7 +174,7 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 	t.Run("keeps a sidecar whose owner still exists", func(t *testing.T) {
 		// Arrange
 		containers := ownedRow("agentic-claude-abc", "", 0) + ownedRow("agentic-proxy-abc", "agentic-claude-abc", time.Hour)
-		get := stubOwnedResources(t, client, containers, ownedRow("agentic-proxy-abc", "agentic-claude-abc", time.Hour))
+		get := stubOwnedResources(t, client, containers, ownedRow("agentic-run-abc", "agentic-claude-abc", time.Hour))
 
 		// Act
 		err := client.sweepOrphanedSidecars("")

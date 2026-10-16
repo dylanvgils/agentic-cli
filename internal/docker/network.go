@@ -5,11 +5,59 @@ import (
 	"strings"
 )
 
+// NetworkName is the shared network proxies reach the internet through; tools never join it.
 const NetworkName = "agentic-net"
 
-// EnsureNetwork creates agentic-net if it does not exist.
-func (c *Client) EnsureNetwork() error {
-	if _, err := c.run("network", "inspect", NetworkName); err == nil {
+// runNetworkPrefix names each run's own network, which its tool and sidecars join.
+const runNetworkPrefix = "agentic-run"
+
+// inhibitIPv4Opt keeps docker from giving a bridge network an IPv4 address on the host.
+const inhibitIPv4Opt = "com.docker.network.bridge.inhibit_ipv4=true"
+
+// RemoveNetwork removes agentic-net if it exists and is agentic-managed; returns nil if it does not exist.
+func (c *Client) RemoveNetwork() error {
+	project, err := c.egressNetworkProject()
+	if err != nil {
+		return nil
+	}
+
+	if project != LabelProjectVal {
+		return fmt.Errorf("'%s' is not an agentic-managed network", NetworkName)
+	}
+
+	_, err = c.run("network", "rm", NetworkName)
+	return err
+}
+
+// SweepRunNetworks removes leftover run networks, e.g. from an interrupted run; every one carries ownerLabels.
+func (c *Client) SweepRunNetworks() error {
+	listArgs := []string{
+		"network", "ls", arg("quiet"),
+		labelFilter(LabelProject, LabelProjectVal),
+		arg("filter", "label="+LabelOwner),
+	}
+	return c.runIfAny(listArgs, []string{"network", "rm"})
+}
+
+// egressNetworkProject returns agentic-net's project label; an error means it does not exist.
+func (c *Client) egressNetworkProject() (string, error) {
+	inspectArgs := []string{
+		"network", "inspect",
+		arg("format", `{{index .Labels "project"}}`),
+		NetworkName,
+	}
+
+	out, err := c.run(inspectArgs...)
+	return strings.TrimSpace(out), err
+}
+
+// ensureEgressNetwork creates agentic-net if it does not exist, refusing one agentic didn't create, as others could
+// join it and use every run's proxy.
+func (c *Client) ensureEgressNetwork() error {
+	if project, err := c.egressNetworkProject(); err == nil {
+		if project != LabelProjectVal {
+			return fmt.Errorf("'%s' is not an agentic-managed network; remove it or run 'agentic clean'", NetworkName)
+		}
 		return nil
 	}
 
@@ -23,25 +71,32 @@ func (c *Client) EnsureNetwork() error {
 	return err
 }
 
-// RemoveNetwork removes agentic-net if it exists and is agentic-managed; returns nil if it does not exist.
-func (c *Client) RemoveNetwork() error {
-	inspectArgs := []string{
-		"network", "inspect",
-		arg("format", `{{index .Labels "project"}}`),
-		NetworkName,
+// createRunNetwork creates rs's own network, internal with the proxy so the proxy is its only way out.
+func (c *Client) createRunNetwork(rs toolRun) error {
+	createArgs := []string{"network", "create"}
+	if rs.Proxy.Mode.Enabled() {
+		createArgs = append(createArgs,
+			// Security: no route to the internet, so the proxy is the only way out
+			arg("internal"),
+			// Security: no bridge address on the host, so host services aren't reachable through the gateway
+			arg("opt", inhibitIPv4Opt),
+			// Security: no IPv6, so a daemon default can't add an IPv6 gateway on the host
+			arg("ipv6", "false"),
+		)
 	}
+	createArgs = append(createArgs, label(LabelProject, LabelProjectVal))
+	createArgs = append(createArgs, ownerLabels(rs)...)
+	createArgs = append(createArgs, rs.network)
 
-	out, err := c.run(inspectArgs...)
-	if err != nil {
-		return nil
+	if _, err := c.run(createArgs...); err != nil {
+		return fmt.Errorf("create run network: %w", err)
 	}
+	return nil
+}
 
-	if strings.TrimSpace(out) != LabelProjectVal {
-		return fmt.Errorf("'%s' is not an agentic-managed network", NetworkName)
-	}
-
-	_, err = c.run("network", "rm", NetworkName)
-	return err
+// removeRunNetwork removes network, ignoring errors so it is safe to defer.
+func (c *Client) removeRunNetwork(network string) {
+	_, _ = c.run("network", "rm", network)
 }
 
 // networkSubnets returns the subnets docker assigned to network, failing if it has none.

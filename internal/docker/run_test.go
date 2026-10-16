@@ -25,6 +25,8 @@ func TestClient_StartSidecars(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, strings.HasPrefix(sidecars.run.container, "agentic-claude-"))
+		id := strings.TrimPrefix(sidecars.run.container, "agentic-claude-")
+		assert.Equal(t, "agentic-run-"+id, sidecars.run.network, "the network shares the container's id")
 	})
 
 	t.Run("a sidecar that fails to start returns its error", func(t *testing.T) {
@@ -64,6 +66,8 @@ func TestClient_RunTool(t *testing.T) {
 		assert.Contains(t, args, "--cap-drop=ALL")
 		assert.Contains(t, args, "--security-opt=no-new-privileges:true")
 		assert.Contains(t, args, "--user="+platform.UserGroup())
+		assert.True(t, hasArgWithPrefix(args, "--network=agentic-run-"), "even a plain run gets its own network")
+		assert.False(t, hasArg(args, "--network="+NetworkName), "runs must not share a network")
 	})
 
 	t.Run("names the tool container after its image", func(t *testing.T) {
@@ -75,7 +79,7 @@ func TestClient_RunTool(t *testing.T) {
 		assert.True(t, hasArgWithPrefix(get(), "--name=agentic-claude-"))
 	})
 
-	t.Run("proxy mode swaps network and injects proxy env", func(t *testing.T) {
+	t.Run("proxy mode keeps the tool off the egress network and injects proxy env", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "network inspect")
 		rs := sandbox.RunSpec{
@@ -89,7 +93,7 @@ func TestClient_RunTool(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		args := get()
-		assert.True(t, hasArgWithPrefix(args, "--network=agentic-proxy-"), "tool should attach to the internal proxy net")
+		assert.True(t, hasArgWithPrefix(args, "--network=agentic-run-"), "tool should attach to the internal run net")
 		assert.False(t, hasArg(args, "--network="+NetworkName), "tool should not be on the egress net directly")
 		assert.True(t, hasArgWithPrefix(args, "--env=HTTPS_PROXY="), "tool should get HTTPS_PROXY")
 	})
@@ -107,7 +111,7 @@ func TestClient_RunTool(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		args := get()
-		assert.True(t, hasArgWithPrefix(args, "--network=agentic-dind-"), "tool should share the per-run dind net")
+		assert.True(t, hasArgWithPrefix(args, "--network=agentic-run-"), "tool should share the run net with dind")
 		assert.Contains(t, args, "--env=DOCKER_HOST=tcp://agentic-docker:2376")
 		assert.Contains(t, args, "--cap-drop=ALL")
 		assert.Contains(t, args, "--security-opt=no-new-privileges:true")
@@ -120,7 +124,7 @@ func TestClient_RunTool(t *testing.T) {
 		// Arrange
 		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
-		calls := stubDockerRunCapture(t, client, "network inspect")
+		stubDockerRunCapture(t, client, "network inspect")
 		rs := sandbox.RunSpec{
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),
@@ -134,13 +138,8 @@ func TestClient_RunTool(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		args := get()
-		assert.True(t, hasArgWithPrefix(args, "--network=agentic-proxy-"))
+		assert.True(t, hasArgWithPrefix(args, "--network=agentic-run-"))
 		assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1,agentic-docker")
-		for _, c := range calls() {
-			if c.args[0] == "network" && c.args[1] == "create" {
-				assert.False(t, hasArgWithPrefix(c.args, dindNetworkPrefix), "dind should join the proxy net, not create its own")
-			}
-		}
 	})
 
 	t.Run("tmpfs mounts", func(t *testing.T) {

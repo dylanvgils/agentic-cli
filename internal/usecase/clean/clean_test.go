@@ -321,6 +321,10 @@ func TestGlobalResources(t *testing.T) {
 				swept = append(swept, "proxy")
 				return nil
 			},
+			sweepRunNetworks: func() error {
+				swept = append(swept, "networks")
+				return nil
+			},
 			removeNetwork: func() error {
 				networkRemoved = true
 				return nil
@@ -337,13 +341,13 @@ func TestGlobalResources(t *testing.T) {
 		assert.True(t, basesCleaned)
 		assert.Contains(t, cleaned, tools.ProxyImage)
 		assert.Contains(t, cleaned, tools.DindImage)
-		assert.Equal(t, []string{"dind", "proxy"}, swept, "sidecars must go before the proxy networks they sit on")
+		assert.Equal(t, []string{"dind", "proxy", "networks"}, swept, "sidecars must go before the run networks they sit on")
 		assert.Equal(t, "/agentic-home", sweptHome)
 		assert.True(t, networkRemoved)
 		assert.Contains(t, out, "=> base")
 		assert.Contains(t, out, "=> "+tools.ProxyImage)
 		assert.Contains(t, out, "=> network")
-		assert.Contains(t, logBuf.String(), "agentic: removing shared resources: base images, agentic-proxy, agentic-dind, sidecars, agentic-net")
+		assert.Contains(t, logBuf.String(), "agentic: removing shared resources: base images, agentic-proxy, agentic-dind, sidecars, run networks, agentic-net")
 	})
 
 	t.Run("cleanBaseImages error propagates", func(t *testing.T) {
@@ -392,6 +396,17 @@ func TestGlobalResources(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "sweep failed")
+	})
+
+	t.Run("sweepRunNetworks error propagates", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{sweepRunNetworks: func() error { return fmt.Errorf("network sweep failed") }}
+
+		// Act
+		err := New("/agentic-home", d).GlobalResources()
+
+		// Assert
+		assert.ErrorContains(t, err, "network sweep failed")
 	})
 
 	t.Run("removeNetwork error propagates", func(t *testing.T) {

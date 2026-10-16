@@ -32,7 +32,7 @@ var reservedConfigNames = map[string]bool{
 type toolRun struct {
 	sandbox.RunSpec
 
-	// network is the docker network the tool attaches to; empty means NetworkName, proxy or dind mode sets a per-run net.
+	// network is the run's own network, which the tool and its sidecars join.
 	network string
 
 	// container is the tool container's name, the sidecars' owner.
@@ -49,15 +49,15 @@ type Sidecars struct {
 	cleanup func()
 }
 
-// StartSidecars names spec's tool container and starts its sidecars; a dry run only prints them.
+// StartSidecars names spec's tool container and network and starts its sidecars; a dry run only prints them.
 func (c *Client) StartSidecars(spec sandbox.RunSpec) (Sidecars, error) {
 	id, err := randID()
 	if err != nil {
 		return Sidecars{}, err
 	}
-	rs := toolRun{RunSpec: spec, container: spec.Image + "-" + id}
+	rs := toolRun{RunSpec: spec, container: spec.Image + "-" + id, network: runNetworkPrefix + "-" + id}
 
-	args, cleanup, err := c.setupSidecars(&rs)
+	args, cleanup, err := c.setupSidecars(rs)
 	if err != nil {
 		return Sidecars{}, err
 	}
