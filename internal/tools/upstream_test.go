@@ -27,20 +27,6 @@ func Test_fetchGithubRelease(t *testing.T) {
 		assert.Equal(t, "v1.0.63", release.TagName)
 	})
 
-	t.Run("returns error on non-200 response", func(t *testing.T) {
-		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusForbidden)
-		}))
-		defer srv.Close()
-
-		// Act
-		_, err := fetchGithubRelease(srv.URL, http.DefaultClient)
-
-		// Assert
-		assert.Error(t, err)
-	})
-
 	t.Run("returns error on invalid JSON", func(t *testing.T) {
 		// Arrange
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -57,34 +43,18 @@ func Test_fetchGithubRelease(t *testing.T) {
 }
 
 func Test_fetchTextVersion(t *testing.T) {
-	t.Run("trims whitespace from response body", func(t *testing.T) {
-		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, "2.1.185\n")
-		}))
-		defer srv.Close()
+	// Arrange
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "2.1.185\n")
+	}))
+	defer srv.Close()
 
-		// Act
-		version, err := fetchTextVersion(srv.URL, http.DefaultClient)
+	// Act
+	version, err := fetchTextVersion(srv.URL, http.DefaultClient)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "2.1.185", version)
-	})
-
-	t.Run("returns error on non-200 response", func(t *testing.T) {
-		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-		}))
-		defer srv.Close()
-
-		// Act
-		_, err := fetchTextVersion(srv.URL, http.DefaultClient)
-
-		// Assert
-		assert.Error(t, err)
-	})
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "2.1.185", version)
 }
 
 func Test_fetchJSONVersion(t *testing.T) {
@@ -103,20 +73,6 @@ func Test_fetchJSONVersion(t *testing.T) {
 		assert.Equal(t, "2.0.31", version)
 	})
 
-	t.Run("returns error on non-200 response", func(t *testing.T) {
-		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-		}))
-		defer srv.Close()
-
-		// Act
-		_, err := fetchJSONVersion(srv.URL, http.DefaultClient)
-
-		// Assert
-		assert.Error(t, err)
-	})
-
 	t.Run("returns error when version is missing", func(t *testing.T) {
 		// Arrange
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -126,6 +82,40 @@ func Test_fetchJSONVersion(t *testing.T) {
 
 		// Act
 		_, err := fetchJSONVersion(srv.URL, http.DefaultClient)
+
+		// Assert
+		assert.Error(t, err)
+	})
+}
+
+func Test_fetchBody(t *testing.T) {
+	t.Run("returns body and sends accept header", func(t *testing.T) {
+		// Arrange
+		var accept string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			accept = r.Header.Get("Accept")
+			fmt.Fprint(w, "body")
+		}))
+		defer srv.Close()
+
+		// Act
+		body, err := fetchBody(srv.URL, "application/json", http.DefaultClient)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "body", string(body))
+		assert.Equal(t, "application/json", accept)
+	})
+
+	t.Run("returns error on non-200 response", func(t *testing.T) {
+		// Arrange
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer srv.Close()
+
+		// Act
+		_, err := fetchBody(srv.URL, "", http.DefaultClient)
 
 		// Assert
 		assert.Error(t, err)

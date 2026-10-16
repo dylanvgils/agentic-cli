@@ -34,29 +34,14 @@ func latestGithubTag(repo string) (string, error) {
 	return release.TagName, nil
 }
 
-func fetchGithubRelease(url string, client *http.Client) (_ *githubRelease, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), upstreamFetchTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func fetchGithubRelease(url string, client *http.Client) (*githubRelease, error) {
+	body, err := fetchBody(url, "application/vnd.github+json", client)
 	if err != nil {
 		return nil, err
-	}
-
-	req.Header.Set("Accept", "application/vnd.github+json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup.Capture(&err, resp.Body.Close)
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned HTTP %d", resp.StatusCode)
 	}
 
 	var release githubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+	if err := json.Unmarshal(body, &release); err != nil {
 		return nil, err
 	}
 
@@ -64,26 +49,8 @@ func fetchGithubRelease(url string, client *http.Client) (_ *githubRelease, err 
 }
 
 // fetchTextVersion fetches a plain-text version string from url.
-func fetchTextVersion(url string, client *http.Client) (_ string, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), upstreamFetchTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return "", err
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer cleanup.Capture(&err, resp.Body.Close)
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%s returned HTTP %d", url, resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
+func fetchTextVersion(url string, client *http.Client) (string, error) {
+	body, err := fetchBody(url, "", client)
 	if err != nil {
 		return "", err
 	}
@@ -92,33 +59,47 @@ func fetchTextVersion(url string, client *http.Client) (_ string, err error) {
 }
 
 // fetchJSONVersion fetches the "version" field of a JSON document at url.
-func fetchJSONVersion(url string, client *http.Client) (_ string, err error) {
+func fetchJSONVersion(url string, client *http.Client) (string, error) {
+	body, err := fetchBody(url, "", client)
+	if err != nil {
+		return "", err
+	}
+
+	var doc jsonVersion
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return "", err
+	}
+
+	if doc.Version == "" {
+		return "", fmt.Errorf("%s returned no version", url)
+	}
+
+	return doc.Version, nil
+}
+
+// fetchBody GETs url with an optional Accept header and returns the body of a 200 response.
+func fetchBody(url, accept string, client *http.Client) (_ []byte, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), upstreamFetchTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return "", err
+		return nil, err
+	}
+
+	if accept != "" {
+		req.Header.Set("Accept", accept)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer cleanup.Capture(&err, resp.Body.Close)
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%s returned HTTP %d", url, resp.StatusCode)
+		return nil, fmt.Errorf("%s returned HTTP %d", url, resp.StatusCode)
 	}
 
-	var body jsonVersion
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return "", err
-	}
-
-	if body.Version == "" {
-		return "", fmt.Errorf("%s returned no version", url)
-	}
-
-	return body.Version, nil
+	return io.ReadAll(resp.Body)
 }
