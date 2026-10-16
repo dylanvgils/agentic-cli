@@ -106,7 +106,7 @@ func TestClient_ServerVersion(t *testing.T) {
 		var capturedArgs []string
 		stubDockerRun(t, client, func(args ...string) (string, error) {
 			capturedArgs = args
-			return "Engine              29.9.0\ncontainerd          v2.4.1\nrunc                1.5.2\n", nil
+			return `[{"Name":"containerd","Version":"v2.4.1"},{"Name":"Engine","Version":"29.9.0","Details":{}}]` + "\n", nil
 		})
 
 		// Act
@@ -116,44 +116,18 @@ func TestClient_ServerVersion(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "Engine", engine)
 		assert.Equal(t, "29.9.0", version)
-		assert.Equal(t, []string{"version", "--format={{range .Server.Components}}{{.Name}}\t{{.Version}}\n{{end}}"}, capturedArgs)
+		assert.Equal(t, []string{"version", "--format={{json .Server.Components}}"}, capturedArgs)
 	})
 
-	t.Run("keeps a name with a space", func(t *testing.T) {
+	t.Run("unparseable output is an error", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, client, "Conmon              2.1.12\nPodman Engine       5.2.0\n", nil)
-
-		// Act
-		engine, version, err := client.ServerVersion()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "Podman Engine", engine)
-		assert.Equal(t, "5.2.0", version)
-	})
-
-	t.Run("falls back to the first component", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "Daemon              1.0.0\nruntime             2.0.0\n", nil)
-
-		// Act
-		engine, version, err := client.ServerVersion()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "Daemon", engine)
-		assert.Equal(t, "1.0.0", version)
-	})
-
-	t.Run("no components is an error", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "\n", nil)
+		stubDockerRunFixed(t, client, "Engine 29.9.0\n", nil)
 
 		// Act
 		_, _, err := client.ServerVersion()
 
 		// Assert
-		assert.ErrorContains(t, err, "no server components")
+		assert.ErrorContains(t, err, "parse docker version output")
 	})
 
 	t.Run("docker error propagates", func(t *testing.T) {
@@ -165,6 +139,34 @@ func TestClient_ServerVersion(t *testing.T) {
 
 		// Assert
 		assert.EqualError(t, err, "cannot connect to the docker daemon")
+	})
+}
+
+func Test_engineComponent(t *testing.T) {
+	t.Run("picks a component named like an engine", func(t *testing.T) {
+		// Act
+		got, err := engineComponent([]serverComponent{{"Conmon", "2.1.12"}, {"Podman Engine", "5.2.0"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, serverComponent{"Podman Engine", "5.2.0"}, got)
+	})
+
+	t.Run("falls back to the first component", func(t *testing.T) {
+		// Act
+		got, err := engineComponent([]serverComponent{{"Daemon", "1.0.0"}, {"runtime", "2.0.0"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, serverComponent{"Daemon", "1.0.0"}, got)
+	})
+
+	t.Run("no components is an error", func(t *testing.T) {
+		// Act
+		_, err := engineComponent(nil)
+
+		// Assert
+		assert.EqualError(t, err, "docker version lists no server components")
 	})
 }
 
