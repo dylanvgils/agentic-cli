@@ -34,6 +34,28 @@ func TestServerConnect(t *testing.T) {
 		assert.Contains(t, logBuf.String(), `"enforced":true`)
 	})
 
+	t.Run("failed hijack returns a fixed 500 and logs the error once", func(t *testing.T) {
+		// Arrange
+		stubAllowLocal(t)
+		upstreamHost, upstreamPort := startEchoServer(t)
+		stubDefaultPorts(t, upstreamPort)
+		var logBuf bytes.Buffer
+		server := NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil)
+		target := net.JoinHostPort(upstreamHost, upstreamPort)
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodConnect, "http://"+target, nil)
+		req.Host = target
+
+		// Act
+		server.ServeHTTP(w, req)
+
+		// Assert
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Equal(t, proxyFailedText+"\n", w.Body.String())
+		assert.Contains(t, logBuf.String(), `"reason":"proxy-failed","error":"connection does not support hijacking"`)
+		assert.Equal(t, 1, strings.Count(logBuf.String(), "\n"))
+	})
+
 	t.Run("allowed host tunnels bytes and logs allow", func(t *testing.T) {
 		// Arrange
 		stubAllowLocal(t)

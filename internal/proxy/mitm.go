@@ -105,17 +105,17 @@ func (i *Injector) leaf(host string) (*tls.Certificate, error) {
 	return &cert, nil
 }
 
-// handshake hijacks the CONNECT and completes TLS as host, answering with an error if it fails before the hijack.
+// handshake hijacks the CONNECT and completes TLS as host, answering a fixed 500 if it fails before the hijack.
 func (i *Injector) handshake(w http.ResponseWriter, host string) (*tls.Conn, error) {
 	leaf, err := i.leaf(host)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, proxyFailedText, http.StatusInternalServerError)
 		return nil, err
 	}
 
 	client, err := hijack(w)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, proxyFailedText, http.StatusInternalServerError)
 		return nil, err
 	}
 
@@ -176,11 +176,14 @@ func (i *Injector) reverseProxy(host, port string, cred Credential, scrub *strin
 // before its authed retry doesn't count, and neither does anonymous traffic the upstream accepted.
 func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) {
 	tlsConn, err := s.inject.handshake(w, entry.Host)
-	entry.Intercepted = err == nil
-	s.logger.Log(entry)
 	if err != nil {
+		entry.Reason = ReasonProxyFailed
+		entry.Error = err.Error()
+		s.logger.Log(entry)
 		return
 	}
+	entry.Intercepted = true
+	s.logger.Log(entry)
 	defer func() { _ = tlsConn.Close() }()
 
 	failed := func(w http.ResponseWriter, _ *http.Request, err error) {

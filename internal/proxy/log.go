@@ -26,6 +26,10 @@ const ReasonBlockedAddr = "blocked-address"
 // ReasonUpstreamFailed is the log reason for an allowed request the upstream couldn't serve, with the detail in Entry.Error.
 const ReasonUpstreamFailed = "upstream-failed"
 
+// ReasonProxyFailed is the log reason for an allowed connection the proxy couldn't set up itself, such as a TLS handshake
+// the client rejected, with the detail in Entry.Error.
+const ReasonProxyFailed = "proxy-failed"
+
 // ReasonNoPlaceholder is the log reason for a closed credential tunnel the upstream rejected (401/403) and whose requests
 // never carried the placeholder. It repeats the tunnel's entry rather than counting a new attempt.
 const ReasonNoPlaceholder = "no-placeholder"
@@ -54,7 +58,7 @@ type Entry struct {
 	Intercepted bool `json:"intercepted,omitempty"`
 	// Reason says why an allowed host was still refused or failed, e.g. ReasonBlockedAddr.
 	Reason string `json:"reason,omitempty"`
-	// Error is the upstream failure detail, kept out of the response to the tool; never in the human line.
+	// Error is the upstream or proxy failure detail, kept out of the response to the tool; never in the human line.
 	Error string `json:"error,omitempty"`
 }
 
