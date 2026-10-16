@@ -86,3 +86,48 @@ func Test_fetchTextVersion(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func Test_fetchJSONVersion(t *testing.T) {
+	t.Run("returns the version field", func(t *testing.T) {
+		// Arrange
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, `{"channel":"latest","version":"2.0.31"}`)
+		}))
+		defer srv.Close()
+
+		// Act
+		version, err := fetchJSONVersion(srv.URL, http.DefaultClient)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "2.0.31", version)
+	})
+
+	t.Run("returns error on non-200 response", func(t *testing.T) {
+		// Arrange
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer srv.Close()
+
+		// Act
+		_, err := fetchJSONVersion(srv.URL, http.DefaultClient)
+
+		// Assert
+		assert.Error(t, err)
+	})
+
+	t.Run("returns error when version is missing", func(t *testing.T) {
+		// Arrange
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, `{"channel":"latest"}`)
+		}))
+		defer srv.Close()
+
+		// Act
+		_, err := fetchJSONVersion(srv.URL, http.DefaultClient)
+
+		// Assert
+		assert.Error(t, err)
+	})
+}

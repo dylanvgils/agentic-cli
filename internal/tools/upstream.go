@@ -18,6 +18,10 @@ type githubRelease struct {
 	TagName string `json:"tag_name"`
 }
 
+type jsonVersion struct {
+	Version string `json:"version"`
+}
+
 // latestGithubTag fetches the latest release tag for a GitHub repo (e.g. "github/copilot-cli").
 func latestGithubTag(repo string) (string, error) {
 	url := "https://api.github.com/repos/" + repo + "/releases/latest"
@@ -85,4 +89,36 @@ func fetchTextVersion(url string, client *http.Client) (_ string, err error) {
 	}
 
 	return strings.TrimSpace(string(body)), nil
+}
+
+// fetchJSONVersion fetches the "version" field of a JSON document at url.
+func fetchJSONVersion(url string, client *http.Client) (_ string, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), upstreamFetchTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer cleanup.Capture(&err, resp.Body.Close)
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("%s returned HTTP %d", url, resp.StatusCode)
+	}
+
+	var body jsonVersion
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return "", err
+	}
+
+	if body.Version == "" {
+		return "", fmt.Errorf("%s returned no version", url)
+	}
+
+	return body.Version, nil
 }

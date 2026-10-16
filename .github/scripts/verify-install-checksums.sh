@@ -74,7 +74,7 @@ NVM_VERSION=$(jq -r '.nvm' "$VERSIONS_FILE")
 PINNED_ENTRIES="nvm https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh"
 LIVE_ENTRIES="claude_install https://claude.ai/install.sh
 copilot_install https://gh.io/copilot-install
-opencode_install https://opencode.ai/install"
+opencode_install https://opencode.ai/v2/install"
 
 status=0
 
