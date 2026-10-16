@@ -393,7 +393,7 @@ func TestGlobalResources(t *testing.T) {
 		assert.Contains(t, out, "=> base")
 		assert.Contains(t, out, "=> "+tools.ProxyImage)
 		assert.Contains(t, out, "=> network")
-		assert.Contains(t, logBuf.String(), "agentic: removing shared resources: base images, agentic-proxy, agentic-dind, sidecars, run networks, agentic-net")
+		assert.Contains(t, logBuf.String(), "agentic: removing shared resources")
 	})
 
 	t.Run("cleanBaseImages error propagates", func(t *testing.T) {

@@ -76,7 +76,7 @@ func (s *Service) Apply(targets []Target) error {
 // GlobalResources removes agentic's shared Docker resources: base and sidecar images, leftover sidecars and run
 // networks, and agentic-net. Active runs keep their sidecars, networks and images.
 func (s *Service) GlobalResources() error {
-	logging.Infof("removing shared resources: base images, %s, %s, sidecars, run networks, %s", tools.ProxyImage, tools.DindImage, docker.NetworkName)
+	logging.Infof("removing shared resources")
 
 	logging.Step("base")
 	if err := s.docker.CleanBaseImages(); err != nil {
