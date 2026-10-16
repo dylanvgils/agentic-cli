@@ -150,8 +150,8 @@ func (i *Injector) serve(tlsConn *tls.Conn, handler http.Handler) {
 }
 
 // reverseProxy forwards to host:port, never the request's Host, with cred's secret put in the request headers and taken
-// back out of the response headers by scrub.
-func (i *Injector) reverseProxy(host, port string, cred Credential, scrub *strings.Replacer) *httputil.ReverseProxy {
+// back out of the response headers by scrub; onResponse sees each upstream response before the scrub.
+func (i *Injector) reverseProxy(host, port string, cred Credential, scrub *strings.Replacer, onResponse func(*http.Response)) *httputil.ReverseProxy {
 	// JoinHostPort brackets IPv6; the default port is then dropped to keep the Host header clean
 	target := &url.URL{Scheme: "https", Host: strings.TrimSuffix(net.JoinHostPort(host, port), ":443")}
 
@@ -161,6 +161,7 @@ func (i *Injector) reverseProxy(host, port string, cred Credential, scrub *strin
 			substitute(pr.Out.Header, cred)
 		},
 		ModifyResponse: func(resp *http.Response) error {
+			onResponse(resp)
 			scrubHeader(resp.Header, scrub)
 			return nil
 		},
@@ -169,12 +170,13 @@ func (i *Injector) reverseProxy(host, port string, cred Credential, scrub *strin
 	}
 }
 
-// intercept terminates the CONNECT's TLS and serves it with cred, logging entry as injected only after the client handshake succeeds.
-// A tunnel whose requests never carried the placeholder is logged again once it closes, as the tool then likely runs
-// unauthenticated; per tunnel, so git's unauthenticated first request before its 401 retry doesn't count.
+// intercept terminates the CONNECT's TLS and serves it with cred, logging entry as intercepted only after the client
+// handshake succeeds. A tunnel the upstream rejected (401/403) and whose requests never carried the placeholder is logged
+// again once it closes, as the tool then likely ran unauthenticated; per tunnel, so git's unauthenticated first request
+// before its authed retry doesn't count, and neither does anonymous traffic the upstream accepted.
 func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) {
 	tlsConn, err := s.inject.handshake(w, entry.Host)
-	entry.Injected = err == nil
+	entry.Intercepted = err == nil
 	s.logger.Log(entry)
 	if err != nil {
 		return
@@ -189,16 +191,20 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) 
 		s.failUpstream(w, entry, err)
 	}
 
-	var sawRequest, sawPlaceholder atomic.Bool
+	var sawAuthFailure, sawPlaceholder atomic.Bool
+	onResponse := func(resp *http.Response) {
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			sawAuthFailure.Store(true)
+		}
+	}
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sawRequest.Store(true)
 		if hasPlaceholder(r.Header, cred) {
 			sawPlaceholder.Store(true)
 		}
 
 		// Per request, as the Basic forms to scrub depend on what this request sent
 		scrub := newScrubber(r.Header, cred)
-		reverse := s.inject.reverseProxy(entry.Host, entry.Port, cred, scrub)
+		reverse := s.inject.reverseProxy(entry.Host, entry.Port, cred, scrub, onResponse)
 		reverse.ErrorHandler = failed
 		reverse.ServeHTTP(&scrubWriter{ResponseWriter: w, scrub: scrub}, r)
 
@@ -207,8 +213,7 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) 
 	})
 	s.inject.serve(tlsConn, allowPrivate(handler, s.allow.exactMatch(entry.Host)))
 
-	if sawRequest.Load() && !sawPlaceholder.Load() {
-		entry.Injected = false
+	if sawAuthFailure.Load() && !sawPlaceholder.Load() {
 		entry.Reason = ReasonNoPlaceholder
 		s.logger.Log(entry)
 	}

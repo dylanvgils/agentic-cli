@@ -306,8 +306,8 @@ func TestProxyHandlePrintSummary(t *testing.T) {
 	t.Run("warns about credential hosts reached without the placeholder", func(t *testing.T) {
 		// Arrange
 		logPath := writeLog(t,
-			`{"host":"api.example.test","decision":"allow","injected":true}`,
-			`{"host":"api.example.test","decision":"allow","reason":"no-placeholder"}`,
+			`{"host":"api.example.test","decision":"allow","intercepted":true}`,
+			`{"host":"api.example.test","decision":"allow","intercepted":true,"reason":"no-placeholder"}`,
 		)
 		handle := proxyHandle{logPath: logPath}
 		var buf strings.Builder
@@ -324,7 +324,7 @@ func TestProxyHandlePrintSummary(t *testing.T) {
 		// Arrange
 		logPath := writeLog(t,
 			`{"host":"evil.com","decision":"deny"}`,
-			`{"host":"api.example.test","decision":"deny","reason":"no-placeholder"}`,
+			`{"host":"api.example.test","decision":"deny","intercepted":true,"reason":"no-placeholder"}`,
 		)
 		handle := proxyHandle{logPath: logPath, monitor: true}
 		var buf strings.Builder
@@ -334,6 +334,23 @@ func TestProxyHandlePrintSummary(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, buf.String(), "observed 1 request(s); 1 would be blocked under the current allowlist: evil.com")
+	})
+
+	t.Run("monitor mode counts a tunnel with failed requests once", func(t *testing.T) {
+		// Arrange
+		logPath := writeLog(t,
+			`{"host":"evil.com","decision":"deny"}`,
+			`{"host":"api.example.test","decision":"allow","intercepted":true}`,
+			`{"host":"api.example.test","decision":"allow","intercepted":true,"reason":"upstream-failed"}`,
+		)
+		handle := proxyHandle{logPath: logPath, monitor: true}
+		var buf strings.Builder
+
+		// Act
+		handle.PrintSummary(logging.New(&buf))
+
+		// Assert
+		assert.Contains(t, buf.String(), "observed 2 request(s); 1 would be blocked under the current allowlist: evil.com")
 	})
 
 	t.Run("guard refusals are reported apart from allowlist blocks", func(t *testing.T) {
@@ -629,4 +646,26 @@ func Test_dryRunProxy(t *testing.T) {
 		assert.Empty(t, calls())
 		assert.Empty(t, stdin())
 	})
+}
+
+func Test_repeatsAttempt(t *testing.T) {
+	cases := map[string]struct {
+		entry proxy.Entry
+		want  bool
+	}{
+		"intercepted tunnel":             {proxy.Entry{Intercepted: true}, false},
+		"failed request inside a tunnel": {proxy.Entry{Intercepted: true, Reason: proxy.ReasonUpstreamFailed}, true},
+		"missed placeholder":             {proxy.Entry{Intercepted: true, Reason: proxy.ReasonNoPlaceholder}, true},
+		"failed plain tunnel":            {proxy.Entry{Reason: proxy.ReasonUpstreamFailed}, false},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Act
+			got := repeatsAttempt(c.entry)
+
+			// Assert
+			assert.Equal(t, c.want, got)
+		})
+	}
 }

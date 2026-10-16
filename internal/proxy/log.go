@@ -26,8 +26,8 @@ const ReasonBlockedAddr = "blocked-address"
 // ReasonUpstreamFailed is the log reason for an allowed request the upstream couldn't serve, with the detail in Entry.Error.
 const ReasonUpstreamFailed = "upstream-failed"
 
-// ReasonNoPlaceholder is the log reason for a closed credential tunnel whose requests never carried the placeholder. It
-// repeats the tunnel's entry rather than counting a new attempt.
+// ReasonNoPlaceholder is the log reason for a closed credential tunnel the upstream rejected (401/403) and whose requests
+// never carried the placeholder. It repeats the tunnel's entry rather than counting a new attempt.
 const ReasonNoPlaceholder = "no-placeholder"
 
 // Protocol records how the client reached the proxy: an HTTP CONNECT tunnel (HTTPS) or a plain HTTP forward.
@@ -50,8 +50,8 @@ type Entry struct {
 	Decision Decision  `json:"decision"`
 	// Enforced reports whether Decision was acted on; always false in monitor mode, where a "deny" is only observed, not blocked.
 	Enforced bool `json:"enforced"`
-	// Injected reports whether the tunnel was TLS-terminated to inject credentials.
-	Injected bool `json:"injected,omitempty"`
+	// Intercepted reports whether the tunnel was TLS-terminated for a credential host; not whether a secret was swapped in.
+	Intercepted bool `json:"intercepted,omitempty"`
 	// Reason says why an allowed host was still refused or failed, e.g. ReasonBlockedAddr.
 	Reason string `json:"reason,omitempty"`
 	// Error is the upstream failure detail, kept out of the response to the tool; never in the human line.
@@ -99,8 +99,8 @@ func (l *Logger) Log(entry Entry) {
 		if !entry.Enforced {
 			tags += " (monitor)"
 		}
-		if entry.Injected {
-			tags += " (injected)"
+		if entry.Intercepted {
+			tags += " (intercepted)"
 		}
 		if entry.Reason != "" {
 			tags += " (" + entry.Reason + ")"

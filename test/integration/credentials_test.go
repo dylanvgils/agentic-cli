@@ -68,8 +68,8 @@ PATH=/tmp/shim:$PATH exec /usr/local/bin/entrypoint.sh`
 		// Assert
 		assert.Contains(t, out, "status=502")
 		assert.Contains(t, out, "tls=ok")
-		assert.Contains(t, out, "without the placeholder, so they likely ran unauthenticated: "+credentialHost)
-		assert.Contains(t, proxyLog(t), `"host":"`+credentialHost+`","port":"443","decision":"allow","enforced":true,"injected":true`)
+		assert.NotContains(t, out, "without the placeholder")
+		assert.Contains(t, proxyLog(t), `"host":"`+credentialHost+`","port":"443","decision":"allow","enforced":true,"intercepted":true`)
 	})
 
 	t.Run("proxy deletes the CA key and credentials once loaded", func(t *testing.T) {

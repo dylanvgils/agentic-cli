@@ -46,6 +46,11 @@ func TestServerConnectInject(t *testing.T) {
 		_, _ = io.WriteString(w, "ok")
 		w.Header().Set("X-Echo-Api-Key", r.Header.Get("X-Api-Key"))
 	})
+	mux.HandleFunc("/private", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Api-Key") != "real-secret" {
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	})
 	mux.HandleFunc("/drop", func(w http.ResponseWriter, _ *http.Request) {
 		conn, _, _ := w.(http.Hijacker).Hijack()
 		_ = conn.Close()
@@ -78,7 +83,7 @@ func TestServerConnectInject(t *testing.T) {
 		defer resp.Body.Close() //nolint:errcheck
 		body, _ := io.ReadAll(resp.Body)
 		assert.Equal(t, "real-secret|"+upstreamAddr, string(body))
-		assert.Contains(t, logBuf.String(), `"injected":true`)
+		assert.Contains(t, logBuf.String(), `"intercepted":true`)
 	})
 
 	t.Run("credentialed host resolving to a blocked address returns 403 and logs the reason", func(t *testing.T) {
@@ -99,7 +104,7 @@ func TestServerConnectInject(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close() //nolint:errcheck
 		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":true,"injected":true,"reason":"blocked-address"`)
+		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":true,"intercepted":true,"reason":"blocked-address"`)
 	})
 
 	t.Run("failed upstream returns a fixed 502 and logs the error", func(t *testing.T) {
@@ -121,7 +126,28 @@ func TestServerConnectInject(t *testing.T) {
 		assert.Contains(t, logBuf.String(), `"reason":"upstream-failed","error":`)
 	})
 
-	t.Run("tunnel that never sent the placeholder is logged once it closes", func(t *testing.T) {
+	t.Run("rejected tunnel that never sent the placeholder is logged once it closes", func(t *testing.T) {
+		// Arrange
+		inject, roots := newTestInjector(t, upstream, creds)
+		var logBuf syncBuffer
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+		client := httpsClientVia(t, proxy.URL, roots)
+
+		// Act
+		resp, err := client.Get(upstream.URL + "/private")
+		require.NoError(t, err)
+		_, _ = io.ReadAll(resp.Body)
+		resp.Body.Close() //nolint:errcheck
+		client.CloseIdleConnections()
+
+		// Assert
+		assert.Eventually(t, func() bool {
+			return strings.Contains(logBuf.String(), `"intercepted":true,"reason":"no-placeholder"`)
+		}, 2*time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("accepted tunnel that never sent the placeholder is not logged", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
 		var logBuf syncBuffer
@@ -137,9 +163,9 @@ func TestServerConnectInject(t *testing.T) {
 		client.CloseIdleConnections()
 
 		// Assert
-		assert.Eventually(t, func() bool {
+		assert.Never(t, func() bool {
 			return strings.Contains(logBuf.String(), `"reason":"no-placeholder"`)
-		}, 2*time.Second, 10*time.Millisecond)
+		}, 200*time.Millisecond, 10*time.Millisecond)
 	})
 
 	t.Run("tunnel that sent the placeholder after an unauthenticated request is not logged", func(t *testing.T) {
@@ -149,12 +175,12 @@ func TestServerConnectInject(t *testing.T) {
 		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 		client := httpsClientVia(t, proxy.URL, roots)
-		authed, err := http.NewRequest(http.MethodGet, upstream.URL+"/echo", nil)
+		authed, err := http.NewRequest(http.MethodGet, upstream.URL+"/private", nil)
 		require.NoError(t, err)
 		authed.Header.Set("X-Api-Key", testPlaceholder)
 
 		// Act
-		for _, req := range []*http.Request{mustGet(t, upstream.URL+"/echo"), authed} {
+		for _, req := range []*http.Request{mustGet(t, upstream.URL+"/private"), authed} {
 			resp, err := client.Do(req)
 			require.NoError(t, err)
 			_, _ = io.ReadAll(resp.Body)
@@ -289,7 +315,7 @@ func TestServerConnectInject(t *testing.T) {
 		assert.Empty(t, string(body))
 	})
 
-	t.Run("client rejecting the cert is logged as not injected", func(t *testing.T) {
+	t.Run("client rejecting the cert is logged as not intercepted", func(t *testing.T) {
 		// Arrange
 		inject, _ := newTestInjector(t, upstream, creds)
 		var logBuf syncBuffer
@@ -302,7 +328,7 @@ func TestServerConnectInject(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Eventually(t, func() bool { return strings.Contains(logBuf.String(), `"decision":"allow"`) }, 5*time.Second, 10*time.Millisecond)
-		assert.NotContains(t, logBuf.String(), `"injected"`)
+		assert.NotContains(t, logBuf.String(), `"intercepted"`)
 	})
 
 	t.Run("trace is refused before reaching the upstream", func(t *testing.T) {
@@ -360,7 +386,7 @@ func TestServerConnectInject(t *testing.T) {
 		body, _ := io.ReadAll(resp.Body)
 		assert.Equal(t, "real-secret|"+upstreamAddr, string(body))
 		assert.Contains(t, logBuf.String(), `"decision":"deny"`)
-		assert.Contains(t, logBuf.String(), `"injected":true`)
+		assert.Contains(t, logBuf.String(), `"intercepted":true`)
 	})
 
 	t.Run("denied credentialed host is refused without issuing a cert", func(t *testing.T) {
@@ -377,7 +403,7 @@ func TestServerConnectInject(t *testing.T) {
 		// Assert
 		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 		assert.Empty(t, inject.leaves)
-		assert.NotContains(t, logBuf.String(), `"injected"`)
+		assert.NotContains(t, logBuf.String(), `"intercepted"`)
 	})
 
 	t.Run("host without a credential tunnels without issuing a cert", func(t *testing.T) {
@@ -403,7 +429,7 @@ func TestServerConnectInject(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "ping", string(echo))
 		assert.Empty(t, inject.leaves)
-		assert.NotContains(t, logBuf.String(), `"injected"`)
+		assert.NotContains(t, logBuf.String(), `"intercepted"`)
 	})
 
 	t.Run("credentialed host on another port tunnels without issuing a cert", func(t *testing.T) {
@@ -429,10 +455,10 @@ func TestServerConnectInject(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "ping", string(echo))
 		assert.Empty(t, inject.leaves)
-		assert.NotContains(t, logBuf.String(), `"injected"`)
+		assert.NotContains(t, logBuf.String(), `"intercepted"`)
 	})
 
-	t.Run("plain http to a credentialed host is not injected", func(t *testing.T) {
+	t.Run("plain http to a credentialed host is not intercepted", func(t *testing.T) {
 		// Arrange
 		stubAllowLocal(t)
 		plain := httptest.NewServer(mux)
@@ -451,7 +477,7 @@ func TestServerConnectInject(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, "|"+plain.Listener.Addr().String(), string(body))
-		assert.NotContains(t, logBuf.String(), `"injected"`)
+		assert.NotContains(t, logBuf.String(), `"intercepted"`)
 	})
 }
 
@@ -567,7 +593,7 @@ func Test_reverseProxy(t *testing.T) {
 			pr := &httputil.ProxyRequest{In: in, Out: in.Clone(in.Context())}
 
 			// Act
-			inject.reverseProxy(target.host, target.port, Credential{}, strings.NewReplacer()).Rewrite(pr)
+			inject.reverseProxy(target.host, target.port, Credential{}, strings.NewReplacer(), func(*http.Response) {}).Rewrite(pr)
 
 			// Assert
 			assert.Equal(t, want, pr.Out.URL.Host)

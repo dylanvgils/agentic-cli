@@ -193,8 +193,8 @@ func (h proxyHandle) hostsMatching(match func(proxy.Entry) bool) (hosts []string
 	return hosts, total
 }
 
-// totalRequests reads the access log and returns the total connection attempts logged, regardless of decision; a missed
-// placeholder entry repeats an attempt, so it isn't counted.
+// totalRequests reads the access log and returns the total connection attempts logged, regardless of decision; entries
+// logged from inside an intercepted tunnel repeat its attempt, so they aren't counted.
 func (h proxyHandle) totalRequests() int {
 	f, err := os.Open(h.logPath)
 	if err != nil {
@@ -206,7 +206,7 @@ func (h proxyHandle) totalRequests() int {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		var entry proxy.Entry
-		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil || missedPlaceholder(entry) {
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil || repeatsAttempt(entry) {
 			continue
 		}
 		total++
@@ -462,6 +462,12 @@ func deniedByAllowlist(entry proxy.Entry) bool {
 // missedPlaceholder reports whether entry is a credential tunnel whose requests never carried the placeholder.
 func missedPlaceholder(entry proxy.Entry) bool {
 	return entry.Reason == proxy.ReasonNoPlaceholder
+}
+
+// repeatsAttempt reports whether entry was logged from inside an intercepted tunnel, such as a failed request or a missed
+// placeholder, after the tunnel's own entry.
+func repeatsAttempt(entry proxy.Entry) bool {
+	return entry.Intercepted && entry.Reason != ""
 }
 
 // refusedByGuard reports whether the address guard refused entry.
