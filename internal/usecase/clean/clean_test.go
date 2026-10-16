@@ -277,7 +277,6 @@ func TestApply(t *testing.T) {
 
 	t.Run("keeps an image an active run uses", func(t *testing.T) {
 		// Arrange
-		errLog := stubErrLog(t)
 		var cleaned []string
 		d := &fakeDocker{
 			listRunning: func() ([]*docker.ContainerInfo, error) {
@@ -303,7 +302,6 @@ func TestApply(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []string{"agentic-copilot", "msb agentic-copilot"}, cleaned)
-		assert.Contains(t, errLog.String(), "kept agentic-claude: in use by agentic-claude-abc")
 	})
 
 	t.Run("running containers list error propagates", func(t *testing.T) {
@@ -473,7 +471,6 @@ func TestGlobalResources(t *testing.T) {
 func Test_cleanSidecarImages(t *testing.T) {
 	t.Run("keeps a sidecar image an active run uses", func(t *testing.T) {
 		// Arrange
-		errLog := stubErrLog(t)
 		var cleaned []string
 		d := &fakeDocker{
 			listRunning: func() ([]*docker.ContainerInfo, error) {
@@ -492,7 +489,6 @@ func Test_cleanSidecarImages(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{tools.DindImage}, cleaned)
-		assert.Contains(t, errLog.String(), "kept agentic-proxy: in use by agentic-proxy-abc")
 	})
 
 	t.Run("running containers list error propagates", func(t *testing.T) {
@@ -509,30 +505,29 @@ func Test_cleanSidecarImages(t *testing.T) {
 	})
 }
 
-func Test_keptInUse(t *testing.T) {
-	inUse := map[string]string{"agentic-claude": "agentic-claude-abc"}
-
-	t.Run("image in use is kept with a warning", func(t *testing.T) {
+func Test_stepImage(t *testing.T) {
+	t.Run("image in use is marked as kept", func(t *testing.T) {
 		// Arrange
-		errLog := stubErrLog(t)
+		var kept bool
 
 		// Act
-		kept := keptInUse("agentic-claude", inUse)
+		out := captureStdout(t, func() { kept = stepImage("agentic-claude", true) })
 
 		// Assert
 		assert.True(t, kept)
-		assert.Contains(t, errLog.String(), "kept agentic-claude: in use by agentic-claude-abc")
+		assert.Contains(t, out, "=> agentic-claude (in use, kept)")
 	})
 
-	t.Run("unused image is not kept", func(t *testing.T) {
+	t.Run("unused image is a plain step", func(t *testing.T) {
 		// Arrange
-		errLog := stubErrLog(t)
+		var kept bool
 
 		// Act
-		kept := keptInUse("agentic-copilot", inUse)
+		out := captureStdout(t, func() { kept = stepImage("agentic-copilot", false) })
 
 		// Assert
 		assert.False(t, kept)
-		assert.Empty(t, errLog.String())
+		assert.Contains(t, out, "=> agentic-copilot")
+		assert.NotContains(t, out, "kept")
 	})
 }

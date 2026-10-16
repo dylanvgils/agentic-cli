@@ -54,8 +54,7 @@ func (s *Service) Apply(targets []Target) error {
 	before, beforeErr := s.customInstallsHashes()
 
 	for _, t := range targets {
-		logging.Step(t.Label)
-		if keptInUse(t.Image, inUse) {
+		if stepImage(t.Label, inUse[t.Image]) {
 			continue
 		}
 		if err := s.docker.CleanImage(t.Image); err != nil {
@@ -117,8 +116,7 @@ func (s *Service) cleanSidecarImages() error {
 	}
 
 	for _, image := range []string{tools.ProxyImage, tools.DindImage} {
-		logging.Step(image)
-		if keptInUse(image, inUse) {
+		if stepImage(image, inUse[image]) {
 			continue
 		}
 		if err := s.docker.CleanImage(image); err != nil {
@@ -150,16 +148,16 @@ func (s *Service) resolveAll(filterTool string) ([]Target, error) {
 	return targets, nil
 }
 
-// imagesInUse maps the images of agentic's running containers to one container running each.
-func (s *Service) imagesInUse() (map[string]string, error) {
+// imagesInUse returns the images of agentic's running containers.
+func (s *Service) imagesInUse() (map[string]bool, error) {
 	containers, err := s.docker.ListRunningContainers()
 	if err != nil {
 		return nil, err
 	}
 
-	inUse := make(map[string]string, len(containers))
+	inUse := make(map[string]bool, len(containers))
 	for _, c := range containers {
-		inUse[c.Image] = c.Name
+		inUse[c.Image] = true
 	}
 	return inUse, nil
 }
@@ -209,11 +207,12 @@ func resolveScoped(names []string, namespace string) ([]Target, error) {
 	return targets, nil
 }
 
-// keptInUse reports whether a running container uses image, warning that it is kept.
-func keptInUse(image string, inUse map[string]string) bool {
-	container, ok := inUse[image]
-	if ok {
-		logging.Warnf("kept %s: in use by %s", image, container)
+// stepImage reports the image under label, marked as kept when a running container uses it; returns inUse.
+func stepImage(label string, inUse bool) bool {
+	if inUse {
+		logging.Stepf("%s (in use, kept)", label)
+	} else {
+		logging.Step(label)
 	}
-	return ok
+	return inUse
 }
