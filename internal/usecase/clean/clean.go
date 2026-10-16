@@ -45,11 +45,20 @@ func (s *Service) Resolve(scope Scope) ([]Target, error) {
 }
 
 // Apply removes each target's image from Docker and every other runtime, reporting progress, then the stored custom installs no image uses anymore.
+// Images an active run uses are kept.
 func (s *Service) Apply(targets []Target) error {
+	inUse, err := s.imagesInUse()
+	if err != nil {
+		return err
+	}
 	before, beforeErr := s.customInstallsHashes()
 
 	for _, t := range targets {
 		logging.Step(t.Label)
+		if container, ok := inUse[t.Image]; ok {
+			logging.Warnf("kept %s: in use by %s", t.Image, container)
+			continue
+		}
 		if err := s.docker.CleanImage(t.Image); err != nil {
 			return err
 		}
@@ -67,7 +76,7 @@ func (s *Service) Apply(targets []Target) error {
 }
 
 // GlobalResources removes agentic's shared Docker resources: base and sidecar images, leftover sidecars and run
-// networks, and agentic-net.
+// networks, and agentic-net. Active runs keep their sidecars, networks and images.
 func (s *Service) GlobalResources() error {
 	logging.Infof("removing shared resources: base images, %s, %s, sidecars, run networks, %s", tools.ProxyImage, tools.DindImage, docker.NetworkName)
 
@@ -76,20 +85,29 @@ func (s *Service) GlobalResources() error {
 		return err
 	}
 
-	logging.Step(tools.ProxyImage)
-	if err := s.docker.CleanImage(tools.ProxyImage); err != nil {
-		return err
-	}
-	logging.Step(tools.DindImage)
-	if err := s.docker.CleanImage(tools.DindImage); err != nil {
-		return err
-	}
+	// Orphaned sidecars go first, so only active runs keep the sidecar images
 	if err := s.docker.SweepDindResources(s.home); err != nil {
 		return err
 	}
 	if err := s.docker.SweepProxyResources(); err != nil {
 		return err
 	}
+
+	inUse, err := s.imagesInUse()
+	if err != nil {
+		return err
+	}
+	for _, image := range []string{tools.ProxyImage, tools.DindImage} {
+		logging.Step(image)
+		if container, ok := inUse[image]; ok {
+			logging.Warnf("kept %s: in use by %s", image, container)
+			continue
+		}
+		if err := s.docker.CleanImage(image); err != nil {
+			return err
+		}
+	}
+
 	// Sidecars sit on a run network, so they go first
 	if err := s.docker.SweepRunNetworks(); err != nil {
 		return err
@@ -119,6 +137,20 @@ func (s *Service) resolveAll(filterTool string) ([]Target, error) {
 	}
 
 	return targets, nil
+}
+
+// imagesInUse maps the images of agentic's running containers to one container running each.
+func (s *Service) imagesInUse() (map[string]string, error) {
+	containers, err := s.docker.ListRunningContainers()
+	if err != nil {
+		return nil, err
+	}
+
+	inUse := make(map[string]string, len(containers))
+	for _, c := range containers {
+		inUse[c.Image] = c.Name
+	}
+	return inUse, nil
 }
 
 // customInstallsHashes returns the custom installs hashes recorded on agentic's images.

@@ -11,6 +11,7 @@ import (
 // fakeDocker implements Docker; a nil field succeeds with a zero value.
 type fakeDocker struct {
 	listAllImages       func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
+	listRunning         func() ([]*docker.ContainerInfo, error)
 	cleanImage          func(string) error
 	cleanBaseImages     func() error
 	sweepProxyResources func() error
@@ -24,6 +25,13 @@ func (f *fakeDocker) ListAllImages(filters ...docker.ImageFilter) ([]*docker.Ima
 		return nil, nil
 	}
 	return f.listAllImages(filters...)
+}
+
+func (f *fakeDocker) ListRunningContainers() ([]*docker.ContainerInfo, error) {
+	if f.listRunning == nil {
+		return nil, nil
+	}
+	return f.listRunning()
 }
 
 func (f *fakeDocker) CleanImage(image string) error {

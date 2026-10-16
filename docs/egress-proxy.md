@@ -29,7 +29,7 @@ allowed_hosts = ["registry.npmjs.org", ".github.com"]
 - When an upstream fails, the tool gets a plain 502. The log entry gets `"reason": "upstream-failed"` with the cause in `"error"`, which can name resolved IPs the tool shouldn't see.
 - When the proxy itself fails, for example on a TLS handshake the tool rejects, the tool gets a plain 500. The log entry gets `"reason": "proxy-failed"` with the cause in `"error"`.
 - Logs older than `proxy_log_retention_days` in `agentic.json` (default 3) are pruned on each proxy run. `agentic proxy clean --logs` wipes them all.
-- The sidecar and its network are removed when the run ends. After a crash, the next `agentic` run removes them once they are a few minutes old, and `agentic clean` removes them right away.
+- The sidecar and its network are removed when the run ends. After a crash, the next `agentic` run or `agentic clean` removes them once they are a few minutes old and the tool has stopped.
 - The proxy image builds on first use, or with `agentic proxy build`. `agentic proxy update` rebuilds it.
 - `agentic config` shows the resolved proxy settings and which file set them. The baseline hosts below aren't listed, because they can't be changed.
 

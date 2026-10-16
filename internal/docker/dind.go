@@ -267,14 +267,14 @@ func IsReservedDindEnvName(key string) bool {
 	return dindReservedEnvNames[key]
 }
 
-// SweepDindResources removes sidecars and run dirs left behind by interrupted runs.
+// SweepDindResources removes sidecars and run dirs left behind by interrupted runs, keeping those of active runs.
 func (c *Client) SweepDindResources(toolHome string) error {
 	listArgs := []string{
-		"ps", arg("all"), arg("quiet"),
+		"ps", arg("all"), arg("format", ownedFormat(".Names")),
 		labelFilter(LabelProject, LabelProjectVal),
 		nameFilter(dindHostAlias),
 	}
-	if err := c.runIfAny(listArgs, []string{"rm", arg("force"), arg("volumes")}); err != nil {
+	if err := c.removeUnused(listArgs, []string{"rm", arg("force"), arg("volumes")}); err != nil {
 		return err
 	}
 

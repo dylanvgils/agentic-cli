@@ -32,7 +32,7 @@ The Docker host must allow unprivileged user namespaces (the default on Docker D
 - **Image**: `agentic-dind` is built locally from `docker:<version>-dind-rootless`, with all setuid/setgid bits removed. Only the id-map helpers get `CAP_SETUID`/`CAP_SETGID`. It is rebuilt with a fresh pull at least weekly.
 - **Mutual TLS**: per-run throwaway certs, and the CA key never touches disk. Inner containers can't drive the daemon unless they bind-mount its socket or certs.
 - **Filesystem**: the daemon sees only `/workspace` (read-only mounts under it stay read-only), not the tool home, secrets or anything else.
-- **Cleanup**: images, containers, volumes, certs and Docker config (including `docker login` credentials) are removed when the run ends. After a crash, the next `agentic` run removes them once they are a few minutes old, and `agentic clean` removes them right away.
+- **Cleanup**: images, containers, volumes, certs and Docker config (including `docker login` credentials) are removed when the run ends. After a crash, the next `agentic` run or `agentic clean` removes them once they are a few minutes old and the tool has stopped.
 - **Ports**: published ports are reachable from the tool at `agentic-docker:<port>`, never from the host.
 - **Without `--proxy`**: the sidecar shares the tool's per-run network, which has direct internet access, so pulls, builds and inner containers can reach any host.
 - **With `--proxy`**: the sidecar shares the tool's internal network, so pulls, builds and containers go through the allowlist. The Docker CLI config passes the proxy to containers and builds. Docker Hub is allowed automatically. Add other registries (e.g. `ghcr.io`) to `allowed_hosts`.

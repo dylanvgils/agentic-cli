@@ -25,6 +25,11 @@ func (r ownedResource) isOrphan(existing map[string]bool) bool {
 	return time.Since(r.started) >= sidecarOrphanGrace
 }
 
+// inUse reports whether r may serve an active run: it has an owner that isn't an orphan yet.
+func (r ownedResource) inUse(existing map[string]bool) bool {
+	return r.owner != "" && !r.isOrphan(existing)
+}
+
 // ownerLabels tie a sidecar or its network to its tool container.
 func ownerLabels(rs toolRun) []string {
 	return []string{
@@ -124,6 +129,45 @@ func (c *Client) removeOrphanedNetworks(existing map[string]bool) error {
 		}
 	}
 	return nil
+}
+
+// removeUnused removes the resources listArgs lists in ownedFormat that no active run uses, with rmArgs.
+func (c *Client) removeUnused(listArgs, rmArgs []string) error {
+	existing, err := c.containerNames()
+	if err != nil {
+		return err
+	}
+	resources, err := c.listOwned(listArgs...)
+	if err != nil {
+		return err
+	}
+
+	var names []string
+	for _, r := range resources {
+		if !r.inUse(existing) {
+			names = append(names, r.name)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+
+	_, err = c.run(append(rmArgs, names...)...)
+	return err
+}
+
+// containerNames returns the names of all agentic containers.
+func (c *Client) containerNames() (map[string]bool, error) {
+	out, err := c.run("ps", arg("all"), arg("format", "{{.Names}}"), labelFilter(LabelProject, LabelProjectVal))
+	if err != nil {
+		return nil, err
+	}
+
+	names := make(map[string]bool)
+	for name := range strings.FieldsSeq(out) {
+		names[name] = true
+	}
+	return names, nil
 }
 
 // listOwned runs a docker list command and parses its ownedFormat rows.

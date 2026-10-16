@@ -14,7 +14,8 @@ const runNetworkPrefix = "agentic-run"
 // inhibitIPv4Opt keeps docker from giving a bridge network an IPv4 address on the host.
 const inhibitIPv4Opt = "com.docker.network.bridge.inhibit_ipv4=true"
 
-// RemoveNetwork removes agentic-net if it exists and is agentic-managed; returns nil if it does not exist.
+// RemoveNetwork removes agentic-net if it exists, is agentic-managed and has no containers attached, such as an active
+// run's proxy; returns nil if it does not exist.
 func (c *Client) RemoveNetwork() error {
 	project, err := c.egressNetworkProject()
 	if err != nil {
@@ -25,18 +26,26 @@ func (c *Client) RemoveNetwork() error {
 		return fmt.Errorf("'%s' is not an agentic-managed network", NetworkName)
 	}
 
+	attached, err := c.run("network", "inspect", arg("format", "{{len .Containers}}"), NetworkName)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(attached) != "0" {
+		return nil
+	}
+
 	_, err = c.run("network", "rm", NetworkName)
 	return err
 }
 
-// SweepRunNetworks removes leftover run networks, e.g. from an interrupted run; every one carries ownerLabels.
+// SweepRunNetworks removes leftover run networks, e.g. from an interrupted run, keeping those of active runs.
 func (c *Client) SweepRunNetworks() error {
 	listArgs := []string{
-		"network", "ls", arg("quiet"),
+		"network", "ls", arg("format", ownedFormat(".Name")),
 		labelFilter(LabelProject, LabelProjectVal),
 		arg("filter", "label="+LabelOwner),
 	}
-	return c.runIfAny(listArgs, []string{"network", "rm"})
+	return c.removeUnused(listArgs, []string{"network", "rm"})
 }
 
 // egressNetworkProject returns agentic-net's project label; an error means it does not exist.

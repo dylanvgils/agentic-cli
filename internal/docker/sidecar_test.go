@@ -248,3 +248,98 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 		assert.NoDirExists(t, stale)
 	})
 }
+
+func Test_ownedResource_inUse(t *testing.T) {
+	stubSidecarOrphanGrace(t, 5*time.Minute)
+	existing := map[string]bool{"agentic-claude-abc": true}
+
+	t.Run("owner still exists", func(t *testing.T) {
+		// Arrange
+		r := ownedResource{name: "agentic-proxy-abc", owner: "agentic-claude-abc", started: time.Now().Add(-time.Hour)}
+
+		// Act
+		inUse := r.inUse(existing)
+
+		// Assert
+		assert.True(t, inUse)
+	})
+
+	t.Run("owner not started yet", func(t *testing.T) {
+		// Arrange
+		r := ownedResource{name: "agentic-proxy-abc", owner: "agentic-claude-starting", started: time.Now()}
+
+		// Act
+		inUse := r.inUse(existing)
+
+		// Assert
+		assert.True(t, inUse)
+	})
+
+	t.Run("owner gone", func(t *testing.T) {
+		// Arrange
+		r := ownedResource{name: "agentic-proxy-abc", owner: "agentic-claude-gone", started: time.Now().Add(-time.Hour)}
+
+		// Act
+		inUse := r.inUse(existing)
+
+		// Assert
+		assert.False(t, inUse)
+	})
+
+	t.Run("no owner", func(t *testing.T) {
+		// Arrange
+		r := ownedResource{name: "agentic-proxy-old"}
+
+		// Act
+		inUse := r.inUse(existing)
+
+		// Assert
+		assert.False(t, inUse)
+	})
+}
+
+func Test_removeUnused(t *testing.T) {
+	client := newTestClient()
+	listArgs := []string{"ps", "--all", "--format=owned"}
+	rmArgs := []string{"rm", "--force"}
+
+	stubSidecarOrphanGrace(t, 5*time.Minute)
+
+	t.Run("removes only the resources no active run uses", func(t *testing.T) {
+		// Arrange
+		owned := ownedRow("agentic-proxy-live", "agentic-claude-live", time.Hour) +
+			ownedRow("agentic-proxy-gone", "agentic-claude-gone", time.Hour) +
+			"agentic-proxy-old\t\t\n"
+		get := stubUnusedSweep(t, client, "agentic-claude-live\nagentic-proxy-live\n", owned)
+
+		// Act
+		err := client.removeUnused(listArgs, rmArgs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"rm", "--force", "agentic-proxy-gone", "agentic-proxy-old"}, findCall(get(), "rm"))
+	})
+
+	t.Run("nothing unused makes no rm call", func(t *testing.T) {
+		// Arrange
+		get := stubUnusedSweep(t, client, "agentic-claude-live\n", ownedRow("agentic-proxy-live", "agentic-claude-live", time.Hour))
+
+		// Act
+		err := client.removeUnused(listArgs, rmArgs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Nil(t, findCall(get(), "rm"))
+	})
+
+	t.Run("list error propagates", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, client, "", errors.New("stub: daemon down"))
+
+		// Act
+		err := client.removeUnused(listArgs, rmArgs)
+
+		// Assert
+		assert.ErrorContains(t, err, "daemon down")
+	})
+}

@@ -275,6 +275,50 @@ func TestApply(t *testing.T) {
 		assert.True(t, stored)
 	})
 
+	t.Run("keeps an image an active run uses", func(t *testing.T) {
+		// Arrange
+		errLog := stubErrLog(t)
+		var cleaned []string
+		d := &fakeDocker{
+			listRunning: func() ([]*docker.ContainerInfo, error) {
+				return []*docker.ContainerInfo{{Name: "agentic-claude-abc", Image: "agentic-claude"}}, nil
+			},
+			cleanImage: func(image string) error {
+				cleaned = append(cleaned, image)
+				return nil
+			},
+		}
+		m := &fakeRuntime{
+			cleanImage: func(image string) error {
+				cleaned = append(cleaned, "msb "+image)
+				return nil
+			},
+		}
+
+		// Act
+		captureStdout(t, func() {
+			err := New(t.TempDir(), d, m).Apply(targets)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, []string{"agentic-copilot", "msb agentic-copilot"}, cleaned)
+		assert.Contains(t, errLog.String(), "kept agentic-claude: in use by agentic-claude-abc")
+	})
+
+	t.Run("running containers list error propagates", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{
+			listRunning: func() ([]*docker.ContainerInfo, error) { return nil, fmt.Errorf("docker error") },
+		}
+
+		// Act
+		err := New(t.TempDir(), d).Apply(targets)
+
+		// Assert
+		assert.ErrorContains(t, err, "docker error")
+	})
+
 	t.Run("stops on first error", func(t *testing.T) {
 		// Arrange
 		var cleaned []string
@@ -325,6 +369,10 @@ func TestGlobalResources(t *testing.T) {
 				swept = append(swept, "networks")
 				return nil
 			},
+			listRunning: func() ([]*docker.ContainerInfo, error) {
+				swept = append(swept, "in use")
+				return nil, nil
+			},
 			removeNetwork: func() error {
 				networkRemoved = true
 				return nil
@@ -341,13 +389,51 @@ func TestGlobalResources(t *testing.T) {
 		assert.True(t, basesCleaned)
 		assert.Contains(t, cleaned, tools.ProxyImage)
 		assert.Contains(t, cleaned, tools.DindImage)
-		assert.Equal(t, []string{"dind", "proxy", "networks"}, swept, "sidecars must go before the run networks they sit on")
+		assert.Equal(t, []string{"dind", "proxy", "in use", "networks"}, swept, "orphaned sidecars must go before the in-use check and the run networks they sit on")
 		assert.Equal(t, "/agentic-home", sweptHome)
 		assert.True(t, networkRemoved)
 		assert.Contains(t, out, "=> base")
 		assert.Contains(t, out, "=> "+tools.ProxyImage)
 		assert.Contains(t, out, "=> network")
 		assert.Contains(t, logBuf.String(), "agentic: removing shared resources: base images, agentic-proxy, agentic-dind, sidecars, run networks, agentic-net")
+	})
+
+	t.Run("keeps a sidecar image an active run uses", func(t *testing.T) {
+		// Arrange
+		errLog := stubErrLog(t)
+		var cleaned []string
+		d := &fakeDocker{
+			listRunning: func() ([]*docker.ContainerInfo, error) {
+				return []*docker.ContainerInfo{{Name: "agentic-proxy-abc", Image: tools.ProxyImage}}, nil
+			},
+			cleanImage: func(image string) error {
+				cleaned = append(cleaned, image)
+				return nil
+			},
+		}
+
+		// Act
+		captureStdout(t, func() {
+			err := New("/agentic-home", d).GlobalResources()
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, []string{tools.DindImage}, cleaned)
+		assert.Contains(t, errLog.String(), "kept agentic-proxy: in use by agentic-proxy-abc")
+	})
+
+	t.Run("running containers list error propagates", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{
+			listRunning: func() ([]*docker.ContainerInfo, error) { return nil, fmt.Errorf("docker error") },
+		}
+
+		// Act
+		err := New("/agentic-home", d).GlobalResources()
+
+		// Assert
+		assert.ErrorContains(t, err, "docker error")
 	})
 
 	t.Run("cleanBaseImages error propagates", func(t *testing.T) {

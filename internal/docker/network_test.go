@@ -3,6 +3,7 @@ package docker
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
@@ -36,33 +37,31 @@ func TestRemoveNetwork(t *testing.T) {
 
 	t.Run("agentic-managed network calls rm", func(t *testing.T) {
 		// Arrange
-		var calls []dockerCall
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			calls = append(calls, dockerCall{args: args})
-			if args[0] == "network" && args[1] == "inspect" {
-				return "agentic-cli\n", nil
-			}
-			return "", nil
-		})
+		get := stubEgressNetwork(t, client, "0\n", nil)
 
 		// Act
 		err := client.RemoveNetwork()
 
 		// Assert
 		require.NoError(t, err)
-		require.Len(t, calls, 2)
-		assert.Equal(t, "inspect", calls[0].args[1])
-		assert.Equal(t, []string{"network", "rm", NetworkName}, calls[1].args)
+		assert.Equal(t, []string{"network", "rm", NetworkName}, findCall(get(), "network", "rm"))
+	})
+
+	t.Run("keeps the network while containers are attached", func(t *testing.T) {
+		// Arrange
+		get := stubEgressNetwork(t, client, "1\n", nil)
+
+		// Act
+		err := client.RemoveNetwork()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Nil(t, findCall(get(), "network", "rm"))
 	})
 
 	t.Run("rm fails propagates error", func(t *testing.T) {
 		// Arrange
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			if args[0] == "network" && args[1] == "inspect" {
-				return "agentic-cli\n", nil
-			}
-			return "", fmt.Errorf("stub: network rm failed")
-		})
+		stubEgressNetwork(t, client, "0\n", fmt.Errorf("stub: network rm failed"))
 
 		// Act
 		err := client.RemoveNetwork()
@@ -73,41 +72,18 @@ func TestRemoveNetwork(t *testing.T) {
 }
 
 func TestSweepRunNetworks(t *testing.T) {
+	// Arrange
 	client := newTestClient()
+	get := stubUnusedSweep(t, client, "", ownedRow("agentic-run-abc", "agentic-claude-gone", time.Hour))
 
-	t.Run("removes every owned network", func(t *testing.T) {
-		// Arrange
-		var calls [][]string
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			calls = append(calls, args)
-			if args[1] == "ls" {
-				return "id1\nid2\n", nil
-			}
-			return "", nil
-		})
+	// Act
+	err := client.SweepRunNetworks()
 
-		// Act
-		err := client.SweepRunNetworks()
-
-		// Assert
-		require.NoError(t, err)
-		require.Len(t, calls, 2)
-		assert.Contains(t, calls[0], "--filter=label=project=agentic-cli")
-		assert.Contains(t, calls[0], "--filter=label=agentic.owner")
-		assert.Equal(t, []string{"network", "rm", "id1", "id2"}, calls[1])
-	})
-
-	t.Run("none left makes no rm call", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
-
-		// Act
-		err := client.SweepRunNetworks()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Nil(t, findCall(get(), "network", "rm"))
-	})
+	// Assert
+	require.NoError(t, err)
+	calls := get()
+	assert.Contains(t, calls[1].args, "--filter=label=agentic.owner")
+	assert.Equal(t, []string{"network", "rm", "agentic-run-abc"}, findCall(calls, "network", "rm"))
 }
 
 func Test_ensureEgressNetwork(t *testing.T) {
