@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -111,7 +110,7 @@ func claudeStage(prevStage string) df.Stage {
 
 // claudeLatestVersion fetches the latest Claude Code version available upstream.
 func claudeLatestVersion() (string, error) {
-	return fetchTextVersion(claudeLatestVersionURL, http.DefaultClient)
+	return fetchTextVersion(claudeLatestVersionURL)
 }
 
 func setupClaude(toolHome string) error {

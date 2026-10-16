@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -79,7 +78,7 @@ func opencodeStage(prevStage string) df.Stage {
 
 // opencodeLatestVersion fetches the latest OpenCode version available upstream.
 func opencodeLatestVersion() (string, error) {
-	return fetchJSONVersion(opencodeLatestVersionURL, http.DefaultClient)
+	return fetchJSONVersion(opencodeLatestVersionURL)
 }
 
 func setupOpencode(toolHome string) error {

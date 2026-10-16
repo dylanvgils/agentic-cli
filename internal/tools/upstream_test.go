@@ -20,7 +20,7 @@ func Test_fetchGithubRelease(t *testing.T) {
 		defer srv.Close()
 
 		// Act
-		release, err := fetchGithubRelease(srv.URL, http.DefaultClient)
+		release, err := fetchGithubRelease(srv.URL)
 
 		// Assert
 		require.NoError(t, err)
@@ -35,7 +35,7 @@ func Test_fetchGithubRelease(t *testing.T) {
 		defer srv.Close()
 
 		// Act
-		_, err := fetchGithubRelease(srv.URL, http.DefaultClient)
+		_, err := fetchGithubRelease(srv.URL)
 
 		// Assert
 		assert.Error(t, err)
@@ -50,7 +50,7 @@ func Test_fetchTextVersion(t *testing.T) {
 	defer srv.Close()
 
 	// Act
-	version, err := fetchTextVersion(srv.URL, http.DefaultClient)
+	version, err := fetchTextVersion(srv.URL)
 
 	// Assert
 	require.NoError(t, err)
@@ -66,7 +66,7 @@ func Test_fetchJSONVersion(t *testing.T) {
 		defer srv.Close()
 
 		// Act
-		version, err := fetchJSONVersion(srv.URL, http.DefaultClient)
+		version, err := fetchJSONVersion(srv.URL)
 
 		// Assert
 		require.NoError(t, err)
@@ -81,7 +81,7 @@ func Test_fetchJSONVersion(t *testing.T) {
 		defer srv.Close()
 
 		// Act
-		_, err := fetchJSONVersion(srv.URL, http.DefaultClient)
+		_, err := fetchJSONVersion(srv.URL)
 
 		// Assert
 		assert.Error(t, err)
@@ -89,22 +89,19 @@ func Test_fetchJSONVersion(t *testing.T) {
 }
 
 func Test_fetchBody(t *testing.T) {
-	t.Run("returns body and sends accept header", func(t *testing.T) {
+	t.Run("returns body of a 200 response", func(t *testing.T) {
 		// Arrange
-		var accept string
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			accept = r.Header.Get("Accept")
 			fmt.Fprint(w, "body")
 		}))
 		defer srv.Close()
 
 		// Act
-		body, err := fetchBody(srv.URL, "application/json", http.DefaultClient)
+		body, err := fetchBody(srv.URL)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "body", string(body))
-		assert.Equal(t, "application/json", accept)
 	})
 
 	t.Run("returns error on non-200 response", func(t *testing.T) {
@@ -115,7 +112,7 @@ func Test_fetchBody(t *testing.T) {
 		defer srv.Close()
 
 		// Act
-		_, err := fetchBody(srv.URL, "", http.DefaultClient)
+		_, err := fetchBody(srv.URL)
 
 		// Assert
 		assert.Error(t, err)

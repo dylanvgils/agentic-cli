@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,7 +25,7 @@ type jsonVersion struct {
 func latestGithubTag(repo string) (string, error) {
 	url := "https://api.github.com/repos/" + repo + "/releases/latest"
 
-	release, err := fetchGithubRelease(url, http.DefaultClient)
+	release, err := fetchGithubRelease(url)
 	if err != nil {
 		return "", err
 	}
@@ -34,8 +33,8 @@ func latestGithubTag(repo string) (string, error) {
 	return release.TagName, nil
 }
 
-func fetchGithubRelease(url string, client *http.Client) (*githubRelease, error) {
-	body, err := fetchBody(url, "application/vnd.github+json", client)
+func fetchGithubRelease(url string) (*githubRelease, error) {
+	body, err := fetchBody(url)
 	if err != nil {
 		return nil, err
 	}
@@ -49,8 +48,8 @@ func fetchGithubRelease(url string, client *http.Client) (*githubRelease, error)
 }
 
 // fetchTextVersion fetches a plain-text version string from url.
-func fetchTextVersion(url string, client *http.Client) (string, error) {
-	body, err := fetchBody(url, "", client)
+func fetchTextVersion(url string) (string, error) {
+	body, err := fetchBody(url)
 	if err != nil {
 		return "", err
 	}
@@ -59,8 +58,8 @@ func fetchTextVersion(url string, client *http.Client) (string, error) {
 }
 
 // fetchJSONVersion fetches the "version" field of a JSON document at url.
-func fetchJSONVersion(url string, client *http.Client) (string, error) {
-	body, err := fetchBody(url, "", client)
+func fetchJSONVersion(url string) (string, error) {
+	body, err := fetchBody(url)
 	if err != nil {
 		return "", err
 	}
@@ -77,21 +76,11 @@ func fetchJSONVersion(url string, client *http.Client) (string, error) {
 	return doc.Version, nil
 }
 
-// fetchBody GETs url with an optional Accept header and returns the body of a 200 response.
-func fetchBody(url, accept string, client *http.Client) (_ []byte, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), upstreamFetchTimeout)
-	defer cancel()
+// fetchBody GETs url and returns the body of a 200 response.
+func fetchBody(url string) (_ []byte, err error) {
+	client := &http.Client{Timeout: upstreamFetchTimeout}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if accept != "" {
-		req.Header.Set("Accept", accept)
-	}
-
-	resp, err := client.Do(req)
+	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
 	}
