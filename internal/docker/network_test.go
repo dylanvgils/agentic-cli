@@ -182,6 +182,7 @@ func Test_createRunNetwork(t *testing.T) {
 		require.NoError(t, err)
 		args := findCall(get(), "network", "create")
 		assert.NotContains(t, args, "--internal")
+		assert.NotContains(t, args, "--opt="+inhibitIPv4Opt, "egress without the proxy goes through the gateway")
 		assert.Contains(t, args, "--label=project=agentic-cli")
 		assert.Contains(t, args, "--label=agentic.owner=agentic-claude-abc")
 		assert.Equal(t, "agentic-run-abc", args[len(args)-1])
@@ -197,7 +198,10 @@ func Test_createRunNetwork(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, findCall(get(), "network", "create"), "--internal")
+		args := findCall(get(), "network", "create")
+		assert.Contains(t, args, "--internal")
+		assert.Contains(t, args, "--opt="+inhibitIPv4Opt, "no host gateway to reach host services through")
+		assert.Contains(t, args, "--ipv6=false", "no IPv6 host gateway either")
 	})
 
 	t.Run("is internal with the monitoring proxy", func(t *testing.T) {

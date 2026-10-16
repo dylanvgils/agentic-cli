@@ -11,6 +11,9 @@ const NetworkName = "agentic-net"
 // runNetworkPrefix names each run's own network, which its tool and sidecars join.
 const runNetworkPrefix = "agentic-run"
 
+// inhibitIPv4Opt keeps docker from giving a bridge network an IPv4 address on the host.
+const inhibitIPv4Opt = "com.docker.network.bridge.inhibit_ipv4=true"
+
 // RemoveNetwork removes agentic-net if it exists and is agentic-managed; returns nil if it does not exist.
 func (c *Client) RemoveNetwork() error {
 	project, err := c.egressNetworkProject()
@@ -72,7 +75,14 @@ func (c *Client) ensureEgressNetwork() error {
 func (c *Client) createRunNetwork(rs toolRun) error {
 	createArgs := []string{"network", "create"}
 	if rs.Proxy.Mode.Enabled() {
-		createArgs = append(createArgs, arg("internal"))
+		createArgs = append(createArgs,
+			// Security: no route to the internet, so the proxy is the only way out
+			arg("internal"),
+			// Security: no bridge address on the host, so host services aren't reachable through the gateway
+			arg("opt", inhibitIPv4Opt),
+			// Security: no IPv6, so a daemon default can't add an IPv6 gateway on the host
+			arg("ipv6", "false"),
+		)
 	}
 	createArgs = append(createArgs, label(LabelProject, LabelProjectVal))
 	createArgs = append(createArgs, ownerLabels(rs)...)
