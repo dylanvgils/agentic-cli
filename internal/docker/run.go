@@ -77,7 +77,7 @@ func (c *Client) RunTool(sc Sidecars, toolArgs []string) error {
 
 	// Set agentic startup messages apart from the tool output
 	logging.Separate()
-	return c.runInteractive(args...)
+	return c.attachTool(sc.run.container, args)
 }
 
 // StopSidecars stops and removes sc's sidecars.
@@ -85,6 +85,35 @@ func (c *Client) StopSidecars(sc Sidecars) {
 	if sc.cleanup != nil {
 		sc.cleanup()
 	}
+}
+
+// attachTool runs the tool container with docker run args attached to the terminal, removing it on a signal and once
+// docker run returns: a closed terminal only detaches docker run, so the tool would run on unattended.
+func (c *Client) attachTool(name string, args []string) error {
+	signals, stop := guardSignals()
+	defer stop()
+
+	done := make(chan struct{})
+	defer close(done)
+	go c.removeOnSignal(name, signals, done)
+
+	err := c.runInteractive(args...)
+	c.removeToolContainer(name)
+	return err
+}
+
+// removeOnSignal removes the tool container name when a signal arrives before done closes.
+func (c *Client) removeOnSignal(name string, signals <-chan os.Signal, done <-chan struct{}) {
+	select {
+	case <-signals:
+		c.removeToolContainer(name)
+	case <-done:
+	}
+}
+
+// removeToolContainer force-removes name, which --rm already did once it exited; errors are ignored for that reason.
+func (c *Client) removeToolContainer(name string) {
+	_, _ = c.run("rm", arg("force"), name)
 }
 
 // IsReservedEnvName reports whether key is an env var agentic already manages, so a user-supplied

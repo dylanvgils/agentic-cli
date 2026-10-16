@@ -73,6 +73,7 @@ What no layer covers today:
 - **Shared tool state**: hooks or MCP servers the agent plants in its tool home also run in your other projects. Use a separate `--home` for untrusted ones.
 - **Exfiltration to allowed hosts**: without `--proxy` the internet is open to the tool and the DinD sidecar; with it, data can still go to any allowlisted host.
 - **Shared network**: runs without `--proxy` share `agentic-net`, so one run's agent can reach services another run listens on.
+- **Killed agentic**: when its terminal closes or it gets `SIGTERM`, agentic removes the tool container and sidecars. If agentic is killed with `SIGKILL` or crashes, the tool keeps running without you. Check `docker ps` and remove it with `docker rm --force`.
 - **DNS on Docker < 26**: older Docker forwards DNS lookups from the tool's `--internal` network to outside resolvers, so with `--proxy` data can still leak in names like `<data>.example.test`. Use Docker 26 or later.
 
 ## Check it yourself
