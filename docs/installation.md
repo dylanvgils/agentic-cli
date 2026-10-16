@@ -1,6 +1,6 @@
 # Installation
 
-Requires Docker Engine 26 or later and Git; agentic refuses to run on an older engine. Other Docker-compatible engines, such as Podman, work too, but agentic can't check their version.
+Requires Git and Docker Engine 26 or later, such as Rancher Desktop. Other engines may work but are untested.
 
 Install directly:
 

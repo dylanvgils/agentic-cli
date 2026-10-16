@@ -74,7 +74,7 @@ What no layer covers today:
 - **Exfiltration to allowed hosts**: without `--proxy` the internet is open to the tool and the DinD sidecar; with it, data can still go to any allowlisted host.
 - **Shared network**: runs without `--proxy` share `agentic-net`, so one run's agent can reach services another run listens on.
 - **Killed agentic**: when its terminal closes or it gets `SIGTERM`, agentic removes the tool container and sidecars. If agentic is killed with `SIGKILL` or crashes, the tool keeps running without you. Check `docker ps` and remove it with `docker rm --force`.
-- **DNS on other engines**: Docker Engine before 26 forwards DNS lookups from the tool's `--internal` network to outside resolvers, so agentic refuses it. It can't check other engines, such as Podman, so with `--proxy` data may still leak there in names like `<data>.example.test`.
+- **DNS on other engines**: Docker Engine before 26 forwards DNS lookups from the tool's `--internal` network to outside resolvers, so agentic refuses it. It can't check other engines, so with `--proxy` data may still leak there in names like `<data>.example.test`.
 
 ## Check it yourself
 
