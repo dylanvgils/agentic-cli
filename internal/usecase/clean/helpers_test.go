@@ -60,7 +60,7 @@ func (f *fakeDocker) RemoveNetwork() error {
 	return f.removeNetwork()
 }
 
-// fakeRuntime implements Runtime; a nil field succeeds.
+// fakeRuntime implements ImageCleaner; a nil field succeeds.
 type fakeRuntime struct {
 	cleanImage func(string) error
 }

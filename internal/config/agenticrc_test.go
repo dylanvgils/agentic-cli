@@ -887,6 +887,7 @@ func Test_validateLimits(t *testing.T) {
 		{"zero pids", RCLimits{PidsLimit: "0"}, "pids_limit"},
 		{"zero cpus", RCLimits{CPUs: "0"}, "cpus"},
 		{"infinite cpus", RCLimits{CPUs: "Inf"}, "cpus"},
+		{"nan cpus", RCLimits{CPUs: "NaN"}, "cpus"},
 		{"zero memory", RCLimits{Memory: "0g"}, "memory"},
 		{"malformed memory", RCLimits{Memory: "-1"}, "memory"},
 	}

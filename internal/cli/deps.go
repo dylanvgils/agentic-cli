@@ -56,7 +56,7 @@ type dockerAPI interface {
 // msbAPI is the subset of *microsandbox.Client the usecases the cli calls use.
 type msbAPI interface {
 	run.Microsandbox
-	clean.Runtime
+	clean.ImageCleaner
 	volumes.Microsandbox
 
 	Available() error
