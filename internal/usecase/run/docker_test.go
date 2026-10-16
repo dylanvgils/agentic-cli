@@ -27,15 +27,63 @@ func Test_dockerRunner_Capabilities(t *testing.T) {
 }
 
 func Test_dockerRunner_Check(t *testing.T) {
-	// Arrange
-	req := newCredentialRequest(t)
-	req.Flags.Dind.DindFlag = true
+	engine := func(name, version string) func() (string, string, error) {
+		return func() (string, string, error) { return name, version, nil }
+	}
 
-	// Act
-	err := dockerRunner{docker: &fakeDocker{}}.Check(req)
+	t.Run("accepts the minimum Docker Engine", func(t *testing.T) {
+		// Arrange
+		req := newCredentialRequest(t)
+		req.Flags.Dind.DindFlag = true
 
-	// Assert
-	assert.NoError(t, err)
+		// Act
+		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Engine", "26.0.0")}}.Check(req)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("refuses an older Docker Engine", func(t *testing.T) {
+		// Act
+		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Engine", "25.0.5")}}.Check(Request{})
+
+		// Assert
+		assert.EqualError(t, err, "Docker Engine 25.0.5 is older than the minimum 26.0; update it and run again")
+	})
+
+	t.Run("only warns for another engine", func(t *testing.T) {
+		// Arrange
+		buf := stubErrLog(t)
+
+		// Act
+		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Podman Engine", "5.2.0")}}.Check(Request{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "Podman Engine 5.2.0 isn't Docker Engine")
+	})
+
+	t.Run("returns an unreadable version", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{serverVersion: func() (string, string, error) { return "", "", errors.New("cannot connect to the docker daemon") }}
+
+		// Act
+		err := dockerRunner{docker: d}.Check(Request{})
+
+		// Assert
+		assert.EqualError(t, err, "read the Docker Engine version: cannot connect to the docker daemon")
+	})
+
+	t.Run("dry run skips the check", func(t *testing.T) {
+		// Arrange
+		req := Request{Flags: Flags{DryRun: true}}
+
+		// Act
+		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Engine", "20.10.24")}}.Check(req)
+
+		// Assert
+		assert.NoError(t, err)
+	})
 }
 
 func Test_dockerRunner_Run(t *testing.T) {

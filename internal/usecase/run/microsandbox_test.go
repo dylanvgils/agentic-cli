@@ -36,6 +36,28 @@ func Test_microsandboxRunner_Check(t *testing.T) {
 		assert.EqualError(t, err, "msb not found on PATH")
 	})
 
+	t.Run("refuses an older msb", func(t *testing.T) {
+		// Arrange
+		m := &fakeMicrosandbox{version: func() (string, error) { return "0.7.7", nil }}
+
+		// Act
+		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m}.Check(newPrepareRequest(t))
+
+		// Assert
+		assert.EqualError(t, err, "msb 0.7.7 is older than the minimum 0.7.8; update it and run again")
+	})
+
+	t.Run("returns an unreadable msb version", func(t *testing.T) {
+		// Arrange
+		m := &fakeMicrosandbox{version: func() (string, error) { return "", errors.New("no version in msb --version output") }}
+
+		// Act
+		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m}.Check(newPrepareRequest(t))
+
+		// Assert
+		assert.EqualError(t, err, "read the msb version: no version in msb --version output")
+	})
+
 	t.Run("dry run skips the msb check", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)

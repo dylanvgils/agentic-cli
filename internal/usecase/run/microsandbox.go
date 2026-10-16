@@ -23,12 +23,20 @@ func (r microsandboxRunner) Capabilities() sandbox.Capabilities {
 	return r.microsandbox.Capabilities()
 }
 
-// Check refuses a missing msb; a dry run makes no msb calls, so it skips the check.
+// Check refuses a missing msb or one older than minMicrosandbox; a dry run makes no msb calls, so it skips the check.
 func (r microsandboxRunner) Check(req Request) error {
 	if req.Flags.DryRun {
 		return nil
 	}
-	return r.microsandbox.Available()
+	if err := r.microsandbox.Available(); err != nil {
+		return err
+	}
+
+	version, err := r.microsandbox.Version()
+	if err != nil {
+		return fmt.Errorf("read the msb version: %w", err)
+	}
+	return requireVersion("msb", version, minMicrosandbox)
 }
 
 // Run runs rs's image in microsandbox, loading it from Docker first unless msb already holds this exact image and checking

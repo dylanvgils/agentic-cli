@@ -98,6 +98,78 @@ func TestClient_Version(t *testing.T) {
 	})
 }
 
+func TestClient_ServerVersion(t *testing.T) {
+	client := newTestClient()
+
+	t.Run("returns the engine component", func(t *testing.T) {
+		// Arrange
+		var capturedArgs []string
+		stubDockerRun(t, client, func(args ...string) (string, error) {
+			capturedArgs = args
+			return `[{"Name":"containerd","Version":"v2.4.1"},{"Name":"Engine","Version":"29.9.0","Details":{}}]` + "\n", nil
+		})
+
+		// Act
+		engine, version, err := client.ServerVersion()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "Engine", engine)
+		assert.Equal(t, "29.9.0", version)
+		assert.Equal(t, []string{"version", "--format={{json .Server.Components}}"}, capturedArgs)
+	})
+
+	t.Run("unparseable output is an error", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, client, "Engine 29.9.0\n", nil)
+
+		// Act
+		_, _, err := client.ServerVersion()
+
+		// Assert
+		assert.ErrorContains(t, err, "parse docker version output")
+	})
+
+	t.Run("docker error propagates", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, client, "", fmt.Errorf("cannot connect to the docker daemon"))
+
+		// Act
+		_, _, err := client.ServerVersion()
+
+		// Assert
+		assert.EqualError(t, err, "cannot connect to the docker daemon")
+	})
+}
+
+func Test_engineComponent(t *testing.T) {
+	t.Run("picks a component named like an engine", func(t *testing.T) {
+		// Act
+		got, err := engineComponent([]serverComponent{{"Conmon", "2.1.12"}, {"Podman Engine", "5.2.0"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, serverComponent{"Podman Engine", "5.2.0"}, got)
+	})
+
+	t.Run("falls back to the first component", func(t *testing.T) {
+		// Act
+		got, err := engineComponent([]serverComponent{{"Daemon", "1.0.0"}, {"runtime", "2.0.0"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, serverComponent{"Daemon", "1.0.0"}, got)
+	})
+
+	t.Run("no components is an error", func(t *testing.T) {
+		// Act
+		_, err := engineComponent(nil)
+
+		// Assert
+		assert.EqualError(t, err, "docker version lists no server components")
+	})
+}
+
 func TestRunVersionScript(t *testing.T) {
 	client := newTestClient()
 

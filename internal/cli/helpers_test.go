@@ -51,6 +51,7 @@ type fakeDocker struct {
 	listContexts          func() ([]string, error)
 	currentContext        func() (string, error)
 	version               func() (string, error)
+	serverVersion         func() (engine, version string, err error)
 }
 
 func (f *fakeDocker) Context() string { return f.context }
@@ -261,6 +262,14 @@ func (f *fakeDocker) Version() (string, error) {
 	return f.version()
 }
 
+// ServerVersion reports a recent Docker Engine unless stubbed.
+func (f *fakeDocker) ServerVersion() (engine, version string, err error) {
+	if f.serverVersion == nil {
+		return "Engine", "29.0.0", nil
+	}
+	return f.serverVersion()
+}
+
 // overlay copies o's set fields onto f.
 func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.context != "" {
@@ -346,6 +355,9 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 	if o.version != nil {
 		f.version = o.version
+	}
+	if o.serverVersion != nil {
+		f.serverVersion = o.serverVersion
 	}
 }
 
@@ -515,9 +527,10 @@ func (f *fakeMicrosandbox) CleanImage(image string) error {
 	return f.cleanImage(image)
 }
 
+// Version reports a recent msb unless stubbed.
 func (f *fakeMicrosandbox) Version() (string, error) {
 	if f.version == nil {
-		return "", nil
+		return "0.7.8", nil
 	}
 	return f.version()
 }

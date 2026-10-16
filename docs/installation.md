@@ -1,6 +1,6 @@
 # Installation
 
-Requires Docker and Git.
+Requires Git and Docker Engine 26 or later, such as Rancher Desktop. Other engines may work but are untested.
 
 Install directly:
 

@@ -33,12 +33,14 @@ type Docker interface {
 	RunTool(sidecars docker.Sidecars, toolArgs []string) error
 	StopSidecars(sidecars docker.Sidecars)
 	Capabilities() sandbox.Capabilities
+	ServerVersion() (engine, version string, err error)
 }
 
 // Microsandbox is the subset of *microsandbox.Client this package uses.
 type Microsandbox interface {
 	Capabilities() sandbox.Capabilities
 	Available() error
+	Version() (string, error)
 	LoadImage(r io.Reader, tag string) error
 	ImageRefs() ([]string, error)
 	RemoveImage(ref string) error

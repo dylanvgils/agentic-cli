@@ -1,10 +1,16 @@
 package run
 
 import (
+	"fmt"
+
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 )
+
+// dockerEngineName is the engine component Docker Engine reports; others, like Podman, name themselves.
+const dockerEngineName = "Engine"
 
 // dockerRunner runs tools in hardened Docker containers.
 type dockerRunner struct {
@@ -16,9 +22,22 @@ func (r dockerRunner) Capabilities() sandbox.Capabilities {
 	return r.docker.Capabilities()
 }
 
-// Check accepts every run, as Docker needs nothing beyond the capabilities.
-func (r dockerRunner) Check(Request) error {
-	return nil
+// Check refuses a Docker Engine older than minDockerEngine and warns that other engines can't be checked; a dry run starts
+// nothing, so it skips the check.
+func (r dockerRunner) Check(req Request) error {
+	if req.Flags.DryRun {
+		return nil
+	}
+
+	engine, version, err := r.docker.ServerVersion()
+	if err != nil {
+		return fmt.Errorf("read the Docker Engine version: %w", err)
+	}
+	if engine != dockerEngineName {
+		logging.Warnf("%s %s isn't Docker Engine, so agentic can't check that it's recent enough to keep --proxy runs from leaking DNS", engine, version)
+		return nil
+	}
+	return requireVersion("Docker Engine", version, minDockerEngine)
 }
 
 // Run readies the Docker-only host resources rs needs, starts its sidecars and runs it, checking the mounts again right
