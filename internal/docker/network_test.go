@@ -174,7 +174,20 @@ func Test_createRunNetwork(t *testing.T) {
 		assert.Equal(t, "agentic-run-abc", args[len(args)-1])
 	})
 
-	t.Run("is internal with the proxy", func(t *testing.T) {
+	t.Run("is internal with the enforcing proxy", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t, client)
+		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}}, network: "agentic-run-abc"}
+
+		// Act
+		err := client.createRunNetwork(rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, findCall(get(), "network", "create"), "--internal")
+	})
+
+	t.Run("is internal with the monitoring proxy", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
 		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}}, network: "agentic-run-abc"}
