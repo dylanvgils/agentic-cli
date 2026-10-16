@@ -13,7 +13,15 @@ var presets = map[string]preset{
 		env:     []string{"OPENAI_API_KEY"},
 	},
 	"github": {
-		hosts:   []string{"api.github.com", "github.com"},
+		hosts: []string{
+			"api.github.com",
+			"github.com",
+			// Copilot API and remote GitHub MCP server, which Copilot sends the GitHub token to directly
+			"api.githubcopilot.com",
+			"api.individual.githubcopilot.com",
+			"api.business.githubcopilot.com",
+			"api.enterprise.githubcopilot.com",
+		},
 		headers: []string{"Authorization"},
 		env:     []string{"GITHUB_TOKEN", "GH_TOKEN"},
 		git:     &GitAuth{Host: "github.com", User: "x-access-token"},
