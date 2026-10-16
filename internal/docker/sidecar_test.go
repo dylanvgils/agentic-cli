@@ -305,19 +305,17 @@ func Test_removeUnused(t *testing.T) {
 
 	stubSidecarOrphanGrace(t, 5*time.Minute)
 
-	t.Run("removes only the resources no active run uses", func(t *testing.T) {
+	t.Run("removes the unused resources in one call", func(t *testing.T) {
 		// Arrange
-		owned := ownedRow("agentic-proxy-live", "agentic-claude-live", time.Hour) +
-			ownedRow("agentic-proxy-gone", "agentic-claude-gone", time.Hour) +
-			"agentic-proxy-old\t\t\n"
-		get := stubUnusedSweep(t, client, "agentic-claude-live\nagentic-proxy-live\n", owned)
+		owned := ownedRow("agentic-proxy-a", "agentic-claude-gone", time.Hour) + ownedRow("agentic-proxy-b", "agentic-claude-gone", time.Hour)
+		get := stubUnusedSweep(t, client, "", owned)
 
 		// Act
 		err := client.removeUnused(listArgs, rmArgs)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"rm", "--force", "agentic-proxy-gone", "agentic-proxy-old"}, findCall(get(), "rm"))
+		assert.Equal(t, []string{"rm", "--force", "agentic-proxy-a", "agentic-proxy-b"}, findCall(get(), "rm"))
 	})
 
 	t.Run("nothing unused makes no rm call", func(t *testing.T) {
@@ -342,4 +340,22 @@ func Test_removeUnused(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, "daemon down")
 	})
+}
+
+func Test_unusedNames(t *testing.T) {
+	// Arrange
+	stubSidecarOrphanGrace(t, 5*time.Minute)
+	started := time.Now().Add(-time.Hour)
+	resources := []ownedResource{
+		{name: "agentic-proxy-live", owner: "agentic-claude-live", started: started},
+		{name: "agentic-proxy-gone", owner: "agentic-claude-gone", started: started},
+		{name: "agentic-proxy-old"},
+	}
+	existing := map[string]bool{"agentic-claude-live": true}
+
+	// Act
+	names := unusedNames(resources, existing)
+
+	// Assert
+	assert.Equal(t, []string{"agentic-proxy-gone", "agentic-proxy-old"}, names)
 }

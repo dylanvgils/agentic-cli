@@ -142,12 +142,7 @@ func (c *Client) removeUnused(listArgs, rmArgs []string) error {
 		return err
 	}
 
-	var names []string
-	for _, r := range resources {
-		if !r.inUse(existing) {
-			names = append(names, r.name)
-		}
-	}
+	names := unusedNames(resources, existing)
 	if len(names) == 0 {
 		return nil
 	}
@@ -200,6 +195,17 @@ func parseOwnedRow(line string) (ownedResource, bool) {
 // ownedFormat renders name, owner and start time; nameField is .Names or .Name for networks.
 func ownedFormat(nameField string) string {
 	return "{{" + nameField + "}}\t{{.Label \"" + LabelOwner + "\"}}\t{{.Label \"" + LabelStarted + "\"}}"
+}
+
+// unusedNames returns the names of the resources no active run uses.
+func unusedNames(resources []ownedResource, existing map[string]bool) []string {
+	var names []string
+	for _, r := range resources {
+		if !r.inUse(existing) {
+			names = append(names, r.name)
+		}
+	}
+	return names
 }
 
 // noCleanup is the cleanup for paths that set nothing up.
