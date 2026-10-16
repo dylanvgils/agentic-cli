@@ -55,8 +55,7 @@ func (s *Service) Apply(targets []Target) error {
 
 	for _, t := range targets {
 		logging.Step(t.Label)
-		if container, ok := inUse[t.Image]; ok {
-			logging.Warnf("kept %s: in use by %s", t.Image, container)
+		if keptInUse(t.Image, inUse) {
 			continue
 		}
 		if err := s.docker.CleanImage(t.Image); err != nil {
@@ -86,26 +85,11 @@ func (s *Service) GlobalResources() error {
 	}
 
 	// Orphaned sidecars go first, so only active runs keep the sidecar images
-	if err := s.docker.SweepDindResources(s.home); err != nil {
+	if err := s.sweepSidecars(); err != nil {
 		return err
 	}
-	if err := s.docker.SweepProxyResources(); err != nil {
+	if err := s.cleanSidecarImages(); err != nil {
 		return err
-	}
-
-	inUse, err := s.imagesInUse()
-	if err != nil {
-		return err
-	}
-	for _, image := range []string{tools.ProxyImage, tools.DindImage} {
-		logging.Step(image)
-		if container, ok := inUse[image]; ok {
-			logging.Warnf("kept %s: in use by %s", image, container)
-			continue
-		}
-		if err := s.docker.CleanImage(image); err != nil {
-			return err
-		}
 	}
 
 	// Sidecars sit on a run network, so they go first
@@ -115,6 +99,33 @@ func (s *Service) GlobalResources() error {
 
 	logging.Step("network")
 	return s.docker.RemoveNetwork()
+}
+
+// sweepSidecars removes the sidecars no active run uses.
+func (s *Service) sweepSidecars() error {
+	if err := s.docker.SweepDindResources(s.home); err != nil {
+		return err
+	}
+	return s.docker.SweepProxyResources()
+}
+
+// cleanSidecarImages removes the proxy and dind images, keeping those an active run uses.
+func (s *Service) cleanSidecarImages() error {
+	inUse, err := s.imagesInUse()
+	if err != nil {
+		return err
+	}
+
+	for _, image := range []string{tools.ProxyImage, tools.DindImage} {
+		logging.Step(image)
+		if keptInUse(image, inUse) {
+			continue
+		}
+		if err := s.docker.CleanImage(image); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) resolveAll(filterTool string) ([]Target, error) {
@@ -196,4 +207,13 @@ func resolveScoped(names []string, namespace string) ([]Target, error) {
 	}
 
 	return targets, nil
+}
+
+// keptInUse reports whether a running container uses image, warning that it is kept.
+func keptInUse(image string, inUse map[string]string) bool {
+	container, ok := inUse[image]
+	if ok {
+		logging.Warnf("kept %s: in use by %s", image, container)
+	}
+	return ok
 }
