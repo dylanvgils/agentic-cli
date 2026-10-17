@@ -263,7 +263,7 @@ func Test_runtimeFlags(t *testing.T) {
 			Dind:       resolve.DindInput{DindFlag: true},
 			Limits:     sandbox.ResourceLimits{CPUs: "2"},
 			DindLimits: sandbox.ResourceLimits{Memory: "1g"},
-			Runtime:    run.RuntimeMicrosandbox,
+			Runtime:    sandbox.RuntimeMicrosandbox,
 		}, flags)
 	})
 
@@ -273,7 +273,7 @@ func Test_runtimeFlags(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, run.RuntimeDocker, flags.Runtime)
+		assert.Equal(t, sandbox.RuntimeDocker, flags.Runtime)
 	})
 
 	t.Run("unknown runtime returns error", func(t *testing.T) {

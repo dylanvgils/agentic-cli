@@ -43,7 +43,7 @@ type Flags struct {
 	Env        []string
 	Limits     sandbox.ResourceLimits
 	DindLimits sandbox.ResourceLimits
-	Runtime    Runtime
+	Runtime    sandbox.Runtime
 }
 
 // Prepare runs every check and host-side step `agentic run` needs, asking prompter where the user must approve, and returns

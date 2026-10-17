@@ -150,7 +150,7 @@ func newProxyRunSpec(t *testing.T, mode sandbox.ProxyMode) sandbox.RunSpec {
 }
 
 // runtimeRequest returns a Request that runs on runtime.
-func runtimeRequest(runtime Runtime) Request {
+func runtimeRequest(runtime sandbox.Runtime) Request {
 	return Request{Flags: Flags{Runtime: runtime}}
 }
 

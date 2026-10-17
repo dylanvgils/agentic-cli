@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // fakeDocker implements Docker; a nil field succeeds with a zero value.
@@ -49,7 +50,7 @@ func (f *fakeStore) RemoveVolume(name string) error {
 
 // msbRuntime returns store as the microsandbox runtime.
 func msbRuntime(store Store) Runtime {
-	return Runtime{Name: RuntimeMicrosandbox, Store: store}
+	return Runtime{Name: sandbox.RuntimeMicrosandbox, Store: store}
 }
 
 // namesFunc returns a list func that returns names.

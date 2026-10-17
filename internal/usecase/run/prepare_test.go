@@ -49,7 +49,7 @@ func TestPrepare(t *testing.T) {
 	t.Run("missing msb stops before the image check and any prompt", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Flags.Runtime = RuntimeMicrosandbox
+		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
 		inspected := false
 		d := &fakeDocker{inspectImage: func(name string) (*docker.ImageInfo, error) {
 			inspected = true
@@ -101,7 +101,7 @@ func TestPrepare(t *testing.T) {
 	t.Run("microsandbox with the proxy on stops before any prompt", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Flags.Runtime = RuntimeMicrosandbox
+		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
 		req.Flags.Proxy.ProxyFlag = true
 		p := &fakePrompter{}
 
@@ -130,7 +130,7 @@ func TestPrepare(t *testing.T) {
 	t.Run("microsandbox dry run doesn't check for msb", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Flags.Runtime = RuntimeMicrosandbox
+		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
 		req.Flags.DryRun = true
 		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
 
@@ -341,7 +341,7 @@ func Test_resolveInput(t *testing.T) {
 			Env:        []string{"FOO=bar"},
 			Limits:     sandbox.ResourceLimits{CPUs: "2"},
 			DindLimits: sandbox.ResourceLimits{Memory: "1g"},
-			Runtime:    RuntimeMicrosandbox,
+			Runtime:    sandbox.RuntimeMicrosandbox,
 		}
 
 		// Act
@@ -360,7 +360,7 @@ func Test_resolveInput(t *testing.T) {
 			ProxyMode:   sandbox.ProxyMonitor,
 			DindEnabled: true,
 			DindLimits:  sandbox.ResourceLimits{Memory: "1g"},
-			Runtime:     RuntimeMicrosandbox,
+			Runtime:     sandbox.RuntimeMicrosandbox,
 		}, in)
 	})
 

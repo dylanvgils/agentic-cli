@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +19,7 @@ func Test_Service_List(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []Volume{{Name: "maven", Runtime: RuntimeDocker}, {Name: "gradle", Runtime: RuntimeMicrosandbox}}, volumes)
+		assert.Equal(t, []Volume{{Name: "maven", Runtime: sandbox.RuntimeDocker}, {Name: "gradle", Runtime: sandbox.RuntimeMicrosandbox}}, volumes)
 	})
 
 	t.Run("returns a docker listing error", func(t *testing.T) {
@@ -42,7 +43,7 @@ func Test_Service_List(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []Volume{{Name: "maven", Runtime: RuntimeDocker}}, volumes)
+		assert.Equal(t, []Volume{{Name: "maven", Runtime: sandbox.RuntimeDocker}}, volumes)
 		assert.Contains(t, logs.String(), "skipped microsandbox volumes: boom")
 	})
 
@@ -55,7 +56,7 @@ func Test_Service_List(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []Volume{{Name: "maven", Runtime: RuntimeDocker}}, volumes)
+		assert.Equal(t, []Volume{{Name: "maven", Runtime: sandbox.RuntimeDocker}}, volumes)
 	})
 }
 
@@ -66,7 +67,7 @@ func Test_Service_Remove(t *testing.T) {
 		svc := New(&fakeDocker{removeVolume: func(n string) error { got = n; return nil }}, msbRuntime(&fakeStore{}))
 
 		// Act
-		err := svc.Remove(Volume{Name: "maven", Runtime: RuntimeDocker})
+		err := svc.Remove(Volume{Name: "maven", Runtime: sandbox.RuntimeDocker})
 
 		// Assert
 		require.NoError(t, err)
@@ -79,7 +80,7 @@ func Test_Service_Remove(t *testing.T) {
 		svc := New(&fakeDocker{}, msbRuntime(&fakeStore{removeVolume: func(n string) error { got = n; return nil }}))
 
 		// Act
-		err := svc.Remove(Volume{Name: "maven", Runtime: RuntimeMicrosandbox})
+		err := svc.Remove(Volume{Name: "maven", Runtime: sandbox.RuntimeMicrosandbox})
 
 		// Assert
 		require.NoError(t, err)
@@ -88,7 +89,7 @@ func Test_Service_Remove(t *testing.T) {
 
 	t.Run("refuses a runtime it doesn't hold", func(t *testing.T) {
 		// Act
-		err := New(&fakeDocker{}).Remove(Volume{Name: "maven", Runtime: RuntimeMicrosandbox})
+		err := New(&fakeDocker{}).Remove(Volume{Name: "maven", Runtime: sandbox.RuntimeMicrosandbox})
 
 		// Assert
 		assert.EqualError(t, err, `unknown volume runtime "microsandbox"`)
@@ -102,7 +103,7 @@ func Test_Service_RemoveAll(t *testing.T) {
 		var removed []string
 		d := &fakeDocker{removeVolume: func(n string) error { removed = append(removed, "docker "+n); return nil }}
 		m := msbRuntime(&fakeStore{removeVolume: func(n string) error { removed = append(removed, "msb "+n); return nil }})
-		vols := []Volume{{Name: "maven", Runtime: RuntimeDocker}, {Name: "gradle", Runtime: RuntimeMicrosandbox}}
+		vols := []Volume{{Name: "maven", Runtime: sandbox.RuntimeDocker}, {Name: "gradle", Runtime: sandbox.RuntimeMicrosandbox}}
 
 		// Act
 		err := New(d, m).RemoveAll(vols)
@@ -118,7 +119,7 @@ func Test_Service_RemoveAll(t *testing.T) {
 		stubLog(t)
 		calls := 0
 		d := &fakeDocker{removeVolume: func(string) error { calls++; return errors.New("in use") }}
-		vols := []Volume{{Name: "maven", Runtime: RuntimeDocker}, {Name: "npm", Runtime: RuntimeDocker}}
+		vols := []Volume{{Name: "maven", Runtime: sandbox.RuntimeDocker}, {Name: "npm", Runtime: sandbox.RuntimeDocker}}
 
 		// Act
 		err := New(d, msbRuntime(&fakeStore{})).RemoveAll(vols)
@@ -132,7 +133,7 @@ func Test_Service_RemoveAll(t *testing.T) {
 func Test_Volume_Label(t *testing.T) {
 	t.Run("names a docker volume plainly", func(t *testing.T) {
 		// Act
-		label := Volume{Name: "maven", Runtime: RuntimeDocker}.Label()
+		label := Volume{Name: "maven", Runtime: sandbox.RuntimeDocker}.Label()
 
 		// Assert
 		assert.Equal(t, "maven", label)
@@ -140,7 +141,7 @@ func Test_Volume_Label(t *testing.T) {
 
 	t.Run("marks another runtime's volume", func(t *testing.T) {
 		// Act
-		label := Volume{Name: "maven", Runtime: RuntimeMicrosandbox}.Label()
+		label := Volume{Name: "maven", Runtime: sandbox.RuntimeMicrosandbox}.Label()
 
 		// Assert
 		assert.Equal(t, "maven (microsandbox)", label)
@@ -209,12 +210,12 @@ func Test_Service_RemoveNamed(t *testing.T) {
 
 func Test_named(t *testing.T) {
 	// Act
-	volumes := named([]string{"npm", "gradle", "maven"}, RuntimeMicrosandbox)
+	volumes := named([]string{"npm", "gradle", "maven"}, sandbox.RuntimeMicrosandbox)
 
 	// Assert
 	assert.Equal(t, []Volume{
-		{Name: "gradle", Runtime: RuntimeMicrosandbox},
-		{Name: "maven", Runtime: RuntimeMicrosandbox},
-		{Name: "npm", Runtime: RuntimeMicrosandbox},
+		{Name: "gradle", Runtime: sandbox.RuntimeMicrosandbox},
+		{Name: "maven", Runtime: sandbox.RuntimeMicrosandbox},
+		{Name: "npm", Runtime: sandbox.RuntimeMicrosandbox},
 	}, volumes)
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -275,7 +276,7 @@ func Test_newVolumeService(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []volumes.Volume{{Name: "gradle", Runtime: volumes.RuntimeMicrosandbox}}, all)
+		assert.Equal(t, []volumes.Volume{{Name: "gradle", Runtime: sandbox.RuntimeMicrosandbox}}, all)
 	})
 
 	t.Run("leaves microsandbox out when it isn't installed", func(t *testing.T) {

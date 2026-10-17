@@ -106,8 +106,8 @@ func instructionsEnabled(rc *config.AgenticRC) bool {
 	return enabled == nil || *enabled
 }
 
-func writeIntro(b *strings.Builder, runtime Runtime) {
-	if runtime == RuntimeMicrosandbox {
+func writeIntro(b *strings.Builder, runtime sandbox.Runtime) {
+	if runtime == sandbox.RuntimeMicrosandbox {
 		b.WriteString("# Agentic microVM environment\n\n")
 		b.WriteString("This tool is running inside an agentic-cli microVM with its own kernel. ")
 	} else {

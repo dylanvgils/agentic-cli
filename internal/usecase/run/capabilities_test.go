@@ -103,7 +103,7 @@ func Test_checkCapabilities(t *testing.T) {
 
 	t.Run("a missing proxy is an error with the opt-out", func(t *testing.T) {
 		// Arrange
-		req := runtimeRequest(RuntimeMicrosandbox)
+		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
 		req.Project.RC = &config.AgenticRC{}
 		req.Flags.Proxy.ProxyFlag = true
 
@@ -116,7 +116,7 @@ func Test_checkCapabilities(t *testing.T) {
 
 	t.Run("a missing proxy asked for in config names the layer", func(t *testing.T) {
 		// Arrange
-		req := runtimeRequest(RuntimeMicrosandbox)
+		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
 		enabled := true
 		rc := &config.AgenticRC{}
 		rc.Run.Proxy.Enabled = &enabled
@@ -133,7 +133,7 @@ func Test_checkCapabilities(t *testing.T) {
 	t.Run("missing proxy and credentials give one error", func(t *testing.T) {
 		// Arrange
 		req := newCredentialRequest(t)
-		req.Flags.Runtime = RuntimeMicrosandbox
+		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
 		req.Flags.Proxy.MonitorFlag = true
 
 		// Act
@@ -146,7 +146,7 @@ func Test_checkCapabilities(t *testing.T) {
 
 	t.Run("missing secret mounts point to credential injection", func(t *testing.T) {
 		// Arrange
-		req := runtimeRequest(RuntimeMicrosandbox)
+		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
 		req.Project.RC = &config.AgenticRC{}
 		req.Flags.Secrets = []string{"token:/example.test/token"}
 
@@ -173,7 +173,7 @@ func Test_checkCapabilities(t *testing.T) {
 	t.Run("a missing docker daemon only warns", func(t *testing.T) {
 		// Arrange
 		errLog := stubErrLog(t)
-		req := runtimeRequest(RuntimeMicrosandbox)
+		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
 		req.Project.RC = &config.AgenticRC{}
 		req.Flags.Dind.DindFlag = true
 
@@ -188,7 +188,7 @@ func Test_checkCapabilities(t *testing.T) {
 	t.Run("a missing pids limit is silent", func(t *testing.T) {
 		// Arrange
 		errLog := stubErrLog(t)
-		req := runtimeRequest(RuntimeMicrosandbox)
+		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
 		req.Project.RC = &config.AgenticRC{}
 
 		// Act

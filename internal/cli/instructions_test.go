@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,7 +63,7 @@ func Test_instructionsRequest(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, run.RuntimeMicrosandbox, req.Flags.Runtime)
+		assert.Equal(t, sandbox.RuntimeMicrosandbox, req.Flags.Runtime)
 	})
 
 	t.Run("unknown runtime returns error", func(t *testing.T) {

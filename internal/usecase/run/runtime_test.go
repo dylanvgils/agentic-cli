@@ -32,7 +32,7 @@ func Test_Service_Run(t *testing.T) {
 		}})
 
 		// Act
-		err := svc.Run(runtimeRequest(RuntimeDocker), sandbox.RunSpec{Image: "agentic-claude"}, []string{"--help"})
+		err := svc.Run(runtimeRequest(sandbox.RuntimeDocker), sandbox.RunSpec{Image: "agentic-claude"}, []string{"--help"})
 
 		// Assert
 		require.NoError(t, err)
@@ -58,7 +58,7 @@ func Test_Service_Run(t *testing.T) {
 		}})
 
 		// Act
-		err := svc.Run(runtimeRequest(RuntimeMicrosandbox), sandbox.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
+		err := svc.Run(runtimeRequest(sandbox.RuntimeMicrosandbox), sandbox.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -76,7 +76,7 @@ func Test_Service_Run(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", Secrets: []string{"token:/run/secrets/token"}}
 
 		// Act
-		err := svc.Run(runtimeRequest(RuntimeMicrosandbox), rs, nil)
+		err := svc.Run(runtimeRequest(sandbox.RuntimeMicrosandbox), rs, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "can't enforce secret mounts")
@@ -94,7 +94,7 @@ func Test_Service_Run(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
 
 		// Act
-		err := svc.Run(runtimeRequest(RuntimeMicrosandbox), rs, nil)
+		err := svc.Run(runtimeRequest(sandbox.RuntimeMicrosandbox), rs, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
@@ -122,7 +122,7 @@ func Test_Service_Run(t *testing.T) {
 		svc := New(&fakeDocker{}, nil)
 
 		// Act
-		err := svc.Run(runtimeRequest(Runtime("podman")), sandbox.RunSpec{}, nil)
+		err := svc.Run(runtimeRequest(sandbox.Runtime("podman")), sandbox.RunSpec{}, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, `unknown runtime "podman"`)
@@ -134,7 +134,7 @@ func Test_Service_runner(t *testing.T) {
 
 	t.Run("docker and the empty runtime get the docker runner", func(t *testing.T) {
 		// Act
-		docker, dockerErr := svc.runner(RuntimeDocker)
+		docker, dockerErr := svc.runner(sandbox.RuntimeDocker)
 		empty, emptyErr := svc.runner("")
 
 		// Assert
@@ -146,7 +146,7 @@ func Test_Service_runner(t *testing.T) {
 
 	t.Run("microsandbox gets the microsandbox runner", func(t *testing.T) {
 		// Act
-		r, err := svc.runner(RuntimeMicrosandbox)
+		r, err := svc.runner(sandbox.RuntimeMicrosandbox)
 
 		// Assert
 		require.NoError(t, err)
@@ -154,7 +154,7 @@ func Test_Service_runner(t *testing.T) {
 	})
 
 	t.Run("every parseable runtime has a runner", func(t *testing.T) {
-		for _, runtime := range runtimes {
+		for _, runtime := range sandbox.Runtimes {
 			// Act
 			_, err := svc.runner(runtime)
 
@@ -182,7 +182,7 @@ func Test_Service_capabilities(t *testing.T) {
 
 	t.Run("docker and the empty runtime ask docker", func(t *testing.T) {
 		// Act
-		docker := svc.capabilities(RuntimeDocker)
+		docker := svc.capabilities(sandbox.RuntimeDocker)
 		empty := svc.capabilities("")
 
 		// Assert
@@ -192,7 +192,7 @@ func Test_Service_capabilities(t *testing.T) {
 
 	t.Run("microsandbox asks msb", func(t *testing.T) {
 		// Act
-		caps := svc.capabilities(RuntimeMicrosandbox)
+		caps := svc.capabilities(sandbox.RuntimeMicrosandbox)
 
 		// Assert
 		assert.Equal(t, msbCaps, caps)
@@ -224,7 +224,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 	t.Run("a missing capability stops before the msb checks", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Flags.Runtime = RuntimeMicrosandbox
+		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
 		req.Flags.Proxy.ProxyFlag = true
 		checked := false
 		m := &fakeMicrosandbox{available: func() error {
@@ -255,7 +255,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 	t.Run("microsandbox runs its own checks", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Flags.Runtime = RuntimeMicrosandbox
+		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
 		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
 
 		// Act
@@ -273,7 +273,7 @@ func TestParseRuntime(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, RuntimeMicrosandbox, runtime)
+		assert.Equal(t, sandbox.RuntimeMicrosandbox, runtime)
 	})
 
 	t.Run("unknown name lists the supported runtimes", func(t *testing.T) {
