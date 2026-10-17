@@ -25,7 +25,7 @@ type fakeDocker struct {
 	capabilities         func() sandbox.Capabilities
 	inspectImage         func(string) (*docker.ImageInfo, error)
 	resolveContainerHome func(string) string
-	ensureNamedVolumes   func(volumes []string, toolHome, containerHome, chownImage string) error
+	ensureNamedVolumes   func(rs sandbox.RunSpec, chownImage string) error
 	listAllImages        func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	buildProxyImage      func(image, version, sourceDir string, opts tools.BuildOptions) error
 	buildDindImage       func(image string, opts tools.BuildOptions) error
@@ -68,11 +68,11 @@ func (f *fakeDocker) ResolveContainerHome(image string) string {
 	return f.resolveContainerHome(image)
 }
 
-func (f *fakeDocker) EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage string) error {
+func (f *fakeDocker) EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error {
 	if f.ensureNamedVolumes == nil {
 		return nil
 	}
-	return f.ensureNamedVolumes(volumes, toolHome, containerHome, chownImage)
+	return f.ensureNamedVolumes(rs, chownImage)
 }
 
 func (f *fakeDocker) ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {

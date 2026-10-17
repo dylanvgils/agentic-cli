@@ -19,7 +19,7 @@ type Docker interface {
 
 	ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	ResolveContainerHome(image string) string
-	EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage string) error
+	EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error
 	SaveImage(image string, w io.Writer) error
 	StartSidecars(rs sandbox.RunSpec) (docker.Sidecars, error)
 	RunTool(sidecars docker.Sidecars, toolArgs []string) error

@@ -37,7 +37,7 @@ func (h proxyHandle) copyCredentials() (caPEM []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
-	archive, err := credentialArchive(ca, h.credentials)
+	archive, err := credentialArchive(ca, h.credentials, h.user)
 	if err != nil {
 		return nil, err
 	}
@@ -49,15 +49,13 @@ func (h proxyHandle) copyCredentials() (caPEM []byte, err error) {
 	return ca.CertPEM(), nil
 }
 
-// credentialArchive returns a tar of ca, its key and creds in proxyCredentialsSubdir, all owned by the host user.
-func credentialArchive(ca certs.CA, creds []proxy.Credential) ([]byte, error) {
+// credentialArchive returns a tar of ca, its key and creds in proxyCredentialsSubdir, all owned by owner.
+func credentialArchive(ca certs.CA, creds []proxy.Credential, owner platform.User) ([]byte, error) {
 	files, err := credentialFiles(ca, creds)
 	if err != nil {
 		return nil, err
 	}
-
-	host := platform.HostUser()
-	return tarFiles(proxyCredentialsSubdir, files, host.UID, host.GID)
+	return tarFiles(proxyCredentialsSubdir, files, owner.UID, owner.GID)
 }
 
 // credentialFiles returns ca, its key and creds as proxy files.

@@ -41,7 +41,7 @@ type fakeDocker struct {
 	saveImage             func(image string, w io.Writer) error
 	listRunningContainers func() ([]*docker.ContainerInfo, error)
 	removeNetwork         func() error
-	ensureNamedVolumes    func(volumes []string, toolHome, containerHome, chownImage string) error
+	ensureNamedVolumes    func(rs sandbox.RunSpec, chownImage string) error
 	createVolume          func(string) error
 	listVolumeNames       func() ([]string, error)
 	removeVolume          func(string) error
@@ -199,11 +199,11 @@ func (f *fakeDocker) RemoveNetwork() error {
 	return f.removeNetwork()
 }
 
-func (f *fakeDocker) EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage string) error {
+func (f *fakeDocker) EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error {
 	if f.ensureNamedVolumes == nil {
 		return nil
 	}
-	return f.ensureNamedVolumes(volumes, toolHome, containerHome, chownImage)
+	return f.ensureNamedVolumes(rs, chownImage)
 }
 
 func (f *fakeDocker) CreateVolume(name string) error {

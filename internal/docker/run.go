@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -8,6 +9,9 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
+
+// errNoHostUser refuses a RunSpec without a user, as its containers would run as the image's user instead of the host's.
+var errNoHostUser = errors.New("run spec has no host user")
 
 // toolRun is a RunSpec plus the per-run Docker state StartSidecars derives from it.
 type toolRun struct {
@@ -32,6 +36,10 @@ type Sidecars struct {
 
 // StartSidecars names spec's tool container and network and starts its sidecars; a dry run only prints them.
 func (c *Client) StartSidecars(spec sandbox.RunSpec) (Sidecars, error) {
+	if spec.User == nil {
+		return Sidecars{}, errNoHostUser
+	}
+
 	id, err := randID()
 	if err != nil {
 		return Sidecars{}, err

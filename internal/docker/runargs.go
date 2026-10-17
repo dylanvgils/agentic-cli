@@ -1,17 +1,14 @@
 package docker
 
 import (
-	"errors"
-
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // buildRunArgs assembles the tool container's `docker run` args.
 func buildRunArgs(rs toolRun, sidecarArgs, toolArgs []string) ([]string, error) {
-	// Security: without --user the tool would run as the image's user
 	if rs.User == nil {
-		return nil, errors.New("run spec has no host user")
+		return nil, errNoHostUser
 	}
 
 	secretArgs, err := buildSecretArgs(rs.RunSpec)

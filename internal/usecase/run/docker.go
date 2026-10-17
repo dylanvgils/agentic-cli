@@ -76,7 +76,7 @@ func (r dockerRunner) Run(req Request, rs sandbox.RunSpec, toolArgs []string) er
 
 // prepareDockerHost creates rs's named volumes and proxy log dir and builds missing sidecar images.
 func (r dockerRunner) prepareDockerHost(rs sandbox.RunSpec, registry string) error {
-	if err := r.docker.EnsureNamedVolumes(rs.Volumes, rs.ToolHome, rs.ContainerHome, tools.BusyboxImageFor(registry)); err != nil {
+	if err := r.docker.EnsureNamedVolumes(rs, tools.BusyboxImageFor(registry)); err != nil {
 		return err
 	}
 

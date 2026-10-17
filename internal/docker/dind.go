@@ -107,7 +107,7 @@ func (c *Client) newDindHandle(rs toolRun) (dindHandle, error) {
 	}
 
 	if rs.User == nil {
-		return dindHandle{}, errors.New("run spec has no host user")
+		return dindHandle{}, errNoHostUser
 	}
 	identity, err := dind.NewIdentity(*rs.User)
 	if err != nil {

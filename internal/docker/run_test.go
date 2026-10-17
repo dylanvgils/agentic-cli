@@ -14,12 +14,24 @@ import (
 func TestClient_StartSidecars(t *testing.T) {
 	client := newTestClient()
 
+	t.Run("refuses a spec without a host user before touching Docker", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t, client)
+
+		// Act
+		_, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude"})
+
+		// Assert
+		assert.ErrorIs(t, err, errNoHostUser)
+		assert.Empty(t, get())
+	})
+
 	t.Run("names the tool container after its image", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client)
 
 		// Act
-		sidecars, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude"})
+		sidecars, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude", User: &testUser})
 
 		// Assert
 		require.NoError(t, err)
