@@ -51,13 +51,13 @@ func Test_fetchIfDue(t *testing.T) {
 		cfg := &config.State{LastToolVersionCheck: map[string]time.Time{"claude": lastCheck}}
 		require.NoError(t, cfg.Save(home))
 		var fetchCalled bool
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) {
+		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) {
 			fetchCalled = true
 			return "", false, false
 		})
 
 		// Act
-		installed, latest, ok := New(&fakeDocker{}).fetchIfDue(home, "claude", "agentic-claude")
+		installed, latest, ok := New(&fakeDocker{}, upstream).fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		assert.False(t, fetchCalled)
@@ -72,7 +72,7 @@ func Test_fetchIfDue(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(nil, nil)}
 
 		// Act
-		_, _, ok := New(d).fetchIfDue(home, "claude", "agentic-claude")
+		_, _, ok := New(d, nil).fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		assert.False(t, ok)
@@ -84,7 +84,7 @@ func Test_fetchIfDue(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(nil, errors.New("docker error"))}
 
 		// Act
-		_, _, ok := New(d).fetchIfDue(home, "claude", "agentic-claude")
+		_, _, ok := New(d, nil).fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		assert.False(t, ok)
@@ -94,10 +94,10 @@ func Test_fetchIfDue(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "", false, false })
+		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "", false, false })
 
 		// Act
-		_, _, ok := New(d).fetchIfDue(home, "claude", "agentic-claude")
+		_, _, ok := New(d, upstream).fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		assert.False(t, ok)
@@ -107,10 +107,10 @@ func Test_fetchIfDue(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.2.3", false, true })
+		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "1.2.3", false, true })
 
 		// Act
-		_, _, ok := New(d).fetchIfDue(home, "claude", "agentic-claude")
+		_, _, ok := New(d, upstream).fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		assert.False(t, ok)
@@ -120,11 +120,11 @@ func Test_fetchIfDue(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
+		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		before := time.Now()
 
 		// Act
-		_, _, ok := New(d).fetchIfDue(home, "claude", "agentic-claude")
+		_, _, ok := New(d, upstream).fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		require.True(t, ok)
@@ -138,10 +138,10 @@ func Test_fetchIfDue(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "", false, false })
+		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "", false, false })
 
 		// Act
-		_, _, ok := New(d).fetchIfDue(home, "claude", "agentic-claude")
+		_, _, ok := New(d, upstream).fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		require.False(t, ok)
@@ -154,10 +154,10 @@ func Test_fetchIfDue(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
+		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 
 		// Act
-		installed, latest, ok := New(d).fetchIfDue(home, "claude", "agentic-claude")
+		installed, latest, ok := New(d, upstream).fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		assert.True(t, ok)
@@ -181,13 +181,13 @@ func TestCheck(t *testing.T) {
 			Image: "agentic-claude",
 		}
 		var fetchCalled bool
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) {
+		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) {
 			fetchCalled = true
 			return "", false, false
 		})
 
 		// Act
-		err := New(&fakeDocker{}).Check(req, confirmNo, noopUpdate)
+		err := New(&fakeDocker{}, upstream).Check(req, confirmNo, noopUpdate)
 
 		// Assert
 		require.NoError(t, err)
@@ -199,13 +199,13 @@ func TestCheck(t *testing.T) {
 		req := Request{Home: t.TempDir(), RC: &config.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
 		var fetchCalled bool
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) {
+		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) {
 			fetchCalled = true
 			return "1.2.3", false, true
 		})
 
 		// Act
-		err := New(d).Check(req, confirmNo, noopUpdate)
+		err := New(d, upstream).Check(req, confirmNo, noopUpdate)
 
 		// Assert
 		require.NoError(t, err)
@@ -223,13 +223,13 @@ func TestCheck(t *testing.T) {
 		}
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
 		var fetchCalled bool
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) {
+		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) {
 			fetchCalled = true
 			return "1.2.3", false, true
 		})
 
 		// Act
-		err := New(d).Check(req, confirmNo, noopUpdate)
+		err := New(d, upstream).Check(req, confirmNo, noopUpdate)
 
 		// Assert
 		require.NoError(t, err)
@@ -240,7 +240,7 @@ func TestCheck(t *testing.T) {
 		// Arrange
 		req := Request{Home: t.TempDir(), RC: &config.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
+		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		var updateCalledWith string
 		update := func(tool, image string) error {
 			updateCalledWith = tool + ":" + image
@@ -254,7 +254,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).Check(req, confirm, update)
+		err := New(d, upstream).Check(req, confirm, update)
 
 		// Assert
 		require.NoError(t, err)
@@ -266,11 +266,11 @@ func TestCheck(t *testing.T) {
 		// Arrange
 		req := Request{Home: t.TempDir(), RC: &config.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
+		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		update := func(string, string) error { return errors.New("build failed") }
 
 		// Act
-		err := New(d).Check(req, confirmYes, update)
+		err := New(d, upstream).Check(req, confirmYes, update)
 
 		// Assert
 		require.Error(t, err)
@@ -283,7 +283,7 @@ func TestCheck(t *testing.T) {
 		// Arrange
 		req := Request{Home: t.TempDir(), RC: &config.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		stubLatestToolVersion(t, func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
+		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		called := false
 		update := func(string, string) error {
 			called = true
@@ -291,7 +291,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		// Act
-		err := New(d).Check(req, confirmNo, update)
+		err := New(d, upstream).Check(req, confirmNo, update)
 
 		// Assert
 		require.NoError(t, err)

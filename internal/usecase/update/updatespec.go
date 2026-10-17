@@ -20,8 +20,9 @@ const autoPullInterval = 24 * time.Hour
 
 // Service resolves and rebuilds tool images for `agentic update`.
 type Service struct {
-	docker Docker
-	home   string // agentic data dir, for the custom installs store
+	docker   Docker
+	upstream Upstream
+	home     string // agentic data dir, for the custom installs store
 }
 
 // Target is one tool image to rebuild, with its resolved build options.
@@ -42,9 +43,10 @@ type Scope struct {
 	All        bool
 }
 
-// New returns a Service that talks to Docker through d and keeps custom installs under home.
-func New(d Docker, home string) *Service {
-	return &Service{docker: d, home: home}
+// New returns a Service that talks to Docker through d, looks up the latest tool versions through u and keeps custom
+// installs under home.
+func New(d Docker, u Upstream, home string) *Service {
+	return &Service{docker: d, upstream: u, home: home}
 }
 
 // Resolve returns the update targets for scope: every image across all namespaces (All), or the named tools in one namespace,
@@ -131,7 +133,7 @@ func (s *Service) Apply(name, image string, opts tools.BuildOptions) error {
 
 	upToDate := false
 	if info != nil {
-		latest, newer, ok := LatestToolVersion(name, info.Version)
+		latest, newer, ok := s.upstream.LatestToolVersion(name, info.Version)
 		reportBeforeUpdate(info.Version, latest, newer, ok)
 		upToDate = ok && !newer
 	}
@@ -289,7 +291,7 @@ func reportBeforeUpdate(installedLabel, latest string, newer, ok bool) {
 		return
 	}
 
-	before := docker.ParseVersion(installedLabel)
+	before := tools.ParseVersion(installedLabel)
 	if newer {
 		reportVersionChange(before, latest)
 	} else {

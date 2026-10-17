@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -13,12 +14,45 @@ import (
 
 const upstreamFetchTimeout = 5 * time.Second
 
+// versionRe matches the first semver-like token in a version label.
+var versionRe = regexp.MustCompile(`[0-9]+(\.[0-9]+)*`)
+
 type githubRelease struct {
 	TagName string `json:"tag_name"`
 }
 
 type jsonVersion struct {
 	Version string `json:"version"`
+}
+
+// Upstream looks up the tools' latest released versions over the network.
+type Upstream struct{}
+
+// LatestToolVersion fetches tool's latest upstream version and compares it against installedLabel; ok is false when the
+// result is inconclusive, not a confirmation of being up to date.
+func (Upstream) LatestToolVersion(tool, installedLabel string) (latest string, newer bool, ok bool) {
+	current := ParseVersion(installedLabel)
+	if current == "" {
+		return "", false, false
+	}
+
+	fetch := Configs[tool].Build.LatestVersion
+	if fetch == nil {
+		return "", false, false
+	}
+
+	raw, err := fetch()
+	if err != nil {
+		return "", false, false
+	}
+
+	latest = ParseVersion(raw)
+	return latest, latest != current, true
+}
+
+// ParseVersion extracts the first semver-like token from s, for normalizing version labels.
+func ParseVersion(s string) string {
+	return versionRe.FindString(s)
 }
 
 // latestGithubTag fetches the latest release tag for a GitHub repo (e.g. "github/copilot-cli").

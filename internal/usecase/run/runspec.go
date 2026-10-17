@@ -15,6 +15,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 )
 
 // Service builds RunSpecs and run-time instructions for `agentic run`.
@@ -23,6 +24,8 @@ type Service struct {
 	microsandbox Microsandbox
 	// syncMarketplaces clones or updates marketplaces with git; tests swap it so they need no network
 	syncMarketplaces func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error)
+	// upstream looks up the latest tool versions for the update check; tests swap it so they need no network
+	upstream toolupdate.Upstream
 }
 
 // Target identifies the tool and image a RunSpec is being built for.
@@ -64,7 +67,7 @@ type buildRequest struct {
 
 // New returns a Service that talks to Docker through d and to microsandbox through m.
 func New(d Docker, m Microsandbox) *Service {
-	return &Service{docker: d, microsandbox: m, syncMarketplaces: marketplace.Sync}
+	return &Service{docker: d, microsandbox: m, syncMarketplaces: marketplace.Sync, upstream: tools.Upstream{}}
 }
 
 // build assembles the sandbox.RunSpec for target from the approved config, syncing marketplaces; the runtime readies its

@@ -1,10 +1,6 @@
 package toolupdate
 
-import (
-	"testing"
-
-	"github.com/dylanvgils/agentic-cli/internal/docker"
-)
+import "github.com/dylanvgils/agentic-cli/internal/docker"
 
 // fakeDocker implements Docker; a nil field succeeds with a zero value.
 type fakeDocker struct {
@@ -18,11 +14,11 @@ func (f *fakeDocker) InspectImage(image string) (*docker.ImageInfo, error) {
 	return f.inspectImage(image)
 }
 
-func stubLatestToolVersion(t *testing.T, fn func(tool, installedLabel string) (string, bool, bool)) {
-	t.Helper()
-	orig := LatestToolVersion
-	LatestToolVersion = fn
-	t.Cleanup(func() { LatestToolVersion = orig })
+// fakeUpstream implements Upstream with the func itself.
+type fakeUpstream func(tool, installedLabel string) (string, bool, bool)
+
+func (f fakeUpstream) LatestToolVersion(tool, installedLabel string) (string, bool, bool) {
+	return f(tool, installedLabel)
 }
 
 // inspectReturns returns an InspectImage func that always yields info and err.

@@ -58,14 +58,6 @@ func TestExtractVersion(t *testing.T) {
 	})
 }
 
-func TestParseVersion_delegatesToExtractVersion(t *testing.T) {
-	// Act
-	result := ParseVersion("claude v3.7.0")
-
-	// Assert
-	assert.Equal(t, "3.7.0", result)
-}
-
 func TestClient_Version(t *testing.T) {
 	client := newTestClient()
 

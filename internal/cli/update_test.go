@@ -19,7 +19,7 @@ func Test_runUpdate(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
 
-	stubUpdateLatestToolVersion(t, "", false, false)
+	stubUpstream(t, "", false, false)
 
 	t.Run("no cache flag sets opt", func(t *testing.T) {
 		// Arrange

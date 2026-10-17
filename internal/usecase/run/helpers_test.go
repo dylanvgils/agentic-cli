@@ -16,7 +16,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/stretchr/testify/require"
 )
 
@@ -355,12 +354,17 @@ func newCredentialRequest(t *testing.T) Request {
 	return req
 }
 
-// stubLatestToolVersion makes the tool update check see latest as newer for the duration of the test.
-func stubLatestToolVersion(t *testing.T, latest string) {
-	t.Helper()
-	orig := toolupdate.LatestToolVersion
-	toolupdate.LatestToolVersion = func(string, string) (string, bool, bool) { return latest, true, true }
-	t.Cleanup(func() { toolupdate.LatestToolVersion = orig })
+// withLatestToolVersion makes svc's tool update check see latest as newer.
+func withLatestToolVersion(svc *Service, latest string) *Service {
+	svc.upstream = fakeUpstream(latest)
+	return svc
+}
+
+// fakeUpstream implements toolupdate.Upstream, reporting itself as a newer latest version.
+type fakeUpstream string
+
+func (f fakeUpstream) LatestToolVersion(string, string) (string, bool, bool) {
+	return string(f), true, true
 }
 
 // stubLog redirects logging.Log to a buffer for the duration of the test and returns it.

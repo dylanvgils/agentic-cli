@@ -16,7 +16,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
@@ -635,11 +634,23 @@ func stubRemoveVolume(t *testing.T, fn func(string) error) {
 	stubDocker(t, &fakeDocker{removeVolume: fn})
 }
 
-func stubUpdateLatestToolVersion(t *testing.T, latest string, newer, ok bool) {
+// stubUpstream makes upstreamClient report latest, newer and ok for every tool for the duration of the test.
+func stubUpstream(t *testing.T, latest string, newer, ok bool) {
 	t.Helper()
-	orig := update.LatestToolVersion
-	update.LatestToolVersion = func(string, string) (string, bool, bool) { return latest, newer, ok }
-	t.Cleanup(func() { update.LatestToolVersion = orig })
+	orig := upstreamClient
+	upstreamClient = fakeUpstream{latest: latest, newer: newer, ok: ok}
+	t.Cleanup(func() { upstreamClient = orig })
+}
+
+// fakeUpstream implements update.Upstream with a fixed answer.
+type fakeUpstream struct {
+	latest string
+	newer  bool
+	ok     bool
+}
+
+func (f fakeUpstream) LatestToolVersion(string, string) (string, bool, bool) {
+	return f.latest, f.newer, f.ok
 }
 
 func stubCheckGitAvailable(t *testing.T, err error) {
