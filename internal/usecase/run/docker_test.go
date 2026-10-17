@@ -116,7 +116,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		// Arrange
 		var calls []string
 		d := &fakeDocker{
-			ensureNamedVolumes: func([]string, string, string, string) error {
+			ensureNamedVolumes: func(sandbox.RunSpec, string) error {
 				calls = append(calls, "volumes")
 				return nil
 			},
@@ -210,7 +210,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		// Arrange
 		ran := false
 		d := &fakeDocker{
-			ensureNamedVolumes: func([]string, string, string, string) error { return errors.New("volume error") },
+			ensureNamedVolumes: func(sandbox.RunSpec, string) error { return errors.New("volume error") },
 			runTool: func(docker.Sidecars, []string) error {
 				ran = true
 				return nil
@@ -229,7 +229,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		// Arrange
 		setUp, ran := false, false
 		d := &fakeDocker{
-			ensureNamedVolumes: func([]string, string, string, string) error {
+			ensureNamedVolumes: func(sandbox.RunSpec, string) error {
 				setUp = true
 				return nil
 			},
@@ -263,8 +263,8 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 		// Arrange
 		var gotVolumes []string
 		var gotChownImage string
-		d := &fakeDocker{ensureNamedVolumes: func(volumes []string, _, _, chownImage string) error {
-			gotVolumes, gotChownImage = volumes, chownImage
+		d := &fakeDocker{ensureNamedVolumes: func(rs sandbox.RunSpec, chownImage string) error {
+			gotVolumes, gotChownImage = rs.Volumes, chownImage
 			return nil
 		}}
 		rs := sandbox.RunSpec{Volumes: []string{"maven:/cache"}}

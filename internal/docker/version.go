@@ -16,11 +16,6 @@ type serverComponent struct {
 	Version string
 }
 
-// ParseVersion extracts the first semver-like token from a string, for normalizing version labels.
-func ParseVersion(s string) string {
-	return versionRe.FindString(s)
-}
-
 // Version returns the docker CLI's own version, which needs no running daemon.
 func (c *Client) Version() (string, error) {
 	out, err := c.run("version", arg("format", "{{.Client.Version}}"))

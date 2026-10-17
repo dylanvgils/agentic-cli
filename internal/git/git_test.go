@@ -39,13 +39,13 @@ func TestCheckAvailable(t *testing.T) {
 	})
 }
 
-func TestClone(t *testing.T) {
+func TestClient_Clone(t *testing.T) {
 	t.Run("runs git clone with url and dir", func(t *testing.T) {
 		// Arrange
-		get := stubRunCapture(t)
+		client, get := newCaptureClient()
 
 		// Act
-		err := Clone("git@example.com:acme/marketplace.git", "/tmp/acme")
+		err := client.Clone("git@example.com:acme/marketplace.git", "/tmp/acme")
 
 		// Assert
 		require.NoError(t, err)
@@ -61,7 +61,7 @@ func TestClone(t *testing.T) {
 		require.NoError(t, exec.Command("git", "init", "--quiet", "--bare", src).Run())
 
 		// Act
-		err := Clone(src, filepath.Join(t.TempDir(), "clone"))
+		err := New().Clone(src, filepath.Join(t.TempDir(), "clone"))
 
 		// Assert
 		assert.ErrorContains(t, err, "transport 'file' not allowed")
@@ -69,10 +69,10 @@ func TestClone(t *testing.T) {
 
 	t.Run("wraps error when clone fails", func(t *testing.T) {
 		// Arrange
-		stubRunCapture(t, "clone")
+		client, _ := newCaptureClient("clone")
 
 		// Act
-		err := Clone("git@example.com:acme/marketplace.git", "/tmp/acme")
+		err := client.Clone("git@example.com:acme/marketplace.git", "/tmp/acme")
 
 		// Assert
 		assert.ErrorContains(t, err, "git clone")
@@ -80,27 +80,26 @@ func TestClone(t *testing.T) {
 
 	t.Run("timeout is treated as failure", func(t *testing.T) {
 		// Arrange
-		stubTimeout(t, time.Millisecond)
-		stubRun(t, func(ctx context.Context, _ string, _ ...string) ([]byte, error) {
+		client := &Client{timeout: time.Millisecond, run: func(ctx context.Context, _ string, _ ...string) ([]byte, error) {
 			<-ctx.Done()
 			return nil, ctx.Err()
-		})
+		}}
 
 		// Act
-		err := Clone("git@example.com:acme/marketplace.git", "/tmp/acme")
+		err := client.Clone("git@example.com:acme/marketplace.git", "/tmp/acme")
 
 		// Assert
 		assert.Error(t, err)
 	})
 }
 
-func TestFetchReset(t *testing.T) {
+func TestClient_FetchReset(t *testing.T) {
 	t.Run("runs fetch then reset --hard against dir", func(t *testing.T) {
 		// Arrange
-		get := stubRunCapture(t)
+		client, get := newCaptureClient()
 
 		// Act
-		err := FetchReset("/tmp/acme")
+		err := client.FetchReset("/tmp/acme")
 
 		// Assert
 		require.NoError(t, err)
@@ -114,10 +113,10 @@ func TestFetchReset(t *testing.T) {
 
 	t.Run("wraps error when fetch fails", func(t *testing.T) {
 		// Arrange
-		get := stubRunCapture(t, "fetch")
+		client, get := newCaptureClient("fetch")
 
 		// Act
-		err := FetchReset("/tmp/acme")
+		err := client.FetchReset("/tmp/acme")
 
 		// Assert
 		assert.ErrorContains(t, err, "git fetch")
@@ -126,10 +125,10 @@ func TestFetchReset(t *testing.T) {
 
 	t.Run("wraps error when reset fails", func(t *testing.T) {
 		// Arrange
-		stubRunCapture(t, "reset")
+		client, _ := newCaptureClient("reset")
 
 		// Act
-		err := FetchReset("/tmp/acme")
+		err := client.FetchReset("/tmp/acme")
 
 		// Assert
 		assert.ErrorContains(t, err, "git reset")

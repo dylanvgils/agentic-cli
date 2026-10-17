@@ -14,12 +14,24 @@ import (
 func TestClient_StartSidecars(t *testing.T) {
 	client := newTestClient()
 
+	t.Run("refuses a spec without a host user before touching Docker", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t, client)
+
+		// Act
+		_, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude"})
+
+		// Assert
+		assert.ErrorIs(t, err, errNoHostUser)
+		assert.Empty(t, get())
+	})
+
 	t.Run("names the tool container after its image", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client)
 
 		// Act
-		sidecars, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude"})
+		sidecars, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude", User: &testUser})
 
 		// Assert
 		require.NoError(t, err)
@@ -340,36 +352,6 @@ func TestClient_RunTool(t *testing.T) {
 
 		// Act + Assert
 		assert.ErrorContains(t, startAndRunTool(client, rs, nil), "invalid secret")
-	})
-}
-
-func TestIsReservedEnvName(t *testing.T) {
-	t.Run("config names reserved regardless of proxy", func(t *testing.T) {
-		for _, key := range []string{"TOOL_HOME", "CONTAINER_HOME", "AGENTIC_PROXY_CA"} {
-			assert.True(t, IsReservedEnvName(key, false), key)
-			assert.True(t, IsReservedEnvName(key, true), key)
-		}
-	})
-
-	t.Run("proxy names reserved only when proxy enabled", func(t *testing.T) {
-		for _, key := range []string{"HTTP_PROXY", "https_proxy"} {
-			assert.False(t, IsReservedEnvName(key, false), key)
-			assert.True(t, IsReservedEnvName(key, true), key)
-		}
-	})
-
-	t.Run("terminal vars are not reserved", func(t *testing.T) {
-		for _, key := range []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"} {
-			assert.False(t, IsReservedEnvName(key, true), key)
-		}
-	})
-
-	t.Run("non-reserved name", func(t *testing.T) {
-		// Act
-		result := IsReservedEnvName("MAVEN_OPTS", true)
-
-		// Assert
-		assert.False(t, result)
 	})
 }
 

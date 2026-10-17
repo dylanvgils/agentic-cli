@@ -12,7 +12,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/certs"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -30,7 +29,7 @@ func TestStartProxy(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
 		stubDockerRunWithStdinCapture(t, client, nil)
-		rs := toolRun{RunSpec: sandbox.RunSpec{Credentials: creds, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: creds, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
 
 		// Act
 		handle, err := client.startProxy(rs)
@@ -46,7 +45,7 @@ func TestStartProxy(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
 		stubDockerRunWithStdinCapture(t, client, fmt.Errorf("stub: cp failed"))
-		rs := toolRun{RunSpec: sandbox.RunSpec{Credentials: creds, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: creds, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
 
 		// Act
 		_, err := client.startProxy(rs)
@@ -59,7 +58,7 @@ func TestStartProxy(t *testing.T) {
 	t.Run("has nothing to remove when the create fails", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true", "create")
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
 
 		// Act
 		_, err := client.startProxy(rs)
@@ -79,7 +78,7 @@ func TestClient_createProxy(t *testing.T) {
 	t.Run("creates a hardened sidecar on the run network without starting it", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Allow: []string{"api.anthropic.com"}, LogDir: t.TempDir()}}, container: "agentic-claude-abc", network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{Allow: []string{"api.anthropic.com"}, LogDir: t.TempDir()}}, container: "agentic-claude-abc", network: "agentic-run-abc"}
 
 		// Act
 		handle, err := client.createProxy(rs)
@@ -97,6 +96,7 @@ func TestClient_createProxy(t *testing.T) {
 		assert.Contains(t, createArgs, "--network-alias=agentic-proxy")
 		assert.Contains(t, createArgs, "--cap-drop=ALL")
 		assert.Contains(t, createArgs, "--security-opt=no-new-privileges:true")
+		assert.Contains(t, createArgs, "--user="+testUser.String(), "runs as the tool's user, who owns its credential files")
 		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_ALLOW=api.anthropic.com")
 		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_MONITOR=false")
 		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_LOG="+proxyLogMountDir+"/"+proxy.LogFilePrefix+handle.id+".jsonl")
@@ -111,7 +111,7 @@ func TestClient_createProxy(t *testing.T) {
 	t.Run("restricts clients to the run network's subnets", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
 
 		// Act
 		_, err := client.createProxy(rs)
@@ -126,7 +126,7 @@ func TestClient_createProxy(t *testing.T) {
 	t.Run("credentials add their files and an anonymous volume", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
-		rs := toolRun{RunSpec: sandbox.RunSpec{Credentials: creds, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: creds, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
 
 		// Act
 		_, err := client.createProxy(rs)
@@ -145,7 +145,7 @@ func TestClient_createProxy(t *testing.T) {
 	t.Run("without credentials nothing is mounted", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
 
 		// Act
 		_, err := client.createProxy(rs)
@@ -167,7 +167,7 @@ func TestClient_createProxy(t *testing.T) {
 			}
 			return "", nil
 		})
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
 
 		// Act
 		_, err := client.createProxy(rs)
@@ -209,9 +209,17 @@ func Test_proxyHandle_createLogFile(t *testing.T) {
 func TestNewProxyHandle(t *testing.T) {
 	client := newTestClient()
 
+	t.Run("refuses a spec without a host user", func(t *testing.T) {
+		// Act
+		_, err := client.newProxyHandle(toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}}})
+
+		// Assert
+		assert.ErrorIs(t, err, errNoHostUser)
+	})
+
 	t.Run("log path is under the log dir", func(t *testing.T) {
 		// Arrange
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: "/tmp/agentic/logs"}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogDir: "/tmp/agentic/logs"}}}
 
 		// Act
 		handle, err := client.newProxyHandle(rs)
@@ -223,7 +231,7 @@ func TestNewProxyHandle(t *testing.T) {
 
 	t.Run("enforce mode does not monitor", func(t *testing.T) {
 		// Arrange
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}}}
 
 		// Act
 		handle, err := client.newProxyHandle(rs)
@@ -235,7 +243,7 @@ func TestNewProxyHandle(t *testing.T) {
 
 	t.Run("monitor mode monitors", func(t *testing.T) {
 		// Arrange
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}}}
 
 		// Act
 		handle, err := client.newProxyHandle(rs)
@@ -494,7 +502,7 @@ func Test_setupProxy(t *testing.T) {
 	t.Run("dry run makes no docker calls", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Image: "agentic-claude", DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
 
 		// Act
 		env, cleanup, err := client.setupProxy(rs)
@@ -509,7 +517,7 @@ func Test_setupProxy(t *testing.T) {
 	t.Run("cleanup stops the sidecar", func(t *testing.T) {
 		// Arrange
 		calls := stubProxyDocker(t, client, "true")
-		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
 
 		// Act
 		_, cleanup, err := client.setupProxy(rs)
@@ -524,7 +532,7 @@ func Test_setupProxy(t *testing.T) {
 	t.Run("propagates startProxy error", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "network inspect", "network create")
-		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
 
 		// Act
 		env, cleanup, err := client.setupProxy(rs)
@@ -541,7 +549,7 @@ func Test_proxyHandle_boot(t *testing.T) {
 
 	stubProxySettleTime(t, 0)
 	creds := []sandbox.Credential{{Name: "EXAMPLE_API_KEY", Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"}}
-	rs := toolRun{RunSpec: sandbox.RunSpec{Credentials: creds}}
+	rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: creds}}
 
 	t.Run("copies a scoped CA and the credentials in before start, then connects to the egress network", func(t *testing.T) {
 		// Arrange
@@ -570,13 +578,12 @@ func Test_proxyHandle_boot(t *testing.T) {
 		assert.Equal(t, []string{"network", "connect", NetworkName, handle.container}, findCall(calls, "network", "connect"))
 
 		files := readTar(t, stdin()[0].input)
-		host := platform.HostUser()
 		for _, name := range []string{proxy.CACertFile, proxy.CAKeyFile, proxyCredentialsFile} {
 			entry := proxyCredentialsSubdir + "/" + name
 			require.Contains(t, files, entry)
 			assert.Equal(t, int64(0o600), files[entry].header.Mode, name)
-			assert.Equal(t, host.UID, files[entry].header.Uid, name)
-			assert.Equal(t, host.GID, files[entry].header.Gid, name)
+			assert.Equal(t, testUser.UID, files[entry].header.Uid, name)
+			assert.Equal(t, testUser.GID, files[entry].header.Gid, name)
 		}
 
 		var loaded []proxy.Credential
@@ -625,7 +632,7 @@ func Test_proxyHandle_boot(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
 		stdin := stubDockerRunWithStdinCapture(t, client, nil)
-		handle, err := client.newProxyHandle(toolRun{})
+		handle, err := client.newProxyHandle(toolRun{RunSpec: sandbox.RunSpec{User: &testUser}})
 		require.NoError(t, err)
 
 		// Act
@@ -692,7 +699,7 @@ func Test_dryRunProxy(t *testing.T) {
 		calls := stubDockerRunCapture(t, client)
 		stdin := stubDockerRunWithStdinCapture(t, client, nil)
 		creds := []sandbox.Credential{{Name: "EXAMPLE_API_KEY", Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"}}
-		rs := toolRun{RunSpec: sandbox.RunSpec{DryRun: true, Credentials: creds, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, DryRun: true, Credentials: creds, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
 
 		// Act
 		var toolArgs []string

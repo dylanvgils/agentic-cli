@@ -29,10 +29,21 @@ func TestGuardedSettings(t *testing.T) {
 		// Arrange
 		// These stay inside the container or only shape the image, so changing them needs no approval
 		unguarded := []string{
-			"build.bases", "build.apt_packages", "build.versions",
-			"run.pids_limit", "run.cpus", "run.memory", "run.check_updates",
-			"run.dind.pids_limit", "run.dind.cpus", "run.dind.memory",
-			"run.instructions.enabled", "run.instructions.custom",
+			// Build-only, inside the image
+			"build.bases",
+			"build.apt_packages",
+			"build.versions",
+			// Resource limits only shrink what the container gets
+			"run.pids_limit",
+			"run.cpus",
+			"run.memory",
+			"run.dind.pids_limit",
+			"run.dind.cpus",
+			"run.dind.memory",
+			// Host-side behaviour that grants nothing
+			"run.check_updates",
+			"run.instructions.enabled",
+			"run.instructions.custom",
 		}
 
 		// Act

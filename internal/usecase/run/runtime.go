@@ -3,21 +3,9 @@ package run
 import (
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
-
-// Runtime is where a prepared run executes.
-type Runtime string
-
-// Runtimes `agentic run` supports; microsandbox is experimental.
-const (
-	RuntimeDocker       Runtime = "docker"
-	RuntimeMicrosandbox Runtime = "microsandbox"
-)
-
-var runtimes = []Runtime{RuntimeDocker, RuntimeMicrosandbox}
 
 // runner executes prepared runs on one runtime.
 type runner interface {
@@ -47,11 +35,11 @@ func (s *Service) Run(req Request, rs sandbox.RunSpec, toolArgs []string) error 
 }
 
 // runner returns the runner for runtime; an empty runtime is Docker.
-func (s *Service) runner(runtime Runtime) (runner, error) {
+func (s *Service) runner(runtime sandbox.Runtime) (runner, error) {
 	switch runtime {
-	case RuntimeDocker, "":
+	case sandbox.RuntimeDocker, "":
 		return dockerRunner{docker: s.docker}, nil
-	case RuntimeMicrosandbox:
+	case sandbox.RuntimeMicrosandbox:
 		return microsandboxRunner{docker: s.docker, microsandbox: s.microsandbox}, nil
 	default:
 		return nil, unknownRuntimeError(string(runtime))
@@ -59,7 +47,7 @@ func (s *Service) runner(runtime Runtime) (runner, error) {
 }
 
 // capabilities returns what runtime offers; an unknown runtime offers nothing.
-func (s *Service) capabilities(runtime Runtime) sandbox.Capabilities {
+func (s *Service) capabilities(runtime sandbox.Runtime) sandbox.Capabilities {
 	r, err := s.runner(runtime)
 	if err != nil {
 		return sandbox.Capabilities{}
@@ -80,19 +68,15 @@ func (s *Service) checkRuntime(req Request) error {
 	return r.Check(req)
 }
 
-// ParseRuntime returns the Runtime named name, so callers can reject a bad name before Prepare acts on anything.
-func ParseRuntime(name string) (Runtime, error) {
-	runtime := Runtime(name)
-	if !slices.Contains(runtimes, runtime) {
+// ParseRuntime returns the runtime named name, so callers can reject a bad name before Prepare acts on anything.
+func ParseRuntime(name string) (sandbox.Runtime, error) {
+	runtime := sandbox.Runtime(name)
+	if !slices.Contains(sandbox.Runtimes, runtime) {
 		return "", unknownRuntimeError(name)
 	}
 	return runtime, nil
 }
 
 func unknownRuntimeError(name string) error {
-	names := make([]string, len(runtimes))
-	for i, r := range runtimes {
-		names[i] = string(r)
-	}
-	return fmt.Errorf("unknown runtime %q: expected %s", name, strings.Join(names, " or "))
+	return fmt.Errorf("unknown runtime %q: expected %s", name, sandbox.RuntimeNames())
 }

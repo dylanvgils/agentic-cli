@@ -61,11 +61,17 @@ type proxyHandle struct {
 	placeholderEnv []string
 	clientNets     []string
 	caPEM          []byte
+	// user runs the proxy and owns its credential files, the same as the tool
+	user platform.User
 }
 
 // newProxyHandle derives the per-run proxy resource names and credential placeholders without creating any docker
 // resources, so it is safe for dry runs.
 func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
+	if rs.User == nil {
+		return proxyHandle{}, errNoHostUser
+	}
+
 	id, err := randID()
 	if err != nil {
 		return proxyHandle{}, err
@@ -86,6 +92,7 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		monitor:        rs.Proxy.Mode == sandbox.ProxyMonitor,
 		credentials:    creds,
 		placeholderEnv: placeholderEnv,
+		user:           *rs.User,
 	}, nil
 }
 
@@ -326,7 +333,7 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 		arg("network-alias", proxyHostAlias),
 		arg("cap-drop", "ALL"),
 		arg("security-opt", "no-new-privileges:true"),
-		arg("user", platform.HostUser().String()),
+		arg("user", h.user.String()),
 		label(LabelProject, LabelProjectVal),
 	}
 	args = append(args, ownerLabels(rs)...)

@@ -104,7 +104,7 @@ func addDindFlags(cmd *cobra.Command) {
 
 // addRuntimeFlag registers the hidden, experimental --runtime flag shared by the run and instructions commands.
 func addRuntimeFlag(cmd *cobra.Command) {
-	cmd.Flags().String("runtime", string(run.RuntimeDocker), "experimental: where the tool runs (docker or microsandbox)")
+	cmd.Flags().String("runtime", string(sandbox.RuntimeDocker), "experimental: where the tool runs ("+sandbox.RuntimeNames()+")")
 	_ = cmd.Flags().MarkHidden("runtime")
 }
 

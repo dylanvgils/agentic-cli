@@ -71,18 +71,17 @@ func inspectSequence(results ...*docker.ImageInfo) func(string) (*docker.ImageIn
 	}
 }
 
-// stubLatestToolVersion makes LatestToolVersion return latest, newer, ok and returns a getter for how often it was called.
-func stubLatestToolVersion(t *testing.T, latest string, newer, ok bool) func() int {
-	t.Helper()
-	calls := 0
-	orig := LatestToolVersion
-	LatestToolVersion = func(string, string) (string, bool, bool) {
-		calls++
-		return latest, newer, ok
-	}
-	t.Cleanup(func() { LatestToolVersion = orig })
+// fakeUpstream implements Upstream, returning latest, newer and ok and counting the calls.
+type fakeUpstream struct {
+	latest string
+	newer  bool
+	ok     bool
+	calls  int
+}
 
-	return func() int { return calls }
+func (f *fakeUpstream) LatestToolVersion(string, string) (string, bool, bool) {
+	f.calls++
+	return f.latest, f.newer, f.ok
 }
 
 // captureStdout replaces os.Stdout with a pipe and returns what was written (e.g. DryRun's Dockerfile output); for logging.Step/Detail output, use captureLog.

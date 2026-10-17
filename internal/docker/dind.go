@@ -90,15 +90,6 @@ var dindSecurityOpts = []string{
 // dindDevices are the only host devices exposed; slirp4netns needs tun.
 var dindDevices = []string{"/dev/net/tun"}
 
-// dindReservedEnvNames point the tool at the sidecar; overriding one would bypass it.
-var dindReservedEnvNames = map[string]bool{
-	"DOCKER_HOST":       true,
-	"DOCKER_TLS_VERIFY": true,
-	"DOCKER_CERT_PATH":  true,
-	"DOCKER_CONTEXT":    true,
-	"DOCKER_CONFIG":     true,
-}
-
 // dindHandle identifies the per-run sidecar and its run dir.
 type dindHandle struct {
 	client    *Client
@@ -116,7 +107,7 @@ func (c *Client) newDindHandle(rs toolRun) (dindHandle, error) {
 	}
 
 	if rs.User == nil {
-		return dindHandle{}, errors.New("run spec has no host user")
+		return dindHandle{}, errNoHostUser
 	}
 	identity, err := dind.NewIdentity(*rs.User)
 	if err != nil {
@@ -263,11 +254,6 @@ func (h dindHandle) waitReady(interrupt <-chan os.Signal) error {
 func (h dindHandle) exited() bool {
 	out, err := h.client.run("inspect", arg("format", "{{.State.Running}}"), h.container)
 	return err != nil || strings.TrimSpace(out) == "false"
-}
-
-// IsReservedDindEnvName reports whether key is an env var the Docker sidecar manages.
-func IsReservedDindEnvName(key string) bool {
-	return dindReservedEnvNames[key]
 }
 
 // SweepDindResources removes sidecars and run dirs left behind by interrupted runs, keeping those of active runs.

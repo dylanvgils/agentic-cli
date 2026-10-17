@@ -2,11 +2,12 @@ package tools
 
 import (
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 const (
 	// ProxyCAEnvName carries the proxy CA cert PEM into the tool container; set by agentic when proxy credentials are configured.
-	ProxyCAEnvName = "AGENTIC_PROXY_CA"
+	ProxyCAEnvName = sandbox.ProxyCAEnvName
 
 	// ProxyTrustLabel marks a tool image whose entrypoint runs proxyTrustBlock; older images ignore ProxyCAEnvName.
 	ProxyTrustLabel = "agentic.proxy-trust"

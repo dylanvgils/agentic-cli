@@ -106,3 +106,13 @@ func openTestRoot(t *testing.T) (*os.Root, string) {
 	t.Cleanup(func() { _ = root.Close() })
 	return root, dir
 }
+
+// stubLatestVersion replaces tool's Build.LatestVersion fetcher for the duration of the test.
+func stubLatestVersion(t *testing.T, tool string, fn func() (string, error)) {
+	t.Helper()
+	orig := Configs[tool]
+	cfg := orig
+	cfg.Build.LatestVersion = fn
+	Configs[tool] = cfg
+	t.Cleanup(func() { Configs[tool] = orig })
+}

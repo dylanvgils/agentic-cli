@@ -30,7 +30,7 @@ func Test_setupSidecars(t *testing.T) {
 	t.Run("sweeps orphaned sidecars first", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Image: "agentic-claude"}}
 
 		// Act
 		_, _, err := client.setupSidecars(rs)
@@ -43,7 +43,7 @@ func Test_setupSidecars(t *testing.T) {
 	t.Run("creates the run network after the sweep and removes it in cleanup", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Image: "agentic-claude"}, network: "agentic-run-abc"}
 
 		// Act
 		_, cleanup, err := client.setupSidecars(rs)
@@ -62,6 +62,7 @@ func Test_setupSidecars(t *testing.T) {
 		// Arrange
 		calls := stubProxyDocker(t, client, "true", "create")
 		rs := toolRun{RunSpec: sandbox.RunSpec{
+			User:  &testUser,
 			Image: "agentic-claude",
 			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()},
 		}, network: "agentic-run-abc"}
@@ -79,6 +80,7 @@ func Test_setupSidecars(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client, "network create")
 		rs := toolRun{RunSpec: sandbox.RunSpec{
+			User:  &testUser,
 			Image: "agentic-claude",
 			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()},
 		}, network: "agentic-run-abc"}
@@ -94,7 +96,7 @@ func Test_setupSidecars(t *testing.T) {
 	t.Run("dry run prints the run network and makes no docker calls", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Image: "agentic-claude", DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}}, network: "agentic-run-abc"}
 
 		// Act
 		var err error
@@ -114,6 +116,7 @@ func Test_setupSidecars(t *testing.T) {
 		stubDindReadyTimeout(t)
 		calls := stubProxyDocker(t, client, "true", "exec")
 		rs := toolRun{RunSpec: sandbox.RunSpec{
+			User:     &testUser,
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),
 			Proxy:    sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()},

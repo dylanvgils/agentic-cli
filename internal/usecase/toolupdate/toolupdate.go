@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
 // checkInterval bounds how often `agentic run` re-checks a tool's upstream version.
@@ -14,7 +14,8 @@ const checkInterval = 6 * time.Hour
 
 // Service checks for and offers upstream tool updates during `agentic run`.
 type Service struct {
-	docker Docker
+	docker   Docker
+	upstream Upstream
 }
 
 // Confirm tells the user an update from installed to latest is available and reports whether to apply it now.
@@ -31,9 +32,9 @@ type Request struct {
 	Image string
 }
 
-// New returns a Service that talks to Docker through d.
-func New(d Docker) *Service {
-	return &Service{docker: d}
+// New returns a Service that talks to Docker through d and looks up the latest tool versions through u.
+func New(d Docker, u Upstream) *Service {
+	return &Service{docker: d, upstream: u}
 }
 
 // Check checks upstream for a newer version of req.Tool at most once per checkInterval and applies it via update when confirm agrees; only a confirmed update that fails returns an error.
@@ -74,7 +75,7 @@ func (s *Service) fetchIfDue(home, toolName, image string) (installed, latest st
 		return "", "", false
 	}
 
-	latestVersion, newer, fetchOK := LatestToolVersion(toolName, info.Version)
+	latestVersion, newer, fetchOK := s.upstream.LatestToolVersion(toolName, info.Version)
 	if !fetchOK {
 		return "", "", false
 	}
@@ -85,7 +86,7 @@ func (s *Service) fetchIfDue(home, toolName, image string) (installed, latest st
 		return "", "", false
 	}
 
-	return docker.ParseVersion(info.Version), latestVersion, true
+	return tools.ParseVersion(info.Version), latestVersion, true
 }
 
 // MarkChecked records tool as checked now, so `agentic run` skips its upstream check for checkInterval.

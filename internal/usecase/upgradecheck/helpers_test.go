@@ -8,56 +8,36 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
 
+// fakeReleases implements Releases, returning latest/latestErr and updateErr and recording the calls.
+type fakeReleases struct {
+	latest    string
+	latestErr error
+	updateErr error
+
+	fetched     bool
+	updatedWith string
+}
+
+func (f *fakeReleases) LatestVersion() (string, error) {
+	f.fetched = true
+	return f.latest, f.latestErr
+}
+
+func (f *fakeReleases) Update(version string) error {
+	f.updatedWith = version
+	return f.updateErr
+}
+
+// newTestService returns a Service over r whose progress goes to the returned buffer.
+func newTestService(r Releases) (*Service, *bytes.Buffer) {
+	var buf bytes.Buffer
+	return New(r, logging.New(&buf)), &buf
+}
+
 // stubBuildVersion sets buildinfo.Version for the duration of the test.
 func stubBuildVersion(t *testing.T, v string) {
 	t.Helper()
 	orig := buildinfo.Version
 	buildinfo.Version = v
 	t.Cleanup(func() { buildinfo.Version = orig })
-}
-
-// stubExit records the exit code Exit was called with instead of exiting; -1 means it was never called.
-func stubExit(t *testing.T) *int {
-	t.Helper()
-	code := -1
-	orig := Exit
-	Exit = func(c int) { code = c }
-	t.Cleanup(func() { Exit = orig })
-	return &code
-}
-
-// stubLatestVersion makes LatestVersion return v and err, reporting whether it was called.
-func stubLatestVersion(t *testing.T, v string, err error) *bool {
-	t.Helper()
-	var called bool
-	orig := LatestVersion
-	LatestVersion = func() (string, error) {
-		called = true
-		return v, err
-	}
-	t.Cleanup(func() { LatestVersion = orig })
-	return &called
-}
-
-// stubNotify redirects Notify to a buffer for the duration of the test.
-func stubNotify(t *testing.T) *bytes.Buffer {
-	t.Helper()
-	var buf bytes.Buffer
-	orig := Notify
-	Notify = logging.New(&buf)
-	t.Cleanup(func() { Notify = orig })
-	return &buf
-}
-
-// stubUpdate records the version Update was called with, returning err.
-func stubUpdate(t *testing.T, err error) *string {
-	t.Helper()
-	var calledWith string
-	orig := Update
-	Update = func(v string) error {
-		calledWith = v
-		return err
-	}
-	t.Cleanup(func() { Update = orig })
-	return &calledWith
 }

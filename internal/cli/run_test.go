@@ -259,5 +259,5 @@ func Test_runRequest(t *testing.T) {
 	assert.Equal(t, []string{"/example.test/a:/a"}, req.Flags.Volumes)
 	assert.Equal(t, []string{"token:/example.test/token"}, req.Flags.Secrets)
 	assert.Equal(t, []string{"FOO=bar"}, req.Flags.Env)
-	assert.Equal(t, run.RuntimeMicrosandbox, req.Flags.Runtime)
+	assert.Equal(t, sandbox.RuntimeMicrosandbox, req.Flags.Runtime)
 }

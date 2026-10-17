@@ -29,6 +29,9 @@ var (
 	ErrBinaryNotFound   = errors.New("binary not found in release archive")
 )
 
+// Releases fetches and installs agentic's GitHub releases.
+type Releases struct{}
+
 // ShouldCheck reports whether enough time has passed since lastCheck to run another update check; nil (never checked) always returns true.
 func ShouldCheck(lastCheck *time.Time) bool {
 	if lastCheck == nil {
@@ -51,7 +54,7 @@ func IsNewer(current, latest string) bool {
 }
 
 // Update downloads the given release version and replaces the running binary.
-func Update(version string) error {
+func (Releases) Update(version string) error {
 	execPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("resolving executable path: %w", err)

@@ -10,13 +10,14 @@ import (
 )
 
 func Test_runUpgrade(t *testing.T) {
+	origVersion := buildinfo.Version
+	buildinfo.Version = "v1.0.0"
+	t.Cleanup(func() { buildinfo.Version = origVersion })
+
 	t.Run("prints already up to date when no newer version", func(t *testing.T) {
 		// Arrange
-		stubFetchLatestVersion(t, "v1.0.0", nil)
-		stubPerformUpdate(t, nil)
-		origVersion := buildinfo.Version
-		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = origVersion })
+		releases := &fakeReleases{latest: "v1.0.0"}
+		stubReleases(t, releases)
 
 		// Act
 		out := captureLog(t, func() {
@@ -27,21 +28,13 @@ func Test_runUpgrade(t *testing.T) {
 		// Assert
 		assert.Contains(t, out, "already up to date")
 		assert.Contains(t, out, "v1.0.0")
+		assert.Empty(t, releases.updatedWith)
 	})
 
-	t.Run("calls performUpdate when newer version available", func(t *testing.T) {
+	t.Run("updates when a newer version is available", func(t *testing.T) {
 		// Arrange
-		var updateCalledWith string
-		stubFetchLatestVersion(t, "v1.1.0", nil)
-		orig := performUpdate
-		performUpdate = func(v string) error {
-			updateCalledWith = v
-			return nil
-		}
-		t.Cleanup(func() { performUpdate = orig })
-		origVersion := buildinfo.Version
-		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = origVersion })
+		releases := &fakeReleases{latest: "v1.1.0"}
+		stubReleases(t, releases)
 
 		// Act
 		out := captureLog(t, func() {
@@ -50,51 +43,38 @@ func Test_runUpgrade(t *testing.T) {
 		})
 
 		// Assert
-		assert.Equal(t, "v1.1.0", updateCalledWith)
+		assert.Equal(t, "v1.1.0", releases.updatedWith)
 		assert.Contains(t, out, "updated to v1.1.0")
 	})
 
 	t.Run("returns error when fetch fails", func(t *testing.T) {
 		// Arrange
-		stubFetchLatestVersion(t, "", errors.New("network error"))
-		origVersion := buildinfo.Version
-		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = origVersion })
+		stubReleases(t, &fakeReleases{latestErr: errors.New("network error")})
 
 		// Act
 		err := runUpgrade(upgradeCmd, nil)
 
 		// Assert
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "network error")
 	})
 
 	t.Run("returns error when update fails", func(t *testing.T) {
 		// Arrange
-		stubFetchLatestVersion(t, "v1.1.0", nil)
-		stubPerformUpdate(t, errors.New("permission denied"))
-		origVersion := buildinfo.Version
-		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = origVersion })
+		stubReleases(t, &fakeReleases{latest: "v1.1.0", updateErr: errors.New("permission denied")})
 
 		// Act
 		err := runUpgrade(upgradeCmd, nil)
 
 		// Assert
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "permission denied")
 	})
 
 	t.Run("force skips up-to-date check", func(t *testing.T) {
 		// Arrange
 		upgradeForce = true
 		t.Cleanup(func() { upgradeForce = false })
-		var updateCalledWith string
-		stubFetchLatestVersion(t, "v1.0.0", nil)
-		orig := performUpdate
-		performUpdate = func(v string) error { updateCalledWith = v; return nil }
-		t.Cleanup(func() { performUpdate = orig })
-		origVersion := buildinfo.Version
-		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = origVersion })
+		releases := &fakeReleases{latest: "v1.0.0"}
+		stubReleases(t, releases)
 		logBuf := stubErrLog(t)
 
 		// Act
@@ -102,7 +82,7 @@ func Test_runUpgrade(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "v1.0.0", updateCalledWith)
+		assert.Equal(t, "v1.0.0", releases.updatedWith)
 		assert.Contains(t, logBuf.String(), "updating")
 	})
 
@@ -110,17 +90,8 @@ func Test_runUpgrade(t *testing.T) {
 		// Arrange
 		upgradeVersion = "v0.9.0"
 		t.Cleanup(func() { upgradeVersion = "" })
-		var fetchCalled bool
-		orig := fetchLatestVersion
-		fetchLatestVersion = func() (string, error) { fetchCalled = true; return "v1.0.0", nil }
-		t.Cleanup(func() { fetchLatestVersion = orig })
-		var updateCalledWith string
-		origUpdate := performUpdate
-		performUpdate = func(v string) error { updateCalledWith = v; return nil }
-		t.Cleanup(func() { performUpdate = origUpdate })
-		origVersion := buildinfo.Version
-		buildinfo.Version = "v1.0.0"
-		t.Cleanup(func() { buildinfo.Version = origVersion })
+		releases := &fakeReleases{latest: "v1.0.0"}
+		stubReleases(t, releases)
 
 		// Act
 		out := captureLog(t, func() {
@@ -129,8 +100,8 @@ func Test_runUpgrade(t *testing.T) {
 		})
 
 		// Assert
-		assert.False(t, fetchCalled)
-		assert.Equal(t, "v0.9.0", updateCalledWith)
+		assert.False(t, releases.fetched)
+		assert.Equal(t, "v0.9.0", releases.updatedWith)
 		assert.Contains(t, out, "v0.9.0")
 	})
 }

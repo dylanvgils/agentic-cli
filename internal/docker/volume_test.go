@@ -6,17 +6,31 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 func TestEnsureNamedVolumes(t *testing.T) {
 	client := newTestClient()
+
+	t.Run("refuses a spec without a host user", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t, client)
+
+		// Act
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{Volumes: []string{"maven:/container"}}, "busybox")
+
+		// Assert
+		assert.ErrorIs(t, err, errNoHostUser)
+		assert.Empty(t, get())
+	})
 
 	t.Run("skips absolute path", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := client.EnsureNamedVolumes([]string{"/host/path:/container"}, "", "", "")
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{"/host/path:/container"}}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -28,7 +42,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := client.EnsureNamedVolumes([]string{"$TOOL_HOME/data:/container"}, "/home/.agentic", "", "")
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{"$TOOL_HOME/data:/container"}, ToolHome: "/home/.agentic"}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -40,7 +54,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := client.EnsureNamedVolumes([]string{`C:\Users\foo:/container`}, "", "", "")
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{`C:\Users\foo:/container`}}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -52,7 +66,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := client.EnsureNamedVolumes([]string{`c:\data:/container`}, "", "", "")
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{`c:\data:/container`}}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -64,7 +78,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := client.EnsureNamedVolumes([]string{":/container"}, "", "", "")
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{":/container"}}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -76,7 +90,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t, client) // inspect succeeds -> volume exists
 
 		// Act
-		err := client.EnsureNamedVolumes([]string{"maven:/container"}, "", "", "")
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{"maven:/container"}}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -90,7 +104,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t, client, "volume inspect")
 
 		// Act
-		err := client.EnsureNamedVolumes([]string{"maven:/container"}, "", "", "busybox")
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{"maven:/container"}}, "busybox")
 
 		// Assert
 		require.NoError(t, err)
@@ -102,7 +116,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		assert.Contains(t, calls[2].args, "--volume=maven:/vol")
 		assert.Contains(t, calls[2].args, "--user=root")
 		assert.Contains(t, calls[2].args, "busybox")
-		assert.Contains(t, calls[2].args, "chown")
+		assert.Equal(t, []string{"chown", testUser.String(), "/vol"}, calls[2].args[len(calls[2].args)-3:], "owned by the run's user")
 	})
 
 	t.Run("create fails returns error", func(t *testing.T) {
@@ -110,7 +124,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		stubDockerRunCapture(t, client, "volume inspect", "volume create")
 
 		// Act
-		err := client.EnsureNamedVolumes([]string{"maven:/container"}, "", "", "")
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{"maven:/container"}}, "")
 
 		// Assert
 		assert.ErrorContains(t, err, "create volume maven")
@@ -121,7 +135,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		stubDockerRunCapture(t, client, "volume inspect", "run")
 
 		// Act
-		err := client.EnsureNamedVolumes([]string{"maven:/container"}, "", "", "")
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{"maven:/container"}}, "")
 
 		// Assert
 		assert.ErrorContains(t, err, "chown volume maven")
@@ -132,11 +146,11 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t, client, "volume inspect")
 
 		// Act
-		err := client.EnsureNamedVolumes([]string{
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{
 			"/host:/container",
 			"maven:/m2",
 			"gradle:/gradle",
-		}, "", "", "")
+		}}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -157,7 +171,7 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := client.EnsureNamedVolumes([]string{}, "", "", "")
+		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{}}, "")
 
 		// Assert
 		require.NoError(t, err)

@@ -382,26 +382,6 @@ func Test_sweepDindRunDirs(t *testing.T) {
 	})
 }
 
-func TestIsReservedDindEnvName(t *testing.T) {
-	t.Run("docker client vars are reserved", func(t *testing.T) {
-		for _, key := range []string{"DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_CONTEXT", "DOCKER_CONFIG"} {
-			// Act
-			result := IsReservedDindEnvName(key)
-
-			// Assert
-			assert.True(t, result, key)
-		}
-	})
-
-	t.Run("unrelated var is not reserved", func(t *testing.T) {
-		// Act
-		result := IsReservedDindEnvName("DOCKER_BUILDKIT")
-
-		// Assert
-		assert.False(t, result)
-	})
-}
-
 func Test_workspaceVolumes(t *testing.T) {
 	// Arrange
 	rs := sandbox.RunSpec{

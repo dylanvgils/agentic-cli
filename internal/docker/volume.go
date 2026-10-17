@@ -6,18 +6,23 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
-// EnsureNamedVolumes creates and fixes ownership for any spec referencing a named Docker volume (no leading "/" on the host side).
-func (c *Client) EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage string) error {
-	for _, volume := range volumes {
-		expanded := mount.NormalizeMountSpec(mount.ExpandMountSpec(volume, toolHome, containerHome))
+// EnsureNamedVolumes creates each named Docker volume in rs's volumes (no leading "/" on the host side), owned by rs's user.
+func (c *Client) EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error {
+	if rs.User == nil {
+		return errNoHostUser
+	}
+
+	for _, volume := range rs.Volumes {
+		expanded := mount.NormalizeMountSpec(mount.ExpandMountSpec(volume, rs.ToolHome, rs.ContainerHome))
 		if !mount.IsNamedVolume(expanded) {
 			continue
 		}
 
 		host := mount.HostPart(expanded)
-		if err := c.ensureVolume(host, chownImage); err != nil {
+		if err := c.ensureVolume(host, chownImage, *rs.User); err != nil {
 			return err
 		}
 	}
@@ -52,7 +57,7 @@ func (c *Client) RemoveVolume(name string) error {
 	return err
 }
 
-func (c *Client) ensureVolume(name, chownImage string) error {
+func (c *Client) ensureVolume(name, chownImage string, owner platform.User) error {
 	if _, err := c.run("volume", "inspect", name); err == nil {
 		return nil
 	}
@@ -66,7 +71,7 @@ func (c *Client) ensureVolume(name, chownImage string) error {
 		"run", "--rm",
 		arg("volume", fmt.Sprintf("%s:/vol", name)),
 		arg("user", "root"),
-		chownImage, "chown", platform.HostUser().String(), "/vol",
+		chownImage, "chown", owner.String(), "/vol",
 	}
 
 	if _, err := c.run(chownArgs...); err != nil {

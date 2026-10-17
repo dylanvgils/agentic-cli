@@ -248,7 +248,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("microsandbox describes a VM instead of the hardened container", func(t *testing.T) {
 		// Arrange
-		in := Input{Runtime: RuntimeMicrosandbox, Limits: sandbox.ResourceLimits{CPUs: "3", Memory: "6g"}}
+		in := Input{Runtime: sandbox.RuntimeMicrosandbox, Limits: sandbox.ResourceLimits{CPUs: "3", Memory: "6g"}}
 
 		// Act
 		content, err := New(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["copilot"], &config.AgenticRC{})
@@ -270,7 +270,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("microsandbox omits the proxy and sidecar it lacks even when enabled", func(t *testing.T) {
 		// Arrange
-		in := Input{Runtime: RuntimeMicrosandbox, ProxyMode: sandbox.ProxyEnforce, DindEnabled: true}
+		in := Input{Runtime: sandbox.RuntimeMicrosandbox, ProxyMode: sandbox.ProxyEnforce, DindEnabled: true}
 
 		// Act
 		content, err := New(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
@@ -285,7 +285,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("microsandbox omits the docker section when dind disabled", func(t *testing.T) {
 		// Arrange
-		in := Input{Runtime: RuntimeMicrosandbox}
+		in := Input{Runtime: sandbox.RuntimeMicrosandbox}
 
 		// Act
 		content, err := New(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
@@ -297,7 +297,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("microsandbox still appends custom instructions", func(t *testing.T) {
 		// Arrange
-		in := Input{Runtime: RuntimeMicrosandbox}
+		in := Input{Runtime: sandbox.RuntimeMicrosandbox}
 		rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Custom: "Always run go test before finishing."}}}
 
 		// Act

@@ -6,12 +6,7 @@ import (
 	"slices"
 
 	"github.com/dylanvgils/agentic-cli/internal/logging"
-)
-
-// Runtimes a Volume can live in.
-const (
-	RuntimeDocker       = "docker"
-	RuntimeMicrosandbox = "microsandbox"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // Service manages agentic's named volumes in every runtime.
@@ -22,22 +17,22 @@ type Service struct {
 
 // Runtime is a runtime besides Docker that holds named volumes.
 type Runtime struct {
-	Name  string
+	Name  sandbox.Runtime
 	Store Store
 }
 
 // Volume is one named volume and the runtime that holds it.
 type Volume struct {
 	Name    string
-	Runtime string
+	Runtime sandbox.Runtime
 }
 
 // Label names v, marking the volumes that aren't Docker's with their runtime.
 func (v Volume) Label() string {
-	if v.Runtime == RuntimeDocker {
+	if v.Runtime == sandbox.RuntimeDocker {
 		return v.Name
 	}
-	return v.Name + " (" + v.Runtime + ")"
+	return v.Name + " (" + string(v.Runtime) + ")"
 }
 
 // New returns a Service over Docker volumes and those of the other installed runtimes.
@@ -53,7 +48,7 @@ func (s *Service) List() ([]Volume, error) {
 		return nil, err
 	}
 
-	volumes := named(names, RuntimeDocker)
+	volumes := named(names, sandbox.RuntimeDocker)
 	for _, r := range s.others {
 		names, err := r.Store.ListVolumeNames()
 		if err != nil {
@@ -105,8 +100,8 @@ func (s *Service) RemoveNamed(name string) error {
 }
 
 // store returns the store of the runtime named runtime.
-func (s *Service) store(runtime string) (Store, error) {
-	if runtime == RuntimeDocker {
+func (s *Service) store(runtime sandbox.Runtime) (Store, error) {
+	if runtime == sandbox.RuntimeDocker {
 		return s.docker, nil
 	}
 	for _, r := range s.others {
@@ -118,7 +113,7 @@ func (s *Service) store(runtime string) (Store, error) {
 }
 
 // named pairs each of names with runtime, sorted by name so every runtime lists in the same order.
-func named(names []string, runtime string) []Volume {
+func named(names []string, runtime sandbox.Runtime) []Volume {
 	volumes := make([]Volume, 0, len(names))
 	for _, n := range slices.Sorted(slices.Values(names)) {
 		volumes = append(volumes, Volume{Name: n, Runtime: runtime})

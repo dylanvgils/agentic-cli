@@ -8,8 +8,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-
-	"github.com/dylanvgils/agentic-cli/internal/git"
 )
 
 // MarketplacesDirName is the subdirectory under $TOOL_HOME where synced marketplace clones live.
@@ -18,11 +16,16 @@ const MarketplacesDirName = "marketplaces"
 // safeSlugPattern matches characters unsafe for a filesystem path segment.
 var safeSlugPattern = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
 
-// gitClone and gitFetchReset are test-stubbable indirections over the git package.
-var (
-	gitClone      = git.Clone
-	gitFetchReset = git.FetchReset
-)
+// Git clones and updates repos; *git.Client does it with the user's git.
+type Git interface {
+	Clone(url, dir string) error
+	FetchReset(dir string) error
+}
+
+// Syncer keeps marketplace clones on the host up to date.
+type Syncer struct {
+	git Git
+}
 
 // Entry is one configured marketplace.
 type Entry struct {
@@ -36,6 +39,50 @@ type Result struct {
 	Dir     string // host directory now containing the clone
 	Stale   bool   // true if this run's fetch failed and Dir holds a previous clone
 	Warning error  // non-nil iff Stale
+}
+
+// NewSyncer returns a Syncer running git through g.
+func NewSyncer(g Git) *Syncer {
+	return &Syncer{git: g}
+}
+
+// Sync clones each entry (if missing) or fetches+resets it (if present), in order.
+func (s *Syncer) Sync(entries []Entry, dirFor func(e Entry) string) ([]Result, error) {
+	if err := checkDuplicateNames(entries); err != nil {
+		return nil, err
+	}
+
+	results := make([]Result, 0, len(entries))
+	for _, e := range entries {
+		result, err := s.syncEntry(e, dirFor(e))
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, result)
+	}
+
+	return results, nil
+}
+
+func (s *Syncer) syncEntry(e Entry, dir string) (Result, error) {
+	exists, err := dirExists(dir)
+	if err != nil {
+		return Result{}, fmt.Errorf("marketplace %q: %w", e.Name, err)
+	}
+
+	if !exists {
+		if err := s.git.Clone(e.URL, dir); err != nil {
+			_ = os.RemoveAll(dir)
+			return Result{}, fmt.Errorf("marketplace %q: %w", e.Name, err)
+		}
+		return Result{Entry: e, Dir: dir}, nil
+	}
+
+	if err := s.git.FetchReset(dir); err != nil {
+		return Result{Entry: e, Dir: dir, Stale: true, Warning: err}, nil
+	}
+
+	return Result{Entry: e, Dir: dir}, nil
 }
 
 // CloneDirName hashes url into a filesystem-safe dir name shared by any project referencing that url.
@@ -54,45 +101,6 @@ func urlSlug(url string) string {
 		return "marketplace"
 	}
 	return safeSlugPattern.ReplaceAllString(trimmed, "-")
-}
-
-// Sync clones each entry (if missing) or fetches+resets it (if present), in order.
-func Sync(entries []Entry, dirFor func(e Entry) string) ([]Result, error) {
-	if err := checkDuplicateNames(entries); err != nil {
-		return nil, err
-	}
-
-	results := make([]Result, 0, len(entries))
-	for _, e := range entries {
-		result, err := syncEntry(e, dirFor(e))
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, result)
-	}
-
-	return results, nil
-}
-
-func syncEntry(e Entry, dir string) (Result, error) {
-	exists, err := dirExists(dir)
-	if err != nil {
-		return Result{}, fmt.Errorf("marketplace %q: %w", e.Name, err)
-	}
-
-	if !exists {
-		if err := gitClone(e.URL, dir); err != nil {
-			_ = os.RemoveAll(dir)
-			return Result{}, fmt.Errorf("marketplace %q: %w", e.Name, err)
-		}
-		return Result{Entry: e, Dir: dir}, nil
-	}
-
-	if err := gitFetchReset(dir); err != nil {
-		return Result{Entry: e, Dir: dir, Stale: true, Warning: err}, nil
-	}
-
-	return Result{Entry: e, Dir: dir}, nil
 }
 
 func checkDuplicateNames(entries []Entry) error {

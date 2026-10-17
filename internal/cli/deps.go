@@ -10,11 +10,14 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/selfupdate"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/upgradecheck"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/volumes"
 )
 
@@ -33,6 +36,12 @@ var (
 
 	// msbClient runs tools for `agentic run --runtime microsandbox` and manages their images and volumes.
 	msbClient msbAPI = microsandbox.New()
+
+	// upstreamClient looks up the tools' latest released versions for `agentic update`.
+	upstreamClient update.Upstream = tools.Upstream{}
+
+	// releasesClient fetches and installs agentic's own releases for `agentic upgrade` and the upgrade check.
+	releasesClient upgradecheck.Releases = selfupdate.Releases{}
 )
 
 // dockerAPI is the subset of *docker.Client the cli and the usecases it calls use.

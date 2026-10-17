@@ -20,7 +20,7 @@ type release struct {
 }
 
 // LatestVersion fetches the latest release tag name from GitHub.
-func LatestVersion() (string, error) {
+func (Releases) LatestVersion() (string, error) {
 	release, err := fetchRelease(apiURL, http.DefaultClient)
 	if err != nil {
 		return "", err

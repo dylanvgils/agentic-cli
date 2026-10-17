@@ -16,7 +16,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +24,7 @@ type fakeDocker struct {
 	capabilities         func() sandbox.Capabilities
 	inspectImage         func(string) (*docker.ImageInfo, error)
 	resolveContainerHome func(string) string
-	ensureNamedVolumes   func(volumes []string, toolHome, containerHome, chownImage string) error
+	ensureNamedVolumes   func(rs sandbox.RunSpec, chownImage string) error
 	listAllImages        func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	buildProxyImage      func(image, version, sourceDir string, opts tools.BuildOptions) error
 	buildDindImage       func(image string, opts tools.BuildOptions) error
@@ -68,11 +67,11 @@ func (f *fakeDocker) ResolveContainerHome(image string) string {
 	return f.resolveContainerHome(image)
 }
 
-func (f *fakeDocker) EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage string) error {
+func (f *fakeDocker) EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error {
 	if f.ensureNamedVolumes == nil {
 		return nil
 	}
-	return f.ensureNamedVolumes(volumes, toolHome, containerHome, chownImage)
+	return f.ensureNamedVolumes(rs, chownImage)
 }
 
 func (f *fakeDocker) ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -151,7 +150,7 @@ func newProxyRunSpec(t *testing.T, mode sandbox.ProxyMode) sandbox.RunSpec {
 }
 
 // runtimeRequest returns a Request that runs on runtime.
-func runtimeRequest(runtime Runtime) Request {
+func runtimeRequest(runtime sandbox.Runtime) Request {
 	return Request{Flags: Flags{Runtime: runtime}}
 }
 
@@ -355,12 +354,17 @@ func newCredentialRequest(t *testing.T) Request {
 	return req
 }
 
-// stubLatestToolVersion makes the tool update check see latest as newer for the duration of the test.
-func stubLatestToolVersion(t *testing.T, latest string) {
-	t.Helper()
-	orig := toolupdate.LatestToolVersion
-	toolupdate.LatestToolVersion = func(string, string) (string, bool, bool) { return latest, true, true }
-	t.Cleanup(func() { toolupdate.LatestToolVersion = orig })
+// withLatestToolVersion makes svc's tool update check see latest as newer.
+func withLatestToolVersion(svc *Service, latest string) *Service {
+	svc.upstream = fakeUpstream(latest)
+	return svc
+}
+
+// fakeUpstream implements toolupdate.Upstream, reporting itself as a newer latest version.
+type fakeUpstream string
+
+func (f fakeUpstream) LatestToolVersion(string, string) (string, bool, bool) {
+	return string(f), true, true
 }
 
 // stubLog redirects logging.Log to a buffer for the duration of the test and returns it.

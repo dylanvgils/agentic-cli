@@ -16,7 +16,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +40,7 @@ type fakeDocker struct {
 	saveImage             func(image string, w io.Writer) error
 	listRunningContainers func() ([]*docker.ContainerInfo, error)
 	removeNetwork         func() error
-	ensureNamedVolumes    func(volumes []string, toolHome, containerHome, chownImage string) error
+	ensureNamedVolumes    func(rs sandbox.RunSpec, chownImage string) error
 	createVolume          func(string) error
 	listVolumeNames       func() ([]string, error)
 	removeVolume          func(string) error
@@ -199,11 +198,11 @@ func (f *fakeDocker) RemoveNetwork() error {
 	return f.removeNetwork()
 }
 
-func (f *fakeDocker) EnsureNamedVolumes(volumes []string, toolHome, containerHome, chownImage string) error {
+func (f *fakeDocker) EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error {
 	if f.ensureNamedVolumes == nil {
 		return nil
 	}
-	return f.ensureNamedVolumes(volumes, toolHome, containerHome, chownImage)
+	return f.ensureNamedVolumes(rs, chownImage)
 }
 
 func (f *fakeDocker) CreateVolume(name string) error {
@@ -635,11 +634,23 @@ func stubRemoveVolume(t *testing.T, fn func(string) error) {
 	stubDocker(t, &fakeDocker{removeVolume: fn})
 }
 
-func stubUpdateLatestToolVersion(t *testing.T, latest string, newer, ok bool) {
+// stubUpstream makes upstreamClient report latest, newer and ok for every tool for the duration of the test.
+func stubUpstream(t *testing.T, latest string, newer, ok bool) {
 	t.Helper()
-	orig := update.LatestToolVersion
-	update.LatestToolVersion = func(string, string) (string, bool, bool) { return latest, newer, ok }
-	t.Cleanup(func() { update.LatestToolVersion = orig })
+	orig := upstreamClient
+	upstreamClient = fakeUpstream{latest: latest, newer: newer, ok: ok}
+	t.Cleanup(func() { upstreamClient = orig })
+}
+
+// fakeUpstream implements update.Upstream with a fixed answer.
+type fakeUpstream struct {
+	latest string
+	newer  bool
+	ok     bool
+}
+
+func (f fakeUpstream) LatestToolVersion(string, string) (string, bool, bool) {
+	return f.latest, f.newer, f.ok
 }
 
 func stubCheckGitAvailable(t *testing.T, err error) {
@@ -730,18 +741,32 @@ func newTestStatusCmd(t *testing.T) (*cobra.Command, *bytes.Buffer) {
 	return cmd, &buf
 }
 
-func stubFetchLatestVersion(t *testing.T, v string, err error) {
+// stubReleases makes releasesClient f for the duration of the test.
+func stubReleases(t *testing.T, f *fakeReleases) {
 	t.Helper()
-	orig := fetchLatestVersion
-	fetchLatestVersion = func() (string, error) { return v, err }
-	t.Cleanup(func() { fetchLatestVersion = orig })
+	orig := releasesClient
+	releasesClient = f
+	t.Cleanup(func() { releasesClient = orig })
 }
 
-func stubPerformUpdate(t *testing.T, err error) {
-	t.Helper()
-	orig := performUpdate
-	performUpdate = func(_ string) error { return err }
-	t.Cleanup(func() { performUpdate = orig })
+// fakeReleases implements upgradecheck.Releases, returning latest/latestErr and updateErr and recording the calls.
+type fakeReleases struct {
+	latest    string
+	latestErr error
+	updateErr error
+
+	fetched     bool
+	updatedWith string
+}
+
+func (f *fakeReleases) LatestVersion() (string, error) {
+	f.fetched = true
+	return f.latest, f.latestErr
+}
+
+func (f *fakeReleases) Update(version string) error {
+	f.updatedWith = version
+	return f.updateErr
 }
 
 // stubToolHome points toolHome at dir.

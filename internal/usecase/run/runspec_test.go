@@ -278,7 +278,7 @@ func Test_Service_build(t *testing.T) {
 		resolved := credentials.Resolved{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Env: []string{"EXAMPLE_API_KEY"}, Secret: "test-secret"}
 		in := Input{
 			ToolHome:    t.TempDir(),
-			Runtime:     RuntimeMicrosandbox,
+			Runtime:     sandbox.RuntimeMicrosandbox,
 			Credentials: []credentials.Resolved{resolved},
 		}
 

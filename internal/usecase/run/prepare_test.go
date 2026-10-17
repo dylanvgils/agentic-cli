@@ -49,7 +49,7 @@ func TestPrepare(t *testing.T) {
 	t.Run("missing msb stops before the image check and any prompt", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Flags.Runtime = RuntimeMicrosandbox
+		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
 		inspected := false
 		d := &fakeDocker{inspectImage: func(name string) (*docker.ImageInfo, error) {
 			inspected = true
@@ -101,7 +101,7 @@ func TestPrepare(t *testing.T) {
 	t.Run("microsandbox with the proxy on stops before any prompt", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Flags.Runtime = RuntimeMicrosandbox
+		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
 		req.Flags.Proxy.ProxyFlag = true
 		p := &fakePrompter{}
 
@@ -130,7 +130,7 @@ func TestPrepare(t *testing.T) {
 	t.Run("microsandbox dry run doesn't check for msb", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Flags.Runtime = RuntimeMicrosandbox
+		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
 		req.Flags.DryRun = true
 		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
 
@@ -146,7 +146,6 @@ func TestPrepare(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		req.Project.RC.Run.CheckUpdates = nil
-		stubLatestToolVersion(t, "2.0.0")
 		stubLog(t)
 		tool := tools.Configs["claude"]
 		setUp := false
@@ -158,7 +157,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{trustDir: func(string) error { return errors.New("directory not trusted") }}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
+		_, cleanup, err := withLatestToolVersion(New(&fakeDocker{inspectImage: built}, nil), "2.0.0").Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -171,7 +170,6 @@ func TestPrepare(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		req.Project.RC.Run.CheckUpdates = nil
-		stubLatestToolVersion(t, "2.0.0")
 		stubLog(t)
 		rebuilt := false
 		d := &fakeDocker{
@@ -184,7 +182,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		rs, cleanup, err := New(d, nil).Prepare(req, p)
+		rs, cleanup, err := withLatestToolVersion(New(d, nil), "2.0.0").Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -213,7 +211,6 @@ func TestPrepare(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		req.Project.RC.Run.CheckUpdates = nil
-		stubLatestToolVersion(t, "2.0.0")
 		stubLog(t)
 		rc := &config.AgenticRC{}
 		rc.Run.Mounts = []string{"~/.example:/x:rw"}
@@ -221,7 +218,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{approveSettings: func(config.RCLayer, []config.GuardedSetting) error { return errors.New("settings not approved") }}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
+		_, cleanup, err := withLatestToolVersion(New(&fakeDocker{inspectImage: built}, nil), "2.0.0").Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -344,7 +341,7 @@ func Test_resolveInput(t *testing.T) {
 			Env:        []string{"FOO=bar"},
 			Limits:     sandbox.ResourceLimits{CPUs: "2"},
 			DindLimits: sandbox.ResourceLimits{Memory: "1g"},
-			Runtime:    RuntimeMicrosandbox,
+			Runtime:    sandbox.RuntimeMicrosandbox,
 		}
 
 		// Act
@@ -363,7 +360,7 @@ func Test_resolveInput(t *testing.T) {
 			ProxyMode:   sandbox.ProxyMonitor,
 			DindEnabled: true,
 			DindLimits:  sandbox.ResourceLimits{Memory: "1g"},
-			Runtime:     RuntimeMicrosandbox,
+			Runtime:     sandbox.RuntimeMicrosandbox,
 		}, in)
 	})
 

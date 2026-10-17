@@ -70,10 +70,10 @@ func (s *Service) BuildInstructions(target Target, in Input, toolConfig tools.To
 	var b strings.Builder
 	writeIntro(&b, in.Runtime)
 	writePrecedenceSection(&b)
-	writeCapabilitiesSection(&b, info, in.Runtime)
-	writeFilesystemSection(&b, toolConfig, containerHome, in.Runtime)
+	writeCapabilitiesSection(&b, info, caps)
+	writeFilesystemSection(&b, toolConfig, containerHome, caps)
 	writeResourceLimitsSection(&b, limits, caps)
-	writePrivilegeSection(&b, in.Runtime)
+	writePrivilegeSection(&b, caps)
 	writeNetworkSection(&b, toolConfig, rc, in, caps)
 	writeDockerSection(&b, in, caps, dindLimits)
 	writeCustomSection(&b, rc)
@@ -106,8 +106,8 @@ func instructionsEnabled(rc *config.AgenticRC) bool {
 	return enabled == nil || *enabled
 }
 
-func writeIntro(b *strings.Builder, runtime Runtime) {
-	if runtime == RuntimeMicrosandbox {
+func writeIntro(b *strings.Builder, runtime sandbox.Runtime) {
+	if runtime == sandbox.RuntimeMicrosandbox {
 		b.WriteString("# Agentic microVM environment\n\n")
 		b.WriteString("This tool is running inside an agentic-cli microVM with its own kernel. ")
 	} else {
@@ -123,13 +123,13 @@ func writePrecedenceSection(b *strings.Builder) {
 	b.WriteString("These auto-generated notes describe this environment, not project or personal conventions - they don't apply to anything you or the tool have added to this file yourself. If this project has its own instructions file (CLAUDE.md, AGENTS.md, copilot-instructions.md), follow it whenever it conflicts with anything below.\n\n")
 }
 
-func writeCapabilitiesSection(b *strings.Builder, info *docker.ImageInfo, runtime Runtime) {
+func writeCapabilitiesSection(b *strings.Builder, info *docker.ImageInfo, caps sandbox.Capabilities) {
 	b.WriteString("## Installed toolchains\n\n")
 	writeSubList(b, "Base toolchain (always installed)", tools.BasePackages())
 
 	if info == nil {
 		b.WriteString("(image not built yet - remaining capability details unavailable)\n")
-		writeMissingToolsNote(b, runtime)
+		writeMissingToolsNote(b, caps)
 		return
 	}
 
@@ -144,7 +144,7 @@ func writeCapabilitiesSection(b *strings.Builder, info *docker.ImageInfo, runtim
 	if info.CustomInstalls != "" {
 		writeSubList(b, "Custom installs", strings.Split(info.CustomInstalls, ","))
 	}
-	writeMissingToolsNote(b, runtime)
+	writeMissingToolsNote(b, caps)
 }
 
 // writeSubList writes label as a bullet followed by each item as a nested bullet.
@@ -156,31 +156,29 @@ func writeSubList(b *strings.Builder, label string, items []string) {
 }
 
 // writeMissingToolsNote points the agent at telling the user rather than silently trying and failing.
-func writeMissingToolsNote(b *strings.Builder, runtime Runtime) {
-	if runtime == RuntimeMicrosandbox {
-		b.WriteString("\nAnything not listed above cannot be installed or run - there is no sudo and apt needs root. ")
-	} else {
+func writeMissingToolsNote(b *strings.Builder, caps sandbox.Capabilities) {
+	if caps.ReadOnlyRoot {
 		b.WriteString("\nAnything not listed above cannot be installed or run - sudo, apt, and writes outside /workspace and /tmp are all blocked. ")
+	} else {
+		b.WriteString("\nAnything not listed above cannot be installed or run - there is no sudo and apt needs root. ")
 	}
 	b.WriteString("If a task needs a missing tool, tell the user why it's needed so they can add it (e.g. via custom_installs in .agenticrc.toml) and rebuild the image.\n\n")
 }
 
-// writeFilesystemSection notes the microVM's root as writable but discarded, where the container's is read-only with tmpfs scratch dirs.
-func writeFilesystemSection(b *strings.Builder, toolConfig tools.ToolConfig, containerHome string, runtime Runtime) {
-	vm := runtime == RuntimeMicrosandbox
-
+// writeFilesystemSection notes a read-only root with its ephemeral scratch dirs, or a writable root discarded on exit.
+func writeFilesystemSection(b *strings.Builder, toolConfig tools.ToolConfig, containerHome string, caps sandbox.Capabilities) {
 	b.WriteString("## Filesystem\n\n")
-	if !vm {
+	if caps.ReadOnlyRoot {
 		b.WriteString("- The container's root filesystem is read-only.\n")
 	}
 	b.WriteString("- `/workspace` (the current project) is writable.\n")
 
-	if vm {
-		b.WriteString("- Everything outside mounted directories, `/tmp` included, is writable but discarded when the VM exits and never reaches the user's machine.\n")
-	} else {
+	if caps.ReadOnlyRoot {
 		for _, p := range toolConfig.Runtime.EphemeralDirs() {
 			fmt.Fprintf(b, "- `%s` is writable but ephemeral (cleared when the container exits).\n", mount.ExpandTmpfsSpec(p.Path, containerHome))
 		}
+	} else {
+		b.WriteString("- Everything outside mounted directories, `/tmp` included, is writable but discarded when the VM exits and never reaches the user's machine.\n")
 	}
 
 	b.WriteString("- Any mounted secrets under `/run/secrets/` are read-only.\n\n")
@@ -202,10 +200,10 @@ func writeResourceLimitsSection(b *strings.Builder, limits sandbox.ResourceLimit
 	}
 }
 
-// writePrivilegeSection makes no capability claims for microsandbox, which keeps the guest's defaults.
-func writePrivilegeSection(b *strings.Builder, runtime Runtime) {
+// writePrivilegeSection makes no capability claims for a runtime that keeps the guest's defaults.
+func writePrivilegeSection(b *strings.Builder, caps sandbox.Capabilities) {
 	b.WriteString("## Privileges\n\n")
-	if runtime == RuntimeMicrosandbox {
+	if !caps.DropsPrivileges {
 		b.WriteString("- Running as a non-root user; `sudo` and system package installs will not work.\n\n")
 		return
 	}

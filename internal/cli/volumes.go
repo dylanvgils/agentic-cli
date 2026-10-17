@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/volumes"
 	"github.com/spf13/cobra"
 )
@@ -57,11 +58,11 @@ func runVolumeList(_ *cobra.Command, _ []string) error {
 	}
 
 	// List keeps each runtime's volumes together, so a new runtime starts a new group
-	runtime := ""
+	var runtime sandbox.Runtime
 	for _, v := range all {
 		if v.Runtime != runtime {
 			runtime = v.Runtime
-			logging.Step(runtime)
+			logging.Step(string(runtime))
 		}
 		logging.Detail(v.Name)
 	}
@@ -85,7 +86,7 @@ func runVolumeRemove(_ *cobra.Command, args []string) error {
 func newVolumeService() *volumes.Service {
 	var others []volumes.Runtime
 	if msbClient.Available() == nil {
-		others = append(others, volumes.Runtime{Name: volumes.RuntimeMicrosandbox, Store: msbClient})
+		others = append(others, volumes.Runtime{Name: sandbox.RuntimeMicrosandbox, Store: msbClient})
 	}
 	return volumes.New(dockerClient, others...)
 }

@@ -24,7 +24,7 @@ func TestDryRun(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := New(d, t.TempDir()).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -35,7 +35,7 @@ func TestDryRun(t *testing.T) {
 
 	t.Run("without tool arg returns error", func(t *testing.T) {
 		// Act
-		err := New(&fakeDocker{}, t.TempDir()).DryRun("", "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(&fakeDocker{}, &fakeUpstream{}, t.TempDir()).DryRun("", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
@@ -48,7 +48,7 @@ func TestDryRun(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := New(d, t.TempDir()).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -63,7 +63,7 @@ func TestDryRun(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := New(d, t.TempDir()).DryRun("claude", "agentic", opts)
+			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", opts)
 			require.NoError(t, err)
 		})
 
@@ -74,7 +74,7 @@ func TestDryRun(t *testing.T) {
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		err := New(&fakeDocker{}, t.TempDir()).DryRun("nonexistent", "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(&fakeDocker{}, &fakeUpstream{}, t.TempDir()).DryRun("nonexistent", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
@@ -88,7 +88,7 @@ func TestDryRun(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := New(d, t.TempDir()).DryRun("claude", "agentic", opts)
+			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", opts)
 			require.NoError(t, err)
 		})
 
@@ -109,7 +109,7 @@ func TestResolve(t *testing.T) {
 		}}
 
 		// Act
-		targets, _, err := New(d, t.TempDir()).Resolve(Scope{All: true, FilterTool: "claude"}, tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, _, err := New(d, &fakeUpstream{}, t.TempDir()).Resolve(Scope{All: true, FilterTool: "claude"}, tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestResolve(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(nil, nil)}
 
 		// Act
-		targets, _, err := New(d, t.TempDir()).Resolve(Scope{Names: []string{"claude"}, HasArgs: true, Namespace: "agentic"}, tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, _, err := New(d, &fakeUpstream{}, t.TempDir()).Resolve(Scope{Names: []string{"claude"}, HasArgs: true, Namespace: "agentic"}, tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -137,7 +137,7 @@ func Test_resolveScoped(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(nil, nil)}
 
 		// Act
-		targets, _, err := New(d, t.TempDir()).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, _, err := New(d, &fakeUpstream{}, t.TempDir()).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -150,7 +150,7 @@ func Test_resolveScoped(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectSequence(nil, &docker.ImageInfo{Version: "1.0.0", Base: "node@24,java@21"})}
 
 		// Act
-		targets, skipped, err := New(d, t.TempDir()).resolveScoped(tools.Names(), false, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, skipped, err := New(d, &fakeUpstream{}, t.TempDir()).resolveScoped(tools.Names(), false, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -166,7 +166,7 @@ func Test_resolveScoped(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(nil, fmt.Errorf("daemon not running"))}
 
 		// Act
-		_, _, err := New(d, t.TempDir()).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		_, _, err := New(d, &fakeUpstream{}, t.TempDir()).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.Error(t, err)
@@ -174,7 +174,7 @@ func Test_resolveScoped(t *testing.T) {
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		_, _, err := New(&fakeDocker{}, t.TempDir()).resolveScoped([]string{"nonexistent"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		_, _, err := New(&fakeDocker{}, &fakeUpstream{}, t.TempDir()).resolveScoped([]string{"nonexistent"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.Error(t, err)
@@ -187,7 +187,7 @@ func Test_resolveScoped(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Pulled: freshLabel}, nil)}
 
 		// Act - pullExplicit is false, so the fresh label should disable Pull
-		targets, _, err := New(d, t.TempDir()).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Pull: true, Versions: map[string]string{}}, false)
+		targets, _, err := New(d, &fakeUpstream{}, t.TempDir()).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Pull: true, Versions: map[string]string{}}, false)
 
 		// Assert
 		require.NoError(t, err)
@@ -207,7 +207,7 @@ func Test_resolveAll(t *testing.T) {
 		}}
 
 		// Act
-		targets, err := New(d, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, err := New(d, &fakeUpstream{}, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -225,7 +225,7 @@ func Test_resolveAll(t *testing.T) {
 		}}
 
 		// Act
-		targets, err := New(d, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, err := New(d, &fakeUpstream{}, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -243,7 +243,7 @@ func Test_resolveAll(t *testing.T) {
 		}}
 
 		// Act
-		targets, err := New(d, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, err := New(d, &fakeUpstream{}, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert - each target gets its own label-recovered base, not a shared one
 		require.NoError(t, err)
@@ -266,7 +266,7 @@ func Test_resolveAll(t *testing.T) {
 		opts := tools.BuildOptions{CustomInstalls: []config.RCCustomInstall{{Name: "golangci-lint", Run: []string{"echo lint"}}}}
 
 		// Act
-		targets, err := New(d, home).resolveAll("", opts, true)
+		targets, err := New(d, &fakeUpstream{}, home).resolveAll("", opts, true)
 
 		// Assert - the cwd config's golangci-lint isn't added to either image
 		require.NoError(t, err)
@@ -285,7 +285,7 @@ func Test_resolveAll(t *testing.T) {
 		}}
 
 		// Act
-		targets, err := New(d, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, err := New(d, &fakeUpstream{}, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -301,7 +301,7 @@ func Test_resolveAll(t *testing.T) {
 		}}
 
 		// Act
-		_, err := New(d, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
+		_, err := New(d, &fakeUpstream{}, t.TempDir()).resolveAll("", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.Error(t, err)
@@ -319,7 +319,7 @@ func Test_resolveAll(t *testing.T) {
 		}}
 
 		// Act
-		targets, err := New(d, t.TempDir()).resolveAll("claude", tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, err := New(d, &fakeUpstream{}, t.TempDir()).resolveAll("claude", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -330,7 +330,7 @@ func Test_resolveAll(t *testing.T) {
 }
 
 func TestApplyAll(t *testing.T) {
-	stubLatestToolVersion(t, "", false, false)
+	upstream := &fakeUpstream{latest: "", newer: false, ok: false}
 	targets := []Target{
 		{Name: "claude", Image: "agentic-claude"},
 		{Name: "claude", Image: "work-claude"},
@@ -346,7 +346,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d, t.TempDir()).ApplyAll(targets) })
+		captureLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
 
 		// Assert - the same value lets Docker reuse the tool stage for the second namespace
 		require.NoError(t, err)
@@ -365,7 +365,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d, t.TempDir()).ApplyAll(targets) })
+		captureLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
 
 		// Assert
 		require.ErrorContains(t, err, "build failed")
@@ -379,7 +379,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d, t.TempDir()).ApplyAll(targets) })
+		captureLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
 
 		// Assert
 		require.NoError(t, err)
@@ -396,7 +396,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d, t.TempDir()).ApplyAll(targets) })
+		captureLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
 
 		// Assert
 		require.ErrorContains(t, err, "build failed")
@@ -409,7 +409,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(&fakeDocker{}, home).ApplyAll(targets) })
+		captureLog(t, func() { err = New(&fakeDocker{}, upstream, home).ApplyAll(targets) })
 
 		// Assert
 		require.NoError(t, err)
@@ -425,7 +425,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d, home).ApplyAll(targets) })
+		captureLog(t, func() { err = New(d, upstream, home).ApplyAll(targets) })
 
 		// Assert
 		require.Error(t, err)
@@ -436,16 +436,16 @@ func TestApplyAll(t *testing.T) {
 }
 
 func TestApply(t *testing.T) {
-	stubLatestToolVersion(t, "", false, false)
+	upstream := &fakeUpstream{latest: "", newer: false, ok: false}
 
 	t.Run("version changed reported", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil)}
-		stubLatestToolVersion(t, "2.0.0", true, true)
+		upstream := &fakeUpstream{latest: "2.0.0", newer: true, ok: true}
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -456,11 +456,11 @@ func TestApply(t *testing.T) {
 	t.Run("version up to date reported", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil)}
-		stubLatestToolVersion(t, "1.0.0", false, true)
+		upstream := &fakeUpstream{latest: "1.0.0", newer: false, ok: true}
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -474,7 +474,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -485,11 +485,11 @@ func TestApply(t *testing.T) {
 	t.Run("version line hidden when check inconclusive", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil)}
-		stubLatestToolVersion(t, "", false, false)
+		upstream := &fakeUpstream{latest: "", newer: false, ok: false}
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -504,7 +504,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", opts)
+			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
 
@@ -518,7 +518,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -533,7 +533,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", opts)
+			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
 
@@ -547,7 +547,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
@@ -562,7 +562,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", opts)
+			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
 
@@ -577,7 +577,7 @@ func TestApply(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", opts)
+			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
 
@@ -595,7 +595,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.Error(t, err)
@@ -604,7 +604,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("up-to-date image is restamped instead of rebuilt", func(t *testing.T) {
 		// Arrange
-		stubLatestToolVersion(t, "1.0.0", false, true)
+		upstream := &fakeUpstream{latest: "1.0.0", newer: false, ok: true}
 		var restamped, built bool
 		d := &fakeDocker{
 			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
@@ -616,7 +616,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
@@ -626,7 +626,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("newer upstream version rebuilds", func(t *testing.T) {
 		// Arrange
-		stubLatestToolVersion(t, "2.0.0", true, true)
+		upstream := &fakeUpstream{latest: "2.0.0", newer: true, ok: true}
 		var built bool
 		d := &fakeDocker{
 			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
@@ -637,7 +637,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
@@ -656,7 +656,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
@@ -665,7 +665,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("inspect error rebuilds without checking upstream", func(t *testing.T) {
 		// Arrange
-		calls := stubLatestToolVersion(t, "1.0.0", false, true)
+		upstream := &fakeUpstream{latest: "1.0.0", newer: false, ok: true}
 		var built bool
 		d := &fakeDocker{
 			inspectImage: inspectReturns(nil, fmt.Errorf("docker daemon unreachable")),
@@ -676,27 +676,27 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, built)
-		assert.Zero(t, calls())
+		assert.Zero(t, upstream.calls)
 	})
 
 	t.Run("fetches the upstream version once for both the report and the decision", func(t *testing.T) {
 		// Arrange
-		calls := stubLatestToolVersion(t, "2.0.0", true, true)
+		upstream := &fakeUpstream{latest: "2.0.0", newer: true, ok: true}
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil)}
 
 		// Act
 		out := captureLog(t, func() {
-			err := New(d, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
+			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
 
 		// Assert
-		assert.Equal(t, 1, calls())
+		assert.Equal(t, 1, upstream.calls)
 		assert.Contains(t, out, "   version: 1.0.0 -> 2.0.0")
 	})
 }
@@ -894,7 +894,7 @@ func Test_applyPullThrottle(t *testing.T) {
 }
 
 func TestApplyRecovered(t *testing.T) {
-	stubLatestToolVersion(t, "", false, false)
+	upstream := &fakeUpstream{latest: "", newer: false, ok: false}
 
 	t.Run("recovers opts from existing image and rebuilds", func(t *testing.T) {
 		// Arrange
@@ -908,7 +908,7 @@ func TestApplyRecovered(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, t.TempDir()).ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
+		err := New(d, upstream, t.TempDir()).ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -930,7 +930,7 @@ func TestApplyRecovered(t *testing.T) {
 		rc := &config.AgenticRC{Build: config.RCBuild{CustomInstalls: []config.RCCustomInstall{{Name: "helm", Run: []string{"true"}}}}}
 
 		// Act
-		err := New(d, home).ApplyRecovered("claude", "agentic-claude", rc)
+		err := New(d, upstream, home).ApplyRecovered("claude", "agentic-claude", rc)
 
 		// Assert
 		require.NoError(t, err)
@@ -950,7 +950,7 @@ func TestApplyRecovered(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, t.TempDir()).ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
+		err := New(d, upstream, t.TempDir()).ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
@@ -964,7 +964,7 @@ func TestApplyRecovered(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, t.TempDir()).ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
+		err := New(d, upstream, t.TempDir()).ApplyRecovered("claude", "agentic-claude", &config.AgenticRC{})
 
 		// Assert
 		require.Error(t, err)
@@ -988,7 +988,7 @@ func Test_rebuild(t *testing.T) {
 		installs := []config.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
 
 		// Act
-		err := New(captureOpts(&opts, &built), home).rebuild("claude", "agentic-claude", nil, false, tools.BuildOptions{CustomInstalls: installs})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, home).rebuild("claude", "agentic-claude", nil, false, tools.BuildOptions{CustomInstalls: installs})
 
 		// Assert
 		require.NoError(t, err)
@@ -1004,7 +1004,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Base: "node@24.0.0,java@21.0.1"}
 
 		// Act
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -1018,7 +1018,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Base: "node@24.0.0,dotnet@8.0"}
 
 		// Act
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{BaseOverride: []string{"java"}})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{BaseOverride: []string{"java"}})
 
 		// Assert - explicit BaseOverride wins over the dotnet recovered from the label
 		require.NoError(t, err)
@@ -1032,7 +1032,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Base: "node@24.0.0,java@21.0.1"}
 
 		// Act
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{BaseOverride: []string{}, BaseExact: true})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{BaseOverride: []string{}, BaseExact: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -1046,7 +1046,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Base: "node@24.0.0,java@21.0.1", VersionArgs: "node@24,java@17"}
 
 		// Act - no --java flag passed, so the recovered version must be the one used
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -1060,7 +1060,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Base: "node@24.0.0,java@21.0.1", VersionArgs: "node@24,java@17"}
 
 		// Act
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{Versions: map[string]string{"java": "21"}})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{Versions: map[string]string{"java": "21"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -1074,7 +1074,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Apt: "make,gcc"}
 
 		// Act
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -1088,7 +1088,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Apt: "make"}
 
 		// Act
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -1102,7 +1102,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Apt: "make"}
 
 		// Act
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}, AptExact: true})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}, AptExact: true})
 
 		// Assert - the recovered "make" package does not survive, only the exact "gcc" does
 		require.NoError(t, err)
@@ -1116,7 +1116,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Apt: "make,gcc"}
 
 		// Act
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"make"}})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"make"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -1130,7 +1130,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Apt: "make"}
 
 		// Act
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", info, false, tools.BuildOptions{AptPackages: []string{"gcc"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -1151,7 +1151,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Version: "1.2.3", Apt: "make,gcc"}
 
 		// Act
-		err := New(d, t.TempDir()).rebuild("claude", "agentic-claude", info, true, tools.BuildOptions{})
+		err := New(d, &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", info, true, tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
@@ -1166,7 +1166,7 @@ func Test_rebuild(t *testing.T) {
 		var built bool
 
 		// Act
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{NoCache: true})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{NoCache: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -1179,7 +1179,7 @@ func Test_rebuild(t *testing.T) {
 		var built bool
 
 		// Act
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{Pull: true})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{Pull: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -1192,7 +1192,7 @@ func Test_rebuild(t *testing.T) {
 		var built bool
 
 		// Act
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{Pull: true})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", &docker.ImageInfo{Version: "1.2.3"}, true, tools.BuildOptions{Pull: true})
 
 		// Assert - an empty CacheBust means no CACHEBUST build arg, so the tool stage isn't reinstalled
 		require.NoError(t, err)
@@ -1206,7 +1206,7 @@ func Test_rebuild(t *testing.T) {
 		info := &docker.ImageInfo{Version: "1.2.3", CacheBust: "2026-08-21T07:18:37Z"}
 
 		// Act
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", info, true, tools.BuildOptions{Pull: true})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", info, true, tools.BuildOptions{Pull: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -1219,7 +1219,7 @@ func Test_rebuild(t *testing.T) {
 		var built bool
 
 		// Act
-		err := New(captureOpts(&opts, &built), t.TempDir()).rebuild("claude", "agentic-claude", nil, false, tools.BuildOptions{})
+		err := New(captureOpts(&opts, &built), &fakeUpstream{}, t.TempDir()).rebuild("claude", "agentic-claude", nil, false, tools.BuildOptions{})
 
 		// Assert - a non-empty CacheBust makes the tool build skip cache via --build-arg=CACHEBUST=<value>
 		require.NoError(t, err)

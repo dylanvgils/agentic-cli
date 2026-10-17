@@ -6,28 +6,41 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/selfupdate"
 )
+
+// Service checks for and applies newer agentic releases.
+type Service struct {
+	releases Releases
+	notify   *logging.Logger // update progress, apart from the command's own output
+}
 
 // Confirm tells the user an upgrade from installed to latest is available and reports whether to apply it now.
 type Confirm func(installed, latest string) bool
 
-// Check checks GitHub for a newer release at most once per CheckInterval and applies it when confirm agrees, then exits.
-func Check(home string, confirm Confirm) {
-	if buildinfo.IsDevBuild() {
-		return
-	}
-
-	latest, ok := fetchUpdateIfDue(home)
-	if !ok {
-		return
-	}
-
-	offerUpdate(latest, confirm)
+// New returns a Service that fetches releases through r and reports update progress to notify.
+func New(r Releases, notify *logging.Logger) *Service {
+	return &Service{releases: r, notify: notify}
 }
 
-// fetchUpdateIfDue fetches the latest GitHub version if the check interval has elapsed, saves the check timestamp, and returns (latest, true) if it's newer.
-func fetchUpdateIfDue(home string) (string, bool) {
+// Check checks for a newer release at most once per CheckInterval and applies it when confirm agrees. updated reports
+// that the binary was replaced, so the caller should exit; err that applying it failed.
+func (s *Service) Check(home string, confirm Confirm) (updated bool, err error) {
+	if buildinfo.IsDevBuild() {
+		return false, nil
+	}
+
+	latest, ok := s.fetchUpdateIfDue(home)
+	if !ok {
+		return false, nil
+	}
+
+	return s.offerUpdate(latest, confirm)
+}
+
+// fetchUpdateIfDue fetches the latest version if the check interval has elapsed, saves the check timestamp, and returns (latest, true) if it's newer.
+func (s *Service) fetchUpdateIfDue(home string) (string, bool) {
 	state, err := config.LoadState(home)
 	if err != nil {
 		return "", false
@@ -37,7 +50,7 @@ func fetchUpdateIfDue(home string) (string, bool) {
 		return "", false
 	}
 
-	latest, err := LatestVersion()
+	latest, err := s.releases.LatestVersion()
 	if err != nil {
 		return "", false
 	}
@@ -53,20 +66,20 @@ func fetchUpdateIfDue(home string) (string, bool) {
 	return latest, true
 }
 
-// offerUpdate applies latest and exits when confirm agrees: 0 once updated, 1 if the update fails.
-func offerUpdate(latest string, confirm Confirm) {
+// offerUpdate applies latest when confirm agrees.
+func (s *Service) offerUpdate(latest string, confirm Confirm) (updated bool, err error) {
 	if !confirm(buildinfo.Version, latest) {
-		return
+		return false, nil
 	}
 
-	Notify.Step("updating...")
+	s.notify.Step("updating...")
 
-	if err := Update(latest); err != nil {
-		Notify.Stepf("update failed: %v", err)
-		Notify.Detail("run: agentic upgrade")
-		Exit(1)
-	} else {
-		Notify.Stepf("updated to %s", latest)
-		Exit(0)
+	if err := s.releases.Update(latest); err != nil {
+		s.notify.Stepf("update failed: %v", err)
+		s.notify.Detail("run: agentic upgrade")
+		return false, err
 	}
+
+	s.notify.Stepf("updated to %s", latest)
+	return true, nil
 }

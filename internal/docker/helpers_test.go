@@ -15,7 +15,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/require"
 )
 
@@ -213,16 +212,6 @@ func stubRunInteractiveCapture(t *testing.T, client *Client) func() (args []stri
 	})
 
 	return func() ([]string, string) { return capturedArgs, content }
-}
-
-// stubLatestVersion replaces tool's Build.LatestVersion fetcher for the duration of the test.
-func stubLatestVersion(t *testing.T, tool string, fn func() (string, error)) {
-	t.Helper()
-	orig := tools.Configs[tool]
-	cfg := orig
-	cfg.Build.LatestVersion = fn
-	tools.Configs[tool] = cfg
-	t.Cleanup(func() { tools.Configs[tool] = orig })
 }
 
 // hasArg reports whether args contains exactly value.

@@ -10,10 +10,8 @@ import (
 )
 
 var (
-	upgradeForce       bool
-	upgradeVersion     string
-	fetchLatestVersion func() (string, error) = selfupdate.LatestVersion
-	performUpdate      func(string) error     = selfupdate.Update
+	upgradeForce   bool
+	upgradeVersion string
 )
 
 var upgradeCmd = &cobra.Command{
@@ -36,7 +34,7 @@ func runUpgrade(_ *cobra.Command, _ []string) error {
 	if target == "" {
 		logging.Infof("checking for updates...")
 
-		latest, err := fetchLatestVersion()
+		latest, err := releasesClient.LatestVersion()
 		if err != nil {
 			return fmt.Errorf("checking for updates: %w", err)
 		}
@@ -51,7 +49,7 @@ func runUpgrade(_ *cobra.Command, _ []string) error {
 
 	logging.Infof("updating %s -> %s...", buildinfo.Version, target)
 
-	if err := performUpdate(target); err != nil {
+	if err := releasesClient.Update(target); err != nil {
 		return fmt.Errorf("update failed: %w", err)
 	}
 
