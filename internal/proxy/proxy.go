@@ -20,15 +20,16 @@ const proxyFailedText = "agentic proxy error"
 // hosts, logging every attempt. In monitor mode it stops enforcing the allowlist but still logs
 // the real verdict, so a run can be observed without ever blocking it.
 type Server struct {
-	allow   *Allowlist
-	logger  *Logger
-	monitor bool
-	inject  *Injector // nil disables credential injection
+	allow    *Allowlist
+	logger   *Logger
+	monitor  bool
+	inject   *Injector // nil disables credential injection
+	upstream upstream
 }
 
 // NewServer builds a Server enforcing allow unless monitor; a nil inject disables injection.
 func NewServer(allow *Allowlist, logger *Logger, monitor bool, inject *Injector) *Server {
-	return &Server{allow: allow, logger: logger, monitor: monitor, inject: inject}
+	return &Server{allow: allow, logger: logger, monitor: monitor, inject: inject, upstream: newUpstream(blockedAddr)}
 }
 
 // ServeHTTP handles both CONNECT (HTTPS tunnels) and plain HTTP forwarding.
@@ -60,7 +61,7 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := withPrivateOK(r.Context(), s.allow.exactMatch(host))
-	upstream, err := upstreamDialer.DialContext(ctx, "tcp", net.JoinHostPort(host, port)) // NOSONAR - allowlisted host, address guard in upstreamDialer
+	upstream, err := s.upstream.dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, port)) // NOSONAR - allowlisted host, address guard in the dialer
 	if errors.Is(err, errBlockedAddr) {
 		s.refuseBlocked(w, entry)
 		return
@@ -103,7 +104,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	r.RequestURI = ""
 	ctx := withPrivateOK(r.Context(), s.allow.exactMatch(host))
-	resp, err := upstreamTransport.RoundTrip(r.WithContext(ctx))
+	resp, err := s.upstream.transport.RoundTrip(r.WithContext(ctx))
 	if errors.Is(err, errBlockedAddr) {
 		s.refuseBlocked(w, entry)
 		return

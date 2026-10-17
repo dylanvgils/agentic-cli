@@ -28,7 +28,7 @@ const (
 )
 
 // injectPort is the only port intercepted for injection; other ports to a credentialed host tunnel untouched.
-var injectPort = "443"
+const injectPort = "443"
 
 // blockedMethods are refused inside an intercepted tunnel: TRACE/TRACK echo the injected headers back, CONNECT would re-tunnel.
 var blockedMethods = []string{http.MethodConnect, http.MethodTrace, "TRACK"}
@@ -37,6 +37,7 @@ var blockedMethods = []string{http.MethodConnect, http.MethodTrace, "TRACK"}
 type Injector struct {
 	ca        certs.CA
 	creds     map[string]Credential // keyed by normalized exact host
+	port      string                // the only port intercepted, injectPort outside tests
 	transport http.RoundTripper
 
 	mutex  sync.Mutex
@@ -69,18 +70,19 @@ func NewInjector(ca certs.CA, creds []Credential) *Injector {
 	return &Injector{
 		ca:     ca,
 		creds:  byHost,
+		port:   injectPort,
 		leaves: make(map[string]*tls.Certificate),
 		transport: &http.Transport{
-			DialContext:         upstreamDialer.DialContext,
+			DialContext:         newUpstream(blockedAddr).dialer.DialContext,
 			TLSHandshakeTimeout: dialTimeout,
 			ForceAttemptHTTP2:   true,
 		},
 	}
 }
 
-// credentialFor returns the credential for exactly host on injectPort; safe on a nil Injector.
+// credentialFor returns the credential for exactly host on the intercepted port; safe on a nil Injector.
 func (i *Injector) credentialFor(host, port string) (Credential, bool) {
-	if i == nil || port != injectPort {
+	if i == nil || port != i.port {
 		return Credential{}, false
 	}
 	cred, ok := i.creds[normalizeHost(host)]
