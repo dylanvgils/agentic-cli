@@ -219,3 +219,11 @@ const testPlaceholder = "agentic-0123456789abcdef"
 func testPlaceholderCredential(host, placeholder string) Credential {
 	return Credential{Hosts: []string{host}, Headers: []string{"Authorization", "X-Api-Key"}, Placeholder: placeholder, Secret: "test-secret"}
 }
+
+// writeAccessLog writes lines as an access log in a temp dir and returns its path.
+func writeAccessLog(t *testing.T, lines ...string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), LogFilePrefix+"abc.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600))
+	return path
+}
