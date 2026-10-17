@@ -12,9 +12,9 @@ type ProxyMode int
 
 // ProxySpec configures the egress proxy sidecar; unless Mode is ProxyOff, the tool reaches out only through it.
 type ProxySpec struct {
-	Mode   ProxyMode
-	Allow  []string // merged allowlist (tool baseline + user hosts)
-	LogDir string   // host dir for JSON-lines access logs
+	Mode    ProxyMode
+	Allow   []string // merged allowlist (tool baseline + user hosts)
+	LogFile string   // host path of this run's JSON-lines access log
 }
 
 // Enabled reports whether the proxy runs, in either mode.

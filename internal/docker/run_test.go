@@ -3,6 +3,7 @@ package docker
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -94,7 +95,7 @@ func TestClient_RunTool(t *testing.T) {
 		stubProxyDocker(t, client, "true")
 		rs := sandbox.RunSpec{
 			Image: "agentic-claude",
-			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Allow: []string{"api.anthropic.com"}, LogDir: t.TempDir()},
+			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Allow: []string{"api.anthropic.com"}, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")},
 		}
 
 		// Act
@@ -136,7 +137,7 @@ func TestClient_RunTool(t *testing.T) {
 		rs := sandbox.RunSpec{
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),
-			Proxy:    sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()},
+			Proxy:    sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")},
 			Dind:     sandbox.DindSpec{Enabled: true},
 		}
 

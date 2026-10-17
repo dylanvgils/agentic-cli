@@ -2,6 +2,7 @@ package run
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
@@ -66,7 +67,13 @@ func (r dockerRunner) Run(req Request, rs sandbox.RunSpec, toolArgs []string) er
 	if err != nil {
 		return err
 	}
-	defer r.docker.StopSidecars(sidecars)
+	defer func() {
+		// Stop first, so requests the proxy logs while stopping make the summary
+		r.docker.StopSidecars(sidecars)
+		if !rs.DryRun && rs.Proxy.Mode.Enabled() {
+			printProxySummary(logging.Err, rs.Proxy)
+		}
+	}()
 
 	if err := recheckMounts(rs); err != nil {
 		return err
@@ -82,7 +89,7 @@ func (r dockerRunner) prepareDockerHost(rs sandbox.RunSpec, registry string) err
 
 	proxy, dind := rs.Proxy.Mode.Enabled(), rs.Dind.Enabled
 	if proxy {
-		if err := prepareProxyLogDir(rs.Proxy.LogDir, rs.ToolHome); err != nil {
+		if err := prepareProxyLogDir(filepath.Dir(rs.Proxy.LogFile), rs.ToolHome); err != nil {
 			return err
 		}
 	}

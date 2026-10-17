@@ -248,6 +248,41 @@ func Test_dockerRunner_Run(t *testing.T) {
 		assert.True(t, ran)
 	})
 
+	t.Run("prints the proxy summary once the sidecars stopped", func(t *testing.T) {
+		// Arrange
+		logs := stubErrLog(t)
+		rs := newProxyRunSpec(t, sandbox.ProxyEnforce)
+		d := &fakeDocker{
+			inspectImage: func(name string) (*docker.ImageInfo, error) { return &docker.ImageInfo{Image: name}, nil },
+			stopSidecars: func(docker.Sidecars) {
+				// The proxy logs a last request while it stops
+				require.NoError(t, os.WriteFile(rs.Proxy.LogFile, []byte(`{"host":"evil.example.test","decision":"deny"}`+"\n"), 0o600))
+			},
+		}
+
+		// Act
+		err := dockerRunner{docker: d}.Run(req, rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, logs.String(), "agentic: proxy blocked 1 request(s) to: evil.example.test")
+	})
+
+	t.Run("dry run prints no proxy summary", func(t *testing.T) {
+		// Arrange
+		logs := stubErrLog(t)
+		rs := newProxyRunSpec(t, sandbox.ProxyEnforce)
+		rs.DryRun = true
+		require.NoError(t, os.MkdirAll(filepath.Dir(rs.Proxy.LogFile), 0o750))
+		require.NoError(t, os.WriteFile(rs.Proxy.LogFile, []byte(`{"host":"evil.example.test","decision":"deny"}`+"\n"), 0o600))
+
+		// Act
+		err := dockerRunner{docker: &fakeDocker{}}.Run(req, rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotContains(t, logs.String(), "proxy blocked")
+	})
 }
 
 func Test_dockerRunner_prepareDockerHost(t *testing.T) {
@@ -283,7 +318,7 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 		home := t.TempDir()
 		logDir := filepath.Join(home, config.LogsDirName)
 		d := &fakeDocker{inspectImage: func(name string) (*docker.ImageInfo, error) { return &docker.ImageInfo{Image: name}, nil }}
-		rs := sandbox.RunSpec{ToolHome: home, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: logDir}}
+		rs := sandbox.RunSpec{ToolHome: home, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: filepath.Join(logDir, "proxy_abc.jsonl")}}
 
 		// Act
 		err := dockerRunner{docker: d}.prepareDockerHost(rs, "")

@@ -103,8 +103,11 @@ func (s *Service) build(target Target, in Input, toolConfig tools.ToolConfig, ap
 		return sandbox.RunSpec{}, err
 	}
 
-	logDir := proxyLogDir(in.ToolHome, in.ProxyMode.Enabled())
-	return newRunSpec(req, mounts, env, logDir), nil
+	logFile, err := proxyLogFile(in.ToolHome, in.ProxyMode.Enabled())
+	if err != nil {
+		return sandbox.RunSpec{}, err
+	}
+	return newRunSpec(req, mounts, env, logFile), nil
 }
 
 // ToolNeedsMarketplaceSync reports whether tool supports marketplace mounting and has at least one marketplace configured.
@@ -205,7 +208,7 @@ func runVolumes(req buildRequest, marketplaceMounts []string) []string {
 }
 
 // newRunSpec assembles the RunSpec from the resolved run parts, including the proxy and dind sidecar specs.
-func newRunSpec(req buildRequest, mounts mountSet, env []string, logDir string) sandbox.RunSpec {
+func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string) sandbox.RunSpec {
 	in, rc, toolConfig := req.in, req.rc, req.toolConfig
 	limits := resolve.ResourceLimitsFor(in.Limits, rc)
 	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
@@ -224,9 +227,9 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, logDir string) 
 		WithDryRun(in.DryRun).
 		WithCredentials(sandboxCredentials(in.Credentials)...).
 		WithProxy(sandbox.ProxySpec{
-			Mode:   in.ProxyMode,
-			Allow:  resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc),
-			LogDir: logDir,
+			Mode:    in.ProxyMode,
+			Allow:   resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc),
+			LogFile: proxyLog,
 		}).
 		WithDind(sandbox.DindSpec{Enabled: in.DindEnabled, Limits: dindLimits}).
 		Build()

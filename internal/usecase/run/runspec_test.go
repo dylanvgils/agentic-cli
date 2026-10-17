@@ -220,7 +220,7 @@ func Test_Service_build(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, sandbox.ProxyEnforce, rs.Proxy.Mode)
 		assert.Equal(t, []string{".anthropic.com", ".claude.ai", ".claude.com", "extra.example.com"}, rs.Proxy.Allow)
-		assert.NotEmpty(t, rs.Proxy.LogDir)
+		assert.NotEmpty(t, rs.Proxy.LogFile)
 	})
 
 	t.Run("proxy off leaves spec unproxied", func(t *testing.T) {
@@ -234,7 +234,7 @@ func Test_Service_build(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, sandbox.ProxyOff, rs.Proxy.Mode)
-		assert.Empty(t, rs.Proxy.LogDir)
+		assert.Empty(t, rs.Proxy.LogFile)
 	})
 
 	t.Run("proxy monitor wired", func(t *testing.T) {

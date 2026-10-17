@@ -1,6 +1,8 @@
 package run
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,12 +15,17 @@ import (
 // defaultProxyLogRetentionDays is how long proxy access logs are kept when no retention period is configured.
 const defaultProxyLogRetentionDays = 3
 
-// proxyLogDir returns the host log dir when the proxy is enabled, else an empty string.
-func proxyLogDir(toolHome string, proxyEnabled bool) string {
+// proxyLogFile returns a new access-log path in the tool home's logs dir when the proxy is enabled, else an empty string.
+func proxyLogFile(toolHome string, proxyEnabled bool) (string, error) {
 	if !proxyEnabled {
-		return ""
+		return "", nil
 	}
-	return filepath.Join(toolHome, config.LogsDirName)
+
+	buf := make([]byte, 6)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("name proxy log: %w", err)
+	}
+	return filepath.Join(toolHome, config.LogsDirName, proxy.LogFilePrefix+hex.EncodeToString(buf)+".jsonl"), nil
 }
 
 // prepareProxyLogDir creates dir and prunes the proxy logs in it older than toolHome's retention window.

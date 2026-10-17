@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/certs"
-	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -29,7 +28,7 @@ func TestStartProxy(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
 		stubDockerRunWithStdinCapture(t, client, nil)
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: creds, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: creds, Proxy: sandbox.ProxySpec{LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}, network: "agentic-run-abc"}
 
 		// Act
 		handle, err := client.startProxy(rs)
@@ -45,7 +44,7 @@ func TestStartProxy(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
 		stubDockerRunWithStdinCapture(t, client, fmt.Errorf("stub: cp failed"))
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: creds, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: creds, Proxy: sandbox.ProxySpec{LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}, network: "agentic-run-abc"}
 
 		// Act
 		_, err := client.startProxy(rs)
@@ -58,7 +57,7 @@ func TestStartProxy(t *testing.T) {
 	t.Run("has nothing to remove when the create fails", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true", "create")
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}, network: "agentic-run-abc"}
 
 		// Act
 		_, err := client.startProxy(rs)
@@ -78,7 +77,7 @@ func TestClient_createProxy(t *testing.T) {
 	t.Run("creates a hardened sidecar on the run network without starting it", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{Allow: []string{"api.anthropic.com"}, LogDir: t.TempDir()}}, container: "agentic-claude-abc", network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{Allow: []string{"api.anthropic.com"}, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}, container: "agentic-claude-abc", network: "agentic-run-abc"}
 
 		// Act
 		handle, err := client.createProxy(rs)
@@ -99,8 +98,8 @@ func TestClient_createProxy(t *testing.T) {
 		assert.Contains(t, createArgs, "--user="+testUser.String(), "runs as the tool's user, who owns its credential files")
 		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_ALLOW=api.anthropic.com")
 		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_MONITOR=false")
-		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_LOG="+proxyLogMountDir+"/"+proxy.LogFilePrefix+handle.id+".jsonl")
-		assert.Contains(t, createArgs, "--volume="+handle.logPath+":"+proxyLogMountDir+"/"+proxy.LogFilePrefix+handle.id+".jsonl", "only the run's own log file is mounted")
+		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_LOG="+proxyLogMountDir+"/proxy_abc.jsonl")
+		assert.Contains(t, createArgs, "--volume="+handle.logPath+":"+proxyLogMountDir+"/proxy_abc.jsonl", "only the run's own log file is mounted")
 		assert.FileExists(t, handle.logPath)
 		assert.True(t, hasArgWithPrefix(createArgs, "--env=AGENTIC_PROXY_TZ_OFFSET="))
 		assert.Contains(t, createArgs, "--label=agentic.owner=agentic-claude-abc")
@@ -111,7 +110,7 @@ func TestClient_createProxy(t *testing.T) {
 	t.Run("restricts clients to the run network's subnets", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}, network: "agentic-run-abc"}
 
 		// Act
 		_, err := client.createProxy(rs)
@@ -126,7 +125,7 @@ func TestClient_createProxy(t *testing.T) {
 	t.Run("credentials add their files and an anonymous volume", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: creds, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: creds, Proxy: sandbox.ProxySpec{LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}, network: "agentic-run-abc"}
 
 		// Act
 		_, err := client.createProxy(rs)
@@ -145,7 +144,7 @@ func TestClient_createProxy(t *testing.T) {
 	t.Run("without credentials nothing is mounted", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}, network: "agentic-run-abc"}
 
 		// Act
 		_, err := client.createProxy(rs)
@@ -167,7 +166,7 @@ func TestClient_createProxy(t *testing.T) {
 			}
 			return "", nil
 		})
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}, network: "agentic-run-abc"}
 
 		// Act
 		_, err := client.createProxy(rs)
@@ -217,16 +216,16 @@ func TestNewProxyHandle(t *testing.T) {
 		assert.ErrorIs(t, err, errNoHostUser)
 	})
 
-	t.Run("log path is under the log dir", func(t *testing.T) {
+	t.Run("logs to the run spec's log file", func(t *testing.T) {
 		// Arrange
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogDir: "/tmp/agentic/logs"}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{LogFile: "/example.test/logs/proxy_abc.jsonl"}}}
 
 		// Act
 		handle, err := client.newProxyHandle(rs)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, filepath.Join(rs.Proxy.LogDir, proxy.LogFilePrefix+handle.id+".jsonl"), handle.logPath)
+		assert.Equal(t, rs.Proxy.LogFile, handle.logPath)
 	})
 
 	t.Run("enforce mode does not monitor", func(t *testing.T) {
@@ -292,217 +291,13 @@ func Test_proxyEnvArgs(t *testing.T) {
 	})
 }
 
-func TestProxyHandleHostsMatching(t *testing.T) {
-	t.Run("collects unique denied hosts and total", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-		logPath := filepath.Join(dir, "run.jsonl")
-		lines := strings.Join([]string{
-			`{"time":"2026-06-17T12:00:00Z","host":"api.anthropic.com","port":"443","decision":"allow"}`,
-			`{"time":"2026-06-17T12:00:01Z","host":"evil.com","port":"443","decision":"deny"}`,
-			`{"time":"2026-06-17T12:00:02Z","host":"evil.com","port":"443","decision":"deny"}`,
-			`{"time":"2026-06-17T12:00:03Z","host":"tracker.net","port":"443","decision":"deny"}`,
-		}, "\n")
-		require.NoError(t, os.WriteFile(logPath, []byte(lines+"\n"), 0o644))
-		handle := proxyHandle{logPath: logPath}
-
-		// Act
-		hosts, total := handle.hostsMatching(deniedByAllowlist)
-
-		// Assert
-		assert.Equal(t, []string{"evil.com", "tracker.net"}, hosts)
-		assert.Equal(t, 3, total)
-	})
-
-	t.Run("a denied host whose upstream failed in monitor mode still counts", func(t *testing.T) {
-		// Arrange
-		logPath := filepath.Join(t.TempDir(), "run.jsonl")
-		lines := strings.Join([]string{
-			`{"time":"2026-06-17T12:00:00Z","host":"down.example.test","port":"443","decision":"deny","reason":"upstream-failed"}`,
-			`{"time":"2026-06-17T12:00:01Z","host":"local.example.test","port":"443","decision":"deny","reason":"blocked-address"}`,
-		}, "\n")
-		require.NoError(t, os.WriteFile(logPath, []byte(lines+"\n"), 0o644))
-		handle := proxyHandle{logPath: logPath}
-
-		// Act
-		hosts, total := handle.hostsMatching(deniedByAllowlist)
-
-		// Assert
-		assert.Equal(t, []string{"down.example.test"}, hosts)
-		assert.Equal(t, 1, total)
-	})
-
-	t.Run("hosts are made safe to print", func(t *testing.T) {
-		// Arrange
-		logPath := filepath.Join(t.TempDir(), "run.jsonl")
-		line := `{"time":"2026-06-17T12:00:00Z","host":"evil\u202e.test","port":"443","decision":"deny"}`
-		require.NoError(t, os.WriteFile(logPath, []byte(line+"\n"), 0o644))
-		handle := proxyHandle{logPath: logPath}
-
-		// Act
-		hosts, _ := handle.hostsMatching(deniedByAllowlist)
-
-		// Assert
-		assert.Equal(t, []string{`"evil\u202e.test"`}, hosts)
-	})
-
-	t.Run("missing log yields nothing", func(t *testing.T) {
-		// Arrange
-		handle := proxyHandle{logPath: filepath.Join(t.TempDir(), "absent.jsonl")}
-
-		// Act
-		hosts, total := handle.hostsMatching(deniedByAllowlist)
-
-		// Assert
-		assert.Empty(t, hosts)
-		assert.Zero(t, total)
-	})
-}
-
-func TestProxyHandlePrintSummary(t *testing.T) {
-	writeLog := func(t *testing.T, lines ...string) string {
-		dir := t.TempDir()
-		logPath := filepath.Join(dir, "run.jsonl")
-		require.NoError(t, os.WriteFile(logPath, []byte(strings.Join(lines, "\n")+"\n"), 0o644))
-		return logPath
-	}
-
-	t.Run("enforced mode reports blocked hosts", func(t *testing.T) {
-		// Arrange
-		logPath := writeLog(t,
-			`{"host":"api.anthropic.com","decision":"allow"}`,
-			`{"host":"evil.com","decision":"deny"}`,
-		)
-		handle := proxyHandle{logPath: logPath}
-		var buf strings.Builder
-
-		// Act
-		handle.PrintSummary(logging.New(&buf))
-
-		// Assert
-		assert.Contains(t, buf.String(), "agentic: proxy blocked 1 request(s) to: evil.com")
-		assert.NotContains(t, buf.String(), "monitor mode")
-	})
-
-	t.Run("monitor mode reports would-be-blocked hosts", func(t *testing.T) {
-		// Arrange
-		logPath := writeLog(t,
-			`{"host":"api.anthropic.com","decision":"allow"}`,
-			`{"host":"evil.com","decision":"deny"}`,
-		)
-		handle := proxyHandle{logPath: logPath, monitor: true}
-		var buf strings.Builder
-
-		// Act
-		handle.PrintSummary(logging.New(&buf))
-
-		// Assert
-		assert.Contains(t, buf.String(), "agentic: proxy (monitor mode) observed 2 request(s); 1 would be blocked under the current allowlist: evil.com")
-		assert.Contains(t, buf.String(), "--proxy-monitor")
-	})
-
-	t.Run("warns about credential hosts reached without the placeholder", func(t *testing.T) {
-		// Arrange
-		logPath := writeLog(t,
-			`{"host":"api.example.test","decision":"allow","intercepted":true}`,
-			`{"host":"api.example.test","decision":"allow","intercepted":true,"reason":"no-placeholder"}`,
-		)
-		handle := proxyHandle{logPath: logPath}
-		var buf strings.Builder
-
-		// Act
-		handle.PrintSummary(logging.New(&buf))
-
-		// Assert
-		assert.Contains(t, buf.String(), "agentic: warning: proxy saw 1 connection(s) to credential hosts without the placeholder, so they likely ran unauthenticated: api.example.test")
-		assert.NotContains(t, buf.String(), "blocked")
-	})
-
-	t.Run("monitor mode doesn't count a missed placeholder as another request or block", func(t *testing.T) {
-		// Arrange
-		logPath := writeLog(t,
-			`{"host":"evil.com","decision":"deny"}`,
-			`{"host":"api.example.test","decision":"deny","intercepted":true,"reason":"no-placeholder"}`,
-		)
-		handle := proxyHandle{logPath: logPath, monitor: true}
-		var buf strings.Builder
-
-		// Act
-		handle.PrintSummary(logging.New(&buf))
-
-		// Assert
-		assert.Contains(t, buf.String(), "observed 1 request(s); 1 would be blocked under the current allowlist: evil.com")
-	})
-
-	t.Run("monitor mode counts a tunnel with failed requests once", func(t *testing.T) {
-		// Arrange
-		logPath := writeLog(t,
-			`{"host":"evil.com","decision":"deny"}`,
-			`{"host":"api.example.test","decision":"allow","intercepted":true}`,
-			`{"host":"api.example.test","decision":"allow","intercepted":true,"reason":"upstream-failed"}`,
-		)
-		handle := proxyHandle{logPath: logPath, monitor: true}
-		var buf strings.Builder
-
-		// Act
-		handle.PrintSummary(logging.New(&buf))
-
-		// Assert
-		assert.Contains(t, buf.String(), "observed 2 request(s); 1 would be blocked under the current allowlist: evil.com")
-	})
-
-	t.Run("guard refusals are reported apart from allowlist blocks", func(t *testing.T) {
-		// Arrange
-		logPath := writeLog(t,
-			`{"host":"evil.com","decision":"deny"}`,
-			`{"host":"localhost","decision":"deny","reason":"blocked-address"}`,
-		)
-		handle := proxyHandle{logPath: logPath}
-		var buf strings.Builder
-
-		// Act
-		handle.PrintSummary(logging.New(&buf))
-
-		// Assert
-		assert.Contains(t, buf.String(), "agentic: proxy blocked 1 request(s) to: evil.com")
-		assert.Contains(t, buf.String(), "agentic: proxy refused 1 request(s) to local or private addresses: localhost")
-	})
-
-	t.Run("monitor mode reports guard refusals as refused, not would-be-blocked", func(t *testing.T) {
-		// Arrange
-		logPath := writeLog(t, `{"host":"localhost","decision":"deny","enforced":true,"reason":"blocked-address"}`)
-		handle := proxyHandle{logPath: logPath, monitor: true}
-		var buf strings.Builder
-
-		// Act
-		handle.PrintSummary(logging.New(&buf))
-
-		// Assert
-		assert.Contains(t, buf.String(), "agentic: proxy refused 1 request(s) to local or private addresses: localhost")
-		assert.NotContains(t, buf.String(), "would be blocked")
-	})
-
-	t.Run("nothing denied prints nothing", func(t *testing.T) {
-		// Arrange
-		logPath := writeLog(t, `{"host":"api.anthropic.com","decision":"allow"}`)
-		handle := proxyHandle{logPath: logPath, monitor: true}
-		var buf strings.Builder
-
-		// Act
-		handle.PrintSummary(logging.New(&buf))
-
-		// Assert
-		assert.Empty(t, buf.String())
-	})
-}
-
 func Test_setupProxy(t *testing.T) {
 	client := newTestClient()
 
 	t.Run("dry run makes no docker calls", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Image: "agentic-claude", DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Image: "agentic-claude", DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}}
 
 		// Act
 		env, cleanup, err := client.setupProxy(rs)
@@ -517,7 +312,7 @@ func Test_setupProxy(t *testing.T) {
 	t.Run("cleanup stops the sidecar", func(t *testing.T) {
 		// Arrange
 		calls := stubProxyDocker(t, client, "true")
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}}
 
 		// Act
 		_, cleanup, err := client.setupProxy(rs)
@@ -532,7 +327,7 @@ func Test_setupProxy(t *testing.T) {
 	t.Run("propagates startProxy error", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "network inspect", "network create")
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}}
 
 		// Act
 		env, cleanup, err := client.setupProxy(rs)
@@ -699,7 +494,7 @@ func Test_dryRunProxy(t *testing.T) {
 		calls := stubDockerRunCapture(t, client)
 		stdin := stubDockerRunWithStdinCapture(t, client, nil)
 		creds := []sandbox.Credential{{Name: "EXAMPLE_API_KEY", Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"}}
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, DryRun: true, Credentials: creds, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, DryRun: true, Credentials: creds, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}}
 
 		// Act
 		var toolArgs []string
@@ -718,28 +513,6 @@ func Test_dryRunProxy(t *testing.T) {
 		assert.Empty(t, calls())
 		assert.Empty(t, stdin())
 	})
-}
-
-func Test_repeatsAttempt(t *testing.T) {
-	cases := map[string]struct {
-		entry proxy.Entry
-		want  bool
-	}{
-		"intercepted tunnel":             {proxy.Entry{Intercepted: true}, false},
-		"failed request inside a tunnel": {proxy.Entry{Intercepted: true, Reason: proxy.ReasonUpstreamFailed}, true},
-		"missed placeholder":             {proxy.Entry{Intercepted: true, Reason: proxy.ReasonNoPlaceholder}, true},
-		"failed plain tunnel":            {proxy.Entry{Reason: proxy.ReasonUpstreamFailed}, false},
-	}
-
-	for name, c := range cases {
-		t.Run(name, func(t *testing.T) {
-			// Act
-			got := repeatsAttempt(c.entry)
-
-			// Assert
-			assert.Equal(t, c.want, got)
-		})
-	}
 }
 
 func TestSweepProxyResources(t *testing.T) {
