@@ -57,7 +57,7 @@ type dockerAPI interface {
 type msbAPI interface {
 	run.Microsandbox
 	clean.ImageCleaner
-	volumes.Microsandbox
+	volumes.Store
 
 	Available() error
 	Version() (string, error)

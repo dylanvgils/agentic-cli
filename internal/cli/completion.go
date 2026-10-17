@@ -8,7 +8,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/volumes"
 )
 
 var builtToolNamesFunc = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
@@ -46,7 +45,7 @@ var volumeNamesFunc = func(_ *cobra.Command, args []string, _ string) ([]string,
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	all, err := volumes.New(dockerClient, msbClient).List()
+	all, err := newVolumeService().List()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}

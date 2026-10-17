@@ -7,15 +7,17 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 )
 
-// requireDockerLayer errors if image lacks the docker layer that --dind needs.
-func (r dockerRunner) requireDockerLayer(image, tool string) error {
+// requireDockerLayer errors if req's image exists but lacks the docker layer its Docker daemon needs.
+func (r dockerRunner) requireDockerLayer(req Request) error {
+	image, tool := req.Target.ImageName, req.Target.ToolName
 	info, err := r.docker.InspectImage(image)
 	if err != nil {
 		return err
 	}
-	if info != nil && slices.Contains(docker.RecoverExtras(info.Base), "docker") {
+	// A missing image is reported by requireImage, which runs next
+	if info == nil || slices.Contains(docker.RecoverExtras(info.Base), "docker") {
 		return nil
 	}
 
-	return fmt.Errorf("--dind needs the docker CLI in %q; rebuild with \"agentic build %s --base docker\"", image, tool)
+	return fmt.Errorf("%s needs the docker CLI in %q; rebuild with \"agentic build %s --base docker\"", dindSource(req), image, tool)
 }

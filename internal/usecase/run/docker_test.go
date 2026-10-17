@@ -10,6 +10,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,11 +31,14 @@ func Test_dockerRunner_Check(t *testing.T) {
 	engine := func(name, version string) func() (string, string, error) {
 		return func() (string, string, error) { return name, version, nil }
 	}
+	withoutDockerLayer := func(name string) (*docker.ImageInfo, error) {
+		return &docker.ImageInfo{Image: name, Base: "node@24.1.0"}, nil
+	}
+	plain := Request{Project: Project{RC: &config.AgenticRC{}}}
 
 	t.Run("accepts the minimum Docker Engine", func(t *testing.T) {
 		// Arrange
 		req := newCredentialRequest(t)
-		req.Flags.Dind.DindFlag = true
 
 		// Act
 		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Engine", "26.0.0")}}.Check(req)
@@ -45,7 +49,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 
 	t.Run("refuses an older Docker Engine", func(t *testing.T) {
 		// Act
-		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Engine", "25.0.5")}}.Check(Request{})
+		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Engine", "25.0.5")}}.Check(plain)
 
 		// Assert
 		assert.EqualError(t, err, "Docker Engine 25.0.5 is older than the minimum 26.0; update it and run again")
@@ -56,7 +60,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 		buf := stubErrLog(t)
 
 		// Act
-		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Podman Engine", "5.2.0")}}.Check(Request{})
+		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Podman Engine", "5.2.0")}}.Check(plain)
 
 		// Assert
 		require.NoError(t, err)
@@ -68,7 +72,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 		d := &fakeDocker{serverVersion: func() (string, string, error) { return "", "", errors.New("cannot connect to the docker daemon") }}
 
 		// Act
-		err := dockerRunner{docker: d}.Check(Request{})
+		err := dockerRunner{docker: d}.Check(plain)
 
 		// Assert
 		assert.EqualError(t, err, "read the Docker Engine version: cannot connect to the docker daemon")
@@ -76,10 +80,29 @@ func Test_dockerRunner_Check(t *testing.T) {
 
 	t.Run("dry run skips the check", func(t *testing.T) {
 		// Arrange
-		req := Request{Flags: Flags{DryRun: true}}
+		req := Request{Flags: Flags{DryRun: true}, Project: Project{RC: &config.AgenticRC{}}}
 
 		// Act
 		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Engine", "20.10.24")}}.Check(req)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("refuses dind on an image without the docker layer, even on a dry run", func(t *testing.T) {
+		// Arrange
+		req := Request{Flags: Flags{DryRun: true, Dind: resolve.DindInput{DindFlag: true}}, Project: Project{RC: &config.AgenticRC{}}}
+
+		// Act
+		err := dockerRunner{docker: &fakeDocker{inspectImage: withoutDockerLayer}}.Check(req)
+
+		// Assert
+		assert.ErrorContains(t, err, "--base docker")
+	})
+
+	t.Run("skips the docker layer without dind", func(t *testing.T) {
+		// Act
+		err := dockerRunner{docker: &fakeDocker{inspectImage: withoutDockerLayer, serverVersion: engine("Engine", "26.0.0")}}.Check(plain)
 
 		// Assert
 		assert.NoError(t, err)
@@ -225,27 +248,6 @@ func Test_dockerRunner_Run(t *testing.T) {
 		assert.True(t, ran)
 	})
 
-	t.Run("dind without the docker layer fails before building sidecars", func(t *testing.T) {
-		// Arrange
-		var builds []string
-		d := &fakeDocker{
-			inspectImage: func(name string) (*docker.ImageInfo, error) {
-				return &docker.ImageInfo{Image: name}, nil
-			},
-			buildDindImage: func(image string, _ tools.BuildOptions) error {
-				builds = append(builds, image)
-				return nil
-			},
-		}
-		rs := sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}}
-
-		// Act
-		err := dockerRunner{docker: d}.Run(req, rs, nil)
-
-		// Assert
-		require.ErrorContains(t, err, "--base docker")
-		assert.Empty(t, builds)
-	})
 }
 
 func Test_dockerRunner_prepareDockerHost(t *testing.T) {

@@ -80,24 +80,9 @@ func (c *Client) ensureEgressNetwork() error {
 	return err
 }
 
-// createRunNetwork creates rs's own network, internal with the proxy so the proxy is its only way out.
+// createRunNetwork creates rs's own network.
 func (c *Client) createRunNetwork(rs toolRun) error {
-	createArgs := []string{"network", "create"}
-	if rs.Proxy.Mode.Enabled() {
-		createArgs = append(createArgs,
-			// Security: no route to the internet, so the proxy is the only way out
-			arg("internal"),
-			// Security: no bridge address on the host, so host services aren't reachable through the gateway
-			arg("opt", inhibitIPv4Opt),
-			// Security: no IPv6, so a daemon default can't add an IPv6 gateway on the host
-			arg("ipv6", "false"),
-		)
-	}
-	createArgs = append(createArgs, label(LabelProject, LabelProjectVal))
-	createArgs = append(createArgs, ownerLabels(rs)...)
-	createArgs = append(createArgs, rs.network)
-
-	if _, err := c.run(createArgs...); err != nil {
+	if _, err := c.run(runNetworkArgs(rs)...); err != nil {
 		return fmt.Errorf("create run network: %w", err)
 	}
 	return nil
@@ -120,4 +105,23 @@ func (c *Client) networkSubnets(network string) ([]string, error) {
 		return nil, fmt.Errorf("network %s has no subnet", network)
 	}
 	return subnets, nil
+}
+
+// runNetworkArgs returns the `docker network create` args for rs's network, internal with the proxy so the proxy is its
+// only way out.
+func runNetworkArgs(rs toolRun) []string {
+	args := []string{"network", "create"}
+	if rs.Proxy.Mode.Enabled() {
+		args = append(args,
+			// Security: no route to the internet, so the proxy is the only way out
+			arg("internal"),
+			// Security: no bridge address on the host, so host services aren't reachable through the gateway
+			arg("opt", inhibitIPv4Opt),
+			// Security: no IPv6, so a daemon default can't add an IPv6 gateway on the host
+			arg("ipv6", "false"),
+		)
+	}
+	args = append(args, label(LabelProject, LabelProjectVal))
+	args = append(args, ownerLabels(rs)...)
+	return append(args, rs.network)
 }

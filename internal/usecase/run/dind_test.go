@@ -5,11 +5,14 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_dockerRunner_requireDockerLayer(t *testing.T) {
+	req := Request{Target: Target{ToolName: "claude", ImageName: "agentic-claude"}, Flags: Flags{Dind: resolve.DindInput{DindFlag: true}}}
+
 	t.Run("image with docker layer passes", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{
@@ -19,13 +22,13 @@ func Test_dockerRunner_requireDockerLayer(t *testing.T) {
 		}
 
 		// Act
-		err := dockerRunner{docker: d}.requireDockerLayer("agentic-claude", "claude")
+		err := dockerRunner{docker: d}.requireDockerLayer(req)
 
 		// Assert
 		require.NoError(t, err)
 	})
 
-	t.Run("image without docker layer hints at rebuild", func(t *testing.T) {
+	t.Run("image without docker layer names the source and hints at rebuild", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{
 			inspectImage: func(string) (*docker.ImageInfo, error) {
@@ -34,11 +37,21 @@ func Test_dockerRunner_requireDockerLayer(t *testing.T) {
 		}
 
 		// Act
-		err := dockerRunner{docker: d}.requireDockerLayer("agentic-claude", "claude")
+		err := dockerRunner{docker: d}.requireDockerLayer(req)
 
 		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "agentic build claude --base docker")
+		assert.EqualError(t, err, `--dind needs the docker CLI in "agentic-claude"; rebuild with "agentic build claude --base docker"`)
+	})
+
+	t.Run("missing image passes, as requireImage reports it", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{inspectImage: func(string) (*docker.ImageInfo, error) { return nil, nil }}
+
+		// Act
+		err := dockerRunner{docker: d}.requireDockerLayer(req)
+
+		// Assert
+		require.NoError(t, err)
 	})
 
 	t.Run("inspect error propagates", func(t *testing.T) {
@@ -50,7 +63,7 @@ func Test_dockerRunner_requireDockerLayer(t *testing.T) {
 		}
 
 		// Act
-		err := dockerRunner{docker: d}.requireDockerLayer("agentic-claude", "claude")
+		err := dockerRunner{docker: d}.requireDockerLayer(req)
 
 		// Assert
 		require.ErrorContains(t, err, "docker daemon not running")

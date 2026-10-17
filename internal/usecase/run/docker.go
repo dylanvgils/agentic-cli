@@ -6,6 +6,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 )
 
@@ -22,9 +23,15 @@ func (r dockerRunner) Capabilities() sandbox.Capabilities {
 	return r.docker.Capabilities()
 }
 
-// Check refuses a Docker Engine older than minDockerEngine and warns that other engines can't be checked; a dry run starts
-// nothing, so it skips the check.
+// Check refuses a dind run on an image without the docker layer and a Docker Engine older than minDockerEngine, and warns
+// that other engines can't be checked; a dry run starts nothing, so it skips the engine check.
 func (r dockerRunner) Check(req Request) error {
+	if resolve.DindEnabled(req.Flags.Dind, req.Project.RC) {
+		if err := r.requireDockerLayer(req); err != nil {
+			return err
+		}
+	}
+
 	if req.Flags.DryRun {
 		return nil
 	}
@@ -42,14 +49,8 @@ func (r dockerRunner) Check(req Request) error {
 
 // Run readies the Docker-only host resources rs needs, starts its sidecars and runs it, checking the mounts again right
 // before the sidecars and the tool start as readying them can take long enough for a path to change; a dry run only
-// checks the image and prints.
+// prints.
 func (r dockerRunner) Run(req Request, rs sandbox.RunSpec, toolArgs []string) error {
-	if rs.Dind.Enabled {
-		if err := r.requireDockerLayer(rs.Image, req.Target.ToolName); err != nil {
-			return err
-		}
-	}
-
 	if !rs.DryRun {
 		if err := r.prepareDockerHost(rs, req.Flags.Registry); err != nil {
 			return err

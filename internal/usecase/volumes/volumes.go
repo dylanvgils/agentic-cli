@@ -1,4 +1,4 @@
-// Package volumes lists and removes agentic's named volumes across the Docker and microsandbox runtimes.
+// Package volumes lists and removes agentic's named volumes across every runtime.
 package volumes
 
 import (
@@ -17,7 +17,13 @@ const (
 // Service manages agentic's named volumes in every runtime.
 type Service struct {
 	docker Docker
-	msb    Microsandbox
+	others []Runtime // runtimes besides Docker, listed best-effort
+}
+
+// Runtime is a runtime besides Docker that holds named volumes.
+type Runtime struct {
+	Name  string
+	Store Store
 }
 
 // Volume is one named volume and the runtime that holds it.
@@ -34,31 +40,38 @@ func (v Volume) Label() string {
 	return v.Name + " (" + v.Runtime + ")"
 }
 
-// New returns a Service over Docker and microsandbox volumes.
-func New(d Docker, m Microsandbox) *Service {
-	return &Service{docker: d, msb: m}
+// New returns a Service over Docker volumes and those of the other installed runtimes.
+func New(d Docker, others ...Runtime) *Service {
+	return &Service{docker: d, others: others}
 }
 
-// List returns agentic's Docker volumes, then its msb volumes.
+// List returns agentic's Docker volumes, then each other runtime's; a runtime that can't list them is skipped with a
+// warning.
 func (s *Service) List() ([]Volume, error) {
 	names, err := s.docker.ListVolumeNames()
 	if err != nil {
 		return nil, err
 	}
 
-	msbVolumes, err := s.msbVolumes()
-	if err != nil {
-		return nil, err
+	volumes := named(names, RuntimeDocker)
+	for _, r := range s.others {
+		names, err := r.Store.ListVolumeNames()
+		if err != nil {
+			logging.Warnf("skipped %s volumes: %v", r.Name, err)
+			continue
+		}
+		volumes = append(volumes, named(names, r.Name)...)
 	}
-	return append(named(names, RuntimeDocker), msbVolumes...), nil
+	return volumes, nil
 }
 
 // Remove removes v from its runtime.
 func (s *Service) Remove(v Volume) error {
-	if v.Runtime == RuntimeMicrosandbox {
-		return s.msb.RemoveVolume(v.Name)
+	store, err := s.store(v.Runtime)
+	if err != nil {
+		return err
 	}
-	return s.docker.RemoveVolume(v.Name)
+	return store.RemoveVolume(v.Name)
 }
 
 // RemoveAll removes each of vols from its runtime, reporting progress; it stops at the first error.
@@ -91,17 +104,17 @@ func (s *Service) RemoveNamed(name string) error {
 	return nil
 }
 
-// msbVolumes returns agentic's msb volumes, or none when msb isn't installed.
-func (s *Service) msbVolumes() ([]Volume, error) {
-	if s.msb.Available() != nil {
-		return nil, nil
+// store returns the store of the runtime named runtime.
+func (s *Service) store(runtime string) (Store, error) {
+	if runtime == RuntimeDocker {
+		return s.docker, nil
 	}
-
-	names, err := s.msb.ListVolumeNames()
-	if err != nil {
-		return nil, err
+	for _, r := range s.others {
+		if r.Name == runtime {
+			return r.Store, nil
+		}
 	}
-	return named(names, RuntimeMicrosandbox), nil
+	return nil, fmt.Errorf("unknown volume runtime %q", runtime)
 }
 
 // named pairs each of names with runtime, sorted by name so every runtime lists in the same order.

@@ -11,7 +11,7 @@ import (
 func Test_Service_List(t *testing.T) {
 	t.Run("returns docker volumes then msb volumes", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{listVolumeNames: namesFunc("maven")}, &fakeMsb{listVolumeNames: namesFunc("gradle")})
+		svc := New(&fakeDocker{listVolumeNames: namesFunc("maven")}, msbRuntime(&fakeStore{listVolumeNames: namesFunc("gradle")}))
 
 		// Act
 		volumes, err := svc.List()
@@ -23,7 +23,7 @@ func Test_Service_List(t *testing.T) {
 
 	t.Run("returns a docker listing error", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{listVolumeNames: func() ([]string, error) { return nil, errors.New("daemon down") }}, &fakeMsb{})
+		svc := New(&fakeDocker{listVolumeNames: func() ([]string, error) { return nil, errors.New("daemon down") }}, msbRuntime(&fakeStore{}))
 
 		// Act
 		_, err := svc.List()
@@ -32,15 +32,30 @@ func Test_Service_List(t *testing.T) {
 		assert.ErrorContains(t, err, "daemon down")
 	})
 
-	t.Run("returns an msb listing error", func(t *testing.T) {
+	t.Run("skips another runtime that can't list its volumes", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{}, &fakeMsb{listVolumeNames: func() ([]string, error) { return nil, errors.New("boom") }})
+		logs := stubErrLog(t)
+		svc := New(&fakeDocker{listVolumeNames: namesFunc("maven")}, msbRuntime(&fakeStore{listVolumeNames: func() ([]string, error) { return nil, errors.New("boom") }}))
 
 		// Act
-		_, err := svc.List()
+		volumes, err := svc.List()
 
 		// Assert
-		assert.ErrorContains(t, err, "boom")
+		require.NoError(t, err)
+		assert.Equal(t, []Volume{{Name: "maven", Runtime: RuntimeDocker}}, volumes)
+		assert.Contains(t, logs.String(), "skipped microsandbox volumes: boom")
+	})
+
+	t.Run("lists only docker without other runtimes", func(t *testing.T) {
+		// Arrange
+		svc := New(&fakeDocker{listVolumeNames: namesFunc("maven")})
+
+		// Act
+		volumes, err := svc.List()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []Volume{{Name: "maven", Runtime: RuntimeDocker}}, volumes)
 	})
 }
 
@@ -48,7 +63,7 @@ func Test_Service_Remove(t *testing.T) {
 	t.Run("removes a docker volume from docker", func(t *testing.T) {
 		// Arrange
 		var got string
-		svc := New(&fakeDocker{removeVolume: func(n string) error { got = n; return nil }}, &fakeMsb{})
+		svc := New(&fakeDocker{removeVolume: func(n string) error { got = n; return nil }}, msbRuntime(&fakeStore{}))
 
 		// Act
 		err := svc.Remove(Volume{Name: "maven", Runtime: RuntimeDocker})
@@ -61,7 +76,7 @@ func Test_Service_Remove(t *testing.T) {
 	t.Run("removes an msb volume from msb", func(t *testing.T) {
 		// Arrange
 		var got string
-		svc := New(&fakeDocker{}, &fakeMsb{removeVolume: func(n string) error { got = n; return nil }})
+		svc := New(&fakeDocker{}, msbRuntime(&fakeStore{removeVolume: func(n string) error { got = n; return nil }}))
 
 		// Act
 		err := svc.Remove(Volume{Name: "maven", Runtime: RuntimeMicrosandbox})
@@ -69,6 +84,14 @@ func Test_Service_Remove(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "maven", got)
+	})
+
+	t.Run("refuses a runtime it doesn't hold", func(t *testing.T) {
+		// Act
+		err := New(&fakeDocker{}).Remove(Volume{Name: "maven", Runtime: RuntimeMicrosandbox})
+
+		// Assert
+		assert.EqualError(t, err, `unknown volume runtime "microsandbox"`)
 	})
 }
 
@@ -78,7 +101,7 @@ func Test_Service_RemoveAll(t *testing.T) {
 		logs := stubLog(t)
 		var removed []string
 		d := &fakeDocker{removeVolume: func(n string) error { removed = append(removed, "docker "+n); return nil }}
-		m := &fakeMsb{removeVolume: func(n string) error { removed = append(removed, "msb "+n); return nil }}
+		m := msbRuntime(&fakeStore{removeVolume: func(n string) error { removed = append(removed, "msb "+n); return nil }})
 		vols := []Volume{{Name: "maven", Runtime: RuntimeDocker}, {Name: "gradle", Runtime: RuntimeMicrosandbox}}
 
 		// Act
@@ -98,7 +121,7 @@ func Test_Service_RemoveAll(t *testing.T) {
 		vols := []Volume{{Name: "maven", Runtime: RuntimeDocker}, {Name: "npm", Runtime: RuntimeDocker}}
 
 		// Act
-		err := New(d, &fakeMsb{}).RemoveAll(vols)
+		err := New(d, msbRuntime(&fakeStore{})).RemoveAll(vols)
 
 		// Assert
 		assert.ErrorContains(t, err, "in use")
@@ -124,46 +147,6 @@ func Test_Volume_Label(t *testing.T) {
 	})
 }
 
-func Test_Service_msbVolumes(t *testing.T) {
-	t.Run("returns msb volumes", func(t *testing.T) {
-		// Arrange
-		svc := New(&fakeDocker{}, &fakeMsb{listVolumeNames: namesFunc("gradle")})
-
-		// Act
-		volumes, err := svc.msbVolumes()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []Volume{{Name: "gradle", Runtime: RuntimeMicrosandbox}}, volumes)
-	})
-
-	t.Run("returns none when msb isn't installed", func(t *testing.T) {
-		// Arrange
-		msb := &fakeMsb{
-			available:       func() error { return errors.New("msb not found") },
-			listVolumeNames: func() ([]string, error) { return nil, errors.New("unexpected") },
-		}
-
-		// Act
-		volumes, err := New(&fakeDocker{}, msb).msbVolumes()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, volumes)
-	})
-
-	t.Run("returns a listing error", func(t *testing.T) {
-		// Arrange
-		svc := New(&fakeDocker{}, &fakeMsb{listVolumeNames: func() ([]string, error) { return nil, errors.New("boom") }})
-
-		// Act
-		_, err := svc.msbVolumes()
-
-		// Assert
-		assert.ErrorContains(t, err, "boom")
-	})
-}
-
 func Test_Service_RemoveNamed(t *testing.T) {
 	t.Run("removes the volume from every runtime that holds it", func(t *testing.T) {
 		// Arrange
@@ -172,10 +155,10 @@ func Test_Service_RemoveNamed(t *testing.T) {
 			listVolumeNames: namesFunc("maven", "gradle"),
 			removeVolume:    func(n string) error { removed = append(removed, "docker "+n); return nil },
 		}
-		m := &fakeMsb{
+		m := msbRuntime(&fakeStore{
 			listVolumeNames: namesFunc("maven"),
 			removeVolume:    func(n string) error { removed = append(removed, "msb "+n); return nil },
-		}
+		})
 
 		// Act
 		err := New(d, m).RemoveNamed("maven")
@@ -188,10 +171,10 @@ func Test_Service_RemoveNamed(t *testing.T) {
 	t.Run("removes a volume only msb holds", func(t *testing.T) {
 		// Arrange
 		var removed []string
-		m := &fakeMsb{
+		m := msbRuntime(&fakeStore{
 			listVolumeNames: namesFunc("maven"),
 			removeVolume:    func(n string) error { removed = append(removed, n); return nil },
-		}
+		})
 
 		// Act
 		err := New(&fakeDocker{}, m).RemoveNamed("maven")
@@ -203,7 +186,7 @@ func Test_Service_RemoveNamed(t *testing.T) {
 
 	t.Run("returns an error when no runtime holds it", func(t *testing.T) {
 		// Act
-		err := New(&fakeDocker{}, &fakeMsb{}).RemoveNamed("maven")
+		err := New(&fakeDocker{}, msbRuntime(&fakeStore{})).RemoveNamed("maven")
 
 		// Assert
 		assert.EqualError(t, err, "'maven' is not an agentic-managed volume")
@@ -217,7 +200,7 @@ func Test_Service_RemoveNamed(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, &fakeMsb{}).RemoveNamed("maven")
+		err := New(d, msbRuntime(&fakeStore{})).RemoveNamed("maven")
 
 		// Assert
 		assert.ErrorContains(t, err, "in use")
