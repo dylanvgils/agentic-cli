@@ -414,3 +414,8 @@ func newSyncingService(d Docker, sync func([]marketplace.Entry, func(marketplace
 	svc.syncMarketplaces = sync
 	return svc
 }
+
+// approvedRC returns rc as approved config, as checkSettings would once the user approved it.
+func approvedRC(rc *config.AgenticRC) approvedConfig {
+	return approvedConfig{rc: rc}
+}

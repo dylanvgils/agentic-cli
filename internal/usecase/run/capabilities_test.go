@@ -362,3 +362,52 @@ func Test_layerSource(t *testing.T) {
 		assert.Equal(t, "custom", source)
 	})
 }
+
+func Test_specCapabilities(t *testing.T) {
+	t.Run("a bare spec relies on nothing", func(t *testing.T) {
+		// Act
+		need := specCapabilities(sandbox.RunSpec{})
+
+		// Assert
+		assert.Equal(t, sandbox.Capabilities{}, need)
+	})
+
+	t.Run("the proxy, credentials and secrets each count", func(t *testing.T) {
+		// Arrange
+		rs := sandbox.RunSpec{
+			Proxy:       sandbox.ProxySpec{Mode: sandbox.ProxyEnforce},
+			Credentials: []sandbox.Credential{{Name: "API_TOKEN"}},
+			Secrets:     []string{"token:/run/secrets/token"},
+		}
+
+		// Act
+		need := specCapabilities(rs)
+
+		// Assert
+		assert.Equal(t, sandbox.Capabilities{Proxy: true, CredentialInjection: true, SecretMounts: true}, need)
+	})
+}
+
+func Test_checkSpec(t *testing.T) {
+	t.Run("passes a spec the runtime can enforce", func(t *testing.T) {
+		// Arrange
+		rs := sandbox.RunSpec{Secrets: []string{"token:/run/secrets/token"}}
+
+		// Act
+		err := checkSpec(rs, sandbox.Capabilities{SecretMounts: true})
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("refuses every missing feature at once", func(t *testing.T) {
+		// Arrange
+		rs := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}, Secrets: []string{"token:/run/secrets/token"}}
+
+		// Act
+		err := checkSpec(rs, sandbox.Capabilities{CredentialInjection: true})
+
+		// Assert
+		assert.EqualError(t, err, "the runtime can't enforce the egress proxy or secret mounts that the run asks for")
+	})
+}

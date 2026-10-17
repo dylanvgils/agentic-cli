@@ -30,9 +30,17 @@ type runner interface {
 }
 
 // Run executes rs with toolArgs on req's runtime, which first readies its own host resources; an empty runtime is Docker.
+// Every runtime gets rs's security checks here, even one whose runner skips its own.
 func (s *Service) Run(req Request, rs sandbox.RunSpec, toolArgs []string) error {
 	r, err := s.runner(req.Flags.Runtime)
 	if err != nil {
+		return err
+	}
+
+	if err := checkSpec(rs, r.Capabilities()); err != nil {
+		return err
+	}
+	if err := recheckMounts(rs); err != nil {
 		return err
 	}
 	return r.Run(req, rs, toolArgs)

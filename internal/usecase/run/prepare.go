@@ -68,7 +68,8 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
-	if err := checkSettings(req.Project.Layers, home, prompter); err != nil {
+	approved, err := checkSettings(req.Project, home, prompter)
+	if err != nil {
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
@@ -76,12 +77,12 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
-	in, err := runInput(req, s.capabilities(req.Flags.Runtime))
+	in, err := runInput(req.Flags, approved, s.capabilities(req.Flags.Runtime))
 	if err != nil {
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
-	return s.buildWithInstructions(req.Target, in, req.Tool, req.Project.RC)
+	return s.buildWithInstructions(req.Target, in, req.Tool, approved)
 }
 
 // checkTool offers a due tool update and creates the tool's host files.
@@ -111,14 +112,14 @@ func CheckProjectDir(dir string) error {
 	return nil
 }
 
-// runInput resolves req's flags and approved credentials into Build's input for a runtime offering caps.
-func runInput(req Request, caps sandbox.Capabilities) (Input, error) {
-	in, err := resolveInput(req.Flags, req.Project.RC, caps)
+// runInput resolves flags against the approved config, credentials included, into build's input for a runtime offering caps.
+func runInput(flags Flags, approved approvedConfig, caps sandbox.Capabilities) (Input, error) {
+	in, err := resolveInput(flags, approved.rc, caps)
 	if err != nil {
 		return Input{}, err
 	}
 
-	creds, err := resolveCredentials(req.Project.Layers, in.ToolHome)
+	creds, err := resolveCredentials(approved.layers, in.ToolHome)
 	if err != nil {
 		return Input{}, err
 	}
@@ -130,7 +131,7 @@ func runInput(req Request, caps sandbox.Capabilities) (Input, error) {
 	return in, nil
 }
 
-// resolveInput resolves flags against rc into Build's input for a runtime offering caps, minus the credentials only a run reads.
+// resolveInput resolves flags against rc into build's input for a runtime offering caps, minus the credentials only a run reads.
 func resolveInput(flags Flags, rc *config.AgenticRC, caps sandbox.Capabilities) (Input, error) {
 	proxyMode, err := resolve.ProxyMode(flags.Proxy, rc, caps.CredentialsViaProxy)
 	if err != nil {

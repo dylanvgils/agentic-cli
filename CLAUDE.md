@@ -23,6 +23,8 @@ make verify-checksums   # pinned install-script checksums (fix-checksums to upda
 - The tool container keeps `--read-only`, `--cap-drop=ALL`, `no-new-privileges`, the host uid/gid and an isolated network (`internal/docker/runargs.go`). Need writes? Add a targeted ephemeral dir or volume.
 - Only the DinD sidecar gets extra capabilities, unconfined AppArmor and no `no-new-privileges`. Its seccomp filter is never `unconfined`. Never `--privileged`, never mount the host's Docker socket.
 - With `--proxy` the tool's network is `--internal`, so the proxy is its only way out.
+- A new `.agenticrc.toml` key goes in `GuardedSettings` if it reaches past the container, else in the unguarded list of `TestGuardedSettings`, which fails until it's classified. A run reads config only through the `approvedConfig` that `checkSettings` returns.
+- `Service.Run` rechecks mounts and refuses a `RunSpec` needing a capability the runtime lacks, for every runtime; runners keep their own rechecks too.
 - Tool volumes and secrets come only from `newMountSet` (`internal/usecase/run/mounts.go`), which refuses mounts through workspace symlinks or exposing `agentic.json` or `state.json`. Never add mounts to the `RunSpec` around it.
 
 ## Architecture

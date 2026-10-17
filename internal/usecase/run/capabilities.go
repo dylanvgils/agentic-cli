@@ -21,6 +21,15 @@ func requiredCapabilities(flags Flags, rc *config.AgenticRC) sandbox.Capabilitie
 	}
 }
 
+// specCapabilities returns the security features rs relies on its runtime to enforce.
+func specCapabilities(rs sandbox.RunSpec) sandbox.Capabilities {
+	return sandbox.Capabilities{
+		Proxy:               rs.Proxy.Mode.Enabled(),
+		CredentialInjection: len(rs.Credentials) > 0,
+		SecretMounts:        len(rs.Secrets) > 0,
+	}
+}
+
 // checkCapabilities refuses a run that needs a security feature offered lacks and warns about a missing Docker daemon; a
 // missing pids limit is silent.
 func checkCapabilities(req Request, offered sandbox.Capabilities) error {
@@ -49,6 +58,27 @@ func checkCapabilities(req Request, offered sandbox.Capabilities) error {
 
 	if missing.Dind {
 		logging.Warnf("--runtime %s has no Docker daemon, so it ignores %s", req.Flags.Runtime, dindSource(req))
+	}
+	return nil
+}
+
+// checkSpec refuses rs if it relies on a security feature offered lacks; a backstop for checkCapabilities, which refuses the
+// request before any prompt, so a spec built some other way can't run with a control silently dropped.
+func checkSpec(rs sandbox.RunSpec, offered sandbox.Capabilities) error {
+	missing := offered.Missing(specCapabilities(rs))
+
+	var refused []string
+	if missing.Proxy {
+		refused = append(refused, "the egress proxy")
+	}
+	if missing.CredentialInjection {
+		refused = append(refused, "credential injection")
+	}
+	if missing.SecretMounts {
+		refused = append(refused, "secret mounts")
+	}
+	if len(refused) > 0 {
+		return fmt.Errorf("the runtime can't enforce %s that the run asks for", strings.Join(refused, " or "))
 	}
 	return nil
 }
