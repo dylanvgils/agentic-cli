@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dylanvgils/agentic-cli/internal/usecase/volumes"
 )
 
 func Test_runVolumeCreate(t *testing.T) {
@@ -258,5 +261,36 @@ func Test_runVolumeRemove(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{"docker maven", "msb gradle"}, removed)
 		assert.Contains(t, logBuf.String(), "   gradle (microsandbox)\n")
+	})
+}
+
+func Test_newVolumeService(t *testing.T) {
+	t.Run("includes microsandbox when it's installed", func(t *testing.T) {
+		// Arrange
+		stubListVolumeNames(t, func() ([]string, error) { return nil, nil })
+		stubMicrosandbox(t, &fakeMicrosandbox{listVolumeNames: func() ([]string, error) { return []string{"gradle"}, nil }})
+
+		// Act
+		all, err := newVolumeService().List()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []volumes.Volume{{Name: "gradle", Runtime: volumes.RuntimeMicrosandbox}}, all)
+	})
+
+	t.Run("leaves microsandbox out when it isn't installed", func(t *testing.T) {
+		// Arrange
+		stubListVolumeNames(t, func() ([]string, error) { return nil, nil })
+		stubMicrosandbox(t, &fakeMicrosandbox{
+			available:       func() error { return errors.New("msb not found on PATH") },
+			listVolumeNames: func() ([]string, error) { return []string{"gradle"}, nil },
+		})
+
+		// Act
+		all, err := newVolumeService().List()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, all)
 	})
 }

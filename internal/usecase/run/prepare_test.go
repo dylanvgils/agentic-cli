@@ -68,6 +68,21 @@ func TestPrepare(t *testing.T) {
 		assert.Empty(t, p.trustAsked)
 	})
 
+	t.Run("dind on an image without the docker layer stops before any prompt", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Flags.Dind.DindFlag = true
+		p := &fakePrompter{}
+
+		// Act
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
+		defer cleanup()
+
+		// Assert
+		require.ErrorContains(t, err, "--base docker")
+		assert.Empty(t, p.trustAsked)
+	})
+
 	t.Run("a credential without env stops before any prompt", func(t *testing.T) {
 		// Arrange
 		req := newCredentialRequest(t)

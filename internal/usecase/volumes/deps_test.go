@@ -6,6 +6,6 @@ import (
 )
 
 var (
-	_ Docker       = (*docker.Client)(nil)
-	_ Microsandbox = (*microsandbox.Client)(nil)
+	_ Docker = (*docker.Client)(nil)
+	_ Store  = (*microsandbox.Client)(nil)
 )

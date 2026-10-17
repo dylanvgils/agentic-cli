@@ -146,7 +146,7 @@ func Test_ensureEgressNetwork(t *testing.T) {
 func Test_createRunNetwork(t *testing.T) {
 	client := newTestClient()
 
-	t.Run("creates a labelled network the sweep can tie to its owner", func(t *testing.T) {
+	t.Run("creates the run network", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
 		rs := toolRun{container: "agentic-claude-abc", network: "agentic-run-abc"}
@@ -157,40 +157,7 @@ func Test_createRunNetwork(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		args := findCall(get(), "network", "create")
-		assert.NotContains(t, args, "--internal")
-		assert.NotContains(t, args, "--opt="+inhibitIPv4Opt, "egress without the proxy goes through the gateway")
-		assert.Contains(t, args, "--label=project=agentic-cli")
-		assert.Contains(t, args, "--label=agentic.owner=agentic-claude-abc")
 		assert.Equal(t, "agentic-run-abc", args[len(args)-1])
-	})
-
-	t.Run("is internal with the enforcing proxy", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}}, network: "agentic-run-abc"}
-
-		// Act
-		err := client.createRunNetwork(rs)
-
-		// Assert
-		require.NoError(t, err)
-		args := findCall(get(), "network", "create")
-		assert.Contains(t, args, "--internal")
-		assert.Contains(t, args, "--opt="+inhibitIPv4Opt, "no host gateway to reach host services through")
-		assert.Contains(t, args, "--ipv6=false", "no IPv6 host gateway either")
-	})
-
-	t.Run("is internal with the monitoring proxy", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}}, network: "agentic-run-abc"}
-
-		// Act
-		err := client.createRunNetwork(rs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, findCall(get(), "network", "create"), "--internal")
 	})
 
 	t.Run("create failure is an error", func(t *testing.T) {
@@ -240,5 +207,47 @@ func Test_networkSubnets(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "inspect agentic-run-abc subnets")
+	})
+}
+
+func Test_runNetworkArgs(t *testing.T) {
+	t.Run("labels the network so the sweep can tie it to its owner", func(t *testing.T) {
+		// Arrange
+		rs := toolRun{container: "agentic-claude-abc", network: "agentic-run-abc"}
+
+		// Act
+		args := runNetworkArgs(rs)
+
+		// Assert
+		assert.Equal(t, []string{"network", "create"}, args[:2])
+		assert.NotContains(t, args, "--internal")
+		assert.NotContains(t, args, "--opt="+inhibitIPv4Opt, "egress without the proxy goes through the gateway")
+		assert.Contains(t, args, "--label=project=agentic-cli")
+		assert.Contains(t, args, "--label=agentic.owner=agentic-claude-abc")
+		assert.Equal(t, "agentic-run-abc", args[len(args)-1])
+	})
+
+	t.Run("is internal with the enforcing proxy", func(t *testing.T) {
+		// Arrange
+		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}}, network: "agentic-run-abc"}
+
+		// Act
+		args := runNetworkArgs(rs)
+
+		// Assert
+		assert.Contains(t, args, "--internal")
+		assert.Contains(t, args, "--opt="+inhibitIPv4Opt, "no host gateway to reach host services through")
+		assert.Contains(t, args, "--ipv6=false", "no IPv6 host gateway either")
+	})
+
+	t.Run("is internal with the monitoring proxy", func(t *testing.T) {
+		// Arrange
+		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}}, network: "agentic-run-abc"}
+
+		// Act
+		args := runNetworkArgs(rs)
+
+		// Assert
+		assert.Contains(t, args, "--internal")
 	})
 }

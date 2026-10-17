@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // sidecarOrphanGrace spares a starting run's sidecars; must outlast dindReadyTimeout.
@@ -42,7 +43,11 @@ func ownerLabels(rs toolRun) []string {
 // removes the network last, once nothing is attached to it.
 func (c *Client) setupSidecars(rs toolRun) (args []string, cleanup func(), err error) {
 	networkCleanup := noCleanup
-	if !rs.DryRun {
+	if rs.DryRun {
+		if err := sandbox.PrintDryRun("run network", "docker", runNetworkArgs(rs)); err != nil {
+			return nil, nil, err
+		}
+	} else {
 		warnOnSweepError(c.sweepOrphanedSidecars(rs.ToolHome))
 
 		if err := c.createRunNetwork(rs); err != nil {

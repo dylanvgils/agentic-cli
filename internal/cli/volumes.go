@@ -51,7 +51,7 @@ func runVolumeCreate(_ *cobra.Command, args []string) error {
 }
 
 func runVolumeList(_ *cobra.Command, _ []string) error {
-	all, err := volumes.New(dockerClient, msbClient).List()
+	all, err := newVolumeService().List()
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func runVolumeList(_ *cobra.Command, _ []string) error {
 }
 
 func runVolumeRemove(_ *cobra.Command, args []string) error {
-	svc := volumes.New(dockerClient, msbClient)
+	svc := newVolumeService()
 	if len(args) == 1 {
 		if err := svc.RemoveNamed(args[0]); err != nil {
 			return err
@@ -79,6 +79,15 @@ func runVolumeRemove(_ *cobra.Command, args []string) error {
 	}
 
 	return removeAllVolumes(svc)
+}
+
+// newVolumeService returns a volumes Service over Docker and, when installed, microsandbox.
+func newVolumeService() *volumes.Service {
+	var others []volumes.Runtime
+	if msbClient.Available() == nil {
+		others = append(others, volumes.Runtime{Name: volumes.RuntimeMicrosandbox, Store: msbClient})
+	}
+	return volumes.New(dockerClient, others...)
 }
 
 // removeAllVolumes lists every agentic-managed volume and removes them once the user confirms.

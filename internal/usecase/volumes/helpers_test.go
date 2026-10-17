@@ -27,32 +27,29 @@ func (f *fakeDocker) RemoveVolume(name string) error {
 	return f.removeVolume(name)
 }
 
-// fakeMsb implements Microsandbox; a nil field succeeds with a zero value.
-type fakeMsb struct {
-	available       func() error
+// fakeStore implements Store; a nil field succeeds with a zero value.
+type fakeStore struct {
 	listVolumeNames func() ([]string, error)
 	removeVolume    func(string) error
 }
 
-func (f *fakeMsb) Available() error {
-	if f.available == nil {
-		return nil
-	}
-	return f.available()
-}
-
-func (f *fakeMsb) ListVolumeNames() ([]string, error) {
+func (f *fakeStore) ListVolumeNames() ([]string, error) {
 	if f.listVolumeNames == nil {
 		return nil, nil
 	}
 	return f.listVolumeNames()
 }
 
-func (f *fakeMsb) RemoveVolume(name string) error {
+func (f *fakeStore) RemoveVolume(name string) error {
 	if f.removeVolume == nil {
 		return nil
 	}
 	return f.removeVolume(name)
+}
+
+// msbRuntime returns store as the microsandbox runtime.
+func msbRuntime(store Store) Runtime {
+	return Runtime{Name: RuntimeMicrosandbox, Store: store}
 }
 
 // namesFunc returns a list func that returns names.
@@ -68,6 +65,18 @@ func stubLog(t *testing.T) *bytes.Buffer {
 	orig := logging.Log
 	logging.Log = logging.New(&buf)
 	t.Cleanup(func() { logging.Log = orig })
+
+	return &buf
+}
+
+// stubErrLog redirects logging.Err to a buffer until the test ends and returns it.
+func stubErrLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+
+	var buf bytes.Buffer
+	orig := logging.Err
+	logging.Err = logging.New(&buf)
+	t.Cleanup(func() { logging.Err = orig })
 
 	return &buf
 }

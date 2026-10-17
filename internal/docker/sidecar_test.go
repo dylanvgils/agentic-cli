@@ -2,6 +2,7 @@ package docker
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -90,16 +91,21 @@ func Test_setupSidecars(t *testing.T) {
 		assert.Nil(t, findCall(calls(), "create"))
 	})
 
-	t.Run("dry run makes no docker calls", func(t *testing.T) {
+	t.Run("dry run prints the run network and makes no docker calls", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", DryRun: true}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}}, network: "agentic-run-abc"}
 
 		// Act
-		_, _, err := client.setupSidecars(rs)
+		var err error
+		out := captureStdout(t, func() { _, _, err = client.setupSidecars(rs) })
 
 		// Assert
 		require.NoError(t, err)
+		network, _, _ := strings.Cut(out, "docker create")
+		assert.True(t, strings.HasPrefix(network, "docker network"), "the network comes first, as the sidecars join it")
+		assert.Contains(t, network, "--internal")
+		assert.Contains(t, network, "agentic-run-abc")
 		assert.Empty(t, calls())
 	})
 
