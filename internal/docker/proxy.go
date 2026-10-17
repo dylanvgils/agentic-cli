@@ -1,10 +1,8 @@
 package docker
 
 import (
-	"bufio"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -81,7 +79,7 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		client:         c,
 		id:             id,
 		container:      name,
-		logPath:        filepath.Join(rs.Proxy.LogDir, proxyLogFileName(id)),
+		logPath:        rs.Proxy.LogFile,
 		allow:          rs.Proxy.Allow,
 		monitor:        rs.Proxy.Mode == sandbox.ProxyMonitor,
 		credentials:    creds,
@@ -122,96 +120,6 @@ func proxyEnvArgs(dind bool) []string {
 // Stop removes the proxy sidecar and its volume; idempotent and error-ignoring, so it is safe to defer.
 func (h proxyHandle) Stop() {
 	_, _ = h.client.run("rm", "--force", "--volumes", h.container)
-}
-
-// PrintSummary reports hosts the allowlist blocked, or would have blocked in monitor mode, separately hosts the address
-// guard refused, which it does in both modes, and credential hosts the tool reached without the placeholder.
-func (h proxyHandle) PrintSummary(l *logging.Logger) {
-	hosts, denied := h.hostsMatching(deniedByAllowlist)
-	refusedHosts, refused := h.hostsMatching(refusedByGuard)
-	missedHosts, missed := h.hostsMatching(missedPlaceholder)
-	if denied == 0 && refused == 0 && missed == 0 {
-		return
-	}
-
-	// Blank line separates the summary from the tool output above it
-	fmt.Fprintln(l.Writer())
-
-	switch {
-	case denied == 0:
-	case h.monitor:
-		l.Infof("proxy (monitor mode) observed %d request(s); %d would be blocked under the current allowlist: %s", h.totalRequests(), denied, strings.Join(hosts, ", "))
-		l.Detail("add the ones you want to allow to [run.proxy] allowed_hosts, then drop --proxy-monitor.")
-	default:
-		l.Infof("proxy blocked %d request(s) to: %s", denied, strings.Join(hosts, ", "))
-		l.Detail("add them to [run.proxy] allowed_hosts (or pass --no-proxy) to permit.")
-	}
-
-	if refused > 0 {
-		l.Infof("proxy refused %d request(s) to local or private addresses: %s", refused, strings.Join(refusedHosts, ", "))
-		l.Detail("list an internal host exactly in [run.proxy] allowed_hosts to permit its private address; loopback and link-local stay refused.")
-	}
-
-	if missed > 0 {
-		l.Warnf("proxy saw %d connection(s) to credential hosts without the placeholder, so they likely ran unauthenticated: %s", missed, strings.Join(missedHosts, ", "))
-		l.Detail("check that the tool reads one of the credential's env names and sends it in a listed header.")
-	}
-}
-
-// hostsMatching reads the access log and returns the unique hosts of entries matching match (first-seen order) and their total.
-func (h proxyHandle) hostsMatching(match func(proxy.Entry) bool) (hosts []string, total int) {
-	f, err := os.Open(h.logPath)
-	if err != nil {
-		return nil, 0
-	}
-	defer func() { _ = f.Close() }()
-
-	seen := make(map[string]bool)
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		var entry proxy.Entry
-		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
-			continue
-		}
-		if !match(entry) {
-			continue
-		}
-
-		total++
-		if !seen[entry.Host] {
-			seen[entry.Host] = true
-			hosts = append(hosts, proxy.DisplayHost(entry.Host))
-		}
-	}
-
-	// A read error here only means the summary reflects whatever was
-	// scanned before it occurred; PrintSummary has no error path to report it.
-	_ = scanner.Err()
-
-	return hosts, total
-}
-
-// totalRequests reads the access log and returns the total connection attempts logged, regardless of decision; entries
-// logged from inside an intercepted tunnel repeat its attempt, so they aren't counted.
-func (h proxyHandle) totalRequests() int {
-	f, err := os.Open(h.logPath)
-	if err != nil {
-		return 0
-	}
-	defer func() { _ = f.Close() }()
-
-	total := 0
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		var entry proxy.Entry
-		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil || repeatsAttempt(entry) {
-			continue
-		}
-		total++
-	}
-	_ = scanner.Err()
-
-	return total
 }
 
 // startProxy starts the proxy sidecar on rs's run network, copying in any credentials before it starts and wiring it
@@ -284,7 +192,7 @@ func (c *Client) dryRunProxy(rs toolRun) (proxyEnv []string, cleanup func(), err
 	return handle.toolEnvArgs(rs.Dind.Enabled), noCleanup, nil
 }
 
-// launchProxy starts the sidecar and returns a cleanup that tears it down and prints the access summary.
+// launchProxy starts the sidecar and returns a cleanup that tears it down.
 func (c *Client) launchProxy(rs toolRun) (proxyEnv []string, cleanup func(), err error) {
 	// Guard first so Ctrl-C during startup still removes the sidecar and its credentials volume
 	interrupt, stop := guardSignals()
@@ -305,10 +213,8 @@ func (c *Client) launchProxy(rs toolRun) (proxyEnv []string, cleanup func(), err
 	}
 
 	cleanup = func() {
-		// Stop before reading the log so late denials make the summary
 		handle.Stop()
 		stop()
-		handle.PrintSummary(logging.Err)
 	}
 	return handle.toolEnvArgs(rs.Dind.Enabled), cleanup, nil
 }
@@ -316,7 +222,7 @@ func (c *Client) launchProxy(rs toolRun) (proxyEnv []string, cleanup func(), err
 // createArgs builds the `docker create` arguments for the hardened proxy sidecar, registering
 // proxyHostAlias on the run network so tool config can reference a stable hostname.
 func (h proxyHandle) createArgs(rs toolRun) []string {
-	containerLog := proxyLogMountDir + "/" + proxyLogFileName(h.id)
+	containerLog := proxyLogMountDir + "/" + filepath.Base(h.logPath)
 	_, tzOffset := time.Now().Zone()
 
 	args := []string{
@@ -422,11 +328,6 @@ func (c *Client) SweepProxyResources() error {
 	return c.removeUnused(listArgs, []string{"rm", arg("force"), arg("volumes")})
 }
 
-// proxyLogFileName is shared by the host logPath and the in-container AGENTIC_PROXY_LOG path so they name the same file.
-func proxyLogFileName(id string) string {
-	return proxy.LogFilePrefix + id + ".jsonl"
-}
-
 // randID returns a short random hex identifier for per-run resource names.
 func randID() (string, error) {
 	buf := make([]byte, 6)
@@ -434,26 +335,4 @@ func randID() (string, error) {
 		return "", fmt.Errorf("generate proxy id: %w", err)
 	}
 	return hex.EncodeToString(buf), nil
-}
-
-// deniedByAllowlist reports whether entry was denied because its host isn't on the allowlist, even if monitor mode then let it
-// through to an upstream that failed.
-func deniedByAllowlist(entry proxy.Entry) bool {
-	return entry.Decision == proxy.DecisionDeny && entry.Reason != proxy.ReasonBlockedAddr && entry.Reason != proxy.ReasonNoPlaceholder
-}
-
-// missedPlaceholder reports whether entry is a credential tunnel whose requests never carried the placeholder.
-func missedPlaceholder(entry proxy.Entry) bool {
-	return entry.Reason == proxy.ReasonNoPlaceholder
-}
-
-// repeatsAttempt reports whether entry was logged from inside an intercepted tunnel, such as a failed request or a missed
-// placeholder, after the tunnel's own entry.
-func repeatsAttempt(entry proxy.Entry) bool {
-	return entry.Intercepted && entry.Reason != ""
-}
-
-// refusedByGuard reports whether the address guard refused entry.
-func refusedByGuard(entry proxy.Entry) bool {
-	return entry.Reason == proxy.ReasonBlockedAddr
 }

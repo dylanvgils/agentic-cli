@@ -142,11 +142,13 @@ func (f *fakeDocker) StopSidecars(sidecars docker.Sidecars) {
 	}
 }
 
-// newProxyRunSpec returns a RunSpec with the proxy in mode and its log dir in a temp tool home, as Build sets it.
+// newProxyRunSpec returns a RunSpec with the proxy in mode and its log file in a temp tool home, as Build sets it.
 func newProxyRunSpec(t *testing.T, mode sandbox.ProxyMode) sandbox.RunSpec {
 	t.Helper()
 	home := t.TempDir()
-	return sandbox.RunSpec{ToolHome: home, Proxy: sandbox.ProxySpec{Mode: mode, LogDir: proxyLogDir(home, true)}}
+	logFile, err := proxyLogFile(home, true)
+	require.NoError(t, err)
+	return sandbox.RunSpec{ToolHome: home, Proxy: sandbox.ProxySpec{Mode: mode, LogFile: logFile}}
 }
 
 // runtimeRequest returns a Request that runs on runtime.
@@ -414,4 +416,12 @@ func newSyncingService(d Docker, sync func([]marketplace.Entry, func(marketplace
 // approvedRC returns rc as approved config, as checkSettings would once the user approved it.
 func approvedRC(rc *config.AgenticRC) approvedConfig {
 	return approvedConfig{rc: rc}
+}
+
+// writeProxyLog writes lines as a proxy access log in a temp dir and returns its path.
+func writeProxyLog(t *testing.T, lines ...string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "proxy_abc.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600))
+	return path
 }

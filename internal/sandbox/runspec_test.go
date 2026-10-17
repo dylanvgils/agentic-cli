@@ -47,7 +47,7 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 
 func TestRunSpecBuilder_WithProxy(t *testing.T) {
 	// Arrange
-	spec := ProxySpec{Mode: ProxyMonitor, Allow: []string{".anthropic.com"}, LogDir: "/home/user/.agentic/proxy"}
+	spec := ProxySpec{Mode: ProxyMonitor, Allow: []string{".anthropic.com"}, LogFile: "/home/user/.agentic/logs/proxy_abc.jsonl"}
 
 	// Act
 	result := NewRunSpec("agentic-claude").WithProxy(spec).Build()

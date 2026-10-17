@@ -2,6 +2,7 @@ package docker
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -64,7 +65,7 @@ func Test_setupSidecars(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{
 			User:  &testUser,
 			Image: "agentic-claude",
-			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()},
+			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")},
 		}, network: "agentic-run-abc"}
 
 		// Act
@@ -82,7 +83,7 @@ func Test_setupSidecars(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{
 			User:  &testUser,
 			Image: "agentic-claude",
-			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()},
+			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")},
 		}, network: "agentic-run-abc"}
 
 		// Act
@@ -119,7 +120,7 @@ func Test_setupSidecars(t *testing.T) {
 			User:     &testUser,
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),
-			Proxy:    sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()},
+			Proxy:    sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")},
 			Dind:     sandbox.DindSpec{Enabled: true},
 		}, network: "agentic-run-abc"}
 
