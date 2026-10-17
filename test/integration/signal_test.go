@@ -32,8 +32,12 @@ func TestClosedTerminal(t *testing.T) {
 
 	// Act
 	require.NoError(t, cmd.Process.Signal(syscall.SIGHUP))
-	waited := make(chan error, 1)
-	go func() { waited <- cmd.Wait() }()
+	// Only the exit matters; its status after SIGHUP doesn't
+	waited := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(waited)
+	}()
 
 	// Assert
 	select {
