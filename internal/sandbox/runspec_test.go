@@ -19,6 +19,8 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 	result := NewRunSpec("agentic-claude").
 		WithToolHome("/home/user/.agentic").
 		WithContainerHome("/root").
+		WithUser("1000:1000").
+		WithTTY(true).
 		WithVolumes("/host:/container", "/a:/b").
 		WithSecrets("token:/run/secrets/token").
 		WithSkipEntrypoint(true).
@@ -31,6 +33,8 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 	assert.Equal(t, "agentic-claude", result.Image)
 	assert.Equal(t, "/home/user/.agentic", result.ToolHome)
 	assert.Equal(t, "/root", result.ContainerHome)
+	assert.Equal(t, "1000:1000", result.User)
+	assert.True(t, result.TTY)
 	assert.Equal(t, []string{"/host:/container", "/a:/b"}, result.Volumes)
 	assert.Equal(t, []string{"token:/run/secrets/token"}, result.Secrets)
 	assert.True(t, result.SkipEntrypoint)

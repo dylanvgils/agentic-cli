@@ -50,7 +50,6 @@ func TestArg(t *testing.T) {
 
 func TestPrintDryRun(t *testing.T) {
 	// Arrange
-	stubHostUsesPowerShell(t, false)
 	logs := stubLogs(t)
 
 	// Act
@@ -59,7 +58,7 @@ func TestPrintDryRun(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, "docker run \\\n  --rm\n", out)
+	assert.Equal(t, hostShell().command("docker", []string{"run", "--rm"})+"\n", out)
 	assert.Equal(t, "agentic: tool container:\n\n", logs.String())
 }
 
@@ -86,30 +85,6 @@ func Test_shellStyle_command(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, "docker run", cmd)
-	})
-}
-
-func Test_hostShell(t *testing.T) {
-	t.Run("picks PowerShell when the host uses it", func(t *testing.T) {
-		// Arrange
-		stubHostUsesPowerShell(t, true)
-
-		// Act
-		style := hostShell()
-
-		// Assert
-		assert.Equal(t, powerShell.continuation, style.continuation)
-	})
-
-	t.Run("picks a POSIX shell otherwise", func(t *testing.T) {
-		// Arrange
-		stubHostUsesPowerShell(t, false)
-
-		// Act
-		style := hostShell()
-
-		// Assert
-		assert.Equal(t, posixShell.continuation, style.continuation)
 	})
 }
 

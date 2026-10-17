@@ -4,6 +4,8 @@ import (
 	"os"
 	"slices"
 	"strings"
+
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
 // terminalEnvNames are host vars forwarded into the sandbox; not reserved, so an env entry can override one.
@@ -11,7 +13,7 @@ var terminalEnvNames = []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"}
 
 // ResolveEnv returns the sandbox env as KEY=VALUE: forwarded terminal vars and host timezone, then env entries; later entries win.
 func ResolveEnv(env []string) []string {
-	return slices.Concat(terminalEnv(), timezoneEnv(), entryEnv(env))
+	return slices.Concat(terminalEnv(), timezoneEnv(platform.Timezone()), entryEnv(env))
 }
 
 // EnvArgs returns ResolveEnv(env) as --env flags, which both runtimes take.
@@ -34,9 +36,9 @@ func terminalEnv() []string {
 	return resolved
 }
 
-// timezoneEnv returns TZ for the host timezone, or nothing when it can't be detected.
-func timezoneEnv() []string {
-	if tz := hostTimezone(); tz != "" {
+// timezoneEnv returns TZ for the host timezone tz, or nothing when it couldn't be detected.
+func timezoneEnv(tz string) []string {
+	if tz != "" {
 		return []string{"TZ=" + tz}
 	}
 	return nil

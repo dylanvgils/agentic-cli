@@ -12,6 +12,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
@@ -21,6 +22,8 @@ import (
 type Service struct {
 	docker       Docker
 	microsandbox Microsandbox
+	// syncMarketplaces clones or updates marketplaces with git; tests swap it so they need no network
+	syncMarketplaces func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error)
 }
 
 // Target identifies the tool and image a RunSpec is being built for.
@@ -62,7 +65,7 @@ type buildRequest struct {
 
 // New returns a Service that talks to Docker through d and to microsandbox through m.
 func New(d Docker, m Microsandbox) *Service {
-	return &Service{docker: d, microsandbox: m}
+	return &Service{docker: d, microsandbox: m, syncMarketplaces: marketplace.Sync}
 }
 
 // Build assembles the sandbox.RunSpec for target, syncing marketplaces; the runtime readies its own host resources in Run.
@@ -75,7 +78,7 @@ func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc
 		containerHome: s.docker.ResolveContainerHome(target.ImageName),
 	}
 
-	marketplaceMounts, marketplaceNames, err := syncToolMarketplaces(in.ToolHome, target.ToolName, toolConfig, rc)
+	marketplaceMounts, marketplaceNames, err := s.syncToolMarketplaces(in.ToolHome, target.ToolName, toolConfig, rc)
 	if err != nil {
 		return sandbox.RunSpec{}, err
 	}
@@ -153,6 +156,41 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 	return env, nil
 }
 
+// syncToolMarketplaces syncs tool's configured marketplaces and returns each mount spec plus name.
+func (s *Service) syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc *config.AgenticRC) (mounts, names []string, err error) {
+	if !needsMarketplaceSync(toolConfig, rc, tool) {
+		return nil, nil, nil
+	}
+
+	entries := config.MarketplacesFor(rc, tool)
+	mpEntries := make([]marketplace.Entry, len(entries))
+	for i, e := range entries {
+		mpEntries[i] = marketplace.Entry{Name: e.Name, URL: e.URL}
+	}
+
+	baseDir := filepath.Join(toolHome, marketplace.MarketplacesDirName)
+	results, err := s.syncMarketplaces(mpEntries, func(e marketplace.Entry) string {
+		return filepath.Join(baseDir, marketplace.CloneDirName(e.URL))
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("sync marketplaces for %s: %w", tool, err)
+	}
+
+	mounts = make([]string, len(results))
+	names = make([]string, len(results))
+	for i, r := range results {
+		if r.Stale {
+			logging.Warnf("marketplace %q: %v; using existing clone", r.Entry.Name, r.Warning)
+		}
+		mounts[i] = toolConfig.Runtime.MarketplaceMount(r.Entry.Name, r.Entry.URL)
+		names[i] = r.Entry.Name
+	}
+
+	recordMarketplaceUsage(baseDir, results)
+
+	return mounts, names, nil
+}
+
 // needsMarketplaceSync backs ToolNeedsMarketplaceSync for callers without a Service.
 func needsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, tool string) bool {
 	if toolConfig.Runtime.MarketplaceMount == nil {
@@ -181,6 +219,8 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, logDir string) 
 	return sandbox.NewRunSpec(req.target.ImageName).
 		WithToolHome(in.ToolHome).
 		WithContainerHome(req.containerHome).
+		WithUser(platform.UserGroup()).
+		WithTTY(platform.IsTerminal()).
 		WithVolumes(mounts.volumes...).
 		WithSecrets(mounts.secrets...).
 		WithEnv(env...).
@@ -198,41 +238,6 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, logDir string) 
 		Build()
 }
 
-// syncToolMarketplaces syncs tool's configured marketplaces and returns each mount spec plus name.
-func syncToolMarketplaces(toolHome, tool string, toolConfig tools.ToolConfig, rc *config.AgenticRC) (mounts, names []string, err error) {
-	if !needsMarketplaceSync(toolConfig, rc, tool) {
-		return nil, nil, nil
-	}
-
-	entries := config.MarketplacesFor(rc, tool)
-	mpEntries := make([]marketplace.Entry, len(entries))
-	for i, e := range entries {
-		mpEntries[i] = marketplace.Entry{Name: e.Name, URL: e.URL}
-	}
-
-	baseDir := filepath.Join(toolHome, marketplace.MarketplacesDirName)
-	results, err := SyncMarketplaces(mpEntries, func(e marketplace.Entry) string {
-		return filepath.Join(baseDir, marketplace.CloneDirName(e.URL))
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("sync marketplaces for %s: %w", tool, err)
-	}
-
-	mounts = make([]string, len(results))
-	names = make([]string, len(results))
-	for i, r := range results {
-		if r.Stale {
-			logging.Warnf("marketplace %q: %v; using existing clone", r.Entry.Name, r.Warning)
-		}
-		mounts[i] = toolConfig.Runtime.MarketplaceMount(r.Entry.Name, r.Entry.URL)
-		names[i] = r.Entry.Name
-	}
-
-	recordMarketplaceUsage(baseDir, results)
-
-	return mounts, names, nil
-}
-
 // recordMarketplaceUsage records cwd against each result for `marketplaces prune`. Best-effort.
 func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 	if len(results) == 0 {
@@ -245,7 +250,7 @@ func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 		return
 	}
 
-	if err := RecordMarketplaceUsage(baseDir, results, cwd); err != nil {
+	if err := marketplace.RecordUsage(baseDir, results, cwd); err != nil {
 		logging.Warnf("could not record marketplace usage: %v", err)
 	}
 }

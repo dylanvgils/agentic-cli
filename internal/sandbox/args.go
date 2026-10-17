@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
 // Shell syntaxes for printed commands: POSIX shells, and PowerShell on Windows.
@@ -66,7 +67,7 @@ func PrintDryRun(label, name string, args []string) error {
 
 // hostShell returns the syntax of the shell the user most likely pastes into: PowerShell on Windows, POSIX elsewhere.
 func hostShell() shellStyle {
-	if hostUsesPowerShell() {
+	if platform.UsesPowerShell() {
 		return powerShell
 	}
 	return posixShell

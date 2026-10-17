@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,10 +30,9 @@ func TestClient_StartSidecars(t *testing.T) {
 
 	t.Run("a sidecar that fails to start returns its error", func(t *testing.T) {
 		// Arrange
-		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
 		stubDockerRunCapture(t, client, "exec")
-		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", User: testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
 
 		// Act
 		_, err := client.StartSidecars(rs)
@@ -65,7 +63,7 @@ func TestClient_RunTool(t *testing.T) {
 		assert.Contains(t, args, "--read-only")
 		assert.Contains(t, args, "--cap-drop=ALL")
 		assert.Contains(t, args, "--security-opt=no-new-privileges:true")
-		assert.Contains(t, args, "--user="+platform.UserGroup())
+		assert.Contains(t, args, "--user="+testUser)
 		assert.True(t, hasArgWithPrefix(args, "--network=agentic-run-"), "even a plain run gets its own network")
 		assert.False(t, hasArg(args, "--network="+NetworkName), "runs must not share a network")
 	})
@@ -100,10 +98,9 @@ func TestClient_RunTool(t *testing.T) {
 
 	t.Run("dind mode points tool at sidecar without relaxing tool hardening", func(t *testing.T) {
 		// Arrange
-		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
 		stubDockerRunCapture(t, client)
-		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", User: testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
 
 		// Act
 		err := startAndRunTool(client, rs, nil)
@@ -122,7 +119,6 @@ func TestClient_RunTool(t *testing.T) {
 
 	t.Run("dind with proxy shares the internal network and bypasses the proxy for the daemon", func(t *testing.T) {
 		// Arrange
-		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
 		stubProxyDocker(t, client, "true")
 		rs := sandbox.RunSpec{
@@ -382,10 +378,9 @@ func TestClient_StopSidecars(t *testing.T) {
 
 	t.Run("removes the sidecars it started", func(t *testing.T) {
 		// Arrange
-		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
 		calls := stubDockerRunCapture(t, client)
-		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", User: testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
 		sidecars, err := client.StartSidecars(rs)
 		require.NoError(t, err)
 

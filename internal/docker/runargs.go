@@ -1,20 +1,26 @@
 package docker
 
 import (
+	"errors"
+
 	"github.com/dylanvgils/agentic-cli/internal/mount"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 // buildRunArgs assembles the tool container's `docker run` args.
 func buildRunArgs(rs toolRun, sidecarArgs, toolArgs []string) ([]string, error) {
+	// Security: without --user the tool would run as the image's user
+	if rs.User == "" {
+		return nil, errors.New("run spec has no host user")
+	}
+
 	secretArgs, err := buildSecretArgs(rs.RunSpec)
 	if err != nil {
 		return nil, err
 	}
 
 	args := buildBaseArgs(rs)
-	args = append(args, buildTTYArgs()...)
+	args = append(args, buildTTYArgs(rs.RunSpec)...)
 	args = append(args, sandbox.EnvArgs(rs.Env)...)
 	args = append(args, sidecarArgs...)
 	args = append(args, buildTmpfsArgs(rs.RunSpec)...)
@@ -51,13 +57,13 @@ func buildBaseArgs(rs toolRun) []string {
 		// Security: prevent privilege escalation
 		arg("security-opt", "no-new-privileges:true"),
 		// Use system user to prevent permission issues on mounted files
-		arg("user", platform.UserGroup()),
+		arg("user", rs.User),
 	}
 }
 
 // buildTTYArgs returns [--interactive --tty] when stdin is a terminal, otherwise empty.
-func buildTTYArgs() []string {
-	if isTerminal() {
+func buildTTYArgs(rs sandbox.RunSpec) []string {
+	if rs.TTY {
 		return []string{arg("interactive"), arg("tty")}
 	}
 	return nil

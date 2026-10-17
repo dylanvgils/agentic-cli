@@ -5,17 +5,10 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
-)
-
-// Indirects the marketplace calls this package makes, so callers can fake them in tests.
-var (
-	SyncMarketplaces       = marketplace.Sync
-	RecordMarketplaceUsage = marketplace.RecordUsage
 )
 
 // Docker is the subset of *docker.Client this package uses, including what the sidecar, toolupdate and update usecases it runs need.

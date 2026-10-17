@@ -11,7 +11,7 @@ func TestResolveEnv(t *testing.T) {
 	// Arrange
 	clearTerminalEnv(t)
 	t.Setenv("NO_COLOR", "1")
-	stubHostTimezone(t, "America/New_York")
+	t.Setenv("TZ", "America/New_York")
 
 	// Act
 	env := ResolveEnv([]string{"NO_COLOR=0", "TZ=UTC"})
@@ -23,13 +23,13 @@ func TestResolveEnv(t *testing.T) {
 func TestEnvArgs(t *testing.T) {
 	// Arrange
 	clearTerminalEnv(t)
-	stubHostTimezone(t, "")
+	t.Setenv("TZ", "UTC")
 
 	// Act
 	args := EnvArgs([]string{"MAVEN_OPTS=-Dfoo=bar"})
 
 	// Assert
-	assert.Equal(t, []string{"--env=MAVEN_OPTS=-Dfoo=bar"}, args)
+	assert.Equal(t, []string{"--env=TZ=UTC", "--env=MAVEN_OPTS=-Dfoo=bar"}, args)
 }
 
 func Test_terminalEnv(t *testing.T) {
@@ -62,22 +62,16 @@ func Test_terminalEnv(t *testing.T) {
 
 func Test_timezoneEnv(t *testing.T) {
 	t.Run("forwards the host timezone", func(t *testing.T) {
-		// Arrange
-		stubHostTimezone(t, "Europe/Amsterdam")
-
 		// Act
-		env := timezoneEnv()
+		env := timezoneEnv("Europe/Amsterdam")
 
 		// Assert
 		assert.Equal(t, []string{"TZ=Europe/Amsterdam"}, env)
 	})
 
 	t.Run("empty when the timezone can't be detected", func(t *testing.T) {
-		// Arrange
-		stubHostTimezone(t, "")
-
 		// Act
-		env := timezoneEnv()
+		env := timezoneEnv("")
 
 		// Assert
 		assert.Empty(t, env)

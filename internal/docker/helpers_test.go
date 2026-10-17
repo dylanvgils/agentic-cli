@@ -18,6 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testUser is the host "uid:gid" test runs run as.
+const testUser = "1000:1000"
+
 // dockerCall records a single run invocation.
 type dockerCall struct {
 	args []string
@@ -141,8 +144,13 @@ func stubDockerRunCapture(t *testing.T, client *Client, failSubcmds ...string) f
 	return func() []dockerCall { return calls }
 }
 
-// startAndRunTool starts rs's sidecars, runs its tool with toolArgs and stops the sidecars, as the run usecase does.
+// startAndRunTool starts rs's sidecars, runs its tool with toolArgs and stops the sidecars, as the run usecase does; rs
+// gets testUser unless it sets one, as every real run has a host user.
 func startAndRunTool(client *Client, rs sandbox.RunSpec, toolArgs []string) error {
+	if rs.User == "" {
+		rs.User = testUser
+	}
+
 	sidecars, err := client.StartSidecars(rs)
 	if err != nil {
 		return err
@@ -172,14 +180,6 @@ func stubRunInteractiveFunc(t *testing.T, client *Client, fn func(...string) err
 	orig := f.runInteractive
 	f.runInteractive = fn
 	t.Cleanup(func() { f.runInteractive = orig })
-}
-
-// stubIsTerminal replaces isTerminal with a stub that returns val for the duration of the test.
-func stubIsTerminal(t *testing.T, val bool) {
-	t.Helper()
-	orig := isTerminal
-	isTerminal = func() bool { return val }
-	t.Cleanup(func() { isTerminal = orig })
 }
 
 // argAfter returns the value immediately following flag in args, or "".
@@ -288,14 +288,6 @@ func findCall(calls []dockerCall, prefix ...string) []string {
 func stubRunInteractiveError(t *testing.T, client *Client, err error) {
 	t.Helper()
 	stubRunInteractiveFunc(t, client, func(...string) error { return err })
-}
-
-// stubHostUserGroup replaces hostUserGroup with a stub that returns val for the duration of the test.
-func stubHostUserGroup(t *testing.T, val string) {
-	t.Helper()
-	orig := hostUserGroup
-	hostUserGroup = func() string { return val }
-	t.Cleanup(func() { hostUserGroup = orig })
 }
 
 // stubDindRunDirGrace replaces dindRunDirGrace with d for the duration of the test.

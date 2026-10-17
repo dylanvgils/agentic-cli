@@ -32,6 +32,9 @@ type Identity struct {
 // NewIdentity parses a host "uid:gid", refusing root since dockerd would then run rootful.
 func NewIdentity(userGroup string) (Identity, error) {
 	uid, gid, _ := strings.Cut(userGroup, ":")
+	if uid == "" || gid == "" {
+		return Identity{}, fmt.Errorf("invalid host user %q, want uid:gid", userGroup)
+	}
 	if uid == "0" {
 		return Identity{}, fmt.Errorf("--dind refuses to run as root: the Docker sidecar would run as real root; run agentic as a regular user")
 	}

@@ -294,19 +294,6 @@ func appendFile(path, content string) error {
 	return err
 }
 
-func stubSyncMarketplaces(t *testing.T, fn func([]marketplace.Entry, func(marketplace.Entry) string) ([]marketplace.Result, error)) {
-	t.Helper()
-	orig := SyncMarketplaces
-	SyncMarketplaces = fn
-	t.Cleanup(func() { SyncMarketplaces = orig })
-}
-
-func stubRecordMarketplaceUsage(t *testing.T, fn func(baseDir string, results []marketplace.Result, projectDir string) error) {
-	t.Helper()
-	orig := RecordMarketplaceUsage
-	RecordMarketplaceUsage = fn
-	t.Cleanup(func() { RecordMarketplaceUsage = orig })
-}
 
 // credentialLayer returns a config layer declaring one generic credential reading secret.
 func credentialLayer(t *testing.T, secret string) config.RCLayer {
@@ -420,4 +407,11 @@ func stubUnresolvablePath(t *testing.T) string {
 	require.NoError(t, os.Chmod(locked, 0))
 	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
 	return filepath.Join(locked, "root", "home")
+}
+
+// newSyncingService returns a Service over d whose marketplace sync is sync.
+func newSyncingService(d Docker, sync func([]marketplace.Entry, func(marketplace.Entry) string) ([]marketplace.Result, error)) *Service {
+	svc := New(d, nil)
+	svc.syncMarketplaces = sync
+	return svc
 }

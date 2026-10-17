@@ -26,6 +26,14 @@ func TestNewIdentity(t *testing.T) {
 		// Assert
 		require.ErrorContains(t, err, "refuses to run as root")
 	})
+
+	t.Run("refuses a missing uid or gid", func(t *testing.T) {
+		// Act
+		_, err := NewIdentity("")
+
+		// Assert
+		require.ErrorContains(t, err, "want uid:gid")
+	})
 }
 
 func TestIdentity_files(t *testing.T) {

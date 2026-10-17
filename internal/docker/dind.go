@@ -115,7 +115,7 @@ func (c *Client) newDindHandle(rs toolRun) (dindHandle, error) {
 		return dindHandle{}, err
 	}
 
-	identity, err := dind.NewIdentity(hostUserGroup())
+	identity, err := dind.NewIdentity(rs.User)
 	if err != nil {
 		return dindHandle{}, err
 	}

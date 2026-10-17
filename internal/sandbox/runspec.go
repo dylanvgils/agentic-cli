@@ -5,6 +5,8 @@ type RunSpec struct {
 	Image          string
 	ToolHome       string
 	ContainerHome  string
+	User           string // host "uid:gid" the tool runs as
+	TTY            bool   // stdin is a terminal
 	Volumes        []string
 	Secrets        []string
 	Env            []string
@@ -31,6 +33,8 @@ type RunSpecBuilder struct {
 	image          string
 	toolHome       string
 	containerHome  string
+	user           string
+	tty            bool
 	volumes        []string
 	secrets        []string
 	env            []string
@@ -57,6 +61,18 @@ func (b *RunSpecBuilder) WithToolHome(path string) *RunSpecBuilder {
 // WithContainerHome sets the container-side home path.
 func (b *RunSpecBuilder) WithContainerHome(path string) *RunSpecBuilder {
 	b.containerHome = path
+	return b
+}
+
+// WithUser sets the host "uid:gid" the tool runs as.
+func (b *RunSpecBuilder) WithUser(userGroup string) *RunSpecBuilder {
+	b.user = userGroup
+	return b
+}
+
+// WithTTY sets whether stdin is a terminal, so the runtime attaches one.
+func (b *RunSpecBuilder) WithTTY(tty bool) *RunSpecBuilder {
+	b.tty = tty
 	return b
 }
 
@@ -126,6 +142,8 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		Image:          b.image,
 		ToolHome:       b.toolHome,
 		ContainerHome:  b.containerHome,
+		User:           b.user,
+		TTY:            b.tty,
 		Volumes:        b.volumes,
 		Secrets:        b.secrets,
 		Env:            b.env,

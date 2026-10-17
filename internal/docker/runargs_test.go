@@ -4,17 +4,24 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestBuildRunArgs(t *testing.T) {
+	// Act
+	_, err := buildRunArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}}, nil, nil)
+
+	// Assert
+	assert.ErrorContains(t, err, "no host user", "without --user the tool would run as the image's user")
+}
+
 func TestBuildBaseArgs(t *testing.T) {
 	t.Run("security flags", func(t *testing.T) {
 		// Act
-		args := buildBaseArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}})
+		args := buildBaseArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", User: testUser}})
 
 		// Assert
 		assert.Contains(t, args, "run")
@@ -22,7 +29,7 @@ func TestBuildBaseArgs(t *testing.T) {
 		assert.Contains(t, args, "--read-only")
 		assert.Contains(t, args, "--cap-drop=ALL")
 		assert.Contains(t, args, "--security-opt=no-new-privileges:true")
-		assert.Contains(t, args, "--user="+platform.UserGroup())
+		assert.Contains(t, args, "--user="+testUser)
 	})
 
 	t.Run("name and label", func(t *testing.T) {
@@ -54,22 +61,16 @@ func TestBuildBaseArgs(t *testing.T) {
 
 func TestBuildTTYArgs(t *testing.T) {
 	t.Run("returns -it when terminal", func(t *testing.T) {
-		// Arrange
-		stubIsTerminal(t, true)
-
 		// Act
-		args := buildTTYArgs()
+		args := buildTTYArgs(sandbox.RunSpec{TTY: true})
 
 		// Assert
 		assert.Equal(t, []string{"--interactive", "--tty"}, args)
 	})
 
 	t.Run("empty when not a terminal", func(t *testing.T) {
-		// Arrange
-		stubIsTerminal(t, false)
-
 		// Act
-		args := buildTTYArgs()
+		args := buildTTYArgs(sandbox.RunSpec{})
 
 		// Assert
 		assert.Empty(t, args)
