@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -284,8 +285,9 @@ func TestBuildImage(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		args := get()
-		assert.Contains(t, args, "--build-arg=HOST_UID="+platform.GetUID())
-		assert.Contains(t, args, "--build-arg=HOST_GID="+platform.GetGID())
+		host := platform.HostUser()
+		assert.Contains(t, args, "--build-arg=HOST_UID="+strconv.Itoa(host.UID))
+		assert.Contains(t, args, "--build-arg=HOST_GID="+strconv.Itoa(host.GID))
 	})
 
 	t.Run("debianVersion adds build arg", func(t *testing.T) {

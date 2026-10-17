@@ -105,7 +105,6 @@ func Test_setupSidecars(t *testing.T) {
 
 	t.Run("stops the proxy, then removes the run network, when dind fails to start", func(t *testing.T) {
 		// Arrange
-		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
 		calls := stubProxyDocker(t, client, "true", "exec")
 		rs := toolRun{RunSpec: sandbox.RunSpec{

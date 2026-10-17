@@ -3,29 +3,21 @@
 package platform
 
 import (
-	"fmt"
 	"os/user"
+	"strconv"
 )
 
-// GetUID returns the current user's UID.
-func GetUID() string {
+// HostUser returns the current user's uid and gid, or 1000:1000 when they can't be read.
+func HostUser() User {
 	u, err := user.Current()
 	if err != nil {
-		return "1000"
+		return User{UID: 1000, GID: 1000}
 	}
-	return u.Uid
-}
 
-// GetGID returns the current user's GID.
-func GetGID() string {
-	u, err := user.Current()
-	if err != nil {
-		return "1000"
+	uid, uidErr := strconv.Atoi(u.Uid)
+	gid, gidErr := strconv.Atoi(u.Gid)
+	if uidErr != nil || gidErr != nil {
+		return User{UID: 1000, GID: 1000}
 	}
-	return u.Gid
-}
-
-// UserGroup returns "UID:GID" for the --user docker flag.
-func UserGroup() string {
-	return fmt.Sprintf("%s:%s", GetUID(), GetGID())
+	return User{UID: uid, GID: gid}
 }

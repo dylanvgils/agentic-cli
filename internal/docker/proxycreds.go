@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/certs"
@@ -58,11 +56,8 @@ func credentialArchive(ca certs.CA, creds []proxy.Credential) ([]byte, error) {
 		return nil, err
 	}
 
-	uid, gid, err := parseUserGroup(platform.UserGroup())
-	if err != nil {
-		return nil, err
-	}
-	return tarFiles(proxyCredentialsSubdir, files, uid, gid)
+	host := platform.HostUser()
+	return tarFiles(proxyCredentialsSubdir, files, host.UID, host.GID)
 }
 
 // credentialFiles returns ca, its key and creds as proxy files.
@@ -121,24 +116,6 @@ func tarFiles(dir string, files []archiveFile, uid, gid int) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-// parseUserGroup splits a "uid:gid" string as returned by platform.UserGroup.
-func parseUserGroup(userGroup string) (uid, gid int, err error) {
-	u, g, ok := strings.Cut(userGroup, ":")
-	if !ok {
-		return 0, 0, fmt.Errorf("invalid user %q: expected uid:gid", userGroup)
-	}
-
-	uid, err = strconv.Atoi(u)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid uid in %q: %w", userGroup, err)
-	}
-	gid, err = strconv.Atoi(g)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid gid in %q: %w", userGroup, err)
-	}
-	return uid, gid, nil
 }
 
 // proxyCredentials gives each credential a random placeholder for this run and returns the proxy's credentials plus the
