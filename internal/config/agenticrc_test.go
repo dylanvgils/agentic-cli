@@ -752,6 +752,32 @@ secret = "/example/secret"
 		assert.ErrorContains(t, err, path)
 	})
 
+	t.Run("marketplace urls over https or ssh load", func(t *testing.T) {
+		for _, url := range []string{"https://example.test/acme.git", "ssh://git@example.test/acme.git", "git@example.test:acme/plugins.git", "example.test:acme.git"} {
+			// Arrange
+			path := writeRC(t, "[[marketplaces]]\nname = \"acme\"\nurl = \""+url+"\"\n")
+
+			// Act
+			_, err := loadRC(path)
+
+			// Assert
+			assert.NoError(t, err, url)
+		}
+	})
+
+	t.Run("marketplace urls that aren't https or ssh return an error", func(t *testing.T) {
+		for _, url := range []string{"/srv/repos/acme", "./acme", "file:///srv/repos/acme", "git://example.test/acme.git", "http://example.test/acme.git", "ext::sh -c touch% /tmp/pwned", "C:\\\\repos\\\\acme", "C:/repos/acme"} {
+			// Arrange
+			path := writeRC(t, "[[marketplaces]]\nname = \"acme\"\nurl = '"+url+"'\n")
+
+			// Act
+			_, err := loadRC(path)
+
+			// Assert
+			assert.ErrorContains(t, err, "must be https://, ssh:// or user@host:path", url)
+		}
+	})
+
 	t.Run("custom_installs key", func(t *testing.T) {
 		// Act
 		rc := mustParseRC(t, "[[build.custom_installs]]\nname = \"helm\"\nrun = [\"curl -fsSL https://get.helm.sh -o /tmp/get-helm.sh\", \"bash /tmp/get-helm.sh\"]\n")

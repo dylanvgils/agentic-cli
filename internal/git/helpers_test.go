@@ -47,8 +47,11 @@ func stubTimeout(t *testing.T, d time.Duration) {
 	t.Cleanup(func() { Timeout = orig })
 }
 
-// gitVerb returns the git subcommand from args.
+// gitVerb returns the git subcommand from args, after any -c options.
 func gitVerb(args []string) string {
+	for len(args) >= 2 && args[0] == "-c" {
+		args = args[2:]
+	}
 	if len(args) == 0 {
 		return ""
 	}
