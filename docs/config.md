@@ -228,7 +228,7 @@ Git-based plugin marketplaces to sync on the host and mount read-only into tool 
 | Key     | Type   | Description                                                                                     | Default               |
 | ------- | ------ | ----------------------------------------------------------------------------------------------- | --------------------- |
 | `name`  | string | Local name, must match `^[a-zA-Z0-9._-]+$`. Used as the mount path `~/marketplaces/<name>`.     | -                     |
-| `url`   | string | Any URL `git clone` accepts                                                                     | -                     |
+| `url`   | string | `https://`, `ssh://` or `user@host:path`; local paths and other transports are refused          | -                     |
 | `tools` | list   | Tools to mount it into (`claude`, `copilot`)                                                    | every supporting tool |
 
 ```toml

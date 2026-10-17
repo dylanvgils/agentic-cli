@@ -147,7 +147,7 @@ agentic --docker-context prod build claude
 
 [`[[marketplaces]]`](config.md#marketplaces) entries are git plugin repos (skills, agents, commands, hooks, MCP servers) shared with tool containers.
 
-- Before each run, agentic clones or updates each marketplace on the host (`git fetch` + `git reset --hard`). It uses your own git auth, so no credentials enter the container. `git` must be on your `PATH`.
+- Before each run, agentic clones or updates each marketplace on the host (`git fetch` + `git reset --hard`). It uses your own git auth, so no credentials enter the container. `git` must be on your `PATH`, and only https and ssh are allowed, so a marketplace can't expose a host path.
 - A failed first clone fails the run. A failed update only warns and reuses the existing clone.
 - Clones live in `$AGENTIC_HOME/marketplaces/<slug>-<hash>/`, keyed by `url`. Projects that use the same URL share one clone, even under different names. Usage is tracked in `.usage.json` there.
 - Each clone is mounted read-only at `~/marketplaces/<name>` and registered with the tool. Removing an entry unregisters it on the next run. Copilot only warns when registration fails.

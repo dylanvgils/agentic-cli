@@ -3,7 +3,9 @@ package git
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -50,7 +52,19 @@ func TestClone(t *testing.T) {
 		calls := get()
 		require.Len(t, calls, 1)
 		assert.Equal(t, "", calls[0].dir)
-		assert.Equal(t, []string{"clone", "--", "git@example.com:acme/marketplace.git", "/tmp/acme"}, calls[0].args)
+		assert.Equal(t, append(slices.Clone(remoteProtocols), "clone", "--", "git@example.com:acme/marketplace.git", "/tmp/acme"), calls[0].args)
+	})
+
+	t.Run("refuses a local path", func(t *testing.T) {
+		// Arrange
+		src := t.TempDir()
+		require.NoError(t, exec.Command("git", "init", "--quiet", "--bare", src).Run())
+
+		// Act
+		err := Clone(src, filepath.Join(t.TempDir(), "clone"))
+
+		// Assert
+		assert.ErrorContains(t, err, "transport 'file' not allowed")
 	})
 
 	t.Run("wraps error when clone fails", func(t *testing.T) {
@@ -93,7 +107,7 @@ func TestFetchReset(t *testing.T) {
 		calls := get()
 		require.Len(t, calls, 2)
 		assert.Equal(t, "/tmp/acme", calls[0].dir)
-		assert.Equal(t, []string{"fetch"}, calls[0].args)
+		assert.Equal(t, append(slices.Clone(remoteProtocols), "fetch"), calls[0].args)
 		assert.Equal(t, "/tmp/acme", calls[1].dir)
 		assert.Equal(t, []string{"reset", "--hard", "@{upstream}"}, calls[1].args)
 	})

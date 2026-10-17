@@ -23,6 +23,10 @@ const DefaultNamespace = "agentic"
 // validRCEntryName matches safe path-segment/identifier characters, used for both marketplace and custom-install names.
 var validRCEntryName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
+// scpGitURL matches an scp-style [user@]host:path URL; the host needs two characters so a Windows drive isn't one, and
+// the path can't start with ':' so ext::/fd:: transports aren't either.
+var scpGitURL = regexp.MustCompile(`^([^@/\s]+@)?[^@/:\s]{2,}:[^:\s]\S*$`)
+
 // validMemory matches a docker memory size: a number with an optional b, k, m or g unit.
 var validMemory = regexp.MustCompile(`^[0-9]+[bkmgBKMG]?$`)
 
@@ -443,7 +447,21 @@ func validateMarketplace(marketplace RCMarketplace) error {
 	if marketplace.URL == "" {
 		return fmt.Errorf("marketplace %q: url must not be empty", marketplace.Name)
 	}
+	if !isRemoteGitURL(marketplace.URL) {
+		return fmt.Errorf("marketplace %q: url %q must be https://, ssh:// or user@host:path", marketplace.Name, marketplace.URL)
+	}
 	return nil
+}
+
+// isRemoteGitURL reports whether url reaches git over https or ssh, not a host path or another transport.
+func isRemoteGitURL(url string) bool {
+	if strings.ContainsAny(url, " \t\n") {
+		return false
+	}
+	if strings.Contains(url, "://") {
+		return strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "ssh://")
+	}
+	return scpGitURL.MatchString(url)
 }
 
 func validateCustomInstall(install RCCustomInstall) error {
