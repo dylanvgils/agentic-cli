@@ -8,7 +8,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -131,7 +130,7 @@ func checkCredentialEnv(resolved []credentials.Resolved, env []string, dindEnabl
 
 	for _, r := range resolved {
 		for _, name := range r.Env {
-			if docker.IsReservedEnvName(name, true) || isProxyTrustEnvName(name) || (dindEnabled && docker.IsReservedDindEnvName(name)) {
+			if sandbox.IsReservedEnvName(name, true, dindEnabled) || isProxyTrustEnvName(name) {
 				return fmt.Errorf("credential env %q is managed by agentic", name)
 			}
 			if slices.ContainsFunc(env, func(entry string) bool { return envKey(entry) == name }) {

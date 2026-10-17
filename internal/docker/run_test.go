@@ -343,36 +343,6 @@ func TestClient_RunTool(t *testing.T) {
 	})
 }
 
-func TestIsReservedEnvName(t *testing.T) {
-	t.Run("config names reserved regardless of proxy", func(t *testing.T) {
-		for _, key := range []string{"TOOL_HOME", "CONTAINER_HOME", "AGENTIC_PROXY_CA"} {
-			assert.True(t, IsReservedEnvName(key, false), key)
-			assert.True(t, IsReservedEnvName(key, true), key)
-		}
-	})
-
-	t.Run("proxy names reserved only when proxy enabled", func(t *testing.T) {
-		for _, key := range []string{"HTTP_PROXY", "https_proxy"} {
-			assert.False(t, IsReservedEnvName(key, false), key)
-			assert.True(t, IsReservedEnvName(key, true), key)
-		}
-	})
-
-	t.Run("terminal vars are not reserved", func(t *testing.T) {
-		for _, key := range []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"} {
-			assert.False(t, IsReservedEnvName(key, true), key)
-		}
-	})
-
-	t.Run("non-reserved name", func(t *testing.T) {
-		// Act
-		result := IsReservedEnvName("MAVEN_OPTS", true)
-
-		// Assert
-		assert.False(t, result)
-	})
-}
-
 func TestClient_StopSidecars(t *testing.T) {
 	client := newTestClient()
 

@@ -8,8 +8,47 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
+// ProxyCAEnvName carries the proxy CA cert PEM into the tool, which agentic sets when proxy credentials are configured.
+const ProxyCAEnvName = "AGENTIC_PROXY_CA"
+
+// configEnvNames are env vars agentic sets for every run.
+var configEnvNames = []string{
+	"TOOL_HOME",            // the tool's state dir in the container
+	"CONTAINER_HOME",       // the container user's home
+	"AGENTIC_MARKETPLACES", // names of the mounted plugin marketplaces
+	ProxyCAEnvName,
+}
+
+// proxyEnvNames point the tool at the egress proxy; overriding one would silently bypass the allowlist. Both cases, as
+// tools read either.
+var proxyEnvNames = []string{
+	"HTTP_PROXY",
+	"HTTPS_PROXY",
+	"http_proxy",
+	"https_proxy",
+	"NO_PROXY",
+	"no_proxy",
+}
+
+// dindEnvNames point the tool's docker CLI at the sidecar over mutual TLS; overriding one would bypass it.
+var dindEnvNames = []string{
+	"DOCKER_HOST",
+	"DOCKER_TLS_VERIFY",
+	"DOCKER_CERT_PATH",
+	"DOCKER_CONTEXT", // a context would pick another daemon
+	"DOCKER_CONFIG",  // a config could set a context or credential helpers
+}
+
 // terminalEnvNames are host vars forwarded into the sandbox; not reserved, so an env entry can override one.
 var terminalEnvNames = []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"}
+
+// IsReservedEnvName reports whether key is an env var agentic manages in a run with or without the proxy and dind, so an
+// env entry can't override it.
+func IsReservedEnvName(key string, proxy, dind bool) bool {
+	return slices.Contains(configEnvNames, key) ||
+		(proxy && slices.Contains(proxyEnvNames, key)) ||
+		(dind && slices.Contains(dindEnvNames, key))
+}
 
 // ResolveEnv returns the sandbox env as KEY=VALUE: forwarded terminal vars and host timezone, then env entries; later entries win.
 func ResolveEnv(env []string) []string {

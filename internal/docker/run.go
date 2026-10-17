@@ -7,26 +7,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
-
-// proxyEnvNames are the env vars the egress proxy injects; overriding one via --env would silently break allowlist enforcement.
-var proxyEnvNames = map[string]bool{
-	"HTTP_PROXY":  true,
-	"HTTPS_PROXY": true,
-	"http_proxy":  true,
-	"https_proxy": true,
-	"NO_PROXY":    true,
-	"no_proxy":    true,
-}
-
-// reservedConfigNames are names agentic manages itself, so --env targeting them would be confusing.
-var reservedConfigNames = map[string]bool{
-	"TOOL_HOME":            true,
-	"CONTAINER_HOME":       true,
-	"AGENTIC_MARKETPLACES": true,
-	tools.ProxyCAEnvName:   true,
-}
 
 // toolRun is a RunSpec plus the per-run Docker state StartSidecars derives from it.
 type toolRun struct {
@@ -114,15 +95,6 @@ func (c *Client) removeOnSignal(name string, signals <-chan os.Signal, done <-ch
 // removeToolContainer force-removes name, which --rm already did once it exited; errors are ignored for that reason.
 func (c *Client) removeToolContainer(name string) {
 	_, _ = c.run("rm", arg("force"), name)
-}
-
-// IsReservedEnvName reports whether key is an env var agentic already manages, so a user-supplied
-// --env cannot override it; proxyEnvNames only count when proxyEnabled.
-func IsReservedEnvName(key string, proxyEnabled bool) bool {
-	if proxyEnabled && proxyEnvNames[key] {
-		return true
-	}
-	return reservedConfigNames[key]
 }
 
 // guardSignals routes interrupt/terminate signals to a channel so deferred cleanup still runs; stop uninstalls it.

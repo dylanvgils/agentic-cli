@@ -9,7 +9,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
@@ -269,7 +268,7 @@ func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 func validateEnv(entries []string, proxyEnabled, dindEnabled bool) error {
 	for _, entry := range entries {
 		key, _, _ := strings.Cut(entry, "=")
-		if docker.IsReservedEnvName(key, proxyEnabled) || (dindEnabled && docker.IsReservedDindEnvName(key)) {
+		if sandbox.IsReservedEnvName(key, proxyEnabled, dindEnabled) {
 			return fmt.Errorf("--env: %q is managed by agentic and cannot be overridden", key)
 		}
 	}

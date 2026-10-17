@@ -7,6 +7,50 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestIsReservedEnvName(t *testing.T) {
+	t.Run("config names are reserved in every run", func(t *testing.T) {
+		for _, key := range []string{"TOOL_HOME", "CONTAINER_HOME", "AGENTIC_MARKETPLACES", "AGENTIC_PROXY_CA"} {
+			// Act
+			reserved := IsReservedEnvName(key, false, false)
+
+			// Assert
+			assert.True(t, reserved, key)
+		}
+	})
+
+	t.Run("proxy names are reserved only with the proxy", func(t *testing.T) {
+		for _, key := range []string{"HTTP_PROXY", "https_proxy", "NO_PROXY"} {
+			// Act
+			without, with := IsReservedEnvName(key, false, false), IsReservedEnvName(key, true, false)
+
+			// Assert
+			assert.False(t, without, key)
+			assert.True(t, with, key)
+		}
+	})
+
+	t.Run("docker client names are reserved only with dind", func(t *testing.T) {
+		for _, key := range []string{"DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_CONTEXT", "DOCKER_CONFIG"} {
+			// Act
+			without, with := IsReservedEnvName(key, false, false), IsReservedEnvName(key, false, true)
+
+			// Assert
+			assert.False(t, without, key)
+			assert.True(t, with, key)
+		}
+	})
+
+	t.Run("other names are free", func(t *testing.T) {
+		for _, key := range []string{"MAVEN_OPTS", "TERM", "DOCKER_BUILDKIT"} {
+			// Act
+			reserved := IsReservedEnvName(key, true, true)
+
+			// Assert
+			assert.False(t, reserved, key)
+		}
+	})
+}
+
 func TestResolveEnv(t *testing.T) {
 	// Arrange
 	clearTerminalEnv(t)
