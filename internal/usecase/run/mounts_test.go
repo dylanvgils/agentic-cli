@@ -265,30 +265,6 @@ func Test_within(t *testing.T) {
 		assert.True(t, result)
 	})
 
-	t.Run("case-insensitive filesystems ignore case", func(t *testing.T) {
-		// Arrange
-		stubCaseInsensitivePaths(t, true)
-		root := filepath.Join(t.TempDir(), "Secrets")
-
-		// Act
-		result := within(filepath.Join(root, "token"), strings.ToUpper(root))
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("case-sensitive filesystems compare case", func(t *testing.T) {
-		// Arrange
-		stubCaseInsensitivePaths(t, false)
-		root := filepath.Join(t.TempDir(), "secrets")
-
-		// Act
-		result := within(filepath.Join(root, "token"), strings.ToUpper(root))
-
-		// Assert
-		assert.False(t, result)
-	})
-
 	t.Run("missing path under a symlinked parent resolves through it", func(t *testing.T) {
 		// Arrange
 		if runtime.GOOS == "windows" {
@@ -394,6 +370,34 @@ func Test_isProcPath(t *testing.T) {
 	})
 }
 
+func Test_pathForms(t *testing.T) {
+	t.Run("ignoreCase lower-cases every form", func(t *testing.T) {
+		// Arrange - a resolved temp dir, so there's no symlinked form (macOS's /var)
+		dir, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
+		path := filepath.Join(dir, "Secrets")
+
+		// Act
+		forms := pathForms(path, true)
+
+		// Assert
+		assert.Equal(t, []string{strings.ToLower(path)}, forms)
+	})
+
+	t.Run("without ignoreCase keeps the case", func(t *testing.T) {
+		// Arrange - a resolved temp dir, so there's no symlinked form (macOS's /var)
+		dir, err := filepath.EvalSymlinks(t.TempDir())
+		require.NoError(t, err)
+		path := filepath.Join(dir, "Secrets")
+
+		// Act
+		forms := pathForms(path, false)
+
+		// Assert
+		assert.Equal(t, []string{path}, forms)
+	})
+}
+
 func Test_workspaceSymlink(t *testing.T) {
 	ws := chdirSymlinkWorkspace(t)
 
@@ -445,7 +449,7 @@ func Test_workspaceRoot(t *testing.T) {
 
 	t.Run("path inside cwd has cwd as root", func(t *testing.T) {
 		// Act
-		root, ok := workspaceRoot(filepath.Join(cwd, "a"), cwd)
+		root, ok := workspaceRoot(filepath.Join(cwd, "a"), cwd, false)
 
 		// Assert
 		assert.True(t, ok)
@@ -461,7 +465,7 @@ func Test_workspaceRoot(t *testing.T) {
 		require.NoError(t, os.Symlink(cwd, alias))
 
 		// Act
-		root, ok := workspaceRoot(filepath.Join(alias, "a"), cwd)
+		root, ok := workspaceRoot(filepath.Join(alias, "a"), cwd, false)
 
 		// Assert
 		assert.True(t, ok)
@@ -469,11 +473,8 @@ func Test_workspaceRoot(t *testing.T) {
 	})
 
 	t.Run("case-insensitive filesystems ignore case", func(t *testing.T) {
-		// Arrange
-		stubCaseInsensitivePaths(t, true)
-
 		// Act
-		root, ok := workspaceRoot(filepath.Join(strings.ToUpper(cwd), "a"), cwd)
+		root, ok := workspaceRoot(filepath.Join(strings.ToUpper(cwd), "a"), cwd, true)
 
 		// Assert
 		assert.True(t, ok)
@@ -488,7 +489,7 @@ func Test_workspaceRoot(t *testing.T) {
 		require.NoError(t, os.Symlink(".", filepath.Join(cwd, "self")))
 
 		// Act
-		root, ok := workspaceRoot(filepath.Join(cwd, "self", "a"), cwd)
+		root, ok := workspaceRoot(filepath.Join(cwd, "self", "a"), cwd, false)
 
 		// Assert
 		assert.True(t, ok)
@@ -497,7 +498,7 @@ func Test_workspaceRoot(t *testing.T) {
 
 	t.Run("path outside cwd has no root", func(t *testing.T) {
 		// Act
-		_, ok := workspaceRoot(t.TempDir(), cwd)
+		_, ok := workspaceRoot(t.TempDir(), cwd, false)
 
 		// Assert
 		assert.False(t, ok)

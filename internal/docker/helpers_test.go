@@ -85,7 +85,7 @@ func stubDocker(t *testing.T, script string) {
 
 // newTestClient returns a Client backed by a fakeRunner, for the stub helpers below.
 func newTestClient() *Client {
-	return &Client{runner: &fakeRunner{}}
+	return &Client{runner: &fakeRunner{}, timing: defaultTiming()}
 }
 
 // fakeOf returns the fakeRunner behind a newTestClient.
@@ -230,19 +230,19 @@ func hasArgWithPrefix(args []string, prefix string) bool {
 }
 
 // stubDindReadyTimeout shortens the sidecar readiness wait so failure paths finish quickly.
-func stubDindReadyTimeout(t *testing.T) {
+func stubDindReadyTimeout(t *testing.T, client *Client) {
 	t.Helper()
-	origTimeout, origInterval := dindReadyTimeout, dindPollInterval
-	dindReadyTimeout, dindPollInterval = 0, 0
-	t.Cleanup(func() { dindReadyTimeout, dindPollInterval = origTimeout, origInterval })
+	orig := client.timing
+	client.timing.dindReadyTimeout, client.timing.dindPollInterval = 0, 0
+	t.Cleanup(func() { client.timing = orig })
 }
 
 // stubDindReadyTimeoutLong makes the readiness wait long enough that only a fail-fast path ends it.
-func stubDindReadyTimeoutLong(t *testing.T) {
+func stubDindReadyTimeoutLong(t *testing.T, client *Client) {
 	t.Helper()
-	orig := dindReadyTimeout
-	dindReadyTimeout = time.Hour
-	t.Cleanup(func() { dindReadyTimeout = orig })
+	orig := client.timing
+	client.timing.dindReadyTimeout = time.Hour
+	t.Cleanup(func() { client.timing = orig })
 }
 
 // stubDindProbe stubs client.run so the readiness probe always fails and `inspect` reports running as the given state.
@@ -280,12 +280,12 @@ func stubRunInteractiveError(t *testing.T, client *Client, err error) {
 	stubRunInteractiveFunc(t, client, func(...string) error { return err })
 }
 
-// stubDindRunDirGrace replaces dindRunDirGrace with d for the duration of the test.
-func stubDindRunDirGrace(t *testing.T, d time.Duration) {
+// stubDindRunDirGrace sets client's run dir grace to d for the duration of the test.
+func stubDindRunDirGrace(t *testing.T, client *Client, d time.Duration) {
 	t.Helper()
-	orig := dindRunDirGrace
-	dindRunDirGrace = d
-	t.Cleanup(func() { dindRunDirGrace = orig })
+	orig := client.timing
+	client.timing.dindRunDirGrace = d
+	t.Cleanup(func() { client.timing = orig })
 }
 
 // makeDindRunDir creates toolHome/dind/<name> holding a key file, backdated by age, and returns its path.
@@ -297,14 +297,6 @@ func makeDindRunDir(t *testing.T, toolHome, name string, age time.Duration) stri
 	past := time.Now().Add(-age)
 	require.NoError(t, os.Chtimes(dir, past, past))
 	return dir
-}
-
-// stubSidecarOrphanGrace replaces sidecarOrphanGrace with d for the duration of the test.
-func stubSidecarOrphanGrace(t *testing.T, d time.Duration) {
-	t.Helper()
-	orig := sidecarOrphanGrace
-	sidecarOrphanGrace = d
-	t.Cleanup(func() { sidecarOrphanGrace = orig })
 }
 
 // stubOwnedResources stubs `ps` and `network ls` output, recording every call.
@@ -425,12 +417,12 @@ func stubProxyDocker(t *testing.T, client *Client, running string, failSubcmds .
 	return func() []dockerCall { return calls }
 }
 
-// stubProxySettleTime replaces proxySettleTime with d for the duration of the test.
-func stubProxySettleTime(t *testing.T, d time.Duration) {
+// stubProxySettleTime sets client's proxy settle time to d for the duration of the test.
+func stubProxySettleTime(t *testing.T, client *Client, d time.Duration) {
 	t.Helper()
-	orig := proxySettleTime
-	proxySettleTime = d
-	t.Cleanup(func() { proxySettleTime = orig })
+	orig := client.timing
+	client.timing.proxySettleTime = d
+	t.Cleanup(func() { client.timing = orig })
 }
 
 // captureStdout returns what fn writes to os.Stdout.

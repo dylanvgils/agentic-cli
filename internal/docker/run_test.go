@@ -42,7 +42,7 @@ func TestClient_StartSidecars(t *testing.T) {
 
 	t.Run("a sidecar that fails to start returns its error", func(t *testing.T) {
 		// Arrange
-		stubDindReadyTimeout(t)
+		stubDindReadyTimeout(t, client)
 		stubDockerRunCapture(t, client, "exec")
 		rs := sandbox.RunSpec{Image: "agentic-claude", User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
 
@@ -110,7 +110,7 @@ func TestClient_RunTool(t *testing.T) {
 
 	t.Run("dind mode points tool at sidecar without relaxing tool hardening", func(t *testing.T) {
 		// Arrange
-		stubDindReadyTimeout(t)
+		stubDindReadyTimeout(t, client)
 		stubDockerRunCapture(t, client)
 		rs := sandbox.RunSpec{Image: "agentic-claude", User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
 
@@ -131,7 +131,7 @@ func TestClient_RunTool(t *testing.T) {
 
 	t.Run("dind with proxy shares the internal network and bypasses the proxy for the daemon", func(t *testing.T) {
 		// Arrange
-		stubDindReadyTimeout(t)
+		stubDindReadyTimeout(t, client)
 		stubProxyDocker(t, client, "true")
 		rs := sandbox.RunSpec{
 			Image:    "agentic-claude",
@@ -360,7 +360,7 @@ func TestClient_StopSidecars(t *testing.T) {
 
 	t.Run("removes the sidecars it started", func(t *testing.T) {
 		// Arrange
-		stubDindReadyTimeout(t)
+		stubDindReadyTimeout(t, client)
 		calls := stubDockerRunCapture(t, client)
 		rs := sandbox.RunSpec{Image: "agentic-claude", User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
 		sidecars, err := client.StartSidecars(rs)

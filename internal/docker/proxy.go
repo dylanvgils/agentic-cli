@@ -41,12 +41,6 @@ const dryRunClientNetsPlaceholder = "<proxy network subnets>"
 // proxyLogMountDir is where the run's log file is mounted inside the proxy.
 const proxyLogMountDir = "/var/log/agentic-proxy"
 
-// Startup check settings for a credentialed proxy; vars so tests can shorten them.
-var (
-	proxySettleTime   = 500 * time.Millisecond
-	proxyPollInterval = 50 * time.Millisecond
-)
-
 // proxyHandle identifies the per-run proxy sidecar container, host-side access log, injected credentials, the run
 // network's subnets that may use them, and the CA cert the proxy signs them with, set once started.
 type proxyHandle struct {
@@ -403,7 +397,7 @@ func (h proxyHandle) checkStarted() error {
 		return nil
 	}
 
-	deadline := time.Now().Add(proxySettleTime)
+	deadline := time.Now().Add(h.client.timing.proxySettleTime)
 	for {
 		out, err := h.client.run("inspect", arg("format", "{{.State.Running}}"), h.container)
 		if err != nil || strings.TrimSpace(out) != "true" {
@@ -413,7 +407,7 @@ func (h proxyHandle) checkStarted() error {
 		if !time.Now().Before(deadline) {
 			return nil
 		}
-		time.Sleep(proxyPollInterval)
+		time.Sleep(h.client.timing.proxyPollInterval)
 	}
 }
 

@@ -113,7 +113,7 @@ func Test_setupSidecars(t *testing.T) {
 
 	t.Run("stops the proxy, then removes the run network, when dind fails to start", func(t *testing.T) {
 		// Arrange
-		stubDindReadyTimeout(t)
+		stubDindReadyTimeout(t, client)
 		calls := stubProxyDocker(t, client, "true", "exec")
 		rs := toolRun{RunSpec: sandbox.RunSpec{
 			User:     &testUser,
@@ -142,8 +142,6 @@ func Test_setupSidecars(t *testing.T) {
 
 func Test_sweepOrphanedSidecars(t *testing.T) {
 	client := newTestClient()
-
-	stubSidecarOrphanGrace(t, 5*time.Minute)
 
 	t.Run("removes an old sidecar and network whose owner is gone", func(t *testing.T) {
 		// Arrange
@@ -243,7 +241,7 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 
 	t.Run("sweeps run dirs left behind by crashed runs", func(t *testing.T) {
 		// Arrange
-		stubDindRunDirGrace(t, time.Minute)
+		stubDindRunDirGrace(t, client, time.Minute)
 		stubOwnedResources(t, client, "", "")
 		toolHome := t.TempDir()
 		stale := makeDindRunDir(t, toolHome, "0123456789ab", time.Hour)
@@ -258,7 +256,6 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 }
 
 func Test_ownedResource_inUse(t *testing.T) {
-	stubSidecarOrphanGrace(t, 5*time.Minute)
 	existing := map[string]bool{"agentic-claude-abc": true}
 
 	t.Run("owner still exists", func(t *testing.T) {
@@ -266,7 +263,7 @@ func Test_ownedResource_inUse(t *testing.T) {
 		r := ownedResource{name: "agentic-proxy-abc", owner: "agentic-claude-abc", started: time.Now().Add(-time.Hour)}
 
 		// Act
-		inUse := r.inUse(existing)
+		inUse := r.inUse(existing, 5*time.Minute)
 
 		// Assert
 		assert.True(t, inUse)
@@ -277,7 +274,7 @@ func Test_ownedResource_inUse(t *testing.T) {
 		r := ownedResource{name: "agentic-proxy-abc", owner: "agentic-claude-starting", started: time.Now()}
 
 		// Act
-		inUse := r.inUse(existing)
+		inUse := r.inUse(existing, 5*time.Minute)
 
 		// Assert
 		assert.True(t, inUse)
@@ -288,7 +285,7 @@ func Test_ownedResource_inUse(t *testing.T) {
 		r := ownedResource{name: "agentic-proxy-abc", owner: "agentic-claude-gone", started: time.Now().Add(-time.Hour)}
 
 		// Act
-		inUse := r.inUse(existing)
+		inUse := r.inUse(existing, 5*time.Minute)
 
 		// Assert
 		assert.False(t, inUse)
@@ -299,7 +296,7 @@ func Test_ownedResource_inUse(t *testing.T) {
 		r := ownedResource{name: "agentic-proxy-old"}
 
 		// Act
-		inUse := r.inUse(existing)
+		inUse := r.inUse(existing, 5*time.Minute)
 
 		// Assert
 		assert.False(t, inUse)
@@ -310,8 +307,6 @@ func Test_removeUnused(t *testing.T) {
 	client := newTestClient()
 	listArgs := []string{"ps", "--all", "--format=owned"}
 	rmArgs := []string{"rm", "--force"}
-
-	stubSidecarOrphanGrace(t, 5*time.Minute)
 
 	t.Run("removes the unused resources in one call", func(t *testing.T) {
 		// Arrange
@@ -352,7 +347,6 @@ func Test_removeUnused(t *testing.T) {
 
 func Test_unusedNames(t *testing.T) {
 	// Arrange
-	stubSidecarOrphanGrace(t, 5*time.Minute)
 	started := time.Now().Add(-time.Hour)
 	resources := []ownedResource{
 		{name: "agentic-proxy-live", owner: "agentic-claude-live", started: started},
@@ -362,7 +356,7 @@ func Test_unusedNames(t *testing.T) {
 	existing := map[string]bool{"agentic-claude-live": true}
 
 	// Act
-	names := unusedNames(resources, existing)
+	names := unusedNames(resources, existing, 5*time.Minute)
 
 	// Assert
 	assert.Equal(t, []string{"agentic-proxy-gone", "agentic-proxy-old"}, names)

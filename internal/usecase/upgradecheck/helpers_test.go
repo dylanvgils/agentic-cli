@@ -2,9 +2,7 @@ package upgradecheck
 
 import (
 	"bytes"
-	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 )
 
@@ -28,16 +26,10 @@ func (f *fakeReleases) Update(version string) error {
 	return f.updateErr
 }
 
-// newTestService returns a Service over r whose progress goes to the returned buffer.
+// newTestService returns a Service for installed version v1.0.0 over r whose progress goes to the returned buffer.
 func newTestService(r Releases) (*Service, *bytes.Buffer) {
 	var buf bytes.Buffer
-	return New(r, logging.New(&buf)), &buf
-}
-
-// stubBuildVersion sets buildinfo.Version for the duration of the test.
-func stubBuildVersion(t *testing.T, v string) {
-	t.Helper()
-	orig := buildinfo.Version
-	buildinfo.Version = v
-	t.Cleanup(func() { buildinfo.Version = orig })
+	svc := New(r, logging.New(&buf))
+	svc.version = "v1.0.0"
+	return svc, &buf
 }

@@ -22,7 +22,7 @@ import (
 func TestStartProxy(t *testing.T) {
 	client := newTestClient()
 
-	stubProxySettleTime(t, 0)
+	stubProxySettleTime(t, client, 0)
 	creds := []sandbox.Credential{{Name: "EXAMPLE_API_KEY", Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"}}
 
 	t.Run("creates, then boots the proxy and keeps its CA", func(t *testing.T) {
@@ -547,7 +547,7 @@ func Test_setupProxy(t *testing.T) {
 func Test_proxyHandle_boot(t *testing.T) {
 	client := newTestClient()
 
-	stubProxySettleTime(t, 0)
+	stubProxySettleTime(t, client, 0)
 	creds := []sandbox.Credential{{Name: "EXAMPLE_API_KEY", Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"}}
 	rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: creds}}
 
@@ -649,7 +649,7 @@ func Test_proxyHandle_boot(t *testing.T) {
 func Test_proxyHandle_checkStarted(t *testing.T) {
 	client := newTestClient()
 
-	stubProxySettleTime(t, 0)
+	stubProxySettleTime(t, client, 0)
 	creds := []proxy.Credential{{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Placeholder: "agentic-0123456789abcdef", Secret: "test-secret"}}
 
 	t.Run("running proxy passes", func(t *testing.T) {

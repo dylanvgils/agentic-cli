@@ -5,19 +5,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestNew(t *testing.T) {
+	// Act
+	svc := New(&fakeReleases{}, nil)
+
+	// Assert
+	assert.Equal(t, buildinfo.Version, svc.version)
+}
 
 func Test_Service_Check(t *testing.T) {
 	confirmYes := func(string, string) bool { return true }
 
 	t.Run("skips when version is dev", func(t *testing.T) {
 		// Arrange
-		stubBuildVersion(t, "dev")
 		releases := &fakeReleases{latest: "v1.1.0"}
 		svc, _ := newTestService(releases)
+		svc.version = "dev"
 
 		// Act
 		updated, err := svc.Check(t.TempDir(), confirmYes)
@@ -30,7 +39,6 @@ func Test_Service_Check(t *testing.T) {
 
 	t.Run("applies a due newer release the user confirms", func(t *testing.T) {
 		// Arrange
-		stubBuildVersion(t, "v1.0.0")
 		releases := &fakeReleases{latest: "v1.1.0"}
 		svc, _ := newTestService(releases)
 
@@ -45,7 +53,6 @@ func Test_Service_Check(t *testing.T) {
 
 	t.Run("nothing due leaves the binary alone", func(t *testing.T) {
 		// Arrange
-		stubBuildVersion(t, "v1.0.0")
 		releases := &fakeReleases{latest: "v1.0.0"}
 		svc, _ := newTestService(releases)
 
@@ -60,8 +67,6 @@ func Test_Service_Check(t *testing.T) {
 }
 
 func Test_Service_fetchUpdateIfDue(t *testing.T) {
-	stubBuildVersion(t, "v1.0.0")
-
 	t.Run("returns false when within check interval", func(t *testing.T) {
 		// Arrange
 		releases := &fakeReleases{latest: "v1.1.0"}
@@ -139,8 +144,6 @@ func Test_Service_fetchUpdateIfDue(t *testing.T) {
 }
 
 func Test_Service_offerUpdate(t *testing.T) {
-	stubBuildVersion(t, "v1.0.0")
-
 	t.Run("asks confirm with installed and latest", func(t *testing.T) {
 		// Arrange
 		svc, _ := newTestService(&fakeReleases{})
