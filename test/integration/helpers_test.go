@@ -91,6 +91,20 @@ func runningProxy(t *testing.T) string {
 	return names[0]
 }
 
+// curlFromEgressNet requests url through the running proxy from a container on the shared egress network the proxy also
+// joins, and returns curl's output with a final status=<code> line.
+func curlFromEgressNet(t *testing.T, url string) string {
+	t.Helper()
+	ip, err := exec.Command("docker", "inspect", "--format", `{{(index .NetworkSettings.Networks "agentic-net").IPAddress}}`, runningProxy(t)).Output()
+	require.NoError(t, err)
+	proxyURL := "http://" + strings.TrimSpace(string(ip)) + ":3128"
+
+	out, err := exec.Command("docker", "run", "--rm", "--network", "agentic-net", "--entrypoint", "",
+		testNamespace+"-"+testTool, "curl", "-sS", "-m", "5", "-x", proxyURL, "-w", "\nstatus=%{http_code}", url).CombinedOutput()
+	require.NoError(t, err, string(out))
+	return string(out)
+}
+
 // skipWithoutCgroups skips when the daemon silently ignores resource limits (e.g. rootless without systemd).
 func skipWithoutCgroups(t *testing.T) {
 	t.Helper()

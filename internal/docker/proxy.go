@@ -225,12 +225,10 @@ func (c *Client) startProxy(rs toolRun) (proxyHandle, error) {
 		return proxyHandle{}, err
 	}
 
-	// The proxy also joins the shared egress network, so only this run's network may use the credentials
-	if len(h.credentials) > 0 {
-		h.clientNets, err = c.networkSubnets(rs.network)
-		if err != nil {
-			return proxyHandle{}, err
-		}
+	// The proxy also joins the shared egress network, so only this run's network may use it
+	h.clientNets, err = c.networkSubnets(rs.network)
+	if err != nil {
+		return proxyHandle{}, err
 	}
 
 	if err := h.createLogFile(); err != nil {
@@ -341,25 +339,25 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 	}
 	args = append(args, ownerLabels(rs)...)
 
+	clientNets := strings.Join(h.clientNets, ",")
+	if clientNets == "" {
+		clientNets = dryRunClientNetsPlaceholder
+	}
+
 	args = append(args,
 		arg("env", proxy.EnvAllow+"="+strings.Join(h.allow, ",")),
 		arg("env", proxy.EnvLog+"="+containerLog),
 		arg("env", proxy.EnvTZOffset+"="+strconv.Itoa(tzOffset)),
 		arg("env", proxy.EnvMonitor+"="+strconv.FormatBool(h.monitor)),
+		arg("env", proxy.EnvClientNets+"="+clientNets),
 		// Only this run's file, so the proxy can't touch other logs
 		arg("volume", h.logPath+":"+containerLog),
 	)
 
 	if len(h.credentials) > 0 {
-		clientNets := strings.Join(h.clientNets, ",")
-		if clientNets == "" {
-			clientNets = dryRunClientNetsPlaceholder
-		}
-
 		args = append(args,
 			arg("env", proxy.EnvCADir+"="+proxyCredentialsDir),
 			arg("env", proxy.EnvCredentials+"="+proxyCredentialsDir+"/"+proxyCredentialsFile),
-			arg("env", proxy.EnvClientNets+"="+clientNets),
 			// Anonymous, so it is removed with the container; the proxy deletes the secret files once loaded
 			arg("volume", proxyRunMountDir),
 		)

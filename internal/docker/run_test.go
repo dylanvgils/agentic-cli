@@ -81,7 +81,7 @@ func TestClient_RunTool(t *testing.T) {
 
 	t.Run("proxy mode keeps the tool off the egress network and injects proxy env", func(t *testing.T) {
 		// Arrange
-		stubDockerRunCapture(t, client, "network inspect")
+		stubProxyDocker(t, client, "true")
 		rs := sandbox.RunSpec{
 			Image: "agentic-claude",
 			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Allow: []string{"api.anthropic.com"}, LogDir: t.TempDir()},
@@ -124,7 +124,7 @@ func TestClient_RunTool(t *testing.T) {
 		// Arrange
 		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
-		stubDockerRunCapture(t, client, "network inspect")
+		stubProxyDocker(t, client, "true")
 		rs := sandbox.RunSpec{
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),

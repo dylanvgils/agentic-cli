@@ -25,7 +25,7 @@ func TestStartProxy(t *testing.T) {
 
 	t.Run("creates a hardened sidecar on the run network and links it to the egress network", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, client, "network inspect")
+		get := stubProxyDocker(t, client, "true")
 		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Allow: []string{"api.anthropic.com"}, LogDir: t.TempDir()}}, container: "agentic-claude-abc", network: "agentic-run-abc"}
 
 		// Act
@@ -37,7 +37,7 @@ func TestStartProxy(t *testing.T) {
 		runArgs := findCall(calls, "create")
 		connectArgs := findCall(calls, "network", "connect")
 
-		assert.Equal(t, []string{"network", "create", "--label=project=agentic-cli", NetworkName}, findCall(calls, "network", "create"), "only the egress network is created here")
+		assert.Nil(t, findCall(calls, "network", "create"), "setupSidecars creates the run network")
 
 		assert.Contains(t, runArgs, "--network=agentic-run-abc")
 		assert.Contains(t, runArgs, "--read-only")
@@ -46,6 +46,7 @@ func TestStartProxy(t *testing.T) {
 		assert.Contains(t, runArgs, "--security-opt=no-new-privileges:true")
 		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_ALLOW=api.anthropic.com")
 		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_MONITOR=false")
+		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_CLIENT_NETS=172.30.0.0/16", "other containers on the egress network may not use the proxy")
 		assert.Contains(t, runArgs, "--env=AGENTIC_PROXY_LOG="+proxyLogMountDir+"/"+proxy.LogFilePrefix+handle.id+".jsonl")
 		assert.Contains(t, runArgs, "--volume="+handle.logPath+":"+proxyLogMountDir+"/"+proxy.LogFilePrefix+handle.id+".jsonl", "only the run's own log file is mounted")
 		assert.FileExists(t, handle.logPath)
@@ -59,7 +60,7 @@ func TestStartProxy(t *testing.T) {
 
 	t.Run("leaves the run network when the sidecar fails to start", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, client, "network inspect", "create")
+		get := stubProxyDocker(t, client, "true", "create")
 		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{LogDir: t.TempDir()}}, network: "agentic-run-abc"}
 
 		// Act
@@ -401,7 +402,7 @@ func Test_setupProxy(t *testing.T) {
 
 	t.Run("cleanup stops the sidecar", func(t *testing.T) {
 		// Arrange
-		calls := stubDockerRunCapture(t, client, "network inspect")
+		calls := stubProxyDocker(t, client, "true")
 		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()}}}
 
 		// Act
@@ -545,7 +546,7 @@ func TestStartProxy_credentials(t *testing.T) {
 		assert.Nil(t, findCall(get(), "network", "connect"))
 	})
 
-	t.Run("without credentials nothing is copied or mounted", func(t *testing.T) {
+	t.Run("without credentials nothing is copied or mounted but clients stay restricted", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
 		stdin := stubDockerRunWithStdinCapture(t, client, nil)
@@ -559,7 +560,7 @@ func TestStartProxy_credentials(t *testing.T) {
 		assert.Empty(t, stdin())
 		createArgs := findCall(get(), "create")
 		assert.False(t, hasArgWithPrefix(createArgs, "--env=AGENTIC_PROXY_CA_DIR="))
-		assert.False(t, hasArgWithPrefix(createArgs, "--env="+proxy.EnvClientNets+"="), "runs without credentials keep accepting any client")
+		assert.Contains(t, createArgs, "--env="+proxy.EnvClientNets+"=172.30.0.0/16", "other containers on the egress network may not use the proxy")
 		assert.NotContains(t, createArgs, "--volume="+proxyRunMountDir)
 	})
 }
