@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSync(t *testing.T) {
+func TestSyncer_Sync(t *testing.T) {
 	dirForBase := func(base string) func(e Entry) string {
 		return func(e Entry) string { return filepath.Join(base, e.Name) }
 	}
@@ -19,15 +19,17 @@ func TestSync(t *testing.T) {
 	t.Run("clones when missing", func(t *testing.T) {
 		// Arrange
 		var clonedURL, clonedDir string
-		stubGitClone(t, func(url, dir string) error {
-			clonedURL, clonedDir = url, dir
-			return nil
-		})
 		base := t.TempDir()
 		entries := []Entry{{Name: "acme", URL: "git@example.com:acme/marketplace.git"}}
+		g := &fakeGit{
+			clone: func(url, dir string) error {
+				clonedURL, clonedDir = url, dir
+				return nil
+			},
+		}
 
 		// Act
-		results, err := Sync(entries, dirForBase(base))
+		results, err := NewSyncer(g).Sync(entries, dirForBase(base))
 
 		// Assert
 		require.NoError(t, err)
@@ -44,14 +46,16 @@ func TestSync(t *testing.T) {
 		dir := filepath.Join(base, "acme")
 		require.NoError(t, os.MkdirAll(dir, 0o755))
 		var fetchResetDir string
-		stubGitFetchReset(t, func(dir string) error {
-			fetchResetDir = dir
-			return nil
-		})
 		entries := []Entry{{Name: "acme", URL: "git@example.com:acme/marketplace.git"}}
+		g := &fakeGit{
+			fetchReset: func(dir string) error {
+				fetchResetDir = dir
+				return nil
+			},
+		}
 
 		// Act
-		results, err := Sync(entries, dirForBase(base))
+		results, err := NewSyncer(g).Sync(entries, dirForBase(base))
 
 		// Assert
 		require.NoError(t, err)
@@ -65,11 +69,13 @@ func TestSync(t *testing.T) {
 		base := t.TempDir()
 		dir := filepath.Join(base, "acme")
 		require.NoError(t, os.MkdirAll(dir, 0o755))
-		stubGitFetchReset(t, func(string) error { return errors.New("stub: fetch failed") })
 		entries := []Entry{{Name: "acme", URL: "git@example.com:acme/marketplace.git"}}
+		g := &fakeGit{
+			fetchReset: func(string) error { return errors.New("stub: fetch failed") },
+		}
 
 		// Act
-		results, err := Sync(entries, dirForBase(base))
+		results, err := NewSyncer(g).Sync(entries, dirForBase(base))
 
 		// Assert
 		require.NoError(t, err)
@@ -83,17 +89,19 @@ func TestSync(t *testing.T) {
 		// Arrange
 		base := t.TempDir()
 		var cloneCalls int
-		stubGitClone(t, func(string, string) error {
-			cloneCalls++
-			return errors.New("stub: clone failed")
-		})
 		entries := []Entry{
 			{Name: "first", URL: "git@example.com:acme/first.git"},
 			{Name: "second", URL: "git@example.com:acme/second.git"},
 		}
+		g := &fakeGit{
+			clone: func(string, string) error {
+				cloneCalls++
+				return errors.New("stub: clone failed")
+			},
+		}
 
 		// Act
-		results, err := Sync(entries, dirForBase(base))
+		results, err := NewSyncer(g).Sync(entries, dirForBase(base))
 
 		// Assert
 		assert.Error(t, err)
@@ -109,7 +117,7 @@ func TestSync(t *testing.T) {
 		}
 
 		// Act
-		results, err := Sync(entries, dirForBase(t.TempDir()))
+		results, err := NewSyncer(&fakeGit{}).Sync(entries, dirForBase(t.TempDir()))
 
 		// Assert
 		assert.ErrorContains(t, err, "duplicate marketplace name")
@@ -119,23 +127,25 @@ func TestSync(t *testing.T) {
 	t.Run("different names, same url, share one clone", func(t *testing.T) {
 		// Arrange - clone must create dir on disk, like real git, so the second entry sees it as synced
 		var cloneCalls, fetchResetCalls int
-		stubGitClone(t, func(_, dir string) error {
-			cloneCalls++
-			return os.MkdirAll(dir, 0o755)
-		})
-		stubGitFetchReset(t, func(string) error {
-			fetchResetCalls++
-			return nil
-		})
 		base := t.TempDir()
 		dirForURL := func(e Entry) string { return filepath.Join(base, CloneDirName(e.URL)) }
 		entries := []Entry{
 			{Name: "infosupport", URL: "git@example.com:acme/marketplace.git"},
 			{Name: "mycompany-plugins", URL: "git@example.com:acme/marketplace.git"},
 		}
+		g := &fakeGit{
+			clone: func(_, dir string) error {
+				cloneCalls++
+				return os.MkdirAll(dir, 0o755)
+			},
+			fetchReset: func(string) error {
+				fetchResetCalls++
+				return nil
+			},
+		}
 
 		// Act
-		results, err := Sync(entries, dirForURL)
+		results, err := NewSyncer(g).Sync(entries, dirForURL)
 
 		// Assert
 		require.NoError(t, err)

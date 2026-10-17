@@ -7,22 +7,31 @@ import (
 	"time"
 )
 
-// Timeout bounds each git invocation. A var, not a const, so tests can shrink it.
-var Timeout = 45 * time.Second
+// defaultTimeout bounds each git invocation.
+const defaultTimeout = 45 * time.Second
 
-// run is a test-stubbable indirection over `git <args...>`, run in dir (empty = inherit the process's cwd).
-var run = func(ctx context.Context, dir string, args ...string) ([]byte, error) {
+// Client runs the user's git CLI, each invocation bounded by its timeout.
+type Client struct {
+	// run executes `git <args...>` in dir (empty = inherit the process's cwd)
+	run     func(ctx context.Context, dir string, args ...string) ([]byte, error)
+	timeout time.Duration
+}
+
+// New returns a Client running the git on PATH.
+func New() *Client {
+	return &Client{run: execGit, timeout: defaultTimeout}
+}
+
+// runIn runs `git <args...>` in dir within the client's timeout.
+func (c *Client) runIn(dir string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	return c.run(ctx, dir, args...)
+}
+
+// execGit runs `git <args...>` in dir and returns its combined output.
+func execGit(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", args...) // NOSONAR - the user's own git from PATH is intended
 	cmd.Dir = dir
 	return cmd.CombinedOutput()
-}
-
-func runWithTimeout(args ...string) ([]byte, error) {
-	return runIn("", args...)
-}
-
-func runIn(dir string, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
-	defer cancel()
-	return run(ctx, dir, args...)
 }

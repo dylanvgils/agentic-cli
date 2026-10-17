@@ -3,8 +3,6 @@ package git
 import (
 	"context"
 	"fmt"
-	"testing"
-	"time"
 )
 
 type gitCall struct {
@@ -12,39 +10,24 @@ type gitCall struct {
 	args []string
 }
 
-func stubRun(t *testing.T, fn func(ctx context.Context, dir string, args ...string) ([]byte, error)) {
-	t.Helper()
-	orig := run
-	run = fn
-	t.Cleanup(func() { run = orig })
-}
-
-// stubRunCapture records every call, failing only for verbs in failVerbs.
-func stubRunCapture(t *testing.T, failVerbs ...string) func() []gitCall {
-	t.Helper()
+// newCaptureClient returns a Client recording every call, failing only for verbs in failVerbs.
+func newCaptureClient(failVerbs ...string) (*Client, func() []gitCall) {
 	var calls []gitCall
 	failing := make(map[string]bool, len(failVerbs))
 	for _, v := range failVerbs {
 		failing[v] = true
 	}
 
-	stubRun(t, func(_ context.Context, dir string, args ...string) ([]byte, error) {
+	run := func(_ context.Context, dir string, args ...string) ([]byte, error) {
 		cp := append([]string{}, args...)
 		calls = append(calls, gitCall{dir: dir, args: cp})
 		if verb := gitVerb(args); failing[verb] {
 			return []byte("stub failure"), fmt.Errorf("stub: %s failed", verb)
 		}
 		return nil, nil
-	})
+	}
 
-	return func() []gitCall { return calls }
-}
-
-func stubTimeout(t *testing.T, d time.Duration) {
-	t.Helper()
-	orig := Timeout
-	Timeout = d
-	t.Cleanup(func() { Timeout = orig })
+	return &Client{run: run, timeout: defaultTimeout}, func() []gitCall { return calls }
 }
 
 // gitVerb returns the git subcommand from args, after any -c options.

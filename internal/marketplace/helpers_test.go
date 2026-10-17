@@ -15,16 +15,22 @@ func writeMarketplaceRC(t *testing.T, dir, name, url string) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte(content), 0o644))
 }
 
-func stubGitClone(t *testing.T, fn func(url, dir string) error) {
-	t.Helper()
-	orig := gitClone
-	gitClone = fn
-	t.Cleanup(func() { gitClone = orig })
+// fakeGit implements Git; a nil func succeeds.
+type fakeGit struct {
+	clone      func(url, dir string) error
+	fetchReset func(dir string) error
 }
 
-func stubGitFetchReset(t *testing.T, fn func(dir string) error) {
-	t.Helper()
-	orig := gitFetchReset
-	gitFetchReset = fn
-	t.Cleanup(func() { gitFetchReset = orig })
+func (f *fakeGit) Clone(url, dir string) error {
+	if f.clone == nil {
+		return nil
+	}
+	return f.clone(url, dir)
+}
+
+func (f *fakeGit) FetchReset(dir string) error {
+	if f.fetchReset == nil {
+		return nil
+	}
+	return f.fetchReset(dir)
 }

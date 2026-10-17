@@ -9,6 +9,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
+	"github.com/dylanvgils/agentic-cli/internal/git"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
@@ -67,7 +68,12 @@ type buildRequest struct {
 
 // New returns a Service that talks to Docker through d and to microsandbox through m.
 func New(d Docker, m Microsandbox) *Service {
-	return &Service{docker: d, microsandbox: m, syncMarketplaces: marketplace.Sync, upstream: tools.Upstream{}}
+	return &Service{
+		docker:           d,
+		microsandbox:     m,
+		syncMarketplaces: marketplace.NewSyncer(git.New()).Sync,
+		upstream:         tools.Upstream{},
+	}
 }
 
 // build assembles the sandbox.RunSpec for target from the approved config, syncing marketplaces; the runtime readies its
