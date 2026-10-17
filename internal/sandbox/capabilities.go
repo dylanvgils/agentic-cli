@@ -14,9 +14,14 @@ type Capabilities struct {
 	SecretMounts bool
 	// PidsLimit is a cap on the number of processes.
 	PidsLimit bool
+	// ReadOnlyRoot is a read-only root filesystem whose only writable dirs are the mounts and the run's ephemeral dirs.
+	ReadOnlyRoot bool
+	// DropsPrivileges drops all Linux capabilities and blocks privilege escalation.
+	DropsPrivileges bool
 }
 
-// Missing returns the features in need that c lacks; CredentialsViaProxy is how a runtime works, not a need, so it's never missing.
+// Missing returns the features in need that c lacks. CredentialsViaProxy, ReadOnlyRoot and DropsPrivileges describe how
+// a runtime works, not a need, so they're never missing.
 func (c Capabilities) Missing(need Capabilities) Capabilities {
 	return Capabilities{
 		Proxy:               need.Proxy && !c.Proxy,

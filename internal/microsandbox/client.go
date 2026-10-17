@@ -43,6 +43,7 @@ func New() *Client {
 
 // Capabilities reports what msb runs offer; msb injects credentials itself.
 func (c *Client) Capabilities() sandbox.Capabilities {
+	// The guest keeps its defaults: a writable root discarded on exit, and its own capabilities
 	return sandbox.Capabilities{CredentialInjection: true}
 }
 
