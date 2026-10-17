@@ -52,7 +52,7 @@ func Test_blockedAddr(t *testing.T) {
 func Test_guardAddr(t *testing.T) {
 	t.Run("refuses a blocked address", func(t *testing.T) {
 		// Act
-		err := guardAddr(context.Background(), "tcp", "127.0.0.1:443", nil)
+		err := guardAddr(blockedAddr)(context.Background(), "tcp", "127.0.0.1:443", nil)
 
 		// Assert
 		assert.ErrorIs(t, err, errBlockedAddr)
@@ -63,7 +63,7 @@ func Test_guardAddr(t *testing.T) {
 		ctx := withPrivateOK(context.Background(), true)
 
 		// Act
-		err := guardAddr(ctx, "tcp", "10.0.0.1:443", nil)
+		err := guardAddr(blockedAddr)(ctx, "tcp", "10.0.0.1:443", nil)
 
 		// Assert
 		assert.NoError(t, err)
@@ -71,7 +71,7 @@ func Test_guardAddr(t *testing.T) {
 
 	t.Run("refuses a private address without privateOK", func(t *testing.T) {
 		// Act
-		err := guardAddr(context.Background(), "tcp", "10.0.0.1:443", nil)
+		err := guardAddr(blockedAddr)(context.Background(), "tcp", "10.0.0.1:443", nil)
 
 		// Assert
 		assert.ErrorIs(t, err, errBlockedAddr)
@@ -79,7 +79,7 @@ func Test_guardAddr(t *testing.T) {
 
 	t.Run("fails closed on an unparsable address", func(t *testing.T) {
 		// Act
-		err := guardAddr(context.Background(), "tcp", "not-an-address", nil)
+		err := guardAddr(blockedAddr)(context.Background(), "tcp", "not-an-address", nil)
 
 		// Assert
 		assert.ErrorIs(t, err, errBlockedAddr)

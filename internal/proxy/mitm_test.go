@@ -61,7 +61,6 @@ func TestServerConnectInject(t *testing.T) {
 	upstreamAddr := upstream.Listener.Addr().String()
 	upstreamHost, upstreamPort := splitHostPort(upstreamAddr)
 	stubDefaultPorts(t, upstreamPort)
-	stubInjectPort(t, upstreamPort)
 	creds := []Credential{{Hosts: []string{upstreamHost}, Headers: []string{"X-Api-Key"}, Placeholder: testPlaceholder, Secret: "real-secret"}}
 
 	t.Run("placeholder in the client's header is swapped for the secret", func(t *testing.T) {
@@ -90,7 +89,7 @@ func TestServerConnectInject(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
 		guarded := upstream.Client().Transport.(*http.Transport).Clone()
-		guarded.DialContext = upstreamDialer.DialContext
+		guarded.DialContext = newUpstream(blockedAddr).dialer.DialContext
 		inject.transport = guarded
 
 		var logBuf bytes.Buffer
@@ -427,13 +426,12 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("host without a credential tunnels without issuing a cert", func(t *testing.T) {
 		// Arrange
-		stubAllowLocal(t)
 		echoHost, echoPort := startEchoServer(t)
 		stubDefaultPorts(t, echoPort)
 		other := []Credential{{Hosts: []string{"other.test"}, Headers: creds[0].Headers, Placeholder: testPlaceholder, Secret: "real-secret"}}
 		inject, _ := newTestInjector(t, upstream, other)
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{echoHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{echoHost}), NewLogger(&logBuf, nil, nil), false, inject)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -453,13 +451,12 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("credentialed host on another port tunnels without issuing a cert", func(t *testing.T) {
 		// Arrange
-		stubAllowLocal(t)
 		echoHost, echoPort := startEchoServer(t)
 		stubDefaultPorts(t, echoPort)
 		echoCreds := []Credential{{Hosts: []string{echoHost}, Headers: creds[0].Headers, Placeholder: testPlaceholder, Secret: "real-secret"}}
 		inject, _ := newTestInjector(t, upstream, echoCreds)
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{echoHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{echoHost}), NewLogger(&logBuf, nil, nil), false, inject)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -479,14 +476,13 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("plain http to a credentialed host is not intercepted", func(t *testing.T) {
 		// Arrange
-		stubAllowLocal(t)
 		plain := httptest.NewServer(mux)
 		t.Cleanup(plain.Close)
 		plainHost, plainPort := splitHostPort(plain.Listener.Addr().String())
 		stubDefaultPorts(t, plainPort)
 		inject, _ := newTestInjector(t, upstream, creds)
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{plainHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{plainHost}), NewLogger(&logBuf, nil, nil), false, inject)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -509,7 +505,6 @@ func TestServerConnectSubstitute(t *testing.T) {
 
 	upstreamHost, upstreamPort := splitHostPort(upstream.Listener.Addr().String())
 	stubDefaultPorts(t, upstreamPort)
-	stubInjectPort(t, upstreamPort)
 	inject, roots := newTestInjector(t, upstream, []Credential{testPlaceholderCredential(upstreamHost, placeholder)})
 	proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
 	t.Cleanup(proxy.Close)

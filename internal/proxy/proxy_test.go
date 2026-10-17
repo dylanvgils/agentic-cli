@@ -36,11 +36,10 @@ func TestServerConnect(t *testing.T) {
 
 	t.Run("failed hijack returns a fixed 500 and logs the error once", func(t *testing.T) {
 		// Arrange
-		stubAllowLocal(t)
 		upstreamHost, upstreamPort := startEchoServer(t)
 		stubDefaultPorts(t, upstreamPort)
 		var logBuf bytes.Buffer
-		server := NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil)
+		server := allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil))
 		target := net.JoinHostPort(upstreamHost, upstreamPort)
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodConnect, "http://"+target, nil)
@@ -58,12 +57,11 @@ func TestServerConnect(t *testing.T) {
 
 	t.Run("allowed host tunnels bytes and logs allow", func(t *testing.T) {
 		// Arrange
-		stubAllowLocal(t)
 		upstreamHost, upstreamPort := startEchoServer(t)
 		stubDefaultPorts(t, upstreamPort)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -83,12 +81,11 @@ func TestServerConnect(t *testing.T) {
 
 	t.Run("failed upstream returns a fixed 502 and logs the error", func(t *testing.T) {
 		// Arrange
-		stubAllowLocal(t)
 		upstreamHost, upstreamPort := closedPort(t)
 		stubDefaultPorts(t, upstreamPort)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -104,12 +101,11 @@ func TestServerConnect(t *testing.T) {
 
 	t.Run("monitor mode tunnels a denied host and logs deny unenforced", func(t *testing.T) {
 		// Arrange
-		stubAllowLocal(t)
 		upstreamHost, upstreamPort := startEchoServer(t)
 		stubDefaultPorts(t, upstreamPort)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf, nil, nil), true, nil))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(nil), NewLogger(&logBuf, nil, nil), true, nil)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -166,11 +162,10 @@ func TestServerConnect(t *testing.T) {
 
 	t.Run("wildcard match cannot reach a private address", func(t *testing.T) {
 		// Arrange
-		stubIsBlocked(t, func(_ netip.Addr, privateOK bool) bool { return !privateOK })
 		_, upstreamPort := startEchoServer(t)
 		stubDefaultPorts(t, upstreamPort)
 
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{".localhost"}), NewLogger(io.Discard, nil, nil), false, nil))
+		proxy := httptest.NewServer(withAddrGuard(NewServer(NewAllowlist([]string{".localhost"}), NewLogger(io.Discard, nil, nil), false, nil), func(_ netip.Addr, privateOK bool) bool { return !privateOK }))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -183,11 +178,10 @@ func TestServerConnect(t *testing.T) {
 
 	t.Run("exact entry can reach a private address", func(t *testing.T) {
 		// Arrange
-		stubIsBlocked(t, func(_ netip.Addr, privateOK bool) bool { return !privateOK })
 		_, upstreamPort := startEchoServer(t)
 		stubDefaultPorts(t, upstreamPort)
 
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{"localhost"}), NewLogger(io.Discard, nil, nil), false, nil))
+		proxy := httptest.NewServer(withAddrGuard(NewServer(NewAllowlist([]string{"localhost"}), NewLogger(io.Discard, nil, nil), false, nil), func(_ netip.Addr, privateOK bool) bool { return !privateOK }))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -241,7 +235,6 @@ func TestServerHTTP(t *testing.T) {
 
 	t.Run("allowed host is forwarded", func(t *testing.T) {
 		// Arrange
-		stubAllowLocal(t)
 		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, "hello")
 		}))
@@ -249,7 +242,7 @@ func TestServerHTTP(t *testing.T) {
 		upstreamHost, upstreamPort := splitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
 		stubDefaultPorts(t, upstreamPort)
 
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, nil))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, nil)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -264,12 +257,11 @@ func TestServerHTTP(t *testing.T) {
 
 	t.Run("failed upstream returns a fixed 502 and logs the error", func(t *testing.T) {
 		// Arrange
-		stubAllowLocal(t)
 		upstreamHost, upstreamPort := closedPort(t)
 		stubDefaultPorts(t, upstreamPort)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -285,14 +277,13 @@ func TestServerHTTP(t *testing.T) {
 
 	t.Run("monitor mode forwards a denied host and logs deny unenforced", func(t *testing.T) {
 		// Arrange
-		stubAllowLocal(t)
 		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, "hello")
 		}))
 		t.Cleanup(upstream.Close)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf, nil, nil), true, nil))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(nil), NewLogger(&logBuf, nil, nil), true, nil)))
 		t.Cleanup(proxy.Close)
 
 		// Act

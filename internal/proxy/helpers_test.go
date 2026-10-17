@@ -49,26 +49,15 @@ func stubDefaultPorts(t *testing.T, ports ...string) {
 	t.Cleanup(func() { DefaultPorts = prev })
 }
 
-// stubInjectPort replaces injectPort for a test, restoring it on cleanup.
-func stubInjectPort(t *testing.T, port string) {
-	t.Helper()
-	prev := injectPort
-	injectPort = port
-	t.Cleanup(func() { injectPort = prev })
+// withAddrGuard makes s refuse the upstream addresses blocked reports, instead of the real guard's.
+func withAddrGuard(s *Server, blocked func(netip.Addr, bool) bool) *Server {
+	s.upstream = newUpstream(blocked)
+	return s
 }
 
-// stubIsBlocked replaces the address guard's check for a test, restoring it on cleanup.
-func stubIsBlocked(t *testing.T, fn func(netip.Addr, bool) bool) {
-	t.Helper()
-	prev := isBlocked
-	isBlocked = fn
-	t.Cleanup(func() { isBlocked = prev })
-}
-
-// stubAllowLocal lets the address guard pass every address, so tests can use loopback upstreams.
-func stubAllowLocal(t *testing.T) {
-	t.Helper()
-	stubIsBlocked(t, func(netip.Addr, bool) bool { return false })
+// allowLocal lets s's address guard pass every address, so tests can use loopback upstreams.
+func allowLocal(s *Server) *Server {
+	return withAddrGuard(s, func(netip.Addr, bool) bool { return false })
 }
 
 // closedPort returns a loopback host and port nothing listens on.
@@ -152,7 +141,8 @@ func proxyGet(t *testing.T, proxyURL, target string) *http.Response {
 	return resp
 }
 
-// newTestInjector returns an Injector for creds whose upstream transport trusts upstream's cert, and a pool trusting its CA.
+// newTestInjector returns an Injector for creds that intercepts upstream's port with a transport trusting its cert, and a
+// pool trusting its CA.
 func newTestInjector(t *testing.T, upstream *httptest.Server, creds []Credential) (*Injector, *x509.CertPool) {
 	t.Helper()
 
@@ -164,6 +154,7 @@ func newTestInjector(t *testing.T, upstream *httptest.Server, creds []Credential
 	ca := newTestProxyCA(t, hosts...)
 	inject := NewInjector(ca, creds)
 	inject.transport = upstream.Client().Transport
+	_, inject.port = splitHostPort(upstream.Listener.Addr().String())
 
 	roots := x509.NewCertPool()
 	require.True(t, roots.AppendCertsFromPEM(ca.CertPEM()))
