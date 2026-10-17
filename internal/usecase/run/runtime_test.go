@@ -225,7 +225,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
-		req.Flags.Proxy.ProxyFlag = true
+		req.Flags.Proxy.MonitorFlag = true
 		checked := false
 		m := &fakeMicrosandbox{available: func() error {
 			checked = true
@@ -236,7 +236,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		err := New(&fakeDocker{}, m).checkRuntime(req)
 
 		// Assert
-		assert.ErrorContains(t, err, "does not support the egress proxy")
+		assert.ErrorContains(t, err, "does not support proxy monitor mode (--proxy-monitor)")
 		assert.False(t, checked)
 	})
 

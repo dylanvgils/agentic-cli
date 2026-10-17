@@ -12,6 +12,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
@@ -51,6 +52,11 @@ func buildRunArgs(rs sandbox.RunSpec, toolArgs []string) ([]string, error) {
 		return nil, err
 	}
 
+	networkArgs, err := buildNetworkArgs(rs.Proxy)
+	if err != nil {
+		return nil, err
+	}
+
 	entrypointArgs, toolArgs, err := buildEntrypointArgs(rs, toolArgs)
 	if err != nil {
 		return nil, err
@@ -61,6 +67,7 @@ func buildRunArgs(rs sandbox.RunSpec, toolArgs []string) ([]string, error) {
 	args = append(args, sandbox.EnvArgs(rs.Env)...)
 	args = append(args, volumeArgs...)
 	args = append(args, buildCredentialArgs(rs)...)
+	args = append(args, networkArgs...)
 	args = append(args, entrypointArgs...)
 	args = append(args, rs.Image)
 
@@ -126,6 +133,46 @@ func buildCredentialArgs(rs sandbox.RunSpec) []string {
 		}
 	}
 	return args
+}
+
+// buildNetworkArgs makes msb deny all egress but DNS and the allowlist on proxy.DefaultPorts, intercepting HTTPS so
+// strict mode can check each request's host; msb keeps no log of what it denies, so it can't run in monitor mode.
+func buildNetworkArgs(spec sandbox.ProxySpec) ([]string, error) {
+	switch spec.Mode {
+	case sandbox.ProxyOff:
+		return nil, nil
+	case sandbox.ProxyMonitor:
+		return nil, errors.New("msb can't run the proxy in monitor mode")
+	}
+
+	args := []string{arg("net-default-egress", "deny"), arg("tls-intercept"), arg("net-rule", "allow@dns")}
+	for _, target := range netRuleTargets(spec.Allow) {
+		for _, port := range proxy.DefaultPorts {
+			args = append(args, arg("net-rule", "allow@"+target+":tcp:"+port))
+		}
+	}
+	return args, nil
+}
+
+// netRuleTargets turns allowlist entries into msb rule targets: a ".example.test" or "*.example.test" entry matches
+// the domain and its subdomains, so it becomes both "example.test" and "*.example.test".
+func netRuleTargets(allow []string) []string {
+	var targets []string
+	for _, entry := range allow {
+		host := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(entry)), ".")
+		domain, wildcard := strings.CutPrefix(strings.TrimPrefix(host, "*"), ".")
+		if domain == "" {
+			continue
+		}
+
+		targets = append(targets, domain)
+		if wildcard {
+			targets = append(targets, "*."+domain)
+		}
+	}
+
+	slices.Sort(targets)
+	return slices.Compact(targets)
 }
 
 // buildEntrypointArgs makes the first tool arg the entrypoint when rs skips the image's own, returning the flag and the remaining tool args.

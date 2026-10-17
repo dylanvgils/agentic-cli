@@ -268,17 +268,29 @@ func TestBuildInstructions(t *testing.T) {
 		assert.NotContains(t, content, "capabilities dropped")
 	})
 
-	t.Run("microsandbox omits the proxy and sidecar it lacks even when enabled", func(t *testing.T) {
+	t.Run("microsandbox describes its network policy instead of the proxy", func(t *testing.T) {
 		// Arrange
-		in := Input{Runtime: sandbox.RuntimeMicrosandbox, ProxyMode: sandbox.ProxyEnforce, DindEnabled: true}
+		in := Input{Runtime: sandbox.RuntimeMicrosandbox, ProxyMode: sandbox.ProxyEnforce}
 
 		// Act
 		content, err := New(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		assert.NotContains(t, content, "## Network")
+		assert.Contains(t, content, "filtered by the VM's network policy, which also inspects HTTPS")
+		assert.Contains(t, content, "  - .anthropic.com\n")
 		assert.NotContains(t, content, "egress proxy")
+	})
+
+	t.Run("microsandbox omits the sidecar it lacks even when dind is enabled", func(t *testing.T) {
+		// Arrange
+		in := Input{Runtime: sandbox.RuntimeMicrosandbox, DindEnabled: true}
+
+		// Act
+		content, err := New(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
 		assert.NotContains(t, content, "sidecar")
 		assert.Contains(t, content, "no Docker daemon in this VM")
 	})

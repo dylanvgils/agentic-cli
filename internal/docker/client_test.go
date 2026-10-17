@@ -26,6 +26,7 @@ func TestClient_Capabilities(t *testing.T) {
 	// Assert
 	assert.Equal(t, sandbox.Capabilities{
 		Proxy:               true,
+		ProxyMonitor:        true,
 		Dind:                true,
 		CredentialInjection: true,
 		CredentialsViaProxy: true,

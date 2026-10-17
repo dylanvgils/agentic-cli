@@ -219,7 +219,11 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 	}
 
 	b.WriteString("## Network\n\n")
-	b.WriteString("- All network egress routes through an egress proxy - there is no direct internet access.\n")
+	if in.Runtime == sandbox.RuntimeMicrosandbox {
+		b.WriteString("- All network egress is filtered by the VM's network policy, which also inspects HTTPS - there is no unfiltered internet access.\n")
+	} else {
+		b.WriteString("- All network egress routes through an egress proxy - there is no direct internet access.\n")
+	}
 
 	if in.ProxyMode == sandbox.ProxyMonitor {
 		b.WriteString("\n")

@@ -65,6 +65,15 @@ OpenCode supports many model providers, so add your provider's hosts to `allowed
 
 Some tools, like Maven, ignore those env vars and need a literal `host:port` in their own config. Use `agentic-proxy:3128`. Unlike the sidecar's container name, this alias is the same on every run. See [Maven through the egress proxy](recipes.md#maven-through-the-egress-proxy).
 
+### With microsandbox
+
+With the experimental microsandbox runtime, msb's own network policy enforces the same allowlist instead of a proxy sidecar, so no proxy env vars are set. Only DNS and the allowed hosts on ports 80 and 443 are reachable. msb inspects all HTTPS to check each request's host, so the tool must trust msb's certificate authority (curl, git and Bun do), and tools that pin certificates fail.
+
+- There's no access log and no summary at the end of the run.
+- `--proxy-monitor` is refused; use `--proxy`.
+- An internal host that resolves to a private address isn't reachable, since msb drops private DNS answers.
+- Credentials keep working, since msb injects them itself rather than a proxy.
+
 ## Credential injection
 
 `[[run.proxy.credentials]]` keeps API keys out of the tool container. Inside it, each entry's env vars hold a random placeholder, new each run, which the tool sends like a real key. The proxy holds the real secret and swaps it in for the placeholder on HTTPS requests to the entry's hosts. See [`[[run.proxy.credentials]]`](config.md#runproxycredentials) for the keys and presets.

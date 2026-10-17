@@ -128,6 +128,7 @@ func Test_buildRunArgs(t *testing.T) {
 			ContainerHome: "/home/claude",
 			Limits:        sandbox.ResourceLimits{CPUs: "2"},
 			Volumes:       []string{"/example.test/data:/data"},
+			Proxy:         sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Allow: []string{"api.example.test"}},
 		}
 
 		// Act
@@ -137,7 +138,7 @@ func Test_buildRunArgs(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "run", args[0])
 		image := slices.Index(args, "img")
-		for _, flag := range []string{"--cpus=2", "--mount-dir=/example.test/data:/data"} {
+		for _, flag := range []string{"--cpus=2", "--mount-dir=/example.test/data:/data", "--net-default-egress=deny"} {
 			assert.Contains(t, args, flag)
 			assert.Less(t, slices.Index(args, flag), image)
 		}
@@ -246,6 +247,66 @@ func Test_buildNamedVolumeArgs(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, `invalid volume "maven"`)
+	})
+}
+
+func Test_buildNetworkArgs(t *testing.T) {
+	t.Run("adds nothing with the proxy off", func(t *testing.T) {
+		// Act
+		args, err := buildNetworkArgs(sandbox.ProxySpec{Allow: []string{"api.example.test"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, args)
+	})
+
+	t.Run("refuses monitor mode", func(t *testing.T) {
+		// Act
+		_, err := buildNetworkArgs(sandbox.ProxySpec{Mode: sandbox.ProxyMonitor})
+
+		// Assert
+		assert.EqualError(t, err, "msb can't run the proxy in monitor mode")
+	})
+
+	t.Run("denies egress but DNS and the allowlist, intercepting HTTPS", func(t *testing.T) {
+		// Act
+		args, err := buildNetworkArgs(sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Allow: []string{"api.example.test"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{
+			"--net-default-egress=deny",
+			"--tls-intercept",
+			"--net-rule=allow@dns",
+			"--net-rule=allow@api.example.test:tcp:80",
+			"--net-rule=allow@api.example.test:tcp:443",
+		}, args)
+	})
+}
+
+func Test_netRuleTargets(t *testing.T) {
+	t.Run("keeps an exact host", func(t *testing.T) {
+		// Act
+		targets := netRuleTargets([]string{"api.example.test"})
+
+		// Assert
+		assert.Equal(t, []string{"api.example.test"}, targets)
+	})
+
+	t.Run("a suffix entry allows the domain and its subdomains", func(t *testing.T) {
+		// Act
+		targets := netRuleTargets([]string{".example.test", "*.other.example"})
+
+		// Assert
+		assert.Equal(t, []string{"*.example.test", "*.other.example", "example.test", "other.example"}, targets)
+	})
+
+	t.Run("normalizes, dedupes and skips blanks", func(t *testing.T) {
+		// Act
+		targets := netRuleTargets([]string{" API.Example.Test. ", "api.example.test", "", "  "})
+
+		// Assert
+		assert.Equal(t, []string{"api.example.test"}, targets)
 	})
 }
 

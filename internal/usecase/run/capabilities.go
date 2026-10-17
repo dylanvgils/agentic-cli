@@ -14,6 +14,7 @@ import (
 func requiredCapabilities(flags Flags, rc *config.AgenticRC) sandbox.Capabilities {
 	return sandbox.Capabilities{
 		Proxy:               resolve.RequestedProxyMode(flags.Proxy, rc).Enabled(),
+		ProxyMonitor:        resolve.RequestedProxyMode(flags.Proxy, rc) == sandbox.ProxyMonitor,
 		Dind:                resolve.DindEnabled(flags.Dind, rc),
 		CredentialInjection: len(rc.Run.Proxy.Credentials) > 0,
 		SecretMounts:        len(resolve.Secrets(flags.Secrets, rc)) > 0,
@@ -25,6 +26,7 @@ func requiredCapabilities(flags Flags, rc *config.AgenticRC) sandbox.Capabilitie
 func specCapabilities(rs sandbox.RunSpec) sandbox.Capabilities {
 	return sandbox.Capabilities{
 		Proxy:               rs.Proxy.Mode.Enabled(),
+		ProxyMonitor:        rs.Proxy.Mode == sandbox.ProxyMonitor,
 		CredentialInjection: len(rs.Credentials) > 0,
 		SecretMounts:        len(rs.Secrets) > 0,
 	}
@@ -38,6 +40,8 @@ func checkCapabilities(req Request, offered sandbox.Capabilities) error {
 	var refused []string
 	if missing.Proxy {
 		refused = append(refused, fmt.Sprintf("the egress proxy (%s)", proxySource(req)))
+	} else if missing.ProxyMonitor {
+		refused = append(refused, fmt.Sprintf("proxy monitor mode (%s)", proxySource(req)))
 	}
 	if missing.CredentialInjection {
 		refused = append(refused, fmt.Sprintf("proxy credentials (%s)", credentialsSource(req)))
@@ -49,6 +53,9 @@ func checkCapabilities(req Request, offered sandbox.Capabilities) error {
 		hint := "use --runtime docker"
 		if missing.SecretMounts {
 			hint = "use [[run.proxy.credentials]] so the tool only sees a placeholder, or " + hint
+		}
+		if missing.ProxyMonitor && !missing.Proxy {
+			hint = "pass --proxy to enforce the allowlist instead, or " + hint
 		}
 		if missing.Proxy {
 			hint = "pass --no-proxy to run without the proxy, or " + hint
@@ -70,6 +77,8 @@ func checkSpec(rs sandbox.RunSpec, offered sandbox.Capabilities) error {
 	var refused []string
 	if missing.Proxy {
 		refused = append(refused, "the egress proxy")
+	} else if missing.ProxyMonitor {
+		refused = append(refused, "proxy monitor mode")
 	}
 	if missing.CredentialInjection {
 		refused = append(refused, "credential injection")
