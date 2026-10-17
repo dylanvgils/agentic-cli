@@ -1,6 +1,7 @@
 package microsandbox
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -416,5 +417,6 @@ func Test_ownerOptions(t *testing.T) {
 	options := ownerOptions()
 
 	// Assert
-	assert.Equal(t, "uid="+platform.GetUID()+",gid="+platform.GetGID(), options)
+	host := platform.HostUser()
+	assert.Equal(t, fmt.Sprintf("uid=%d,gid=%d", host.UID, host.GID), options)
 }

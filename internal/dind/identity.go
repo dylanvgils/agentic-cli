@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+	"strconv"
+
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
 // Subordinate id range for inner containers, far above anything useradd hands out.
@@ -25,39 +27,36 @@ var IdentityFiles = []string{"passwd", "group", "subuid", "subgid"}
 
 // Identity is the host uid/gid the sidecar runs as.
 type Identity struct {
-	uid string
-	gid string
+	user platform.User
 }
 
-// NewIdentity parses a host "uid:gid", refusing root since dockerd would then run rootful.
-func NewIdentity(userGroup string) (Identity, error) {
-	uid, gid, _ := strings.Cut(userGroup, ":")
-	if uid == "" || gid == "" {
-		return Identity{}, fmt.Errorf("invalid host user %q, want uid:gid", userGroup)
-	}
-	if uid == "0" {
+// NewIdentity returns the identity of host user u, refusing root since dockerd would then run rootful.
+func NewIdentity(u platform.User) (Identity, error) {
+	if u.UID == 0 {
 		return Identity{}, fmt.Errorf("--dind refuses to run as root: the Docker sidecar would run as real root; run agentic as a regular user")
 	}
-	return Identity{uid: uid, gid: gid}, nil
+	return Identity{user: u}, nil
 }
 
 // UserGroup returns "uid:gid" for --user.
 func (id Identity) UserGroup() string {
-	return id.uid + ":" + id.gid
+	return id.user.String()
 }
 
 // files returns the generated /etc file contents, keyed by name.
 func (id Identity) files() map[string]string {
 	subIDs := fmt.Sprintf("%s:%d:%d\n", userName, subIDStart, subIDCount)
 
+	uid, gid := strconv.Itoa(id.user.UID), strconv.Itoa(id.user.GID)
+
 	group := "root:x:0:\n"
-	if id.gid != "0" {
-		group += userName + ":x:" + id.gid + ":\n"
+	if id.user.GID != 0 {
+		group += userName + ":x:" + gid + ":\n"
 	}
 
 	return map[string]string{
 		"passwd": "root:x:0:0:root:/root:/sbin/nologin\n" +
-			userName + ":x:" + id.uid + ":" + id.gid + "::" + Home + ":/bin/sh\n",
+			userName + ":x:" + uid + ":" + gid + "::" + Home + ":/bin/sh\n",
 		"group":  group,
 		"subuid": subIDs,
 		"subgid": subIDs,

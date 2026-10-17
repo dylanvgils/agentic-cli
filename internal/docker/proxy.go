@@ -326,7 +326,7 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 		arg("network-alias", proxyHostAlias),
 		arg("cap-drop", "ALL"),
 		arg("security-opt", "no-new-privileges:true"),
-		arg("user", platform.UserGroup()),
+		arg("user", platform.HostUser().String()),
 		label(LabelProject, LabelProjectVal),
 	}
 	args = append(args, ownerLabels(rs)...)

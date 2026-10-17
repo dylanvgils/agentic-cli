@@ -32,7 +32,7 @@ func TestClient_StartSidecars(t *testing.T) {
 		// Arrange
 		stubDindReadyTimeout(t)
 		stubDockerRunCapture(t, client, "exec")
-		rs := sandbox.RunSpec{Image: "agentic-claude", User: testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
 
 		// Act
 		_, err := client.StartSidecars(rs)
@@ -63,7 +63,7 @@ func TestClient_RunTool(t *testing.T) {
 		assert.Contains(t, args, "--read-only")
 		assert.Contains(t, args, "--cap-drop=ALL")
 		assert.Contains(t, args, "--security-opt=no-new-privileges:true")
-		assert.Contains(t, args, "--user="+testUser)
+		assert.Contains(t, args, "--user="+testUser.String())
 		assert.True(t, hasArgWithPrefix(args, "--network=agentic-run-"), "even a plain run gets its own network")
 		assert.False(t, hasArg(args, "--network="+NetworkName), "runs must not share a network")
 	})
@@ -100,7 +100,7 @@ func TestClient_RunTool(t *testing.T) {
 		// Arrange
 		stubDindReadyTimeout(t)
 		stubDockerRunCapture(t, client)
-		rs := sandbox.RunSpec{Image: "agentic-claude", User: testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
 
 		// Act
 		err := startAndRunTool(client, rs, nil)
@@ -380,7 +380,7 @@ func TestClient_StopSidecars(t *testing.T) {
 		// Arrange
 		stubDindReadyTimeout(t)
 		calls := stubDockerRunCapture(t, client)
-		rs := sandbox.RunSpec{Image: "agentic-claude", User: testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
 		sidecars, err := client.StartSidecars(rs)
 		require.NoError(t, err)
 

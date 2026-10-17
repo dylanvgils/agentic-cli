@@ -21,7 +21,7 @@ func TestBuildRunArgs(t *testing.T) {
 func TestBuildBaseArgs(t *testing.T) {
 	t.Run("security flags", func(t *testing.T) {
 		// Act
-		args := buildBaseArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", User: testUser}})
+		args := buildBaseArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", User: &testUser}})
 
 		// Assert
 		assert.Contains(t, args, "run")
@@ -29,12 +29,12 @@ func TestBuildBaseArgs(t *testing.T) {
 		assert.Contains(t, args, "--read-only")
 		assert.Contains(t, args, "--cap-drop=ALL")
 		assert.Contains(t, args, "--security-opt=no-new-privileges:true")
-		assert.Contains(t, args, "--user="+testUser)
+		assert.Contains(t, args, "--user="+testUser.String())
 	})
 
 	t.Run("name and label", func(t *testing.T) {
 		// Act
-		args := buildBaseArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}, container: "agentic-claude-0123456789ab"})
+		args := buildBaseArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", User: &testUser}, container: "agentic-claude-0123456789ab"})
 
 		// Assert
 		assert.Contains(t, args, "--name=agentic-claude-0123456789ab")
@@ -45,6 +45,7 @@ func TestBuildBaseArgs(t *testing.T) {
 		// Arrange
 		rs := toolRun{RunSpec: sandbox.RunSpec{
 			Image:  "agentic-claude",
+			User:   &testUser,
 			Limits: sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
 		}}
 

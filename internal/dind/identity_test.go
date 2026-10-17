@@ -7,12 +7,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
 func TestNewIdentity(t *testing.T) {
 	t.Run("uses the host uid and gid", func(t *testing.T) {
 		// Act
-		id, err := NewIdentity("1234:5678")
+		id, err := NewIdentity(platform.User{UID: 1234, GID: 5678})
 
 		// Assert
 		require.NoError(t, err)
@@ -21,25 +23,18 @@ func TestNewIdentity(t *testing.T) {
 
 	t.Run("refuses root", func(t *testing.T) {
 		// Act
-		_, err := NewIdentity("0:0")
+		_, err := NewIdentity(platform.User{UID: 0, GID: 0})
 
 		// Assert
 		require.ErrorContains(t, err, "refuses to run as root")
 	})
 
-	t.Run("refuses a missing uid or gid", func(t *testing.T) {
-		// Act
-		_, err := NewIdentity("")
-
-		// Assert
-		require.ErrorContains(t, err, "want uid:gid")
-	})
 }
 
 func TestIdentity_files(t *testing.T) {
 	t.Run("maps the host uid to the dedicated subordinate range only", func(t *testing.T) {
 		// Arrange
-		id := Identity{uid: "1234", gid: "5678"}
+		id := Identity{user: platform.User{UID: 1234, GID: 5678}}
 
 		// Act
 		files := id.files()
@@ -53,7 +48,7 @@ func TestIdentity_files(t *testing.T) {
 
 	t.Run("primary group root is not duplicated", func(t *testing.T) {
 		// Arrange
-		id := Identity{uid: "1234", gid: "0"}
+		id := Identity{user: platform.User{UID: 1234, GID: 0}}
 
 		// Act
 		files := id.files()
@@ -68,7 +63,7 @@ func TestWriteIdentityFiles(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "etc")
 
 	// Act
-	err := WriteIdentityFiles(dir, Identity{uid: "1234", gid: "5678"})
+	err := WriteIdentityFiles(dir, Identity{user: platform.User{UID: 1234, GID: 5678}})
 
 	// Assert
 	require.NoError(t, err)

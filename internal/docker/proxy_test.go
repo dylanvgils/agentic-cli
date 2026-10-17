@@ -570,14 +570,13 @@ func Test_proxyHandle_boot(t *testing.T) {
 		assert.Equal(t, []string{"network", "connect", NetworkName, handle.container}, findCall(calls, "network", "connect"))
 
 		files := readTar(t, stdin()[0].input)
-		uid, gid, err := parseUserGroup(platform.UserGroup())
-		require.NoError(t, err)
+		host := platform.HostUser()
 		for _, name := range []string{proxy.CACertFile, proxy.CAKeyFile, proxyCredentialsFile} {
 			entry := proxyCredentialsSubdir + "/" + name
 			require.Contains(t, files, entry)
 			assert.Equal(t, int64(0o600), files[entry].header.Mode, name)
-			assert.Equal(t, uid, files[entry].header.Uid, name)
-			assert.Equal(t, gid, files[entry].header.Gid, name)
+			assert.Equal(t, host.UID, files[entry].header.Uid, name)
+			assert.Equal(t, host.GID, files[entry].header.Gid, name)
 		}
 
 		var loaded []proxy.Credential

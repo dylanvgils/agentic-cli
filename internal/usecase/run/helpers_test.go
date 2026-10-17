@@ -294,7 +294,6 @@ func appendFile(path, content string) error {
 	return err
 }
 
-
 // credentialLayer returns a config layer declaring one generic credential reading secret.
 func credentialLayer(t *testing.T, secret string) config.RCLayer {
 	t.Helper()

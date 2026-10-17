@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/dind"
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +24,7 @@ func Test_startDind(t *testing.T) {
 	t.Run("joins the run network, writes run files and probes the sidecar", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{}}, container: "agentic-claude-abc", network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{}}, container: "agentic-claude-abc", network: "agentic-run-abc"}
 
 		// Act
 		handle, err := client.startDind(rs, nil)
@@ -44,7 +45,7 @@ func Test_startDind(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client, "exec")
 		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: testUser, ToolHome: toolHome, Dind: sandbox.DindSpec{}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome, Dind: sandbox.DindSpec{}}}
 
 		// Act
 		_, err := client.startDind(rs, nil)
@@ -60,7 +61,7 @@ func Test_startDind(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "run")
 		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: testUser, ToolHome: toolHome, Dind: sandbox.DindSpec{}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome, Dind: sandbox.DindSpec{}}}
 
 		// Act
 		_, err := client.startDind(rs, nil)
@@ -81,7 +82,7 @@ func Test_setupDind(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
 		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: testUser, ToolHome: toolHome, DryRun: true, Dind: sandbox.DindSpec{Enabled: true}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome, DryRun: true, Dind: sandbox.DindSpec{Enabled: true}}}
 
 		// Act
 		args, cleanup, err := client.setupDind(rs)
@@ -98,7 +99,7 @@ func Test_setupDind(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
 		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: testUser, ToolHome: toolHome, Dind: sandbox.DindSpec{Enabled: true}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome, Dind: sandbox.DindSpec{Enabled: true}}}
 
 		// Act
 		_, cleanup, err := client.setupDind(rs)
@@ -116,7 +117,7 @@ func Test_setupDind(t *testing.T) {
 	t.Run("propagates startDind error", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "run")
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}}
 
 		// Act
 		args, cleanup, err := client.setupDind(rs)
@@ -129,7 +130,7 @@ func Test_setupDind(t *testing.T) {
 }
 
 func Test_dindHandle_runArgs(t *testing.T) {
-	identity, err := dind.NewIdentity("1234:5678")
+	identity, err := dind.NewIdentity(platform.User{UID: 1234, GID: 5678})
 	require.NoError(t, err)
 	handle := dindHandle{identity: identity, container: "agentic-docker-abc", runDir: "/home/user/.agentic/dind/abc"}
 
@@ -459,7 +460,7 @@ func Test_newDindHandle(t *testing.T) {
 	toolHome := t.TempDir()
 
 	// Act
-	handle, err := client.newDindHandle(toolRun{RunSpec: sandbox.RunSpec{User: testUser, ToolHome: toolHome}})
+	handle, err := client.newDindHandle(toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome}})
 
 	// Assert
 	require.NoError(t, err)

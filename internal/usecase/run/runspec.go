@@ -219,7 +219,7 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, logDir string) 
 	return sandbox.NewRunSpec(req.target.ImageName).
 		WithToolHome(in.ToolHome).
 		WithContainerHome(req.containerHome).
-		WithUser(platform.UserGroup()).
+		WithUser(platform.HostUser()).
 		WithTTY(platform.IsTerminal()).
 		WithVolumes(mounts.volumes...).
 		WithSecrets(mounts.secrets...).

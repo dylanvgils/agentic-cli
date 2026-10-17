@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
@@ -184,10 +185,11 @@ func buildImageArgs(tmpDir, image, tool string, opts tools.BuildOptions) []strin
 		args = append(args, buildArg("SKIP_INSTALL_CHECKSUM", "true"))
 	}
 
+	host := platform.HostUser()
 	args = append(
 		args,
-		buildArg("HOST_UID", platform.GetUID()),
-		buildArg("HOST_GID", platform.GetGID()),
+		buildArg("HOST_UID", strconv.Itoa(host.UID)),
+		buildArg("HOST_GID", strconv.Itoa(host.GID)),
 	)
 
 	for _, name := range tools.BuildLayers(opts.BaseOverride) {

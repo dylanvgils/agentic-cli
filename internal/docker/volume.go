@@ -66,7 +66,7 @@ func (c *Client) ensureVolume(name, chownImage string) error {
 		"run", "--rm",
 		arg("volume", fmt.Sprintf("%s:/vol", name)),
 		arg("user", "root"),
-		chownImage, "chown", platform.UserGroup(), "/vol",
+		chownImage, "chown", platform.HostUser().String(), "/vol",
 	}
 
 	if _, err := c.run(chownArgs...); err != nil {

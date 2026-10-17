@@ -201,5 +201,6 @@ func parseMountSpec(volume, toolHome, guestHome string) (source, guest string, r
 
 // ownerOptions returns msb's mount owner options for the host uid/gid, which the image user is created with.
 func ownerOptions() string {
-	return "uid=" + platform.GetUID() + ",gid=" + platform.GetGID()
+	host := platform.HostUser()
+	return fmt.Sprintf("uid=%d,gid=%d", host.UID, host.GID)
 }

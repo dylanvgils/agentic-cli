@@ -10,7 +10,7 @@ import (
 // buildRunArgs assembles the tool container's `docker run` args.
 func buildRunArgs(rs toolRun, sidecarArgs, toolArgs []string) ([]string, error) {
 	// Security: without --user the tool would run as the image's user
-	if rs.User == "" {
+	if rs.User == nil {
 		return nil, errors.New("run spec has no host user")
 	}
 
@@ -57,7 +57,7 @@ func buildBaseArgs(rs toolRun) []string {
 		// Security: prevent privilege escalation
 		arg("security-opt", "no-new-privileges:true"),
 		// Use system user to prevent permission issues on mounted files
-		arg("user", rs.User),
+		arg("user", rs.User.String()),
 	}
 }
 

@@ -13,13 +13,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/require"
 )
 
-// testUser is the host "uid:gid" test runs run as.
-const testUser = "1000:1000"
+// testUser is the host user test runs run as.
+var testUser = platform.User{UID: 1000, GID: 1000}
 
 // dockerCall records a single run invocation.
 type dockerCall struct {
@@ -147,8 +148,8 @@ func stubDockerRunCapture(t *testing.T, client *Client, failSubcmds ...string) f
 // startAndRunTool starts rs's sidecars, runs its tool with toolArgs and stops the sidecars, as the run usecase does; rs
 // gets testUser unless it sets one, as every real run has a host user.
 func startAndRunTool(client *Client, rs sandbox.RunSpec, toolArgs []string) error {
-	if rs.User == "" {
-		rs.User = testUser
+	if rs.User == nil {
+		rs.User = &testUser
 	}
 
 	sidecars, err := client.StartSidecars(rs)

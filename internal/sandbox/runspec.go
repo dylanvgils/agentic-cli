@@ -1,12 +1,14 @@
 package sandbox
 
+import "github.com/dylanvgils/agentic-cli/internal/platform"
+
 // RunSpec describes the tool run a user asked for, independent of the runtime that executes it.
 type RunSpec struct {
 	Image          string
 	ToolHome       string
 	ContainerHome  string
-	User           string // host "uid:gid" the tool runs as
-	TTY            bool   // stdin is a terminal
+	User           *platform.User // host user the tool runs as; nil until set, as 0:0 is root
+	TTY            bool           // stdin is a terminal
 	Volumes        []string
 	Secrets        []string
 	Env            []string
@@ -33,7 +35,7 @@ type RunSpecBuilder struct {
 	image          string
 	toolHome       string
 	containerHome  string
-	user           string
+	user           *platform.User
 	tty            bool
 	volumes        []string
 	secrets        []string
@@ -64,9 +66,9 @@ func (b *RunSpecBuilder) WithContainerHome(path string) *RunSpecBuilder {
 	return b
 }
 
-// WithUser sets the host "uid:gid" the tool runs as.
-func (b *RunSpecBuilder) WithUser(userGroup string) *RunSpecBuilder {
-	b.user = userGroup
+// WithUser sets the host user the tool runs as.
+func (b *RunSpecBuilder) WithUser(u platform.User) *RunSpecBuilder {
+	b.user = &u
 	return b
 }
 
