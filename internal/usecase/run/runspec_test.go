@@ -536,21 +536,6 @@ func Test_Service_syncToolMarketplaces(t *testing.T) {
 		assert.ErrorContains(t, err, "clone failed")
 	})
 
-	t.Run("stale result still returns a mount and name", func(t *testing.T) {
-		// Arrange
-		svc := newSyncingService(&fakeDocker{}, func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error) {
-			return []marketplace.Result{{Entry: entries[0], Dir: dirFor(entries[0]), Stale: true, Warning: fmt.Errorf("offline")}}, nil
-		})
-
-		// Act
-		mounts, names, err := svc.syncToolMarketplaces(t.TempDir(), "claude", tools.Configs["claude"], acme)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{tools.Configs["claude"].Runtime.MarketplaceMount("acme", "git@example.com:acme.git")}, mounts)
-		assert.Equal(t, []string{"acme"}, names)
-	})
-
 	t.Run("records usage of this project after a successful sync", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
@@ -581,6 +566,48 @@ func Test_Service_syncToolMarketplaces(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, mounts, 1)
 		assert.Equal(t, []string{"acme"}, names)
+	})
+}
+
+func Test_marketplaceEntries(t *testing.T) {
+	// Arrange
+	rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{
+		{Name: "acme", URL: "git@example.test:acme.git"},
+		{Name: "copilot-only", URL: "git@example.test:other.git", Tools: []string{"copilot"}},
+	}}
+
+	// Act
+	entries := marketplaceEntries(rc, "claude")
+
+	// Assert
+	assert.Equal(t, []marketplace.Entry{{Name: "acme", URL: "git@example.test:acme.git"}}, entries)
+}
+
+func Test_toolMarketplaceMounts(t *testing.T) {
+	t.Run("returns each result's mount spec and name", func(t *testing.T) {
+		// Arrange
+		results := []marketplace.Result{{Entry: marketplace.Entry{Name: "acme", URL: "git@example.test:acme.git"}}}
+
+		// Act
+		mounts, names := toolMarketplaceMounts(tools.Configs["claude"], results)
+
+		// Assert
+		assert.Equal(t, []string{tools.Configs["claude"].Runtime.MarketplaceMount("acme", "git@example.test:acme.git")}, mounts)
+		assert.Equal(t, []string{"acme"}, names)
+	})
+
+	t.Run("warns about a stale clone and still mounts it", func(t *testing.T) {
+		// Arrange
+		logs := stubErrLog(t)
+		results := []marketplace.Result{{Entry: marketplace.Entry{Name: "acme", URL: "git@example.test:acme.git"}, Stale: true, Warning: fmt.Errorf("offline")}}
+
+		// Act
+		mounts, names := toolMarketplaceMounts(tools.Configs["claude"], results)
+
+		// Assert
+		assert.Len(t, mounts, 1)
+		assert.Equal(t, []string{"acme"}, names)
+		assert.Contains(t, logs.String(), `marketplace "acme": offline; using existing clone`)
 	})
 }
 

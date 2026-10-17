@@ -162,32 +162,16 @@ func (s *Service) syncToolMarketplaces(toolHome, tool string, toolConfig tools.T
 		return nil, nil, nil
 	}
 
-	entries := config.MarketplacesFor(rc, tool)
-	mpEntries := make([]marketplace.Entry, len(entries))
-	for i, e := range entries {
-		mpEntries[i] = marketplace.Entry{Name: e.Name, URL: e.URL}
-	}
-
 	baseDir := filepath.Join(toolHome, marketplace.MarketplacesDirName)
-	results, err := s.syncMarketplaces(mpEntries, func(e marketplace.Entry) string {
+	results, err := s.syncMarketplaces(marketplaceEntries(rc, tool), func(e marketplace.Entry) string {
 		return filepath.Join(baseDir, marketplace.CloneDirName(e.URL))
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("sync marketplaces for %s: %w", tool, err)
 	}
 
-	mounts = make([]string, len(results))
-	names = make([]string, len(results))
-	for i, r := range results {
-		if r.Stale {
-			logging.Warnf("marketplace %q: %v; using existing clone", r.Entry.Name, r.Warning)
-		}
-		mounts[i] = toolConfig.Runtime.MarketplaceMount(r.Entry.Name, r.Entry.URL)
-		names[i] = r.Entry.Name
-	}
-
+	mounts, names = toolMarketplaceMounts(toolConfig, results)
 	recordMarketplaceUsage(baseDir, results)
-
 	return mounts, names, nil
 }
 
@@ -236,6 +220,30 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, logDir string) 
 		}).
 		WithDind(sandbox.DindSpec{Enabled: in.DindEnabled, Limits: dindLimits}).
 		Build()
+}
+
+// marketplaceEntries returns rc's marketplaces for tool as sync entries.
+func marketplaceEntries(rc *config.AgenticRC, tool string) []marketplace.Entry {
+	configured := config.MarketplacesFor(rc, tool)
+	entries := make([]marketplace.Entry, len(configured))
+	for i, m := range configured {
+		entries[i] = marketplace.Entry{Name: m.Name, URL: m.URL}
+	}
+	return entries
+}
+
+// toolMarketplaceMounts returns the tool's mount spec and name for each synced marketplace, warning about stale clones.
+func toolMarketplaceMounts(toolConfig tools.ToolConfig, results []marketplace.Result) (mounts, names []string) {
+	mounts = make([]string, len(results))
+	names = make([]string, len(results))
+	for i, r := range results {
+		if r.Stale {
+			logging.Warnf("marketplace %q: %v; using existing clone", r.Entry.Name, r.Warning)
+		}
+		mounts[i] = toolConfig.Runtime.MarketplaceMount(r.Entry.Name, r.Entry.URL)
+		names[i] = r.Entry.Name
+	}
+	return mounts, names
 }
 
 // recordMarketplaceUsage records cwd against each result for `marketplaces prune`. Best-effort.
