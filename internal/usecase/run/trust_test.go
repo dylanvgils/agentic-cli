@@ -155,10 +155,11 @@ func Test_checkSettings(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		err := checkSettings([]config.RCLayer{layer}, toolHome, p)
+		approved, err := checkSettings(Project{Layers: []config.RCLayer{layer}, RC: layer.RC}, toolHome, p)
 
 		// Assert
 		require.NoError(t, err)
+		assert.Equal(t, approvedConfig{layers: []config.RCLayer{layer}, rc: layer.RC}, approved, "the run reads the approved project's config")
 		assert.Equal(t, [][]string{{"run.mounts"}}, p.settingsAsked)
 		cfg, err := config.LoadState(toolHome)
 		require.NoError(t, err)
@@ -172,7 +173,7 @@ func Test_checkSettings(t *testing.T) {
 		p := &fakePrompter{approveSettings: func(config.RCLayer, []config.GuardedSetting) error { return errors.New("settings not approved") }}
 
 		// Act
-		err := checkSettings([]config.RCLayer{layer}, toolHome, p)
+		_, err := checkSettings(Project{Layers: []config.RCLayer{layer}}, toolHome, p)
 
 		// Assert
 		require.EqualError(t, err, "settings not approved")
@@ -188,7 +189,7 @@ func Test_checkSettings(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		err := checkSettings(layers, t.TempDir(), p)
+		_, err := checkSettings(Project{Layers: layers}, t.TempDir(), p)
 
 		// Assert
 		require.NoError(t, err)

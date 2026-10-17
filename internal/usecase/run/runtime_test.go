@@ -2,6 +2,7 @@ package run
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
@@ -63,6 +64,41 @@ func Test_Service_Run(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude:abc123", ranSpec.Image)
 		assert.False(t, dockerRan)
+	})
+
+	t.Run("a spec relying on a feature the runtime lacks never reaches it", func(t *testing.T) {
+		// Arrange
+		ran := false
+		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec, []string) error {
+			ran = true
+			return nil
+		}})
+		rs := sandbox.RunSpec{Image: "agentic-claude", Secrets: []string{"token:/run/secrets/token"}}
+
+		// Act
+		err := svc.Run(runtimeRequest(RuntimeMicrosandbox), rs, nil)
+
+		// Assert
+		assert.ErrorContains(t, err, "can't enforce secret mounts")
+		assert.False(t, ran)
+	})
+
+	t.Run("mounts that changed since the spec was built never reach the runtime", func(t *testing.T) {
+		// Arrange
+		ws := chdirSymlinkWorkspace(t)
+		ran := false
+		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec, []string) error {
+			ran = true
+			return nil
+		}})
+		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
+
+		// Act
+		err := svc.Run(runtimeRequest(RuntimeMicrosandbox), rs, nil)
+
+		// Assert
+		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
+		assert.False(t, ran)
 	})
 
 	t.Run("empty runtime runs on docker", func(t *testing.T) {

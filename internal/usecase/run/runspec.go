@@ -33,7 +33,7 @@ type Target struct {
 	SkipEntrypoint bool
 }
 
-// Input carries the flag/env-derived values Build needs.
+// Input carries the flag/env-derived values build needs.
 type Input struct {
 	ToolHome    string
 	Volumes     []string
@@ -54,7 +54,7 @@ type Input struct {
 	InstructionsMount string
 }
 
-// buildRequest is what every step of Build needs to know about the run.
+// buildRequest is what every step of build needs to know about the run.
 type buildRequest struct {
 	target        Target
 	in            Input
@@ -68,8 +68,10 @@ func New(d Docker, m Microsandbox) *Service {
 	return &Service{docker: d, microsandbox: m, syncMarketplaces: marketplace.Sync}
 }
 
-// Build assembles the sandbox.RunSpec for target, syncing marketplaces; the runtime readies its own host resources in Run.
-func (s *Service) Build(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (sandbox.RunSpec, error) {
+// build assembles the sandbox.RunSpec for target from the approved config, syncing marketplaces; the runtime readies its
+// own host resources in Run.
+func (s *Service) build(target Target, in Input, toolConfig tools.ToolConfig, approved approvedConfig) (sandbox.RunSpec, error) {
+	rc := approved.rc
 	req := buildRequest{
 		target:        target,
 		in:            in,
@@ -102,9 +104,9 @@ func (s *Service) ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *conf
 	return needsMarketplaceSync(toolConfig, rc, tool)
 }
 
-// buildWithInstructions wraps Build with this run's instructions snapshot mounted in; the returned cleanup func must always be deferred, even on error.
-func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (sandbox.RunSpec, func(), error) {
-	content, err := s.BuildInstructions(target, in, toolConfig, rc)
+// buildWithInstructions wraps build with this run's instructions snapshot mounted in; the returned cleanup func must always be deferred, even on error.
+func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig, approved approvedConfig) (sandbox.RunSpec, func(), error) {
+	content, err := s.BuildInstructions(target, in, toolConfig, approved.rc)
 	if err != nil {
 		return sandbox.RunSpec{}, noCleanup, fmt.Errorf("build instructions for %s: %w", target.ToolName, err)
 	}
@@ -116,7 +118,7 @@ func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tool
 
 	in.InstructionsMount = snapshot.MountSpec
 
-	rs, err := s.Build(target, in, toolConfig, rc)
+	rs, err := s.build(target, in, toolConfig, approved)
 	if err != nil {
 		snapshot.Cleanup()
 		return sandbox.RunSpec{}, noCleanup, err
