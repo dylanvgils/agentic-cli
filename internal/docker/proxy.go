@@ -216,6 +216,21 @@ func (h proxyHandle) totalRequests() int {
 // startProxy starts the proxy sidecar on rs's run network, copying in any credentials before it starts and wiring it
 // to the egress network; cleans up whatever it created on any failure.
 func (c *Client) startProxy(rs toolRun) (proxyHandle, error) {
+	h, err := c.createProxy(rs)
+	if err != nil {
+		return proxyHandle{}, err
+	}
+
+	h.caPEM, err = h.boot()
+	if err != nil {
+		h.Stop()
+		return proxyHandle{}, err
+	}
+	return h, nil
+}
+
+// createProxy prepares the egress network and log file and creates the proxy container without starting it.
+func (c *Client) createProxy(rs toolRun) (proxyHandle, error) {
 	h, err := c.newProxyHandle(rs)
 	if err != nil {
 		return proxyHandle{}, err
@@ -238,29 +253,6 @@ func (c *Client) startProxy(rs toolRun) (proxyHandle, error) {
 	if _, err := c.run(h.createArgs(rs)...); err != nil {
 		return proxyHandle{}, fmt.Errorf("create proxy: %w", err)
 	}
-
-	caPEM, err := h.copyCredentials()
-	if err != nil {
-		h.Stop()
-		return proxyHandle{}, err
-	}
-	h.caPEM = caPEM
-
-	if _, err := c.run("start", h.container); err != nil {
-		h.Stop()
-		return proxyHandle{}, fmt.Errorf("start proxy: %w", err)
-	}
-	if err := h.checkStarted(); err != nil {
-		h.Stop()
-		return proxyHandle{}, err
-	}
-
-	connectArgs := []string{"network", "connect", NetworkName, h.container}
-	if _, err := c.run(connectArgs...); err != nil {
-		h.Stop()
-		return proxyHandle{}, fmt.Errorf("connect proxy to %s: %w", NetworkName, err)
-	}
-
 	return h, nil
 }
 
@@ -373,6 +365,28 @@ func (h proxyHandle) createLogFile() error {
 		return fmt.Errorf("create proxy log: %w", err)
 	}
 	return f.Close()
+}
+
+// boot copies in the credentials, starts the created proxy and connects it to the egress network, returning the
+// per-run CA; the caller removes the container on failure.
+func (h proxyHandle) boot() (caPEM []byte, err error) {
+	caPEM, err = h.copyCredentials()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := h.client.run("start", h.container); err != nil {
+		return nil, fmt.Errorf("start proxy: %w", err)
+	}
+	if err := h.checkStarted(); err != nil {
+		return nil, err
+	}
+
+	connectArgs := []string{"network", "connect", NetworkName, h.container}
+	if _, err := h.client.run(connectArgs...); err != nil {
+		return nil, fmt.Errorf("connect proxy to %s: %w", NetworkName, err)
+	}
+	return caPEM, nil
 }
 
 // checkStarted fails if a credentialed proxy exits within proxySettleTime, e.g. on a CA or credentials it can't load;
