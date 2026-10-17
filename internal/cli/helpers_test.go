@@ -741,18 +741,32 @@ func newTestStatusCmd(t *testing.T) (*cobra.Command, *bytes.Buffer) {
 	return cmd, &buf
 }
 
-func stubFetchLatestVersion(t *testing.T, v string, err error) {
+// stubReleases makes releasesClient f for the duration of the test.
+func stubReleases(t *testing.T, f *fakeReleases) {
 	t.Helper()
-	orig := fetchLatestVersion
-	fetchLatestVersion = func() (string, error) { return v, err }
-	t.Cleanup(func() { fetchLatestVersion = orig })
+	orig := releasesClient
+	releasesClient = f
+	t.Cleanup(func() { releasesClient = orig })
 }
 
-func stubPerformUpdate(t *testing.T, err error) {
-	t.Helper()
-	orig := performUpdate
-	performUpdate = func(_ string) error { return err }
-	t.Cleanup(func() { performUpdate = orig })
+// fakeReleases implements upgradecheck.Releases, returning latest/latestErr and updateErr and recording the calls.
+type fakeReleases struct {
+	latest    string
+	latestErr error
+	updateErr error
+
+	fetched     bool
+	updatedWith string
+}
+
+func (f *fakeReleases) LatestVersion() (string, error) {
+	f.fetched = true
+	return f.latest, f.latestErr
+}
+
+func (f *fakeReleases) Update(version string) error {
+	f.updatedWith = version
+	return f.updateErr
 }
 
 // stubToolHome points toolHome at dir.

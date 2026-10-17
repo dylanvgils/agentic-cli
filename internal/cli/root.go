@@ -9,6 +9,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
@@ -88,7 +89,7 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	}
 
 	if cmd.Parent() != nil && !inCommandChain(cmd, noUpdateCmds) {
-		upgradecheck.Check(toolHome, ttyPrompter{}.OfferUpgrade)
+		exitAfterUpgrade(upgradecheck.New(releasesClient, logging.Err).Check(toolHome, ttyPrompter{}.OfferUpgrade))
 	}
 
 	return nil
@@ -158,6 +159,17 @@ func checkGit(cmd *cobra.Command, args []string) error {
 	}
 
 	return checkGitAvailable()
+}
+
+// exitAfterUpgrade ends the process once the upgrade check replaced the binary, as the command runs the old one: 0 once
+// updated, 1 if applying the update failed.
+func exitAfterUpgrade(updated bool, err error) {
+	if err != nil {
+		os.Exit(1)
+	}
+	if updated {
+		os.Exit(0)
+	}
 }
 
 // inCommandChain reports whether cmd or any ancestor up to (not including) root has a name in names (e.g. matches "completion" for `completion bash`).
