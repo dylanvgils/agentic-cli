@@ -14,20 +14,21 @@ import (
 type Service struct {
 	releases Releases
 	notify   *logging.Logger // update progress, apart from the command's own output
+	version  string          // the installed agentic version
 }
 
 // Confirm tells the user an upgrade from installed to latest is available and reports whether to apply it now.
 type Confirm func(installed, latest string) bool
 
-// New returns a Service that fetches releases through r and reports update progress to notify.
+// New returns a Service that upgrades this build, fetches releases through r and reports update progress to notify.
 func New(r Releases, notify *logging.Logger) *Service {
-	return &Service{releases: r, notify: notify}
+	return &Service{releases: r, notify: notify, version: buildinfo.Version}
 }
 
 // Check checks for a newer release at most once per CheckInterval and applies it when confirm agrees. updated reports
 // that the binary was replaced, so the caller should exit; err that applying it failed.
 func (s *Service) Check(home string, confirm Confirm) (updated bool, err error) {
-	if buildinfo.IsDevBuild() {
+	if buildinfo.IsDev(s.version) {
 		return false, nil
 	}
 
@@ -59,7 +60,7 @@ func (s *Service) fetchUpdateIfDue(home string) (string, bool) {
 	state.LastUpdateCheck = &now
 	_ = state.Save(home)
 
-	if !selfupdate.IsNewer(buildinfo.Version, latest) {
+	if !selfupdate.IsNewer(s.version, latest) {
 		return "", false
 	}
 
@@ -68,7 +69,7 @@ func (s *Service) fetchUpdateIfDue(home string) (string, bool) {
 
 // offerUpdate applies latest when confirm agrees.
 func (s *Service) offerUpdate(latest string, confirm Confirm) (updated bool, err error) {
-	if !confirm(buildinfo.Version, latest) {
+	if !confirm(s.version, latest) {
 		return false, nil
 	}
 

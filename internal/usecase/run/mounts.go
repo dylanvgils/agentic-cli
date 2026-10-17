@@ -16,7 +16,7 @@ import (
 )
 
 // caseInsensitivePaths reports whether host paths differing only in case name the same file, as on default macOS and Windows filesystems.
-var caseInsensitivePaths = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
+const caseInsensitivePaths = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
 
 // mountSet is the tool container's volume and secret specs, plus the homes their placeholders expand to.
 type mountSet struct {
@@ -139,8 +139,8 @@ func findRoot(path string, roots []string) (string, bool) {
 
 // within reports whether path is root or below it, as written or once symlinks are resolved.
 func within(path, root string) bool {
-	for _, p := range pathForms(path) {
-		for _, r := range pathForms(root) {
+	for _, p := range pathForms(path, caseInsensitivePaths) {
+		for _, r := range pathForms(root, caseInsensitivePaths) {
 			if rel, err := filepath.Rel(r, p); err == nil && isInside(rel) {
 				return true
 			}
@@ -149,8 +149,8 @@ func within(path, root string) bool {
 	return false
 }
 
-// pathForms returns path made absolute and, when it differs, with symlinks resolved; lower-cased where the filesystem ignores case.
-func pathForms(path string) []string {
+// pathForms returns path made absolute and, when it differs, with symlinks resolved; lower-cased if ignoreCase.
+func pathForms(path string, ignoreCase bool) []string {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		abs = path
@@ -161,7 +161,7 @@ func pathForms(path string) []string {
 		forms = append(forms, resolved)
 	}
 
-	if caseInsensitivePaths {
+	if ignoreCase {
 		for i, form := range forms {
 			forms[i] = strings.ToLower(form)
 		}
@@ -176,7 +176,7 @@ func workspaceSymlink(host, cwd string) (string, bool) {
 		return "", false
 	}
 
-	root, ok := workspaceRoot(abs, cwd)
+	root, ok := workspaceRoot(abs, cwd, caseInsensitivePaths)
 	if !ok {
 		return "", false
 	}
@@ -189,12 +189,13 @@ func workspaceSymlink(host, cwd string) (string, bool) {
 	return "", false
 }
 
-// workspaceRoot returns the shallowest prefix of abs that resolves to cwd, so links below cwd stay in the part checked.
-func workspaceRoot(abs, cwd string) (string, bool) {
+// workspaceRoot returns the shallowest prefix of abs that resolves to cwd, so links below cwd stay in the part checked;
+// ignoreCase matches cwd regardless of case.
+func workspaceRoot(abs, cwd string, ignoreCase bool) (string, bool) {
 	realCwd := resolveExisting(cwd)
 	root, ok := "", false
 	for p := abs; ; p = filepath.Dir(p) {
-		if resolved := resolveExisting(p); resolved == realCwd || (caseInsensitivePaths && strings.EqualFold(resolved, realCwd)) {
+		if resolved := resolveExisting(p); resolved == realCwd || (ignoreCase && strings.EqualFold(resolved, realCwd)) {
 			root, ok = p, true
 		}
 

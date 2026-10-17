@@ -16,6 +16,7 @@ func TestNew(t *testing.T) {
 	// Assert
 	assert.Equal(t, "prod", client.Context())
 	assert.Equal(t, execRunner{}, client.runner)
+	assert.Equal(t, defaultTiming(), client.timing)
 }
 
 func TestClient_Capabilities(t *testing.T) {
@@ -183,4 +184,12 @@ func TestClient_withContext(t *testing.T) {
 		// Assert
 		assert.Equal(t, []string{"--context", "prod", "build", "-t", "img"}, result)
 	})
+}
+
+func Test_defaultTiming(t *testing.T) {
+	// Act
+	timing := defaultTiming()
+
+	// Assert
+	assert.Greater(t, timing.sidecarOrphanGrace, timing.dindReadyTimeout, "a starting run's sidecars must outlast its readiness wait")
 }

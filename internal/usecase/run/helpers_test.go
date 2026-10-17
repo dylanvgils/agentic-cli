@@ -309,14 +309,6 @@ func approveSettings(t *testing.T, layer config.RCLayer, toolHome string) {
 	require.NoError(t, cfg.ApproveSettings(layer, toolHome))
 }
 
-// stubCaseInsensitivePaths sets whether path checks ignore case for the duration of the test.
-func stubCaseInsensitivePaths(t *testing.T, val bool) {
-	t.Helper()
-	orig := caseInsensitivePaths
-	caseInsensitivePaths = val
-	t.Cleanup(func() { caseInsensitivePaths = orig })
-}
-
 // stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.
 func stubErrLog(t *testing.T) *bytes.Buffer {
 	t.Helper()

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
@@ -28,6 +29,21 @@ type Client struct {
 	// context is passed as `docker --context`; empty uses the docker CLI's own active context.
 	context string
 	runner  runner
+	timing  timing
+}
+
+// timing holds the Client's waits and grace periods, so tests can shorten them.
+type timing struct {
+	dindReadyTimeout     time.Duration
+	dindPollInterval     time.Duration
+	dindProgressInterval time.Duration
+	// dindRunDirGrace keeps a concurrent run's not-yet-started run dir from being swept.
+	dindRunDirGrace time.Duration
+	// sidecarOrphanGrace spares a starting run's sidecars; must outlast dindReadyTimeout.
+	sidecarOrphanGrace time.Duration
+	// proxySettleTime is how long a credentialed proxy must keep running to count as started.
+	proxySettleTime   time.Duration
+	proxyPollInterval time.Duration
 }
 
 // execRunner runs the docker binary found on PATH.
@@ -35,7 +51,7 @@ type execRunner struct{}
 
 // New returns a Client for the given Docker context (empty = the docker CLI's active context).
 func New(context string) *Client {
-	return &Client{context: context, runner: execRunner{}}
+	return &Client{context: context, runner: execRunner{}, timing: defaultTiming()}
 }
 
 // Context returns the Docker context the client runs against.
@@ -128,4 +144,17 @@ func output(cmd *exec.Cmd, args []string) (string, error) {
 		return "", fmt.Errorf("docker %v: %w\n%s", args, err, buf.String())
 	}
 	return buf.String(), nil
+}
+
+// defaultTiming returns the waits and grace periods real runs use.
+func defaultTiming() timing {
+	return timing{
+		dindReadyTimeout:     90 * time.Second,
+		dindPollInterval:     time.Second,
+		dindProgressInterval: 15 * time.Second,
+		dindRunDirGrace:      10 * time.Minute,
+		sidecarOrphanGrace:   5 * time.Minute,
+		proxySettleTime:      500 * time.Millisecond,
+		proxyPollInterval:    50 * time.Millisecond,
+	}
 }

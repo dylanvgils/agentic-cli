@@ -49,16 +49,8 @@ const (
 	dindProbeTimeout = "10"
 )
 
-// Readiness wait settings; vars so tests can shorten them.
-var (
-	dindReadyTimeout     = 90 * time.Second
-	dindPollInterval     = time.Second
-	dindProgressInterval = 15 * time.Second
-	dindLogTailOnFail    = "30"
-)
-
-// dindRunDirGrace keeps a concurrent run's not-yet-started run dir from being swept.
-var dindRunDirGrace = 10 * time.Minute
+// dindLogTailOnFail is how many sidecar log lines a failed readiness wait shows.
+const dindLogTailOnFail = "30"
 
 // dindRunIDPattern matches randID output, so the sweep only touches dirs agentic created.
 var dindRunIDPattern = regexp.MustCompile(`^[0-9a-f]{12}$`)
@@ -218,9 +210,10 @@ func (h dindHandle) waitReady(interrupt <-chan os.Signal) error {
 		"docker", "version", arg("format", "{{.Server.Version}}"),
 	}
 
+	timing := h.client.timing
 	start := time.Now()
 	lastProgress := start
-	reason := fmt.Sprintf("did not become ready within %s", dindReadyTimeout)
+	reason := fmt.Sprintf("did not become ready within %s", timing.dindReadyTimeout)
 	for {
 		if _, err := h.client.run(probe...); err == nil {
 			return nil
@@ -230,11 +223,11 @@ func (h dindHandle) waitReady(interrupt <-chan os.Signal) error {
 			reason = "exited before becoming ready"
 			break
 		}
-		if time.Since(start) > dindReadyTimeout {
+		if time.Since(start) > timing.dindReadyTimeout {
 			break
 		}
 
-		if time.Since(lastProgress) >= dindProgressInterval {
+		if time.Since(lastProgress) >= timing.dindProgressInterval {
 			logging.Infof("still waiting for docker sidecar (%s)...", time.Since(start).Round(time.Second))
 			lastProgress = time.Now()
 		}
@@ -242,7 +235,7 @@ func (h dindHandle) waitReady(interrupt <-chan os.Signal) error {
 		select {
 		case <-interrupt:
 			return fmt.Errorf("docker sidecar startup interrupted")
-		case <-time.After(dindPollInterval):
+		case <-time.After(timing.dindPollInterval):
 		}
 	}
 
@@ -386,7 +379,7 @@ func (c *Client) sweepDindRunDirs(toolHome string) error {
 		}
 
 		info, err := entry.Info()
-		if err != nil || time.Since(info.ModTime()) < dindRunDirGrace {
+		if err != nil || time.Since(info.ModTime()) < c.timing.dindRunDirGrace {
 			continue
 		}
 

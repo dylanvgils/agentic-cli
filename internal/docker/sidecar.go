@@ -8,9 +8,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
-// sidecarOrphanGrace spares a starting run's sidecars; must outlast dindReadyTimeout.
-var sidecarOrphanGrace = 5 * time.Minute
-
 // ownedResource is a sidecar container or network carrying ownerLabels.
 type ownedResource struct {
 	name    string
@@ -18,17 +15,17 @@ type ownedResource struct {
 	started time.Time
 }
 
-// isOrphan reports whether r's owner is gone and r is past the grace period; unlabelled ones never are.
-func (r ownedResource) isOrphan(existing map[string]bool) bool {
+// isOrphan reports whether r's owner is gone and r is past grace; unlabelled ones never are.
+func (r ownedResource) isOrphan(existing map[string]bool, grace time.Duration) bool {
 	if r.owner == "" || existing[r.owner] || r.started.IsZero() {
 		return false
 	}
-	return time.Since(r.started) >= sidecarOrphanGrace
+	return time.Since(r.started) >= grace
 }
 
 // inUse reports whether r may serve an active run: it has an owner that isn't an orphan yet.
-func (r ownedResource) inUse(existing map[string]bool) bool {
-	return r.owner != "" && !r.isOrphan(existing)
+func (r ownedResource) inUse(existing map[string]bool, grace time.Duration) bool {
+	return r.owner != "" && !r.isOrphan(existing, grace)
 }
 
 // ownerLabels tie a sidecar or its network to its tool container.
@@ -114,7 +111,7 @@ func (c *Client) removeOrphanedContainers() (existing map[string]bool, err error
 	}
 
 	for _, r := range all {
-		if r.isOrphan(existing) {
+		if r.isOrphan(existing, c.timing.sidecarOrphanGrace) {
 			_, _ = c.run("rm", arg("force"), arg("volumes"), r.name)
 		}
 	}
@@ -129,7 +126,7 @@ func (c *Client) removeOrphanedNetworks(existing map[string]bool) error {
 	}
 
 	for _, r := range networks {
-		if r.isOrphan(existing) {
+		if r.isOrphan(existing, c.timing.sidecarOrphanGrace) {
 			_, _ = c.run("network", "rm", r.name)
 		}
 	}
@@ -147,7 +144,7 @@ func (c *Client) removeUnused(listArgs, rmArgs []string) error {
 		return err
 	}
 
-	names := unusedNames(resources, existing)
+	names := unusedNames(resources, existing, c.timing.sidecarOrphanGrace)
 	if len(names) == 0 {
 		return nil
 	}
@@ -202,11 +199,11 @@ func ownedFormat(nameField string) string {
 	return "{{" + nameField + "}}\t{{.Label \"" + LabelOwner + "\"}}\t{{.Label \"" + LabelStarted + "\"}}"
 }
 
-// unusedNames returns the names of the resources no active run uses.
-func unusedNames(resources []ownedResource, existing map[string]bool) []string {
+// unusedNames returns the names of the resources no active run uses, sparing ones younger than grace.
+func unusedNames(resources []ownedResource, existing map[string]bool, grace time.Duration) []string {
 	var names []string
 	for _, r := range resources {
-		if !r.inUse(existing) {
+		if !r.inUse(existing, grace) {
 			names = append(names, r.name)
 		}
 	}

@@ -19,7 +19,7 @@ import (
 func Test_startDind(t *testing.T) {
 	client := newTestClient()
 
-	stubDindReadyTimeout(t)
+	stubDindReadyTimeout(t, client)
 
 	t.Run("joins the run network, writes run files and probes the sidecar", func(t *testing.T) {
 		// Arrange
@@ -76,7 +76,7 @@ func Test_startDind(t *testing.T) {
 func Test_setupDind(t *testing.T) {
 	client := newTestClient()
 
-	stubDindReadyTimeout(t)
+	stubDindReadyTimeout(t, client)
 
 	t.Run("dry run makes no docker calls or files", func(t *testing.T) {
 		// Arrange
@@ -200,7 +200,7 @@ func Test_dindHandle_waitReady(t *testing.T) {
 
 	t.Run("times out with logs when dockerd never answers", func(t *testing.T) {
 		// Arrange
-		stubDindReadyTimeout(t)
+		stubDindReadyTimeout(t, client)
 		stubDindProbe(t, client, "true")
 
 		// Act
@@ -214,7 +214,7 @@ func Test_dindHandle_waitReady(t *testing.T) {
 
 	t.Run("fails fast when the sidecar exits", func(t *testing.T) {
 		// Arrange
-		stubDindReadyTimeoutLong(t)
+		stubDindReadyTimeoutLong(t, client)
 		stubDindProbe(t, client, "false")
 
 		// Act
@@ -226,7 +226,7 @@ func Test_dindHandle_waitReady(t *testing.T) {
 
 	t.Run("stops waiting when interrupted", func(t *testing.T) {
 		// Arrange
-		stubDindReadyTimeoutLong(t)
+		stubDindReadyTimeoutLong(t, client)
 		stubDindProbe(t, client, "true")
 		interrupt := make(chan os.Signal, 1)
 		interrupt <- os.Interrupt
@@ -293,7 +293,7 @@ func TestSweepDindResources(t *testing.T) {
 func Test_sweepDindRunDirs(t *testing.T) {
 	client := newTestClient()
 
-	stubDindRunDirGrace(t, time.Minute)
+	stubDindRunDirGrace(t, client, time.Minute)
 
 	t.Run("removes a stale dir whose sidecar is gone", func(t *testing.T) {
 		// Arrange
