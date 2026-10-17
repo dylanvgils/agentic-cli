@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -117,11 +116,10 @@ func Test_checkDocker(t *testing.T) {
 
 func Test_checkGit(t *testing.T) {
 	runCmd := &cobra.Command{Use: "run"}
+	// No git on PATH, so every check that runs fails
+	t.Setenv("PATH", t.TempDir())
 
 	t.Run("non-run command skips check", func(t *testing.T) {
-		// Arrange
-		stubCheckGitAvailable(t, errors.New("should not be called"))
-
 		// Act
 		err := checkGit(buildCmd, []string{"claude"})
 
@@ -130,9 +128,6 @@ func Test_checkGit(t *testing.T) {
 	})
 
 	t.Run("no args skips check", func(t *testing.T) {
-		// Arrange
-		stubCheckGitAvailable(t, errors.New("should not be called"))
-
 		// Act
 		err := checkGit(runCmd, nil)
 
@@ -141,9 +136,6 @@ func Test_checkGit(t *testing.T) {
 	})
 
 	t.Run("unknown tool skips check", func(t *testing.T) {
-		// Arrange
-		stubCheckGitAvailable(t, errors.New("should not be called"))
-
 		// Act
 		err := checkGit(runCmd, []string{"bogus"})
 
@@ -155,7 +147,6 @@ func Test_checkGit(t *testing.T) {
 		// Arrange - opencode has no MarketplaceMount support; toolNeedsMarketplaceSync
 		// covers the rest of this predicate's branches directly.
 		t.Chdir(t.TempDir())
-		stubCheckGitAvailable(t, errors.New("should not be called"))
 
 		// Act
 		err := checkGit(runCmd, []string{"opencode"})
@@ -170,7 +161,6 @@ func Test_checkGit(t *testing.T) {
 		rcContent := "[[marketplaces]]\nname = \"acme\"\nurl = \"git@example.com:acme.git\"\n"
 		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte(rcContent), 0o644))
 		t.Chdir(dir)
-		stubCheckGitAvailable(t, errors.New("git not found on PATH"))
 
 		// Act
 		err := checkGit(runCmd, []string{"claude"})
@@ -222,7 +212,7 @@ func Test_persistentPreRunE(t *testing.T) {
 	t.Run("resolves the docker context", func(t *testing.T) {
 		// Arrange
 		restoreDockerClient(t)
-		stubMigrateRun(t, func(string) ([]migrate.Migration, error) { return nil, nil })
+		stubToolHome(t, filepath.Join(t.TempDir(), "home"))
 		cmd := &cobra.Command{Use: "status"}
 		cmd.Flags().String("docker-context", "", "")
 		require.NoError(t, cmd.Flags().Set("docker-context", "prod"))
@@ -240,9 +230,9 @@ func Test_persistentPreRunE(t *testing.T) {
 	t.Run("migration failure aborts the command", func(t *testing.T) {
 		// Arrange
 		restoreDockerClient(t)
-		stubMigrateRun(t, func(string) ([]migrate.Migration, error) {
-			return nil, errors.New("migration failed")
-		})
+		home := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(home, ".migrations.json"), []byte("not json"), 0o644))
+		stubToolHome(t, home)
 		cmd := &cobra.Command{Use: "status"}
 		cmd.Flags().String("docker-context", "", "")
 		fakeRoot := &cobra.Command{Use: "agentic"}
@@ -252,15 +242,14 @@ func Test_persistentPreRunE(t *testing.T) {
 		err := persistentPreRunE(cmd, nil)
 
 		// Assert
-		assert.ErrorContains(t, err, "migration failed")
+		assert.ErrorContains(t, err, "invalid character")
 	})
 
 	t.Run("skips the migration check for excluded commands", func(t *testing.T) {
 		// Arrange
 		restoreDockerClient(t)
-		stubMigrateRun(t, func(string) ([]migrate.Migration, error) {
-			return nil, errors.New("should not be called")
-		})
+		home := filepath.Join(t.TempDir(), "home")
+		stubToolHome(t, home)
 		cmd := &cobra.Command{Use: "upgrade"}
 		cmd.Flags().String("docker-context", "", "")
 		fakeRoot := &cobra.Command{Use: "agentic"}
@@ -271,14 +260,14 @@ func Test_persistentPreRunE(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
+		assert.NoDirExists(t, home)
 	})
 
 	t.Run("shell completion skips the migration check", func(t *testing.T) {
 		// Arrange
 		restoreDockerClient(t)
-		stubMigrateRun(t, func(string) ([]migrate.Migration, error) {
-			return nil, errors.New("should not be called")
-		})
+		home := filepath.Join(t.TempDir(), "home")
+		stubToolHome(t, home)
 		cmd := &cobra.Command{Use: cobra.ShellCompRequestCmd}
 		cmd.Flags().String("docker-context", "", "")
 		fakeRoot := &cobra.Command{Use: "agentic"}
@@ -289,6 +278,7 @@ func Test_persistentPreRunE(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
+		assert.NoDirExists(t, home)
 	})
 }
 

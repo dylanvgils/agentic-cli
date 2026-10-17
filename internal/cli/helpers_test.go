@@ -12,7 +12,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
-	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
@@ -582,13 +581,6 @@ func stubCheckDockerDaemon(t *testing.T, fn func() error) {
 	stubDocker(t, &fakeDocker{checkDaemon: fn})
 }
 
-func stubMigrateRun(t *testing.T, fn func(string) ([]migrate.Migration, error)) {
-	t.Helper()
-	orig := migrateRun
-	migrateRun = fn
-	t.Cleanup(func() { migrateRun = orig })
-}
-
 func stubCleanImage(t *testing.T, fn func(string) error) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{cleanImage: fn})
@@ -653,20 +645,6 @@ func (f fakeUpstream) LatestToolVersion(string, string) (string, bool, bool) {
 	return f.latest, f.newer, f.ok
 }
 
-func stubCheckGitAvailable(t *testing.T, err error) {
-	t.Helper()
-	orig := checkGitAvailable
-	checkGitAvailable = func() error { return err }
-	t.Cleanup(func() { checkGitAvailable = orig })
-}
-
-func stubCurrentGOOS(t *testing.T, goos string) {
-	t.Helper()
-	orig := currentGOOS
-	currentGOOS = goos
-	t.Cleanup(func() { currentGOOS = orig })
-}
-
 func stubBuildDindImage(t *testing.T, fn func(image string, opts tools.BuildOptions) error) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{buildDindImage: fn})
@@ -678,13 +656,6 @@ func stubStdin(t *testing.T, input string) {
 	orig := stdin
 	stdin = strings.NewReader(input)
 	t.Cleanup(func() { stdin = orig })
-}
-
-func stubIsTerminal(t *testing.T, terminal bool) {
-	t.Helper()
-	orig := isTerminal
-	isTerminal = func() bool { return terminal }
-	t.Cleanup(func() { isTerminal = orig })
 }
 
 // inspectReturns returns an InspectImage func that always yields info and err.

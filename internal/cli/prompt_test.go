@@ -13,9 +13,6 @@ import (
 
 func Test_ttyPrompter_TrustDir(t *testing.T) {
 	t.Run("no tty returns hint to pass --trust-dir", func(t *testing.T) {
-		// Arrange
-		stubIsTerminal(t, false)
-
 		// Act
 		err := ttyPrompter{}.TrustDir("/example.test/project")
 
@@ -26,12 +23,11 @@ func Test_ttyPrompter_TrustDir(t *testing.T) {
 
 	t.Run("tty answers y approves", func(t *testing.T) {
 		// Arrange
-		stubIsTerminal(t, true)
 		stubStdin(t, "y\n")
 		logs := stubErrLog(t)
 
 		// Act
-		err := ttyPrompter{}.TrustDir("/example.test/project")
+		err := ttyPrompter{terminal: true}.TrustDir("/example.test/project")
 
 		// Assert
 		require.NoError(t, err)
@@ -40,12 +36,11 @@ func Test_ttyPrompter_TrustDir(t *testing.T) {
 
 	t.Run("tty answers n refuses", func(t *testing.T) {
 		// Arrange
-		stubIsTerminal(t, true)
 		stubStdin(t, "n\n")
 		stubErrLog(t)
 
 		// Act
-		err := ttyPrompter{}.TrustDir("/example.test/project")
+		err := ttyPrompter{terminal: true}.TrustDir("/example.test/project")
 
 		// Assert
 		require.Error(t, err)
@@ -88,9 +83,6 @@ func Test_ttyPrompter_ApproveSettings(t *testing.T) {
 	changed := []config.GuardedSetting{{Key: "run.mounts", Value: []string{"~/.example:/x:rw"}}}
 
 	t.Run("no tty names the changed keys and hints to run interactively", func(t *testing.T) {
-		// Arrange
-		stubIsTerminal(t, false)
-
 		// Act
 		err := ttyPrompter{}.ApproveSettings(layer, changed)
 
@@ -101,12 +93,11 @@ func Test_ttyPrompter_ApproveSettings(t *testing.T) {
 
 	t.Run("tty answers y lists the settings and approves", func(t *testing.T) {
 		// Arrange
-		stubIsTerminal(t, true)
 		stubStdin(t, "y\n")
 		logs := stubErrLog(t)
 
 		// Act
-		err := ttyPrompter{}.ApproveSettings(layer, changed)
+		err := ttyPrompter{terminal: true}.ApproveSettings(layer, changed)
 
 		// Assert
 		require.NoError(t, err)
@@ -116,12 +107,11 @@ func Test_ttyPrompter_ApproveSettings(t *testing.T) {
 
 	t.Run("tty answers n refuses", func(t *testing.T) {
 		// Arrange
-		stubIsTerminal(t, true)
 		stubStdin(t, "n\n")
 		stubErrLog(t)
 
 		// Act
-		err := ttyPrompter{}.ApproveSettings(layer, changed)
+		err := ttyPrompter{terminal: true}.ApproveSettings(layer, changed)
 
 		// Assert
 		require.Error(t, err)
@@ -132,7 +122,6 @@ func Test_ttyPrompter_ApproveSettings(t *testing.T) {
 func Test_ttyPrompter_OfferToolUpdate(t *testing.T) {
 	t.Run("no tty prints one-liner and declines", func(t *testing.T) {
 		// Arrange
-		stubIsTerminal(t, false)
 		logs := stubErrLog(t)
 
 		// Act
@@ -145,12 +134,11 @@ func Test_ttyPrompter_OfferToolUpdate(t *testing.T) {
 
 	t.Run("tty answers y accepts", func(t *testing.T) {
 		// Arrange
-		stubIsTerminal(t, true)
 		stubStdin(t, "y\n")
 		logs := stubErrLog(t)
 
 		// Act
-		result := ttyPrompter{}.OfferToolUpdate("claude", "1.2.3", "1.3.0")
+		result := ttyPrompter{terminal: true}.OfferToolUpdate("claude", "1.2.3", "1.3.0")
 
 		// Assert
 		assert.True(t, result)
@@ -159,12 +147,11 @@ func Test_ttyPrompter_OfferToolUpdate(t *testing.T) {
 
 	t.Run("tty answers n declines", func(t *testing.T) {
 		// Arrange
-		stubIsTerminal(t, true)
 		stubStdin(t, "n\n")
 		stubErrLog(t)
 
 		// Act
-		result := ttyPrompter{}.OfferToolUpdate("claude", "1.2.3", "1.3.0")
+		result := ttyPrompter{terminal: true}.OfferToolUpdate("claude", "1.2.3", "1.3.0")
 
 		// Assert
 		assert.False(t, result)
@@ -174,7 +161,6 @@ func Test_ttyPrompter_OfferToolUpdate(t *testing.T) {
 func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
 	t.Run("no tty prints one-liner and declines", func(t *testing.T) {
 		// Arrange
-		stubIsTerminal(t, false)
 		logs := stubErrLog(t)
 
 		// Act
@@ -187,12 +173,11 @@ func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
 
 	t.Run("tty answers y accepts", func(t *testing.T) {
 		// Arrange
-		stubIsTerminal(t, true)
 		stubStdin(t, "y\n")
 		logs := stubErrLog(t)
 
 		// Act
-		result := ttyPrompter{}.OfferUpgrade("v1.0.0", "v1.1.0")
+		result := ttyPrompter{terminal: true}.OfferUpgrade("v1.0.0", "v1.1.0")
 
 		// Assert
 		assert.True(t, result)
@@ -201,12 +186,11 @@ func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
 
 	t.Run("tty answers n declines", func(t *testing.T) {
 		// Arrange
-		stubIsTerminal(t, true)
 		stubStdin(t, "n\n")
 		stubErrLog(t)
 
 		// Act
-		result := ttyPrompter{}.OfferUpgrade("v1.0.0", "v1.1.0")
+		result := ttyPrompter{terminal: true}.OfferUpgrade("v1.0.0", "v1.1.0")
 
 		// Assert
 		assert.False(t, result)

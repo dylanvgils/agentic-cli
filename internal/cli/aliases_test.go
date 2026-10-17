@@ -237,22 +237,16 @@ func Test_shellFromEnv(t *testing.T) {
 
 func Test_defaultShell(t *testing.T) {
 	t.Run("windows returns powershell", func(t *testing.T) {
-		// Arrange
-		stubCurrentGOOS(t, "windows")
-
 		// Act
-		result := defaultShell()
+		result := defaultShell("windows")
 
 		// Assert
 		assert.Equal(t, "powershell", result)
 	})
 
 	t.Run("non-windows returns bash", func(t *testing.T) {
-		// Arrange
-		stubCurrentGOOS(t, "linux")
-
 		// Act
-		result := defaultShell()
+		result := defaultShell("linux")
 
 		// Assert
 		assert.Equal(t, "bash", result)
@@ -262,11 +256,10 @@ func Test_defaultShell(t *testing.T) {
 func Test_detectShell(t *testing.T) {
 	t.Run("prefers SHELL over OS default", func(t *testing.T) {
 		// Arrange
-		stubCurrentGOOS(t, "windows")
 		t.Setenv("SHELL", "/usr/bin/bash")
 
 		// Act
-		result := detectShell()
+		result := detectShell("windows")
 
 		// Assert
 		assert.Equal(t, "bash", result)
@@ -274,11 +267,10 @@ func Test_detectShell(t *testing.T) {
 
 	t.Run("falls back to OS default when SHELL unset", func(t *testing.T) {
 		// Arrange
-		stubCurrentGOOS(t, "windows")
 		t.Setenv("SHELL", "")
 
 		// Act
-		result := detectShell()
+		result := detectShell("windows")
 
 		// Assert
 		assert.Equal(t, "powershell", result)

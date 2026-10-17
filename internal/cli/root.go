@@ -9,7 +9,9 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/git"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
@@ -75,7 +77,7 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	}
 
 	if cmd.Parent() != nil && !inCommandChain(cmd, noMigrateCmds) {
-		if _, err := migrateRun(toolHome); err != nil {
+		if _, err := migrate.Run(toolHome); err != nil {
 			return err
 		}
 	}
@@ -89,7 +91,7 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	}
 
 	if cmd.Parent() != nil && !inCommandChain(cmd, noUpdateCmds) {
-		exitAfterUpgrade(upgradecheck.New(releasesClient, logging.Err).Check(toolHome, ttyPrompter{}.OfferUpgrade))
+		exitAfterUpgrade(upgradecheck.New(releasesClient, logging.Err).Check(toolHome, newTTYPrompter().OfferUpgrade))
 	}
 
 	return nil
@@ -110,7 +112,7 @@ func resolveContext(cmd *cobra.Command) error {
 
 	flagVal, _ := cmd.Flags().GetString(dockerContextFlagName)
 	if flagVal == "" {
-		if err := run.CheckContextTrust(cwd, toolHome, layers, flagTrustDir, ttyPrompter{}); err != nil {
+		if err := run.CheckContextTrust(cwd, toolHome, layers, flagTrustDir, newTTYPrompter()); err != nil {
 			return err
 		}
 	}
@@ -158,7 +160,7 @@ func checkGit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	return checkGitAvailable()
+	return git.CheckAvailable()
 }
 
 // exitAfterUpgrade ends the process once the upgrade check replaced the binary, as the command runs the old one: 0 once

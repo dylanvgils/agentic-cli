@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +19,7 @@ func init() {
 }
 
 func runMigrate(_ *cobra.Command, _ []string) error {
-	applied, err := migrateRun(toolHome)
+	applied, err := migrate.Run(toolHome)
 	if err != nil {
 		return err
 	}

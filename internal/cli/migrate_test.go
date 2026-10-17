@@ -1,10 +1,10 @@
 package cli
 
 import (
-	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/migrate"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,7 +12,8 @@ import (
 func Test_runMigrate(t *testing.T) {
 	t.Run("prints already up to date", func(t *testing.T) {
 		// Arrange
-		stubMigrateRun(t, func(string) ([]migrate.Migration, error) { return nil, nil })
+		home := filepath.Join(t.TempDir(), "home")
+		stubToolHome(t, home)
 		logBuf := stubErrLog(t)
 
 		// Act
@@ -20,19 +21,20 @@ func Test_runMigrate(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
+		assert.FileExists(t, filepath.Join(home, ".migrations.json"))
 		assert.Contains(t, logBuf.String(), "agentic: already up to date")
 	})
 
-	t.Run("propagates migrate.Run error", func(t *testing.T) {
+	t.Run("propagates the migration error", func(t *testing.T) {
 		// Arrange
-		stubMigrateRun(t, func(string) ([]migrate.Migration, error) {
-			return nil, errors.New("migration failed")
-		})
+		home := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(home, ".migrations.json"), []byte("not json"), 0o644))
+		stubToolHome(t, home)
 
 		// Act
 		err := runMigrate(migrateCmd, nil)
 
 		// Assert
-		assert.ErrorContains(t, err, "migration failed")
+		assert.ErrorContains(t, err, "invalid character")
 	})
 }
