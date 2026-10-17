@@ -11,8 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var currentGOOS = runtime.GOOS
-
 var aliasesCmd = &cobra.Command{
 	Use:   "aliases",
 	Short: "Print shell alias definitions for installed tools",
@@ -25,7 +23,7 @@ func init() {
 }
 
 func runAliases(_ *cobra.Command, _ []string) error {
-	shell := detectShell()
+	shell := detectShell(runtime.GOOS)
 	fmt.Println(preambleFor(shell))
 	fmt.Println(reloadLineFor(shell))
 
@@ -50,11 +48,12 @@ func printAliases(shell string, built map[string]bool) {
 	}
 }
 
-func detectShell() string {
+// detectShell picks the shell from $SHELL, else goos's default.
+func detectShell(goos string) string {
 	if shell := shellFromEnv(); shell != "" {
 		return shell
 	}
-	return defaultShell()
+	return defaultShell(goos)
 }
 
 func shellFromEnv() string {
@@ -71,8 +70,8 @@ func shellFromEnv() string {
 	return ""
 }
 
-func defaultShell() string {
-	if currentGOOS == "windows" {
+func defaultShell(goos string) string {
+	if goos == "windows" {
 		return "powershell"
 	}
 	return "bash"

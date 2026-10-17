@@ -5,11 +5,7 @@ import (
 	"os"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/git"
-	"github.com/dylanvgils/agentic-cli/internal/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
-	"github.com/dylanvgils/agentic-cli/internal/migrate"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/selfupdate"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
@@ -22,12 +18,6 @@ import (
 )
 
 var (
-	migrateRun              = migrate.Run
-	isTerminal              = platform.IsTerminal
-	checkGitAvailable       = git.CheckAvailable
-	loadMarketplaceRegistry = marketplace.LoadRegistry
-	saveMarketplaceRegistry = marketplace.SaveRegistry
-
 	// stdin is where every confirmation prompt reads its answer.
 	stdin io.Reader = os.Stdin
 

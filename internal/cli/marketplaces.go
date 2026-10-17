@@ -41,7 +41,7 @@ func init() {
 func runMarketplacesList(_ *cobra.Command, _ []string) error {
 	baseDir := filepath.Join(toolHome, marketplace.MarketplacesDirName)
 
-	registry, err := loadMarketplaceRegistry(baseDir)
+	registry, err := marketplace.LoadRegistry(baseDir)
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func runMarketplacesList(_ *cobra.Command, _ []string) error {
 func runMarketplacesPrune(_ *cobra.Command, _ []string) error {
 	baseDir := filepath.Join(toolHome, marketplace.MarketplacesDirName)
 
-	reg, err := loadMarketplaceRegistry(baseDir)
+	reg, err := marketplace.LoadRegistry(baseDir)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func runMarketplacesPrune(_ *cobra.Command, _ []string) error {
 		}
 	}
 
-	return saveMarketplaceRegistry(baseDir, updated)
+	return marketplace.SaveRegistry(baseDir, updated)
 }
 
 // marketplaceRows returns one tab-separated row per registry entry of each clone dir, or an untracked row for a dir with none.

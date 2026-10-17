@@ -10,6 +10,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
 // settingEffects says in a few words what each guarded setting controls, so the prompt shows what approving it allows.
@@ -30,11 +31,18 @@ var settingEffects = map[string]string{
 }
 
 // ttyPrompter asks the user on the terminal; without one it refuses with a hint on how to approve instead.
-type ttyPrompter struct{}
+type ttyPrompter struct {
+	terminal bool
+}
+
+// newTTYPrompter returns a ttyPrompter for the process's stdin.
+func newTTYPrompter() ttyPrompter {
+	return ttyPrompter{terminal: platform.IsTerminal()}
+}
 
 // TrustDir asks whether to trust dir.
-func (ttyPrompter) TrustDir(dir string) error {
-	if !isTerminal() {
+func (p ttyPrompter) TrustDir(dir string) error {
+	if !p.terminal {
 		return fmt.Errorf("directory %s is not trusted; run interactively or pass --trust-dir to approve", describeDir(dir))
 	}
 
@@ -47,8 +55,8 @@ func (ttyPrompter) TrustDir(dir string) error {
 }
 
 // ApproveSettings shows a layer's changed guarded settings and returns an error unless the user approves them.
-func (ttyPrompter) ApproveSettings(layer config.RCLayer, changed []config.GuardedSetting) error {
-	if !isTerminal() {
+func (p ttyPrompter) ApproveSettings(layer config.RCLayer, changed []config.GuardedSetting) error {
+	if !p.terminal {
 		return fmt.Errorf("settings in %s that reach outside the container changed (%s); run interactively to approve them", layer.Path, settingKeys(changed))
 	}
 
@@ -71,8 +79,8 @@ func (ttyPrompter) ApproveSettings(layer config.RCLayer, changed []config.Guarde
 }
 
 // OfferToolUpdate announces an available tool update and, on a terminal, asks whether to apply it now; otherwise it just suggests `agentic update <tool>`.
-func (ttyPrompter) OfferToolUpdate(tool, installed, latest string) bool {
-	if !isTerminal() {
+func (p ttyPrompter) OfferToolUpdate(tool, installed, latest string) bool {
+	if !p.terminal {
 		logging.Infof("%s update available: %s (current: %s) - run: agentic update %s", tool, latest, installed, tool)
 		return false
 	}
@@ -82,8 +90,8 @@ func (ttyPrompter) OfferToolUpdate(tool, installed, latest string) bool {
 }
 
 // OfferUpgrade announces a newer agentic release and, on a terminal, asks whether to upgrade now; otherwise it just suggests `agentic upgrade`.
-func (ttyPrompter) OfferUpgrade(installed, latest string) bool {
-	if !isTerminal() {
+func (p ttyPrompter) OfferUpgrade(installed, latest string) bool {
+	if !p.terminal {
 		logging.Err.Stepf("agentic update available: %s (current: %s) - run: agentic upgrade", latest, installed)
 		return false
 	}

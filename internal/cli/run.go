@@ -79,7 +79,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 
 	svc := run.New(dockerClient, msbClient)
-	rs, cleanup, err := svc.Prepare(req, ttyPrompter{})
+	rs, cleanup, err := svc.Prepare(req, newTTYPrompter())
 	defer cleanup()
 	if err != nil {
 		return err
