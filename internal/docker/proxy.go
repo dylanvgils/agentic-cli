@@ -216,6 +216,21 @@ func (h proxyHandle) totalRequests() int {
 // startProxy starts the proxy sidecar on rs's run network, copying in any credentials before it starts and wiring it
 // to the egress network; cleans up whatever it created on any failure.
 func (c *Client) startProxy(rs toolRun) (proxyHandle, error) {
+	h, err := c.createProxy(rs)
+	if err != nil {
+		return proxyHandle{}, err
+	}
+
+	h.caPEM, err = h.boot()
+	if err != nil {
+		h.Stop()
+		return proxyHandle{}, err
+	}
+	return h, nil
+}
+
+// createProxy prepares the egress network and log file and creates the proxy container without starting it.
+func (c *Client) createProxy(rs toolRun) (proxyHandle, error) {
 	h, err := c.newProxyHandle(rs)
 	if err != nil {
 		return proxyHandle{}, err
@@ -225,12 +240,10 @@ func (c *Client) startProxy(rs toolRun) (proxyHandle, error) {
 		return proxyHandle{}, err
 	}
 
-	// The proxy also joins the shared egress network, so only this run's network may use the credentials
-	if len(h.credentials) > 0 {
-		h.clientNets, err = c.networkSubnets(rs.network)
-		if err != nil {
-			return proxyHandle{}, err
-		}
+	// The proxy also joins the shared egress network, so only this run's network may use it
+	h.clientNets, err = c.networkSubnets(rs.network)
+	if err != nil {
+		return proxyHandle{}, err
 	}
 
 	if err := h.createLogFile(); err != nil {
@@ -240,29 +253,6 @@ func (c *Client) startProxy(rs toolRun) (proxyHandle, error) {
 	if _, err := c.run(h.createArgs(rs)...); err != nil {
 		return proxyHandle{}, fmt.Errorf("create proxy: %w", err)
 	}
-
-	caPEM, err := h.copyCredentials()
-	if err != nil {
-		h.Stop()
-		return proxyHandle{}, err
-	}
-	h.caPEM = caPEM
-
-	if _, err := c.run("start", h.container); err != nil {
-		h.Stop()
-		return proxyHandle{}, fmt.Errorf("start proxy: %w", err)
-	}
-	if err := h.checkStarted(); err != nil {
-		h.Stop()
-		return proxyHandle{}, err
-	}
-
-	connectArgs := []string{"network", "connect", NetworkName, h.container}
-	if _, err := c.run(connectArgs...); err != nil {
-		h.Stop()
-		return proxyHandle{}, fmt.Errorf("connect proxy to %s: %w", NetworkName, err)
-	}
-
 	return h, nil
 }
 
@@ -341,25 +331,25 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 	}
 	args = append(args, ownerLabels(rs)...)
 
+	clientNets := strings.Join(h.clientNets, ",")
+	if clientNets == "" {
+		clientNets = dryRunClientNetsPlaceholder
+	}
+
 	args = append(args,
 		arg("env", proxy.EnvAllow+"="+strings.Join(h.allow, ",")),
 		arg("env", proxy.EnvLog+"="+containerLog),
 		arg("env", proxy.EnvTZOffset+"="+strconv.Itoa(tzOffset)),
 		arg("env", proxy.EnvMonitor+"="+strconv.FormatBool(h.monitor)),
+		arg("env", proxy.EnvClientNets+"="+clientNets),
 		// Only this run's file, so the proxy can't touch other logs
 		arg("volume", h.logPath+":"+containerLog),
 	)
 
 	if len(h.credentials) > 0 {
-		clientNets := strings.Join(h.clientNets, ",")
-		if clientNets == "" {
-			clientNets = dryRunClientNetsPlaceholder
-		}
-
 		args = append(args,
 			arg("env", proxy.EnvCADir+"="+proxyCredentialsDir),
 			arg("env", proxy.EnvCredentials+"="+proxyCredentialsDir+"/"+proxyCredentialsFile),
-			arg("env", proxy.EnvClientNets+"="+clientNets),
 			// Anonymous, so it is removed with the container; the proxy deletes the secret files once loaded
 			arg("volume", proxyRunMountDir),
 		)
@@ -375,6 +365,28 @@ func (h proxyHandle) createLogFile() error {
 		return fmt.Errorf("create proxy log: %w", err)
 	}
 	return f.Close()
+}
+
+// boot copies in the credentials, starts the created proxy and connects it to the egress network, returning the
+// per-run CA; the caller removes the container on failure.
+func (h proxyHandle) boot() (caPEM []byte, err error) {
+	caPEM, err = h.copyCredentials()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := h.client.run("start", h.container); err != nil {
+		return nil, fmt.Errorf("start proxy: %w", err)
+	}
+	if err := h.checkStarted(); err != nil {
+		return nil, err
+	}
+
+	connectArgs := []string{"network", "connect", NetworkName, h.container}
+	if _, err := h.client.run(connectArgs...); err != nil {
+		return nil, fmt.Errorf("connect proxy to %s: %w", NetworkName, err)
+	}
+	return caPEM, nil
 }
 
 // checkStarted fails if a credentialed proxy exits within proxySettleTime, e.g. on a CA or credentials it can't load;

@@ -422,13 +422,15 @@ func readTar(t *testing.T, archive []byte) map[string]tarFile {
 	}
 }
 
-// stubProxyDocker records client.run calls, answering network inspect with a test subnet and container inspect with running.
-func stubProxyDocker(t *testing.T, client *Client, running string) func() []dockerCall {
+// stubProxyDocker records client.run calls, answering network inspect with a test subnet and container inspect with running; failSubcmds (e.g. "create") fail.
+func stubProxyDocker(t *testing.T, client *Client, running string, failSubcmds ...string) func() []dockerCall {
 	t.Helper()
 	var calls []dockerCall
 	stubDockerRun(t, client, func(args ...string) (string, error) {
 		calls = append(calls, dockerCall{args: args})
 		switch {
+		case slices.Contains(failSubcmds, args[0]):
+			return "", fmt.Errorf("stub: %s failed", args[0])
 		case len(args) > 1 && args[0] == "network" && args[1] == "inspect" && args[len(args)-1] == NetworkName:
 			return LabelProjectVal + "\n", nil
 		case len(args) > 1 && args[0] == "network" && args[1] == "inspect":

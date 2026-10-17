@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -95,22 +94,15 @@ PATH=/tmp/shim:$PATH exec /usr/local/bin/entrypoint.sh`
 
 	t.Run("proxy refuses clients outside the run's network", func(t *testing.T) {
 		// Arrange
-		var out []byte
+		var out string
 
-		// Act - a container on the shared egress network the proxy also joins
+		// Act
 		duringRun(t, dir, func() {
-			proxy := runningProxy(t)
-			ip, err := exec.Command("docker", "inspect", "--format", `{{(index .NetworkSettings.Networks "agentic-net").IPAddress}}`, proxy).Output()
-			require.NoError(t, err)
-			proxyURL := "http://" + strings.TrimSpace(string(ip)) + ":3128"
-
-			out, err = exec.Command("docker", "run", "--rm", "--network", "agentic-net", "--entrypoint", "",
-				testNamespace+"-"+testTool, "curl", "-sS", "-m", "5", "-x", proxyURL, "-w", "\nstatus=%{http_code}", "http://"+credentialHost+"/").CombinedOutput()
-			require.NoError(t, err, string(out))
+			out = curlFromEgressNet(t, "http://"+credentialHost+"/")
 		})
 
 		// Assert
-		assert.Contains(t, string(out), "client not on the agentic proxy network")
-		assert.Contains(t, string(out), "status=403")
+		assert.Contains(t, out, "client not on the agentic proxy network")
+		assert.Contains(t, out, "status=403")
 	})
 }

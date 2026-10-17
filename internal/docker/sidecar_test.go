@@ -59,7 +59,7 @@ func Test_setupSidecars(t *testing.T) {
 
 	t.Run("removes the run network when the proxy fails to start", func(t *testing.T) {
 		// Arrange
-		calls := stubDockerRunCapture(t, client, "network inspect", "create")
+		calls := stubProxyDocker(t, client, "true", "create")
 		rs := toolRun{RunSpec: sandbox.RunSpec{
 			Image: "agentic-claude",
 			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogDir: t.TempDir()},
@@ -107,7 +107,7 @@ func Test_setupSidecars(t *testing.T) {
 		// Arrange
 		stubHostUserGroup(t, "1000:1000")
 		stubDindReadyTimeout(t)
-		calls := stubDockerRunCapture(t, client, "network inspect", "exec")
+		calls := stubProxyDocker(t, client, "true", "exec")
 		rs := toolRun{RunSpec: sandbox.RunSpec{
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),

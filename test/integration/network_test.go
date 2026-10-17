@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// hostListenPort is the fake host service's port, apart from listenPort as it shares the daemon's network namespace.
+const hostListenPort = "18080"
+
 // TestToolNetwork checks the run's own network isolates the tool container from other runs and host containers.
 func TestToolNetwork(t *testing.T) {
 	t.Run("cannot reach another run's container", func(t *testing.T) {
@@ -16,7 +19,7 @@ func TestToolNetwork(t *testing.T) {
 		target := fakeContainer(t).onNetwork(otherRun.name).listening().create()
 
 		// Act
-		out := runInTool(t, "nc -z -w 3 "+target.ip()+" "+listenPort+" && echo reach=yes || echo reach=no")
+		out := runInTool(t, reachScript(target.ip(), listenPort))
 
 		// Assert
 		assert.Contains(t, out, "reach=no")
@@ -27,7 +30,7 @@ func TestToolNetwork(t *testing.T) {
 		target := fakeContainer(t).onNetwork("agentic-net").listening().create()
 
 		// Act
-		out := runInTool(t, "nc -z -w 3 "+target.ip()+" "+listenPort+" && echo reach=yes || echo reach=no")
+		out := runInTool(t, reachScript(target.ip(), listenPort))
 
 		// Assert
 		assert.Contains(t, out, "reach=no")
@@ -38,9 +41,67 @@ func TestToolNetwork(t *testing.T) {
 		target := fakeContainer(t).onNetwork("bridge").listening().create()
 
 		// Act
-		out := runInTool(t, "nc -z -w 3 "+target.ip()+" "+listenPort+" && echo reach=yes || echo reach=no")
+		out := runInTool(t, reachScript(target.ip(), listenPort))
 
 		// Assert
 		assert.Contains(t, out, "reach=no")
 	})
+
+	t.Run("can reach the Docker host through the gateway", func(t *testing.T) {
+		// Arrange - also proves gatewayScript finds the host, so the proxy case below can't pass by accident
+		fakeContainer(t).onNetwork("host").listeningOn(hostListenPort).create()
+
+		// Act
+		out := runInTool(t, gatewayScript(hostListenPort))
+
+		// Assert
+		assert.Contains(t, out, "reach=yes")
+	})
+}
+
+// TestProxyNetwork checks a --proxy run's internal network leaves the proxy as the tool's only way out.
+func TestProxyNetwork(t *testing.T) {
+	t.Run("cannot reach another run's container", func(t *testing.T) {
+		// Arrange
+		otherRun := fakeNetwork(t).create()
+		target := fakeContainer(t).onNetwork(otherRun.name).listening().create()
+
+		// Act
+		out := runInTool(t, reachScript(target.ip(), listenPort), "--proxy")
+
+		// Assert
+		assert.Contains(t, out, "reach=no")
+	})
+
+	t.Run("cannot reach container on agentic-net directly", func(t *testing.T) {
+		// Arrange
+		target := fakeContainer(t).onNetwork("agentic-net").listening().create()
+
+		// Act
+		out := runInTool(t, reachScript(target.ip(), listenPort), "--proxy")
+
+		// Assert
+		assert.Contains(t, out, "reach=no")
+	})
+
+	t.Run("cannot reach the Docker host through the gateway", func(t *testing.T) {
+		// Arrange
+		fakeContainer(t).onNetwork("host").listeningOn(hostListenPort).create()
+
+		// Act
+		out := runInTool(t, gatewayScript(hostListenPort), "--proxy")
+
+		// Assert
+		assert.Contains(t, out, "reach=no")
+	})
+}
+
+// reachScript prints reach=yes when a TCP connection to ip:port succeeds, reach=no otherwise.
+func reachScript(ip, port string) string {
+	return "nc -z -w 3 " + ip + " " + port + " && echo reach=yes || echo reach=no"
+}
+
+// gatewayScript is reachScript for the run network's gateway address, the first one in the tool's subnet.
+func gatewayScript(port string) string {
+	return `gw=$(hostname -i | awk '{print $1}' | sed 's/\.[0-9]*$/.1/'); echo "gateway=$gw"; ` + reachScript("$gw", port)
 }
