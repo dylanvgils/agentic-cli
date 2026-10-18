@@ -242,7 +242,7 @@ func TestProxyAllowList(t *testing.T) {
 		result := ProxyAllowList([]string{"api.example.com"}, true, rc)
 
 		// Assert
-		assert.Equal(t, []string{"api.example.com", "registry-1.docker.io", "auth.docker.io", "production.cloudflare.docker.com", "ghcr.io"}, result)
+		assert.Equal(t, []string{"api.example.com", "registry-1.docker.io", "auth.docker.io", "production.cloudflare.docker.com", "production.cloudfront.docker.com", "ghcr.io"}, result)
 	})
 
 	t.Run("keeps the first of duplicate hosts", func(t *testing.T) {
