@@ -290,7 +290,8 @@ func Test_extraStage(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		rendered := renderStage(stage)
-		assert.Contains(t, rendered, "signed-by=/etc/apt/keyrings/docker.asc")
+		assert.Contains(t, rendered, "'Signed-By: /etc/apt/keyrings/docker.asc'")
+		assert.Contains(t, rendered, "> /etc/apt/sources.list.d/docker.sources")
 		assert.Contains(t, rendered, "docker-buildx-plugin docker-compose-plugin")
 		assert.NotContains(t, rendered, "docker-ce ", "the daemon runs in the sidecar, never in the tool image")
 		assert.Contains(t, rendered, "agentic-version-docker")
