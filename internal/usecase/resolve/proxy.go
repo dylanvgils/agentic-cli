@@ -10,7 +10,13 @@ import (
 )
 
 // dindRegistryHosts are the Docker Hub endpoints image pulls need.
-var dindRegistryHosts = []string{"registry-1.docker.io", "auth.docker.io", "production.cloudflare.docker.com"}
+var dindRegistryHosts = []string{
+	"registry-1.docker.io",
+	"auth.docker.io",
+	// Layer blobs come from either CDN
+	"production.cloudflare.docker.com",
+	"production.cloudfront.docker.com",
+}
 
 // ProxyInput carries the flag-derived values ProxyMode needs.
 type ProxyInput struct {
