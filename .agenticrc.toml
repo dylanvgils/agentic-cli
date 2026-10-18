@@ -24,10 +24,14 @@ enabled = true
 
 [run.proxy]
 enabled = true
-mode = "monitor"
+mode = "enforce"
 allowed_hosts = [
-  "proxy.golang.org", # go build/test downloads modules
-  "sum.golang.org",   # go verifies module checksums
-  "deb.debian.org",   # apt in the integration test image build
-  ".claude.ai",       # integration test image installs Claude, whichever tool runs
+  "proxy.golang.org",       # go modules, and toolchains via GOTOOLCHAIN
+  "sum.golang.org",         # go module checksums
+  "deb.debian.org",         # apt in images the integration tests build in the Docker sidecar
+  ".claude.ai",             # the integration test image installs Claude, whichever tool runs
+  "go.dev",                 # language spec, release notes and blog for WebFetch
+  "docs.microsandbox.dev",  # msb CLI and network policy docs for WebFetch
+  "docs.docker.com",        # Docker Engine, CLI and Sandboxes docs for WebFetch
+  "docs.rancherdesktop.io", # Rancher Desktop docs for WebFetch
 ]
