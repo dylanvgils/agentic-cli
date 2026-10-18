@@ -285,31 +285,62 @@ func Test_buildNetworkArgs(t *testing.T) {
 }
 
 func Test_netRuleTargets(t *testing.T) {
-	t.Run("keeps an exact host", func(t *testing.T) {
+	t.Run("sorts, dedupes and skips blanks", func(t *testing.T) {
 		// Act
-		targets, err := netRuleTargets([]string{"api.example.test"})
+		targets, err := netRuleTargets([]string{"b.example.test", "", "a.example.test", "b.example.test"})
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"api.example.test"}, targets)
+		assert.Equal(t, []string{"a.example.test", "b.example.test"}, targets)
+	})
+
+	t.Run("refuses the list when an entry is refused", func(t *testing.T) {
+		// Act
+		targets, err := netRuleTargets([]string{"api.example.test", "public"})
+
+		// Assert
+		assert.ErrorContains(t, err, `msb can't allow "public"`)
+		assert.Nil(t, targets)
+	})
+}
+
+func Test_netRuleTarget(t *testing.T) {
+	t.Run("keeps an exact host", func(t *testing.T) {
+		// Act
+		target, err := netRuleTarget("api.example.test")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "api.example.test", target)
 	})
 
 	t.Run("a suffix entry becomes a wildcard", func(t *testing.T) {
-		// Act
-		targets, err := netRuleTargets([]string{".example.test", "*.other.example"})
+		for _, entry := range []string{".example.test", "*.example.test"} {
+			// Act
+			target, err := netRuleTarget(entry)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"*.example.test", "*.other.example"}, targets)
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, "*.example.test", target)
+		}
 	})
 
-	t.Run("normalizes, dedupes and skips blanks", func(t *testing.T) {
+	t.Run("normalizes case, spaces and a trailing dot", func(t *testing.T) {
 		// Act
-		targets, err := netRuleTargets([]string{" API.Example.Test. ", "api.example.test", "", "  "})
+		target, err := netRuleTarget(" API.Example.Test. ")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"api.example.test"}, targets)
+		assert.Equal(t, "api.example.test", target)
+	})
+
+	t.Run("returns nothing for a blank entry", func(t *testing.T) {
+		// Act
+		target, err := netRuleTarget("  ")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, target)
 	})
 
 	t.Run("refuses entries msb would read as more than a hostname", func(t *testing.T) {
@@ -325,7 +356,7 @@ func Test_netRuleTargets(t *testing.T) {
 			"domain=api.example.test", // msb rule syntax
 		} {
 			// Act
-			_, err := netRuleTargets([]string{"api.example.test", entry})
+			_, err := netRuleTarget(entry)
 
 			// Assert
 			assert.ErrorContains(t, err, fmt.Sprintf("msb can't allow %q", entry))

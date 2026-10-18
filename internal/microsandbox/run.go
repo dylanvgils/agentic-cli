@@ -163,33 +163,44 @@ func buildNetworkArgs(spec sandbox.ProxySpec) ([]string, error) {
 	return args, nil
 }
 
-// netRuleTargets turns allowlist entries into msb rule targets: a ".example.test" or "*.example.test" entry becomes
-// "*.example.test", which msb matches against the domain and its subdomains. It refuses an entry that isn't a hostname,
-// since msb would read it as something broader, like a group or a CIDR.
+// netRuleTargets turns allowlist entries into sorted, unique msb rule targets, skipping blank ones.
 func netRuleTargets(allow []string) ([]string, error) {
 	var targets []string
 	for _, entry := range allow {
-		host := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(entry)), ".")
-		if host == "" {
-			continue
+		target, err := netRuleTarget(entry)
+		if err != nil {
+			return nil, err
 		}
-
-		domain, wildcard := strings.CutPrefix(host, "*.")
-		if !wildcard {
-			domain, wildcard = strings.CutPrefix(host, ".")
+		if target != "" {
+			targets = append(targets, target)
 		}
-		if !hostRe.MatchString(domain) {
-			return nil, fmt.Errorf("msb can't allow %q: allowed_hosts entries must be hostnames like api.example.test or .example.test", entry)
-		}
-
-		if wildcard {
-			domain = "*." + domain
-		}
-		targets = append(targets, domain)
 	}
 
 	slices.Sort(targets)
 	return slices.Compact(targets), nil
+}
+
+// netRuleTarget turns an allowlist entry into an msb rule target, or "" for a blank one: a ".example.test" or
+// "*.example.test" entry becomes "*.example.test", which msb matches against the domain and its subdomains. It refuses
+// an entry that isn't a hostname, since msb would read it as something broader, like a group or a CIDR.
+func netRuleTarget(entry string) (string, error) {
+	host := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(entry)), ".")
+	if host == "" {
+		return "", nil
+	}
+
+	domain, wildcard := strings.CutPrefix(host, "*.")
+	if !wildcard {
+		domain, wildcard = strings.CutPrefix(host, ".")
+	}
+	if !hostRe.MatchString(domain) {
+		return "", fmt.Errorf("msb can't allow %q: allowed_hosts entries must be hostnames like api.example.test or .example.test", entry)
+	}
+
+	if wildcard {
+		return "*." + domain, nil
+	}
+	return domain, nil
 }
 
 // buildEntrypointArgs makes the first tool arg the entrypoint when rs skips the image's own, returning the flag and the remaining tool args.
