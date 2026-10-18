@@ -123,7 +123,6 @@ func dockerdImageBuildArgs(tmpDir, image string, parent *ImageInfo) []string {
 		label(LabelCLIVersion, buildinfo.Version),
 		label(LabelTool, tools.DockerdImageSuffix),
 		label(LabelDockerdParent, parent.FullID),
-		buildArg("HOST_GID", strconv.Itoa(platform.HostUser().GID)),
 		arg("tag", image),
 		arg("file", filepath.Join(tmpDir, "Dockerfile")),
 		tmpDir,

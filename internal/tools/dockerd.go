@@ -1,6 +1,8 @@
 package tools
 
 import (
+	"fmt"
+
 	df "github.com/dylanvgils/agentic-cli/internal/dockerfile"
 )
 
@@ -29,7 +31,6 @@ func GenerateDockerdDockerfile(parent, user string) string {
 // The parent has the docker layer, so its apt repository, CLI and plugins are already there.
 func dockerdStage(parent, user string) df.Stage {
 	return df.NewStage(df.From{Image: parent, As: DockerdImageSuffix}).
-		Add(df.Arg{Key: "HOST_GID", Default: "1000"}).
 		Add(df.User{Name: "root"}).
 		Add(df.Run{Blocks: []df.Block{
 			{Lines: []string{`apt-get update -yq`}},
@@ -39,8 +40,8 @@ func dockerdStage(parent, user string) df.Stage {
 			}},
 		}}).
 		Add(df.Run{Blocks: []df.Block{
-			{Comment: "Give the tool user's group the socket, so dockerd needs no flags", Lines: []string{
-				`printf '{"group": "%s"}\n' "${HOST_GID}" > /etc/docker/daemon.json`,
+			{Comment: "Give the tool user's primary group the socket, so dockerd needs no flags", Lines: []string{
+				fmt.Sprintf(`printf '{"group": "%%s"}\n' "$(id -g %s)" > /etc/docker/daemon.json`, user),
 			}},
 		}}).
 		Add(df.Heredoc{Dest: DockerdInit, Lines: []string{

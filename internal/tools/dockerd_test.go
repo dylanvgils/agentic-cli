@@ -33,12 +33,13 @@ func TestGenerateDockerdDockerfile(t *testing.T) {
 		assert.NotContains(t, result, "docker-ce-cli=")
 	})
 
-	t.Run("gives the host gid the socket", func(t *testing.T) {
+	t.Run("gives the tool user's primary group the socket", func(t *testing.T) {
 		// Act
 		result := GenerateDockerdDockerfile("agentic-claude", "claude")
 
 		// Assert
-		assert.Contains(t, result, `printf '{"group": "%s"}\n' "${HOST_GID}" > /etc/docker/daemon.json`)
+		assert.Contains(t, result, `printf '{"group": "%s"}\n' "$(id -g claude)" > /etc/docker/daemon.json`)
+		assert.NotContains(t, result, "HOST_GID")
 	})
 
 	t.Run("init runs dockerd under tini without msb's args", func(t *testing.T) {

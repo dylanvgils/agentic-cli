@@ -620,19 +620,6 @@ func TestBuildDockerdImage(t *testing.T) {
 		assert.Regexp(t, `USER claude\s*$`, dockerfile)
 	})
 
-	t.Run("passes the host gid for the socket group", func(t *testing.T) {
-		// Arrange
-		get := stubRunInteractiveCapture(t, client)
-
-		// Act
-		err := client.BuildDockerdImage("agentic-claude-dockerd", parent)
-
-		// Assert
-		require.NoError(t, err)
-		args, _ := get()
-		assert.Contains(t, args, "--build-arg=HOST_GID="+strconv.Itoa(platform.HostUser().GID))
-	})
-
 	t.Run("never pulls the local parent", func(t *testing.T) {
 		// Arrange
 		get := stubRunInteractiveCapture(t, client)
