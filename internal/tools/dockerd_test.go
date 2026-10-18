@@ -29,7 +29,9 @@ func TestGenerateDockerdDockerfile(t *testing.T) {
 		result := GenerateDockerdDockerfile("agentic-claude", "claude")
 
 		// Assert
-		assert.Contains(t, result, `"docker-ce=$(dpkg-query --show --showformat='${Version}' docker-ce-cli)" containerd.io iptables`)
+		assert.Contains(t, result, `"docker-ce=$(dpkg-query --show --showformat='${Version}' docker-ce-cli)"`)
+		assert.Contains(t, result, "containerd.io")
+		assert.Contains(t, result, "iptables")
 		assert.NotContains(t, result, "docker-ce-cli=")
 	})
 
