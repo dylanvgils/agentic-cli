@@ -13,6 +13,7 @@ import (
 	"unicode"
 
 	"github.com/BurntSushi/toml"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
 const rcFilename = ".agenticrc.toml"
@@ -49,6 +50,7 @@ type RCRun struct {
 	Mounts       []string       `toml:"mounts"`
 	Secrets      []string       `toml:"secrets"`
 	Env          []string       `toml:"env"`
+	Runtime      string         `toml:"runtime"`
 	Proxy        RCProxy        `toml:"proxy"`
 	Dind         RCDind         `toml:"dind"`
 	Instructions RCInstructions `toml:"instructions"`
@@ -266,6 +268,10 @@ func mergeScalars(result, rc *AgenticRC) {
 
 	resRun.RCLimits = mergeLimits(resRun.RCLimits, run.RCLimits)
 
+	if resRun.Runtime == "" {
+		resRun.Runtime = run.Runtime
+	}
+
 	if resRun.Proxy.Enabled == nil {
 		resRun.Proxy.Enabled = run.Proxy.Enabled
 	}
@@ -357,6 +363,12 @@ func loadRC(path string) (*AgenticRC, error) {
 	mode := rc.Run.Proxy.Mode
 	if mode != "" && mode != ModeEnforce && mode != ModeMonitor {
 		return nil, fmt.Errorf("%s: invalid [run.proxy] mode %q: must be %q or %q", path, mode, ModeEnforce, ModeMonitor)
+	}
+
+	if rc.Run.Runtime != "" {
+		if _, err := sandbox.ParseRuntime(rc.Run.Runtime); err != nil {
+			return nil, fmt.Errorf("%s: [run] %w", path, err)
+		}
 	}
 
 	if err := validateLimits(rc.Run.RCLimits); err != nil {

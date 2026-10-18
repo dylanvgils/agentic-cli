@@ -209,7 +209,7 @@ func buildEntrypointArgs(rs sandbox.RunSpec, toolArgs []string) (args, rest []st
 		return nil, toolArgs, nil
 	}
 	if len(toolArgs) == 0 {
-		return nil, nil, errors.New("skipping the entrypoint with --runtime microsandbox needs a command")
+		return nil, nil, errors.New("skipping the entrypoint on microsandbox needs a command")
 	}
 	return []string{arg("entrypoint", toolArgs[0])}, toolArgs[1:], nil
 }

@@ -61,11 +61,11 @@ func checkCapabilities(req Request, offered sandbox.Capabilities) error {
 		if missing.Proxy {
 			hint = "pass --no-proxy to run without the proxy, or " + hint
 		}
-		return fmt.Errorf("--runtime %s does not support %s; %s", req.Flags.Runtime, strings.Join(refused, " or "), hint)
+		return fmt.Errorf("%s does not support %s; %s", runtimeSource(req), strings.Join(refused, " or "), hint)
 	}
 
 	if missing.Dind {
-		logging.Warnf("--runtime %s has no Docker daemon, so it ignores %s", req.Flags.Runtime, dindSource(req))
+		logging.Warnf("%s has no Docker daemon, so it ignores %s", runtimeSource(req), dindSource(req))
 	}
 	return nil
 }
@@ -91,6 +91,15 @@ func checkSpec(rs sandbox.RunSpec, offered sandbox.Capabilities) error {
 		return fmt.Errorf("the runtime can't enforce %s that the run asks for", strings.Join(refused, " or "))
 	}
 	return nil
+}
+
+// runtimeSource names what picks req's runtime: --runtime, or [run] runtime and the innermost layer setting it.
+func runtimeSource(req Request) string {
+	if req.Flags.Runtime != "" {
+		return "--runtime " + string(req.Flags.Runtime)
+	}
+	key := fmt.Sprintf("[run] runtime = %q", req.Project.RC.Run.Runtime)
+	return layerSource(req.Project.Layers, key, func(rc *config.AgenticRC) bool { return rc.Run.Runtime != "" })
 }
 
 // proxySource names what asks for the proxy in req: its flag, or the [run.proxy] key and the innermost layer setting it.

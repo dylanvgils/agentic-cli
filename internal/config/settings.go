@@ -50,6 +50,7 @@ func GuardedSettings(rc *AgenticRC) []GuardedSetting {
 		{"run.mounts", rc.Run.Mounts},
 		{"run.secrets", rc.Run.Secrets},
 		{"run.env", rc.Run.Env},
+		{"run.runtime", rc.Run.Runtime},
 		{"run.proxy.enabled", rc.Run.Proxy.Enabled},
 		{"run.proxy.mode", rc.Run.Proxy.Mode},
 		{"run.proxy.allowed_hosts", rc.Run.Proxy.AllowedHosts},

@@ -85,7 +85,7 @@ func (s *Service) BuildInstructions(target Target, in Input, toolConfig tools.To
 
 // PreviewInstructions returns the effective content a run of req would write, without prompting or touching any files.
 func (s *Service) PreviewInstructions(req Request) (string, error) {
-	in, err := resolveInput(req.Flags, req.Project.RC, s.capabilities(req.Flags.Runtime))
+	in, err := resolveInput(req.Flags, req.Project.RC, s.capabilities(req.runtime()))
 	if err != nil {
 		return "", err
 	}

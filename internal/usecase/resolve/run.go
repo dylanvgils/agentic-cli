@@ -40,3 +40,14 @@ func Env(flags []string, rc *config.AgenticRC) []string {
 func ResourceLimitsFor(flags sandbox.ResourceLimits, rc *config.AgenticRC) sandbox.ResourceLimits {
 	return flags.Or(sandbox.ResourceLimits(rc.Run.RCLimits)).Or(sandbox.DefaultLimits)
 }
+
+// Runtime resolves where the tool runs through flag, then rc, then Docker.
+func Runtime(flag sandbox.Runtime, rc *config.AgenticRC) sandbox.Runtime {
+	if flag != "" {
+		return flag
+	}
+	if rc.Run.Runtime != "" {
+		return sandbox.Runtime(rc.Run.Runtime)
+	}
+	return sandbox.RuntimeDocker
+}

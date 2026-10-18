@@ -43,7 +43,13 @@ type Flags struct {
 	Env        []string
 	Limits     sandbox.ResourceLimits
 	DindLimits sandbox.ResourceLimits
-	Runtime    sandbox.Runtime
+	// Runtime is the --runtime flag; empty defers to the config
+	Runtime sandbox.Runtime
+}
+
+// runtime returns where r runs: --runtime, then the config, then Docker.
+func (r Request) runtime() sandbox.Runtime {
+	return resolve.Runtime(r.Flags.Runtime, r.Project.RC)
 }
 
 // Prepare runs every check and host-side step `agentic run` needs, asking prompter where the user must approve, and returns
@@ -77,7 +83,7 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
-	in, err := runInput(req.Flags, approved, s.capabilities(req.Flags.Runtime))
+	in, err := runInput(req.Flags, approved, s.capabilities(req.runtime()))
 	if err != nil {
 		return sandbox.RunSpec{}, noCleanup, err
 	}
@@ -152,7 +158,7 @@ func resolveInput(flags Flags, rc *config.AgenticRC, caps sandbox.Capabilities) 
 		ProxyMode:   proxyMode,
 		DindEnabled: dind,
 		DindLimits:  flags.DindLimits,
-		Runtime:     flags.Runtime,
+		Runtime:     resolve.Runtime(flags.Runtime, rc),
 	}, nil
 }
 

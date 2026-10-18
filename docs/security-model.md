@@ -33,22 +33,24 @@ How to read it:
 ## Layers
 
 > [!WARNING]
-> The egress proxy, credential injection and DinD sidecar layers are **beta**: under active development and not yet tested as thoroughly as the core container hardening. Don't rely on them as your only safeguard yet.
+> The core container hardening and mounts are the well-tested part. The egress proxy, credential injection and DinD sidecar are **beta**, and the microsandbox runtime is newer still: they're under active development and not yet tested as thoroughly, so don't rely on them as your only safeguard yet.
 
 | Layer | What it stops | What it doesn't stop | Code |
 | --- | --- | --- | --- |
 | **Tool container**: read-only root, all capabilities dropped, `no-new-privileges`, your uid/gid, pid/cpu/memory limits | Changing the system, becoming root, fork bombs and runaway memory | Anything it can do with the mounts it's given; a kernel bug | `internal/docker/runargs.go` |
 | **Mounts**: only `/workspace`, the tool's own home dir, read-only secrets, and extra `--volume`/`mounts` bind mounts (read-only unless `:rw`) | Reading the rest of your files (`~/.ssh`, other repos, browser data); [mount tricks](config.md#mount-safety) via planted symlinks or `agentic.json`/`state.json` | Reading everything that *is* mounted, including its own credentials and secrets; editing the workspace | `internal/tools/<tool>.go`, `internal/mount` |
 | **Run network**: each run gets its own Docker network | Reaching other agentic runs and containers on other Docker networks | Reaching the internet, the Docker host and ports published on it, all without `--proxy` | `internal/docker/network.go` |
-| **Egress proxy** (opt-in, beta, `--proxy`): tool sits on an `--internal` network with no gateway on the Docker host, so its only way out is the proxy | Talking to hosts not on the allowlist or to services on the Docker host; containers outside the run's network using the proxy; every attempt is logged | Sending data to an allowlisted host (filtering is by host, not content) | `internal/proxy`, `internal/docker/proxy.go` |
-| **Credential injection** (opt-in, beta, `[[run.proxy.credentials]]`): the proxy holds API keys and swaps them in for the placeholder the tool sends to their hosts | Reading or leaking a configured API key | Using the key through its hosts during the run; OAuth tokens in the tool home | `internal/proxy`, `internal/credentials`, `internal/usecase/run/credentials.go` |
-| **DinD sidecar** (opt-in, beta, `--dind`): rootless dockerd in its own container, mTLS, seccomp filter, no setuid binaries, sees only `/workspace` | Access to the host's Docker socket (= root on your machine); host files outside `/workspace` | Inner containers get namespaced `SYS_ADMIN`/`NET_ADMIN`, so more kernel surface; an inner container can read the sidecar's own files (incl. its TLS key); direct internet access without `--proxy`; `docker push` to an allowlisted registry | `internal/docker/dind.go`, `internal/dind` - see [Docker-in-Docker](docker-in-docker.md) |
+| **Egress proxy** (opt-in, `--proxy`): tool sits on an `--internal` network with no gateway on the Docker host, so its only way out is the proxy | Talking to hosts not on the allowlist or to services on the Docker host; containers outside the run's network using the proxy; every attempt is logged | Sending data to an allowlisted host (filtering is by host, not content) | `internal/proxy`, `internal/docker/proxy.go` |
+| **Credential injection** (opt-in, `[[run.proxy.credentials]]`): the proxy holds API keys and swaps them in for the placeholder the tool sends to their hosts | Reading or leaking a configured API key | Using the key through its hosts during the run; OAuth tokens in the tool home | `internal/proxy`, `internal/credentials`, `internal/usecase/run/credentials.go` |
+| **DinD sidecar** (opt-in, `--dind`): rootless dockerd in its own container, mTLS, seccomp filter, no setuid binaries, sees only `/workspace` | Access to the host's Docker socket (= root on your machine); host files outside `/workspace` | Inner containers get namespaced `SYS_ADMIN`/`NET_ADMIN`, so more kernel surface; an inner container can read the sidecar's own files (incl. its TLS key); direct internet access without `--proxy`; `docker push` to an allowlisted registry | `internal/docker/dind.go`, `internal/dind` - see [Docker-in-Docker](docker-in-docker.md) |
+| **Microsandbox runtime** (opt-in, `--runtime microsandbox`): the tool runs in a microVM with its own kernel instead of a container | A kernel exploit reaching the host; host files outside the mounts | A VM escape, which lands in msb's process running as your user; the [differences from Docker](microsandbox.md#whats-different-from-docker) (no read-only root, no secret mounts, no pid limit) | `internal/microsandbox`, `internal/usecase/run/microsandbox.go` - see [Microsandbox runtime](microsandbox.md) |
 | **Build**: tool install scripts checksum-verified against a pinned SHA256 | A tampered or swapped install script | A malicious release of the tool itself | `internal/tools` |
 
 ## Turning layers on
 
 - Egress proxy and credential injection: `--proxy`, `--proxy-monitor`, `[[run.proxy.credentials]]`. See [Egress proxy](egress-proxy.md).
 - DinD sidecar: `--dind`. See [Docker-in-Docker](docker-in-docker.md).
+- Microsandbox runtime: `--runtime microsandbox` or `[run] runtime`. See [Microsandbox runtime](microsandbox.md).
 - Read-only workspace sub-paths: [`--volume` or `mounts`](usage.md#named-volumes).
 
 Install scripts for Claude, Copilot and OpenCode are checked against a pinned SHA256 before they run, not piped straight into `bash`. A daily job opens a PR when an upstream script changes. If a build fails on a stale checksum before that PR lands, `--skip-install-checksum` skips the check for that build.
@@ -67,7 +69,7 @@ If one of these breaks, a layer above stops meaning anything:
 
 What no layer covers today:
 
-- **Shared kernel**: a kernel exploit escapes every container. Only a VM boundary (Kata, gVisor, [Docker Sandboxes](comparison.md)) fixes this. Keep the host kernel patched.
+- **Shared kernel**: a kernel exploit escapes every container. Only a VM boundary (the [microsandbox runtime](microsandbox.md), Kata, gVisor, [Docker Sandboxes](comparison.md)) fixes this. Keep the host kernel patched.
 - **Credentials in reach**: the agent can read its OAuth login token in the tool home and any `--secret` you mount, and use them from any allowed host. [Proxy-injected API keys](egress-proxy.md#credential-injection) stay out of reach unless a host [echoes them in a body](egress-proxy.md#limitations), but can still be used.
 - **Workspace tampering**: the agent can edit git hooks, `Makefile`, `package.json` scripts, etc. They run on *your* machine the next time you use them outside the container. The same goes for `.agenticrc.toml`, though [risky keys](config.md#setting-approval) need your approval. Review diffs.
 - **Shared tool state**: hooks or MCP servers the agent plants in its tool home also run in your other projects. Use a separate `--home` for untrusted ones.

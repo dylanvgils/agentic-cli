@@ -172,3 +172,31 @@ func TestResourceLimitsFor(t *testing.T) {
 		assert.Equal(t, sandbox.DefaultMemory, result.Memory)
 	})
 }
+
+func TestRuntime(t *testing.T) {
+	rc := &config.AgenticRC{Run: config.RCRun{Runtime: "microsandbox"}}
+
+	t.Run("flag takes precedence over rc", func(t *testing.T) {
+		// Act
+		runtime := Runtime(sandbox.RuntimeDocker, rc)
+
+		// Assert
+		assert.Equal(t, sandbox.RuntimeDocker, runtime)
+	})
+
+	t.Run("rc fills an unset flag", func(t *testing.T) {
+		// Act
+		runtime := Runtime("", rc)
+
+		// Assert
+		assert.Equal(t, sandbox.RuntimeMicrosandbox, runtime)
+	})
+
+	t.Run("defaults to docker", func(t *testing.T) {
+		// Act
+		runtime := Runtime("", &config.AgenticRC{})
+
+		// Assert
+		assert.Equal(t, sandbox.RuntimeDocker, runtime)
+	})
+}

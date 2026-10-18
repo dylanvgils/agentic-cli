@@ -101,7 +101,7 @@ func Test_Service_Run(t *testing.T) {
 		assert.False(t, ran)
 	})
 
-	t.Run("empty runtime runs on docker", func(t *testing.T) {
+	t.Run("unset runtime runs on docker", func(t *testing.T) {
 		// Arrange
 		dockerRan := false
 		svc := New(&fakeDocker{runTool: func(docker.Sidecars, []string) error {
@@ -110,7 +110,7 @@ func Test_Service_Run(t *testing.T) {
 		}}, nil)
 
 		// Act
-		err := svc.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude"}, nil)
+		err := svc.Run(runtimeRequest(""), sandbox.RunSpec{Image: "agentic-claude"}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -263,24 +263,5 @@ func Test_Service_checkRuntime(t *testing.T) {
 
 		// Assert
 		assert.EqualError(t, err, "msb not found on PATH")
-	})
-}
-
-func TestParseRuntime(t *testing.T) {
-	t.Run("known name returns its runtime", func(t *testing.T) {
-		// Act
-		runtime, err := ParseRuntime("microsandbox")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.RuntimeMicrosandbox, runtime)
-	})
-
-	t.Run("unknown name lists the supported runtimes", func(t *testing.T) {
-		// Act
-		_, err := ParseRuntime("podman")
-
-		// Assert
-		assert.EqualError(t, err, `unknown runtime "podman": expected docker or microsandbox`)
 	})
 }

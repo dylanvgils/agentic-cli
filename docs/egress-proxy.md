@@ -1,8 +1,5 @@
 # Egress proxy
 
-> [!WARNING]
-> **Beta** - the egress proxy and credential injection are under active development. Config keys and behavior may change between releases, and they haven't had the same testing as the core container hardening. Issue reports are welcome.
-
 The egress proxy limits which hosts a tool can reach and logs every attempt. It can also hold API keys for the tool, so the agent never sees them.
 
 ## Usage
@@ -68,7 +65,7 @@ Some tools, like Maven, ignore those env vars and need a literal `host:port` in 
 
 ### With microsandbox
 
-With the experimental microsandbox runtime, msb's own network policy enforces the same allowlist instead of a proxy sidecar, so no proxy env vars are set. Only DNS and the allowed hosts on ports 80 and 443 are reachable. msb inspects all HTTPS to check each request's host, so the tool must trust msb's certificate authority (curl, git and Bun do), and tools that pin certificates fail.
+With the [microsandbox runtime](microsandbox.md), msb's own network policy enforces the same allowlist instead of a proxy sidecar, so no proxy env vars are set. Only DNS and the allowed hosts on ports 80 and 443 are reachable. msb inspects all HTTPS to check each request's host, so the tool must trust msb's certificate authority (curl, git and Bun do), and tools that pin certificates fail.
 
 - There's no access log and no summary at the end of the run.
 - `--proxy-monitor` is refused; use `--proxy`.
