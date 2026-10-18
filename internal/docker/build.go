@@ -45,12 +45,7 @@ func (c *Client) BuildProxyImage(image, version, sourceDir string, opts tools.Bu
 		return err
 	}
 
-	defer cleanup.Capture(&retErr, func() error {
-		if err := os.RemoveAll(tmpDir); err != nil {
-			return fmt.Errorf("remove temp dir: %w", err)
-		}
-		return nil
-	})
+	defer cleanup.Capture(&retErr, removeTempDir(tmpDir))
 
 	// Released builds need only the generated Dockerfile in context; dev builds
 	// compile the local tree, so the source root becomes the build context.
@@ -77,12 +72,7 @@ func (c *Client) BuildDindImage(image string, opts tools.BuildOptions) (retErr e
 		return err
 	}
 
-	defer cleanup.Capture(&retErr, func() error {
-		if err := os.RemoveAll(tmpDir); err != nil {
-			return fmt.Errorf("remove temp dir: %w", err)
-		}
-		return nil
-	})
+	defer cleanup.Capture(&retErr, removeTempDir(tmpDir))
 
 	opts.Pull = true
 	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
@@ -101,12 +91,7 @@ func (c *Client) BuildDockerdImage(image string, parent *ImageInfo) (retErr erro
 		return err
 	}
 
-	defer cleanup.Capture(&retErr, func() error {
-		if err := os.RemoveAll(tmpDir); err != nil {
-			return fmt.Errorf("remove temp dir: %w", err)
-		}
-		return nil
-	})
+	defer cleanup.Capture(&retErr, removeTempDir(tmpDir))
 
 	if err := c.runInteractive(dockerdImageBuildArgs(tmpDir, image, parent)...); err != nil {
 		return fmt.Errorf("dockerd image: %w", err)
@@ -162,12 +147,7 @@ func (c *Client) buildFromContent(content, image, tool string, opts tools.BuildO
 		return err
 	}
 
-	defer cleanup.Capture(&retErr, func() error {
-		if err := os.RemoveAll(tmpDir); err != nil {
-			return fmt.Errorf("remove temp dir: %w", err)
-		}
-		return nil
-	})
+	defer cleanup.Capture(&retErr, removeTempDir(tmpDir))
 
 	return c.buildImage(tmpDir, image, tool, opts)
 }
@@ -186,6 +166,16 @@ func writeTempDockerfile(content string) (tmpDir string, err error) {
 	}
 
 	return tmpDir, nil
+}
+
+// removeTempDir returns a cleanup func that removes a dir from writeTempDockerfile.
+func removeTempDir(tmpDir string) func() error {
+	return func() error {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			return fmt.Errorf("remove temp dir: %w", err)
+		}
+		return nil
+	}
 }
 
 // buildImage runs docker build for the tool image.

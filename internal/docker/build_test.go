@@ -93,6 +93,19 @@ func TestWriteTempDockerfile(t *testing.T) {
 	})
 }
 
+func Test_removeTempDir(t *testing.T) {
+	// Arrange
+	tmpDir, err := writeTempDockerfile("FROM scratch\n")
+	require.NoError(t, err)
+
+	// Act
+	err = removeTempDir(tmpDir)()
+
+	// Assert
+	require.NoError(t, err)
+	assert.NoDirExists(t, tmpDir)
+}
+
 func TestBuildImage(t *testing.T) {
 	client := newTestClient()
 
