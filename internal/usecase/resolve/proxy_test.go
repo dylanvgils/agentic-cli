@@ -245,6 +245,18 @@ func TestProxyAllowList(t *testing.T) {
 		assert.Equal(t, []string{"api.example.com", "registry-1.docker.io", "auth.docker.io", "production.cloudflare.docker.com", "ghcr.io"}, result)
 	})
 
+	t.Run("keeps the first of duplicate hosts", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.AllowedHosts = []string{"extra.example.com", "api.example.com"}
+
+		// Act
+		result := ProxyAllowList([]string{"api.example.com"}, false, rc)
+
+		// Assert
+		assert.Equal(t, []string{"api.example.com", "extra.example.com"}, result)
+	})
+
 	t.Run("empty allowlists on both sides return empty result", func(t *testing.T) {
 		// Act
 		result := ProxyAllowList(nil, false, &config.AgenticRC{})

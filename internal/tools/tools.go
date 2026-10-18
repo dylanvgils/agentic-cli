@@ -31,6 +31,7 @@ var Configs = map[string]ToolConfig{
 			Mounts:                    claudeMounts,
 			EphemeralDirs:             claudeEphemeralDirs,
 			AllowedHosts:              claudeAllowedHosts,
+			WebSearchTool:             "WebSearch",
 			MarketplaceMount:          claudeMarketplaceMount,
 			WriteInstructions:         writeClaudeInstructions,
 			InstructionsHostPath:      claudeInstructionsHostPath,
@@ -86,6 +87,8 @@ type RuntimeConfig struct {
 	EphemeralDirs func() []sandbox.EphemeralDir
 	// AllowedHosts is the tool's baseline egress allowlist; user-configured hosts are merged on top.
 	AllowedHosts []string
+	// WebSearchTool names the tool's built-in web search when it runs on the model provider's side, past the allowlist; empty if none.
+	WebSearchTool string
 	// MarketplaceMount returns the mount spec for a synced marketplace clone; nil if unsupported.
 	MarketplaceMount func(name, url string) string
 	// WriteInstructions writes content directly to the tool's persistent global instructions file.
