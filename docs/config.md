@@ -160,7 +160,7 @@ The block tells the model about its environment, and says the project's own `CLA
 - **What's installed**: the base toolchain, runtimes, apt packages and custom installs, read from the built image. The base toolchain is listed even before the first build.
 - **What's restricted**: the read-only filesystem, writable paths, resource limits and dropped privileges.
 - **Network**, with `--proxy`: no direct internet access, the allowlist, and a note to tell you about blocked hosts so you can allow them.
-- **Docker**, with `--dind`: how to reach the sidecar daemon and its ports, and that only `/workspace` is shared with it.
+- **Docker**, with `--dind`: how to reach the daemon and its ports, and which paths it can bind mount.
 
 The rest of the file is left alone, including notes the tool saves there itself, even with `enabled = false`. Each run works on a private copy of the file, so concurrent runs don't affect each other. Changes made during the run are copied back when the container exits.
 
@@ -209,9 +209,9 @@ secret = "~/.secrets/example_token"
 | Key          | Type   | Description                                                             | CLI flag               | Default      |
 | ------------ | ------ | ----------------------------------------------------------------------- | ---------------------- | ------------ |
 | `enabled`    | bool   | Start a Docker daemon: a [sidecar](docker-in-docker.md) (needs `--base docker`) or [in the VM](microsandbox.md#docker-in-the-vm). | `--dind` / `--no-dind` | `false`      |
-| `pids_limit` | string | Sidecar PID limit                                                       | `--dind-pids-limit`    | tool's value |
-| `cpus`       | string | Sidecar CPU limit                                                       | `--dind-cpus`          | tool's value |
-| `memory`     | string | Sidecar memory limit (e.g. `"8g"`)                                      | `--dind-memory`        | tool's value |
+| `pids_limit` | string | Sidecar PID limit (Docker runtime only)                                 | `--dind-pids-limit`    | tool's value |
+| `cpus`       | string | Sidecar CPU limit (Docker runtime only)                                 | `--dind-cpus`          | tool's value |
+| `memory`     | string | Sidecar memory limit (e.g. `"8g"`, Docker runtime only)                 | `--dind-memory`        | tool's value |
 
 ### `[[marketplaces]]`
 
