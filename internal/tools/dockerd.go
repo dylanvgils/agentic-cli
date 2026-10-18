@@ -57,14 +57,10 @@ func dockerdInitScript() df.Heredoc {
 			"dockerd &",
 			"pid=$!",
 		}},
-		{Comment: "Stop dockerd on SIGTERM, SIGINT, SIGPWR or a real-time signal, logging which one msb sent", Lines: []string{
-			`stop() { echo "agentic-dockerd-init: signal $1, stopping dockerd" >&2; kill -TERM "$pid" 2>/dev/null; }`,
-			"for sig in TERM INT PWR $(seq 34 64); do",
-			`  # shellcheck disable=SC2064 # expand $sig now, so each trap logs its own signal`,
-			`  trap "stop $sig" "$sig"`,
-			"done",
+		{Comment: "Pass any shutdown signal msb may send (e.g. SIGRTMIN+4, which dockerd ignores) on as SIGTERM", Lines: []string{
+			`trap 'kill "$pid"' TERM INT PWR $(seq 34 64)`,
 		}},
-		{Comment: "wait returns on each trapped signal and reaps orphans too, so loop until dockerd is gone", Lines: []string{
+		{Comment: "wait returns on each signal and reaps orphans too", Lines: []string{
 			`while kill -0 "$pid" 2>/dev/null; do wait; done`,
 		}},
 		{Comment: "msb waits for the guest to power off; PID 1 exiting would panic the kernel instead", Lines: []string{

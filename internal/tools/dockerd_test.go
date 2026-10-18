@@ -59,8 +59,7 @@ func TestGenerateDockerdDockerfile(t *testing.T) {
 		result := GenerateDockerdDockerfile("agentic-claude", "claude")
 
 		// Assert
-		assert.Contains(t, result, "for sig in TERM INT PWR $(seq 34 64); do\n")
-		assert.Contains(t, result, `kill -TERM "$pid"`)
+		assert.Contains(t, result, `trap 'kill "$pid"' TERM INT PWR $(seq 34 64)`+"\n")
 	})
 
 	t.Run("init powers the vm off once dockerd exits", func(t *testing.T) {
