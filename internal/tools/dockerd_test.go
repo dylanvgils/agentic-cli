@@ -32,6 +32,7 @@ func TestGenerateDockerdDockerfile(t *testing.T) {
 		assert.Contains(t, result, `"docker-ce=$(dpkg-query --show --showformat='${Version}' docker-ce-cli)"`)
 		assert.Contains(t, result, "containerd.io")
 		assert.Contains(t, result, "iptables")
+		assert.Contains(t, result, "busybox")
 		assert.NotContains(t, result, "docker-ce-cli=")
 	})
 
@@ -44,13 +45,30 @@ func TestGenerateDockerdDockerfile(t *testing.T) {
 		assert.NotContains(t, result, "HOST_GID")
 	})
 
-	t.Run("init runs dockerd under tini without msb's args", func(t *testing.T) {
+	t.Run("init runs dockerd without msb's args", func(t *testing.T) {
 		// Act
 		result := GenerateDockerdDockerfile("agentic-claude", "claude")
 
 		// Assert
 		assert.Contains(t, result, "COPY --chmod=0755 <<'EOF' "+DockerdInit)
-		assert.Contains(t, result, "exec /usr/libexec/docker/docker-init -- dockerd\n")
+		assert.Contains(t, result, "dockerd &\n")
+	})
+
+	t.Run("init stops dockerd on any shutdown signal", func(t *testing.T) {
+		// Act
+		result := GenerateDockerdDockerfile("agentic-claude", "claude")
+
+		// Assert
+		assert.Contains(t, result, "for sig in TERM INT PWR $(seq 34 64); do\n")
+		assert.Contains(t, result, `kill -TERM "$pid"`)
+	})
+
+	t.Run("init powers the vm off once dockerd exits", func(t *testing.T) {
+		// Act
+		result := GenerateDockerdDockerfile("agentic-claude", "claude")
+
+		// Assert
+		assert.Contains(t, result, "exec busybox poweroff -f\n")
 	})
 
 	t.Run("drops back to the tool user", func(t *testing.T) {
