@@ -287,26 +287,49 @@ func Test_buildNetworkArgs(t *testing.T) {
 func Test_netRuleTargets(t *testing.T) {
 	t.Run("keeps an exact host", func(t *testing.T) {
 		// Act
-		targets := netRuleTargets([]string{"api.example.test"})
+		targets, err := netRuleTargets([]string{"api.example.test"})
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, []string{"api.example.test"}, targets)
 	})
 
-	t.Run("a suffix entry allows the domain and its subdomains", func(t *testing.T) {
+	t.Run("a suffix entry becomes a wildcard", func(t *testing.T) {
 		// Act
-		targets := netRuleTargets([]string{".example.test", "*.other.example"})
+		targets, err := netRuleTargets([]string{".example.test", "*.other.example"})
 
 		// Assert
-		assert.Equal(t, []string{"*.example.test", "*.other.example", "example.test", "other.example"}, targets)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"*.example.test", "*.other.example"}, targets)
 	})
 
 	t.Run("normalizes, dedupes and skips blanks", func(t *testing.T) {
 		// Act
-		targets := netRuleTargets([]string{" API.Example.Test. ", "api.example.test", "", "  "})
+		targets, err := netRuleTargets([]string{" API.Example.Test. ", "api.example.test", "", "  "})
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, []string{"api.example.test"}, targets)
+	})
+
+	t.Run("refuses entries msb would read as more than a hostname", func(t *testing.T) {
+		for _, entry := range []string{
+			"public",                  // msb address group
+			"any",                     // msb address group
+			"10.0.0.0/8",              // CIDR
+			"2001:db8::1",             // IPv6
+			"api.example.test:8443",   // port
+			".test",                   // single-label suffix
+			"*",                       // bare wildcard
+			"*example.test",           // wildcard without a dot
+			"domain=api.example.test", // msb rule syntax
+		} {
+			// Act
+			_, err := netRuleTargets([]string{"api.example.test", entry})
+
+			// Assert
+			assert.ErrorContains(t, err, fmt.Sprintf("msb can't allow %q", entry))
+		}
 	})
 }
 

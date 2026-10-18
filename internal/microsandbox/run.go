@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -23,6 +24,9 @@ const (
 	// placeholderPrefix starts the placeholder msb puts in the guest for a secret, e.g. $MSB_GITHUB_TOKEN.
 	placeholderPrefix = "$MSB_"
 )
+
+// hostRe matches a hostname of two or more labels, so msb can't read an entry as a group (public), CIDR, IP or port.
+var hostRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`)
 
 // Run runs the tool described by rs in a microsandbox VM, skipping what Capabilities leaves out; the image must already be loaded.
 func (c *Client) Run(rs sandbox.RunSpec, toolArgs []string) error {
@@ -145,8 +149,13 @@ func buildNetworkArgs(spec sandbox.ProxySpec) ([]string, error) {
 		return nil, errors.New("msb can't run the proxy in monitor mode")
 	}
 
+	targets, err := netRuleTargets(spec.Allow)
+	if err != nil {
+		return nil, err
+	}
+
 	args := []string{arg("net-default-egress", "deny"), arg("tls-intercept"), arg("net-rule", "allow@dns")}
-	for _, target := range netRuleTargets(spec.Allow) {
+	for _, target := range targets {
 		for _, port := range proxy.DefaultPorts {
 			args = append(args, arg("net-rule", "allow@"+target+":tcp:"+port))
 		}
@@ -154,25 +163,33 @@ func buildNetworkArgs(spec sandbox.ProxySpec) ([]string, error) {
 	return args, nil
 }
 
-// netRuleTargets turns allowlist entries into msb rule targets: a ".example.test" or "*.example.test" entry matches
-// the domain and its subdomains, so it becomes both "example.test" and "*.example.test".
-func netRuleTargets(allow []string) []string {
+// netRuleTargets turns allowlist entries into msb rule targets: a ".example.test" or "*.example.test" entry becomes
+// "*.example.test", which msb matches against the domain and its subdomains. It refuses an entry that isn't a hostname,
+// since msb would read it as something broader, like a group or a CIDR.
+func netRuleTargets(allow []string) ([]string, error) {
 	var targets []string
 	for _, entry := range allow {
 		host := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(entry)), ".")
-		domain, wildcard := strings.CutPrefix(strings.TrimPrefix(host, "*"), ".")
-		if domain == "" {
+		if host == "" {
 			continue
 		}
 
-		targets = append(targets, domain)
-		if wildcard {
-			targets = append(targets, "*."+domain)
+		domain, wildcard := strings.CutPrefix(host, "*.")
+		if !wildcard {
+			domain, wildcard = strings.CutPrefix(host, ".")
 		}
+		if !hostRe.MatchString(domain) {
+			return nil, fmt.Errorf("msb can't allow %q: allowed_hosts entries must be hostnames like api.example.test or .example.test", entry)
+		}
+
+		if wildcard {
+			domain = "*." + domain
+		}
+		targets = append(targets, domain)
 	}
 
 	slices.Sort(targets)
-	return slices.Compact(targets)
+	return slices.Compact(targets), nil
 }
 
 // buildEntrypointArgs makes the first tool arg the entrypoint when rs skips the image's own, returning the flag and the remaining tool args.

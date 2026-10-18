@@ -73,6 +73,7 @@ With the experimental microsandbox runtime, msb's own network policy enforces th
 - There's no access log and no summary at the end of the run.
 - `--proxy-monitor` is refused; use `--proxy`.
 - An internal host that resolves to a private address isn't reachable, since msb drops private DNS answers.
+- Every `allowed_hosts` entry must be a hostname like `api.example.test` or `.example.test`, else the run is refused. msb would read a CIDR or a name like `public` as a wider rule.
 - Credentials keep working, since msb injects them itself rather than a proxy.
 
 ## Credential injection
