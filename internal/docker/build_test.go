@@ -598,3 +598,62 @@ func TestBuildDindImage(t *testing.T) {
 		require.ErrorContains(t, err, "docker sidecar image: boom")
 	})
 }
+
+func TestBuildDockerdImage(t *testing.T) {
+	client := newTestClient()
+	parent := &ImageInfo{Image: "agentic-claude", FullID: "sha256:0f0f0f0f0f0f", User: "claude"}
+
+	t.Run("builds on the parent with the dockerd tool and parent labels", func(t *testing.T) {
+		// Arrange
+		get := stubRunInteractiveCapture(t, client)
+
+		// Act
+		err := client.BuildDockerdImage("agentic-claude-dockerd", parent)
+
+		// Assert
+		require.NoError(t, err)
+		args, dockerfile := get()
+		assert.Contains(t, args, "--tag=agentic-claude-dockerd")
+		assert.Contains(t, args, "--label="+LabelTool+"=dockerd")
+		assert.Contains(t, args, "--label="+LabelDockerdParent+"=sha256:0f0f0f0f0f0f")
+		assert.Contains(t, dockerfile, "FROM agentic-claude AS dockerd")
+		assert.Regexp(t, `USER claude\s*$`, dockerfile)
+	})
+
+	t.Run("passes the host gid for the socket group", func(t *testing.T) {
+		// Arrange
+		get := stubRunInteractiveCapture(t, client)
+
+		// Act
+		err := client.BuildDockerdImage("agentic-claude-dockerd", parent)
+
+		// Assert
+		require.NoError(t, err)
+		args, _ := get()
+		assert.Contains(t, args, "--build-arg=HOST_GID="+strconv.Itoa(platform.HostUser().GID))
+	})
+
+	t.Run("never pulls the local parent", func(t *testing.T) {
+		// Arrange
+		get := stubRunInteractiveCapture(t, client)
+
+		// Act
+		err := client.BuildDockerdImage("agentic-claude-dockerd", parent)
+
+		// Assert
+		require.NoError(t, err)
+		args, _ := get()
+		assert.NotContains(t, args, "--pull")
+	})
+
+	t.Run("build failure is wrapped", func(t *testing.T) {
+		// Arrange
+		stubRunInteractiveError(t, client, errors.New("boom"))
+
+		// Act
+		err := client.BuildDockerdImage("agentic-claude-dockerd", parent)
+
+		// Assert
+		require.ErrorContains(t, err, "dockerd image: boom")
+	})
+}

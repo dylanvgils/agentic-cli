@@ -283,37 +283,44 @@ func dockerStage(prevStage, ver string) df.Stage {
 	return df.NewStage(df.From{Image: prevStage, As: "docker"}).
 		Add(versionArg).
 		Add(pipefailShell).
-		Add(df.Run{Blocks: []df.Block{
-			{Comment: "Add Docker GPG key", Chain: true, Lines: []string{
-				`install -m 0755 -d /etc/apt/keyrings`,
-				`curl -fsSL "https://download.docker.com/linux/debian/gpg" -o /etc/apt/keyrings/docker.asc`,
-			}},
-			{
-				Comment: "Add apt repository",
-				Lines: []string{
-					`echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "${VERSION_CODENAME}") stable"`,
-					`| tee /etc/apt/sources.list.d/docker.list`,
-				},
-			},
-			{Lines: []string{`apt-get update -yq`}},
-			{
-				Comment: "Resolve the newest docker-ce-cli release matching DOCKER_VERSION",
-				Lines: []string{
-					`CLI_VERSION="$(apt-cache madison docker-ce-cli`,
-					`| awk -v v="5:${DOCKER_VERSION}" 'index($3, v ".") == 1 || index($3, v "-") == 1 { print $3; exit }')"`,
-				},
-			},
-			{Lines: []string{
-				`if [ -z "${CLI_VERSION}" ]; then`,
-				`echo "No docker-ce-cli release found for ${DOCKER_VERSION}" >&2;`,
-				`exit 1;`,
-				`fi`,
-			}},
-			{Comment: "Install Docker CLI and plugins and clean up", Chain: true, Lines: []string{
+		Add(df.Run{Blocks: append(dockerAptBlocks(), df.Block{
+			Comment: "Install Docker CLI and plugins and clean up", Chain: true, Lines: []string{
 				`apt-get install -yq --no-install-recommends "docker-ce-cli=${CLI_VERSION}" docker-buildx-plugin docker-compose-plugin`,
 				`rm -rf /var/lib/apt/lists/*`,
-			}},
-		}}).
+			},
+		})}).
 		Add(versionCheckScript("docker", "docker --version")).
 		Build()
+}
+
+// dockerAptBlocks adds Docker's apt repository and resolves the newest docker-ce-cli release matching DOCKER_VERSION
+// into CLI_VERSION, which docker-ce shares; the caller adds the install block.
+func dockerAptBlocks() []df.Block {
+	return []df.Block{
+		{Comment: "Add Docker GPG key", Chain: true, Lines: []string{
+			`install -m 0755 -d /etc/apt/keyrings`,
+			`curl -fsSL "https://download.docker.com/linux/debian/gpg" -o /etc/apt/keyrings/docker.asc`,
+		}},
+		{
+			Comment: "Add apt repository",
+			Lines: []string{
+				`echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "${VERSION_CODENAME}") stable"`,
+				`| tee /etc/apt/sources.list.d/docker.list`,
+			},
+		},
+		{Lines: []string{`apt-get update -yq`}},
+		{
+			Comment: "Resolve the newest docker-ce-cli release matching DOCKER_VERSION",
+			Lines: []string{
+				`CLI_VERSION="$(apt-cache madison docker-ce-cli`,
+				`| awk -v v="5:${DOCKER_VERSION}" 'index($3, v ".") == 1 || index($3, v "-") == 1 { print $3; exit }')"`,
+			},
+		},
+		{Lines: []string{
+			`if [ -z "${CLI_VERSION}" ]; then`,
+			`echo "No docker-ce-cli release found for ${DOCKER_VERSION}" >&2;`,
+			`exit 1;`,
+			`fi`,
+		}},
+	}
 }

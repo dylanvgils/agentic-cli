@@ -16,6 +16,7 @@ import (
 const fullImageJSON = `{
 	"Id": "sha256:a1b2c3d4e5f6abcdef012345678901234567890",
 	"Config": {
+		"User": "claude",
 		"Labels": {
 			"agentic.tool": "claude",
 			"agentic.namespace": "agentic",
@@ -25,7 +26,8 @@ const fullImageJSON = `{
 			"agentic.version": "v1.0.0",
 			"agentic.custom-installs": "helm,golangci-lint",
 			"agentic.custom-installs.hash": "abc123",
-			"agentic.proxy-trust": "true"
+			"agentic.proxy-trust": "true",
+			"agentic.dockerd.parent": "sha256:0f0f0f0f0f0f"
 		}
 	}
 }`
@@ -57,6 +59,8 @@ func TestInspectImage(t *testing.T) {
 		assert.Equal(t, "agentic", info.Namespace)
 		assert.Equal(t, "claude", info.Tool)
 		assert.Equal(t, "a1b2c3d4e5f6", info.ID)
+		assert.Equal(t, "sha256:a1b2c3d4e5f6abcdef012345678901234567890", info.FullID)
+		assert.Equal(t, "claude", info.User)
 		assert.Equal(t, "1.2.3", info.Version)
 		assert.Equal(t, "node:24", info.Base)
 		assert.Equal(t, "2026-05-01", info.Built)
@@ -65,6 +69,7 @@ func TestInspectImage(t *testing.T) {
 		assert.Equal(t, "helm,golangci-lint", info.CustomInstalls)
 		assert.Equal(t, "abc123", info.CustomInstallsHash)
 		assert.True(t, info.ProxyTrust)
+		assert.Equal(t, "sha256:0f0f0f0f0f0f", info.DockerdParent)
 	})
 
 	t.Run("no labels", func(t *testing.T) {

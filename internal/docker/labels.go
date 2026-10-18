@@ -65,6 +65,11 @@ const (
 	// LabelStarted records when a sidecar or its network was created.
 	LabelStarted = "agentic.started"
 
+	// -- Derived images --
+
+	// LabelDockerdParent records the full ID of the tool image a dockerd image was built from.
+	LabelDockerdParent = "agentic.dockerd.parent"
+
 	// -- Cache --
 
 	// LabelCacheBust records the CACHEBUST build-arg baked into the tool stage, reused verbatim on cache-hit rebuilds.

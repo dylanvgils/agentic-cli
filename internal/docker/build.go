@@ -93,6 +93,43 @@ func (c *Client) BuildDindImage(image string, opts tools.BuildOptions) (retErr e
 	return nil
 }
 
+// BuildDockerdImage builds image, which adds dockerd to the local tool image parent; it never pulls, since the parent only
+// exists locally.
+func (c *Client) BuildDockerdImage(image string, parent *ImageInfo) (retErr error) {
+	tmpDir, err := writeTempDockerfile(tools.GenerateDockerdDockerfile(parent.Image, parent.User))
+	if err != nil {
+		return err
+	}
+
+	defer cleanup.Capture(&retErr, func() error {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			return fmt.Errorf("remove temp dir: %w", err)
+		}
+		return nil
+	})
+
+	if err := c.runInteractive(dockerdImageBuildArgs(tmpDir, image, parent)...); err != nil {
+		return fmt.Errorf("dockerd image: %w", err)
+	}
+	return nil
+}
+
+// dockerdImageBuildArgs computes the docker build args for the dockerd image derived from parent.
+func dockerdImageBuildArgs(tmpDir, image string, parent *ImageInfo) []string {
+	return []string{
+		"build",
+		label(LabelProject, LabelProjectVal),
+		label(LabelBuilt, buildBuiltLabel()),
+		label(LabelCLIVersion, buildinfo.Version),
+		label(LabelTool, tools.DockerdImageSuffix),
+		label(LabelDockerdParent, parent.FullID),
+		buildArg("HOST_GID", strconv.Itoa(platform.HostUser().GID)),
+		arg("tag", image),
+		arg("file", filepath.Join(tmpDir, "Dockerfile")),
+		tmpDir,
+	}
+}
+
 // sidecarImageBuildArgs computes the docker build args for a global, non-namespaced sidecar image.
 func sidecarImageBuildArgs(dockerfilePath, image, toolLabel, context string, opts tools.BuildOptions) []string {
 	args := []string{

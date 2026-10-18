@@ -16,6 +16,8 @@ type ImageInfo struct {
 	Namespace          string // image namespace (e.g. "agentic", "myproject")
 	Tool               string // tool name (e.g. "claude", "copilot")
 	ID                 string // 12-char short ID
+	FullID             string // full image ID (e.g. "sha256:a1b2...")
+	User               string // the image's USER
 	Version            string // agentic.tool.version label
 	Base               string // agentic.base label
 	VersionArgs        string // agentic.version-args label (layer name@version pairs used to build, e.g. "node@24,java@17")
@@ -27,6 +29,7 @@ type ImageInfo struct {
 	CLIVersion         string // agentic.version label (CLI version that built this image)
 	CacheBust          string // agentic.cachebust label (CACHEBUST build-arg baked into the tool stage)
 	ProxyTrust         bool   // agentic.proxy-trust label (entrypoint trusts the proxy CA)
+	DockerdParent      string // agentic.dockerd.parent label (full ID of the tool image a dockerd image derives from)
 	Size               string // formatted size from docker image ls
 }
 
@@ -53,6 +56,8 @@ func (c *Client) InspectImage(name string) (*ImageInfo, error) {
 		Namespace:          namespace,
 		Tool:               tool,
 		ID:                 extractShortID(result.ID),
+		FullID:             result.ID,
+		User:               result.Config.User,
 		Version:            result.Config.Labels[LabelToolVersion],
 		Base:               result.Config.Labels[LabelBase],
 		VersionArgs:        result.Config.Labels[LabelVersionArgs],
@@ -64,6 +69,7 @@ func (c *Client) InspectImage(name string) (*ImageInfo, error) {
 		CLIVersion:         result.Config.Labels[LabelCLIVersion],
 		CacheBust:          result.Config.Labels[LabelCacheBust],
 		ProxyTrust:         result.Config.Labels[LabelProxyTrust] == "true",
+		DockerdParent:      result.Config.Labels[LabelDockerdParent],
 		Size:               c.imageSize(name),
 	}, nil
 }
