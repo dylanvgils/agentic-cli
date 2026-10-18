@@ -32,6 +32,7 @@ type fakeDocker struct {
 	restampImage         func(image string, info docker.ImageInfo)
 	pruneDangling        func() error
 	saveImage            func(image string, w io.Writer) error
+	buildDockerdImage    func(image string, parent *docker.ImageInfo) error
 	startSidecars        func(rs sandbox.RunSpec) (docker.Sidecars, error)
 	runTool              func(sidecars docker.Sidecars, toolArgs []string) error
 	stopSidecars         func(sidecars docker.Sidecars)
@@ -51,6 +52,13 @@ func (f *fakeDocker) ServerVersion() (engine, version string, err error) {
 		return dockerEngineName, minDockerEngine, nil
 	}
 	return f.serverVersion()
+}
+
+func (f *fakeDocker) BuildDockerdImage(image string, parent *docker.ImageInfo) error {
+	if f.buildDockerdImage == nil {
+		return nil
+	}
+	return f.buildDockerdImage(image, parent)
 }
 
 func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {

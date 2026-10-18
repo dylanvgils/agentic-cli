@@ -37,6 +37,7 @@ type fakeDocker struct {
 	runTool               func(sidecars docker.Sidecars, toolArgs []string) error
 	stopSidecars          func(sidecars docker.Sidecars)
 	saveImage             func(image string, w io.Writer) error
+	buildDockerdImage     func(image string, parent *docker.ImageInfo) error
 	listRunningContainers func() ([]*docker.ContainerInfo, error)
 	removeNetwork         func() error
 	ensureNamedVolumes    func(rs sandbox.RunSpec, chownImage string) error
@@ -181,6 +182,13 @@ func (f *fakeDocker) SaveImage(image string, w io.Writer) error {
 		return nil
 	}
 	return f.saveImage(image, w)
+}
+
+func (f *fakeDocker) BuildDockerdImage(image string, parent *docker.ImageInfo) error {
+	if f.buildDockerdImage == nil {
+		return nil
+	}
+	return f.buildDockerdImage(image, parent)
 }
 
 func (f *fakeDocker) ListRunningContainers() ([]*docker.ContainerInfo, error) {

@@ -15,9 +15,13 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/platform"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
 const (
+	// DockerDisk is the size of the private disk dockerd keeps its data on, removed with the VM.
+	DockerDisk = "20G"
+
 	// volumePrefix marks agentic's msb named volumes, since msb volumes have no labels.
 	volumePrefix = "agentic-"
 
@@ -72,6 +76,7 @@ func buildRunArgs(rs sandbox.RunSpec, toolArgs []string) ([]string, error) {
 	args = append(args, volumeArgs...)
 	args = append(args, buildCredentialArgs(rs)...)
 	args = append(args, networkArgs...)
+	args = append(args, buildDockerArgs(rs)...)
 	args = append(args, entrypointArgs...)
 	args = append(args, rs.Image)
 
@@ -201,6 +206,18 @@ func netRuleTarget(entry string) (string, error) {
 		return "*." + domain, nil
 	}
 	return domain, nil
+}
+
+// buildDockerArgs gives dockerd its own ext4 disk, so its overlay layers don't sit on the guest's OverlayFS, and starts it
+// as PID 1; rs.Image must be a dockerd image.
+func buildDockerArgs(rs sandbox.RunSpec) []string {
+	if !rs.Dind.Enabled {
+		return nil
+	}
+	return []string{
+		arg("mount-owned", "/var/lib/docker:kind=disk,size="+DockerDisk),
+		arg("init", tools.DockerdInit),
+	}
 }
 
 // buildEntrypointArgs makes the first tool arg the entrypoint when rs skips the image's own, returning the flag and the remaining tool args.

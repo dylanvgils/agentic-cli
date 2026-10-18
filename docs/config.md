@@ -208,7 +208,7 @@ secret = "~/.secrets/example_token"
 
 | Key          | Type   | Description                                                             | CLI flag               | Default      |
 | ------------ | ------ | ----------------------------------------------------------------------- | ---------------------- | ------------ |
-| `enabled`    | bool   | Start a per-run rootless Docker sidecar. Needs `--base docker`.         | `--dind` / `--no-dind` | `false`      |
+| `enabled`    | bool   | Start a Docker daemon: a [sidecar](docker-in-docker.md) (needs `--base docker`) or [in the VM](microsandbox.md#docker-in-the-vm). | `--dind` / `--no-dind` | `false`      |
 | `pids_limit` | string | Sidecar PID limit                                                       | `--dind-pids-limit`    | tool's value |
 | `cpus`       | string | Sidecar CPU limit                                                       | `--dind-cpus`          | tool's value |
 | `memory`     | string | Sidecar memory limit (e.g. `"8g"`)                                      | `--dind-memory`        | tool's value |

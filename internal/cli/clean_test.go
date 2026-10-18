@@ -151,8 +151,15 @@ func Test_runClean(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		// tool images across namespaces plus the global proxy image
-		assert.ElementsMatch(t, []string{"agentic-claude", "work-claude", tools.ProxyImage, tools.DindImage}, cleaned)
+		// tool images and their dockerd images across namespaces, plus the global sidecar images
+		assert.ElementsMatch(t, []string{
+			"agentic-claude-dockerd",
+			"agentic-claude",
+			"work-claude-dockerd",
+			"work-claude",
+			tools.ProxyImage,
+			tools.DindImage,
+		}, cleaned)
 		assert.True(t, basesCleaned)
 	})
 }

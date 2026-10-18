@@ -42,10 +42,10 @@ func New() *Client {
 }
 
 // Capabilities reports what msb runs offer; msb injects credentials and enforces the allowlist itself, but keeps no
-// log, so there's no monitor mode.
+// log, so there's no monitor mode. Docker runs as root inside the VM.
 func (c *Client) Capabilities() sandbox.Capabilities {
 	// The guest keeps its defaults: a writable root discarded on exit, and its own capabilities
-	return sandbox.Capabilities{Proxy: true, CredentialInjection: true}
+	return sandbox.Capabilities{Proxy: true, Dind: true, CredentialInjection: true}
 }
 
 // Available returns an error with an install hint when msb is not on PATH.
