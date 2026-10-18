@@ -8,6 +8,7 @@ import (
 type imageInspectResult struct {
 	ID     string `json:"Id"`
 	Config struct {
+		User   string            `json:"User"`
 		Labels map[string]string `json:"Labels"`
 	} `json:"Config"`
 }
