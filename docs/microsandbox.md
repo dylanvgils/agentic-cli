@@ -7,6 +7,18 @@ By default each tool runs in a Docker container, which shares the host's kernel.
 - Docker, to build the images.
 - msb 0.7.8 or newer on your `PATH`. Older versions are refused.
 - Hardware virtualization: KVM on Linux, Hypervisor.framework on macOS.
+- On WSL 2, nested virtualization, so KVM works inside it. See [WSL 2](#wsl-2).
+
+### WSL 2
+
+Turn on nested virtualization in `%UserProfile%\.wslconfig` (Windows 11 only):
+
+```ini
+[wsl2]
+nestedVirtualization=true
+```
+
+Then restart WSL with `wsl --shutdown`. Afterwards `/dev/kvm` should exist inside WSL.
 
 ## Usage
 
