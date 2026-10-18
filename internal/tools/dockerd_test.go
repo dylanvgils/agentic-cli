@@ -29,9 +29,8 @@ func TestGenerateDockerdDockerfile(t *testing.T) {
 		result := GenerateDockerdDockerfile("agentic-claude", "claude")
 
 		// Assert
-		assert.Contains(t, result, "ARG DOCKER_VERSION="+DefaultVersions.Docker)
-		assert.Contains(t, result, `"docker-ce=${CLI_VERSION}" "docker-ce-cli=${CLI_VERSION}" containerd.io`)
-		assert.Contains(t, result, "iptables")
+		assert.Contains(t, result, `"docker-ce=$(dpkg-query --show --showformat='${Version}' docker-ce-cli)" containerd.io iptables`)
+		assert.NotContains(t, result, "docker-ce-cli=")
 	})
 
 	t.Run("gives the host gid the socket", func(t *testing.T) {

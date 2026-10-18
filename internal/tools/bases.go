@@ -294,7 +294,7 @@ func dockerStage(prevStage, ver string) df.Stage {
 }
 
 // dockerAptBlocks adds Docker's apt repository and resolves the newest docker-ce-cli release matching DOCKER_VERSION
-// into CLI_VERSION, which docker-ce shares; the caller adds the install block.
+// into CLI_VERSION; the caller adds the install block.
 func dockerAptBlocks() []df.Block {
 	return []df.Block{
 		{Comment: "Add Docker GPG key", Chain: true, Lines: []string{

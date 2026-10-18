@@ -26,18 +26,18 @@ func GenerateDockerdDockerfile(parent, user string) string {
 }
 
 // dockerdStage installs the Docker daemon on top of parent, for microsandbox VMs where it runs as root next to the tool.
+// The parent has the docker layer, so its apt repository, CLI and plugins are already there.
 func dockerdStage(parent, user string) df.Stage {
 	return df.NewStage(df.From{Image: parent, As: DockerdImageSuffix}).
-		Add(df.Arg{Key: "DOCKER_VERSION", Default: DefaultVersions.Docker}).
 		Add(df.Arg{Key: "HOST_GID", Default: "1000"}).
 		Add(df.User{Name: "root"}).
-		Add(pipefailShell).
-		Add(df.Run{Blocks: append(dockerAptBlocks(), df.Block{
-			Comment: "Install the Docker daemon, CLI and plugins and clean up", Chain: true, Lines: []string{
-				`apt-get install -yq --no-install-recommends "docker-ce=${CLI_VERSION}" "docker-ce-cli=${CLI_VERSION}" containerd.io docker-buildx-plugin docker-compose-plugin iptables`,
+		Add(df.Run{Blocks: []df.Block{
+			{Lines: []string{`apt-get update -yq`}},
+			{Comment: "Install the Docker daemon pinned to the installed CLI release and clean up", Chain: true, Lines: []string{
+				`apt-get install -yq --no-install-recommends "docker-ce=$(dpkg-query --show --showformat='${Version}' docker-ce-cli)" containerd.io iptables`,
 				`rm -rf /var/lib/apt/lists/*`,
-			},
-		})}).
+			}},
+		}}).
 		Add(df.Run{Blocks: []df.Block{
 			{Comment: "Give the tool user's group the socket, so dockerd needs no flags", Lines: []string{
 				`printf '{"group": "%s"}\n' "${HOST_GID}" > /etc/docker/daemon.json`,
