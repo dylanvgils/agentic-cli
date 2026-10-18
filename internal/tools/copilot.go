@@ -21,6 +21,7 @@ const copilotInstructionsContainerPath = "$CONTAINER_HOME/.copilot/copilot-instr
 var copilotAllowedHosts = []string{
 	".githubcopilot.com", // Copilot API and subdomains (e.g. api.githubcopilot.com, telemetry.githubcopilot.com)
 	"api.github.com",     // GitHub API used for authentication
+	"docs.github.com",    // Copilot CLI docs
 }
 
 func copilotEphemeralDirs() []sandbox.EphemeralDir {

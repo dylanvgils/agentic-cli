@@ -54,10 +54,11 @@ Each tool allows these hosts by default. `allowed_hosts` adds to them.
 | ---------- | -------------------- | ----------------------------------- |
 | `claude`   | `.anthropic.com`     | Claude API and telemetry subdomains |
 | `claude`   | `.claude.ai`         | installer and asset downloads       |
-| `claude`   | `.claude.com`        | OAuth/login flow                    |
+| `claude`   | `.claude.com`        | OAuth/login flow and docs           |
 | `copilot`  | `.githubcopilot.com` | Copilot API and subdomains          |
 | `copilot`  | `api.github.com`     | GitHub API used for authentication  |
-| `opencode` | `opencode.ai`        | OpenCode auth and update checks     |
+| `copilot`  | `docs.github.com`    | Copilot CLI docs                    |
+| `opencode` | `opencode.ai`        | OpenCode auth, update checks, docs  |
 
 OpenCode supports many model providers, so add your provider's hosts to `allowed_hosts`.
 

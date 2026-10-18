@@ -21,7 +21,7 @@ const claudeInstructionsContainerPath = "$CONTAINER_HOME/.claude/CLAUDE.md"
 var claudeAllowedHosts = []string{
 	".anthropic.com", // Claude API and telemetry subdomains (e.g. api.anthropic.com, statsig.anthropic.com)
 	".claude.ai",     // installer and asset downloads (e.g. downloads.claude.ai)
-	".claude.com",    // OAuth/login flow
+	".claude.com",    // OAuth/login flow and Claude Code docs (code.claude.com)
 }
 
 func claudeEphemeralDirs() []sandbox.EphemeralDir {
