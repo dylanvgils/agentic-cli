@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -166,6 +167,24 @@ func Test_removeNamespaceImages(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{"agentic-claude", "agentic-copilot"}, cleaned)
 		assert.Contains(t, logBuf.String(), `agentic: removing 2 image(s) in namespace "agentic"`)
+	})
+
+	t.Run("removes dockerd images before the tool images they derive from", func(t *testing.T) {
+		// Arrange
+		stubErrLog(t)
+		var cleaned []string
+		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
+		withDockerd := []*docker.ImageInfo{
+			{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+			{Image: "agentic-claude-dockerd", Namespace: "agentic", Tool: tools.DockerdImageSuffix},
+		}
+
+		// Act
+		err := removeNamespaceImages("agentic", withDockerd)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"agentic-claude-dockerd", "agentic-claude"}, cleaned)
 	})
 
 	t.Run("stops at the first remove error", func(t *testing.T) {

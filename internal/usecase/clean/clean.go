@@ -57,18 +57,29 @@ func (s *Service) Apply(targets []Target) error {
 		if stepImage(t.Label, inUse[t.Image]) {
 			continue
 		}
-		if err := s.docker.CleanImage(t.Image); err != nil {
-			return err
-		}
-		for _, r := range s.runtimes {
-			if err := r.CleanImage(t.Image); err != nil {
-				logging.Warnf("kept %s: %v", t.Image, err)
+		// The dockerd image is built FROM the tool image, so it goes first
+		for _, image := range []string{tools.DockerdImage(t.Image), t.Image} {
+			if err := s.removeImage(image); err != nil {
+				return err
 			}
 		}
 	}
 
 	if beforeErr == nil {
 		s.pruneCustomInstalls(before)
+	}
+	return nil
+}
+
+// removeImage removes image from Docker, then best-effort from every other runtime.
+func (s *Service) removeImage(image string) error {
+	if err := s.docker.CleanImage(image); err != nil {
+		return err
+	}
+	for _, r := range s.runtimes {
+		if err := r.CleanImage(image); err != nil {
+			logging.Warnf("kept %s: %v", image, err)
+		}
 	}
 	return nil
 }

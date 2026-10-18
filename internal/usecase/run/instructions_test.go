@@ -328,7 +328,7 @@ func TestBuildInstructions(t *testing.T) {
 		assert.NotContains(t, content, "egress proxy")
 	})
 
-	t.Run("microsandbox omits the sidecar it lacks even when dind is enabled", func(t *testing.T) {
+	t.Run("microsandbox describes the daemon in the VM instead of the sidecar", func(t *testing.T) {
 		// Arrange
 		in := Input{Runtime: sandbox.RuntimeMicrosandbox, DindEnabled: true}
 
@@ -338,6 +338,35 @@ func TestBuildInstructions(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.NotContains(t, content, "sidecar")
+		assert.Contains(t, content, "runs as root in this VM")
+		assert.Contains(t, content, "on `localhost` in the VM")
+		assert.Contains(t, content, "a 20G disk")
+		assert.NotContains(t, content, "inspection CA")
+	})
+
+	t.Run("microsandbox with the proxy explains the allowlist and the inspection CA", func(t *testing.T) {
+		// Arrange
+		in := Input{Runtime: sandbox.RuntimeMicrosandbox, DindEnabled: true, ProxyMode: sandbox.ProxyEnforce}
+
+		// Act
+		content, err := New(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, content, "use the same allowlist")
+		assert.Contains(t, content, "-v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro")
+	})
+
+	t.Run("a runtime without a daemon says docker fails", func(t *testing.T) {
+		// Arrange
+		in := Input{Runtime: sandbox.RuntimeMicrosandbox, DindEnabled: true}
+		m := &fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return sandbox.Capabilities{} }}
+
+		// Act
+		content, err := New(&fakeDocker{}, m).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
 		assert.Contains(t, content, "no Docker daemon in this VM")
 	})
 

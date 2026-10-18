@@ -2,6 +2,8 @@
 
 Tools never get the host's Docker socket, because that would give the agent root on your machine. Instead, `--dind` starts a separate **rootless** Docker daemon in a per-run sidecar. The tool can then build images, run containers, use `docker compose`, or test devcontainers.
 
+With the microsandbox runtime, the daemon runs inside the VM instead. See [Docker in the VM](microsandbox.md#docker-in-the-vm).
+
 ## Usage
 
 ```bash

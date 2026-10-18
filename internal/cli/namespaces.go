@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
 var namespacesCmd = &cobra.Command{
@@ -95,6 +97,13 @@ func listNamespaces() error {
 // removeNamespaceImages removes images, which all belong to namespace.
 func removeNamespaceImages(namespace string, images []*docker.ImageInfo) error {
 	logging.Infof("removing %d image(s) in namespace %q", len(images), namespace)
+
+	// A dockerd image is built FROM its tool image, so it goes first
+	images = slices.Clone(images)
+	slices.SortStableFunc(images, func(a, b *docker.ImageInfo) int {
+		return cmp.Compare(dockerdFirst(b), dockerdFirst(a))
+	})
+
 	for _, image := range images {
 		logging.Stepf("%s/%s", image.Namespace, image.Tool)
 		if err := dockerClient.CleanImage(image.Image); err != nil {
@@ -103,6 +112,14 @@ func removeNamespaceImages(namespace string, images []*docker.ImageInfo) error {
 	}
 
 	return nil
+}
+
+// dockerdFirst ranks a dockerd image above the tool images.
+func dockerdFirst(image *docker.ImageInfo) int {
+	if image.Tool == tools.DockerdImageSuffix {
+		return 1
+	}
+	return 0
 }
 
 // uniqueNamespaces returns the namespaces of images once each, in the order first seen.

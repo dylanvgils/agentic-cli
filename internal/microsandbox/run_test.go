@@ -418,6 +418,27 @@ func Test_credentialEnv(t *testing.T) {
 	assert.Equal(t, []string{"EXAMPLE_TOKEN=test-secret", "OTHER_KEY=other-secret"}, env)
 }
 
+func Test_buildDockerArgs(t *testing.T) {
+	t.Run("none without dind", func(t *testing.T) {
+		// Act
+		args := buildDockerArgs(sandbox.RunSpec{})
+
+		// Assert
+		assert.Empty(t, args)
+	})
+
+	t.Run("dind adds an owned disk and the dockerd init", func(t *testing.T) {
+		// Act
+		args := buildDockerArgs(sandbox.RunSpec{Dind: sandbox.DindSpec{Enabled: true}})
+
+		// Assert
+		assert.Equal(t, []string{
+			"--mount-owned=/var/lib/docker:kind=disk,size=20G",
+			"--init=/usr/local/bin/agentic-dockerd-init",
+		}, args)
+	})
+}
+
 func Test_buildEntrypointArgs(t *testing.T) {
 	t.Run("keeps the image's entrypoint by default", func(t *testing.T) {
 		// Act

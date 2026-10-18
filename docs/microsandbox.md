@@ -40,12 +40,22 @@ The first run of an image copies it from Docker into msb, which takes a while. L
 ## What's different from Docker
 
 - **Filesystem**: the VM's root is writable but discarded when it exits, so there's no read-only root and no separate temp dirs. The workspace, tool home and `--volume` mounts work as with Docker.
-- **Docker-in-Docker**: there's no Docker daemon in the VM. `--dind` and `[run.dind]` are ignored with a warning.
+- **Docker-in-Docker**: the daemon runs inside the VM, not in a sidecar. See [Docker in the VM](#docker-in-the-vm).
 - **Egress allowlist**: msb's own network policy enforces it, with no access log and no `--proxy-monitor`. See [With microsandbox](egress-proxy.md#with-microsandbox).
 - **Credential injection**: msb swaps [`[[run.proxy.credentials]]`](egress-proxy.md#credential-injection) secrets in for its own placeholder, without the proxy. Git over HTTPS sends no credentials.
 - **Secret mounts**: `--secret` and `[run] secrets` are refused. Use credential injection instead.
 - **Named volumes**: msb stores them as `agentic-<name>`. See [Named volumes](usage.md#named-volumes).
 - **Limits**: `cpus` (rounded up to a whole number) and `memory` apply to the VM. `pids_limit` is ignored.
+
+## Docker in the VM
+
+`--dind` and `[run.dind] enabled` start a Docker daemon inside the tool's own VM. No `--base docker` is needed: the first such run builds `<image>-dockerd`, the tool image plus Docker's daemon and CLI, and copies that into msb instead. It's rebuilt after the tool image changes, and `agentic clean` removes it with the tool image.
+
+- **Root in the VM**: dockerd runs as root, so the tool can reach root in the VM through it. The VM stays the boundary: msb enforces the allowlist, read-only mounts and credentials from the host side.
+- **Storage**: images, containers and volumes live on a private 20G disk that's deleted when the VM exits.
+- **Limits**: the daemon shares the VM's `cpus` and `memory`. `[run.dind]` limits and `--dind-*` flags are ignored with a warning.
+- **Ports**: published ports are on `localhost` in the VM, not on your machine.
+- **With the allowlist**: msb inspects HTTPS with its own CA, which containers don't trust. Mount `/etc/ssl/certs/ca-certificates.crt` read-only into a container that needs HTTPS. `docker build` steps that fetch over HTTPS need that CA added in the Dockerfile.
 
 ## Limitations
 

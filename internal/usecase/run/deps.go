@@ -21,6 +21,7 @@ type Docker interface {
 	ResolveContainerHome(image string) string
 	EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error
 	SaveImage(image string, w io.Writer) error
+	BuildDockerdImage(image string, parent *docker.ImageInfo) error
 	StartSidecars(rs sandbox.RunSpec) (docker.Sidecars, error)
 	RunTool(sidecars docker.Sidecars, toolArgs []string) error
 	StopSidecars(sidecars docker.Sidecars)

@@ -162,9 +162,29 @@ func TestApply(t *testing.T) {
 		})
 
 		// Assert
-		assert.Equal(t, []string{"agentic-claude", "agentic-copilot"}, cleaned)
+		assert.Subset(t, cleaned, []string{"agentic-claude", "agentic-copilot"})
 		assert.Contains(t, out, "=> agentic-claude")
 		assert.Contains(t, out, "=> agentic-copilot")
+	})
+
+	t.Run("cleans each target's dockerd image before the target", func(t *testing.T) {
+		// Arrange
+		var cleaned []string
+		d := &fakeDocker{
+			cleanImage: func(image string) error {
+				cleaned = append(cleaned, image)
+				return nil
+			},
+		}
+
+		// Act
+		captureStdout(t, func() {
+			err := New(t.TempDir(), d).Apply(targets)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, []string{"agentic-claude-dockerd", "agentic-claude", "agentic-copilot-dockerd", "agentic-copilot"}, cleaned)
 	})
 
 	t.Run("cleans each target from the other runtimes", func(t *testing.T) {
@@ -184,7 +204,7 @@ func TestApply(t *testing.T) {
 		})
 
 		// Assert
-		assert.Equal(t, []string{"agentic-claude", "agentic-copilot"}, cleaned)
+		assert.Equal(t, []string{"agentic-claude-dockerd", "agentic-claude", "agentic-copilot-dockerd", "agentic-copilot"}, cleaned)
 	})
 
 	t.Run("warns and goes on when another runtime fails", func(t *testing.T) {
@@ -210,7 +230,7 @@ func TestApply(t *testing.T) {
 		})
 
 		// Assert
-		assert.Equal(t, []string{"agentic-claude", "agentic-copilot"}, cleaned)
+		assert.Equal(t, []string{"agentic-claude-dockerd", "agentic-claude", "agentic-copilot-dockerd", "agentic-copilot"}, cleaned)
 		assert.Contains(t, errLog.String(), "kept agentic-claude: fail on agentic-claude")
 	})
 
@@ -301,7 +321,7 @@ func TestApply(t *testing.T) {
 		})
 
 		// Assert
-		assert.Equal(t, []string{"agentic-copilot", "msb agentic-copilot"}, cleaned)
+		assert.Equal(t, []string{"agentic-copilot-dockerd", "msb agentic-copilot-dockerd", "agentic-copilot", "msb agentic-copilot"}, cleaned)
 	})
 
 	t.Run("running containers list error propagates", func(t *testing.T) {

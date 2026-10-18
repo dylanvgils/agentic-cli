@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/stretchr/testify/assert"
@@ -56,6 +57,35 @@ func Test_microsandboxRunner_Check(t *testing.T) {
 
 		// Assert
 		assert.EqualError(t, err, "read the msb version: no version in msb --version output")
+	})
+
+	t.Run("warns that dind limits are ignored", func(t *testing.T) {
+		// Arrange
+		errLog := stubErrLog(t)
+		req := newPrepareRequest(t)
+		req.Flags.Dind.DindFlag = true
+		req.Flags.DindLimits = sandbox.ResourceLimits{Memory: "8g"}
+
+		// Act
+		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{}}.Check(req)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, errLog.String(), "ignores the Docker daemon limits")
+	})
+
+	t.Run("no limits warning without dind", func(t *testing.T) {
+		// Arrange
+		errLog := stubErrLog(t)
+		req := newPrepareRequest(t)
+		req.Project.RC.Run.Dind.Memory = "8g"
+
+		// Act
+		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{}}.Check(req)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotContains(t, errLog.String(), "Docker daemon limits")
 	})
 
 	t.Run("dry run skips the msb check", func(t *testing.T) {
@@ -161,6 +191,59 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		assert.False(t, loaded)
 		assert.Equal(t, "agentic-claude:abc123", ranImage)
 	})
+
+	t.Run("dind runs the dockerd image", func(t *testing.T) {
+		// Arrange
+		var ranImage string
+		d := &fakeDocker{inspectImage: func(name string) (*docker.ImageInfo, error) {
+			return &docker.ImageInfo{Image: name, ID: "def456", FullID: "sha256:same", DockerdParent: "sha256:same", CLIVersion: buildinfo.Version}, nil
+		}}
+		msb := microsandboxRunner{docker: d, microsandbox: &fakeMicrosandbox{
+			run: func(rs sandbox.RunSpec, _ []string) error {
+				ranImage = rs.Image
+				return nil
+			},
+		}}
+
+		// Act
+		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}}, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "agentic-claude-dockerd:def456", ranImage)
+	})
+
+	t.Run("dind dry run builds nothing", func(t *testing.T) {
+		// Arrange
+		built := false
+		var ranImage string
+		d := &fakeDocker{
+			inspectImage: func(name string) (*docker.ImageInfo, error) {
+				if name == "agentic-claude" {
+					return &docker.ImageInfo{Image: name, ID: "abc123"}, nil
+				}
+				return nil, nil
+			},
+			buildDockerdImage: func(string, *docker.ImageInfo) error {
+				built = true
+				return nil
+			},
+		}
+		msb := microsandboxRunner{docker: d, microsandbox: &fakeMicrosandbox{
+			run: func(rs sandbox.RunSpec, _ []string) error {
+				ranImage = rs.Image
+				return nil
+			},
+		}}
+
+		// Act
+		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude", DryRun: true, Dind: sandbox.DindSpec{Enabled: true}}, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, built)
+		assert.Equal(t, "agentic-claude-dockerd", ranImage)
+	})
 }
 
 func Test_microsandboxRunner_microsandboxRef(t *testing.T) {
@@ -169,7 +252,7 @@ func Test_microsandboxRunner_microsandboxRef(t *testing.T) {
 		msb := microsandboxRunner{docker: &fakeDocker{inspectImage: inspectImageID("abc123")}, microsandbox: &fakeMicrosandbox{}}
 
 		// Act
-		ref, err := msb.microsandboxRef("agentic-claude")
+		ref, err := msb.microsandboxRef("agentic-claude", false)
 
 		// Assert
 		require.NoError(t, err)
@@ -181,7 +264,7 @@ func Test_microsandboxRunner_microsandboxRef(t *testing.T) {
 		msb := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{}}
 
 		// Act
-		_, err := msb.microsandboxRef("agentic-claude")
+		_, err := msb.microsandboxRef("agentic-claude", false)
 
 		// Assert
 		assert.ErrorContains(t, err, "image agentic-claude not found")
@@ -193,10 +276,157 @@ func Test_microsandboxRunner_microsandboxRef(t *testing.T) {
 		msb := microsandboxRunner{docker: d, microsandbox: &fakeMicrosandbox{}}
 
 		// Act
-		_, err := msb.microsandboxRef("agentic-claude")
+		_, err := msb.microsandboxRef("agentic-claude", false)
 
 		// Assert
 		assert.ErrorContains(t, err, "inspect agentic-claude: daemon down")
+	})
+
+	t.Run("dry run names a missing image untagged", func(t *testing.T) {
+		// Arrange
+		msb := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{}}
+
+		// Act
+		ref, err := msb.microsandboxRef("agentic-claude-dockerd", true)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "agentic-claude-dockerd", ref)
+	})
+}
+
+func Test_microsandboxRunner_ensureDockerdImage(t *testing.T) {
+	// images inspects the tool image as parent and the dockerd image as dockerd, nil meaning missing
+	images := func(parent, dockerd *docker.ImageInfo) func(string) (*docker.ImageInfo, error) {
+		return func(name string) (*docker.ImageInfo, error) {
+			if name == "agentic-claude" {
+				return parent, nil
+			}
+			return dockerd, nil
+		}
+	}
+	parent := &docker.ImageInfo{Image: "agentic-claude", FullID: "sha256:new"}
+	current := &docker.ImageInfo{CLIVersion: buildinfo.Version, DockerdParent: "sha256:new"}
+
+	t.Run("builds a missing dockerd image from the tool image", func(t *testing.T) {
+		// Arrange
+		var built string
+		var builtFrom *docker.ImageInfo
+		d := &fakeDocker{
+			inspectImage: images(parent, nil),
+			buildDockerdImage: func(image string, p *docker.ImageInfo) error {
+				built, builtFrom = image, p
+				return nil
+			},
+		}
+
+		// Act
+		err := microsandboxRunner{docker: d}.ensureDockerdImage("agentic-claude", "agentic-claude-dockerd")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "agentic-claude-dockerd", built)
+		assert.Equal(t, parent, builtFrom)
+	})
+
+	t.Run("reuses a dockerd image derived from the current tool image", func(t *testing.T) {
+		// Arrange
+		built := false
+		d := &fakeDocker{
+			inspectImage: images(parent, current),
+			buildDockerdImage: func(string, *docker.ImageInfo) error {
+				built = true
+				return nil
+			},
+		}
+
+		// Act
+		err := microsandboxRunner{docker: d}.ensureDockerdImage("agentic-claude", "agentic-claude-dockerd")
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, built)
+	})
+
+	t.Run("rebuilds after the tool image changed", func(t *testing.T) {
+		// Arrange
+		built := false
+		old := &docker.ImageInfo{CLIVersion: buildinfo.Version, DockerdParent: "sha256:old"}
+		d := &fakeDocker{
+			inspectImage: images(parent, old),
+			buildDockerdImage: func(string, *docker.ImageInfo) error {
+				built = true
+				return nil
+			},
+		}
+
+		// Act
+		err := microsandboxRunner{docker: d}.ensureDockerdImage("agentic-claude", "agentic-claude-dockerd")
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, built)
+	})
+
+	t.Run("a failed build fails the run", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{
+			inspectImage:      images(parent, nil),
+			buildDockerdImage: func(string, *docker.ImageInfo) error { return errors.New("boom") },
+		}
+
+		// Act
+		err := microsandboxRunner{docker: d}.ensureDockerdImage("agentic-claude", "agentic-claude-dockerd")
+
+		// Assert
+		assert.EqualError(t, err, "boom")
+	})
+
+	t.Run("missing tool image returns error", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{inspectImage: images(nil, nil)}
+
+		// Act
+		err := microsandboxRunner{docker: d}.ensureDockerdImage("agentic-claude", "agentic-claude-dockerd")
+
+		// Assert
+		assert.EqualError(t, err, "image agentic-claude not found")
+	})
+}
+
+func Test_dockerdRefreshReason(t *testing.T) {
+	parent := &docker.ImageInfo{FullID: "sha256:new"}
+
+	t.Run("missing", func(t *testing.T) {
+		// Act
+		reason := dockerdRefreshReason(nil, parent)
+
+		// Assert
+		assert.Equal(t, "image missing", reason)
+	})
+
+	t.Run("built by another agentic version", func(t *testing.T) {
+		// Act
+		reason := dockerdRefreshReason(&docker.ImageInfo{CLIVersion: "v0.0.1-other", DockerdParent: "sha256:new"}, parent)
+
+		// Assert
+		assert.Equal(t, "built by a different agentic version", reason)
+	})
+
+	t.Run("derived from another tool image", func(t *testing.T) {
+		// Act
+		reason := dockerdRefreshReason(&docker.ImageInfo{CLIVersion: buildinfo.Version, DockerdParent: "sha256:old"}, parent)
+
+		// Assert
+		assert.Equal(t, "tool image changed", reason)
+	})
+
+	t.Run("current", func(t *testing.T) {
+		// Act
+		reason := dockerdRefreshReason(&docker.ImageInfo{CLIVersion: buildinfo.Version, DockerdParent: "sha256:new"}, parent)
+
+		// Assert
+		assert.Empty(t, reason)
 	})
 }
 

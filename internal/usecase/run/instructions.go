@@ -8,6 +8,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
@@ -270,7 +271,7 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 	b.WriteString("- If a task needs a blocked host, tell the user which host and why, so they can add it to allowed_hosts in .agenticrc.toml and rerun.\n\n")
 }
 
-// writeDockerSection is only written when the Docker sidecar is enabled; a runtime without one only warns there's no daemon.
+// writeDockerSection is only written when the Docker daemon is enabled; a runtime without one only warns there's no daemon.
 func writeDockerSection(b *strings.Builder, in Input, caps sandbox.Capabilities, limits sandbox.ResourceLimits) {
 	if !in.DindEnabled {
 		return
@@ -281,6 +282,10 @@ func writeDockerSection(b *strings.Builder, in Input, caps sandbox.Capabilities,
 		b.WriteString("- There is no Docker daemon in this VM; `docker` commands fail.\n\n")
 		return
 	}
+	if in.Runtime == sandbox.RuntimeMicrosandbox {
+		writeVMDockerSection(b, in)
+		return
+	}
 
 	b.WriteString("- `docker` uses a rootless daemon in a per-run sidecar. DOCKER_HOST and TLS certs are preset; don't change them.\n")
 	b.WriteString("- Bind mounts work only under `/workspace`, which has the same path in the daemon. Other paths, such as `/tmp` or your home, don't exist there.\n")
@@ -289,6 +294,19 @@ func writeDockerSection(b *strings.Builder, in Input, caps sandbox.Capabilities,
 	fmt.Fprintf(b, "- Daemon limits, shared by all its containers: %s processes, %s CPUs, %s memory. To raise them, tell the user to set pids_limit/cpus/memory under [run.dind] in .agenticrc.toml (or --dind-pids-limit/--dind-cpus/--dind-memory).\n", limits.PidsLimit, limits.CPUs, limits.Memory)
 	if in.ProxyMode.Enabled() {
 		b.WriteString("- Image pulls, builds and containers use the same allowlist; a registry other than Docker Hub must be added to allowed_hosts.\n")
+	}
+	b.WriteString("\n")
+}
+
+// writeVMDockerSection describes the daemon that runs as root inside the microsandbox VM.
+func writeVMDockerSection(b *strings.Builder, in Input) {
+	b.WriteString("- `docker` uses a daemon that runs as root in this VM, with access to any path in it. No setup needed.\n")
+	b.WriteString("- Published ports are on `localhost` in the VM. The user's machine can't reach them.\n")
+	fmt.Fprintf(b, "- Images, containers and volumes live on a %s disk and are deleted when this session ends.\n", microsandbox.DockerDisk)
+	b.WriteString("- The daemon shares the VM's CPUs and memory (see Resource limits).\n")
+	if in.ProxyMode.Enabled() {
+		b.WriteString("- Image pulls, builds and containers use the same allowlist; a registry other than Docker Hub must be added to allowed_hosts.\n")
+		b.WriteString("- Containers don't trust the VM's HTTPS inspection CA. For HTTPS inside a container, mount it: `-v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro`. `docker build` steps that use HTTPS fail unless the Dockerfile adds that CA.\n")
 	}
 	b.WriteString("\n")
 }
