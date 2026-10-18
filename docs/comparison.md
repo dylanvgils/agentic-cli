@@ -9,7 +9,7 @@ How agentic compares to [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/
 | **Agent inside** | Non-root, read-only root filesystem, all capabilities dropped | `sudo` inside the VM; the VM is the boundary |
 | **Network** | Open by default; opt-in allowlist proxy (`--proxy`) that logs every attempt | Deny by default; allowlist per machine or managed by your organization |
 | **Credentials** | Opt-in: API keys injected by the egress proxy, the agent sees a placeholder; OAuth logins and mounted secrets stay readable | Injected by a host-side proxy; the agent never sees raw values |
-| **Docker inside** | Opt-in rootless sidecar (`--dind`) | Private Docker Engine in every sandbox |
+| **Docker inside** | Opt-in (`--dind`): rootless sidecar, or dockerd in the [microsandbox](microsandbox.md#docker-in-the-vm) VM | Private Docker Engine in every sandbox |
 | **Config** | `.agenticrc.toml` per project, merged up the directory tree | `sbxenv.yaml` environment files (experimental) |
 | **Account and cost** | None, free | Docker sign-in required, free |
 | **Source** | Open source (MIT) | Published as binaries |

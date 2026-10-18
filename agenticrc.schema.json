@@ -179,24 +179,24 @@
         },
         "dind": {
           "type": "object",
-          "description": "Rootless Docker-in-Docker sidecar settings.",
+          "description": "Docker daemon the tool can use: a rootless sidecar or, with microsandbox, in the VM.",
           "additionalProperties": false,
           "properties": {
             "enabled": {
               "type": "boolean",
-              "description": "Start a per-run rootless Docker daemon sidecar the tool can reach via DOCKER_HOST. The image needs the docker base layer. Default: false."
+              "description": "Start a Docker daemon the tool can use: a per-run rootless sidecar reached via DOCKER_HOST (the Docker runtime needs the docker base layer) or, with microsandbox, dockerd in the VM. Default: false."
             },
             "pids_limit": {
               "type": "string",
-              "description": "Sidecar PID limit. Default: the tool's value."
+              "description": "Sidecar PID limit, Docker runtime only; microsandbox ignores it with a warning. Default: the tool's value."
             },
             "cpus": {
               "type": "string",
-              "description": "Sidecar CPU limit. Default: the tool's value."
+              "description": "Sidecar CPU limit, Docker runtime only; microsandbox ignores it with a warning. Default: the tool's value."
             },
             "memory": {
               "type": "string",
-              "description": "Sidecar memory limit (e.g. \"8g\"). Default: the tool's value."
+              "description": "Sidecar memory limit (e.g. \"8g\"), Docker runtime only; microsandbox ignores it with a warning. Default: the tool's value."
             }
           }
         },

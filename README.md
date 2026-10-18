@@ -70,7 +70,7 @@ Tools: `claude` (Claude Code), `copilot` (GitHub Copilot CLI), `opencode` (OpenC
 
 ## 🔒 Security
 
-Containers run read-only with all capabilities dropped, no privilege escalation, your own uid/gid, and on an isolated Docker network. Opt-in layers add an egress allowlist proxy (`--proxy`), proxy-injected API keys the agent never sees (`[[run.proxy.credentials]]`), a rootless Docker-in-Docker sidecar (`--dind`), and a microVM in place of the container (`--runtime microsandbox`). See [Security model](docs/security-model.md) for what each layer stops and the risk that's left.
+Containers run read-only with all capabilities dropped, no privilege escalation, your own uid/gid, and on an isolated Docker network. Opt-in layers add an egress allowlist proxy (`--proxy`), proxy-injected API keys the agent never sees (`[[run.proxy.credentials]]`), a Docker daemon (`--dind`: a rootless sidecar, or dockerd inside the microVM), and a microVM in place of the container (`--runtime microsandbox`). See [Security model](docs/security-model.md) for what each layer stops and the risk that's left.
 
 ## 📚 Documentation
 
