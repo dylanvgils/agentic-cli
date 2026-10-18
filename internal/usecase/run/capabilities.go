@@ -12,9 +12,10 @@ import (
 
 // requiredCapabilities returns what a run with flags and rc needs; the proxy counts only when asked for, not when credentials force it.
 func requiredCapabilities(flags Flags, rc *config.AgenticRC) sandbox.Capabilities {
+	proxyMode := resolve.RequestedProxyMode(flags.Proxy, rc)
 	return sandbox.Capabilities{
-		Proxy:               resolve.RequestedProxyMode(flags.Proxy, rc).Enabled(),
-		ProxyMonitor:        resolve.RequestedProxyMode(flags.Proxy, rc) == sandbox.ProxyMonitor,
+		Proxy:               proxyMode.Enabled(),
+		ProxyMonitor:        proxyMode == sandbox.ProxyMonitor,
 		Dind:                resolve.DindEnabled(flags.Dind, rc),
 		CredentialInjection: len(rc.Run.Proxy.Credentials) > 0,
 		SecretMounts:        len(resolve.Secrets(flags.Secrets, rc)) > 0,
