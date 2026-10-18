@@ -103,6 +103,7 @@ func TestBuildInstructions(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
+		assert.Contains(t, content, "Any other tool isn't, so check with `command -v <tool>` before relying on it.")
 		assert.Contains(t, content, "Package managers work only when they install into a writable path")
 		assert.Contains(t, content, "custom_installs in .agenticrc.toml")
 	})

@@ -159,7 +159,7 @@ func writeSubList(b *strings.Builder, label string, items []string) {
 
 // writeMissingToolsNote points the agent at telling the user rather than silently trying and failing.
 func writeMissingToolsNote(b *strings.Builder) {
-	b.WriteString("\nPackage managers work only when they install into a writable path (see Filesystem) from a reachable registry, e.g. `npm install` in `/workspace`. For any other missing tool, tell the user which tool you need and why, so they can add it to custom_installs in .agenticrc.toml and rebuild the image.\n\n")
+	b.WriteString("\nOnly the tools above and the standard Debian utilities (coreutils, `grep`, `sed`, `tar`, ...) are installed. Any other tool isn't, so check with `command -v <tool>` before relying on it. Package managers work only when they install into a writable path (see Filesystem) from a reachable registry, e.g. `npm install` in `/workspace`. For any other missing tool, tell the user which tool you need and why, so they can add it to custom_installs in .agenticrc.toml and rebuild the image.\n\n")
 }
 
 // writeFilesystemSection lists each mounted path with its access, then what happens to every other path.
