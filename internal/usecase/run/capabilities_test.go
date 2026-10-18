@@ -331,6 +331,31 @@ func Test_dindSource(t *testing.T) {
 	})
 }
 
+func Test_runtimeSource(t *testing.T) {
+	t.Run("names the flag", func(t *testing.T) {
+		// Arrange
+		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
+
+		// Act
+		source := runtimeSource(req)
+
+		// Assert
+		assert.Equal(t, "--runtime microsandbox", source)
+	})
+
+	t.Run("names the key and its layer", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{Runtime: "microsandbox"}}
+		req := Request{Project: Project{RC: rc, Layers: []config.RCLayer{{Path: "/example.test/.agenticrc.toml", RC: rc}}}}
+
+		// Act
+		source := runtimeSource(req)
+
+		// Assert
+		assert.Equal(t, `[run] runtime = "microsandbox" in /example.test/.agenticrc.toml`, source)
+	})
+}
+
 func Test_credentialsSource(t *testing.T) {
 	// Arrange
 	layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}

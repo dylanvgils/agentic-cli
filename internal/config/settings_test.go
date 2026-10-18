@@ -13,6 +13,7 @@ func TestGuardedSettings(t *testing.T) {
 		disabled := false
 		rc := &AgenticRC{}
 		rc.Run.Mounts = []string{"~/.example:/x:rw"}
+		rc.Run.Runtime = "microsandbox"
 		rc.Run.Proxy.Enabled = &disabled
 		rc.Run.Proxy.Credentials = []RCCredential{{Preset: "example", Secret: "/example.test/key"}}
 
@@ -21,6 +22,7 @@ func TestGuardedSettings(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, settings, GuardedSetting{"run.mounts", []string{"~/.example:/x:rw"}})
+		assert.Contains(t, settings, GuardedSetting{"run.runtime", "microsandbox"})
 		assert.Contains(t, settings, GuardedSetting{"run.proxy.enabled", &disabled})
 		assert.Contains(t, settings, GuardedSetting{CredentialsSetting, rc.Run.Proxy.Credentials})
 	})

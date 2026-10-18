@@ -370,6 +370,30 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, ModeMonitor, result.Run.Proxy.Mode)
 	})
 
+	t.Run("runtime child wins over parent", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Run: RCRun{Runtime: "docker"}}
+		parent := &AgenticRC{Run: RCRun{Runtime: "microsandbox"}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, "docker", result.Run.Runtime)
+	})
+
+	t.Run("runtime parent fills when child unset", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{}
+		parent := &AgenticRC{Run: RCRun{Runtime: "microsandbox"}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, "microsandbox", result.Run.Runtime)
+	})
+
 	t.Run("instructions enabled child wins over parent", func(t *testing.T) {
 		// Arrange
 		childFalse := false
@@ -612,6 +636,26 @@ memory = "2g"
 
 		// Assert
 		assert.Equal(t, ModeMonitor, rc.Run.Proxy.Mode)
+	})
+
+	t.Run("runtime key", func(t *testing.T) {
+		// Act
+		rc := mustParseRC(t, "[run]\nruntime = \"microsandbox\"\n")
+
+		// Assert
+		assert.Equal(t, "microsandbox", rc.Run.Runtime)
+	})
+
+	t.Run("invalid runtime returns error with path", func(t *testing.T) {
+		// Arrange
+		path := writeRC(t, "[run]\nruntime = \"podman\"\n")
+
+		// Act
+		_, err := loadRC(path)
+
+		// Assert
+		assert.ErrorContains(t, err, `[run] unknown runtime "podman"`)
+		assert.ErrorContains(t, err, path)
 	})
 
 	t.Run("invalid proxy mode returns error with path", func(t *testing.T) {

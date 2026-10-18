@@ -8,8 +8,9 @@
 6. [Configuration](config.md) - `agentic.json` and `.agenticrc.toml` reference, merge and precedence rules
 7. [Volume mounts](volume-mounts.md) - per-tool mount breakdown and why each mount exists
 8. [Security model](security-model.md) - each isolation layer, what it stops, and the risk that's left
-9. [Egress proxy](egress-proxy.md) - the allowlist proxy and credential injection (beta)
-10. [Docker-in-Docker](docker-in-docker.md) - the rootless Docker sidecar (beta): usage, isolation, trade-offs
-11. [Recipes](recipes.md) - Java build tools, Maven through the proxy, per-project images, devcontainers
-12. [Dockerfile DSL](dockerfile-dsl.md) - the typed Go DSL used to generate Dockerfiles at build time
-13. [Development](development.md) - build commands, adding tools and base runtimes, releasing
+9. [Egress proxy](egress-proxy.md) - the allowlist proxy and credential injection
+10. [Docker-in-Docker](docker-in-docker.md) - the rootless Docker sidecar: usage, isolation, trade-offs
+11. [Microsandbox runtime](microsandbox.md) - running a tool in a microVM instead of a container: requirements, differences, limitations
+12. [Recipes](recipes.md) - Java build tools, Maven through the proxy, per-project images, devcontainers
+13. [Dockerfile DSL](dockerfile-dsl.md) - the typed Go DSL used to generate Dockerfiles at build time
+14. [Development](development.md) - build commands, adding tools and base runtimes, releasing

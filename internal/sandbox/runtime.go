@@ -1,8 +1,12 @@
 package sandbox
 
-import "strings"
+import (
+	"fmt"
+	"slices"
+	"strings"
+)
 
-// Runtimes a tool can run on; microsandbox is experimental.
+// Runtimes a tool can run on.
 const (
 	RuntimeDocker       Runtime = "docker"
 	RuntimeMicrosandbox Runtime = "microsandbox"
@@ -24,4 +28,13 @@ func RuntimeNames() string {
 		names[i] = string(r)
 	}
 	return strings.Join(names, " or ")
+}
+
+// ParseRuntime returns the runtime named name, so callers can reject a bad name before acting on anything.
+func ParseRuntime(name string) (Runtime, error) {
+	runtime := Runtime(name)
+	if !slices.Contains(Runtimes, runtime) {
+		return "", fmt.Errorf("unknown runtime %q: expected %s", name, RuntimeNames())
+	}
+	return runtime, nil
 }

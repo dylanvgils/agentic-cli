@@ -324,6 +324,17 @@ func TestCheckProjectDir(t *testing.T) {
 	})
 }
 
+func Test_Request_runtime(t *testing.T) {
+	// Arrange
+	req := Request{Project: Project{RC: &config.AgenticRC{Run: config.RCRun{Runtime: "microsandbox"}}}}
+
+	// Act
+	runtime := req.runtime()
+
+	// Assert
+	assert.Equal(t, sandbox.RuntimeMicrosandbox, runtime)
+}
+
 func Test_resolveInput(t *testing.T) {
 	dockerCaps := sandbox.Capabilities{Proxy: true, Dind: true, CredentialInjection: true, CredentialsViaProxy: true}
 
@@ -362,6 +373,18 @@ func Test_resolveInput(t *testing.T) {
 			DindLimits:  sandbox.ResourceLimits{Memory: "1g"},
 			Runtime:     sandbox.RuntimeMicrosandbox,
 		}, in)
+	})
+
+	t.Run("config picks the runtime when the flag is unset", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{Runtime: "microsandbox"}}
+
+		// Act
+		in, err := resolveInput(Flags{}, rc, dockerCaps)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, sandbox.RuntimeMicrosandbox, in.Runtime)
 	})
 
 	t.Run("a proxy conflict is an error", func(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 )
 
@@ -86,4 +87,13 @@ var baseLayersFunc = func(_ *cobra.Command, _ []string, toComplete string) ([]st
 		}
 	}
 	return names, cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveNoSpace
+}
+
+// runtimesFunc completes --runtime with every runtime's name.
+func runtimesFunc(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+	names := make([]string, len(sandbox.Runtimes))
+	for i, r := range sandbox.Runtimes {
+		names[i] = string(r)
+	}
+	return names, cobra.ShellCompDirectiveNoFileComp
 }

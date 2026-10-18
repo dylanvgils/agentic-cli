@@ -120,15 +120,16 @@ run = [
 
 Applied by `agentic run`.
 
-| Key                | Type   | Description                                                                                                       | CLI flag            | Default |
-| ------------------ | ------ | ----------------------------------------------------------------------------------------------------------------- | ------------------- | ------- |
-| `mounts`           | list   | Bind mounts or named volumes, with the same syntax as [`--volume`](usage.md#named-volumes)                        | `--volume`          | -       |
-| `secrets`          | list   | Files mounted read-only, with the same format as [`--secret`](usage.md#secrets)                                   | `--secret`          | -       |
-| `env`              | list   | `KEY=VALUE`, or bare `KEY` to forward the host value. See [Environment variables](usage.md#environment-variables). | `--env`             | -       |
-| `pids_limit`       | string | Container PID limit                                                                                               | `--pids-limit`      | `1024`  |
-| `cpus`             | string | Container CPU limit                                                                                               | `--cpus`            | `4`     |
-| `memory`           | string | Container memory limit (e.g. `"8g"`)                                                                              | `--memory`          | `4g`    |
-| `check_updates`    | bool   | Check for a newer tool version on run. See [Versions and updates](images.md#versions-and-updates).               | -                   | `true`  |
+| Key             | Type   | Description                                                                                                        | CLI flag       | Default    |
+| --------------- | ------ | ------------------------------------------------------------------------------------------------------------------ | -------------- | ---------- |
+| `mounts`        | list   | Bind mounts or named volumes, with the same syntax as [`--volume`](usage.md#named-volumes)                         | `--volume`     | -          |
+| `secrets`       | list   | Files mounted read-only, with the same format as [`--secret`](usage.md#secrets)                                    | `--secret`     | -          |
+| `env`           | list   | `KEY=VALUE`, or bare `KEY` to forward the host value. See [Environment variables](usage.md#environment-variables). | `--env`        | -          |
+| `runtime`       | string | `"docker"`, or `"microsandbox"` to run in a [microVM](microsandbox.md)                                             | `--runtime`    | `"docker"` |
+| `pids_limit`    | string | Container PID limit                                                                                                | `--pids-limit` | `1024`     |
+| `cpus`          | string | Container CPU limit                                                                                                | `--cpus`       | `4`        |
+| `memory`        | string | Container memory limit (e.g. `"8g"`)                                                                               | `--memory`     | `4g`       |
+| `check_updates` | bool   | Check for a newer tool version on run. See [Versions and updates](images.md#versions-and-updates).                 | -              | `true`     |
 
 Mount paths support [placeholders](#mount-variable-expansion). Limits in files must be positive, as docker reads zero or below as no limit; only the flags can lift them.
 
@@ -169,9 +170,6 @@ Preview the block with `agentic instructions claude` (add `--proxy` to include t
 
 ### `[run.proxy]`
 
-> [!WARNING]
-> **Beta** - see [Egress proxy](egress-proxy.md).
-
 | Key             | Type   | Description                                                                                       | CLI flag                 | Default     |
 | --------------- | ------ | ------------------------------------------------------------------------------------------------- | ------------------------ | ----------- |
 | `enabled`       | bool   | Route egress through the allowlist proxy                                                          | `--proxy` / `--no-proxy` | `false`     |
@@ -179,9 +177,6 @@ Preview the block with `agentic instructions claude` (add `--proxy` to include t
 | `allowed_hosts` | list   | Hosts added to the tool's baseline. Exact (`"api.github.com"`), or `.`/`*.` prefix for a domain and its subdomains (`".github.com"`). | -                        | -           |
 
 ### `[[run.proxy.credentials]]`
-
-> [!WARNING]
-> **Beta** - see [Credential injection](egress-proxy.md#credential-injection).
 
 | Key      | Type   | Description                                                                                              |
 | -------- | ------ | -------------------------------------------------------------------------------------------------------- |
@@ -210,9 +205,6 @@ secret = "~/.secrets/example_token"
 ```
 
 ### `[run.dind]`
-
-> [!WARNING]
-> **Beta** - see [Docker-in-Docker](docker-in-docker.md).
 
 | Key          | Type   | Description                                                             | CLI flag               | Default      |
 | ------------ | ------ | ----------------------------------------------------------------------- | ---------------------- | ------------ |
@@ -248,7 +240,7 @@ The agent can edit `.agenticrc.toml` files in directories it ran in, so changes 
 
 - `root`, `namespace`, `docker_context`, `marketplaces`
 - `build.custom_installs`
-- `run.mounts`, `run.secrets`, `run.env`
+- `run.mounts`, `run.secrets`, `run.env`, `run.runtime`
 - `run.proxy.enabled`, `run.proxy.mode`, `run.proxy.allowed_hosts`, `run.proxy.credentials`, `run.dind.enabled`
 
 `agentic build` and `agentic update` don't ask, so review the diff first.
@@ -294,6 +286,7 @@ The first source that sets a scalar wins:
 | ------------------------------ | ---------------------------------------------------------------------------------------- |
 | `namespace`                    | `--namespace`, then the innermost file, then `agentic`                                   |
 | `versions`                     | `--<layer>` (e.g. `--java 17`), then `[build.versions]`, then the bundled default        |
+| `runtime`                      | `--runtime`, then the innermost file, then `docker`                                      |
 | `pids_limit`, `cpus`, `memory` | flag, then the innermost file, then `1024` / `4` / `4g`                                  |
 | `[run.dind]` limits            | `--dind-*` flag, then `[run.dind]`, then the tool's resolved value                       |
 | `docker_context`               | `--docker-context`, then the innermost file, then `agentic.json`, then the Docker CLI's own choice (including `DOCKER_CONTEXT`) |

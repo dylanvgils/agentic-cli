@@ -267,13 +267,13 @@ func Test_runtimeFlags(t *testing.T) {
 		}, flags)
 	})
 
-	t.Run("runtime defaults to docker", func(t *testing.T) {
+	t.Run("unset runtime stays empty so the config can pick", func(t *testing.T) {
 		// Act
 		flags, err := runtimeFlags(newCmd())
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, sandbox.RuntimeDocker, flags.Runtime)
+		assert.Empty(t, flags.Runtime)
 	})
 
 	t.Run("unknown runtime returns error", func(t *testing.T) {

@@ -36,17 +36,18 @@ Tools: `claude` (Claude Code), `copilot` (GitHub Copilot CLI), `opencode` (OpenC
 ## Examples
 
 ```bash
-agentic run claude                   # run a tool
-agentic run claude -- bash           # open a shell in the tool container
-agentic update                       # update all tools (rebuilds only when something changed)
+agentic run claude                         # run a tool
+agentic run claude -- bash                 # open a shell in the tool container
+agentic run --runtime microsandbox claude  # run in a microVM instead
+agentic update                             # update all tools (rebuilds only when something changed)
 
-agentic inspect                      # all images in the active namespace
-agentic inspect claude --all         # claude images in every namespace
+agentic inspect                            # all images in the active namespace
+agentic inspect claude --all               # claude images in every namespace
 
 # A separate image set for one project (images are named <namespace>-<tool>)
 agentic build claude --namespace myproject --base node,java --apt make
 agentic run --namespace myproject claude
-agentic update --all                 # update every namespace
+agentic update --all                       # update every namespace
 ```
 
 ## Shell completion
@@ -83,7 +84,7 @@ agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.x
 
 The agent can read mounted secrets. For API keys, use [credential injection](egress-proxy.md#credential-injection) so the agent only sees a placeholder.
 
-The microsandbox runtime refuses secret mounts; use credential injection there instead.
+The [microsandbox runtime](microsandbox.md) refuses secret mounts; use credential injection there instead.
 
 ## Environment variables
 

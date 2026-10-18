@@ -2,7 +2,6 @@ package run
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
@@ -17,10 +16,10 @@ type runner interface {
 	Run(req Request, rs sandbox.RunSpec, toolArgs []string) error
 }
 
-// Run executes rs with toolArgs on req's runtime, which first readies its own host resources; an empty runtime is Docker.
+// Run executes rs with toolArgs on req's runtime, which first readies its own host resources.
 // Every runtime gets rs's security checks here, even one whose runner skips its own.
 func (s *Service) Run(req Request, rs sandbox.RunSpec, toolArgs []string) error {
-	r, err := s.runner(req.Flags.Runtime)
+	r, err := s.runner(req.runtime())
 	if err != nil {
 		return err
 	}
@@ -42,7 +41,7 @@ func (s *Service) runner(runtime sandbox.Runtime) (runner, error) {
 	case sandbox.RuntimeMicrosandbox:
 		return microsandboxRunner{docker: s.docker, microsandbox: s.microsandbox}, nil
 	default:
-		return nil, unknownRuntimeError(string(runtime))
+		return nil, fmt.Errorf("unknown runtime %q", runtime)
 	}
 }
 
@@ -57,7 +56,7 @@ func (s *Service) capabilities(runtime sandbox.Runtime) sandbox.Capabilities {
 
 // checkRuntime refuses a run req's runtime can't do safely and warns about what it drops, then runs that runtime's own checks.
 func (s *Service) checkRuntime(req Request) error {
-	r, err := s.runner(req.Flags.Runtime)
+	r, err := s.runner(req.runtime())
 	if err != nil {
 		return err
 	}
@@ -66,17 +65,4 @@ func (s *Service) checkRuntime(req Request) error {
 		return err
 	}
 	return r.Check(req)
-}
-
-// ParseRuntime returns the runtime named name, so callers can reject a bad name before Prepare acts on anything.
-func ParseRuntime(name string) (sandbox.Runtime, error) {
-	runtime := sandbox.Runtime(name)
-	if !slices.Contains(sandbox.Runtimes, runtime) {
-		return "", unknownRuntimeError(name)
-	}
-	return runtime, nil
-}
-
-func unknownRuntimeError(name string) error {
-	return fmt.Errorf("unknown runtime %q: expected %s", name, sandbox.RuntimeNames())
 }

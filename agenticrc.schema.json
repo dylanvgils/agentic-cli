@@ -89,6 +89,11 @@
           "items": { "type": "string" },
           "description": "Environment variables to set in the container. Format: KEY=VALUE, or bare KEY to forward the host's current value."
         },
+        "runtime": {
+          "type": "string",
+          "enum": ["docker", "microsandbox"],
+          "description": "Where the tool runs: \"docker\" (a container) or \"microsandbox\" (a microVM with its own kernel). --runtime overrides it. Default: docker."
+        },
         "pids_limit": {
           "type": "string",
           "description": "Container PID limit (e.g. \"1024\"). Default: 1024."

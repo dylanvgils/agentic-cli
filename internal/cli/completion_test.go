@@ -215,3 +215,12 @@ func Test_baseLayersFunc(t *testing.T) {
 		assert.Equal(t, []string{"node,java,docker", "node,java,dotnet", "node,java,go"}, names)
 	})
 }
+
+func Test_runtimesFunc(t *testing.T) {
+	// Act
+	names, directive := runtimesFunc(nil, nil, "")
+
+	// Assert
+	assert.Equal(t, []string{"docker", "microsandbox"}, names)
+	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+}

@@ -102,10 +102,10 @@ func addDindFlags(cmd *cobra.Command) {
 	cmd.MarkFlagsMutuallyExclusive("dind", noDindFlagName)
 }
 
-// addRuntimeFlag registers the hidden, experimental --runtime flag shared by the run and instructions commands.
+// addRuntimeFlag registers the --runtime flag shared by the run and instructions commands.
 func addRuntimeFlag(cmd *cobra.Command) {
-	cmd.Flags().String("runtime", string(sandbox.RuntimeDocker), "experimental: where the tool runs ("+sandbox.RuntimeNames()+")")
-	_ = cmd.Flags().MarkHidden("runtime")
+	cmd.Flags().String("runtime", "", "where the tool runs: "+sandbox.RuntimeNames()+" (overrides config; default "+string(sandbox.RuntimeDocker)+")")
+	_ = cmd.RegisterFlagCompletionFunc("runtime", runtimesFunc)
 }
 
 // resolveDindResourceLimitFlags returns the --dind-* limit flag values.
@@ -130,12 +130,15 @@ func dindInput(cmd *cobra.Command) resolve.DindInput {
 	return resolve.DindInput{DindFlag: dindFlag, NoDindFlag: noDindFlag}
 }
 
-// runtimeFlags reads the flags run and instructions share: home, runtime, proxy, dind and resource limits.
+// runtimeFlags reads the flags run and instructions share: home, runtime, proxy, dind and resource limits; an unset
+// --runtime stays empty so the config can pick.
 func runtimeFlags(cmd *cobra.Command) (run.Flags, error) {
-	name, _ := cmd.Flags().GetString("runtime")
-	runtime, err := run.ParseRuntime(name)
-	if err != nil {
-		return run.Flags{}, err
+	var runtime sandbox.Runtime
+	if name, _ := cmd.Flags().GetString("runtime"); name != "" {
+		var err error
+		if runtime, err = sandbox.ParseRuntime(name); err != nil {
+			return run.Flags{}, err
+		}
 	}
 
 	return run.Flags{

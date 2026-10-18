@@ -444,7 +444,7 @@ func Test_buildEntrypointArgs(t *testing.T) {
 		_, _, err := buildEntrypointArgs(sandbox.RunSpec{SkipEntrypoint: true}, nil)
 
 		// Assert
-		assert.ErrorContains(t, err, "--runtime microsandbox needs a command")
+		assert.ErrorContains(t, err, "on microsandbox needs a command")
 	})
 }
 
