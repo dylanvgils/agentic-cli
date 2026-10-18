@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
@@ -36,14 +37,22 @@ func ProxyMode(in ProxyInput, rc *config.AgenticRC, proxyInjects bool) (sandbox.
 	return sandbox.ProxyEnforce, nil
 }
 
-// ProxyAllowList merges the tool's allowlist with user hosts and credential hosts, plus Docker Hub when dind is on.
+// ProxyAllowList merges the tool's allowlist with user hosts and credential hosts, plus Docker Hub when dind is on,
+// keeping the first of any duplicates.
 func ProxyAllowList(toolAllowedHosts []string, dindEnabled bool, rc *config.AgenticRC) []string {
 	allow := append([]string{}, toolAllowedHosts...)
 	if dindEnabled {
 		allow = append(allow, dindRegistryHosts...)
 	}
 	allow = append(allow, rc.Run.Proxy.AllowedHosts...)
-	return append(allow, credentials.Hosts(rc.Run.Proxy.Credentials)...)
+	allow = append(allow, credentials.Hosts(rc.Run.Proxy.Credentials)...)
+
+	seen := make(map[string]bool, len(allow))
+	return slices.DeleteFunc(allow, func(host string) bool {
+		dup := seen[host]
+		seen[host] = true
+		return dup
+	})
 }
 
 // RequestedProxyMode applies flags, then config, ignoring credentials. --no-proxy/enabled=false always wins; monitor implies enabled.

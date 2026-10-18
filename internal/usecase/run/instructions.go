@@ -2,12 +2,14 @@ package run
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/docker"
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
@@ -70,8 +72,8 @@ func (s *Service) BuildInstructions(target Target, in Input, toolConfig tools.To
 	var b strings.Builder
 	writeIntro(&b, in.Runtime)
 	writePrecedenceSection(&b)
-	writeCapabilitiesSection(&b, info, caps)
-	writeFilesystemSection(&b, toolConfig, containerHome, caps)
+	writeCapabilitiesSection(&b, info)
+	writeFilesystemSection(&b, toolConfig, in, rc, containerHome, caps)
 	writeResourceLimitsSection(&b, limits, caps)
 	writePrivilegeSection(&b, caps)
 	writeNetworkSection(&b, toolConfig, rc, in, caps)
@@ -109,27 +111,27 @@ func instructionsEnabled(rc *config.AgenticRC) bool {
 func writeIntro(b *strings.Builder, runtime sandbox.Runtime) {
 	if runtime == sandbox.RuntimeMicrosandbox {
 		b.WriteString("# Agentic microVM environment\n\n")
-		b.WriteString("This tool is running inside an agentic-cli microVM with its own kernel. ")
+		b.WriteString("You are running inside an agentic-cli microVM with its own kernel. ")
 	} else {
 		b.WriteString("# Agentic container environment\n\n")
-		b.WriteString("This tool is running inside an agentic-cli container. ")
+		b.WriteString("You are running inside an agentic-cli container. ")
 	}
-	b.WriteString("The sections below describe what's installed and what's restricted, so operations that will fail are clear up front.\n\n")
+	b.WriteString("The sections below list what's installed and what's blocked, so you don't try things that fail.\n\n")
 }
 
 // writePrecedenceSection scopes the generated block to environment facts, deferring to the project's own instructions file on conflicts.
 func writePrecedenceSection(b *strings.Builder) {
 	b.WriteString("## Precedence\n\n")
-	b.WriteString("These auto-generated notes describe this environment, not project or personal conventions - they don't apply to anything you or the tool have added to this file yourself. If this project has its own instructions file (CLAUDE.md, AGENTS.md, copilot-instructions.md), follow it whenever it conflicts with anything below.\n\n")
+	b.WriteString("agentic-cli writes this block on every run and leaves the rest of this file as is. It describes the environment only. If it conflicts with the project's own instructions file (CLAUDE.md, AGENTS.md, copilot-instructions.md), follow the project's file.\n\n")
 }
 
-func writeCapabilitiesSection(b *strings.Builder, info *docker.ImageInfo, caps sandbox.Capabilities) {
+func writeCapabilitiesSection(b *strings.Builder, info *docker.ImageInfo) {
 	b.WriteString("## Installed toolchains\n\n")
 	writeSubList(b, "Base toolchain (always installed)", tools.BasePackages())
 
 	if info == nil {
 		b.WriteString("(image not built yet - remaining capability details unavailable)\n")
-		writeMissingToolsNote(b, caps)
+		writeMissingToolsNote(b)
 		return
 	}
 
@@ -144,7 +146,7 @@ func writeCapabilitiesSection(b *strings.Builder, info *docker.ImageInfo, caps s
 	if info.CustomInstalls != "" {
 		writeSubList(b, "Custom installs", strings.Split(info.CustomInstalls, ","))
 	}
-	writeMissingToolsNote(b, caps)
+	writeMissingToolsNote(b)
 }
 
 // writeSubList writes label as a bullet followed by each item as a nested bullet.
@@ -156,47 +158,63 @@ func writeSubList(b *strings.Builder, label string, items []string) {
 }
 
 // writeMissingToolsNote points the agent at telling the user rather than silently trying and failing.
-func writeMissingToolsNote(b *strings.Builder, caps sandbox.Capabilities) {
-	if caps.ReadOnlyRoot {
-		b.WriteString("\nAnything not listed above cannot be installed or run - sudo, apt, and writes outside /workspace and /tmp are all blocked. ")
-	} else {
-		b.WriteString("\nAnything not listed above cannot be installed or run - there is no sudo and apt needs root. ")
-	}
-	b.WriteString("If a task needs a missing tool, tell the user why it's needed so they can add it (e.g. via custom_installs in .agenticrc.toml) and rebuild the image.\n\n")
+func writeMissingToolsNote(b *strings.Builder) {
+	b.WriteString("\nOnly the tools above and the standard Debian utilities (coreutils, `grep`, `sed`, `tar`, ...) are installed. Any other tool isn't, so check with `command -v <tool>` before relying on it. Package managers work only when they install into a writable path (see Filesystem) from a reachable registry, e.g. `npm install` in `/workspace`. For any other missing tool, tell the user which tool you need and why, so they can add it to custom_installs in .agenticrc.toml and rebuild the image.\n\n")
 }
 
-// writeFilesystemSection notes a read-only root with its ephemeral scratch dirs, or a writable root discarded on exit.
-func writeFilesystemSection(b *strings.Builder, toolConfig tools.ToolConfig, containerHome string, caps sandbox.Capabilities) {
+// writeFilesystemSection lists each mounted path with its access, then what happens to every other path.
+func writeFilesystemSection(b *strings.Builder, toolConfig tools.ToolConfig, in Input, rc *config.AgenticRC, containerHome string, caps sandbox.Capabilities) {
 	b.WriteString("## Filesystem\n\n")
-	if caps.ReadOnlyRoot {
-		b.WriteString("- The container's root filesystem is read-only.\n")
+	b.WriteString("- `/workspace`: the project on the user's machine. Writable; changes are real.\n")
+	for _, spec := range resolve.Volumes(toolConfig.Runtime.Mounts(), in.Volumes, rc) {
+		writeMountLine(b, spec, containerHome)
 	}
-	b.WriteString("- `/workspace` (the current project) is writable.\n")
 
 	if caps.ReadOnlyRoot {
 		for _, p := range toolConfig.Runtime.EphemeralDirs() {
-			fmt.Fprintf(b, "- `%s` is writable but ephemeral (cleared when the container exits).\n", mount.ExpandTmpfsSpec(p.Path, containerHome))
+			fmt.Fprintf(b, "- `%s`: writable, cleared when the container exits.\n", mount.ExpandTmpfsSpec(p.Path, containerHome))
 		}
+		b.WriteString("- Every other path is read-only.\n")
 	} else {
-		b.WriteString("- Everything outside mounted directories, `/tmp` included, is writable but discarded when the VM exits and never reaches the user's machine.\n")
+		b.WriteString("- Every other path, `/tmp` included, is writable but discarded when the VM exits.\n")
 	}
 
-	b.WriteString("- Any mounted secrets under `/run/secrets/` are read-only.\n\n")
+	b.WriteString("- Secrets under `/run/secrets/` are read-only.\n\n")
+}
+
+// writeMountLine writes a volume's container path and access; the workspace has its own line.
+func writeMountLine(b *strings.Builder, spec, containerHome string) {
+	_, target, ok := mount.SplitHostContainer(spec)
+	if !ok {
+		return
+	}
+
+	path, opts, _ := strings.Cut(mount.ExpandTmpfsSpec(target, containerHome), ":")
+	if path == mount.WorkspaceContainerPath {
+		return
+	}
+
+	access := "writable"
+	if slices.Contains(strings.Split(opts, ","), "ro") {
+		access = "read-only"
+	}
+	fmt.Fprintf(b, "- `%s`: %s, persists across runs.\n", path, access)
 }
 
 // writeResourceLimitsSection leaves out the pids limit for a runtime without one.
 func writeResourceLimitsSection(b *strings.Builder, limits sandbox.ResourceLimits, caps sandbox.Capabilities) {
 	b.WriteString("## Resource limits\n\n")
 	if caps.PidsLimit {
-		fmt.Fprintf(b, "- Max processes (pids-limit): %s\n", limits.PidsLimit)
+		fmt.Fprintf(b, "- Max processes: %s\n", limits.PidsLimit)
 	}
 	fmt.Fprintf(b, "- CPUs: %s\n", limits.CPUs)
 	fmt.Fprintf(b, "- Memory: %s\n", limits.Memory)
 
-	if !caps.PidsLimit {
-		b.WriteString("\nThese are configurable, not hard caps - if a task needs more, tell the user why so they can raise cpus/memory in .agenticrc.toml (or the --cpus/--memory flags) and rerun.\n\n")
+	b.WriteString("\nThese are hard limits for this run. If a task needs more, tell the user so they can raise ")
+	if caps.PidsLimit {
+		b.WriteString("pids_limit/cpus/memory in .agenticrc.toml (or --pids-limit/--cpus/--memory) and rerun.\n\n")
 	} else {
-		b.WriteString("\nThese are configurable, not hard caps - if a task needs more, tell the user why so they can raise pids_limit/cpus/memory in .agenticrc.toml (or the --pids-limit/--cpus/--memory flags) and rerun.\n\n")
+		b.WriteString("cpus/memory in .agenticrc.toml (or --cpus/--memory) and rerun.\n\n")
 	}
 }
 
@@ -204,33 +222,52 @@ func writeResourceLimitsSection(b *strings.Builder, limits sandbox.ResourceLimit
 func writePrivilegeSection(b *strings.Builder, caps sandbox.Capabilities) {
 	b.WriteString("## Privileges\n\n")
 	if !caps.DropsPrivileges {
-		b.WriteString("- Running as a non-root user; `sudo` and system package installs will not work.\n\n")
+		b.WriteString("- Non-root user. `sudo` and apt fail.\n\n")
 		return
 	}
 
-	b.WriteString("- Running as a non-root user with all Linux capabilities dropped and no privilege escalation.\n")
-	b.WriteString("- `sudo`, system package installs, and binding privileged ports will not work.\n\n")
+	b.WriteString("- Non-root user, all Linux capabilities dropped, no privilege escalation.\n")
+	b.WriteString("- `sudo`, apt and binding ports below 1024 fail.\n\n")
 }
 
-// writeNetworkSection is only written when the proxy is enabled and the runtime offers it; the allowlist itself is omitted in monitor mode, since nothing is actually blocked there.
+// writeNetworkSection is only written when the proxy is enabled and the runtime offers it; in monitor mode nothing is blocked, so it lists no hosts.
 func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *config.AgenticRC, in Input, caps sandbox.Capabilities) {
 	if !in.ProxyMode.Enabled() || !caps.Proxy {
 		return
 	}
 
 	b.WriteString("## Network\n\n")
-	b.WriteString("- All network egress routes through an egress proxy - there is no direct internet access.\n")
-
 	if in.ProxyMode == sandbox.ProxyMonitor {
-		b.WriteString("\n")
+		b.WriteString("- All traffic goes through an egress proxy that logs every request and blocks nothing.\n\n")
 		return
 	}
 
-	b.WriteString("- Only the following hosts are reachable:\n")
+	if in.Runtime == sandbox.RuntimeMicrosandbox {
+		b.WriteString("- The VM's network policy filters all traffic and inspects HTTPS.\n")
+	} else {
+		b.WriteString("- All traffic goes through an egress proxy.\n")
+	}
+
+	fmt.Fprintf(b, "- Only these hosts are reachable, and only on ports %s (HTTP and HTTPS):\n", strings.Join(proxy.DefaultPorts, " and "))
 	for _, host := range resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc) {
 		fmt.Fprintf(b, "  - %s\n", host)
 	}
-	b.WriteString("\nAnything not listed above is blocked. If a task needs a host that isn't reachable, tell the user why so they can add it to allowed_hosts in .agenticrc.toml and rerun.\n\n")
+
+	b.WriteString("- Everything else is blocked: other hosts, other ports and SSH, git over SSH included. ")
+	if in.Runtime == sandbox.RuntimeMicrosandbox {
+		b.WriteString("A blocked request fails with a DNS, connection or TLS error.\n")
+	} else {
+		b.WriteString("A blocked request gets HTTP 403 from the proxy (curl: `CONNECT tunnel failed, response 403`).\n")
+	}
+
+	if search := toolConfig.Runtime.WebSearchTool; search != "" {
+		fmt.Fprintf(b, "- Web search (`%s`) runs on the model provider's side and reaches any site. Fetching a page (a fetch tool, `curl`, `wget`) only reaches the hosts above.\n", search)
+	} else {
+		b.WriteString("- Web searches and page fetches (any search or fetch tool, `curl`, `wget`) only reach the hosts above.\n")
+	}
+
+	b.WriteString("- A blocked host is blocked for every tool. Don't retry it another way (curl, another fetch tool, a mirror).\n")
+	b.WriteString("- If a task needs a blocked host, tell the user which host and why, so they can add it to allowed_hosts in .agenticrc.toml and rerun.\n\n")
 }
 
 // writeDockerSection is only written when the Docker sidecar is enabled; a runtime without one only warns there's no daemon.
@@ -241,17 +278,17 @@ func writeDockerSection(b *strings.Builder, in Input, caps sandbox.Capabilities,
 
 	b.WriteString("## Docker\n\n")
 	if !caps.Dind {
-		b.WriteString("- There is no Docker daemon in this VM, so `docker` commands will fail.\n\n")
+		b.WriteString("- There is no Docker daemon in this VM; `docker` commands fail.\n\n")
 		return
 	}
 
-	b.WriteString("- `docker` talks to a rootless Docker daemon in a separate per-run sidecar; DOCKER_HOST and TLS certs are preconfigured, so don't change them.\n")
-	b.WriteString("- `/workspace` is mounted at the same path in the daemon, so bind mounts under `/workspace` work; other paths (e.g. this container's home or `/tmp`) don't exist there.\n")
-	b.WriteString("- Published ports listen on the sidecar: reach them at `agentic-docker:<port>`, not `localhost`. They are not reachable from the user's machine.\n")
-	b.WriteString("- Images, containers and volumes are discarded when this session ends.\n")
-	fmt.Fprintf(b, "- The daemon has its own limits, shared by everything it runs: %s processes, %s CPUs, %s memory. To raise them, tell the user to set pids_limit/cpus/memory under [run.dind] in .agenticrc.toml (or the --dind-pids-limit/--dind-cpus/--dind-memory flags).\n", limits.PidsLimit, limits.CPUs, limits.Memory)
+	b.WriteString("- `docker` uses a rootless daemon in a per-run sidecar. DOCKER_HOST and TLS certs are preset; don't change them.\n")
+	b.WriteString("- Bind mounts work only under `/workspace`, which has the same path in the daemon. Other paths, such as `/tmp` or your home, don't exist there.\n")
+	b.WriteString("- Published ports are on the sidecar: use `agentic-docker:<port>`, not `localhost`. The user's machine can't reach them.\n")
+	b.WriteString("- Images, containers and volumes are deleted when this session ends.\n")
+	fmt.Fprintf(b, "- Daemon limits, shared by all its containers: %s processes, %s CPUs, %s memory. To raise them, tell the user to set pids_limit/cpus/memory under [run.dind] in .agenticrc.toml (or --dind-pids-limit/--dind-cpus/--dind-memory).\n", limits.PidsLimit, limits.CPUs, limits.Memory)
 	if in.ProxyMode.Enabled() {
-		b.WriteString("- Image pulls, builds and containers go through the same egress proxy and allowlist; a registry other than Docker Hub must be added to allowed_hosts.\n")
+		b.WriteString("- Image pulls, builds and containers use the same allowlist; a registry other than Docker Hub must be added to allowed_hosts.\n")
 	}
 	b.WriteString("\n")
 }

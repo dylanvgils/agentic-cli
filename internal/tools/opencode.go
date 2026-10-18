@@ -18,7 +18,7 @@ const opencodeInstructionsContainerPath = "$CONTAINER_HOME/.config/opencode/AGEN
 
 // opencodeAllowedHosts is the baseline allowlist; OpenCode is multi-provider, so users add their model-provider hosts via allowed_hosts.
 var opencodeAllowedHosts = []string{
-	"opencode.ai", // OpenCode auth and update checks
+	"opencode.ai", // OpenCode auth, update checks and docs
 }
 
 func opencodeEphemeralDirs() []sandbox.EphemeralDir {

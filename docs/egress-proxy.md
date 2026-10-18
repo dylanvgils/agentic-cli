@@ -54,16 +54,27 @@ Each tool allows these hosts by default. `allowed_hosts` adds to them.
 | ---------- | -------------------- | ----------------------------------- |
 | `claude`   | `.anthropic.com`     | Claude API and telemetry subdomains |
 | `claude`   | `.claude.ai`         | installer and asset downloads       |
-| `claude`   | `.claude.com`        | OAuth/login flow                    |
+| `claude`   | `.claude.com`        | OAuth/login flow and docs           |
 | `copilot`  | `.githubcopilot.com` | Copilot API and subdomains          |
 | `copilot`  | `api.github.com`     | GitHub API used for authentication  |
-| `opencode` | `opencode.ai`        | OpenCode auth and update checks     |
+| `copilot`  | `docs.github.com`    | Copilot CLI docs                    |
+| `opencode` | `opencode.ai`        | OpenCode auth, update checks, docs  |
 
 OpenCode supports many model providers, so add your provider's hosts to `allowed_hosts`.
 
 ### Tools that ignore proxy env vars
 
 Some tools, like Maven, ignore those env vars and need a literal `host:port` in their own config. Use `agentic-proxy:3128`. Unlike the sidecar's container name, this alias is the same on every run. See [Maven through the egress proxy](recipes.md#maven-through-the-egress-proxy).
+
+### With microsandbox
+
+With the experimental microsandbox runtime, msb's own network policy enforces the same allowlist instead of a proxy sidecar, so no proxy env vars are set. Only DNS and the allowed hosts on ports 80 and 443 are reachable. msb inspects all HTTPS to check each request's host, so the tool must trust msb's certificate authority (curl, git and Bun do), and tools that pin certificates fail.
+
+- There's no access log and no summary at the end of the run.
+- `--proxy-monitor` is refused; use `--proxy`.
+- An internal host that resolves to a private address isn't reachable, since msb drops private DNS answers.
+- Every `allowed_hosts` entry must be a hostname like `api.example.test` or `.example.test`, else the run is refused. msb would read a CIDR or a name like `public` as a wider rule.
+- Credentials keep working, since msb injects them itself rather than a proxy.
 
 ## Credential injection
 

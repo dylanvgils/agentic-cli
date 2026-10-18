@@ -24,7 +24,7 @@ func TestClient_Capabilities(t *testing.T) {
 	caps := New().Capabilities()
 
 	// Assert
-	assert.Equal(t, sandbox.Capabilities{CredentialInjection: true}, caps)
+	assert.Equal(t, sandbox.Capabilities{Proxy: true, CredentialInjection: true}, caps)
 }
 
 func TestClient_Available(t *testing.T) {

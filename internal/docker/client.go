@@ -63,6 +63,7 @@ func (c *Client) Context() string {
 func (c *Client) Capabilities() sandbox.Capabilities {
 	return sandbox.Capabilities{
 		Proxy:               true,
+		ProxyMonitor:        true,
 		Dind:                true,
 		CredentialInjection: true,
 		CredentialsViaProxy: true,

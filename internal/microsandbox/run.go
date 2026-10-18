@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/logging"
 	"github.com/dylanvgils/agentic-cli/internal/mount"
 	"github.com/dylanvgils/agentic-cli/internal/platform"
+	"github.com/dylanvgils/agentic-cli/internal/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/sandbox"
 )
 
@@ -22,6 +24,9 @@ const (
 	// placeholderPrefix starts the placeholder msb puts in the guest for a secret, e.g. $MSB_GITHUB_TOKEN.
 	placeholderPrefix = "$MSB_"
 )
+
+// hostRe matches a hostname of two or more labels, so msb can't read an entry as a group (public), CIDR, IP or port.
+var hostRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`)
 
 // Run runs the tool described by rs in a microsandbox VM, skipping what Capabilities leaves out; the image must already be loaded.
 func (c *Client) Run(rs sandbox.RunSpec, toolArgs []string) error {
@@ -51,6 +56,11 @@ func buildRunArgs(rs sandbox.RunSpec, toolArgs []string) ([]string, error) {
 		return nil, err
 	}
 
+	networkArgs, err := buildNetworkArgs(rs.Proxy)
+	if err != nil {
+		return nil, err
+	}
+
 	entrypointArgs, toolArgs, err := buildEntrypointArgs(rs, toolArgs)
 	if err != nil {
 		return nil, err
@@ -61,6 +71,7 @@ func buildRunArgs(rs sandbox.RunSpec, toolArgs []string) ([]string, error) {
 	args = append(args, sandbox.EnvArgs(rs.Env)...)
 	args = append(args, volumeArgs...)
 	args = append(args, buildCredentialArgs(rs)...)
+	args = append(args, networkArgs...)
 	args = append(args, entrypointArgs...)
 	args = append(args, rs.Image)
 
@@ -126,6 +137,70 @@ func buildCredentialArgs(rs sandbox.RunSpec) []string {
 		}
 	}
 	return args
+}
+
+// buildNetworkArgs makes msb deny all egress but DNS and the allowlist on proxy.DefaultPorts, intercepting HTTPS so
+// strict mode can check each request's host; msb keeps no log of what it denies, so it can't run in monitor mode.
+func buildNetworkArgs(spec sandbox.ProxySpec) ([]string, error) {
+	switch spec.Mode {
+	case sandbox.ProxyOff:
+		return nil, nil
+	case sandbox.ProxyMonitor:
+		return nil, errors.New("msb can't run the proxy in monitor mode")
+	}
+
+	targets, err := netRuleTargets(spec.Allow)
+	if err != nil {
+		return nil, err
+	}
+
+	args := []string{arg("net-default-egress", "deny"), arg("tls-intercept"), arg("net-rule", "allow@dns")}
+	for _, target := range targets {
+		for _, port := range proxy.DefaultPorts {
+			args = append(args, arg("net-rule", "allow@"+target+":tcp:"+port))
+		}
+	}
+	return args, nil
+}
+
+// netRuleTargets turns allowlist entries into sorted, unique msb rule targets, skipping blank ones.
+func netRuleTargets(allow []string) ([]string, error) {
+	var targets []string
+	for _, entry := range allow {
+		target, err := netRuleTarget(entry)
+		if err != nil {
+			return nil, err
+		}
+		if target != "" {
+			targets = append(targets, target)
+		}
+	}
+
+	slices.Sort(targets)
+	return slices.Compact(targets), nil
+}
+
+// netRuleTarget turns an allowlist entry into an msb rule target, or "" for a blank one: a ".example.test" or
+// "*.example.test" entry becomes "*.example.test", which msb matches against the domain and its subdomains. It refuses
+// an entry that isn't a hostname, since msb would read it as something broader, like a group or a CIDR.
+func netRuleTarget(entry string) (string, error) {
+	host := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(entry)), ".")
+	if host == "" {
+		return "", nil
+	}
+
+	domain, wildcard := strings.CutPrefix(host, "*.")
+	if !wildcard {
+		domain, wildcard = strings.CutPrefix(host, ".")
+	}
+	if !hostRe.MatchString(domain) {
+		return "", fmt.Errorf("msb can't allow %q: allowed_hosts entries must be hostnames like api.example.test or .example.test", entry)
+	}
+
+	if wildcard {
+		return "*." + domain, nil
+	}
+	return domain, nil
 }
 
 // buildEntrypointArgs makes the first tool arg the entrypoint when rs skips the image's own, returning the flag and the remaining tool args.

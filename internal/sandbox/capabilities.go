@@ -4,6 +4,8 @@ package sandbox
 type Capabilities struct {
 	// Proxy is the egress allowlist proxy.
 	Proxy bool
+	// ProxyMonitor is the proxy's monitor mode, which logs hosts off the allowlist instead of blocking them.
+	ProxyMonitor bool
 	// Dind is a Docker daemon the tool can reach.
 	Dind bool
 	// CredentialInjection keeps credentials out of the tool, which only sees a placeholder.
@@ -25,6 +27,7 @@ type Capabilities struct {
 func (c Capabilities) Missing(need Capabilities) Capabilities {
 	return Capabilities{
 		Proxy:               need.Proxy && !c.Proxy,
+		ProxyMonitor:        need.ProxyMonitor && !c.ProxyMonitor,
 		Dind:                need.Dind && !c.Dind,
 		CredentialInjection: need.CredentialInjection && !c.CredentialInjection,
 		SecretMounts:        need.SecretMounts && !c.SecretMounts,

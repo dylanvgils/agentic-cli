@@ -30,7 +30,7 @@ func Test_requiredCapabilities(t *testing.T) {
 		need := requiredCapabilities(flags, &config.AgenticRC{})
 
 		// Assert
-		assert.Equal(t, sandbox.Capabilities{Proxy: true, Dind: true, PidsLimit: true}, need)
+		assert.Equal(t, sandbox.Capabilities{Proxy: true, ProxyMonitor: true, Dind: true, PidsLimit: true}, need)
 	})
 
 	t.Run("config asks for the proxy and dind", func(t *testing.T) {
@@ -99,7 +99,8 @@ func Test_requiredCapabilities(t *testing.T) {
 }
 
 func Test_checkCapabilities(t *testing.T) {
-	msb := sandbox.Capabilities{CredentialInjection: true}
+	msb := sandbox.Capabilities{Proxy: true, CredentialInjection: true}
+	noProxy := sandbox.Capabilities{CredentialInjection: true}
 
 	t.Run("a missing proxy is an error with the opt-out", func(t *testing.T) {
 		// Arrange
@@ -108,7 +109,7 @@ func Test_checkCapabilities(t *testing.T) {
 		req.Flags.Proxy.ProxyFlag = true
 
 		// Act
-		err := checkCapabilities(req, msb)
+		err := checkCapabilities(req, noProxy)
 
 		// Assert
 		assert.EqualError(t, err, "--runtime microsandbox does not support the egress proxy (--proxy); pass --no-proxy to run without the proxy, or use --runtime docker")
@@ -124,10 +125,51 @@ func Test_checkCapabilities(t *testing.T) {
 		req.Project.Layers = []config.RCLayer{{Path: "/example.test/project/.agenticrc.toml", RC: rc}}
 
 		// Act
-		err := checkCapabilities(req, msb)
+		err := checkCapabilities(req, noProxy)
 
 		// Assert
 		assert.EqualError(t, err, "--runtime microsandbox does not support the egress proxy ([run.proxy] enabled in /example.test/project/.agenticrc.toml); pass --no-proxy to run without the proxy, or use --runtime docker")
+	})
+
+	t.Run("an enforcing proxy passes without monitor mode", func(t *testing.T) {
+		// Arrange
+		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
+		req.Project.RC = &config.AgenticRC{}
+		req.Flags.Proxy.ProxyFlag = true
+
+		// Act
+		err := checkCapabilities(req, msb)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("a missing monitor mode is an error pointing to --proxy", func(t *testing.T) {
+		// Arrange
+		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
+		req.Project.RC = &config.AgenticRC{}
+		req.Flags.Proxy.MonitorFlag = true
+
+		// Act
+		err := checkCapabilities(req, msb)
+
+		// Assert
+		assert.EqualError(t, err, "--runtime microsandbox does not support proxy monitor mode (--proxy-monitor); pass --proxy to enforce the allowlist instead, or use --runtime docker")
+	})
+
+	t.Run("a missing monitor mode asked for in config names the layer", func(t *testing.T) {
+		// Arrange
+		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.Mode = config.ModeMonitor
+		req.Project.RC = rc
+		req.Project.Layers = []config.RCLayer{{Path: "/example.test/project/.agenticrc.toml", RC: rc}}
+
+		// Act
+		err := checkCapabilities(req, msb)
+
+		// Assert
+		assert.EqualError(t, err, "--runtime microsandbox does not support proxy monitor mode ([run.proxy] mode in /example.test/project/.agenticrc.toml); pass --proxy to enforce the allowlist instead, or use --runtime docker")
 	})
 
 	t.Run("missing proxy and credentials give one error", func(t *testing.T) {
@@ -164,7 +206,7 @@ func Test_checkCapabilities(t *testing.T) {
 		req.Flags.Dind.DindFlag = true
 
 		// Act
-		err := checkCapabilities(req, sandbox.Capabilities{Proxy: true, Dind: true, CredentialInjection: true, SecretMounts: true, PidsLimit: true})
+		err := checkCapabilities(req, sandbox.Capabilities{Proxy: true, ProxyMonitor: true, Dind: true, CredentialInjection: true, SecretMounts: true, PidsLimit: true})
 
 		// Assert
 		assert.NoError(t, err)
@@ -386,6 +428,17 @@ func Test_specCapabilities(t *testing.T) {
 		// Assert
 		assert.Equal(t, sandbox.Capabilities{Proxy: true, CredentialInjection: true, SecretMounts: true}, need)
 	})
+
+	t.Run("monitor mode counts too", func(t *testing.T) {
+		// Arrange
+		rs := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}}
+
+		// Act
+		need := specCapabilities(rs)
+
+		// Assert
+		assert.Equal(t, sandbox.Capabilities{Proxy: true, ProxyMonitor: true}, need)
+	})
 }
 
 func Test_checkSpec(t *testing.T) {
@@ -409,5 +462,16 @@ func Test_checkSpec(t *testing.T) {
 
 		// Assert
 		assert.EqualError(t, err, "the runtime can't enforce the egress proxy or secret mounts that the run asks for")
+	})
+
+	t.Run("refuses monitor mode on a runtime that only enforces", func(t *testing.T) {
+		// Arrange
+		rs := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}}
+
+		// Act
+		err := checkSpec(rs, sandbox.Capabilities{Proxy: true})
+
+		// Assert
+		assert.EqualError(t, err, "the runtime can't enforce proxy monitor mode that the run asks for")
 	})
 }

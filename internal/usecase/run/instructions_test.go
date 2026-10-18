@@ -103,7 +103,8 @@ func TestBuildInstructions(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, content, "cannot be installed or run")
+		assert.Contains(t, content, "Any other tool isn't, so check with `command -v <tool>` before relying on it.")
+		assert.Contains(t, content, "Package managers work only when they install into a writable path")
 		assert.Contains(t, content, "custom_installs in .agenticrc.toml")
 	})
 
@@ -128,10 +129,26 @@ func TestBuildInstructions(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, content, "root filesystem is read-only")
-		assert.Contains(t, content, "/workspace")
-		assert.Contains(t, content, "- `/tmp` is writable but ephemeral")
-		assert.Contains(t, content, "- `/home/agent/.cache` is writable but ephemeral")
+		assert.Contains(t, content, "- `/workspace`: the project on the user's machine")
+		assert.Contains(t, content, "- `/tmp`: writable, cleared when the container exits.\n")
+		assert.Contains(t, content, "- `/home/agent/.cache`: writable, cleared when the container exits.\n")
+		assert.Contains(t, content, "- Every other path is read-only.\n")
+	})
+
+	t.Run("filesystem section lists mounts with their access", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{resolveContainerHome: func(string) string { return "/home/agent" }}
+		in := Input{Volumes: []string{"./data:/data"}}
+		rc := &config.AgenticRC{Run: config.RCRun{Mounts: []string{"go-mod:$CONTAINER_HOME/go"}}}
+
+		// Act
+		content, err := New(d, nil).BuildInstructions(target, in, tools.Configs["claude"], rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, content, "- `/home/agent/go`: writable, persists across runs.\n")
+		assert.Contains(t, content, "- `/data`: read-only, persists across runs.\n")
+		assert.NotContains(t, content, "- `/workspace`: writable")
 	})
 
 	t.Run("resource limits reflect resolved defaults", func(t *testing.T) {
@@ -151,7 +168,7 @@ func TestBuildInstructions(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, content, "configurable, not hard caps")
+		assert.Contains(t, content, "hard limits for this run")
 		assert.Contains(t, content, "pids_limit/cpus/memory in .agenticrc.toml")
 	})
 
@@ -174,10 +191,38 @@ func TestBuildInstructions(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, content, "no direct internet access")
+		assert.Contains(t, content, "- All traffic goes through an egress proxy.\n")
+		assert.Contains(t, content, "only on ports 80 and 443")
 		assert.Contains(t, content, "  - .anthropic.com\n")
 		assert.Contains(t, content, "extra.example.com")
-		assert.Contains(t, content, "tell the user why so they can add it to allowed_hosts")
+		assert.Contains(t, content, "HTTP 403 from the proxy")
+		assert.Contains(t, content, "so they can add it to allowed_hosts")
+	})
+
+	t.Run("network section names a provider-side web search", func(t *testing.T) {
+		// Arrange
+		in := Input{ProxyMode: sandbox.ProxyEnforce}
+
+		// Act
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, content, "Web search (`WebSearch`) runs on the model provider's side")
+		assert.Contains(t, content, "Don't retry it another way")
+	})
+
+	t.Run("network section limits searches to the allowlist without a provider-side search", func(t *testing.T) {
+		// Arrange
+		in := Input{ProxyMode: sandbox.ProxyEnforce}
+
+		// Act
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["opencode"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, content, "Web searches and page fetches (any search or fetch tool, `curl`, `wget`) only reach the hosts above.")
+		assert.NotContains(t, content, "model provider's side")
 	})
 
 	t.Run("network section omits host list in monitor mode", func(t *testing.T) {
@@ -190,10 +235,10 @@ func TestBuildInstructions(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, content, "no direct internet access")
+		assert.Contains(t, content, "logs every request and blocks nothing")
 		assert.NotContains(t, content, "extra.example.com")
-		assert.NotContains(t, content, "reachable")
-		assert.NotContains(t, content, "tell the user why so they can add it to allowed_hosts")
+		assert.NotContains(t, content, "Only these hosts")
+		assert.NotContains(t, content, "allowed_hosts")
 	})
 
 	t.Run("docker section omitted when dind disabled", func(t *testing.T) {
@@ -242,7 +287,7 @@ func TestBuildInstructions(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, content, "Image pulls, builds and containers go through the same egress proxy")
+		assert.Contains(t, content, "Image pulls, builds and containers use the same allowlist")
 		assert.Contains(t, content, "  - registry-1.docker.io\n")
 	})
 
@@ -258,27 +303,40 @@ func TestBuildInstructions(t *testing.T) {
 		assert.Contains(t, content, "inside an agentic-cli microVM")
 		assert.Contains(t, content, "## Precedence")
 		assert.Contains(t, content, "- Base toolchain (always installed):\n")
-		assert.Contains(t, content, "there is no sudo")
+		assert.Contains(t, content, "- Non-root user. `sudo` and apt fail.\n")
 		assert.Contains(t, content, "`/tmp` included, is writable but discarded when the VM exits")
 		assert.NotContains(t, content, ".cache")
 		assert.Contains(t, content, "- CPUs: 3\n- Memory: 6g\n")
-		assert.Contains(t, content, "secrets under `/run/secrets/` are read-only")
+		assert.Contains(t, content, "Secrets under `/run/secrets/` are read-only")
 		assert.NotContains(t, content, "root filesystem is read-only")
 		assert.NotContains(t, content, "pids")
 		assert.NotContains(t, content, "capabilities dropped")
 	})
 
-	t.Run("microsandbox omits the proxy and sidecar it lacks even when enabled", func(t *testing.T) {
+	t.Run("microsandbox describes its network policy instead of the proxy", func(t *testing.T) {
 		// Arrange
-		in := Input{Runtime: sandbox.RuntimeMicrosandbox, ProxyMode: sandbox.ProxyEnforce, DindEnabled: true}
+		in := Input{Runtime: sandbox.RuntimeMicrosandbox, ProxyMode: sandbox.ProxyEnforce}
 
 		// Act
 		content, err := New(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		assert.NotContains(t, content, "## Network")
+		assert.Contains(t, content, "The VM's network policy filters all traffic and inspects HTTPS")
+		assert.Contains(t, content, "fails with a DNS, connection or TLS error")
+		assert.Contains(t, content, "  - .anthropic.com\n")
 		assert.NotContains(t, content, "egress proxy")
+	})
+
+	t.Run("microsandbox omits the sidecar it lacks even when dind is enabled", func(t *testing.T) {
+		// Arrange
+		in := Input{Runtime: sandbox.RuntimeMicrosandbox, DindEnabled: true}
+
+		// Act
+		content, err := New(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
 		assert.NotContains(t, content, "sidecar")
 		assert.Contains(t, content, "no Docker daemon in this VM")
 	})

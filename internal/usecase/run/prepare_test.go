@@ -98,11 +98,11 @@ func TestPrepare(t *testing.T) {
 		assert.Empty(t, p.trustAsked)
 	})
 
-	t.Run("microsandbox with the proxy on stops before any prompt", func(t *testing.T) {
+	t.Run("microsandbox in proxy monitor mode stops before any prompt", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		req.Flags.Runtime = sandbox.RuntimeMicrosandbox
-		req.Flags.Proxy.ProxyFlag = true
+		req.Flags.Proxy.MonitorFlag = true
 		p := &fakePrompter{}
 
 		// Act
@@ -110,7 +110,7 @@ func TestPrepare(t *testing.T) {
 		defer cleanup()
 
 		// Assert
-		require.ErrorContains(t, err, "does not support the egress proxy (--proxy)")
+		require.ErrorContains(t, err, "does not support proxy monitor mode (--proxy-monitor)")
 		assert.Empty(t, p.trustAsked)
 	})
 

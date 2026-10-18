@@ -128,6 +128,7 @@ func Test_buildRunArgs(t *testing.T) {
 			ContainerHome: "/home/claude",
 			Limits:        sandbox.ResourceLimits{CPUs: "2"},
 			Volumes:       []string{"/example.test/data:/data"},
+			Proxy:         sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Allow: []string{"api.example.test"}},
 		}
 
 		// Act
@@ -137,7 +138,7 @@ func Test_buildRunArgs(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "run", args[0])
 		image := slices.Index(args, "img")
-		for _, flag := range []string{"--cpus=2", "--mount-dir=/example.test/data:/data"} {
+		for _, flag := range []string{"--cpus=2", "--mount-dir=/example.test/data:/data", "--net-default-egress=deny"} {
 			assert.Contains(t, args, flag)
 			assert.Less(t, slices.Index(args, flag), image)
 		}
@@ -246,6 +247,120 @@ func Test_buildNamedVolumeArgs(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, `invalid volume "maven"`)
+	})
+}
+
+func Test_buildNetworkArgs(t *testing.T) {
+	t.Run("adds nothing with the proxy off", func(t *testing.T) {
+		// Act
+		args, err := buildNetworkArgs(sandbox.ProxySpec{Allow: []string{"api.example.test"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, args)
+	})
+
+	t.Run("refuses monitor mode", func(t *testing.T) {
+		// Act
+		_, err := buildNetworkArgs(sandbox.ProxySpec{Mode: sandbox.ProxyMonitor})
+
+		// Assert
+		assert.EqualError(t, err, "msb can't run the proxy in monitor mode")
+	})
+
+	t.Run("denies egress but DNS and the allowlist, intercepting HTTPS", func(t *testing.T) {
+		// Act
+		args, err := buildNetworkArgs(sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Allow: []string{"api.example.test"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{
+			"--net-default-egress=deny",
+			"--tls-intercept",
+			"--net-rule=allow@dns",
+			"--net-rule=allow@api.example.test:tcp:80",
+			"--net-rule=allow@api.example.test:tcp:443",
+		}, args)
+	})
+}
+
+func Test_netRuleTargets(t *testing.T) {
+	t.Run("sorts, dedupes and skips blanks", func(t *testing.T) {
+		// Act
+		targets, err := netRuleTargets([]string{"b.example.test", "", "a.example.test", "b.example.test"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"a.example.test", "b.example.test"}, targets)
+	})
+
+	t.Run("refuses the list when an entry is refused", func(t *testing.T) {
+		// Act
+		targets, err := netRuleTargets([]string{"api.example.test", "public"})
+
+		// Assert
+		assert.ErrorContains(t, err, `msb can't allow "public"`)
+		assert.Nil(t, targets)
+	})
+}
+
+func Test_netRuleTarget(t *testing.T) {
+	t.Run("keeps an exact host", func(t *testing.T) {
+		// Act
+		target, err := netRuleTarget("api.example.test")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "api.example.test", target)
+	})
+
+	t.Run("a suffix entry becomes a wildcard", func(t *testing.T) {
+		for _, entry := range []string{".example.test", "*.example.test"} {
+			// Act
+			target, err := netRuleTarget(entry)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, "*.example.test", target)
+		}
+	})
+
+	t.Run("normalizes case, spaces and a trailing dot", func(t *testing.T) {
+		// Act
+		target, err := netRuleTarget(" API.Example.Test. ")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "api.example.test", target)
+	})
+
+	t.Run("returns nothing for a blank entry", func(t *testing.T) {
+		// Act
+		target, err := netRuleTarget("  ")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, target)
+	})
+
+	t.Run("refuses entries msb would read as more than a hostname", func(t *testing.T) {
+		for _, entry := range []string{
+			"public",                  // msb address group
+			"any",                     // msb address group
+			"10.0.0.0/8",              // CIDR
+			"2001:db8::1",             // IPv6
+			"api.example.test:8443",   // port
+			".test",                   // single-label suffix
+			"*",                       // bare wildcard
+			"*example.test",           // wildcard without a dot
+			"domain=api.example.test", // msb rule syntax
+		} {
+			// Act
+			_, err := netRuleTarget(entry)
+
+			// Assert
+			assert.ErrorContains(t, err, fmt.Sprintf("msb can't allow %q", entry))
+		}
 	})
 }
 
