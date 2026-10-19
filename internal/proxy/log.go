@@ -12,38 +12,45 @@ import (
 	"time"
 )
 
-// Decision records whether a connection attempt was permitted.
-type Decision string
+// LogFilePrefix distinguishes proxy access-log filenames from other log types in $TOOL_HOME/logs.
+const LogFilePrefix = "proxy_"
 
 const (
 	DecisionAllow Decision = "allow"
 	DecisionDeny  Decision = "deny"
 )
 
-// ReasonBlockedAddr is the log reason for an allowed host refused by the address guard.
-const ReasonBlockedAddr = "blocked-address"
-
-// ReasonUpstreamFailed is the log reason for an allowed request the upstream couldn't serve, with the detail in Entry.Error.
-const ReasonUpstreamFailed = "upstream-failed"
-
-// ReasonProxyFailed is the log reason for an allowed connection the proxy couldn't set up itself, such as a TLS handshake
-// the client rejected, with the detail in Entry.Error.
-const ReasonProxyFailed = "proxy-failed"
-
-// ReasonNoPlaceholder is the log reason for a closed credential tunnel the upstream rejected (401/403) and whose requests
-// never carried the placeholder. It repeats the tunnel's entry rather than counting a new attempt.
-const ReasonNoPlaceholder = "no-placeholder"
-
-// Protocol records how the client reached the proxy: an HTTP CONNECT tunnel (HTTPS) or a plain HTTP forward.
-type Protocol string
-
 const (
 	ProtocolHTTP  Protocol = "http"
 	ProtocolHTTPS Protocol = "https"
 )
 
-// LogFilePrefix distinguishes proxy access-log filenames from other log types in $TOOL_HOME/logs.
-const LogFilePrefix = "proxy_"
+// Log reasons say why an allowed host was still refused or failed.
+const (
+	// ReasonBlockedAddr is an allowed host refused by the address guard.
+	ReasonBlockedAddr = "blocked-address"
+
+	// ReasonUpstreamFailed is an allowed request the upstream couldn't serve, with the detail in Entry.Error.
+	ReasonUpstreamFailed = "upstream-failed"
+
+	// ReasonProxyFailed is an allowed connection the proxy couldn't set up itself, such as a TLS handshake the client
+	// rejected, with the detail in Entry.Error.
+	ReasonProxyFailed = "proxy-failed"
+
+	// ReasonClientClosed is an allowed credential tunnel the client closed during the TLS handshake, with the detail in
+	// Entry.Error.
+	ReasonClientClosed = "client-closed"
+
+	// ReasonNoPlaceholder is a closed credential tunnel the upstream rejected (401/403) and whose requests never carried
+	// the placeholder. It repeats the tunnel's entry rather than counting a new attempt.
+	ReasonNoPlaceholder = "no-placeholder"
+)
+
+// Decision records whether a connection attempt was permitted.
+type Decision string
+
+// Protocol records how the client reached the proxy: an HTTP CONNECT tunnel (HTTPS) or a plain HTTP forward.
+type Protocol string
 
 // Entry is a single structured access-log record, emitted as one JSON line per connection attempt.
 type Entry struct {

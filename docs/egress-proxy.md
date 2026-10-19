@@ -25,6 +25,7 @@ allowed_hosts = ["registry.npmjs.org", ".github.com"]
 - Blocked hosts are printed at the end of the run. Every attempt is logged as JSON lines in `$AGENTIC_HOME/logs/proxy_<id>.jsonl`.
 - When an upstream fails, the tool gets a plain 502. The log entry gets `"reason": "upstream-failed"` with the cause in `"error"`, which can name resolved IPs the tool shouldn't see.
 - When the proxy itself fails, for example on a TLS handshake the tool rejects, the tool gets a plain 500. The log entry gets `"reason": "proxy-failed"` with the cause in `"error"`.
+- When the tool hangs up during the TLS handshake of an intercepted host, the entry gets `"reason": "client-closed"` instead. Tools that race connections do this with the losers, so it's harmless when the tool carries on.
 - Logs older than `proxy_log_retention_days` in `agentic.json` (default 3) are pruned on each proxy run. `agentic proxy clean --logs` wipes them all.
 - The sidecar and its network are removed when the run ends. After a crash, the next `agentic` run or `agentic clean` removes them once they are a few minutes old and the tool has stopped.
 - The proxy image builds on first use, or with `agentic proxy build`. `agentic proxy update` rebuilds it.

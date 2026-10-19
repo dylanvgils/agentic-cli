@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -25,6 +26,12 @@ type Server struct {
 	monitor  bool
 	inject   *Injector // nil disables credential injection
 	upstream upstream
+}
+
+// bufferedConn reads what the HTTP server buffered past the CONNECT, such as a pipelined ClientHello, before the conn.
+type bufferedConn struct {
+	net.Conn
+	reader *bufio.Reader
 }
 
 // NewServer builds a Server enforcing allow unless monitor; a nil inject disables injection.
@@ -169,6 +176,15 @@ func (s *Server) failProxy(w http.ResponseWriter, entry Entry, err error) {
 	http.Error(w, proxyFailedText, http.StatusInternalServerError)
 }
 
+// Read drains the buffered bytes first, then reads the conn; the reader itself must not refill, as its source is the
+// hijacked server conn.
+func (c *bufferedConn) Read(p []byte) (int, error) {
+	if c.reader.Buffered() > 0 {
+		return c.reader.Read(p)
+	}
+	return c.Conn.Read(p)
+}
+
 // hijack takes over the underlying TCP connection from the ResponseWriter for a CONNECT tunnel.
 func hijack(w http.ResponseWriter) (net.Conn, error) {
 	hj, ok := w.(http.Hijacker)
@@ -176,9 +192,12 @@ func hijack(w http.ResponseWriter) (net.Conn, error) {
 		return nil, fmt.Errorf("connection does not support hijacking")
 	}
 
-	conn, _, err := hj.Hijack()
+	conn, rw, err := hj.Hijack()
 	if err != nil {
 		return nil, fmt.Errorf("hijack: %w", err)
+	}
+	if rw.Reader.Buffered() > 0 {
+		return &bufferedConn{Conn: conn, reader: rw.Reader}, nil
 	}
 	return conn, nil
 }

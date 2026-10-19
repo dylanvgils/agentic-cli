@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/certs"
@@ -180,6 +181,9 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) 
 	tlsConn, err := s.inject.handshake(w, entry.Host)
 	if err != nil {
 		entry.Reason = ReasonProxyFailed
+		if clientClosed(err) {
+			entry.Reason = ReasonClientClosed
+		}
 		entry.Error = err.Error()
 		s.logger.Log(entry)
 		return
@@ -233,6 +237,11 @@ func blockMethods(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// clientClosed reports whether err means the client hung up, as clients racing connections do with the losers.
+func clientClosed(err error) bool {
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE)
 }
 
 // newOneConnListener returns a listener yielding conn once.
