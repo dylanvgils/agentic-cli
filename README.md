@@ -44,7 +44,7 @@ The installer fetches the latest release for your OS and architecture, verifies 
 ```bash
 agentic build claude                  # build the image (once)
 agentic build claude --base node,java # or with extra runtimes
-agentic run claude                    # run it in the current directory
+agentic run claude                    # run it in the current directory, then trust it and sign in
 ```
 
 To run tools directly (`claude` instead of `agentic run claude`), add aliases to your shell config:
@@ -53,7 +53,7 @@ To run tools directly (`claude` instead of `agentic run claude`), add aliases to
 source <(agentic aliases)   # bash/zsh
 ```
 
-See [Usage](docs/usage.md) for fish/PowerShell, shell completion, and more examples.
+See [First run](docs/usage.md#first-run) for the trust prompt and signing in, and [Usage](docs/usage.md) for fish/PowerShell, shell completion, and more examples.
 
 ## 🛠️ Commands
 

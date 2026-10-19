@@ -61,8 +61,6 @@ Add a `#:schema` comment on the first line to get validation and autocomplete fr
 #:schema https://raw.githubusercontent.com/dylanvgils/agentic-cli/main/agenticrc.schema.json
 ```
 
-Inside this repo, use the local file instead: `#:schema ./agenticrc.schema.json`.
-
 ### Top-level keys
 
 | Key              | Type   | Description                                                                                  | Default   |

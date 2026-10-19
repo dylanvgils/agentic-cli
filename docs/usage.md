@@ -12,6 +12,32 @@ agentic's flags go before the tool name. Everything after it goes to the tool:
 agentic run --proxy claude --resume   # --proxy for agentic, --resume for Claude
 ```
 
+## First run
+
+1. Build the tool's image once:
+
+   ```bash
+   agentic build claude
+   ```
+
+2. Start it from your project directory:
+
+   ```bash
+   cd ~/projects/my-app
+   agentic run claude
+   ```
+
+3. Answer `y` to `trust directory ...?`. agentic mounts a trusted directory and its subdirectories writable and reads their `.agenticrc.toml`, so trust only your own projects. Non-interactive runs need `--trust-dir`. To revoke trust, see [`state.json`](config.md#statejson).
+4. Sign in the way the tool asks. The container has no browser, so open any link it prints on your machine.
+
+   | Tool     | Sign in                                                    |
+   | -------- | ---------------------------------------------------------- |
+   | claude   | Follow the login prompt on first start                     |
+   | copilot  | Type `/login` in the tool                                  |
+   | opencode | `agentic run opencode auth login`                          |
+
+The login is saved in the tool's home under `$AGENTIC_HOME/tools/<tool>`, so it survives runs and is shared by all your projects. The agent can read it. To keep an API key out of its reach instead, use [credential injection](credential-injection.md).
+
 ## Commands
 
 Run `agentic help <command>` for all flags.
@@ -160,7 +186,7 @@ agentic --docker-context prod build claude
 
 - Before each run, agentic clones or updates each marketplace on the host (`git fetch` + `git reset --hard`). It uses your own git auth, so no credentials enter the container. `git` must be on your `PATH`, and only https and ssh are allowed, so a marketplace can't expose a host path.
 - A failed first clone fails the run. A failed update only warns and reuses the existing clone.
-- Clones live in `$AGENTIC_HOME/marketplaces/<slug>-<hash>/`, keyed by `url`. Projects that use the same URL share one clone, even under different names. Usage is tracked in `.usage.json` there.
+- Clones live in `$AGENTIC_HOME/marketplaces/<slug>-<hash>/`, keyed by `url`. Projects that use the same URL share one clone, even under different names.
 - Each clone is mounted read-only at `~/marketplaces/<name>` and registered with the tool. Removing an entry unregisters it on the next run. Copilot only warns when registration fails.
 
 ```bash

@@ -25,8 +25,6 @@ debian (base stage)
         └── tool (tool stage)
 ```
 
-All stages go into one multi-stage Dockerfile and are built in a single `docker build`, with no intermediate images.
-
 | Flag                         | Result                         |
 | ---------------------------- | ------------------------------ |
 | _(none)_                     | debian only                    |

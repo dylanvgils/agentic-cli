@@ -25,7 +25,7 @@ The root filesystem is read-only, so every path a tool writes to is mounted expl
 | Bind  | `$AGENTIC_HOME/tools/copilot` | `$CONTAINER_HOME/.copilot`            | Auth tokens and CLI config  |
 | Tmpfs | -                             | `$CONTAINER_HOME/.cache` (1 GB, exec) | Cache (Copilot ignores `/tmp`) |
 
-A [secret](usage.md#secrets) at `/run/secrets/copilot_token` (`-s copilot_token:<file>`) is exported as `GITHUB_TOKEN` before the CLI starts.
+A [secret](usage.md#secrets) at `/run/secrets/copilot_token` is exported as `GITHUB_TOKEN` before the CLI starts. To use a token without the agent reading it, use [credential injection](credential-injection.md) with the `github` preset instead.
 
 ## OpenCode
 
