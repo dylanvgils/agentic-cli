@@ -96,6 +96,39 @@ func startEchoServer(t *testing.T) (host, port string) {
 	return host, port
 }
 
+// clientHello returns the first TLS record a client sends for serverName, with no SNI when empty.
+func clientHello(t *testing.T, serverName string) []byte {
+	t.Helper()
+
+	client, server := net.Pipe()
+	t.Cleanup(func() {
+		_ = client.Close()
+		_ = server.Close()
+	})
+	go func() {
+		_ = tls.Client(client, &tls.Config{ServerName: serverName, InsecureSkipVerify: true}).Handshake() //nolint:gosec // only the hello is used
+	}()
+
+	header := make([]byte, 5)
+	_, err := io.ReadFull(server, header)
+	require.NoError(t, err)
+	body := make([]byte, int(header[3])<<8|int(header[4]))
+	_, err = io.ReadFull(server, body)
+	require.NoError(t, err)
+	return append(header, body...)
+}
+
+// echoed writes payload into conn and returns what comes back, as an echo upstream sends it.
+func echoed(t *testing.T, conn net.Conn, payload []byte) ([]byte, error) {
+	t.Helper()
+
+	_, err := conn.Write(payload)
+	require.NoError(t, err)
+	echo := make([]byte, len(payload))
+	_, err = io.ReadFull(conn, echo)
+	return echo, err
+}
+
 // rawConnect issues a CONNECT to proxyAddr for target and returns the tunneled connection on success.
 func rawConnect(t *testing.T, proxyAddr, target string) net.Conn {
 	t.Helper()

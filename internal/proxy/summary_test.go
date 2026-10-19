@@ -15,6 +15,7 @@ func Test_Summary_Flagged(t *testing.T) {
 		"only attempts": {Summary{Attempts: 3}, false},
 		"denied":        {Summary{Denied: HostCount{Count: 1}}, true},
 		"refused":       {Summary{Refused: HostCount{Count: 1}}, true},
+		"mismatched":    {Summary{Mismatched: HostCount{Count: 1}}, true},
 		"missed":        {Summary{Missed: HostCount{Count: 1}}, true},
 	}
 
@@ -75,6 +76,7 @@ func TestReadSummary(t *testing.T) {
 		path := writeAccessLog(t,
 			`{"host":"down.example.test","decision":"deny","reason":"upstream-failed"}`,
 			`{"host":"local.example.test","decision":"deny","reason":"blocked-address"}`,
+			`{"host":"cdn.example.test","decision":"deny","reason":"sni-mismatch"}`,
 			`{"host":"api.example.test","decision":"deny","intercepted":true,"reason":"no-placeholder"}`,
 		)
 
@@ -84,6 +86,7 @@ func TestReadSummary(t *testing.T) {
 		// Assert
 		assert.Equal(t, []string{"down.example.test"}, summary.Denied.Hosts, "a denied host whose upstream failed in monitor mode still counts")
 		assert.Equal(t, []string{"local.example.test"}, summary.Refused.Hosts)
+		assert.Equal(t, []string{"cdn.example.test"}, summary.Mismatched.Hosts)
 		assert.Equal(t, []string{"api.example.test"}, summary.Missed.Hosts)
 	})
 

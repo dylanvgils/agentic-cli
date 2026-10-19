@@ -65,18 +65,16 @@ func TestServerConnect(t *testing.T) {
 		var logBuf bytes.Buffer
 		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil)))
 		t.Cleanup(proxy.Close)
+		hello := clientHello(t, "")
 
 		// Act
 		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
 		defer conn.Close() //nolint:errcheck
-		_, err := conn.Write([]byte("ping"))
-		require.NoError(t, err)
-		echo := make([]byte, 4)
-		_, err = io.ReadFull(conn, echo)
-		require.NoError(t, err)
+		echo, err := echoed(t, conn, hello)
 
 		// Assert
-		assert.Equal(t, "ping", string(echo))
+		require.NoError(t, err)
+		assert.Equal(t, hello, echo)
 		assert.Contains(t, logBuf.String(), `"decision":"allow"`)
 		assert.Contains(t, logBuf.String(), `"protocol":"https"`)
 	})
@@ -94,20 +92,21 @@ func TestServerConnect(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close() //nolint:errcheck
 		require.NoError(t, conn.SetDeadline(time.Now().Add(5*time.Second)))
+		hello := clientHello(t, "")
 
 		// Act
-		_, err = io.WriteString(conn, "CONNECT "+target+" HTTP/1.1\r\nHost: "+target+"\r\n\r\nping")
+		_, err = io.WriteString(conn, "CONNECT "+target+" HTTP/1.1\r\nHost: "+target+"\r\n\r\n"+string(hello))
 		require.NoError(t, err)
 		reader := bufio.NewReader(conn)
 		resp, err := http.ReadResponse(reader, nil)
 		require.NoError(t, err)
-		echo := make([]byte, 4)
+		echo := make([]byte, len(hello))
 		_, err = io.ReadFull(reader, echo)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Equal(t, "ping", string(echo))
+		assert.Equal(t, hello, echo)
 	})
 
 	t.Run("failed upstream returns a fixed 502 and logs the error", func(t *testing.T) {
@@ -138,18 +137,16 @@ func TestServerConnect(t *testing.T) {
 		var logBuf bytes.Buffer
 		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(nil), NewLogger(&logBuf, nil, nil), true, nil)))
 		t.Cleanup(proxy.Close)
+		hello := clientHello(t, "")
 
 		// Act
 		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
 		defer conn.Close() //nolint:errcheck
-		_, err := conn.Write([]byte("ping"))
-		require.NoError(t, err)
-		echo := make([]byte, 4)
-		_, err = io.ReadFull(conn, echo)
-		require.NoError(t, err)
+		echo, err := echoed(t, conn, hello)
 
 		// Assert
-		assert.Equal(t, "ping", string(echo))
+		require.NoError(t, err)
+		assert.Equal(t, hello, echo)
 		assert.Contains(t, logBuf.String(), `"decision":"deny"`)
 		assert.Contains(t, logBuf.String(), `"enforced":false`)
 	})
@@ -214,18 +211,96 @@ func TestServerConnect(t *testing.T) {
 
 		proxy := httptest.NewServer(withAddrGuard(NewServer(NewAllowlist([]string{"localhost"}), NewLogger(io.Discard, nil, nil), false, nil), func(_ netip.Addr, privateOK bool) bool { return !privateOK }))
 		t.Cleanup(proxy.Close)
+		hello := clientHello(t, "localhost")
 
 		// Act
 		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort("localhost", upstreamPort))
 		defer conn.Close() //nolint:errcheck
-		_, err := conn.Write([]byte("ping"))
-		require.NoError(t, err)
-		echo := make([]byte, 4)
-		_, err = io.ReadFull(conn, echo)
+		echo, err := echoed(t, conn, hello)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "ping", string(echo))
+		assert.Equal(t, hello, echo)
+	})
+
+	t.Run("tls server name of another host closes the tunnel and logs the mismatch", func(t *testing.T) {
+		// Arrange
+		upstreamHost, upstreamPort := startEchoServer(t)
+		stubDefaultPorts(t, upstreamPort)
+
+		logBuf := &syncBuffer{}
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(logBuf, nil, nil), false, nil)))
+		t.Cleanup(proxy.Close)
+		hello := clientHello(t, "other.example.test")
+
+		// Act
+		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
+		defer conn.Close() //nolint:errcheck
+		_, err := echoed(t, conn, hello)
+
+		// Assert
+		assert.ErrorIs(t, err, io.EOF)
+		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":true,"reason":"sni-mismatch","error":"tls server name \"other.example.test\""`)
+		assert.NotContains(t, logBuf.String(), `"decision":"allow"`)
+	})
+
+	t.Run("tunnel without tls closes and logs the mismatch", func(t *testing.T) {
+		// Arrange
+		upstreamHost, upstreamPort := startEchoServer(t)
+		stubDefaultPorts(t, upstreamPort)
+
+		logBuf := &syncBuffer{}
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(logBuf, nil, nil), false, nil)))
+		t.Cleanup(proxy.Close)
+
+		// Act
+		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
+		defer conn.Close() //nolint:errcheck
+		_, err := echoed(t, conn, []byte("GET / HTTP/1.1\r\nHost: other.example.test\r\n\r\n"))
+
+		// Assert
+		assert.ErrorIs(t, err, io.EOF)
+		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":true,"reason":"sni-mismatch","error":"read tls client hello: `)
+	})
+
+	t.Run("monitor mode tunnels another tls server name and logs the mismatch unenforced", func(t *testing.T) {
+		// Arrange
+		upstreamHost, upstreamPort := startEchoServer(t)
+		stubDefaultPorts(t, upstreamPort)
+
+		logBuf := &syncBuffer{}
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(logBuf, nil, nil), true, nil)))
+		t.Cleanup(proxy.Close)
+		hello := clientHello(t, "other.example.test")
+
+		// Act
+		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
+		defer conn.Close() //nolint:errcheck
+		echo, err := echoed(t, conn, hello)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, hello, echo)
+		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":false,"reason":"sni-mismatch"`)
+	})
+
+	t.Run("client closing before its hello logs client-closed", func(t *testing.T) {
+		// Arrange
+		upstreamHost, upstreamPort := startEchoServer(t)
+		stubDefaultPorts(t, upstreamPort)
+
+		logBuf := &syncBuffer{}
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(logBuf, nil, nil), false, nil)))
+		t.Cleanup(proxy.Close)
+
+		// Act
+		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
+		require.NoError(t, conn.Close())
+
+		// Assert
+		assert.Eventually(t, func() bool {
+			return strings.Contains(logBuf.String(), `"decision":"allow","enforced":true,"reason":"client-closed"`)
+		}, 5*time.Second, 10*time.Millisecond)
 	})
 }
 

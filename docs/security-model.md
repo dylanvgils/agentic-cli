@@ -56,6 +56,7 @@ What no layer covers today:
 - **Workspace tampering**: the agent can edit git hooks, `Makefile`, `package.json` scripts, etc. They run on *your* machine the next time you use them outside the container. The same goes for `.agenticrc.toml`, though [risky keys](config.md#setting-approval) need your approval. Review diffs.
 - **Shared tool state**: hooks or MCP servers the agent plants in its tool home also run in your other projects. Use a separate `--home` for untrusted ones.
 - **Exfiltration to allowed hosts**: without `--proxy` the internet is open to the tool and the DinD sidecar; with it, data can still go to any allowlisted host.
+- **Fronting with Encrypted Client Hello**: the proxy [checks the TLS server name](egress-proxy.md#tls-server-name-check) of each tunnel, but with ECH the tool can encrypt the real name. A CDN that supports ECH may then serve another of its sites through an allowed host.
 - **Killed agentic**: when its terminal closes or it gets `SIGTERM`, agentic removes the tool container and sidecars. If agentic is killed with `SIGKILL` or crashes, the tool keeps running without you: find it with `docker ps` and remove it with `docker rm --force <name>`.
 - **DNS on other engines**: Docker Engine before 26 forwards DNS lookups from the tool's `--internal` network to outside resolvers, so agentic refuses it. It can't check other engines, so with `--proxy` data may still leak there in names like `<data>.example.test`.
 

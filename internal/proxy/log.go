@@ -37,9 +37,13 @@ const (
 	// rejected, with the detail in Entry.Error.
 	ReasonProxyFailed = "proxy-failed"
 
-	// ReasonClientClosed is an allowed credential tunnel the client closed during the TLS handshake, or a request in it
-	// the client cancelled before the response, with the detail in Entry.Error.
+	// ReasonClientClosed is an allowed tunnel the client closed before or during the TLS handshake, or an intercepted
+	// request the client cancelled before the response, with the detail in Entry.Error.
 	ReasonClientClosed = "client-closed"
+
+	// ReasonSNIMismatch is a tunnel to an allowed host whose TLS server name (SNI) names another host, or that doesn't
+	// start with TLS, with the name or error in Entry.Error.
+	ReasonSNIMismatch = "sni-mismatch"
 
 	// ReasonNoPlaceholder is a closed credential tunnel the upstream rejected (401/403) and whose requests never carried
 	// the placeholder. It repeats the tunnel's entry rather than counting a new attempt.

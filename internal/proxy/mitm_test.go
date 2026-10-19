@@ -483,18 +483,16 @@ func TestServerConnectInject(t *testing.T) {
 		var logBuf bytes.Buffer
 		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{echoHost}), NewLogger(&logBuf, nil, nil), false, inject)))
 		t.Cleanup(proxy.Close)
+		hello := clientHello(t, "")
 
 		// Act
 		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(echoHost, echoPort))
 		defer conn.Close() //nolint:errcheck
-		_, err := conn.Write([]byte("ping"))
-		require.NoError(t, err)
-		echo := make([]byte, 4)
-		_, err = io.ReadFull(conn, echo)
+		echo, err := echoed(t, conn, hello)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "ping", string(echo))
+		assert.Equal(t, hello, echo)
 		assert.Empty(t, inject.leaves)
 		assert.NotContains(t, logBuf.String(), `"intercepted"`)
 	})
@@ -508,18 +506,16 @@ func TestServerConnectInject(t *testing.T) {
 		var logBuf bytes.Buffer
 		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{echoHost}), NewLogger(&logBuf, nil, nil), false, inject)))
 		t.Cleanup(proxy.Close)
+		hello := clientHello(t, "")
 
 		// Act
 		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(echoHost, echoPort))
 		defer conn.Close() //nolint:errcheck
-		_, err := conn.Write([]byte("ping"))
-		require.NoError(t, err)
-		echo := make([]byte, 4)
-		_, err = io.ReadFull(conn, echo)
+		echo, err := echoed(t, conn, hello)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "ping", string(echo))
+		assert.Equal(t, hello, echo)
 		assert.Empty(t, inject.leaves)
 		assert.NotContains(t, logBuf.String(), `"intercepted"`)
 	})
