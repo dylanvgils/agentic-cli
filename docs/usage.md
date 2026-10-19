@@ -4,7 +4,13 @@
 agentic <command> [args...]
 ```
 
-Run tools from inside a git repository. The current directory is mounted as `/workspace` in the container.
+Run tools from your project directory. It's mounted as `/workspace` in the container.
+
+agentic's flags go before the tool name. Everything after it goes to the tool:
+
+```bash
+agentic run --proxy claude --resume   # --proxy for agentic, --resume for Claude
+```
 
 ## Commands
 
@@ -66,7 +72,7 @@ Tool names are looked up when you press tab, so you don't need to regenerate the
 
 ## Shell aliases
 
-Aliases let you type `copilot` instead of `agentic run copilot`. The shell is detected automatically. Only tools with a built image get an alias.
+Aliases let you type `copilot` instead of `agentic run copilot`. The shell is detected automatically. Only tools with a built image get an alias. Arguments after an alias go to the tool, so use `agentic run` when you need agentic's flags.
 
 ```bash
 source <(agentic aliases)                               # bash/zsh

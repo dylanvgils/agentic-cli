@@ -44,7 +44,7 @@ The installer fetches the latest release for your OS and architecture, verifies 
 ```bash
 agentic build claude                  # build the image (once)
 agentic build claude --base node,java # or with extra runtimes
-agentic run claude                    # run it in the current git repo
+agentic run claude                    # run it in the current directory
 ```
 
 To run tools directly (`claude` instead of `agentic run claude`), add aliases to your shell config:

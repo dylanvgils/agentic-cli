@@ -10,7 +10,7 @@ The Docker host must allow unprivileged user namespaces, the default on Docker D
 
 ```bash
 agentic build claude --base docker   # once: add the Docker CLI layer
-agentic claude --dind
+agentic run --dind claude
 ```
 
 Or enable it per project with [`[run.dind]`](config.md#rundind):

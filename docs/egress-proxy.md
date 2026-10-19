@@ -5,9 +5,9 @@ The egress proxy limits which hosts a tool can reach and logs every attempt. It 
 ## Usage
 
 ```bash
-agentic claude --proxy           # block hosts not on the allowlist
-agentic claude --proxy-monitor   # log only, block nothing
-agentic claude --no-proxy        # turn off a proxy enabled in config
+agentic run --proxy claude           # block hosts not on the allowlist
+agentic run --proxy-monitor claude   # log only, block nothing
+agentic run --no-proxy claude        # turn off a proxy enabled in config
 ```
 
 Or enable it per project - see [`[run.proxy]`](config.md#runproxy) for the keys:
