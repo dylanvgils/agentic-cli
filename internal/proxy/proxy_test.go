@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,6 +78,35 @@ func TestServerConnect(t *testing.T) {
 		assert.Equal(t, "ping", string(echo))
 		assert.Contains(t, logBuf.String(), `"decision":"allow"`)
 		assert.Contains(t, logBuf.String(), `"protocol":"https"`)
+	})
+
+	t.Run("bytes sent with the connect reach the upstream", func(t *testing.T) {
+		// Arrange
+		upstreamHost, upstreamPort := startEchoServer(t)
+		stubDefaultPorts(t, upstreamPort)
+		target := net.JoinHostPort(upstreamHost, upstreamPort)
+
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(nil, nil, nil), false, nil)))
+		t.Cleanup(proxy.Close)
+
+		conn, err := net.Dial("tcp", proxy.Listener.Addr().String())
+		require.NoError(t, err)
+		defer conn.Close() //nolint:errcheck
+		require.NoError(t, conn.SetDeadline(time.Now().Add(5*time.Second)))
+
+		// Act
+		_, err = io.WriteString(conn, "CONNECT "+target+" HTTP/1.1\r\nHost: "+target+"\r\n\r\nping")
+		require.NoError(t, err)
+		reader := bufio.NewReader(conn)
+		resp, err := http.ReadResponse(reader, nil)
+		require.NoError(t, err)
+		echo := make([]byte, 4)
+		_, err = io.ReadFull(reader, echo)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "ping", string(echo))
 	})
 
 	t.Run("failed upstream returns a fixed 502 and logs the error", func(t *testing.T) {

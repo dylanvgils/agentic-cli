@@ -3,8 +3,10 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -12,7 +14,9 @@ import (
 	"net/http/httptrace"
 	"net/http/httputil"
 	"net/textproto"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -349,6 +353,23 @@ func TestServerConnectInject(t *testing.T) {
 		assert.NotContains(t, logBuf.String(), `"intercepted"`)
 	})
 
+	t.Run("client closing during the handshake is logged as client-closed", func(t *testing.T) {
+		// Arrange
+		inject, _ := newTestInjector(t, upstream, creds)
+		var logBuf syncBuffer
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+
+		// Act
+		conn := rawConnect(t, proxy.Listener.Addr().String(), upstreamAddr)
+		_ = conn.Close()
+
+		// Assert
+		want := `"reason":"client-closed","error":"client handshake for ` + upstreamHost + `: EOF"`
+		assert.Eventually(t, func() bool { return strings.Contains(logBuf.String(), want) }, 5*time.Second, 10*time.Millisecond)
+		assert.NotContains(t, logBuf.String(), `"intercepted"`)
+	})
+
 	t.Run("trace is refused before reaching the upstream", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
@@ -537,6 +558,34 @@ func TestServerConnectSubstitute(t *testing.T) {
 			assert.Equal(t, c.want+"|"+placeholder, string(body), "headers the credential doesn't list keep the placeholder")
 		})
 	}
+}
+
+func Test_clientClosed(t *testing.T) {
+	t.Run("hang-ups count as closed", func(t *testing.T) {
+		for _, err := range []error{
+			fmt.Errorf("client handshake for example.test: %w", io.EOF),
+			io.ErrUnexpectedEOF,
+			&net.OpError{Op: "read", Err: os.NewSyscallError("read", syscall.ECONNRESET)},
+			syscall.EPIPE,
+		} {
+			// Act
+			closed := clientClosed(err)
+
+			// Assert
+			assert.True(t, closed, err.Error())
+		}
+	})
+
+	t.Run("tls error is not closed", func(t *testing.T) {
+		// Arrange
+		err := fmt.Errorf("client handshake for example.test: %w", tls.AlertError(20))
+
+		// Act
+		closed := clientClosed(err)
+
+		// Assert
+		assert.False(t, closed)
+	})
 }
 
 func Test_credentialFor(t *testing.T) {
