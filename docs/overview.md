@@ -1,6 +1,6 @@
 # Overview
 
-Agentic CLI runs agentic coding tools (Claude Code, GitHub Copilot, OpenCode) in isolated Docker containers. A tool sees only your workspace and its own config directory. It runs without root, on a read-only filesystem, and leaves nothing behind when it exits.
+Agentic CLI runs agentic coding tools (Claude Code, GitHub Copilot, OpenCode) in isolated Docker containers, or optionally in a [microVM](microsandbox.md). A tool sees only your workspace and its own config directory. It runs without root and leaves nothing behind when it exits, and in a container the filesystem is read-only.
 
 ## Security
 

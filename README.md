@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/dylanvgils/agentic-cli)](https://github.com/dylanvgils/agentic-cli/releases/latest)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=agentic-cli&metric=coverage)](https://sonarcloud.io/summary/new_code?id=agentic-cli)
 
-Runs agentic coding tools in isolated, read-only Docker containers - each with only the minimal mounts it needs: your workspace and its own config directory. No root, no extra capabilities, no leftovers when done.
+Runs agentic coding tools in isolated, read-only Docker containers, or optionally in a microVM - each with only the minimal mounts it needs: your workspace and its own config directory. No root, no extra capabilities, no leftovers when done.
 
 > [!NOTE]
 > agentic is pre-1.0 and under active development, so flags, config keys and behavior may change between minor releases. See [Security model](docs/security-model.md#layers) for how well each isolation layer is tested.
