@@ -4,7 +4,39 @@
 agentic <command> [args...]
 ```
 
-Run tools from inside a git repository. The current directory is mounted as `/workspace` in the container.
+Run tools from your project directory. It's mounted as `/workspace` in the container.
+
+agentic's flags go before the tool name. Everything after it goes to the tool:
+
+```bash
+agentic run --proxy claude --resume   # --proxy for agentic, --resume for Claude
+```
+
+## First run
+
+1. Build the tool's image once:
+
+   ```bash
+   agentic build claude
+   ```
+
+2. Start it from your project directory:
+
+   ```bash
+   cd ~/projects/my-app
+   agentic run claude
+   ```
+
+3. Answer `y` to `trust directory ...?`. agentic mounts a trusted directory and its subdirectories writable and reads their `.agenticrc.toml`, so trust only your own projects. Non-interactive runs need `--trust-dir`. To revoke trust, see [`state.json`](config.md#statejson).
+4. Sign in the way the tool asks. The container has no browser, so open any link it prints on your machine.
+
+   | Tool     | Sign in                                                    |
+   | -------- | ---------------------------------------------------------- |
+   | claude   | Follow the login prompt on first start                     |
+   | copilot  | Type `/login` in the tool                                  |
+   | opencode | `agentic run opencode auth login`                          |
+
+The login is saved in the tool's home under `$AGENTIC_HOME/tools/<tool>`, so it survives runs and is shared by all your projects. The agent can read it. To keep an API key out of its reach instead, use [credential injection](credential-injection.md).
 
 ## Commands
 
@@ -16,16 +48,15 @@ Run `agentic help <command>` for all flags.
 | `run <tool> -- <cmd> [args]`               | Run a command (e.g. `bash`) instead of the tool                                      |
 | `build [tool]`                             | Build tool image(s), all tools by default. See [Images](images.md).                  |
 | `update [tool]`                            | Rebuild image(s) with the latest tool version                                        |
-| `clean [tool]`                             | Remove tool image(s), or everything agentic created. Skips what running tools use.   |
+| `clean [tool]`                             | Remove tool image(s) and their msb copies, or everything agentic created. Skips what running tools use. |
 | `inspect [tool]`                           | Show built images, or full detail for one tool                                       |
-| `instructions <tool>`                      | Preview the [environment instructions](config.md#runinstructions)                    |
+| `instructions <tool>`                      | Preview the [environment instructions](environment-instructions.md)                    |
 | `status`                                   | Show Docker and microsandbox availability, and list running agentic containers       |
 | `config`                                   | Show the merged [configuration](config.md)                                           |
 | `namespaces <list\|prune>`                 | List namespaces, or remove all images in one                                         |
 | `volumes <create\|list\|remove> [name]`    | Manage [named volumes](#named-volumes)                                               |
 | `marketplaces <list\|prune>`               | Manage [marketplace](#marketplaces) clones                                           |
 | `proxy <build\|update\|clean>`             | Manage the [egress proxy](egress-proxy.md) image                                     |
-| `migrate`                                  | Migrate `$AGENTIC_HOME`'s on-disk layout (runs automatically)                        |
 | `upgrade`                                  | Upgrade agentic to the latest release                                                |
 | `version`                                  | Show version information, including the Docker CLI and microsandbox versions         |
 | `completion <bash\|zsh\|fish\|powershell>` | Print a [shell completion](#shell-completion) script                                 |
@@ -39,6 +70,7 @@ Tools: `claude` (Claude Code), `copilot` (GitHub Copilot CLI), `opencode` (OpenC
 agentic run claude                         # run a tool
 agentic run claude -- bash                 # open a shell in the tool container
 agentic run --runtime microsandbox claude  # run in a microVM instead
+agentic run --dry-run --proxy claude      # print the docker or msb commands, start nothing
 agentic update                             # update all tools (rebuilds only when something changed)
 
 agentic inspect                            # all images in the active namespace
@@ -65,7 +97,7 @@ Tool names are looked up when you press tab, so you don't need to regenerate the
 
 ## Shell aliases
 
-Aliases let you type `copilot` instead of `agentic run copilot`. The shell is detected automatically. Only tools with a built image get an alias.
+Aliases let you type `copilot` instead of `agentic run copilot`. The shell is detected automatically. Only tools with a built image get an alias. Arguments after an alias go to the tool, so use `agentic run` when you need agentic's flags.
 
 ```bash
 source <(agentic aliases)                               # bash/zsh
@@ -82,9 +114,7 @@ agentic run -s 'copilot_token:~/.secrets/copilot_token' copilot
 agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml' claude
 ```
 
-The agent can read mounted secrets. For API keys, use [credential injection](egress-proxy.md#credential-injection) so the agent only sees a placeholder.
-
-The [microsandbox runtime](microsandbox.md) refuses secret mounts; use credential injection there instead.
+The agent can read mounted secrets, and the [microsandbox runtime](microsandbox.md) refuses them. For API keys, use [credential injection](credential-injection.md) so the agent only sees a placeholder.
 
 ## Environment variables
 
@@ -95,8 +125,8 @@ agentic run -e NODE_OPTIONS=--max-old-space-size=4096 claude
 agentic run -e CI claude
 ```
 
-- Values are visible inside the container and in `docker inspect`. Use `--secret` for tokens.
-- Names agentic manages are refused: `TOOL_HOME`, `CONTAINER_HOME`, `AGENTIC_MARKETPLACES` and `AGENTIC_PROXY_CA` always; the proxy vars with `--proxy`; the `DOCKER_*` vars with [`--dind`](docker-in-docker.md#how-it-stays-isolated); the CA and credential vars with [credential injection](egress-proxy.md#credential-injection).
+- Values are visible inside the container and in `docker inspect`. Use [credential injection](credential-injection.md) for API keys.
+- Names agentic manages are refused: `TOOL_HOME`, `CONTAINER_HOME`, `AGENTIC_MARKETPLACES` and `AGENTIC_PROXY_CA` always; the proxy vars with `--proxy`; the `DOCKER_*` vars with [`--dind`](docker-in-docker.md#how-it-stays-isolated); the CA and credential vars with [credential injection](credential-injection.md).
 - `TZ` and the terminal vars (`COLORTERM`, `TERM`, `NO_COLOR`, `FORCE_COLOR`) are forwarded from the host automatically. Override them like any other var (`-e TZ=UTC`).
 
 ## Named volumes
@@ -111,8 +141,13 @@ agentic run -v '~/.m2:$CONTAINER_HOME/.m2:rw' claude # bind mount, writable
 
 - Bind mounts are **read-only unless you add `:rw`**, so the agent can't change host files you only meant to share. Other Docker options can follow it (`:rw,z`).
 - Named volumes, `/workspace` and the tool's own state directories are always writable.
-- To protect part of the workspace, mount it over itself: `--volume '$PWD/.git:/workspace/.git'` stays read-only while the rest of `/workspace` is writable.
 - See [Volume mounts](volume-mounts.md) for what each tool gets mounted automatically.
+
+To protect part of the workspace, mount it over itself. It stays read-only while the rest of `/workspace` is writable:
+
+```bash
+agentic run -v '$PWD/.git:/workspace/.git' claude
+```
 
 Manage volumes with `agentic volumes`:
 
@@ -150,7 +185,7 @@ agentic --docker-context prod build claude
 
 - Before each run, agentic clones or updates each marketplace on the host (`git fetch` + `git reset --hard`). It uses your own git auth, so no credentials enter the container. `git` must be on your `PATH`, and only https and ssh are allowed, so a marketplace can't expose a host path.
 - A failed first clone fails the run. A failed update only warns and reuses the existing clone.
-- Clones live in `$AGENTIC_HOME/marketplaces/<slug>-<hash>/`, keyed by `url`. Projects that use the same URL share one clone, even under different names. Usage is tracked in `.usage.json` there.
+- Clones live in `$AGENTIC_HOME/marketplaces/<slug>-<hash>/`, keyed by `url`. Projects that use the same URL share one clone, even under different names.
 - Each clone is mounted read-only at `~/marketplaces/<name>` and registered with the tool. Removing an entry unregisters it on the next run. Copilot only warns when registration fails.
 
 ```bash

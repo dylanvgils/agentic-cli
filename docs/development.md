@@ -17,12 +17,14 @@ agentic-cli/
 │   ├── config/                  # .agenticrc.toml loading and run spec
 │   ├── credentials/             # Resolves [[run.proxy.credentials]] presets and secret files into the proxy's header rules (host side)
 │   ├── dind/                    # Docker-in-Docker sidecar per-run files: TLS cert dirs, seccomp profile, /etc identity
-│   ├── docker/                  # Build, update, run, clean, inspect, volume, and sidecar (proxy, dind) orchestration
+│   ├── docker/                  # *docker.Client: build, run, clean, inspect, volumes, sidecars (proxy, dind)
 │   ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
 │   ├── git/                     # Thin wrapper over the host git binary (CheckAvailable, Clone, FetchReset)
+│   ├── logging/                 # All CLI output (Infof, Warnf, Stepf, ...)
 │   ├── marketplace/             # Syncs git-based plugin marketplace repos onto the host and tracks per-clone usage
+│   ├── microsandbox/            # Runs the msb CLI as a subprocess
+│   ├── migrate/                 # Versioned changes to $AGENTIC_HOME's on-disk layout
 │   ├── mount/                   # Volume mount spec builder
-│   ├── output/                  # CLI output formatting
 │   ├── platform/                # Platform-specific paths and utilities
 │   ├── proxy/                   # Egress allowlist proxy: server, allowlist, JSON-lines logger and log pruning, TLS-terminating credential injection
 │   ├── sandbox/                 # Runtime-neutral run spec (RunSpec, limits, proxy and dind specs) and helpers shared by the runtimes
@@ -32,18 +34,17 @@ agentic-cli/
 │       ├── build/               # Builds (or dry-run prints) tool images for `agentic build`
 │       ├── clean/               # Resolves and removes tool images and global Docker resources for `agentic clean`
 │       ├── resolve/             # Merges CLI flags, .agenticrc.toml, and agentic.json into the effective value of every setting agentic supports
-│       ├── run/                 # Prepares `agentic run`: image, update, trust and credential checks, sidecar images, then the sandbox.RunSpec
+│       ├── run/                 # `agentic run`: checks and prompts, the sandbox.RunSpec, and a runner per runtime (docker, microsandbox)
 │       ├── sidecar/             # Builds the proxy and DinD sidecar images and decides when they need a refresh
 │       ├── toolupdate/          # Checks for and applies upstream tool version updates on `agentic run`
 │       ├── update/              # Resolves and applies `agentic update` targets - build-option recovery, --pull throttling
-│       └── upgradecheck/        # Checks for and offers to apply a newer agentic CLI release, on any command's PersistentPreRunE
+│       ├── upgradecheck/        # Checks for and offers to apply a newer agentic CLI release, on any command's PersistentPreRunE
+│       └── volumes/             # Lists and removes agentic's named volumes across every runtime
 └── test/
     └── integration/             # Black-box tests driving the agentic binary against a real Docker daemon (`integration` build tag)
 ```
 
-Package boundaries (what each sidecar package may import) are listed in [CLAUDE.md](../CLAUDE.md#what-this-is).
-
-Dockerfiles are generated in Go, see [Dockerfile DSL](dockerfile-dsl.md).
+Import boundaries are in [CLAUDE.md](../CLAUDE.md#import-boundaries). Dockerfiles are generated in Go, see [Dockerfile DSL](dockerfile-dsl.md).
 
 ## Build & test
 
@@ -62,7 +63,7 @@ Integration tests build the binary and an `agentic-itest-claude` image (slow on 
 
 ## Conventions
 
-Code style, tests and lint rules are in [CLAUDE.md](../CLAUDE.md#code-conventions). Install `golangci-lint` at the version CI uses:
+Code style and test rules are in [CLAUDE.md](../CLAUDE.md#code-style). Install `golangci-lint` at the version CI uses:
 
 ```bash
 curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.12.2
@@ -72,7 +73,7 @@ curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/b
 
 ## Adding a tool or runtime layer
 
-See [Tool structure](../CLAUDE.md#tool-structure) and [Adding a new runtime layer](../CLAUDE.md#adding-a-new-runtime-layer) in CLAUDE.md.
+See [Architecture](../CLAUDE.md#architecture) in CLAUDE.md.
 
 Each image stores its resolved versions and apt list as labels (`agentic.version-args`, `agentic.apt`, see `internal/docker/labels.go`). `agentic update` reads them back (`RecoverVersionArgs`, `RecoverApt`) to rebuild with the same layers.
 
@@ -81,6 +82,10 @@ Each image stores its resolved versions and apt list as labels (`agentic.version
 `agentic run --dind` builds the global `agentic-dind` image lazily (`ensureDind` in `internal/usecase/sidecar`) from `tools.GenerateDindDockerfile` (see [Image](docker-in-docker.md#how-it-stays-isolated)). It always builds with `--pull` and is rebuilt when missing, built by another CLI version, or older than 7 days (`tools.DindImageMaxAge`). `agentic clean` removes it.
 
 The sidecar's seccomp profile is derived at run time (`deriveSeccompProfile`) from Docker's default profile, vendored verbatim in `internal/dind/seccomp_default.json`. To refresh it, re-copy `seccomp/default.json` from [moby/profiles](https://github.com/moby/profiles) and update the commit noted on `seccompDefault`; `Test_deriveSeccompProfile` checks the derived rules still hold.
+
+## Microsandbox dockerd image
+
+With `--runtime microsandbox --dind`, `ensureDockerdImage` (`internal/usecase/run/microsandbox.go`) builds `<image>-dockerd` (`tools.DockerdImage`) FROM the tool image, adding Docker's daemon and CLI. It's rebuilt when the tool image changes. Because it depends on the tool image, `agentic clean` and `agentic namespaces prune` remove it first.
 
 ## Orphaned sidecars
 

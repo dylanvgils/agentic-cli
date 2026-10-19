@@ -1,12 +1,12 @@
 # Overview
 
-Agentic CLI runs agentic coding tools (Claude Code, GitHub Copilot, OpenCode) in isolated Docker containers. A tool sees only your workspace and its own config directory. It runs without root, on a read-only filesystem, and leaves nothing behind when it exits.
+Agentic CLI runs agentic coding tools (Claude Code, GitHub Copilot, OpenCode) in isolated Docker containers, or optionally in a [microVM](microsandbox.md). A tool sees only your workspace and its own config directory. It runs without root and leaves nothing behind when it exits, and in a container the filesystem is read-only.
 
 ## Security
 
-Containers run read-only as your own user, with all capabilities dropped, no privilege escalation, resource limits, and an isolated network. A tool that needs to write somewhere gets a targeted mount, and nothing else is writable. Opt-in layers add an [egress proxy](egress-proxy.md) and a [Docker-in-Docker sidecar](docker-in-docker.md).
+Containers run read-only as your own user, with all capabilities dropped, no privilege escalation, resource limits, and an isolated network. A tool that needs to write somewhere gets a targeted mount, and nothing else is writable. Opt-in layers add an [egress proxy](egress-proxy.md), [credential injection](credential-injection.md), a [Docker daemon](docker-in-docker.md), and a [microVM](microsandbox.md) in place of the container.
 
-Each run also tells the model about these limits through [environment instructions](config.md#runinstructions).
+Each run also tells the model about these limits through [environment instructions](environment-instructions.md).
 
 See [Security model](security-model.md) for what each layer stops, and [Volume mounts](volume-mounts.md) for what's mounted.
 

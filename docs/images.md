@@ -16,16 +16,14 @@ agentic build claude --pull           # refresh base images, keep the rest of th
 Debian is the root layer. It always includes curl, wget, git, gpg, jq and Python 3 (interpreter and standard library, no pip). `--base` adds runtimes on top of it (Node.js is installed with NVM):
 
 ```
-debian (base stage)
-  ├── docker (docker stage) ← --base docker (CLI only, for --dind)
-  ├── dotnet (dotnet stage) ← --base dotnet
-  ├── go     (go stage)     ← --base go
-  ├── java   (java stage)   ← --base java
-  └── node   (node stage)   ← --base node
-        └── tool (tool stage)
+debian
+  ├── docker ← --base docker (CLI only, for --dind)
+  ├── dotnet ← --base dotnet
+  ├── go     ← --base go
+  ├── java   ← --base java
+  └── node   ← --base node
+        └── tool
 ```
-
-All stages go into one multi-stage Dockerfile and are built in a single `docker build`, with no intermediate images.
 
 | Flag                         | Result                         |
 | ---------------------------- | ------------------------------ |
@@ -59,3 +57,26 @@ agentic build claude --apt make,gcc   # or repeat: --apt make --apt gcc
 ## Custom installs
 
 For tools that aren't packaged for apt (e.g. `helm`), see [`[[build.custom_installs]]`](config.md#buildcustom_installs).
+
+## Registry proxy
+
+To pull Docker Hub images through a registry proxy (Harbor, Nexus, Artifactory, an ECR pull-through cache):
+
+1. Run `docker login` for the registry.
+2. Set `registry` in `agentic.json`. Agentic prefixes every base image name with it.
+
+```json
+{
+  "registry": "myregistry.example.com"
+}
+```
+
+To use a registry for one build only:
+
+```bash
+agentic build claude --registry myregistry.example.com
+```
+
+## Install script checksums
+
+Install scripts for Claude, Copilot and OpenCode are checked against a pinned SHA256 before they run, not piped straight into `bash`. A daily job opens a PR when an upstream script changes. If a build fails on a stale checksum before that PR lands, `--skip-install-checksum` skips the check for that build.
