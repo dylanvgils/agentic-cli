@@ -69,6 +69,7 @@ Failed requests get a `"reason"`, with the cause in `"error"`:
 | `upstream-failed` | 502 | The upstream host fails. `"error"` can name resolved IPs the tool shouldn't see. |
 | `proxy-failed` | 500 | The proxy itself fails, e.g. on a TLS handshake the tool rejects. |
 | `client-closed` | - | The tool hangs up before or during the TLS handshake of a tunnel, or cancels a request to an intercepted host before the response. Harmless when the tool races connections or drops requests it no longer needs. |
+| `sni-mismatch` | Closed tunnel | The tunnel's TLS server name isn't the host it asked for, or the tunnel isn't TLS (e.g. SSH through `CONNECT`). Plain HTTP works through `HTTP_PROXY`. |
 
 ## Local and private addresses
 
@@ -78,15 +79,6 @@ The proxy checks the IP an allowed host resolves to, so a DNS record can't point
 - **Refused for wildcard entries**: private ranges (`10/8`, `172.16/12`, `192.168/16`, `100.64/10`, `198.18/15`, `fc00::/7`). An exact entry like `"artifactory.corp.example"` may resolve to one, so list internal hosts exactly.
 - **NAT64 and 6to4 addresses** are checked by the IPv4 address inside them.
 - **With credential injection**, the tunnel is logged as allowed first, then each refused request gets its own deny entry.
-
-## TLS server name check
-
-An HTTPS tunnel must start with TLS for the host it asked for. The proxy reads the server name (SNI) in the tool's first TLS message, which is sent unencrypted, and closes the tunnel when it names another host. This stops a tool from reaching other sites on a CDN through an allowed host on the same CDN, without decrypting anything.
-
-- **Refused**: a server name other than the tunnel's host, no server name for a hostname, and tunnels that don't start with TLS, such as SSH or plain HTTP through `CONNECT`. Plain HTTP still works through `HTTP_PROXY`.
-- **Logged** as `"decision": "deny"` with `"reason": "sni-mismatch"` and the name in `"error"`, and listed at the end of the run.
-- **Monitor mode** logs the mismatch but keeps the tunnel open.
-- **Limit**: [Encrypted Client Hello](security-model.md#leftover-risk) hides the real server name.
 
 ## Tools that ignore proxy env vars
 
