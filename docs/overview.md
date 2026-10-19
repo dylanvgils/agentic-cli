@@ -4,9 +4,9 @@ Agentic CLI runs agentic coding tools (Claude Code, GitHub Copilot, OpenCode) in
 
 ## Security
 
-Containers run read-only as your own user, with all capabilities dropped, no privilege escalation, resource limits, and an isolated network. A tool that needs to write somewhere gets a targeted mount, and nothing else is writable. Opt-in layers add an [egress proxy](egress-proxy.md) and a [Docker-in-Docker sidecar](docker-in-docker.md).
+Containers run read-only as your own user, with all capabilities dropped, no privilege escalation, resource limits, and an isolated network. A tool that needs to write somewhere gets a targeted mount, and nothing else is writable. Opt-in layers add an [egress proxy](egress-proxy.md), [credential injection](credential-injection.md), a [Docker daemon](docker-in-docker.md), and a [microVM](microsandbox.md) in place of the container.
 
-Each run also tells the model about these limits through [environment instructions](config.md#runinstructions).
+Each run also tells the model about these limits through [environment instructions](environment-instructions.md).
 
 See [Security model](security-model.md) for what each layer stops, and [Volume mounts](volume-mounts.md) for what's mounted.
 

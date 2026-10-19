@@ -59,3 +59,26 @@ agentic build claude --apt make,gcc   # or repeat: --apt make --apt gcc
 ## Custom installs
 
 For tools that aren't packaged for apt (e.g. `helm`), see [`[[build.custom_installs]]`](config.md#buildcustom_installs).
+
+## Registry proxy
+
+To pull Docker Hub images through a registry proxy (Harbor, Nexus, Artifactory, an ECR pull-through cache):
+
+1. Run `docker login` for the registry.
+2. Set `registry` in `agentic.json`. Agentic prefixes every base image name with it.
+
+```json
+{
+  "registry": "myregistry.example.com"
+}
+```
+
+To use a registry for one build only:
+
+```bash
+agentic build claude --registry myregistry.example.com
+```
+
+## Install script checksums
+
+Install scripts for Claude, Copilot and OpenCode are checked against a pinned SHA256 before they run, not piped straight into `bash`. A daily job opens a PR when an upstream script changes. If a build fails on a stale checksum before that PR lands, `--skip-install-checksum` skips the check for that build.

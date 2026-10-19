@@ -16,9 +16,9 @@ Run `agentic help <command>` for all flags.
 | `run <tool> -- <cmd> [args]`               | Run a command (e.g. `bash`) instead of the tool                                      |
 | `build [tool]`                             | Build tool image(s), all tools by default. See [Images](images.md).                  |
 | `update [tool]`                            | Rebuild image(s) with the latest tool version                                        |
-| `clean [tool]`                             | Remove tool image(s), or everything agentic created. Skips what running tools use.   |
+| `clean [tool]`                             | Remove tool image(s) and their msb copies, or everything agentic created. Skips what running tools use. |
 | `inspect [tool]`                           | Show built images, or full detail for one tool                                       |
-| `instructions <tool>`                      | Preview the [environment instructions](config.md#runinstructions)                    |
+| `instructions <tool>`                      | Preview the [environment instructions](environment-instructions.md)                    |
 | `status`                                   | Show Docker and microsandbox availability, and list running agentic containers       |
 | `config`                                   | Show the merged [configuration](config.md)                                           |
 | `namespaces <list\|prune>`                 | List namespaces, or remove all images in one                                         |
@@ -39,6 +39,7 @@ Tools: `claude` (Claude Code), `copilot` (GitHub Copilot CLI), `opencode` (OpenC
 agentic run claude                         # run a tool
 agentic run claude -- bash                 # open a shell in the tool container
 agentic run --runtime microsandbox claude  # run in a microVM instead
+agentic run --dry-run --proxy claude      # print the docker or msb commands, start nothing
 agentic update                             # update all tools (rebuilds only when something changed)
 
 agentic inspect                            # all images in the active namespace
@@ -82,9 +83,7 @@ agentic run -s 'copilot_token:~/.secrets/copilot_token' copilot
 agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml' claude
 ```
 
-The agent can read mounted secrets. For API keys, use [credential injection](egress-proxy.md#credential-injection) so the agent only sees a placeholder.
-
-The [microsandbox runtime](microsandbox.md) refuses secret mounts; use credential injection there instead.
+The agent can read mounted secrets, and the [microsandbox runtime](microsandbox.md) refuses them. For API keys, use [credential injection](credential-injection.md) so the agent only sees a placeholder.
 
 ## Environment variables
 
@@ -95,8 +94,8 @@ agentic run -e NODE_OPTIONS=--max-old-space-size=4096 claude
 agentic run -e CI claude
 ```
 
-- Values are visible inside the container and in `docker inspect`. Use `--secret` for tokens.
-- Names agentic manages are refused: `TOOL_HOME`, `CONTAINER_HOME`, `AGENTIC_MARKETPLACES` and `AGENTIC_PROXY_CA` always; the proxy vars with `--proxy`; the `DOCKER_*` vars with [`--dind`](docker-in-docker.md#how-it-stays-isolated); the CA and credential vars with [credential injection](egress-proxy.md#credential-injection).
+- Values are visible inside the container and in `docker inspect`. Use [credential injection](credential-injection.md) for API keys.
+- Names agentic manages are refused: `TOOL_HOME`, `CONTAINER_HOME`, `AGENTIC_MARKETPLACES` and `AGENTIC_PROXY_CA` always; the proxy vars with `--proxy`; the `DOCKER_*` vars with [`--dind`](docker-in-docker.md#how-it-stays-isolated); the CA and credential vars with [credential injection](credential-injection.md).
 - `TZ` and the terminal vars (`COLORTERM`, `TERM`, `NO_COLOR`, `FORCE_COLOR`) are forwarded from the host automatically. Override them like any other var (`-e TZ=UTC`).
 
 ## Named volumes
@@ -111,8 +110,13 @@ agentic run -v '~/.m2:$CONTAINER_HOME/.m2:rw' claude # bind mount, writable
 
 - Bind mounts are **read-only unless you add `:rw`**, so the agent can't change host files you only meant to share. Other Docker options can follow it (`:rw,z`).
 - Named volumes, `/workspace` and the tool's own state directories are always writable.
-- To protect part of the workspace, mount it over itself: `--volume '$PWD/.git:/workspace/.git'` stays read-only while the rest of `/workspace` is writable.
 - See [Volume mounts](volume-mounts.md) for what each tool gets mounted automatically.
+
+To protect part of the workspace, mount it over itself. It stays read-only while the rest of `/workspace` is writable:
+
+```bash
+agentic run -v '$PWD/.git:/workspace/.git' claude
+```
 
 Manage volumes with `agentic volumes`:
 

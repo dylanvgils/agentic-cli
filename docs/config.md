@@ -16,25 +16,13 @@ Stored at `$AGENTIC_HOME/agentic.json`. Edit it with any text editor; agentic on
 
 | Key                        | Type   | Description                                                             | CLI flag           |
 | -------------------------- | ------ | ----------------------------------------------------------------------- | ------------------ |
-| `registry`                 | scalar | Registry prefix for base image pulls. See [Registry proxy](#registry-proxy). | `--registry`       |
+| `registry`                 | scalar | Registry prefix for base image pulls. See [Registry proxy](images.md#registry-proxy). | `--registry`       |
 | `docker_context`           | scalar | Machine-wide default Docker context. See [Precedence](#precedence).     | `--docker-context` |
 | `proxy_log_retention_days` | scalar | Days to keep [egress proxy](egress-proxy.md) logs. Default: `3`.        | -                  |
 
-### Registry proxy
-
-To pull Docker Hub images through a registry proxy (Harbor, Nexus, Artifactory, an ECR pull-through cache), set `registry`. Agentic prefixes every base image name with it. Run `docker login` for the registry yourself.
-
-```json
-{
-  "registry": "myregistry.example.com"
-}
-```
-
-`--registry` overrides it for one build: `agentic build claude --registry myregistry.example.com`.
-
 ## `state.json`
 
-Agentic records what it learns at `$AGENTIC_HOME/state.json`, apart from your settings. Delete an entry to revoke it, or the whole file to reset all trust and approvals. Older versions kept these keys in `agentic.json`; the next `agentic` command moves them here.
+Agentic records what it learns at `$AGENTIC_HOME/state.json`, apart from your settings. Delete an entry to revoke it, or the whole file to reset all trust and approvals.
 
 | Key                       | Description                                                               |
 | ------------------------- | ------------------------------------------------------------------------- |
@@ -126,22 +114,16 @@ Applied by `agentic run`.
 | `secrets`       | list   | Files mounted read-only, with the same format as [`--secret`](usage.md#secrets)                                    | `--secret`     | -          |
 | `env`           | list   | `KEY=VALUE`, or bare `KEY` to forward the host value. See [Environment variables](usage.md#environment-variables). | `--env`        | -          |
 | `runtime`       | string | `"docker"`, or `"microsandbox"` to run in a [microVM](microsandbox.md)                                             | `--runtime`    | `"docker"` |
-| `pids_limit`    | string | Container PID limit                                                                                                | `--pids-limit` | `1024`     |
-| `cpus`          | string | Container CPU limit                                                                                                | `--cpus`       | `4`        |
-| `memory`        | string | Container memory limit (e.g. `"8g"`)                                                                               | `--memory`     | `4g`       |
+| `pids_limit`    | string | PID limit (ignored by microsandbox)                                                                                | `--pids-limit` | `1024`     |
+| `cpus`          | string | CPU limit, of the container or the [VM](microsandbox.md#whats-different-from-docker)                               | `--cpus`       | `4`        |
+| `memory`        | string | Memory limit (e.g. `"8g"`), of the container or the VM                                                             | `--memory`     | `4g`       |
 | `check_updates` | bool   | Check for a newer tool version on run. See [Versions and updates](images.md#versions-and-updates).                 | -              | `true`     |
 
 Mount paths support [placeholders](#mount-variable-expansion). Limits in files must be positive, as docker reads zero or below as no limit; only the flags can lift them.
 
 ### `[run.instructions]`
 
-Controls the environment-instructions block that each run writes into the tool's own global instructions file:
-
-| Tool        | File                                |
-| ----------- | ----------------------------------- |
-| Claude Code | `~/.claude/CLAUDE.md`               |
-| OpenCode    | `~/.config/opencode/AGENTS.md`      |
-| Copilot CLI | `~/.copilot/copilot-instructions.md` |
+Controls the [environment instructions](environment-instructions.md) each run writes into the tool's global instructions file.
 
 | Key       | Type   | Description                                                   | Default |
 | --------- | ------ | ------------------------------------------------------------- | ------- |
@@ -154,19 +136,6 @@ custom = """
 Always run `go test ./...` before considering a task finished.
 """
 ```
-
-The block tells the model about its environment, and says the project's own `CLAUDE.md`/`AGENTS.md` wins on conflicts. It covers:
-
-- **What's installed**: the base toolchain, runtimes, apt packages and custom installs, read from the built image. The base toolchain is listed even before the first build.
-- **What's restricted**: the read-only filesystem, writable paths, resource limits and dropped privileges.
-- **Network**, with `--proxy`: no direct internet access, the allowlist, and a note to tell you about blocked hosts so you can allow them.
-- **Docker**, with `--dind`: how to reach the daemon and its ports, and which paths it can bind mount.
-
-The rest of the file is left alone, including notes the tool saves there itself, even with `enabled = false`. Each run works on a private copy of the file, so concurrent runs don't affect each other. Changes made during the run are copied back when the container exits.
-
-The file must be a regular file: agentic refuses a symlink there, since the tool can write that directory and could otherwise redirect the copy-back to any host file. Reads and writes also stay inside `$AGENTIC_HOME/tools`.
-
-Preview the block with `agentic instructions claude` (add `--proxy` to include the network section).
 
 ### `[run.proxy]`
 
@@ -317,16 +286,3 @@ Single-quote them so your shell doesn't expand them first:
 ```bash
 agentic run --volume '$TOOL_HOME/custom:$CONTAINER_HOME/.custom:rw' claude
 ```
-
-## Mount safety
-
-Before a run starts, again right before the sidecars start, and once more right before the tool starts (after the sidecars are up or the microsandbox image is loaded), agentic checks every bind mount and secret:
-
-- A mount that would expose `$AGENTIC_HOME/agentic.json` or `state.json` (the agentic home or a parent, such as `~`) is refused, since they hold machine-wide settings, trusted directories and approvals.
-- A path through a symlink inside the workspace is refused, so a planted `.git -> ~/.ssh` can't be mounted via `mounts = ["$PWD/.git:/workspace/.git"]`. Mount the real path instead.
-- A path under `/proc`, or one agentic can't resolve, is refused.
-
-Not covered:
-
-- A path swapped for a symlink in the moment between a check and Docker or msb mounting it, such as while the proxy starts before the DinD sidecar mounts the workspace. Only something already running in the workspace can do this, such as an agent from another run in the same project.
-- A symlink planted inside another `:rw` mount.

@@ -1,6 +1,6 @@
 # Volume mounts
 
-The root filesystem is read-only, so every path a tool writes to is mounted explicitly. This page lists the mounts agentic adds for each tool. For your own mounts, see [Named volumes](usage.md#named-volumes).
+The root filesystem is read-only, so every path a tool writes to is mounted explicitly. This page lists the mounts agentic adds for each tool, and the [checks](#mount-safety) every mount passes. For your own mounts, see [Named volumes](usage.md#named-volumes).
 
 ## All tools
 
@@ -38,3 +38,16 @@ OpenCode follows the [XDG spec](https://specifications.freedesktop.org/basedir-s
 | Bind | `$AGENTIC_HOME/tools/opencode/state`  | `$CONTAINER_HOME/.local/state/opencode` | XDG state dir (logs, history) |
 | Bind | `$AGENTIC_HOME/tools/opencode/cache`  | `$CONTAINER_HOME/.cache/opencode`       | XDG cache dir                 |
 | Bind | `$AGENTIC_HOME/tools/opencode/config` | `$CONTAINER_HOME/.config/opencode`      | XDG config dir                |
+
+## Mount safety
+
+Before a run starts, again right before the sidecars start, and once more right before the tool starts (after the sidecars are up or the microsandbox image is loaded), agentic checks every bind mount and secret:
+
+- A mount that would expose `$AGENTIC_HOME/agentic.json` or `state.json` (the agentic home or a parent, such as `~`) is refused, since they hold machine-wide settings, trusted directories and approvals.
+- A path through a symlink inside the workspace is refused, so a planted `.git -> ~/.ssh` can't be mounted via `mounts = ["$PWD/.git:/workspace/.git"]`. Mount the real path instead.
+- A path under `/proc`, or one agentic can't resolve, is refused.
+
+Not covered:
+
+- A path swapped for a symlink in the moment between a check and Docker or msb mounting it, such as while the proxy starts before the DinD sidecar mounts the workspace. Only something already running in the workspace can do this, such as an agent from another run in the same project.
+- A symlink planted inside another `:rw` mount.

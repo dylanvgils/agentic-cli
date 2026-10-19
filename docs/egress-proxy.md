@@ -1,6 +1,6 @@
 # Egress proxy
 
-The egress proxy limits which hosts a tool can reach and logs every attempt. It can also hold API keys for the tool, so the agent never sees them.
+The egress proxy limits which hosts a tool can reach and logs every attempt. It can also hold API keys for the tool, so the agent never sees them: see [Credential injection](credential-injection.md).
 
 ## Usage
 
@@ -22,18 +22,32 @@ allowed_hosts = ["registry.npmjs.org", ".github.com"]
 
 - The tool container loses direct internet access. It reaches the outside only through a proxy sidecar on a per-run internal Docker network.
 - `HTTP_PROXY`/`HTTPS_PROXY` (and lowercase variants) are set automatically.
-- Blocked hosts are printed at the end of the run. Every attempt is logged as JSON lines in `$AGENTIC_HOME/logs/proxy_<id>.jsonl`.
-- When an upstream fails, the tool gets a plain 502. The log entry gets `"reason": "upstream-failed"` with the cause in `"error"`, which can name resolved IPs the tool shouldn't see.
-- When the proxy itself fails, for example on a TLS handshake the tool rejects, the tool gets a plain 500. The log entry gets `"reason": "proxy-failed"` with the cause in `"error"`.
-- When the tool hangs up during the TLS handshake of an intercepted host, the entry gets `"reason": "client-closed"` instead. Tools that race connections do this with the losers, so it's harmless when the tool carries on.
-- Logs older than `proxy_log_retention_days` in `agentic.json` (default 3) are pruned on each proxy run. `agentic proxy clean --logs` wipes them all.
-- The sidecar and its network are removed when the run ends. After a crash, the next `agentic` run or `agentic clean` removes them once they are a few minutes old and the tool has stopped.
 - The proxy image builds on first use, or with `agentic proxy build`. `agentic proxy update` rebuilds it.
-- `agentic config` shows the resolved proxy settings and which file set them. The baseline hosts below aren't listed, because they can't be changed.
+- The sidecar and its network are removed when the run ends. After a crash, the next `agentic` run or `agentic clean` removes them once they are a few minutes old and the tool has stopped.
+- `agentic config` shows the resolved proxy settings and which file set them, except the fixed [baseline hosts](#baseline-allowlist).
+
+### Access log
+
+Blocked hosts are printed at the end of the run. Every attempt is logged as JSON lines in `$AGENTIC_HOME/logs/proxy_<id>.jsonl`, pruned after `proxy_log_retention_days` in `agentic.json` (default 3). `agentic proxy clean --logs` wipes them all.
+
+Failed requests get a `"reason"`, with the cause in `"error"`:
+
+| Reason | Tool sees | When |
+| --- | --- | --- |
+| `upstream-failed` | 502 | The upstream host fails. `"error"` can name resolved IPs the tool shouldn't see. |
+| `proxy-failed` | 500 | The proxy itself fails, e.g. on a TLS handshake the tool rejects. |
+| `client-closed` | - | The tool hangs up during the TLS handshake of an intercepted host. Harmless when the tool races connections and carries on. |
 
 ### Monitor mode
 
-`--proxy-monitor` (or `mode = "monitor"`) never blocks. The log still records the real `"decision"` (`"allow"` or `"deny"`), tagged `"enforced": false`, and `docker logs` lines get a `(monitor)` suffix. The run ends with the hosts that _would_ have been blocked. Use it to find a tool's egress needs before you switch to enforcement.
+`--proxy-monitor` (or `mode = "monitor"`) never blocks. The log still records the real `"decision"` (`"allow"` or `"deny"`), tagged `"enforced": false`, and `docker logs` lines get a `(monitor)` suffix.
+
+To find what a tool needs before you enforce:
+
+1. Run with `--proxy-monitor` and use the tool as usual.
+2. At the end, the run lists the hosts that _would_ have been blocked.
+3. Add the ones you trust to `allowed_hosts`.
+4. Switch to `--proxy`.
 
 ### Local and private addresses
 
@@ -58,7 +72,12 @@ Each tool allows these hosts by default. `allowed_hosts` adds to them.
 | `copilot`  | `docs.github.com`    | Copilot CLI docs                    |
 | `opencode` | `opencode.ai`        | OpenCode auth, update checks, docs  |
 
-OpenCode supports many model providers, so add your provider's hosts to `allowed_hosts`.
+OpenCode supports many model providers, so add your provider's hosts:
+
+```toml
+[run.proxy]
+allowed_hosts = ["api.openai.com"]
+```
 
 ### Tools that ignore proxy env vars
 
@@ -72,27 +91,4 @@ With the [microsandbox runtime](microsandbox.md), msb's own network policy enfor
 - `--proxy-monitor` is refused; use `--proxy`.
 - An internal host that resolves to a private address isn't reachable, since msb drops private DNS answers.
 - Every `allowed_hosts` entry must be a hostname like `api.example.test` or `.example.test`, else the run is refused. msb would read a CIDR or a name like `public` as a wider rule.
-- Credentials keep working, since msb injects them itself rather than a proxy.
-
-## Credential injection
-
-`[[run.proxy.credentials]]` keeps API keys out of the tool container. Inside it, each entry's env vars hold a random placeholder, new each run, which the tool sends like a real key. The proxy holds the real secret and swaps it in for the placeholder on HTTPS requests to the entry's hosts. See [`[[run.proxy.credentials]]`](config.md#runproxycredentials) for the keys and presets.
-
-- **Proxy on**: credentials turn the proxy on in enforce mode (monitor mode still applies if set), and their hosts join the allowlist. Combining them with `--no-proxy` or `enabled = false` is an error.
-- **Only credential hosts are decrypted**: the proxy terminates TLS only for those hosts, using a per-run CA that can sign nothing else. All other traffic stays an end-to-end encrypted tunnel. Plain HTTP is never touched. Terminated hosts use HTTP/1.1, and their log entries carry `"intercepted": true`.
-- **Only the placeholder is swapped**: in the entry's headers, decoding `Basic` auth first, and nowhere else. A request without the placeholder passes unchanged. Look-alike headers such as `X_Api_Key` for `X-Api-Key` are dropped.
-- **Missing placeholder warning**: if an entry's host rejects a connection (401 or 403) that never sent the placeholder, the run ends with a warning, as the tool likely ran unauthenticated. Anonymous requests the host accepts, such as cloning a public repo, don't warn. The log marks it `"reason": "no-placeholder"`.
-- **git**: with the `github` preset, agentic sets a git credential helper through `GIT_CONFIG_*` env vars. git over HTTPS then answers GitHub's challenge with `x-access-token` and the placeholder.
-- **Secrets stay on the host**: agentic reads each secret when the run starts and copies it into the sidecar, which is removed when the run ends. A secret file inside the current directory, or inside any path mounted into the container, is refused.
-- **Approval**: entries need your approval when they first appear and whenever they change, like other [guarded settings](config.md#setting-approval). Each run prints `agentic: injecting credentials for <hosts> (<secret path>)`.
-- **CA trust**: the entrypoint adds the CA to the system bundle and points `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `GIT_SSL_CAINFO`, `REQUESTS_CA_BUNDLE` and `NODE_EXTRA_CA_CERTS` at it. This covers OpenSSL, Go, curl, git, Python and Node/Bun. These vars, `AGENTIC_PROXY_CA`, the entries' `env` names and, with the `github` preset, the `GIT_CONFIG_*` vars can't be set with `--env`.
-- **Older images** fail with a hint to run `agentic update <tool>`.
-
-### Limitations
-
-- **Static keys only**: OAuth logins (Claude subscription, Copilot device flow) keep their token in the tool home. Setting a key's env var (e.g. `ANTHROPIC_API_KEY`) switches the tool to API-key auth.
-- **Copilot**: the `github` preset also covers the Copilot API hosts, including the remote GitHub MCP server. GHE.com data-residency tenants need a custom entry for their own Copilot hosts.
-- **Headers only**: a tool that sends the key in the URL or body, or signs requests with it (e.g. AWS SigV4), can't use a placeholder.
-- **Use, not theft**: the agent can't read the key, but it can still make authenticated requests to the key's hosts during the run.
-- **Echoed keys**: the proxy swaps the key back to the placeholder in response headers and trailers, also in the Basic-encoded form git sends, but not in bodies. A credential host that echoes the request in its body hands the key to the tool.
-- **Gaps in CA trust**: `agentic run <tool> -- <cmd>` skips the entrypoint, and Java and containers started through `--dind` use their own trust stores. TLS to credential hosts fails in those cases.
+- [Credentials](credential-injection.md) keep working, since msb injects them itself rather than a proxy.

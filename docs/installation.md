@@ -1,6 +1,6 @@
 # Installation
 
-Requires Git and Docker Engine 26 or later, such as Rancher Desktop. Other engines may work but are untested.
+Requires Git and Docker Engine 26 or later, such as Rancher Desktop. Other engines may work but are untested. The optional microVM runtime has its own [requirements](microsandbox.md#requirements).
 
 Install directly:
 
@@ -23,7 +23,7 @@ cd agentic-cli
 
 The installer fetches the latest release for your OS and architecture, verifies the checksum, and installs the binary.
 
-> **Windows note:** If you get an error about running scripts being disabled, set the execution policy for your user:
+> **Windows:** If you get an error about running scripts being disabled, set the execution policy for your user:
 >
 > ```powershell
 > Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
@@ -41,7 +41,7 @@ On Linux/macOS, the binary is installed to `~/.local/bin`. If that directory isn
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-On Windows, the installer adds the install directory to your user PATH automatically. Restart your terminal after installation for the change to take effect.
+On Windows, the installer adds the install directory to your user PATH. Restart your terminal afterwards.
 
 ## Uninstalling
 
@@ -64,7 +64,7 @@ Or if you already have the repo cloned:
 
 ## Updating
 
-Once installed, use the `upgrade` command to upgrade to the latest release:
+Upgrade to the latest release with `agentic upgrade`:
 
 ```bash
 agentic upgrade                    # update to latest
@@ -72,18 +72,18 @@ agentic upgrade --force            # reinstall even if already up to date
 agentic upgrade --version v1.2.0   # install a specific release
 ```
 
-The CLI also checks for updates automatically once per day and prompts you when a newer release is available.
+agentic also checks for a new release once a day and offers to upgrade.
 
 ## Building from source
 
-To build from source instead of downloading a pre-built binary:
+Build from source instead of downloading a release:
 
 ```bash
 ./install.sh --from-source    # Linux / macOS
 .\install.ps1 -FromSource     # Windows (PowerShell)
 ```
 
-If you already have Go installed, you can build and install natively instead:
+Or, with Go installed:
 
 ```bash
 make install        # builds and installs to ~/.local/bin/agentic
