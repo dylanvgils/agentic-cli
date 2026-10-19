@@ -23,6 +23,15 @@ memory = "8g" # sidecar only
 
 If the sidecar fails to start, the error includes its logs. `agentic config` shows the resolved `[run.dind]` settings. See [Devcontainers](recipes.md#devcontainers) for an example.
 
+### Other registries
+
+With `--proxy`, allow any registry other than Docker Hub:
+
+```toml
+[run.proxy]
+allowed_hosts = ["ghcr.io"]
+```
+
 ## How it stays isolated
 
 - **Tool container**: it keeps all of its [restrictions](security-model.md#layers) and only gains a client cert and the `DOCKER_*` env vars. `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CONFIG` and `DOCKER_CONTEXT` are managed by agentic and can't be overridden.
@@ -38,16 +47,7 @@ If the sidecar fails to start, the error includes its logs. `agentic config` sho
 - **Without `--proxy`**: the sidecar shares the tool's per-run network, which has direct internet access, so pulls, builds and inner containers can reach any host.
 - **With `--proxy`**: the sidecar shares the tool's internal network, so pulls, builds and containers go through the allowlist. The Docker CLI config passes the proxy to containers and builds. Docker Hub is allowed automatically; see [Other registries](#other-registries).
 
-### Other registries
-
-With `--proxy`, allow any registry other than Docker Hub:
-
-```toml
-[run.proxy]
-allowed_hosts = ["ghcr.io"]
-```
-
-## Trade-offs
+## Limitations
 
 - Inner containers get namespace-scoped `CAP_SYS_ADMIN`/`CAP_NET_ADMIN`, which exposes kernel interfaces (nf_tables, mounts, nested user namespaces) that a plain container can't reach. Keep the host kernel patched.
 - The proxy filters by host only, so the agent can also push to an allowed registry.

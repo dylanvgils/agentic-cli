@@ -247,16 +247,13 @@ Result: `apt_packages = ["make", "gcc"]` and `cpus = "8"`.
 
 ## Precedence
 
-The first source that sets a scalar wins:
+For a scalar, the flag wins, then the innermost file, then the default. Exceptions:
 
-| Setting                        | Resolution order                                                                         |
-| ------------------------------ | ---------------------------------------------------------------------------------------- |
-| `namespace`                    | `--namespace`, then the innermost file, then `agentic`                                   |
-| `versions`                     | `--<layer>` (e.g. `--java 17`), then `[build.versions]`, then the bundled default        |
-| `runtime`                      | `--runtime`, then the innermost file, then `docker`                                      |
-| `pids_limit`, `cpus`, `memory` | flag, then the innermost file, then `1024` / `4` / `4g`                                  |
-| `[run.dind]` limits            | `--dind-*` flag, then `[run.dind]`, then the tool's resolved value                       |
-| `docker_context`               | `--docker-context`, then the innermost file, then `agentic.json`, then the Docker CLI's own choice (including `DOCKER_CONTEXT`) |
+| Setting             | Resolution order                                                                         |
+| ------------------- | ---------------------------------------------------------------------------------------- |
+| `versions`          | `--<layer>` (e.g. `--java 17`), then `[build.versions]` per key, then the bundled default |
+| `[run.dind]` limits | `--dind-*` flag, then `[run.dind]`, then the tool's resolved value                       |
+| `docker_context`    | `--docker-context`, then the innermost file, then `agentic.json`, then the Docker CLI's own choice (including `DOCKER_CONTEXT`) |
 
 List settings combine instead:
 

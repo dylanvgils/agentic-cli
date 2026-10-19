@@ -57,7 +57,6 @@ Run `agentic help <command>` for all flags.
 | `volumes <create\|list\|remove> [name]`    | Manage [named volumes](#named-volumes)                                               |
 | `marketplaces <list\|prune>`               | Manage [marketplace](#marketplaces) clones                                           |
 | `proxy <build\|update\|clean>`             | Manage the [egress proxy](egress-proxy.md) image                                     |
-| `migrate`                                  | Migrate `$AGENTIC_HOME`'s on-disk layout (runs automatically)                        |
 | `upgrade`                                  | Upgrade agentic to the latest release                                                |
 | `version`                                  | Show version information, including the Docker CLI and microsandbox versions         |
 | `completion <bash\|zsh\|fish\|powershell>` | Print a [shell completion](#shell-completion) script                                 |

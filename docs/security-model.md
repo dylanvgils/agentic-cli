@@ -47,16 +47,6 @@ How to read it:
 | **Microsandbox runtime** (opt-in, `--runtime microsandbox`): the tool runs in a microVM with its own kernel instead of a container | A kernel exploit reaching the host; host files outside the mounts | A VM escape, which lands in msb's process running as your user; the [differences from Docker](microsandbox.md#whats-different-from-docker) (no read-only root, no secret mounts, no pid limit, [root in the VM](microsandbox.md#docker-in-the-vm) with `--dind`) | `internal/microsandbox`, `internal/usecase/run/microsandbox.go` - see [Microsandbox runtime](microsandbox.md) |
 | **Build**: tool install scripts [checksum-verified](images.md#install-script-checksums) against a pinned SHA256 | A tampered or swapped install script | A malicious release of the tool itself | `internal/tools` |
 
-## Rules that must never break
-
-If one of these breaks, a layer above stops meaning anything:
-
-- Never mount the host's Docker socket.
-- Never `--privileged`, never relax the tool container's flags.
-- Extra capabilities, unconfined AppArmor and no `no-new-privileges` are for the DinD sidecar only.
-- The sidecar's seccomp filter is never `unconfined`.
-- The sidecar only sees `/workspace`.
-
 ## Leftover risk
 
 What no layer covers today:

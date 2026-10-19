@@ -72,7 +72,15 @@ Tools: `claude` (Claude Code), `copilot` (GitHub Copilot CLI), `opencode` (OpenC
 
 ## 🔒 Security
 
-Containers run read-only with all capabilities dropped, no privilege escalation, your own uid/gid, and on an isolated Docker network. The proxy, credential injection, Docker daemon and microVM are opt-in layers on top. See [Security model](docs/security-model.md) for what each layer stops and the risk that's left.
+Containers run read-only with all capabilities dropped, no privilege escalation, your own uid/gid, and on an isolated Docker network. The proxy, credential injection, Docker daemon and microVM are opt-in layers on top. See [Security model](docs/security-model.md) for what each layer stops.
+
+What it doesn't protect against:
+
+- **Credentials it can read**: the agent can read its own login token and any mounted secret. Use [credential injection](docs/credential-injection.md) for API keys.
+- **Workspace changes**: the agent can edit git hooks, `Makefile` and scripts that later run on your machine. Review diffs.
+- **Network access**: without `--proxy` the tool reaches the whole internet, and with it, any allowed host. See [Egress proxy](docs/egress-proxy.md).
+
+See [Leftover risk](docs/security-model.md#leftover-risk) for the full list.
 
 ## 📚 Documentation
 
@@ -90,5 +98,4 @@ Containers run read-only with all capabilities dropped, no privilege escalation,
 - [Docker-in-Docker](docs/docker-in-docker.md) - a Docker daemon for the tool, never the host's
 - [Microsandbox runtime](docs/microsandbox.md) - running a tool in a microVM instead of a container
 - [Recipes](docs/recipes.md) - Java, Maven through the proxy, per-project images, devcontainers
-- [Dockerfile DSL](docs/dockerfile-dsl.md) - how images are generated
 - [Development](docs/development.md) - contributing, conventions, releasing

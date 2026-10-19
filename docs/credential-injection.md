@@ -2,7 +2,7 @@
 
 `[[run.proxy.credentials]]` keeps API keys out of the tool container. Inside it, each entry's env vars hold a random placeholder, new each run, which the tool sends like a real key. The [egress proxy](egress-proxy.md) holds the real secret and swaps it in for the placeholder on HTTPS requests to the entry's hosts. See [`[[run.proxy.credentials]]`](config.md#runproxycredentials) for the keys and presets.
 
-## Setup
+## Usage
 
 1. Save the key in a one-line file outside your projects, e.g. `~/.secrets/anthropic_key`.
 2. Add an entry to `.agenticrc.toml`:

@@ -16,13 +16,13 @@ agentic build claude --pull           # refresh base images, keep the rest of th
 Debian is the root layer. It always includes curl, wget, git, gpg, jq and Python 3 (interpreter and standard library, no pip). `--base` adds runtimes on top of it (Node.js is installed with NVM):
 
 ```
-debian (base stage)
-  ├── docker (docker stage) ← --base docker (CLI only, for --dind)
-  ├── dotnet (dotnet stage) ← --base dotnet
-  ├── go     (go stage)     ← --base go
-  ├── java   (java stage)   ← --base java
-  └── node   (node stage)   ← --base node
-        └── tool (tool stage)
+debian
+  ├── docker ← --base docker (CLI only, for --dind)
+  ├── dotnet ← --base dotnet
+  ├── go     ← --base go
+  ├── java   ← --base java
+  └── node   ← --base node
+        └── tool
 ```
 
 | Flag                         | Result                         |

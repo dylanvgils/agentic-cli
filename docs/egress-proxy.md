@@ -18,47 +18,7 @@ enabled = true
 allowed_hosts = ["registry.npmjs.org", ".github.com"]
 ```
 
-## How it works
-
-- The tool container loses direct internet access. It reaches the outside only through a proxy sidecar on a per-run internal Docker network.
-- `HTTP_PROXY`/`HTTPS_PROXY` (and lowercase variants) are set automatically.
-- The proxy image builds on first use, or with `agentic proxy build`. `agentic proxy update` rebuilds it.
-- The sidecar and its network are removed when the run ends. After a crash, the next `agentic` run or `agentic clean` removes them once they are a few minutes old and the tool has stopped.
-- `agentic config` shows the resolved proxy settings and which file set them, except the fixed [baseline hosts](#baseline-allowlist).
-
-### Access log
-
-Blocked hosts are printed at the end of the run. Every attempt is logged as JSON lines in `$AGENTIC_HOME/logs/proxy_<id>.jsonl`, pruned after `proxy_log_retention_days` in `agentic.json` (default 3). `agentic proxy clean --logs` wipes them all.
-
-Failed requests get a `"reason"`, with the cause in `"error"`:
-
-| Reason | Tool sees | When |
-| --- | --- | --- |
-| `upstream-failed` | 502 | The upstream host fails. `"error"` can name resolved IPs the tool shouldn't see. |
-| `proxy-failed` | 500 | The proxy itself fails, e.g. on a TLS handshake the tool rejects. |
-| `client-closed` | - | The tool hangs up during the TLS handshake of an intercepted host. Harmless when the tool races connections and carries on. |
-
-### Monitor mode
-
-`--proxy-monitor` (or `mode = "monitor"`) never blocks. The log still records the real `"decision"` (`"allow"` or `"deny"`), tagged `"enforced": false`, and `docker logs` lines get a `(monitor)` suffix.
-
-To find what a tool needs before you enforce:
-
-1. Run with `--proxy-monitor` and use the tool as usual.
-2. At the end, the run lists the hosts that _would_ have been blocked.
-3. Add the ones you trust to `allowed_hosts`.
-4. Switch to `--proxy`.
-
-### Local and private addresses
-
-The proxy checks the IP an allowed host resolves to, so a DNS record can't point it at your machine or network. This also applies in monitor mode, where hosts not on the allowlist get the wildcard rules. A refused attempt gets a 403, is logged as `"decision": "deny"` with `"reason": "blocked-address"`, and is listed apart from blocked hosts at the end of the run.
-
-- **Always refused**: loopback, link-local (incl. the `169.254.169.254` cloud metadata address), unspecified, multicast and reserved (`240/4`) addresses, Teredo, SIIT and local-use NAT64 addresses, and the AWS, Azure and Alibaba metadata endpoints outside link-local.
-- **Refused for wildcard entries**: private ranges (`10/8`, `172.16/12`, `192.168/16`, `100.64/10`, `198.18/15`, `fc00::/7`). An exact entry like `"artifactory.corp.example"` may resolve to one, so list internal hosts exactly.
-- **NAT64 and 6to4 addresses** are checked by the IPv4 address inside them.
-- **With credential injection**, the tunnel is logged as allowed first, then each refused request gets its own deny entry.
-
-### Baseline allowlist
+## Baseline allowlist
 
 Each tool allows these hosts by default. `allowed_hosts` adds to them.
 
@@ -79,11 +39,51 @@ OpenCode supports many model providers, so add your provider's hosts:
 allowed_hosts = ["api.openai.com"]
 ```
 
-### Tools that ignore proxy env vars
+## Monitor mode
+
+`--proxy-monitor` (or `mode = "monitor"`) never blocks. Use it to find what a tool needs before you enforce:
+
+1. Run with `--proxy-monitor` and use the tool as usual.
+2. At the end, the run lists the hosts that _would_ have been blocked.
+3. Add the ones you trust to `allowed_hosts`.
+4. Switch to `--proxy`.
+
+The log still records the real `"decision"` (`"allow"` or `"deny"`), tagged `"enforced": false`, and `docker logs` lines get a `(monitor)` suffix.
+
+## How it works
+
+- The tool container loses direct internet access. It reaches the outside only through a proxy sidecar on a per-run internal Docker network.
+- `HTTP_PROXY`/`HTTPS_PROXY` (and lowercase variants) are set automatically.
+- The proxy image builds on first use, or with `agentic proxy build`. `agentic proxy update` rebuilds it.
+- The sidecar and its network are removed when the run ends. After a crash, the next `agentic` run or `agentic clean` removes them once they are a few minutes old and the tool has stopped.
+- `agentic config` shows the resolved proxy settings and which file set them, except the fixed [baseline hosts](#baseline-allowlist).
+
+### Access log
+
+Blocked hosts are printed at the end of the run. Every attempt is logged as JSON lines in `$AGENTIC_HOME/logs/proxy_<id>.jsonl`, pruned after `proxy_log_retention_days` in `agentic.json` (default 3). `agentic proxy clean --logs` wipes them all.
+
+Failed requests get a `"reason"`, with the cause in `"error"`:
+
+| Reason | Tool sees | When |
+| --- | --- | --- |
+| `upstream-failed` | 502 | The upstream host fails. `"error"` can name resolved IPs the tool shouldn't see. |
+| `proxy-failed` | 500 | The proxy itself fails, e.g. on a TLS handshake the tool rejects. |
+| `client-closed` | - | The tool hangs up during the TLS handshake of an intercepted host. Harmless when the tool races connections and carries on. |
+
+## Local and private addresses
+
+The proxy checks the IP an allowed host resolves to, so a DNS record can't point it at your machine or network. This also applies in monitor mode, where hosts not on the allowlist get the wildcard rules. A refused attempt gets a 403, is logged as `"decision": "deny"` with `"reason": "blocked-address"`, and is listed apart from blocked hosts at the end of the run.
+
+- **Always refused**: loopback, link-local (incl. the `169.254.169.254` cloud metadata address), unspecified, multicast and reserved (`240/4`) addresses, Teredo, SIIT and local-use NAT64 addresses, and the AWS, Azure and Alibaba metadata endpoints outside link-local.
+- **Refused for wildcard entries**: private ranges (`10/8`, `172.16/12`, `192.168/16`, `100.64/10`, `198.18/15`, `fc00::/7`). An exact entry like `"artifactory.corp.example"` may resolve to one, so list internal hosts exactly.
+- **NAT64 and 6to4 addresses** are checked by the IPv4 address inside them.
+- **With credential injection**, the tunnel is logged as allowed first, then each refused request gets its own deny entry.
+
+## Tools that ignore proxy env vars
 
 Some tools, like Maven, ignore those env vars and need a literal `host:port` in their own config. Use `agentic-proxy:3128`. Unlike the sidecar's container name, this alias is the same on every run. See [Maven through the egress proxy](recipes.md#maven-through-the-egress-proxy).
 
-### With microsandbox
+## With microsandbox
 
 With the [microsandbox runtime](microsandbox.md), msb's own network policy enforces the same allowlist instead of a proxy sidecar, so no proxy env vars are set. Only DNS and the allowed hosts on ports 80 and 443 are reachable. msb inspects all HTTPS to check each request's host, so the tool must trust msb's certificate authority (curl, git and Bun do), and tools that pin certificates fail.
 
