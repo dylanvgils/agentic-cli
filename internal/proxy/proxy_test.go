@@ -41,7 +41,7 @@ func TestServerConnect(t *testing.T) {
 		upstreamHost, upstreamPort := startEchoServer(t)
 		stubDefaultPorts(t, upstreamPort)
 		var logBuf bytes.Buffer
-		server := allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil))
+		server := allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, nil))
 		target := net.JoinHostPort(upstreamHost, upstreamPort)
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodConnect, "http://"+target, nil)
@@ -63,7 +63,7 @@ func TestServerConnect(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil)))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, nil)))
 		t.Cleanup(proxy.Close)
 		hello := clientHello(t, "")
 
@@ -85,7 +85,7 @@ func TestServerConnect(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 		target := net.JoinHostPort(upstreamHost, upstreamPort)
 
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(nil, nil, nil), false, nil)))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(nil, nil, nil), false, nil)))
 		t.Cleanup(proxy.Close)
 
 		conn, err := net.Dial("tcp", proxy.Listener.Addr().String())
@@ -115,7 +115,7 @@ func TestServerConnect(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil)))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, nil)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -157,7 +157,7 @@ func TestServerConnect(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, nil))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -193,7 +193,7 @@ func TestServerConnect(t *testing.T) {
 		_, upstreamPort := startEchoServer(t)
 		stubDefaultPorts(t, upstreamPort)
 
-		proxy := httptest.NewServer(withAddrGuard(NewServer(NewAllowlist([]string{".localhost"}), NewLogger(io.Discard, nil, nil), false, nil), func(_ netip.Addr, privateOK bool) bool { return !privateOK }))
+		proxy := httptest.NewServer(withAddrGuard(NewServer(NewAllowlist(hostRules(".localhost")), NewLogger(io.Discard, nil, nil), false, nil), func(_ netip.Addr, privateOK bool) bool { return !privateOK }))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -209,7 +209,7 @@ func TestServerConnect(t *testing.T) {
 		_, upstreamPort := startEchoServer(t)
 		stubDefaultPorts(t, upstreamPort)
 
-		proxy := httptest.NewServer(withAddrGuard(NewServer(NewAllowlist([]string{"localhost"}), NewLogger(io.Discard, nil, nil), false, nil), func(_ netip.Addr, privateOK bool) bool { return !privateOK }))
+		proxy := httptest.NewServer(withAddrGuard(NewServer(NewAllowlist(hostRules("localhost")), NewLogger(io.Discard, nil, nil), false, nil), func(_ netip.Addr, privateOK bool) bool { return !privateOK }))
 		t.Cleanup(proxy.Close)
 		hello := clientHello(t, "localhost")
 
@@ -229,7 +229,7 @@ func TestServerConnect(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 
 		logBuf := &syncBuffer{}
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(logBuf, nil, nil), false, nil)))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(logBuf, nil, nil), false, nil)))
 		t.Cleanup(proxy.Close)
 		hello := clientHello(t, "other.example.test")
 
@@ -250,7 +250,7 @@ func TestServerConnect(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 
 		logBuf := &syncBuffer{}
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(logBuf, nil, nil), false, nil)))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(logBuf, nil, nil), false, nil)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -269,7 +269,7 @@ func TestServerConnect(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 
 		logBuf := &syncBuffer{}
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(logBuf, nil, nil), true, nil)))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(logBuf, nil, nil), true, nil)))
 		t.Cleanup(proxy.Close)
 		hello := clientHello(t, "other.example.test")
 
@@ -290,7 +290,7 @@ func TestServerConnect(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 
 		logBuf := &syncBuffer{}
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(logBuf, nil, nil), false, nil)))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(logBuf, nil, nil), false, nil)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -348,7 +348,7 @@ func TestServerHTTP(t *testing.T) {
 		upstreamHost, upstreamPort := splitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
 		stubDefaultPorts(t, upstreamPort)
 
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, nil)))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard, nil, nil), false, nil)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -367,7 +367,7 @@ func TestServerHTTP(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil)))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, nil)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -414,7 +414,7 @@ func TestServerHTTP(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, nil))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, nil))
 		t.Cleanup(proxy.Close)
 
 		// Act

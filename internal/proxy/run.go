@@ -22,7 +22,7 @@ const DefaultAddr = ":" + Port
 // Environment variables passed from the host to the proxy container - internal wiring between
 // StartProxy (host) and the agentic-proxy binary (see cmd/proxy/main.go), not user-facing config.
 const (
-	EnvAllow       = "AGENTIC_PROXY_ALLOW"       // comma-separated allowed hosts
+	EnvRules       = "AGENTIC_PROXY_RULES"       // JSON allow rule list (see LoadRules)
 	EnvLog         = "AGENTIC_PROXY_LOG"         // JSON-lines access-log path
 	EnvAddr        = "AGENTIC_PROXY_ADDR"        // override listen address
 	EnvTZOffset    = "AGENTIC_PROXY_TZ_OFFSET"   // host UTC offset in seconds, for the human-readable log line
@@ -39,29 +39,33 @@ const (
 )
 
 // ConfigFromEnv builds a Config from the proxy environment variables.
-func ConfigFromEnv() Config {
+func ConfigFromEnv() (Config, error) {
+	rules, err := LoadRules(os.Getenv(EnvRules))
+	if err != nil {
+		return Config{}, err
+	}
+
 	addr := os.Getenv(EnvAddr)
-	allowedHosts := config.SplitEnvValues(os.Getenv(EnvAllow))
 	logPath := os.Getenv(EnvLog)
 	offset, _ := strconv.Atoi(os.Getenv(EnvTZOffset))
 	monitor, _ := strconv.ParseBool(os.Getenv(EnvMonitor))
 
 	return Config{
 		Addr:            addr,
-		AllowedHosts:    allowedHosts,
+		Rules:           rules,
 		LogPath:         logPath,
 		TZOffsetSeconds: offset,
 		Monitor:         monitor,
 		CADir:           os.Getenv(EnvCADir),
 		CredentialsPath: os.Getenv(EnvCredentials),
 		ClientNets:      config.SplitEnvValues(os.Getenv(EnvClientNets)),
-	}
+	}, nil
 }
 
 // Config controls a proxy run.
 type Config struct {
 	Addr            string   // listen address; empty uses DefaultAddr
-	AllowedHosts    []string // permitted hosts (exact or leading-dot/"*." wildcard)
+	Rules           []Rule   // allow rules; none blocks everything unless Monitor
 	LogPath         string   // JSON-lines access log file; always also written to stdout
 	TZOffsetSeconds int      // host UTC offset shown in the stdout human-readable line; the JSON log always stays UTC
 	Monitor         bool     // log the allowlist verdict without enforcing it
@@ -89,7 +93,7 @@ func Run(cfg Config) error {
 	}
 
 	location := time.FixedZone("", cfg.TZOffsetSeconds)
-	server := NewServer(NewAllowlist(cfg.AllowedHosts), NewLogger(jsonWriter(logFile), os.Stdout, location), cfg.Monitor, inject)
+	server := NewServer(NewAllowlist(cfg.Rules), NewLogger(jsonWriter(logFile), os.Stdout, location), cfg.Monitor, inject)
 
 	handler, err := clientHandler(server, cfg.ClientNets, inject != nil)
 	if err != nil {

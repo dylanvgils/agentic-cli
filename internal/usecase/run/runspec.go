@@ -228,7 +228,7 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string
 		WithCredentials(sandboxCredentials(in.Credentials)...).
 		WithProxy(sandbox.ProxySpec{
 			Mode:    in.ProxyMode,
-			Allow:   resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc),
+			Rules:   resolve.ProxyRules(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc),
 			LogFile: proxyLog,
 		}).
 		WithDind(sandbox.DindSpec{Enabled: in.DindEnabled, Limits: dindLimits}).

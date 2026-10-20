@@ -3,6 +3,7 @@ package docker
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,9 +47,9 @@ type proxyHandle struct {
 	id          string
 	container   string
 	logPath     string
-	allow       []string
 	monitor     bool
 	credentials []proxy.Credential
+	rules       []proxy.Rule
 	// placeholderEnv sets each credential's env vars to its placeholder in the tool
 	placeholderEnv []string
 	clientNets     []string
@@ -80,9 +81,9 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		id:             id,
 		container:      name,
 		logPath:        rs.Proxy.LogFile,
-		allow:          rs.Proxy.Allow,
 		monitor:        rs.Proxy.Mode == sandbox.ProxyMonitor,
 		credentials:    creds,
+		rules:          proxyRules(rs.Proxy.Rules),
 		placeholderEnv: placeholderEnv,
 		user:           *rs.User,
 	}, nil
@@ -243,8 +244,10 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 		clientNets = dryRunClientNetsPlaceholder
 	}
 
+	// Plain data, so it always marshals
+	rulesJSON, _ := json.Marshal(h.rules)
 	args = append(args,
-		arg("env", proxy.EnvAllow+"="+strings.Join(h.allow, ",")),
+		arg("env", proxy.EnvRules+"="+string(rulesJSON)),
 		arg("env", proxy.EnvLog+"="+containerLog),
 		arg("env", proxy.EnvTZOffset+"="+strconv.Itoa(tzOffset)),
 		arg("env", proxy.EnvMonitor+"="+strconv.FormatBool(h.monitor)),
@@ -326,6 +329,15 @@ func (c *Client) SweepProxyResources() error {
 		nameFilter(proxyHostAlias),
 	}
 	return c.removeUnused(listArgs, []string{"rm", arg("force"), arg("volumes")})
+}
+
+// proxyRules returns rules as the proxy's allow rules.
+func proxyRules(rules []sandbox.AllowRule) []proxy.Rule {
+	converted := make([]proxy.Rule, len(rules))
+	for i, rule := range rules {
+		converted[i] = proxy.Rule{Host: rule.Host}
+	}
+	return converted
 }
 
 // randID returns a short random hex identifier for per-run resource names.

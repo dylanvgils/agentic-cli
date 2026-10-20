@@ -260,3 +260,12 @@ func writeAccessLog(t *testing.T, lines ...string) string {
 	require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600))
 	return path
 }
+
+// hostRules returns a rule allowing each host.
+func hostRules(hosts ...string) []Rule {
+	rules := make([]Rule, len(hosts))
+	for i, host := range hosts {
+		rules[i] = Rule{Host: host}
+	}
+	return rules
+}
