@@ -26,6 +26,7 @@ function Install-FromSource {
 
   Write-Host "Building agentic for windows/$Arch..."
   & docker buildx build `
+    --file "$ScriptDir\build\Dockerfile" `
     --target export `
     --build-arg "INSTALL_METHOD=script-pwsh" `
     --output "$ScriptDir\dist\" `

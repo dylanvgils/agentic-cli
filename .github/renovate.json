@@ -93,7 +93,7 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^Dockerfile$/"],
+      "managerFilePatterns": ["/^build/Dockerfile$/"],
       "matchStrings": ["ARG GO_VERSION=(?<currentValue>[^\\s]+)"],
       "depNameTemplate": "go",
       "datasourceTemplate": "golang-version"

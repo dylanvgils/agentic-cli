@@ -54,7 +54,7 @@ make lint           # run golangci-lint
 make test           # run unit tests
 make test-integration # run integration tests against a real Docker daemon
 make dist           # cross-platform binaries → dist/
-make docker-dist    # same via Docker (no local Go needed)
+make docker-dist    # same via Docker using build/Dockerfile (no local Go needed)
 ```
 
 CLI changes take effect after `make build`. Changes to stage funcs in `internal/tools/` or `internal/docker/` need an `agentic build` to rebuild the image.
