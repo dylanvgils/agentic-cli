@@ -371,8 +371,7 @@ func TestServerConnectInject(t *testing.T) {
 		_ = conn.Close()
 
 		// Assert
-		want := `"reason":"client-closed","error":"client handshake for ` + upstreamHost + `: EOF"`
-		assert.Eventually(t, func() bool { return strings.Contains(logBuf.String(), want) }, 5*time.Second, 10*time.Millisecond)
+		assert.Eventually(t, func() bool { return strings.Contains(logBuf.String(), `"reason":"client-closed"`) }, 5*time.Second, 10*time.Millisecond)
 		assert.NotContains(t, logBuf.String(), `"intercepted"`)
 	})
 
@@ -396,7 +395,7 @@ func TestServerConnectInject(t *testing.T) {
 
 		// Assert
 		require.ErrorIs(t, err, context.Canceled)
-		assert.Eventually(t, func() bool { return strings.Contains(logBuf.String(), `"reason":"client-closed","error":"context canceled"`) }, 5*time.Second, 10*time.Millisecond)
+		assert.Eventually(t, func() bool { return strings.Contains(logBuf.String(), `"reason":"client-closed"`) }, 5*time.Second, 10*time.Millisecond)
 		assert.NotContains(t, logBuf.String(), `"upstream-failed"`)
 	})
 

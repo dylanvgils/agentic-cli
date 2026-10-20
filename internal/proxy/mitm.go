@@ -245,8 +245,7 @@ func blockMethods(next http.Handler) http.Handler {
 	})
 }
 
-// clientClosed reports whether err means the client hung up, as clients racing connections do with the losers. Only for
-// conn errors outside a request, where an EOF can only come from the client; in a request it can be the upstream's.
+// clientClosed reports whether a conn error outside a request means the client hung up.
 func clientClosed(err error) bool {
 	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE)
 }

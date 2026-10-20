@@ -176,7 +176,7 @@ func (s *Server) failProxy(w http.ResponseWriter, entry Entry, err error) {
 	http.Error(w, proxyFailedText, http.StatusInternalServerError)
 }
 
-// logClientClosed logs entry as closed by the client with err; there's no one left to answer.
+// logClientClosed logs entry as closed by the client with err.
 func (s *Server) logClientClosed(entry Entry, err error) {
 	entry.Reason = ReasonClientClosed
 	entry.Error = err.Error()

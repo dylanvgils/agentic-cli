@@ -3,6 +3,7 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -349,6 +350,20 @@ func TestServerHTTP(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":true,"reason":"blocked-address"`)
 	})
+}
+
+func Test_Server_logClientClosed(t *testing.T) {
+	// Arrange
+	var logBuf bytes.Buffer
+	s := NewServer(NewAllowlist(nil), NewLogger(&logBuf, nil, nil), false, nil)
+	entry := Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionAllow, Enforced: true}
+
+	// Act
+	s.logClientClosed(entry, errors.New("test-error"))
+
+	// Assert
+	assert.Contains(t, logBuf.String(), `"host":"api.example.test"`)
+	assert.Contains(t, logBuf.String(), `"reason":"client-closed","error":"test-error"`)
 }
 
 func Test_defaultPort(t *testing.T) {
