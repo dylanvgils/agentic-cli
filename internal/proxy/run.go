@@ -39,7 +39,12 @@ const (
 )
 
 // ConfigFromEnv builds a Config from the proxy environment variables.
-func ConfigFromEnv() Config {
+func ConfigFromEnv() (Config, error) {
+	rules, err := LoadRules(os.Getenv(EnvRules))
+	if err != nil {
+		return Config{}, err
+	}
+
 	addr := os.Getenv(EnvAddr)
 	logPath := os.Getenv(EnvLog)
 	offset, _ := strconv.Atoi(os.Getenv(EnvTZOffset))
@@ -47,20 +52,20 @@ func ConfigFromEnv() Config {
 
 	return Config{
 		Addr:            addr,
-		Rules:           os.Getenv(EnvRules),
+		Rules:           rules,
 		LogPath:         logPath,
 		TZOffsetSeconds: offset,
 		Monitor:         monitor,
 		CADir:           os.Getenv(EnvCADir),
 		CredentialsPath: os.Getenv(EnvCredentials),
 		ClientNets:      config.SplitEnvValues(os.Getenv(EnvClientNets)),
-	}
+	}, nil
 }
 
 // Config controls a proxy run.
 type Config struct {
 	Addr            string   // listen address; empty uses DefaultAddr
-	Rules           string   // JSON allow rule list
+	Rules           []Rule   // allow rules; none blocks everything unless Monitor
 	LogPath         string   // JSON-lines access log file; always also written to stdout
 	TZOffsetSeconds int      // host UTC offset shown in the stdout human-readable line; the JSON log always stays UTC
 	Monitor         bool     // log the allowlist verdict without enforcing it
@@ -82,18 +87,13 @@ func Run(cfg Config) error {
 	}
 	defer closeLog()
 
-	rules, err := LoadRules(cfg.Rules)
-	if err != nil {
-		return err
-	}
-
 	inject, err := loadInjector(cfg.CADir, cfg.CredentialsPath)
 	if err != nil {
 		return err
 	}
 
 	location := time.FixedZone("", cfg.TZOffsetSeconds)
-	server := NewServer(NewAllowlist(rules), NewLogger(jsonWriter(logFile), os.Stdout, location), cfg.Monitor, inject)
+	server := NewServer(NewAllowlist(cfg.Rules), NewLogger(jsonWriter(logFile), os.Stdout, location), cfg.Monitor, inject)
 
 	handler, err := clientHandler(server, cfg.ClientNets, inject != nil)
 	if err != nil {

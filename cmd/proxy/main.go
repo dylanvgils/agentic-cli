@@ -8,7 +8,13 @@ import (
 )
 
 func main() {
-	if err := proxy.Run(proxy.ConfigFromEnv()); err != nil {
+	cfg, err := proxy.ConfigFromEnv()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	if err := proxy.Run(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

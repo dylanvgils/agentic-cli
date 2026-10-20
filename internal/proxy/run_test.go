@@ -18,10 +18,11 @@ func TestConfigFromEnv(t *testing.T) {
 		t.Setenv(EnvAddr, ":9999")
 
 		// Act
-		cfg := ConfigFromEnv()
+		cfg, err := ConfigFromEnv()
 
 		// Assert
-		assert.JSONEq(t, `[{"host":".example.test"}]`, cfg.Rules)
+		require.NoError(t, err)
+		assert.Equal(t, []Rule{{Host: ".example.test"}}, cfg.Rules)
 		assert.Equal(t, "/var/log/proxy.jsonl", cfg.LogPath)
 		assert.Equal(t, ":9999", cfg.Addr)
 	})
@@ -31,9 +32,10 @@ func TestConfigFromEnv(t *testing.T) {
 		t.Setenv(EnvTZOffset, "-18000")
 
 		// Act
-		cfg := ConfigFromEnv()
+		cfg, err := ConfigFromEnv()
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, -18000, cfg.TZOffsetSeconds)
 	})
 
@@ -42,9 +44,10 @@ func TestConfigFromEnv(t *testing.T) {
 		t.Setenv(EnvTZOffset, "not-a-number")
 
 		// Act
-		cfg := ConfigFromEnv()
+		cfg, err := ConfigFromEnv()
 
 		// Assert
+		require.NoError(t, err)
 		assert.Zero(t, cfg.TZOffsetSeconds)
 	})
 
@@ -53,9 +56,10 @@ func TestConfigFromEnv(t *testing.T) {
 		t.Setenv(EnvMonitor, "true")
 
 		// Act
-		cfg := ConfigFromEnv()
+		cfg, err := ConfigFromEnv()
 
 		// Assert
+		require.NoError(t, err)
 		assert.True(t, cfg.Monitor)
 	})
 
@@ -65,9 +69,10 @@ func TestConfigFromEnv(t *testing.T) {
 		t.Setenv(EnvCredentials, "/run/agentic/proxy/credentials.json")
 
 		// Act
-		cfg := ConfigFromEnv()
+		cfg, err := ConfigFromEnv()
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, "/run/agentic/proxy/ca", cfg.CADir)
 		assert.Equal(t, "/run/agentic/proxy/credentials.json", cfg.CredentialsPath)
 	})
@@ -77,10 +82,22 @@ func TestConfigFromEnv(t *testing.T) {
 		t.Setenv(EnvClientNets, "172.30.0.0/16, fd00::/64")
 
 		// Act
-		cfg := ConfigFromEnv()
+		cfg, err := ConfigFromEnv()
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, []string{"172.30.0.0/16", "fd00::/64"}, cfg.ClientNets)
+	})
+
+	t.Run("refuses malformed rules", func(t *testing.T) {
+		// Arrange
+		t.Setenv(EnvRules, "not json")
+
+		// Act
+		_, err := ConfigFromEnv()
+
+		// Assert
+		assert.ErrorContains(t, err, EnvRules)
 	})
 
 	t.Run("missing or invalid monitor defaults to false", func(t *testing.T) {
@@ -88,9 +105,10 @@ func TestConfigFromEnv(t *testing.T) {
 		t.Setenv(EnvMonitor, "not-a-bool")
 
 		// Act
-		cfg := ConfigFromEnv()
+		cfg, err := ConfigFromEnv()
 
 		// Assert
+		require.NoError(t, err)
 		assert.False(t, cfg.Monitor)
 	})
 }
