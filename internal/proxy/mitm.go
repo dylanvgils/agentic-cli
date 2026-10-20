@@ -179,11 +179,12 @@ func (i *Injector) reverseProxy(host, port string, cred Credential, scrub *strin
 // before its authed retry doesn't count, and neither does anonymous traffic the upstream accepted.
 func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) {
 	tlsConn, err := s.inject.handshake(w, entry.Host)
+	if clientClosed(err) {
+		s.logClientClosed(entry, err)
+		return
+	}
 	if err != nil {
 		entry.Reason = ReasonProxyFailed
-		if clientClosed(err) {
-			entry.Reason = ReasonClientClosed
-		}
 		entry.Error = err.Error()
 		s.logger.Log(entry)
 		return
@@ -195,10 +196,7 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) 
 	failed := func(w http.ResponseWriter, r *http.Request, err error) {
 		// The client cancelled the request or hung up, so there's no one left to answer
 		if r.Context().Err() != nil {
-			closed := entry
-			closed.Reason = ReasonClientClosed
-			closed.Error = err.Error()
-			s.logger.Log(closed)
+			s.logClientClosed(entry, err)
 			return
 		}
 		if errors.Is(err, errBlockedAddr) {
@@ -247,7 +245,8 @@ func blockMethods(next http.Handler) http.Handler {
 	})
 }
 
-// clientClosed reports whether err means the client hung up, as clients racing connections do with the losers.
+// clientClosed reports whether err means the client hung up, as clients racing connections do with the losers. Only for
+// conn errors outside a request, where an EOF can only come from the client; in a request it can be the upstream's.
 func clientClosed(err error) bool {
 	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE)
 }
