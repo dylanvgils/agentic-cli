@@ -34,10 +34,12 @@ const injectPort = "443"
 // blockedMethods are refused inside an intercepted tunnel: TRACE/TRACK echo the injected headers back, CONNECT would re-tunnel.
 var blockedMethods = []string{http.MethodConnect, http.MethodTrace, "TRACK"}
 
-// Injector terminates TLS for credentialed hosts and puts their secrets in the headers before forwarding.
+// Injector terminates TLS for credentialed hosts, putting their secrets in the headers before forwarding, and for path
+// rule hosts, so their requests' paths can be checked.
 type Injector struct {
 	ca        certs.CA
 	creds     map[string]Credential // keyed by normalized exact host
+	pathHosts map[string]bool       // normalized hosts decrypted only to check paths
 	port      string                // the only port intercepted, injectPort outside tests
 	transport http.RoundTripper
 
@@ -59,8 +61,8 @@ type closeNotifyConn struct {
 	listener *oneConnListener
 }
 
-// NewInjector builds an Injector issuing leaves from ca for the hosts in creds.
-func NewInjector(ca certs.CA, creds []Credential) *Injector {
+// NewInjector builds an Injector issuing leaves from ca for the hosts in creds and pathHosts.
+func NewInjector(ca certs.CA, creds []Credential, pathHosts []string) *Injector {
 	byHost := make(map[string]Credential)
 	for _, cred := range creds {
 		for _, host := range cred.Hosts {
@@ -68,11 +70,17 @@ func NewInjector(ca certs.CA, creds []Credential) *Injector {
 		}
 	}
 
+	decrypted := make(map[string]bool, len(pathHosts))
+	for _, host := range pathHosts {
+		decrypted[normalizeHost(host)] = true
+	}
+
 	return &Injector{
-		ca:     ca,
-		creds:  byHost,
-		port:   injectPort,
-		leaves: make(map[string]*tls.Certificate),
+		ca:        ca,
+		creds:     byHost,
+		pathHosts: decrypted,
+		port:      injectPort,
+		leaves:    make(map[string]*tls.Certificate),
 		transport: &http.Transport{
 			DialContext:         newUpstream(blockedAddr).dialer.DialContext,
 			TLSHandshakeTimeout: dialTimeout,
@@ -81,13 +89,17 @@ func NewInjector(ca certs.CA, creds []Credential) *Injector {
 	}
 }
 
-// credentialFor returns the credential for exactly host on the intercepted port; safe on a nil Injector.
-func (i *Injector) credentialFor(host, port string) (Credential, bool) {
+// interceptFor reports whether to decrypt exactly host on the intercepted port, with its credential, empty for a path rule
+// host without one; safe on a nil Injector.
+func (i *Injector) interceptFor(host, port string) (Credential, bool) {
 	if i == nil || port != i.port {
 		return Credential{}, false
 	}
-	cred, ok := i.creds[normalizeHost(host)]
-	return cred, ok
+	host = normalizeHost(host)
+	if cred, ok := i.creds[host]; ok {
+		return cred, true
+	}
+	return Credential{}, i.pathHosts[host]
 }
 
 // leaf returns the cached server cert for host, already normalized by the caller, issuing it on first use.
@@ -173,10 +185,11 @@ func (i *Injector) reverseProxy(host, port string, cred Credential, scrub *strin
 	}
 }
 
-// intercept terminates the CONNECT's TLS and serves it with cred, logging entry as intercepted only after the client
-// handshake succeeds. A tunnel the upstream rejected (401/403) and whose requests never carried the placeholder is logged
-// again once it closes, as the tool then likely ran unauthenticated; per tunnel, so git's unauthenticated first request
-// before its authed retry doesn't count, and neither does anonymous traffic the upstream accepted.
+// intercept terminates the CONNECT's TLS and serves it with cred, checking each request's path, logging entry as
+// intercepted only after the client handshake succeeds. A credential tunnel the upstream rejected (401/403) and whose
+// requests never carried the placeholder is logged again once it closes, as the tool then likely ran unauthenticated; per
+// tunnel, so git's unauthenticated first request before its authed retry doesn't count, and neither does anonymous traffic
+// the upstream accepted.
 func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) {
 	tlsConn, err := s.inject.handshake(w, entry.Host)
 	if clientClosed(err) {
@@ -226,9 +239,9 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) 
 		// Trailers land in w's header after the body and are sent once the handler returns
 		scrubHeader(w.Header(), scrub)
 	})
-	s.inject.serve(tlsConn, allowPrivate(handler, s.allow.exactMatch(entry.Host)))
+	s.inject.serve(tlsConn, s.checkPaths(allowPrivate(handler, s.allow.exactMatch(entry.Host)), entry))
 
-	if sawAuthFailure.Load() && !sawPlaceholder.Load() {
+	if len(cred.Headers) > 0 && sawAuthFailure.Load() && !sawPlaceholder.Load() {
 		entry.Reason = ReasonNoPlaceholder
 		s.logger.Log(entry)
 	}

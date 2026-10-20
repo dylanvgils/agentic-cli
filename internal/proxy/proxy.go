@@ -52,7 +52,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	host, port := splitHostPort(r.Host)
 	host = normalizeHost(host)
-	cred, credentialed := s.inject.credentialFor(host, port)
+	cred, intercepted := s.inject.interceptFor(host, port)
 
 	entry, forward := s.verdict(ProtocolHTTPS, host, port)
 	if !forward {
@@ -62,9 +62,20 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// intercept logs once the client handshake shows whether injection happens
-	if credentialed {
+	if intercepted {
 		s.intercept(w, entry, cred)
 		return
+	}
+
+	// A plain tunnel hides the path, so a path rule host only passes one in monitor mode
+	if s.allow.pathRestricted(host) {
+		entry.Decision = DecisionDeny
+		entry.Reason = ReasonPathBlocked
+		if !s.monitor {
+			s.logger.Log(entry)
+			http.Error(w, pathBlockedText, http.StatusForbidden)
+			return
+		}
 	}
 
 	ctx := withPrivateOK(r.Context(), s.allow.exactMatch(host))
@@ -115,6 +126,15 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		s.logger.Log(entry)
 		http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
 		return
+	}
+
+	if blocked, ok := s.pathVerdict(entry, r.URL); !ok {
+		entry = blocked
+		if entry.Enforced {
+			s.logger.Log(entry)
+			http.Error(w, pathBlockedText, http.StatusForbidden)
+			return
+		}
 	}
 
 	r.RequestURI = ""

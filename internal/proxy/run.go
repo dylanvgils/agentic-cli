@@ -65,11 +65,11 @@ func ConfigFromEnv() (Config, error) {
 // Config controls a proxy run.
 type Config struct {
 	Addr            string   // listen address; empty uses DefaultAddr
-	Rules           []Rule   // allow rules; none blocks everything unless Monitor
+	Rules           []Rule   // allow rules; none blocks everything unless Monitor; hosts with paths need CADir
 	LogPath         string   // JSON-lines access log file; always also written to stdout
 	TZOffsetSeconds int      // host UTC offset shown in the stdout human-readable line; the JSON log always stays UTC
 	Monitor         bool     // log the allowlist verdict without enforcing it
-	CADir           string   // per-run CA dir; set with CredentialsPath
+	CADir           string   // per-run CA dir; set with CredentialsPath, which may list no credentials
 	CredentialsPath string   // JSON credential list; empty disables injection
 	ClientNets      []string // CIDRs allowed to use the proxy; empty allows any client
 }
@@ -87,13 +87,14 @@ func Run(cfg Config) error {
 	}
 	defer closeLog()
 
-	inject, err := loadInjector(cfg.CADir, cfg.CredentialsPath)
+	allow := NewAllowlist(cfg.Rules)
+	inject, err := loadInjector(cfg.CADir, cfg.CredentialsPath, allow.pathHosts())
 	if err != nil {
 		return err
 	}
 
 	location := time.FixedZone("", cfg.TZOffsetSeconds)
-	server := NewServer(NewAllowlist(cfg.Rules), NewLogger(jsonWriter(logFile), os.Stdout, location), cfg.Monitor, inject)
+	server := NewServer(allow, NewLogger(jsonWriter(logFile), os.Stdout, location), cfg.Monitor, inject)
 
 	handler, err := clientHandler(server, cfg.ClientNets, inject != nil)
 	if err != nil {
@@ -128,10 +129,14 @@ func jsonWriter(f *os.File) io.Writer {
 	return f
 }
 
-// loadInjector returns nil when both are empty and fails when only one is set; once loaded, the CA key and credentials
-// files are removed, so the secrets don't stay on the Docker host's disk for the whole run.
-func loadInjector(caDir, credsPath string) (*Injector, error) {
+// loadInjector returns nil when both are empty and fails when only one is set, or neither while pathHosts need decrypting;
+// once loaded, the CA key and credentials files are removed, so the secrets don't stay on the Docker host's disk for the
+// whole run.
+func loadInjector(caDir, credsPath string, pathHosts []string) (*Injector, error) {
 	if caDir == "" && credsPath == "" {
+		if len(pathHosts) > 0 {
+			return nil, fmt.Errorf("%s with paths needs %s and %s to decrypt their hosts", EnvRules, EnvCADir, EnvCredentials)
+		}
 		return nil, nil
 	}
 	if caDir == "" || credsPath == "" {
@@ -149,7 +154,7 @@ func loadInjector(caDir, credsPath string) (*Injector, error) {
 	}
 
 	removeSecretFiles(filepath.Join(caDir, CAKeyFile), credsPath)
-	return NewInjector(ca, creds), nil
+	return NewInjector(ca, creds, pathHosts), nil
 }
 
 // removeSecretFiles deletes paths, warning instead of failing since the volume is removed with the container anyway.
@@ -178,7 +183,7 @@ func loadCA(dir string) (certs.CA, error) {
 		return certs.CA{}, fmt.Errorf("load proxy CA: %w", err)
 	}
 	if !ca.Scoped() {
-		return certs.CA{}, fmt.Errorf("proxy CA must be name-constrained to the credential hosts")
+		return certs.CA{}, fmt.Errorf("proxy CA must be name-constrained to the hosts it decrypts")
 	}
 	return ca, nil
 }

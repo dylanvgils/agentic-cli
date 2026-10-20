@@ -45,6 +45,10 @@ const (
 	// start with TLS, with the name or error in Entry.Error.
 	ReasonSNIMismatch = "sni-mismatch"
 
+	// ReasonPathBlocked is a request to a path rule host for a path none of its rules allows, with the path in Entry.Path,
+	// or a tunnel to one the proxy couldn't decrypt to check.
+	ReasonPathBlocked = "path-blocked"
+
 	// ReasonNoPlaceholder is a closed credential tunnel the upstream rejected (401/403) and whose requests never carried
 	// the placeholder. It repeats the tunnel's entry rather than counting a new attempt.
 	ReasonNoPlaceholder = "no-placeholder"
@@ -65,8 +69,11 @@ type Entry struct {
 	Decision Decision  `json:"decision"`
 	// Enforced reports whether Decision was acted on; always false in monitor mode, where a "deny" is only observed, not blocked.
 	Enforced bool `json:"enforced"`
-	// Intercepted reports whether the tunnel was TLS-terminated for a credential host; not whether a secret was swapped in.
+	// Intercepted reports whether the tunnel was TLS-terminated for a credential or path rule host; not whether a secret
+	// was swapped in.
 	Intercepted bool `json:"intercepted,omitempty"`
+	// Path is the escaped request path a path rule refused, without the query, which can carry tokens.
+	Path string `json:"path,omitempty"`
 	// Reason says why an allowed host was still refused or failed, e.g. ReasonBlockedAddr.
 	Reason string `json:"reason,omitempty"`
 	// Error is the upstream or proxy failure detail, kept out of the response to the tool; never in the human line.
@@ -120,7 +127,7 @@ func (l *Logger) Log(entry Entry) {
 		if entry.Reason != "" {
 			tags += " (" + entry.Reason + ")"
 		}
-		fmt.Fprintf(l.human, "%s %-7s %-5s %s:%s%s\n", entry.Time.In(l.location).Format(time.RFC3339), level, entry.Protocol, DisplayHost(entry.Host), entry.Port, tags)
+		fmt.Fprintf(l.human, "%s %-7s %-5s %s:%s%s%s\n", entry.Time.In(l.location).Format(time.RFC3339), level, entry.Protocol, DisplayHost(entry.Host), entry.Port, DisplayHost(entry.Path), tags)
 	}
 }
 
