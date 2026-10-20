@@ -19,6 +19,7 @@ func printProxySummary(l *logging.Logger, spec sandbox.ProxySpec) {
 	fmt.Fprintln(l.Writer())
 	printDenied(l, s, spec.Mode == sandbox.ProxyMonitor)
 	printRefused(l, s.Refused)
+	printMismatched(l, s.Mismatched, spec.Mode == sandbox.ProxyMonitor)
 	printMissed(l, s.Missed)
 }
 
@@ -47,6 +48,20 @@ func printRefused(l *logging.Logger, refused proxy.HostCount) {
 
 	l.Infof("proxy refused %d request(s) to local or private addresses: %s", refused.Count, strings.Join(refused.Hosts, ", "))
 	l.Detail("list an internal host exactly in [run.proxy] allowed_hosts to permit its private address; loopback and link-local stay refused.")
+}
+
+// printMismatched warns about tunnels whose TLS server name wasn't the host they asked for, refused unless monitor.
+func printMismatched(l *logging.Logger, mismatched proxy.HostCount, monitor bool) {
+	if mismatched.Count == 0 {
+		return
+	}
+
+	verb := "refused"
+	if monitor {
+		verb = "saw"
+	}
+	l.Warnf("proxy %s %d tunnel(s) whose TLS server name wasn't the host they connected to: %s", verb, mismatched.Count, strings.Join(mismatched.Hosts, ", "))
+	l.Detail("the tool may be reaching a site that isn't allowlisted through an allowed host; tunnels must carry TLS for that host.")
 }
 
 // printMissed warns about credential hosts the tool reached without the placeholder.

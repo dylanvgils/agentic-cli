@@ -105,6 +105,41 @@ func Test_printRefused(t *testing.T) {
 	})
 }
 
+func Test_printMismatched(t *testing.T) {
+	t.Run("warns about refused tunnels", func(t *testing.T) {
+		// Arrange
+		var buf strings.Builder
+
+		// Act
+		printMismatched(logging.New(&buf), proxy.HostCount{Hosts: []string{"cdn.example.test"}, Count: 1}, false)
+
+		// Assert
+		assert.Contains(t, buf.String(), "agentic: warning: proxy refused 1 tunnel(s) whose TLS server name wasn't the host they connected to: cdn.example.test")
+	})
+
+	t.Run("monitor mode says the tunnels were seen", func(t *testing.T) {
+		// Arrange
+		var buf strings.Builder
+
+		// Act
+		printMismatched(logging.New(&buf), proxy.HostCount{Hosts: []string{"cdn.example.test"}, Count: 1}, true)
+
+		// Assert
+		assert.Contains(t, buf.String(), "agentic: warning: proxy saw 1 tunnel(s)")
+	})
+
+	t.Run("nothing mismatched prints nothing", func(t *testing.T) {
+		// Arrange
+		var buf strings.Builder
+
+		// Act
+		printMismatched(logging.New(&buf), proxy.HostCount{}, false)
+
+		// Assert
+		assert.Empty(t, buf.String())
+	})
+}
+
 func Test_printMissed(t *testing.T) {
 	t.Run("warns about credential hosts reached without the placeholder", func(t *testing.T) {
 		// Arrange

@@ -68,7 +68,8 @@ Failed requests get a `"reason"`, with the cause in `"error"`:
 | --- | --- | --- |
 | `upstream-failed` | 502 | The upstream host fails. `"error"` can name resolved IPs the tool shouldn't see. |
 | `proxy-failed` | 500 | The proxy itself fails, e.g. on a TLS handshake the tool rejects. |
-| `client-closed` | - | The tool hangs up during the TLS handshake of an intercepted host, or cancels a request before the response. Harmless when the tool races connections or drops requests it no longer needs. |
+| `client-closed` | - | The tool hangs up before or during the TLS handshake of a tunnel, or cancels a request to an intercepted host before the response. Harmless when the tool races connections or drops requests it no longer needs. |
+| `sni-mismatch` | Closed tunnel | The tunnel's TLS server name isn't the host it asked for, or the tunnel isn't TLS (e.g. SSH through `CONNECT`). Plain HTTP works through `HTTP_PROXY`. |
 
 ## Local and private addresses
 

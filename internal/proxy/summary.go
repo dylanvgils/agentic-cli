@@ -13,13 +13,14 @@ type HostCount struct {
 	seen  map[string]bool
 }
 
-// Summary is what a run's access log shows: entries the allowlist denied, the address guard refused and credential
-// tunnels without the placeholder, plus the connection attempts.
+// Summary is what a run's access log shows: entries the allowlist denied, the address guard refused, tunnels with
+// another TLS server name and credential tunnels without the placeholder, plus the connection attempts.
 type Summary struct {
-	Denied   HostCount
-	Refused  HostCount
-	Missed   HostCount
-	Attempts int
+	Denied     HostCount
+	Refused    HostCount
+	Mismatched HostCount
+	Missed     HostCount
+	Attempts   int
 }
 
 // add counts an entry for host.
@@ -38,7 +39,7 @@ func (c *HostCount) add(host string) {
 
 // Flagged reports whether the log shows anything the user should hear about.
 func (s Summary) Flagged() bool {
-	return s.Denied.Count > 0 || s.Refused.Count > 0 || s.Missed.Count > 0
+	return s.Denied.Count > 0 || s.Refused.Count > 0 || s.Mismatched.Count > 0 || s.Missed.Count > 0
 }
 
 // add counts entry as an attempt, unless it repeats one, and under the one kind it belongs to.
@@ -52,6 +53,8 @@ func (s *Summary) add(entry Entry) {
 		s.Denied.add(entry.Host)
 	case entry.refusedByGuard():
 		s.Refused.add(entry.Host)
+	case entry.mismatchedServerName():
+		s.Mismatched.add(entry.Host)
 	case entry.missedPlaceholder():
 		s.Missed.add(entry.Host)
 	}
@@ -60,12 +63,17 @@ func (s *Summary) add(entry Entry) {
 // deniedByAllowlist reports whether e was denied because its host isn't on the allowlist, even if monitor mode then let
 // it through to an upstream that failed.
 func (e Entry) deniedByAllowlist() bool {
-	return e.Decision == DecisionDeny && e.Reason != ReasonBlockedAddr && e.Reason != ReasonNoPlaceholder
+	return e.Decision == DecisionDeny && e.Reason != ReasonBlockedAddr && e.Reason != ReasonSNIMismatch && e.Reason != ReasonNoPlaceholder
 }
 
 // refusedByGuard reports whether the address guard refused e.
 func (e Entry) refusedByGuard() bool {
 	return e.Reason == ReasonBlockedAddr
+}
+
+// mismatchedServerName reports whether e is a tunnel whose TLS server name wasn't its host.
+func (e Entry) mismatchedServerName() bool {
+	return e.Reason == ReasonSNIMismatch
 }
 
 // missedPlaceholder reports whether e is a credential tunnel whose requests never carried the placeholder.

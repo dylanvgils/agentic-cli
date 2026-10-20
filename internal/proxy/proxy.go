@@ -84,10 +84,18 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		s.failProxy(w, entry, err)
 		return
 	}
-	s.logger.Log(entry)
 	defer func() { _ = client.Close() }()
 
 	if _, err := io.WriteString(client, "HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil {
+		s.logger.Log(entry)
+		return
+	}
+
+	hello, ok := s.checkServerName(client, entry)
+	if !ok {
+		return
+	}
+	if _, err := upstream.Write(hello); err != nil {
 		return
 	}
 
