@@ -8,14 +8,17 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+// run starts the proxy from its environment, returning why it stopped.
+func run() error {
 	cfg, err := proxy.ConfigFromEnv()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
-
-	if err := proxy.Run(cfg); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	return proxy.Run(cfg)
 }
