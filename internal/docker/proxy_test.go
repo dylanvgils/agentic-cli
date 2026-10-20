@@ -77,7 +77,7 @@ func TestClient_createProxy(t *testing.T) {
 	t.Run("creates a hardened sidecar on the run network without starting it", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{Allow: []string{"api.anthropic.com"}, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}, container: "agentic-claude-abc", network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{Rules: []sandbox.AllowRule{{Host: "api.anthropic.com"}}, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}, container: "agentic-claude-abc", network: "agentic-run-abc"}
 
 		// Act
 		handle, err := client.createProxy(rs)
@@ -96,7 +96,7 @@ func TestClient_createProxy(t *testing.T) {
 		assert.Contains(t, createArgs, "--cap-drop=ALL")
 		assert.Contains(t, createArgs, "--security-opt=no-new-privileges:true")
 		assert.Contains(t, createArgs, "--user="+testUser.String(), "runs as the tool's user, who owns its credential files")
-		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_ALLOW=api.anthropic.com")
+		assert.Contains(t, createArgs, `--env=AGENTIC_PROXY_RULES=[{"host":"api.anthropic.com"}]`)
 		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_MONITOR=false")
 		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_LOG="+proxyLogMountDir+"/proxy_abc.jsonl")
 		assert.Contains(t, createArgs, "--volume="+handle.logPath+":"+proxyLogMountDir+"/proxy_abc.jsonl", "only the run's own log file is mounted")
@@ -528,4 +528,15 @@ func TestSweepProxyResources(t *testing.T) {
 	calls := get()
 	assert.Contains(t, calls[1].args, "--filter=name=agentic-proxy")
 	assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-proxy-abc"}, findCall(calls, "rm"))
+}
+
+func Test_proxyRules(t *testing.T) {
+	// Arrange
+	rules := []sandbox.AllowRule{{Host: "api.example.test"}, {Host: ".example.org"}}
+
+	// Act
+	converted := proxyRules(rules)
+
+	// Assert
+	assert.Equal(t, []proxy.Rule{{Host: "api.example.test"}, {Host: ".example.org"}}, converted)
 }

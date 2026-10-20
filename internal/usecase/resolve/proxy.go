@@ -61,6 +61,15 @@ func ProxyAllowList(toolAllowedHosts []string, dindEnabled bool, rc *config.Agen
 	})
 }
 
+// ProxyRules returns the proxy's allow rules, one per host ProxyAllowList merges.
+func ProxyRules(toolAllowedHosts []string, dindEnabled bool, rc *config.AgenticRC) []sandbox.AllowRule {
+	var rules []sandbox.AllowRule
+	for _, host := range ProxyAllowList(toolAllowedHosts, dindEnabled, rc) {
+		rules = append(rules, sandbox.AllowRule{Host: host})
+	}
+	return rules
+}
+
 // RequestedProxyMode applies flags, then config, ignoring credentials. --no-proxy/enabled=false always wins; monitor implies enabled.
 func RequestedProxyMode(in ProxyInput, rc *config.AgenticRC) sandbox.ProxyMode {
 	if in.NoProxy {

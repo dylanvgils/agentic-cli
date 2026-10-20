@@ -9,7 +9,7 @@ import (
 // DefaultPorts are the destination ports tunneled to when an allowlist entry does not pin a specific port.
 var DefaultPorts = []string{"80", "443"}
 
-// Allowlist decides whether a (host, port) destination is permitted. An entry matches the host
+// Allowlist decides whether a (host, port) destination is permitted. A rule matches the host
 // exactly, or - with a leading "." or "*." - matches that domain and its subdomains; no substring
 // matching is performed, so "anthropic.com" never matches "evil-anthropic.com".
 type Allowlist struct {
@@ -17,12 +17,12 @@ type Allowlist struct {
 	suffixes []string // normalized to ".example.com", matches the domain and subdomains
 }
 
-// NewAllowlist builds an Allowlist from raw entries, skipping blank ones and normalizing the rest like the hosts they match.
-func NewAllowlist(entries []string) *Allowlist {
+// NewAllowlist builds an Allowlist from rules, skipping blank hosts and normalizing the rest like the hosts they match.
+func NewAllowlist(rules []Rule) *Allowlist {
 	allowList := &Allowlist{exact: make(map[string]bool)}
 
-	for _, raw := range entries {
-		entry := normalizeHost(strings.TrimSpace(raw))
+	for _, rule := range rules {
+		entry := normalizeHost(strings.TrimSpace(rule.Host))
 		if entry == "" {
 			continue
 		}

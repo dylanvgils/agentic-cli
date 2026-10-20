@@ -9,7 +9,7 @@ import (
 func TestAllowlistAllows(t *testing.T) {
 	t.Run("exact host matches", func(t *testing.T) {
 		// Arrange
-		al := NewAllowlist([]string{"api.anthropic.com"})
+		al := NewAllowlist(hostRules("api.anthropic.com"))
 
 		// Act
 		allowed := al.Allows("api.anthropic.com", "443")
@@ -20,7 +20,7 @@ func TestAllowlistAllows(t *testing.T) {
 
 	t.Run("exact host does not match subdomain", func(t *testing.T) {
 		// Arrange
-		al := NewAllowlist([]string{"anthropic.com"})
+		al := NewAllowlist(hostRules("anthropic.com"))
 
 		// Act
 		allowed := al.Allows("api.anthropic.com", "443")
@@ -31,7 +31,7 @@ func TestAllowlistAllows(t *testing.T) {
 
 	t.Run("leading-dot wildcard matches subdomain and bare domain", func(t *testing.T) {
 		// Arrange
-		al := NewAllowlist([]string{".anthropic.com"})
+		al := NewAllowlist(hostRules(".anthropic.com"))
 
 		// Act + Assert
 		assert.True(t, al.Allows("api.anthropic.com", "443"))
@@ -40,7 +40,7 @@ func TestAllowlistAllows(t *testing.T) {
 
 	t.Run("star-dot wildcard normalizes to leading dot", func(t *testing.T) {
 		// Arrange
-		al := NewAllowlist([]string{"*.githubcopilot.com"})
+		al := NewAllowlist(hostRules("*.githubcopilot.com"))
 
 		// Act
 		allowed := al.Allows("api.githubcopilot.com", "443")
@@ -51,7 +51,7 @@ func TestAllowlistAllows(t *testing.T) {
 
 	t.Run("wildcard does not match lookalike suffix", func(t *testing.T) {
 		// Arrange
-		al := NewAllowlist([]string{".anthropic.com"})
+		al := NewAllowlist(hostRules(".anthropic.com"))
 
 		// Act
 		allowed := al.Allows("evil-anthropic.com", "443")
@@ -62,7 +62,7 @@ func TestAllowlistAllows(t *testing.T) {
 
 	t.Run("disallowed port is denied for allowed host", func(t *testing.T) {
 		// Arrange
-		al := NewAllowlist([]string{"api.anthropic.com"})
+		al := NewAllowlist(hostRules("api.anthropic.com"))
 
 		// Act
 		allowed := al.Allows("api.anthropic.com", "22")
@@ -73,7 +73,7 @@ func TestAllowlistAllows(t *testing.T) {
 
 	t.Run("matching is case-insensitive and ignores trailing dot", func(t *testing.T) {
 		// Arrange
-		al := NewAllowlist([]string{"API.Anthropic.com"})
+		al := NewAllowlist(hostRules("API.Anthropic.com"))
 
 		// Act
 		allowed := al.Allows("api.anthropic.com.", "443")
@@ -84,7 +84,7 @@ func TestAllowlistAllows(t *testing.T) {
 
 	t.Run("entries with a trailing dot match", func(t *testing.T) {
 		// Arrange
-		al := NewAllowlist([]string{"api.example.test.", "*.example.org."})
+		al := NewAllowlist(hostRules("api.example.test.", "*.example.org."))
 
 		// Act
 		exact := al.Allows("api.example.test", "443")
@@ -108,7 +108,7 @@ func TestAllowlistAllows(t *testing.T) {
 
 	t.Run("blank entries are ignored", func(t *testing.T) {
 		// Arrange
-		al := NewAllowlist([]string{"", "  ", "api.anthropic.com"})
+		al := NewAllowlist(hostRules("", "  ", "api.anthropic.com"))
 
 		// Act + Assert
 		assert.True(t, al.Allows("api.anthropic.com", "80"))
@@ -117,7 +117,7 @@ func TestAllowlistAllows(t *testing.T) {
 
 	t.Run("duplicate wildcard entries are deduplicated", func(t *testing.T) {
 		// Arrange
-		al := NewAllowlist([]string{".anthropic.com", "*.anthropic.com"})
+		al := NewAllowlist(hostRules(".anthropic.com", "*.anthropic.com"))
 
 		// Act
 		allowed := al.Allows("api.anthropic.com", "443")
@@ -129,7 +129,7 @@ func TestAllowlistAllows(t *testing.T) {
 }
 
 func Test_Allowlist_exactMatch(t *testing.T) {
-	al := NewAllowlist([]string{"Registry.Example.Test", ".example.test"})
+	al := NewAllowlist(hostRules("Registry.Example.Test", ".example.test"))
 
 	t.Run("exact entry matches ignoring case and root dot", func(t *testing.T) {
 		// Act

@@ -154,7 +154,7 @@ func buildNetworkArgs(spec sandbox.ProxySpec) ([]string, error) {
 		return nil, errors.New("msb can't run the proxy in monitor mode")
 	}
 
-	targets, err := netRuleTargets(spec.Allow)
+	targets, err := netRuleTargets(spec.Hosts())
 	if err != nil {
 		return nil, err
 	}

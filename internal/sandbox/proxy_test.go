@@ -35,3 +35,14 @@ func TestProxyMode_Enabled(t *testing.T) {
 		assert.True(t, result)
 	})
 }
+
+func TestProxySpec_Hosts(t *testing.T) {
+	// Arrange
+	spec := ProxySpec{Rules: []AllowRule{{Host: "api.example.test"}, {Host: ".example.org"}}}
+
+	// Act
+	hosts := spec.Hosts()
+
+	// Assert
+	assert.Equal(t, []string{"api.example.test", ".example.org"}, hosts)
+}

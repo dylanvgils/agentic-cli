@@ -219,7 +219,7 @@ func Test_Service_build(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, sandbox.ProxyEnforce, rs.Proxy.Mode)
-		assert.Equal(t, []string{".anthropic.com", ".claude.ai", ".claude.com", "extra.example.com"}, rs.Proxy.Allow)
+		assert.Equal(t, []string{".anthropic.com", ".claude.ai", ".claude.com", "extra.example.com"}, rs.Proxy.Hosts())
 		assert.NotEmpty(t, rs.Proxy.LogFile)
 	})
 
@@ -338,7 +338,7 @@ func Test_Service_build(t *testing.T) {
 		// Assert - agentic-net is skipped since the tool joins a per-run network
 		require.NoError(t, err)
 		assert.True(t, rs.Dind.Enabled)
-		assert.Contains(t, rs.Proxy.Allow, "registry-1.docker.io")
+		assert.Contains(t, rs.Proxy.Hosts(), "registry-1.docker.io")
 	})
 
 	t.Run("dind rejects env overriding the docker host", func(t *testing.T) {

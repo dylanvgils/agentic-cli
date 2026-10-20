@@ -77,7 +77,7 @@ func TestServerConnectInject(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 
 		req, err := http.NewRequest(http.MethodGet, upstream.URL+"/echo", nil)
@@ -103,7 +103,7 @@ func TestServerConnectInject(t *testing.T) {
 		inject.transport = guarded
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -120,7 +120,7 @@ func TestServerConnectInject(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
 		var logBuf syncBuffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -139,7 +139,7 @@ func TestServerConnectInject(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
 		var logBuf syncBuffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 		client := httpsClientVia(t, proxy.URL, roots)
 
@@ -160,7 +160,7 @@ func TestServerConnectInject(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
 		var logBuf syncBuffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 		client := httpsClientVia(t, proxy.URL, roots)
 
@@ -181,7 +181,7 @@ func TestServerConnectInject(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
 		var logBuf syncBuffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 		client := httpsClientVia(t, proxy.URL, roots)
 		authed, err := http.NewRequest(http.MethodGet, upstream.URL+"/private", nil)
@@ -206,7 +206,7 @@ func TestServerConnectInject(t *testing.T) {
 	t.Run("secret echoed in a response header reaches the tool as the placeholder", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 		req := mustGet(t, upstream.URL+"/reflect")
 		req.Header.Set("X-Api-Key", testPlaceholder)
@@ -223,7 +223,7 @@ func TestServerConnectInject(t *testing.T) {
 	t.Run("basic-encoded secret echoed in a response header reaches the tool as the placeholder", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 		basic := "Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+testPlaceholder))
 		req := mustGet(t, upstream.URL+"/reflect")
@@ -241,7 +241,7 @@ func TestServerConnectInject(t *testing.T) {
 	t.Run("secret echoed in a 1xx header or trailer reaches the tool as the placeholder", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 
 		var hint string
@@ -268,7 +268,7 @@ func TestServerConnectInject(t *testing.T) {
 	t.Run("request host header cannot redirect the upstream", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 
 		req, err := http.NewRequest(http.MethodGet, upstream.URL+"/echo", nil)
@@ -289,7 +289,7 @@ func TestServerConnectInject(t *testing.T) {
 	t.Run("sse events stream before the response ends", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 		defer close(release)
 
@@ -307,7 +307,7 @@ func TestServerConnectInject(t *testing.T) {
 	t.Run("underscore alias of a credential header is stripped", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 
 		req, err := http.NewRequest(http.MethodGet, upstream.URL+"/aliases", nil)
@@ -328,7 +328,7 @@ func TestServerConnectInject(t *testing.T) {
 		// Arrange
 		inject, _ := newTestInjector(t, upstream, creds)
 		var logBuf syncBuffer
-		server := NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject)
+		server := NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, inject)
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodConnect, "http://"+upstreamAddr, nil)
 		req.Host = upstreamAddr
@@ -347,7 +347,7 @@ func TestServerConnectInject(t *testing.T) {
 		// Arrange
 		inject, _ := newTestInjector(t, upstream, creds)
 		var logBuf syncBuffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -363,7 +363,7 @@ func TestServerConnectInject(t *testing.T) {
 		// Arrange
 		inject, _ := newTestInjector(t, upstream, creds)
 		var logBuf syncBuffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -379,7 +379,7 @@ func TestServerConnectInject(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
 		var logBuf syncBuffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -402,7 +402,7 @@ func TestServerConnectInject(t *testing.T) {
 	t.Run("trace is refused before reaching the upstream", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 
 		req, err := http.NewRequest(http.MethodTrace, upstream.URL+"/echo", nil)
@@ -422,7 +422,7 @@ func TestServerConnectInject(t *testing.T) {
 	t.Run("trailing-dot host shares the normalized cert", func(t *testing.T) {
 		// Arrange
 		inject, _ := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard, nil, nil), false, inject))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -481,7 +481,7 @@ func TestServerConnectInject(t *testing.T) {
 		other := []Credential{{Hosts: []string{"other.test"}, Headers: creds[0].Headers, Placeholder: testPlaceholder, Secret: "real-secret"}}
 		inject, _ := newTestInjector(t, upstream, other)
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{echoHost}), NewLogger(&logBuf, nil, nil), false, inject)))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(echoHost)), NewLogger(&logBuf, nil, nil), false, inject)))
 		t.Cleanup(proxy.Close)
 		hello := clientHello(t, "")
 
@@ -504,7 +504,7 @@ func TestServerConnectInject(t *testing.T) {
 		echoCreds := []Credential{{Hosts: []string{echoHost}, Headers: creds[0].Headers, Placeholder: testPlaceholder, Secret: "real-secret"}}
 		inject, _ := newTestInjector(t, upstream, echoCreds)
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{echoHost}), NewLogger(&logBuf, nil, nil), false, inject)))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(echoHost)), NewLogger(&logBuf, nil, nil), false, inject)))
 		t.Cleanup(proxy.Close)
 		hello := clientHello(t, "")
 
@@ -528,7 +528,7 @@ func TestServerConnectInject(t *testing.T) {
 		stubDefaultPorts(t, plainPort)
 		inject, _ := newTestInjector(t, upstream, creds)
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist([]string{plainHost}), NewLogger(&logBuf, nil, nil), false, inject)))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(plainHost)), NewLogger(&logBuf, nil, nil), false, inject)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -552,7 +552,7 @@ func TestServerConnectSubstitute(t *testing.T) {
 	upstreamHost, upstreamPort := splitHostPort(upstream.Listener.Addr().String())
 	stubDefaultPorts(t, upstreamPort)
 	inject, roots := newTestInjector(t, upstream, []Credential{testPlaceholderCredential(upstreamHost, placeholder)})
-	proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(io.Discard, nil, nil), false, inject))
+	proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard, nil, nil), false, inject))
 	t.Cleanup(proxy.Close)
 
 	cases := map[string]struct{ authorization, want string }{

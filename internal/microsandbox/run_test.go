@@ -128,7 +128,7 @@ func Test_buildRunArgs(t *testing.T) {
 			ContainerHome: "/home/claude",
 			Limits:        sandbox.ResourceLimits{CPUs: "2"},
 			Volumes:       []string{"/example.test/data:/data"},
-			Proxy:         sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Allow: []string{"api.example.test"}},
+			Proxy:         sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Rules: []sandbox.AllowRule{{Host: "api.example.test"}}},
 		}
 
 		// Act
@@ -253,7 +253,7 @@ func Test_buildNamedVolumeArgs(t *testing.T) {
 func Test_buildNetworkArgs(t *testing.T) {
 	t.Run("adds nothing with the proxy off", func(t *testing.T) {
 		// Act
-		args, err := buildNetworkArgs(sandbox.ProxySpec{Allow: []string{"api.example.test"}})
+		args, err := buildNetworkArgs(sandbox.ProxySpec{Rules: []sandbox.AllowRule{{Host: "api.example.test"}}})
 
 		// Assert
 		require.NoError(t, err)
@@ -270,7 +270,7 @@ func Test_buildNetworkArgs(t *testing.T) {
 
 	t.Run("denies egress but DNS and the allowlist, intercepting HTTPS", func(t *testing.T) {
 		// Act
-		args, err := buildNetworkArgs(sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Allow: []string{"api.example.test"}})
+		args, err := buildNetworkArgs(sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Rules: []sandbox.AllowRule{{Host: "api.example.test"}}})
 
 		// Assert
 		require.NoError(t, err)

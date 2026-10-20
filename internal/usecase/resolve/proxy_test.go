@@ -265,3 +265,15 @@ func TestProxyAllowList(t *testing.T) {
 		assert.Empty(t, result)
 	})
 }
+
+func TestProxyRules(t *testing.T) {
+	// Arrange
+	rc := &config.AgenticRC{}
+	rc.Run.Proxy.AllowedHosts = []string{"extra.example.test"}
+
+	// Act
+	rules := ProxyRules([]string{"api.example.test"}, false, rc)
+
+	// Assert
+	assert.Equal(t, []sandbox.AllowRule{{Host: "api.example.test"}, {Host: "extra.example.test"}}, rules)
+}

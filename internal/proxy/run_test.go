@@ -11,9 +11,9 @@ import (
 )
 
 func TestConfigFromEnv(t *testing.T) {
-	t.Run("parses comma-separated hosts and trims blanks", func(t *testing.T) {
+	t.Run("reads the rules, log and address as given", func(t *testing.T) {
 		// Arrange
-		t.Setenv(EnvAllow, " api.example.test , ,.example.test ")
+		t.Setenv(EnvRules, `[{"host":".example.test"}]`)
 		t.Setenv(EnvLog, "/var/log/proxy.jsonl")
 		t.Setenv(EnvAddr, ":9999")
 
@@ -21,20 +21,9 @@ func TestConfigFromEnv(t *testing.T) {
 		cfg := ConfigFromEnv()
 
 		// Assert
-		assert.Equal(t, []string{"api.example.test", ".example.test"}, cfg.AllowedHosts)
+		assert.JSONEq(t, `[{"host":".example.test"}]`, cfg.Rules)
 		assert.Equal(t, "/var/log/proxy.jsonl", cfg.LogPath)
 		assert.Equal(t, ":9999", cfg.Addr)
-	})
-
-	t.Run("empty allow yields no hosts", func(t *testing.T) {
-		// Arrange
-		t.Setenv(EnvAllow, "")
-
-		// Act
-		cfg := ConfigFromEnv()
-
-		// Assert
-		assert.Empty(t, cfg.AllowedHosts)
 	})
 
 	t.Run("parses a negative TZ offset", func(t *testing.T) {

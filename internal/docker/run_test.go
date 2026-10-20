@@ -95,7 +95,7 @@ func TestClient_RunTool(t *testing.T) {
 		stubProxyDocker(t, client, "true")
 		rs := sandbox.RunSpec{
 			Image: "agentic-claude",
-			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Allow: []string{"api.anthropic.com"}, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")},
+			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Rules: []sandbox.AllowRule{{Host: "api.anthropic.com"}}, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")},
 		}
 
 		// Act
