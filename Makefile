@@ -41,7 +41,7 @@ dist:
 	GOOS=windows GOARCH=amd64 $(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY)-windows-amd64.exe ./cmd/cli
 
 docker-dist:
-	docker buildx build --target export --output $(BUILD_DIR)/ .
+	docker buildx build --file build/Dockerfile --target export --output $(BUILD_DIR)/ .
 
 test:
 	go test ./...

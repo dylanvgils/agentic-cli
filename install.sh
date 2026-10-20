@@ -21,6 +21,7 @@ install_from_source() {
 
   echo "Building agentic for ${OS}/${ARCH}..."
   docker buildx build \
+    --file "${script_dir}/build/Dockerfile" \
     --target export \
     --build-arg "INSTALL_METHOD=script-sh" \
     --output "${script_dir}/dist/" \
