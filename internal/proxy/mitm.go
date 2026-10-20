@@ -192,7 +192,15 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) 
 	s.logger.Log(entry)
 	defer func() { _ = tlsConn.Close() }()
 
-	failed := func(w http.ResponseWriter, _ *http.Request, err error) {
+	failed := func(w http.ResponseWriter, r *http.Request, err error) {
+		// The client cancelled the request or hung up, so there's no one left to answer
+		if r.Context().Err() != nil {
+			closed := entry
+			closed.Reason = ReasonClientClosed
+			closed.Error = err.Error()
+			s.logger.Log(closed)
+			return
+		}
 		if errors.Is(err, errBlockedAddr) {
 			s.refuseBlocked(w, entry)
 			return
