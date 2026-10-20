@@ -176,6 +176,13 @@ func (s *Server) failProxy(w http.ResponseWriter, entry Entry, err error) {
 	http.Error(w, proxyFailedText, http.StatusInternalServerError)
 }
 
+// logClientClosed logs entry as closed by the client with err.
+func (s *Server) logClientClosed(entry Entry, err error) {
+	entry.Reason = ReasonClientClosed
+	entry.Error = err.Error()
+	s.logger.Log(entry)
+}
+
 // Read drains the buffered bytes first, then reads the conn; the reader itself must not refill, as its source is the
 // hijacked server conn.
 func (c *bufferedConn) Read(p []byte) (int, error) {

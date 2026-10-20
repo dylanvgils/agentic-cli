@@ -179,11 +179,12 @@ func (i *Injector) reverseProxy(host, port string, cred Credential, scrub *strin
 // before its authed retry doesn't count, and neither does anonymous traffic the upstream accepted.
 func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) {
 	tlsConn, err := s.inject.handshake(w, entry.Host)
+	if clientClosed(err) {
+		s.logClientClosed(entry, err)
+		return
+	}
 	if err != nil {
 		entry.Reason = ReasonProxyFailed
-		if clientClosed(err) {
-			entry.Reason = ReasonClientClosed
-		}
 		entry.Error = err.Error()
 		s.logger.Log(entry)
 		return
@@ -192,7 +193,12 @@ func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) 
 	s.logger.Log(entry)
 	defer func() { _ = tlsConn.Close() }()
 
-	failed := func(w http.ResponseWriter, _ *http.Request, err error) {
+	failed := func(w http.ResponseWriter, r *http.Request, err error) {
+		// The client cancelled the request or hung up, so there's no one left to answer
+		if r.Context().Err() != nil {
+			s.logClientClosed(entry, err)
+			return
+		}
 		if errors.Is(err, errBlockedAddr) {
 			s.refuseBlocked(w, entry)
 			return
@@ -239,7 +245,7 @@ func blockMethods(next http.Handler) http.Handler {
 	})
 }
 
-// clientClosed reports whether err means the client hung up, as clients racing connections do with the losers.
+// clientClosed reports whether a conn error outside a request means the client hung up.
 func clientClosed(err error) bool {
 	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE)
 }

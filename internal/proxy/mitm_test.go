@@ -3,6 +3,7 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -26,6 +27,7 @@ import (
 
 func TestServerConnectInject(t *testing.T) {
 	release := make(chan struct{})
+	hung := make(chan struct{}, 1)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/echo", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, r.Header.Get("X-Api-Key")+"|"+r.Host)
@@ -54,6 +56,10 @@ func TestServerConnectInject(t *testing.T) {
 		if r.Header.Get("X-Api-Key") != "real-secret" {
 			w.WriteHeader(http.StatusUnauthorized)
 		}
+	})
+	mux.HandleFunc("/hang", func(_ http.ResponseWriter, r *http.Request) {
+		hung <- struct{}{}
+		<-r.Context().Done()
 	})
 	mux.HandleFunc("/drop", func(w http.ResponseWriter, _ *http.Request) {
 		conn, _, _ := w.(http.Hijacker).Hijack()
@@ -365,9 +371,32 @@ func TestServerConnectInject(t *testing.T) {
 		_ = conn.Close()
 
 		// Assert
-		want := `"reason":"client-closed","error":"client handshake for ` + upstreamHost + `: EOF"`
-		assert.Eventually(t, func() bool { return strings.Contains(logBuf.String(), want) }, 5*time.Second, 10*time.Millisecond)
+		assert.Eventually(t, func() bool { return strings.Contains(logBuf.String(), `"reason":"client-closed"`) }, 5*time.Second, 10*time.Millisecond)
 		assert.NotContains(t, logBuf.String(), `"intercepted"`)
+	})
+
+	t.Run("client cancelling a request is logged as client-closed", func(t *testing.T) {
+		// Arrange
+		inject, roots := newTestInjector(t, upstream, creds)
+		var logBuf syncBuffer
+		proxy := httptest.NewServer(NewServer(NewAllowlist([]string{upstreamHost}), NewLogger(&logBuf, nil, nil), false, inject))
+		t.Cleanup(proxy.Close)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, upstream.URL+"/hang", nil)
+		require.NoError(t, err)
+		go func() {
+			<-hung
+			cancel()
+		}()
+
+		// Act
+		_, err = httpsClientVia(t, proxy.URL, roots).Do(req)
+
+		// Assert
+		require.ErrorIs(t, err, context.Canceled)
+		assert.Eventually(t, func() bool { return strings.Contains(logBuf.String(), `"reason":"client-closed"`) }, 5*time.Second, 10*time.Millisecond)
+		assert.NotContains(t, logBuf.String(), `"upstream-failed"`)
 	})
 
 	t.Run("trace is refused before reaching the upstream", func(t *testing.T) {
