@@ -109,7 +109,16 @@ func (s *Service) build(target Target, in Input, toolConfig tools.ToolConfig, ap
 	if err != nil {
 		return sandbox.RunSpec{}, err
 	}
-	return newRunSpec(req, mounts, env, logFile), nil
+	rs := newRunSpec(req, mounts, env, logFile)
+
+	// Only a proxy that decrypts, for credentials or path rules, needs the tool to trust its CA
+	spec := specCapabilities(rs)
+	if (spec.CredentialInjection || spec.PathRules) && s.capabilities(in.Runtime).CredentialsViaProxy {
+		if err := s.checkProxyTrust(target); err != nil {
+			return sandbox.RunSpec{}, err
+		}
+	}
+	return rs, nil
 }
 
 // ToolNeedsMarketplaceSync reports whether tool supports marketplace mounting and has at least one marketplace configured.
@@ -155,15 +164,6 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 		return nil, err
 	}
 	env = append(env, placeholders...)
-
-	// Only a proxy that decrypts, for credentials or path rules, needs the tool to trust its CA
-	rules := resolve.ProxyRules(req.toolConfig.Runtime.AllowedHosts, in.DindEnabled, req.rc)
-	decrypts := len(in.Credentials) > 0 || (in.ProxyMode.Enabled() && sandbox.ProxySpec{Rules: rules}.HasPathRules())
-	if decrypts && caps.CredentialsViaProxy {
-		if err := s.checkProxyTrust(req.target); err != nil {
-			return nil, err
-		}
-	}
 
 	// Tells entrypoint.sh exactly which names to register instead of globbing.
 	if len(marketplaceNames) > 0 {
