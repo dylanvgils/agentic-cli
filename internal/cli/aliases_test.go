@@ -112,6 +112,7 @@ func Test_runAliases(t *testing.T) {
 		// Assert
 		assert.Contains(t, out, "# agentic tool aliases")
 		assert.Contains(t, out, "alias agentic-reload=")
+		assert.Contains(t, out, "alias agt=agentic")
 		assert.NotContains(t, out, "alias claude=")
 		assert.NotContains(t, out, "alias copilot=")
 		assert.NotContains(t, out, "alias opencode=")
@@ -300,5 +301,40 @@ func Test_reloadLineFor(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, "function agentic-reload { agentic aliases | Out-String | Invoke-Expression }", result)
+	})
+}
+
+func Test_shortAliasFor(t *testing.T) {
+	t.Run("bash returns alias and copies completion", func(t *testing.T) {
+		// Act
+		result := shortAliasFor("bash")
+
+		// Assert
+		assert.Equal(t, "alias agt=agentic\n"+`c=$(complete -p agentic 2>/dev/null) && eval "${c% agentic} agt"`, result)
+	})
+
+	t.Run("zsh returns alias", func(t *testing.T) {
+		// Act
+		result := shortAliasFor("zsh")
+
+		// Assert
+		assert.Equal(t, "alias agt=agentic", result)
+	})
+
+	t.Run("fish returns wrapping function", func(t *testing.T) {
+		// Act
+		result := shortAliasFor("fish")
+
+		// Assert
+		assert.Equal(t, "function agt --wraps agentic; agentic $argv; end", result)
+	})
+
+	t.Run("powershell returns alias and registers completer", func(t *testing.T) {
+		// Act
+		result := shortAliasFor("powershell")
+
+		// Assert
+		assert.Equal(t, "Set-Alias agt agentic\n"+
+			"if ($__agenticCompleterBlock) { Register-ArgumentCompleter -Native -CommandName agt -ScriptBlock $__agenticCompleterBlock }", result)
 	})
 }

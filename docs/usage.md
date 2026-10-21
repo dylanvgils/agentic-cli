@@ -99,6 +99,8 @@ Tool names are looked up when you press tab, so you don't need to regenerate the
 
 Aliases let you type `copilot` instead of `agentic run copilot`. The shell is detected automatically. Only tools with a built image get an alias. Arguments after an alias go to the tool, so use `agentic run` when you need agentic's flags.
 
+The output also defines `agt` as shorthand for `agentic`, for example `agt build claude`. For tab completion on `agt`, put the aliases line after the [shell completion](#shell-completion) line in your shell config.
+
 ```bash
 source <(agentic aliases)                               # bash/zsh
 agentic aliases | source                                # fish
