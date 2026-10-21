@@ -427,6 +427,58 @@ func TestServerHTTP(t *testing.T) {
 	})
 }
 
+func Test_Server_decrypt(t *testing.T) {
+	cred := testPlaceholderCredential("api.example.test", testPlaceholder)
+	allow := NewAllowlist([]Rule{{Host: "Raw.Example.Test", Paths: []string{"/a"}}, {Host: "other.example.test"}})
+	inject := NewInjector(newTestProxyCA(t, "api.example.test", "raw.example.test"), []Credential{cred})
+	s := NewServer(allow, NewLogger(nil, nil, nil), false, inject)
+
+	t.Run("credentialed host is decrypted with its credential", func(t *testing.T) {
+		// Act
+		got, ok := s.decrypt("api.example.test", "443")
+
+		// Assert
+		require.True(t, ok)
+		assert.Equal(t, cred, got)
+	})
+
+	t.Run("path rule host is decrypted without a credential", func(t *testing.T) {
+		// Act
+		got, ok := s.decrypt("raw.example.test.", "443")
+
+		// Assert
+		require.True(t, ok)
+		assert.Equal(t, Credential{}, got)
+	})
+
+	t.Run("path rule host on another port is not decrypted", func(t *testing.T) {
+		// Act
+		_, ok := s.decrypt("raw.example.test", "80")
+
+		// Assert
+		assert.False(t, ok)
+	})
+
+	t.Run("host allowed whole is not decrypted", func(t *testing.T) {
+		// Act
+		_, ok := s.decrypt("other.example.test", "443")
+
+		// Assert
+		assert.False(t, ok)
+	})
+
+	t.Run("nothing is decrypted without an injector", func(t *testing.T) {
+		// Arrange
+		plain := NewServer(allow, NewLogger(nil, nil, nil), false, nil)
+
+		// Act
+		_, ok := plain.decrypt("raw.example.test", "443")
+
+		// Assert
+		assert.False(t, ok)
+	})
+}
+
 func Test_Server_logClientClosed(t *testing.T) {
 	// Arrange
 	var logBuf bytes.Buffer

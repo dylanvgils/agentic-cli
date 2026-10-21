@@ -147,3 +147,66 @@ func Test_Allowlist_exactMatch(t *testing.T) {
 		assert.False(t, exact)
 	})
 }
+
+func TestAllowlistPaths(t *testing.T) {
+	rules := []Rule{{Host: "Raw.Example.Test", Paths: []string{"/org/repo/**"}}, {Host: "raw.example.test", Paths: []string{"/other/README.md"}}}
+	al := NewAllowlist(rules)
+
+	t.Run("path rule host is allowed on default ports only", func(t *testing.T) {
+		// Act
+		https := al.Allows("raw.example.test", "443")
+		other := al.Allows("raw.example.test", "8443")
+
+		// Assert
+		assert.True(t, https)
+		assert.False(t, other)
+	})
+
+	t.Run("paths of all rules for a host are allowed", func(t *testing.T) {
+		// Act
+		repo := al.AllowsPath("raw.example.test.", "/org/repo/x")
+		other := al.AllowsPath("raw.example.test", "/other/README.md")
+		refused := al.AllowsPath("raw.example.test", "/org/elsewhere")
+
+		// Assert
+		assert.True(t, repo)
+		assert.True(t, other)
+		assert.False(t, refused)
+	})
+
+	t.Run("host without rules allows every path", func(t *testing.T) {
+		// Act
+		allowed := al.AllowsPath("api.example.test", "/anything")
+
+		// Assert
+		assert.True(t, allowed)
+	})
+
+	t.Run("path rules limit a host other rules allow whole", func(t *testing.T) {
+		// Arrange
+		limited := NewAllowlist([]Rule{
+			{Host: "exact.example.test"},
+			{Host: ".wild.example.test"},
+			{Host: "exact.example.test", Paths: []string{"/a"}},
+			{Host: "raw.wild.example.test", Paths: []string{"/a"}},
+		})
+
+		// Act
+		exact := limited.AllowsPath("exact.example.test", "/b")
+		wild := limited.AllowsPath("raw.wild.example.test", "/b")
+		sibling := limited.AllowsPath("other.wild.example.test", "/b")
+
+		// Assert
+		assert.False(t, exact)
+		assert.False(t, wild)
+		assert.True(t, sibling)
+	})
+
+	t.Run("path rule hosts are exact", func(t *testing.T) {
+		// Act
+		exact := al.exactMatch("raw.example.test")
+
+		// Assert
+		assert.True(t, exact)
+	})
+}

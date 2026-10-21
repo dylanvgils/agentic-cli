@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -174,12 +175,12 @@ func proxyGet(t *testing.T, proxyURL, target string) *http.Response {
 	return resp
 }
 
-// newTestInjector returns an Injector for creds that intercepts upstream's port with a transport trusting its cert, and a
-// pool trusting its CA.
-func newTestInjector(t *testing.T, upstream *httptest.Server, creds []Credential) (*Injector, *x509.CertPool) {
+// newTestInjector returns an Injector for creds, its CA also covering pathHosts, that intercepts upstream's port with a transport trusting
+// its cert, and a pool trusting its CA.
+func newTestInjector(t *testing.T, upstream *httptest.Server, creds []Credential, pathHosts ...string) (*Injector, *x509.CertPool) {
 	t.Helper()
 
-	var hosts []string
+	hosts := slices.Clone(pathHosts)
 	for _, cred := range creds {
 		hosts = append(hosts, cred.Hosts...)
 	}
@@ -261,7 +262,15 @@ func writeAccessLog(t *testing.T, lines ...string) string {
 	return path
 }
 
-// hostRules returns a rule allowing each host.
+// mustUnescape returns raw's decoded path, failing the test on a malformed escape.
+func mustUnescape(t *testing.T, raw string) string {
+	t.Helper()
+	path, err := url.PathUnescape(raw)
+	require.NoError(t, err)
+	return path
+}
+
+// hostRules returns a rule allowing each host on every path.
 func hostRules(hosts ...string) []Rule {
 	rules := make([]Rule, len(hosts))
 	for i, host := range hosts {

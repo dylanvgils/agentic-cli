@@ -14,6 +14,7 @@ func Test_Summary_Flagged(t *testing.T) {
 	}{
 		"only attempts": {Summary{Attempts: 3}, false},
 		"denied":        {Summary{Denied: HostCount{Count: 1}}, true},
+		"paths":         {Summary{Paths: HostCount{Count: 1}}, true},
 		"refused":       {Summary{Refused: HostCount{Count: 1}}, true},
 		"mismatched":    {Summary{Mismatched: HostCount{Count: 1}}, true},
 		"missed":        {Summary{Missed: HostCount{Count: 1}}, true},
@@ -39,6 +40,8 @@ func Test_Entry_repeatsAttempt(t *testing.T) {
 		"failed request inside a tunnel": {Entry{Intercepted: true, Reason: ReasonUpstreamFailed}, true},
 		"missed placeholder":             {Entry{Intercepted: true, Reason: ReasonNoPlaceholder}, true},
 		"failed plain tunnel":            {Entry{Reason: ReasonUpstreamFailed}, false},
+		"monitor mode path verdict":      {Entry{Reason: ReasonPathBlocked}, true},
+		"enforced path block":            {Entry{Reason: ReasonPathBlocked, Enforced: true}, false},
 	}
 
 	for name, c := range cases {
@@ -78,6 +81,7 @@ func TestReadSummary(t *testing.T) {
 			`{"host":"local.example.test","decision":"deny","reason":"blocked-address"}`,
 			`{"host":"cdn.example.test","decision":"deny","reason":"sni-mismatch"}`,
 			`{"host":"api.example.test","decision":"deny","intercepted":true,"reason":"no-placeholder"}`,
+			`{"host":"raw.example.test","decision":"deny","intercepted":true,"path":"/other","reason":"path-blocked"}`,
 		)
 
 		// Act
@@ -85,6 +89,7 @@ func TestReadSummary(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []string{"down.example.test"}, summary.Denied.Hosts, "a denied host whose upstream failed in monitor mode still counts")
+		assert.Equal(t, []string{"raw.example.test/other"}, summary.Paths.Hosts)
 		assert.Equal(t, []string{"local.example.test"}, summary.Refused.Hosts)
 		assert.Equal(t, []string{"cdn.example.test"}, summary.Mismatched.Hosts)
 		assert.Equal(t, []string{"api.example.test"}, summary.Missed.Hosts)

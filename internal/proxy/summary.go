@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"os"
+	"slices"
 )
 
 // HostCount counts one kind of access-log entry and keeps their unique hosts in first-seen order, made safe to print.
@@ -13,10 +14,12 @@ type HostCount struct {
 	seen  map[string]bool
 }
 
-// Summary is what a run's access log shows: entries the allowlist denied, the address guard refused, tunnels with
-// another TLS server name and credential tunnels without the placeholder, plus the connection attempts.
+// Summary is what a run's access log shows: entries the allowlist denied, paths a path rule refused (as host plus path),
+// the address guard refused, tunnels with another TLS server name and credential tunnels without the placeholder, plus
+// the connection attempts.
 type Summary struct {
 	Denied     HostCount
+	Paths      HostCount
 	Refused    HostCount
 	Mismatched HostCount
 	Missed     HostCount
@@ -39,7 +42,7 @@ func (c *HostCount) add(host string) {
 
 // Flagged reports whether the log shows anything the user should hear about.
 func (s Summary) Flagged() bool {
-	return s.Denied.Count > 0 || s.Refused.Count > 0 || s.Mismatched.Count > 0 || s.Missed.Count > 0
+	return s.Denied.Count > 0 || s.Paths.Count > 0 || s.Refused.Count > 0 || s.Mismatched.Count > 0 || s.Missed.Count > 0
 }
 
 // add counts entry as an attempt, unless it repeats one, and under the one kind it belongs to.
@@ -51,6 +54,8 @@ func (s *Summary) add(entry Entry) {
 	switch {
 	case entry.deniedByAllowlist():
 		s.Denied.add(entry.Host)
+	case entry.blockedPath():
+		s.Paths.add(entry.Host + entry.Path)
 	case entry.refusedByGuard():
 		s.Refused.add(entry.Host)
 	case entry.mismatchedServerName():
@@ -63,7 +68,12 @@ func (s *Summary) add(entry Entry) {
 // deniedByAllowlist reports whether e was denied because its host isn't on the allowlist, even if monitor mode then let
 // it through to an upstream that failed.
 func (e Entry) deniedByAllowlist() bool {
-	return e.Decision == DecisionDeny && e.Reason != ReasonBlockedAddr && e.Reason != ReasonSNIMismatch && e.Reason != ReasonNoPlaceholder
+	return e.Decision == DecisionDeny && !slices.Contains([]string{ReasonBlockedAddr, ReasonSNIMismatch, ReasonNoPlaceholder, ReasonPathBlocked}, e.Reason)
+}
+
+// blockedPath reports whether a path rule refused e, or would have in monitor mode.
+func (e Entry) blockedPath() bool {
+	return e.Reason == ReasonPathBlocked
 }
 
 // refusedByGuard reports whether the address guard refused e.
@@ -82,9 +92,9 @@ func (e Entry) missedPlaceholder() bool {
 }
 
 // repeatsAttempt reports whether e was logged from inside an intercepted tunnel, such as a failed request or a missed
-// placeholder, after the tunnel's own entry.
+// placeholder, after the tunnel's own entry, or is a monitor mode path verdict.
 func (e Entry) repeatsAttempt() bool {
-	return e.Intercepted && e.Reason != ""
+	return (e.Intercepted && e.Reason != "") || (e.blockedPath() && !e.Enforced)
 }
 
 // ReadSummary sums up the access log at path in one pass, skipping lines it can't parse; an unreadable log sums to
