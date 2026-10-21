@@ -58,6 +58,22 @@ func Test_requiredCapabilities(t *testing.T) {
 		assert.Equal(t, sandbox.Capabilities{CredentialInjection: true, PidsLimit: true}, need)
 	})
 
+	t.Run("path rules ask for path rule support only with the proxy", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
+		proxyFlags := Flags{}
+		proxyFlags.Proxy.ProxyFlag = true
+
+		// Act
+		without := requiredCapabilities(Flags{}, rc)
+		with := requiredCapabilities(proxyFlags, rc)
+
+		// Assert
+		assert.Equal(t, sandbox.Capabilities{PidsLimit: true}, without)
+		assert.Equal(t, sandbox.Capabilities{Proxy: true, PathRules: true, PidsLimit: true}, with)
+	})
+
 	t.Run("secrets from config ask for secret mounts", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
@@ -184,6 +200,22 @@ func Test_checkCapabilities(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "the egress proxy (--proxy-monitor) or proxy credentials ([[run.proxy.credentials]] in "+req.Project.Layers[0].Path+")")
+	})
+
+	t.Run("missing path rules name the layer", func(t *testing.T) {
+		// Arrange
+		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
+		req.Project.RC = rc
+		req.Project.Layers = []config.RCLayer{{Path: "/example.test/project/.agenticrc.toml", RC: rc}}
+		req.Flags.Proxy.ProxyFlag = true
+
+		// Act
+		err := checkCapabilities(req, msb)
+
+		// Assert
+		assert.EqualError(t, err, "--runtime microsandbox does not support proxy path rules ([[run.proxy.allowed_paths]] in /example.test/project/.agenticrc.toml); use --runtime docker")
 	})
 
 	t.Run("missing secret mounts point to credential injection", func(t *testing.T) {
@@ -369,6 +401,19 @@ func Test_credentialsSource(t *testing.T) {
 	assert.Equal(t, "[[run.proxy.credentials]] in /example.test/.agenticrc.toml", source)
 }
 
+func Test_pathRulesSource(t *testing.T) {
+	// Arrange
+	layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
+	layer.RC.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
+	req := Request{Project: Project{Layers: []config.RCLayer{layer}}}
+
+	// Act
+	source := pathRulesSource(req)
+
+	// Assert
+	assert.Equal(t, "[[run.proxy.allowed_paths]] in /example.test/.agenticrc.toml", source)
+}
+
 func Test_secretsSource(t *testing.T) {
 	t.Run("names the flag", func(t *testing.T) {
 		// Arrange
@@ -452,6 +497,21 @@ func Test_specCapabilities(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, sandbox.Capabilities{Proxy: true, CredentialInjection: true, SecretMounts: true}, need)
+	})
+
+	t.Run("path rules count only with the proxy", func(t *testing.T) {
+		// Arrange
+		paths := []sandbox.AllowRule{{Host: "raw.example.test", Paths: []string{"/a"}}}
+		off := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Rules: paths}}
+		on := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Rules: paths}}
+
+		// Act
+		offNeed := specCapabilities(off)
+		onNeed := specCapabilities(on)
+
+		// Assert
+		assert.Equal(t, sandbox.Capabilities{}, offNeed)
+		assert.Equal(t, sandbox.Capabilities{Proxy: true, PathRules: true}, onNeed)
 	})
 
 	t.Run("monitor mode counts too", func(t *testing.T) {

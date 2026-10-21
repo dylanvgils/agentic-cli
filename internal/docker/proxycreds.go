@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"slices"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/certs"
@@ -25,15 +26,21 @@ type archiveFile struct {
 	content []byte
 }
 
-// copyCredentials issues a CA scoped to the credential hosts and streams it, its key and the credential list into the
-// created container's volume, which lives on the Docker host's disk until the proxy deletes the secret files at startup;
-// returns the CA cert, nil without credentials.
+// copyCredentials issues a CA scoped to the credential and path rule hosts and streams it, its key and the credential
+// list, which may be empty, into the created container's volume, which lives on the Docker host's disk until the proxy
+// deletes the secret files at startup; returns the CA cert, nil when the proxy doesn't decrypt.
 func (h proxyHandle) copyCredentials() (caPEM []byte, err error) {
-	if len(h.credentials) == 0 {
+	if !h.decrypts() {
 		return nil, nil
 	}
 
-	ca, err := certs.NewScopedCA("agentic proxy CA", proxy.CredentialHosts(h.credentials))
+	hosts := proxy.CredentialHosts(h.credentials)
+	for _, host := range proxy.PathHosts(h.rules) {
+		if !slices.Contains(hosts, host) {
+			hosts = append(hosts, host)
+		}
+	}
+	ca, err := certs.NewScopedCA("agentic proxy CA", hosts)
 	if err != nil {
 		return nil, err
 	}

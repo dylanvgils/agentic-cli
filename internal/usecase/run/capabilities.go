@@ -18,6 +18,7 @@ func requiredCapabilities(flags Flags, rc *config.AgenticRC) sandbox.Capabilitie
 		ProxyMonitor:        proxyMode == sandbox.ProxyMonitor,
 		Dind:                resolve.DindEnabled(flags.Dind, rc),
 		CredentialInjection: len(rc.Run.Proxy.Credentials) > 0,
+		PathRules:           proxyMode.Enabled() && len(rc.Run.Proxy.AllowedPaths) > 0,
 		SecretMounts:        len(resolve.Secrets(flags.Secrets, rc)) > 0,
 		PidsLimit:           true,
 	}
@@ -29,6 +30,7 @@ func specCapabilities(rs sandbox.RunSpec) sandbox.Capabilities {
 		Proxy:               rs.Proxy.Mode.Enabled(),
 		ProxyMonitor:        rs.Proxy.Mode == sandbox.ProxyMonitor,
 		CredentialInjection: len(rs.Credentials) > 0,
+		PathRules:           rs.Proxy.Mode.Enabled() && rs.Proxy.HasPathRules(),
 		SecretMounts:        len(rs.Secrets) > 0,
 	}
 }
@@ -46,6 +48,9 @@ func checkCapabilities(req Request, offered sandbox.Capabilities) error {
 	}
 	if missing.CredentialInjection {
 		refused = append(refused, fmt.Sprintf("proxy credentials (%s)", credentialsSource(req)))
+	}
+	if missing.PathRules {
+		refused = append(refused, fmt.Sprintf("proxy path rules (%s)", pathRulesSource(req)))
 	}
 	if missing.SecretMounts {
 		refused = append(refused, fmt.Sprintf("secret mounts (%s)", secretsSource(req)))
@@ -83,6 +88,9 @@ func checkSpec(rs sandbox.RunSpec, offered sandbox.Capabilities) error {
 	}
 	if missing.CredentialInjection {
 		refused = append(refused, "credential injection")
+	}
+	if missing.PathRules {
+		refused = append(refused, "path rules")
 	}
 	if missing.SecretMounts {
 		refused = append(refused, "secret mounts")
@@ -127,6 +135,11 @@ func dindSource(req Request) string {
 // credentialsSource names the innermost layer that declares proxy credentials.
 func credentialsSource(req Request) string {
 	return layerSource(req.Project.Layers, "[[run.proxy.credentials]]", func(rc *config.AgenticRC) bool { return len(rc.Run.Proxy.Credentials) > 0 })
+}
+
+// pathRulesSource names the innermost layer that declares proxy path rules.
+func pathRulesSource(req Request) string {
+	return layerSource(req.Project.Layers, "[[run.proxy.allowed_paths]]", func(rc *config.AgenticRC) bool { return len(rc.Run.Proxy.AllowedPaths) > 0 })
 }
 
 // secretsSource names what asks for secret mounts in req: --secret, or run.secrets and the innermost layer setting it.

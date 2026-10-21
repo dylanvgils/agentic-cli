@@ -33,6 +33,17 @@ func Test_proxyHandle_trustArgs(t *testing.T) {
 		assert.Equal(t, []string{"--env=" + tools.ProxyCAEnvName + "=test-ca"}, args)
 	})
 
+	t.Run("path rules pass the CA cert to the tool", func(t *testing.T) {
+		// Arrange
+		handle := proxyHandle{rules: []proxy.Rule{{Host: "raw.example.test", Paths: []string{"/a"}}}, caPEM: []byte("test-ca")}
+
+		// Act
+		args := handle.trustArgs()
+
+		// Assert
+		assert.Equal(t, []string{"--env=" + tools.ProxyCAEnvName + "=test-ca"}, args)
+	})
+
 	t.Run("before start shows a placeholder", func(t *testing.T) {
 		// Arrange
 		handle := proxyHandle{credentials: creds}

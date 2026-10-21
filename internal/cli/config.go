@@ -162,6 +162,7 @@ func projectSections(layers []config.RCLayer) []section {
 			boolField(layers, "enabled", func(rc *config.AgenticRC) *bool { return rc.Run.Proxy.Enabled }, proxyEnabledDefault(layers)),
 			scalarField(layers, "mode", func(rc *config.AgenticRC) string { return rc.Run.Proxy.Mode }, config.ModeEnforce),
 			listField(layers, "allowed_hosts", func(rc *config.AgenticRC) []string { return rc.Run.Proxy.AllowedHosts }),
+			listField(layers, "allowed_paths", allowedPaths),
 			listField(layers, "credentials", credentialNames),
 		}},
 		{header: "run.dind", fields: append([]field{
@@ -314,6 +315,15 @@ func toolArgs(rc *config.AgenticRC) []string {
 		entries[i] = tool + ": " + strings.Join(rc.Run.Args[tool], " ")
 	}
 	return entries
+}
+
+// allowedPaths returns each of rc's path rules as its host followed by its paths.
+func allowedPaths(rc *config.AgenticRC) []string {
+	rules := make([]string, len(rc.Run.Proxy.AllowedPaths))
+	for i, rule := range rc.Run.Proxy.AllowedPaths {
+		rules[i] = rule.Host + " " + strings.Join(rule.Paths, ", ")
+	}
+	return rules
 }
 
 // credentialNames returns each of rc's credentials as its preset, or its hosts when it has none.

@@ -1,5 +1,7 @@
 package sandbox
 
+import "slices"
+
 // Proxy modes; ProxyOff is the zero value, so a RunSpec without one runs no proxy.
 const (
 	ProxyOff ProxyMode = iota
@@ -10,15 +12,17 @@ const (
 // ProxyMode selects whether the egress proxy runs and whether it blocks or only logs disallowed hosts.
 type ProxyMode int
 
-// AllowRule allows Host, exact or a "."/"*." wildcard.
+// AllowRule allows Host on every path, or with Paths only on those, which the proxy decrypts the host's traffic to
+// check; Host is exact or a "."/"*." wildcard, exact when it has Paths.
 type AllowRule struct {
-	Host string
+	Host  string
+	Paths []string
 }
 
 // ProxySpec configures the egress proxy sidecar; unless Mode is ProxyOff, the tool reaches out only through it.
 type ProxySpec struct {
 	Mode    ProxyMode
-	Rules   []AllowRule // merged allowlist: tool baseline, user hosts, credential hosts
+	Rules   []AllowRule // merged allowlist: tool baseline, user hosts and path rules, credential hosts
 	LogFile string      // host path of this run's JSON-lines access log
 }
 
@@ -27,11 +31,18 @@ func (m ProxyMode) Enabled() bool {
 	return m != ProxyOff
 }
 
-// Hosts returns the host of every rule.
-func (s ProxySpec) Hosts() []string {
-	hosts := make([]string, len(s.Rules))
-	for i, rule := range s.Rules {
-		hosts[i] = rule.Host
+// HasPathRules reports whether any rule allows only some paths.
+func (s ProxySpec) HasPathRules() bool {
+	return slices.ContainsFunc(s.Rules, func(r AllowRule) bool { return len(r.Paths) > 0 })
+}
+
+// WholeHosts returns the hosts of the rules that allow every path.
+func (s ProxySpec) WholeHosts() []string {
+	var hosts []string
+	for _, rule := range s.Rules {
+		if len(rule.Paths) == 0 {
+			hosts = append(hosts, rule.Host)
+		}
 	}
 	return hosts
 }

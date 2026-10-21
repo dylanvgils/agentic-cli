@@ -10,6 +10,8 @@ type Capabilities struct {
 	Dind bool
 	// CredentialInjection keeps credentials out of the tool, which only sees a placeholder.
 	CredentialInjection bool
+	// PathRules are allowlist entries for only some paths of a host.
+	PathRules bool
 	// CredentialsViaProxy means the proxy injects the credentials, so they turn it on.
 	CredentialsViaProxy bool
 	// SecretMounts are host files mounted read-only into the tool.
@@ -30,6 +32,7 @@ func (c Capabilities) Missing(need Capabilities) Capabilities {
 		ProxyMonitor:        need.ProxyMonitor && !c.ProxyMonitor,
 		Dind:                need.Dind && !c.Dind,
 		CredentialInjection: need.CredentialInjection && !c.CredentialInjection,
+		PathRules:           need.PathRules && !c.PathRules,
 		SecretMounts:        need.SecretMounts && !c.SecretMounts,
 		PidsLimit:           need.PidsLimit && !c.PidsLimit,
 	}

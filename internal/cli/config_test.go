@@ -129,6 +129,7 @@ func Test_printProjectConfig(t *testing.T) {
     enabled: false  (default)
     mode: enforce  (default)
     allowed_hosts: (none)
+    allowed_paths: (none)
     credentials: (none)
 
   [run.dind]
@@ -477,6 +478,19 @@ func Test_toolArgs(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, []string{"claude: --verbose", "copilot: --disable-client-telemetry --example"}, result)
+}
+
+func Test_allowedPaths(t *testing.T) {
+	// Arrange
+	rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
+		{Host: "raw.example.test", Paths: []string{"/org/repo/**", "/org/*/README.md"}},
+	}}}}
+
+	// Act
+	result := allowedPaths(rc)
+
+	// Assert
+	assert.Equal(t, []string{"raw.example.test /org/repo/**, /org/*/README.md"}, result)
 }
 
 func Test_credentialNames(t *testing.T) {

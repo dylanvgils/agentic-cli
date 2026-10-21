@@ -197,6 +197,23 @@ func TestBuildInstructions(t *testing.T) {
 		assert.Contains(t, content, "extra.example.com")
 		assert.Contains(t, content, "HTTP 403 from the proxy")
 		assert.Contains(t, content, "so they can add it to allowed_hosts")
+		assert.NotContains(t, content, "allowed_paths")
+	})
+
+	t.Run("network section lists path rule hosts with their paths", func(t *testing.T) {
+		// Arrange
+		in := Input{ProxyMode: sandbox.ProxyEnforce}
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
+			{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
+		}}}}
+
+		// Act
+		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, content, "  - raw.example.test, only paths matching /org/repo/** (`*` is one path segment, `**` the rest)\n")
+		assert.Contains(t, content, "so they can add it to allowed_paths")
 	})
 
 	t.Run("network section names a provider-side web search", func(t *testing.T) {

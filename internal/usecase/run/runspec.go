@@ -156,8 +156,10 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 	}
 	env = append(env, placeholders...)
 
-	// Only proxy injection needs the tool to trust the proxy CA
-	if len(in.Credentials) > 0 && caps.CredentialsViaProxy {
+	// Only a proxy that decrypts, for credentials or path rules, needs the tool to trust its CA
+	rules := resolve.ProxyRules(req.toolConfig.Runtime.AllowedHosts, in.DindEnabled, req.rc)
+	decrypts := len(in.Credentials) > 0 || (in.ProxyMode.Enabled() && sandbox.ProxySpec{Rules: rules}.HasPathRules())
+	if decrypts && caps.CredentialsViaProxy {
 		if err := s.checkProxyTrust(req.target); err != nil {
 			return nil, err
 		}
@@ -215,6 +217,8 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string
 	limits := resolve.ResourceLimitsFor(in.Limits, rc)
 	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
 
+	rules := resolve.ProxyRules(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc)
+
 	return sandbox.NewRunSpec(req.target.ImageName).
 		WithToolHome(in.ToolHome).
 		WithContainerHome(req.containerHome).
@@ -231,7 +235,7 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string
 		WithCredentials(sandboxCredentials(in.Credentials)...).
 		WithProxy(sandbox.ProxySpec{
 			Mode:    in.ProxyMode,
-			Rules:   resolve.ProxyRules(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc),
+			Rules:   rules,
 			LogFile: proxyLog,
 		}).
 		WithDind(sandbox.DindSpec{Enabled: in.DindEnabled, Limits: dindLimits}).

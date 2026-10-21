@@ -259,6 +259,21 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, map[string][]string{"copilot": {"--parent", "--child"}, "claude": {"--other"}}, result.Run.Args)
 	})
 
+	t.Run("proxy allowed_paths accumulate outermost first", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Run: RCRun{Proxy: RCProxy{AllowedPaths: []RCAllowedPath{{Host: "child.example.test", Paths: []string{"/child"}}}}}}
+		parent := &AgenticRC{Run: RCRun{Proxy: RCProxy{AllowedPaths: []RCAllowedPath{{Host: "parent.example.test", Paths: []string{"/parent"}}}}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, []RCAllowedPath{
+			{Host: "parent.example.test", Paths: []string{"/parent"}},
+			{Host: "child.example.test", Paths: []string{"/child"}},
+		}, result.Run.Proxy.AllowedPaths)
+	})
+
 	t.Run("proxy enabled child wins over parent", func(t *testing.T) {
 		// Arrange
 		childFalse := false
@@ -750,6 +765,32 @@ secret = "/example/secret"
 		}
 	})
 
+	t.Run("proxy allowed_paths key", func(t *testing.T) {
+		// Arrange
+		content := `
+[[run.proxy.allowed_paths]]
+host = "raw.example.test"
+paths = ["/org/repo/**", "/org/*/README.md"]
+`
+		// Act
+		rc := mustParseRC(t, content)
+
+		// Assert
+		assert.Equal(t, []RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/org/repo/**", "/org/*/README.md"}}}, rc.Run.Proxy.AllowedPaths)
+	})
+
+	t.Run("invalid proxy allowed_paths return error with path", func(t *testing.T) {
+		// Arrange
+		path := writeRC(t, "[[run.proxy.allowed_paths]]\nhost = \"*.example.test\"\npaths = [\"/a\"]\n")
+
+		// Act
+		_, err := loadRC(path)
+
+		// Assert
+		assert.ErrorContains(t, err, "[[run.proxy.allowed_paths]] entry 1")
+		assert.ErrorContains(t, err, path)
+	})
+
 	t.Run("run.instructions key", func(t *testing.T) {
 		// Act
 		rc := mustParseRC(t, "[run.instructions]\nenabled = false\ncustom = \"Always run go test before finishing.\"\n")
@@ -1226,5 +1267,37 @@ func TestMerge(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, "must be unique")
 		assert.Nil(t, rc)
+	})
+}
+
+func Test_validateAllowedPath(t *testing.T) {
+	t.Run("accepts an exact host with valid paths", func(t *testing.T) {
+		// Arrange
+		rule := RCAllowedPath{Host: "raw.example.test", Paths: []string{"/org/repo/**"}}
+
+		// Act
+		err := validateAllowedPath(rule)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("refuses a bad host, no paths or a bad path", func(t *testing.T) {
+		cases := map[string]RCAllowedPath{
+			"host must not be empty":                       {Paths: []string{"/a"}},
+			"must be an exact hostname, without wildcards": {Host: "*.example.test", Paths: []string{"/a"}},
+			"must be an exact hostname, without":           {Host: ".example.test", Paths: []string{"/a"}},
+			"without wildcards, port":                      {Host: "raw.example.test:8443", Paths: []string{"/a"}},
+			"without wildcards, port or path":              {Host: "raw.example.test/org", Paths: []string{"/a"}},
+			"paths must not be empty":                      {Host: "raw.example.test"},
+			"must start with /":                            {Host: "raw.example.test", Paths: []string{"org"}},
+		}
+		for want, rule := range cases {
+			// Act
+			err := validateAllowedPath(rule)
+
+			// Assert
+			assert.ErrorContains(t, err, want, rule.Host)
+		}
 	})
 }

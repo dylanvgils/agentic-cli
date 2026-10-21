@@ -20,8 +20,8 @@ With the [microsandbox runtime](microsandbox.md), msb swaps the secret in itself
 
 ## How it works
 
-- **Proxy on**: credentials turn the proxy on in enforce mode (monitor mode still applies if set), and their hosts join the allowlist. Combining them with `--no-proxy` or `enabled = false` is an error.
-- **Only credential hosts are decrypted**: the proxy terminates TLS only for those hosts, using a per-run CA that can sign nothing else. All other traffic stays an end-to-end encrypted tunnel. Plain HTTP is never touched. Terminated hosts use HTTP/1.1, and their log entries carry `"intercepted": true`.
+- **Proxy on**: credentials turn the proxy on in enforce mode (monitor mode still applies if set), and their hosts join the allowlist, limited to their paths when [`allowed_paths`](egress-proxy.md#path-rules) names them. Combining them with `--no-proxy` or `enabled = false` is an error.
+- **Only credential hosts are decrypted**: the proxy terminates TLS only for those hosts and [path-limited hosts](egress-proxy.md#path-rules), using a per-run CA that can sign nothing else. All other traffic stays an end-to-end encrypted tunnel. Plain HTTP is never touched. Terminated hosts use HTTP/1.1, and their log entries carry `"intercepted": true`.
 - **Only the placeholder is swapped**: in the entry's headers, decoding `Basic` auth first, and nowhere else. A request without the placeholder passes unchanged. Look-alike headers such as `X_Api_Key` for `X-Api-Key` are dropped.
 - **Missing placeholder warning**: if an entry's host rejects a connection (401 or 403) that never sent the placeholder, the run ends with a warning, as the tool likely ran unauthenticated. Anonymous requests the host accepts, such as cloning a public repo, don't warn. The log marks it `"reason": "no-placeholder"`.
 - **git**: with the `github` preset, agentic sets a git credential helper through `GIT_CONFIG_*` env vars. git over HTTPS then answers GitHub's challenge with `x-access-token` and the placeholder.
@@ -34,6 +34,6 @@ With the [microsandbox runtime](microsandbox.md), msb swaps the secret in itself
 - **Static keys only**: OAuth logins (Claude subscription, Copilot device flow) keep their token in the tool home. Setting a key's env var (e.g. `ANTHROPIC_API_KEY`) switches the tool to API-key auth.
 - **Copilot**: the `github` preset also covers the Copilot API hosts, including the remote GitHub MCP server. GHE.com data-residency tenants need a custom entry for their own Copilot hosts.
 - **Headers only**: a tool that sends the key in the URL or body, or signs requests with it (e.g. AWS SigV4), can't use a placeholder.
-- **Use, not theft**: the agent can't read the key, but it can still make authenticated requests to the key's hosts during the run.
+- **Use, not theft**: the agent can't read the key, but it can still make authenticated requests to the key's hosts during the run. `allowed_paths` can limit that to some paths, though a path like GitHub's `/graphql` reaches everything, so a token the provider scopes stays the stronger limit.
 - **Echoed keys**: the proxy swaps the key back to the placeholder in response headers and trailers, also in the Basic-encoded form git sends, but not in bodies. A credential host that echoes the request in its body hands the key to the tool.
-- **Gaps in CA trust**: `agentic run <tool> -- <cmd>` skips the entrypoint, and Java and containers started through `--dind` use their own trust stores. TLS to credential hosts fails in those cases.
+- **Gaps in CA trust**: `agentic run <tool> -- <cmd>` skips the entrypoint, and Java and containers started through `--dind` use their own trust stores. TLS to credential and path-limited hosts fails in those cases.

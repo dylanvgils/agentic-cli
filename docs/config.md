@@ -152,6 +152,15 @@ Always run `go test ./...` before considering a task finished.
 | `mode`          | string | `"enforce"` blocks hosts not on the allowlist, `"monitor"` only logs them. `"monitor"` turns the proxy on unless `enabled = false`. | `--proxy-monitor`        | `"enforce"` |
 | `allowed_hosts` | list   | Hosts added to the tool's baseline. Exact (`"api.github.com"`), or `.`/`*.` prefix for a domain and its subdomains (`".github.com"`). | -                        | -           |
 
+### `[[run.proxy.allowed_paths]]`
+
+| Key     | Type   | Description                                                                                     |
+| ------- | ------ | ----------------------------------------------------------------------------------------------- |
+| `host`  | string | Required. Exact hostname or IP, no wildcards, port or path.                                     |
+| `paths` | list   | Required. Path patterns starting with `/`: `*` matches one segment, a final `**` everything below. |
+
+See [Path rules](egress-proxy.md#path-rules) for how patterns match and what's refused.
+
 ### `[[run.proxy.credentials]]`
 
 | Key      | Type   | Description                                                                                              |
@@ -217,7 +226,7 @@ The agent can edit `.agenticrc.toml` files in directories it ran in, so changes 
 - `root`, `namespace`, `docker_context`, `marketplaces`
 - `build.custom_installs`
 - `run.mounts`, `run.secrets`, `run.env`, `run.args`, `run.runtime`
-- `run.proxy.enabled`, `run.proxy.mode`, `run.proxy.allowed_hosts`, `run.proxy.credentials`, `run.dind.enabled`
+- `run.proxy.enabled`, `run.proxy.mode`, `run.proxy.allowed_hosts`, `run.proxy.allowed_paths`, `run.proxy.credentials`, `run.dind.enabled`
 
 `agentic build` and `agentic update` don't ask, so review the diff first.
 
@@ -225,7 +234,7 @@ The agent can edit `.agenticrc.toml` files in directories it ran in, so changes 
 
 The file closest to the filesystem root is the _outermost_. The file in `$PWD` is the _innermost_.
 
-- **List keys** (`bases`, `apt_packages`, `custom_installs`, `mounts`, `secrets`, `env`, `args` per tool, `proxy.allowed_hosts`, `proxy.credentials`, `marketplaces`) add up, outermost first.
+- **List keys** (`bases`, `apt_packages`, `custom_installs`, `mounts`, `secrets`, `env`, `args` per tool, `proxy.allowed_hosts`, `proxy.allowed_paths`, `proxy.credentials`, `marketplaces`) add up, outermost first.
 - **Scalar keys** take the innermost value. Booleans count as scalars, so `enabled = false` in an inner file overrides an outer `true`.
 - **`versions`** is resolved per key, so a child can pin `java` and still inherit `node`. An empty value counts as unset.
 - **`instructions.custom`** adds up like a list, joined by blank lines.

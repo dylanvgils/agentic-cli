@@ -75,6 +75,11 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		return proxyHandle{}, err
 	}
 
+	rules, err := proxyRules(rs.Proxy.Rules)
+	if err != nil {
+		return proxyHandle{}, err
+	}
+
 	name := proxyHostAlias + "-" + id
 	return proxyHandle{
 		client:         c,
@@ -83,10 +88,15 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		logPath:        rs.Proxy.LogFile,
 		monitor:        rs.Proxy.Mode == sandbox.ProxyMonitor,
 		credentials:    creds,
-		rules:          proxyRules(rs.Proxy.Rules),
+		rules:          rules,
 		placeholderEnv: placeholderEnv,
 		user:           *rs.User,
 	}, nil
+}
+
+// decrypts reports whether the proxy terminates TLS, for credentials or path rules, and so needs a CA.
+func (h proxyHandle) decrypts() bool {
+	return len(h.credentials) > 0 || len(proxy.PathHosts(h.rules)) > 0
 }
 
 // toolEnvArgs returns the --env flags the tool needs with this proxy: its URL, trust in its CA and the credential placeholders.
@@ -244,7 +254,7 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 		clientNets = dryRunClientNetsPlaceholder
 	}
 
-	// Plain data, so it always marshals
+	// Validated plain data, so it always marshals
 	rulesJSON, _ := json.Marshal(h.rules)
 	args = append(args,
 		arg("env", proxy.EnvRules+"="+string(rulesJSON)),
@@ -256,7 +266,7 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 		arg("volume", h.logPath+":"+containerLog),
 	)
 
-	if len(h.credentials) > 0 {
+	if h.decrypts() {
 		args = append(args,
 			arg("env", proxy.EnvCADir+"="+proxyCredentialsDir),
 			arg("env", proxy.EnvCredentials+"="+proxyCredentialsDir+"/"+proxyCredentialsFile),
@@ -299,10 +309,10 @@ func (h proxyHandle) boot() (caPEM []byte, err error) {
 	return caPEM, nil
 }
 
-// checkStarted fails if a credentialed proxy exits within proxySettleTime, e.g. on a CA or credentials it can't load;
-// only credentials add a startup step that fails on bad input, so other runs skip the wait.
+// checkStarted fails if a decrypting proxy exits within proxySettleTime, e.g. on a CA, credentials or path rules it can't
+// load; only those add a startup step that fails on bad input, so other runs skip the wait.
 func (h proxyHandle) checkStarted() error {
-	if len(h.credentials) == 0 {
+	if !h.decrypts() {
 		return nil
 	}
 
@@ -331,13 +341,17 @@ func (c *Client) SweepProxyResources() error {
 	return c.removeUnused(listArgs, []string{"rm", arg("force"), arg("volumes")})
 }
 
-// proxyRules returns rules as the proxy's allow rules.
-func proxyRules(rules []sandbox.AllowRule) []proxy.Rule {
-	converted := make([]proxy.Rule, len(rules))
-	for i, rule := range rules {
-		converted[i] = proxy.Rule{Host: rule.Host}
+// proxyRules returns rules as the proxy's allow rules, validated so a bad one fails before the proxy starts.
+func proxyRules(rules []sandbox.AllowRule) ([]proxy.Rule, error) {
+	converted := make([]proxy.Rule, 0, len(rules))
+	for _, rule := range rules {
+		converted = append(converted, proxy.Rule{Host: rule.Host, Paths: rule.Paths})
 	}
-	return converted
+
+	if err := proxy.ValidateRules(converted); err != nil {
+		return nil, fmt.Errorf("proxy allow rules: %w", err)
+	}
+	return converted, nil
 }
 
 // randID returns a short random hex identifier for per-run resource names.

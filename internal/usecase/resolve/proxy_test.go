@@ -267,13 +267,49 @@ func TestProxyAllowList(t *testing.T) {
 }
 
 func TestProxyRules(t *testing.T) {
-	// Arrange
-	rc := &config.AgenticRC{}
-	rc.Run.Proxy.AllowedHosts = []string{"extra.example.test"}
+	t.Run("allows merged hosts whole, then path rules merged per host", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.AllowedHosts = []string{"extra.example.test"}
+		rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{
+			{Host: "raw.example.test", Paths: []string{"/a/**"}},
+			{Host: "other.example.test", Paths: []string{"/b"}},
+			{Host: "Raw.Example.Test.", Paths: []string{"/a/**", "/c"}},
+		}
 
-	// Act
-	rules := ProxyRules([]string{"api.example.test"}, false, rc)
+		// Act
+		rules := ProxyRules([]string{"api.example.test"}, false, rc)
 
-	// Assert
-	assert.Equal(t, []sandbox.AllowRule{{Host: "api.example.test"}, {Host: "extra.example.test"}}, rules)
+		// Assert
+		assert.Equal(t, []sandbox.AllowRule{
+			{Host: "api.example.test"},
+			{Host: "extra.example.test"},
+			{Host: "raw.example.test", Paths: []string{"/a/**", "/c"}},
+			{Host: "other.example.test", Paths: []string{"/b"}},
+		}, rules)
+	})
+
+	t.Run("path rules replace a host otherwise allowed whole", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.AllowedHosts = []string{"Exact.Example.Test", ".wild.example.test"}
+		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test", "upload.example.test"}, Header: "Authorization", Secret: "/example/token"}}
+		rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{
+			{Host: "exact.example.test", Paths: []string{"/a"}},
+			{Host: "raw.wild.example.test", Paths: []string{"/a"}},
+			{Host: "api.example.test", Paths: []string{"/repos/org/**"}},
+		}
+
+		// Act
+		rules := ProxyRules(nil, false, rc)
+
+		// Assert
+		assert.Equal(t, []sandbox.AllowRule{
+			{Host: ".wild.example.test"},
+			{Host: "upload.example.test"},
+			{Host: "exact.example.test", Paths: []string{"/a"}},
+			{Host: "raw.wild.example.test", Paths: []string{"/a"}},
+			{Host: "api.example.test", Paths: []string{"/repos/org/**"}},
+		}, rules)
+	})
 }

@@ -42,6 +42,44 @@ func Test_printProxySummary(t *testing.T) {
 	})
 }
 
+func Test_printPaths(t *testing.T) {
+	paths := proxy.HostCount{Hosts: []string{"raw.example.test/other"}, Count: 2}
+
+	t.Run("enforced mode reports blocked paths", func(t *testing.T) {
+		// Arrange
+		var buf strings.Builder
+
+		// Act
+		printPaths(logging.New(&buf), paths, false)
+
+		// Assert
+		assert.Contains(t, buf.String(), "agentic: proxy blocked 2 request(s) to paths no rule allows: raw.example.test/other")
+		assert.Contains(t, buf.String(), "[[run.proxy.allowed_paths]]")
+	})
+
+	t.Run("monitor mode reports would-be-blocked paths", func(t *testing.T) {
+		// Arrange
+		var buf strings.Builder
+
+		// Act
+		printPaths(logging.New(&buf), paths, true)
+
+		// Assert
+		assert.Contains(t, buf.String(), "agentic: proxy would block 2 request(s) to paths no rule allows")
+	})
+
+	t.Run("no blocked paths print nothing", func(t *testing.T) {
+		// Arrange
+		var buf strings.Builder
+
+		// Act
+		printPaths(logging.New(&buf), proxy.HostCount{}, false)
+
+		// Assert
+		assert.Empty(t, buf.String())
+	})
+}
+
 func Test_printDenied(t *testing.T) {
 	summary := proxy.Summary{Denied: proxy.HostCount{Hosts: []string{"evil.example.test"}, Count: 1}, Attempts: 2}
 

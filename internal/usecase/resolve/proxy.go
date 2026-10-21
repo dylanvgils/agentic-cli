@@ -3,6 +3,7 @@ package resolve
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
@@ -61,13 +62,34 @@ func ProxyAllowList(toolAllowedHosts []string, dindEnabled bool, rc *config.Agen
 	})
 }
 
-// ProxyRules returns the proxy's allow rules, one per host ProxyAllowList merges.
+// ProxyRules returns the proxy's allow rules: the hosts ProxyAllowList merges, allowed whole unless path rules name them,
+// then rc's path rules merged per host in first-seen order. Path rules also limit a host a wildcard allows, as the proxy
+// lets them win.
 func ProxyRules(toolAllowedHosts []string, dindEnabled bool, rc *config.AgenticRC) []sandbox.AllowRule {
+	var pathRules []sandbox.AllowRule
+	byHost := make(map[string]int)
+	for _, rule := range rc.Run.Proxy.AllowedPaths {
+		host := normalizeHost(rule.Host)
+		i, seen := byHost[host]
+		if !seen {
+			i = len(pathRules)
+			byHost[host] = i
+			pathRules = append(pathRules, sandbox.AllowRule{Host: host})
+		}
+		for _, path := range rule.Paths {
+			if !slices.Contains(pathRules[i].Paths, path) {
+				pathRules[i].Paths = append(pathRules[i].Paths, path)
+			}
+		}
+	}
+
 	var rules []sandbox.AllowRule
 	for _, host := range ProxyAllowList(toolAllowedHosts, dindEnabled, rc) {
-		rules = append(rules, sandbox.AllowRule{Host: host})
+		if _, limited := byHost[normalizeHost(host)]; !limited {
+			rules = append(rules, sandbox.AllowRule{Host: host})
+		}
 	}
-	return rules
+	return append(rules, pathRules...)
 }
 
 // RequestedProxyMode applies flags, then config, ignoring credentials. --no-proxy/enabled=false always wins; monitor implies enabled.
@@ -94,4 +116,9 @@ func RequestedProxyMode(in ProxyInput, rc *config.AgenticRC) sandbox.ProxyMode {
 	}
 
 	return sandbox.ProxyOff
+}
+
+// normalizeHost lower-cases host and drops a trailing root dot, as the proxy compares hosts.
+func normalizeHost(host string) string {
+	return strings.ToLower(strings.TrimSuffix(host, "."))
 }

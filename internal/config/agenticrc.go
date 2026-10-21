@@ -77,6 +77,14 @@ type RCProxy struct {
 	// Mode selects how the proxy enforces AllowedHosts: "enforce" (default) blocks disallowed hosts, "monitor" only logs the verdict.
 	Mode        string         `toml:"mode"`
 	Credentials []RCCredential `toml:"credentials"`
+	// AllowedPaths allows only some paths on hosts not in AllowedHosts; the proxy decrypts them to check each request
+	AllowedPaths []RCAllowedPath `toml:"allowed_paths"`
+}
+
+// RCAllowedPath allows requests to Host whose path matches one of Paths (see MatchPathPattern).
+type RCAllowedPath struct {
+	Host  string   `toml:"host"`
+	Paths []string `toml:"paths"`
 }
 
 // RCCredential declares a secret swapped in for a placeholder the tool sends in a header; set either Preset or Hosts+Header.
@@ -320,6 +328,7 @@ func appendLists(result, rc *AgenticRC) {
 	}
 	resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)
 	resRun.Proxy.Credentials = append(resRun.Proxy.Credentials, run.Proxy.Credentials...)
+	resRun.Proxy.AllowedPaths = append(resRun.Proxy.AllowedPaths, run.Proxy.AllowedPaths...)
 	resRun.Instructions.Custom = appendInstructions(resRun.Instructions.Custom, run.Instructions.Custom)
 	resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
 	resBuild.Bases = append(resBuild.Bases, build.Bases...)
@@ -390,6 +399,12 @@ func loadRC(path string) (*AgenticRC, error) {
 		}
 	}
 
+	for i, rule := range rc.Run.Proxy.AllowedPaths {
+		if err := validateAllowedPath(rule); err != nil {
+			return nil, fmt.Errorf("%s: [[run.proxy.allowed_paths]] entry %d: %w", path, i+1, err)
+		}
+	}
+
 	for _, marketplace := range rc.Marketplaces {
 		if err := validateMarketplace(marketplace); err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
@@ -429,6 +444,28 @@ func validateCredential(cred RCCredential) error {
 	for _, field := range append(fields, cred.Env...) {
 		if strings.ContainsFunc(field, func(r rune) bool { return !unicode.IsPrint(r) }) {
 			return fmt.Errorf("value %q contains control or non-printable characters", field)
+		}
+	}
+	return nil
+}
+
+// validateAllowedPath checks the rule's host is a single exact name and each of its paths is a valid pattern; the proxy
+// checks the host's characters when it loads the rules.
+func validateAllowedPath(rule RCAllowedPath) error {
+	host := rule.Host
+	if host == "" {
+		return fmt.Errorf("host must not be empty")
+	}
+	if strings.HasPrefix(host, ".") || strings.ContainsAny(host, "*/:,") || strings.ContainsFunc(host, func(r rune) bool { return unicode.IsSpace(r) || !unicode.IsPrint(r) }) {
+		return fmt.Errorf("host %q must be an exact hostname, without wildcards, port or path", host)
+	}
+
+	if len(rule.Paths) == 0 {
+		return fmt.Errorf("host %q: paths must not be empty", host)
+	}
+	for _, pattern := range rule.Paths {
+		if err := ValidatePathPattern(pattern); err != nil {
+			return fmt.Errorf("host %q: %w", host, err)
 		}
 	}
 	return nil

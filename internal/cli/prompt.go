@@ -28,6 +28,7 @@ var settingEffects = map[string]string{
 	"run.proxy.enabled":       "whether egress is limited to the allowlist proxy",
 	"run.proxy.mode":          "whether hosts off the allowlist are blocked or only logged",
 	"run.proxy.allowed_hosts": "hosts the container may reach",
+	"run.proxy.allowed_paths": "paths the container may reach on hosts the proxy decrypts",
 	config.CredentialsSetting: "host secrets the proxy reads and sends to these hosts",
 	"run.dind.enabled":        "whether the container gets its own Docker daemon",
 }

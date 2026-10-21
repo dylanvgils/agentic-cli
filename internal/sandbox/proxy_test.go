@@ -36,12 +36,36 @@ func TestProxyMode_Enabled(t *testing.T) {
 	})
 }
 
-func TestProxySpec_Hosts(t *testing.T) {
+func TestProxySpec_HasPathRules(t *testing.T) {
+	t.Run("whole-host rules have none", func(t *testing.T) {
+		// Arrange
+		spec := ProxySpec{Rules: []AllowRule{{Host: "api.example.test"}}}
+
+		// Act
+		result := spec.HasPathRules()
+
+		// Assert
+		assert.False(t, result)
+	})
+
+	t.Run("a rule with paths counts", func(t *testing.T) {
+		// Arrange
+		spec := ProxySpec{Rules: []AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test", Paths: []string{"/a"}}}}
+
+		// Act
+		result := spec.HasPathRules()
+
+		// Assert
+		assert.True(t, result)
+	})
+}
+
+func TestProxySpec_WholeHosts(t *testing.T) {
 	// Arrange
-	spec := ProxySpec{Rules: []AllowRule{{Host: "api.example.test"}, {Host: ".example.org"}}}
+	spec := ProxySpec{Rules: []AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test", Paths: []string{"/a"}}, {Host: ".example.org"}}}
 
 	// Act
-	hosts := spec.Hosts()
+	hosts := spec.WholeHosts()
 
 	// Assert
 	assert.Equal(t, []string{"api.example.test", ".example.org"}, hosts)
