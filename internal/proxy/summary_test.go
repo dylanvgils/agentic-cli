@@ -40,6 +40,8 @@ func Test_Entry_repeatsAttempt(t *testing.T) {
 		"failed request inside a tunnel": {Entry{Intercepted: true, Reason: ReasonUpstreamFailed}, true},
 		"missed placeholder":             {Entry{Intercepted: true, Reason: ReasonNoPlaceholder}, true},
 		"failed plain tunnel":            {Entry{Reason: ReasonUpstreamFailed}, false},
+		"monitor mode path verdict":      {Entry{Reason: ReasonPathBlocked}, true},
+		"enforced path block":            {Entry{Reason: ReasonPathBlocked, Enforced: true}, false},
 	}
 
 	for name, c := range cases {

@@ -3,9 +3,12 @@ package proxy
 import (
 	"bytes"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -158,6 +161,66 @@ func TestServerPaths(t *testing.T) {
 		assert.Contains(t, logBuf.String(), `"path":"/other","reason":"path-blocked"`)
 		assert.NotContains(t, logBuf.String(), `"intercepted"`)
 	})
+
+	t.Run("monitor mode keeps a path verdict when the upstream then fails", func(t *testing.T) {
+		// Arrange
+		gone := httptest.NewServer(mux)
+		goneHost, gonePort := splitHostPort(gone.Listener.Addr().String())
+		gone.Close()
+		stubDefaultPorts(t, gonePort)
+		logPath := filepath.Join(t.TempDir(), "access.log")
+		logFile, err := os.Create(logPath)
+		require.NoError(t, err)
+		t.Cleanup(func() { logFile.Close() }) //nolint:errcheck
+		goneRules := []Rule{{Host: goneHost, Paths: []string{"/org/repo/**"}}}
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(goneRules), NewLogger(logFile, nil, nil), true, nil)))
+		t.Cleanup(proxy.Close)
+
+		// Act
+		resp := proxyGet(t, proxy.URL, "http://"+net.JoinHostPort(goneHost, gonePort)+"/other")
+		defer resp.Body.Close() //nolint:errcheck
+		summary := ReadSummary(logPath)
+
+		// Assert
+		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+		assert.Equal(t, 1, summary.Paths.Count)
+		assert.Zero(t, summary.Denied.Count)
+		assert.Equal(t, 1, summary.Attempts)
+	})
+}
+
+func Test_Server_checkPaths(t *testing.T) {
+	rules := []Rule{
+		{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
+		{Host: "api.example.test"},
+	}
+	s := NewServer(NewAllowlist(rules), NewLogger(nil, nil, nil), false, nil)
+
+	cases := map[string]struct {
+		host string
+		want string
+	}{
+		"path rule host drops the upgrade": {"raw.example.test", "|"},
+		"host without path rules keeps it": {"api.example.test", "h2c|AAMAAABkAARAAAAAAAIAAAAA"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			var got string
+			next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				got = r.Header.Get("Upgrade") + "|" + r.Header.Get("HTTP2-Settings")
+			})
+			req := httptest.NewRequest(http.MethodGet, "https://"+c.host+"/org/repo/x", nil)
+			req.Header.Set("Upgrade", "h2c")
+			req.Header.Set("HTTP2-Settings", "AAMAAABkAARAAAAAAAIAAAAA")
+
+			// Act
+			s.checkPaths(next, Entry{Host: c.host}).ServeHTTP(httptest.NewRecorder(), req)
+
+			// Assert
+			assert.Equal(t, c.want, got)
+		})
+	}
 }
 
 func TestServerPathsUnrestricted(t *testing.T) {
@@ -201,8 +264,25 @@ func Test_requestPath(t *testing.T) {
 		}
 	})
 
+	t.Run("refuses an opaque target", func(t *testing.T) {
+		// Arrange
+		u := &url.URL{Scheme: "http", Opaque: "secret/area"}
+
+		// Act
+		_, ok := requestPath(u)
+
+		// Assert
+		assert.False(t, ok)
+	})
+
 	t.Run("refuses paths upstreams may read differently", func(t *testing.T) {
 		raws := []string{
+			"/org/a%252f..%252f..%252fadmin/x",
+			"/org/a%00/x",
+			"/org/%c0%ae%c0%ae/x",
+			"/org/%ef%bc%8e%ef%bc%8e/x",
+			"/org/..%20/x",
+			"/org/repo./x",
 			"*",
 			"/org/repo/%2e%2e/secret",
 			"/org/repo/%2E%2E/secret",
@@ -225,4 +305,28 @@ func Test_requestPath(t *testing.T) {
 			assert.False(t, ok, raw)
 		}
 	})
+}
+
+func Test_dropUpgrade(t *testing.T) {
+	cases := map[string]struct {
+		upgrade string
+		want    string
+	}{
+		"websocket is kept":     {"websocket", "websocket"},
+		"websocket in any case": {"WebSocket", "WebSocket"},
+		"h2c is dropped":        {"h2c", ""},
+		"a list is dropped":     {"websocket, h2c", ""},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			h := http.Header{"Upgrade": {c.upgrade}, "Http2-Settings": {"AAMAAABkAARAAAAAAAIAAAAA"}}
+
+			// Act
+			dropUpgrade(h)
+
+			// Assert
+			assert.Equal(t, c.want, h.Get("Upgrade"))
+		})
+	}
 }

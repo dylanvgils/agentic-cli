@@ -2,8 +2,11 @@ package proxy
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"slices"
+	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 )
@@ -15,15 +18,21 @@ type Rule struct {
 	Paths []string `json:"paths,omitempty"`
 }
 
-// LoadRules parses the JSON rule list in value, empty meaning none, and validates it.
+// LoadRules parses the JSON rule list in value, empty meaning none, and validates it; unknown fields are refused, so a
+// misspelled paths can't allow its host whole.
 func LoadRules(value string) ([]Rule, error) {
 	if value == "" {
 		return nil, nil
 	}
 
 	var rules []Rule
-	if err := json.Unmarshal([]byte(value), &rules); err != nil {
+	decoder := json.NewDecoder(strings.NewReader(value))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&rules); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", EnvRules, err)
+	}
+	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("parse %s: unexpected data after the rule list", EnvRules)
 	}
 	if err := ValidateRules(rules); err != nil {
 		return nil, fmt.Errorf("%s: %w", EnvRules, err)
@@ -43,11 +52,15 @@ func PathHosts(rules []Rule) []string {
 	return hosts
 }
 
-// ValidateRules requires a rule with paths to have an exact hostname or IP and valid path patterns.
+// ValidateRules requires a rule with paths to have an exact hostname or IP and valid path patterns, and refuses an
+// empty but present path list, which would otherwise allow its host whole.
 func ValidateRules(rules []Rule) error {
 	for _, rule := range rules {
-		if len(rule.Paths) == 0 {
+		if rule.Paths == nil {
 			continue
+		}
+		if len(rule.Paths) == 0 {
+			return fmt.Errorf("host %s: paths must not be empty", rule.Host)
 		}
 
 		if !validHost(normalizeHost(rule.Host)) {

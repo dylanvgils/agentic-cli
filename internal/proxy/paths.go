@@ -11,22 +11,37 @@ import (
 const pathBlockedText = "path not allowed by agentic proxy allowlist"
 
 // unsafePathParts are what upstreams may decode or split on differently than the rule check, in a lowercased escaped path:
-// encoded separators and dots, backslashes and ; path parameters.
-var unsafePathParts = []string{"%2f", "%5c", "%2e", "%3b", "\\", ";"}
+// encoded separators, dots and percent signs (so double encoding), backslashes and ; path parameters.
+var unsafePathParts = []string{"%2f", "%5c", "%2e", "%25", "%3b", "\\", ";"}
 
 // checkPaths answers requests whose path entry's host rules don't allow with a 403, logging each; monitor mode logs
-// and forwards them.
+// and forwards them. On a path rule host it drops upgrades other than WebSocket, as an upgraded connection would carry
+// requests the check never sees.
 func (s *Server) checkPaths(next http.Handler, entry Entry) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if blocked, ok := s.pathVerdict(entry, r.URL); !ok {
-			if blocked.Enforced {
-				s.refusePath(w, blocked)
-				return
-			}
-			s.logger.Log(blocked)
+		if !s.passPath(w, entry, r.URL) {
+			return
+		}
+		if s.allow.pathRestricted(entry.Host) {
+			dropUpgrade(r.Header)
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// passPath reports whether a request to u may go on as entry: true when its path is allowed, or in monitor mode after
+// logging the path verdict on its own line, so a later failure of entry doesn't hide it; false once it answered 403.
+func (s *Server) passPath(w http.ResponseWriter, entry Entry, u *url.URL) bool {
+	blocked, ok := s.pathVerdict(entry, u)
+	if ok {
+		return true
+	}
+	if blocked.Enforced {
+		s.refusePath(w, blocked)
+		return false
+	}
+	s.logger.Log(blocked)
+	return true
 }
 
 // refusePath logs entry and answers 403 for a path its host's rules don't allow.
@@ -60,9 +75,14 @@ func (s *Server) markPathBlocked(entry Entry) Entry {
 	return entry
 }
 
-// requestPath returns u's decoded path ("/" when empty), or ok=false when its escaped form holds unsafePathParts or it
-// has dot segments, which a rule could match while the upstream serves another path.
+// requestPath returns u's decoded path ("/" when empty), or ok=false when it is opaque, its escaped form holds
+// unsafePathParts, it decodes to anything but printable ASCII or it has dot segments or segments ending in a dot or
+// space, which a rule could match while the upstream serves another path.
 func requestPath(u *url.URL) (string, bool) {
+	if u.Opaque != "" {
+		return "", false
+	}
+
 	escaped := strings.ToLower(u.EscapedPath())
 	if escaped == "" {
 		return "/", true
@@ -74,10 +94,23 @@ func requestPath(u *url.URL) (string, bool) {
 		return "", false
 	}
 
+	if strings.ContainsFunc(u.Path, func(r rune) bool { return r < ' ' || r > '~' }) {
+		return "", false
+	}
+
 	for segment := range strings.SplitSeq(u.Path, "/") {
-		if segment == "." || segment == ".." {
+		if strings.HasSuffix(segment, ".") || strings.HasSuffix(segment, " ") {
 			return "", false
 		}
 	}
 	return u.Path, true
+}
+
+// dropUpgrade removes a request's protocol upgrade unless it is to WebSocket, whose frames carry no further requests.
+func dropUpgrade(h http.Header) {
+	if strings.EqualFold(strings.TrimSpace(h.Get("Upgrade")), "websocket") {
+		return
+	}
+	h.Del("Upgrade")
+	h.Del("HTTP2-Settings")
 }

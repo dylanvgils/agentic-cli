@@ -28,9 +28,12 @@ func TestLoadRules(t *testing.T) {
 
 	t.Run("refuses malformed or invalid rules", func(t *testing.T) {
 		values := map[string]string{
-			"parse":           `not json`,
-			"invalid host":    `[{"host":"*.example.test","paths":["/a"]}]`,
-			"must start with": `[{"host":"raw.example.test","paths":["a"]}]`,
+			"parse":                   `not json`,
+			"invalid host":            `[{"host":"*.example.test","paths":["/a"]}]`,
+			"must start with":         `[{"host":"raw.example.test","paths":["a"]}]`,
+			"paths must not be empty": `[{"host":"raw.example.test","paths":[]}]`,
+			"unknown field":           `[{"host":"raw.example.test","path":["/a"]}]`,
+			"unexpected data":         `[{"host":"raw.example.test"}] []`,
 		}
 		for want, value := range values {
 			// Act
