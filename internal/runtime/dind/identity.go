@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/platform"
+	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 )
 
 // Subordinate id range for inner containers, far above anything useradd hands out.

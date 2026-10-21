@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/cleanup"
+	"github.com/dylanvgils/agentic-cli/internal/infra/cleanup"
 )
 
 func downloadFile(client *http.Client, url, destPath string) (err error) {

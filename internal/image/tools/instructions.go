@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/platform"
+	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 )
 
 const (

@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/logging"
-	"github.com/dylanvgils/agentic-cli/internal/base/platform"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
+	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 )
 
 // Shell syntaxes for printed commands: POSIX shells, and PowerShell on Windows.

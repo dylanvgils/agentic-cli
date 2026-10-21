@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/cleanup"
+	"github.com/dylanvgils/agentic-cli/internal/infra/cleanup"
 )
 
 const upstreamFetchTimeout = 5 * time.Second

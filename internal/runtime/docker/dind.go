@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/logging"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/dind"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"

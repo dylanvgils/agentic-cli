@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/logging"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 )
 
 const aptCheckScript = `apt-get update -qq >/dev/null 2>&1

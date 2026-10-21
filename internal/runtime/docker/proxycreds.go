@@ -11,7 +11,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/platform"
+	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 	"github.com/dylanvgils/agentic-cli/internal/network/certs"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"

@@ -1,8 +1,8 @@
 package tools
 
 import (
-	"github.com/dylanvgils/agentic-cli/internal/base/buildinfo"
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 )
 
 const (

@@ -3,7 +3,7 @@ package microsandbox
 import (
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/logging"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 )
 
 // CleanImage removes every ref of image's repository from msb's image store, reporting the removed tags in one line.

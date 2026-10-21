@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/cleanup"
+	"github.com/dylanvgils/agentic-cli/internal/infra/cleanup"
 )
 
 func archiveExt() string {

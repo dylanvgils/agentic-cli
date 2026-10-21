@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/logging"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 )
 
 const stateFileName = ".migrations.json"

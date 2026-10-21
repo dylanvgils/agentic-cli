@@ -9,8 +9,8 @@ agentic-cli/
 ├── cmd/
 │   ├── cli/                     # Thin entrypoint for the agentic binary (main.go only)
 │   └── proxy/                   # Thin entrypoint for the agentic-proxy binary (main.go only)
-├── internal/                    # Grouped by layer; a lower layer never imports a higher one (CLAUDE.md, enforced by depguard)
-│   ├── base/                    # Leaf helpers with no domain imports
+├── internal/                    # Grouped by layer; a lower layer never imports a higher one (see CLAUDE.md)
+│   ├── infra/                   # Leaf helpers with no domain imports
 │   │   ├── buildinfo/           # Build-time version/commit metadata and dev-build classification
 │   │   ├── cleanup/             # Capture helper for propagating deferred cleanup errors without masking an earlier error
 │   │   ├── git/                 # Thin wrapper over the host git binary (CheckAvailable, Clone, FetchReset)

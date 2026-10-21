@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/logging"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

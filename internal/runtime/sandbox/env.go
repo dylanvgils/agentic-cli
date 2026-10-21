@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/platform"
+	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 )
 
 // ProxyCAEnvName carries the proxy CA cert PEM into the tool, which agentic sets when proxy credentials are configured.

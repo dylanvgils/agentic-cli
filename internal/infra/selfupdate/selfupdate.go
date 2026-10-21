@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/cleanup"
-	"github.com/dylanvgils/agentic-cli/internal/base/logging"
+	"github.com/dylanvgils/agentic-cli/internal/infra/cleanup"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 )
 
 const (

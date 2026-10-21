@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/buildinfo"
-	"github.com/dylanvgils/agentic-cli/internal/base/cleanup"
-	"github.com/dylanvgils/agentic-cli/internal/base/platform"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/infra/cleanup"
+	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 )
 
 // BuildTool generates a multi-stage Dockerfile for the named tool, builds it, and stamps labels with the detected tool version.

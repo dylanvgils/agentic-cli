@@ -4,8 +4,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/selfupdate"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/selfupdate"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/build"

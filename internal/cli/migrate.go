@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/dylanvgils/agentic-cli/internal/base/logging"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/migrate"
 	"github.com/spf13/cobra"
 )

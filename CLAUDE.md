@@ -12,9 +12,9 @@ make verify-checksums   # pinned install-script checksums (fix-checksums to upda
 
 ## Import boundaries
 
-`depguard` (`.golangci.yml`) enforces these; a new package goes in the layer group of what it imports.
+A new package goes in the layer group of what it imports.
 
-- Layers, lowest first: `internal/base` < `internal/runtime/sandbox` < `internal/config` < `internal/image`, `internal/network` (never each other) < `internal/runtime` < `internal/usecase` < `internal/cli`. A layer never imports a higher one; from `internal/runtime`, `config` and `image` import only `runtime/sandbox`, the contract the runtimes share.
+- Layers, lowest first: `internal/infra` < `internal/runtime/sandbox` < `internal/config` < `internal/image`, `internal/network` (never each other) < `internal/runtime` < `internal/usecase` < `internal/cli`. A layer never imports a higher one; from `internal/runtime`, `config` and `image` import only `runtime/sandbox`, the contract the runtimes share.
 - `agentic-proxy` (`cmd/proxy`) imports only `internal/network/proxy`, never `internal/runtime/docker`, `tools`, `cli` or `logging`.
 - `internal/runtime/dind` (sidecar files) never imports `internal/runtime/docker`; the sidecar's container lifecycle lives in `internal/runtime/docker/dind.go`.
 - `internal/network/certs` imports only the standard library.
@@ -48,7 +48,7 @@ make verify-checksums   # pinned install-script checksums (fix-checksums to upda
 - Comments: short, one line unless more is genuinely needed. Blank lines between logical blocks.
 - Cobra `init()`: `AddCommand`, then the command's own flags, then shared flag helpers.
 - DSL: install steps use `df.Run{Blocks: ...}`, version check scripts `df.Heredoc`. One `df.Block` per logical phase; independent commands get their own block; a multi-line command is several `Lines` in one block; `Chain: true` for `&&`-chained lines. Pipelines need a `pipefail` `df.Shell` first.
-- Output goes through `internal/base/logging`, never `fmt.Fprint*(os.Stdout/Stderr)`. `Step`/`Detail` for items; action commands print one `Infof` summary first (single-object actions only that line), display commands none; during `agentic run` use `Infof`/`Warnf`/`Promptf`. Take a `*logging.Logger`, not a writer (tests pass `logging.New(&buf)`). Exception: dry-run `docker ...` lines stay plain.
+- Output goes through `internal/infra/logging`, never `fmt.Fprint*(os.Stdout/Stderr)`. `Step`/`Detail` for items; action commands print one `Infof` summary first (single-object actions only that line), display commands none; during `agentic run` use `Infof`/`Warnf`/`Promptf`. Take a `*logging.Logger`, not a writer (tests pass `logging.New(&buf)`). Exception: dry-run `docker ...` lines stay plain.
 - A failure that stops the operation is returned, not logged; only the entry points (`cli.Execute`, `cmd/proxy`) print it, once. One the operation survives gets a `Warnf` where it happens and isn't returned.
 - Before adding a helper, grep for one that already computes it and reuse that; no second variant (sorted, filtered) beside it.
 - Loop over a collection once: loops over the same input that each skip what the other handles become one loop with a branch.

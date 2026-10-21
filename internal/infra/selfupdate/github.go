@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/cleanup"
+	"github.com/dylanvgils/agentic-cli/internal/infra/cleanup"
 )
 
 const (

@@ -4,9 +4,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/base/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 )
 
 const (

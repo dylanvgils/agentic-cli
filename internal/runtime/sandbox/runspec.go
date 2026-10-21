@@ -1,6 +1,6 @@
 package sandbox
 
-import "github.com/dylanvgils/agentic-cli/internal/base/platform"
+import "github.com/dylanvgils/agentic-cli/internal/infra/platform"
 
 // RunSpec describes the tool run a user asked for, independent of the runtime that executes it.
 type RunSpec struct {
