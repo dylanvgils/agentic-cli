@@ -61,7 +61,8 @@ A pattern matches the whole path, not the query:
 How the proxy applies them:
 
 - **Decrypted**: the proxy decrypts the host's HTTPS to read each path, with the same CA trust as [credential hosts](credential-injection.md#how-it-works). Tools that pin certificates fail on it.
-- **Refused**: a path no pattern matches gets a 403, logged as `path-blocked` and listed at the end of the run. So does a path with `%2F`, `%5C`, `%2E`, `%3B`, `;`, `\`, or a `.` or `..` segment, which an upstream may read as another path.
+- **Refused**: a path no pattern matches gets a 403, logged as `path-blocked` and listed at the end of the run. So does a path an upstream may read as another path: one with `%2F`, `%5C`, `%2E`, `%25`, `%3B`, `;`, `\`, a character outside printable ASCII, or a segment that is `.`, `..` or ends in a dot or space. This also refuses npm's scoped package paths (`/@scope%2Fname`).
+- **Upgrades**: only WebSocket upgrades reach the host. Others, such as `h2c`, are dropped, as the proxy can't check the requests on an upgraded connection.
 - **Path rules win**: they limit the host even when `allowed_hosts`, a tool's baseline or a wildcard allows it whole. Other hosts the wildcard matches stay whole.
 - **Credential hosts** only get their secret on the allowed paths.
 - **Baseline hosts**: a rule for a host the tool needs, like `api.anthropic.com`, limits the tool too.
