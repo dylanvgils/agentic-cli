@@ -13,6 +13,7 @@ func TestValidatePathPattern(t *testing.T) {
 			"/org/repo/README.md",
 			"/org/repo/",
 			"/org/*/README.md",
+			"/org/a,b",
 			"/org/repo/**",
 			"/**",
 		}
@@ -32,7 +33,6 @@ func TestValidatePathPattern(t *testing.T) {
 			"/org/repo?x=1":   "must not contain",
 			"/org/repo;x":     "must not contain",
 			"/org\\repo":      "must not contain",
-			"/org,/repo":      "must not contain",
 			"/org repo":       "must not contain",
 			"/org/\u202erepo": "non-printable",
 			"/org/../secret":  ". or .. segments",

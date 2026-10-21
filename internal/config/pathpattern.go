@@ -12,9 +12,8 @@ const (
 	restWildcard    = "**" // zero or more segments, last only
 )
 
-// patternForbidden are characters a path pattern can't hold: encodings, queries, separators other servers split on, and
-// the comma the proxy env joins entries with.
-const patternForbidden = "%?#;\\,"
+// patternForbidden are characters a path pattern can't hold: encodings, queries and separators other servers split on.
+const patternForbidden = "%?#;\\"
 
 // ValidatePathPattern checks that pattern is an absolute path of literal segments, "*" or a final "**", with no dot
 // segments, empty inner segments or partial wildcards.
