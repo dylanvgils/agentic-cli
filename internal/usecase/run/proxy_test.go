@@ -9,9 +9,33 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func Test_proxyRules(t *testing.T) {
+	rc := &config.AgenticRC{}
+	rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
+	toolConfig := tools.ToolConfig{Runtime: tools.RuntimeConfig{AllowedHosts: []string{"api.example.test"}}}
+
+	t.Run("a runtime with path rules keeps the paths", func(t *testing.T) {
+		// Act
+		rules := proxyRules(toolConfig, Input{}, rc, sandbox.Capabilities{PathRules: true})
+
+		// Assert
+		assert.Equal(t, []sandbox.AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test", Paths: []string{"/a"}}}, rules)
+	})
+
+	t.Run("a runtime without path rules allows their hosts whole", func(t *testing.T) {
+		// Act
+		rules := proxyRules(toolConfig, Input{}, rc, sandbox.Capabilities{})
+
+		// Assert
+		assert.Equal(t, []sandbox.AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test"}}, rules)
+	})
+}
 
 func Test_proxyRetentionDays(t *testing.T) {
 	t.Run("uses the value configured in agentic.json", func(t *testing.T) {

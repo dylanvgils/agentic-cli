@@ -29,6 +29,7 @@ func TestClient_Capabilities(t *testing.T) {
 		ProxyMonitor:        true,
 		Dind:                true,
 		CredentialInjection: true,
+		PathRules:           true,
 		CredentialsViaProxy: true,
 		SecretMounts:        true,
 		PidsLimit:           true,

@@ -7,7 +7,7 @@ import (
 )
 
 func TestCapabilities_Missing(t *testing.T) {
-	all := Capabilities{Proxy: true, ProxyMonitor: true, Dind: true, CredentialInjection: true, SecretMounts: true, PidsLimit: true}
+	all := Capabilities{Proxy: true, ProxyMonitor: true, Dind: true, CredentialInjection: true, PathRules: true, SecretMounts: true, PidsLimit: true}
 
 	t.Run("lists what the need asks for and c lacks", func(t *testing.T) {
 		// Arrange
@@ -17,7 +17,7 @@ func TestCapabilities_Missing(t *testing.T) {
 		missing := offered.Missing(all)
 
 		// Assert
-		assert.Equal(t, Capabilities{Proxy: true, ProxyMonitor: true, Dind: true, SecretMounts: true, PidsLimit: true}, missing)
+		assert.Equal(t, Capabilities{Proxy: true, ProxyMonitor: true, Dind: true, PathRules: true, SecretMounts: true, PidsLimit: true}, missing)
 	})
 
 	t.Run("nothing is missing for an empty need", func(t *testing.T) {

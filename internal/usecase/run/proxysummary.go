@@ -18,6 +18,7 @@ func printProxySummary(l *logging.Logger, spec sandbox.ProxySpec) {
 
 	fmt.Fprintln(l.Writer())
 	printDenied(l, s, spec.Mode == sandbox.ProxyMonitor)
+	printPaths(l, s.Paths, spec.Mode == sandbox.ProxyMonitor)
 	printRefused(l, s.Refused)
 	printMismatched(l, s.Mismatched, spec.Mode == sandbox.ProxyMonitor)
 	printMissed(l, s.Missed)
@@ -38,6 +39,20 @@ func printDenied(l *logging.Logger, s proxy.Summary, monitor bool) {
 
 	l.Infof("proxy blocked %d request(s) to: %s", s.Denied.Count, hosts)
 	l.Detail("add them to [run.proxy] allowed_hosts (or pass --no-proxy) to permit.")
+}
+
+// printPaths reports paths the path rules blocked, or would have blocked in monitor mode.
+func printPaths(l *logging.Logger, paths proxy.HostCount, monitor bool) {
+	if paths.Count == 0 {
+		return
+	}
+
+	verb := "blocked"
+	if monitor {
+		verb = "would block"
+	}
+	l.Infof("proxy %s %d request(s) to paths no rule allows: %s", verb, paths.Count, strings.Join(paths.Hosts, ", "))
+	l.Detail("add the ones you want to allow to their host's paths in [[run.proxy.allowed_paths]].")
 }
 
 // printRefused reports hosts the address guard refused, which it does in both modes.

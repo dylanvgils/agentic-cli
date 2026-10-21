@@ -10,10 +10,22 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
 // defaultProxyLogRetentionDays is how long proxy access logs are kept when no retention period is configured.
 const defaultProxyLogRetentionDays = 3
+
+// proxyRules resolves the proxy's allow rules, allowing path rule hosts whole on a runtime that can't match paths.
+func proxyRules(toolConfig tools.ToolConfig, in Input, rc *config.AgenticRC, caps sandbox.Capabilities) []sandbox.AllowRule {
+	rules := resolve.ProxyRules(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc)
+	if caps.PathRules {
+		return rules
+	}
+	return sandbox.AllowWhole(rules)
+}
 
 // proxyLogFile returns a new access-log path in the tool home's logs dir when the proxy is enabled, else an empty string.
 func proxyLogFile(toolHome string, proxyEnabled bool) (string, error) {

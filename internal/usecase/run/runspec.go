@@ -65,6 +65,7 @@ type buildRequest struct {
 	in            Input
 	toolConfig    tools.ToolConfig
 	rc            *config.AgenticRC
+	caps          sandbox.Capabilities
 	containerHome string
 }
 
@@ -87,6 +88,7 @@ func (s *Service) build(target Target, in Input, toolConfig tools.ToolConfig, ap
 		in:            in,
 		toolConfig:    toolConfig,
 		rc:            rc,
+		caps:          s.capabilities(in.Runtime),
 		containerHome: s.docker.ResolveContainerHome(target.ImageName),
 	}
 
@@ -109,7 +111,16 @@ func (s *Service) build(target Target, in Input, toolConfig tools.ToolConfig, ap
 	if err != nil {
 		return sandbox.RunSpec{}, err
 	}
-	return newRunSpec(req, mounts, env, logFile), nil
+	rs := newRunSpec(req, mounts, env, logFile)
+
+	// Only a proxy that decrypts, for credentials or path rules, needs the tool to trust its CA
+	spec := specCapabilities(rs)
+	if (spec.CredentialInjection || spec.PathRules) && req.caps.CredentialsViaProxy {
+		if err := s.checkProxyTrust(target); err != nil {
+			return sandbox.RunSpec{}, err
+		}
+	}
+	return rs, nil
 }
 
 // ToolNeedsMarketplaceSync reports whether tool supports marketplace mounting and has at least one marketplace configured.
@@ -149,19 +160,11 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 		return nil, err
 	}
 
-	caps := s.capabilities(in.Runtime)
-	placeholders, err := credentialSetup(in, caps, mounts, env)
+	placeholders, err := credentialSetup(in, req.caps, mounts, env)
 	if err != nil {
 		return nil, err
 	}
 	env = append(env, placeholders...)
-
-	// Only proxy injection needs the tool to trust the proxy CA
-	if len(in.Credentials) > 0 && caps.CredentialsViaProxy {
-		if err := s.checkProxyTrust(req.target); err != nil {
-			return nil, err
-		}
-	}
 
 	// Tells entrypoint.sh exactly which names to register instead of globbing.
 	if len(marketplaceNames) > 0 {
@@ -215,6 +218,8 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string
 	limits := resolve.ResourceLimitsFor(in.Limits, rc)
 	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
 
+	rules := proxyRules(toolConfig, in, rc, req.caps)
+
 	return sandbox.NewRunSpec(req.target.ImageName).
 		WithToolHome(in.ToolHome).
 		WithContainerHome(req.containerHome).
@@ -231,7 +236,7 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string
 		WithCredentials(sandboxCredentials(in.Credentials)...).
 		WithProxy(sandbox.ProxySpec{
 			Mode:    in.ProxyMode,
-			Rules:   resolve.ProxyRules(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc),
+			Rules:   rules,
 			LogFile: proxyLog,
 		}).
 		WithDind(sandbox.DindSpec{Enabled: in.DindEnabled, Limits: dindLimits}).

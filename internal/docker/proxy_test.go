@@ -1,7 +1,9 @@
 package docker
 
 import (
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"os"
@@ -139,6 +141,23 @@ func TestClient_createProxy(t *testing.T) {
 		for _, arg := range createArgs {
 			assert.NotContains(t, arg, "test-secret")
 		}
+	})
+
+	t.Run("path rules add their env, the CA files and an anonymous volume", func(t *testing.T) {
+		// Arrange
+		get := stubProxyDocker(t, client, "true")
+		rules := []sandbox.AllowRule{{Host: "raw.example.test", Paths: []string{"/org/repo/**"}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{Rules: rules, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")}}, network: "agentic-run-abc"}
+
+		// Act
+		_, err := client.createProxy(rs)
+
+		// Assert
+		require.NoError(t, err)
+		createArgs := findCall(get(), "create")
+		assert.Contains(t, createArgs, `--env=AGENTIC_PROXY_RULES=[{"host":"raw.example.test","paths":["/org/repo/**"]}]`)
+		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_CA_DIR="+proxyCredentialsDir)
+		assert.Contains(t, createArgs, "--volume="+proxyRunMountDir)
 	})
 
 	t.Run("without credentials nothing is mounted", func(t *testing.T) {
@@ -423,6 +442,27 @@ func Test_proxyHandle_boot(t *testing.T) {
 		assert.Nil(t, findCall(get(), "network", "connect"))
 	})
 
+	t.Run("path rules without credentials copy a CA scoped to their hosts", func(t *testing.T) {
+		// Arrange
+		stubProxyDocker(t, client, "true")
+		stdin := stubDockerRunWithStdinCapture(t, client, nil)
+		rules := []sandbox.AllowRule{{Host: "raw.example.test", Paths: []string{"/org/repo/**"}}}
+		handle, err := client.newProxyHandle(toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{Rules: rules}}})
+		require.NoError(t, err)
+
+		// Act
+		caPEM, err := handle.boot()
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, stdin(), 1)
+		block, _ := pem.Decode(caPEM)
+		require.NotNil(t, block)
+		cert, err := x509.ParseCertificate(block.Bytes)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"raw.example.test"}, cert.PermittedDNSDomains)
+	})
+
 	t.Run("without credentials nothing is copied", func(t *testing.T) {
 		// Arrange
 		get := stubProxyDocker(t, client, "true")
@@ -531,12 +571,26 @@ func TestSweepProxyResources(t *testing.T) {
 }
 
 func Test_proxyRules(t *testing.T) {
-	// Arrange
-	rules := []sandbox.AllowRule{{Host: "api.example.test"}, {Host: ".example.org"}}
+	t.Run("converts the rules for the proxy", func(t *testing.T) {
+		// Arrange
+		rules := []sandbox.AllowRule{{Host: "raw.example.test", Paths: []string{"/org/repo/**"}}}
 
-	// Act
-	converted := proxyRules(rules)
+		// Act
+		converted, err := proxyRules(rules)
 
-	// Assert
-	assert.Equal(t, []proxy.Rule{{Host: "api.example.test"}, {Host: ".example.org"}}, converted)
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []proxy.Rule{{Host: "raw.example.test", Paths: []string{"/org/repo/**"}}}, converted)
+	})
+
+	t.Run("an invalid rule is an error", func(t *testing.T) {
+		// Arrange
+		rules := []sandbox.AllowRule{{Host: "raw.example.test", Paths: []string{"/org/../repo"}}}
+
+		// Act
+		_, err := proxyRules(rules)
+
+		// Assert
+		assert.ErrorContains(t, err, "proxy allow rules")
+	})
 }

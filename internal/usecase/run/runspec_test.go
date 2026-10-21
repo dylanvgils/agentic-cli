@@ -233,8 +233,57 @@ func Test_Service_build(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, sandbox.ProxyEnforce, rs.Proxy.Mode)
-		assert.Equal(t, []string{".anthropic.com", ".claude.ai", ".claude.com", "extra.example.com"}, rs.Proxy.Hosts())
+		assert.Equal(t, []string{".anthropic.com", ".claude.ai", ".claude.com", "extra.example.com"}, rs.Proxy.WholeHosts())
 		assert.NotEmpty(t, rs.Proxy.LogFile)
+	})
+
+	t.Run("proxy gets path rules after the hosts allowed whole", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyEnforce}
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
+			{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
+		}}}}
+
+		// Act
+		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, sandbox.AllowRule{Host: "raw.example.test", Paths: []string{"/org/repo/**"}}, rs.Proxy.Rules[len(rs.Proxy.Rules)-1])
+	})
+
+	t.Run("path rules refuse an image that can't trust the proxy CA", func(t *testing.T) {
+		// Arrange
+		untrusted := &fakeDocker{inspectImage: func(string) (*docker.ImageInfo, error) { return &docker.ImageInfo{}, nil }}
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyEnforce}
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
+			{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
+		}}}}
+
+		// Act
+		_, err := New(untrusted, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
+
+		// Assert
+		assert.ErrorContains(t, err, "can't trust the proxy CA")
+	})
+
+	t.Run("path rules limit a host the tool's baseline allows whole", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyEnforce}
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
+			{Host: "api.anthropic.com", Paths: []string{"/v1/**"}},
+		}}}}
+
+		// Act
+		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, rs.Proxy.Rules, sandbox.AllowRule{Host: "api.anthropic.com", Paths: []string{"/v1/**"}})
+		assert.Contains(t, rs.Proxy.WholeHosts(), ".anthropic.com", "the proxy lets the path rules win over the wildcard")
 	})
 
 	t.Run("proxy off leaves spec unproxied", func(t *testing.T) {
@@ -306,6 +355,23 @@ func Test_Service_build(t *testing.T) {
 		}, rs.Credentials)
 	})
 
+	t.Run("microsandbox allows path rule hosts whole", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir(), Runtime: sandbox.RuntimeMicrosandbox, ProxyMode: sandbox.ProxyEnforce}
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
+			{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
+		}}}}
+
+		// Act
+		rs, err := New(&fakeDocker{}, &fakeMicrosandbox{}).build(target, in, tools.Configs["claude"], approvedRC(rc))
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, rs.Proxy.HasPathRules())
+		assert.Contains(t, rs.Proxy.WholeHosts(), "raw.example.test")
+	})
+
 	t.Run("proxy credentials refused on an image without proxy trust", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{
@@ -352,7 +418,7 @@ func Test_Service_build(t *testing.T) {
 		// Assert - agentic-net is skipped since the tool joins a per-run network
 		require.NoError(t, err)
 		assert.True(t, rs.Dind.Enabled)
-		assert.Contains(t, rs.Proxy.Hosts(), "registry-1.docker.io")
+		assert.Contains(t, rs.Proxy.WholeHosts(), "registry-1.docker.io")
 	})
 
 	t.Run("dind rejects env overriding the docker host", func(t *testing.T) {

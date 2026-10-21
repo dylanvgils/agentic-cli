@@ -14,10 +14,11 @@ import (
 )
 
 // checkProxyTrust makes sure the tool can trust the proxy CA its entrypoint adds: it warns when the entrypoint is
-// skipped and refuses an image whose entrypoint predates it, since TLS to credential hosts would fail either way.
+// skipped and refuses an image whose entrypoint predates it, since TLS to the hosts the proxy decrypts would fail either
+// way.
 func (s *Service) checkProxyTrust(target Target) error {
 	if target.SkipEntrypoint {
-		logging.Warnf("skipping the entrypoint: TLS to proxy credential hosts will fail, as the proxy CA is not trusted")
+		logging.Warnf("skipping the entrypoint: TLS to proxy credential and path rule hosts will fail, as the proxy CA is not trusted")
 		return nil
 	}
 
@@ -28,7 +29,7 @@ func (s *Service) checkProxyTrust(target Target) error {
 	if info == nil || info.ProxyTrust {
 		return nil
 	}
-	return fmt.Errorf("%s can't trust the proxy CA, so TLS to credential hosts would fail; rebuild it with \"agentic update %s\"", target.ImageName, target.ToolName)
+	return fmt.Errorf("%s can't trust the proxy CA, so TLS to credential and path rule hosts would fail; rebuild it with \"agentic update %s\"", target.ImageName, target.ToolName)
 }
 
 // gitConfigEnvPrefix starts the env vars git reads config from, which the git credential helper is set through.

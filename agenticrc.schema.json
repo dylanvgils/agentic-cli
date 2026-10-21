@@ -137,6 +137,28 @@
               "items": { "type": "string" },
               "description": "Extra hosts to permit, merged on top of the tool's baseline. Exact match, or a leading-dot / *. entry to match a domain and all its subdomains."
             },
+            "allowed_paths": {
+              "type": "array",
+              "description": "Hosts to permit only on some paths; the proxy decrypts their HTTPS to check each request. Limits a host even when allowed_hosts, a credential or the tool's baseline allows it whole. Accumulates across RC layers.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["host", "paths"],
+                "properties": {
+                  "host": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Exact hostname or IP, no wildcards, port or path."
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": { "type": "string", "pattern": "^/" },
+                    "minItems": 1,
+                    "description": "Path patterns starting with /: literal segments match exactly, * one segment, a final ** everything below."
+                  }
+                }
+              }
+            },
             "credentials": {
               "type": "array",
               "description": "Beta. Secrets swapped in for a placeholder the tool sends in a header on HTTPS requests to their hosts; the container only sees the placeholder. Turns the proxy on. Accumulates across RC layers.",

@@ -267,13 +267,62 @@ func TestProxyAllowList(t *testing.T) {
 }
 
 func TestProxyRules(t *testing.T) {
+	t.Run("allows merged hosts whole, then the path rules", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.AllowedHosts = []string{"extra.example.test"}
+		rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a/**"}}}
+
+		// Act
+		rules := ProxyRules([]string{"api.example.test"}, false, rc)
+
+		// Assert
+		assert.Equal(t, []sandbox.AllowRule{
+			{Host: "api.example.test"},
+			{Host: "extra.example.test"},
+			{Host: "raw.example.test", Paths: []string{"/a/**"}},
+		}, rules)
+	})
+
+	t.Run("path rules replace a host otherwise allowed whole", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.AllowedHosts = []string{"Exact.Example.Test", ".wild.example.test"}
+		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test", "upload.example.test"}, Header: "Authorization", Secret: "/example/token"}}
+		rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{
+			{Host: "exact.example.test", Paths: []string{"/a"}},
+			{Host: "raw.wild.example.test", Paths: []string{"/a"}},
+			{Host: "api.example.test", Paths: []string{"/repos/org/**"}},
+		}
+
+		// Act
+		rules := ProxyRules(nil, false, rc)
+
+		// Assert
+		assert.Equal(t, []sandbox.AllowRule{
+			{Host: ".wild.example.test"},
+			{Host: "upload.example.test"},
+			{Host: "exact.example.test", Paths: []string{"/a"}},
+			{Host: "raw.wild.example.test", Paths: []string{"/a"}},
+			{Host: "api.example.test", Paths: []string{"/repos/org/**"}},
+		}, rules)
+	})
+}
+
+func Test_mergePathRules(t *testing.T) {
 	// Arrange
-	rc := &config.AgenticRC{}
-	rc.Run.Proxy.AllowedHosts = []string{"extra.example.test"}
+	rules := []config.RCAllowedPath{
+		{Host: "raw.example.test", Paths: []string{"/a/**"}},
+		{Host: "other.example.test", Paths: []string{"/b"}},
+		{Host: "Raw.Example.Test.", Paths: []string{"/a/**", "/c"}},
+	}
 
 	// Act
-	rules := ProxyRules([]string{"api.example.test"}, false, rc)
+	merged := mergePathRules(rules)
 
 	// Assert
-	assert.Equal(t, []sandbox.AllowRule{{Host: "api.example.test"}, {Host: "extra.example.test"}}, rules)
+	assert.Equal(t, []sandbox.AllowRule{
+		{Host: "raw.example.test", Paths: []string{"/a/**", "/c"}},
+		{Host: "other.example.test", Paths: []string{"/b"}},
+	}, merged)
 }

@@ -3,6 +3,7 @@ package resolve
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/credentials"
@@ -61,13 +62,18 @@ func ProxyAllowList(toolAllowedHosts []string, dindEnabled bool, rc *config.Agen
 	})
 }
 
-// ProxyRules returns the proxy's allow rules, one per host ProxyAllowList merges.
+// ProxyRules returns the hosts ProxyAllowList merges, allowed whole unless path rules name them, then rc's path rules.
+// Path rules also limit a host a wildcard allows, as the proxy lets them win.
 func ProxyRules(toolAllowedHosts []string, dindEnabled bool, rc *config.AgenticRC) []sandbox.AllowRule {
+	pathRules := mergePathRules(rc.Run.Proxy.AllowedPaths)
+
 	var rules []sandbox.AllowRule
 	for _, host := range ProxyAllowList(toolAllowedHosts, dindEnabled, rc) {
-		rules = append(rules, sandbox.AllowRule{Host: host})
+		if ruleIndex(pathRules, normalizeHost(host)) < 0 {
+			rules = append(rules, sandbox.AllowRule{Host: host})
+		}
 	}
-	return rules
+	return append(rules, pathRules...)
 }
 
 // RequestedProxyMode applies flags, then config, ignoring credentials. --no-proxy/enabled=false always wins; monitor implies enabled.
@@ -94,4 +100,34 @@ func RequestedProxyMode(in ProxyInput, rc *config.AgenticRC) sandbox.ProxyMode {
 	}
 
 	return sandbox.ProxyOff
+}
+
+// mergePathRules merges rules per normalized host in first-seen order, without duplicate paths.
+func mergePathRules(rules []config.RCAllowedPath) []sandbox.AllowRule {
+	var merged []sandbox.AllowRule
+	for _, rule := range rules {
+		host := normalizeHost(rule.Host)
+		i := ruleIndex(merged, host)
+		if i < 0 {
+			i = len(merged)
+			merged = append(merged, sandbox.AllowRule{Host: host})
+		}
+
+		for _, path := range rule.Paths {
+			if !slices.Contains(merged[i].Paths, path) {
+				merged[i].Paths = append(merged[i].Paths, path)
+			}
+		}
+	}
+	return merged
+}
+
+// ruleIndex returns the index of host's rule in rules, or -1.
+func ruleIndex(rules []sandbox.AllowRule, host string) int {
+	return slices.IndexFunc(rules, func(rule sandbox.AllowRule) bool { return rule.Host == host })
+}
+
+// normalizeHost lower-cases host and drops a trailing root dot, as the proxy compares hosts.
+func normalizeHost(host string) string {
+	return strings.ToLower(strings.TrimSuffix(host, "."))
 }

@@ -249,9 +249,14 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 		b.WriteString("- All traffic goes through an egress proxy.\n")
 	}
 
+	rules := proxyRules(toolConfig, in, rc, caps)
 	fmt.Fprintf(b, "- Only these hosts are reachable, and only on ports %s (HTTP and HTTPS):\n", strings.Join(proxy.DefaultPorts, " and "))
-	for _, host := range resolve.ProxyAllowList(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc) {
-		fmt.Fprintf(b, "  - %s\n", host)
+	for _, rule := range rules {
+		if len(rule.Paths) == 0 {
+			fmt.Fprintf(b, "  - %s\n", rule.Host)
+			continue
+		}
+		fmt.Fprintf(b, "  - %s, only paths matching %s (`*` is one path segment, `**` the rest)\n", rule.Host, strings.Join(rule.Paths, ", "))
 	}
 
 	b.WriteString("- Everything else is blocked: other hosts, other ports and SSH, git over SSH included. ")
@@ -268,7 +273,11 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 	}
 
 	b.WriteString("- A blocked host is blocked for every tool. Don't retry it another way (curl, another fetch tool, a mirror).\n")
-	b.WriteString("- If a task needs a blocked host, tell the user which host and why, so they can add it to allowed_hosts in .agenticrc.toml and rerun.\n\n")
+	b.WriteString("- If a task needs a blocked host, tell the user which host and why, so they can add it to allowed_hosts in .agenticrc.toml and rerun.\n")
+	if (sandbox.ProxySpec{Rules: rules}).HasPathRules() {
+		b.WriteString("- Other paths on a host limited to some paths get HTTP 403 too; tell the user which path and why, so they can add it to allowed_paths.\n")
+	}
+	b.WriteString("\n")
 }
 
 // writeDockerSection is only written when the Docker daemon is enabled; a runtime without one only warns there's no daemon.
