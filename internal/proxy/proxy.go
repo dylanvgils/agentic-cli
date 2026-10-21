@@ -65,7 +65,7 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A plain tunnel hides the path, so a path rule host only passes one in monitor mode, logged on its own line
+	// A plain tunnel hides the path, so a path rule host only passes one in monitor mode
 	if s.allow.pathRestricted(host) {
 		blocked := s.markPathBlocked(entry)
 		if blocked.Enforced {

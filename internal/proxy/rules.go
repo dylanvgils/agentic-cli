@@ -18,8 +18,7 @@ type Rule struct {
 	Paths []string `json:"paths,omitempty"`
 }
 
-// LoadRules parses the JSON rule list in value, empty meaning none, and validates it; unknown fields are refused, so a
-// misspelled paths can't allow its host whole.
+// LoadRules parses and validates the JSON rule list in value, empty meaning none, refusing unknown fields.
 func LoadRules(value string) ([]Rule, error) {
 	if value == "" {
 		return nil, nil
@@ -52,8 +51,7 @@ func PathHosts(rules []Rule) []string {
 	return hosts
 }
 
-// ValidateRules requires a rule with paths to have an exact hostname or IP and valid path patterns, and refuses an
-// empty but present path list, which would otherwise allow its host whole.
+// ValidateRules requires a rule with paths to have an exact hostname or IP and a non-empty list of valid patterns.
 func ValidateRules(rules []Rule) error {
 	for _, rule := range rules {
 		if rule.Paths == nil {

@@ -92,7 +92,7 @@ func (e Entry) missedPlaceholder() bool {
 }
 
 // repeatsAttempt reports whether e was logged from inside an intercepted tunnel, such as a failed request or a missed
-// placeholder, after the tunnel's own entry, or is a monitor mode path verdict logged before its request's own entry.
+// placeholder, after the tunnel's own entry, or is a monitor mode path verdict.
 func (e Entry) repeatsAttempt() bool {
 	return (e.Intercepted && e.Reason != "") || (e.blockedPath() && !e.Enforced)
 }
