@@ -47,6 +47,10 @@ make verify-checksums   # pinned install-script checksums (fix-checksums to upda
 - Cobra `init()`: `AddCommand`, then the command's own flags, then shared flag helpers.
 - DSL: install steps use `df.Run{Blocks: ...}`, version check scripts `df.Heredoc`. One `df.Block` per logical phase; independent commands get their own block; a multi-line command is several `Lines` in one block; `Chain: true` for `&&`-chained lines. Pipelines need a `pipefail` `df.Shell` first.
 - Output goes through `internal/logging`, never `fmt.Fprint*(os.Stdout/Stderr)`. `Step`/`Detail` for items; action commands print one `Infof` summary first (single-object actions only that line), display commands none; during `agentic run` use `Infof`/`Warnf`/`Promptf`. Take a `*logging.Logger`, not a writer (tests pass `logging.New(&buf)`). Exception: dry-run `docker ...` lines stay plain.
+- A failure that stops the operation is returned, not logged; only the entry points (`cli.Execute`, `cmd/proxy`) print it, once. One the operation survives gets a `Warnf` where it happens and isn't returned.
+- Before adding a helper, grep for one that already computes it and reuse that; no second variant (sorted, filtered) beside it.
+- Loop over a collection once: loops over the same input that each skip what the other handles become one loop with a branch.
+- When a format changes (e.g. a comma list becomes JSON), drop the checks and comments that only guarded the old one.
 - Ignored `Close`-style errors: `//nolint:errcheck` in tests, `defer func() { _ = x.Close() }()` elsewhere.
 - Run `make lint` and `shellcheck` (fix, or disable inline with a reason) before committing.
 - Use `-`, never em or en dashes, in all files.
