@@ -18,6 +18,9 @@ mounts = [
   "go-cache:$CONTAINER_HOME/.cache/go-build",
   "golangci-lint-cache:$CONTAINER_HOME/.cache/golangci-lint",
 ]
+env = [
+  "DISABLE_TELEMETRY=1", # no Claude Code metrics or feature flags
+]
 
 [run.dind]
 enabled = true
