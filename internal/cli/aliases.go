@@ -13,8 +13,8 @@ import (
 
 var aliasesCmd = &cobra.Command{
 	Use:   "aliases",
-	Short: "Print shell alias definitions for installed tools",
-	Long:  "Print shell alias definitions for installed tools.\nSource the output to activate aliases: source <(agentic aliases)",
+	Short: "Print shell alias definitions for installed tools and agt",
+	Long:  "Print shell alias definitions for installed tools, plus agt as shorthand for agentic.\nSource the output to activate aliases: source <(agentic aliases)",
 	RunE:  runAliases,
 }
 
@@ -26,6 +26,7 @@ func runAliases(_ *cobra.Command, _ []string) error {
 	shell := detectShell(runtime.GOOS)
 	fmt.Println(preambleFor(shell))
 	fmt.Println(reloadLineFor(shell))
+	fmt.Println(shortAliasFor(shell))
 
 	if dockerClient.CheckDaemon() != nil {
 		return nil
@@ -103,5 +104,21 @@ func reloadLineFor(shell string) string {
 		return "function agentic-reload { agentic aliases | Out-String | Invoke-Expression }"
 	default:
 		return "alias agentic-reload='source <(agentic aliases)'"
+	}
+}
+
+// shortAliasFor defines agt as agentic, reusing agentic's completion if it's loaded.
+func shortAliasFor(shell string) string {
+	switch shell {
+	case "fish":
+		return "function agt --wraps agentic; agentic $argv; end"
+	case "powershell":
+		return "Set-Alias agt agentic\n" +
+			"if ($__agenticCompleterBlock) { Register-ArgumentCompleter -Native -CommandName agt -ScriptBlock $__agenticCompleterBlock }"
+	case "zsh":
+		return "alias agt=agentic"
+	default:
+		return "alias agt=agentic\n" +
+			`c=$(complete -p agentic 2>/dev/null) && eval "${c% agentic} agt"`
 	}
 }

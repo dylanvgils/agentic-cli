@@ -47,7 +47,7 @@ agentic build claude --base node,java # or with extra runtimes
 agentic run claude                    # run it in the current directory, then trust it and sign in
 ```
 
-To run tools directly (`claude` instead of `agentic run claude`), add aliases to your shell config:
+To run tools directly (`claude` instead of `agentic run claude`) and get `agt` as shorthand for `agentic`, add aliases to your shell config:
 
 ```bash
 source <(agentic aliases)   # bash/zsh
