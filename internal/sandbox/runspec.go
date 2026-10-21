@@ -13,6 +13,7 @@ type RunSpec struct {
 	Secrets        []string
 	Env            []string
 	SkipEntrypoint bool
+	ToolArgs       []string // passed to the entrypoint, or run as the command when it's skipped
 	EphemeralDirs  []EphemeralDir
 	Limits         ResourceLimits
 	DryRun         bool
@@ -41,6 +42,7 @@ type RunSpecBuilder struct {
 	secrets        []string
 	env            []string
 	skipEntrypoint bool
+	toolArgs       []string
 	ephemeralDirs  []EphemeralDir
 	limits         ResourceLimits
 	dryRun         bool
@@ -102,6 +104,12 @@ func (b *RunSpecBuilder) WithSkipEntrypoint(skip bool) *RunSpecBuilder {
 	return b
 }
 
+// WithToolArgs appends args for the tool, or the command to run when the entrypoint is skipped.
+func (b *RunSpecBuilder) WithToolArgs(args ...string) *RunSpecBuilder {
+	b.toolArgs = append(b.toolArgs, args...)
+	return b
+}
+
 // WithEphemeralDirs appends dirs the tool may write that are emptied when the run exits.
 func (b *RunSpecBuilder) WithEphemeralDirs(dirs ...EphemeralDir) *RunSpecBuilder {
 	b.ephemeralDirs = append(b.ephemeralDirs, dirs...)
@@ -150,6 +158,7 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		Secrets:        b.secrets,
 		Env:            b.env,
 		SkipEntrypoint: b.skipEntrypoint,
+		ToolArgs:       b.toolArgs,
 		EphemeralDirs:  b.ephemeralDirs,
 		Limits:         b.limits,
 		DryRun:         b.dryRun,

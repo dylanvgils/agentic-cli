@@ -144,9 +144,9 @@ func stubDockerRunCapture(t *testing.T, client *Client, failSubcmds ...string) f
 	return func() []dockerCall { return calls }
 }
 
-// startAndRunTool starts rs's sidecars, runs its tool with toolArgs and stops the sidecars, as the run usecase does; rs
+// startAndRunTool starts rs's sidecars, runs its tool and stops the sidecars, as the run usecase does; rs
 // gets testUser unless it sets one, as every real run has a host user.
-func startAndRunTool(client *Client, rs sandbox.RunSpec, toolArgs []string) error {
+func startAndRunTool(client *Client, rs sandbox.RunSpec) error {
 	if rs.User == nil {
 		rs.User = &testUser
 	}
@@ -157,7 +157,7 @@ func startAndRunTool(client *Client, rs sandbox.RunSpec, toolArgs []string) erro
 	}
 	defer client.StopSidecars(sidecars)
 
-	return client.RunTool(sidecars, toolArgs)
+	return client.RunTool(sidecars)
 }
 
 // stubRunInteractive replaces client.runInteractive with a mock that records the args of the most recent call.

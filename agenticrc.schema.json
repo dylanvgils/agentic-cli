@@ -89,6 +89,14 @@
           "items": { "type": "string" },
           "description": "Environment variables to set in the container. Format: KEY=VALUE, or bare KEY to forward the host's current value."
         },
+        "args": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "description": "Extra args per tool name, passed before the args given after the tool name on the command line. Skipped with `agentic run <tool> -- <cmd>`."
+        },
         "runtime": {
           "type": "string",
           "enum": ["docker", "microsandbox"],

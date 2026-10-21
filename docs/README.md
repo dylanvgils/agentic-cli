@@ -13,6 +13,6 @@
 11. [Credential injection](credential-injection.md) - API keys swapped in by the proxy, so the agent only sees a placeholder
 12. [Docker-in-Docker](docker-in-docker.md) - the rootless Docker sidecar: usage, isolation, trade-offs
 13. [Microsandbox runtime](microsandbox.md) - running a tool in a microVM instead of a container: requirements, differences, Docker in the VM
-14. [Recipes](recipes.md) - Java build tools, Maven through the proxy, per-project images, devcontainers
+14. [Recipes](recipes.md) - Java build tools, Maven through the proxy, per-project images, Copilot without telemetry
 15. [Dockerfile DSL](dockerfile-dsl.md) - the typed Go DSL used to generate Dockerfiles at build time
 16. [Development](development.md) - build commands, repo layout, sidecar images, releasing

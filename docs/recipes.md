@@ -89,18 +89,14 @@ java = "17"
 
 `agentic build claude` then creates `java-app-claude` and leaves `agentic-claude` untouched.
 
-## Devcontainers
+## Copilot without telemetry
 
-Add Node.js and the devcontainer CLI, enable [DinD](docker-in-docker.md), then run `devcontainer up --workspace-folder /workspace` from inside the tool:
+Copilot CLI 1.0.100 and later skip their telemetry uploads with `--disable-client-telemetry`. Pass it on every run with [`[run.args]`](config.md#runargs):
 
 ```toml
-[build]
-bases = ["node", "docker"]
-
-[[build.custom_installs]]
-name = "devcontainer-cli"
-run = ["npm install -g --prefix /usr/local @devcontainers/cli"]
-
-[run.dind]
-enabled = true
+# .agenticrc.toml
+[run.args]
+copilot = ["--disable-client-telemetry"]
 ```
+
+Run `agentic update copilot` first if your image has an older Copilot.

@@ -51,7 +51,7 @@ func (r microsandboxRunner) Check(req Request) error {
 // Run runs rs's image in microsandbox, loading it from Docker first unless msb already holds this exact image and checking
 // the mounts again after the load; with dind it runs the image's dockerd image, built first when needed. A dry run only
 // prints the msb command.
-func (r microsandboxRunner) Run(_ Request, rs sandbox.RunSpec, toolArgs []string) error {
+func (r microsandboxRunner) Run(_ Request, rs sandbox.RunSpec) error {
 	image := rs.Image
 	if rs.Dind.Enabled {
 		image = tools.DockerdImage(rs.Image)
@@ -78,7 +78,7 @@ func (r microsandboxRunner) Run(_ Request, rs sandbox.RunSpec, toolArgs []string
 	}
 
 	rs.Image = ref
-	return r.microsandbox.Run(rs, toolArgs)
+	return r.microsandbox.Run(rs)
 }
 
 // microsandboxRef returns image tagged with its Docker image ID, which pins a run to this exact image; a dry run names a

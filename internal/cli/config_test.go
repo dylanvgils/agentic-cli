@@ -118,6 +118,7 @@ func Test_printProjectConfig(t *testing.T) {
     mounts: (none)
     secrets: (none)
     env: (none)
+    args: (none)
     check_updates: true  (default)
 
   [run.instructions]
@@ -462,6 +463,20 @@ func Test_envKeys(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, []string{"TOKEN", "HOME_DIR"}, result)
+}
+
+func Test_toolArgs(t *testing.T) {
+	// Arrange
+	rc := &config.AgenticRC{Run: config.RCRun{Args: map[string][]string{
+		"copilot": {"--disable-client-telemetry", "--example"},
+		"claude":  {"--verbose"},
+	}}}
+
+	// Act
+	result := toolArgs(rc)
+
+	// Assert
+	assert.Equal(t, []string{"claude: --verbose", "copilot: --disable-client-telemetry --example"}, result)
 }
 
 func Test_credentialNames(t *testing.T) {

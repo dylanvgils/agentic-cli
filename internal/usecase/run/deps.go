@@ -23,7 +23,7 @@ type Docker interface {
 	SaveImage(image string, w io.Writer) error
 	BuildDockerdImage(image string, parent *docker.ImageInfo) error
 	StartSidecars(rs sandbox.RunSpec) (docker.Sidecars, error)
-	RunTool(sidecars docker.Sidecars, toolArgs []string) error
+	RunTool(sidecars docker.Sidecars) error
 	StopSidecars(sidecars docker.Sidecars)
 	Capabilities() sandbox.Capabilities
 	ServerVersion() (engine, version string, err error)
@@ -37,7 +37,7 @@ type Microsandbox interface {
 	LoadImage(r io.Reader, tag string) error
 	ImageRefs() ([]string, error)
 	RemoveImage(ref string) error
-	Run(rs sandbox.RunSpec, toolArgs []string) error
+	Run(rs sandbox.RunSpec) error
 }
 
 // Prompter asks the user to approve what a run needs; a nil error means approved.

@@ -13,12 +13,12 @@ type runner interface {
 	// Check refuses a run the runtime can't do for its own reasons, before any prompt.
 	Check(req Request) error
 	// Run readies the runtime's host resources for rs, then runs it.
-	Run(req Request, rs sandbox.RunSpec, toolArgs []string) error
+	Run(req Request, rs sandbox.RunSpec) error
 }
 
-// Run executes rs with toolArgs on req's runtime, which first readies its own host resources.
+// Run executes rs on req's runtime, which first readies its own host resources.
 // Every runtime gets rs's security checks here, even one whose runner skips its own.
-func (s *Service) Run(req Request, rs sandbox.RunSpec, toolArgs []string) error {
+func (s *Service) Run(req Request, rs sandbox.RunSpec) error {
 	r, err := s.runner(req.runtime())
 	if err != nil {
 		return err
@@ -30,7 +30,7 @@ func (s *Service) Run(req Request, rs sandbox.RunSpec, toolArgs []string) error 
 	if err := recheckMounts(rs); err != nil {
 		return err
 	}
-	return r.Run(req, rs, toolArgs)
+	return r.Run(req, rs)
 }
 
 // runner returns the runner for runtime; an empty runtime is Docker.

@@ -66,7 +66,7 @@ func TestClient_RunTool(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude"}
 
 		// Act
-		err := startAndRunTool(client, rs, nil)
+		err := startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestClient_RunTool(t *testing.T) {
 
 	t.Run("names the tool container after its image", func(t *testing.T) {
 		// Act
-		err := startAndRunTool(client, sandbox.RunSpec{Image: "agentic-claude"}, nil)
+		err := startAndRunTool(client, sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Assert
 		require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err := startAndRunTool(client, rs, nil)
+		err := startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestClient_RunTool(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
 
 		// Act
-		err := startAndRunTool(client, rs, nil)
+		err := startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err := startAndRunTool(client, rs, nil)
+		err := startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err := startAndRunTool(client, rs, nil)
+		err := startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err := startAndRunTool(client, rs, nil)
+		err := startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -186,10 +186,10 @@ func TestClient_RunTool(t *testing.T) {
 
 	t.Run("image and tool args", func(t *testing.T) {
 		// Arrange
-		rs := sandbox.RunSpec{Image: "agentic-claude"}
+		rs := sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"--resume"}}
 
 		// Act
-		err := startAndRunTool(client, rs, []string{"--resume"})
+		err := startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -208,7 +208,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err := startAndRunTool(client, rs, nil)
+		err := startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -224,7 +224,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err := startAndRunTool(client, rs, nil)
+		err := startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -241,7 +241,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err := startAndRunTool(client, rs, nil)
+		err := startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -259,7 +259,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err = startAndRunTool(client, rs, nil)
+		err = startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -277,7 +277,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err = startAndRunTool(client, rs, nil)
+		err = startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -295,7 +295,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err = startAndRunTool(client, rs, nil)
+		err = startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -310,7 +310,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err := startAndRunTool(client, rs, nil)
+		err := startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -326,7 +326,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err := startAndRunTool(client, rs, nil)
+		err := startAndRunTool(client, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -341,7 +341,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act + Assert
-		assert.ErrorContains(t, startAndRunTool(client, rs, nil), "empty target path")
+		assert.ErrorContains(t, startAndRunTool(client, rs), "empty target path")
 	})
 
 	t.Run("secrets invalid format", func(t *testing.T) {
@@ -352,7 +352,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act + Assert
-		assert.ErrorContains(t, startAndRunTool(client, rs, nil), "invalid secret")
+		assert.ErrorContains(t, startAndRunTool(client, rs), "invalid secret")
 	})
 }
 

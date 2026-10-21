@@ -36,6 +36,19 @@ func Env(flags []string, rc *config.AgenticRC) []string {
 	return env
 }
 
+// ToolArgs merges tool's .agenticrc.toml args with the command line's, rc first; a run skipping the entrypoint gets only
+// the command line's, as those are a command rather than tool flags.
+func ToolArgs(tool string, cliArgs []string, skipEntrypoint bool, rc *config.AgenticRC) []string {
+	if skipEntrypoint {
+		return cliArgs
+	}
+
+	args := append([]string{}, rc.Run.Args[tool]...)
+	args = append(args, cliArgs...)
+
+	return args
+}
+
 // ResourceLimitsFor resolves each limit through flag, then rc, then hardcoded default.
 func ResourceLimitsFor(flags sandbox.ResourceLimits, rc *config.AgenticRC) sandbox.ResourceLimits {
 	return flags.Or(sandbox.ResourceLimits(rc.Run.RCLimits)).Or(sandbox.DefaultLimits)

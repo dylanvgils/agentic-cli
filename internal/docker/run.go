@@ -53,9 +53,9 @@ func (c *Client) StartSidecars(spec sandbox.RunSpec) (Sidecars, error) {
 	return Sidecars{run: rs, args: args, cleanup: cleanup}, nil
 }
 
-// RunTool runs the tool container of sc's run with toolArgs; a dry run only prints it.
-func (c *Client) RunTool(sc Sidecars, toolArgs []string) error {
-	args, err := buildRunArgs(sc.run, sc.args, toolArgs)
+// RunTool runs the tool container of sc's run; a dry run only prints it.
+func (c *Client) RunTool(sc Sidecars) error {
+	args, err := buildRunArgs(sc.run, sc.args)
 	if err != nil {
 		return err
 	}

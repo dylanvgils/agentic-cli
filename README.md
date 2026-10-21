@@ -97,5 +97,5 @@ See [Leftover risk](docs/security-model.md#leftover-risk) for the full list.
 - [Credential injection](docs/credential-injection.md) - API keys the agent never sees
 - [Docker-in-Docker](docs/docker-in-docker.md) - a Docker daemon for the tool, never the host's
 - [Microsandbox runtime](docs/microsandbox.md) - running a tool in a microVM instead of a container
-- [Recipes](docs/recipes.md) - Java, Maven through the proxy, per-project images, devcontainers
+- [Recipes](docs/recipes.md) - Java, Maven through the proxy, per-project images, Copilot without telemetry
 - [Development](docs/development.md) - contributing, conventions, releasing

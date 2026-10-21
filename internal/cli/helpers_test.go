@@ -34,7 +34,7 @@ type fakeDocker struct {
 	pruneDangling         func() error
 	resolveContainerHome  func(string) string
 	startSidecars         func(rs sandbox.RunSpec) (docker.Sidecars, error)
-	runTool               func(sidecars docker.Sidecars, toolArgs []string) error
+	runTool               func(sidecars docker.Sidecars) error
 	stopSidecars          func(sidecars docker.Sidecars)
 	saveImage             func(image string, w io.Writer) error
 	buildDockerdImage     func(image string, parent *docker.ImageInfo) error
@@ -164,11 +164,11 @@ func (f *fakeDocker) StartSidecars(rs sandbox.RunSpec) (docker.Sidecars, error) 
 	return f.startSidecars(rs)
 }
 
-func (f *fakeDocker) RunTool(sidecars docker.Sidecars, toolArgs []string) error {
+func (f *fakeDocker) RunTool(sidecars docker.Sidecars) error {
 	if f.runTool == nil {
 		return nil
 	}
-	return f.runTool(sidecars, toolArgs)
+	return f.runTool(sidecars)
 }
 
 func (f *fakeDocker) StopSidecars(sidecars docker.Sidecars) {
@@ -450,27 +450,22 @@ func restoreDockerClient(t *testing.T) {
 	t.Cleanup(func() { dockerClient = orig })
 }
 
-// captureToolRun stubs StartSidecars, RunTool and InspectImage, returning a getter for the captured RunSpec and tool args.
-func captureToolRun(t *testing.T) func() (sandbox.RunSpec, []string) {
+// captureToolRun stubs StartSidecars and InspectImage, returning a getter for the captured RunSpec.
+func captureToolRun(t *testing.T) func() sandbox.RunSpec {
 	t.Helper()
 	var capturedSpec sandbox.RunSpec
-	var capturedArgs []string
 
 	stubDocker(t, &fakeDocker{
 		startSidecars: func(rs sandbox.RunSpec) (docker.Sidecars, error) {
 			capturedSpec = rs
 			return docker.Sidecars{}, nil
 		},
-		runTool: func(_ docker.Sidecars, args []string) error {
-			capturedArgs = args
-			return nil
-		},
 		inspectImage: func(name string) (*docker.ImageInfo, error) {
 			return &docker.ImageInfo{Image: name}, nil
 		},
 	})
 
-	return func() (sandbox.RunSpec, []string) { return capturedSpec, capturedArgs }
+	return func() sandbox.RunSpec { return capturedSpec }
 }
 
 // fakeMicrosandbox is a hand-written msbAPI; nil funcs succeed.
@@ -479,7 +474,7 @@ type fakeMicrosandbox struct {
 	loadImage       func(r io.Reader, tag string) error
 	imageRefs       func() ([]string, error)
 	removeImage     func(ref string) error
-	run             func(rs sandbox.RunSpec, toolArgs []string) error
+	run             func(rs sandbox.RunSpec) error
 	cleanImage      func(image string) error
 	listVolumeNames func() ([]string, error)
 	removeVolume    func(name string) error
@@ -519,11 +514,11 @@ func (f *fakeMicrosandbox) RemoveImage(ref string) error {
 	return f.removeImage(ref)
 }
 
-func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec, toolArgs []string) error {
+func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec) error {
 	if f.run == nil {
 		return nil
 	}
-	return f.run(rs, toolArgs)
+	return f.run(rs)
 }
 
 func (f *fakeMicrosandbox) CleanImage(image string) error {

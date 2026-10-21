@@ -34,6 +34,8 @@ type Target struct {
 	ToolName       string
 	ImageName      string
 	SkipEntrypoint bool
+	// ToolArgs are the command line's args after the tool name
+	ToolArgs []string
 }
 
 // Input carries the flag/env-derived values build needs.
@@ -222,6 +224,7 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string
 		WithSecrets(mounts.secrets...).
 		WithEnv(env...).
 		WithSkipEntrypoint(req.target.SkipEntrypoint).
+		WithToolArgs(resolve.ToolArgs(req.target.ToolName, req.target.ToolArgs, req.target.SkipEntrypoint, rc)...).
 		WithEphemeralDirs(toolConfig.Runtime.EphemeralDirs()...).
 		WithLimits(limits).
 		WithDryRun(in.DryRun).

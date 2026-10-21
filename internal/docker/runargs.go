@@ -6,7 +6,7 @@ import (
 )
 
 // buildRunArgs assembles the tool container's `docker run` args.
-func buildRunArgs(rs toolRun, sidecarArgs, toolArgs []string) ([]string, error) {
+func buildRunArgs(rs toolRun, sidecarArgs []string) ([]string, error) {
 	if rs.User == nil {
 		return nil, errNoHostUser
 	}
@@ -29,7 +29,7 @@ func buildRunArgs(rs toolRun, sidecarArgs, toolArgs []string) ([]string, error) 
 	}
 
 	args = append(args, rs.Image)
-	return append(args, toolArgs...), nil
+	return append(args, rs.ToolArgs...), nil
 }
 
 // buildBaseArgs builds the mandatory security and resource-limit args for running the container with minimal permissions.

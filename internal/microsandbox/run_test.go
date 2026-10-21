@@ -24,7 +24,7 @@ func TestClient_Run(t *testing.T) {
 		}})
 
 		// Act
-		err := client.Run(sandbox.RunSpec{Image: "agentic-claude"}, []string{"--help"})
+		err := client.Run(sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"--help"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -39,7 +39,7 @@ func TestClient_Run(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureStdout(t, func() { err = client.Run(rs, nil) })
+		out := captureStdout(t, func() { err = client.Run(rs) })
 
 		// Assert
 		require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestClient_Run(t *testing.T) {
 		}}
 
 		// Act
-		err := client.Run(rs, nil)
+		err := client.Run(rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestClient_Run(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureStdout(t, func() { err = client.Run(rs, nil) })
+		out := captureStdout(t, func() { err = client.Run(rs) })
 
 		// Assert
 		require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestClient_Run(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}, Volumes: []string{"go-cache:/cache"}}
 
 		// Act
-		err := client.Run(rs, nil)
+		err := client.Run(rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -104,7 +104,7 @@ func TestClient_Run(t *testing.T) {
 func Test_buildRunArgs(t *testing.T) {
 	t.Run("passes the image and tool args after --", func(t *testing.T) {
 		// Act
-		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"}, []string{"-p", "hi"})
+		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"-p", "hi"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -113,7 +113,7 @@ func Test_buildRunArgs(t *testing.T) {
 
 	t.Run("omits -- without tool args", func(t *testing.T) {
 		// Act
-		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"}, nil)
+		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Assert
 		require.NoError(t, err)
@@ -132,7 +132,7 @@ func Test_buildRunArgs(t *testing.T) {
 		}
 
 		// Act
-		args, err := buildRunArgs(rs, nil)
+		args, err := buildRunArgs(rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -149,7 +149,7 @@ func Test_buildRunArgs(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "img", EphemeralDirs: []sandbox.EphemeralDir{{Path: "/tmp", Size: "1g"}}}
 
 		// Act
-		args, err := buildRunArgs(rs, nil)
+		args, err := buildRunArgs(rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -158,10 +158,10 @@ func Test_buildRunArgs(t *testing.T) {
 
 	t.Run("passes only the tool args the entrypoint leaves", func(t *testing.T) {
 		// Arrange
-		rs := sandbox.RunSpec{Image: "img", SkipEntrypoint: true}
+		rs := sandbox.RunSpec{Image: "img", SkipEntrypoint: true, ToolArgs: []string{"bash", "-l"}}
 
 		// Act
-		args, err := buildRunArgs(rs, []string{"bash", "-l"})
+		args, err := buildRunArgs(rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -173,7 +173,7 @@ func Test_buildRunArgs(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "img", Limits: sandbox.ResourceLimits{CPUs: "many"}}
 
 		// Act
-		_, err := buildRunArgs(rs, nil)
+		_, err := buildRunArgs(rs)
 
 		// Assert
 		assert.ErrorContains(t, err, `invalid cpus "many"`)
@@ -442,7 +442,7 @@ func Test_buildDockerArgs(t *testing.T) {
 func Test_buildEntrypointArgs(t *testing.T) {
 	t.Run("keeps the image's entrypoint by default", func(t *testing.T) {
 		// Act
-		args, rest, err := buildEntrypointArgs(sandbox.RunSpec{}, []string{"--help"})
+		args, rest, err := buildEntrypointArgs(sandbox.RunSpec{ToolArgs: []string{"--help"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -452,7 +452,7 @@ func Test_buildEntrypointArgs(t *testing.T) {
 
 	t.Run("skipping the entrypoint makes the first tool arg the entrypoint", func(t *testing.T) {
 		// Act
-		args, rest, err := buildEntrypointArgs(sandbox.RunSpec{SkipEntrypoint: true}, []string{"bash", "-l"})
+		args, rest, err := buildEntrypointArgs(sandbox.RunSpec{SkipEntrypoint: true, ToolArgs: []string{"bash", "-l"}})
 
 		// Assert
 		require.NoError(t, err)
@@ -462,7 +462,7 @@ func Test_buildEntrypointArgs(t *testing.T) {
 
 	t.Run("skipping the entrypoint without a command errors", func(t *testing.T) {
 		// Act
-		_, _, err := buildEntrypointArgs(sandbox.RunSpec{SkipEntrypoint: true}, nil)
+		_, _, err := buildEntrypointArgs(sandbox.RunSpec{SkipEntrypoint: true})
 
 		// Assert
 		assert.ErrorContains(t, err, "on microsandbox needs a command")
