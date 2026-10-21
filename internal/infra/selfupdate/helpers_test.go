@@ -66,6 +66,31 @@ func stubReleaseServerWithBadChecksum(t *testing.T, version string, archiveBytes
 	return srv
 }
 
+// stubProxyReleaseServer serves the linux proxy binary for arch, with sum as its checksum ("" for the real one).
+func stubProxyReleaseServer(t *testing.T, version, arch string, binary []byte, sum string) *httptest.Server {
+	t.Helper()
+
+	assetName := fmt.Sprintf("%s-%s-linux-%s", proxyBinaryName, strings.TrimPrefix(version, "v"), arch)
+	if sum == "" {
+		digest := sha256.Sum256(binary)
+		sum = hex.EncodeToString(digest[:])
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/" + version + "/" + checksumFile:
+			fmt.Fprint(w, sum+"  "+assetName+"\n")
+		case "/" + version + "/" + assetName:
+			w.Write(binary) //nolint:errcheck
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
 // makeTarGz creates a tar.gz archive containing an "agentic" binary with the given content.
 func makeTarGz(t *testing.T, content []byte) []byte {
 	t.Helper()

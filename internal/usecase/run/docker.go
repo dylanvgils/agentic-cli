@@ -16,7 +16,8 @@ const dockerEngineName = "Engine"
 
 // dockerRunner runs tools in hardened Docker containers.
 type dockerRunner struct {
-	docker Docker
+	docker   Docker
+	releases sidecar.Releases
 }
 
 // Capabilities reports what Docker runs offer.
@@ -94,5 +95,5 @@ func (r dockerRunner) prepareDockerHost(rs sandbox.RunSpec, registry string) err
 		}
 	}
 
-	return sidecar.New(r.docker).Ensure(proxy, dind, registry)
+	return sidecar.New(r.docker, r.releases).Ensure(proxy, dind, registry)
 }

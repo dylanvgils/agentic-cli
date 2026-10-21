@@ -1,4 +1,4 @@
-// Package selfupdate downloads and installs new releases of the agentic binary from GitHub.
+// Package selfupdate downloads releases of the agentic binary, and its proxy binary, from GitHub.
 package selfupdate
 
 import (
@@ -20,8 +20,9 @@ const (
 	CheckInterval   = 24 * time.Hour
 	releasesBaseURL = "https://github.com/dylanvgils/agentic-cli/releases/download"
 
-	binaryName   = "agentic"
-	checksumFile = "checksums.txt"
+	binaryName      = "agentic"
+	proxyBinaryName = "agentic-proxy"
+	checksumFile    = "checksums.txt"
 )
 
 var (
@@ -29,7 +30,7 @@ var (
 	ErrBinaryNotFound   = errors.New("binary not found in release archive")
 )
 
-// Releases fetches and installs agentic's GitHub releases.
+// Releases fetches agentic's GitHub releases.
 type Releases struct{}
 
 // ShouldCheck reports whether enough time has passed since lastCheck to run another update check; nil (never checked) always returns true.
@@ -78,6 +79,11 @@ func executablePath() (string, error) {
 	return execPath, nil
 }
 
+// DownloadProxy downloads and verifies the release's linux proxy binary for arch to destPath.
+func (Releases) DownloadProxy(version, arch, destPath string) error {
+	return downloadProxyWith(version, arch, destPath, releasesBaseURL, http.DefaultClient)
+}
+
 func updateWith(version, targetPath, baseURL string, client *http.Client) (err error) {
 	semver := strings.TrimPrefix(version, "v")
 	ext := archiveExt()
@@ -122,6 +128,34 @@ func downloadRelease(client *http.Client, archiveURL, archiveName, checksumsURL,
 	}
 
 	return newBinaryPath, nil
+}
+
+func downloadProxyWith(version, arch, destPath, baseURL string, client *http.Client) (err error) {
+	assetName := fmt.Sprintf("%s-%s-linux-%s", proxyBinaryName, strings.TrimPrefix(version, "v"), arch)
+	assetURL := fmt.Sprintf("%s/%s/%s", baseURL, version, assetName)
+	checksumsURL := fmt.Sprintf("%s/%s/%s", baseURL, version, checksumFile)
+
+	tmpDir, err := os.MkdirTemp("", "agentic-proxy-download-*")
+	if err != nil {
+		return fmt.Errorf("creating temp dir: %w", err)
+	}
+	defer cleanup.Capture(&err, func() error { return os.RemoveAll(tmpDir) })
+
+	checksumsPath := filepath.Join(tmpDir, checksumFile)
+	if err := downloadFile(client, checksumsURL, checksumsPath); err != nil {
+		return fmt.Errorf("downloading checksums: %w", err)
+	}
+
+	if err := downloadFile(client, assetURL, destPath); err != nil {
+		return fmt.Errorf("downloading proxy binary: %w", err)
+	}
+
+	if err := verifyChecksum(destPath, assetName, checksumsPath); err != nil {
+		_ = os.Remove(destPath)
+		return err
+	}
+
+	return os.Chmod(destPath, 0o755)
 }
 
 func installBinary(newBinaryPath, targetPath string) error {

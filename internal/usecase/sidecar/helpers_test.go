@@ -2,6 +2,7 @@ package sidecar
 
 import (
 	"bytes"
+	"os"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 // fakeDocker implements Docker; a nil field succeeds with a zero value.
 type fakeDocker struct {
 	inspectImage    func(string) (*docker.ImageInfo, error)
+	serverArch      func() (string, error)
 	buildProxyImage func(string, string, string, tools.BuildOptions) error
 	buildDindImage  func(string, tools.BuildOptions) error
 	pruneImages     func() (string, error)
@@ -25,11 +27,19 @@ func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
 	return f.inspectImage(name)
 }
 
-func (f *fakeDocker) BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) error {
+// ServerArch reports an amd64 daemon unless stubbed.
+func (f *fakeDocker) ServerArch() (string, error) {
+	if f.serverArch == nil {
+		return "amd64", nil
+	}
+	return f.serverArch()
+}
+
+func (f *fakeDocker) BuildProxyImage(image, version, contextDir string, opts tools.BuildOptions) error {
 	if f.buildProxyImage == nil {
 		return nil
 	}
-	return f.buildProxyImage(image, version, sourceDir, opts)
+	return f.buildProxyImage(image, version, contextDir, opts)
 }
 
 func (f *fakeDocker) BuildDindImage(image string, opts tools.BuildOptions) error {
@@ -44,6 +54,18 @@ func (f *fakeDocker) PruneImages() (string, error) {
 		return "", nil
 	}
 	return f.pruneImages()
+}
+
+// fakeReleases implements Releases; a nil downloadProxy writes a placeholder binary to destPath.
+type fakeReleases struct {
+	downloadProxy func(version, arch, destPath string) error
+}
+
+func (f *fakeReleases) DownloadProxy(version, arch, destPath string) error {
+	if f.downloadProxy == nil {
+		return os.WriteFile(destPath, []byte("proxy binary"), 0o755)
+	}
+	return f.downloadProxy(version, arch, destPath)
 }
 
 // stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.

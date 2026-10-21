@@ -45,6 +45,15 @@ func (c *Client) ServerVersion() (engine, version string, err error) {
 	return component.Name, component.Version, nil
 }
 
+// ServerArch returns the daemon's CPU architecture as Go names it, e.g. "amd64".
+func (c *Client) ServerArch() (string, error) {
+	out, err := c.run("version", arg("format", "{{.Server.Arch}}"))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
 // runVersionScript runs script network-less so a self-updating tool can't change its reported version mid-detection.
 func (c *Client) runVersionScript(image, script string) string {
 	out, err := c.run("run", arg("rm"), arg("network", "none"), arg("entrypoint", ""), image, script)

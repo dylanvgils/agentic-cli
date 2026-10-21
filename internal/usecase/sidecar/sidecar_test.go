@@ -2,6 +2,8 @@ package sidecar
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -19,7 +21,7 @@ func TestEnsure(t *testing.T) {
 		fake, built := recordBuilds()
 
 		// Act
-		err := New(fake).Ensure(true, false, "")
+		err := New(fake, &fakeReleases{}).Ensure(true, false, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -32,7 +34,7 @@ func TestEnsure(t *testing.T) {
 		fake, built := recordBuilds()
 
 		// Act
-		err := New(fake).Ensure(false, true, "")
+		err := New(fake, &fakeReleases{}).Ensure(false, true, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -45,7 +47,7 @@ func TestEnsure(t *testing.T) {
 		fake, built := recordBuilds()
 
 		// Act
-		err := New(fake).Ensure(true, true, "")
+		err := New(fake, &fakeReleases{}).Ensure(true, true, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -59,7 +61,7 @@ func TestEnsure(t *testing.T) {
 		fake.buildProxyImage = func(string, string, string, tools.BuildOptions) error { return fmt.Errorf("proxy build failed") }
 
 		// Act
-		err := New(fake).Ensure(true, true, "")
+		err := New(fake, &fakeReleases{}).Ensure(true, true, "")
 
 		// Assert
 		require.EqualError(t, err, "proxy build failed")
@@ -71,7 +73,7 @@ func TestEnsure(t *testing.T) {
 		fake, built := recordBuilds()
 
 		// Act
-		err := New(fake).Ensure(false, false, "")
+		err := New(fake, &fakeReleases{}).Ensure(false, false, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -87,7 +89,7 @@ func TestBuildProxy(t *testing.T) {
 		svc := New(&fakeDocker{buildProxyImage: func(i, v, _ string, o tools.BuildOptions) error {
 			image, version, opts = i, v, o
 			return nil
-		}})
+		}}, &fakeReleases{})
 
 		// Act
 		err := svc.BuildProxy(tools.BuildOptions{NoCache: true})
@@ -102,7 +104,7 @@ func TestBuildProxy(t *testing.T) {
 	t.Run("prunes after a successful build", func(t *testing.T) {
 		// Arrange
 		pruned := false
-		svc := New(&fakeDocker{pruneImages: func() (string, error) { pruned = true; return "", nil }})
+		svc := New(&fakeDocker{pruneImages: func() (string, error) { pruned = true; return "", nil }}, &fakeReleases{})
 
 		// Act
 		err := svc.BuildProxy(tools.BuildOptions{})
@@ -118,7 +120,7 @@ func TestBuildProxy(t *testing.T) {
 		svc := New(&fakeDocker{
 			buildProxyImage: func(string, string, string, tools.BuildOptions) error { return fmt.Errorf("build failed") },
 			pruneImages:     func() (string, error) { pruned = true; return "", nil },
-		})
+		}, &fakeReleases{})
 
 		// Act
 		err := svc.BuildProxy(tools.BuildOptions{})
@@ -139,7 +141,7 @@ func Test_ensureProxy(t *testing.T) {
 			built = image
 			registry = opts.Registry
 			return nil
-		}})
+		}}, &fakeReleases{})
 
 		// Act
 		err := svc.ensureProxy("registry.example.test")
@@ -159,7 +161,7 @@ func Test_ensureProxy(t *testing.T) {
 				built = true
 				return nil
 			},
-		})
+		}, &fakeReleases{})
 
 		// Act
 		err := svc.ensureProxy("")
@@ -176,7 +178,7 @@ func Test_ensureProxy(t *testing.T) {
 		fake.inspectImage = inspectReturns(&docker.ImageInfo{Image: tools.ProxyImage, CLIVersion: "v0.0.0"}, nil)
 
 		// Act
-		err := New(fake).ensureProxy("")
+		err := New(fake, &fakeReleases{}).ensureProxy("")
 
 		// Assert
 		require.NoError(t, err)
@@ -188,7 +190,7 @@ func Test_ensureProxy(t *testing.T) {
 		// Arrange
 		stubErrLog(t)
 		pruned := false
-		svc := New(&fakeDocker{pruneImages: func() (string, error) { pruned = true; return "", nil }})
+		svc := New(&fakeDocker{pruneImages: func() (string, error) { pruned = true; return "", nil }}, &fakeReleases{})
 
 		// Act
 		err := svc.ensureProxy("")
@@ -196,6 +198,98 @@ func Test_ensureProxy(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.False(t, pruned)
+	})
+}
+
+func Test_buildProxy(t *testing.T) {
+	t.Run("released version builds from its binary downloaded for the daemon's arch", func(t *testing.T) {
+		// Arrange
+		var gotVersion, gotArch, contextDir, binary string
+		releases := &fakeReleases{downloadProxy: func(version, arch, destPath string) error {
+			gotVersion, gotArch = version, arch
+			return os.WriteFile(destPath, []byte("proxy binary"), 0o755)
+		}}
+		svc := New(&fakeDocker{
+			serverArch: func() (string, error) { return "arm64", nil },
+			buildProxyImage: func(_, _, dir string, _ tools.BuildOptions) error {
+				contextDir = dir
+				data, err := os.ReadFile(filepath.Join(dir, tools.ProxyBinaryName))
+				binary = string(data)
+				return err
+			},
+		}, releases)
+
+		// Act
+		err := svc.buildProxy("v1.2.3", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "v1.2.3", gotVersion)
+		assert.Equal(t, "arm64", gotArch)
+		assert.Equal(t, "proxy binary", binary)
+		assert.NoDirExists(t, contextDir, "the download dir should be removed after the build")
+	})
+
+	t.Run("unsupported daemon arch is refused before downloading", func(t *testing.T) {
+		// Arrange
+		downloaded := false
+		releases := &fakeReleases{downloadProxy: func(string, string, string) error { downloaded = true; return nil }}
+		svc := New(&fakeDocker{serverArch: func() (string, error) { return "s390x", nil }}, releases)
+
+		// Act
+		err := svc.buildProxy("v1.2.3", tools.BuildOptions{})
+
+		// Assert
+		require.ErrorContains(t, err, `no released proxy binary for the daemon's architecture "s390x"`)
+		assert.False(t, downloaded)
+	})
+
+	t.Run("download error is returned without building", func(t *testing.T) {
+		// Arrange
+		built := false
+		releases := &fakeReleases{downloadProxy: func(string, string, string) error { return fmt.Errorf("HTTP 404") }}
+		svc := New(&fakeDocker{buildProxyImage: func(string, string, string, tools.BuildOptions) error {
+			built = true
+			return nil
+		}}, releases)
+
+		// Act
+		err := svc.buildProxy("v1.2.3", tools.BuildOptions{})
+
+		// Assert
+		require.ErrorContains(t, err, "downloading the v1.2.3 proxy binary from github.com: HTTP 404")
+		assert.False(t, built)
+	})
+
+	t.Run("dev version compiles the local source tree without downloading", func(t *testing.T) {
+		// Arrange
+		downloaded := false
+		var contextDir string
+		releases := &fakeReleases{downloadProxy: func(string, string, string) error { downloaded = true; return nil }}
+		svc := New(&fakeDocker{buildProxyImage: func(_, _, dir string, _ tools.BuildOptions) error {
+			contextDir = dir
+			return nil
+		}}, releases)
+
+		// Act
+		err := svc.buildProxy("dev", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, downloaded)
+		assert.FileExists(t, filepath.Join(contextDir, "go.mod"))
+	})
+
+	t.Run("dev version outside the source tree errors", func(t *testing.T) {
+		// Arrange
+		t.Chdir(t.TempDir())
+		svc := New(&fakeDocker{}, &fakeReleases{})
+
+		// Act
+		err := svc.buildProxy("dev", tools.BuildOptions{})
+
+		// Assert
+		require.ErrorContains(t, err, "dev build requires the agentic source tree")
 	})
 }
 
@@ -208,7 +302,7 @@ func Test_ensureDind(t *testing.T) {
 		fake.inspectImage = inspectReturns(&docker.ImageInfo{CLIVersion: buildinfo.Version, Built: fresh}, nil)
 
 		// Act
-		err := New(fake).ensureDind("")
+		err := New(fake, &fakeReleases{}).ensureDind("")
 
 		// Assert
 		require.NoError(t, err)
@@ -221,7 +315,7 @@ func Test_ensureDind(t *testing.T) {
 		fake, built := recordBuilds()
 
 		// Act
-		err := New(fake).ensureDind("")
+		err := New(fake, &fakeReleases{}).ensureDind("")
 
 		// Assert
 		require.NoError(t, err)
@@ -237,7 +331,7 @@ func Test_ensureDind(t *testing.T) {
 		fake.inspectImage = inspectReturns(&docker.ImageInfo{CLIVersion: buildinfo.Version, Built: stale}, nil)
 
 		// Act
-		err := New(fake).ensureDind("")
+		err := New(fake, &fakeReleases{}).ensureDind("")
 
 		// Assert
 		require.NoError(t, err)
@@ -251,7 +345,7 @@ func Test_ensureDind(t *testing.T) {
 		svc := New(&fakeDocker{
 			inspectImage:   inspectReturns(&docker.ImageInfo{CLIVersion: "older", Built: fresh}, nil),
 			buildDindImage: func(string, tools.BuildOptions) error { return fmt.Errorf("offline") },
-		})
+		}, &fakeReleases{})
 
 		// Act
 		err := svc.ensureDind("")
@@ -264,7 +358,7 @@ func Test_ensureDind(t *testing.T) {
 	t.Run("failed build of a missing image errors", func(t *testing.T) {
 		// Arrange
 		stubErrLog(t)
-		svc := New(&fakeDocker{buildDindImage: func(string, tools.BuildOptions) error { return fmt.Errorf("offline") }})
+		svc := New(&fakeDocker{buildDindImage: func(string, tools.BuildOptions) error { return fmt.Errorf("offline") }}, &fakeReleases{})
 
 		// Act
 		err := svc.ensureDind("")

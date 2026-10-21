@@ -134,8 +134,8 @@ func Test_Service_runner(t *testing.T) {
 		// Assert
 		require.NoError(t, dockerErr)
 		require.NoError(t, emptyErr)
-		assert.Equal(t, dockerRunner{docker: svc.docker}, docker)
-		assert.Equal(t, dockerRunner{docker: svc.docker}, empty)
+		assert.Equal(t, dockerRunner{docker: svc.docker, releases: svc.releases}, docker)
+		assert.Equal(t, dockerRunner{docker: svc.docker, releases: svc.releases}, empty)
 	})
 
 	t.Run("microsandbox gets the microsandbox runner", func(t *testing.T) {

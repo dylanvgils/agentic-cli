@@ -113,9 +113,9 @@ Sidecars and run networks carry `agentic.owner` (the tool container name) and `a
 
 ## Building the proxy image locally
 
-The global `agentic-proxy` image installs the `agentic-proxy` binary from `cmd/proxy`. `agentic build` never builds it; `ensureProxy` in `internal/usecase/sidecar` builds it on the first `--proxy` run.
+The global `agentic-proxy` image runs the `agentic-proxy` binary from `cmd/proxy`. `agentic build` never builds it; `ensureProxy` in `internal/usecase/sidecar` builds it on the first `--proxy` run.
 
-Released builds `go install` the published `cmd/proxy` module at their own version. Local builds default `VERSION` to `dev`, which makes the proxy Dockerfile compile from the local source tree instead - detected by walking up from `$PWD` looking for the module's `go.mod`, so run these from the repository root. A dev build run inside another checkout would build that checkout's proxy, so don't use dev builds in untrusted repos:
+Released builds download their own version's `agentic-proxy` binary from the GitHub release, for the daemon's architecture, and check it against `checksums.txt`. Local builds default `VERSION` to `dev`, which makes the proxy Dockerfile compile from the local source tree instead - detected by walking up from `$PWD` looking for the module's `go.mod`, so run these from the repository root. A dev build run inside another checkout would build that checkout's proxy, so don't use dev builds in untrusted repos:
 
 ```bash
 make build                          # compile the CLI binary (version = "dev")

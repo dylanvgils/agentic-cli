@@ -457,20 +457,20 @@ func TestBuildFromContent_wiresDockerfileAndImageBuild(t *testing.T) {
 func TestBuildProxyImage(t *testing.T) {
 	client := newTestClient()
 
-	t.Run("released version installs the published module from an isolated context", func(t *testing.T) {
+	t.Run("released version builds its downloaded binary from the supplied context", func(t *testing.T) {
 		// Arrange
 		get := stubRunInteractiveCapture(t, client)
+		binDir := t.TempDir()
 
 		// Act
-		err := client.BuildProxyImage("default-proxy", "v1.2.3", "", tools.BuildOptions{})
+		err := client.BuildProxyImage("default-proxy", "v1.2.3", binDir, tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
 		args, dockerfile := get()
 		assert.Contains(t, args, "--tag=default-proxy")
-		assert.NotEqual(t, "", args[len(args)-1], "context should be set")
-		assert.Contains(t, dockerfile, "go install github.com/dylanvgils/agentic-cli/cmd/proxy@${AGENTIC_VERSION}")
-		assert.NotContains(t, dockerfile, "COPY . /src")
+		assert.Equal(t, binDir, args[len(args)-1], "binary dir should be the build context")
+		assert.NotContains(t, dockerfile, "go build")
 	})
 
 	t.Run("dev version compiles the supplied source tree as context", func(t *testing.T) {
@@ -485,20 +485,7 @@ func TestBuildProxyImage(t *testing.T) {
 		require.NoError(t, err)
 		args, dockerfile := get()
 		assert.Equal(t, src, args[len(args)-1], "source dir should be the build context")
-		assert.Contains(t, dockerfile, "COPY . /src")
 		assert.Contains(t, dockerfile, "go build")
-	})
-
-	t.Run("dev version without source tree errors", func(t *testing.T) {
-		// Arrange
-		stubRunInteractiveCapture(t, client)
-
-		// Act
-		err := client.BuildProxyImage("default-proxy", "dev", "", tools.BuildOptions{})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "source tree")
 	})
 
 	t.Run("does not include a namespace label", func(t *testing.T) {

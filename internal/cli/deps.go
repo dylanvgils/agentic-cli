@@ -31,8 +31,8 @@ var (
 	// upstreamClient looks up the tools' latest released versions for `agentic update`.
 	upstreamClient update.Upstream = tools.Upstream{}
 
-	// releasesClient fetches and installs agentic's own releases for `agentic upgrade` and the upgrade check.
-	releasesClient upgradecheck.Releases = selfupdate.Releases{}
+	// releasesClient fetches agentic's own releases for `agentic upgrade`, the upgrade check and the proxy image.
+	releasesClient releasesAPI = selfupdate.Releases{}
 )
 
 // dockerAPI is the subset of *docker.Client the cli and the usecases it calls use.
@@ -52,6 +52,12 @@ type dockerAPI interface {
 	ListRunningContainers() ([]*docker.ContainerInfo, error)
 	ListContexts() ([]string, error)
 	Version() (string, error)
+}
+
+// releasesAPI is what the cli and the usecases it calls fetch from agentic's releases.
+type releasesAPI interface {
+	upgradecheck.Releases
+	sidecar.Releases
 }
 
 // msbAPI is the subset of *microsandbox.Client the usecases the cli calls use.

@@ -134,6 +134,38 @@ func TestClient_ServerVersion(t *testing.T) {
 	})
 }
 
+func TestClient_ServerArch(t *testing.T) {
+	client := newTestClient()
+
+	t.Run("returns the trimmed daemon arch", func(t *testing.T) {
+		// Arrange
+		var capturedArgs []string
+		stubDockerRun(t, client, func(args ...string) (string, error) {
+			capturedArgs = args
+			return "arm64\n", nil
+		})
+
+		// Act
+		arch, err := client.ServerArch()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "arm64", arch)
+		assert.Equal(t, []string{"version", "--format={{.Server.Arch}}"}, capturedArgs)
+	})
+
+	t.Run("docker error propagates", func(t *testing.T) {
+		// Arrange
+		stubDockerRunFixed(t, client, "", fmt.Errorf("cannot connect to the docker daemon"))
+
+		// Act
+		_, err := client.ServerArch()
+
+		// Assert
+		assert.EqualError(t, err, "cannot connect to the docker daemon")
+	})
+}
+
 func Test_engineComponent(t *testing.T) {
 	t.Run("picks a component named like an engine", func(t *testing.T) {
 		// Act

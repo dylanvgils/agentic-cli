@@ -211,3 +211,50 @@ func TestUpdateWith(t *testing.T) {
 		assert.ErrorIs(t, err, ErrBinaryNotFound)
 	})
 }
+
+func Test_downloadProxyWith(t *testing.T) {
+	binary := []byte("proxy binary")
+
+	t.Run("downloads the binary for arch and makes it executable", func(t *testing.T) {
+		// Arrange
+		srv := stubProxyReleaseServer(t, "v1.5.0", "arm64", binary, "")
+		destPath := filepath.Join(t.TempDir(), "agentic-proxy")
+
+		// Act
+		err := downloadProxyWith("v1.5.0", "arm64", destPath, srv.URL, http.DefaultClient)
+
+		// Assert
+		require.NoError(t, err)
+		got, err := os.ReadFile(destPath)
+		require.NoError(t, err)
+		assert.Equal(t, binary, got)
+		info, err := os.Stat(destPath)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o755), info.Mode().Perm())
+	})
+
+	t.Run("checksum mismatch errors and removes the binary", func(t *testing.T) {
+		// Arrange
+		srv := stubProxyReleaseServer(t, "v1.5.0", "amd64", binary, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+		destPath := filepath.Join(t.TempDir(), "agentic-proxy")
+
+		// Act
+		err := downloadProxyWith("v1.5.0", "amd64", destPath, srv.URL, http.DefaultClient)
+
+		// Assert
+		require.ErrorIs(t, err, ErrChecksumMismatch)
+		assert.NoFileExists(t, destPath)
+	})
+
+	t.Run("missing release asset errors", func(t *testing.T) {
+		// Arrange
+		srv := stubProxyReleaseServer(t, "v1.5.0", "amd64", binary, "")
+		destPath := filepath.Join(t.TempDir(), "agentic-proxy")
+
+		// Act
+		err := downloadProxyWith("v1.5.0", "arm64", destPath, srv.URL, http.DefaultClient)
+
+		// Assert
+		require.ErrorContains(t, err, "downloading proxy binary: HTTP 404")
+	})
+}

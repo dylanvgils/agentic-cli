@@ -35,9 +35,8 @@ func (c *Client) BuildTool(tool, image string, opts tools.BuildOptions) error {
 	return nil
 }
 
-// BuildProxyImage generates the egress proxy Dockerfile and builds it: a released version
-// installs the published module, a dev version compiles sourceDir (the agentic module root).
-func (c *Client) BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) (retErr error) {
+// BuildProxyImage generates the egress proxy Dockerfile and builds it from contextDir.
+func (c *Client) BuildProxyImage(image, version, contextDir string, opts tools.BuildOptions) (retErr error) {
 	content := tools.GenerateProxyDockerfile(version, opts.Registry)
 
 	tmpDir, err := writeTempDockerfile(content)
@@ -47,18 +46,8 @@ func (c *Client) BuildProxyImage(image, version, sourceDir string, opts tools.Bu
 
 	defer cleanup.Capture(&retErr, removeTempDir(tmpDir))
 
-	// Released builds need only the generated Dockerfile in context; dev builds
-	// compile the local tree, so the source root becomes the build context.
-	context := tmpDir
-	if buildinfo.IsDev(version) {
-		if sourceDir == "" {
-			return fmt.Errorf("proxy image: dev build requires the agentic source tree - run \"agentic build\" from the repository, or build a published version")
-		}
-		context = sourceDir
-	}
-
 	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
-	if err := c.runInteractive(sidecarImageBuildArgs(dockerfilePath, image, tools.ProxyImageSuffix, context, opts)...); err != nil {
+	if err := c.runInteractive(sidecarImageBuildArgs(dockerfilePath, image, tools.ProxyImageSuffix, contextDir, opts)...); err != nil {
 		return fmt.Errorf("proxy image: %w", err)
 	}
 

@@ -13,9 +13,11 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/infra/git"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
+	"github.com/dylanvgils/agentic-cli/internal/infra/selfupdate"
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 )
 
@@ -27,6 +29,8 @@ type Service struct {
 	syncMarketplaces func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error)
 	// upstream looks up the latest tool versions for the update check; tests swap it so they need no network
 	upstream toolupdate.Upstream
+	// releases downloads the proxy binary; tests swap it so they need no network
+	releases sidecar.Releases
 }
 
 // Target identifies the tool and image a RunSpec is being built for.
@@ -77,6 +81,7 @@ func New(d Docker, m Microsandbox) *Service {
 		microsandbox:     m,
 		syncMarketplaces: marketplace.NewSyncer(git.New()).Sync,
 		upstream:         tools.Upstream{},
+		releases:         selfupdate.Releases{},
 	}
 }
 

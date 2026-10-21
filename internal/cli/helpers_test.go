@@ -52,6 +52,7 @@ type fakeDocker struct {
 	currentContext        func() (string, error)
 	version               func() (string, error)
 	serverVersion         func() (engine, version string, err error)
+	serverArch            func() (string, error)
 }
 
 func (f *fakeDocker) Context() string { return f.context }
@@ -284,6 +285,14 @@ func (f *fakeDocker) ServerVersion() (engine, version string, err error) {
 	return f.serverVersion()
 }
 
+// ServerArch reports an amd64 daemon unless stubbed.
+func (f *fakeDocker) ServerArch() (string, error) {
+	if f.serverArch == nil {
+		return "amd64", nil
+	}
+	return f.serverArch()
+}
+
 // overlay copies o's set fields onto f.
 func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.context != "" {
@@ -375,6 +384,9 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 	if o.serverVersion != nil {
 		f.serverVersion = o.serverVersion
+	}
+	if o.serverArch != nil {
+		f.serverArch = o.serverArch
 	}
 }
 
@@ -750,11 +762,12 @@ func stubReleases(t *testing.T, f *fakeReleases) {
 	t.Cleanup(func() { releasesClient = orig })
 }
 
-// fakeReleases implements upgradecheck.Releases, returning latest/latestErr and updateErr and recording the calls.
+// fakeReleases implements releasesAPI, returning its errors and recording the calls.
 type fakeReleases struct {
-	latest    string
-	latestErr error
-	updateErr error
+	latest      string
+	latestErr   error
+	updateErr   error
+	downloadErr error
 
 	fetched     bool
 	updatedWith string
@@ -768,6 +781,10 @@ func (f *fakeReleases) LatestVersion() (string, error) {
 func (f *fakeReleases) Update(version string) error {
 	f.updatedWith = version
 	return f.updateErr
+}
+
+func (f *fakeReleases) DownloadProxy(string, string, string) error {
+	return f.downloadErr
 }
 
 // stubToolHome points toolHome at dir.

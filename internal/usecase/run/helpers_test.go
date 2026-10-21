@@ -37,6 +37,7 @@ type fakeDocker struct {
 	runTool              func(sidecars docker.Sidecars) error
 	stopSidecars         func(sidecars docker.Sidecars)
 	serverVersion        func() (engine, version string, err error)
+	serverArch           func() (string, error)
 }
 
 func (f *fakeDocker) Capabilities() sandbox.Capabilities {
@@ -52,6 +53,14 @@ func (f *fakeDocker) ServerVersion() (engine, version string, err error) {
 		return dockerEngineName, minDockerEngine, nil
 	}
 	return f.serverVersion()
+}
+
+// ServerArch reports an amd64 daemon unless stubbed.
+func (f *fakeDocker) ServerArch() (string, error) {
+	if f.serverArch == nil {
+		return "amd64", nil
+	}
+	return f.serverArch()
 }
 
 func (f *fakeDocker) BuildDockerdImage(image string, parent *docker.ImageInfo) error {
