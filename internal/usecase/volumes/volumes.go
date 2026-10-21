@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/base/logging"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // Service manages agentic's named volumes in every runtime.

@@ -2,7 +2,7 @@ package resolve
 
 import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // DindInput carries the flag-derived values DindEnabled needs.

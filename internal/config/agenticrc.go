@@ -13,7 +13,7 @@ import (
 	"unicode"
 
 	"github.com/BurntSushi/toml"
-	"github.com/dylanvgils/agentic-cli/internal/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 const rcFilename = ".agenticrc.toml"

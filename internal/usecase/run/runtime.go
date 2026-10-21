@@ -3,7 +3,7 @@ package run
 import (
 	"fmt"
 
-	"github.com/dylanvgils/agentic-cli/internal/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // runner executes prepared runs on one runtime.

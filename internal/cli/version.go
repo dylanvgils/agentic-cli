@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/base/buildinfo"
 	"github.com/spf13/cobra"
 )
 

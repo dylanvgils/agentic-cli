@@ -1,6 +1,6 @@
 package toolupdate
 
-import "github.com/dylanvgils/agentic-cli/internal/docker"
+import "github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 
 // fakeDocker implements Docker; a nil field succeeds with a zero value.
 type fakeDocker struct {

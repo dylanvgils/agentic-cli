@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verifies (or fixes) installer-script checksums in internal/tools/checksums.json.
+# Verifies (or fixes) installer-script checksums in internal/image/tools/checksums.json.
 #
 # Two kinds of entries:
 #  - pinned: checksum of a specific pinned tool version's install script, at a
@@ -66,8 +66,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-VERSIONS_FILE="${1:-internal/tools/versions.json}"
-CHECKSUMS_FILE="${2:-internal/tools/checksums.json}"
+VERSIONS_FILE="${1:-internal/image/tools/versions.json}"
+CHECKSUMS_FILE="${2:-internal/image/tools/checksums.json}"
 
 NVM_VERSION=$(jq -r '.nvm' "$VERSIONS_FILE")
 

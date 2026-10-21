@@ -6,12 +6,12 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/base/logging"
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
-	"github.com/dylanvgils/agentic-cli/internal/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/base/logging"
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 

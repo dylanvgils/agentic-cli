@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/base/logging"
+	"github.com/dylanvgils/agentic-cli/internal/base/platform"
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
 )
 
 // settingEffects says in a few words what each guarded setting controls, so the prompt shows what approving it allows.

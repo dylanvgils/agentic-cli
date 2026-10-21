@@ -18,7 +18,7 @@ const (
 
 	credentialSecret = "test-secret-value"
 
-	// proxyCredentialsDir mirrors internal/docker's dir for the proxy's CA and credential files
+	// proxyCredentialsDir mirrors internal/runtime/docker's dir for the proxy's CA and credential files
 	proxyCredentialsDir = "/run/agentic-proxy/credentials"
 )
 

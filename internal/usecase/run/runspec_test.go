@@ -7,14 +7,13 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/base/platform"
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/credentials"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/marketplace"
-	"github.com/dylanvgils/agentic-cli/internal/mount"
-	"github.com/dylanvgils/agentic-cli/internal/platform"
-	"github.com/dylanvgils/agentic-cli/internal/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -488,7 +487,7 @@ func Test_Service_buildWithInstructions(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(cleanup)
 		instructionsVolume := findVolumeSuffix(t, rs.Volumes, ":$CONTAINER_HOME/.claude/CLAUDE.md")
-		got, err := os.ReadFile(mount.HostPart(instructionsVolume))
+		got, err := os.ReadFile(sandbox.HostPart(instructionsVolume))
 		require.NoError(t, err)
 		assert.Contains(t, string(got), "# Agentic container environment")
 	})
@@ -501,7 +500,7 @@ func Test_Service_buildWithInstructions(t *testing.T) {
 		rs, cleanup, err := New(d, nil).buildWithInstructions(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 		require.NoError(t, err)
 		instructionsVolume := findVolumeSuffix(t, rs.Volumes, ":$CONTAINER_HOME/.claude/CLAUDE.md")
-		snapshotPath := mount.HostPart(instructionsVolume)
+		snapshotPath := sandbox.HostPart(instructionsVolume)
 
 		// Act
 		cleanup()

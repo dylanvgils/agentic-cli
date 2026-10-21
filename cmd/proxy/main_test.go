@@ -13,8 +13,8 @@ import (
 func TestExcludesCLIDependencies(t *testing.T) {
 	// Arrange
 	forbidden := []string{
-		"github.com/dylanvgils/agentic-cli/internal/docker",
-		"github.com/dylanvgils/agentic-cli/internal/tools",
+		"github.com/dylanvgils/agentic-cli/internal/runtime/docker",
+		"github.com/dylanvgils/agentic-cli/internal/image/tools",
 		"github.com/dylanvgils/agentic-cli/internal/cli",
 		"github.com/spf13/cobra",
 	}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dylanvgils/agentic-cli/internal/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 )
 
 func main() {

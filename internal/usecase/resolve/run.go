@@ -2,8 +2,7 @@ package resolve
 
 import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/mount"
-	"github.com/dylanvgils/agentic-cli/internal/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // Volumes merges the tool's built-in mounts, --volume flag values, and .agenticrc.toml mounts, in that order; user bind mounts are read-only unless they set rw.
@@ -12,7 +11,7 @@ func Volumes(toolMounts, extra []string, rc *config.AgenticRC) []string {
 
 	userMounts := append(append([]string{}, extra...), rc.Run.Mounts...)
 	for _, spec := range userMounts {
-		volumes = append(volumes, mount.ReadOnlyByDefault(spec))
+		volumes = append(volumes, sandbox.ReadOnlyByDefault(spec))
 	}
 
 	return volumes

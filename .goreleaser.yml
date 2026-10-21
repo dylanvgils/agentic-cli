@@ -16,10 +16,10 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/dylanvgils/agentic-cli/internal/buildinfo.Version={{.Tag}}
-      - -X github.com/dylanvgils/agentic-cli/internal/buildinfo.Commit={{.ShortCommit}}
-      - -X github.com/dylanvgils/agentic-cli/internal/buildinfo.BuildDate={{.CommitDate}}
-      - -X github.com/dylanvgils/agentic-cli/internal/buildinfo.InstallMethod=release
+      - -X github.com/dylanvgils/agentic-cli/internal/base/buildinfo.Version={{.Tag}}
+      - -X github.com/dylanvgils/agentic-cli/internal/base/buildinfo.Commit={{.ShortCommit}}
+      - -X github.com/dylanvgils/agentic-cli/internal/base/buildinfo.BuildDate={{.CommitDate}}
+      - -X github.com/dylanvgils/agentic-cli/internal/base/buildinfo.InstallMethod=release
     goos:
       - linux
       - darwin

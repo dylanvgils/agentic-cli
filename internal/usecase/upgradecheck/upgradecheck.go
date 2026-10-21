@@ -4,10 +4,10 @@ package upgradecheck
 import (
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/base/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/base/logging"
+	"github.com/dylanvgils/agentic-cli/internal/base/selfupdate"
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/selfupdate"
 )
 
 // Service checks for and applies newer agentic releases.

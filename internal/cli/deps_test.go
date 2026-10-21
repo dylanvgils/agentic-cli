@@ -3,8 +3,8 @@ package cli
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -1,6 +1,6 @@
 package build
 
-import "github.com/dylanvgils/agentic-cli/internal/tools"
+import "github.com/dylanvgils/agentic-cli/internal/image/tools"
 
 // Docker is the subset of *docker.Client this package uses.
 type Docker interface {

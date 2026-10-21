@@ -1,6 +1,6 @@
 package clean
 
-import "github.com/dylanvgils/agentic-cli/internal/docker"
+import "github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 
 // ImageCleaner removes a runtime's own copies of the tool images; clean calls it on every runtime.
 type ImageCleaner interface {

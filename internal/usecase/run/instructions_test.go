@@ -6,10 +6,9 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/mount"
-	"github.com/dylanvgils/agentic-cli/internal/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -466,7 +465,7 @@ func TestPrepareInstructions(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(snapshot.Cleanup)
 		assert.Contains(t, snapshot.MountSpec, ":$CONTAINER_HOME/.claude/CLAUDE.md")
-		hostPath := mount.HostPart(snapshot.MountSpec)
+		hostPath := sandbox.HostPart(snapshot.MountSpec)
 		got, err := os.ReadFile(hostPath)
 		require.NoError(t, err)
 		assert.Contains(t, string(got), "generated block")
@@ -482,7 +481,7 @@ func TestPrepareInstructions(t *testing.T) {
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(toolHome))
 		snapshot, err := New(&fakeDocker{}, nil).PrepareInstructions(toolHome, tools.Configs["claude"], "generated block")
 		require.NoError(t, err)
-		snapshotPath := mount.HostPart(snapshot.MountSpec)
+		snapshotPath := sandbox.HostPart(snapshot.MountSpec)
 		require.NoError(t, appendFile(snapshotPath, "\nuser note\n"))
 
 		// Act

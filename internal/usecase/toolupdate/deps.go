@@ -1,7 +1,7 @@
 package toolupdate
 
 import (
-	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 )
 
 // Docker is the subset of *docker.Client this package uses.

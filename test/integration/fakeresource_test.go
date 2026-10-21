@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Mirrors internal/docker labels; duplicated so the tests stay black-box
+// Mirrors internal/runtime/docker labels; duplicated so the tests stay black-box
 const (
 	labelProject    = "project=agentic-cli"
 	labelOwner      = "agentic.owner"

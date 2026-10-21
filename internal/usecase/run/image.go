@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 )
 
 // requireImage errors if the image doesn't exist locally, hinting at --namespace if the tool has images under other namespaces.

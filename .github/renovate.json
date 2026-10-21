@@ -34,14 +34,14 @@
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
+      "managerFilePatterns": ["/^internal/image/tools/versions\\.json$/"],
       "matchStrings": ["\"node\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "node",
       "datasourceTemplate": "node-version"
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
+      "managerFilePatterns": ["/^internal/image/tools/versions\\.json$/"],
       "matchStrings": ["\"nvm\":\\s*\"(?<currentValue>[\\d.]+)\""],
       "depNameTemplate": "nvm-sh/nvm",
       "datasourceTemplate": "github-releases",
@@ -49,28 +49,28 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
+      "managerFilePatterns": ["/^internal/image/tools/versions\\.json$/"],
       "matchStrings": ["\"java\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "java-jdk",
       "datasourceTemplate": "java-version"
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
+      "managerFilePatterns": ["/^internal/image/tools/versions\\.json$/"],
       "matchStrings": ["\"dotnet\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "dotnet-sdk",
       "datasourceTemplate": "dotnet-version"
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
+      "managerFilePatterns": ["/^internal/image/tools/versions\\.json$/"],
       "matchStrings": ["\"go\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "go",
       "datasourceTemplate": "golang-version"
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
+      "managerFilePatterns": ["/^internal/image/tools/versions\\.json$/"],
       "matchStrings": ["\"docker\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "docker",
       "datasourceTemplate": "docker",
@@ -78,14 +78,14 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
+      "managerFilePatterns": ["/^internal/image/tools/versions\\.json$/"],
       "matchStrings": ["\"busybox\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "busybox",
       "datasourceTemplate": "docker"
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^internal/tools/versions\\.json$/"],
+      "managerFilePatterns": ["/^internal/image/tools/versions\\.json$/"],
       "matchStrings": ["\"debian\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "debian",
       "datasourceTemplate": "docker",
