@@ -267,15 +267,11 @@ func TestProxyAllowList(t *testing.T) {
 }
 
 func TestProxyRules(t *testing.T) {
-	t.Run("allows merged hosts whole, then path rules merged per host", func(t *testing.T) {
+	t.Run("allows merged hosts whole, then the path rules", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
 		rc.Run.Proxy.AllowedHosts = []string{"extra.example.test"}
-		rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{
-			{Host: "raw.example.test", Paths: []string{"/a/**"}},
-			{Host: "other.example.test", Paths: []string{"/b"}},
-			{Host: "Raw.Example.Test.", Paths: []string{"/a/**", "/c"}},
-		}
+		rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a/**"}}}
 
 		// Act
 		rules := ProxyRules([]string{"api.example.test"}, false, rc)
@@ -284,8 +280,7 @@ func TestProxyRules(t *testing.T) {
 		assert.Equal(t, []sandbox.AllowRule{
 			{Host: "api.example.test"},
 			{Host: "extra.example.test"},
-			{Host: "raw.example.test", Paths: []string{"/a/**", "/c"}},
-			{Host: "other.example.test", Paths: []string{"/b"}},
+			{Host: "raw.example.test", Paths: []string{"/a/**"}},
 		}, rules)
 	})
 
@@ -312,4 +307,22 @@ func TestProxyRules(t *testing.T) {
 			{Host: "api.example.test", Paths: []string{"/repos/org/**"}},
 		}, rules)
 	})
+}
+
+func Test_mergePathRules(t *testing.T) {
+	// Arrange
+	rules := []config.RCAllowedPath{
+		{Host: "raw.example.test", Paths: []string{"/a/**"}},
+		{Host: "other.example.test", Paths: []string{"/b"}},
+		{Host: "Raw.Example.Test.", Paths: []string{"/a/**", "/c"}},
+	}
+
+	// Act
+	merged := mergePathRules(rules)
+
+	// Assert
+	assert.Equal(t, []sandbox.AllowRule{
+		{Host: "raw.example.test", Paths: []string{"/a/**", "/c"}},
+		{Host: "other.example.test", Paths: []string{"/b"}},
+	}, merged)
 }
