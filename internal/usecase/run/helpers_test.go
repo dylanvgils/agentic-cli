@@ -34,7 +34,7 @@ type fakeDocker struct {
 	saveImage            func(image string, w io.Writer) error
 	buildDockerdImage    func(image string, parent *docker.ImageInfo) error
 	startSidecars        func(rs sandbox.RunSpec) (docker.Sidecars, error)
-	runTool              func(sidecars docker.Sidecars, toolArgs []string) error
+	runTool              func(sidecars docker.Sidecars) error
 	stopSidecars         func(sidecars docker.Sidecars)
 	serverVersion        func() (engine, version string, err error)
 }
@@ -137,11 +137,11 @@ func (f *fakeDocker) StartSidecars(rs sandbox.RunSpec) (docker.Sidecars, error) 
 	return f.startSidecars(rs)
 }
 
-func (f *fakeDocker) RunTool(sidecars docker.Sidecars, toolArgs []string) error {
+func (f *fakeDocker) RunTool(sidecars docker.Sidecars) error {
 	if f.runTool == nil {
 		return nil
 	}
-	return f.runTool(sidecars, toolArgs)
+	return f.runTool(sidecars)
 }
 
 func (f *fakeDocker) StopSidecars(sidecars docker.Sidecars) {
@@ -179,7 +179,7 @@ type fakeMicrosandbox struct {
 	loadImage    func(r io.Reader, tag string) error
 	imageRefs    func() ([]string, error)
 	removeImage  func(ref string) error
-	run          func(rs sandbox.RunSpec, toolArgs []string) error
+	run          func(rs sandbox.RunSpec) error
 }
 
 func (f *fakeMicrosandbox) Capabilities() sandbox.Capabilities {
@@ -225,11 +225,11 @@ func (f *fakeMicrosandbox) RemoveImage(ref string) error {
 	return f.removeImage(ref)
 }
 
-func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec, toolArgs []string) error {
+func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec) error {
 	if f.run == nil {
 		return nil
 	}
-	return f.run(rs, toolArgs)
+	return f.run(rs)
 }
 
 // fakePrompter implements Prompter, recording what it was asked; a nil field approves, except tool updates, which it declines.

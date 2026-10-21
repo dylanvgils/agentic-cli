@@ -33,8 +33,8 @@ const (
 var hostRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`)
 
 // Run runs the tool described by rs in a microsandbox VM, skipping what Capabilities leaves out; the image must already be loaded.
-func (c *Client) Run(rs sandbox.RunSpec, toolArgs []string) error {
-	args, err := buildRunArgs(rs, toolArgs)
+func (c *Client) Run(rs sandbox.RunSpec) error {
+	args, err := buildRunArgs(rs)
 	if err != nil {
 		return err
 	}
@@ -49,7 +49,7 @@ func (c *Client) Run(rs sandbox.RunSpec, toolArgs []string) error {
 }
 
 // buildRunArgs assembles the `msb run` args for rs.
-func buildRunArgs(rs sandbox.RunSpec, toolArgs []string) ([]string, error) {
+func buildRunArgs(rs sandbox.RunSpec) ([]string, error) {
 	limitArgs, err := buildLimitArgs(rs.Limits)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func buildRunArgs(rs sandbox.RunSpec, toolArgs []string) ([]string, error) {
 		return nil, err
 	}
 
-	entrypointArgs, toolArgs, err := buildEntrypointArgs(rs, toolArgs)
+	entrypointArgs, toolArgs, err := buildEntrypointArgs(rs)
 	if err != nil {
 		return nil, err
 	}
@@ -220,15 +220,16 @@ func buildDockerArgs(rs sandbox.RunSpec) []string {
 	}
 }
 
-// buildEntrypointArgs makes the first tool arg the entrypoint when rs skips the image's own, returning the flag and the remaining tool args.
-func buildEntrypointArgs(rs sandbox.RunSpec, toolArgs []string) (args, rest []string, err error) {
+// buildEntrypointArgs makes rs's first tool arg the entrypoint when rs skips the image's own, returning the flag and the
+// remaining tool args.
+func buildEntrypointArgs(rs sandbox.RunSpec) (args, rest []string, err error) {
 	if !rs.SkipEntrypoint {
-		return nil, toolArgs, nil
+		return nil, rs.ToolArgs, nil
 	}
-	if len(toolArgs) == 0 {
+	if len(rs.ToolArgs) == 0 {
 		return nil, nil, errors.New("skipping the entrypoint on microsandbox needs a command")
 	}
-	return []string{arg("entrypoint", toolArgs[0])}, toolArgs[1:], nil
+	return []string{arg("entrypoint", rs.ToolArgs[0])}, rs.ToolArgs[1:], nil
 }
 
 // credentialEnv returns NAME=secret for each credential, for the msb process only: msb reads secrets from its own env, so they never reach its args.

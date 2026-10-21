@@ -247,6 +247,18 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, []RCCredential{{Preset: "parent-preset", Secret: "/parent"}, {Preset: "child-preset", Secret: "/child"}}, result.Run.Proxy.Credentials)
 	})
 
+	t.Run("args accumulate outermost first per tool", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Run: RCRun{Args: map[string][]string{"copilot": {"--child"}}}}
+		parent := &AgenticRC{Run: RCRun{Args: map[string][]string{"copilot": {"--parent"}, "claude": {"--other"}}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, map[string][]string{"copilot": {"--parent", "--child"}, "claude": {"--other"}}, result.Run.Args)
+	})
+
 	t.Run("proxy enabled child wins over parent", func(t *testing.T) {
 		// Arrange
 		childFalse := false
@@ -532,6 +544,9 @@ secrets = ["token:/run/s/a", "key:/run/s/b"]
 pids_limit = "512"
 cpus = "2"
 memory = "2g"
+
+[run.args]
+copilot = ["--disable-client-telemetry"]
 `
 		// Act
 		rc := mustParseRC(t, content)
@@ -545,6 +560,7 @@ memory = "2g"
 		assert.Equal(t, "512", rc.Run.PidsLimit)
 		assert.Equal(t, "2", rc.Run.CPUs)
 		assert.Equal(t, "2g", rc.Run.Memory)
+		assert.Equal(t, map[string][]string{"copilot": {"--disable-client-telemetry"}}, rc.Run.Args)
 		assert.Equal(t, "myproject", rc.Namespace)
 	})
 

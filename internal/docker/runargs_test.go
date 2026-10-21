@@ -12,7 +12,7 @@ import (
 
 func TestBuildRunArgs(t *testing.T) {
 	// Act
-	_, err := buildRunArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}}, nil, nil)
+	_, err := buildRunArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}}, nil)
 
 	// Assert
 	assert.ErrorContains(t, err, "no host user", "without --user the tool would run as the image's user")

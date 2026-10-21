@@ -88,6 +88,37 @@ func TestSecrets(t *testing.T) {
 	})
 }
 
+func TestToolArgs(t *testing.T) {
+	rc := &config.AgenticRC{Run: config.RCRun{Args: map[string][]string{
+		"copilot": {"--from-rc"},
+		"claude":  {"--other"},
+	}}}
+
+	t.Run("puts the tool's rc args before the command line's", func(t *testing.T) {
+		// Act
+		result := ToolArgs("copilot", []string{"--from-cli"}, false, rc)
+
+		// Assert
+		assert.Equal(t, []string{"--from-rc", "--from-cli"}, result)
+	})
+
+	t.Run("skipping the entrypoint drops the rc args", func(t *testing.T) {
+		// Act
+		result := ToolArgs("copilot", []string{"bash"}, true, rc)
+
+		// Assert
+		assert.Equal(t, []string{"bash"}, result)
+	})
+
+	t.Run("does not mutate the rc args", func(t *testing.T) {
+		// Act
+		_ = ToolArgs("copilot", []string{"--from-cli"}, false, rc)
+
+		// Assert
+		assert.Equal(t, []string{"--from-rc"}, rc.Run.Args["copilot"])
+	})
+}
+
 func TestEnv(t *testing.T) {
 	t.Run("ordering, flag wins over rc on duplicate key", func(t *testing.T) {
 		// Arrange

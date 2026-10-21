@@ -47,13 +47,15 @@ type RCBuild struct {
 
 // RCRun holds runtime settings from a .agenticrc.toml file.
 type RCRun struct {
-	Mounts       []string       `toml:"mounts"`
-	Secrets      []string       `toml:"secrets"`
-	Env          []string       `toml:"env"`
-	Runtime      string         `toml:"runtime"`
-	Proxy        RCProxy        `toml:"proxy"`
-	Dind         RCDind         `toml:"dind"`
-	Instructions RCInstructions `toml:"instructions"`
+	Mounts  []string `toml:"mounts"`
+	Secrets []string `toml:"secrets"`
+	Env     []string `toml:"env"`
+	// Args are extra args per tool name, passed before the args given on the command line
+	Args         map[string][]string `toml:"args"`
+	Runtime      string              `toml:"runtime"`
+	Proxy        RCProxy             `toml:"proxy"`
+	Dind         RCDind              `toml:"dind"`
+	Instructions RCInstructions      `toml:"instructions"`
 	// Tool limits
 	RCLimits
 	// CheckUpdates is a pointer so an inner config can explicitly disable a check an outer one enabled; nil or true means it runs.
@@ -241,6 +243,7 @@ func collectPaths(startDir string) []string {
 func mergeConfigs(configs []*AgenticRC) *AgenticRC {
 	result := &AgenticRC{}
 	result.Build.Versions = make(map[string]string)
+	result.Run.Args = make(map[string][]string)
 
 	for _, rc := range configs {
 		mergeScalars(result, rc)
@@ -312,6 +315,9 @@ func appendLists(result, rc *AgenticRC) {
 	resRun.Mounts = append(resRun.Mounts, run.Mounts...)
 	resRun.Secrets = append(resRun.Secrets, run.Secrets...)
 	resRun.Env = append(resRun.Env, run.Env...)
+	for tool, args := range run.Args {
+		resRun.Args[tool] = append(resRun.Args[tool], args...)
+	}
 	resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)
 	resRun.Proxy.Credentials = append(resRun.Proxy.Credentials, run.Proxy.Credentials...)
 	resRun.Instructions.Custom = appendInstructions(resRun.Instructions.Custom, run.Instructions.Custom)

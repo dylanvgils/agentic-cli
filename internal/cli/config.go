@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"slices"
 	"strconv"
@@ -150,6 +151,7 @@ func projectSections(layers []config.RCLayer) []section {
 			listField(layers, "mounts", func(rc *config.AgenticRC) []string { return rc.Run.Mounts }),
 			listField(layers, "secrets", func(rc *config.AgenticRC) []string { return rc.Run.Secrets }),
 			listField(layers, "env", envKeys),
+			listField(layers, "args", toolArgs),
 			boolField(layers, "check_updates", func(rc *config.AgenticRC) *bool { return rc.Run.CheckUpdates }, true),
 		)},
 		{header: "run.instructions", fields: []field{
@@ -302,6 +304,16 @@ func envKeys(rc *config.AgenticRC) []string {
 		keys[i], _, _ = strings.Cut(env, "=")
 	}
 	return keys
+}
+
+// toolArgs returns each tool's args in rc as "tool: args", sorted by tool.
+func toolArgs(rc *config.AgenticRC) []string {
+	tools := slices.Sorted(maps.Keys(rc.Run.Args))
+	entries := make([]string, len(tools))
+	for i, tool := range tools {
+		entries[i] = tool + ": " + strings.Join(rc.Run.Args[tool], " ")
+	}
+	return entries
 }
 
 // credentialNames returns each of rc's credentials as its preset, or its hosts when it has none.

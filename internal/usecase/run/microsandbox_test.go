@@ -107,14 +107,14 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		// Arrange
 		var ranImage string
 		msb := microsandboxRunner{docker: &fakeDocker{inspectImage: inspectImageID("abc123")}, microsandbox: &fakeMicrosandbox{
-			run: func(rs sandbox.RunSpec, _ []string) error {
+			run: func(rs sandbox.RunSpec) error {
 				ranImage = rs.Image
 				return nil
 			},
 		}}
 
 		// Act
-		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude"}, nil)
+		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Assert
 		require.NoError(t, err)
@@ -129,14 +129,14 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 				_, _ = io.ReadAll(r)
 				return errors.New("boom")
 			},
-			run: func(sandbox.RunSpec, []string) error {
+			run: func(sandbox.RunSpec) error {
 				ran = true
 				return nil
 			},
 		}}
 
 		// Act
-		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude"}, nil)
+		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Assert
 		assert.ErrorContains(t, err, "boom")
@@ -148,7 +148,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		ws := chdirSymlinkWorkspace(t)
 		ran := false
 		msb := microsandboxRunner{docker: &fakeDocker{inspectImage: inspectImageID("abc123")}, microsandbox: &fakeMicrosandbox{
-			run: func(sandbox.RunSpec, []string) error {
+			run: func(sandbox.RunSpec) error {
 				ran = true
 				return nil
 			},
@@ -156,7 +156,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
 
 		// Act
-		err := msb.Run(Request{}, rs, nil)
+		err := msb.Run(Request{}, rs)
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
@@ -176,14 +176,14 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 				loaded = true
 				return nil
 			},
-			run: func(rs sandbox.RunSpec, _ []string) error {
+			run: func(rs sandbox.RunSpec) error {
 				ranImage = rs.Image
 				return nil
 			},
 		}}
 
 		// Act
-		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
+		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude", DryRun: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -199,14 +199,14 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 			return &docker.ImageInfo{Image: name, ID: "def456", FullID: "sha256:same", DockerdParent: "sha256:same", CLIVersion: buildinfo.Version}, nil
 		}}
 		msb := microsandboxRunner{docker: d, microsandbox: &fakeMicrosandbox{
-			run: func(rs sandbox.RunSpec, _ []string) error {
+			run: func(rs sandbox.RunSpec) error {
 				ranImage = rs.Image
 				return nil
 			},
 		}}
 
 		// Act
-		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}}, nil)
+		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}})
 
 		// Assert
 		require.NoError(t, err)
@@ -230,14 +230,14 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 			},
 		}
 		msb := microsandboxRunner{docker: d, microsandbox: &fakeMicrosandbox{
-			run: func(rs sandbox.RunSpec, _ []string) error {
+			run: func(rs sandbox.RunSpec) error {
 				ranImage = rs.Image
 				return nil
 			},
 		}}
 
 		// Act
-		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude", DryRun: true, Dind: sandbox.DindSpec{Enabled: true}}, nil)
+		err := msb.Run(Request{}, sandbox.RunSpec{Image: "agentic-claude", DryRun: true, Dind: sandbox.DindSpec{Enabled: true}})
 
 		// Assert
 		require.NoError(t, err)

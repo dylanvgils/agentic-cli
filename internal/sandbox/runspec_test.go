@@ -26,6 +26,7 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 		WithVolumes("/host:/container", "/a:/b").
 		WithSecrets("token:/run/secrets/token").
 		WithSkipEntrypoint(true).
+		WithToolArgs("--example", "value").
 		WithEphemeralDirs(EphemeralDir{Path: "/tmp"}, EphemeralDir{Path: "/run"}).
 		WithLimits(ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}).
 		WithDryRun(true).
@@ -40,6 +41,7 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 	assert.Equal(t, []string{"/host:/container", "/a:/b"}, result.Volumes)
 	assert.Equal(t, []string{"token:/run/secrets/token"}, result.Secrets)
 	assert.True(t, result.SkipEntrypoint)
+	assert.Equal(t, []string{"--example", "value"}, result.ToolArgs)
 	assert.Equal(t, []EphemeralDir{{Path: "/tmp"}, {Path: "/run"}}, result.EphemeralDirs)
 	assert.Equal(t, ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, result.Limits)
 	assert.True(t, result.DryRun)

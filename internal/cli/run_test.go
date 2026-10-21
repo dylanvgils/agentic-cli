@@ -28,7 +28,7 @@ func Test_runTool(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		rs, _ := get()
+		rs := get()
 		assert.Empty(t, rs.Image, "the tool should not run when no args given")
 	})
 
@@ -52,9 +52,9 @@ func Test_runTool(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		rs, toolArgs := get()
+		rs := get()
 		assert.Equal(t, "agentic-claude", rs.Image)
-		assert.Empty(t, toolArgs)
+		assert.Empty(t, rs.ToolArgs)
 	})
 
 	t.Run("dind flag enables the sidecar when the image has the docker layer", func(t *testing.T) {
@@ -72,7 +72,7 @@ func Test_runTool(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		rs, _ := get()
+		rs := get()
 		assert.True(t, rs.Dind.Enabled)
 	})
 
@@ -88,7 +88,7 @@ func Test_runTool(t *testing.T) {
 
 		// Assert
 		require.ErrorContains(t, err, "--base docker")
-		rs, _ := get()
+		rs := get()
 		assert.Empty(t, rs.Image, "the tool should not run")
 	})
 
@@ -103,8 +103,8 @@ func Test_runTool(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		_, toolArgs := get()
-		assert.Equal(t, []string{"--dangerously-skip-permissions"}, toolArgs)
+		rs := get()
+		assert.Equal(t, []string{"--dangerously-skip-permissions"}, rs.ToolArgs)
 	})
 
 	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {
@@ -148,15 +148,14 @@ func Test_runTool(t *testing.T) {
 		})
 		var loaded string
 		var ranSpec sandbox.RunSpec
-		var ranArgs []string
 		stubMicrosandbox(t, &fakeMicrosandbox{
 			loadImage: func(r io.Reader, _ string) error {
 				b, err := io.ReadAll(r)
 				loaded = string(b)
 				return err
 			},
-			run: func(rs sandbox.RunSpec, toolArgs []string) error {
-				ranSpec, ranArgs = rs, toolArgs
+			run: func(rs sandbox.RunSpec) error {
+				ranSpec = rs
 				return nil
 			},
 		})
@@ -169,8 +168,8 @@ func Test_runTool(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "tar:agentic-claude:latest", loaded)
 		assert.Equal(t, "agentic-claude:abc123", ranSpec.Image)
-		assert.Equal(t, []string{"--help"}, ranArgs)
-		rs, _ := get()
+		assert.Equal(t, []string{"--help"}, ranSpec.ToolArgs)
+		rs := get()
 		assert.Empty(t, rs.Image, "the tool should not run")
 	})
 }

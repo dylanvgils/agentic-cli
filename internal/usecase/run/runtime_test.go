@@ -15,29 +15,23 @@ func Test_Service_Run(t *testing.T) {
 	t.Run("docker runs the container", func(t *testing.T) {
 		// Arrange
 		var ranSpec sandbox.RunSpec
-		var ranArgs []string
 		microsandboxRan := false
 		svc := New(&fakeDocker{
 			startSidecars: func(rs sandbox.RunSpec) (docker.Sidecars, error) {
 				ranSpec = rs
 				return docker.Sidecars{}, nil
 			},
-			runTool: func(_ docker.Sidecars, toolArgs []string) error {
-				ranArgs = toolArgs
-				return nil
-			},
-		}, &fakeMicrosandbox{run: func(sandbox.RunSpec, []string) error {
+		}, &fakeMicrosandbox{run: func(sandbox.RunSpec) error {
 			microsandboxRan = true
 			return nil
 		}})
 
 		// Act
-		err := svc.Run(runtimeRequest(sandbox.RuntimeDocker), sandbox.RunSpec{Image: "agentic-claude"}, []string{"--help"})
+		err := svc.Run(runtimeRequest(sandbox.RuntimeDocker), sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude", ranSpec.Image)
-		assert.Equal(t, []string{"--help"}, ranArgs)
 		assert.False(t, microsandboxRan)
 	})
 
@@ -47,18 +41,18 @@ func Test_Service_Run(t *testing.T) {
 		var ranSpec sandbox.RunSpec
 		d := &fakeDocker{
 			inspectImage: inspectImageID("abc123"),
-			runTool: func(docker.Sidecars, []string) error {
+			runTool: func(docker.Sidecars) error {
 				dockerRan = true
 				return nil
 			},
 		}
-		svc := New(d, &fakeMicrosandbox{run: func(rs sandbox.RunSpec, _ []string) error {
+		svc := New(d, &fakeMicrosandbox{run: func(rs sandbox.RunSpec) error {
 			ranSpec = rs
 			return nil
 		}})
 
 		// Act
-		err := svc.Run(runtimeRequest(sandbox.RuntimeMicrosandbox), sandbox.RunSpec{Image: "agentic-claude", DryRun: true}, nil)
+		err := svc.Run(runtimeRequest(sandbox.RuntimeMicrosandbox), sandbox.RunSpec{Image: "agentic-claude", DryRun: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -69,14 +63,14 @@ func Test_Service_Run(t *testing.T) {
 	t.Run("a spec relying on a feature the runtime lacks never reaches it", func(t *testing.T) {
 		// Arrange
 		ran := false
-		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec, []string) error {
+		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec) error {
 			ran = true
 			return nil
 		}})
 		rs := sandbox.RunSpec{Image: "agentic-claude", Secrets: []string{"token:/run/secrets/token"}}
 
 		// Act
-		err := svc.Run(runtimeRequest(sandbox.RuntimeMicrosandbox), rs, nil)
+		err := svc.Run(runtimeRequest(sandbox.RuntimeMicrosandbox), rs)
 
 		// Assert
 		assert.ErrorContains(t, err, "can't enforce secret mounts")
@@ -87,14 +81,14 @@ func Test_Service_Run(t *testing.T) {
 		// Arrange
 		ws := chdirSymlinkWorkspace(t)
 		ran := false
-		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec, []string) error {
+		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec) error {
 			ran = true
 			return nil
 		}})
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
 
 		// Act
-		err := svc.Run(runtimeRequest(sandbox.RuntimeMicrosandbox), rs, nil)
+		err := svc.Run(runtimeRequest(sandbox.RuntimeMicrosandbox), rs)
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
@@ -104,13 +98,13 @@ func Test_Service_Run(t *testing.T) {
 	t.Run("unset runtime runs on docker", func(t *testing.T) {
 		// Arrange
 		dockerRan := false
-		svc := New(&fakeDocker{runTool: func(docker.Sidecars, []string) error {
+		svc := New(&fakeDocker{runTool: func(docker.Sidecars) error {
 			dockerRan = true
 			return nil
 		}}, nil)
 
 		// Act
-		err := svc.Run(runtimeRequest(""), sandbox.RunSpec{Image: "agentic-claude"}, nil)
+		err := svc.Run(runtimeRequest(""), sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Assert
 		require.NoError(t, err)
@@ -122,7 +116,7 @@ func Test_Service_Run(t *testing.T) {
 		svc := New(&fakeDocker{}, nil)
 
 		// Act
-		err := svc.Run(runtimeRequest(sandbox.Runtime("podman")), sandbox.RunSpec{}, nil)
+		err := svc.Run(runtimeRequest(sandbox.Runtime("podman")), sandbox.RunSpec{})
 
 		// Assert
 		assert.ErrorContains(t, err, `unknown runtime "podman"`)

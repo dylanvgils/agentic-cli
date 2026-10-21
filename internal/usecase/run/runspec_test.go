@@ -193,6 +193,20 @@ func Test_Service_build(t *testing.T) {
 		assert.True(t, rs.SkipEntrypoint)
 	})
 
+	t.Run("tool args wired from config and command line", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude", ToolArgs: []string{"--from-cli"}}
+		in := Input{ToolHome: t.TempDir()}
+		rc := &config.AgenticRC{Run: config.RCRun{Args: map[string][]string{"claude": {"--from-rc"}}}}
+
+		// Act
+		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"--from-rc", "--from-cli"}, rs.ToolArgs)
+	})
+
 	t.Run("config mount through a planted symlink out of cwd is refused", func(t *testing.T) {
 		// Arrange
 		chdirSymlinkWorkspace(t)

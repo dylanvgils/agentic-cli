@@ -51,7 +51,7 @@ func (r dockerRunner) Check(req Request) error {
 // Run readies the Docker-only host resources rs needs, starts its sidecars and runs it, checking the mounts again right
 // before the sidecars and the tool start as readying them can take long enough for a path to change; a dry run only
 // prints.
-func (r dockerRunner) Run(req Request, rs sandbox.RunSpec, toolArgs []string) error {
+func (r dockerRunner) Run(req Request, rs sandbox.RunSpec) error {
 	if !rs.DryRun {
 		if err := r.prepareDockerHost(rs, req.Flags.Registry); err != nil {
 			return err
@@ -78,7 +78,7 @@ func (r dockerRunner) Run(req Request, rs sandbox.RunSpec, toolArgs []string) er
 	if err := recheckMounts(rs); err != nil {
 		return err
 	}
-	return r.docker.RunTool(sidecars, toolArgs)
+	return r.docker.RunTool(sidecars)
 }
 
 // prepareDockerHost creates rs's named volumes and proxy log dir and builds missing sidecar images.

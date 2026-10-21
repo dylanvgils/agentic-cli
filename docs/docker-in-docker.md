@@ -21,7 +21,7 @@ enabled = true
 memory = "8g" # sidecar only
 ```
 
-If the sidecar fails to start, the error includes its logs. `agentic config` shows the resolved `[run.dind]` settings. See [Devcontainers](recipes.md#devcontainers) for an example.
+If the sidecar fails to start, the error includes its logs. `agentic config` shows the resolved `[run.dind]` settings.
 
 ### Other registries
 
