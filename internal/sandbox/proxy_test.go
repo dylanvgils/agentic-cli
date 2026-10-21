@@ -60,6 +60,18 @@ func TestProxySpec_HasPathRules(t *testing.T) {
 	})
 }
 
+func TestAllowWhole(t *testing.T) {
+	// Arrange
+	rules := []AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test", Paths: []string{"/a"}}}
+
+	// Act
+	whole := AllowWhole(rules)
+
+	// Assert
+	assert.Equal(t, []AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test"}}, whole)
+	assert.Equal(t, []string{"/a"}, rules[1].Paths, "the input is left as is")
+}
+
 func TestProxySpec_WholeHosts(t *testing.T) {
 	// Arrange
 	spec := ProxySpec{Rules: []AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test", Paths: []string{"/a"}}, {Host: ".example.org"}}}

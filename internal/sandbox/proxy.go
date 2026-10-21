@@ -36,6 +36,15 @@ func (s ProxySpec) HasPathRules() bool {
 	return slices.ContainsFunc(s.Rules, func(r AllowRule) bool { return len(r.Paths) > 0 })
 }
 
+// AllowWhole returns rules with each one allowing every path, for a runtime that can't match paths.
+func AllowWhole(rules []AllowRule) []AllowRule {
+	whole := make([]AllowRule, len(rules))
+	for i, rule := range rules {
+		whole[i] = AllowRule{Host: rule.Host}
+	}
+	return whole
+}
+
 // WholeHosts returns the hosts of the rules that allow every path.
 func (s ProxySpec) WholeHosts() []string {
 	var hosts []string

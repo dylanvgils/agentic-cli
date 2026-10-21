@@ -58,20 +58,25 @@ func Test_requiredCapabilities(t *testing.T) {
 		assert.Equal(t, sandbox.Capabilities{CredentialInjection: true, PidsLimit: true}, need)
 	})
 
-	t.Run("path rules ask for path rule support only with the proxy", func(t *testing.T) {
+	t.Run("path rules ask for path rule support only with the proxy or credentials", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
 		rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
+		credentialRC := &config.AgenticRC{}
+		credentialRC.Run.Proxy.AllowedPaths = rc.Run.Proxy.AllowedPaths
+		credentialRC.Run.Proxy.Credentials = []config.RCCredential{{Preset: "github", Secret: "/example.test/token"}}
 		proxyFlags := Flags{}
 		proxyFlags.Proxy.ProxyFlag = true
 
 		// Act
 		without := requiredCapabilities(Flags{}, rc)
 		with := requiredCapabilities(proxyFlags, rc)
+		withCredentials := requiredCapabilities(Flags{}, credentialRC)
 
 		// Assert
 		assert.Equal(t, sandbox.Capabilities{PidsLimit: true}, without)
 		assert.Equal(t, sandbox.Capabilities{Proxy: true, PathRules: true, PidsLimit: true}, with)
+		assert.Equal(t, sandbox.Capabilities{CredentialInjection: true, PathRules: true, PidsLimit: true}, withCredentials)
 	})
 
 	t.Run("secrets from config ask for secret mounts", func(t *testing.T) {
@@ -202,8 +207,9 @@ func Test_checkCapabilities(t *testing.T) {
 		assert.Contains(t, err.Error(), "the egress proxy (--proxy-monitor) or proxy credentials ([[run.proxy.credentials]] in "+req.Project.Layers[0].Path+")")
 	})
 
-	t.Run("missing path rules name the layer", func(t *testing.T) {
+	t.Run("missing path rules only warn, naming the layer", func(t *testing.T) {
 		// Arrange
+		errLog := stubErrLog(t)
 		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
 		rc := &config.AgenticRC{}
 		rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
@@ -215,7 +221,8 @@ func Test_checkCapabilities(t *testing.T) {
 		err := checkCapabilities(req, msb)
 
 		// Assert
-		assert.EqualError(t, err, "--runtime microsandbox does not support proxy path rules ([[run.proxy.allowed_paths]] in /example.test/project/.agenticrc.toml); use --runtime docker")
+		require.NoError(t, err)
+		assert.Contains(t, errLog.String(), "--runtime microsandbox can't limit hosts to paths, so it allows the hosts of [[run.proxy.allowed_paths]] in /example.test/project/.agenticrc.toml on every path; use --runtime docker to limit them")
 	})
 
 	t.Run("missing secret mounts point to credential injection", func(t *testing.T) {

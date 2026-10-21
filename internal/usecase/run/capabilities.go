@@ -18,7 +18,7 @@ func requiredCapabilities(flags Flags, rc *config.AgenticRC) sandbox.Capabilitie
 		ProxyMonitor:        proxyMode == sandbox.ProxyMonitor,
 		Dind:                resolve.DindEnabled(flags.Dind, rc),
 		CredentialInjection: len(rc.Run.Proxy.Credentials) > 0,
-		PathRules:           proxyMode.Enabled() && len(rc.Run.Proxy.AllowedPaths) > 0,
+		PathRules:           len(rc.Run.Proxy.AllowedPaths) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
 		SecretMounts:        len(resolve.Secrets(flags.Secrets, rc)) > 0,
 		PidsLimit:           true,
 	}
@@ -49,9 +49,6 @@ func checkCapabilities(req Request, offered sandbox.Capabilities) error {
 	if missing.CredentialInjection {
 		refused = append(refused, fmt.Sprintf("proxy credentials (%s)", credentialsSource(req)))
 	}
-	if missing.PathRules {
-		refused = append(refused, fmt.Sprintf("proxy path rules (%s)", pathRulesSource(req)))
-	}
 	if missing.SecretMounts {
 		refused = append(refused, fmt.Sprintf("secret mounts (%s)", secretsSource(req)))
 	}
@@ -69,6 +66,9 @@ func checkCapabilities(req Request, offered sandbox.Capabilities) error {
 		return fmt.Errorf("%s does not support %s; %s", runtimeSource(req), strings.Join(refused, " or "), hint)
 	}
 
+	if missing.PathRules {
+		logging.Warnf("%s can't limit hosts to paths, so it allows the hosts of %s on every path; use --runtime docker to limit them", runtimeSource(req), pathRulesSource(req))
+	}
 	if missing.Dind {
 		logging.Warnf("%s has no Docker daemon, so it ignores %s", runtimeSource(req), dindSource(req))
 	}

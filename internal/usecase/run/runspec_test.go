@@ -355,6 +355,23 @@ func Test_Service_build(t *testing.T) {
 		}, rs.Credentials)
 	})
 
+	t.Run("microsandbox allows path rule hosts whole", func(t *testing.T) {
+		// Arrange
+		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		in := Input{ToolHome: t.TempDir(), Runtime: sandbox.RuntimeMicrosandbox, ProxyMode: sandbox.ProxyEnforce}
+		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
+			{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
+		}}}}
+
+		// Act
+		rs, err := New(&fakeDocker{}, &fakeMicrosandbox{}).build(target, in, tools.Configs["claude"], approvedRC(rc))
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, rs.Proxy.HasPathRules())
+		assert.Contains(t, rs.Proxy.WholeHosts(), "raw.example.test")
+	})
+
 	t.Run("proxy credentials refused on an image without proxy trust", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{

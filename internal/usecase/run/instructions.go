@@ -249,7 +249,7 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 		b.WriteString("- All traffic goes through an egress proxy.\n")
 	}
 
-	rules := resolve.ProxyRules(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc)
+	rules := proxyRules(toolConfig, in, rc, caps)
 	fmt.Fprintf(b, "- Only these hosts are reachable, and only on ports %s (HTTP and HTTPS):\n", strings.Join(proxy.DefaultPorts, " and "))
 	for _, rule := range rules {
 		if len(rule.Paths) == 0 {

@@ -65,6 +65,7 @@ type buildRequest struct {
 	in            Input
 	toolConfig    tools.ToolConfig
 	rc            *config.AgenticRC
+	caps          sandbox.Capabilities
 	containerHome string
 }
 
@@ -87,6 +88,7 @@ func (s *Service) build(target Target, in Input, toolConfig tools.ToolConfig, ap
 		in:            in,
 		toolConfig:    toolConfig,
 		rc:            rc,
+		caps:          s.capabilities(in.Runtime),
 		containerHome: s.docker.ResolveContainerHome(target.ImageName),
 	}
 
@@ -113,7 +115,7 @@ func (s *Service) build(target Target, in Input, toolConfig tools.ToolConfig, ap
 
 	// Only a proxy that decrypts, for credentials or path rules, needs the tool to trust its CA
 	spec := specCapabilities(rs)
-	if (spec.CredentialInjection || spec.PathRules) && s.capabilities(in.Runtime).CredentialsViaProxy {
+	if (spec.CredentialInjection || spec.PathRules) && req.caps.CredentialsViaProxy {
 		if err := s.checkProxyTrust(target); err != nil {
 			return sandbox.RunSpec{}, err
 		}
@@ -158,8 +160,7 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 		return nil, err
 	}
 
-	caps := s.capabilities(in.Runtime)
-	placeholders, err := credentialSetup(in, caps, mounts, env)
+	placeholders, err := credentialSetup(in, req.caps, mounts, env)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +218,7 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string
 	limits := resolve.ResourceLimitsFor(in.Limits, rc)
 	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
 
-	rules := resolve.ProxyRules(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc)
+	rules := proxyRules(toolConfig, in, rc, req.caps)
 
 	return sandbox.NewRunSpec(req.target.ImageName).
 		WithToolHome(in.ToolHome).

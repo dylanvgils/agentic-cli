@@ -64,7 +64,7 @@ How the proxy applies them:
 - **Refused**: a path no pattern matches gets a 403, logged as `path-blocked` and listed at the end of the run. So does a path an upstream may read as another path: one with `%2F`, `%5C`, `%2E`, `%25`, `%3B`, `;`, `\`, a character outside printable ASCII, or a segment that is `.`, `..` or ends in a dot or space. This also refuses npm's scoped package paths (`/@scope%2Fname`).
 - **Upgrades**: only WebSocket upgrades reach the host. Others, such as `h2c`, are dropped, as the proxy can't check the requests on an upgraded connection.
 - **Path rules win**: they limit the host even when `allowed_hosts`, a tool's baseline or a wildcard allows it whole. Other hosts the wildcard matches stay whole.
-- **Credential hosts** only get their secret on the allowed paths.
+- **Credential hosts** only get their secret on the allowed paths, except [with microsandbox](#with-microsandbox).
 - **Baseline hosts**: a rule for a host the tool needs, like `api.anthropic.com`, limits the tool too.
 
 ## Monitor mode
@@ -122,4 +122,4 @@ With the [microsandbox runtime](microsandbox.md), msb's own network policy enfor
 - An internal host that resolves to a private address isn't reachable, since msb drops private DNS answers.
 - Every `allowed_hosts` entry must be a hostname like `api.example.test` or `.example.test`, else the run is refused. msb would read a CIDR or a name like `public` as a wider rule.
 - [Credentials](credential-injection.md) keep working, since msb injects them itself rather than a proxy.
-- [Path rules](#path-rules) are refused; use `--runtime docker`.
+- [Path rules](#path-rules) can't be matched, so their hosts are allowed on every path, credentials included, and the run warns. Use `--runtime docker` to limit them.
