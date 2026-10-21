@@ -87,14 +87,13 @@ func Run(cfg Config) error {
 	}
 	defer closeLog()
 
-	allow := NewAllowlist(cfg.Rules)
-	inject, err := loadInjector(cfg.CADir, cfg.CredentialsPath, allow.pathHosts())
+	inject, err := loadInjector(cfg.CADir, cfg.CredentialsPath, len(PathHosts(cfg.Rules)) > 0)
 	if err != nil {
 		return err
 	}
 
 	location := time.FixedZone("", cfg.TZOffsetSeconds)
-	server := NewServer(allow, NewLogger(jsonWriter(logFile), os.Stdout, location), cfg.Monitor, inject)
+	server := NewServer(NewAllowlist(cfg.Rules), NewLogger(jsonWriter(logFile), os.Stdout, location), cfg.Monitor, inject)
 
 	handler, err := clientHandler(server, cfg.ClientNets, inject != nil)
 	if err != nil {
@@ -129,12 +128,12 @@ func jsonWriter(f *os.File) io.Writer {
 	return f
 }
 
-// loadInjector returns nil when both are empty and fails when only one is set, or neither while pathHosts need decrypting;
+// loadInjector returns nil when both are empty and fails when only one is set, or neither while path rules need decrypting;
 // once loaded, the CA key and credentials files are removed, so the secrets don't stay on the Docker host's disk for the
 // whole run.
-func loadInjector(caDir, credsPath string, pathHosts []string) (*Injector, error) {
+func loadInjector(caDir, credsPath string, pathRules bool) (*Injector, error) {
 	if caDir == "" && credsPath == "" {
-		if len(pathHosts) > 0 {
+		if pathRules {
 			return nil, fmt.Errorf("%s with paths needs %s and %s to decrypt their hosts", EnvRules, EnvCADir, EnvCredentials)
 		}
 		return nil, nil
@@ -154,7 +153,7 @@ func loadInjector(caDir, credsPath string, pathHosts []string) (*Injector, error
 	}
 
 	removeSecretFiles(filepath.Join(caDir, CAKeyFile), credsPath)
-	return NewInjector(ca, creds, pathHosts), nil
+	return NewInjector(ca, creds), nil
 }
 
 // removeSecretFiles deletes paths, warning instead of failing since the volume is removed with the container anyway.

@@ -2,7 +2,6 @@
 package proxy
 
 import (
-	"maps"
 	"slices"
 	"strings"
 
@@ -28,7 +27,12 @@ func NewAllowlist(rules []Rule) *Allowlist {
 
 	for _, rule := range rules {
 		entry := normalizeHost(strings.TrimSpace(rule.Host))
-		if entry == "" || len(rule.Paths) > 0 {
+		if entry == "" {
+			continue
+		}
+
+		if len(rule.Paths) > 0 {
+			allowList.paths[entry] = append(allowList.paths[entry], rule.Paths...)
 			continue
 		}
 
@@ -40,13 +44,6 @@ func NewAllowlist(rules []Rule) *Allowlist {
 		}
 
 		allowList.exact[entry] = true
-	}
-
-	for _, rule := range rules {
-		host := normalizeHost(rule.Host)
-		if len(rule.Paths) > 0 {
-			allowList.paths[host] = append(allowList.paths[host], rule.Paths...)
-		}
 	}
 
 	return allowList
@@ -91,11 +88,6 @@ func (a *Allowlist) matchesHost(host string) bool {
 // exactMatch reports whether host matches an exact entry or path rule, which may then resolve to a private address.
 func (a *Allowlist) exactMatch(host string) bool {
 	return a.exact[normalizeHost(host)] || a.pathRestricted(host)
-}
-
-// pathHosts returns the hosts allowed only on some paths, sorted.
-func (a *Allowlist) pathHosts() []string {
-	return slices.Sorted(maps.Keys(a.paths))
 }
 
 // pathRestricted reports whether host is allowed only on the paths of its rules.

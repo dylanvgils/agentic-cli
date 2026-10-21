@@ -613,16 +613,16 @@ func Test_clientClosed(t *testing.T) {
 	})
 }
 
-func Test_interceptFor(t *testing.T) {
+func Test_credentialFor(t *testing.T) {
 	cred := testPlaceholderCredential("api.example.test", testPlaceholder)
-	inject := NewInjector(newTestProxyCA(t, "api.example.test"), []Credential{cred}, nil)
+	inject := NewInjector(newTestProxyCA(t, "api.example.test"), []Credential{cred})
 
 	t.Run("nil injector has no credential", func(t *testing.T) {
 		// Arrange
 		var none *Injector
 
 		// Act
-		_, ok := none.interceptFor("api.example.test", "443")
+		_, ok := none.credentialFor("api.example.test", "443")
 
 		// Assert
 		assert.False(t, ok)
@@ -630,7 +630,7 @@ func Test_interceptFor(t *testing.T) {
 
 	t.Run("exact host matches regardless of case and trailing dot", func(t *testing.T) {
 		// Act
-		got, ok := inject.interceptFor("API.example.test.", "443")
+		got, ok := inject.credentialFor("API.example.test.", "443")
 
 		// Assert
 		require.True(t, ok)
@@ -639,7 +639,7 @@ func Test_interceptFor(t *testing.T) {
 
 	t.Run("subdomain of a credentialed host has no credential", func(t *testing.T) {
 		// Act
-		_, ok := inject.interceptFor("evil.api.example.test", "443")
+		_, ok := inject.credentialFor("evil.api.example.test", "443")
 
 		// Assert
 		assert.False(t, ok)
@@ -647,7 +647,7 @@ func Test_interceptFor(t *testing.T) {
 
 	t.Run("unmatched host has no credential", func(t *testing.T) {
 		// Act
-		_, ok := inject.interceptFor("example-test.evil", "443")
+		_, ok := inject.credentialFor("example-test.evil", "443")
 
 		// Assert
 		assert.False(t, ok)
@@ -656,28 +656,16 @@ func Test_interceptFor(t *testing.T) {
 	t.Run("credentialed host on another port has no credential", func(t *testing.T) {
 		for _, port := range []string{"80", "8443", ""} {
 			// Act
-			_, ok := inject.interceptFor("api.example.test", port)
+			_, ok := inject.credentialFor("api.example.test", port)
 
 			// Assert
 			assert.False(t, ok, port)
 		}
 	})
-
-	t.Run("path rule host is intercepted without a credential", func(t *testing.T) {
-		// Arrange
-		paths := NewInjector(newTestProxyCA(t, "raw.example.test"), nil, []string{"Raw.Example.Test"})
-
-		// Act
-		got, ok := paths.interceptFor("raw.example.test.", "443")
-
-		// Assert
-		require.True(t, ok)
-		assert.Equal(t, Credential{}, got)
-	})
 }
 
 func Test_reverseProxy(t *testing.T) {
-	inject := NewInjector(newTestProxyCA(t, "api.example.test"), nil, nil)
+	inject := NewInjector(newTestProxyCA(t, "api.example.test"), nil)
 	cases := map[string]struct{ host, port string }{
 		"api.example.test":      {"api.example.test", "443"},
 		"api.example.test:8443": {"api.example.test", "8443"},
@@ -705,7 +693,7 @@ func Test_reverseProxy(t *testing.T) {
 func Test_leaf(t *testing.T) {
 	t.Run("caches the cert per host", func(t *testing.T) {
 		// Arrange
-		inject := NewInjector(newTestProxyCA(t, "api.example.test"), nil, nil)
+		inject := NewInjector(newTestProxyCA(t, "api.example.test"), nil)
 		first, err := inject.leaf("api.example.test")
 		require.NoError(t, err)
 
@@ -720,7 +708,7 @@ func Test_leaf(t *testing.T) {
 
 	t.Run("an IP host gets an IP SAN and a CN that isn't a hostname", func(t *testing.T) {
 		// Arrange
-		inject := NewInjector(newTestProxyCA(t, "203.0.113.7"), nil, nil)
+		inject := NewInjector(newTestProxyCA(t, "203.0.113.7"), nil)
 
 		// Act
 		cert, err := inject.leaf("203.0.113.7")

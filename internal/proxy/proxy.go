@@ -52,34 +52,60 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	host, port := splitHostPort(r.Host)
 	host = normalizeHost(host)
-	cred, intercepted := s.inject.interceptFor(host, port)
 
 	entry, forward := s.verdict(ProtocolHTTPS, host, port)
 	if !forward {
-		s.logger.Log(entry)
-		http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
+		s.refuseHost(w, entry)
 		return
 	}
 
-	// intercept logs once the client handshake shows whether injection happens
-	if intercepted {
+	// intercept logs once the client handshake succeeds
+	if cred, ok := s.decrypt(host, port); ok {
 		s.intercept(w, entry, cred)
 		return
 	}
 
 	// A plain tunnel hides the path, so a path rule host only passes one in monitor mode
 	if s.allow.pathRestricted(host) {
-		entry.Decision = DecisionDeny
-		entry.Reason = ReasonPathBlocked
-		if !s.monitor {
-			s.logger.Log(entry)
-			http.Error(w, pathBlockedText, http.StatusForbidden)
+		entry = s.markPathBlocked(entry)
+		if entry.Enforced {
+			s.refusePath(w, entry)
 			return
 		}
 	}
 
-	ctx := withPrivateOK(r.Context(), s.allow.exactMatch(host))
-	upstream, err := s.upstream.dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, port)) // NOSONAR - allowlisted host, address guard in the dialer
+	s.tunnel(w, r, entry)
+}
+
+// handleHTTP forwards a plain (non-TLS) HTTP request to the upstream host after checking the allowlist, unless in monitor mode.
+func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
+	host, port := splitHostPort(r.Host)
+	host = normalizeHost(host)
+	if port == "" {
+		port = defaultPort(r.URL.Scheme)
+	}
+
+	entry, forward := s.verdict(ProtocolHTTP, host, port)
+	if !forward {
+		s.refuseHost(w, entry)
+		return
+	}
+
+	if blocked, ok := s.pathVerdict(entry, r.URL); !ok {
+		entry = blocked
+		if entry.Enforced {
+			s.refusePath(w, entry)
+			return
+		}
+	}
+
+	s.forward(w, r, entry)
+}
+
+// tunnel splices the CONNECT to entry's host once its TLS server name checks out.
+func (s *Server) tunnel(w http.ResponseWriter, r *http.Request, entry Entry) {
+	ctx := withPrivateOK(r.Context(), s.allow.exactMatch(entry.Host))
+	upstream, err := s.upstream.dialer.DialContext(ctx, "tcp", net.JoinHostPort(entry.Host, entry.Port)) // NOSONAR - allowlisted host, address guard in the dialer
 	if errors.Is(err, errBlockedAddr) {
 		s.refuseBlocked(w, entry)
 		return
@@ -113,32 +139,10 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	splice(client, upstream)
 }
 
-// handleHTTP forwards a plain (non-TLS) HTTP request to the upstream host after checking the allowlist, unless in monitor mode.
-func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
-	host, port := splitHostPort(r.Host)
-	host = normalizeHost(host)
-	if port == "" {
-		port = defaultPort(r.URL.Scheme)
-	}
-
-	entry, forward := s.verdict(ProtocolHTTP, host, port)
-	if !forward {
-		s.logger.Log(entry)
-		http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
-		return
-	}
-
-	if blocked, ok := s.pathVerdict(entry, r.URL); !ok {
-		entry = blocked
-		if entry.Enforced {
-			s.logger.Log(entry)
-			http.Error(w, pathBlockedText, http.StatusForbidden)
-			return
-		}
-	}
-
+// forward sends r to entry's host and copies the response back.
+func (s *Server) forward(w http.ResponseWriter, r *http.Request, entry Entry) {
 	r.RequestURI = ""
-	ctx := withPrivateOK(r.Context(), s.allow.exactMatch(host))
+	ctx := withPrivateOK(r.Context(), s.allow.exactMatch(entry.Host))
 	resp, err := s.upstream.transport.RoundTrip(r.WithContext(ctx))
 	if errors.Is(err, errBlockedAddr) {
 		s.refuseBlocked(w, entry)
@@ -177,6 +181,20 @@ func (s *Server) verdict(protocol Protocol, host, port string) (Entry, bool) {
 		Enforced: !s.monitor,
 	}
 	return entry, allowed || s.monitor
+}
+
+// decrypt reports whether to terminate host's tunnel, with its credential if it has one.
+func (s *Server) decrypt(host, port string) (Credential, bool) {
+	if cred, ok := s.inject.credentialFor(host, port); ok {
+		return cred, true
+	}
+	return Credential{}, s.inject.intercepts(port) && s.allow.pathRestricted(host)
+}
+
+// refuseHost logs entry and answers 403 for a host the allowlist doesn't allow.
+func (s *Server) refuseHost(w http.ResponseWriter, entry Entry) {
+	s.logger.Log(entry)
+	http.Error(w, "host not allowed by agentic proxy allowlist", http.StatusForbidden)
 }
 
 // refuseBlocked logs entry as denied by the address guard, which monitor mode also enforces, and answers 403.

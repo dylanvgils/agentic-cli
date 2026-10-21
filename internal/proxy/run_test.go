@@ -159,38 +159,37 @@ func Test_loadInjector(t *testing.T) {
 
 	t.Run("neither set disables injection", func(t *testing.T) {
 		// Act
-		inject, err := loadInjector("", "", nil)
+		inject, err := loadInjector("", "", false)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Nil(t, inject)
 	})
 
-	t.Run("path hosts without a ca are an error", func(t *testing.T) {
+	t.Run("path rules without a ca are an error", func(t *testing.T) {
 		// Act
-		_, err := loadInjector("", "", []string{"raw.example.test"})
+		_, err := loadInjector("", "", true)
 
 		// Assert
 		assert.ErrorContains(t, err, EnvRules)
 	})
 
-	t.Run("loads a ca for path hosts without credentials", func(t *testing.T) {
+	t.Run("loads a ca for path rules without credentials", func(t *testing.T) {
 		// Arrange
 		caDir := writeTestCADir(t)
 		emptyCredsPath := writeTestFile(t, "creds.json", `[]`)
 
 		// Act
-		inject, err := loadInjector(caDir, emptyCredsPath, []string{"api.example.test"})
+		inject, err := loadInjector(caDir, emptyCredsPath, true)
 
 		// Assert
 		require.NoError(t, err)
-		_, ok := inject.interceptFor("api.example.test", "443")
-		assert.True(t, ok)
+		assert.NotNil(t, inject)
 	})
 
 	t.Run("only one set is an error", func(t *testing.T) {
 		// Act
-		_, err := loadInjector("", credsPath, nil)
+		_, err := loadInjector("", credsPath, false)
 
 		// Assert
 		assert.ErrorContains(t, err, "must be set together")
@@ -202,11 +201,11 @@ func Test_loadInjector(t *testing.T) {
 		ownCredsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"headers":["X-Api-Key"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
 
 		// Act
-		inject, err := loadInjector(caDir, ownCredsPath, nil)
+		inject, err := loadInjector(caDir, ownCredsPath, false)
 
 		// Assert
 		require.NoError(t, err)
-		cred, ok := inject.interceptFor("api.example.test", "443")
+		cred, ok := inject.credentialFor("api.example.test", "443")
 		require.True(t, ok)
 		assert.Equal(t, "test-secret", cred.Secret)
 		assert.Equal(t, []string{"X-Api-Key"}, cred.Headers)
@@ -218,7 +217,7 @@ func Test_loadInjector(t *testing.T) {
 		ownCredsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"headers":["X-Api-Key"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
 
 		// Act
-		_, err := loadInjector(caDir, ownCredsPath, nil)
+		_, err := loadInjector(caDir, ownCredsPath, false)
 
 		// Assert
 		require.NoError(t, err)
@@ -233,7 +232,7 @@ func Test_loadInjector(t *testing.T) {
 		badPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"]}]`)
 
 		// Act
-		_, err := loadInjector(caDir, badPath, nil)
+		_, err := loadInjector(caDir, badPath, false)
 
 		// Assert
 		require.Error(t, err)
@@ -245,7 +244,7 @@ func Test_loadInjector(t *testing.T) {
 		caDir := t.TempDir()
 
 		// Act
-		_, err := loadInjector(caDir, credsPath, nil)
+		_, err := loadInjector(caDir, credsPath, false)
 
 		// Assert
 		assert.ErrorContains(t, err, "read proxy CA")
@@ -257,7 +256,7 @@ func Test_loadInjector(t *testing.T) {
 		badPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"]}]`)
 
 		// Act
-		_, err := loadInjector(caDir, badPath, nil)
+		_, err := loadInjector(caDir, badPath, false)
 
 		// Assert
 		assert.ErrorContains(t, err, "no headers")

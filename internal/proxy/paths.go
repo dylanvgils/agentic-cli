@@ -19,14 +19,20 @@ var unsafePathParts = []string{"%2f", "%5c", "%2e", "%3b", "\\", ";"}
 func (s *Server) checkPaths(next http.Handler, entry Entry) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if blocked, ok := s.pathVerdict(entry, r.URL); !ok {
-			s.logger.Log(blocked)
 			if blocked.Enforced {
-				http.Error(w, pathBlockedText, http.StatusForbidden)
+				s.refusePath(w, blocked)
 				return
 			}
+			s.logger.Log(blocked)
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// refusePath logs entry and answers 403 for a path its host's rules don't allow.
+func (s *Server) refusePath(w http.ResponseWriter, entry Entry) {
+	s.logger.Log(entry)
+	http.Error(w, pathBlockedText, http.StatusForbidden)
 }
 
 // pathVerdict reports whether u's path is allowed on entry's host, always for a host without path rules, returning
@@ -41,11 +47,17 @@ func (s *Server) pathVerdict(entry Entry, u *url.URL) (Entry, bool) {
 		return entry, true
 	}
 
+	entry = s.markPathBlocked(entry)
+	entry.Path = u.EscapedPath()
+	return entry, false
+}
+
+// markPathBlocked returns entry denied for its path, enforced unless in monitor mode.
+func (s *Server) markPathBlocked(entry Entry) Entry {
 	entry.Decision = DecisionDeny
 	entry.Enforced = !s.monitor
 	entry.Reason = ReasonPathBlocked
-	entry.Path = u.EscapedPath()
-	return entry, false
+	return entry
 }
 
 // requestPath returns u's decoded path ("/" when empty), or ok=false when its escaped form holds unsafePathParts or it

@@ -195,22 +195,18 @@ func TestAllowlistPaths(t *testing.T) {
 		exact := limited.AllowsPath("exact.example.test", "/b")
 		wild := limited.AllowsPath("raw.wild.example.test", "/b")
 		sibling := limited.AllowsPath("other.wild.example.test", "/b")
-		hosts := limited.pathHosts()
 
 		// Assert
 		assert.False(t, exact)
 		assert.False(t, wild)
 		assert.True(t, sibling)
-		assert.Equal(t, []string{"exact.example.test", "raw.wild.example.test"}, hosts)
 	})
 
-	t.Run("path rule hosts are exact and listed once", func(t *testing.T) {
+	t.Run("path rule hosts are exact", func(t *testing.T) {
 		// Act
 		exact := al.exactMatch("raw.example.test")
-		hosts := al.pathHosts()
 
 		// Assert
 		assert.True(t, exact)
-		assert.Equal(t, []string{"raw.example.test"}, hosts)
 	})
 }

@@ -175,7 +175,7 @@ func proxyGet(t *testing.T, proxyURL, target string) *http.Response {
 	return resp
 }
 
-// newTestInjector returns an Injector for creds and pathHosts that intercepts upstream's port with a transport trusting
+// newTestInjector returns an Injector for creds, its CA also covering pathHosts, that intercepts upstream's port with a transport trusting
 // its cert, and a pool trusting its CA.
 func newTestInjector(t *testing.T, upstream *httptest.Server, creds []Credential, pathHosts ...string) (*Injector, *x509.CertPool) {
 	t.Helper()
@@ -186,7 +186,7 @@ func newTestInjector(t *testing.T, upstream *httptest.Server, creds []Credential
 	}
 
 	ca := newTestProxyCA(t, hosts...)
-	inject := NewInjector(ca, creds, pathHosts)
+	inject := NewInjector(ca, creds)
 	inject.transport = upstream.Client().Transport
 	_, inject.port = splitHostPort(upstream.Listener.Addr().String())
 
