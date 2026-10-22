@@ -1,6 +1,6 @@
 package credentials
 
-// presets maps a preset name to the hosts, headers, placeholder env and git auth it expands to.
+// presets maps a preset name to the hosts, headers and placeholder env it expands to.
 var presets = map[string]preset{
 	"anthropic": {
 		hosts:   []string{"api.anthropic.com"},
@@ -24,7 +24,6 @@ var presets = map[string]preset{
 		},
 		headers: []string{"Authorization"},
 		env:     []string{"GITHUB_TOKEN", "GH_TOKEN"},
-		git:     &GitAuth{Host: "github.com", User: "x-access-token"},
 	},
 }
 
@@ -33,5 +32,4 @@ type preset struct {
 	hosts   []string
 	headers []string
 	env     []string
-	git     *GitAuth
 }

@@ -16,12 +16,11 @@ func TestResolve(t *testing.T) {
 			hosts:   []string{"api.example.test", "git.example.test"},
 			headers: []string{"X-Api-Key", "Authorization"},
 			env:     []string{"EXAMPLE_TOKEN", "EXAMPLE_KEY"},
-			git:     &GitAuth{Host: "git.example.test", User: "x-access-token"},
 		},
 		"other": {hosts: []string{"api.other.test"}, headers: []string{"X-Api-Key"}, env: []string{"OTHER_TOKEN"}},
 	})
 
-	t.Run("preset expands to its hosts, headers, env and git auth", func(t *testing.T) {
+	t.Run("preset expands to its hosts, headers and env", func(t *testing.T) {
 		// Act
 		resolved, err := Resolve([]config.RCCredential{{Preset: "example", Secret: secret}})
 
@@ -35,7 +34,6 @@ func TestResolve(t *testing.T) {
 			Secret:  "test-secret",
 			Source:  secret,
 			Path:    secret,
-			Git:     &GitAuth{Host: "git.example.test", User: "x-access-token"},
 		}, resolved[0])
 	})
 
@@ -59,7 +57,6 @@ func TestResolve(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{"api.custom.test"}, resolved[0].Hosts)
 		assert.Equal(t, []string{"Authorization"}, resolved[0].Headers)
-		assert.Nil(t, resolved[0].Git)
 	})
 
 	t.Run("entries merged from several config levels resolve in order", func(t *testing.T) {

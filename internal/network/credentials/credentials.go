@@ -25,14 +25,6 @@ type Resolved struct {
 	Source string
 	// Path is the host file the secret was read from, empty for non-file sources
 	Path string
-	// Git is how git authenticates to a host of the entry over HTTPS; nil when the entry doesn't cover git
-	Git *GitAuth
-}
-
-// GitAuth is the user git sends with the placeholder as password to Host, which only asks after a 401 challenge.
-type GitAuth struct {
-	Host string
-	User string
 }
 
 // Resolve reads each entry's secret, failing on invalid entries, a host claimed twice or an entry without env, which no
@@ -123,7 +115,6 @@ func resolveEntry(entry config.RCCredential) (Resolved, error) {
 		Secret:  secret,
 		Source:  source.String(),
 		Path:    path,
-		Git:     e.git,
 	}
 	if err := proxy.ValidateCredential(validationCredential(r, 0)); err != nil {
 		return Resolved{}, err
@@ -131,7 +122,7 @@ func resolveEntry(entry config.RCCredential) (Resolved, error) {
 	return r, nil
 }
 
-// expand returns the entry's hosts, headers, env and git auth, from its preset or its own fields; an explicit env
+// expand returns the entry's hosts, headers and env, from its preset or its own fields; an explicit env
 // replaces a preset's.
 func expand(entry config.RCCredential) (preset, error) {
 	if entry.Preset == "" {

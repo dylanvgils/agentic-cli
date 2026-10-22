@@ -175,7 +175,7 @@ See [Path rules](egress-proxy.md#path-rules) for how patterns match and what's r
 | ----------- | --------------------------------------------------------------------------------------------- | -------------------------- |
 | `anthropic` | `api.anthropic.com`: `X-Api-Key`                                                              | `ANTHROPIC_API_KEY`        |
 | `openai`    | `api.openai.com`: `Authorization`                                                             | `OPENAI_API_KEY`           |
-| `github`    | `api.github.com`, `github.com`, `api.githubcopilot.com`, `api.{individual,business,enterprise}.githubcopilot.com`: `Authorization`; a git credential helper as `x-access-token` | `GITHUB_TOKEN`, `GH_TOKEN` |
+| `github`    | `api.github.com`, `github.com`, `api.githubcopilot.com`, `api.{individual,business,enterprise}.githubcopilot.com`: `Authorization` | `GITHUB_TOKEN`, `GH_TOKEN` |
 
 ```toml
 [[run.proxy.credentials]]
