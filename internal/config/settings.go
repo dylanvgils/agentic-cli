@@ -48,7 +48,6 @@ func GuardedSettings(rc *AgenticRC) []GuardedSetting {
 		{"marketplaces", rc.Marketplaces},
 		{"build.custom_installs", rc.Build.CustomInstalls},
 		{"run.mounts", rc.Run.Mounts},
-		{"run.secrets", rc.Run.Secrets},
 		{"run.env", rc.Run.Env},
 		{"run.args", rc.Run.Args},
 		{"run.runtime", rc.Run.Runtime},

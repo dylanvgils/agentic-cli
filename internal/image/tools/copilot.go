@@ -70,14 +70,6 @@ func copilotStage(prevStage string) df.Stage {
 			Blocks: []df.Block{
 				{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
 				{
-					Comment: "Set GITHUB_TOKEN if mounted in container",
-					Lines: []string{
-						"if [[ -f /run/secrets/copilot_token ]]; then",
-						`  export GITHUB_TOKEN="$(cat /run/secrets/copilot_token)"`,
-						"fi",
-					},
-				},
-				{
 					Lines: []string{
 						"# Register AGENTIC_MARKETPLACES into Copilot",
 						"# Not idempotent, so skip marketplaces already registered (e.g. from a previous run against",

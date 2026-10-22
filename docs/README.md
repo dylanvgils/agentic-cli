@@ -3,7 +3,7 @@
 1. [Overview](overview.md) - what agentic is, the security model, and motivation
 2. [Comparison](comparison.md) - agentic vs Docker Sandboxes (`sbx`) at a glance
 3. [Installation](installation.md) - install, uninstall, upgrade, and building from source
-4. [Usage](usage.md) - commands, shell setup, secrets, env vars, volumes, data directory, marketplaces
+4. [Usage](usage.md) - commands, shell setup, env vars, volumes, data directory, marketplaces
 5. [Images](images.md) - base images, runtime layers, versions and updates, apt packages, registry proxy, install checksums
 6. [Configuration](config.md) - `agentic.json` and `.agenticrc.toml` reference, merge and precedence rules
 7. [Environment instructions](environment-instructions.md) - the block each run writes into the tool's instructions file

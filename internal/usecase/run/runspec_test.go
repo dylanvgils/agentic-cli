@@ -80,19 +80,6 @@ func Test_Service_build(t *testing.T) {
 		}
 	})
 
-	t.Run("secrets wired", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), Secrets: []string{"mytoken:/tmp/token"}}
-
-		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"mytoken:/tmp/token"}, rs.Secrets)
-	})
-
 	t.Run("resource limits wired", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}

@@ -64,30 +64,6 @@ func TestVolumes(t *testing.T) {
 	})
 }
 
-func TestSecrets(t *testing.T) {
-	t.Run("ordering", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Secrets: []string{"rctoken:/tmp/rc"}}}
-
-		// Act
-		result := Secrets([]string{"flagtoken:/tmp/flag"}, rc)
-
-		// Assert
-		assert.Equal(t, []string{
-			"flagtoken:/tmp/flag",
-			"rctoken:/tmp/rc",
-		}, result)
-	})
-
-	t.Run("all empty returns nil", func(t *testing.T) {
-		// Act
-		result := Secrets(nil, &config.AgenticRC{})
-
-		// Assert
-		assert.Nil(t, result)
-	})
-}
-
 func TestToolArgs(t *testing.T) {
 	rc := &config.AgenticRC{Run: config.RCRun{Args: map[string][]string{
 		"copilot": {"--from-rc"},

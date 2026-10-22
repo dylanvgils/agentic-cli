@@ -1,7 +1,6 @@
 package docker
 
 import (
-	"os"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
@@ -150,54 +149,5 @@ func TestBuildVolumeArgs(t *testing.T) {
 			"--volume=/host:/container",
 			"--volume=/home/.agentic/data:/data",
 		}, args)
-	})
-}
-
-func TestBuildSecretArgs(t *testing.T) {
-	t.Run("valid", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{
-			Image:   "agentic-copilot",
-			Secrets: []string{"mytoken:/tmp/token"},
-		}
-
-		// Act
-		args, err := buildSecretArgs(rs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--volume=/tmp/token:/run/secrets/mytoken:ro"}, args)
-	})
-
-	t.Run("invalid format", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{
-			Image:   "agentic-copilot",
-			Secrets: []string{"badformat"},
-		}
-
-		// Act
-		_, err := buildSecretArgs(rs)
-
-		// Assert
-		assert.ErrorContains(t, err, "invalid secret")
-	})
-
-	t.Run("tilde expanded", func(t *testing.T) {
-		// Arrange
-		home, err := os.UserHomeDir()
-		require.NoError(t, err)
-
-		rs := sandbox.RunSpec{
-			Image:   "agentic-copilot",
-			Secrets: []string{"mytoken:~/secrets/token"},
-		}
-
-		// Act
-		args, err := buildSecretArgs(rs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--volume=" + home + "/secrets/token:/run/secrets/mytoken:ro"}, args)
 	})
 }

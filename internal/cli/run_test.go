@@ -233,7 +233,6 @@ func Test_runRequest(t *testing.T) {
 	stubFlag(t, runToolCmd, "trust-dir", "true")
 	stubFlag(t, runToolCmd, "dry-run", "true")
 	stubFlag(t, runToolCmd, "volume", "/example.test/a:/a")
-	stubFlag(t, runToolCmd, "secret", "token:/example.test/token")
 	stubFlag(t, runToolCmd, "env", "FOO=bar")
 	stubFlag(t, runToolCmd, "registry", "registry.example.test")
 	stubFlag(t, runToolCmd, "proxy", "true")
@@ -256,7 +255,6 @@ func Test_runRequest(t *testing.T) {
 	assert.True(t, req.Flags.Proxy.ProxyFlag)
 	assert.Equal(t, "registry.example.test", req.Flags.Registry)
 	assert.Equal(t, []string{"/example.test/a:/a"}, req.Flags.Volumes)
-	assert.Equal(t, []string{"token:/example.test/token"}, req.Flags.Secrets)
 	assert.Equal(t, []string{"FOO=bar"}, req.Flags.Env)
 	assert.Equal(t, sandbox.RuntimeMicrosandbox, req.Flags.Runtime)
 }

@@ -267,10 +267,10 @@ func Test_describeSetting(t *testing.T) {
 
 	t.Run("cleared value is shown as removed", func(t *testing.T) {
 		// Act
-		header, values := describeSetting(config.GuardedSetting{Key: "run.secrets", Value: []string(nil)})
+		header, values := describeSetting(config.GuardedSetting{Key: "run.mounts", Value: []string(nil)})
 
 		// Assert
-		assert.Equal(t, "run.secrets - "+settingEffects["run.secrets"]+" (removed)", header)
+		assert.Equal(t, "run.mounts - "+settingEffects["run.mounts"]+" (removed)", header)
 		assert.Empty(t, values)
 	})
 }

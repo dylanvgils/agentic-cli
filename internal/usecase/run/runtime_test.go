@@ -67,13 +67,13 @@ func Test_Service_Run(t *testing.T) {
 			ran = true
 			return nil
 		}})
-		rs := sandbox.RunSpec{Image: "agentic-claude", Secrets: []string{"token:/run/secrets/token"}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}}
 
 		// Act
 		err := svc.Run(runtimeRequest(sandbox.RuntimeMicrosandbox), rs)
 
 		// Assert
-		assert.ErrorContains(t, err, "can't enforce secret mounts")
+		assert.ErrorContains(t, err, "can't enforce proxy monitor mode")
 		assert.False(t, ran)
 	})
 

@@ -365,7 +365,6 @@ func Test_resolveInput(t *testing.T) {
 			Proxy:      resolve.ProxyInput{MonitorFlag: true},
 			Dind:       resolve.DindInput{DindFlag: true},
 			Volumes:    []string{"/example.test/a:/a"},
-			Secrets:    []string{"token:/example.test/token"},
 			Env:        []string{"FOO=bar"},
 			Limits:     sandbox.ResourceLimits{CPUs: "2"},
 			DindLimits: sandbox.ResourceLimits{Memory: "1g"},
@@ -380,7 +379,6 @@ func Test_resolveInput(t *testing.T) {
 		assert.Equal(t, Input{
 			ToolHome:    "/example.test/home",
 			Volumes:     []string{"/example.test/a:/a"},
-			Secrets:     []string{"token:/example.test/token"},
 			Env:         []string{"FOO=bar"},
 			Limits:      sandbox.ResourceLimits{CPUs: "2"},
 			DryRun:      true,

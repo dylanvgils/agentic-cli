@@ -323,7 +323,6 @@ func TestBuildInstructions(t *testing.T) {
 		assert.Contains(t, content, "`/tmp` included, is writable but discarded when the VM exits")
 		assert.NotContains(t, content, ".cache")
 		assert.Contains(t, content, "- CPUs: 3\n- Memory: 6g\n")
-		assert.Contains(t, content, "Secrets under `/run/secrets/` are read-only")
 		assert.NotContains(t, content, "root filesystem is read-only")
 		assert.NotContains(t, content, "pids")
 		assert.NotContains(t, content, "capabilities dropped")

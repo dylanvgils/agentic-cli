@@ -21,7 +21,6 @@ var settingEffects = map[string]string{
 	"marketplaces":            "plugin repos cloned and mounted into the container",
 	"build.custom_installs":   "shell commands run at build time, unsandboxed",
 	"run.mounts":              "host paths mounted into the container",
-	"run.secrets":             "host files mounted as secrets",
 	"run.env":                 "host environment passed into the container",
 	"run.args":                "extra args passed to the tool",
 	"run.runtime":             "whether the tool runs in a Docker container or a microsandbox VM",

@@ -79,29 +79,6 @@ func Test_requiredCapabilities(t *testing.T) {
 		assert.Equal(t, sandbox.Capabilities{CredentialInjection: true, PathRules: true, PidsLimit: true}, withCredentials)
 	})
 
-	t.Run("secrets from config ask for secret mounts", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		rc.Run.Secrets = []string{"token:/example.test/token"}
-
-		// Act
-		need := requiredCapabilities(Flags{}, rc)
-
-		// Assert
-		assert.Equal(t, sandbox.Capabilities{SecretMounts: true, PidsLimit: true}, need)
-	})
-
-	t.Run("secrets from flags ask for secret mounts", func(t *testing.T) {
-		// Arrange
-		flags := Flags{Secrets: []string{"token:/example.test/token"}}
-
-		// Act
-		need := requiredCapabilities(flags, &config.AgenticRC{})
-
-		// Assert
-		assert.Equal(t, sandbox.Capabilities{SecretMounts: true, PidsLimit: true}, need)
-	})
-
 	t.Run("off switches drop the need", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
@@ -225,19 +202,6 @@ func Test_checkCapabilities(t *testing.T) {
 		assert.Contains(t, errLog.String(), "--runtime microsandbox can't limit hosts to paths, so it allows the hosts of [[run.proxy.allowed_paths]] in /example.test/project/.agenticrc.toml on every path; use --runtime docker to limit them")
 	})
 
-	t.Run("missing secret mounts point to credential injection", func(t *testing.T) {
-		// Arrange
-		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
-		req.Project.RC = &config.AgenticRC{}
-		req.Flags.Secrets = []string{"token:/example.test/token"}
-
-		// Act
-		err := checkCapabilities(req, msb)
-
-		// Assert
-		assert.EqualError(t, err, "--runtime microsandbox does not support secret mounts (--secret); use [[run.proxy.credentials]] so the tool only sees a placeholder, or use --runtime docker")
-	})
-
 	t.Run("a runtime with every feature passes", func(t *testing.T) {
 		// Arrange
 		req := newCredentialRequest(t)
@@ -245,7 +209,7 @@ func Test_checkCapabilities(t *testing.T) {
 		req.Flags.Dind.DindFlag = true
 
 		// Act
-		err := checkCapabilities(req, sandbox.Capabilities{Proxy: true, ProxyMonitor: true, Dind: true, CredentialInjection: true, SecretMounts: true, PidsLimit: true})
+		err := checkCapabilities(req, sandbox.Capabilities{Proxy: true, ProxyMonitor: true, Dind: true, CredentialInjection: true, PidsLimit: true})
 
 		// Assert
 		assert.NoError(t, err)
@@ -421,32 +385,6 @@ func Test_pathRulesSource(t *testing.T) {
 	assert.Equal(t, "[[run.proxy.allowed_paths]] in /example.test/.agenticrc.toml", source)
 }
 
-func Test_secretsSource(t *testing.T) {
-	t.Run("names the flag", func(t *testing.T) {
-		// Arrange
-		req := Request{Flags: Flags{Secrets: []string{"token:/example.test/token"}}}
-
-		// Act
-		source := secretsSource(req)
-
-		// Assert
-		assert.Equal(t, "--secret", source)
-	})
-
-	t.Run("names the key and its layer", func(t *testing.T) {
-		// Arrange
-		layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
-		layer.RC.Run.Secrets = []string{"token:/example.test/token"}
-		req := Request{Project: Project{Layers: []config.RCLayer{layer}}}
-
-		// Act
-		source := secretsSource(req)
-
-		// Assert
-		assert.Equal(t, "[run] secrets in /example.test/.agenticrc.toml", source)
-	})
-}
-
 func Test_layerSource(t *testing.T) {
 	hasCustom := func(rc *config.AgenticRC) bool { return rc.Run.Instructions.Custom != "" }
 	outer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
@@ -491,19 +429,18 @@ func Test_specCapabilities(t *testing.T) {
 		assert.Equal(t, sandbox.Capabilities{}, need)
 	})
 
-	t.Run("the proxy, credentials and secrets each count", func(t *testing.T) {
+	t.Run("the proxy and credentials each count", func(t *testing.T) {
 		// Arrange
 		rs := sandbox.RunSpec{
 			Proxy:       sandbox.ProxySpec{Mode: sandbox.ProxyEnforce},
 			Credentials: []sandbox.Credential{{Name: "API_TOKEN"}},
-			Secrets:     []string{"token:/run/secrets/token"},
 		}
 
 		// Act
 		need := specCapabilities(rs)
 
 		// Assert
-		assert.Equal(t, sandbox.Capabilities{Proxy: true, CredentialInjection: true, SecretMounts: true}, need)
+		assert.Equal(t, sandbox.Capabilities{Proxy: true, CredentialInjection: true}, need)
 	})
 
 	t.Run("path rules count only with the proxy", func(t *testing.T) {
@@ -536,10 +473,10 @@ func Test_specCapabilities(t *testing.T) {
 func Test_checkSpec(t *testing.T) {
 	t.Run("passes a spec the runtime can enforce", func(t *testing.T) {
 		// Arrange
-		rs := sandbox.RunSpec{Secrets: []string{"token:/run/secrets/token"}}
+		rs := sandbox.RunSpec{Credentials: []sandbox.Credential{{Name: "API_TOKEN"}}}
 
 		// Act
-		err := checkSpec(rs, sandbox.Capabilities{SecretMounts: true})
+		err := checkSpec(rs, sandbox.Capabilities{CredentialInjection: true})
 
 		// Assert
 		assert.NoError(t, err)
@@ -547,13 +484,13 @@ func Test_checkSpec(t *testing.T) {
 
 	t.Run("refuses every missing feature at once", func(t *testing.T) {
 		// Arrange
-		rs := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}, Secrets: []string{"token:/run/secrets/token"}}
+		rs := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}, Credentials: []sandbox.Credential{{Name: "API_TOKEN"}}}
 
 		// Act
-		err := checkSpec(rs, sandbox.Capabilities{CredentialInjection: true})
+		err := checkSpec(rs, sandbox.Capabilities{})
 
 		// Assert
-		assert.EqualError(t, err, "the runtime can't enforce the egress proxy or secret mounts that the run asks for")
+		assert.EqualError(t, err, "the runtime can't enforce the egress proxy or credential injection that the run asks for")
 	})
 
 	t.Run("refuses monitor mode on a runtime that only enforces", func(t *testing.T) {

@@ -13,7 +13,7 @@ Runs agentic coding tools in isolated, read-only Docker containers, or optionall
 - **Isolated by default** - read-only filesystem, no root, dropped capabilities, isolated network
 - **Per-project config** - `.agenticrc.toml` files merge up the directory tree; namespaces keep separate image sets per project
 - **Language runtimes** - add Node.js, Java, .NET or Go on top of the base image, with version pinning
-- **Persistent state** - named volumes and read-only secret mounts survive across container runs
+- **Persistent state** - named volumes survive across container runs
 - **Egress allowlist proxy** - optionally restrict and log a tool's outbound network access
 - **Credential injection** - API keys the agent never sees, only a placeholder
 - **Docker-in-Docker** - optionally give a tool its own Docker daemon, never the host's socket
@@ -76,7 +76,7 @@ Containers run read-only with all capabilities dropped, no privilege escalation,
 
 What it doesn't protect against:
 
-- **Credentials it can read**: the agent can read its own login token and any mounted secret. Use [credential injection](docs/credential-injection.md) for API keys.
+- **Credentials it can read**: the agent can read its own login token and any file you mount. Use [credential injection](docs/credential-injection.md) for API keys.
 - **Workspace changes**: the agent can edit git hooks, `Makefile` and scripts that later run on your machine. Review diffs.
 - **Network access**: without `--proxy` the tool reaches the whole internet, and with it, any allowed host. See [Egress proxy](docs/egress-proxy.md).
 
@@ -87,7 +87,7 @@ See [Leftover risk](docs/security-model.md#leftover-risk) for the full list.
 - [Overview](docs/overview.md) - what agentic is and why
 - [Comparison](docs/comparison.md) - agentic vs Docker Sandboxes (`sbx`)
 - [Installation](docs/installation.md) - install, uninstall, upgrade, build from source
-- [Usage](docs/usage.md) - commands, examples, secrets, env vars, volumes, marketplaces
+- [Usage](docs/usage.md) - commands, examples, env vars, volumes, marketplaces
 - [Images](docs/images.md) - base images, runtimes, versions, apt packages, registry proxy
 - [Configuration](docs/config.md) - `.agenticrc.toml` and `agentic.json` reference
 - [Environment instructions](docs/environment-instructions.md) - what each run tells the model about its sandbox

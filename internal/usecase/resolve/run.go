@@ -17,16 +17,6 @@ func Volumes(toolMounts, extra []string, rc *config.AgenticRC) []string {
 	return volumes
 }
 
-// Secrets merges --secret flags with .agenticrc.toml secrets, flags first.
-func Secrets(flags []string, rc *config.AgenticRC) []string {
-	var secrets []string
-
-	secrets = append(secrets, flags...)
-	secrets = append(secrets, rc.Run.Secrets...)
-
-	return secrets
-}
-
 // Env merges .agenticrc.toml env entries with --env flags, rc first so a flag with the same key wins.
 func Env(flags []string, rc *config.AgenticRC) []string {
 	env := append([]string{}, rc.Run.Env...)

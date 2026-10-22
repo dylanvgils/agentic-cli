@@ -149,7 +149,6 @@ func projectSections(layers []config.RCLayer) []section {
 		}},
 		{header: "run", fields: append(runLimits,
 			listField(layers, "mounts", func(rc *config.AgenticRC) []string { return rc.Run.Mounts }),
-			listField(layers, "secrets", func(rc *config.AgenticRC) []string { return rc.Run.Secrets }),
 			listField(layers, "env", envKeys),
 			listField(layers, "args", toolArgs),
 			boolField(layers, "check_updates", func(rc *config.AgenticRC) *bool { return rc.Run.CheckUpdates }, true),

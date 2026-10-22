@@ -63,12 +63,6 @@ func TestCopilotStage(t *testing.T) {
 		assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique copilot")
 	})
 
-	t.Run("contains token setup", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "copilot_token")
-		assert.Contains(t, result, "GITHUB_TOKEN")
-	})
-
 	t.Run("registers only the marketplaces named in AGENTIC_MARKETPLACES before exec", func(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, `$HOME/marketplaces`)

@@ -249,19 +249,6 @@ func Test_checkCredentialPaths(t *testing.T) {
 		assert.ErrorContains(t, err, "which the tool container can access")
 	})
 
-	t.Run("secret that is itself a mounted secret is refused", func(t *testing.T) {
-		// Arrange
-		path := filepath.Join(t.TempDir(), "token")
-		resolved := []credentials.Resolved{{Path: path}}
-		mounts := mountSet{secrets: []string{"token:" + path}, toolHome: t.TempDir(), containerHome: "/home/agent"}
-
-		// Act
-		err := checkCredentialPaths(resolved, mounts)
-
-		// Assert
-		assert.ErrorContains(t, err, "which the tool container can access")
-	})
-
 	t.Run("secret inside cwd is refused", func(t *testing.T) {
 		// Arrange
 		cwd, err := os.Getwd()

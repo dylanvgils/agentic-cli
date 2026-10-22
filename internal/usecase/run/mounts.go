@@ -11,25 +11,22 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
 // caseInsensitivePaths reports whether host paths differing only in case name the same file, as on default macOS and Windows filesystems.
 const caseInsensitivePaths = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
 
-// mountSet is the tool container's volume and secret specs, plus the homes their placeholders expand to.
+// mountSet is the tool container's volume specs, plus the homes their placeholders expand to.
 type mountSet struct {
 	volumes       []string
-	secrets       []string
 	toolHome      string
 	containerHome string
 }
 
-// newMountSet assembles the run's volumes and secrets and checks them, so an unchecked set never reaches docker.
+// newMountSet assembles the run's volumes and checks them, so an unchecked set never reaches docker.
 func newMountSet(req buildRequest, marketplaceMounts []string) (mountSet, error) {
 	m := mountSet{
 		volumes:       runVolumes(req, marketplaceMounts),
-		secrets:       resolve.Secrets(req.in.Secrets, req.rc),
 		toolHome:      req.in.ToolHome,
 		containerHome: req.containerHome,
 	}
@@ -40,19 +37,13 @@ func newMountSet(req buildRequest, marketplaceMounts []string) (mountSet, error)
 	return m, nil
 }
 
-// hostPaths returns the expanded host side of every bind mount and secret mount.
+// hostPaths returns the expanded host side of every bind mount.
 func (m mountSet) hostPaths() []string {
 	var paths []string
 	for _, volume := range m.volumes {
 		expanded := sandbox.ExpandMountSpec(volume, m.toolHome, m.containerHome)
 		if !sandbox.IsNamedVolume(expanded) {
 			paths = append(paths, sandbox.HostPart(expanded))
-		}
-	}
-
-	for _, secret := range m.secrets {
-		if _, rest, ok := strings.Cut(secret, ":"); ok {
-			paths = append(paths, sandbox.HostPart(sandbox.ExpandMountSpec(rest, m.toolHome, m.containerHome)))
 		}
 	}
 	return paths
@@ -117,9 +108,9 @@ func (m mountSet) checkConfigNotMounted() error {
 	return nil
 }
 
-// recheckMounts runs the mount checks on rs's volumes and secrets again.
+// recheckMounts runs the mount checks on rs's volumes again.
 func recheckMounts(rs sandbox.RunSpec) error {
-	m := mountSet{volumes: rs.Volumes, secrets: rs.Secrets, toolHome: rs.ToolHome, containerHome: rs.ContainerHome}
+	m := mountSet{volumes: rs.Volumes, toolHome: rs.ToolHome, containerHome: rs.ContainerHome}
 	if err := m.checkMounts(); err != nil {
 		return fmt.Errorf("mounts changed after the run was checked: %w", err)
 	}

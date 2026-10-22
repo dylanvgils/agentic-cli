@@ -14,8 +14,6 @@ type Capabilities struct {
 	PathRules bool
 	// CredentialsViaProxy means the proxy injects the credentials, so they turn it on.
 	CredentialsViaProxy bool
-	// SecretMounts are host files mounted read-only into the tool.
-	SecretMounts bool
 	// PidsLimit is a cap on the number of processes.
 	PidsLimit bool
 	// ReadOnlyRoot is a read-only root filesystem whose only writable dirs are the mounts and the run's ephemeral dirs.
@@ -33,7 +31,6 @@ func (c Capabilities) Missing(need Capabilities) Capabilities {
 		Dind:                need.Dind && !c.Dind,
 		CredentialInjection: need.CredentialInjection && !c.CredentialInjection,
 		PathRules:           need.PathRules && !c.PathRules,
-		SecretMounts:        need.SecretMounts && !c.SecretMounts,
 		PidsLimit:           need.PidsLimit && !c.PidsLimit,
 	}
 }

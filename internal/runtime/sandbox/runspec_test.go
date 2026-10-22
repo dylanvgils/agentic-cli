@@ -24,7 +24,6 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 		WithUser(platform.User{UID: 1000, GID: 1000}).
 		WithTTY(true).
 		WithVolumes("/host:/container", "/a:/b").
-		WithSecrets("token:/run/secrets/token").
 		WithSkipEntrypoint(true).
 		WithToolArgs("--example", "value").
 		WithEphemeralDirs(EphemeralDir{Path: "/tmp"}, EphemeralDir{Path: "/run"}).
@@ -39,7 +38,6 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 	assert.Equal(t, &platform.User{UID: 1000, GID: 1000}, result.User)
 	assert.True(t, result.TTY)
 	assert.Equal(t, []string{"/host:/container", "/a:/b"}, result.Volumes)
-	assert.Equal(t, []string{"token:/run/secrets/token"}, result.Secrets)
 	assert.True(t, result.SkipEntrypoint)
 	assert.Equal(t, []string{"--example", "value"}, result.ToolArgs)
 	assert.Equal(t, []EphemeralDir{{Path: "/tmp"}, {Path: "/run"}}, result.EphemeralDirs)
@@ -107,35 +105,6 @@ func TestRunSpecBuilder_WithVolumes_variadic(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []string{"/a:/b", "/c:/d", "/e:/f"}, result.Volumes)
-	})
-}
-
-func TestRunSpecBuilder_WithSecrets_variadic(t *testing.T) {
-	t.Run("empty", func(t *testing.T) {
-		// Act
-		result := NewRunSpec("img").WithSecrets().Build()
-
-		// Assert
-		assert.Nil(t, result.Secrets)
-	})
-
-	t.Run("single", func(t *testing.T) {
-		// Act
-		result := NewRunSpec("img").WithSecrets("tok:/run/secrets/tok").Build()
-
-		// Assert
-		assert.Equal(t, []string{"tok:/run/secrets/tok"}, result.Secrets)
-	})
-
-	t.Run("multiple calls accumulate", func(t *testing.T) {
-		// Act
-		result := NewRunSpec("img").
-			WithSecrets("a:/run/secrets/a").
-			WithSecrets("b:/run/secrets/b").
-			Build()
-
-		// Assert
-		assert.Equal(t, []string{"a:/run/secrets/a", "b:/run/secrets/b"}, result.Secrets)
 	})
 }
 
