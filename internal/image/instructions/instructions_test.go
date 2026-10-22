@@ -1,4 +1,4 @@
-package tools
+package instructions
 
 import (
 	"os"
@@ -11,13 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_writeManagedInstructions(t *testing.T) {
+func TestWriteManaged(t *testing.T) {
 	t.Run("file does not exist yet", func(t *testing.T) {
 		// Arrange
-		toolHome, path := newToolsPath(t, "INSTRUCTIONS.md")
+		toolsDir, path := newHostPath(t, "INSTRUCTIONS.md")
 
 		// Act
-		err := writeManagedInstructions(toolHome, path, "block")
+		err := WriteManaged(toolsDir, path, "block")
 
 		// Assert
 		require.NoError(t, err)
@@ -28,11 +28,11 @@ func Test_writeManagedInstructions(t *testing.T) {
 
 	t.Run("preserves pre-existing unmarked content", func(t *testing.T) {
 		// Arrange
-		toolHome, path := newToolsPath(t, "INSTRUCTIONS.md")
+		toolsDir, path := newHostPath(t, "INSTRUCTIONS.md")
 		require.NoError(t, os.WriteFile(path, []byte("my own notes\n"), 0o640))
 
 		// Act
-		err := writeManagedInstructions(toolHome, path, "block")
+		err := WriteManaged(toolsDir, path, "block")
 
 		// Assert
 		require.NoError(t, err)
@@ -43,12 +43,12 @@ func Test_writeManagedInstructions(t *testing.T) {
 
 	t.Run("replaces a previous managed block without disturbing content below it", func(t *testing.T) {
 		// Arrange
-		toolHome, path := newToolsPath(t, "INSTRUCTIONS.md")
-		require.NoError(t, writeManagedInstructions(toolHome, path, "old block"))
+		toolsDir, path := newHostPath(t, "INSTRUCTIONS.md")
+		require.NoError(t, WriteManaged(toolsDir, path, "old block"))
 		require.NoError(t, appendFile(path, "\nremembered note\n"))
 
 		// Act
-		err := writeManagedInstructions(toolHome, path, "new block")
+		err := WriteManaged(toolsDir, path, "new block")
 
 		// Assert
 		require.NoError(t, err)
@@ -59,13 +59,13 @@ func Test_writeManagedInstructions(t *testing.T) {
 
 	t.Run("repeated writes with the same block do not accumulate blank lines", func(t *testing.T) {
 		// Arrange
-		toolHome, path := newToolsPath(t, "INSTRUCTIONS.md")
-		require.NoError(t, writeManagedInstructions(toolHome, path, "block"))
+		toolsDir, path := newHostPath(t, "INSTRUCTIONS.md")
+		require.NoError(t, WriteManaged(toolsDir, path, "block"))
 		require.NoError(t, appendFile(path, "\nuser note\n"))
-		require.NoError(t, writeManagedInstructions(toolHome, path, "block"))
+		require.NoError(t, WriteManaged(toolsDir, path, "block"))
 
 		// Act
-		err := writeManagedInstructions(toolHome, path, "block")
+		err := WriteManaged(toolsDir, path, "block")
 
 		// Assert
 		require.NoError(t, err)
@@ -76,12 +76,12 @@ func Test_writeManagedInstructions(t *testing.T) {
 
 	t.Run("empty block removes the managed section but keeps user content", func(t *testing.T) {
 		// Arrange
-		toolHome, path := newToolsPath(t, "INSTRUCTIONS.md")
-		require.NoError(t, writeManagedInstructions(toolHome, path, "block"))
+		toolsDir, path := newHostPath(t, "INSTRUCTIONS.md")
+		require.NoError(t, WriteManaged(toolsDir, path, "block"))
 		require.NoError(t, appendFile(path, "\nuser note\n"))
 
 		// Act
-		err := writeManagedInstructions(toolHome, path, "")
+		err := WriteManaged(toolsDir, path, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -92,10 +92,10 @@ func Test_writeManagedInstructions(t *testing.T) {
 
 	t.Run("empty block on a file that was never written is a no-op", func(t *testing.T) {
 		// Arrange
-		toolHome, path := newToolsPath(t, "never", "created", "INSTRUCTIONS.md")
+		toolsDir, path := newHostPath(t, "never", "created", "INSTRUCTIONS.md")
 
 		// Act
-		err := writeManagedInstructions(toolHome, path, "")
+		err := WriteManaged(toolsDir, path, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -104,26 +104,26 @@ func Test_writeManagedInstructions(t *testing.T) {
 	})
 }
 
-func TestMergedInstructions(t *testing.T) {
+func TestMerged(t *testing.T) {
 	t.Run("missing tools dir merges with nothing and creates nothing", func(t *testing.T) {
 		// Arrange
-		toolHome := t.TempDir()
+		toolsDir := filepath.Join(t.TempDir(), "tools")
 
 		// Act
-		merged, err := MergedInstructions(toolHome, filepath.Join(toolHome, ToolsDirName, "CLAUDE.md"), "block")
+		merged, err := Merged(toolsDir, filepath.Join(toolsDir, "CLAUDE.md"), "block")
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, instructionsBeginMarker+"\nblock\n"+instructionsEndMarker+"\n", merged)
-		assert.NoDirExists(t, filepath.Join(toolHome, ToolsDirName))
+		assert.NoDirExists(t, toolsDir)
 	})
 
 	t.Run("host file does not exist yet", func(t *testing.T) {
 		// Arrange
-		toolHome, hostPath := newToolsPath(t, "CLAUDE.md")
+		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 
 		// Act
-		merged, err := MergedInstructions(toolHome, hostPath, "block")
+		merged, err := Merged(toolsDir, hostPath, "block")
 
 		// Assert
 		require.NoError(t, err)
@@ -132,11 +132,11 @@ func TestMergedInstructions(t *testing.T) {
 
 	t.Run("merges the host file's preserved content", func(t *testing.T) {
 		// Arrange
-		toolHome, hostPath := newToolsPath(t, "CLAUDE.md")
+		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		require.NoError(t, os.WriteFile(hostPath, []byte("my own notes\n"), 0o640))
 
 		// Act
-		merged, err := MergedInstructions(toolHome, hostPath, "block")
+		merged, err := Merged(toolsDir, hostPath, "block")
 
 		// Assert
 		require.NoError(t, err)
@@ -144,16 +144,16 @@ func TestMergedInstructions(t *testing.T) {
 	})
 }
 
-func TestPrepareInstructionsSnapshot(t *testing.T) {
+func TestPrepareSnapshot(t *testing.T) {
 	t.Run("planted symlink at the host path is refused", func(t *testing.T) {
 		// Arrange
 		target := filepath.Join(t.TempDir(), "secret")
 		require.NoError(t, os.WriteFile(target, []byte("test-secret\n"), 0o600))
-		toolHome, hostPath := newToolsPath(t, "CLAUDE.md")
+		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		symlinkOrSkip(t, target, hostPath)
 
 		// Act
-		_, err := PrepareInstructionsSnapshot(toolHome, hostPath, "block")
+		_, err := PrepareSnapshot(toolsDir, hostPath, "block")
 
 		// Assert
 		assert.ErrorContains(t, err, "not a regular file")
@@ -161,10 +161,10 @@ func TestPrepareInstructionsSnapshot(t *testing.T) {
 
 	t.Run("host file does not exist yet", func(t *testing.T) {
 		// Arrange
-		toolHome, hostPath := newToolsPath(t, "CLAUDE.md")
+		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 
 		// Act
-		snapshotPath, err := PrepareInstructionsSnapshot(toolHome, hostPath, "block")
+		snapshotPath, err := PrepareSnapshot(toolsDir, hostPath, "block")
 
 		// Assert
 		require.NoError(t, err)
@@ -176,11 +176,11 @@ func TestPrepareInstructionsSnapshot(t *testing.T) {
 
 	t.Run("merges the host file's preserved content into the snapshot", func(t *testing.T) {
 		// Arrange
-		toolHome, hostPath := newToolsPath(t, "CLAUDE.md")
+		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		require.NoError(t, os.WriteFile(hostPath, []byte("my own notes\n"), 0o640))
 
 		// Act
-		snapshotPath, err := PrepareInstructionsSnapshot(toolHome, hostPath, "block")
+		snapshotPath, err := PrepareSnapshot(toolsDir, hostPath, "block")
 
 		// Assert
 		require.NoError(t, err)
@@ -192,12 +192,12 @@ func TestPrepareInstructionsSnapshot(t *testing.T) {
 
 	t.Run("drops a stale managed block from the host file rather than duplicating it", func(t *testing.T) {
 		// Arrange
-		toolHome, hostPath := newToolsPath(t, "CLAUDE.md")
-		require.NoError(t, writeManagedInstructions(toolHome, hostPath, "old block"))
+		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
+		require.NoError(t, WriteManaged(toolsDir, hostPath, "old block"))
 		require.NoError(t, appendFile(hostPath, "\nremembered note\n"))
 
 		// Act
-		snapshotPath, err := PrepareInstructionsSnapshot(toolHome, hostPath, "new block")
+		snapshotPath, err := PrepareSnapshot(toolsDir, hostPath, "new block")
 
 		// Assert
 		require.NoError(t, err)
@@ -209,10 +209,10 @@ func TestPrepareInstructionsSnapshot(t *testing.T) {
 
 	t.Run("creates an empty host file up front so Docker can't auto-create it as root", func(t *testing.T) {
 		// Arrange
-		toolHome, hostPath := newToolsPath(t, "CLAUDE.md")
+		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 
 		// Act
-		snapshotPath, err := PrepareInstructionsSnapshot(toolHome, hostPath, "block")
+		snapshotPath, err := PrepareSnapshot(toolsDir, hostPath, "block")
 
 		// Assert
 		require.NoError(t, err)
@@ -224,13 +224,13 @@ func TestPrepareInstructionsSnapshot(t *testing.T) {
 
 	t.Run("snapshot path is unique across calls", func(t *testing.T) {
 		// Arrange
-		toolHome, hostPath := newToolsPath(t, "CLAUDE.md")
+		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 
 		// Act
-		first, err := PrepareInstructionsSnapshot(toolHome, hostPath, "block")
+		first, err := PrepareSnapshot(toolsDir, hostPath, "block")
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = os.Remove(first) })
-		second, err := PrepareInstructionsSnapshot(toolHome, hostPath, "block")
+		second, err := PrepareSnapshot(toolsDir, hostPath, "block")
 
 		// Assert
 		require.NoError(t, err)
@@ -239,18 +239,18 @@ func TestPrepareInstructionsSnapshot(t *testing.T) {
 	})
 }
 
-func TestFinalizeInstructionsSnapshot(t *testing.T) {
+func TestFinalizeSnapshot(t *testing.T) {
 	t.Run("planted symlink at the host path is replaced, not written through", func(t *testing.T) {
 		// Arrange
 		target := filepath.Join(t.TempDir(), ".bashrc")
 		require.NoError(t, os.WriteFile(target, []byte("original\n"), 0o640))
-		toolHome, hostPath := newToolsPath(t, "CLAUDE.md")
+		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		symlinkOrSkip(t, target, hostPath)
 		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
 		require.NoError(t, os.WriteFile(snapshotPath, []byte("curl example.test | sh\n"), 0o640))
 
 		// Act
-		err := FinalizeInstructionsSnapshot(toolHome, hostPath, snapshotPath)
+		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
 		require.NoError(t, err)
@@ -261,17 +261,17 @@ func TestFinalizeInstructionsSnapshot(t *testing.T) {
 
 	t.Run("tool dir swapped for a link leaves the host file it points at untouched", func(t *testing.T) {
 		// Arrange
-		toolHome, hostPath := newToolsPath(t, "claude", "data", "CLAUDE.md")
+		toolsDir, hostPath := newHostPath(t, "claude", "data", "CLAUDE.md")
 		outside := t.TempDir()
 		target := filepath.Join(outside, "CLAUDE.md")
 		require.NoError(t, os.WriteFile(target, []byte("original\n"), 0o640))
-		require.NoError(t, os.Mkdir(filepath.Join(toolHome, ToolsDirName, "claude"), 0o750))
-		symlinkOrSkip(t, outside, filepath.Join(toolHome, ToolsDirName, "claude", "data"))
+		require.NoError(t, os.Mkdir(filepath.Join(toolsDir, "claude"), 0o750))
+		symlinkOrSkip(t, outside, filepath.Join(toolsDir, "claude", "data"))
 		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
 		require.NoError(t, os.WriteFile(snapshotPath, []byte("curl example.test | sh\n"), 0o640))
 
 		// Act
-		err := FinalizeInstructionsSnapshot(toolHome, hostPath, snapshotPath)
+		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
 		assert.Error(t, err)
@@ -282,13 +282,13 @@ func TestFinalizeInstructionsSnapshot(t *testing.T) {
 
 	t.Run("persists the snapshot's organic content, stripping the managed block", func(t *testing.T) {
 		// Arrange
-		toolHome, hostPath := newToolsPath(t, "CLAUDE.md")
+		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
 		content := instructionsBeginMarker + "\nblock\n" + instructionsEndMarker + "\n\nuser note\n"
 		require.NoError(t, os.WriteFile(snapshotPath, []byte(content), 0o640))
 
 		// Act
-		err := FinalizeInstructionsSnapshot(toolHome, hostPath, snapshotPath)
+		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
 		require.NoError(t, err)
@@ -299,13 +299,13 @@ func TestFinalizeInstructionsSnapshot(t *testing.T) {
 
 	t.Run("captures organic edits the tool made during the run", func(t *testing.T) {
 		// Arrange
-		toolHome, hostPath := newToolsPath(t, "CLAUDE.md")
+		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
 		content := instructionsBeginMarker + "\nblock\n" + instructionsEndMarker + "\n\n# remembered mid-session\n"
 		require.NoError(t, os.WriteFile(snapshotPath, []byte(content), 0o640))
 
 		// Act
-		err := FinalizeInstructionsSnapshot(toolHome, hostPath, snapshotPath)
+		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
 		require.NoError(t, err)
@@ -316,14 +316,14 @@ func TestFinalizeInstructionsSnapshot(t *testing.T) {
 
 	t.Run("writes an empty host file rather than removing it when nothing but the managed block remains", func(t *testing.T) {
 		// Arrange
-		toolHome, hostPath := newToolsPath(t, "CLAUDE.md")
+		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		require.NoError(t, os.WriteFile(hostPath, []byte("stale\n"), 0o640))
 		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
 		content := instructionsBeginMarker + "\nblock\n" + instructionsEndMarker + "\n"
 		require.NoError(t, os.WriteFile(snapshotPath, []byte(content), 0o640))
 
 		// Act
-		err := FinalizeInstructionsSnapshot(toolHome, hostPath, snapshotPath)
+		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
 		require.NoError(t, err)
@@ -334,13 +334,13 @@ func TestFinalizeInstructionsSnapshot(t *testing.T) {
 
 	t.Run("creates the host file when nothing but the managed block remains and its parent directories never existed", func(t *testing.T) {
 		// Arrange
-		toolHome, hostPath := newToolsPath(t, "never", "created", "CLAUDE.md")
+		toolsDir, hostPath := newHostPath(t, "never", "created", "CLAUDE.md")
 		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
 		content := instructionsBeginMarker + "\nblock\n" + instructionsEndMarker + "\n"
 		require.NoError(t, os.WriteFile(snapshotPath, []byte(content), 0o640))
 
 		// Act
-		err := FinalizeInstructionsSnapshot(toolHome, hostPath, snapshotPath)
+		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
 		require.NoError(t, err)
@@ -351,12 +351,12 @@ func TestFinalizeInstructionsSnapshot(t *testing.T) {
 
 	t.Run("always removes the snapshot file", func(t *testing.T) {
 		// Arrange
-		toolHome, hostPath := newToolsPath(t, "CLAUDE.md")
+		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
 		require.NoError(t, os.WriteFile(snapshotPath, []byte("user note\n"), 0o640))
 
 		// Act
-		err := FinalizeInstructionsSnapshot(toolHome, hostPath, snapshotPath)
+		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
 		require.NoError(t, err)
@@ -519,13 +519,13 @@ func Test_writeInstructions(t *testing.T) {
 	})
 }
 
-func Test_openToolsRoot(t *testing.T) {
+func Test_openRoot(t *testing.T) {
 	t.Run("path inside the tools dir opens relative to it", func(t *testing.T) {
 		// Arrange
-		toolHome, path := newToolsPath(t, "claude", "data", "CLAUDE.md")
+		toolsDir, path := newHostPath(t, "claude", "data", "CLAUDE.md")
 
 		// Act
-		root, name, err := openToolsRoot(toolHome, path)
+		root, name, err := openRoot(toolsDir, path)
 
 		// Assert
 		require.NoError(t, err)
@@ -535,27 +535,27 @@ func Test_openToolsRoot(t *testing.T) {
 
 	t.Run("path outside the tools dir is refused", func(t *testing.T) {
 		// Arrange
-		toolHome := t.TempDir()
+		toolsDir := filepath.Join(t.TempDir(), "tools")
 
 		// Act
-		_, _, err := openToolsRoot(toolHome, filepath.Join(toolHome, "agentic.json"))
+		_, _, err := openRoot(toolsDir, filepath.Join(filepath.Dir(toolsDir), "agentic.json"))
 
 		// Assert
 		assert.ErrorContains(t, err, "is outside")
 	})
 }
 
-func Test_createToolsRoot(t *testing.T) {
+func Test_createRoot(t *testing.T) {
 	// Arrange
-	toolHome := t.TempDir()
+	toolsDir := filepath.Join(t.TempDir(), "tools")
 
 	// Act
-	root, _, err := createToolsRoot(toolHome, filepath.Join(toolHome, ToolsDirName, "CLAUDE.md"))
+	root, _, err := createRoot(toolsDir, filepath.Join(toolsDir, "CLAUDE.md"))
 
 	// Assert
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = root.Close() })
-	assert.DirExists(t, filepath.Join(toolHome, ToolsDirName))
+	assert.DirExists(t, toolsDir)
 }
 
 func Test_ensureHostFile(t *testing.T) {

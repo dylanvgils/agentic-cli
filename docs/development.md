@@ -20,6 +20,7 @@ agentic-cli/
 │   ├── config/                  # .agenticrc.toml loading and run spec
 │   ├── image/                   # What goes into the tool images
 │   │   ├── dockerfile/          # Dockerfile DSL (stages, instructions, builder)
+│   │   ├── instructions/        # Merges the managed block into each tool's global instructions file on the host
 │   │   ├── marketplace/         # Syncs git-based plugin marketplace repos onto the host and tracks per-clone usage
 │   │   └── tools/               # Per-tool stage funcs, mounts, setup, and base layers
 │   ├── network/                 # Egress proxy and what it needs

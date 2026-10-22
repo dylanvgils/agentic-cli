@@ -1,14 +1,10 @@
 package tools
 
 import (
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_createContainerUser(t *testing.T) {
@@ -66,45 +62,6 @@ func Test_aptInstallRun_rendersUpdateInstallCleanup(t *testing.T) {
 
 func renderStage(stage df.Stage) string {
 	return df.File{Stages: []df.Stage{stage}}.Render()
-}
-
-// appendFile appends content to path, simulating a tool writing its own notes at runtime.
-func appendFile(path, content string) error {
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o640)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-
-	_, err = f.WriteString(content)
-	return err
-}
-
-// symlinkOrSkip creates link pointing at target, skipping the test where symlinks need privileges.
-func symlinkOrSkip(t *testing.T, target, link string) {
-	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Skip("symlinks need privileges on windows")
-	}
-	require.NoError(t, os.Symlink(target, link))
-}
-
-// newToolsPath returns a fresh tool home with its tools dir created, and the host path of name inside that dir.
-func newToolsPath(t *testing.T, name ...string) (string, string) {
-	t.Helper()
-	toolHome := t.TempDir()
-	require.NoError(t, os.Mkdir(filepath.Join(toolHome, ToolsDirName), 0o750))
-	return toolHome, filepath.Join(append([]string{toolHome, ToolsDirName}, name...)...)
-}
-
-// openTestRoot opens a fresh temp dir as a root, closed on cleanup.
-func openTestRoot(t *testing.T) (*os.Root, string) {
-	t.Helper()
-	dir := t.TempDir()
-	root, err := os.OpenRoot(dir)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = root.Close() })
-	return root, dir
 }
 
 // stubLatestVersion replaces tool's Build.LatestVersion fetcher for the duration of the test.

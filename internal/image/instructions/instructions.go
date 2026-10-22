@@ -1,4 +1,5 @@
-package tools
+// Package instructions merges agentic's managed block into each tool's global instructions file on the host.
+package instructions
 
 import (
 	"crypto/rand"
@@ -21,9 +22,9 @@ const (
 	instructionsEndMarker   = "<!-- agentic:instructions:end -->"
 )
 
-// MergedInstructions returns hostPath's preserved content merged with block, without touching any files.
-func MergedInstructions(toolHome, hostPath, block string) (string, error) {
-	root, name, err := openToolsRoot(toolHome, hostPath)
+// Merged returns hostPath's preserved content merged with block, without touching any files.
+func Merged(toolsDir, hostPath, block string) (string, error) {
+	root, name, err := openRoot(toolsDir, hostPath)
 	if errors.Is(err, fs.ErrNotExist) {
 		return mergeInstructions("", block), nil
 	}
@@ -40,9 +41,9 @@ func MergedInstructions(toolHome, hostPath, block string) (string, error) {
 	return mergeInstructions(existing, block), nil
 }
 
-// PrepareInstructionsSnapshot writes the merged content to a new, uniquely-named file in the OS temp dir, returning its path - so each run gets a private mount instead of sharing one live file.
-func PrepareInstructionsSnapshot(toolHome, hostPath, block string) (string, error) {
-	root, name, err := createToolsRoot(toolHome, hostPath)
+// PrepareSnapshot writes the merged content to a new, uniquely-named file in the OS temp dir, returning its path - so each run gets a private mount instead of sharing one live file.
+func PrepareSnapshot(toolsDir, hostPath, block string) (string, error) {
+	root, name, err := createRoot(toolsDir, hostPath)
 	if err != nil {
 		return "", err
 	}
@@ -71,8 +72,8 @@ func PrepareInstructionsSnapshot(toolHome, hostPath, block string) (string, erro
 	return f.Name(), nil
 }
 
-// FinalizeInstructionsSnapshot strips the managed block from snapshotPath and persists the rest back to hostPath, then removes snapshotPath.
-func FinalizeInstructionsSnapshot(toolHome, hostPath, snapshotPath string) error {
+// FinalizeSnapshot strips the managed block from snapshotPath and persists the rest back to hostPath, then removes snapshotPath.
+func FinalizeSnapshot(toolsDir, hostPath, snapshotPath string) error {
 	defer func() { _ = os.Remove(snapshotPath) }()
 
 	f, err := os.Open(snapshotPath)
@@ -86,7 +87,7 @@ func FinalizeInstructionsSnapshot(toolHome, hostPath, snapshotPath string) error
 		return err
 	}
 
-	root, name, err := createToolsRoot(toolHome, hostPath)
+	root, name, err := createRoot(toolsDir, hostPath)
 	if err != nil {
 		return err
 	}
@@ -119,9 +120,9 @@ func stripManaged(existing string) string {
 	return before + after
 }
 
-// writeManagedInstructions writes block into path, replacing only the managed section and leaving the rest untouched.
-func writeManagedInstructions(toolHome, path, block string) error {
-	root, name, err := createToolsRoot(toolHome, path)
+// WriteManaged writes block into path, replacing only the managed section and leaving the rest untouched.
+func WriteManaged(toolsDir, path, block string) error {
+	root, name, err := createRoot(toolsDir, path)
 	if err != nil {
 		return err
 	}
@@ -141,23 +142,22 @@ func writeManagedInstructions(toolHome, path, block string) error {
 	return writeInstructions(root, name, mergeInstructions(existing, block))
 }
 
-// createToolsRoot is openToolsRoot, creating the tools dir first.
-func createToolsRoot(toolHome, path string) (*os.Root, string, error) {
-	if err := os.MkdirAll(filepath.Join(toolHome, ToolsDirName), 0o750); err != nil {
+// createRoot is openRoot, creating toolsDir first.
+func createRoot(toolsDir, path string) (*os.Root, string, error) {
+	if err := os.MkdirAll(toolsDir, 0o750); err != nil {
 		return nil, "", err
 	}
-	return openToolsRoot(toolHome, path)
+	return openRoot(toolsDir, path)
 }
 
-// openToolsRoot opens the tools dir under toolHome as a root and returns path relative to it, so a tool dir the agent swaps for a link can't lead reads or writes outside it.
-func openToolsRoot(toolHome, path string) (*os.Root, string, error) {
-	dir := filepath.Join(toolHome, ToolsDirName)
-	name, err := filepath.Rel(dir, path)
+// openRoot opens toolsDir as a root and returns path relative to it, so a tool dir the agent swaps for a link can't lead reads or writes outside it.
+func openRoot(toolsDir, path string) (*os.Root, string, error) {
+	name, err := filepath.Rel(toolsDir, path)
 	if err != nil || !filepath.IsLocal(name) {
-		return nil, "", fmt.Errorf("%s is outside %s", path, dir)
+		return nil, "", fmt.Errorf("%s is outside %s", path, toolsDir)
 	}
 
-	root, err := os.OpenRoot(dir)
+	root, err := os.OpenRoot(toolsDir)
 	if err != nil {
 		return nil, "", err
 	}

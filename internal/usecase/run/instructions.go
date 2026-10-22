@@ -2,10 +2,12 @@ package run
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/image/instructions"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
@@ -39,7 +41,7 @@ func (s *Service) PrepareInstructions(toolHome string, toolConfig tools.ToolConf
 
 	hostPath := toolConfig.Runtime.InstructionsHostPath(toolHome)
 
-	snapshotPath, err := tools.PrepareInstructionsSnapshot(toolHome, hostPath, content)
+	snapshotPath, err := instructions.PrepareSnapshot(filepath.Join(toolHome, tools.ToolsDirName), hostPath, content)
 	if err != nil {
 		return InstructionsSnapshot{}, err
 	}
@@ -47,7 +49,7 @@ func (s *Service) PrepareInstructions(toolHome string, toolConfig tools.ToolConf
 	return InstructionsSnapshot{
 		MountSpec: sandbox.VolumeMount(snapshotPath, toolConfig.Runtime.InstructionsContainerPath),
 		finalize: func() error {
-			return tools.FinalizeInstructionsSnapshot(toolHome, hostPath, snapshotPath)
+			return instructions.FinalizeSnapshot(filepath.Join(toolHome, tools.ToolsDirName), hostPath, snapshotPath)
 		},
 	}, nil
 }
@@ -100,7 +102,7 @@ func (s *Service) PreviewInstructions(req Request) (string, error) {
 
 	hostPath := req.Tool.Runtime.InstructionsHostPath(in.ToolHome)
 
-	return tools.MergedInstructions(in.ToolHome, hostPath, content)
+	return instructions.Merged(filepath.Join(in.ToolHome, tools.ToolsDirName), hostPath, content)
 }
 
 func instructionsEnabled(rc *config.AgenticRC) bool {

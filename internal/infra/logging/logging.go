@@ -1,3 +1,4 @@
+// Package logging writes all CLI output: progress steps to stdout, run messages to stderr.
 package logging
 
 import "os"
