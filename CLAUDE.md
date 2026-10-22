@@ -27,7 +27,7 @@ A new package goes in the layer group of what it imports.
 - With `--proxy` the tool's network is `--internal`, so the proxy is its only way out.
 - A new `.agenticrc.toml` key goes in `GuardedSettings` if it reaches past the container, else in the unguarded list of `TestGuardedSettings`, which fails until it's classified. A run reads config only through the `approvedConfig` that `checkSettings` returns.
 - `Service.Run` rechecks mounts and refuses a `RunSpec` needing a capability the runtime lacks, for every runtime; runners keep their own rechecks too.
-- Tool volumes and secrets come only from `newMountSet` (`internal/usecase/run/mounts.go`), which refuses mounts through workspace symlinks or exposing `agentic.json` or `state.json`. Never add mounts to the `RunSpec` around it.
+- Tool volumes come only from `newMountSet` (`internal/usecase/run/mounts.go`), which refuses mounts through workspace symlinks or exposing `agentic.json` or `state.json`. Never add mounts to the `RunSpec` around it.
 
 ## Architecture
 

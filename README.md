@@ -76,7 +76,7 @@ Containers run read-only with all capabilities dropped, no privilege escalation,
 
 What it doesn't protect against:
 
-- **Credentials it can read**: the agent can read its own login token and any mounted secret. Use [credential injection](docs/credential-injection.md) for API keys.
+- **Credentials it can read**: the agent can read its own login token and any file you mount. Use [credential injection](docs/credential-injection.md) for API keys.
 - **Workspace changes**: the agent can edit git hooks, `Makefile` and scripts that later run on your machine. Review diffs.
 - **Network access**: without `--proxy` the tool reaches the whole internet, and with it, any allowed host. See [Egress proxy](docs/egress-proxy.md).
 
