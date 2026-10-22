@@ -1,3 +1,4 @@
+// Command agentic-proxy is the egress allowlist proxy that runs in the proxy sidecar.
 package main
 
 import (

@@ -46,6 +46,7 @@ A new package goes in the layer group of what it imports.
 - File order: imports (stdlib, then others), consts, vars, types (by dependency), then constructor + methods per type (exported first), then standalone funcs (exported first, strictly by export status).
 - Put a function in the file that owns its subject, not next to its caller, even if it has side effects. Move it (and its tests) only when its subject changes.
 - Comments: short, one line unless more is genuinely needed. Blank lines between logical blocks.
+- Every package has a package comment: `// Package x ...`, or `// Command x ...` in a `main` package. Lint (staticcheck ST1000) enforces it, except for `main` packages.
 - Cobra `init()`: `AddCommand`, then the command's own flags, then shared flag helpers.
 - DSL: install steps use `df.Run{Blocks: ...}`, version check scripts `df.Heredoc`. One `df.Block` per logical phase; independent commands get their own block; a multi-line command is several `Lines` in one block; `Chain: true` for `&&`-chained lines. Pipelines need a `pipefail` `df.Shell` first.
 - Output goes through `internal/infra/logging`, never `fmt.Fprint*(os.Stdout/Stderr)`. `Step`/`Detail` for items; action commands print one `Infof` summary first (single-object actions only that line), display commands none; during `agentic run` use `Infof`/`Warnf`/`Promptf`. Take a `*logging.Logger`, not a writer (tests pass `logging.New(&buf)`). Exception: dry-run `docker ...` lines stay plain.

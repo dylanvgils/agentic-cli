@@ -1,3 +1,4 @@
+// Package instructions merges agentic's managed block into each tool's global instructions file on the host.
 package instructions
 
 import (
