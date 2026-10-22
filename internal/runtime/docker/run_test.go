@@ -2,7 +2,6 @@ package docker
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -231,128 +230,6 @@ func TestClient_RunTool(t *testing.T) {
 		args := get()
 		assert.Contains(t, args, "--volume=/host:/container")
 		assert.Contains(t, args, "--volume=/home/.agentic/data:/data")
-	})
-
-	t.Run("secrets", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{
-			Image:   "agentic-copilot",
-			Secrets: []string{"mytoken:/tmp/token"},
-		}
-
-		// Act
-		err := startAndRunTool(client, rs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, get(), "--volume=/tmp/token:/run/secrets/mytoken:ro")
-	})
-
-	t.Run("secrets tilde expanded", func(t *testing.T) {
-		// Arrange
-		home, err := os.UserHomeDir()
-		require.NoError(t, err)
-
-		rs := sandbox.RunSpec{
-			Image:   "agentic-copilot",
-			Secrets: []string{"mytoken:~/secrets/token"},
-		}
-
-		// Act
-		err = startAndRunTool(client, rs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, get(), "--volume="+home+"/secrets/token:/run/secrets/mytoken:ro")
-	})
-
-	t.Run("secrets dollar HOME expanded", func(t *testing.T) {
-		// Arrange
-		home, err := os.UserHomeDir()
-		require.NoError(t, err)
-
-		rs := sandbox.RunSpec{
-			Image:   "agentic-copilot",
-			Secrets: []string{"mytoken:$HOME/secrets/token"},
-		}
-
-		// Act
-		err = startAndRunTool(client, rs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, get(), "--volume="+home+"/secrets/token:/run/secrets/mytoken:ro")
-	})
-
-	t.Run("secrets dollar HOME braces expanded", func(t *testing.T) {
-		// Arrange
-		home, err := os.UserHomeDir()
-		require.NoError(t, err)
-
-		rs := sandbox.RunSpec{
-			Image:   "agentic-copilot",
-			Secrets: []string{"mytoken:${HOME}/secrets/token"},
-		}
-
-		// Act
-		err = startAndRunTool(client, rs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, get(), "--volume="+home+"/secrets/token:/run/secrets/mytoken:ro")
-	})
-
-	t.Run("secrets with explicit container path", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{
-			Image:   "agentic-copilot",
-			Secrets: []string{"maven-settings:/tmp/settings.xml:/root/.m2/settings.xml"},
-		}
-
-		// Act
-		err := startAndRunTool(client, rs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, get(), "--volume=/tmp/settings.xml:/root/.m2/settings.xml:ro")
-	})
-
-	t.Run("secrets with $CONTAINER_HOME in container path", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{
-			Image:         "agentic-copilot",
-			ContainerHome: "/root",
-			Secrets:       []string{"maven-settings:/tmp/settings.xml:$CONTAINER_HOME/.m2/settings.xml"},
-		}
-
-		// Act
-		err := startAndRunTool(client, rs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, get(), "--volume=/tmp/settings.xml:/root/.m2/settings.xml:ro")
-	})
-
-	t.Run("secrets empty target path", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{
-			Image:   "agentic-copilot",
-			Secrets: []string{"mytoken:/tmp/token:"},
-		}
-
-		// Act + Assert
-		assert.ErrorContains(t, startAndRunTool(client, rs), "empty target path")
-	})
-
-	t.Run("secrets invalid format", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{
-			Image:   "agentic-copilot",
-			Secrets: []string{"badformat"},
-		}
-
-		// Act + Assert
-		assert.ErrorContains(t, startAndRunTool(client, rs), "invalid secret")
 	})
 }
 

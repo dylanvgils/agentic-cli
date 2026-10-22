@@ -79,11 +79,6 @@
           "items": { "type": "string" },
           "description": "Mounts added to the tool container. Bind: host/path:container/path[:rw], read-only unless rw. Named volume: name:container/path. Supports ~, $HOME, $TOOL_HOME, $CONTAINER_HOME, $PWD."
         },
-        "secrets": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Files to mount read-only into the container. Format: name:/path/to/file[:/container/path]. Defaults to /run/secrets/<name>."
-        },
         "env": {
           "type": "array",
           "items": { "type": "string" },

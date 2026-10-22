@@ -25,7 +25,7 @@ The root filesystem is read-only, so every path a tool writes to is mounted expl
 | Bind  | `$AGENTIC_HOME/tools/copilot` | `$CONTAINER_HOME/.copilot`            | Auth tokens and CLI config  |
 | Tmpfs | -                             | `$CONTAINER_HOME/.cache` (1 GB, exec) | Cache (Copilot ignores `/tmp`) |
 
-A [secret](usage.md#secrets) at `/run/secrets/copilot_token` is exported as `GITHUB_TOKEN` before the CLI starts. To use a token without the agent reading it, use [credential injection](credential-injection.md) with the `github` preset instead.
+To use a GitHub token without the agent reading it, use [credential injection](credential-injection.md) with the `github` preset.
 
 ## OpenCode
 
@@ -41,7 +41,7 @@ OpenCode follows the [XDG spec](https://specifications.freedesktop.org/basedir-s
 
 ## Mount safety
 
-Before a run starts, again right before the sidecars start, and once more right before the tool starts (after the sidecars are up or the microsandbox image is loaded), agentic checks every bind mount and secret:
+Before a run starts, again right before the sidecars start, and once more right before the tool starts (after the sidecars are up or the microsandbox image is loaded), agentic checks every bind mount:
 
 - A mount that would expose `$AGENTIC_HOME/agentic.json` or `state.json` (the agentic home or a parent, such as `~`) is refused, since they hold machine-wide settings, trusted directories and approvals.
 - A path through a symlink inside the workspace is refused, so a planted `.git -> ~/.ssh` can't be mounted via `mounts = ["$PWD/.git:/workspace/.git"]`. Mount the real path instead.

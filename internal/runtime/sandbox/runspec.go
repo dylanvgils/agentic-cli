@@ -10,7 +10,6 @@ type RunSpec struct {
 	User           *platform.User // host user the tool runs as; nil until set, as 0:0 is root
 	TTY            bool           // stdin is a terminal
 	Volumes        []string
-	Secrets        []string
 	Env            []string
 	SkipEntrypoint bool
 	ToolArgs       []string // passed to the entrypoint, or run as the command when it's skipped
@@ -39,7 +38,6 @@ type RunSpecBuilder struct {
 	user           *platform.User
 	tty            bool
 	volumes        []string
-	secrets        []string
 	env            []string
 	skipEntrypoint bool
 	toolArgs       []string
@@ -83,12 +81,6 @@ func (b *RunSpecBuilder) WithTTY(tty bool) *RunSpecBuilder {
 // WithVolumes appends volume mount specifications.
 func (b *RunSpecBuilder) WithVolumes(vols ...string) *RunSpecBuilder {
 	b.volumes = append(b.volumes, vols...)
-	return b
-}
-
-// WithSecrets appends secret file mounts (name:/path format).
-func (b *RunSpecBuilder) WithSecrets(secrets ...string) *RunSpecBuilder {
-	b.secrets = append(b.secrets, secrets...)
 	return b
 }
 
@@ -155,7 +147,6 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		User:           b.user,
 		TTY:            b.tty,
 		Volumes:        b.volumes,
-		Secrets:        b.secrets,
 		Env:            b.env,
 		SkipEntrypoint: b.skipEntrypoint,
 		ToolArgs:       b.toolArgs,

@@ -107,17 +107,6 @@ agentic aliases | source                                # fish
 agentic aliases | Out-String | Invoke-Expression        # PowerShell
 ```
 
-## Secrets
-
-`-s`/`--secret` mounts a file read-only, using the format `name:/path/to/file[:/target/path]`. Without a target path, the file goes to `/run/secrets/<name>`. Paths support `~`, `$HOME` and (on the container side) `$CONTAINER_HOME`.
-
-```bash
-agentic run -s 'copilot_token:~/.secrets/copilot_token' copilot
-agentic run -s 'maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml' claude
-```
-
-The agent can read mounted secrets, and the [microsandbox runtime](microsandbox.md) refuses them. For API keys, use [credential injection](credential-injection.md) so the agent only sees a placeholder.
-
 ## Environment variables
 
 `-e`/`--env` sets `KEY=VALUE`, or forwards the host value with a bare `KEY` (skipped if unset):

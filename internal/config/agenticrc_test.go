@@ -101,7 +101,6 @@ func TestMergeConfigs(t *testing.T) {
 
 		// Assert
 		assert.Empty(t, result.Run.Mounts)
-		assert.Empty(t, result.Run.Secrets)
 		assert.Empty(t, result.Run.PidsLimit)
 		assert.Empty(t, result.Run.CPUs)
 		assert.Empty(t, result.Run.Memory)
@@ -171,15 +170,14 @@ func TestMergeConfigs(t *testing.T) {
 
 	t.Run("lists accumulate outermost first", func(t *testing.T) {
 		// Arrange
-		child := &AgenticRC{Run: RCRun{Mounts: []string{"child-vol:/mnt/c"}, Secrets: []string{"child-secret"}, Env: []string{"child-env=1"}}, Build: RCBuild{AptPackages: []string{"gcc"}, Bases: []string{"java"}}}
-		parent := &AgenticRC{Run: RCRun{Mounts: []string{"parent-vol:/mnt/p"}, Secrets: []string{"parent-secret"}, Env: []string{"parent-env=1"}}, Build: RCBuild{AptPackages: []string{"make"}, Bases: []string{"dotnet"}}}
+		child := &AgenticRC{Run: RCRun{Mounts: []string{"child-vol:/mnt/c"}, Env: []string{"child-env=1"}}, Build: RCBuild{AptPackages: []string{"gcc"}, Bases: []string{"java"}}}
+		parent := &AgenticRC{Run: RCRun{Mounts: []string{"parent-vol:/mnt/p"}, Env: []string{"parent-env=1"}}, Build: RCBuild{AptPackages: []string{"make"}, Bases: []string{"dotnet"}}}
 
 		// Act
 		result := mergeConfigs([]*AgenticRC{child, parent})
 
 		// Assert - parent (outermost) entries first
 		assert.Equal(t, []string{"parent-vol:/mnt/p", "child-vol:/mnt/c"}, result.Run.Mounts)
-		assert.Equal(t, []string{"parent-secret", "child-secret"}, result.Run.Secrets)
 		assert.Equal(t, []string{"parent-env=1", "child-env=1"}, result.Run.Env)
 		assert.Equal(t, []string{"make", "gcc"}, result.Build.AptPackages)
 		assert.Equal(t, []string{"dotnet", "java"}, result.Build.Bases)
@@ -555,7 +553,6 @@ java = "17"
 
 [run]
 mounts = ["vol1:/mnt/a", "vol2:/mnt/b"]
-secrets = ["token:/run/s/a", "key:/run/s/b"]
 pids_limit = "512"
 cpus = "2"
 memory = "2g"
@@ -568,7 +565,6 @@ copilot = ["--disable-client-telemetry"]
 
 		// Assert
 		assert.Equal(t, []string{"vol1:/mnt/a", "vol2:/mnt/b"}, rc.Run.Mounts)
-		assert.Equal(t, []string{"token:/run/s/a", "key:/run/s/b"}, rc.Run.Secrets)
 		assert.Equal(t, []string{"make", "gcc"}, rc.Build.AptPackages)
 		assert.Equal(t, []string{"java", "dotnet"}, rc.Build.Bases)
 		assert.Equal(t, map[string]string{"node": "22", "java": "17"}, rc.Build.Versions)
@@ -622,26 +618,24 @@ copilot = ["--disable-client-telemetry"]
 
 	t.Run("tilde in string values", func(t *testing.T) {
 		// Arrange
-		content := "[run]\nmounts = [\"~/.cache:/cache\"]\nsecrets = [\"mytoken:~/.secrets/token\"]\n"
+		content := "[run]\nmounts = [\"~/.cache:/cache\"]\n"
 
 		// Act
 		rc := mustParseRC(t, content)
 
 		// Assert
 		assert.Equal(t, []string{"~/.cache:/cache"}, rc.Run.Mounts)
-		assert.Equal(t, []string{"mytoken:~/.secrets/token"}, rc.Run.Secrets)
 	})
 
 	t.Run("HOME env ref in string values", func(t *testing.T) {
 		// Arrange
-		content := "[run]\nmounts = [\"$HOME/.cache:/cache\"]\nsecrets = [\"mytoken:${HOME}/.secrets/token\"]\n"
+		content := "[run]\nmounts = [\"$HOME/.cache:/cache\"]\n"
 
 		// Act
 		rc := mustParseRC(t, content)
 
 		// Assert
 		assert.Equal(t, []string{"$HOME/.cache:/cache"}, rc.Run.Mounts)
-		assert.Equal(t, []string{"mytoken:${HOME}/.secrets/token"}, rc.Run.Secrets)
 	})
 
 	t.Run("bases key", func(t *testing.T) {
@@ -1162,7 +1156,6 @@ func TestFindAndLoad(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, rc.Run.Mounts)
-		assert.Empty(t, rc.Run.Secrets)
 		assert.Empty(t, rc.Run.PidsLimit)
 		assert.Empty(t, rc.Run.CPUs)
 		assert.Empty(t, rc.Run.Memory)

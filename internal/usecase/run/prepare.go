@@ -38,7 +38,6 @@ type Flags struct {
 	Proxy      resolve.ProxyInput
 	Dind       resolve.DindInput
 	Volumes    []string
-	Secrets    []string
 	Env        []string
 	Limits     sandbox.ResourceLimits
 	DindLimits sandbox.ResourceLimits
@@ -156,7 +155,6 @@ func resolveInput(flags Flags, rc *config.AgenticRC, caps sandbox.Capabilities) 
 	return Input{
 		ToolHome:    flags.ToolHome,
 		Volumes:     flags.Volumes,
-		Secrets:     flags.Secrets,
 		Env:         flags.Env,
 		Limits:      flags.Limits,
 		DryRun:      flags.DryRun,

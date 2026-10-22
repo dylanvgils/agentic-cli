@@ -19,8 +19,7 @@ func Test_mountSet_hostPaths(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	mounts := mountSet{
-		volumes:       []string{"agentic-cache:/cache"},
-		secrets:       []string{"token:~/token", "other:$HOME/other:/run/other"},
+		volumes:       []string{"agentic-cache:/cache", "~/token:/token", "$HOME/other:/run/other"},
 		toolHome:      t.TempDir(),
 		containerHome: "/home/agent",
 	}
@@ -120,7 +119,7 @@ func Test_mountSet_checkResolvable(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("no /proc on windows")
 		}
-		mounts := mountSet{secrets: []string{"key:/proc/1/root/home"}, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{volumes: []string{"/proc/1/root/home:/home"}, toolHome: toolHome, containerHome: "/home/agent"}
 
 		// Act
 		err := mounts.checkResolvable()
@@ -150,9 +149,9 @@ func Test_mountSet_checkSymlinks(t *testing.T) {
 	ws := chdirSymlinkWorkspace(t)
 	toolHome := t.TempDir()
 
-	t.Run("secret through a workspace symlink is refused", func(t *testing.T) {
+	t.Run("file through a workspace symlink is refused", func(t *testing.T) {
 		// Arrange
-		mounts := mountSet{secrets: []string{"key:$PWD/escape/id_ed25519"}, toolHome: toolHome, containerHome: "/home/agent"}
+		mounts := mountSet{volumes: []string{"$PWD/escape/id_ed25519:/key"}, toolHome: toolHome, containerHome: "/home/agent"}
 
 		// Act
 		err := mounts.checkSymlinks()

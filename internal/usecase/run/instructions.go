@@ -174,12 +174,10 @@ func writeFilesystemSection(b *strings.Builder, toolConfig tools.ToolConfig, in 
 		for _, p := range toolConfig.Runtime.EphemeralDirs() {
 			fmt.Fprintf(b, "- `%s`: writable, cleared when the container exits.\n", sandbox.ExpandTmpfsSpec(p.Path, containerHome))
 		}
-		b.WriteString("- Every other path is read-only.\n")
+		b.WriteString("- Every other path is read-only.\n\n")
 	} else {
-		b.WriteString("- Every other path, `/tmp` included, is writable but discarded when the VM exits.\n")
+		b.WriteString("- Every other path, `/tmp` included, is writable but discarded when the VM exits.\n\n")
 	}
-
-	b.WriteString("- Secrets under `/run/secrets/` are read-only.\n\n")
 }
 
 // writeMountLine writes a volume's container path and access; the workspace has its own line.

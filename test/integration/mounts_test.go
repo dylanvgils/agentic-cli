@@ -3,12 +3,10 @@
 package integration
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestToolMounts checks the tool container only gets the mounts it should, writable only where it should be.
@@ -20,19 +18,6 @@ func TestToolMounts(t *testing.T) {
 		// Assert
 		assert.Contains(t, out, "checked")
 		assert.NotContains(t, out, "socket=")
-	})
-
-	t.Run("secret is read-only", func(t *testing.T) {
-		// Arrange
-		secret := filepath.Join(tempDirIn(t, rootDir), "token")
-		require.NoError(t, os.WriteFile(secret, []byte("s3cret"), 0o600))
-
-		// Act
-		out := runInTool(t, `cat /run/secrets/itest; echo; echo x > /run/secrets/itest 2>/dev/null && echo secret=rw || echo secret=ro`, "--secret", "itest:"+secret)
-
-		// Assert
-		assert.Contains(t, out, "s3cret")
-		assert.Contains(t, out, "secret=ro")
 	})
 
 	t.Run("read-only sub-path mount blocks writes inside writable workspace", func(t *testing.T) {

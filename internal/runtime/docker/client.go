@@ -68,7 +68,6 @@ func (c *Client) Capabilities() sandbox.Capabilities {
 		CredentialInjection: true,
 		PathRules:           true,
 		CredentialsViaProxy: true,
-		SecretMounts:        true,
 		PidsLimit:           true,
 		ReadOnlyRoot:        true, // --read-only plus tmpfs ephemeral dirs
 		DropsPrivileges:     true, // --cap-drop=ALL and no-new-privileges

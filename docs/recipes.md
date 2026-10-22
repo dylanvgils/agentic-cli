@@ -62,7 +62,7 @@ Maven ignores the proxy env vars, so with `--proxy` on, mount a `settings.xml` t
 ```toml
 # .agenticrc.toml
 [run]
-secrets = ["maven-settings:~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml"]
+mounts = ["~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml"]
 
 [run.proxy]
 enabled = true

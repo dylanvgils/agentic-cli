@@ -47,9 +47,8 @@ type RCBuild struct {
 
 // RCRun holds runtime settings from a .agenticrc.toml file.
 type RCRun struct {
-	Mounts  []string `toml:"mounts"`
-	Secrets []string `toml:"secrets"`
-	Env     []string `toml:"env"`
+	Mounts []string `toml:"mounts"`
+	Env    []string `toml:"env"`
 	// Args are extra args per tool name, passed before the args given on the command line
 	Args         map[string][]string `toml:"args"`
 	Runtime      string              `toml:"runtime"`
@@ -321,7 +320,6 @@ func appendLists(result, rc *AgenticRC) {
 	build := rc.Build
 
 	resRun.Mounts = append(resRun.Mounts, run.Mounts...)
-	resRun.Secrets = append(resRun.Secrets, run.Secrets...)
 	resRun.Env = append(resRun.Env, run.Env...)
 	for tool, args := range run.Args {
 		resRun.Args[tool] = append(resRun.Args[tool], args...)

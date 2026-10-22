@@ -1,4 +1,4 @@
-// Package run builds the sandbox.RunSpec for `agentic run`, syncing marketplaces and assembling resolved volumes, secrets, env vars, and resource limits.
+// Package run builds the sandbox.RunSpec for `agentic run`, syncing marketplaces and assembling resolved volumes, env vars, and resource limits.
 package run
 
 import (
@@ -42,7 +42,6 @@ type Target struct {
 type Input struct {
 	ToolHome    string
 	Volumes     []string
-	Secrets     []string
 	Env         []string
 	Limits      sandbox.ResourceLimits
 	DryRun      bool
@@ -224,7 +223,6 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string
 		WithUser(platform.HostUser()).
 		WithTTY(platform.IsTerminal()).
 		WithVolumes(mounts.volumes...).
-		WithSecrets(mounts.secrets...).
 		WithEnv(env...).
 		WithSkipEntrypoint(req.target.SkipEntrypoint).
 		WithToolArgs(resolve.ToolArgs(req.target.ToolName, req.target.ToolArgs, req.target.SkipEntrypoint, rc)...).

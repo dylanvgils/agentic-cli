@@ -10,18 +10,12 @@ func buildRunArgs(rs toolRun, sidecarArgs []string) ([]string, error) {
 		return nil, errNoHostUser
 	}
 
-	secretArgs, err := buildSecretArgs(rs.RunSpec)
-	if err != nil {
-		return nil, err
-	}
-
 	args := buildBaseArgs(rs)
 	args = append(args, buildTTYArgs(rs.RunSpec)...)
 	args = append(args, sandbox.EnvArgs(rs.Env)...)
 	args = append(args, sidecarArgs...)
 	args = append(args, buildTmpfsArgs(rs.RunSpec)...)
 	args = append(args, buildVolumeArgs(rs.RunSpec)...)
-	args = append(args, secretArgs...)
 
 	if rs.SkipEntrypoint {
 		args = append(args, arg("entrypoint", ""))
@@ -83,20 +77,4 @@ func buildVolumeArgs(rs sandbox.RunSpec) []string {
 		args = append(args, arg("volume", sandbox.NormalizeMountSpec(expanded)))
 	}
 	return args
-}
-
-// buildSecretArgs builds read-only secret volume flags, erroring on a malformed secret spec.
-func buildSecretArgs(rs sandbox.RunSpec) ([]string, error) {
-	args := make([]string, 0, len(rs.Secrets))
-	for _, secret := range rs.Secrets {
-		hostPath, containerPath, err := sandbox.ParseSecretSpec(secret)
-		if err != nil {
-			return nil, err
-		}
-
-		spec := sandbox.ExpandMountSpec(hostPath+":"+containerPath, rs.ToolHome, rs.ContainerHome)
-		spec = sandbox.NormalizeMountSpec(spec)
-		args = append(args, arg("volume", spec+":ro"))
-	}
-	return args, nil
 }

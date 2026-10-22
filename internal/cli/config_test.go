@@ -116,7 +116,6 @@ func Test_printProjectConfig(t *testing.T) {
     cpus: 4  (default)
     memory: 4g  (default)
     mounts: (none)
-    secrets: (none)
     env: (none)
     args: (none)
     check_updates: true  (default)
@@ -349,18 +348,18 @@ func Test_boolField(t *testing.T) {
 func Test_listField(t *testing.T) {
 	// Arrange
 	layers := []config.RCLayer{
-		{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Secrets: []string{"a:/run/a"}}}},
-		{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Secrets: []string{"b:/run/b"}}}},
+		{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Mounts: []string{"a:/a"}}}},
+		{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Mounts: []string{"b:/b"}}}},
 	}
-	secrets := func(rc *config.AgenticRC) []string { return rc.Run.Secrets }
+	mounts := func(rc *config.AgenticRC) []string { return rc.Run.Mounts }
 
 	// Act
-	f := listField(layers, "secrets", secrets)
+	f := listField(layers, "mounts", mounts)
 
 	// Assert
-	assert.Equal(t, field{key: "secrets", list: true, entries: []entry{
-		{value: "a:/run/a", source: "/home/.agenticrc.toml"},
-		{value: "b:/run/b", source: "/project/.agenticrc.toml"},
+	assert.Equal(t, field{key: "mounts", list: true, entries: []entry{
+		{value: "a:/a", source: "/home/.agenticrc.toml"},
+		{value: "b:/b", source: "/project/.agenticrc.toml"},
 	}}, f)
 }
 
@@ -425,8 +424,8 @@ func Test_writeField(t *testing.T) {
 		{"scalar from a layer", field{key: "cpus", entries: []entry{{value: "8", source: "/p/.agenticrc.toml"}}}, "  cpus: 8  [/p/.agenticrc.toml]\n"},
 		{"scalar default", field{key: "cpus", entries: []entry{{value: "4"}}}, "  cpus: 4  (default)\n"},
 		{"scalar not set", field{key: "docker_context"}, "  docker_context: (not set)\n"},
-		{"empty list", field{key: "secrets", list: true}, "  secrets: (none)\n"},
-		{"list entries", field{key: "secrets", list: true, entries: []entry{{value: "a", source: "/p/.agenticrc.toml"}}}, "  secrets:\n    - a  [/p/.agenticrc.toml]\n"},
+		{"empty list", field{key: "mounts", list: true}, "  mounts: (none)\n"},
+		{"list entries", field{key: "mounts", list: true, entries: []entry{{value: "a", source: "/p/.agenticrc.toml"}}}, "  mounts:\n    - a  [/p/.agenticrc.toml]\n"},
 	}
 
 	for _, tt := range tests {
