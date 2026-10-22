@@ -65,11 +65,10 @@ func Test_credentialSetup(t *testing.T) {
 
 	t.Run("no credentials is a no-op even with the proxy off", func(t *testing.T) {
 		// Act
-		env, err := credentialSetup(Input{}, proxyInjects, mountSet{}, nil)
+		err := credentialSetup(Input{}, proxyInjects, mountSet{}, nil)
 
 		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, env)
+		assert.NoError(t, err)
 	})
 
 	t.Run("credentials without the proxy are an error", func(t *testing.T) {
@@ -77,7 +76,7 @@ func Test_credentialSetup(t *testing.T) {
 		in := Input{Credentials: resolved}
 
 		// Act
-		_, err := credentialSetup(in, proxyInjects, mountSet{}, nil)
+		err := credentialSetup(in, proxyInjects, mountSet{}, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "need the egress proxy")
@@ -89,27 +88,10 @@ func Test_credentialSetup(t *testing.T) {
 		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
 
 		// Act
-		env, err := credentialSetup(in, proxyInjects, mounts, nil)
+		err := credentialSetup(in, proxyInjects, mounts, nil)
 
 		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, env)
-	})
-
-	t.Run("a credential covering git adds the git helper for every runtime", func(t *testing.T) {
-		// Arrange
-		git := []credentials.Resolved{{Env: []string{"GITHUB_TOKEN"}, Git: &credentials.GitAuth{Host: "github.com", User: "x-access-token"}}}
-		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
-
-		// Act
-		proxyEnv, err := credentialSetup(Input{ProxyMode: sandbox.ProxyEnforce, Credentials: git}, proxyInjects, mounts, nil)
-		require.NoError(t, err)
-		runtimeEnv, err := credentialSetup(Input{Credentials: git}, runtimeInjects, mounts, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, proxyEnv, "GIT_CONFIG_COUNT=1")
-		assert.Contains(t, runtimeEnv, "GIT_CONFIG_COUNT=1")
+		assert.NoError(t, err)
 	})
 
 	t.Run("a runtime that injects itself needs no proxy and gets no placeholders, but the same checks", func(t *testing.T) {
@@ -118,12 +100,11 @@ func Test_credentialSetup(t *testing.T) {
 		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
 
 		// Act
-		env, err := credentialSetup(in, runtimeInjects, mounts, nil)
-		_, overrideErr := credentialSetup(in, runtimeInjects, mounts, []string{"EXAMPLE_API_KEY=value"})
+		err := credentialSetup(in, runtimeInjects, mounts, nil)
+		overrideErr := credentialSetup(in, runtimeInjects, mounts, []string{"EXAMPLE_API_KEY=value"})
 
 		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, env)
+		assert.NoError(t, err)
 		assert.ErrorContains(t, overrideErr, "set by a proxy credential")
 	})
 }
@@ -148,37 +129,6 @@ func Test_sandboxCredentials(t *testing.T) {
 		Headers: []string{"Authorization"},
 		Secret:  "test-secret",
 	}}, creds)
-}
-
-func Test_gitHelperEnv(t *testing.T) {
-	t.Run("sets a helper per credential covering git", func(t *testing.T) {
-		// Arrange
-		resolved := []credentials.Resolved{
-			{Env: []string{"GITHUB_TOKEN", "GH_TOKEN"}, Git: &credentials.GitAuth{Host: "github.com", User: "x-access-token"}},
-			{Env: []string{"OTHER_TOKEN"}},
-			{Env: []string{"GITEA_TOKEN"}, Git: &credentials.GitAuth{Host: "git.example.test", User: "oauth2"}},
-		}
-
-		// Act
-		env := gitHelperEnv(resolved)
-
-		// Assert
-		assert.Equal(t, []string{
-			"GIT_CONFIG_COUNT=2",
-			"GIT_CONFIG_KEY_0=credential.https://github.com.helper",
-			`GIT_CONFIG_VALUE_0=!f() { echo username=x-access-token; echo "password=$GITHUB_TOKEN"; }; f`,
-			"GIT_CONFIG_KEY_1=credential.https://git.example.test.helper",
-			`GIT_CONFIG_VALUE_1=!f() { echo username=oauth2; echo "password=$GITEA_TOKEN"; }; f`,
-		}, env)
-	})
-
-	t.Run("nil without a credential covering git", func(t *testing.T) {
-		// Act
-		env := gitHelperEnv([]credentials.Resolved{{Env: []string{"OTHER_TOKEN"}}})
-
-		// Assert
-		assert.Nil(t, env)
-	})
 }
 
 func Test_checkCredentialEnv(t *testing.T) {
@@ -249,28 +199,6 @@ func Test_checkCredentialEnv(t *testing.T) {
 		// Assert
 		assert.NoError(t, withoutDind)
 		assert.ErrorContains(t, withDind, "managed by agentic")
-	})
-
-	t.Run("refuses git config env when a credential covers git", func(t *testing.T) {
-		// Arrange
-		resolved := []credentials.Resolved{{Env: []string{"GITHUB_TOKEN"}, Git: &credentials.GitAuth{Host: "github.com", User: "x-access-token"}}}
-
-		// Act
-		err := checkCredentialEnv(resolved, []string{"GIT_CONFIG_COUNT=0"}, false)
-
-		// Assert
-		assert.ErrorContains(t, err, `"GIT_CONFIG_COUNT" is set by agentic for the git credential helper`)
-	})
-
-	t.Run("allows git config env without a credential covering git", func(t *testing.T) {
-		// Arrange
-		resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}
-
-		// Act
-		err := checkCredentialEnv(resolved, []string{"GIT_CONFIG_COUNT=0"}, false)
-
-		// Assert
-		assert.NoError(t, err)
 	})
 }
 

@@ -151,7 +151,7 @@ func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tool
 	return rs, snapshot.Cleanup, nil
 }
 
-// runEnv resolves the tool's env, refusing managed names, and adds the credential placeholders and marketplace names.
+// runEnv resolves the tool's env, refusing managed names, checks the credentials against it and adds the marketplace names.
 func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []string) ([]string, error) {
 	in := req.in
 
@@ -160,11 +160,9 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 		return nil, err
 	}
 
-	placeholders, err := credentialSetup(in, req.caps, mounts, env)
-	if err != nil {
+	if err := credentialSetup(in, req.caps, mounts, env); err != nil {
 		return nil, err
 	}
-	env = append(env, placeholders...)
 
 	// Tells entrypoint.sh exactly which names to register instead of globbing.
 	if len(marketplaceNames) > 0 {

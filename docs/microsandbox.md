@@ -45,7 +45,7 @@ The first run of an image copies it from Docker into msb, which takes a while. L
 - **Filesystem**: the VM's root is writable but discarded when it exits, so there's no read-only root and no separate temp dirs. The workspace, tool home and `--volume` mounts work as with Docker.
 - **Docker-in-Docker**: the daemon runs inside the VM, not in a sidecar. See [Docker in the VM](#docker-in-the-vm).
 - **Egress allowlist**: msb's own network policy enforces it, with no access log and no `--proxy-monitor`. See [With microsandbox](egress-proxy.md#with-microsandbox).
-- **Credential injection**: msb swaps [`[[run.proxy.credentials]]`](credential-injection.md) secrets in for its own placeholder, without the proxy. Git over HTTPS sends no credentials.
+- **Credential injection**: msb swaps [`[[run.proxy.credentials]]`](credential-injection.md) secrets in for its own placeholder, without the proxy.
 - **Secret mounts**: `--secret` and `[run] secrets` are refused. Use credential injection instead.
 - **Named volumes**: msb stores them as `agentic-<name>`. See [Named volumes](usage.md#named-volumes).
 - **Limits**: `cpus` (rounded up to a whole number) and `memory` apply to the VM. `pids_limit` is ignored.

@@ -32,9 +32,6 @@ func (s *Service) checkProxyTrust(target Target) error {
 	return fmt.Errorf("%s can't trust the proxy CA, so TLS to credential and path rule hosts would fail; rebuild it with \"agentic update %s\"", target.ImageName, target.ToolName)
 }
 
-// gitConfigEnvPrefix starts the env vars git reads config from, which the git credential helper is set through.
-const gitConfigEnvPrefix = "GIT_CONFIG_"
-
 // resolveCredentials reads the secrets of every credential the layers declare, refusing to run while any layer's entries are unapproved.
 func resolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials.Resolved, error) {
 	rc, err := config.Merge(layers)
@@ -59,24 +56,20 @@ func resolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials
 	return credentials.Resolve(rc.Run.Proxy.Credentials)
 }
 
-// credentialSetup checks in.Credentials against the run and returns the tool's git helper env; the runtime sets the
-// placeholders itself. A no-op without credentials.
-func credentialSetup(in Input, caps sandbox.Capabilities, mounts mountSet, env []string) ([]string, error) {
+// credentialSetup checks in.Credentials against the run; the runtime sets the placeholders itself. A no-op without
+// credentials.
+func credentialSetup(in Input, caps sandbox.Capabilities, mounts mountSet, env []string) error {
 	if len(in.Credentials) == 0 {
-		return nil, nil
+		return nil
 	}
 	if caps.CredentialsViaProxy && !in.ProxyMode.Enabled() {
-		return nil, fmt.Errorf("proxy credentials need the egress proxy, which is disabled")
+		return fmt.Errorf("proxy credentials need the egress proxy, which is disabled")
 	}
 
 	if err := checkCredentialPaths(in.Credentials, mounts); err != nil {
-		return nil, err
+		return err
 	}
-	if err := checkCredentialEnv(in.Credentials, env, in.DindEnabled); err != nil {
-		return nil, err
-	}
-
-	return gitHelperEnv(in.Credentials), nil
+	return checkCredentialEnv(in.Credentials, env, in.DindEnabled)
 }
 
 // sandboxCredentials maps each resolved entry to a sandbox.Credential named after its first env var.
@@ -94,39 +87,11 @@ func sandboxCredentials(resolved []credentials.Resolved) []sandbox.Credential {
 	return creds
 }
 
-// gitHelperEnv sets a git credential helper for each credential covering git, answering its user and the placeholder in its
-// first env var; git reads it from env, as the tool's home is read-only. Nil when no credential covers git.
-func gitHelperEnv(resolved []credentials.Resolved) []string {
-	var helpers []string
-	for _, r := range resolved {
-		if r.Git == nil {
-			continue
-		}
-
-		i := len(helpers) / 2
-		helper := fmt.Sprintf(`!f() { echo username=%s; echo "password=$%s"; }; f`, r.Git.User, r.Env[0])
-		helpers = append(helpers,
-			fmt.Sprintf("%sKEY_%d=credential.https://%s.helper", gitConfigEnvPrefix, i, r.Git.Host),
-			fmt.Sprintf("%sVALUE_%d=%s", gitConfigEnvPrefix, i, helper),
-		)
-	}
-
-	if len(helpers) == 0 {
-		return nil
-	}
-	return append([]string{fmt.Sprintf("%sCOUNT=%d", gitConfigEnvPrefix, len(helpers)/2)}, helpers...)
-}
-
 // checkCredentialEnv refuses env entries for the proxy trust vars, and credential env names agentic manages or env sets,
 // since a forwarded host value would leak the real secret.
 func checkCredentialEnv(resolved []credentials.Resolved, env []string, dindEnabled bool) error {
 	if i := slices.IndexFunc(env, func(entry string) bool { return isProxyTrustEnvName(envKey(entry)) }); i >= 0 {
 		return fmt.Errorf("--env: %q is set by agentic when proxy credentials are configured", envKey(env[i]))
-	}
-
-	coversGit := slices.ContainsFunc(resolved, func(r credentials.Resolved) bool { return r.Git != nil })
-	if i := slices.IndexFunc(env, func(entry string) bool { return strings.HasPrefix(envKey(entry), gitConfigEnvPrefix) }); coversGit && i >= 0 {
-		return fmt.Errorf("--env: %q is set by agentic for the git credential helper", envKey(env[i]))
 	}
 
 	for _, r := range resolved {

@@ -32,8 +32,7 @@ func Test_presets_github(t *testing.T) {
 	github := presets["github"]
 
 	// Assert
-	assert.Equal(t, &GitAuth{Host: "github.com", User: "x-access-token"}, github.git)
-	assert.Contains(t, github.hosts, github.git.Host)
+	assert.Contains(t, github.hosts, "github.com")
 	assert.Contains(t, github.hosts, "api.githubcopilot.com")
 	assert.Contains(t, github.hosts, "api.individual.githubcopilot.com")
 }
