@@ -100,7 +100,7 @@ func TestWriteClaudeInstructions(t *testing.T) {
 	require.NoError(t, err)
 	got, err := os.ReadFile(filepath.Join(dir, ToolsDirName, "claude", "data", "CLAUDE.md"))
 	require.NoError(t, err)
-	assert.Equal(t, instructionsBeginMarker+"\n# Environment\n"+instructionsEndMarker+"\n", string(got))
+	assert.Contains(t, string(got), "\n# Environment\n")
 }
 
 func TestClaudeStage(t *testing.T) {

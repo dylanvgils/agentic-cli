@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/image/instructions"
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -132,5 +133,5 @@ func claudeInstructionsHostPath(toolHome string) string {
 
 // writeClaudeInstructions writes content to Claude Code's global CLAUDE.md.
 func writeClaudeInstructions(toolHome, content string) error {
-	return writeManagedInstructions(toolHome, claudeInstructionsHostPath(toolHome), content)
+	return instructions.WriteManaged(filepath.Join(toolHome, ToolsDirName), claudeInstructionsHostPath(toolHome), content)
 }

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/image/instructions"
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -131,5 +132,5 @@ func copilotInstructionsHostPath(toolHome string) string {
 
 // writeCopilotInstructions writes content to Copilot CLI's global instructions file.
 func writeCopilotInstructions(toolHome, content string) error {
-	return writeManagedInstructions(toolHome, copilotInstructionsHostPath(toolHome), content)
+	return instructions.WriteManaged(filepath.Join(toolHome, ToolsDirName), copilotInstructionsHostPath(toolHome), content)
 }

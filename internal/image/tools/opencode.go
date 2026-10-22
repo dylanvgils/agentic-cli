@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/image/instructions"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -96,5 +97,5 @@ func opencodeInstructionsHostPath(toolHome string) string {
 
 // writeOpencodeInstructions writes content to OpenCode's global AGENTS.md.
 func writeOpencodeInstructions(toolHome, content string) error {
-	return writeManagedInstructions(toolHome, opencodeInstructionsHostPath(toolHome), content)
+	return instructions.WriteManaged(filepath.Join(toolHome, ToolsDirName), opencodeInstructionsHostPath(toolHome), content)
 }
