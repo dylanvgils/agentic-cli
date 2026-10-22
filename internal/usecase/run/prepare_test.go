@@ -192,6 +192,23 @@ func TestPrepare(t *testing.T) {
 		assert.Equal(t, "agentic-claude", rs.Image)
 	})
 
+	t.Run("dry run offers no tool update", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Project.RC.Run.CheckUpdates = nil
+		req.Flags.DryRun = true
+		stubLog(t)
+		p := &fakePrompter{}
+
+		// Act
+		_, cleanup, err := withLatestToolVersion(New(&fakeDocker{inspectImage: built}, nil), "2.0.0").Prepare(req, p)
+		defer cleanup()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, p.updatesOffered)
+	})
+
 	t.Run("tool setup error is wrapped with the tool name", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)

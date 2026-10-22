@@ -90,23 +90,30 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 	return s.buildWithInstructions(req.Target, in, req.Tool, approved)
 }
 
-// checkTool offers a due tool update and creates the tool's host files.
+// checkTool offers a due tool update, unless it's a dry run, and creates the tool's host files.
 func (s *Service) checkTool(req Request, prompter Prompter) error {
+	if !req.Flags.DryRun {
+		if err := s.offerToolUpdate(req, prompter); err != nil {
+			return err
+		}
+	}
+
+	if err := req.Tool.Runtime.Setup(req.Flags.ToolHome); err != nil {
+		return fmt.Errorf("setup %s: %w", req.Target.ToolName, err)
+	}
+
+	return nil
+}
+
+// offerToolUpdate offers a due tool update and applies it when the user accepts.
+func (s *Service) offerToolUpdate(req Request, prompter Prompter) error {
 	target, home, rc := req.Target, req.Flags.ToolHome, req.Project.RC
 
 	updateReq := toolupdate.Request{Home: home, RC: rc, Tool: target.ToolName, Image: target.ImageName}
 	apply := func(tool, image string) error {
 		return update.New(s.docker, s.upstream, home).ApplyRecovered(tool, image, rc)
 	}
-	if err := toolupdate.New(s.docker, s.upstream).Check(updateReq, prompter.OfferToolUpdate, apply); err != nil {
-		return err
-	}
-
-	if err := req.Tool.Runtime.Setup(home); err != nil {
-		return fmt.Errorf("setup %s: %w", target.ToolName, err)
-	}
-
-	return nil
+	return toolupdate.New(s.docker, s.upstream).Check(updateReq, prompter.OfferToolUpdate, apply)
 }
 
 // CheckProjectDir refuses a working dir Docker can't bind-mount; run it before reading the dir's config.
