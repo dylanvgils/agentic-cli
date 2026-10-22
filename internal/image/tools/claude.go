@@ -1,0 +1,136 @@
+package tools
+
+import (
+	"os"
+	"path"
+	"path/filepath"
+
+	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
+)
+
+// claudeLatestVersionURL is the URL claude.ai/install.sh resolves before picking a binary, matching what the install step below fetches.
+const claudeLatestVersionURL = "https://downloads.claude.ai/claude-code-releases/latest"
+
+// claudeInstructionsContainerPath is the container-side mount target for a per-run instructions snapshot.
+const claudeInstructionsContainerPath = "$CONTAINER_HOME/.claude/CLAUDE.md"
+
+// claudeAllowedHosts is the baseline egress allowlist for Claude Code; users add more via allowed_hosts.
+var claudeAllowedHosts = []string{
+	".anthropic.com", // Claude API and telemetry subdomains (e.g. api.anthropic.com, statsig.anthropic.com)
+	".claude.ai",     // installer and asset downloads (e.g. downloads.claude.ai)
+	".claude.com",    // OAuth/login flow and Claude Code docs (code.claude.com)
+}
+
+func claudeEphemeralDirs() []sandbox.EphemeralDir {
+	return []sandbox.EphemeralDir{
+		{Path: "/tmp", Size: "1g"},
+	}
+}
+
+func claudeMounts() []string {
+	return []string{
+		sandbox.VolumeMount("$PWD", sandbox.WorkspaceContainerPath),
+		sandbox.VolumeMount(path.Join(toolHomeVar, ToolsDirName, "claude", "data"), "$CONTAINER_HOME/.claude"),
+		sandbox.VolumeMount(path.Join(toolHomeVar, ToolsDirName, "claude", ".claude.json"), "$CONTAINER_HOME/.claude.json"),
+	}
+}
+
+// claudeMarketplaceMount mounts a synced marketplace clone read-only outside Claude's own state tree.
+func claudeMarketplaceMount(name, url string) string {
+	return sandbox.VolumeMount(
+		path.Join(toolHomeVar, marketplace.MarketplacesDirName, marketplace.CloneDirName(url)),
+		path.Join("$CONTAINER_HOME", marketplace.MarketplacesDirName, name),
+		sandbox.VolumeOptions{ReadOnly: true},
+	)
+}
+
+func claudeStage(prevStage string) df.Stage {
+	return df.NewStage(df.From{Image: prevStage, As: "tool"}).
+		Add(pipefailShell).
+		Add(createContainerUser("claude")...).
+		Add(df.Heredoc{
+			Dest: "/usr/local/bin/entrypoint.sh",
+			Blocks: []df.Block{
+				{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
+				{
+					Comment: "Register AGENTIC_MARKETPLACES into the Claude container",
+					Lines: []string{
+						`marketplaces_dir="$HOME/` + marketplace.MarketplacesDirName + `"`,
+						`if [[ -n "${AGENTIC_MARKETPLACES:-}" ]]; then`,
+						`  IFS=',' read -ra marketplace_names <<< "$AGENTIC_MARKETPLACES"`,
+						`  for name in "${marketplace_names[@]}"; do`,
+						`    dir="$marketplaces_dir/$name"`,
+						`    [[ -d "$dir" ]] || continue`,
+						`    claude plugin marketplace add "$dir" --scope user || echo "warning: failed to register marketplace $name" >&2`,
+						"  done",
+						"fi",
+					},
+				},
+				{
+					Comment: "Deregister marketplaces this container no longer mounts, e.g. removed from .agenticrc.toml",
+					Lines: []string{
+						`while IFS=$'\t' read -r name loc; do`,
+						`  [[ -n "$name" && "$(dirname -- "$loc")" == "$marketplaces_dir" && ! -d "$loc" ]] || continue`,
+						`  claude plugin marketplace remove "$name" --scope user || echo "warning: failed to deregister marketplace $name" >&2`,
+						`done < <(claude plugin marketplace list --json 2>/dev/null | jq -r '.[] | select(.source=="directory") | [.name, .installLocation] | @tsv' 2>/dev/null)`,
+					},
+				},
+				proxyTrustBlock(),
+				{Lines: []string{`exec claude "$@"`}},
+			},
+		}).
+		Add(df.User{Name: "claude"}).
+		Add(df.Env{Key: "PATH", Value: "/home/claude/.local/bin:${PATH}"}).
+		Add(df.Arg{Key: "CLAUDE_INSTALL_CHECKSUM", Default: DefaultChecksums.ClaudeInstall}).
+		Add(df.Run{Blocks: []df.Block{
+			{Comment: "Download and verify install script, then run it", Lines: []string{
+				`curl -fsSL https://claude.ai/install.sh -o /tmp/claude_install.sh;`,
+				`if [ "${SKIP_INSTALL_CHECKSUM}" = "true" ]; then`,
+				`echo "warning: skipping claude install script checksum verification (--skip-install-checksum)" >&2;`,
+				`else`,
+				`echo "${CLAUDE_INSTALL_CHECKSUM}  /tmp/claude_install.sh" | sha256sum -c --quiet -;`,
+				`echo "claude install script checksum verified OK";`,
+				`fi;`,
+				`bash /tmp/claude_install.sh;`,
+				`rm /tmp/claude_install.sh`,
+			}},
+			{Lines: []string{`mkdir -p "/home/claude/.claude"`}},
+		}}).
+		Add(versionCheckScript("claude", "claude --version")).
+		Add(df.Env{Key: "TOOL_HOME", Value: "/home/claude"}).
+		Add(df.Env{Key: "DISABLE_AUTOUPDATER", Value: "1"}).
+		Add(df.Workdir{Path: sandbox.WorkspaceContainerPath}).
+		Add(proxyTrustLabel()).
+		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
+		Build()
+}
+
+// claudeLatestVersion fetches the latest Claude Code version available upstream.
+func claudeLatestVersion() (string, error) {
+	return fetchTextVersion(claudeLatestVersionURL)
+}
+
+func setupClaude(toolHome string) error {
+	if err := os.MkdirAll(filepath.Join(toolHome, ToolsDirName, "claude", "data"), 0o750); err != nil {
+		return err
+	}
+
+	jsonPath := filepath.Join(toolHome, ToolsDirName, "claude", ".claude.json")
+	if _, err := os.Stat(jsonPath); os.IsNotExist(err) {
+		return os.WriteFile(jsonPath, []byte("{}"), 0o640)
+	}
+
+	return nil
+}
+
+// claudeInstructionsHostPath is Claude Code's global CLAUDE.md (~/.claude/CLAUDE.md).
+func claudeInstructionsHostPath(toolHome string) string {
+	return filepath.Join(toolHome, ToolsDirName, "claude", "data", "CLAUDE.md")
+}
+
+// writeClaudeInstructions writes content to Claude Code's global CLAUDE.md.
+func writeClaudeInstructions(toolHome, content string) error {
+	return writeManagedInstructions(toolHome, claudeInstructionsHostPath(toolHome), content)
+}

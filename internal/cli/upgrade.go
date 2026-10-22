@@ -3,9 +3,9 @@ package cli
 import (
 	"fmt"
 
-	"github.com/dylanvgils/agentic-cli/internal/buildinfo"
-	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/selfupdate"
+	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
+	"github.com/dylanvgils/agentic-cli/internal/infra/selfupdate"
 	"github.com/spf13/cobra"
 )
 

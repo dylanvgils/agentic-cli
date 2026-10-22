@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 )
 
 // checkInterval bounds how often `agentic run` re-checks a tool's upstream version.

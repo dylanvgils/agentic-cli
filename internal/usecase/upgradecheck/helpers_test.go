@@ -3,7 +3,7 @@ package upgradecheck
 import (
 	"bytes"
 
-	"github.com/dylanvgils/agentic-cli/internal/logging"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 )
 
 // fakeReleases implements Releases, returning latest/latestErr and updateErr and recording the calls.

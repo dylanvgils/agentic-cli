@@ -1,6 +1,6 @@
 # Dockerfile DSL
 
-`internal/dockerfile` provides a typed Go DSL for generating Dockerfiles programmatically. Static Dockerfile files do not exist in this project, every image is built from a `dockerfile.File` assembled at build time.
+`internal/image/dockerfile` provides a typed Go DSL for generating Dockerfiles programmatically. Static Dockerfile files do not exist in this project, every image is built from a `dockerfile.File` assembled at build time.
 
 The DSL avoids string templates and raw concatenation: instructions are typed structs, stages are composed values, and every rendered instruction carries a comment pointing back to the Go file and line that produced it.
 
@@ -100,7 +100,7 @@ Renders as:
 
 ```dockerfile
 # Create container user
-# internal/tools/claude.go:41
+# internal/image/tools/claude.go:41
 RUN useradd -m claude
 ```
 
@@ -163,10 +163,10 @@ ARG DEBIAN_VERSION=bookworm-slim
 
 FROM debian:${DEBIAN_VERSION} AS base
 
-# internal/tools/bases.go:23
+# internal/image/tools/bases.go:23
 ENV DEBIAN_FRONTEND=noninteractive
 
-# internal/tools/bases.go:28
+# internal/image/tools/bases.go:28
 RUN apt-get update -yq \
   && apt-get install -yq --no-install-recommends \
   curl \
@@ -187,4 +187,4 @@ func claudeStage(prevStage string) df.Stage {
 }
 ```
 
-`internal/tools/generate.go` threads these together - base → extras → tool stage - then calls `File{Stages: stages}.Render()` to produce the final Dockerfile string. The `Stage` field in each tool's `BuildConfig` (`internal/tools/tools.go`) is what gets wired into this pipeline.
+`internal/image/tools/generate.go` threads these together - base → extras → tool stage - then calls `File{Stages: stages}.Render()` to produce the final Dockerfile string. The `Stage` field in each tool's `BuildConfig` (`internal/image/tools/tools.go`) is what gets wired into this pipeline.

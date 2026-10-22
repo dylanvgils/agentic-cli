@@ -4,7 +4,7 @@ import (
 	"maps"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 )
 
 // BuildInput carries the flag-derived values BuildOptions needs.

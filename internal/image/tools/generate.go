@@ -1,0 +1,117 @@
+package tools
+
+import (
+	"cmp"
+	"fmt"
+	"slices"
+
+	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
+)
+
+// BuildOptions controls how a tool image is built.
+type BuildOptions struct {
+	BaseOverride        []string                 // overrides the tool's default base extras
+	BaseExact           bool                     // true when set via --base-exact: BaseOverride is authoritative even if empty, skips rc.Build.Bases and per-image label recovery
+	NoCache             bool                     // disable layer cache for all steps
+	Pull                bool                     // re-pull base images from the registry before building
+	CacheBust           string                   // non-empty to bust the tool stage's cache via its CACHEBUST build arg (used by update)
+	Versions            map[string]string        // layer name → version override, e.g. {"node": "22", "java": "21"}
+	AptPackages         []string                 // additional apt packages to install in the base stage
+	AptExact            bool                     // true when set via --apt-exact: AptPackages is authoritative even if empty, skips rc.Build.AptPackages and per-image label recovery
+	VerifyApt           bool                     // run pre-build apt-cache check for AptPackages
+	Registry            string                   // registry prefix for base images (e.g. "myregistry.example.com")
+	CustomInstalls      []config.RCCustomInstall // non-apt tools installed via arbitrary shell commands, applied after any --base extras
+	SkipInstallChecksum bool                     // bypass installer script checksum verification via the SKIP_INSTALL_CHECKSUM build arg
+}
+
+// GenerateDockerfile returns the Dockerfile content for the named tool without building it.
+func GenerateDockerfile(tool string, opts BuildOptions) (string, error) {
+	stages, err := composeStages(tool, opts.BaseOverride, opts)
+	if err != nil {
+		return "", err
+	}
+	return dockerfile.File{Stages: stages}.Render(), nil
+}
+
+// composeStages assembles the full list of Dockerfile stages: node base + requested extras + tool.
+func composeStages(tool string, extras []string, opts BuildOptions) ([]dockerfile.Stage, error) {
+	pkgs := collectPackages(extras, opts.AptPackages)
+	base := baseStage(opts.Versions[BaseLayer], opts.Registry, pkgs)
+
+	extraList, prev, err := buildExtraStages(extras, "base", opts.Versions)
+	if err != nil {
+		return nil, err
+	}
+
+	stages := []dockerfile.Stage{base}
+	stages = append(stages, extraList...)
+
+	if len(opts.CustomInstalls) > 0 {
+		customStage := customInstallsStage(prev, opts.CustomInstalls)
+		stages = append(stages, customStage)
+		prev = customStage.From.As
+	}
+
+	toolStage, err := resolveToolStage(tool, prev)
+	if err != nil {
+		return nil, err
+	}
+
+	stages = append(stages, toolStage)
+	return stages, nil
+}
+
+// buildExtraStages chains extra stages (e.g. java, dotnet, go), each building FROM the previous, returning the stages and the final stage name.
+func buildExtraStages(extras []string, prevStage string, versions map[string]string) ([]dockerfile.Stage, string, error) {
+	var stages []dockerfile.Stage
+	prev := prevStage
+
+	for _, extra := range extras {
+		ver := versions[extra]
+		stage, err := extraStage(extra, prev, ver)
+		if err != nil {
+			return nil, "", err
+		}
+		stages = append(stages, stage)
+		prev = extra
+	}
+
+	return stages, prev, nil
+}
+
+// resolveToolStage returns tool's Dockerfile stage with cache-busting instructions prepended right after FROM.
+func resolveToolStage(tool, prevStage string) (dockerfile.Stage, error) {
+	cfg, ok := Configs[tool]
+	if !ok {
+		return dockerfile.Stage{}, fmt.Errorf("unknown tool %q", tool)
+	}
+
+	stage := cfg.Build.Stage(prevStage)
+	prepend := append(cacheBustInstructions(), skipInstallChecksumArg())
+	stage.Instructions = append(prepend, stage.Instructions...)
+	return stage, nil
+}
+
+// SortExtras returns a copy of extras sorted by canonical knownExtras order.
+func SortExtras(extras []string) []string {
+	return sortByKnownExtras(extras)
+}
+
+// sortByKnownExtras returns a deduplicated copy of extras sorted by their position in knownExtras.
+func sortByKnownExtras(extras []string) []string {
+	seen := make(map[string]bool, len(extras))
+	deduped := make([]string, 0, len(extras))
+	for _, e := range extras {
+		if !seen[e] {
+			seen[e] = true
+			deduped = append(deduped, e)
+		}
+	}
+
+	slices.SortFunc(deduped, func(a, b string) int {
+		return cmp.Compare(slices.Index(knownExtras, a), slices.Index(knownExtras, b))
+	})
+
+	return deduped
+}

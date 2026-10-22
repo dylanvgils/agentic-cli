@@ -4,11 +4,10 @@ import (
 	"fmt"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/credentials"
-	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/mount"
-	"github.com/dylanvgils/agentic-cli/internal/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
+	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
@@ -112,7 +111,7 @@ func (s *Service) checkTool(req Request, prompter Prompter) error {
 
 // CheckProjectDir refuses a working dir Docker can't bind-mount; run it before reading the dir's config.
 func CheckProjectDir(dir string) error {
-	if mount.IsUNCPath(dir) {
+	if sandbox.IsUNCPath(dir) {
 		return fmt.Errorf("working directory %q is on a network share; Docker cannot bind-mount UNC paths", dir)
 	}
 	return nil

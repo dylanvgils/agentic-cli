@@ -1,0 +1,166 @@
+package sandbox
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
+)
+
+func TestNewRunSpec_setsImage(t *testing.T) {
+	// Act
+	result := NewRunSpec("agentic-claude").Build()
+
+	// Assert
+	assert.Equal(t, "agentic-claude", result.Image)
+}
+
+func TestRunSpecBuilder_allFields(t *testing.T) {
+	// Act
+	result := NewRunSpec("agentic-claude").
+		WithToolHome("/home/user/.agentic").
+		WithContainerHome("/root").
+		WithUser(platform.User{UID: 1000, GID: 1000}).
+		WithTTY(true).
+		WithVolumes("/host:/container", "/a:/b").
+		WithSecrets("token:/run/secrets/token").
+		WithSkipEntrypoint(true).
+		WithToolArgs("--example", "value").
+		WithEphemeralDirs(EphemeralDir{Path: "/tmp"}, EphemeralDir{Path: "/run"}).
+		WithLimits(ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}).
+		WithDryRun(true).
+		Build()
+
+	// Assert
+	assert.Equal(t, "agentic-claude", result.Image)
+	assert.Equal(t, "/home/user/.agentic", result.ToolHome)
+	assert.Equal(t, "/root", result.ContainerHome)
+	assert.Equal(t, &platform.User{UID: 1000, GID: 1000}, result.User)
+	assert.True(t, result.TTY)
+	assert.Equal(t, []string{"/host:/container", "/a:/b"}, result.Volumes)
+	assert.Equal(t, []string{"token:/run/secrets/token"}, result.Secrets)
+	assert.True(t, result.SkipEntrypoint)
+	assert.Equal(t, []string{"--example", "value"}, result.ToolArgs)
+	assert.Equal(t, []EphemeralDir{{Path: "/tmp"}, {Path: "/run"}}, result.EphemeralDirs)
+	assert.Equal(t, ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, result.Limits)
+	assert.True(t, result.DryRun)
+}
+
+func TestRunSpecBuilder_WithProxy(t *testing.T) {
+	// Arrange
+	spec := ProxySpec{Mode: ProxyMonitor, Rules: []AllowRule{{Host: ".anthropic.com"}}, LogFile: "/home/user/.agentic/logs/proxy_abc.jsonl"}
+
+	// Act
+	result := NewRunSpec("agentic-claude").WithProxy(spec).Build()
+
+	// Assert
+	assert.Equal(t, spec, result.Proxy)
+}
+
+func TestRunSpecBuilder_WithCredentials(t *testing.T) {
+	// Arrange
+	first := Credential{Name: "EXAMPLE_TOKEN", Hosts: []string{"api.example.test"}, Secret: "test-secret"}
+	second := Credential{Name: "OTHER_TOKEN", Hosts: []string{"api.other.test"}, Secret: "test-secret"}
+
+	// Act
+	result := NewRunSpec("agentic-claude").WithCredentials(first).WithCredentials(second).Build()
+
+	// Assert
+	assert.Equal(t, []Credential{first, second}, result.Credentials)
+}
+
+func TestRunSpecBuilder_WithDind(t *testing.T) {
+	// Arrange
+	spec := DindSpec{Enabled: true, Limits: ResourceLimits{PidsLimit: "2048", CPUs: "2", Memory: "8g"}}
+
+	// Act
+	result := NewRunSpec("agentic-claude").WithDind(spec).Build()
+
+	// Assert
+	assert.Equal(t, spec, result.Dind)
+}
+
+func TestRunSpecBuilder_WithVolumes_variadic(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		// Act
+		result := NewRunSpec("img").WithVolumes().Build()
+
+		// Assert
+		assert.Nil(t, result.Volumes)
+	})
+
+	t.Run("single", func(t *testing.T) {
+		// Act
+		result := NewRunSpec("img").WithVolumes("/a:/b").Build()
+
+		// Assert
+		assert.Equal(t, []string{"/a:/b"}, result.Volumes)
+	})
+
+	t.Run("multiple calls accumulate", func(t *testing.T) {
+		// Act
+		result := NewRunSpec("img").
+			WithVolumes("/a:/b").
+			WithVolumes("/c:/d", "/e:/f").
+			Build()
+
+		// Assert
+		assert.Equal(t, []string{"/a:/b", "/c:/d", "/e:/f"}, result.Volumes)
+	})
+}
+
+func TestRunSpecBuilder_WithSecrets_variadic(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		// Act
+		result := NewRunSpec("img").WithSecrets().Build()
+
+		// Assert
+		assert.Nil(t, result.Secrets)
+	})
+
+	t.Run("single", func(t *testing.T) {
+		// Act
+		result := NewRunSpec("img").WithSecrets("tok:/run/secrets/tok").Build()
+
+		// Assert
+		assert.Equal(t, []string{"tok:/run/secrets/tok"}, result.Secrets)
+	})
+
+	t.Run("multiple calls accumulate", func(t *testing.T) {
+		// Act
+		result := NewRunSpec("img").
+			WithSecrets("a:/run/secrets/a").
+			WithSecrets("b:/run/secrets/b").
+			Build()
+
+		// Assert
+		assert.Equal(t, []string{"a:/run/secrets/a", "b:/run/secrets/b"}, result.Secrets)
+	})
+}
+
+func TestRunSpecBuilder_WithEphemeralDirs_variadic(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		// Act
+		result := NewRunSpec("img").WithEphemeralDirs().Build()
+
+		// Assert
+		assert.Nil(t, result.EphemeralDirs)
+	})
+
+	t.Run("single", func(t *testing.T) {
+		// Act
+		result := NewRunSpec("img").WithEphemeralDirs(EphemeralDir{Path: "/tmp"}).Build()
+
+		// Assert
+		assert.Equal(t, []EphemeralDir{{Path: "/tmp"}}, result.EphemeralDirs)
+	})
+
+	t.Run("multiple", func(t *testing.T) {
+		// Act
+		result := NewRunSpec("img").WithEphemeralDirs(EphemeralDir{Path: "/tmp"}, EphemeralDir{Path: "/run"}).Build()
+
+		// Assert
+		assert.Equal(t, []EphemeralDir{{Path: "/tmp"}, {Path: "/run"}}, result.EphemeralDirs)
+	})
+}

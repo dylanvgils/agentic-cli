@@ -6,13 +6,12 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/docker"
-	"github.com/dylanvgils/agentic-cli/internal/logging"
-	"github.com/dylanvgils/agentic-cli/internal/microsandbox"
-	"github.com/dylanvgils/agentic-cli/internal/mount"
-	"github.com/dylanvgils/agentic-cli/internal/proxy"
-	"github.com/dylanvgils/agentic-cli/internal/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/tools"
+	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
+	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
@@ -46,7 +45,7 @@ func (s *Service) PrepareInstructions(toolHome string, toolConfig tools.ToolConf
 	}
 
 	return InstructionsSnapshot{
-		MountSpec: mount.VolumeMount(snapshotPath, toolConfig.Runtime.InstructionsContainerPath),
+		MountSpec: sandbox.VolumeMount(snapshotPath, toolConfig.Runtime.InstructionsContainerPath),
 		finalize: func() error {
 			return tools.FinalizeInstructionsSnapshot(toolHome, hostPath, snapshotPath)
 		},
@@ -173,7 +172,7 @@ func writeFilesystemSection(b *strings.Builder, toolConfig tools.ToolConfig, in 
 
 	if caps.ReadOnlyRoot {
 		for _, p := range toolConfig.Runtime.EphemeralDirs() {
-			fmt.Fprintf(b, "- `%s`: writable, cleared when the container exits.\n", mount.ExpandTmpfsSpec(p.Path, containerHome))
+			fmt.Fprintf(b, "- `%s`: writable, cleared when the container exits.\n", sandbox.ExpandTmpfsSpec(p.Path, containerHome))
 		}
 		b.WriteString("- Every other path is read-only.\n")
 	} else {
@@ -185,13 +184,13 @@ func writeFilesystemSection(b *strings.Builder, toolConfig tools.ToolConfig, in 
 
 // writeMountLine writes a volume's container path and access; the workspace has its own line.
 func writeMountLine(b *strings.Builder, spec, containerHome string) {
-	_, target, ok := mount.SplitHostContainer(spec)
+	_, target, ok := sandbox.SplitHostContainer(spec)
 	if !ok {
 		return
 	}
 
-	path, opts, _ := strings.Cut(mount.ExpandTmpfsSpec(target, containerHome), ":")
-	if path == mount.WorkspaceContainerPath {
+	path, opts, _ := strings.Cut(sandbox.ExpandTmpfsSpec(target, containerHome), ":")
+	if path == sandbox.WorkspaceContainerPath {
 		return
 	}
 

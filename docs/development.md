@@ -9,30 +9,33 @@ agentic-cli/
 ├── cmd/
 │   ├── cli/                     # Thin entrypoint for the agentic binary (main.go only)
 │   └── proxy/                   # Thin entrypoint for the agentic-proxy binary (main.go only)
-├── internal/
-│   ├── buildinfo/               # Build-time version/commit metadata and dev-build classification
-│   ├── certs/                   # Per-run throwaway CAs and leaf certs (stdlib only, shared by dind and the proxy)
-│   ├── cleanup/                 # Capture helper for propagating deferred cleanup errors without masking an earlier error
-│   ├── cli/                     # Cobra commands (build, update, clean, inspect, run, …)
+├── internal/                    # Grouped by layer; a lower layer never imports a higher one (see CLAUDE.md)
+│   ├── infra/                   # Leaf helpers with no domain imports
+│   │   ├── buildinfo/           # Build-time version/commit metadata and dev-build classification
+│   │   ├── cleanup/             # Capture helper for propagating deferred cleanup errors without masking an earlier error
+│   │   ├── git/                 # Thin wrapper over the host git binary (CheckAvailable, Clone, FetchReset)
+│   │   ├── logging/             # All CLI output (Infof, Warnf, Stepf, ...)
+│   │   ├── platform/            # Platform-specific paths and utilities
+│   │   └── selfupdate/          # Downloads and installs new releases from GitHub
 │   ├── config/                  # .agenticrc.toml loading and run spec
-│   ├── credentials/             # Resolves [[run.proxy.credentials]] presets and secret files into the proxy's header rules (host side)
-│   ├── dind/                    # Docker-in-Docker sidecar per-run files: TLS cert dirs, seccomp profile, /etc identity
-│   ├── docker/                  # *docker.Client: build, run, clean, inspect, volumes, sidecars (proxy, dind)
-│   ├── dockerfile/              # Dockerfile DSL (stages, instructions, builder)
-│   ├── git/                     # Thin wrapper over the host git binary (CheckAvailable, Clone, FetchReset)
-│   ├── logging/                 # All CLI output (Infof, Warnf, Stepf, ...)
-│   ├── marketplace/             # Syncs git-based plugin marketplace repos onto the host and tracks per-clone usage
-│   ├── microsandbox/            # Runs the msb CLI as a subprocess
-│   ├── migrate/                 # Versioned changes to $AGENTIC_HOME's on-disk layout
-│   ├── mount/                   # Volume mount spec builder
-│   ├── platform/                # Platform-specific paths and utilities
-│   ├── proxy/                   # Egress allowlist proxy: server, allowlist, JSON-lines logger and log pruning, TLS-terminating credential injection
-│   ├── sandbox/                 # Runtime-neutral run spec (RunSpec, limits, proxy and dind specs) and helpers shared by the runtimes
-│   ├── selfupdate/              # Downloads and installs new releases from GitHub
-│   ├── tools/                   # Per-tool stage funcs, mounts, setup, and base layers
+│   ├── image/                   # What goes into the tool images
+│   │   ├── dockerfile/          # Dockerfile DSL (stages, instructions, builder)
+│   │   ├── marketplace/         # Syncs git-based plugin marketplace repos onto the host and tracks per-clone usage
+│   │   └── tools/               # Per-tool stage funcs, mounts, setup, and base layers
+│   ├── network/                 # Egress proxy and what it needs
+│   │   ├── certs/               # Per-run throwaway CAs and leaf certs (stdlib only, shared by dind and the proxy)
+│   │   ├── credentials/         # Resolves [[run.proxy.credentials]] presets and secret files into the proxy's header rules (host side)
+│   │   └── proxy/               # Egress allowlist proxy: server, allowlist, JSON-lines logger and log pruning, TLS-terminating credential injection
+│   ├── runtime/                 # Where tools run
+│   │   ├── dind/                # Docker-in-Docker sidecar per-run files: TLS cert dirs, seccomp profile, /etc identity
+│   │   ├── docker/              # *docker.Client: build, run, clean, inspect, volumes, sidecars (proxy, dind)
+│   │   ├── microsandbox/        # Runs the msb CLI as a subprocess
+│   │   └── sandbox/             # Runtime-neutral run spec (RunSpec, limits, proxy and dind specs, mount specs) shared by the runtimes
+│   ├── cli/                     # Cobra commands (build, update, clean, inspect, run, …)
 │   └── usecase/                 # Business logic extracted out of internal/cli commands (see below)
 │       ├── build/               # Builds (or dry-run prints) tool images for `agentic build`
 │       ├── clean/               # Resolves and removes tool images and global Docker resources for `agentic clean`
+│       ├── migrate/             # Versioned changes to $AGENTIC_HOME's on-disk layout
 │       ├── resolve/             # Merges CLI flags, .agenticrc.toml, and agentic.json into the effective value of every setting agentic supports
 │       ├── run/                 # `agentic run`: checks and prompts, the sandbox.RunSpec, and a runner per runtime (docker, microsandbox)
 │       ├── sidecar/             # Builds the proxy and DinD sidecar images and decides when they need a refresh
@@ -57,7 +60,7 @@ make dist           # cross-platform binaries → dist/
 make docker-dist    # same via Docker using build/Dockerfile (no local Go needed)
 ```
 
-CLI changes take effect after `make build`. Changes to stage funcs in `internal/tools/` or `internal/docker/` need an `agentic build` to rebuild the image.
+CLI changes take effect after `make build`. Changes to stage funcs in `internal/image/tools/` or `internal/runtime/docker/` need an `agentic build` to rebuild the image.
 
 Integration tests build the binary and an `agentic-itest-claude` image (slow on the first run, cached after), then drive `agentic run` like a user would. They skip without Docker, and the resource-limit checks skip without cgroups (e.g. rootless without systemd). CI runs them in a separate job. This repo's `.agenticrc.toml` enables DinD (and the proxy in monitor mode), so they also run inside an agentic container.
 
@@ -75,13 +78,13 @@ curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/b
 
 See [Architecture](../CLAUDE.md#architecture) in CLAUDE.md.
 
-Each image stores its resolved versions and apt list as labels (`agentic.version-args`, `agentic.apt`, see `internal/docker/labels.go`). `agentic update` reads them back (`RecoverVersionArgs`, `RecoverApt`) to rebuild with the same layers.
+Each image stores its resolved versions and apt list as labels (`agentic.version-args`, `agentic.apt`, see `internal/runtime/docker/labels.go`). `agentic update` reads them back (`RecoverVersionArgs`, `RecoverApt`) to rebuild with the same layers.
 
 ## Docker-in-Docker sidecar image
 
 `agentic run --dind` builds the global `agentic-dind` image lazily (`ensureDind` in `internal/usecase/sidecar`) from `tools.GenerateDindDockerfile` (see [Image](docker-in-docker.md#how-it-stays-isolated)). It always builds with `--pull` and is rebuilt when missing, built by another CLI version, or older than 7 days (`tools.DindImageMaxAge`). `agentic clean` removes it.
 
-The sidecar's seccomp profile is derived at run time (`deriveSeccompProfile`) from Docker's default profile, vendored verbatim in `internal/dind/seccomp_default.json`. To refresh it, re-copy `seccomp/default.json` from [moby/profiles](https://github.com/moby/profiles) and update the commit noted on `seccompDefault`; `Test_deriveSeccompProfile` checks the derived rules still hold.
+The sidecar's seccomp profile is derived at run time (`deriveSeccompProfile`) from Docker's default profile, vendored verbatim in `internal/runtime/dind/seccomp_default.json`. To refresh it, re-copy `seccomp/default.json` from [moby/profiles](https://github.com/moby/profiles) and update the commit noted on `seccompDefault`; `Test_deriveSeccompProfile` checks the derived rules still hold.
 
 ## Microsandbox dockerd image
 
@@ -89,7 +92,7 @@ With `--runtime microsandbox --dind`, `ensureDockerdImage` (`internal/usecase/ru
 
 ## Orphaned sidecars
 
-Sidecars and run networks carry `agentic.owner` (the tool container name) and `agentic.started` labels. If the CLI is killed, its cleanup never runs, so each run starts with `sweepOrphanedSidecars` (`internal/docker/sidecar.go`). It removes sidecars and networks whose owner is gone and that are older than `sidecarOrphanGrace` (5 minutes, which spares a run that is still starting).
+Sidecars and run networks carry `agentic.owner` (the tool container name) and `agentic.started` labels. If the CLI is killed, its cleanup never runs, so each run starts with `sweepOrphanedSidecars` (`internal/runtime/docker/sidecar.go`). It removes sidecars and networks whose owner is gone and that are older than `sidecarOrphanGrace` (5 minutes, which spares a run that is still starting).
 
 ## Building the proxy image locally
 

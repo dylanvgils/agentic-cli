@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/dylanvgils/agentic-cli/internal/docker"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 )
 
 // requireDockerLayer errors if req's image exists but lacks the docker layer its Docker daemon needs.

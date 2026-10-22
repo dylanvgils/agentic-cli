@@ -10,8 +10,7 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/mount"
-	"github.com/dylanvgils/agentic-cli/internal/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
@@ -45,15 +44,15 @@ func newMountSet(req buildRequest, marketplaceMounts []string) (mountSet, error)
 func (m mountSet) hostPaths() []string {
 	var paths []string
 	for _, volume := range m.volumes {
-		expanded := mount.ExpandMountSpec(volume, m.toolHome, m.containerHome)
-		if !mount.IsNamedVolume(expanded) {
-			paths = append(paths, mount.HostPart(expanded))
+		expanded := sandbox.ExpandMountSpec(volume, m.toolHome, m.containerHome)
+		if !sandbox.IsNamedVolume(expanded) {
+			paths = append(paths, sandbox.HostPart(expanded))
 		}
 	}
 
 	for _, secret := range m.secrets {
 		if _, rest, ok := strings.Cut(secret, ":"); ok {
-			paths = append(paths, mount.HostPart(mount.ExpandMountSpec(rest, m.toolHome, m.containerHome)))
+			paths = append(paths, sandbox.HostPart(sandbox.ExpandMountSpec(rest, m.toolHome, m.containerHome)))
 		}
 	}
 	return paths
