@@ -199,6 +199,9 @@ func (c *Client) dryRunProxy(rs toolRun) (proxyEnv []string, cleanup func(), err
 	if err := sandbox.PrintDryRun("egress proxy", "docker", handle.createArgs(rs)); err != nil {
 		return nil, nil, err
 	}
+	if err := sandbox.PrintDryRun("egress network", "docker", handle.connectArgs()); err != nil {
+		return nil, nil, err
+	}
 
 	return handle.toolEnvArgs(rs.Dind.Enabled), noCleanup, nil
 }
@@ -278,6 +281,11 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 	return append(args, tools.ProxyImage)
 }
 
+// connectArgs builds the `docker network connect` arguments joining the proxy to the shared egress network.
+func (h proxyHandle) connectArgs() []string {
+	return []string{"network", "connect", NetworkName, h.container}
+}
+
 // createLogFile creates the run's empty log file, so Docker bind-mounts a file instead of creating a root-owned dir.
 func (h proxyHandle) createLogFile() error {
 	f, err := os.OpenFile(h.logPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
@@ -302,8 +310,7 @@ func (h proxyHandle) boot() (caPEM []byte, err error) {
 		return nil, err
 	}
 
-	connectArgs := []string{"network", "connect", NetworkName, h.container}
-	if _, err := h.client.run(connectArgs...); err != nil {
+	if _, err := h.client.run(h.connectArgs()...); err != nil {
 		return nil, fmt.Errorf("connect proxy to %s: %w", NetworkName, err)
 	}
 	return caPEM, nil
