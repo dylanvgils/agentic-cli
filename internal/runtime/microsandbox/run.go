@@ -24,6 +24,9 @@ const (
 	// volumePrefix marks agentic's msb named volumes, since msb volumes have no labels.
 	volumePrefix = "agentic-"
 
+	// projectLabel marks agentic's VMs, like docker.LabelProject marks its containers, so ListRunning can find them.
+	projectLabel = "project=agentic-cli"
+
 	// placeholderPrefix starts the placeholder msb puts in the guest for a secret, e.g. $MSB_GITHUB_TOKEN.
 	placeholderPrefix = "$MSB_"
 )
@@ -75,7 +78,7 @@ func buildRunArgs(rs sandbox.RunSpec, envArgs []string) ([]string, error) {
 		return nil, err
 	}
 
-	args := []string{"run"}
+	args := []string{"run", arg("label", projectLabel)}
 	args = append(args, limitArgs...)
 	args = append(args, envArgs...)
 	args = append(args, volumeArgs...)

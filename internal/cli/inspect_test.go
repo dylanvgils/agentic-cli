@@ -25,7 +25,7 @@ func Test_runInspect(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
 
-	t.Run("no args without --all shows namespace table", func(t *testing.T) {
+	t.Run("no args without --all shows the namespace's images", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{builtInfo}, nil
@@ -38,7 +38,7 @@ func Test_runInspect(t *testing.T) {
 		})
 
 		// Assert
-		assert.Contains(t, out, "Namespace: agentic")
+		assert.Regexp(t, `claude\s+agentic\s+1\.2\.3`, out)
 	})
 
 	t.Run("no args with --all shows all namespaces", func(t *testing.T) {
@@ -55,10 +55,9 @@ func Test_runInspect(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		// Assert - the all-namespaces table, not one namespace's
-		assert.Contains(t, out, "NAMESPACE")
-		assert.NotContains(t, out, "Namespace: ")
-		assert.Contains(t, out, "work")
+		// Assert
+		assert.Regexp(t, `claude\s+agentic`, out)
+		assert.Regexp(t, `claude\s+work`, out)
 	})
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
@@ -188,35 +187,39 @@ func Test_runInspectTable(t *testing.T) {
 	})
 }
 
-func Test_writeNamespaceTable(t *testing.T) {
-	t.Run("shows namespace header and columns without NAMESPACE column", func(t *testing.T) {
+func Test_writeImageTable(t *testing.T) {
+	t.Run("shows each image with its namespace", func(t *testing.T) {
 		// Act
 		out := captureStdout(t, func() {
-			err := writeNamespaceTable("agentic", []*docker.ImageInfo{builtInfo})
+			err := writeImageTable("agentic", []*docker.ImageInfo{builtInfo})
 			require.NoError(t, err)
 		})
 
 		// Assert
-		assert.Contains(t, out, "Namespace: agentic")
-		assert.NotContains(t, out, "NAMESPACE\t")
-		assert.Contains(t, out, "TOOL")
-		assert.Contains(t, out, "VERSION")
-		assert.Contains(t, out, "BASE")
-		assert.Contains(t, out, "BUILT")
-		assert.Contains(t, out, "SIZE")
-		assert.Contains(t, out, "claude")
-		assert.Contains(t, out, "1.2.3")
+		assert.Regexp(t, `TOOL\s+NAMESPACE\s+VERSION\s+BASE\s+BUILT\s+SIZE`, out)
+		assert.Regexp(t, `claude\s+agentic\s+1\.2\.3\s+node:24\s+2026-05-01\s+512MB`, out)
 	})
 
-	t.Run("empty shows no images found in namespace", func(t *testing.T) {
+	t.Run("empty names the namespace", func(t *testing.T) {
 		// Act
 		out := captureStdout(t, func() {
-			err := writeNamespaceTable("agentic", nil)
+			err := writeImageTable("agentic", nil)
 			require.NoError(t, err)
 		})
 
 		// Assert
-		assert.Contains(t, out, `No images found in namespace "agentic"`)
+		assert.Equal(t, "No images found in namespace \"agentic\".\n", out)
+	})
+
+	t.Run("empty in every namespace says so", func(t *testing.T) {
+		// Act
+		out := captureStdout(t, func() {
+			err := writeImageTable("", nil)
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, "No images found.\n", out)
 	})
 
 	t.Run("truncates long base field", func(t *testing.T) {
@@ -225,7 +228,7 @@ func Test_writeNamespaceTable(t *testing.T) {
 
 		// Act
 		out := captureStdout(t, func() {
-			err := writeNamespaceTable("agentic", []*docker.ImageInfo{{
+			err := writeImageTable("agentic", []*docker.ImageInfo{{
 				Image: "agentic-claude", Namespace: "agentic", Tool: "claude",
 				Version: "1.0", Base: longBase, Built: "2026-05-01", Size: "1GB",
 			}})
@@ -235,37 +238,6 @@ func Test_writeNamespaceTable(t *testing.T) {
 		// Assert
 		assert.Contains(t, out, "...")
 		assert.NotContains(t, out, longBase)
-	})
-}
-
-func Test_writeAllTable(t *testing.T) {
-	t.Run("shows headers with NAMESPACE column", func(t *testing.T) {
-		// Act
-		out := captureStdout(t, func() {
-			err := writeAllTable([]*docker.ImageInfo{builtInfo})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "NAMESPACE")
-		assert.Contains(t, out, "TOOL")
-		assert.Contains(t, out, "VERSION")
-		assert.Contains(t, out, "BASE")
-		assert.Contains(t, out, "BUILT")
-		assert.Contains(t, out, "SIZE")
-		assert.Contains(t, out, "agentic")
-		assert.Contains(t, out, "claude")
-	})
-
-	t.Run("empty shows no agentic images found", func(t *testing.T) {
-		// Act
-		out := captureStdout(t, func() {
-			err := writeAllTable(nil)
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "no agentic images found")
 	})
 }
 

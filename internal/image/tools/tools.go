@@ -113,6 +113,18 @@ func ImageName(name, namespace string) (string, error) {
 	return namespace + "-" + name, nil
 }
 
+// ParseImageName splits an image name into namespace and tool by matching its suffix against
+// the known tool names, e.g. "myproject-claude" -> ("myproject", "claude", true).
+func ParseImageName(image string) (namespace, tool string, ok bool) {
+	for _, tool := range Names() {
+		suffix := "-" + tool
+		if before, ok0 := strings.CutSuffix(image, suffix); ok0 {
+			return before, tool, true
+		}
+	}
+	return "", "", false
+}
+
 // Names returns the sorted list of known tool names.
 func Names() []string {
 	return slices.Sorted(maps.Keys(Configs))

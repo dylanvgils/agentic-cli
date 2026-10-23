@@ -183,54 +183,6 @@ func TestSaveImage(t *testing.T) {
 	})
 }
 
-func TestParseImageName(t *testing.T) {
-	t.Run("default namespace and known tool", func(t *testing.T) {
-		// Act
-		namespace, tool, ok := parseImageName("agentic-claude")
-
-		// Assert
-		assert.True(t, ok)
-		assert.Equal(t, "agentic", namespace)
-		assert.Equal(t, "claude", tool)
-	})
-
-	t.Run("custom namespace and known tool", func(t *testing.T) {
-		// Act
-		namespace, tool, ok := parseImageName("myproject-copilot")
-
-		// Assert
-		assert.True(t, ok)
-		assert.Equal(t, "myproject", namespace)
-		assert.Equal(t, "copilot", tool)
-	})
-
-	t.Run("multi-segment namespace", func(t *testing.T) {
-		// Act
-		namespace, tool, ok := parseImageName("my-long-project-opencode")
-
-		// Assert
-		assert.True(t, ok)
-		assert.Equal(t, "my-long-project", namespace)
-		assert.Equal(t, "opencode", tool)
-	})
-
-	t.Run("unknown tool returns false", func(t *testing.T) {
-		// Act
-		_, _, ok := parseImageName("agentic-bogus")
-
-		// Assert
-		assert.False(t, ok)
-	})
-
-	t.Run("no dash returns false", func(t *testing.T) {
-		// Act
-		_, _, ok := parseImageName("claude")
-
-		// Assert
-		assert.False(t, ok)
-	})
-}
-
 func Test_extractShortID(t *testing.T) {
 	t.Run("returns 12-char short ID", func(t *testing.T) {
 		// Act

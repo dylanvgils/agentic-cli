@@ -60,3 +60,51 @@ func TestVersionScript_returnsAgenticPrefixedName(t *testing.T) {
 	// Assert
 	assert.Equal(t, "agentic-version-node", result)
 }
+
+func TestParseImageName(t *testing.T) {
+	t.Run("default namespace and known tool", func(t *testing.T) {
+		// Act
+		namespace, tool, ok := ParseImageName("agentic-claude")
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, "agentic", namespace)
+		assert.Equal(t, "claude", tool)
+	})
+
+	t.Run("custom namespace and known tool", func(t *testing.T) {
+		// Act
+		namespace, tool, ok := ParseImageName("myproject-copilot")
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, "myproject", namespace)
+		assert.Equal(t, "copilot", tool)
+	})
+
+	t.Run("multi-segment namespace", func(t *testing.T) {
+		// Act
+		namespace, tool, ok := ParseImageName("my-long-project-opencode")
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, "my-long-project", namespace)
+		assert.Equal(t, "opencode", tool)
+	})
+
+	t.Run("unknown tool returns false", func(t *testing.T) {
+		// Act
+		_, _, ok := ParseImageName("agentic-bogus")
+
+		// Assert
+		assert.False(t, ok)
+	})
+
+	t.Run("no dash returns false", func(t *testing.T) {
+		// Act
+		_, _, ok := ParseImageName("claude")
+
+		// Assert
+		assert.False(t, ok)
+	})
+}

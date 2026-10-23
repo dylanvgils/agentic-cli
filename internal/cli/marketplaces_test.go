@@ -134,9 +134,19 @@ func Test_marketplaceRows(t *testing.T) {
 		rows := marketplaceRows(registry, []string{"acme-dir"})
 
 		// Assert
-		assert.Equal(t, []string{
-			"acme\tgit@example.test:acme.git\t" + project + "\tno",
-			"acme-fork\tgit@example.test:fork.git\t(untracked)\tyes",
+		assert.Equal(t, []marketplaceRow{
+			{
+				name:         "acme",
+				url:          "git@example.test:acme.git",
+				referencedBy: project,
+				stale:        "no",
+			},
+			{
+				name:         "acme-fork",
+				url:          "git@example.test:fork.git",
+				referencedBy: "(untracked)",
+				stale:        "yes",
+			},
 		}, rows)
 	})
 
@@ -148,6 +158,12 @@ func Test_marketplaceRows(t *testing.T) {
 		rows := marketplaceRows(registry, []string{"orphan-dir"})
 
 		// Assert
-		assert.Equal(t, []string{"orphan-dir\t(untracked)\t(untracked)\t-"}, rows)
+		assert.Equal(t, []marketplaceRow{
+			{
+				name:         "orphan-dir",
+				url:          "(untracked)",
+				referencedBy: "(untracked)",
+			},
+		}, rows)
 	})
 }

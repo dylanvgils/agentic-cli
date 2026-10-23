@@ -51,7 +51,8 @@ Run `agentic help <command>` for all flags.
 | `clean [tool]`                             | Remove tool image(s) and their msb copies, or everything agentic created. Skips what running tools use. |
 | `inspect [tool]`                           | Show built images, or full detail for one tool                                       |
 | `instructions <tool>`                      | Preview the [environment instructions](environment-instructions.md)                    |
-| `status`                                   | Show Docker and microsandbox availability, and list running agentic containers       |
+| `ps`                                       | List running agentic containers and VMs in the active namespace, `--all` for every namespace |
+| `status`                                   | Show Docker and microsandbox availability, and how many agentic containers and VMs run |
 | `config`                                   | Show the merged [configuration](config.md)                                           |
 | `namespaces <list\|prune>`                 | List namespaces, or remove all images in one                                         |
 | `volumes <create\|list\|remove> [name]`    | Manage [named volumes](#named-volumes)                                               |

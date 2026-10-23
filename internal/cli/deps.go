@@ -12,6 +12,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/toolruns"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/upgradecheck"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/volumes"
@@ -41,6 +42,7 @@ type dockerAPI interface {
 	update.Docker
 	run.Docker
 	sidecar.Docker
+	toolruns.Docker
 	volumes.Docker
 
 	Context() string
@@ -55,9 +57,11 @@ type dockerAPI interface {
 // msbAPI is the subset of *microsandbox.Client the usecases the cli calls use.
 type msbAPI interface {
 	run.Microsandbox
+	toolruns.Microsandbox
 	clean.ImageCleaner
 	volumes.Store
 
 	Available() error
+	ListRunning() ([]*microsandbox.Sandbox, error)
 	Version() (string, error)
 }

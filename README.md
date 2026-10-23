@@ -65,7 +65,8 @@ See [First run](docs/usage.md#first-run) for the trust prompt and signing in, an
 | `clean [tool]`         | Remove tool image(s), or everything agentic created    |
 | `inspect [tool]`       | Show built images and what's in them                   |
 | `config`               | Show the merged configuration                          |
-| `status`               | Show the Docker backend and running agentic containers |
+| `ps`                   | List running agentic containers and VMs                |
+| `status`               | Show the Docker and microsandbox backends              |
 | `upgrade`              | Upgrade the agentic binary                             |
 
 Tools: `claude` (Claude Code), `copilot` (GitHub Copilot CLI), `opencode` (OpenCode). See [Usage](docs/usage.md#commands) for every command, and `agentic help <command>` for flags.
