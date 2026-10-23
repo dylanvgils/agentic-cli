@@ -15,12 +15,14 @@ func Test_Service_List(t *testing.T) {
 		return []*docker.ContainerInfo{
 			{
 				Name:      "agentic-claude-ab12",
+				Image:     "agentic-claude",
 				Namespace: "agentic",
 				Tool:      "claude",
 				Status:    "Up 5 minutes",
 			},
 			{
 				Name:      "other-copilot-cd34",
+				Image:     "other-copilot",
 				Namespace: "other",
 				Tool:      "copilot",
 				Status:    "Up 1 minute",
@@ -36,6 +38,7 @@ func Test_Service_List(t *testing.T) {
 		return []*microsandbox.Sandbox{
 			{
 				Name:      "vm-1",
+				Image:     "agentic-opencode:latest",
 				Namespace: "agentic",
 				Tool:      "opencode",
 				Status:    "running",
@@ -46,6 +49,7 @@ func Test_Service_List(t *testing.T) {
 		Tool:      "claude",
 		Namespace: "agentic",
 		Runtime:   sandbox.RuntimeDocker,
+		Image:     "agentic-claude",
 		Status:    "Up 5 minutes",
 		Name:      "agentic-claude-ab12",
 	}
@@ -53,6 +57,7 @@ func Test_Service_List(t *testing.T) {
 		Tool:      "copilot",
 		Namespace: "other",
 		Runtime:   sandbox.RuntimeDocker,
+		Image:     "other-copilot",
 		Status:    "Up 1 minute",
 		Name:      "other-copilot-cd34",
 	}
@@ -60,6 +65,7 @@ func Test_Service_List(t *testing.T) {
 		Tool:      "opencode",
 		Namespace: "agentic",
 		Runtime:   sandbox.RuntimeMicrosandbox,
+		Image:     "agentic-opencode:latest",
 		Status:    "running",
 		Name:      "vm-1",
 	}
@@ -94,6 +100,7 @@ func Test_Service_dockerRuns(t *testing.T) {
 			return []*docker.ContainerInfo{
 				{
 					Name:      "agentic-claude-ab12",
+					Image:     "agentic-claude",
 					Namespace: "agentic",
 					Tool:      "claude",
 					Status:    "Up 5 minutes",
@@ -110,6 +117,7 @@ func Test_Service_dockerRuns(t *testing.T) {
 				Tool:      "claude",
 				Namespace: "agentic",
 				Runtime:   sandbox.RuntimeDocker,
+				Image:     "agentic-claude",
 				Status:    "Up 5 minutes",
 				Name:      "agentic-claude-ab12",
 			},
@@ -155,6 +163,7 @@ func Test_Service_msbRuns(t *testing.T) {
 			return []*microsandbox.Sandbox{
 				{
 					Name:      "vm-1",
+					Image:     "agentic-opencode:latest",
 					Namespace: "agentic",
 					Tool:      "opencode",
 					Status:    "running",
@@ -171,6 +180,7 @@ func Test_Service_msbRuns(t *testing.T) {
 				Tool:      "opencode",
 				Namespace: "agentic",
 				Runtime:   sandbox.RuntimeMicrosandbox,
+				Image:     "agentic-opencode:latest",
 				Status:    "running",
 				Name:      "vm-1",
 			},

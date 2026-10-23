@@ -19,6 +19,7 @@ type Run struct {
 	Tool      string
 	Namespace string
 	Runtime   sandbox.Runtime
+	Image     string
 	Status    string
 	Name      string
 }
@@ -56,6 +57,7 @@ func (s *Service) dockerRuns() []Run {
 			Tool:      c.Tool,
 			Namespace: c.Namespace,
 			Runtime:   sandbox.RuntimeDocker,
+			Image:     c.Image,
 			Status:    c.Status,
 			Name:      c.Name,
 		}
@@ -80,6 +82,7 @@ func (s *Service) msbRuns() []Run {
 			Tool:      sb.Tool,
 			Namespace: sb.Namespace,
 			Runtime:   sandbox.RuntimeMicrosandbox,
+			Image:     sb.Image,
 			Status:    sb.Status,
 			Name:      sb.Name,
 		}

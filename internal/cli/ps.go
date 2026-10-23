@@ -21,6 +21,7 @@ type psRow struct {
 	tool      string          `table:"TOOL"`
 	namespace string          `table:"NAMESPACE"`
 	runtime   sandbox.Runtime `table:"RUNTIME"`
+	image     string          `table:"IMAGE"`
 	status    string          `table:"STATUS"`
 	name      string          `table:"NAME"`
 }
@@ -64,6 +65,7 @@ func writeRuns(namespace string, runs []toolruns.Run) error {
 			tool:      r.Tool,
 			namespace: r.Namespace,
 			runtime:   r.Runtime,
+			image:     r.Image,
 			status:    r.Status,
 			name:      r.Name,
 		}

@@ -17,12 +17,14 @@ func Test_runPs(t *testing.T) {
 		return []*docker.ContainerInfo{
 			{
 				Name:      "agentic-claude-ab12",
+				Image:     "agentic-claude",
 				Namespace: "agentic",
 				Tool:      "claude",
 				Status:    "Up 5 minutes",
 			},
 			{
 				Name:      "other-copilot-cd34",
+				Image:     "other-copilot",
 				Namespace: "other",
 				Tool:      "copilot",
 				Status:    "Up 1 minute",
@@ -38,6 +40,7 @@ func Test_runPs(t *testing.T) {
 		return []*microsandbox.Sandbox{
 			{
 				Name:      "vm-1",
+				Image:     "agentic-opencode:latest",
 				Namespace: "agentic",
 				Tool:      "opencode",
 				Status:    "running",
@@ -56,8 +59,8 @@ func Test_runPs(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		out := buf.String()
-		assert.Regexp(t, `claude\s+agentic\s+docker\s+Up 5 minutes\s+agentic-claude-ab12`, out)
-		assert.Regexp(t, `opencode\s+agentic\s+microsandbox\s+running\s+vm-1`, out)
+		assert.Regexp(t, `claude\s+agentic\s+docker\s+agentic-claude\s+Up 5 minutes\s+agentic-claude-ab12`, out)
+		assert.Regexp(t, `opencode\s+agentic\s+microsandbox\s+agentic-opencode:latest\s+running\s+vm-1`, out)
 		assert.NotContains(t, out, "other-copilot-cd34")
 	})
 
@@ -72,8 +75,8 @@ func Test_runPs(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		out := buf.String()
-		assert.Regexp(t, `claude\s+agentic\s+docker\s+Up 5 minutes\s+agentic-claude-ab12`, out)
-		assert.Regexp(t, `copilot\s+other\s+docker\s+Up 1 minute\s+other-copilot-cd34`, out)
+		assert.Regexp(t, `claude\s+agentic\s+docker\s+agentic-claude\s+Up 5 minutes\s+agentic-claude-ab12`, out)
+		assert.Regexp(t, `copilot\s+other\s+docker\s+other-copilot\s+Up 1 minute\s+other-copilot-cd34`, out)
 	})
 
 	t.Run("lists the namespace given with --namespace", func(t *testing.T) {
