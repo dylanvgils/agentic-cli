@@ -12,7 +12,7 @@ func buildRunArgs(rs toolRun, sidecarArgs []string) ([]string, error) {
 
 	args := buildBaseArgs(rs)
 	args = append(args, buildTTYArgs(rs.RunSpec)...)
-	args = append(args, sandbox.EnvArgs(rs.Env, true)...)
+	args = append(args, sandbox.EnvArgs(rs.Env)...)
 	args = append(args, sidecarArgs...)
 	args = append(args, buildTmpfsArgs(rs.RunSpec)...)
 	args = append(args, buildVolumeArgs(rs.RunSpec)...)

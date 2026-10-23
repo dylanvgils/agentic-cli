@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -39,6 +40,9 @@ var dindEnvNames = []string{
 	"DOCKER_CONFIG",  // a config could set a context or credential helpers
 }
 
+// portableEnvName matches a portable environment variable name.
+var portableEnvName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
 // terminalEnvNames are host vars forwarded into the sandbox; not reserved, so an env entry can override one.
 var terminalEnvNames = []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"}
 
@@ -50,15 +54,20 @@ func IsReservedEnvName(key string, proxy, dind bool) bool {
 		(dind && slices.Contains(dindEnvNames, key))
 }
 
-// ResolveEnv returns the sandbox env: terminal vars and host timezone, then env entries; later entries win.
-func ResolveEnv(env []string, forward bool) []string {
-	return slices.Concat(terminalEnv(), timezoneEnv(platform.Timezone()), entryEnv(env, forward))
+// IsPortableEnvName reports whether name is a portable environment variable name.
+func IsPortableEnvName(name string) bool {
+	return portableEnvName.MatchString(name)
 }
 
-// EnvArgs returns ResolveEnv(env, forward) as --env flags, which both runtimes take.
-func EnvArgs(env []string, forward bool) []string {
+// ResolveEnv returns the sandbox env: terminal vars and host timezone, then env entries; later entries win.
+func ResolveEnv(env []string) []string {
+	return slices.Concat(terminalEnv(), timezoneEnv(platform.Timezone()), entryEnv(env))
+}
+
+// EnvArgs returns ResolveEnv(env) as --env flags.
+func EnvArgs(env []string) []string {
 	var args []string
-	for _, entry := range ResolveEnv(env, forward) {
+	for _, entry := range ResolveEnv(env) {
 		args = append(args, Arg("env", entry))
 	}
 	return args
@@ -83,16 +92,14 @@ func timezoneEnv(tz string) []string {
 	return nil
 }
 
-// entryEnv resolves env entries: "KEY=VALUE" as is, a set bare "KEY" to its host value, or kept bare with forward to keep it out of argv.
-func entryEnv(env []string, forward bool) []string {
+// entryEnv keeps env entries: "KEY=VALUE" as is, a bare "KEY" only when set on the host, for the runtime to read it there.
+func entryEnv(env []string) []string {
 	var resolved []string
 	for _, entry := range env {
 		if key, _, ok := strings.Cut(entry, "="); ok {
 			resolved = append(resolved, entry)
-		} else if val, set := os.LookupEnv(key); set && forward {
+		} else if _, set := os.LookupEnv(key); set {
 			resolved = append(resolved, key)
-		} else if set {
-			resolved = append(resolved, key+"="+val)
 		}
 	}
 	return resolved
