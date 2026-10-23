@@ -83,6 +83,27 @@ func TestClient_Run(t *testing.T) {
 		assert.NotContains(t, out, "test-secret")
 	})
 
+	t.Run("forwards a host var through a runtime-conf file removed after the run", func(t *testing.T) {
+		// Arrange
+		t.Setenv("EXAMPLE_TOKEN", "test-secret")
+		var confPath, conf string
+		client := newTestClient(&fakeRunner{runInteractive: func(_ []string, args ...string) error {
+			i := slices.IndexFunc(args, func(a string) bool { return strings.HasPrefix(a, "--runtime-conf=") })
+			confPath = strings.TrimPrefix(args[i], "--runtime-conf=")
+			data, err := os.ReadFile(confPath)
+			conf = string(data)
+			return err
+		}})
+
+		// Act
+		err := client.Run(sandbox.RunSpec{Image: "agentic-claude", Env: []string{"EXAMPLE_TOKEN"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "env:\n  \"EXAMPLE_TOKEN\": \"${EXAMPLE_TOKEN}\"\n", conf)
+		assert.NoFileExists(t, confPath)
+	})
+
 	t.Run("runs with unsupported features left out", func(t *testing.T) {
 		// Arrange
 		var gotArgs []string
@@ -104,16 +125,25 @@ func TestClient_Run(t *testing.T) {
 func Test_buildRunArgs(t *testing.T) {
 	t.Run("passes the image and tool args after --", func(t *testing.T) {
 		// Act
-		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"-p", "hi"}})
+		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"-p", "hi"}}, nil)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"agentic-claude", "--", "-p", "hi"}, args[len(args)-4:])
 	})
 
+	t.Run("puts the env args before the image", func(t *testing.T) {
+		// Act
+		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"}, []string{"--runtime-conf=/example.test/env.yaml"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Less(t, slices.Index(args, "--runtime-conf=/example.test/env.yaml"), slices.Index(args, "agentic-claude"))
+	})
+
 	t.Run("omits -- without tool args", func(t *testing.T) {
 		// Act
-		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"})
+		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -132,7 +162,7 @@ func Test_buildRunArgs(t *testing.T) {
 		}
 
 		// Act
-		args, err := buildRunArgs(rs)
+		args, err := buildRunArgs(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -149,7 +179,7 @@ func Test_buildRunArgs(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "img", EphemeralDirs: []sandbox.EphemeralDir{{Path: "/tmp", Size: "1g"}}}
 
 		// Act
-		args, err := buildRunArgs(rs)
+		args, err := buildRunArgs(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -161,7 +191,7 @@ func Test_buildRunArgs(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "img", SkipEntrypoint: true, ToolArgs: []string{"bash", "-l"}}
 
 		// Act
-		args, err := buildRunArgs(rs)
+		args, err := buildRunArgs(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -173,7 +203,7 @@ func Test_buildRunArgs(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "img", Limits: sandbox.ResourceLimits{CPUs: "many"}}
 
 		// Act
-		_, err := buildRunArgs(rs)
+		_, err := buildRunArgs(rs, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, `invalid cpus "many"`)

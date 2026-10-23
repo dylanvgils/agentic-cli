@@ -8,7 +8,6 @@ linters:
   settings:
     staticcheck:
       checks:
-        # Includes the style checks off by default, e.g. ST1000 (package comments)
         - all
     errcheck:
       exclude-functions:

@@ -51,6 +51,28 @@ func TestIsReservedEnvName(t *testing.T) {
 	})
 }
 
+func TestIsPortableEnvName(t *testing.T) {
+	t.Run("accepts letters, digits and underscores", func(t *testing.T) {
+		for _, name := range []string{"GH_TOKEN", "_x", "a1"} {
+			// Act
+			portable := IsPortableEnvName(name)
+
+			// Assert
+			assert.True(t, portable, name)
+		}
+	})
+
+	t.Run("refuses other names", func(t *testing.T) {
+		for _, name := range []string{"", "1A", "A-B", "A.B", "A B"} {
+			// Act
+			portable := IsPortableEnvName(name)
+
+			// Assert
+			assert.False(t, portable, name)
+		}
+	})
+}
+
 func TestResolveEnv(t *testing.T) {
 	// Arrange
 	clearTerminalEnv(t)
@@ -131,5 +153,5 @@ func Test_entryEnv(t *testing.T) {
 	env := entryEnv([]string{"MAVEN_OPTS=-Dfoo=bar", "CI", "AGENTIC_NONEXISTENT_VAR"})
 
 	// Assert
-	assert.Equal(t, []string{"MAVEN_OPTS=-Dfoo=bar", "CI=true"}, env)
+	assert.Equal(t, []string{"MAVEN_OPTS=-Dfoo=bar", "CI"}, env, "a set bare key stays bare, so its value stays out of argv")
 }

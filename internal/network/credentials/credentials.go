@@ -3,15 +3,12 @@ package credentials
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
-
-// validEnvName matches a portable environment variable name.
-var validEnvName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Resolved is one config entry with its secret read.
 type Resolved struct {
@@ -80,7 +77,7 @@ func checkEntry(entry config.RCCredential) (preset, error) {
 		return preset{}, fmt.Errorf("needs env, as the tool must send the placeholder")
 	}
 	for _, name := range e.env {
-		if !validEnvName.MatchString(name) {
+		if !sandbox.IsPortableEnvName(name) {
 			return preset{}, fmt.Errorf("invalid env name %q", name)
 		}
 	}

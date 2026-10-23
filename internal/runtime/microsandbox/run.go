@@ -33,7 +33,13 @@ var hostRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0
 
 // Run runs the tool described by rs in a microsandbox VM, skipping what Capabilities leaves out; the image must already be loaded.
 func (c *Client) Run(rs sandbox.RunSpec) error {
-	args, err := buildRunArgs(rs)
+	envArgs, cleanup, err := buildEnvArgs(rs)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	args, err := buildRunArgs(rs, envArgs)
 	if err != nil {
 		return err
 	}
@@ -47,8 +53,8 @@ func (c *Client) Run(rs sandbox.RunSpec) error {
 	return c.runner.RunInteractive(credentialEnv(rs), args...)
 }
 
-// buildRunArgs assembles the `msb run` args for rs.
-func buildRunArgs(rs sandbox.RunSpec) ([]string, error) {
+// buildRunArgs assembles the `msb run` args for rs with its envArgs.
+func buildRunArgs(rs sandbox.RunSpec, envArgs []string) ([]string, error) {
 	limitArgs, err := buildLimitArgs(rs.Limits)
 	if err != nil {
 		return nil, err
@@ -71,7 +77,7 @@ func buildRunArgs(rs sandbox.RunSpec) ([]string, error) {
 
 	args := []string{"run"}
 	args = append(args, limitArgs...)
-	args = append(args, sandbox.EnvArgs(rs.Env)...)
+	args = append(args, envArgs...)
 	args = append(args, volumeArgs...)
 	args = append(args, buildCredentialArgs(rs)...)
 	args = append(args, networkArgs...)
