@@ -3,6 +3,8 @@ package docker
 import (
 	"encoding/json"
 	"strings"
+
+	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 )
 
 // ContainerInfo holds metadata about a running agentic-managed container.
@@ -39,7 +41,7 @@ func (c *Client) ListRunningContainers() ([]*ContainerInfo, error) {
 			return nil, err
 		}
 
-		namespace, tool, _ := parseImageName(result.Image)
+		namespace, tool, _ := tools.ParseImageName(result.Image)
 		containers = append(containers, &ContainerInfo{
 			Name:      result.Names,
 			Image:     result.Image,

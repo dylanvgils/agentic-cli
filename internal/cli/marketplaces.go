@@ -1,11 +1,9 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
@@ -33,6 +31,14 @@ var marketplacesPruneCmd = &cobra.Command{
 	RunE:  runMarketplacesPrune,
 }
 
+// marketplaceRow is a marketplace clone's row in the list table.
+type marketplaceRow struct {
+	name         string `table:"NAME"`
+	url          string `table:"URL"`
+	referencedBy string `table:"REFERENCED BY"`
+	stale        string `table:"STALE"`
+}
+
 func init() {
 	rootCmd.AddCommand(marketplacesCmd)
 	marketplacesCmd.AddCommand(marketplacesListCmd, marketplacesPruneCmd)
@@ -52,17 +58,11 @@ func runMarketplacesList(_ *cobra.Command, _ []string) error {
 	}
 
 	if len(dirNames) == 0 {
-		fmt.Println("No synced marketplaces found.")
+		logging.Infof("no synced marketplaces found")
 		return nil
 	}
 
-	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(writer, "NAME\tURL\tREFERENCED BY\tSTALE")
-	for _, row := range marketplaceRows(registry, dirNames) {
-		fmt.Fprintln(writer, row)
-	}
-
-	return writer.Flush()
+	return writeTable(logging.Log.Writer(), marketplaceRows(registry, dirNames))
 }
 
 func runMarketplacesPrune(_ *cobra.Command, _ []string) error {
@@ -98,17 +98,26 @@ func runMarketplacesPrune(_ *cobra.Command, _ []string) error {
 }
 
 // marketplaceRows returns one tab-separated row per registry entry of each clone dir, or an untracked row for a dir with none.
-func marketplaceRows(registry *marketplace.Registry, dirNames []string) []string {
-	var rows []string
+func marketplaceRows(registry *marketplace.Registry, dirNames []string) []marketplaceRow {
+	var rows []marketplaceRow
 	for _, dirName := range dirNames {
 		entries := registry.Marketplaces[dirName]
 		if len(entries) == 0 {
-			rows = append(rows, dirName+"\t(untracked)\t(untracked)\t-")
+			rows = append(rows, marketplaceRow{
+				name:         dirName,
+				url:          "(untracked)",
+				referencedBy: "(untracked)",
+			})
 			continue
 		}
 
 		for _, entry := range entries {
-			rows = append(rows, fmt.Sprintf("%s\t%s\t%s\t%s", entry.Name, entry.URL, formatProjects(entry.Projects), yesNo(entry.Stale)))
+			rows = append(rows, marketplaceRow{
+				name:         entry.Name,
+				url:          entry.URL,
+				referencedBy: formatProjects(entry.Projects),
+				stale:        yesNo(entry.Stale),
+			})
 		}
 	}
 	return rows

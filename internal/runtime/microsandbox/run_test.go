@@ -168,7 +168,7 @@ func Test_buildRunArgs(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "run", args[0])
 		image := slices.Index(args, "img")
-		for _, flag := range []string{"--cpus=2", "--mount-dir=/example.test/data:/data", "--net-default-egress=deny"} {
+		for _, flag := range []string{"--label=project=agentic-cli", "--cpus=2", "--mount-dir=/example.test/data:/data", "--net-default-egress=deny"} {
 			assert.Contains(t, args, flag)
 			assert.Less(t, slices.Index(args, flag), image)
 		}

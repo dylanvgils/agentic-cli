@@ -1,12 +1,11 @@
 package cli
 
 import (
-	"bytes"
 	"fmt"
 	"testing"
-	"text/tabwriter"
 
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +15,6 @@ func Test_runStatus(t *testing.T) {
 
 	t.Run("daemon not running reports status without listing containers", func(t *testing.T) {
 		// Arrange
-		cmd, buf := newTestStatusCmd(t)
 		stubCurrentContext(t, func() (string, error) { return "desktop-linux", nil })
 		stubCheckDockerDaemon(t, func() error { return docker.ErrDaemonNotRunning })
 		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) {
@@ -25,58 +23,93 @@ func Test_runStatus(t *testing.T) {
 		})
 
 		// Act
-		err := runStatus(cmd, nil)
+		var err error
+		out := captureLog(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "Docker:          not running\nDocker context:  desktop-linux\nMicrosandbox:    installed\n", buf.String())
+		assert.Equal(t, "Docker:          not running\nDocker context:  desktop-linux\nMicrosandbox:    installed\nVMs running:     0\n", out)
 	})
 
 	t.Run("daemon running with no containers prints zero count", func(t *testing.T) {
 		// Arrange
-		cmd, buf := newTestStatusCmd(t)
 		stubCurrentContext(t, func() (string, error) { return "desktop-linux", nil })
 		stubCheckDockerDaemon(t, func() error { return nil })
 		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) { return nil, nil })
 
 		// Act
-		err := runStatus(cmd, nil)
+		var err error
+		out := captureLog(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "Docker:              running\nDocker context:      desktop-linux\nMicrosandbox:        installed\nContainers running:  0\n", buf.String())
+		assert.Equal(t, "Docker:              running\nDocker context:      desktop-linux\nMicrosandbox:        installed\nContainers running:  0\nVMs running:         0\n", out)
 	})
 
-	t.Run("daemon running with containers prints table", func(t *testing.T) {
+	t.Run("msb installed prints its VM count", func(t *testing.T) {
 		// Arrange
-		cmd, buf := newTestStatusCmd(t)
 		stubCheckDockerDaemon(t, func() error { return nil })
 		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) {
-			return []*docker.ContainerInfo{
-				{Name: "agentic-claude-ab12", Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Status: "Up 5 minutes"},
-			}, nil
+			return []*docker.ContainerInfo{{Name: "agentic-claude-ab12", Tool: "claude"}}, nil
 		})
+		stubMicrosandbox(t, &fakeMicrosandbox{listRunning: func() ([]*microsandbox.Sandbox, error) {
+			return []*microsandbox.Sandbox{{Name: "vm-1", Tool: "claude"}, {Name: "vm-2", Tool: "copilot"}}, nil
+		}})
 
 		// Act
-		err := runStatus(cmd, nil)
+		var err error
+		out := captureLog(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, buf.String(), "Docker:              running\n")
-		assert.Contains(t, buf.String(), "Containers running:  1\n")
-		assert.Contains(t, buf.String(), "agentic-claude-ab12")
+		assert.Contains(t, out, "Containers running:  1\n")
+		assert.Contains(t, out, "VMs running:         2\n")
+		assert.NotContains(t, out, "agentic-claude-ab12")
+	})
+
+	t.Run("msb list error leaves out the VM count", func(t *testing.T) {
+		// Arrange
+		stubCheckDockerDaemon(t, func() error { return nil })
+		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) { return nil, nil })
+		stubMicrosandbox(t, &fakeMicrosandbox{listRunning: func() ([]*microsandbox.Sandbox, error) {
+			return nil, fmt.Errorf("msb error")
+		}})
+
+		// Act
+		var err error
+		out := captureLog(t, func() { err = runStatus(statusCmd, nil) })
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotContains(t, out, "VMs running")
+	})
+
+	t.Run("msb not installed leaves out the VM count", func(t *testing.T) {
+		// Arrange
+		stubCheckDockerDaemon(t, func() error { return nil })
+		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) { return nil, nil })
+		stubMicrosandbox(t, &fakeMicrosandbox{available: func() error { return fmt.Errorf("msb not found") }})
+
+		// Act
+		var err error
+		out := captureLog(t, func() { err = runStatus(statusCmd, nil) })
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, out, "Microsandbox:        not installed\n")
+		assert.NotContains(t, out, "VMs running")
 	})
 
 	t.Run("listRunningContainers error propagates", func(t *testing.T) {
 		// Arrange
-		cmd, _ := newTestStatusCmd(t)
 		stubCheckDockerDaemon(t, func() error { return nil })
 		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) {
 			return nil, fmt.Errorf("docker error")
 		})
 
 		// Act
-		err := runStatus(cmd, nil)
+		var err error
+		captureLog(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.Error(t, err)
@@ -84,32 +117,32 @@ func Test_runStatus(t *testing.T) {
 
 	t.Run("context lookup error prints dash", func(t *testing.T) {
 		// Arrange
-		cmd, buf := newTestStatusCmd(t)
 		stubCurrentContext(t, func() (string, error) { return "", fmt.Errorf("docker error") })
 		stubCheckDockerDaemon(t, func() error { return nil })
 		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) { return nil, nil })
 
 		// Act
-		err := runStatus(cmd, nil)
+		var err error
+		out := captureLog(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, buf.String(), "Docker context:      -\n")
+		assert.Contains(t, out, "Docker context:      -\n")
 	})
 
 	t.Run("explicit docker context prints under daemon status", func(t *testing.T) {
 		// Arrange
-		cmd, buf := newTestStatusCmd(t)
 		stubDocker(t, &fakeDocker{context: "prod"})
 		stubCheckDockerDaemon(t, func() error { return nil })
 		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) { return nil, nil })
 
 		// Act
-		err := runStatus(cmd, nil)
+		var err error
+		out := captureLog(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "Docker:              running\nDocker context:      prod\nMicrosandbox:        installed\nContainers running:  0\n", buf.String())
+		assert.Equal(t, "Docker:              running\nDocker context:      prod\nMicrosandbox:        installed\nContainers running:  0\nVMs running:         0\n", out)
 	})
 }
 
@@ -134,43 +167,5 @@ func Test_msbStatus(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, "not installed", status)
-	})
-}
-
-func Test_writeContainerStatus(t *testing.T) {
-	t.Run("no containers prints nothing", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
-
-		// Act
-		err := writeContainerStatus(w, nil)
-
-		// Assert
-		require.NoError(t, err)
-		require.NoError(t, w.Flush())
-		assert.Equal(t, "", buf.String())
-	})
-
-	t.Run("containers print table with blanks dashed", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
-		containers := []*docker.ContainerInfo{
-			{Name: "agentic-claude-ab12", Image: "agentic-claude", Namespace: "agentic", Tool: "claude", Status: "Up 5 minutes"},
-			{Name: "mystery", Image: "not-an-agentic-image", Namespace: "", Tool: "", Status: "Up 1 minute"},
-		}
-
-		// Act
-		err := writeContainerStatus(w, containers)
-
-		// Assert
-		require.NoError(t, err)
-		require.NoError(t, w.Flush())
-		out := buf.String()
-		assert.Contains(t, out, "NAME")
-		assert.Contains(t, out, "agentic-claude-ab12")
-		assert.Contains(t, out, "mystery")
-		assert.Regexp(t, `mystery\s+-\s+-\s+not-an-agentic-image\s+Up 1 minute`, out) // blank namespace and tool are dashed
 	})
 }

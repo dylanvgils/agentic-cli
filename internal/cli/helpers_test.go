@@ -476,6 +476,7 @@ type fakeMicrosandbox struct {
 	removeImage     func(ref string) error
 	run             func(rs sandbox.RunSpec) error
 	cleanImage      func(image string) error
+	listRunning     func() ([]*microsandbox.Sandbox, error)
 	listVolumeNames func() ([]string, error)
 	removeVolume    func(name string) error
 	version         func() (string, error)
@@ -526,6 +527,13 @@ func (f *fakeMicrosandbox) CleanImage(image string) error {
 		return nil
 	}
 	return f.cleanImage(image)
+}
+
+func (f *fakeMicrosandbox) ListRunning() ([]*microsandbox.Sandbox, error) {
+	if f.listRunning == nil {
+		return nil, nil
+	}
+	return f.listRunning()
 }
 
 // Version reports a recent msb unless stubbed.
@@ -707,12 +715,14 @@ func writeMarketplaceRC(t *testing.T, dir, name, url string) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte(content), 0o644))
 }
 
-func newTestStatusCmd(t *testing.T) (*cobra.Command, *bytes.Buffer) {
+// newTestPsCmd returns a cmd with ps's flags, set to args.
+func newTestPsCmd(t *testing.T, args ...string) *cobra.Command {
 	t.Helper()
-	var buf bytes.Buffer
 	cmd := &cobra.Command{}
-	cmd.SetOut(&buf)
-	return cmd, &buf
+	addNamespaceFlag(cmd)
+	addAllFlag(cmd)
+	require.NoError(t, cmd.ParseFlags(args))
+	return cmd
 }
 
 // stubReleases makes releasesClient f for the duration of the test.

@@ -2,10 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"slices"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
@@ -30,6 +28,16 @@ var inspectCmd = &cobra.Command{
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: builtToolNamesFunc,
 	RunE:              runInspect,
+}
+
+// imageRow is an image's row in the inspect table.
+type imageRow struct {
+	tool      string `table:"TOOL"`
+	namespace string `table:"NAMESPACE"`
+	version   string `table:"VERSION"`
+	base      string `table:"BASE"`
+	built     string `table:"BUILT"`
+	size      string `table:"SIZE"`
 }
 
 func init() {
@@ -94,57 +102,32 @@ func runInspectTable(namespace string) error {
 		return strings.Compare(a.Namespace, b.Namespace)
 	})
 
-	if namespace != "" {
-		return writeNamespaceTable(namespace, images)
-	}
-	return writeAllTable(images)
+	return writeImageTable(namespace, images)
 }
 
-// writeNamespaceTable prints one namespace's images, one row per tool.
-func writeNamespaceTable(namespace string, images []*docker.ImageInfo) error {
-	fmt.Printf("Namespace: %s\n\n", namespace)
-
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	if _, err := fmt.Fprintln(w, "TOOL\tVERSION\tBASE\tBUILT\tSIZE"); err != nil {
-		return err
+// writeImageTable prints images, one row per tool and namespace; namespace is the one listed, or empty for every namespace.
+func writeImageTable(namespace string, images []*docker.ImageInfo) error {
+	if len(images) == 0 && namespace != "" {
+		logging.Infof("no images found in namespace %q", namespace)
+		return nil
 	}
 	if len(images) == 0 {
-		if _, err := fmt.Fprintf(w, "No images found in namespace %q.\n", namespace); err != nil {
-			return err
-		}
-		return w.Flush()
-	}
-	for _, info := range images {
-		version, base, built, size := imageRow(info)
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", info.Tool, version, base, built, size); err != nil {
-			return err
-		}
-	}
-	return w.Flush()
-}
-
-// writeAllTable prints every agentic image with its namespace column.
-func writeAllTable(images []*docker.ImageInfo) error {
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	if _, err := fmt.Fprintln(w, "NAMESPACE\tTOOL\tVERSION\tBASE\tBUILT\tSIZE"); err != nil {
-		return err
+		logging.Infof("no images found")
+		return nil
 	}
 
-	if len(images) == 0 {
-		if _, err := fmt.Fprintln(w, "(no agentic images found)"); err != nil {
-			return err
-		}
-		return w.Flush()
-	}
-
-	for _, info := range images {
-		version, base, built, size := imageRow(info)
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", info.Namespace, info.Tool, version, base, built, size); err != nil {
-			return err
+	rows := make([]imageRow, len(images))
+	for i, info := range images {
+		rows[i] = imageRow{
+			tool:      info.Tool,
+			namespace: info.Namespace,
+			version:   info.Version,
+			base:      truncate(info.Base, baseMaxLength),
+			built:     info.Built,
+			size:      info.Size,
 		}
 	}
-
-	return w.Flush()
+	return writeTable(logging.Log.Writer(), rows)
 }
 
 // printAllNamespaceDetail prints the detail of tool's image in every namespace.
@@ -224,26 +207,10 @@ func printInfoDetail(info *docker.ImageInfo) {
 	fmt.Printf("  size:     %s\n", size)
 }
 
-// imageRow returns the table cells of info, with a dash for missing values.
-func imageRow(info *docker.ImageInfo) (version, base, built, size string) {
-	return orDash(info.Version),
-		orDash(truncate(info.Base, baseMaxLength)),
-		orDash(info.Built),
-		orDash(info.Size)
-}
-
 // truncate cuts s to n characters and marks the cut with "...".
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
 	return s[:n] + "..."
-}
-
-// orDash returns s, or "-" when it is empty.
-func orDash(s string) string {
-	if s == "" {
-		return "-"
-	}
-	return s
 }

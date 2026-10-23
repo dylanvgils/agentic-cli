@@ -130,21 +130,9 @@ func BuiltTools(images []*ImageInfo) map[string]bool {
 	return built
 }
 
-// parseImageName splits an image name into namespace and tool by matching its suffix against
-// the known tool names, e.g. "myproject-claude" -> ("myproject", "claude", true).
-func parseImageName(image string) (namespace, tool string, ok bool) {
-	for _, tool := range tools.Names() {
-		suffix := "-" + tool
-		if before, ok0 := strings.CutSuffix(image, suffix); ok0 {
-			return before, tool, true
-		}
-	}
-	return "", "", false
-}
-
 // resolveToolName determines the tool name and namespace for an image, preferring labels over parsing the image name.
 func resolveToolName(image, labelTool, labelNamespace string) (namespace, tool string) {
-	parsedNamespace, parsedTool, _ := parseImageName(image)
+	parsedNamespace, parsedTool, _ := tools.ParseImageName(image)
 	tool = labelTool
 	if tool == "" {
 		tool = parsedTool
