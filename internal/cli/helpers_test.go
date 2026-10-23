@@ -715,22 +715,14 @@ func writeMarketplaceRC(t *testing.T, dir, name, url string) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte(content), 0o644))
 }
 
-// newTestPsCmd returns a cmd with ps's flags, set to args, and the buffer it writes to.
-func newTestPsCmd(t *testing.T, args ...string) (*cobra.Command, *bytes.Buffer) {
+// newTestPsCmd returns a cmd with ps's flags, set to args.
+func newTestPsCmd(t *testing.T, args ...string) *cobra.Command {
 	t.Helper()
-	cmd, buf := newTestStatusCmd(t)
+	cmd := &cobra.Command{}
 	addNamespaceFlag(cmd)
 	addAllFlag(cmd)
 	require.NoError(t, cmd.ParseFlags(args))
-	return cmd, buf
-}
-
-func newTestStatusCmd(t *testing.T) (*cobra.Command, *bytes.Buffer) {
-	t.Helper()
-	var buf bytes.Buffer
-	cmd := &cobra.Command{}
-	cmd.SetOut(&buf)
-	return cmd, &buf
+	return cmd
 }
 
 // stubReleases makes releasesClient f for the duration of the test.

@@ -1,12 +1,10 @@
 package cli
 
 import (
-	"fmt"
-	"io"
-
 	"github.com/spf13/cobra"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolruns"
 )
@@ -46,18 +44,18 @@ func runPs(cmd *cobra.Command, _ []string) error {
 	}
 
 	svc := toolruns.New(dockerClient, msbClient)
-	return writeRuns(cmd.OutOrStdout(), namespace, svc.List(namespace))
+	return writeRuns(namespace, svc.List(namespace))
 }
 
 // writeRuns prints runs, one row each; namespace is the one listed, or empty for every namespace.
-func writeRuns(out io.Writer, namespace string, runs []toolruns.Run) error {
+func writeRuns(namespace string, runs []toolruns.Run) error {
 	if len(runs) == 0 && namespace != "" {
-		_, err := fmt.Fprintf(out, "No running containers or VMs in namespace %q.\n", namespace)
-		return err
+		logging.Infof("no running containers or VMs in namespace %q", namespace)
+		return nil
 	}
 	if len(runs) == 0 {
-		_, err := fmt.Fprintln(out, "No running containers or VMs.")
-		return err
+		logging.Infof("no running containers or VMs")
+		return nil
 	}
 
 	rows := make([]psRow, len(runs))
@@ -70,5 +68,5 @@ func writeRuns(out io.Writer, namespace string, runs []toolruns.Run) error {
 			name:      r.Name,
 		}
 	}
-	return writeTable(out, rows)
+	return writeTable(logging.Log.Writer(), rows)
 }

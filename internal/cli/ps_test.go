@@ -47,7 +47,8 @@ func Test_runPs(t *testing.T) {
 
 	t.Run("lists the active namespace's runs on every runtime", func(t *testing.T) {
 		// Arrange
-		cmd, buf := newTestPsCmd(t)
+		buf := stubLogs(t)
+		cmd := newTestPsCmd(t)
 
 		// Act
 		err := runPs(cmd, nil)
@@ -62,7 +63,8 @@ func Test_runPs(t *testing.T) {
 
 	t.Run("lists every namespace with --all", func(t *testing.T) {
 		// Arrange
-		cmd, buf := newTestPsCmd(t, "--all")
+		buf := stubLogs(t)
+		cmd := newTestPsCmd(t, "--all")
 
 		// Act
 		err := runPs(cmd, nil)
@@ -76,7 +78,8 @@ func Test_runPs(t *testing.T) {
 
 	t.Run("lists the namespace given with --namespace", func(t *testing.T) {
 		// Arrange
-		cmd, buf := newTestPsCmd(t, "--namespace", "other")
+		buf := stubLogs(t)
+		cmd := newTestPsCmd(t, "--namespace", "other")
 
 		// Act
 		err := runPs(cmd, nil)
@@ -89,19 +92,21 @@ func Test_runPs(t *testing.T) {
 
 	t.Run("names the namespace when nothing runs in it", func(t *testing.T) {
 		// Arrange
-		cmd, buf := newTestPsCmd(t, "--namespace", "empty")
+		buf := stubLogs(t)
+		cmd := newTestPsCmd(t, "--namespace", "empty")
 
 		// Act
 		err := runPs(cmd, nil)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "No running containers or VMs in namespace \"empty\".\n", buf.String())
+		assert.Contains(t, buf.String(), "no running containers or VMs in namespace \"empty\"")
 	})
 
 	t.Run("says so when nothing runs in any namespace", func(t *testing.T) {
 		// Arrange
-		cmd, buf := newTestPsCmd(t, "--all")
+		buf := stubLogs(t)
+		cmd := newTestPsCmd(t, "--all")
 		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) { return nil, nil })
 		stubMicrosandbox(t, &fakeMicrosandbox{})
 
@@ -110,6 +115,6 @@ func Test_runPs(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "No running containers or VMs.\n", buf.String())
+		assert.Contains(t, buf.String(), "no running containers or VMs\n")
 	})
 }

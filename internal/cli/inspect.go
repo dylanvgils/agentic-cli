@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 
@@ -109,11 +108,11 @@ func runInspectTable(namespace string) error {
 // writeImageTable prints images, one row per tool and namespace; namespace is the one listed, or empty for every namespace.
 func writeImageTable(namespace string, images []*docker.ImageInfo) error {
 	if len(images) == 0 && namespace != "" {
-		fmt.Printf("No images found in namespace %q.\n", namespace)
+		logging.Infof("no images found in namespace %q", namespace)
 		return nil
 	}
 	if len(images) == 0 {
-		fmt.Println("No images found.")
+		logging.Infof("no images found")
 		return nil
 	}
 
@@ -128,7 +127,7 @@ func writeImageTable(namespace string, images []*docker.ImageInfo) error {
 			size:      info.Size,
 		}
 	}
-	return writeTable(os.Stdout, rows)
+	return writeTable(logging.Log.Writer(), rows)
 }
 
 // printAllNamespaceDetail prints the detail of tool's image in every namespace.

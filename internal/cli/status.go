@@ -19,8 +19,8 @@ func init() {
 	rootCmd.AddCommand(statusCmd)
 }
 
-func runStatus(cmd *cobra.Command, _ []string) error {
-	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+func runStatus(_ *cobra.Command, _ []string) error {
+	w := tabwriter.NewWriter(logging.Log.Writer(), 0, 0, 2, ' ', 0)
 
 	// A failed lookup shouldn't hide the rest of the status
 	ctx, _ := dockerClient.CurrentContext()

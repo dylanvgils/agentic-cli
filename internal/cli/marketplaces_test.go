@@ -37,14 +37,14 @@ func Test_runMarketplacesList(t *testing.T) {
 	t.Run("no clones found", func(t *testing.T) {
 		// Arrange
 		withTempToolHome(t)
+		logs := stubErrLog(t)
 
 		// Act
-		out := captureStdout(t, func() {
-			require.NoError(t, runMarketplacesList(marketplacesListCmd, nil))
-		})
+		err := runMarketplacesList(marketplacesListCmd, nil)
 
 		// Assert
-		assert.Contains(t, out, "No synced marketplaces found.")
+		require.NoError(t, err)
+		assert.Contains(t, logs.String(), "no synced marketplaces found")
 	})
 
 	t.Run("lists tracked and untracked clones", func(t *testing.T) {
@@ -60,7 +60,7 @@ func Test_runMarketplacesList(t *testing.T) {
 		require.NoError(t, marketplace.SaveRegistry(baseDir, reg))
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			require.NoError(t, runMarketplacesList(marketplacesListCmd, nil))
 		})
 

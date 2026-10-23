@@ -64,7 +64,7 @@ func Test_Service_List(t *testing.T) {
 		Name:      "vm-1",
 	}
 
-	t.Run("returns the namespace's runs on every runtime without sidecars", func(t *testing.T) {
+	t.Run("joins every runtime's runs in the namespace without sidecars", func(t *testing.T) {
 		// Arrange
 		svc := New(d, msb)
 
@@ -85,46 +85,124 @@ func Test_Service_List(t *testing.T) {
 		// Assert
 		assert.Equal(t, []Run{claude, copilot, opencode}, runs)
 	})
+}
 
-	t.Run("skips Docker with a warning when the daemon is down", func(t *testing.T) {
+func Test_Service_dockerRuns(t *testing.T) {
+	t.Run("returns each container as a Docker run", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
-		svc := New(&fakeDocker{checkDaemon: func() error { return docker.ErrDaemonNotRunning }}, msb)
+		svc := New(&fakeDocker{listRunningContainers: func() ([]*docker.ContainerInfo, error) {
+			return []*docker.ContainerInfo{
+				{
+					Name:      "agentic-claude-ab12",
+					Namespace: "agentic",
+					Tool:      "claude",
+					Status:    "Up 5 minutes",
+				},
+			}, nil
+		}}, &fakeMicrosandbox{})
 
 		// Act
-		runs := svc.List("agentic")
+		runs := svc.dockerRuns()
 
 		// Assert
-		assert.Equal(t, []Run{opencode}, runs)
+		assert.Equal(t, []Run{
+			{
+				Tool:      "claude",
+				Namespace: "agentic",
+				Runtime:   sandbox.RuntimeDocker,
+				Status:    "Up 5 minutes",
+				Name:      "agentic-claude-ab12",
+			},
+		}, runs)
+	})
+
+	t.Run("warns and returns nothing when the daemon is down", func(t *testing.T) {
+		// Arrange
+		logs := stubErrLog(t)
+		svc := New(&fakeDocker{
+			checkDaemon:           func() error { return docker.ErrDaemonNotRunning },
+			listRunningContainers: func() ([]*docker.ContainerInfo, error) { return nil, errors.New("unexpected docker call") },
+		}, &fakeMicrosandbox{})
+
+		// Act
+		runs := svc.dockerRuns()
+
+		// Assert
+		assert.Empty(t, runs)
 		assert.Contains(t, logs.String(), "skipping Docker")
 	})
 
-	t.Run("skips msb with a warning when listing fails", func(t *testing.T) {
+	t.Run("warns and returns nothing when listing fails", func(t *testing.T) {
 		// Arrange
 		logs := stubErrLog(t)
-		svc := New(d, &fakeMicrosandbox{listRunning: func() ([]*microsandbox.Sandbox, error) {
-			return nil, errors.New("list msb sandboxes: boom")
+		svc := New(&fakeDocker{listRunningContainers: func() ([]*docker.ContainerInfo, error) {
+			return nil, errors.New("boom")
+		}}, &fakeMicrosandbox{})
+
+		// Act
+		runs := svc.dockerRuns()
+
+		// Assert
+		assert.Empty(t, runs)
+		assert.Contains(t, logs.String(), "list Docker containers: boom")
+	})
+}
+
+func Test_Service_msbRuns(t *testing.T) {
+	t.Run("returns each sandbox as a microsandbox run", func(t *testing.T) {
+		// Arrange
+		svc := New(&fakeDocker{}, &fakeMicrosandbox{listRunning: func() ([]*microsandbox.Sandbox, error) {
+			return []*microsandbox.Sandbox{
+				{
+					Name:      "vm-1",
+					Namespace: "agentic",
+					Tool:      "opencode",
+					Status:    "running",
+				},
+			}, nil
 		}})
 
 		// Act
-		runs := svc.List("agentic")
+		runs := svc.msbRuns()
 
 		// Assert
-		assert.Equal(t, []Run{claude}, runs)
-		assert.Contains(t, logs.String(), "list msb sandboxes: boom")
+		assert.Equal(t, []Run{
+			{
+				Tool:      "opencode",
+				Namespace: "agentic",
+				Runtime:   sandbox.RuntimeMicrosandbox,
+				Status:    "running",
+				Name:      "vm-1",
+			},
+		}, runs)
 	})
 
-	t.Run("skips msb when it isn't installed", func(t *testing.T) {
+	t.Run("returns nothing when msb isn't installed", func(t *testing.T) {
 		// Arrange
-		svc := New(d, &fakeMicrosandbox{
+		svc := New(&fakeDocker{}, &fakeMicrosandbox{
 			available:   func() error { return errors.New("msb not found") },
 			listRunning: func() ([]*microsandbox.Sandbox, error) { return nil, errors.New("unexpected msb call") },
 		})
 
 		// Act
-		runs := svc.List("agentic")
+		runs := svc.msbRuns()
 
 		// Assert
-		assert.Equal(t, []Run{claude}, runs)
+		assert.Empty(t, runs)
+	})
+
+	t.Run("warns and returns nothing when listing fails", func(t *testing.T) {
+		// Arrange
+		logs := stubErrLog(t)
+		svc := New(&fakeDocker{}, &fakeMicrosandbox{listRunning: func() ([]*microsandbox.Sandbox, error) {
+			return nil, errors.New("list msb sandboxes: boom")
+		}})
+
+		// Act
+		runs := svc.msbRuns()
+
+		// Assert
+		assert.Empty(t, runs)
+		assert.Contains(t, logs.String(), "list msb sandboxes: boom")
 	})
 }

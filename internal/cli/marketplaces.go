@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,11 +58,11 @@ func runMarketplacesList(_ *cobra.Command, _ []string) error {
 	}
 
 	if len(dirNames) == 0 {
-		fmt.Println("No synced marketplaces found.")
+		logging.Infof("no synced marketplaces found")
 		return nil
 	}
 
-	return writeTable(os.Stdout, marketplaceRows(registry, dirNames))
+	return writeTable(logging.Log.Writer(), marketplaceRows(registry, dirNames))
 }
 
 func runMarketplacesPrune(_ *cobra.Command, _ []string) error {

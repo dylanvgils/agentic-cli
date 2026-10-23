@@ -32,7 +32,7 @@ func Test_runInspect(t *testing.T) {
 		})
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := runInspect(inspectCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -50,7 +50,7 @@ func Test_runInspect(t *testing.T) {
 		stubFlag(t, inspectCmd, "all", "true")
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := runInspect(inspectCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -111,7 +111,7 @@ func Test_runInspectTable(t *testing.T) {
 		})
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := runInspectTable("agentic")
 			require.NoError(t, err)
 		})
@@ -145,7 +145,7 @@ func Test_runInspectTable(t *testing.T) {
 		})
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := runInspectTable("")
 			require.NoError(t, err)
 		})
@@ -176,7 +176,7 @@ func Test_runInspectTable(t *testing.T) {
 		})
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := runInspectTable("agentic")
 			require.NoError(t, err)
 		})
@@ -190,7 +190,7 @@ func Test_runInspectTable(t *testing.T) {
 func Test_writeImageTable(t *testing.T) {
 	t.Run("shows each image with its namespace", func(t *testing.T) {
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := writeImageTable("agentic", []*docker.ImageInfo{builtInfo})
 			require.NoError(t, err)
 		})
@@ -201,25 +201,27 @@ func Test_writeImageTable(t *testing.T) {
 	})
 
 	t.Run("empty names the namespace", func(t *testing.T) {
+		// Arrange
+		logs := stubErrLog(t)
+
 		// Act
-		out := captureStdout(t, func() {
-			err := writeImageTable("agentic", nil)
-			require.NoError(t, err)
-		})
+		err := writeImageTable("agentic", nil)
 
 		// Assert
-		assert.Equal(t, "No images found in namespace \"agentic\".\n", out)
+		require.NoError(t, err)
+		assert.Contains(t, logs.String(), "no images found in namespace \"agentic\"")
 	})
 
 	t.Run("empty in every namespace says so", func(t *testing.T) {
+		// Arrange
+		logs := stubErrLog(t)
+
 		// Act
-		out := captureStdout(t, func() {
-			err := writeImageTable("", nil)
-			require.NoError(t, err)
-		})
+		err := writeImageTable("", nil)
 
 		// Assert
-		assert.Equal(t, "No images found.\n", out)
+		require.NoError(t, err)
+		assert.Contains(t, logs.String(), "no images found\n")
 	})
 
 	t.Run("truncates long base field", func(t *testing.T) {
@@ -227,7 +229,7 @@ func Test_writeImageTable(t *testing.T) {
 		longBase := "node@24,java@21,dotnet@9,go@1.26.3,extra@1,another@2"
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := writeImageTable("agentic", []*docker.ImageInfo{{
 				Image: "agentic-claude", Namespace: "agentic", Tool: "claude",
 				Version: "1.0", Base: longBase, Built: "2026-05-01", Size: "1GB",
