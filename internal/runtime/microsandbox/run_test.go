@@ -111,6 +111,18 @@ func Test_buildRunArgs(t *testing.T) {
 		assert.Equal(t, []string{"agentic-claude", "--", "-p", "hi"}, args[len(args)-4:])
 	})
 
+	t.Run("resolves a bare env key to its value", func(t *testing.T) {
+		// Arrange
+		t.Setenv("AGENTIC_TEST_TOKEN", "test-secret")
+
+		// Act
+		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude", Env: []string{"AGENTIC_TEST_TOKEN"}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, args, "--env=AGENTIC_TEST_TOKEN=test-secret", "msb's --env takes only KEY=VALUE")
+	})
+
 	t.Run("omits -- without tool args", func(t *testing.T) {
 		// Act
 		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"})

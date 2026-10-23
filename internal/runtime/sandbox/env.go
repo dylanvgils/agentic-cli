@@ -50,15 +50,15 @@ func IsReservedEnvName(key string, proxy, dind bool) bool {
 		(dind && slices.Contains(dindEnvNames, key))
 }
 
-// ResolveEnv returns the sandbox env as KEY=VALUE: forwarded terminal vars and host timezone, then env entries; later entries win.
-func ResolveEnv(env []string) []string {
-	return slices.Concat(terminalEnv(), timezoneEnv(platform.Timezone()), entryEnv(env))
+// ResolveEnv returns the sandbox env: terminal vars and host timezone, then env entries; later entries win.
+func ResolveEnv(env []string, forward bool) []string {
+	return slices.Concat(terminalEnv(), timezoneEnv(platform.Timezone()), entryEnv(env, forward))
 }
 
-// EnvArgs returns ResolveEnv(env) as --env flags, which both runtimes take.
-func EnvArgs(env []string) []string {
+// EnvArgs returns ResolveEnv(env, forward) as --env flags, which both runtimes take.
+func EnvArgs(env []string, forward bool) []string {
 	var args []string
-	for _, entry := range ResolveEnv(env) {
+	for _, entry := range ResolveEnv(env, forward) {
 		args = append(args, Arg("env", entry))
 	}
 	return args
@@ -83,13 +83,15 @@ func timezoneEnv(tz string) []string {
 	return nil
 }
 
-// entryEnv resolves env entries: "KEY=VALUE" as is, bare "KEY" to the host's value, dropped when unset.
-func entryEnv(env []string) []string {
+// entryEnv resolves env entries: "KEY=VALUE" as is, a set bare "KEY" to its host value, or kept bare with forward to keep it out of argv.
+func entryEnv(env []string, forward bool) []string {
 	var resolved []string
 	for _, entry := range env {
 		if key, _, ok := strings.Cut(entry, "="); ok {
 			resolved = append(resolved, entry)
-		} else if val, set := os.LookupEnv(key); set {
+		} else if val, set := os.LookupEnv(key); set && forward {
+			resolved = append(resolved, key)
+		} else if set {
 			resolved = append(resolved, key+"="+val)
 		}
 	}

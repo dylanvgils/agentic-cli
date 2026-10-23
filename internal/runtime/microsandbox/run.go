@@ -71,7 +71,7 @@ func buildRunArgs(rs sandbox.RunSpec) ([]string, error) {
 
 	args := []string{"run"}
 	args = append(args, limitArgs...)
-	args = append(args, sandbox.EnvArgs(rs.Env)...)
+	args = append(args, sandbox.EnvArgs(rs.Env, false)...)
 	args = append(args, volumeArgs...)
 	args = append(args, buildCredentialArgs(rs)...)
 	args = append(args, networkArgs...)

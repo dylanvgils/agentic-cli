@@ -58,7 +58,7 @@ func TestResolveEnv(t *testing.T) {
 	t.Setenv("TZ", "America/New_York")
 
 	// Act
-	env := ResolveEnv([]string{"NO_COLOR=0", "TZ=UTC"})
+	env := ResolveEnv([]string{"NO_COLOR=0", "TZ=UTC"}, false)
 
 	// Assert
 	assert.Equal(t, []string{"NO_COLOR=1", "TZ=America/New_York", "NO_COLOR=0", "TZ=UTC"}, env, "entries come last so they win")
@@ -70,7 +70,7 @@ func TestEnvArgs(t *testing.T) {
 	t.Setenv("TZ", "UTC")
 
 	// Act
-	args := EnvArgs([]string{"MAVEN_OPTS=-Dfoo=bar"})
+	args := EnvArgs([]string{"MAVEN_OPTS=-Dfoo=bar"}, false)
 
 	// Assert
 	assert.Equal(t, []string{"--env=TZ=UTC", "--env=MAVEN_OPTS=-Dfoo=bar"}, args)
@@ -123,13 +123,23 @@ func Test_timezoneEnv(t *testing.T) {
 }
 
 func Test_entryEnv(t *testing.T) {
-	// Arrange
 	t.Setenv("CI", "true")
 	os.Unsetenv("AGENTIC_NONEXISTENT_VAR") //nolint:errcheck
+	entries := []string{"MAVEN_OPTS=-Dfoo=bar", "CI", "AGENTIC_NONEXISTENT_VAR"}
 
-	// Act
-	env := entryEnv([]string{"MAVEN_OPTS=-Dfoo=bar", "CI", "AGENTIC_NONEXISTENT_VAR"})
+	t.Run("resolves a bare key to the host value", func(t *testing.T) {
+		// Act
+		env := entryEnv(entries, false)
 
-	// Assert
-	assert.Equal(t, []string{"MAVEN_OPTS=-Dfoo=bar", "CI=true"}, env)
+		// Assert
+		assert.Equal(t, []string{"MAVEN_OPTS=-Dfoo=bar", "CI=true"}, env)
+	})
+
+	t.Run("keeps a bare key bare when forwarding", func(t *testing.T) {
+		// Act
+		env := entryEnv(entries, true)
+
+		// Assert
+		assert.Equal(t, []string{"MAVEN_OPTS=-Dfoo=bar", "CI"}, env)
+	})
 }

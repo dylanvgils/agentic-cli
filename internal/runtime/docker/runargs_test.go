@@ -10,11 +10,27 @@ import (
 )
 
 func TestBuildRunArgs(t *testing.T) {
-	// Act
-	_, err := buildRunArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}}, nil)
+	t.Run("refuses without a host user", func(t *testing.T) {
+		// Act
+		_, err := buildRunArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude"}}, nil)
 
-	// Assert
-	assert.ErrorContains(t, err, "no host user", "without --user the tool would run as the image's user")
+		// Assert
+		assert.ErrorContains(t, err, "no host user", "without --user the tool would run as the image's user")
+	})
+
+	t.Run("forwards a bare env key without its value", func(t *testing.T) {
+		// Arrange
+		t.Setenv("AGENTIC_TEST_TOKEN", "test-secret")
+		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", User: &testUser, Env: []string{"AGENTIC_TEST_TOKEN"}}}
+
+		// Act
+		args, err := buildRunArgs(rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, args, "--env=AGENTIC_TEST_TOKEN")
+		assert.NotContains(t, args, "--env=AGENTIC_TEST_TOKEN=test-secret", "the value would show in the host's process list")
+	})
 }
 
 func TestBuildBaseArgs(t *testing.T) {
