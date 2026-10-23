@@ -282,6 +282,14 @@ func Test_persistentPreRunE(t *testing.T) {
 	})
 }
 
+func Test_restartAfterUpgrade(t *testing.T) {
+	// Act
+	err := restartAfterUpgrade(false, nil)
+
+	// Assert
+	assert.NoError(t, err)
+}
+
 func Test_inCommandChain(t *testing.T) {
 	t.Run("matches command name", func(t *testing.T) {
 		// Act
