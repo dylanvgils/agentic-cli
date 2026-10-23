@@ -12,6 +12,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/infra/git"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
+	"github.com/dylanvgils/agentic-cli/internal/infra/selfupdate"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/migrate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
@@ -91,7 +92,7 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	}
 
 	if cmd.Parent() != nil && !inCommandChain(cmd, noUpdateCmds) {
-		exitAfterUpgrade(upgradecheck.New(releasesClient, logging.Err).Check(toolHome, newTTYPrompter().OfferUpgrade))
+		return restartAfterUpgrade(upgradecheck.New(releasesClient, logging.Err).Check(toolHome, newTTYPrompter().OfferUpgrade))
 	}
 
 	return nil
@@ -163,15 +164,19 @@ func checkGit(cmd *cobra.Command, args []string) error {
 	return git.CheckAvailable()
 }
 
-// exitAfterUpgrade ends the process once the upgrade check replaced the binary, as the command runs the old one: 0 once
-// updated, 1 if applying the update failed.
-func exitAfterUpgrade(updated bool, err error) {
+// restartAfterUpgrade reruns the command on the new binary after an upgrade; exits 1 if the upgrade failed.
+func restartAfterUpgrade(updated bool, err error) error {
 	if err != nil {
 		os.Exit(1)
 	}
-	if updated {
-		os.Exit(0)
+	if !updated {
+		return nil
 	}
+
+	if err := selfupdate.Restart(); err != nil {
+		return fmt.Errorf("updated, but rerunning the command failed - run it again: %w", err)
+	}
+	return nil
 }
 
 // inCommandChain reports whether cmd or any ancestor up to (not including) root has a name in names (e.g. matches "completion" for `completion bash`).

@@ -72,7 +72,7 @@ agentic upgrade --force            # reinstall even if already up to date
 agentic upgrade --version v1.2.0   # install a specific release
 ```
 
-agentic also checks for a new release once a day and offers to upgrade.
+agentic also checks for a new release once a day and offers to upgrade, then runs your command on the new version.
 
 ## Building from source
 

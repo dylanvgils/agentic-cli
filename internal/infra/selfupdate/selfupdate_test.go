@@ -116,6 +116,16 @@ func Test_downloadRelease(t *testing.T) {
 	assert.Contains(t, buf.String(), "verifying checksum...")
 }
 
+func Test_executablePath(t *testing.T) {
+	// Act
+	path, err := executablePath()
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, filepath.IsAbs(path))
+	assert.FileExists(t, path)
+}
+
 func Test_installBinary(t *testing.T) {
 	newContent := []byte("new binary content")
 

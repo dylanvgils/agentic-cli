@@ -55,17 +55,27 @@ func IsNewer(current, latest string) bool {
 
 // Update downloads the given release version and replaces the running binary.
 func (Releases) Update(version string) error {
+	execPath, err := executablePath()
+	if err != nil {
+		return err
+	}
+
+	return updateWith(version, execPath, releasesBaseURL, http.DefaultClient)
+}
+
+// executablePath returns the running binary's path with symlinks resolved.
+func executablePath() (string, error) {
 	execPath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("resolving executable path: %w", err)
+		return "", fmt.Errorf("resolving executable path: %w", err)
 	}
 
 	execPath, err = filepath.EvalSymlinks(execPath)
 	if err != nil {
-		return fmt.Errorf("resolving executable symlinks: %w", err)
+		return "", fmt.Errorf("resolving executable symlinks: %w", err)
 	}
 
-	return updateWith(version, execPath, releasesBaseURL, http.DefaultClient)
+	return execPath, nil
 }
 
 func updateWith(version, targetPath, baseURL string, client *http.Client) (err error) {
