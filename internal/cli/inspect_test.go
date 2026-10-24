@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
@@ -10,55 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var builtInfo = &docker.ImageInfo{
-	Image:     "agentic-claude",
-	Namespace: "agentic",
-	Tool:      "claude",
-	ID:        "a1b2c3d4e5f6",
-	Version:   "1.2.3",
-	Base:      "node:24",
-	Built:     "2026-05-01",
-	Size:      "512MB",
-}
-
 func Test_runInspect(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
-
-	t.Run("no args without --all shows the namespace's images", func(t *testing.T) {
-		// Arrange
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{builtInfo}, nil
-		})
-
-		// Act
-		out := captureLog(t, func() {
-			err := runInspect(inspectCmd, []string{})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Regexp(t, `claude\s+agentic\s+1\.2\.3`, out)
-	})
-
-	t.Run("no args with --all shows all namespaces", func(t *testing.T) {
-		// Arrange
-		workInfo := &docker.ImageInfo{Image: "work-claude", Namespace: "work", Tool: "claude"}
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{builtInfo, workInfo}, nil
-		})
-		stubFlag(t, inspectCmd, "all", "true")
-
-		// Act
-		out := captureLog(t, func() {
-			err := runInspect(inspectCmd, []string{})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Regexp(t, `claude\s+agentic`, out)
-		assert.Regexp(t, `claude\s+work`, out)
-	})
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
@@ -69,12 +22,12 @@ func Test_runInspect(t *testing.T) {
 		assert.Contains(t, err.Error(), "bogus")
 	})
 
-	t.Run("tool arg shows that tool's image in the namespace", func(t *testing.T) {
+	t.Run("shows that tool's image in the namespace", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, builtInfo, nil)
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := runInspect(inspectCmd, []string{"claude"})
 			require.NoError(t, err)
 		})
@@ -83,7 +36,7 @@ func Test_runInspect(t *testing.T) {
 		assert.Contains(t, out, "agentic-claude (a1b2c3d4e5f6)")
 	})
 
-	t.Run("tool arg with --all shows the tool in every namespace", func(t *testing.T) {
+	t.Run("with --all shows the tool in every namespace", func(t *testing.T) {
 		// Arrange
 		workInfo := &docker.ImageInfo{Image: "work-claude", Namespace: "work", Tool: "claude"}
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -92,7 +45,7 @@ func Test_runInspect(t *testing.T) {
 		stubFlag(t, inspectCmd, "all", "true")
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := runInspect(inspectCmd, []string{"claude"})
 			require.NoError(t, err)
 		})
@@ -103,153 +56,13 @@ func Test_runInspect(t *testing.T) {
 	})
 }
 
-func Test_runInspectTable(t *testing.T) {
-	t.Run("with namespace shows namespace images only", func(t *testing.T) {
-		// Arrange - stub returns only the agentic image (as Docker would after label filtering)
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{builtInfo}, nil
-		})
-
-		// Act
-		out := captureLog(t, func() {
-			err := runInspectTable("agentic")
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "claude")
-		assert.NotContains(t, out, "work")
-	})
-
-	t.Run("namespace filter passed to listAllImages", func(t *testing.T) {
-		// Arrange
-		var capturedFilters []docker.ImageFilter
-		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			capturedFilters = filters
-			return []*docker.ImageInfo{builtInfo}, nil
-		})
-
-		// Act
-		err := runInspectTable("agentic")
-		require.NoError(t, err)
-
-		// Assert
-		assert.Equal(t, []docker.ImageFilter{docker.NamespaceFilter("agentic")}, capturedFilters)
-	})
-
-	t.Run("results are sorted by tool name", func(t *testing.T) {
-		// Arrange
-		opencode := &docker.ImageInfo{Image: "agentic-opencode", Namespace: "agentic", Tool: "opencode", Version: "0.1.0"}
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{opencode, builtInfo}, nil
-		})
-
-		// Act
-		out := captureLog(t, func() {
-			err := runInspectTable("")
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Less(t, strings.Index(out, "claude"), strings.Index(out, "opencode"))
-	})
-
-	t.Run("docker error propagates", func(t *testing.T) {
-		// Arrange
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return nil, fmt.Errorf("docker daemon not running")
-		})
-
-		// Act
-		err := runInspectTable("")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "docker daemon not running")
-	})
-
-	t.Run("excludes proxy image", func(t *testing.T) {
-		// Arrange
-		proxyInfo := &docker.ImageInfo{Image: "agentic-proxy", Namespace: "agentic", Tool: "proxy"}
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{builtInfo, proxyInfo}, nil
-		})
-
-		// Act
-		out := captureLog(t, func() {
-			err := runInspectTable("agentic")
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "claude")
-		assert.NotContains(t, out, "proxy")
-	})
-}
-
-func Test_writeImageTable(t *testing.T) {
-	t.Run("shows each image with its namespace", func(t *testing.T) {
-		// Act
-		out := captureLog(t, func() {
-			err := writeImageTable("agentic", []*docker.ImageInfo{builtInfo})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Regexp(t, `TOOL\s+NAMESPACE\s+VERSION\s+BASE\s+BUILT\s+SIZE`, out)
-		assert.Regexp(t, `claude\s+agentic\s+1\.2\.3\s+node:24\s+2026-05-01\s+512MB`, out)
-	})
-
-	t.Run("empty names the namespace", func(t *testing.T) {
-		// Arrange
-		logs := stubErrLog(t)
-
-		// Act
-		err := writeImageTable("agentic", nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, logs.String(), "no images found in namespace \"agentic\"")
-	})
-
-	t.Run("empty in every namespace says so", func(t *testing.T) {
-		// Arrange
-		logs := stubErrLog(t)
-
-		// Act
-		err := writeImageTable("", nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, logs.String(), "no images found\n")
-	})
-
-	t.Run("truncates long base field", func(t *testing.T) {
-		// Arrange
-		longBase := "node@24,java@21,dotnet@9,go@1.26.3,extra@1,another@2"
-
-		// Act
-		out := captureLog(t, func() {
-			err := writeImageTable("agentic", []*docker.ImageInfo{{
-				Image: "agentic-claude", Namespace: "agentic", Tool: "claude",
-				Version: "1.0", Base: longBase, Built: "2026-05-01", Size: "1GB",
-			}})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "...")
-		assert.NotContains(t, out, longBase)
-	})
-}
-
 func Test_printImageDetail(t *testing.T) {
 	t.Run("shows detail for active namespace", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, builtInfo, nil)
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -262,18 +75,20 @@ func Test_printImageDetail(t *testing.T) {
 		assert.Contains(t, out, "512MB")
 	})
 
-	t.Run("not built shows fallback", func(t *testing.T) {
+	t.Run("not built logs that no image was found", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, nil, nil)
+		errLog := stubErrLog(t)
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
 
 		// Assert
-		assert.Contains(t, out, "agentic-claude (not built)")
+		assert.Empty(t, out)
+		assert.Contains(t, errLog.String(), `no claude image found in namespace "agentic"`)
 	})
 
 	t.Run("shows custom installs when present", func(t *testing.T) {
@@ -283,13 +98,13 @@ func Test_printImageDetail(t *testing.T) {
 		}, nil)
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
 
 		// Assert
-		assert.Contains(t, out, "installs: helm,golangci-lint")
+		assert.Regexp(t, `installs:\s+helm,golangci-lint`, out)
 	})
 
 	t.Run("omits installs line when empty", func(t *testing.T) {
@@ -297,7 +112,7 @@ func Test_printImageDetail(t *testing.T) {
 		stubInspectImage(t, builtInfo, nil)
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -314,7 +129,7 @@ func Test_printImageDetail(t *testing.T) {
 		}, nil)
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -322,6 +137,47 @@ func Test_printImageDetail(t *testing.T) {
 		// Assert
 		assert.Contains(t, out, "(unknown - rebuild to capture)")
 		assert.Contains(t, out, "(unknown)")
+		assert.Regexp(t, `pulled:\s+never`, out)
+	})
+
+	t.Run("shows build provenance and proxy trust", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, &docker.ImageInfo{
+			Image:      "agentic-claude",
+			ID:         "a1b2c3d4e5f6",
+			Pulled:     "2026-05-02T08:00:00Z",
+			CLIVersion: "v0.12.0",
+			ProxyTrust: true,
+		}, nil)
+
+		// Act
+		out := captureLog(t, func() {
+			err := printImageDetail("claude", "agentic")
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Regexp(t, `pulled:\s+2026-05-02T08:00:00Z`, out)
+		assert.Regexp(t, `agentic:\s+v0\.12\.0`, out)
+		assert.Regexp(t, `proxy:\s+trusts the proxy CA`, out)
+	})
+
+	t.Run("image without proxy trust says to rebuild", func(t *testing.T) {
+		// Arrange
+		stubInspectImage(t, &docker.ImageInfo{
+			Image: "agentic-claude",
+			Tool:  "claude",
+			ID:    "a1b2c3d4e5f6",
+		}, nil)
+
+		// Act
+		out := captureLog(t, func() {
+			err := printImageDetail("claude", "agentic")
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Contains(t, out, `can't trust the proxy CA - rebuild with "agentic update claude"`)
 	})
 
 	t.Run("docker error propagates", func(t *testing.T) {
@@ -355,13 +211,13 @@ func Test_printImageDetail(t *testing.T) {
 		stubInspectImage(t, &info, nil)
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
 
 		// Assert
-		assert.Contains(t, out, "apt:      jq,curl")
+		assert.Regexp(t, `apt:\s+jq,curl`, out)
 	})
 }
 
@@ -377,7 +233,7 @@ func Test_printAllNamespaceDetail(t *testing.T) {
 		})
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := printAllNamespaceDetail("claude")
 			require.NoError(t, err)
 		})
@@ -392,15 +248,14 @@ func Test_printAllNamespaceDetail(t *testing.T) {
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, nil
 		})
+		errLog := stubErrLog(t)
 
 		// Act
-		out := captureStdout(t, func() {
-			err := printAllNamespaceDetail("unknown")
-			require.NoError(t, err)
-		})
+		err := printAllNamespaceDetail("unknown")
 
 		// Assert
-		assert.Contains(t, out, `no images found for tool "unknown"`)
+		require.NoError(t, err)
+		assert.Contains(t, errLog.String(), `no images found for tool "unknown"`)
 	})
 
 	t.Run("docker error propagates", func(t *testing.T) {
@@ -431,28 +286,5 @@ func Test_printAllNamespaceDetail(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, capturedFilters)
-	})
-}
-
-func Test_truncate(t *testing.T) {
-	t.Run("short string unchanged", func(t *testing.T) {
-		// Act
-		result := truncate("node@24", baseMaxLength)
-
-		// Assert
-		assert.Equal(t, "node@24", result)
-	})
-
-	t.Run("long string truncated with ellipsis", func(t *testing.T) {
-		// Arrange
-		long := "node@24,java@21,dotnet@9,go@1.26,extra@1,another@2,more@3"
-
-		// Act
-		result := truncate(long, baseMaxLength)
-
-		// Assert
-		assert.Len(t, result, baseMaxLength+3)
-		assert.True(t, len(result) <= baseMaxLength+3)
-		assert.Contains(t, result, "...")
 	})
 }

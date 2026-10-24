@@ -63,7 +63,8 @@ See [First run](docs/usage.md#first-run) for the trust prompt and signing in, an
 | `build [tool]`         | Build tool image(s)                                    |
 | `update [tool]`        | Update tool image(s) to the latest tool version        |
 | `clean [tool]`         | Remove tool image(s), or everything agentic created    |
-| `inspect [tool]`       | Show built images and what's in them                   |
+| `images`               | List built images                                      |
+| `inspect <tool>`       | Show what's in a tool's image                          |
 | `config`               | Show the merged configuration                          |
 | `ps`                   | List running agentic containers and VMs                |
 | `status`               | Show the Docker and microsandbox backends              |

@@ -32,7 +32,7 @@ agentic-cli/
 │   │   ├── docker/              # *docker.Client: build, run, clean, inspect, volumes, sidecars (proxy, dind)
 │   │   ├── microsandbox/        # Runs the msb CLI as a subprocess
 │   │   └── sandbox/             # Runtime-neutral run spec (RunSpec, limits, proxy and dind specs, mount specs) shared by the runtimes
-│   ├── cli/                     # Cobra commands (build, update, clean, inspect, run, …)
+│   ├── cli/                     # Cobra commands (build, update, clean, image, inspect, run, …)
 │   └── usecase/                 # Business logic extracted out of internal/cli commands (see below)
 │       ├── build/               # Builds (or dry-run prints) tool images for `agentic build`
 │       ├── clean/               # Resolves and removes tool images and global Docker resources for `agentic clean`
