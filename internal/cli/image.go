@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/toolruns"
 	"github.com/spf13/cobra"
 )
 
@@ -71,20 +71,10 @@ func runImageList(cmd *cobra.Command, _ []string) error {
 
 // runImageTable prints the image table for namespace, or for every namespace when it is empty.
 func runImageTable(namespace string) error {
-	var filters []docker.ImageFilter
-	if namespace != "" {
-		filters = append(filters, docker.NamespaceFilter(namespace))
-	}
-
-	images, err := dockerClient.ListAllImages(filters...)
+	images, err := toolruns.New(dockerClient, msbClient).Images(namespace)
 	if err != nil {
 		return err
 	}
-
-	images = slices.DeleteFunc(images, func(info *docker.ImageInfo) bool {
-		_, ok := tools.Configs[info.Tool]
-		return !ok
-	})
 
 	slices.SortFunc(images, func(a, b *docker.ImageInfo) int {
 		if n := strings.Compare(a.Tool, b.Tool); n != 0 {

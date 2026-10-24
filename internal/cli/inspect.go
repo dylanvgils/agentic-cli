@@ -78,10 +78,6 @@ func printAllNamespaceDetail(tool string) error {
 
 	found := false
 	for _, info := range images {
-		if info.Tool != tool {
-			continue
-		}
-
 		logging.Stepf("%s/%s", info.Namespace, info.Tool)
 		if err := printInfoDetail(info); err != nil {
 			return err

@@ -97,22 +97,6 @@ func Test_runImageTable(t *testing.T) {
 		assert.NotContains(t, out, "work")
 	})
 
-	t.Run("namespace filter passed to listAllImages", func(t *testing.T) {
-		// Arrange
-		var capturedFilters []docker.ImageFilter
-		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			capturedFilters = filters
-			return []*docker.ImageInfo{builtInfo}, nil
-		})
-
-		// Act
-		err := runImageTable("agentic")
-		require.NoError(t, err)
-
-		// Assert
-		assert.Equal(t, []docker.ImageFilter{docker.NamespaceFilter("agentic")}, capturedFilters)
-	})
-
 	t.Run("results are sorted by tool name", func(t *testing.T) {
 		// Arrange
 		opencode := &docker.ImageInfo{Image: "agentic-opencode", Namespace: "agentic", Tool: "opencode", Version: "0.1.0"}
@@ -142,24 +126,6 @@ func Test_runImageTable(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "docker daemon not running")
-	})
-
-	t.Run("excludes proxy image", func(t *testing.T) {
-		// Arrange
-		proxyInfo := &docker.ImageInfo{Image: "agentic-proxy", Namespace: "agentic", Tool: "proxy"}
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{builtInfo, proxyInfo}, nil
-		})
-
-		// Act
-		out := captureLog(t, func() {
-			err := runImageTable("agentic")
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "claude")
-		assert.NotContains(t, out, "proxy")
 	})
 }
 
