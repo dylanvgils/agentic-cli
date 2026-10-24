@@ -263,7 +263,7 @@ func toolMarketplaceMounts(toolConfig tools.ToolConfig, results []marketplace.Re
 	return mounts, names
 }
 
-// recordMarketplaceUsage records cwd against each result for `marketplaces prune`. Best-effort.
+// recordMarketplaceUsage records cwd against each result for `marketplace prune`. Best-effort.
 func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 	if len(results) == 0 {
 		return

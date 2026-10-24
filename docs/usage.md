@@ -55,9 +55,9 @@ Run `agentic help <command>` for all flags.
 | `ps`                                       | List running agentic containers and VMs in the active namespace, `--all` for every namespace |
 | `status`                                   | Show Docker and microsandbox availability, and how many agentic containers and VMs run |
 | `config`                                   | Show the merged [configuration](config.md)                                           |
-| `namespaces <list\|prune>`                 | List namespaces, or remove all images in one                                         |
-| `volumes <create\|list\|remove> [name]`    | Manage [named volumes](#named-volumes)                                               |
-| `marketplaces <list\|prune>`               | Manage [marketplace](#marketplaces) clones                                           |
+| `namespace <list\|prune>`, `namespaces`    | List namespaces, or remove all images in one                                         |
+| `volume <create\|list\|remove> [name]`, `volumes` | Manage [named volumes](#named-volumes)                                        |
+| `marketplace <list\|prune>`, `marketplaces` | Manage [marketplace](#marketplaces) clones                                          |
 | `proxy <build\|update\|clean>`             | Manage the [egress proxy](egress-proxy.md) image                                     |
 | `upgrade`                                  | Upgrade agentic to the latest release                                                |
 | `version`                                  | Show version information, including the Docker CLI and microsandbox versions         |
@@ -142,13 +142,13 @@ To protect part of the workspace, mount it over itself. It stays read-only while
 agentic run -v '$PWD/.git:/workspace/.git' claude
 ```
 
-Manage volumes with `agentic volumes`:
+Manage volumes with `agentic volume`:
 
 ```bash
-agentic volumes create maven
-agentic volumes list              # alias: ls
-agentic volumes remove maven      # alias: rm
-agentic volumes remove            # remove all agentic volumes
+agentic volume create maven
+agentic volume list               # alias: ls, or agentic volumes
+agentic volume remove maven       # alias: rm
+agentic volume remove             # remove all agentic volumes
 ```
 
 With the microsandbox runtime, msb stores the volume as `agentic-<name>`, so agentic can tell its volumes from yours. `list` and `remove` cover these too; `create` is Docker-only, since msb creates volumes on first use.
@@ -182,8 +182,8 @@ agentic --docker-context prod build claude
 - Each clone is mounted read-only at `~/marketplaces/<name>` and registered with the tool. Removing an entry unregisters it on the next run. Copilot only warns when registration fails.
 
 ```bash
-agentic marketplaces list    # one row per clone and name, with the projects using it (alias: ls)
-agentic marketplaces prune   # remove clones no project uses anymore
+agentic marketplace list    # one row per clone and name, with the projects using it (alias: ls, or agentic marketplaces)
+agentic marketplace prune   # remove clones no project uses anymore
 ```
 
 `prune` checks each project's current config first, and keeps a clone while any of its names is still in use. It leaves alone clones that agentic didn't create (e.g. ones you placed by hand). `agentic clean` doesn't touch clones.

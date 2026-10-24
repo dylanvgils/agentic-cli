@@ -66,7 +66,7 @@ func Test_runNamespacesPrune(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
 
-	stubFlag(t, namespacesPruneCmd, "namespace", "agentic")
+	stubFlag(t, namespacePruneCmd, "namespace", "agentic")
 	oneImage := func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 		return []*docker.ImageInfo{{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"}}, nil
 	}
@@ -80,7 +80,7 @@ func Test_runNamespacesPrune(t *testing.T) {
 		stubErrLog(t)
 
 		// Act
-		err := runNamespacesPrune(namespacesPruneCmd, nil)
+		err := runNamespacePrune(namespacePruneCmd, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -96,7 +96,7 @@ func Test_runNamespacesPrune(t *testing.T) {
 		stubErrLog(t)
 
 		// Act
-		err := runNamespacesPrune(namespacesPruneCmd, nil)
+		err := runNamespacePrune(namespacePruneCmd, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -113,7 +113,7 @@ func Test_runNamespacesPrune(t *testing.T) {
 		stubErrLog(t)
 
 		// Act
-		err := runNamespacesPrune(namespacesPruneCmd, nil)
+		err := runNamespacePrune(namespacePruneCmd, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -126,7 +126,7 @@ func Test_runNamespacesPrune(t *testing.T) {
 		logBuf := stubErrLog(t)
 
 		// Act
-		err := runNamespacesPrune(namespacesPruneCmd, nil)
+		err := runNamespacePrune(namespacePruneCmd, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -141,7 +141,7 @@ func Test_runNamespacesPrune(t *testing.T) {
 		})
 
 		// Act
-		err := runNamespacesPrune(namespacesPruneCmd, nil)
+		err := runNamespacePrune(namespacePruneCmd, nil)
 
 		// Assert
 		require.ErrorContains(t, err, "docker daemon not running")

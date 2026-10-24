@@ -90,7 +90,7 @@ The sidecar's seccomp profile is derived at run time (`deriveSeccompProfile`) fr
 
 ## Microsandbox dockerd image
 
-With `--runtime microsandbox --dind`, `ensureDockerdImage` (`internal/usecase/run/microsandbox.go`) builds `<image>-dockerd` (`tools.DockerdImage`) FROM the tool image, adding Docker's daemon and CLI. It's rebuilt when the tool image changes. Because it depends on the tool image, `agentic clean` and `agentic namespaces prune` remove it first.
+With `--runtime microsandbox --dind`, `ensureDockerdImage` (`internal/usecase/run/microsandbox.go`) builds `<image>-dockerd` (`tools.DockerdImage`) FROM the tool image, adding Docker's daemon and CLI. It's rebuilt when the tool image changes. Because it depends on the tool image, `agentic clean` and `agentic namespace prune` remove it first.
 
 ## Orphaned sidecars
 
