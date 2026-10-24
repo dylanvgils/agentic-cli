@@ -1,8 +1,7 @@
 package cli
 
 import (
-	"fmt"
-	"text/tabwriter"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -15,24 +14,32 @@ var statusCmd = &cobra.Command{
 	RunE:  runStatus,
 }
 
+// statusDetail is the status lines; a count that couldn't be read is left empty.
+type statusDetail struct {
+	docker        string `field:"Docker"`
+	dockerContext string `field:"Docker context"`
+	microsandbox  string `field:"Microsandbox"`
+	containers    string `field:"Containers running"`
+	vms           string `field:"VMs running"`
+}
+
 func init() {
 	rootCmd.AddCommand(statusCmd)
 }
 
 func runStatus(_ *cobra.Command, _ []string) error {
-	w := tabwriter.NewWriter(logging.Log.Writer(), 0, 0, 2, ' ', 0)
-
 	// A failed lookup shouldn't hide the rest of the status
 	ctx, _ := dockerClient.CurrentContext()
-	msb := msbStatus()
 
 	daemonErr := dockerClient.CheckDaemon()
 	docker := "running"
 	if daemonErr != nil {
 		docker = "not running"
 	}
-	if _, err := fmt.Fprintf(w, "Docker:\t%s\nDocker context:\t%s\nMicrosandbox:\t%s\n", docker, orDash(ctx), msb); err != nil {
-		return err
+	detail := statusDetail{
+		docker:        docker,
+		dockerContext: orDash(ctx),
+		microsandbox:  msbStatus(),
 	}
 
 	if daemonErr == nil {
@@ -40,20 +47,18 @@ func runStatus(_ *cobra.Command, _ []string) error {
 		if err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "Containers running:\t%d\n", len(containers)); err != nil {
-			return err
-		}
+		detail.containers = strconv.Itoa(len(containers))
 	}
 
 	if msbClient.Available() == nil {
 		if sandboxes, err := msbClient.ListRunning(); err != nil {
 			logging.Warnf("%v", err)
-		} else if _, err := fmt.Fprintf(w, "VMs running:\t%d\n", len(sandboxes)); err != nil {
-			return err
+		} else {
+			detail.vms = strconv.Itoa(len(sandboxes))
 		}
 	}
 
-	return w.Flush()
+	return writeFields(logging.Log.Writer(), "", detail)
 }
 
 // msbStatus reports whether the optional msb binary is installed.

@@ -32,7 +32,7 @@ agentic-cli/
 │   │   ├── docker/              # *docker.Client: build, run, clean, inspect, volumes, sidecars (proxy, dind)
 │   │   ├── microsandbox/        # Runs the msb CLI as a subprocess
 │   │   └── sandbox/             # Runtime-neutral run spec (RunSpec, limits, proxy and dind specs, mount specs) shared by the runtimes
-│   ├── cli/                     # Cobra commands (build, update, clean, inspect, run, …)
+│   ├── cli/                     # Cobra commands (build, update, clean, image, inspect, run, …)
 │   └── usecase/                 # Business logic extracted out of internal/cli commands (see below)
 │       ├── build/               # Builds (or dry-run prints) tool images for `agentic build`
 │       ├── clean/               # Resolves and removes tool images and global Docker resources for `agentic clean`
@@ -40,7 +40,7 @@ agentic-cli/
 │       ├── resolve/             # Merges CLI flags, .agenticrc.toml, and agentic.json into the effective value of every setting agentic supports
 │       ├── run/                 # `agentic run`: checks and prompts, the sandbox.RunSpec, and a runner per runtime (docker, microsandbox)
 │       ├── sidecar/             # Builds the proxy and DinD sidecar images and decides when they need a refresh
-│       ├── toolruns/            # Lists the tools running in Docker containers and microsandbox VMs for `agentic ps`
+│       ├── toolruns/            # Read-only views of tools on the runtimes: running tools for `agentic ps`, tool images for `agentic images`
 │       ├── toolupdate/          # Checks for and applies upstream tool version updates on `agentic run`
 │       ├── update/              # Resolves and applies `agentic update` targets - build-option recovery, --pull throttling
 │       ├── upgradecheck/        # Checks for and offers to apply a newer agentic CLI release, on any command's PersistentPreRunE

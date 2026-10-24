@@ -1,8 +1,9 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
-	"strings"
+	"io"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/spf13/cobra"
@@ -14,55 +15,66 @@ var versionCmd = &cobra.Command{
 	RunE:  runVersion,
 }
 
-// versionField is one "key : value" line of version output.
-type versionField struct{ key, val string }
+// buildDetail is the build metadata section of version output.
+type buildDetail struct {
+	commit    string `field:"commit"`
+	builtBy   string `field:"built by"`
+	builtDate string `field:"built date"`
+}
+
+// runtimeDetail is the runtime CLI versions section of version output; a runtime that isn't installed is left empty.
+type runtimeDetail struct {
+	docker       string `field:"docker"`
+	microsandbox string `field:"microsandbox"`
+}
 
 func init() {
 	rootCmd.AddCommand(versionCmd)
 }
 
 func runVersion(cmd *cobra.Command, _ []string) error {
-	_, err := fmt.Fprintln(cmd.OutOrStdout(), versionOutput())
-	return err
+	return writeVersion(cmd.OutOrStdout())
 }
 
-func versionOutput() string {
-	out := "agentic version " + buildinfo.Version
-	for _, section := range []string{versionExtras(), runtimeVersions()} {
-		if section != "" {
-			out += "\n\n" + section
-		}
+// writeVersion prints the agentic version, then each section with a value after a blank line.
+func writeVersion(out io.Writer) error {
+	if _, err := fmt.Fprintln(out, "agentic version "+buildinfo.Version); err != nil {
+		return err
 	}
-	return out
+	if err := writeVersionSection(out, versionExtras()); err != nil {
+		return err
+	}
+	return writeVersionSection(out, runtimeVersions())
 }
 
-func versionExtras() string {
-	return formatFields([]versionField{
-		{"commit", buildinfo.Commit},
-		{"built by", buildinfo.InstallMethod},
-		{"built date", buildinfo.BuildDate},
-	})
+func versionExtras() buildDetail {
+	return buildDetail{
+		commit:    buildinfo.Commit,
+		builtBy:   buildinfo.InstallMethod,
+		builtDate: buildinfo.BuildDate,
+	}
 }
 
 // runtimeVersions lists the versions of the installed runtime CLIs agentic drives.
-func runtimeVersions() string {
-	return formatFields([]versionField{
-		{"docker", versionOrEmpty(dockerClient.Version)},
-		{"microsandbox", versionOrEmpty(msbClient.Version)},
-	})
+func runtimeVersions() runtimeDetail {
+	return runtimeDetail{
+		docker:       versionOrEmpty(dockerClient.Version),
+		microsandbox: versionOrEmpty(msbClient.Version),
+	}
 }
 
-// formatFields renders fields as aligned "key : value" lines, skipping empty values.
-func formatFields(fields []versionField) string {
-	var lines []string
-
-	for _, f := range fields {
-		if f.val != "" {
-			lines = append(lines, fmt.Sprintf("%-13s: %s", f.key, f.val))
-		}
+// writeVersionSection prints v's fields after a blank line, or nothing when every field is empty.
+func writeVersionSection[T any](out io.Writer, v T) error {
+	var buf bytes.Buffer
+	if err := writeFields(&buf, "", v); err != nil {
+		return err
+	}
+	if buf.Len() == 0 {
+		return nil
 	}
 
-	return strings.Join(lines, "\n")
+	_, err := fmt.Fprintf(out, "\n%s", buf.String())
+	return err
 }
 
 // versionOrEmpty returns the version fn reports, or "" when it fails (e.g. the binary isn't installed).

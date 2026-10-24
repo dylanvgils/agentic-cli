@@ -9,7 +9,7 @@ agentic build claude --no-cache       # fully fresh build
 agentic build claude --pull           # refresh base images, keep the rest of the cache
 ```
 
-`agentic inspect <tool>` shows an image's layers, apt packages, custom installs, build time and tool version.
+`agentic inspect <tool>` shows an image's layers, apt packages, custom installs, tool version, build time, last base-image pull, the agentic version that built it and whether it trusts the [egress proxy](egress-proxy.md) CA.
 
 ## Runtime layers
 

@@ -8,6 +8,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_Service_List(t *testing.T) {
@@ -90,6 +91,75 @@ func Test_Service_List(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []Run{claude, copilot, opencode}, runs)
+	})
+}
+
+func Test_Service_Images(t *testing.T) {
+	t.Run("keeps tool images and leaves out sidecar images", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return []*docker.ImageInfo{
+				{Image: "agentic-claude", Tool: "claude"},
+				{Image: "agentic-proxy", Tool: "proxy"},
+			}, nil
+		}}
+		svc := New(d, &fakeMicrosandbox{})
+
+		// Act
+		images, err := svc.Images("")
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, images, 1)
+		assert.Equal(t, "agentic-claude", images[0].Image)
+	})
+
+	t.Run("namespace narrows the listing", func(t *testing.T) {
+		// Arrange
+		var filters []docker.ImageFilter
+		d := &fakeDocker{listAllImages: func(f ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			filters = f
+			return nil, nil
+		}}
+		svc := New(d, &fakeMicrosandbox{})
+
+		// Act
+		_, err := svc.Images("work")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []docker.ImageFilter{docker.NamespaceFilter("work")}, filters)
+	})
+
+	t.Run("empty namespace lists every namespace", func(t *testing.T) {
+		// Arrange
+		var filters []docker.ImageFilter
+		d := &fakeDocker{listAllImages: func(f ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			filters = f
+			return nil, nil
+		}}
+		svc := New(d, &fakeMicrosandbox{})
+
+		// Act
+		_, err := svc.Images("")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, filters)
+	})
+
+	t.Run("docker error is returned", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			return nil, errors.New("docker daemon not running")
+		}}
+		svc := New(d, &fakeMicrosandbox{})
+
+		// Act
+		_, err := svc.Images("")
+
+		// Assert
+		require.ErrorContains(t, err, "docker daemon not running")
 	})
 }
 

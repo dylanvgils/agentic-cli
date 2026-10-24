@@ -49,7 +49,8 @@ Run `agentic help <command>` for all flags.
 | `build [tool]`                             | Build tool image(s), all tools by default. See [Images](images.md).                  |
 | `update [tool]`                            | Rebuild image(s) with the latest tool version                                        |
 | `clean [tool]`                             | Remove tool image(s) and their msb copies, or everything agentic created. Skips what running tools use. |
-| `inspect [tool]`                           | Show built images, or full detail for one tool                                       |
+| `image list`, `images`                     | List built images                                                                    |
+| `inspect <tool>`                           | Show full detail for one tool's image                                                |
 | `instructions <tool>`                      | Preview the [environment instructions](environment-instructions.md)                    |
 | `ps`                                       | List running agentic containers and VMs in the active namespace, `--all` for every namespace |
 | `status`                                   | Show Docker and microsandbox availability, and how many agentic containers and VMs run |
@@ -74,7 +75,7 @@ agentic run --runtime microsandbox claude  # run in a microVM instead
 agentic run --dry-run --proxy claude      # print the docker or msb commands, start nothing
 agentic update                             # update all tools (rebuilds only when something changed)
 
-agentic inspect                            # all images in the active namespace
+agentic images                             # all images in the active namespace
 agentic inspect claude --all               # claude images in every namespace
 
 # A separate image set for one project (images are named <namespace>-<tool>)

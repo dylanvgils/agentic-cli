@@ -15,6 +15,13 @@ type testRow struct {
 	note      string
 }
 
+// testDetail is a writeFields value with an untagged field, which gets no line.
+type testDetail struct {
+	tool      string `field:"tool"`
+	namespace string `field:"namespace"`
+	note      string
+}
+
 func Test_writeTable(t *testing.T) {
 	t.Run("prints a column per tagged field, aligned under its header", func(t *testing.T) {
 		// Arrange
@@ -61,5 +68,39 @@ func Test_writeTable(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "TOOL  NAMESPACE\n", buf.String())
+	})
+}
+
+func Test_writeFields(t *testing.T) {
+	t.Run("aligns values after the longest key", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		detail := testDetail{
+			tool:      "claude",
+			namespace: "agentic",
+		}
+
+		// Act
+		err := writeFields(&buf, "  ", detail)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "  tool:       claude\n  namespace:  agentic\n", buf.String())
+	})
+
+	t.Run("skips empty values and untagged fields", func(t *testing.T) {
+		// Arrange
+		var buf bytes.Buffer
+		detail := testDetail{
+			tool: "claude",
+			note: "hidden",
+		}
+
+		// Act
+		err := writeFields(&buf, "", detail)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "tool:  claude\n", buf.String())
 	})
 }

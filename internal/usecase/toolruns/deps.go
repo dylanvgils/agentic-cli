@@ -8,6 +8,7 @@ import (
 // Docker is the subset of *docker.Client this package uses.
 type Docker interface {
 	CheckDaemon() error
+	ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	ListRunningContainers() ([]*docker.ContainerInfo, error)
 }
 

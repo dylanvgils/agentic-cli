@@ -41,6 +41,27 @@ func writeTable[T any](out io.Writer, rows []T) error {
 	return w.Flush()
 }
 
+// writeFields prints v as aligned "key: value" lines, one per string field tagged `field:"key"`, each prefixed by indent
+// and skipped when empty.
+func writeFields[T any](out io.Writer, indent string, v T) error {
+	typ := reflect.TypeFor[T]()
+	val := reflect.ValueOf(v)
+
+	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+	for i := range typ.NumField() {
+		key := typ.Field(i).Tag.Get("field")
+		value := val.Field(i).String()
+		if key == "" || value == "" {
+			continue
+		}
+		if _, err := fmt.Fprintf(w, "%s%s:\t%s\n", indent, key, value); err != nil {
+			return err
+		}
+	}
+
+	return w.Flush()
+}
+
 // orDash returns s, or "-" when it is empty.
 func orDash(s string) string {
 	if s == "" {

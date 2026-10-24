@@ -1,14 +1,16 @@
-// Package toolruns lists the tools running on every runtime.
+// Package toolruns reads what agentic's tools have on every runtime, without running anything: running tools and their images.
 package toolruns
 
 import (
 	"slices"
 
+	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-// Service lists the tools running in Docker containers and microsandbox VMs.
+// Service lists the tools running in Docker containers and microsandbox VMs, and their images.
 type Service struct {
 	docker Docker
 	msb    Microsandbox
@@ -37,6 +39,25 @@ func (s *Service) List(namespace string) []Run {
 		// Sidecars have no tool
 		return r.Tool == "" || (namespace != "" && r.Namespace != namespace)
 	})
+}
+
+// Images returns the tool images in namespace, or in every namespace when it is empty, leaving out sidecar images.
+func (s *Service) Images(namespace string) ([]*docker.ImageInfo, error) {
+	var filters []docker.ImageFilter
+	if namespace != "" {
+		filters = append(filters, docker.NamespaceFilter(namespace))
+	}
+
+	images, err := s.docker.ListAllImages(filters...)
+	if err != nil {
+		return nil, err
+	}
+
+	return slices.DeleteFunc(images, func(info *docker.ImageInfo) bool {
+		// Sidecar images, such as the proxy, hold no known tool
+		_, ok := tools.Configs[info.Tool]
+		return !ok
+	}), nil
 }
 
 // dockerRuns returns what runs in Docker containers, or nothing with a warning when Docker can't be listed.
