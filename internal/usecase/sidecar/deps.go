@@ -10,5 +10,5 @@ type Docker interface {
 	InspectImage(name string) (*docker.ImageInfo, error)
 	BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) error
 	BuildDindImage(image string, opts tools.BuildOptions) error
-	PruneDangling() error
+	PruneImages() (string, error)
 }

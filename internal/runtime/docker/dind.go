@@ -248,18 +248,19 @@ func (h dindHandle) exited() bool {
 	return err != nil || strings.TrimSpace(out) == "false"
 }
 
-// SweepDindResources removes sidecars and run dirs left behind by interrupted runs, keeping those of active runs.
-func (c *Client) SweepDindResources(toolHome string) error {
+// SweepDindResources removes sidecars and run dirs of interrupted runs and returns the sidecars' names.
+func (c *Client) SweepDindResources(toolHome string) ([]string, error) {
 	listArgs := []string{
 		"ps", arg("all"), arg("format", ownedFormat(".Names")),
 		labelFilter(LabelProject, LabelProjectVal),
 		nameFilter(dindHostAlias),
 	}
-	if err := c.removeUnused(listArgs, []string{"rm", arg("force"), arg("volumes")}); err != nil {
-		return err
+	removed, err := c.removeUnused(listArgs, []string{"rm", arg("force"), arg("volumes")})
+	if err != nil {
+		return nil, err
 	}
 
-	return c.sweepDindRunDirs(toolHome)
+	return removed, c.sweepDindRunDirs(toolHome)
 }
 
 // startDind writes the per-run files, starts the sidecar and waits for dockerd; cleans up on failure.

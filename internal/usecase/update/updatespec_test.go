@@ -375,7 +375,7 @@ func TestApplyAll(t *testing.T) {
 	t.Run("prunes after every target succeeds", func(t *testing.T) {
 		// Arrange
 		pruned := false
-		d := &fakeDocker{pruneDangling: func() error { pruned = true; return nil }}
+		d := &fakeDocker{pruneImages: func() (string, error) { pruned = true; return "", nil }}
 
 		// Act
 		var err error
@@ -390,8 +390,8 @@ func TestApplyAll(t *testing.T) {
 		// Arrange
 		pruned := false
 		d := &fakeDocker{
-			buildTool:     func(string, string, tools.BuildOptions) error { return errors.New("build failed") },
-			pruneDangling: func() error { pruned = true; return nil },
+			buildTool:   func(string, string, tools.BuildOptions) error { return errors.New("build failed") },
+			pruneImages: func() (string, error) { pruned = true; return "", nil },
 		}
 
 		// Act

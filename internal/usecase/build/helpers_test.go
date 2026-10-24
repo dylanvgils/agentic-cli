@@ -10,8 +10,8 @@ import (
 
 // fakeDocker implements Docker; a nil field succeeds with a zero value.
 type fakeDocker struct {
-	buildTool     func(tool, image string, opts tools.BuildOptions) error
-	pruneDangling func() error
+	buildTool   func(tool, image string, opts tools.BuildOptions) error
+	pruneImages func() (string, error)
 }
 
 func (f *fakeDocker) BuildTool(tool, image string, opts tools.BuildOptions) error {
@@ -21,11 +21,11 @@ func (f *fakeDocker) BuildTool(tool, image string, opts tools.BuildOptions) erro
 	return f.buildTool(tool, image, opts)
 }
 
-func (f *fakeDocker) PruneDangling() error {
-	if f.pruneDangling == nil {
-		return nil
+func (f *fakeDocker) PruneImages() (string, error) {
+	if f.pruneImages == nil {
+		return "", nil
 	}
-	return f.pruneDangling()
+	return f.pruneImages()
 }
 
 // stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.

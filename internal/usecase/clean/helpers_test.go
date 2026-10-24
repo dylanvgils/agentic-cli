@@ -14,10 +14,12 @@ type fakeDocker struct {
 	listRunning         func() ([]*docker.ContainerInfo, error)
 	cleanImage          func(string) error
 	cleanBaseImages     func() error
-	sweepProxyResources func() error
-	sweepDindResources  func(string) error
-	sweepRunNetworks    func() error
+	sweepProxyResources func() ([]string, error)
+	sweepDindResources  func(string) ([]string, error)
+	sweepRunNetworks    func() ([]string, error)
 	removeNetwork       func() error
+	pruneImages         func() (string, error)
+	pruneBuildCache     func() (string, error)
 }
 
 func (f *fakeDocker) ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -48,23 +50,23 @@ func (f *fakeDocker) CleanBaseImages() error {
 	return f.cleanBaseImages()
 }
 
-func (f *fakeDocker) SweepProxyResources() error {
+func (f *fakeDocker) SweepProxyResources() ([]string, error) {
 	if f.sweepProxyResources == nil {
-		return nil
+		return nil, nil
 	}
 	return f.sweepProxyResources()
 }
 
-func (f *fakeDocker) SweepDindResources(toolHome string) error {
+func (f *fakeDocker) SweepDindResources(toolHome string) ([]string, error) {
 	if f.sweepDindResources == nil {
-		return nil
+		return nil, nil
 	}
 	return f.sweepDindResources(toolHome)
 }
 
-func (f *fakeDocker) SweepRunNetworks() error {
+func (f *fakeDocker) SweepRunNetworks() ([]string, error) {
 	if f.sweepRunNetworks == nil {
-		return nil
+		return nil, nil
 	}
 	return f.sweepRunNetworks()
 }
@@ -74,6 +76,20 @@ func (f *fakeDocker) RemoveNetwork() error {
 		return nil
 	}
 	return f.removeNetwork()
+}
+
+func (f *fakeDocker) PruneImages() (string, error) {
+	if f.pruneImages == nil {
+		return "", nil
+	}
+	return f.pruneImages()
+}
+
+func (f *fakeDocker) PruneBuildCache() (string, error) {
+	if f.pruneBuildCache == nil {
+		return "", nil
+	}
+	return f.pruneBuildCache()
 }
 
 // fakeRuntime implements ImageCleaner; a nil field succeeds.

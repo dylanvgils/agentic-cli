@@ -99,7 +99,7 @@ func (s *Service) ApplyAll(targets []Target) error {
 	}
 
 	// Best effort: a failed cleanup never fails the update
-	_ = s.docker.PruneDangling()
+	_, _ = s.docker.PruneImages()
 	return nil
 }
 

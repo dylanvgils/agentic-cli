@@ -15,7 +15,7 @@ type fakeDocker struct {
 	inspectImage    func(string) (*docker.ImageInfo, error)
 	buildProxyImage func(string, string, string, tools.BuildOptions) error
 	buildDindImage  func(string, tools.BuildOptions) error
-	pruneDangling   func() error
+	pruneImages     func() (string, error)
 }
 
 func (f *fakeDocker) InspectImage(name string) (*docker.ImageInfo, error) {
@@ -39,11 +39,11 @@ func (f *fakeDocker) BuildDindImage(image string, opts tools.BuildOptions) error
 	return f.buildDindImage(image, opts)
 }
 
-func (f *fakeDocker) PruneDangling() error {
-	if f.pruneDangling == nil {
-		return nil
+func (f *fakeDocker) PruneImages() (string, error) {
+	if f.pruneImages == nil {
+		return "", nil
 	}
-	return f.pruneDangling()
+	return f.pruneImages()
 }
 
 // stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.

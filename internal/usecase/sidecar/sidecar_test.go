@@ -102,7 +102,7 @@ func TestBuildProxy(t *testing.T) {
 	t.Run("prunes after a successful build", func(t *testing.T) {
 		// Arrange
 		pruned := false
-		svc := New(&fakeDocker{pruneDangling: func() error { pruned = true; return nil }})
+		svc := New(&fakeDocker{pruneImages: func() (string, error) { pruned = true; return "", nil }})
 
 		// Act
 		err := svc.BuildProxy(tools.BuildOptions{})
@@ -117,7 +117,7 @@ func TestBuildProxy(t *testing.T) {
 		pruned := false
 		svc := New(&fakeDocker{
 			buildProxyImage: func(string, string, string, tools.BuildOptions) error { return fmt.Errorf("build failed") },
-			pruneDangling:   func() error { pruned = true; return nil },
+			pruneImages:     func() (string, error) { pruned = true; return "", nil },
 		})
 
 		// Act
@@ -184,11 +184,11 @@ func Test_ensureProxy(t *testing.T) {
 		assert.Contains(t, logBuf.String(), "building agentic-proxy (built by a different agentic version)")
 	})
 
-	t.Run("never prunes, so agentic run leaves the build cache alone", func(t *testing.T) {
+	t.Run("never prunes during agentic run", func(t *testing.T) {
 		// Arrange
 		stubErrLog(t)
 		pruned := false
-		svc := New(&fakeDocker{pruneDangling: func() error { pruned = true; return nil }})
+		svc := New(&fakeDocker{pruneImages: func() (string, error) { pruned = true; return "", nil }})
 
 		// Act
 		err := svc.ensureProxy("")

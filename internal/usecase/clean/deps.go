@@ -14,8 +14,10 @@ type Docker interface {
 	ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	ListRunningContainers() ([]*docker.ContainerInfo, error)
 	CleanBaseImages() error
-	SweepProxyResources() error
-	SweepDindResources(toolHome string) error
-	SweepRunNetworks() error
+	SweepProxyResources() ([]string, error)
+	SweepDindResources(toolHome string) ([]string, error)
+	SweepRunNetworks() ([]string, error)
+	PruneImages() (string, error)
+	PruneBuildCache() (string, error)
 	RemoveNetwork() error
 }

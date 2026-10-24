@@ -40,7 +40,7 @@ func (s *Service) BuildProxy(opts tools.BuildOptions) error {
 	}
 
 	// Best effort: a failed cleanup never fails the build
-	_ = s.docker.PruneDangling()
+	_, _ = s.docker.PruneImages()
 	return nil
 }
 

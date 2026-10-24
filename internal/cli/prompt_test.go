@@ -158,6 +158,45 @@ func Test_ttyPrompter_OfferToolUpdate(t *testing.T) {
 	})
 }
 
+func Test_ttyPrompter_ConfirmCachePrune(t *testing.T) {
+	t.Run("no tty keeps the cache and suggests force", func(t *testing.T) {
+		// Arrange
+		logs := stubErrLog(t)
+
+		// Act
+		result := ttyPrompter{}.ConfirmCachePrune()
+
+		// Assert
+		assert.False(t, result)
+		assert.Contains(t, logs.String(), "agentic: kept the build cache - run: agentic prune --force to clear it")
+	})
+
+	t.Run("tty answers y accepts", func(t *testing.T) {
+		// Arrange
+		stubStdin(t, "y\n")
+		logs := stubErrLog(t)
+
+		// Act
+		result := ttyPrompter{terminal: true}.ConfirmCachePrune()
+
+		// Assert
+		assert.True(t, result)
+		assert.Contains(t, logs.String(), "including builds outside agentic? [y/N]")
+	})
+
+	t.Run("tty answers n declines", func(t *testing.T) {
+		// Arrange
+		stubStdin(t, "n\n")
+		stubErrLog(t)
+
+		// Act
+		result := ttyPrompter{terminal: true}.ConfirmCachePrune()
+
+		// Assert
+		assert.False(t, result)
+	})
+}
+
 func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
 	t.Run("no tty prints one-liner and declines", func(t *testing.T) {
 		// Arrange

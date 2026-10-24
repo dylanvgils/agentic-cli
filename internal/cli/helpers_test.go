@@ -31,7 +31,8 @@ type fakeDocker struct {
 	listAllImages         func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	cleanImage            func(string) error
 	cleanBaseImages       func() error
-	pruneDangling         func() error
+	pruneImages           func() (string, error)
+	pruneBuildCache       func() (string, error)
 	resolveContainerHome  func(string) string
 	startSidecars         func(rs sandbox.RunSpec) (docker.Sidecars, error)
 	runTool               func(sidecars docker.Sidecars) error
@@ -44,9 +45,9 @@ type fakeDocker struct {
 	createVolume          func(string) error
 	listVolumeNames       func() ([]string, error)
 	removeVolume          func(string) error
-	sweepProxyResources   func() error
-	sweepDindResources    func(string) error
-	sweepRunNetworks      func() error
+	sweepProxyResources   func() ([]string, error)
+	sweepDindResources    func(string) ([]string, error)
+	sweepRunNetworks      func() ([]string, error)
 	listContexts          func() ([]string, error)
 	currentContext        func() (string, error)
 	version               func() (string, error)
@@ -143,11 +144,18 @@ func (f *fakeDocker) CleanBaseImages() error {
 	return f.cleanBaseImages()
 }
 
-func (f *fakeDocker) PruneDangling() error {
-	if f.pruneDangling == nil {
-		return nil
+func (f *fakeDocker) PruneImages() (string, error) {
+	if f.pruneImages == nil {
+		return "", nil
 	}
-	return f.pruneDangling()
+	return f.pruneImages()
+}
+
+func (f *fakeDocker) PruneBuildCache() (string, error) {
+	if f.pruneBuildCache == nil {
+		return "", nil
+	}
+	return f.pruneBuildCache()
 }
 
 func (f *fakeDocker) ResolveContainerHome(image string) string {
@@ -233,23 +241,23 @@ func (f *fakeDocker) RemoveVolume(name string) error {
 	return f.removeVolume(name)
 }
 
-func (f *fakeDocker) SweepProxyResources() error {
+func (f *fakeDocker) SweepProxyResources() ([]string, error) {
 	if f.sweepProxyResources == nil {
-		return nil
+		return nil, nil
 	}
 	return f.sweepProxyResources()
 }
 
-func (f *fakeDocker) SweepDindResources(toolHome string) error {
+func (f *fakeDocker) SweepDindResources(toolHome string) ([]string, error) {
 	if f.sweepDindResources == nil {
-		return nil
+		return nil, nil
 	}
 	return f.sweepDindResources(toolHome)
 }
 
-func (f *fakeDocker) SweepRunNetworks() error {
+func (f *fakeDocker) SweepRunNetworks() ([]string, error) {
 	if f.sweepRunNetworks == nil {
-		return nil
+		return nil, nil
 	}
 	return f.sweepRunNetworks()
 }
@@ -308,8 +316,11 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.cleanBaseImages != nil {
 		f.cleanBaseImages = o.cleanBaseImages
 	}
-	if o.pruneDangling != nil {
-		f.pruneDangling = o.pruneDangling
+	if o.pruneImages != nil {
+		f.pruneImages = o.pruneImages
+	}
+	if o.pruneBuildCache != nil {
+		f.pruneBuildCache = o.pruneBuildCache
 	}
 	if o.resolveContainerHome != nil {
 		f.resolveContainerHome = o.resolveContainerHome
@@ -705,6 +716,12 @@ func newTestCleanCmd() *cobra.Command {
 	cmd := &cobra.Command{}
 	addNamespaceFlag(cmd)
 	addAllFlag(cmd)
+	return cmd
+}
+
+func newTestPruneCmd(force bool) *cobra.Command {
+	cmd := &cobra.Command{}
+	cmd.Flags().Bool("force", force, "")
 	return cmd
 }
 

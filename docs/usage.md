@@ -49,7 +49,8 @@ Run `agentic help <command>` for all flags.
 | `build [tool]`                             | Build tool image(s), all tools by default. See [Images](images.md).                  |
 | `update [tool]`                            | Rebuild image(s) with the latest tool version                                        |
 | `clean [tool]`                             | Remove tool image(s) and their msb copies, or everything agentic created. Skips what running tools use. |
-| `image list`, `images`                     | List built images                                                                    |
+| `prune`                                    | [Free disk space](#disk-space) without removing tool images                          |
+| `image <list\|prune>`, `images`            | List built images, or remove the untagged ones rebuilds left behind                  |
 | `inspect <tool>`                           | Show full detail for one tool's image                                                |
 | `instructions <tool>`                      | Preview the [environment instructions](environment-instructions.md)                    |
 | `ps`                                       | List running agentic containers and VMs in the active namespace, `--all` for every namespace |
@@ -152,6 +153,17 @@ agentic volume remove             # remove all agentic volumes
 ```
 
 With the microsandbox runtime, msb stores the volume as `agentic-<name>`, so agentic can tell its volumes from yours. `list` and `remove` cover these too; `create` is Docker-only, since msb creates volumes on first use.
+
+## Disk space
+
+After `build`, `update` and `proxy build`, agentic removes the old images that a rebuild left untagged (`agentic image prune` does just that). To free more space, run:
+
+```bash
+agentic prune           # asks before clearing the build cache
+agentic prune --force   # clears it without asking
+```
+
+`prune` removes sidecars and run networks that interrupted runs left behind, plus untagged agentic images, and keeps what active runs use. It then clears Docker's unused build cache. Docker can't tell agentic's cache apart, so this also clears the cache of your other builds and can slow down the next build.
 
 ## Docker context
 

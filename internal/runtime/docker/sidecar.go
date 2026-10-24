@@ -133,24 +133,26 @@ func (c *Client) removeOrphanedNetworks(existing map[string]bool) error {
 	return nil
 }
 
-// removeUnused removes the resources listArgs lists in ownedFormat that no active run uses, with rmArgs.
-func (c *Client) removeUnused(listArgs, rmArgs []string) error {
+// removeUnused removes the listed resources no active run uses and returns their names.
+func (c *Client) removeUnused(listArgs, rmArgs []string) ([]string, error) {
 	existing, err := c.containerNames()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	resources, err := c.listOwned(listArgs...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	names := unusedNames(resources, existing, c.timing.sidecarOrphanGrace)
 	if len(names) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	_, err = c.run(append(rmArgs, names...)...)
-	return err
+	if _, err := c.run(append(rmArgs, names...)...); err != nil {
+		return nil, err
+	}
+	return names, nil
 }
 
 // containerNames returns the names of all agentic containers.

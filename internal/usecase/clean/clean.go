@@ -1,4 +1,4 @@
-// Package clean resolves and removes agentic-owned tool images and global Docker resources for `agentic clean`.
+// Package clean removes agentic's images and shared Docker resources for `agentic clean` and `agentic prune`.
 package clean
 
 import (
@@ -95,7 +95,7 @@ func (s *Service) GlobalResources() error {
 	}
 
 	// Orphaned sidecars go first, so only active runs keep the sidecar images
-	if err := s.sweepSidecars(); err != nil {
+	if _, err := s.sweepSidecars(); err != nil {
 		return err
 	}
 	if err := s.cleanSidecarImages(); err != nil {
@@ -103,7 +103,7 @@ func (s *Service) GlobalResources() error {
 	}
 
 	// Sidecars sit on a run network, so they go first
-	if err := s.docker.SweepRunNetworks(); err != nil {
+	if _, err := s.docker.SweepRunNetworks(); err != nil {
 		return err
 	}
 
@@ -111,12 +111,37 @@ func (s *Service) GlobalResources() error {
 	return s.docker.RemoveNetwork()
 }
 
-// sweepSidecars removes the sidecars no active run uses.
-func (s *Service) sweepSidecars() error {
-	if err := s.docker.SweepDindResources(s.home); err != nil {
+// Prune removes leftovers of interrupted runs, dangling images and, if confirmCache approves, the build cache.
+func (s *Service) Prune(confirmCache func() bool) error {
+	// Sidecars sit on a run network, so they go first
+	if err := stepRemoved("leftover sidecars", s.sweepSidecars); err != nil {
 		return err
 	}
-	return s.docker.SweepProxyResources()
+	if err := stepRemoved("leftover run networks", s.docker.SweepRunNetworks); err != nil {
+		return err
+	}
+	if err := stepReclaimed("dangling agentic images", s.docker.PruneImages); err != nil {
+		return err
+	}
+
+	if !confirmCache() {
+		logging.Step("build cache (kept)")
+		return nil
+	}
+	return stepReclaimed("build cache", s.docker.PruneBuildCache)
+}
+
+// sweepSidecars removes unused sidecars and returns their names.
+func (s *Service) sweepSidecars() ([]string, error) {
+	dind, err := s.docker.SweepDindResources(s.home)
+	if err != nil {
+		return nil, err
+	}
+	proxies, err := s.docker.SweepProxyResources()
+	if err != nil {
+		return nil, err
+	}
+	return append(dind, proxies...), nil
 }
 
 // cleanSidecarImages removes the proxy and dind images, keeping those an active run uses.
@@ -226,4 +251,35 @@ func stepImage(label string, inUse bool) bool {
 		logging.Step(label)
 	}
 	return inUse
+}
+
+// stepRemoved runs remove under label and lists what it removed, or "none".
+func stepRemoved(label string, remove func() ([]string, error)) error {
+	logging.Step(label)
+	names, err := remove()
+	if err != nil {
+		return err
+	}
+
+	if len(names) == 0 {
+		logging.Detail("none")
+	}
+	for _, name := range names {
+		logging.Detail(name)
+	}
+	return nil
+}
+
+// stepReclaimed runs prune under label and reports the space it reclaimed, if known.
+func stepReclaimed(label string, prune func() (string, error)) error {
+	logging.Step(label)
+	size, err := prune()
+	if err != nil {
+		return err
+	}
+
+	if size != "" {
+		logging.Detailf("reclaimed %s", size)
+	}
+	return nil
 }

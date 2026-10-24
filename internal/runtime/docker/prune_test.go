@@ -1,7 +1,6 @@
 package docker
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,14 +13,15 @@ func TestPruneImages(t *testing.T) {
 	var capturedArgs []string
 	stubDockerRun(t, client, func(args ...string) (string, error) {
 		capturedArgs = args
-		return "", nil
+		return "Total reclaimed space: 12MB\n", nil
 	})
 
 	// Act
-	err := client.PruneImages()
+	reclaimed, err := client.PruneImages()
 
 	// Assert
 	require.NoError(t, err)
+	assert.Equal(t, "12MB", reclaimed)
 	assert.Equal(t, []string{"image", "prune", "--force", "--filter=label=project=agentic-cli"}, capturedArgs)
 }
 
@@ -31,33 +31,40 @@ func TestPruneBuildCache(t *testing.T) {
 	var capturedArgs []string
 	stubDockerRun(t, client, func(args ...string) (string, error) {
 		capturedArgs = args
-		return "", nil
+		return "Total:\t1.5GB\n", nil
 	})
 
 	// Act
-	err := client.PruneBuildCache()
+	reclaimed, err := client.PruneBuildCache()
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, []string{"builder", "prune", "--force", "--filter=label=project=agentic-cli"}, capturedArgs)
+	assert.Equal(t, "1.5GB", reclaimed)
+	assert.Equal(t, []string{"builder", "prune", "--force"}, capturedArgs)
 }
 
-func TestPruneDangling(t *testing.T) {
-	// Arrange
-	client := newTestClient()
-	var ran []string
-	stubDockerRun(t, client, func(args ...string) (string, error) {
-		ran = append(ran, args[0])
-		if args[0] == "image" {
-			return "", errors.New("image prune failed")
-		}
-		return "", nil
+func Test_reclaimedSpace(t *testing.T) {
+	t.Run("reads the image prune total", func(t *testing.T) {
+		// Act
+		result := reclaimedSpace("Total reclaimed space: 0B\n")
+
+		// Assert
+		assert.Equal(t, "0B", result)
 	})
 
-	// Act
-	err := client.PruneDangling()
+	t.Run("reads the builder prune total", func(t *testing.T) {
+		// Act
+		result := reclaimedSpace("Total:\t1.5GB\n")
 
-	// Assert - the build cache prune still runs after the image prune fails
-	require.ErrorContains(t, err, "image prune failed")
-	assert.Equal(t, []string{"image", "builder"}, ran)
+		// Assert
+		assert.Equal(t, "1.5GB", result)
+	})
+
+	t.Run("no total line gives empty", func(t *testing.T) {
+		// Act
+		result := reclaimedSpace("")
+
+		// Assert
+		assert.Empty(t, result)
+	})
 }

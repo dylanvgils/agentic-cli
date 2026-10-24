@@ -315,10 +315,11 @@ func Test_removeUnused(t *testing.T) {
 		get := stubUnusedSweep(t, client, "", owned)
 
 		// Act
-		err := client.removeUnused(listArgs, rmArgs)
+		removed, err := client.removeUnused(listArgs, rmArgs)
 
 		// Assert
 		require.NoError(t, err)
+		assert.Equal(t, []string{"agentic-proxy-a", "agentic-proxy-b"}, removed)
 		assert.Equal(t, []string{"rm", "--force", "agentic-proxy-a", "agentic-proxy-b"}, findCall(get(), "rm"))
 	})
 
@@ -327,10 +328,11 @@ func Test_removeUnused(t *testing.T) {
 		get := stubUnusedSweep(t, client, "agentic-claude-live\n", ownedRow("agentic-proxy-live", "agentic-claude-live", time.Hour))
 
 		// Act
-		err := client.removeUnused(listArgs, rmArgs)
+		removed, err := client.removeUnused(listArgs, rmArgs)
 
 		// Assert
 		require.NoError(t, err)
+		assert.Empty(t, removed)
 		assert.Nil(t, findCall(get(), "rm"))
 	})
 
@@ -339,7 +341,7 @@ func Test_removeUnused(t *testing.T) {
 		stubDockerRunFixed(t, client, "", errors.New("stub: daemon down"))
 
 		// Act
-		err := client.removeUnused(listArgs, rmArgs)
+		_, err := client.removeUnused(listArgs, rmArgs)
 
 		// Assert
 		assert.ErrorContains(t, err, "daemon down")
