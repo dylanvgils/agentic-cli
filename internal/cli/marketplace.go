@@ -10,6 +10,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// untracked marks a clone or URL with no registry entry.
+const untracked = "(untracked)"
+
 var marketplaceCmd = &cobra.Command{
 	Use:   "marketplace",
 	Short: "Manage synced marketplace clones",
@@ -112,8 +115,8 @@ func marketplaceRows(registry *marketplace.Registry, dirNames []string) []market
 		if len(entries) == 0 {
 			rows = append(rows, marketplaceRow{
 				name:         dirName,
-				url:          "(untracked)",
-				referencedBy: "(untracked)",
+				url:          untracked,
+				referencedBy: untracked,
 			})
 			continue
 		}
@@ -132,7 +135,7 @@ func marketplaceRows(registry *marketplace.Registry, dirNames []string) []market
 
 func formatProjects(projects []string) string {
 	if len(projects) == 0 {
-		return "(untracked)"
+		return untracked
 	}
 
 	labeled := make([]string, len(projects))

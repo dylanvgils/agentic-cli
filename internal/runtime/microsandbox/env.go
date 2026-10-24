@@ -15,11 +15,11 @@ const dryRunEnvConfPlaceholder = "<forwarded env file>"
 func buildEnvArgs(rs sandbox.RunSpec) (args []string, cleanup func(), err error) {
 	flags, forwarded := splitEnv(sandbox.ResolveEnv(rs.Env))
 	if len(forwarded) == 0 {
-		return flags, func() {}, nil
+		return flags, noCleanup, nil
 	}
 
 	if rs.DryRun {
-		return append(flags, arg("runtime-conf", dryRunEnvConfPlaceholder)), func() {}, nil
+		return append(flags, arg("runtime-conf", dryRunEnvConfPlaceholder)), noCleanup, nil
 	}
 
 	path, err := writeEnvConf(forwarded)
@@ -74,4 +74,9 @@ func writeEnvConf(keys []string) (string, error) {
 		return "", fmt.Errorf("write msb env file: %w", err)
 	}
 	return f.Name(), nil
+}
+
+// noCleanup is the cleanup for paths that set nothing up.
+func noCleanup() {
+	// Nothing to undo
 }
