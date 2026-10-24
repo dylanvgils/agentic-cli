@@ -114,38 +114,21 @@ func (s *Service) GlobalResources() error {
 // Prune removes leftovers of interrupted runs, dangling images and, if confirmCache approves, the build cache.
 func (s *Service) Prune(confirmCache func() bool) error {
 	// Sidecars sit on a run network, so they go first
-	logging.Step("leftover sidecars")
-	sidecars, err := s.sweepSidecars()
-	if err != nil {
+	if err := stepRemoved("leftover sidecars", s.sweepSidecars); err != nil {
 		return err
 	}
-	detailRemoved(sidecars)
-
-	logging.Step("leftover run networks")
-	networks, err := s.docker.SweepRunNetworks()
-	if err != nil {
+	if err := stepRemoved("leftover run networks", s.docker.SweepRunNetworks); err != nil {
 		return err
 	}
-	detailRemoved(networks)
-
-	logging.Step("dangling agentic images")
-	reclaimed, err := s.docker.PruneImages()
-	if err != nil {
+	if err := stepReclaimed("dangling agentic images", s.docker.PruneImages); err != nil {
 		return err
 	}
-	detailReclaimed(reclaimed)
 
 	if !confirmCache() {
 		logging.Step("build cache (kept)")
 		return nil
 	}
-	logging.Step("build cache")
-	reclaimed, err = s.docker.PruneBuildCache()
-	if err != nil {
-		return err
-	}
-	detailReclaimed(reclaimed)
-	return nil
+	return stepReclaimed("build cache", s.docker.PruneBuildCache)
 }
 
 // sweepSidecars removes unused sidecars and returns their names.
@@ -270,20 +253,33 @@ func stepImage(label string, inUse bool) bool {
 	return inUse
 }
 
-// detailRemoved lists the removed resource names, or "none".
-func detailRemoved(names []string) {
+// stepRemoved runs remove under label and lists what it removed, or "none".
+func stepRemoved(label string, remove func() ([]string, error)) error {
+	logging.Step(label)
+	names, err := remove()
+	if err != nil {
+		return err
+	}
+
 	if len(names) == 0 {
 		logging.Detail("none")
-		return
 	}
 	for _, name := range names {
 		logging.Detail(name)
 	}
+	return nil
 }
 
-// detailReclaimed reports the reclaimed space, if known.
-func detailReclaimed(size string) {
+// stepReclaimed runs prune under label and reports the space it reclaimed, if known.
+func stepReclaimed(label string, prune func() (string, error)) error {
+	logging.Step(label)
+	size, err := prune()
+	if err != nil {
+		return err
+	}
+
 	if size != "" {
 		logging.Detailf("reclaimed %s", size)
 	}
+	return nil
 }

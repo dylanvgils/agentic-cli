@@ -489,7 +489,7 @@ func TestGlobalResources(t *testing.T) {
 }
 
 func TestPrune(t *testing.T) {
-	t.Run("sweeps sidecars and networks, then prunes images and the confirmed cache, listing what went", func(t *testing.T) {
+	t.Run("sweeps sidecars and networks, then prunes images and the confirmed cache", func(t *testing.T) {
 		// Arrange
 		var ran []string
 		var sweptHome string
@@ -497,23 +497,23 @@ func TestPrune(t *testing.T) {
 			sweepDindResources: func(toolHome string) ([]string, error) {
 				sweptHome = toolHome
 				ran = append(ran, "dind")
-				return []string{"agentic-docker-abc"}, nil
+				return nil, nil
 			},
 			sweepProxyResources: func() ([]string, error) {
 				ran = append(ran, "proxy")
-				return []string{"agentic-proxy-abc"}, nil
+				return nil, nil
 			},
 			sweepRunNetworks: func() ([]string, error) {
 				ran = append(ran, "networks")
-				return []string{"agentic-run-abc"}, nil
+				return nil, nil
 			},
 			pruneImages: func() (string, error) {
 				ran = append(ran, "images")
-				return "12MB", nil
+				return "", nil
 			},
 			pruneBuildCache: func() (string, error) {
 				ran = append(ran, "cache")
-				return "1.5GB", nil
+				return "", nil
 			},
 		}
 
@@ -526,34 +526,7 @@ func TestPrune(t *testing.T) {
 		// Assert
 		assert.Equal(t, []string{"dind", "proxy", "networks", "images", "cache"}, ran, "sidecars must go before the run networks they sit on")
 		assert.Equal(t, "/agentic-home", sweptHome)
-		assert.Equal(t, "=> leftover sidecars\n"+
-			"   agentic-docker-abc\n"+
-			"   agentic-proxy-abc\n"+
-			"=> leftover run networks\n"+
-			"   agentic-run-abc\n"+
-			"=> dangling agentic images\n"+
-			"   reclaimed 12MB\n"+
-			"=> build cache\n"+
-			"   reclaimed 1.5GB\n", out)
-	})
-
-	t.Run("reports none when nothing was left behind", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{}
-
-		// Act
-		out := captureStdout(t, func() {
-			err := New("/agentic-home", d).Prune(func() bool { return true })
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Equal(t, "=> leftover sidecars\n"+
-			"   none\n"+
-			"=> leftover run networks\n"+
-			"   none\n"+
-			"=> dangling agentic images\n"+
-			"=> build cache\n", out)
+		assert.Contains(t, out, "=> build cache\n")
 	})
 
 	t.Run("keeps the build cache when not confirmed", func(t *testing.T) {
@@ -659,5 +632,77 @@ func Test_stepImage(t *testing.T) {
 		assert.False(t, kept)
 		assert.Contains(t, out, "=> agentic-copilot")
 		assert.NotContains(t, out, "kept")
+	})
+}
+
+func Test_stepRemoved(t *testing.T) {
+	t.Run("lists the removed names under the label", func(t *testing.T) {
+		// Act
+		out := captureStdout(t, func() {
+			err := stepRemoved("leftover sidecars", func() ([]string, error) {
+				return []string{"agentic-docker-abc", "agentic-proxy-abc"}, nil
+			})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, "=> leftover sidecars\n   agentic-docker-abc\n   agentic-proxy-abc\n", out)
+	})
+
+	t.Run("reports none when nothing was removed", func(t *testing.T) {
+		// Act
+		out := captureStdout(t, func() {
+			err := stepRemoved("leftover sidecars", func() ([]string, error) { return nil, nil })
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, "=> leftover sidecars\n   none\n", out)
+	})
+
+	t.Run("returns the error", func(t *testing.T) {
+		// Act
+		var err error
+		captureStdout(t, func() {
+			err = stepRemoved("leftover sidecars", func() ([]string, error) { return nil, fmt.Errorf("sweep failed") })
+		})
+
+		// Assert
+		require.ErrorContains(t, err, "sweep failed")
+	})
+}
+
+func Test_stepReclaimed(t *testing.T) {
+	t.Run("reports the reclaimed space under the label", func(t *testing.T) {
+		// Act
+		out := captureStdout(t, func() {
+			err := stepReclaimed("build cache", func() (string, error) { return "1.5GB", nil })
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, "=> build cache\n   reclaimed 1.5GB\n", out)
+	})
+
+	t.Run("an unknown size prints only the label", func(t *testing.T) {
+		// Act
+		out := captureStdout(t, func() {
+			err := stepReclaimed("build cache", func() (string, error) { return "", nil })
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, "=> build cache\n", out)
+	})
+
+	t.Run("returns the error", func(t *testing.T) {
+		// Act
+		var err error
+		captureStdout(t, func() {
+			err = stepReclaimed("build cache", func() (string, error) { return "", fmt.Errorf("prune failed") })
+		})
+
+		// Assert
+		require.ErrorContains(t, err, "prune failed")
 	})
 }

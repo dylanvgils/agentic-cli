@@ -13,7 +13,7 @@ func TestPruneImages(t *testing.T) {
 	var capturedArgs []string
 	stubDockerRun(t, client, func(args ...string) (string, error) {
 		capturedArgs = args
-		return "Deleted Images:\ndeleted: sha256:abc\n\nTotal reclaimed space: 12MB\n", nil
+		return "Total reclaimed space: 12MB\n", nil
 	})
 
 	// Act
@@ -31,7 +31,7 @@ func TestPruneBuildCache(t *testing.T) {
 	var capturedArgs []string
 	stubDockerRun(t, client, func(args ...string) (string, error) {
 		capturedArgs = args
-		return "ID\tRECLAIMABLE\tSIZE\tLAST ACCESSED\nabc\ttrue\t1.5GB\t2 days ago\nTotal:\t1.5GB\n", nil
+		return "Total:\t1.5GB\n", nil
 	})
 
 	// Act
