@@ -19,7 +19,7 @@ func Test_runVolumeCreate(t *testing.T) {
 		stubCreateVolume(t, func(name string) error { got = name; return nil })
 
 		// Act
-		err := runVolumeCreate(volumesCreateCmd, []string{"maven"})
+		err := runVolumeCreate(volumeCreateCmd, []string{"maven"})
 
 		// Assert
 		require.NoError(t, err)
@@ -32,7 +32,7 @@ func Test_runVolumeCreate(t *testing.T) {
 		logBuf := stubErrLog(t)
 
 		// Act
-		err := runVolumeCreate(volumesCreateCmd, []string{"maven"})
+		err := runVolumeCreate(volumeCreateCmd, []string{"maven"})
 
 		// Assert
 		require.NoError(t, err)
@@ -44,7 +44,7 @@ func Test_runVolumeCreate(t *testing.T) {
 		stubCreateVolume(t, func(string) error { return fmt.Errorf("docker daemon not running") })
 
 		// Act
-		err := runVolumeCreate(volumesCreateCmd, []string{"maven"})
+		err := runVolumeCreate(volumeCreateCmd, []string{"maven"})
 
 		// Assert
 		assert.ErrorContains(t, err, "docker daemon not running")
@@ -61,7 +61,7 @@ func Test_runVolumeList(t *testing.T) {
 		var err error
 
 		// Act
-		logs := captureLog(t, func() { err = runVolumeList(volumesListCmd, nil) })
+		logs := captureLog(t, func() { err = runVolumeList(volumeListCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -75,7 +75,7 @@ func Test_runVolumeList(t *testing.T) {
 		})
 
 		// Act
-		err := runVolumeList(volumesListCmd, nil)
+		err := runVolumeList(volumeListCmd, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "docker daemon not running")
@@ -92,7 +92,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		stubRemoveVolume(t, func(name string) error { got = name; return nil })
 
 		// Act
-		err := runVolumeRemove(volumesRemoveCmd, []string{"maven"})
+		err := runVolumeRemove(volumeRemoveCmd, []string{"maven"})
 
 		// Assert
 		require.NoError(t, err)
@@ -106,7 +106,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		logBuf := stubErrLog(t)
 
 		// Act
-		err := runVolumeRemove(volumesRemoveCmd, []string{"maven"})
+		err := runVolumeRemove(volumeRemoveCmd, []string{"maven"})
 
 		// Assert
 		require.NoError(t, err)
@@ -123,7 +123,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		})
 
 		// Act
-		err := runVolumeRemove(volumesRemoveCmd, []string{"maven"})
+		err := runVolumeRemove(volumeRemoveCmd, []string{"maven"})
 
 		// Assert
 		require.NoError(t, err)
@@ -135,7 +135,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		stubListVolumeNames(t, func() ([]string, error) { return nil, nil })
 
 		// Act
-		err := runVolumeRemove(volumesRemoveCmd, []string{"maven"})
+		err := runVolumeRemove(volumeRemoveCmd, []string{"maven"})
 
 		// Assert
 		assert.ErrorContains(t, err, "not an agentic-managed volume")
@@ -149,7 +149,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		logBuf := stubErrLog(t)
 
 		// Act
-		err := runVolumeRemove(volumesRemoveCmd, nil)
+		err := runVolumeRemove(volumeRemoveCmd, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -168,7 +168,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		stubStdin(t, "y\n")
 
 		// Act
-		err := runVolumeRemove(volumesRemoveCmd, nil)
+		err := runVolumeRemove(volumeRemoveCmd, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -186,7 +186,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		stubStdin(t, "n\n")
 
 		// Act
-		err := runVolumeRemove(volumesRemoveCmd, nil)
+		err := runVolumeRemove(volumeRemoveCmd, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -200,7 +200,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		})
 
 		// Act
-		err := runVolumeRemove(volumesRemoveCmd, nil)
+		err := runVolumeRemove(volumeRemoveCmd, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "docker daemon not running")
@@ -219,7 +219,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		stubStdin(t, "y\n")
 
 		// Act
-		err := runVolumeRemove(volumesRemoveCmd, nil)
+		err := runVolumeRemove(volumeRemoveCmd, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "remove failed")
@@ -236,7 +236,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		logBuf := stubErrLog(t)
 
 		// Act
-		err := runVolumeRemove(volumesRemoveCmd, nil)
+		err := runVolumeRemove(volumeRemoveCmd, nil)
 
 		// Assert - list and prompt share stderr, list first
 		require.NoError(t, err)
@@ -256,7 +256,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		logBuf := stubErrLog(t)
 
 		// Act
-		err := runVolumeRemove(volumesRemoveCmd, nil)
+		err := runVolumeRemove(volumeRemoveCmd, nil)
 
 		// Assert
 		require.NoError(t, err)

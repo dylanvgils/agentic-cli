@@ -7,20 +7,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var volumesCmd = &cobra.Command{
-	Use:   "volumes",
+var volumeCmd = &cobra.Command{
+	Use:   "volume",
 	Short: "Manage named volumes",
 	Long:  "Manage named volumes created by agentic, in Docker and microsandbox.",
 }
 
-var volumesCreateCmd = &cobra.Command{
+var volumeCreateCmd = &cobra.Command{
 	Use:   "create <name>",
 	Short: "Create a named agentic-managed Docker volume",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runVolumeCreate,
 }
 
-var volumesListCmd = &cobra.Command{
+var volumeListCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
 	Short:   "List all agentic-managed volumes",
@@ -28,7 +28,7 @@ var volumesListCmd = &cobra.Command{
 	RunE:    runVolumeList,
 }
 
-var volumesRemoveCmd = &cobra.Command{
+var volumeRemoveCmd = &cobra.Command{
 	Use:               "remove [name]",
 	Aliases:           []string{"rm"},
 	Short:             "Remove an agentic-managed volume, or all if no name given",
@@ -37,9 +37,16 @@ var volumesRemoveCmd = &cobra.Command{
 	ValidArgsFunction: volumeNamesFunc,
 }
 
+var volumesCmd = &cobra.Command{
+	Use:   "volumes",
+	Short: "List all agentic-managed volumes (shortcut for volume list)",
+	Args:  cobra.NoArgs,
+	RunE:  runVolumeList,
+}
+
 func init() {
-	rootCmd.AddCommand(volumesCmd)
-	volumesCmd.AddCommand(volumesCreateCmd, volumesListCmd, volumesRemoveCmd)
+	rootCmd.AddCommand(volumeCmd, volumesCmd)
+	volumeCmd.AddCommand(volumeCreateCmd, volumeListCmd, volumeRemoveCmd)
 }
 
 func runVolumeCreate(_ *cobra.Command, args []string) error {

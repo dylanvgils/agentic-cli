@@ -40,7 +40,7 @@ func Test_runMarketplacesList(t *testing.T) {
 		logs := stubErrLog(t)
 
 		// Act
-		err := runMarketplacesList(marketplacesListCmd, nil)
+		err := runMarketplaceList(marketplaceListCmd, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -61,7 +61,7 @@ func Test_runMarketplacesList(t *testing.T) {
 
 		// Act
 		out := captureLog(t, func() {
-			require.NoError(t, runMarketplacesList(marketplacesListCmd, nil))
+			require.NoError(t, runMarketplaceList(marketplaceListCmd, nil))
 		})
 
 		// Assert
@@ -98,7 +98,7 @@ func Test_runMarketplacesPrune(t *testing.T) {
 
 	// Act
 	out := captureLog(t, func() {
-		require.NoError(t, runMarketplacesPrune(marketplacesPruneCmd, nil))
+		require.NoError(t, runMarketplacePrune(marketplacePruneCmd, nil))
 	})
 
 	// Assert: each PruneKind's message text is wired correctly

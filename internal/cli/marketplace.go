@@ -10,25 +10,32 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var marketplacesCmd = &cobra.Command{
-	Use:   "marketplaces",
+var marketplaceCmd = &cobra.Command{
+	Use:   "marketplace",
 	Short: "Manage synced marketplace clones",
 	Long:  "Manage marketplace clones downloaded by `agentic run` under $AGENTIC_HOME/marketplaces.",
 }
 
-var marketplacesListCmd = &cobra.Command{
+var marketplaceListCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
 	Short:   "List synced marketplace clones and the projects referencing them",
 	Args:    cobra.NoArgs,
-	RunE:    runMarketplacesList,
+	RunE:    runMarketplaceList,
 }
 
-var marketplacesPruneCmd = &cobra.Command{
+var marketplacePruneCmd = &cobra.Command{
 	Use:   "prune",
 	Short: "Remove marketplace clones no longer referenced by any known project",
 	Args:  cobra.NoArgs,
-	RunE:  runMarketplacesPrune,
+	RunE:  runMarketplacePrune,
+}
+
+var marketplacesCmd = &cobra.Command{
+	Use:   "marketplaces",
+	Short: "List synced marketplace clones (shortcut for marketplace list)",
+	Args:  cobra.NoArgs,
+	RunE:  runMarketplaceList,
 }
 
 // marketplaceRow is a marketplace clone's row in the list table.
@@ -40,11 +47,11 @@ type marketplaceRow struct {
 }
 
 func init() {
-	rootCmd.AddCommand(marketplacesCmd)
-	marketplacesCmd.AddCommand(marketplacesListCmd, marketplacesPruneCmd)
+	rootCmd.AddCommand(marketplaceCmd, marketplacesCmd)
+	marketplaceCmd.AddCommand(marketplaceListCmd, marketplacePruneCmd)
 }
 
-func runMarketplacesList(_ *cobra.Command, _ []string) error {
+func runMarketplaceList(_ *cobra.Command, _ []string) error {
 	baseDir := filepath.Join(toolHome, marketplace.MarketplacesDirName)
 
 	registry, err := marketplace.LoadRegistry(baseDir)
@@ -65,7 +72,7 @@ func runMarketplacesList(_ *cobra.Command, _ []string) error {
 	return writeTable(logging.Log.Writer(), marketplaceRows(registry, dirNames))
 }
 
-func runMarketplacesPrune(_ *cobra.Command, _ []string) error {
+func runMarketplacePrune(_ *cobra.Command, _ []string) error {
 	baseDir := filepath.Join(toolHome, marketplace.MarketplacesDirName)
 
 	reg, err := marketplace.LoadRegistry(baseDir)

@@ -13,40 +13,47 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 )
 
-var namespacesCmd = &cobra.Command{
-	Use:     "namespaces",
+var namespaceCmd = &cobra.Command{
+	Use:     "namespace",
 	Aliases: []string{"ns"},
 	Short:   "Manage namespaces",
 	Long:    "Manage namespaces derived from built agentic images.",
 }
 
-var namespacesListCmd = &cobra.Command{
+var namespaceListCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
 	Short:   "List all known namespaces",
 	Args:    cobra.NoArgs,
-	RunE:    runNamespacesList,
+	RunE:    runNamespaceList,
 }
 
-var namespacesPruneCmd = &cobra.Command{
+var namespacePruneCmd = &cobra.Command{
 	Use:   "prune",
 	Short: "Remove all images in the active or specified namespace",
 	Args:  cobra.NoArgs,
-	RunE:  runNamespacesPrune,
+	RunE:  runNamespacePrune,
+}
+
+var namespacesCmd = &cobra.Command{
+	Use:   "namespaces",
+	Short: "List all known namespaces (shortcut for namespace list)",
+	Args:  cobra.NoArgs,
+	RunE:  runNamespaceList,
 }
 
 func init() {
-	rootCmd.AddCommand(namespacesCmd)
-	namespacesCmd.AddCommand(namespacesListCmd, namespacesPruneCmd)
+	rootCmd.AddCommand(namespaceCmd, namespacesCmd)
+	namespaceCmd.AddCommand(namespaceListCmd, namespacePruneCmd)
 
-	addNamespaceFlag(namespacesPruneCmd)
+	addNamespaceFlag(namespacePruneCmd)
 }
 
-func runNamespacesList(_ *cobra.Command, _ []string) error {
+func runNamespaceList(_ *cobra.Command, _ []string) error {
 	return listNamespaces()
 }
 
-func runNamespacesPrune(cmd *cobra.Command, _ []string) error {
+func runNamespacePrune(cmd *cobra.Command, _ []string) error {
 	rc, err := config.FindAndLoadFromCwd()
 	if err != nil {
 		return err

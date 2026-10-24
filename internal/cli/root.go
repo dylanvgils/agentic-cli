@@ -31,7 +31,7 @@ var (
 	completionCmds = []string{cobra.ShellCompRequestCmd, cobra.ShellCompNoDescRequestCmd}
 
 	// noDockerCmds lists subcommands that do not require a running Docker daemon.
-	noDockerCmds = append([]string{"completion", "aliases", "version", "upgrade", "status", "marketplaces", "instructions", "migrate"}, completionCmds...)
+	noDockerCmds = append([]string{"completion", "aliases", "version", "upgrade", "status", "marketplace", "marketplaces", "instructions", "migrate"}, completionCmds...)
 	// noUpdateCmds lists subcommands that skip the automatic update check.
 	noUpdateCmds = append([]string{"completion", "aliases", "upgrade"}, completionCmds...)
 	// noMigrateCmds lists subcommands that skip the automatic migration check.
