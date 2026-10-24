@@ -77,10 +77,11 @@ func TestSweepRunNetworks(t *testing.T) {
 	get := stubUnusedSweep(t, client, "", ownedRow("agentic-run-abc", "agentic-claude-gone", time.Hour))
 
 	// Act
-	err := client.SweepRunNetworks()
+	removed, err := client.SweepRunNetworks()
 
 	// Assert
 	require.NoError(t, err)
+	assert.Equal(t, []string{"agentic-run-abc"}, removed)
 	calls := get()
 	assert.Contains(t, calls[1].args, "--filter=label=agentic.owner")
 	assert.Equal(t, []string{"network", "rm", "agentic-run-abc"}, findCall(calls, "network", "rm"))

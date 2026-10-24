@@ -1,26 +1,37 @@
 package docker
 
-import "errors"
+import "strings"
 
-// PruneImages removes dangling Docker images created by agentic builds.
-func (c *Client) PruneImages() error {
-	_, err := c.run("image", "prune",
+// PruneImages removes dangling Docker images created by agentic builds and returns the space reclaimed.
+func (c *Client) PruneImages() (string, error) {
+	out, err := c.run("image", "prune",
 		arg("force"),
 		labelFilter(LabelProject, LabelProjectVal))
+	if err != nil {
+		return "", err
+	}
 
-	return err
+	return reclaimedSpace(out), nil
 }
 
-// PruneBuildCache removes BuildKit cache entries from agentic builds.
-func (c *Client) PruneBuildCache() error {
-	_, err := c.run("builder", "prune",
-		arg("force"),
-		labelFilter(LabelProject, LabelProjectVal))
+// PruneBuildCache removes all unused BuildKit cache and returns the space reclaimed; cache records carry no labels,
+// so it can't be limited to agentic's builds.
+func (c *Client) PruneBuildCache() (string, error) {
+	out, err := c.run("builder", "prune", arg("force"))
+	if err != nil {
+		return "", err
+	}
 
-	return err
+	return reclaimedSpace(out), nil
 }
 
-// PruneDangling runs PruneImages and PruneBuildCache, trying both, and returns their combined error.
-func (c *Client) PruneDangling() error {
-	return errors.Join(c.PruneImages(), c.PruneBuildCache())
+// reclaimedSpace returns the size from a prune's "Total reclaimed space: 1GB" or "Total: 1GB" line, or "" without one.
+func reclaimedSpace(out string) string {
+	for line := range strings.Lines(out) {
+		if rest, ok := strings.CutPrefix(line, "Total"); ok {
+			_, size, _ := strings.Cut(rest, ":")
+			return strings.TrimSpace(size)
+		}
+	}
+	return ""
 }

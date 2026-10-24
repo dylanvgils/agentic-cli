@@ -103,6 +103,17 @@ func (p ttyPrompter) OfferUpgrade(installed, latest string) bool {
 	return confirmed()
 }
 
+// ConfirmCachePrune asks whether to clear Docker's whole unused build cache; without a terminal it keeps the cache and suggests --force.
+func (p ttyPrompter) ConfirmCachePrune() bool {
+	if !p.terminal {
+		logging.Infof("kept the build cache - run: agentic prune --force to clear it")
+		return false
+	}
+
+	logging.Promptf("clear Docker's unused build cache, including builds outside agentic? [y/N] ")
+	return confirmed()
+}
+
 // describeCredential summarizes where an entry's secret is sent, plus where it is read from and its env vars, quoting each value so escape sequences print as text.
 func describeCredential(cred config.RCCredential) (string, []string) {
 	target := fmt.Sprintf("preset %q", cred.Preset)

@@ -38,8 +38,9 @@ func (c *Client) RemoveNetwork() error {
 	return err
 }
 
-// SweepRunNetworks removes leftover run networks, e.g. from an interrupted run, keeping those of active runs.
-func (c *Client) SweepRunNetworks() error {
+// SweepRunNetworks removes leftover run networks, e.g. from an interrupted run, keeping those of active runs, and
+// returns their names.
+func (c *Client) SweepRunNetworks() ([]string, error) {
 	listArgs := []string{
 		"network", "ls", arg("format", ownedFormat(".Name")),
 		labelFilter(LabelProject, LabelProjectVal),

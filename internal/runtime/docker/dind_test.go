@@ -281,10 +281,11 @@ func TestSweepDindResources(t *testing.T) {
 	get := stubUnusedSweep(t, client, "", ownedRow("agentic-docker-abc", "agentic-claude-gone", time.Hour))
 
 	// Act
-	err := client.SweepDindResources(t.TempDir())
+	removed, err := client.SweepDindResources(t.TempDir())
 
 	// Assert
 	require.NoError(t, err)
+	assert.Equal(t, []string{"agentic-docker-abc"}, removed)
 	calls := get()
 	assert.Contains(t, calls[1].args, "--filter=name=agentic-docker")
 	assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-docker-abc"}, findCall(calls, "rm"))

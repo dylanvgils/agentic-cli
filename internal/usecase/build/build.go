@@ -65,7 +65,7 @@ func (s *Service) Apply(names []string, namespace string, opts tools.BuildOption
 	}
 
 	// Best effort: a failed cleanup never fails the build
-	_ = s.docker.PruneDangling()
+	_, _ = s.docker.PruneImages()
 	return nil
 }
 

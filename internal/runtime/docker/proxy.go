@@ -338,8 +338,9 @@ func (h proxyHandle) checkStarted() error {
 }
 
 // SweepProxyResources idempotently removes leftover per-run proxy containers (with their volume), e.g. from an
-// interrupted run, scoped to agentic-managed containers named with proxyHostAlias; active runs keep theirs.
-func (c *Client) SweepProxyResources() error {
+// interrupted run, scoped to agentic-managed containers named with proxyHostAlias; active runs keep theirs. Returns
+// the removed containers' names.
+func (c *Client) SweepProxyResources() ([]string, error) {
 	listArgs := []string{
 		"ps", arg("all"), arg("format", ownedFormat(".Names")),
 		labelFilter(LabelProject, LabelProjectVal),

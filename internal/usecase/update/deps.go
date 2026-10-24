@@ -11,7 +11,7 @@ type Docker interface {
 	InspectImage(name string) (*docker.ImageInfo, error)
 	BuildTool(tool, image string, opts tools.BuildOptions) error
 	RestampImage(image string, info docker.ImageInfo)
-	PruneDangling() error
+	PruneImages() (string, error)
 }
 
 // Upstream looks up tools' latest released versions; tools.Upstream does it over the network.

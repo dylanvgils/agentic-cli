@@ -374,18 +374,18 @@ func TestGlobalResources(t *testing.T) {
 				basesCleaned = true
 				return nil
 			},
-			sweepDindResources: func(toolHome string) error {
+			sweepDindResources: func(toolHome string) ([]string, error) {
 				sweptHome = toolHome
 				swept = append(swept, "dind")
-				return nil
+				return nil, nil
 			},
-			sweepProxyResources: func() error {
+			sweepProxyResources: func() ([]string, error) {
 				swept = append(swept, "proxy")
-				return nil
+				return nil, nil
 			},
-			sweepRunNetworks: func() error {
+			sweepRunNetworks: func() ([]string, error) {
 				swept = append(swept, "networks")
-				return nil
+				return nil, nil
 			},
 			listRunning: func() ([]*docker.ContainerInfo, error) {
 				swept = append(swept, "in use")
@@ -442,7 +442,7 @@ func TestGlobalResources(t *testing.T) {
 
 	t.Run("sweepDindResources error propagates", func(t *testing.T) {
 		// Arrange
-		d := &fakeDocker{sweepDindResources: func(string) error { return fmt.Errorf("dind sweep failed") }}
+		d := &fakeDocker{sweepDindResources: func(string) ([]string, error) { return nil, fmt.Errorf("dind sweep failed") }}
 
 		// Act
 		err := New("/agentic-home", d).GlobalResources()
@@ -454,7 +454,7 @@ func TestGlobalResources(t *testing.T) {
 
 	t.Run("sweepProxyResources error propagates", func(t *testing.T) {
 		// Arrange
-		d := &fakeDocker{sweepProxyResources: func() error { return fmt.Errorf("sweep failed") }}
+		d := &fakeDocker{sweepProxyResources: func() ([]string, error) { return nil, fmt.Errorf("sweep failed") }}
 
 		// Act
 		err := New("/agentic-home", d).GlobalResources()
@@ -466,7 +466,7 @@ func TestGlobalResources(t *testing.T) {
 
 	t.Run("sweepRunNetworks error propagates", func(t *testing.T) {
 		// Arrange
-		d := &fakeDocker{sweepRunNetworks: func() error { return fmt.Errorf("network sweep failed") }}
+		d := &fakeDocker{sweepRunNetworks: func() ([]string, error) { return nil, fmt.Errorf("network sweep failed") }}
 
 		// Act
 		err := New("/agentic-home", d).GlobalResources()
@@ -485,6 +485,116 @@ func TestGlobalResources(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "network removal failed")
+	})
+}
+
+func TestPrune(t *testing.T) {
+	t.Run("sweeps sidecars and networks, then prunes images and the confirmed cache, listing what went", func(t *testing.T) {
+		// Arrange
+		var ran []string
+		var sweptHome string
+		d := &fakeDocker{
+			sweepDindResources: func(toolHome string) ([]string, error) {
+				sweptHome = toolHome
+				ran = append(ran, "dind")
+				return []string{"agentic-docker-abc"}, nil
+			},
+			sweepProxyResources: func() ([]string, error) {
+				ran = append(ran, "proxy")
+				return []string{"agentic-proxy-abc"}, nil
+			},
+			sweepRunNetworks: func() ([]string, error) {
+				ran = append(ran, "networks")
+				return []string{"agentic-run-abc"}, nil
+			},
+			pruneImages: func() (string, error) {
+				ran = append(ran, "images")
+				return "12MB", nil
+			},
+			pruneBuildCache: func() (string, error) {
+				ran = append(ran, "cache")
+				return "1.5GB", nil
+			},
+		}
+
+		// Act
+		out := captureStdout(t, func() {
+			err := New("/agentic-home", d).Prune(func() bool { return true })
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, []string{"dind", "proxy", "networks", "images", "cache"}, ran, "sidecars must go before the run networks they sit on")
+		assert.Equal(t, "/agentic-home", sweptHome)
+		assert.Equal(t, "=> leftover sidecars\n"+
+			"   agentic-docker-abc\n"+
+			"   agentic-proxy-abc\n"+
+			"=> leftover run networks\n"+
+			"   agentic-run-abc\n"+
+			"=> dangling agentic images\n"+
+			"   reclaimed 12MB\n"+
+			"=> build cache\n"+
+			"   reclaimed 1.5GB\n", out)
+	})
+
+	t.Run("reports none when nothing was left behind", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{}
+
+		// Act
+		out := captureStdout(t, func() {
+			err := New("/agentic-home", d).Prune(func() bool { return true })
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, "=> leftover sidecars\n"+
+			"   none\n"+
+			"=> leftover run networks\n"+
+			"   none\n"+
+			"=> dangling agentic images\n"+
+			"=> build cache\n", out)
+	})
+
+	t.Run("keeps the build cache when not confirmed", func(t *testing.T) {
+		// Arrange
+		cachePruned := false
+		d := &fakeDocker{pruneBuildCache: func() (string, error) {
+			cachePruned = true
+			return "", nil
+		}}
+
+		// Act
+		out := captureStdout(t, func() {
+			err := New("/agentic-home", d).Prune(func() bool { return false })
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.False(t, cachePruned)
+		assert.Contains(t, out, "=> build cache (kept)")
+	})
+
+	t.Run("a failed sweep stops before pruning", func(t *testing.T) {
+		// Arrange
+		imagesPruned := false
+		d := &fakeDocker{
+			sweepRunNetworks: func() ([]string, error) { return nil, fmt.Errorf("sweep failed") },
+			pruneImages: func() (string, error) {
+				imagesPruned = true
+				return "", nil
+			},
+		}
+
+		// Act
+		var err error
+		captureStdout(t, func() {
+			err = New("/agentic-home", d).Prune(func() bool { return true })
+		})
+
+		// Assert
+		require.ErrorContains(t, err, "sweep failed")
+		assert.False(t, imagesPruned)
 	})
 }
 

@@ -266,7 +266,7 @@ func TestApply(t *testing.T) {
 		// Arrange
 		stubErrLog(t)
 		pruned := false
-		d := &fakeDocker{pruneDangling: func() error { pruned = true; return nil }}
+		d := &fakeDocker{pruneImages: func() (string, error) { pruned = true; return "", nil }}
 
 		// Act
 		err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
@@ -281,8 +281,8 @@ func TestApply(t *testing.T) {
 		stubErrLog(t)
 		pruned := false
 		d := &fakeDocker{
-			buildTool:     func(string, string, tools.BuildOptions) error { return errors.New("build failed") },
-			pruneDangling: func() error { pruned = true; return nil },
+			buildTool:   func(string, string, tools.BuildOptions) error { return errors.New("build failed") },
+			pruneImages: func() (string, error) { pruned = true; return "", nil },
 		}
 
 		// Act
@@ -296,7 +296,7 @@ func TestApply(t *testing.T) {
 	t.Run("a failed prune does not fail the build", func(t *testing.T) {
 		// Arrange
 		stubErrLog(t)
-		d := &fakeDocker{pruneDangling: func() error { return errors.New("prune failed") }}
+		d := &fakeDocker{pruneImages: func() (string, error) { return "", errors.New("prune failed") }}
 
 		// Act
 		err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})

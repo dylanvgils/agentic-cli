@@ -565,10 +565,11 @@ func TestSweepProxyResources(t *testing.T) {
 	get := stubUnusedSweep(t, client, "", ownedRow("agentic-proxy-abc", "agentic-claude-gone", time.Hour))
 
 	// Act
-	err := client.SweepProxyResources()
+	removed, err := client.SweepProxyResources()
 
 	// Assert
 	require.NoError(t, err)
+	assert.Equal(t, []string{"agentic-proxy-abc"}, removed)
 	calls := get()
 	assert.Contains(t, calls[1].args, "--filter=name=agentic-proxy")
 	assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-proxy-abc"}, findCall(calls, "rm"))

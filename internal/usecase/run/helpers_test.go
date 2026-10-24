@@ -30,7 +30,7 @@ type fakeDocker struct {
 	buildDindImage       func(image string, opts tools.BuildOptions) error
 	buildTool            func(tool, image string, opts tools.BuildOptions) error
 	restampImage         func(image string, info docker.ImageInfo)
-	pruneDangling        func() error
+	pruneImages          func() (string, error)
 	saveImage            func(image string, w io.Writer) error
 	buildDockerdImage    func(image string, parent *docker.ImageInfo) error
 	startSidecars        func(rs sandbox.RunSpec) (docker.Sidecars, error)
@@ -116,11 +116,11 @@ func (f *fakeDocker) RestampImage(image string, info docker.ImageInfo) {
 	}
 }
 
-func (f *fakeDocker) PruneDangling() error {
-	if f.pruneDangling == nil {
-		return nil
+func (f *fakeDocker) PruneImages() (string, error) {
+	if f.pruneImages == nil {
+		return "", nil
 	}
-	return f.pruneDangling()
+	return f.pruneImages()
 }
 
 func (f *fakeDocker) SaveImage(image string, w io.Writer) error {

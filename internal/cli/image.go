@@ -29,6 +29,14 @@ var imageListCmd = &cobra.Command{
 	RunE: runImageList,
 }
 
+var imagePruneCmd = &cobra.Command{
+	Use:   "prune",
+	Short: "Remove dangling images",
+	Long:  "Remove the untagged images agentic's rebuilds left behind. build and update already do this after each build.",
+	Args:  cobra.NoArgs,
+	RunE:  runImagePrune,
+}
+
 var imagesCmd = &cobra.Command{
 	Use:   "images",
 	Short: "List built images (shortcut for image list)",
@@ -48,7 +56,7 @@ type imageRow struct {
 
 func init() {
 	rootCmd.AddCommand(imageCmd, imagesCmd)
-	imageCmd.AddCommand(imageListCmd)
+	imageCmd.AddCommand(imageListCmd, imagePruneCmd)
 
 	for _, cmd := range []*cobra.Command{imageListCmd, imagesCmd} {
 		addNamespaceFlag(cmd)
@@ -67,6 +75,12 @@ func runImageList(cmd *cobra.Command, _ []string) error {
 		namespace = ""
 	}
 	return runImageTable(namespace)
+}
+
+func runImagePrune(_ *cobra.Command, _ []string) error {
+	logging.Infof("removing dangling images")
+	_, err := dockerClient.PruneImages()
+	return err
 }
 
 // runImageTable prints the image table for namespace, or for every namespace when it is empty.

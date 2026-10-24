@@ -207,3 +207,21 @@ func Test_truncate(t *testing.T) {
 		assert.Contains(t, result, "...")
 	})
 }
+
+func Test_runImagePrune(t *testing.T) {
+	// Arrange
+	logBuf := stubErrLog(t)
+	pruned := false
+	stubDocker(t, &fakeDocker{pruneImages: func() (string, error) {
+		pruned = true
+		return "", nil
+	}})
+
+	// Act
+	err := runImagePrune(imagePruneCmd, nil)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, pruned)
+	assert.Contains(t, logBuf.String(), "agentic: removing dangling images")
+}
