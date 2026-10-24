@@ -103,7 +103,7 @@ func (p ttyPrompter) OfferUpgrade(installed, latest string) bool {
 	return confirmed()
 }
 
-// ConfirmCachePrune asks whether to clear Docker's whole unused build cache; without a terminal it keeps the cache and suggests --force.
+// ConfirmCachePrune asks before clearing Docker's build cache; without a terminal it keeps it.
 func (p ttyPrompter) ConfirmCachePrune() bool {
 	if !p.terminal {
 		logging.Infof("kept the build cache - run: agentic prune --force to clear it")

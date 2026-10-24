@@ -1,4 +1,4 @@
-// Package clean resolves and removes agentic-owned tool images and global Docker resources for `agentic clean` and `agentic prune`.
+// Package clean removes agentic's images and shared Docker resources for `agentic clean` and `agentic prune`.
 package clean
 
 import (
@@ -111,9 +111,7 @@ func (s *Service) GlobalResources() error {
 	return s.docker.RemoveNetwork()
 }
 
-// Prune frees space without removing working images: leftover sidecars and run networks, dangling agentic images,
-// and, if confirmCache approves, Docker's whole unused build cache. Active runs keep their sidecars and networks.
-// Each step lists what it removed.
+// Prune removes leftovers of interrupted runs, dangling images and, if confirmCache approves, the build cache.
 func (s *Service) Prune(confirmCache func() bool) error {
 	// Sidecars sit on a run network, so they go first
 	logging.Step("leftover sidecars")
@@ -150,7 +148,7 @@ func (s *Service) Prune(confirmCache func() bool) error {
 	return nil
 }
 
-// sweepSidecars removes the sidecars no active run uses and returns their names.
+// sweepSidecars removes unused sidecars and returns their names.
 func (s *Service) sweepSidecars() ([]string, error) {
 	dind, err := s.docker.SweepDindResources(s.home)
 	if err != nil {
@@ -283,7 +281,7 @@ func detailRemoved(names []string) {
 	}
 }
 
-// detailReclaimed reports the space a prune reclaimed, if Docker reported it.
+// detailReclaimed reports the reclaimed space, if known.
 func detailReclaimed(size string) {
 	if size != "" {
 		logging.Detailf("reclaimed %s", size)

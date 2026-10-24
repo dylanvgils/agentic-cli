@@ -248,8 +248,7 @@ func (h dindHandle) exited() bool {
 	return err != nil || strings.TrimSpace(out) == "false"
 }
 
-// SweepDindResources removes sidecars and run dirs left behind by interrupted runs, keeping those of active runs, and
-// returns the removed sidecars' names.
+// SweepDindResources removes sidecars and run dirs of interrupted runs and returns the sidecars' names.
 func (c *Client) SweepDindResources(toolHome string) ([]string, error) {
 	listArgs := []string{
 		"ps", arg("all"), arg("format", ownedFormat(".Names")),

@@ -133,7 +133,7 @@ func (c *Client) removeOrphanedNetworks(existing map[string]bool) error {
 	return nil
 }
 
-// removeUnused removes the resources listArgs lists in ownedFormat that no active run uses, with rmArgs, and returns their names.
+// removeUnused removes the listed resources no active run uses and returns their names.
 func (c *Client) removeUnused(listArgs, rmArgs []string) ([]string, error) {
 	existing, err := c.containerNames()
 	if err != nil {
