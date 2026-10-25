@@ -15,8 +15,9 @@ LDFLAGS     = -s -w \
               $(if $(INSTALL_METHOD),-X github.com/dylanvgils/agentic-cli/internal/infra/buildinfo.InstallMethod=$(INSTALL_METHOD))
 GOFLAGS   := CGO_ENABLED=0
 GOVULNCHECK_VERSION ?= v1.9.0
+GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-.PHONY: build install uninstall dist docker-dist test test-coverage test-integration lint audit clean verify-checksums fix-checksums verify-checksums-all fix-checksums-all
+.PHONY: build install uninstall dist docker-dist test test-coverage test-integration lint audit audit-json clean verify-checksums fix-checksums verify-checksums-all fix-checksums-all
 
 build:
 	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/cli
@@ -60,7 +61,11 @@ lint:
 # Dependency integrity + known vulnerabilities; also run nightly by the audit workflow.
 audit:
 	go mod verify
-	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
+	$(GOVULNCHECK) ./...
+
+# Findings as JSON for the audit workflow's issue report; exits 0 even when vulnerable.
+audit-json:
+	@$(GOVULNCHECK) -format json ./...
 
 # Pinned checksums only (currently just nvm) - safe to run on every PR, since these
 # only change when this repo bumps the pinned version itself.
