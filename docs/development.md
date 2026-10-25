@@ -56,11 +56,14 @@ Import boundaries are in [CLAUDE.md](../CLAUDE.md#import-boundaries). Dockerfile
 ```bash
 make build          # compile to bin/agentic
 make lint           # run golangci-lint
+make audit          # go mod verify + govulncheck
 make test           # run unit tests
 make test-integration # run integration tests against a real Docker daemon
 make dist           # cross-platform binaries → dist/
 make docker-dist    # same via Docker using build/Dockerfile (no local Go needed)
 ```
+
+A nightly workflow runs `make audit` and opens (or comments on) a `security-audit` issue when it finds something.
 
 CLI changes take effect after `make build`. Changes to stage funcs in `internal/image/tools/` or `internal/runtime/docker/` need an `agentic build` to rebuild the image.
 

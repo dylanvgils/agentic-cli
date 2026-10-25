@@ -1,0 +1,39 @@
+name: Audit
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Audit dependencies
+        id: audit
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          make audit 2>&1 | tee audit.log
+
+      - name: Report findings
+        if: steps.audit.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/report-audit.sh audit.log
+
+      - name: Fail on findings
+        if: steps.audit.outcome == 'failure'
+        run: exit 1

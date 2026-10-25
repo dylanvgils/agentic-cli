@@ -6,6 +6,7 @@ Go CLI (`agentic`, `cmd/cli`, Cobra tree in `internal/cli`) that runs agentic co
 make build              # bin/agentic; CLI changes need this, stage changes also need `agentic build`
 make test               # unit tests
 make lint               # golangci-lint, same as CI
+make audit              # go mod verify + govulncheck, also nightly
 make test-integration   # against a real Docker daemon
 make verify-checksums   # pinned install-script checksums (fix-checksums to update)
 ```
