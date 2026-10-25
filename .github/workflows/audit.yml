@@ -32,7 +32,9 @@ jobs:
         if: steps.audit.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: .github/scripts/report-audit.sh audit.log
+        run: |
+          make --silent audit-json > vulns.json || true
+          .github/scripts/report-audit.sh audit.log vulns.json
 
       - name: Fail on findings
         if: steps.audit.outcome == 'failure'
