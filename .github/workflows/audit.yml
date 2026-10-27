@@ -7,35 +7,48 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   audit:
+    uses: ./.github/workflows/dependency-audit.yml
+
+  # Holds the issue token apart from audit, which runs third-party code.
+  report:
+    needs: [audit]
+    if: needs.audit.result == 'failure'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
-          cache: true
+          sparse-checkout: .github/scripts
+          persist-credentials: false
 
-      - name: Audit dependencies
-        id: audit
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          make audit 2>&1 | tee audit.log
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: audit-findings
 
       - name: Report findings
-        if: steps.audit.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          make --silent audit-json > vulns.json || true
-          .github/scripts/report-audit.sh audit.log vulns.json
+        run: .github/scripts/report-audit.sh audit.log vulns.json
 
-      - name: Fail on findings
-        if: steps.audit.outcome == 'failure'
-        run: exit 1
+  # A passing audit on main closes the issue a failed one opened.
+  resolve:
+    needs: [audit]
+    if: needs.audit.result == 'success' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Close audit issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          for issue in $(gh issue list --label security-audit --state open --json number --jq '.[].number'); do
+            gh issue close "$issue" --reason completed --comment "Nightly audit passed: $RUN_URL"
+          done

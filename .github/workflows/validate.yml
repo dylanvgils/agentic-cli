@@ -56,6 +56,10 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
+  audit:
+    if: github.event.action != 'edited'
+    uses: ./.github/workflows/dependency-audit.yml
+
   integration:
     if: github.event.action != 'edited'
     runs-on: ubuntu-latest
