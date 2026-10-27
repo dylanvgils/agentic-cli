@@ -63,7 +63,7 @@ make dist           # cross-platform binaries → dist/
 make docker-dist    # same via Docker using build/Dockerfile (no local Go needed)
 ```
 
-A nightly workflow runs `make audit` and opens (or comments on) a `security-audit` issue when it finds something.
+CI runs `make audit` on every PR and push to main. A nightly workflow also runs it, to catch new advisories against unchanged code, and opens (or comments on) a `security-audit` issue when it finds something. The next passing nightly run closes that issue.
 
 CLI changes take effect after `make build`. Changes to stage funcs in `internal/image/tools/` or `internal/runtime/docker/` need an `agentic build` to rebuild the image.
 
