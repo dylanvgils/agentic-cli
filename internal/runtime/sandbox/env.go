@@ -20,8 +20,8 @@ var configEnvNames = []string{
 	ProxyCAEnvName,
 }
 
-// proxyEnvNames point the tool at the egress proxy; overriding one would silently bypass the allowlist. Both cases, as
-// tools read either.
+// proxyEnvNames point the tool at the egress proxy; overriding one would silently bypass the allowlist or break egress.
+// Both cases, as tools read either.
 var proxyEnvNames = []string{
 	"HTTP_PROXY",
 	"HTTPS_PROXY",
@@ -29,6 +29,7 @@ var proxyEnvNames = []string{
 	"https_proxy",
 	"NO_PROXY",
 	"no_proxy",
+	"NODE_USE_ENV_PROXY",
 }
 
 // dindEnvNames point the tool's docker CLI at the sidecar over mutual TLS; overriding one would bypass it.

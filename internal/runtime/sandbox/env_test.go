@@ -19,7 +19,7 @@ func TestIsReservedEnvName(t *testing.T) {
 	})
 
 	t.Run("proxy names are reserved only with the proxy", func(t *testing.T) {
-		for _, key := range []string{"HTTP_PROXY", "https_proxy", "NO_PROXY"} {
+		for _, key := range []string{"HTTP_PROXY", "https_proxy", "NO_PROXY", "NODE_USE_ENV_PROXY"} {
 			// Act
 			without, with := IsReservedEnvName(key, false, false), IsReservedEnvName(key, true, false)
 

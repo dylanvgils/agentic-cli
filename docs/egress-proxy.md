@@ -81,7 +81,7 @@ The log still records the real `"decision"` (`"allow"` or `"deny"`), tagged `"en
 ## How it works
 
 - The tool container loses direct internet access. It reaches the outside only through a proxy sidecar on a per-run internal Docker network.
-- `HTTP_PROXY`/`HTTPS_PROXY` (and lowercase variants) are set automatically.
+- `HTTP_PROXY`/`HTTPS_PROXY` (and lowercase variants) are set automatically, plus `NODE_USE_ENV_PROXY=1` so Node's `fetch` and `http` use them too (Node 22.21+ or 24.5+).
 - The proxy image builds on first use, or with `agentic proxy build`. `agentic proxy update` rebuilds it.
 - The sidecar and its network are removed when the run ends. After a crash, the next `agentic` run or `agentic clean` removes them once they are a few minutes old and the tool has stopped.
 - `agentic config` shows the resolved proxy settings and which file set them, except the fixed [baseline hosts](#baseline-allowlist).

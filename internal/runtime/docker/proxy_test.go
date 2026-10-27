@@ -301,6 +301,14 @@ func Test_proxyEnvArgs(t *testing.T) {
 		assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1")
 	})
 
+	t.Run("makes node read the proxy vars", func(t *testing.T) {
+		// Act
+		args := proxyEnvArgs(false)
+
+		// Assert
+		assert.Contains(t, args, "--env=NODE_USE_ENV_PROXY=1")
+	})
+
 	t.Run("dind excludes the docker sidecar", func(t *testing.T) {
 		// Act
 		args := proxyEnvArgs(true)
