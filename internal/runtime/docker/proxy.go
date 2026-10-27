@@ -125,6 +125,7 @@ func proxyEnvArgs(dind bool) []string {
 		arg("env", "https_proxy="+url),
 		arg("env", "NO_PROXY="+noProxy),
 		arg("env", "no_proxy="+noProxy),
+		arg("env", "NODE_USE_ENV_PROXY=1"), // Node's fetch and http ignore the vars above without it
 	}
 }
 
