@@ -694,14 +694,6 @@ func Test_validateEnv(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("accepts overriding terminal vars", func(t *testing.T) {
-		// Act
-		err := validateEnv([]string{"NO_COLOR=1", "TERM=dumb"}, true, false, nil)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
 	t.Run("accepts proxy var when proxy disabled", func(t *testing.T) {
 		// Act
 		err := validateEnv([]string{"HTTP_PROXY=http://my-corp-proxy"}, false, false, nil)

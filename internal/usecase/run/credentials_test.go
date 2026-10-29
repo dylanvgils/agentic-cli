@@ -134,10 +134,10 @@ func Test_sandboxCredentials(t *testing.T) {
 func Test_checkCredentialEnv(t *testing.T) {
 	t.Run("accepts names nothing else sets", func(t *testing.T) {
 		// Arrange
-		resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}
+		in := Input{Credentials: []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}}
 
 		// Act
-		err := checkCredentialEnv(resolved, []string{"OTHER=value"}, false, nil)
+		err := checkCredentialEnv(in, []string{"OTHER=value"})
 
 		// Assert
 		assert.NoError(t, err)
@@ -147,10 +147,10 @@ func Test_checkCredentialEnv(t *testing.T) {
 		for _, entry := range []string{"AGENTIC_PROXY_CA=test-ca", "SSL_CERT_FILE=/certs/example.pem", "NODE_EXTRA_CA_CERTS"} {
 			t.Run(entry, func(t *testing.T) {
 				// Arrange
-				resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}
+				in := Input{Credentials: []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}}
 
 				// Act
-				err := checkCredentialEnv(resolved, []string{entry}, false, nil)
+				err := checkCredentialEnv(in, []string{entry})
 
 				// Assert
 				assert.ErrorContains(t, err, "set by agentic when proxy credentials are configured")
@@ -162,10 +162,10 @@ func Test_checkCredentialEnv(t *testing.T) {
 		for _, entry := range []string{"EXAMPLE_TOKEN=value", "EXAMPLE_TOKEN"} {
 			t.Run(entry, func(t *testing.T) {
 				// Arrange
-				resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}
+				in := Input{Credentials: []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}}
 
 				// Act
-				err := checkCredentialEnv(resolved, []string{entry}, false, nil)
+				err := checkCredentialEnv(in, []string{entry})
 
 				// Assert
 				assert.ErrorContains(t, err, "set by a proxy credential")
@@ -177,10 +177,10 @@ func Test_checkCredentialEnv(t *testing.T) {
 		for _, name := range []string{"HTTPS_PROXY", "TOOL_HOME", "AGENTIC_PROXY_CA", "GIT_SSL_CAINFO"} {
 			t.Run(name, func(t *testing.T) {
 				// Arrange
-				resolved := []credentials.Resolved{{Env: []string{name}}}
+				in := Input{Credentials: []credentials.Resolved{{Env: []string{name}}}}
 
 				// Act
-				err := checkCredentialEnv(resolved, nil, false, nil)
+				err := checkCredentialEnv(in, nil)
 
 				// Assert
 				assert.ErrorContains(t, err, "managed by agentic")
@@ -190,26 +190,32 @@ func Test_checkCredentialEnv(t *testing.T) {
 
 	t.Run("refuses docker names only with dind", func(t *testing.T) {
 		// Arrange
-		resolved := []credentials.Resolved{{Env: []string{"DOCKER_HOST"}}}
+		in := Input{Credentials: []credentials.Resolved{{Env: []string{"DOCKER_HOST"}}}}
+		dindIn := in
+		dindIn.DindEnabled = true
 
 		// Act
-		withoutDind := checkCredentialEnv(resolved, nil, false, nil)
-		withDind := checkCredentialEnv(resolved, nil, true, nil)
+		withoutDind := checkCredentialEnv(in, nil)
+		withDind := checkCredentialEnv(dindIn, nil)
 
 		// Assert
 		assert.NoError(t, withoutDind)
 		assert.ErrorContains(t, withDind, "managed by agentic")
 	})
 
-	t.Run("refuses names a proxy integration sets", func(t *testing.T) {
+	t.Run("refuses integration names only with the integration", func(t *testing.T) {
 		// Arrange
-		resolved := []credentials.Resolved{{Env: []string{"MAVEN_ARGS"}}}
+		in := Input{Credentials: []credentials.Resolved{{Env: []string{"MAVEN_ARGS"}}}}
+		mavenIn := in
+		mavenIn.ProxyIntegrations = []string{"maven"}
 
 		// Act
-		err := checkCredentialEnv(resolved, nil, false, []string{"maven"})
+		without := checkCredentialEnv(in, nil)
+		with := checkCredentialEnv(mavenIn, nil)
 
 		// Assert
-		assert.ErrorContains(t, err, "managed by agentic")
+		assert.NoError(t, without)
+		assert.ErrorContains(t, with, "managed by agentic")
 	})
 }
 
