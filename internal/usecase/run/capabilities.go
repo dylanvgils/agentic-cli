@@ -34,40 +34,15 @@ func specCapabilities(rs sandbox.RunSpec) sandbox.Capabilities {
 	}
 }
 
-// checkCapabilities refuses a run that needs a security feature offered lacks and warns about a missing Docker daemon; a
+// checkCapabilities refuses a run that needs a security feature offered lacks and warns about settings it ignores; a
 // missing pids limit is silent.
 func checkCapabilities(req Request, offered sandbox.Capabilities) error {
 	missing := offered.Missing(requiredCapabilities(req.Flags, req.Project.RC))
-
-	var refused []string
-	if missing.Proxy {
-		refused = append(refused, fmt.Sprintf("the egress proxy (%s)", proxySource(req)))
-	} else if missing.ProxyMonitor {
-		refused = append(refused, fmt.Sprintf("proxy monitor mode (%s)", proxySource(req)))
-	}
-	if missing.CredentialInjection {
-		refused = append(refused, fmt.Sprintf("proxy credentials (%s)", credentialsSource(req)))
-	}
-	if len(refused) > 0 {
-		hint := "use --runtime docker"
-		if missing.ProxyMonitor && !missing.Proxy {
-			hint = "pass --proxy to enforce the allowlist instead, or " + hint
-		}
-		if missing.Proxy {
-			hint = "pass --no-proxy to run without the proxy, or " + hint
-		}
-		return fmt.Errorf("%s does not support %s; %s", runtimeSource(req), strings.Join(refused, " or "), hint)
+	if err := refuseMissing(req, missing); err != nil {
+		return err
 	}
 
-	if missing.PathRules {
-		logging.Warnf("%s can't limit hosts to paths, so it allows the hosts of %s on every path; use --runtime docker to limit them", runtimeSource(req), pathRulesSource(req))
-	}
-	if missing.ProxyIntegrations {
-		logging.Warnf("%s has no proxy sidecar, so it ignores %s; tools reach allowed hosts directly", runtimeSource(req), integrationsSource(req))
-	}
-	if missing.Dind {
-		logging.Warnf("%s has no Docker daemon, so it ignores %s", runtimeSource(req), dindSource(req))
-	}
+	warnIgnored(req, missing)
 	return nil
 }
 
@@ -92,6 +67,43 @@ func checkSpec(rs sandbox.RunSpec, offered sandbox.Capabilities) error {
 		return fmt.Errorf("the runtime can't enforce %s that the run asks for", strings.Join(refused, " or "))
 	}
 	return nil
+}
+
+// refuseMissing returns an error naming the security features req needs that are missing, with a hint to get around it.
+func refuseMissing(req Request, missing sandbox.Capabilities) error {
+	var refused []string
+	if missing.Proxy {
+		refused = append(refused, fmt.Sprintf("the egress proxy (%s)", proxySource(req)))
+	} else if missing.ProxyMonitor {
+		refused = append(refused, fmt.Sprintf("proxy monitor mode (%s)", proxySource(req)))
+	}
+	if missing.CredentialInjection {
+		refused = append(refused, fmt.Sprintf("proxy credentials (%s)", credentialsSource(req)))
+	}
+	if len(refused) > 0 {
+		hint := "use --runtime docker"
+		if missing.ProxyMonitor && !missing.Proxy {
+			hint = "pass --proxy to enforce the allowlist instead, or " + hint
+		}
+		if missing.Proxy {
+			hint = "pass --no-proxy to run without the proxy, or " + hint
+		}
+		return fmt.Errorf("%s does not support %s; %s", runtimeSource(req), strings.Join(refused, " or "), hint)
+	}
+	return nil
+}
+
+// warnIgnored warns about req's settings the runtime can't honor but the run survives without.
+func warnIgnored(req Request, missing sandbox.Capabilities) {
+	if missing.PathRules {
+		logging.Warnf("%s can't limit hosts to paths, so it allows the hosts of %s on every path; use --runtime docker to limit them", runtimeSource(req), pathRulesSource(req))
+	}
+	if missing.ProxyIntegrations {
+		logging.Warnf("%s has no proxy sidecar, so it ignores %s; tools reach allowed hosts directly", runtimeSource(req), integrationsSource(req))
+	}
+	if missing.Dind {
+		logging.Warnf("%s has no Docker daemon, so it ignores %s", runtimeSource(req), dindSource(req))
+	}
 }
 
 // runtimeSource names what picks req's runtime: --runtime, or [run] runtime and the innermost layer setting it.
