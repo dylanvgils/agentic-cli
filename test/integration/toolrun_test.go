@@ -38,6 +38,7 @@ type proxyTable struct {
 	AllowedHosts []string         `toml:"allowed_hosts,omitempty"`
 	Credentials  []credentialRule `toml:"credentials,omitempty"`
 	AllowedPaths []pathRule       `toml:"allowed_paths,omitempty"`
+	Integrations []string         `toml:"integrations,omitempty"`
 }
 
 // toolRun builds an agentic run of the test tool, in its own approved work dir once it adds config.
@@ -83,6 +84,13 @@ func (r *toolRun) allowingPaths(host string, paths ...string) *toolRun {
 	return r
 }
 
+// integrating routes the named tools through the proxy.
+func (r *toolRun) integrating(names ...string) *toolRun {
+	proxy := r.proxyRules()
+	proxy.Integrations = append(proxy.Integrations, names...)
+	return r
+}
+
 // withProxy runs with --proxy.
 func (r *toolRun) withProxy() *toolRun {
 	r.flags = append(r.flags, "--proxy")
@@ -92,6 +100,12 @@ func (r *toolRun) withProxy() *toolRun {
 // withVolume adds a --volume mount.
 func (r *toolRun) withVolume(spec string) *toolRun {
 	r.flags = append(r.flags, "--volume", spec)
+	return r
+}
+
+// withIntegrationFlag routes the named tools through the proxy with --proxy-integration.
+func (r *toolRun) withIntegrationFlag(names ...string) *toolRun {
+	r.flags = append(r.flags, "--proxy-integration", strings.Join(names, ","))
 	return r
 }
 
