@@ -289,7 +289,7 @@ func Test_extraStage(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		rendered := renderStage(stage)
-		mkdir := strings.Index(rendered, "RUN mkdir -p /etc/agentic/maven")
+		mkdir := strings.Index(rendered, "mkdir -p /etc/agentic/maven")
 		require.NotEqual(t, -1, mkdir)
 		assert.Less(t, mkdir, strings.Index(rendered, "/etc/agentic/maven/settings.xml"))
 	})

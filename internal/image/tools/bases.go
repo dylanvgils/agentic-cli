@@ -187,11 +187,13 @@ func javaStage(prevStage, ver string) df.Stage {
 				`rm -rf /var/lib/apt/lists/*`,
 			}},
 		}}).
-		// COPY --chmod also sets the mode of parents it creates, so create them first
-		Add(
-			df.Run{Command: "mkdir -p " + path.Dir(sandbox.MavenSettingsPath)},
-			mavenSettingsFile(),
-		).
+		Add(df.Run{Blocks: []df.Block{
+			{
+				Comment: "COPY --chmod also sets the mode of parents it creates, so create them first",
+				Lines:   []string{"mkdir -p " + path.Dir(sandbox.MavenSettingsPath)},
+			},
+		}}).
+		Add(mavenSettingsFile()).
 		Add(versionCheckScript("java", "java --version")).
 		Build()
 }
