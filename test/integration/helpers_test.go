@@ -3,7 +3,6 @@
 package integration
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"os"
@@ -11,10 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,56 +28,6 @@ func agenticCmdIn(dir string, args ...string) *exec.Cmd {
 	return cmd
 }
 
-// runInTool runs script with sh inside the test tool container, passing flags to agentic run, and returns the combined output.
-func runInTool(t *testing.T, script string, flags ...string) string {
-	t.Helper()
-	return runInToolIn(t, workDir, script, flags...)
-}
-
-// runInToolIn is runInTool with dir as the cwd, so its .agenticrc.toml applies.
-func runInToolIn(t *testing.T, dir, script string, flags ...string) string {
-	t.Helper()
-	args := append([]string{"run", "--trust-dir"}, flags...)
-	args = append(args, testTool, "--", "sh", "-c", script)
-
-	out, err := agenticCmdIn(dir, args...).CombinedOutput()
-	t.Logf("agentic %s\n%s", strings.Join(args, " "), out)
-	require.NoError(t, err)
-	return string(out)
-}
-
-// duringRun starts agentic run in dir with flags, calls probe once the tool is up, then lets the tool exit and checks the run
-// succeeded; for checks on the sidecars, which only live as long as the run.
-func duringRun(t *testing.T, dir string, probe func(), flags ...string) {
-	t.Helper()
-	ready := filepath.Join(dir, ".ready")
-	done := filepath.Join(dir, ".done")
-	_ = os.Remove(ready)
-	_ = os.Remove(done)
-
-	args := append([]string{"run", "--trust-dir"}, flags...)
-	args = append(args, testTool, "--", "sh", "-c", "touch .ready; while [ ! -f .done ]; do sleep 0.1; done")
-	cmd := agenticCmdIn(dir, args...)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-	require.NoError(t, cmd.Start())
-
-	// Deferred, so the tool also exits when the wait or probe fails the test
-	defer func() {
-		_ = os.WriteFile(done, nil, 0o644)
-		err := cmd.Wait()
-		t.Logf("agentic %s\n%s", strings.Join(args, " "), out.String())
-		assert.NoError(t, err)
-	}()
-
-	require.Eventually(t, func() bool {
-		_, err := os.Stat(ready)
-		return err == nil
-	}, 2*time.Minute, 100*time.Millisecond, "tool never started")
-	probe()
-}
-
 // runningProxy returns the name of the one running proxy sidecar.
 func runningProxy(t *testing.T) string {
 	t.Helper()
@@ -89,6 +36,11 @@ func runningProxy(t *testing.T) string {
 	names := strings.Fields(string(out))
 	require.Len(t, names, 1, "expected one running proxy")
 	return names[0]
+}
+
+// copyFromProxy copies file from the proxy's credentials dir, failing when it doesn't exist.
+func copyFromProxy(proxy, file string) error {
+	return exec.Command("docker", "cp", proxy+":"+proxyCredentialsDir+"/"+file, "-").Run()
 }
 
 // curlFromEgressNet requests url through the running proxy from a container on the shared egress network the proxy also
@@ -159,15 +111,13 @@ func approveSettings(rcPath string) error {
 	return nil
 }
 
-// proxyWorkDir returns a work dir whose approved .agenticrc.toml adds hosts to the proxy allowlist.
-func proxyWorkDir(t *testing.T, hosts ...string) string {
+// secretFile writes credentialSecret to a file outside the work dir and every tool mount, as agentic requires, and
+// returns its path.
+func secretFile(t *testing.T) string {
 	t.Helper()
-	dir := tempDirIn(t, rootDir)
-	rcPath := filepath.Join(dir, ".agenticrc.toml")
-	rc := rcContents + "\n[run.proxy]\nallowed_hosts = [\"" + strings.Join(hosts, `", "`) + "\"]\n"
-	require.NoError(t, os.WriteFile(rcPath, []byte(rc), 0o644))
-	require.NoError(t, approveSettings(rcPath))
-	return dir
+	path := filepath.Join(tempDirIn(t, rootDir), "token")
+	require.NoError(t, os.WriteFile(path, []byte(credentialSecret+"\n"), 0o600))
+	return path
 }
 
 // proxyLog returns every proxy access log written under the test AGENTIC_HOME, concatenated.
@@ -183,4 +133,9 @@ func proxyLog(t *testing.T) string {
 		log.Write(data)
 	}
 	return log.String()
+}
+
+// writableScript prints <label>=rw when path can be created (and removes it again), <label>=ro otherwise.
+func writableScript(label, path string) string {
+	return "touch " + path + " 2>/dev/null && rm " + path + " && echo " + label + "=rw || echo " + label + "=ro"
 }

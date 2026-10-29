@@ -13,14 +13,20 @@ const guardHost = "upstream.guard.test"
 
 // TestProxyAddressGuard checks an allowed host can't reach local or private addresses unless listed exactly.
 func TestProxyAddressGuard(t *testing.T) {
-	fakeContainer(t).onNetwork("agentic-net").withAlias(guardHost).listeningOn("80").create()
+	fakeContainer(t).
+		onNetwork("agentic-net").
+		withAlias(guardHost).
+		listeningOn("80").
+		create()
 
 	t.Run("wildcard entry cannot reach a private address", func(t *testing.T) {
 		// Arrange
-		dir := proxyWorkDir(t, ".guard.test")
+		tool := newToolRun(t).
+			allowing(".guard.test").
+			withProxy()
 
 		// Act
-		out := runInToolIn(t, dir, connectScript(guardHost), "--proxy")
+		out := tool.run(connectScript(guardHost))
 
 		// Assert
 		assert.Contains(t, out, "connect=403")
@@ -29,10 +35,12 @@ func TestProxyAddressGuard(t *testing.T) {
 
 	t.Run("exact entry can reach a private address", func(t *testing.T) {
 		// Arrange
-		dir := proxyWorkDir(t, guardHost)
+		tool := newToolRun(t).
+			allowing(guardHost).
+			withProxy()
 
 		// Act
-		out := runInToolIn(t, dir, connectScript(guardHost), "--proxy")
+		out := tool.run(connectScript(guardHost))
 
 		// Assert
 		assert.Contains(t, out, "connect=200")
@@ -40,10 +48,12 @@ func TestProxyAddressGuard(t *testing.T) {
 
 	t.Run("exact entry cannot reach loopback", func(t *testing.T) {
 		// Arrange
-		dir := proxyWorkDir(t, "localhost")
+		tool := newToolRun(t).
+			allowing("localhost").
+			withProxy()
 
 		// Act
-		out := runInToolIn(t, dir, connectScript("localhost"), "--proxy")
+		out := tool.run(connectScript("localhost"))
 
 		// Assert - the reason proves the guard refused it, not the allowlist
 		assert.Contains(t, out, "connect=403")
@@ -54,13 +64,15 @@ func TestProxyAddressGuard(t *testing.T) {
 // TestProxyClients checks a proxy without credentials also refuses clients outside its run's network.
 func TestProxyClients(t *testing.T) {
 	// Arrange
-	dir := proxyWorkDir(t, "example.test")
+	tool := newToolRun(t).
+		allowing("example.test").
+		withProxy()
 	var out string
 
 	// Act
-	duringRun(t, dir, func() {
+	tool.during(func() {
 		out = curlFromEgressNet(t, "http://example.test/")
-	}, "--proxy")
+	})
 
 	// Assert
 	assert.Contains(t, out, "client not on the agentic proxy network")

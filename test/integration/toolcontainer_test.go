@@ -14,7 +14,7 @@ import (
 func TestToolContainer(t *testing.T) {
 	t.Run("root filesystem is read-only", func(t *testing.T) {
 		// Act
-		out := runInTool(t, "touch /itest 2>/dev/null && echo rootfs=rw || echo rootfs=ro")
+		out := newToolRun(t).run(writableScript("rootfs", "/itest"))
 
 		// Assert
 		assert.Contains(t, out, "rootfs=ro")
@@ -22,7 +22,7 @@ func TestToolContainer(t *testing.T) {
 
 	t.Run("all capabilities dropped", func(t *testing.T) {
 		// Act (bounding set, since CapEff of a non-root user is empty even without --cap-drop)
-		out := runInTool(t, `echo "cap=$(awk '/^CapBnd/ {print $2}' /proc/self/status)"`)
+		out := newToolRun(t).run(`echo "cap=$(awk '/^CapBnd/ {print $2}' /proc/self/status)"`)
 
 		// Assert
 		assert.Contains(t, out, "cap=0000000000000000")
@@ -30,7 +30,7 @@ func TestToolContainer(t *testing.T) {
 
 	t.Run("no new privileges", func(t *testing.T) {
 		// Act
-		out := runInTool(t, `echo "nnp=$(awk '/^NoNewPrivs/ {print $2}' /proc/self/status)"`)
+		out := newToolRun(t).run(`echo "nnp=$(awk '/^NoNewPrivs/ {print $2}' /proc/self/status)"`)
 
 		// Assert
 		assert.Contains(t, out, "nnp=1")
@@ -38,7 +38,7 @@ func TestToolContainer(t *testing.T) {
 
 	t.Run("runs as host user", func(t *testing.T) {
 		// Act
-		out := runInTool(t, `echo "user=$(id -u):$(id -g)"`)
+		out := newToolRun(t).run(`echo "user=$(id -u):$(id -g)"`)
 
 		// Assert
 		assert.Contains(t, out, "user="+strconv.Itoa(os.Getuid())+":"+strconv.Itoa(os.Getgid()))
@@ -49,7 +49,7 @@ func TestToolContainer(t *testing.T) {
 		skipWithoutCgroups(t)
 
 		// Act
-		out := runInTool(t, `echo "pids=$(cat /sys/fs/cgroup/pids.max)"`)
+		out := newToolRun(t).run(`echo "pids=$(cat /sys/fs/cgroup/pids.max)"`)
 
 		// Assert
 		assert.Contains(t, out, "pids="+testPidsLimit)
@@ -60,7 +60,7 @@ func TestToolContainer(t *testing.T) {
 		skipWithoutCgroups(t)
 
 		// Act
-		out := runInTool(t, `echo "cpu=$(cat /sys/fs/cgroup/cpu.max)"`)
+		out := newToolRun(t).run(`echo "cpu=$(cat /sys/fs/cgroup/cpu.max)"`)
 
 		// Assert
 		assert.Contains(t, out, "cpu=150000 100000") // testCPUs as quota per 100ms period
@@ -71,7 +71,7 @@ func TestToolContainer(t *testing.T) {
 		skipWithoutCgroups(t)
 
 		// Act
-		out := runInTool(t, `echo "mem=$(cat /sys/fs/cgroup/memory.max)"`)
+		out := newToolRun(t).run(`echo "mem=$(cat /sys/fs/cgroup/memory.max)"`)
 
 		// Assert
 		assert.Contains(t, out, "mem=314572800") // testMemory in bytes
