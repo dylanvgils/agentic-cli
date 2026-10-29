@@ -34,8 +34,7 @@ func specCapabilities(rs sandbox.RunSpec) sandbox.Capabilities {
 	}
 }
 
-// checkCapabilities refuses a run that needs a security feature offered lacks and warns about settings it ignores; a
-// missing pids limit is silent.
+// checkCapabilities refuses missing security features and warns about ignored settings.
 func checkCapabilities(req Request, offered sandbox.Capabilities) error {
 	missing := offered.Missing(requiredCapabilities(req.Flags, req.Project.RC))
 	if err := refuseMissing(req, missing); err != nil {
@@ -69,7 +68,7 @@ func checkSpec(rs sandbox.RunSpec, offered sandbox.Capabilities) error {
 	return nil
 }
 
-// refuseMissing returns an error naming the security features req needs that are missing, with a hint to get around it.
+// refuseMissing errors on missing security features, with a hint.
 func refuseMissing(req Request, missing sandbox.Capabilities) error {
 	var refused []string
 	if missing.Proxy {
@@ -93,7 +92,7 @@ func refuseMissing(req Request, missing sandbox.Capabilities) error {
 	return nil
 }
 
-// warnIgnored warns about req's settings the runtime can't honor but the run survives without.
+// warnIgnored warns about settings the runtime ignores.
 func warnIgnored(req Request, missing sandbox.Capabilities) {
 	if missing.PathRules {
 		logging.Warnf("%s can't limit hosts to paths, so it allows the hosts of %s on every path; use --runtime docker to limit them", runtimeSource(req), pathRulesSource(req))
