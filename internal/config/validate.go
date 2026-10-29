@@ -23,38 +23,8 @@ var validMemory = regexp.MustCompile(`^[0-9]+[bkmgBKMG]?$`)
 
 // validateRC checks one layer's values; the caller prefixes the error with the layer's path.
 func validateRC(rc *AgenticRC) error {
-	mode := rc.Run.Proxy.Mode
-	if mode != "" && mode != ModeEnforce && mode != ModeMonitor {
-		return fmt.Errorf("invalid [run.proxy] mode %q: must be %q or %q", mode, ModeEnforce, ModeMonitor)
-	}
-
-	if rc.Run.Runtime != "" {
-		if _, err := sandbox.ParseRuntime(rc.Run.Runtime); err != nil {
-			return fmt.Errorf("[run] %w", err)
-		}
-	}
-
-	if err := validateLimits(rc.Run.RCLimits); err != nil {
-		return fmt.Errorf("[run] %w", err)
-	}
-	if err := validateLimits(rc.Run.Dind.RCLimits); err != nil {
-		return fmt.Errorf("[run.dind] %w", err)
-	}
-
-	for i, cred := range rc.Run.Proxy.Credentials {
-		if err := validateCredential(cred); err != nil {
-			return fmt.Errorf("[[run.proxy.credentials]] entry %d: %w", i+1, err)
-		}
-	}
-
-	for i, rule := range rc.Run.Proxy.AllowedPaths {
-		if err := validateAllowedPath(rule); err != nil {
-			return fmt.Errorf("[[run.proxy.allowed_paths]] entry %d: %w", i+1, err)
-		}
-	}
-
-	if err := sandbox.CheckProxyIntegrations(rc.Run.Proxy.Integrations); err != nil {
-		return fmt.Errorf("[run.proxy] integrations: %w", err)
+	if err := validateRun(rc.Run); err != nil {
+		return err
 	}
 
 	for _, marketplace := range rc.Marketplaces {
@@ -63,15 +33,48 @@ func validateRC(rc *AgenticRC) error {
 		}
 	}
 
-	for _, install := range rc.Build.CustomInstalls {
-		if err := validateCustomInstall(install); err != nil {
-			return err
+	return validateCustomInstalls(rc.Build.CustomInstalls)
+}
+
+// validateRun checks the [run] table and the tables under it.
+func validateRun(run RCRun) error {
+	if run.Runtime != "" {
+		if _, err := sandbox.ParseRuntime(run.Runtime); err != nil {
+			return fmt.Errorf("[run] %w", err)
 		}
 	}
-	if name, ok := duplicateInstall(rc.Build.CustomInstalls); ok {
-		return fmt.Errorf("custom install %q: name must be unique", name)
+
+	if err := validateLimits(run.RCLimits); err != nil {
+		return fmt.Errorf("[run] %w", err)
+	}
+	if err := validateLimits(run.Dind.RCLimits); err != nil {
+		return fmt.Errorf("[run.dind] %w", err)
 	}
 
+	return validateProxy(run.Proxy)
+}
+
+// validateProxy checks the [run.proxy] table.
+func validateProxy(proxy RCProxy) error {
+	if proxy.Mode != "" && proxy.Mode != ModeEnforce && proxy.Mode != ModeMonitor {
+		return fmt.Errorf("invalid [run.proxy] mode %q: must be %q or %q", proxy.Mode, ModeEnforce, ModeMonitor)
+	}
+
+	for i, cred := range proxy.Credentials {
+		if err := validateCredential(cred); err != nil {
+			return fmt.Errorf("[[run.proxy.credentials]] entry %d: %w", i+1, err)
+		}
+	}
+
+	for i, rule := range proxy.AllowedPaths {
+		if err := validateAllowedPath(rule); err != nil {
+			return fmt.Errorf("[[run.proxy.allowed_paths]] entry %d: %w", i+1, err)
+		}
+	}
+
+	if err := sandbox.CheckProxyIntegrations(proxy.Integrations); err != nil {
+		return fmt.Errorf("[run.proxy] integrations: %w", err)
+	}
 	return nil
 }
 
@@ -164,6 +167,20 @@ func isRemoteGitURL(url string) bool {
 		return strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "ssh://")
 	}
 	return scpGitURL.MatchString(url)
+}
+
+// validateCustomInstalls checks each [[build.custom_installs]] entry and that names are unique within the layer.
+func validateCustomInstalls(installs []RCCustomInstall) error {
+	for _, install := range installs {
+		if err := validateCustomInstall(install); err != nil {
+			return err
+		}
+	}
+
+	if name, ok := duplicateInstall(installs); ok {
+		return fmt.Errorf("custom install %q: name must be unique", name)
+	}
+	return nil
 }
 
 func validateCustomInstall(install RCCustomInstall) error {

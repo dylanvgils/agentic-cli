@@ -10,17 +10,8 @@ func Test_validateRC(t *testing.T) {
 	t.Run("valid config passes", func(t *testing.T) {
 		// Arrange
 		rc := &AgenticRC{
-			Build: RCBuild{CustomInstalls: []RCCustomInstall{{Name: "helm", Run: []string{"true"}}}},
-			Run: RCRun{
-				Runtime:  "docker",
-				RCLimits: RCLimits{PidsLimit: "512"},
-				Proxy: RCProxy{
-					Mode:         ModeMonitor,
-					Credentials:  []RCCredential{{Preset: "example", Secret: "/example.test/secret"}},
-					AllowedPaths: []RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}},
-					Integrations: []string{"maven"},
-				},
-			},
+			Build:        RCBuild{CustomInstalls: []RCCustomInstall{{Name: "helm", Run: []string{"true"}}}},
+			Run:          RCRun{Runtime: "docker"},
 			Marketplaces: []RCMarketplace{{Name: "acme", URL: "https://example.test/acme.git"}},
 		}
 
@@ -31,93 +22,147 @@ func Test_validateRC(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("refuses an unknown runtime", func(t *testing.T) {
-		// Act
-		err := validateRC(&AgenticRC{Run: RCRun{Runtime: "podman"}})
-
-		// Assert
-		assert.ErrorContains(t, err, `[run] unknown runtime "podman"`)
-	})
-
-	t.Run("refuses an unknown proxy integration", func(t *testing.T) {
-		// Act
-		err := validateRC(&AgenticRC{Run: RCRun{Proxy: RCProxy{Integrations: []string{"bogus"}}}})
-
-		// Assert
-		assert.ErrorContains(t, err, `[run.proxy] integrations: unknown integration "bogus"`)
-	})
-
 	tests := []struct {
 		name string
 		rc   *AgenticRC
 		want string
 	}{
 		{
-			name: "invalid proxy mode",
-			rc:   &AgenticRC{Run: RCRun{Proxy: RCProxy{Mode: "bogus"}}},
-			want: `invalid [run.proxy] mode "bogus": must be "enforce" or "monitor"`,
-		},
-		{
-			name: "run limit that lifts the limit",
+			name: "invalid run table",
 			rc:   &AgenticRC{Run: RCRun{RCLimits: RCLimits{PidsLimit: "-1"}}},
 			want: `[run] pids_limit "-1": must be a positive whole number`,
 		},
 		{
-			name: "dind limit that lifts the limit",
-			rc:   &AgenticRC{Run: RCRun{Dind: RCDind{RCLimits: RCLimits{CPUs: "0"}}}},
-			want: `[run.dind] cpus "0": must be a positive number`,
-		},
-		{
-			name: "invalid proxy credential",
-			rc: &AgenticRC{Run: RCRun{Proxy: RCProxy{Credentials: []RCCredential{
-				{Preset: "example", Secret: "/example.test/secret"},
-				{Preset: "example"},
-			}}}},
-			want: "[[run.proxy.credentials]] entry 2: secret must not be empty",
-		},
-		{
-			name: "invalid proxy allowed path",
-			rc:   &AgenticRC{Run: RCRun{Proxy: RCProxy{AllowedPaths: []RCAllowedPath{{Host: "*.example.test", Paths: []string{"/a"}}}}}},
-			want: `[[run.proxy.allowed_paths]] entry 1: host "*.example.test" must be an exact hostname, without wildcards, port or path`,
-		},
-		{
-			name: "marketplace with empty name",
-			rc:   &AgenticRC{Marketplaces: []RCMarketplace{{URL: "https://example.test/acme.git"}}},
-			want: "marketplace: name must not be empty",
-		},
-		{
-			name: "marketplace with empty url",
+			name: "invalid marketplace",
 			rc:   &AgenticRC{Marketplaces: []RCMarketplace{{Name: "acme"}}},
 			want: `marketplace "acme": url must not be empty`,
 		},
 		{
-			name: "marketplace with local url",
-			rc:   &AgenticRC{Marketplaces: []RCMarketplace{{Name: "acme", URL: "/srv/repos/acme"}}},
-			want: `marketplace "acme": url "/srv/repos/acme" must be https://, ssh:// or user@host:path`,
-		},
-		{
-			name: "custom install with unsafe name",
-			rc:   &AgenticRC{Build: RCBuild{CustomInstalls: []RCCustomInstall{{Name: "../escape", Run: []string{"true"}}}}},
-			want: `custom install "../escape": name must match ^[a-zA-Z0-9._-]+$`,
-		},
-		{
-			name: "custom install with empty run",
+			name: "invalid custom install",
 			rc:   &AgenticRC{Build: RCBuild{CustomInstalls: []RCCustomInstall{{Name: "helm"}}}},
 			want: `custom install "helm": run must not be empty`,
-		},
-		{
-			name: "duplicate custom install name",
-			rc: &AgenticRC{Build: RCBuild{CustomInstalls: []RCCustomInstall{
-				{Name: "helm", Run: []string{"true"}},
-				{Name: "helm", Run: []string{"true"}},
-			}}},
-			want: `custom install "helm": name must be unique`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name+" is refused", func(t *testing.T) {
 			// Act
 			err := validateRC(tt.rc)
+
+			// Assert
+			assert.EqualError(t, err, tt.want)
+		})
+	}
+}
+
+func Test_validateRun(t *testing.T) {
+	t.Run("valid run table passes", func(t *testing.T) {
+		// Arrange
+		run := RCRun{
+			Runtime:  "docker",
+			RCLimits: RCLimits{PidsLimit: "512"},
+			Dind:     RCDind{RCLimits: RCLimits{CPUs: "2"}},
+		}
+
+		// Act
+		err := validateRun(run)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("refuses an unknown runtime", func(t *testing.T) {
+		// Act
+		err := validateRun(RCRun{Runtime: "podman"})
+
+		// Assert
+		assert.ErrorContains(t, err, `[run] unknown runtime "podman"`)
+	})
+
+	tests := []struct {
+		name string
+		run  RCRun
+		want string
+	}{
+		{
+			name: "run limit that lifts the limit",
+			run:  RCRun{RCLimits: RCLimits{PidsLimit: "-1"}},
+			want: `[run] pids_limit "-1": must be a positive whole number`,
+		},
+		{
+			name: "dind limit that lifts the limit",
+			run:  RCRun{Dind: RCDind{RCLimits: RCLimits{CPUs: "0"}}},
+			want: `[run.dind] cpus "0": must be a positive number`,
+		},
+		{
+			name: "invalid proxy table",
+			run:  RCRun{Proxy: RCProxy{Mode: "bogus"}},
+			want: `invalid [run.proxy] mode "bogus": must be "enforce" or "monitor"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name+" is refused", func(t *testing.T) {
+			// Act
+			err := validateRun(tt.run)
+
+			// Assert
+			assert.EqualError(t, err, tt.want)
+		})
+	}
+}
+
+func Test_validateProxy(t *testing.T) {
+	t.Run("valid proxy table passes", func(t *testing.T) {
+		// Arrange
+		proxy := RCProxy{
+			Mode:         ModeMonitor,
+			Credentials:  []RCCredential{{Preset: "example", Secret: "/example.test/secret"}},
+			AllowedPaths: []RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}},
+			Integrations: []string{"maven"},
+		}
+
+		// Act
+		err := validateProxy(proxy)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("refuses an unknown integration", func(t *testing.T) {
+		// Act
+		err := validateProxy(RCProxy{Integrations: []string{"bogus"}})
+
+		// Assert
+		assert.ErrorContains(t, err, `[run.proxy] integrations: unknown integration "bogus"`)
+	})
+
+	tests := []struct {
+		name  string
+		proxy RCProxy
+		want  string
+	}{
+		{
+			name:  "invalid mode",
+			proxy: RCProxy{Mode: "bogus"},
+			want:  `invalid [run.proxy] mode "bogus": must be "enforce" or "monitor"`,
+		},
+		{
+			name: "invalid credential",
+			proxy: RCProxy{Credentials: []RCCredential{
+				{Preset: "example", Secret: "/example.test/secret"},
+				{Preset: "example"},
+			}},
+			want: "[[run.proxy.credentials]] entry 2: secret must not be empty",
+		},
+		{
+			name:  "invalid allowed path",
+			proxy: RCProxy{AllowedPaths: []RCAllowedPath{{Host: "*.example.test", Paths: []string{"/a"}}}},
+			want:  `[[run.proxy.allowed_paths]] entry 1: host "*.example.test" must be an exact hostname, without wildcards, port or path`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name+" is refused", func(t *testing.T) {
+			// Act
+			err := validateProxy(tt.proxy)
 
 			// Assert
 			assert.EqualError(t, err, tt.want)
@@ -248,6 +293,42 @@ func Test_validateAllowedPath(t *testing.T) {
 	})
 }
 
+func Test_validateMarketplace(t *testing.T) {
+	t.Run("valid marketplace passes", func(t *testing.T) {
+		// Act
+		err := validateMarketplace(RCMarketplace{Name: "acme", URL: "https://example.test/acme.git"})
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	tests := []struct {
+		name        string
+		marketplace RCMarketplace
+		want        string
+	}{
+		{
+			name:        "empty url",
+			marketplace: RCMarketplace{Name: "acme"},
+			want:        `marketplace "acme": url must not be empty`,
+		},
+		{
+			name:        "local url",
+			marketplace: RCMarketplace{Name: "acme", URL: "/srv/repos/acme"},
+			want:        `marketplace "acme": url "/srv/repos/acme" must be https://, ssh:// or user@host:path`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name+" is refused", func(t *testing.T) {
+			// Act
+			err := validateMarketplace(tt.marketplace)
+
+			// Assert
+			assert.EqualError(t, err, tt.want)
+		})
+	}
+}
+
 func Test_isRemoteGitURL(t *testing.T) {
 	t.Run("accepts https and ssh urls", func(t *testing.T) {
 		for _, url := range []string{
@@ -282,6 +363,51 @@ func Test_isRemoteGitURL(t *testing.T) {
 			assert.False(t, ok, url)
 		}
 	})
+}
+
+func Test_validateCustomInstalls(t *testing.T) {
+	t.Run("unique valid installs pass", func(t *testing.T) {
+		// Arrange
+		installs := []RCCustomInstall{
+			{Name: "helm", Run: []string{"true"}},
+			{Name: "golangci-lint", Run: []string{"true"}},
+		}
+
+		// Act
+		err := validateCustomInstalls(installs)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	tests := []struct {
+		name     string
+		installs []RCCustomInstall
+		want     string
+	}{
+		{
+			name:     "empty run",
+			installs: []RCCustomInstall{{Name: "helm"}},
+			want:     `custom install "helm": run must not be empty`,
+		},
+		{
+			name: "duplicate name",
+			installs: []RCCustomInstall{
+				{Name: "helm", Run: []string{"true"}},
+				{Name: "helm", Run: []string{"true"}},
+			},
+			want: `custom install "helm": name must be unique`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name+" is refused", func(t *testing.T) {
+			// Act
+			err := validateCustomInstalls(tt.installs)
+
+			// Assert
+			assert.EqualError(t, err, tt.want)
+		})
+	}
 }
 
 func Test_validateEntryName(t *testing.T) {

@@ -177,10 +177,7 @@ func FindLayers(startDir string) ([]RCLayer, error) {
 		}
 	}
 
-	for i, j := 0, len(layers)-1; i < j; i, j = i+1, j-1 {
-		layers[i], layers[j] = layers[j], layers[i]
-	}
-
+	slices.Reverse(layers)
 	return layers, nil
 }
 
