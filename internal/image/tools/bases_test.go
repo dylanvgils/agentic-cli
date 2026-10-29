@@ -282,6 +282,18 @@ func Test_extraStage(t *testing.T) {
 		assert.Contains(t, renderStage(stage), "COPY --chmod=0644 <<'EOF' /etc/agentic/maven/settings.xml")
 	})
 
+	t.Run("java creates the maven settings dir before the file", func(t *testing.T) {
+		// Act
+		stage, err := extraStage("java", "base", "")
+
+		// Assert
+		require.NoError(t, err)
+		rendered := renderStage(stage)
+		mkdir := strings.Index(rendered, "RUN mkdir -p /etc/agentic/maven")
+		require.NotEqual(t, -1, mkdir)
+		assert.Less(t, mkdir, strings.Index(rendered, "/etc/agentic/maven/settings.xml"))
+	})
+
 	t.Run("other layers don't ship the maven proxy settings", func(t *testing.T) {
 		// Act
 		stage, err := extraStage("go", "base", "")
