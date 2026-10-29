@@ -150,6 +150,7 @@ Always run `go test ./...` before considering a task finished.
 | `enabled`       | bool   | Route egress through the allowlist proxy                                                          | `--proxy` / `--no-proxy` | `false`     |
 | `mode`          | string | `"enforce"` blocks hosts not on the allowlist, `"monitor"` only logs them. `"monitor"` turns the proxy on unless `enabled = false`. | `--proxy-monitor`        | `"enforce"` |
 | `allowed_hosts` | list   | Hosts added to the tool's baseline. Exact (`"api.github.com"`), or `.`/`*.` prefix for a domain and its subdomains (`".github.com"`). | -                        | -           |
+| `integrations`  | list   | Tools that ignore the proxy env vars, routed through the proxy with their own config. `"maven"` or `"gradle"`. See [Tools that ignore proxy env vars](egress-proxy.md#tools-that-ignore-proxy-env-vars). | -                        | -           |
 
 ### `[[run.proxy.allowed_paths]]`
 
@@ -233,7 +234,7 @@ The agent can edit `.agenticrc.toml` files in directories it ran in, so changes 
 
 The file closest to the filesystem root is the _outermost_. The file in `$PWD` is the _innermost_.
 
-- **List keys** (`bases`, `apt_packages`, `custom_installs`, `mounts`, `env`, `args` per tool, `proxy.allowed_hosts`, `proxy.allowed_paths`, `proxy.credentials`, `marketplaces`) add up, outermost first.
+- **List keys** (`bases`, `apt_packages`, `custom_installs`, `mounts`, `env`, `args` per tool, `proxy.allowed_hosts`, `proxy.allowed_paths`, `proxy.credentials`, `proxy.integrations`, `marketplaces`) add up, outermost first.
 - **Scalar keys** take the innermost value. Booleans count as scalars, so `enabled = false` in an inner file overrides an outer `true`.
 - **`versions`** is resolved per key, so a child can pin `java` and still inherit `node`. An empty value counts as unset.
 - **`instructions.custom`** adds up like a list, joined by blank lines.

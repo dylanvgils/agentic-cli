@@ -233,6 +233,18 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, []string{"parent.example.com", "child.example.com"}, result.Run.Proxy.AllowedHosts)
 	})
 
+	t.Run("proxy integrations accumulate outermost first", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Run: RCRun{Proxy: RCProxy{Integrations: []string{"child"}}}}
+		parent := &AgenticRC{Run: RCRun{Proxy: RCProxy{Integrations: []string{"parent"}}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, []string{"parent", "child"}, result.Run.Proxy.Integrations)
+	})
+
 	t.Run("proxy credentials accumulate outermost first", func(t *testing.T) {
 		// Arrange
 		child := &AgenticRC{Run: RCRun{Proxy: RCProxy{Credentials: []RCCredential{{Preset: "child-preset", Secret: "/child"}}}}}
@@ -692,6 +704,26 @@ copilot = ["--disable-client-telemetry"]
 
 		// Assert
 		assert.ErrorContains(t, err, "invalid [run.proxy] mode")
+		assert.ErrorContains(t, err, path)
+	})
+
+	t.Run("proxy integrations key", func(t *testing.T) {
+		// Act
+		rc := mustParseRC(t, "[run.proxy]\nintegrations = [\"maven\"]\n")
+
+		// Assert
+		assert.Equal(t, []string{"maven"}, rc.Run.Proxy.Integrations)
+	})
+
+	t.Run("unknown proxy integration returns error with path", func(t *testing.T) {
+		// Arrange
+		path := writeRC(t, "[run.proxy]\nintegrations = [\"bogus\"]\n")
+
+		// Act
+		_, err := loadRC(path)
+
+		// Assert
+		assert.ErrorContains(t, err, `invalid [run.proxy] integration "bogus": must be one of gradle, maven`)
 		assert.ErrorContains(t, err, path)
 	})
 

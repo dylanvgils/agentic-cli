@@ -82,3 +82,63 @@ func TestProxySpec_WholeHosts(t *testing.T) {
 	// Assert
 	assert.Equal(t, []string{"api.example.test", ".example.org"}, hosts)
 }
+
+func TestProxyIntegrations(t *testing.T) {
+	// Act
+	names := ProxyIntegrations()
+
+	// Assert
+	assert.Equal(t, []string{"gradle", "maven"}, names)
+}
+
+func TestIsProxyIntegration(t *testing.T) {
+	t.Run("known name", func(t *testing.T) {
+		// Act
+		ok := IsProxyIntegration("maven")
+
+		// Assert
+		assert.True(t, ok)
+	})
+
+	t.Run("unknown name", func(t *testing.T) {
+		// Act
+		ok := IsProxyIntegration("example")
+
+		// Assert
+		assert.False(t, ok)
+	})
+}
+
+func TestProxyIntegrationEnv(t *testing.T) {
+	t.Run("maven points at the global settings", func(t *testing.T) {
+		// Act
+		env := ProxyIntegrationEnv([]string{"maven"})
+
+		// Assert
+		assert.Equal(t, []string{"MAVEN_ARGS=--global-settings " + MavenSettingsPath}, env)
+	})
+
+	t.Run("gradle sets the proxy system properties", func(t *testing.T) {
+		// Act
+		env := ProxyIntegrationEnv([]string{"gradle"})
+
+		// Assert
+		assert.Equal(t, []string{"GRADLE_OPTS=-Dhttp.proxyHost=agentic-proxy -Dhttp.proxyPort=3128 -Dhttps.proxyHost=agentic-proxy -Dhttps.proxyPort=3128"}, env)
+	})
+
+	t.Run("none for no integrations", func(t *testing.T) {
+		// Act
+		env := ProxyIntegrationEnv(nil)
+
+		// Assert
+		assert.Empty(t, env)
+	})
+}
+
+func TestProxyIntegrationEnvNames(t *testing.T) {
+	// Act
+	names := ProxyIntegrationEnvNames([]string{"gradle", "maven"})
+
+	// Assert
+	assert.Equal(t, []string{"GRADLE_OPTS", "MAVEN_ARGS"}, names)
+}

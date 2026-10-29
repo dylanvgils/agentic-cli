@@ -67,6 +67,7 @@ func (c *Client) Capabilities() sandbox.Capabilities {
 		Dind:                true,
 		CredentialInjection: true,
 		PathRules:           true,
+		ProxyIntegrations:   true,
 		CredentialsViaProxy: true,
 		PidsLimit:           true,
 		ReadOnlyRoot:        true, // --read-only plus tmpfs ephemeral dirs

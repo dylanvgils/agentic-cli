@@ -33,44 +33,6 @@ mounts = [
 ]
 ```
 
-## Maven through the egress proxy
-
-Maven ignores the proxy env vars, so with `--proxy` on, mount a `settings.xml` that points at `agentic-proxy:3128` ([why](egress-proxy.md#tools-that-ignore-proxy-env-vars)). Maven matches `<protocol>` against the repository URL, so add a `<proxy>` for each scheme:
-
-```xml
-<!-- settings.xml -->
-<settings>
-  <proxies>
-    <proxy>
-      <id>agentic-proxy-http</id>
-      <active>true</active>
-      <protocol>http</protocol>
-      <host>agentic-proxy</host>
-      <port>3128</port>
-    </proxy>
-    <proxy>
-      <id>agentic-proxy-https</id>
-      <active>true</active>
-      <protocol>https</protocol>
-      <host>agentic-proxy</host>
-      <port>3128</port>
-    </proxy>
-  </proxies>
-</settings>
-```
-
-```toml
-# .agenticrc.toml
-[run]
-mounts = ["~/.m2/settings.xml:$CONTAINER_HOME/.m2/settings.xml"]
-
-[run.proxy]
-enabled = true
-allowed_hosts = ["repo.maven.apache.org"]
-```
-
-Don't point `<proxies>` at an external corporate proxy, because that traffic would skip the allowlist.
-
 ## Per-project image set
 
 Separate images for a Java project:

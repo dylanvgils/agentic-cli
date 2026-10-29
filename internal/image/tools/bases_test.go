@@ -273,6 +273,24 @@ func Test_extraStage(t *testing.T) {
 		assert.Contains(t, renderStage(stage), "agentic-version-java")
 	})
 
+	t.Run("java ships the maven proxy settings", func(t *testing.T) {
+		// Act
+		stage, err := extraStage("java", "base", "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, renderStage(stage), "COPY --chmod=0644 <<'EOF' /etc/agentic/maven/settings.xml")
+	})
+
+	t.Run("other layers don't ship the maven proxy settings", func(t *testing.T) {
+		// Act
+		stage, err := extraStage("go", "base", "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotContains(t, renderStage(stage), "/etc/agentic/maven")
+	})
+
 	t.Run("docker default version", func(t *testing.T) {
 		// Act
 		stage, err := extraStage("docker", "base", "")

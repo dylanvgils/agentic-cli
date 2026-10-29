@@ -78,6 +78,8 @@ type RCProxy struct {
 	Credentials []RCCredential `toml:"credentials"`
 	// AllowedPaths allows only some paths on hosts not in AllowedHosts; the proxy decrypts them to check each request
 	AllowedPaths []RCAllowedPath `toml:"allowed_paths"`
+	// Integrations route tools like Maven through the proxy
+	Integrations []string `toml:"integrations"`
 }
 
 // RCAllowedPath allows requests to Host whose path matches one of Paths (see MatchPathPattern).
@@ -327,6 +329,7 @@ func appendLists(result, rc *AgenticRC) {
 	resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)
 	resRun.Proxy.Credentials = append(resRun.Proxy.Credentials, run.Proxy.Credentials...)
 	resRun.Proxy.AllowedPaths = append(resRun.Proxy.AllowedPaths, run.Proxy.AllowedPaths...)
+	resRun.Proxy.Integrations = append(resRun.Proxy.Integrations, run.Proxy.Integrations...)
 	resRun.Instructions.Custom = appendInstructions(resRun.Instructions.Custom, run.Instructions.Custom)
 	resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
 	resBuild.Bases = append(resBuild.Bases, build.Bases...)
@@ -400,6 +403,12 @@ func loadRC(path string) (*AgenticRC, error) {
 	for i, rule := range rc.Run.Proxy.AllowedPaths {
 		if err := validateAllowedPath(rule); err != nil {
 			return nil, fmt.Errorf("%s: [[run.proxy.allowed_paths]] entry %d: %w", path, i+1, err)
+		}
+	}
+
+	for _, name := range rc.Run.Proxy.Integrations {
+		if !sandbox.IsProxyIntegration(name) {
+			return nil, fmt.Errorf("%s: invalid [run.proxy] integration %q: must be one of %s", path, name, strings.Join(sandbox.ProxyIntegrations(), ", "))
 		}
 	}
 

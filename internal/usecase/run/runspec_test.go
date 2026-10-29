@@ -680,7 +680,7 @@ func Test_toolMarketplaceMounts(t *testing.T) {
 func Test_validateEnv(t *testing.T) {
 	t.Run("accepts ordinary KEY=VALUE", func(t *testing.T) {
 		// Act
-		err := validateEnv([]string{"MAVEN_OPTS=-Dfoo=bar"}, false, false)
+		err := validateEnv([]string{"MAVEN_OPTS=-Dfoo=bar"}, false, false, nil)
 
 		// Assert
 		assert.NoError(t, err)
@@ -688,7 +688,7 @@ func Test_validateEnv(t *testing.T) {
 
 	t.Run("accepts bare KEY", func(t *testing.T) {
 		// Act
-		err := validateEnv([]string{"CI"}, false, false)
+		err := validateEnv([]string{"CI"}, false, false, nil)
 
 		// Assert
 		assert.NoError(t, err)
@@ -696,7 +696,7 @@ func Test_validateEnv(t *testing.T) {
 
 	t.Run("accepts overriding terminal vars", func(t *testing.T) {
 		// Act
-		err := validateEnv([]string{"NO_COLOR=1", "TERM=dumb"}, true, false)
+		err := validateEnv([]string{"NO_COLOR=1", "TERM=dumb"}, true, false, nil)
 
 		// Assert
 		assert.NoError(t, err)
@@ -704,7 +704,7 @@ func Test_validateEnv(t *testing.T) {
 
 	t.Run("accepts proxy var when proxy disabled", func(t *testing.T) {
 		// Act
-		err := validateEnv([]string{"HTTP_PROXY=http://my-corp-proxy"}, false, false)
+		err := validateEnv([]string{"HTTP_PROXY=http://my-corp-proxy"}, false, false, nil)
 
 		// Assert
 		assert.NoError(t, err)
@@ -712,7 +712,7 @@ func Test_validateEnv(t *testing.T) {
 
 	t.Run("rejects proxy var when proxy enabled", func(t *testing.T) {
 		// Act
-		err := validateEnv([]string{"HTTP_PROXY=http://evil"}, true, false)
+		err := validateEnv([]string{"HTTP_PROXY=http://evil"}, true, false, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "HTTP_PROXY")
@@ -720,7 +720,7 @@ func Test_validateEnv(t *testing.T) {
 
 	t.Run("accepts docker var when dind disabled", func(t *testing.T) {
 		// Act
-		err := validateEnv([]string{"DOCKER_HOST=tcp://build-host:2376"}, false, false)
+		err := validateEnv([]string{"DOCKER_HOST=tcp://build-host:2376"}, false, false, nil)
 
 		// Assert
 		assert.NoError(t, err)
@@ -728,15 +728,31 @@ func Test_validateEnv(t *testing.T) {
 
 	t.Run("rejects docker var when dind enabled", func(t *testing.T) {
 		// Act
-		err := validateEnv([]string{"DOCKER_CERT_PATH=/tmp"}, false, true)
+		err := validateEnv([]string{"DOCKER_CERT_PATH=/tmp"}, false, true, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "DOCKER_CERT_PATH")
 	})
 
+	t.Run("rejects a var a proxy integration sets", func(t *testing.T) {
+		// Act
+		err := validateEnv([]string{"MAVEN_ARGS=--quiet"}, true, false, []string{"maven"})
+
+		// Assert
+		assert.ErrorContains(t, err, `"MAVEN_ARGS" is set by [run.proxy] integrations`)
+	})
+
+	t.Run("accepts a var no proxy integration sets", func(t *testing.T) {
+		// Act
+		err := validateEnv([]string{"MAVEN_ARGS=--quiet"}, true, false, nil)
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
 	t.Run("rejects bare reserved name regardless of proxy", func(t *testing.T) {
 		// Act
-		err := validateEnv([]string{"TOOL_HOME"}, false, false)
+		err := validateEnv([]string{"TOOL_HOME"}, false, false, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "TOOL_HOME")

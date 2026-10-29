@@ -19,6 +19,7 @@ func requiredCapabilities(flags Flags, rc *config.AgenticRC) sandbox.Capabilitie
 		Dind:                resolve.DindEnabled(flags.Dind, rc),
 		CredentialInjection: len(rc.Run.Proxy.Credentials) > 0,
 		PathRules:           len(rc.Run.Proxy.AllowedPaths) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
+		ProxyIntegrations:   len(rc.Run.Proxy.Integrations) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
 		PidsLimit:           true,
 	}
 }
@@ -60,6 +61,9 @@ func checkCapabilities(req Request, offered sandbox.Capabilities) error {
 
 	if missing.PathRules {
 		logging.Warnf("%s can't limit hosts to paths, so it allows the hosts of %s on every path; use --runtime docker to limit them", runtimeSource(req), pathRulesSource(req))
+	}
+	if missing.ProxyIntegrations {
+		logging.Warnf("%s has no proxy sidecar, so it ignores %s; tools reach allowed hosts directly", runtimeSource(req), integrationsSource(req))
 	}
 	if missing.Dind {
 		logging.Warnf("%s has no Docker daemon, so it ignores %s", runtimeSource(req), dindSource(req))
@@ -129,6 +133,11 @@ func credentialsSource(req Request) string {
 // pathRulesSource names the innermost layer that declares proxy path rules.
 func pathRulesSource(req Request) string {
 	return layerSource(req.Project.Layers, "[[run.proxy.allowed_paths]]", func(rc *config.AgenticRC) bool { return len(rc.Run.Proxy.AllowedPaths) > 0 })
+}
+
+// integrationsSource names the innermost layer setting proxy integrations.
+func integrationsSource(req Request) string {
+	return layerSource(req.Project.Layers, "[run.proxy] integrations", func(rc *config.AgenticRC) bool { return len(rc.Run.Proxy.Integrations) > 0 })
 }
 
 // layerSource returns key plus the path of the innermost layer where set holds, or key alone when none does.

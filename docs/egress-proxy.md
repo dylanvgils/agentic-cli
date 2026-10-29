@@ -111,7 +111,25 @@ The proxy checks the IP an allowed host resolves to, so a DNS record can't point
 
 ## Tools that ignore proxy env vars
 
-Some tools, like Maven, ignore those env vars and need a literal `host:port` in their own config. Use `agentic-proxy:3128`. Unlike the sidecar's container name, this alias is the same on every run. See [Maven through the egress proxy](recipes.md#maven-through-the-egress-proxy).
+Some tools ignore those env vars and need a literal `host:port` in their own config. Use `agentic-proxy:3128`. Unlike the sidecar's container name, this alias is the same on every run.
+
+Maven and Gradle get that config from agentic when you list them in `integrations`:
+
+```toml
+# .agenticrc.toml
+[run.proxy]
+enabled = true
+integrations = ["maven", "gradle"]
+allowed_hosts = ["repo.maven.apache.org"]
+```
+
+Add the other hosts your build downloads from, such as the Gradle wrapper and plugin portal. A first run with `--proxy-monitor` lists them in the access log.
+
+- **Maven** needs the `java` base and Maven 3.9 or later, directly or through `mvnw`. Your own `~/.m2/settings.xml` still applies. Put Maven args in `.mvn/maven.config`, as `MAVEN_ARGS` is set by agentic.
+- **Gradle** works through `gradlew` and the Gradle daemon. Set daemon memory with `org.gradle.jvmargs` in `gradle.properties`, as `GRADLE_OPTS` is set by agentic.
+- Images built before Maven support need `agentic build` or `agentic update`.
+
+Don't point a tool at an external corporate proxy, because that traffic would skip the allowlist.
 
 ## With microsandbox
 
@@ -119,6 +137,7 @@ With the [microsandbox runtime](microsandbox.md), msb's own network policy enfor
 
 - There's no access log and no summary at the end of the run.
 - `--proxy-monitor` is refused; use `--proxy`.
+- `[run.proxy] integrations` are ignored, with a warning, as tools reach allowed hosts directly.
 - An internal host that resolves to a private address isn't reachable, since msb drops private DNS answers.
 - Every `allowed_hosts` entry must be a hostname like `api.example.test` or `.example.test`, else the run is refused. msb would read a CIDR or a name like `public` as a wider rule.
 - [Credentials](credential-injection.md) keep working, since msb injects them itself rather than a proxy.

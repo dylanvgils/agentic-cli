@@ -5,19 +5,28 @@ import (
 	"strings"
 )
 
-// Heredoc writes a multi-line script to Dest via a BuildKit COPY heredoc, --chmod=0755 setting the
-// executable bit at copy time so no separate RUN is needed. Use Lines for a flat script body, or
-// Blocks for commented sections separated by a blank line (Block.Chain has no effect here).
+// defaultHeredocMode makes the file an executable script.
+const defaultHeredocMode = "0755"
+
+// Heredoc writes a script or file to Dest via a COPY heredoc. Use Lines for a flat body, or Blocks for commented sections
+// (Block.Chain has no effect).
 type Heredoc struct {
 	Dest   string
 	Lines  []string
 	Blocks []Block
+	// Mode is the octal file mode; empty means defaultHeredocMode
+	Mode string
 }
 
 func (h Heredoc) Render() string {
 	var sb strings.Builder
 
-	fmt.Fprintf(&sb, "COPY --chmod=0755 <<'EOF' %s\n", h.Dest)
+	mode := h.Mode
+	if mode == "" {
+		mode = defaultHeredocMode
+	}
+
+	fmt.Fprintf(&sb, "COPY --chmod=%s <<'EOF' %s\n", mode, h.Dest)
 	if len(h.Blocks) > 0 {
 		h.renderBlocks(&sb)
 	} else {

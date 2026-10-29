@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -155,7 +156,7 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 	in := req.in
 
 	env := resolve.Env(in.Env, req.rc)
-	if err := validateEnv(env, in.ProxyMode.Enabled(), in.DindEnabled); err != nil {
+	if err := validateEnv(env, in.ProxyMode.Enabled(), in.DindEnabled, proxyIntegrations(in, req.rc, req.caps)); err != nil {
 		return nil, err
 	}
 
@@ -231,9 +232,10 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string
 		WithDryRun(in.DryRun).
 		WithCredentials(sandboxCredentials(in.Credentials)...).
 		WithProxy(sandbox.ProxySpec{
-			Mode:    in.ProxyMode,
-			Rules:   rules,
-			LogFile: proxyLog,
+			Mode:         in.ProxyMode,
+			Rules:        rules,
+			LogFile:      proxyLog,
+			Integrations: proxyIntegrations(in, rc, req.caps),
 		}).
 		WithDind(sandbox.DindSpec{Enabled: in.DindEnabled, Limits: dindLimits}).
 		Build()
@@ -280,12 +282,16 @@ func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 	}
 }
 
-// validateEnv rejects entries that override an env var agentic manages.
-func validateEnv(entries []string, proxyEnabled, dindEnabled bool) error {
+// validateEnv rejects entries that override an env var agentic manages, including integration vars.
+func validateEnv(entries []string, proxyEnabled, dindEnabled bool, integrations []string) error {
+	integrationNames := sandbox.ProxyIntegrationEnvNames(integrations)
 	for _, entry := range entries {
 		key, _, _ := strings.Cut(entry, "=")
 		if sandbox.IsReservedEnvName(key, proxyEnabled, dindEnabled) {
 			return fmt.Errorf("--env: %q is managed by agentic and cannot be overridden", key)
+		}
+		if slices.Contains(integrationNames, key) {
+			return fmt.Errorf("--env: %q is set by [run.proxy] integrations and cannot be overridden", key)
 		}
 	}
 

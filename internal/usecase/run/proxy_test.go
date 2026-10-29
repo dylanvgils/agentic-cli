@@ -37,6 +37,37 @@ func Test_proxyRules(t *testing.T) {
 	})
 }
 
+func Test_proxyIntegrations(t *testing.T) {
+	rc := &config.AgenticRC{}
+	rc.Run.Proxy.Integrations = []string{"maven", "maven"}
+	enforce := Input{ProxyMode: sandbox.ProxyEnforce}
+	caps := sandbox.Capabilities{ProxyIntegrations: true}
+
+	t.Run("deduplicates with the proxy on a runtime that supports them", func(t *testing.T) {
+		// Act
+		integrations := proxyIntegrations(enforce, rc, caps)
+
+		// Assert
+		assert.Equal(t, []string{"maven"}, integrations)
+	})
+
+	t.Run("none without the proxy", func(t *testing.T) {
+		// Act
+		integrations := proxyIntegrations(Input{}, rc, caps)
+
+		// Assert
+		assert.Empty(t, integrations)
+	})
+
+	t.Run("none on a runtime without them", func(t *testing.T) {
+		// Act
+		integrations := proxyIntegrations(enforce, rc, sandbox.Capabilities{})
+
+		// Assert
+		assert.Empty(t, integrations)
+	})
+}
+
 func Test_proxyRetentionDays(t *testing.T) {
 	t.Run("uses the value configured in agentic.json", func(t *testing.T) {
 		// Arrange

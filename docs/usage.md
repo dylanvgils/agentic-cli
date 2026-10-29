@@ -120,7 +120,7 @@ agentic run -e CI claude
 ```
 
 - Values are visible inside the container and in `docker inspect`. Use [credential injection](credential-injection.md) for API keys.
-- Names agentic manages are refused: `TOOL_HOME`, `CONTAINER_HOME`, `AGENTIC_MARKETPLACES` and `AGENTIC_PROXY_CA` always; the proxy vars with `--proxy`; the `DOCKER_*` vars with [`--dind`](docker-in-docker.md#how-it-stays-isolated); the CA and credential vars with [credential injection](credential-injection.md).
+- Names agentic manages are refused: `TOOL_HOME`, `CONTAINER_HOME`, `AGENTIC_MARKETPLACES` and `AGENTIC_PROXY_CA` always; the proxy vars with `--proxy`; the `DOCKER_*` vars with [`--dind`](docker-in-docker.md#how-it-stays-isolated); `MAVEN_ARGS` and `GRADLE_OPTS` with the `maven` and `gradle` [proxy integrations](egress-proxy.md#tools-that-ignore-proxy-env-vars); the CA and credential vars with [credential injection](credential-injection.md).
 - `TZ` and the terminal vars (`COLORTERM`, `TERM`, `NO_COLOR`, `FORCE_COLOR`) are forwarded from the host automatically. Override them like any other var (`-e TZ=UTC`).
 
 ## Named volumes

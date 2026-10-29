@@ -79,6 +79,27 @@ func Test_requiredCapabilities(t *testing.T) {
 		assert.Equal(t, sandbox.Capabilities{CredentialInjection: true, PathRules: true, PidsLimit: true}, withCredentials)
 	})
 
+	t.Run("proxy integrations ask for integration support only with the proxy or credentials", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.Integrations = []string{"maven"}
+		credentialRC := &config.AgenticRC{}
+		credentialRC.Run.Proxy.Integrations = rc.Run.Proxy.Integrations
+		credentialRC.Run.Proxy.Credentials = []config.RCCredential{{Preset: "github", Secret: "/example.test/token"}}
+		proxyFlags := Flags{}
+		proxyFlags.Proxy.ProxyFlag = true
+
+		// Act
+		without := requiredCapabilities(Flags{}, rc)
+		with := requiredCapabilities(proxyFlags, rc)
+		withCredentials := requiredCapabilities(Flags{}, credentialRC)
+
+		// Assert
+		assert.Equal(t, sandbox.Capabilities{PidsLimit: true}, without)
+		assert.Equal(t, sandbox.Capabilities{Proxy: true, ProxyIntegrations: true, PidsLimit: true}, with)
+		assert.Equal(t, sandbox.Capabilities{CredentialInjection: true, ProxyIntegrations: true, PidsLimit: true}, withCredentials)
+	})
+
 	t.Run("off switches drop the need", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
@@ -200,6 +221,24 @@ func Test_checkCapabilities(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, errLog.String(), "--runtime microsandbox can't limit hosts to paths, so it allows the hosts of [[run.proxy.allowed_paths]] in /example.test/project/.agenticrc.toml on every path; use --runtime docker to limit them")
+	})
+
+	t.Run("missing proxy integrations only warn, naming the layer", func(t *testing.T) {
+		// Arrange
+		errLog := stubErrLog(t)
+		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
+		rc := &config.AgenticRC{}
+		rc.Run.Proxy.Integrations = []string{"maven"}
+		req.Project.RC = rc
+		req.Project.Layers = []config.RCLayer{{Path: "/example.test/project/.agenticrc.toml", RC: rc}}
+		req.Flags.Proxy.ProxyFlag = true
+
+		// Act
+		err := checkCapabilities(req, msb)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, errLog.String(), "--runtime microsandbox has no proxy sidecar, so it ignores [run.proxy] integrations in /example.test/project/.agenticrc.toml; tools reach allowed hosts directly")
 	})
 
 	t.Run("a runtime with every feature passes", func(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -20,7 +21,10 @@ import (
 
 // proxyHostAlias is the proxy's stable network alias, registered alongside its randomized
 // container name so tools needing a literal host:port can hardcode it; safe to reuse across concurrent runs since aliases are scoped per-network.
-const proxyHostAlias = "agentic-proxy"
+const proxyHostAlias = sandbox.ProxyHostAlias
+
+// proxyURL is the proxy's address for the tool's proxy settings.
+const proxyURL = "http://" + proxyHostAlias + ":" + sandbox.ProxyPort // NOSONAR - proxy on the internal network; HTTPS stays TLS via CONNECT
 
 // proxyRunMountDir is the proxy's anonymous volume holding the CA and credentials, copied in before it starts.
 const proxyRunMountDir = "/run/agentic-proxy"
@@ -52,6 +56,8 @@ type proxyHandle struct {
 	rules       []proxy.Rule
 	// placeholderEnv sets each credential's env vars to its placeholder in the tool
 	placeholderEnv []string
+	// integrationEnv is the proxy integrations' env
+	integrationEnv []string
 	clientNets     []string
 	caPEM          []byte
 	// user runs the proxy and owns its credential files, the same as the tool
@@ -90,6 +96,7 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		credentials:    creds,
 		rules:          rules,
 		placeholderEnv: placeholderEnv,
+		integrationEnv: sandbox.ProxyIntegrationEnv(rs.Proxy.Integrations),
 		user:           *rs.User,
 	}, nil
 }
@@ -99,10 +106,10 @@ func (h proxyHandle) decrypts() bool {
 	return len(h.credentials) > 0 || len(proxy.PathHosts(h.rules)) > 0
 }
 
-// toolEnvArgs returns the --env flags the tool needs with this proxy: its URL, trust in its CA and the credential placeholders.
+// toolEnvArgs returns the --env flags the tool needs with this proxy: its URL, CA trust, placeholders and integrations.
 func (h proxyHandle) toolEnvArgs(dind bool) []string {
 	args := append(proxyEnvArgs(dind), h.trustArgs()...)
-	for _, entry := range h.placeholderEnv {
+	for _, entry := range slices.Concat(h.placeholderEnv, h.integrationEnv) {
 		args = append(args, arg("env", entry))
 	}
 	return args
@@ -112,17 +119,16 @@ func (h proxyHandle) toolEnvArgs(dind bool) []string {
 // proxyHostAlias so the URL is stable despite the container name being randomized per run.
 // NO_PROXY excludes loopback (and the dind sidecar) only - not a security boundary; the internal network blocks every other route.
 func proxyEnvArgs(dind bool) []string {
-	url := "http://" + proxyHostAlias + ":" + proxy.Port // NOSONAR - proxy on the internal network; HTTPS stays TLS via CONNECT
 	noProxy := "localhost,127.0.0.1"
 	if dind {
 		// Otherwise the docker CLI would route DOCKER_HOST through the proxy
 		noProxy += "," + dindHostAlias
 	}
 	return []string{
-		arg("env", "HTTP_PROXY="+url),
-		arg("env", "HTTPS_PROXY="+url),
-		arg("env", "http_proxy="+url),
-		arg("env", "https_proxy="+url),
+		arg("env", "HTTP_PROXY="+proxyURL),
+		arg("env", "HTTPS_PROXY="+proxyURL),
+		arg("env", "http_proxy="+proxyURL),
+		arg("env", "https_proxy="+proxyURL),
 		arg("env", "NO_PROXY="+noProxy),
 		arg("env", "no_proxy="+noProxy),
 		arg("env", "NODE_USE_ENV_PROXY=1"), // Node's fetch and http ignore the vars above without it

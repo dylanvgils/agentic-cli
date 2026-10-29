@@ -185,6 +185,7 @@ func javaStage(prevStage, ver string) df.Stage {
 				`rm -rf /var/lib/apt/lists/*`,
 			}},
 		}}).
+		Add(mavenSettingsFile()).
 		Add(versionCheckScript("java", "java --version")).
 		Build()
 }
