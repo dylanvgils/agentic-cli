@@ -19,7 +19,7 @@ func requiredCapabilities(flags Flags, rc *config.AgenticRC) sandbox.Capabilitie
 		Dind:                resolve.DindEnabled(flags.Dind, rc),
 		CredentialInjection: len(rc.Run.Proxy.Credentials) > 0,
 		PathRules:           len(rc.Run.Proxy.AllowedPaths) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
-		ProxyIntegrations:   len(rc.Run.Proxy.Integrations) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
+		ProxyIntegrations:   len(resolve.ProxyIntegrations(flags.Proxy, rc)) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
 		PidsLimit:           true,
 	}
 }
@@ -146,8 +146,11 @@ func pathRulesSource(req Request) string {
 	return layerSource(req.Project.Layers, "[[run.proxy.allowed_paths]]", func(rc *config.AgenticRC) bool { return len(rc.Run.Proxy.AllowedPaths) > 0 })
 }
 
-// integrationsSource names the innermost layer setting proxy integrations.
+// integrationsSource names what sets proxy integrations in req: --proxy-integration, or the innermost layer setting them.
 func integrationsSource(req Request) string {
+	if len(req.Flags.Proxy.Integrations) > 0 {
+		return "--proxy-integration"
+	}
 	return layerSource(req.Project.Layers, "[run.proxy] integrations", func(rc *config.AgenticRC) bool { return len(rc.Run.Proxy.Integrations) > 0 })
 }
 

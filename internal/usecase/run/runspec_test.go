@@ -739,7 +739,7 @@ func Test_validateEnv(t *testing.T) {
 		err := validateEnv([]string{"MAVEN_ARGS=--quiet"}, true, false, []string{"maven"})
 
 		// Assert
-		assert.ErrorContains(t, err, `"MAVEN_ARGS" is set by [run.proxy] integrations`)
+		assert.ErrorContains(t, err, `"MAVEN_ARGS" is set by a proxy integration`)
 	})
 
 	t.Run("accepts a var no proxy integration sets", func(t *testing.T) {

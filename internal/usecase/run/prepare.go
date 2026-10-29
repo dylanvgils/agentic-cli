@@ -153,16 +153,17 @@ func resolveInput(flags Flags, rc *config.AgenticRC, caps sandbox.Capabilities) 
 	dind := caps.Dind && resolve.DindEnabled(flags.Dind, rc)
 
 	return Input{
-		ToolHome:    flags.ToolHome,
-		Volumes:     flags.Volumes,
-		Env:         flags.Env,
-		Limits:      flags.Limits,
-		DryRun:      flags.DryRun,
-		Registry:    flags.Registry,
-		ProxyMode:   proxyMode,
-		DindEnabled: dind,
-		DindLimits:  flags.DindLimits,
-		Runtime:     resolve.Runtime(flags.Runtime, rc),
+		ToolHome:          flags.ToolHome,
+		Volumes:           flags.Volumes,
+		Env:               flags.Env,
+		Limits:            flags.Limits,
+		DryRun:            flags.DryRun,
+		Registry:          flags.Registry,
+		ProxyMode:         proxyMode,
+		ProxyIntegrations: proxyIntegrations(flags.Proxy, rc, proxyMode, caps),
+		DindEnabled:       dind,
+		DindLimits:        flags.DindLimits,
+		Runtime:           resolve.Runtime(flags.Runtime, rc),
 	}, nil
 }
 

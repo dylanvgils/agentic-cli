@@ -24,6 +24,8 @@ type ProxyInput struct {
 	NoProxy     bool
 	MonitorFlag bool
 	ProxyFlag   bool
+	// Integrations are the --proxy-integration names, added to rc's
+	Integrations []string
 }
 
 // ProxyMode resolves whether the proxy is off, enforcing or monitoring; when proxyInjects, credentials turn it on and refuse an
@@ -60,6 +62,12 @@ func ProxyAllowList(toolAllowedHosts []string, dindEnabled bool, rc *config.Agen
 		seen[host] = true
 		return dup
 	})
+}
+
+// ProxyIntegrations returns rc's proxy integrations plus the flag's, sorted and unique.
+func ProxyIntegrations(in ProxyInput, rc *config.AgenticRC) []string {
+	names := slices.Concat(rc.Run.Proxy.Integrations, in.Integrations)
+	return slices.Compact(slices.Sorted(slices.Values(names)))
 }
 
 // ProxyRules returns the hosts ProxyAllowList merges, allowed whole unless path rules name them, then rc's path rules.

@@ -266,6 +266,19 @@ func TestProxyAllowList(t *testing.T) {
 	})
 }
 
+func TestProxyIntegrations(t *testing.T) {
+	// Arrange
+	rc := &config.AgenticRC{}
+	rc.Run.Proxy.Integrations = []string{"maven", "gradle"}
+	in := ProxyInput{Integrations: []string{"maven"}}
+
+	// Act
+	result := ProxyIntegrations(in, rc)
+
+	// Assert
+	assert.Equal(t, []string{"gradle", "maven"}, result)
+}
+
 func TestProxyRules(t *testing.T) {
 	t.Run("allows merged hosts whole, then the path rules", func(t *testing.T) {
 		// Arrange

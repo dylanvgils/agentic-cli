@@ -123,6 +123,12 @@ integrations = ["maven", "gradle"]
 allowed_hosts = ["repo.maven.apache.org"]
 ```
 
+Or pass them for one run, added to the config's list:
+
+```bash
+agentic run --proxy --proxy-integration maven,gradle claude
+```
+
 Add the other hosts your build downloads from, such as the Gradle wrapper and plugin portal. A first run with `--proxy-monitor` lists them in the access log.
 
 - **Maven** needs the `java` base and Maven 3.9 or later, directly or through `mvnw`. Your own `~/.m2/settings.xml` still applies. Put Maven args in `.mvn/maven.config`, as `MAVEN_ARGS` is set by agentic.
@@ -137,7 +143,7 @@ With the [microsandbox runtime](microsandbox.md), msb's own network policy enfor
 
 - There's no access log and no summary at the end of the run.
 - `--proxy-monitor` is refused; use `--proxy`.
-- `[run.proxy] integrations` are ignored, with a warning, as tools reach allowed hosts directly.
+- `[run.proxy] integrations` and `--proxy-integration` are ignored, with a warning, as tools reach allowed hosts directly.
 - An internal host that resolves to a private address isn't reachable, since msb drops private DNS answers.
 - Every `allowed_hosts` entry must be a hostname like `api.example.test` or `.example.test`, else the run is refused. msb would read a CIDR or a name like `public` as a wider rule.
 - [Credentials](credential-injection.md) keep working, since msb injects them itself rather than a proxy.

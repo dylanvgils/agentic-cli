@@ -41,14 +41,16 @@ type Target struct {
 
 // Input carries the flag/env-derived values build needs.
 type Input struct {
-	ToolHome    string
-	Volumes     []string
-	Env         []string
-	Limits      sandbox.ResourceLimits
-	DryRun      bool
-	Registry    string
-	ProxyMode   sandbox.ProxyMode
-	DindEnabled bool
+	ToolHome  string
+	Volumes   []string
+	Env       []string
+	Limits    sandbox.ResourceLimits
+	DryRun    bool
+	Registry  string
+	ProxyMode sandbox.ProxyMode
+	// ProxyIntegrations are the integrations the run applies, empty unless the proxy runs on a runtime with them
+	ProxyIntegrations []string
+	DindEnabled       bool
 	// Sidecar limit flags; empty falls back to config
 	DindLimits sandbox.ResourceLimits
 	// Runtime is where the run executes; empty means Docker
@@ -156,7 +158,7 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 	in := req.in
 
 	env := resolve.Env(in.Env, req.rc)
-	if err := validateEnv(env, in.ProxyMode.Enabled(), in.DindEnabled, proxyIntegrations(in, req.rc, req.caps)); err != nil {
+	if err := validateEnv(env, in.ProxyMode.Enabled(), in.DindEnabled, in.ProxyIntegrations); err != nil {
 		return nil, err
 	}
 
@@ -235,7 +237,7 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string
 			Mode:         in.ProxyMode,
 			Rules:        rules,
 			LogFile:      proxyLog,
-			Integrations: proxyIntegrations(in, rc, req.caps),
+			Integrations: in.ProxyIntegrations,
 		}).
 		WithDind(sandbox.DindSpec{Enabled: in.DindEnabled, Limits: dindLimits}).
 		Build()
@@ -291,7 +293,7 @@ func validateEnv(entries []string, proxyEnabled, dindEnabled bool, integrations 
 			return fmt.Errorf("--env: %q is managed by agentic and cannot be overridden", key)
 		}
 		if slices.Contains(integrationNames, key) {
-			return fmt.Errorf("--env: %q is set by [run.proxy] integrations and cannot be overridden", key)
+			return fmt.Errorf("--env: %q is set by a proxy integration and cannot be overridden", key)
 		}
 	}
 

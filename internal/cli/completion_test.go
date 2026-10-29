@@ -216,6 +216,15 @@ func Test_baseLayersFunc(t *testing.T) {
 	})
 }
 
+func Test_proxyIntegrationsFunc(t *testing.T) {
+	// Act
+	names, directive := proxyIntegrationsFunc(nil, nil, "")
+
+	// Assert
+	assert.Equal(t, []string{"gradle", "maven"}, names)
+	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+}
+
 func Test_runtimesFunc(t *testing.T) {
 	// Act
 	names, directive := runtimesFunc(nil, nil, "")

@@ -11,6 +11,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,21 +40,21 @@ func Test_proxyRules(t *testing.T) {
 
 func Test_proxyIntegrations(t *testing.T) {
 	rc := &config.AgenticRC{}
-	rc.Run.Proxy.Integrations = []string{"maven", "maven"}
-	enforce := Input{ProxyMode: sandbox.ProxyEnforce}
+	rc.Run.Proxy.Integrations = []string{"maven"}
+	flags := resolve.ProxyInput{Integrations: []string{"gradle"}}
 	caps := sandbox.Capabilities{ProxyIntegrations: true}
 
-	t.Run("deduplicates with the proxy on a runtime that supports them", func(t *testing.T) {
+	t.Run("returns them with the proxy on a runtime that supports them", func(t *testing.T) {
 		// Act
-		integrations := proxyIntegrations(enforce, rc, caps)
+		integrations := proxyIntegrations(flags, rc, sandbox.ProxyEnforce, caps)
 
 		// Assert
-		assert.Equal(t, []string{"maven"}, integrations)
+		assert.Equal(t, []string{"gradle", "maven"}, integrations)
 	})
 
 	t.Run("none without the proxy", func(t *testing.T) {
 		// Act
-		integrations := proxyIntegrations(Input{}, rc, caps)
+		integrations := proxyIntegrations(flags, rc, sandbox.ProxyOff, caps)
 
 		// Assert
 		assert.Empty(t, integrations)
@@ -61,7 +62,7 @@ func Test_proxyIntegrations(t *testing.T) {
 
 	t.Run("none on a runtime without them", func(t *testing.T) {
 		// Act
-		integrations := proxyIntegrations(enforce, rc, sandbox.Capabilities{})
+		integrations := proxyIntegrations(flags, rc, sandbox.ProxyEnforce, sandbox.Capabilities{})
 
 		// Assert
 		assert.Empty(t, integrations)

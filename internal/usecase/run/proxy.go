@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -28,12 +27,12 @@ func proxyRules(toolConfig tools.ToolConfig, in Input, rc *config.AgenticRC, cap
 	return sandbox.AllowWhole(rules)
 }
 
-// proxyIntegrations returns rc's unique proxy integrations when the proxy runs and the runtime supports them.
-func proxyIntegrations(in Input, rc *config.AgenticRC, caps sandbox.Capabilities) []string {
-	if !in.ProxyMode.Enabled() || !caps.ProxyIntegrations {
+// proxyIntegrations returns the flag's and rc's proxy integrations when the proxy runs and the runtime supports them.
+func proxyIntegrations(flags resolve.ProxyInput, rc *config.AgenticRC, mode sandbox.ProxyMode, caps sandbox.Capabilities) []string {
+	if !mode.Enabled() || !caps.ProxyIntegrations {
 		return nil
 	}
-	return slices.Compact(slices.Sorted(slices.Values(rc.Run.Proxy.Integrations)))
+	return resolve.ProxyIntegrations(flags, rc)
 }
 
 // proxyLogFile returns a new access-log path in the tool home's logs dir when the proxy is enabled, else an empty string.

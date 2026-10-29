@@ -150,7 +150,7 @@ Always run `go test ./...` before considering a task finished.
 | `enabled`       | bool   | Route egress through the allowlist proxy                                                          | `--proxy` / `--no-proxy` | `false`     |
 | `mode`          | string | `"enforce"` blocks hosts not on the allowlist, `"monitor"` only logs them. `"monitor"` turns the proxy on unless `enabled = false`. | `--proxy-monitor`        | `"enforce"` |
 | `allowed_hosts` | list   | Hosts added to the tool's baseline. Exact (`"api.github.com"`), or `.`/`*.` prefix for a domain and its subdomains (`".github.com"`). | -                        | -           |
-| `integrations`  | list   | Tools that ignore the proxy env vars, routed through the proxy with their own config. `"maven"` or `"gradle"`. See [Tools that ignore proxy env vars](egress-proxy.md#tools-that-ignore-proxy-env-vars). | -                        | -           |
+| `integrations`  | list   | Tools that ignore the proxy env vars, routed through the proxy with their own config. `"maven"` or `"gradle"`. See [Tools that ignore proxy env vars](egress-proxy.md#tools-that-ignore-proxy-env-vars). | `--proxy-integration`    | -           |
 
 ### `[[run.proxy.allowed_paths]]`
 

@@ -89,6 +89,11 @@ var baseLayersFunc = func(_ *cobra.Command, _ []string, toComplete string) ([]st
 	return names, cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveNoSpace
 }
 
+// proxyIntegrationsFunc completes --proxy-integration with the known integration names.
+func proxyIntegrationsFunc(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+	return sandbox.ProxyIntegrations(), cobra.ShellCompDirectiveNoFileComp
+}
+
 // runtimesFunc completes --runtime with every runtime's name.
 func runtimesFunc(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 	names := make([]string, len(sandbox.Runtimes))
