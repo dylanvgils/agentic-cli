@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -121,22 +120,18 @@ func resolveDindResourceLimitFlags(cmd *cobra.Command) sandbox.ResourceLimits {
 }
 
 // proxyInput reads the proxy-related flags.
-func proxyInput(cmd *cobra.Command) (resolve.ProxyInput, error) {
+func proxyInput(cmd *cobra.Command) resolve.ProxyInput {
 	noProxy, _ := cmd.Flags().GetBool(noProxyFlagName)
 	monitorFlag, _ := cmd.Flags().GetBool(proxyMonitorFlagName)
 	proxyFlag, _ := cmd.Flags().GetBool("proxy")
 	integrations, _ := cmd.Flags().GetStringSlice(proxyIntegrationFlag)
-
-	if err := sandbox.CheckProxyIntegrations(integrations); err != nil {
-		return resolve.ProxyInput{}, fmt.Errorf("--%s: %w", proxyIntegrationFlag, err)
-	}
 
 	return resolve.ProxyInput{
 		NoProxy:      noProxy,
 		MonitorFlag:  monitorFlag,
 		ProxyFlag:    proxyFlag,
 		Integrations: integrations,
-	}, nil
+	}
 }
 
 // dindInput reads the dind flags.
@@ -158,14 +153,9 @@ func runtimeFlags(cmd *cobra.Command) (run.Flags, error) {
 		}
 	}
 
-	proxy, err := proxyInput(cmd)
-	if err != nil {
-		return run.Flags{}, err
-	}
-
 	return run.Flags{
 		ToolHome:   toolHome,
-		Proxy:      proxy,
+		Proxy:      proxyInput(cmd),
 		Dind:       dindInput(cmd),
 		Limits:     resolveResourceLimitFlags(cmd),
 		DindLimits: resolveDindResourceLimitFlags(cmd),

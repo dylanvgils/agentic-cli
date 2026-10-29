@@ -85,40 +85,24 @@ func Test_addDindFlags(t *testing.T) {
 
 // Test_proxyInput only confirms each flag maps to the right resolve.ProxyInput field; precedence is covered by TestProxyMode in internal/usecase/resolve.
 func Test_proxyInput(t *testing.T) {
-	t.Run("maps each flag", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-		addProxyFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("no-proxy", "true"))
-		require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
-		require.NoError(t, cmd.Flags().Set("proxy", "true"))
-		require.NoError(t, cmd.Flags().Set("proxy-integration", "maven,gradle"))
+	// Arrange
+	cmd := &cobra.Command{Use: "test"}
+	addProxyFlags(cmd)
+	require.NoError(t, cmd.Flags().Set("no-proxy", "true"))
+	require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
+	require.NoError(t, cmd.Flags().Set("proxy", "true"))
+	require.NoError(t, cmd.Flags().Set("proxy-integration", "maven,gradle"))
 
-		// Act
-		result, err := proxyInput(cmd)
+	// Act
+	result := proxyInput(cmd)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, resolve.ProxyInput{
-			NoProxy:      true,
-			MonitorFlag:  true,
-			ProxyFlag:    true,
-			Integrations: []string{"maven", "gradle"},
-		}, result)
-	})
-
-	t.Run("unknown integration returns error", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-		addProxyFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("proxy-integration", "bogus"))
-
-		// Act
-		_, err := proxyInput(cmd)
-
-		// Assert
-		assert.ErrorContains(t, err, `--proxy-integration: unknown integration "bogus"`)
-	})
+	// Assert
+	assert.Equal(t, resolve.ProxyInput{
+		NoProxy:      true,
+		MonitorFlag:  true,
+		ProxyFlag:    true,
+		Integrations: []string{"maven", "gradle"},
+	}, result)
 }
 
 // Test_dindInput only confirms each flag maps to the right resolve.DindInput field; precedence is covered by TestDindEnabled in internal/usecase/resolve.
@@ -297,18 +281,6 @@ func Test_runtimeFlags(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, flags.Runtime)
-	})
-
-	t.Run("unknown proxy integration returns error", func(t *testing.T) {
-		// Arrange
-		cmd := newCmd()
-		require.NoError(t, cmd.Flags().Set("proxy-integration", "bogus"))
-
-		// Act
-		_, err := runtimeFlags(cmd)
-
-		// Assert
-		assert.ErrorContains(t, err, `unknown integration "bogus"`)
 	})
 
 	t.Run("unknown runtime returns error", func(t *testing.T) {

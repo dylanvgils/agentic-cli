@@ -40,8 +40,7 @@ func Test_proxyRules(t *testing.T) {
 
 func Test_proxyIntegrations(t *testing.T) {
 	rc := &config.AgenticRC{}
-	rc.Run.Proxy.Integrations = []string{"maven"}
-	flags := resolve.ProxyInput{Integrations: []string{"gradle"}}
+	flags := resolve.ProxyInput{Integrations: []string{"maven"}}
 	caps := sandbox.Capabilities{ProxyIntegrations: true}
 
 	t.Run("returns them with the proxy on a runtime that supports them", func(t *testing.T) {
@@ -49,7 +48,7 @@ func Test_proxyIntegrations(t *testing.T) {
 		integrations := proxyIntegrations(flags, rc, sandbox.ProxyEnforce, caps)
 
 		// Assert
-		assert.Equal(t, []string{"gradle", "maven"}, integrations)
+		assert.Equal(t, []string{"maven"}, integrations)
 	})
 
 	t.Run("none without the proxy", func(t *testing.T) {

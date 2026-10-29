@@ -415,6 +415,17 @@ func Test_resolveInput(t *testing.T) {
 		require.ErrorContains(t, err, "--no-proxy cannot be used")
 	})
 
+	t.Run("an unknown proxy integration is an error", func(t *testing.T) {
+		// Arrange
+		flags := Flags{Proxy: resolve.ProxyInput{Integrations: []string{"bogus"}}}
+
+		// Act
+		_, err := resolveInput(flags, &config.AgenticRC{}, dockerCaps)
+
+		// Assert
+		require.ErrorContains(t, err, `--proxy-integration: unknown integration "bogus"`)
+	})
+
 	t.Run("dind stays off on a runtime without a daemon", func(t *testing.T) {
 		// Arrange
 		flags := Flags{Dind: resolve.DindInput{DindFlag: true}}
