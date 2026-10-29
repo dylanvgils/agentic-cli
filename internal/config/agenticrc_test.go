@@ -723,7 +723,7 @@ copilot = ["--disable-client-telemetry"]
 		_, err := loadRC(path)
 
 		// Assert
-		assert.ErrorContains(t, err, `invalid [run.proxy] integration "bogus": must be one of gradle, maven`)
+		assert.ErrorContains(t, err, `[run.proxy] integrations: unknown integration "bogus"`)
 		assert.ErrorContains(t, err, path)
 	})
 

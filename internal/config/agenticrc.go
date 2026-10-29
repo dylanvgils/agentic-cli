@@ -406,10 +406,8 @@ func loadRC(path string) (*AgenticRC, error) {
 		}
 	}
 
-	for _, name := range rc.Run.Proxy.Integrations {
-		if !sandbox.IsProxyIntegration(name) {
-			return nil, fmt.Errorf("%s: invalid [run.proxy] integration %q: must be one of %s", path, name, strings.Join(sandbox.ProxyIntegrations(), ", "))
-		}
+	if err := sandbox.CheckProxyIntegrations(rc.Run.Proxy.Integrations); err != nil {
+		return nil, fmt.Errorf("%s: [run.proxy] integrations: %w", path, err)
 	}
 
 	for _, marketplace := range rc.Marketplaces {

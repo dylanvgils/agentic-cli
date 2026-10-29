@@ -117,7 +117,7 @@ func Test_proxyInput(t *testing.T) {
 		_, err := proxyInput(cmd)
 
 		// Assert
-		assert.EqualError(t, err, `--proxy-integration: unknown integration "bogus": must be one of gradle, maven`)
+		assert.ErrorContains(t, err, `--proxy-integration: unknown integration "bogus"`)
 	})
 }
 

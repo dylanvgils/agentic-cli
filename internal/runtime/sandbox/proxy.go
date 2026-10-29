@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -87,10 +88,14 @@ func ProxyIntegrations() []string {
 	return slices.Sorted(maps.Keys(proxyIntegrationEnv))
 }
 
-// IsProxyIntegration reports whether name is a known proxy integration.
-func IsProxyIntegration(name string) bool {
-	_, ok := proxyIntegrationEnv[name]
-	return ok
+// CheckProxyIntegrations refuses the first name that isn't a known proxy integration.
+func CheckProxyIntegrations(names []string) error {
+	for _, name := range names {
+		if _, ok := proxyIntegrationEnv[name]; !ok {
+			return fmt.Errorf("unknown integration %q: must be one of %s", name, strings.Join(ProxyIntegrations(), ", "))
+		}
+	}
+	return nil
 }
 
 // ProxyIntegrationEnv returns the tool env vars the named integrations set.

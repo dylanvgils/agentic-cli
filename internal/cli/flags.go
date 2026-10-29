@@ -120,17 +120,15 @@ func resolveDindResourceLimitFlags(cmd *cobra.Command) sandbox.ResourceLimits {
 	return limitFlags(cmd, "dind-pids-limit", "dind-cpus", "dind-memory")
 }
 
-// proxyInput reads the proxy-related flags, refusing an unknown integration.
+// proxyInput reads the proxy-related flags.
 func proxyInput(cmd *cobra.Command) (resolve.ProxyInput, error) {
 	noProxy, _ := cmd.Flags().GetBool(noProxyFlagName)
 	monitorFlag, _ := cmd.Flags().GetBool(proxyMonitorFlagName)
 	proxyFlag, _ := cmd.Flags().GetBool("proxy")
 	integrations, _ := cmd.Flags().GetStringSlice(proxyIntegrationFlag)
 
-	for _, name := range integrations {
-		if !sandbox.IsProxyIntegration(name) {
-			return resolve.ProxyInput{}, fmt.Errorf("--%s: unknown integration %q: must be one of %s", proxyIntegrationFlag, name, strings.Join(sandbox.ProxyIntegrations(), ", "))
-		}
+	if err := sandbox.CheckProxyIntegrations(integrations); err != nil {
+		return resolve.ProxyInput{}, fmt.Errorf("--%s: %w", proxyIntegrationFlag, err)
 	}
 
 	return resolve.ProxyInput{

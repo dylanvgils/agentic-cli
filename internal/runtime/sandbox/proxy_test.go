@@ -91,21 +91,21 @@ func TestProxyIntegrations(t *testing.T) {
 	assert.Equal(t, []string{"gradle", "maven"}, names)
 }
 
-func TestIsProxyIntegration(t *testing.T) {
-	t.Run("known name", func(t *testing.T) {
+func TestCheckProxyIntegrations(t *testing.T) {
+	t.Run("known names", func(t *testing.T) {
 		// Act
-		ok := IsProxyIntegration("maven")
+		err := CheckProxyIntegrations([]string{"maven", "gradle"})
 
 		// Assert
-		assert.True(t, ok)
+		assert.NoError(t, err)
 	})
 
-	t.Run("unknown name", func(t *testing.T) {
+	t.Run("unknown name returns error", func(t *testing.T) {
 		// Act
-		ok := IsProxyIntegration("example")
+		err := CheckProxyIntegrations([]string{"maven", "example"})
 
 		// Assert
-		assert.False(t, ok)
+		assert.EqualError(t, err, `unknown integration "example": must be one of gradle, maven`)
 	})
 }
 
