@@ -27,6 +27,14 @@ func proxyRules(toolConfig tools.ToolConfig, in Input, rc *config.AgenticRC, cap
 	return sandbox.AllowWhole(rules)
 }
 
+// proxyIntegrations returns the flag's and rc's proxy integrations when the proxy runs and the runtime supports them.
+func proxyIntegrations(flags resolve.ProxyInput, rc *config.AgenticRC, mode sandbox.ProxyMode, caps sandbox.Capabilities) []string {
+	if !mode.Enabled() || !caps.ProxyIntegrations {
+		return nil
+	}
+	return resolve.ProxyIntegrations(flags, rc)
+}
+
 // proxyLogFile returns a new access-log path in the tool home's logs dir when the proxy is enabled, else an empty string.
 func proxyLogFile(toolHome string, proxyEnabled bool) (string, error) {
 	if !proxyEnabled {

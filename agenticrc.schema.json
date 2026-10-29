@@ -154,6 +154,11 @@
                 }
               }
             },
+            "integrations": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["gradle", "maven"] },
+              "description": "Tools that ignore the proxy env vars, routed through the proxy with their own config: maven sets MAVEN_ARGS (needs the java base and Maven 3.9+), gradle sets GRADLE_OPTS. Docker runtime only; microsandbox ignores it. Accumulates across RC layers."
+            },
             "credentials": {
               "type": "array",
               "description": "Beta. Secrets swapped in for a placeholder the tool sends in a header on HTTPS requests to their hosts; the container only sees the placeholder. Turns the proxy on. Accumulates across RC layers.",

@@ -144,6 +144,10 @@ func runInput(flags Flags, approved approvedConfig, caps sandbox.Capabilities) (
 
 // resolveInput resolves flags against rc into build's input for a runtime offering caps, minus the credentials only a run reads.
 func resolveInput(flags Flags, rc *config.AgenticRC, caps sandbox.Capabilities) (Input, error) {
+	if err := sandbox.CheckProxyIntegrations(flags.Proxy.Integrations); err != nil {
+		return Input{}, fmt.Errorf("--proxy-integration: %w", err)
+	}
+
 	proxyMode, err := resolve.ProxyMode(flags.Proxy, rc, caps.CredentialsViaProxy)
 	if err != nil {
 		return Input{}, err
@@ -153,16 +157,17 @@ func resolveInput(flags Flags, rc *config.AgenticRC, caps sandbox.Capabilities) 
 	dind := caps.Dind && resolve.DindEnabled(flags.Dind, rc)
 
 	return Input{
-		ToolHome:    flags.ToolHome,
-		Volumes:     flags.Volumes,
-		Env:         flags.Env,
-		Limits:      flags.Limits,
-		DryRun:      flags.DryRun,
-		Registry:    flags.Registry,
-		ProxyMode:   proxyMode,
-		DindEnabled: dind,
-		DindLimits:  flags.DindLimits,
-		Runtime:     resolve.Runtime(flags.Runtime, rc),
+		ToolHome:          flags.ToolHome,
+		Volumes:           flags.Volumes,
+		Env:               flags.Env,
+		Limits:            flags.Limits,
+		DryRun:            flags.DryRun,
+		Registry:          flags.Registry,
+		ProxyMode:         proxyMode,
+		ProxyIntegrations: proxyIntegrations(flags.Proxy, rc, proxyMode, caps),
+		DindEnabled:       dind,
+		DindLimits:        flags.DindLimits,
+		Runtime:           resolve.Runtime(flags.Runtime, rc),
 	}, nil
 }
 

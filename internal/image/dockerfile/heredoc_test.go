@@ -18,6 +18,18 @@ func TestHeredoc_render(t *testing.T) {
 		assert.Equal(t, "COPY --chmod=0755 <<'EOF' /usr/local/bin/version.sh\n#!/bin/sh\nnode --version\nEOF", result)
 	})
 
+	t.Run("mode overrides the executable default", func(t *testing.T) {
+		// Act
+		result := Heredoc{
+			Dest:  "/etc/example.conf",
+			Lines: []string{"key=value"},
+			Mode:  "0644",
+		}.Render()
+
+		// Assert
+		assert.Equal(t, "COPY --chmod=0644 <<'EOF' /etc/example.conf\nkey=value\nEOF", result)
+	})
+
 	t.Run("single quotes preserved literally", func(t *testing.T) {
 		// Act
 		result := Heredoc{

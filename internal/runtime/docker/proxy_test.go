@@ -270,6 +270,36 @@ func TestNewProxyHandle(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, handle.monitor)
 	})
+
+	t.Run("sets the integrations' env", func(t *testing.T) {
+		// Arrange
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Proxy: sandbox.ProxySpec{Integrations: []string{"maven"}}}}
+
+		// Act
+		handle, err := client.newProxyHandle(rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"MAVEN_ARGS=--global-settings /etc/agentic/maven/settings.xml"}, handle.integrationEnv)
+	})
+}
+
+func Test_proxyHandle_toolEnvArgs(t *testing.T) {
+	t.Run("adds the placeholders and integrations' env", func(t *testing.T) {
+		// Arrange
+		h := proxyHandle{
+			placeholderEnv: []string{"EXAMPLE_API_KEY=placeholder"},
+			integrationEnv: []string{"MAVEN_ARGS=--example"},
+		}
+
+		// Act
+		args := h.toolEnvArgs(false)
+
+		// Assert
+		assert.Contains(t, args, "--env=HTTPS_PROXY=http://agentic-proxy:3128")
+		assert.Contains(t, args, "--env=EXAMPLE_API_KEY=placeholder")
+		assert.Contains(t, args, "--env=MAVEN_ARGS=--example")
+	})
 }
 
 func TestProxyHandleStop(t *testing.T) {

@@ -48,6 +48,8 @@ func TestGuardedSettings(t *testing.T) {
 			"run.check_updates",
 			"run.instructions.enabled",
 			"run.instructions.custom",
+			// Only points tools at agentic's proxy
+			"run.proxy.integrations",
 		}
 
 		// Act

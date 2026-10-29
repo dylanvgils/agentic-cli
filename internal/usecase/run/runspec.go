@@ -40,14 +40,16 @@ type Target struct {
 
 // Input carries the flag/env-derived values build needs.
 type Input struct {
-	ToolHome    string
-	Volumes     []string
-	Env         []string
-	Limits      sandbox.ResourceLimits
-	DryRun      bool
-	Registry    string
-	ProxyMode   sandbox.ProxyMode
-	DindEnabled bool
+	ToolHome  string
+	Volumes   []string
+	Env       []string
+	Limits    sandbox.ResourceLimits
+	DryRun    bool
+	Registry  string
+	ProxyMode sandbox.ProxyMode
+	// ProxyIntegrations are the integrations the run applies, empty unless the proxy runs on a runtime with them
+	ProxyIntegrations []string
+	DindEnabled       bool
 	// Sidecar limit flags; empty falls back to config
 	DindLimits sandbox.ResourceLimits
 	// Runtime is where the run executes; empty means Docker
@@ -155,7 +157,7 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 	in := req.in
 
 	env := resolve.Env(in.Env, req.rc)
-	if err := validateEnv(env, in.ProxyMode.Enabled(), in.DindEnabled); err != nil {
+	if err := validateEnv(env, in.ProxyMode.Enabled(), in.DindEnabled, in.ProxyIntegrations); err != nil {
 		return nil, err
 	}
 
@@ -231,9 +233,10 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string
 		WithDryRun(in.DryRun).
 		WithCredentials(sandboxCredentials(in.Credentials)...).
 		WithProxy(sandbox.ProxySpec{
-			Mode:    in.ProxyMode,
-			Rules:   rules,
-			LogFile: proxyLog,
+			Mode:         in.ProxyMode,
+			Rules:        rules,
+			LogFile:      proxyLog,
+			Integrations: in.ProxyIntegrations,
 		}).
 		WithDind(sandbox.DindSpec{Enabled: in.DindEnabled, Limits: dindLimits}).
 		Build()
@@ -281,10 +284,10 @@ func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 }
 
 // validateEnv rejects entries that override an env var agentic manages.
-func validateEnv(entries []string, proxyEnabled, dindEnabled bool) error {
+func validateEnv(entries []string, proxyEnabled, dindEnabled bool, integrations []string) error {
 	for _, entry := range entries {
 		key, _, _ := strings.Cut(entry, "=")
-		if sandbox.IsReservedEnvName(key, proxyEnabled, dindEnabled) {
+		if sandbox.IsReservedEnvName(key, proxyEnabled, dindEnabled, integrations) {
 			return fmt.Errorf("--env: %q is managed by agentic and cannot be overridden", key)
 		}
 	}

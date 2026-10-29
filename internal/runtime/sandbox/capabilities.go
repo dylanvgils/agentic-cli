@@ -12,6 +12,8 @@ type Capabilities struct {
 	CredentialInjection bool
 	// PathRules are allowlist entries for only some paths of a host.
 	PathRules bool
+	// ProxyIntegrations route tools like Maven through the proxy.
+	ProxyIntegrations bool
 	// CredentialsViaProxy means the proxy injects the credentials, so they turn it on.
 	CredentialsViaProxy bool
 	// PidsLimit is a cap on the number of processes.
@@ -31,6 +33,7 @@ func (c Capabilities) Missing(need Capabilities) Capabilities {
 		Dind:                need.Dind && !c.Dind,
 		CredentialInjection: need.CredentialInjection && !c.CredentialInjection,
 		PathRules:           need.PathRules && !c.PathRules,
+		ProxyIntegrations:   need.ProxyIntegrations && !c.ProxyIntegrations,
 		PidsLimit:           need.PidsLimit && !c.PidsLimit,
 	}
 }

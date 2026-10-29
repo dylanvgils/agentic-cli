@@ -2,11 +2,13 @@ package tools
 
 import (
 	"fmt"
+	"path"
 	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 const (
@@ -185,6 +187,13 @@ func javaStage(prevStage, ver string) df.Stage {
 				`rm -rf /var/lib/apt/lists/*`,
 			}},
 		}}).
+		Add(df.Run{Blocks: []df.Block{
+			{
+				Comment: "COPY --chmod also sets the mode of parents it creates, so create them first",
+				Lines:   []string{"mkdir -p " + path.Dir(sandbox.MavenSettingsPath)},
+			},
+		}}).
+		Add(mavenSettingsFile()).
 		Add(versionCheckScript("java", "java --version")).
 		Build()
 }

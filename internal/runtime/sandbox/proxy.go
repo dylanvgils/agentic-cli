@@ -1,6 +1,11 @@
 package sandbox
 
-import "slices"
+import (
+	"fmt"
+	"maps"
+	"slices"
+	"strings"
+)
 
 // Proxy modes; ProxyOff is the zero value, so a RunSpec without one runs no proxy.
 const (
@@ -8,6 +13,26 @@ const (
 	ProxyEnforce
 	ProxyMonitor
 )
+
+// The proxy's address in the tool's network, the same on every run.
+const (
+	ProxyHostAlias = "agentic-proxy"
+	ProxyPort      = "3128"
+)
+
+// MavenSettingsPath is the Maven proxy settings file in java images.
+const MavenSettingsPath = "/etc/agentic/maven/settings.xml"
+
+// proxyIntegrationEnv maps each proxy integration to its tool env; Gradle passes GRADLE_OPTS on to its daemon.
+var proxyIntegrationEnv = map[string][]string{
+	"gradle": {"GRADLE_OPTS=" + strings.Join([]string{
+		"-Dhttp.proxyHost=" + ProxyHostAlias,
+		"-Dhttp.proxyPort=" + ProxyPort,
+		"-Dhttps.proxyHost=" + ProxyHostAlias,
+		"-Dhttps.proxyPort=" + ProxyPort,
+	}, " ")},
+	"maven": {"MAVEN_ARGS=--global-settings " + MavenSettingsPath},
+}
 
 // ProxyMode selects whether the egress proxy runs and whether it blocks or only logs disallowed hosts.
 type ProxyMode int
@@ -24,6 +49,8 @@ type ProxySpec struct {
 	Mode    ProxyMode
 	Rules   []AllowRule // merged allowlist: tool baseline, user hosts and path rules, credential hosts
 	LogFile string      // host path of this run's JSON-lines access log
+	// Integrations name tools to route through the proxy, e.g. "maven"
+	Integrations []string
 }
 
 // Enabled reports whether the proxy runs, in either mode.
@@ -54,4 +81,38 @@ func (s ProxySpec) WholeHosts() []string {
 		}
 	}
 	return hosts
+}
+
+// ProxyIntegrations returns the known proxy integration names, sorted.
+func ProxyIntegrations() []string {
+	return slices.Sorted(maps.Keys(proxyIntegrationEnv))
+}
+
+// CheckProxyIntegrations refuses the first name that isn't a known proxy integration.
+func CheckProxyIntegrations(names []string) error {
+	for _, name := range names {
+		if _, ok := proxyIntegrationEnv[name]; !ok {
+			return fmt.Errorf("unknown integration %q: must be one of %s", name, strings.Join(ProxyIntegrations(), ", "))
+		}
+	}
+	return nil
+}
+
+// ProxyIntegrationEnv returns the tool env vars the named integrations set.
+func ProxyIntegrationEnv(names []string) []string {
+	var env []string
+	for _, name := range names {
+		env = append(env, proxyIntegrationEnv[name]...)
+	}
+	return env
+}
+
+// proxyIntegrationEnvNames returns the env var names the named integrations set.
+func proxyIntegrationEnvNames(names []string) []string {
+	env := ProxyIntegrationEnv(names)
+	keys := make([]string, len(env))
+	for i, entry := range env {
+		keys[i], _, _ = strings.Cut(entry, "=")
+	}
+	return keys
 }

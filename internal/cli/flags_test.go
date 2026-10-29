@@ -91,12 +91,18 @@ func Test_proxyInput(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set("no-proxy", "true"))
 	require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
 	require.NoError(t, cmd.Flags().Set("proxy", "true"))
+	require.NoError(t, cmd.Flags().Set("proxy-integration", "maven,gradle"))
 
 	// Act
 	result := proxyInput(cmd)
 
 	// Assert
-	assert.Equal(t, resolve.ProxyInput{NoProxy: true, MonitorFlag: true, ProxyFlag: true}, result)
+	assert.Equal(t, resolve.ProxyInput{
+		NoProxy:      true,
+		MonitorFlag:  true,
+		ProxyFlag:    true,
+		Integrations: []string{"maven", "gradle"},
+	}, result)
 }
 
 // Test_dindInput only confirms each flag maps to the right resolve.DindInput field; precedence is covered by TestDindEnabled in internal/usecase/resolve.
@@ -247,6 +253,7 @@ func Test_runtimeFlags(t *testing.T) {
 		// Arrange
 		cmd := newCmd()
 		require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
+		require.NoError(t, cmd.Flags().Set("proxy-integration", "maven"))
 		require.NoError(t, cmd.Flags().Set("dind", "true"))
 		require.NoError(t, cmd.Flags().Set("cpus", "2"))
 		require.NoError(t, cmd.Flags().Set("dind-memory", "1g"))
@@ -259,7 +266,7 @@ func Test_runtimeFlags(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, run.Flags{
 			ToolHome:   toolHome,
-			Proxy:      resolve.ProxyInput{MonitorFlag: true},
+			Proxy:      resolve.ProxyInput{MonitorFlag: true, Integrations: []string{"maven"}},
 			Dind:       resolve.DindInput{DindFlag: true},
 			Limits:     sandbox.ResourceLimits{CPUs: "2"},
 			DindLimits: sandbox.ResourceLimits{Memory: "1g"},

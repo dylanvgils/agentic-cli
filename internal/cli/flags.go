@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"strings"
+
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
@@ -15,6 +17,7 @@ const (
 	aptExactFlagName     = "apt-exact"
 	noProxyFlagName      = "no-proxy"
 	proxyMonitorFlagName = "proxy-monitor"
+	proxyIntegrationFlag = "proxy-integration"
 	noDindFlagName       = "no-dind"
 	dryRunFlagName       = "dry-run"
 )
@@ -84,12 +87,15 @@ func resolveResourceLimitFlags(cmd *cobra.Command) sandbox.ResourceLimits {
 	return limitFlags(cmd, "pids-limit", "cpus", "memory")
 }
 
-// addProxyFlags registers the mutually exclusive --proxy, --no-proxy, and --proxy-monitor flags shared by the run and instructions commands.
+// addProxyFlags registers the mutually exclusive --proxy, --no-proxy, and --proxy-monitor flags, plus --proxy-integration,
+// shared by the run and instructions commands.
 func addProxyFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("proxy", false, "route egress through the allowlist proxy (overrides config)")
 	cmd.Flags().Bool(noProxyFlagName, false, "disable the egress proxy for this run (overrides config)")
 	cmd.Flags().Bool(proxyMonitorFlagName, false, "route egress through the proxy without blocking, logging every host (overrides config)")
+	cmd.Flags().StringSlice(proxyIntegrationFlag, nil, "route a tool that ignores the proxy env vars through the proxy: "+strings.Join(sandbox.ProxyIntegrations(), ", ")+"; repeatable or comma-separated, added to .agenticrc.toml's integrations")
 	cmd.MarkFlagsMutuallyExclusive("proxy", noProxyFlagName, proxyMonitorFlagName)
+	_ = cmd.RegisterFlagCompletionFunc(proxyIntegrationFlag, proxyIntegrationsFunc)
 }
 
 // addDindFlags registers the exclusive --dind/--no-dind pair and the sidecar limit flags.
@@ -118,8 +124,14 @@ func proxyInput(cmd *cobra.Command) resolve.ProxyInput {
 	noProxy, _ := cmd.Flags().GetBool(noProxyFlagName)
 	monitorFlag, _ := cmd.Flags().GetBool(proxyMonitorFlagName)
 	proxyFlag, _ := cmd.Flags().GetBool("proxy")
+	integrations, _ := cmd.Flags().GetStringSlice(proxyIntegrationFlag)
 
-	return resolve.ProxyInput{NoProxy: noProxy, MonitorFlag: monitorFlag, ProxyFlag: proxyFlag}
+	return resolve.ProxyInput{
+		NoProxy:      noProxy,
+		MonitorFlag:  monitorFlag,
+		ProxyFlag:    proxyFlag,
+		Integrations: integrations,
+	}
 }
 
 // dindInput reads the dind flags.

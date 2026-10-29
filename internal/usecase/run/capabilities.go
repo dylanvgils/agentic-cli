@@ -19,6 +19,7 @@ func requiredCapabilities(flags Flags, rc *config.AgenticRC) sandbox.Capabilitie
 		Dind:                resolve.DindEnabled(flags.Dind, rc),
 		CredentialInjection: len(rc.Run.Proxy.Credentials) > 0,
 		PathRules:           len(rc.Run.Proxy.AllowedPaths) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
+		ProxyIntegrations:   len(resolve.ProxyIntegrations(flags.Proxy, rc)) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
 		PidsLimit:           true,
 	}
 }
@@ -33,37 +34,14 @@ func specCapabilities(rs sandbox.RunSpec) sandbox.Capabilities {
 	}
 }
 
-// checkCapabilities refuses a run that needs a security feature offered lacks and warns about a missing Docker daemon; a
-// missing pids limit is silent.
+// checkCapabilities refuses missing security features and warns about ignored settings.
 func checkCapabilities(req Request, offered sandbox.Capabilities) error {
 	missing := offered.Missing(requiredCapabilities(req.Flags, req.Project.RC))
-
-	var refused []string
-	if missing.Proxy {
-		refused = append(refused, fmt.Sprintf("the egress proxy (%s)", proxySource(req)))
-	} else if missing.ProxyMonitor {
-		refused = append(refused, fmt.Sprintf("proxy monitor mode (%s)", proxySource(req)))
-	}
-	if missing.CredentialInjection {
-		refused = append(refused, fmt.Sprintf("proxy credentials (%s)", credentialsSource(req)))
-	}
-	if len(refused) > 0 {
-		hint := "use --runtime docker"
-		if missing.ProxyMonitor && !missing.Proxy {
-			hint = "pass --proxy to enforce the allowlist instead, or " + hint
-		}
-		if missing.Proxy {
-			hint = "pass --no-proxy to run without the proxy, or " + hint
-		}
-		return fmt.Errorf("%s does not support %s; %s", runtimeSource(req), strings.Join(refused, " or "), hint)
+	if err := refuseMissing(req, missing); err != nil {
+		return err
 	}
 
-	if missing.PathRules {
-		logging.Warnf("%s can't limit hosts to paths, so it allows the hosts of %s on every path; use --runtime docker to limit them", runtimeSource(req), pathRulesSource(req))
-	}
-	if missing.Dind {
-		logging.Warnf("%s has no Docker daemon, so it ignores %s", runtimeSource(req), dindSource(req))
-	}
+	warnIgnored(req, missing)
 	return nil
 }
 
@@ -88,6 +66,43 @@ func checkSpec(rs sandbox.RunSpec, offered sandbox.Capabilities) error {
 		return fmt.Errorf("the runtime can't enforce %s that the run asks for", strings.Join(refused, " or "))
 	}
 	return nil
+}
+
+// refuseMissing errors on missing security features, with a hint.
+func refuseMissing(req Request, missing sandbox.Capabilities) error {
+	var refused []string
+	if missing.Proxy {
+		refused = append(refused, fmt.Sprintf("the egress proxy (%s)", proxySource(req)))
+	} else if missing.ProxyMonitor {
+		refused = append(refused, fmt.Sprintf("proxy monitor mode (%s)", proxySource(req)))
+	}
+	if missing.CredentialInjection {
+		refused = append(refused, fmt.Sprintf("proxy credentials (%s)", credentialsSource(req)))
+	}
+	if len(refused) > 0 {
+		hint := "use --runtime docker"
+		if missing.ProxyMonitor && !missing.Proxy {
+			hint = "pass --proxy to enforce the allowlist instead, or " + hint
+		}
+		if missing.Proxy {
+			hint = "pass --no-proxy to run without the proxy, or " + hint
+		}
+		return fmt.Errorf("%s does not support %s; %s", runtimeSource(req), strings.Join(refused, " or "), hint)
+	}
+	return nil
+}
+
+// warnIgnored warns about settings the runtime ignores.
+func warnIgnored(req Request, missing sandbox.Capabilities) {
+	if missing.PathRules {
+		logging.Warnf("%s can't limit hosts to paths, so it allows the hosts of %s on every path; use --runtime docker to limit them", runtimeSource(req), pathRulesSource(req))
+	}
+	if missing.ProxyIntegrations {
+		logging.Warnf("%s has no proxy sidecar, so it ignores %s; tools reach allowed hosts directly", runtimeSource(req), integrationsSource(req))
+	}
+	if missing.Dind {
+		logging.Warnf("%s has no Docker daemon, so it ignores %s", runtimeSource(req), dindSource(req))
+	}
 }
 
 // runtimeSource names what picks req's runtime: --runtime, or [run] runtime and the innermost layer setting it.
@@ -129,6 +144,14 @@ func credentialsSource(req Request) string {
 // pathRulesSource names the innermost layer that declares proxy path rules.
 func pathRulesSource(req Request) string {
 	return layerSource(req.Project.Layers, "[[run.proxy.allowed_paths]]", func(rc *config.AgenticRC) bool { return len(rc.Run.Proxy.AllowedPaths) > 0 })
+}
+
+// integrationsSource names what sets proxy integrations in req: --proxy-integration, or the innermost layer setting them.
+func integrationsSource(req Request) string {
+	if len(req.Flags.Proxy.Integrations) > 0 {
+		return "--proxy-integration"
+	}
+	return layerSource(req.Project.Layers, "[run.proxy] integrations", func(rc *config.AgenticRC) bool { return len(rc.Run.Proxy.Integrations) > 0 })
 }
 
 // layerSource returns key plus the path of the innermost layer where set holds, or key alone when none does.

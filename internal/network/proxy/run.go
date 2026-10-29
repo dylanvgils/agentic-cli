@@ -11,13 +11,11 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/network/certs"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-// Port is the TCP port the proxy listens on inside its container.
-const Port = "3128"
-
 // DefaultAddr is the address the proxy listens on inside its container, binding all interfaces.
-const DefaultAddr = ":" + Port
+const DefaultAddr = ":" + sandbox.ProxyPort
 
 // Environment variables passed from the host to the proxy container - internal wiring between
 // StartProxy (host) and the agentic-proxy binary (see cmd/proxy/main.go), not user-facing config.
