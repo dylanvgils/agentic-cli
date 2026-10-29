@@ -68,7 +68,7 @@ A new package goes in the layer group of what it imports.
 - Name `TestFunc` / `Test_func` (`Test_type_method` for methods). Several cases go in `t.Run` subtests with lowercase sentence names; a single case stays flat.
 - Shared helpers live in `helpers_test.go`, register cleanup with `t.Cleanup`, and are named `stub...` when they stub.
 - Docker tests use a hand-written `fakeDocker` (one func field per method; nil succeeds). In `internal/cli` use `stubDocker(t, &fakeDocker{...})`.
-- Integration tests: `test/integration/`, `//go:build integration`, fixtures from the `fakeContainer`/`fakeNetwork` builders in `fakeresource_test.go` (the one exception to `helpers_test.go`).
+- Integration tests: `test/integration/`, `//go:build integration`, runs from the `toolRun` builder in `toolrun_test.go`, fixtures from the `fakeContainer`/`fakeNetwork` builders in `fakeresource_test.go` (the two exceptions to `helpers_test.go`).
 
 ## Docs
 

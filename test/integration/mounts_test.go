@@ -13,7 +13,7 @@ import (
 func TestToolMounts(t *testing.T) {
 	t.Run("no docker socket", func(t *testing.T) {
 		// Act
-		out := runInTool(t, "for s in /var/run/docker.sock /run/docker.sock; do test -e $s && echo socket=$s; done; echo checked")
+		out := newToolRun(t).run("for s in /var/run/docker.sock /run/docker.sock; do test -e $s && echo socket=$s; done; echo checked")
 
 		// Assert
 		assert.Contains(t, out, "checked")
@@ -23,12 +23,13 @@ func TestToolMounts(t *testing.T) {
 	t.Run("read-only sub-path mount blocks writes inside writable workspace", func(t *testing.T) {
 		// Arrange
 		lockedDir := tempDirIn(t, workDir)
-		locked := filepath.Base(lockedDir)
-		script := `touch /workspace/` + locked + `-ctl && rm /workspace/` + locked + `-ctl && echo workspace=rw; ` +
-			`touch /workspace/` + locked + `/x 2>/dev/null && echo locked=rw || echo locked=ro`
+		locked := "/workspace/" + filepath.Base(lockedDir)
+		script := writableScript("workspace", locked+"-ctl") + "; " + writableScript("locked", locked+"/x")
 
 		// Act
-		out := runInTool(t, script, "--volume", lockedDir+":/workspace/"+locked)
+		out := newToolRun(t).
+			withVolume(lockedDir + ":" + locked).
+			run(script)
 
 		// Assert
 		assert.Contains(t, out, "workspace=rw")
@@ -39,11 +40,13 @@ func TestToolMounts(t *testing.T) {
 		// Arrange
 		defaultDir := tempDirIn(t, rootDir)
 		rwDir := tempDirIn(t, rootDir)
-		script := `touch /mnt/default/x 2>/dev/null && echo default=rw || echo default=ro; ` +
-			`touch /mnt/rw/x 2>/dev/null && echo opted=rw || echo opted=ro`
+		script := writableScript("default", "/mnt/default/x") + "; " + writableScript("opted", "/mnt/rw/x")
 
 		// Act
-		out := runInTool(t, script, "--volume", defaultDir+":/mnt/default", "--volume", rwDir+":/mnt/rw:rw")
+		out := newToolRun(t).
+			withVolume(defaultDir + ":/mnt/default").
+			withVolume(rwDir + ":/mnt/rw:rw").
+			run(script)
 
 		// Assert
 		assert.Contains(t, out, "default=ro")

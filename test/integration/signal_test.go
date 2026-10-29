@@ -3,9 +3,7 @@
 package integration
 
 import (
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -19,14 +17,10 @@ import (
 // tool running unattended.
 func TestClosedTerminal(t *testing.T) {
 	// Arrange
-	dir := proxyWorkDir(t, "example.test")
-	ready := filepath.Join(dir, ".ready")
-	cmd := agenticCmdIn(dir, "run", "--trust-dir", "--proxy", testTool, "--", "sh", "-c", "touch .ready; while true; do sleep 1; done")
-	require.NoError(t, cmd.Start())
-	require.Eventually(t, func() bool {
-		_, err := os.Stat(ready)
-		return err == nil
-	}, 2*time.Minute, 100*time.Millisecond, "tool never started")
+	cmd, _ := newToolRun(t).
+		allowing("example.test").
+		withProxy().
+		start()
 	running := runContainers(t)
 	require.Len(t, running, 2, "expected the tool container and the proxy")
 

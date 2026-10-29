@@ -16,10 +16,13 @@ func TestOrphanSweep(t *testing.T) {
 
 	t.Run("removes sidecar whose owner is gone", func(t *testing.T) {
 		// Arrange
-		sidecar := fakeContainer(t).ownedBy(uniqueName(t)).startedAt(crashed).create()
+		sidecar := fakeContainer(t).
+			ownedBy(uniqueName(t)).
+			startedAt(crashed).
+			create()
 
 		// Act
-		runInTool(t, "true")
+		newToolRun(t).run("true")
 
 		// Assert
 		assert.False(t, sidecar.exists())
@@ -27,10 +30,13 @@ func TestOrphanSweep(t *testing.T) {
 
 	t.Run("removes network whose owner is gone", func(t *testing.T) {
 		// Arrange
-		network := fakeNetwork(t).ownedBy(uniqueName(t)).startedAt(crashed).create()
+		network := fakeNetwork(t).
+			ownedBy(uniqueName(t)).
+			startedAt(crashed).
+			create()
 
 		// Act
-		runInTool(t, "true")
+		newToolRun(t).run("true")
 
 		// Assert
 		assert.False(t, network.exists())
@@ -38,10 +44,13 @@ func TestOrphanSweep(t *testing.T) {
 
 	t.Run("keeps sidecar within grace period", func(t *testing.T) {
 		// Arrange
-		sidecar := fakeContainer(t).ownedBy(uniqueName(t)).startedAt(time.Now()).create()
+		sidecar := fakeContainer(t).
+			ownedBy(uniqueName(t)).
+			startedAt(time.Now()).
+			create()
 
 		// Act
-		runInTool(t, "true")
+		newToolRun(t).run("true")
 
 		// Assert
 		assert.True(t, sidecar.exists())
@@ -50,10 +59,13 @@ func TestOrphanSweep(t *testing.T) {
 	t.Run("keeps sidecar whose owner exists", func(t *testing.T) {
 		// Arrange
 		owner := fakeContainer(t).create()
-		sidecar := fakeContainer(t).ownedBy(owner.name).startedAt(crashed).create()
+		sidecar := fakeContainer(t).
+			ownedBy(owner.name).
+			startedAt(crashed).
+			create()
 
 		// Act
-		runInTool(t, "true")
+		newToolRun(t).run("true")
 
 		// Assert
 		assert.True(t, sidecar.exists())

@@ -16,10 +16,13 @@ func TestToolNetwork(t *testing.T) {
 	t.Run("cannot reach another run's container", func(t *testing.T) {
 		// Arrange
 		otherRun := fakeNetwork(t).create()
-		target := fakeContainer(t).onNetwork(otherRun.name).listening().create()
+		target := fakeContainer(t).
+			onNetwork(otherRun.name).
+			listening().
+			create()
 
 		// Act
-		out := runInTool(t, reachScript(target.ip(), listenPort))
+		out := newToolRun(t).run(reachScript(target.ip(), listenPort))
 
 		// Assert
 		assert.Contains(t, out, "reach=no")
@@ -27,10 +30,13 @@ func TestToolNetwork(t *testing.T) {
 
 	t.Run("cannot reach container on agentic-net", func(t *testing.T) {
 		// Arrange
-		target := fakeContainer(t).onNetwork("agentic-net").listening().create()
+		target := fakeContainer(t).
+			onNetwork("agentic-net").
+			listening().
+			create()
 
 		// Act
-		out := runInTool(t, reachScript(target.ip(), listenPort))
+		out := newToolRun(t).run(reachScript(target.ip(), listenPort))
 
 		// Assert
 		assert.Contains(t, out, "reach=no")
@@ -38,10 +44,13 @@ func TestToolNetwork(t *testing.T) {
 
 	t.Run("cannot reach container on default bridge", func(t *testing.T) {
 		// Arrange
-		target := fakeContainer(t).onNetwork("bridge").listening().create()
+		target := fakeContainer(t).
+			onNetwork("bridge").
+			listening().
+			create()
 
 		// Act
-		out := runInTool(t, reachScript(target.ip(), listenPort))
+		out := newToolRun(t).run(reachScript(target.ip(), listenPort))
 
 		// Assert
 		assert.Contains(t, out, "reach=no")
@@ -49,10 +58,13 @@ func TestToolNetwork(t *testing.T) {
 
 	t.Run("can reach the Docker host through the gateway", func(t *testing.T) {
 		// Arrange - also proves gatewayScript finds the host, so the proxy case below can't pass by accident
-		fakeContainer(t).onNetwork("host").listeningOn(hostListenPort).create()
+		fakeContainer(t).
+			onNetwork("host").
+			listeningOn(hostListenPort).
+			create()
 
 		// Act
-		out := runInTool(t, gatewayScript(hostListenPort))
+		out := newToolRun(t).run(gatewayScript(hostListenPort))
 
 		// Assert
 		assert.Contains(t, out, "reach=yes")
@@ -64,10 +76,15 @@ func TestProxyNetwork(t *testing.T) {
 	t.Run("cannot reach another run's container", func(t *testing.T) {
 		// Arrange
 		otherRun := fakeNetwork(t).create()
-		target := fakeContainer(t).onNetwork(otherRun.name).listening().create()
+		target := fakeContainer(t).
+			onNetwork(otherRun.name).
+			listening().
+			create()
 
 		// Act
-		out := runInTool(t, reachScript(target.ip(), listenPort), "--proxy")
+		out := newToolRun(t).
+			withProxy().
+			run(reachScript(target.ip(), listenPort))
 
 		// Assert
 		assert.Contains(t, out, "reach=no")
@@ -75,10 +92,15 @@ func TestProxyNetwork(t *testing.T) {
 
 	t.Run("cannot reach container on agentic-net directly", func(t *testing.T) {
 		// Arrange
-		target := fakeContainer(t).onNetwork("agentic-net").listening().create()
+		target := fakeContainer(t).
+			onNetwork("agentic-net").
+			listening().
+			create()
 
 		// Act
-		out := runInTool(t, reachScript(target.ip(), listenPort), "--proxy")
+		out := newToolRun(t).
+			withProxy().
+			run(reachScript(target.ip(), listenPort))
 
 		// Assert
 		assert.Contains(t, out, "reach=no")
@@ -86,10 +108,15 @@ func TestProxyNetwork(t *testing.T) {
 
 	t.Run("cannot reach the Docker host through the gateway", func(t *testing.T) {
 		// Arrange
-		fakeContainer(t).onNetwork("host").listeningOn(hostListenPort).create()
+		fakeContainer(t).
+			onNetwork("host").
+			listeningOn(hostListenPort).
+			create()
 
 		// Act
-		out := runInTool(t, gatewayScript(hostListenPort), "--proxy")
+		out := newToolRun(t).
+			withProxy().
+			run(gatewayScript(hostListenPort))
 
 		// Assert
 		assert.Contains(t, out, "reach=no")
