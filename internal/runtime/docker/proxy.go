@@ -19,26 +19,28 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-// proxyURL is the proxy's address for the tool's proxy settings.
-const proxyURL = "http://" + sandbox.ProxyHostAlias + ":" + sandbox.ProxyPort // NOSONAR - proxy on the internal network; HTTPS stays TLS via CONNECT
+const (
+	// proxyURL is the proxy's address for the tool's proxy settings.
+	proxyURL = "http://" + sandbox.ProxyHostAlias + ":" + sandbox.ProxyPort // NOSONAR - proxy on the internal network; HTTPS stays TLS via CONNECT
 
-// proxyRunMountDir is the proxy's anonymous volume holding the CA and credentials, copied in before it starts.
-const proxyRunMountDir = "/run/agentic-proxy"
+	// proxyRunMountDir is the proxy's anonymous volume holding the CA and credentials, copied in before it starts.
+	proxyRunMountDir = "/run/agentic-proxy"
 
-// proxyCredentialsSubdir is the proxy-owned dir in proxyRunMountDir holding the files, so the proxy can delete them once loaded.
-const proxyCredentialsSubdir = "credentials"
+	// proxyCredentialsSubdir is the proxy-owned dir in proxyRunMountDir holding the files, so the proxy can delete them once loaded.
+	proxyCredentialsSubdir = "credentials"
 
-// proxyCredentialsDir is proxyCredentialsSubdir inside the proxy container.
-const proxyCredentialsDir = proxyRunMountDir + "/" + proxyCredentialsSubdir
+	// proxyCredentialsDir is proxyCredentialsSubdir inside the proxy container.
+	proxyCredentialsDir = proxyRunMountDir + "/" + proxyCredentialsSubdir
 
-// proxyCredentialsFile holds the credential list in proxyCredentialsDir.
-const proxyCredentialsFile = "credentials.json"
+	// proxyCredentialsFile holds the credential list in proxyCredentialsDir.
+	proxyCredentialsFile = "credentials.json"
 
-// dryRunClientNetsPlaceholder stands in for the run network's subnets in dry-run output, as the network isn't created.
-const dryRunClientNetsPlaceholder = "<proxy network subnets>"
+	// proxyLogMountDir is where the run's log file is mounted inside the proxy.
+	proxyLogMountDir = "/var/log/agentic-proxy"
 
-// proxyLogMountDir is where the run's log file is mounted inside the proxy.
-const proxyLogMountDir = "/var/log/agentic-proxy"
+	// dryRunClientNetsPlaceholder stands in for the run network's subnets in dry-run output, as the network isn't created.
+	dryRunClientNetsPlaceholder = "<proxy network subnets>"
+)
 
 // proxyHandle identifies the per-run proxy sidecar container, host-side access log, injected credentials, the run
 // network's subnets that may use them, and the CA cert the proxy signs them with, set once started.
