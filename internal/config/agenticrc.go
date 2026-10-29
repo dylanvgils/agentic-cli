@@ -3,33 +3,18 @@ package config
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
-	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/BurntSushi/toml"
-	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 const rcFilename = ".agenticrc.toml"
 
 // DefaultNamespace is the image namespace used when neither a flag nor .agenticrc.toml sets one.
 const DefaultNamespace = "agentic"
-
-// validRCEntryName matches safe path-segment/identifier characters, used for both marketplace and custom-install names.
-var validRCEntryName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
-
-// scpGitURL matches an scp-style [user@]host:path URL; the host needs two characters so a Windows drive isn't one, and
-// the path can't start with ':' so ext::/fd:: transports aren't either.
-var scpGitURL = regexp.MustCompile(`^([^@/\s]+@)?[^@/:\s]{2,}:[^:\s]\S*$`)
-
-// validMemory matches a docker memory size: a number with an optional b, k, m or g unit.
-var validMemory = regexp.MustCompile(`^[0-9]+[bkmgBKMG]?$`)
 
 // ModeEnforce and ModeMonitor are the only valid RCProxy.Mode values, besides unset "" (treated as ModeEnforce).
 const (
@@ -199,21 +184,6 @@ func FindLayers(startDir string) ([]RCLayer, error) {
 	return layers, nil
 }
 
-// Merge combines layers ordered outermost-to-innermost, as returned by FindLayers, the same way FindAndLoad does.
-func Merge(layers []RCLayer) (*AgenticRC, error) {
-	configs := make([]*AgenticRC, 0, len(layers))
-	for i := len(layers) - 1; i >= 0; i-- {
-		configs = append(configs, layers[i].RC)
-	}
-
-	merged := mergeConfigs(configs)
-	if err := validateUniqueCustomInstalls(merged.Build.CustomInstalls); err != nil {
-		return nil, err
-	}
-
-	return merged, nil
-}
-
 // SplitEnvValues splits a comma-separated value string and skips empty parts.
 func SplitEnvValues(value string) []string {
 	var result []string
@@ -249,122 +219,6 @@ func collectPaths(startDir string) []string {
 	return paths
 }
 
-func mergeConfigs(configs []*AgenticRC) *AgenticRC {
-	result := &AgenticRC{}
-	result.Build.Versions = make(map[string]string)
-	result.Run.Args = make(map[string][]string)
-
-	for _, rc := range configs {
-		mergeScalars(result, rc)
-	}
-
-	for i := len(configs) - 1; i >= 0; i-- {
-		appendLists(result, configs[i])
-	}
-
-	return result
-}
-
-// mergeScalars fills result's unset scalars and versions from rc, so the first layer that sets one wins.
-func mergeScalars(result, rc *AgenticRC) {
-	resRun := &result.Run
-	run := rc.Run
-
-	if result.Namespace == "" {
-		result.Namespace = rc.Namespace
-	}
-
-	if result.DockerContext == "" {
-		result.DockerContext = rc.DockerContext
-	}
-
-	resRun.RCLimits = mergeLimits(resRun.RCLimits, run.RCLimits)
-
-	if resRun.Runtime == "" {
-		resRun.Runtime = run.Runtime
-	}
-
-	if resRun.Proxy.Enabled == nil {
-		resRun.Proxy.Enabled = run.Proxy.Enabled
-	}
-
-	if resRun.Proxy.Mode == "" {
-		resRun.Proxy.Mode = run.Proxy.Mode
-	}
-
-	if resRun.Dind.Enabled == nil {
-		resRun.Dind.Enabled = run.Dind.Enabled
-	}
-
-	resRun.Dind.RCLimits = mergeLimits(resRun.Dind.RCLimits, run.Dind.RCLimits)
-
-	if resRun.Instructions.Enabled == nil {
-		resRun.Instructions.Enabled = run.Instructions.Enabled
-	}
-
-	if resRun.CheckUpdates == nil {
-		resRun.CheckUpdates = run.CheckUpdates
-	}
-
-	// An empty version is unset, like the other scalars, so an outer layer's value still applies
-	for key, val := range rc.Build.Versions {
-		if _, exists := result.Build.Versions[key]; !exists && val != "" {
-			result.Build.Versions[key] = val
-		}
-	}
-}
-
-// appendLists appends rc's lists and custom instructions to result's.
-func appendLists(result, rc *AgenticRC) {
-	resRun := &result.Run
-	resBuild := &result.Build
-	run := rc.Run
-	build := rc.Build
-
-	resRun.Mounts = append(resRun.Mounts, run.Mounts...)
-	resRun.Env = append(resRun.Env, run.Env...)
-	for tool, args := range run.Args {
-		resRun.Args[tool] = append(resRun.Args[tool], args...)
-	}
-	resRun.Proxy.AllowedHosts = append(resRun.Proxy.AllowedHosts, run.Proxy.AllowedHosts...)
-	resRun.Proxy.Credentials = append(resRun.Proxy.Credentials, run.Proxy.Credentials...)
-	resRun.Proxy.AllowedPaths = append(resRun.Proxy.AllowedPaths, run.Proxy.AllowedPaths...)
-	resRun.Proxy.Integrations = append(resRun.Proxy.Integrations, run.Proxy.Integrations...)
-	resRun.Instructions.Custom = appendInstructions(resRun.Instructions.Custom, run.Instructions.Custom)
-	resBuild.AptPackages = append(resBuild.AptPackages, build.AptPackages...)
-	resBuild.Bases = append(resBuild.Bases, build.Bases...)
-	resBuild.CustomInstalls = append(resBuild.CustomInstalls, build.CustomInstalls...)
-	result.Marketplaces = append(result.Marketplaces, rc.Marketplaces...)
-}
-
-// appendInstructions joins two layers' custom-instructions text, skipping an empty side.
-func appendInstructions(existing, next string) string {
-	if next == "" {
-		return existing
-	}
-	if existing == "" {
-		return next
-	}
-	return existing + "\n\n" + next
-}
-
-// mergeLimits returns limits with each empty value filled from parent.
-func mergeLimits(limits, parent RCLimits) RCLimits {
-	if limits.PidsLimit == "" {
-		limits.PidsLimit = parent.PidsLimit
-	}
-
-	if limits.CPUs == "" {
-		limits.CPUs = parent.CPUs
-	}
-
-	if limits.Memory == "" {
-		limits.Memory = parent.Memory
-	}
-
-	return limits
-}
-
 func loadRC(path string) (*AgenticRC, error) {
 	rc := &AgenticRC{}
 	md, err := toml.DecodeFile(path, rc)
@@ -376,174 +230,9 @@ func loadRC(path string) (*AgenticRC, error) {
 		return nil, fmt.Errorf("%s: unknown keys: %v", path, keys)
 	}
 
-	mode := rc.Run.Proxy.Mode
-	if mode != "" && mode != ModeEnforce && mode != ModeMonitor {
-		return nil, fmt.Errorf("%s: invalid [run.proxy] mode %q: must be %q or %q", path, mode, ModeEnforce, ModeMonitor)
-	}
-
-	if rc.Run.Runtime != "" {
-		if _, err := sandbox.ParseRuntime(rc.Run.Runtime); err != nil {
-			return nil, fmt.Errorf("%s: [run] %w", path, err)
-		}
-	}
-
-	if err := validateLimits(rc.Run.RCLimits); err != nil {
-		return nil, fmt.Errorf("%s: [run] %w", path, err)
-	}
-	if err := validateLimits(rc.Run.Dind.RCLimits); err != nil {
-		return nil, fmt.Errorf("%s: [run.dind] %w", path, err)
-	}
-
-	for i, cred := range rc.Run.Proxy.Credentials {
-		if err := validateCredential(cred); err != nil {
-			return nil, fmt.Errorf("%s: [[run.proxy.credentials]] entry %d: %w", path, i+1, err)
-		}
-	}
-
-	for i, rule := range rc.Run.Proxy.AllowedPaths {
-		if err := validateAllowedPath(rule); err != nil {
-			return nil, fmt.Errorf("%s: [[run.proxy.allowed_paths]] entry %d: %w", path, i+1, err)
-		}
-	}
-
-	if err := sandbox.CheckProxyIntegrations(rc.Run.Proxy.Integrations); err != nil {
-		return nil, fmt.Errorf("%s: [run.proxy] integrations: %w", path, err)
-	}
-
-	for _, marketplace := range rc.Marketplaces {
-		if err := validateMarketplace(marketplace); err != nil {
-			return nil, fmt.Errorf("%s: %w", path, err)
-		}
-	}
-
-	seen := make(map[string]bool, len(rc.Build.CustomInstalls))
-	for _, install := range rc.Build.CustomInstalls {
-		if err := validateCustomInstall(install); err != nil {
-			return nil, fmt.Errorf("%s: %w", path, err)
-		}
-		if seen[install.Name] {
-			return nil, fmt.Errorf("%s: custom install %q: name must be unique", path, install.Name)
-		}
-		seen[install.Name] = true
+	if err := validateRC(rc); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 
 	return rc, nil
-}
-
-// validateCredential checks the entry's shape and characters; hosts, headers and presets are checked when it is resolved.
-func validateCredential(cred RCCredential) error {
-	if cred.Secret == "" {
-		return fmt.Errorf("secret must not be empty")
-	}
-
-	custom := len(cred.Hosts) > 0 || cred.Header != ""
-	if cred.Preset != "" && custom {
-		return fmt.Errorf("preset %q cannot be combined with hosts or header", cred.Preset)
-	}
-	if cred.Preset == "" && (len(cred.Hosts) == 0 || cred.Header == "") {
-		return fmt.Errorf("set either preset or both hosts and header")
-	}
-
-	// Escape sequences could disguise the entry in the approval prompt
-	fields := append([]string{cred.Preset, cred.Header, cred.Secret}, cred.Hosts...)
-	for _, field := range append(fields, cred.Env...) {
-		if strings.ContainsFunc(field, func(r rune) bool { return !unicode.IsPrint(r) }) {
-			return fmt.Errorf("value %q contains control or non-printable characters", field)
-		}
-	}
-	return nil
-}
-
-// validateAllowedPath checks the rule's host is a single exact name and each of its paths is a valid pattern; the proxy
-// checks the host's characters when it loads the rules.
-func validateAllowedPath(rule RCAllowedPath) error {
-	host := rule.Host
-	if host == "" {
-		return fmt.Errorf("host must not be empty")
-	}
-	if strings.HasPrefix(host, ".") || strings.ContainsAny(host, "*/:,") || strings.ContainsFunc(host, func(r rune) bool { return unicode.IsSpace(r) || !unicode.IsPrint(r) }) {
-		return fmt.Errorf("host %q must be an exact hostname, without wildcards, port or path", host)
-	}
-
-	if len(rule.Paths) == 0 {
-		return fmt.Errorf("host %q: paths must not be empty", host)
-	}
-	for _, pattern := range rule.Paths {
-		if err := ValidatePathPattern(pattern); err != nil {
-			return fmt.Errorf("host %q: %w", host, err)
-		}
-	}
-	return nil
-}
-
-// validateLimits refuses limits that are malformed or zero or below, which docker reads as no limit, so a file the agent can
-// edit can't lift them without a prompt.
-func validateLimits(limits RCLimits) error {
-	if limits.PidsLimit != "" {
-		if n, err := strconv.Atoi(limits.PidsLimit); err != nil || n <= 0 {
-			return fmt.Errorf("pids_limit %q: must be a positive whole number", limits.PidsLimit)
-		}
-	}
-	if limits.CPUs != "" {
-		if n, err := strconv.ParseFloat(limits.CPUs, 64); err != nil || math.IsNaN(n) || n <= 0 || math.IsInf(n, 0) {
-			return fmt.Errorf("cpus %q: must be a positive number", limits.CPUs)
-		}
-	}
-	if limits.Memory != "" {
-		if !validMemory.MatchString(limits.Memory) || strings.Trim(limits.Memory, "0bkmgBKMG") == "" {
-			return fmt.Errorf("memory %q: must be a positive size, e.g. \"8g\"", limits.Memory)
-		}
-	}
-	return nil
-}
-
-func validateMarketplace(marketplace RCMarketplace) error {
-	if marketplace.Name == "" {
-		return fmt.Errorf("marketplace: name must not be empty")
-	}
-	if !validRCEntryName.MatchString(marketplace.Name) {
-		return fmt.Errorf("marketplace %q: name must match %s", marketplace.Name, validRCEntryName.String())
-	}
-	if marketplace.URL == "" {
-		return fmt.Errorf("marketplace %q: url must not be empty", marketplace.Name)
-	}
-	if !isRemoteGitURL(marketplace.URL) {
-		return fmt.Errorf("marketplace %q: url %q must be https://, ssh:// or user@host:path", marketplace.Name, marketplace.URL)
-	}
-	return nil
-}
-
-// isRemoteGitURL reports whether url reaches git over https or ssh, not a host path or another transport.
-func isRemoteGitURL(url string) bool {
-	if strings.ContainsAny(url, " \t\n") {
-		return false
-	}
-	if strings.Contains(url, "://") {
-		return strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "ssh://")
-	}
-	return scpGitURL.MatchString(url)
-}
-
-func validateCustomInstall(install RCCustomInstall) error {
-	if install.Name == "" {
-		return fmt.Errorf("custom install: name must not be empty")
-	}
-	if !validRCEntryName.MatchString(install.Name) {
-		return fmt.Errorf("custom install %q: name must match %s", install.Name, validRCEntryName.String())
-	}
-	if len(install.Run) == 0 {
-		return fmt.Errorf("custom install %q: run must not be empty", install.Name)
-	}
-	return nil
-}
-
-func validateUniqueCustomInstalls(installs []RCCustomInstall) error {
-	seen := make(map[string]bool, len(installs))
-	for _, install := range installs {
-		if seen[install.Name] {
-			return fmt.Errorf("custom install %q: name must be unique across .agenticrc.toml layers", install.Name)
-		}
-		seen[install.Name] = true
-	}
-	return nil
 }
