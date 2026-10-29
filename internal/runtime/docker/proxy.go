@@ -19,12 +19,8 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-// proxyHostAlias is the proxy's stable network alias, registered alongside its randomized
-// container name so tools needing a literal host:port can hardcode it; safe to reuse across concurrent runs since aliases are scoped per-network.
-const proxyHostAlias = sandbox.ProxyHostAlias
-
 // proxyURL is the proxy's address for the tool's proxy settings.
-const proxyURL = "http://" + proxyHostAlias + ":" + sandbox.ProxyPort // NOSONAR - proxy on the internal network; HTTPS stays TLS via CONNECT
+const proxyURL = "http://" + sandbox.ProxyHostAlias + ":" + sandbox.ProxyPort // NOSONAR - proxy on the internal network; HTTPS stays TLS via CONNECT
 
 // proxyRunMountDir is the proxy's anonymous volume holding the CA and credentials, copied in before it starts.
 const proxyRunMountDir = "/run/agentic-proxy"
@@ -86,7 +82,7 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		return proxyHandle{}, err
 	}
 
-	name := proxyHostAlias + "-" + id
+	name := sandbox.ProxyHostAlias + "-" + id
 	return proxyHandle{
 		client:         c,
 		id:             id,
@@ -116,7 +112,7 @@ func (h proxyHandle) toolEnvArgs(dind bool) []string {
 }
 
 // proxyEnvArgs returns the --env flags pointing the tool at the proxy, keyed on the static
-// proxyHostAlias so the URL is stable despite the container name being randomized per run.
+// sandbox.ProxyHostAlias so the URL is stable despite the container name being randomized per run.
 // NO_PROXY excludes loopback (and the dind sidecar) only - not a security boundary; the internal network blocks every other route.
 func proxyEnvArgs(dind bool) []string {
 	noProxy := "localhost,127.0.0.1"
@@ -241,7 +237,7 @@ func (c *Client) launchProxy(rs toolRun) (proxyEnv []string, cleanup func(), err
 }
 
 // createArgs builds the `docker create` arguments for the hardened proxy sidecar, registering
-// proxyHostAlias on the run network so tool config can reference a stable hostname.
+// sandbox.ProxyHostAlias on the run network so tool config can reference a stable hostname.
 func (h proxyHandle) createArgs(rs toolRun) []string {
 	containerLog := proxyLogMountDir + "/" + filepath.Base(h.logPath)
 	_, tzOffset := time.Now().Zone()
@@ -251,7 +247,8 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 		"create", "--read-only",
 		arg("name", h.container),
 		arg("network", rs.network),
-		arg("network-alias", proxyHostAlias),
+		// Aliases are per network, so concurrent runs can share it
+		arg("network-alias", sandbox.ProxyHostAlias),
 		arg("cap-drop", "ALL"),
 		arg("security-opt", "no-new-privileges:true"),
 		arg("user", h.user.String()),
@@ -349,7 +346,7 @@ func (c *Client) SweepProxyResources() ([]string, error) {
 	listArgs := []string{
 		"ps", arg("all"), arg("format", ownedFormat(".Names")),
 		labelFilter(LabelProject, LabelProjectVal),
-		nameFilter(proxyHostAlias),
+		nameFilter(sandbox.ProxyHostAlias),
 	}
 	return c.removeUnused(listArgs, []string{"rm", arg("force"), arg("volumes")})
 }
