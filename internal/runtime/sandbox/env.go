@@ -47,12 +47,13 @@ var portableEnvName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 // terminalEnvNames are host vars forwarded into the sandbox; not reserved, so an env entry can override one.
 var terminalEnvNames = []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"}
 
-// IsReservedEnvName reports whether key is an env var agentic manages in a run with or without the proxy and dind, so an
-// env entry can't override it.
-func IsReservedEnvName(key string, proxy, dind bool) bool {
+// IsReservedEnvName reports whether key is an env var agentic manages in a run with or without the proxy and dind, or one
+// of the integrations sets, so an env entry can't override it.
+func IsReservedEnvName(key string, proxy, dind bool, integrations []string) bool {
 	return slices.Contains(configEnvNames, key) ||
 		(proxy && slices.Contains(proxyEnvNames, key)) ||
-		(dind && slices.Contains(dindEnvNames, key))
+		(dind && slices.Contains(dindEnvNames, key)) ||
+		slices.Contains(proxyIntegrationEnvNames(integrations), key)
 }
 
 // IsPortableEnvName reports whether name is a portable environment variable name.

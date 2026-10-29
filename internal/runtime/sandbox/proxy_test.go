@@ -135,9 +135,9 @@ func TestProxyIntegrationEnv(t *testing.T) {
 	})
 }
 
-func TestProxyIntegrationEnvNames(t *testing.T) {
+func Test_proxyIntegrationEnvNames(t *testing.T) {
 	// Act
-	names := ProxyIntegrationEnvNames([]string{"gradle", "maven"})
+	names := proxyIntegrationEnvNames([]string{"gradle", "maven"})
 
 	// Assert
 	assert.Equal(t, []string{"GRADLE_OPTS", "MAVEN_ARGS"}, names)

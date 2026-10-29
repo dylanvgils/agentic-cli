@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -284,16 +283,12 @@ func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 	}
 }
 
-// validateEnv rejects entries that override an env var agentic manages, including integration vars.
+// validateEnv rejects entries that override an env var agentic manages.
 func validateEnv(entries []string, proxyEnabled, dindEnabled bool, integrations []string) error {
-	integrationNames := sandbox.ProxyIntegrationEnvNames(integrations)
 	for _, entry := range entries {
 		key, _, _ := strings.Cut(entry, "=")
-		if sandbox.IsReservedEnvName(key, proxyEnabled, dindEnabled) {
+		if sandbox.IsReservedEnvName(key, proxyEnabled, dindEnabled, integrations) {
 			return fmt.Errorf("--env: %q is managed by agentic and cannot be overridden", key)
-		}
-		if slices.Contains(integrationNames, key) {
-			return fmt.Errorf("--env: %q is set by a proxy integration and cannot be overridden", key)
 		}
 	}
 

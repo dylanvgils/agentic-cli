@@ -69,7 +69,7 @@ func credentialSetup(in Input, caps sandbox.Capabilities, mounts mountSet, env [
 	if err := checkCredentialPaths(in.Credentials, mounts); err != nil {
 		return err
 	}
-	return checkCredentialEnv(in.Credentials, env, in.DindEnabled)
+	return checkCredentialEnv(in.Credentials, env, in.DindEnabled, in.ProxyIntegrations)
 }
 
 // sandboxCredentials maps each resolved entry to a sandbox.Credential named after its first env var.
@@ -89,14 +89,14 @@ func sandboxCredentials(resolved []credentials.Resolved) []sandbox.Credential {
 
 // checkCredentialEnv refuses env entries for the proxy trust vars, and credential env names agentic manages or env sets,
 // since a forwarded host value would leak the real secret.
-func checkCredentialEnv(resolved []credentials.Resolved, env []string, dindEnabled bool) error {
+func checkCredentialEnv(resolved []credentials.Resolved, env []string, dindEnabled bool, integrations []string) error {
 	if i := slices.IndexFunc(env, func(entry string) bool { return isProxyTrustEnvName(envKey(entry)) }); i >= 0 {
 		return fmt.Errorf("--env: %q is set by agentic when proxy credentials are configured", envKey(env[i]))
 	}
 
 	for _, r := range resolved {
 		for _, name := range r.Env {
-			if sandbox.IsReservedEnvName(name, true, dindEnabled) || isProxyTrustEnvName(name) {
+			if sandbox.IsReservedEnvName(name, true, dindEnabled, integrations) || isProxyTrustEnvName(name) {
 				return fmt.Errorf("credential env %q is managed by agentic", name)
 			}
 			if slices.ContainsFunc(env, func(entry string) bool { return envKey(entry) == name }) {

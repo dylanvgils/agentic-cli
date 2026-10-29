@@ -137,7 +137,7 @@ func Test_checkCredentialEnv(t *testing.T) {
 		resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}
 
 		// Act
-		err := checkCredentialEnv(resolved, []string{"OTHER=value"}, false)
+		err := checkCredentialEnv(resolved, []string{"OTHER=value"}, false, nil)
 
 		// Assert
 		assert.NoError(t, err)
@@ -150,7 +150,7 @@ func Test_checkCredentialEnv(t *testing.T) {
 				resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}
 
 				// Act
-				err := checkCredentialEnv(resolved, []string{entry}, false)
+				err := checkCredentialEnv(resolved, []string{entry}, false, nil)
 
 				// Assert
 				assert.ErrorContains(t, err, "set by agentic when proxy credentials are configured")
@@ -165,7 +165,7 @@ func Test_checkCredentialEnv(t *testing.T) {
 				resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}
 
 				// Act
-				err := checkCredentialEnv(resolved, []string{entry}, false)
+				err := checkCredentialEnv(resolved, []string{entry}, false, nil)
 
 				// Assert
 				assert.ErrorContains(t, err, "set by a proxy credential")
@@ -180,7 +180,7 @@ func Test_checkCredentialEnv(t *testing.T) {
 				resolved := []credentials.Resolved{{Env: []string{name}}}
 
 				// Act
-				err := checkCredentialEnv(resolved, nil, false)
+				err := checkCredentialEnv(resolved, nil, false, nil)
 
 				// Assert
 				assert.ErrorContains(t, err, "managed by agentic")
@@ -193,12 +193,23 @@ func Test_checkCredentialEnv(t *testing.T) {
 		resolved := []credentials.Resolved{{Env: []string{"DOCKER_HOST"}}}
 
 		// Act
-		withoutDind := checkCredentialEnv(resolved, nil, false)
-		withDind := checkCredentialEnv(resolved, nil, true)
+		withoutDind := checkCredentialEnv(resolved, nil, false, nil)
+		withDind := checkCredentialEnv(resolved, nil, true, nil)
 
 		// Assert
 		assert.NoError(t, withoutDind)
 		assert.ErrorContains(t, withDind, "managed by agentic")
+	})
+
+	t.Run("refuses names a proxy integration sets", func(t *testing.T) {
+		// Arrange
+		resolved := []credentials.Resolved{{Env: []string{"MAVEN_ARGS"}}}
+
+		// Act
+		err := checkCredentialEnv(resolved, nil, false, []string{"maven"})
+
+		// Assert
+		assert.ErrorContains(t, err, "managed by agentic")
 	})
 }
 

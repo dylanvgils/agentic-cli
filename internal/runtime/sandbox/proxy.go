@@ -107,8 +107,8 @@ func ProxyIntegrationEnv(names []string) []string {
 	return env
 }
 
-// ProxyIntegrationEnvNames returns the env var names the named integrations set.
-func ProxyIntegrationEnvNames(names []string) []string {
+// proxyIntegrationEnvNames returns the env var names the named integrations set.
+func proxyIntegrationEnvNames(names []string) []string {
 	env := ProxyIntegrationEnv(names)
 	keys := make([]string, len(env))
 	for i, entry := range env {

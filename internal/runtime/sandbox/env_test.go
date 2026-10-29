@@ -11,7 +11,7 @@ func TestIsReservedEnvName(t *testing.T) {
 	t.Run("config names are reserved in every run", func(t *testing.T) {
 		for _, key := range []string{"TOOL_HOME", "CONTAINER_HOME", "AGENTIC_MARKETPLACES", "AGENTIC_PROXY_CA"} {
 			// Act
-			reserved := IsReservedEnvName(key, false, false)
+			reserved := IsReservedEnvName(key, false, false, nil)
 
 			// Assert
 			assert.True(t, reserved, key)
@@ -21,7 +21,7 @@ func TestIsReservedEnvName(t *testing.T) {
 	t.Run("proxy names are reserved only with the proxy", func(t *testing.T) {
 		for _, key := range []string{"HTTP_PROXY", "https_proxy", "NO_PROXY", "NODE_USE_ENV_PROXY"} {
 			// Act
-			without, with := IsReservedEnvName(key, false, false), IsReservedEnvName(key, true, false)
+			without, with := IsReservedEnvName(key, false, false, nil), IsReservedEnvName(key, true, false, nil)
 
 			// Assert
 			assert.False(t, without, key)
@@ -32,7 +32,7 @@ func TestIsReservedEnvName(t *testing.T) {
 	t.Run("docker client names are reserved only with dind", func(t *testing.T) {
 		for _, key := range []string{"DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_CONTEXT", "DOCKER_CONFIG"} {
 			// Act
-			without, with := IsReservedEnvName(key, false, false), IsReservedEnvName(key, false, true)
+			without, with := IsReservedEnvName(key, false, false, nil), IsReservedEnvName(key, false, true, nil)
 
 			// Assert
 			assert.False(t, without, key)
@@ -40,10 +40,19 @@ func TestIsReservedEnvName(t *testing.T) {
 		}
 	})
 
+	t.Run("integration names are reserved only with their integration", func(t *testing.T) {
+		// Act
+		without, with := IsReservedEnvName("MAVEN_ARGS", true, false, nil), IsReservedEnvName("MAVEN_ARGS", true, false, []string{"maven"})
+
+		// Assert
+		assert.False(t, without)
+		assert.True(t, with)
+	})
+
 	t.Run("other names are free", func(t *testing.T) {
 		for _, key := range []string{"MAVEN_OPTS", "TERM", "DOCKER_BUILDKIT"} {
 			// Act
-			reserved := IsReservedEnvName(key, true, true)
+			reserved := IsReservedEnvName(key, true, true, nil)
 
 			// Assert
 			assert.False(t, reserved, key)
