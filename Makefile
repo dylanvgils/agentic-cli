@@ -17,7 +17,7 @@ GOFLAGS   := CGO_ENABLED=0
 GOVULNCHECK_VERSION ?= v1.9.0
 GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-.PHONY: build install uninstall dist docker-dist test test-coverage test-integration lint audit audit-json clean verify-checksums fix-checksums verify-checksums-all fix-checksums-all
+.PHONY: build install uninstall dist docker-dist test test-coverage test-integration test-integration-msb lint audit audit-json clean verify-checksums fix-checksums verify-checksums-all fix-checksums-all
 
 build:
 	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/cli
@@ -55,6 +55,12 @@ test-coverage:
 test-integration:
 	go run -tags integration ./test/integration/cmd/buildimages
 	AGENTIC_ITEST_IMAGES_BUILT=1 go test -tags integration -count=1 -timeout 20m -v ./test/integration/...; \
+		status=$$?; go run -tags integration ./test/integration/cmd/cleanup; exit $$status
+
+# Needs msb and KVM; fails instead of skipping without msb.
+test-integration-msb:
+	go run -tags integration ./test/integration/cmd/buildimages
+	AGENTIC_ITEST_IMAGES_BUILT=1 AGENTIC_ITEST_MICROSANDBOX=1 go test -tags integration -count=1 -timeout 20m -v ./test/integration/microsandbox; \
 		status=$$?; go run -tags integration ./test/integration/cmd/cleanup; exit $$status
 
 lint:

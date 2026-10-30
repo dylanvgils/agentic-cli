@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 )
 
 const (
@@ -22,6 +23,9 @@ const (
 
 	// imagesBuiltEnv tells Main the images are already built, as make test-integration does once for every package.
 	imagesBuiltEnv = "AGENTIC_ITEST_IMAGES_BUILT"
+
+	// microsandboxEnv makes a missing msb fail MicrosandboxMain instead of skipping, as make test-integration-msb does.
+	microsandboxEnv = "AGENTIC_ITEST_MICROSANDBOX"
 )
 
 // step is one setup phase, timed in the output.
@@ -83,6 +87,27 @@ func Main(m *testing.M) int {
 
 	code := m.Run()
 	if err := runSteps([]step{{"removing this run's fakes", removeRunFakes}}); err != nil {
+		fmt.Println(err)
+	}
+	return code
+}
+
+// MicrosandboxMain is Main for a package that runs tools in microsandbox: it skips without msb unless microsandboxEnv is
+// set, and removes the test images' msb copies at the end.
+func MicrosandboxMain(m *testing.M) int {
+	version, err := exec.Command("msb", "--version").CombinedOutput()
+	if err != nil {
+		if os.Getenv(microsandboxEnv) != "" {
+			fmt.Printf("msb unavailable: %v\n%s", err, version)
+			return 1
+		}
+		fmt.Printf("msb unavailable, skipping microsandbox integration tests: %v\n", err)
+		return 0
+	}
+
+	fmt.Printf("=> msb: %s\n", strings.TrimSpace(string(version)))
+	code := Main(m)
+	if err := runSteps([]step{{"removing the test images from msb", removeMicrosandboxImages}}); err != nil {
 		fmt.Println(err)
 	}
 	return code
@@ -204,6 +229,25 @@ func runAgentic(args ...string) error {
 		return fmt.Errorf("agentic %s: %w\n%s", strings.Join(args, " "), err, out)
 	}
 	return nil
+}
+
+// removeMicrosandboxImages removes the msb copies of the test images, which agentic loads on the first msb run.
+func removeMicrosandboxImages() error {
+	out, err := exec.Command("msb", "images", "--quiet").Output()
+	if err != nil {
+		return fmt.Errorf("list msb images: %w", err)
+	}
+
+	var errs []error
+	for _, ref := range strings.Fields(string(out)) {
+		if repo, _ := microsandbox.SplitRef(ref); !strings.HasPrefix(repo, Namespace+"-") {
+			continue
+		}
+		if out, err := exec.Command("msb", "rmi", ref).CombinedOutput(); err != nil {
+			errs = append(errs, fmt.Errorf("msb rmi %s: %w\n%s", ref, err, out))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // newRootDir creates the env's root dir under test/integration in this checkout, the same parent for every package's

@@ -8,6 +8,7 @@ make test               # unit tests
 make lint               # golangci-lint, same as CI
 make audit              # go mod verify + govulncheck, in CI and nightly
 make test-integration   # against a real Docker daemon
+make test-integration-msb # microsandbox package only, needs msb and KVM
 make verify-checksums   # pinned install-script checksums (fix-checksums to update)
 ```
 

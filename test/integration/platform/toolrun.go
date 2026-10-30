@@ -136,6 +136,13 @@ func (r *ToolRun) WithIntegrationFlag(names ...string) *ToolRun {
 	return r
 }
 
+// InMicrosandbox runs the tool in a microsandbox VM; only Run, RunTool and RunFailing support it, since Start finds the
+// tool through docker.
+func (r *ToolRun) InMicrosandbox() *ToolRun {
+	r.flags = append(r.flags, "--runtime", "microsandbox")
+	return r
+}
+
 // ViaEntrypoint runs the script through the image entrypoint, which -- skips and which makes the tool trust the proxy CA.
 func (r *ToolRun) ViaEntrypoint() *ToolRun {
 	r.entrypoint = true

@@ -54,6 +54,7 @@ agentic-cli/
         ├── network/             # Network isolation of the tool, with and without --proxy
         ├── proxy/               # Egress proxy: address guard, clients, credentials, path rules, integrations
         ├── lifecycle/           # Cleanup on a closed terminal and of orphans from crashed runs
+        ├── microsandbox/        # Runs in a microsandbox VM: mounts, limits, allowlist
         └── tools/               # Smoke test per tool image
 ```
 
@@ -67,6 +68,7 @@ make lint           # run golangci-lint
 make audit          # go mod verify + govulncheck
 make test           # run unit tests
 make test-integration # run integration tests against a real Docker daemon
+make test-integration-msb # run the microsandbox integration tests (needs msb and KVM)
 make dist           # cross-platform binaries → dist/
 make docker-dist    # same via Docker using build/Dockerfile (no local Go needed)
 ```
@@ -75,7 +77,7 @@ CI runs `make audit` on every PR and push to main. A nightly workflow also runs 
 
 CLI changes take effect after `make build`. Changes to stage funcs in `internal/image/tools/` or `internal/runtime/docker/` need an `agentic build` to rebuild the image.
 
-Integration tests build the binary and an `agentic-itest-claude` image (slow on the first run, cached after), then drive `agentic run` like a user would. They skip without Docker, and the resource-limit checks skip without cgroups (e.g. rootless without systemd). CI runs them in a separate job. This repo's `.agenticrc.toml` enables DinD (and the proxy in monitor mode), so they also run inside an agentic container. Fake containers and networks carry an `agentic.itest.run` label; each package force-removes its own at the end, and `make test-integration` removes any left over.
+Integration tests build the binary and an `agentic-itest-claude` image (slow on the first run, cached after), then drive `agentic run` like a user would. They skip without Docker, and the resource-limit checks skip without cgroups (e.g. rootless without systemd). CI runs them in a separate job. This repo's `.agenticrc.toml` enables DinD (and the proxy in monitor mode), so they also run inside an agentic container. Fake containers and networks carry an `agentic.itest.run` label; each package force-removes its own at the end, and `make test-integration` removes any left over. The `microsandbox` package skips without msb, unless `AGENTIC_ITEST_MICROSANDBOX` is set as `make test-integration-msb` and its CI job do.
 
 ## Conventions
 
