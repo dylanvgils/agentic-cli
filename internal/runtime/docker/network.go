@@ -64,10 +64,7 @@ func (c *Client) egressNetworkProject() (string, error) {
 // join it and use every run's proxy.
 func (c *Client) ensureEgressNetwork() error {
 	if project, err := c.egressNetworkProject(); err == nil {
-		if project != LabelProjectVal {
-			return fmt.Errorf("'%s' is not an agentic-managed network; remove it or run 'agentic clean'", NetworkName)
-		}
-		return nil
+		return checkEgressProject(project)
 	}
 
 	createArgs := []string{
@@ -77,6 +74,14 @@ func (c *Client) ensureEgressNetwork() error {
 	}
 
 	_, err := c.run(createArgs...)
+	if err == nil {
+		return nil
+	}
+
+	// A run starting at the same time may have created it since the check
+	if project, inspectErr := c.egressNetworkProject(); inspectErr == nil {
+		return checkEgressProject(project)
+	}
 	return err
 }
 
@@ -124,4 +129,12 @@ func runNetworkArgs(rs toolRun) []string {
 	args = append(args, label(LabelProject, LabelProjectVal))
 	args = append(args, ownerLabels(rs)...)
 	return append(args, rs.network)
+}
+
+// checkEgressProject refuses an agentic-net agentic didn't create, given its project label.
+func checkEgressProject(project string) error {
+	if project != LabelProjectVal {
+		return fmt.Errorf("'%s' is not an agentic-managed network; remove it or run 'agentic clean'", NetworkName)
+	}
+	return nil
 }

@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -142,6 +143,28 @@ func Test_ensureEgressNetwork(t *testing.T) {
 		// Assert
 		assert.Error(t, err)
 	})
+
+	t.Run("network created concurrently is used", func(t *testing.T) {
+		// Arrange
+		stubDockerRun(t, client, raceAfterCheck("agentic-cli\n"))
+
+		// Act
+		err := client.ensureEgressNetwork()
+
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("network created concurrently without the agentic label is an error", func(t *testing.T) {
+		// Arrange
+		stubDockerRun(t, client, raceAfterCheck("other-project\n"))
+
+		// Act
+		err := client.ensureEgressNetwork()
+
+		// Assert
+		assert.ErrorContains(t, err, "not an agentic-managed network")
+	})
 }
 
 func Test_createRunNetwork(t *testing.T) {
@@ -251,4 +274,23 @@ func Test_runNetworkArgs(t *testing.T) {
 		// Assert
 		assert.Contains(t, args, "--internal")
 	})
+}
+
+// raceAfterCheck returns a docker run stub where agentic-net is missing on the first inspect, then created by someone else
+// with project before the create, which fails.
+func raceAfterCheck(project string) func(args ...string) (string, error) {
+	inspects := 0
+	return func(args ...string) (string, error) {
+		switch args[1] {
+		case "inspect":
+			inspects++
+			if inspects == 1 {
+				return "", errors.New("network agentic-net not found")
+			}
+			return project, nil
+		case "create":
+			return "", errors.New("network with name agentic-net already exists")
+		}
+		return "", nil
+	}
 }
