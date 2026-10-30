@@ -3,7 +3,6 @@
 package lifecycle
 
 import (
-	"os/exec"
 	"syscall"
 	"testing"
 	"time"
@@ -41,11 +40,6 @@ func TestClosedTerminal(t *testing.T) {
 		t.Fatal("agentic did not exit after SIGHUP")
 	}
 	for _, name := range running {
-		assert.False(t, exists(name), "container %s left behind", name)
+		assert.False(t, platform.DockerOK("container", "inspect", name), "container %s left behind", name)
 	}
-}
-
-// exists reports whether a container named name exists, running or not.
-func exists(name string) bool {
-	return exec.Command("docker", "container", "inspect", name).Run() == nil
 }

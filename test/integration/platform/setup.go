@@ -86,16 +86,16 @@ func Main(m *testing.M) int {
 
 // checkDocker prints the daemon summary; without a daemon it skips, except on CI where skipping would hide that nothing ran.
 func checkDocker() (skip bool, err error) {
-	info, err := exec.Command("docker", "info", "--format", dockerInfoFormat).CombinedOutput()
+	info, err := dockerRun("info", "--format", dockerInfoFormat)
 	if err != nil {
 		if os.Getenv("CI") != "" {
-			return false, fmt.Errorf("docker unavailable: %w\n%s", err, info)
+			return false, fmt.Errorf("docker unavailable: %w", err)
 		}
-		fmt.Printf("docker unavailable, skipping integration tests: %v\n%s", err, info)
+		fmt.Printf("docker unavailable, skipping integration tests: %v\n", err)
 		return true, nil
 	}
 
-	fmt.Printf("=> docker: %s", info)
+	fmt.Printf("=> docker: %s\n", info)
 	return false, nil
 }
 

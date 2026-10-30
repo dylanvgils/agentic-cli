@@ -47,9 +47,3 @@ func TestProxyCredentialPaths(t *testing.T) {
 	assert.NotContains(t, out, "without the placeholder")
 	assert.Contains(t, proxyLog(t), `"host":"`+pathHost+`","port":"443","decision":"deny","enforced":true,"intercepted":true,"path":"/other/README.md","reason":"path-blocked"`)
 }
-
-// pathsScript requests an allowed path with the credential placeholder and a refused path on pathHost.
-func pathsScript() string {
-	return `curl -sS -o /dev/null -w 'allowed=%{http_code}\n' -H "X-Api-Key: $EXAMPLE_API_KEY" https://` + pathHost + `/org/repo/README.md
-curl -sS -o /dev/null -w 'refused=%{http_code}\n' https://` + pathHost + `/other/README.md`
-}

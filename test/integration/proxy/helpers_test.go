@@ -4,7 +4,6 @@ package proxy
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -20,23 +19,31 @@ const (
 	proxyCredentialsDir = "/run/agentic-proxy/credentials"
 )
 
-// copyFromProxy copies file from the proxy's credentials dir, failing when it doesn't exist.
-func copyFromProxy(proxy, file string) error {
-	return exec.Command("docker", "cp", proxy+":"+proxyCredentialsDir+"/"+file, "-").Run()
+// connectScript prints the proxy's CONNECT status for host:80, also for hosts NO_PROXY lists; the fake upstream never answers HTTP, so curl times out after it.
+func connectScript(host string) string {
+	return "curl -s -o /dev/null -m 3 --noproxy '' --proxytunnel -w 'connect=%{http_connect}\\n' http://" + host + "/ || true"
+}
+
+// copyFromProxy reports whether file could be copied from the proxy's credentials dir, false when it doesn't exist.
+func copyFromProxy(proxy, file string) bool {
+	return platform.DockerOK("cp", proxy+":"+proxyCredentialsDir+"/"+file, "-")
 }
 
 // curlFromEgressNet requests url through proxy from a container on the shared egress network the proxy also
 // joins, and returns curl's output with a final status=<code> line.
 func curlFromEgressNet(t *testing.T, proxy, url string) string {
 	t.Helper()
-	ip, err := exec.Command("docker", "inspect", "--format", `{{(index .NetworkSettings.Networks "agentic-net").IPAddress}}`, proxy).Output()
-	require.NoError(t, err)
-	proxyURL := "http://" + strings.TrimSpace(string(ip)) + ":3128"
+	ip := platform.Docker(t, "inspect", "--format", `{{(index .NetworkSettings.Networks "agentic-net").IPAddress}}`, proxy)
+	proxyURL := "http://" + ip + ":3128"
 
-	out, err := exec.Command("docker", "run", "--rm", "--network", "agentic-net", "--entrypoint", "",
-		platform.ToolImage, "curl", "-sS", "-m", "5", "-x", proxyURL, "-w", "\nstatus=%{http_code}", url).CombinedOutput()
-	require.NoError(t, err, string(out))
-	return string(out)
+	return platform.Docker(t, "run", "--rm", "--network", "agentic-net", "--entrypoint", "",
+		platform.ToolImage, "curl", "-sS", "-m", "5", "-x", proxyURL, "-w", "\nstatus=%{http_code}", url)
+}
+
+// pathsScript requests an allowed path with the credential placeholder and a refused path on pathHost.
+func pathsScript() string {
+	return `curl -sS -o /dev/null -w 'allowed=%{http_code}\n' -H "X-Api-Key: $EXAMPLE_API_KEY" https://` + pathHost + `/org/repo/README.md
+curl -sS -o /dev/null -w 'refused=%{http_code}\n' https://` + pathHost + `/other/README.md`
 }
 
 // proxyLog returns every proxy access log written under the test AGENTIC_HOME, concatenated.
