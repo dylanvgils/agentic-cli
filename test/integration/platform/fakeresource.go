@@ -1,6 +1,6 @@
 //go:build integration
 
-package integration
+package platform
 
 import (
 	"os/exec"
@@ -19,11 +19,11 @@ const (
 	labelTimeFormat = "2006-01-02T15:04:05Z"
 )
 
-// listenPort is the TCP port a listening fake container accepts connections on.
-const listenPort = "8080"
+// ListenPort is the TCP port a listening fake container accepts connections on.
+const ListenPort = "8080"
 
-// fakeResource builds a labelled docker container or network that looks like agentic created it.
-type fakeResource struct {
+// FakeResource builds a labelled docker container or network that looks like agentic created it.
+type FakeResource struct {
 	t       *testing.T
 	kind    string
 	name    string
@@ -34,56 +34,56 @@ type fakeResource struct {
 	cmd     []string
 }
 
-// fakeContainer starts building a stopped container from the test tool image.
-func fakeContainer(t *testing.T) *fakeResource {
-	return &fakeResource{t: t, kind: "container", labels: []string{labelProject}}
+// FakeContainer starts building a stopped container from the test tool image.
+func FakeContainer(t *testing.T) *FakeResource {
+	return &FakeResource{t: t, kind: "container", labels: []string{labelProject}}
 }
 
-// fakeNetwork starts building a network.
-func fakeNetwork(t *testing.T) *fakeResource {
-	return &fakeResource{t: t, kind: "network", labels: []string{labelProject}}
+// FakeNetwork starts building a network.
+func FakeNetwork(t *testing.T) *FakeResource {
+	return &FakeResource{t: t, kind: "network", labels: []string{labelProject}}
 }
 
-// ownedBy labels the resource as a sidecar (network) of the owner container.
-func (f *fakeResource) ownedBy(owner string) *fakeResource {
+// OwnedBy labels the resource as a sidecar (network) of the owner container.
+func (f *FakeResource) OwnedBy(owner string) *FakeResource {
 	f.labels = append(f.labels, labelOwner+"="+owner)
 	return f
 }
 
-// startedAt labels when the resource was created.
-func (f *fakeResource) startedAt(started time.Time) *fakeResource {
+// StartedAt labels when the resource was created.
+func (f *FakeResource) StartedAt(started time.Time) *FakeResource {
 	f.labels = append(f.labels, labelStarted+"="+started.UTC().Format(labelTimeFormat))
 	return f
 }
 
-// onNetwork attaches the container to network.
-func (f *fakeResource) onNetwork(network string) *fakeResource {
+// OnNetwork attaches the container to network.
+func (f *FakeResource) OnNetwork(network string) *FakeResource {
 	f.network = network
 	return f
 }
 
-// withAlias gives the container a DNS alias on its network.
-func (f *fakeResource) withAlias(alias string) *fakeResource {
+// WithAlias gives the container a DNS alias on its network.
+func (f *FakeResource) WithAlias(alias string) *FakeResource {
 	f.aliases = append(f.aliases, alias)
 	return f
 }
 
-// listening makes the container run a TCP server on listenPort.
-func (f *fakeResource) listening() *fakeResource {
-	return f.listeningOn(listenPort)
+// Listening makes the container run a TCP server on ListenPort.
+func (f *FakeResource) Listening() *FakeResource {
+	return f.ListeningOn(ListenPort)
 }
 
-// listeningOn makes the container run a TCP server on port.
-func (f *fakeResource) listeningOn(port string) *fakeResource {
+// ListeningOn makes the container run a TCP server on port.
+func (f *FakeResource) ListeningOn(port string) *FakeResource {
 	f.port = port
 	f.cmd = []string{"nc", "-lk", port}
 	return f
 }
 
-// create creates the resource under a unique name and removes it on cleanup; a listening container is started and awaited.
-func (f *fakeResource) create() *fakeResource {
+// Create creates the resource under a unique name and removes it on cleanup; a listening container is started and awaited.
+func (f *FakeResource) Create() *FakeResource {
 	f.t.Helper()
-	f.name = uniqueName(f.t)
+	f.name = UniqueName(f.t)
 
 	args := []string{f.kind, "create"}
 	if f.cmd != nil {
@@ -100,13 +100,13 @@ func (f *fakeResource) create() *fakeResource {
 	}
 
 	if f.kind == "container" {
-		args = append(args, "--name", f.name, testNamespace+"-"+testTool)
+		args = append(args, "--name", f.name, ToolImage)
 		args = append(args, f.cmd...)
 	} else {
 		args = append(args, f.name)
 	}
 
-	docker(f.t, args...)
+	Docker(f.t, args...)
 	f.t.Cleanup(func() { _ = exec.Command("docker", f.kind, "rm", "--force", f.name).Run() })
 
 	if f.cmd != nil {
@@ -115,13 +115,18 @@ func (f *fakeResource) create() *fakeResource {
 	return f
 }
 
-// exists reports whether the created resource is still there.
-func (f *fakeResource) exists() bool {
+// Exists reports whether the created resource is still there.
+func (f *FakeResource) Exists() bool {
 	return exec.Command("docker", f.kind, "inspect", f.name).Run() == nil
 }
 
-// ip returns the container's address on its network.
-func (f *fakeResource) ip() string {
+// Name returns the created resource's name.
+func (f *FakeResource) Name() string {
+	return f.name
+}
+
+// IP returns the container's address on its network.
+func (f *FakeResource) IP() string {
 	f.t.Helper()
 	out, err := exec.Command("docker", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", f.name).Output()
 	require.NoError(f.t, err)
@@ -129,7 +134,7 @@ func (f *fakeResource) ip() string {
 }
 
 // awaitListening waits until the container accepts connections on its port.
-func (f *fakeResource) awaitListening() {
+func (f *FakeResource) awaitListening() {
 	f.t.Helper()
 	require.Eventually(f.t, func() bool {
 		return exec.Command("docker", "exec", f.name, "nc", "-z", "127.0.0.1", f.port).Run() == nil

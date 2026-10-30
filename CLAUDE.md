@@ -68,7 +68,7 @@ A new package goes in the layer group of what it imports.
 - Name `TestFunc` / `Test_func` (`Test_type_method` for methods). Several cases go in `t.Run` subtests with lowercase sentence names; a single case stays flat.
 - Shared helpers live in `helpers_test.go`, register cleanup with `t.Cleanup`, and are named `stub...` when they stub.
 - Docker tests use a hand-written `fakeDocker` (one func field per method; nil succeeds). In `internal/cli` use `stubDocker(t, &fakeDocker{...})`.
-- Integration tests: `test/integration/`, `//go:build integration`, runs from the `toolRun` builder in `toolrun_test.go`, fixtures from the `fakeContainer`/`fakeNetwork` builders in `fakeresource_test.go` (the two exceptions to `helpers_test.go`).
+- Integration tests: `//go:build integration`, in the feature package under `test/integration/` (`container`, `network`, `proxy`, `lifecycle`), whose `TestMain` calls `platform.Main`. Runs come from the `platform.ToolRun` builder, fixtures from the `platform.FakeContainer`/`FakeNetwork` builders. A helper goes in `platform` (plain `.go` files, so other packages can import it) only when several feature packages use it, else in that package's `helpers_test.go`. `make test-integration` builds the images once (`test/integration/cmd/buildimages`) and sets `AGENTIC_ITEST_IMAGES_BUILT` so `Main` skips them; a lone `go test` builds them itself. Packages run in parallel on one daemon, so a check never counts the daemon's containers; scope it to the run with `ToolRun.Containers`/`Proxy`.
 
 ## Docs
 

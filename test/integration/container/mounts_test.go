@@ -1,11 +1,12 @@
 //go:build integration
 
-package integration
+package container
 
 import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,7 +14,7 @@ import (
 func TestToolMounts(t *testing.T) {
 	t.Run("no docker socket", func(t *testing.T) {
 		// Act
-		out := newToolRun(t).run("for s in /var/run/docker.sock /run/docker.sock; do test -e $s && echo socket=$s; done; echo checked")
+		out := platform.NewToolRun(t).Run("for s in /var/run/docker.sock /run/docker.sock; do test -e $s && echo socket=$s; done; echo checked")
 
 		// Assert
 		assert.Contains(t, out, "checked")
@@ -22,14 +23,14 @@ func TestToolMounts(t *testing.T) {
 
 	t.Run("read-only sub-path mount blocks writes inside writable workspace", func(t *testing.T) {
 		// Arrange
-		lockedDir := tempDirIn(t, workDir)
+		lockedDir := platform.TempDirIn(t, platform.WorkDir())
 		locked := "/workspace/" + filepath.Base(lockedDir)
 		script := writableScript("workspace", locked+"-ctl") + "; " + writableScript("locked", locked+"/x")
 
 		// Act
-		out := newToolRun(t).
-			withVolume(lockedDir + ":" + locked).
-			run(script)
+		out := platform.NewToolRun(t).
+			WithVolume(lockedDir + ":" + locked).
+			Run(script)
 
 		// Assert
 		assert.Contains(t, out, "workspace=rw")
@@ -38,15 +39,15 @@ func TestToolMounts(t *testing.T) {
 
 	t.Run("extra bind mount is read-only unless rw", func(t *testing.T) {
 		// Arrange
-		defaultDir := tempDirIn(t, rootDir)
-		rwDir := tempDirIn(t, rootDir)
+		defaultDir := platform.TempDirIn(t, platform.RootDir())
+		rwDir := platform.TempDirIn(t, platform.RootDir())
 		script := writableScript("default", "/mnt/default/x") + "; " + writableScript("opted", "/mnt/rw/x")
 
 		// Act
-		out := newToolRun(t).
-			withVolume(defaultDir + ":/mnt/default").
-			withVolume(rwDir + ":/mnt/rw:rw").
-			run(script)
+		out := platform.NewToolRun(t).
+			WithVolume(defaultDir + ":/mnt/default").
+			WithVolume(rwDir + ":/mnt/rw:rw").
+			Run(script)
 
 		// Assert
 		assert.Contains(t, out, "default=ro")

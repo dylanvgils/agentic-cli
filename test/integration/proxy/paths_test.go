@@ -1,10 +1,11 @@
 //go:build integration
 
-package integration
+package proxy
 
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -14,13 +15,13 @@ const pathHost = "paths.example.test"
 // TestProxyPaths checks the proxy decrypts a path rule host, which the tool trusts, and refuses paths no rule allows.
 func TestProxyPaths(t *testing.T) {
 	// Arrange
-	tool := newToolRun(t).
-		allowingPaths(pathHost, "/org/repo/**").
-		withProxy().
-		viaEntrypoint()
+	tool := platform.NewToolRun(t).
+		AllowingPaths(pathHost, "/org/repo/**").
+		WithProxy().
+		ViaEntrypoint()
 
 	// Act
-	out := tool.run(pathsScript())
+	out := tool.Run(pathsScript())
 
 	// Assert
 	assert.Contains(t, out, "allowed=502")
@@ -32,13 +33,13 @@ func TestProxyPaths(t *testing.T) {
 // TestProxyCredentialPaths checks path rules limit a credential host, whose allowed paths still get the secret.
 func TestProxyCredentialPaths(t *testing.T) {
 	// Arrange
-	tool := newToolRun(t).
-		withCredential(pathHost, secretFile(t)).
-		allowingPaths(pathHost, "/org/repo/**").
-		viaEntrypoint()
+	tool := platform.NewToolRun(t).
+		WithCredential(pathHost, secretFile(t)).
+		AllowingPaths(pathHost, "/org/repo/**").
+		ViaEntrypoint()
 
 	// Act
-	out := tool.run(pathsScript())
+	out := tool.Run(pathsScript())
 
 	// Assert
 	assert.Contains(t, out, "allowed=502")

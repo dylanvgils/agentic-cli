@@ -47,6 +47,12 @@ agentic-cli/
 │       └── volumes/             # Lists and removes agentic's named volumes across every runtime
 └── test/
     └── integration/             # Black-box tests driving the agentic binary against a real Docker daemon (`integration` build tag)
+        ├── platform/            # Shared env setup and the builders every feature package runs tools and fake resources with
+        ├── cmd/buildimages/     # Builds the test images once before `make test-integration` runs the packages in parallel
+        ├── container/           # Tool container hardening, resource limits and mounts
+        ├── network/             # Network isolation of the tool, with and without --proxy
+        ├── proxy/               # Egress proxy: address guard, clients, credentials, path rules, integrations
+        └── lifecycle/           # Cleanup on a closed terminal and of orphans from crashed runs
 ```
 
 Import boundaries are in [CLAUDE.md](../CLAUDE.md#import-boundaries). Dockerfiles are generated in Go, see [Dockerfile DSL](dockerfile-dsl.md).

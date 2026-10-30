@@ -1,14 +1,14 @@
 //go:build integration
 
-package integration
+package lifecycle
 
 import (
 	"os/exec"
-	"strings"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,11 +17,11 @@ import (
 // tool running unattended.
 func TestClosedTerminal(t *testing.T) {
 	// Arrange
-	cmd, _ := newToolRun(t).
-		allowing("example.test").
-		withProxy().
-		start()
-	running := runContainers(t)
+	tool := platform.NewToolRun(t).
+		Allowing("example.test").
+		WithProxy()
+	cmd, _ := tool.Start()
+	running := tool.Containers()
 	require.Len(t, running, 2, "expected the tool container and the proxy")
 
 	// Act
@@ -40,13 +40,12 @@ func TestClosedTerminal(t *testing.T) {
 		_ = cmd.Process.Kill()
 		t.Fatal("agentic did not exit after SIGHUP")
 	}
-	assert.Empty(t, runContainers(t))
+	for _, name := range running {
+		assert.False(t, exists(name), "container %s left behind", name)
+	}
 }
 
-// runContainers returns the names of the agentic containers that exist, running or not.
-func runContainers(t *testing.T) []string {
-	t.Helper()
-	out, err := exec.Command("docker", "ps", "--all", "--filter", "label=project=agentic-cli", "--format", "{{.Names}}").Output()
-	require.NoError(t, err)
-	return strings.Fields(string(out))
+// exists reports whether a container named name exists, running or not.
+func exists(name string) bool {
+	return exec.Command("docker", "container", "inspect", name).Run() == nil
 }
