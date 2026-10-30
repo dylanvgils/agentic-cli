@@ -1,6 +1,6 @@
 //go:build integration
 
-package integration
+package platform
 
 import (
 	"bytes"
@@ -16,8 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// waitScript signals the tool is up, then keeps it running until .done exists.
-const waitScript = "touch .ready; while [ ! -f .done ]; do sleep 0.1; done"
+// waitScript signals the tool is up by writing its hostname, the container ID, to .ready, then keeps it running until
+// .done exists.
+const waitScript = "hostname > .ready.tmp && mv .ready.tmp .ready; while [ ! -f .done ]; do sleep 0.1; done"
 
 // credentialRule is a [[run.proxy.credentials]] entry.
 type credentialRule struct {
@@ -41,29 +42,30 @@ type proxyTable struct {
 	Integrations []string         `toml:"integrations,omitempty"`
 }
 
-// toolRun builds an agentic run of the test tool, in its own approved work dir once it adds config.
-type toolRun struct {
+// ToolRun builds an agentic run of the test tool, in its own approved work dir once it adds config.
+type ToolRun struct {
 	t          *testing.T
 	proxy      *proxyTable
 	flags      []string
 	entrypoint bool
 	dir        string
+	container  string
 }
 
-// newToolRun starts building a run in the shared work dir.
-func newToolRun(t *testing.T) *toolRun {
-	return &toolRun{t: t}
+// NewToolRun starts building a run in the shared work dir.
+func NewToolRun(t *testing.T) *ToolRun {
+	return &ToolRun{t: t}
 }
 
-// allowing adds hosts to the proxy allowlist.
-func (r *toolRun) allowing(hosts ...string) *toolRun {
+// Allowing adds hosts to the proxy allowlist.
+func (r *ToolRun) Allowing(hosts ...string) *ToolRun {
 	proxy := r.proxyRules()
 	proxy.AllowedHosts = append(proxy.AllowedHosts, hosts...)
 	return r
 }
 
-// withCredential injects the secret at secretPath for host as X-Api-Key, with EXAMPLE_API_KEY holding the placeholder.
-func (r *toolRun) withCredential(host, secretPath string) *toolRun {
+// WithCredential injects the secret at secretPath for host as X-Api-Key, with EXAMPLE_API_KEY holding the placeholder.
+func (r *ToolRun) WithCredential(host, secretPath string) *ToolRun {
 	proxy := r.proxyRules()
 	proxy.Credentials = append(proxy.Credentials, credentialRule{
 		Hosts:  []string{host},
@@ -74,8 +76,8 @@ func (r *toolRun) withCredential(host, secretPath string) *toolRun {
 	return r
 }
 
-// allowingPaths limits host to paths.
-func (r *toolRun) allowingPaths(host string, paths ...string) *toolRun {
+// AllowingPaths limits host to paths.
+func (r *ToolRun) AllowingPaths(host string, paths ...string) *ToolRun {
 	proxy := r.proxyRules()
 	proxy.AllowedPaths = append(proxy.AllowedPaths, pathRule{
 		Host:  host,
@@ -84,67 +86,67 @@ func (r *toolRun) allowingPaths(host string, paths ...string) *toolRun {
 	return r
 }
 
-// integrating routes the named tools through the proxy.
-func (r *toolRun) integrating(names ...string) *toolRun {
+// Integrating routes the named tools through the proxy.
+func (r *ToolRun) Integrating(names ...string) *ToolRun {
 	proxy := r.proxyRules()
 	proxy.Integrations = append(proxy.Integrations, names...)
 	return r
 }
 
-// withProxy runs with --proxy.
-func (r *toolRun) withProxy() *toolRun {
+// WithProxy runs with --proxy.
+func (r *ToolRun) WithProxy() *ToolRun {
 	r.flags = append(r.flags, "--proxy")
 	return r
 }
 
-// withVolume adds a --volume mount.
-func (r *toolRun) withVolume(spec string) *toolRun {
+// WithVolume adds a --volume mount.
+func (r *ToolRun) WithVolume(spec string) *ToolRun {
 	r.flags = append(r.flags, "--volume", spec)
 	return r
 }
 
-// withIntegrationFlag routes the named tools through the proxy with --proxy-integration.
-func (r *toolRun) withIntegrationFlag(names ...string) *toolRun {
+// WithIntegrationFlag routes the named tools through the proxy with --proxy-integration.
+func (r *ToolRun) WithIntegrationFlag(names ...string) *ToolRun {
 	r.flags = append(r.flags, "--proxy-integration", strings.Join(names, ","))
 	return r
 }
 
-// viaEntrypoint runs the script through the image entrypoint, which -- skips and which makes the tool trust the proxy CA.
-func (r *toolRun) viaEntrypoint() *toolRun {
+// ViaEntrypoint runs the script through the image entrypoint, which -- skips and which makes the tool trust the proxy CA.
+func (r *ToolRun) ViaEntrypoint() *ToolRun {
 	r.entrypoint = true
 	return r
 }
 
-// run runs script with sh inside the tool container and returns the combined output.
-func (r *toolRun) run(script string) string {
+// Run runs script with sh inside the tool container and returns the combined output.
+func (r *ToolRun) Run(script string) string {
 	r.t.Helper()
 	args := r.args(script)
 
-	out, err := agenticCmdIn(r.workDir(), args...).CombinedOutput()
+	out, err := AgenticCmdIn(r.workDir(), args...).CombinedOutput()
 	r.t.Logf("agentic %s\n%s", strings.Join(args, " "), out)
 	require.NoError(r.t, err)
 	return string(out)
 }
 
-// during calls probe once the tool is up, then lets the tool exit and checks the run succeeded; for checks on the sidecars,
+// During calls probe once the tool is up, then lets the tool exit and checks the run succeeded; for checks on the sidecars,
 // which only live as long as the run.
-func (r *toolRun) during(probe func()) {
+func (r *ToolRun) During(probe func()) {
 	r.t.Helper()
-	cmd, out := r.start()
+	cmd, out := r.Start()
 
 	// Deferred, so the tool also exits when probe fails the test
 	defer func() { assert.NoError(r.t, r.stop(cmd, out)) }()
 	probe()
 }
 
-// start starts the run and waits until the tool is up; the tool keeps running until stop.
-func (r *toolRun) start() (*exec.Cmd, *bytes.Buffer) {
+// Start starts the run and waits until the tool is up; the tool keeps running until stop.
+func (r *ToolRun) Start() (*exec.Cmd, *bytes.Buffer) {
 	r.t.Helper()
 	ready := filepath.Join(r.workDir(), ".ready")
 	_ = os.Remove(ready)
 	_ = os.Remove(filepath.Join(r.dir, ".done"))
 
-	cmd := agenticCmdIn(r.dir, r.args(waitScript)...)
+	cmd := AgenticCmdIn(r.dir, r.args(waitScript)...)
 	out := &bytes.Buffer{}
 	cmd.Stdout = out
 	cmd.Stderr = out
@@ -158,11 +160,31 @@ func (r *toolRun) start() (*exec.Cmd, *bytes.Buffer) {
 		_ = r.stop(cmd, out)
 		r.t.FailNow()
 	}
+
+	id, err := os.ReadFile(ready)
+	require.NoError(r.t, err)
+	name, err := exec.Command("docker", "inspect", "--format", "{{.Name}}", strings.TrimSpace(string(id))).Output()
+	require.NoError(r.t, err)
+	r.container = strings.TrimPrefix(strings.TrimSpace(string(name)), "/")
 	return cmd, out
 }
 
+// Containers returns the names of a started run's tool container and its sidecars, running or not.
+func (r *ToolRun) Containers() []string {
+	r.t.Helper()
+	return append([]string{r.container}, r.sidecars("--all")...)
+}
+
+// Proxy returns the name of a started run's running proxy sidecar.
+func (r *ToolRun) Proxy() string {
+	r.t.Helper()
+	names := r.sidecars("--filter", "name=agentic-proxy-")
+	require.Len(r.t, names, 1, "expected one running proxy")
+	return names[0]
+}
+
 // stop lets a started tool exit, logs the run's output and returns its error.
-func (r *toolRun) stop(cmd *exec.Cmd, out *bytes.Buffer) error {
+func (r *ToolRun) stop(cmd *exec.Cmd, out *bytes.Buffer) error {
 	r.t.Helper()
 	_ = os.WriteFile(filepath.Join(r.dir, ".done"), nil, 0o644)
 	err := cmd.Wait()
@@ -170,17 +192,26 @@ func (r *toolRun) stop(cmd *exec.Cmd, out *bytes.Buffer) error {
 	return err
 }
 
+// sidecars returns the names of the containers owned by the run's tool container that docker ps lists with the extra args.
+func (r *ToolRun) sidecars(args ...string) []string {
+	r.t.Helper()
+	args = append([]string{"ps", "--filter", "label=" + labelOwner + "=" + r.container, "--format", "{{.Names}}"}, args...)
+	out, err := exec.Command("docker", args...).Output()
+	require.NoError(r.t, err)
+	return strings.Fields(string(out))
+}
+
 // args returns the agentic run args running script with sh in the test tool, through the entrypoint if asked.
-func (r *toolRun) args(script string) []string {
+func (r *ToolRun) args(script string) []string {
 	if r.entrypoint {
 		script = entrypointScript(script)
 	}
 	args := append([]string{"run", "--trust-dir"}, r.flags...)
-	return append(args, testTool, "--", "sh", "-c", script)
+	return append(args, Tool, "--", "sh", "-c", script)
 }
 
 // workDir returns the run's work dir: the shared one without extra config, else a temp dir with an approved .agenticrc.toml.
-func (r *toolRun) workDir() string {
+func (r *ToolRun) workDir() string {
 	r.t.Helper()
 	if r.dir != "" {
 		return r.dir
@@ -190,7 +221,7 @@ func (r *toolRun) workDir() string {
 		return r.dir
 	}
 
-	dir := tempDirIn(r.t, rootDir)
+	dir := TempDirIn(r.t, rootDir)
 	rcPath := filepath.Join(dir, ".agenticrc.toml")
 	require.NoError(r.t, os.WriteFile(rcPath, r.rc(), 0o644))
 	require.NoError(r.t, approveSettings(rcPath))
@@ -199,7 +230,7 @@ func (r *toolRun) workDir() string {
 }
 
 // rc returns rcContents with the run's proxy table added.
-func (r *toolRun) rc() []byte {
+func (r *ToolRun) rc() []byte {
 	r.t.Helper()
 	var rc map[string]any
 	_, err := toml.Decode(rcContents, &rc)
@@ -212,7 +243,7 @@ func (r *toolRun) rc() []byte {
 }
 
 // proxyRules returns the run's [run.proxy] table, creating it on first use.
-func (r *toolRun) proxyRules() *proxyTable {
+func (r *ToolRun) proxyRules() *proxyTable {
 	if r.proxy == nil {
 		r.proxy = &proxyTable{}
 	}

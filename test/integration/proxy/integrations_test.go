@@ -1,10 +1,11 @@
 //go:build integration
 
-package integration
+package proxy
 
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,10 +23,10 @@ const integrationsScript = `echo "maven=$MAVEN_ARGS"; echo "gradle=$GRADLE_OPTS"
 func TestProxyIntegrations(t *testing.T) {
 	t.Run("flag sets the env pointing at the proxy", func(t *testing.T) {
 		// Act
-		out := newToolRun(t).
-			withProxy().
-			withIntegrationFlag("maven", "gradle").
-			run(integrationsScript)
+		out := platform.NewToolRun(t).
+			WithProxy().
+			WithIntegrationFlag("maven", "gradle").
+			Run(integrationsScript)
 
 		// Assert
 		assert.Contains(t, out, "maven="+mavenArgs+"\n")
@@ -35,10 +36,10 @@ func TestProxyIntegrations(t *testing.T) {
 
 	t.Run("config sets the env pointing at the proxy", func(t *testing.T) {
 		// Act
-		out := newToolRun(t).
-			integrating("maven", "gradle").
-			withProxy().
-			run(integrationsScript)
+		out := platform.NewToolRun(t).
+			Integrating("maven", "gradle").
+			WithProxy().
+			Run(integrationsScript)
 
 		// Assert
 		assert.Contains(t, out, "maven="+mavenArgs+"\n")
@@ -48,9 +49,9 @@ func TestProxyIntegrations(t *testing.T) {
 
 	t.Run("without the proxy the env is unset", func(t *testing.T) {
 		// Act
-		out := newToolRun(t).
-			withIntegrationFlag("maven", "gradle").
-			run(integrationsScript)
+		out := platform.NewToolRun(t).
+			WithIntegrationFlag("maven", "gradle").
+			Run(integrationsScript)
 
 		// Assert
 		assert.Contains(t, out, "maven=\n")

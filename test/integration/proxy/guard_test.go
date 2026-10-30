@@ -1,10 +1,11 @@
 //go:build integration
 
-package integration
+package proxy
 
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,20 +14,20 @@ const guardHost = "upstream.guard.test"
 
 // TestProxyAddressGuard checks an allowed host can't reach local or private addresses unless listed exactly.
 func TestProxyAddressGuard(t *testing.T) {
-	fakeContainer(t).
-		onNetwork("agentic-net").
-		withAlias(guardHost).
-		listeningOn("80").
-		create()
+	platform.FakeContainer(t).
+		OnNetwork("agentic-net").
+		WithAlias(guardHost).
+		ListeningOn("80").
+		Create()
 
 	t.Run("wildcard entry cannot reach a private address", func(t *testing.T) {
 		// Arrange
-		tool := newToolRun(t).
-			allowing(".guard.test").
-			withProxy()
+		tool := platform.NewToolRun(t).
+			Allowing(".guard.test").
+			WithProxy()
 
 		// Act
-		out := tool.run(connectScript(guardHost))
+		out := tool.Run(connectScript(guardHost))
 
 		// Assert
 		assert.Contains(t, out, "connect=403")
@@ -35,12 +36,12 @@ func TestProxyAddressGuard(t *testing.T) {
 
 	t.Run("exact entry can reach a private address", func(t *testing.T) {
 		// Arrange
-		tool := newToolRun(t).
-			allowing(guardHost).
-			withProxy()
+		tool := platform.NewToolRun(t).
+			Allowing(guardHost).
+			WithProxy()
 
 		// Act
-		out := tool.run(connectScript(guardHost))
+		out := tool.Run(connectScript(guardHost))
 
 		// Assert
 		assert.Contains(t, out, "connect=200")
@@ -48,12 +49,12 @@ func TestProxyAddressGuard(t *testing.T) {
 
 	t.Run("exact entry cannot reach loopback", func(t *testing.T) {
 		// Arrange
-		tool := newToolRun(t).
-			allowing("localhost").
-			withProxy()
+		tool := platform.NewToolRun(t).
+			Allowing("localhost").
+			WithProxy()
 
 		// Act
-		out := tool.run(connectScript("localhost"))
+		out := tool.Run(connectScript("localhost"))
 
 		// Assert - the reason proves the guard refused it, not the allowlist
 		assert.Contains(t, out, "connect=403")
@@ -64,14 +65,14 @@ func TestProxyAddressGuard(t *testing.T) {
 // TestProxyClients checks a proxy without credentials also refuses clients outside its run's network.
 func TestProxyClients(t *testing.T) {
 	// Arrange
-	tool := newToolRun(t).
-		allowing("example.test").
-		withProxy()
+	tool := platform.NewToolRun(t).
+		Allowing("example.test").
+		WithProxy()
 	var out string
 
 	// Act
-	tool.during(func() {
-		out = curlFromEgressNet(t, "http://example.test/")
+	tool.During(func() {
+		out = curlFromEgressNet(t, tool.Proxy(), "http://example.test/")
 	})
 
 	// Assert

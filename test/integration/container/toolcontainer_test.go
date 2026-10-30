@@ -1,12 +1,13 @@
 //go:build integration
 
-package integration
+package container
 
 import (
 	"os"
 	"strconv"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -14,7 +15,7 @@ import (
 func TestToolContainer(t *testing.T) {
 	t.Run("root filesystem is read-only", func(t *testing.T) {
 		// Act
-		out := newToolRun(t).run(writableScript("rootfs", "/itest"))
+		out := platform.NewToolRun(t).Run(writableScript("rootfs", "/itest"))
 
 		// Assert
 		assert.Contains(t, out, "rootfs=ro")
@@ -22,7 +23,7 @@ func TestToolContainer(t *testing.T) {
 
 	t.Run("all capabilities dropped", func(t *testing.T) {
 		// Act (bounding set, since CapEff of a non-root user is empty even without --cap-drop)
-		out := newToolRun(t).run(`echo "cap=$(awk '/^CapBnd/ {print $2}' /proc/self/status)"`)
+		out := platform.NewToolRun(t).Run(`echo "cap=$(awk '/^CapBnd/ {print $2}' /proc/self/status)"`)
 
 		// Assert
 		assert.Contains(t, out, "cap=0000000000000000")
@@ -30,7 +31,7 @@ func TestToolContainer(t *testing.T) {
 
 	t.Run("no new privileges", func(t *testing.T) {
 		// Act
-		out := newToolRun(t).run(`echo "nnp=$(awk '/^NoNewPrivs/ {print $2}' /proc/self/status)"`)
+		out := platform.NewToolRun(t).Run(`echo "nnp=$(awk '/^NoNewPrivs/ {print $2}' /proc/self/status)"`)
 
 		// Assert
 		assert.Contains(t, out, "nnp=1")
@@ -38,7 +39,7 @@ func TestToolContainer(t *testing.T) {
 
 	t.Run("runs as host user", func(t *testing.T) {
 		// Act
-		out := newToolRun(t).run(`echo "user=$(id -u):$(id -g)"`)
+		out := platform.NewToolRun(t).Run(`echo "user=$(id -u):$(id -g)"`)
 
 		// Assert
 		assert.Contains(t, out, "user="+strconv.Itoa(os.Getuid())+":"+strconv.Itoa(os.Getgid()))
@@ -49,10 +50,10 @@ func TestToolContainer(t *testing.T) {
 		skipWithoutCgroups(t)
 
 		// Act
-		out := newToolRun(t).run(`echo "pids=$(cat /sys/fs/cgroup/pids.max)"`)
+		out := platform.NewToolRun(t).Run(`echo "pids=$(cat /sys/fs/cgroup/pids.max)"`)
 
 		// Assert
-		assert.Contains(t, out, "pids="+testPidsLimit)
+		assert.Contains(t, out, "pids="+platform.PidsLimit)
 	})
 
 	t.Run("cpu limit applied", func(t *testing.T) {
@@ -60,10 +61,10 @@ func TestToolContainer(t *testing.T) {
 		skipWithoutCgroups(t)
 
 		// Act
-		out := newToolRun(t).run(`echo "cpu=$(cat /sys/fs/cgroup/cpu.max)"`)
+		out := platform.NewToolRun(t).Run(`echo "cpu=$(cat /sys/fs/cgroup/cpu.max)"`)
 
 		// Assert
-		assert.Contains(t, out, "cpu=150000 100000") // testCPUs as quota per 100ms period
+		assert.Contains(t, out, "cpu=150000 100000") // platform.CPUs as quota per 100ms period
 	})
 
 	t.Run("memory limit applied", func(t *testing.T) {
@@ -71,9 +72,9 @@ func TestToolContainer(t *testing.T) {
 		skipWithoutCgroups(t)
 
 		// Act
-		out := newToolRun(t).run(`echo "mem=$(cat /sys/fs/cgroup/memory.max)"`)
+		out := platform.NewToolRun(t).Run(`echo "mem=$(cat /sys/fs/cgroup/memory.max)"`)
 
 		// Assert
-		assert.Contains(t, out, "mem=314572800") // testMemory in bytes
+		assert.Contains(t, out, "mem=314572800") // platform.Memory in bytes
 	})
 }

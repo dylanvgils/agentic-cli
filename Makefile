@@ -53,7 +53,8 @@ test-coverage:
 
 # Needs a Docker daemon; builds an agentic-itest-claude image on first run.
 test-integration:
-	go test -tags integration -count=1 -timeout 20m -v ./test/integration/...
+	go run -tags integration ./test/integration/cmd/buildimages
+	AGENTIC_ITEST_IMAGES_BUILT=1 go test -tags integration -count=1 -timeout 20m -v ./test/integration/...
 
 lint:
 	golangci-lint run ./...

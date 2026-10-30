@@ -1,28 +1,22 @@
 //go:build integration
 
-package integration
+package proxy
 
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
 
-const (
-	// credentialHost has no upstream, so the proxy answers 502 once it has decrypted the request.
-	credentialHost = "upstream.example.test"
-
-	credentialSecret = "test-secret-value"
-
-	// proxyCredentialsDir mirrors internal/runtime/docker's dir for the proxy's CA and credential files
-	proxyCredentialsDir = "/run/agentic-proxy/credentials"
-)
+// credentialHost has no upstream, so the proxy answers 502 once it has decrypted the request.
+const credentialHost = "upstream.example.test"
 
 // TestProxyCredentials checks the tool sees only the placeholder and trusts the proxy CA for credential hosts.
 func TestProxyCredentials(t *testing.T) {
 	secretPath := secretFile(t)
-	credentialRun := func(t *testing.T) *toolRun {
-		return newToolRun(t).withCredential(credentialHost, secretPath)
+	credentialRun := func(t *testing.T) *platform.ToolRun {
+		return platform.NewToolRun(t).WithCredential(credentialHost, secretPath)
 	}
 
 	t.Run("env holds the placeholder, not the secret", func(t *testing.T) {
@@ -30,7 +24,7 @@ func TestProxyCredentials(t *testing.T) {
 		script := `echo "key=$EXAMPLE_API_KEY"; env | grep -q '` + credentialSecret + `' && echo leak=yes || echo leak=no`
 
 		// Act
-		out := credentialRun(t).run(script)
+		out := credentialRun(t).Run(script)
 
 		// Assert
 		assert.Contains(t, out, "agentic: injecting credentials for "+credentialHost+" ("+secretPath+")")
@@ -44,8 +38,8 @@ func TestProxyCredentials(t *testing.T) {
 
 		// Act
 		out := credentialRun(t).
-			viaEntrypoint().
-			run(script)
+			ViaEntrypoint().
+			Run(script)
 
 		// Assert
 		assert.Contains(t, out, "status=502")
@@ -56,11 +50,12 @@ func TestProxyCredentials(t *testing.T) {
 
 	t.Run("proxy deletes the CA key and credentials once loaded", func(t *testing.T) {
 		// Arrange
+		tool := credentialRun(t)
 		var keyErr, credsErr, certErr error
 
 		// Act
-		credentialRun(t).during(func() {
-			proxy := runningProxy(t)
+		tool.During(func() {
+			proxy := tool.Proxy()
 			keyErr = copyFromProxy(proxy, "ca-key.pem")
 			credsErr = copyFromProxy(proxy, "credentials.json")
 			certErr = copyFromProxy(proxy, "ca.pem")
@@ -74,11 +69,12 @@ func TestProxyCredentials(t *testing.T) {
 
 	t.Run("proxy refuses clients outside the run's network", func(t *testing.T) {
 		// Arrange
+		tool := credentialRun(t)
 		var out string
 
 		// Act
-		credentialRun(t).during(func() {
-			out = curlFromEgressNet(t, "http://"+credentialHost+"/")
+		tool.During(func() {
+			out = curlFromEgressNet(t, tool.Proxy(), "http://"+credentialHost+"/")
 		})
 
 		// Assert
