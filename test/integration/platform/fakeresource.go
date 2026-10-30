@@ -4,7 +4,6 @@ package platform
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -111,7 +110,7 @@ func (f *FakeResource) Create() *FakeResource {
 	}
 
 	Docker(f.t, args...)
-	f.t.Cleanup(func() { _ = exec.Command("docker", f.kind, "rm", "--force", f.name).Run() })
+	f.t.Cleanup(func() { DockerOK(f.kind, "rm", "--force", f.name) })
 
 	if f.cmd != nil {
 		f.awaitListening()
@@ -121,7 +120,7 @@ func (f *FakeResource) Create() *FakeResource {
 
 // Exists reports whether the created resource is still there.
 func (f *FakeResource) Exists() bool {
-	return exec.Command("docker", f.kind, "inspect", f.name).Run() == nil
+	return DockerOK(f.kind, "inspect", f.name)
 }
 
 // Name returns the created resource's name.
@@ -132,16 +131,14 @@ func (f *FakeResource) Name() string {
 // IP returns the container's address on its network.
 func (f *FakeResource) IP() string {
 	f.t.Helper()
-	out, err := exec.Command("docker", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", f.name).Output()
-	require.NoError(f.t, err)
-	return strings.TrimSpace(string(out))
+	return Docker(f.t, "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", f.name)
 }
 
 // awaitListening waits until the container accepts connections on its port.
 func (f *FakeResource) awaitListening() {
 	f.t.Helper()
 	require.Eventually(f.t, func() bool {
-		return exec.Command("docker", "exec", f.name, "nc", "-z", "127.0.0.1", f.port).Run() == nil
+		return DockerOK("exec", f.name, "nc", "-z", "127.0.0.1", f.port)
 	}, 10*time.Second, 100*time.Millisecond, "fake container %s never started listening", f.name)
 }
 
@@ -176,17 +173,17 @@ func removeFakes(filter string) error {
 
 // removeFakesOf force-removes the resources of kind that docker <kind> ls with listArgs names, printing each.
 func removeFakesOf(kind string, listArgs ...string) error {
-	out, err := exec.Command("docker", append([]string{kind}, listArgs...)...).CombinedOutput()
+	out, err := dockerRun(append([]string{kind}, listArgs...)...)
 	if err != nil {
-		return fmt.Errorf("list fake %ss: %w\n%s", kind, err, out)
+		return fmt.Errorf("list fake %ss: %w", kind, err)
 	}
 
-	names := strings.Fields(string(out))
+	names := strings.Fields(out)
 	if len(names) == 0 {
 		return nil
 	}
-	if out, err := exec.Command("docker", append([]string{kind, "rm", "--force"}, names...)...).CombinedOutput(); err != nil {
-		return fmt.Errorf("remove fake %ss: %w\n%s", kind, err, out)
+	if _, err := dockerRun(append([]string{kind, "rm", "--force"}, names...)...); err != nil {
+		return fmt.Errorf("remove fake %ss: %w", kind, err)
 	}
 
 	for _, name := range names {

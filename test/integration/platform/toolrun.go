@@ -163,9 +163,8 @@ func (r *ToolRun) Start() (*exec.Cmd, *bytes.Buffer) {
 
 	id, err := os.ReadFile(ready)
 	require.NoError(r.t, err)
-	name, err := exec.Command("docker", "inspect", "--format", "{{.Name}}", strings.TrimSpace(string(id))).Output()
-	require.NoError(r.t, err)
-	r.container = strings.TrimPrefix(strings.TrimSpace(string(name)), "/")
+	name := Docker(r.t, "inspect", "--format", "{{.Name}}", strings.TrimSpace(string(id)))
+	r.container = strings.TrimPrefix(name, "/")
 	return cmd, out
 }
 
@@ -196,9 +195,7 @@ func (r *ToolRun) stop(cmd *exec.Cmd, out *bytes.Buffer) error {
 func (r *ToolRun) sidecars(args ...string) []string {
 	r.t.Helper()
 	args = append([]string{"ps", "--filter", "label=" + labelOwner + "=" + r.container, "--format", "{{.Names}}"}, args...)
-	out, err := exec.Command("docker", args...).Output()
-	require.NoError(r.t, err)
-	return strings.Fields(string(out))
+	return strings.Fields(Docker(r.t, args...))
 }
 
 // args returns the agentic run args running script with sh in the test tool, through the entrypoint if asked.

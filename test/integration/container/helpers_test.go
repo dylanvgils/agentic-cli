@@ -3,19 +3,15 @@
 package container
 
 import (
-	"os/exec"
-	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 )
 
 // skipWithoutCgroups skips when the daemon silently ignores resource limits (e.g. rootless without systemd).
 func skipWithoutCgroups(t *testing.T) {
 	t.Helper()
-	out, err := exec.Command("docker", "info", "--format", "{{.CgroupDriver}}").Output()
-	require.NoError(t, err)
-	if strings.TrimSpace(string(out)) == "none" {
+	if platform.Docker(t, "info", "--format", "{{.CgroupDriver}}") == "none" {
 		t.Skip("docker daemon runs without cgroups, so resource limits aren't enforced")
 	}
 }

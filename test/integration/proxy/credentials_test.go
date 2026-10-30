@@ -51,20 +51,20 @@ func TestProxyCredentials(t *testing.T) {
 	t.Run("proxy deletes the CA key and credentials once loaded", func(t *testing.T) {
 		// Arrange
 		tool := credentialRun(t)
-		var keyErr, credsErr, certErr error
+		var keyCopied, credsCopied, certCopied bool
 
 		// Act
 		tool.During(func() {
 			proxy := tool.Proxy()
-			keyErr = copyFromProxy(proxy, "ca-key.pem")
-			credsErr = copyFromProxy(proxy, "credentials.json")
-			certErr = copyFromProxy(proxy, "ca.pem")
+			keyCopied = copyFromProxy(proxy, "ca-key.pem")
+			credsCopied = copyFromProxy(proxy, "credentials.json")
+			certCopied = copyFromProxy(proxy, "ca.pem")
 		})
 
 		// Assert - the CA cert stays, which proves the path is right
-		assert.Error(t, keyErr)
-		assert.Error(t, credsErr)
-		assert.NoError(t, certErr)
+		assert.False(t, keyCopied)
+		assert.False(t, credsCopied)
+		assert.True(t, certCopied)
 	})
 
 	t.Run("proxy refuses clients outside the run's network", func(t *testing.T) {
