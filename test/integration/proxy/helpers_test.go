@@ -3,11 +3,14 @@
 package proxy
 
 import (
+	"bufio"
+	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/require"
 )
@@ -22,6 +25,13 @@ const (
 // connectScript prints the proxy's CONNECT status for host:80, also for hosts NO_PROXY lists; the fake upstream never answers HTTP, so curl times out after it.
 func connectScript(host string) string {
 	return "curl -s -o /dev/null -m 3 --noproxy '' --proxytunnel -w 'connect=%{http_connect}\\n' http://" + host + "/ || true"
+}
+
+// serverNameScript opens a TLS tunnel through the proxy to host:443 whose ClientHello names serverName instead, timing
+// out if a let-through tunnel's upstream never answers TLS.
+func serverNameScript(host, serverName string) string {
+	return `p=${HTTPS_PROXY:-$https_proxy}; p=${p#http://}; p=${p%/}
+echo | timeout 5 openssl s_client -proxy "$p" -connect ` + host + `:443 -servername ` + serverName + ` 2>&1; echo exit=$?`
 }
 
 // copyFromProxy reports whether file could be copied from the proxy's credentials dir, false when it doesn't exist.
@@ -46,19 +56,24 @@ func pathsScript() string {
 curl -sS -o /dev/null -w 'refused=%{http_code}\n' https://` + pathHost + `/other/README.md`
 }
 
-// proxyLog returns every proxy access log written under the test AGENTIC_HOME, concatenated.
-func proxyLog(t *testing.T) string {
+// proxyLog returns the entries of tool's proxy access log, without the time and error, which vary per run.
+func proxyLog(t *testing.T, tool *platform.ToolRun) []proxy.Entry {
 	t.Helper()
-	paths, err := filepath.Glob(filepath.Join(platform.AgenticHome(), "logs", "proxy_*.jsonl"))
+	f, err := os.Open(tool.ProxyLogFile())
 	require.NoError(t, err)
+	defer func() { _ = f.Close() }()
 
-	var log strings.Builder
-	for _, path := range paths {
-		data, err := os.ReadFile(path)
-		require.NoError(t, err)
-		log.Write(data)
+	var entries []proxy.Entry
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		var entry proxy.Entry
+		require.NoError(t, json.Unmarshal(scanner.Bytes(), &entry), "proxy log line: %s", scanner.Text())
+		entry.Time = time.Time{}
+		entry.Error = ""
+		entries = append(entries, entry)
 	}
-	return log.String()
+	require.NoError(t, scanner.Err())
+	return entries
 }
 
 // secretFile writes credentialSecret to a file outside the work dir and every tool mount, as agentic requires, and

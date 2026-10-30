@@ -86,11 +86,6 @@ func WorkDir() string {
 	return workDir
 }
 
-// AgenticHome returns the AGENTIC_HOME of every agentic call.
-func AgenticHome() string {
-	return agenticHome
-}
-
 // approveSettings records the guarded settings in the .agenticrc.toml at rcPath as approved, as the settings prompt would.
 func approveSettings(rcPath string) error {
 	layers, err := config.FindLayers(filepath.Dir(rcPath))

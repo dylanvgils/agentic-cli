@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,19 +44,30 @@ type proxyTable struct {
 	Integrations []string         `toml:"integrations,omitempty"`
 }
 
-// ToolRun builds an agentic run of the test tool, in its own approved work dir once it adds config.
+// ToolRun builds an agentic run of a tool, the test tool unless set, in its own approved work dir once it adds config.
 type ToolRun struct {
 	t          *testing.T
+	tool       string
 	proxy      *proxyTable
 	flags      []string
 	entrypoint bool
 	dir        string
 	container  string
+	logFile    string
 }
 
 // NewToolRun starts building a run in the shared work dir.
 func NewToolRun(t *testing.T) *ToolRun {
-	return &ToolRun{t: t}
+	return &ToolRun{
+		t:    t,
+		tool: Tool,
+	}
+}
+
+// ForTool runs the named tool instead of the test tool.
+func (r *ToolRun) ForTool(name string) *ToolRun {
+	r.tool = name
+	return r
 }
 
 // Allowing adds hosts to the proxy allowlist.
@@ -99,6 +112,18 @@ func (r *ToolRun) WithProxy() *ToolRun {
 	return r
 }
 
+// WithProxyMonitor runs with --proxy-monitor.
+func (r *ToolRun) WithProxyMonitor() *ToolRun {
+	r.flags = append(r.flags, "--proxy-monitor")
+	return r
+}
+
+// WithDefaultMemory runs with agentic's default memory limit instead of the work dir's low one.
+func (r *ToolRun) WithDefaultMemory() *ToolRun {
+	r.flags = append(r.flags, "--memory", sandbox.DefaultMemory)
+	return r
+}
+
 // WithVolume adds a --volume mount.
 func (r *ToolRun) WithVolume(spec string) *ToolRun {
 	r.flags = append(r.flags, "--volume", spec)
@@ -120,12 +145,22 @@ func (r *ToolRun) ViaEntrypoint() *ToolRun {
 // Run runs script with sh inside the tool container and returns the combined output.
 func (r *ToolRun) Run(script string) string {
 	r.t.Helper()
-	args := r.args(script)
+	return r.runSucceeding(r.args(script))
+}
 
-	out, err := AgenticCmdIn(r.workDir(), args...).CombinedOutput()
-	r.t.Logf("agentic %s\n%s", strings.Join(args, " "), out)
-	require.NoError(r.t, err)
-	return string(out)
+// RunTool passes toolArgs to the tool through the image entrypoint and returns the combined output.
+func (r *ToolRun) RunTool(toolArgs ...string) string {
+	r.t.Helper()
+	args := append(r.baseArgs(), r.tool)
+	return r.runSucceeding(append(args, toolArgs...))
+}
+
+// RunFailing runs script like Run, but expects agentic to fail, and returns the combined output.
+func (r *ToolRun) RunFailing(script string) string {
+	r.t.Helper()
+	out, err := r.exec(r.args(script))
+	require.Error(r.t, err)
+	return out
 }
 
 // During calls probe once the tool is up, then lets the tool exit and checks the run succeeded; for checks on the sidecars,
@@ -145,6 +180,7 @@ func (r *ToolRun) Start() (*exec.Cmd, *bytes.Buffer) {
 	ready := filepath.Join(r.workDir(), ".ready")
 	_ = os.Remove(ready)
 	_ = os.Remove(filepath.Join(r.dir, ".done"))
+	before := proxyLogs(r.t)
 
 	cmd := AgenticCmdIn(r.dir, r.args(waitScript)...)
 	out := &bytes.Buffer{}
@@ -165,6 +201,7 @@ func (r *ToolRun) Start() (*exec.Cmd, *bytes.Buffer) {
 	require.NoError(r.t, err)
 	name := Docker(r.t, "inspect", "--format", "{{.Name}}", strings.TrimSpace(string(id)))
 	r.container = strings.TrimPrefix(name, "/")
+	r.recordProxyLog(before)
 	return cmd, out
 }
 
@@ -182,6 +219,13 @@ func (r *ToolRun) Proxy() string {
 	return names[0]
 }
 
+// ProxyLogFile returns the access log of the run's proxy, which the sidecar keeps writing until the run ends.
+func (r *ToolRun) ProxyLogFile() string {
+	r.t.Helper()
+	require.NotEmpty(r.t, r.logFile, "run started no proxy")
+	return r.logFile
+}
+
 // stop lets a started tool exit, logs the run's output and returns its error.
 func (r *ToolRun) stop(cmd *exec.Cmd, out *bytes.Buffer) error {
 	r.t.Helper()
@@ -191,6 +235,41 @@ func (r *ToolRun) stop(cmd *exec.Cmd, out *bytes.Buffer) error {
 	return err
 }
 
+// runSucceeding runs agentic with args, requires it to succeed, records its proxy log and returns the combined output.
+func (r *ToolRun) runSucceeding(args []string) string {
+	r.t.Helper()
+	before := proxyLogs(r.t)
+
+	out, err := r.exec(args)
+	require.NoError(r.t, err)
+	r.recordProxyLog(before)
+	return out
+}
+
+// exec runs agentic with args in the run's work dir, logs the output and returns it with agentic's error.
+func (r *ToolRun) exec(args []string) (string, error) {
+	r.t.Helper()
+	out, err := AgenticCmdIn(r.workDir(), args...).CombinedOutput()
+	r.t.Logf("agentic %s\n%s", strings.Join(args, " "), out)
+	return string(out), err
+}
+
+// recordProxyLog records the proxy log the run created, the one not in before; none means the run had no proxy.
+func (r *ToolRun) recordProxyLog(before map[string]bool) {
+	r.t.Helper()
+	var created []string
+	for path := range proxyLogs(r.t) {
+		if !before[path] {
+			created = append(created, path)
+		}
+	}
+
+	require.LessOrEqual(r.t, len(created), 1, "run created several proxy logs: %v", created)
+	if len(created) == 1 {
+		r.logFile = created[0]
+	}
+}
+
 // sidecars returns the names of the containers owned by the run's tool container that docker ps lists with the extra args.
 func (r *ToolRun) sidecars(args ...string) []string {
 	r.t.Helper()
@@ -198,13 +277,17 @@ func (r *ToolRun) sidecars(args ...string) []string {
 	return strings.Fields(Docker(r.t, args...))
 }
 
-// args returns the agentic run args running script with sh in the test tool, through the entrypoint if asked.
+// args returns the agentic run args running script with sh in the tool, through the entrypoint if asked.
 func (r *ToolRun) args(script string) []string {
 	if r.entrypoint {
-		script = entrypointScript(script)
+		script = entrypointScript(r.tool, script)
 	}
-	args := append([]string{"run", "--trust-dir"}, r.flags...)
-	return append(args, Tool, "--", "sh", "-c", script)
+	return append(r.baseArgs(), r.tool, "--", "sh", "-c", script)
+}
+
+// baseArgs returns the agentic run args before the tool name.
+func (r *ToolRun) baseArgs() []string {
+	return append([]string{"run", "--trust-dir"}, r.flags...)
 }
 
 // workDir returns the run's work dir: the shared one without extra config, else a temp dir with an approved .agenticrc.toml.
@@ -247,10 +330,23 @@ func (r *ToolRun) proxyRules() *proxyTable {
 	return r.proxy
 }
 
-// entrypointScript runs the image entrypoint with a claude shim on the PATH that runs script.
-func entrypointScript(script string) string {
+// proxyLogs returns the paths of the proxy access logs under the test AGENTIC_HOME.
+func proxyLogs(t *testing.T) map[string]bool {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(agenticHome, "logs", proxy.LogFilePrefix+"*.jsonl"))
+	require.NoError(t, err)
+
+	logs := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		logs[path] = true
+	}
+	return logs
+}
+
+// entrypointScript runs the image entrypoint with a shim for tool on the PATH that runs script.
+func entrypointScript(tool, script string) string {
 	return "mkdir -p /tmp/shim\n" +
-		"cat > /tmp/shim/claude <<'EOF'\n#!/bin/sh\n" + script + "\nEOF\n" +
-		"chmod +x /tmp/shim/claude\n" +
+		"cat > /tmp/shim/" + tool + " <<'EOF'\n#!/bin/sh\n" + script + "\nEOF\n" +
+		"chmod +x /tmp/shim/" + tool + "\n" +
 		"PATH=/tmp/shim:$PATH exec /usr/local/bin/entrypoint.sh"
 }
