@@ -76,7 +76,12 @@ func Main(m *testing.M) int {
 		fmt.Println(err)
 		return 1
 	}
-	return m.Run()
+
+	code := m.Run()
+	if err := runSteps([]step{{"removing this run's fakes", removeRunFakes}}); err != nil {
+		fmt.Println(err)
+	}
+	return code
 }
 
 // checkDocker prints the daemon summary; without a daemon it skips, except on CI where skipping would hide that nothing ran.
@@ -97,6 +102,7 @@ func checkDocker() (skip bool, err error) {
 // setPaths points the env at root.
 func setPaths(root string) {
 	rootDir = root
+	runID = filepath.Base(root)
 	agenticBin = filepath.Join(rootDir, "agentic")
 	workDir = filepath.Join(rootDir, "work")
 	agenticHome = filepath.Join(rootDir, "agentic-home")
