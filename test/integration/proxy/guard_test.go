@@ -5,6 +5,7 @@ package proxy
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
@@ -31,7 +32,14 @@ func TestProxyAddressGuard(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, out, "connect=403")
-		assert.Contains(t, proxyLog(t), `"host":"`+guardHost+`","port":"80","decision":"deny","enforced":true,"reason":"blocked-address"`)
+		assert.Contains(t, proxyLog(t, tool), proxy.Entry{
+			Protocol: proxy.ProtocolHTTPS,
+			Host:     guardHost,
+			Port:     "80",
+			Decision: proxy.DecisionDeny,
+			Enforced: true,
+			Reason:   proxy.ReasonBlockedAddr,
+		})
 	})
 
 	t.Run("exact entry can reach a private address", func(t *testing.T) {
@@ -58,8 +66,16 @@ func TestProxyAddressGuard(t *testing.T) {
 
 		// Assert - the reason proves the guard refused it, not the allowlist
 		assert.Contains(t, out, "connect=403")
-		assert.Contains(t, proxyLog(t), `"host":"localhost","port":"80","decision":"deny","enforced":true,"reason":"blocked-address"`)
+		assert.Contains(t, proxyLog(t, tool), proxy.Entry{
+			Protocol: proxy.ProtocolHTTPS,
+			Host:     "localhost",
+			Port:     "80",
+			Decision: proxy.DecisionDeny,
+			Enforced: true,
+			Reason:   proxy.ReasonBlockedAddr,
+		})
 	})
+
 }
 
 // TestProxyClients checks a proxy without credentials also refuses clients outside its run's network.

@@ -5,6 +5,7 @@ package proxy
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
@@ -35,17 +36,23 @@ func TestProxyCredentials(t *testing.T) {
 	t.Run("tool trusts the proxy CA for credential hosts", func(t *testing.T) {
 		// Arrange
 		script := `curl -sS -o /dev/null -w 'status=%{http_code}\n' https://` + credentialHost + `/ && echo tls=ok`
+		tool := credentialRun(t).ViaEntrypoint()
 
 		// Act
-		out := credentialRun(t).
-			ViaEntrypoint().
-			Run(script)
+		out := tool.Run(script)
 
 		// Assert
 		assert.Contains(t, out, "status=502")
 		assert.Contains(t, out, "tls=ok")
 		assert.NotContains(t, out, "without the placeholder")
-		assert.Contains(t, proxyLog(t), `"host":"`+credentialHost+`","port":"443","decision":"allow","enforced":true,"intercepted":true`)
+		assert.Contains(t, proxyLog(t, tool), proxy.Entry{
+			Protocol:    proxy.ProtocolHTTPS,
+			Host:        credentialHost,
+			Port:        "443",
+			Decision:    proxy.DecisionAllow,
+			Enforced:    true,
+			Intercepted: true,
+		})
 	})
 
 	t.Run("proxy deletes the CA key and credentials once loaded", func(t *testing.T) {

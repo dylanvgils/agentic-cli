@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,6 +51,7 @@ type ToolRun struct {
 	entrypoint bool
 	dir        string
 	container  string
+	logFile    string
 }
 
 // NewToolRun starts building a run in the shared work dir.
@@ -121,10 +123,12 @@ func (r *ToolRun) ViaEntrypoint() *ToolRun {
 func (r *ToolRun) Run(script string) string {
 	r.t.Helper()
 	args := r.args(script)
+	before := proxyLogs(r.t)
 
 	out, err := AgenticCmdIn(r.workDir(), args...).CombinedOutput()
 	r.t.Logf("agentic %s\n%s", strings.Join(args, " "), out)
 	require.NoError(r.t, err)
+	r.recordProxyLog(before)
 	return string(out)
 }
 
@@ -145,6 +149,7 @@ func (r *ToolRun) Start() (*exec.Cmd, *bytes.Buffer) {
 	ready := filepath.Join(r.workDir(), ".ready")
 	_ = os.Remove(ready)
 	_ = os.Remove(filepath.Join(r.dir, ".done"))
+	before := proxyLogs(r.t)
 
 	cmd := AgenticCmdIn(r.dir, r.args(waitScript)...)
 	out := &bytes.Buffer{}
@@ -165,6 +170,7 @@ func (r *ToolRun) Start() (*exec.Cmd, *bytes.Buffer) {
 	require.NoError(r.t, err)
 	name := Docker(r.t, "inspect", "--format", "{{.Name}}", strings.TrimSpace(string(id)))
 	r.container = strings.TrimPrefix(name, "/")
+	r.recordProxyLog(before)
 	return cmd, out
 }
 
@@ -182,6 +188,13 @@ func (r *ToolRun) Proxy() string {
 	return names[0]
 }
 
+// ProxyLogFile returns the access log of the run's proxy, which the sidecar keeps writing until the run ends.
+func (r *ToolRun) ProxyLogFile() string {
+	r.t.Helper()
+	require.NotEmpty(r.t, r.logFile, "run started no proxy")
+	return r.logFile
+}
+
 // stop lets a started tool exit, logs the run's output and returns its error.
 func (r *ToolRun) stop(cmd *exec.Cmd, out *bytes.Buffer) error {
 	r.t.Helper()
@@ -189,6 +202,22 @@ func (r *ToolRun) stop(cmd *exec.Cmd, out *bytes.Buffer) error {
 	err := cmd.Wait()
 	r.t.Logf("agentic %s\n%s", strings.Join(cmd.Args[1:], " "), out)
 	return err
+}
+
+// recordProxyLog records the proxy log the run created, the one not in before; none means the run had no proxy.
+func (r *ToolRun) recordProxyLog(before map[string]bool) {
+	r.t.Helper()
+	var created []string
+	for path := range proxyLogs(r.t) {
+		if !before[path] {
+			created = append(created, path)
+		}
+	}
+
+	require.LessOrEqual(r.t, len(created), 1, "run created several proxy logs: %v", created)
+	if len(created) == 1 {
+		r.logFile = created[0]
+	}
 }
 
 // sidecars returns the names of the containers owned by the run's tool container that docker ps lists with the extra args.
@@ -245,6 +274,19 @@ func (r *ToolRun) proxyRules() *proxyTable {
 		r.proxy = &proxyTable{}
 	}
 	return r.proxy
+}
+
+// proxyLogs returns the paths of the proxy access logs under the test AGENTIC_HOME.
+func proxyLogs(t *testing.T) map[string]bool {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(agenticHome, "logs", proxy.LogFilePrefix+"*.jsonl"))
+	require.NoError(t, err)
+
+	logs := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		logs[path] = true
+	}
+	return logs
 }
 
 // entrypointScript runs the image entrypoint with a claude shim on the PATH that runs script.
