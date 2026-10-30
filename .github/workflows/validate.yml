@@ -104,9 +104,9 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: |
           base="https://github.com/superradcompany/microsandbox/releases/download/$MSB_VERSION"
-          curl --fail --silent --show-error --location --remote-name "$base/checksums.sha256"
+          curl --proto =https --tlsv1.2 --fail --silent --show-error --location --remote-name "$base/checksums.sha256"
           echo "$MSB_CHECKSUMS_SHA256  checksums.sha256" | sha256sum --check
-          curl --fail --silent --show-error --location --remote-name "$base/microsandbox-linux-x86_64.tar.gz"
+          curl --proto =https --tlsv1.2 --fail --silent --show-error --location --remote-name "$base/microsandbox-linux-x86_64.tar.gz"
           grep ' microsandbox-linux-x86_64.tar.gz$' checksums.sha256 | sha256sum --check
 
           mkdir -p "$HOME/.microsandbox"
