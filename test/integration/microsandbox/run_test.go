@@ -77,7 +77,9 @@ func TestMicrosandboxRun(t *testing.T) {
 		memKB := valueAfter(t, out, "memkb=")
 		limitMB, err := strconv.Atoi(strings.TrimSuffix(platform.Memory, "m"))
 		require.NoError(t, err)
-		assert.LessOrEqual(t, memKB, limitMB*1024)
+		// The guest sees a few percent more than the limit
+		limitKB := float64(limitMB * 1024)
+		assert.InDelta(t, limitKB, float64(memKB), limitKB*0.1)
 	})
 
 	t.Run("allowlist blocks other hosts", func(t *testing.T) {
