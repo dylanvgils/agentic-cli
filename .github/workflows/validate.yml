@@ -99,13 +99,15 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # Outside the checkout, whose install.sh and install.ps1 share names with msb's release assets
       - name: Install msb
+        working-directory: ${{ runner.temp }}
         run: |
           base="https://github.com/superradcompany/microsandbox/releases/download/$MSB_VERSION"
           curl --fail --silent --show-error --location --remote-name "$base/checksums.sha256"
           echo "$MSB_CHECKSUMS_SHA256  checksums.sha256" | sha256sum --check
           curl --fail --silent --show-error --location --remote-name "$base/microsandbox-linux-x86_64.tar.gz"
-          sha256sum --check --ignore-missing checksums.sha256
+          grep ' microsandbox-linux-x86_64.tar.gz$' checksums.sha256 | sha256sum --check
 
           mkdir -p "$HOME/.microsandbox"
           tar -xzf microsandbox-linux-x86_64.tar.gz -C "$HOME/.microsandbox"
