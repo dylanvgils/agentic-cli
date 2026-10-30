@@ -3,13 +3,17 @@
 package platform
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 )
 
 const (
@@ -117,13 +121,21 @@ func envSteps() []step {
 	}
 }
 
-// imageSteps build the test tool and proxy images.
+// imageSteps build every tool's image, for the smoke tests, and the proxy image, in parallel.
 func imageSteps() []step {
-	return []step{
-		// Cached after the first run
-		{"building " + ToolImage + " image", func() error { return runAgentic("build", Tool) }},
+	builds := []step{
 		// Otherwise a proxy image from older source would run the proxy tests
-		{"building agentic-proxy image", func() error { return runAgentic("proxy", "build") }},
+		{"agentic-proxy", func() error { return runAgentic("proxy", "build") }},
+	}
+	for _, name := range tools.Names() {
+		// Cached after the first run
+		builds = append(builds, step{Namespace + "-" + name, func() error { return runAgentic("build", name) }})
+	}
+
+	return []step{
+		// Once up front, or the parallel builds would race through the fresh AGENTIC_HOME's migrations
+		{"migrating agentic home", func() error { return runAgentic("migrate") }},
+		{"building images", func() error { return runParallel(builds) }},
 	}
 }
 
@@ -139,6 +151,23 @@ func runSteps(steps []step) error {
 	}
 
 	return nil
+}
+
+// runParallel runs steps concurrently, printing how long each took, and returns their errors joined.
+func runParallel(steps []step) error {
+	errs := make([]error, len(steps))
+	var wg sync.WaitGroup
+	for i, s := range steps {
+		wg.Go(func() {
+			start := time.Now()
+			if errs[i] = s.run(); errs[i] == nil {
+				fmt.Printf("   %s done in %s\n", s.name, time.Since(start).Round(time.Millisecond))
+			}
+		})
+	}
+
+	wg.Wait()
+	return errors.Join(errs...)
 }
 
 // buildBinary builds the agentic binary from this checkout.
