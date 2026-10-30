@@ -49,6 +49,7 @@ agentic-cli/
     └── integration/             # Black-box tests driving the agentic binary against a real Docker daemon (`integration` build tag)
         ├── platform/            # Shared env setup and the builders every feature package runs tools and fake resources with
         ├── cmd/buildimages/     # Builds the test images once before `make test-integration` runs the packages in parallel
+        ├── cmd/cleanup/         # Force-removes leftover fakes after `make test-integration`, also of a crashed package
         ├── container/           # Tool container hardening, resource limits and mounts
         ├── network/             # Network isolation of the tool, with and without --proxy
         ├── proxy/               # Egress proxy: address guard, clients, credentials, path rules, integrations
@@ -73,7 +74,7 @@ CI runs `make audit` on every PR and push to main. A nightly workflow also runs 
 
 CLI changes take effect after `make build`. Changes to stage funcs in `internal/image/tools/` or `internal/runtime/docker/` need an `agentic build` to rebuild the image.
 
-Integration tests build the binary and an `agentic-itest-claude` image (slow on the first run, cached after), then drive `agentic run` like a user would. They skip without Docker, and the resource-limit checks skip without cgroups (e.g. rootless without systemd). CI runs them in a separate job. This repo's `.agenticrc.toml` enables DinD (and the proxy in monitor mode), so they also run inside an agentic container.
+Integration tests build the binary and an `agentic-itest-claude` image (slow on the first run, cached after), then drive `agentic run` like a user would. They skip without Docker, and the resource-limit checks skip without cgroups (e.g. rootless without systemd). CI runs them in a separate job. This repo's `.agenticrc.toml` enables DinD (and the proxy in monitor mode), so they also run inside an agentic container. Fake containers and networks carry an `agentic.itest.run` label; each package force-removes its own at the end, and `make test-integration` removes any left over.
 
 ## Conventions
 

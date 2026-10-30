@@ -58,6 +58,9 @@ var (
 
 	// tmpDir is the TMPDIR for every agentic call, since it bind-mounts generated files from there.
 	tmpDir string
+
+	// runID labels this package run's fakes, so its cleanup spares the parallel packages' ones.
+	runID string
 )
 
 // AgenticCmd returns an agentic command running in the shared work dir with the test AGENTIC_HOME and TMPDIR.

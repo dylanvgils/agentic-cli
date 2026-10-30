@@ -3,6 +3,7 @@
 package platform
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
@@ -18,6 +19,9 @@ const (
 	labelStarted    = "agentic.started"
 	labelTimeFormat = "2006-01-02T15:04:05Z"
 )
+
+// labelRun marks the fakes of one package run, so the end-of-run cleanup catches the ones a test's cleanup missed.
+const labelRun = "agentic.itest.run"
 
 // ListenPort is the TCP port a listening fake container accepts connections on.
 const ListenPort = "8080"
@@ -36,12 +40,12 @@ type FakeResource struct {
 
 // FakeContainer starts building a stopped container from the test tool image.
 func FakeContainer(t *testing.T) *FakeResource {
-	return &FakeResource{t: t, kind: "container", labels: []string{labelProject}}
+	return &FakeResource{t: t, kind: "container", labels: fakeLabels()}
 }
 
 // FakeNetwork starts building a network.
 func FakeNetwork(t *testing.T) *FakeResource {
-	return &FakeResource{t: t, kind: "network", labels: []string{labelProject}}
+	return &FakeResource{t: t, kind: "network", labels: fakeLabels()}
 }
 
 // OwnedBy labels the resource as a sidecar (network) of the owner container.
@@ -139,4 +143,54 @@ func (f *FakeResource) awaitListening() {
 	require.Eventually(f.t, func() bool {
 		return exec.Command("docker", "exec", f.name, "nc", "-z", "127.0.0.1", f.port).Run() == nil
 	}, 10*time.Second, 100*time.Millisecond, "fake container %s never started listening", f.name)
+}
+
+// RemoveAllFakes force-removes the fakes of every package run, also of one whose test binary died.
+func RemoveAllFakes() error {
+	return runSteps([]step{
+		{"removing leftover fakes of every run", func() error { return removeFakes("label=" + labelRun) }},
+	})
+}
+
+// fakeLabels returns the labels every fake starts with.
+func fakeLabels() []string {
+	return []string{
+		labelProject,
+		labelRun + "=" + runID,
+	}
+}
+
+// removeRunFakes force-removes the fakes of this package run, sparing the parallel packages' ones.
+func removeRunFakes() error {
+	return removeFakes("label=" + labelRun + "=" + runID)
+}
+
+// removeFakes force-removes the fake containers, then networks, matching the docker filter.
+func removeFakes(filter string) error {
+	// Containers first, so no fake is still attached to a network
+	if err := removeFakesOf("container", "ls", "--all", "--format", "{{.Names}}", "--filter", filter); err != nil {
+		return err
+	}
+	return removeFakesOf("network", "ls", "--format", "{{.Name}}", "--filter", filter)
+}
+
+// removeFakesOf force-removes the resources of kind that docker <kind> ls with listArgs names, printing each.
+func removeFakesOf(kind string, listArgs ...string) error {
+	out, err := exec.Command("docker", append([]string{kind}, listArgs...)...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("list fake %ss: %w\n%s", kind, err, out)
+	}
+
+	names := strings.Fields(string(out))
+	if len(names) == 0 {
+		return nil
+	}
+	if out, err := exec.Command("docker", append([]string{kind, "rm", "--force"}, names...)...).CombinedOutput(); err != nil {
+		return fmt.Errorf("remove fake %ss: %w\n%s", kind, err, out)
+	}
+
+	for _, name := range names {
+		fmt.Printf("   removed %s %s\n", kind, name)
+	}
+	return nil
 }
