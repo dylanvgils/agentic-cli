@@ -27,6 +27,13 @@ func connectScript(host string) string {
 	return "curl -s -o /dev/null -m 3 --noproxy '' --proxytunnel -w 'connect=%{http_connect}\\n' http://" + host + "/ || true"
 }
 
+// serverNameScript opens a TLS tunnel through the proxy to host:443 whose ClientHello names serverName instead, timing
+// out if a let-through tunnel's upstream never answers TLS.
+func serverNameScript(host, serverName string) string {
+	return `p=${HTTPS_PROXY:-$https_proxy}; p=${p#http://}; p=${p%/}
+echo | timeout 5 openssl s_client -proxy "$p" -connect ` + host + `:443 -servername ` + serverName + ` 2>&1; echo exit=$?`
+}
+
 // copyFromProxy reports whether file could be copied from the proxy's credentials dir, false when it doesn't exist.
 func copyFromProxy(proxy, file string) bool {
 	return platform.DockerOK("cp", proxy+":"+proxyCredentialsDir+"/"+file, "-")

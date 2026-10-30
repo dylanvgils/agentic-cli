@@ -101,6 +101,12 @@ func (r *ToolRun) WithProxy() *ToolRun {
 	return r
 }
 
+// WithProxyMonitor runs with --proxy-monitor.
+func (r *ToolRun) WithProxyMonitor() *ToolRun {
+	r.flags = append(r.flags, "--proxy-monitor")
+	return r
+}
+
 // WithVolume adds a --volume mount.
 func (r *ToolRun) WithVolume(spec string) *ToolRun {
 	r.flags = append(r.flags, "--volume", spec)
@@ -129,6 +135,17 @@ func (r *ToolRun) Run(script string) string {
 	r.t.Logf("agentic %s\n%s", strings.Join(args, " "), out)
 	require.NoError(r.t, err)
 	r.recordProxyLog(before)
+	return string(out)
+}
+
+// RunFailing runs script like Run, but expects agentic to fail, and returns the combined output.
+func (r *ToolRun) RunFailing(script string) string {
+	r.t.Helper()
+	args := r.args(script)
+
+	out, err := AgenticCmdIn(r.workDir(), args...).CombinedOutput()
+	r.t.Logf("agentic %s\n%s", strings.Join(args, " "), out)
+	require.Error(r.t, err)
 	return string(out)
 }
 

@@ -76,6 +76,24 @@ func TestProxyAddressGuard(t *testing.T) {
 		})
 	})
 
+	t.Run("monitor mode still refuses loopback", func(t *testing.T) {
+		// Arrange
+		tool := platform.NewToolRun(t).WithProxyMonitor()
+
+		// Act
+		out := tool.Run(connectScript("localhost"))
+
+		// Assert
+		assert.Contains(t, out, "connect=403")
+		assert.Contains(t, proxyLog(t, tool), proxy.Entry{
+			Protocol: proxy.ProtocolHTTPS,
+			Host:     "localhost",
+			Port:     "80",
+			Decision: proxy.DecisionDeny,
+			Enforced: true,
+			Reason:   proxy.ReasonBlockedAddr,
+		})
+	})
 }
 
 // TestProxyClients checks a proxy without credentials also refuses clients outside its run's network.
