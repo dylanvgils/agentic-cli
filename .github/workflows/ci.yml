@@ -31,13 +31,13 @@ jobs:
           git fetch origin "$HEAD_REF"
           git switch -C "$HEAD_REF" "origin/$HEAD_REF"
           make fix-checksums
-          if git diff --quiet -- internal/image/tools/checksums.json; then
+          if git diff --quiet -- internal/image/tools/checksums.json .github/msb.json; then
             echo "checksums already up to date"
           else
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add internal/image/tools/checksums.json
-            git commit -m "fix(deps): update nvm checksum for bumped nvm version"
+            git add internal/image/tools/checksums.json .github/msb.json
+            git commit -m "fix(deps): update pinned checksums for bumped versions"
             git push origin "HEAD:$HEAD_REF"
           fi
 

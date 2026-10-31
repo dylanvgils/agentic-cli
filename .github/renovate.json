@@ -114,6 +114,13 @@
       "matchStrings": ["GOVULNCHECK_VERSION \\?= (?<currentValue>v[\\d.]+)"],
       "depNameTemplate": "golang.org/x/vuln",
       "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/msb\\.json$/"],
+      "matchStrings": ["\"version\":\\s*\"(?<currentValue>v[\\d.]+)\""],
+      "depNameTemplate": "superradcompany/microsandbox",
+      "datasourceTemplate": "github-releases"
     }
   ]
 }
