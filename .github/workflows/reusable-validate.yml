@@ -81,35 +81,12 @@ jobs:
       - name: Test
         run: make test-coverage
 
-      - name: Publish test results
-        if: ${{ !cancelled() }}
-        uses: mikepenz/action-junit-report@v6.6.0
-        with:
-          report_paths: test-results/unit.xml
-          check_name: Unit tests
-          annotate_only: true
-          detailed_summary: true
-          include_passed: false
-
-      - name: Upload test results
-        if: ${{ !cancelled() }}
+      - name: Upload coverage
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: unit-test-results
-          path: |
-            test-results/
-            coverage.out
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Coverage summary
-        if: ${{ !cancelled() && hashFiles('coverage.out') != '' }}
-        run: |
-          {
-            echo '### Coverage'
-            echo
-            echo "\`$(go tool cover -func=coverage.out | tail -n 1 | tr -s '\t' ' ')\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+          name: coverage
+          path: coverage.out
+          retention-days: 1
 
   sonar:
     needs: [unit-tests]
@@ -124,7 +101,7 @@ jobs:
       # coverage.out from unit-tests
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: unit-test-results
+          name: coverage
 
       - name: SonarQube scan
         uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
@@ -151,26 +128,6 @@ jobs:
       - name: Integration tests
         run: make test-integration
 
-      - name: Publish test results
-        if: ${{ !cancelled() }}
-        uses: mikepenz/action-junit-report@v6.6.0
-        with:
-          report_paths: test-results/integration.xml
-          check_name: Docker integration tests
-          annotate_only: true
-          detailed_summary: true
-          include_passed: false
-
-      - name: Upload test results
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: integration-test-results
-          path: |
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 7
-
   integration-msb:
     runs-on: ubuntu-latest
     steps:
@@ -187,23 +144,3 @@ jobs:
 
       - name: Microsandbox integration tests
         run: make test-integration-msb
-
-      - name: Publish test results
-        if: ${{ !cancelled() }}
-        uses: mikepenz/action-junit-report@v6.6.0
-        with:
-          report_paths: test-results/integration-msb.xml
-          check_name: msb integration tests
-          annotate_only: true
-          detailed_summary: true
-          include_passed: false
-
-      - name: Upload test results
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: integration-msb-test-results
-          path: |
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 7

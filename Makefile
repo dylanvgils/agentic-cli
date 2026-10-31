@@ -16,10 +16,6 @@ LDFLAGS     = -s -w \
 GOFLAGS   := CGO_ENABLED=0
 GOVULNCHECK_VERSION ?= v1.9.0
 GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
-GOTESTSUM_VERSION ?= v1.13.0
-GOTESTSUM := go run gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
-# JUnit reports from the test-* targets, published by CI
-TEST_RESULTS ?= test-results
 
 .PHONY: build install uninstall dist docker-dist test test-coverage test-integration test-integration-msb lint audit audit-json clean verify-checksums fix-checksums verify-checksums-all fix-checksums-all
 
@@ -53,21 +49,18 @@ test:
 	go test ./...
 
 test-coverage:
-	@mkdir -p $(TEST_RESULTS)
-	$(GOTESTSUM) --junitfile $(TEST_RESULTS)/unit.xml -- -cover -coverprofile=coverage.out ./...
+	go test -cover -coverprofile=coverage.out ./...
 
 # Needs a Docker daemon; builds an agentic-itest-claude image on first run.
 test-integration:
-	@mkdir -p $(TEST_RESULTS)
 	go run -tags integration ./test/integration/cmd/buildimages
-	AGENTIC_ITEST_IMAGES_BUILT=1 $(GOTESTSUM) --format standard-verbose --junitfile $(TEST_RESULTS)/integration.xml -- -tags integration -count=1 -timeout 20m ./test/integration/...; \
+	AGENTIC_ITEST_IMAGES_BUILT=1 go test -tags integration -count=1 -timeout 20m -v ./test/integration/...; \
 		status=$$?; go run -tags integration ./test/integration/cmd/cleanup; exit $$status
 
 # Needs msb and KVM; fails instead of skipping without msb.
 test-integration-msb:
-	@mkdir -p $(TEST_RESULTS)
 	go run -tags integration ./test/integration/cmd/buildimages
-	AGENTIC_ITEST_IMAGES_BUILT=1 AGENTIC_ITEST_MICROSANDBOX=1 $(GOTESTSUM) --format standard-verbose --junitfile $(TEST_RESULTS)/integration-msb.xml -- -tags integration -count=1 -timeout 20m ./test/integration/microsandbox; \
+	AGENTIC_ITEST_IMAGES_BUILT=1 AGENTIC_ITEST_MICROSANDBOX=1 go test -tags integration -count=1 -timeout 20m -v ./test/integration/microsandbox; \
 		status=$$?; go run -tags integration ./test/integration/cmd/cleanup; exit $$status
 
 lint:
@@ -82,7 +75,7 @@ audit:
 audit-json:
 	@$(GOVULNCHECK) -format json ./...
 
-# Pinned checksums only (currently just nvm) - safe to run on every PR, since these
+# Pinned checksums only (nvm and msb) - safe to run on every PR, since these
 # only change when this repo bumps the pinned version itself.
 verify-checksums:
 	.github/scripts/verify-install-checksums.sh --pinned-only
