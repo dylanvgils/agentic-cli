@@ -1,0 +1,66 @@
+site_name: agentic
+site_description: Run agentic coding tools in hardened containers
+site_url: https://dylanvgils.github.io/agentic-cli/
+repo_url: https://github.com/dylanvgils/agentic-cli
+repo_name: dylanvgils/agentic-cli
+edit_uri: edit/main/docs/
+docs_dir: docs
+copyright: agentic • <a href="https://github.com/dylanvgils/agentic-cli/blob/main/LICENSE">MIT License</a>
+
+theme:
+  features:
+    - content.code.copy
+    - navigation.sections
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+extra:
+  generator: false
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: README.md
+  - Getting started:
+      - Overview: overview.md
+      - Installation: installation.md
+      - Usage: usage.md
+      - Comparison: comparison.md
+  - Configure:
+      - Configuration: config.md
+      - Images: images.md
+      - Recipes: recipes.md
+  - Isolation:
+      - Security model: security-model.md
+      - Egress proxy: egress-proxy.md
+      - Credential injection: credential-injection.md
+      - Docker-in-Docker: docker-in-docker.md
+      - Microsandbox runtime: microsandbox.md
+  - Reference:
+      - Volume mounts: volume-mounts.md
+      - Environment instructions: environment-instructions.md
+  - Contributing:
+      - Development: development.md
+      - Dockerfile DSL: dockerfile-dsl.md

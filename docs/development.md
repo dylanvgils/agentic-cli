@@ -58,7 +58,7 @@ agentic-cli/
         └── tools/               # Smoke test per tool image
 ```
 
-Import boundaries are in [CLAUDE.md](../CLAUDE.md#import-boundaries). Dockerfiles are generated in Go, see [Dockerfile DSL](dockerfile-dsl.md).
+Import boundaries are in [CLAUDE.md](https://github.com/dylanvgils/agentic-cli/blob/main/CLAUDE.md#import-boundaries). Dockerfiles are generated in Go, see [Dockerfile DSL](dockerfile-dsl.md).
 
 ## Build & test
 
@@ -83,7 +83,7 @@ Integration tests build the binary and an `agentic-itest-claude` image (slow on 
 
 ## Conventions
 
-Code style and test rules are in [CLAUDE.md](../CLAUDE.md#code-style). Install `golangci-lint` at the version CI uses:
+Code style and test rules are in [CLAUDE.md](https://github.com/dylanvgils/agentic-cli/blob/main/CLAUDE.md#code-style). Install `golangci-lint` at the version CI uses:
 
 ```bash
 curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.12.2
@@ -93,7 +93,7 @@ curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/b
 
 ## Adding a tool or runtime layer
 
-See [Architecture](../CLAUDE.md#architecture) in CLAUDE.md.
+See [Architecture](https://github.com/dylanvgils/agentic-cli/blob/main/CLAUDE.md#architecture) in CLAUDE.md.
 
 Each image stores its resolved versions and apt list as labels (`agentic.version-args`, `agentic.apt`, see `internal/runtime/docker/labels.go`). `agentic update` reads them back (`RecoverVersionArgs`, `RecoverApt`) to rebuild with the same layers.
 
@@ -127,6 +127,16 @@ An existing image is never treated as stale. After editing code the proxy links 
 ```bash
 ./bin/agentic proxy update    # always rebuilds agentic-proxy with --no-cache
 ```
+
+## Docs site
+
+The `docs/` pages are published to GitHub Pages with [Zensical](https://zensical.org) on every push to main (`.github/workflows/docs.yml`); `mkdocs.yml` holds the nav. Preview locally with Docker:
+
+```bash
+docker run --rm -it -p 8000:8000 -v "$PWD:/docs" "zensical/zensical:$(cut -d= -f3 .github/docs-requirements.txt)" serve --dev-addr 0.0.0.0:8000
+```
+
+A new page needs a `nav` entry in `mkdocs.yml` next to its line in `docs/README.md`.
 
 ## Releasing
 
