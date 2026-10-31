@@ -39,13 +39,13 @@ func Test_microsandboxRunner_Check(t *testing.T) {
 
 	t.Run("refuses an older msb", func(t *testing.T) {
 		// Arrange
-		m := &fakeMicrosandbox{version: func() (string, error) { return "0.7.7", nil }}
+		m := &fakeMicrosandbox{version: func() (string, error) { return "0.7.11", nil }}
 
 		// Act
 		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m}.Check(newPrepareRequest(t))
 
 		// Assert
-		assert.EqualError(t, err, "msb 0.7.7 is older than the minimum 0.7.8; update it and run again")
+		assert.EqualError(t, err, "msb 0.7.11 is older than the minimum 0.7.12; update it and run again")
 	})
 
 	t.Run("returns an unreadable msb version", func(t *testing.T) {

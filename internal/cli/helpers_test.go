@@ -550,7 +550,7 @@ func (f *fakeMicrosandbox) ListRunning() ([]*microsandbox.Sandbox, error) {
 // Version reports a recent msb unless stubbed.
 func (f *fakeMicrosandbox) Version() (string, error) {
 	if f.version == nil {
-		return "0.7.8", nil
+		return "0.7.12", nil
 	}
 	return f.version()
 }
