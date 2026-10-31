@@ -130,13 +130,13 @@ An existing image is never treated as stale. After editing code the proxy links 
 
 ## Docs site
 
-The `docs/` pages are published to GitHub Pages with [Zensical](https://zensical.org) on every push to main (`.github/workflows/docs.yml`); `mkdocs.yml` holds the nav. Preview locally with Docker:
+The `docs/` pages are published to GitHub Pages with [Zensical](https://zensical.org) on every push to main (`.github/workflows/docs.yml`); `zensical.toml` holds the nav. Preview locally with Docker:
 
 ```bash
 docker run --rm -it -p 8000:8000 -v "$PWD:/docs" "zensical/zensical:$(cut -d= -f3 .github/docs-requirements.txt)" serve --dev-addr 0.0.0.0:8000
 ```
 
-A new page needs a `nav` entry in `mkdocs.yml` next to its line in `docs/README.md`.
+A new page needs a `nav` entry in `zensical.toml` next to its line in `docs/README.md`.
 
 ## Releasing
 

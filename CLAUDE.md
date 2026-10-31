@@ -73,7 +73,7 @@ A new package goes in the layer group of what it imports.
 
 ## Docs
 
-- User-facing changes update the matching `docs/` page. Touch `README.md` only for what it covers; a new page gets a line in `docs/README.md`, the README index and the `nav` in `mkdocs.yml`.
+- User-facing changes update the matching `docs/` page. Touch `README.md` only for what it covers; a new page gets a line in `docs/README.md`, the README index and the `nav` in `zensical.toml`.
 - Each fact lives on one page; others link in one line. Grep `docs/` first.
 - Paragraphs about 3 sentences, table cells one; bullets for conditions and steps.
 - No internals users can't act on; contributor details go in `docs/development.md` or here.
