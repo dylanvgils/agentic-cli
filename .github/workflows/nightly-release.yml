@@ -14,9 +14,12 @@ concurrency:
   group: release
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   validate:
-    uses: ./.github/workflows/validate.yml
+    uses: ./.github/workflows/reusable-validate.yml
     with:
       sonar: false
 

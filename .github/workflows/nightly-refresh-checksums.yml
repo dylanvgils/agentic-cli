@@ -1,4 +1,4 @@
-name: Refresh Install Checksums
+name: Nightly checksum refresh
 
 on:
   schedule:

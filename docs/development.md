@@ -67,6 +67,7 @@ make build          # compile to bin/agentic
 make lint           # run golangci-lint
 make audit          # go mod verify + govulncheck
 make test           # run unit tests
+make test-coverage  # unit tests with coverage.out and a JUnit report in test-results/
 make test-integration # run integration tests against a real Docker daemon
 make test-integration-msb # run the microsandbox integration tests (needs msb and KVM)
 make dist           # cross-platform binaries → dist/
@@ -74,6 +75,8 @@ make docker-dist    # same via Docker using build/Dockerfile (no local Go needed
 ```
 
 CI runs `make audit` on every PR and push to main. A nightly workflow also runs it, to catch new advisories against unchanged code, and opens (or comments on) a `security-audit` issue when it finds something. The next passing nightly run closes that issue.
+
+To run the CI checks on a branch without a PR, use **Actions → Validate (reusable) → Run workflow**. Each test job in CI shows a results table and the coverage total on its run summary page. Failed tests are annotated on the PR, and the JUnit reports and coverage are attached to the run as artifacts for 7 days.
 
 CLI changes take effect after `make build`. Changes to stage funcs in `internal/image/tools/` or `internal/runtime/docker/` need an `agentic build` to rebuild the image.
 
