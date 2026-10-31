@@ -75,7 +75,7 @@ audit:
 audit-json:
 	@$(GOVULNCHECK) -format json ./...
 
-# Pinned checksums only (currently just nvm) - safe to run on every PR, since these
+# Pinned checksums only (nvm and msb) - safe to run on every PR, since these
 # only change when this repo bumps the pinned version itself.
 verify-checksums:
 	.github/scripts/verify-install-checksums.sh --pinned-only

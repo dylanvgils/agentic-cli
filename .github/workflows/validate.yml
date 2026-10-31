@@ -79,10 +79,6 @@ jobs:
   integration-msb:
     if: github.event.action != 'edited'
     runs-on: ubuntu-latest
-    env:
-      MSB_VERSION: v0.7.11
-      # sha256 of the release's checksums.sha256, which pins the tarball's checksum in turn
-      MSB_CHECKSUMS_SHA256: 9b3efd06d36d5ce47ccf3978a11319ae74a8cbd4a1af074dbd0776ca861658f5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -103,9 +99,14 @@ jobs:
       - name: Install msb
         working-directory: ${{ runner.temp }}
         run: |
-          base="https://github.com/superradcompany/microsandbox/releases/download/$MSB_VERSION"
+          # .github/msb.json pins the version and the sha256 of the release's checksums.sha256,
+          # which pins the tarball's checksum in turn
+          version=$(jq -r '.version' "$GITHUB_WORKSPACE/.github/msb.json")
+          checksum=$(jq -r '.checksums_sha256' "$GITHUB_WORKSPACE/.github/msb.json")
+
+          base="https://github.com/superradcompany/microsandbox/releases/download/$version"
           curl --proto =https --tlsv1.2 --fail --silent --show-error --location --remote-name "$base/checksums.sha256"
-          echo "$MSB_CHECKSUMS_SHA256  checksums.sha256" | sha256sum --check
+          echo "$checksum  checksums.sha256" | sha256sum --check
           curl --proto =https --tlsv1.2 --fail --silent --show-error --location --remote-name "$base/microsandbox-linux-x86_64.tar.gz"
           grep ' microsandbox-linux-x86_64.tar.gz$' checksums.sha256 | sha256sum --check
 
