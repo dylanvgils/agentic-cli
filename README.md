@@ -86,6 +86,8 @@ See [Leftover risk](docs/security-model.md#leftover-risk) for the full list.
 
 ## 📚 Documentation
 
+Also published at [dylanvgils.github.io/agentic-cli](https://dylanvgils.github.io/agentic-cli/).
+
 - [Overview](docs/overview.md) - what agentic is and why
 - [Comparison](docs/comparison.md) - agentic vs Docker Sandboxes (`sbx`)
 - [Installation](docs/installation.md) - install, uninstall, upgrade, build from source
