@@ -25,7 +25,7 @@ Runs agentic coding tools in isolated, read-only Docker containers, or optionall
 
 - Docker Engine 26+ (or Rancher Desktop)
 - Git
-- Optional: [msb](docs/microsandbox.md#requirements) 0.7.8+ for the microVM runtime
+- Optional: [msb](docs/microsandbox.md#requirements) 0.7.12+ for the microVM runtime
 
 ## 🚀 Installation
 

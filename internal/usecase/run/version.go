@@ -7,11 +7,11 @@ import (
 )
 
 const (
-	// minDockerEngine is the first Docker Engine that stops forwarding DNS from --internal networks to outside resolvers.
+	// minDockerEngine is the oldest Docker Engine a Docker run accepts; older versions are refused.
 	minDockerEngine = "26.0"
 
-	// minMicrosandbox is the first msb whose secret substitution agentic's credential injection was verified against.
-	minMicrosandbox = "0.7.8"
+	// minMicrosandbox is the oldest msb a microsandbox run accepts; older versions are refused.
+	minMicrosandbox = "0.7.12"
 )
 
 // requireVersion refuses version of what when it is older than minimum or unreadable.

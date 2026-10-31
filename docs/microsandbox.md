@@ -5,7 +5,7 @@ By default each tool runs in a Docker container, which shares the host's kernel.
 ## Requirements
 
 - Docker, to build the images.
-- msb 0.7.8 or newer on your `PATH`. Older versions are refused.
+- msb 0.7.12 or newer on your `PATH`. Older versions are refused.
 - Hardware virtualization: KVM on Linux, Hypervisor.framework on macOS.
 - On WSL 2, nested virtualization, so KVM works inside it. See [WSL 2](#wsl-2).
 
