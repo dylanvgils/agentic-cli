@@ -1,4 +1,4 @@
-name: Dependency Audit
+name: Dependency audit (reusable)
 
 on:
   workflow_call:
@@ -24,6 +24,17 @@ jobs:
         run: |
           set -o pipefail
           make audit 2>&1 | tee audit.log
+
+      - name: Summarize findings
+        if: failure()
+        run: |
+          {
+            echo '### Dependency audit failed'
+            echo
+            echo '```'
+            cat audit.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Collect findings
         if: failure()
