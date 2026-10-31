@@ -9,7 +9,6 @@ dist/
 *.test
 *.out
 coverage.txt
-test-results/
 vendor/
 go.work.sum
 

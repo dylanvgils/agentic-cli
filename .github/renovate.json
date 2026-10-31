@@ -117,13 +117,6 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^Makefile$/"],
-      "matchStrings": ["GOTESTSUM_VERSION \\?= (?<currentValue>v[\\d.]+)"],
-      "depNameTemplate": "gotest.tools/gotestsum",
-      "datasourceTemplate": "go"
-    },
-    {
-      "customType": "regex",
       "managerFilePatterns": ["/^\\.github/actions/setup-msb/action\\.yml$/"],
       "matchStrings": [
         "MSB_VERSION:\\s*(?<currentValue>v[\\d.]+)\\s+MSB_CHECKSUMS_SHA256:\\s*(?<currentDigest>[0-9a-f]{64})"
