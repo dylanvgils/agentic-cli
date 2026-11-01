@@ -16,6 +16,11 @@ on:
         required: false
         type: boolean
         default: true
+      ref:
+        description: "Commit to check out; empty uses the event's default"
+        required: false
+        type: string
+        default: ""
     secrets:
       SONAR_TOKEN:
         required: false
@@ -29,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+          ref: ${{ inputs.ref }}
 
       - name: Verify checksums
         run: make verify-checksums
@@ -39,12 +44,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+          ref: ${{ inputs.ref }}
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
+      - uses: ./.github/actions/setup-go
 
       - name: Lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
@@ -56,12 +58,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+          ref: ${{ inputs.ref }}
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
+      - uses: ./.github/actions/setup-go
 
       - name: Build
         run: make build
@@ -71,12 +70,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+          ref: ${{ inputs.ref }}
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
+      - uses: ./.github/actions/setup-go
 
       - name: Test
         run: make test-coverage
@@ -95,7 +91,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+          ref: ${{ inputs.ref }}
           fetch-depth: 0 # Sonar needs history for blame and new-code detection
 
       # coverage.out from unit-tests
@@ -112,18 +108,17 @@ jobs:
 
   audit:
     uses: ./.github/workflows/reusable-dependency-audit.yml
+    with:
+      ref: ${{ inputs.ref }}
 
   integration:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+          ref: ${{ inputs.ref }}
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
+      - uses: ./.github/actions/setup-go
 
       - name: Integration tests
         run: make test-integration
@@ -133,12 +128,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+          ref: ${{ inputs.ref }}
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
+      - uses: ./.github/actions/setup-go
 
       - uses: ./.github/actions/setup-msb
 

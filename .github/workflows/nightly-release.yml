@@ -18,32 +18,22 @@ permissions:
   contents: read
 
 jobs:
-  validate:
-    uses: ./.github/workflows/reusable-validate.yml
-    with:
-      sonar: false
-
-  tag:
-    needs: [validate]
+  resolve:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     outputs:
       release_tag: ${{ steps.resolve.outputs.release_tag }}
       previous_tag: ${{ steps.resolve.outputs.previous_tag }}
+      create: ${{ steps.resolve.outputs.create }}
       skip: ${{ steps.resolve.outputs.skip }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           fetch-tags: true
-
-      - name: Verify branch
-        run: |
-          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
-            echo "release must run from main, got $GITHUB_REF"
-            exit 1
-          fi
+          persist-credentials: false
 
       - name: Resolve release tag
         id: resolve
@@ -52,33 +42,47 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: .github/scripts/resolve-release-tag.sh "$TAG_INPUT" "$EVENT_NAME" >> "$GITHUB_OUTPUT"
 
+  # A re-release validates the existing tag; a new tag validates github.sha, the commit it tags.
+  validate:
+    needs: [resolve]
+    if: needs.resolve.outputs.skip != 'true'
+    uses: ./.github/workflows/reusable-validate.yml
+    with:
+      sonar: false
+      ref: ${{ needs.resolve.outputs.create == 'false' && needs.resolve.outputs.release_tag || '' }}
+
+  tag:
+    needs: [resolve, validate]
+    if: needs.resolve.outputs.create == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Create and push tag
-        if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.create == 'true'
         env:
-          RELEASE_TAG: ${{ steps.resolve.outputs.release_tag }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.release_tag }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$RELEASE_TAG" -m "Release $RELEASE_TAG"
+          git tag -a "$RELEASE_TAG" -m "Release $RELEASE_TAG" "$GITHUB_SHA"
           git push origin "$RELEASE_TAG"
 
   release:
-    needs: [tag]
-    if: ${{ !cancelled() && needs.tag.result == 'success' && needs.tag.outputs.skip != 'true' }}
+    needs: [resolve, validate, tag]
+    if: ${{ !cancelled() && needs.validate.result == 'success' && (needs.tag.result == 'success' || needs.tag.result == 'skipped') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.tag.outputs.release_tag }}
+          ref: ${{ needs.resolve.outputs.release_tag }}
           fetch-depth: 0
           fetch-tags: true
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
+      - uses: ./.github/actions/setup-go
 
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
@@ -86,5 +90,5 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ needs.tag.outputs.release_tag }}
-          GORELEASER_PREVIOUS_TAG: ${{ needs.tag.outputs.previous_tag }}
+          GORELEASER_CURRENT_TAG: ${{ needs.resolve.outputs.release_tag }}
+          GORELEASER_PREVIOUS_TAG: ${{ needs.resolve.outputs.previous_tag }}
