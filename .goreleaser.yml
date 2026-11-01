@@ -6,6 +6,14 @@ before:
   hooks:
     - go mod tidy
 
+# Builds releases from the tag fetched through proxy.golang.org, which records it in sum.golang.org
+gomod:
+  proxy: true
+  env:
+    - GOPROXY=https://proxy.golang.org,direct
+    - GOSUMDB=sum.golang.org
+  mod: mod
+
 builds:
   - id: agentic
     binary: agentic
