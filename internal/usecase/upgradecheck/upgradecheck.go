@@ -74,12 +74,12 @@ func (s *Service) offerUpdate(latest string, confirm Confirm) (updated bool, err
 		return false, nil
 	}
 
-	s.notify.Step("updating...")
+	s.notify.Infof("updating %s -> %s...", s.version, latest)
 
 	if err := s.releases.Update(latest); err != nil {
 		return false, fmt.Errorf("update failed: %w - run: agentic upgrade", err)
 	}
 
-	s.notify.Stepf("updated to %s", latest)
+	s.notify.Detailf("updated to %s", latest)
 	return true, nil
 }

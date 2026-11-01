@@ -174,7 +174,7 @@ func Test_Service_offerUpdate(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, updated)
 		assert.Equal(t, "v1.1.0", releases.updatedWith)
-		assert.Contains(t, notify.String(), "updated to v1.1.0")
+		assert.Equal(t, "agentic: updating v1.0.0 -> v1.1.0...\n   updated to v1.1.0\n", notify.String())
 	})
 
 	t.Run("returns the error when the confirmed update fails", func(t *testing.T) {
