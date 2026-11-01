@@ -25,6 +25,14 @@ func Detailf(format string, args ...any) {
 	Log.Detailf(format, args...)
 }
 
+func Print(s string) {
+	Log.Print(s)
+}
+
+func Println(s string) {
+	Log.Println(s)
+}
+
 func Infof(format string, args ...any) {
 	Err.Infof(format, args...)
 }

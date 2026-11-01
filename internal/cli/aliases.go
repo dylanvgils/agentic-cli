@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/spf13/cobra"
 )
@@ -24,9 +25,9 @@ func init() {
 
 func runAliases(_ *cobra.Command, _ []string) error {
 	shell := detectShell(runtime.GOOS)
-	fmt.Println(preambleFor(shell))
-	fmt.Println(reloadLineFor(shell))
-	fmt.Println(shortAliasFor(shell))
+	logging.Println(preambleFor(shell))
+	logging.Println(reloadLineFor(shell))
+	logging.Println(shortAliasFor(shell))
 
 	if dockerClient.CheckDaemon() != nil {
 		return nil
@@ -44,7 +45,7 @@ func runAliases(_ *cobra.Command, _ []string) error {
 func printAliases(shell string, built map[string]bool) {
 	for _, name := range tools.Names() {
 		if built[name] {
-			fmt.Println(aliasLineFor(shell, name))
+			logging.Println(aliasLineFor(shell, name))
 		}
 	}
 }

@@ -23,7 +23,7 @@ func TestDryRun(t *testing.T) {
 		}}
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -47,7 +47,7 @@ func TestDryRun(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Base: "node@24.0.0,java@21.0.1"}, nil)}
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -62,7 +62,7 @@ func TestDryRun(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -87,7 +87,7 @@ func TestDryRun(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", opts)
 			require.NoError(t, err)
 		})

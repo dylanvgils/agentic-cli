@@ -273,10 +273,7 @@ func TestCheck(t *testing.T) {
 		err := New(d, upstream).Check(req, confirmYes, update)
 
 		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "update failed")
-		assert.Contains(t, err.Error(), "build failed")
-		assert.Contains(t, err.Error(), "agentic update claude")
+		assert.EqualError(t, err, "update failed: build failed - run: agentic update claude")
 	})
 
 	t.Run("does not call update when not confirmed", func(t *testing.T) {

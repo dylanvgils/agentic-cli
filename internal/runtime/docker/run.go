@@ -61,7 +61,8 @@ func (c *Client) RunTool(sc Sidecars) error {
 	}
 
 	if sc.run.DryRun {
-		return sandbox.PrintDryRun("tool container", "docker", args)
+		sandbox.PrintDryRun("tool container", "docker", args)
+		return nil
 	}
 
 	// Set agentic startup messages apart from the tool output

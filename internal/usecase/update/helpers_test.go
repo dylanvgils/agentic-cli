@@ -2,8 +2,6 @@ package update
 
 import (
 	"bytes"
-	"io"
-	"os"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -82,21 +80,6 @@ type fakeUpstream struct {
 func (f *fakeUpstream) LatestToolVersion(string, string) (string, bool, bool) {
 	f.calls++
 	return f.latest, f.newer, f.ok
-}
-
-// captureStdout replaces os.Stdout with a pipe and returns what was written (e.g. DryRun's Dockerfile output); for logging.Step/Detail output, use captureLog.
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	orig := os.Stdout
-	os.Stdout = w
-	fn()
-	w.Close() //nolint:errcheck
-	os.Stdout = orig
-	var buf bytes.Buffer
-	io.Copy(&buf, r) //nolint:errcheck
-	return buf.String()
 }
 
 // captureLog swaps logging.Log for the duration of fn and returns what was written.

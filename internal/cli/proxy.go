@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -69,7 +68,8 @@ func runProxyBuildOrUpdate(cmd *cobra.Command, noCache bool) error {
 	opts := tools.BuildOptions{NoCache: noCache, Registry: collectRegistry(cmd)}
 
 	if dryRun, _ := cmd.Flags().GetBool(dryRunFlagName); dryRun {
-		return printProxyDockerfile(opts.Registry)
+		printProxyDockerfile(opts.Registry)
+		return nil
 	}
 
 	logging.Infof("building %s", tools.ProxyImage)
@@ -91,9 +91,8 @@ func runProxyClean(cmd *cobra.Command, _ []string) error {
 }
 
 // printProxyDockerfile prints the proxy image's generated Dockerfile for --dry-run.
-func printProxyDockerfile(registry string) error {
+func printProxyDockerfile(registry string) {
 	logging.Step(tools.ProxyImage)
 	content := tools.GenerateProxyDockerfile(buildinfo.Version, registry)
-	_, err := fmt.Println(content)
-	return err
+	logging.Println(content)
 }

@@ -17,7 +17,7 @@ func Test_runInstructions(t *testing.T) {
 
 	// Act
 	var err error
-	out := captureStdout(t, func() {
+	out := captureLog(t, func() {
 		err = runInstructions(instructionsCmd, []string{"claude"})
 	})
 
@@ -96,14 +96,10 @@ func Test_instructionsRequest(t *testing.T) {
 func Test_printInstructions(t *testing.T) {
 	t.Run("content is printed under its heading", func(t *testing.T) {
 		// Act
-		var logs string
-		out := captureStdout(t, func() {
-			logs = captureLog(t, func() { printInstructions("agentic/claude", "## Filesystem\n") })
-		})
+		out := captureLog(t, func() { printInstructions("agentic/claude", "## Filesystem\n") })
 
 		// Assert
-		assert.Contains(t, logs, "agentic/claude")
-		assert.Equal(t, "## Filesystem\n", out)
+		assert.Equal(t, "=> agentic/claude\n## Filesystem\n", out)
 	})
 
 	t.Run("empty content prints the disabled notice", func(t *testing.T) {

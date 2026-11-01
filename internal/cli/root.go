@@ -66,7 +66,7 @@ func init() {
 // Execute the Agentic CLI
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		logging.Infof("%v", err)
 		os.Exit(1)
 	}
 }
@@ -164,10 +164,10 @@ func checkGit(cmd *cobra.Command, args []string) error {
 	return git.CheckAvailable()
 }
 
-// restartAfterUpgrade reruns the command on the new binary after an upgrade; exits 1 if the upgrade failed.
+// restartAfterUpgrade reruns the command on the new binary after an upgrade; returns err if the upgrade failed.
 func restartAfterUpgrade(updated bool, err error) error {
 	if err != nil {
-		os.Exit(1)
+		return err
 	}
 	if !updated {
 		return nil

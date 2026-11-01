@@ -53,7 +53,7 @@ func (s *Service) Check(req Request, confirm Confirm, update Updater) error {
 	}
 
 	if err := update(req.Tool, req.Image); err != nil {
-		return fmt.Errorf("update failed: %v\n   run: agentic update %s", err, req.Tool)
+		return fmt.Errorf("update failed: %w - run: agentic update %s", err, req.Tool)
 	}
 
 	return nil

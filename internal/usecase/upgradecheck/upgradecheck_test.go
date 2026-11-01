@@ -174,7 +174,7 @@ func Test_Service_offerUpdate(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, updated)
 		assert.Equal(t, "v1.1.0", releases.updatedWith)
-		assert.Contains(t, notify.String(), "updated to v1.1.0")
+		assert.Equal(t, "agentic: updating v1.0.0 -> v1.1.0...\n   updated to v1.1.0\n", notify.String())
 	})
 
 	t.Run("returns the error when the confirmed update fails", func(t *testing.T) {
@@ -185,9 +185,9 @@ func Test_Service_offerUpdate(t *testing.T) {
 		updated, err := svc.offerUpdate("v1.1.0", func(string, string) bool { return true })
 
 		// Assert
-		assert.EqualError(t, err, "network error")
+		assert.EqualError(t, err, "update failed: network error - run: agentic upgrade")
 		assert.False(t, updated)
-		assert.Contains(t, notify.String(), "update failed")
+		assert.NotContains(t, notify.String(), "update failed")
 	})
 
 	t.Run("skips update when declined", func(t *testing.T) {

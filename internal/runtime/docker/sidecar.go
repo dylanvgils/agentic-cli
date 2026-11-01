@@ -41,9 +41,7 @@ func ownerLabels(rs toolRun) []string {
 func (c *Client) setupSidecars(rs toolRun) (args []string, cleanup func(), err error) {
 	networkCleanup := noCleanup
 	if rs.DryRun {
-		if err := sandbox.PrintDryRun("run network", "docker", runNetworkArgs(rs)); err != nil {
-			return nil, nil, err
-		}
+		sandbox.PrintDryRun("run network", "docker", runNetworkArgs(rs))
 	} else {
 		warnOnSweepError(c.sweepOrphanedSidecars(rs.ToolHome))
 

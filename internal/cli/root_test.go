@@ -283,11 +283,24 @@ func Test_persistentPreRunE(t *testing.T) {
 }
 
 func Test_restartAfterUpgrade(t *testing.T) {
-	// Act
-	err := restartAfterUpgrade(false, nil)
+	t.Run("not updated does nothing", func(t *testing.T) {
+		// Act
+		err := restartAfterUpgrade(false, nil)
 
-	// Assert
-	assert.NoError(t, err)
+		// Assert
+		assert.NoError(t, err)
+	})
+
+	t.Run("failed upgrade returns its error", func(t *testing.T) {
+		// Arrange
+		upgradeErr := errors.New("update failed")
+
+		// Act
+		err := restartAfterUpgrade(false, upgradeErr)
+
+		// Assert
+		assert.ErrorIs(t, err, upgradeErr)
+	})
 }
 
 func Test_inCommandChain(t *testing.T) {

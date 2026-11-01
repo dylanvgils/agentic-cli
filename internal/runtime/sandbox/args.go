@@ -2,8 +2,6 @@
 package sandbox
 
 import (
-	"fmt"
-	"os"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
@@ -58,11 +56,10 @@ func Arg(name string, value ...string) string {
 }
 
 // PrintDryRun prints a dry-run command to stdout, labelled and set apart by agentic lines on stderr so stdout stays runnable.
-func PrintDryRun(label, name string, args []string) error {
+func PrintDryRun(label, name string, args []string) {
 	logging.Infof("%s:", label)
-	_, err := fmt.Fprintln(os.Stdout, hostShell().command(name, args))
+	logging.Println(hostShell().command(name, args))
 	logging.Separate()
-	return err
 }
 
 // hostShell returns the syntax of the shell the user most likely pastes into: PowerShell on Windows, POSIX elsewhere.

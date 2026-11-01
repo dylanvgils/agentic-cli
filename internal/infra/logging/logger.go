@@ -44,6 +44,16 @@ func (l *Logger) Detailf(format string, args ...any) {
 	fmt.Fprintf(l.w, "   "+format+"\n", args...)
 }
 
+// Print writes s unchanged, for data such as a Dockerfile or shell lines rather than a message.
+func (l *Logger) Print(s string) {
+	fmt.Fprint(l.w, s)
+}
+
+// Println writes s and a newline, unchanged otherwise.
+func (l *Logger) Println(s string) {
+	fmt.Fprintln(l.w, s)
+}
+
 // Infof writes an agentic-prefixed message, marking it as agentic's own output amid a tool's.
 func (l *Logger) Infof(format string, args ...any) {
 	l.pending = true
@@ -56,14 +66,17 @@ func (l *Logger) Warnf(format string, args ...any) {
 	fmt.Fprintf(l.w, l.prefix()+"warning: "+format+"\n", args...)
 }
 
-// Separate writes a blank line if agentic-prefixed lines were written since the last call, setting them apart from what follows.
-func (l *Logger) Separate() {
-	if !l.pending {
-		return
-	}
-
+// Blank writes a blank line, setting what follows apart from output the logger didn't write (e.g. a tool's); Separate is the conditional form.
+func (l *Logger) Blank() {
 	fmt.Fprintln(l.w)
 	l.pending = false
+}
+
+// Separate writes a blank line if agentic-prefixed lines were written since the last call, setting them apart from what follows.
+func (l *Logger) Separate() {
+	if l.pending {
+		l.Blank()
+	}
 }
 
 // Promptf writes an agentic-prefixed question with no trailing newline, so the answer is typed on the same line.
@@ -72,7 +85,7 @@ func (l *Logger) Promptf(format string, args ...any) {
 	fmt.Fprintf(l.w, l.prefix()+format, args...)
 }
 
-// Writer returns the underlying destination, for a message shape Logger's methods don't cover (e.g. a prompt with no trailing newline).
+// Writer returns the underlying destination, for helpers that need an io.Writer (e.g. a tabwriter table).
 func (l *Logger) Writer() io.Writer {
 	return l.w
 }

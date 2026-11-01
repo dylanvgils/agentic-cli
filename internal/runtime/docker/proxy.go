@@ -201,12 +201,8 @@ func (c *Client) dryRunProxy(rs toolRun) (proxyEnv []string, cleanup func(), err
 	}
 
 	// Shows no secrets: those are only copied in before start
-	if err := sandbox.PrintDryRun("egress proxy", "docker", handle.createArgs(rs)); err != nil {
-		return nil, nil, err
-	}
-	if err := sandbox.PrintDryRun("egress network", "docker", handle.connectArgs()); err != nil {
-		return nil, nil, err
-	}
+	sandbox.PrintDryRun("egress proxy", "docker", handle.createArgs(rs))
+	sandbox.PrintDryRun("egress network", "docker", handle.connectArgs())
 
 	return handle.toolEnvArgs(rs.Dind.Enabled), noCleanup, nil
 }
