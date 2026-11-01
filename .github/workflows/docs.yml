@@ -6,13 +6,13 @@ on:
     paths:
       - docs/**
       - zensical.toml
-      - .github/docs-requirements.txt
+      - .github/docs-requirements.*
       - .github/workflows/docs.yml
   pull_request:
     paths:
       - docs/**
       - zensical.toml
-      - .github/docs-requirements.txt
+      - .github/docs-requirements.*
       - .github/workflows/docs.yml
   workflow_dispatch:
 
@@ -35,7 +35,7 @@ jobs:
 
       - name: Build site
         run: |
-          pip install --only-binary :all: --requirement .github/docs-requirements.txt
+          pip install --require-hashes --only-binary :all: --requirement .github/docs-requirements.txt
           zensical build --strict
 
       - if: github.event_name != 'pull_request'
