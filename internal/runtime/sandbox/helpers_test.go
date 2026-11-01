@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"testing"
 
-
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 )
 

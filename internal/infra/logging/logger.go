@@ -88,7 +88,7 @@ func (l *Logger) Promptf(format string, args ...any) {
 	fmt.Fprintf(l.w, l.prefix()+format, args...)
 }
 
-// Writer returns the underlying destination, for a message shape Logger's methods don't cover (e.g. a prompt with no trailing newline).
+// Writer returns the underlying destination, for helpers that need an io.Writer (e.g. a tabwriter table).
 func (l *Logger) Writer() io.Writer {
 	return l.w
 }
