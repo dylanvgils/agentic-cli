@@ -94,12 +94,11 @@ func (p ttyPrompter) OfferToolUpdate(tool, installed, latest string) bool {
 // OfferUpgrade announces a newer agentic release and, on a terminal, asks whether to upgrade now; otherwise it just suggests `agentic upgrade`.
 func (p ttyPrompter) OfferUpgrade(installed, latest string) bool {
 	if !p.terminal {
-		logging.Err.Stepf("agentic update available: %s (current: %s) - run: agentic upgrade", latest, installed)
+		logging.Infof("new release available: %s (current: %s) - run: agentic upgrade", latest, installed)
 		return false
 	}
 
-	logging.Err.Stepf("agentic update available: %s (current: %s)", latest, installed)
-	fmt.Fprint(logging.Err.Writer(), "   update now? [y/N] ")
+	logging.Promptf("new release available: %s (current: %s) - update now? [y/N] ", latest, installed)
 	return confirmed()
 }
 

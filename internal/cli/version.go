@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/spf13/cobra"
 )
 
@@ -32,8 +33,8 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 }
 
-func runVersion(cmd *cobra.Command, _ []string) error {
-	return writeVersion(cmd.OutOrStdout())
+func runVersion(_ *cobra.Command, _ []string) error {
+	return writeVersion(logging.Log.Writer())
 }
 
 // writeVersion prints the agentic version, then each section with a value after a blank line.

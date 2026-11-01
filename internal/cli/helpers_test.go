@@ -378,23 +378,6 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 }
 
-// captureStdout replaces os.Stdout with a pipe and returns what was written; for logging.Step/Detail-based output, use captureLog instead.
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	orig := os.Stdout
-	os.Stdout = w
-	// Restore even when fn fails a require and exits the test early
-	t.Cleanup(func() { os.Stdout = orig })
-	fn()
-	w.Close() //nolint:errcheck
-	os.Stdout = orig
-	var buf bytes.Buffer
-	io.Copy(&buf, r) //nolint:errcheck
-	return buf.String()
-}
-
 // captureLog swaps logging.Log for the duration of fn and returns what was written.
 func captureLog(t *testing.T, fn func()) string {
 	t.Helper()

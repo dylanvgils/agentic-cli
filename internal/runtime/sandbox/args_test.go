@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestArg(t *testing.T) {
@@ -53,11 +52,9 @@ func TestPrintDryRun(t *testing.T) {
 	logs := stubLogs(t)
 
 	// Act
-	var err error
-	out := captureStdout(t, func() { err = PrintDryRun("tool container", "docker", []string{"run", "--rm"}) })
+	out := captureLog(t, func() { PrintDryRun("tool container", "docker", []string{"run", "--rm"}) })
 
 	// Assert
-	require.NoError(t, err)
 	assert.Equal(t, hostShell().command("docker", []string{"run", "--rm"})+"\n", out)
 	assert.Equal(t, "agentic: tool container:\n\n", logs.String())
 }

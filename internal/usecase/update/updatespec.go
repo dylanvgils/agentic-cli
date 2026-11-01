@@ -78,8 +78,8 @@ func (s *Service) DryRun(tool, namespace string, opts tools.BuildOptions) error 
 		return err
 	}
 
-	_, err = fmt.Println(content)
-	return err
+	logging.Println(content)
+	return nil
 }
 
 // ApplyAll rebuilds every target in order, stopping at the first failure, then prunes what the builds left behind. All targets

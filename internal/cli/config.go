@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/spf13/cobra"
 )
@@ -53,7 +54,7 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 }
 
-func showConfig(cmd *cobra.Command, _ []string) error {
+func showConfig(_ *cobra.Command, _ []string) error {
 	cliConfig, err := config.LoadConfig(toolHome)
 	if err != nil {
 		return err
@@ -74,7 +75,7 @@ func showConfig(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	w := cmd.OutOrStdout()
+	w := logging.Log.Writer()
 	if err := printGlobalConfig(w, toolHome, cliConfig, state); err != nil {
 		return err
 	}

@@ -44,6 +44,16 @@ func (l *Logger) Detailf(format string, args ...any) {
 	fmt.Fprintf(l.w, "   "+format+"\n", args...)
 }
 
+// Print writes s unchanged, for data such as a Dockerfile or shell lines rather than a message.
+func (l *Logger) Print(s string) {
+	fmt.Fprint(l.w, s)
+}
+
+// Println writes s and a newline, unchanged otherwise.
+func (l *Logger) Println(s string) {
+	fmt.Fprintln(l.w, s)
+}
+
 // Infof writes an agentic-prefixed message, marking it as agentic's own output amid a tool's.
 func (l *Logger) Infof(format string, args ...any) {
 	l.pending = true
@@ -54,6 +64,12 @@ func (l *Logger) Infof(format string, args ...any) {
 func (l *Logger) Warnf(format string, args ...any) {
 	l.pending = true
 	fmt.Fprintf(l.w, l.prefix()+"warning: "+format+"\n", args...)
+}
+
+// Blank writes a blank line, setting what follows apart from output the logger didn't write (e.g. a tool's).
+func (l *Logger) Blank() {
+	fmt.Fprintln(l.w)
+	l.pending = false
 }
 
 // Separate writes a blank line if agentic-prefixed lines were written since the last call, setting them apart from what follows.

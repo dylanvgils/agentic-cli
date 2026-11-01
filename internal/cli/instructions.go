@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
@@ -82,5 +81,5 @@ func printInstructions(heading, content string) {
 		return
 	}
 
-	fmt.Print(content)
+	logging.Print(content)
 }

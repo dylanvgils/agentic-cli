@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/require"
@@ -425,20 +426,16 @@ func stubProxySettleTime(t *testing.T, client *Client, d time.Duration) {
 	t.Cleanup(func() { client.timing = orig })
 }
 
-// captureStdout returns what fn writes to os.Stdout.
-func captureStdout(t *testing.T, fn func()) string {
+// captureLog swaps logging.Log for the duration of fn and returns what was written.
+func captureLog(t *testing.T, fn func()) string {
 	t.Helper()
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	orig := os.Stdout
-	os.Stdout = w
-	t.Cleanup(func() { os.Stdout = orig })
+
+	var buf bytes.Buffer
+	orig := logging.Log
+	logging.Log = logging.New(&buf)
+	t.Cleanup(func() { logging.Log = orig })
 
 	fn()
 
-	require.NoError(t, w.Close())
-	os.Stdout = orig
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	return string(out)
+	return buf.String()
 }

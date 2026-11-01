@@ -77,9 +77,7 @@ func (s *Service) DryRun(names []string, opts tools.BuildOptions) error {
 		if err != nil {
 			return err
 		}
-		if _, err := fmt.Println(content); err != nil {
-			return err
-		}
+		logging.Println(content)
 	}
 	return nil
 }

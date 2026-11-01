@@ -207,7 +207,7 @@ func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
 
 		// Assert
 		assert.False(t, result)
-		assert.Equal(t, "=> agentic update available: v1.1.0 (current: v1.0.0) - run: agentic upgrade\n", logs.String())
+		assert.Equal(t, "agentic: new release available: v1.1.0 (current: v1.0.0) - run: agentic upgrade\n", logs.String())
 	})
 
 	t.Run("tty answers y accepts", func(t *testing.T) {
@@ -220,7 +220,7 @@ func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
 
 		// Assert
 		assert.True(t, result)
-		assert.Equal(t, "=> agentic update available: v1.1.0 (current: v1.0.0)\n   update now? [y/N] ", logs.String())
+		assert.Equal(t, "agentic: new release available: v1.1.0 (current: v1.0.0) - update now? [y/N] ", logs.String())
 	})
 
 	t.Run("tty answers n declines", func(t *testing.T) {

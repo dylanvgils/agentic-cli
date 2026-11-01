@@ -554,16 +554,13 @@ func Test_showConfig(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("root = true\nnamespace = \"work\"\n"), 0o600))
 	t.Chdir(dir)
-	var buf bytes.Buffer
-	cmd := &cobra.Command{}
-	cmd.SetOut(&buf)
 
 	// Act
-	err := showConfig(cmd, nil)
+	var err error
+	out := captureLog(t, func() { err = showConfig(&cobra.Command{}, nil) })
 
 	// Assert - the global section, then the project layers from the working dir
 	require.NoError(t, err)
-	out := buf.String()
 	assert.Contains(t, out, "Global (")
 	assert.Contains(t, out, "Project (.agenticrc.toml, 1 file)")
 	assert.Contains(t, out, "work")

@@ -54,22 +54,18 @@ func stubMsb(t *testing.T, script string) {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
-// captureStdout returns what fn writes to os.Stdout.
-func captureStdout(t *testing.T, fn func()) string {
+// captureLog swaps logging.Log for the duration of fn and returns what was written.
+func captureLog(t *testing.T, fn func()) string {
 	t.Helper()
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	orig := os.Stdout
-	os.Stdout = w
-	t.Cleanup(func() { os.Stdout = orig })
+
+	var buf bytes.Buffer
+	orig := logging.Log
+	logging.Log = logging.New(&buf)
+	t.Cleanup(func() { logging.Log = orig })
 
 	fn()
 
-	require.NoError(t, w.Close())
-	os.Stdout = orig
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	return string(out)
+	return buf.String()
 }
 
 // stubLog redirects logging.Log to a buffer until the test ends and returns it.

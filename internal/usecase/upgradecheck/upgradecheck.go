@@ -2,6 +2,7 @@
 package upgradecheck
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -76,9 +77,7 @@ func (s *Service) offerUpdate(latest string, confirm Confirm) (updated bool, err
 	s.notify.Step("updating...")
 
 	if err := s.releases.Update(latest); err != nil {
-		s.notify.Stepf("update failed: %v", err)
-		s.notify.Detail("run: agentic upgrade")
-		return false, err
+		return false, fmt.Errorf("update failed: %w - run: agentic upgrade", err)
 	}
 
 	s.notify.Stepf("updated to %s", latest)

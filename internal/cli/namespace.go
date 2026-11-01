@@ -2,7 +2,6 @@ package cli
 
 import (
 	"cmp"
-	"fmt"
 	"slices"
 
 	"github.com/spf13/cobra"
@@ -89,13 +88,13 @@ func listNamespaces() error {
 
 	namespaces := uniqueNamespaces(images)
 	if len(namespaces) == 0 {
-		fmt.Println("(no agentic images found)")
+		logging.Infof("no agentic images found")
 		return nil
 	}
 
 	slices.Sort(namespaces)
 	for _, namespace := range namespaces {
-		fmt.Println(namespace)
+		logging.Println(namespace)
 	}
 
 	return nil

@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -14,21 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// captureStdout replaces os.Stdout with a pipe and returns what was written (e.g. DryRun's Dockerfile output); for logging.Step/Detail output, use captureLog.
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	orig := os.Stdout
-	os.Stdout = w
-	fn()
-	w.Close() //nolint:errcheck
-	os.Stdout = orig
-	var buf bytes.Buffer
-	io.Copy(&buf, r) //nolint:errcheck
-	return buf.String()
-}
 
 // captureLog swaps logging.Log for the duration of fn and returns what was written.
 func captureLog(t *testing.T, fn func()) string {
@@ -54,7 +37,7 @@ func TestDryRun(t *testing.T) {
 		}}
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := New(d, t.TempDir()).DryRun([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})

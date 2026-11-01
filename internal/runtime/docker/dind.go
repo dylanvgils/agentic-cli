@@ -321,9 +321,7 @@ func (c *Client) dryRunDind(rs toolRun) (toolArgs []string, cleanup func(), err 
 		return nil, nil, err
 	}
 
-	if err := sandbox.PrintDryRun("docker sidecar", "docker", handle.runArgs(rs)); err != nil {
-		return nil, nil, err
-	}
+	sandbox.PrintDryRun("docker sidecar", "docker", handle.runArgs(rs))
 	return handle.toolArgs(), noCleanup, nil
 }
 

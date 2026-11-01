@@ -22,7 +22,7 @@ func Test_listNamespaces(t *testing.T) {
 		})
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := listNamespaces()
 			require.NoError(t, err)
 		})
@@ -36,15 +36,14 @@ func Test_listNamespaces(t *testing.T) {
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, nil
 		})
+		logs := stubErrLog(t)
 
 		// Act
-		out := captureStdout(t, func() {
-			err := listNamespaces()
-			require.NoError(t, err)
-		})
+		err := listNamespaces()
 
 		// Assert
-		assert.Contains(t, out, "no agentic images found")
+		require.NoError(t, err)
+		assert.Contains(t, logs.String(), "no agentic images found")
 	})
 
 	t.Run("docker error propagates", func(t *testing.T) {

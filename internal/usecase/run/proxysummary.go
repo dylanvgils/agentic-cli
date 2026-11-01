@@ -1,7 +1,6 @@
 package run
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
@@ -16,7 +15,7 @@ func printProxySummary(l *logging.Logger, spec sandbox.ProxySpec) {
 		return
 	}
 
-	fmt.Fprintln(l.Writer())
+	l.Blank()
 	printDenied(l, s, spec.Mode == sandbox.ProxyMonitor)
 	printPaths(l, s.Paths, spec.Mode == sandbox.ProxyMonitor)
 	printRefused(l, s.Refused)

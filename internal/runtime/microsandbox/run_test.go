@@ -39,7 +39,7 @@ func TestClient_Run(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureStdout(t, func() { err = client.Run(rs) })
+		out := captureLog(t, func() { err = client.Run(rs) })
 
 		// Assert
 		require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestClient_Run(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureStdout(t, func() { err = client.Run(rs) })
+		out := captureLog(t, func() { err = client.Run(rs) })
 
 		// Assert
 		require.NoError(t, err)

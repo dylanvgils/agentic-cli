@@ -57,6 +57,30 @@ func TestLogger_Detailf(t *testing.T) {
 	assert.Equal(t, "   version: 1.0.0\n", buf.String())
 }
 
+func TestLogger_Print(t *testing.T) {
+	// Arrange
+	var buf bytes.Buffer
+	l := New(&buf)
+
+	// Act
+	l.Print("FROM scratch")
+
+	// Assert
+	assert.Equal(t, "FROM scratch", buf.String())
+}
+
+func TestLogger_Println(t *testing.T) {
+	// Arrange
+	var buf bytes.Buffer
+	l := New(&buf)
+
+	// Act
+	l.Println("alias agt=agentic")
+
+	// Assert
+	assert.Equal(t, "alias agt=agentic\n", buf.String())
+}
+
 func TestLogger_Writer(t *testing.T) {
 	// Arrange
 	var buf bytes.Buffer
@@ -105,6 +129,20 @@ func TestLogger_Warnf(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, "agentic: warning: could not sweep\n", buf.String())
+}
+
+func TestLogger_Blank(t *testing.T) {
+	// Arrange
+	var buf bytes.Buffer
+	l := New(&buf)
+	l.Infof("starting proxy...")
+
+	// Act
+	l.Blank()
+	l.Separate()
+
+	// Assert
+	assert.Equal(t, "agentic: starting proxy...\n\n", buf.String())
 }
 
 func TestLogger_Promptf(t *testing.T) {

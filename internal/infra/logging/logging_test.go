@@ -50,6 +50,28 @@ func TestDetailf(t *testing.T) {
 	assert.Equal(t, "   version: 1.0.0\n", buf.String())
 }
 
+func TestPrint(t *testing.T) {
+	// Arrange
+	buf := stubLog(t)
+
+	// Act
+	Print("FROM scratch")
+
+	// Assert
+	assert.Equal(t, "FROM scratch", buf.String())
+}
+
+func TestPrintln(t *testing.T) {
+	// Arrange
+	buf := stubLog(t)
+
+	// Act
+	Println("alias agt=agentic")
+
+	// Assert
+	assert.Equal(t, "alias agt=agentic\n", buf.String())
+}
+
 func TestInfof(t *testing.T) {
 	// Arrange
 	buf := stubErr(t)

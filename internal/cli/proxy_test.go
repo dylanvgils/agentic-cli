@@ -71,7 +71,7 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 		stubFlag(t, proxyBuildCmd, "dry-run", "true")
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureLog(t, func() {
 			err := runProxyBuild(proxyBuildCmd, nil)
 			require.NoError(t, err)
 		})
