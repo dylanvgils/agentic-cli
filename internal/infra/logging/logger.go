@@ -66,7 +66,7 @@ func (l *Logger) Warnf(format string, args ...any) {
 	fmt.Fprintf(l.w, l.prefix()+"warning: "+format+"\n", args...)
 }
 
-// Blank writes a blank line, setting what follows apart from output the logger didn't write (e.g. a tool's).
+// Blank writes a blank line, setting what follows apart from output the logger didn't write (e.g. a tool's); Separate is the conditional form.
 func (l *Logger) Blank() {
 	fmt.Fprintln(l.w)
 	l.pending = false
@@ -74,12 +74,9 @@ func (l *Logger) Blank() {
 
 // Separate writes a blank line if agentic-prefixed lines were written since the last call, setting them apart from what follows.
 func (l *Logger) Separate() {
-	if !l.pending {
-		return
+	if l.pending {
+		l.Blank()
 	}
-
-	fmt.Fprintln(l.w)
-	l.pending = false
 }
 
 // Promptf writes an agentic-prefixed question with no trailing newline, so the answer is typed on the same line.
