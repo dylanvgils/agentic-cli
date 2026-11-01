@@ -3,6 +3,12 @@
   "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
   "schedule": ["every weekend"],
   "gitIgnoredAuthors": ["github-actions[bot]@users.noreply.github.com"],
+  "pip-compile": {
+    "managerFilePatterns": ["/^\\.github/docs-requirements\\.txt$/"]
+  },
+  "pip_requirements": {
+    "enabled": false
+  },
   "packageRules": [
     {
       "matchUpdateTypes": ["minor", "patch"],
