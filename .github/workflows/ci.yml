@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      sha: ${{ steps.update.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -25,6 +27,7 @@ jobs:
           fetch-depth: 0
 
       - name: Update checksums
+        id: update
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: |
@@ -39,10 +42,13 @@ jobs:
             git add internal/image/tools/checksums.json
             git commit -m "fix(deps): update nvm checksum for bumped nvm version"
             git push origin "HEAD:$HEAD_REF"
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
   validate:
     needs: [renovate-checksums]
     if: ${{ !cancelled() && (needs.renovate-checksums.result == 'success' || needs.renovate-checksums.result == 'skipped') }}
     uses: ./.github/workflows/reusable-validate.yml
+    with:
+      ref: ${{ needs.renovate-checksums.outputs.sha }}
     secrets: inherit
