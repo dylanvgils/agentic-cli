@@ -32,6 +32,13 @@ var (
 // Releases fetches and installs agentic's GitHub releases.
 type Releases struct{}
 
+// updater downloads, verifies and installs releases, reporting progress to log.
+type updater struct {
+	client *http.Client
+	log    *logging.Logger
+	cosign string // cosign binary, or "" to skip the signature check
+}
+
 // releaseFiles locates one release's archive for this platform and its checksums.
 type releaseFiles struct {
 	archiveName  string
@@ -61,14 +68,66 @@ func IsNewer(current, latest string) bool {
 	return latest != current
 }
 
-// Update downloads the given release version and replaces the running binary, verifying its signature when cosign is installed.
+// Update downloads the given release version and replaces the running binary, verifying its signature when cosign is
+// installed.
 func (Releases) Update(version string) error {
 	execPath, err := executablePath()
 	if err != nil {
 		return err
 	}
 
-	return updateWith(version, execPath, releasesBaseURL, cosignPath(), http.DefaultClient)
+	u := updater{
+		client: http.DefaultClient,
+		log:    logging.Log,
+		cosign: cosignPath(),
+	}
+	return u.update(newReleaseFiles(releasesBaseURL, version), execPath)
+}
+
+// update installs rel over targetPath.
+func (u updater) update(rel releaseFiles, targetPath string) (err error) {
+	tmpDir, err := os.MkdirTemp("", "agentic-update-*")
+	if err != nil {
+		return fmt.Errorf("creating temp dir: %w", err)
+	}
+	defer cleanup.Capture(&err, func() error { return os.RemoveAll(tmpDir) })
+
+	newBinaryPath, err := u.download(rel, tmpDir)
+	if err != nil {
+		return err
+	}
+
+	return installBinary(newBinaryPath, targetPath)
+}
+
+// download downloads and verifies rel into tmpDir and returns the extracted binary's path.
+func (u updater) download(rel releaseFiles, tmpDir string) (string, error) {
+	archivePath := filepath.Join(tmpDir, rel.archiveName)
+	checksumsPath := filepath.Join(tmpDir, checksumFile)
+
+	if err := downloadFile(u.client, rel.archiveURL, archivePath); err != nil {
+		return "", fmt.Errorf("downloading archive: %w", err)
+	}
+
+	if err := downloadFile(u.client, rel.checksumsURL, checksumsPath); err != nil {
+		return "", fmt.Errorf("downloading checksums: %w", err)
+	}
+
+	if err := u.checkSignature(rel.checksumsURL, checksumsPath); err != nil {
+		return "", err
+	}
+
+	u.log.Detail("verifying checksum...")
+	if err := verifyChecksum(archivePath, rel.archiveName, checksumsPath); err != nil {
+		return "", err
+	}
+
+	newBinaryPath := filepath.Join(tmpDir, binaryName)
+	if err := extractBinary(archivePath, rel.ext, newBinaryPath); err != nil {
+		return "", fmt.Errorf("extracting binary: %w", err)
+	}
+
+	return newBinaryPath, nil
 }
 
 // newReleaseFiles returns the location of version's archive for this platform under baseURL.
@@ -98,52 +157,6 @@ func executablePath() (string, error) {
 	}
 
 	return execPath, nil
-}
-
-// updateWith installs version from baseURL over targetPath; cosign is the cosign binary, or "" to skip the signature check.
-func updateWith(version, targetPath, baseURL, cosign string, client *http.Client) (err error) {
-	tmpDir, err := os.MkdirTemp("", "agentic-update-*")
-	if err != nil {
-		return fmt.Errorf("creating temp dir: %w", err)
-	}
-	defer cleanup.Capture(&err, func() error { return os.RemoveAll(tmpDir) })
-
-	newBinaryPath, err := downloadRelease(client, newReleaseFiles(baseURL, version), cosign, tmpDir)
-	if err != nil {
-		return err
-	}
-
-	return installBinary(newBinaryPath, targetPath)
-}
-
-// downloadRelease downloads and verifies rel into tmpDir and returns the extracted binary's path.
-func downloadRelease(client *http.Client, rel releaseFiles, cosign, tmpDir string) (string, error) {
-	archivePath := filepath.Join(tmpDir, rel.archiveName)
-	checksumsPath := filepath.Join(tmpDir, checksumFile)
-
-	if err := downloadFile(client, rel.archiveURL, archivePath); err != nil {
-		return "", fmt.Errorf("downloading archive: %w", err)
-	}
-
-	if err := downloadFile(client, rel.checksumsURL, checksumsPath); err != nil {
-		return "", fmt.Errorf("downloading checksums: %w", err)
-	}
-
-	if err := checkSignature(client, cosign, rel.checksumsURL, checksumsPath); err != nil {
-		return "", err
-	}
-
-	logging.Detail("verifying checksum...")
-	if err := verifyChecksum(archivePath, rel.archiveName, checksumsPath); err != nil {
-		return "", err
-	}
-
-	newBinaryPath := filepath.Join(tmpDir, binaryName)
-	if err := extractBinary(archivePath, rel.ext, newBinaryPath); err != nil {
-		return "", fmt.Errorf("extracting binary: %w", err)
-	}
-
-	return newBinaryPath, nil
 }
 
 func installBinary(newBinaryPath, targetPath string) error {

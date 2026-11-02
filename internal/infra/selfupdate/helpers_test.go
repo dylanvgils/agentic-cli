@@ -16,6 +16,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,6 +58,17 @@ func stubReleaseServerWith(t *testing.T, checksums string, archiveBytes, bundle 
 	t.Cleanup(srv.Close)
 
 	return srv
+}
+
+// newTestUpdater returns an updater with cosign ("" skips the signature check) whose progress goes to the returned buffer.
+func newTestUpdater(cosign string) (updater, *bytes.Buffer) {
+	var buf bytes.Buffer
+	u := updater{
+		client: http.DefaultClient,
+		log:    logging.New(&buf),
+		cosign: cosign,
+	}
+	return u, &buf
 }
 
 // stubCosign writes a fake cosign script that exits with exitCode and returns its path; skipped on Windows.

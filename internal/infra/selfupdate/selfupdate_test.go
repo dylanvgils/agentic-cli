@@ -1,16 +1,13 @@
 package selfupdate
 
 import (
-	"bytes"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -106,7 +103,7 @@ func Test_newReleaseFiles(t *testing.T) {
 	}, rel)
 }
 
-func Test_downloadRelease(t *testing.T) {
+func Test_updater_download(t *testing.T) {
 	// Arrange
 	binaryContent := []byte("#!/bin/sh\necho hello")
 	archiveBytes := makeTarGz(t, binaryContent)
@@ -119,14 +116,10 @@ func Test_downloadRelease(t *testing.T) {
 		ext:          ".tar.gz",
 	}
 	tmpDir := t.TempDir()
-
-	var buf bytes.Buffer
-	origDefault := logging.Log
-	logging.Log = logging.New(&buf)
-	t.Cleanup(func() { logging.Log = origDefault })
+	u, buf := newTestUpdater("")
 
 	// Act
-	path, err := downloadRelease(http.DefaultClient, rel, "", tmpDir)
+	path, err := u.download(rel, tmpDir)
 	require.NoError(t, err)
 
 	// Assert
@@ -185,7 +178,7 @@ func Test_installBinary(t *testing.T) {
 	})
 }
 
-func TestUpdateWith(t *testing.T) {
+func Test_updater_update(t *testing.T) {
 	binaryContent := []byte("#!/bin/sh\necho hello")
 
 	t.Run("downloads verifies and replaces binary", func(t *testing.T) {
@@ -196,7 +189,8 @@ func TestUpdateWith(t *testing.T) {
 		require.NoError(t, os.WriteFile(targetPath, []byte("old binary"), 0o755))
 
 		// Act
-		err := updateWith("v1.5.0", targetPath, srv.URL, "", http.DefaultClient)
+		u, _ := newTestUpdater("")
+		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
 		// Assert
 		require.NoError(t, err)
@@ -213,7 +207,8 @@ func TestUpdateWith(t *testing.T) {
 		targetPath := filepath.Join(t.TempDir(), "agentic")
 
 		// Act
-		err := updateWith("v1.5.0", targetPath, srv.URL, cosign, http.DefaultClient)
+		u, _ := newTestUpdater(cosign)
+		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
 		// Assert
 		require.NoError(t, err)
@@ -229,7 +224,8 @@ func TestUpdateWith(t *testing.T) {
 		require.NoError(t, os.WriteFile(targetPath, []byte("old binary"), 0o755))
 
 		// Act
-		err := updateWith("v1.5.0", targetPath, srv.URL, cosign, http.DefaultClient)
+		u, _ := newTestUpdater(cosign)
+		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
 		// Assert
 		assert.ErrorIs(t, err, ErrSignatureInvalid)
@@ -245,7 +241,8 @@ func TestUpdateWith(t *testing.T) {
 		targetPath := filepath.Join(t.TempDir(), "agentic")
 
 		// Act
-		err := updateWith("v1.5.0", targetPath, srv.URL, "", http.DefaultClient)
+		u, _ := newTestUpdater("")
+		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
 		// Assert
 		assert.ErrorIs(t, err, ErrChecksumMismatch)
@@ -258,7 +255,8 @@ func TestUpdateWith(t *testing.T) {
 		targetPath := filepath.Join(t.TempDir(), "agentic")
 
 		// Act
-		err := updateWith("v1.5.0", targetPath, srv.URL, "", http.DefaultClient)
+		u, _ := newTestUpdater("")
+		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
 		// Assert
 		assert.ErrorIs(t, err, ErrBinaryNotFound)
