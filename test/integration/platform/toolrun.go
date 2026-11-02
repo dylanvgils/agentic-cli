@@ -124,6 +124,12 @@ func (r *ToolRun) WithDefaultMemory() *ToolRun {
 	return r
 }
 
+// InNamespace runs the tool's image in namespace instead of the work dir's.
+func (r *ToolRun) InNamespace(namespace string) *ToolRun {
+	r.flags = append(r.flags, "--namespace", namespace)
+	return r
+}
+
 // WithVolume adds a --volume mount.
 func (r *ToolRun) WithVolume(spec string) *ToolRun {
 	r.flags = append(r.flags, "--volume", spec)

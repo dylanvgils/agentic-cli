@@ -23,6 +23,9 @@ const (
 	// ToolImage is the test tool's image.
 	ToolImage = Namespace + "-" + Tool
 
+	// LayersNamespace holds the test tool's image with every extra base layer, apart from the plain one the other tests run.
+	LayersNamespace = Namespace + "-layers"
+
 	// Differ from the defaults, so a limit inherited from the host can't pass as applied
 	PidsLimit = "321"
 	Memory    = "300m"
