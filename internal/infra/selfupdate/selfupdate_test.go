@@ -89,15 +89,35 @@ func TestIsNewer(t *testing.T) {
 	})
 }
 
+func Test_newReleaseFiles(t *testing.T) {
+	// Arrange
+	ext := archiveExt()
+	archiveName := fmt.Sprintf("%s-1.5.0-%s-%s%s", binaryName, runtime.GOOS, runtime.GOARCH, ext)
+
+	// Act
+	rel := newReleaseFiles("https://example.test/releases", "v1.5.0")
+
+	// Assert
+	assert.Equal(t, releaseFiles{
+		archiveName:  archiveName,
+		archiveURL:   "https://example.test/releases/v1.5.0/" + archiveName,
+		checksumsURL: "https://example.test/releases/v1.5.0/checksums.txt",
+		ext:          ext,
+	}, rel)
+}
+
 func Test_downloadRelease(t *testing.T) {
 	// Arrange
 	binaryContent := []byte("#!/bin/sh\necho hello")
 	archiveBytes := makeTarGz(t, binaryContent)
 	srv := stubReleaseServer(t, "v1.5.0", archiveBytes)
-	ext := ".tar.gz"
-	archiveName := fmt.Sprintf("%s-1.5.0-%s-%s%s", binaryName, runtime.GOOS, runtime.GOARCH, ext)
-	archiveURL := fmt.Sprintf("%s/v1.5.0/%s", srv.URL, archiveName)
-	checksumsURL := fmt.Sprintf("%s/v1.5.0/checksums.txt", srv.URL)
+	archiveName := testArchiveName("v1.5.0")
+	rel := releaseFiles{
+		archiveName:  archiveName,
+		archiveURL:   fmt.Sprintf("%s/v1.5.0/%s", srv.URL, archiveName),
+		checksumsURL: fmt.Sprintf("%s/v1.5.0/checksums.txt", srv.URL),
+		ext:          ".tar.gz",
+	}
 	tmpDir := t.TempDir()
 
 	var buf bytes.Buffer
@@ -106,7 +126,7 @@ func Test_downloadRelease(t *testing.T) {
 	t.Cleanup(func() { logging.Log = origDefault })
 
 	// Act
-	path, err := downloadRelease(http.DefaultClient, archiveURL, archiveName, checksumsURL, ext, "", tmpDir)
+	path, err := downloadRelease(http.DefaultClient, rel, "", tmpDir)
 	require.NoError(t, err)
 
 	// Assert

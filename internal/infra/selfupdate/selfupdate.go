@@ -32,6 +32,14 @@ var (
 // Releases fetches and installs agentic's GitHub releases.
 type Releases struct{}
 
+// releaseFiles locates one release's archive for this platform and its checksums.
+type releaseFiles struct {
+	archiveName  string
+	archiveURL   string
+	checksumsURL string
+	ext          string
+}
+
 // ShouldCheck reports whether enough time has passed since lastCheck to run another update check; nil (never checked) always returns true.
 func ShouldCheck(lastCheck *time.Time) bool {
 	if lastCheck == nil {
@@ -63,6 +71,20 @@ func (Releases) Update(version string) error {
 	return updateWith(version, execPath, releasesBaseURL, cosignPath(), http.DefaultClient)
 }
 
+// newReleaseFiles returns the location of version's archive for this platform under baseURL.
+func newReleaseFiles(baseURL, version string) releaseFiles {
+	semver := strings.TrimPrefix(version, "v")
+	ext := archiveExt()
+	archiveName := fmt.Sprintf("%s-%s-%s-%s%s", binaryName, semver, runtime.GOOS, runtime.GOARCH, ext)
+
+	return releaseFiles{
+		archiveName:  archiveName,
+		archiveURL:   fmt.Sprintf("%s/%s/%s", baseURL, version, archiveName),
+		checksumsURL: fmt.Sprintf("%s/%s/%s", baseURL, version, checksumFile),
+		ext:          ext,
+	}
+}
+
 // executablePath returns the running binary's path with symlinks resolved.
 func executablePath() (string, error) {
 	execPath, err := os.Executable()
@@ -80,19 +102,13 @@ func executablePath() (string, error) {
 
 // updateWith installs version from baseURL over targetPath; cosign is the cosign binary, or "" to skip the signature check.
 func updateWith(version, targetPath, baseURL, cosign string, client *http.Client) (err error) {
-	semver := strings.TrimPrefix(version, "v")
-	ext := archiveExt()
-	archiveName := fmt.Sprintf("%s-%s-%s-%s%s", binaryName, semver, runtime.GOOS, runtime.GOARCH, ext)
-	archiveURL := fmt.Sprintf("%s/%s/%s", baseURL, version, archiveName)
-	checksumsURL := fmt.Sprintf("%s/%s/%s", baseURL, version, checksumFile)
-
 	tmpDir, err := os.MkdirTemp("", "agentic-update-*")
 	if err != nil {
 		return fmt.Errorf("creating temp dir: %w", err)
 	}
 	defer cleanup.Capture(&err, func() error { return os.RemoveAll(tmpDir) })
 
-	newBinaryPath, err := downloadRelease(client, archiveURL, archiveName, checksumsURL, ext, cosign, tmpDir)
+	newBinaryPath, err := downloadRelease(client, newReleaseFiles(baseURL, version), cosign, tmpDir)
 	if err != nil {
 		return err
 	}
@@ -100,29 +116,30 @@ func updateWith(version, targetPath, baseURL, cosign string, client *http.Client
 	return installBinary(newBinaryPath, targetPath)
 }
 
-func downloadRelease(client *http.Client, archiveURL, archiveName, checksumsURL, ext, cosign, tmpDir string) (string, error) {
-	archivePath := filepath.Join(tmpDir, archiveName)
+// downloadRelease downloads and verifies rel into tmpDir and returns the extracted binary's path.
+func downloadRelease(client *http.Client, rel releaseFiles, cosign, tmpDir string) (string, error) {
+	archivePath := filepath.Join(tmpDir, rel.archiveName)
 	checksumsPath := filepath.Join(tmpDir, checksumFile)
 
-	if err := downloadFile(client, archiveURL, archivePath); err != nil {
+	if err := downloadFile(client, rel.archiveURL, archivePath); err != nil {
 		return "", fmt.Errorf("downloading archive: %w", err)
 	}
 
-	if err := downloadFile(client, checksumsURL, checksumsPath); err != nil {
+	if err := downloadFile(client, rel.checksumsURL, checksumsPath); err != nil {
 		return "", fmt.Errorf("downloading checksums: %w", err)
 	}
 
-	if err := checkSignature(client, cosign, checksumsURL, checksumsPath); err != nil {
+	if err := checkSignature(client, cosign, rel.checksumsURL, checksumsPath); err != nil {
 		return "", err
 	}
 
 	logging.Detail("verifying checksum...")
-	if err := verifyChecksum(archivePath, archiveName, checksumsPath); err != nil {
+	if err := verifyChecksum(archivePath, rel.archiveName, checksumsPath); err != nil {
 		return "", err
 	}
 
 	newBinaryPath := filepath.Join(tmpDir, binaryName)
-	if err := extractBinary(archivePath, ext, newBinaryPath); err != nil {
+	if err := extractBinary(archivePath, rel.ext, newBinaryPath); err != nil {
 		return "", fmt.Errorf("extracting binary: %w", err)
 	}
 
