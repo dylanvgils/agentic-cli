@@ -5,6 +5,7 @@ var layerPackages = map[string][]string{
 	"base":   {"curl", "wget", "git", "gpg", "ca-certificates", "tzdata", "jq", "python3"},
 	"dotnet": {"apt-transport-https"},
 	"java":   {"apt-transport-https"},
+	"node":   {"libatomic1"},
 }
 
 // BasePackages returns the apt packages installed on every image, regardless of extras or user configuration.

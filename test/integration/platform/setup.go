@@ -5,9 +5,11 @@ package platform
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -26,6 +28,9 @@ const (
 
 	// microsandboxEnv makes a missing msb fail MicrosandboxMain instead of skipping, as make test-integration-msb does.
 	microsandboxEnv = "AGENTIC_ITEST_MICROSANDBOX"
+
+	// progressInterval is how often runParallel prints the steps still running.
+	progressInterval = 30 * time.Second
 )
 
 // step is one setup phase, timed in the output.
@@ -146,11 +151,16 @@ func envSteps() []step {
 	}
 }
 
-// imageSteps build every tool's image, for the smoke tests, and the proxy image, in parallel.
+// imageSteps build every tool's image and the test tool's with every extra layer, for the smoke tests, and the proxy
+// image, in parallel.
 func imageSteps() []step {
+	extras := strings.Join(tools.KnownExtras(), ",")
 	builds := []step{
 		// Otherwise a proxy image from older source would run the proxy tests
 		{"agentic-proxy", func() error { return runAgentic("proxy", "build") }},
+		{LayersNamespace + "-" + Tool, func() error {
+			return runAgentic("build", "--namespace", LayersNamespace, "--base", extras, Tool)
+		}},
 	}
 	for _, name := range tools.Names() {
 		// Cached after the first run
@@ -178,21 +188,47 @@ func runSteps(steps []step) error {
 	return nil
 }
 
-// runParallel runs steps concurrently, printing how long each took, and returns their errors joined.
+// runParallel runs steps concurrently, printing how long each took and, every progressInterval, the ones still running,
+// and returns their errors joined.
 func runParallel(steps []step) error {
 	errs := make([]error, len(steps))
+	running := make(map[string]bool, len(steps))
+	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for i, s := range steps {
+		running[s.name] = true
 		wg.Go(func() {
 			start := time.Now()
-			if errs[i] = s.run(); errs[i] == nil {
+			errs[i] = s.run()
+
+			mu.Lock()
+			defer mu.Unlock()
+			delete(running, s.name)
+			if errs[i] == nil {
 				fmt.Printf("   %s done in %s\n", s.name, time.Since(start).Round(time.Millisecond))
 			}
 		})
 	}
 
-	wg.Wait()
-	return errors.Join(errs...)
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	start := time.Now()
+	ticker := time.NewTicker(progressInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-done:
+			return errors.Join(errs...)
+		case <-ticker.C:
+			mu.Lock()
+			names := slices.Sorted(maps.Keys(running))
+			mu.Unlock()
+			fmt.Printf("   still running after %s: %s\n", time.Since(start).Round(time.Second), strings.Join(names, ", "))
+		}
+	}
 }
 
 // buildBinary builds the agentic binary from this checkout.

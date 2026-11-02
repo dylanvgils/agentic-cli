@@ -1,7 +1,7 @@
 //go:build integration
 
-// Package tools smoke-tests every tool's image.
-package tools
+// Package images smoke-tests every tool's image and every extra base layer.
+package images
 
 import (
 	"os"
