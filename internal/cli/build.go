@@ -8,18 +8,18 @@ import (
 )
 
 var buildCmd = &cobra.Command{
-	Use:   "build [tool]",
+	Use:   "build <tool|--all>",
 	Short: "Build tool image(s)",
-	Long:  "Build tool image(s). Builds all tools if no tool specified.",
-	Example: `  agentic build
-  agentic build claude
+	Long:  "Build a tool image, or every tool's image with --all.",
+	Example: `  agentic build claude
+  agentic build --all
   agentic build claude --base node
   agentic build claude --base node,java
   agentic build claude --base node --node 22
   agentic build claude --base java --java 17
   agentic build claude --base-exact node
   agentic build claude --apt-exact make,gcc`,
-	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
+	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs, requireArgOrAll("tool"), argOrAllExclusive),
 	ValidArgs: tools.Names(),
 	RunE:      runBuild,
 }
@@ -32,6 +32,7 @@ func init() {
 
 	addBuildFlags(buildCmd)
 	addNamespaceFlag(buildCmd)
+	addAllFlag(buildCmd, "build every tool")
 }
 
 func runBuild(cmd *cobra.Command, args []string) error {
@@ -43,7 +44,10 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	namespace := resolveNamespace(cmd, rc)
 	opts := buildOptsFromFlags(cmd, rc)
 	dryRun, _ := cmd.Flags().GetBool(dryRunFlagName)
-	names := toolNames(args)
+	names := args
+	if all, _ := cmd.Flags().GetBool(allFlagName); all {
+		names = tools.Names()
+	}
 
 	warnSkipInstallChecksum(opts)
 

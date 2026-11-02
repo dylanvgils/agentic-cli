@@ -99,7 +99,7 @@ Each image stores its resolved versions and apt list as labels (`agentic.version
 
 ## Docker-in-Docker sidecar image
 
-`agentic run --dind` builds the global `agentic-dind` image lazily (`ensureDind` in `internal/usecase/sidecar`) from `tools.GenerateDindDockerfile` (see [Image](docker-in-docker.md#how-it-stays-isolated)). It always builds with `--pull` and is rebuilt when missing, built by another CLI version, or older than 7 days (`tools.DindImageMaxAge`). `agentic clean` removes it.
+`agentic run --dind` builds the global `agentic-dind` image lazily (`ensureDind` in `internal/usecase/sidecar`) from `tools.GenerateDindDockerfile` (see [Image](docker-in-docker.md#how-it-stays-isolated)). It always builds with `--pull` and is rebuilt when missing, built by another CLI version, or older than 7 days (`tools.DindImageMaxAge`). `agentic clean --all` removes it.
 
 The sidecar's seccomp profile is derived at run time (`deriveSeccompProfile`) from Docker's default profile, vendored verbatim in `internal/runtime/dind/seccomp_default.json`. To refresh it, re-copy `seccomp/default.json` from [moby/profiles](https://github.com/moby/profiles) and update the commit noted on `seccompDefault`; `Test_deriveSeccompProfile` checks the derived rules still hold.
 

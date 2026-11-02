@@ -34,13 +34,10 @@ type Target struct {
 
 // Scope describes which tools/images Resolve should target.
 type Scope struct {
-	// Names is the tool name list to resolve in scoped mode, already expanded to every known tool when none was given.
-	Names   []string
-	HasArgs bool
-	// FilterTool narrows an --all resolve to one tool; empty means every tool.
-	FilterTool string
-	Namespace  string
-	All        bool
+	// Tool is the tool to resolve in Namespace, or the one tool an All resolve narrows to (empty means every tool).
+	Tool      string
+	Namespace string
+	All       bool
 }
 
 // New returns a Service that talks to Docker through d, looks up the latest tool versions through u and keeps custom
@@ -49,14 +46,17 @@ func New(d Docker, u Upstream, home string) *Service {
 	return &Service{docker: d, upstream: u, home: home}
 }
 
-// Resolve returns the update targets for scope: every image across all namespaces (All), or the named tools in one namespace,
-// plus the images skipped because they were never built (scoped mode without tool args only).
-func (s *Service) Resolve(scope Scope, opts tools.BuildOptions, pullExplicit bool) (targets []Target, skipped []string, err error) {
+// Resolve returns the update targets for scope: every image across all namespaces (All), or the tool in one namespace.
+func (s *Service) Resolve(scope Scope, opts tools.BuildOptions, pullExplicit bool) ([]Target, error) {
 	if scope.All {
-		targets, err = s.resolveAll(scope.FilterTool, opts, pullExplicit)
-		return targets, nil, err
+		return s.resolveAll(scope.Tool, opts, pullExplicit)
 	}
-	return s.resolveScoped(scope.Names, scope.HasArgs, scope.Namespace, opts, pullExplicit)
+
+	target, err := s.resolveTool(scope.Tool, scope.Namespace, opts, pullExplicit)
+	if err != nil {
+		return nil, err
+	}
+	return []Target{target}, nil
 }
 
 // DryRun prints the generated Dockerfile for tool instead of building it, recovering build options from the existing image's labels first.
@@ -163,35 +163,25 @@ func (s *Service) resolveAll(filterTool string, opts tools.BuildOptions, pullExp
 	return targets, nil
 }
 
-func (s *Service) resolveScoped(names []string, hasArgs bool, namespace string, opts tools.BuildOptions, pullExplicit bool) (targets []Target, skipped []string, err error) {
-	skipUnbuilt := !hasArgs
-
-	for _, name := range names {
-		image, err := tools.ImageName(name, namespace)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		info, err := s.docker.InspectImage(image)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if skipUnbuilt && info == nil {
-			skipped = append(skipped, image)
-			continue
-		}
-
-		toolOpts := opts
-		if info != nil {
-			toolOpts = recoverOpts(s.home, info, opts)
-		}
-		toolOpts = applyPullThrottle(toolOpts, info, pullExplicit)
-
-		targets = append(targets, Target{Name: name, Image: image, Opts: toolOpts})
+// resolveTool returns name's target in namespace, recovering its build options when the image is built.
+func (s *Service) resolveTool(name, namespace string, opts tools.BuildOptions, pullExplicit bool) (Target, error) {
+	image, err := tools.ImageName(name, namespace)
+	if err != nil {
+		return Target{}, err
 	}
 
-	return targets, skipped, nil
+	info, err := s.docker.InspectImage(image)
+	if err != nil {
+		return Target{}, err
+	}
+
+	toolOpts := opts
+	if info != nil {
+		toolOpts = recoverOpts(s.home, info, opts)
+	}
+	toolOpts = applyPullThrottle(toolOpts, info, pullExplicit)
+
+	return Target{Name: name, Image: image, Opts: toolOpts}, nil
 }
 
 // rebuild restamps an up-to-date image, or rebuilds it with base/version/apt recovered from info's labels.

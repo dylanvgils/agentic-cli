@@ -59,16 +59,6 @@ func inspectReturns(info *docker.ImageInfo, err error) func(string) (*docker.Ima
 	return func(string) (*docker.ImageInfo, error) { return info, err }
 }
 
-// inspectSequence returns an InspectImage func that yields results in order, repeating the last one.
-func inspectSequence(results ...*docker.ImageInfo) func(string) (*docker.ImageInfo, error) {
-	call := 0
-	return func(string) (*docker.ImageInfo, error) {
-		idx := min(call, len(results)-1)
-		call++
-		return results[idx], nil
-	}
-}
-
 // fakeUpstream implements Upstream, returning latest, newer and ok and counting the calls.
 type fakeUpstream struct {
 	latest string

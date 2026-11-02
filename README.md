@@ -60,9 +60,9 @@ See [First run](docs/usage.md#first-run) for the trust prompt and signing in, an
 | Command                | Description                                            |
 | ---------------------- | ------------------------------------------------------ |
 | `run <tool> [args...]` | Run a tool in an isolated container                    |
-| `build [tool]`         | Build tool image(s)                                    |
-| `update [tool]`        | Update tool image(s) to the latest tool version        |
-| `clean [tool]`         | Remove tool image(s), or everything agentic created    |
+| `build <tool\|--all>`  | Build tool image(s)                                    |
+| `update <tool\|--all>` | Update tool image(s) to the latest tool version        |
+| `clean <tool\|--all>`  | Remove tool image(s), or everything agentic created    |
 | `images`               | List built images                                      |
 | `inspect <tool>`       | Show what's in a tool's image                          |
 | `config`               | Show the merged configuration                          |

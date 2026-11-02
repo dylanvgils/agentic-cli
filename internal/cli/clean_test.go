@@ -19,15 +19,22 @@ func Test_runClean(t *testing.T) {
 	// Keep a host msb's images out of the test
 	stubMicrosandbox(t, &fakeMicrosandbox{})
 
-	t.Run("cleans images and global resources when no args", func(t *testing.T) {
+	t.Run("cleans images and global resources with all and no tool", func(t *testing.T) {
 		// Arrange - confirms runClean wires clean.Resolve -> clean.Apply -> clean.GlobalResources
-		// together when no tool arg is given; output formatting and per-target cleanup mechanics
+		// together for a bare --all; output formatting and per-target cleanup mechanics
 		// are covered by internal/usecase/clean's own tests.
 		t.Chdir(t.TempDir())
 		logBuf := stubErrLog(t)
 		var cleaned []string
 		basesCleaned := false
 		stubDocker(t, &fakeDocker{
+			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+				return []*docker.ImageInfo{
+					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+					{Image: "agentic-copilot", Namespace: "agentic", Tool: "copilot"},
+					{Image: "work-claude", Namespace: "work", Tool: "claude"},
+				}, nil
+			},
 			cleanImage: func(image string) error {
 				cleaned = append(cleaned, image)
 				return nil
@@ -44,9 +51,11 @@ func Test_runClean(t *testing.T) {
 				return nil
 			},
 		})
+		cmd := newTestCleanCmd()
+		require.NoError(t, cmd.Flags().Set(allFlagName, "true"))
 
 		// Act
-		err := runClean(newTestCleanCmd(), []string{})
+		err := runClean(cmd, []string{})
 
 		// Assert
 		require.NoError(t, err)
@@ -98,13 +107,13 @@ func Test_runClean(t *testing.T) {
 		})
 
 		// Act
-		err := runClean(newTestCleanCmd(), []string{})
+		err := runClean(newTestCleanCmd(), []string{"claude"})
 
 		// Assert
 		require.Error(t, err)
 	})
 
-	t.Run("args present skips global resources", func(t *testing.T) {
+	t.Run("a tool skips global resources, even with all", func(t *testing.T) {
 		// Arrange
 		basesCleaned := false
 		stubDocker(t, &fakeDocker{
@@ -113,9 +122,11 @@ func Test_runClean(t *testing.T) {
 				return nil
 			},
 		})
+		cmd := newTestCleanCmd()
+		require.NoError(t, cmd.Flags().Set(allFlagName, "true"))
 
 		// Act
-		err := runClean(newTestCleanCmd(), []string{"claude"})
+		err := runClean(cmd, []string{"claude"})
 
 		// Assert
 		require.NoError(t, err)

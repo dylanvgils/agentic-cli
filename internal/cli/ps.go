@@ -30,7 +30,7 @@ func init() {
 	rootCmd.AddCommand(psCmd)
 
 	addNamespaceFlag(psCmd)
-	addAllFlag(psCmd)
+	addAllFlag(psCmd, allNamespacesUsage)
 }
 
 func runPs(cmd *cobra.Command, _ []string) error {
@@ -40,7 +40,7 @@ func runPs(cmd *cobra.Command, _ []string) error {
 	}
 
 	namespace := resolveNamespace(cmd, rc)
-	if all, _ := cmd.Flags().GetBool("all"); all {
+	if all, _ := cmd.Flags().GetBool(allFlagName); all {
 		namespace = ""
 	}
 

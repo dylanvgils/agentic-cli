@@ -60,7 +60,7 @@ func init() {
 
 	for _, cmd := range []*cobra.Command{imageListCmd, imagesCmd} {
 		addNamespaceFlag(cmd)
-		addAllFlag(cmd)
+		addAllFlag(cmd, allNamespacesUsage)
 	}
 }
 
@@ -71,7 +71,7 @@ func runImageList(cmd *cobra.Command, _ []string) error {
 	}
 
 	namespace := resolveNamespace(cmd, rc)
-	if all, _ := cmd.Flags().GetBool("all"); all {
+	if all, _ := cmd.Flags().GetBool(allFlagName); all {
 		namespace = ""
 	}
 	return runImageTable(namespace)

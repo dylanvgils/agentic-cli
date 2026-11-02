@@ -46,7 +46,7 @@ func init() {
 	rootCmd.AddCommand(inspectCmd)
 
 	addNamespaceFlag(inspectCmd)
-	addAllFlag(inspectCmd)
+	addAllFlag(inspectCmd, allNamespacesUsage)
 }
 
 func runInspect(cmd *cobra.Command, args []string) error {
@@ -62,7 +62,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if all, _ := cmd.Flags().GetBool("all"); all {
+	if all, _ := cmd.Flags().GetBool(allFlagName); all {
 		return printAllNamespaceDetail(tool)
 	}
 

@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -135,7 +134,14 @@ func Test_runUpdate(t *testing.T) {
 				return fmt.Errorf("fail on %s", tool)
 			},
 			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
+			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+				return []*docker.ImageInfo{
+					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+					{Image: "agentic-copilot", Namespace: "agentic", Tool: "copilot"},
+				}, nil
+			},
 		})
+		stubFlag(t, updateCmd, allFlagName, "true")
 
 		// Act
 		err := runUpdate(updateCmd, []string{})
@@ -145,11 +151,10 @@ func Test_runUpdate(t *testing.T) {
 		assert.Len(t, updated, 1)
 	})
 
-	t.Run("no tools built prints message", func(t *testing.T) {
+	t.Run("all without images prints message", func(t *testing.T) {
 		// Arrange
-		stubDocker(t, &fakeDocker{
-			inspectImage: inspectReturns(nil, nil),
-		})
+		stubDocker(t, &fakeDocker{})
+		stubFlag(t, updateCmd, allFlagName, "true")
 		logBuf := stubErrLog(t)
 
 		// Act
@@ -157,32 +162,7 @@ func Test_runUpdate(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, logBuf.String(), "agentic: no tools are built")
-	})
-
-	t.Run("unbuilt tools are listed as skipped after the summary", func(t *testing.T) {
-		// Arrange
-		logBuf := stubLogs(t)
-		stubDocker(t, &fakeDocker{
-			inspectImage: func(image string) (*docker.ImageInfo, error) {
-				if strings.HasSuffix(image, "-claude") {
-					return &docker.ImageInfo{Version: "1.0.0"}, nil
-				}
-				return nil, nil
-			},
-		})
-
-		// Act
-		err := runUpdate(updateCmd, []string{})
-
-		// Assert
-		require.NoError(t, err)
-		out := logBuf.String()
-		summary := strings.Index(out, "agentic: updating 1 image(s): ")
-		skipped := strings.Index(out, "-copilot (skipped - not built)")
-		require.NotEqual(t, -1, summary)
-		require.NotEqual(t, -1, skipped)
-		assert.Less(t, summary, skipped, "skipped lines follow the summary")
+		assert.Contains(t, logBuf.String(), "agentic: no agentic images found")
 	})
 
 	t.Run("all flag updates all images", func(t *testing.T) {
@@ -204,7 +184,7 @@ func Test_runUpdate(t *testing.T) {
 		})
 
 		cmd := updateCmd
-		stubFlag(t, cmd, "all", "true")
+		stubFlag(t, cmd, allFlagName, "true")
 
 		// Act
 		err := runUpdate(cmd, []string{})
@@ -266,52 +246,16 @@ func Test_runUpdate(t *testing.T) {
 	})
 }
 
-func Test_logNothingToUpdate(t *testing.T) {
-	t.Run("all says no images are found", func(t *testing.T) {
-		// Arrange
-		logBuf := stubErrLog(t)
-
-		// Act
-		logNothingToUpdate(update.Scope{All: true})
-
-		// Assert
-		assert.Contains(t, logBuf.String(), "no agentic images found")
-	})
-
-	t.Run("no args says no tools are built", func(t *testing.T) {
-		// Arrange
-		logBuf := stubErrLog(t)
-
-		// Act
-		logNothingToUpdate(update.Scope{})
-
-		// Assert
-		assert.Contains(t, logBuf.String(), "no tools are built")
-	})
-
-	t.Run("a named tool says nothing", func(t *testing.T) {
-		// Arrange
-		logBuf := stubErrLog(t)
-
-		// Act
-		logNothingToUpdate(update.Scope{HasArgs: true})
-
-		// Assert
-		assert.Empty(t, logBuf.String())
-	})
-}
-
 func Test_logUpdateSummary(t *testing.T) {
 	// Arrange
 	logBuf := stubLogs(t)
 	targets := []update.Target{{Name: "claude", Image: "agentic-claude"}, {Name: "copilot", Image: "agentic-copilot"}}
 
 	// Act
-	logUpdateSummary(targets, []string{"agentic-opencode"})
+	logUpdateSummary(targets)
 
 	// Assert
 	assert.Contains(t, logBuf.String(), "updating 2 image(s): agentic-claude, agentic-copilot")
-	assert.Contains(t, logBuf.String(), "agentic-opencode (skipped - not built)")
 }
 
 // Test_updateOptsFromFlags only checks which flags count as given; the rule itself is covered by TestUpdateOptions in internal/usecase/resolve.

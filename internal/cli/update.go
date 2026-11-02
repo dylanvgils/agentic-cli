@@ -12,22 +12,23 @@ import (
 )
 
 var updateCmd = &cobra.Command{
-	Use:   "update [tool]",
+	Use:   "update <tool|--all>",
 	Short: "Update tool image(s) to latest version",
 	Long: "Update tool image(s) to latest version. Checks the latest version available\n" +
 		"upstream first and rebuilds the tool step without cache if it's newer, so the\n" +
 		"installer fetches the latest version. Also pulls fresh base images, at most\n" +
 		"once every 24h per image (--pull=false to skip, --pull to force a check now).\n" +
-		"Skips unbuilt tools when no tool specified.",
-	Example: `  agentic update
-  agentic update claude
+		"--all updates every agentic image in every namespace.",
+	Example: `  agentic update claude
+  agentic update --all
+  agentic update claude --all
   agentic update claude --base java
   agentic update claude --base java,dotnet
   agentic update claude --base-exact node
   agentic update claude --apt-exact make,gcc
   agentic update claude --no-cache
   agentic update claude --pull=false`,
-	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
+	Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs, requireArgOrAll("tool")),
 	ValidArgs: tools.Names(),
 	RunE:      runUpdate,
 }
@@ -40,7 +41,7 @@ func init() {
 
 	addBuildFlags(updateCmd)
 	addNamespaceFlag(updateCmd)
-	addAllFlag(updateCmd)
+	addAllFlag(updateCmd, "update every image in every namespace, or the tool's image in every namespace")
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
@@ -59,26 +60,25 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return svc.DryRun(firstArg(args), namespace, opts)
 	}
 
-	all, _ := cmd.Flags().GetBool("all")
+	all, _ := cmd.Flags().GetBool(allFlagName)
 	scope := update.Scope{
-		Names:      toolNames(args),
-		HasArgs:    len(args) > 0,
-		FilterTool: firstArg(args),
-		Namespace:  namespace,
-		All:        all,
+		Tool:      firstArg(args),
+		Namespace: namespace,
+		All:       all,
 	}
 
-	targets, skipped, err := svc.Resolve(scope, opts, cmd.Flags().Changed("pull"))
+	targets, err := svc.Resolve(scope, opts, cmd.Flags().Changed("pull"))
 	if err != nil {
 		return err
 	}
 
+	// Only --all can match nothing; a named tool always resolves to its image
 	if len(targets) == 0 {
-		logNothingToUpdate(scope)
+		logging.Infof("no agentic images found; run 'agentic build' first")
 		return nil
 	}
 
-	logUpdateSummary(targets, skipped)
+	logUpdateSummary(targets)
 	return svc.ApplyAll(targets)
 }
 
@@ -90,25 +90,12 @@ func updateOptsFromFlags(cmd *cobra.Command, rc *config.AgenticRC) tools.BuildOp
 	return resolve.UpdateOptions(buildInput(cmd), baseSet, aptSet, rc)
 }
 
-// logNothingToUpdate explains why scope matched nothing; a named tool that isn't built says nothing.
-func logNothingToUpdate(scope update.Scope) {
-	switch {
-	case scope.All:
-		logging.Infof("no agentic images found; run 'agentic build' first")
-	case !scope.HasArgs:
-		logging.Infof("no tools are built; run 'agentic build' first")
-	}
-}
-
-// logUpdateSummary prints the summary line of images to update, then each unbuilt image that was skipped.
-func logUpdateSummary(targets []update.Target, skipped []string) {
+// logUpdateSummary prints the summary line of images to update.
+func logUpdateSummary(targets []update.Target) {
 	images := make([]string, len(targets))
 	for i, t := range targets {
 		images[i] = t.Image
 	}
 
 	logging.Infof("updating %d image(s): %s", len(images), strings.Join(images, ", "))
-	for _, image := range skipped {
-		logging.Stepf("%s (skipped - not built)", image)
-	}
 }

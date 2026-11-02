@@ -23,12 +23,10 @@ type Target struct {
 
 // Scope describes which tool images Resolve should target.
 type Scope struct {
-	// Names is the tool name list to resolve in scoped mode, already expanded to every known tool when none was given.
-	Names []string
-	// FilterTool narrows an --all resolve to one tool; empty means every tool.
-	FilterTool string
-	Namespace  string
-	All        bool
+	// Tool is the tool to resolve in Namespace, or the one tool an All resolve narrows to (empty means every tool).
+	Tool      string
+	Namespace string
+	All       bool
 }
 
 // New returns a Service that cleans agentic state under home, and tool images from Docker and the other runtimes.
@@ -36,12 +34,17 @@ func New(home string, d Docker, runtimes ...ImageCleaner) *Service {
 	return &Service{docker: d, runtimes: runtimes, home: home}
 }
 
-// Resolve returns the clean targets for scope: every agentic image across all namespaces (All), or the named tools in one namespace.
+// Resolve returns the clean targets for scope: every agentic image across all namespaces (All), or the tool in one namespace.
 func (s *Service) Resolve(scope Scope) ([]Target, error) {
 	if scope.All {
-		return s.resolveAll(scope.FilterTool)
+		return s.resolveAll(scope.Tool)
 	}
-	return resolveScoped(scope.Names, scope.Namespace)
+
+	image, err := tools.ImageName(scope.Tool, scope.Namespace)
+	if err != nil {
+		return nil, err
+	}
+	return []Target{{Label: image, Image: image}}, nil
 }
 
 // Apply removes each target's image from Docker and every other runtime, reporting progress, then the stored custom installs no image uses anymore.
@@ -227,20 +230,6 @@ func (s *Service) pruneCustomInstalls(before map[string]bool) {
 			_ = config.RemoveCustomInstalls(s.home, hash)
 		}
 	}
-}
-
-func resolveScoped(names []string, namespace string) ([]Target, error) {
-	targets := make([]Target, 0, len(names))
-
-	for _, name := range names {
-		image, err := tools.ImageName(name, namespace)
-		if err != nil {
-			return nil, err
-		}
-		targets = append(targets, Target{Label: image, Image: image})
-	}
-
-	return targets, nil
 }
 
 // stepImage reports the image under label, marked as kept when a running container uses it; returns inUse.

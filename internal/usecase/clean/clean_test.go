@@ -41,7 +41,7 @@ func TestResolve(t *testing.T) {
 		}
 
 		// Act
-		targets, err := New(t.TempDir(), d).Resolve(Scope{All: true, FilterTool: "claude"})
+		targets, err := New(t.TempDir(), d).Resolve(Scope{All: true, Tool: "claude"})
 
 		// Assert
 		require.NoError(t, err)
@@ -49,21 +49,9 @@ func TestResolve(t *testing.T) {
 		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, capturedFilters)
 	})
 
-	t.Run("scoped resolve dispatches to resolveScoped", func(t *testing.T) {
+	t.Run("single tool resolves to its image in the namespace", func(t *testing.T) {
 		// Act
-		targets, err := New(t.TempDir(), &fakeDocker{}).Resolve(Scope{Names: []string{"claude"}, Namespace: "agentic"})
-
-		// Assert
-		require.NoError(t, err)
-		require.Len(t, targets, 1)
-		assert.Equal(t, "agentic-claude", targets[0].Image)
-	})
-}
-
-func Test_resolveScoped(t *testing.T) {
-	t.Run("known tool resolves to a target", func(t *testing.T) {
-		// Act
-		targets, err := resolveScoped([]string{"claude"}, "agentic")
+		targets, err := New(t.TempDir(), &fakeDocker{}).Resolve(Scope{Tool: "claude", Namespace: "agentic"})
 
 		// Assert
 		require.NoError(t, err)
@@ -74,7 +62,7 @@ func Test_resolveScoped(t *testing.T) {
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		_, err := resolveScoped([]string{"nonexistent"}, "agentic")
+		_, err := New(t.TempDir(), &fakeDocker{}).Resolve(Scope{Tool: "nonexistent", Namespace: "agentic"})
 
 		// Assert
 		require.Error(t, err)

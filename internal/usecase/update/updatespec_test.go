@@ -109,7 +109,7 @@ func TestResolve(t *testing.T) {
 		}}
 
 		// Act
-		targets, _, err := New(d, &fakeUpstream{}, t.TempDir()).Resolve(Scope{All: true, FilterTool: "claude"}, tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, err := New(d, &fakeUpstream{}, t.TempDir()).Resolve(Scope{All: true, Tool: "claude"}, tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -117,12 +117,12 @@ func TestResolve(t *testing.T) {
 		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, capturedFilters)
 	})
 
-	t.Run("scoped resolve dispatches to resolveScoped", func(t *testing.T) {
+	t.Run("single tool resolve dispatches to resolveTool", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{inspectImage: inspectReturns(nil, nil)}
 
 		// Act
-		targets, _, err := New(d, &fakeUpstream{}, t.TempDir()).Resolve(Scope{Names: []string{"claude"}, HasArgs: true, Namespace: "agentic"}, tools.BuildOptions{Versions: map[string]string{}}, true)
+		targets, err := New(d, &fakeUpstream{}, t.TempDir()).Resolve(Scope{Tool: "claude", Namespace: "agentic"}, tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
@@ -131,34 +131,30 @@ func TestResolve(t *testing.T) {
 	})
 }
 
-func Test_resolveScoped(t *testing.T) {
-	t.Run("single tool always included even if unbuilt", func(t *testing.T) {
+func Test_resolveTool(t *testing.T) {
+	t.Run("unbuilt tool is included", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{inspectImage: inspectReturns(nil, nil)}
 
 		// Act
-		targets, _, err := New(d, &fakeUpstream{}, t.TempDir()).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		target, err := New(d, &fakeUpstream{}, t.TempDir()).resolveTool("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
-		require.Len(t, targets, 1)
-		assert.Equal(t, "claude", targets[0].Name)
+		assert.Equal(t, "claude", target.Name)
+		assert.Equal(t, "agentic-claude", target.Image)
 	})
 
-	t.Run("mixed built recovers opts for built tools and reports unbuilt ones as skipped", func(t *testing.T) {
-		// Arrange - first tool not built, remaining tools return this built image
-		d := &fakeDocker{inspectImage: inspectSequence(nil, &docker.ImageInfo{Version: "1.0.0", Base: "node@24,java@21"})}
+	t.Run("built tool recovers its build options", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0", Base: "node@24,java@21"}, nil)}
 
 		// Act
-		targets, skipped, err := New(d, &fakeUpstream{}, t.TempDir()).resolveScoped(tools.Names(), false, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		target, err := New(d, &fakeUpstream{}, t.TempDir()).resolveTool("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Len(t, targets, len(tools.Names())-1)
-		assert.NotEmpty(t, targets[0].Opts.BaseOverride)
-		unbuilt, err := tools.ImageName(tools.Names()[0], "agentic")
-		require.NoError(t, err)
-		assert.Equal(t, []string{unbuilt}, skipped)
+		assert.NotEmpty(t, target.Opts.BaseOverride)
 	})
 
 	t.Run("inspectImage error propagates", func(t *testing.T) {
@@ -166,7 +162,7 @@ func Test_resolveScoped(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(nil, fmt.Errorf("daemon not running"))}
 
 		// Act
-		_, _, err := New(d, &fakeUpstream{}, t.TempDir()).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		_, err := New(d, &fakeUpstream{}, t.TempDir()).resolveTool("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.Error(t, err)
@@ -174,7 +170,7 @@ func Test_resolveScoped(t *testing.T) {
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		_, _, err := New(&fakeDocker{}, &fakeUpstream{}, t.TempDir()).resolveScoped([]string{"nonexistent"}, true, "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
+		_, err := New(&fakeDocker{}, &fakeUpstream{}, t.TempDir()).resolveTool("nonexistent", "agentic", tools.BuildOptions{Versions: map[string]string{}}, true)
 
 		// Assert
 		require.Error(t, err)
@@ -187,12 +183,11 @@ func Test_resolveScoped(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Pulled: freshLabel}, nil)}
 
 		// Act - pullExplicit is false, so the fresh label should disable Pull
-		targets, _, err := New(d, &fakeUpstream{}, t.TempDir()).resolveScoped([]string{"claude"}, true, "agentic", tools.BuildOptions{Pull: true, Versions: map[string]string{}}, false)
+		target, err := New(d, &fakeUpstream{}, t.TempDir()).resolveTool("claude", "agentic", tools.BuildOptions{Pull: true, Versions: map[string]string{}}, false)
 
 		// Assert
 		require.NoError(t, err)
-		require.Len(t, targets, 1)
-		assert.False(t, targets[0].Opts.Pull)
+		assert.False(t, target.Opts.Pull)
 	})
 }
 
