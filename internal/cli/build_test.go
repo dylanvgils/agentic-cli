@@ -68,6 +68,24 @@ func Test_runBuild(t *testing.T) {
 		assert.True(t, capturedOpts.Pull)
 	})
 
+	t.Run("all flag builds every tool", func(t *testing.T) {
+		// Arrange
+		var built []string
+		stubDocker(t, &fakeDocker{buildTool: func(tool, _ string, _ tools.BuildOptions) error {
+			built = append(built, tool)
+			return nil
+		}})
+
+		stubFlag(t, buildCmd, allFlagName, "true")
+
+		// Act
+		err := runBuild(buildCmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, tools.Names(), built)
+	})
+
 	t.Run("dry run flag prints dockerfile and skips build", func(t *testing.T) {
 		// Arrange
 		var buildCalled bool

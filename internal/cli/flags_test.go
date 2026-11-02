@@ -195,21 +195,71 @@ func Test_buildOptsFromFlags(t *testing.T) {
 	})
 }
 
-func Test_toolNames(t *testing.T) {
-	t.Run("no args returns all tools", func(t *testing.T) {
+func Test_requireArgOrAll(t *testing.T) {
+	validate := requireArgOrAll("tool")
+
+	t.Run("no arg and no all is refused", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{}
+		addAllFlag(cmd, "")
+
 		// Act
-		result := toolNames([]string{})
+		err := validate(cmd, nil)
 
 		// Assert
-		assert.Equal(t, []string{"claude", "copilot", "opencode"}, result)
+		assert.EqualError(t, err, "specify a tool or --all")
 	})
 
-	t.Run("single arg returns that tool", func(t *testing.T) {
+	t.Run("an arg passes", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{}
+		addAllFlag(cmd, "")
+
 		// Act
-		result := toolNames([]string{"claude"})
+		err := validate(cmd, []string{"claude"})
 
 		// Assert
-		assert.Equal(t, []string{"claude"}, result)
+		require.NoError(t, err)
+	})
+
+	t.Run("all passes", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{}
+		addAllFlag(cmd, "")
+		require.NoError(t, cmd.Flags().Set(allFlagName, "true"))
+
+		// Act
+		err := validate(cmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+	})
+}
+
+func Test_argOrAllExclusive(t *testing.T) {
+	t.Run("an arg with all is refused", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{}
+		addAllFlag(cmd, "")
+		require.NoError(t, cmd.Flags().Set(allFlagName, "true"))
+
+		// Act
+		err := argOrAllExclusive(cmd, []string{"claude"})
+
+		// Assert
+		assert.EqualError(t, err, "an argument and --all can't be used together")
+	})
+
+	t.Run("an arg alone passes", func(t *testing.T) {
+		// Arrange
+		cmd := &cobra.Command{}
+		addAllFlag(cmd, "")
+
+		// Act
+		err := argOrAllExclusive(cmd, []string{"claude"})
+
+		// Assert
+		require.NoError(t, err)
 	})
 }
 

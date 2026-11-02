@@ -29,10 +29,10 @@ var volumeListCmd = &cobra.Command{
 }
 
 var volumeRemoveCmd = &cobra.Command{
-	Use:               "remove [name]",
+	Use:               "remove <name|--all>",
 	Aliases:           []string{"rm"},
-	Short:             "Remove an agentic-managed volume, or all if no name given",
-	Args:              cobra.MaximumNArgs(1),
+	Short:             "Remove an agentic-managed volume, or all of them with --all",
+	Args:              cobra.MatchAll(cobra.MaximumNArgs(1), requireArgOrAll("volume name"), argOrAllExclusive),
 	RunE:              runVolumeRemove,
 	ValidArgsFunction: volumeNamesFunc,
 }
@@ -47,6 +47,8 @@ var volumesCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(volumeCmd, volumesCmd)
 	volumeCmd.AddCommand(volumeCreateCmd, volumeListCmd, volumeRemoveCmd)
+
+	addAllFlag(volumeRemoveCmd, "remove every agentic-managed volume")
 }
 
 func runVolumeCreate(_ *cobra.Command, args []string) error {

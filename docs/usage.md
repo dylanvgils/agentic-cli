@@ -46,9 +46,9 @@ Run `agentic help <command>` for all flags.
 | ------------------------------------------ | ------------------------------------------------------------------------------------ |
 | `run <tool> [args...]`                     | Run a tool in an isolated container                                                  |
 | `run <tool> -- <cmd> [args]`               | Run a command (e.g. `bash`) instead of the tool                                      |
-| `build [tool]`                             | Build tool image(s), all tools by default. See [Images](images.md).                  |
-| `update [tool]`                            | Rebuild image(s) with the latest tool version                                        |
-| `clean [tool]`                             | Remove tool image(s) and their msb copies, or everything agentic created. Skips what running tools use. |
+| `build <tool\|--all>`                      | Build one tool's image, or all tools' with `--all`. See [Images](images.md).         |
+| `update <tool\|--all>`                     | Rebuild image(s) with the latest tool version, `--all` for every namespace           |
+| `clean <tool\|--all>`                      | Remove tool image(s) and their msb copies, or everything agentic created with `--all`. Skips what running tools use. |
 | `prune`                                    | [Free disk space](#disk-space) without removing tool images                          |
 | `image <list\|prune>`, `images`            | List built images, or remove the untagged ones rebuilds left behind                  |
 | `inspect <tool>`                           | Show full detail for one tool's image                                                |
@@ -57,7 +57,7 @@ Run `agentic help <command>` for all flags.
 | `status`                                   | Show Docker and microsandbox availability, and how many agentic containers and VMs run |
 | `config`                                   | Show the merged [configuration](config.md)                                           |
 | `namespace <list\|prune>`, `namespaces`    | List namespaces, or remove all images in one                                         |
-| `volume <create\|list\|remove> [name]`, `volumes` | Manage [named volumes](#named-volumes)                                        |
+| `volume <create\|list\|remove>`, `volumes` | Manage [named volumes](#named-volumes)                                        |
 | `marketplace <list\|prune>`, `marketplaces` | Manage [marketplace](#marketplaces) clones                                          |
 | `proxy <build\|update\|clean>`             | Manage the [egress proxy](egress-proxy.md) image                                     |
 | `upgrade`                                  | Upgrade agentic to the latest release                                                |
@@ -74,7 +74,7 @@ agentic run claude                         # run a tool
 agentic run claude -- bash                 # open a shell in the tool container
 agentic run --runtime microsandbox claude  # run in a microVM instead
 agentic run --dry-run --proxy claude      # print the docker or msb commands, start nothing
-agentic update                             # update all tools (rebuilds only when something changed)
+agentic update claude                      # update a tool (rebuilds only when something changed)
 
 agentic images                             # all images in the active namespace
 agentic inspect claude --all               # claude images in every namespace
@@ -82,7 +82,7 @@ agentic inspect claude --all               # claude images in every namespace
 # A separate image set for one project (images are named <namespace>-<tool>)
 agentic build claude --namespace myproject --base node,java --apt make
 agentic run --namespace myproject claude
-agentic update --all                       # update every namespace
+agentic update --all                       # update every image in every namespace
 ```
 
 ## Shell completion
@@ -149,7 +149,7 @@ Manage volumes with `agentic volume`:
 agentic volume create maven
 agentic volume list               # alias: ls, or agentic volumes
 agentic volume remove maven       # alias: rm
-agentic volume remove             # remove all agentic volumes
+agentic volume remove --all       # remove all agentic volumes
 ```
 
 With the microsandbox runtime, msb stores the volume as `agentic-<name>`, so agentic can tell its volumes from yours. `list` and `remove` cover these too; `create` is Docker-only, since msb creates volumes on first use.

@@ -3,7 +3,8 @@
 Each tool runs from an image built on your machine. `agentic build` builds it, `agentic update` rebuilds it with the latest tool version, and `agentic clean` removes it.
 
 ```bash
-agentic build                         # all tools
+agentic build claude                  # one tool
+agentic build --all                   # all tools
 agentic build claude --base node,java # add Node.js and Java
 agentic build claude --no-cache       # fully fresh build
 agentic build claude --pull           # refresh base images, keep the rest of the cache

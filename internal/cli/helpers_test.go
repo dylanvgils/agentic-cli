@@ -698,7 +698,7 @@ func sliceDefault(defValue string) []string {
 func newTestCleanCmd() *cobra.Command {
 	cmd := &cobra.Command{}
 	addNamespaceFlag(cmd)
-	addAllFlag(cmd)
+	addAllFlag(cmd, "")
 	return cmd
 }
 
@@ -720,7 +720,7 @@ func newTestPsCmd(t *testing.T, args ...string) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{}
 	addNamespaceFlag(cmd)
-	addAllFlag(cmd)
+	addAllFlag(cmd, "")
 	require.NoError(t, cmd.ParseFlags(args))
 	return cmd
 }

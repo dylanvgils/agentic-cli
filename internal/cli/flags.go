@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -20,6 +21,8 @@ const (
 	proxyIntegrationFlag = "proxy-integration"
 	noDindFlagName       = "no-dind"
 	dryRunFlagName       = "dry-run"
+	allFlagName          = "all"
+	allNamespacesUsage   = "operate on all namespaces, not just the active one"
 )
 
 // addNamespaceFlag registers the --namespace flag on the given command.
@@ -33,9 +36,9 @@ func addRegistryFlag(cmd *cobra.Command) {
 	cmd.Flags().String("registry", "", "registry prefix for base images (e.g. myregistry.example.com); overrides agentic.json registry")
 }
 
-// addAllFlag registers the --all flag on the given command.
-func addAllFlag(cmd *cobra.Command) {
-	cmd.Flags().BoolP("all", "a", false, "operate on all namespaces, not just the active one")
+// addAllFlag registers the --all flag on the given command with usage.
+func addAllFlag(cmd *cobra.Command, usage string) {
+	cmd.Flags().BoolP(allFlagName, "a", false, usage)
 }
 
 // addVersionFlags registers a --<layer> version flag for every known layer on the given command.
@@ -207,12 +210,22 @@ func warnSkipInstallChecksum(opts tools.BuildOptions) {
 	}
 }
 
-// toolNames returns the single tool name from args, or all known tool names when args is empty.
-func toolNames(args []string) []string {
-	if len(args) > 0 {
-		return []string{args[0]}
+// requireArgOrAll returns an Args validator refusing a call with neither an arg nor --all; what names the arg in the error.
+func requireArgOrAll(what string) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if all, _ := cmd.Flags().GetBool(allFlagName); len(args) == 0 && !all {
+			return errors.New("specify a " + what + " or --all")
+		}
+		return nil
 	}
-	return tools.Names()
+}
+
+// argOrAllExclusive is an Args validator refusing an arg together with --all, for commands where --all doesn't narrow.
+func argOrAllExclusive(cmd *cobra.Command, args []string) error {
+	if all, _ := cmd.Flags().GetBool(allFlagName); len(args) > 0 && all {
+		return errors.New("an argument and --all can't be used together")
+	}
+	return nil
 }
 
 // firstArg returns args[0], or "" when there are no args.
