@@ -35,8 +35,8 @@ type Releases struct{}
 // updater downloads, verifies and installs releases, reporting progress to log.
 type updater struct {
 	client *http.Client
-	log    *logging.Logger
-	cosign string // cosign binary, or "" to skip the signature check
+	log    *logging.Logger // stderr in production, so progress stays off the output of the command an upgrade check runs before
+	cosign string          // cosign binary, or "" to skip the signature check
 }
 
 // releaseFiles locates one release's archive for this platform and its checksums.
@@ -69,7 +69,7 @@ func IsNewer(current, latest string) bool {
 }
 
 // Update downloads the given release version and replaces the running binary, verifying its signature when cosign is
-// installed.
+// installed. Progress goes to stderr.
 func (Releases) Update(version string) error {
 	execPath, err := executablePath()
 	if err != nil {
@@ -78,7 +78,7 @@ func (Releases) Update(version string) error {
 
 	u := updater{
 		client: http.DefaultClient,
-		log:    logging.Log,
+		log:    logging.Err,
 		cosign: cosignPath(),
 	}
 	return u.update(newReleaseFiles(releasesBaseURL, version), execPath)
