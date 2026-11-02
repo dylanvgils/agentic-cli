@@ -29,7 +29,7 @@ const (
 	// microsandboxEnv makes a missing msb fail MicrosandboxMain instead of skipping, as make test-integration-msb does.
 	microsandboxEnv = "AGENTIC_ITEST_MICROSANDBOX"
 
-	// progressInterval is how often runParallel prints the steps still running.
+	// progressInterval is how often runningSteps.report prints the steps still running.
 	progressInterval = 30 * time.Second
 )
 
@@ -37,6 +37,53 @@ const (
 type step struct {
 	name string
 	run  func() error
+}
+
+// runningSteps tracks the names of the parallel steps that haven't finished yet.
+type runningSteps struct {
+	mu    sync.Mutex
+	names map[string]bool
+}
+
+// newRunningSteps returns steps' names, all running.
+func newRunningSteps(steps []step) *runningSteps {
+	names := make(map[string]bool, len(steps))
+	for _, s := range steps {
+		names[s.name] = true
+	}
+	return &runningSteps{names: names}
+}
+
+// done marks the named step finished.
+func (r *runningSteps) done(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.names, name)
+}
+
+// report prints the steps still running every progressInterval, until the returned stop is called.
+func (r *runningSteps) report() (stop func()) {
+	start := time.Now()
+	ticker := time.NewTicker(progressInterval)
+	quit := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-quit:
+				return
+			case <-ticker.C:
+				r.mu.Lock()
+				names := slices.Sorted(maps.Keys(r.names))
+				r.mu.Unlock()
+				fmt.Printf("   still running after %s: %s\n", time.Since(start).Round(time.Second), strings.Join(names, ", "))
+			}
+		}
+	}()
+
+	return func() {
+		ticker.Stop()
+		close(quit)
+	}
 }
 
 // BuildImages builds the test tool and proxy images in a throwaway env, so the packages' Main can skip them.
@@ -188,47 +235,28 @@ func runSteps(steps []step) error {
 	return nil
 }
 
-// runParallel runs steps concurrently, printing how long each took and, every progressInterval, the ones still running,
-// and returns their errors joined.
+// runParallel runs steps concurrently, printing how long each took and, while they run, the ones still running, and
+// returns their errors joined.
 func runParallel(steps []step) error {
+	running := newRunningSteps(steps)
+	stop := running.report()
+	defer stop()
+
 	errs := make([]error, len(steps))
-	running := make(map[string]bool, len(steps))
-	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for i, s := range steps {
-		running[s.name] = true
 		wg.Go(func() {
 			start := time.Now()
 			errs[i] = s.run()
-
-			mu.Lock()
-			defer mu.Unlock()
-			delete(running, s.name)
+			running.done(s.name)
 			if errs[i] == nil {
 				fmt.Printf("   %s done in %s\n", s.name, time.Since(start).Round(time.Millisecond))
 			}
 		})
 	}
 
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-	start := time.Now()
-	ticker := time.NewTicker(progressInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-done:
-			return errors.Join(errs...)
-		case <-ticker.C:
-			mu.Lock()
-			names := slices.Sorted(maps.Keys(running))
-			mu.Unlock()
-			fmt.Printf("   still running after %s: %s\n", time.Since(start).Round(time.Second), strings.Join(names, ", "))
-		}
-	}
+	wg.Wait()
+	return errors.Join(errs...)
 }
 
 // buildBinary builds the agentic binary from this checkout.
@@ -275,7 +303,7 @@ func removeMicrosandboxImages() error {
 	}
 
 	var errs []error
-	for _, ref := range strings.Fields(string(out)) {
+	for ref := range strings.FieldsSeq(string(out)) {
 		if repo, _ := microsandbox.SplitRef(ref); !strings.HasPrefix(repo, Namespace+"-") {
 			continue
 		}
