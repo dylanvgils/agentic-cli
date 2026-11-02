@@ -67,12 +67,20 @@ func newTestUpdater(cosign string) (updater, *bytes.Buffer) {
 		client: http.DefaultClient,
 		log:    logging.New(&buf),
 		cosign: cosign,
+
+		cosignTimeout: cosignTimeout,
 	}
 	return u, &buf
 }
 
-// stubCosign writes a fake cosign script that exits with exitCode and returns its path; skipped on Windows.
+// stubCosign writes a fake cosign that prints "fake cosign" and exits with exitCode, and returns its path.
 func stubCosign(t *testing.T, exitCode int) string {
+	t.Helper()
+	return stubCosignScript(t, fmt.Sprintf("echo fake cosign\nexit %d", exitCode))
+}
+
+// stubCosignScript writes a fake cosign running the shell body and returns its path; skipped on Windows.
+func stubCosignScript(t *testing.T, body string) string {
 	t.Helper()
 
 	if runtime.GOOS == "windows" {
@@ -80,8 +88,7 @@ func stubCosign(t *testing.T, exitCode int) string {
 	}
 
 	path := filepath.Join(t.TempDir(), "cosign")
-	script := fmt.Sprintf("#!/bin/sh\necho fake cosign\nexit %d\n", exitCode)
-	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte("#!/bin/sh\n"+body+"\n"), 0o755))
 	return path
 }
 

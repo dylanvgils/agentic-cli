@@ -1,20 +1,23 @@
 package selfupdate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 const (
-	bundleSuffix = ".sigstore.json"
-	certIdentity = "https://github.com/dylanvgils/agentic-cli/.github/workflows/nightly-release.yml@refs/heads/main"
-	certIssuer   = "https://token.actions.githubusercontent.com"
+	bundleSuffix  = ".sigstore.json"
+	certIdentity  = "https://github.com/dylanvgils/agentic-cli/.github/workflows/nightly-release.yml@refs/heads/main"
+	certIssuer    = "https://token.actions.githubusercontent.com"
+	cosignTimeout = time.Minute
 )
 
-// ErrSignatureInvalid means cosign rejected the release's checksums signature.
-var ErrSignatureInvalid = errors.New("signature verification failed: release may be tampered with")
+// ErrSignatureVerification means cosign didn't verify the release's checksums: a bad signature or cosign failing itself.
+var ErrSignatureVerification = errors.New("signature verification failed")
 
 // checkSignature verifies the downloaded checksums at checksumsPath against their release bundle when cosign is set.
 // A release without a bundle is unsigned, not an error; an invalid signature is.
@@ -34,7 +37,7 @@ func (u updater) checkSignature(checksumsURL, checksumsPath string) error {
 	}
 
 	u.log.Detail("verifying signature...")
-	return verifySignature(u.cosign, checksumsPath, bundlePath)
+	return u.verifySignature(checksumsPath, bundlePath)
 }
 
 // cosignPath returns the cosign binary on PATH, or "" when it isn't installed.
@@ -47,8 +50,11 @@ func cosignPath() string {
 }
 
 // verifySignature checks the bundle signature of checksumsPath with cosign against the release workflow identity.
-func verifySignature(cosign, checksumsPath, bundlePath string) error {
-	cmd := exec.Command(cosign, // NOSONAR - the user's own cosign from PATH is intended
+func (u updater) verifySignature(checksumsPath, bundlePath string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), u.cosignTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, u.cosign, // NOSONAR - the user's own cosign from PATH is intended
 		"verify-blob",
 		"--bundle", bundlePath,
 		"--certificate-identity", certIdentity,
@@ -57,9 +63,15 @@ func verifySignature(cosign, checksumsPath, bundlePath string) error {
 	)
 
 	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%w: %s", ErrSignatureInvalid, strings.TrimSpace(string(out)))
+	if ctx.Err() != nil {
+		return fmt.Errorf("%w: cosign verify-blob timed out after %s", ErrSignatureVerification, u.cosignTimeout)
+	}
+	if err == nil {
+		return nil
 	}
 
-	return nil
+	if output := strings.TrimSpace(string(out)); output != "" {
+		return fmt.Errorf("%w: cosign verify-blob: %w: %s", ErrSignatureVerification, err, output)
+	}
+	return fmt.Errorf("%w: cosign verify-blob: %w", ErrSignatureVerification, err)
 }

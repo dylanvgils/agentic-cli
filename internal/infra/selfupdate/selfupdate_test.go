@@ -228,7 +228,7 @@ func Test_updater_update(t *testing.T) {
 		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
 		// Assert
-		assert.ErrorIs(t, err, ErrSignatureInvalid)
+		assert.ErrorIs(t, err, ErrSignatureVerification)
 		got, readErr := os.ReadFile(targetPath)
 		require.NoError(t, readErr)
 		assert.Equal(t, "old binary", string(got))

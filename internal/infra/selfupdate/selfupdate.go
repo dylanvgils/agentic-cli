@@ -37,6 +37,8 @@ type updater struct {
 	client *http.Client
 	log    *logging.Logger // stderr in production, so progress stays off the output of the command an upgrade check runs before
 	cosign string          // cosign binary, or "" to skip the signature check
+
+	cosignTimeout time.Duration
 }
 
 // releaseFiles locates one release's archive for this platform and its checksums.
@@ -80,6 +82,8 @@ func (Releases) Update(version string) error {
 		client: http.DefaultClient,
 		log:    logging.Err,
 		cosign: cosignPath(),
+
+		cosignTimeout: cosignTimeout,
 	}
 	return u.update(newReleaseFiles(releasesBaseURL, version), execPath)
 }

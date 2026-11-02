@@ -3,6 +3,7 @@ package selfupdate
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,7 +66,38 @@ func Test_updater_checkSignature(t *testing.T) {
 		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
 
 		// Assert
-		assert.ErrorIs(t, err, ErrSignatureInvalid)
-		assert.ErrorContains(t, err, "fake cosign")
+		assert.ErrorIs(t, err, ErrSignatureVerification)
+		assert.ErrorContains(t, err, "exit status 1: fake cosign")
+	})
+
+	t.Run("returns the exec error when cosign prints nothing", func(t *testing.T) {
+		// Arrange
+		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
+		cosign := stubCosignScript(t, "exit 3")
+		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
+		u, _ := newTestUpdater(cosign)
+
+		// Act
+		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
+
+		// Assert
+		assert.ErrorIs(t, err, ErrSignatureVerification)
+		assert.EqualError(t, err, "signature verification failed: cosign verify-blob: exit status 3")
+	})
+
+	t.Run("stops cosign after the timeout", func(t *testing.T) {
+		// Arrange
+		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
+		cosign := stubCosignScript(t, "exec sleep 10")
+		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
+		u, _ := newTestUpdater(cosign)
+		u.cosignTimeout = 100 * time.Millisecond
+
+		// Act
+		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
+
+		// Assert
+		assert.ErrorIs(t, err, ErrSignatureVerification)
+		assert.ErrorContains(t, err, "timed out after 100ms")
 	})
 }
