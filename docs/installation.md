@@ -43,6 +43,27 @@ export PATH="$HOME/.local/bin:$PATH"
 
 On Windows, the installer adds the install directory to your user PATH. Restart your terminal afterwards.
 
+## Verifying a release
+
+Each release signs `checksums.txt` with [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) keyless signing. The checksums cover the archives and SBOMs, so a valid signature proves they were built by the release workflow. To verify a release manually:
+
+1. Download `checksums.txt` and `checksums.txt.sigstore.json` from the release, plus the archive you want.
+2. Verify the signature:
+
+   ```bash
+   cosign verify-blob \
+     --bundle checksums.txt.sigstore.json \
+     --certificate-identity https://github.com/dylanvgils/agentic-cli/.github/workflows/nightly-release.yml@refs/heads/main \
+     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+     checksums.txt
+   ```
+
+3. Check the archive against the signed checksums:
+
+   ```bash
+   sha256sum --check --ignore-missing checksums.txt
+   ```
+
 ## Uninstalling
 
 To uninstall and remove all agentic data:

@@ -57,6 +57,17 @@ checksum:
   name_template: checksums.txt
   algorithm: sha256
 
+# Signs checksums.txt keylessly with the workflow's OIDC identity, as a Sigstore bundle
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - "sign-blob"
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+
 changelog:
   sort: asc
   use: git
