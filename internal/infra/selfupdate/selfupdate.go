@@ -53,14 +53,14 @@ func IsNewer(current, latest string) bool {
 	return latest != current
 }
 
-// Update downloads the given release version and replaces the running binary.
+// Update downloads the given release version and replaces the running binary, verifying its signature when cosign is installed.
 func (Releases) Update(version string) error {
 	execPath, err := executablePath()
 	if err != nil {
 		return err
 	}
 
-	return updateWith(version, execPath, releasesBaseURL, http.DefaultClient)
+	return updateWith(version, execPath, releasesBaseURL, cosignPath(), http.DefaultClient)
 }
 
 // executablePath returns the running binary's path with symlinks resolved.
@@ -78,7 +78,8 @@ func executablePath() (string, error) {
 	return execPath, nil
 }
 
-func updateWith(version, targetPath, baseURL string, client *http.Client) (err error) {
+// updateWith installs version from baseURL over targetPath; cosign is the cosign binary, or "" to skip the signature check.
+func updateWith(version, targetPath, baseURL, cosign string, client *http.Client) (err error) {
 	semver := strings.TrimPrefix(version, "v")
 	ext := archiveExt()
 	archiveName := fmt.Sprintf("%s-%s-%s-%s%s", binaryName, semver, runtime.GOOS, runtime.GOARCH, ext)
@@ -91,7 +92,7 @@ func updateWith(version, targetPath, baseURL string, client *http.Client) (err e
 	}
 	defer cleanup.Capture(&err, func() error { return os.RemoveAll(tmpDir) })
 
-	newBinaryPath, err := downloadRelease(client, archiveURL, archiveName, checksumsURL, ext, tmpDir)
+	newBinaryPath, err := downloadRelease(client, archiveURL, archiveName, checksumsURL, ext, cosign, tmpDir)
 	if err != nil {
 		return err
 	}
@@ -99,7 +100,7 @@ func updateWith(version, targetPath, baseURL string, client *http.Client) (err e
 	return installBinary(newBinaryPath, targetPath)
 }
 
-func downloadRelease(client *http.Client, archiveURL, archiveName, checksumsURL, ext, tmpDir string) (string, error) {
+func downloadRelease(client *http.Client, archiveURL, archiveName, checksumsURL, ext, cosign, tmpDir string) (string, error) {
 	archivePath := filepath.Join(tmpDir, archiveName)
 	checksumsPath := filepath.Join(tmpDir, checksumFile)
 
@@ -109,6 +110,10 @@ func downloadRelease(client *http.Client, archiveURL, archiveName, checksumsURL,
 
 	if err := downloadFile(client, checksumsURL, checksumsPath); err != nil {
 		return "", fmt.Errorf("downloading checksums: %w", err)
+	}
+
+	if err := checkSignature(client, cosign, checksumsURL, checksumsPath); err != nil {
+		return "", err
 	}
 
 	logging.Detail("verifying checksum...")

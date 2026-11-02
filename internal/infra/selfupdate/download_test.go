@@ -33,7 +33,7 @@ func Test_downloadFile(t *testing.T) {
 		assert.Equal(t, "file content", string(got))
 	})
 
-	t.Run("returns error on non-200 response", func(t *testing.T) {
+	t.Run("returns errNotFound on a 404 response", func(t *testing.T) {
 		// Arrange
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
@@ -45,7 +45,23 @@ func Test_downloadFile(t *testing.T) {
 		err := downloadFile(http.DefaultClient, srv.URL, dest)
 
 		// Assert
+		assert.ErrorIs(t, err, errNotFound)
+	})
+
+	t.Run("returns error on non-200 response", func(t *testing.T) {
+		// Arrange
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer srv.Close()
+		dest := filepath.Join(t.TempDir(), "out")
+
+		// Act
+		err := downloadFile(http.DefaultClient, srv.URL, dest)
+
+		// Assert
 		assert.Error(t, err)
+		assert.NotErrorIs(t, err, errNotFound)
 	})
 
 	t.Run("returns error when dest path is invalid", func(t *testing.T) {

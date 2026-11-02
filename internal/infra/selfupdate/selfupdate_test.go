@@ -106,7 +106,7 @@ func Test_downloadRelease(t *testing.T) {
 	t.Cleanup(func() { logging.Log = origDefault })
 
 	// Act
-	path, err := downloadRelease(http.DefaultClient, archiveURL, archiveName, checksumsURL, ext, tmpDir)
+	path, err := downloadRelease(http.DefaultClient, archiveURL, archiveName, checksumsURL, ext, "", tmpDir)
 	require.NoError(t, err)
 
 	// Assert
@@ -176,13 +176,46 @@ func TestUpdateWith(t *testing.T) {
 		require.NoError(t, os.WriteFile(targetPath, []byte("old binary"), 0o755))
 
 		// Act
-		err := updateWith("v1.5.0", targetPath, srv.URL, http.DefaultClient)
+		err := updateWith("v1.5.0", targetPath, srv.URL, "", http.DefaultClient)
 
 		// Assert
 		require.NoError(t, err)
 		got, err := os.ReadFile(targetPath)
 		require.NoError(t, err)
 		assert.Equal(t, binaryContent, got)
+	})
+
+	t.Run("verifies the signature when cosign is set", func(t *testing.T) {
+		// Arrange
+		archiveBytes := makeTarGz(t, binaryContent)
+		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
+		cosign := stubCosign(t, 0)
+		targetPath := filepath.Join(t.TempDir(), "agentic")
+
+		// Act
+		err := updateWith("v1.5.0", targetPath, srv.URL, cosign, http.DefaultClient)
+
+		// Assert
+		require.NoError(t, err)
+		assert.FileExists(t, targetPath)
+	})
+
+	t.Run("keeps the old binary on an invalid signature", func(t *testing.T) {
+		// Arrange
+		archiveBytes := makeTarGz(t, binaryContent)
+		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
+		cosign := stubCosign(t, 1)
+		targetPath := filepath.Join(t.TempDir(), "agentic")
+		require.NoError(t, os.WriteFile(targetPath, []byte("old binary"), 0o755))
+
+		// Act
+		err := updateWith("v1.5.0", targetPath, srv.URL, cosign, http.DefaultClient)
+
+		// Assert
+		assert.ErrorIs(t, err, ErrSignatureInvalid)
+		got, readErr := os.ReadFile(targetPath)
+		require.NoError(t, readErr)
+		assert.Equal(t, "old binary", string(got))
 	})
 
 	t.Run("returns error on checksum mismatch", func(t *testing.T) {
@@ -192,7 +225,7 @@ func TestUpdateWith(t *testing.T) {
 		targetPath := filepath.Join(t.TempDir(), "agentic")
 
 		// Act
-		err := updateWith("v1.5.0", targetPath, srv.URL, http.DefaultClient)
+		err := updateWith("v1.5.0", targetPath, srv.URL, "", http.DefaultClient)
 
 		// Assert
 		assert.ErrorIs(t, err, ErrChecksumMismatch)
@@ -205,7 +238,7 @@ func TestUpdateWith(t *testing.T) {
 		targetPath := filepath.Join(t.TempDir(), "agentic")
 
 		// Act
-		err := updateWith("v1.5.0", targetPath, srv.URL, http.DefaultClient)
+		err := updateWith("v1.5.0", targetPath, srv.URL, "", http.DefaultClient)
 
 		// Assert
 		assert.ErrorIs(t, err, ErrBinaryNotFound)

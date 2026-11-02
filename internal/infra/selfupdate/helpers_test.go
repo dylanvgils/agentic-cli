@@ -19,19 +19,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// stubReleaseServer starts an httptest.Server that serves a valid tar.gz archive and checksums.
+// stubReleaseServer starts an httptest.Server that serves a valid tar.gz archive and checksums, without a signature bundle.
 func stubReleaseServer(t *testing.T, version string, archiveBytes []byte) *httptest.Server {
 	t.Helper()
+	return stubReleaseServerWith(t, validChecksums(version, archiveBytes), archiveBytes, nil)
+}
 
-	semver := strings.TrimPrefix(version, "v")
-	archiveName := fmt.Sprintf("%s-%s-%s-%s.tar.gz", binaryName, semver, runtime.GOOS, runtime.GOARCH)
-	sum := sha256.Sum256(archiveBytes)
-	checksumsContent := hex.EncodeToString(sum[:]) + "  " + archiveName + "\n"
+// stubSignedReleaseServer is stubReleaseServer that also serves a signature bundle.
+func stubSignedReleaseServer(t *testing.T, version string, archiveBytes []byte) *httptest.Server {
+	t.Helper()
+	return stubReleaseServerWith(t, validChecksums(version, archiveBytes), archiveBytes, []byte(`{"bundle":"test"}`))
+}
+
+// stubReleaseServerWithBadChecksum starts a server that returns a wrong checksum for the archive.
+func stubReleaseServerWithBadChecksum(t *testing.T, version string, archiveBytes []byte) *httptest.Server {
+	t.Helper()
+	checksums := "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef  " + testArchiveName(version) + "\n"
+	return stubReleaseServerWith(t, checksums, archiveBytes, nil)
+}
+
+// stubReleaseServerWith serves checksums, the archive and, when not nil, the signature bundle; anything else is a 404.
+func stubReleaseServerWith(t *testing.T, checksums string, archiveBytes, bundle []byte) *httptest.Server {
+	t.Helper()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case strings.HasSuffix(r.URL.Path, checksumFile+bundleSuffix) && bundle != nil:
+			w.Write(bundle) //nolint:errcheck
 		case strings.HasSuffix(r.URL.Path, checksumFile):
-			fmt.Fprint(w, checksumsContent)
+			fmt.Fprint(w, checksums)
 		case strings.HasSuffix(r.URL.Path, ".tar.gz"):
 			w.Write(archiveBytes) //nolint:errcheck
 		default:
@@ -43,27 +59,30 @@ func stubReleaseServer(t *testing.T, version string, archiveBytes []byte) *httpt
 	return srv
 }
 
-// stubReleaseServerWithBadChecksum starts a server that returns a wrong checksum for the archive.
-func stubReleaseServerWithBadChecksum(t *testing.T, version string, archiveBytes []byte) *httptest.Server {
+// stubCosign writes a fake cosign script that exits with exitCode and returns its path; skipped on Windows.
+func stubCosign(t *testing.T, exitCode int) string {
 	t.Helper()
 
+	if runtime.GOOS == "windows" {
+		t.Skip("fake cosign is a shell script")
+	}
+
+	path := filepath.Join(t.TempDir(), "cosign")
+	script := fmt.Sprintf("#!/bin/sh\necho fake cosign\nexit %d\n", exitCode)
+	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
+	return path
+}
+
+// testArchiveName returns the tar.gz archive name of version for this platform.
+func testArchiveName(version string) string {
 	semver := strings.TrimPrefix(version, "v")
-	archiveName := fmt.Sprintf("%s-%s-%s-%s.tar.gz", binaryName, semver, runtime.GOOS, runtime.GOARCH)
-	checksumsContent := "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef  " + archiveName + "\n"
+	return fmt.Sprintf("%s-%s-%s-%s.tar.gz", binaryName, semver, runtime.GOOS, runtime.GOARCH)
+}
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case strings.HasSuffix(r.URL.Path, checksumFile):
-			fmt.Fprint(w, checksumsContent)
-		case strings.HasSuffix(r.URL.Path, ".tar.gz"):
-			w.Write(archiveBytes) //nolint:errcheck
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	t.Cleanup(srv.Close)
-
-	return srv
+// validChecksums returns a checksums.txt listing archiveBytes under version's archive name.
+func validChecksums(version string, archiveBytes []byte) string {
+	sum := sha256.Sum256(archiveBytes)
+	return hex.EncodeToString(sum[:]) + "  " + testArchiveName(version) + "\n"
 }
 
 // makeTarGz creates a tar.gz archive containing an "agentic" binary with the given content.

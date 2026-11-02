@@ -6,6 +6,9 @@ $ErrorActionPreference = "Stop"
 $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\agentic"
 $InstallPath = Join-Path $InstallDir "agentic.exe"
 $DataDir = if ($env:AGENTIC_HOME) { $env:AGENTIC_HOME } else { Join-Path $env:APPDATA "agentic" }
+$CertIdentity = "https://github.com/dylanvgils/agentic-cli/.github/workflows/nightly-release.yml@refs/heads/main"
+$CertIssuer = "https://token.actions.githubusercontent.com"
+$VerifyDocs = "https://github.com/dylanvgils/agentic-cli/blob/main/docs/installation.md#verifying-a-release"
 
 # --- Functions ---
 
@@ -69,6 +72,33 @@ function Install-FromRelease {
     Invoke-WebRequest -Uri $Url -OutFile (Join-Path $TmpDir $Archive) -UseBasicParsing
     Invoke-WebRequest -Uri $ChecksumsUrl -OutFile (Join-Path $TmpDir "checksums.txt") -UseBasicParsing
 
+    # Optional signature check: only with cosign installed; releases before signing have no bundle
+    $Tip = $null
+    if (-not (Get-Command cosign -ErrorAction SilentlyContinue)) {
+      $Tip = "Tip: install cosign to also verify the release signature, see $VerifyDocs"
+    } else {
+      $BundlePath = Join-Path $TmpDir "checksums.txt.sigstore.json"
+      try {
+        Invoke-WebRequest -Uri "$ChecksumsUrl.sigstore.json" -OutFile $BundlePath -UseBasicParsing
+      } catch {
+        $BundlePath = $null
+        $Tip = "Tip: release $Version is unsigned, verified by checksum only."
+      }
+
+      if ($BundlePath) {
+        Write-Host "Verifying signature..."
+        & cosign verify-blob `
+          --bundle $BundlePath `
+          --certificate-identity $CertIdentity `
+          --certificate-oidc-issuer $CertIssuer `
+          (Join-Path $TmpDir "checksums.txt")
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Signature verification failed for checksums.txt"
+          exit 1
+        }
+      }
+    }
+
     Write-Host "Verifying checksum..."
     $ChecksumLine = Get-Content (Join-Path $TmpDir "checksums.txt") | Where-Object { $_ -match " $([regex]::Escape($Archive))$" }
     if (-not $ChecksumLine) {
@@ -87,6 +117,10 @@ function Install-FromRelease {
     New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
     Copy-Item (Join-Path $TmpDir "agentic.exe") $InstallPath -Force
     Write-Host "Installed agentic to $InstallPath"
+
+    if ($Tip) {
+      Write-Host $Tip
+    }
   } finally {
     Remove-Item -Force -Recurse $TmpDir -ErrorAction SilentlyContinue
   }

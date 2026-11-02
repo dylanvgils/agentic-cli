@@ -3,6 +3,7 @@ package selfupdate
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,12 +13,19 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/infra/cleanup"
 )
 
+// errNotFound means the requested release file doesn't exist.
+var errNotFound = errors.New("not found")
+
 func downloadFile(client *http.Client, url, destPath string) (err error) {
 	response, err := client.Get(url)
 	if err != nil {
 		return err
 	}
 	defer cleanup.Capture(&err, response.Body.Close)
+
+	if response.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("%w: %s", errNotFound, url)
+	}
 
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("HTTP %d for %s", response.StatusCode, url)
