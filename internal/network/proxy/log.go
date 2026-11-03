@@ -1,16 +1,17 @@
 package proxy
 
 import (
+	"context"
 	"encoding/json"
 	"io"
+	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 )
 
 // LogFilePrefix distinguishes proxy access-log filenames from other log types in $TOOL_HOME/logs.
@@ -81,25 +82,29 @@ type Entry struct {
 	Error string `json:"error,omitempty"`
 }
 
-// Logger writes each access record as a JSON line (always UTC) to an optional file and as a
-// human-readable logging.Info line (in location), for `docker logs -f`. Safe for concurrent use.
+// Logger writes each access record as a JSON line (always UTC) to an optional file and as a "request" record on the
+// slog default, the proxy's one logger. Safe for concurrent use.
 type Logger struct {
-	mutex    sync.Mutex
-	encoder  *json.Encoder // nil when no JSON destination is configured
-	location *time.Location
-	now      func() time.Time
+	mutex   sync.Mutex
+	encoder *json.Encoder // nil when no JSON destination is configured
+	now     func() time.Time
 }
 
-// NewLogger returns a Logger writing JSON to file (nil for none) and human-readable lines in location (nil for UTC).
-func NewLogger(file io.Writer, location *time.Location) *Logger {
-	if location == nil {
-		location = time.UTC
-	}
+// NewLogHandler returns the handler for everything the proxy logs: key=value text lines on w, with times in location.
+func NewLogHandler(w io.Writer, location *time.Location) slog.Handler {
+	return slog.NewTextHandler(w, &slog.HandlerOptions{
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey && len(groups) == 0 {
+				a.Value = slog.TimeValue(a.Value.Time().In(location))
+			}
+			return a
+		},
+	})
+}
 
-	l := &Logger{
-		location: location,
-		now:      time.Now,
-	}
+// NewLogger returns a Logger writing JSON to file (nil for none).
+func NewLogger(file io.Writer) *Logger {
+	l := &Logger{now: time.Now}
 	if file != nil {
 		l.encoder = json.NewEncoder(file)
 	}
@@ -117,18 +122,7 @@ func (l *Logger) Log(entry Entry) {
 		_ = l.encoder.Encode(entry)
 	}
 
-	level := "[" + strings.ToUpper(string(entry.Decision)) + "]"
-	tags := ""
-	if !entry.Enforced {
-		tags += " (monitor)"
-	}
-	if entry.Intercepted {
-		tags += " (intercepted)"
-	}
-	if entry.Reason != "" {
-		tags += " (" + entry.Reason + ")"
-	}
-	logging.Infof("%s %-7s %-5s %s:%s%s%s", entry.Time.In(l.location).Format(time.RFC3339), level, entry.Protocol, DisplayHost(entry.Host), entry.Port, DisplayHost(entry.Path), tags)
+	_ = slog.Default().Handler().Handle(context.Background(), requestRecord(entry))
 }
 
 // DisplayHost returns host for a terminal, quoted when it has anything but printable ASCII, such as bidi overrides the tool
@@ -161,4 +155,33 @@ func PruneLogs(dir string, maxAge time.Duration) {
 		}
 		_ = os.Remove(filepath.Join(dir, entry.Name()))
 	}
+}
+
+// requestRecord returns entry as an info "request" record stamped with its time, its flags only when set.
+func requestRecord(entry Entry) slog.Record {
+	r := slog.NewRecord(entry.Time, slog.LevelInfo, "request", 0)
+	r.AddAttrs(
+		slog.String("proto", string(entry.Protocol)),
+		slog.String("host", entry.Host),
+		slog.String("port", entry.Port),
+	)
+	if entry.Path != "" {
+		r.AddAttrs(slog.String("path", entry.Path))
+	}
+	r.AddAttrs(slog.String("decision", string(entry.Decision)))
+	if !entry.Enforced {
+		r.AddAttrs(slog.Bool("monitor", true))
+	}
+	if entry.Intercepted {
+		r.AddAttrs(slog.Bool("intercepted", true))
+	}
+	if entry.Reason != "" {
+		r.AddAttrs(slog.String("reason", entry.Reason))
+	}
+	return r
+}
+
+// httpErrorLog returns a std logger whose lines become slog errors, for net/http's ErrorLog.
+func httpErrorLog() *log.Logger {
+	return slog.NewLogLogger(slog.Default().Handler(), slog.LevelError)
 }

@@ -76,7 +76,7 @@ How the proxy applies them:
 3. Add the ones you trust to `allowed_hosts` or `allowed_paths`.
 4. Switch to `--proxy`.
 
-The log still records the real `"decision"` (`"allow"` or `"deny"`), tagged `"enforced": false`, and `docker logs` lines get a `(monitor)` suffix.
+The log still records the real `"decision"` (`"allow"` or `"deny"`), tagged `"enforced": false`, and its `docker logs` line gets `monitor=true`.
 
 ## How it works
 

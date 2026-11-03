@@ -17,10 +17,9 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 ## Import boundaries
 
 - Layers, lowest first: `internal/infra` < `internal/runtime/sandbox` < `internal/config` < `internal/image`, `internal/network` (never each other) < `internal/runtime` < `internal/usecase` < `internal/cli`. A layer never imports a higher one; a new package goes in the layer of what it imports.
-- `cmd/proxy` imports only `internal/network/proxy`, `internal/infra/iostreams` and `internal/infra/logging`; `cmd/proxy/main_test.go` lists the transitive bans.
 - `internal/runtime/dind` (sidecar files) never imports `internal/runtime/docker`; the sidecar's container lifecycle lives in `internal/runtime/docker/dind.go`.
 - `internal/network/certs` imports only the standard library.
-- `internal/network/proxy` never imports `internal/network/credentials`.
+- The proxy (`internal/network/proxy`, `cmd/proxy`) is a standalone service: its non-test code imports only the stdlib, `config`, `infra/iostreams` and `network/certs` (`cmd/proxy` only `infra/iostreams` and `network/proxy`), and gets all its settings (listen address included) from `AGENTIC_PROXY_*` env vars. The `depguard` allowlists in `.golangci.yml` enforce it, and `cmd/proxy/main_test.go` keeps the CLI's packages out transitively. It logs through `log/slog`, never `logging`.
 
 ## Security rules
 
@@ -89,7 +88,8 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 - Streams:
   - Data goes to stdout through `iostreams.Print`/`Printf`/`Println`, never through `logging`, so a future level or quiet mode in `logging` can't touch piped or `eval`ed output (aliases, dry-run, tables). The raw `iostreams.Default().Out` only where a writer is needed (tables, subprocesses, Cobra).
   - Messages (`Step`, `Detail`, `Info`, `Warn`, `Error`, `Prompt`) go to stderr through the `logging` funcs.
-  - Raw stderr (subprocess progress, Cobra) goes to `iostreams.Default().Err`; an API that wants a std `*log.Logger` (net/http `ErrorLog`) gets `logging.NewLogLogger()`.
+  - The proxy is a service, not a CLI: everything it logs (requests, warnings, errors, net/http `ErrorLog`) goes through one `log/slog` logger, `proxy.NewLogHandler` on `iostreams` Out, which its main makes the slog default. It never uses `logging`, which is CLI-only.
+  - Raw stderr (subprocess progress, Cobra) goes to `iostreams.Default().Err`.
   - Dry-run output uses `sandbox.PrintDryRun`/`PrintDryRunText`.
 - Every print and message func has a plain and an `f` form: plain for a fixed string, `f` only when formatting. No `\n` in the text: a blank line is `iostreams.Println()` on stdout, `logging.Blank()` on stderr.
 - Which message:

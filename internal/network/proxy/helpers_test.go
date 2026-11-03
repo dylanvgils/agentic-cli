@@ -2,9 +2,11 @@ package proxy
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -277,4 +279,16 @@ func hostRules(hosts ...string) []Rule {
 		rules[i] = Rule{Host: host}
 	}
 	return rules
+}
+
+// stubSlog makes a NewLogHandler logger on a buffer, times in location, the slog default until the test ends.
+func stubSlog(t *testing.T, location *time.Location) *bytes.Buffer {
+	t.Helper()
+
+	var buf bytes.Buffer
+	orig := slog.Default()
+	slog.SetDefault(slog.New(NewLogHandler(&buf, location)))
+	t.Cleanup(func() { slog.SetDefault(orig) })
+
+	return &buf
 }

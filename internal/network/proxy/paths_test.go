@@ -32,7 +32,7 @@ func TestServerPaths(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, nil, upstreamHost)
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(rules), NewLogger(&logBuf, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(rules), NewLogger(&logBuf), false, inject))
 		t.Cleanup(proxy.Close)
 		client := httpsClientVia(t, proxy.URL, roots)
 
@@ -57,7 +57,7 @@ func TestServerPaths(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, nil, upstreamHost)
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(rules), NewLogger(&logBuf, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(rules), NewLogger(&logBuf), false, inject))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -74,7 +74,7 @@ func TestServerPaths(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, nil, upstreamHost)
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(rules), NewLogger(&logBuf, nil), true, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(rules), NewLogger(&logBuf), true, inject))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -91,7 +91,7 @@ func TestServerPaths(t *testing.T) {
 		// Arrange
 		creds := []Credential{{Hosts: []string{upstreamHost}, Headers: []string{"X-Api-Key"}, Placeholder: testPlaceholder, Secret: "real-secret"}}
 		inject, roots := newTestInjector(t, upstream, creds, upstreamHost)
-		proxy := httptest.NewServer(NewServer(NewAllowlist(rules), NewLogger(nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(rules), NewLogger(nil), false, inject))
 		t.Cleanup(proxy.Close)
 
 		req := mustGet(t, upstream.URL+"/org/repo/x")
@@ -111,7 +111,7 @@ func TestServerPaths(t *testing.T) {
 		// Arrange
 		creds := []Credential{{Hosts: []string{upstreamHost}, Headers: []string{"X-Api-Key"}, Placeholder: testPlaceholder, Secret: "real-secret"}}
 		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(nil, nil), false, inject))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(nil), false, inject))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -126,7 +126,7 @@ func TestServerPaths(t *testing.T) {
 	t.Run("path rule host without an injector is refused", func(t *testing.T) {
 		// Arrange
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(rules), NewLogger(&logBuf, nil), false, nil))
+		proxy := httptest.NewServer(NewServer(NewAllowlist(rules), NewLogger(&logBuf), false, nil))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -146,7 +146,7 @@ func TestServerPaths(t *testing.T) {
 		stubDefaultPorts(t, plainPort)
 		plainRules := []Rule{{Host: plainHost, Paths: []string{"/org/repo/**"}}}
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(plainRules), NewLogger(&logBuf, nil), false, nil)))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(plainRules), NewLogger(&logBuf), false, nil)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -173,7 +173,7 @@ func TestServerPaths(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { logFile.Close() }) //nolint:errcheck
 		goneRules := []Rule{{Host: goneHost, Paths: []string{"/org/repo/**"}}}
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(goneRules), NewLogger(logFile, nil), true, nil)))
+		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(goneRules), NewLogger(logFile), true, nil)))
 		t.Cleanup(proxy.Close)
 
 		// Act
@@ -194,7 +194,7 @@ func Test_Server_checkPaths(t *testing.T) {
 		{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
 		{Host: "api.example.test"},
 	}
-	s := NewServer(NewAllowlist(rules), NewLogger(nil, nil), false, nil)
+	s := NewServer(NewAllowlist(rules), NewLogger(nil), false, nil)
 
 	cases := map[string]struct {
 		host string
@@ -231,7 +231,7 @@ func TestServerPathsUnrestricted(t *testing.T) {
 	t.Cleanup(plain.Close)
 	plainHost, plainPort := splitHostPort(plain.Listener.Addr().String())
 	stubDefaultPorts(t, plainPort)
-	proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(plainHost)), NewLogger(nil, nil), false, nil)))
+	proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(plainHost)), NewLogger(nil), false, nil)))
 	t.Cleanup(proxy.Close)
 
 	// Act
