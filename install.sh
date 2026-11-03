@@ -8,9 +8,27 @@ INSTALL_PATH="${INSTALL_DIR}/agentic"
 DATA_DIR="${AGENTIC_HOME:-${HOME}/.agentic}"
 CERT_IDENTITY="https://github.com/dylanvgils/agentic-cli/.github/workflows/nightly-release.yml@refs/heads/main"
 CERT_ISSUER="https://token.actions.githubusercontent.com"
+FIRST_SIGNED_VERSION="0.53.0"
 VERIFY_DOCS="https://github.com/dylanvgils/agentic-cli/blob/main/docs/installation.md#verifying-a-release"
 
 # --- Functions ---
+
+# version_at_least succeeds when dotted version $1 is at least $2; a "-suffix" is ignored.
+version_at_least() {
+  local -a have want
+  IFS=. read -r -a have <<<"${1%%-*}"
+  IFS=. read -r -a want <<<"${2%%-*}"
+
+  local i h w
+  for ((i = 0; i < ${#have[@]} || i < ${#want[@]}; i++)); do
+    h=$((10#${have[i]:-0}))
+    w=$((10#${want[i]:-0}))
+    if ((h != w)); then
+      ((h > w))
+      return
+    fi
+  done
+}
 
 install_from_source() {
   if ! command -v docker &>/dev/null; then
@@ -71,7 +89,7 @@ install_from_release() {
   curl --proto '=https' --tlsv1.2 -fsSL "${url}" -o "${tmpdir}/${archive}"
   curl --proto '=https' --tlsv1.2 -fsSL "${checksums_url}" -o "${tmpdir}/checksums.txt"
 
-  # Optional signature check: only with cosign installed; releases before signing have no bundle
+  # Optional signature check: only with cosign installed; a missing bundle is accepted only before signing started
   local tip=""
   local bundle="${tmpdir}/checksums.txt.sigstore.json"
   local status=""
@@ -82,6 +100,10 @@ install_from_release() {
   if [[ -z "${status}" ]]; then
     tip="Tip: install cosign to also verify the release signature, see ${VERIFY_DOCS}"
   elif [[ "${status}" == "404" ]]; then
+    if version_at_least "${version}" "${FIRST_SIGNED_VERSION}"; then
+      echo "Error: release ${version} has no signature bundle (checksums.txt.sigstore.json); refusing to install." >&2
+      exit 1
+    fi
     tip="Tip: release ${version} is unsigned, verified by checksum only."
   elif [[ "${status}" != "200" ]]; then
     echo "Error: downloading the signature bundle failed with HTTP ${status}." >&2

@@ -100,6 +100,7 @@ func Test_newReleaseFiles(t *testing.T) {
 		archiveURL:   "https://example.test/releases/v1.5.0/" + archiveName,
 		checksumsURL: "https://example.test/releases/v1.5.0/checksums.txt",
 		ext:          ext,
+		version:      "v1.5.0",
 	}, rel)
 }
 
@@ -114,6 +115,7 @@ func Test_updater_download(t *testing.T) {
 		archiveURL:   fmt.Sprintf("%s/v1.5.0/%s", srv.URL, archiveName),
 		checksumsURL: fmt.Sprintf("%s/v1.5.0/checksums.txt", srv.URL),
 		ext:          ".tar.gz",
+		version:      "v1.5.0",
 	}
 	tmpDir := t.TempDir()
 	u, buf := newTestUpdater(t, "")
@@ -220,6 +222,25 @@ func Test_updater_update(t *testing.T) {
 		archiveBytes := makeTarGz(t, binaryContent)
 		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
 		cosign := stubCosign(t, 1)
+		targetPath := filepath.Join(t.TempDir(), "agentic")
+		require.NoError(t, os.WriteFile(targetPath, []byte("old binary"), 0o755))
+
+		// Act
+		u, _ := newTestUpdater(t, cosign)
+		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
+
+		// Assert
+		assert.ErrorIs(t, err, errSignatureVerification)
+		got, readErr := os.ReadFile(targetPath)
+		require.NoError(t, readErr)
+		assert.Equal(t, "old binary", string(got))
+	})
+
+	t.Run("keeps the old binary when a signed release's bundle is missing", func(t *testing.T) {
+		// Arrange
+		archiveBytes := makeTarGz(t, binaryContent)
+		srv := stubReleaseServer(t, "v1.5.0", archiveBytes)
+		cosign := stubCosign(t, 0)
 		targetPath := filepath.Join(t.TempDir(), "agentic")
 		require.NoError(t, os.WriteFile(targetPath, []byte("old binary"), 0o755))
 

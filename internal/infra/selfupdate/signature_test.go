@@ -21,26 +21,57 @@ func Test_updater_checkSignature(t *testing.T) {
 		u, buf := newTestUpdater(t, "")
 
 		// Act
-		err := u.checkSignature("http://example.test/checksums.txt", "checksums.txt")
+		err := u.checkSignature(newReleaseFiles("http://example.test", "v1.5.0"), "checksums.txt")
 
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, buf.String())
 	})
 
-	t.Run("continues on an unsigned release", func(t *testing.T) {
+	t.Run("falls back to the checksum on a missing bundle before the first signed release", func(t *testing.T) {
 		// Arrange
-		srv := stubReleaseServer(t, "v1.5.0", archiveBytes)
+		srv := stubReleaseServer(t, "v0.52.1", archiveBytes)
 		cosign := stubCosign(t, 0)
 		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
 		u, buf := newTestUpdater(t, cosign)
 
 		// Act
-		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
+		err := u.checkSignature(newReleaseFiles(srv.URL, "v0.52.1"), checksumsPath)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, buf.String(), "release is unsigned, verifying checksum only")
+	})
+
+	t.Run("fails on a missing bundle from the first signed release on", func(t *testing.T) {
+		// Arrange
+		srv := stubReleaseServer(t, firstSignedVersion, archiveBytes)
+		cosign := stubCosign(t, 0)
+		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
+		u, buf := newTestUpdater(t, cosign)
+
+		// Act
+		err := u.checkSignature(newReleaseFiles(srv.URL, firstSignedVersion), checksumsPath)
+
+		// Assert
+		assert.ErrorIs(t, err, errSignatureVerification)
+		assert.ErrorContains(t, err, "signature bundle missing for "+firstSignedVersion)
+		assert.NotContains(t, buf.String(), "release is unsigned")
+	})
+
+	t.Run("fails on a missing bundle for an unreadable version", func(t *testing.T) {
+		// Arrange
+		srv := stubReleaseServer(t, "latest", archiveBytes)
+		cosign := stubCosign(t, 0)
+		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
+		u, _ := newTestUpdater(t, cosign)
+
+		// Act
+		err := u.checkSignature(newReleaseFiles(srv.URL, "latest"), checksumsPath)
+
+		// Assert
+		assert.ErrorIs(t, err, errSignatureVerification)
+		assert.ErrorContains(t, err, "signature bundle missing for latest")
 	})
 
 	t.Run("returns a bundle download error", func(t *testing.T) {
@@ -54,7 +85,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		u, _ := newTestUpdater(t, cosign)
 
 		// Act
-		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
+		err := u.checkSignature(newReleaseFiles(srv.URL, "v1.5.0"), checksumsPath)
 
 		// Assert
 		assert.ErrorContains(t, err, "downloading signature")
@@ -68,7 +99,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		u, buf := newTestUpdater(t, cosign)
 
 		// Act
-		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
+		err := u.checkSignature(newReleaseFiles(srv.URL, "v1.5.0"), checksumsPath)
 
 		// Assert
 		require.NoError(t, err)
@@ -84,7 +115,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		u, _ := newTestUpdater(t, cosign)
 
 		// Act
-		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
+		err := u.checkSignature(newReleaseFiles(srv.URL, "v1.5.0"), checksumsPath)
 
 		// Assert
 		assert.ErrorIs(t, err, errSignatureVerification)
@@ -99,7 +130,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		u, _ := newTestUpdater(t, cosign)
 
 		// Act
-		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
+		err := u.checkSignature(newReleaseFiles(srv.URL, "v1.5.0"), checksumsPath)
 
 		// Assert
 		assert.ErrorIs(t, err, errSignatureVerification)
@@ -115,7 +146,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		u.cosignTimeout = 100 * time.Millisecond
 
 		// Act
-		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
+		err := u.checkSignature(newReleaseFiles(srv.URL, "v1.5.0"), checksumsPath)
 
 		// Assert
 		assert.ErrorIs(t, err, errSignatureVerification)
@@ -132,7 +163,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		start := time.Now()
 
 		// Act
-		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
+		err := u.checkSignature(newReleaseFiles(srv.URL, "v1.5.0"), checksumsPath)
 
 		// Assert
 		assert.ErrorIs(t, err, errSignatureVerification)

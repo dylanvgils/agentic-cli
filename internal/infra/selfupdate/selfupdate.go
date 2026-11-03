@@ -32,7 +32,7 @@ var (
 // Releases fetches and installs agentic's GitHub releases.
 type Releases struct{}
 
-// updater downloads, verifies and installs releases, reporting progress through logging.
+// updater downloads, verifies and installs releases; progress goes through the logging package defaults.
 type updater struct {
 	client *http.Client
 	cosign string // cosign binary, or "" to skip the signature check
@@ -46,6 +46,7 @@ type releaseFiles struct {
 	archiveURL   string
 	checksumsURL string
 	ext          string
+	version      string
 }
 
 // ShouldCheck reports whether enough time has passed since lastCheck to run another update check; nil (never checked) always returns true.
@@ -115,7 +116,7 @@ func (u updater) download(rel releaseFiles, tmpDir string) (string, error) {
 		return "", fmt.Errorf("downloading checksums: %w", err)
 	}
 
-	if err := u.checkSignature(rel.checksumsURL, checksumsPath); err != nil {
+	if err := u.checkSignature(rel, checksumsPath); err != nil {
 		return "", err
 	}
 
@@ -143,6 +144,7 @@ func newReleaseFiles(baseURL, version string) releaseFiles {
 		archiveURL:   fmt.Sprintf("%s/%s/%s", baseURL, version, archiveName),
 		checksumsURL: fmt.Sprintf("%s/%s/%s", baseURL, version, checksumFile),
 		ext:          ext,
+		version:      version,
 	}
 }
 
