@@ -8,6 +8,7 @@ $InstallPath = Join-Path $InstallDir "agentic.exe"
 $DataDir = if ($env:AGENTIC_HOME) { $env:AGENTIC_HOME } else { Join-Path $env:APPDATA "agentic" }
 $CertIdentity = "https://github.com/dylanvgils/agentic-cli/.github/workflows/nightly-release.yml@refs/heads/main"
 $CertIssuer = "https://token.actions.githubusercontent.com"
+$FirstSignedVersion = "0.53.0"
 $VerifyDocs = "https://github.com/dylanvgils/agentic-cli/blob/main/docs/installation.md#verifying-a-release"
 
 # --- Functions ---
@@ -72,7 +73,7 @@ function Install-FromRelease {
     Invoke-WebRequest -Uri $Url -OutFile (Join-Path $TmpDir $Archive) -UseBasicParsing
     Invoke-WebRequest -Uri $ChecksumsUrl -OutFile (Join-Path $TmpDir "checksums.txt") -UseBasicParsing
 
-    # Optional signature check: only with cosign installed; releases before signing have no bundle
+    # Optional signature check: only with cosign installed; a missing bundle is accepted only before signing started
     $Tip = $null
     if (-not (Get-Command cosign -ErrorAction SilentlyContinue)) {
       $Tip = "Tip: install cosign to also verify the release signature, see $VerifyDocs"
@@ -83,6 +84,10 @@ function Install-FromRelease {
       } catch {
         if ([int]$_.Exception.Response.StatusCode -ne 404) {
           Write-Error "Failed to download the signature bundle: $_"
+          exit 1
+        }
+        if ([version]($Version -replace '-.*$', '') -ge [version]$FirstSignedVersion) {
+          Write-Error "Release $Version has no signature bundle (checksums.txt.sigstore.json); refusing to install."
           exit 1
         }
         $BundlePath = $null

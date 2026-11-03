@@ -45,7 +45,7 @@ On Windows, the installer adds the install directory to your user PATH. Restart 
 
 ## Verifying a release
 
-Each release signs `checksums.txt` with [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) keyless signing. The checksums cover the archives and SBOMs, so a valid signature proves they were built by the release workflow. To verify a release manually:
+Each release signs `checksums.txt` with [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) keyless signing. The checksums cover the archives and SBOMs, so a valid signature proves they were built by the release workflow. Releases from v0.53.0 on are signed; with cosign installed, `agentic upgrade` and the install scripts treat a missing bundle for those releases as a failure. To verify a release manually:
 
 1. Download `checksums.txt` and `checksums.txt.sigstore.json` from the release, plus the archive you want.
 2. Verify the signature:
