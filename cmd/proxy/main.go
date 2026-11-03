@@ -14,7 +14,8 @@ func main() {
 
 	// A bad config still gets the logger, with UTC times
 	cfg, err := proxy.ConfigFromEnv()
-	slog.SetDefault(slog.New(proxy.NewLogHandler(iostreams.Default().Out, cfg.Location())))
+	handler := proxy.NewLogHandler(iostreams.Default().Out, cfg.Location())
+	slog.SetDefault(slog.New(handler))
 
 	if err == nil {
 		err = proxy.Run(cfg)
