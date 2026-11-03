@@ -1,10 +1,6 @@
 package clean
 
 import (
-	"bytes"
-	"testing"
-
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 )
 
@@ -102,26 +98,4 @@ func (f *fakeRuntime) CleanImage(image string) error {
 		return nil
 	}
 	return f.cleanImage(image)
-}
-
-// captureErrLog swaps logging.Err, where progress goes, for the duration of fn and returns what was written.
-func captureErrLog(t *testing.T, fn func()) string {
-	t.Helper()
-
-	buf := stubErrLog(t)
-	fn()
-
-	return buf.String()
-}
-
-// stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.
-func stubErrLog(t *testing.T) *bytes.Buffer {
-	t.Helper()
-
-	var buf bytes.Buffer
-	orig := logging.Err
-	logging.Err = logging.New(&buf)
-	t.Cleanup(func() { logging.Err = orig })
-
-	return &buf
 }

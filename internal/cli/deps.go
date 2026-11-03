@@ -1,9 +1,6 @@
 package cli
 
 import (
-	"io"
-	"os"
-
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/selfupdate"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
@@ -19,9 +16,6 @@ import (
 )
 
 var (
-	// stdin is where every confirmation prompt reads its answer.
-	stdin io.Reader = os.Stdin
-
 	// dockerClient is the Docker client every command uses; persistentPreRunE rebuilds it for the resolved context.
 	dockerClient dockerAPI = docker.New("")
 

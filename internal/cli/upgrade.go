@@ -32,7 +32,7 @@ func runUpgrade(_ *cobra.Command, _ []string) error {
 	target := upgradeVersion
 
 	if target == "" {
-		logging.Infof("checking for updates...")
+		logging.Info("checking for updates...")
 
 		latest, err := releasesClient.LatestVersion()
 		if err != nil {

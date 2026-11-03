@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,7 @@ func Test_runVolumeCreate(t *testing.T) {
 	t.Run("prints created", func(t *testing.T) {
 		// Arrange
 		stubCreateVolume(t, func(string) error { return nil })
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 
 		// Act
 		err := runVolumeCreate(volumeCreateCmd, []string{"maven"})
@@ -61,7 +62,7 @@ func Test_runVolumeList(t *testing.T) {
 		var err error
 
 		// Act
-		logs := captureOut(t, func() { err = runVolumeList(volumeListCmd, nil) })
+		logs := iostreamstest.CaptureOut(t, func() { err = runVolumeList(volumeListCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -71,11 +72,11 @@ func Test_runVolumeList(t *testing.T) {
 	t.Run("no volumes says so on stderr", func(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) { return nil, nil })
-		errLog := stubErrLog(t)
+		errLog := iostreamstest.StubErr(t)
 		var err error
 
 		// Act
-		logs := captureOut(t, func() { err = runVolumeList(volumeListCmd, nil) })
+		logs := iostreamstest.CaptureOut(t, func() { err = runVolumeList(volumeListCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -118,7 +119,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven"}, nil })
 		stubRemoveVolume(t, func(string) error { return nil })
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 
 		// Act
 		err := runVolumeRemove(volumeRemoveCmd, []string{"maven"})
@@ -161,7 +162,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		stubListVolumeNames(t, func() ([]string, error) { return nil, nil })
 		var removeCalled bool
 		stubRemoveVolume(t, func(string) error { removeCalled = true; return nil })
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 
 		// Act
 		err := runVolumeRemove(volumeRemoveCmd, nil)
@@ -174,13 +175,13 @@ func Test_runVolumeRemove(t *testing.T) {
 
 	t.Run("no name confirmed y removes all", func(t *testing.T) {
 		// Arrange
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		stubListVolumeNames(t, func() ([]string, error) {
 			return []string{"gradle", "maven"}, nil
 		})
 		var removed []string
 		stubRemoveVolume(t, func(name string) error { removed = append(removed, name); return nil })
-		stubStdin(t, "y\n")
+		iostreamstest.StubIn(t, "y\n")
 
 		// Act
 		err := runVolumeRemove(volumeRemoveCmd, nil)
@@ -198,7 +199,7 @@ func Test_runVolumeRemove(t *testing.T) {
 		})
 		var removeCalled bool
 		stubRemoveVolume(t, func(string) error { removeCalled = true; return nil })
-		stubStdin(t, "n\n")
+		iostreamstest.StubIn(t, "n\n")
 
 		// Act
 		err := runVolumeRemove(volumeRemoveCmd, nil)
@@ -231,7 +232,7 @@ func Test_runVolumeRemove(t *testing.T) {
 			removeCalled++
 			return fmt.Errorf("remove failed")
 		})
-		stubStdin(t, "y\n")
+		iostreamstest.StubIn(t, "y\n")
 
 		// Act
 		err := runVolumeRemove(volumeRemoveCmd, nil)
@@ -247,8 +248,8 @@ func Test_runVolumeRemove(t *testing.T) {
 			return []string{"gradle", "maven"}, nil
 		})
 		stubRemoveVolume(t, func(string) error { return nil })
-		stubStdin(t, "n\n")
-		logBuf := stubErrLog(t)
+		iostreamstest.StubIn(t, "n\n")
+		logBuf := iostreamstest.StubErr(t)
 
 		// Act
 		err := runVolumeRemove(volumeRemoveCmd, nil)
@@ -267,8 +268,8 @@ func Test_runVolumeRemove(t *testing.T) {
 			listVolumeNames: func() ([]string, error) { return []string{"gradle"}, nil },
 			removeVolume:    func(name string) error { removed = append(removed, "msb "+name); return nil },
 		})
-		stubStdin(t, "y\n")
-		logBuf := stubErrLog(t)
+		iostreamstest.StubIn(t, "y\n")
+		logBuf := iostreamstest.StubErr(t)
 
 		// Act
 		err := runVolumeRemove(volumeRemoveCmd, nil)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ func Test_runInspect(t *testing.T) {
 		stubInspectImage(t, builtInfo, nil)
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := runInspect(inspectCmd, []string{"claude"})
 			require.NoError(t, err)
 		})
@@ -45,7 +46,7 @@ func Test_runInspect(t *testing.T) {
 		stubFlag(t, inspectCmd, "all", "true")
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := runInspect(inspectCmd, []string{"claude"})
 			require.NoError(t, err)
 		})
@@ -62,7 +63,7 @@ func Test_printImageDetail(t *testing.T) {
 		stubInspectImage(t, builtInfo, nil)
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -78,10 +79,10 @@ func Test_printImageDetail(t *testing.T) {
 	t.Run("not built logs that no image was found", func(t *testing.T) {
 		// Arrange
 		stubInspectImage(t, nil, nil)
-		errLog := stubErrLog(t)
+		errLog := iostreamstest.StubErr(t)
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -98,7 +99,7 @@ func Test_printImageDetail(t *testing.T) {
 		}, nil)
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -112,7 +113,7 @@ func Test_printImageDetail(t *testing.T) {
 		stubInspectImage(t, builtInfo, nil)
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -129,7 +130,7 @@ func Test_printImageDetail(t *testing.T) {
 		}, nil)
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -151,7 +152,7 @@ func Test_printImageDetail(t *testing.T) {
 		}, nil)
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -171,7 +172,7 @@ func Test_printImageDetail(t *testing.T) {
 		}, nil)
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -211,7 +212,7 @@ func Test_printImageDetail(t *testing.T) {
 		stubInspectImage(t, &info, nil)
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -233,7 +234,7 @@ func Test_printAllNamespaceDetail(t *testing.T) {
 		})
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := printAllNamespaceDetail("claude")
 			require.NoError(t, err)
 		})
@@ -248,7 +249,7 @@ func Test_printAllNamespaceDetail(t *testing.T) {
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, nil
 		})
-		errLog := stubErrLog(t)
+		errLog := iostreamstest.StubErr(t)
 
 		// Act
 		err := printAllNamespaceDetail("unknown")

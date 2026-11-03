@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/volumes"
@@ -73,7 +74,7 @@ func runVolumeList(_ *cobra.Command, _ []string) error {
 	}
 
 	if len(all) == 0 {
-		logging.Infof("no agentic-managed volumes found")
+		logging.Info("no agentic-managed volumes found")
 		return nil
 	}
 
@@ -84,7 +85,7 @@ func runVolumeList(_ *cobra.Command, _ []string) error {
 			runtime: v.Runtime,
 		}
 	}
-	return writeTable(logging.Out, rows)
+	return writeTable(iostreams.Default().Out, rows)
 }
 
 func runVolumeRemove(_ *cobra.Command, args []string) error {
@@ -116,12 +117,12 @@ func removeAllVolumes(svc *volumes.Service) error {
 		return err
 	}
 	if len(all) == 0 {
-		logging.Infof("no agentic-managed volumes found")
+		logging.Info("no agentic-managed volumes found")
 		return nil
 	}
 
 	if !confirmVolumeRemoval(all) {
-		logging.Infof("nothing removed")
+		logging.Info("nothing removed")
 		return nil
 	}
 
@@ -131,11 +132,11 @@ func removeAllVolumes(svc *volumes.Service) error {
 
 // confirmVolumeRemoval lists all and asks the user to confirm removing them.
 func confirmVolumeRemoval(all []volumes.Volume) bool {
-	logging.Infof("volumes to remove:")
+	logging.Info("volumes to remove:")
 	for _, v := range all {
 		logging.Detail(v.Label())
 	}
 
-	logging.Promptf("remove all agentic-managed volumes? [y/N] ")
+	logging.Prompt("remove all agentic-managed volumes? [y/N] ")
 	return confirmed()
 }

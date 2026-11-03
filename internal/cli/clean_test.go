@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,7 @@ func Test_runClean(t *testing.T) {
 		// together for a bare --all; output formatting and per-target cleanup mechanics
 		// are covered by internal/usecase/clean's own tests.
 		t.Chdir(t.TempDir())
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		var cleaned []string
 		basesCleaned := false
 		stubDocker(t, &fakeDocker{

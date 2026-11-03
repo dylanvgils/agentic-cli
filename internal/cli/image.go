@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolruns"
@@ -78,7 +79,7 @@ func runImageList(cmd *cobra.Command, _ []string) error {
 }
 
 func runImagePrune(_ *cobra.Command, _ []string) error {
-	logging.Infof("removing dangling images")
+	logging.Info("removing dangling images")
 	_, err := dockerClient.PruneImages()
 	return err
 }
@@ -107,7 +108,7 @@ func writeImageTable(namespace string, images []*docker.ImageInfo) error {
 		return nil
 	}
 	if len(images) == 0 {
-		logging.Infof("no images found")
+		logging.Info("no images found")
 		return nil
 	}
 
@@ -122,7 +123,7 @@ func writeImageTable(namespace string, images []*docker.ImageInfo) error {
 			size:      info.Size,
 		}
 	}
-	return writeTable(logging.Out, rows)
+	return writeTable(iostreams.Default().Out, rows)
 }
 
 // truncate cuts s to n characters and marks the cut with "...".

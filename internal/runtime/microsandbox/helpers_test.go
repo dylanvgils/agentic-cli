@@ -1,14 +1,12 @@
 package microsandbox
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,30 +50,4 @@ func stubMsb(t *testing.T, script string) {
 	bin := filepath.Join(dir, "msb")
 	require.NoError(t, os.WriteFile(bin, []byte("#!/bin/sh\n"+script+"\n"), 0o755))
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-}
-
-// captureOut swaps logging.Out for the duration of fn and returns what was written.
-func captureOut(t *testing.T, fn func()) string {
-	t.Helper()
-
-	var buf bytes.Buffer
-	orig := logging.Out
-	logging.Out = &buf
-	t.Cleanup(func() { logging.Out = orig })
-
-	fn()
-
-	return buf.String()
-}
-
-// stubErrLog redirects logging.Err to a buffer until the test ends and returns it.
-func stubErrLog(t *testing.T) *bytes.Buffer {
-	t.Helper()
-
-	var buf bytes.Buffer
-	orig := logging.Err
-	logging.Err = logging.New(&buf)
-	t.Cleanup(func() { logging.Err = orig })
-
-	return &buf
 }

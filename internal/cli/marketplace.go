@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/spf13/cobra"
 )
@@ -68,11 +69,11 @@ func runMarketplaceList(_ *cobra.Command, _ []string) error {
 	}
 
 	if len(dirNames) == 0 {
-		logging.Infof("no synced marketplaces found")
+		logging.Info("no synced marketplaces found")
 		return nil
 	}
 
-	return writeTable(logging.Out, marketplaceRows(registry, dirNames))
+	return writeTable(iostreams.Default().Out, marketplaceRows(registry, dirNames))
 }
 
 func runMarketplacePrune(_ *cobra.Command, _ []string) error {

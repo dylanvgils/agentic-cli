@@ -1,13 +1,13 @@
 package cli
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -19,14 +19,13 @@ func Test_printGlobalConfig(t *testing.T) {
 
 	t.Run("empty config", func(t *testing.T) {
 		// Arrange
-		var buf bytes.Buffer
+		buf := iostreamstest.StubOut(t)
 		cfg := &config.CliConfig{}
 
 		// Act
-		err := printGlobalConfig(&buf, "/home/user/.agentic", cfg, state)
+		printGlobalConfig("/home/user/.agentic", cfg, state)
 
 		// Assert
-		require.NoError(t, err)
 		out := buf.String()
 		assert.Contains(t, out, "Global (/home/user/.agentic/agentic.json)")
 		assert.Contains(t, out, "registry: (not set)")
@@ -35,42 +34,39 @@ func Test_printGlobalConfig(t *testing.T) {
 
 	t.Run("with registry", func(t *testing.T) {
 		// Arrange
-		var buf bytes.Buffer
+		buf := iostreamstest.StubOut(t)
 		cfg := &config.CliConfig{Registry: "myregistry.example.com"}
 
 		// Act
-		err := printGlobalConfig(&buf, "/home/user/.agentic", cfg, state)
+		printGlobalConfig("/home/user/.agentic", cfg, state)
 
 		// Assert
-		require.NoError(t, err)
 		out := buf.String()
 		assert.Contains(t, out, "registry: myregistry.example.com")
 	})
 
 	t.Run("with docker context", func(t *testing.T) {
 		// Arrange
-		var buf bytes.Buffer
+		buf := iostreamstest.StubOut(t)
 		cfg := &config.CliConfig{DockerContext: "prod"}
 
 		// Act
-		err := printGlobalConfig(&buf, "/home/user/.agentic", cfg, state)
+		printGlobalConfig("/home/user/.agentic", cfg, state)
 
 		// Assert
-		require.NoError(t, err)
 		out := buf.String()
 		assert.Contains(t, out, "docker_context: prod")
 	})
 
 	t.Run("with dirs", func(t *testing.T) {
 		// Arrange
-		var buf bytes.Buffer
+		buf := iostreamstest.StubOut(t)
 		trusted := &config.State{TrustedDirs: []string{"/home/user/projects", "/home/user/work"}}
 
 		// Act
-		err := printGlobalConfig(&buf, "/home/user/.agentic", &config.CliConfig{}, trusted)
+		printGlobalConfig("/home/user/.agentic", &config.CliConfig{}, trusted)
 
 		// Assert
-		require.NoError(t, err)
 		out := buf.String()
 		assert.Contains(t, out, "trusted_dirs:")
 		assert.Contains(t, out, "- /home/user/projects")
@@ -81,26 +77,24 @@ func Test_printGlobalConfig(t *testing.T) {
 func Test_printProjectConfig(t *testing.T) {
 	t.Run("no layers", func(t *testing.T) {
 		// Arrange
-		var buf bytes.Buffer
+		buf := iostreamstest.StubOut(t)
 
 		// Act
-		err := printProjectConfig(&buf, nil)
+		printProjectConfig(nil)
 
 		// Assert
-		require.NoError(t, err)
 		assert.Equal(t, "Project (.agenticrc.toml)\n  (no .agenticrc.toml files found)\n", buf.String())
 	})
 
 	t.Run("groups keys under table headers", func(t *testing.T) {
 		// Arrange
-		var buf bytes.Buffer
+		buf := iostreamstest.StubOut(t)
 		layers := []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}}}
 
 		// Act
-		err := printProjectConfig(&buf, layers)
+		printProjectConfig(layers)
 
 		// Assert
-		require.NoError(t, err)
 		want := `Project (.agenticrc.toml, 1 file)
   namespace: agentic  (default)
   docker_context: (not set)
@@ -142,7 +136,7 @@ func Test_printProjectConfig(t *testing.T) {
 
 	t.Run("multi layers source attribution", func(t *testing.T) {
 		// Arrange
-		var buf bytes.Buffer
+		buf := iostreamstest.StubOut(t)
 		layers := []config.RCLayer{
 			{
 				Path: "/home/.agenticrc.toml",
@@ -161,10 +155,9 @@ func Test_printProjectConfig(t *testing.T) {
 		}
 
 		// Act
-		err := printProjectConfig(&buf, layers)
+		printProjectConfig(layers)
 
 		// Assert
-		require.NoError(t, err)
 		out := buf.String()
 		assert.Contains(t, out, "Project (.agenticrc.toml, 2 files)")
 		assert.Contains(t, out, "    cpus: 8  [/project/.agenticrc.toml]")
@@ -557,7 +550,7 @@ func Test_showConfig(t *testing.T) {
 
 	// Act
 	var err error
-	out := captureOut(t, func() { err = showConfig(&cobra.Command{}, nil) })
+	out := iostreamstest.CaptureOut(t, func() { err = showConfig(&cobra.Command{}, nil) })
 
 	// Assert - the global section, then the project layers from the working dir
 	require.NoError(t, err)

@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"regexp"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -24,7 +25,7 @@ type runner interface {
 	Run(args ...string) (string, error)
 	// RunWithStdin executes `msb <args>` with r piped to stdin and returns combined stdout+stderr.
 	RunWithStdin(r io.Reader, args ...string) (string, error)
-	// RunInteractive executes `msb <args>` with stdin/stdout/stderr inherited from the current process and env added to its environment.
+	// RunInteractive executes `msb <args>` attached to the default streams, with env added to its environment.
 	RunInteractive(env []string, args ...string) error
 }
 
@@ -93,9 +94,9 @@ func (execRunner) RunInteractive(env []string, args ...string) error {
 	if len(env) > 0 {
 		cmd.Env = append(os.Environ(), env...)
 	}
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdin = iostreams.Default().In
+	cmd.Stdout = iostreams.Default().Out
+	cmd.Stderr = iostreams.Default().Err
 	return cmd.Run()
 }
 

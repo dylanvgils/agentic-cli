@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +23,7 @@ func Test_listNamespaces(t *testing.T) {
 		})
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := listNamespaces()
 			require.NoError(t, err)
 		})
@@ -36,7 +37,7 @@ func Test_listNamespaces(t *testing.T) {
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return nil, nil
 		})
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 
 		// Act
 		err := listNamespaces()
@@ -75,8 +76,8 @@ func Test_runNamespacesPrune(t *testing.T) {
 		stubListAllImages(t, oneImage)
 		var cleaned []string
 		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
-		stubStdin(t, "y\n")
-		stubErrLog(t)
+		iostreamstest.StubIn(t, "y\n")
+		iostreamstest.StubErr(t)
 
 		// Act
 		err := runNamespacePrune(namespacePruneCmd, nil)
@@ -91,8 +92,8 @@ func Test_runNamespacesPrune(t *testing.T) {
 		stubListAllImages(t, oneImage)
 		var cleanCalled bool
 		stubCleanImage(t, func(string) error { cleanCalled = true; return nil })
-		stubStdin(t, "n\n")
-		errLog := stubErrLog(t)
+		iostreamstest.StubIn(t, "n\n")
+		errLog := iostreamstest.StubErr(t)
 
 		// Act
 		err := runNamespacePrune(namespacePruneCmd, nil)
@@ -110,7 +111,7 @@ func Test_runNamespacesPrune(t *testing.T) {
 			capturedFilters = filters
 			return nil, nil
 		})
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 
 		// Act
 		err := runNamespacePrune(namespacePruneCmd, nil)
@@ -123,7 +124,7 @@ func Test_runNamespacesPrune(t *testing.T) {
 	t.Run("empty namespace says so without prompting", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) { return nil, nil })
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 
 		// Act
 		err := runNamespacePrune(namespacePruneCmd, nil)
@@ -156,7 +157,7 @@ func Test_removeNamespaceImages(t *testing.T) {
 
 	t.Run("removes each image after one summary line", func(t *testing.T) {
 		// Arrange
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		var cleaned []string
 		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
 
@@ -171,7 +172,7 @@ func Test_removeNamespaceImages(t *testing.T) {
 
 	t.Run("removes dockerd images before the tool images they derive from", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		var cleaned []string
 		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
 		withDockerd := []*docker.ImageInfo{
@@ -189,7 +190,7 @@ func Test_removeNamespaceImages(t *testing.T) {
 
 	t.Run("stops at the first remove error", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		var cleaned []string
 		stubCleanImage(t, func(image string) error {
 			cleaned = append(cleaned, image)

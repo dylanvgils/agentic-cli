@@ -3,6 +3,7 @@ package cli
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -10,7 +11,7 @@ import (
 func Test_runPrune(t *testing.T) {
 	t.Run("force clears the build cache without asking", func(t *testing.T) {
 		// Arrange
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		cachePruned := false
 		stubDocker(t, &fakeDocker{pruneBuildCache: func() (string, error) {
 			cachePruned = true
@@ -29,8 +30,8 @@ func Test_runPrune(t *testing.T) {
 
 	t.Run("without force a declined prompt keeps the build cache", func(t *testing.T) {
 		// Arrange - empty stdin declines whether or not the test runs on a terminal
-		stubStdin(t, "")
-		stubErrLog(t)
+		iostreamstest.StubIn(t, "")
+		iostreamstest.StubErr(t)
 		cachePruned := false
 		stubDocker(t, &fakeDocker{pruneBuildCache: func() (string, error) {
 			cachePruned = true

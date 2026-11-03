@@ -7,6 +7,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
@@ -146,7 +147,7 @@ func TestPrepare(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		req.Project.RC.Run.CheckUpdates = nil
-		stubOut(t)
+		iostreamstest.StubOut(t)
 		tool := tools.Configs["claude"]
 		setUp := false
 		tool.Runtime.Setup = func(string) error {
@@ -170,7 +171,7 @@ func TestPrepare(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		req.Project.RC.Run.CheckUpdates = nil
-		stubOut(t)
+		iostreamstest.StubOut(t)
 		rebuilt := false
 		d := &fakeDocker{
 			inspectImage: built,
@@ -197,7 +198,7 @@ func TestPrepare(t *testing.T) {
 		req := newPrepareRequest(t)
 		req.Project.RC.Run.CheckUpdates = nil
 		req.Flags.DryRun = true
-		stubOut(t)
+		iostreamstest.StubOut(t)
 		p := &fakePrompter{}
 
 		// Act
@@ -228,7 +229,7 @@ func TestPrepare(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		req.Project.RC.Run.CheckUpdates = nil
-		stubOut(t)
+		iostreamstest.StubOut(t)
 		rc := &config.AgenticRC{}
 		rc.Run.Mounts = []string{"~/.example:/x:rw"}
 		req.Project.Layers = []config.RCLayer{{Path: filepath.Join(req.Project.Dir, ".agenticrc.toml"), RC: rc}}
@@ -279,7 +280,7 @@ func TestPrepare(t *testing.T) {
 
 	t.Run("approved credentials reach the run spec", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		req := newCredentialRequest(t)
 
 		// Act
@@ -294,7 +295,7 @@ func TestPrepare(t *testing.T) {
 
 	t.Run("approved credentials print the injection notice", func(t *testing.T) {
 		// Arrange
-		stderr := stubErrLog(t)
+		stderr := iostreamstest.StubErr(t)
 		req := newCredentialRequest(t)
 
 		// Act
@@ -308,7 +309,7 @@ func TestPrepare(t *testing.T) {
 
 	t.Run("dry run with approved credentials prints no injection notice", func(t *testing.T) {
 		// Arrange
-		stderr := stubErrLog(t)
+		stderr := iostreamstest.StubErr(t)
 		req := newCredentialRequest(t)
 		req.Flags.DryRun = true
 

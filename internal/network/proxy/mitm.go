@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/certs"
 )
 
@@ -153,6 +154,7 @@ func (i *Injector) serve(tlsConn *tls.Conn, handler http.Handler) {
 		Handler:           blockMethods(handler),
 		ReadHeaderTimeout: dialTimeout,
 		IdleTimeout:       idleTimeout,
+		ErrorLog:          logging.NewLogLogger(),
 	}
 	_ = server.Serve(newOneConnListener(tlsConn))
 }
@@ -175,6 +177,7 @@ func (i *Injector) reverseProxy(host, port string, cred Credential, scrub *strin
 		},
 		Transport:     i.transport,
 		FlushInterval: -1, // stream SSE
+		ErrorLog:      logging.NewLogLogger(),
 	}
 }
 

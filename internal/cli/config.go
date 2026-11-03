@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"io"
 	"maps"
 	"os"
 	"slices"
@@ -10,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/spf13/cobra"
 )
@@ -75,19 +74,13 @@ func showConfig(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	w := logging.Out
-	if err := printGlobalConfig(w, toolHome, cliConfig, state); err != nil {
-		return err
-	}
-
-	if _, err := fmt.Fprintln(w); err != nil {
-		return err
-	}
-
-	return printProjectConfig(w, layers)
+	printGlobalConfig(toolHome, cliConfig, state)
+	iostreams.Println()
+	printProjectConfig(layers)
+	return nil
 }
 
-func printGlobalConfig(w io.Writer, home string, cfg *config.CliConfig, state *config.State) error {
+func printGlobalConfig(home string, cfg *config.CliConfig, state *config.State) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Global (%s)\n", config.ConfigFile(home))
 	fmt.Fprintf(&b, "  registry: %s\n", orNotSet(cfg.Registry))
@@ -103,14 +96,14 @@ func printGlobalConfig(w io.Writer, home string, cfg *config.CliConfig, state *c
 		}
 	}
 
-	_, err := io.WriteString(w, b.String())
-	return err
+	iostreams.Print(b.String())
 }
 
-func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
+func printProjectConfig(layers []config.RCLayer) {
 	if len(layers) == 0 {
-		_, err := io.WriteString(w, "Project (.agenticrc.toml)\n  (no .agenticrc.toml files found)\n")
-		return err
+		iostreams.Println("Project (.agenticrc.toml)")
+		iostreams.Println("  (no .agenticrc.toml files found)")
+		return
 	}
 
 	noun := "file"
@@ -124,8 +117,7 @@ func printProjectConfig(w io.Writer, layers []config.RCLayer) error {
 		writeSection(&b, s)
 	}
 
-	_, err := io.WriteString(w, b.String())
-	return err
+	iostreams.Print(b.String())
 }
 
 // projectSections resolves every project key against layers, grouped by TOML table.

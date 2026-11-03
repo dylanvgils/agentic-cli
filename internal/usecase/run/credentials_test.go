@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -352,7 +353,7 @@ func Test_checkProxyTrust(t *testing.T) {
 
 	t.Run("a skipped entrypoint warns without inspecting the image", func(t *testing.T) {
 		// Arrange
-		stderr := stubErrLog(t)
+		stderr := iostreamstest.StubErr(t)
 		inspected := false
 		d := &fakeDocker{
 			inspectImage: func(string) (*docker.ImageInfo, error) {

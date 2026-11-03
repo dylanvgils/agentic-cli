@@ -1,10 +1,6 @@
 package toolruns
 
 import (
-	"bytes"
-	"testing"
-
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 )
@@ -55,16 +51,4 @@ func (f *fakeMicrosandbox) ListRunning() ([]*microsandbox.Sandbox, error) {
 		return nil, nil
 	}
 	return f.listRunning()
-}
-
-// stubErrLog redirects logging.Err to a buffer until the test ends and returns it.
-func stubErrLog(t *testing.T) *bytes.Buffer {
-	t.Helper()
-
-	var buf bytes.Buffer
-	orig := logging.Err
-	logging.Err = logging.New(&buf)
-	t.Cleanup(func() { logging.Err = orig })
-
-	return &buf
 }

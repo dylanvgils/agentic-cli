@@ -1,12 +1,9 @@
 package sidecar
 
 import (
-	"bytes"
-	"testing"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 )
 
@@ -44,18 +41,6 @@ func (f *fakeDocker) PruneImages() (string, error) {
 		return "", nil
 	}
 	return f.pruneImages()
-}
-
-// stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.
-func stubErrLog(t *testing.T) *bytes.Buffer {
-	t.Helper()
-
-	var buf bytes.Buffer
-	orig := logging.Err
-	logging.Err = logging.New(&buf)
-	t.Cleanup(func() { logging.Err = orig })
-
-	return &buf
 }
 
 // recordBuilds returns a fakeDocker reporting every image missing, and a getter for the images built.

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/network/certs"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -576,7 +577,7 @@ func Test_dryRunProxy(t *testing.T) {
 
 		// Act
 		var toolArgs []string
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			var err error
 			toolArgs, _, err = client.dryRunProxy(rs)
 			require.NoError(t, err)

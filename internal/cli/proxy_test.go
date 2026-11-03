@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,7 +13,7 @@ import (
 func Test_runProxyBuildOrUpdate(t *testing.T) {
 	t.Run("build does not force no-cache by default", func(t *testing.T) {
 		// Arrange
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		var capturedOpts tools.BuildOptions
 		stubBuildProxyImage(t, func(_, _, _ string, opts tools.BuildOptions) error {
 			capturedOpts = opts
@@ -71,7 +72,7 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 		stubFlag(t, proxyBuildCmd, "dry-run", "true")
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := runProxyBuild(proxyBuildCmd, nil)
 			require.NoError(t, err)
 		})
@@ -85,7 +86,7 @@ func Test_runProxyBuildOrUpdate(t *testing.T) {
 func Test_runProxyClean(t *testing.T) {
 	t.Run("removes the proxy image", func(t *testing.T) {
 		// Arrange
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		var cleaned string
 		stubCleanImage(t, func(image string) error {
 			cleaned = image
@@ -117,7 +118,7 @@ func Test_runProxyClean(t *testing.T) {
 
 	t.Run("--logs wipes all proxy logs regardless of age", func(t *testing.T) {
 		// Arrange
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		withTempToolHome(t)
 		stubCleanImage(t, func(string) error { return nil })
 		log := writeProxyLog(t)

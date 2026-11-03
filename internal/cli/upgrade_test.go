@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +19,7 @@ func Test_runUpgrade(t *testing.T) {
 		// Arrange
 		releases := &fakeReleases{latest: "v1.0.0"}
 		stubReleases(t, releases)
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 
 		// Act
 		err := runUpgrade(upgradeCmd, nil)
@@ -34,7 +35,7 @@ func Test_runUpgrade(t *testing.T) {
 		// Arrange
 		releases := &fakeReleases{latest: "v1.1.0"}
 		stubReleases(t, releases)
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 
 		// Act
 		err := runUpgrade(upgradeCmd, nil)
@@ -73,7 +74,7 @@ func Test_runUpgrade(t *testing.T) {
 		t.Cleanup(func() { upgradeForce = false })
 		releases := &fakeReleases{latest: "v1.0.0"}
 		stubReleases(t, releases)
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 
 		// Act
 		err := runUpgrade(upgradeCmd, nil)
@@ -90,7 +91,7 @@ func Test_runUpgrade(t *testing.T) {
 		t.Cleanup(func() { upgradeVersion = "" })
 		releases := &fakeReleases{latest: "v1.0.0"}
 		stubReleases(t, releases)
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 
 		// Act
 		err := runUpgrade(upgradeCmd, nil)

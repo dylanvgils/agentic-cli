@@ -6,6 +6,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -128,7 +129,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(t.TempDir(), d).Apply(targets)
 			require.NoError(t, err)
 		})
@@ -150,7 +151,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		captureErrLog(t, func() {
+		iostreamstest.CaptureErr(t, func() {
 			err := New(t.TempDir(), d).Apply(targets)
 			require.NoError(t, err)
 		})
@@ -170,7 +171,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		captureErrLog(t, func() {
+		iostreamstest.CaptureErr(t, func() {
 			err := New(t.TempDir(), &fakeDocker{}, m).Apply(targets)
 			require.NoError(t, err)
 		})
@@ -181,7 +182,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("warns and goes on when another runtime fails", func(t *testing.T) {
 		// Arrange
-		errLog := stubErrLog(t)
+		errLog := iostreamstest.StubErr(t)
 		var cleaned []string
 		d := &fakeDocker{
 			cleanImage: func(image string) error {
@@ -231,7 +232,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		captureErrLog(t, func() {
+		iostreamstest.CaptureErr(t, func() {
 			err := New(home, d).Apply(targets)
 			require.NoError(t, err)
 		})
@@ -255,7 +256,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		captureErrLog(t, func() {
+		iostreamstest.CaptureErr(t, func() {
 			err := New(home, d).Apply(targets)
 			require.NoError(t, err)
 		})
@@ -285,7 +286,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		captureErrLog(t, func() {
+		iostreamstest.CaptureErr(t, func() {
 			err := New(t.TempDir(), d, m).Apply(targets)
 			require.NoError(t, err)
 		})
@@ -329,7 +330,7 @@ func TestApply(t *testing.T) {
 func TestGlobalResources(t *testing.T) {
 	t.Run("cleans base, proxy image, sweeps, and removes network", func(t *testing.T) {
 		// Arrange
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		var cleaned []string
 		basesCleaned := false
 		var swept []string
@@ -487,7 +488,7 @@ func TestPrune(t *testing.T) {
 		}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New("/agentic-home", d).Prune(func() bool { return true })
 			require.NoError(t, err)
 		})
@@ -507,7 +508,7 @@ func TestPrune(t *testing.T) {
 		}}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New("/agentic-home", d).Prune(func() bool { return false })
 			require.NoError(t, err)
 		})
@@ -530,7 +531,7 @@ func TestPrune(t *testing.T) {
 
 		// Act
 		var err error
-		captureErrLog(t, func() {
+		iostreamstest.CaptureErr(t, func() {
 			err = New("/agentic-home", d).Prune(func() bool { return true })
 		})
 
@@ -556,7 +557,7 @@ func Test_cleanSidecarImages(t *testing.T) {
 
 		// Act
 		var err error
-		captureErrLog(t, func() { err = New("/agentic-home", d).cleanSidecarImages() })
+		iostreamstest.CaptureErr(t, func() { err = New("/agentic-home", d).cleanSidecarImages() })
 
 		// Assert
 		require.NoError(t, err)
@@ -583,7 +584,7 @@ func Test_stepImage(t *testing.T) {
 		var kept bool
 
 		// Act
-		out := captureErrLog(t, func() { kept = stepImage("agentic-claude", true) })
+		out := iostreamstest.CaptureErr(t, func() { kept = stepImage("agentic-claude", true) })
 
 		// Assert
 		assert.True(t, kept)
@@ -595,7 +596,7 @@ func Test_stepImage(t *testing.T) {
 		var kept bool
 
 		// Act
-		out := captureErrLog(t, func() { kept = stepImage("agentic-copilot", false) })
+		out := iostreamstest.CaptureErr(t, func() { kept = stepImage("agentic-copilot", false) })
 
 		// Assert
 		assert.False(t, kept)
@@ -607,7 +608,7 @@ func Test_stepImage(t *testing.T) {
 func Test_stepRemoved(t *testing.T) {
 	t.Run("lists the removed names under the label", func(t *testing.T) {
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := stepRemoved("leftover sidecars", func() ([]string, error) {
 				return []string{"agentic-docker-abc", "agentic-proxy-abc"}, nil
 			})
@@ -620,7 +621,7 @@ func Test_stepRemoved(t *testing.T) {
 
 	t.Run("reports none when nothing was removed", func(t *testing.T) {
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := stepRemoved("leftover sidecars", func() ([]string, error) { return nil, nil })
 			require.NoError(t, err)
 		})
@@ -632,7 +633,7 @@ func Test_stepRemoved(t *testing.T) {
 	t.Run("returns the error", func(t *testing.T) {
 		// Act
 		var err error
-		captureErrLog(t, func() {
+		iostreamstest.CaptureErr(t, func() {
 			err = stepRemoved("leftover sidecars", func() ([]string, error) { return nil, fmt.Errorf("sweep failed") })
 		})
 
@@ -644,7 +645,7 @@ func Test_stepRemoved(t *testing.T) {
 func Test_stepReclaimed(t *testing.T) {
 	t.Run("reports the reclaimed space under the label", func(t *testing.T) {
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := stepReclaimed("build cache", func() (string, error) { return "1.5GB", nil })
 			require.NoError(t, err)
 		})
@@ -655,7 +656,7 @@ func Test_stepReclaimed(t *testing.T) {
 
 	t.Run("an unknown size prints only the label", func(t *testing.T) {
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := stepReclaimed("build cache", func() (string, error) { return "", nil })
 			require.NoError(t, err)
 		})
@@ -667,7 +668,7 @@ func Test_stepReclaimed(t *testing.T) {
 	t.Run("returns the error", func(t *testing.T) {
 		// Act
 		var err error
-		captureErrLog(t, func() {
+		iostreamstest.CaptureErr(t, func() {
 			err = stepReclaimed("build cache", func() (string, error) { return "", fmt.Errorf("prune failed") })
 		})
 

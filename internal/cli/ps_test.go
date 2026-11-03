@@ -3,6 +3,7 @@ package cli
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/stretchr/testify/assert"
@@ -50,7 +51,7 @@ func Test_runPs(t *testing.T) {
 
 	t.Run("lists the active namespace's runs on every runtime", func(t *testing.T) {
 		// Arrange
-		buf := stubLogs(t)
+		buf := iostreamstest.StubCombined(t)
 		cmd := newTestPsCmd(t)
 
 		// Act
@@ -66,7 +67,7 @@ func Test_runPs(t *testing.T) {
 
 	t.Run("lists every namespace with --all", func(t *testing.T) {
 		// Arrange
-		buf := stubLogs(t)
+		buf := iostreamstest.StubCombined(t)
 		cmd := newTestPsCmd(t, "--all")
 
 		// Act
@@ -81,7 +82,7 @@ func Test_runPs(t *testing.T) {
 
 	t.Run("lists the namespace given with --namespace", func(t *testing.T) {
 		// Arrange
-		buf := stubLogs(t)
+		buf := iostreamstest.StubCombined(t)
 		cmd := newTestPsCmd(t, "--namespace", "other")
 
 		// Act
@@ -95,7 +96,7 @@ func Test_runPs(t *testing.T) {
 
 	t.Run("names the namespace when nothing runs in it", func(t *testing.T) {
 		// Arrange
-		buf := stubLogs(t)
+		buf := iostreamstest.StubCombined(t)
 		cmd := newTestPsCmd(t, "--namespace", "empty")
 
 		// Act
@@ -108,7 +109,7 @@ func Test_runPs(t *testing.T) {
 
 	t.Run("says so when nothing runs in any namespace", func(t *testing.T) {
 		// Arrange
-		buf := stubLogs(t)
+		buf := iostreamstest.StubCombined(t)
 		cmd := newTestPsCmd(t, "--all")
 		stubListRunningContainers(t, func() ([]*docker.ContainerInfo, error) { return nil, nil })
 		stubMicrosandbox(t, &fakeMicrosandbox{})

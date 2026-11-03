@@ -14,16 +14,18 @@ import (
 // Service checks for and applies newer agentic releases.
 type Service struct {
 	releases Releases
-	notify   *logging.Logger // update progress, apart from the command's own output
-	version  string          // the installed agentic version
+	version  string // the installed agentic version
 }
 
 // Confirm tells the user an upgrade from installed to latest is available and reports whether to apply it now.
 type Confirm func(installed, latest string) bool
 
-// New returns a Service that upgrades this build, fetches releases through r and reports update progress to notify.
-func New(r Releases, notify *logging.Logger) *Service {
-	return &Service{releases: r, notify: notify, version: buildinfo.Version}
+// New returns a Service that upgrades this build and fetches releases through r.
+func New(r Releases) *Service {
+	return &Service{
+		releases: r,
+		version:  buildinfo.Version,
+	}
 }
 
 // Check checks for a newer release at most once per CheckInterval and applies it when confirm agrees. updated reports
@@ -74,12 +76,12 @@ func (s *Service) offerUpdate(latest string, confirm Confirm) (updated bool, err
 		return false, nil
 	}
 
-	s.notify.Infof("updating %s -> %s...", s.version, latest)
+	logging.Infof("updating %s -> %s...", s.version, latest)
 
 	if err := s.releases.Update(latest); err != nil {
 		return false, fmt.Errorf("update failed: %w - run: agentic upgrade", err)
 	}
 
-	s.notify.Detailf("updated to %s", latest)
+	logging.Detailf("updated to %s", latest)
 	return true, nil
 }

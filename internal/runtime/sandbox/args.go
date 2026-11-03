@@ -4,6 +4,7 @@ package sandbox
 import (
 	"strings"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 )
@@ -63,7 +64,7 @@ func PrintDryRun(label, name string, args []string) {
 // PrintDryRunText prints dry-run text such as a Dockerfile to stdout, labelled and set apart by agentic lines on stderr.
 func PrintDryRunText(label, text string) {
 	logging.Infof("%s:", label)
-	logging.Println(text)
+	iostreams.Println(text)
 	logging.Separate()
 }
 

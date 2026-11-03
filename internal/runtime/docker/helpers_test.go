@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/require"
@@ -46,8 +45,8 @@ type fakeRunner struct {
 	runInteractive func(args ...string) error
 	stream         func(w io.Writer, args ...string) error
 
-	// interactiveOut is the stdout the last RunInteractive call got.
-	interactiveOut io.Writer
+	// progress reports whether the last runInteractive call came through RunProgress.
+	progress bool
 }
 
 func (f *fakeRunner) Run(args ...string) (string, error) {
@@ -64,8 +63,18 @@ func (f *fakeRunner) RunWithStdin(r io.Reader, args ...string) (string, error) {
 	return f.runWithStdin(r, args...)
 }
 
-func (f *fakeRunner) RunInteractive(stdout io.Writer, args ...string) error {
-	f.interactiveOut = stdout
+func (f *fakeRunner) RunInteractive(args ...string) error {
+	f.progress = false
+	return f.interactive(args)
+}
+
+func (f *fakeRunner) RunProgress(args ...string) error {
+	f.progress = true
+	return f.interactive(args)
+}
+
+// interactive runs the runInteractive stub that RunInteractive and RunProgress share.
+func (f *fakeRunner) interactive(args []string) error {
 	if f.runInteractive == nil {
 		return fmt.Errorf("fake: unexpected docker %v", args)
 	}
@@ -197,7 +206,7 @@ func argAfter(args []string, flag string) string {
 	return ""
 }
 
-// stubRunInteractiveCapture captures the last client.runInteractive call's args and, if present, its
+// stubRunInteractiveCapture captures the last client.runInteractive or runProgress call's args and, if present, its
 // --file Dockerfile content (read inside the stub before the temp file is removed).
 func stubRunInteractiveCapture(t *testing.T, client *Client) func() (args []string, dockerfile string) {
 	t.Helper()
@@ -279,7 +288,7 @@ func findCall(calls []dockerCall, prefix ...string) []string {
 	return nil
 }
 
-// stubRunInteractiveError replaces client.runInteractive with a stub that always returns err.
+// stubRunInteractiveError replaces client.runInteractive and runProgress with a stub that always returns err.
 func stubRunInteractiveError(t *testing.T, client *Client, err error) {
 	t.Helper()
 	stubRunInteractiveFunc(t, client, func(...string) error { return err })
@@ -428,18 +437,4 @@ func stubProxySettleTime(t *testing.T, client *Client, d time.Duration) {
 	orig := client.timing
 	client.timing.proxySettleTime = d
 	t.Cleanup(func() { client.timing = orig })
-}
-
-// captureOut swaps logging.Out for the duration of fn and returns what was written.
-func captureOut(t *testing.T, fn func()) string {
-	t.Helper()
-
-	var buf bytes.Buffer
-	orig := logging.Out
-	logging.Out = &buf
-	t.Cleanup(func() { logging.Out = orig })
-
-	fn()
-
-	return buf.String()
 }

@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -10,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 )
 
 // LogFilePrefix distinguishes proxy access-log filenames from other log types in $TOOL_HOME/logs.
@@ -81,23 +82,24 @@ type Entry struct {
 }
 
 // Logger writes each access record as a JSON line (always UTC) to an optional file and as a
-// human-readable line (shown in location, typically stdout for `docker logs -f`) to an optional
-// destination. Safe for concurrent use.
+// human-readable logging.Info line (in location), for `docker logs -f`. Safe for concurrent use.
 type Logger struct {
 	mutex    sync.Mutex
 	encoder  *json.Encoder // nil when no JSON destination is configured
-	human    io.Writer     // nil when no human-readable destination is configured
 	location *time.Location
 	now      func() time.Time
 }
 
-// NewLogger returns a Logger writing JSON to file and human-readable lines (in location, nil defaulting to UTC) to human; either writer may be nil.
-func NewLogger(file, human io.Writer, location *time.Location) *Logger {
+// NewLogger returns a Logger writing JSON to file (nil for none) and human-readable lines in location (nil for UTC).
+func NewLogger(file io.Writer, location *time.Location) *Logger {
 	if location == nil {
 		location = time.UTC
 	}
 
-	l := &Logger{human: human, location: location, now: time.Now}
+	l := &Logger{
+		location: location,
+		now:      time.Now,
+	}
 	if file != nil {
 		l.encoder = json.NewEncoder(file)
 	}
@@ -115,20 +117,18 @@ func (l *Logger) Log(entry Entry) {
 		_ = l.encoder.Encode(entry)
 	}
 
-	if l.human != nil {
-		level := "[" + strings.ToUpper(string(entry.Decision)) + "]"
-		tags := ""
-		if !entry.Enforced {
-			tags += " (monitor)"
-		}
-		if entry.Intercepted {
-			tags += " (intercepted)"
-		}
-		if entry.Reason != "" {
-			tags += " (" + entry.Reason + ")"
-		}
-		fmt.Fprintf(l.human, "%s %-7s %-5s %s:%s%s%s\n", entry.Time.In(l.location).Format(time.RFC3339), level, entry.Protocol, DisplayHost(entry.Host), entry.Port, DisplayHost(entry.Path), tags)
+	level := "[" + strings.ToUpper(string(entry.Decision)) + "]"
+	tags := ""
+	if !entry.Enforced {
+		tags += " (monitor)"
 	}
+	if entry.Intercepted {
+		tags += " (intercepted)"
+	}
+	if entry.Reason != "" {
+		tags += " (" + entry.Reason + ")"
+	}
+	logging.Infof("%s %-7s %-5s %s:%s%s%s", entry.Time.In(l.location).Format(time.RFC3339), level, entry.Protocol, DisplayHost(entry.Host), entry.Port, DisplayHost(entry.Path), tags)
 }
 
 // DisplayHost returns host for a terminal, quoted when it has anything but printable ASCII, such as bidi overrides the tool

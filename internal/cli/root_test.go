@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -358,4 +360,43 @@ func TestHomeFlag(t *testing.T) {
 	// Assert
 	require.NotNil(t, rootCmd.PersistentFlags().Lookup("home"))
 	assert.Empty(t, own)
+}
+
+func Test_failUnknownHelpTopic(t *testing.T) {
+	newRoot := func() *cobra.Command {
+		root := &cobra.Command{Use: "app", SilenceErrors: true, SilenceUsage: true}
+		root.AddCommand(&cobra.Command{Use: "sub", Short: "a subcommand", Run: func(*cobra.Command, []string) {}})
+		root.SetOut(iostreams.Default().Out)
+		root.SetErr(iostreams.Default().Err)
+		failUnknownHelpTopic(root)
+		return root
+	}
+
+	t.Run("unknown topic fails without output", func(t *testing.T) {
+		// Arrange
+		out := iostreamstest.StubCombined(t)
+		root := newRoot()
+		root.SetArgs([]string{"help", "nosuch"})
+
+		// Act
+		err := root.Execute()
+
+		// Assert
+		require.EqualError(t, err, `unknown help topic "nosuch"`)
+		assert.Empty(t, out.String())
+	})
+
+	t.Run("known topic prints its help", func(t *testing.T) {
+		// Arrange
+		out := iostreamstest.StubOut(t)
+		root := newRoot()
+		root.SetArgs([]string{"help", "sub"})
+
+		// Act
+		err := root.Execute()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, out.String(), "a subcommand")
+	})
 }

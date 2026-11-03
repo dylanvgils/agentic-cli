@@ -25,7 +25,7 @@ func runMigrate(_ *cobra.Command, _ []string) error {
 	}
 
 	if len(applied) == 0 {
-		logging.Infof("already up to date")
+		logging.Info("already up to date")
 	}
 
 	return nil

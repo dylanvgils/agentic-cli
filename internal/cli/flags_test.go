@@ -5,6 +5,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
@@ -266,7 +267,7 @@ func Test_argOrAllExclusive(t *testing.T) {
 func Test_warnSkipInstallChecksum(t *testing.T) {
 	t.Run("warns when the checksum is skipped", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 
 		// Act
 		warnSkipInstallChecksum(tools.BuildOptions{SkipInstallChecksum: true})
@@ -277,7 +278,7 @@ func Test_warnSkipInstallChecksum(t *testing.T) {
 
 	t.Run("stays quiet otherwise", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 
 		// Act
 		warnSkipInstallChecksum(tools.BuildOptions{})

@@ -5,7 +5,16 @@ run:
     - integration
 
 linters:
+  enable:
+    - forbidigo
   settings:
+    forbidigo:
+      # all IO goes through internal/infra/iostreams and logging; only iostreams.System names the streams
+      forbid:
+        - pattern: ^os\.Std(in|out|err)$
+        - pattern: ^fmt\.Print(f|ln)?$
+        - pattern: ^print(ln)?$
+        - pattern: ^log\.(Print|Fatal|Panic)(f|ln)?$
     staticcheck:
       checks:
         - all
@@ -17,6 +26,12 @@ linters:
         - fmt.Print
         - fmt.Printf
         - fmt.Println
+
+  exclusions:
+    rules:
+      - path: (_test\.go$|^test/integration/)
+        linters:
+          - forbidigo
 
 issues:
   max-issues-per-linter: 0

@@ -74,7 +74,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 	// Only --all can match nothing; a named tool always resolves to its image
 	if len(targets) == 0 {
-		logging.Infof("no agentic images found; run 'agentic build' first")
+		logging.Info("no agentic images found; run 'agentic build' first")
 		return nil
 	}
 

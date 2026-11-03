@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
-	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 )
 
 // settingEffects says in a few words what each guarded setting controls, so the prompt shows what approving it allows.
@@ -37,9 +37,9 @@ type ttyPrompter struct {
 	terminal bool
 }
 
-// newTTYPrompter returns a ttyPrompter for the process's stdin.
+// newTTYPrompter returns a ttyPrompter for the default In.
 func newTTYPrompter() ttyPrompter {
-	return ttyPrompter{terminal: platform.IsTerminal()}
+	return ttyPrompter{terminal: iostreams.IsTerminal()}
 }
 
 // TrustDir asks whether to trust dir.
@@ -63,7 +63,7 @@ func (p ttyPrompter) ApproveSettings(layer config.RCLayer, changed []config.Guar
 	}
 
 	logging.Infof("%q has new or changed settings that reach outside the container.", layer.Path)
-	logging.Infof("the agent can edit this file, so approve only changes you made or expect:")
+	logging.Info("the agent can edit this file, so approve only changes you made or expect:")
 	for _, setting := range changed {
 		header, values := describeSetting(setting)
 		logging.Step(header)
@@ -72,7 +72,7 @@ func (p ttyPrompter) ApproveSettings(layer config.RCLayer, changed []config.Guar
 		}
 	}
 
-	logging.Promptf("apply these settings? [y/N] ")
+	logging.Prompt("apply these settings? [y/N] ")
 	if !confirmed() {
 		return fmt.Errorf("settings in %s not approved", layer.Path)
 	}
@@ -105,11 +105,11 @@ func (p ttyPrompter) OfferUpgrade(installed, latest string) bool {
 // ConfirmCachePrune asks before clearing Docker's build cache; without a terminal it keeps it.
 func (p ttyPrompter) ConfirmCachePrune() bool {
 	if !p.terminal {
-		logging.Infof("kept the build cache - run: agentic prune --force to clear it")
+		logging.Info("kept the build cache - run: agentic prune --force to clear it")
 		return false
 	}
 
-	logging.Promptf("clear Docker's unused build cache, including builds outside agentic? [y/N] ")
+	logging.Prompt("clear Docker's unused build cache, including builds outside agentic? [y/N] ")
 	return confirmed()
 }
 
@@ -127,13 +127,13 @@ func describeCredential(cred config.RCCredential) (string, []string) {
 	return target, details
 }
 
-// confirmed reads one line from stdin and reports whether it is y or Y.
+// confirmed reads one line from iostreams.Default().In and reports whether it is y or Y.
 func confirmed() bool {
 	// Read byte by byte so a later prompt still gets its own line
 	var line []byte
 	buf := make([]byte, 1)
 	for {
-		n, err := stdin.Read(buf)
+		n, err := iostreams.Default().In.Read(buf)
 		if n == 1 && buf[0] != '\n' {
 			line = append(line, buf[0])
 		}

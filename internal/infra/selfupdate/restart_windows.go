@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 )
 
 // Restart runs the installed binary with the same arguments and exits with its code; returns only on failure.
@@ -17,7 +19,7 @@ func Restart() error {
 	}
 
 	cmd := exec.Command(execPath, os.Args[1:]...)
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = iostreams.Default().In, iostreams.Default().Out, iostreams.Default().Err
 
 	err = cmd.Run()
 	var exitErr *exec.ExitError

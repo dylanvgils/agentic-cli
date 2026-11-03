@@ -93,7 +93,7 @@ func (s *Service) msbRuns() []Run {
 	}
 	sandboxes, err := s.msb.ListRunning()
 	if err != nil {
-		logging.Warnf("%v", err)
+		logging.Warn(err.Error())
 		return nil
 	}
 

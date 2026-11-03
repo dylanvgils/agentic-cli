@@ -32,11 +32,10 @@ var (
 // Releases fetches and installs agentic's GitHub releases.
 type Releases struct{}
 
-// updater downloads, verifies and installs releases, reporting progress to log.
+// updater downloads, verifies and installs releases, reporting progress through logging.
 type updater struct {
 	client *http.Client
-	log    *logging.Logger // stderr in production
-	cosign string          // cosign binary, or "" to skip the signature check
+	cosign string // cosign binary, or "" to skip the signature check
 
 	cosignTimeout time.Duration
 }
@@ -80,7 +79,6 @@ func (Releases) Update(version string) error {
 
 	u := updater{
 		client: http.DefaultClient,
-		log:    logging.Err,
 		cosign: cosignPath(),
 
 		cosignTimeout: cosignTimeout,
@@ -121,7 +119,7 @@ func (u updater) download(rel releaseFiles, tmpDir string) (string, error) {
 		return "", err
 	}
 
-	u.log.Detail("verifying checksum...")
+	logging.Detail("verifying checksum...")
 	if err := verifyChecksum(archivePath, rel.archiveName, checksumsPath); err != nil {
 		return "", err
 	}

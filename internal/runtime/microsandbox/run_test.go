@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +40,7 @@ func TestClient_Run(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureOut(t, func() { err = client.Run(rs) })
+		out := iostreamstest.CaptureOut(t, func() { err = client.Run(rs) })
 
 		// Assert
 		require.NoError(t, err)
@@ -75,7 +76,7 @@ func TestClient_Run(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureOut(t, func() { err = client.Run(rs) })
+		out := iostreamstest.CaptureOut(t, func() { err = client.Run(rs) })
 
 		// Assert
 		require.NoError(t, err)

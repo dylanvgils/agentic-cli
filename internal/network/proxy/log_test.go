@@ -10,15 +10,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoggerLog(t *testing.T) {
+func TestLogger_Log(t *testing.T) {
 	t.Run("writes one JSON line per call to the file destination", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer
-		logger := NewLogger(&buf, nil, nil)
+		logger := NewLogger(&buf, nil)
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
@@ -48,7 +49,7 @@ func TestLoggerLog(t *testing.T) {
 	t.Run("monitor mode logs enforced=false", func(t *testing.T) {
 		// Arrange
 		var buf bytes.Buffer
-		logger := NewLogger(&buf, nil, nil)
+		logger := NewLogger(&buf, nil)
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
@@ -61,10 +62,10 @@ func TestLoggerLog(t *testing.T) {
 		assert.False(t, entry.Enforced)
 	})
 
-	t.Run("writes one human-readable line per call to the human destination", func(t *testing.T) {
+	t.Run("writes one human-readable line per call through logging", func(t *testing.T) {
 		// Arrange
-		var buf bytes.Buffer
-		logger := NewLogger(nil, &buf, nil)
+		buf := iostreamstest.StubErr(t)
+		logger := NewLogger(nil, nil)
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
@@ -74,14 +75,14 @@ func TestLoggerLog(t *testing.T) {
 		// Assert
 		lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
 		require.Len(t, lines, 2)
-		assert.Equal(t, "2026-06-17T12:00:00Z [ALLOW] https api.example.test:443", string(lines[0]))
-		assert.Equal(t, "2026-06-17T12:00:00Z [DENY]  http  evil.test:443", string(lines[1]))
+		assert.Equal(t, "agentic: 2026-06-17T12:00:00Z [ALLOW] https api.example.test:443", string(lines[0]))
+		assert.Equal(t, "agentic: 2026-06-17T12:00:00Z [DENY]  http  evil.test:443", string(lines[1]))
 	})
 
 	t.Run("monitor mode tags the human-readable line", func(t *testing.T) {
 		// Arrange
-		var buf bytes.Buffer
-		logger := NewLogger(nil, &buf, nil)
+		buf := iostreamstest.StubErr(t)
+		logger := NewLogger(nil, nil)
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
@@ -90,13 +91,14 @@ func TestLoggerLog(t *testing.T) {
 		// Assert
 		lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
 		require.Len(t, lines, 1)
-		assert.Equal(t, "2026-06-17T12:00:00Z [DENY]  https evil.test:443 (monitor)", string(lines[0]))
+		assert.Equal(t, "agentic: 2026-06-17T12:00:00Z [DENY]  https evil.test:443 (monitor)", string(lines[0]))
 	})
 
 	t.Run("intercepted tunnel is tagged and recorded", func(t *testing.T) {
 		// Arrange
-		var jsonBuf, humanBuf bytes.Buffer
-		logger := NewLogger(&jsonBuf, &humanBuf, nil)
+		var jsonBuf bytes.Buffer
+		humanBuf := iostreamstest.StubErr(t)
+		logger := NewLogger(&jsonBuf, nil)
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
@@ -106,13 +108,14 @@ func TestLoggerLog(t *testing.T) {
 		var entry Entry
 		require.NoError(t, json.Unmarshal(bytes.TrimSpace(jsonBuf.Bytes()), &entry))
 		assert.True(t, entry.Intercepted)
-		assert.Equal(t, "2026-06-17T12:00:00Z [ALLOW] https api.example.test:443 (intercepted)", strings.TrimSpace(humanBuf.String()))
+		assert.Equal(t, "agentic: 2026-06-17T12:00:00Z [ALLOW] https api.example.test:443 (intercepted)", strings.TrimSpace(humanBuf.String()))
 	})
 
 	t.Run("reason is tagged and recorded", func(t *testing.T) {
 		// Arrange
-		var jsonBuf, humanBuf bytes.Buffer
-		logger := NewLogger(&jsonBuf, &humanBuf, nil)
+		var jsonBuf bytes.Buffer
+		humanBuf := iostreamstest.StubErr(t)
+		logger := NewLogger(&jsonBuf, nil)
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
@@ -122,13 +125,14 @@ func TestLoggerLog(t *testing.T) {
 		var entry Entry
 		require.NoError(t, json.Unmarshal(bytes.TrimSpace(jsonBuf.Bytes()), &entry))
 		assert.Equal(t, ReasonBlockedAddr, entry.Reason)
-		assert.Equal(t, "2026-06-17T12:00:00Z [DENY]  https api.example.test:443 (blocked-address)", strings.TrimSpace(humanBuf.String()))
+		assert.Equal(t, "agentic: 2026-06-17T12:00:00Z [DENY]  https api.example.test:443 (blocked-address)", strings.TrimSpace(humanBuf.String()))
 	})
 
 	t.Run("refused path is recorded and shown after the port", func(t *testing.T) {
 		// Arrange
-		var jsonBuf, humanBuf bytes.Buffer
-		logger := NewLogger(&jsonBuf, &humanBuf, nil)
+		var jsonBuf bytes.Buffer
+		humanBuf := iostreamstest.StubErr(t)
+		logger := NewLogger(&jsonBuf, nil)
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
@@ -138,14 +142,14 @@ func TestLoggerLog(t *testing.T) {
 		var entry Entry
 		require.NoError(t, json.Unmarshal(bytes.TrimSpace(jsonBuf.Bytes()), &entry))
 		assert.Equal(t, "/other", entry.Path)
-		assert.Equal(t, "2026-06-17T12:00:00Z [DENY]  https raw.example.test:443/other (path-blocked)", strings.TrimSpace(humanBuf.String()))
+		assert.Equal(t, "agentic: 2026-06-17T12:00:00Z [DENY]  https raw.example.test:443/other (path-blocked)", strings.TrimSpace(humanBuf.String()))
 	})
 
-	t.Run("human destination uses the configured location", func(t *testing.T) {
+	t.Run("human line uses the configured location", func(t *testing.T) {
 		// Arrange
-		var buf bytes.Buffer
+		buf := iostreamstest.StubErr(t)
 		location := time.FixedZone("", 2*60*60)
-		logger := NewLogger(nil, &buf, location)
+		logger := NewLogger(nil, location)
 		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
 		// Act
@@ -154,17 +158,20 @@ func TestLoggerLog(t *testing.T) {
 		// Assert
 		lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
 		require.Len(t, lines, 1)
-		assert.Equal(t, "2026-06-17T14:00:00+02:00 [ALLOW] https api.example.test:443", string(lines[0]))
+		assert.Equal(t, "agentic: 2026-06-17T14:00:00+02:00 [ALLOW] https api.example.test:443", string(lines[0]))
 	})
 
-	t.Run("nil destinations are skipped without writing", func(t *testing.T) {
+	t.Run("nil file writes no JSON but still the human line", func(t *testing.T) {
 		// Arrange
-		logger := NewLogger(nil, nil, nil)
+		buf := iostreamstest.StubErr(t)
+		logger := NewLogger(nil, nil)
+		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
 
-		// Act + Assert
-		assert.NotPanics(t, func() {
-			logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionAllow, Enforced: true})
-		})
+		// Act
+		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionAllow, Enforced: true})
+
+		// Assert
+		assert.Equal(t, "agentic: 2026-06-17T12:00:00Z [ALLOW] https api.example.test:443\n", buf.String())
 	})
 }
 

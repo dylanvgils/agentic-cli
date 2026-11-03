@@ -71,7 +71,7 @@ func (r dockerRunner) Run(req Request, rs sandbox.RunSpec) error {
 		// Stop first, so requests the proxy logs while stopping make the summary
 		r.docker.StopSidecars(sidecars)
 		if !rs.DryRun && rs.Proxy.Mode.Enabled() {
-			printProxySummary(logging.Err, rs.Proxy)
+			printProxySummary(rs.Proxy)
 		}
 	}()
 

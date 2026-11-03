@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -11,7 +12,7 @@ import (
 func TestCleanImage(t *testing.T) {
 	t.Run("removes every ref of the repository and reports the tags in one line", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 		var removed []string
 		client := newTestClient(&fakeRunner{run: func(args ...string) (string, error) {
 			if args[0] == "images" {

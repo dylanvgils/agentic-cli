@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureOut(t, func() { err = runStatus(statusCmd, nil) })
+		out := iostreamstest.CaptureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -39,7 +40,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureOut(t, func() { err = runStatus(statusCmd, nil) })
+		out := iostreamstest.CaptureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -58,7 +59,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureOut(t, func() { err = runStatus(statusCmd, nil) })
+		out := iostreamstest.CaptureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -77,7 +78,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureOut(t, func() { err = runStatus(statusCmd, nil) })
+		out := iostreamstest.CaptureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -92,7 +93,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureOut(t, func() { err = runStatus(statusCmd, nil) })
+		out := iostreamstest.CaptureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -109,7 +110,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		captureOut(t, func() { err = runStatus(statusCmd, nil) })
+		iostreamstest.CaptureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.Error(t, err)
@@ -123,7 +124,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureOut(t, func() { err = runStatus(statusCmd, nil) })
+		out := iostreamstest.CaptureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -138,7 +139,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureOut(t, func() { err = runStatus(statusCmd, nil) })
+		out := iostreamstest.CaptureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)

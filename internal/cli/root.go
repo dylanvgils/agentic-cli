@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/infra/git"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 	"github.com/dylanvgils/agentic-cli/internal/infra/selfupdate"
@@ -63,10 +65,14 @@ func init() {
 	_ = rootCmd.RegisterFlagCompletionFunc(dockerContextFlagName, dockerContextsFunc)
 }
 
-// Execute the Agentic CLI
+// Execute runs the CLI on iostreams.Default and prints a returned error once.
 func Execute() {
+	rootCmd.SetOut(iostreams.Default().Out)
+	rootCmd.SetErr(iostreams.Default().Err)
+	failUnknownHelpTopic(rootCmd)
+
 	if err := rootCmd.Execute(); err != nil {
-		logging.Errorf("%v", err)
+		logging.Error(err.Error())
 		os.Exit(1)
 	}
 }
@@ -92,7 +98,7 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	}
 
 	if cmd.Parent() != nil && !inCommandChain(cmd, noUpdateCmds) {
-		return restartAfterUpgrade(upgradecheck.New(releasesClient, logging.Err).Check(toolHome, newTTYPrompter().OfferUpgrade))
+		return restartAfterUpgrade(upgradecheck.New(releasesClient).Check(toolHome, newTTYPrompter().OfferUpgrade))
 	}
 
 	return nil
@@ -191,4 +197,23 @@ func inCommandChain(cmd *cobra.Command, names []string) bool {
 
 func rootRun(cmd *cobra.Command, _ []string) error {
 	return cmd.Help()
+}
+
+// failUnknownHelpTopic makes `help <unknown>` fail like an unknown command instead of printing usage.
+func failUnknownHelpTopic(root *cobra.Command) {
+	root.InitDefaultHelpCmd()
+	help, _, err := root.Find([]string{"help"})
+	if err != nil || help == root {
+		return
+	}
+
+	run := help.Run
+	help.Run = nil
+	help.RunE = func(c *cobra.Command, args []string) error {
+		if cmd, _, err := c.Root().Find(args); cmd == nil || err != nil {
+			return fmt.Errorf("unknown help topic %q", strings.Join(args, " "))
+		}
+		run(c, args)
+		return nil
+	}
 }

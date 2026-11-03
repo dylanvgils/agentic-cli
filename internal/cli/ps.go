@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolruns"
@@ -55,7 +56,7 @@ func writeRuns(namespace string, runs []toolruns.Run) error {
 		return nil
 	}
 	if len(runs) == 0 {
-		logging.Infof("no running containers or VMs")
+		logging.Info("no running containers or VMs")
 		return nil
 	}
 
@@ -70,5 +71,5 @@ func writeRuns(namespace string, runs []toolruns.Run) error {
 			name:      r.Name,
 		}
 	}
-	return writeTable(logging.Out, rows)
+	return writeTable(iostreams.Default().Out, rows)
 }

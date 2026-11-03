@@ -2,8 +2,9 @@ package upgradecheck
 
 import (
 	"bytes"
+	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 )
 
 // fakeReleases implements Releases, returning latest/latestErr and updateErr and recording the calls.
@@ -27,9 +28,11 @@ func (f *fakeReleases) Update(version string) error {
 }
 
 // newTestService returns a Service for installed version v1.0.0 over r whose progress goes to the returned buffer.
-func newTestService(r Releases) (*Service, *bytes.Buffer) {
-	var buf bytes.Buffer
-	svc := New(r, logging.New(&buf))
+func newTestService(t *testing.T, r Releases) (*Service, *bytes.Buffer) {
+	t.Helper()
+
+	buf := iostreamstest.StubErr(t)
+	svc := New(r)
 	svc.version = "v1.0.0"
-	return svc, &buf
+	return svc, buf
 }
