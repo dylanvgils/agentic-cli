@@ -43,7 +43,7 @@ func runUpgrade(_ *cobra.Command, _ []string) error {
 	}
 
 	if !upgradeForce && upgradeVersion == "" && !selfupdate.IsNewer(buildinfo.Version, target) {
-		logging.Detailf("already up to date (%s)", buildinfo.Version)
+		logging.Err.Detailf("already up to date (%s)", buildinfo.Version)
 		return nil
 	}
 
@@ -53,6 +53,6 @@ func runUpgrade(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("update failed: %w", err)
 	}
 
-	logging.Detailf("updated to %s", target)
+	logging.Err.Detailf("updated to %s", target)
 	return nil
 }

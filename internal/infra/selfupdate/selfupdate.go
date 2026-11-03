@@ -35,7 +35,7 @@ type Releases struct{}
 // updater downloads, verifies and installs releases, reporting progress to log.
 type updater struct {
 	client *http.Client
-	log    *logging.Logger // stderr in production, so progress stays off the output of the command an upgrade check runs before
+	log    *logging.Logger // stderr in production
 	cosign string          // cosign binary, or "" to skip the signature check
 
 	cosignTimeout time.Duration

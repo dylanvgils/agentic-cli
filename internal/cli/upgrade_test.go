@@ -18,16 +18,15 @@ func Test_runUpgrade(t *testing.T) {
 		// Arrange
 		releases := &fakeReleases{latest: "v1.0.0"}
 		stubReleases(t, releases)
+		logBuf := stubErrLog(t)
 
 		// Act
-		out := captureLog(t, func() {
-			err := runUpgrade(upgradeCmd, nil)
-			require.NoError(t, err)
-		})
+		err := runUpgrade(upgradeCmd, nil)
 
 		// Assert
-		assert.Contains(t, out, "already up to date")
-		assert.Contains(t, out, "v1.0.0")
+		require.NoError(t, err)
+		assert.Contains(t, logBuf.String(), "already up to date")
+		assert.Contains(t, logBuf.String(), "v1.0.0")
 		assert.Empty(t, releases.updatedWith)
 	})
 
@@ -35,16 +34,15 @@ func Test_runUpgrade(t *testing.T) {
 		// Arrange
 		releases := &fakeReleases{latest: "v1.1.0"}
 		stubReleases(t, releases)
+		logBuf := stubErrLog(t)
 
 		// Act
-		out := captureLog(t, func() {
-			err := runUpgrade(upgradeCmd, nil)
-			require.NoError(t, err)
-		})
+		err := runUpgrade(upgradeCmd, nil)
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, "v1.1.0", releases.updatedWith)
-		assert.Contains(t, out, "updated to v1.1.0")
+		assert.Contains(t, logBuf.String(), "updated to v1.1.0")
 	})
 
 	t.Run("returns error when fetch fails", func(t *testing.T) {
@@ -92,16 +90,15 @@ func Test_runUpgrade(t *testing.T) {
 		t.Cleanup(func() { upgradeVersion = "" })
 		releases := &fakeReleases{latest: "v1.0.0"}
 		stubReleases(t, releases)
+		logBuf := stubErrLog(t)
 
 		// Act
-		out := captureLog(t, func() {
-			err := runUpgrade(upgradeCmd, nil)
-			require.NoError(t, err)
-		})
+		err := runUpgrade(upgradeCmd, nil)
 
 		// Assert
+		require.NoError(t, err)
 		assert.False(t, releases.fetched)
 		assert.Equal(t, "v0.9.0", releases.updatedWith)
-		assert.Contains(t, out, "v0.9.0")
+		assert.Contains(t, logBuf.String(), "v0.9.0")
 	})
 }

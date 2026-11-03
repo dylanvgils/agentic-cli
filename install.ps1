@@ -81,6 +81,10 @@ function Install-FromRelease {
       try {
         Invoke-WebRequest -Uri "$ChecksumsUrl.sigstore.json" -OutFile $BundlePath -UseBasicParsing
       } catch {
+        if ([int]$_.Exception.Response.StatusCode -ne 404) {
+          Write-Error "Failed to download the signature bundle: $_"
+          exit 1
+        }
         $BundlePath = $null
         $Tip = "Tip: release $Version is unsigned, verified by checksum only."
       }

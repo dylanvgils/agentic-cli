@@ -73,14 +73,23 @@ install_from_release() {
 
   # Optional signature check: only with cosign installed; releases before signing have no bundle
   local tip=""
-  if ! command -v cosign &>/dev/null; then
+  local bundle="${tmpdir}/checksums.txt.sigstore.json"
+  local status=""
+  if command -v cosign &>/dev/null; then
+    status=$(curl --proto '=https' --tlsv1.2 -sSL -w '%{http_code}' -o "${bundle}" "${checksums_url}.sigstore.json")
+  fi
+
+  if [[ -z "${status}" ]]; then
     tip="Tip: install cosign to also verify the release signature, see ${VERIFY_DOCS}"
-  elif ! curl --proto '=https' --tlsv1.2 -fsSL "${checksums_url}.sigstore.json" -o "${tmpdir}/checksums.txt.sigstore.json" 2>/dev/null; then
+  elif [[ "${status}" == "404" ]]; then
     tip="Tip: release ${version} is unsigned, verified by checksum only."
+  elif [[ "${status}" != "200" ]]; then
+    echo "Error: downloading the signature bundle failed with HTTP ${status}." >&2
+    exit 1
   else
     echo "Verifying signature..."
     if ! cosign verify-blob \
-      --bundle "${tmpdir}/checksums.txt.sigstore.json" \
+      --bundle "${bundle}" \
       --certificate-identity "${CERT_IDENTITY}" \
       --certificate-oidc-issuer "${CERT_ISSUER}" \
       "${tmpdir}/checksums.txt"; then
