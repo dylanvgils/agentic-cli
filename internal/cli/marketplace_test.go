@@ -60,7 +60,7 @@ func Test_runMarketplacesList(t *testing.T) {
 		require.NoError(t, marketplace.SaveRegistry(baseDir, reg))
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			require.NoError(t, runMarketplaceList(marketplaceListCmd, nil))
 		})
 
@@ -97,16 +97,16 @@ func Test_runMarketplacesPrune(t *testing.T) {
 	require.NoError(t, marketplace.SaveRegistry(baseDir, reg))
 
 	// Act
-	out := captureLog(t, func() {
-		require.NoError(t, runMarketplacePrune(marketplacePruneCmd, nil))
-	})
+	err := runMarketplacePrune(marketplacePruneCmd, nil)
 
 	// Assert: each PruneKind's message text is wired correctly
+	require.NoError(t, err)
+	out := logBuf.String()
 	assert.Contains(t, out, "kept: foo (used by "+projFoo+")")
 	assert.Contains(t, out, "dropped: bar (no project references it")
 	assert.Contains(t, out, "removed: gone (no project references it)")
-	assert.Contains(t, out, "dirUntracked: no usage record")
-	assert.Contains(t, logBuf.String(), "agentic: pruning 4 marketplace(s)")
+	assert.Contains(t, out, "agentic: warning: dirUntracked: no usage record")
+	assert.Contains(t, out, "agentic: pruning 4 marketplace(s)")
 
 	// Assert: filesystem and registry reflect Prune's decisions
 	assert.DirExists(t, filepath.Join(baseDir, dirKept))

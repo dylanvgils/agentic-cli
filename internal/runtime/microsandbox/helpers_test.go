@@ -54,28 +54,28 @@ func stubMsb(t *testing.T, script string) {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
-// captureLog swaps logging.Log for the duration of fn and returns what was written.
-func captureLog(t *testing.T, fn func()) string {
+// captureOut swaps logging.Out for the duration of fn and returns what was written.
+func captureOut(t *testing.T, fn func()) string {
 	t.Helper()
 
 	var buf bytes.Buffer
-	orig := logging.Log
-	logging.Log = logging.New(&buf)
-	t.Cleanup(func() { logging.Log = orig })
+	orig := logging.Out
+	logging.Out = &buf
+	t.Cleanup(func() { logging.Out = orig })
 
 	fn()
 
 	return buf.String()
 }
 
-// stubLog redirects logging.Log to a buffer until the test ends and returns it.
-func stubLog(t *testing.T) *bytes.Buffer {
+// stubErrLog redirects logging.Err to a buffer until the test ends and returns it.
+func stubErrLog(t *testing.T) *bytes.Buffer {
 	t.Helper()
 
 	var buf bytes.Buffer
-	orig := logging.Log
-	logging.Log = logging.New(&buf)
-	t.Cleanup(func() { logging.Log = orig })
+	orig := logging.Err
+	logging.Err = logging.New(&buf)
+	t.Cleanup(func() { logging.Err = orig })
 
 	return &buf
 }

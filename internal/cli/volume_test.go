@@ -54,18 +54,33 @@ func Test_runVolumeCreate(t *testing.T) {
 func Test_runVolumeList(t *testing.T) {
 	stubMicrosandbox(t, &fakeMicrosandbox{})
 
-	t.Run("lists the volumes grouped by runtime", func(t *testing.T) {
+	t.Run("lists the volumes in a table", func(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven", "npm"}, nil })
 		stubMicrosandbox(t, &fakeMicrosandbox{listVolumeNames: func() ([]string, error) { return []string{"gradle"}, nil }})
 		var err error
 
 		// Act
-		logs := captureLog(t, func() { err = runVolumeList(volumeListCmd, nil) })
+		logs := captureOut(t, func() { err = runVolumeList(volumeListCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "=> docker\n   maven\n   npm\n=> microsandbox\n   gradle\n", logs)
+		assert.Equal(t, "NAME    RUNTIME\nmaven   docker\nnpm     docker\ngradle  microsandbox\n", logs)
+	})
+
+	t.Run("no volumes says so on stderr", func(t *testing.T) {
+		// Arrange
+		stubListVolumeNames(t, func() ([]string, error) { return nil, nil })
+		errLog := stubErrLog(t)
+		var err error
+
+		// Act
+		logs := captureOut(t, func() { err = runVolumeList(volumeListCmd, nil) })
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, logs)
+		assert.Equal(t, "agentic: no agentic-managed volumes found\n", errLog.String())
 	})
 
 	t.Run("error propagates", func(t *testing.T) {
@@ -240,7 +255,7 @@ func Test_runVolumeRemove(t *testing.T) {
 
 		// Assert - list and prompt share stderr, list first
 		require.NoError(t, err)
-		assert.Equal(t, "agentic: volumes to remove:\n   gradle\n   maven\nagentic: remove all agentic-managed volumes? [y/N] ", logBuf.String())
+		assert.Equal(t, "agentic: volumes to remove:\n   gradle\n   maven\nagentic: remove all agentic-managed volumes? [y/N] agentic: nothing removed\n", logBuf.String())
 	})
 
 	t.Run("no name removes msb volumes too, marked by runtime", func(t *testing.T) {

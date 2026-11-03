@@ -74,9 +74,9 @@ func instructionsRequest(cmd *cobra.Command, toolName string) (run.Request, stri
 
 // printInstructions prints content under heading, or a notice when the config disables it.
 func printInstructions(heading, content string) {
-	logging.Step(heading)
+	logging.Println("=> " + heading)
 	if content == "" {
-		logging.Detail("(environment instructions disabled via .agenticrc.toml [run.instructions] enabled = false)")
+		logging.Println("   (environment instructions disabled via .agenticrc.toml [run.instructions] enabled = false)")
 		return
 	}
 

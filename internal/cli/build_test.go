@@ -97,7 +97,7 @@ func Test_runBuild(t *testing.T) {
 		stubFlag(t, buildCmd, "dry-run", "true")
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runBuild(buildCmd, []string{"claude"})
 			require.NoError(t, err)
 		})

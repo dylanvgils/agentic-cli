@@ -73,6 +73,7 @@ func runNamespacePrune(cmd *cobra.Command, _ []string) error {
 
 	logging.Promptf("remove all images in namespace %q? [y/N] ", namespace)
 	if !confirmed() {
+		logging.Infof("nothing removed")
 		return nil
 	}
 

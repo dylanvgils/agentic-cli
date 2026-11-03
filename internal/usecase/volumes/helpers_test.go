@@ -58,18 +58,6 @@ func namesFunc(names ...string) func() ([]string, error) {
 	return func() ([]string, error) { return names, nil }
 }
 
-// stubLog redirects logging.Log to a buffer until the test ends and returns it.
-func stubLog(t *testing.T) *bytes.Buffer {
-	t.Helper()
-
-	var buf bytes.Buffer
-	orig := logging.Log
-	logging.Log = logging.New(&buf)
-	t.Cleanup(func() { logging.Log = orig })
-
-	return &buf
-}
-
 // stubErrLog redirects logging.Err to a buffer until the test ends and returns it.
 func stubErrLog(t *testing.T) *bytes.Buffer {
 	t.Helper()

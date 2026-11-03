@@ -45,6 +45,9 @@ type fakeRunner struct {
 	runWithStdin   func(r io.Reader, args ...string) (string, error)
 	runInteractive func(args ...string) error
 	stream         func(w io.Writer, args ...string) error
+
+	// interactiveOut is the stdout the last RunInteractive call got.
+	interactiveOut io.Writer
 }
 
 func (f *fakeRunner) Run(args ...string) (string, error) {
@@ -61,7 +64,8 @@ func (f *fakeRunner) RunWithStdin(r io.Reader, args ...string) (string, error) {
 	return f.runWithStdin(r, args...)
 }
 
-func (f *fakeRunner) RunInteractive(args ...string) error {
+func (f *fakeRunner) RunInteractive(stdout io.Writer, args ...string) error {
+	f.interactiveOut = stdout
 	if f.runInteractive == nil {
 		return fmt.Errorf("fake: unexpected docker %v", args)
 	}
@@ -161,7 +165,7 @@ func startAndRunTool(client *Client, rs sandbox.RunSpec) error {
 	return client.RunTool(sidecars)
 }
 
-// stubRunInteractive replaces client.runInteractive with a mock that records the args of the most recent call.
+// stubRunInteractive replaces client.runInteractive and runProgress with a mock that records the args of the most recent call.
 func stubRunInteractive(t *testing.T, client *Client) func() []string {
 	t.Helper()
 	var capturedArgs []string
@@ -174,7 +178,7 @@ func stubRunInteractive(t *testing.T, client *Client) func() []string {
 	return func() []string { return capturedArgs }
 }
 
-// stubRunInteractiveFunc replaces client.runInteractive with fn for the duration of the test.
+// stubRunInteractiveFunc replaces client.runInteractive and runProgress with fn for the duration of the test.
 func stubRunInteractiveFunc(t *testing.T, client *Client, fn func(...string) error) {
 	t.Helper()
 	f := fakeOf(client)
@@ -426,14 +430,14 @@ func stubProxySettleTime(t *testing.T, client *Client, d time.Duration) {
 	t.Cleanup(func() { client.timing = orig })
 }
 
-// captureLog swaps logging.Log for the duration of fn and returns what was written.
-func captureLog(t *testing.T, fn func()) string {
+// captureOut swaps logging.Out for the duration of fn and returns what was written.
+func captureOut(t *testing.T, fn func()) string {
 	t.Helper()
 
 	var buf bytes.Buffer
-	orig := logging.Log
-	logging.Log = logging.New(&buf)
-	t.Cleanup(func() { logging.Log = orig })
+	orig := logging.Out
+	logging.Out = &buf
+	t.Cleanup(func() { logging.Out = orig })
 
 	fn()
 

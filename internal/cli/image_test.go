@@ -32,7 +32,7 @@ func Test_runImageList(t *testing.T) {
 		})
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runImageList(imageListCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -50,7 +50,7 @@ func Test_runImageList(t *testing.T) {
 		stubFlag(t, imageListCmd, "all", "true")
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runImageList(imageListCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -69,7 +69,7 @@ func Test_runImageList(t *testing.T) {
 		stubFlag(t, imagesCmd, "all", "true")
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runImageList(imagesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -87,7 +87,7 @@ func Test_runImageTable(t *testing.T) {
 		})
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runImageTable("agentic")
 			require.NoError(t, err)
 		})
@@ -105,7 +105,7 @@ func Test_runImageTable(t *testing.T) {
 		})
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runImageTable("")
 			require.NoError(t, err)
 		})
@@ -132,7 +132,7 @@ func Test_runImageTable(t *testing.T) {
 func Test_writeImageTable(t *testing.T) {
 	t.Run("shows each image with its namespace", func(t *testing.T) {
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := writeImageTable("agentic", []*docker.ImageInfo{builtInfo})
 			require.NoError(t, err)
 		})
@@ -171,7 +171,7 @@ func Test_writeImageTable(t *testing.T) {
 		longBase := "node@24,java@21,dotnet@9,go@1.26.3,extra@1,another@2"
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := writeImageTable("agentic", []*docker.ImageInfo{{
 				Image: "agentic-claude", Namespace: "agentic", Tool: "claude",
 				Version: "1.0", Base: longBase, Built: "2026-05-01", Size: "1GB",

@@ -557,7 +557,7 @@ func Test_showConfig(t *testing.T) {
 
 	// Act
 	var err error
-	out := captureLog(t, func() { err = showConfig(&cobra.Command{}, nil) })
+	out := captureOut(t, func() { err = showConfig(&cobra.Command{}, nil) })
 
 	// Assert - the global section, then the project layers from the working dir
 	require.NoError(t, err)

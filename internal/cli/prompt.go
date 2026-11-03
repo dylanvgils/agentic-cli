@@ -66,9 +66,9 @@ func (p ttyPrompter) ApproveSettings(layer config.RCLayer, changed []config.Guar
 	logging.Infof("the agent can edit this file, so approve only changes you made or expect:")
 	for _, setting := range changed {
 		header, values := describeSetting(setting)
-		logging.Err.Step(header)
+		logging.Step(header)
 		for _, value := range values {
-			logging.Err.Detail(value)
+			logging.Detail(value)
 		}
 	}
 

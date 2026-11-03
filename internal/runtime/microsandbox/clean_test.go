@@ -11,7 +11,7 @@ import (
 func TestCleanImage(t *testing.T) {
 	t.Run("removes every ref of the repository and reports the tags in one line", func(t *testing.T) {
 		// Arrange
-		logs := stubLog(t)
+		logs := stubErrLog(t)
 		var removed []string
 		client := newTestClient(&fakeRunner{run: func(args ...string) (string, error) {
 			if args[0] == "images" {

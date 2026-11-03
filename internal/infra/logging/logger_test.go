@@ -57,42 +57,6 @@ func TestLogger_Detailf(t *testing.T) {
 	assert.Equal(t, "   version: 1.0.0\n", buf.String())
 }
 
-func TestLogger_Print(t *testing.T) {
-	// Arrange
-	var buf bytes.Buffer
-	l := New(&buf)
-
-	// Act
-	l.Print("FROM scratch")
-
-	// Assert
-	assert.Equal(t, "FROM scratch", buf.String())
-}
-
-func TestLogger_Println(t *testing.T) {
-	// Arrange
-	var buf bytes.Buffer
-	l := New(&buf)
-
-	// Act
-	l.Println("alias agt=agentic")
-
-	// Assert
-	assert.Equal(t, "alias agt=agentic\n", buf.String())
-}
-
-func TestLogger_Writer(t *testing.T) {
-	// Arrange
-	var buf bytes.Buffer
-	l := New(&buf)
-
-	// Act
-	w := l.Writer()
-
-	// Assert
-	assert.Same(t, &buf, w)
-}
-
 func TestLogger_Infof(t *testing.T) {
 	t.Run("plain writer gets plain prefix", func(t *testing.T) {
 		// Arrange
@@ -119,6 +83,18 @@ func TestLogger_Infof(t *testing.T) {
 	})
 }
 
+func TestLogger_Errorf(t *testing.T) {
+	// Arrange
+	var buf bytes.Buffer
+	l := New(&buf)
+
+	// Act
+	l.Errorf("no %s", "docker")
+
+	// Assert
+	assert.Equal(t, "agentic: error: no docker\n", buf.String())
+}
+
 func TestLogger_Warnf(t *testing.T) {
 	// Arrange
 	var buf bytes.Buffer
@@ -143,18 +119,6 @@ func TestLogger_Blank(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, "agentic: starting proxy...\n\n", buf.String())
-}
-
-func TestLogger_Promptf(t *testing.T) {
-	// Arrange
-	var buf bytes.Buffer
-	l := New(&buf)
-
-	// Act
-	l.Promptf("update now? [y/N] ")
-
-	// Assert
-	assert.Equal(t, "agentic: update now? [y/N] ", buf.String())
 }
 
 func TestLogger_Separate(t *testing.T) {
@@ -196,6 +160,18 @@ func TestLogger_Separate(t *testing.T) {
 		// Assert
 		assert.Equal(t, "agentic: warning: could not sweep\n\n", buf.String())
 	})
+}
+
+func TestLogger_Promptf(t *testing.T) {
+	// Arrange
+	var buf bytes.Buffer
+	l := New(&buf)
+
+	// Act
+	l.Promptf("update now? [y/N] ")
+
+	// Assert
+	assert.Equal(t, "agentic: update now? [y/N] ", buf.String())
 }
 
 func Test_useColor(t *testing.T) {

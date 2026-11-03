@@ -12,6 +12,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 )
 
@@ -72,13 +73,12 @@ func (s *Service) DryRun(tool, namespace string, opts tools.BuildOptions) error 
 		}
 	}
 
-	logging.Step(tool)
 	content, err := tools.GenerateDockerfile(tool, opts)
 	if err != nil {
 		return err
 	}
 
-	logging.Println(content)
+	sandbox.PrintDryRunText(tool+" Dockerfile", content)
 	return nil
 }
 

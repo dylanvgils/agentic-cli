@@ -66,7 +66,7 @@ func init() {
 // Execute the Agentic CLI
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		logging.Infof("%v", err)
+		logging.Errorf("%v", err)
 		os.Exit(1)
 	}
 }

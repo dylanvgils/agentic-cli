@@ -16,7 +16,7 @@ func Test_runAliases(t *testing.T) {
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runAliases(aliasesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -32,7 +32,7 @@ func Test_runAliases(t *testing.T) {
 		t.Setenv("SHELL", "/usr/bin/fish")
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runAliases(aliasesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -48,7 +48,7 @@ func Test_runAliases(t *testing.T) {
 		t.Setenv("SHELL", "/usr/bin/pwsh")
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runAliases(aliasesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -67,7 +67,7 @@ func Test_runAliases(t *testing.T) {
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runAliases(aliasesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -87,7 +87,7 @@ func Test_runAliases(t *testing.T) {
 		t.Setenv("SHELL", "/usr/bin/pwsh")
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runAliases(aliasesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -104,7 +104,7 @@ func Test_runAliases(t *testing.T) {
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runAliases(aliasesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -127,7 +127,7 @@ func Test_runAliases(t *testing.T) {
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runAliases(aliasesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -144,7 +144,7 @@ func Test_runAliases(t *testing.T) {
 func Test_printAliases(t *testing.T) {
 	t.Run("no built tools prints nothing", func(t *testing.T) {
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			printAliases("bash", map[string]bool{})
 		})
 
@@ -157,7 +157,7 @@ func Test_printAliases(t *testing.T) {
 		built := map[string]bool{"claude": true}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			printAliases("bash", built)
 		})
 

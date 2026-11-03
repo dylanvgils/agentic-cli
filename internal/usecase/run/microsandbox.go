@@ -175,7 +175,7 @@ func (r microsandboxRunner) removeStaleRefs(refs []string, image, keep string) {
 			continue
 		}
 		if err := r.microsandbox.RemoveImage(ref); err != nil {
-			logging.Infof("kept old microsandbox image %s: %v", ref, err)
+			logging.Warnf("kept old microsandbox image %s: %v", ref, err)
 		}
 	}
 }

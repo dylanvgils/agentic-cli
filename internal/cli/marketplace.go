@@ -72,7 +72,7 @@ func runMarketplaceList(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	return writeTable(logging.Log.Writer(), marketplaceRows(registry, dirNames))
+	return writeTable(logging.Out, marketplaceRows(registry, dirNames))
 }
 
 func runMarketplacePrune(_ *cobra.Command, _ []string) error {
@@ -94,7 +94,7 @@ func runMarketplacePrune(_ *cobra.Command, _ []string) error {
 	for _, a := range report {
 		switch a.Kind {
 		case marketplace.PruneNoRecord:
-			logging.Stepf("%s: no usage record, skipping (run `agentic run` from a project that uses it, or remove manually)", a.DirName)
+			logging.Warnf("%s: no usage record, skipping (run `agentic run` from a project that uses it, or remove manually)", a.DirName)
 		case marketplace.PruneRemoved:
 			logging.Stepf("removed: %s (no project references it)", a.Name)
 		case marketplace.PruneDropped:

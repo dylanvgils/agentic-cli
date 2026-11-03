@@ -44,6 +44,12 @@ var volumesCmd = &cobra.Command{
 	RunE:  runVolumeList,
 }
 
+// volumeRow is one line of the volume list table.
+type volumeRow struct {
+	name    string          `table:"NAME"`
+	runtime sandbox.Runtime `table:"RUNTIME"`
+}
+
 func init() {
 	rootCmd.AddCommand(volumeCmd, volumesCmd)
 	volumeCmd.AddCommand(volumeCreateCmd, volumeListCmd, volumeRemoveCmd)
@@ -66,16 +72,19 @@ func runVolumeList(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// List keeps each runtime's volumes together, so a new runtime starts a new group
-	var runtime sandbox.Runtime
-	for _, v := range all {
-		if v.Runtime != runtime {
-			runtime = v.Runtime
-			logging.Step(string(runtime))
-		}
-		logging.Detail(v.Name)
+	if len(all) == 0 {
+		logging.Infof("no agentic-managed volumes found")
+		return nil
 	}
-	return nil
+
+	rows := make([]volumeRow, len(all))
+	for i, v := range all {
+		rows[i] = volumeRow{
+			name:    v.Name,
+			runtime: v.Runtime,
+		}
+	}
+	return writeTable(logging.Out, rows)
 }
 
 func runVolumeRemove(_ *cobra.Command, args []string) error {
@@ -112,6 +121,7 @@ func removeAllVolumes(svc *volumes.Service) error {
 	}
 
 	if !confirmVolumeRemoval(all) {
+		logging.Infof("nothing removed")
 		return nil
 	}
 
@@ -121,10 +131,9 @@ func removeAllVolumes(svc *volumes.Service) error {
 
 // confirmVolumeRemoval lists all and asks the user to confirm removing them.
 func confirmVolumeRemoval(all []volumes.Volume) bool {
-	// On stderr with the prompt, so the list and the question stay together
 	logging.Infof("volumes to remove:")
 	for _, v := range all {
-		logging.Err.Detail(v.Label())
+		logging.Detail(v.Label())
 	}
 
 	logging.Promptf("remove all agentic-managed volumes? [y/N] ")

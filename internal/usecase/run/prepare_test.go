@@ -146,7 +146,7 @@ func TestPrepare(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		req.Project.RC.Run.CheckUpdates = nil
-		stubLog(t)
+		stubOut(t)
 		tool := tools.Configs["claude"]
 		setUp := false
 		tool.Runtime.Setup = func(string) error {
@@ -170,7 +170,7 @@ func TestPrepare(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		req.Project.RC.Run.CheckUpdates = nil
-		stubLog(t)
+		stubOut(t)
 		rebuilt := false
 		d := &fakeDocker{
 			inspectImage: built,
@@ -197,7 +197,7 @@ func TestPrepare(t *testing.T) {
 		req := newPrepareRequest(t)
 		req.Project.RC.Run.CheckUpdates = nil
 		req.Flags.DryRun = true
-		stubLog(t)
+		stubOut(t)
 		p := &fakePrompter{}
 
 		// Act
@@ -228,7 +228,7 @@ func TestPrepare(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 		req.Project.RC.Run.CheckUpdates = nil
-		stubLog(t)
+		stubOut(t)
 		rc := &config.AgenticRC{}
 		rc.Run.Mounts = []string{"~/.example:/x:rw"}
 		req.Project.Layers = []config.RCLayer{{Path: filepath.Join(req.Project.Dir, ".agenticrc.toml"), RC: rc}}

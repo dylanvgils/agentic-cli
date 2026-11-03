@@ -122,7 +122,7 @@ func writeImageTable(namespace string, images []*docker.ImageInfo) error {
 			size:      info.Size,
 		}
 	}
-	return writeTable(logging.Log.Writer(), rows)
+	return writeTable(logging.Out, rows)
 }
 
 // truncate cuts s to n characters and marks the cut with "...".

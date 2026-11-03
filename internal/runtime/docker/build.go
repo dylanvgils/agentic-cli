@@ -58,7 +58,7 @@ func (c *Client) BuildProxyImage(image, version, sourceDir string, opts tools.Bu
 	}
 
 	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
-	if err := c.runInteractive(sidecarImageBuildArgs(dockerfilePath, image, tools.ProxyImageSuffix, context, opts)...); err != nil {
+	if err := c.runProgress(sidecarImageBuildArgs(dockerfilePath, image, tools.ProxyImageSuffix, context, opts)...); err != nil {
 		return fmt.Errorf("proxy image: %w", err)
 	}
 
@@ -76,7 +76,7 @@ func (c *Client) BuildDindImage(image string, opts tools.BuildOptions) (retErr e
 
 	opts.Pull = true
 	dockerfilePath := filepath.Join(tmpDir, "Dockerfile")
-	if err := c.runInteractive(sidecarImageBuildArgs(dockerfilePath, image, tools.DindImageSuffix, tmpDir, opts)...); err != nil {
+	if err := c.runProgress(sidecarImageBuildArgs(dockerfilePath, image, tools.DindImageSuffix, tmpDir, opts)...); err != nil {
 		return fmt.Errorf("docker sidecar image: %w", err)
 	}
 
@@ -93,7 +93,7 @@ func (c *Client) BuildDockerdImage(image string, parent *ImageInfo) (retErr erro
 
 	defer cleanup.Capture(&retErr, removeTempDir(tmpDir))
 
-	if err := c.runInteractive(dockerdImageBuildArgs(tmpDir, image, parent)...); err != nil {
+	if err := c.runProgress(dockerdImageBuildArgs(tmpDir, image, parent)...); err != nil {
 		return fmt.Errorf("dockerd image: %w", err)
 	}
 	return nil
@@ -180,7 +180,7 @@ func removeTempDir(tmpDir string) func() error {
 
 // buildImage runs docker build for the tool image.
 func (c *Client) buildImage(tmpDir, image, tool string, opts tools.BuildOptions) error {
-	return c.runInteractive(buildImageArgs(tmpDir, image, tool, opts)...)
+	return c.runProgress(buildImageArgs(tmpDir, image, tool, opts)...)
 }
 
 // buildImageArgs computes the docker build args for the tool image.

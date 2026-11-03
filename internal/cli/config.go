@@ -75,7 +75,7 @@ func showConfig(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	w := logging.Log.Writer()
+	w := logging.Out
 	if err := printGlobalConfig(w, toolHome, cliConfig, state); err != nil {
 		return err
 	}
