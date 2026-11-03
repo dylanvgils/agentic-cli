@@ -1,50 +1,71 @@
-// Package logging writes all CLI output: progress steps to stdout, run messages to stderr.
+// Package logging writes CLI output: data to stdout through Out, messages to stderr through Err.
 package logging
 
-import "os"
+import (
+	"fmt"
+	"io"
+	"os"
+)
 
-// Log is the package-level Logger used by the Step/Detail free functions below.
-var Log = New(os.Stdout)
+var (
+	// Out is where data goes: what a script would pipe, such as tables and dry-run output.
+	Out io.Writer = os.Stdout
 
-// Err is the package-level Logger for agentic-prefixed run messages, kept on stderr so they stay off the tool's stdout.
-var Err = New(os.Stderr)
+	// Err is the Logger for messages, kept on stderr so they stay out of piped data.
+	Err = New(os.Stderr)
+)
 
-func Step(name string) {
-	Log.Step(name)
-}
-
-func Stepf(format string, args ...any) {
-	Log.Stepf(format, args...)
-}
-
-func Detail(msg string) {
-	Log.Detail(msg)
-}
-
-func Detailf(format string, args ...any) {
-	Log.Detailf(format, args...)
-}
-
+// Print writes s to Out unchanged, for data such as a Dockerfile.
 func Print(s string) {
-	Log.Print(s)
+	fmt.Fprint(Out, s)
 }
 
+// Println writes s and a newline to Out.
 func Println(s string) {
-	Log.Println(s)
+	fmt.Fprintln(Out, s)
 }
 
+// Step calls Err.Step.
+func Step(name string) {
+	Err.Step(name)
+}
+
+// Stepf calls Err.Stepf.
+func Stepf(format string, args ...any) {
+	Err.Stepf(format, args...)
+}
+
+// Detail calls Err.Detail.
+func Detail(msg string) {
+	Err.Detail(msg)
+}
+
+// Detailf calls Err.Detailf.
+func Detailf(format string, args ...any) {
+	Err.Detailf(format, args...)
+}
+
+// Infof calls Err.Infof.
 func Infof(format string, args ...any) {
 	Err.Infof(format, args...)
 }
 
+// Errorf calls Err.Errorf.
+func Errorf(format string, args ...any) {
+	Err.Errorf(format, args...)
+}
+
+// Warnf calls Err.Warnf.
 func Warnf(format string, args ...any) {
 	Err.Warnf(format, args...)
 }
 
+// Separate calls Err.Separate.
 func Separate() {
 	Err.Separate()
 }
 
+// Promptf calls Err.Promptf.
 func Promptf(format string, args ...any) {
 	Err.Promptf(format, args...)
 }

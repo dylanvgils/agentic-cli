@@ -101,7 +101,7 @@ func Test_setupSidecars(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureLog(t, func() { _, _, err = client.setupSidecars(rs) })
+		out := captureOut(t, func() { _, _, err = client.setupSidecars(rs) })
 
 		// Assert
 		require.NoError(t, err)

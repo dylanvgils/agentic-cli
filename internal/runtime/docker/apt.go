@@ -23,7 +23,7 @@ func (c *Client) verifyAptPackages(packages []string, registry string) error {
 	logging.Detail("verifying apt packages...")
 
 	debianImage := tools.DebianImageFor(registry)
-	if err := c.runInteractive("pull", debianImage); err != nil {
+	if err := c.runProgress("pull", debianImage); err != nil {
 		return fmt.Errorf("failed to pull verification image: %w", err)
 	}
 

@@ -57,8 +57,13 @@ func Arg(name string, value ...string) string {
 
 // PrintDryRun prints a dry-run command to stdout, labelled and set apart by agentic lines on stderr so stdout stays runnable.
 func PrintDryRun(label, name string, args []string) {
+	PrintDryRunText(label, hostShell().command(name, args))
+}
+
+// PrintDryRunText prints dry-run text such as a Dockerfile to stdout, labelled and set apart by agentic lines on stderr.
+func PrintDryRunText(label, text string) {
 	logging.Infof("%s:", label)
-	logging.Println(hostShell().command(name, args))
+	logging.Println(text)
 	logging.Separate()
 }
 

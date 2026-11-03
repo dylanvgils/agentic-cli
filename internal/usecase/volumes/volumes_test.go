@@ -99,7 +99,7 @@ func Test_Service_Remove(t *testing.T) {
 func Test_Service_RemoveAll(t *testing.T) {
 	t.Run("removes each volume from its runtime and reports it", func(t *testing.T) {
 		// Arrange
-		logs := stubLog(t)
+		logs := stubErrLog(t)
 		var removed []string
 		d := &fakeDocker{removeVolume: func(n string) error { removed = append(removed, "docker "+n); return nil }}
 		m := msbRuntime(&fakeStore{removeVolume: func(n string) error { removed = append(removed, "msb "+n); return nil }})
@@ -116,7 +116,7 @@ func Test_Service_RemoveAll(t *testing.T) {
 
 	t.Run("stops at the first error", func(t *testing.T) {
 		// Arrange
-		stubLog(t)
+		stubErrLog(t)
 		calls := 0
 		d := &fakeDocker{removeVolume: func(string) error { calls++; return errors.New("in use") }}
 		vols := []Volume{{Name: "maven", Runtime: sandbox.RuntimeDocker}, {Name: "npm", Runtime: sandbox.RuntimeDocker}}

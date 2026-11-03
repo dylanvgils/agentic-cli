@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -131,6 +132,48 @@ func TestClient_runInteractive(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"--context", "prod", "build", "-t", "img"}, get())
+	})
+
+	t.Run("writes stdout to stdout", func(t *testing.T) {
+		// Arrange
+		client := newTestClient()
+		stubRunInteractive(t, client)
+
+		// Act
+		err := client.runInteractive("run", "img")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Same(t, os.Stdout, fakeOf(client).interactiveOut)
+	})
+}
+
+func TestClient_runProgress(t *testing.T) {
+	t.Run("prepends --context to the executed command", func(t *testing.T) {
+		// Arrange
+		client := newTestClient()
+		get := stubRunInteractive(t, client)
+		client.context = "prod"
+
+		// Act
+		err := client.runProgress("pull", "img")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"--context", "prod", "pull", "img"}, get())
+	})
+
+	t.Run("writes stdout to stderr", func(t *testing.T) {
+		// Arrange
+		client := newTestClient()
+		stubRunInteractive(t, client)
+
+		// Act
+		err := client.runProgress("pull", "img")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Same(t, os.Stderr, fakeOf(client).interactiveOut)
 	})
 }
 

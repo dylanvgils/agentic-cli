@@ -23,7 +23,7 @@ func TestDryRun(t *testing.T) {
 		}}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -31,6 +31,21 @@ func TestDryRun(t *testing.T) {
 		// Assert
 		assert.False(t, scriptCalled)
 		assert.Contains(t, out, "FROM")
+	})
+
+	t.Run("labels the dockerfile on stderr", func(t *testing.T) {
+		// Arrange
+		errOut := stubErrLog(t)
+
+		// Act
+		out := captureOut(t, func() {
+			err := New(&fakeDocker{}, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
+			require.NoError(t, err)
+		})
+
+		// Assert
+		assert.Equal(t, "agentic: claude Dockerfile:\n\n", errOut.String())
+		assert.NotContains(t, out, "claude Dockerfile")
 	})
 
 	t.Run("without tool arg returns error", func(t *testing.T) {
@@ -47,7 +62,7 @@ func TestDryRun(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Base: "node@24.0.0,java@21.0.1"}, nil)}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -62,7 +77,7 @@ func TestDryRun(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -87,7 +102,7 @@ func TestDryRun(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -341,7 +356,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
+		captureErrLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
 
 		// Assert - the same value lets Docker reuse the tool stage for the second namespace
 		require.NoError(t, err)
@@ -360,7 +375,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
+		captureErrLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
 
 		// Assert
 		require.ErrorContains(t, err, "build failed")
@@ -374,7 +389,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
+		captureErrLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
 
 		// Assert
 		require.NoError(t, err)
@@ -391,7 +406,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
+		captureErrLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
 
 		// Assert
 		require.ErrorContains(t, err, "build failed")
@@ -404,7 +419,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(&fakeDocker{}, upstream, home).ApplyAll(targets) })
+		captureErrLog(t, func() { err = New(&fakeDocker{}, upstream, home).ApplyAll(targets) })
 
 		// Assert
 		require.NoError(t, err)
@@ -420,7 +435,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = New(d, upstream, home).ApplyAll(targets) })
+		captureErrLog(t, func() { err = New(d, upstream, home).ApplyAll(targets) })
 
 		// Assert
 		require.Error(t, err)
@@ -439,7 +454,7 @@ func TestApply(t *testing.T) {
 		upstream := &fakeUpstream{latest: "2.0.0", newer: true, ok: true}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -454,7 +469,7 @@ func TestApply(t *testing.T) {
 		upstream := &fakeUpstream{latest: "1.0.0", newer: false, ok: true}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -468,7 +483,7 @@ func TestApply(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(nil, nil)}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -483,7 +498,7 @@ func TestApply(t *testing.T) {
 		upstream := &fakeUpstream{latest: "", newer: false, ok: false}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -498,7 +513,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
@@ -512,7 +527,7 @@ func TestApply(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil)}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -527,7 +542,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{AptPackages: []string{"curl", "jq"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
@@ -541,7 +556,7 @@ func TestApply(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil)}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -556,7 +571,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{BaseExact: true, Versions: map[string]string{}}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
@@ -571,7 +586,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{AptExact: true, Versions: map[string]string{}}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
@@ -685,7 +700,7 @@ func TestApply(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil)}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -699,7 +714,7 @@ func TestApply(t *testing.T) {
 func Test_reportVersionChange(t *testing.T) {
 	t.Run("version changed", func(t *testing.T) {
 		// Act
-		out := captureLog(t, func() { reportVersionChange("1.0.0", "2.0.0") })
+		out := captureErrLog(t, func() { reportVersionChange("1.0.0", "2.0.0") })
 
 		// Assert
 		assert.Contains(t, out, "1.0.0 -> 2.0.0")
@@ -707,7 +722,7 @@ func Test_reportVersionChange(t *testing.T) {
 
 	t.Run("version up to date", func(t *testing.T) {
 		// Act
-		out := captureLog(t, func() { reportVersionChange("1.0.0", "1.0.0") })
+		out := captureErrLog(t, func() { reportVersionChange("1.0.0", "1.0.0") })
 
 		// Assert
 		assert.Contains(t, out, "(up to date)")
@@ -715,7 +730,7 @@ func Test_reportVersionChange(t *testing.T) {
 
 	t.Run("no before version just prints version", func(t *testing.T) {
 		// Act
-		out := captureLog(t, func() { reportVersionChange("", "1.0.0") })
+		out := captureErrLog(t, func() { reportVersionChange("", "1.0.0") })
 
 		// Assert
 		assert.Contains(t, out, "1.0.0")
@@ -724,7 +739,7 @@ func Test_reportVersionChange(t *testing.T) {
 
 	t.Run("no after version prints nothing", func(t *testing.T) {
 		// Act
-		out := captureLog(t, func() { reportVersionChange("1.0.0", "") })
+		out := captureErrLog(t, func() { reportVersionChange("1.0.0", "") })
 
 		// Assert
 		assert.Empty(t, out)

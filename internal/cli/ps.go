@@ -70,5 +70,5 @@ func writeRuns(namespace string, runs []toolruns.Run) error {
 			name:      r.Name,
 		}
 	}
-	return writeTable(logging.Log.Writer(), rows)
+	return writeTable(logging.Out, rows)
 }

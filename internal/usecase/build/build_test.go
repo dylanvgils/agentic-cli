@@ -1,31 +1,15 @@
 package build
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// captureLog swaps logging.Log for the duration of fn and returns what was written.
-func captureLog(t *testing.T, fn func()) string {
-	t.Helper()
-
-	var buf bytes.Buffer
-	orig := logging.Log
-	logging.Log = logging.New(&buf)
-	t.Cleanup(func() { logging.Log = orig })
-
-	fn()
-
-	return buf.String()
-}
 
 func TestDryRun(t *testing.T) {
 	t.Run("prints dockerfile without building", func(t *testing.T) {
@@ -35,17 +19,31 @@ func TestDryRun(t *testing.T) {
 			buildCalled = true
 			return nil
 		}}
+		stubErrLog(t)
+		out := stubOut(t)
 
 		// Act
-		out := captureLog(t, func() {
-			err := New(d, t.TempDir()).DryRun([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
-			require.NoError(t, err)
-		})
+		err := New(d, t.TempDir()).DryRun([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
 
 		// Assert
+		require.NoError(t, err)
 		assert.False(t, buildCalled)
-		assert.Contains(t, out, "FROM")
-		assert.NotContains(t, out, "AS proxy", "the proxy image builds separately")
+		assert.Contains(t, out.String(), "FROM")
+		assert.NotContains(t, out.String(), "AS proxy", "the proxy image builds separately")
+	})
+
+	t.Run("labels the dockerfile on stderr", func(t *testing.T) {
+		// Arrange
+		errOut := stubErrLog(t)
+		out := stubOut(t)
+
+		// Act
+		err := New(&fakeDocker{}, t.TempDir()).DryRun([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "agentic: claude Dockerfile:\n\n", errOut.String())
+		assert.NotContains(t, out.String(), "claude Dockerfile")
 	})
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
@@ -102,7 +100,7 @@ func TestApply(t *testing.T) {
 		}}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -119,7 +117,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -133,7 +131,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java", "dotnet"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -147,7 +145,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{AptPackages: []string{"curl", "jq"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -158,7 +156,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("apt packages hidden when empty", func(t *testing.T) {
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -169,7 +167,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("base override hidden when empty", func(t *testing.T) {
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -183,7 +181,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{BaseExact: true, Versions: map[string]string{}}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -197,7 +195,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{AptExact: true, Versions: map[string]string{}}
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})

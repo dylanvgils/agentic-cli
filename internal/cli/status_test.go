@@ -24,7 +24,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureLog(t, func() { err = runStatus(statusCmd, nil) })
+		out := captureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -39,7 +39,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureLog(t, func() { err = runStatus(statusCmd, nil) })
+		out := captureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -58,7 +58,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureLog(t, func() { err = runStatus(statusCmd, nil) })
+		out := captureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -77,7 +77,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureLog(t, func() { err = runStatus(statusCmd, nil) })
+		out := captureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -92,7 +92,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureLog(t, func() { err = runStatus(statusCmd, nil) })
+		out := captureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -109,7 +109,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		captureLog(t, func() { err = runStatus(statusCmd, nil) })
+		captureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.Error(t, err)
@@ -123,7 +123,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureLog(t, func() { err = runStatus(statusCmd, nil) })
+		out := captureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -138,7 +138,7 @@ func Test_runStatus(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureLog(t, func() { err = runStatus(statusCmd, nil) })
+		out := captureOut(t, func() { err = runStatus(statusCmd, nil) })
 
 		// Assert
 		require.NoError(t, err)

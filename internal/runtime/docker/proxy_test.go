@@ -576,7 +576,7 @@ func Test_dryRunProxy(t *testing.T) {
 
 		// Act
 		var toolArgs []string
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			var err error
 			toolArgs, _, err = client.dryRunProxy(rs)
 			require.NoError(t, err)

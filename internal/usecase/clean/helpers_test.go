@@ -104,6 +104,16 @@ func (f *fakeRuntime) CleanImage(image string) error {
 	return f.cleanImage(image)
 }
 
+// captureErrLog swaps logging.Err, where progress goes, for the duration of fn and returns what was written.
+func captureErrLog(t *testing.T, fn func()) string {
+	t.Helper()
+
+	buf := stubErrLog(t)
+	fn()
+
+	return buf.String()
+}
+
 // stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.
 func stubErrLog(t *testing.T) *bytes.Buffer {
 	t.Helper()

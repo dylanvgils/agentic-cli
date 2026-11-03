@@ -8,6 +8,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/spf13/cobra"
 )
@@ -92,7 +93,6 @@ func runProxyClean(cmd *cobra.Command, _ []string) error {
 
 // printProxyDockerfile prints the proxy image's generated Dockerfile for --dry-run.
 func printProxyDockerfile(registry string) {
-	logging.Step(tools.ProxyImage)
 	content := tools.GenerateProxyDockerfile(buildinfo.Version, registry)
-	logging.Println(content)
+	sandbox.PrintDryRunText(tools.ProxyImage+" Dockerfile", content)
 }

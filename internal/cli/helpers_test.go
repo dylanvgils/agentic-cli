@@ -378,14 +378,14 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 }
 
-// captureLog swaps logging.Log for the duration of fn and returns what was written.
-func captureLog(t *testing.T, fn func()) string {
+// captureOut swaps logging.Out for the duration of fn and returns what was written.
+func captureOut(t *testing.T, fn func()) string {
 	t.Helper()
 
 	var buf bytes.Buffer
-	orig := logging.Log
-	logging.Log = logging.New(&buf)
-	t.Cleanup(func() { logging.Log = orig })
+	orig := logging.Out
+	logging.Out = &buf
+	t.Cleanup(func() { logging.Out = orig })
 
 	fn()
 
@@ -404,16 +404,16 @@ func stubErrLog(t *testing.T) *bytes.Buffer {
 	return &buf
 }
 
-// stubLogs points logging.Log and logging.Err at one buffer, so a test can check ordering across stdout and stderr output.
+// stubLogs points logging.Out and logging.Err at one buffer, so a test can check ordering across stdout and stderr output.
 func stubLogs(t *testing.T) *bytes.Buffer {
 	t.Helper()
 
 	var buf bytes.Buffer
-	origLog, origErr := logging.Log, logging.Err
-	logging.Log = logging.New(&buf)
+	origLog, origErr := logging.Out, logging.Err
+	logging.Out = &buf
 	logging.Err = logging.New(&buf)
 	t.Cleanup(func() {
-		logging.Log = origLog
+		logging.Out = origLog
 		logging.Err = origErr
 	})
 

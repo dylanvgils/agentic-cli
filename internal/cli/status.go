@@ -58,7 +58,7 @@ func runStatus(_ *cobra.Command, _ []string) error {
 		}
 	}
 
-	return writeFields(logging.Log.Writer(), "", detail)
+	return writeFields(logging.Out, "", detail)
 }
 
 // msbStatus reports whether the optional msb binary is installed.

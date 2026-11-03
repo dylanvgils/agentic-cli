@@ -22,7 +22,7 @@ func Test_listNamespaces(t *testing.T) {
 		})
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := listNamespaces()
 			require.NoError(t, err)
 		})
@@ -92,7 +92,7 @@ func Test_runNamespacesPrune(t *testing.T) {
 		var cleanCalled bool
 		stubCleanImage(t, func(string) error { cleanCalled = true; return nil })
 		stubStdin(t, "n\n")
-		stubErrLog(t)
+		errLog := stubErrLog(t)
 
 		// Act
 		err := runNamespacePrune(namespacePruneCmd, nil)
@@ -100,6 +100,7 @@ func Test_runNamespacesPrune(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.False(t, cleanCalled)
+		assert.Contains(t, errLog.String(), "agentic: nothing removed")
 	})
 
 	t.Run("lists only the resolved namespace", func(t *testing.T) {

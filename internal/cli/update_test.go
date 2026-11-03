@@ -115,7 +115,7 @@ func Test_runUpdate(t *testing.T) {
 		stubFlag(t, updateCmd, "dry-run", "true")
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runUpdate(updateCmd, []string{"claude"})
 			require.NoError(t, err)
 		})

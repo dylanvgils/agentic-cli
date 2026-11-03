@@ -52,11 +52,23 @@ func TestPrintDryRun(t *testing.T) {
 	logs := stubLogs(t)
 
 	// Act
-	out := captureLog(t, func() { PrintDryRun("tool container", "docker", []string{"run", "--rm"}) })
+	out := captureOut(t, func() { PrintDryRun("tool container", "docker", []string{"run", "--rm"}) })
 
 	// Assert
 	assert.Equal(t, hostShell().command("docker", []string{"run", "--rm"})+"\n", out)
 	assert.Equal(t, "agentic: tool container:\n\n", logs.String())
+}
+
+func TestPrintDryRunText(t *testing.T) {
+	// Arrange
+	logs := stubLogs(t)
+
+	// Act
+	out := captureOut(t, func() { PrintDryRunText("claude Dockerfile", "FROM scratch") })
+
+	// Assert
+	assert.Equal(t, "FROM scratch\n", out)
+	assert.Equal(t, "agentic: claude Dockerfile:\n\n", logs.String())
 }
 
 func Test_shellStyle_command(t *testing.T) {

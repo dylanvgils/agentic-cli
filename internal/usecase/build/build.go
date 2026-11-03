@@ -8,6 +8,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 )
 
@@ -69,15 +70,14 @@ func (s *Service) Apply(names []string, namespace string, opts tools.BuildOption
 	return nil
 }
 
-// DryRun prints the generated Dockerfile for each tool in names instead of building it.
+// DryRun prints the generated Dockerfile for each tool in names instead of building it, labelled on stderr so stdout stays buildable.
 func (s *Service) DryRun(names []string, opts tools.BuildOptions) error {
 	for _, name := range names {
-		logging.Step(name)
 		content, err := tools.GenerateDockerfile(name, opts)
 		if err != nil {
 			return err
 		}
-		logging.Println(content)
+		sandbox.PrintDryRunText(name+" Dockerfile", content)
 	}
 	return nil
 }

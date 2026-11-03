@@ -34,7 +34,7 @@ func init() {
 }
 
 func runVersion(_ *cobra.Command, _ []string) error {
-	return writeVersion(logging.Log.Writer())
+	return writeVersion(logging.Out)
 }
 
 // writeVersion prints the agentic version, then each section with a value after a blank line.

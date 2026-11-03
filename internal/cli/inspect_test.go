@@ -27,7 +27,7 @@ func Test_runInspect(t *testing.T) {
 		stubInspectImage(t, builtInfo, nil)
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runInspect(inspectCmd, []string{"claude"})
 			require.NoError(t, err)
 		})
@@ -45,7 +45,7 @@ func Test_runInspect(t *testing.T) {
 		stubFlag(t, inspectCmd, "all", "true")
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := runInspect(inspectCmd, []string{"claude"})
 			require.NoError(t, err)
 		})
@@ -62,7 +62,7 @@ func Test_printImageDetail(t *testing.T) {
 		stubInspectImage(t, builtInfo, nil)
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -81,7 +81,7 @@ func Test_printImageDetail(t *testing.T) {
 		errLog := stubErrLog(t)
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -98,7 +98,7 @@ func Test_printImageDetail(t *testing.T) {
 		}, nil)
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -112,7 +112,7 @@ func Test_printImageDetail(t *testing.T) {
 		stubInspectImage(t, builtInfo, nil)
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -129,7 +129,7 @@ func Test_printImageDetail(t *testing.T) {
 		}, nil)
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -151,7 +151,7 @@ func Test_printImageDetail(t *testing.T) {
 		}, nil)
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -171,7 +171,7 @@ func Test_printImageDetail(t *testing.T) {
 		}, nil)
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -211,7 +211,7 @@ func Test_printImageDetail(t *testing.T) {
 		stubInspectImage(t, &info, nil)
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := printImageDetail("claude", "agentic")
 			require.NoError(t, err)
 		})
@@ -233,7 +233,7 @@ func Test_printAllNamespaceDetail(t *testing.T) {
 		})
 
 		// Act
-		out := captureLog(t, func() {
+		out := captureOut(t, func() {
 			err := printAllNamespaceDetail("claude")
 			require.NoError(t, err)
 		})

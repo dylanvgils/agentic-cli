@@ -78,7 +78,7 @@ func printAllNamespaceDetail(tool string) error {
 
 	found := false
 	for _, info := range images {
-		logging.Stepf("%s/%s", info.Namespace, info.Tool)
+		logging.Println("=> " + info.Namespace + "/" + info.Tool)
 		if err := printInfoDetail(info); err != nil {
 			return err
 		}
@@ -108,7 +108,7 @@ func printImageDetail(tool, namespace string) error {
 		return nil
 	}
 
-	logging.Stepf("%s/%s", namespace, tool)
+	logging.Println("=> " + namespace + "/" + tool)
 	return printInfoDetail(info)
 }
 
@@ -143,7 +143,7 @@ func printInfoDetail(info *docker.ImageInfo) error {
 		proxy = fmt.Sprintf("can't trust the proxy CA - rebuild with \"agentic update %s\"", info.Tool)
 	}
 
-	return writeFields(logging.Log.Writer(), detailIndent, imageDetail{
+	return writeFields(logging.Out, detailIndent, imageDetail{
 		image:      fmt.Sprintf("%s (%s)", info.Image, info.ID),
 		version:    version,
 		base:       base,

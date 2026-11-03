@@ -25,14 +25,14 @@ func stubLogs(t *testing.T) *bytes.Buffer {
 	return &buf
 }
 
-// captureLog swaps logging.Log for the duration of fn and returns what was written.
-func captureLog(t *testing.T, fn func()) string {
+// captureOut swaps logging.Out for the duration of fn and returns what was written.
+func captureOut(t *testing.T, fn func()) string {
 	t.Helper()
 
 	var buf bytes.Buffer
-	orig := logging.Log
-	logging.Log = logging.New(&buf)
-	t.Cleanup(func() { logging.Log = orig })
+	orig := logging.Out
+	logging.Out = &buf
+	t.Cleanup(func() { logging.Out = orig })
 
 	fn()
 

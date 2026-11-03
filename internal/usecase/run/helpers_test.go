@@ -369,13 +369,13 @@ func (f fakeUpstream) LatestToolVersion(string, string) (string, bool, bool) {
 	return string(f), true, true
 }
 
-// stubLog redirects logging.Log to a buffer for the duration of the test and returns it.
-func stubLog(t *testing.T) *bytes.Buffer {
+// stubOut redirects logging.Out to a buffer for the duration of the test and returns it.
+func stubOut(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	var buf bytes.Buffer
-	orig := logging.Log
-	logging.Log = logging.New(&buf)
-	t.Cleanup(func() { logging.Log = orig })
+	orig := logging.Out
+	logging.Out = &buf
+	t.Cleanup(func() { logging.Out = orig })
 	return &buf
 }
 

@@ -1,31 +1,15 @@
 package clean
 
 import (
-	"bytes"
 	"fmt"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// captureStdout swaps logging.Log for the duration of fn and returns what was written.
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-
-	var buf bytes.Buffer
-	orig := logging.Log
-	logging.Log = logging.New(&buf)
-	t.Cleanup(func() { logging.Log = orig })
-
-	fn()
-
-	return buf.String()
-}
 
 func TestResolve(t *testing.T) {
 	t.Run("all scope dispatches to resolveAll", func(t *testing.T) {
@@ -144,7 +128,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureErrLog(t, func() {
 			err := New(t.TempDir(), d).Apply(targets)
 			require.NoError(t, err)
 		})
@@ -166,7 +150,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		captureStdout(t, func() {
+		captureErrLog(t, func() {
 			err := New(t.TempDir(), d).Apply(targets)
 			require.NoError(t, err)
 		})
@@ -186,7 +170,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		captureStdout(t, func() {
+		captureErrLog(t, func() {
 			err := New(t.TempDir(), &fakeDocker{}, m).Apply(targets)
 			require.NoError(t, err)
 		})
@@ -212,12 +196,10 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		captureStdout(t, func() {
-			err := New(t.TempDir(), d, m).Apply(targets)
-			require.NoError(t, err)
-		})
+		err := New(t.TempDir(), d, m).Apply(targets)
 
 		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, []string{"agentic-claude-dockerd", "agentic-claude", "agentic-copilot-dockerd", "agentic-copilot"}, cleaned)
 		assert.Contains(t, errLog.String(), "kept agentic-claude: fail on agentic-claude")
 	})
@@ -249,7 +231,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		captureStdout(t, func() {
+		captureErrLog(t, func() {
 			err := New(home, d).Apply(targets)
 			require.NoError(t, err)
 		})
@@ -273,7 +255,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		captureStdout(t, func() {
+		captureErrLog(t, func() {
 			err := New(home, d).Apply(targets)
 			require.NoError(t, err)
 		})
@@ -303,7 +285,7 @@ func TestApply(t *testing.T) {
 		}
 
 		// Act
-		captureStdout(t, func() {
+		captureErrLog(t, func() {
 			err := New(t.TempDir(), d, m).Apply(targets)
 			require.NoError(t, err)
 		})
@@ -386,12 +368,11 @@ func TestGlobalResources(t *testing.T) {
 		}
 
 		// Act
-		out := captureStdout(t, func() {
-			err := New("/agentic-home", d).GlobalResources()
-			require.NoError(t, err)
-		})
+		err := New("/agentic-home", d).GlobalResources()
 
 		// Assert
+		require.NoError(t, err)
+		out := logBuf.String()
 		assert.True(t, basesCleaned)
 		assert.Contains(t, cleaned, tools.ProxyImage)
 		assert.Contains(t, cleaned, tools.DindImage)
@@ -401,7 +382,7 @@ func TestGlobalResources(t *testing.T) {
 		assert.Contains(t, out, "=> base")
 		assert.Contains(t, out, "=> "+tools.ProxyImage)
 		assert.Contains(t, out, "=> network")
-		assert.Contains(t, logBuf.String(), "agentic: removing shared resources")
+		assert.Contains(t, out, "agentic: removing shared resources")
 	})
 
 	t.Run("cleanBaseImages error propagates", func(t *testing.T) {
@@ -506,7 +487,7 @@ func TestPrune(t *testing.T) {
 		}
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureErrLog(t, func() {
 			err := New("/agentic-home", d).Prune(func() bool { return true })
 			require.NoError(t, err)
 		})
@@ -526,7 +507,7 @@ func TestPrune(t *testing.T) {
 		}}
 
 		// Act
-		out := captureStdout(t, func() {
+		out := captureErrLog(t, func() {
 			err := New("/agentic-home", d).Prune(func() bool { return false })
 			require.NoError(t, err)
 		})
@@ -549,7 +530,7 @@ func TestPrune(t *testing.T) {
 
 		// Act
 		var err error
-		captureStdout(t, func() {
+		captureErrLog(t, func() {
 			err = New("/agentic-home", d).Prune(func() bool { return true })
 		})
 
@@ -575,7 +556,7 @@ func Test_cleanSidecarImages(t *testing.T) {
 
 		// Act
 		var err error
-		captureStdout(t, func() { err = New("/agentic-home", d).cleanSidecarImages() })
+		captureErrLog(t, func() { err = New("/agentic-home", d).cleanSidecarImages() })
 
 		// Assert
 		require.NoError(t, err)
@@ -602,7 +583,7 @@ func Test_stepImage(t *testing.T) {
 		var kept bool
 
 		// Act
-		out := captureStdout(t, func() { kept = stepImage("agentic-claude", true) })
+		out := captureErrLog(t, func() { kept = stepImage("agentic-claude", true) })
 
 		// Assert
 		assert.True(t, kept)
@@ -614,7 +595,7 @@ func Test_stepImage(t *testing.T) {
 		var kept bool
 
 		// Act
-		out := captureStdout(t, func() { kept = stepImage("agentic-copilot", false) })
+		out := captureErrLog(t, func() { kept = stepImage("agentic-copilot", false) })
 
 		// Assert
 		assert.False(t, kept)
@@ -626,7 +607,7 @@ func Test_stepImage(t *testing.T) {
 func Test_stepRemoved(t *testing.T) {
 	t.Run("lists the removed names under the label", func(t *testing.T) {
 		// Act
-		out := captureStdout(t, func() {
+		out := captureErrLog(t, func() {
 			err := stepRemoved("leftover sidecars", func() ([]string, error) {
 				return []string{"agentic-docker-abc", "agentic-proxy-abc"}, nil
 			})
@@ -639,7 +620,7 @@ func Test_stepRemoved(t *testing.T) {
 
 	t.Run("reports none when nothing was removed", func(t *testing.T) {
 		// Act
-		out := captureStdout(t, func() {
+		out := captureErrLog(t, func() {
 			err := stepRemoved("leftover sidecars", func() ([]string, error) { return nil, nil })
 			require.NoError(t, err)
 		})
@@ -651,7 +632,7 @@ func Test_stepRemoved(t *testing.T) {
 	t.Run("returns the error", func(t *testing.T) {
 		// Act
 		var err error
-		captureStdout(t, func() {
+		captureErrLog(t, func() {
 			err = stepRemoved("leftover sidecars", func() ([]string, error) { return nil, fmt.Errorf("sweep failed") })
 		})
 
@@ -663,7 +644,7 @@ func Test_stepRemoved(t *testing.T) {
 func Test_stepReclaimed(t *testing.T) {
 	t.Run("reports the reclaimed space under the label", func(t *testing.T) {
 		// Act
-		out := captureStdout(t, func() {
+		out := captureErrLog(t, func() {
 			err := stepReclaimed("build cache", func() (string, error) { return "1.5GB", nil })
 			require.NoError(t, err)
 		})
@@ -674,7 +655,7 @@ func Test_stepReclaimed(t *testing.T) {
 
 	t.Run("an unknown size prints only the label", func(t *testing.T) {
 		// Act
-		out := captureStdout(t, func() {
+		out := captureErrLog(t, func() {
 			err := stepReclaimed("build cache", func() (string, error) { return "", nil })
 			require.NoError(t, err)
 		})
@@ -686,7 +667,7 @@ func Test_stepReclaimed(t *testing.T) {
 	t.Run("returns the error", func(t *testing.T) {
 		// Act
 		var err error
-		captureStdout(t, func() {
+		captureErrLog(t, func() {
 			err = stepReclaimed("build cache", func() (string, error) { return "", fmt.Errorf("prune failed") })
 		})
 

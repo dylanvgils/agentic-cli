@@ -18,8 +18,8 @@ type runner interface {
 	Run(args ...string) (string, error)
 	// RunWithStdin executes `docker <args>` with r piped to stdin and returns combined stdout+stderr.
 	RunWithStdin(r io.Reader, args ...string) (string, error)
-	// RunInteractive executes `docker <args>` with stdin/stdout/stderr inherited from the current process.
-	RunInteractive(args ...string) error
+	// RunInteractive executes `docker <args>` with stdin/stderr inherited and stdout written to stdout.
+	RunInteractive(stdout io.Writer, args ...string) error
 	// Stream executes `docker <args>` with stdout written to w; stderr goes into the error.
 	Stream(w io.Writer, args ...string) error
 }
@@ -85,9 +85,14 @@ func (c *Client) runWithStdin(r io.Reader, args ...string) (string, error) {
 	return c.runner.RunWithStdin(r, c.withContext(args)...)
 }
 
-// runInteractive executes `docker <args>` with stdio inherited from the current process.
+// runInteractive executes `docker <args>` with stdio inherited from the current process, for the tool container.
 func (c *Client) runInteractive(args ...string) error {
-	return c.runner.RunInteractive(c.withContext(args)...)
+	return c.runner.RunInteractive(os.Stdout, c.withContext(args)...)
+}
+
+// runProgress executes `docker <args>` like runInteractive but with stdout on stderr, so build/pull progress stays off agentic's stdout.
+func (c *Client) runProgress(args ...string) error {
+	return c.runner.RunInteractive(os.Stderr, c.withContext(args)...)
 }
 
 // stream executes `docker <args>` with stdout written to w.
@@ -113,10 +118,10 @@ func (execRunner) RunWithStdin(r io.Reader, args ...string) (string, error) {
 	return output(cmd, args)
 }
 
-func (execRunner) RunInteractive(args ...string) error {
+func (execRunner) RunInteractive(stdout io.Writer, args ...string) error {
 	cmd := command(args...)
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
