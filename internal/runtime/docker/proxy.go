@@ -262,6 +262,7 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 	// Validated plain data, so it always marshals
 	rulesJSON, _ := json.Marshal(h.rules)
 	args = append(args,
+		arg("env", proxy.EnvAddr+"=:"+sandbox.ProxyPort),
 		arg("env", proxy.EnvRules+"="+string(rulesJSON)),
 		arg("env", proxy.EnvLog+"="+containerLog),
 		arg("env", proxy.EnvTZOffset+"="+strconv.Itoa(tzOffset)),

@@ -3,8 +3,6 @@
 package logging
 
 import (
-	"log"
-	"strings"
 	"sync/atomic"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
@@ -12,15 +10,6 @@ import (
 
 // std is the Logger the package funcs use, over the iostreams default it was built for.
 var std atomic.Pointer[Logger]
-
-// warnWriter turns each write into a Warn message on the default Logger.
-type warnWriter struct{}
-
-// Write writes p as one Warn message, without its trailing newline.
-func (warnWriter) Write(p []byte) (int, error) {
-	Warn(strings.TrimSuffix(string(p), "\n"))
-	return len(p), nil
-}
 
 // Default returns the Logger the package funcs use, building a new one when iostreams.Default changed.
 func Default() *Logger {
@@ -34,11 +23,6 @@ func Default() *Logger {
 			return next
 		}
 	}
-}
-
-// NewLogLogger returns a std *log.Logger whose lines become Warn messages, for APIs such as net/http's ErrorLog.
-func NewLogLogger() *log.Logger {
-	return log.New(warnWriter{}, "", 0)
 }
 
 // Step calls Default().Step.

@@ -35,18 +35,6 @@ func TestDefault(t *testing.T) {
 	})
 }
 
-func TestNewLogLogger(t *testing.T) {
-	// Arrange
-	buf := iostreamstest.StubErr(t)
-	l := NewLogLogger()
-
-	// Act
-	l.Print("http: TLS handshake error")
-
-	// Assert
-	assert.Equal(t, "agentic: warning: http: TLS handshake error\n", buf.String())
-}
-
 func TestStep(t *testing.T) {
 	// Arrange
 	buf := iostreamstest.StubErr(t)

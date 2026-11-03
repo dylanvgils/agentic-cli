@@ -4,8 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/network/certs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -337,13 +337,21 @@ func Test_removeSecretFiles(t *testing.T) {
 
 	t.Run("warns when a file can't be removed", func(t *testing.T) {
 		// Arrange
-		buf := iostreamstest.StubErr(t)
+		buf := stubSlog(t, time.UTC)
 		missing := filepath.Join(t.TempDir(), "missing.key")
 
 		// Act
 		removeSecretFiles(missing)
 
 		// Assert
-		assert.Contains(t, buf.String(), "agentic: warning: could not remove "+missing)
+		assert.Contains(t, buf.String(), `level=WARN msg="could not remove secret file" path=`+missing)
 	})
+}
+
+func TestRun(t *testing.T) {
+	// Act
+	err := Run(Config{})
+
+	// Assert
+	require.EqualError(t, err, EnvAddr+" is not set")
 }

@@ -99,6 +99,7 @@ func TestClient_createProxy(t *testing.T) {
 		assert.Contains(t, createArgs, "--cap-drop=ALL")
 		assert.Contains(t, createArgs, "--security-opt=no-new-privileges:true")
 		assert.Contains(t, createArgs, "--user="+testUser.String(), "runs as the tool's user, who owns its credential files")
+		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_ADDR=:3128")
 		assert.Contains(t, createArgs, `--env=AGENTIC_PROXY_RULES=[{"host":"api.anthropic.com"}]`)
 		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_MONITOR=false")
 		assert.Contains(t, createArgs, "--env=AGENTIC_PROXY_LOG="+proxyLogMountDir+"/proxy_abc.jsonl")

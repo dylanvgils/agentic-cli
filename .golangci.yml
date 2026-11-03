@@ -6,8 +6,32 @@ run:
 
 linters:
   enable:
+    - depguard
     - forbidigo
   settings:
+    depguard:
+      rules:
+        # The proxy is a standalone service: only the stdlib and these packages; logs go through log/slog
+        proxy:
+          list-mode: strict
+          files:
+            - "**/internal/network/proxy/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/dylanvgils/agentic-cli/internal/config
+            - github.com/dylanvgils/agentic-cli/internal/infra/iostreams
+            - github.com/dylanvgils/agentic-cli/internal/network/certs
+        # Its binary only wires the streams and starts it
+        proxy-main:
+          list-mode: strict
+          files:
+            - "**/cmd/proxy/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/dylanvgils/agentic-cli/internal/infra/iostreams
+            - github.com/dylanvgils/agentic-cli/internal/network/proxy
     forbidigo:
       # all IO goes through internal/infra/iostreams and logging; only iostreams.System names the streams
       forbid:
