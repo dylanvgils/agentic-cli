@@ -8,6 +8,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 )
@@ -73,7 +74,7 @@ func runNamespacePrune(cmd *cobra.Command, _ []string) error {
 
 	logging.Promptf("remove all images in namespace %q? [y/N] ", namespace)
 	if !confirmed() {
-		logging.Infof("nothing removed")
+		logging.Info("nothing removed")
 		return nil
 	}
 
@@ -89,13 +90,13 @@ func listNamespaces() error {
 
 	namespaces := uniqueNamespaces(images)
 	if len(namespaces) == 0 {
-		logging.Infof("no agentic images found")
+		logging.Info("no agentic images found")
 		return nil
 	}
 
 	slices.Sort(namespaces)
 	for _, namespace := range namespaces {
-		logging.Println(namespace)
+		iostreams.Println(namespace)
 	}
 
 	return nil

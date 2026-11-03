@@ -8,6 +8,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
@@ -57,7 +58,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 
 	t.Run("only warns for another engine", func(t *testing.T) {
 		// Arrange
-		buf := stubErrLog(t)
+		buf := iostreamstest.StubErr(t)
 
 		// Act
 		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Podman Engine", "5.2.0")}}.Check(plain)
@@ -250,7 +251,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 
 	t.Run("prints the proxy summary once the sidecars stopped", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 		rs := newProxyRunSpec(t, sandbox.ProxyEnforce)
 		d := &fakeDocker{
 			inspectImage: func(name string) (*docker.ImageInfo, error) { return &docker.ImageInfo{Image: name}, nil },
@@ -270,7 +271,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 
 	t.Run("dry run prints no proxy summary", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 		rs := newProxyRunSpec(t, sandbox.ProxyEnforce)
 		rs.DryRun = true
 		require.NoError(t, os.MkdirAll(filepath.Dir(rs.Proxy.LogFile), 0o750))
@@ -330,7 +331,7 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 
 	t.Run("builds missing sidecar images", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		var builds []string
 		d := &fakeDocker{
 			inspectImage: proxyMissing,
@@ -351,7 +352,7 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 
 	t.Run("sidecar build error is returned", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		d := &fakeDocker{
 			inspectImage:    proxyMissing,
 			buildProxyImage: func(string, string, string, tools.BuildOptions) error { return errors.New("proxy build failed") },

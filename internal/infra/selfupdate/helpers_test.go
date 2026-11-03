@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,17 +60,18 @@ func stubReleaseServerWith(t *testing.T, checksums string, archiveBytes, bundle 
 	return srv
 }
 
-// newTestUpdater returns an updater with cosign ("" skips the signature check) whose progress goes to the returned buffer.
-func newTestUpdater(cosign string) (updater, *bytes.Buffer) {
-	var buf bytes.Buffer
+// newTestUpdater returns an updater with cosign ("" skips the signature check) and the buffer its progress goes to.
+func newTestUpdater(t *testing.T, cosign string) (updater, *bytes.Buffer) {
+	t.Helper()
+
+	buf := iostreamstest.StubErr(t)
 	u := updater{
 		client: http.DefaultClient,
-		log:    logging.New(&buf),
 		cosign: cosign,
 
 		cosignTimeout: cosignTimeout,
 	}
-	return u, &buf
+	return u, buf
 }
 
 // stubCosign writes a fake cosign that prints "fake cosign" and exits with exitCode, and returns its path.

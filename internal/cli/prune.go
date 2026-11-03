@@ -27,6 +27,6 @@ func runPrune(cmd *cobra.Command, _ []string) error {
 		return force || newTTYPrompter().ConfirmCachePrune()
 	}
 
-	logging.Infof("pruning unused resources")
+	logging.Info("pruning unused resources")
 	return clean.New(toolHome, dockerClient).Prune(confirmCache)
 }

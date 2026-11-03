@@ -7,6 +7,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +16,7 @@ import (
 func TestEnsure(t *testing.T) {
 	t.Run("proxy only builds the proxy image", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		fake, built := recordBuilds()
 
 		// Act
@@ -28,7 +29,7 @@ func TestEnsure(t *testing.T) {
 
 	t.Run("dind only builds the dind image", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		fake, built := recordBuilds()
 
 		// Act
@@ -41,7 +42,7 @@ func TestEnsure(t *testing.T) {
 
 	t.Run("both enabled builds both images", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		fake, built := recordBuilds()
 
 		// Act
@@ -54,7 +55,7 @@ func TestEnsure(t *testing.T) {
 
 	t.Run("proxy build error stops before the dind step", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		fake, built := recordBuilds()
 		fake.buildProxyImage = func(string, string, string, tools.BuildOptions) error { return fmt.Errorf("proxy build failed") }
 
@@ -132,7 +133,7 @@ func TestBuildProxy(t *testing.T) {
 func Test_ensureProxy(t *testing.T) {
 	t.Run("builds the image when missing", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		var built string
 		var registry string
 		svc := New(&fakeDocker{buildProxyImage: func(image, _, _ string, opts tools.BuildOptions) error {
@@ -171,7 +172,7 @@ func Test_ensureProxy(t *testing.T) {
 
 	t.Run("rebuilds when CLI version does not match image label", func(t *testing.T) {
 		// Arrange
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		fake, built := recordBuilds()
 		fake.inspectImage = inspectReturns(&docker.ImageInfo{Image: tools.ProxyImage, CLIVersion: "v0.0.0"}, nil)
 
@@ -186,7 +187,7 @@ func Test_ensureProxy(t *testing.T) {
 
 	t.Run("never prunes during agentic run", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		pruned := false
 		svc := New(&fakeDocker{pruneImages: func() (string, error) { pruned = true; return "", nil }})
 
@@ -217,7 +218,7 @@ func Test_ensureDind(t *testing.T) {
 
 	t.Run("missing image is built", func(t *testing.T) {
 		// Arrange
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		fake, built := recordBuilds()
 
 		// Act
@@ -232,7 +233,7 @@ func Test_ensureDind(t *testing.T) {
 	t.Run("stale image is rebuilt to pick up base patches", func(t *testing.T) {
 		// Arrange
 		stale := formatTestLabelTime(time.Now().Add(-tools.DindImageMaxAge - time.Hour))
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		fake, built := recordBuilds()
 		fake.inspectImage = inspectReturns(&docker.ImageInfo{CLIVersion: buildinfo.Version, Built: stale}, nil)
 
@@ -247,7 +248,7 @@ func Test_ensureDind(t *testing.T) {
 
 	t.Run("failed refresh of an existing image only warns", func(t *testing.T) {
 		// Arrange
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		svc := New(&fakeDocker{
 			inspectImage:   inspectReturns(&docker.ImageInfo{CLIVersion: "older", Built: fresh}, nil),
 			buildDindImage: func(string, tools.BuildOptions) error { return fmt.Errorf("offline") },
@@ -263,7 +264,7 @@ func Test_ensureDind(t *testing.T) {
 
 	t.Run("failed build of a missing image errors", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		svc := New(&fakeDocker{buildDindImage: func(string, tools.BuildOptions) error { return fmt.Errorf("offline") }})
 
 		// Act

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/certs"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -91,7 +92,7 @@ func Run(cfg Config) error {
 	}
 
 	location := time.FixedZone("", cfg.TZOffsetSeconds)
-	server := NewServer(NewAllowlist(cfg.Rules), NewLogger(jsonWriter(logFile), os.Stdout, location), cfg.Monitor, inject)
+	server := NewServer(NewAllowlist(cfg.Rules), NewLogger(jsonWriter(logFile), location), cfg.Monitor, inject)
 
 	handler, err := clientHandler(server, cfg.ClientNets, inject != nil)
 	if err != nil {
@@ -99,13 +100,14 @@ func Run(cfg Config) error {
 	}
 
 	httpServer := &http.Server{
-		Addr:    addr,
-		Handler: handler,
+		Addr:     addr,
+		Handler:  handler,
+		ErrorLog: logging.NewLogLogger(),
 	}
 	return httpServer.ListenAndServe()
 }
 
-// openLog opens the JSON-lines log file; an empty path means no file (entries still print to stdout).
+// openLog opens the JSON-lines log file; an empty path means no file (entries still log through logging).
 func openLog(path string) (file *os.File, closeFn func(), err error) {
 	if path == "" {
 		return nil, func() { /* no file to close */ }, nil
@@ -158,7 +160,7 @@ func loadInjector(caDir, credsPath string, pathRules bool) (*Injector, error) {
 func removeSecretFiles(paths ...string) {
 	for _, path := range paths {
 		if err := os.Remove(path); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not remove %s: %v\n", path, err)
+			logging.Warnf("could not remove %s: %v", path, err)
 		}
 	}
 }

@@ -1,7 +1,6 @@
 package run
 
 import (
-	"bytes"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,7 +11,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -319,16 +317,6 @@ func approveSettings(t *testing.T, layer config.RCLayer, toolHome string) {
 	require.NoError(t, cfg.ApproveSettings(layer, toolHome))
 }
 
-// stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.
-func stubErrLog(t *testing.T) *bytes.Buffer {
-	t.Helper()
-	var buf bytes.Buffer
-	orig := logging.Err
-	logging.Err = logging.New(&buf)
-	t.Cleanup(func() { logging.Err = orig })
-	return &buf
-}
-
 // newPrepareRequest returns a Request for claude in a fresh home and cwd, with the tool update check disabled.
 func newPrepareRequest(t *testing.T) Request {
 	t.Helper()
@@ -367,16 +355,6 @@ type fakeUpstream string
 
 func (f fakeUpstream) LatestToolVersion(string, string) (string, bool, bool) {
 	return string(f), true, true
-}
-
-// stubOut redirects logging.Out to a buffer for the duration of the test and returns it.
-func stubOut(t *testing.T) *bytes.Buffer {
-	t.Helper()
-	var buf bytes.Buffer
-	orig := logging.Out
-	logging.Out = &buf
-	t.Cleanup(func() { logging.Out = orig })
-	return &buf
 }
 
 // chdirSymlinkWorkspace makes a fresh symlinkWorkspace the cwd.

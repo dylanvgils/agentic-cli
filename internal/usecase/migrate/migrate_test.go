@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -99,7 +100,7 @@ func TestRun(t *testing.T) {
 func TestApplyPending(t *testing.T) {
 	t.Run("applies every pending migration newer than current.Version", func(t *testing.T) {
 		// Arrange
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		toolHome := t.TempDir()
 		var calls []int
 		pending := []Migration{
@@ -122,7 +123,7 @@ func TestApplyPending(t *testing.T) {
 
 	t.Run("skips migrations at or below current.Version", func(t *testing.T) {
 		// Arrange
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		toolHome := t.TempDir()
 		var calls int
 		pending := []Migration{

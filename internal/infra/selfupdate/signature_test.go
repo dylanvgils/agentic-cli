@@ -18,7 +18,7 @@ func Test_updater_checkSignature(t *testing.T) {
 
 	t.Run("skips silently without cosign", func(t *testing.T) {
 		// Arrange
-		u, buf := newTestUpdater("")
+		u, buf := newTestUpdater(t, "")
 
 		// Act
 		err := u.checkSignature("http://example.test/checksums.txt", "checksums.txt")
@@ -33,7 +33,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		srv := stubReleaseServer(t, "v1.5.0", archiveBytes)
 		cosign := stubCosign(t, 0)
 		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
-		u, buf := newTestUpdater(cosign)
+		u, buf := newTestUpdater(t, cosign)
 
 		// Act
 		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
@@ -51,7 +51,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		t.Cleanup(srv.Close)
 		cosign := stubCosign(t, 0)
 		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
-		u, _ := newTestUpdater(cosign)
+		u, _ := newTestUpdater(t, cosign)
 
 		// Act
 		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
@@ -65,7 +65,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
 		cosign := stubCosign(t, 0)
 		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
-		u, buf := newTestUpdater(cosign)
+		u, buf := newTestUpdater(t, cosign)
 
 		// Act
 		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
@@ -81,7 +81,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
 		cosign := stubCosign(t, 1)
 		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
-		u, _ := newTestUpdater(cosign)
+		u, _ := newTestUpdater(t, cosign)
 
 		// Act
 		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
@@ -96,7 +96,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
 		cosign := stubCosignScript(t, "exit 3")
 		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
-		u, _ := newTestUpdater(cosign)
+		u, _ := newTestUpdater(t, cosign)
 
 		// Act
 		err := u.checkSignature(srv.URL+"/v1.5.0/"+checksumFile, checksumsPath)
@@ -111,7 +111,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
 		cosign := stubCosignScript(t, "exec sleep 10")
 		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
-		u, _ := newTestUpdater(cosign)
+		u, _ := newTestUpdater(t, cosign)
 		u.cosignTimeout = 100 * time.Millisecond
 
 		// Act
@@ -127,7 +127,7 @@ func Test_updater_checkSignature(t *testing.T) {
 		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
 		cosign := stubCosignScript(t, "sleep 30 &\nwait")
 		checksumsPath := filepath.Join(t.TempDir(), checksumFile)
-		u, _ := newTestUpdater(cosign)
+		u, _ := newTestUpdater(t, cosign)
 		u.cosignTimeout = 100 * time.Millisecond
 		start := time.Now()
 

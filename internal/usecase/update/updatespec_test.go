@@ -8,6 +8,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ func TestDryRun(t *testing.T) {
 		}}
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -35,10 +36,10 @@ func TestDryRun(t *testing.T) {
 
 	t.Run("labels the dockerfile on stderr", func(t *testing.T) {
 		// Arrange
-		errOut := stubErrLog(t)
+		errOut := iostreamstest.StubErr(t)
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := New(&fakeDocker{}, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -62,7 +63,7 @@ func TestDryRun(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Base: "node@24.0.0,java@21.0.1"}, nil)}
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -77,7 +78,7 @@ func TestDryRun(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -102,7 +103,7 @@ func TestDryRun(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := New(d, &fakeUpstream{}, t.TempDir()).DryRun("claude", "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -356,7 +357,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureErrLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
+		iostreamstest.CaptureErr(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
 
 		// Assert - the same value lets Docker reuse the tool stage for the second namespace
 		require.NoError(t, err)
@@ -375,7 +376,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureErrLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
+		iostreamstest.CaptureErr(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
 
 		// Assert
 		require.ErrorContains(t, err, "build failed")
@@ -389,7 +390,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureErrLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
+		iostreamstest.CaptureErr(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
 
 		// Assert
 		require.NoError(t, err)
@@ -406,7 +407,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureErrLog(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
+		iostreamstest.CaptureErr(t, func() { err = New(d, upstream, t.TempDir()).ApplyAll(targets) })
 
 		// Assert
 		require.ErrorContains(t, err, "build failed")
@@ -419,7 +420,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureErrLog(t, func() { err = New(&fakeDocker{}, upstream, home).ApplyAll(targets) })
+		iostreamstest.CaptureErr(t, func() { err = New(&fakeDocker{}, upstream, home).ApplyAll(targets) })
 
 		// Assert
 		require.NoError(t, err)
@@ -435,7 +436,7 @@ func TestApplyAll(t *testing.T) {
 
 		// Act
 		var err error
-		captureErrLog(t, func() { err = New(d, upstream, home).ApplyAll(targets) })
+		iostreamstest.CaptureErr(t, func() { err = New(d, upstream, home).ApplyAll(targets) })
 
 		// Assert
 		require.Error(t, err)
@@ -454,7 +455,7 @@ func TestApply(t *testing.T) {
 		upstream := &fakeUpstream{latest: "2.0.0", newer: true, ok: true}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -469,7 +470,7 @@ func TestApply(t *testing.T) {
 		upstream := &fakeUpstream{latest: "1.0.0", newer: false, ok: true}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -483,7 +484,7 @@ func TestApply(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(nil, nil)}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -498,7 +499,7 @@ func TestApply(t *testing.T) {
 		upstream := &fakeUpstream{latest: "", newer: false, ok: false}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -513,7 +514,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
@@ -527,7 +528,7 @@ func TestApply(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil)}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -542,7 +543,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{AptPackages: []string{"curl", "jq"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
@@ -556,7 +557,7 @@ func TestApply(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil)}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -571,7 +572,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{BaseExact: true, Versions: map[string]string{}}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
@@ -586,7 +587,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{AptExact: true, Versions: map[string]string{}}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", opts)
 			require.NoError(t, err)
 		})
@@ -700,7 +701,7 @@ func TestApply(t *testing.T) {
 		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil)}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(d, upstream, t.TempDir()).Apply("claude", "agentic-claude", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -714,7 +715,7 @@ func TestApply(t *testing.T) {
 func Test_reportVersionChange(t *testing.T) {
 	t.Run("version changed", func(t *testing.T) {
 		// Act
-		out := captureErrLog(t, func() { reportVersionChange("1.0.0", "2.0.0") })
+		out := iostreamstest.CaptureErr(t, func() { reportVersionChange("1.0.0", "2.0.0") })
 
 		// Assert
 		assert.Contains(t, out, "1.0.0 -> 2.0.0")
@@ -722,7 +723,7 @@ func Test_reportVersionChange(t *testing.T) {
 
 	t.Run("version up to date", func(t *testing.T) {
 		// Act
-		out := captureErrLog(t, func() { reportVersionChange("1.0.0", "1.0.0") })
+		out := iostreamstest.CaptureErr(t, func() { reportVersionChange("1.0.0", "1.0.0") })
 
 		// Assert
 		assert.Contains(t, out, "(up to date)")
@@ -730,7 +731,7 @@ func Test_reportVersionChange(t *testing.T) {
 
 	t.Run("no before version just prints version", func(t *testing.T) {
 		// Act
-		out := captureErrLog(t, func() { reportVersionChange("", "1.0.0") })
+		out := iostreamstest.CaptureErr(t, func() { reportVersionChange("", "1.0.0") })
 
 		// Assert
 		assert.Contains(t, out, "1.0.0")
@@ -739,7 +740,7 @@ func Test_reportVersionChange(t *testing.T) {
 
 	t.Run("no after version prints nothing", func(t *testing.T) {
 		// Act
-		out := captureErrLog(t, func() { reportVersionChange("1.0.0", "") })
+		out := iostreamstest.CaptureErr(t, func() { reportVersionChange("1.0.0", "") })
 
 		// Assert
 		assert.Empty(t, out)
@@ -844,7 +845,7 @@ func Test_recoverCustomInstalls(t *testing.T) {
 
 	t.Run("names missing from config are dropped with a warning", func(t *testing.T) {
 		// Arrange
-		errLog := stubErrLog(t)
+		errLog := iostreamstest.StubErr(t)
 		info := &docker.ImageInfo{Image: "agentic-claude", CustomInstalls: "helm,terraform"}
 
 		// Act

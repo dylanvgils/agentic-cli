@@ -3,7 +3,7 @@ package cli
 import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/spf13/cobra"
 )
@@ -74,11 +74,11 @@ func instructionsRequest(cmd *cobra.Command, toolName string) (run.Request, stri
 
 // printInstructions prints content under heading, or a notice when the config disables it.
 func printInstructions(heading, content string) {
-	logging.Println("=> " + heading)
+	iostreams.Println("=> " + heading)
 	if content == "" {
-		logging.Println("   (environment instructions disabled via .agenticrc.toml [run.instructions] enabled = false)")
+		iostreams.Println("   (environment instructions disabled via .agenticrc.toml [run.instructions] enabled = false)")
 		return
 	}
 
-	logging.Print(content)
+	iostreams.Print(content)
 }

@@ -1,10 +1,6 @@
 package volumes
 
 import (
-	"bytes"
-	"testing"
-
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -56,16 +52,4 @@ func msbRuntime(store Store) Runtime {
 // namesFunc returns a list func that returns names.
 func namesFunc(names ...string) func() ([]string, error) {
 	return func() ([]string, error) { return names, nil }
-}
-
-// stubErrLog redirects logging.Err to a buffer until the test ends and returns it.
-func stubErrLog(t *testing.T) *bytes.Buffer {
-	t.Helper()
-
-	var buf bytes.Buffer
-	orig := logging.Err
-	logging.Err = logging.New(&buf)
-	t.Cleanup(func() { logging.Err = orig })
-
-	return &buf
 }

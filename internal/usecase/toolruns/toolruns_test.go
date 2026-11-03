@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -196,7 +197,7 @@ func Test_Service_dockerRuns(t *testing.T) {
 
 	t.Run("warns and returns nothing when the daemon is down", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 		svc := New(&fakeDocker{
 			checkDaemon:           func() error { return docker.ErrDaemonNotRunning },
 			listRunningContainers: func() ([]*docker.ContainerInfo, error) { return nil, errors.New("unexpected docker call") },
@@ -212,7 +213,7 @@ func Test_Service_dockerRuns(t *testing.T) {
 
 	t.Run("warns and returns nothing when listing fails", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 		svc := New(&fakeDocker{listRunningContainers: func() ([]*docker.ContainerInfo, error) {
 			return nil, errors.New("boom")
 		}}, &fakeMicrosandbox{})
@@ -273,7 +274,7 @@ func Test_Service_msbRuns(t *testing.T) {
 
 	t.Run("warns and returns nothing when listing fails", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 		svc := New(&fakeDocker{}, &fakeMicrosandbox{listRunning: func() ([]*microsandbox.Sandbox, error) {
 			return nil, errors.New("list msb sandboxes: boom")
 		}})

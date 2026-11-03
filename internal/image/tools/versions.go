@@ -3,7 +3,7 @@ package tools
 import (
 	_ "embed" // for go:embed
 	"encoding/json"
-	"log"
+	"fmt"
 )
 
 //go:embed versions.json
@@ -11,6 +11,14 @@ var versionsJSON []byte
 
 //go:embed checksums.json
 var checksumsJSON []byte
+
+var (
+	// DefaultVersions holds the versions from the embedded versions.json.
+	DefaultVersions = mustDecode[Versions](versionsJSON, "versions.json")
+
+	// DefaultChecksums holds the hashes from the embedded checksums.json.
+	DefaultChecksums = mustDecode[Checksums](checksumsJSON, "checksums.json")
+)
 
 // Versions holds the default version strings for each runtime layer plus pinned tags for utility base images.
 type Versions struct {
@@ -33,19 +41,6 @@ type Checksums struct {
 	OpencodeInstall string `json:"opencode_install"`
 }
 
-// DefaultVersions and DefaultChecksums are populated at startup from the embedded JSON files; a malformed file is a fatal error.
-var DefaultVersions Versions
-var DefaultChecksums Checksums
-
-func init() {
-	if err := json.Unmarshal(versionsJSON, &DefaultVersions); err != nil {
-		log.Fatalf("tools: failed to parse embedded versions.json: %v", err)
-	}
-	if err := json.Unmarshal(checksumsJSON, &DefaultChecksums); err != nil {
-		log.Fatalf("tools: failed to parse embedded checksums.json: %v", err)
-	}
-}
-
 // ForLayer returns the default version string for the named runtime layer, or "" for unknown names.
 func (v Versions) ForLayer(name string) string {
 	switch name {
@@ -64,4 +59,13 @@ func (v Versions) ForLayer(name string) string {
 	default:
 		return ""
 	}
+}
+
+// mustDecode decodes embedded JSON into a T, panicking on malformed data since that's a build mistake.
+func mustDecode[T any](data []byte, name string) T {
+	var v T
+	if err := json.Unmarshal(data, &v); err != nil {
+		panic(fmt.Sprintf("tools: parse embedded %s: %v", name, err))
+	}
+	return v
 }

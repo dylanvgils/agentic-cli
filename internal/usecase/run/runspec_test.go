@@ -10,6 +10,8 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
@@ -46,7 +48,7 @@ func Test_Service_build(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, platform.HostUser(), *rs.User)
-		assert.Equal(t, platform.IsTerminal(), rs.TTY)
+		assert.Equal(t, iostreams.IsTerminal(), rs.TTY)
 	})
 
 	t.Run("instructions mount wired after the tool's base mounts", func(t *testing.T) {
@@ -664,7 +666,7 @@ func Test_toolMarketplaceMounts(t *testing.T) {
 
 	t.Run("warns about a stale clone and still mounts it", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 		results := []marketplace.Result{{Entry: marketplace.Entry{Name: "acme", URL: "git@example.test:acme.git"}, Stale: true, Warning: fmt.Errorf("offline")}}
 
 		// Act

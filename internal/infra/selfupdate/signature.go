@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 )
 
 const (
@@ -32,14 +34,14 @@ func (u updater) checkSignature(checksumsURL, checksumsPath string) error {
 	bundlePath := checksumsPath + bundleSuffix
 	err := downloadFile(u.client, checksumsURL+bundleSuffix, bundlePath)
 	if errors.Is(err, errNotFound) {
-		u.log.Detail("release is unsigned, verifying checksum only")
+		logging.Detail("release is unsigned, verifying checksum only")
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("downloading signature: %w", err)
 	}
 
-	u.log.Detail("verifying signature...")
+	logging.Detail("verifying signature...")
 	return u.verifySignature(checksumsPath, bundlePath)
 }
 

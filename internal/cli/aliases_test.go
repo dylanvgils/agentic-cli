@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,7 @@ func Test_runAliases(t *testing.T) {
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := runAliases(aliasesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -32,7 +33,7 @@ func Test_runAliases(t *testing.T) {
 		t.Setenv("SHELL", "/usr/bin/fish")
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := runAliases(aliasesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -48,7 +49,7 @@ func Test_runAliases(t *testing.T) {
 		t.Setenv("SHELL", "/usr/bin/pwsh")
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := runAliases(aliasesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -67,7 +68,7 @@ func Test_runAliases(t *testing.T) {
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := runAliases(aliasesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -87,7 +88,7 @@ func Test_runAliases(t *testing.T) {
 		t.Setenv("SHELL", "/usr/bin/pwsh")
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := runAliases(aliasesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -104,7 +105,7 @@ func Test_runAliases(t *testing.T) {
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := runAliases(aliasesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -127,7 +128,7 @@ func Test_runAliases(t *testing.T) {
 		t.Setenv("SHELL", "/bin/bash")
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := runAliases(aliasesCmd, []string{})
 			require.NoError(t, err)
 		})
@@ -144,7 +145,7 @@ func Test_runAliases(t *testing.T) {
 func Test_printAliases(t *testing.T) {
 	t.Run("no built tools prints nothing", func(t *testing.T) {
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			printAliases("bash", map[string]bool{})
 		})
 
@@ -157,7 +158,7 @@ func Test_printAliases(t *testing.T) {
 		built := map[string]bool{"claude": true}
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			printAliases("bash", built)
 		})
 

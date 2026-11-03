@@ -84,7 +84,7 @@ func runProxyClean(cmd *cobra.Command, _ []string) error {
 	}
 
 	if logs, _ := cmd.Flags().GetBool("logs"); logs {
-		logging.Infof("removing proxy logs")
+		logging.Info("removing proxy logs")
 		proxy.PruneLogs(filepath.Join(toolHome, config.LogsDirName), 0)
 	}
 

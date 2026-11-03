@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/network/certs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -319,5 +320,30 @@ func Test_loadCA(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "must be name-constrained")
+	})
+}
+
+func Test_removeSecretFiles(t *testing.T) {
+	t.Run("removes the files", func(t *testing.T) {
+		// Arrange
+		path := writeTestFile(t, "ca.key", "secret")
+
+		// Act
+		removeSecretFiles(path)
+
+		// Assert
+		assert.NoFileExists(t, path)
+	})
+
+	t.Run("warns when a file can't be removed", func(t *testing.T) {
+		// Arrange
+		buf := iostreamstest.StubErr(t)
+		missing := filepath.Join(t.TempDir(), "missing.key")
+
+		// Act
+		removeSecretFiles(missing)
+
+		// Assert
+		assert.Contains(t, buf.String(), "agentic: warning: could not remove "+missing)
 	})
 }

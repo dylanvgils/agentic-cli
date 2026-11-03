@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -101,7 +102,7 @@ func Test_setupSidecars(t *testing.T) {
 
 		// Act
 		var err error
-		out := captureOut(t, func() { _, _, err = client.setupSidecars(rs) })
+		out := iostreamstest.CaptureOut(t, func() { _, _, err = client.setupSidecars(rs) })
 
 		// Assert
 		require.NoError(t, err)

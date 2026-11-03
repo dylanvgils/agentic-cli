@@ -206,7 +206,7 @@ func collectVersionOverrides(cmd *cobra.Command) map[string]string {
 // warnSkipInstallChecksum warns that opts turns off install script verification.
 func warnSkipInstallChecksum(opts tools.BuildOptions) {
 	if opts.SkipInstallChecksum {
-		logging.Warnf("--skip-install-checksum disables install script integrity verification")
+		logging.Warn("--skip-install-checksum disables install script integrity verification")
 	}
 }
 

@@ -116,7 +116,7 @@ func Test_updater_download(t *testing.T) {
 		ext:          ".tar.gz",
 	}
 	tmpDir := t.TempDir()
-	u, buf := newTestUpdater("")
+	u, buf := newTestUpdater(t, "")
 
 	// Act
 	path, err := u.download(rel, tmpDir)
@@ -189,7 +189,7 @@ func Test_updater_update(t *testing.T) {
 		require.NoError(t, os.WriteFile(targetPath, []byte("old binary"), 0o755))
 
 		// Act
-		u, _ := newTestUpdater("")
+		u, _ := newTestUpdater(t, "")
 		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
 		// Assert
@@ -207,7 +207,7 @@ func Test_updater_update(t *testing.T) {
 		targetPath := filepath.Join(t.TempDir(), "agentic")
 
 		// Act
-		u, _ := newTestUpdater(cosign)
+		u, _ := newTestUpdater(t, cosign)
 		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
 		// Assert
@@ -224,7 +224,7 @@ func Test_updater_update(t *testing.T) {
 		require.NoError(t, os.WriteFile(targetPath, []byte("old binary"), 0o755))
 
 		// Act
-		u, _ := newTestUpdater(cosign)
+		u, _ := newTestUpdater(t, cosign)
 		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
 		// Assert
@@ -241,7 +241,7 @@ func Test_updater_update(t *testing.T) {
 		targetPath := filepath.Join(t.TempDir(), "agentic")
 
 		// Act
-		u, _ := newTestUpdater("")
+		u, _ := newTestUpdater(t, "")
 		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
 		// Assert
@@ -255,7 +255,7 @@ func Test_updater_update(t *testing.T) {
 		targetPath := filepath.Join(t.TempDir(), "agentic")
 
 		// Act
-		u, _ := newTestUpdater("")
+		u, _ := newTestUpdater(t, "")
 		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
 		// Assert

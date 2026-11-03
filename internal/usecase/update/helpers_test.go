@@ -1,12 +1,10 @@
 package update
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/stretchr/testify/require"
 )
@@ -70,42 +68,6 @@ type fakeUpstream struct {
 func (f *fakeUpstream) LatestToolVersion(string, string) (string, bool, bool) {
 	f.calls++
 	return f.latest, f.newer, f.ok
-}
-
-// captureOut swaps logging.Out for the duration of fn and returns what was written.
-func captureOut(t *testing.T, fn func()) string {
-	t.Helper()
-
-	var buf bytes.Buffer
-	orig := logging.Out
-	logging.Out = &buf
-	t.Cleanup(func() { logging.Out = orig })
-
-	fn()
-
-	return buf.String()
-}
-
-// captureErrLog swaps logging.Err, where progress goes, for the duration of fn and returns what was written.
-func captureErrLog(t *testing.T, fn func()) string {
-	t.Helper()
-
-	buf := stubErrLog(t)
-	fn()
-
-	return buf.String()
-}
-
-// stubErrLog swaps logging.Err for a buffer until the test ends.
-func stubErrLog(t *testing.T) *bytes.Buffer {
-	t.Helper()
-
-	var buf bytes.Buffer
-	orig := logging.Err
-	logging.Err = logging.New(&buf)
-	t.Cleanup(func() { logging.Err = orig })
-
-	return &buf
 }
 
 // storeCustomInstalls saves installs to the custom installs store under home and returns their hash.

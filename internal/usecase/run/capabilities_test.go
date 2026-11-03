@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -220,7 +221,7 @@ func Test_checkCapabilities(t *testing.T) {
 
 	t.Run("missing path rules only warn, naming the layer", func(t *testing.T) {
 		// Arrange
-		errLog := stubErrLog(t)
+		errLog := iostreamstest.StubErr(t)
 		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
 		rc := &config.AgenticRC{}
 		rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
@@ -238,7 +239,7 @@ func Test_checkCapabilities(t *testing.T) {
 
 	t.Run("missing proxy integrations only warn, naming the layer", func(t *testing.T) {
 		// Arrange
-		errLog := stubErrLog(t)
+		errLog := iostreamstest.StubErr(t)
 		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
 		rc := &config.AgenticRC{}
 		rc.Run.Proxy.Integrations = []string{"maven"}
@@ -256,7 +257,7 @@ func Test_checkCapabilities(t *testing.T) {
 
 	t.Run("missing proxy integrations from the flag warn, naming it", func(t *testing.T) {
 		// Arrange
-		errLog := stubErrLog(t)
+		errLog := iostreamstest.StubErr(t)
 		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
 		req.Flags.Proxy.ProxyFlag = true
 		req.Flags.Proxy.Integrations = []string{"maven"}
@@ -284,7 +285,7 @@ func Test_checkCapabilities(t *testing.T) {
 
 	t.Run("a missing docker daemon only warns", func(t *testing.T) {
 		// Arrange
-		errLog := stubErrLog(t)
+		errLog := iostreamstest.StubErr(t)
 		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
 		req.Project.RC = &config.AgenticRC{}
 		req.Flags.Dind.DindFlag = true
@@ -299,7 +300,7 @@ func Test_checkCapabilities(t *testing.T) {
 
 	t.Run("a missing pids limit is silent", func(t *testing.T) {
 		// Arrange
-		errLog := stubErrLog(t)
+		errLog := iostreamstest.StubErr(t)
 		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
 		req.Project.RC = &config.AgenticRC{}
 

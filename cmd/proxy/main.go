@@ -2,15 +2,18 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 )
 
 func main() {
+	iostreams.SetDefault(iostreams.System())
+
 	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		logging.Error(err.Error())
 		os.Exit(1)
 	}
 }

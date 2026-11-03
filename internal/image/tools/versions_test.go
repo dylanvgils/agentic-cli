@@ -49,3 +49,20 @@ func Test_versionsForLayer(t *testing.T) {
 		assert.Equal(t, "", result)
 	})
 }
+
+func Test_mustDecode(t *testing.T) {
+	t.Run("decodes valid JSON", func(t *testing.T) {
+		// Act
+		got := mustDecode[Versions]([]byte(`{"node":"22"}`), "versions.json")
+
+		// Assert
+		assert.Equal(t, "22", got.Node)
+	})
+
+	t.Run("panics on malformed JSON", func(t *testing.T) {
+		// Act + Assert
+		assert.PanicsWithValue(t, "tools: parse embedded versions.json: unexpected end of JSON input", func() {
+			mustDecode[Versions]([]byte(`{`), "versions.json")
+		})
+	})
+}

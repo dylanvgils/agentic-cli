@@ -14,7 +14,8 @@ agentic-cli/
 │   │   ├── buildinfo/           # Build-time version/commit metadata and dev-build classification
 │   │   ├── cleanup/             # Capture helper for propagating deferred cleanup errors without masking an earlier error
 │   │   ├── git/                 # Thin wrapper over the host git binary (CheckAvailable, Clone, FetchReset)
-│   │   ├── logging/             # All CLI output (Infof, Warnf, Stepf, ...)
+│   │   ├── iostreams/           # Process streams (In, Out, Err) and data writes (Print, Println); the mains set the default
+│   │   ├── logging/             # Messages to the user on Err (Info, Warn, Step, ...)
 │   │   ├── platform/            # Platform-specific paths and utilities
 │   │   └── selfupdate/          # Downloads and installs new releases from GitHub
 │   ├── config/                  # .agenticrc.toml loading and run spec

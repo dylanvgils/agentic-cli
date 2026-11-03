@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 )
 
@@ -52,13 +53,13 @@ func runStatus(_ *cobra.Command, _ []string) error {
 
 	if msbClient.Available() == nil {
 		if sandboxes, err := msbClient.ListRunning(); err != nil {
-			logging.Warnf("%v", err)
+			logging.Warn(err.Error())
 		} else {
 			detail.vms = strconv.Itoa(len(sandboxes))
 		}
 	}
 
-	return writeFields(logging.Out, "", detail)
+	return writeFields(iostreams.Default().Out, "", detail)
 }
 
 // msbStatus reports whether the optional msb binary is installed.

@@ -1,7 +1,6 @@
 package docker
 
 import (
-	"os"
 	"strings"
 	"testing"
 
@@ -127,14 +126,14 @@ func TestClient_runInteractive(t *testing.T) {
 		client.context = "prod"
 
 		// Act
-		err := client.runInteractive("build", "-t", "img")
+		err := client.runInteractive("run", "img")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"--context", "prod", "build", "-t", "img"}, get())
+		assert.Equal(t, []string{"--context", "prod", "run", "img"}, get())
 	})
 
-	t.Run("writes stdout to stdout", func(t *testing.T) {
+	t.Run("runs attached to the terminal", func(t *testing.T) {
 		// Arrange
 		client := newTestClient()
 		stubRunInteractive(t, client)
@@ -144,7 +143,7 @@ func TestClient_runInteractive(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Same(t, os.Stdout, fakeOf(client).interactiveOut)
+		assert.False(t, fakeOf(client).progress)
 	})
 }
 
@@ -163,7 +162,7 @@ func TestClient_runProgress(t *testing.T) {
 		assert.Equal(t, []string{"--context", "prod", "pull", "img"}, get())
 	})
 
-	t.Run("writes stdout to stderr", func(t *testing.T) {
+	t.Run("runs as progress", func(t *testing.T) {
 		// Arrange
 		client := newTestClient()
 		stubRunInteractive(t, client)
@@ -173,7 +172,7 @@ func TestClient_runProgress(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Same(t, os.Stderr, fakeOf(client).interactiveOut)
+		assert.True(t, fakeOf(client).progress)
 	})
 }
 

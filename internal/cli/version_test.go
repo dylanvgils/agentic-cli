@@ -1,11 +1,11 @@
 package cli
 
 import (
-	"bytes"
 	"errors"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,10 +33,10 @@ func Test_writeVersion(t *testing.T) {
 		buildinfo.BuildDate = ""
 		buildinfo.InstallMethod = ""
 
-		var buf bytes.Buffer
+		buf := iostreamstest.StubOut(t)
 
 		// Act
-		err := writeVersion(&buf)
+		err := writeVersion()
 
 		// Assert
 		require.NoError(t, err)
@@ -50,10 +50,10 @@ func Test_writeVersion(t *testing.T) {
 		buildinfo.BuildDate = ""
 		buildinfo.InstallMethod = ""
 
-		var buf bytes.Buffer
+		buf := iostreamstest.StubOut(t)
 
 		// Act
-		err := writeVersion(&buf)
+		err := writeVersion()
 
 		// Assert
 		require.NoError(t, err)
@@ -68,10 +68,10 @@ func Test_writeVersion(t *testing.T) {
 		buildinfo.InstallMethod = ""
 		stubDocker(t, &fakeDocker{version: func() (string, error) { return "29.9.0", nil }})
 
-		var buf bytes.Buffer
+		buf := iostreamstest.StubOut(t)
 
 		// Act
-		err := writeVersion(&buf)
+		err := writeVersion()
 
 		// Assert
 		require.NoError(t, err)

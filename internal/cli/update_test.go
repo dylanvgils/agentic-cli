@@ -7,6 +7,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
@@ -115,7 +116,7 @@ func Test_runUpdate(t *testing.T) {
 		stubFlag(t, updateCmd, "dry-run", "true")
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			err := runUpdate(updateCmd, []string{"claude"})
 			require.NoError(t, err)
 		})
@@ -155,7 +156,7 @@ func Test_runUpdate(t *testing.T) {
 		// Arrange
 		stubDocker(t, &fakeDocker{})
 		stubFlag(t, updateCmd, allFlagName, "true")
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 
 		// Act
 		err := runUpdate(updateCmd, []string{})
@@ -167,7 +168,7 @@ func Test_runUpdate(t *testing.T) {
 
 	t.Run("all flag updates all images", func(t *testing.T) {
 		// Arrange
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		var updated []string
 		stubDocker(t, &fakeDocker{
 			buildTool: func(tool, _ string, _ tools.BuildOptions) error {
@@ -248,7 +249,7 @@ func Test_runUpdate(t *testing.T) {
 
 func Test_logUpdateSummary(t *testing.T) {
 	// Arrange
-	logBuf := stubLogs(t)
+	logBuf := iostreamstest.StubCombined(t)
 	targets := []update.Target{{Name: "claude", Image: "agentic-claude"}, {Name: "copilot", Image: "agentic-copilot"}}
 
 	// Act

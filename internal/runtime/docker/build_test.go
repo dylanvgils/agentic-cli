@@ -120,6 +120,15 @@ func TestBuildImage(t *testing.T) {
 		assert.Equal(t, "build", get()[0])
 	})
 
+	t.Run("runs as progress", func(t *testing.T) {
+		// Act
+		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, fakeOf(client).progress)
+	})
+
 	t.Run("includes file flag", func(t *testing.T) {
 		// Act
 		err := client.buildImage("/tmp/x", "agentic-test", "claude", tools.BuildOptions{})

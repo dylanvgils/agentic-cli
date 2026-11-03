@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,8 +24,8 @@ func Test_ttyPrompter_TrustDir(t *testing.T) {
 
 	t.Run("tty answers y approves", func(t *testing.T) {
 		// Arrange
-		stubStdin(t, "y\n")
-		logs := stubErrLog(t)
+		iostreamstest.StubIn(t, "y\n")
+		logs := iostreamstest.StubErr(t)
 
 		// Act
 		err := ttyPrompter{terminal: true}.TrustDir("/example.test/project")
@@ -36,8 +37,8 @@ func Test_ttyPrompter_TrustDir(t *testing.T) {
 
 	t.Run("tty answers n refuses", func(t *testing.T) {
 		// Arrange
-		stubStdin(t, "n\n")
-		stubErrLog(t)
+		iostreamstest.StubIn(t, "n\n")
+		iostreamstest.StubErr(t)
 
 		// Act
 		err := ttyPrompter{terminal: true}.TrustDir("/example.test/project")
@@ -93,8 +94,8 @@ func Test_ttyPrompter_ApproveSettings(t *testing.T) {
 
 	t.Run("tty answers y lists the settings and approves", func(t *testing.T) {
 		// Arrange
-		stubStdin(t, "y\n")
-		logs := stubErrLog(t)
+		iostreamstest.StubIn(t, "y\n")
+		logs := iostreamstest.StubErr(t)
 
 		// Act
 		err := ttyPrompter{terminal: true}.ApproveSettings(layer, changed)
@@ -107,8 +108,8 @@ func Test_ttyPrompter_ApproveSettings(t *testing.T) {
 
 	t.Run("tty answers n refuses", func(t *testing.T) {
 		// Arrange
-		stubStdin(t, "n\n")
-		stubErrLog(t)
+		iostreamstest.StubIn(t, "n\n")
+		iostreamstest.StubErr(t)
 
 		// Act
 		err := ttyPrompter{terminal: true}.ApproveSettings(layer, changed)
@@ -122,7 +123,7 @@ func Test_ttyPrompter_ApproveSettings(t *testing.T) {
 func Test_ttyPrompter_OfferToolUpdate(t *testing.T) {
 	t.Run("no tty prints one-liner and declines", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 
 		// Act
 		result := ttyPrompter{}.OfferToolUpdate("claude", "1.2.3", "1.3.0")
@@ -134,8 +135,8 @@ func Test_ttyPrompter_OfferToolUpdate(t *testing.T) {
 
 	t.Run("tty answers y accepts", func(t *testing.T) {
 		// Arrange
-		stubStdin(t, "y\n")
-		logs := stubErrLog(t)
+		iostreamstest.StubIn(t, "y\n")
+		logs := iostreamstest.StubErr(t)
 
 		// Act
 		result := ttyPrompter{terminal: true}.OfferToolUpdate("claude", "1.2.3", "1.3.0")
@@ -147,8 +148,8 @@ func Test_ttyPrompter_OfferToolUpdate(t *testing.T) {
 
 	t.Run("tty answers n declines", func(t *testing.T) {
 		// Arrange
-		stubStdin(t, "n\n")
-		stubErrLog(t)
+		iostreamstest.StubIn(t, "n\n")
+		iostreamstest.StubErr(t)
 
 		// Act
 		result := ttyPrompter{terminal: true}.OfferToolUpdate("claude", "1.2.3", "1.3.0")
@@ -161,7 +162,7 @@ func Test_ttyPrompter_OfferToolUpdate(t *testing.T) {
 func Test_ttyPrompter_ConfirmCachePrune(t *testing.T) {
 	t.Run("no tty keeps the cache and suggests force", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 
 		// Act
 		result := ttyPrompter{}.ConfirmCachePrune()
@@ -173,8 +174,8 @@ func Test_ttyPrompter_ConfirmCachePrune(t *testing.T) {
 
 	t.Run("tty answers y accepts", func(t *testing.T) {
 		// Arrange
-		stubStdin(t, "y\n")
-		logs := stubErrLog(t)
+		iostreamstest.StubIn(t, "y\n")
+		logs := iostreamstest.StubErr(t)
 
 		// Act
 		result := ttyPrompter{terminal: true}.ConfirmCachePrune()
@@ -186,8 +187,8 @@ func Test_ttyPrompter_ConfirmCachePrune(t *testing.T) {
 
 	t.Run("tty answers n declines", func(t *testing.T) {
 		// Arrange
-		stubStdin(t, "n\n")
-		stubErrLog(t)
+		iostreamstest.StubIn(t, "n\n")
+		iostreamstest.StubErr(t)
 
 		// Act
 		result := ttyPrompter{terminal: true}.ConfirmCachePrune()
@@ -200,7 +201,7 @@ func Test_ttyPrompter_ConfirmCachePrune(t *testing.T) {
 func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
 	t.Run("no tty prints one-liner and declines", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 
 		// Act
 		result := ttyPrompter{}.OfferUpgrade("v1.0.0", "v1.1.0")
@@ -212,8 +213,8 @@ func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
 
 	t.Run("tty answers y accepts", func(t *testing.T) {
 		// Arrange
-		stubStdin(t, "y\n")
-		logs := stubErrLog(t)
+		iostreamstest.StubIn(t, "y\n")
+		logs := iostreamstest.StubErr(t)
 
 		// Act
 		result := ttyPrompter{terminal: true}.OfferUpgrade("v1.0.0", "v1.1.0")
@@ -225,8 +226,8 @@ func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
 
 	t.Run("tty answers n declines", func(t *testing.T) {
 		// Arrange
-		stubStdin(t, "n\n")
-		stubErrLog(t)
+		iostreamstest.StubIn(t, "n\n")
+		iostreamstest.StubErr(t)
 
 		// Act
 		result := ttyPrompter{terminal: true}.OfferUpgrade("v1.0.0", "v1.1.0")
@@ -387,7 +388,7 @@ func Test_settingKeys(t *testing.T) {
 func Test_confirmed(t *testing.T) {
 	t.Run("leaves the next line for the next prompt", func(t *testing.T) {
 		// Arrange
-		stubStdin(t, "y\nn\n")
+		iostreamstest.StubIn(t, "y\nn\n")
 
 		// Act
 		first := confirmed()
@@ -400,7 +401,7 @@ func Test_confirmed(t *testing.T) {
 
 	t.Run("accepts uppercase and surrounding spaces", func(t *testing.T) {
 		// Arrange
-		stubStdin(t, "  Y \n")
+		iostreamstest.StubIn(t, "  Y \n")
 
 		// Act
 		result := confirmed()
@@ -411,7 +412,7 @@ func Test_confirmed(t *testing.T) {
 
 	t.Run("eof without newline", func(t *testing.T) {
 		// Arrange
-		stubStdin(t, "y")
+		iostreamstest.StubIn(t, "y")
 
 		// Act
 		result := confirmed()
@@ -422,7 +423,7 @@ func Test_confirmed(t *testing.T) {
 
 	t.Run("empty input", func(t *testing.T) {
 		// Arrange
-		stubStdin(t, "")
+		iostreamstest.StubIn(t, "")
 
 		// Act
 		result := confirmed()

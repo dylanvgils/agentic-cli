@@ -1,71 +1,112 @@
-// Package logging writes CLI output: data to stdout through Out, messages to stderr through Err.
+// Package logging writes messages to the user: steps, details and agentic-prefixed lines, on Err only. Data goes
+// through iostreams instead, so message filtering can never touch it. The package funcs use Default.
 package logging
 
 import (
-	"fmt"
-	"io"
-	"os"
+	"log"
+	"strings"
+	"sync/atomic"
+
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 )
 
-var (
-	// Out is where data goes: what a script would pipe, such as tables and dry-run output.
-	Out io.Writer = os.Stdout
+// std is the Logger the package funcs use, over the iostreams default it was built for.
+var std atomic.Pointer[Logger]
 
-	// Err is the Logger for messages, kept on stderr so they stay out of piped data.
-	Err = New(os.Stderr)
-)
+// warnWriter turns each write into a Warn message on the default Logger.
+type warnWriter struct{}
 
-// Print writes s to Out unchanged, for data such as a Dockerfile.
-func Print(s string) {
-	fmt.Fprint(Out, s)
+// Write writes p as one Warn message, without its trailing newline.
+func (warnWriter) Write(p []byte) (int, error) {
+	Warn(strings.TrimSuffix(string(p), "\n"))
+	return len(p), nil
 }
 
-// Println writes s and a newline to Out.
-func Println(s string) {
-	fmt.Fprintln(Out, s)
+// Default returns the Logger the package funcs use, building a new one when iostreams.Default changed.
+func Default() *Logger {
+	s := iostreams.Default()
+	for {
+		l := std.Load()
+		if l != nil && l.streams == s {
+			return l
+		}
+		if next := New(s); std.CompareAndSwap(l, next) {
+			return next
+		}
+	}
 }
 
-// Step calls Err.Step.
+// NewLogLogger returns a std *log.Logger whose lines become Warn messages, for APIs such as net/http's ErrorLog.
+func NewLogLogger() *log.Logger {
+	return log.New(warnWriter{}, "", 0)
+}
+
+// Step calls Default().Step.
 func Step(name string) {
-	Err.Step(name)
+	Default().Step(name)
 }
 
-// Stepf calls Err.Stepf.
+// Stepf calls Default().Stepf.
 func Stepf(format string, args ...any) {
-	Err.Stepf(format, args...)
+	Default().Stepf(format, args...)
 }
 
-// Detail calls Err.Detail.
+// Detail calls Default().Detail.
 func Detail(msg string) {
-	Err.Detail(msg)
+	Default().Detail(msg)
 }
 
-// Detailf calls Err.Detailf.
+// Detailf calls Default().Detailf.
 func Detailf(format string, args ...any) {
-	Err.Detailf(format, args...)
+	Default().Detailf(format, args...)
 }
 
-// Infof calls Err.Infof.
+// Info calls Default().Info.
+func Info(msg string) {
+	Default().Info(msg)
+}
+
+// Infof calls Default().Infof.
 func Infof(format string, args ...any) {
-	Err.Infof(format, args...)
+	Default().Infof(format, args...)
 }
 
-// Errorf calls Err.Errorf.
+// Error calls Default().Error.
+func Error(msg string) {
+	Default().Error(msg)
+}
+
+// Errorf calls Default().Errorf.
 func Errorf(format string, args ...any) {
-	Err.Errorf(format, args...)
+	Default().Errorf(format, args...)
 }
 
-// Warnf calls Err.Warnf.
+// Warn calls Default().Warn.
+func Warn(msg string) {
+	Default().Warn(msg)
+}
+
+// Warnf calls Default().Warnf.
 func Warnf(format string, args ...any) {
-	Err.Warnf(format, args...)
+	Default().Warnf(format, args...)
 }
 
-// Separate calls Err.Separate.
+// Blank calls Default().Blank.
+func Blank() {
+	Default().Blank()
+}
+
+// Separate calls Default().Separate.
 func Separate() {
-	Err.Separate()
+	Default().Separate()
 }
 
-// Promptf calls Err.Promptf.
+// Prompt calls Default().Prompt.
+func Prompt(msg string) {
+	Default().Prompt(msg)
+}
+
+// Promptf calls Default().Promptf.
 func Promptf(format string, args ...any) {
-	Err.Promptf(format, args...)
+	Default().Promptf(format, args...)
 }

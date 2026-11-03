@@ -18,7 +18,7 @@ import (
 // way.
 func (s *Service) checkProxyTrust(target Target) error {
 	if target.SkipEntrypoint {
-		logging.Warnf("skipping the entrypoint: TLS to proxy credential and path rule hosts will fail, as the proxy CA is not trusted")
+		logging.Warn("skipping the entrypoint: TLS to proxy credential and path rule hosts will fail, as the proxy CA is not trusted")
 		return nil
 	}
 

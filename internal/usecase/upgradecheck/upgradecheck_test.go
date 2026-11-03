@@ -13,7 +13,7 @@ import (
 
 func TestNew(t *testing.T) {
 	// Act
-	svc := New(&fakeReleases{}, nil)
+	svc := New(&fakeReleases{})
 
 	// Assert
 	assert.Equal(t, buildinfo.Version, svc.version)
@@ -25,7 +25,7 @@ func Test_Service_Check(t *testing.T) {
 	t.Run("skips when version is dev", func(t *testing.T) {
 		// Arrange
 		releases := &fakeReleases{latest: "v1.1.0"}
-		svc, _ := newTestService(releases)
+		svc, _ := newTestService(t, releases)
 		svc.version = "dev"
 
 		// Act
@@ -40,7 +40,7 @@ func Test_Service_Check(t *testing.T) {
 	t.Run("applies a due newer release the user confirms", func(t *testing.T) {
 		// Arrange
 		releases := &fakeReleases{latest: "v1.1.0"}
-		svc, _ := newTestService(releases)
+		svc, _ := newTestService(t, releases)
 
 		// Act
 		updated, err := svc.Check(t.TempDir(), confirmYes)
@@ -54,7 +54,7 @@ func Test_Service_Check(t *testing.T) {
 	t.Run("nothing due leaves the binary alone", func(t *testing.T) {
 		// Arrange
 		releases := &fakeReleases{latest: "v1.0.0"}
-		svc, _ := newTestService(releases)
+		svc, _ := newTestService(t, releases)
 
 		// Act
 		updated, err := svc.Check(t.TempDir(), confirmYes)
@@ -70,7 +70,7 @@ func Test_Service_fetchUpdateIfDue(t *testing.T) {
 	t.Run("returns false when within check interval", func(t *testing.T) {
 		// Arrange
 		releases := &fakeReleases{latest: "v1.1.0"}
-		svc, _ := newTestService(releases)
+		svc, _ := newTestService(t, releases)
 		home := t.TempDir()
 		lastCheck := time.Now().Add(-1 * time.Hour)
 		cfg := &config.State{LastUpdateCheck: &lastCheck}
@@ -87,7 +87,7 @@ func Test_Service_fetchUpdateIfDue(t *testing.T) {
 
 	t.Run("returns false and saves no check when the fetch fails", func(t *testing.T) {
 		// Arrange
-		svc, _ := newTestService(&fakeReleases{latestErr: errors.New("network error")})
+		svc, _ := newTestService(t, &fakeReleases{latestErr: errors.New("network error")})
 		home := t.TempDir()
 
 		// Act
@@ -103,7 +103,7 @@ func Test_Service_fetchUpdateIfDue(t *testing.T) {
 
 	t.Run("returns false when already up to date", func(t *testing.T) {
 		// Arrange
-		svc, _ := newTestService(&fakeReleases{latest: "v1.0.0"})
+		svc, _ := newTestService(t, &fakeReleases{latest: "v1.0.0"})
 
 		// Act
 		latest, ok := svc.fetchUpdateIfDue(t.TempDir())
@@ -115,7 +115,7 @@ func Test_Service_fetchUpdateIfDue(t *testing.T) {
 
 	t.Run("saves LastUpdateCheck after fetch", func(t *testing.T) {
 		// Arrange
-		svc, _ := newTestService(&fakeReleases{latest: "v1.0.0"})
+		svc, _ := newTestService(t, &fakeReleases{latest: "v1.0.0"})
 		home := t.TempDir()
 		before := time.Now()
 
@@ -132,7 +132,7 @@ func Test_Service_fetchUpdateIfDue(t *testing.T) {
 
 	t.Run("returns latest and true when update available", func(t *testing.T) {
 		// Arrange
-		svc, _ := newTestService(&fakeReleases{latest: "v1.1.0"})
+		svc, _ := newTestService(t, &fakeReleases{latest: "v1.1.0"})
 
 		// Act
 		latest, ok := svc.fetchUpdateIfDue(t.TempDir())
@@ -146,7 +146,7 @@ func Test_Service_fetchUpdateIfDue(t *testing.T) {
 func Test_Service_offerUpdate(t *testing.T) {
 	t.Run("asks confirm with installed and latest", func(t *testing.T) {
 		// Arrange
-		svc, _ := newTestService(&fakeReleases{})
+		svc, _ := newTestService(t, &fakeReleases{})
 		var installed, latest string
 		confirm := func(i, l string) bool {
 			installed, latest = i, l
@@ -165,7 +165,7 @@ func Test_Service_offerUpdate(t *testing.T) {
 	t.Run("updates and reports it when confirmed", func(t *testing.T) {
 		// Arrange
 		releases := &fakeReleases{}
-		svc, notify := newTestService(releases)
+		svc, errOut := newTestService(t, releases)
 
 		// Act
 		updated, err := svc.offerUpdate("v1.1.0", func(string, string) bool { return true })
@@ -174,12 +174,12 @@ func Test_Service_offerUpdate(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, updated)
 		assert.Equal(t, "v1.1.0", releases.updatedWith)
-		assert.Equal(t, "agentic: updating v1.0.0 -> v1.1.0...\n   updated to v1.1.0\n", notify.String())
+		assert.Equal(t, "agentic: updating v1.0.0 -> v1.1.0...\n   updated to v1.1.0\n", errOut.String())
 	})
 
 	t.Run("returns the error when the confirmed update fails", func(t *testing.T) {
 		// Arrange
-		svc, notify := newTestService(&fakeReleases{updateErr: errors.New("network error")})
+		svc, errOut := newTestService(t, &fakeReleases{updateErr: errors.New("network error")})
 
 		// Act
 		updated, err := svc.offerUpdate("v1.1.0", func(string, string) bool { return true })
@@ -187,13 +187,13 @@ func Test_Service_offerUpdate(t *testing.T) {
 		// Assert
 		assert.EqualError(t, err, "update failed: network error - run: agentic upgrade")
 		assert.False(t, updated)
-		assert.NotContains(t, notify.String(), "update failed")
+		assert.NotContains(t, errOut.String(), "update failed")
 	})
 
 	t.Run("skips update when declined", func(t *testing.T) {
 		// Arrange
 		releases := &fakeReleases{}
-		svc, _ := newTestService(releases)
+		svc, _ := newTestService(t, releases)
 
 		// Act
 		updated, err := svc.offerUpdate("v1.1.0", func(string, string) bool { return false })

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +15,7 @@ func Test_runMigrate(t *testing.T) {
 		// Arrange
 		home := filepath.Join(t.TempDir(), "home")
 		stubToolHome(t, home)
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 
 		// Act
 		err := runMigrate(migrateCmd, nil)

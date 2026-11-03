@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
@@ -61,7 +62,7 @@ func Test_microsandboxRunner_Check(t *testing.T) {
 
 	t.Run("warns that dind limits are ignored", func(t *testing.T) {
 		// Arrange
-		errLog := stubErrLog(t)
+		errLog := iostreamstest.StubErr(t)
 		req := newPrepareRequest(t)
 		req.Flags.Dind.DindFlag = true
 		req.Flags.DindLimits = sandbox.ResourceLimits{Memory: "8g"}
@@ -76,7 +77,7 @@ func Test_microsandboxRunner_Check(t *testing.T) {
 
 	t.Run("no limits warning without dind", func(t *testing.T) {
 		// Arrange
-		errLog := stubErrLog(t)
+		errLog := iostreamstest.StubErr(t)
 		req := newPrepareRequest(t)
 		req.Project.RC.Run.Dind.Memory = "8g"
 
@@ -622,7 +623,7 @@ func Test_microsandboxRunner_removeStaleRefs(t *testing.T) {
 
 	t.Run("a ref msb can't remove is skipped", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 		var removed []string
 		msb := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{removeImage: func(ref string) error {
 			if ref == "agentic-claude:old111" {

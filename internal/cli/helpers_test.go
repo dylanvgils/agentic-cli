@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"io"
 	"os"
 	"path/filepath"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
@@ -378,48 +376,6 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	}
 }
 
-// captureOut swaps logging.Out for the duration of fn and returns what was written.
-func captureOut(t *testing.T, fn func()) string {
-	t.Helper()
-
-	var buf bytes.Buffer
-	orig := logging.Out
-	logging.Out = &buf
-	t.Cleanup(func() { logging.Out = orig })
-
-	fn()
-
-	return buf.String()
-}
-
-// stubErrLog redirects logging.Err to a buffer for the duration of the test and returns it.
-func stubErrLog(t *testing.T) *bytes.Buffer {
-	t.Helper()
-
-	var buf bytes.Buffer
-	orig := logging.Err
-	logging.Err = logging.New(&buf)
-	t.Cleanup(func() { logging.Err = orig })
-
-	return &buf
-}
-
-// stubLogs points logging.Out and logging.Err at one buffer, so a test can check ordering across stdout and stderr output.
-func stubLogs(t *testing.T) *bytes.Buffer {
-	t.Helper()
-
-	var buf bytes.Buffer
-	origLog, origErr := logging.Out, logging.Err
-	logging.Out = &buf
-	logging.Err = logging.New(&buf)
-	t.Cleanup(func() {
-		logging.Out = origLog
-		logging.Err = origErr
-	})
-
-	return &buf
-}
-
 // stubDocker installs a fakeDocker as dockerClient if the test has none yet, and overlays d's set fields on it until the test ends.
 func stubDocker(t *testing.T, d *fakeDocker) {
 	t.Helper()
@@ -653,14 +609,6 @@ func (f fakeUpstream) LatestToolVersion(string, string) (string, bool, bool) {
 func stubBuildDindImage(t *testing.T, fn func(image string, opts tools.BuildOptions) error) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{buildDindImage: fn})
-}
-
-// stubStdin makes every confirmation prompt read input for the duration of the test.
-func stubStdin(t *testing.T, input string) {
-	t.Helper()
-	orig := stdin
-	stdin = strings.NewReader(input)
-	t.Cleanup(func() { stdin = orig })
 }
 
 // inspectReturns returns an InspectImage func that always yields info and err.

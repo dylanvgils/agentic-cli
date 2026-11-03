@@ -212,7 +212,7 @@ func (c *Client) launchProxy(rs toolRun) (proxyEnv []string, cleanup func(), err
 	// Guard first so Ctrl-C during startup still removes the sidecar and its credentials volume
 	interrupt, stop := guardSignals()
 
-	logging.Infof("starting egress proxy...")
+	logging.Info("starting egress proxy...")
 	handle, err := c.startProxy(rs)
 	if err != nil {
 		stop()

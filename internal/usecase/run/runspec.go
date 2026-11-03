@@ -11,6 +11,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/git"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
@@ -223,7 +224,7 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string
 		WithToolHome(in.ToolHome).
 		WithContainerHome(req.containerHome).
 		WithUser(platform.HostUser()).
-		WithTTY(platform.IsTerminal()).
+		WithTTY(iostreams.IsTerminal()).
 		WithVolumes(mounts.volumes...).
 		WithEnv(env...).
 		WithSkipEntrypoint(req.target.SkipEntrypoint).

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +38,7 @@ func Test_runMarketplacesList(t *testing.T) {
 	t.Run("no clones found", func(t *testing.T) {
 		// Arrange
 		withTempToolHome(t)
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 
 		// Act
 		err := runMarketplaceList(marketplaceListCmd, nil)
@@ -60,7 +61,7 @@ func Test_runMarketplacesList(t *testing.T) {
 		require.NoError(t, marketplace.SaveRegistry(baseDir, reg))
 
 		// Act
-		out := captureOut(t, func() {
+		out := iostreamstest.CaptureOut(t, func() {
 			require.NoError(t, runMarketplaceList(marketplaceListCmd, nil))
 		})
 
@@ -77,7 +78,7 @@ func Test_runMarketplacesPrune(t *testing.T) {
 	// Arrange: dirKept holds a live "foo" alongside a dead "bar" (PruneKept + PruneDropped);
 	// dirRemoved holds only a dead entry (PruneRemoved); dirUntracked has no registry entry (PruneNoRecord).
 	withTempToolHome(t)
-	logBuf := stubErrLog(t)
+	logBuf := iostreamstest.StubErr(t)
 	baseDir := filepath.Join(toolHome, "marketplaces")
 	projFoo := t.TempDir()
 	projBar := t.TempDir() // no longer declares this marketplace

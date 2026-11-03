@@ -3,6 +3,7 @@ package sandbox
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -49,10 +50,10 @@ func TestArg(t *testing.T) {
 
 func TestPrintDryRun(t *testing.T) {
 	// Arrange
-	logs := stubLogs(t)
+	logs := iostreamstest.StubErr(t)
 
 	// Act
-	out := captureOut(t, func() { PrintDryRun("tool container", "docker", []string{"run", "--rm"}) })
+	out := iostreamstest.CaptureOut(t, func() { PrintDryRun("tool container", "docker", []string{"run", "--rm"}) })
 
 	// Assert
 	assert.Equal(t, hostShell().command("docker", []string{"run", "--rm"})+"\n", out)
@@ -61,10 +62,10 @@ func TestPrintDryRun(t *testing.T) {
 
 func TestPrintDryRunText(t *testing.T) {
 	// Arrange
-	logs := stubLogs(t)
+	logs := iostreamstest.StubErr(t)
 
 	// Act
-	out := captureOut(t, func() { PrintDryRunText("claude Dockerfile", "FROM scratch") })
+	out := iostreamstest.CaptureOut(t, func() { PrintDryRunText("claude Dockerfile", "FROM scratch") })
 
 	// Assert
 	assert.Equal(t, "FROM scratch\n", out)

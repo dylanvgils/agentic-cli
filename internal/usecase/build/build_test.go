@@ -7,6 +7,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,8 +20,8 @@ func TestDryRun(t *testing.T) {
 			buildCalled = true
 			return nil
 		}}
-		stubErrLog(t)
-		out := stubOut(t)
+		iostreamstest.StubErr(t)
+		out := iostreamstest.StubOut(t)
 
 		// Act
 		err := New(d, t.TempDir()).DryRun([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
@@ -34,8 +35,8 @@ func TestDryRun(t *testing.T) {
 
 	t.Run("labels the dockerfile on stderr", func(t *testing.T) {
 		// Arrange
-		errOut := stubErrLog(t)
-		out := stubOut(t)
+		errOut := iostreamstest.StubErr(t)
+		out := iostreamstest.StubOut(t)
 
 		// Act
 		err := New(&fakeDocker{}, t.TempDir()).DryRun([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
@@ -59,7 +60,7 @@ func TestDryRun(t *testing.T) {
 func TestApply(t *testing.T) {
 	t.Run("stores custom installs before building", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		home := t.TempDir()
 		installs := []config.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}}
 
@@ -75,7 +76,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("all tools when no args", func(t *testing.T) {
 		// Arrange
-		logBuf := stubErrLog(t)
+		logBuf := iostreamstest.StubErr(t)
 		var built []string
 		d := &fakeDocker{buildTool: func(tool, _ string, _ tools.BuildOptions) error {
 			built = append(built, tool)
@@ -100,7 +101,7 @@ func TestApply(t *testing.T) {
 		}}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -117,7 +118,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -131,7 +132,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{BaseOverride: []string{"java", "dotnet"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -145,7 +146,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{AptPackages: []string{"curl", "jq"}, Versions: map[string]string{}}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -156,7 +157,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("apt packages hidden when empty", func(t *testing.T) {
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -167,7 +168,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("base override hidden when empty", func(t *testing.T) {
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
 			require.NoError(t, err)
 		})
@@ -181,7 +182,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{BaseExact: true, Versions: map[string]string{}}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -195,7 +196,7 @@ func TestApply(t *testing.T) {
 		opts := tools.BuildOptions{AptExact: true, Versions: map[string]string{}}
 
 		// Act
-		out := captureErrLog(t, func() {
+		out := iostreamstest.CaptureErr(t, func() {
 			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
 			require.NoError(t, err)
 		})
@@ -245,7 +246,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("prunes after the builds succeed", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		pruned := false
 		d := &fakeDocker{pruneImages: func() (string, error) { pruned = true; return "", nil }}
 
@@ -259,7 +260,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("a failed build skips the prune", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		pruned := false
 		d := &fakeDocker{
 			buildTool:   func(string, string, tools.BuildOptions) error { return errors.New("build failed") },
@@ -276,7 +277,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("a failed prune does not fail the build", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		d := &fakeDocker{pruneImages: func() (string, error) { return "", errors.New("prune failed") }}
 
 		// Act
@@ -288,7 +289,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("successful build records update check", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		home := t.TempDir()
 
 		// Act
@@ -303,7 +304,7 @@ func TestApply(t *testing.T) {
 
 	t.Run("failed build records no update check", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		home := t.TempDir()
 		d := &fakeDocker{buildTool: func(string, string, tools.BuildOptions) error { return errors.New("build failed") }}
 

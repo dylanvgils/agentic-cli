@@ -330,7 +330,7 @@ func (c *Client) launchDind(rs toolRun) (toolArgs []string, cleanup func(), err 
 	// Guard first so Ctrl-C during startup still removes the sidecar
 	interrupt, stop := guardSignals()
 
-	logging.Infof("starting docker sidecar...")
+	logging.Info("starting docker sidecar...")
 	handle, err := c.startDind(rs, interrupt)
 	if err != nil {
 		stop()

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,7 +36,7 @@ func Test_Service_List(t *testing.T) {
 
 	t.Run("skips another runtime that can't list its volumes", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 		svc := New(&fakeDocker{listVolumeNames: namesFunc("maven")}, msbRuntime(&fakeStore{listVolumeNames: func() ([]string, error) { return nil, errors.New("boom") }}))
 
 		// Act
@@ -99,7 +100,7 @@ func Test_Service_Remove(t *testing.T) {
 func Test_Service_RemoveAll(t *testing.T) {
 	t.Run("removes each volume from its runtime and reports it", func(t *testing.T) {
 		// Arrange
-		logs := stubErrLog(t)
+		logs := iostreamstest.StubErr(t)
 		var removed []string
 		d := &fakeDocker{removeVolume: func(n string) error { removed = append(removed, "docker "+n); return nil }}
 		m := msbRuntime(&fakeStore{removeVolume: func(n string) error { removed = append(removed, "msb "+n); return nil }})
@@ -116,7 +117,7 @@ func Test_Service_RemoveAll(t *testing.T) {
 
 	t.Run("stops at the first error", func(t *testing.T) {
 		// Arrange
-		stubErrLog(t)
+		iostreamstest.StubErr(t)
 		calls := 0
 		d := &fakeDocker{removeVolume: func(string) error { calls++; return errors.New("in use") }}
 		vols := []Volume{{Name: "maven", Runtime: sandbox.RuntimeDocker}, {Name: "npm", Runtime: sandbox.RuntimeDocker}}
