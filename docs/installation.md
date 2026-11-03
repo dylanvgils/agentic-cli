@@ -21,7 +21,7 @@ cd agentic-cli
 .\install.ps1       # Windows (PowerShell)
 ```
 
-The installer fetches the latest release for your OS and architecture, verifies the checksum, and installs the binary.
+The installer fetches the latest release for your OS and architecture, verifies the checksum, and installs the binary. If [cosign](#verifying-a-release) is installed, it also verifies the release signature.
 
 > **Windows:** If you get an error about running scripts being disabled, set the execution policy for your user:
 >
@@ -93,7 +93,7 @@ agentic upgrade --force            # reinstall even if already up to date
 agentic upgrade --version v1.2.0   # install a specific release
 ```
 
-agentic also checks for a new release once a day and offers to upgrade, then runs your command on the new version.
+agentic also checks for a new release once a day and offers to upgrade, then runs your command on the new version. Upgrades also verify the release signature if [cosign](#verifying-a-release) is installed.
 
 ## Building from source
 

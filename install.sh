@@ -6,6 +6,9 @@ set -euo pipefail
 INSTALL_DIR="${HOME}/.local/bin"
 INSTALL_PATH="${INSTALL_DIR}/agentic"
 DATA_DIR="${AGENTIC_HOME:-${HOME}/.agentic}"
+CERT_IDENTITY="https://github.com/dylanvgils/agentic-cli/.github/workflows/nightly-release.yml@refs/heads/main"
+CERT_ISSUER="https://token.actions.githubusercontent.com"
+VERIFY_DOCS="https://github.com/dylanvgils/agentic-cli/blob/main/docs/installation.md#verifying-a-release"
 
 # --- Functions ---
 
@@ -68,6 +71,33 @@ install_from_release() {
   curl --proto '=https' --tlsv1.2 -fsSL "${url}" -o "${tmpdir}/${archive}"
   curl --proto '=https' --tlsv1.2 -fsSL "${checksums_url}" -o "${tmpdir}/checksums.txt"
 
+  # Optional signature check: only with cosign installed; releases before signing have no bundle
+  local tip=""
+  local bundle="${tmpdir}/checksums.txt.sigstore.json"
+  local status=""
+  if command -v cosign &>/dev/null; then
+    status=$(curl --proto '=https' --tlsv1.2 -sSL -w '%{http_code}' -o "${bundle}" "${checksums_url}.sigstore.json")
+  fi
+
+  if [[ -z "${status}" ]]; then
+    tip="Tip: install cosign to also verify the release signature, see ${VERIFY_DOCS}"
+  elif [[ "${status}" == "404" ]]; then
+    tip="Tip: release ${version} is unsigned, verified by checksum only."
+  elif [[ "${status}" != "200" ]]; then
+    echo "Error: downloading the signature bundle failed with HTTP ${status}." >&2
+    exit 1
+  else
+    echo "Verifying signature..."
+    if ! cosign verify-blob \
+      --bundle "${bundle}" \
+      --certificate-identity "${CERT_IDENTITY}" \
+      --certificate-oidc-issuer "${CERT_ISSUER}" \
+      "${tmpdir}/checksums.txt"; then
+      echo "Error: signature verification failed for checksums.txt." >&2
+      exit 1
+    fi
+  fi
+
   echo "Verifying checksum..."
   local expected
   expected=$(grep " ${archive}$" "${tmpdir}/checksums.txt" | awk '{print $1}')
@@ -97,6 +127,10 @@ install_from_release() {
   cp "${tmpdir}/agentic" "${INSTALL_PATH}"
   chmod +x "${INSTALL_PATH}"
   echo "Installed agentic to ${INSTALL_PATH}"
+
+  if [[ -n "${tip}" ]]; then
+    echo "${tip}"
+  fi
 }
 
 # --- Main ---

@@ -143,7 +143,7 @@ func (r microsandboxRunner) ensureMicrosandboxImage(image, ref string) error {
 // loadIntoMicrosandbox streams `docker save image` into `msb load`, tagging the result as ref; a failed save is reported over the
 // load error it causes.
 func (r microsandboxRunner) loadIntoMicrosandbox(image, ref string) error {
-	logging.Stepf("Loading %s into microsandbox", image)
+	logging.Infof("loading %s into microsandbox", image)
 
 	// An untagged name would save every tag of the repo
 	if !strings.Contains(image[strings.LastIndex(image, "/")+1:], ":") {
