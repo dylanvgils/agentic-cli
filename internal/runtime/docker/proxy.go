@@ -21,7 +21,7 @@ import (
 
 const (
 	// proxyURL is the proxy's address for the tool's proxy settings.
-	proxyURL = "http://" + sandbox.ProxyHostAlias + ":" + sandbox.ProxyPort // NOSONAR - proxy on the internal network; HTTPS stays TLS via CONNECT
+	proxyURL = "http://" + tools.ProxyHostAlias + ":" + tools.ProxyPort // NOSONAR - proxy on the internal network; HTTPS stays TLS via CONNECT
 
 	// proxyRunMountDir is the proxy's anonymous volume holding the CA and credentials, copied in before it starts.
 	proxyRunMountDir = "/run/agentic-proxy"
@@ -79,22 +79,22 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		return proxyHandle{}, err
 	}
 
-	rules, err := proxyRules(rs.Proxy.Rules)
+	rules, err := proxyRules(rs.Egress.Rules)
 	if err != nil {
 		return proxyHandle{}, err
 	}
 
-	name := sandbox.ProxyHostAlias + "-" + id
+	name := tools.ProxyHostAlias + "-" + id
 	return proxyHandle{
 		client:         c,
 		id:             id,
 		container:      name,
-		logPath:        rs.Proxy.LogFile,
-		monitor:        rs.Proxy.Mode == sandbox.ProxyMonitor,
+		logPath:        rs.proxyLog,
+		monitor:        rs.Egress.Mode == sandbox.EgressMonitor,
 		credentials:    creds,
 		rules:          rules,
 		placeholderEnv: placeholderEnv,
-		integrationEnv: sandbox.ProxyIntegrationEnv(rs.Proxy.Integrations),
+		integrationEnv: proxyIntegrationToolEnv(rs.Egress.Integrations),
 		user:           *rs.User,
 	}, nil
 }
@@ -114,7 +114,7 @@ func (h proxyHandle) toolEnvArgs(dind bool) []string {
 }
 
 // proxyEnvArgs returns the --env flags pointing the tool at the proxy, keyed on the static
-// sandbox.ProxyHostAlias so the URL is stable despite the container name being randomized per run.
+// tools.ProxyHostAlias so the URL is stable despite the container name being randomized per run.
 // NO_PROXY excludes loopback (and the dind sidecar) only - not a security boundary; the internal network blocks every other route.
 func proxyEnvArgs(dind bool) []string {
 	noProxy := "localhost,127.0.0.1"
@@ -183,7 +183,7 @@ func (c *Client) createProxy(rs toolRun) (proxyHandle, error) {
 
 // setupProxy configures rs for proxy mode if enabled, returning the tool args (proxy env, CA trust) to inject and a cleanup func to defer.
 func (c *Client) setupProxy(rs toolRun) (proxyEnv []string, cleanup func(), err error) {
-	if !rs.Proxy.Mode.Enabled() {
+	if !rs.Egress.Mode.Enabled() {
 		return nil, noCleanup, nil
 	}
 
@@ -235,7 +235,7 @@ func (c *Client) launchProxy(rs toolRun) (proxyEnv []string, cleanup func(), err
 }
 
 // createArgs builds the `docker create` arguments for the hardened proxy sidecar, registering
-// sandbox.ProxyHostAlias on the run network so tool config can reference a stable hostname.
+// tools.ProxyHostAlias on the run network so tool config can reference a stable hostname.
 func (h proxyHandle) createArgs(rs toolRun) []string {
 	containerLog := proxyLogMountDir + "/" + filepath.Base(h.logPath)
 	_, tzOffset := time.Now().Zone()
@@ -246,7 +246,7 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 		arg("name", h.container),
 		arg("network", rs.network),
 		// Aliases are per network, so concurrent runs can share it
-		arg("network-alias", sandbox.ProxyHostAlias),
+		arg("network-alias", tools.ProxyHostAlias),
 		arg("cap-drop", "ALL"),
 		arg("security-opt", "no-new-privileges:true"),
 		arg("user", h.user.String()),
@@ -262,7 +262,7 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 	// Validated plain data, so it always marshals
 	rulesJSON, _ := json.Marshal(h.rules)
 	args = append(args,
-		arg("env", proxy.EnvAddr+"=:"+sandbox.ProxyPort),
+		arg("env", proxy.EnvAddr+"=:"+tools.ProxyPort),
 		arg("env", proxy.EnvRules+"="+string(rulesJSON)),
 		arg("env", proxy.EnvLog+"="+containerLog),
 		arg("env", proxy.EnvTZOffset+"="+strconv.Itoa(tzOffset)),
@@ -345,7 +345,7 @@ func (c *Client) SweepProxyResources() ([]string, error) {
 	listArgs := []string{
 		"ps", arg("all"), arg("format", ownedFormat(".Names")),
 		labelFilter(LabelProject, LabelProjectVal),
-		nameFilter(sandbox.ProxyHostAlias),
+		nameFilter(tools.ProxyHostAlias),
 	}
 	return c.removeUnused(listArgs, []string{"rm", arg("force"), arg("volumes")})
 }

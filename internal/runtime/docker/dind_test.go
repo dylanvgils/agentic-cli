@@ -172,7 +172,7 @@ func Test_dindHandle_runArgs(t *testing.T) {
 
 	t.Run("proxy mode routes egress through the proxy", func(t *testing.T) {
 		// Arrange
-		rs := toolRun{RunSpec: sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}, Dind: sandbox.DindSpec{}}}
+		rs := toolRun{RunSpec: sandbox.RunSpec{Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce}, Dind: sandbox.DindSpec{}}}
 
 		// Act
 		args := handle.runArgs(rs)

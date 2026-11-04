@@ -1,6 +1,6 @@
 package sandbox
 
-// DindSpec configures the rootless Docker daemon sidecar the tool reaches over mutual TLS.
+// DindSpec gives the tool a Docker daemon; Limits cap it where the runtime can (Features.DindLimits).
 type DindSpec struct {
 	Enabled bool
 	Limits  ResourceLimits

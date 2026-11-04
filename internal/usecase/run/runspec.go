@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -15,6 +16,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
@@ -47,7 +49,7 @@ type Input struct {
 	Limits    sandbox.ResourceLimits
 	DryRun    bool
 	Registry  string
-	ProxyMode sandbox.ProxyMode
+	ProxyMode sandbox.EgressMode
 	// ProxyIntegrations are the integrations the run applies, empty unless the proxy runs on a runtime with them
 	ProxyIntegrations []string
 	DindEnabled       bool
@@ -109,11 +111,7 @@ func (s *Service) build(target Target, in Input, toolConfig tools.ToolConfig, ap
 		return sandbox.RunSpec{}, err
 	}
 
-	logFile, err := proxyLogFile(in.ToolHome, in.ProxyMode.Enabled())
-	if err != nil {
-		return sandbox.RunSpec{}, err
-	}
-	rs := newRunSpec(req, mounts, env, logFile)
+	rs := newRunSpec(req, mounts, env)
 
 	// Only a proxy that decrypts, for credentials or path rules, needs the tool to trust its CA
 	spec := specFeatures(rs)
@@ -212,8 +210,8 @@ func runVolumes(req buildRequest, marketplaceMounts []string) []string {
 	return volumes
 }
 
-// newRunSpec assembles the RunSpec from the resolved run parts, including the proxy and dind sidecar specs.
-func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string) sandbox.RunSpec {
+// newRunSpec assembles the RunSpec from the resolved run parts, including the egress policy and the Docker daemon.
+func newRunSpec(req buildRequest, mounts mountSet, env []string) sandbox.RunSpec {
 	in, rc, toolConfig := req.in, req.rc, req.toolConfig
 	limits := resolve.ResourceLimitsFor(in.Limits, rc)
 	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
@@ -233,10 +231,9 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string
 		WithLimits(limits).
 		WithDryRun(in.DryRun).
 		WithCredentials(sandboxCredentials(in.Credentials)...).
-		WithProxy(sandbox.ProxySpec{
+		WithEgress(sandbox.EgressPolicy{
 			Mode:         in.ProxyMode,
 			Rules:        rules,
-			LogFile:      proxyLog,
 			Integrations: in.ProxyIntegrations,
 		}).
 		WithDind(sandbox.DindSpec{Enabled: in.DindEnabled, Limits: dindLimits}).
@@ -288,10 +285,17 @@ func recordMarketplaceUsage(baseDir string, results []marketplace.Result) {
 func validateEnv(entries []string, proxyEnabled, dindEnabled bool, integrations []string) error {
 	for _, entry := range entries {
 		key, _, _ := strings.Cut(entry, "=")
-		if sandbox.IsReservedEnvName(key, proxyEnabled, dindEnabled, integrations) {
+		if isReservedEnvName(key, proxyEnabled, dindEnabled, integrations) {
 			return fmt.Errorf("--env: %q is managed by agentic and cannot be overridden", key)
 		}
 	}
 
 	return nil
+}
+
+// isReservedEnvName reports whether key is an env var agentic manages in a run with or without the proxy and dind, or one
+// of the integrations sets, so an env entry can't override it.
+func isReservedEnvName(key string, proxyEnabled, dindEnabled bool, integrations []string) bool {
+	return sandbox.IsReservedEnvName(key, proxyEnabled, dindEnabled) ||
+		slices.Contains(docker.ProxyIntegrationEnvNames(integrations), key)
 }

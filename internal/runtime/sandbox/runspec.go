@@ -16,12 +16,13 @@ type RunSpec struct {
 	EphemeralDirs  []EphemeralDir
 	Limits         ResourceLimits
 	DryRun         bool
-	// Credentials hold secrets, so never print them
+	// Credentials are secrets the runtime keeps out of the tool, substituting each for its placeholder on requests to its
+	// hosts; never print them
 	Credentials []Credential
 
-	// Sidecars
-	Proxy ProxySpec
-	Dind  DindSpec
+	// What the run gets; each runtime decides how to provide and enforce it
+	Egress EgressPolicy
+	Dind   DindSpec
 }
 
 // EphemeralDir is a dir the tool may write outside its mounts, emptied when the run exits; Path may use $CONTAINER_HOME.
@@ -45,7 +46,7 @@ type RunSpecBuilder struct {
 	limits         ResourceLimits
 	dryRun         bool
 	credentials    []Credential
-	proxy          ProxySpec
+	egress         EgressPolicy
 	dind           DindSpec
 }
 
@@ -120,19 +121,19 @@ func (b *RunSpecBuilder) WithDryRun(dryRun bool) *RunSpecBuilder {
 	return b
 }
 
-// WithCredentials appends the secrets each runtime places for substitution: the docker proxy or msb itself.
+// WithCredentials appends secrets the runtime keeps out of the tool, substituting each for its placeholder.
 func (b *RunSpecBuilder) WithCredentials(creds ...Credential) *RunSpecBuilder {
 	b.credentials = append(b.credentials, creds...)
 	return b
 }
 
-// WithProxy confines the tool to an internal network reaching out only via the proxy sidecar.
-func (b *RunSpecBuilder) WithProxy(spec ProxySpec) *RunSpecBuilder {
-	b.proxy = spec
+// WithEgress sets what the tool may reach.
+func (b *RunSpecBuilder) WithEgress(policy EgressPolicy) *RunSpecBuilder {
+	b.egress = policy
 	return b
 }
 
-// WithDind starts a rootless Docker daemon sidecar that the tool reaches over mutual TLS.
+// WithDind sets whether the tool gets a Docker daemon, and its limits.
 func (b *RunSpecBuilder) WithDind(spec DindSpec) *RunSpecBuilder {
 	b.dind = spec
 	return b
@@ -154,7 +155,7 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		Limits:         b.limits,
 		DryRun:         b.dryRun,
 		Credentials:    b.credentials,
-		Proxy:          b.proxy,
+		Egress:         b.egress,
 		Dind:           b.dind,
 	}
 }

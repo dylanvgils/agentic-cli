@@ -50,6 +50,7 @@ func (c *Client) Capabilities() sandbox.Capabilities {
 			Proxy:               true,
 			Dind:                true,
 			CredentialInjection: true,
+			// No DindLimits: dockerd shares the VM's CPUs and memory
 		},
 		// The VM boundary stands in for a read-only root and dropped capabilities: the guest keeps a writable root
 		// discarded on exit, and its own capabilities

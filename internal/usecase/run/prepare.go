@@ -144,7 +144,7 @@ func runInput(flags Flags, approved approvedConfig, caps sandbox.Capabilities) (
 
 // resolveInput resolves flags against rc into build's input for a runtime offering caps, minus the credentials only a run reads.
 func resolveInput(flags Flags, rc *config.AgenticRC, caps sandbox.Capabilities) (Input, error) {
-	if err := sandbox.CheckProxyIntegrations(flags.Proxy.Integrations); err != nil {
+	if err := sandbox.CheckEgressIntegrations(flags.Proxy.Integrations); err != nil {
 		return Input{}, fmt.Errorf("--proxy-integration: %w", err)
 	}
 

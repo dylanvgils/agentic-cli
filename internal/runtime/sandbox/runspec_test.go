@@ -45,15 +45,15 @@ func TestRunSpecBuilder_allFields(t *testing.T) {
 	assert.True(t, result.DryRun)
 }
 
-func TestRunSpecBuilder_WithProxy(t *testing.T) {
+func TestRunSpecBuilder_WithEgress(t *testing.T) {
 	// Arrange
-	spec := ProxySpec{Mode: ProxyMonitor, Rules: []AllowRule{{Host: ".anthropic.com"}}, LogFile: "/home/user/.agentic/logs/proxy_abc.jsonl"}
+	policy := EgressPolicy{Mode: EgressMonitor, Rules: []AllowRule{{Host: ".anthropic.com"}}, Integrations: []string{"maven"}}
 
 	// Act
-	result := NewRunSpec("agentic-claude").WithProxy(spec).Build()
+	result := NewRunSpec("agentic-claude").WithEgress(policy).Build()
 
 	// Assert
-	assert.Equal(t, spec, result.Proxy)
+	assert.Equal(t, policy, result.Egress)
 }
 
 func TestRunSpecBuilder_WithCredentials(t *testing.T) {

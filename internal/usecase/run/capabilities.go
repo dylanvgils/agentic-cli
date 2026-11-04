@@ -13,10 +13,12 @@ import (
 // requiredFeatures returns what a run with flags and rc needs; the proxy counts only when asked for, not when credentials force it.
 func requiredFeatures(flags Flags, rc *config.AgenticRC) sandbox.Features {
 	proxyMode := resolve.RequestedProxyMode(flags.Proxy, rc)
+	dind := resolve.DindEnabled(flags.Dind, rc)
 	return sandbox.Features{
 		Proxy:               proxyMode.Enabled(),
-		ProxyMonitor:        proxyMode == sandbox.ProxyMonitor,
-		Dind:                resolve.DindEnabled(flags.Dind, rc),
+		ProxyMonitor:        proxyMode == sandbox.EgressMonitor,
+		Dind:                dind,
+		DindLimits:          dind && dindLimitsSet(flags, rc),
 		CredentialInjection: len(rc.Run.Proxy.Credentials) > 0,
 		PathRules:           len(rc.Run.Proxy.AllowedPaths) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
 		ProxyIntegrations:   len(resolve.ProxyIntegrations(flags.Proxy, rc)) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
@@ -27,10 +29,10 @@ func requiredFeatures(flags Flags, rc *config.AgenticRC) sandbox.Features {
 // specFeatures returns the security features rs relies on its runtime to enforce.
 func specFeatures(rs sandbox.RunSpec) sandbox.Features {
 	return sandbox.Features{
-		Proxy:               rs.Proxy.Mode.Enabled(),
-		ProxyMonitor:        rs.Proxy.Mode == sandbox.ProxyMonitor,
+		Proxy:               rs.Egress.Mode.Enabled(),
+		ProxyMonitor:        rs.Egress.Mode == sandbox.EgressMonitor,
 		CredentialInjection: len(rs.Credentials) > 0,
-		PathRules:           rs.Proxy.Mode.Enabled() && rs.Proxy.HasPathRules(),
+		PathRules:           rs.Egress.Mode.Enabled() && rs.Egress.HasPathRules(),
 	}
 }
 
@@ -102,6 +104,8 @@ func warnIgnored(req Request, missing sandbox.Features) {
 	}
 	if missing.Dind {
 		logging.Warnf("%s has no Docker daemon, so it ignores %s", runtimeSource(req), dindSource(req))
+	} else if missing.DindLimits {
+		logging.Warnf("%s ignores the Docker daemon limits ([run.dind] or --dind-*); dockerd shares the VM's CPUs and memory", runtimeSource(req))
 	}
 }
 
@@ -152,6 +156,11 @@ func integrationsSource(req Request) string {
 		return "--proxy-integration"
 	}
 	return layerSource(req.Project.Layers, "[run.proxy] integrations", func(rc *config.AgenticRC) bool { return len(rc.Run.Proxy.Integrations) > 0 })
+}
+
+// dindLimitsSet reports whether flags or rc set Docker daemon limits.
+func dindLimitsSet(flags Flags, rc *config.AgenticRC) bool {
+	return flags.DindLimits != (sandbox.ResourceLimits{}) || rc.Run.Dind.RCLimits != (config.RCLimits{})
 }
 
 // layerSource returns key plus the path of the innermost layer where set holds, or key alone when none does.

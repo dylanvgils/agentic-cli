@@ -25,7 +25,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 
 - The tool container keeps `--read-only`, `--cap-drop=ALL`, `no-new-privileges`, the host uid/gid and an isolated network (`internal/runtime/docker/runargs.go`). Need writes? Add a targeted ephemeral dir or volume.
 - Only the DinD sidecar gets extra capabilities, unconfined AppArmor and no `no-new-privileges`. Its seccomp filter is never `unconfined`. Never `--privileged`, never mount the host's Docker socket.
-- With the proxy enabled (any mode but off) the tool's network is `--internal`, so the proxy is its only way out.
+- With the proxy enabled (`RunSpec.Egress.Mode` not off) the tool's network is `--internal`, so the proxy is its only way out.
 - A new `.agenticrc.toml` key goes in `GuardedSettings` if it reaches past the container, else in the unguarded list of `TestGuardedSettings`. A run reads config only through the `approvedConfig` that `checkSettings` returns.
 - Tool volumes come only from `newMountSet` (`internal/usecase/run/mounts.go`); never add mounts to the `RunSpec` around it. `Service.Run` rechecks mounts and refuses a `RunSpec` needing a capability the runtime lacks; runners keep their own rechecks too.
 
@@ -34,6 +34,8 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 - `internal/cli` is presentation only: parse flags, call domain packages, print. Logic moves to `internal/usecase/<what-it-does>` only when it's independent of `*cobra.Command` and glues several domain packages together; no package per command.
 - User approval goes through an interface or func the cli implements; usecases never read stdin.
 - `sandbox.RunSpec` describes the run the user asked for; each runtime (`docker`, `microsandbox`) turns it into its own args and keeps per-run state private.
+  - It says what a run gets (`Egress`, `Credentials`, `Dind`), never how: sidecar names, aliases, env wiring and host log paths stay in the runtime. Only what images bake in (the proxy's alias, port, Maven settings path) lives in `internal/image/tools`.
+  - A setting a runtime can't honor gets a `Features` field, refused in `refuseMissing` or warned about in `warnIgnored`.
 - All Docker calls go through `*docker.Client`; no package-level Docker funcs or state. Client methods are operations; deciding what results mean belongs to the caller.
 - The only package-level state is the clients in `internal/cli/deps.go` (`dockerClient`, `msbClient`, ...), which usecases get through `New`, and the defaults in `iostreams`/`logging`.
 - Usecase shape (follow `internal/usecase/build`):

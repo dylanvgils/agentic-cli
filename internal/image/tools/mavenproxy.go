@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
-	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // mavenSettings is the part of Maven's settings.xml agentic sets.
@@ -32,8 +31,8 @@ func mavenSettingsFile() df.Heredoc {
 			ID:            "agentic-proxy-" + protocol,
 			Active:        true,
 			Protocol:      protocol,
-			Host:          sandbox.ProxyHostAlias,
-			Port:          sandbox.ProxyPort,
+			Host:          ProxyHostAlias,
+			Port:          ProxyPort,
 			NonProxyHosts: "localhost|127.0.0.1",
 		})
 	}
@@ -41,7 +40,7 @@ func mavenSettingsFile() df.Heredoc {
 	data, _ := xml.MarshalIndent(settings, "", "  ")
 
 	return df.Heredoc{
-		Dest:  sandbox.MavenSettingsPath,
+		Dest:  MavenSettingsPath,
 		Lines: strings.Split(string(data), "\n"),
 		Mode:  "0644",
 	}

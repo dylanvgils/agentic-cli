@@ -168,7 +168,7 @@ func (h dindHandle) runArgs(rs toolRun) []string {
 		args = append(args, arg("volume", volume))
 	}
 
-	if rs.Proxy.Mode.Enabled() {
+	if rs.Egress.Mode.Enabled() {
 		args = append(args, proxyEnvArgs(false)...)
 	}
 
@@ -276,7 +276,7 @@ func (c *Client) startDind(rs toolRun, interrupt <-chan os.Signal) (dindHandle, 
 		h.Stop()
 		return dindHandle{}, err
 	}
-	if err := writeDindClientConfig(filepath.Join(h.runDir, dindConfigSubdir), rs.Proxy.Mode.Enabled()); err != nil {
+	if err := writeDindClientConfig(filepath.Join(h.runDir, dindConfigSubdir), rs.Egress.Mode.Enabled()); err != nil {
 		h.Stop()
 		return dindHandle{}, err
 	}

@@ -85,7 +85,7 @@ func Test_credentialSetup(t *testing.T) {
 
 	t.Run("credentials with the proxy pass and leave the placeholders to the runtime", func(t *testing.T) {
 		// Arrange
-		in := Input{ProxyMode: sandbox.ProxyMonitor, Credentials: resolved}
+		in := Input{ProxyMode: sandbox.EgressMonitor, Credentials: resolved}
 		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
 
 		// Act

@@ -30,20 +30,20 @@ type ProxyInput struct {
 
 // ProxyMode resolves whether the proxy is off, enforcing or monitoring; when proxyInjects, credentials turn it on and refuse an
 // explicit off.
-func ProxyMode(in ProxyInput, rc *config.AgenticRC, proxyInjects bool) (sandbox.ProxyMode, error) {
+func ProxyMode(in ProxyInput, rc *config.AgenticRC, proxyInjects bool) (sandbox.EgressMode, error) {
 	mode := RequestedProxyMode(in, rc)
 	if mode.Enabled() || !proxyInjects || len(rc.Run.Proxy.Credentials) == 0 {
 		return mode, nil
 	}
 
 	if in.NoProxy {
-		return sandbox.ProxyOff, fmt.Errorf("--no-proxy cannot be used with [[run.proxy.credentials]], which the proxy injects")
+		return sandbox.EgressOff, fmt.Errorf("--no-proxy cannot be used with [[run.proxy.credentials]], which the proxy injects")
 	}
 	if rc.Run.Proxy.Enabled != nil && !*rc.Run.Proxy.Enabled {
-		return sandbox.ProxyOff, fmt.Errorf("[run.proxy] enabled = false cannot be used with [[run.proxy.credentials]], which the proxy injects")
+		return sandbox.EgressOff, fmt.Errorf("[run.proxy] enabled = false cannot be used with [[run.proxy.credentials]], which the proxy injects")
 	}
 
-	return sandbox.ProxyEnforce, nil
+	return sandbox.EgressEnforce, nil
 }
 
 // ProxyAllowList merges the tool's allowlist with user hosts and credential hosts, plus Docker Hub when dind is on,
@@ -85,29 +85,29 @@ func ProxyRules(toolAllowedHosts []string, dindEnabled bool, rc *config.AgenticR
 }
 
 // RequestedProxyMode applies flags, then config, ignoring credentials. --no-proxy/enabled=false always wins; monitor implies enabled.
-func RequestedProxyMode(in ProxyInput, rc *config.AgenticRC) sandbox.ProxyMode {
+func RequestedProxyMode(in ProxyInput, rc *config.AgenticRC) sandbox.EgressMode {
 	if in.NoProxy {
-		return sandbox.ProxyOff
+		return sandbox.EgressOff
 	}
 	if in.MonitorFlag {
-		return sandbox.ProxyMonitor
+		return sandbox.EgressMonitor
 	}
 	if in.ProxyFlag {
-		return sandbox.ProxyEnforce
+		return sandbox.EgressEnforce
 	}
 
 	if rc.Run.Proxy.Enabled != nil && !*rc.Run.Proxy.Enabled {
-		return sandbox.ProxyOff
+		return sandbox.EgressOff
 	}
 	if rc.Run.Proxy.Mode == config.ModeMonitor {
-		return sandbox.ProxyMonitor
+		return sandbox.EgressMonitor
 	}
 
 	if rc.Run.Proxy.Enabled != nil && *rc.Run.Proxy.Enabled {
-		return sandbox.ProxyEnforce
+		return sandbox.EgressEnforce
 	}
 
-	return sandbox.ProxyOff
+	return sandbox.EgressOff
 }
 
 // mergePathRules merges rules per normalized host in first-seen order, without duplicate paths.

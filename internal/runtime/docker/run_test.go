@@ -19,7 +19,7 @@ func TestClient_StartSidecars(t *testing.T) {
 		get := stubDockerRunCapture(t, client)
 
 		// Act
-		_, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude"})
+		_, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude"}, "")
 
 		// Assert
 		assert.ErrorIs(t, err, errNoHostUser)
@@ -31,13 +31,25 @@ func TestClient_StartSidecars(t *testing.T) {
 		stubDockerRunCapture(t, client)
 
 		// Act
-		sidecars, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude", User: &testUser})
+		sidecars, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude", User: &testUser}, "")
 
 		// Assert
 		require.NoError(t, err)
 		assert.True(t, strings.HasPrefix(sidecars.run.container, "agentic-claude-"))
 		id := strings.TrimPrefix(sidecars.run.container, "agentic-claude-")
 		assert.Equal(t, "agentic-run-"+id, sidecars.run.network, "the network shares the container's id")
+	})
+
+	t.Run("keeps the proxy log for the proxy", func(t *testing.T) {
+		// Arrange
+		stubDockerRunCapture(t, client)
+
+		// Act
+		sidecars, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude", User: &testUser}, "/example.test/logs/proxy_abc.jsonl")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "/example.test/logs/proxy_abc.jsonl", sidecars.run.proxyLog)
 	})
 
 	t.Run("a sidecar that fails to start returns its error", func(t *testing.T) {
@@ -47,7 +59,7 @@ func TestClient_StartSidecars(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
 
 		// Act
-		_, err := client.StartSidecars(rs)
+		_, err := client.StartSidecars(rs, "")
 
 		// Assert
 		assert.ErrorContains(t, err, "docker sidecar")
@@ -65,7 +77,7 @@ func TestClient_RunTool(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude"}
 
 		// Act
-		err := startAndRunTool(client, rs)
+		err := startAndRunTool(client, rs, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -82,7 +94,7 @@ func TestClient_RunTool(t *testing.T) {
 
 	t.Run("names the tool container after its image", func(t *testing.T) {
 		// Act
-		err := startAndRunTool(client, sandbox.RunSpec{Image: "agentic-claude"})
+		err := startAndRunTool(client, sandbox.RunSpec{Image: "agentic-claude"}, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -93,12 +105,12 @@ func TestClient_RunTool(t *testing.T) {
 		// Arrange
 		stubProxyDocker(t, client, "true")
 		rs := sandbox.RunSpec{
-			Image: "agentic-claude",
-			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Rules: []sandbox.AllowRule{{Host: "api.anthropic.com"}}, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")},
+			Image:  "agentic-claude",
+			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Rules: []sandbox.AllowRule{{Host: "api.anthropic.com"}}},
 		}
 
 		// Act
-		err := startAndRunTool(client, rs)
+		err := startAndRunTool(client, rs, filepath.Join(t.TempDir(), "proxy_abc.jsonl"))
 
 		// Assert
 		require.NoError(t, err)
@@ -115,7 +127,7 @@ func TestClient_RunTool(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
 
 		// Act
-		err := startAndRunTool(client, rs)
+		err := startAndRunTool(client, rs, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -136,12 +148,12 @@ func TestClient_RunTool(t *testing.T) {
 		rs := sandbox.RunSpec{
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),
-			Proxy:    sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")},
+			Egress:   sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
 			Dind:     sandbox.DindSpec{Enabled: true},
 		}
 
 		// Act
-		err := startAndRunTool(client, rs)
+		err := startAndRunTool(client, rs, filepath.Join(t.TempDir(), "proxy_abc.jsonl"))
 
 		// Assert
 		require.NoError(t, err)
@@ -158,7 +170,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err := startAndRunTool(client, rs)
+		err := startAndRunTool(client, rs, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -174,7 +186,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err := startAndRunTool(client, rs)
+		err := startAndRunTool(client, rs, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -188,7 +200,7 @@ func TestClient_RunTool(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"--resume"}}
 
 		// Act
-		err := startAndRunTool(client, rs)
+		err := startAndRunTool(client, rs, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -207,7 +219,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err := startAndRunTool(client, rs)
+		err := startAndRunTool(client, rs, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -223,7 +235,7 @@ func TestClient_RunTool(t *testing.T) {
 		}
 
 		// Act
-		err := startAndRunTool(client, rs)
+		err := startAndRunTool(client, rs, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -241,7 +253,7 @@ func TestClient_StopSidecars(t *testing.T) {
 		stubDindReadyTimeout(t, client)
 		calls := stubDockerRunCapture(t, client)
 		rs := sandbox.RunSpec{Image: "agentic-claude", User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
-		sidecars, err := client.StartSidecars(rs)
+		sidecars, err := client.StartSidecars(rs, "")
 		require.NoError(t, err)
 
 		// Act

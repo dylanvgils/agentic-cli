@@ -69,7 +69,7 @@ func buildRunArgs(rs sandbox.RunSpec, envArgs []string) ([]string, error) {
 		return nil, err
 	}
 
-	networkArgs, err := buildNetworkArgs(rs.Proxy)
+	networkArgs, err := buildNetworkArgs(rs.Egress)
 	if err != nil {
 		return nil, err
 	}
@@ -155,15 +155,15 @@ func buildCredentialArgs(rs sandbox.RunSpec) []string {
 
 // buildNetworkArgs makes msb deny all egress but DNS and the allowlist on proxy.DefaultPorts, intercepting HTTPS so
 // strict mode can check each request's host; msb keeps no log of what it denies, so it can't run in monitor mode.
-func buildNetworkArgs(spec sandbox.ProxySpec) ([]string, error) {
-	switch spec.Mode {
-	case sandbox.ProxyOff:
+func buildNetworkArgs(policy sandbox.EgressPolicy) ([]string, error) {
+	switch policy.Mode {
+	case sandbox.EgressOff:
 		return nil, nil
-	case sandbox.ProxyMonitor:
+	case sandbox.EgressMonitor:
 		return nil, errors.New("msb can't run the proxy in monitor mode")
 	}
 
-	targets, err := netRuleTargets(spec.WholeHosts())
+	targets, err := netRuleTargets(policy.WholeHosts())
 	if err != nil {
 		return nil, err
 	}

@@ -60,35 +60,6 @@ func Test_microsandboxRunner_Check(t *testing.T) {
 		assert.EqualError(t, err, "read the msb version: no version in msb --version output")
 	})
 
-	t.Run("warns that dind limits are ignored", func(t *testing.T) {
-		// Arrange
-		errLog := iostreamstest.StubErr(t)
-		req := newPrepareRequest(t)
-		req.Flags.Dind.DindFlag = true
-		req.Flags.DindLimits = sandbox.ResourceLimits{Memory: "8g"}
-
-		// Act
-		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{}}.Check(req)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, errLog.String(), "ignores the Docker daemon limits")
-	})
-
-	t.Run("no limits warning without dind", func(t *testing.T) {
-		// Arrange
-		errLog := iostreamstest.StubErr(t)
-		req := newPrepareRequest(t)
-		req.Project.RC.Run.Dind.Memory = "8g"
-
-		// Act
-		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{}}.Check(req)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotContains(t, errLog.String(), "Docker daemon limits")
-	})
-
 	t.Run("dry run skips the msb check", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)

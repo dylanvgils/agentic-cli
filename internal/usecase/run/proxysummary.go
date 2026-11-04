@@ -8,18 +8,18 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-// printProxySummary reports what the run's proxy log flagged, if anything, set apart from the tool output above it.
-func printProxySummary(spec sandbox.ProxySpec) {
-	s := proxy.ReadSummary(spec.LogFile)
+// printProxySummary reports what the proxy log at logFile flagged, if anything, set apart from the tool output above it.
+func printProxySummary(logFile string, mode sandbox.EgressMode) {
+	s := proxy.ReadSummary(logFile)
 	if !s.Flagged() {
 		return
 	}
 
 	logging.Blank()
-	printDenied(s, spec.Mode == sandbox.ProxyMonitor)
-	printPaths(s.Paths, spec.Mode == sandbox.ProxyMonitor)
+	printDenied(s, mode == sandbox.EgressMonitor)
+	printPaths(s.Paths, mode == sandbox.EgressMonitor)
 	printRefused(s.Refused)
-	printMismatched(s.Mismatched, spec.Mode == sandbox.ProxyMonitor)
+	printMismatched(s.Mismatched, mode == sandbox.EgressMonitor)
 	printMissed(s.Missed)
 }
 

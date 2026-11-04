@@ -52,8 +52,13 @@ func (r dockerRunner) Check(req Request) error {
 // before the sidecars and the tool start as readying them can take long enough for a path to change; a dry run only
 // prints.
 func (r dockerRunner) Run(req Request, rs sandbox.RunSpec) error {
+	proxyLog, err := proxyLogFile(rs.ToolHome, rs.Egress.Mode.Enabled())
+	if err != nil {
+		return err
+	}
+
 	if !rs.DryRun {
-		if err := r.prepareDockerHost(rs, req.Flags.Registry); err != nil {
+		if err := r.prepareDockerHost(rs, req.Flags.Registry, proxyLog); err != nil {
 			return err
 		}
 	}
@@ -63,15 +68,15 @@ func (r dockerRunner) Run(req Request, rs sandbox.RunSpec) error {
 		return err
 	}
 
-	sidecars, err := r.docker.StartSidecars(rs)
+	sidecars, err := r.docker.StartSidecars(rs, proxyLog)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		// Stop first, so requests the proxy logs while stopping make the summary
 		r.docker.StopSidecars(sidecars)
-		if !rs.DryRun && rs.Proxy.Mode.Enabled() {
-			printProxySummary(rs.Proxy)
+		if !rs.DryRun && rs.Egress.Mode.Enabled() {
+			printProxySummary(proxyLog, rs.Egress.Mode)
 		}
 	}()
 
@@ -81,15 +86,15 @@ func (r dockerRunner) Run(req Request, rs sandbox.RunSpec) error {
 	return r.docker.RunTool(sidecars)
 }
 
-// prepareDockerHost creates rs's named volumes and proxy log dir and builds missing sidecar images.
-func (r dockerRunner) prepareDockerHost(rs sandbox.RunSpec, registry string) error {
+// prepareDockerHost creates rs's named volumes and proxyLog's dir and builds missing sidecar images.
+func (r dockerRunner) prepareDockerHost(rs sandbox.RunSpec, registry, proxyLog string) error {
 	if err := r.docker.EnsureNamedVolumes(rs, tools.BusyboxImageFor(registry)); err != nil {
 		return err
 	}
 
-	proxy, dind := rs.Proxy.Mode.Enabled(), rs.Dind.Enabled
+	proxy, dind := rs.Egress.Mode.Enabled(), rs.Dind.Enabled
 	if proxy {
-		if err := prepareProxyLogDir(filepath.Dir(rs.Proxy.LogFile), rs.ToolHome); err != nil {
+		if err := prepareProxyLogDir(filepath.Dir(proxyLog), rs.ToolHome); err != nil {
 			return err
 		}
 	}

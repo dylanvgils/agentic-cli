@@ -96,7 +96,7 @@ func checkCredentialEnv(in Input, env []string) error {
 
 	for _, r := range in.Credentials {
 		for _, name := range r.Env {
-			if sandbox.IsReservedEnvName(name, true, in.DindEnabled, in.ProxyIntegrations) || isProxyTrustEnvName(name) {
+			if isReservedEnvName(name, true, in.DindEnabled, in.ProxyIntegrations) || isProxyTrustEnvName(name) {
 				return fmt.Errorf("credential env %q is managed by agentic", name)
 			}
 			if slices.ContainsFunc(env, func(entry string) bool { return envKey(entry) == name }) {

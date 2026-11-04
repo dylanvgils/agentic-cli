@@ -64,10 +64,10 @@ func Test_setupSidecars(t *testing.T) {
 		// Arrange
 		calls := stubProxyDocker(t, client, "true", "create")
 		rs := toolRun{RunSpec: sandbox.RunSpec{
-			User:  &testUser,
-			Image: "agentic-claude",
-			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")},
-		}, network: "agentic-run-abc"}
+			User:   &testUser,
+			Image:  "agentic-claude",
+			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
+		}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
 
 		// Act
 		_, _, err := client.setupSidecars(rs)
@@ -82,10 +82,10 @@ func Test_setupSidecars(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client, "network create")
 		rs := toolRun{RunSpec: sandbox.RunSpec{
-			User:  &testUser,
-			Image: "agentic-claude",
-			Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")},
-		}, network: "agentic-run-abc"}
+			User:   &testUser,
+			Image:  "agentic-claude",
+			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
+		}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
 
 		// Act
 		_, _, err := client.setupSidecars(rs)
@@ -98,7 +98,7 @@ func Test_setupSidecars(t *testing.T) {
 	t.Run("dry run prints the run network and makes no docker calls", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Image: "agentic-claude", DryRun: true, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce}}, network: "agentic-run-abc"}
+		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Image: "agentic-claude", DryRun: true, Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce}}, network: "agentic-run-abc"}
 
 		// Act
 		var err error
@@ -121,9 +121,9 @@ func Test_setupSidecars(t *testing.T) {
 			User:     &testUser,
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),
-			Proxy:    sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: filepath.Join(t.TempDir(), "proxy_abc.jsonl")},
+			Egress:   sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
 			Dind:     sandbox.DindSpec{Enabled: true},
-		}, network: "agentic-run-abc"}
+		}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
 
 		// Act
 		_, _, err := client.setupSidecars(rs)

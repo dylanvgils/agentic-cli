@@ -96,7 +96,7 @@ func addProxyFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("proxy", false, "route egress through the allowlist proxy (overrides config)")
 	cmd.Flags().Bool(noProxyFlagName, false, "disable the egress proxy for this run (overrides config)")
 	cmd.Flags().Bool(proxyMonitorFlagName, false, "route egress through the proxy without blocking, logging every host (overrides config)")
-	cmd.Flags().StringSlice(proxyIntegrationFlag, nil, "route a tool that ignores the proxy env vars through the proxy: "+strings.Join(sandbox.ProxyIntegrations(), ", ")+"; repeatable or comma-separated, added to .agenticrc.toml's integrations")
+	cmd.Flags().StringSlice(proxyIntegrationFlag, nil, "route a tool that ignores the proxy env vars through the proxy: "+strings.Join(sandbox.EgressIntegrations(), ", ")+"; repeatable or comma-separated, added to .agenticrc.toml's integrations")
 	cmd.MarkFlagsMutuallyExclusive("proxy", noProxyFlagName, proxyMonitorFlagName)
 	_ = cmd.RegisterFlagCompletionFunc(proxyIntegrationFlag, proxyIntegrationsFunc)
 }

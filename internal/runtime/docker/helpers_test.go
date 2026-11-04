@@ -158,14 +158,14 @@ func stubDockerRunCapture(t *testing.T, client *Client, failSubcmds ...string) f
 	return func() []dockerCall { return calls }
 }
 
-// startAndRunTool starts rs's sidecars, runs its tool and stops the sidecars, as the run usecase does; rs
-// gets testUser unless it sets one, as every real run has a host user.
-func startAndRunTool(client *Client, rs sandbox.RunSpec) error {
+// startAndRunTool starts rs's sidecars with the proxy logging to proxyLog, runs its tool and stops the sidecars, as the
+// run usecase does; rs gets testUser unless it sets one, as every real run has a host user.
+func startAndRunTool(client *Client, rs sandbox.RunSpec, proxyLog string) error {
 	if rs.User == nil {
 		rs.User = &testUser
 	}
 
-	sidecars, err := client.StartSidecars(rs)
+	sidecars, err := client.StartSidecars(rs, proxyLog)
 	if err != nil {
 		return err
 	}

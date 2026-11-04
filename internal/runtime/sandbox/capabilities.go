@@ -25,6 +25,8 @@ type Features struct {
 	ProxyMonitor bool
 	// Dind is a Docker daemon the tool can reach.
 	Dind bool
+	// DindLimits cap the Docker daemon's processes, CPUs and memory.
+	DindLimits bool
 	// CredentialInjection keeps credentials out of the tool, which only sees a placeholder.
 	CredentialInjection bool
 	// PathRules are allowlist entries for only some paths of a host.
@@ -53,6 +55,7 @@ func (f Features) Missing(need Features) Features {
 		Proxy:               need.Proxy && !f.Proxy,
 		ProxyMonitor:        need.ProxyMonitor && !f.ProxyMonitor,
 		Dind:                need.Dind && !f.Dind,
+		DindLimits:          need.DindLimits && !f.DindLimits,
 		CredentialInjection: need.CredentialInjection && !f.CredentialInjection,
 		PathRules:           need.PathRules && !f.PathRules,
 		ProxyIntegrations:   need.ProxyIntegrations && !f.ProxyIntegrations,

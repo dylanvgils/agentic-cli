@@ -32,7 +32,7 @@ agentic-cli/
 │   │   ├── dind/                # Docker-in-Docker sidecar per-run files: TLS cert dirs, seccomp profile, /etc identity
 │   │   ├── docker/              # *docker.Client: build, run, clean, inspect, volumes, sidecars (proxy, dind)
 │   │   ├── microsandbox/        # Runs the msb CLI as a subprocess
-│   │   └── sandbox/             # Runtime-neutral run spec (RunSpec, limits, proxy and dind specs, mount specs) shared by the runtimes
+│   │   └── sandbox/             # Runtime-neutral run spec (RunSpec, limits, egress policy and Docker daemon spec, mount specs) shared by the runtimes
 │   ├── cli/                     # Cobra commands (build, update, clean, image, inspect, run, …)
 │   └── usecase/                 # Business logic extracted out of internal/cli commands (see below)
 │       ├── build/               # Builds (or dry-run prints) tool images for `agentic build`

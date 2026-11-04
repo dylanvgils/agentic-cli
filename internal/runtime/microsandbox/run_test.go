@@ -159,7 +159,7 @@ func Test_buildRunArgs(t *testing.T) {
 			ContainerHome: "/home/claude",
 			Limits:        sandbox.ResourceLimits{CPUs: "2"},
 			Volumes:       []string{"/example.test/data:/data"},
-			Proxy:         sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Rules: []sandbox.AllowRule{{Host: "api.example.test"}}},
+			Egress:        sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Rules: []sandbox.AllowRule{{Host: "api.example.test"}}},
 		}
 
 		// Act
@@ -284,7 +284,7 @@ func Test_buildNamedVolumeArgs(t *testing.T) {
 func Test_buildNetworkArgs(t *testing.T) {
 	t.Run("adds nothing with the proxy off", func(t *testing.T) {
 		// Act
-		args, err := buildNetworkArgs(sandbox.ProxySpec{Rules: []sandbox.AllowRule{{Host: "api.example.test"}}})
+		args, err := buildNetworkArgs(sandbox.EgressPolicy{Rules: []sandbox.AllowRule{{Host: "api.example.test"}}})
 
 		// Assert
 		require.NoError(t, err)
@@ -293,7 +293,7 @@ func Test_buildNetworkArgs(t *testing.T) {
 
 	t.Run("refuses monitor mode", func(t *testing.T) {
 		// Act
-		_, err := buildNetworkArgs(sandbox.ProxySpec{Mode: sandbox.ProxyMonitor})
+		_, err := buildNetworkArgs(sandbox.EgressPolicy{Mode: sandbox.EgressMonitor})
 
 		// Assert
 		assert.EqualError(t, err, "msb can't run the proxy in monitor mode")
@@ -301,7 +301,7 @@ func Test_buildNetworkArgs(t *testing.T) {
 
 	t.Run("denies egress but DNS and the allowlist, intercepting HTTPS", func(t *testing.T) {
 		// Act
-		args, err := buildNetworkArgs(sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Rules: []sandbox.AllowRule{{Host: "api.example.test"}}})
+		args, err := buildNetworkArgs(sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Rules: []sandbox.AllowRule{{Host: "api.example.test"}}})
 
 		// Assert
 		require.NoError(t, err)

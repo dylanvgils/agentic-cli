@@ -6,13 +6,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
 // microsandboxRunner runs tools in microsandbox VMs, loading their images from Docker.
@@ -27,13 +25,8 @@ func (r microsandboxRunner) Capabilities() sandbox.Capabilities {
 	return r.microsandbox.Capabilities()
 }
 
-// Check refuses a missing msb or one older than minMicrosandbox and warns that msb ignores the Docker daemon limits; a dry
-// run makes no msb calls, so it skips the msb check.
+// Check refuses a missing msb or one older than minMicrosandbox; a dry run makes no msb calls, so it skips the check.
 func (r microsandboxRunner) Check(req Request) error {
-	if resolve.DindEnabled(req.Flags.Dind, req.Project.RC) && dindLimitsSet(req) {
-		logging.Warnf("%s ignores the Docker daemon limits ([run.dind] or --dind-*); dockerd shares the VM's CPUs and memory", runtimeSource(req))
-	}
-
 	if req.Flags.DryRun {
 		return nil
 	}
@@ -189,9 +182,4 @@ func dockerdRefreshReason(current, parent *docker.ImageInfo) string {
 		return "tool image changed"
 	}
 	return ""
-}
-
-// dindLimitsSet reports whether req sets Docker daemon limits, by flag or in config.
-func dindLimitsSet(req Request) bool {
-	return req.Flags.DindLimits != (sandbox.ResourceLimits{}) || req.Project.RC.Run.Dind.RCLimits != (config.RCLimits{})
 }

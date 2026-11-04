@@ -22,6 +22,9 @@ type toolRun struct {
 
 	// container is the tool container's name, the sidecars' owner.
 	container string
+
+	// proxyLog is the host file the proxy sidecar writes its access log to.
+	proxyLog string
 }
 
 // Sidecars is a run whose proxy and dind sidecars StartSidecars started; RunTool starts its tool, StopSidecars stops them.
@@ -34,8 +37,9 @@ type Sidecars struct {
 	cleanup func()
 }
 
-// StartSidecars names spec's tool container and network and starts its sidecars; a dry run only prints them.
-func (c *Client) StartSidecars(spec sandbox.RunSpec) (Sidecars, error) {
+// StartSidecars names spec's tool container and network and starts its sidecars, with the proxy logging to proxyLog
+// (unused without the proxy); a dry run only prints them.
+func (c *Client) StartSidecars(spec sandbox.RunSpec, proxyLog string) (Sidecars, error) {
 	if spec.User == nil {
 		return Sidecars{}, errNoHostUser
 	}
@@ -44,7 +48,12 @@ func (c *Client) StartSidecars(spec sandbox.RunSpec) (Sidecars, error) {
 	if err != nil {
 		return Sidecars{}, err
 	}
-	rs := toolRun{RunSpec: spec, container: spec.Image + "-" + id, network: runNetworkPrefix + "-" + id}
+	rs := toolRun{
+		RunSpec:   spec,
+		container: spec.Image + "-" + id,
+		network:   runNetworkPrefix + "-" + id,
+		proxyLog:  proxyLog,
+	}
 
 	args, cleanup, err := c.setupSidecars(rs)
 	if err != nil {
