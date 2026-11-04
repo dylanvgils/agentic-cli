@@ -8,7 +8,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
-	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 const (
@@ -190,7 +189,7 @@ func javaStage(prevStage, ver string) df.Stage {
 		Add(df.Run{Blocks: []df.Block{
 			{
 				Comment: "COPY --chmod also sets the mode of parents it creates, so create them first",
-				Lines:   []string{"mkdir -p " + path.Dir(sandbox.MavenSettingsPath)},
+				Lines:   []string{"mkdir -p " + path.Dir(MavenSettingsPath)},
 			},
 		}}).
 		Add(mavenSettingsFile()).

@@ -22,7 +22,7 @@ type Docker interface {
 	EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error
 	SaveImage(image string, w io.Writer) error
 	BuildDockerdImage(image string, parent *docker.ImageInfo) error
-	StartSidecars(rs sandbox.RunSpec) (docker.Sidecars, error)
+	StartSidecars(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
 	RunTool(sidecars docker.Sidecars) error
 	StopSidecars(sidecars docker.Sidecars)
 	Capabilities() sandbox.Capabilities

@@ -32,7 +32,7 @@ type fakeDocker struct {
 	pruneImages           func() (string, error)
 	pruneBuildCache       func() (string, error)
 	resolveContainerHome  func(string) string
-	startSidecars         func(rs sandbox.RunSpec) (docker.Sidecars, error)
+	startSidecars         func(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
 	runTool               func(sidecars docker.Sidecars) error
 	stopSidecars          func(sidecars docker.Sidecars)
 	saveImage             func(image string, w io.Writer) error
@@ -163,11 +163,11 @@ func (f *fakeDocker) ResolveContainerHome(image string) string {
 	return f.resolveContainerHome(image)
 }
 
-func (f *fakeDocker) StartSidecars(rs sandbox.RunSpec) (docker.Sidecars, error) {
+func (f *fakeDocker) StartSidecars(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error) {
 	if f.startSidecars == nil {
 		return docker.Sidecars{}, nil
 	}
-	return f.startSidecars(rs)
+	return f.startSidecars(rs, proxyLog)
 }
 
 func (f *fakeDocker) RunTool(sidecars docker.Sidecars) error {
@@ -406,7 +406,7 @@ func captureToolRun(t *testing.T) func() sandbox.RunSpec {
 	var capturedSpec sandbox.RunSpec
 
 	stubDocker(t, &fakeDocker{
-		startSidecars: func(rs sandbox.RunSpec) (docker.Sidecars, error) {
+		startSidecars: func(rs sandbox.RunSpec, _ string) (docker.Sidecars, error) {
 			capturedSpec = rs
 			return docker.Sidecars{}, nil
 		},

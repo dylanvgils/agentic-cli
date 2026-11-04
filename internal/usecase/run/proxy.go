@@ -28,7 +28,7 @@ func proxyRules(toolConfig tools.ToolConfig, in Input, rc *config.AgenticRC, fea
 }
 
 // proxyIntegrations returns the flag's and rc's proxy integrations when the proxy runs and the runtime supports them.
-func proxyIntegrations(flags resolve.ProxyInput, rc *config.AgenticRC, mode sandbox.ProxyMode, features sandbox.Features) []string {
+func proxyIntegrations(flags resolve.ProxyInput, rc *config.AgenticRC, mode sandbox.EgressMode, features sandbox.Features) []string {
 	if !mode.Enabled() || !features.ProxyIntegrations {
 		return nil
 	}

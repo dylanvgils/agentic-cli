@@ -45,7 +45,7 @@ func Test_proxyIntegrations(t *testing.T) {
 
 	t.Run("returns them with the proxy on a runtime that supports them", func(t *testing.T) {
 		// Act
-		integrations := proxyIntegrations(flags, rc, sandbox.ProxyEnforce, caps)
+		integrations := proxyIntegrations(flags, rc, sandbox.EgressEnforce, caps)
 
 		// Assert
 		assert.Equal(t, []string{"maven"}, integrations)
@@ -53,7 +53,7 @@ func Test_proxyIntegrations(t *testing.T) {
 
 	t.Run("none without the proxy", func(t *testing.T) {
 		// Act
-		integrations := proxyIntegrations(flags, rc, sandbox.ProxyOff, caps)
+		integrations := proxyIntegrations(flags, rc, sandbox.EgressOff, caps)
 
 		// Assert
 		assert.Empty(t, integrations)
@@ -61,7 +61,7 @@ func Test_proxyIntegrations(t *testing.T) {
 
 	t.Run("none on a runtime without them", func(t *testing.T) {
 		// Act
-		integrations := proxyIntegrations(flags, rc, sandbox.ProxyEnforce, sandbox.Features{})
+		integrations := proxyIntegrations(flags, rc, sandbox.EgressEnforce, sandbox.Features{})
 
 		// Assert
 		assert.Empty(t, integrations)

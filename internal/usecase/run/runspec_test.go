@@ -212,7 +212,7 @@ func Test_Service_build(t *testing.T) {
 	t.Run("proxy wired with merged allowlist and image", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyEnforce}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.EgressEnforce}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
 
 		// Act
@@ -220,15 +220,14 @@ func Test_Service_build(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, sandbox.ProxyEnforce, rs.Proxy.Mode)
-		assert.Equal(t, []string{".anthropic.com", ".claude.ai", ".claude.com", "extra.example.com"}, rs.Proxy.WholeHosts())
-		assert.NotEmpty(t, rs.Proxy.LogFile)
+		assert.Equal(t, sandbox.EgressEnforce, rs.Egress.Mode)
+		assert.Equal(t, []string{".anthropic.com", ".claude.ai", ".claude.com", "extra.example.com"}, rs.Egress.WholeHosts())
 	})
 
 	t.Run("proxy gets path rules after the hosts allowed whole", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyEnforce}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.EgressEnforce}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
 			{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
 		}}}}
@@ -238,14 +237,14 @@ func Test_Service_build(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, sandbox.AllowRule{Host: "raw.example.test", Paths: []string{"/org/repo/**"}}, rs.Proxy.Rules[len(rs.Proxy.Rules)-1])
+		assert.Equal(t, sandbox.AllowRule{Host: "raw.example.test", Paths: []string{"/org/repo/**"}}, rs.Egress.Rules[len(rs.Egress.Rules)-1])
 	})
 
 	t.Run("path rules refuse an image that can't trust the proxy CA", func(t *testing.T) {
 		// Arrange
 		untrusted := &fakeDocker{inspectImage: func(string) (*docker.ImageInfo, error) { return &docker.ImageInfo{}, nil }}
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyEnforce}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.EgressEnforce}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
 			{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
 		}}}}
@@ -260,7 +259,7 @@ func Test_Service_build(t *testing.T) {
 	t.Run("path rules limit a host the tool's baseline allows whole", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyEnforce}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.EgressEnforce}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
 			{Host: "api.anthropic.com", Paths: []string{"/v1/**"}},
 		}}}}
@@ -270,8 +269,8 @@ func Test_Service_build(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, rs.Proxy.Rules, sandbox.AllowRule{Host: "api.anthropic.com", Paths: []string{"/v1/**"}})
-		assert.Contains(t, rs.Proxy.WholeHosts(), ".anthropic.com", "the proxy lets the path rules win over the wildcard")
+		assert.Contains(t, rs.Egress.Rules, sandbox.AllowRule{Host: "api.anthropic.com", Paths: []string{"/v1/**"}})
+		assert.Contains(t, rs.Egress.WholeHosts(), ".anthropic.com", "the proxy lets the path rules win over the wildcard")
 	})
 
 	t.Run("proxy off leaves spec unproxied", func(t *testing.T) {
@@ -284,21 +283,20 @@ func Test_Service_build(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, sandbox.ProxyOff, rs.Proxy.Mode)
-		assert.Empty(t, rs.Proxy.LogFile)
+		assert.Equal(t, sandbox.EgressOff, rs.Egress.Mode)
 	})
 
 	t.Run("proxy monitor wired", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyMonitor}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.EgressMonitor}
 
 		// Act
 		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, sandbox.ProxyMonitor, rs.Proxy.Mode)
+		assert.Equal(t, sandbox.EgressMonitor, rs.Egress.Mode)
 	})
 
 	t.Run("proxy credentials wired for the docker runtime to place", func(t *testing.T) {
@@ -307,7 +305,7 @@ func Test_Service_build(t *testing.T) {
 		resolved := credentials.Resolved{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Env: []string{"EXAMPLE_API_KEY"}, Secret: "test-secret"}
 		in := Input{
 			ToolHome:    t.TempDir(),
-			ProxyMode:   sandbox.ProxyEnforce,
+			ProxyMode:   sandbox.EgressEnforce,
 			Credentials: []credentials.Resolved{resolved},
 		}
 
@@ -319,7 +317,7 @@ func Test_Service_build(t *testing.T) {
 		assert.Equal(t, []sandbox.Credential{
 			{Name: "EXAMPLE_API_KEY", Aliases: []string{}, Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"},
 		}, rs.Credentials)
-		assert.Equal(t, sandbox.ProxyEnforce, rs.Proxy.Mode)
+		assert.Equal(t, sandbox.EgressEnforce, rs.Egress.Mode)
 	})
 
 	t.Run("microsandbox credentials wired without the proxy, placeholder env or image inspect", func(t *testing.T) {
@@ -346,7 +344,7 @@ func Test_Service_build(t *testing.T) {
 	t.Run("microsandbox allows path rule hosts whole", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), Runtime: sandbox.RuntimeMicrosandbox, ProxyMode: sandbox.ProxyEnforce}
+		in := Input{ToolHome: t.TempDir(), Runtime: sandbox.RuntimeMicrosandbox, ProxyMode: sandbox.EgressEnforce}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
 			{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
 		}}}}
@@ -356,8 +354,8 @@ func Test_Service_build(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.False(t, rs.Proxy.HasPathRules())
-		assert.Contains(t, rs.Proxy.WholeHosts(), "raw.example.test")
+		assert.False(t, rs.Egress.HasPathRules())
+		assert.Contains(t, rs.Egress.WholeHosts(), "raw.example.test")
 	})
 
 	t.Run("proxy credentials refused on an image without proxy trust", func(t *testing.T) {
@@ -367,7 +365,7 @@ func Test_Service_build(t *testing.T) {
 		}
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 		resolved := credentials.Resolved{Hosts: []string{"api.example.test"}, Env: []string{"EXAMPLE_API_KEY"}}
-		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyEnforce, Credentials: []credentials.Resolved{resolved}}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.EgressEnforce, Credentials: []credentials.Resolved{resolved}}
 
 		// Act
 		_, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
@@ -383,7 +381,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{
 			ToolHome:    t.TempDir(),
 			Volumes:     []string{dir + ":/data"},
-			ProxyMode:   sandbox.ProxyEnforce,
+			ProxyMode:   sandbox.EgressEnforce,
 			Credentials: []credentials.Resolved{{Path: filepath.Join(dir, "token")}},
 		}
 
@@ -398,7 +396,7 @@ func Test_Service_build(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{inspectImage: trusted}
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.ProxyEnforce, DindEnabled: true}
+		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.EgressEnforce, DindEnabled: true}
 
 		// Act
 		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
@@ -406,7 +404,7 @@ func Test_Service_build(t *testing.T) {
 		// Assert - agentic-net is skipped since the tool joins a per-run network
 		require.NoError(t, err)
 		assert.True(t, rs.Dind.Enabled)
-		assert.Contains(t, rs.Proxy.WholeHosts(), "registry-1.docker.io")
+		assert.Contains(t, rs.Egress.WholeHosts(), "registry-1.docker.io")
 	})
 
 	t.Run("dind rejects env overriding the docker host", func(t *testing.T) {
@@ -676,6 +674,25 @@ func Test_toolMarketplaceMounts(t *testing.T) {
 		assert.Len(t, mounts, 1)
 		assert.Equal(t, []string{"acme"}, names)
 		assert.Contains(t, logs.String(), `marketplace "acme": offline; using existing clone`)
+	})
+}
+
+func Test_isReservedEnvName(t *testing.T) {
+	t.Run("an integration's env is reserved only with that integration", func(t *testing.T) {
+		// Act
+		without, with := isReservedEnvName("MAVEN_ARGS", true, false, nil), isReservedEnvName("MAVEN_ARGS", true, false, []string{"maven"})
+
+		// Assert
+		assert.False(t, without)
+		assert.True(t, with)
+	})
+
+	t.Run("agentic's own env is reserved", func(t *testing.T) {
+		// Act
+		reserved := isReservedEnvName("HTTPS_PROXY", true, false, nil)
+
+		// Assert
+		assert.True(t, reserved)
 	})
 }
 

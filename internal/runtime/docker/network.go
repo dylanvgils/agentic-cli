@@ -116,7 +116,7 @@ func (c *Client) networkSubnets(network string) ([]string, error) {
 // only way out.
 func runNetworkArgs(rs toolRun) []string {
 	args := []string{"network", "create"}
-	if rs.Proxy.Mode.Enabled() {
+	if rs.Egress.Mode.Enabled() {
 		args = append(args,
 			// Security: no route to the internet, so the proxy is the only way out
 			arg("internal"),

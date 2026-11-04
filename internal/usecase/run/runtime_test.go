@@ -17,7 +17,7 @@ func Test_Service_Run(t *testing.T) {
 		var ranSpec sandbox.RunSpec
 		microsandboxRan := false
 		svc := New(&fakeDocker{
-			startSidecars: func(rs sandbox.RunSpec) (docker.Sidecars, error) {
+			startSidecars: func(rs sandbox.RunSpec, _ string) (docker.Sidecars, error) {
 				ranSpec = rs
 				return docker.Sidecars{}, nil
 			},
@@ -67,7 +67,7 @@ func Test_Service_Run(t *testing.T) {
 			ran = true
 			return nil
 		}})
-		rs := sandbox.RunSpec{Image: "agentic-claude", Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}}
 
 		// Act
 		err := svc.Run(runtimeRequest(sandbox.RuntimeMicrosandbox), rs)

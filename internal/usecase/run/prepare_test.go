@@ -391,7 +391,7 @@ func Test_resolveInput(t *testing.T) {
 			Limits:      sandbox.ResourceLimits{CPUs: "2"},
 			DryRun:      true,
 			Registry:    "registry.example.test",
-			ProxyMode:   sandbox.ProxyMonitor,
+			ProxyMode:   sandbox.EgressMonitor,
 			DindEnabled: true,
 			DindLimits:  sandbox.ResourceLimits{Memory: "1g"},
 			Runtime:     sandbox.RuntimeMicrosandbox,
@@ -456,6 +456,6 @@ func Test_resolveInput(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, sandbox.ProxyOff, in.ProxyMode)
+		assert.Equal(t, sandbox.EgressOff, in.ProxyMode)
 	})
 }

@@ -91,7 +91,7 @@ var baseLayersFunc = func(_ *cobra.Command, _ []string, toComplete string) ([]st
 
 // proxyIntegrationsFunc completes --proxy-integration with the known integration names.
 func proxyIntegrationsFunc(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-	return sandbox.ProxyIntegrations(), cobra.ShellCompDirectiveNoFileComp
+	return sandbox.EgressIntegrations(), cobra.ShellCompDirectiveNoFileComp
 }
 
 // runtimesFunc completes --runtime with every runtime's name.

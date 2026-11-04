@@ -121,7 +121,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 				calls = append(calls, "volumes")
 				return nil
 			},
-			startSidecars: func(sandbox.RunSpec) (docker.Sidecars, error) {
+			startSidecars: func(sandbox.RunSpec, string) (docker.Sidecars, error) {
 				calls = append(calls, "start")
 				return docker.Sidecars{}, nil
 			},
@@ -145,7 +145,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		ws := chdirSymlinkWorkspace(t)
 		started := false
 		d := &fakeDocker{
-			startSidecars: func(sandbox.RunSpec) (docker.Sidecars, error) {
+			startSidecars: func(sandbox.RunSpec, string) (docker.Sidecars, error) {
 				started = true
 				return docker.Sidecars{}, nil
 			},
@@ -166,7 +166,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		late := filepath.Join(ws.dir, "late")
 		ran, stopped := false, false
 		d := &fakeDocker{
-			startSidecars: func(sandbox.RunSpec) (docker.Sidecars, error) {
+			startSidecars: func(sandbox.RunSpec, string) (docker.Sidecars, error) {
 				return docker.Sidecars{}, os.Symlink(ws.real, late)
 			},
 			runTool: func(docker.Sidecars) error {
@@ -190,7 +190,9 @@ func Test_dockerRunner_Run(t *testing.T) {
 		// Arrange
 		ran, stopped := false, false
 		d := &fakeDocker{
-			startSidecars: func(sandbox.RunSpec) (docker.Sidecars, error) { return docker.Sidecars{}, errors.New("proxy error") },
+			startSidecars: func(sandbox.RunSpec, string) (docker.Sidecars, error) {
+				return docker.Sidecars{}, errors.New("proxy error")
+			},
 			runTool: func(docker.Sidecars) error {
 				ran = true
 				return nil
@@ -249,15 +251,38 @@ func Test_dockerRunner_Run(t *testing.T) {
 		assert.True(t, ran)
 	})
 
+	t.Run("starts the proxy logging to a new file in the tool home's logs dir", func(t *testing.T) {
+		// Arrange
+		rs := newProxyRunSpec(t, sandbox.EgressEnforce)
+		rs.DryRun = true
+		var proxyLog string
+		d := &fakeDocker{startSidecars: func(_ sandbox.RunSpec, log string) (docker.Sidecars, error) {
+			proxyLog = log
+			return docker.Sidecars{}, nil
+		}}
+
+		// Act
+		err := dockerRunner{docker: d}.Run(req, rs)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(rs.ToolHome, config.LogsDirName), filepath.Dir(proxyLog))
+	})
+
 	t.Run("prints the proxy summary once the sidecars stopped", func(t *testing.T) {
 		// Arrange
 		logs := iostreamstest.StubErr(t)
-		rs := newProxyRunSpec(t, sandbox.ProxyEnforce)
+		rs := newProxyRunSpec(t, sandbox.EgressEnforce)
+		var proxyLog string
 		d := &fakeDocker{
 			inspectImage: func(name string) (*docker.ImageInfo, error) { return &docker.ImageInfo{Image: name}, nil },
+			startSidecars: func(_ sandbox.RunSpec, log string) (docker.Sidecars, error) {
+				proxyLog = log
+				return docker.Sidecars{}, nil
+			},
 			stopSidecars: func(docker.Sidecars) {
 				// The proxy logs a last request while it stops
-				require.NoError(t, os.WriteFile(rs.Proxy.LogFile, []byte(`{"host":"evil.example.test","decision":"deny"}`+"\n"), 0o600))
+				require.NoError(t, os.WriteFile(proxyLog, []byte(`{"host":"evil.example.test","decision":"deny"}`+"\n"), 0o600))
 			},
 		}
 
@@ -272,13 +297,16 @@ func Test_dockerRunner_Run(t *testing.T) {
 	t.Run("dry run prints no proxy summary", func(t *testing.T) {
 		// Arrange
 		logs := iostreamstest.StubErr(t)
-		rs := newProxyRunSpec(t, sandbox.ProxyEnforce)
+		rs := newProxyRunSpec(t, sandbox.EgressEnforce)
 		rs.DryRun = true
-		require.NoError(t, os.MkdirAll(filepath.Dir(rs.Proxy.LogFile), 0o750))
-		require.NoError(t, os.WriteFile(rs.Proxy.LogFile, []byte(`{"host":"evil.example.test","decision":"deny"}`+"\n"), 0o600))
+		d := &fakeDocker{startSidecars: func(_ sandbox.RunSpec, log string) (docker.Sidecars, error) {
+			require.NoError(t, os.MkdirAll(filepath.Dir(log), 0o750))
+			require.NoError(t, os.WriteFile(log, []byte(`{"host":"evil.example.test","decision":"deny"}`+"\n"), 0o600))
+			return docker.Sidecars{}, nil
+		}}
 
 		// Act
-		err := dockerRunner{docker: &fakeDocker{}}.Run(req, rs)
+		err := dockerRunner{docker: d}.Run(req, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -306,7 +334,7 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 		rs := sandbox.RunSpec{Volumes: []string{"maven:/cache"}}
 
 		// Act
-		err := dockerRunner{docker: d}.prepareDockerHost(rs, "registry.example.test")
+		err := dockerRunner{docker: d}.prepareDockerHost(rs, "registry.example.test", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -319,10 +347,10 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 		home := t.TempDir()
 		logDir := filepath.Join(home, config.LogsDirName)
 		d := &fakeDocker{inspectImage: func(name string) (*docker.ImageInfo, error) { return &docker.ImageInfo{Image: name}, nil }}
-		rs := sandbox.RunSpec{ToolHome: home, Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: filepath.Join(logDir, "proxy_abc.jsonl")}}
+		rs := sandbox.RunSpec{ToolHome: home, Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce}}
 
 		// Act
-		err := dockerRunner{docker: d}.prepareDockerHost(rs, "")
+		err := dockerRunner{docker: d}.prepareDockerHost(rs, "", filepath.Join(logDir, "proxy_abc.jsonl"))
 
 		// Assert
 		require.NoError(t, err)
@@ -340,10 +368,10 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 				return nil
 			},
 		}
-		rs := newProxyRunSpec(t, sandbox.ProxyMonitor)
+		rs := newProxyRunSpec(t, sandbox.EgressMonitor)
 
 		// Act
-		err := dockerRunner{docker: d}.prepareDockerHost(rs, "")
+		err := dockerRunner{docker: d}.prepareDockerHost(rs, "", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -357,10 +385,10 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 			inspectImage:    proxyMissing,
 			buildProxyImage: func(string, string, string, tools.BuildOptions) error { return errors.New("proxy build failed") },
 		}
-		rs := newProxyRunSpec(t, sandbox.ProxyMonitor)
+		rs := newProxyRunSpec(t, sandbox.EgressMonitor)
 
 		// Act
-		err := dockerRunner{docker: d}.prepareDockerHost(rs, "")
+		err := dockerRunner{docker: d}.prepareDockerHost(rs, "", "")
 
 		// Assert
 		assert.EqualError(t, err, "proxy build failed")

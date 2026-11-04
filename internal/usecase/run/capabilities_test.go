@@ -47,6 +47,21 @@ func Test_requiredFeatures(t *testing.T) {
 		assert.Equal(t, sandbox.Features{Proxy: true, Dind: true, PidsLimit: true}, need)
 	})
 
+	t.Run("dind limits ask for limit support only with dind", func(t *testing.T) {
+		// Arrange
+		withDind := Flags{DindLimits: sandbox.ResourceLimits{Memory: "8g"}}
+		withDind.Dind.DindFlag = true
+		rc := &config.AgenticRC{}
+		rc.Run.Dind.Memory = "8g"
+
+		// Act
+		flagged, configOnly := requiredFeatures(withDind, &config.AgenticRC{}), requiredFeatures(Flags{}, rc)
+
+		// Assert
+		assert.True(t, flagged.DindLimits)
+		assert.False(t, configOnly.DindLimits, "no daemon, so nothing to limit")
+	})
+
 	t.Run("credentials alone don't ask for the proxy", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
@@ -298,6 +313,40 @@ func Test_checkCapabilities(t *testing.T) {
 		assert.Contains(t, errLog.String(), "--runtime microsandbox has no Docker daemon, so it ignores --dind")
 	})
 
+	t.Run("missing dind limits only warn", func(t *testing.T) {
+		// Arrange
+		errLog := iostreamstest.StubErr(t)
+		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
+		req.Project.RC = &config.AgenticRC{}
+		req.Flags.Dind.DindFlag = true
+		req.Flags.DindLimits = sandbox.ResourceLimits{Memory: "8g"}
+		offered := msb
+		offered.Dind = true
+
+		// Act
+		err := checkCapabilities(req, offered)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, errLog.String(), "--runtime microsandbox ignores the Docker daemon limits ([run.dind] or --dind-*)")
+	})
+
+	t.Run("a missing docker daemon doesn't also warn about its limits", func(t *testing.T) {
+		// Arrange
+		errLog := iostreamstest.StubErr(t)
+		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
+		req.Project.RC = &config.AgenticRC{}
+		req.Flags.Dind.DindFlag = true
+		req.Flags.DindLimits = sandbox.ResourceLimits{Memory: "8g"}
+
+		// Act
+		err := checkCapabilities(req, msb)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotContains(t, errLog.String(), "Docker daemon limits")
+	})
+
 	t.Run("a missing pids limit is silent", func(t *testing.T) {
 		// Arrange
 		errLog := iostreamstest.StubErr(t)
@@ -500,7 +549,7 @@ func Test_specFeatures(t *testing.T) {
 	t.Run("the proxy and credentials each count", func(t *testing.T) {
 		// Arrange
 		rs := sandbox.RunSpec{
-			Proxy:       sandbox.ProxySpec{Mode: sandbox.ProxyEnforce},
+			Egress:      sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
 			Credentials: []sandbox.Credential{{Name: "API_TOKEN"}},
 		}
 
@@ -514,8 +563,8 @@ func Test_specFeatures(t *testing.T) {
 	t.Run("path rules count only with the proxy", func(t *testing.T) {
 		// Arrange
 		paths := []sandbox.AllowRule{{Host: "raw.example.test", Paths: []string{"/a"}}}
-		off := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Rules: paths}}
-		on := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Rules: paths}}
+		off := sandbox.RunSpec{Egress: sandbox.EgressPolicy{Rules: paths}}
+		on := sandbox.RunSpec{Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Rules: paths}}
 
 		// Act
 		offNeed := specFeatures(off)
@@ -528,7 +577,7 @@ func Test_specFeatures(t *testing.T) {
 
 	t.Run("monitor mode counts too", func(t *testing.T) {
 		// Arrange
-		rs := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}}
+		rs := sandbox.RunSpec{Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}}
 
 		// Act
 		need := specFeatures(rs)
@@ -552,7 +601,7 @@ func Test_checkSpec(t *testing.T) {
 
 	t.Run("refuses every missing feature at once", func(t *testing.T) {
 		// Arrange
-		rs := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}, Credentials: []sandbox.Credential{{Name: "API_TOKEN"}}}
+		rs := sandbox.RunSpec{Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}, Credentials: []sandbox.Credential{{Name: "API_TOKEN"}}}
 
 		// Act
 		err := checkSpec(rs, sandbox.Features{})
@@ -563,7 +612,7 @@ func Test_checkSpec(t *testing.T) {
 
 	t.Run("refuses monitor mode on a runtime that only enforces", func(t *testing.T) {
 		// Arrange
-		rs := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}}
+		rs := sandbox.RunSpec{Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}}
 
 		// Act
 		err := checkSpec(rs, sandbox.Features{Proxy: true})

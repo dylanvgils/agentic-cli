@@ -72,6 +72,7 @@ func (c *Client) Capabilities() sandbox.Capabilities {
 			Proxy:               true,
 			ProxyMonitor:        true,
 			Dind:                true,
+			DindLimits:          true,
 			CredentialInjection: true,
 			PathRules:           true,
 			ProxyIntegrations:   true,

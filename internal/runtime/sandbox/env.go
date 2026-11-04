@@ -32,7 +32,7 @@ var proxyEnvNames = []string{
 	"NODE_USE_ENV_PROXY",
 }
 
-// dindEnvNames point the tool's docker CLI at the sidecar over mutual TLS; overriding one would bypass it.
+// dindEnvNames point the tool's docker CLI at its Docker daemon; overriding one would bypass it.
 var dindEnvNames = []string{
 	"DOCKER_HOST",
 	"DOCKER_TLS_VERIFY",
@@ -47,13 +47,12 @@ var portableEnvName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 // terminalEnvNames are host vars forwarded into the sandbox; not reserved, so an env entry can override one.
 var terminalEnvNames = []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"}
 
-// IsReservedEnvName reports whether key is an env var agentic manages in a run with or without the proxy and dind, or one
-// of the integrations sets, so an env entry can't override it.
-func IsReservedEnvName(key string, proxy, dind bool, integrations []string) bool {
+// IsReservedEnvName reports whether key is an env var agentic manages in a run with or without the proxy and dind, so an
+// env entry can't override it.
+func IsReservedEnvName(key string, proxy, dind bool) bool {
 	return slices.Contains(configEnvNames, key) ||
 		(proxy && slices.Contains(proxyEnvNames, key)) ||
-		(dind && slices.Contains(dindEnvNames, key)) ||
-		slices.Contains(proxyIntegrationEnvNames(integrations), key)
+		(dind && slices.Contains(dindEnvNames, key))
 }
 
 // IsPortableEnvName reports whether name is a portable environment variable name.

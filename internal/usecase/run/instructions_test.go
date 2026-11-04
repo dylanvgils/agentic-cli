@@ -182,7 +182,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("network section lists allowlist when enforcing", func(t *testing.T) {
 		// Arrange
-		in := Input{ProxyMode: sandbox.ProxyEnforce}
+		in := Input{ProxyMode: sandbox.EgressEnforce}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
 
 		// Act
@@ -201,7 +201,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("network section lists path rule hosts with their paths", func(t *testing.T) {
 		// Arrange
-		in := Input{ProxyMode: sandbox.ProxyEnforce}
+		in := Input{ProxyMode: sandbox.EgressEnforce}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: []config.RCAllowedPath{
 			{Host: "raw.example.test", Paths: []string{"/org/repo/**"}},
 		}}}}
@@ -217,7 +217,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("network section names a provider-side web search", func(t *testing.T) {
 		// Arrange
-		in := Input{ProxyMode: sandbox.ProxyEnforce}
+		in := Input{ProxyMode: sandbox.EgressEnforce}
 
 		// Act
 		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
@@ -230,7 +230,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("network section limits searches to the allowlist without a provider-side search", func(t *testing.T) {
 		// Arrange
-		in := Input{ProxyMode: sandbox.ProxyEnforce}
+		in := Input{ProxyMode: sandbox.EgressEnforce}
 
 		// Act
 		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["opencode"], &config.AgenticRC{})
@@ -243,7 +243,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("network section omits host list in monitor mode", func(t *testing.T) {
 		// Arrange
-		in := Input{ProxyMode: sandbox.ProxyMonitor}
+		in := Input{ProxyMode: sandbox.EgressMonitor}
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
 
 		// Act
@@ -296,7 +296,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("docker section and allowlist cover registries with proxy", func(t *testing.T) {
 		// Arrange
-		in := Input{DindEnabled: true, ProxyMode: sandbox.ProxyEnforce}
+		in := Input{DindEnabled: true, ProxyMode: sandbox.EgressEnforce}
 
 		// Act
 		content, err := New(&fakeDocker{}, nil).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
@@ -330,7 +330,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("microsandbox describes its network policy instead of the proxy", func(t *testing.T) {
 		// Arrange
-		in := Input{Runtime: sandbox.RuntimeMicrosandbox, ProxyMode: sandbox.ProxyEnforce}
+		in := Input{Runtime: sandbox.RuntimeMicrosandbox, ProxyMode: sandbox.EgressEnforce}
 
 		// Act
 		content, err := New(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
@@ -361,7 +361,7 @@ func TestBuildInstructions(t *testing.T) {
 
 	t.Run("microsandbox with the proxy explains the allowlist and the inspection CA", func(t *testing.T) {
 		// Arrange
-		in := Input{Runtime: sandbox.RuntimeMicrosandbox, DindEnabled: true, ProxyMode: sandbox.ProxyEnforce}
+		in := Input{Runtime: sandbox.RuntimeMicrosandbox, DindEnabled: true, ProxyMode: sandbox.EgressEnforce}
 
 		// Act
 		content, err := New(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
@@ -375,7 +375,9 @@ func TestBuildInstructions(t *testing.T) {
 	t.Run("a runtime without a daemon says docker fails", func(t *testing.T) {
 		// Arrange
 		in := Input{Runtime: sandbox.RuntimeMicrosandbox, DindEnabled: true}
-		m := &fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return sandbox.Capabilities{Isolation: sandbox.Isolation{Boundary: sandbox.BoundaryVM}} }}
+		m := &fakeMicrosandbox{capabilities: func() sandbox.Capabilities {
+			return sandbox.Capabilities{Isolation: sandbox.Isolation{Boundary: sandbox.BoundaryVM}}
+		}}
 
 		// Act
 		content, err := New(&fakeDocker{}, m).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})

@@ -72,7 +72,7 @@ func validateProxy(proxy RCProxy) error {
 		}
 	}
 
-	if err := sandbox.CheckProxyIntegrations(proxy.Integrations); err != nil {
+	if err := sandbox.CheckEgressIntegrations(proxy.Integrations); err != nil {
 		return fmt.Errorf("[run.proxy] integrations: %w", err)
 	}
 	return nil

@@ -237,7 +237,7 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 	}
 
 	b.WriteString("## Network\n\n")
-	if in.ProxyMode == sandbox.ProxyMonitor {
+	if in.ProxyMode == sandbox.EgressMonitor {
 		b.WriteString("- All traffic goes through an egress proxy that logs every request and blocks nothing.\n\n")
 		return
 	}
@@ -273,7 +273,7 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 
 	b.WriteString("- A blocked host is blocked for every tool. Don't retry it another way (curl, another fetch tool, a mirror).\n")
 	b.WriteString("- If a task needs a blocked host, tell the user which host and why, so they can add it to allowed_hosts in .agenticrc.toml and rerun.\n")
-	if (sandbox.ProxySpec{Rules: rules}).HasPathRules() {
+	if (sandbox.EgressPolicy{Rules: rules}).HasPathRules() {
 		b.WriteString("- Other paths on a host limited to some paths get HTTP 403 too; tell the user which path and why, so they can add it to allowed_paths.\n")
 	}
 	b.WriteString("\n")

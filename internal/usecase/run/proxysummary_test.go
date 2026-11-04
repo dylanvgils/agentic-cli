@@ -13,15 +13,15 @@ import (
 func Test_printProxySummary(t *testing.T) {
 	t.Run("sets what the log flagged apart from the tool output", func(t *testing.T) {
 		// Arrange
-		spec := sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, LogFile: writeProxyLog(t,
+		logFile := writeProxyLog(t,
 			`{"host":"evil.example.test","decision":"deny"}`,
 			`{"host":"localhost","decision":"deny","reason":"blocked-address"}`,
 			`{"host":"api.example.test","decision":"allow","intercepted":true,"reason":"no-placeholder"}`,
-		)}
+		)
 		buf := iostreamstest.StubErr(t)
 
 		// Act
-		printProxySummary(spec)
+		printProxySummary(logFile, sandbox.EgressEnforce)
 
 		// Assert
 		assert.True(t, strings.HasPrefix(buf.String(), "\nagentic: proxy blocked 1 request(s) to: evil.example.test"))
@@ -31,11 +31,11 @@ func Test_printProxySummary(t *testing.T) {
 
 	t.Run("nothing flagged prints nothing", func(t *testing.T) {
 		// Arrange
-		spec := sandbox.ProxySpec{Mode: sandbox.ProxyMonitor, LogFile: writeProxyLog(t, `{"host":"api.anthropic.com","decision":"allow"}`)}
+		logFile := writeProxyLog(t, `{"host":"api.anthropic.com","decision":"allow"}`)
 		buf := iostreamstest.StubErr(t)
 
 		// Act
-		printProxySummary(spec)
+		printProxySummary(logFile, sandbox.EgressMonitor)
 
 		// Assert
 		assert.Empty(t, buf.String())

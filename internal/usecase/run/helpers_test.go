@@ -31,7 +31,7 @@ type fakeDocker struct {
 	pruneImages          func() (string, error)
 	saveImage            func(image string, w io.Writer) error
 	buildDockerdImage    func(image string, parent *docker.ImageInfo) error
-	startSidecars        func(rs sandbox.RunSpec) (docker.Sidecars, error)
+	startSidecars        func(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
 	runTool              func(sidecars docker.Sidecars) error
 	stopSidecars         func(sidecars docker.Sidecars)
 	serverVersion        func() (engine, version string, err error)
@@ -128,11 +128,11 @@ func (f *fakeDocker) SaveImage(image string, w io.Writer) error {
 	return f.saveImage(image, w)
 }
 
-func (f *fakeDocker) StartSidecars(rs sandbox.RunSpec) (docker.Sidecars, error) {
+func (f *fakeDocker) StartSidecars(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error) {
 	if f.startSidecars == nil {
 		return docker.Sidecars{}, nil
 	}
-	return f.startSidecars(rs)
+	return f.startSidecars(rs, proxyLog)
 }
 
 func (f *fakeDocker) RunTool(sidecars docker.Sidecars) error {
@@ -148,13 +148,10 @@ func (f *fakeDocker) StopSidecars(sidecars docker.Sidecars) {
 	}
 }
 
-// newProxyRunSpec returns a RunSpec with the proxy in mode and its log file in a temp tool home, as Build sets it.
-func newProxyRunSpec(t *testing.T, mode sandbox.ProxyMode) sandbox.RunSpec {
+// newProxyRunSpec returns a RunSpec with the proxy in mode and a temp tool home for its log.
+func newProxyRunSpec(t *testing.T, mode sandbox.EgressMode) sandbox.RunSpec {
 	t.Helper()
-	home := t.TempDir()
-	logFile, err := proxyLogFile(home, true)
-	require.NoError(t, err)
-	return sandbox.RunSpec{ToolHome: home, Proxy: sandbox.ProxySpec{Mode: mode, LogFile: logFile}}
+	return sandbox.RunSpec{ToolHome: t.TempDir(), Egress: sandbox.EgressPolicy{Mode: mode}}
 }
 
 // runtimeRequest returns a Request that runs on runtime.
