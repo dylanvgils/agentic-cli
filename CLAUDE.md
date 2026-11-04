@@ -43,7 +43,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 - Runners (`internal/usecase/run/<runtime>.go`, interface in `runtime.go`) hold a runtime's run steps:
   - `Check` refuses a request before any prompt, `Run` runs it.
   - A new runtime adds a runner and a case in `Service.runner`.
-  - In `usecase/run`, read `Capabilities()` instead of comparing runtime names, except for the VM wording in the instructions.
+  - In `usecase/run`, read `Capabilities()` instead of comparing runtime names: its `Features` are what a run can need, its `Isolation` how the runtime isolates (VM wording uses `Boundary`).
 - Docker runs in phases (`StartSidecars`, `RunTool`, `StopSidecars`) so the runner can recheck mounts between them.
 - Test seams:
   - No new package-level func vars as seams.

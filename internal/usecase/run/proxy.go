@@ -19,17 +19,17 @@ import (
 const defaultProxyLogRetentionDays = 3
 
 // proxyRules resolves the proxy's allow rules, allowing path rule hosts whole on a runtime that can't match paths.
-func proxyRules(toolConfig tools.ToolConfig, in Input, rc *config.AgenticRC, caps sandbox.Capabilities) []sandbox.AllowRule {
+func proxyRules(toolConfig tools.ToolConfig, in Input, rc *config.AgenticRC, features sandbox.Features) []sandbox.AllowRule {
 	rules := resolve.ProxyRules(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc)
-	if caps.PathRules {
+	if features.PathRules {
 		return rules
 	}
 	return sandbox.AllowWhole(rules)
 }
 
 // proxyIntegrations returns the flag's and rc's proxy integrations when the proxy runs and the runtime supports them.
-func proxyIntegrations(flags resolve.ProxyInput, rc *config.AgenticRC, mode sandbox.ProxyMode, caps sandbox.Capabilities) []string {
-	if !mode.Enabled() || !caps.ProxyIntegrations {
+func proxyIntegrations(flags resolve.ProxyInput, rc *config.AgenticRC, mode sandbox.ProxyMode, features sandbox.Features) []string {
+	if !mode.Enabled() || !features.ProxyIntegrations {
 		return nil
 	}
 	return resolve.ProxyIntegrations(flags, rc)

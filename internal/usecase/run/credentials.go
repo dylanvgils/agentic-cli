@@ -58,11 +58,11 @@ func resolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials
 
 // credentialSetup checks in.Credentials against the run; the runtime sets the placeholders itself. A no-op without
 // credentials.
-func credentialSetup(in Input, caps sandbox.Capabilities, mounts mountSet, env []string) error {
+func credentialSetup(in Input, isolation sandbox.Isolation, mounts mountSet, env []string) error {
 	if len(in.Credentials) == 0 {
 		return nil
 	}
-	if caps.CredentialsViaProxy && !in.ProxyMode.Enabled() {
+	if isolation.CredentialsViaProxy && !in.ProxyMode.Enabled() {
 		return fmt.Errorf("proxy credentials need the egress proxy, which is disabled")
 	}
 

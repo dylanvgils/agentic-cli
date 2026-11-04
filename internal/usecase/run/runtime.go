@@ -8,7 +8,7 @@ import (
 
 // runner executes prepared runs on one runtime.
 type runner interface {
-	// Capabilities reports what runs on the runtime offer.
+	// Capabilities reports what runs on the runtime offer and how they isolate the tool.
 	Capabilities() sandbox.Capabilities
 	// Check refuses a run the runtime can't do for its own reasons, before any prompt.
 	Check(req Request) error
@@ -24,7 +24,7 @@ func (s *Service) Run(req Request, rs sandbox.RunSpec) error {
 		return err
 	}
 
-	if err := checkSpec(rs, r.Capabilities()); err != nil {
+	if err := checkSpec(rs, r.Capabilities().Features); err != nil {
 		return err
 	}
 	if err := recheckMounts(rs); err != nil {
@@ -61,7 +61,7 @@ func (s *Service) checkRuntime(req Request) error {
 		return err
 	}
 
-	if err := checkCapabilities(req, r.Capabilities()); err != nil {
+	if err := checkCapabilities(req, r.Capabilities().Features); err != nil {
 		return err
 	}
 	return r.Check(req)

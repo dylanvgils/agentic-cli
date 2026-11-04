@@ -65,19 +65,24 @@ func (c *Client) Context() string {
 	return c.context
 }
 
-// Capabilities reports what Docker runs offer.
+// Capabilities reports what Docker runs offer and how they isolate the tool.
 func (c *Client) Capabilities() sandbox.Capabilities {
 	return sandbox.Capabilities{
-		Proxy:               true,
-		ProxyMonitor:        true,
-		Dind:                true,
-		CredentialInjection: true,
-		PathRules:           true,
-		ProxyIntegrations:   true,
-		CredentialsViaProxy: true,
-		PidsLimit:           true,
-		ReadOnlyRoot:        true, // --read-only plus tmpfs ephemeral dirs
-		DropsPrivileges:     true, // --cap-drop=ALL and no-new-privileges
+		Features: sandbox.Features{
+			Proxy:               true,
+			ProxyMonitor:        true,
+			Dind:                true,
+			CredentialInjection: true,
+			PathRules:           true,
+			ProxyIntegrations:   true,
+			PidsLimit:           true,
+		},
+		Isolation: sandbox.Isolation{
+			Boundary:            sandbox.BoundaryContainer,
+			ReadOnlyRoot:        true, // --read-only plus tmpfs ephemeral dirs
+			DropsPrivileges:     true, // --cap-drop=ALL and no-new-privileges
+			CredentialsViaProxy: true,
+		},
 	}
 }
 

@@ -72,12 +72,12 @@ func (s *Service) BuildInstructions(target Target, in Input, toolConfig tools.To
 	caps := s.capabilities(in.Runtime)
 
 	var b strings.Builder
-	writeIntro(&b, in.Runtime)
+	writeIntro(&b, caps.Boundary)
 	writePrecedenceSection(&b)
 	writeCapabilitiesSection(&b, info)
-	writeFilesystemSection(&b, toolConfig, in, rc, containerHome, caps)
-	writeResourceLimitsSection(&b, limits, caps)
-	writePrivilegeSection(&b, caps)
+	writeFilesystemSection(&b, toolConfig, in, rc, containerHome, caps.Isolation)
+	writeResourceLimitsSection(&b, limits, caps.Features)
+	writePrivilegeSection(&b, caps.Isolation)
 	writeNetworkSection(&b, toolConfig, rc, in, caps)
 	writeDockerSection(&b, in, caps, dindLimits)
 	writeCustomSection(&b, rc)
@@ -110,8 +110,8 @@ func instructionsEnabled(rc *config.AgenticRC) bool {
 	return enabled == nil || *enabled
 }
 
-func writeIntro(b *strings.Builder, runtime sandbox.Runtime) {
-	if runtime == sandbox.RuntimeMicrosandbox {
+func writeIntro(b *strings.Builder, boundary sandbox.Boundary) {
+	if boundary == sandbox.BoundaryVM {
 		b.WriteString("# Agentic microVM environment\n\n")
 		b.WriteString("You are running inside an agentic-cli microVM with its own kernel. ")
 	} else {
@@ -165,14 +165,14 @@ func writeMissingToolsNote(b *strings.Builder) {
 }
 
 // writeFilesystemSection lists each mounted path with its access, then what happens to every other path.
-func writeFilesystemSection(b *strings.Builder, toolConfig tools.ToolConfig, in Input, rc *config.AgenticRC, containerHome string, caps sandbox.Capabilities) {
+func writeFilesystemSection(b *strings.Builder, toolConfig tools.ToolConfig, in Input, rc *config.AgenticRC, containerHome string, isolation sandbox.Isolation) {
 	b.WriteString("## Filesystem\n\n")
 	b.WriteString("- `/workspace`: the project on the user's machine. Writable; changes are real.\n")
 	for _, spec := range resolve.Volumes(toolConfig.Runtime.Mounts(), in.Volumes, rc) {
 		writeMountLine(b, spec, containerHome)
 	}
 
-	if caps.ReadOnlyRoot {
+	if isolation.ReadOnlyRoot {
 		for _, p := range toolConfig.Runtime.EphemeralDirs() {
 			fmt.Fprintf(b, "- `%s`: writable, cleared when the container exits.\n", sandbox.ExpandTmpfsSpec(p.Path, containerHome))
 		}
@@ -202,16 +202,16 @@ func writeMountLine(b *strings.Builder, spec, containerHome string) {
 }
 
 // writeResourceLimitsSection leaves out the pids limit for a runtime without one.
-func writeResourceLimitsSection(b *strings.Builder, limits sandbox.ResourceLimits, caps sandbox.Capabilities) {
+func writeResourceLimitsSection(b *strings.Builder, limits sandbox.ResourceLimits, features sandbox.Features) {
 	b.WriteString("## Resource limits\n\n")
-	if caps.PidsLimit {
+	if features.PidsLimit {
 		fmt.Fprintf(b, "- Max processes: %s\n", limits.PidsLimit)
 	}
 	fmt.Fprintf(b, "- CPUs: %s\n", limits.CPUs)
 	fmt.Fprintf(b, "- Memory: %s\n", limits.Memory)
 
 	b.WriteString("\nThese are hard limits for this run. If a task needs more, tell the user so they can raise ")
-	if caps.PidsLimit {
+	if features.PidsLimit {
 		b.WriteString("pids_limit/cpus/memory in .agenticrc.toml (or --pids-limit/--cpus/--memory) and rerun.\n\n")
 	} else {
 		b.WriteString("cpus/memory in .agenticrc.toml (or --cpus/--memory) and rerun.\n\n")
@@ -219,9 +219,9 @@ func writeResourceLimitsSection(b *strings.Builder, limits sandbox.ResourceLimit
 }
 
 // writePrivilegeSection makes no capability claims for a runtime that keeps the guest's defaults.
-func writePrivilegeSection(b *strings.Builder, caps sandbox.Capabilities) {
+func writePrivilegeSection(b *strings.Builder, isolation sandbox.Isolation) {
 	b.WriteString("## Privileges\n\n")
-	if !caps.DropsPrivileges {
+	if !isolation.DropsPrivileges {
 		b.WriteString("- Non-root user. `sudo` and apt fail.\n\n")
 		return
 	}
@@ -242,13 +242,13 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 		return
 	}
 
-	if in.Runtime == sandbox.RuntimeMicrosandbox {
+	if caps.Boundary == sandbox.BoundaryVM {
 		b.WriteString("- The VM's network policy filters all traffic and inspects HTTPS.\n")
 	} else {
 		b.WriteString("- All traffic goes through an egress proxy.\n")
 	}
 
-	rules := proxyRules(toolConfig, in, rc, caps)
+	rules := proxyRules(toolConfig, in, rc, caps.Features)
 	fmt.Fprintf(b, "- Only these hosts are reachable, and only on ports %s (HTTP and HTTPS):\n", strings.Join(proxy.DefaultPorts, " and "))
 	for _, rule := range rules {
 		if len(rule.Paths) == 0 {
@@ -259,7 +259,7 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 	}
 
 	b.WriteString("- Everything else is blocked: other hosts, other ports and SSH, git over SSH included. ")
-	if in.Runtime == sandbox.RuntimeMicrosandbox {
+	if caps.Boundary == sandbox.BoundaryVM {
 		b.WriteString("A blocked request fails with a DNS, connection or TLS error.\n")
 	} else {
 		b.WriteString("A blocked request gets HTTP 403 from the proxy (curl: `CONNECT tunnel failed, response 403`).\n")
@@ -290,7 +290,7 @@ func writeDockerSection(b *strings.Builder, in Input, caps sandbox.Capabilities,
 		b.WriteString("- There is no Docker daemon in this VM; `docker` commands fail.\n\n")
 		return
 	}
-	if in.Runtime == sandbox.RuntimeMicrosandbox {
+	if caps.Boundary == sandbox.BoundaryVM {
 		writeVMDockerSection(b, in)
 		return
 	}

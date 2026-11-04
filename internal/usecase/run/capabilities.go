@@ -10,10 +10,10 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
-// requiredCapabilities returns what a run with flags and rc needs; the proxy counts only when asked for, not when credentials force it.
-func requiredCapabilities(flags Flags, rc *config.AgenticRC) sandbox.Capabilities {
+// requiredFeatures returns what a run with flags and rc needs; the proxy counts only when asked for, not when credentials force it.
+func requiredFeatures(flags Flags, rc *config.AgenticRC) sandbox.Features {
 	proxyMode := resolve.RequestedProxyMode(flags.Proxy, rc)
-	return sandbox.Capabilities{
+	return sandbox.Features{
 		Proxy:               proxyMode.Enabled(),
 		ProxyMonitor:        proxyMode == sandbox.ProxyMonitor,
 		Dind:                resolve.DindEnabled(flags.Dind, rc),
@@ -24,9 +24,9 @@ func requiredCapabilities(flags Flags, rc *config.AgenticRC) sandbox.Capabilitie
 	}
 }
 
-// specCapabilities returns the security features rs relies on its runtime to enforce.
-func specCapabilities(rs sandbox.RunSpec) sandbox.Capabilities {
-	return sandbox.Capabilities{
+// specFeatures returns the security features rs relies on its runtime to enforce.
+func specFeatures(rs sandbox.RunSpec) sandbox.Features {
+	return sandbox.Features{
 		Proxy:               rs.Proxy.Mode.Enabled(),
 		ProxyMonitor:        rs.Proxy.Mode == sandbox.ProxyMonitor,
 		CredentialInjection: len(rs.Credentials) > 0,
@@ -35,8 +35,8 @@ func specCapabilities(rs sandbox.RunSpec) sandbox.Capabilities {
 }
 
 // checkCapabilities refuses missing security features and warns about ignored settings.
-func checkCapabilities(req Request, offered sandbox.Capabilities) error {
-	missing := offered.Missing(requiredCapabilities(req.Flags, req.Project.RC))
+func checkCapabilities(req Request, offered sandbox.Features) error {
+	missing := offered.Missing(requiredFeatures(req.Flags, req.Project.RC))
 	if err := refuseMissing(req, missing); err != nil {
 		return err
 	}
@@ -47,8 +47,8 @@ func checkCapabilities(req Request, offered sandbox.Capabilities) error {
 
 // checkSpec refuses rs if it relies on a security feature offered lacks; a backstop for checkCapabilities, which refuses the
 // request before any prompt, so a spec built some other way can't run with a control silently dropped.
-func checkSpec(rs sandbox.RunSpec, offered sandbox.Capabilities) error {
-	missing := offered.Missing(specCapabilities(rs))
+func checkSpec(rs sandbox.RunSpec, offered sandbox.Features) error {
+	missing := offered.Missing(specFeatures(rs))
 
 	var refused []string
 	if missing.Proxy {
@@ -69,7 +69,7 @@ func checkSpec(rs sandbox.RunSpec, offered sandbox.Capabilities) error {
 }
 
 // refuseMissing errors on missing security features, with a hint.
-func refuseMissing(req Request, missing sandbox.Capabilities) error {
+func refuseMissing(req Request, missing sandbox.Features) error {
 	var refused []string
 	if missing.Proxy {
 		refused = append(refused, fmt.Sprintf("the egress proxy (%s)", proxySource(req)))
@@ -93,7 +93,7 @@ func refuseMissing(req Request, missing sandbox.Capabilities) error {
 }
 
 // warnIgnored warns about settings the runtime ignores.
-func warnIgnored(req Request, missing sandbox.Capabilities) {
+func warnIgnored(req Request, missing sandbox.Features) {
 	if missing.PathRules {
 		logging.Warnf("%s can't limit hosts to paths, so it allows the hosts of %s on every path; use --runtime docker to limit them", runtimeSource(req), pathRulesSource(req))
 	}

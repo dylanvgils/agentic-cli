@@ -10,15 +10,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_requiredCapabilities(t *testing.T) {
+func Test_requiredFeatures(t *testing.T) {
 	enabled := true
 
 	t.Run("a bare run needs only the pids limit", func(t *testing.T) {
 		// Act
-		need := requiredCapabilities(Flags{}, &config.AgenticRC{})
+		need := requiredFeatures(Flags{}, &config.AgenticRC{})
 
 		// Assert
-		assert.Equal(t, sandbox.Capabilities{PidsLimit: true}, need)
+		assert.Equal(t, sandbox.Features{PidsLimit: true}, need)
 	})
 
 	t.Run("flags ask for the proxy and dind", func(t *testing.T) {
@@ -28,10 +28,10 @@ func Test_requiredCapabilities(t *testing.T) {
 		flags.Dind.DindFlag = true
 
 		// Act
-		need := requiredCapabilities(flags, &config.AgenticRC{})
+		need := requiredFeatures(flags, &config.AgenticRC{})
 
 		// Assert
-		assert.Equal(t, sandbox.Capabilities{Proxy: true, ProxyMonitor: true, Dind: true, PidsLimit: true}, need)
+		assert.Equal(t, sandbox.Features{Proxy: true, ProxyMonitor: true, Dind: true, PidsLimit: true}, need)
 	})
 
 	t.Run("config asks for the proxy and dind", func(t *testing.T) {
@@ -41,10 +41,10 @@ func Test_requiredCapabilities(t *testing.T) {
 		rc.Run.Dind.Enabled = &enabled
 
 		// Act
-		need := requiredCapabilities(Flags{}, rc)
+		need := requiredFeatures(Flags{}, rc)
 
 		// Assert
-		assert.Equal(t, sandbox.Capabilities{Proxy: true, Dind: true, PidsLimit: true}, need)
+		assert.Equal(t, sandbox.Features{Proxy: true, Dind: true, PidsLimit: true}, need)
 	})
 
 	t.Run("credentials alone don't ask for the proxy", func(t *testing.T) {
@@ -53,10 +53,10 @@ func Test_requiredCapabilities(t *testing.T) {
 		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}}}
 
 		// Act
-		need := requiredCapabilities(Flags{}, rc)
+		need := requiredFeatures(Flags{}, rc)
 
 		// Assert
-		assert.Equal(t, sandbox.Capabilities{CredentialInjection: true, PidsLimit: true}, need)
+		assert.Equal(t, sandbox.Features{CredentialInjection: true, PidsLimit: true}, need)
 	})
 
 	t.Run("path rules ask for path rule support only with the proxy or credentials", func(t *testing.T) {
@@ -70,14 +70,14 @@ func Test_requiredCapabilities(t *testing.T) {
 		proxyFlags.Proxy.ProxyFlag = true
 
 		// Act
-		without := requiredCapabilities(Flags{}, rc)
-		with := requiredCapabilities(proxyFlags, rc)
-		withCredentials := requiredCapabilities(Flags{}, credentialRC)
+		without := requiredFeatures(Flags{}, rc)
+		with := requiredFeatures(proxyFlags, rc)
+		withCredentials := requiredFeatures(Flags{}, credentialRC)
 
 		// Assert
-		assert.Equal(t, sandbox.Capabilities{PidsLimit: true}, without)
-		assert.Equal(t, sandbox.Capabilities{Proxy: true, PathRules: true, PidsLimit: true}, with)
-		assert.Equal(t, sandbox.Capabilities{CredentialInjection: true, PathRules: true, PidsLimit: true}, withCredentials)
+		assert.Equal(t, sandbox.Features{PidsLimit: true}, without)
+		assert.Equal(t, sandbox.Features{Proxy: true, PathRules: true, PidsLimit: true}, with)
+		assert.Equal(t, sandbox.Features{CredentialInjection: true, PathRules: true, PidsLimit: true}, withCredentials)
 	})
 
 	t.Run("proxy integrations ask for integration support only with the proxy or credentials", func(t *testing.T) {
@@ -91,14 +91,14 @@ func Test_requiredCapabilities(t *testing.T) {
 		proxyFlags.Proxy.ProxyFlag = true
 
 		// Act
-		without := requiredCapabilities(Flags{}, rc)
-		with := requiredCapabilities(proxyFlags, rc)
-		withCredentials := requiredCapabilities(Flags{}, credentialRC)
+		without := requiredFeatures(Flags{}, rc)
+		with := requiredFeatures(proxyFlags, rc)
+		withCredentials := requiredFeatures(Flags{}, credentialRC)
 
 		// Assert
-		assert.Equal(t, sandbox.Capabilities{PidsLimit: true}, without)
-		assert.Equal(t, sandbox.Capabilities{Proxy: true, ProxyIntegrations: true, PidsLimit: true}, with)
-		assert.Equal(t, sandbox.Capabilities{CredentialInjection: true, ProxyIntegrations: true, PidsLimit: true}, withCredentials)
+		assert.Equal(t, sandbox.Features{PidsLimit: true}, without)
+		assert.Equal(t, sandbox.Features{Proxy: true, ProxyIntegrations: true, PidsLimit: true}, with)
+		assert.Equal(t, sandbox.Features{CredentialInjection: true, ProxyIntegrations: true, PidsLimit: true}, withCredentials)
 	})
 
 	t.Run("the integration flag asks for integration support with the proxy", func(t *testing.T) {
@@ -108,10 +108,10 @@ func Test_requiredCapabilities(t *testing.T) {
 		flags.Proxy.Integrations = []string{"maven"}
 
 		// Act
-		result := requiredCapabilities(flags, &config.AgenticRC{})
+		result := requiredFeatures(flags, &config.AgenticRC{})
 
 		// Assert
-		assert.Equal(t, sandbox.Capabilities{Proxy: true, ProxyIntegrations: true, PidsLimit: true}, result)
+		assert.Equal(t, sandbox.Features{Proxy: true, ProxyIntegrations: true, PidsLimit: true}, result)
 	})
 
 	t.Run("off switches drop the need", func(t *testing.T) {
@@ -124,16 +124,16 @@ func Test_requiredCapabilities(t *testing.T) {
 		flags.Dind.NoDindFlag = true
 
 		// Act
-		need := requiredCapabilities(flags, rc)
+		need := requiredFeatures(flags, rc)
 
 		// Assert
-		assert.Equal(t, sandbox.Capabilities{PidsLimit: true}, need)
+		assert.Equal(t, sandbox.Features{PidsLimit: true}, need)
 	})
 }
 
 func Test_checkCapabilities(t *testing.T) {
-	msb := sandbox.Capabilities{Proxy: true, CredentialInjection: true}
-	noProxy := sandbox.Capabilities{CredentialInjection: true}
+	msb := sandbox.Features{Proxy: true, CredentialInjection: true}
+	noProxy := sandbox.Features{CredentialInjection: true}
 
 	t.Run("a missing proxy is an error with the opt-out", func(t *testing.T) {
 		// Arrange
@@ -212,7 +212,7 @@ func Test_checkCapabilities(t *testing.T) {
 		req.Flags.Proxy.MonitorFlag = true
 
 		// Act
-		err := checkCapabilities(req, sandbox.Capabilities{})
+		err := checkCapabilities(req, sandbox.Features{})
 
 		// Assert
 		require.Error(t, err)
@@ -277,7 +277,7 @@ func Test_checkCapabilities(t *testing.T) {
 		req.Flags.Dind.DindFlag = true
 
 		// Act
-		err := checkCapabilities(req, sandbox.Capabilities{Proxy: true, ProxyMonitor: true, Dind: true, CredentialInjection: true, PidsLimit: true})
+		err := checkCapabilities(req, sandbox.Features{Proxy: true, ProxyMonitor: true, Dind: true, CredentialInjection: true, PidsLimit: true})
 
 		// Assert
 		assert.NoError(t, err)
@@ -488,13 +488,13 @@ func Test_layerSource(t *testing.T) {
 	})
 }
 
-func Test_specCapabilities(t *testing.T) {
+func Test_specFeatures(t *testing.T) {
 	t.Run("a bare spec relies on nothing", func(t *testing.T) {
 		// Act
-		need := specCapabilities(sandbox.RunSpec{})
+		need := specFeatures(sandbox.RunSpec{})
 
 		// Assert
-		assert.Equal(t, sandbox.Capabilities{}, need)
+		assert.Equal(t, sandbox.Features{}, need)
 	})
 
 	t.Run("the proxy and credentials each count", func(t *testing.T) {
@@ -505,10 +505,10 @@ func Test_specCapabilities(t *testing.T) {
 		}
 
 		// Act
-		need := specCapabilities(rs)
+		need := specFeatures(rs)
 
 		// Assert
-		assert.Equal(t, sandbox.Capabilities{Proxy: true, CredentialInjection: true}, need)
+		assert.Equal(t, sandbox.Features{Proxy: true, CredentialInjection: true}, need)
 	})
 
 	t.Run("path rules count only with the proxy", func(t *testing.T) {
@@ -518,12 +518,12 @@ func Test_specCapabilities(t *testing.T) {
 		on := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyEnforce, Rules: paths}}
 
 		// Act
-		offNeed := specCapabilities(off)
-		onNeed := specCapabilities(on)
+		offNeed := specFeatures(off)
+		onNeed := specFeatures(on)
 
 		// Assert
-		assert.Equal(t, sandbox.Capabilities{}, offNeed)
-		assert.Equal(t, sandbox.Capabilities{Proxy: true, PathRules: true}, onNeed)
+		assert.Equal(t, sandbox.Features{}, offNeed)
+		assert.Equal(t, sandbox.Features{Proxy: true, PathRules: true}, onNeed)
 	})
 
 	t.Run("monitor mode counts too", func(t *testing.T) {
@@ -531,10 +531,10 @@ func Test_specCapabilities(t *testing.T) {
 		rs := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}}
 
 		// Act
-		need := specCapabilities(rs)
+		need := specFeatures(rs)
 
 		// Assert
-		assert.Equal(t, sandbox.Capabilities{Proxy: true, ProxyMonitor: true}, need)
+		assert.Equal(t, sandbox.Features{Proxy: true, ProxyMonitor: true}, need)
 	})
 }
 
@@ -544,7 +544,7 @@ func Test_checkSpec(t *testing.T) {
 		rs := sandbox.RunSpec{Credentials: []sandbox.Credential{{Name: "API_TOKEN"}}}
 
 		// Act
-		err := checkSpec(rs, sandbox.Capabilities{CredentialInjection: true})
+		err := checkSpec(rs, sandbox.Features{CredentialInjection: true})
 
 		// Assert
 		assert.NoError(t, err)
@@ -555,7 +555,7 @@ func Test_checkSpec(t *testing.T) {
 		rs := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}, Credentials: []sandbox.Credential{{Name: "API_TOKEN"}}}
 
 		// Act
-		err := checkSpec(rs, sandbox.Capabilities{})
+		err := checkSpec(rs, sandbox.Features{})
 
 		// Assert
 		assert.EqualError(t, err, "the runtime can't enforce the egress proxy or credential injection that the run asks for")
@@ -566,7 +566,7 @@ func Test_checkSpec(t *testing.T) {
 		rs := sandbox.RunSpec{Proxy: sandbox.ProxySpec{Mode: sandbox.ProxyMonitor}}
 
 		// Act
-		err := checkSpec(rs, sandbox.Capabilities{Proxy: true})
+		err := checkSpec(rs, sandbox.Features{Proxy: true})
 
 		// Assert
 		assert.EqualError(t, err, "the runtime can't enforce proxy monitor mode that the run asks for")

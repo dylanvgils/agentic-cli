@@ -18,7 +18,7 @@ import (
 
 func Test_dockerRunner_Capabilities(t *testing.T) {
 	// Arrange
-	want := sandbox.Capabilities{Proxy: true}
+	want := sandbox.Capabilities{Features: sandbox.Features{Proxy: true}}
 	r := dockerRunner{docker: &fakeDocker{capabilities: func() sandbox.Capabilities { return want }}}
 
 	// Act

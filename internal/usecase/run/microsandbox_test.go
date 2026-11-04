@@ -16,7 +16,7 @@ import (
 
 func Test_microsandboxRunner_Capabilities(t *testing.T) {
 	// Arrange
-	want := sandbox.Capabilities{CredentialInjection: true}
+	want := sandbox.Capabilities{Features: sandbox.Features{CredentialInjection: true}}
 	r := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return want }}}
 
 	// Act
