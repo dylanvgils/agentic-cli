@@ -73,53 +73,8 @@ function Install-FromRelease {
     Invoke-WebRequest -Uri $Url -OutFile (Join-Path $TmpDir $Archive) -UseBasicParsing
     Invoke-WebRequest -Uri $ChecksumsUrl -OutFile (Join-Path $TmpDir "checksums.txt") -UseBasicParsing
 
-    # Optional signature check: only with cosign installed; a missing bundle is accepted only before signing started
-    $Tip = $null
-    if (-not (Get-Command cosign -ErrorAction SilentlyContinue)) {
-      $Tip = "Tip: install cosign to also verify the release signature, see $VerifyDocs"
-    } else {
-      $BundlePath = Join-Path $TmpDir "checksums.txt.sigstore.json"
-      try {
-        Invoke-WebRequest -Uri "$ChecksumsUrl.sigstore.json" -OutFile $BundlePath -UseBasicParsing
-      } catch {
-        if ([int]$_.Exception.Response.StatusCode -ne 404) {
-          Write-Error "Failed to download the signature bundle: $_"
-          exit 1
-        }
-        if ([version]($Version -replace '-.*$', '') -ge [version]$FirstSignedVersion) {
-          Write-Error "Release $Version has no signature bundle (checksums.txt.sigstore.json); refusing to install."
-          exit 1
-        }
-        $BundlePath = $null
-        $Tip = "Tip: release $Version is unsigned, verified by checksum only."
-      }
-
-      if ($BundlePath) {
-        Write-Host "Verifying signature..."
-        & cosign verify-blob `
-          --bundle $BundlePath `
-          --certificate-identity $CertIdentity `
-          --certificate-oidc-issuer $CertIssuer `
-          (Join-Path $TmpDir "checksums.txt")
-        if ($LASTEXITCODE -ne 0) {
-          Write-Error "Signature verification failed for checksums.txt"
-          exit 1
-        }
-      }
-    }
-
-    Write-Host "Verifying checksum..."
-    $ChecksumLine = Get-Content (Join-Path $TmpDir "checksums.txt") | Where-Object { $_ -match " $([regex]::Escape($Archive))$" }
-    if (-not $ChecksumLine) {
-      Write-Error "Checksum not found for $Archive"
-      exit 1
-    }
-    $Expected = ($ChecksumLine -split '\s+')[0]
-    $Actual = (Get-FileHash (Join-Path $TmpDir $Archive) -Algorithm SHA256).Hash.ToLower()
-    if ($Actual -ne $Expected) {
-      Write-Error "Checksum mismatch for $Archive"
-      exit 1
-    }
+    $Tip = Test-Signature -ChecksumsPath (Join-Path $TmpDir "checksums.txt") -ChecksumsUrl $ChecksumsUrl -Version $Version
+    Test-Checksum -ChecksumsPath (Join-Path $TmpDir "checksums.txt") -ArchivePath (Join-Path $TmpDir $Archive)
 
     Expand-Archive -Path (Join-Path $TmpDir $Archive) -DestinationPath $TmpDir -Force
 
@@ -132,6 +87,70 @@ function Install-FromRelease {
     }
   } finally {
     Remove-Item -Force -Recurse $TmpDir -ErrorAction SilentlyContinue
+  }
+}
+
+# Optional signature check: only with cosign installed. Returns a tip to print, or $null.
+function Test-Signature {
+  param([string]$ChecksumsPath, [string]$ChecksumsUrl, [string]$Version)
+
+  if (-not (Get-Command cosign -ErrorAction SilentlyContinue)) {
+    return "Tip: install cosign to also verify the release signature, see $VerifyDocs"
+  }
+
+  $BundlePath = "$ChecksumsPath.sigstore.json"
+  if (-not (Get-SignatureBundle -Url "$ChecksumsUrl.sigstore.json" -Path $BundlePath -Version $Version)) {
+    return "Tip: release $Version is unsigned, verified by checksum only."
+  }
+
+  Write-Host "Verifying signature..."
+  & cosign verify-blob `
+    --bundle $BundlePath `
+    --certificate-identity $CertIdentity `
+    --certificate-oidc-issuer $CertIssuer `
+    $ChecksumsPath | Out-Host
+  if ($LASTEXITCODE -ne 0) {
+    Write-Error "Signature verification failed for checksums.txt"
+    exit 1
+  }
+  return $null
+}
+
+# Downloads the bundle; a missing one is accepted only before signing started.
+function Get-SignatureBundle {
+  param([string]$Url, [string]$Path, [string]$Version)
+
+  try {
+    Invoke-WebRequest -Uri $Url -OutFile $Path -UseBasicParsing
+    return $true
+  } catch {
+    if ([int]$_.Exception.Response.StatusCode -ne 404) {
+      Write-Error "Failed to download the signature bundle: $_"
+      exit 1
+    }
+    if ([version]($Version -replace '-.*$', '') -ge [version]$FirstSignedVersion) {
+      Write-Error "Release $Version has no signature bundle (checksums.txt.sigstore.json); refusing to install."
+      exit 1
+    }
+    return $false
+  }
+}
+
+function Test-Checksum {
+  param([string]$ChecksumsPath, [string]$ArchivePath)
+
+  Write-Host "Verifying checksum..."
+  $Archive = Split-Path -Leaf $ArchivePath
+  $ChecksumLine = Get-Content $ChecksumsPath | Where-Object { $_ -match " $([regex]::Escape($Archive))$" }
+  if (-not $ChecksumLine) {
+    Write-Error "Checksum not found for $Archive"
+    exit 1
+  }
+  $Expected = ($ChecksumLine -split '\s+')[0]
+  $Actual = (Get-FileHash $ArchivePath -Algorithm SHA256).Hash.ToLower()
+  if ($Actual -ne $Expected) {
+    Write-Error "Checksum mismatch for $Archive"
+    exit 1
   }
 }
 
