@@ -1,0 +1,53 @@
+docker network \
+  create \
+  --internal \
+  --opt=com.docker.network.bridge.inhibit_ipv4=true \
+  --ipv6=false \
+  --label=project=agentic-cli \
+  --label=agentic.owner=agentic-claude-<id> \
+  --label=agentic.started=<time> \
+  agentic-run-<id>
+docker create \
+  --read-only \
+  --name=agentic-proxy-<id> \
+  --network=agentic-run-<id> \
+  --network-alias=agentic-proxy \
+  --cap-drop=ALL \
+  --security-opt=no-new-privileges:true \
+  --user=1000:1000 \
+  --label=project=agentic-cli \
+  --label=agentic.owner=agentic-claude-<id> \
+  --label=agentic.started=<time> \
+  --env=AGENTIC_PROXY_ADDR=:3128 \
+  '--env=AGENTIC_PROXY_RULES=[{"host":"api.example.test"}]' \
+  --env=AGENTIC_PROXY_LOG=/var/log/agentic-proxy/proxy_0123456789ab.jsonl \
+  --env=AGENTIC_PROXY_TZ_OFFSET=<offset> \
+  --env=AGENTIC_PROXY_MONITOR=true \
+  '--env=AGENTIC_PROXY_CLIENT_NETS=<proxy network subnets>' \
+  --volume=<tool-home>/logs/proxy_0123456789ab.jsonl:/var/log/agentic-proxy/proxy_0123456789ab.jsonl \
+  agentic-proxy
+docker network \
+  connect \
+  agentic-net \
+  agentic-proxy-<id>
+docker run \
+  --rm \
+  --read-only \
+  --name=agentic-claude-<id> \
+  --label=project=agentic-cli \
+  --pids-limit= \
+  --cpus= \
+  --memory= \
+  --network=agentic-run-<id> \
+  --cap-drop=ALL \
+  --security-opt=no-new-privileges:true \
+  --user=1000:1000 \
+  --env=TZ=Etc/UTC \
+  --env=HTTP_PROXY=http://agentic-proxy:3128 \
+  --env=HTTPS_PROXY=http://agentic-proxy:3128 \
+  --env=http_proxy=http://agentic-proxy:3128 \
+  --env=https_proxy=http://agentic-proxy:3128 \
+  --env=NO_PROXY=localhost,127.0.0.1 \
+  --env=no_proxy=localhost,127.0.0.1 \
+  --env=NODE_USE_ENV_PROXY=1 \
+  agentic-claude

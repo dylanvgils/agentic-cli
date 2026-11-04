@@ -4,10 +4,12 @@ import (
 	"archive/tar"
 	"bytes"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -20,6 +22,16 @@ import (
 
 // testUser is the host user test runs run as.
 var testUser = platform.User{UID: 1000, GID: 1000}
+
+// updateGolden rewrites the golden files instead of comparing against them: go test -run Golden -update.
+var updateGolden = flag.Bool("update", false, "rewrite golden files")
+
+// Run-specific values in dry-run output, replaced by normalizeDryRun.
+var (
+	dryRunHexID   = regexp.MustCompile(`\b[0-9a-f]{12,}\b`)
+	dryRunStarted = regexp.MustCompile(`agentic\.started=[^ ']+`)
+	dryRunTZ      = regexp.MustCompile(`AGENTIC_PROXY_TZ_OFFSET=-?[0-9]+`)
+)
 
 // dockerCall records a single run invocation.
 type dockerCall struct {
@@ -437,4 +449,40 @@ func stubProxySettleTime(t *testing.T, client *Client, d time.Duration) {
 	orig := client.timing
 	client.timing.proxySettleTime = d
 	t.Cleanup(func() { client.timing = orig })
+}
+
+// stubDryRunEnv fixes the host env that dry-run output reads: terminal vars and the timezone.
+func stubDryRunEnv(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"} {
+		t.Setenv(key, "")
+	}
+	t.Setenv("TZ", "Etc/UTC")
+}
+
+// normalizeDryRun replaces random ids, timestamps, the TZ offset, toolHome and the working dir in out with fixed placeholders.
+func normalizeDryRun(t *testing.T, out, toolHome string) string {
+	t.Helper()
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	out = strings.ReplaceAll(out, toolHome, "<tool-home>")
+	out = strings.ReplaceAll(out, cwd, "<pwd>")
+	out = dryRunHexID.ReplaceAllString(out, "<id>")
+	out = dryRunStarted.ReplaceAllString(out, "agentic.started=<time>")
+	return dryRunTZ.ReplaceAllString(out, "AGENTIC_PROXY_TZ_OFFSET=<offset>")
+}
+
+// assertGolden compares got with testdata/name, or rewrites the file with -update.
+func assertGolden(t *testing.T, name, got string) {
+	t.Helper()
+	path := filepath.Join("testdata", name)
+	if *updateGolden {
+		require.NoError(t, os.MkdirAll("testdata", 0o750))
+		require.NoError(t, os.WriteFile(path, []byte(got), 0o600))
+	}
+
+	want, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, string(want), got)
 }

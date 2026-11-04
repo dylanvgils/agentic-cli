@@ -1,0 +1,24 @@
+msb run \
+  --label=project=agentic-cli \
+  --cpus=2 \
+  --memory=2G \
+  --env=TZ=Etc/UTC \
+  --env=EXAMPLE=value \
+  --mount-dir=<tool-home>/project:/workspace \
+  --mount-dir=<tool-home>/project:/mnt/ro:ro \
+  '--secret=EXAMPLE_API_KEY:headers=[x-api-key]@api.example.test' \
+  '--env=EXAMPLE_TOKEN=$MSB_EXAMPLE_API_KEY' \
+  --net-default-egress=deny \
+  --tls-intercept \
+  --net-rule=allow@dns \
+  '--net-rule=allow@*.example.test:tcp:80' \
+  '--net-rule=allow@*.example.test:tcp:443' \
+  --net-rule=allow@api.example.test:tcp:80 \
+  --net-rule=allow@api.example.test:tcp:443 \
+  --mount-owned=/var/lib/docker:kind=disk,size=20G \
+  --init=/usr/local/bin/agentic-dockerd-init \
+  --entrypoint=bash \
+  agentic-claude-dockerd \
+  -- \
+  -c \
+  true
