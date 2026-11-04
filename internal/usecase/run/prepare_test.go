@@ -354,7 +354,14 @@ func Test_Request_runtime(t *testing.T) {
 }
 
 func Test_resolveInput(t *testing.T) {
-	dockerCaps := sandbox.Capabilities{Proxy: true, Dind: true, CredentialInjection: true, CredentialsViaProxy: true}
+	dockerCaps := sandbox.Capabilities{
+		Features: sandbox.Features{
+			Proxy:               true,
+			Dind:                true,
+			CredentialInjection: true,
+		},
+		Isolation: sandbox.Isolation{CredentialsViaProxy: true},
+	}
 
 	t.Run("copies the flags and resolves proxy and dind against the config", func(t *testing.T) {
 		// Arrange
@@ -432,7 +439,7 @@ func Test_resolveInput(t *testing.T) {
 		flags := Flags{Dind: resolve.DindInput{DindFlag: true}}
 
 		// Act
-		in, err := resolveInput(flags, &config.AgenticRC{}, sandbox.Capabilities{CredentialInjection: true})
+		in, err := resolveInput(flags, &config.AgenticRC{}, sandbox.Capabilities{Features: sandbox.Features{CredentialInjection: true}})
 
 		// Assert
 		require.NoError(t, err)
@@ -445,7 +452,7 @@ func Test_resolveInput(t *testing.T) {
 		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
 
 		// Act
-		in, err := resolveInput(Flags{}, rc, sandbox.Capabilities{CredentialInjection: true})
+		in, err := resolveInput(Flags{}, rc, sandbox.Capabilities{Features: sandbox.Features{CredentialInjection: true}})
 
 		// Assert
 		require.NoError(t, err)

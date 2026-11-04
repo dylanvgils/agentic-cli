@@ -61,8 +61,8 @@ func Test_resolveCredentials(t *testing.T) {
 
 func Test_credentialSetup(t *testing.T) {
 	resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_API_KEY"}}}
-	proxyInjects := sandbox.Capabilities{Proxy: true, CredentialInjection: true, CredentialsViaProxy: true}
-	runtimeInjects := sandbox.Capabilities{CredentialInjection: true}
+	proxyInjects := sandbox.Isolation{CredentialsViaProxy: true}
+	runtimeInjects := sandbox.Isolation{}
 
 	t.Run("no credentials is a no-op even with the proxy off", func(t *testing.T) {
 		// Act

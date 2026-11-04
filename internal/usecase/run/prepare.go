@@ -164,7 +164,7 @@ func resolveInput(flags Flags, rc *config.AgenticRC, caps sandbox.Capabilities) 
 		DryRun:            flags.DryRun,
 		Registry:          flags.Registry,
 		ProxyMode:         proxyMode,
-		ProxyIntegrations: proxyIntegrations(flags.Proxy, rc, proxyMode, caps),
+		ProxyIntegrations: proxyIntegrations(flags.Proxy, rc, proxyMode, caps.Features),
 		DindEnabled:       dind,
 		DindLimits:        flags.DindLimits,
 		Runtime:           resolve.Runtime(flags.Runtime, rc),

@@ -25,16 +25,21 @@ func TestClient_Capabilities(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, sandbox.Capabilities{
-		Proxy:               true,
-		ProxyMonitor:        true,
-		Dind:                true,
-		CredentialInjection: true,
-		PathRules:           true,
-		ProxyIntegrations:   true,
-		CredentialsViaProxy: true,
-		PidsLimit:           true,
-		ReadOnlyRoot:        true,
-		DropsPrivileges:     true,
+		Features: sandbox.Features{
+			Proxy:               true,
+			ProxyMonitor:        true,
+			Dind:                true,
+			CredentialInjection: true,
+			PathRules:           true,
+			ProxyIntegrations:   true,
+			PidsLimit:           true,
+		},
+		Isolation: sandbox.Isolation{
+			Boundary:            sandbox.BoundaryContainer,
+			ReadOnlyRoot:        true,
+			DropsPrivileges:     true,
+			CredentialsViaProxy: true,
+		},
 	}, caps)
 }
 

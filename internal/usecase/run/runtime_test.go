@@ -167,8 +167,8 @@ func Test_Service_runner(t *testing.T) {
 }
 
 func Test_Service_capabilities(t *testing.T) {
-	dockerCaps := sandbox.Capabilities{Proxy: true}
-	msbCaps := sandbox.Capabilities{CredentialInjection: true}
+	dockerCaps := sandbox.Capabilities{Features: sandbox.Features{Proxy: true}}
+	msbCaps := sandbox.Capabilities{Features: sandbox.Features{CredentialInjection: true}}
 	svc := New(
 		&fakeDocker{capabilities: func() sandbox.Capabilities { return dockerCaps }},
 		&fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return msbCaps }},

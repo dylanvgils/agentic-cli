@@ -23,7 +23,7 @@ func Test_proxyRules(t *testing.T) {
 
 	t.Run("a runtime with path rules keeps the paths", func(t *testing.T) {
 		// Act
-		rules := proxyRules(toolConfig, Input{}, rc, sandbox.Capabilities{PathRules: true})
+		rules := proxyRules(toolConfig, Input{}, rc, sandbox.Features{PathRules: true})
 
 		// Assert
 		assert.Equal(t, []sandbox.AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test", Paths: []string{"/a"}}}, rules)
@@ -31,7 +31,7 @@ func Test_proxyRules(t *testing.T) {
 
 	t.Run("a runtime without path rules allows their hosts whole", func(t *testing.T) {
 		// Act
-		rules := proxyRules(toolConfig, Input{}, rc, sandbox.Capabilities{})
+		rules := proxyRules(toolConfig, Input{}, rc, sandbox.Features{})
 
 		// Assert
 		assert.Equal(t, []sandbox.AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test"}}, rules)
@@ -41,7 +41,7 @@ func Test_proxyRules(t *testing.T) {
 func Test_proxyIntegrations(t *testing.T) {
 	rc := &config.AgenticRC{}
 	flags := resolve.ProxyInput{Integrations: []string{"maven"}}
-	caps := sandbox.Capabilities{ProxyIntegrations: true}
+	caps := sandbox.Features{ProxyIntegrations: true}
 
 	t.Run("returns them with the proxy on a runtime that supports them", func(t *testing.T) {
 		// Act
@@ -61,7 +61,7 @@ func Test_proxyIntegrations(t *testing.T) {
 
 	t.Run("none on a runtime without them", func(t *testing.T) {
 		// Act
-		integrations := proxyIntegrations(flags, rc, sandbox.ProxyEnforce, sandbox.Capabilities{})
+		integrations := proxyIntegrations(flags, rc, sandbox.ProxyEnforce, sandbox.Features{})
 
 		// Assert
 		assert.Empty(t, integrations)

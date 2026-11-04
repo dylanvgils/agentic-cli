@@ -375,7 +375,7 @@ func TestBuildInstructions(t *testing.T) {
 	t.Run("a runtime without a daemon says docker fails", func(t *testing.T) {
 		// Arrange
 		in := Input{Runtime: sandbox.RuntimeMicrosandbox, DindEnabled: true}
-		m := &fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return sandbox.Capabilities{} }}
+		m := &fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return sandbox.Capabilities{Isolation: sandbox.Isolation{Boundary: sandbox.BoundaryVM}} }}
 
 		// Act
 		content, err := New(&fakeDocker{}, m).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})

@@ -116,7 +116,7 @@ func (s *Service) build(target Target, in Input, toolConfig tools.ToolConfig, ap
 	rs := newRunSpec(req, mounts, env, logFile)
 
 	// Only a proxy that decrypts, for credentials or path rules, needs the tool to trust its CA
-	spec := specCapabilities(rs)
+	spec := specFeatures(rs)
 	if (spec.CredentialInjection || spec.PathRules) && req.caps.CredentialsViaProxy {
 		if err := s.checkProxyTrust(target); err != nil {
 			return sandbox.RunSpec{}, err
@@ -162,7 +162,7 @@ func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []s
 		return nil, err
 	}
 
-	if err := credentialSetup(in, req.caps, mounts, env); err != nil {
+	if err := credentialSetup(in, req.caps.Isolation, mounts, env); err != nil {
 		return nil, err
 	}
 
@@ -218,7 +218,7 @@ func newRunSpec(req buildRequest, mounts mountSet, env []string, proxyLog string
 	limits := resolve.ResourceLimitsFor(in.Limits, rc)
 	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
 
-	rules := proxyRules(toolConfig, in, rc, req.caps)
+	rules := proxyRules(toolConfig, in, rc, req.caps.Features)
 
 	return sandbox.NewRunSpec(req.target.ImageName).
 		WithToolHome(in.ToolHome).
