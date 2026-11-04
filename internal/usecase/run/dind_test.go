@@ -22,7 +22,7 @@ func Test_dockerRunner_requireDockerLayer(t *testing.T) {
 		}
 
 		// Act
-		err := dockerRunner{docker: d}.requireDockerLayer(req)
+		err := newTestDockerRunner(d).requireDockerLayer(req)
 
 		// Assert
 		require.NoError(t, err)
@@ -37,7 +37,7 @@ func Test_dockerRunner_requireDockerLayer(t *testing.T) {
 		}
 
 		// Act
-		err := dockerRunner{docker: d}.requireDockerLayer(req)
+		err := newTestDockerRunner(d).requireDockerLayer(req)
 
 		// Assert
 		assert.EqualError(t, err, `--dind needs the docker CLI in "agentic-claude"; rebuild with "agentic build claude --base docker"`)
@@ -48,7 +48,7 @@ func Test_dockerRunner_requireDockerLayer(t *testing.T) {
 		d := &fakeDocker{inspectImage: func(string) (*docker.ImageInfo, error) { return nil, nil }}
 
 		// Act
-		err := dockerRunner{docker: d}.requireDockerLayer(req)
+		err := newTestDockerRunner(d).requireDockerLayer(req)
 
 		// Assert
 		require.NoError(t, err)
@@ -63,7 +63,7 @@ func Test_dockerRunner_requireDockerLayer(t *testing.T) {
 		}
 
 		// Act
-		err := dockerRunner{docker: d}.requireDockerLayer(req)
+		err := newTestDockerRunner(d).requireDockerLayer(req)
 
 		// Assert
 		require.ErrorContains(t, err, "docker daemon not running")

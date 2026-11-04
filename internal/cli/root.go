@@ -163,7 +163,7 @@ func checkGit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !run.New(dockerClient, msbClient).ToolNeedsMarketplaceSync(toolConfig, rc, args[0]) {
+	if !newRunService().ToolNeedsMarketplaceSync(toolConfig, rc, args[0]) {
 		return nil
 	}
 

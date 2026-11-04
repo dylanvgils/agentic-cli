@@ -37,7 +37,7 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	content, err := run.New(dockerClient, msbClient).PreviewInstructions(req)
+	content, err := newRunService().PreviewInstructions(req)
 	if err != nil {
 		return err
 	}

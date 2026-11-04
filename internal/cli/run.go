@@ -6,6 +6,9 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/spf13/cobra"
 )
 
@@ -39,6 +42,26 @@ type invocation struct {
 	layers     []config.RCLayer
 	rc         *config.AgenticRC
 	toolConfig tools.ToolConfig
+}
+
+// toolUpdates offers a run's due tool update through toolupdate and applies it through update.
+type toolUpdates struct {
+	docker   dockerAPI
+	upstream update.Upstream
+}
+
+// Offer implements run.ToolUpdates.
+func (u toolUpdates) Offer(req run.ToolUpdate, confirm func(tool, installed, latest string) bool) error {
+	apply := func(tool, image string) error {
+		return update.New(u.docker, u.upstream, req.Home).ApplyRecovered(tool, image, req.RC)
+	}
+	check := toolupdate.Request{
+		Home:  req.Home,
+		RC:    req.RC,
+		Tool:  req.Tool,
+		Image: req.Image,
+	}
+	return toolupdate.New(u.docker, u.upstream).Check(check, confirm, apply)
 }
 
 func init() {
@@ -75,7 +98,7 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	svc := run.New(dockerClient, msbClient)
+	svc := newRunService()
 	rs, cleanup, err := svc.Prepare(req, newTTYPrompter())
 	defer cleanup()
 	if err != nil {
@@ -83,6 +106,12 @@ func runTool(cmd *cobra.Command, args []string) error {
 	}
 
 	return svc.Run(req, rs)
+}
+
+// newRunService returns the run usecase wired to the cli's clients; call it at command time, after dockerClient is set up.
+func newRunService() *run.Service {
+	updates := toolUpdates{docker: dockerClient, upstream: upstreamClient}
+	return run.New(dockerClient, msbClient, updates, sidecar.New(dockerClient))
 }
 
 // parseInvocation loads the working dir's config layers and parses the tool, image and tool args from args.

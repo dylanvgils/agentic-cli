@@ -9,8 +9,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 )
 
 // Request is an `agentic run` call: what to run, in which project, with which flags.
@@ -106,13 +104,13 @@ func (s *Service) checkTool(req Request, prompter Prompter) error {
 
 // offerToolUpdate offers a due tool update and applies it when the user accepts.
 func (s *Service) offerToolUpdate(req Request, prompter Prompter) error {
-	target, home, rc := req.Target, req.Flags.ToolHome, req.Project.RC
-
-	updateReq := toolupdate.Request{Home: home, RC: rc, Tool: target.ToolName, Image: target.ImageName}
-	apply := func(tool, image string) error {
-		return update.New(s.docker, s.upstream, home).ApplyRecovered(tool, image, rc)
+	u := ToolUpdate{
+		Home:  req.Flags.ToolHome,
+		RC:    req.Project.RC,
+		Tool:  req.Target.ToolName,
+		Image: req.Target.ImageName,
 	}
-	return toolupdate.New(s.docker, s.upstream).Check(updateReq, prompter.OfferToolUpdate, apply)
+	return s.toolUpdates.Offer(u, prompter.OfferToolUpdate)
 }
 
 // CheckProjectDir refuses a working dir Docker can't bind-mount; run it before reading the dir's config.

@@ -24,11 +24,6 @@ type fakeDocker struct {
 	resolveContainerHome func(string) string
 	ensureNamedVolumes   func(rs sandbox.RunSpec, chownImage string) error
 	listAllImages        func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
-	buildProxyImage      func(image, version, sourceDir string, opts tools.BuildOptions) error
-	buildDindImage       func(image string, opts tools.BuildOptions) error
-	buildTool            func(tool, image string, opts tools.BuildOptions) error
-	restampImage         func(image string, info docker.ImageInfo)
-	pruneImages          func() (string, error)
 	saveImage            func(image string, w io.Writer) error
 	buildDockerdImage    func(image string, parent *docker.ImageInfo) error
 	startSidecars        func(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
@@ -87,40 +82,6 @@ func (f *fakeDocker) ListAllImages(filters ...docker.ImageFilter) ([]*docker.Ima
 	return f.listAllImages(filters...)
 }
 
-func (f *fakeDocker) BuildProxyImage(image, version, sourceDir string, opts tools.BuildOptions) error {
-	if f.buildProxyImage == nil {
-		return nil
-	}
-	return f.buildProxyImage(image, version, sourceDir, opts)
-}
-
-func (f *fakeDocker) BuildDindImage(image string, opts tools.BuildOptions) error {
-	if f.buildDindImage == nil {
-		return nil
-	}
-	return f.buildDindImage(image, opts)
-}
-
-func (f *fakeDocker) BuildTool(tool, image string, opts tools.BuildOptions) error {
-	if f.buildTool == nil {
-		return nil
-	}
-	return f.buildTool(tool, image, opts)
-}
-
-func (f *fakeDocker) RestampImage(image string, info docker.ImageInfo) {
-	if f.restampImage != nil {
-		f.restampImage(image, info)
-	}
-}
-
-func (f *fakeDocker) PruneImages() (string, error) {
-	if f.pruneImages == nil {
-		return "", nil
-	}
-	return f.pruneImages()
-}
-
 func (f *fakeDocker) SaveImage(image string, w io.Writer) error {
 	if f.saveImage == nil {
 		return nil
@@ -146,6 +107,40 @@ func (f *fakeDocker) StopSidecars(sidecars docker.Sidecars) {
 	if f.stopSidecars != nil {
 		f.stopSidecars(sidecars)
 	}
+}
+
+// fakeToolUpdates implements ToolUpdates; a nil offer succeeds without offering anything.
+type fakeToolUpdates struct {
+	offer func(u ToolUpdate, confirm func(tool, installed, latest string) bool) error
+}
+
+func (f *fakeToolUpdates) Offer(u ToolUpdate, confirm func(tool, installed, latest string) bool) error {
+	if f.offer == nil {
+		return nil
+	}
+	return f.offer(u, confirm)
+}
+
+// fakeSidecarImages implements SidecarImages; a nil ensure succeeds.
+type fakeSidecarImages struct {
+	ensure func(proxy, dind bool, registry string) error
+}
+
+func (f *fakeSidecarImages) Ensure(proxy, dind bool, registry string) error {
+	if f.ensure == nil {
+		return nil
+	}
+	return f.ensure(proxy, dind, registry)
+}
+
+// newTestService returns a Service over d and m whose tool updates and sidecar images succeed without doing anything.
+func newTestService(d Docker, m Microsandbox) *Service {
+	return New(d, m, &fakeToolUpdates{}, &fakeSidecarImages{})
+}
+
+// newTestDockerRunner returns a dockerRunner over d whose sidecar images succeed without doing anything.
+func newTestDockerRunner(d Docker) dockerRunner {
+	return dockerRunner{docker: d, sidecarImages: &fakeSidecarImages{}}
 }
 
 // newProxyRunSpec returns a RunSpec with the proxy in mode and a temp tool home for its log.
@@ -314,17 +309,13 @@ func approveSettings(t *testing.T, layer config.RCLayer, toolHome string) {
 	require.NoError(t, cfg.ApproveSettings(layer, toolHome))
 }
 
-// newPrepareRequest returns a Request for claude in a fresh home and cwd, with the tool update check disabled.
+// newPrepareRequest returns a Request for claude in a fresh home and cwd.
 func newPrepareRequest(t *testing.T) Request {
 	t.Helper()
-	checkUpdates := false
-	rc := &config.AgenticRC{}
-	rc.Run.CheckUpdates = &checkUpdates
-
 	return Request{
 		Target:  Target{ToolName: "claude", ImageName: "agentic-claude"},
 		Tool:    tools.Configs["claude"],
-		Project: Project{Dir: t.TempDir(), RC: rc},
+		Project: Project{Dir: t.TempDir(), RC: &config.AgenticRC{}},
 		Flags:   Flags{ToolHome: t.TempDir()},
 	}
 }
@@ -339,19 +330,6 @@ func newCredentialRequest(t *testing.T) Request {
 	req.Project.Layers = []config.RCLayer{layer}
 	req.Project.RC.Run.Proxy.Credentials = layer.RC.Run.Proxy.Credentials
 	return req
-}
-
-// withLatestToolVersion makes svc's tool update check see latest as newer.
-func withLatestToolVersion(svc *Service, latest string) *Service {
-	svc.upstream = fakeUpstream(latest)
-	return svc
-}
-
-// fakeUpstream implements toolupdate.Upstream, reporting itself as a newer latest version.
-type fakeUpstream string
-
-func (f fakeUpstream) LatestToolVersion(string, string) (string, bool, bool) {
-	return string(f), true, true
 }
 
 // chdirSymlinkWorkspace makes a fresh symlinkWorkspace the cwd.
@@ -391,7 +369,7 @@ func stubUnresolvablePath(t *testing.T) string {
 
 // newSyncingService returns a Service over d whose marketplace sync is sync.
 func newSyncingService(d Docker, sync func([]marketplace.Entry, func(marketplace.Entry) string) ([]marketplace.Result, error)) *Service {
-	svc := New(d, nil)
+	svc := newTestService(d, nil)
 	svc.syncMarketplaces = sync
 	return svc
 }

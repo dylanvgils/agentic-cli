@@ -10,6 +10,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolruns"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/upgradecheck"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/volumes"
@@ -37,6 +38,7 @@ type dockerAPI interface {
 	run.Docker
 	sidecar.Docker
 	toolruns.Docker
+	toolupdate.Docker
 	volumes.Docker
 
 	Context() string

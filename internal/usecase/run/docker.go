@@ -8,7 +8,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 )
 
 // dockerEngineName is the engine component Docker Engine reports; others, like Podman, name themselves.
@@ -16,7 +15,8 @@ const dockerEngineName = "Engine"
 
 // dockerRunner runs tools in hardened Docker containers.
 type dockerRunner struct {
-	docker Docker
+	docker        Docker
+	sidecarImages SidecarImages
 }
 
 // Capabilities reports what Docker runs offer.
@@ -99,5 +99,5 @@ func (r dockerRunner) prepareDockerHost(rs sandbox.RunSpec, registry, proxyLog s
 		}
 	}
 
-	return sidecar.New(r.docker).Ensure(proxy, dind, registry)
+	return r.sidecarImages.Ensure(proxy, dind, registry)
 }

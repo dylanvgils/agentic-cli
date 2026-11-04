@@ -16,7 +16,7 @@ func Test_Service_Run(t *testing.T) {
 		// Arrange
 		var ranSpec sandbox.RunSpec
 		microsandboxRan := false
-		svc := New(&fakeDocker{
+		svc := newTestService(&fakeDocker{
 			startSidecars: func(rs sandbox.RunSpec, _ string) (docker.Sidecars, error) {
 				ranSpec = rs
 				return docker.Sidecars{}, nil
@@ -46,7 +46,7 @@ func Test_Service_Run(t *testing.T) {
 				return nil
 			},
 		}
-		svc := New(d, &fakeMicrosandbox{run: func(rs sandbox.RunSpec) error {
+		svc := newTestService(d, &fakeMicrosandbox{run: func(rs sandbox.RunSpec) error {
 			ranSpec = rs
 			return nil
 		}})
@@ -63,7 +63,7 @@ func Test_Service_Run(t *testing.T) {
 	t.Run("a spec relying on a feature the runtime lacks never reaches it", func(t *testing.T) {
 		// Arrange
 		ran := false
-		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec) error {
+		svc := newTestService(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec) error {
 			ran = true
 			return nil
 		}})
@@ -81,7 +81,7 @@ func Test_Service_Run(t *testing.T) {
 		// Arrange
 		ws := chdirSymlinkWorkspace(t)
 		ran := false
-		svc := New(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec) error {
+		svc := newTestService(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec) error {
 			ran = true
 			return nil
 		}})
@@ -98,7 +98,7 @@ func Test_Service_Run(t *testing.T) {
 	t.Run("unset runtime runs on docker", func(t *testing.T) {
 		// Arrange
 		dockerRan := false
-		svc := New(&fakeDocker{runTool: func(docker.Sidecars) error {
+		svc := newTestService(&fakeDocker{runTool: func(docker.Sidecars) error {
 			dockerRan = true
 			return nil
 		}}, nil)
@@ -113,7 +113,7 @@ func Test_Service_Run(t *testing.T) {
 
 	t.Run("unknown runtime returns error", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{}, nil)
+		svc := newTestService(&fakeDocker{}, nil)
 
 		// Act
 		err := svc.Run(runtimeRequest(sandbox.Runtime("podman")), sandbox.RunSpec{})
@@ -124,7 +124,7 @@ func Test_Service_Run(t *testing.T) {
 }
 
 func Test_Service_runner(t *testing.T) {
-	svc := New(&fakeDocker{}, &fakeMicrosandbox{})
+	svc := newTestService(&fakeDocker{}, &fakeMicrosandbox{})
 
 	t.Run("docker and the empty runtime get the docker runner", func(t *testing.T) {
 		// Act
@@ -134,8 +134,8 @@ func Test_Service_runner(t *testing.T) {
 		// Assert
 		require.NoError(t, dockerErr)
 		require.NoError(t, emptyErr)
-		assert.Equal(t, dockerRunner{docker: svc.docker}, docker)
-		assert.Equal(t, dockerRunner{docker: svc.docker}, empty)
+		assert.Equal(t, dockerRunner{docker: svc.docker, sidecarImages: svc.sidecarImages}, docker)
+		assert.Equal(t, dockerRunner{docker: svc.docker, sidecarImages: svc.sidecarImages}, empty)
 	})
 
 	t.Run("microsandbox gets the microsandbox runner", func(t *testing.T) {
@@ -169,7 +169,7 @@ func Test_Service_runner(t *testing.T) {
 func Test_Service_capabilities(t *testing.T) {
 	dockerCaps := sandbox.Capabilities{Features: sandbox.Features{Proxy: true}}
 	msbCaps := sandbox.Capabilities{Features: sandbox.Features{CredentialInjection: true}}
-	svc := New(
+	svc := newTestService(
 		&fakeDocker{capabilities: func() sandbox.Capabilities { return dockerCaps }},
 		&fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return msbCaps }},
 	)
@@ -209,7 +209,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		req.Flags.Dind.DindFlag = true
 
 		// Act
-		err := New(&fakeDocker{}, nil).checkRuntime(req)
+		err := newTestService(&fakeDocker{}, nil).checkRuntime(req)
 
 		// Assert
 		assert.NoError(t, err)
@@ -227,7 +227,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		}}
 
 		// Act
-		err := New(&fakeDocker{}, m).checkRuntime(req)
+		err := newTestService(&fakeDocker{}, m).checkRuntime(req)
 
 		// Assert
 		assert.ErrorContains(t, err, "does not support proxy monitor mode (--proxy-monitor)")
@@ -240,7 +240,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		req.Flags.Runtime = "podman"
 
 		// Act
-		err := New(&fakeDocker{}, nil).checkRuntime(req)
+		err := newTestService(&fakeDocker{}, nil).checkRuntime(req)
 
 		// Assert
 		assert.ErrorContains(t, err, `unknown runtime "podman"`)
@@ -253,7 +253,7 @@ func Test_Service_checkRuntime(t *testing.T) {
 		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
 
 		// Act
-		err := New(&fakeDocker{}, m).checkRuntime(req)
+		err := newTestService(&fakeDocker{}, m).checkRuntime(req)
 
 		// Assert
 		assert.EqualError(t, err, "msb not found on PATH")

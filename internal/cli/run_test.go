@@ -8,6 +8,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
@@ -257,4 +258,48 @@ func Test_runRequest(t *testing.T) {
 	assert.Equal(t, []string{"/example.test/a:/a"}, req.Flags.Volumes)
 	assert.Equal(t, []string{"FOO=bar"}, req.Flags.Env)
 	assert.Equal(t, sandbox.RuntimeMicrosandbox, req.Flags.Runtime)
+}
+
+func Test_toolUpdates_Offer(t *testing.T) {
+	stubDocker(t, &fakeDocker{inspectImage: func(name string) (*docker.ImageInfo, error) {
+		return &docker.ImageInfo{Image: name, Version: "1.0.0"}, nil
+	}})
+	stubUpstream(t, "2.0.0", true, true)
+
+	t.Run("offers a due update with the installed and latest versions", func(t *testing.T) {
+		// Arrange
+		var offered []string
+		confirm := func(tool, installed, latest string) bool {
+			offered = []string{tool, installed, latest}
+			return false
+		}
+		u := toolUpdates{docker: dockerClient, upstream: upstreamClient}
+		req := run.ToolUpdate{Home: t.TempDir(), RC: &config.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
+
+		// Act
+		err := u.Offer(req, confirm)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"claude", "1.0.0", "2.0.0"}, offered)
+	})
+
+	t.Run("an accepted update rebuilds the tool image", func(t *testing.T) {
+		// Arrange
+		iostreamstest.StubErr(t)
+		var built []string
+		stubDocker(t, &fakeDocker{buildTool: func(tool, image string, _ tools.BuildOptions) error {
+			built = []string{tool, image}
+			return nil
+		}})
+		u := toolUpdates{docker: dockerClient, upstream: upstreamClient}
+		req := run.ToolUpdate{Home: t.TempDir(), RC: &config.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
+
+		// Act
+		err := u.Offer(req, func(string, string, string) bool { return true })
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"claude", "agentic-claude"}, built)
+	})
 }

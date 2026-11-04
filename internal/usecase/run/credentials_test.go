@@ -311,7 +311,7 @@ func Test_checkProxyTrust(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, nil).checkProxyTrust(target)
+		err := newTestService(d, nil).checkProxyTrust(target)
 
 		// Assert
 		assert.NoError(t, err)
@@ -324,7 +324,7 @@ func Test_checkProxyTrust(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, nil).checkProxyTrust(target)
+		err := newTestService(d, nil).checkProxyTrust(target)
 
 		// Assert
 		assert.ErrorContains(t, err, `agentic update claude`)
@@ -332,7 +332,7 @@ func Test_checkProxyTrust(t *testing.T) {
 
 	t.Run("a missing image passes, as it is built fresh", func(t *testing.T) {
 		// Act
-		err := New(&fakeDocker{}, nil).checkProxyTrust(target)
+		err := newTestService(&fakeDocker{}, nil).checkProxyTrust(target)
 
 		// Assert
 		assert.NoError(t, err)
@@ -345,7 +345,7 @@ func Test_checkProxyTrust(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, nil).checkProxyTrust(target)
+		err := newTestService(d, nil).checkProxyTrust(target)
 
 		// Assert
 		assert.ErrorContains(t, err, "daemon down")
@@ -364,7 +364,7 @@ func Test_checkProxyTrust(t *testing.T) {
 		skipped := Target{ToolName: "claude", ImageName: "agentic-claude", SkipEntrypoint: true}
 
 		// Act
-		err := New(d, nil).checkProxyTrust(skipped)
+		err := newTestService(d, nil).checkProxyTrust(skipped)
 
 		// Assert
 		require.NoError(t, err)
