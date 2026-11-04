@@ -42,7 +42,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 		req := newCredentialRequest(t)
 
 		// Act
-		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Engine", "26.0.0")}}.Check(req)
+		err := newTestDockerRunner(&fakeDocker{serverVersion: engine("Engine", "26.0.0")}).Check(req)
 
 		// Assert
 		assert.NoError(t, err)
@@ -50,7 +50,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 
 	t.Run("refuses an older Docker Engine", func(t *testing.T) {
 		// Act
-		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Engine", "25.0.5")}}.Check(plain)
+		err := newTestDockerRunner(&fakeDocker{serverVersion: engine("Engine", "25.0.5")}).Check(plain)
 
 		// Assert
 		assert.EqualError(t, err, "Docker Engine 25.0.5 is older than the minimum 26.0; update it and run again")
@@ -61,7 +61,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 		buf := iostreamstest.StubErr(t)
 
 		// Act
-		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Podman Engine", "5.2.0")}}.Check(plain)
+		err := newTestDockerRunner(&fakeDocker{serverVersion: engine("Podman Engine", "5.2.0")}).Check(plain)
 
 		// Assert
 		require.NoError(t, err)
@@ -73,7 +73,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 		d := &fakeDocker{serverVersion: func() (string, string, error) { return "", "", errors.New("cannot connect to the docker daemon") }}
 
 		// Act
-		err := dockerRunner{docker: d}.Check(plain)
+		err := newTestDockerRunner(d).Check(plain)
 
 		// Assert
 		assert.EqualError(t, err, "read the Docker Engine version: cannot connect to the docker daemon")
@@ -84,7 +84,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 		req := Request{Flags: Flags{DryRun: true}, Project: Project{RC: &config.AgenticRC{}}}
 
 		// Act
-		err := dockerRunner{docker: &fakeDocker{serverVersion: engine("Engine", "20.10.24")}}.Check(req)
+		err := newTestDockerRunner(&fakeDocker{serverVersion: engine("Engine", "20.10.24")}).Check(req)
 
 		// Assert
 		assert.NoError(t, err)
@@ -95,7 +95,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 		req := Request{Flags: Flags{DryRun: true, Dind: resolve.DindInput{DindFlag: true}}, Project: Project{RC: &config.AgenticRC{}}}
 
 		// Act
-		err := dockerRunner{docker: &fakeDocker{inspectImage: withoutDockerLayer}}.Check(req)
+		err := newTestDockerRunner(&fakeDocker{inspectImage: withoutDockerLayer}).Check(req)
 
 		// Assert
 		assert.ErrorContains(t, err, "--base docker")
@@ -103,7 +103,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 
 	t.Run("skips the docker layer without dind", func(t *testing.T) {
 		// Act
-		err := dockerRunner{docker: &fakeDocker{inspectImage: withoutDockerLayer, serverVersion: engine("Engine", "26.0.0")}}.Check(plain)
+		err := newTestDockerRunner(&fakeDocker{inspectImage: withoutDockerLayer, serverVersion: engine("Engine", "26.0.0")}).Check(plain)
 
 		// Assert
 		assert.NoError(t, err)
@@ -133,7 +133,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := dockerRunner{docker: d}.Run(req, sandbox.RunSpec{Image: "agentic-claude"})
+		err := newTestDockerRunner(d).Run(req, sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Assert
 		require.NoError(t, err)
@@ -153,7 +153,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
 
 		// Act
-		err := dockerRunner{docker: d}.Run(req, rs)
+		err := newTestDockerRunner(d).Run(req, rs)
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
@@ -178,7 +178,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/late/sub:/data:ro"}}
 
 		// Act
-		err := dockerRunner{docker: d}.Run(req, rs)
+		err := newTestDockerRunner(d).Run(req, rs)
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink "+late)
@@ -201,7 +201,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := dockerRunner{docker: d}.Run(req, sandbox.RunSpec{Image: "agentic-claude"})
+		err := newTestDockerRunner(d).Run(req, sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Assert
 		assert.EqualError(t, err, "proxy error")
@@ -221,7 +221,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := dockerRunner{docker: d}.Run(req, sandbox.RunSpec{Image: "agentic-claude"})
+		err := newTestDockerRunner(d).Run(req, sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Assert
 		assert.EqualError(t, err, "volume error")
@@ -243,7 +243,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := dockerRunner{docker: d}.Run(req, sandbox.RunSpec{Image: "agentic-claude", DryRun: true})
+		err := newTestDockerRunner(d).Run(req, sandbox.RunSpec{Image: "agentic-claude", DryRun: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -262,7 +262,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}}
 
 		// Act
-		err := dockerRunner{docker: d}.Run(req, rs)
+		err := newTestDockerRunner(d).Run(req, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -287,7 +287,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}
 
 		// Act
-		err := dockerRunner{docker: d}.Run(req, rs)
+		err := newTestDockerRunner(d).Run(req, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -306,7 +306,7 @@ func Test_dockerRunner_Run(t *testing.T) {
 		}}
 
 		// Act
-		err := dockerRunner{docker: d}.Run(req, rs)
+		err := newTestDockerRunner(d).Run(req, rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -315,14 +315,6 @@ func Test_dockerRunner_Run(t *testing.T) {
 }
 
 func Test_dockerRunner_prepareDockerHost(t *testing.T) {
-	// The proxy image is missing, so Ensure builds it
-	proxyMissing := func(name string) (*docker.ImageInfo, error) {
-		if name == tools.ProxyImage {
-			return nil, nil
-		}
-		return &docker.ImageInfo{Image: name}, nil
-	}
-
 	t.Run("creates the named volumes with the registry's chown image", func(t *testing.T) {
 		// Arrange
 		var gotVolumes []string
@@ -334,7 +326,7 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 		rs := sandbox.RunSpec{Volumes: []string{"maven:/cache"}}
 
 		// Act
-		err := dockerRunner{docker: d}.prepareDockerHost(rs, "registry.example.test", "")
+		err := newTestDockerRunner(d).prepareDockerHost(rs, "registry.example.test", "")
 
 		// Assert
 		require.NoError(t, err)
@@ -346,49 +338,44 @@ func Test_dockerRunner_prepareDockerHost(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
 		logDir := filepath.Join(home, config.LogsDirName)
-		d := &fakeDocker{inspectImage: func(name string) (*docker.ImageInfo, error) { return &docker.ImageInfo{Image: name}, nil }}
 		rs := sandbox.RunSpec{ToolHome: home, Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce}}
 
 		// Act
-		err := dockerRunner{docker: d}.prepareDockerHost(rs, "", filepath.Join(logDir, "proxy_abc.jsonl"))
+		err := newTestDockerRunner(&fakeDocker{}).prepareDockerHost(rs, "", filepath.Join(logDir, "proxy_abc.jsonl"))
 
 		// Assert
 		require.NoError(t, err)
 		assert.DirExists(t, logDir)
 	})
 
-	t.Run("builds missing sidecar images", func(t *testing.T) {
+	t.Run("ensures the sidecar images for the run", func(t *testing.T) {
 		// Arrange
-		iostreamstest.StubErr(t)
-		var builds []string
-		d := &fakeDocker{
-			inspectImage: proxyMissing,
-			buildProxyImage: func(image, _, _ string, _ tools.BuildOptions) error {
-				builds = append(builds, image)
-				return nil
-			},
-		}
+		var gotProxy, gotDind bool
+		var gotRegistry string
+		si := &fakeSidecarImages{ensure: func(proxy, dind bool, registry string) error {
+			gotProxy, gotDind, gotRegistry = proxy, dind, registry
+			return nil
+		}}
 		rs := newProxyRunSpec(t, sandbox.EgressMonitor)
+		rs.Dind.Enabled = true
 
 		// Act
-		err := dockerRunner{docker: d}.prepareDockerHost(rs, "", "")
+		err := dockerRunner{docker: &fakeDocker{}, sidecarImages: si}.prepareDockerHost(rs, "registry.example.test", "")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{tools.ProxyImage}, builds)
+		assert.True(t, gotProxy)
+		assert.True(t, gotDind)
+		assert.Equal(t, "registry.example.test", gotRegistry)
 	})
 
-	t.Run("sidecar build error is returned", func(t *testing.T) {
+	t.Run("a sidecar image error is returned", func(t *testing.T) {
 		// Arrange
-		iostreamstest.StubErr(t)
-		d := &fakeDocker{
-			inspectImage:    proxyMissing,
-			buildProxyImage: func(string, string, string, tools.BuildOptions) error { return errors.New("proxy build failed") },
-		}
+		si := &fakeSidecarImages{ensure: func(bool, bool, string) error { return errors.New("proxy build failed") }}
 		rs := newProxyRunSpec(t, sandbox.EgressMonitor)
 
 		// Act
-		err := dockerRunner{docker: d}.prepareDockerHost(rs, "", "")
+		err := dockerRunner{docker: &fakeDocker{}, sidecarImages: si}.prepareDockerHost(rs, "", "")
 
 		// Assert
 		assert.EqualError(t, err, "proxy build failed")

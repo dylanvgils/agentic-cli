@@ -30,7 +30,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{ToolHome: t.TempDir(), Volumes: []string{"/host:/container:rw"}}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
@@ -43,7 +43,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{ToolHome: t.TempDir()}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
@@ -57,7 +57,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{ToolHome: t.TempDir(), InstructionsMount: "/tmp/snapshot.md:$CONTAINER_HOME/.claude/CLAUDE.md"}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
@@ -73,7 +73,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{ToolHome: t.TempDir()}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
@@ -89,7 +89,7 @@ func Test_Service_build(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
 
 		// Assert
 		require.NoError(t, err)
@@ -103,7 +103,7 @@ func Test_Service_build(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
 
 		// Assert
 		require.NoError(t, err)
@@ -120,7 +120,7 @@ func Test_Service_build(t *testing.T) {
 		}}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
 
 		// Assert
 		require.NoError(t, err)
@@ -134,7 +134,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{ToolHome: t.TempDir(), DryRun: true}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
@@ -147,7 +147,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{ToolHome: t.TempDir()}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
@@ -161,7 +161,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{ToolHome: customHome}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
@@ -174,7 +174,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{ToolHome: t.TempDir()}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
@@ -188,7 +188,7 @@ func Test_Service_build(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Args: map[string][]string{"claude": {"--from-rc"}}}}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
 
 		// Assert
 		require.NoError(t, err)
@@ -203,7 +203,7 @@ func Test_Service_build(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Mounts: []string{"$PWD/escape:/workspace/escape"}}}
 
 		// Act
-		_, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
+		_, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink")
@@ -216,7 +216,7 @@ func Test_Service_build(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedHosts: []string{"extra.example.com"}}}}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
 
 		// Assert
 		require.NoError(t, err)
@@ -233,7 +233,7 @@ func Test_Service_build(t *testing.T) {
 		}}}}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
 
 		// Assert
 		require.NoError(t, err)
@@ -250,7 +250,7 @@ func Test_Service_build(t *testing.T) {
 		}}}}
 
 		// Act
-		_, err := New(untrusted, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
+		_, err := newTestService(untrusted, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
 
 		// Assert
 		assert.ErrorContains(t, err, "can't trust the proxy CA")
@@ -265,7 +265,7 @@ func Test_Service_build(t *testing.T) {
 		}}}}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
 
 		// Assert
 		require.NoError(t, err)
@@ -279,7 +279,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{ToolHome: t.TempDir()}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
@@ -292,7 +292,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.EgressMonitor}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
@@ -310,7 +310,7 @@ func Test_Service_build(t *testing.T) {
 		}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
@@ -332,7 +332,7 @@ func Test_Service_build(t *testing.T) {
 		}
 
 		// Act
-		rs, err := New(d, &fakeMicrosandbox{}).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, &fakeMicrosandbox{}).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
@@ -350,7 +350,7 @@ func Test_Service_build(t *testing.T) {
 		}}}}
 
 		// Act
-		rs, err := New(&fakeDocker{}, &fakeMicrosandbox{}).build(target, in, tools.Configs["claude"], approvedRC(rc))
+		rs, err := newTestService(&fakeDocker{}, &fakeMicrosandbox{}).build(target, in, tools.Configs["claude"], approvedRC(rc))
 
 		// Assert
 		require.NoError(t, err)
@@ -368,7 +368,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.EgressEnforce, Credentials: []credentials.Resolved{resolved}}
 
 		// Act
-		_, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		_, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		assert.ErrorContains(t, err, "agentic update claude")
@@ -386,7 +386,7 @@ func Test_Service_build(t *testing.T) {
 		}
 
 		// Act
-		_, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		_, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		assert.ErrorContains(t, err, "which the tool container can access")
@@ -399,7 +399,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{ToolHome: t.TempDir(), ProxyMode: sandbox.EgressEnforce, DindEnabled: true}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert - agentic-net is skipped since the tool joins a per-run network
 		require.NoError(t, err)
@@ -413,7 +413,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{ToolHome: t.TempDir(), DindEnabled: true, Env: []string{"DOCKER_HOST=unix:///var/run/docker.sock"}}
 
 		// Act
-		_, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		_, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		assert.ErrorContains(t, err, "DOCKER_HOST")
@@ -442,7 +442,7 @@ func Test_Service_build(t *testing.T) {
 		in := Input{ToolHome: t.TempDir()}
 
 		// Act
-		rs, err := New(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
@@ -468,7 +468,7 @@ func Test_Service_buildWithInstructions(t *testing.T) {
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(in.ToolHome))
 
 		// Act
-		rs, cleanup, err := New(d, nil).buildWithInstructions(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, cleanup, err := newTestService(d, nil).buildWithInstructions(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
@@ -484,7 +484,7 @@ func Test_Service_buildWithInstructions(t *testing.T) {
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 		in := Input{ToolHome: t.TempDir()}
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(in.ToolHome))
-		rs, cleanup, err := New(d, nil).buildWithInstructions(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, cleanup, err := newTestService(d, nil).buildWithInstructions(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 		require.NoError(t, err)
 		instructionsVolume := findVolumeSuffix(t, rs.Volumes, ":$CONTAINER_HOME/.claude/CLAUDE.md")
 		snapshotPath := sandbox.HostPart(instructionsVolume)
@@ -506,7 +506,7 @@ func Test_Service_buildWithInstructions(t *testing.T) {
 		require.NoError(t, err)
 
 		// Act
-		_, cleanup, err := New(d, nil).buildWithInstructions(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		_, cleanup, err := newTestService(d, nil).buildWithInstructions(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.Error(t, err)
@@ -523,7 +523,7 @@ func TestToolNeedsMarketplaceSync(t *testing.T) {
 		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
 
 		// Act
-		needs := New(&fakeDocker{}, nil).ToolNeedsMarketplaceSync(tools.Configs["opencode"], rc, "opencode")
+		needs := newTestService(&fakeDocker{}, nil).ToolNeedsMarketplaceSync(tools.Configs["opencode"], rc, "opencode")
 
 		// Assert
 		assert.False(t, needs)
@@ -531,7 +531,7 @@ func TestToolNeedsMarketplaceSync(t *testing.T) {
 
 	t.Run("marketplace-capable tool with no marketplaces configured returns false", func(t *testing.T) {
 		// Act
-		needs := New(&fakeDocker{}, nil).ToolNeedsMarketplaceSync(tools.Configs["claude"], &config.AgenticRC{}, "claude")
+		needs := newTestService(&fakeDocker{}, nil).ToolNeedsMarketplaceSync(tools.Configs["claude"], &config.AgenticRC{}, "claude")
 
 		// Assert
 		assert.False(t, needs)
@@ -542,7 +542,7 @@ func TestToolNeedsMarketplaceSync(t *testing.T) {
 		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
 
 		// Act
-		needs := New(&fakeDocker{}, nil).ToolNeedsMarketplaceSync(tools.Configs["claude"], rc, "claude")
+		needs := newTestService(&fakeDocker{}, nil).ToolNeedsMarketplaceSync(tools.Configs["claude"], rc, "claude")
 
 		// Assert
 		assert.True(t, needs)
@@ -557,7 +557,7 @@ func Test_Service_syncToolMarketplaces(t *testing.T) {
 
 	t.Run("tool that doesn't need marketplace sync returns nil", func(t *testing.T) {
 		// Act
-		mounts, names, err := New(&fakeDocker{}, nil).syncToolMarketplaces("/home", "claude", tools.Configs["claude"], &config.AgenticRC{})
+		mounts, names, err := newTestService(&fakeDocker{}, nil).syncToolMarketplaces("/home", "claude", tools.Configs["claude"], &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)

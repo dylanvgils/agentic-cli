@@ -17,7 +17,7 @@ func Test_requireImage(t *testing.T) {
 
 	t.Run("image exists returns nil", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{inspectImage: func(string) (*docker.ImageInfo, error) {
+		svc := newTestService(&fakeDocker{inspectImage: func(string) (*docker.ImageInfo, error) {
 			return &docker.ImageInfo{Image: "agentic-claude"}, nil
 		}}, nil)
 
@@ -30,7 +30,7 @@ func Test_requireImage(t *testing.T) {
 
 	t.Run("inspect error propagates", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{inspectImage: func(string) (*docker.ImageInfo, error) {
+		svc := newTestService(&fakeDocker{inspectImage: func(string) (*docker.ImageInfo, error) {
 			return nil, fmt.Errorf("docker daemon not running")
 		}}, nil)
 
@@ -45,7 +45,7 @@ func Test_requireImage(t *testing.T) {
 	t.Run("passes tool filter to list", func(t *testing.T) {
 		// Arrange
 		var got []docker.ImageFilter
-		svc := New(&fakeDocker{
+		svc := newTestService(&fakeDocker{
 			inspectImage: missing,
 			listAllImages: func(f ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 				got = f
@@ -63,7 +63,7 @@ func Test_requireImage(t *testing.T) {
 
 	t.Run("no alternatives suggests build", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{inspectImage: missing, listAllImages: listing()}, nil)
+		svc := newTestService(&fakeDocker{inspectImage: missing, listAllImages: listing()}, nil)
 
 		// Act
 		err := svc.requireImage("agentic-claude", "claude")
@@ -76,7 +76,7 @@ func Test_requireImage(t *testing.T) {
 
 	t.Run("alternative namespace suggests --namespace with singular noun", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{inspectImage: missing, listAllImages: listing(&docker.ImageInfo{Namespace: "myproject"})}, nil)
+		svc := newTestService(&fakeDocker{inspectImage: missing, listAllImages: listing(&docker.ImageInfo{Namespace: "myproject"})}, nil)
 
 		// Act
 		err := svc.requireImage("agentic-claude", "claude")
@@ -91,7 +91,7 @@ func Test_requireImage(t *testing.T) {
 
 	t.Run("multiple alternative namespaces lists all with plural noun", func(t *testing.T) {
 		// Arrange
-		svc := New(&fakeDocker{
+		svc := newTestService(&fakeDocker{
 			inspectImage:  missing,
 			listAllImages: listing(&docker.ImageInfo{Namespace: "myproject"}, &docker.ImageInfo{Namespace: "work"}),
 		}, nil)

@@ -9,8 +9,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/network/credentials"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 )
 
 // Request is an `agentic run` call: what to run, in which project, with which flags.
@@ -77,7 +75,7 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
-	if err := s.checkTool(req, prompter); err != nil {
+	if err := s.checkTool(req, approved, prompter); err != nil {
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
@@ -90,9 +88,9 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 }
 
 // checkTool offers a due tool update, unless it's a dry run, and creates the tool's host files.
-func (s *Service) checkTool(req Request, prompter Prompter) error {
+func (s *Service) checkTool(req Request, approved approvedConfig, prompter Prompter) error {
 	if !req.Flags.DryRun {
-		if err := s.offerToolUpdate(req, prompter); err != nil {
+		if err := s.offerToolUpdate(req, approved, prompter); err != nil {
 			return err
 		}
 	}
@@ -104,15 +102,16 @@ func (s *Service) checkTool(req Request, prompter Prompter) error {
 	return nil
 }
 
-// offerToolUpdate offers a due tool update and applies it when the user accepts.
-func (s *Service) offerToolUpdate(req Request, prompter Prompter) error {
-	target, home, rc := req.Target, req.Flags.ToolHome, req.Project.RC
-
-	updateReq := toolupdate.Request{Home: home, RC: rc, Tool: target.ToolName, Image: target.ImageName}
-	apply := func(tool, image string) error {
-		return update.New(s.docker, s.upstream, home).ApplyRecovered(tool, image, rc)
+// offerToolUpdate offers a due tool update and applies it when the user accepts; the rebuild reads the approved config,
+// as it can fall back to its guarded custom installs.
+func (s *Service) offerToolUpdate(req Request, approved approvedConfig, prompter Prompter) error {
+	u := ToolUpdate{
+		Home:  req.Flags.ToolHome,
+		RC:    approved.rc,
+		Tool:  req.Target.ToolName,
+		Image: req.Target.ImageName,
 	}
-	return toolupdate.New(s.docker, s.upstream).Check(updateReq, prompter.OfferToolUpdate, apply)
+	return s.toolUpdates.Offer(u, prompter.OfferToolUpdate)
 }
 
 // CheckProjectDir refuses a working dir Docker can't bind-mount; run it before reading the dir's config.

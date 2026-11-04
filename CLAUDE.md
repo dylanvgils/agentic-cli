@@ -33,6 +33,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 
 - `internal/cli` is presentation only: parse flags, call domain packages, print. Logic moves to `internal/usecase/<what-it-does>` only when it's independent of `*cobra.Command` and glues several domain packages together; no package per command.
 - User approval goes through an interface or func the cli implements; usecases never read stdin.
+- A usecase that needs another usecase declares an interface for what it does in its `deps.go` and takes it in `New`; the cli builds the real one. Never build another usecase's `Service` inside a usecase or embed its `Docker` interface.
 - `sandbox.RunSpec` describes the run the user asked for; each runtime (`docker`, `microsandbox`) turns it into its own args and keeps per-run state private.
   - It says what a run gets (`Egress`, `Credentials`, `Dind`), never how: sidecar names, aliases, env wiring and host log paths stay in the runtime. Only what images bake in (the proxy's alias, port, Maven settings path) lives in `internal/image/tools`.
   - A setting a runtime can't honor gets a `Features` field, refused in `refuseMissing` or warned about in `warnIgnored`.

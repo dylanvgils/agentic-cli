@@ -6,17 +6,11 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
 )
 
-// Docker is the subset of *docker.Client this package uses, including what the sidecar, toolupdate and update usecases it runs need.
+// Docker is the subset of *docker.Client this package uses.
 type Docker interface {
-	sidecar.Docker
-	toolupdate.Docker
-	update.Docker
-
+	InspectImage(name string) (*docker.ImageInfo, error)
 	ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error)
 	ResolveContainerHome(image string) string
 	EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error
@@ -38,6 +32,24 @@ type Microsandbox interface {
 	ImageRefs() ([]string, error)
 	RemoveImage(ref string) error
 	Run(rs sandbox.RunSpec) error
+}
+
+// ToolUpdate names the tool image a run offers an update for, and where its check state and config live.
+type ToolUpdate struct {
+	Home  string
+	RC    *config.AgenticRC
+	Tool  string
+	Image string
+}
+
+// ToolUpdates offers a due tool update through confirm and applies it when confirm agrees.
+type ToolUpdates interface {
+	Offer(u ToolUpdate, confirm func(tool, installed, latest string) bool) error
+}
+
+// SidecarImages builds the proxy and dind sidecar images a run needs when they're missing.
+type SidecarImages interface {
+	Ensure(proxy, dind bool, registry string) error
 }
 
 // Prompter asks the user to approve what a run needs; a nil error means approved.

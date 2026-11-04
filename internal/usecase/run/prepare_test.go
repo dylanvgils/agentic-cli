@@ -20,12 +20,18 @@ func TestPrepare(t *testing.T) {
 		return &docker.ImageInfo{Image: "agentic-claude", Version: "1.0.0", ProxyTrust: true}, nil
 	}
 
+	// dueUpdate offers an update from 1.0.0 to 2.0.0 through the prompter, as a due update check does
+	dueUpdate := &fakeToolUpdates{offer: func(u ToolUpdate, confirm func(tool, installed, latest string) bool) error {
+		confirm(u.Tool, "1.0.0", "2.0.0")
+		return nil
+	}}
+
 	t.Run("returns the run spec for the target", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
 
 		// Act
-		rs, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
+		rs, cleanup, err := newTestService(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -39,7 +45,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{}, nil).Prepare(req, p)
+		_, cleanup, err := newTestService(&fakeDocker{}, nil).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -60,7 +66,7 @@ func TestPrepare(t *testing.T) {
 		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
 
 		// Act
-		_, cleanup, err := New(d, m).Prepare(req, p)
+		_, cleanup, err := newTestService(d, m).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -76,7 +82,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
+		_, cleanup, err := newTestService(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -91,7 +97,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
+		_, cleanup, err := newTestService(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -107,7 +113,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, &fakeMicrosandbox{}).Prepare(req, p)
+		_, cleanup, err := newTestService(&fakeDocker{inspectImage: built}, &fakeMicrosandbox{}).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -121,7 +127,7 @@ func TestPrepare(t *testing.T) {
 		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, m).Prepare(req, &fakePrompter{})
+		_, cleanup, err := newTestService(&fakeDocker{inspectImage: built}, m).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -136,7 +142,7 @@ func TestPrepare(t *testing.T) {
 		m := &fakeMicrosandbox{available: func() error { return errors.New("msb not found on PATH") }}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, m).Prepare(req, &fakePrompter{})
+		_, cleanup, err := newTestService(&fakeDocker{inspectImage: built}, m).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -146,7 +152,6 @@ func TestPrepare(t *testing.T) {
 	t.Run("refused trust stops before the tool update and setup", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Project.RC.Run.CheckUpdates = nil
 		iostreamstest.StubOut(t)
 		tool := tools.Configs["claude"]
 		setUp := false
@@ -158,7 +163,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{trustDir: func(string) error { return errors.New("directory not trusted") }}
 
 		// Act
-		_, cleanup, err := withLatestToolVersion(New(&fakeDocker{inspectImage: built}, nil), "2.0.0").Prepare(req, p)
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil, dueUpdate, &fakeSidecarImages{}).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -167,42 +172,51 @@ func TestPrepare(t *testing.T) {
 		assert.False(t, setUp)
 	})
 
-	t.Run("declined tool update still runs", func(t *testing.T) {
+	t.Run("offers the tool update through the prompter", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Project.RC.Run.CheckUpdates = nil
 		iostreamstest.StubOut(t)
-		rebuilt := false
-		d := &fakeDocker{
-			inspectImage: built,
-			buildTool: func(string, string, tools.BuildOptions) error {
-				rebuilt = true
-				return nil
-			},
-		}
+		var got ToolUpdate
+		u := &fakeToolUpdates{offer: func(update ToolUpdate, confirm func(tool, installed, latest string) bool) error {
+			got = update
+			confirm(update.Tool, "1.0.0", "2.0.0")
+			return nil
+		}}
 		p := &fakePrompter{}
 
 		// Act
-		rs, cleanup, err := withLatestToolVersion(New(d, nil), "2.0.0").Prepare(req, p)
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil, u, &fakeSidecarImages{}).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
 		require.NoError(t, err)
+		assert.Equal(t, ToolUpdate{Home: req.Flags.ToolHome, RC: req.Project.RC, Tool: "claude", Image: "agentic-claude"}, got)
 		assert.Equal(t, []string{"claude"}, p.updatesOffered)
-		assert.False(t, rebuilt)
-		assert.Equal(t, "agentic-claude", rs.Image)
+	})
+
+	t.Run("a failed tool update stops the run", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		iostreamstest.StubOut(t)
+		u := &fakeToolUpdates{offer: func(ToolUpdate, func(string, string, string) bool) error { return errors.New("update failed") }}
+
+		// Act
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil, u, &fakeSidecarImages{}).Prepare(req, &fakePrompter{})
+		defer cleanup()
+
+		// Assert
+		require.EqualError(t, err, "update failed")
 	})
 
 	t.Run("dry run offers no tool update", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Project.RC.Run.CheckUpdates = nil
 		req.Flags.DryRun = true
 		iostreamstest.StubOut(t)
 		p := &fakePrompter{}
 
 		// Act
-		_, cleanup, err := withLatestToolVersion(New(&fakeDocker{inspectImage: built}, nil), "2.0.0").Prepare(req, p)
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil, dueUpdate, &fakeSidecarImages{}).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -218,7 +232,7 @@ func TestPrepare(t *testing.T) {
 		req.Tool = tool
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
+		_, cleanup, err := newTestService(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -228,7 +242,6 @@ func TestPrepare(t *testing.T) {
 	t.Run("refused settings stop before the tool update", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)
-		req.Project.RC.Run.CheckUpdates = nil
 		iostreamstest.StubOut(t)
 		rc := &config.AgenticRC{}
 		rc.Run.Mounts = []string{"~/.example:/x:rw"}
@@ -236,7 +249,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{approveSettings: func(config.RCLayer, []config.GuardedSetting) error { return errors.New("settings not approved") }}
 
 		// Act
-		_, cleanup, err := withLatestToolVersion(New(&fakeDocker{inspectImage: built}, nil), "2.0.0").Prepare(req, p)
+		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil, dueUpdate, &fakeSidecarImages{}).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -252,7 +265,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{trustDir: func(string) error { return errors.New("directory not trusted") }}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
+		_, cleanup, err := newTestService(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -270,7 +283,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
+		_, cleanup, err := newTestService(&fakeDocker{inspectImage: built}, nil).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -284,7 +297,7 @@ func TestPrepare(t *testing.T) {
 		req := newCredentialRequest(t)
 
 		// Act
-		rs, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
+		rs, cleanup, err := newTestService(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -299,7 +312,7 @@ func TestPrepare(t *testing.T) {
 		req := newCredentialRequest(t)
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
+		_, cleanup, err := newTestService(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -314,7 +327,7 @@ func TestPrepare(t *testing.T) {
 		req.Flags.DryRun = true
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
+		_, cleanup, err := newTestService(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -322,6 +335,25 @@ func TestPrepare(t *testing.T) {
 		assert.NotContains(t, stderr.String(), "injecting credentials")
 	})
 
+}
+
+func Test_Service_offerToolUpdate(t *testing.T) {
+	// Arrange
+	req := newPrepareRequest(t)
+	approved := approvedRC(&config.AgenticRC{})
+	var got ToolUpdate
+	u := &fakeToolUpdates{offer: func(update ToolUpdate, _ func(string, string, string) bool) error {
+		got = update
+		return nil
+	}}
+	svc := New(&fakeDocker{}, nil, u, &fakeSidecarImages{})
+
+	// Act
+	err := svc.offerToolUpdate(req, approved, &fakePrompter{})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Same(t, approved.rc, got.RC)
 }
 
 func TestCheckProjectDir(t *testing.T) {

@@ -37,7 +37,7 @@ func (s *Service) Run(req Request, rs sandbox.RunSpec) error {
 func (s *Service) runner(runtime sandbox.Runtime) (runner, error) {
 	switch runtime {
 	case sandbox.RuntimeDocker, "":
-		return dockerRunner{docker: s.docker}, nil
+		return dockerRunner{docker: s.docker, sidecarImages: s.sidecarImages}, nil
 	case sandbox.RuntimeMicrosandbox:
 		return microsandboxRunner{docker: s.docker, microsandbox: s.microsandbox}, nil
 	default:
