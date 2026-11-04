@@ -337,6 +337,25 @@ func TestPrepare(t *testing.T) {
 
 }
 
+func Test_Service_offerToolUpdate(t *testing.T) {
+	// Arrange
+	req := newPrepareRequest(t)
+	approved := approvedRC(&config.AgenticRC{})
+	var got ToolUpdate
+	u := &fakeToolUpdates{offer: func(update ToolUpdate, _ func(string, string, string) bool) error {
+		got = update
+		return nil
+	}}
+	svc := New(&fakeDocker{}, nil, u, &fakeSidecarImages{})
+
+	// Act
+	err := svc.offerToolUpdate(req, approved, &fakePrompter{})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Same(t, approved.rc, got.RC)
+}
+
 func TestCheckProjectDir(t *testing.T) {
 	t.Run("network share is refused", func(t *testing.T) {
 		// Act

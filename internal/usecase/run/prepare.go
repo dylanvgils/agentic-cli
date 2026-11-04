@@ -75,7 +75,7 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
-	if err := s.checkTool(req, prompter); err != nil {
+	if err := s.checkTool(req, approved, prompter); err != nil {
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
@@ -88,9 +88,9 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 }
 
 // checkTool offers a due tool update, unless it's a dry run, and creates the tool's host files.
-func (s *Service) checkTool(req Request, prompter Prompter) error {
+func (s *Service) checkTool(req Request, approved approvedConfig, prompter Prompter) error {
 	if !req.Flags.DryRun {
-		if err := s.offerToolUpdate(req, prompter); err != nil {
+		if err := s.offerToolUpdate(req, approved, prompter); err != nil {
 			return err
 		}
 	}
@@ -102,11 +102,12 @@ func (s *Service) checkTool(req Request, prompter Prompter) error {
 	return nil
 }
 
-// offerToolUpdate offers a due tool update and applies it when the user accepts.
-func (s *Service) offerToolUpdate(req Request, prompter Prompter) error {
+// offerToolUpdate offers a due tool update and applies it when the user accepts; the rebuild reads the approved config,
+// as it can fall back to its guarded custom installs.
+func (s *Service) offerToolUpdate(req Request, approved approvedConfig, prompter Prompter) error {
 	u := ToolUpdate{
 		Home:  req.Flags.ToolHome,
-		RC:    req.Project.RC,
+		RC:    approved.rc,
 		Tool:  req.Target.ToolName,
 		Image: req.Target.ImageName,
 	}
