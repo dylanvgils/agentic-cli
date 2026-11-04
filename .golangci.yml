@@ -11,6 +11,7 @@ linters:
   settings:
     depguard:
       rules:
+        # ---- Proxy service ----
         # The proxy is a standalone service: only the stdlib and these packages; logs go through log/slog
         proxy:
           list-mode: strict
@@ -32,6 +33,164 @@ linters:
             - $gostd
             - github.com/dylanvgils/agentic-cli/internal/infra/iostreams
             - github.com/dylanvgils/agentic-cli/internal/network/proxy
+
+        # ---- Layer order ----
+        # infra < runtime/sandbox < config < image, network < runtime < usecase < cli. Each layer denies every higher one.
+        # infra is the lowest layer: it imports no other internal layer
+        layer-infra:
+          files:
+            - "**/internal/infra/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime
+              desc: infra sits below runtime
+            - pkg: github.com/dylanvgils/agentic-cli/internal/config
+              desc: infra sits below config
+            - pkg: github.com/dylanvgils/agentic-cli/internal/image
+              desc: infra sits below image
+            - pkg: github.com/dylanvgils/agentic-cli/internal/network
+              desc: infra sits below network
+            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase
+              desc: infra sits below usecase
+            - pkg: github.com/dylanvgils/agentic-cli/internal/cli
+              desc: infra sits below cli
+        # runtime/sandbox sits right above infra
+        layer-sandbox:
+          files:
+            - "**/internal/runtime/sandbox/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/config
+              desc: runtime/sandbox sits below config
+            - pkg: github.com/dylanvgils/agentic-cli/internal/image
+              desc: runtime/sandbox sits below image
+            - pkg: github.com/dylanvgils/agentic-cli/internal/network
+              desc: runtime/sandbox sits below network
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/docker
+              desc: runtime/sandbox sits below runtime/docker
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox
+              desc: runtime/sandbox sits below runtime/microsandbox
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/dind
+              desc: runtime/sandbox sits below runtime/dind
+            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase
+              desc: runtime/sandbox sits below usecase
+            - pkg: github.com/dylanvgils/agentic-cli/internal/cli
+              desc: runtime/sandbox sits below cli
+        # config sits below image and network
+        layer-config:
+          files:
+            - "**/internal/config/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/image
+              desc: config sits below image
+            - pkg: github.com/dylanvgils/agentic-cli/internal/network
+              desc: config sits below network
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/docker
+              desc: config sits below runtime/docker
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox
+              desc: config sits below runtime/microsandbox
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/dind
+              desc: config sits below runtime/dind
+            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase
+              desc: config sits below usecase
+            - pkg: github.com/dylanvgils/agentic-cli/internal/cli
+              desc: config sits below cli
+        # image and network never import each other
+        layer-image:
+          files:
+            - "**/internal/image/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/network
+              desc: image and network never import each other
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/docker
+              desc: image sits below runtime/docker
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox
+              desc: image sits below runtime/microsandbox
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/dind
+              desc: image sits below runtime/dind
+            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase
+              desc: image sits below usecase
+            - pkg: github.com/dylanvgils/agentic-cli/internal/cli
+              desc: image sits below cli
+        # network and image never import each other
+        layer-network:
+          files:
+            - "**/internal/network/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/image
+              desc: network and image never import each other
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/docker
+              desc: network sits below runtime/docker
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox
+              desc: network sits below runtime/microsandbox
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/dind
+              desc: network sits below runtime/dind
+            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase
+              desc: network sits below usecase
+            - pkg: github.com/dylanvgils/agentic-cli/internal/cli
+              desc: network sits below cli
+        # the runtimes sit below usecase
+        layer-runtime:
+          files:
+            - "**/internal/runtime/docker/**"
+            - "**/internal/runtime/microsandbox/**"
+            - "**/internal/runtime/dind/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase
+              desc: runtime sits below usecase
+            - pkg: github.com/dylanvgils/agentic-cli/internal/cli
+              desc: runtime sits below cli
+        # usecase sits below cli
+        layer-usecase:
+          files:
+            - "**/internal/usecase/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/cli
+              desc: usecase sits below cli
+
+        # ---- Package rules within a layer ----
+        # Imports forbidden between packages in the same layer.
+        # the sidecar's container lifecycle lives in runtime/docker
+        runtime-dind:
+          files:
+            - "**/internal/runtime/dind/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/docker
+              desc: runtime/dind never imports runtime/docker
+        # the runtimes never import each other
+        runtime-docker:
+          files:
+            - "**/internal/runtime/docker/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox
+              desc: runtime/docker never imports runtime/microsandbox
+        # the runtimes never import each other
+        runtime-microsandbox:
+          files:
+            - "**/internal/runtime/microsandbox/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/runtime/docker
+              desc: runtime/microsandbox never imports runtime/docker
+        # the run usecase gets other usecases injected; only resolve is imported
+        usecase-run:
+          files:
+            - "**/internal/usecase/run/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase/sidecar
+              desc: usecase/run gets usecase/sidecar injected
+            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate
+              desc: usecase/run gets usecase/toolupdate injected
+            - pkg: github.com/dylanvgils/agentic-cli/internal/usecase/update
+              desc: usecase/run gets usecase/update injected
     forbidigo:
       # all IO goes through internal/infra/iostreams and logging; only iostreams.System names the streams
       forbid:
