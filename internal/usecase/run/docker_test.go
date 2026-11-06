@@ -35,7 +35,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 	withoutDockerLayer := func(name string) (*docker.ImageInfo, error) {
 		return &docker.ImageInfo{Image: name, Base: "node@24.1.0"}, nil
 	}
-	plain := Request{Project: Project{RC: &config.AgenticRC{}}}
+	plain := Request{Project: config.Project{RC: &config.AgenticRC{}}}
 
 	t.Run("accepts the minimum Docker Engine", func(t *testing.T) {
 		// Arrange
@@ -81,7 +81,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 
 	t.Run("dry run skips the check", func(t *testing.T) {
 		// Arrange
-		req := Request{Flags: Flags{DryRun: true}, Project: Project{RC: &config.AgenticRC{}}}
+		req := Request{Flags: Flags{DryRun: true}, Project: config.Project{RC: &config.AgenticRC{}}}
 
 		// Act
 		err := newTestDockerRunner(&fakeDocker{serverVersion: engine("Engine", "20.10.24")}).Check(req)
@@ -92,7 +92,7 @@ func Test_dockerRunner_Check(t *testing.T) {
 
 	t.Run("refuses dind on an image without the docker layer, even on a dry run", func(t *testing.T) {
 		// Arrange
-		req := Request{Flags: Flags{DryRun: true, Dind: resolve.DindInput{DindFlag: true}}, Project: Project{RC: &config.AgenticRC{}}}
+		req := Request{Flags: Flags{DryRun: true, Dind: resolve.DindInput{DindFlag: true}}, Project: config.Project{RC: &config.AgenticRC{}}}
 
 		// Act
 		err := newTestDockerRunner(&fakeDocker{inspectImage: withoutDockerLayer}).Check(req)

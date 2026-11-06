@@ -443,21 +443,24 @@ func TestFindLayers(t *testing.T) {
 	})
 }
 
-func TestFindAndLoadFromCwd(t *testing.T) {
-	t.Run("no file returns empty config", func(t *testing.T) {
+func TestLoadProject(t *testing.T) {
+	t.Run("returns the work dir, its layers and their merge", func(t *testing.T) {
 		// Arrange
-		dir := t.TempDir()
-		orig, _ := os.Getwd()
-		require.NoError(t, os.Chdir(dir))
-		t.Cleanup(func() { _ = os.Chdir(orig) })
+		parent := t.TempDir()
+		child := filepath.Join(parent, "child")
+		require.NoError(t, os.MkdirAll(child, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(parent, ".agenticrc.toml"), []byte(`namespace = "outer"`), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(child, ".agenticrc.toml"), []byte(`namespace = "inner"`), 0o644))
 
 		// Act
-		rc, err := FindAndLoadFromCwd()
+		project, err := LoadProject(child)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Empty(t, rc.Run.CPUs)
-		assert.Empty(t, rc.Run.Mounts)
+		assert.Equal(t, child, project.WorkDir)
+		require.Len(t, project.Layers, 2)
+		assert.Equal(t, filepath.Join(child, ".agenticrc.toml"), project.Layers[1].Path)
+		assert.Equal(t, "inner", project.RC.Namespace)
 	})
 
 	t.Run("invalid file returns error", func(t *testing.T) {
@@ -465,16 +468,13 @@ func TestFindAndLoadFromCwd(t *testing.T) {
 		dir := t.TempDir()
 		rcPath := filepath.Join(dir, ".agenticrc.toml")
 		require.NoError(t, os.WriteFile(rcPath, []byte("not valid toml [[["), 0o644))
-		orig, _ := os.Getwd()
-		require.NoError(t, os.Chdir(dir))
-		t.Cleanup(func() { _ = os.Chdir(orig) })
 
 		// Act
-		rc, err := FindAndLoadFromCwd()
+		project, err := LoadProject(dir)
 
 		// Assert
 		assert.ErrorContains(t, err, rcPath)
-		assert.Nil(t, rc)
+		assert.Equal(t, Project{WorkDir: dir}, project)
 	})
 }
 

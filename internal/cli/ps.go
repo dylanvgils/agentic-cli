@@ -3,7 +3,6 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -35,12 +34,10 @@ func init() {
 }
 
 func runPs(cmd *cobra.Command, _ []string) error {
-	rc, err := config.FindAndLoadFromCwd()
+	namespace, err := projectNamespace(cmd)
 	if err != nil {
 		return err
 	}
-
-	namespace := resolveNamespace(cmd, rc)
 	if all, _ := cmd.Flags().GetBool(allFlagName); all {
 		namespace = ""
 	}

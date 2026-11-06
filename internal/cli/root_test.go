@@ -229,6 +229,24 @@ func Test_persistentPreRunE(t *testing.T) {
 		assert.Equal(t, "prod", dockerClient.Context())
 	})
 
+	t.Run("loads the project onto the command's context", func(t *testing.T) {
+		// Arrange
+		restoreDockerClient(t)
+		stubToolHome(t, filepath.Join(t.TempDir(), "home"))
+		cmd := &cobra.Command{Use: "upgrade"}
+		cmd.Flags().String("docker-context", "", "")
+		fakeRoot := &cobra.Command{Use: "agentic"}
+		fakeRoot.AddCommand(cmd)
+
+		// Act
+		err := persistentPreRunE(cmd, nil)
+
+		// Assert
+		require.NoError(t, err)
+		_, ok := cmd.Context().Value(projectKey{}).(loadedProject)
+		assert.True(t, ok)
+	})
+
 	t.Run("migration failure aborts the command", func(t *testing.T) {
 		// Arrange
 		restoreDockerClient(t)

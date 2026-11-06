@@ -371,7 +371,7 @@ func Test_proxySource(t *testing.T) {
 
 	t.Run("names the flag", func(t *testing.T) {
 		// Arrange
-		req := Request{Project: Project{RC: &config.AgenticRC{}}}
+		req := Request{Project: config.Project{RC: &config.AgenticRC{}}}
 		req.Flags.Proxy.ProxyFlag = true
 
 		// Act
@@ -383,7 +383,7 @@ func Test_proxySource(t *testing.T) {
 
 	t.Run("names the monitor flag over the proxy flag", func(t *testing.T) {
 		// Arrange
-		req := Request{Project: Project{RC: &config.AgenticRC{}}}
+		req := Request{Project: config.Project{RC: &config.AgenticRC{}}}
 		req.Flags.Proxy.ProxyFlag = true
 		req.Flags.Proxy.MonitorFlag = true
 
@@ -399,7 +399,7 @@ func Test_proxySource(t *testing.T) {
 		rc := &config.AgenticRC{}
 		rc.Run.Proxy.Mode = config.ModeMonitor
 		rc.Run.Proxy.Enabled = &enabled
-		req := Request{Project: Project{RC: rc, Layers: []config.RCLayer{monitorLayer, enabledLayer}}}
+		req := Request{Project: config.Project{RC: rc, Layers: []config.RCLayer{monitorLayer, enabledLayer}}}
 
 		// Act
 		source := proxySource(req)
@@ -412,7 +412,7 @@ func Test_proxySource(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
 		rc.Run.Proxy.Enabled = &enabled
-		req := Request{Project: Project{RC: rc, Layers: []config.RCLayer{enabledLayer}}}
+		req := Request{Project: config.Project{RC: rc, Layers: []config.RCLayer{enabledLayer}}}
 
 		// Act
 		source := proxySource(req)
@@ -441,7 +441,7 @@ func Test_dindSource(t *testing.T) {
 		// Arrange
 		layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
 		layer.RC.Run.Dind.Enabled = &enabled
-		req := Request{Project: Project{Layers: []config.RCLayer{layer}}}
+		req := Request{Project: config.Project{Layers: []config.RCLayer{layer}}}
 
 		// Act
 		source := dindSource(req)
@@ -466,7 +466,7 @@ func Test_runtimeSource(t *testing.T) {
 	t.Run("names the key and its layer", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{Run: config.RCRun{Runtime: "microsandbox"}}
-		req := Request{Project: Project{RC: rc, Layers: []config.RCLayer{{Path: "/example.test/.agenticrc.toml", RC: rc}}}}
+		req := Request{Project: config.Project{RC: rc, Layers: []config.RCLayer{{Path: "/example.test/.agenticrc.toml", RC: rc}}}}
 
 		// Act
 		source := runtimeSource(req)
@@ -480,7 +480,7 @@ func Test_credentialsSource(t *testing.T) {
 	// Arrange
 	layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
 	layer.RC.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}}}
-	req := Request{Project: Project{Layers: []config.RCLayer{layer}}}
+	req := Request{Project: config.Project{Layers: []config.RCLayer{layer}}}
 
 	// Act
 	source := credentialsSource(req)
@@ -493,7 +493,7 @@ func Test_pathRulesSource(t *testing.T) {
 	// Arrange
 	layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
 	layer.RC.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
-	req := Request{Project: Project{Layers: []config.RCLayer{layer}}}
+	req := Request{Project: config.Project{Layers: []config.RCLayer{layer}}}
 
 	// Act
 	source := pathRulesSource(req)

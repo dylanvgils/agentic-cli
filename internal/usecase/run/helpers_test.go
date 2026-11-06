@@ -151,7 +151,7 @@ func newProxyRunSpec(t *testing.T, mode sandbox.EgressMode) sandbox.RunSpec {
 
 // runtimeRequest returns a Request that runs on runtime.
 func runtimeRequest(runtime sandbox.Runtime) Request {
-	return Request{Project: Project{RC: &config.AgenticRC{}}, Flags: Flags{Runtime: runtime}}
+	return Request{Project: config.Project{RC: &config.AgenticRC{}}, Flags: Flags{Runtime: runtime}}
 }
 
 // inspectImageID returns an InspectImage func reporting every image with id.
@@ -315,7 +315,7 @@ func newPrepareRequest(t *testing.T) Request {
 	return Request{
 		Target:  Target{ToolName: "claude", ImageName: "agentic-claude"},
 		Tool:    tools.Configs["claude"],
-		Project: Project{Dir: t.TempDir(), RC: &config.AgenticRC{}},
+		Project: config.Project{WorkDir: t.TempDir(), RC: &config.AgenticRC{}},
 		Flags:   Flags{ToolHome: t.TempDir()},
 	}
 }

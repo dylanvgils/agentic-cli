@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
@@ -54,12 +53,10 @@ func runNamespaceList(_ *cobra.Command, _ []string) error {
 }
 
 func runNamespacePrune(cmd *cobra.Command, _ []string) error {
-	rc, err := config.FindAndLoadFromCwd()
+	namespace, err := projectNamespace(cmd)
 	if err != nil {
 		return err
 	}
-
-	namespace := resolveNamespace(cmd, rc)
 
 	images, err := dockerClient.ListAllImages(docker.NamespaceFilter(namespace))
 	if err != nil {

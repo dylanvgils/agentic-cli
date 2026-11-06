@@ -129,14 +129,11 @@ type RCLayer struct {
 	RC   *AgenticRC
 }
 
-// FindAndLoadFromCwd loads config starting from the current working directory.
-func FindAndLoadFromCwd() (*AgenticRC, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-
-	return FindAndLoad(cwd)
+// Project is a work dir's .agenticrc.toml layers and their merge, loaded once so every step of a command sees the same config.
+type Project struct {
+	WorkDir string
+	Layers  []RCLayer
+	RC      *AgenticRC
 }
 
 // MarketplacesFor returns the marketplace entries applicable to tool.
@@ -152,12 +149,27 @@ func MarketplacesFor(rc *AgenticRC, tool string) []RCMarketplace {
 
 // FindAndLoad walks up from startDir merging .agenticrc.toml layers (stopping at root=true): scalar keys take the innermost value, list keys accumulate outermost-first.
 func FindAndLoad(startDir string) (*AgenticRC, error) {
-	layers, err := FindLayers(startDir)
+	project, err := LoadProject(startDir)
+	return project.RC, err
+}
+
+// LoadProject finds workDir's layers and merges them the way FindAndLoad does; on error only WorkDir is set.
+func LoadProject(workDir string) (Project, error) {
+	layers, err := FindLayers(workDir)
 	if err != nil {
-		return nil, err
+		return Project{WorkDir: workDir}, err
 	}
 
-	return Merge(layers)
+	rc, err := Merge(layers)
+	if err != nil {
+		return Project{WorkDir: workDir}, err
+	}
+
+	return Project{
+		WorkDir: workDir,
+		Layers:  layers,
+		RC:      rc,
+	}, nil
 }
 
 // FindLayers returns the .agenticrc.toml layers that FindAndLoad would merge, ordered outermost-to-innermost, each paired with its source path.

@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -16,11 +15,9 @@ var builtToolNamesFunc = func(cmd *cobra.Command, args []string, _ string) ([]st
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	rc, err := config.FindAndLoadFromCwd()
-	if err != nil {
-		rc = &config.AgenticRC{}
-	}
-	namespace := resolveNamespace(cmd, rc)
+	// Complete from the flag or default namespace when the config is broken (nil RC)
+	project, _ := currentProject(cmd)
+	namespace := resolveNamespace(cmd, project.RC)
 
 	var names []string
 	for _, name := range tools.Names() {
