@@ -40,14 +40,19 @@ const (
 
 	// dryRunClientNetsPlaceholder stands in for the run network's subnets in dry-run output, as the network isn't created.
 	dryRunClientNetsPlaceholder = "<proxy network subnets>"
+
+	// dryRunTokenFilePlaceholder stands in for a published proxy's token env file in dry-run output, as it isn't written.
+	dryRunTokenFilePlaceholder = "<auth token file>"
 )
 
 // proxyHandle identifies the per-run proxy sidecar container, host-side access log, injected credentials, the run
 // network's subnets that may use them, and the CA cert the proxy signs them with, set once started.
 type proxyHandle struct {
-	client      *Client
-	id          string
-	container   string
+	client    *Client
+	id        string
+	container string
+	// owner is the tool container, or a pidOwner for a published proxy
+	owner       string
 	logPath     string
 	monitor     bool
 	credentials []proxy.Credential
@@ -57,7 +62,9 @@ type proxyHandle struct {
 	// integrationEnv is the proxy integrations' env
 	integrationEnv []string
 	clientNets     []string
-	caPEM          []byte
+	// token is the auth token clients of a published proxy send; empty for a sidecar on the run network
+	token string
+	caPEM []byte
 	// user runs the proxy and owns its credential files, the same as the tool
 	user platform.User
 }
@@ -89,6 +96,7 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		client:         c,
 		id:             id,
 		container:      name,
+		owner:          rs.container,
 		logPath:        rs.proxyLog,
 		monitor:        rs.Egress.Mode == sandbox.EgressMonitor,
 		credentials:    creds,
@@ -97,6 +105,11 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		integrationEnv: proxyIntegrationToolEnv(rs.Egress.Integrations),
 		user:           *rs.User,
 	}, nil
+}
+
+// published reports whether the proxy is published on a host port for a runtime outside Docker, instead of joining a run network.
+func (h proxyHandle) published() bool {
+	return h.token != ""
 }
 
 // decrypts reports whether the proxy terminates TLS, for credentials or path rules, and so needs a CA.
@@ -138,10 +151,10 @@ func (h proxyHandle) Stop() {
 	_, _ = h.client.run("rm", "--force", "--volumes", h.container)
 }
 
-// startProxy starts the proxy sidecar on rs's run network, copying in any credentials before it starts and wiring it
-// to the egress network; cleans up whatever it created on any failure.
-func (c *Client) startProxy(rs toolRun) (proxyHandle, error) {
-	h, err := c.createProxy(rs)
+// startProxy starts h's proxy sidecar, copying in any credentials before it starts and wiring it to the egress
+// network; cleans up whatever it created on any failure.
+func (c *Client) startProxy(h proxyHandle, rs toolRun) (proxyHandle, error) {
+	h, err := c.createProxy(h, rs)
 	if err != nil {
 		return proxyHandle{}, err
 	}
@@ -154,28 +167,59 @@ func (c *Client) startProxy(rs toolRun) (proxyHandle, error) {
 	return h, nil
 }
 
-// createProxy prepares the egress network and log file and creates the proxy container without starting it.
-func (c *Client) createProxy(rs toolRun) (proxyHandle, error) {
-	h, err := c.newProxyHandle(rs)
+// startGuarded starts h's proxy with signals guarded, so Ctrl-C during startup still removes the sidecar and its
+// credentials volume; cleanup stops it and the guard.
+func (c *Client) startGuarded(h proxyHandle, rs toolRun) (started proxyHandle, cleanup func(), err error) {
+	interrupt, stop := guardSignals()
+
+	logging.Info("starting egress proxy...")
+	h, err = c.startProxy(h, rs)
 	if err != nil {
-		return proxyHandle{}, err
+		stop()
+		return proxyHandle{}, nil, err
 	}
 
+	select {
+	case <-interrupt:
+		h.Stop()
+		stop()
+		return proxyHandle{}, nil, fmt.Errorf("interrupted while starting egress proxy")
+	default:
+	}
+
+	cleanup = func() {
+		h.Stop()
+		stop()
+	}
+	return h, cleanup, nil
+}
+
+// createProxy prepares the egress network and log file and creates h's proxy container without starting it.
+func (c *Client) createProxy(h proxyHandle, rs toolRun) (proxyHandle, error) {
 	if err := c.ensureEgressNetwork(); err != nil {
 		return proxyHandle{}, err
 	}
 
-	// The proxy also joins the shared egress network, so only this run's network may use it
-	h.clientNets, err = c.networkSubnets(rs.network)
-	if err != nil {
-		return proxyHandle{}, err
+	if !h.published() {
+		// The proxy also joins the shared egress network, so only this run's network may use it
+		var err error
+		h.clientNets, err = c.networkSubnets(rs.network)
+		if err != nil {
+			return proxyHandle{}, err
+		}
 	}
 
 	if err := h.createLogFile(); err != nil {
 		return proxyHandle{}, err
 	}
 
-	if _, err := c.run(h.createArgs(rs)...); err != nil {
+	tokenFile, removeTokenFile, err := h.writeTokenFile()
+	if err != nil {
+		return proxyHandle{}, err
+	}
+	defer removeTokenFile()
+
+	if _, err := c.run(h.createArgs(rs, tokenFile)...); err != nil {
 		return proxyHandle{}, fmt.Errorf("create proxy: %w", err)
 	}
 	return h, nil
@@ -201,7 +245,7 @@ func (c *Client) dryRunProxy(rs toolRun) (proxyEnv []string, cleanup func(), err
 	}
 
 	// Shows no secrets: those are only copied in before start
-	sandbox.PrintDryRun("egress proxy", "docker", handle.createArgs(rs))
+	sandbox.PrintDryRun("egress proxy", "docker", handle.createArgs(rs, ""))
 	sandbox.PrintDryRun("egress network", "docker", handle.connectArgs())
 
 	return handle.toolEnvArgs(rs.Dind.Enabled), noCleanup, nil
@@ -209,55 +253,46 @@ func (c *Client) dryRunProxy(rs toolRun) (proxyEnv []string, cleanup func(), err
 
 // launchProxy starts the sidecar and returns a cleanup that tears it down.
 func (c *Client) launchProxy(rs toolRun) (proxyEnv []string, cleanup func(), err error) {
-	// Guard first so Ctrl-C during startup still removes the sidecar and its credentials volume
-	interrupt, stop := guardSignals()
-
-	logging.Info("starting egress proxy...")
-	handle, err := c.startProxy(rs)
+	h, err := c.newProxyHandle(rs)
 	if err != nil {
-		stop()
 		return nil, nil, err
 	}
 
-	select {
-	case <-interrupt:
-		handle.Stop()
-		stop()
-		return nil, nil, fmt.Errorf("interrupted while starting egress proxy")
-	default:
+	h, cleanup, err = c.startGuarded(h, rs)
+	if err != nil {
+		return nil, nil, err
 	}
-
-	cleanup = func() {
-		handle.Stop()
-		stop()
-	}
-	return handle.toolEnvArgs(rs.Dind.Enabled), cleanup, nil
+	return h.toolEnvArgs(rs.Dind.Enabled), cleanup, nil
 }
 
-// createArgs builds the `docker create` arguments for the hardened proxy sidecar, registering
-// tools.ProxyHostAlias on the run network so tool config can reference a stable hostname.
-func (h proxyHandle) createArgs(rs toolRun) []string {
+// createArgs builds the `docker create` arguments for the hardened proxy sidecar: on the run network it registers
+// tools.ProxyHostAlias so tool config can reference a stable hostname, and published it joins the egress network
+// directly with its port on host loopback, reading its token from tokenFile so the token never shows in process args.
+func (h proxyHandle) createArgs(rs toolRun, tokenFile string) []string {
 	containerLog := proxyLogMountDir + "/" + filepath.Base(h.logPath)
 	_, tzOffset := time.Now().Zone()
 
-	args := []string{
-		// No --rm, so a proxy that exits on start keeps its logs for checkStarted
-		"create", "--read-only",
-		arg("name", h.container),
-		arg("network", rs.network),
-		// Aliases are per network, so concurrent runs can share it
-		arg("network-alias", tools.ProxyHostAlias),
+	// No --rm, so a proxy that exits on start keeps its logs for checkStarted
+	args := []string{"create", "--read-only", arg("name", h.container)}
+	if h.published() {
+		args = append(args,
+			arg("network", NetworkName),
+			arg("publish", "127.0.0.1::"+tools.ProxyPort),
+		)
+	} else {
+		args = append(args,
+			arg("network", rs.network),
+			// Aliases are per network, so concurrent runs can share it
+			arg("network-alias", tools.ProxyHostAlias),
+		)
+	}
+	args = append(args,
 		arg("cap-drop", "ALL"),
 		arg("security-opt", "no-new-privileges:true"),
 		arg("user", h.user.String()),
 		label(LabelProject, LabelProjectVal),
-	}
-	args = append(args, ownerLabels(rs)...)
-
-	clientNets := strings.Join(h.clientNets, ",")
-	if clientNets == "" {
-		clientNets = dryRunClientNetsPlaceholder
-	}
+	)
+	args = append(args, ownerLabels(h.owner)...)
 
 	// Validated plain data, so it always marshals
 	rulesJSON, _ := json.Marshal(h.rules)
@@ -267,10 +302,22 @@ func (h proxyHandle) createArgs(rs toolRun) []string {
 		arg("env", proxy.EnvLog+"="+containerLog),
 		arg("env", proxy.EnvTZOffset+"="+strconv.Itoa(tzOffset)),
 		arg("env", proxy.EnvMonitor+"="+strconv.FormatBool(h.monitor)),
-		arg("env", proxy.EnvClientNets+"="+clientNets),
 		// Only this run's file, so the proxy can't touch other logs
 		arg("volume", h.logPath+":"+containerLog),
 	)
+
+	if h.published() {
+		if tokenFile == "" {
+			tokenFile = dryRunTokenFilePlaceholder
+		}
+		args = append(args, arg("env-file", tokenFile))
+	} else {
+		clientNets := strings.Join(h.clientNets, ",")
+		if clientNets == "" {
+			clientNets = dryRunClientNetsPlaceholder
+		}
+		args = append(args, arg("env", proxy.EnvClientNets+"="+clientNets))
+	}
 
 	if h.decrypts() {
 		args = append(args,
@@ -298,8 +345,8 @@ func (h proxyHandle) createLogFile() error {
 	return f.Close()
 }
 
-// boot copies in the credentials, starts the created proxy and connects it to the egress network, returning the
-// per-run CA; the caller removes the container on failure.
+// boot copies in the credentials, starts the created proxy and connects it to the egress network unless published,
+// returning the per-run CA; the caller removes the container on failure.
 func (h proxyHandle) boot() (caPEM []byte, err error) {
 	caPEM, err = h.copyCredentials()
 	if err != nil {
@@ -313,6 +360,10 @@ func (h proxyHandle) boot() (caPEM []byte, err error) {
 		return nil, err
 	}
 
+	// A published proxy is on the egress network already
+	if h.published() {
+		return caPEM, nil
+	}
 	if _, err := h.client.run(h.connectArgs()...); err != nil {
 		return nil, fmt.Errorf("connect proxy to %s: %w", NetworkName, err)
 	}
