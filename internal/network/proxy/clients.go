@@ -39,8 +39,8 @@ func requireToken(next http.Handler, token string) http.Handler {
 	})
 }
 
-// clientHandler wraps next with restrictClients for cidrs and requireToken for token, each when set; required refuses
-// neither, as injecting credentials for any reachable client would leak them across runs.
+// clientHandler wraps next with restrictClients for cidrs and requireToken for token, each when set. With required, it
+// refuses having neither, as injecting credentials for any client that can reach the proxy would leak them across runs.
 func clientHandler(next http.Handler, cidrs []string, token string, required bool) (http.Handler, error) {
 	if len(cidrs) == 0 && token == "" && required {
 		return nil, fmt.Errorf("%s or %s must be set when credentials are injected", EnvClientNets, EnvAuthToken)
