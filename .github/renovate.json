@@ -29,6 +29,11 @@
       "groupName": "Go version"
     },
     {
+      "matchDepNames": ["python"],
+      "matchDatasources": ["python-version"],
+      "groupName": "Python version"
+    },
+    {
       "matchDepNames": ["golangci/golangci-lint"],
       "groupName": "golangci-lint"
     },
