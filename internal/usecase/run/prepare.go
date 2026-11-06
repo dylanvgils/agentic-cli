@@ -13,18 +13,11 @@ import (
 
 // Request is an `agentic run` call: what to run, in which project, with which flags.
 type Request struct {
-	Target  Target
-	Tool    tools.ToolConfig
-	Project Project
+	Target Target
+	Tool   tools.ToolConfig
+	// Project is loaded once so the credentials the user approves are the ones the run uses
+	Project config.Project
 	Flags   Flags
-}
-
-// Project is the working dir a run is for and its config.
-type Project struct {
-	Dir string
-	// Layers are loaded once so the credentials the user approves are the ones the run uses
-	Layers []config.RCLayer
-	RC     *config.AgenticRC
 }
 
 // Flags are a run's command-line settings, before Prepare resolves them against the project config.
@@ -66,7 +59,7 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 	}
 
 	// Before anything acts on the project config, which the agent can edit
-	if err := checkTrust(req.Project.Dir, home, req.Flags.TrustDir, prompter); err != nil {
+	if err := checkTrust(req.Project.WorkDir, home, req.Flags.TrustDir, prompter); err != nil {
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/build"
 	"github.com/spf13/cobra"
@@ -36,13 +35,13 @@ func init() {
 }
 
 func runBuild(cmd *cobra.Command, args []string) error {
-	rc, err := config.FindAndLoadFromCwd()
+	project, err := currentProject(cmd)
 	if err != nil {
 		return err
 	}
 
-	namespace := resolveNamespace(cmd, rc)
-	opts := buildOptsFromFlags(cmd, rc)
+	namespace := resolveNamespace(cmd, project.RC)
+	opts := buildOptsFromFlags(cmd, project.RC)
 	dryRun, _ := cmd.Flags().GetBool(dryRunFlagName)
 	names := args
 	if all, _ := cmd.Flags().GetBool(allFlagName); all {

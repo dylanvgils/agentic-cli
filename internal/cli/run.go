@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"os"
-
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
@@ -38,9 +36,7 @@ type parsedArgs struct {
 // invocation is an `agentic run` call resolved against the working dir's config.
 type invocation struct {
 	parsedArgs
-	cwd        string
-	layers     []config.RCLayer
-	rc         *config.AgenticRC
+	project    config.Project
 	toolConfig tools.ToolConfig
 }
 
@@ -114,34 +110,25 @@ func newRunService() *run.Service {
 	return run.New(dockerClient, msbClient, updates, sidecar.New(dockerClient))
 }
 
-// parseInvocation loads the working dir's config layers and parses the tool, image and tool args from args.
+// parseInvocation checks the working dir's project and parses the tool, image and tool args from args.
 func parseInvocation(cmd *cobra.Command, args []string) (invocation, error) {
-	cwd, _ := os.Getwd()
-	if err := run.CheckProjectDir(cwd); err != nil {
+	// Check the dir before the config, so a refused dir isn't reported as a config error
+	project, loadErr := currentProject(cmd)
+	if err := run.CheckProjectDir(project.WorkDir); err != nil {
 		return invocation{}, err
 	}
-
-	// Load the layers once so the credentials approved later are the ones the run uses
-	layers, err := config.FindLayers(cwd)
-	if err != nil {
-		return invocation{}, err
+	if loadErr != nil {
+		return invocation{}, loadErr
 	}
 
-	rc, err := config.Merge(layers)
-	if err != nil {
-		return invocation{}, err
-	}
-
-	parsed, err := parseArgs(args, resolveNamespace(cmd, rc))
+	parsed, err := parseArgs(args, resolveNamespace(cmd, project.RC))
 	if err != nil {
 		return invocation{}, err
 	}
 
 	return invocation{
 		parsedArgs: parsed,
-		cwd:        cwd,
-		layers:     layers,
-		rc:         rc,
+		project:    project,
 		toolConfig: tools.Configs[parsed.toolName],
 	}, nil
 }
@@ -166,13 +153,9 @@ func runRequest(cmd *cobra.Command, inv invocation) (run.Request, error) {
 			SkipEntrypoint: inv.skipEntrypoint,
 			ToolArgs:       inv.toolArgs,
 		},
-		Tool: inv.toolConfig,
-		Project: run.Project{
-			Dir:    inv.cwd,
-			Layers: inv.layers,
-			RC:     inv.rc,
-		},
-		Flags: flags,
+		Tool:    inv.toolConfig,
+		Project: inv.project,
+		Flags:   flags,
 	}, nil
 }
 

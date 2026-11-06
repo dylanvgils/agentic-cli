@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
@@ -51,12 +50,10 @@ func init() {
 }
 
 func runInspect(cmd *cobra.Command, args []string) error {
-	rc, err := config.FindAndLoadFromCwd()
+	namespace, err := projectNamespace(cmd)
 	if err != nil {
 		return err
 	}
-
-	namespace := resolveNamespace(cmd, rc)
 	tool := args[0]
 
 	if _, err := tools.ImageName(tool, namespace); err != nil {

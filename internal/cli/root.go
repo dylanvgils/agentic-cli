@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/infra/git"
@@ -77,8 +76,10 @@ func Execute() {
 	}
 }
 
-// persistentPreRunE is rootCmd's PersistentPreRunE: resolves the Docker context, migrates TOOL_HOME if needed, checks Docker/git, and offers an upgrade if available.
+// persistentPreRunE is rootCmd's PersistentPreRunE: loads the project config, resolves the Docker context, migrates TOOL_HOME if needed, checks Docker/git, and offers an upgrade if available.
 func persistentPreRunE(cmd *cobra.Command, args []string) error {
+	withProject(cmd)
+
 	if err := resolveContext(cmd); err != nil {
 		return err
 	}
@@ -106,25 +107,17 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 
 // resolveContext resolves the active Docker context from --docker-context, .agenticrc.toml, or agentic.json and builds dockerClient for it; if none are set, the docker CLI's own context resolution applies.
 func resolveContext(cmd *cobra.Command) error {
-	cwd, _ := os.Getwd()
-	layers, err := config.FindLayers(cwd)
-	if err != nil {
-		layers = nil
-	}
-
-	rc, err := config.Merge(layers)
-	if err != nil {
-		rc = &config.AgenticRC{}
-	}
+	// A broken config (nil RC) doesn't stop commands that don't need it; the ones that do report it
+	project, _ := currentProject(cmd)
 
 	flagVal, _ := cmd.Flags().GetString(dockerContextFlagName)
 	if flagVal == "" {
-		if err := run.CheckContextTrust(cwd, toolHome, layers, flagTrustDir, newTTYPrompter()); err != nil {
+		if err := run.CheckContextTrust(project.WorkDir, toolHome, project.Layers, flagTrustDir, newTTYPrompter()); err != nil {
 			return err
 		}
 	}
 
-	dockerClient = docker.New(resolve.DockerContext(flagVal, rc, toolHome))
+	dockerClient = docker.New(resolve.DockerContext(flagVal, project.RC, toolHome))
 	return nil
 }
 
@@ -153,17 +146,12 @@ func checkGit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	cwd, err := os.Getwd()
+	project, err := currentProject(cmd)
 	if err != nil {
 		return nil
 	}
 
-	rc, err := config.FindAndLoad(cwd)
-	if err != nil {
-		return nil
-	}
-
-	if !newRunService().ToolNeedsMarketplaceSync(toolConfig, rc, args[0]) {
+	if !newRunService().ToolNeedsMarketplaceSync(toolConfig, project.RC, args[0]) {
 		return nil
 	}
 

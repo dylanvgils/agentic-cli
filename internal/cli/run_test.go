@@ -240,8 +240,10 @@ func Test_runRequest(t *testing.T) {
 	stubFlag(t, runToolCmd, "runtime", "microsandbox")
 	inv := invocation{
 		parsedArgs: parsedArgs{toolName: "claude", imageName: "agentic-claude", skipEntrypoint: true},
-		cwd:        "/example.test/project",
-		rc:         &config.AgenticRC{},
+		project: config.Project{
+			WorkDir: "/example.test/project",
+			RC:      &config.AgenticRC{},
+		},
 	}
 
 	// Act
@@ -250,7 +252,7 @@ func Test_runRequest(t *testing.T) {
 	// Assert - run-only flags land next to the shared runtimeFlags
 	require.NoError(t, err)
 	assert.Equal(t, run.Target{ToolName: "claude", ImageName: "agentic-claude", SkipEntrypoint: true}, req.Target)
-	assert.Equal(t, "/example.test/project", req.Project.Dir)
+	assert.Equal(t, "/example.test/project", req.Project.WorkDir)
 	assert.True(t, req.Flags.TrustDir)
 	assert.True(t, req.Flags.DryRun)
 	assert.True(t, req.Flags.Proxy.ProxyFlag)

@@ -26,7 +26,7 @@ func CheckContextTrust(dir, toolHome string, layers []config.RCLayer, trustFlag 
 			return err
 		}
 	}
-	_, err := checkSettings(Project{Layers: layers}, toolHome, prompter)
+	_, err := checkSettings(config.Project{Layers: layers}, toolHome, prompter)
 	return err
 }
 
@@ -52,7 +52,7 @@ func checkTrust(dir, toolHome string, trustFlag bool, prompter Prompter) error {
 
 // checkSettings has prompter approve each layer's guarded settings whenever they change, since the agent can edit any config file in a dir it ran in.
 // The returned approvedConfig is what a run reads its settings from, so none can be used before this approval.
-func checkSettings(project Project, toolHome string, prompter Prompter) (approvedConfig, error) {
+func checkSettings(project config.Project, toolHome string, prompter Prompter) (approvedConfig, error) {
 	state, err := config.LoadState(toolHome)
 	if err != nil {
 		return approvedConfig{}, fmt.Errorf("load trust state: %w", err)

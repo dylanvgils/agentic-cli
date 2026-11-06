@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
@@ -48,12 +47,12 @@ func runInstructions(cmd *cobra.Command, args []string) error {
 
 // instructionsRequest builds the request PreviewInstructions needs from the cwd config, returning the resolved namespace too.
 func instructionsRequest(cmd *cobra.Command, toolName string) (run.Request, string, error) {
-	rc, err := config.FindAndLoadFromCwd()
+	project, err := currentProject(cmd)
 	if err != nil {
 		return run.Request{}, "", err
 	}
 
-	namespace := resolveNamespace(cmd, rc)
+	namespace := resolveNamespace(cmd, project.RC)
 	imageName, err := tools.ImageName(toolName, namespace)
 	if err != nil {
 		return run.Request{}, "", err
@@ -67,7 +66,7 @@ func instructionsRequest(cmd *cobra.Command, toolName string) (run.Request, stri
 	return run.Request{
 		Target:  run.Target{ToolName: toolName, ImageName: imageName},
 		Tool:    tools.Configs[toolName],
-		Project: run.Project{RC: rc},
+		Project: project,
 		Flags:   flags,
 	}, namespace, nil
 }

@@ -4,7 +4,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
@@ -66,12 +65,10 @@ func init() {
 }
 
 func runImageList(cmd *cobra.Command, _ []string) error {
-	rc, err := config.FindAndLoadFromCwd()
+	namespace, err := projectNamespace(cmd)
 	if err != nil {
 		return err
 	}
-
-	namespace := resolveNamespace(cmd, rc)
 	if all, _ := cmd.Flags().GetBool(allFlagName); all {
 		namespace = ""
 	}

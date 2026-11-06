@@ -245,7 +245,7 @@ func TestPrepare(t *testing.T) {
 		iostreamstest.StubOut(t)
 		rc := &config.AgenticRC{}
 		rc.Run.Mounts = []string{"~/.example:/x:rw"}
-		req.Project.Layers = []config.RCLayer{{Path: filepath.Join(req.Project.Dir, ".agenticrc.toml"), RC: rc}}
+		req.Project.Layers = []config.RCLayer{{Path: filepath.Join(req.Project.WorkDir, ".agenticrc.toml"), RC: rc}}
 		p := &fakePrompter{approveSettings: func(config.RCLayer, []config.GuardedSetting) error { return errors.New("settings not approved") }}
 
 		// Act
@@ -376,7 +376,7 @@ func TestCheckProjectDir(t *testing.T) {
 
 func Test_Request_runtime(t *testing.T) {
 	// Arrange
-	req := Request{Project: Project{RC: &config.AgenticRC{Run: config.RCRun{Runtime: "microsandbox"}}}}
+	req := Request{Project: config.Project{RC: &config.AgenticRC{Run: config.RCRun{Runtime: "microsandbox"}}}}
 
 	// Act
 	runtime := req.runtime()

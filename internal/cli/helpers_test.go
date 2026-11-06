@@ -659,7 +659,12 @@ func newTestPruneCmd(force bool) *cobra.Command {
 // writeMarketplaceRC writes a minimal .agenticrc.toml declaring one marketplace into dir.
 func writeMarketplaceRC(t *testing.T, dir, name, url string) {
 	t.Helper()
-	content := "root = true\n\n[[marketplaces]]\nname = \"" + name + "\"\nurl = \"" + url + "\"\n"
+	writeRC(t, dir, "root = true\n\n[[marketplaces]]\nname = \""+name+"\"\nurl = \""+url+"\"\n")
+}
+
+// writeRC writes content as dir's .agenticrc.toml.
+func writeRC(t *testing.T, dir, content string) {
+	t.Helper()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte(content), 0o644))
 }
 

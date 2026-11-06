@@ -3,7 +3,6 @@ package cli
 import (
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/clean"
 	"github.com/spf13/cobra"
@@ -30,7 +29,7 @@ func init() {
 }
 
 func runClean(cmd *cobra.Command, args []string) error {
-	rc, err := config.FindAndLoadFromCwd()
+	namespace, err := projectNamespace(cmd)
 	if err != nil {
 		return err
 	}
@@ -38,7 +37,7 @@ func runClean(cmd *cobra.Command, args []string) error {
 	all, _ := cmd.Flags().GetBool(allFlagName)
 	scope := clean.Scope{
 		Tool:      firstArg(args),
-		Namespace: resolveNamespace(cmd, rc),
+		Namespace: namespace,
 		All:       all,
 	}
 

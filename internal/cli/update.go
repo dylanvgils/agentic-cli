@@ -45,13 +45,13 @@ func init() {
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
-	rc, err := config.FindAndLoadFromCwd()
+	project, err := currentProject(cmd)
 	if err != nil {
 		return err
 	}
 
-	namespace := resolveNamespace(cmd, rc)
-	opts := updateOptsFromFlags(cmd, rc)
+	namespace := resolveNamespace(cmd, project.RC)
+	opts := updateOptsFromFlags(cmd, project.RC)
 	warnSkipInstallChecksum(opts)
 
 	svc := update.New(dockerClient, upstreamClient, toolHome)
