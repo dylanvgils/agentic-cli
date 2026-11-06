@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"io"
 	"log/slog"
 	"net"
@@ -291,4 +292,9 @@ func stubSlog(t *testing.T, location *time.Location) *bytes.Buffer {
 	t.Cleanup(func() { slog.SetDefault(orig) })
 
 	return &buf
+}
+
+// basicAuth returns a Basic Proxy-Authorization value for user and password.
+func basicAuth(user, password string) string {
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(user+":"+password))
 }

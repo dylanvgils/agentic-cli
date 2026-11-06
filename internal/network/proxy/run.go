@@ -24,7 +24,8 @@ const (
 	EnvMonitor     = "AGENTIC_PROXY_MONITOR"     // "true" to log without enforcing the allowlist
 	EnvCADir       = "AGENTIC_PROXY_CA_DIR"      // dir holding CACertFile and CAKeyFile
 	EnvCredentials = "AGENTIC_PROXY_CREDENTIALS" // JSON credential list path (see LoadCredentials)
-	EnvClientNets  = "AGENTIC_PROXY_CLIENT_NETS" // comma-separated CIDRs allowed to use the proxy; required with credentials
+	EnvClientNets  = "AGENTIC_PROXY_CLIENT_NETS" // comma-separated CIDRs allowed to use the proxy; it or EnvAuthToken required with credentials
+	EnvAuthToken   = "AGENTIC_PROXY_AUTH_TOKEN"  // token clients must send as AuthUser's Proxy-Authorization password
 )
 
 // Files in the EnvCADir directory.
@@ -54,6 +55,7 @@ func ConfigFromEnv() (Config, error) {
 		CADir:           os.Getenv(EnvCADir),
 		CredentialsPath: os.Getenv(EnvCredentials),
 		ClientNets:      config.SplitEnvValues(os.Getenv(EnvClientNets)),
+		AuthToken:       os.Getenv(EnvAuthToken),
 	}, nil
 }
 
@@ -67,6 +69,7 @@ type Config struct {
 	CADir           string   // per-run CA dir; set with CredentialsPath, which may list no credentials
 	CredentialsPath string   // JSON credential list; empty disables injection
 	ClientNets      []string // CIDRs allowed to use the proxy; empty allows any client
+	AuthToken       string   // token every client must send; empty asks for none
 }
 
 // Location returns the host's time zone from TZOffsetSeconds, for log times.
@@ -93,7 +96,7 @@ func Run(cfg Config) error {
 
 	server := NewServer(NewAllowlist(cfg.Rules), NewLogger(jsonWriter(logFile)), cfg.Monitor, inject)
 
-	handler, err := clientHandler(server, cfg.ClientNets, inject != nil)
+	handler, err := clientHandler(server, cfg.ClientNets, cfg.AuthToken, inject != nil)
 	if err != nil {
 		return err
 	}
