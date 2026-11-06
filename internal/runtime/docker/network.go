@@ -127,7 +127,7 @@ func runNetworkArgs(rs toolRun) []string {
 		)
 	}
 	args = append(args, label(LabelProject, LabelProjectVal))
-	args = append(args, ownerLabels(rs)...)
+	args = append(args, ownerLabels(rs.container)...)
 	return append(args, rs.network)
 }
 

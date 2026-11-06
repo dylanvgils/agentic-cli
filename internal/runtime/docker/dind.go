@@ -137,7 +137,7 @@ func (h dindHandle) runArgs(rs toolRun) []string {
 		arg("env", "HOME="+dind.Home),
 		arg("cap-drop", "ALL"),
 	}
-	args = append(args, ownerLabels(rs)...)
+	args = append(args, ownerLabels(rs.container)...)
 
 	for _, capability := range dindCapabilities {
 		args = append(args, arg("cap-add", capability))

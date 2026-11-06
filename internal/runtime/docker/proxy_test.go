@@ -34,7 +34,7 @@ func TestStartProxy(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: creds}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
 
 		// Act
-		handle, err := client.startProxy(rs)
+		handle, err := client.startProxy(newTestProxyHandle(t, client, rs), rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -50,7 +50,7 @@ func TestStartProxy(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: creds}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
 
 		// Act
-		_, err := client.startProxy(rs)
+		_, err := client.startProxy(newTestProxyHandle(t, client, rs), rs)
 
 		// Assert
 		require.ErrorContains(t, err, "copy proxy credentials")
@@ -63,7 +63,7 @@ func TestStartProxy(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
 
 		// Act
-		_, err := client.startProxy(rs)
+		_, err := client.startProxy(newTestProxyHandle(t, client, rs), rs)
 
 		// Assert
 		require.ErrorContains(t, err, "create proxy")
@@ -83,7 +83,7 @@ func TestClient_createProxy(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Egress: sandbox.EgressPolicy{Rules: []sandbox.AllowRule{{Host: "api.anthropic.com"}}}}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), container: "agentic-claude-abc", network: "agentic-run-abc"}
 
 		// Act
-		handle, err := client.createProxy(rs)
+		handle, err := client.createProxy(newTestProxyHandle(t, client, rs), rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -117,7 +117,7 @@ func TestClient_createProxy(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
 
 		// Act
-		_, err := client.createProxy(rs)
+		_, err := client.createProxy(newTestProxyHandle(t, client, rs), rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestClient_createProxy(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Credentials: creds}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
 
 		// Act
-		_, err := client.createProxy(rs)
+		_, err := client.createProxy(newTestProxyHandle(t, client, rs), rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -152,7 +152,7 @@ func TestClient_createProxy(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, Egress: sandbox.EgressPolicy{Rules: rules}}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
 
 		// Act
-		_, err := client.createProxy(rs)
+		_, err := client.createProxy(newTestProxyHandle(t, client, rs), rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -168,7 +168,7 @@ func TestClient_createProxy(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
 
 		// Act
-		_, err := client.createProxy(rs)
+		_, err := client.createProxy(newTestProxyHandle(t, client, rs), rs)
 
 		// Assert
 		require.NoError(t, err)
@@ -190,7 +190,7 @@ func TestClient_createProxy(t *testing.T) {
 		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
 
 		// Act
-		_, err := client.createProxy(rs)
+		_, err := client.createProxy(newTestProxyHandle(t, client, rs), rs)
 
 		// Assert
 		require.ErrorContains(t, err, "has no subnet")

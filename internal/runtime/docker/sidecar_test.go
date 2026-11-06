@@ -2,6 +2,7 @@ package docker
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,10 +16,8 @@ import (
 
 func Test_ownerLabels(t *testing.T) {
 	// Arrange
-	rs := toolRun{container: "agentic-claude-abc"}
-
 	// Act
-	labels := ownerLabels(rs)
+	labels := ownerLabels("agentic-claude-abc")
 
 	// Assert
 	require.Len(t, labels, 2)
@@ -302,6 +301,60 @@ func Test_ownedResource_inUse(t *testing.T) {
 
 		// Assert
 		assert.False(t, inUse)
+	})
+
+	t.Run("host process owner still runs", func(t *testing.T) {
+		// Arrange
+		r := ownedResource{name: "agentic-proxy-abc", owner: pidOwner(os.Getpid()), started: time.Now().Add(-time.Hour)}
+
+		// Act
+		inUse := r.inUse(existing, 5*time.Minute)
+
+		// Assert
+		assert.True(t, inUse)
+	})
+
+	t.Run("host process owner gone", func(t *testing.T) {
+		// Arrange
+		r := ownedResource{name: "agentic-proxy-abc", owner: pidOwner(exitedPID(t)), started: time.Now().Add(-time.Hour)}
+
+		// Act
+		inUse := r.inUse(existing, 5*time.Minute)
+
+		// Assert
+		assert.False(t, inUse)
+	})
+
+	t.Run("host process owner gone but within grace", func(t *testing.T) {
+		// Arrange
+		r := ownedResource{name: "agentic-proxy-abc", owner: pidOwner(exitedPID(t)), started: time.Now()}
+
+		// Act
+		inUse := r.inUse(existing, 5*time.Minute)
+
+		// Assert
+		assert.True(t, inUse)
+	})
+}
+
+func Test_ownerPID(t *testing.T) {
+	t.Run("parses a pid owner", func(t *testing.T) {
+		// Act
+		pid, ok := ownerPID(pidOwner(4242))
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, 4242, pid)
+	})
+
+	t.Run("refuses other owners", func(t *testing.T) {
+		for _, owner := range []string{"agentic-claude-abc", "pid:", "pid:abc", "pid:0", "pid:-1"} {
+			// Act
+			_, ok := ownerPID(owner)
+
+			// Assert
+			assert.False(t, ok, owner)
+		}
 	})
 }
 

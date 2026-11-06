@@ -1,12 +1,17 @@
 package docker
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
+	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
+
+// pidOwnerPrefix starts the owner of a sidecar a host process owns instead of a tool container, e.g. "pid:4242".
+const pidOwnerPrefix = "pid:"
 
 // ownedResource is a sidecar container or network carrying ownerLabels.
 type ownedResource struct {
@@ -17,10 +22,18 @@ type ownedResource struct {
 
 // isOrphan reports whether r's owner is gone and r is past grace; unlabelled ones never are.
 func (r ownedResource) isOrphan(existing map[string]bool, grace time.Duration) bool {
-	if r.owner == "" || existing[r.owner] || r.started.IsZero() {
+	if r.owner == "" || r.started.IsZero() || r.ownerRunning(existing) {
 		return false
 	}
 	return time.Since(r.started) >= grace
+}
+
+// ownerRunning reports whether r's owner still runs: the host process of a pid owner, else a container in existing.
+func (r ownedResource) ownerRunning(existing map[string]bool) bool {
+	if pid, ok := ownerPID(r.owner); ok {
+		return platform.ProcessRunning(pid)
+	}
+	return existing[r.owner]
 }
 
 // inUse reports whether r may serve an active run: it has an owner that isn't an orphan yet.
@@ -28,10 +41,10 @@ func (r ownedResource) inUse(existing map[string]bool, grace time.Duration) bool
 	return r.owner != "" && !r.isOrphan(existing, grace)
 }
 
-// ownerLabels tie a sidecar or its network to its tool container.
-func ownerLabels(rs toolRun) []string {
+// ownerLabels tie a sidecar or its network to owner, its tool container or a pidOwner.
+func ownerLabels(owner string) []string {
 	return []string{
-		label(LabelOwner, rs.container),
+		label(LabelOwner, owner),
 		label(LabelStarted, formatLabelTime(time.Now())),
 	}
 }
@@ -213,4 +226,19 @@ func unusedNames(resources []ownedResource, existing map[string]bool, grace time
 // noCleanup is the cleanup for paths that set nothing up.
 func noCleanup() {
 	// Nothing to undo
+}
+
+// pidOwner returns the owner label of a sidecar the host process pid owns.
+func pidOwner(pid int) string {
+	return pidOwnerPrefix + strconv.Itoa(pid)
+}
+
+// ownerPID returns the pid of a pidOwner owner.
+func ownerPID(owner string) (int, bool) {
+	digits, ok := strings.CutPrefix(owner, pidOwnerPrefix)
+	if !ok {
+		return 0, false
+	}
+	pid, err := strconv.Atoi(digits)
+	return pid, err == nil && pid > 0
 }

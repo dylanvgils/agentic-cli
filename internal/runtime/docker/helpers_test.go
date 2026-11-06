@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -437,4 +438,56 @@ func stubProxySettleTime(t *testing.T, client *Client, d time.Duration) {
 	orig := client.timing
 	client.timing.proxySettleTime = d
 	t.Cleanup(func() { client.timing = orig })
+}
+
+// exitedPID returns the pid of a process that already exited.
+func exitedPID(t *testing.T) int {
+	t.Helper()
+	cmd := exec.Command(os.Args[0], "-test.run=^$")
+	require.NoError(t, cmd.Run())
+	return cmd.Process.Pid
+}
+
+// newTestProxyHandle returns client's proxy handle for rs.
+func newTestProxyHandle(t *testing.T, client *Client, rs toolRun) proxyHandle {
+	t.Helper()
+	h, err := client.newProxyHandle(rs)
+	require.NoError(t, err)
+	return h
+}
+
+// stubPublishedProxyDocker answers the docker calls StartPublishedProxy makes, with host as the context's endpoint, and
+// records them plus the token env file create got; failSubcmds (e.g. "port") fail.
+func stubPublishedProxyDocker(t *testing.T, client *Client, host string, failSubcmds ...string) (calls func() []dockerCall, tokenFile func() (path, content string)) {
+	t.Helper()
+	var recorded []dockerCall
+	var path, content string
+	stubDockerRun(t, client, func(args ...string) (string, error) {
+		recorded = append(recorded, dockerCall{args: args})
+		switch {
+		case slices.Contains(failSubcmds, args[0]):
+			return "", fmt.Errorf("stub: %s failed", args[0])
+		case len(args) > 1 && args[0] == "context" && args[1] == "show":
+			return "example\n", nil
+		case args[0] == "context":
+			return host + "\n", nil
+		case args[0] == "create":
+			for _, a := range args {
+				if file, ok := strings.CutPrefix(a, "--env-file="); ok {
+					path = file
+				}
+			}
+			data, err := os.ReadFile(path)
+			require.NoError(t, err)
+			content = string(data)
+		case len(args) > 1 && args[0] == "network" && args[1] == "inspect":
+			return LabelProjectVal + "\n", nil
+		case args[0] == "inspect":
+			return "true", nil
+		case args[0] == "port":
+			return "127.0.0.1:49153\n", nil
+		}
+		return "", nil
+	})
+	return func() []dockerCall { return recorded }, func() (string, string) { return path, content }
 }
