@@ -6,24 +6,43 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_microsandboxRunner_Capabilities(t *testing.T) {
-	// Arrange
-	want := sandbox.Capabilities{Features: sandbox.Features{CredentialInjection: true}}
-	r := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return want }}}
+	native := sandbox.Capabilities{Features: sandbox.Features{CredentialInjection: true}}
+	m := &fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return native }}
 
-	// Act
-	caps := r.Capabilities()
+	t.Run("native reports msb's own", func(t *testing.T) {
+		// Act
+		caps := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m}.Capabilities()
 
-	// Assert
-	assert.Equal(t, want, caps)
+		// Assert
+		assert.Equal(t, native, caps)
+	})
+
+	t.Run("agentic-proxy adds monitor, path rules, integrations and proxy injection", func(t *testing.T) {
+		// Act
+		caps := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m, agenticProxy: true}.Capabilities()
+
+		// Assert
+		assert.Equal(t, sandbox.Capabilities{
+			Features: sandbox.Features{
+				ProxyMonitor:        true,
+				CredentialInjection: true,
+				PathRules:           true,
+				ProxyIntegrations:   true,
+			},
+			Isolation: sandbox.Isolation{CredentialsViaProxy: true},
+		}, caps)
+	})
 }
 
 func Test_microsandboxRunner_Check(t *testing.T) {
@@ -72,9 +91,67 @@ func Test_microsandboxRunner_Check(t *testing.T) {
 		// Assert
 		assert.NoError(t, err)
 	})
+
+	t.Run("refuses agentic-proxy for a proxy run, even on a dry run", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Flags.DryRun = true
+		req.Flags.Proxy = resolve.ProxyInput{ProxyFlag: true, Backend: config.BackendAgentic}
+
+		// Act
+		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{}, agenticProxy: true}.Check(req)
+
+		// Assert
+		assert.EqualError(t, err, "--proxy-backend agentic: microsandbox can't run agentic-proxy yet; remove it or use --runtime docker")
+	})
+
+	t.Run("names the layer that sets agentic-proxy for credentials", func(t *testing.T) {
+		// Arrange
+		req := newCredentialRequest(t)
+		layer := config.RCLayer{Path: "/example.test/.agenticrc.toml", RC: &config.AgenticRC{}}
+		layer.RC.Run.Proxy.Backend = config.BackendAgentic
+		req.Project.Layers = append(req.Project.Layers, layer)
+		req.Project.RC.Run.Proxy.Backend = config.BackendAgentic
+
+		// Act
+		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{}, agenticProxy: true}.Check(req)
+
+		// Assert
+		assert.ErrorContains(t, err, `[run.proxy] backend = "agentic" in /example.test/.agenticrc.toml: microsandbox can't run agentic-proxy yet`)
+	})
+
+	t.Run("accepts agentic-proxy for a run without the proxy", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Flags.DryRun = true
+		req.Flags.Proxy = resolve.ProxyInput{Backend: config.BackendAgentic}
+
+		// Act
+		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: &fakeMicrosandbox{}, agenticProxy: true}.Check(req)
+
+		// Assert
+		assert.NoError(t, err)
+	})
 }
 
 func Test_microsandboxRunner_Run(t *testing.T) {
+	t.Run("refuses agentic-proxy for a run with egress on", func(t *testing.T) {
+		// Arrange
+		ran := false
+		m := &fakeMicrosandbox{run: func(sandbox.RunSpec) error {
+			ran = true
+			return nil
+		}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce}}
+
+		// Act
+		err := microsandboxRunner{docker: &fakeDocker{}, microsandbox: m, agenticProxy: true}.Run(Request{}, rs)
+
+		// Assert
+		assert.ErrorIs(t, err, errAgenticProxyUnsupported)
+		assert.False(t, ran)
+	})
+
 	t.Run("runs the image pinned to its Docker ID", func(t *testing.T) {
 		// Arrange
 		var ranImage string

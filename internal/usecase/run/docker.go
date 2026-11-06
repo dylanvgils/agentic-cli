@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -25,8 +26,14 @@ func (r dockerRunner) Capabilities() sandbox.Capabilities {
 }
 
 // Check refuses a dind run on an image without the docker layer and a Docker Engine older than minDockerEngine, and warns
-// that other engines can't be checked; a dry run starts nothing, so it skips the engine check.
+// that other engines can't be checked and that the native proxy backend is ignored; a dry run starts nothing, so it skips
+// the engine check.
 func (r dockerRunner) Check(req Request) error {
+	needs := requiredFeatures(req.Flags, req.Project.RC)
+	if req.proxyBackend() == config.BackendNative && (needs.Proxy || needs.CredentialInjection) {
+		logging.Warnf("%s is ignored: Docker always uses agentic-proxy", proxyBackendSource(req))
+	}
+
 	if resolve.DindEnabled(req.Flags.Dind, req.Project.RC) {
 		if err := r.requireDockerLayer(req); err != nil {
 			return err

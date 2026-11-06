@@ -118,6 +118,16 @@ func runtimeSource(req Request) string {
 	return layerSource(req.Project.Layers, key, func(rc *config.AgenticRC) bool { return rc.Run.Runtime != "" })
 }
 
+// proxyBackendSource names what picks req's proxy backend: --proxy-backend, or [run.proxy] backend and the innermost layer
+// setting it.
+func proxyBackendSource(req Request) string {
+	if req.Flags.Proxy.Backend != "" {
+		return "--proxy-backend " + req.Flags.Proxy.Backend
+	}
+	key := fmt.Sprintf("[run.proxy] backend = %q", req.Project.RC.Run.Proxy.Backend)
+	return layerSource(req.Project.Layers, key, func(rc *config.AgenticRC) bool { return rc.Run.Proxy.Backend != "" })
+}
+
 // proxySource names what asks for the proxy in req: its flag, or the [run.proxy] key and the innermost layer setting it.
 func proxySource(req Request) string {
 	switch {

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -19,6 +20,7 @@ const (
 	noProxyFlagName      = "no-proxy"
 	proxyMonitorFlagName = "proxy-monitor"
 	proxyIntegrationFlag = "proxy-integration"
+	proxyBackendFlag     = "proxy-backend"
 	noDindFlagName       = "no-dind"
 	dryRunFlagName       = "dry-run"
 	allFlagName          = "all"
@@ -90,15 +92,19 @@ func resolveResourceLimitFlags(cmd *cobra.Command) sandbox.ResourceLimits {
 	return limitFlags(cmd, "pids-limit", "cpus", "memory")
 }
 
-// addProxyFlags registers the mutually exclusive --proxy, --no-proxy, and --proxy-monitor flags, plus --proxy-integration,
-// shared by the run and instructions commands.
+// addProxyFlags registers the mutually exclusive --proxy, --no-proxy, and --proxy-monitor flags, plus --proxy-integration
+// and --proxy-backend, shared by the run and instructions commands.
 func addProxyFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("proxy", false, "route egress through the allowlist proxy (overrides config)")
 	cmd.Flags().Bool(noProxyFlagName, false, "disable the egress proxy for this run (overrides config)")
 	cmd.Flags().Bool(proxyMonitorFlagName, false, "route egress through the proxy without blocking, logging every host (overrides config)")
 	cmd.Flags().StringSlice(proxyIntegrationFlag, nil, "route a tool that ignores the proxy env vars through the proxy: "+strings.Join(sandbox.EgressIntegrations(), ", ")+"; repeatable or comma-separated, added to .agenticrc.toml's integrations")
+	cmd.Flags().String(proxyBackendFlag, "", "what enforces the allowlist on microsandbox: "+config.BackendNative+" (msb rules, default) or "+config.BackendAgentic+" (agentic-proxy); Docker always uses agentic-proxy (overrides config)")
 	cmd.MarkFlagsMutuallyExclusive("proxy", noProxyFlagName, proxyMonitorFlagName)
+	// Hidden until microsandbox can run agentic-proxy
+	_ = cmd.Flags().MarkHidden(proxyBackendFlag)
 	_ = cmd.RegisterFlagCompletionFunc(proxyIntegrationFlag, proxyIntegrationsFunc)
+	_ = cmd.RegisterFlagCompletionFunc(proxyBackendFlag, proxyBackendsFunc)
 }
 
 // addDindFlags registers the exclusive --dind/--no-dind pair and the sidecar limit flags.
@@ -128,12 +134,14 @@ func proxyInput(cmd *cobra.Command) resolve.ProxyInput {
 	monitorFlag, _ := cmd.Flags().GetBool(proxyMonitorFlagName)
 	proxyFlag, _ := cmd.Flags().GetBool("proxy")
 	integrations, _ := cmd.Flags().GetStringSlice(proxyIntegrationFlag)
+	backend, _ := cmd.Flags().GetString(proxyBackendFlag)
 
 	return resolve.ProxyInput{
 		NoProxy:      noProxy,
 		MonitorFlag:  monitorFlag,
 		ProxyFlag:    proxyFlag,
 		Integrations: integrations,
+		Backend:      backend,
 	}
 }
 
@@ -156,9 +164,16 @@ func runtimeFlags(cmd *cobra.Command) (run.Flags, error) {
 		}
 	}
 
+	proxy := proxyInput(cmd)
+	if proxy.Backend != "" {
+		if err := config.CheckProxyBackend(proxy.Backend); err != nil {
+			return run.Flags{}, fmt.Errorf("--%s: %w", proxyBackendFlag, err)
+		}
+	}
+
 	return run.Flags{
 		ToolHome:   toolHome,
-		Proxy:      proxyInput(cmd),
+		Proxy:      proxy,
 		Dind:       dindInput(cmd),
 		Limits:     resolveResourceLimitFlags(cmd),
 		DindLimits: resolveDindResourceLimitFlags(cmd),

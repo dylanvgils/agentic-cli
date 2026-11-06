@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -89,6 +90,11 @@ var baseLayersFunc = func(_ *cobra.Command, _ []string, toComplete string) ([]st
 // proxyIntegrationsFunc completes --proxy-integration with the known integration names.
 func proxyIntegrationsFunc(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 	return sandbox.EgressIntegrations(), cobra.ShellCompDirectiveNoFileComp
+}
+
+// proxyBackendsFunc completes --proxy-backend with the backend names.
+func proxyBackendsFunc(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+	return []string{config.BackendNative, config.BackendAgentic}, cobra.ShellCompDirectiveNoFileComp
 }
 
 // runtimesFunc completes --runtime with every runtime's name.

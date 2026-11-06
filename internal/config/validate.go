@@ -21,6 +21,14 @@ var scpGitURL = regexp.MustCompile(`^([^@/\s]+@)?[^@/:\s]{2,}:[^:\s]\S*$`)
 // validMemory matches a docker memory size: a number with an optional b, k, m or g unit.
 var validMemory = regexp.MustCompile(`^[0-9]+[bkmgBKMG]?$`)
 
+// CheckProxyBackend refuses a proxy backend other than BackendNative and BackendAgentic.
+func CheckProxyBackend(name string) error {
+	if name != BackendNative && name != BackendAgentic {
+		return fmt.Errorf("unknown proxy backend %q: must be %q or %q", name, BackendNative, BackendAgentic)
+	}
+	return nil
+}
+
 // validateRC checks one layer's values; the caller prefixes the error with the layer's path.
 func validateRC(rc *AgenticRC) error {
 	if err := validateRun(rc.Run); err != nil {
@@ -58,6 +66,11 @@ func validateRun(run RCRun) error {
 func validateProxy(proxy RCProxy) error {
 	if proxy.Mode != "" && proxy.Mode != ModeEnforce && proxy.Mode != ModeMonitor {
 		return fmt.Errorf("invalid [run.proxy] mode %q: must be %q or %q", proxy.Mode, ModeEnforce, ModeMonitor)
+	}
+	if proxy.Backend != "" {
+		if err := CheckProxyBackend(proxy.Backend); err != nil {
+			return fmt.Errorf("[run.proxy] backend: %w", err)
+		}
 	}
 
 	for i, cred := range proxy.Credentials {

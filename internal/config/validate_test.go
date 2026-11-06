@@ -110,11 +110,38 @@ func Test_validateRun(t *testing.T) {
 	}
 }
 
+func TestCheckProxyBackend(t *testing.T) {
+	t.Run("accepts native and agentic", func(t *testing.T) {
+		for _, name := range []string{BackendNative, BackendAgentic} {
+			// Act
+			err := CheckProxyBackend(name)
+
+			// Assert
+			assert.NoError(t, err, name)
+		}
+	})
+
+	t.Run("refuses an unknown or empty backend", func(t *testing.T) {
+		cases := map[string]string{
+			"bogus": `unknown proxy backend "bogus": must be "native" or "agentic"`,
+			"":      `unknown proxy backend "": must be "native" or "agentic"`,
+		}
+		for name, want := range cases {
+			// Act
+			err := CheckProxyBackend(name)
+
+			// Assert
+			assert.EqualError(t, err, want)
+		}
+	})
+}
+
 func Test_validateProxy(t *testing.T) {
 	t.Run("valid proxy table passes", func(t *testing.T) {
 		// Arrange
 		proxy := RCProxy{
 			Mode:         ModeMonitor,
+			Backend:      BackendAgentic,
 			Credentials:  []RCCredential{{Preset: "example", Secret: "/example.test/secret"}},
 			AllowedPaths: []RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}},
 			Integrations: []string{"maven"},
@@ -144,6 +171,11 @@ func Test_validateProxy(t *testing.T) {
 			name:  "invalid mode",
 			proxy: RCProxy{Mode: "bogus"},
 			want:  `invalid [run.proxy] mode "bogus": must be "enforce" or "monitor"`,
+		},
+		{
+			name:  "invalid backend",
+			proxy: RCProxy{Backend: "bogus"},
+			want:  `[run.proxy] backend: unknown proxy backend "bogus": must be "native" or "agentic"`,
 		},
 		{
 			name: "invalid credential",

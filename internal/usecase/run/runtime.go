@@ -3,6 +3,7 @@ package run
 import (
 	"fmt"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -19,7 +20,7 @@ type runner interface {
 // Run executes rs on req's runtime, which first readies its own host resources.
 // Every runtime gets rs's security checks here, even one whose runner skips its own.
 func (s *Service) Run(req Request, rs sandbox.RunSpec) error {
-	r, err := s.runner(req.runtime())
+	r, err := s.runner(req.runtime(), req.proxyBackend())
 	if err != nil {
 		return err
 	}
@@ -33,21 +34,26 @@ func (s *Service) Run(req Request, rs sandbox.RunSpec) error {
 	return r.Run(req, rs)
 }
 
-// runner returns the runner for runtime; an empty runtime is Docker.
-func (s *Service) runner(runtime sandbox.Runtime) (runner, error) {
+// runner returns the runner for runtime with proxy backend; an empty runtime is Docker, an empty backend the runtime's
+// default.
+func (s *Service) runner(runtime sandbox.Runtime, backend string) (runner, error) {
 	switch runtime {
 	case sandbox.RuntimeDocker, "":
 		return dockerRunner{docker: s.docker, sidecarImages: s.sidecarImages}, nil
 	case sandbox.RuntimeMicrosandbox:
-		return microsandboxRunner{docker: s.docker, microsandbox: s.microsandbox}, nil
+		return microsandboxRunner{
+			docker:       s.docker,
+			microsandbox: s.microsandbox,
+			agenticProxy: backend == config.BackendAgentic,
+		}, nil
 	default:
 		return nil, fmt.Errorf("unknown runtime %q", runtime)
 	}
 }
 
-// capabilities returns what runtime offers; an unknown runtime offers nothing.
-func (s *Service) capabilities(runtime sandbox.Runtime) sandbox.Capabilities {
-	r, err := s.runner(runtime)
+// capabilities returns what runtime offers with proxy backend; an unknown runtime offers nothing.
+func (s *Service) capabilities(runtime sandbox.Runtime, backend string) sandbox.Capabilities {
+	r, err := s.runner(runtime, backend)
 	if err != nil {
 		return sandbox.Capabilities{}
 	}
@@ -56,7 +62,7 @@ func (s *Service) capabilities(runtime sandbox.Runtime) sandbox.Capabilities {
 
 // checkRuntime refuses a run req's runtime can't do safely and warns about what it drops, then runs that runtime's own checks.
 func (s *Service) checkRuntime(req Request) error {
-	r, err := s.runner(req.runtime())
+	r, err := s.runner(req.runtime(), req.proxyBackend())
 	if err != nil {
 		return err
 	}

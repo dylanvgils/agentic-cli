@@ -44,6 +44,7 @@ func mergeScalars(result, rc *AgenticRC) {
 	fillUnset(&resRun.Runtime, run.Runtime)
 	fillUnset(&resRun.Proxy.Enabled, run.Proxy.Enabled)
 	fillUnset(&resRun.Proxy.Mode, run.Proxy.Mode)
+	fillUnset(&resRun.Proxy.Backend, run.Proxy.Backend)
 	fillUnset(&resRun.Dind.Enabled, run.Dind.Enabled)
 	resRun.Dind.RCLimits = mergeLimits(resRun.Dind.RCLimits, run.Dind.RCLimits)
 	fillUnset(&resRun.Instructions.Enabled, run.Instructions.Enabled)

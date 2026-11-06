@@ -26,6 +26,8 @@ type ProxyInput struct {
 	ProxyFlag   bool
 	// Integrations are the --proxy-integration names, added to rc's
 	Integrations []string
+	// Backend is the --proxy-backend value; empty defers to the config
+	Backend string
 }
 
 // ProxyMode resolves whether the proxy is off, enforcing or monitoring; when proxyInjects, credentials turn it on and refuse an
@@ -62,6 +64,14 @@ func ProxyAllowList(toolAllowedHosts []string, dindEnabled bool, rc *config.Agen
 		seen[host] = true
 		return dup
 	})
+}
+
+// ProxyBackend returns the proxy backend --proxy-backend or rc picks, or "" for the runtime's default.
+func ProxyBackend(in ProxyInput, rc *config.AgenticRC) string {
+	if in.Backend != "" {
+		return in.Backend
+	}
+	return rc.Run.Proxy.Backend
 }
 
 // ProxyIntegrations returns rc's proxy integrations plus the flag's, sorted and unique.

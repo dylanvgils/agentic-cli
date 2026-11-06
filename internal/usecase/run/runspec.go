@@ -56,6 +56,8 @@ type Input struct {
 	DindLimits sandbox.ResourceLimits
 	// Runtime is where the run executes; empty means Docker
 	Runtime sandbox.Runtime
+	// ProxyBackend is what enforces the allowlist on Runtime; empty means the runtime's default
+	ProxyBackend string
 	// Credentials are the approved proxy credentials; Prepare fills them in
 	Credentials []credentials.Resolved
 	// InstructionsMount is the mount spec for this run's instructions snapshot, empty when disabled.
@@ -93,7 +95,7 @@ func (s *Service) build(target Target, in Input, toolConfig tools.ToolConfig, ap
 		in:            in,
 		toolConfig:    toolConfig,
 		rc:            rc,
-		caps:          s.capabilities(in.Runtime),
+		caps:          s.capabilities(in.Runtime, in.ProxyBackend),
 		containerHome: s.docker.ResolveContainerHome(target.ImageName),
 	}
 

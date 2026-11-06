@@ -41,6 +41,11 @@ func (r Request) runtime() sandbox.Runtime {
 	return resolve.Runtime(r.Flags.Runtime, r.Project.RC)
 }
 
+// proxyBackend returns r's proxy backend: --proxy-backend, then the config, else "" for the runtime's default.
+func (r Request) proxyBackend() string {
+	return resolve.ProxyBackend(r.Flags.Proxy, r.Project.RC)
+}
+
 // Prepare runs every check and host-side step `agentic run` needs, asking prompter where the user must approve, and returns
 // the RunSpec plus a cleanup func that must always be deferred, even on error.
 func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func(), error) {
@@ -72,7 +77,7 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
-	in, err := runInput(req.Flags, approved, s.capabilities(req.runtime()))
+	in, err := runInput(req.Flags, approved, s.capabilities(req.runtime(), req.proxyBackend()))
 	if err != nil {
 		return sandbox.RunSpec{}, noCleanup, err
 	}
@@ -160,6 +165,7 @@ func resolveInput(flags Flags, rc *config.AgenticRC, caps sandbox.Capabilities) 
 		DindEnabled:       dind,
 		DindLimits:        flags.DindLimits,
 		Runtime:           resolve.Runtime(flags.Runtime, rc),
+		ProxyBackend:      resolve.ProxyBackend(flags.Proxy, rc),
 	}, nil
 }
 

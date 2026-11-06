@@ -1,6 +1,7 @@
 package run
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -13,20 +14,38 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
+// errAgenticProxyUnsupported refuses the agentic backend until msb runs can start agentic-proxy.
+var errAgenticProxyUnsupported = errors.New("microsandbox can't run agentic-proxy yet")
+
 // microsandboxRunner runs tools in microsandbox VMs, loading their images from Docker.
 type microsandboxRunner struct {
 	// docker saves the tool image msb loads
 	docker       Docker
 	microsandbox Microsandbox
+	// agenticProxy enforces the allowlist with agentic-proxy instead of msb's own rules
+	agenticProxy bool
 }
 
-// Capabilities reports what msb runs offer.
+// Capabilities reports what msb runs offer; agentic-proxy adds what only it can do and injects the credentials itself.
 func (r microsandboxRunner) Capabilities() sandbox.Capabilities {
-	return r.microsandbox.Capabilities()
+	caps := r.microsandbox.Capabilities()
+	if r.agenticProxy {
+		caps.ProxyMonitor = true
+		caps.PathRules = true
+		caps.ProxyIntegrations = true
+		caps.CredentialsViaProxy = true
+	}
+	return caps
 }
 
-// Check refuses a missing msb or one older than minMicrosandbox; a dry run makes no msb calls, so it skips the check.
+// Check refuses agentic-proxy for a run that uses the proxy, then a missing msb or one older than minMicrosandbox; a dry
+// run makes no msb calls, so it skips the msb checks.
 func (r microsandboxRunner) Check(req Request) error {
+	needs := requiredFeatures(req.Flags, req.Project.RC)
+	if r.agenticProxy && (needs.Proxy || needs.CredentialInjection) {
+		return fmt.Errorf("%s: %w; remove it or use --runtime docker", proxyBackendSource(req), errAgenticProxyUnsupported)
+	}
+
 	if req.Flags.DryRun {
 		return nil
 	}
@@ -41,10 +60,14 @@ func (r microsandboxRunner) Check(req Request) error {
 	return requireVersion("msb", version, minMicrosandbox)
 }
 
-// Run runs rs's image in microsandbox, loading it from Docker first unless msb already holds this exact image and checking
+// Run refuses agentic-proxy for rs's egress, then runs rs's image in microsandbox, loading it from Docker first unless msb already holds this exact image and checking
 // the mounts again after the load; with dind it runs the image's dockerd image, built first when needed. A dry run only
 // prints the msb command.
 func (r microsandboxRunner) Run(_ Request, rs sandbox.RunSpec) error {
+	if r.agenticProxy && rs.Egress.Mode.Enabled() {
+		return errAgenticProxyUnsupported
+	}
+
 	image := rs.Image
 	if rs.Dind.Enabled {
 		image = tools.DockerdImage(rs.Image)

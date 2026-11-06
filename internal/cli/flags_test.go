@@ -93,6 +93,7 @@ func Test_proxyInput(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set("proxy-monitor", "true"))
 	require.NoError(t, cmd.Flags().Set("proxy", "true"))
 	require.NoError(t, cmd.Flags().Set("proxy-integration", "maven,gradle"))
+	require.NoError(t, cmd.Flags().Set("proxy-backend", "agentic"))
 
 	// Act
 	result := proxyInput(cmd)
@@ -103,6 +104,7 @@ func Test_proxyInput(t *testing.T) {
 		MonitorFlag:  true,
 		ProxyFlag:    true,
 		Integrations: []string{"maven", "gradle"},
+		Backend:      "agentic",
 	}, result)
 }
 
@@ -344,5 +346,17 @@ func Test_runtimeFlags(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, `unknown runtime "podman"`)
+	})
+
+	t.Run("unknown proxy backend returns error", func(t *testing.T) {
+		// Arrange
+		cmd := newCmd()
+		require.NoError(t, cmd.Flags().Set("proxy-backend", "bogus"))
+
+		// Act
+		_, err := runtimeFlags(cmd)
+
+		// Assert
+		assert.EqualError(t, err, `--proxy-backend: unknown proxy backend "bogus": must be "native" or "agentic"`)
 	})
 }

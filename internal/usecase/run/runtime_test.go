@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
@@ -128,8 +129,8 @@ func Test_Service_runner(t *testing.T) {
 
 	t.Run("docker and the empty runtime get the docker runner", func(t *testing.T) {
 		// Act
-		docker, dockerErr := svc.runner(sandbox.RuntimeDocker)
-		empty, emptyErr := svc.runner("")
+		docker, dockerErr := svc.runner(sandbox.RuntimeDocker, "")
+		empty, emptyErr := svc.runner("", "")
 
 		// Assert
 		require.NoError(t, dockerErr)
@@ -140,17 +141,26 @@ func Test_Service_runner(t *testing.T) {
 
 	t.Run("microsandbox gets the microsandbox runner", func(t *testing.T) {
 		// Act
-		r, err := svc.runner(sandbox.RuntimeMicrosandbox)
+		r, err := svc.runner(sandbox.RuntimeMicrosandbox, "")
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, microsandboxRunner{docker: svc.docker, microsandbox: svc.microsandbox}, r)
 	})
 
+	t.Run("microsandbox with the agentic backend gets the agentic-proxy runner", func(t *testing.T) {
+		// Act
+		r, err := svc.runner(sandbox.RuntimeMicrosandbox, config.BackendAgentic)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, microsandboxRunner{docker: svc.docker, microsandbox: svc.microsandbox, agenticProxy: true}, r)
+	})
+
 	t.Run("every parseable runtime has a runner", func(t *testing.T) {
 		for _, runtime := range sandbox.Runtimes {
 			// Act
-			_, err := svc.runner(runtime)
+			_, err := svc.runner(runtime, "")
 
 			// Assert
 			assert.NoError(t, err, runtime)
@@ -159,7 +169,7 @@ func Test_Service_runner(t *testing.T) {
 
 	t.Run("an unknown runtime is an error", func(t *testing.T) {
 		// Act
-		_, err := svc.runner("podman")
+		_, err := svc.runner("podman", "")
 
 		// Assert
 		assert.ErrorContains(t, err, `unknown runtime "podman"`)
@@ -176,8 +186,8 @@ func Test_Service_capabilities(t *testing.T) {
 
 	t.Run("docker and the empty runtime ask docker", func(t *testing.T) {
 		// Act
-		docker := svc.capabilities(sandbox.RuntimeDocker)
-		empty := svc.capabilities("")
+		docker := svc.capabilities(sandbox.RuntimeDocker, "")
+		empty := svc.capabilities("", "")
 
 		// Assert
 		assert.Equal(t, dockerCaps, docker)
@@ -186,7 +196,7 @@ func Test_Service_capabilities(t *testing.T) {
 
 	t.Run("microsandbox asks msb", func(t *testing.T) {
 		// Act
-		caps := svc.capabilities(sandbox.RuntimeMicrosandbox)
+		caps := svc.capabilities(sandbox.RuntimeMicrosandbox, "")
 
 		// Assert
 		assert.Equal(t, msbCaps, caps)
@@ -194,7 +204,7 @@ func Test_Service_capabilities(t *testing.T) {
 
 	t.Run("an unknown runtime offers nothing", func(t *testing.T) {
 		// Act
-		caps := svc.capabilities("podman")
+		caps := svc.capabilities("podman", "")
 
 		// Assert
 		assert.Equal(t, sandbox.Capabilities{}, caps)
