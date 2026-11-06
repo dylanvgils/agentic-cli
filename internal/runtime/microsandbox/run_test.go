@@ -25,7 +25,7 @@ func TestClient_Run(t *testing.T) {
 		}})
 
 		// Act
-		err := client.Run(sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"--help"}})
+		err := client.Run(sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"--help"}}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestClient_Run(t *testing.T) {
 
 		// Act
 		var err error
-		out := iostreamstest.CaptureOut(t, func() { err = client.Run(rs) })
+		out := iostreamstest.CaptureOut(t, func() { err = client.Run(rs, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -59,7 +59,7 @@ func TestClient_Run(t *testing.T) {
 		}}
 
 		// Act
-		err := client.Run(rs)
+		err := client.Run(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestClient_Run(t *testing.T) {
 
 		// Act
 		var err error
-		out := iostreamstest.CaptureOut(t, func() { err = client.Run(rs) })
+		out := iostreamstest.CaptureOut(t, func() { err = client.Run(rs, nil) })
 
 		// Assert
 		require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestClient_Run(t *testing.T) {
 		}})
 
 		// Act
-		err := client.Run(sandbox.RunSpec{Image: "agentic-claude", Env: []string{"EXAMPLE_TOKEN"}})
+		err := client.Run(sandbox.RunSpec{Image: "agentic-claude", Env: []string{"EXAMPLE_TOKEN"}}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -115,18 +115,55 @@ func TestClient_Run(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}, Volumes: []string{"go-cache:/cache"}}
 
 		// Act
-		err := client.Run(rs)
+		err := client.Run(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
 		assert.NotContains(t, gotArgs, "go-cache:/cache")
+	})
+
+	t.Run("routes through the proxy with the token only in msb's env", func(t *testing.T) {
+		// Arrange
+		var gotArgs, gotEnv []string
+		var conf string
+		client := newTestClient(&fakeRunner{runInteractive: func(env []string, args ...string) error {
+			gotArgs, gotEnv = args, env
+			for _, a := range args {
+				if path, ok := strings.CutPrefix(a, "--runtime-conf="); ok {
+					data, err := os.ReadFile(path)
+					require.NoError(t, err)
+					conf = string(data)
+				}
+			}
+			return nil
+		}})
+		creds := []sandbox.Credential{{Name: "EXAMPLE_API_KEY", Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", Credentials: creds, Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}}
+		route := &ProxyRoute{Port: "49153", Token: "test-token", CAPEM: []byte("test-ca"), Env: []string{"EXAMPLE_API_KEY=agentic-placeholder"}}
+
+		// Act
+		err := client.Run(rs, route)
+
+		// Assert
+		require.NoError(t, err)
+		joined := strings.Join(gotArgs, " ")
+		assert.NotContains(t, joined, "test-token")
+		assert.NotContains(t, joined, "test-secret")
+		assert.NotContains(t, joined, "--secret", "the proxy injects instead of msb")
+		assert.Contains(t, gotArgs, "--env=EXAMPLE_API_KEY=agentic-placeholder")
+		assert.Contains(t, gotArgs, "--net-rule=allow@host:tcp:49153")
+		assert.Contains(t, conf, `"HTTPS_PROXY": "${HTTPS_PROXY}"`)
+		assert.Contains(t, conf, `"AGENTIC_PROXY_CA": "${AGENTIC_PROXY_CA}"`)
+		assert.Contains(t, gotEnv, "HTTPS_PROXY=http://agentic:test-token@host.microsandbox.internal:49153")
+		assert.Contains(t, gotEnv, "AGENTIC_PROXY_CA=test-ca")
+		assert.NotContains(t, strings.Join(gotEnv, " "), "test-secret")
 	})
 }
 
 func Test_buildRunArgs(t *testing.T) {
 	t.Run("passes the image and tool args after --", func(t *testing.T) {
 		// Act
-		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"-p", "hi"}}, nil)
+		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"-p", "hi"}}, nil, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -135,7 +172,7 @@ func Test_buildRunArgs(t *testing.T) {
 
 	t.Run("puts the env args before the image", func(t *testing.T) {
 		// Act
-		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"}, []string{"--runtime-conf=/example.test/env.yaml"})
+		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"}, []string{"--runtime-conf=/example.test/env.yaml"}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -144,7 +181,7 @@ func Test_buildRunArgs(t *testing.T) {
 
 	t.Run("omits -- without tool args", func(t *testing.T) {
 		// Act
-		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"}, nil)
+		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"}, nil, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -163,7 +200,7 @@ func Test_buildRunArgs(t *testing.T) {
 		}
 
 		// Act
-		args, err := buildRunArgs(rs, nil)
+		args, err := buildRunArgs(rs, nil, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -180,7 +217,7 @@ func Test_buildRunArgs(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "img", EphemeralDirs: []sandbox.EphemeralDir{{Path: "/tmp", Size: "1g"}}}
 
 		// Act
-		args, err := buildRunArgs(rs, nil)
+		args, err := buildRunArgs(rs, nil, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -192,7 +229,7 @@ func Test_buildRunArgs(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "img", SkipEntrypoint: true, ToolArgs: []string{"bash", "-l"}}
 
 		// Act
-		args, err := buildRunArgs(rs, nil)
+		args, err := buildRunArgs(rs, nil, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -204,7 +241,7 @@ func Test_buildRunArgs(t *testing.T) {
 		rs := sandbox.RunSpec{Image: "img", Limits: sandbox.ResourceLimits{CPUs: "many"}}
 
 		// Act
-		_, err := buildRunArgs(rs, nil)
+		_, err := buildRunArgs(rs, nil, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, `invalid cpus "many"`)
@@ -284,7 +321,7 @@ func Test_buildNamedVolumeArgs(t *testing.T) {
 func Test_buildNetworkArgs(t *testing.T) {
 	t.Run("adds nothing with the proxy off", func(t *testing.T) {
 		// Act
-		args, err := buildNetworkArgs(sandbox.EgressPolicy{Rules: []sandbox.AllowRule{{Host: "api.example.test"}}})
+		args, err := buildNetworkArgs(sandbox.EgressPolicy{Rules: []sandbox.AllowRule{{Host: "api.example.test"}}}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -293,15 +330,35 @@ func Test_buildNetworkArgs(t *testing.T) {
 
 	t.Run("refuses monitor mode", func(t *testing.T) {
 		// Act
-		_, err := buildNetworkArgs(sandbox.EgressPolicy{Mode: sandbox.EgressMonitor})
+		_, err := buildNetworkArgs(sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}, nil)
 
 		// Assert
 		assert.EqualError(t, err, "msb can't run the proxy in monitor mode")
 	})
 
+	t.Run("with a route allows only the proxy's host port, in monitor mode too", func(t *testing.T) {
+		for _, mode := range []sandbox.EgressMode{sandbox.EgressEnforce, sandbox.EgressMonitor} {
+			// Act
+			args, err := buildNetworkArgs(sandbox.EgressPolicy{Mode: mode, Rules: []sandbox.AllowRule{{Host: "api.example.test"}}}, &ProxyRoute{Port: "49153"})
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, []string{"--net-default-egress=deny", "--net-rule=allow@host:tcp:49153"}, args)
+		}
+	})
+
+	t.Run("a route with the proxy off adds nothing", func(t *testing.T) {
+		// Act
+		args, err := buildNetworkArgs(sandbox.EgressPolicy{}, &ProxyRoute{Port: "49153"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, args)
+	})
+
 	t.Run("denies egress but DNS and the allowlist, intercepting HTTPS", func(t *testing.T) {
 		// Act
-		args, err := buildNetworkArgs(sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Rules: []sandbox.AllowRule{{Host: "api.example.test"}}})
+		args, err := buildNetworkArgs(sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Rules: []sandbox.AllowRule{{Host: "api.example.test"}}}, nil)
 
 		// Assert
 		require.NoError(t, err)

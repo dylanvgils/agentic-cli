@@ -100,7 +100,7 @@ func warnIgnored(req Request, missing sandbox.Features) {
 		logging.Warnf("%s can't limit hosts to paths, so it allows the hosts of %s on every path; use --runtime docker to limit them", runtimeSource(req), pathRulesSource(req))
 	}
 	if missing.ProxyIntegrations {
-		logging.Warnf("%s has no proxy sidecar, so it ignores %s; tools reach allowed hosts directly", runtimeSource(req), integrationsSource(req))
+		logging.Warnf("%s ignores %s; it can't route those tools through the proxy", runtimeSource(req), integrationsSource(req))
 	}
 	if missing.Dind {
 		logging.Warnf("%s has no Docker daemon, so it ignores %s", runtimeSource(req), dindSource(req))

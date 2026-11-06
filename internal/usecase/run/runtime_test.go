@@ -7,6 +7,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +23,7 @@ func Test_Service_Run(t *testing.T) {
 				ranSpec = rs
 				return docker.Sidecars{}, nil
 			},
-		}, &fakeMicrosandbox{run: func(sandbox.RunSpec) error {
+		}, &fakeMicrosandbox{run: func(sandbox.RunSpec, *microsandbox.ProxyRoute) error {
 			microsandboxRan = true
 			return nil
 		}})
@@ -47,7 +48,7 @@ func Test_Service_Run(t *testing.T) {
 				return nil
 			},
 		}
-		svc := newTestService(d, &fakeMicrosandbox{run: func(rs sandbox.RunSpec) error {
+		svc := newTestService(d, &fakeMicrosandbox{run: func(rs sandbox.RunSpec, _ *microsandbox.ProxyRoute) error {
 			ranSpec = rs
 			return nil
 		}})
@@ -64,7 +65,7 @@ func Test_Service_Run(t *testing.T) {
 	t.Run("a spec relying on a feature the runtime lacks never reaches it", func(t *testing.T) {
 		// Arrange
 		ran := false
-		svc := newTestService(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec) error {
+		svc := newTestService(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec, *microsandbox.ProxyRoute) error {
 			ran = true
 			return nil
 		}})
@@ -82,7 +83,7 @@ func Test_Service_Run(t *testing.T) {
 		// Arrange
 		ws := chdirSymlinkWorkspace(t)
 		ran := false
-		svc := newTestService(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec) error {
+		svc := newTestService(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec, *microsandbox.ProxyRoute) error {
 			ran = true
 			return nil
 		}})
@@ -145,7 +146,7 @@ func Test_Service_runner(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, microsandboxRunner{docker: svc.docker, microsandbox: svc.microsandbox}, r)
+		assert.Equal(t, microsandboxRunner{docker: svc.docker, microsandbox: svc.microsandbox, sidecarImages: svc.sidecarImages}, r)
 	})
 
 	t.Run("microsandbox with the agentic backend gets the agentic-proxy runner", func(t *testing.T) {
@@ -154,7 +155,7 @@ func Test_Service_runner(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, microsandboxRunner{docker: svc.docker, microsandbox: svc.microsandbox, agenticProxy: true}, r)
+		assert.Equal(t, microsandboxRunner{docker: svc.docker, microsandbox: svc.microsandbox, sidecarImages: svc.sidecarImages, agenticProxy: true}, r)
 	})
 
 	t.Run("every parseable runtime has a runner", func(t *testing.T) {

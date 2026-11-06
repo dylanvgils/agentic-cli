@@ -55,6 +55,19 @@ func IsReservedEnvName(key string, proxy, dind bool) bool {
 		(dind && slices.Contains(dindEnvNames, key))
 }
 
+// ProxyEnv returns the env pointing a tool at the proxy at url; NODE_USE_ENV_PROXY makes Node read it.
+func ProxyEnv(url, noProxy string) []string {
+	return []string{
+		"HTTP_PROXY=" + url,
+		"HTTPS_PROXY=" + url,
+		"http_proxy=" + url,
+		"https_proxy=" + url,
+		"NO_PROXY=" + noProxy,
+		"no_proxy=" + noProxy,
+		"NODE_USE_ENV_PROXY=1",
+	}
+}
+
 // IsPortableEnvName reports whether name is a portable environment variable name.
 func IsPortableEnvName(name string) bool {
 	return portableEnvName.MatchString(name)

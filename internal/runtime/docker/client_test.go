@@ -40,6 +40,7 @@ func TestClient_Capabilities(t *testing.T) {
 			ReadOnlyRoot:        true,
 			DropsPrivileges:     true,
 			CredentialsViaProxy: true,
+			EgressViaProxy:      true,
 		},
 	}, caps)
 }

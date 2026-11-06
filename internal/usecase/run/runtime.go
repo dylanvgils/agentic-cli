@@ -42,9 +42,10 @@ func (s *Service) runner(runtime sandbox.Runtime, backend string) (runner, error
 		return dockerRunner{docker: s.docker, sidecarImages: s.sidecarImages}, nil
 	case sandbox.RuntimeMicrosandbox:
 		return microsandboxRunner{
-			docker:       s.docker,
-			microsandbox: s.microsandbox,
-			agenticProxy: backend == config.BackendAgentic,
+			docker:        s.docker,
+			microsandbox:  s.microsandbox,
+			sidecarImages: s.sidecarImages,
+			agenticProxy:  backend == config.BackendAgentic,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown runtime %q", runtime)

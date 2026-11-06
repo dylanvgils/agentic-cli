@@ -29,20 +29,39 @@ const (
 
 	// placeholderPrefix starts the placeholder msb puts in the guest for a secret, e.g. $MSB_GITHUB_TOKEN.
 	placeholderPrefix = "$MSB_"
+
+	// hostAlias names the host from the guest.
+	hostAlias = "host.microsandbox.internal"
+
+	// routeNoProxy skips the proxy for loopback.
+	routeNoProxy = "localhost,127.0.0.1"
 )
 
 // hostRe matches a hostname of two or more labels, so msb can't read an entry as a group (public), CIDR, IP or port.
 var hostRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`)
 
-// Run runs the tool described by rs in a microsandbox VM, skipping what Capabilities leaves out; the image must already be loaded.
-func (c *Client) Run(rs sandbox.RunSpec) error {
-	envArgs, cleanup, err := buildEnvArgs(rs)
+// ProxyRoute sends a run through agentic-proxy on the host instead of msb's rules; the proxy injects credentials.
+type ProxyRoute struct {
+	// Port is the proxy's host loopback port.
+	Port string
+	// Token is proxy.AuthUser's password.
+	Token string
+	// CAPEM is the proxy CA, nil when it doesn't decrypt.
+	CAPEM []byte
+	// Env is the guest's credential placeholders.
+	Env []string
+}
+
+// Run runs rs in a microsandbox VM, through route when set; the image must already be loaded.
+func (c *Client) Run(rs sandbox.RunSpec, route *ProxyRoute) error {
+	hidden := route.hiddenEnv()
+	envArgs, cleanup, err := buildEnvArgs(rs, hidden)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 
-	args, err := buildRunArgs(rs, envArgs)
+	args, err := buildRunArgs(rs, envArgs, route)
 	if err != nil {
 		return err
 	}
@@ -52,13 +71,32 @@ func (c *Client) Run(rs sandbox.RunSpec) error {
 		return nil
 	}
 
+	processEnv := credentialEnv(rs)
+	if route != nil {
+		processEnv = hidden
+	}
+
 	// Set agentic startup messages apart from the tool output
 	logging.Separate()
-	return c.runner.RunInteractive(credentialEnv(rs), args...)
+	return c.runner.RunInteractive(processEnv, args...)
 }
 
-// buildRunArgs assembles the `msb run` args for rs with its envArgs.
-func buildRunArgs(rs sandbox.RunSpec, envArgs []string) ([]string, error) {
+// hiddenEnv returns the guest's proxy env, kept out of args as it holds the token; nil without a route.
+func (r *ProxyRoute) hiddenEnv() []string {
+	if r == nil {
+		return nil
+	}
+
+	url := "http://" + proxy.AuthUser + ":" + r.Token + "@" + hostAlias + ":" + r.Port // NOSONAR - proxy on host loopback; HTTPS stays TLS via CONNECT
+	env := sandbox.ProxyEnv(url, routeNoProxy)
+	if len(r.CAPEM) > 0 {
+		env = append(env, tools.ProxyCAEnvName+"="+string(r.CAPEM))
+	}
+	return env
+}
+
+// buildRunArgs assembles the `msb run` args for rs with its envArgs and route.
+func buildRunArgs(rs sandbox.RunSpec, envArgs []string, route *ProxyRoute) ([]string, error) {
 	limitArgs, err := buildLimitArgs(rs.Limits)
 	if err != nil {
 		return nil, err
@@ -69,7 +107,7 @@ func buildRunArgs(rs sandbox.RunSpec, envArgs []string) ([]string, error) {
 		return nil, err
 	}
 
-	networkArgs, err := buildNetworkArgs(rs.Egress)
+	networkArgs, err := buildNetworkArgs(rs.Egress, route)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +121,13 @@ func buildRunArgs(rs sandbox.RunSpec, envArgs []string) ([]string, error) {
 	args = append(args, limitArgs...)
 	args = append(args, envArgs...)
 	args = append(args, volumeArgs...)
-	args = append(args, buildCredentialArgs(rs)...)
+	if route == nil {
+		args = append(args, buildCredentialArgs(rs)...)
+	} else {
+		for _, entry := range route.Env {
+			args = append(args, arg("env", entry))
+		}
+	}
 	args = append(args, networkArgs...)
 	args = append(args, buildDockerArgs(rs)...)
 	args = append(args, entrypointArgs...)
@@ -154,12 +198,15 @@ func buildCredentialArgs(rs sandbox.RunSpec) []string {
 }
 
 // buildNetworkArgs makes msb deny all egress but DNS and the allowlist on proxy.DefaultPorts, intercepting HTTPS so
-// strict mode can check each request's host; msb keeps no log of what it denies, so it can't run in monitor mode.
-func buildNetworkArgs(policy sandbox.EgressPolicy) ([]string, error) {
-	switch policy.Mode {
-	case sandbox.EgressOff:
+// strict mode can check each request's host; msb keeps no log of what it denies, so it can't run in monitor mode. A route
+// allows only the proxy's port, so a tool ignoring the proxy env reaches nothing.
+func buildNetworkArgs(policy sandbox.EgressPolicy, route *ProxyRoute) ([]string, error) {
+	switch {
+	case policy.Mode == sandbox.EgressOff:
 		return nil, nil
-	case sandbox.EgressMonitor:
+	case route != nil:
+		return []string{arg("net-default-egress", "deny"), arg("net-rule", "allow@host:tcp:"+route.Port)}, nil
+	case policy.Mode == sandbox.EgressMonitor:
 		return nil, errors.New("msb can't run the proxy in monitor mode")
 	}
 

@@ -163,6 +163,10 @@ func (f *fakeDocker) ResolveContainerHome(image string) string {
 	return f.resolveContainerHome(image)
 }
 
+func (f *fakeDocker) StartPublishedProxy(sandbox.RunSpec, string) (docker.PublishedProxy, error) {
+	return docker.PublishedProxy{}, nil
+}
+
 func (f *fakeDocker) StartSidecars(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error) {
 	if f.startSidecars == nil {
 		return docker.Sidecars{}, nil
@@ -465,7 +469,7 @@ func (f *fakeMicrosandbox) RemoveImage(ref string) error {
 	return f.removeImage(ref)
 }
 
-func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec) error {
+func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec, _ *microsandbox.ProxyRoute) error {
 	if f.run == nil {
 		return nil
 	}

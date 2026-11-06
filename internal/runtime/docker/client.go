@@ -83,6 +83,7 @@ func (c *Client) Capabilities() sandbox.Capabilities {
 			ReadOnlyRoot:        true, // --read-only plus tmpfs ephemeral dirs
 			DropsPrivileges:     true, // --cap-drop=ALL and no-new-privileges
 			CredentialsViaProxy: true,
+			EgressViaProxy:      true,
 		},
 	}
 }

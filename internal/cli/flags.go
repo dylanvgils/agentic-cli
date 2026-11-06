@@ -101,8 +101,6 @@ func addProxyFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSlice(proxyIntegrationFlag, nil, "route a tool that ignores the proxy env vars through the proxy: "+strings.Join(sandbox.EgressIntegrations(), ", ")+"; repeatable or comma-separated, added to .agenticrc.toml's integrations")
 	cmd.Flags().String(proxyBackendFlag, "", "what enforces the allowlist on microsandbox: "+config.BackendNative+" (msb rules, default) or "+config.BackendAgentic+" (agentic-proxy); Docker always uses agentic-proxy (overrides config)")
 	cmd.MarkFlagsMutuallyExclusive("proxy", noProxyFlagName, proxyMonitorFlagName)
-	// Hidden until microsandbox can run agentic-proxy
-	_ = cmd.Flags().MarkHidden(proxyBackendFlag)
 	_ = cmd.RegisterFlagCompletionFunc(proxyIntegrationFlag, proxyIntegrationsFunc)
 	_ = cmd.RegisterFlagCompletionFunc(proxyBackendFlag, proxyBackendsFunc)
 }

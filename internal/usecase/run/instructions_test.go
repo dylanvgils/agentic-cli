@@ -372,6 +372,21 @@ func TestBuildInstructions(t *testing.T) {
 		assert.Contains(t, content, "-v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro")
 	})
 
+	t.Run("microsandbox through agentic-proxy describes the proxy and passing its env on", func(t *testing.T) {
+		// Arrange
+		in := Input{Runtime: sandbox.RuntimeMicrosandbox, ProxyBackend: config.BackendAgentic, DindEnabled: true, ProxyMode: sandbox.EgressEnforce}
+
+		// Act
+		content, err := newTestService(&fakeDocker{}, &fakeMicrosandbox{}).BuildInstructions(target, in, tools.Configs["claude"], &config.AgenticRC{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, content, "All traffic goes through an egress proxy.")
+		assert.Contains(t, content, "HTTP 403 from the proxy")
+		assert.Contains(t, content, "docker run -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY")
+		assert.NotContains(t, content, "inspection CA")
+	})
+
 	t.Run("a runtime without a daemon says docker fails", func(t *testing.T) {
 		// Arrange
 		in := Input{Runtime: sandbox.RuntimeMicrosandbox, DindEnabled: true}

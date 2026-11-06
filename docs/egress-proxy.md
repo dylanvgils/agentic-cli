@@ -64,7 +64,7 @@ How the proxy applies them:
 - **Refused**: a path no pattern matches gets a 403, logged as `path-blocked` and listed at the end of the run. So does a path an upstream may read as another path: one with `%2F`, `%5C`, `%2E`, `%25`, `%3B`, `;`, `\`, a character outside printable ASCII, or a segment that is `.`, `..` or ends in a dot or space. This also refuses npm's scoped package paths (`/@scope%2Fname`).
 - **Upgrades**: only WebSocket upgrades reach the host. Others, such as `h2c`, are dropped, as the proxy can't check the requests on an upgraded connection.
 - **Path rules win**: they limit the host even when `allowed_hosts`, a tool's baseline or a wildcard allows it whole. Other hosts the wildcard matches stay whole.
-- **Credential hosts** only get their secret on the allowed paths, except [with microsandbox](#with-microsandbox).
+- **Credential hosts** only get their secret on the allowed paths, except [with msb rules](#msb-rules-default).
 - **Baseline hosts**: a rule for a host the tool needs, like `api.anthropic.com`, limits the tool too.
 
 ## Monitor mode
@@ -139,12 +139,40 @@ Don't point a tool at an external corporate proxy, because that traffic would sk
 
 ## With microsandbox
 
-With the [microsandbox runtime](microsandbox.md), msb's own network policy enforces the same allowlist instead of a proxy sidecar, so no proxy env vars are set. Only DNS and the allowed hosts on ports 80 and 443 are reachable. msb inspects all HTTPS to check each request's host, so the tool must trust msb's certificate authority (curl, git and Bun do), and tools that pin certificates fail.
+With the [microsandbox runtime](microsandbox.md), msb's own network rules enforce the allowlist by default. Set `[run.proxy] backend = "agentic"` or pass `--proxy-backend agentic` to use agentic-proxy instead. Docker runs always use agentic-proxy.
+
+### msb rules (default)
+
+msb's network policy enforces the same allowlist instead of a proxy sidecar, so no proxy env vars are set. Only DNS and the allowed hosts on ports 80 and 443 are reachable. msb inspects all HTTPS to check each request's host, so the tool must trust msb's certificate authority (curl, git and Bun do), and tools that pin certificates fail.
 
 - There's no access log and no summary at the end of the run.
-- `--proxy-monitor` is refused; use `--proxy`.
+- `--proxy-monitor` is refused; use `--proxy` or [agentic-proxy](#agentic-proxy).
 - `[run.proxy] integrations` and `--proxy-integration` are ignored, with a warning, as tools reach allowed hosts directly.
 - An internal host that resolves to a private address isn't reachable, since msb drops private DNS answers.
 - Every `allowed_hosts` entry must be a hostname like `api.example.test` or `.example.test`, else the run is refused. msb would read a CIDR or a name like `public` as a wider rule.
 - [Credentials](credential-injection.md) keep working, since msb injects them itself rather than a proxy.
-- [Path rules](#path-rules) can't be matched, so their hosts are allowed on every path, credentials included, and the run warns. Use `--runtime docker` to limit them.
+- [Path rules](#path-rules) can't be matched, so their hosts are allowed on every path, credentials included, and the run warns. Use `--runtime docker` or [agentic-proxy](#agentic-proxy) to limit them.
+
+### agentic-proxy
+
+The proxy runs as a sidecar on your local Docker, published on a random `127.0.0.1` port, and msb blocks everything but that port. You get what msb rules lack: the [access log](#access-log) and summary, [monitor mode](#monitor-mode), [path rules](#path-rules), and credentials the proxy injects.
+
+Turn it on for one run:
+
+```bash
+agentic run --runtime microsandbox --proxy --proxy-backend agentic claude
+```
+
+Or per project:
+
+```toml
+[run.proxy]
+enabled = true
+backend = "agentic"
+```
+
+- The Docker context must be on this machine, else the run is refused.
+- Each run gets its own token in the proxy URL. It's never in process args, but anyone who can read the run's environment can use the proxy while it runs.
+- DNS is blocked, so a tool that ignores the proxy env vars reaches nothing.
+- `[run.proxy] integrations` and `--proxy-integration` are ignored, with a warning.
+- With `--dind`, image pulls go through the proxy, but containers in the VM only reach out if you pass the proxy env vars on (`docker run -e HTTPS_PROXY ...`).

@@ -27,6 +27,7 @@ type fakeDocker struct {
 	saveImage            func(image string, w io.Writer) error
 	buildDockerdImage    func(image string, parent *docker.ImageInfo) error
 	startSidecars        func(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
+	startPublishedProxy  func(rs sandbox.RunSpec, proxyLog string) (docker.PublishedProxy, error)
 	runTool              func(sidecars docker.Sidecars) error
 	stopSidecars         func(sidecars docker.Sidecars)
 	serverVersion        func() (engine, version string, err error)
@@ -87,6 +88,13 @@ func (f *fakeDocker) SaveImage(image string, w io.Writer) error {
 		return nil
 	}
 	return f.saveImage(image, w)
+}
+
+func (f *fakeDocker) StartPublishedProxy(rs sandbox.RunSpec, proxyLog string) (docker.PublishedProxy, error) {
+	if f.startPublishedProxy == nil {
+		return docker.PublishedProxy{}, nil
+	}
+	return f.startPublishedProxy(rs, proxyLog)
 }
 
 func (f *fakeDocker) StartSidecars(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error) {
@@ -169,7 +177,7 @@ type fakeMicrosandbox struct {
 	loadImage    func(r io.Reader, tag string) error
 	imageRefs    func() ([]string, error)
 	removeImage  func(ref string) error
-	run          func(rs sandbox.RunSpec) error
+	run          func(rs sandbox.RunSpec, route *microsandbox.ProxyRoute) error
 }
 
 func (f *fakeMicrosandbox) Capabilities() sandbox.Capabilities {
@@ -215,11 +223,11 @@ func (f *fakeMicrosandbox) RemoveImage(ref string) error {
 	return f.removeImage(ref)
 }
 
-func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec) error {
+func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec, route *microsandbox.ProxyRoute) error {
 	if f.run == nil {
 		return nil
 	}
-	return f.run(rs)
+	return f.run(rs, route)
 }
 
 // fakePrompter implements Prompter, recording what it was asked; a nil field approves, except tool updates, which it declines.
