@@ -22,6 +22,12 @@ const (
 	ModeMonitor = "monitor"
 )
 
+// BackendNative and BackendAgentic are the only valid RCProxy.Backend values, besides unset "" (the runtime's default).
+const (
+	BackendNative  = "native"
+	BackendAgentic = "agentic"
+)
+
 // RCBuild holds build-time settings from a .agenticrc.toml file.
 type RCBuild struct {
 	Bases          []string          `toml:"bases"`
@@ -59,7 +65,9 @@ type RCProxy struct {
 	Enabled      *bool    `toml:"enabled"`
 	AllowedHosts []string `toml:"allowed_hosts"`
 	// Mode selects how the proxy enforces AllowedHosts: "enforce" (default) blocks disallowed hosts, "monitor" only logs the verdict.
-	Mode        string         `toml:"mode"`
+	Mode string `toml:"mode"`
+	// Backend picks what enforces AllowedHosts on microsandbox: "native" (default) msb rules or "agentic" agentic-proxy.
+	Backend     string         `toml:"backend"`
 	Credentials []RCCredential `toml:"credentials"`
 	// AllowedPaths allows only some paths on hosts not in AllowedHosts; the proxy decrypts them to check each request
 	AllowedPaths []RCAllowedPath `toml:"allowed_paths"`

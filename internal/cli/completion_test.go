@@ -225,6 +225,15 @@ func Test_proxyIntegrationsFunc(t *testing.T) {
 	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
 }
 
+func Test_proxyBackendsFunc(t *testing.T) {
+	// Act
+	names, directive := proxyBackendsFunc(nil, nil, "")
+
+	// Assert
+	assert.Equal(t, []string{"native", "agentic"}, names)
+	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+}
+
 func Test_runtimesFunc(t *testing.T) {
 	// Act
 	names, directive := runtimesFunc(nil, nil, "")

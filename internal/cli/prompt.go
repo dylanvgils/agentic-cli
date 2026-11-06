@@ -26,6 +26,7 @@ var settingEffects = map[string]string{
 	"run.runtime":             "whether the tool runs in a Docker container or a microsandbox VM",
 	"run.proxy.enabled":       "whether egress is limited to the allowlist proxy",
 	"run.proxy.mode":          "whether hosts off the allowlist are blocked or only logged",
+	"run.proxy.backend":       "whether microsandbox enforces the allowlist with its own rules or agentic-proxy",
 	"run.proxy.allowed_hosts": "hosts the container may reach",
 	"run.proxy.allowed_paths": "paths the container may reach on hosts the proxy decrypts",
 	config.CredentialsSetting: "host secrets the proxy reads and sends to these hosts",

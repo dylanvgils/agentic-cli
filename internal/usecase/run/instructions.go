@@ -69,7 +69,7 @@ func (s *Service) BuildInstructions(target Target, in Input, toolConfig tools.To
 	limits := resolve.ResourceLimitsFor(in.Limits, rc)
 	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
 
-	caps := s.capabilities(in.Runtime)
+	caps := s.capabilities(in.Runtime, in.ProxyBackend)
 
 	var b strings.Builder
 	writeIntro(&b, caps.Boundary)
@@ -87,7 +87,7 @@ func (s *Service) BuildInstructions(target Target, in Input, toolConfig tools.To
 
 // PreviewInstructions returns the effective content a run of req would write, without prompting or touching any files.
 func (s *Service) PreviewInstructions(req Request) (string, error) {
-	in, err := resolveInput(req.Flags, req.Project.RC, s.capabilities(req.runtime()))
+	in, err := resolveInput(req.Flags, req.Project.RC, s.capabilities(req.runtime(), req.proxyBackend()))
 	if err != nil {
 		return "", err
 	}

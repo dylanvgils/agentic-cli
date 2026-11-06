@@ -320,6 +320,30 @@ func TestMergeConfigs(t *testing.T) {
 		assert.Equal(t, ModeMonitor, result.Run.Proxy.Mode)
 	})
 
+	t.Run("proxy backend child wins over parent", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{Run: RCRun{Proxy: RCProxy{Backend: BackendNative}}}
+		parent := &AgenticRC{Run: RCRun{Proxy: RCProxy{Backend: BackendAgentic}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, BackendNative, result.Run.Proxy.Backend)
+	})
+
+	t.Run("proxy backend parent fills when child unset", func(t *testing.T) {
+		// Arrange
+		child := &AgenticRC{}
+		parent := &AgenticRC{Run: RCRun{Proxy: RCProxy{Backend: BackendAgentic}}}
+
+		// Act
+		result := mergeConfigs([]*AgenticRC{child, parent})
+
+		// Assert
+		assert.Equal(t, BackendAgentic, result.Run.Proxy.Backend)
+	})
+
 	t.Run("runtime child wins over parent", func(t *testing.T) {
 		// Arrange
 		child := &AgenticRC{Run: RCRun{Runtime: "docker"}}

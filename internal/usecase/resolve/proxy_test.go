@@ -266,6 +266,34 @@ func TestProxyAllowList(t *testing.T) {
 	})
 }
 
+func TestProxyBackend(t *testing.T) {
+	rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Backend: config.BackendAgentic}}}
+
+	t.Run("the flag wins over the config", func(t *testing.T) {
+		// Act
+		backend := ProxyBackend(ProxyInput{Backend: config.BackendNative}, rc)
+
+		// Assert
+		assert.Equal(t, config.BackendNative, backend)
+	})
+
+	t.Run("the config applies without the flag", func(t *testing.T) {
+		// Act
+		backend := ProxyBackend(ProxyInput{}, rc)
+
+		// Assert
+		assert.Equal(t, config.BackendAgentic, backend)
+	})
+
+	t.Run("neither set is empty", func(t *testing.T) {
+		// Act
+		backend := ProxyBackend(ProxyInput{}, &config.AgenticRC{})
+
+		// Assert
+		assert.Empty(t, backend)
+	})
+}
+
 func TestProxyIntegrations(t *testing.T) {
 	// Arrange
 	rc := &config.AgenticRC{}

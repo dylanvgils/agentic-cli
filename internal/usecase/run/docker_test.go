@@ -108,6 +108,40 @@ func Test_dockerRunner_Check(t *testing.T) {
 		// Assert
 		assert.NoError(t, err)
 	})
+
+	t.Run("warns that the native proxy backend is ignored", func(t *testing.T) {
+		// Arrange
+		buf := iostreamstest.StubErr(t)
+		req := Request{
+			Flags:   Flags{DryRun: true, Proxy: resolve.ProxyInput{ProxyFlag: true, Backend: config.BackendNative}},
+			Project: config.Project{RC: &config.AgenticRC{}},
+		}
+
+		// Act
+		err := newTestDockerRunner(&fakeDocker{}).Check(req)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, buf.String(), "--proxy-backend native is ignored: Docker always uses agentic-proxy")
+	})
+
+	t.Run("doesn't warn for agentic-proxy or a run without the proxy", func(t *testing.T) {
+		for _, proxy := range []resolve.ProxyInput{
+			{ProxyFlag: true, Backend: config.BackendAgentic},
+			{Backend: config.BackendNative},
+		} {
+			// Arrange
+			buf := iostreamstest.StubErr(t)
+			req := Request{Flags: Flags{DryRun: true, Proxy: proxy}, Project: config.Project{RC: &config.AgenticRC{}}}
+
+			// Act
+			err := newTestDockerRunner(&fakeDocker{}).Check(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Empty(t, buf.String(), proxy)
+		}
+	})
 }
 
 func Test_dockerRunner_Run(t *testing.T) {
