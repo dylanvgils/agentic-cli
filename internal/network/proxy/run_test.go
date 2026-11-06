@@ -90,6 +90,18 @@ func TestConfigFromEnv(t *testing.T) {
 		assert.Equal(t, []string{"172.30.0.0/16", "fd00::/64"}, cfg.ClientNets)
 	})
 
+	t.Run("reads the auth token", func(t *testing.T) {
+		// Arrange
+		t.Setenv(EnvAuthToken, "test-secret")
+
+		// Act
+		cfg, err := ConfigFromEnv()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "test-secret", cfg.AuthToken)
+	})
+
 	t.Run("refuses malformed rules", func(t *testing.T) {
 		// Arrange
 		t.Setenv(EnvRules, "not json")
