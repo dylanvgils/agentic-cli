@@ -27,7 +27,7 @@ type fakeDocker struct {
 	saveImage            func(image string, w io.Writer) error
 	buildDockerdImage    func(image string, parent *docker.ImageInfo) error
 	startSidecars        func(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
-	startPublishedProxy  func(rs sandbox.RunSpec, proxyLog string) (docker.PublishedProxy, error)
+	startPublishedProxy  func(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error)
 	runTool              func(sidecars docker.Sidecars) error
 	stopSidecars         func(sidecars docker.Sidecars)
 	serverVersion        func() (engine, version string, err error)
@@ -90,11 +90,11 @@ func (f *fakeDocker) SaveImage(image string, w io.Writer) error {
 	return f.saveImage(image, w)
 }
 
-func (f *fakeDocker) StartPublishedProxy(rs sandbox.RunSpec, proxyLog string) (docker.PublishedProxy, error) {
+func (f *fakeDocker) StartPublishedProxy(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error) {
 	if f.startPublishedProxy == nil {
 		return docker.PublishedProxy{}, nil
 	}
-	return f.startPublishedProxy(rs, proxyLog)
+	return f.startPublishedProxy(rs, proxyLog, owner)
 }
 
 func (f *fakeDocker) StartSidecars(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error) {

@@ -108,7 +108,7 @@ func (r microsandboxRunner) runThroughProxy(req Request, rs sandbox.RunSpec) err
 		}
 	}
 
-	published, err := r.docker.StartPublishedProxy(rs, proxyLog)
+	published, err := r.docker.StartPublishedProxy(rs, proxyLog, sandbox.RuntimeMicrosandbox)
 	if err != nil {
 		return err
 	}

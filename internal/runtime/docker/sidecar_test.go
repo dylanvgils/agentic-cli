@@ -305,7 +305,7 @@ func Test_ownedResource_inUse(t *testing.T) {
 
 	t.Run("host process owner still runs", func(t *testing.T) {
 		// Arrange
-		r := ownedResource{name: "agentic-proxy-abc", owner: pidOwner(os.Getpid()), started: time.Now().Add(-time.Hour)}
+		r := ownedResource{name: "agentic-proxy-abc", owner: pidOwner(sandbox.RuntimeMicrosandbox, os.Getpid()), started: time.Now().Add(-time.Hour)}
 
 		// Act
 		inUse := r.inUse(existing, 5*time.Minute)
@@ -316,7 +316,7 @@ func Test_ownedResource_inUse(t *testing.T) {
 
 	t.Run("host process owner gone", func(t *testing.T) {
 		// Arrange
-		r := ownedResource{name: "agentic-proxy-abc", owner: pidOwner(exitedPID(t)), started: time.Now().Add(-time.Hour)}
+		r := ownedResource{name: "agentic-proxy-abc", owner: pidOwner(sandbox.RuntimeMicrosandbox, exitedPID(t)), started: time.Now().Add(-time.Hour)}
 
 		// Act
 		inUse := r.inUse(existing, 5*time.Minute)
@@ -327,7 +327,7 @@ func Test_ownedResource_inUse(t *testing.T) {
 
 	t.Run("host process owner gone but within grace", func(t *testing.T) {
 		// Arrange
-		r := ownedResource{name: "agentic-proxy-abc", owner: pidOwner(exitedPID(t)), started: time.Now()}
+		r := ownedResource{name: "agentic-proxy-abc", owner: pidOwner(sandbox.RuntimeMicrosandbox, exitedPID(t)), started: time.Now()}
 
 		// Act
 		inUse := r.inUse(existing, 5*time.Minute)
@@ -340,7 +340,7 @@ func Test_ownedResource_inUse(t *testing.T) {
 func Test_ownerPID(t *testing.T) {
 	t.Run("parses a pid owner", func(t *testing.T) {
 		// Act
-		pid, ok := ownerPID(pidOwner(4242))
+		pid, ok := ownerPID(pidOwner(sandbox.RuntimeMicrosandbox, 4242))
 
 		// Assert
 		assert.True(t, ok)
@@ -348,7 +348,7 @@ func Test_ownerPID(t *testing.T) {
 	})
 
 	t.Run("refuses other owners", func(t *testing.T) {
-		for _, owner := range []string{"agentic-claude-abc", "pid:", "pid:abc", "pid:0", "pid:-1"} {
+		for _, owner := range []string{"agentic-claude-abc", "microsandbox:pid:", "microsandbox:pid:abc", "microsandbox:pid:0", "microsandbox:pid:-1"} {
 			// Act
 			_, ok := ownerPID(owner)
 

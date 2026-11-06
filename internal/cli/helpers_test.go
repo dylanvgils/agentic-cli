@@ -163,7 +163,7 @@ func (f *fakeDocker) ResolveContainerHome(image string) string {
 	return f.resolveContainerHome(image)
 }
 
-func (f *fakeDocker) StartPublishedProxy(sandbox.RunSpec, string) (docker.PublishedProxy, error) {
+func (f *fakeDocker) StartPublishedProxy(sandbox.RunSpec, string, sandbox.Runtime) (docker.PublishedProxy, error) {
 	return docker.PublishedProxy{}, nil
 }
 

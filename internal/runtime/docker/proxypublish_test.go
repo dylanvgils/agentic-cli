@@ -32,7 +32,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		spec := newSpec(t)
 
 		// Act
-		published, err := client.StartPublishedProxy(spec, filepath.Join(t.TempDir(), "proxy_abc.jsonl"))
+		published, err := client.StartPublishedProxy(spec, filepath.Join(t.TempDir(), "proxy_abc.jsonl"), sandbox.RuntimeMicrosandbox)
 
 		// Assert
 		require.NoError(t, err)
@@ -41,7 +41,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		create := findCall(calls(), "create")
 		assert.Contains(t, create, "--network="+NetworkName)
 		assert.Contains(t, create, "--publish=127.0.0.1::3128")
-		assert.Contains(t, create, "--label="+LabelOwner+"="+pidOwner(os.Getpid()))
+		assert.Contains(t, create, "--label="+LabelOwner+"=microsandbox:pid:"+strconv.Itoa(os.Getpid()))
 		assert.False(t, hasArgWithPrefix(create, "--network-alias"), "no run network to alias on")
 		assert.False(t, hasArgWithPrefix(create, "--env="+proxy.EnvClientNets), "the token admits clients instead")
 		assert.NotContains(t, strings.Join(create, " "), published.Token)
@@ -59,7 +59,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		spec.Credentials = creds
 
 		// Act
-		published, err := client.StartPublishedProxy(spec, filepath.Join(t.TempDir(), "proxy_abc.jsonl"))
+		published, err := client.StartPublishedProxy(spec, filepath.Join(t.TempDir(), "proxy_abc.jsonl"), sandbox.RuntimeMicrosandbox)
 
 		// Assert
 		require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 	t.Run("stop removes the proxy", func(t *testing.T) {
 		// Arrange
 		calls, _ := stubPublishedProxyDocker(t, client, "unix:///var/run/docker.sock")
-		published, err := client.StartPublishedProxy(newSpec(t), filepath.Join(t.TempDir(), "proxy_abc.jsonl"))
+		published, err := client.StartPublishedProxy(newSpec(t), filepath.Join(t.TempDir(), "proxy_abc.jsonl"), sandbox.RuntimeMicrosandbox)
 		require.NoError(t, err)
 
 		// Act
@@ -86,7 +86,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		calls, _ := stubPublishedProxyDocker(t, client, "unix:///var/run/docker.sock", "port")
 
 		// Act
-		_, err := client.StartPublishedProxy(newSpec(t), filepath.Join(t.TempDir(), "proxy_abc.jsonl"))
+		_, err := client.StartPublishedProxy(newSpec(t), filepath.Join(t.TempDir(), "proxy_abc.jsonl"), sandbox.RuntimeMicrosandbox)
 
 		// Assert
 		require.ErrorContains(t, err, "read the proxy's published port")
@@ -98,7 +98,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		calls, _ := stubPublishedProxyDocker(t, client, "tcp://docker.example.test:2376")
 
 		// Act
-		_, err := client.StartPublishedProxy(newSpec(t), filepath.Join(t.TempDir(), "proxy_abc.jsonl"))
+		_, err := client.StartPublishedProxy(newSpec(t), filepath.Join(t.TempDir(), "proxy_abc.jsonl"), sandbox.RuntimeMicrosandbox)
 
 		// Assert
 		require.ErrorContains(t, err, "isn't on this machine")
@@ -116,7 +116,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		var published PublishedProxy
 		out := iostreamstest.CaptureOut(t, func() {
 			var err error
-			published, err = client.StartPublishedProxy(spec, filepath.Join(t.TempDir(), "proxy_abc.jsonl"))
+			published, err = client.StartPublishedProxy(spec, filepath.Join(t.TempDir(), "proxy_abc.jsonl"), sandbox.RuntimeMicrosandbox)
 			require.NoError(t, err)
 		})
 

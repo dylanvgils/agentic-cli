@@ -20,7 +20,7 @@ type Docker interface {
 	StartSidecars(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
 	RunTool(sidecars docker.Sidecars) error
 	StopSidecars(sidecars docker.Sidecars)
-	StartPublishedProxy(rs sandbox.RunSpec, proxyLog string) (docker.PublishedProxy, error)
+	StartPublishedProxy(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error)
 	Capabilities() sandbox.Capabilities
 	ServerVersion() (engine, version string, err error)
 }

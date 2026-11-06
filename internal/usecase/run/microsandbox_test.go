@@ -111,11 +111,13 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		// Arrange
 		var calls []string
 		var gotRoute *microsandbox.ProxyRoute
+		var gotOwner sandbox.Runtime
 		ensured := false
 		d := &fakeDocker{
 			inspectImage: inspectImageID("abc123"),
-			startPublishedProxy: func(rs sandbox.RunSpec, proxyLog string) (docker.PublishedProxy, error) {
+			startPublishedProxy: func(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error) {
 				calls = append(calls, "start")
+				gotOwner = owner
 				require.NoError(t, os.WriteFile(proxyLog, []byte(`{"host":"blocked.example.test","port":"443","protocol":"https","decision":"deny","enforced":true}`+"\n"), 0o600))
 				return docker.PublishedProxy{Port: "49153", Token: "test-token", Env: []string{"EXAMPLE=agentic-placeholder"}}, nil
 			},
@@ -139,6 +141,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, ensured)
 		assert.Equal(t, []string{"start", "msb"}, calls)
+		assert.Equal(t, sandbox.RuntimeMicrosandbox, gotOwner)
 		assert.Equal(t, &microsandbox.ProxyRoute{Port: "49153", Token: "test-token", Env: []string{"EXAMPLE=agentic-placeholder"}}, gotRoute)
 		assert.Contains(t, buf.String(), "proxy blocked 1 request(s) to: blocked.example.test")
 	})
@@ -148,7 +151,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 		ran := false
 		d := &fakeDocker{
 			inspectImage: inspectImageID("abc123"),
-			startPublishedProxy: func(sandbox.RunSpec, string) (docker.PublishedProxy, error) {
+			startPublishedProxy: func(sandbox.RunSpec, string, sandbox.Runtime) (docker.PublishedProxy, error) {
 				return docker.PublishedProxy{}, errors.New("stub: start failed")
 			},
 		}
@@ -190,7 +193,7 @@ func Test_microsandboxRunner_Run(t *testing.T) {
 			route := &microsandbox.ProxyRoute{}
 			d := &fakeDocker{
 				inspectImage: inspectImageID("abc123"),
-				startPublishedProxy: func(sandbox.RunSpec, string) (docker.PublishedProxy, error) {
+				startPublishedProxy: func(sandbox.RunSpec, string, sandbox.Runtime) (docker.PublishedProxy, error) {
 					t.Fatal("started a proxy")
 					return docker.PublishedProxy{}, nil
 				},
