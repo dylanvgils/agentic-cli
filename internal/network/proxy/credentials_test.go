@@ -52,24 +52,18 @@ func TestLoadCredentials(t *testing.T) {
 	})
 
 	t.Run("incomplete credentials are rejected", func(t *testing.T) {
-		valid := testPlaceholderCredential("api.example.test", testPlaceholder)
-		noHosts, noHeaders, emptyHeader, colonHeader, noPlaceholder, badSecret := valid, valid, valid, valid, valid, valid
-		noHosts.Hosts = nil
-		noHeaders.Headers = nil
-		emptyHeader.Headers = []string{""}
-		colonHeader.Headers = []string{"a:"}
-		noPlaceholder.Placeholder = ""
-		badSecret.Secret = "test-secret\r\nX-Injected: 1"
-		cases := map[string]Credential{
-			"no hosts":                 noHosts,
-			"no headers":               noHeaders,
-			`invalid header name ""`:   emptyHeader,
-			`invalid header name "a:"`: colonHeader,
-			"placeholder must be":      noPlaceholder,
-			"invalid secret":           badSecret,
+		cases := map[string]func(c *Credential){
+			"no hosts":                 func(c *Credential) { c.Hosts = nil },
+			"no headers":               func(c *Credential) { c.Headers = nil },
+			`invalid header name ""`:   func(c *Credential) { c.Headers = []string{""} },
+			`invalid header name "a:"`: func(c *Credential) { c.Headers = []string{"a:"} },
+			"placeholder must be":      func(c *Credential) { c.Placeholder = "" },
+			"invalid secret":           func(c *Credential) { c.Secret = "test-secret\r\nX-Injected: 1" },
 		}
-		for want, cred := range cases {
+		for want, breakIt := range cases {
 			// Arrange
+			cred := testPlaceholderCredential("api.example.test", testPlaceholder)
+			breakIt(&cred)
 			path := writeCredentials(t, cred)
 
 			// Act
@@ -206,24 +200,20 @@ func TestValidateCredentials(t *testing.T) {
 		assert.NotContains(t, err.Error(), "test-secret")
 	})
 	t.Run("invalid credentials are rejected", func(t *testing.T) {
-		valid := testPlaceholderCredential("api.example.test", "agentic-0123456789abcdef")
-		noHeaders, badHeader, reserved, short, badChars, badSecret := valid, valid, valid, valid, valid, valid
-		noHeaders.Headers = nil
-		badHeader.Headers = []string{"X Api"}
-		reserved.Headers = []string{"Host"}
-		short.Placeholder = "agentic-short"
-		badChars.Placeholder = "agentic 0123456789abcdef"
-		badSecret.Secret = "test-secret\n"
-		cases := map[string]Credential{
-			"no headers":                      noHeaders,
-			`invalid header name "X Api"`:     badHeader,
-			"header Host cannot be injected":  reserved,
-			"placeholder must be at least 16": short,
-			"letters, digits, - or _":         badChars,
-			"invalid secret":                  badSecret,
+		cases := map[string]func(c *Credential){
+			"no headers":                      func(c *Credential) { c.Headers = nil },
+			`invalid header name "X Api"`:     func(c *Credential) { c.Headers = []string{"X Api"} },
+			"header Host cannot be injected":  func(c *Credential) { c.Headers = []string{"Host"} },
+			"placeholder must be at least 16": func(c *Credential) { c.Placeholder = "agentic-short" },
+			"letters, digits, - or _":         func(c *Credential) { c.Placeholder = "agentic 0123456789abcdef" },
+			"invalid secret":                  func(c *Credential) { c.Secret = "test-secret\n" },
 		}
 
-		for want, cred := range cases {
+		for want, breakIt := range cases {
+			// Arrange
+			cred := testPlaceholderCredential("api.example.test", testPlaceholder)
+			breakIt(&cred)
+
 			// Act
 			err := ValidateCredentials([]Credential{cred})
 
