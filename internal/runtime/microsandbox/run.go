@@ -35,6 +35,9 @@ const (
 
 	// routeNoProxy skips the proxy for loopback.
 	routeNoProxy = "localhost,127.0.0.1"
+
+	// netRuleFlag is msb's flag for one egress rule.
+	netRuleFlag = "net-rule"
 )
 
 // hostRe matches a hostname of two or more labels, so msb can't read an entry as a group (public), CIDR, IP or port.
@@ -205,7 +208,7 @@ func buildNetworkArgs(policy sandbox.EgressPolicy, route *ProxyRoute) ([]string,
 	case policy.Mode == sandbox.EgressOff:
 		return nil, nil
 	case route != nil:
-		return []string{arg("net-default-egress", "deny"), arg("net-rule", "allow@host:tcp:"+route.Port)}, nil
+		return []string{arg("net-default-egress", "deny"), arg(netRuleFlag, "allow@host:tcp:"+route.Port)}, nil
 	case policy.Mode == sandbox.EgressMonitor:
 		return nil, errors.New("msb can't run the proxy in monitor mode")
 	}
@@ -215,10 +218,10 @@ func buildNetworkArgs(policy sandbox.EgressPolicy, route *ProxyRoute) ([]string,
 		return nil, err
 	}
 
-	args := []string{arg("net-default-egress", "deny"), arg("tls-intercept"), arg("net-rule", "allow@dns")}
+	args := []string{arg("net-default-egress", "deny"), arg("tls-intercept"), arg(netRuleFlag, "allow@dns")}
 	for _, target := range targets {
 		for _, port := range proxy.DefaultPorts {
-			args = append(args, arg("net-rule", "allow@"+target+":tcp:"+port))
+			args = append(args, arg(netRuleFlag, "allow@"+target+":tcp:"+port))
 		}
 	}
 	return args, nil
