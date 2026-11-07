@@ -168,7 +168,7 @@ func TestOpenLog(t *testing.T) {
 }
 
 func Test_loadInjector(t *testing.T) {
-	credsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"headers":["X-Api-Key"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
+	credsPath := writeCredentials(t, testPlaceholderCredential("api.example.test", testPlaceholder))
 
 	t.Run("neither set disables injection", func(t *testing.T) {
 		// Act
@@ -190,7 +190,7 @@ func Test_loadInjector(t *testing.T) {
 	t.Run("loads a ca for path rules without credentials", func(t *testing.T) {
 		// Arrange
 		caDir := writeTestCADir(t)
-		emptyCredsPath := writeTestFile(t, "creds.json", `[]`)
+		emptyCredsPath := writeCredentials(t)
 
 		// Act
 		inject, err := loadInjector(caDir, emptyCredsPath, true)
@@ -211,7 +211,8 @@ func Test_loadInjector(t *testing.T) {
 	t.Run("loads the ca and credentials", func(t *testing.T) {
 		// Arrange
 		caDir := writeTestCADir(t)
-		ownCredsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"headers":["X-Api-Key"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
+		want := testPlaceholderCredential("api.example.test", testPlaceholder)
+		ownCredsPath := writeCredentials(t, want)
 
 		// Act
 		inject, err := loadInjector(caDir, ownCredsPath, false)
@@ -220,14 +221,13 @@ func Test_loadInjector(t *testing.T) {
 		require.NoError(t, err)
 		cred, ok := inject.credentialFor("api.example.test", "443")
 		require.True(t, ok)
-		assert.Equal(t, "test-secret", cred.Secret)
-		assert.Equal(t, []string{"X-Api-Key"}, cred.Headers)
+		assert.Equal(t, want, cred)
 	})
 
 	t.Run("removes the key and credentials files once loaded", func(t *testing.T) {
 		// Arrange
 		caDir := writeTestCADir(t)
-		ownCredsPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"],"headers":["X-Api-Key"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
+		ownCredsPath := writeCredentials(t, testPlaceholderCredential("api.example.test", testPlaceholder))
 
 		// Act
 		_, err := loadInjector(caDir, ownCredsPath, false)
@@ -242,7 +242,7 @@ func Test_loadInjector(t *testing.T) {
 	t.Run("keeps the files when loading fails", func(t *testing.T) {
 		// Arrange
 		caDir := writeTestCADir(t)
-		badPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"]}]`)
+		badPath := writeCredentials(t, Credential{Hosts: []string{"api.example.test"}})
 
 		// Act
 		_, err := loadInjector(caDir, badPath, false)
@@ -266,7 +266,7 @@ func Test_loadInjector(t *testing.T) {
 	t.Run("invalid credentials are an error", func(t *testing.T) {
 		// Arrange
 		caDir := writeTestCADir(t)
-		badPath := writeTestFile(t, "creds.json", `[{"hosts":["api.example.test"]}]`)
+		badPath := writeCredentials(t, Credential{Hosts: []string{"api.example.test"}})
 
 		// Act
 		_, err := loadInjector(caDir, badPath, false)
