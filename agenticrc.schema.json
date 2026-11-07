@@ -127,6 +127,11 @@
               "enum": ["enforce", "monitor"],
               "description": "\"enforce\" blocks disallowed hosts; \"monitor\" logs the allowlist verdict without blocking anything. Setting mode = \"monitor\" implies the proxy is enabled, unless enabled = false is also set. Default: enforce."
             },
+            "backend": {
+              "type": "string",
+              "enum": ["native", "agentic"],
+              "description": "What enforces the allowlist on microsandbox: \"native\" msb rules or \"agentic\" agentic-proxy. Docker always uses agentic-proxy. --proxy-backend overrides it. Default: native."
+            },
             "allowed_hosts": {
               "type": "array",
               "items": { "type": "string" },
