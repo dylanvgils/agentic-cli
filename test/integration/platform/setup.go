@@ -44,7 +44,7 @@ const (
 	AllImages ImageSet = "all"
 )
 
-// smokePackages are the packages whose TestMain is SmokeMain or MicrosandboxMain, which need AllImages.
+// smokePackages need AllImages (SmokeMain, MicrosandboxMain).
 var smokePackages = []string{"images", "microsandbox"}
 
 // step is one setup phase, timed in the output.
@@ -100,7 +100,7 @@ func (r *runningSteps) report() (stop func()) {
 	}
 }
 
-// ImagesFor returns the images the named packages need, every package's when none is named; mirrors their TestMain.
+// ImagesFor returns the images pkgs need; no pkgs means all.
 func ImagesFor(pkgs []string) ImageSet {
 	if len(pkgs) == 0 {
 		return AllImages
@@ -113,7 +113,7 @@ func ImagesFor(pkgs []string) ImageSet {
 	return BaseImages
 }
 
-// BuildImages builds set's images in a throwaway env, so the packages' Main can skip them.
+// BuildImages builds set's images up front, so the packages' Main can skip them.
 func BuildImages(set ImageSet) error {
 	skip, err := checkDocker()
 	if skip || err != nil {
@@ -130,18 +130,37 @@ func BuildImages(set ImageSet) error {
 	return runSteps(append(envSteps(), imageSteps(set)...))
 }
 
-// Main sets up the shared env with BaseImages, runs the package's tests and removes the env again.
+// RemoveTestResources removes every run's fakes and the test images; shared agentic-net and proxy image stay.
+func RemoveTestResources() error {
+	skip, err := checkDocker()
+	if skip || err != nil {
+		return err
+	}
+
+	root, err := newRootDir()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(root) }()
+
+	setPaths(root)
+	return runSteps(append(envSteps(),
+		step{"removing leftover fakes of every run", func() error { return removeFakes("label=" + labelRun) }},
+		step{"removing the test images", removeTestImages},
+	))
+}
+
+// Main runs a package's tests in a fresh env with BaseImages.
 func Main(m *testing.M) int {
 	return runPackage(m, toolRunSteps(BaseImages))
 }
 
-// SmokeMain is Main for a package that runs every tool image: it builds AllImages.
+// SmokeMain is Main with AllImages.
 func SmokeMain(m *testing.M) int {
 	return runPackage(m, toolRunSteps(AllImages))
 }
 
-// RuntimesMain is Main for a package whose tests loop over Runtimes: microsandbox joins them when msb is available
-// (required with microsandboxEnv), and the test images' msb copies are removed at the end.
+// RuntimesMain is Main that adds microsandbox to Runtimes when msb is available.
 func RuntimesMain(m *testing.M) int {
 	ok, err := microsandboxAvailable()
 	if err != nil {
@@ -156,7 +175,7 @@ func RuntimesMain(m *testing.M) int {
 	return withMicrosandboxCleanup(Main(m))
 }
 
-// ProxyMain is Main for a package that runs the proxy image on its own: BaseImages, but no agentic run.
+// ProxyMain is Main without an agentic run, for the standalone proxy tests.
 func ProxyMain(m *testing.M) int {
 	steps := append(envSteps(), imageSteps(BaseImages)...)
 	return runPackage(m, append(steps, step{"first proxy start", warmUpProxy}))
@@ -243,7 +262,7 @@ func envSteps() []step {
 	}
 }
 
-// toolRunSteps set up the env for agentic runs with set's images: approved settings and a first run.
+// toolRunSteps set up the env, set's images, approval and a first agentic run.
 func toolRunSteps(set ImageSet) []step {
 	steps := append(envSteps(), imageSteps(set)...)
 	return append(steps,
@@ -253,7 +272,7 @@ func toolRunSteps(set ImageSet) []step {
 	)
 }
 
-// imageSteps build set's images in parallel, none when imagesBuiltEnv says they're built.
+// imageSteps build set's images in parallel, unless imagesBuiltEnv is set.
 func imageSteps(set ImageSet) []step {
 	if os.Getenv(imagesBuiltEnv) != "" {
 		return nil
@@ -342,8 +361,7 @@ func buildBinary() error {
 	return nil
 }
 
-// buildFakeUpstream builds the static fake upstream FakeResource.ServingUpstream mounts, for the daemon's platform, not
-// the host's (macOS).
+// buildFakeUpstream builds the fake upstream for the daemon's platform, not the host's.
 func buildFakeUpstream() error {
 	platform, err := dockerRun("version", "--format", "{{.Server.Os}} {{.Server.Arch}}")
 	if err != nil {
@@ -386,14 +404,13 @@ func runAgentic(args ...string) error {
 	return nil
 }
 
-// warmUpProxy starts the proxy image once, hardened, before any test: the first such start can stall on a fresh daemon
-// (seen with a rootless sidecar), as Main's first agentic run also absorbs. The proxy exits at once without its address.
+// warmUpProxy starts the proxy once before the tests, as the first hardened start can stall on a fresh daemon.
 func warmUpProxy() error {
 	_, _ = dockerRun("run", "--rm", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", tools.ProxyImage)
 	return nil
 }
 
-// microsandboxAvailable reports whether msb is installed, failing when it isn't but microsandboxEnv requires it.
+// microsandboxAvailable reports whether msb is installed; an error when microsandboxEnv requires it.
 func microsandboxAvailable() (bool, error) {
 	version, err := exec.Command("msb", "--version").CombinedOutput()
 	if err != nil {
@@ -413,6 +430,16 @@ func withMicrosandboxCleanup(code int) int {
 		fmt.Println(err)
 	}
 	return code
+}
+
+// removeTestImages removes the test namespaces' images and their msb copies.
+func removeTestImages() error {
+	for _, name := range tools.Names() {
+		if err := runAgentic("clean", name, "--namespace", Namespace); err != nil {
+			return err
+		}
+	}
+	return runAgentic("clean", Tool, "--namespace", LayersNamespace)
 }
 
 // removeMicrosandboxImages removes the msb copies of the test images, which agentic loads on the first msb run.

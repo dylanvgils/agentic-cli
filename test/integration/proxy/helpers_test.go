@@ -271,8 +271,7 @@ func (r *proxyRun) decrypts() bool {
 	return len(r.creds) > 0 || len(proxy.PathHosts(r.rules)) > 0
 }
 
-// writeCredentials writes the proxy CA, scoped to the decrypted hosts unless unscopedCA, and the credentials, and
-// returns their dir; clients get the CA as proxy-ca.pem in the env's dir.
+// writeCredentials writes the proxy CA and credentials, returning their dir; clients get the CA as proxy-ca.pem.
 func (r *proxyRun) writeCredentials() string {
 	r.t.Helper()
 	ca, err := certs.NewScopedCA("agentic-itest proxy", append(proxy.CredentialHosts(r.creds), proxy.PathHosts(r.rules)...))

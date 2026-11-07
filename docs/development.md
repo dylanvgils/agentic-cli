@@ -50,7 +50,7 @@ agentic-cli/
     └── integration/             # Black-box tests driving the agentic binary against a real Docker daemon (`integration` build tag)
         ├── platform/            # Shared env setup and the builders every feature package runs tools and fake resources with
         ├── cmd/buildimages/     # Builds the images the named packages need once, before they run in parallel
-        ├── cmd/cleanup/         # Force-removes leftover fakes after the make targets, also of a crashed package
+        ├── cmd/cleanup/         # Force-removes leftover fakes after a run, also of a crashed package; with --all the test images too, as local runs do
         ├── cmd/fakeupstream/    # HTTP/HTTPS upstream fake containers serve with `ServingUpstream`
         ├── container/           # Tool container hardening, resource limits and mounts
         ├── egress/              # Egress through agentic-proxy on every runtime: allowlist, monitor, credentials, path rules, clients, integrations
@@ -85,7 +85,7 @@ CLI changes take effect after `make build`. Changes to stage funcs in `internal/
 
 Integration tests build the binary and the images their packages need (slow on the first run, cached after), then drive `agentic run` like a user would. Most packages need only the proxy and `agentic-itest-claude` images; `images` and `microsandbox` build every tool's image. They skip without Docker, and the resource-limit checks skip without cgroups (e.g. rootless without systemd). CI runs `make test-integration MSB=1` in a separate job. This repo's `.agenticrc.toml` enables DinD (and the proxy in monitor mode), so they also run inside an agentic container.
 
-Fake containers and networks carry an `agentic.itest.run` label; each package force-removes its own at the end, and `make test-integration` removes any left over. The `microsandbox` package skips without msb, and `egress` runs its tests on Docker only. Both require msb with `MSB=1`.
+Fake containers and networks carry an `agentic.itest.run` label; each package force-removes its own at the end, and `make test-integration` removes any left over. Outside CI it also removes the test images and their msb copies; Docker's build cache keeps the next build quick. The `microsandbox` package skips without msb, and `egress` runs its tests on Docker only. Both require msb with `MSB=1`.
 
 ## Conventions
 

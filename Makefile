@@ -51,13 +51,12 @@ test:
 test-coverage:
 	go test -cover -coverprofile=coverage.out ./...
 
-# Needs a Docker daemon; builds the test images on first run. PKGS picks packages under test/integration (default:
-# all), e.g. PKGS="egress proxy"; MSB=1 requires msb instead of skipping its runs, as CI does.
+# Needs Docker. PKGS="egress proxy" picks packages, MSB=1 requires msb; removes the test images after, except on CI.
 test-integration:
 	go run -tags integration ./test/integration/cmd/buildimages $(PKGS)
 	AGENTIC_ITEST_IMAGES_BUILT=1 AGENTIC_ITEST_MICROSANDBOX=$(MSB) go test -tags integration -count=1 -timeout 20m -v \
 		$(or $(addprefix ./test/integration/,$(PKGS)),./test/integration/...); \
-		status=$$?; go run -tags integration ./test/integration/cmd/cleanup; exit $$status
+		status=$$?; go run -tags integration ./test/integration/cmd/cleanup $(if $(CI),,--all); exit $$status
 
 lint:
 	golangci-lint run ./...

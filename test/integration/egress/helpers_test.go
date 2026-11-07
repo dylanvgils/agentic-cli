@@ -58,8 +58,7 @@ func requestScript(host string) string {
 	return "curl -sS -m 10 --noproxy '' -w '\\nstatus=%{http_code}\\n' http://" + host + "/egress"
 }
 
-// curlFromEgressNet requests url through proxy from a container on the shared egress network the proxy also
-// joins, and returns curl's output with a final status=<code> line.
+// curlFromEgressNet requests url through proxy from a container on agentic-net, ending with status=<code>.
 func curlFromEgressNet(t *testing.T, proxy, url string) string {
 	t.Helper()
 	ip := platform.Docker(t, "inspect", "--format", `{{(index .NetworkSettings.Networks "agentic-net").IPAddress}}`, proxy)
@@ -95,8 +94,7 @@ func proxyLog(t *testing.T, tool *platform.ToolRun) []proxy.Entry {
 	return entries
 }
 
-// secretFile writes credentialSecret to a file outside the work dir and every tool mount, as agentic requires, and
-// returns its path.
+// secretFile writes credentialSecret outside the work dir and mounts, as agentic requires, and returns its path.
 func secretFile(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(platform.TempDirIn(t, platform.RootDir()), "token")

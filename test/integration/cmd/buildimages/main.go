@@ -1,7 +1,6 @@
 //go:build integration
 
-// Command buildimages builds the integration test images once, before the test packages run in parallel: the images
-// the packages named as args need, every package's without args.
+// Command buildimages builds the images the named test packages need (all without args), before they run.
 package main
 
 import (

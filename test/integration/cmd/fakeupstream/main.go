@@ -1,7 +1,6 @@
 //go:build integration
 
-// Command fakeupstream is the proxy service tests' upstream: HTTP on :80 and HTTPS on :443, answering every request
-// with its path and whether it carried the expected secret.
+// Command fakeupstream is the tests' HTTP (:80) and HTTPS (:443) upstream, answering with the path and secret match.
 package main
 
 import (
@@ -29,8 +28,7 @@ func main() {
 	os.Exit(1)
 }
 
-// answer writes the request path and whether its Authorization is the secret, never the secret itself, and echoes the
-// Authorization back as a header, so a test sees what the proxy scrubs.
+// answer writes the path and whether Authorization is the secret, echoing it as a header to check the scrub.
 func answer(w http.ResponseWriter, r *http.Request) {
 	auth := r.Header.Get("Authorization")
 	secret := "mismatch"
