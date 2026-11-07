@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestProxyAddressGuard checks an allowed host can't reach private or loopback addresses unless listed exactly.
+// TestProxyAddressGuard checks the guard refuses private and loopback addresses, over HTTP and CONNECT.
 func TestProxyAddressGuard(t *testing.T) {
 	t.Parallel()
 
@@ -21,10 +21,13 @@ func TestProxyAddressGuard(t *testing.T) {
 
 		// Act
 		out := env.curl("http://" + allowedHost + "/")
+		connect := env.connect(allowedHost)
 
 		// Assert
 		assert.Contains(t, out, "status=403")
-		assert.Contains(t, run.log(), blockedEntry(allowedHost))
+		assert.Contains(t, connect, "connect=403")
+		assert.Contains(t, run.log(), blockedEntry(proxy.ProtocolHTTP, allowedHost))
+		assert.Contains(t, run.log(), blockedEntry(proxy.ProtocolHTTPS, allowedHost))
 	})
 
 	t.Run("exact entry cannot reach loopback", func(t *testing.T) {
@@ -33,10 +36,13 @@ func TestProxyAddressGuard(t *testing.T) {
 
 		// Act
 		out := env.curl("http://localhost/")
+		connect := env.connect("localhost")
 
 		// Assert
 		assert.Contains(t, out, "status=403")
-		assert.Contains(t, run.log(), blockedEntry("localhost"))
+		assert.Contains(t, connect, "connect=403")
+		assert.Contains(t, run.log(), blockedEntry(proxy.ProtocolHTTP, "localhost"))
+		assert.Contains(t, run.log(), blockedEntry(proxy.ProtocolHTTPS, "localhost"))
 	})
 
 	t.Run("monitor mode still refuses loopback", func(t *testing.T) {
@@ -45,19 +51,26 @@ func TestProxyAddressGuard(t *testing.T) {
 
 		// Act
 		out := env.curl("http://localhost/")
+		connect := env.connect("localhost")
 
 		// Assert
 		assert.Contains(t, out, "status=403")
-		assert.Contains(t, run.log(), blockedEntry("localhost"))
+		assert.Contains(t, connect, "connect=403")
+		assert.Contains(t, run.log(), blockedEntry(proxy.ProtocolHTTP, "localhost"))
+		assert.Contains(t, run.log(), blockedEntry(proxy.ProtocolHTTPS, "localhost"))
 	})
 }
 
-// blockedEntry is the log entry of a plain HTTP request to host the address guard refused.
-func blockedEntry(host string) proxy.Entry {
+// blockedEntry is the log entry of a request to host the address guard refused.
+func blockedEntry(protocol proxy.Protocol, host string) proxy.Entry {
+	port := "80"
+	if protocol == proxy.ProtocolHTTPS {
+		port = "443"
+	}
 	return proxy.Entry{
-		Protocol: proxy.ProtocolHTTP,
+		Protocol: protocol,
 		Host:     host,
-		Port:     "80",
+		Port:     port,
 		Decision: proxy.DecisionDeny,
 		Enforced: true,
 		Reason:   proxy.ReasonBlockedAddr,

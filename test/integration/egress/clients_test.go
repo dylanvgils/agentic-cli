@@ -44,8 +44,6 @@ func TestEgressClientNets(t *testing.T) {
 func TestEgressProxyToken(t *testing.T) {
 	// Arrange
 	rt := microsandbox(t)
-	script := `url=$(echo "$HTTP_PROXY" | sed 's#//[^@]*@#//#'); ` +
-		`echo "status=$(curl -s -m 20 -o /dev/null -w '%{http_code}' --noproxy '' --proxy "$url" http://` + allowedHost + `/)"`
 	startUpstream(t)
 
 	// Act
@@ -53,8 +51,9 @@ func TestEgressProxyToken(t *testing.T) {
 		On(rt).
 		Allowing(allowedHost).
 		WithProxy().
-		Run(script)
+		Run(tokenlessScript(allowedHost))
 
 	// Assert
 	assert.Contains(t, out, "status=407")
+	assert.Contains(t, out, "connect=407")
 }

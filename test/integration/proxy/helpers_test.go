@@ -95,6 +95,13 @@ func (e *serviceEnv) curl(url string, args ...string) string {
 	return e.client(append(cmd, url)...)
 }
 
+// connect prints the proxy's CONNECT status for host:443 as connect=<code>.
+func (e *serviceEnv) connect(host string) string {
+	e.t.Helper()
+	return e.shell("curl -s -o /dev/null -m 10 --noproxy '' -x http://" + proxyAlias + ":" + tools.ProxyPort +
+		" -w 'connect=%{http_connect}' https://" + host + "/; true")
+}
+
 // shell runs script in a client on the network, with the certs mounted; it fails the test only if the client can't run.
 func (e *serviceEnv) shell(script string) string {
 	e.t.Helper()
@@ -294,6 +301,12 @@ func (r *proxyRun) writeCredentials() string {
 func (r *proxyRun) credentialFileExists(name string) bool {
 	_, err := os.Stat(filepath.Join(r.credsDir, name))
 	return err == nil
+}
+
+// serverNameScript opens a TLS tunnel to host:443 whose ClientHello names serverName.
+func serverNameScript(host, serverName string) string {
+	return "echo | timeout 5 openssl s_client -proxy " + proxyAlias + ":" + tools.ProxyPort +
+		" -connect " + host + ":443 -servername " + serverName + " 2>&1; echo exit=$?"
 }
 
 // hostUser returns the test process's uid:gid, which owns every mounted file.

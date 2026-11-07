@@ -20,14 +20,16 @@ func TestEgressAllowlist(t *testing.T) {
 			On(rt).
 			Allowing(allowedHost).
 			WithProxy()
+		script := requestScript(allowedHost) + "; " + requestScript(otherHost) + "; " + tunnelScript(allowedHost)
 
 		// Act
-		out := tool.Run(requestScript(allowedHost) + "; " + requestScript(otherHost))
+		out := tool.Run(script)
 
 		// Assert
 		assert.Contains(t, out, "path=/egress")
 		assert.Contains(t, out, "status=200")
 		assert.Contains(t, out, "status=403")
+		assert.Contains(t, out, "path=/tunnel")
 		assert.Contains(t, proxyLog(t, tool), proxy.Entry{
 			Protocol: proxy.ProtocolHTTP,
 			Host:     otherHost,
@@ -38,37 +40,87 @@ func TestEgressAllowlist(t *testing.T) {
 	})
 }
 
-// TestEgressMonitor checks monitor mode reaches the run's proxy, which then logs verdicts unenforced.
-func TestEgressMonitor(t *testing.T) {
+// TestEgressAddressGuard checks the run's proxy refuses a wildcard-allowed host on a private address.
+func TestEgressAddressGuard(t *testing.T) {
 	startUpstream(t)
 
 	forEachRuntime(t, func(t *testing.T, rt platform.Runtime) {
 		// Arrange
 		tool := platform.NewToolRun(t).
 			On(rt).
-			Allowing(allowedHost).
-			WithProxyMonitor()
+			Allowing(".egress.test").
+			WithProxy()
 
 		// Act
 		out := tool.Run(requestScript(allowedHost))
 
 		// Assert
-		assert.Contains(t, out, "status=200")
+		assert.Contains(t, out, "status=403")
 		assert.Contains(t, proxyLog(t, tool), proxy.Entry{
 			Protocol: proxy.ProtocolHTTP,
 			Host:     allowedHost,
 			Port:     "80",
-			Decision: proxy.DecisionAllow,
-			Enforced: false,
+			Decision: proxy.DecisionDeny,
+			Enforced: true,
+			Reason:   proxy.ReasonBlockedAddr,
 		})
 	})
 }
 
-// TestEgressBypass checks the tool can't reach an upstream directly, around the proxy.
+// TestEgressMonitor checks monitor mode logs verdicts without enforcing them.
+func TestEgressMonitor(t *testing.T) {
+	startUpstream(t)
+
+	forEachRuntime(t, func(t *testing.T, rt platform.Runtime) {
+		monitorRun := func(t *testing.T) *platform.ToolRun {
+			return platform.NewToolRun(t).
+				On(rt).
+				Allowing(allowedHost).
+				WithProxyMonitor()
+		}
+
+		t.Run("allowed host is logged unenforced", func(t *testing.T) {
+			// Arrange
+			tool := monitorRun(t)
+
+			// Act
+			out := tool.Run(requestScript(allowedHost))
+
+			// Assert
+			assert.Contains(t, out, "status=200")
+			assert.Contains(t, proxyLog(t, tool), proxy.Entry{
+				Protocol: proxy.ProtocolHTTP,
+				Host:     allowedHost,
+				Port:     "80",
+				Decision: proxy.DecisionAllow,
+				Enforced: false,
+			})
+		})
+
+		// A public host, as the address guard refuses non-allowed private ones even in monitor mode
+		t.Run("other host gets through and is logged", func(t *testing.T) {
+			// Arrange
+			tool := monitorRun(t)
+
+			// Act
+			out := tool.Run(reachableScript("other", "example.org"))
+
+			// Assert
+			assert.Contains(t, out, "other=ok")
+			assert.Contains(t, proxyLog(t, tool), proxy.Entry{
+				Protocol: proxy.ProtocolHTTPS,
+				Host:     "example.org",
+				Port:     "443",
+				Decision: proxy.DecisionDeny,
+				Enforced: false,
+			})
+		})
+	})
+}
+
+// TestEgressBypass checks the tool reaches nothing around the proxy: no upstream, no public host.
 func TestEgressBypass(t *testing.T) {
 	upstream := startUpstream(t)
-	script := "env -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u http_proxy " +
-		"curl -sS -m 5 -w '\\nstatus=%{http_code}\\n' http://" + upstream.IP() + "/egress; echo exit=$?"
 
 	forEachRuntime(t, func(t *testing.T, rt platform.Runtime) {
 		// Act
@@ -76,9 +128,11 @@ func TestEgressBypass(t *testing.T) {
 			On(rt).
 			Allowing(allowedHost).
 			WithProxy().
-			Run(script)
+			Run(bypassScript(upstream.IP()))
 
 		// Assert - only the upstream's own answer proves a bypass, not an error something on the way sends
+		assert.Contains(t, out, "exit=")
 		assert.NotContains(t, out, "path=/egress")
+		assert.Contains(t, out, "public=blocked")
 	})
 }

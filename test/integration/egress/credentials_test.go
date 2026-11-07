@@ -25,11 +25,8 @@ func TestEgressCredentials(t *testing.T) {
 		}
 
 		t.Run("env holds the placeholder, not the secret", func(t *testing.T) {
-			// Arrange
-			script := `echo "key=$EXAMPLE_API_KEY"; env | grep -q '` + credentialSecret + `' && echo leak=yes || echo leak=no`
-
 			// Act
-			out := credentialRun(t).Run(script)
+			out := credentialRun(t).Run(leakScript())
 
 			// Assert
 			assert.Contains(t, out, "agentic: injecting credentials for "+credentialHost+" ("+secretPath+")")
@@ -39,11 +36,10 @@ func TestEgressCredentials(t *testing.T) {
 
 		t.Run("tool trusts the proxy CA for credential hosts", func(t *testing.T) {
 			// Arrange
-			script := `curl -sS -o /dev/null -w 'status=%{http_code}\n' https://` + credentialHost + `/ && echo tls=ok`
 			tool := credentialRun(t).ViaEntrypoint()
 
 			// Act
-			out := tool.Run(script)
+			out := tool.Run(trustScript(credentialHost))
 
 			// Assert
 			assert.Contains(t, out, "status=502")
@@ -59,4 +55,24 @@ func TestEgressCredentials(t *testing.T) {
 			})
 		})
 	})
+}
+
+// TestEgressCredentialFiles checks the proxy agentic starts for a docker run deletes the CA key and credentials it got.
+func TestEgressCredentialFiles(t *testing.T) {
+	// Arrange
+	tool := platform.NewToolRun(t).WithCredential(credentialHost, secretFile(t))
+	var keyCopied, credsCopied, certCopied bool
+
+	// Act
+	tool.During(func() {
+		proxy := tool.Proxy()
+		keyCopied = copyFromProxy(proxy, "ca-key.pem")
+		credsCopied = copyFromProxy(proxy, "credentials.json")
+		certCopied = copyFromProxy(proxy, "ca.pem")
+	})
+
+	// Assert - the CA cert stays, which proves the path is right
+	assert.False(t, keyCopied)
+	assert.False(t, credsCopied)
+	assert.True(t, certCopied)
 }
