@@ -182,7 +182,7 @@ func ProxyMain(m *testing.M) int {
 }
 
 // MicrosandboxMain is SmokeMain for a package that runs tools in microsandbox: it skips without msb unless
-// microsandboxEnv is set, and removes the test images' msb copies at the end.
+// microsandboxEnv is set, loads the test tool's images into msb up front and removes the test images' msb copies at the end.
 func MicrosandboxMain(m *testing.M) int {
 	ok, err := microsandboxAvailable()
 	if err != nil || !ok {
@@ -193,7 +193,8 @@ func MicrosandboxMain(m *testing.M) int {
 		fmt.Println("msb unavailable, skipping microsandbox integration tests")
 		return 0
 	}
-	return withMicrosandboxCleanup(SmokeMain(m))
+	steps := append(toolRunSteps(AllImages), microsandboxLoadStep())
+	return withMicrosandboxCleanup(runPackage(m, steps))
 }
 
 // checkDocker prints the daemon summary; without a daemon it skips, except on CI where skipping would hide that nothing ran.
@@ -297,6 +298,21 @@ func imageSteps(set ImageSet) []step {
 		{"migrating agentic home", migrateHome},
 		{"building images", func() error { return runParallel(builds) }},
 	}
+}
+
+// microsandboxLoadStep loads the test tool's plain and layers images into msb with a first run each, so the tests running
+// them in parallel find them loaded instead of racing to load the same image.
+func microsandboxLoadStep() step {
+	run := func(namespace string) step {
+		return step{namespace + "-" + Tool, func() error {
+			return runAgentic("run", "--trust-dir", "--runtime", "microsandbox", "--namespace", namespace, Tool, "--", "true")
+		}}
+	}
+	loads := []step{
+		run(Namespace),
+		run(LayersNamespace),
+	}
+	return step{"loading images into msb", func() error { return runParallel(loads) }}
 }
 
 // proxyImageStep builds the proxy image, so no image from older source runs the proxy tests.

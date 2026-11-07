@@ -32,10 +32,12 @@ func TestMicrosandboxToolSmoke(t *testing.T) {
 }
 
 // TestMicrosandboxLayerSmoke checks every extra base layer's runtime starts in a microsandbox VM, through the version
-// script the layer installs; serial, as every subtest would load the same image into msb.
+// script the layer installs; parallel, as MicrosandboxMain already loaded the image.
 func TestMicrosandboxLayerSmoke(t *testing.T) {
 	for _, name := range tools.KnownExtras() {
 		t.Run(name+" prints its version", func(t *testing.T) {
+			t.Parallel()
+
 			// Act
 			out := platform.NewToolRun(t).
 				InNamespace(platform.LayersNamespace).
