@@ -10,12 +10,10 @@ import (
 // pathBlockedText is the body of a 403 for a path no rule of its host allows.
 const pathBlockedText = "path not allowed by agentic proxy allowlist"
 
-// unsafePathParts are what upstreams may decode or split on differently than the rule check, in a lowercased escaped path:
-// encoded separators, dots and %, backslashes and ; path parameters.
+// unsafePathParts may decode or split differently upstream than in the rule check (lowercased escaped path).
 var unsafePathParts = []string{"%2f", "%5c", "%2e", "%25", "%3b", "\\", ";"}
 
-// checkPaths answers requests whose path entry's host rules don't allow with a 403, logging each; monitor mode logs
-// and forwards them, dropping upgrades on path rule hosts.
+// checkPaths refuses paths entry's host rules don't allow and drops upgrades on path rule hosts.
 func (s *Server) checkPaths(next http.Handler, entry Entry) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !s.passPath(w, entry, r.URL) {
@@ -48,8 +46,7 @@ func (s *Server) refusePath(w http.ResponseWriter, entry Entry) {
 	http.Error(w, pathBlockedText, http.StatusForbidden)
 }
 
-// pathVerdict reports whether u's path is allowed on entry's host, always for a host without path rules, returning
-// entry marked as path-blocked when it isn't.
+// pathVerdict reports whether u's path is allowed on entry's host, else returns entry marked path-blocked.
 func (s *Server) pathVerdict(entry Entry, u *url.URL) (Entry, bool) {
 	if !s.allow.pathRestricted(entry.Host) {
 		return entry, true
@@ -67,10 +64,7 @@ func (s *Server) pathVerdict(entry Entry, u *url.URL) (Entry, bool) {
 
 // markPathBlocked returns entry denied for its path, enforced unless in monitor mode.
 func (s *Server) markPathBlocked(entry Entry) Entry {
-	entry.Decision = DecisionDeny
-	entry.Enforced = !s.monitor
-	entry.Reason = ReasonPathBlocked
-	return entry
+	return entry.refused(ReasonPathBlocked, s.monitor)
 }
 
 // requestPath returns u's decoded path ("/" when empty), or ok=false for one an upstream may read differently.

@@ -30,34 +30,37 @@ const (
 // Log reasons say why an allowed host was still refused or failed.
 const (
 	// ReasonBlockedAddr is an allowed host refused by the address guard.
-	ReasonBlockedAddr = "blocked-address"
+	ReasonBlockedAddr Reason = "blocked-address"
 
 	// ReasonUpstreamFailed is an allowed request the upstream couldn't serve, with the detail in Entry.Error.
-	ReasonUpstreamFailed = "upstream-failed"
+	ReasonUpstreamFailed Reason = "upstream-failed"
 
 	// ReasonProxyFailed is an allowed connection the proxy couldn't set up itself, such as a TLS handshake the client
 	// rejected, with the detail in Entry.Error.
-	ReasonProxyFailed = "proxy-failed"
+	ReasonProxyFailed Reason = "proxy-failed"
 
 	// ReasonClientClosed is an allowed tunnel the client closed before or during the TLS handshake, or an intercepted
 	// request the client cancelled before the response, with the detail in Entry.Error.
-	ReasonClientClosed = "client-closed"
+	ReasonClientClosed Reason = "client-closed"
 
 	// ReasonSNIMismatch is a tunnel to an allowed host whose TLS server name (SNI) names another host, or that doesn't
 	// start with TLS, with the name or error in Entry.Error.
-	ReasonSNIMismatch = "sni-mismatch"
+	ReasonSNIMismatch Reason = "sni-mismatch"
 
 	// ReasonPathBlocked is a request to a path rule host for a path none of its rules allows, with the path in Entry.Path,
 	// or a tunnel to one the proxy couldn't decrypt to check.
-	ReasonPathBlocked = "path-blocked"
+	ReasonPathBlocked Reason = "path-blocked"
 
 	// ReasonNoPlaceholder is a closed credential tunnel the upstream rejected (401/403) and whose requests never carried
 	// the placeholder. It repeats the tunnel's entry rather than counting a new attempt.
-	ReasonNoPlaceholder = "no-placeholder"
+	ReasonNoPlaceholder Reason = "no-placeholder"
 )
 
 // Decision records whether a connection attempt was permitted.
 type Decision string
+
+// Reason records why an allowed host was still refused or failed.
+type Reason string
 
 // Protocol records how the client reached the proxy: an HTTP CONNECT tunnel (HTTPS) or a plain HTTP forward.
 type Protocol string
@@ -77,17 +80,24 @@ type Entry struct {
 	// Path is the escaped request path a path rule refused, without the query, which can carry tokens.
 	Path string `json:"path,omitempty"`
 	// Reason says why an allowed host was still refused or failed, e.g. ReasonBlockedAddr.
-	Reason string `json:"reason,omitempty"`
+	Reason Reason `json:"reason,omitempty"`
 	// Error is the upstream or proxy failure detail, kept out of the response to the tool; never in the human line.
 	Error string `json:"error,omitempty"`
 }
 
-// Logger writes each access record as a JSON line (always UTC) to an optional file and as a "request" record on the
-// slog default, the proxy's one logger. Safe for concurrent use.
+// Logger writes each entry as a UTC JSON line to an optional file and as a slog "request" record. Concurrency-safe.
 type Logger struct {
 	mutex   sync.Mutex
 	encoder *json.Encoder // nil when no JSON destination is configured
 	now     func() time.Time
+}
+
+// refused returns e denied for reason, enforced unless in monitor mode.
+func (e Entry) refused(reason Reason, monitor bool) Entry {
+	e.Decision = DecisionDeny
+	e.Enforced = !monitor
+	e.Reason = reason
+	return e
 }
 
 // NewLogHandler returns the handler for everything the proxy logs: key=value text lines on w, with times in location.
@@ -125,8 +135,7 @@ func (l *Logger) Log(entry Entry) {
 	_ = slog.Default().Handler().Handle(context.Background(), requestRecord(entry))
 }
 
-// DisplayHost returns host for a terminal, quoted when it has anything but printable ASCII, such as bidi overrides the tool
-// could use to spoof the line.
+// DisplayHost quotes host for a terminal when it isn't printable ASCII, so bidi tricks can't spoof the line.
 func DisplayHost(host string) string {
 	for _, c := range host {
 		if c <= ' ' || c > '~' {
@@ -136,7 +145,7 @@ func DisplayHost(host string) string {
 	return host
 }
 
-// PruneLogs removes access-log files in dir older than maxAge (maxAge <= 0 removes all). Best-effort: never fails the caller.
+// PruneLogs removes access logs in dir older than maxAge (<= 0 removes all), ignoring errors.
 func PruneLogs(dir string, maxAge time.Duration) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -176,7 +185,7 @@ func requestRecord(entry Entry) slog.Record {
 		r.AddAttrs(slog.Bool("intercepted", true))
 	}
 	if entry.Reason != "" {
-		r.AddAttrs(slog.String("reason", entry.Reason))
+		r.AddAttrs(slog.String("reason", string(entry.Reason)))
 	}
 	return r
 }

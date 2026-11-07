@@ -3,7 +3,6 @@ package proxy
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -14,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/network/certs"
@@ -31,7 +29,7 @@ const (
 // injectPort is the only port intercepted for injection; other ports to a credentialed host tunnel untouched.
 const injectPort = "443"
 
-// blockedMethods are refused inside an intercepted tunnel: TRACE/TRACK echo the injected headers back, CONNECT would re-tunnel.
+// blockedMethods are refused in an intercepted tunnel: TRACE/TRACK echo the secret, CONNECT would re-tunnel.
 var blockedMethods = []string{http.MethodConnect, http.MethodTrace, "TRACK"}
 
 // Injector terminates TLS for the tunnels the Server decrypts, putting credentialed hosts' secrets in the headers.
@@ -45,18 +43,10 @@ type Injector struct {
 	leaves map[string]*tls.Certificate // per host, issued on first use
 }
 
-// oneConnListener serves a single conn, blocking Accept until it closes.
-type oneConnListener struct {
-	conns chan net.Conn
-	done  chan struct{}
-	once  sync.Once
-	addr  net.Addr
-}
-
-// closeNotifyConn closes its listener when the conn itself is closed.
-type closeNotifyConn struct {
-	net.Conn
-	listener *oneConnListener
+// authWatch tracks a tunnel's auth failures and placeholders, per tunnel so git's anonymous first try doesn't count.
+type authWatch struct {
+	sawAuthFailure atomic.Bool
+	sawPlaceholder atomic.Bool
 }
 
 // NewInjector builds an Injector holding creds and issuing leaves from ca.
@@ -74,8 +64,8 @@ func NewInjector(ca certs.CA, creds []Credential) *Injector {
 		port:   injectPort,
 		leaves: make(map[string]*tls.Certificate),
 		transport: &http.Transport{
-			DialContext:         newUpstream(blockedAddr).dialer.DialContext,
-			TLSHandshakeTimeout: dialTimeout,
+			DialContext:         newGuardedDialer(blockedAddr).DialContext,
+			TLSHandshakeTimeout: handshakeTimeout,
 			ForceAttemptHTTP2:   true,
 		},
 	}
@@ -127,7 +117,7 @@ func (i *Injector) handshake(w http.ResponseWriter, host string) (*tls.Conn, err
 		return nil, err
 	}
 
-	if _, err := io.WriteString(client, "HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil {
+	if _, err := io.WriteString(client, connectEstablished); err != nil {
 		_ = client.Close()
 		return nil, err
 	}
@@ -138,7 +128,7 @@ func (i *Injector) handshake(w http.ResponseWriter, host string) (*tls.Conn, err
 		MinVersion:   tls.VersionTLS13,
 	})
 
-	_ = client.SetDeadline(time.Now().Add(dialTimeout))
+	_ = client.SetDeadline(time.Now().Add(handshakeTimeout))
 	if err := tlsConn.Handshake(); err != nil {
 		_ = client.Close()
 		return nil, fmt.Errorf("client handshake for %s: %w", host, err)
@@ -151,15 +141,14 @@ func (i *Injector) handshake(w http.ResponseWriter, host string) (*tls.Conn, err
 func (i *Injector) serve(tlsConn *tls.Conn, handler http.Handler) {
 	server := &http.Server{
 		Handler:           blockMethods(handler),
-		ReadHeaderTimeout: dialTimeout,
+		ReadHeaderTimeout: handshakeTimeout,
 		IdleTimeout:       idleTimeout,
 		ErrorLog:          httpErrorLog(),
 	}
 	_ = server.Serve(newOneConnListener(tlsConn))
 }
 
-// reverseProxy forwards to host:port, never the request's Host, with cred's secret put in the request headers and taken
-// back out of the response headers by scrub; onResponse sees each upstream response before the scrub.
+// reverseProxy forwards to host:port with cred's secret swapped in; onResponse sees each response before the scrub.
 func (i *Injector) reverseProxy(host, port string, cred Credential, scrub *strings.Replacer, onResponse func(*http.Response)) *httputil.ReverseProxy {
 	// JoinHostPort brackets IPv6; the default port is then dropped to keep the Host header clean
 	target := &url.URL{Scheme: "https", Host: strings.TrimSuffix(net.JoinHostPort(host, port), ":443")}
@@ -180,71 +169,94 @@ func (i *Injector) reverseProxy(host, port string, cred Credential, scrub *strin
 	}
 }
 
-// intercept terminates the CONNECT's TLS and serves its requests with cred, checking their paths. A credential tunnel
-// with a 401/403 but no placeholder in any request is logged again on close; per tunnel, so git's anonymous first try
-// before its authed retry doesn't count.
+// intercept terminates the CONNECT's TLS and serves its requests with cred, checking their paths.
 func (s *Server) intercept(w http.ResponseWriter, entry Entry, cred Credential) {
-	tlsConn, err := s.inject.handshake(w, entry.Host)
-	if clientClosed(err) {
-		s.logClientClosed(entry, err)
+	tlsConn, ok := s.startIntercept(w, entry)
+	if !ok {
 		return
 	}
-	if err != nil {
-		entry.Reason = ReasonProxyFailed
-		entry.Error = err.Error()
-		s.logger.Log(entry)
-		return
-	}
-	entry.Intercepted = true
-	s.logger.Log(entry)
 	defer func() { _ = tlsConn.Close() }()
 
-	failed := func(w http.ResponseWriter, r *http.Request, err error) {
-		// The client cancelled the request or hung up, so there's no one left to answer
-		if r.Context().Err() != nil {
-			s.logClientClosed(entry, err)
-			return
-		}
-		if errors.Is(err, errBlockedAddr) {
-			s.refuseBlocked(w, entry)
-			return
-		}
-		s.failUpstream(w, entry, err)
-	}
-
-	var sawAuthFailure, sawPlaceholder atomic.Bool
-	onResponse := func(resp *http.Response) {
-		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-			sawAuthFailure.Store(true)
-		}
-	}
-	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if hasPlaceholder(r.Header, cred) {
-			sawPlaceholder.Store(true)
-		}
-
-		// Per request, as the Basic forms to scrub depend on what this request sent
-		scrub := newScrubber(r.Header, cred)
-		reverse := s.inject.reverseProxy(entry.Host, entry.Port, cred, scrub, onResponse)
-		reverse.ErrorHandler = failed
-		reverse.ServeHTTP(&scrubWriter{ResponseWriter: w, scrub: scrub}, r)
-
-		// Trailers land in w's header after the body and are sent once the handler returns
-		scrubHeader(w.Header(), scrub)
-	})
+	entry.Intercepted = true
+	s.logger.Log(entry)
+	watch := &authWatch{}
 
 	// Requests pass blockMethods (in serve), checkPaths, then allowPrivate
-	handler = allowPrivate(handler, s.allow.exactMatch(entry.Host))
+	handler := allowPrivate(s.injectHandler(entry, cred, watch), s.allow.exactMatch(entry.Host))
 	handler = s.checkPaths(handler, entry)
 	s.inject.serve(tlsConn, handler)
 
-	if len(cred.Headers) > 0 && sawAuthFailure.Load() && !sawPlaceholder.Load() {
+	if watch.missedPlaceholder(cred) {
 		entry.Reason = ReasonNoPlaceholder
 		s.logger.Log(entry)
 	}
 }
 
-// blockMethods answers blockedMethods in any case with 405 instead of forwarding them, as some upstreams ignore method case.
+// startIntercept completes the client's TLS handshake, logging a failure.
+func (s *Server) startIntercept(w http.ResponseWriter, entry Entry) (*tls.Conn, bool) {
+	tlsConn, err := s.inject.handshake(w, entry.Host)
+	if clientClosed(err) {
+		s.logClientClosed(entry, err)
+		return nil, false
+	}
+	if err != nil {
+		entry.Reason = ReasonProxyFailed
+		entry.Error = err.Error()
+		s.logger.Log(entry)
+		return nil, false
+	}
+
+	return tlsConn, true
+}
+
+// injectHandler forwards each decrypted request with cred swapped in and scrubbed back out of the response.
+func (s *Server) injectHandler(entry Entry, cred Credential, watch *authWatch) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		watch.request(r.Header, cred)
+
+		// Per request, as the Basic forms to scrub depend on what this request sent
+		scrub := newScrubber(r.Header, cred)
+		reverse := s.inject.reverseProxy(entry.Host, entry.Port, cred, scrub, watch.response)
+		reverse.ErrorHandler = s.interceptFailed(entry)
+		reverse.ServeHTTP(&scrubWriter{ResponseWriter: w, scrub: scrub}, r)
+
+		// Trailers land in w's header after the body and are sent once the handler returns
+		scrubHeader(w.Header(), scrub)
+	})
+}
+
+// interceptFailed returns the reverse proxy's error handler for entry's tunnel.
+func (s *Server) interceptFailed(entry Entry) func(http.ResponseWriter, *http.Request, error) {
+	return func(w http.ResponseWriter, r *http.Request, err error) {
+		// The client cancelled or hung up, so there's no one left to answer
+		if r.Context().Err() != nil {
+			s.logClientClosed(entry, err)
+			return
+		}
+		s.refuseUpstream(w, entry, err)
+	}
+}
+
+// request notes whether a request carried cred's placeholder.
+func (a *authWatch) request(header http.Header, cred Credential) {
+	if hasPlaceholder(header, cred) {
+		a.sawPlaceholder.Store(true)
+	}
+}
+
+// response notes an upstream 401 or 403.
+func (a *authWatch) response(resp *http.Response) {
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		a.sawAuthFailure.Store(true)
+	}
+}
+
+// missedPlaceholder reports an auth failure on a credential tunnel that never sent the placeholder.
+func (a *authWatch) missedPlaceholder(cred Credential) bool {
+	return len(cred.Headers) > 0 && a.sawAuthFailure.Load() && !a.sawPlaceholder.Load()
+}
+
+// blockMethods answers blockedMethods with 405, in any case, as some upstreams ignore it.
 func blockMethods(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if slices.ContainsFunc(blockedMethods, func(m string) bool { return strings.EqualFold(m, r.Method) }) {
@@ -253,44 +265,4 @@ func blockMethods(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
-}
-
-// clientClosed reports whether a conn error outside a request means the client hung up.
-func clientClosed(err error) bool {
-	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE)
-}
-
-// newOneConnListener returns a listener yielding conn once.
-func newOneConnListener(conn net.Conn) *oneConnListener {
-	l := &oneConnListener{conns: make(chan net.Conn, 1), done: make(chan struct{}), addr: conn.LocalAddr()}
-	l.conns <- &closeNotifyConn{Conn: conn, listener: l}
-	return l
-}
-
-// Accept returns the conn on the first call, then blocks until the listener closes.
-func (l *oneConnListener) Accept() (net.Conn, error) {
-	select {
-	case conn := <-l.conns:
-		return conn, nil
-	case <-l.done:
-		return nil, net.ErrClosed
-	}
-}
-
-// Close unblocks Accept; safe to call more than once.
-func (l *oneConnListener) Close() error {
-	l.once.Do(func() { close(l.done) })
-	return nil
-}
-
-// Addr returns the wrapped conn's local address.
-func (l *oneConnListener) Addr() net.Addr {
-	return l.addr
-}
-
-// Close closes the conn and its listener.
-func (c *closeNotifyConn) Close() error {
-	err := c.Conn.Close()
-	_ = c.listener.Close()
-	return err
 }

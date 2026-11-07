@@ -4,15 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"slices"
 	"strings"
 )
-
-// maxHostLen is the longest DNS name accepted as a credential host.
-const maxHostLen = 253
 
 // minPlaceholderLen keeps placeholders long enough that no real header value contains one by chance.
 const minPlaceholderLen = 16
@@ -93,8 +89,7 @@ func LoadCredentials(path string) ([]Credential, error) {
 	return creds, nil
 }
 
-// ValidateCredentials rejects invalid entries, hosts listed twice and placeholders that overlap; errors never contain
-// secrets.
+// ValidateCredentials rejects invalid entries, duplicate hosts and overlapping placeholders; errors never hold secrets.
 func ValidateCredentials(creds []Credential) error {
 	for i, cred := range creds {
 		if err := ValidateCredential(cred); err != nil {
@@ -108,8 +103,7 @@ func ValidateCredentials(creds []Credential) error {
 	return validatePlaceholders(creds)
 }
 
-// ValidateCredential requires exact hosts, valid headers, a placeholder no real value contains by chance and a secret a
-// header can carry; errors never contain the secret.
+// ValidateCredential checks one credential's hosts, headers, placeholder and secret; errors never hold the secret.
 func ValidateCredential(cred Credential) error {
 	if err := validateHosts(cred.Hosts); err != nil {
 		return err
@@ -193,28 +187,6 @@ func validateHeader(name string) error {
 	return nil
 }
 
-// validHost reports whether host is an IP or a DNS name of letters, digits and inner hyphens.
-func validHost(host string) bool {
-	if net.ParseIP(host) != nil {
-		return true
-	}
-	if host == "" || len(host) > maxHostLen {
-		return false
-	}
-
-	for label := range strings.SplitSeq(host, ".") {
-		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
-			return false
-		}
-		for _, c := range label {
-			if !isAlphaNum(c) && c != '-' {
-				return false
-			}
-		}
-	}
-	return true
-}
-
 // validHeaderName reports whether name is a non-empty RFC 9110 token.
 func validHeaderName(name string) bool {
 	if name == "" {
@@ -243,8 +215,7 @@ func validHeaderValue(value string) bool {
 	return true
 }
 
-// validPlaceholder reports whether placeholder is long enough and only letters, digits, - or _, so it survives any header
-// value and Basic encoding unchanged.
+// validPlaceholder reports whether placeholder is long enough and survives header values and Basic encoding.
 func validPlaceholder(placeholder string) bool {
 	if len(placeholder) < minPlaceholderLen {
 		return false

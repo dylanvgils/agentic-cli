@@ -273,3 +273,28 @@ func Test_httpErrorLog(t *testing.T) {
 	// Assert
 	assert.Contains(t, buf.String(), `level=ERROR msg="http: TLS handshake error"`)
 }
+
+func Test_Entry_refused(t *testing.T) {
+	cases := map[string]struct {
+		monitor      bool
+		wantEnforced bool
+	}{
+		"enforced":     {false, true},
+		"monitor mode": {true, false},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			entry := Entry{Host: "api.example.test", Decision: DecisionAllow}
+
+			// Act
+			got := entry.refused(ReasonPathBlocked, c.monitor)
+
+			// Assert
+			assert.Equal(t, DecisionDeny, got.Decision)
+			assert.Equal(t, c.wantEnforced, got.Enforced)
+			assert.Equal(t, ReasonPathBlocked, got.Reason)
+		})
+	}
+}

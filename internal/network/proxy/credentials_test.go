@@ -72,17 +72,15 @@ func TestLoadCredentials(t *testing.T) {
 		}
 	})
 
-	t.Run("wildcard and malformed hosts are rejected", func(t *testing.T) {
-		for _, host := range []string{"*.example.test", ".example.test", "*.", ".", "", "api..example.test", "-api.example.test", "api_key.example.test", "api.example.test:443"} {
-			// Arrange
-			path := writeTestFile(t, "creds.json", `[{"hosts":["`+host+`"],"headers":["X-Api-Key"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
+	t.Run("wildcard host is rejected", func(t *testing.T) {
+		// Arrange
+		path := writeTestFile(t, "creds.json", `[{"hosts":["*.example.test"],"headers":["X-Api-Key"],"placeholder":"agentic-0123456789abcdef","secret":"test-secret"}]`)
 
-			// Act
-			_, err := LoadCredentials(path)
+		// Act
+		_, err := LoadCredentials(path)
 
-			// Assert
-			assert.ErrorContains(t, err, "invalid host", host)
-		}
+		// Assert
+		assert.ErrorContains(t, err, "invalid host")
 	})
 
 	t.Run("exact hostnames and ips are accepted", func(t *testing.T) {

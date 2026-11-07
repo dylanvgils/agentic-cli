@@ -23,8 +23,7 @@ func restrictClients(next http.Handler, nets []*net.IPNet) http.Handler {
 	})
 }
 
-// requireToken refuses requests without token in a Basic Proxy-Authorization header for AuthUser, and strips the header so
-// it never reaches an upstream.
+// requireToken refuses requests without the Basic token for AuthUser and strips the header before the upstream.
 func requireToken(next http.Handler, token string) http.Handler {
 	want := []byte("Basic " + base64.StdEncoding.EncodeToString([]byte(AuthUser+":"+token)))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -39,8 +38,7 @@ func requireToken(next http.Handler, token string) http.Handler {
 	})
 }
 
-// clientHandler wraps next with restrictClients for cidrs and requireToken for token, each when set. With required, it
-// refuses having neither, as injecting credentials for any client that can reach the proxy would leak them across runs.
+// clientHandler wraps next with the client checks that are set; required refuses none, so credentials never leak across runs.
 func clientHandler(next http.Handler, cidrs []string, token string, required bool) (http.Handler, error) {
 	if len(cidrs) == 0 && token == "" && required {
 		return nil, fmt.Errorf("%s or %s must be set when credentials are injected", EnvClientNets, EnvAuthToken)

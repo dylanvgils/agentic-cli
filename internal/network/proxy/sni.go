@@ -50,9 +50,7 @@ func (helloConn) SetReadDeadline(time.Time) error { return nil }
 // SetWriteDeadline does nothing, as writes are dropped.
 func (helloConn) SetWriteDeadline(time.Time) error { return nil }
 
-// checkServerName reads the tunnel's ClientHello and logs entry once, refused when its server name isn't the CONNECT
-// host, so an allowed host can't front for another site on the same CDN; monitor mode logs the refusal but tunnels.
-// It returns the bytes read, to replay upstream, and whether to tunnel.
+// checkServerName refuses a tunnel whose SNI isn't the CONNECT host (domain fronting), returning the bytes to replay.
 func (s *Server) checkServerName(client net.Conn, entry Entry) ([]byte, bool) {
 	serverName, hello, err := readServerName(client)
 	switch {
@@ -68,15 +66,11 @@ func (s *Server) checkServerName(client net.Conn, entry Entry) ([]byte, bool) {
 		return hello, true
 	}
 
-	entry.Decision = DecisionDeny
-	entry.Enforced = !s.monitor
-	entry.Reason = ReasonSNIMismatch
-	s.logger.Log(entry)
+	s.logger.Log(entry.refused(ReasonSNIMismatch, s.monitor))
 	return hello, s.monitor
 }
 
-// readServerName reads the tunnel's TLS ClientHello from client and returns its server name (SNI) plus every byte read,
-// to replay upstream. It fails when the tunnel doesn't start with a ClientHello within dialTimeout.
+// readServerName reads the tunnel's ClientHello and returns its SNI plus the bytes read.
 func readServerName(client net.Conn) (serverName string, read []byte, err error) {
 	var recorded bytes.Buffer
 	reader := io.TeeReader(io.LimitReader(client, maxHelloBytes), &recorded)
@@ -89,7 +83,7 @@ func readServerName(client net.Conn) (serverName string, read []byte, err error)
 		},
 	})
 
-	_ = client.SetReadDeadline(time.Now().Add(dialTimeout))
+	_ = client.SetReadDeadline(time.Now().Add(handshakeTimeout))
 	err = peek.Handshake()
 	_ = client.SetReadDeadline(time.Time{})
 
@@ -99,8 +93,7 @@ func readServerName(client net.Conn) (serverName string, read []byte, err error)
 	return hello.ServerName, recorded.Bytes(), nil
 }
 
-// serverNameMatches reports whether a tunnel to host may carry serverName: the same name, or none when host is an IP,
-// which clients don't send as SNI.
+// serverNameMatches reports whether serverName is host, or empty for an IP host.
 func serverNameMatches(serverName, host string) bool {
 	if serverName == "" {
 		_, err := netip.ParseAddr(host)
