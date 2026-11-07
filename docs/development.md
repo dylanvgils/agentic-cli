@@ -85,6 +85,12 @@ CLI changes take effect after `make build`. Changes to stage funcs in `internal/
 
 Integration tests build the binary and the images their packages need (slow on the first run, cached after), then drive `agentic run` like a user would. Most packages need only the proxy and `agentic-itest-claude` images; `images` and `microsandbox` build every tool's image. They skip without Docker, and the resource-limit checks skip without cgroups (e.g. rootless without systemd). CI runs `make test-integration MSB=1` in a separate job. This repo's `.agenticrc.toml` enables DinD (and the proxy in monitor mode), so they also run inside an agentic container.
 
+The packages run in parallel, so `make test-integration` prints each test with its subtests indented below it as it finishes, then the failures' output and the slowest tests at the end; on GitHub Actions each package's full log is also folded into a group. For a single package's live `-v` log, run it directly:
+
+```bash
+go test -tags integration -count=1 -v ./test/integration/proxy
+```
+
 Fake containers and networks carry an `agentic.itest.run` label; each package force-removes its own at the end, and `make test-integration` removes any left over. Outside CI it also removes the test images and their msb copies; Docker's build cache keeps the next build quick. The `microsandbox` package skips without msb, and `egress` runs its tests on Docker only. Both require msb with `MSB=1`.
 
 ## Conventions
