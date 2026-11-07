@@ -5,35 +5,27 @@ package proxy
 import (
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
-	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
 
-// sniHost is the fake upstream's alias on agentic-net, listed exactly so the proxy may dial its private address.
-const sniHost = "upstream.sni.test"
-
-// TestProxyServerName checks the proxy refuses a tunnel to an allowed host whose TLS server name names another host.
+// TestProxyServerName checks a tunnel to an allowed host whose TLS server name names another host is closed.
 func TestProxyServerName(t *testing.T) {
 	// Arrange
-	platform.FakeContainer(t).
-		OnNetwork("agentic-net").
-		WithAlias(sniHost).
-		ListeningOn("443").
-		Create()
-
-	tool := platform.NewToolRun(t).
-		Allowing(sniHost).
-		WithProxy()
+	env := newServiceEnv(t)
+	run := newProxyRun(t, env).allowing(allowedHost).start()
+	script := "echo | timeout 5 openssl s_client -proxy " + proxyAlias + ":" + tools.ProxyPort +
+		" -connect " + allowedHost + ":443 -servername other.example.test 2>&1; echo exit=$?"
 
 	// Act
-	out := tool.Run(serverNameScript(sniHost, "other.example.test"))
+	out := env.shell(script)
 
 	// Assert
 	assert.NotContains(t, out, "exit=0")
-	assert.Contains(t, proxyLog(t, tool), proxy.Entry{
+	assert.Contains(t, run.log(), proxy.Entry{
 		Protocol: proxy.ProtocolHTTPS,
-		Host:     sniHost,
+		Host:     allowedHost,
 		Port:     "443",
 		Decision: proxy.DecisionDeny,
 		Enforced: true,

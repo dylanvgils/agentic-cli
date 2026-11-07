@@ -23,7 +23,7 @@ const (
 	// dockerInfoFormat summarizes the daemon, incl. whether it can enforce resource limits
 	dockerInfoFormat = "server {{.ServerVersion}}, cgroup driver {{.CgroupDriver}}, cgroup v{{.CgroupVersion}}"
 
-	// imagesBuiltEnv tells Main the images are already built, as make test-integration does once for every package.
+	// imagesBuiltEnv names the ImageSet already built, as the make targets do once for every package.
 	imagesBuiltEnv = "AGENTIC_ITEST_IMAGES_BUILT"
 
 	// microsandboxEnv makes a missing msb fail MicrosandboxMain instead of skipping, as make test-integration-msb does.
@@ -31,6 +31,17 @@ const (
 
 	// progressInterval is how often runningSteps.report prints the steps still running.
 	progressInterval = 30 * time.Second
+)
+
+// ImageSet is the images a package needs built.
+type ImageSet string
+
+const (
+	// BaseImages are the proxy and test tool images.
+	BaseImages ImageSet = "base"
+
+	// AllImages adds every tool's image and the test tool's with every extra layer, for the smoke tests.
+	AllImages ImageSet = "all"
 )
 
 // step is one setup phase, timed in the output.
@@ -43,6 +54,12 @@ type step struct {
 type runningSteps struct {
 	mu    sync.Mutex
 	names map[string]bool
+}
+
+// built reports whether imagesBuiltEnv says set's images are built: AllImages covers BaseImages.
+func (set ImageSet) built() bool {
+	built := ImageSet(os.Getenv(imagesBuiltEnv))
+	return built == AllImages || built == set
 }
 
 // newRunningSteps returns steps' names, all running.
@@ -86,8 +103,8 @@ func (r *runningSteps) report() (stop func()) {
 	}
 }
 
-// BuildImages builds the test tool and proxy images in a throwaway env, so the packages' Main can skip them.
-func BuildImages() error {
+// BuildImages builds set's images in a throwaway env, so the packages' Main can skip them.
+func BuildImages(set ImageSet) error {
 	skip, err := checkDocker()
 	if skip || err != nil {
 		return err
@@ -100,69 +117,54 @@ func BuildImages() error {
 	defer func() { _ = os.RemoveAll(root) }()
 
 	setPaths(root)
-	return runSteps(append(envSteps(), imageSteps()...))
+	return runSteps(append(envSteps(), imageSteps(set)...))
 }
 
-// Main sets up the shared env, runs the package's tests and removes the env again; call it from each TestMain.
+// Main sets up the shared env with BaseImages, runs the package's tests and removes the env again.
 func Main(m *testing.M) int {
-	skip, err := checkDocker()
-	if err != nil {
-		fmt.Println(err)
-		return 1
-	}
-	if skip {
-		return 0
-	}
-
-	root, err := newRootDir()
-	if err != nil {
-		fmt.Println(err)
-		return 1
-	}
-	defer func() { _ = os.RemoveAll(root) }()
-
-	setPaths(root)
-	steps := envSteps()
-	if os.Getenv(imagesBuiltEnv) == "" {
-		steps = append(steps, imageSteps()...)
-	}
-	steps = append(steps,
-		step{"approving work dir settings", approveWorkDir},
-		// With --proxy so it also creates agentic-net, the proxy's egress network the tests attach fakes to
-		step{"first agentic run", func() error { return runAgentic("run", "--trust-dir", "--proxy", Tool, "--", "true") }},
-	)
-
-	if err := runSteps(steps); err != nil {
-		fmt.Println(err)
-		return 1
-	}
-
-	code := m.Run()
-	if err := runSteps([]step{{"removing this run's fakes", removeRunFakes}}); err != nil {
-		fmt.Println(err)
-	}
-	return code
+	return runPackage(m, toolRunSteps(BaseImages))
 }
 
-// MicrosandboxMain is Main for a package that runs tools in microsandbox: it skips without msb unless microsandboxEnv is
-// set, and removes the test images' msb copies at the end.
-func MicrosandboxMain(m *testing.M) int {
-	version, err := exec.Command("msb", "--version").CombinedOutput()
+// SmokeMain is Main for a package that runs every tool image: it builds AllImages.
+func SmokeMain(m *testing.M) int {
+	return runPackage(m, toolRunSteps(AllImages))
+}
+
+// RuntimesMain is Main for a package whose tests loop over Runtimes: microsandbox joins them when msb is available
+// (required with microsandboxEnv), and the test images' msb copies are removed at the end.
+func RuntimesMain(m *testing.M) int {
+	ok, err := microsandboxAvailable()
 	if err != nil {
-		if os.Getenv(microsandboxEnv) != "" {
-			fmt.Printf("msb unavailable: %v\n%s", err, version)
+		fmt.Println(err)
+		return 1
+	}
+	if !ok {
+		return Main(m)
+	}
+
+	runtimes = append(runtimes, microsandboxRuntime)
+	return withMicrosandboxCleanup(Main(m))
+}
+
+// ProxyMain is Main for a package that runs the proxy image on its own: BaseImages, but no agentic run.
+func ProxyMain(m *testing.M) int {
+	steps := append(envSteps(), imageSteps(BaseImages)...)
+	return runPackage(m, append(steps, step{"first proxy start", warmUpProxy}))
+}
+
+// MicrosandboxMain is SmokeMain for a package that runs tools in microsandbox: it skips without msb unless
+// microsandboxEnv is set, and removes the test images' msb copies at the end.
+func MicrosandboxMain(m *testing.M) int {
+	ok, err := microsandboxAvailable()
+	if err != nil || !ok {
+		if err != nil {
+			fmt.Println(err)
 			return 1
 		}
-		fmt.Printf("msb unavailable, skipping microsandbox integration tests: %v\n", err)
+		fmt.Println("msb unavailable, skipping microsandbox integration tests")
 		return 0
 	}
-
-	fmt.Printf("=> msb: %s\n", strings.TrimSpace(string(version)))
-	code := Main(m)
-	if err := runSteps([]step{{"removing the test images from msb", removeMicrosandboxImages}}); err != nil {
-		fmt.Println(err)
-	}
-	return code
+	return withMicrosandboxCleanup(SmokeMain(m))
 }
 
 // checkDocker prints the daemon summary; without a daemon it skips, except on CI where skipping would hide that nothing ran.
@@ -185,40 +187,102 @@ func setPaths(root string) {
 	rootDir = root
 	runID = filepath.Base(root)
 	agenticBin = filepath.Join(rootDir, "agentic")
+	fakeUpstreamBin = filepath.Join(rootDir, "fakeupstream")
 	workDir = filepath.Join(rootDir, "work")
 	agenticHome = filepath.Join(rootDir, "agentic-home")
 	tmpDir = filepath.Join(rootDir, "tmp")
 }
 
-// envSteps build the binary and write the work dir every agentic call needs.
+// runPackage sets up the env with steps, runs the package's tests and removes the env and this run's fakes again.
+func runPackage(m *testing.M, steps []step) int {
+	skip, err := checkDocker()
+	if err != nil {
+		fmt.Println(err)
+		return 1
+	}
+	if skip {
+		return 0
+	}
+
+	root, err := newRootDir()
+	if err != nil {
+		fmt.Println(err)
+		return 1
+	}
+	defer func() { _ = os.RemoveAll(root) }()
+
+	setPaths(root)
+	if err := runSteps(steps); err != nil {
+		fmt.Println(err)
+		return 1
+	}
+
+	code := m.Run()
+	if err := runSteps([]step{{"removing this run's fakes", removeRunFakes}}); err != nil {
+		fmt.Println(err)
+	}
+	return code
+}
+
+// envSteps build the binaries and write the work dir every agentic call needs.
 func envSteps() []step {
 	return []step{
 		{"building agentic binary", buildBinary},
+		{"building fake upstream", buildFakeUpstream},
 		{"writing work dir config", writeWorkDir},
 	}
 }
 
-// imageSteps build every tool's image and the test tool's with every extra layer, for the smoke tests, and the proxy
-// image, in parallel.
-func imageSteps() []step {
-	extras := strings.Join(tools.KnownExtras(), ",")
-	builds := []step{
-		// Otherwise a proxy image from older source would run the proxy tests
-		{"agentic-proxy", func() error { return runAgentic("proxy", "build") }},
-		{LayersNamespace + "-" + Tool, func() error {
-			return runAgentic("build", "--namespace", LayersNamespace, "--base", extras, Tool)
-		}},
+// toolRunSteps set up the env for agentic runs with set's images: approved settings and a first run.
+func toolRunSteps(set ImageSet) []step {
+	steps := append(envSteps(), imageSteps(set)...)
+	return append(steps,
+		step{"approving work dir settings", approveWorkDir},
+		// With --proxy so it also creates agentic-net, the proxy's egress network the tests attach fakes to
+		step{"first agentic run", func() error { return runAgentic("run", "--trust-dir", "--proxy", Tool, "--", "true") }},
+	)
+}
+
+// imageSteps build set's images in parallel, none when imagesBuiltEnv says they're built.
+func imageSteps(set ImageSet) []step {
+	if set.built() {
+		return nil
 	}
-	for _, name := range tools.Names() {
-		// Cached after the first run
-		builds = append(builds, step{Namespace + "-" + name, func() error { return runAgentic("build", name) }})
+
+	builds := []step{
+		proxyImageStep(),
+		toolImageStep(Tool),
+	}
+	if set == AllImages {
+		builds = append(builds, step{LayersNamespace + "-" + Tool, func() error {
+			return runAgentic("build", "--namespace", LayersNamespace, "--base", strings.Join(tools.KnownExtras(), ","), Tool)
+		}})
+		for _, name := range tools.Names() {
+			if name != Tool {
+				builds = append(builds, toolImageStep(name))
+			}
+		}
 	}
 
 	return []step{
-		// Once up front, or the parallel builds would race through the fresh AGENTIC_HOME's migrations
-		{"migrating agentic home", func() error { return runAgentic("migrate") }},
+		{"migrating agentic home", migrateHome},
 		{"building images", func() error { return runParallel(builds) }},
 	}
+}
+
+// proxyImageStep builds the proxy image, so no image from older source runs the proxy tests.
+func proxyImageStep() step {
+	return step{"agentic-proxy", func() error { return runAgentic("proxy", "build") }}
+}
+
+// toolImageStep builds name's test image, cached after the first run.
+func toolImageStep(name string) step {
+	return step{Namespace + "-" + name, func() error { return runAgentic("build", name) }}
+}
+
+// migrateHome migrates the fresh AGENTIC_HOME once, or parallel builds would race through it.
+func migrateHome() error {
+	return runAgentic("migrate")
 }
 
 // runSteps runs steps in order, printing how long each took.
@@ -268,6 +332,16 @@ func buildBinary() error {
 	return nil
 }
 
+// buildFakeUpstream builds the static fake upstream binary FakeResource.ServingUpstream mounts.
+func buildFakeUpstream() error {
+	cmd := exec.Command("go", "build", "-tags", "integration", "-o", fakeUpstreamBin, "github.com/dylanvgils/agentic-cli/test/integration/cmd/fakeupstream")
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("build fake upstream: %w\n%s", err, out)
+	}
+	return nil
+}
+
 // writeWorkDir creates the env's dirs and writes the work dir's .agenticrc.toml.
 func writeWorkDir() error {
 	// AGENTIC_HOME too, since with prebuilt images no build creates it before the approval
@@ -293,6 +367,35 @@ func runAgentic(args ...string) error {
 		return fmt.Errorf("agentic %s: %w\n%s", strings.Join(args, " "), err, out)
 	}
 	return nil
+}
+
+// warmUpProxy starts the proxy image once, hardened, before any test: the first such start can stall on a fresh daemon
+// (seen with a rootless sidecar), as Main's first agentic run also absorbs. The proxy exits at once without its address.
+func warmUpProxy() error {
+	_, _ = dockerRun("run", "--rm", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", tools.ProxyImage)
+	return nil
+}
+
+// microsandboxAvailable reports whether msb is installed, failing when it isn't but microsandboxEnv requires it.
+func microsandboxAvailable() (bool, error) {
+	version, err := exec.Command("msb", "--version").CombinedOutput()
+	if err != nil {
+		if os.Getenv(microsandboxEnv) != "" {
+			return false, fmt.Errorf("msb unavailable: %w\n%s", err, version)
+		}
+		return false, nil
+	}
+
+	fmt.Printf("=> msb: %s\n", strings.TrimSpace(string(version)))
+	return true, nil
+}
+
+// withMicrosandboxCleanup removes the test images' msb copies and returns code.
+func withMicrosandboxCleanup(code int) int {
+	if err := runSteps([]step{{"removing the test images from msb", removeMicrosandboxImages}}); err != nil {
+		fmt.Println(err)
+	}
+	return code
 }
 
 // removeMicrosandboxImages removes the msb copies of the test images, which agentic loads on the first msb run.

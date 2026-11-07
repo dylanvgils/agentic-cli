@@ -6,110 +6,58 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
-	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
 
-// guardHost is the fake upstream's alias on agentic-net, so it resolves to a private address.
-const guardHost = "upstream.guard.test"
-
-// TestProxyAddressGuard checks an allowed host can't reach local or private addresses unless listed exactly.
+// TestProxyAddressGuard checks an allowed host can't reach private or loopback addresses unless listed exactly.
 func TestProxyAddressGuard(t *testing.T) {
-	platform.FakeContainer(t).
-		OnNetwork("agentic-net").
-		WithAlias(guardHost).
-		ListeningOn("80").
-		Create()
+	env := newServiceEnv(t)
 
 	t.Run("wildcard entry cannot reach a private address", func(t *testing.T) {
 		// Arrange
-		tool := platform.NewToolRun(t).
-			Allowing(".guard.test").
-			WithProxy()
+		run := newProxyRun(t, env).allowing(".service.test").start()
 
 		// Act
-		out := tool.Run(connectScript(guardHost))
+		out := env.curl("http://" + allowedHost + "/")
 
 		// Assert
-		assert.Contains(t, out, "connect=403")
-		assert.Contains(t, proxyLog(t, tool), proxy.Entry{
-			Protocol: proxy.ProtocolHTTPS,
-			Host:     guardHost,
-			Port:     "80",
-			Decision: proxy.DecisionDeny,
-			Enforced: true,
-			Reason:   proxy.ReasonBlockedAddr,
-		})
-	})
-
-	t.Run("exact entry can reach a private address", func(t *testing.T) {
-		// Arrange
-		tool := platform.NewToolRun(t).
-			Allowing(guardHost).
-			WithProxy()
-
-		// Act
-		out := tool.Run(connectScript(guardHost))
-
-		// Assert
-		assert.Contains(t, out, "connect=200")
+		assert.Contains(t, out, "status=403")
+		assert.Contains(t, run.log(), blockedEntry(allowedHost))
 	})
 
 	t.Run("exact entry cannot reach loopback", func(t *testing.T) {
 		// Arrange
-		tool := platform.NewToolRun(t).
-			Allowing("localhost").
-			WithProxy()
+		run := newProxyRun(t, env).allowing("localhost").start()
 
 		// Act
-		out := tool.Run(connectScript("localhost"))
+		out := env.curl("http://localhost/")
 
-		// Assert - the reason proves the guard refused it, not the allowlist
-		assert.Contains(t, out, "connect=403")
-		assert.Contains(t, proxyLog(t, tool), proxy.Entry{
-			Protocol: proxy.ProtocolHTTPS,
-			Host:     "localhost",
-			Port:     "80",
-			Decision: proxy.DecisionDeny,
-			Enforced: true,
-			Reason:   proxy.ReasonBlockedAddr,
-		})
+		// Assert
+		assert.Contains(t, out, "status=403")
+		assert.Contains(t, run.log(), blockedEntry("localhost"))
 	})
 
 	t.Run("monitor mode still refuses loopback", func(t *testing.T) {
 		// Arrange
-		tool := platform.NewToolRun(t).WithProxyMonitor()
+		run := newProxyRun(t, env).monitoring().start()
 
 		// Act
-		out := tool.Run(connectScript("localhost"))
+		out := env.curl("http://localhost/")
 
 		// Assert
-		assert.Contains(t, out, "connect=403")
-		assert.Contains(t, proxyLog(t, tool), proxy.Entry{
-			Protocol: proxy.ProtocolHTTPS,
-			Host:     "localhost",
-			Port:     "80",
-			Decision: proxy.DecisionDeny,
-			Enforced: true,
-			Reason:   proxy.ReasonBlockedAddr,
-		})
+		assert.Contains(t, out, "status=403")
+		assert.Contains(t, run.log(), blockedEntry("localhost"))
 	})
 }
 
-// TestProxyClients checks a proxy without credentials also refuses clients outside its run's network.
-func TestProxyClients(t *testing.T) {
-	// Arrange
-	tool := platform.NewToolRun(t).
-		Allowing("example.test").
-		WithProxy()
-	var out string
-
-	// Act
-	tool.During(func() {
-		out = curlFromEgressNet(t, tool.Proxy(), "http://example.test/")
-	})
-
-	// Assert
-	assert.Contains(t, out, "client not on the agentic proxy network")
-	assert.Contains(t, out, "status=403")
+// blockedEntry is the log entry of a plain HTTP request to host the address guard refused.
+func blockedEntry(host string) proxy.Entry {
+	return proxy.Entry{
+		Protocol: proxy.ProtocolHTTP,
+		Host:     host,
+		Port:     "80",
+		Decision: proxy.DecisionDeny,
+		Enforced: true,
+		Reason:   proxy.ReasonBlockedAddr,
+	}
 }

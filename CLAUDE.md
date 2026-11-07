@@ -7,8 +7,9 @@ make build              # bin/agentic
 make test               # unit tests
 make lint               # golangci-lint
 make audit              # go mod verify + govulncheck
-make test-integration   # against a real Docker daemon
-make test-integration-msb # microsandbox package only, needs msb and KVM
+make test-integration PKGS="egress proxy" # some packages, against a real Docker daemon
+make test-integration-all # every package
+make test-integration-msb # microsandbox and egress, needs msb and KVM
 make verify-checksums   # pinned artifact checksums, nvm and msb (fix-checksums to update)
 ```
 
@@ -138,8 +139,10 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
 
 Setup and cleanup are in `docs/development.md`.
 
-- `//go:build integration`, in the feature package under `test/integration/` (`container`, `images`, `lifecycle`, `microsandbox`, `network`, `proxy`).
-- Runs come from the `platform.ToolRun` builder, fixtures only from the `platform.FakeContainer`/`FakeNetwork` builders.
+- `//go:build integration`, in the feature package under `test/integration/` (`container`, `egress`, `images`, `lifecycle`, `microsandbox`, `network`, `proxy`).
+- Runs come from the `platform.ToolRun` builder (standalone proxy runs from `proxy`'s `proxyRun`), fixtures only from the `platform.FakeContainer`/`FakeNetwork` builders.
+- `egress` only tests what needs `agentic run` (tool env, CA trust, client access, run summary), looping over `platform.Runtimes`; what the proxy does on its own goes in `proxy`, against `FakeContainer.ServingUpstream`.
+- `TestMain` picks the images a package needs: `platform.Main` (proxy + test tool), `SmokeMain` (every tool), `RuntimesMain` (adds microsandbox when msb is there), `ProxyMain` (no agentic run).
 - A helper goes in `platform` (plain `.go` files) only when several feature packages use it, else in that package's `helpers_test.go`.
 - Packages run in parallel on one daemon, so a check never counts the daemon's containers; scope it to the run with `ToolRun.Containers`/`Proxy`.
 

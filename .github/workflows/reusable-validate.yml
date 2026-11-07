@@ -121,7 +121,7 @@ jobs:
       - uses: ./.github/actions/setup-go
 
       - name: Integration tests
-        run: make test-integration
+        run: make test-integration-all
 
   integration-msb:
     runs-on: ubuntu-latest
