@@ -3,6 +3,7 @@
 package platform
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -130,7 +131,12 @@ func BuildImages(set ImageSet) error {
 	return runSteps(append(envSteps(), imageSteps(set)...))
 }
 
-// RemoveTestResources removes every run's fakes and the test images; shared agentic-net and proxy image stay.
+// RemoveLeftovers removes what every package run left behind, also one whose test binary died.
+func RemoveLeftovers() error {
+	return runSteps(leftoverSteps())
+}
+
+// RemoveTestResources removes every run's leftovers and the test images; shared agentic-net and proxy image stay.
 func RemoveTestResources() error {
 	skip, err := checkDocker()
 	if skip || err != nil {
@@ -144,10 +150,8 @@ func RemoveTestResources() error {
 	defer func() { _ = os.RemoveAll(root) }()
 
 	setPaths(root)
-	return runSteps(append(envSteps(),
-		step{"removing leftover fakes of every run", func() error { return removeFakes("label=" + labelRun) }},
-		step{"removing the test images", removeTestImages},
-	))
+	steps := append(envSteps(), leftoverSteps()...)
+	return runSteps(append(steps, step{"removing the test images", removeTestImages}))
 }
 
 // Main runs a package's tests in a fresh env with BaseImages.
@@ -315,6 +319,17 @@ func microsandboxLoadStep() step {
 	return step{"loading images into msb", func() error { return runParallel(loads) }}
 }
 
+// leftoverSteps remove the fakes of every run and, with msb installed, the msb sandboxes of runs that were killed.
+func leftoverSteps() []step {
+	steps := []step{
+		{"removing leftover fakes of every run", func() error { return removeFakes("label=" + labelRun) }},
+	}
+	if _, err := exec.LookPath("msb"); err == nil {
+		steps = append(steps, step{"removing leftover msb sandboxes of every run", removeMicrosandboxSandboxes})
+	}
+	return steps
+}
+
 // proxyImageStep builds the proxy image, so no image from older source runs the proxy tests.
 func proxyImageStep() step {
 	return step{"agentic-proxy", func() error { return runAgentic("proxy", "build") }}
@@ -467,7 +482,7 @@ func removeMicrosandboxImages() error {
 
 	var errs []error
 	for ref := range strings.FieldsSeq(string(out)) {
-		if repo, _ := microsandbox.SplitRef(ref); !strings.HasPrefix(repo, Namespace+"-") {
+		if !isTestImage(ref) {
 			continue
 		}
 		if out, err := exec.Command("msb", "rmi", ref).CombinedOutput(); err != nil {
@@ -475,6 +490,43 @@ func removeMicrosandboxImages() error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// removeMicrosandboxSandboxes force-removes the msb sandboxes of the test images; a finished run removes its own, but a
+// killed one can leave a crashed or incomplete one behind.
+func removeMicrosandboxSandboxes() error {
+	out, err := exec.Command("msb", "ls", "--format", "json").Output()
+	if err != nil {
+		return fmt.Errorf("list msb sandboxes: %w", err)
+	}
+
+	var sandboxes []struct {
+		Name  string `json:"name"`
+		Image string `json:"image"`
+	}
+	if err := json.Unmarshal(out, &sandboxes); err != nil {
+		return fmt.Errorf("parse msb sandbox list: %w", err)
+	}
+
+	var names []string
+	for _, sb := range sandboxes {
+		if isTestImage(sb.Image) {
+			names = append(names, sb.Name)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	if out, err := exec.Command("msb", append([]string{"rm", "--force"}, names...)...).CombinedOutput(); err != nil {
+		return fmt.Errorf("msb rm %s: %w\n%s", strings.Join(names, " "), err, out)
+	}
+	return nil
+}
+
+// isTestImage reports whether ref names one of the test namespaces' images, which no real run uses.
+func isTestImage(ref string) bool {
+	repo, _ := microsandbox.SplitRef(ref)
+	return strings.HasPrefix(repo, Namespace+"-")
 }
 
 // newRootDir creates the env's root dir under test/integration in this checkout, the same parent for every package's

@@ -1,6 +1,6 @@
 //go:build integration
 
-// Command cleanup removes the fakes every test run left behind; --all also removes the test images.
+// Command cleanup removes the fakes and msb sandboxes every test run left behind; --all also removes the test images.
 package main
 
 import (
@@ -15,7 +15,7 @@ func main() {
 	all := flag.Bool("all", false, "also remove the test images and their msb copies")
 	flag.Parse()
 
-	remove := platform.RemoveAllFakes
+	remove := platform.RemoveLeftovers
 	if *all {
 		remove = platform.RemoveTestResources
 	}

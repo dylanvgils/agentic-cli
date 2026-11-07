@@ -258,13 +258,6 @@ func (f *FakeResource) awaitListening() {
 	}
 }
 
-// RemoveAllFakes force-removes the fakes of every package run, also of one whose test binary died.
-func RemoveAllFakes() error {
-	return runSteps([]step{
-		{"removing leftover fakes of every run", func() error { return removeFakes("label=" + labelRun) }},
-	})
-}
-
 // fakeLabels returns the labels every fake starts with.
 func fakeLabels() []string {
 	return []string{

@@ -50,7 +50,7 @@ agentic-cli/
     └── integration/             # Black-box tests driving the agentic binary against a real Docker daemon (`integration` build tag)
         ├── platform/            # Shared env setup and the builders every feature package runs tools and fake resources with
         ├── cmd/buildimages/     # Builds the images the named packages need once, before they run in parallel
-        ├── cmd/cleanup/         # Force-removes leftover fakes after a run, also of a crashed package; with --all the test images too, as local runs do
+        ├── cmd/cleanup/         # Force-removes leftover fakes and msb sandboxes after a run, also of a crashed package; with --all the test images too, as local runs do
         ├── cmd/fakeupstream/    # HTTP/HTTPS upstream fake containers serve with `ServingUpstream`
         ├── container/           # Tool container hardening, resource limits and mounts
         ├── egress/              # Egress through agentic-proxy on every runtime: allowlist, monitor, credentials, path rules, clients, integrations
