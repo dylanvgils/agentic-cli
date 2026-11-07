@@ -1,9 +1,10 @@
 //go:build integration
 
-// Command cleanup removes the fakes every integration test run left behind, also when a test binary died.
+// Command cleanup removes the fakes every test run left behind; --all also removes the test images.
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -11,7 +12,14 @@ import (
 )
 
 func main() {
-	if err := platform.RemoveAllFakes(); err != nil {
+	all := flag.Bool("all", false, "also remove the test images and their msb copies")
+	flag.Parse()
+
+	remove := platform.RemoveAllFakes
+	if *all {
+		remove = platform.RemoveTestResources
+	}
+	if err := remove(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}

@@ -1,6 +1,7 @@
 //go:build integration
 
-// Package proxy checks the egress proxy: address guard, clients, credentials, path rules and integrations.
+// Package proxy checks what the agentic-proxy image does on its own, against a real upstream: startup, forwarding,
+// the address guard, SNI, credential injection, path rules and client auth.
 package proxy
 
 import (
@@ -11,5 +12,5 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	os.Exit(platform.Main(m))
+	os.Exit(platform.ProxyMain(m))
 }

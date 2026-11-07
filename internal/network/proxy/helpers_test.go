@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net"
@@ -251,6 +252,14 @@ func newTestProxyCA(t *testing.T, names ...string) certs.CA {
 
 // testPlaceholder is a valid placeholder for test credentials.
 const testPlaceholder = "agentic-0123456789abcdef"
+
+// writeCredentials writes creds as a credentials file and returns its path.
+func writeCredentials(t *testing.T, creds ...Credential) string {
+	t.Helper()
+	data, err := json.Marshal(append([]Credential{}, creds...))
+	require.NoError(t, err)
+	return writeTestFile(t, "creds.json", string(data))
+}
 
 // testPlaceholderCredential returns a valid placeholder credential for host swapping placeholder for test-secret in Authorization and X-Api-Key.
 func testPlaceholderCredential(host, placeholder string) Credential {

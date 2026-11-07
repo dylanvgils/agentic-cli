@@ -6,46 +6,32 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
-	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
 
-// credentialHost has no upstream, so the proxy answers 502 once it has decrypted the request.
-const credentialHost = "upstream.example.test"
-
-// TestProxyCredentials checks the tool sees only the placeholder and trusts the proxy CA for credential hosts.
+// TestProxyCredentials checks the upstream gets the secret while the client only ever sees the placeholder.
 func TestProxyCredentials(t *testing.T) {
-	secretPath := secretFile(t)
-	credentialRun := func(t *testing.T) *platform.ToolRun {
-		return platform.NewToolRun(t).WithCredential(credentialHost, secretPath)
-	}
+	t.Parallel()
 
-	t.Run("env holds the placeholder, not the secret", func(t *testing.T) {
-		// Arrange
-		script := `echo "key=$EXAMPLE_API_KEY"; env | grep -q '` + credentialSecret + `' && echo leak=yes || echo leak=no`
+	env := newServiceEnv(t)
+	run := newProxyRun(t, env).
+		allowing(credentialHost).
+		withCredential().
+		start()
 
+	t.Run("upstream gets the secret, client the placeholder", func(t *testing.T) {
 		// Act
-		out := credentialRun(t).Run(script)
+		out := env.curl("https://"+credentialHost+"/",
+			"--cacert", certsDir+"/proxy-ca.pem",
+			"--include",
+			"--header", "Authorization: Bearer "+testPlaceholder,
+		)
 
 		// Assert
-		assert.Contains(t, out, "agentic: injecting credentials for "+credentialHost+" ("+secretPath+")")
-		assert.Regexp(t, `key=agentic-[0-9a-f]{24}\n`, out)
-		assert.Contains(t, out, "leak=no")
-	})
-
-	t.Run("tool trusts the proxy CA for credential hosts", func(t *testing.T) {
-		// Arrange
-		script := `curl -sS -o /dev/null -w 'status=%{http_code}\n' https://` + credentialHost + `/ && echo tls=ok`
-		tool := credentialRun(t).ViaEntrypoint()
-
-		// Act
-		out := tool.Run(script)
-
-		// Assert
-		assert.Contains(t, out, "status=502")
-		assert.Contains(t, out, "tls=ok")
-		assert.NotContains(t, out, "without the placeholder")
-		assert.Contains(t, proxyLog(t, tool), proxy.Entry{
+		assert.Contains(t, out, "secret=match")
+		assert.Contains(t, out, "X-Echo-Authorization: Bearer "+testPlaceholder)
+		assert.NotContains(t, out, testSecret)
+		assert.Contains(t, run.log(), proxy.Entry{
 			Protocol:    proxy.ProtocolHTTPS,
 			Host:        credentialHost,
 			Port:        "443",
@@ -55,37 +41,15 @@ func TestProxyCredentials(t *testing.T) {
 		})
 	})
 
-	t.Run("proxy deletes the CA key and credentials once loaded", func(t *testing.T) {
-		// Arrange
-		tool := credentialRun(t)
-		var keyCopied, credsCopied, certCopied bool
-
+	t.Run("CA key and credentials are deleted once loaded", func(t *testing.T) {
 		// Act
-		tool.During(func() {
-			proxy := tool.Proxy()
-			keyCopied = copyFromProxy(proxy, "ca-key.pem")
-			credsCopied = copyFromProxy(proxy, "credentials.json")
-			certCopied = copyFromProxy(proxy, "ca.pem")
-		})
+		keyLeft := run.credentialFileExists(proxy.CAKeyFile)
+		credsLeft := run.credentialFileExists("credentials.json")
+		certLeft := run.credentialFileExists(proxy.CACertFile)
 
-		// Assert - the CA cert stays, which proves the path is right
-		assert.False(t, keyCopied)
-		assert.False(t, credsCopied)
-		assert.True(t, certCopied)
-	})
-
-	t.Run("proxy refuses clients outside the run's network", func(t *testing.T) {
-		// Arrange
-		tool := credentialRun(t)
-		var out string
-
-		// Act
-		tool.During(func() {
-			out = curlFromEgressNet(t, tool.Proxy(), "http://"+credentialHost+"/")
-		})
-
-		// Assert
-		assert.Contains(t, out, "client not on the agentic proxy network")
-		assert.Contains(t, out, "status=403")
+		// Assert - the CA cert stays, which proves the dir is right
+		assert.False(t, keyLeft)
+		assert.False(t, credsLeft)
+		assert.True(t, certLeft)
 	})
 }

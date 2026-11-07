@@ -119,20 +119,7 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - uses: ./.github/actions/setup-go
-
-      - name: Integration tests
-        run: make test-integration
-
-  integration-msb:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.ref }}
-
-      - uses: ./.github/actions/setup-go
-
       - uses: ./.github/actions/setup-msb
 
-      - name: Microsandbox integration tests
-        run: make test-integration-msb
+      - name: Integration tests
+        run: make test-integration MSB=1

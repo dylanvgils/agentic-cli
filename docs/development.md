@@ -49,11 +49,13 @@ agentic-cli/
 └── test/
     └── integration/             # Black-box tests driving the agentic binary against a real Docker daemon (`integration` build tag)
         ├── platform/            # Shared env setup and the builders every feature package runs tools and fake resources with
-        ├── cmd/buildimages/     # Builds the test images once before `make test-integration` runs the packages in parallel
-        ├── cmd/cleanup/         # Force-removes leftover fakes after `make test-integration`, also of a crashed package
+        ├── cmd/buildimages/     # Builds the images the named packages need once, before they run in parallel
+        ├── cmd/cleanup/         # Force-removes leftover fakes after a run, also of a crashed package; with --all the test images too, as local runs do
+        ├── cmd/fakeupstream/    # HTTP/HTTPS upstream fake containers serve with `ServingUpstream`
         ├── container/           # Tool container hardening, resource limits and mounts
-        ├── network/             # Network isolation of the tool, with and without --proxy
-        ├── proxy/               # Egress proxy: address guard, clients, credentials, path rules, integrations
+        ├── egress/              # Egress through agentic-proxy on every runtime: allowlist, monitor, credentials, path rules, clients, integrations
+        ├── network/             # Network isolation of the docker tool, with and without --proxy
+        ├── proxy/               # The proxy image on its own: startup, forwarding, address guard, SNI, injection, path rules, token
         ├── lifecycle/           # Cleanup on a closed terminal and of orphans from crashed runs
         ├── microsandbox/        # Runs in a microsandbox VM: mounts, limits, allowlist
         └── tools/               # Smoke test per tool image
@@ -68,8 +70,9 @@ make build          # compile to bin/agentic
 make lint           # run golangci-lint
 make audit          # go mod verify + govulncheck
 make test           # run unit tests
-make test-integration # run integration tests against a real Docker daemon
-make test-integration-msb # run the microsandbox integration tests (needs msb and KVM)
+make test-integration # run every integration test package against a real Docker daemon
+make test-integration PKGS="egress proxy" # run only these packages
+make test-integration MSB=1 # require msb (and KVM) instead of skipping the microsandbox runs
 make dist           # cross-platform binaries → dist/
 make docker-dist    # same via Docker using build/Dockerfile (no local Go needed)
 ```
@@ -80,7 +83,9 @@ To run the CI checks on a branch without a PR, use **Actions → Validate (reusa
 
 CLI changes take effect after `make build`. Changes to stage funcs in `internal/image/tools/` or `internal/runtime/docker/` need an `agentic build` to rebuild the image.
 
-Integration tests build the binary and an `agentic-itest-claude` image (slow on the first run, cached after), then drive `agentic run` like a user would. They skip without Docker, and the resource-limit checks skip without cgroups (e.g. rootless without systemd). CI runs them in a separate job. This repo's `.agenticrc.toml` enables DinD (and the proxy in monitor mode), so they also run inside an agentic container. Fake containers and networks carry an `agentic.itest.run` label; each package force-removes its own at the end, and `make test-integration` removes any left over. The `microsandbox` package skips without msb, unless `AGENTIC_ITEST_MICROSANDBOX` is set as `make test-integration-msb` and its CI job do.
+Integration tests build the binary and the images their packages need (slow on the first run, cached after), then drive `agentic run` like a user would. Most packages need only the proxy and `agentic-itest-claude` images; `images` and `microsandbox` build every tool's image. They skip without Docker, and the resource-limit checks skip without cgroups (e.g. rootless without systemd). CI runs `make test-integration MSB=1` in a separate job. This repo's `.agenticrc.toml` enables DinD (and the proxy in monitor mode), so they also run inside an agentic container.
+
+Fake containers and networks carry an `agentic.itest.run` label; each package force-removes its own at the end, and `make test-integration` removes any left over. Outside CI it also removes the test images and their msb copies; Docker's build cache keeps the next build quick. The `microsandbox` package skips without msb, and `egress` runs its tests on Docker only. Both require msb with `MSB=1`.
 
 ## Conventions
 

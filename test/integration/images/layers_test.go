@@ -13,8 +13,12 @@ import (
 // TestLayerSmoke checks every extra base layer's runtime starts in the hardened container, through the version script
 // the layer installs.
 func TestLayerSmoke(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range tools.KnownExtras() {
 		t.Run(name+" prints its version", func(t *testing.T) {
+			t.Parallel()
+
 			// Act
 			out := platform.NewToolRun(t).
 				InNamespace(platform.LayersNamespace).

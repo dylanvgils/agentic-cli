@@ -91,22 +91,6 @@ func TestProxyNetwork(t *testing.T) {
 		assert.Contains(t, out, "reach=no")
 	})
 
-	t.Run("cannot reach container on agentic-net directly", func(t *testing.T) {
-		// Arrange
-		target := platform.FakeContainer(t).
-			OnNetwork("agentic-net").
-			Listening().
-			Create()
-
-		// Act
-		out := platform.NewToolRun(t).
-			WithProxy().
-			Run(reachScript(target.IP(), platform.ListenPort))
-
-		// Assert
-		assert.Contains(t, out, "reach=no")
-	})
-
 	t.Run("cannot reach the Docker host through the gateway", func(t *testing.T) {
 		// Arrange
 		platform.FakeContainer(t).

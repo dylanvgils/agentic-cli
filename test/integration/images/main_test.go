@@ -11,5 +11,5 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	os.Exit(platform.Main(m))
+	os.Exit(platform.SmokeMain(m))
 }

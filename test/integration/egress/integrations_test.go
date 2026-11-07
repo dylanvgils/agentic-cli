@@ -1,6 +1,6 @@
 //go:build integration
 
-package proxy
+package egress
 
 import (
 	"testing"
@@ -19,8 +19,9 @@ const (
 const integrationsScript = `echo "maven=$MAVEN_ARGS"; echo "gradle=$GRADLE_OPTS"; ` +
 	`nc -z -w 3 agentic-proxy 3128 && echo proxy=reachable || echo proxy=unreachable`
 
-// TestProxyIntegrations checks the maven and gradle integrations point the tools at the run's proxy, and only with --proxy.
-func TestProxyIntegrations(t *testing.T) {
+// TestEgressIntegrations checks the maven and gradle integrations point the tools at the run's proxy, and only with --proxy;
+// docker only, as microsandbox has no proxy integrations yet.
+func TestEgressIntegrations(t *testing.T) {
 	t.Run("flag sets the env pointing at the proxy", func(t *testing.T) {
 		// Act
 		out := platform.NewToolRun(t).

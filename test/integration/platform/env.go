@@ -53,6 +53,9 @@ var (
 	// agenticBin is the binary built from this checkout.
 	agenticBin string
 
+	// fakeUpstreamBin is the fake upstream FakeResource.ServingUpstream runs.
+	fakeUpstreamBin string
+
 	// workDir is the cwd for every agentic call; mounted as the tool's /workspace.
 	workDir string
 

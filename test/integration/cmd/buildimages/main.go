@@ -1,6 +1,6 @@
 //go:build integration
 
-// Command buildimages builds the integration test images once, before the test packages run in parallel.
+// Command buildimages builds the images the named test packages need (all without args), before they run.
 package main
 
 import (
@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	if err := platform.BuildImages(); err != nil {
+	if err := platform.BuildImages(platform.ImagesFor(os.Args[1:])); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
