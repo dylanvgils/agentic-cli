@@ -2,6 +2,7 @@ package microsandbox
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -14,7 +15,7 @@ func Test_buildEnvArgs(t *testing.T) {
 
 	t.Run("only flags without forwarded vars", func(t *testing.T) {
 		// Act
-		args, cleanup, err := buildEnvArgs(sandbox.RunSpec{Env: []string{"MAVEN_OPTS=-Xmx1g"}})
+		args, cleanup, err := buildEnvArgs(sandbox.RunSpec{Env: []string{"MAVEN_OPTS=-Xmx1g"}}, nil)
 		cleanup()
 
 		// Assert
@@ -23,9 +24,20 @@ func Test_buildEnvArgs(t *testing.T) {
 		assert.NotContains(t, args, "--runtime-conf="+dryRunEnvConfPlaceholder)
 	})
 
+	t.Run("hidden entries are forwarded, not flags", func(t *testing.T) {
+		// Act
+		args, cleanup, err := buildEnvArgs(sandbox.RunSpec{DryRun: true}, []string{"HTTPS_PROXY=http://agentic:test-token@proxy.example.test:3128"})
+		cleanup()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, args, "--runtime-conf="+dryRunEnvConfPlaceholder)
+		assert.NotContains(t, strings.Join(args, " "), "test-token")
+	})
+
 	t.Run("dry run shows a placeholder and writes nothing", func(t *testing.T) {
 		// Act
-		args, cleanup, err := buildEnvArgs(sandbox.RunSpec{Env: []string{"EXAMPLE_TOKEN"}, DryRun: true})
+		args, cleanup, err := buildEnvArgs(sandbox.RunSpec{Env: []string{"EXAMPLE_TOKEN"}, DryRun: true}, nil)
 		cleanup()
 
 		// Assert

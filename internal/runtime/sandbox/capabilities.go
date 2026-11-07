@@ -47,6 +47,8 @@ type Isolation struct {
 	DropsPrivileges bool
 	// CredentialsViaProxy means the proxy injects the credentials, so they turn it on.
 	CredentialsViaProxy bool
+	// EgressViaProxy means agentic-proxy enforces the allowlist, answering 403.
+	EgressViaProxy bool
 }
 
 // Missing returns the features in need that f lacks.

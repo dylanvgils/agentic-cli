@@ -267,7 +267,7 @@ func Test_checkCapabilities(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, errLog.String(), "--runtime microsandbox has no proxy sidecar, so it ignores [run.proxy] integrations in /example.test/project/.agenticrc.toml; tools reach allowed hosts directly")
+		assert.Contains(t, errLog.String(), "--runtime microsandbox ignores [run.proxy] integrations in /example.test/project/.agenticrc.toml; it can't route those tools through the proxy")
 	})
 
 	t.Run("missing proxy integrations from the flag warn, naming it", func(t *testing.T) {
@@ -282,7 +282,7 @@ func Test_checkCapabilities(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, errLog.String(), "--runtime microsandbox has no proxy sidecar, so it ignores --proxy-integration; tools reach allowed hosts directly")
+		assert.Contains(t, errLog.String(), "--runtime microsandbox ignores --proxy-integration; it can't route those tools through the proxy")
 	})
 
 	t.Run("a runtime with every feature passes", func(t *testing.T) {

@@ -118,6 +118,12 @@ func (r *ToolRun) WithProxyMonitor() *ToolRun {
 	return r
 }
 
+// WithProxyBackend runs with --proxy-backend name.
+func (r *ToolRun) WithProxyBackend(name string) *ToolRun {
+	r.flags = append(r.flags, "--proxy-backend", name)
+	return r
+}
+
 // WithDefaultMemory runs with agentic's default memory limit instead of the work dir's low one.
 func (r *ToolRun) WithDefaultMemory() *ToolRun {
 	r.flags = append(r.flags, "--memory", sandbox.DefaultMemory)

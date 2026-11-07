@@ -11,9 +11,13 @@ import (
 // dryRunEnvConfPlaceholder stands in for the forwarded env file in dry-run output, as it isn't written.
 const dryRunEnvConfPlaceholder = "<forwarded env file>"
 
-// buildEnvArgs returns the --env flags and, for forwarded host vars, a --runtime-conf file msb resolves them from; cleanup removes it.
-func buildEnvArgs(rs sandbox.RunSpec) (args []string, cleanup func(), err error) {
+// buildEnvArgs returns the --env flags plus a --runtime-conf file for forwarded vars and hidden entries, kept out of args.
+func buildEnvArgs(rs sandbox.RunSpec, hidden []string) (args []string, cleanup func(), err error) {
 	flags, forwarded := splitEnv(sandbox.ResolveEnv(rs.Env))
+	for _, entry := range hidden {
+		key, _, _ := strings.Cut(entry, "=")
+		forwarded = append(forwarded, key)
+	}
 	if len(forwarded) == 0 {
 		return flags, noCleanup, nil
 	}

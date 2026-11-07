@@ -29,7 +29,7 @@ How to read it:
 - **Docker**: the tool talks to its own DinD sidecar over mTLS, never to the host's Docker daemon. Inner containers run inside the sidecar.
 - **Network**: each run gets its own Docker network, shared only with its own sidecars. With `--proxy` that network is internal, so all traffic from the tool and the sidecar goes through the egress proxy, which only lets allowlisted hosts through. Without it (dotted lines), both reach the internet directly.
 - **Kernel**: everything inside "Docker host" shares one Linux kernel. That's the boundary all layers below ultimately rest on.
-- **Microsandbox**: with `--runtime microsandbox` the tool runs in a VM with its own kernel instead. There are no sidecars: msb enforces the allowlist and injects credentials from the host side, and `--dind` runs dockerd inside the VM.
+- **Microsandbox**: with `--runtime microsandbox` the tool runs in a VM with its own kernel instead. msb enforces the allowlist and injects credentials from the host side, or [agentic-proxy](egress-proxy.md#agentic-proxy) does with `backend = "agentic"`, and `--dind` runs dockerd inside the VM.
 
 ## Layers
 

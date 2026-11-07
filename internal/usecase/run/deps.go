@@ -5,6 +5,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -19,6 +20,7 @@ type Docker interface {
 	StartSidecars(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
 	RunTool(sidecars docker.Sidecars) error
 	StopSidecars(sidecars docker.Sidecars)
+	StartPublishedProxy(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error)
 	Capabilities() sandbox.Capabilities
 	ServerVersion() (engine, version string, err error)
 }
@@ -31,7 +33,7 @@ type Microsandbox interface {
 	LoadImage(r io.Reader, tag string) error
 	ImageRefs() ([]string, error)
 	RemoveImage(ref string) error
-	Run(rs sandbox.RunSpec) error
+	Run(rs sandbox.RunSpec, route *microsandbox.ProxyRoute) error
 }
 
 // ToolUpdate names the tool image a run offers an update for, and where its check state and config live.

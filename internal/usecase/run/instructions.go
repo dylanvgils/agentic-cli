@@ -242,10 +242,10 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 		return
 	}
 
-	if caps.Boundary == sandbox.BoundaryVM {
-		b.WriteString("- The VM's network policy filters all traffic and inspects HTTPS.\n")
-	} else {
+	if caps.EgressViaProxy {
 		b.WriteString("- All traffic goes through an egress proxy.\n")
+	} else {
+		b.WriteString("- The VM's network policy filters all traffic and inspects HTTPS.\n")
 	}
 
 	rules := proxyRules(toolConfig, in, rc, caps.Features)
@@ -259,10 +259,10 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 	}
 
 	b.WriteString("- Everything else is blocked: other hosts, other ports and SSH, git over SSH included. ")
-	if caps.Boundary == sandbox.BoundaryVM {
-		b.WriteString("A blocked request fails with a DNS, connection or TLS error.\n")
-	} else {
+	if caps.EgressViaProxy {
 		b.WriteString("A blocked request gets HTTP 403 from the proxy (curl: `CONNECT tunnel failed, response 403`).\n")
+	} else {
+		b.WriteString("A blocked request fails with a DNS, connection or TLS error.\n")
 	}
 
 	if search := toolConfig.Runtime.WebSearchTool; search != "" {
@@ -291,7 +291,7 @@ func writeDockerSection(b *strings.Builder, in Input, caps sandbox.Capabilities,
 		return
 	}
 	if caps.Boundary == sandbox.BoundaryVM {
-		writeVMDockerSection(b, in)
+		writeVMDockerSection(b, in, caps.EgressViaProxy)
 		return
 	}
 
@@ -307,14 +307,18 @@ func writeDockerSection(b *strings.Builder, in Input, caps sandbox.Capabilities,
 }
 
 // writeVMDockerSection describes the daemon that runs as root inside the microsandbox VM.
-func writeVMDockerSection(b *strings.Builder, in Input) {
+func writeVMDockerSection(b *strings.Builder, in Input, viaProxy bool) {
 	b.WriteString("- `docker` uses a daemon that runs as root in this VM, with access to any path in it. No setup needed.\n")
 	b.WriteString("- Published ports are on `localhost` in the VM. The user's machine can't reach them.\n")
 	fmt.Fprintf(b, "- Images, containers and volumes live on a %s disk and are deleted when this session ends.\n", microsandbox.DockerDisk)
 	b.WriteString("- The daemon shares the VM's CPUs and memory (see Resource limits).\n")
 	if in.ProxyMode.Enabled() {
 		b.WriteString("- Image pulls, builds and containers use the same allowlist; a registry other than Docker Hub must be added to allowed_hosts.\n")
-		b.WriteString("- Containers don't trust the VM's HTTPS inspection CA. For HTTPS inside a container, mount it: `-v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro`. `docker build` steps that use HTTPS fail unless the Dockerfile adds that CA.\n")
+		if viaProxy {
+			b.WriteString("- Containers don't get the proxy env and can't reach anything without it. Pass it on: `docker run -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY ...`, and `--build-arg HTTP_PROXY --build-arg HTTPS_PROXY` for `docker build`.\n")
+		} else {
+			b.WriteString("- Containers don't trust the VM's HTTPS inspection CA. For HTTPS inside a container, mount it: `-v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro`. `docker build` steps that use HTTPS fail unless the Dockerfile adds that CA.\n")
+		}
 	}
 	b.WriteString("\n")
 }

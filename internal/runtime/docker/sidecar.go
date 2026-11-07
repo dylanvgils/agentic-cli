@@ -10,8 +10,9 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-// pidOwnerPrefix starts the owner of a sidecar a host process owns instead of a tool container, e.g. "pid:4242".
-const pidOwnerPrefix = "pid:"
+// pidOwnerSep joins the runtime and pid of a sidecar a host process owns instead of a tool container, e.g.
+// "microsandbox:pid:4242".
+const pidOwnerSep = ":pid:"
 
 // ownedResource is a sidecar container or network carrying ownerLabels.
 type ownedResource struct {
@@ -228,14 +229,14 @@ func noCleanup() {
 	// Nothing to undo
 }
 
-// pidOwner returns the owner label of a sidecar the host process pid owns.
-func pidOwner(pid int) string {
-	return pidOwnerPrefix + strconv.Itoa(pid)
+// pidOwner returns the owner label of a sidecar the host process pid owns for a run on runtime.
+func pidOwner(runtime sandbox.Runtime, pid int) string {
+	return string(runtime) + pidOwnerSep + strconv.Itoa(pid)
 }
 
 // ownerPID returns the pid of a pidOwner owner.
 func ownerPID(owner string) (int, bool) {
-	digits, ok := strings.CutPrefix(owner, pidOwnerPrefix)
+	_, digits, ok := strings.Cut(owner, pidOwnerSep)
 	if !ok {
 		return 0, false
 	}

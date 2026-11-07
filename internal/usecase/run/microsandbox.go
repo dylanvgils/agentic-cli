@@ -1,9 +1,9 @@
 package run
 
 import (
-	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -14,38 +14,31 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-// errAgenticProxyUnsupported refuses the agentic backend until msb runs can start agentic-proxy.
-var errAgenticProxyUnsupported = errors.New("microsandbox can't run agentic-proxy yet")
-
 // microsandboxRunner runs tools in microsandbox VMs, loading their images from Docker.
 type microsandboxRunner struct {
-	// docker saves the tool image msb loads
+	// docker saves the tool image msb loads and runs agentic-proxy
 	docker       Docker
 	microsandbox Microsandbox
+	// sidecarImages builds the proxy image
+	sidecarImages SidecarImages
 	// agenticProxy enforces the allowlist with agentic-proxy instead of msb's own rules
 	agenticProxy bool
 }
 
-// Capabilities reports what msb runs offer; agentic-proxy adds what only it can do and injects the credentials itself.
+// Capabilities reports what msb runs offer, plus agentic-proxy's features; integrations would need its token, so not yet.
 func (r microsandboxRunner) Capabilities() sandbox.Capabilities {
 	caps := r.microsandbox.Capabilities()
 	if r.agenticProxy {
 		caps.ProxyMonitor = true
 		caps.PathRules = true
-		caps.ProxyIntegrations = true
 		caps.CredentialsViaProxy = true
+		caps.EgressViaProxy = true
 	}
 	return caps
 }
 
-// Check refuses agentic-proxy for a run that uses the proxy, then a missing msb or one older than minMicrosandbox; a dry
-// run makes no msb calls, so it skips the msb checks.
+// Check refuses a missing msb or one older than minMicrosandbox; a dry run makes no msb calls, so it skips the check.
 func (r microsandboxRunner) Check(req Request) error {
-	needs := requiredFeatures(req.Flags, req.Project.RC)
-	if r.agenticProxy && (needs.Proxy || needs.CredentialInjection) {
-		return fmt.Errorf("%s: %w; remove it or use --runtime docker", proxyBackendSource(req), errAgenticProxyUnsupported)
-	}
-
 	if req.Flags.DryRun {
 		return nil
 	}
@@ -60,14 +53,10 @@ func (r microsandboxRunner) Check(req Request) error {
 	return requireVersion("msb", version, minMicrosandbox)
 }
 
-// Run refuses agentic-proxy for rs's egress, then runs rs's image in microsandbox, loading it from Docker first unless msb already holds this exact image and checking
-// the mounts again after the load; with dind it runs the image's dockerd image, built first when needed. A dry run only
-// prints the msb command.
-func (r microsandboxRunner) Run(_ Request, rs sandbox.RunSpec) error {
-	if r.agenticProxy && rs.Egress.Mode.Enabled() {
-		return errAgenticProxyUnsupported
-	}
-
+// Run runs rs's image in microsandbox, loading it from Docker first unless msb already holds this exact image and checking
+// the mounts again after the load; with dind it runs the image's dockerd image, built first when needed, and with
+// agenticProxy it goes through agentic-proxy. A dry run only prints.
+func (r microsandboxRunner) Run(req Request, rs sandbox.RunSpec) error {
 	image := rs.Image
 	if rs.Dind.Enabled {
 		image = tools.DockerdImage(rs.Image)
@@ -94,7 +83,52 @@ func (r microsandboxRunner) Run(_ Request, rs sandbox.RunSpec) error {
 	}
 
 	rs.Image = ref
-	return r.microsandbox.Run(rs)
+	if !r.agenticProxy || !rs.Egress.Mode.Enabled() {
+		return r.microsandbox.Run(rs, nil)
+	}
+	return r.runThroughProxy(req, rs)
+}
+
+// runThroughProxy runs rs through a published agentic-proxy, rechecking mounts after its start, then prints its summary.
+func (r microsandboxRunner) runThroughProxy(req Request, rs sandbox.RunSpec) error {
+	proxyLog, err := proxyLogFile(rs.ToolHome, true)
+	if err != nil {
+		return err
+	}
+
+	if !rs.DryRun {
+		if err := prepareProxyLogDir(filepath.Dir(proxyLog), rs.ToolHome); err != nil {
+			return err
+		}
+		if err := r.sidecarImages.Ensure(true, false, req.Flags.Registry); err != nil {
+			return err
+		}
+		if err := recheckMounts(rs); err != nil {
+			return err
+		}
+	}
+
+	published, err := r.docker.StartPublishedProxy(rs, proxyLog, sandbox.RuntimeMicrosandbox)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		// Stop first, so requests the proxy logs while stopping make the summary
+		published.Stop()
+		if !rs.DryRun {
+			printProxySummary(proxyLog, rs.Egress.Mode)
+		}
+	}()
+
+	if err := recheckMounts(rs); err != nil {
+		return err
+	}
+	return r.microsandbox.Run(rs, &microsandbox.ProxyRoute{
+		Port:  published.Port,
+		Token: published.Token,
+		CAPEM: published.CAPEM,
+		Env:   published.Env,
+	})
 }
 
 // microsandboxRef returns image tagged with its Docker image ID, which pins a run to this exact image; a dry run names a

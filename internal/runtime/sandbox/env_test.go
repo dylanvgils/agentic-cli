@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,6 +48,35 @@ func TestIsReservedEnvName(t *testing.T) {
 
 			// Assert
 			assert.False(t, reserved, key)
+		}
+	})
+}
+
+func TestProxyEnv(t *testing.T) {
+	t.Run("points every proxy var at url", func(t *testing.T) {
+		// Act
+		env := ProxyEnv("http://proxy.example.test:3128", "localhost")
+
+		// Assert
+		assert.Equal(t, []string{
+			"HTTP_PROXY=http://proxy.example.test:3128",
+			"HTTPS_PROXY=http://proxy.example.test:3128",
+			"http_proxy=http://proxy.example.test:3128",
+			"https_proxy=http://proxy.example.test:3128",
+			"NO_PROXY=localhost",
+			"no_proxy=localhost",
+			"NODE_USE_ENV_PROXY=1",
+		}, env)
+	})
+
+	t.Run("sets only reserved proxy names", func(t *testing.T) {
+		// Act
+		env := ProxyEnv("http://proxy.example.test:3128", "localhost")
+
+		// Assert
+		for _, entry := range env {
+			key, _, _ := strings.Cut(entry, "=")
+			assert.True(t, IsReservedEnvName(key, true, false), key)
 		}
 	})
 }

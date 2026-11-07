@@ -149,6 +149,7 @@ Always run `go test ./...` before considering a task finished.
 | --------------- | ------ | ------------------------------------------------------------------------------------------------- | ------------------------ | ----------- |
 | `enabled`       | bool   | Route egress through the allowlist proxy                                                          | `--proxy` / `--no-proxy` | `false`     |
 | `mode`          | string | `"enforce"` blocks hosts not on the allowlist, `"monitor"` only logs them. `"monitor"` turns the proxy on unless `enabled = false`. | `--proxy-monitor`        | `"enforce"` |
+| `backend`       | string | What enforces the allowlist on microsandbox: `"native"` msb rules or `"agentic"` agentic-proxy. See [With microsandbox](egress-proxy.md#with-microsandbox). | `--proxy-backend`        | `"native"`  |
 | `allowed_hosts` | list   | Hosts added to the tool's baseline. Exact (`"api.github.com"`), or `.`/`*.` prefix for a domain and its subdomains (`".github.com"`). | -                        | -           |
 | `integrations`  | list   | Tools that ignore the proxy env vars, routed through the proxy with their own config. `"maven"` or `"gradle"`. See [Tools that ignore proxy env vars](egress-proxy.md#tools-that-ignore-proxy-env-vars). | `--proxy-integration`    | -           |
 
@@ -226,7 +227,7 @@ The agent can edit `.agenticrc.toml` files in directories it ran in, so changes 
 - `root`, `namespace`, `docker_context`, `marketplaces`
 - `build.custom_installs`
 - `run.mounts`, `run.env`, `run.args`, `run.runtime`
-- `run.proxy.enabled`, `run.proxy.mode`, `run.proxy.allowed_hosts`, `run.proxy.allowed_paths`, `run.proxy.credentials`, `run.dind.enabled`
+- `run.proxy.enabled`, `run.proxy.mode`, `run.proxy.backend`, `run.proxy.allowed_hosts`, `run.proxy.allowed_paths`, `run.proxy.credentials`, `run.dind.enabled`
 
 `agentic build` and `agentic update` don't ask, so review the diff first.
 

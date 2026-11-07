@@ -135,15 +135,11 @@ func proxyEnvArgs(dind bool) []string {
 		// Otherwise the docker CLI would route DOCKER_HOST through the proxy
 		noProxy += "," + dindHostAlias
 	}
-	return []string{
-		arg("env", "HTTP_PROXY="+proxyURL),
-		arg("env", "HTTPS_PROXY="+proxyURL),
-		arg("env", "http_proxy="+proxyURL),
-		arg("env", "https_proxy="+proxyURL),
-		arg("env", "NO_PROXY="+noProxy),
-		arg("env", "no_proxy="+noProxy),
-		arg("env", "NODE_USE_ENV_PROXY=1"), // Node's fetch and http ignore the vars above without it
+	var args []string
+	for _, entry := range sandbox.ProxyEnv(proxyURL, noProxy) {
+		args = append(args, arg("env", entry))
 	}
+	return args
 }
 
 // Stop removes the proxy sidecar and its volume; idempotent and error-ignoring, so it is safe to defer.

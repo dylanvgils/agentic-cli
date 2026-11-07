@@ -45,10 +45,10 @@ func (p PublishedProxy) Stop() {
 
 // StartPublishedProxy starts a proxy sidecar for spec on the egress network, published on a random 127.0.0.1 port and
 // requiring a fresh auth token, logging to proxyLog; a dry run only prints it. Docker's sweeps spare it while this
-// process runs.
-func (c *Client) StartPublishedProxy(spec sandbox.RunSpec, proxyLog string) (PublishedProxy, error) {
+// process runs, and its owner label names the runtime it serves.
+func (c *Client) StartPublishedProxy(spec sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (PublishedProxy, error) {
 	rs := toolRun{RunSpec: spec, proxyLog: proxyLog}
-	h, err := c.newPublishedHandle(rs)
+	h, err := c.newPublishedHandle(rs, owner)
 	if err != nil {
 		return PublishedProxy{}, err
 	}
@@ -84,8 +84,8 @@ func (c *Client) StartPublishedProxy(spec sandbox.RunSpec, proxyLog string) (Pub
 	return published, nil
 }
 
-// newPublishedHandle returns rs's proxy handle with a fresh auth token, owned by this process.
-func (c *Client) newPublishedHandle(rs toolRun) (proxyHandle, error) {
+// newPublishedHandle returns rs's proxy handle with a fresh auth token, owned by this process's run on owner.
+func (c *Client) newPublishedHandle(rs toolRun, owner sandbox.Runtime) (proxyHandle, error) {
 	h, err := c.newProxyHandle(rs)
 	if err != nil {
 		return proxyHandle{}, err
@@ -95,7 +95,7 @@ func (c *Client) newPublishedHandle(rs toolRun) (proxyHandle, error) {
 	if err != nil {
 		return proxyHandle{}, err
 	}
-	h.owner = pidOwner(os.Getpid())
+	h.owner = pidOwner(owner, os.Getpid())
 	return h, nil
 }
 
