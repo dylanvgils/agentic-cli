@@ -60,6 +60,17 @@ func startUpstream(t *testing.T) *platform.FakeResource {
 		Create()
 }
 
+// startRefusingHost gives host a name on agentic-net that refuses HTTPS, so the proxy's dial fails at once with a 502
+// instead of waiting out its 30s dial timeout on a DNS lookup that never answers where outbound DNS is blocked.
+func startRefusingHost(t *testing.T, host string) {
+	t.Helper()
+	platform.FakeContainer(t).
+		OnNetwork("agentic-net").
+		WithAlias(host).
+		Listening().
+		Create()
+}
+
 // requestScript prints the status of a plain HTTP request to host through the run's proxy, with its body.
 func requestScript(host string) string {
 	return "curl -sS -m 10 --noproxy '' -w '\\nstatus=%{http_code}\\n' http://" + host + "/egress"

@@ -10,12 +10,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// credentialHost has no upstream, so the proxy answers 502 once it has decrypted the request.
+// credentialHost refuses HTTPS (see startRefusingHost), so the proxy answers 502 once it has decrypted the request.
 const credentialHost = "upstream.example.test"
 
 // TestEgressCredentials checks the tool sees only the placeholder and trusts the proxy CA for credential hosts.
 func TestEgressCredentials(t *testing.T) {
 	secretPath := secretFile(t)
+	startRefusingHost(t, credentialHost)
 
 	forEachRuntime(t, func(t *testing.T, rt platform.Runtime) {
 		credentialRun := func(t *testing.T) *platform.ToolRun {
