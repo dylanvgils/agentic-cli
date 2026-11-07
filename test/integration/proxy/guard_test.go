@@ -11,6 +11,8 @@ import (
 
 // TestProxyAddressGuard checks an allowed host can't reach private or loopback addresses unless listed exactly.
 func TestProxyAddressGuard(t *testing.T) {
+	t.Parallel()
+
 	env := newServiceEnv(t)
 
 	t.Run("wildcard entry cannot reach a private address", func(t *testing.T) {

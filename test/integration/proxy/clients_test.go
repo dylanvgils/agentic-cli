@@ -11,6 +11,8 @@ import (
 
 // TestProxyToken checks a token-protected proxy serves only clients sending the token.
 func TestProxyToken(t *testing.T) {
+	t.Parallel()
+
 	env := newServiceEnv(t)
 	newProxyRun(t, env).
 		allowing(allowedHost).

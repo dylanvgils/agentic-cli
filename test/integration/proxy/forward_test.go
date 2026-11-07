@@ -11,6 +11,8 @@ import (
 
 // TestProxyForward checks plain HTTP reaches an allowed upstream and a denied host doesn't.
 func TestProxyForward(t *testing.T) {
+	t.Parallel()
+
 	env := newServiceEnv(t)
 	run := newProxyRun(t, env).allowing(allowedHost).start()
 
@@ -51,6 +53,8 @@ func TestProxyForward(t *testing.T) {
 
 // TestProxyTunnel checks HTTPS to an allowed host tunnels to the upstream's own TLS.
 func TestProxyTunnel(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	env := newServiceEnv(t)
 	run := newProxyRun(t, env).allowing(allowedHost).start()

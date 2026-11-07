@@ -17,7 +17,7 @@ GOFLAGS   := CGO_ENABLED=0
 GOVULNCHECK_VERSION ?= v1.9.0
 GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-.PHONY: build install uninstall dist docker-dist test test-coverage test-integration test-integration-all test-integration-msb lint audit audit-json clean verify-checksums fix-checksums verify-checksums-all fix-checksums-all
+.PHONY: build install uninstall dist docker-dist test test-coverage test-integration lint audit audit-json clean verify-checksums fix-checksums verify-checksums-all fix-checksums-all
 
 build:
 	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/cli
@@ -51,26 +51,12 @@ test:
 test-coverage:
 	go test -cover -coverprofile=coverage.out ./...
 
-# Needs a Docker daemon; builds an agentic-itest-claude image on first run.
-# Feature packages under test/integration; PKGS picks some, e.g. make test-integration PKGS="egress proxy".
-ITEST_PKGS = $(filter-out cmd platform,$(notdir $(patsubst %/,%,$(wildcard test/integration/*/))))
-
+# Needs a Docker daemon; builds the test images on first run. PKGS picks packages under test/integration (default:
+# all), e.g. PKGS="egress proxy"; MSB=1 requires msb instead of skipping its runs, as CI does.
 test-integration:
-	@test -n "$(PKGS)" || { echo "set PKGS to one or more of: $(ITEST_PKGS) (or run make test-integration-all)"; exit 2; }
-	go run -tags integration ./test/integration/cmd/buildimages
-	AGENTIC_ITEST_IMAGES_BUILT=base go test -tags integration -count=1 -timeout 20m -v $(addprefix ./test/integration/,$(PKGS)); \
-		status=$$?; go run -tags integration ./test/integration/cmd/cleanup; exit $$status
-
-# Microsandbox tests run when msb is installed and skip otherwise.
-test-integration-all:
-	go run -tags integration ./test/integration/cmd/buildimages --all
-	AGENTIC_ITEST_IMAGES_BUILT=all go test -tags integration -count=1 -timeout 20m -v ./test/integration/...; \
-		status=$$?; go run -tags integration ./test/integration/cmd/cleanup; exit $$status
-
-# Needs msb and KVM; fails instead of skipping without msb. Runs egress too, for its microsandbox runs.
-test-integration-msb:
-	go run -tags integration ./test/integration/cmd/buildimages --all
-	AGENTIC_ITEST_IMAGES_BUILT=all AGENTIC_ITEST_MICROSANDBOX=1 go test -tags integration -count=1 -timeout 20m -v ./test/integration/microsandbox ./test/integration/egress; \
+	go run -tags integration ./test/integration/cmd/buildimages $(PKGS)
+	AGENTIC_ITEST_IMAGES_BUILT=1 AGENTIC_ITEST_MICROSANDBOX=$(MSB) go test -tags integration -count=1 -timeout 20m -v \
+		$(or $(addprefix ./test/integration/,$(PKGS)),./test/integration/...); \
 		status=$$?; go run -tags integration ./test/integration/cmd/cleanup; exit $$status
 
 lint:

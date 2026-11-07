@@ -68,7 +68,7 @@ func TestEgressMonitor(t *testing.T) {
 func TestEgressBypass(t *testing.T) {
 	upstream := startUpstream(t)
 	script := "env -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u http_proxy " +
-		"curl -sS -m 5 -o /dev/null http://" + upstream.IP() + "/ && echo direct=ok || echo direct=blocked"
+		"curl -sS -m 5 -w '\\nstatus=%{http_code}\\n' http://" + upstream.IP() + "/egress; echo exit=$?"
 
 	forEachRuntime(t, func(t *testing.T, rt platform.Runtime) {
 		// Act
@@ -78,7 +78,7 @@ func TestEgressBypass(t *testing.T) {
 			WithProxy().
 			Run(script)
 
-		// Assert
-		assert.Contains(t, out, "direct=blocked")
+		// Assert - only the upstream's own answer proves a bypass, not an error something on the way sends
+		assert.NotContains(t, out, "path=/egress")
 	})
 }

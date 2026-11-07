@@ -12,6 +12,8 @@ import (
 
 // TestProxyServerName checks a tunnel to an allowed host whose TLS server name names another host is closed.
 func TestProxyServerName(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	env := newServiceEnv(t)
 	run := newProxyRun(t, env).allowing(allowedHost).start()

@@ -10,6 +10,8 @@ import (
 
 // TestProxyPaths checks an allowed path on a path rule host reaches the upstream through decryption.
 func TestProxyPaths(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	env := newServiceEnv(t)
 	newProxyRun(t, env).allowingPaths(pathHost, "/org/repo/**").start()

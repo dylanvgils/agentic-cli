@@ -11,6 +11,8 @@ import (
 
 // TestProxyCredentials checks the upstream gets the secret while the client only ever sees the placeholder.
 func TestProxyCredentials(t *testing.T) {
+	t.Parallel()
+
 	env := newServiceEnv(t)
 	run := newProxyRun(t, env).
 		allowing(credentialHost).

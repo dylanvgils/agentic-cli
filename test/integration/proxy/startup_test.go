@@ -10,6 +10,8 @@ import (
 
 // TestProxyStartup checks the image refuses a config it can't run safely.
 func TestProxyStartup(t *testing.T) {
+	t.Parallel()
+
 	env := newServiceEnv(t)
 
 	t.Run("missing listen address exits", func(t *testing.T) {

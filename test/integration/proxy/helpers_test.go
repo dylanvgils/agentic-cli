@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -112,7 +113,9 @@ func (e *serviceEnv) client(cmd ...string) string {
 		"--entrypoint", "",
 		platform.ToolImage,
 	}
-	return platform.Docker(e.t, append(args, cmd...)...)
+	out := platform.Docker(e.t, append(args, cmd...)...)
+	e.t.Logf("client %s\n%s", strings.Join(cmd, " "), out)
+	return out
 }
 
 // subnet returns the network's first subnet, for the proxy's client nets.
@@ -222,6 +225,11 @@ func (r *proxyRun) create() *proxyRun {
 	}
 
 	r.container = c.Started().Create()
+	r.t.Cleanup(func() {
+		if r.t.Failed() {
+			r.t.Logf("proxy %s logs\n%s", r.container.Name(), r.output())
+		}
+	})
 	return r
 }
 

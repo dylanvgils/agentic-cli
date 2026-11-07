@@ -23,10 +23,10 @@ const (
 	// dockerInfoFormat summarizes the daemon, incl. whether it can enforce resource limits
 	dockerInfoFormat = "server {{.ServerVersion}}, cgroup driver {{.CgroupDriver}}, cgroup v{{.CgroupVersion}}"
 
-	// imagesBuiltEnv names the ImageSet already built, as the make targets do once for every package.
+	// imagesBuiltEnv tells Main buildimages already built the package's images, as make test-integration does.
 	imagesBuiltEnv = "AGENTIC_ITEST_IMAGES_BUILT"
 
-	// microsandboxEnv makes a missing msb fail MicrosandboxMain instead of skipping, as make test-integration-msb does.
+	// microsandboxEnv makes a missing msb fail instead of skipping its runs, as make test-integration MSB=1 does.
 	microsandboxEnv = "AGENTIC_ITEST_MICROSANDBOX"
 
 	// progressInterval is how often runningSteps.report prints the steps still running.
@@ -44,6 +44,9 @@ const (
 	AllImages ImageSet = "all"
 )
 
+// smokePackages are the packages whose TestMain is SmokeMain or MicrosandboxMain, which need AllImages.
+var smokePackages = []string{"images", "microsandbox"}
+
 // step is one setup phase, timed in the output.
 type step struct {
 	name string
@@ -54,12 +57,6 @@ type step struct {
 type runningSteps struct {
 	mu    sync.Mutex
 	names map[string]bool
-}
-
-// built reports whether imagesBuiltEnv says set's images are built: AllImages covers BaseImages.
-func (set ImageSet) built() bool {
-	built := ImageSet(os.Getenv(imagesBuiltEnv))
-	return built == AllImages || built == set
 }
 
 // newRunningSteps returns steps' names, all running.
@@ -101,6 +98,19 @@ func (r *runningSteps) report() (stop func()) {
 		ticker.Stop()
 		close(quit)
 	}
+}
+
+// ImagesFor returns the images the named packages need, every package's when none is named; mirrors their TestMain.
+func ImagesFor(pkgs []string) ImageSet {
+	if len(pkgs) == 0 {
+		return AllImages
+	}
+	for _, pkg := range pkgs {
+		if slices.Contains(smokePackages, pkg) {
+			return AllImages
+		}
+	}
+	return BaseImages
 }
 
 // BuildImages builds set's images in a throwaway env, so the packages' Main can skip them.
@@ -245,7 +255,7 @@ func toolRunSteps(set ImageSet) []step {
 
 // imageSteps build set's images in parallel, none when imagesBuiltEnv says they're built.
 func imageSteps(set ImageSet) []step {
-	if set.built() {
+	if os.Getenv(imagesBuiltEnv) != "" {
 		return nil
 	}
 
@@ -332,10 +342,17 @@ func buildBinary() error {
 	return nil
 }
 
-// buildFakeUpstream builds the static fake upstream binary FakeResource.ServingUpstream mounts.
+// buildFakeUpstream builds the static fake upstream FakeResource.ServingUpstream mounts, for the daemon's platform, not
+// the host's (macOS).
 func buildFakeUpstream() error {
+	platform, err := dockerRun("version", "--format", "{{.Server.Os}} {{.Server.Arch}}")
+	if err != nil {
+		return fmt.Errorf("read the daemon platform: %w", err)
+	}
+	goos, goarch, _ := strings.Cut(platform, " ")
+
 	cmd := exec.Command("go", "build", "-tags", "integration", "-o", fakeUpstreamBin, "github.com/dylanvgils/agentic-cli/test/integration/cmd/fakeupstream")
-	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS="+goos, "GOARCH="+goarch)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("build fake upstream: %w\n%s", err, out)
 	}

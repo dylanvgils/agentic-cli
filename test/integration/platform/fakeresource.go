@@ -6,12 +6,14 @@ import (
 	"crypto/x509"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/network/certs"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -247,9 +249,13 @@ func (f *FakeResource) writeUpstreamCerts() {
 // awaitListening waits until the container accepts connections on its port.
 func (f *FakeResource) awaitListening() {
 	f.t.Helper()
-	require.Eventually(f.t, func() bool {
+	listening := assert.Eventually(f.t, func() bool {
 		return DockerOK("exec", f.name, "nc", "-z", "127.0.0.1", f.port)
 	}, 10*time.Second, 100*time.Millisecond, "fake container %s never started listening", f.name)
+	if !listening {
+		logs, _ := exec.Command("docker", "logs", f.name).CombinedOutput()
+		f.t.Fatalf("fake container %s logs:\n%s", f.name, logs)
+	}
 }
 
 // RemoveAllFakes force-removes the fakes of every package run, also of one whose test binary died.

@@ -13,8 +13,12 @@ import (
 // TestToolSmoke checks every tool's image starts the tool through its entrypoint in the hardened container, with the
 // default memory limit, since copilot is OOM-killed under the work dir's.
 func TestToolSmoke(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range tools.Names() {
 		t.Run(name+" prints its version", func(t *testing.T) {
+			t.Parallel()
+
 			// Act
 			out := platform.NewToolRun(t).
 				ForTool(name).
