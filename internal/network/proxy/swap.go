@@ -25,8 +25,7 @@ func (w *scrubWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
 }
 
-// substitute swaps cred's placeholder for its secret in each of its headers the tool sent, and drops their aliases so the
-// secret reaches the upstream only under the canonical name.
+// substitute swaps cred's placeholder for its secret in its headers and drops their aliases.
 func substitute(header http.Header, cred Credential) {
 	for _, name := range cred.Headers {
 		canonical := http.CanonicalHeaderKey(name)
@@ -43,8 +42,7 @@ func substitute(header http.Header, cred Credential) {
 	}
 }
 
-// scrubHeader swaps the secret back to its placeholder in every header value, so an upstream echoing the request can't
-// hand the secret to the tool; bodies aren't scrubbed.
+// scrubHeader swaps the secret back to its placeholder in every header, so an echo can't leak it; bodies aren't scrubbed.
 func scrubHeader(header http.Header, scrub *strings.Replacer) {
 	for _, values := range header {
 		for i, value := range values {
@@ -53,8 +51,7 @@ func scrubHeader(header http.Header, scrub *strings.Replacer) {
 	}
 }
 
-// newScrubber returns a replacer swapping cred's secret back to its placeholder, also in the Basic-encoded form it was
-// injected as for the placeholders the tool sent in header.
+// newScrubber returns a replacer from cred's secret to its placeholder, plain and in the sent Basic forms.
 func newScrubber(header http.Header, cred Credential) *strings.Replacer {
 	// An empty secret would put the placeholder between every byte
 	if cred.Secret == "" {
@@ -87,8 +84,7 @@ func hasPlaceholder(header http.Header, cred Credential) bool {
 	return false
 }
 
-// substituteValue replaces placeholder with secret in value, decoding a Basic credential first, as git and curl -u send
-// the placeholder base64-encoded.
+// substituteValue replaces placeholder with secret, inside a Basic credential too (git, curl -u).
 func substituteValue(value, placeholder, secret string) string {
 	if encoded, ok := basicCredential(value); ok {
 		decoded, err := base64.StdEncoding.DecodeString(encoded)

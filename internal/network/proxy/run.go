@@ -14,8 +14,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/network/certs"
 )
 
-// Environment variables passed from the host to the proxy container - internal wiring between
-// StartProxy (host) and the agentic-proxy binary (see cmd/proxy/main.go), not user-facing config.
+// Environment variables the host passes to the proxy container; internal wiring, not user config.
 const (
 	EnvRules       = "AGENTIC_PROXY_RULES"       // JSON allow rule list (see LoadRules)
 	EnvLog         = "AGENTIC_PROXY_LOG"         // JSON-lines access-log path
@@ -122,7 +121,7 @@ func openLog(path string) (file *os.File, closeFn func(), err error) {
 	return f, func() { _ = f.Close() }, nil
 }
 
-// jsonWriter converts a possibly-nil *os.File to a possibly-nil io.Writer, avoiding a non-nil interface wrapping a nil pointer.
+// jsonWriter returns f as an io.Writer, nil when f is nil.
 func jsonWriter(f *os.File) io.Writer {
 	if f == nil {
 		return nil
@@ -130,9 +129,7 @@ func jsonWriter(f *os.File) io.Writer {
 	return f
 }
 
-// loadInjector returns nil when both are empty and fails when only one is set, or neither while path rules need decrypting;
-// once loaded, the CA key and credentials files are removed, so the secrets don't stay on the Docker host's disk for the
-// whole run.
+// loadInjector loads the CA and credentials, nil when neither is set, then deletes the key and credential files.
 func loadInjector(caDir, credsPath string, pathRules bool) (*Injector, error) {
 	if caDir == "" && credsPath == "" {
 		if pathRules {

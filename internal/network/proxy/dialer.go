@@ -40,8 +40,7 @@ var (
 	sixToFourPrefix = netip.MustParsePrefix("2002::/16")    // NOSONAR - a prefix to decode, not an address to reach
 )
 
-// upstream connects to upstream hosts, checking each resolved address before connecting, so DNS can't point an allowed
-// name inward.
+// upstream connects to hosts, checking each resolved address so DNS can't point an allowed name inward.
 type upstream struct {
 	dialer    *net.Dialer
 	transport *http.Transport // forwards plain HTTP requests through dialer
@@ -52,16 +51,21 @@ type privateOKKey struct{}
 
 // newUpstream returns an upstream refusing the addresses blocked reports.
 func newUpstream(blocked func(addr netip.Addr, privateOK bool) bool) upstream {
-	dialer := &net.Dialer{Timeout: dialTimeout, ControlContext: guardAddr(blocked)}
+	dialer := newGuardedDialer(blocked)
 	return upstream{
 		dialer: dialer,
 		transport: &http.Transport{
 			DialContext:         dialer.DialContext,
-			TLSHandshakeTimeout: dialTimeout,
+			TLSHandshakeTimeout: handshakeTimeout,
 			MaxIdleConns:        100,
 			IdleConnTimeout:     90 * time.Second,
 		},
 	}
+}
+
+// newGuardedDialer returns a dialer refusing the addresses blocked reports.
+func newGuardedDialer(blocked func(addr netip.Addr, privateOK bool) bool) *net.Dialer {
+	return &net.Dialer{Timeout: dialTimeout, ControlContext: guardAddr(blocked)}
 }
 
 // allowPrivate passes whether next's upstream dials may reach private addresses.
@@ -82,8 +86,7 @@ func privateOK(ctx context.Context) bool {
 	return ok
 }
 
-// guardAddr returns a dial control refusing the addresses blocked reports; it runs after DNS resolution, so it sees the
-// real IP.
+// guardAddr returns a dial control refusing blocked addresses; it runs after DNS, so it sees the real IP.
 func guardAddr(blocked func(addr netip.Addr, privateOK bool) bool) func(ctx context.Context, _, address string, _ syscall.RawConn) error {
 	return func(ctx context.Context, _, address string, _ syscall.RawConn) error {
 		addrPort, err := netip.ParseAddrPort(address)

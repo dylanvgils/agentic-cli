@@ -1,27 +1,28 @@
-// Package proxy implements a fail-closed forward proxy that restricts tool containers to an allowed host set and logs every connection attempt.
+// Package proxy is a fail-closed forward proxy that limits a run to allowed hosts and logs every attempt.
 package proxy
 
 import (
+	"net"
 	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 )
 
-// DefaultPorts are the destination ports tunneled to when an allowlist entry does not pin a specific port.
+// maxHostLen is the longest DNS name accepted as an exact host.
+const maxHostLen = 253
+
+// DefaultPorts are the only destination ports the proxy allows.
 var DefaultPorts = []string{"80", "443"}
 
-// Allowlist decides whether a (host, port) destination is permitted. A rule matches the host
-// exactly, or - with a leading "." or "*." - matches that domain and its subdomains; no substring
-// matching is performed, so "anthropic.com" never matches "evil-anthropic.com". A rule with paths limits its host to them.
+// Allowlist matches hosts exactly or, with a leading "." or "*.", a domain and its subdomains; never by substring.
 type Allowlist struct {
 	exact    map[string]bool
 	suffixes []string            // normalized to ".example.com", matches the domain and subdomains
 	paths    map[string][]string // path patterns per exact host, limiting it even where another rule matches it
 }
 
-// NewAllowlist builds an Allowlist from rules, skipping blank hosts and normalizing the rest like the hosts they match;
-// a host's path rules win over any rule allowing it whole.
+// NewAllowlist builds an Allowlist from rules; a host's path rules win over rules allowing it whole.
 func NewAllowlist(rules []Rule) *Allowlist {
 	allowList := &Allowlist{exact: make(map[string]bool), paths: make(map[string][]string)}
 
@@ -49,8 +50,7 @@ func NewAllowlist(rules []Rule) *Allowlist {
 	return allowList
 }
 
-// Allows reports whether a connection to host on port is permitted: port must be one of DefaultPorts and host must match
-// an allowlist entry or have path rules, whose requests AllowsPath then checks.
+// Allows reports whether host on port is allowed: a default port and a matching or path rule host.
 func (a *Allowlist) Allows(host, port string) bool {
 	if !slices.Contains(DefaultPorts, port) {
 		return false
@@ -58,8 +58,7 @@ func (a *Allowlist) Allows(host, port string) bool {
 	return a.matchesHost(host) || a.pathRestricted(host)
 }
 
-// AllowsPath reports whether a request for path, already checked by requestPath, is permitted on host: always for a host
-// without path rules, else when one of its patterns matches.
+// AllowsPath reports whether path is allowed on host; always true for a host without path rules.
 func (a *Allowlist) AllowsPath(host, path string) bool {
 	patterns, restricted := a.paths[normalizeHost(host)]
 	if !restricted {
@@ -98,6 +97,28 @@ func (a *Allowlist) pathRestricted(host string) bool {
 // normalizeHost lower-cases host and drops a trailing root dot, so equivalent spellings compare equal.
 func normalizeHost(host string) string {
 	return strings.ToLower(strings.TrimSuffix(host, "."))
+}
+
+// validHost reports whether host is an IP or a DNS name of letters, digits and inner hyphens.
+func validHost(host string) bool {
+	if net.ParseIP(host) != nil {
+		return true
+	}
+	if host == "" || len(host) > maxHostLen {
+		return false
+	}
+
+	for label := range strings.SplitSeq(host, ".") {
+		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for _, c := range label {
+			if !isAlphaNum(c) && c != '-' {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // wildcardSuffix returns the normalized ".example.com" suffix for a wildcard entry, or ok=false for an exact entry.

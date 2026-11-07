@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -491,6 +492,76 @@ func Test_Server_logClientClosed(t *testing.T) {
 	// Assert
 	assert.Contains(t, logBuf.String(), `"host":"api.example.test"`)
 	assert.Contains(t, logBuf.String(), `"reason":"client-closed","error":"test-error"`)
+}
+
+func Test_Server_upstreamContext(t *testing.T) {
+	s := NewServer(NewAllowlist(hostRules("exact.example.test", ".example.test")), NewLogger(nil), false, nil)
+
+	cases := map[string]struct {
+		host string
+		want bool
+	}{
+		"exact host may reach private addresses":        {"exact.example.test", true},
+		"wildcard host may not reach private addresses": {"sub.example.test", false},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			r := httptest.NewRequest(http.MethodGet, "http://"+c.host, nil)
+
+			// Act
+			ctx := s.upstreamContext(r, c.host)
+
+			// Assert
+			assert.Equal(t, c.want, privateOK(ctx))
+		})
+	}
+}
+
+func Test_Server_refuseUpstream(t *testing.T) {
+	cases := map[string]struct {
+		err        error
+		wantStatus int
+		wantReason Reason
+	}{
+		"blocked address is refused":   {fmt.Errorf("dial: %w", errBlockedAddr), http.StatusForbidden, ReasonBlockedAddr},
+		"other error is a bad gateway": {errors.New("test-error"), http.StatusBadGateway, ReasonUpstreamFailed},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			var logBuf bytes.Buffer
+			s := NewServer(NewAllowlist(nil), NewLogger(&logBuf), false, nil)
+			rec := httptest.NewRecorder()
+
+			// Act
+			s.refuseUpstream(rec, Entry{Host: "api.example.test"}, c.err)
+
+			// Assert
+			assert.Equal(t, c.wantStatus, rec.Code)
+			assert.Contains(t, logBuf.String(), `"reason":"`+string(c.wantReason)+`"`)
+		})
+	}
+}
+
+func Test_copyResponse(t *testing.T) {
+	// Arrange
+	resp := &http.Response{
+		StatusCode: http.StatusTeapot,
+		Header:     http.Header{"X-Test": {"a", "b"}},
+		Body:       io.NopCloser(strings.NewReader("test-body")),
+	}
+	rec := httptest.NewRecorder()
+
+	// Act
+	copyResponse(rec, resp)
+
+	// Assert
+	assert.Equal(t, http.StatusTeapot, rec.Code)
+	assert.Equal(t, []string{"a", "b"}, rec.Header().Values("X-Test"))
+	assert.Equal(t, "test-body", rec.Body.String())
 }
 
 func Test_defaultPort(t *testing.T) {

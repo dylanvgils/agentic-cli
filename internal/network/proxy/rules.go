@@ -11,8 +11,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 )
 
-// Rule allows Host on every path, or with Paths only on those (see config.MatchPathPattern); Host is exact or a
-// leading-dot/"*." wildcard, exact when it has Paths.
+// Rule allows Host on every path, or only on Paths (see config.MatchPathPattern); a host with paths is exact.
 type Rule struct {
 	Host  string   `json:"host"`
 	Paths []string `json:"paths,omitempty"`

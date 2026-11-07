@@ -4,10 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -15,9 +13,7 @@ import (
 	"net/http/httptrace"
 	"net/http/httputil"
 	"net/textproto"
-	"os"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -585,34 +581,6 @@ func TestServerConnectSubstitute(t *testing.T) {
 	}
 }
 
-func Test_clientClosed(t *testing.T) {
-	t.Run("hang-ups count as closed", func(t *testing.T) {
-		for _, err := range []error{
-			fmt.Errorf("client handshake for example.test: %w", io.EOF),
-			io.ErrUnexpectedEOF,
-			&net.OpError{Op: "read", Err: os.NewSyscallError("read", syscall.ECONNRESET)},
-			syscall.EPIPE,
-		} {
-			// Act
-			closed := clientClosed(err)
-
-			// Assert
-			assert.True(t, closed, err.Error())
-		}
-	})
-
-	t.Run("tls error is not closed", func(t *testing.T) {
-		// Arrange
-		err := fmt.Errorf("client handshake for example.test: %w", tls.AlertError(20))
-
-		// Act
-		closed := clientClosed(err)
-
-		// Assert
-		assert.False(t, closed)
-	})
-}
-
 func Test_credentialFor(t *testing.T) {
 	cred := testPlaceholderCredential("api.example.test", testPlaceholder)
 	inject := NewInjector(newTestProxyCA(t, "api.example.test"), []Credential{cred})
@@ -753,4 +721,37 @@ func Test_blockMethods(t *testing.T) {
 			assert.Equal(t, http.StatusNoContent, rec.Code, method)
 		}
 	})
+}
+
+func Test_authWatch_missedPlaceholder(t *testing.T) {
+	cred := testPlaceholderCredential("api.example.test", testPlaceholder)
+	withPlaceholder := http.Header{"Authorization": {"Bearer " + testPlaceholder}}
+	unauthorized := &http.Response{StatusCode: http.StatusUnauthorized}
+
+	cases := map[string]struct {
+		cred     Credential
+		header   http.Header
+		response *http.Response
+		want     bool
+	}{
+		"auth failure without placeholder": {cred, http.Header{}, unauthorized, true},
+		"auth failure with placeholder":    {cred, withPlaceholder, unauthorized, false},
+		"no auth failure":                  {cred, http.Header{}, &http.Response{StatusCode: http.StatusOK}, false},
+		"credential without headers":       {Credential{Placeholder: testPlaceholder}, http.Header{}, unauthorized, false},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			watch := &authWatch{}
+			watch.request(c.header, c.cred)
+			watch.response(c.response)
+
+			// Act
+			got := watch.missedPlaceholder(c.cred)
+
+			// Assert
+			assert.Equal(t, c.want, got)
+		})
+	}
 }

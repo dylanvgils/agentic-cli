@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -209,4 +210,36 @@ func TestAllowlistPaths(t *testing.T) {
 		// Assert
 		assert.True(t, exact)
 	})
+}
+
+func Test_validHost(t *testing.T) {
+	cases := map[string]struct {
+		host string
+		want bool
+	}{
+		"hostname":            {"api.example.test", true},
+		"inner hyphen":        {"api-v2.example.test", true},
+		"ipv4":                {"127.0.0.1", true},
+		"ipv6":                {"::1", true},
+		"empty":               {"", false},
+		"wildcard":            {"*.example.test", false},
+		"leading dot":         {".example.test", false},
+		"empty label":         {"api..example.test", false},
+		"leading hyphen":      {"-api.example.test", false},
+		"trailing hyphen":     {"api-.example.test", false},
+		"underscore":          {"api_key.example.test", false},
+		"port":                {"api.example.test:443", false},
+		"label over 63 chars": {strings.Repeat("a", 64) + ".example.test", false},
+		"name over max":       {strings.Repeat("a.", maxHostLen/2) + "test", false},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Act
+			got := validHost(c.host)
+
+			// Assert
+			assert.Equal(t, c.want, got)
+		})
+	}
 }
