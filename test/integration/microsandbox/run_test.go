@@ -15,9 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMicrosandboxRun checks a tool runs in its own VM with the run's mounts, limits and allowlist.
+// TestMicrosandboxRun checks a tool runs in its own VM with the run's mounts, limits and allowlist; the subtests run in
+// parallel, as MicrosandboxMain already loaded the image.
 func TestMicrosandboxRun(t *testing.T) {
 	t.Run("runs in its own kernel", func(t *testing.T) {
+		t.Parallel()
+
 		// Arrange
 		host, err := exec.Command("uname", "-r").Output()
 		require.NoError(t, err)
@@ -33,6 +36,8 @@ func TestMicrosandboxRun(t *testing.T) {
 	})
 
 	t.Run("workspace is writable", func(t *testing.T) {
+		t.Parallel()
+
 		// Arrange
 		name := filepath.Base(platform.TempDirIn(t, platform.WorkDir()))
 
@@ -48,6 +53,8 @@ func TestMicrosandboxRun(t *testing.T) {
 	})
 
 	t.Run("extra bind mount is read-only unless rw", func(t *testing.T) {
+		t.Parallel()
+
 		// Arrange
 		defaultDir := platform.TempDirIn(t, platform.RootDir())
 		rwDir := platform.TempDirIn(t, platform.RootDir())
@@ -66,6 +73,8 @@ func TestMicrosandboxRun(t *testing.T) {
 	})
 
 	t.Run("limits apply to the vm", func(t *testing.T) {
+		t.Parallel()
+
 		// Act
 		out := platform.NewToolRun(t).
 			InMicrosandbox().
@@ -83,6 +92,8 @@ func TestMicrosandboxRun(t *testing.T) {
 	})
 
 	t.Run("allowlist blocks other hosts", func(t *testing.T) {
+		t.Parallel()
+
 		// Arrange
 		script := reachableScript("allowed", "example.com") + "; " + reachableScript("other", "example.org")
 
@@ -99,6 +110,8 @@ func TestMicrosandboxRun(t *testing.T) {
 	})
 
 	t.Run("second run reuses the loaded image", func(t *testing.T) {
+		t.Parallel()
+
 		// Arrange
 		platform.NewToolRun(t).
 			InMicrosandbox().

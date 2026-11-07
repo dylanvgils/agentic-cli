@@ -54,9 +54,11 @@ test-coverage:
 # Needs Docker. PKGS="egress proxy" picks packages, MSB=1 requires msb; removes the test images after, except on CI.
 test-integration:
 	go run -tags integration ./test/integration/cmd/buildimages $(PKGS)
-	AGENTIC_ITEST_IMAGES_BUILT=1 AGENTIC_ITEST_MICROSANDBOX=$(MSB) go test -tags integration -count=1 -timeout 20m -v \
-		$(or $(addprefix ./test/integration/,$(PKGS)),./test/integration/...); \
-		status=$$?; go run -tags integration ./test/integration/cmd/cleanup $(if $(CI),,--all); exit $$status
+	@echo
+	go build -tags integration -o bin/testlog ./test/integration/cmd/testlog
+	AGENTIC_ITEST_IMAGES_BUILT=1 AGENTIC_ITEST_MICROSANDBOX=$(MSB) go test -tags integration -count=1 -timeout 20m -json \
+		$(or $(addprefix ./test/integration/,$(PKGS)),./test/integration/...) 2>&1 | bin/testlog $(if $(GITHUB_ACTIONS),--groups); \
+		status=$$?; echo; go run -tags integration ./test/integration/cmd/cleanup $(if $(CI),,--all); exit $$status
 
 lint:
 	golangci-lint run ./...

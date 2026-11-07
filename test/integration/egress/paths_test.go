@@ -10,11 +10,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// pathHost has no upstream, so an allowed path gets a 502 once the proxy has decrypted the request.
+// pathHost refuses HTTPS (see startRefusingHost), so an allowed path gets a 502 once the proxy has decrypted the request.
 const pathHost = "paths.example.test"
 
 // TestEgressPaths checks the proxy decrypts a path rule host, which the tool trusts, and refuses paths no rule allows.
 func TestEgressPaths(t *testing.T) {
+	startRefusingHost(t, pathHost)
+
 	forEachRuntime(t, func(t *testing.T, rt platform.Runtime) {
 		// Arrange
 		tool := platform.NewToolRun(t).
@@ -45,6 +47,8 @@ func TestEgressPaths(t *testing.T) {
 
 // TestEgressCredentialPaths checks path rules limit a credential host, whose allowed paths still get the secret.
 func TestEgressCredentialPaths(t *testing.T) {
+	startRefusingHost(t, pathHost)
+
 	forEachRuntime(t, func(t *testing.T, rt platform.Runtime) {
 		// Arrange
 		tool := platform.NewToolRun(t).
