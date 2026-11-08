@@ -2,6 +2,7 @@ package selfupdate
 
 import (
 	"fmt"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,77 +14,49 @@ import (
 )
 
 func TestShouldCheck(t *testing.T) {
-	t.Run("within interval returns false", func(t *testing.T) {
-		// Arrange
-		lastCheck := time.Now().Add(-12 * time.Hour)
+	recent := time.Now().Add(-12 * time.Hour)
+	old := time.Now().Add(-25 * time.Hour)
 
-		// Act
-		result := ShouldCheck(&lastCheck)
+	for _, tc := range []struct {
+		name      string
+		lastCheck *time.Time
+		want      bool
+	}{
+		{name: "within interval returns false", lastCheck: &recent},
+		{name: "past interval returns true", lastCheck: &old, want: true},
+		{name: "nil returns true", want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := ShouldCheck(tc.lastCheck)
 
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("past interval returns true", func(t *testing.T) {
-		// Arrange
-		lastCheck := time.Now().Add(-25 * time.Hour)
-
-		// Act
-		result := ShouldCheck(&lastCheck)
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("nil returns true", func(t *testing.T) {
-		// Act
-		result := ShouldCheck(nil)
-
-		// Assert
-		assert.True(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestIsNewer(t *testing.T) {
-	t.Run("same version returns false", func(t *testing.T) {
-		// Act
-		result := IsNewer("v1.2.3", "v1.2.3")
+	for _, tc := range []struct {
+		name    string
+		current string
+		latest  string
+		want    bool
+	}{
+		{name: "same version returns false", current: "v1.2.3", latest: "v1.2.3"},
+		{name: "different version returns true", current: "v1.2.2", latest: "v1.2.3", want: true},
+		{name: "pre-release current returns false", current: "v1.2.3-alpha.1", latest: "v1.2.3"},
+		{name: "empty current returns false", latest: "v1.2.3"},
+		{name: "empty latest returns false", current: "v1.2.3"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := IsNewer(tc.current, tc.latest)
 
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("different version returns true", func(t *testing.T) {
-		// Act
-		result := IsNewer("v1.2.2", "v1.2.3")
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("pre-release current returns false", func(t *testing.T) {
-		// Act
-		result := IsNewer("v1.2.3-alpha.1", "v1.2.3")
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("empty current returns false", func(t *testing.T) {
-		// Act
-		result := IsNewer("", "v1.2.3")
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("empty latest returns false", func(t *testing.T) {
-		// Act
-		result := IsNewer("v1.2.3", "")
-
-		// Assert
-		assert.False(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func Test_newReleaseFiles(t *testing.T) {
@@ -122,12 +95,10 @@ func Test_updater_download(t *testing.T) {
 
 	// Act
 	path, err := u.download(rel, tmpDir)
-	require.NoError(t, err)
 
 	// Assert
-	got, err := os.ReadFile(path)
 	require.NoError(t, err)
-	assert.Equal(t, binaryContent, got)
+	assertFileContent(t, path, string(binaryContent))
 	assert.Contains(t, buf.String(), "verifying checksum...")
 }
 
@@ -142,144 +113,119 @@ func Test_executablePath(t *testing.T) {
 }
 
 func Test_installBinary(t *testing.T) {
-	newContent := []byte("new binary content")
+	for _, tc := range []struct {
+		name     string
+		existing bool
+	}{
+		{name: "replaces an existing binary", existing: true},
+		{name: "installs a new binary"},
+	} {
+		t.Run(tc.name+" as executable", func(t *testing.T) {
+			// Arrange
+			tmpDir := t.TempDir()
+			srcPath := filepath.Join(tmpDir, "agentic-new")
+			require.NoError(t, os.WriteFile(srcPath, []byte("new binary content"), 0o644))
+			targetPath := filepath.Join(tmpDir, "agentic")
+			if tc.existing {
+				require.NoError(t, os.WriteFile(targetPath, []byte("old content"), 0o755))
+			}
 
-	t.Run("replaces existing binary", func(t *testing.T) {
-		// Arrange
-		tmpDir := t.TempDir()
-		srcPath := filepath.Join(tmpDir, "agentic-new")
-		require.NoError(t, os.WriteFile(srcPath, newContent, 0o644))
-		targetPath := filepath.Join(tmpDir, "agentic")
-		require.NoError(t, os.WriteFile(targetPath, []byte("old content"), 0o755))
+			// Act
+			err := installBinary(srcPath, targetPath)
 
-		// Act
-		err := installBinary(srcPath, targetPath)
-
-		// Assert
-		require.NoError(t, err)
-		got, err := os.ReadFile(targetPath)
-		require.NoError(t, err)
-		assert.Equal(t, newContent, got)
-	})
-
-	t.Run("installs and sets executable permissions", func(t *testing.T) {
-		// Arrange
-		tmpDir := t.TempDir()
-		srcPath := filepath.Join(tmpDir, "agentic-new")
-		require.NoError(t, os.WriteFile(srcPath, newContent, 0o644))
-		targetPath := filepath.Join(tmpDir, "agentic")
-
-		// Act
-		err := installBinary(srcPath, targetPath)
-
-		// Assert
-		require.NoError(t, err)
-		info, err := os.Stat(targetPath)
-		require.NoError(t, err)
-		assert.Equal(t, os.FileMode(0o755), info.Mode().Perm())
-	})
+			// Assert
+			require.NoError(t, err)
+			assertFileContent(t, targetPath, "new binary content")
+			info, err := os.Stat(targetPath)
+			require.NoError(t, err)
+			assert.Equal(t, os.FileMode(0o755), info.Mode().Perm())
+		})
+	}
 }
 
 func Test_updater_update(t *testing.T) {
 	binaryContent := []byte("#!/bin/sh\necho hello")
+	archiveBytes := makeTarGz(t, binaryContent)
 
 	t.Run("downloads verifies and replaces binary", func(t *testing.T) {
 		// Arrange
-		archiveBytes := makeTarGz(t, binaryContent)
 		srv := stubReleaseServer(t, "v1.5.0", archiveBytes)
 		targetPath := filepath.Join(t.TempDir(), "agentic")
 		require.NoError(t, os.WriteFile(targetPath, []byte("old binary"), 0o755))
+		u, _ := newTestUpdater(t, "")
 
 		// Act
-		u, _ := newTestUpdater(t, "")
 		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
 		// Assert
 		require.NoError(t, err)
-		got, err := os.ReadFile(targetPath)
-		require.NoError(t, err)
-		assert.Equal(t, binaryContent, got)
+		assertFileContent(t, targetPath, string(binaryContent))
 	})
 
 	t.Run("verifies the signature when cosign is set", func(t *testing.T) {
 		// Arrange
-		archiveBytes := makeTarGz(t, binaryContent)
 		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
-		cosign := stubCosign(t, 0)
 		targetPath := filepath.Join(t.TempDir(), "agentic")
+		u, _ := newTestUpdater(t, stubCosign(t, 0))
 
 		// Act
-		u, _ := newTestUpdater(t, cosign)
 		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
 		// Assert
 		require.NoError(t, err)
-		assert.FileExists(t, targetPath)
+		assertFileContent(t, targetPath, string(binaryContent))
 	})
 
-	t.Run("keeps the old binary on an invalid signature", func(t *testing.T) {
-		// Arrange
-		archiveBytes := makeTarGz(t, binaryContent)
-		srv := stubSignedReleaseServer(t, "v1.5.0", archiveBytes)
-		cosign := stubCosign(t, 1)
-		targetPath := filepath.Join(t.TempDir(), "agentic")
-		require.NoError(t, os.WriteFile(targetPath, []byte("old binary"), 0o755))
+	for _, tc := range []struct {
+		name    string
+		server  func(t *testing.T) *httptest.Server
+		cosign  int // fake cosign's exit code, -1 for no cosign
+		wantErr error
+	}{
+		{
+			name:    "an invalid signature",
+			server:  func(t *testing.T) *httptest.Server { return stubSignedReleaseServer(t, "v1.5.0", archiveBytes) },
+			cosign:  1,
+			wantErr: errSignatureVerification,
+		},
+		{
+			name:    "a signed release's missing bundle",
+			server:  func(t *testing.T) *httptest.Server { return stubReleaseServer(t, "v1.5.0", archiveBytes) },
+			cosign:  0,
+			wantErr: errSignatureVerification,
+		},
+		{
+			name: "a checksum mismatch",
+			server: func(t *testing.T) *httptest.Server {
+				return stubReleaseServerWithBadChecksum(t, "v1.5.0", archiveBytes)
+			},
+			cosign:  -1,
+			wantErr: ErrChecksumMismatch,
+		},
+		{
+			name:    "an archive without the binary",
+			server:  func(t *testing.T) *httptest.Server { return stubReleaseServer(t, "v1.5.0", makeTarGzEmpty(t)) },
+			cosign:  -1,
+			wantErr: ErrBinaryNotFound,
+		},
+	} {
+		t.Run("keeps the old binary on "+tc.name, func(t *testing.T) {
+			// Arrange
+			srv := tc.server(t)
+			cosign := ""
+			if tc.cosign >= 0 {
+				cosign = stubCosign(t, tc.cosign)
+			}
+			targetPath := filepath.Join(t.TempDir(), "agentic")
+			require.NoError(t, os.WriteFile(targetPath, []byte("old binary"), 0o755))
+			u, _ := newTestUpdater(t, cosign)
 
-		// Act
-		u, _ := newTestUpdater(t, cosign)
-		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
+			// Act
+			err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
 
-		// Assert
-		assert.ErrorIs(t, err, errSignatureVerification)
-		got, readErr := os.ReadFile(targetPath)
-		require.NoError(t, readErr)
-		assert.Equal(t, "old binary", string(got))
-	})
-
-	t.Run("keeps the old binary when a signed release's bundle is missing", func(t *testing.T) {
-		// Arrange
-		archiveBytes := makeTarGz(t, binaryContent)
-		srv := stubReleaseServer(t, "v1.5.0", archiveBytes)
-		cosign := stubCosign(t, 0)
-		targetPath := filepath.Join(t.TempDir(), "agentic")
-		require.NoError(t, os.WriteFile(targetPath, []byte("old binary"), 0o755))
-
-		// Act
-		u, _ := newTestUpdater(t, cosign)
-		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
-
-		// Assert
-		assert.ErrorIs(t, err, errSignatureVerification)
-		got, readErr := os.ReadFile(targetPath)
-		require.NoError(t, readErr)
-		assert.Equal(t, "old binary", string(got))
-	})
-
-	t.Run("returns error on checksum mismatch", func(t *testing.T) {
-		// Arrange
-		archiveBytes := makeTarGz(t, binaryContent)
-		srv := stubReleaseServerWithBadChecksum(t, "v1.5.0", archiveBytes)
-		targetPath := filepath.Join(t.TempDir(), "agentic")
-
-		// Act
-		u, _ := newTestUpdater(t, "")
-		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
-
-		// Assert
-		assert.ErrorIs(t, err, ErrChecksumMismatch)
-	})
-
-	t.Run("returns error when binary not in archive", func(t *testing.T) {
-		// Arrange
-		archiveBytes := makeTarGzEmpty(t)
-		srv := stubReleaseServer(t, "v1.5.0", archiveBytes)
-		targetPath := filepath.Join(t.TempDir(), "agentic")
-
-		// Act
-		u, _ := newTestUpdater(t, "")
-		err := u.update(newReleaseFiles(srv.URL, "v1.5.0"), targetPath)
-
-		// Assert
-		assert.ErrorIs(t, err, ErrBinaryNotFound)
-	})
+			// Assert
+			assert.ErrorIs(t, err, tc.wantErr)
+			assertFileContent(t, targetPath, "old binary")
+		})
+	}
 }

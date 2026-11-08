@@ -3,7 +3,6 @@ package selfupdate
 import (
 	"errors"
 	"io"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -24,9 +23,7 @@ func Test_writeTo(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		got, readErr := os.ReadFile(dest)
-		require.NoError(t, readErr)
-		assert.Equal(t, "hello", string(got))
+		assertFileContent(t, dest, "hello")
 	})
 
 	t.Run("returns error when dest path is invalid", func(t *testing.T) {
@@ -59,57 +56,39 @@ func (failReader) Read(_ []byte) (int, error) { return 0, errReadFail }
 var _ io.Reader = failReader{}
 
 func Test_archiveExt(t *testing.T) {
-	t.Run("returns .tar.gz on non-windows", func(t *testing.T) {
-		if runtime.GOOS == "windows" {
-			t.Skip("non-windows only")
-		}
+	// Arrange
+	want := ".tar.gz"
+	if runtime.GOOS == "windows" {
+		want = ".zip"
+	}
 
-		// Act
-		result := archiveExt()
+	// Act
+	result := archiveExt()
 
-		// Assert
-		assert.Equal(t, ".tar.gz", result)
-	})
-
-	t.Run("returns .zip on windows", func(t *testing.T) {
-		if runtime.GOOS != "windows" {
-			t.Skip("windows only")
-		}
-
-		// Act
-		result := archiveExt()
-
-		// Assert
-		assert.Equal(t, ".zip", result)
-	})
+	// Assert
+	assert.Equal(t, want, result)
 }
 
 func Test_extractTarGz(t *testing.T) {
-	t.Run("returns error when archive path is invalid", func(t *testing.T) {
-		// Act
-		err := extractTarGz("/no/such/file.tar.gz", filepath.Join(t.TempDir(), "agentic"))
+	// Act
+	err := extractTarGz("/no/such/file.tar.gz", filepath.Join(t.TempDir(), "agentic"))
 
-		// Assert
-		assert.Error(t, err)
-	})
+	// Assert
+	assert.Error(t, err)
 }
 
 func Test_extractZip(t *testing.T) {
-	t.Run("returns error when archive path is invalid", func(t *testing.T) {
-		// Act
-		err := extractZip("/no/such/file.zip", filepath.Join(t.TempDir(), "agentic"))
+	// Act
+	err := extractZip("/no/such/file.zip", filepath.Join(t.TempDir(), "agentic"))
 
-		// Assert
-		assert.Error(t, err)
-	})
+	// Assert
+	assert.Error(t, err)
 }
 
 func Test_scanTarEntries(t *testing.T) {
-	content := []byte("#!/bin/sh\necho hello")
-
 	t.Run("extracts agentic binary from tar entries", func(t *testing.T) {
 		// Arrange
-		tr := openTarGzReader(t, makeTarGz(t, content))
+		tr := openTarGzReader(t, makeTarGz(t, []byte("#!/bin/sh\necho hello")))
 		dest := filepath.Join(t.TempDir(), "agentic")
 
 		// Act
@@ -117,9 +96,7 @@ func Test_scanTarEntries(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		got, readErr := os.ReadFile(dest)
-		require.NoError(t, readErr)
-		assert.Equal(t, content, got)
+		assertFileContent(t, dest, "#!/bin/sh\necho hello")
 	})
 
 	t.Run("returns ErrBinaryNotFound when archive is empty", func(t *testing.T) {
@@ -136,41 +113,24 @@ func Test_scanTarEntries(t *testing.T) {
 }
 
 func Test_scanZipEntries(t *testing.T) {
-	content := []byte("binary content")
+	for _, name := range []string{"agentic", "agentic.exe"} {
+		t.Run("extracts "+name+" from zip entries", func(t *testing.T) {
+			// Arrange
+			r := openZipReader(t, makeZip(t, name, []byte("binary content")))
+			dest := filepath.Join(t.TempDir(), name)
 
-	t.Run("extracts agentic binary from zip entries", func(t *testing.T) {
-		// Arrange
-		r := openZipReader(t, makeZip(t, "agentic", content))
-		dest := filepath.Join(t.TempDir(), "agentic")
+			// Act
+			err := scanZipEntries(r, dest)
 
-		// Act
-		err := scanZipEntries(r, dest)
-
-		// Assert
-		require.NoError(t, err)
-		got, readErr := os.ReadFile(dest)
-		require.NoError(t, readErr)
-		assert.Equal(t, content, got)
-	})
-
-	t.Run("extracts agentic.exe binary from zip entries", func(t *testing.T) {
-		// Arrange
-		r := openZipReader(t, makeZip(t, "agentic.exe", content))
-		dest := filepath.Join(t.TempDir(), "agentic.exe")
-
-		// Act
-		err := scanZipEntries(r, dest)
-
-		// Assert
-		require.NoError(t, err)
-		got, readErr := os.ReadFile(dest)
-		require.NoError(t, readErr)
-		assert.Equal(t, content, got)
-	})
+			// Assert
+			require.NoError(t, err)
+			assertFileContent(t, dest, "binary content")
+		})
+	}
 
 	t.Run("returns ErrBinaryNotFound when no matching entry in zip", func(t *testing.T) {
 		// Arrange
-		r := openZipReader(t, makeZip(t, "other.txt", content))
+		r := openZipReader(t, makeZip(t, "other.txt", []byte("binary content")))
 		dest := filepath.Join(t.TempDir(), "agentic")
 
 		// Act
@@ -184,27 +144,24 @@ func Test_scanZipEntries(t *testing.T) {
 func Test_extractBinary(t *testing.T) {
 	content := []byte("binary content")
 
-	t.Run("dispatches to tar.gz extractor", func(t *testing.T) {
-		// Arrange
-		archivePath := writeTempFile(t, makeTarGz(t, content))
-		dest := filepath.Join(t.TempDir(), "agentic")
+	for _, tc := range []struct {
+		ext     string
+		archive []byte
+	}{
+		{ext: ".tar.gz", archive: makeTarGz(t, content)},
+		{ext: ".zip", archive: makeZip(t, "agentic", content)},
+	} {
+		t.Run("dispatches "+tc.ext+" to its extractor", func(t *testing.T) {
+			// Arrange
+			archivePath := writeTempFile(t, tc.archive)
+			dest := filepath.Join(t.TempDir(), "agentic")
 
-		// Act
-		err := extractBinary(archivePath, ".tar.gz", dest)
+			// Act
+			err := extractBinary(archivePath, tc.ext, dest)
 
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("dispatches to zip extractor", func(t *testing.T) {
-		// Arrange
-		archivePath := writeTempFile(t, makeZip(t, "agentic", content))
-		dest := filepath.Join(t.TempDir(), "agentic")
-
-		// Act
-		err := extractBinary(archivePath, ".zip", dest)
-
-		// Assert
-		assert.NoError(t, err)
-	})
+			// Assert
+			require.NoError(t, err)
+			assertFileContent(t, dest, string(content))
+		})
+	}
 }

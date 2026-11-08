@@ -3,10 +3,8 @@ package selfupdate
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
+	"errors"
 	"net/http"
-	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -17,10 +15,7 @@ import (
 func Test_downloadFile(t *testing.T) {
 	t.Run("writes response body to file", func(t *testing.T) {
 		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, "file content")
-		}))
-		defer srv.Close()
+		srv := stubStatusServer(t, http.StatusOK, "file content")
 		dest := filepath.Join(t.TempDir(), "out")
 
 		// Act
@@ -28,48 +23,33 @@ func Test_downloadFile(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		got, readErr := os.ReadFile(dest)
-		require.NoError(t, readErr)
-		assert.Equal(t, "file content", string(got))
+		assertFileContent(t, dest, "file content")
 	})
 
-	t.Run("returns errNotFound on a 404 response", func(t *testing.T) {
-		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-		}))
-		defer srv.Close()
-		dest := filepath.Join(t.TempDir(), "out")
+	for _, tc := range []struct {
+		name         string
+		status       int
+		wantNotFound bool
+	}{
+		{name: "returns errNotFound on a 404 response", status: http.StatusNotFound, wantNotFound: true},
+		{name: "returns another error on a non-200 response", status: http.StatusInternalServerError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			srv := stubStatusServer(t, tc.status, "")
 
-		// Act
-		err := downloadFile(http.DefaultClient, srv.URL, dest)
+			// Act
+			err := downloadFile(http.DefaultClient, srv.URL, filepath.Join(t.TempDir(), "out"))
 
-		// Assert
-		assert.ErrorIs(t, err, errNotFound)
-	})
-
-	t.Run("returns error on non-200 response", func(t *testing.T) {
-		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusInternalServerError)
-		}))
-		defer srv.Close()
-		dest := filepath.Join(t.TempDir(), "out")
-
-		// Act
-		err := downloadFile(http.DefaultClient, srv.URL, dest)
-
-		// Assert
-		assert.Error(t, err)
-		assert.NotErrorIs(t, err, errNotFound)
-	})
+			// Assert
+			require.Error(t, err)
+			assert.Equal(t, tc.wantNotFound, errors.Is(err, errNotFound))
+		})
+	}
 
 	t.Run("returns error when dest path is invalid", func(t *testing.T) {
 		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, "data")
-		}))
-		defer srv.Close()
+		srv := stubStatusServer(t, http.StatusOK, "data")
 
 		// Act
 		err := downloadFile(http.DefaultClient, srv.URL, "/no/such/dir/out")
@@ -138,48 +118,38 @@ func Test_parseChecksum(t *testing.T) {
 	const name = "agentic-1.0.0-linux-amd64.tar.gz"
 	const hash = "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
 
-	t.Run("returns checksum for matching filename", func(t *testing.T) {
-		// Arrange
-		data := []byte("otherhash  other.tar.gz\n" + hash + "  " + name + "\n")
+	for _, tc := range []struct {
+		name string
+		data string
+	}{
+		{name: "returns checksum for matching filename", data: "otherhash  other.tar.gz\n" + hash + "  " + name + "\n"},
+		{name: "ignores malformed lines", data: "onlyone\n" + hash + "  " + name + "\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			got, err := parseChecksum([]byte(tc.data), name)
 
-		// Act
-		got, err := parseChecksum(data, name)
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, hash, got)
+		})
+	}
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, hash, got)
-	})
+	for _, tc := range []struct {
+		name string
+		data string
+	}{
+		{name: "returns error when filename not found", data: hash + "  other.tar.gz\n"},
+		{name: "returns error on empty input"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			_, err := parseChecksum([]byte(tc.data), name)
 
-	t.Run("returns error when filename not found", func(t *testing.T) {
-		// Arrange
-		data := []byte(hash + "  other.tar.gz\n")
-
-		// Act
-		_, err := parseChecksum(data, name)
-
-		// Assert
-		assert.Error(t, err)
-	})
-
-	t.Run("returns error on empty input", func(t *testing.T) {
-		// Act
-		_, err := parseChecksum([]byte{}, name)
-
-		// Assert
-		assert.Error(t, err)
-	})
-
-	t.Run("ignores malformed lines", func(t *testing.T) {
-		// Arrange
-		data := []byte("onlyone\n" + hash + "  " + name + "\n")
-
-		// Act
-		got, err := parseChecksum(data, name)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, hash, got)
-	})
+			// Assert
+			assert.Error(t, err)
+		})
+	}
 }
 
 func Test_hashFile(t *testing.T) {
@@ -218,9 +188,7 @@ func Test_copyFile(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		got, readErr := os.ReadFile(dest)
-		require.NoError(t, readErr)
-		assert.Equal(t, "hello", string(got))
+		assertFileContent(t, dest, "hello")
 	})
 
 	t.Run("returns error when source does not exist", func(t *testing.T) {

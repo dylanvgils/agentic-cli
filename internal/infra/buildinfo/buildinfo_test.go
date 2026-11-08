@@ -10,56 +10,48 @@ import (
 )
 
 func TestIsDev(t *testing.T) {
-	t.Run("empty string is dev", func(t *testing.T) {
-		// Act
-		result := IsDev("")
+	for _, tc := range []struct {
+		name    string
+		version string
+		want    bool
+	}{
+		{name: "empty string is dev", want: true},
+		{name: "dev is dev", version: "dev", want: true},
+		{name: "released version is not dev", version: "v1.2.3"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := IsDev(tc.version)
 
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("dev is dev", func(t *testing.T) {
-		// Act
-		result := IsDev("dev")
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("released version is not dev", func(t *testing.T) {
-		// Act
-		result := IsDev("v1.2.3")
-
-		// Assert
-		assert.False(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestIsDevBuild(t *testing.T) {
 	orig := Version
 	t.Cleanup(func() { Version = orig })
 
-	t.Run("dev build", func(t *testing.T) {
-		// Arrange
-		Version = "dev"
+	for _, tc := range []struct {
+		name    string
+		version string
+		want    bool
+	}{
+		{name: "dev build", version: "dev", want: true},
+		{name: "released build", version: "v1.2.3"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			Version = tc.version
 
-		// Act
-		result := IsDevBuild()
+			// Act
+			result := IsDevBuild()
 
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("released build", func(t *testing.T) {
-		// Arrange
-		Version = "v1.2.3"
-
-		// Act
-		result := IsDevBuild()
-
-		// Assert
-		assert.False(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestDevSourceDir(t *testing.T) {
@@ -80,8 +72,7 @@ func TestDevSourceDir(t *testing.T) {
 	t.Run("dev build delegates to findModuleRoot", func(t *testing.T) {
 		// Arrange
 		Version = "dev"
-		root := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/mod\n"), 0o644))
+		root := writeGoMod(t, t.TempDir(), "example.com/mod")
 		t.Chdir(root)
 
 		// Act
@@ -95,8 +86,7 @@ func TestDevSourceDir(t *testing.T) {
 func Test_findModuleRoot(t *testing.T) {
 	t.Run("matches go.mod in current dir", func(t *testing.T) {
 		// Arrange
-		root := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/mod\n"), 0o644))
+		root := writeGoMod(t, t.TempDir(), "example.com/mod")
 		t.Chdir(root)
 
 		// Act
@@ -108,11 +98,8 @@ func Test_findModuleRoot(t *testing.T) {
 
 	t.Run("walks up past non-matching go.mod to matching ancestor", func(t *testing.T) {
 		// Arrange
-		root := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/mod\n"), 0o644))
-		nested := filepath.Join(root, "nested")
-		require.NoError(t, os.Mkdir(nested, 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(nested, "go.mod"), []byte("module example.com/other\n"), 0o644))
+		root := writeGoMod(t, t.TempDir(), "example.com/mod")
+		nested := writeGoMod(t, filepath.Join(root, "nested"), "example.com/other")
 		t.Chdir(nested)
 
 		// Act
@@ -135,35 +122,30 @@ func Test_findModuleRoot(t *testing.T) {
 }
 
 func Test_moduleMatches(t *testing.T) {
-	t.Run("module declared on its own line", func(t *testing.T) {
-		// Act
-		result := moduleMatches([]byte("module example.com/mod\n\ngo 1.23\n"), "example.com/mod")
+	for _, tc := range []struct {
+		name  string
+		gomod string
+		want  bool
+	}{
+		{name: "module declared on its own line", gomod: "module example.com/mod\n\ngo 1.23\n", want: true},
+		{name: "ignores surrounding whitespace", gomod: "  module   example.com/mod  \n", want: true},
+		{name: "different module returns false", gomod: "module example.com/other\n"},
+		{name: "no module line returns false", gomod: "go 1.23\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := moduleMatches([]byte(tc.gomod), "example.com/mod")
 
-		// Assert
-		assert.True(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
+}
 
-	t.Run("ignores surrounding whitespace", func(t *testing.T) {
-		// Act
-		result := moduleMatches([]byte("  module   example.com/mod  \n"), "example.com/mod")
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("different module returns false", func(t *testing.T) {
-		// Act
-		result := moduleMatches([]byte("module example.com/other\n"), "example.com/mod")
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("no module line returns false", func(t *testing.T) {
-		// Act
-		result := moduleMatches([]byte("go 1.23\n"), "example.com/mod")
-
-		// Assert
-		assert.False(t, result)
-	})
+// writeGoMod writes a go.mod declaring module into dir, creating dir, and returns dir.
+func writeGoMod(t *testing.T, dir, module string) string {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module "+module+"\n"), 0o644))
+	return dir
 }

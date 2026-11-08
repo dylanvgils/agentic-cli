@@ -8,28 +8,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestResolveWindowsTimezone(t *testing.T) {
-	t.Run("known windows name maps to IANA name", func(t *testing.T) {
-		// Act
-		zone := resolveWindowsTimezone("Pacific Standard Time")
+func Test_resolveWindowsTimezone(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		windows string
+		want    string
+	}{
+		{name: "known windows name maps to IANA name", windows: "Pacific Standard Time", want: "America/Los_Angeles"},
+		{name: "unknown windows name returns empty", windows: "Not A Real Zone"},
+		{name: "empty input returns empty"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			zone := resolveWindowsTimezone(tc.windows)
 
-		// Assert
-		assert.Equal(t, "America/Los_Angeles", zone)
-	})
-
-	t.Run("unknown windows name returns empty", func(t *testing.T) {
-		// Act
-		zone := resolveWindowsTimezone("Not A Real Zone")
-
-		// Assert
-		assert.Empty(t, zone)
-	})
-
-	t.Run("empty input returns empty", func(t *testing.T) {
-		// Act
-		zone := resolveWindowsTimezone("")
-
-		// Assert
-		assert.Empty(t, zone)
-	})
+			// Assert
+			assert.Equal(t, tc.want, zone)
+		})
+	}
 }

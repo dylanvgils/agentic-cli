@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -199,4 +200,23 @@ func openZipReader(t *testing.T, data []byte) *zip.Reader {
 	require.NoError(t, err)
 	t.Cleanup(func() { rc.Close() }) //nolint:errcheck
 	return &rc.Reader
+}
+
+// assertFileContent asserts that path holds want.
+func assertFileContent(t *testing.T, path, want string) {
+	t.Helper()
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, want, string(got))
+}
+
+// stubStatusServer starts a server that answers every request with status and body.
+func stubStatusServer(t *testing.T, status int, body string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(status)
+		fmt.Fprint(w, body)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
 }

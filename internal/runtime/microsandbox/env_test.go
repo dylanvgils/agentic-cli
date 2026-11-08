@@ -47,44 +47,45 @@ func Test_buildEnvArgs(t *testing.T) {
 }
 
 func Test_splitEnv(t *testing.T) {
-	t.Run("forwards a bare key and keeps pairs as flags", func(t *testing.T) {
-		// Act
-		flags, forwarded := splitEnv([]string{"MAVEN_OPTS=-Xmx1g", "EXAMPLE_TOKEN"})
+	t.Setenv("EXAMPLE.TOKEN", "test-secret")
 
-		// Assert
-		assert.Equal(t, []string{"--env=MAVEN_OPTS=-Xmx1g"}, flags)
-		assert.Equal(t, []string{"EXAMPLE_TOKEN"}, forwarded)
-	})
+	for _, tc := range []struct {
+		name          string
+		env           []string
+		wantFlags     []string
+		wantForwarded []string
+	}{
+		{
+			name:          "forwards a bare key and keeps pairs as flags",
+			env:           []string{"MAVEN_OPTS=-Xmx1g", "EXAMPLE_TOKEN"},
+			wantFlags:     []string{"--env=MAVEN_OPTS=-Xmx1g"},
+			wantForwarded: []string{"EXAMPLE_TOKEN"},
+		},
+		{
+			name:      "a later pair beats an earlier bare key",
+			env:       []string{"TZ", "TZ=UTC"},
+			wantFlags: []string{"--env=TZ=UTC"},
+		},
+		{
+			name:          "a later bare key beats an earlier pair",
+			env:           []string{"TZ=UTC", "TZ"},
+			wantForwarded: []string{"TZ"},
+		},
+		{
+			name:      "resolves a non-portable bare key to a flag",
+			env:       []string{"EXAMPLE.TOKEN"},
+			wantFlags: []string{"--env=EXAMPLE.TOKEN=test-secret"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			flags, forwarded := splitEnv(tc.env)
 
-	t.Run("a later pair beats an earlier bare key", func(t *testing.T) {
-		// Act
-		flags, forwarded := splitEnv([]string{"TZ", "TZ=UTC"})
-
-		// Assert
-		assert.Equal(t, []string{"--env=TZ=UTC"}, flags)
-		assert.Empty(t, forwarded)
-	})
-
-	t.Run("a later bare key beats an earlier pair", func(t *testing.T) {
-		// Act
-		flags, forwarded := splitEnv([]string{"TZ=UTC", "TZ"})
-
-		// Assert
-		assert.Empty(t, flags)
-		assert.Equal(t, []string{"TZ"}, forwarded)
-	})
-
-	t.Run("resolves a non-portable bare key to a flag", func(t *testing.T) {
-		// Arrange
-		t.Setenv("EXAMPLE.TOKEN", "test-secret")
-
-		// Act
-		flags, forwarded := splitEnv([]string{"EXAMPLE.TOKEN"})
-
-		// Assert
-		assert.Equal(t, []string{"--env=EXAMPLE.TOKEN=test-secret"}, flags)
-		assert.Empty(t, forwarded)
-	})
+			// Assert
+			assert.ElementsMatch(t, tc.wantFlags, flags)
+			assert.ElementsMatch(t, tc.wantForwarded, forwarded)
+		})
+	}
 }
 
 func Test_writeEnvConf(t *testing.T) {

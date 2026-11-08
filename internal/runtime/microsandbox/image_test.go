@@ -48,26 +48,20 @@ func TestLoadImage(t *testing.T) {
 func TestImageRefs(t *testing.T) {
 	t.Run("returns one ref per non-empty line", func(t *testing.T) {
 		// Arrange
-		var gotArgs []string
-		client := newTestClient(&fakeRunner{run: func(args ...string) (string, error) {
-			gotArgs = args
-			return "agentic-claude:abc123\n\n  python:latest  \n", nil
-		}})
+		client, args := stubRun("agentic-claude:abc123\n\n  python:latest  \n", nil)
 
 		// Act
 		refs, err := client.ImageRefs()
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"images", "--quiet"}, gotArgs)
+		assert.Equal(t, []string{"images", "--quiet"}, *args)
 		assert.Equal(t, []string{"agentic-claude:abc123", "python:latest"}, refs)
 	})
 
 	t.Run("wraps the error", func(t *testing.T) {
 		// Arrange
-		client := newTestClient(&fakeRunner{run: func(...string) (string, error) {
-			return "", errors.New("boom")
-		}})
+		client, _ := stubRun("", errors.New("boom"))
 
 		// Act
 		_, err := client.ImageRefs()
@@ -80,25 +74,19 @@ func TestImageRefs(t *testing.T) {
 func TestRemoveImage(t *testing.T) {
 	t.Run("runs msb rmi for the ref", func(t *testing.T) {
 		// Arrange
-		var gotArgs []string
-		client := newTestClient(&fakeRunner{run: func(args ...string) (string, error) {
-			gotArgs = args
-			return "", nil
-		}})
+		client, args := stubRun("", nil)
 
 		// Act
 		err := client.RemoveImage("agentic-claude:abc123")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"rmi", "agentic-claude:abc123"}, gotArgs)
+		assert.Equal(t, []string{"rmi", "agentic-claude:abc123"}, *args)
 	})
 
 	t.Run("wraps the error", func(t *testing.T) {
 		// Arrange
-		client := newTestClient(&fakeRunner{run: func(...string) (string, error) {
-			return "", errors.New("in use")
-		}})
+		client, _ := stubRun("", errors.New("in use"))
 
 		// Act
 		err := client.RemoveImage("agentic-claude:abc123")
@@ -109,48 +97,41 @@ func TestRemoveImage(t *testing.T) {
 }
 
 func TestSameRef(t *testing.T) {
-	t.Run("ignores a registry prefix", func(t *testing.T) {
-		// Act
-		same := SameRef("docker.io/library/agentic-claude:abc123", "agentic-claude:abc123")
+	for _, tc := range []struct {
+		name string
+		a    string
+		want bool
+	}{
+		{name: "ignores a registry prefix", a: "docker.io/library/agentic-claude:abc123", want: true},
+		{name: "different tag differs", a: "agentic-claude:old111"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			same := SameRef(tc.a, "agentic-claude:abc123")
 
-		// Assert
-		assert.True(t, same)
-	})
-
-	t.Run("different tag differs", func(t *testing.T) {
-		// Act
-		same := SameRef("agentic-claude:old111", "agentic-claude:abc123")
-
-		// Assert
-		assert.False(t, same)
-	})
+			// Assert
+			assert.Equal(t, tc.want, same)
+		})
+	}
 }
 
 func TestSplitRef(t *testing.T) {
-	t.Run("name and tag", func(t *testing.T) {
-		// Act
-		repo, tag := SplitRef("agentic-claude:abc123")
+	for _, tc := range []struct {
+		name    string
+		ref     string
+		wantTag string
+	}{
+		{name: "name and tag", ref: "agentic-claude:abc123", wantTag: "abc123"},
+		{name: "drops a registry and namespace prefix", ref: "registry.example.test:5000/library/agentic-claude:abc123", wantTag: "abc123"},
+		{name: "no tag means latest", ref: "agentic-claude", wantTag: "latest"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			repo, tag := SplitRef(tc.ref)
 
-		// Assert
-		assert.Equal(t, "agentic-claude", repo)
-		assert.Equal(t, "abc123", tag)
-	})
-
-	t.Run("drops a registry and namespace prefix", func(t *testing.T) {
-		// Act
-		repo, tag := SplitRef("registry.example.test:5000/library/agentic-claude:abc123")
-
-		// Assert
-		assert.Equal(t, "agentic-claude", repo)
-		assert.Equal(t, "abc123", tag)
-	})
-
-	t.Run("no tag means latest", func(t *testing.T) {
-		// Act
-		repo, tag := SplitRef("agentic-claude")
-
-		// Assert
-		assert.Equal(t, "agentic-claude", repo)
-		assert.Equal(t, "latest", tag)
-	})
+			// Assert
+			assert.Equal(t, "agentic-claude", repo)
+			assert.Equal(t, tc.wantTag, tag)
+		})
+	}
 }

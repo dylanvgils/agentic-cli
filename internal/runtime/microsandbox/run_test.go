@@ -16,27 +16,27 @@ import (
 )
 
 func TestClient_Run(t *testing.T) {
+	creds := []sandbox.Credential{
+		{Name: "EXAMPLE_TOKEN", Hosts: []string{"api.example.test"}, Headers: []string{"Authorization"}, Secret: "test-secret"},
+	}
+
 	t.Run("runs msb interactively", func(t *testing.T) {
 		// Arrange
-		var gotArgs []string
-		client := newTestClient(&fakeRunner{runInteractive: func(_ []string, args ...string) error {
-			gotArgs = args
-			return nil
-		}})
+		client, call := stubRunInteractive()
 
 		// Act
 		err := client.Run(sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"--help"}}, nil)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "run", gotArgs[0])
-		assert.Equal(t, []string{"agentic-claude", "--", "--help"}, gotArgs[len(gotArgs)-3:])
+		assert.Equal(t, "run", call.args[0])
+		assert.Equal(t, []string{"agentic-claude", "--", "--help"}, call.args[len(call.args)-3:])
 	})
 
-	t.Run("dry run prints the command without running it", func(t *testing.T) {
+	t.Run("dry run prints the command without running it or its secrets", func(t *testing.T) {
 		// Arrange
 		client := newTestClient(&fakeRunner{})
-		rs := sandbox.RunSpec{Image: "agentic-claude", DryRun: true}
+		rs := sandbox.RunSpec{Image: "agentic-claude", DryRun: true, Credentials: creds}
 
 		// Act
 		var err error
@@ -45,73 +45,40 @@ func TestClient_Run(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Regexp(t, `(?s)^msb run \\\n.*  agentic-claude\n$`, out)
+		assert.Contains(t, out, "--secret=EXAMPLE_TOKEN:headers=[authorization]@api.example.test")
+		assert.NotContains(t, out, "test-secret")
 	})
 
 	t.Run("passes credential secrets in msb's env, never in its args", func(t *testing.T) {
 		// Arrange
-		var gotEnv, gotArgs []string
-		client := newTestClient(&fakeRunner{runInteractive: func(env []string, args ...string) error {
-			gotEnv, gotArgs = env, args
-			return nil
-		}})
-		rs := sandbox.RunSpec{Image: "agentic-claude", Credentials: []sandbox.Credential{
-			{Name: "EXAMPLE_TOKEN", Hosts: []string{"api.example.test"}, Headers: []string{"Authorization"}, Secret: "test-secret"},
-		}}
+		client, call := stubRunInteractive()
 
 		// Act
-		err := client.Run(rs, nil)
+		err := client.Run(sandbox.RunSpec{Image: "agentic-claude", Credentials: creds}, nil)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"EXAMPLE_TOKEN=test-secret"}, gotEnv)
-		assert.NotContains(t, strings.Join(gotArgs, " "), "test-secret")
-	})
-
-	t.Run("dry run never prints credential secrets", func(t *testing.T) {
-		// Arrange
-		client := newTestClient(&fakeRunner{})
-		rs := sandbox.RunSpec{Image: "agentic-claude", DryRun: true, Credentials: []sandbox.Credential{
-			{Name: "EXAMPLE_TOKEN", Hosts: []string{"api.example.test"}, Headers: []string{"Authorization"}, Secret: "test-secret"},
-		}}
-
-		// Act
-		var err error
-		out := iostreamstest.CaptureOut(t, func() { err = client.Run(rs, nil) })
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, out, "--secret=EXAMPLE_TOKEN:headers=[authorization]@api.example.test")
-		assert.NotContains(t, out, "test-secret")
+		assert.Equal(t, []string{"EXAMPLE_TOKEN=test-secret"}, call.env)
+		assert.NotContains(t, strings.Join(call.args, " "), "test-secret")
 	})
 
 	t.Run("forwards a host var through a runtime-conf file removed after the run", func(t *testing.T) {
 		// Arrange
 		t.Setenv("EXAMPLE_TOKEN", "test-secret")
-		var confPath, conf string
-		client := newTestClient(&fakeRunner{runInteractive: func(_ []string, args ...string) error {
-			i := slices.IndexFunc(args, func(a string) bool { return strings.HasPrefix(a, "--runtime-conf=") })
-			confPath = strings.TrimPrefix(args[i], "--runtime-conf=")
-			data, err := os.ReadFile(confPath)
-			conf = string(data)
-			return err
-		}})
+		client, call := stubRunInteractive()
 
 		// Act
 		err := client.Run(sandbox.RunSpec{Image: "agentic-claude", Env: []string{"EXAMPLE_TOKEN"}}, nil)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "env:\n  \"EXAMPLE_TOKEN\": \"${EXAMPLE_TOKEN}\"\n", conf)
-		assert.NoFileExists(t, confPath)
+		assert.Equal(t, "env:\n  \"EXAMPLE_TOKEN\": \"${EXAMPLE_TOKEN}\"\n", call.conf)
+		assert.NoFileExists(t, call.confPath)
 	})
 
 	t.Run("runs with unsupported features left out", func(t *testing.T) {
 		// Arrange
-		var gotArgs []string
-		client := newTestClient(&fakeRunner{runInteractive: func(_ []string, args ...string) error {
-			gotArgs = args
-			return nil
-		}})
+		client, call := stubRunInteractive()
 		rs := sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}, Volumes: []string{"go-cache:/cache"}}
 
 		// Act
@@ -119,26 +86,14 @@ func TestClient_Run(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.NotContains(t, gotArgs, "go-cache:/cache")
+		assert.NotContains(t, call.args, "go-cache:/cache")
 	})
 
 	t.Run("routes through the proxy with the token only in msb's env", func(t *testing.T) {
 		// Arrange
-		var gotArgs, gotEnv []string
-		var conf string
-		client := newTestClient(&fakeRunner{runInteractive: func(env []string, args ...string) error {
-			gotArgs, gotEnv = args, env
-			for _, a := range args {
-				if path, ok := strings.CutPrefix(a, "--runtime-conf="); ok {
-					data, err := os.ReadFile(path)
-					require.NoError(t, err)
-					conf = string(data)
-				}
-			}
-			return nil
-		}})
-		creds := []sandbox.Credential{{Name: "EXAMPLE_API_KEY", Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"}}
-		rs := sandbox.RunSpec{Image: "agentic-claude", Credentials: creds, Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}}
+		client, call := stubRunInteractive()
+		apiKey := []sandbox.Credential{{Name: "EXAMPLE_API_KEY", Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"}}
+		rs := sandbox.RunSpec{Image: "agentic-claude", Credentials: apiKey, Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}}
 		route := &ProxyRoute{Port: "49153", Token: "test-token", CAPEM: []byte("test-ca"), Env: []string{"EXAMPLE_API_KEY=agentic-placeholder"}}
 
 		// Act
@@ -146,50 +101,53 @@ func TestClient_Run(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		joined := strings.Join(gotArgs, " ")
+		joined := strings.Join(call.args, " ")
 		assert.NotContains(t, joined, "test-token")
 		assert.NotContains(t, joined, "test-secret")
 		assert.NotContains(t, joined, "--secret", "the proxy injects instead of msb")
-		assert.Contains(t, gotArgs, "--env=EXAMPLE_API_KEY=agentic-placeholder")
-		assert.Contains(t, gotArgs, "--net-rule=allow@host:tcp:49153")
-		assert.Contains(t, conf, `"HTTPS_PROXY": "${HTTPS_PROXY}"`)
-		assert.Contains(t, conf, `"AGENTIC_PROXY_CA": "${AGENTIC_PROXY_CA}"`)
-		assert.Contains(t, gotEnv, "HTTPS_PROXY=http://agentic:test-token@host.microsandbox.internal:49153")
-		assert.Contains(t, gotEnv, "AGENTIC_PROXY_CA=test-ca")
-		assert.NotContains(t, strings.Join(gotEnv, " "), "test-secret")
+		assert.Contains(t, call.args, "--env=EXAMPLE_API_KEY=agentic-placeholder")
+		assert.Contains(t, call.args, "--net-rule=allow@host:tcp:49153")
+		assert.Contains(t, call.conf, `"HTTPS_PROXY": "${HTTPS_PROXY}"`)
+		assert.Contains(t, call.conf, `"AGENTIC_PROXY_CA": "${AGENTIC_PROXY_CA}"`)
+		assert.Contains(t, call.env, "HTTPS_PROXY=http://agentic:test-token@host.microsandbox.internal:49153")
+		assert.Contains(t, call.env, "AGENTIC_PROXY_CA=test-ca")
+		assert.NotContains(t, strings.Join(call.env, " "), "test-secret")
 	})
 }
 
 func Test_buildRunArgs(t *testing.T) {
-	t.Run("passes the image and tool args after --", func(t *testing.T) {
-		// Act
-		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"-p", "hi"}}, nil, nil)
+	for _, tc := range []struct {
+		name     string
+		rs       sandbox.RunSpec
+		wantTail []string
+	}{
+		{
+			name:     "passes the image and tool args after --",
+			rs:       sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"-p", "hi"}},
+			wantTail: []string{"agentic-claude", "--", "-p", "hi"},
+		},
+		{
+			name:     "omits -- without tool args",
+			rs:       sandbox.RunSpec{Image: "agentic-claude"},
+			wantTail: []string{"--label=project=agentic-cli", "agentic-claude"},
+		},
+		{
+			name:     "passes only the tool args the entrypoint leaves",
+			rs:       sandbox.RunSpec{Image: "img", SkipEntrypoint: true, ToolArgs: []string{"bash", "-l"}},
+			wantTail: []string{"--entrypoint=bash", "img", "--", "-l"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			args, err := buildRunArgs(tc.rs, nil, nil)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"agentic-claude", "--", "-p", "hi"}, args[len(args)-4:])
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantTail, args[len(args)-len(tc.wantTail):])
+		})
+	}
 
-	t.Run("puts the env args before the image", func(t *testing.T) {
-		// Act
-		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"}, []string{"--runtime-conf=/example.test/env.yaml"}, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Less(t, slices.Index(args, "--runtime-conf=/example.test/env.yaml"), slices.Index(args, "agentic-claude"))
-	})
-
-	t.Run("omits -- without tool args", func(t *testing.T) {
-		// Act
-		args, err := buildRunArgs(sandbox.RunSpec{Image: "agentic-claude"}, nil, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "agentic-claude", args[len(args)-1])
-		assert.NotContains(t, args, "--")
-	})
-
-	t.Run("puts the flags before the image", func(t *testing.T) {
+	t.Run("puts the flags and env args before the image", func(t *testing.T) {
 		// Arrange
 		rs := sandbox.RunSpec{
 			Image:         "img",
@@ -200,13 +158,19 @@ func Test_buildRunArgs(t *testing.T) {
 		}
 
 		// Act
-		args, err := buildRunArgs(rs, nil, nil)
+		args, err := buildRunArgs(rs, []string{"--runtime-conf=/example.test/env.yaml"}, nil)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "run", args[0])
 		image := slices.Index(args, "img")
-		for _, flag := range []string{"--label=project=agentic-cli", "--cpus=2", "--mount-dir=/example.test/data:/data", "--net-default-egress=deny"} {
+		for _, flag := range []string{
+			"--label=project=agentic-cli",
+			"--cpus=2",
+			"--mount-dir=/example.test/data:/data",
+			"--net-default-egress=deny",
+			"--runtime-conf=/example.test/env.yaml",
+		} {
 			assert.Contains(t, args, flag)
 			assert.Less(t, slices.Index(args, flag), image)
 		}
@@ -222,18 +186,6 @@ func Test_buildRunArgs(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.NotContains(t, strings.Join(args, " "), "tmpfs")
-	})
-
-	t.Run("passes only the tool args the entrypoint leaves", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{Image: "img", SkipEntrypoint: true, ToolArgs: []string{"bash", "-l"}}
-
-		// Act
-		args, err := buildRunArgs(rs, nil, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--entrypoint=bash", "img", "--", "-l"}, args[len(args)-4:])
 	})
 
 	t.Run("returns a helper's error", func(t *testing.T) {
@@ -291,23 +243,23 @@ func Test_buildVolumeArgs(t *testing.T) {
 }
 
 func Test_buildNamedVolumeArgs(t *testing.T) {
-	t.Run("owns the volume by the host user", func(t *testing.T) {
-		// Act
-		args, err := buildNamedVolumeArgs("maven:/home/claude/.m2", "", "")
+	for _, tc := range []struct {
+		name string
+		spec string
+		want string
+	}{
+		{name: "owns the volume by the host user", spec: "maven:/home/claude/.m2", want: "--mount-named=agentic-maven:/home/claude/.m2:" + ownerOptions()},
+		{name: "adds ro before the owner", spec: "maven:/home/claude/.m2:ro", want: "--mount-named=agentic-maven:/home/claude/.m2:ro," + ownerOptions()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			args, err := buildNamedVolumeArgs(tc.spec, "", "")
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-named=agentic-maven:/home/claude/.m2:" + ownerOptions()}, args)
-	})
-
-	t.Run("adds ro before the owner", func(t *testing.T) {
-		// Act
-		args, err := buildNamedVolumeArgs("maven:/home/claude/.m2:ro", "", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-named=agentic-maven:/home/claude/.m2:ro," + ownerOptions()}, args)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, []string{tc.want}, args)
+		})
+	}
 
 	t.Run("returns a parse error", func(t *testing.T) {
 		// Act
@@ -319,14 +271,57 @@ func Test_buildNamedVolumeArgs(t *testing.T) {
 }
 
 func Test_buildNetworkArgs(t *testing.T) {
-	t.Run("adds nothing with the proxy off", func(t *testing.T) {
-		// Act
-		args, err := buildNetworkArgs(sandbox.EgressPolicy{Rules: []sandbox.AllowRule{{Host: "api.example.test"}}}, nil)
+	rules := []sandbox.AllowRule{{Host: "api.example.test"}}
+	route := &ProxyRoute{Port: "49153"}
+	routed := []string{"--net-default-egress=deny", "--net-rule=allow@host:tcp:49153"}
 
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, args)
-	})
+	for _, tc := range []struct {
+		name   string
+		egress sandbox.EgressPolicy
+		route  *ProxyRoute
+		want   []string
+	}{
+		{
+			name:   "adds nothing with the proxy off",
+			egress: sandbox.EgressPolicy{Rules: rules},
+		},
+		{
+			name:  "a route with the proxy off adds nothing",
+			route: route,
+		},
+		{
+			name:   "a route allows only the proxy's host port",
+			egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Rules: rules},
+			route:  route,
+			want:   routed,
+		},
+		{
+			name:   "a route allows only the proxy's host port in monitor mode too",
+			egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor, Rules: rules},
+			route:  route,
+			want:   routed,
+		},
+		{
+			name:   "denies egress but DNS and the allowlist, intercepting HTTPS",
+			egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Rules: rules},
+			want: []string{
+				"--net-default-egress=deny",
+				"--tls-intercept",
+				"--net-rule=allow@dns",
+				"--net-rule=allow@api.example.test:tcp:80",
+				"--net-rule=allow@api.example.test:tcp:443",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			args, err := buildNetworkArgs(tc.egress, tc.route)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, args)
+		})
+	}
 
 	t.Run("refuses monitor mode", func(t *testing.T) {
 		// Act
@@ -334,41 +329,6 @@ func Test_buildNetworkArgs(t *testing.T) {
 
 		// Assert
 		assert.EqualError(t, err, "msb can't run the proxy in monitor mode")
-	})
-
-	t.Run("with a route allows only the proxy's host port, in monitor mode too", func(t *testing.T) {
-		for _, mode := range []sandbox.EgressMode{sandbox.EgressEnforce, sandbox.EgressMonitor} {
-			// Act
-			args, err := buildNetworkArgs(sandbox.EgressPolicy{Mode: mode, Rules: []sandbox.AllowRule{{Host: "api.example.test"}}}, &ProxyRoute{Port: "49153"})
-
-			// Assert
-			require.NoError(t, err)
-			assert.Equal(t, []string{"--net-default-egress=deny", "--net-rule=allow@host:tcp:49153"}, args)
-		}
-	})
-
-	t.Run("a route with the proxy off adds nothing", func(t *testing.T) {
-		// Act
-		args, err := buildNetworkArgs(sandbox.EgressPolicy{}, &ProxyRoute{Port: "49153"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, args)
-	})
-
-	t.Run("denies egress but DNS and the allowlist, intercepting HTTPS", func(t *testing.T) {
-		// Act
-		args, err := buildNetworkArgs(sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Rules: []sandbox.AllowRule{{Host: "api.example.test"}}}, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{
-			"--net-default-egress=deny",
-			"--tls-intercept",
-			"--net-rule=allow@dns",
-			"--net-rule=allow@api.example.test:tcp:80",
-			"--net-rule=allow@api.example.test:tcp:443",
-		}, args)
 	})
 }
 
@@ -393,43 +353,26 @@ func Test_netRuleTargets(t *testing.T) {
 }
 
 func Test_netRuleTarget(t *testing.T) {
-	t.Run("keeps an exact host", func(t *testing.T) {
-		// Act
-		target, err := netRuleTarget("api.example.test")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "api.example.test", target)
-	})
-
-	t.Run("a suffix entry becomes a wildcard", func(t *testing.T) {
-		for _, entry := range []string{".example.test", "*.example.test"} {
+	for _, tc := range []struct {
+		name  string
+		entry string
+		want  string
+	}{
+		{name: "keeps an exact host", entry: "api.example.test", want: "api.example.test"},
+		{name: "a dot suffix becomes a wildcard", entry: ".example.test", want: "*.example.test"},
+		{name: "a wildcard suffix stays a wildcard", entry: "*.example.test", want: "*.example.test"},
+		{name: "normalizes case, spaces and a trailing dot", entry: " API.Example.Test. ", want: "api.example.test"},
+		{name: "returns nothing for a blank entry", entry: "  ", want: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			target, err := netRuleTarget(entry)
+			target, err := netRuleTarget(tc.entry)
 
 			// Assert
 			require.NoError(t, err)
-			assert.Equal(t, "*.example.test", target)
-		}
-	})
-
-	t.Run("normalizes case, spaces and a trailing dot", func(t *testing.T) {
-		// Act
-		target, err := netRuleTarget(" API.Example.Test. ")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "api.example.test", target)
-	})
-
-	t.Run("returns nothing for a blank entry", func(t *testing.T) {
-		// Act
-		target, err := netRuleTarget("  ")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, target)
-	})
+			assert.Equal(t, tc.want, target)
+		})
+	}
 
 	t.Run("refuses entries msb would read as more than a hostname", func(t *testing.T) {
 		for _, entry := range []string{
@@ -507,46 +450,60 @@ func Test_credentialEnv(t *testing.T) {
 }
 
 func Test_buildDockerArgs(t *testing.T) {
-	t.Run("none without dind", func(t *testing.T) {
-		// Act
-		args := buildDockerArgs(sandbox.RunSpec{})
+	for _, tc := range []struct {
+		name string
+		rs   sandbox.RunSpec
+		want []string
+	}{
+		{name: "none without dind"},
+		{
+			name: "dind adds an owned disk and the dockerd init",
+			rs:   sandbox.RunSpec{Dind: sandbox.DindSpec{Enabled: true}},
+			want: []string{
+				"--mount-owned=/var/lib/docker:kind=disk,size=20G",
+				"--init=/usr/local/bin/agentic-dockerd-init",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			args := buildDockerArgs(tc.rs)
 
-		// Assert
-		assert.Empty(t, args)
-	})
-
-	t.Run("dind adds an owned disk and the dockerd init", func(t *testing.T) {
-		// Act
-		args := buildDockerArgs(sandbox.RunSpec{Dind: sandbox.DindSpec{Enabled: true}})
-
-		// Assert
-		assert.Equal(t, []string{
-			"--mount-owned=/var/lib/docker:kind=disk,size=20G",
-			"--init=/usr/local/bin/agentic-dockerd-init",
-		}, args)
-	})
+			// Assert
+			assert.Equal(t, tc.want, args)
+		})
+	}
 }
 
 func Test_buildEntrypointArgs(t *testing.T) {
-	t.Run("keeps the image's entrypoint by default", func(t *testing.T) {
-		// Act
-		args, rest, err := buildEntrypointArgs(sandbox.RunSpec{ToolArgs: []string{"--help"}})
+	for _, tc := range []struct {
+		name     string
+		rs       sandbox.RunSpec
+		wantArgs []string
+		wantRest []string
+	}{
+		{
+			name:     "keeps the image's entrypoint by default",
+			rs:       sandbox.RunSpec{ToolArgs: []string{"--help"}},
+			wantRest: []string{"--help"},
+		},
+		{
+			name:     "skipping the entrypoint makes the first tool arg the entrypoint",
+			rs:       sandbox.RunSpec{SkipEntrypoint: true, ToolArgs: []string{"bash", "-l"}},
+			wantArgs: []string{"--entrypoint=bash"},
+			wantRest: []string{"-l"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			args, rest, err := buildEntrypointArgs(tc.rs)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, args)
-		assert.Equal(t, []string{"--help"}, rest)
-	})
-
-	t.Run("skipping the entrypoint makes the first tool arg the entrypoint", func(t *testing.T) {
-		// Act
-		args, rest, err := buildEntrypointArgs(sandbox.RunSpec{SkipEntrypoint: true, ToolArgs: []string{"bash", "-l"}})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--entrypoint=bash"}, args)
-		assert.Equal(t, []string{"-l"}, rest)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantArgs, args)
+			assert.Equal(t, tc.wantRest, rest)
+		})
+	}
 
 	t.Run("skipping the entrypoint without a command errors", func(t *testing.T) {
 		// Act
@@ -562,32 +519,24 @@ func Test_buildMountArgs(t *testing.T) {
 	file := filepath.Join(dir, ".claude.json")
 	require.NoError(t, os.WriteFile(file, []byte("{}"), 0o600))
 
-	t.Run("mounts a directory with --mount-dir", func(t *testing.T) {
-		// Act
-		args, err := buildMountArgs(dir+":/workspace", "", "")
+	for _, tc := range []struct {
+		name string
+		spec string
+		want string
+	}{
+		{name: "mounts a directory with --mount-dir", spec: dir + ":/workspace", want: "--mount-dir=" + dir + ":/workspace"},
+		{name: "mounts a file with --mount-file", spec: file + ":/home/claude/.claude.json", want: "--mount-file=" + file + ":/home/claude/.claude.json"},
+		{name: "adds ro to the target", spec: dir + ":/workspace:ro", want: "--mount-dir=" + dir + ":/workspace:ro"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			args, err := buildMountArgs(tc.spec, "", "")
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-dir=" + dir + ":/workspace"}, args)
-	})
-
-	t.Run("mounts a file with --mount-file", func(t *testing.T) {
-		// Act
-		args, err := buildMountArgs(file+":/home/claude/.claude.json", "", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-file=" + file + ":/home/claude/.claude.json"}, args)
-	})
-
-	t.Run("adds ro to the target", func(t *testing.T) {
-		// Act
-		args, err := buildMountArgs(dir+":/workspace:ro", "", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--mount-dir=" + dir + ":/workspace:ro"}, args)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, []string{tc.want}, args)
+		})
+	}
 
 	t.Run("returns a parse error", func(t *testing.T) {
 		// Act
@@ -609,23 +558,23 @@ func Test_parseMountSpec(t *testing.T) {
 		assert.Equal(t, "/home/claude/.claude", guest)
 	})
 
-	t.Run("reports ro among the options", func(t *testing.T) {
-		// Act
-		_, _, readOnly, err := parseMountSpec("maven:/cache:z,ro", "", "")
+	for _, tc := range []struct {
+		name string
+		spec string
+		want bool
+	}{
+		{name: "ro among the options is read-only", spec: "maven:/cache:z,ro", want: true},
+		{name: "rw is not read-only", spec: "maven:/cache:rw"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			_, _, readOnly, err := parseMountSpec(tc.spec, "", "")
 
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, readOnly)
-	})
-
-	t.Run("rw is not read-only", func(t *testing.T) {
-		// Act
-		_, _, readOnly, err := parseMountSpec("maven:/cache:rw", "", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, readOnly)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, readOnly)
+		})
+	}
 
 	t.Run("errors without a guest path", func(t *testing.T) {
 		// Act
