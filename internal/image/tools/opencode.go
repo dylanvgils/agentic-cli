@@ -51,21 +51,16 @@ func opencodeStage(prevStage string) df.Stage {
 			},
 		}).
 		Add(df.Arg{Key: "OPENCODE_INSTALL_CHECKSUM", Default: DefaultChecksums.OpencodeInstall}).
-		Add(df.Run{Blocks: []df.Block{
-			{Comment: "Download and verify install script, then run it", Lines: []string{
-				`curl -fsSL https://opencode.ai/v2/install -o /tmp/opencode_install.sh;`,
-				`if [ "${SKIP_INSTALL_CHECKSUM}" = "true" ]; then`,
-				`echo "warning: skipping opencode install script checksum verification (--skip-install-checksum)" >&2;`,
-				`else`,
-				`echo "${OPENCODE_INSTALL_CHECKSUM}  /tmp/opencode_install.sh" | sha256sum -c --quiet -;`,
-				`echo "opencode install script checksum verified OK";`,
-				`fi;`,
-				`bash /tmp/opencode_install.sh --no-modify-path;`,
-				`rm /tmp/opencode_install.sh`,
-			}},
-			{Lines: []string{"mv /root/.opencode/bin/opencode /usr/local/bin/opencode"}},
-			{Lines: []string{"rm -rf /root/.opencode"}},
-		}}).
+		Add(installScriptRun(installScript{
+			Tool:        "opencode",
+			URL:         "https://opencode.ai/v2/install",
+			ChecksumArg: "OPENCODE_INSTALL_CHECKSUM",
+			Args:        []string{"--no-modify-path"},
+			After: []df.Block{
+				{Lines: []string{"mv /root/.opencode/bin/opencode /usr/local/bin/opencode"}},
+				{Lines: []string{"rm -rf /root/.opencode"}},
+			},
+		})).
 		Add(versionCheckScript("opencode", "opencode --version")).
 		Add(df.User{Name: "opencode"}).
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/opencode"}).

@@ -2,12 +2,22 @@ package tools
 
 import (
 	"fmt"
+	"strings"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
 )
 
 // pipefailShell makes RUN fail when any command in a pipeline fails.
 var pipefailShell = df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}
+
+// installScript is a tool's vendor install script, verified against the ChecksumArg build arg.
+type installScript struct {
+	Tool        string
+	URL         string
+	ChecksumArg string
+	Args        []string   // passed to the script
+	After       []df.Block // steps before the PATH check, e.g. moving the binary
+}
 
 // aptInstallRun builds a standard apt update → install --no-install-recommends → cleanup Run block.
 func aptInstallRun(pkgs []string) df.Run {
@@ -29,6 +39,32 @@ func cacheBustInstructions() []df.Instruction {
 // skipInstallChecksumArg declares SKIP_INSTALL_CHECKSUM, so --build-arg SKIP_INSTALL_CHECKSUM=true bypasses installer script checksum verification for tools that check it.
 func skipInstallChecksumArg() df.Instruction {
 	return df.Arg{Key: "SKIP_INSTALL_CHECKSUM", Default: "false"}
+}
+
+// installScriptRun installs s.Tool with its verified install script; any failed step fails the build.
+func installScriptRun(s installScript) df.Run {
+	script := "/tmp/" + s.Tool + "_install.sh"
+
+	blocks := []df.Block{
+		{Comment: "Download install script", Lines: []string{
+			"curl -fsSL " + s.URL + " -o " + script,
+		}},
+		{Comment: "Verify its checksum", Lines: []string{
+			`if [ "${SKIP_INSTALL_CHECKSUM}" = "true" ]; then`,
+			`echo "warning: skipping ` + s.Tool + ` install script checksum verification (--skip-install-checksum)" >&2;`,
+			`else`,
+			`echo "${` + s.ChecksumArg + `}  ` + script + `" | sha256sum -c --quiet - && echo "` + s.Tool + ` install script checksum verified OK";`,
+			`fi`,
+		}},
+		{Comment: "Run it", Chain: true, Lines: []string{
+			strings.Join(append([]string{"bash", script}, s.Args...), " "),
+			"rm " + script,
+		}},
+	}
+	blocks = append(blocks, s.After...)
+	blocks = append(blocks, df.Block{Comment: "Check " + s.Tool + " is installed", Lines: []string{"command -v " + s.Tool}})
+
+	return df.Run{Blocks: blocks}
 }
 
 // createContainerUser returns instructions to declare HOST_UID/HOST_GID, remove any user occupying HOST_UID, and create a fresh container user.

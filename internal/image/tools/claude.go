@@ -85,20 +85,14 @@ func claudeStage(prevStage string) df.Stage {
 		Add(df.User{Name: "claude"}).
 		Add(df.Env{Key: "PATH", Value: "/home/claude/.local/bin:${PATH}"}).
 		Add(df.Arg{Key: "CLAUDE_INSTALL_CHECKSUM", Default: DefaultChecksums.ClaudeInstall}).
-		Add(df.Run{Blocks: []df.Block{
-			{Comment: "Download and verify install script, then run it", Lines: []string{
-				`curl -fsSL https://claude.ai/install.sh -o /tmp/claude_install.sh;`,
-				`if [ "${SKIP_INSTALL_CHECKSUM}" = "true" ]; then`,
-				`echo "warning: skipping claude install script checksum verification (--skip-install-checksum)" >&2;`,
-				`else`,
-				`echo "${CLAUDE_INSTALL_CHECKSUM}  /tmp/claude_install.sh" | sha256sum -c --quiet -;`,
-				`echo "claude install script checksum verified OK";`,
-				`fi;`,
-				`bash /tmp/claude_install.sh;`,
-				`rm /tmp/claude_install.sh`,
-			}},
-			{Lines: []string{`mkdir -p "/home/claude/.claude"`}},
-		}}).
+		Add(installScriptRun(installScript{
+			Tool:        "claude",
+			URL:         "https://claude.ai/install.sh",
+			ChecksumArg: "CLAUDE_INSTALL_CHECKSUM",
+			After: []df.Block{
+				{Lines: []string{`mkdir -p "/home/claude/.claude"`}},
+			},
+		})).
 		Add(versionCheckScript("claude", "claude --version")).
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/claude"}).
 		Add(df.Env{Key: "DISABLE_AUTOUPDATER", Value: "1"}).
