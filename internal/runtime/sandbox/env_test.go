@@ -133,6 +133,8 @@ func Test_terminalEnv(t *testing.T) {
 		// Arrange
 		t.Setenv("COLORTERM", "truecolor")
 		t.Setenv("TERM", "xterm-256color")
+		t.Setenv("TERM_PROGRAM", "tmux")
+		t.Setenv("TERM_PROGRAM_VERSION", "3.8")
 		t.Setenv("NO_COLOR", "1")
 		t.Setenv("FORCE_COLOR", "1")
 
@@ -140,7 +142,14 @@ func Test_terminalEnv(t *testing.T) {
 		env := terminalEnv()
 
 		// Assert
-		assert.Equal(t, []string{"COLORTERM=truecolor", "TERM=xterm-256color", "NO_COLOR=1", "FORCE_COLOR=1"}, env)
+		assert.Equal(t, []string{
+			"COLORTERM=truecolor",
+			"TERM=xterm-256color",
+			"TERM_PROGRAM=tmux",
+			"TERM_PROGRAM_VERSION=3.8",
+			"NO_COLOR=1",
+			"FORCE_COLOR=1",
+		}, env)
 	})
 
 	t.Run("skips unset terminal vars", func(t *testing.T) {

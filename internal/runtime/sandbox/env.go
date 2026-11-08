@@ -45,7 +45,14 @@ var dindEnvNames = []string{
 var portableEnvName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // terminalEnvNames are host vars forwarded into the sandbox; not reserved, so an env entry can override one.
-var terminalEnvNames = []string{"COLORTERM", "TERM", "NO_COLOR", "FORCE_COLOR"}
+var terminalEnvNames = []string{
+	"COLORTERM",
+	"TERM",
+	"TERM_PROGRAM",
+	"TERM_PROGRAM_VERSION",
+	"NO_COLOR",
+	"FORCE_COLOR",
+}
 
 // IsReservedEnvName reports whether key is an env var agentic manages in a run with or without the proxy and dind, so an
 // env entry can't override it.
