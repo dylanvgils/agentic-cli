@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,4 +51,39 @@ func stubMsb(t *testing.T, script string) {
 	bin := filepath.Join(dir, "msb")
 	require.NoError(t, os.WriteFile(bin, []byte("#!/bin/sh\n"+script+"\n"), 0o755))
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+// msbCall records what a stubbed RunInteractive got; conf is the --runtime-conf file's content, read while it exists.
+type msbCall struct {
+	env      []string
+	args     []string
+	confPath string
+	conf     string
+}
+
+// stubRun returns a Client whose Run records its args and returns out and err.
+func stubRun(out string, err error) (*Client, *[]string) {
+	var args []string
+	client := newTestClient(&fakeRunner{run: func(a ...string) (string, error) {
+		args = a
+		return out, err
+	}})
+	return client, &args
+}
+
+// stubRunInteractive returns a Client whose RunInteractive records its call and succeeds.
+func stubRunInteractive() (*Client, *msbCall) {
+	call := &msbCall{}
+	client := newTestClient(&fakeRunner{runInteractive: func(env []string, args ...string) error {
+		call.env, call.args = env, args
+		for _, a := range args {
+			if path, ok := strings.CutPrefix(a, "--runtime-conf="); ok {
+				data, err := os.ReadFile(path)
+				call.confPath, call.conf = path, string(data)
+				return err
+			}
+		}
+		return nil
+	}})
+	return client, call
 }

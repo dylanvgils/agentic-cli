@@ -6,61 +6,44 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_runProxyBuildOrUpdate(t *testing.T) {
-	t.Run("build does not force no-cache by default", func(t *testing.T) {
-		// Arrange
-		logBuf := iostreamstest.StubErr(t)
-		var capturedOpts tools.BuildOptions
-		stubBuildProxyImage(t, func(_, _, _ string, opts tools.BuildOptions) error {
-			capturedOpts = opts
-			return nil
+	for _, tc := range []struct {
+		name        string
+		run         func(*cobra.Command, []string) error
+		cmd         *cobra.Command
+		noCacheFlag bool
+		wantNoCache bool
+	}{
+		{name: "build does not force no-cache by default", run: runProxyBuild, cmd: proxyBuildCmd},
+		{name: "build --no-cache forces a fresh build", run: runProxyBuild, cmd: proxyBuildCmd, noCacheFlag: true, wantNoCache: true},
+		{name: "update always forces no-cache", run: runProxyUpdate, cmd: proxyUpdateCmd, wantNoCache: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			logBuf := iostreamstest.StubErr(t)
+			var capturedOpts tools.BuildOptions
+			stubBuildProxyImage(t, func(_, _, _ string, opts tools.BuildOptions) error {
+				capturedOpts = opts
+				return nil
+			})
+			if tc.noCacheFlag {
+				stubFlag(t, tc.cmd, "no-cache", "true")
+			}
+
+			// Act
+			err := tc.run(tc.cmd, nil)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantNoCache, capturedOpts.NoCache)
+			assert.Contains(t, logBuf.String(), "agentic-proxy")
 		})
-
-		// Act
-		err := runProxyBuild(proxyBuildCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, capturedOpts.NoCache)
-		assert.Contains(t, logBuf.String(), "agentic: building agentic-proxy")
-	})
-
-	t.Run("build --no-cache forces a fresh build", func(t *testing.T) {
-		// Arrange
-		var capturedOpts tools.BuildOptions
-		stubBuildProxyImage(t, func(_, _, _ string, opts tools.BuildOptions) error {
-			capturedOpts = opts
-			return nil
-		})
-		stubFlag(t, proxyBuildCmd, "no-cache", "true")
-
-		// Act
-		err := runProxyBuild(proxyBuildCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, capturedOpts.NoCache)
-	})
-
-	t.Run("update always forces no-cache", func(t *testing.T) {
-		// Arrange
-		var capturedOpts tools.BuildOptions
-		stubBuildProxyImage(t, func(_, _, _ string, opts tools.BuildOptions) error {
-			capturedOpts = opts
-			return nil
-		})
-
-		// Act
-		err := runProxyUpdate(proxyUpdateCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, capturedOpts.NoCache)
-	})
+	}
 
 	t.Run("dry run prints dockerfile and skips build", func(t *testing.T) {
 		// Arrange
@@ -144,7 +127,7 @@ func Test_runProxyClean(t *testing.T) {
 		err := runProxyClean(proxyCleanCmd, nil)
 
 		// Assert
-		require.Error(t, err)
+		require.ErrorContains(t, err, "clean failed")
 		assert.FileExists(t, log)
 	})
 }

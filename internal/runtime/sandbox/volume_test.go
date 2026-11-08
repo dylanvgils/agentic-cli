@@ -10,25 +10,26 @@ import (
 )
 
 func TestVolumeMount(t *testing.T) {
-	t.Run("no options", func(t *testing.T) {
-		// Act
-		result := VolumeMount("/host/path", "/container/path")
+	for _, tc := range []struct {
+		name string
+		opts []VolumeOptions
+		want string
+	}{
+		{name: "no options", want: "/host/path:/container/path"},
+		{name: "read only", opts: []VolumeOptions{{ReadOnly: true}}, want: "/host/path:/container/path:ro"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := VolumeMount("/host/path", "/container/path", tc.opts...)
 
-		// Assert
-		assert.Equal(t, "/host/path:/container/path", result)
-	})
-
-	t.Run("read only", func(t *testing.T) {
-		// Act
-		result := VolumeMount("/host/path", "/container/path", VolumeOptions{ReadOnly: true})
-
-		// Assert
-		assert.Equal(t, "/host/path:/container/path:ro", result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestReadOnlyByDefault(t *testing.T) {
-	cases := []struct {
+	for _, tc := range []struct {
 		name string
 		spec string
 		want string
@@ -43,451 +44,233 @@ func TestReadOnlyByDefault(t *testing.T) {
 		{"home placeholder bind mount becomes read-only", "~/.m2:$CONTAINER_HOME/.m2", "~/.m2:$CONTAINER_HOME/.m2:ro"},
 		{"windows drive path becomes read-only", `C:\host\a:/a`, `C:\host\a:/a:ro`},
 		{"spec without container part is unchanged", "/host/a", "/host/a"},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			result := ReadOnlyByDefault(c.spec)
+			result := ReadOnlyByDefault(tc.spec)
 
 			// Assert
-			assert.Equal(t, c.want, result)
+			assert.Equal(t, tc.want, result)
 		})
 	}
 }
 
-func TestSplitMountHost(t *testing.T) {
-	t.Run("unix path", func(t *testing.T) {
-		// Act
-		host, rest := splitMountHost("/host/path:/container")
+func Test_splitMountHost(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		spec     string
+		wantHost string
+		wantRest string
+	}{
+		{name: "unix path", spec: "/host/path:/container", wantHost: "/host/path", wantRest: ":/container"},
+		{name: "named volume", spec: "maven:/container", wantHost: "maven", wantRest: ":/container"},
+		{name: "windows drive letter", spec: `C:\Users\foo:/container`, wantHost: `C:\Users\foo`, wantRest: ":/container"},
+		{name: "windows drive letter lowercase", spec: `c:\data:/container`, wantHost: `c:\data`, wantRest: ":/container"},
+		{name: "no colon", spec: "maven", wantHost: "maven"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			host, rest := splitMountHost(tc.spec)
 
-		// Assert
-		assert.Equal(t, "/host/path", host)
-		assert.Equal(t, ":/container", rest)
-	})
-
-	t.Run("named volume", func(t *testing.T) {
-		// Act
-		host, rest := splitMountHost("maven:/container")
-
-		// Assert
-		assert.Equal(t, "maven", host)
-		assert.Equal(t, ":/container", rest)
-	})
-
-	t.Run("windows drive letter", func(t *testing.T) {
-		// Act
-		host, rest := splitMountHost(`C:\Users\foo:/container`)
-
-		// Assert
-		assert.Equal(t, `C:\Users\foo`, host)
-		assert.Equal(t, ":/container", rest)
-	})
-
-	t.Run("windows drive letter lowercase", func(t *testing.T) {
-		// Act
-		host, rest := splitMountHost(`c:\data:/container`)
-
-		// Assert
-		assert.Equal(t, `c:\data`, host)
-		assert.Equal(t, ":/container", rest)
-	})
-
-	t.Run("no colon", func(t *testing.T) {
-		// Act
-		host, rest := splitMountHost("maven")
-
-		// Assert
-		assert.Equal(t, "maven", host)
-		assert.Equal(t, "", rest)
-	})
+			// Assert
+			assert.Equal(t, tc.wantHost, host)
+			assert.Equal(t, tc.wantRest, rest)
+		})
+	}
 }
 
 func TestHostPart(t *testing.T) {
-	t.Run("unix path", func(t *testing.T) {
-		// Act
-		result := HostPart("/host/path:/container")
+	for _, tc := range []struct {
+		name string
+		spec string
+		want string
+	}{
+		{name: "unix path", spec: "/host/path:/container", want: "/host/path"},
+		{name: "named volume", spec: "maven:/container", want: "maven"},
+		{name: "windows drive letter", spec: `C:\Users\foo:/container`, want: `C:\Users\foo`},
+		{name: "no colon", spec: "maven", want: "maven"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := HostPart(tc.spec)
 
-		// Assert
-		assert.Equal(t, "/host/path", result)
-	})
-
-	t.Run("named volume", func(t *testing.T) {
-		// Act
-		result := HostPart("maven:/container")
-
-		// Assert
-		assert.Equal(t, "maven", result)
-	})
-
-	t.Run("windows drive letter", func(t *testing.T) {
-		// Act
-		result := HostPart(`C:\Users\foo:/container`)
-
-		// Assert
-		assert.Equal(t, `C:\Users\foo`, result)
-	})
-
-	t.Run("no colon", func(t *testing.T) {
-		// Act
-		result := HostPart("maven")
-
-		// Assert
-		assert.Equal(t, "maven", result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestSplitHostContainer(t *testing.T) {
-	t.Run("unix path with container part", func(t *testing.T) {
-		// Act
-		host, container, ok := SplitHostContainer("/host/path:/container")
+	for _, tc := range []struct {
+		name          string
+		spec          string
+		wantHost      string
+		wantContainer string
+		wantOK        bool
+	}{
+		{name: "unix path with container part", spec: "/host/path:/container", wantHost: "/host/path", wantContainer: "/container", wantOK: true},
+		{name: "named volume with container part", spec: "maven:/container", wantHost: "maven", wantContainer: "/container", wantOK: true},
+		{name: "no colon returns ok false", spec: "maven", wantHost: "maven"},
+		{name: "trailing colon returns empty container with ok true", spec: "maven:", wantHost: "maven", wantOK: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			host, container, ok := SplitHostContainer(tc.spec)
 
-		// Assert
-		assert.Equal(t, "/host/path", host)
-		assert.Equal(t, "/container", container)
-		assert.True(t, ok)
-	})
-
-	t.Run("named volume with container part", func(t *testing.T) {
-		// Act
-		host, container, ok := SplitHostContainer("maven:/container")
-
-		// Assert
-		assert.Equal(t, "maven", host)
-		assert.Equal(t, "/container", container)
-		assert.True(t, ok)
-	})
-
-	t.Run("no colon returns ok false", func(t *testing.T) {
-		// Act
-		host, container, ok := SplitHostContainer("maven")
-
-		// Assert
-		assert.Equal(t, "maven", host)
-		assert.Equal(t, "", container)
-		assert.False(t, ok)
-	})
-
-	t.Run("trailing colon returns empty container with ok true", func(t *testing.T) {
-		// Act
-		host, container, ok := SplitHostContainer("maven:")
-
-		// Assert
-		assert.Equal(t, "maven", host)
-		assert.Equal(t, "", container)
-		assert.True(t, ok)
-	})
+			// Assert
+			assert.Equal(t, tc.wantHost, host)
+			assert.Equal(t, tc.wantContainer, container)
+			assert.Equal(t, tc.wantOK, ok)
+		})
+	}
 }
 
 func TestIsNamedVolume(t *testing.T) {
-	t.Run("named volume returns true", func(t *testing.T) {
-		// Act
-		result := IsNamedVolume("maven:/container")
+	for _, tc := range []struct {
+		name string
+		spec string
+		want bool
+	}{
+		{name: "named volume returns true", spec: "maven:/container", want: true},
+		{name: "unix path returns false", spec: "/host/path:/container"},
+		{name: "windows path returns false", spec: `C:\data:/container`},
+		{name: "single char returns false", spec: "C:/container"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := IsNamedVolume(tc.spec)
 
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("unix path returns false", func(t *testing.T) {
-		// Act
-		result := IsNamedVolume("/host/path:/container")
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("windows path returns false", func(t *testing.T) {
-		// Act
-		result := IsNamedVolume(`C:\data:/container`)
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("single char returns false", func(t *testing.T) {
-		// Act
-		result := IsNamedVolume("C:/container")
-
-		// Assert
-		assert.False(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestNormalizeMountSpec(t *testing.T) {
-	t.Run("unix path unchanged", func(t *testing.T) {
-		// Act
-		result := NormalizeMountSpec("/host/path:/container/path")
+	relative := "." + string(filepath.Separator) + "data:/data"
 
-		// Assert
-		assert.Equal(t, "/host/path:/container/path", result)
-	})
-
-	t.Run("named volume unchanged", func(t *testing.T) {
-		// Act
-		result := NormalizeMountSpec("maven:/container/path")
-
-		// Assert
-		assert.Equal(t, "maven:/container/path", result)
-	})
-
-	t.Run("redundant slashes on host side cleaned", func(t *testing.T) {
-		// Act
-		result := NormalizeMountSpec("/host//data:/container/path")
-
-		// Assert
-		assert.Equal(t, "/host/data:/container/path", result)
-	})
-
-	t.Run("relative path stays a bind mount", func(t *testing.T) {
-		for _, spec := range []string{"./data:/data", "data/.:/data", "other/../data:/data"} {
+	for _, tc := range []struct {
+		name string
+		spec string
+		want string
+	}{
+		{name: "unix path unchanged", spec: "/host/path:/container/path", want: "/host/path:/container/path"},
+		{name: "named volume unchanged", spec: "maven:/container/path", want: "maven:/container/path"},
+		{name: "redundant slashes on host side cleaned", spec: "/host//data:/container/path", want: "/host/data:/container/path"},
+		{name: "dot-slash path stays a bind mount", spec: "./data:/data", want: relative},
+		{name: "trailing dot path stays a bind mount", spec: "data/.:/data", want: relative},
+		{name: "dot-dot path stays a bind mount", spec: "other/../data:/data", want: relative},
+		{name: "container side untouched", spec: "/host/data:/container//path", want: "/host/data:/container//path"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			result := NormalizeMountSpec(spec)
+			result := NormalizeMountSpec(tc.spec)
 
 			// Assert
-			assert.Equal(t, "."+string(filepath.Separator)+"data:/data", result, spec)
-		}
-	})
-
-	t.Run("container side untouched", func(t *testing.T) {
-		// Act
-		result := NormalizeMountSpec("/host/data:/container//path")
-
-		// Assert - redundant slash on container side is preserved
-		assert.Equal(t, "/host/data:/container//path", result)
-	})
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestExpandMountSpec(t *testing.T) {
-	t.Run("TOOL_HOME", func(t *testing.T) {
-		// Arrange
-		spec := "$TOOL_HOME/data:/data"
+	pwd, err := os.Getwd()
+	require.NoError(t, err)
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
 
-		// Act
-		result := ExpandMountSpec(spec, "/custom/home", "")
+	for _, tc := range []struct {
+		name          string
+		spec          string
+		toolHome      string
+		containerHome string
+		want          string
+	}{
+		{name: "TOOL_HOME", spec: "$TOOL_HOME/data:/data", toolHome: "/custom/home", want: "/custom/home/data:/data"},
+		{name: "TOOL_HOME with braces", spec: "${TOOL_HOME}/data:/data", toolHome: "/custom/home", want: "/custom/home/data:/data"},
+		{name: "CONTAINER_HOME", spec: "/data:$CONTAINER_HOME/data", containerHome: "/root", want: "/data:/root/data"},
+		{name: "CONTAINER_HOME with braces", spec: "/data:${CONTAINER_HOME}/data", containerHome: "/root", want: "/data:/root/data"},
+		{name: "PWD", spec: "$PWD:/workspace", want: pwd + ":/workspace"},
+		{name: "braced PWD", spec: "${PWD}:/workspace", want: pwd + ":/workspace"},
+		{name: "tilde", spec: "~/.cache:/cache", want: home + "/.cache:/cache"},
+		{name: "HOME", spec: "$HOME/.cache:/cache", want: home + "/.cache:/cache"},
+		{name: "HOME with braces", spec: "${HOME}/.cache:/cache", want: home + "/.cache:/cache"},
+		{
+			name:          "CONTAINER_HOME in host part not expanded",
+			spec:          "$CONTAINER_HOME/data:/container/data",
+			toolHome:      "/tool",
+			containerHome: "/root",
+			want:          "$CONTAINER_HOME/data:/container/data",
+		},
+		{
+			name:          "TOOL_HOME in container part not expanded",
+			spec:          "/host/data:$TOOL_HOME/data",
+			toolHome:      "/tool",
+			containerHome: "/root",
+			want:          "/host/data:$TOOL_HOME/data",
+		},
+		{
+			name:          "no placeholders",
+			spec:          "/host/path:/container/path",
+			toolHome:      "/custom/home",
+			containerHome: "/root",
+			want:          "/host/path:/container/path",
+		},
+		{
+			name:          "mixed",
+			spec:          "$TOOL_HOME/cfg:${CONTAINER_HOME}/.config",
+			toolHome:      "/home/.agentic",
+			containerHome: "/root",
+			want:          "/home/.agentic/cfg:/root/.config",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := ExpandMountSpec(tc.spec, tc.toolHome, tc.containerHome)
 
-		// Assert
-		assert.Equal(t, "/custom/home/data:/data", result)
-	})
-
-	t.Run("TOOL_HOME with braces", func(t *testing.T) {
-		// Arrange
-		spec := "${TOOL_HOME}/data:/data"
-
-		// Act
-		result := ExpandMountSpec(spec, "/custom/home", "")
-
-		// Assert
-		assert.Equal(t, "/custom/home/data:/data", result)
-	})
-
-	t.Run("CONTAINER_HOME", func(t *testing.T) {
-		// Arrange
-		spec := "/data:$CONTAINER_HOME/data"
-
-		// Act
-		result := ExpandMountSpec(spec, "", "/root")
-
-		// Assert
-		assert.Equal(t, "/data:/root/data", result)
-	})
-
-	t.Run("CONTAINER_HOME with braces", func(t *testing.T) {
-		// Arrange
-		spec := "/data:${CONTAINER_HOME}/data"
-
-		// Act
-		result := ExpandMountSpec(spec, "", "/root")
-
-		// Assert
-		assert.Equal(t, "/data:/root/data", result)
-	})
-
-	t.Run("PWD", func(t *testing.T) {
-		// Arrange
-		pwd, err := os.Getwd()
-		require.NoError(t, err)
-		spec := "$PWD:/workspace"
-
-		// Act
-		result := ExpandMountSpec(spec, "", "")
-
-		// Assert
-		assert.Equal(t, pwd+":/workspace", result)
-	})
-
-	t.Run("braced PWD", func(t *testing.T) {
-		// Arrange
-		pwd, err := os.Getwd()
-		require.NoError(t, err)
-		spec := "${PWD}:/workspace"
-
-		// Act
-		result := ExpandMountSpec(spec, "", "")
-
-		// Assert
-		assert.Equal(t, pwd+":/workspace", result)
-	})
-
-	t.Run("tilde", func(t *testing.T) {
-		// Arrange
-		home, err := os.UserHomeDir()
-		require.NoError(t, err)
-		spec := "~/.cache:/cache"
-
-		// Act
-		result := ExpandMountSpec(spec, "", "")
-
-		// Assert
-		assert.Equal(t, home+"/.cache:/cache", result)
-	})
-
-	t.Run("HOME", func(t *testing.T) {
-		// Arrange
-		home, err := os.UserHomeDir()
-		require.NoError(t, err)
-		spec := "$HOME/.cache:/cache"
-
-		// Act
-		result := ExpandMountSpec(spec, "", "")
-
-		// Assert
-		assert.Equal(t, home+"/.cache:/cache", result)
-	})
-
-	t.Run("HOME with braces", func(t *testing.T) {
-		// Arrange
-		home, err := os.UserHomeDir()
-		require.NoError(t, err)
-		spec := "${HOME}/.cache:/cache"
-
-		// Act
-		result := ExpandMountSpec(spec, "", "")
-
-		// Assert
-		assert.Equal(t, home+"/.cache:/cache", result)
-	})
-
-	t.Run("CONTAINER_HOME in host part not expanded", func(t *testing.T) {
-		// Arrange - $CONTAINER_HOME mistakenly on host side should not expand
-		spec := "$CONTAINER_HOME/data:/container/data"
-
-		// Act
-		result := ExpandMountSpec(spec, "/tool", "/root")
-
-		// Assert
-		assert.Equal(t, "$CONTAINER_HOME/data:/container/data", result)
-	})
-
-	t.Run("TOOL_HOME in container part not expanded", func(t *testing.T) {
-		// Arrange - $TOOL_HOME mistakenly on container side should not expand
-		spec := "/host/data:$TOOL_HOME/data"
-
-		// Act
-		result := ExpandMountSpec(spec, "/tool", "/root")
-
-		// Assert
-		assert.Equal(t, "/host/data:$TOOL_HOME/data", result)
-	})
-
-	t.Run("no placeholders", func(t *testing.T) {
-		// Arrange
-		spec := "/host/path:/container/path"
-
-		// Act
-		result := ExpandMountSpec(spec, "/custom/home", "/root")
-
-		// Assert
-		assert.Equal(t, "/host/path:/container/path", result)
-	})
-
-	t.Run("mixed", func(t *testing.T) {
-		// Arrange
-		spec := "$TOOL_HOME/cfg:${CONTAINER_HOME}/.config"
-
-		// Act
-		result := ExpandMountSpec(spec, "/home/.agentic", "/root")
-
-		// Assert
-		assert.Equal(t, "/home/.agentic/cfg:/root/.config", result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestExpandTmpfsSpec(t *testing.T) {
-	t.Run("CONTAINER_HOME", func(t *testing.T) {
-		// Arrange
-		spec := "$CONTAINER_HOME/.cache:exec,size=1g"
+	for _, tc := range []struct {
+		name string
+		spec string
+		want string
+	}{
+		{name: "CONTAINER_HOME", spec: "$CONTAINER_HOME/.cache:exec,size=1g", want: "/root/.cache:exec,size=1g"},
+		{name: "CONTAINER_HOME with braces", spec: "${CONTAINER_HOME}/.cache:exec,size=1g", want: "/root/.cache:exec,size=1g"},
+		{name: "no options", spec: "$CONTAINER_HOME/.cache", want: "/root/.cache"},
+		{name: "no placeholders", spec: "/tmp/cache:exec,size=512m", want: "/tmp/cache:exec,size=512m"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := ExpandTmpfsSpec(tc.spec, "/root")
 
-		// Act
-		result := ExpandTmpfsSpec(spec, "/root")
-
-		// Assert
-		assert.Equal(t, "/root/.cache:exec,size=1g", result)
-	})
-
-	t.Run("CONTAINER_HOME with braces", func(t *testing.T) {
-		// Arrange
-		spec := "${CONTAINER_HOME}/.cache:exec,size=1g"
-
-		// Act
-		result := ExpandTmpfsSpec(spec, "/root")
-
-		// Assert
-		assert.Equal(t, "/root/.cache:exec,size=1g", result)
-	})
-
-	t.Run("no options", func(t *testing.T) {
-		// Arrange
-		spec := "$CONTAINER_HOME/.cache"
-
-		// Act
-		result := ExpandTmpfsSpec(spec, "/root")
-
-		// Assert
-		assert.Equal(t, "/root/.cache", result)
-	})
-
-	t.Run("no placeholders", func(t *testing.T) {
-		// Arrange
-		spec := "/tmp/cache:exec,size=512m"
-
-		// Act
-		result := ExpandTmpfsSpec(spec, "/root")
-
-		// Assert
-		assert.Equal(t, "/tmp/cache:exec,size=512m", result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestIsUNCPath(t *testing.T) {
-	t.Run("backslash returns true", func(t *testing.T) {
-		// Act
-		result := IsUNCPath(`\\server\share\project`)
+	for _, tc := range []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "backslash returns true", path: `\\server\share\project`, want: true},
+		{name: "forward slash returns true", path: "//server/share/project", want: true},
+		{name: "local path returns false", path: "/home/user/project"},
+		{name: "windows drive returns false", path: `C:\Users\foo`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := IsUNCPath(tc.path)
 
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("forward slash returns true", func(t *testing.T) {
-		// Act
-		result := IsUNCPath("//server/share/project")
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("local path returns false", func(t *testing.T) {
-		// Act
-		result := IsUNCPath("/home/user/project")
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("windows drive returns false", func(t *testing.T) {
-		// Act
-		result := IsUNCPath(`C:\Users\foo`)
-
-		// Assert
-		assert.False(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }

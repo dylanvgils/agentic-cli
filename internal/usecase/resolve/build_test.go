@@ -4,39 +4,31 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestBases(t *testing.T) {
-	t.Run("rc bases are included", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
+	rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
 
-		// Act
-		result := Bases(nil, rc)
+	for _, tc := range []struct {
+		name  string
+		flags []string
+		rc    *config.AgenticRC
+		want  []string
+	}{
+		{name: "rc bases are included", rc: rc, want: []string{"java"}},
+		{name: "flag appends to rc bases in canonical order", flags: []string{"dotnet"}, rc: rc, want: []string{"dotnet", "java"}},
+		{name: "empty when no sources set", rc: &config.AgenticRC{}, want: []string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := Bases(tc.flags, tc.rc)
 
-		// Assert
-		assert.Equal(t, []string{"java"}, result)
-	})
-
-	t.Run("flag appends to rc bases", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
-
-		// Act
-		result := Bases([]string{"dotnet"}, rc)
-
-		// Assert - sorted by canonical extras order
-		assert.Equal(t, []string{"dotnet", "java"}, result)
-	})
-
-	t.Run("empty when no sources set", func(t *testing.T) {
-		// Act
-		result := Bases(nil, &config.AgenticRC{})
-
-		// Assert
-		assert.Empty(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestBasesExact(t *testing.T) {
@@ -58,67 +50,50 @@ func TestBasesExact(t *testing.T) {
 }
 
 func TestVersions(t *testing.T) {
-	t.Run("rc versions used as defaults", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}
+	rc := &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}
 
-		// Act
-		result := Versions(nil, rc)
+	for _, tc := range []struct {
+		name  string
+		flags map[string]string
+		rc    *config.AgenticRC
+		want  map[string]string
+	}{
+		{name: "rc versions used as defaults", rc: rc, want: map[string]string{"java": "17"}},
+		{name: "flag overrides rc version", flags: map[string]string{"java": "21"}, rc: rc, want: map[string]string{"java": "21"}},
+		{name: "empty flag value keeps rc version", flags: map[string]string{"java": ""}, rc: rc, want: map[string]string{"java": "17"}},
+		{name: "empty when no sources set", rc: &config.AgenticRC{}, want: map[string]string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := Versions(tc.flags, tc.rc)
 
-		// Assert
-		assert.Equal(t, "17", result["java"])
-	})
-
-	t.Run("flag overrides rc version", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Versions: map[string]string{"java": "17"}}}
-
-		// Act
-		result := Versions(map[string]string{"java": "21"}, rc)
-
-		// Assert
-		assert.Equal(t, "21", result["java"])
-	})
-
-	t.Run("empty when no sources set", func(t *testing.T) {
-		// Act
-		result := Versions(nil, &config.AgenticRC{})
-
-		// Assert
-		assert.Empty(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestAptPackages(t *testing.T) {
-	t.Run("rc packages are included", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
+	rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
 
-		// Act
-		result := AptPackages(nil, rc)
+	for _, tc := range []struct {
+		name  string
+		flags []string
+		rc    *config.AgenticRC
+		want  []string
+	}{
+		{name: "rc packages are included", rc: rc, want: []string{"make"}},
+		{name: "flag appends to config packages", flags: []string{"gcc"}, rc: rc, want: []string{"make", "gcc"}},
+		{name: "empty when no sources set", rc: &config.AgenticRC{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := AptPackages(tc.flags, tc.rc)
 
-		// Assert
-		assert.Equal(t, []string{"make"}, result)
-	})
-
-	t.Run("flag appends to config packages", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
-
-		// Act
-		result := AptPackages([]string{"gcc"}, rc)
-
-		// Assert
-		assert.Equal(t, []string{"make", "gcc"}, result)
-	})
-
-	t.Run("empty when no sources set", func(t *testing.T) {
-		// Act
-		result := AptPackages(nil, &config.AgenticRC{})
-
-		// Assert
-		assert.Empty(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestAptPackagesExact(t *testing.T) {
@@ -140,106 +115,76 @@ func TestAptPackagesExact(t *testing.T) {
 }
 
 func TestBuildOptions(t *testing.T) {
-	t.Run("merges bases from flag and rc", func(t *testing.T) {
+	t.Run("merges the flags with rc", func(t *testing.T) {
 		// Arrange
-		in := BuildInput{Bases: []string{"dotnet", "java"}}
-
-		// Act
-		opts := BuildOptions(in, &config.AgenticRC{})
-
-		// Assert
-		assert.Equal(t, []string{"dotnet", "java"}, opts.BaseOverride)
-	})
-
-	t.Run("skip install checksum passes through", func(t *testing.T) {
-		// Arrange
-		in := BuildInput{SkipInstallChecksum: true}
-
-		// Act
-		opts := BuildOptions(in, &config.AgenticRC{})
-
-		// Assert
-		assert.True(t, opts.SkipInstallChecksum)
-	})
-
-	t.Run("verify apt reflects whether any apt packages are set", func(t *testing.T) {
-		// Arrange
-		in := BuildInput{AptPackages: []string{"make"}}
-
-		// Act
-		opts := BuildOptions(in, &config.AgenticRC{})
-
-		// Assert
-		assert.True(t, opts.VerifyApt)
-	})
-
-	t.Run("custom installs always come from rc", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{CustomInstalls: []config.RCCustomInstall{{Name: "foo"}}}}
-
-		// Act
-		opts := BuildOptions(BuildInput{}, rc)
-
-		// Assert
-		assert.Equal(t, rc.Build.CustomInstalls, opts.CustomInstalls)
-	})
-
-	t.Run("base-exact overrides rc bases entirely", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
-		exact := []string{"node"}
-		in := BuildInput{BasesExact: &exact}
+		rc := &config.AgenticRC{Build: config.RCBuild{
+			Bases:          []string{"java"},
+			AptPackages:    []string{"jq"},
+			Versions:       map[string]string{"java": "17"},
+			CustomInstalls: []config.RCCustomInstall{{Name: "foo"}},
+		}}
+		in := BuildInput{
+			Bases:               []string{"dotnet"},
+			VersionOverrides:    map[string]string{"node": "24"},
+			AptPackages:         []string{"make"},
+			NoCache:             true,
+			Pull:                true,
+			Registry:            "registry.example.test",
+			SkipInstallChecksum: true,
+		}
 
 		// Act
 		opts := BuildOptions(in, rc)
 
 		// Assert
-		assert.Equal(t, []string{"node"}, opts.BaseOverride)
-		assert.True(t, opts.BaseExact)
+		assert.Equal(t, tools.BuildOptions{
+			BaseOverride:        []string{"dotnet", "java"},
+			Versions:            map[string]string{"java": "17", "node": "24"},
+			AptPackages:         []string{"jq", "make"},
+			VerifyApt:           true,
+			NoCache:             true,
+			Pull:                true,
+			Registry:            "registry.example.test",
+			CustomInstalls:      rc.Build.CustomInstalls,
+			SkipInstallChecksum: true,
+		}, opts)
 	})
 
-	t.Run("empty base-exact clears rc bases", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}}}
-		exact := []string{}
-		in := BuildInput{BasesExact: &exact}
+	rc := &config.AgenticRC{Build: config.RCBuild{Bases: []string{"java"}, AptPackages: []string{"make"}}}
 
-		// Act
-		opts := BuildOptions(in, rc)
+	for _, tc := range []struct {
+		name       string
+		basesExact []string
+		aptExact   []string
+		wantBases  []string
+		wantApt    []string
+	}{
+		{name: "base-exact overrides rc bases entirely", basesExact: []string{"node"}, wantBases: []string{"node"}, wantApt: []string{"make"}},
+		{name: "empty base-exact clears rc bases", basesExact: []string{}, wantApt: []string{"make"}},
+		{name: "apt-exact overrides rc apt entirely", aptExact: []string{"gcc"}, wantBases: []string{"java"}, wantApt: []string{"gcc"}},
+		{name: "empty apt-exact clears rc apt and disables verify", aptExact: []string{}, wantBases: []string{"java"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			var in BuildInput
+			if tc.basesExact != nil {
+				in.BasesExact = &tc.basesExact
+			}
+			if tc.aptExact != nil {
+				in.AptPackagesExact = &tc.aptExact
+			}
 
-		// Assert
-		assert.Empty(t, opts.BaseOverride)
-		assert.True(t, opts.BaseExact)
-	})
+			// Act
+			opts := BuildOptions(in, rc)
 
-	t.Run("apt-exact overrides rc apt entirely", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
-		exact := []string{"gcc"}
-		in := BuildInput{AptPackagesExact: &exact}
-
-		// Act
-		opts := BuildOptions(in, rc)
-
-		// Assert
-		assert.Equal(t, []string{"gcc"}, opts.AptPackages)
-		assert.True(t, opts.AptExact)
-	})
-
-	t.Run("empty apt-exact clears rc apt and disables verify", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Build: config.RCBuild{AptPackages: []string{"make"}}}
-		exact := []string{}
-		in := BuildInput{AptPackagesExact: &exact}
-
-		// Act
-		opts := BuildOptions(in, rc)
-
-		// Assert
-		assert.Empty(t, opts.AptPackages)
-		assert.True(t, opts.AptExact)
-		assert.False(t, opts.VerifyApt)
-	})
+			// Assert
+			assert.ElementsMatch(t, tc.wantBases, opts.BaseOverride)
+			assert.ElementsMatch(t, tc.wantApt, opts.AptPackages)
+			assert.Equal(t, tc.basesExact != nil, opts.BaseExact)
+			assert.Equal(t, tc.aptExact != nil, opts.AptExact)
+			assert.Equal(t, len(tc.wantApt) > 0, opts.VerifyApt)
+		})
+	}
 }
 
 func TestUpdateOptions(t *testing.T) {

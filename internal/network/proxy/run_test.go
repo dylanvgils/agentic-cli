@@ -12,95 +12,58 @@ import (
 )
 
 func TestConfigFromEnv(t *testing.T) {
-	t.Run("reads the rules, log and address as given", func(t *testing.T) {
-		// Arrange
-		t.Setenv(EnvRules, `[{"host":".example.test"},{"host":"raw.example.test","paths":["/a"]}]`)
-		t.Setenv(EnvLog, "/var/log/proxy.jsonl")
-		t.Setenv(EnvAddr, ":9999")
+	for _, tc := range []struct {
+		name string
+		env  map[string]string
+		want Config
+	}{
+		{
+			name: "reads every setting as given",
+			env: map[string]string{
+				EnvRules:       `[{"host":".example.test"},{"host":"raw.example.test","paths":["/a"]}]`,
+				EnvLog:         "/var/log/proxy.jsonl",
+				EnvAddr:        ":9999",
+				EnvTZOffset:    "-18000",
+				EnvMonitor:     "true",
+				EnvCADir:       "/run/agentic/proxy/ca",
+				EnvCredentials: "/run/agentic/proxy/credentials.json",
+				EnvClientNets:  "172.30.0.0/16, fd00::/64",
+				EnvAuthToken:   "test-secret",
+			},
+			want: Config{
+				Addr:            ":9999",
+				Rules:           []Rule{{Host: ".example.test"}, {Host: "raw.example.test", Paths: []string{"/a"}}},
+				LogPath:         "/var/log/proxy.jsonl",
+				TZOffsetSeconds: -18000,
+				Monitor:         true,
+				CADir:           "/run/agentic/proxy/ca",
+				CredentialsPath: "/run/agentic/proxy/credentials.json",
+				ClientNets:      []string{"172.30.0.0/16", "fd00::/64"},
+				AuthToken:       "test-secret",
+			},
+		},
+		{
+			name: "invalid TZ offset and monitor default to zero values",
+			env: map[string]string{
+				EnvTZOffset: "not-a-number",
+				EnvMonitor:  "not-a-bool",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			for _, key := range []string{EnvRules, EnvLog, EnvAddr, EnvTZOffset, EnvMonitor, EnvCADir, EnvCredentials, EnvClientNets, EnvAuthToken} {
+				t.Setenv(key, tc.env[key])
+			}
 
-		// Act
-		cfg, err := ConfigFromEnv()
+			// Act
+			cfg, err := ConfigFromEnv()
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []Rule{{Host: ".example.test"}, {Host: "raw.example.test", Paths: []string{"/a"}}}, cfg.Rules)
-		assert.Equal(t, "/var/log/proxy.jsonl", cfg.LogPath)
-		assert.Equal(t, ":9999", cfg.Addr)
-	})
-
-	t.Run("parses a negative TZ offset", func(t *testing.T) {
-		// Arrange
-		t.Setenv(EnvTZOffset, "-18000")
-
-		// Act
-		cfg, err := ConfigFromEnv()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, -18000, cfg.TZOffsetSeconds)
-	})
-
-	t.Run("missing or invalid TZ offset defaults to zero", func(t *testing.T) {
-		// Arrange
-		t.Setenv(EnvTZOffset, "not-a-number")
-
-		// Act
-		cfg, err := ConfigFromEnv()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Zero(t, cfg.TZOffsetSeconds)
-	})
-
-	t.Run("monitor true enables monitor mode", func(t *testing.T) {
-		// Arrange
-		t.Setenv(EnvMonitor, "true")
-
-		// Act
-		cfg, err := ConfigFromEnv()
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, cfg.Monitor)
-	})
-
-	t.Run("reads the ca dir and credentials path", func(t *testing.T) {
-		// Arrange
-		t.Setenv(EnvCADir, "/run/agentic/proxy/ca")
-		t.Setenv(EnvCredentials, "/run/agentic/proxy/credentials.json")
-
-		// Act
-		cfg, err := ConfigFromEnv()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "/run/agentic/proxy/ca", cfg.CADir)
-		assert.Equal(t, "/run/agentic/proxy/credentials.json", cfg.CredentialsPath)
-	})
-
-	t.Run("reads the client networks", func(t *testing.T) {
-		// Arrange
-		t.Setenv(EnvClientNets, "172.30.0.0/16, fd00::/64")
-
-		// Act
-		cfg, err := ConfigFromEnv()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"172.30.0.0/16", "fd00::/64"}, cfg.ClientNets)
-	})
-
-	t.Run("reads the auth token", func(t *testing.T) {
-		// Arrange
-		t.Setenv(EnvAuthToken, "test-secret")
-
-		// Act
-		cfg, err := ConfigFromEnv()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "test-secret", cfg.AuthToken)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, cfg)
+		})
+	}
 
 	t.Run("refuses malformed rules", func(t *testing.T) {
 		// Arrange
@@ -111,18 +74,6 @@ func TestConfigFromEnv(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, EnvRules)
-	})
-
-	t.Run("missing or invalid monitor defaults to false", func(t *testing.T) {
-		// Arrange
-		t.Setenv(EnvMonitor, "not-a-bool")
-
-		// Act
-		cfg, err := ConfigFromEnv()
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, cfg.Monitor)
 	})
 }
 
@@ -239,19 +190,6 @@ func Test_loadInjector(t *testing.T) {
 		assert.FileExists(t, filepath.Join(caDir, CACertFile), "the cert holds no secret")
 	})
 
-	t.Run("keeps the files when loading fails", func(t *testing.T) {
-		// Arrange
-		caDir := writeTestCADir(t)
-		badPath := writeCredentials(t, Credential{Hosts: []string{"api.example.test"}})
-
-		// Act
-		_, err := loadInjector(caDir, badPath, false)
-
-		// Assert
-		require.Error(t, err)
-		assert.FileExists(t, filepath.Join(caDir, CAKeyFile))
-	})
-
 	t.Run("invalid ca is an error", func(t *testing.T) {
 		// Arrange
 		caDir := t.TempDir()
@@ -263,7 +201,7 @@ func Test_loadInjector(t *testing.T) {
 		assert.ErrorContains(t, err, "read proxy CA")
 	})
 
-	t.Run("invalid credentials are an error", func(t *testing.T) {
+	t.Run("invalid credentials are an error and keep the files", func(t *testing.T) {
 		// Arrange
 		caDir := writeTestCADir(t)
 		badPath := writeCredentials(t, Credential{Hosts: []string{"api.example.test"}})
@@ -273,6 +211,8 @@ func Test_loadInjector(t *testing.T) {
 
 		// Assert
 		assert.ErrorContains(t, err, "no headers")
+		assert.FileExists(t, filepath.Join(caDir, CAKeyFile))
+		assert.FileExists(t, badPath)
 	})
 }
 

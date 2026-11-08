@@ -17,7 +17,6 @@ import (
 func TestClient_StartPublishedProxy(t *testing.T) {
 	client := newTestClient()
 	stubProxySettleTime(t, client, 0)
-	creds := []sandbox.Credential{{Name: "EXAMPLE_API_KEY", Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"}}
 	newSpec := func(t *testing.T) sandbox.RunSpec {
 		return sandbox.RunSpec{
 			User:     &testUser,
@@ -56,7 +55,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		stubPublishedProxyDocker(t, client, "unix:///var/run/docker.sock")
 		stubDockerRunWithStdinCapture(t, client, nil)
 		spec := newSpec(t)
-		spec.Credentials = creds
+		spec.Credentials = testCredentials
 
 		// Act
 		published, err := client.StartPublishedProxy(spec, filepath.Join(t.TempDir(), "proxy_abc.jsonl"), sandbox.RuntimeMicrosandbox)
@@ -110,7 +109,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		calls, _ := stubPublishedProxyDocker(t, client, "unix:///var/run/docker.sock")
 		spec := newSpec(t)
 		spec.DryRun = true
-		spec.Credentials = creds
+		spec.Credentials = testCredentials
 
 		// Act
 		var published PublishedProxy

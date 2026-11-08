@@ -23,3 +23,13 @@ func (f *fakeDocker) PruneImages() (string, error) {
 	}
 	return f.pruneImages()
 }
+
+// stubBuilds makes d's BuildTool record each built tool and return err.
+func stubBuilds(d *fakeDocker, err error) *[]string {
+	built := &[]string{}
+	d.buildTool = func(tool, _ string, _ tools.BuildOptions) error {
+		*built = append(*built, tool)
+		return err
+	}
+	return built
+}

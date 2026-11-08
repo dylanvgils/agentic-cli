@@ -136,3 +136,21 @@ func TestRuntimeConfig_WriteInstructions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(got), "\n# Environment\n")
 }
+
+func TestConfigs_stage(t *testing.T) {
+	for _, name := range Names() {
+		t.Run(name+" builds the tool stage as its own user", func(t *testing.T) {
+			// Act
+			stage := Configs[name].Build.Stage("prev")
+
+			// Assert
+			assert.Equal(t, "prev", stage.From.Image)
+			assert.Equal(t, "tool", stage.From.As)
+			result := renderStage(stage)
+			assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique "+name)
+			assert.Contains(t, result, "TOOL_HOME=/home/"+name)
+			assert.Contains(t, result, "agentic-version-"+name)
+			assert.Contains(t, result, name+" --version")
+		})
+	}
+}

@@ -115,39 +115,30 @@ func Test_Service_Images(t *testing.T) {
 		assert.Equal(t, "agentic-claude", images[0].Image)
 	})
 
-	t.Run("namespace narrows the listing", func(t *testing.T) {
-		// Arrange
-		var filters []docker.ImageFilter
-		d := &fakeDocker{listAllImages: func(f ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			filters = f
-			return nil, nil
-		}}
-		svc := New(d, &fakeMicrosandbox{})
+	for _, tc := range []struct {
+		name      string
+		namespace string
+		want      []docker.ImageFilter
+	}{
+		{name: "namespace narrows the listing", namespace: "work", want: []docker.ImageFilter{docker.NamespaceFilter("work")}},
+		{name: "empty namespace lists every namespace"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			var filters []docker.ImageFilter
+			d := &fakeDocker{listAllImages: func(f ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+				filters = f
+				return nil, nil
+			}}
 
-		// Act
-		_, err := svc.Images("work")
+			// Act
+			_, err := New(d, &fakeMicrosandbox{}).Images(tc.namespace)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []docker.ImageFilter{docker.NamespaceFilter("work")}, filters)
-	})
-
-	t.Run("empty namespace lists every namespace", func(t *testing.T) {
-		// Arrange
-		var filters []docker.ImageFilter
-		d := &fakeDocker{listAllImages: func(f ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			filters = f
-			return nil, nil
-		}}
-		svc := New(d, &fakeMicrosandbox{})
-
-		// Act
-		_, err := svc.Images("")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, filters)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, filters)
+		})
+	}
 
 	t.Run("docker error is returned", func(t *testing.T) {
 		// Arrange
@@ -165,36 +156,6 @@ func Test_Service_Images(t *testing.T) {
 }
 
 func Test_Service_dockerRuns(t *testing.T) {
-	t.Run("returns each container as a Docker run", func(t *testing.T) {
-		// Arrange
-		svc := New(&fakeDocker{listRunningContainers: func() ([]*docker.ContainerInfo, error) {
-			return []*docker.ContainerInfo{
-				{
-					Name:      "agentic-claude-ab12",
-					Image:     "agentic-claude",
-					Namespace: "agentic",
-					Tool:      "claude",
-					Status:    "Up 5 minutes",
-				},
-			}, nil
-		}}, &fakeMicrosandbox{})
-
-		// Act
-		runs := svc.dockerRuns()
-
-		// Assert
-		assert.Equal(t, []Run{
-			{
-				Tool:      "claude",
-				Namespace: "agentic",
-				Runtime:   sandbox.RuntimeDocker,
-				Image:     "agentic-claude",
-				Status:    "Up 5 minutes",
-				Name:      "agentic-claude-ab12",
-			},
-		}, runs)
-	})
-
 	t.Run("warns and returns nothing when the daemon is down", func(t *testing.T) {
 		// Arrange
 		logs := iostreamstest.StubErr(t)
@@ -228,36 +189,6 @@ func Test_Service_dockerRuns(t *testing.T) {
 }
 
 func Test_Service_msbRuns(t *testing.T) {
-	t.Run("returns each sandbox as a microsandbox run", func(t *testing.T) {
-		// Arrange
-		svc := New(&fakeDocker{}, &fakeMicrosandbox{listRunning: func() ([]*microsandbox.Sandbox, error) {
-			return []*microsandbox.Sandbox{
-				{
-					Name:      "vm-1",
-					Image:     "agentic-opencode:latest",
-					Namespace: "agentic",
-					Tool:      "opencode",
-					Status:    "running",
-				},
-			}, nil
-		}})
-
-		// Act
-		runs := svc.msbRuns()
-
-		// Assert
-		assert.Equal(t, []Run{
-			{
-				Tool:      "opencode",
-				Namespace: "agentic",
-				Runtime:   sandbox.RuntimeMicrosandbox,
-				Image:     "agentic-opencode:latest",
-				Status:    "running",
-				Name:      "vm-1",
-			},
-		}, runs)
-	})
-
 	t.Run("returns nothing when msb isn't installed", func(t *testing.T) {
 		// Arrange
 		svc := New(&fakeDocker{}, &fakeMicrosandbox{

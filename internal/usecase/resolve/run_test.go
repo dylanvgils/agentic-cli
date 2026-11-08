@@ -130,54 +130,45 @@ func TestEnv(t *testing.T) {
 }
 
 func TestResourceLimitsFor(t *testing.T) {
-	t.Run("rc fills empty flags", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
+	rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
 
-		// Act
-		result := ResourceLimitsFor(sandbox.ResourceLimits{}, rc)
+	for _, tc := range []struct {
+		name  string
+		flags sandbox.ResourceLimits
+		rc    *config.AgenticRC
+		want  sandbox.ResourceLimits
+	}{
+		{
+			name: "rc fills empty flags",
+			rc:   rc,
+			want: sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
+		},
+		{
+			name:  "flag takes precedence over rc",
+			flags: sandbox.ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"},
+			rc:    rc,
+			want:  sandbox.ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"},
+		},
+		{
+			name:  "partial flags rc fills rest",
+			flags: sandbox.ResourceLimits{PidsLimit: "1024"},
+			rc:    rc,
+			want:  sandbox.ResourceLimits{PidsLimit: "1024", CPUs: "2", Memory: "2g"},
+		},
+		{
+			name: "falls back to hardcoded default when nothing else set",
+			rc:   &config.AgenticRC{},
+			want: sandbox.ResourceLimits{PidsLimit: sandbox.DefaultPidsLimit, CPUs: sandbox.DefaultCPUs, Memory: sandbox.DefaultMemory},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := ResourceLimitsFor(tc.flags, tc.rc)
 
-		// Assert
-		assert.Equal(t, "512", result.PidsLimit)
-		assert.Equal(t, "2", result.CPUs)
-		assert.Equal(t, "2g", result.Memory)
-	})
-
-	t.Run("flag takes precedence over rc", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
-
-		// Act
-		result := ResourceLimitsFor(sandbox.ResourceLimits{PidsLimit: "1024", CPUs: "4", Memory: "4g"}, rc)
-
-		// Assert
-		assert.Equal(t, "1024", result.PidsLimit)
-		assert.Equal(t, "4", result.CPUs)
-		assert.Equal(t, "4g", result.Memory)
-	})
-
-	t.Run("partial flags rc fills rest", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
-
-		// Act
-		result := ResourceLimitsFor(sandbox.ResourceLimits{PidsLimit: "1024"}, rc)
-
-		// Assert
-		assert.Equal(t, "1024", result.PidsLimit)
-		assert.Equal(t, "2", result.CPUs)
-		assert.Equal(t, "2g", result.Memory)
-	})
-
-	t.Run("falls back to hardcoded default when nothing else set", func(t *testing.T) {
-		// Act
-		result := ResourceLimitsFor(sandbox.ResourceLimits{}, &config.AgenticRC{})
-
-		// Assert - always resolved, never left empty
-		assert.Equal(t, sandbox.DefaultPidsLimit, result.PidsLimit)
-		assert.Equal(t, sandbox.DefaultCPUs, result.CPUs)
-		assert.Equal(t, sandbox.DefaultMemory, result.Memory)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestRuntime(t *testing.T) {

@@ -25,65 +25,28 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		assert.Empty(t, get())
 	})
 
-	t.Run("skips absolute path", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
+	for _, tc := range []struct {
+		name    string
+		volumes []string
+	}{
+		{name: "skips an absolute path", volumes: []string{"/host/path:/container"}},
+		{name: "skips the expanded tool home", volumes: []string{"$TOOL_HOME/data:/container"}},
+		{name: "skips a Windows absolute path", volumes: []string{`C:\Users\foo:/container`, `c:\data:/container`}},
+		{name: "skips an empty left side", volumes: []string{":/container"}},
+		{name: "skips an empty list", volumes: []string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			get := stubDockerRunCapture(t, client)
 
-		// Act
-		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{"/host/path:/container"}}, "")
+			// Act
+			err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: tc.volumes, ToolHome: "/home/.agentic"}, "")
 
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, get())
-	})
-
-	t.Run("skips tool home expanded", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
-
-		// Act
-		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{"$TOOL_HOME/data:/container"}, ToolHome: "/home/.agentic"}, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, get())
-	})
-
-	t.Run("skips Windows absolute path", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
-
-		// Act
-		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{`C:\Users\foo:/container`}}, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, get())
-	})
-
-	t.Run("skips Windows absolute path lowercase", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
-
-		// Act
-		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{`c:\data:/container`}}, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, get())
-	})
-
-	t.Run("skips empty left", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
-
-		// Act
-		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{":/container"}}, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, get())
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Empty(t, get())
+		})
+	}
 
 	t.Run("existing volume skips create and chown", func(t *testing.T) {
 		// Arrange
@@ -166,17 +129,6 @@ func TestEnsureNamedVolumes(t *testing.T) {
 		assert.Equal(t, []string{"maven", "gradle"}, inspects)
 	})
 
-	t.Run("empty list", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
-
-		// Act
-		err := client.EnsureNamedVolumes(sandbox.RunSpec{User: &testUser, Volumes: []string{}}, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, get())
-	})
 }
 
 func TestCreateVolume(t *testing.T) {
@@ -211,24 +163,13 @@ func TestCreateVolume(t *testing.T) {
 func TestListVolumeNames(t *testing.T) {
 	client := newTestClient()
 
-	t.Run("calls docker with quiet and filter", func(t *testing.T) {
+	t.Run("lists the project's volume names", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, client)
-
-		// Act
-		_, err := client.ListVolumeNames()
-
-		// Assert
-		require.NoError(t, err)
-		calls := get()
-		require.Len(t, calls, 1)
-		assert.Contains(t, calls[0].args, "--quiet")
-		assert.Contains(t, calls[0].args, "--filter=label=project=agentic-cli")
-	})
-
-	t.Run("splits lines", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "maven\ngradle\n", nil)
+		var capturedArgs []string
+		stubDockerRun(t, client, func(args ...string) (string, error) {
+			capturedArgs = args
+			return "maven\ngradle\n", nil
+		})
 
 		// Act
 		names, err := client.ListVolumeNames()
@@ -236,6 +177,8 @@ func TestListVolumeNames(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"maven", "gradle"}, names)
+		assert.Contains(t, capturedArgs, "--quiet")
+		assert.Contains(t, capturedArgs, "--filter=label=project=agentic-cli")
 	})
 
 	t.Run("empty output returns empty", func(t *testing.T) {

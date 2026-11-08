@@ -3,6 +3,7 @@ package certs
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"net"
 	"testing"
 
@@ -24,58 +25,47 @@ func TestNewCA(t *testing.T) {
 }
 
 func TestNewScopedCA(t *testing.T) {
-	t.Run("leaf for a permitted name or its subdomain verifies", func(t *testing.T) {
-		// Arrange
-		ca, err := NewScopedCA("test CA", []string{"api.example.test"})
-		require.NoError(t, err)
+	dnsScope := []string{"api.example.test"}
+	ipScope := []string{"127.0.0.1", "::1"}
 
-		for _, name := range []string{"api.example.test", "eu.api.example.test"} {
-			leaf := issueTestLeaf(t, ca, x509.ExtKeyUsageServerAuth, name)
-
-			// Act
-			err := verifyLeaf(ca, leaf, x509.ExtKeyUsageServerAuth, name)
-
-			// Assert
-			assert.NoError(t, err, name)
+	for _, tc := range []struct {
+		scope     []string
+		name      string
+		permitted bool
+	}{
+		{scope: dnsScope, name: "api.example.test", permitted: true},
+		{scope: dnsScope, name: "eu.api.example.test", permitted: true},
+		{scope: dnsScope, name: "example.test"},
+		{scope: dnsScope, name: "evil.test"},
+		{scope: dnsScope, name: "127.0.0.1"},
+		{scope: dnsScope, name: "::1"},
+		{scope: ipScope, name: "127.0.0.1", permitted: true},
+		{scope: ipScope, name: "::1", permitted: true},
+		{scope: ipScope, name: "127.0.0.2"},
+		{scope: ipScope, name: "::2"},
+		{scope: ipScope, name: "api.example.test"},
+	} {
+		verdict := "is rejected"
+		if tc.permitted {
+			verdict = "verifies"
 		}
-	})
-
-	t.Run("leaf for any other name is rejected", func(t *testing.T) {
-		// Arrange
-		ca, err := NewScopedCA("test CA", []string{"api.example.test"})
-		require.NoError(t, err)
-
-		for _, name := range []string{"example.test", "evil.test", "127.0.0.1", "::1"} {
-			leaf := issueTestLeaf(t, ca, x509.ExtKeyUsageServerAuth, name)
+		t.Run(fmt.Sprintf("leaf for %s under %v %s", tc.name, tc.scope, verdict), func(t *testing.T) {
+			// Arrange
+			ca, err := NewScopedCA("test CA", tc.scope)
+			require.NoError(t, err)
+			leaf := issueTestLeaf(t, ca, x509.ExtKeyUsageServerAuth, tc.name)
 
 			// Act
-			err := verifyLeaf(ca, leaf, x509.ExtKeyUsageServerAuth, name)
+			err = verifyLeaf(ca, leaf, x509.ExtKeyUsageServerAuth, tc.name)
 
 			// Assert
-			assert.ErrorContains(t, err, "not authorized to sign for this name", name)
-		}
-	})
-
-	t.Run("ip-only scope permits only those ips", func(t *testing.T) {
-		// Arrange
-		ca, err := NewScopedCA("test CA", []string{"127.0.0.1", "::1"})
-		require.NoError(t, err)
-		cases := map[string]bool{"127.0.0.1": true, "::1": true, "127.0.0.2": false, "::2": false, "api.example.test": false}
-
-		for name, permitted := range cases {
-			leaf := issueTestLeaf(t, ca, x509.ExtKeyUsageServerAuth, name)
-
-			// Act
-			err := verifyLeaf(ca, leaf, x509.ExtKeyUsageServerAuth, name)
-
-			// Assert
-			if permitted {
-				assert.NoError(t, err, name)
+			if tc.permitted {
+				assert.NoError(t, err)
 			} else {
-				assert.ErrorContains(t, err, "not authorized to sign for this name", name)
+				assert.ErrorContains(t, err, "not authorized to sign for this name")
 			}
-		}
-	})
+		})
+	}
 
 	t.Run("constraints are critical and survive a reload", func(t *testing.T) {
 		// Arrange

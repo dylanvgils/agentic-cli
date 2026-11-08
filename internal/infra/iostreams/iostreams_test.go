@@ -35,50 +35,29 @@ func TestSystem(t *testing.T) {
 	assert.Same(t, os.Stderr, s.Err)
 }
 
-func TestStreams_Print(t *testing.T) {
-	// Arrange
-	s, out := newTestStreams()
+// TestStreams_print covers each print method on the Out stream.
+func TestStreams_print(t *testing.T) {
+	for _, tc := range []struct {
+		method string
+		write  func(*Streams)
+		want   string
+	}{
+		{method: "Print", write: func(s *Streams) { s.Print("FROM scratch") }, want: "FROM scratch"},
+		{method: "Printf", write: func(s *Streams) { s.Printf("version: %s", "1.0.0") }, want: "version: 1.0.0"},
+		{method: "Println", write: func(s *Streams) { s.Println("alias agt=agentic") }, want: "alias agt=agentic\n"},
+		{method: "Println without args", write: func(s *Streams) { s.Println() }, want: "\n"},
+	} {
+		t.Run(tc.method, func(t *testing.T) {
+			// Arrange
+			s, out := newTestStreams()
 
-	// Act
-	s.Print("FROM scratch")
+			// Act
+			tc.write(s)
 
-	// Assert
-	assert.Equal(t, "FROM scratch", out.String())
-}
-
-func TestStreams_Printf(t *testing.T) {
-	// Arrange
-	s, out := newTestStreams()
-
-	// Act
-	s.Printf("version: %s", "1.0.0")
-
-	// Assert
-	assert.Equal(t, "version: 1.0.0", out.String())
-}
-
-func TestStreams_Println(t *testing.T) {
-	t.Run("writes the text and a newline", func(t *testing.T) {
-		// Arrange
-		s, out := newTestStreams()
-
-		// Act
-		s.Println("alias agt=agentic")
-
-		// Assert
-		assert.Equal(t, "alias agt=agentic\n", out.String())
-	})
-
-	t.Run("no args writes a blank line", func(t *testing.T) {
-		// Arrange
-		s, out := newTestStreams()
-
-		// Act
-		s.Println()
-
-		// Assert
-		assert.Equal(t, "\n", out.String())
-	})
+			// Assert
+			assert.Equal(t, tc.want, out.String())
+		})
+	}
 }
 
 func TestStreams_IsTerminal(t *testing.T) {
@@ -133,37 +112,28 @@ func TestSetDefault(t *testing.T) {
 	assert.Same(t, s, std.Load())
 }
 
-func TestPrint(t *testing.T) {
-	// Arrange
-	out := stubDefault(t)
+// Test_packagePrint covers each package print func writing through Default.
+func Test_packagePrint(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		write func()
+		want  string
+	}{
+		{name: "Print", write: func() { Print("FROM scratch") }, want: "FROM scratch"},
+		{name: "Printf", write: func() { Printf("version: %s", "1.0.0") }, want: "version: 1.0.0"},
+		{name: "Println", write: func() { Println("alias agt=agentic") }, want: "alias agt=agentic\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			out := stubDefault(t)
 
-	// Act
-	Print("FROM scratch")
+			// Act
+			tc.write()
 
-	// Assert
-	assert.Equal(t, "FROM scratch", out.String())
-}
-
-func TestPrintf(t *testing.T) {
-	// Arrange
-	out := stubDefault(t)
-
-	// Act
-	Printf("version: %s", "1.0.0")
-
-	// Assert
-	assert.Equal(t, "version: 1.0.0", out.String())
-}
-
-func TestPrintln(t *testing.T) {
-	// Arrange
-	out := stubDefault(t)
-
-	// Act
-	Println("alias agt=agentic")
-
-	// Assert
-	assert.Equal(t, "alias agt=agentic\n", out.String())
+			// Assert
+			assert.Equal(t, tc.want, out.String())
+		})
+	}
 }
 
 func TestIsTerminal(t *testing.T) {

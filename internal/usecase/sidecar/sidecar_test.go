@@ -14,44 +14,30 @@ import (
 )
 
 func TestEnsure(t *testing.T) {
-	t.Run("proxy only builds the proxy image", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubErr(t)
-		fake, built := recordBuilds()
+	for _, tc := range []struct {
+		name  string
+		proxy bool
+		dind  bool
+		want  []string
+	}{
+		{name: "proxy only builds the proxy image", proxy: true, want: []string{tools.ProxyImage}},
+		{name: "dind only builds the dind image", dind: true, want: []string{tools.DindImage}},
+		{name: "both enabled builds both images", proxy: true, dind: true, want: []string{tools.ProxyImage, tools.DindImage}},
+		{name: "neither enabled builds nothing"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			iostreamstest.StubErr(t)
+			fake, built := recordBuilds()
 
-		// Act
-		err := New(fake).Ensure(true, false, "")
+			// Act
+			err := New(fake).Ensure(tc.proxy, tc.dind, "")
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{tools.ProxyImage}, built())
-	})
-
-	t.Run("dind only builds the dind image", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubErr(t)
-		fake, built := recordBuilds()
-
-		// Act
-		err := New(fake).Ensure(false, true, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{tools.DindImage}, built())
-	})
-
-	t.Run("both enabled builds both images", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubErr(t)
-		fake, built := recordBuilds()
-
-		// Act
-		err := New(fake).Ensure(true, true, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{tools.ProxyImage, tools.DindImage}, built())
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, built())
+		})
+	}
 
 	t.Run("proxy build error stops before the dind step", func(t *testing.T) {
 		// Arrange
@@ -67,28 +53,21 @@ func TestEnsure(t *testing.T) {
 		assert.Empty(t, built())
 	})
 
-	t.Run("neither enabled builds nothing", func(t *testing.T) {
-		// Arrange
-		fake, built := recordBuilds()
-
-		// Act
-		err := New(fake).Ensure(false, false, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, built())
-	})
 }
 
 func TestBuildProxy(t *testing.T) {
-	t.Run("builds the proxy image for this CLI version", func(t *testing.T) {
+	t.Run("builds the proxy image for this CLI version, then prunes", func(t *testing.T) {
 		// Arrange
 		var image, version string
 		var opts tools.BuildOptions
-		svc := New(&fakeDocker{buildProxyImage: func(i, v, _ string, o tools.BuildOptions) error {
-			image, version, opts = i, v, o
-			return nil
-		}})
+		pruned := false
+		svc := New(&fakeDocker{
+			buildProxyImage: func(i, v, _ string, o tools.BuildOptions) error {
+				image, version, opts = i, v, o
+				return nil
+			},
+			pruneImages: func() (string, error) { pruned = true; return "", nil },
+		})
 
 		// Act
 		err := svc.BuildProxy(tools.BuildOptions{NoCache: true})
@@ -98,18 +77,6 @@ func TestBuildProxy(t *testing.T) {
 		assert.Equal(t, tools.ProxyImage, image)
 		assert.Equal(t, buildinfo.Version, version)
 		assert.True(t, opts.NoCache)
-	})
-
-	t.Run("prunes after a successful build", func(t *testing.T) {
-		// Arrange
-		pruned := false
-		svc := New(&fakeDocker{pruneImages: func() (string, error) { pruned = true; return "", nil }})
-
-		// Act
-		err := svc.BuildProxy(tools.BuildOptions{})
-
-		// Assert
-		require.NoError(t, err)
 		assert.True(t, pruned)
 	})
 
@@ -131,16 +98,20 @@ func TestBuildProxy(t *testing.T) {
 }
 
 func Test_ensureProxy(t *testing.T) {
-	t.Run("builds the image when missing", func(t *testing.T) {
+	t.Run("builds a missing image without pruning during agentic run", func(t *testing.T) {
 		// Arrange
 		iostreamstest.StubErr(t)
 		var built string
 		var registry string
-		svc := New(&fakeDocker{buildProxyImage: func(image, _, _ string, opts tools.BuildOptions) error {
-			built = image
-			registry = opts.Registry
-			return nil
-		}})
+		pruned := false
+		svc := New(&fakeDocker{
+			buildProxyImage: func(image, _, _ string, opts tools.BuildOptions) error {
+				built = image
+				registry = opts.Registry
+				return nil
+			},
+			pruneImages: func() (string, error) { pruned = true; return "", nil },
+		})
 
 		// Act
 		err := svc.ensureProxy("registry.example.test")
@@ -149,6 +120,7 @@ func Test_ensureProxy(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, tools.ProxyImage, built)
 		assert.Equal(t, "registry.example.test", registry)
+		assert.False(t, pruned)
 	})
 
 	t.Run("skips build when image already exists at current version", func(t *testing.T) {
@@ -185,66 +157,48 @@ func Test_ensureProxy(t *testing.T) {
 		assert.Contains(t, logBuf.String(), "building agentic-proxy (built by a different agentic version)")
 	})
 
-	t.Run("never prunes during agentic run", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubErr(t)
-		pruned := false
-		svc := New(&fakeDocker{pruneImages: func() (string, error) { pruned = true; return "", nil }})
-
-		// Act
-		err := svc.ensureProxy("")
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, pruned)
-	})
 }
 
 func Test_ensureDind(t *testing.T) {
 	fresh := formatTestLabelTime(time.Now())
 
-	t.Run("current image is reused", func(t *testing.T) {
-		// Arrange
-		fake, built := recordBuilds()
-		fake.inspectImage = inspectReturns(&docker.ImageInfo{CLIVersion: buildinfo.Version, Built: fresh}, nil)
+	for _, tc := range []struct {
+		name    string
+		info    *docker.ImageInfo
+		want    []string
+		wantLog string
+	}{
+		{
+			name: "current image is reused",
+			info: &docker.ImageInfo{CLIVersion: buildinfo.Version, Built: fresh},
+		},
+		{
+			name:    "missing image is built",
+			want:    []string{tools.DindImage},
+			wantLog: "building agentic-dind (image missing)",
+		},
+		{
+			name:    "stale image is rebuilt to pick up base patches",
+			info:    &docker.ImageInfo{CLIVersion: buildinfo.Version, Built: formatTestLabelTime(time.Now().Add(-tools.DindImageMaxAge - time.Hour))},
+			want:    []string{tools.DindImage},
+			wantLog: "building agentic-dind (older than",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			logBuf := iostreamstest.StubErr(t)
+			fake, built := recordBuilds()
+			fake.inspectImage = inspectReturns(tc.info, nil)
 
-		// Act
-		err := New(fake).ensureDind("")
+			// Act
+			err := New(fake).ensureDind("")
 
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, built())
-	})
-
-	t.Run("missing image is built", func(t *testing.T) {
-		// Arrange
-		logBuf := iostreamstest.StubErr(t)
-		fake, built := recordBuilds()
-
-		// Act
-		err := New(fake).ensureDind("")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{tools.DindImage}, built())
-		assert.Contains(t, logBuf.String(), "building agentic-dind (image missing)")
-	})
-
-	t.Run("stale image is rebuilt to pick up base patches", func(t *testing.T) {
-		// Arrange
-		stale := formatTestLabelTime(time.Now().Add(-tools.DindImageMaxAge - time.Hour))
-		logBuf := iostreamstest.StubErr(t)
-		fake, built := recordBuilds()
-		fake.inspectImage = inspectReturns(&docker.ImageInfo{CLIVersion: buildinfo.Version, Built: stale}, nil)
-
-		// Act
-		err := New(fake).ensureDind("")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{tools.DindImage}, built())
-		assert.Contains(t, logBuf.String(), "building agentic-dind (older than")
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, built())
+			assert.Contains(t, logBuf.String(), tc.wantLog)
+		})
+	}
 
 	t.Run("failed refresh of an existing image only warns", func(t *testing.T) {
 		// Arrange

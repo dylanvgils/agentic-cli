@@ -9,139 +9,51 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLogger_Step(t *testing.T) {
-	// Arrange
-	var buf bytes.Buffer
-	l := newTestLogger(&buf)
+// TestLogger_messages covers each message method, plain and f form, on a plain writer.
+func TestLogger_messages(t *testing.T) {
+	for _, tc := range []struct {
+		method string
+		write  func(*Logger)
+		want   string
+	}{
+		{method: "Step", write: func(l *Logger) { l.Step("building image") }, want: "=> building image\n"},
+		{method: "Stepf", write: func(l *Logger) { l.Stepf("building %s image", "claude") }, want: "=> building claude image\n"},
+		{method: "Detail", write: func(l *Logger) { l.Detail("base: java") }, want: "   base: java\n"},
+		{method: "Detailf", write: func(l *Logger) { l.Detailf("version: %s", "1.0.0") }, want: "   version: 1.0.0\n"},
+		{method: "Info", write: func(l *Logger) { l.Info("starting proxy...") }, want: "agentic: starting proxy...\n"},
+		{method: "Infof", write: func(l *Logger) { l.Infof("starting %s...", "proxy") }, want: "agentic: starting proxy...\n"},
+		{method: "Error", write: func(l *Logger) { l.Error("no docker") }, want: "agentic: error: no docker\n"},
+		{method: "Errorf", write: func(l *Logger) { l.Errorf("no %s", "docker") }, want: "agentic: error: no docker\n"},
+		{method: "Warn", write: func(l *Logger) { l.Warn("could not sweep") }, want: "agentic: warning: could not sweep\n"},
+		{method: "Warnf", write: func(l *Logger) { l.Warnf("could not %s", "sweep") }, want: "agentic: warning: could not sweep\n"},
+		{method: "Prompt", write: func(l *Logger) { l.Prompt("update now? [y/N] ") }, want: "agentic: update now? [y/N] "},
+		{method: "Promptf", write: func(l *Logger) { l.Promptf("update %s? [y/N] ", "now") }, want: "agentic: update now? [y/N] "},
+	} {
+		t.Run(tc.method, func(t *testing.T) {
+			// Arrange
+			var buf bytes.Buffer
+			l := newTestLogger(&buf)
 
-	// Act
-	l.Step("building image")
+			// Act
+			tc.write(l)
 
-	// Assert
-	assert.Equal(t, "=> building image\n", buf.String())
-}
-
-func TestLogger_Stepf(t *testing.T) {
-	// Arrange
-	var buf bytes.Buffer
-	l := newTestLogger(&buf)
-
-	// Act
-	l.Stepf("building %s image", "claude")
-
-	// Assert
-	assert.Equal(t, "=> building claude image\n", buf.String())
-}
-
-func TestLogger_Detail(t *testing.T) {
-	// Arrange
-	var buf bytes.Buffer
-	l := newTestLogger(&buf)
-
-	// Act
-	l.Detail("base: java")
-
-	// Assert
-	assert.Equal(t, "   base: java\n", buf.String())
-}
-
-func TestLogger_Detailf(t *testing.T) {
-	// Arrange
-	var buf bytes.Buffer
-	l := newTestLogger(&buf)
-
-	// Act
-	l.Detailf("version: %s", "1.0.0")
-
-	// Assert
-	assert.Equal(t, "   version: 1.0.0\n", buf.String())
-}
-
-func TestLogger_Info(t *testing.T) {
-	// Arrange
-	var buf bytes.Buffer
-	l := newTestLogger(&buf)
-
-	// Act
-	l.Info("starting proxy...")
-
-	// Assert
-	assert.Equal(t, "agentic: starting proxy...\n", buf.String())
+			// Assert
+			assert.Equal(t, tc.want, buf.String())
+		})
+	}
 }
 
 func TestLogger_Infof(t *testing.T) {
-	t.Run("plain writer gets plain prefix", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		l := newTestLogger(&buf)
-
-		// Act
-		l.Infof("starting %s...", "proxy")
-
-		// Assert
-		assert.Equal(t, "agentic: starting proxy...\n", buf.String())
-	})
-
-	t.Run("color dims the prefix", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		l := newTestLogger(&buf)
-		l.color = true
-
-		// Act
-		l.Infof("starting %s...", "proxy")
-
-		// Assert
-		assert.Equal(t, "\x1b[2magentic: \x1b[0mstarting proxy...\n", buf.String())
-	})
-}
-
-func TestLogger_Error(t *testing.T) {
 	// Arrange
 	var buf bytes.Buffer
 	l := newTestLogger(&buf)
+	l.color = true
 
 	// Act
-	l.Error("no docker")
+	l.Infof("starting %s...", "proxy")
 
-	// Assert
-	assert.Equal(t, "agentic: error: no docker\n", buf.String())
-}
-
-func TestLogger_Errorf(t *testing.T) {
-	// Arrange
-	var buf bytes.Buffer
-	l := newTestLogger(&buf)
-
-	// Act
-	l.Errorf("no %s", "docker")
-
-	// Assert
-	assert.Equal(t, "agentic: error: no docker\n", buf.String())
-}
-
-func TestLogger_Warn(t *testing.T) {
-	// Arrange
-	var buf bytes.Buffer
-	l := newTestLogger(&buf)
-
-	// Act
-	l.Warn("could not sweep")
-
-	// Assert
-	assert.Equal(t, "agentic: warning: could not sweep\n", buf.String())
-}
-
-func TestLogger_Warnf(t *testing.T) {
-	// Arrange
-	var buf bytes.Buffer
-	l := newTestLogger(&buf)
-
-	// Act
-	l.Warnf("could not %s", "sweep")
-
-	// Assert
-	assert.Equal(t, "agentic: warning: could not sweep\n", buf.String())
+	// Assert - color dims the prefix
+	assert.Equal(t, "\x1b[2magentic: \x1b[0mstarting proxy...\n", buf.String())
 }
 
 func TestLogger_Blank(t *testing.T) {
@@ -197,30 +109,6 @@ func TestLogger_Separate(t *testing.T) {
 		// Assert
 		assert.Equal(t, "agentic: warning: could not sweep\n\n", buf.String())
 	})
-}
-
-func TestLogger_Prompt(t *testing.T) {
-	// Arrange
-	var buf bytes.Buffer
-	l := newTestLogger(&buf)
-
-	// Act
-	l.Prompt("update now? [y/N] ")
-
-	// Assert
-	assert.Equal(t, "agentic: update now? [y/N] ", buf.String())
-}
-
-func TestLogger_Promptf(t *testing.T) {
-	// Arrange
-	var buf bytes.Buffer
-	l := newTestLogger(&buf)
-
-	// Act
-	l.Promptf("update %s? [y/N] ", "now")
-
-	// Assert
-	assert.Equal(t, "agentic: update now? [y/N] ", buf.String())
 }
 
 func Test_useColor(t *testing.T) {

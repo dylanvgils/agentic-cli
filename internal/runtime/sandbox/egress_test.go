@@ -7,57 +7,43 @@ import (
 )
 
 func TestEgressMode_Enabled(t *testing.T) {
-	t.Run("zero value is off", func(t *testing.T) {
-		// Arrange
-		var mode EgressMode
+	for _, tc := range []struct {
+		name string
+		mode EgressMode
+		want bool
+	}{
+		{name: "zero value is off", mode: EgressMode(0)},
+		{name: "off is disabled", mode: EgressOff},
+		{name: "enforce is enabled", mode: EgressEnforce, want: true},
+		{name: "monitor is enabled", mode: EgressMonitor, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := tc.mode.Enabled()
 
-		// Act
-		result := mode.Enabled()
-
-		// Assert
-		assert.Equal(t, EgressOff, mode)
-		assert.False(t, result)
-	})
-
-	t.Run("enforce is enabled", func(t *testing.T) {
-		// Act
-		result := EgressEnforce.Enabled()
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("monitor is enabled", func(t *testing.T) {
-		// Act
-		result := EgressMonitor.Enabled()
-
-		// Assert
-		assert.True(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestEgressPolicy_HasPathRules(t *testing.T) {
-	t.Run("whole-host rules have none", func(t *testing.T) {
-		// Arrange
-		policy := EgressPolicy{Rules: []AllowRule{{Host: "api.example.test"}}}
+	for _, tc := range []struct {
+		name  string
+		rules []AllowRule
+		want  bool
+	}{
+		{name: "whole-host rules have none", rules: []AllowRule{{Host: "api.example.test"}}},
+		{name: "a rule with paths counts", rules: []AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test", Paths: []string{"/a"}}}, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := EgressPolicy{Rules: tc.rules}.HasPathRules()
 
-		// Act
-		result := policy.HasPathRules()
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("a rule with paths counts", func(t *testing.T) {
-		// Arrange
-		policy := EgressPolicy{Rules: []AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test", Paths: []string{"/a"}}}}
-
-		// Act
-		result := policy.HasPathRules()
-
-		// Assert
-		assert.True(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestAllowWhole(t *testing.T) {

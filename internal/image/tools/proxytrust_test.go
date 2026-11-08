@@ -59,16 +59,10 @@ func Test_proxyTrustBlock(t *testing.T) {
 }
 
 func TestToolEntrypoints_trustProxyCA(t *testing.T) {
-	stages := map[string]func(string) string{
-		"claude":   func(prev string) string { return renderStage(claudeStage(prev)) },
-		"copilot":  func(prev string) string { return renderStage(copilotStage(prev)) },
-		"opencode": func(prev string) string { return renderStage(opencodeStage(prev)) },
-	}
-
-	for name, render := range stages {
+	for _, name := range Names() {
 		t.Run(name+" builds the bundle before exec", func(t *testing.T) {
 			// Act
-			result := render("base")
+			result := renderStage(Configs[name].Build.Stage("base"))
 
 			// Assert
 			trust := strings.Index(result, `if [[ -n "${`+ProxyCAEnvName)

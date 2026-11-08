@@ -2,8 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"testing"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
@@ -21,87 +21,42 @@ func Test_runUpdate(t *testing.T) {
 
 	stubUpstream(t, "", false, false)
 
-	t.Run("no cache flag sets opt", func(t *testing.T) {
-		// Arrange
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{
-			buildTool: func(_, _ string, opts tools.BuildOptions) error {
-				capturedOpts = opts
-				return nil
-			},
-			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
+	built := &docker.ImageInfo{Version: "1.0.0"}
+	recentlyPulled := &docker.ImageInfo{Version: "1.0.0", Pulled: time.Now().UTC().Format(time.RFC3339)}
+
+	for _, tc := range []struct {
+		name  string
+		info  *docker.ImageInfo
+		flags map[string]string
+		want  func(tools.BuildOptions) bool
+	}{
+		{name: "pull flag defaults true", info: built, want: func(o tools.BuildOptions) bool { return o.Pull }},
+		{name: "pull flag can be disabled", info: built, flags: map[string]string{"pull": "false"}, want: func(o tools.BuildOptions) bool { return !o.Pull }},
+		{name: "automatic pull is throttled after a recent pull", info: recentlyPulled, want: func(o tools.BuildOptions) bool { return !o.Pull }},
+		{name: "explicit pull is kept after a recent pull", info: recentlyPulled, flags: map[string]string{"pull": "true"}, want: func(o tools.BuildOptions) bool { return o.Pull }},
+		{name: "no cache flag sets opt", info: built, flags: map[string]string{"no-cache": "true"}, want: func(o tools.BuildOptions) bool { return o.NoCache }},
+		{
+			name:  "skip install checksum flag sets opt",
+			info:  built,
+			flags: map[string]string{"skip-install-checksum": "true"},
+			want:  func(o tools.BuildOptions) bool { return o.SkipInstallChecksum },
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			opts := stubBuildTool(t, tc.info)
+			for name, value := range tc.flags {
+				stubFlag(t, updateCmd, name, value)
+			}
+
+			// Act
+			err := runUpdate(updateCmd, []string{"claude"})
+
+			// Assert
+			require.NoError(t, err)
+			assert.True(t, tc.want(*opts))
 		})
-
-		stubFlag(t, updateCmd, "no-cache", "true")
-
-		// Act
-		err := runUpdate(updateCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, capturedOpts.NoCache)
-	})
-
-	t.Run("skip install checksum flag sets opt", func(t *testing.T) {
-		// Arrange
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{
-			buildTool: func(_, _ string, opts tools.BuildOptions) error {
-				capturedOpts = opts
-				return nil
-			},
-			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
-		})
-
-		stubFlag(t, updateCmd, "skip-install-checksum", "true")
-
-		// Act
-		err := runUpdate(updateCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, capturedOpts.SkipInstallChecksum)
-	})
-
-	t.Run("pull flag defaults true", func(t *testing.T) {
-		// Arrange
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{
-			buildTool: func(_, _ string, opts tools.BuildOptions) error {
-				capturedOpts = opts
-				return nil
-			},
-			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
-		})
-
-		// Act
-		err := runUpdate(updateCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, capturedOpts.Pull)
-	})
-
-	t.Run("pull flag can be disabled", func(t *testing.T) {
-		// Arrange
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{
-			buildTool: func(_, _ string, opts tools.BuildOptions) error {
-				capturedOpts = opts
-				return nil
-			},
-			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0"}, nil),
-		})
-
-		stubFlag(t, updateCmd, "pull", "false")
-
-		// Act
-		err := runUpdate(updateCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, capturedOpts.Pull)
-	})
+	}
 
 	t.Run("dry run flag prints dockerfile and skips update", func(t *testing.T) {
 		// Arrange
@@ -196,55 +151,44 @@ func Test_runUpdate(t *testing.T) {
 		assert.Contains(t, logBuf.String(), "agentic: updating 2 image(s): ")
 	})
 
-	t.Run("base-exact overrides rc bases and per-image label recovery, even when empty", func(t *testing.T) {
-		// Arrange - RC config with build.bases = ["java"]; image was built with go only.
-		t.Chdir(t.TempDir())
-		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\nbases = [\"java\"]\n"), 0o600))
+	for _, tc := range []struct {
+		name string
+		rc   string
+		info *docker.ImageInfo
+		flag string
+		want func(tools.BuildOptions) bool
+	}{
+		{
+			name: "base-exact overrides rc bases and per-image label recovery",
+			rc:   "[build]\nbases = [\"java\"]\n",
+			info: &docker.ImageInfo{Version: "1.0.0", Base: "go@1.23"},
+			flag: "base-exact",
+			want: func(o tools.BuildOptions) bool { return len(o.BaseOverride) == 0 && o.BaseExact },
+		},
+		{
+			name: "apt-exact overrides rc apt and per-image label recovery",
+			rc:   "[build]\napt_packages = [\"make\"]\n",
+			info: &docker.ImageInfo{Version: "1.0.0", Apt: "cmake"},
+			flag: "apt-exact",
+			want: func(o tools.BuildOptions) bool { return len(o.AptPackages) == 0 && o.AptExact },
+		},
+	} {
+		t.Run(tc.name+", even when empty", func(t *testing.T) {
+			// Arrange - neither the rc's value nor the image's recovered one may survive
+			dir := t.TempDir()
+			writeRC(t, dir, tc.rc)
+			t.Chdir(dir)
+			opts := stubBuildTool(t, tc.info)
+			stubFlag(t, updateCmd, tc.flag, "")
 
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{
-			buildTool: func(_, _ string, opts tools.BuildOptions) error {
-				capturedOpts = opts
-				return nil
-			},
-			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0", Base: "go@1.23"}, nil),
+			// Act
+			err := runUpdate(updateCmd, []string{"claude"})
+
+			// Assert
+			require.NoError(t, err)
+			assert.True(t, tc.want(*opts))
 		})
-
-		stubFlag(t, updateCmd, "base-exact", "")
-
-		// Act
-		err := runUpdate(updateCmd, []string{"claude"})
-
-		// Assert - neither rc's "java" nor the image's recovered "go" survive
-		require.NoError(t, err)
-		assert.Empty(t, capturedOpts.BaseOverride)
-		assert.True(t, capturedOpts.BaseExact)
-	})
-
-	t.Run("apt-exact overrides rc apt and per-image label recovery, even when empty", func(t *testing.T) {
-		// Arrange - RC config with build.apt_packages = ["make"]; image was built with cmake only.
-		t.Chdir(t.TempDir())
-		require.NoError(t, os.WriteFile(".agenticrc.toml", []byte("[build]\napt_packages = [\"make\"]\n"), 0o600))
-
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{
-			buildTool: func(_, _ string, opts tools.BuildOptions) error {
-				capturedOpts = opts
-				return nil
-			},
-			inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.0.0", Apt: "cmake"}, nil),
-		})
-
-		stubFlag(t, updateCmd, "apt-exact", "")
-
-		// Act
-		err := runUpdate(updateCmd, []string{"claude"})
-
-		// Assert - neither rc's "make" nor the image's recovered "cmake" survive
-		require.NoError(t, err)
-		assert.Empty(t, capturedOpts.AptPackages)
-		assert.True(t, capturedOpts.AptExact)
-	})
+	}
 }
 
 func Test_logUpdateSummary(t *testing.T) {

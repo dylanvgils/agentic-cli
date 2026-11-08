@@ -14,186 +14,47 @@ func TestProxyMode(t *testing.T) {
 	disabled := false
 	creds := []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example/token"}}
 
-	t.Run("no flag and no config defaults off", func(t *testing.T) {
-		// Act
-		result, err := ProxyMode(ProxyInput{}, &config.AgenticRC{}, true)
+	for _, tc := range []struct {
+		name    string
+		flags   ProxyInput
+		proxy   config.RCProxy
+		injects bool
+		want    sandbox.EgressMode
+		wantErr string
+	}{
+		{name: "no flag and no config defaults off", injects: true, want: sandbox.EgressOff},
+		{name: "config enabled is honored", proxy: config.RCProxy{Enabled: &enabled}, injects: true, want: sandbox.EgressEnforce},
+		{name: "proxy flag overrides config disabled", flags: ProxyInput{ProxyFlag: true}, proxy: config.RCProxy{Enabled: &disabled}, injects: true, want: sandbox.EgressEnforce},
+		{name: "no-proxy flag overrides config enabled", flags: ProxyInput{NoProxy: true}, proxy: config.RCProxy{Enabled: &enabled}, injects: true, want: sandbox.EgressOff},
+		{name: "proxy-monitor flag enables monitor mode", flags: ProxyInput{MonitorFlag: true}, injects: true, want: sandbox.EgressMonitor},
+		{name: "no-proxy flag overrides proxy-monitor flag", flags: ProxyInput{MonitorFlag: true, NoProxy: true}, injects: true, want: sandbox.EgressOff},
+		{name: "config mode monitor implies enabled", proxy: config.RCProxy{Mode: config.ModeMonitor}, injects: true, want: sandbox.EgressMonitor},
+		{name: "config enabled false wins over config mode monitor", proxy: config.RCProxy{Enabled: &disabled, Mode: config.ModeMonitor}, injects: true, want: sandbox.EgressOff},
+		{name: "credentials turn the proxy on", proxy: config.RCProxy{Credentials: creds}, injects: true, want: sandbox.EgressEnforce},
+		{name: "credentials keep monitor mode", flags: ProxyInput{MonitorFlag: true}, proxy: config.RCProxy{Credentials: creds}, injects: true, want: sandbox.EgressMonitor},
+		{name: "no-proxy flag with credentials is an error", flags: ProxyInput{NoProxy: true}, proxy: config.RCProxy{Credentials: creds}, injects: true, wantErr: "--no-proxy cannot be used"},
+		{name: "config enabled false with credentials is an error", proxy: config.RCProxy{Enabled: &disabled, Credentials: creds}, injects: true, wantErr: "enabled = false cannot be used"},
+		{name: "proxy flag overrides config disabled with credentials", flags: ProxyInput{ProxyFlag: true}, proxy: config.RCProxy{Enabled: &disabled, Credentials: creds}, injects: true, want: sandbox.EgressEnforce},
+		{name: "credentials leave the proxy off when it doesn't inject them", proxy: config.RCProxy{Credentials: creds}, want: sandbox.EgressOff},
+		{name: "no-proxy flag with credentials is allowed when the proxy doesn't inject them", flags: ProxyInput{NoProxy: true}, proxy: config.RCProxy{Credentials: creds}, want: sandbox.EgressOff},
+		{name: "config enabled false with credentials is allowed when the proxy doesn't inject them", proxy: config.RCProxy{Enabled: &disabled, Credentials: creds}, want: sandbox.EgressOff},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			rc := &config.AgenticRC{Run: config.RCRun{Proxy: tc.proxy}}
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressOff, result)
-	})
+			// Act
+			result, err := ProxyMode(tc.flags, rc, tc.injects)
 
-	t.Run("config enabled is honored", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}
-
-		// Act
-		result, err := ProxyMode(ProxyInput{}, rc, true)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressEnforce, result)
-	})
-
-	t.Run("proxy flag overrides config disabled", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled}}}
-
-		// Act
-		result, err := ProxyMode(ProxyInput{ProxyFlag: true}, rc, true)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressEnforce, result)
-	})
-
-	t.Run("no-proxy flag overrides config enabled", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}}
-
-		// Act
-		result, err := ProxyMode(ProxyInput{NoProxy: true}, rc, true)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressOff, result)
-	})
-
-	t.Run("proxy-monitor flag enables monitor mode", func(t *testing.T) {
-		// Act
-		result, err := ProxyMode(ProxyInput{MonitorFlag: true}, &config.AgenticRC{}, true)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressMonitor, result)
-	})
-
-	t.Run("no-proxy flag overrides proxy-monitor flag", func(t *testing.T) {
-		// Act
-		result, err := ProxyMode(ProxyInput{MonitorFlag: true, NoProxy: true}, &config.AgenticRC{}, true)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressOff, result)
-	})
-
-	t.Run("config mode monitor implies enabled", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Mode: config.ModeMonitor}}}
-
-		// Act
-		result, err := ProxyMode(ProxyInput{}, rc, true)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressMonitor, result)
-	})
-
-	t.Run("config enabled false wins over config mode monitor", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled, Mode: config.ModeMonitor}}}
-
-		// Act
-		result, err := ProxyMode(ProxyInput{}, rc, true)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressOff, result)
-	})
-
-	t.Run("credentials turn the proxy on", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: creds}}}
-
-		// Act
-		result, err := ProxyMode(ProxyInput{}, rc, true)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressEnforce, result)
-	})
-
-	t.Run("credentials keep monitor mode", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: creds}}}
-
-		// Act
-		result, err := ProxyMode(ProxyInput{MonitorFlag: true}, rc, true)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressMonitor, result)
-	})
-
-	t.Run("no-proxy flag with credentials is an error", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: creds}}}
-
-		// Act
-		_, err := ProxyMode(ProxyInput{NoProxy: true}, rc, true)
-
-		// Assert
-		assert.ErrorContains(t, err, "--no-proxy cannot be used")
-	})
-
-	t.Run("config enabled false with credentials is an error", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled, Credentials: creds}}}
-
-		// Act
-		_, err := ProxyMode(ProxyInput{}, rc, true)
-
-		// Assert
-		assert.ErrorContains(t, err, "enabled = false cannot be used")
-	})
-
-	t.Run("proxy flag overrides config disabled with credentials", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled, Credentials: creds}}}
-
-		// Act
-		result, err := ProxyMode(ProxyInput{ProxyFlag: true}, rc, true)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressEnforce, result)
-	})
-
-	t.Run("credentials leave the proxy off when it doesn't inject them", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: creds}}}
-
-		// Act
-		result, err := ProxyMode(ProxyInput{}, rc, false)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressOff, result)
-	})
-
-	t.Run("no-proxy flag with credentials is allowed when the proxy doesn't inject them", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: creds}}}
-
-		// Act
-		result, err := ProxyMode(ProxyInput{NoProxy: true}, rc, false)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressOff, result)
-	})
-
-	t.Run("config enabled false with credentials is allowed when the proxy doesn't inject them", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &disabled, Credentials: creds}}}
-
-		// Act
-		result, err := ProxyMode(ProxyInput{}, rc, false)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressOff, result)
-	})
+			// Assert
+			if tc.wantErr != "" {
+				assert.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestRequestedProxyMode(t *testing.T) {

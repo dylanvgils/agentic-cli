@@ -26,21 +26,7 @@ func TestClient_StartSidecars(t *testing.T) {
 		assert.Empty(t, get())
 	})
 
-	t.Run("names the tool container after its image", func(t *testing.T) {
-		// Arrange
-		stubDockerRunCapture(t, client)
-
-		// Act
-		sidecars, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude", User: &testUser}, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, strings.HasPrefix(sidecars.run.container, "agentic-claude-"))
-		id := strings.TrimPrefix(sidecars.run.container, "agentic-claude-")
-		assert.Equal(t, "agentic-run-"+id, sidecars.run.network, "the network shares the container's id")
-	})
-
-	t.Run("keeps the proxy log for the proxy", func(t *testing.T) {
+	t.Run("names the tool container after its image and keeps the proxy log", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client)
 
@@ -49,6 +35,9 @@ func TestClient_StartSidecars(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
+		assert.True(t, strings.HasPrefix(sidecars.run.container, "agentic-claude-"))
+		id := strings.TrimPrefix(sidecars.run.container, "agentic-claude-")
+		assert.Equal(t, "agentic-run-"+id, sidecars.run.network, "the network shares the container's id")
 		assert.Equal(t, "/example.test/logs/proxy_abc.jsonl", sidecars.run.proxyLog)
 	})
 
@@ -90,15 +79,7 @@ func TestClient_RunTool(t *testing.T) {
 		assert.Contains(t, args, "--user="+testUser.String())
 		assert.True(t, hasArgWithPrefix(args, "--network=agentic-run-"), "even a plain run gets its own network")
 		assert.False(t, hasArg(args, "--network="+NetworkName), "runs must not share a network")
-	})
-
-	t.Run("names the tool container after its image", func(t *testing.T) {
-		// Act
-		err := startAndRunTool(client, sandbox.RunSpec{Image: "agentic-claude"}, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, hasArgWithPrefix(get(), "--name=agentic-claude-"))
+		assert.True(t, hasArgWithPrefix(args, "--name=agentic-claude-"))
 	})
 
 	t.Run("proxy mode keeps the tool off the egress network and injects proxy env", func(t *testing.T) {
@@ -162,76 +143,16 @@ func TestClient_RunTool(t *testing.T) {
 		assert.Contains(t, args, "--env=NO_PROXY=localhost,127.0.0.1,agentic-docker")
 	})
 
-	t.Run("tmpfs mounts", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{
-			Image:         "agentic-claude",
-			EphemeralDirs: []sandbox.EphemeralDir{{Path: "/tmp", Size: "1g"}},
-		}
-
-		// Act
-		err := startAndRunTool(client, rs, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, get(), "--tmpfs=/tmp:exec,size=1g")
-	})
-
-	t.Run("tmpfs mounts expand container home", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{
-			Image:         "agentic-copilot",
-			ContainerHome: "/home/user",
-			EphemeralDirs: []sandbox.EphemeralDir{{Path: "/tmp", Size: "1g"}, {Path: "$CONTAINER_HOME/.cache", Size: "1g"}},
-		}
-
-		// Act
-		err := startAndRunTool(client, rs, "")
-
-		// Assert
-		require.NoError(t, err)
-		args := get()
-		assert.Contains(t, args, "--tmpfs=/tmp:exec,size=1g")
-		assert.Contains(t, args, "--tmpfs=/home/user/.cache:exec,size=1g")
-	})
-
-	t.Run("image and tool args", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"--resume"}}
-
-		// Act
-		err := startAndRunTool(client, rs, "")
-
-		// Assert
-		require.NoError(t, err)
-		args := get()
-		n := len(args)
-		require.GreaterOrEqual(t, n, 2)
-		assert.Equal(t, "agentic-claude", args[n-2])
-		assert.Equal(t, "--resume", args[n-1])
-	})
-
-	t.Run("skip entrypoint", func(t *testing.T) {
+	t.Run("maps the spec's mounts, entrypoint, image and tool args", func(t *testing.T) {
 		// Arrange
 		rs := sandbox.RunSpec{
 			Image:          "agentic-claude",
+			ToolHome:       "/home/.agentic",
+			ContainerHome:  "/home/user",
+			Volumes:        []string{"/host:/container", "$TOOL_HOME/data:/data"},
+			EphemeralDirs:  []sandbox.EphemeralDir{{Path: "/tmp", Size: "1g"}, {Path: "$CONTAINER_HOME/.cache", Size: "1g"}},
 			SkipEntrypoint: true,
-		}
-
-		// Act
-		err := startAndRunTool(client, rs, "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "", argAfter(get(), "--entrypoint"))
-	})
-
-	t.Run("volumes", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{
-			Image:    "agentic-claude",
-			ToolHome: "/home/.agentic",
-			Volumes:  []string{"/host:/container", "$TOOL_HOME/data:/data"},
+			ToolArgs:       []string{"--resume"},
 		}
 
 		// Act
@@ -242,6 +163,10 @@ func TestClient_RunTool(t *testing.T) {
 		args := get()
 		assert.Contains(t, args, "--volume=/host:/container")
 		assert.Contains(t, args, "--volume=/home/.agentic/data:/data")
+		assert.Contains(t, args, "--tmpfs=/tmp:exec,size=1g")
+		assert.Contains(t, args, "--tmpfs=/home/user/.cache:exec,size=1g")
+		assert.Equal(t, "", argAfter(args, "--entrypoint"))
+		assert.Equal(t, []string{"agentic-claude", "--resume"}, args[len(args)-2:])
 	})
 }
 

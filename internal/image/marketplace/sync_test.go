@@ -157,23 +157,14 @@ func TestSyncer_Sync(t *testing.T) {
 }
 
 func TestCloneDirName(t *testing.T) {
-	t.Run("different urls produce different results", func(t *testing.T) {
-		// Act
-		a := CloneDirName("git@example.com:acme/one.git")
-		b := CloneDirName("git@example.com:acme/two.git")
+	// Act
+	one := CloneDirName("git@example.com:acme/one.git")
+	again := CloneDirName("git@example.com:acme/one.git")
+	two := CloneDirName("git@example.com:acme/two.git")
 
-		// Assert
-		assert.NotEqual(t, a, b)
-		assert.True(t, strings.HasPrefix(a, "one-"))
-		assert.True(t, strings.HasPrefix(b, "two-"))
-	})
-
-	t.Run("stable for repeated calls with the same input", func(t *testing.T) {
-		// Act
-		first := CloneDirName("git@example.com:acme/one.git")
-		second := CloneDirName("git@example.com:acme/one.git")
-
-		// Assert
-		assert.Equal(t, first, second)
-	})
+	// Assert - named after the repo, stable per URL and distinct across URLs
+	assert.True(t, strings.HasPrefix(one, "one-"))
+	assert.True(t, strings.HasPrefix(two, "two-"))
+	assert.Equal(t, one, again)
+	assert.NotEqual(t, one, two)
 }

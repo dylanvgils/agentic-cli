@@ -9,18 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// appendFile appends content to path, simulating a tool writing its own notes at runtime.
-func appendFile(path, content string) error {
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o640)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-
-	_, err = f.WriteString(content)
-	return err
-}
-
 // symlinkOrSkip creates link pointing at target, skipping the test where symlinks need privileges.
 func symlinkOrSkip(t *testing.T, target, link string) {
 	t.Helper()
@@ -45,4 +33,25 @@ func openTestRoot(t *testing.T) (*os.Root, string) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = root.Close() })
 	return root, dir
+}
+
+// managed returns block wrapped in the managed markers, as written to a file.
+func managed(block string) string {
+	return instructionsBeginMarker + "\n" + block + "\n" + instructionsEndMarker + "\n"
+}
+
+// readFile returns path's content, failing the test on error.
+func readFile(t *testing.T, path string) string {
+	t.Helper()
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	return string(got)
+}
+
+// writeTemp writes content to a new file in a temp dir and returns its path.
+func writeTemp(t *testing.T, name, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o640))
+	return path
 }

@@ -11,26 +11,20 @@ import (
 func TestListVolumeNames(t *testing.T) {
 	t.Run("returns agentic's volumes without their prefix", func(t *testing.T) {
 		// Arrange
-		var got []string
-		client := newTestClient(&fakeRunner{run: func(args ...string) (string, error) {
-			got = args
-			return "agentic-maven\nown-cache\nagentic-gradle\n\n", nil
-		}})
+		client, args := stubRun("agentic-maven\nown-cache\nagentic-gradle\n\n", nil)
 
 		// Act
 		names, err := client.ListVolumeNames()
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"volume", "ls", "--quiet"}, got)
+		assert.Equal(t, []string{"volume", "ls", "--quiet"}, *args)
 		assert.Equal(t, []string{"maven", "gradle"}, names)
 	})
 
 	t.Run("returns a listing error", func(t *testing.T) {
 		// Arrange
-		client := newTestClient(&fakeRunner{run: func(...string) (string, error) {
-			return "", errors.New("boom")
-		}})
+		client, _ := stubRun("", errors.New("boom"))
 
 		// Act
 		_, err := client.ListVolumeNames()
@@ -43,25 +37,19 @@ func TestListVolumeNames(t *testing.T) {
 func TestRemoveVolume(t *testing.T) {
 	t.Run("removes the prefixed volume", func(t *testing.T) {
 		// Arrange
-		var got []string
-		client := newTestClient(&fakeRunner{run: func(args ...string) (string, error) {
-			got = args
-			return "", nil
-		}})
+		client, args := stubRun("", nil)
 
 		// Act
 		err := client.RemoveVolume("maven")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []string{"volume", "rm", "agentic-maven"}, got)
+		assert.Equal(t, []string{"volume", "rm", "agentic-maven"}, *args)
 	})
 
 	t.Run("returns a remove error", func(t *testing.T) {
 		// Arrange
-		client := newTestClient(&fakeRunner{run: func(...string) (string, error) {
-			return "", errors.New("in use")
-		}})
+		client, _ := stubRun("", errors.New("in use"))
 
 		// Act
 		err := client.RemoveVolume("maven")

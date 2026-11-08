@@ -101,29 +101,18 @@ func Test_Service_fetchUpdateIfDue(t *testing.T) {
 		assert.Nil(t, cfg.LastUpdateCheck)
 	})
 
-	t.Run("returns false when already up to date", func(t *testing.T) {
-		// Arrange
-		svc, _ := newTestService(t, &fakeReleases{latest: "v1.0.0"})
-
-		// Act
-		latest, ok := svc.fetchUpdateIfDue(t.TempDir())
-
-		// Assert
-		assert.False(t, ok)
-		assert.Empty(t, latest)
-	})
-
-	t.Run("saves LastUpdateCheck after fetch", func(t *testing.T) {
+	t.Run("returns false when already up to date but saves the check", func(t *testing.T) {
 		// Arrange
 		svc, _ := newTestService(t, &fakeReleases{latest: "v1.0.0"})
 		home := t.TempDir()
 		before := time.Now()
 
 		// Act
-		_, ok := svc.fetchUpdateIfDue(home)
+		latest, ok := svc.fetchUpdateIfDue(home)
 
 		// Assert
-		require.False(t, ok)
+		assert.False(t, ok)
+		assert.Empty(t, latest)
 		cfg, err := config.LoadState(home)
 		require.NoError(t, err)
 		require.NotNil(t, cfg.LastUpdateCheck)

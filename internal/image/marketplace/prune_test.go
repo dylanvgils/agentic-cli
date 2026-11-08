@@ -10,56 +10,39 @@ import (
 )
 
 func TestLiveProjects(t *testing.T) {
-	t.Run("keeps projects that still declare a matching marketplace", func(t *testing.T) {
-		// Arrange
-		projA := t.TempDir()
-		writeMarketplaceRC(t, projA, "acme", "git@example.com:acme.git")
-		dirName := CloneDirName("git@example.com:acme.git")
+	dirName := CloneDirName("git@example.com:acme.git")
 
-		// Act
-		live := LiveProjects(dirName, "acme", []string{projA})
+	for _, tc := range []struct {
+		name     string
+		rcName   string
+		rcURL    string
+		missing  bool
+		wantLive bool
+	}{
+		{name: "keeps projects that still declare a matching marketplace", rcName: "acme", rcURL: "git@example.com:acme.git", wantLive: true},
+		{name: "drops projects whose config no longer references it", rcName: "acme", rcURL: "git@example.com:different.git"},
+		{name: "drops projects that kept the URL but renamed the marketplace's name key", rcName: "renamed", rcURL: "git@example.com:acme.git"},
+		{name: "drops projects whose directory no longer exists", missing: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			proj := filepath.Join(t.TempDir(), "gone")
+			if !tc.missing {
+				proj = t.TempDir()
+				writeMarketplaceRC(t, proj, tc.rcName, tc.rcURL)
+			}
 
-		// Assert
-		assert.Equal(t, []string{projA}, live)
-	})
+			// Act
+			live := LiveProjects(dirName, "acme", []string{proj})
 
-	t.Run("drops projects whose config no longer references it", func(t *testing.T) {
-		// Arrange
-		projA := t.TempDir()
-		writeMarketplaceRC(t, projA, "acme", "git@example.com:different.git")
-		dirName := CloneDirName("git@example.com:acme.git")
-
-		// Act
-		live := LiveProjects(dirName, "acme", []string{projA})
-
-		// Assert
-		assert.Empty(t, live)
-	})
-
-	t.Run("drops projects whose directory no longer exists", func(t *testing.T) {
-		// Arrange
-		missing := filepath.Join(t.TempDir(), "gone")
-		dirName := CloneDirName("git@example.com:acme.git")
-
-		// Act
-		live := LiveProjects(dirName, "acme", []string{missing})
-
-		// Assert
-		assert.Empty(t, live)
-	})
-
-	t.Run("drops projects that kept the URL but renamed the marketplace's name key", func(t *testing.T) {
-		// Arrange
-		projA := t.TempDir()
-		writeMarketplaceRC(t, projA, "renamed", "git@example.com:acme.git")
-		dirName := CloneDirName("git@example.com:acme.git")
-
-		// Act
-		live := LiveProjects(dirName, "acme", []string{projA})
-
-		// Assert
-		assert.Empty(t, live)
-	})
+			// Assert
+			if tc.wantLive {
+				assert.Equal(t, []string{proj}, live)
+			} else {
+				assert.Empty(t, live)
+			}
+		})
+	}
 }
 
 func TestPrune(t *testing.T) {
@@ -68,8 +51,7 @@ func TestPrune(t *testing.T) {
 		baseDir := t.TempDir()
 		proj := t.TempDir()
 		writeMarketplaceRC(t, proj, "acme", "git@example.com:acme.git")
-		dirName := CloneDirName("git@example.com:acme.git")
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, dirName), 0o755))
+		dirName := makeClone(t, baseDir, "git@example.com:acme.git")
 		reg := &Registry{Marketplaces: map[string][]RegistryEntry{
 			dirName: {{Name: "acme", URL: "git@example.com:acme.git", Projects: []string{proj}}},
 		}}
@@ -90,8 +72,7 @@ func TestPrune(t *testing.T) {
 		// Arrange
 		baseDir := t.TempDir()
 		proj := t.TempDir() // exists but no longer declares this marketplace
-		dirName := CloneDirName("git@example.com:acme.git")
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, dirName), 0o755))
+		dirName := makeClone(t, baseDir, "git@example.com:acme.git")
 		reg := &Registry{Marketplaces: map[string][]RegistryEntry{
 			dirName: {{Name: "acme", URL: "git@example.com:acme.git", Projects: []string{proj}}},
 		}}
@@ -130,8 +111,7 @@ func TestPrune(t *testing.T) {
 		projA := t.TempDir()
 		projB := t.TempDir() // no longer references it
 		writeMarketplaceRC(t, projA, "acme", "git@example.com:acme.git")
-		dirName := CloneDirName("git@example.com:acme.git")
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, dirName), 0o755))
+		dirName := makeClone(t, baseDir, "git@example.com:acme.git")
 		reg := &Registry{Marketplaces: map[string][]RegistryEntry{
 			dirName: {{Name: "acme", URL: "git@example.com:acme.git", Projects: []string{projA, projB}}},
 		}}
@@ -152,8 +132,7 @@ func TestPrune(t *testing.T) {
 		projFoo := t.TempDir()
 		projBar := t.TempDir() // no longer declares this marketplace
 		writeMarketplaceRC(t, projFoo, "foo", "git@example.com:acme.git")
-		dirName := CloneDirName("git@example.com:acme.git")
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, dirName), 0o755))
+		dirName := makeClone(t, baseDir, "git@example.com:acme.git")
 		reg := &Registry{Marketplaces: map[string][]RegistryEntry{
 			dirName: {
 				{Name: "bar", URL: "git@example.com:acme.git", Projects: []string{projBar}},
@@ -178,8 +157,7 @@ func TestPrune(t *testing.T) {
 		baseDir := t.TempDir()
 		projFoo := t.TempDir() // no longer declares this marketplace
 		projBar := t.TempDir() // no longer declares this marketplace
-		dirName := CloneDirName("git@example.com:acme.git")
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, dirName), 0o755))
+		dirName := makeClone(t, baseDir, "git@example.com:acme.git")
 		reg := &Registry{Marketplaces: map[string][]RegistryEntry{
 			dirName: {
 				{Name: "bar", URL: "git@example.com:acme.git", Projects: []string{projBar}},

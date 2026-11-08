@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -60,7 +59,17 @@ func Test_runClean(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, cleaned, "agentic-claude")
+		// tool images and their dockerd images across namespaces, plus the global sidecar images
+		assert.ElementsMatch(t, []string{
+			"agentic-claude-dockerd",
+			"agentic-claude",
+			"agentic-copilot-dockerd",
+			"agentic-copilot",
+			"work-claude-dockerd",
+			"work-claude",
+			tools.ProxyImage,
+			tools.DindImage,
+		}, cleaned)
 		assert.Contains(t, msbCleaned, "agentic-claude")
 		assert.True(t, basesCleaned)
 		assert.Contains(t, logBuf.String(), "agentic: removing 3 image(s): ")
@@ -90,8 +99,8 @@ func Test_runClean(t *testing.T) {
 	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
+		writeRC(t, dir, "not valid toml [[[")
 		rcPath := filepath.Join(dir, ".agenticrc.toml")
-		require.NoError(t, os.WriteFile(rcPath, []byte("not valid toml [[["), 0o644))
 		t.Chdir(dir)
 
 		// Act
@@ -111,7 +120,7 @@ func Test_runClean(t *testing.T) {
 		err := runClean(newTestCleanCmd(), []string{"claude"})
 
 		// Assert
-		require.Error(t, err)
+		assert.ErrorContains(t, err, "fail on agentic-claude")
 	})
 
 	t.Run("a tool skips global resources, even with all", func(t *testing.T) {
@@ -132,46 +141,5 @@ func Test_runClean(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.False(t, basesCleaned)
-	})
-
-	t.Run("all flag cleans across namespaces and base", func(t *testing.T) {
-		// Arrange
-		t.Chdir(t.TempDir())
-		var cleaned []string
-		basesCleaned := false
-		stubDocker(t, &fakeDocker{
-			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-				return []*docker.ImageInfo{
-					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
-					{Image: "work-claude", Namespace: "work", Tool: "claude"},
-				}, nil
-			},
-			cleanImage: func(image string) error {
-				cleaned = append(cleaned, image)
-				return nil
-			},
-			cleanBaseImages: func() error {
-				basesCleaned = true
-				return nil
-			},
-		})
-		cmd := newTestCleanCmd()
-		require.NoError(t, cmd.Flags().Set("all", "true"))
-
-		// Act
-		err := runClean(cmd, []string{})
-
-		// Assert
-		require.NoError(t, err)
-		// tool images and their dockerd images across namespaces, plus the global sidecar images
-		assert.ElementsMatch(t, []string{
-			"agentic-claude-dockerd",
-			"agentic-claude",
-			"work-claude-dockerd",
-			"work-claude",
-			tools.ProxyImage,
-			tools.DindImage,
-		}, cleaned)
-		assert.True(t, basesCleaned)
 	})
 }

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -29,9 +28,10 @@ func Test_runInstructions(t *testing.T) {
 }
 
 func Test_instructionsRequest(t *testing.T) {
-	t.Run("request targets the tool's image in the resolved namespace", func(t *testing.T) {
+	t.Run("request targets the tool's image in the resolved namespace with the runtime flags", func(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())
+		stubFlag(t, instructionsCmd, "runtime", "microsandbox")
 
 		// Act
 		req, namespace, err := instructionsRequest(instructionsCmd, "claude")
@@ -39,51 +39,39 @@ func Test_instructionsRequest(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "claude", req.Target.ToolName)
-		assert.Contains(t, req.Target.ImageName, "claude")
-		assert.NotEmpty(t, namespace)
-	})
-
-	t.Run("unknown tool returns error", func(t *testing.T) {
-		// Arrange
-		t.Chdir(t.TempDir())
-
-		// Act
-		_, _, err := instructionsRequest(instructionsCmd, "bogus")
-
-		// Assert
-		assert.ErrorContains(t, err, "bogus")
-	})
-
-	t.Run("runtime flag lands in the request", func(t *testing.T) {
-		// Arrange
-		t.Chdir(t.TempDir())
-		stubFlag(t, instructionsCmd, "runtime", "microsandbox")
-
-		// Act
-		req, _, err := instructionsRequest(instructionsCmd, "claude")
-
-		// Assert
-		require.NoError(t, err)
+		assert.Equal(t, namespace+"-claude", req.Target.ImageName)
 		assert.Equal(t, sandbox.RuntimeMicrosandbox, req.Flags.Runtime)
 	})
 
-	t.Run("unknown runtime returns error", func(t *testing.T) {
-		// Arrange
-		t.Chdir(t.TempDir())
-		stubFlag(t, instructionsCmd, "runtime", "podman")
+	for _, tc := range []struct {
+		name    string
+		tool    string
+		runtime string
+		wantErr string
+	}{
+		{name: "unknown tool", tool: "bogus", wantErr: "bogus"},
+		{name: "unknown runtime", tool: "claude", runtime: "podman", wantErr: `unknown runtime "podman"`},
+	} {
+		t.Run(tc.name+" returns error", func(t *testing.T) {
+			// Arrange
+			t.Chdir(t.TempDir())
+			if tc.runtime != "" {
+				stubFlag(t, instructionsCmd, "runtime", tc.runtime)
+			}
 
-		// Act
-		_, _, err := instructionsRequest(instructionsCmd, "claude")
+			// Act
+			_, _, err := instructionsRequest(instructionsCmd, tc.tool)
 
-		// Assert
-		assert.ErrorContains(t, err, `unknown runtime "podman"`)
-	})
+			// Assert
+			assert.ErrorContains(t, err, tc.wantErr)
+		})
+	}
 
 	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
+		writeRC(t, dir, "not valid toml [[[")
 		rcPath := filepath.Join(dir, ".agenticrc.toml")
-		require.NoError(t, os.WriteFile(rcPath, []byte("not valid toml [[["), 0o644))
 		t.Chdir(dir)
 
 		// Act

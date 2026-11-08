@@ -23,49 +23,46 @@ func TestRun_renderLines(t *testing.T) {
 }
 
 func TestRun_renderBlocks(t *testing.T) {
-	t.Run("no comment", func(t *testing.T) {
-		// Arrange
-		run := Run{Blocks: []Block{
-			{Lines: []string{"apt-get update"}},
-			{Lines: []string{"apt-get install curl", "wget"}},
-			{Lines: []string{"rm -rf /var/lib/apt/lists/*"}},
-		}}
+	for _, tc := range []struct {
+		name   string
+		blocks []Block
+		want   string
+	}{
+		{
+			name: "joins blocks with && and lines with a continuation",
+			blocks: []Block{
+				{Lines: []string{"apt-get update"}},
+				{Lines: []string{"apt-get install curl", "wget"}},
+				{Lines: []string{"rm -rf /var/lib/apt/lists/*"}},
+			},
+			want: "RUN apt-get update \\\n  && apt-get install curl \\\n  wget \\\n  && rm -rf /var/lib/apt/lists/*",
+		},
+		{
+			name: "chain joins a block's lines with &&",
+			blocks: []Block{
+				{Lines: []string{"apt-get update"}},
+				{Chain: true, Lines: []string{"apt-get install curl", "wget"}},
+				{Lines: []string{"rm -rf /var/lib/apt/lists/*"}},
+			},
+			want: "RUN apt-get update \\\n  && apt-get install curl \\\n  && wget \\\n  && rm -rf /var/lib/apt/lists/*",
+		},
+		{
+			name: "with comment",
+			blocks: []Block{
+				{Comment: "Update package list", Lines: []string{"apt-get update"}},
+				{Comment: "Install packages", Lines: []string{"apt-get install curl"}},
+			},
+			want: "RUN \\\n  # Update package list\n  apt-get update \\\n  \\\n  # Install packages\n  && apt-get install curl",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := Run{Blocks: tc.blocks}.renderBlocks()
 
-		// Act
-		result := run.renderBlocks()
-
-		// Assert
-		assert.Equal(t, "RUN apt-get update \\\n  && apt-get install curl \\\n  wget \\\n  && rm -rf /var/lib/apt/lists/*", result)
-	})
-
-	t.Run("And joins lines with &&", func(t *testing.T) {
-		// Arrange
-		run := Run{Blocks: []Block{
-			{Lines: []string{"apt-get update"}},
-			{Chain: true, Lines: []string{"apt-get install curl", "wget"}},
-			{Lines: []string{"rm -rf /var/lib/apt/lists/*"}},
-		}}
-
-		// Act
-		result := run.renderBlocks()
-
-		// Assert
-		assert.Equal(t, "RUN apt-get update \\\n  && apt-get install curl \\\n  && wget \\\n  && rm -rf /var/lib/apt/lists/*", result)
-	})
-
-	t.Run("with comment", func(t *testing.T) {
-		// Arrange
-		run := Run{Blocks: []Block{
-			{Comment: "Update package list", Lines: []string{"apt-get update"}},
-			{Comment: "Install packages", Lines: []string{"apt-get install curl"}},
-		}}
-
-		// Act
-		result := run.renderBlocks()
-
-		// Assert
-		assert.Equal(t, "RUN \\\n  # Update package list\n  apt-get update \\\n  \\\n  # Install packages\n  && apt-get install curl", result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestRun_render_dispatchesCorrectly(t *testing.T) {

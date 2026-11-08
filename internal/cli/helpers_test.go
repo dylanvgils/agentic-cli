@@ -581,11 +581,6 @@ func stubListContexts(t *testing.T, fn func() ([]string, error)) {
 	stubDocker(t, &fakeDocker{listContexts: fn})
 }
 
-func stubCurrentContext(t *testing.T, fn func() (string, error)) {
-	t.Helper()
-	stubDocker(t, &fakeDocker{currentContext: fn})
-}
-
 func stubRemoveVolume(t *testing.T, fn func(string) error) {
 	t.Helper()
 	stubDocker(t, &fakeDocker{removeVolume: fn})
@@ -657,6 +652,31 @@ func newTestCleanCmd() *cobra.Command {
 func newTestPruneCmd(force bool) *cobra.Command {
 	cmd := &cobra.Command{}
 	cmd.Flags().Bool("force", force, "")
+	return cmd
+}
+
+// stubBuildTool stubs Docker with info as the built image and returns the options BuildTool last got.
+func stubBuildTool(t *testing.T, info *docker.ImageInfo) *tools.BuildOptions {
+	t.Helper()
+	var opts tools.BuildOptions
+	stubDocker(t, &fakeDocker{
+		buildTool: func(_, _ string, o tools.BuildOptions) error {
+			opts = o
+			return nil
+		},
+		inspectImage: inspectReturns(info, nil),
+	})
+	return &opts
+}
+
+// newTestAllCmd returns a cmd with the --all flag, set when all.
+func newTestAllCmd(t *testing.T, all bool) *cobra.Command {
+	t.Helper()
+	cmd := &cobra.Command{}
+	addAllFlag(cmd, "")
+	if all {
+		require.NoError(t, cmd.Flags().Set(allFlagName, "true"))
+	}
 	return cmd
 }
 

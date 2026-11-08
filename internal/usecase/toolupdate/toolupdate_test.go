@@ -12,241 +12,155 @@ import (
 )
 
 func Test_shouldCheck(t *testing.T) {
-	t.Run("never checked returns true", func(t *testing.T) {
-		// Act
-		result := shouldCheck(nil, "claude")
+	for _, tc := range []struct {
+		name string
+		last map[string]time.Time
+		want bool
+	}{
+		{name: "never checked returns true", want: true},
+		{name: "recently checked returns false", last: map[string]time.Time{"claude": time.Now().Add(-1 * time.Hour)}},
+		{name: "past interval returns true", last: map[string]time.Time{"claude": time.Now().Add(-7 * time.Hour)}, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := shouldCheck(tc.last, "claude")
 
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("recently checked returns false", func(t *testing.T) {
-		// Arrange
-		last := map[string]time.Time{"claude": time.Now().Add(-1 * time.Hour)}
-
-		// Act
-		result := shouldCheck(last, "claude")
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("past interval returns true", func(t *testing.T) {
-		// Arrange
-		last := map[string]time.Time{"claude": time.Now().Add(-7 * time.Hour)}
-
-		// Act
-		result := shouldCheck(last, "claude")
-
-		// Assert
-		assert.True(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func Test_fetchIfDue(t *testing.T) {
-	t.Run("returns not ok when within interval", func(t *testing.T) {
-		// Arrange
-		home := t.TempDir()
-		lastCheck := time.Now().Add(-1 * time.Hour)
-		cfg := &config.State{LastToolVersionCheck: map[string]time.Time{"claude": lastCheck}}
-		require.NoError(t, cfg.Save(home))
-		var fetchCalled bool
-		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) {
-			fetchCalled = true
-			return "", false, false
+	built := inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)
+
+	for _, tc := range []struct {
+		name        string
+		checkedAgo  time.Duration
+		inspect     func(string) (*docker.ImageInfo, error)
+		upstream    fakeUpstream
+		wantFetched bool
+		wantSaved   bool
+	}{
+		{
+			name:       "within the interval skips the fetch",
+			checkedAgo: time.Hour,
+			inspect:    built,
+		},
+		{
+			name:    "missing image skips the fetch",
+			inspect: inspectReturns(nil, nil),
+		},
+		{
+			name:    "inspect error skips the fetch",
+			inspect: inspectReturns(nil, errors.New("docker error")),
+		},
+		{
+			name:        "failed fetch saves no timestamp, so the next run retries",
+			inspect:     built,
+			upstream:    func(_, _ string) (string, bool, bool) { return "", false, false },
+			wantFetched: true,
+		},
+		{
+			name:        "up-to-date tool saves the timestamp",
+			inspect:     built,
+			upstream:    func(_, _ string) (string, bool, bool) { return "1.2.3", false, true },
+			wantFetched: true,
+			wantSaved:   true,
+		},
+	} {
+		t.Run(tc.name+" and returns not ok", func(t *testing.T) {
+			// Arrange
+			home := t.TempDir()
+			if tc.checkedAgo != 0 {
+				state := &config.State{LastToolVersionCheck: map[string]time.Time{"claude": time.Now().Add(-tc.checkedAgo)}}
+				require.NoError(t, state.Save(home))
+			}
+			fetched := false
+			upstream := fakeUpstream(func(tool, label string) (string, bool, bool) {
+				fetched = true
+				if tc.upstream == nil {
+					return "", false, false
+				}
+				return tc.upstream(tool, label)
+			})
+			before := time.Now()
+
+			// Act
+			_, _, ok := New(&fakeDocker{inspectImage: tc.inspect}, upstream).fetchIfDue(home, "claude", "agentic-claude")
+
+			// Assert
+			assert.False(t, ok)
+			assert.Equal(t, tc.wantFetched, fetched)
+			state, err := config.LoadState(home)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantSaved, state.LastToolVersionCheck["claude"].After(before))
 		})
+	}
 
-		// Act
-		installed, latest, ok := New(&fakeDocker{}, upstream).fetchIfDue(home, "claude", "agentic-claude")
-
-		// Assert
-		assert.False(t, fetchCalled)
-		assert.False(t, ok)
-		assert.Empty(t, installed)
-		assert.Empty(t, latest)
-	})
-
-	t.Run("returns not ok when image not found", func(t *testing.T) {
+	t.Run("newer upstream version saves the timestamp and returns both versions", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
-		d := &fakeDocker{inspectImage: inspectReturns(nil, nil)}
-
-		// Act
-		_, _, ok := New(d, nil).fetchIfDue(home, "claude", "agentic-claude")
-
-		// Assert
-		assert.False(t, ok)
-	})
-
-	t.Run("returns not ok when inspect errors", func(t *testing.T) {
-		// Arrange
-		home := t.TempDir()
-		d := &fakeDocker{inspectImage: inspectReturns(nil, errors.New("docker error"))}
-
-		// Act
-		_, _, ok := New(d, nil).fetchIfDue(home, "claude", "agentic-claude")
-
-		// Assert
-		assert.False(t, ok)
-	})
-
-	t.Run("returns not ok when fetch fails", func(t *testing.T) {
-		// Arrange
-		home := t.TempDir()
-		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "", false, false })
-
-		// Act
-		_, _, ok := New(d, upstream).fetchIfDue(home, "claude", "agentic-claude")
-
-		// Assert
-		assert.False(t, ok)
-	})
-
-	t.Run("returns not ok when already up to date", func(t *testing.T) {
-		// Arrange
-		home := t.TempDir()
-		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "1.2.3", false, true })
-
-		// Act
-		_, _, ok := New(d, upstream).fetchIfDue(home, "claude", "agentic-claude")
-
-		// Assert
-		assert.False(t, ok)
-	})
-
-	t.Run("saves LastToolVersionCheck only after successful fetch", func(t *testing.T) {
-		// Arrange
-		home := t.TempDir()
-		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
 		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		before := time.Now()
 
 		// Act
-		_, _, ok := New(d, upstream).fetchIfDue(home, "claude", "agentic-claude")
+		installed, latest, ok := New(&fakeDocker{inspectImage: built}, upstream).fetchIfDue(home, "claude", "agentic-claude")
 
 		// Assert
 		require.True(t, ok)
-		cfg, err := config.LoadState(home)
-		require.NoError(t, err)
-		require.Contains(t, cfg.LastToolVersionCheck, "claude")
-		assert.True(t, cfg.LastToolVersionCheck["claude"].After(before))
-	})
-
-	t.Run("does not save timestamp when fetch fails", func(t *testing.T) {
-		// Arrange
-		home := t.TempDir()
-		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "", false, false })
-
-		// Act
-		_, _, ok := New(d, upstream).fetchIfDue(home, "claude", "agentic-claude")
-
-		// Assert
-		require.False(t, ok)
-		cfg, err := config.LoadState(home)
-		require.NoError(t, err)
-		assert.NotContains(t, cfg.LastToolVersionCheck, "claude")
-	})
-
-	t.Run("returns installed and latest when update available", func(t *testing.T) {
-		// Arrange
-		home := t.TempDir()
-		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
-
-		// Act
-		installed, latest, ok := New(d, upstream).fetchIfDue(home, "claude", "agentic-claude")
-
-		// Assert
-		assert.True(t, ok)
 		assert.Equal(t, "1.2.3", installed)
 		assert.Equal(t, "1.3.0", latest)
+		state, err := config.LoadState(home)
+		require.NoError(t, err)
+		assert.True(t, state.LastToolVersionCheck["claude"].After(before))
 	})
 }
 
 func TestCheck(t *testing.T) {
+	d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
+	newer := fakeUpstream(func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 	noopUpdate := func(string, string) error { return nil }
 	confirmYes := func(string, string, string) bool { return true }
 	confirmNo := func(string, string, string) bool { return false }
+	enabled := true
+	disabled := false
 
-	t.Run("skips when check_updates is false in rc", func(t *testing.T) {
-		// Arrange
-		disabled := false
-		req := Request{
-			Home:  t.TempDir(),
-			RC:    &config.AgenticRC{Run: config.RCRun{CheckUpdates: &disabled}},
-			Tool:  "claude",
-			Image: "agentic-claude",
-		}
-		var fetchCalled bool
-		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) {
-			fetchCalled = true
-			return "", false, false
+	for _, tc := range []struct {
+		name         string
+		checkUpdates *bool
+		wantFetched  bool
+	}{
+		{name: "check_updates false skips the check", checkUpdates: &disabled},
+		{name: "unset check_updates runs the check", wantFetched: true},
+		{name: "check_updates true runs the check", checkUpdates: &enabled, wantFetched: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			req := newRequest(t)
+			req.RC.Run.CheckUpdates = tc.checkUpdates
+			fetched := false
+			upstream := fakeUpstream(func(_, _ string) (string, bool, bool) {
+				fetched = true
+				return "1.2.3", false, true
+			})
+
+			// Act
+			err := New(d, upstream).Check(req, confirmNo, noopUpdate)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantFetched, fetched)
 		})
-
-		// Act
-		err := New(&fakeDocker{}, upstream).Check(req, confirmNo, noopUpdate)
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, fetchCalled)
-	})
-
-	t.Run("runs check when check_updates is nil", func(t *testing.T) {
-		// Arrange
-		req := Request{Home: t.TempDir(), RC: &config.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
-		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		var fetchCalled bool
-		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) {
-			fetchCalled = true
-			return "1.2.3", false, true
-		})
-
-		// Act
-		err := New(d, upstream).Check(req, confirmNo, noopUpdate)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, fetchCalled)
-	})
-
-	t.Run("runs check when check_updates is true", func(t *testing.T) {
-		// Arrange
-		enabled := true
-		req := Request{
-			Home:  t.TempDir(),
-			RC:    &config.AgenticRC{Run: config.RCRun{CheckUpdates: &enabled}},
-			Tool:  "claude",
-			Image: "agentic-claude",
-		}
-		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		var fetchCalled bool
-		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) {
-			fetchCalled = true
-			return "1.2.3", false, true
-		})
-
-		// Act
-		err := New(d, upstream).Check(req, confirmNo, noopUpdate)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, fetchCalled)
-	})
+	}
 
 	t.Run("calls update with tool and image when confirmed", func(t *testing.T) {
 		// Arrange
-		req := Request{Home: t.TempDir(), RC: &config.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
-		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		var updateCalledWith string
 		update := func(tool, image string) error {
 			updateCalledWith = tool + ":" + image
 			return nil
 		}
-
 		var offered string
 		confirm := func(tool, installed, latest string) bool {
 			offered = tool + " " + installed + " -> " + latest
@@ -254,7 +168,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, upstream).Check(req, confirm, update)
+		err := New(d, newer).Check(newRequest(t), confirm, update)
 
 		// Assert
 		require.NoError(t, err)
@@ -264,13 +178,10 @@ func TestCheck(t *testing.T) {
 
 	t.Run("returns formatted error when update fails", func(t *testing.T) {
 		// Arrange
-		req := Request{Home: t.TempDir(), RC: &config.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
-		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		update := func(string, string) error { return errors.New("build failed") }
 
 		// Act
-		err := New(d, upstream).Check(req, confirmYes, update)
+		err := New(d, newer).Check(newRequest(t), confirmYes, update)
 
 		// Assert
 		assert.EqualError(t, err, "update failed: build failed - run: agentic update claude")
@@ -278,9 +189,6 @@ func TestCheck(t *testing.T) {
 
 	t.Run("does not call update when not confirmed", func(t *testing.T) {
 		// Arrange
-		req := Request{Home: t.TempDir(), RC: &config.AgenticRC{}, Tool: "claude", Image: "agentic-claude"}
-		d := &fakeDocker{inspectImage: inspectReturns(&docker.ImageInfo{Version: "1.2.3"}, nil)}
-		upstream := fakeUpstream(func(_, _ string) (string, bool, bool) { return "1.3.0", true, true })
 		called := false
 		update := func(string, string) error {
 			called = true
@@ -288,7 +196,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		// Act
-		err := New(d, upstream).Check(req, confirmNo, update)
+		err := New(d, newer).Check(newRequest(t), confirmNo, update)
 
 		// Assert
 		require.NoError(t, err)

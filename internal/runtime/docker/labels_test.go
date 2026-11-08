@@ -3,7 +3,6 @@ package docker
 import (
 	"fmt"
 	"io"
-	"strings"
 	"testing"
 	"time"
 
@@ -22,234 +21,182 @@ func TestLabel_buildsFlag(t *testing.T) {
 }
 
 func TestNewCacheBust(t *testing.T) {
-	t.Run("returns non-empty value", func(t *testing.T) {
-		// Act
-		result := NewCacheBust()
+	// Arrange
+	first := NewCacheBust()
 
-		// Assert
-		assert.NotEmpty(t, result)
-	})
+	// Act
+	second := NewCacheBust()
 
-	t.Run("differs between calls", func(t *testing.T) {
-		// Arrange
-		first := NewCacheBust()
-
-		// Act
-		second := NewCacheBust()
-
-		// Assert
-		assert.NotEqual(t, first, second)
-	})
+	// Assert
+	assert.NotEmpty(t, first)
+	assert.NotEqual(t, first, second)
 }
 
 func TestBuildBaseLabel(t *testing.T) {
-	t.Run("single extra with version", func(t *testing.T) {
-		// Act
-		result := buildBaseLabel([]string{"node"}, map[string]string{"node": "24.0.0"})
+	for _, tc := range []struct {
+		name     string
+		extras   []string
+		versions map[string]string
+		want     string
+	}{
+		{name: "single extra with version", extras: []string{"node"}, versions: map[string]string{"node": "24.0.0"}, want: "node@24.0.0"},
+		{name: "single extra version missing", extras: []string{"node"}, want: "node"},
+		{name: "no extras returns empty string"},
+		{name: "multiple extras with versions", extras: []string{"java", "python"}, versions: map[string]string{"java": "21.0.1", "python": ""}, want: "java@21.0.1,python"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := buildBaseLabel(tc.extras, tc.versions)
 
-		// Assert
-		assert.Equal(t, "node@24.0.0", result)
-	})
-
-	t.Run("single extra version missing", func(t *testing.T) {
-		// Act
-		result := buildBaseLabel([]string{"node"}, nil)
-
-		// Assert
-		assert.Equal(t, "node", result)
-	})
-
-	t.Run("no extras returns empty string", func(t *testing.T) {
-		// Act
-		result := buildBaseLabel(nil, nil)
-
-		// Assert
-		assert.Equal(t, "", result)
-	})
-
-	t.Run("multiple extras with versions", func(t *testing.T) {
-		// Arrange
-		extraVersions := map[string]string{"java": "21.0.1", "python": ""}
-
-		// Act
-		result := buildBaseLabel([]string{"java", "python"}, extraVersions)
-
-		// Assert
-		assert.Equal(t, "java@21.0.1,python", result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestBuildVersionArgsLabel(t *testing.T) {
-	t.Run("uses overrides when given", func(t *testing.T) {
-		// Act
-		result := buildVersionArgsLabel([]string{"node", "java"}, map[string]string{"node": "22", "java": "17"})
+	for _, tc := range []struct {
+		name      string
+		overrides map[string]string
+		want      string
+	}{
+		{name: "uses overrides when given", overrides: map[string]string{"node": "22", "java": "17"}, want: "node@22,java@17"},
+		{name: "falls back to embedded defaults", want: "node@" + tools.DefaultVersions.Node + ",java@" + tools.DefaultVersions.Java},
+		{name: "mixes overrides and defaults", overrides: map[string]string{"java": "17"}, want: "node@" + tools.DefaultVersions.Node + ",java@17"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := buildVersionArgsLabel([]string{"node", "java"}, tc.overrides)
 
-		// Assert
-		assert.Equal(t, "node@22,java@17", result)
-	})
-
-	t.Run("falls back to embedded defaults", func(t *testing.T) {
-		// Act
-		result := buildVersionArgsLabel([]string{"node", "java"}, nil)
-
-		// Assert
-		assert.Equal(t, "node@"+tools.DefaultVersions.Node+",java@"+tools.DefaultVersions.Java, result)
-	})
-
-	t.Run("mixes overrides and defaults", func(t *testing.T) {
-		// Act
-		result := buildVersionArgsLabel([]string{"node", "java"}, map[string]string{"java": "17"})
-
-		// Assert
-		assert.Equal(t, "node@"+tools.DefaultVersions.Node+",java@17", result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestRecoverVersionArgs(t *testing.T) {
-	t.Run("parses layer name and version pairs", func(t *testing.T) {
-		// Act
-		result := RecoverVersionArgs("node@24,java@17")
+	for _, tc := range []struct {
+		name  string
+		label string
+		want  map[string]string
+	}{
+		{name: "parses layer name and version pairs", label: "node@24,java@17", want: map[string]string{"node": "24", "java": "17"}},
+		{name: "skips entries without a version", label: "node@24,java", want: map[string]string{"node": "24"}},
+		{name: "empty string returns empty map", want: map[string]string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := RecoverVersionArgs(tc.label)
 
-		// Assert
-		assert.Equal(t, map[string]string{"node": "24", "java": "17"}, result)
-	})
-
-	t.Run("skips entries without a version", func(t *testing.T) {
-		// Act
-		result := RecoverVersionArgs("node@24,java")
-
-		// Assert
-		assert.Equal(t, map[string]string{"node": "24"}, result)
-	})
-
-	t.Run("empty string returns empty map", func(t *testing.T) {
-		// Act
-		result := RecoverVersionArgs("")
-
-		// Assert
-		assert.Empty(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestRecoverApt(t *testing.T) {
-	t.Run("splits comma-separated packages", func(t *testing.T) {
-		// Act
-		result := RecoverApt("make,gcc,jq")
+	for _, tc := range []struct {
+		name  string
+		label string
+		want  []string
+	}{
+		{name: "splits comma-separated packages", label: "make,gcc,jq", want: []string{"make", "gcc", "jq"}},
+		{name: "trims spaces", label: "make, gcc", want: []string{"make", "gcc"}},
+		{name: "empty string returns nil"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := RecoverApt(tc.label)
 
-		// Assert
-		assert.Equal(t, []string{"make", "gcc", "jq"}, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
+}
 
-	t.Run("trims spaces", func(t *testing.T) {
-		// Act
-		result := RecoverApt("make, gcc")
+func TestRecoverExtras(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		label string
+		want  []string
+	}{
+		{name: "strips versions from entries", label: "node@24.0.0,java@21.0.1,python@3.11", want: []string{"node", "java", "python"}},
+		{name: "node only", label: "node@24.0.0", want: []string{"node"}},
+		{name: "empty string returns nil"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := RecoverExtras(tc.label)
 
-		// Assert
-		assert.Equal(t, []string{"make", "gcc"}, result)
-	})
-
-	t.Run("empty string returns nil", func(t *testing.T) {
-		// Act
-		result := RecoverApt("")
-
-		// Assert
-		assert.Nil(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestRecoveredBaseOverride(t *testing.T) {
-	t.Run("recovers from label when override is empty", func(t *testing.T) {
-		// Act
-		result := RecoveredBaseOverride(&ImageInfo{Base: "node@24,java@21"}, tools.BuildOptions{})
+	for _, tc := range []struct {
+		name string
+		base string
+		opts tools.BuildOptions
+		want []string
+	}{
+		{name: "recovers from label when override is empty", base: "node@24,java@21", want: []string{"node", "java"}},
+		{name: "explicit override wins over label", base: "node@24", opts: tools.BuildOptions{BaseOverride: []string{"go"}}, want: []string{"go"}},
+		{name: "exact mode skips recovery even when empty", base: "node@24", opts: tools.BuildOptions{BaseOverride: []string{}, BaseExact: true}, want: []string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := RecoveredBaseOverride(&ImageInfo{Base: tc.base}, tc.opts)
 
-		// Assert
-		assert.Equal(t, []string{"node", "java"}, result)
-	})
-
-	t.Run("explicit override wins over label", func(t *testing.T) {
-		// Act
-		result := RecoveredBaseOverride(&ImageInfo{Base: "node@24"}, tools.BuildOptions{BaseOverride: []string{"go"}})
-
-		// Assert
-		assert.Equal(t, []string{"go"}, result)
-	})
-
-	t.Run("exact mode skips recovery even when empty", func(t *testing.T) {
-		// Act
-		result := RecoveredBaseOverride(&ImageInfo{Base: "node@24"}, tools.BuildOptions{BaseOverride: []string{}, BaseExact: true})
-
-		// Assert
-		assert.Empty(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestRecoveredAptPackages(t *testing.T) {
-	t.Run("recovers from label and merges with opts", func(t *testing.T) {
-		// Act
-		merged, recovered := RecoveredAptPackages(&ImageInfo{Apt: "make,gcc"}, tools.BuildOptions{AptPackages: []string{"cmake"}})
+	for _, tc := range []struct {
+		name          string
+		apt           string
+		exact         bool
+		wantMerged    []string
+		wantRecovered []string
+	}{
+		{name: "recovers from label and merges with opts", apt: "make,gcc", wantMerged: []string{"make", "gcc", "cmake"}, wantRecovered: []string{"make", "gcc"}},
+		{name: "no label to recover from", wantMerged: []string{"cmake"}},
+		{name: "exact mode skips recovery", apt: "make", exact: true, wantMerged: []string{"cmake"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			merged, recovered := RecoveredAptPackages(&ImageInfo{Apt: tc.apt}, tools.BuildOptions{AptPackages: []string{"cmake"}, AptExact: tc.exact})
 
-		// Assert
-		assert.Equal(t, []string{"make", "gcc", "cmake"}, merged)
-		assert.Equal(t, []string{"make", "gcc"}, recovered)
-	})
-
-	t.Run("no label to recover from", func(t *testing.T) {
-		// Act
-		merged, recovered := RecoveredAptPackages(&ImageInfo{}, tools.BuildOptions{AptPackages: []string{"cmake"}})
-
-		// Assert
-		assert.Equal(t, []string{"cmake"}, merged)
-		assert.Nil(t, recovered)
-	})
-
-	t.Run("exact mode skips recovery", func(t *testing.T) {
-		// Act
-		merged, recovered := RecoveredAptPackages(&ImageInfo{Apt: "make"}, tools.BuildOptions{AptPackages: []string{"cmake"}, AptExact: true})
-
-		// Assert
-		assert.Equal(t, []string{"cmake"}, merged)
-		assert.Nil(t, recovered)
-	})
+			// Assert
+			assert.Equal(t, tc.wantMerged, merged)
+			assert.Equal(t, tc.wantRecovered, recovered)
+		})
+	}
 }
 
 func TestPullIsFresh(t *testing.T) {
-	t.Run("timestamp within interval is fresh", func(t *testing.T) {
-		// Arrange
-		label := formatLabelTime(time.Now())
+	for _, tc := range []struct {
+		name  string
+		label string
+		want  bool
+	}{
+		{name: "timestamp within interval is fresh", label: formatLabelTime(time.Now()), want: true},
+		{name: "timestamp older than interval is not fresh", label: formatLabelTime(time.Now().Add(-25 * time.Hour))},
+		{name: "empty label is not fresh"},
+		{name: "unparseable label is not fresh", label: "not-a-timestamp"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := PullIsFresh(tc.label, 24*time.Hour)
 
-		// Act
-		result := PullIsFresh(label, 24*time.Hour)
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("timestamp older than interval is not fresh", func(t *testing.T) {
-		// Arrange
-		label := formatLabelTime(time.Now().Add(-25 * time.Hour))
-
-		// Act
-		result := PullIsFresh(label, 24*time.Hour)
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("empty label is not fresh", func(t *testing.T) {
-		// Act
-		result := PullIsFresh("", 24*time.Hour)
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("unparseable label is not fresh", func(t *testing.T) {
-		// Act
-		result := PullIsFresh("not-a-timestamp", 24*time.Hour)
-
-		// Assert
-		assert.False(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestImageLabelPairs(t *testing.T) {
@@ -279,15 +226,14 @@ func TestImageLabelPairs(t *testing.T) {
 }
 
 func TestStampLabels(t *testing.T) {
+	// Arrange
 	client := newTestClient()
-
 	var capturedArgs []string
 	stubDockerRunWithStdin(t, client, func(_ io.Reader, args ...string) (string, error) {
 		capturedArgs = args
 		return "", nil
 	})
-
-	fullInfo := ImageInfo{
+	info := ImageInfo{
 		Namespace:      "agentic",
 		Tool:           "claude",
 		Version:        "1.2.3",
@@ -300,48 +246,26 @@ func TestStampLabels(t *testing.T) {
 		CLIVersion:     "1.0.0",
 	}
 
-	t.Run("always includes project label", func(t *testing.T) {
-		// Act
-		client.stampLabels("agentic-claude", ImageInfo{})
+	// Act
+	client.stampLabels("agentic-claude", info)
 
-		// Assert
-		assert.Contains(t, capturedArgs, "--label="+LabelProject+"="+LabelProjectVal)
-	})
-
-	t.Run("includes every non-empty field in info", func(t *testing.T) {
-		// Act
-		client.stampLabels("agentic-claude", fullInfo)
-
-		// Assert
-		assert.Contains(t, capturedArgs, "--label="+LabelNamespace+"=agentic")
-		assert.Contains(t, capturedArgs, "--label="+LabelTool+"=claude")
-		assert.Contains(t, capturedArgs, "--label="+LabelToolVersion+"=1.2.3")
-		assert.Contains(t, capturedArgs, "--label="+LabelBase+"=node@24.0.0")
-		assert.Contains(t, capturedArgs, "--label="+LabelVersionArgs+"=node@24")
-		assert.Contains(t, capturedArgs, "--label="+LabelApt+"=make,gcc")
-		assert.Contains(t, capturedArgs, "--label="+LabelCustomInstalls+"=helm")
-		assert.Contains(t, capturedArgs, "--label="+LabelBuilt+"=2026-08-21T00:00:00Z")
-		assert.Contains(t, capturedArgs, "--label="+LabelPulled+"=2026-08-20T00:00:00Z")
-		assert.Contains(t, capturedArgs, "--label="+LabelCLIVersion+"=1.0.0")
-	})
-
-	t.Run("omits the label for an empty field", func(t *testing.T) {
-		// Act - Pulled left blank
-		client.stampLabels("agentic-claude", ImageInfo{Namespace: "agentic", Tool: "claude"})
-
-		// Assert
-		assert.False(t, hasArgWithPrefix(capturedArgs, "--label="+LabelPulled+"="),
-			"unexpected %s label in args", LabelPulled)
-	})
-
-	t.Run("tags back the same image without a build context", func(t *testing.T) {
-		// Act
-		client.stampLabels("agentic-claude", fullInfo)
-
-		// Assert
-		assert.Contains(t, capturedArgs, "--tag=agentic-claude")
-		assert.Equal(t, "-", capturedArgs[len(capturedArgs)-1])
-	})
+	// Assert - the project label and every non-empty field, tagged back onto the image without a build context
+	assert.Equal(t, []string{
+		"build",
+		"--label=" + LabelProject + "=" + LabelProjectVal,
+		"--label=" + LabelNamespace + "=agentic",
+		"--label=" + LabelTool + "=claude",
+		"--label=" + LabelToolVersion + "=1.2.3",
+		"--label=" + LabelBase + "=node@24.0.0",
+		"--label=" + LabelVersionArgs + "=node@24",
+		"--label=" + LabelApt + "=make,gcc",
+		"--label=" + LabelCustomInstalls + "=helm",
+		"--label=" + LabelBuilt + "=2026-08-21T00:00:00Z",
+		"--label=" + LabelPulled + "=2026-08-20T00:00:00Z",
+		"--label=" + LabelCLIVersion + "=1.0.0",
+		"--tag=agentic-claude",
+		"-",
+	}, capturedArgs)
 }
 
 func TestStampImageLabels(t *testing.T) {
@@ -353,108 +277,39 @@ func TestStampImageLabels(t *testing.T) {
 		return "", nil
 	})
 
-	t.Run("includes namespace and tool labels derived from the image name", func(t *testing.T) {
+	t.Run("maps the build options and detected versions to labels", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, client, "", nil)
+		stubDockerRunFixed(t, client, "21.0.1\n", nil)
+		installs := []config.RCCustomInstall{
+			{Name: "helm", Run: []string{"echo helm"}},
+			{Name: "golangci-lint", Run: []string{"echo lint"}},
+		}
+		opts := tools.BuildOptions{
+			BaseOverride:   []string{"java"},
+			Versions:       map[string]string{"java": "17"},
+			AptPackages:    []string{"make", "gcc"},
+			CustomInstalls: installs,
+			CacheBust:      "2026-08-21T07:18:37Z",
+		}
 
 		// Act
-		client.stampImageLabels("myproject-claude", "claude", tools.BuildOptions{})
+		client.stampImageLabels("myproject-claude", "claude", opts)
 
 		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelNamespace+"=myproject")
 		assert.Contains(t, capturedArgs, "--label="+LabelTool+"=claude")
-	})
-
-	t.Run("includes a fresh built timestamp and CLI version", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "", nil)
-
-		// Act
-		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{})
-
-		// Assert
-		assert.True(t, hasArgWithPrefix(capturedArgs, "--label="+LabelBuilt+"="),
-			"expected --%s label in args", LabelBuilt)
-		assert.True(t, hasArgWithPrefix(capturedArgs, "--label="+LabelCLIVersion+"="),
-			"expected --%s label in args", LabelCLIVersion)
-	})
-
-	t.Run("includes apt label with packages", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "", nil)
-
-		// Act
-		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{AptPackages: []string{"make", "gcc"}})
-
-		// Assert
+		assert.Contains(t, capturedArgs, "--label="+LabelToolVersion+"=21.0.1")
+		assert.Contains(t, capturedArgs, "--label="+LabelBase+"=java@21.0.1")
+		assert.Contains(t, capturedArgs, "--label="+LabelVersionArgs+"="+tools.BaseLayer+"@"+tools.DefaultVersions.Debian+",java@17")
 		assert.Contains(t, capturedArgs, "--label="+LabelApt+"=make,gcc")
-	})
-
-	t.Run("includes custom installs names and hash labels", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "", nil)
-		installs := []config.RCCustomInstall{{Name: "helm", Run: []string{"echo helm"}}, {Name: "golangci-lint", Run: []string{"echo lint"}}}
-
-		// Act
-		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{CustomInstalls: installs})
-
-		// Assert
 		assert.Contains(t, capturedArgs, "--label="+LabelCustomInstalls+"=helm,golangci-lint")
 		assert.Contains(t, capturedArgs, "--label="+LabelCustomInstallsHash+"="+config.CustomInstallsHash(installs))
+		assert.Contains(t, capturedArgs, "--label="+LabelCacheBust+"=2026-08-21T07:18:37Z")
+		assert.True(t, hasArgWithPrefix(capturedArgs, "--label="+LabelBuilt+"="))
+		assert.True(t, hasArgWithPrefix(capturedArgs, "--label="+LabelCLIVersion+"="))
 	})
 
-	t.Run("omits custom installs labels without installs", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "", nil)
-
-		// Act
-		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{})
-
-		// Assert
-		assert.False(t, hasArgWithPrefix(capturedArgs, "--label="+LabelCustomInstalls))
-	})
-
-	t.Run("includes base label", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "21.0.1\n", nil)
-
-		// Act
-		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{BaseOverride: []string{"java"}})
-
-		// Assert
-		assert.Contains(t, capturedArgs, "--label="+LabelBase+"=java@21.0.1")
-	})
-
-	t.Run("includes version-args label", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "", nil)
-
-		// Act
-		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{"java": "17"}})
-
-		// Assert
-		found := false
-		for _, a := range capturedArgs {
-			if strings.HasPrefix(a, "--label="+LabelVersionArgs+"=") {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "expected --%s label in args", LabelVersionArgs)
-	})
-
-	t.Run("includes tool version label when detected", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "1.2.3\n", nil)
-
-		// Act
-		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{})
-
-		// Assert
-		assert.Contains(t, capturedArgs, "--label="+LabelToolVersion+"=1.2.3")
-	})
-
-	t.Run("omits tool version label when detection fails", func(t *testing.T) {
+	t.Run("omits labels for unset options and a failed version detection", func(t *testing.T) {
 		// Arrange
 		stubDockerRunFixed(t, client, "", fmt.Errorf("version script not found"))
 
@@ -462,67 +317,9 @@ func TestStampImageLabels(t *testing.T) {
 		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{})
 
 		// Assert
-		for _, a := range capturedArgs {
-			assert.False(t, strings.HasPrefix(a, "--label="+LabelToolVersion+"="),
-				"unexpected %s label in args: %s", LabelToolVersion, a)
+		for _, key := range []string{LabelToolVersion, LabelApt, LabelCustomInstalls, LabelCacheBust} {
+			assert.False(t, hasArgWithPrefix(capturedArgs, "--label="+key+"="), "unexpected %s label in args", key)
 		}
-	})
-
-	t.Run("records the cachebust value the tool stage was built with", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "", nil)
-
-		// Act
-		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{CacheBust: "2026-08-21T07:18:37Z"})
-
-		// Assert
-		assert.Contains(t, capturedArgs, "--label="+LabelCacheBust+"=2026-08-21T07:18:37Z")
-	})
-
-	t.Run("omits cachebust label when built without one", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "", nil)
-
-		// Act
-		client.stampImageLabels("agentic-claude", "claude", tools.BuildOptions{})
-
-		// Assert
-		assert.False(t, hasArgWithPrefix(capturedArgs, "--label="+LabelCacheBust+"="),
-			"unexpected %s label in args", LabelCacheBust)
-	})
-}
-
-func TestRecoverExtras(t *testing.T) {
-	t.Run("strips versions from entries", func(t *testing.T) {
-		// Act
-		result := RecoverExtras("node@24.0.0,java@21.0.1")
-
-		// Assert
-		assert.Equal(t, []string{"node", "java"}, result)
-	})
-
-	t.Run("multiple extras", func(t *testing.T) {
-		// Act
-		result := RecoverExtras("node@24.0.0,java@21.0.1,python@3.11")
-
-		// Assert
-		assert.Equal(t, []string{"node", "java", "python"}, result)
-	})
-
-	t.Run("node only", func(t *testing.T) {
-		// Act
-		result := RecoverExtras("node@24.0.0")
-
-		// Assert
-		assert.Equal(t, []string{"node"}, result)
-	})
-
-	t.Run("empty string returns nil", func(t *testing.T) {
-		// Act
-		result := RecoverExtras("")
-
-		// Assert
-		assert.Nil(t, result)
 	})
 }
 
@@ -534,7 +331,15 @@ func TestRestampImage(t *testing.T) {
 		capturedArgs = args
 		return "", nil
 	})
-	info := ImageInfo{Namespace: "agentic", Tool: "claude", Version: "1.2.3", Apt: "make,gcc", Base: "node@24.0.0", Built: "2020-01-01T00:00:00Z", CLIVersion: "old"}
+	info := ImageInfo{
+		Namespace:  "agentic",
+		Tool:       "claude",
+		Version:    "1.2.3",
+		Apt:        "make,gcc",
+		Base:       "node@24.0.0",
+		Built:      "2020-01-01T00:00:00Z",
+		CLIVersion: "old",
+	}
 
 	// Act
 	client.RestampImage("agentic-claude", info)

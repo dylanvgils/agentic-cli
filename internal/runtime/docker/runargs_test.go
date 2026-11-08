@@ -47,32 +47,24 @@ func TestBuildBaseArgs(t *testing.T) {
 		assert.Contains(t, args, "--user="+testUser.String())
 	})
 
-	t.Run("name and label", func(t *testing.T) {
-		// Act
-		args := buildBaseArgs(toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", User: &testUser}, container: "agentic-claude-0123456789ab"})
-
-		// Assert
-		assert.Contains(t, args, "--name=agentic-claude-0123456789ab")
-		assert.Contains(t, args, "--label=project=agentic-cli")
-	})
-
-	t.Run("resource limits from spec", func(t *testing.T) {
+	t.Run("names, labels and limits the container from the spec", func(t *testing.T) {
 		// Arrange
 		rs := toolRun{RunSpec: sandbox.RunSpec{
 			Image:  "agentic-claude",
 			User:   &testUser,
 			Limits: sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
-		}}
+		}, container: "agentic-claude-0123456789ab"}
 
 		// Act
 		args := buildBaseArgs(rs)
 
 		// Assert
+		assert.Contains(t, args, "--name=agentic-claude-0123456789ab")
+		assert.Contains(t, args, "--label=project=agentic-cli")
 		assert.Contains(t, args, "--pids-limit=512")
 		assert.Contains(t, args, "--cpus=2")
 		assert.Contains(t, args, "--memory=2g")
 	})
-
 }
 
 func TestBuildTTYArgs(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,161 +53,94 @@ func Test_baseStage(t *testing.T) {
 }
 
 func Test_nodeStage(t *testing.T) {
+	// Act
 	stage, err := extraStage("node", "base", "")
+
+	// Assert
 	require.NoError(t, err)
 	result := renderStage(stage)
-
-	t.Run("builds from prev stage as node", func(t *testing.T) {
-		// Assert
-		assert.Equal(t, "base", stage.From.Image)
-		assert.Equal(t, "node", stage.From.As)
-	})
-
-	t.Run("default node version arg", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "NODE_VERSION="+DefaultVersions.Node)
-	})
-
-	t.Run("node version override", func(t *testing.T) {
-		// Arrange
-		stage, err := extraStage("node", "base", "22")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, renderStage(stage), "NODE_VERSION=22")
-	})
-
-	t.Run("default nvm version arg", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "NVM_VERSION="+DefaultVersions.Nvm)
-	})
-
-	t.Run("default nvm checksum arg", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "NVM_CHECKSUM="+DefaultChecksums.Nvm)
-	})
-
-	t.Run("sets NVM_DIR env", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "NVM_DIR")
-		assert.Contains(t, result, "/usr/local/nvm")
-	})
-
-	t.Run("installs NVM via curl", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "nvm-sh/nvm")
-		assert.Contains(t, result, "install.sh")
-	})
-
-	t.Run("symlinks node binaries to /usr/local/bin", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "/usr/local/bin/node")
-		assert.Contains(t, result, "/usr/local/bin/npm")
-		assert.Contains(t, result, "/usr/local/bin/npx")
-	})
-
-	t.Run("clears nvm cache", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "nvm cache clear")
-	})
-
-	t.Run("renders version script", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "agentic-version-node")
-	})
+	assert.Contains(t, result, "NVM_VERSION="+DefaultVersions.Nvm)
+	assert.Contains(t, result, "NVM_CHECKSUM="+DefaultChecksums.Nvm)
+	assert.Contains(t, result, "NVM_DIR=/usr/local/nvm")
+	assert.Contains(t, result, "nvm-sh/nvm/v${NVM_VERSION}/install.sh")
+	for _, bin := range []string{"node", "npm", "npx"} {
+		assert.Contains(t, result, "/usr/local/bin/"+bin)
+	}
+	assert.Contains(t, result, "nvm cache clear")
 }
 
 func Test_customInstallsStage(t *testing.T) {
-	t.Run("builds from prev stage as custom-installs", func(t *testing.T) {
-		// Act
-		stage := customInstallsStage("base", []config.RCCustomInstall{{Name: "helm", Run: []string{"true"}}})
-
-		// Assert
-		assert.Equal(t, "base", stage.From.Image)
-		assert.Equal(t, "custom-installs", stage.From.As)
-	})
-
-	t.Run("sets pipefail shell so a failed curl in a pipeline fails the build", func(t *testing.T) {
+	t.Run("builds from prev stage with pipefail so a failed curl in a pipeline fails the build", func(t *testing.T) {
 		// Act
 		stage := customInstallsStage("base", []config.RCCustomInstall{{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh | bash"}}})
-		result := renderStage(stage)
 
 		// Assert
-		assert.Contains(t, result, `SHELL ["/bin/bash", "-o", "pipefail", "-c"]`)
+		assert.Equal(t, df.From{Image: "base", As: "custom-installs"}, stage.From)
+		assert.Contains(t, renderStage(stage), `SHELL ["/bin/bash", "-o", "pipefail", "-c"]`)
 	})
 
-	t.Run("single entry with one line renders one RUN with name comment", func(t *testing.T) {
-		// Act
-		stage := customInstallsStage("base", []config.RCCustomInstall{{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh | bash"}}})
-		result := renderStage(stage)
+	for _, tc := range []struct {
+		name     string
+		installs []config.RCCustomInstall
+		wantRuns int
+		want     []string
+	}{
+		{
+			name:     "single entry with one line renders one RUN with name comment",
+			installs: []config.RCCustomInstall{{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh | bash"}}},
+			wantRuns: 1,
+			want:     []string{"# helm", "curl -fsSL https://get.helm.sh | bash"},
+		},
+		{
+			name:     "single entry with multiple lines chains them with &&",
+			installs: []config.RCCustomInstall{{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh -o /tmp/get-helm.sh", "bash /tmp/get-helm.sh"}}},
+			wantRuns: 1,
+			want:     []string{"/tmp/get-helm.sh \\\n  && bash /tmp/get-helm.sh"},
+		},
+		{
+			name: "multiple entries each get their own RUN",
+			installs: []config.RCCustomInstall{
+				{Name: "helm", Run: []string{"true"}},
+				{Name: "golangci-lint", Run: []string{"true"}},
+			},
+			wantRuns: 2,
+			want:     []string{"# helm", "# golangci-lint"},
+		},
+		{
+			name: "empty installs renders no RUN",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := renderStage(customInstallsStage("base", tc.installs))
 
-		// Assert
-		assert.Equal(t, 1, strings.Count(result, "RUN "))
-		assert.Contains(t, result, "# helm")
-		assert.Contains(t, result, "curl -fsSL https://get.helm.sh | bash")
-	})
-
-	t.Run("single entry with multiple lines chains them with &&", func(t *testing.T) {
-		// Act
-		stage := customInstallsStage("base", []config.RCCustomInstall{
-			{Name: "helm", Run: []string{"curl -fsSL https://get.helm.sh -o /tmp/get-helm.sh", "bash /tmp/get-helm.sh"}},
+			// Assert
+			assert.Equal(t, tc.wantRuns, strings.Count(result, "RUN "))
+			for _, want := range tc.want {
+				assert.Contains(t, result, want)
+			}
 		})
-		result := renderStage(stage)
-
-		// Assert
-		assert.Equal(t, 1, strings.Count(result, "RUN "))
-		assert.Contains(t, result, "&&")
-		assert.Contains(t, result, "/tmp/get-helm.sh")
-	})
-
-	t.Run("multiple entries each get their own RUN", func(t *testing.T) {
-		// Act
-		stage := customInstallsStage("base", []config.RCCustomInstall{
-			{Name: "helm", Run: []string{"true"}},
-			{Name: "golangci-lint", Run: []string{"true"}},
-		})
-		result := renderStage(stage)
-
-		// Assert
-		assert.Equal(t, 2, strings.Count(result, "RUN "))
-		assert.Contains(t, result, "# helm")
-		assert.Contains(t, result, "# golangci-lint")
-	})
-
-	t.Run("empty installs renders no RUN", func(t *testing.T) {
-		// Act
-		stage := customInstallsStage("base", nil)
-		result := renderStage(stage)
-
-		// Assert
-		assert.NotContains(t, result, "RUN ")
-	})
+	}
 }
 
 func Test_prefixImage(t *testing.T) {
-	t.Run("empty registry returns image:tag unchanged", func(t *testing.T) {
-		// Act
-		result := prefixImage("", "node", "24-bookworm-slim")
+	for _, tc := range []struct {
+		name     string
+		registry string
+		want     string
+	}{
+		{name: "empty registry returns image:tag unchanged", want: "node:24-bookworm-slim"},
+		{name: "registry prepended with slash", registry: "registry.example.test", want: "registry.example.test/node:24-bookworm-slim"},
+		{name: "trailing slash on registry is stripped", registry: "registry.example.test/", want: "registry.example.test/node:24-bookworm-slim"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := prefixImage(tc.registry, "node", "24-bookworm-slim")
 
-		// Assert
-		assert.Equal(t, "node:24-bookworm-slim", result)
-	})
-
-	t.Run("registry prepended with slash", func(t *testing.T) {
-		// Act
-		result := prefixImage("myregistry.example.com", "node", "24-bookworm-slim")
-
-		// Assert
-		assert.Equal(t, "myregistry.example.com/node:24-bookworm-slim", result)
-	})
-
-	t.Run("trailing slash on registry is stripped", func(t *testing.T) {
-		// Act
-		result := prefixImage("myregistry.example.com/", "node", "24-bookworm-slim")
-
-		// Assert
-		assert.Equal(t, "myregistry.example.com/node:24-bookworm-slim", result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestDebianImageFor(t *testing.T) {
@@ -226,63 +160,51 @@ func TestBusyboxImageFor(t *testing.T) {
 }
 
 func Test_extraStage(t *testing.T) {
+	defaults := map[string]string{
+		"docker": "DOCKER_VERSION=" + DefaultVersions.Docker,
+		"dotnet": "DOTNET_VERSION=" + DefaultVersions.Dotnet,
+		"go":     "GO_VERSION=" + DefaultVersions.Go,
+		"java":   "JAVA_VERSION=" + DefaultVersions.Java,
+		"node":   "NODE_VERSION=" + DefaultVersions.Node,
+	}
+
 	t.Run("unknown returns error", func(t *testing.T) {
 		// Act
 		_, err := extraStage("ruby", "base", "")
 
 		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "ruby")
-		assert.Contains(t, err.Error(), "valid:")
+		assert.ErrorContains(t, err, "ruby")
+		assert.ErrorContains(t, err, "valid:")
 	})
 
-	t.Run("java from prev stage", func(t *testing.T) {
-		// Act
-		stage, err := extraStage("java", "base", "")
+	for _, name := range knownExtras {
+		t.Run(name+" builds from the previous stage with its default version", func(t *testing.T) {
+			// Act
+			stage, err := extraStage(name, "prev", "")
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "base", stage.From.Image)
-		assert.Equal(t, "java", stage.From.As)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, df.From{Image: "prev", As: name}, stage.From)
+			result := renderStage(stage)
+			require.Contains(t, defaults, name, "add the new layer's default version here")
+			assert.Contains(t, result, defaults[name])
+			assert.Contains(t, result, "agentic-version-"+name)
+		})
 
-	t.Run("java default version", func(t *testing.T) {
-		// Act
-		stage, err := extraStage("java", "base", "")
+		t.Run(name+" takes a version override", func(t *testing.T) {
+			// Arrange
+			key, _, _ := strings.Cut(defaults[name], "=")
 
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, renderStage(stage), "JAVA_VERSION="+DefaultVersions.Java)
-	})
+			// Act
+			stage, err := extraStage(name, "prev", "1.2.3")
 
-	t.Run("java version override", func(t *testing.T) {
-		// Act
-		stage, err := extraStage("java", "base", "17")
+			// Assert
+			require.NoError(t, err)
+			assert.Contains(t, renderStage(stage), key+"=1.2.3")
+		})
+	}
 
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, renderStage(stage), "JAVA_VERSION=17")
-	})
-
-	t.Run("java renders version script", func(t *testing.T) {
-		// Act
-		stage, err := extraStage("java", "base", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, renderStage(stage), "agentic-version-java")
-	})
-
-	t.Run("java ships the maven proxy settings", func(t *testing.T) {
-		// Act
-		stage, err := extraStage("java", "base", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, renderStage(stage), "COPY --chmod=0644 <<'EOF' /etc/agentic/maven/settings.xml")
-	})
-
-	t.Run("java creates the maven settings dir before the file", func(t *testing.T) {
+	t.Run("java ships the maven proxy settings after creating their dir", func(t *testing.T) {
 		// Act
 		stage, err := extraStage("java", "base", "")
 
@@ -291,7 +213,9 @@ func Test_extraStage(t *testing.T) {
 		rendered := renderStage(stage)
 		mkdir := strings.Index(rendered, "mkdir -p /etc/agentic/maven")
 		require.NotEqual(t, -1, mkdir)
-		assert.Less(t, mkdir, strings.Index(rendered, "/etc/agentic/maven/settings.xml"))
+		settings := strings.Index(rendered, "COPY --chmod=0644 <<'EOF' /etc/agentic/maven/settings.xml")
+		require.NotEqual(t, -1, settings)
+		assert.Less(t, mkdir, settings)
 	})
 
 	t.Run("other layers don't ship the maven proxy settings", func(t *testing.T) {
@@ -301,16 +225,6 @@ func Test_extraStage(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.NotContains(t, renderStage(stage), "/etc/agentic/maven")
-	})
-
-	t.Run("docker default version", func(t *testing.T) {
-		// Act
-		stage, err := extraStage("docker", "base", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "docker", stage.From.As)
-		assert.Contains(t, renderStage(stage), "DOCKER_VERSION="+DefaultVersions.Docker)
 	})
 
 	t.Run("docker installs cli and plugins from signed repo only", func(t *testing.T) {
@@ -324,81 +238,6 @@ func Test_extraStage(t *testing.T) {
 		assert.Contains(t, rendered, "> /etc/apt/sources.list.d/docker.sources")
 		assert.Contains(t, rendered, "docker-buildx-plugin docker-compose-plugin")
 		assert.NotContains(t, rendered, "docker-ce ", "the daemon runs in the sidecar, never in the tool image")
-		assert.Contains(t, rendered, "agentic-version-docker")
-	})
-
-	t.Run("dotnet from prev stage", func(t *testing.T) {
-		// Act
-		stage, err := extraStage("dotnet", "java", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "java", stage.From.Image)
-		assert.Equal(t, "dotnet", stage.From.As)
-	})
-
-	t.Run("dotnet default version", func(t *testing.T) {
-		// Act
-		stage, err := extraStage("dotnet", "base", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, renderStage(stage), "DOTNET_VERSION="+DefaultVersions.Dotnet)
-	})
-
-	t.Run("dotnet renders version script", func(t *testing.T) {
-		// Act
-		stage, err := extraStage("dotnet", "base", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, renderStage(stage), "agentic-version-dotnet")
-	})
-
-	t.Run("go default version", func(t *testing.T) {
-		// Act
-		stage, err := extraStage("go", "base", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, renderStage(stage), "GO_VERSION="+DefaultVersions.Go)
-	})
-
-	t.Run("go renders version script", func(t *testing.T) {
-		// Act
-		stage, err := extraStage("go", "base", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, renderStage(stage), "agentic-version-go")
-	})
-
-	t.Run("node from prev stage", func(t *testing.T) {
-		// Act
-		stage, err := extraStage("node", "base", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "base", stage.From.Image)
-		assert.Equal(t, "node", stage.From.As)
-	})
-
-	t.Run("node default version", func(t *testing.T) {
-		// Act
-		stage, err := extraStage("node", "base", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, renderStage(stage), "NODE_VERSION="+DefaultVersions.Node)
-	})
-
-	t.Run("node renders version script", func(t *testing.T) {
-		// Act
-		stage, err := extraStage("node", "base", "")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, renderStage(stage), "agentic-version-node")
 	})
 }
 

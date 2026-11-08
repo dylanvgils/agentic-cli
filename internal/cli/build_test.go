@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -15,59 +14,29 @@ func Test_runBuild(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
 
-	t.Run("no cache flag sets opt", func(t *testing.T) {
-		// Arrange
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
-			capturedOpts = opts
-			return nil
-		}})
+	for _, tc := range []struct {
+		flag  string
+		value string
+		want  func(tools.BuildOptions) bool
+	}{
+		{flag: "no-cache", value: "true", want: func(o tools.BuildOptions) bool { return o.NoCache }},
+		{flag: "skip-install-checksum", value: "true", want: func(o tools.BuildOptions) bool { return o.SkipInstallChecksum }},
+		{flag: "pull", value: "true", want: func(o tools.BuildOptions) bool { return o.Pull }},
+		{flag: "node", value: "22", want: func(o tools.BuildOptions) bool { return o.Versions["node"] == "22" }},
+	} {
+		t.Run(tc.flag+" flag sets opt", func(t *testing.T) {
+			// Arrange
+			opts := stubBuildTool(t, nil)
+			stubFlag(t, buildCmd, tc.flag, tc.value)
 
-		stubFlag(t, buildCmd, "no-cache", "true")
+			// Act
+			err := runBuild(buildCmd, []string{"claude"})
 
-		// Act
-		err := runBuild(buildCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, capturedOpts.NoCache)
-	})
-
-	t.Run("skip install checksum flag sets opt", func(t *testing.T) {
-		// Arrange
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
-			capturedOpts = opts
-			return nil
-		}})
-
-		stubFlag(t, buildCmd, "skip-install-checksum", "true")
-
-		// Act
-		err := runBuild(buildCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, capturedOpts.SkipInstallChecksum)
-	})
-
-	t.Run("pull flag sets opt", func(t *testing.T) {
-		// Arrange
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
-			capturedOpts = opts
-			return nil
-		}})
-
-		stubFlag(t, buildCmd, "pull", "true")
-
-		// Act
-		err := runBuild(buildCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, capturedOpts.Pull)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.True(t, tc.want(*opts))
+		})
+	}
 
 	t.Run("all flag builds every tool", func(t *testing.T) {
 		// Arrange
@@ -111,8 +80,8 @@ func Test_runBuild(t *testing.T) {
 	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
+		writeRC(t, dir, "not valid toml [[[")
 		rcPath := filepath.Join(dir, ".agenticrc.toml")
-		require.NoError(t, os.WriteFile(rcPath, []byte("not valid toml [[["), 0o644))
 		t.Chdir(dir)
 
 		// Act
@@ -121,23 +90,4 @@ func Test_runBuild(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, rcPath)
 	})
-
-	t.Run("node flag sets opt", func(t *testing.T) {
-		// Arrange
-		var capturedOpts tools.BuildOptions
-		stubDocker(t, &fakeDocker{buildTool: func(_, _ string, opts tools.BuildOptions) error {
-			capturedOpts = opts
-			return nil
-		}})
-
-		stubFlag(t, buildCmd, "node", "22")
-
-		// Act
-		err := runBuild(buildCmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "22", capturedOpts.Versions["node"])
-	})
-
 }

@@ -1,11 +1,8 @@
 package tools
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,13 +12,10 @@ import (
 func Test_fetchGithubRelease(t *testing.T) {
 	t.Run("parses tag_name from response", func(t *testing.T) {
 		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(githubRelease{TagName: "v1.0.63"}) //nolint:errcheck
-		}))
-		defer srv.Close()
+		url := serveUpstream(t, http.StatusOK, `{"tag_name":"v1.0.63"}`)
 
 		// Act
-		release, err := fetchGithubRelease(srv.URL)
+		release, err := fetchGithubRelease(url)
 
 		// Assert
 		require.NoError(t, err)
@@ -30,13 +24,10 @@ func Test_fetchGithubRelease(t *testing.T) {
 
 	t.Run("returns error on invalid JSON", func(t *testing.T) {
 		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, "not json")
-		}))
-		defer srv.Close()
+		url := serveUpstream(t, http.StatusOK, "not json")
 
 		// Act
-		_, err := fetchGithubRelease(srv.URL)
+		_, err := fetchGithubRelease(url)
 
 		// Assert
 		assert.Error(t, err)
@@ -45,13 +36,10 @@ func Test_fetchGithubRelease(t *testing.T) {
 
 func Test_fetchTextVersion(t *testing.T) {
 	// Arrange
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "2.1.185\n")
-	}))
-	defer srv.Close()
+	url := serveUpstream(t, http.StatusOK, "2.1.185\n")
 
 	// Act
-	version, err := fetchTextVersion(srv.URL)
+	version, err := fetchTextVersion(url)
 
 	// Assert
 	require.NoError(t, err)
@@ -61,13 +49,10 @@ func Test_fetchTextVersion(t *testing.T) {
 func Test_fetchJSONVersion(t *testing.T) {
 	t.Run("returns the version field", func(t *testing.T) {
 		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, `{"channel":"latest","version":"2.0.31"}`)
-		}))
-		defer srv.Close()
+		url := serveUpstream(t, http.StatusOK, `{"channel":"latest","version":"2.0.31"}`)
 
 		// Act
-		version, err := fetchJSONVersion(srv.URL)
+		version, err := fetchJSONVersion(url)
 
 		// Assert
 		require.NoError(t, err)
@@ -76,13 +61,10 @@ func Test_fetchJSONVersion(t *testing.T) {
 
 	t.Run("returns error when version is missing", func(t *testing.T) {
 		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, `{"channel":"latest"}`)
-		}))
-		defer srv.Close()
+		url := serveUpstream(t, http.StatusOK, `{"channel":"latest"}`)
 
 		// Act
-		_, err := fetchJSONVersion(srv.URL)
+		_, err := fetchJSONVersion(url)
 
 		// Assert
 		assert.Error(t, err)
@@ -92,13 +74,10 @@ func Test_fetchJSONVersion(t *testing.T) {
 func Test_fetchBody(t *testing.T) {
 	t.Run("returns body of a 200 response", func(t *testing.T) {
 		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, "body")
-		}))
-		defer srv.Close()
+		url := serveUpstream(t, http.StatusOK, "body")
 
 		// Act
-		body, err := fetchBody(srv.URL)
+		body, err := fetchBody(url)
 
 		// Assert
 		require.NoError(t, err)
@@ -107,13 +86,10 @@ func Test_fetchBody(t *testing.T) {
 
 	t.Run("returns error on non-200 response", func(t *testing.T) {
 		// Arrange
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-		}))
-		defer srv.Close()
+		url := serveUpstream(t, http.StatusNotFound, "")
 
 		// Act
-		_, err := fetchBody(srv.URL)
+		_, err := fetchBody(url)
 
 		// Assert
 		assert.Error(t, err)
@@ -121,70 +97,50 @@ func Test_fetchBody(t *testing.T) {
 }
 
 func TestUpstream_LatestToolVersion(t *testing.T) {
-	t.Run("empty installed version returns not ok", func(t *testing.T) {
-		// Arrange
-		stubLatestVersion(t, "claude", func() (string, error) { return "1.2.3", nil })
+	latest := func(version string, err error) func() (string, error) {
+		return func() (string, error) { return version, err }
+	}
 
-		// Act
-		latest, newer, ok := Upstream{}.LatestToolVersion("claude", "")
+	for _, tc := range []struct {
+		name       string
+		fetch      func() (string, error)
+		installed  string
+		wantLatest string
+		wantNewer  bool
+		wantOK     bool
+	}{
+		{name: "empty installed version returns not ok", fetch: latest("1.2.3", nil)},
+		{name: "no fetcher configured returns not ok", installed: "1.2.3"},
+		{name: "fetch error returns not ok", fetch: latest("", errors.New("network error")), installed: "1.2.3"},
+		{
+			name:       "matching versions returns ok and not newer",
+			fetch:      latest("v1.2.3", nil),
+			installed:  "1.2.3",
+			wantLatest: "1.2.3",
+			wantOK:     true,
+		},
+		{
+			name:       "differing versions returns ok and newer with normalized latest",
+			fetch:      latest("v9.9.9", nil),
+			installed:  "1.2.3",
+			wantLatest: "9.9.9",
+			wantNewer:  true,
+			wantOK:     true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			stubLatestVersion(t, "claude", tc.fetch)
 
-		// Assert
-		assert.False(t, ok)
-		assert.False(t, newer)
-		assert.Empty(t, latest)
-	})
+			// Act
+			got, newer, ok := Upstream{}.LatestToolVersion("claude", tc.installed)
 
-	t.Run("no fetcher configured returns not ok", func(t *testing.T) {
-		// Arrange
-		stubLatestVersion(t, "claude", nil)
-
-		// Act
-		latest, newer, ok := Upstream{}.LatestToolVersion("claude", "1.2.3")
-
-		// Assert
-		assert.False(t, ok)
-		assert.False(t, newer)
-		assert.Empty(t, latest)
-	})
-
-	t.Run("fetch error returns not ok", func(t *testing.T) {
-		// Arrange
-		stubLatestVersion(t, "claude", func() (string, error) { return "", errors.New("network error") })
-
-		// Act
-		latest, newer, ok := Upstream{}.LatestToolVersion("claude", "1.2.3")
-
-		// Assert
-		assert.False(t, ok)
-		assert.False(t, newer)
-		assert.Empty(t, latest)
-	})
-
-	t.Run("matching versions returns ok and not newer", func(t *testing.T) {
-		// Arrange
-		stubLatestVersion(t, "claude", func() (string, error) { return "v1.2.3", nil })
-
-		// Act
-		latest, newer, ok := Upstream{}.LatestToolVersion("claude", "1.2.3")
-
-		// Assert
-		assert.True(t, ok)
-		assert.False(t, newer)
-		assert.Equal(t, "1.2.3", latest)
-	})
-
-	t.Run("differing versions returns ok and newer with normalized latest", func(t *testing.T) {
-		// Arrange
-		stubLatestVersion(t, "claude", func() (string, error) { return "v9.9.9", nil })
-
-		// Act
-		latest, newer, ok := Upstream{}.LatestToolVersion("claude", "1.2.3")
-
-		// Assert
-		assert.True(t, ok)
-		assert.True(t, newer)
-		assert.Equal(t, "9.9.9", latest)
-	})
+			// Assert
+			assert.Equal(t, tc.wantLatest, got)
+			assert.Equal(t, tc.wantNewer, newer)
+			assert.Equal(t, tc.wantOK, ok)
+		})
+	}
 }
 
 func TestParseVersion(t *testing.T) {

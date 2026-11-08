@@ -33,9 +33,7 @@ func TestCleanImage(t *testing.T) {
 
 	t.Run("returns a listing error", func(t *testing.T) {
 		// Arrange
-		client := newTestClient(&fakeRunner{run: func(...string) (string, error) {
-			return "", errors.New("boom")
-		}})
+		client, _ := stubRun("", errors.New("boom"))
 
 		// Act
 		err := client.CleanImage("agentic-claude")

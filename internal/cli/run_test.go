@@ -2,7 +2,6 @@ package cli
 
 import (
 	"io"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -42,20 +41,20 @@ func Test_runTool(t *testing.T) {
 		assert.Contains(t, err.Error(), "bogus")
 	})
 
-	t.Run("builds image name", func(t *testing.T) {
+	t.Run("runs the tool's image with its args", func(t *testing.T) {
 		// Arrange
 		t.Chdir(t.TempDir())
 		withTempToolHome(t)
 		get := captureToolRun(t)
 
 		// Act
-		err := runTool(runToolCmd, []string{"claude"})
+		err := runTool(runToolCmd, []string{"claude", "--dangerously-skip-permissions"})
 
 		// Assert
 		require.NoError(t, err)
 		rs := get()
 		assert.Equal(t, "agentic-claude", rs.Image)
-		assert.Empty(t, rs.ToolArgs)
+		assert.Equal(t, []string{"--dangerously-skip-permissions"}, rs.ToolArgs)
 	})
 
 	t.Run("dind flag enables the sidecar when the image has the docker layer", func(t *testing.T) {
@@ -93,26 +92,11 @@ func Test_runTool(t *testing.T) {
 		assert.Empty(t, rs.Image, "the tool should not run")
 	})
 
-	t.Run("passes tool args", func(t *testing.T) {
-		// Arrange
-		t.Chdir(t.TempDir())
-		withTempToolHome(t)
-		get := captureToolRun(t)
-
-		// Act
-		err := runTool(runToolCmd, []string{"claude", "--dangerously-skip-permissions"})
-
-		// Assert
-		require.NoError(t, err)
-		rs := get()
-		assert.Equal(t, []string{"--dangerously-skip-permissions"}, rs.ToolArgs)
-	})
-
 	t.Run("invalid project config fails fast with a clear error", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
+		writeRC(t, dir, "not valid toml [[[")
 		rcPath := filepath.Join(dir, ".agenticrc.toml")
-		require.NoError(t, os.WriteFile(rcPath, []byte("not valid toml [[["), 0o644))
 		t.Chdir(dir)
 
 		// Act
@@ -176,55 +160,48 @@ func Test_runTool(t *testing.T) {
 }
 
 func Test_parseArgs(t *testing.T) {
-	t.Run("tool name and image name", func(t *testing.T) {
-		// Act
-		result, err := parseArgs([]string{"claude"}, "agentic")
+	for _, tc := range []struct {
+		name string
+		args []string
+		want parsedArgs
+	}{
+		{
+			name: "tool name and image name",
+			args: []string{"claude"},
+			want: parsedArgs{toolName: "claude", imageName: "agentic-claude", toolArgs: []string{}},
+		},
+		{
+			name: "tool args",
+			args: []string{"claude", "--flag", "value"},
+			want: parsedArgs{toolName: "claude", imageName: "agentic-claude", toolArgs: []string{"--flag", "value"}},
+		},
+		{
+			name: "dash dash sets skip entrypoint",
+			args: []string{"claude", "--", "bash", "-c", "echo hi"},
+			want: parsedArgs{toolName: "claude", imageName: "agentic-claude", toolArgs: []string{"bash", "-c", "echo hi"}, skipEntrypoint: true},
+		},
+		{
+			name: "dash dash no trailing args",
+			args: []string{"claude", "--"},
+			want: parsedArgs{toolName: "claude", imageName: "agentic-claude", toolArgs: []string{}, skipEntrypoint: true},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result, err := parseArgs(tc.args, "agentic")
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "claude", result.toolName)
-		assert.Equal(t, "agentic-claude", result.imageName)
-		assert.Empty(t, result.toolArgs)
-		assert.False(t, result.skipEntrypoint)
-	})
-
-	t.Run("tool args", func(t *testing.T) {
-		// Act
-		result, err := parseArgs([]string{"claude", "--flag", "value"}, "agentic")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--flag", "value"}, result.toolArgs)
-		assert.False(t, result.skipEntrypoint)
-	})
-
-	t.Run("dash dash sets skip entrypoint", func(t *testing.T) {
-		// Act
-		result, err := parseArgs([]string{"claude", "--", "bash", "-c", "echo hi"}, "agentic")
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, result.skipEntrypoint)
-		assert.Equal(t, []string{"bash", "-c", "echo hi"}, result.toolArgs)
-	})
-
-	t.Run("dash dash no trailing args", func(t *testing.T) {
-		// Act
-		result, err := parseArgs([]string{"claude", "--"}, "agentic")
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, result.skipEntrypoint)
-		assert.Empty(t, result.toolArgs)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, result)
+		})
+	}
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
 		_, err := parseArgs([]string{"bogus"}, "agentic")
 
 		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "bogus")
+		assert.ErrorContains(t, err, "bogus")
 	})
 }
 

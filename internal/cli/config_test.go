@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,63 +14,48 @@ import (
 )
 
 func Test_printGlobalConfig(t *testing.T) {
-	state := &config.State{}
+	home := filepath.Join("/home", "user", ".agentic")
+	configFile := filepath.Join(home, "agentic.json")
+	stateFile := filepath.Join(home, "state.json")
 
-	t.Run("empty config", func(t *testing.T) {
-		// Arrange
-		buf := iostreamstest.StubOut(t)
-		cfg := &config.CliConfig{}
+	for _, tc := range []struct {
+		name  string
+		cfg   *config.CliConfig
+		state *config.State
+		want  string
+	}{
+		{
+			name:  "empty config",
+			cfg:   &config.CliConfig{},
+			state: &config.State{},
+			want: "Global (" + configFile + ")\n" +
+				"  registry: (not set)\n" +
+				"  docker_context: (not set)\n" +
+				"  trusted_dirs: (none)  [" + stateFile + "]\n",
+		},
+		{
+			name:  "every setting set",
+			cfg:   &config.CliConfig{Registry: "myregistry.example.com", DockerContext: "prod"},
+			state: &config.State{TrustedDirs: []string{"/home/user/projects", "/home/user/work"}},
+			want: "Global (" + configFile + ")\n" +
+				"  registry: myregistry.example.com\n" +
+				"  docker_context: prod\n" +
+				"  trusted_dirs:  [" + stateFile + "]\n" +
+				"    - /home/user/projects\n" +
+				"    - /home/user/work\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			buf := iostreamstest.StubOut(t)
 
-		// Act
-		printGlobalConfig("/home/user/.agentic", cfg, state)
+			// Act
+			printGlobalConfig(home, tc.cfg, tc.state)
 
-		// Assert
-		out := buf.String()
-		assert.Contains(t, out, "Global (/home/user/.agentic/agentic.json)")
-		assert.Contains(t, out, "registry: (not set)")
-		assert.Contains(t, out, "trusted_dirs: (none)  [/home/user/.agentic/state.json]")
-	})
-
-	t.Run("with registry", func(t *testing.T) {
-		// Arrange
-		buf := iostreamstest.StubOut(t)
-		cfg := &config.CliConfig{Registry: "myregistry.example.com"}
-
-		// Act
-		printGlobalConfig("/home/user/.agentic", cfg, state)
-
-		// Assert
-		out := buf.String()
-		assert.Contains(t, out, "registry: myregistry.example.com")
-	})
-
-	t.Run("with docker context", func(t *testing.T) {
-		// Arrange
-		buf := iostreamstest.StubOut(t)
-		cfg := &config.CliConfig{DockerContext: "prod"}
-
-		// Act
-		printGlobalConfig("/home/user/.agentic", cfg, state)
-
-		// Assert
-		out := buf.String()
-		assert.Contains(t, out, "docker_context: prod")
-	})
-
-	t.Run("with dirs", func(t *testing.T) {
-		// Arrange
-		buf := iostreamstest.StubOut(t)
-		trusted := &config.State{TrustedDirs: []string{"/home/user/projects", "/home/user/work"}}
-
-		// Act
-		printGlobalConfig("/home/user/.agentic", &config.CliConfig{}, trusted)
-
-		// Assert
-		out := buf.String()
-		assert.Contains(t, out, "trusted_dirs:")
-		assert.Contains(t, out, "- /home/user/projects")
-		assert.Contains(t, out, "- /home/user/work")
-	})
+			// Assert
+			assert.Equal(t, tc.want, buf.String())
+		})
+	}
 }
 
 func Test_printProjectConfig(t *testing.T) {
@@ -211,45 +195,34 @@ func Test_projectSections(t *testing.T) {
 }
 
 func Test_proxyEnabledDefault(t *testing.T) {
-	t.Run("off without monitor mode or credentials", func(t *testing.T) {
-		// Arrange
-		layers := []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}}}
+	for _, tc := range []struct {
+		name  string
+		outer config.RCProxy
+		inner config.RCProxy
+		want  bool
+	}{
+		{name: "off without monitor mode or credentials"},
+		{name: "on when the innermost mode is monitor", outer: config.RCProxy{Mode: config.ModeEnforce}, inner: config.RCProxy{Mode: config.ModeMonitor}, want: true},
+		{
+			name:  "on when any layer has credentials",
+			outer: config.RCProxy{Credentials: []config.RCCredential{{Preset: "github", Secret: "~/.config/test-secret"}}},
+			want:  true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			layers := []config.RCLayer{
+				{Path: "/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: tc.outer}}},
+				{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: tc.inner}}},
+			}
 
-		// Act
-		enabled := proxyEnabledDefault(layers)
+			// Act
+			enabled := proxyEnabledDefault(layers)
 
-		// Assert
-		assert.False(t, enabled)
-	})
-
-	t.Run("on when the innermost mode is monitor", func(t *testing.T) {
-		// Arrange
-		layers := []config.RCLayer{
-			{Path: "/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Mode: config.ModeEnforce}}}},
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Mode: config.ModeMonitor}}}},
-		}
-
-		// Act
-		enabled := proxyEnabledDefault(layers)
-
-		// Assert
-		assert.True(t, enabled)
-	})
-
-	t.Run("on when any layer has credentials", func(t *testing.T) {
-		// Arrange
-		creds := []config.RCCredential{{Preset: "github", Secret: "~/.config/test-secret"}}
-		layers := []config.RCLayer{
-			{Path: "/.agenticrc.toml", RC: &config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: creds}}}},
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}},
-		}
-
-		// Act
-		enabled := proxyEnabledDefault(layers)
-
-		// Assert
-		assert.True(t, enabled)
-	})
+			// Assert
+			assert.Equal(t, tc.want, enabled)
+		})
+	}
 }
 
 func Test_limitFields(t *testing.T) {
@@ -271,41 +244,37 @@ func Test_limitFields(t *testing.T) {
 func Test_scalarField(t *testing.T) {
 	namespace := func(rc *config.AgenticRC) string { return rc.Namespace }
 
-	t.Run("innermost layer wins", func(t *testing.T) {
-		// Arrange
-		layers := []config.RCLayer{
-			{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Namespace: "outer"}},
-			{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Namespace: "inner"}},
-		}
+	for _, tc := range []struct {
+		name  string
+		outer string
+		inner string
+		def   string
+		want  field
+	}{
+		{
+			name:  "innermost layer wins",
+			outer: "outer",
+			inner: "inner",
+			def:   "agentic",
+			want:  field{key: "namespace", entries: []entry{{value: "inner", source: "/project/.agenticrc.toml"}}},
+		},
+		{name: "default when no layer sets it", def: "agentic", want: field{key: "namespace", entries: []entry{{value: "agentic"}}}},
+		{name: "no entry without value or default", want: field{key: "namespace"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			layers := []config.RCLayer{
+				{Path: "/home/.agenticrc.toml", RC: &config.AgenticRC{Namespace: tc.outer}},
+				{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{Namespace: tc.inner}},
+			}
 
-		// Act
-		f := scalarField(layers, "namespace", namespace, "agentic")
+			// Act
+			f := scalarField(layers, "namespace", namespace, tc.def)
 
-		// Assert
-		assert.Equal(t, field{key: "namespace", entries: []entry{{value: "inner", source: "/project/.agenticrc.toml"}}}, f)
-	})
-
-	t.Run("default when no layer sets it", func(t *testing.T) {
-		// Arrange
-		layers := []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}}}
-
-		// Act
-		f := scalarField(layers, "namespace", namespace, "agentic")
-
-		// Assert
-		assert.Equal(t, field{key: "namespace", entries: []entry{{value: "agentic"}}}, f)
-	})
-
-	t.Run("no entry without value or default", func(t *testing.T) {
-		// Arrange
-		layers := []config.RCLayer{{Path: "/project/.agenticrc.toml", RC: &config.AgenticRC{}}}
-
-		// Act
-		f := scalarField(layers, "namespace", namespace, "")
-
-		// Assert
-		assert.Equal(t, field{key: "namespace"}, f)
-	})
+			// Assert
+			assert.Equal(t, tc.want, f)
+		})
+	}
 }
 
 func Test_boolField(t *testing.T) {
@@ -545,7 +514,7 @@ func Test_showConfig(t *testing.T) {
 	// Arrange
 	withTempToolHome(t)
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte("root = true\nnamespace = \"work\"\n"), 0o600))
+	writeRC(t, dir, "root = true\nnamespace = \"work\"\n")
 	t.Chdir(dir)
 
 	// Act

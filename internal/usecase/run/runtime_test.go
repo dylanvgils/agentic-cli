@@ -7,7 +7,6 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
-	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,30 +16,25 @@ func Test_Service_Run(t *testing.T) {
 	t.Run("docker runs the container", func(t *testing.T) {
 		// Arrange
 		var ranSpec sandbox.RunSpec
-		microsandboxRan := false
-		svc := newTestService(&fakeDocker{
-			startSidecars: func(rs sandbox.RunSpec, _ string) (docker.Sidecars, error) {
-				ranSpec = rs
-				return docker.Sidecars{}, nil
-			},
-		}, &fakeMicrosandbox{run: func(sandbox.RunSpec, *microsandbox.ProxyRoute) error {
-			microsandboxRan = true
-			return nil
-		}})
+		d := &fakeDocker{startSidecars: func(rs sandbox.RunSpec, _ string) (docker.Sidecars, error) {
+			ranSpec = rs
+			return docker.Sidecars{}, nil
+		}}
+		m := &fakeMicrosandbox{}
+		msbRan := stubRunImage(m)
 
 		// Act
-		err := svc.Run(runtimeRequest(sandbox.RuntimeDocker), sandbox.RunSpec{Image: "agentic-claude"})
+		err := newTestService(d, m).Run(runtimeRequest(sandbox.RuntimeDocker), sandbox.RunSpec{Image: "agentic-claude"})
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude", ranSpec.Image)
-		assert.False(t, microsandboxRan)
+		assert.Empty(t, *msbRan)
 	})
 
 	t.Run("microsandbox runs through the microsandbox client", func(t *testing.T) {
 		// Arrange
 		dockerRan := false
-		var ranSpec sandbox.RunSpec
 		d := &fakeDocker{
 			inspectImage: inspectImageID("abc123"),
 			runTool: func(docker.Sidecars) error {
@@ -48,53 +42,45 @@ func Test_Service_Run(t *testing.T) {
 				return nil
 			},
 		}
-		svc := newTestService(d, &fakeMicrosandbox{run: func(rs sandbox.RunSpec, _ *microsandbox.ProxyRoute) error {
-			ranSpec = rs
-			return nil
-		}})
+		m := &fakeMicrosandbox{}
+		ran := stubRunImage(m)
 
 		// Act
-		err := svc.Run(runtimeRequest(sandbox.RuntimeMicrosandbox), sandbox.RunSpec{Image: "agentic-claude", DryRun: true})
+		err := newTestService(d, m).Run(runtimeRequest(sandbox.RuntimeMicrosandbox), sandbox.RunSpec{Image: "agentic-claude", DryRun: true})
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "agentic-claude:abc123", ranSpec.Image)
+		assert.Equal(t, "agentic-claude:abc123", *ran)
 		assert.False(t, dockerRan)
 	})
 
 	t.Run("a spec relying on a feature the runtime lacks never reaches it", func(t *testing.T) {
 		// Arrange
-		ran := false
-		svc := newTestService(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec, *microsandbox.ProxyRoute) error {
-			ran = true
-			return nil
-		}})
+		m := &fakeMicrosandbox{}
+		ran := stubRunImage(m)
 		rs := sandbox.RunSpec{Image: "agentic-claude", Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}}
 
 		// Act
-		err := svc.Run(runtimeRequest(sandbox.RuntimeMicrosandbox), rs)
+		err := newTestService(&fakeDocker{inspectImage: inspectImageID("abc123")}, m).Run(runtimeRequest(sandbox.RuntimeMicrosandbox), rs)
 
 		// Assert
 		assert.ErrorContains(t, err, "can't enforce proxy monitor mode")
-		assert.False(t, ran)
+		assert.Empty(t, *ran)
 	})
 
 	t.Run("mounts that changed since the spec was built never reach the runtime", func(t *testing.T) {
 		// Arrange
 		ws := chdirSymlinkWorkspace(t)
-		ran := false
-		svc := newTestService(&fakeDocker{inspectImage: inspectImageID("abc123")}, &fakeMicrosandbox{run: func(sandbox.RunSpec, *microsandbox.ProxyRoute) error {
-			ran = true
-			return nil
-		}})
+		m := &fakeMicrosandbox{}
+		ran := stubRunImage(m)
 		rs := sandbox.RunSpec{Image: "agentic-claude", ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data:ro"}}
 
 		// Act
-		err := svc.Run(runtimeRequest(sandbox.RuntimeMicrosandbox), rs)
+		err := newTestService(&fakeDocker{inspectImage: inspectImageID("abc123")}, m).Run(runtimeRequest(sandbox.RuntimeMicrosandbox), rs)
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))
-		assert.False(t, ran)
+		assert.Empty(t, *ran)
 	})
 
 	t.Run("unset runtime runs on docker", func(t *testing.T) {

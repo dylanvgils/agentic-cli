@@ -7,27 +7,21 @@ import (
 )
 
 func TestTmpfsMount(t *testing.T) {
-	t.Run("size only", func(t *testing.T) {
-		// Act
-		result := TmpfsMount("/tmp", TmpfsOptions{Size: "1g"})
+	for _, tc := range []struct {
+		name string
+		opts TmpfsOptions
+		want string
+	}{
+		{name: "size only", opts: TmpfsOptions{Size: "1g"}, want: "/tmp:size=1g"},
+		{name: "exec and size", opts: TmpfsOptions{Exec: true, Size: "1g"}, want: "/tmp:exec,size=1g"},
+		{name: "no options", want: "/tmp"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := TmpfsMount("/tmp", tc.opts)
 
-		// Assert
-		assert.Equal(t, "/tmp:size=1g", result)
-	})
-
-	t.Run("exec and size", func(t *testing.T) {
-		// Act
-		result := TmpfsMount("/tmp", TmpfsOptions{Exec: true, Size: "1g"})
-
-		// Assert
-		assert.Equal(t, "/tmp:exec,size=1g", result)
-	})
-
-	t.Run("no options", func(t *testing.T) {
-		// Act
-		result := TmpfsMount("/tmp", TmpfsOptions{})
-
-		// Assert
-		assert.Equal(t, "/tmp", result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }

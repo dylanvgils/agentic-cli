@@ -491,3 +491,22 @@ func stubPublishedProxyDocker(t *testing.T, client *Client, host string, failSub
 	})
 	return func() []dockerCall { return recorded }, func() (string, string) { return path, content }
 }
+
+// testCredentials is one header credential with a test secret.
+var testCredentials = []sandbox.Credential{
+	{
+		Name:    "EXAMPLE_API_KEY",
+		Hosts:   []string{"api.example.test"},
+		Headers: []string{"X-Api-Key"},
+		Secret:  "test-secret",
+	},
+}
+
+// newProxyRun returns spec as a run on agentic-run-abc with a temp proxy log, run as testUser unless spec sets a user.
+func newProxyRun(t *testing.T, spec sandbox.RunSpec) toolRun {
+	t.Helper()
+	if spec.User == nil {
+		spec.User = &testUser
+	}
+	return toolRun{RunSpec: spec, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
+}

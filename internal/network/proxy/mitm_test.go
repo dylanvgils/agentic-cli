@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/base64"
@@ -69,19 +68,28 @@ func TestServerConnectInject(t *testing.T) {
 	stubDefaultPorts(t, upstreamPort)
 	creds := []Credential{{Hosts: []string{upstreamHost}, Headers: []string{"X-Api-Key"}, Placeholder: testPlaceholder, Secret: "real-secret"}}
 
+	// startInjecting starts a proxy allowing the upstream that swaps creds, logging to w, and a client trusting its CA
+	startInjecting := func(t *testing.T, w io.Writer) (*httptest.Server, *http.Client, *Injector) {
+		inject, roots := newTestInjector(t, upstream, creds)
+		proxy := startProxy(t, NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(w), false, inject))
+		return proxy, httpsClientVia(t, proxy.URL, roots), inject
+	}
+	// withKey returns a GET for path sending key as X-Api-Key, or no key when empty
+	withKey := func(t *testing.T, path, key string) *http.Request {
+		req := mustGet(t, upstream.URL+path)
+		if key != "" {
+			req.Header.Set("X-Api-Key", key)
+		}
+		return req
+	}
+
 	t.Run("placeholder in the client's header is swapped for the secret", func(t *testing.T) {
 		// Arrange
-		inject, roots := newTestInjector(t, upstream, creds)
-		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, inject))
-		t.Cleanup(proxy.Close)
-
-		req, err := http.NewRequest(http.MethodGet, upstream.URL+"/echo", nil)
-		require.NoError(t, err)
-		req.Header.Set("X-Api-Key", testPlaceholder)
+		var logBuf syncBuffer
+		_, client, _ := startInjecting(t, &logBuf)
 
 		// Act
-		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
+		resp, err := client.Do(withKey(t, "/echo", testPlaceholder))
 
 		// Assert
 		require.NoError(t, err)
@@ -97,10 +105,8 @@ func TestServerConnectInject(t *testing.T) {
 		guarded := upstream.Client().Transport.(*http.Transport).Clone()
 		guarded.DialContext = newUpstream(blockedAddr).dialer.DialContext
 		inject.transport = guarded
-
-		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, inject))
-		t.Cleanup(proxy.Close)
+		var logBuf syncBuffer
+		proxy := startProxy(t, NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, inject))
 
 		// Act
 		resp, err := httpsClientVia(t, proxy.URL, roots).Get(upstream.URL + "/echo")
@@ -114,13 +120,11 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("failed upstream returns a fixed 502 and logs the error", func(t *testing.T) {
 		// Arrange
-		inject, roots := newTestInjector(t, upstream, creds)
 		var logBuf syncBuffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, inject))
-		t.Cleanup(proxy.Close)
+		_, client, _ := startInjecting(t, &logBuf)
 
 		// Act
-		resp, err := httpsClientVia(t, proxy.URL, roots).Get(upstream.URL + "/drop")
+		resp, err := client.Get(upstream.URL + "/drop")
 
 		// Assert
 		require.NoError(t, err)
@@ -131,126 +135,73 @@ func TestServerConnectInject(t *testing.T) {
 		assert.Contains(t, logBuf.String(), `"reason":"upstream-failed","error":`)
 	})
 
-	t.Run("rejected tunnel that never sent the placeholder is logged once it closes", func(t *testing.T) {
-		// Arrange
-		inject, roots := newTestInjector(t, upstream, creds)
-		var logBuf syncBuffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, inject))
-		t.Cleanup(proxy.Close)
-		client := httpsClientVia(t, proxy.URL, roots)
+	for _, tc := range []struct {
+		name       string
+		keys       []string
+		wantLogged bool
+	}{
+		{name: "rejected tunnel that never sent the placeholder is logged once it closes", keys: []string{""}, wantLogged: true},
+		{name: "accepted tunnel that never sent the placeholder is not logged", keys: []string{testPlaceholder}},
+		{name: "tunnel that sent the placeholder after an unauthenticated request is not logged", keys: []string{"", testPlaceholder}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			var logBuf syncBuffer
+			_, client, _ := startInjecting(t, &logBuf)
 
-		// Act
-		resp, err := client.Get(upstream.URL + "/private")
-		require.NoError(t, err)
-		_, _ = io.ReadAll(resp.Body)
-		resp.Body.Close() //nolint:errcheck
-		client.CloseIdleConnections()
+			// Act
+			for _, key := range tc.keys {
+				resp, err := client.Do(withKey(t, "/private", key))
+				require.NoError(t, err)
+				_, _ = io.ReadAll(resp.Body)
+				resp.Body.Close() //nolint:errcheck
+			}
+			client.CloseIdleConnections()
 
-		// Assert
-		assert.Eventually(t, func() bool {
-			return strings.Contains(logBuf.String(), `"intercepted":true,"reason":"no-placeholder"`)
-		}, 2*time.Second, 10*time.Millisecond)
-	})
+			// Assert
+			logged := func() bool { return strings.Contains(logBuf.String(), `"intercepted":true,"reason":"no-placeholder"`) }
+			if tc.wantLogged {
+				assert.Eventually(t, logged, 2*time.Second, 10*time.Millisecond)
+			} else {
+				assert.Never(t, logged, 200*time.Millisecond, 10*time.Millisecond)
+			}
+		})
+	}
 
-	t.Run("accepted tunnel that never sent the placeholder is not logged", func(t *testing.T) {
-		// Arrange
-		inject, roots := newTestInjector(t, upstream, creds)
-		var logBuf syncBuffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, inject))
-		t.Cleanup(proxy.Close)
-		client := httpsClientVia(t, proxy.URL, roots)
+	for _, tc := range []struct {
+		name string
+		key  string
+	}{
+		{name: "secret", key: testPlaceholder},
+		{name: "basic-encoded secret", key: "Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+testPlaceholder))},
+	} {
+		t.Run(tc.name+" echoed in a response header reaches the tool as the placeholder", func(t *testing.T) {
+			// Arrange
+			_, client, _ := startInjecting(t, io.Discard)
 
-		// Act
-		resp, err := client.Get(upstream.URL + "/echo")
-		require.NoError(t, err)
-		_, _ = io.ReadAll(resp.Body)
-		resp.Body.Close() //nolint:errcheck
-		client.CloseIdleConnections()
+			// Act
+			resp, err := client.Do(withKey(t, "/reflect", tc.key))
 
-		// Assert
-		assert.Never(t, func() bool {
-			return strings.Contains(logBuf.String(), `"reason":"no-placeholder"`)
-		}, 200*time.Millisecond, 10*time.Millisecond)
-	})
-
-	t.Run("tunnel that sent the placeholder after an unauthenticated request is not logged", func(t *testing.T) {
-		// Arrange
-		inject, roots := newTestInjector(t, upstream, creds)
-		var logBuf syncBuffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, inject))
-		t.Cleanup(proxy.Close)
-		client := httpsClientVia(t, proxy.URL, roots)
-		authed, err := http.NewRequest(http.MethodGet, upstream.URL+"/private", nil)
-		require.NoError(t, err)
-		authed.Header.Set("X-Api-Key", testPlaceholder)
-
-		// Act
-		for _, req := range []*http.Request{mustGet(t, upstream.URL+"/private"), authed} {
-			resp, err := client.Do(req)
+			// Assert
 			require.NoError(t, err)
-			_, _ = io.ReadAll(resp.Body)
-			resp.Body.Close() //nolint:errcheck
-		}
-		client.CloseIdleConnections()
-
-		// Assert
-		assert.Never(t, func() bool {
-			return strings.Contains(logBuf.String(), `"reason":"no-placeholder"`)
-		}, 200*time.Millisecond, 10*time.Millisecond)
-	})
-
-	t.Run("secret echoed in a response header reaches the tool as the placeholder", func(t *testing.T) {
-		// Arrange
-		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, inject))
-		t.Cleanup(proxy.Close)
-		req := mustGet(t, upstream.URL+"/reflect")
-		req.Header.Set("X-Api-Key", testPlaceholder)
-
-		// Act
-		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
-
-		// Assert
-		require.NoError(t, err)
-		defer resp.Body.Close() //nolint:errcheck
-		assert.Equal(t, testPlaceholder, resp.Header.Get("X-Echo-Api-Key"))
-	})
-
-	t.Run("basic-encoded secret echoed in a response header reaches the tool as the placeholder", func(t *testing.T) {
-		// Arrange
-		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, inject))
-		t.Cleanup(proxy.Close)
-		basic := "Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+testPlaceholder))
-		req := mustGet(t, upstream.URL+"/reflect")
-		req.Header.Set("X-Api-Key", basic)
-
-		// Act
-		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
-
-		// Assert
-		require.NoError(t, err)
-		defer resp.Body.Close() //nolint:errcheck
-		assert.Equal(t, basic, resp.Header.Get("X-Echo-Api-Key"))
-	})
+			defer resp.Body.Close() //nolint:errcheck
+			assert.Equal(t, tc.key, resp.Header.Get("X-Echo-Api-Key"))
+		})
+	}
 
 	t.Run("secret echoed in a 1xx header or trailer reaches the tool as the placeholder", func(t *testing.T) {
 		// Arrange
-		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, inject))
-		t.Cleanup(proxy.Close)
-
+		_, client, _ := startInjecting(t, io.Discard)
 		var hint string
 		trace := &httptrace.ClientTrace{Got1xxResponse: func(_ int, header textproto.MIMEHeader) error {
 			hint = header.Get("X-Hint")
 			return nil
 		}}
-		req := mustGet(t, upstream.URL+"/reflect-late")
+		req := withKey(t, "/reflect-late", testPlaceholder)
 		req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
-		req.Header.Set("X-Api-Key", testPlaceholder)
 
 		// Act
-		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
+		resp, err := client.Do(req)
 
 		// Assert
 		require.NoError(t, err)
@@ -263,17 +214,12 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("request host header cannot redirect the upstream", func(t *testing.T) {
 		// Arrange
-		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, inject))
-		t.Cleanup(proxy.Close)
-
-		req, err := http.NewRequest(http.MethodGet, upstream.URL+"/echo", nil)
-		require.NoError(t, err)
+		_, client, _ := startInjecting(t, io.Discard)
+		req := withKey(t, "/echo", testPlaceholder)
 		req.Host = "evil.test"
-		req.Header.Set("X-Api-Key", testPlaceholder)
 
 		// Act
-		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
+		resp, err := client.Do(req)
 
 		// Assert
 		require.NoError(t, err)
@@ -284,13 +230,11 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("sse events stream before the response ends", func(t *testing.T) {
 		// Arrange
-		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, inject))
-		t.Cleanup(proxy.Close)
+		_, client, _ := startInjecting(t, io.Discard)
 		defer close(release)
 
 		// Act
-		resp, err := httpsClientVia(t, proxy.URL, roots).Get(upstream.URL + "/sse")
+		resp, err := client.Get(upstream.URL + "/sse")
 		require.NoError(t, err)
 		defer resp.Body.Close() //nolint:errcheck
 		line, err := bufio.NewReader(resp.Body).ReadString('\n')
@@ -302,16 +246,12 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("underscore alias of a credential header is stripped", func(t *testing.T) {
 		// Arrange
-		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, inject))
-		t.Cleanup(proxy.Close)
-
-		req, err := http.NewRequest(http.MethodGet, upstream.URL+"/aliases", nil)
-		require.NoError(t, err)
+		_, client, _ := startInjecting(t, io.Discard)
+		req := mustGet(t, upstream.URL+"/aliases")
 		req.Header.Set("X_Api_Key", testPlaceholder)
 
 		// Act
-		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
+		resp, err := client.Do(req)
 
 		// Assert
 		require.NoError(t, err)
@@ -341,10 +281,8 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("client rejecting the cert is logged as not intercepted", func(t *testing.T) {
 		// Arrange
-		inject, _ := newTestInjector(t, upstream, creds)
 		var logBuf syncBuffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, inject))
-		t.Cleanup(proxy.Close)
+		proxy, _, _ := startInjecting(t, &logBuf)
 
 		// Act
 		_, err := httpsClientVia(t, proxy.URL, x509.NewCertPool()).Get(upstream.URL + "/echo")
@@ -357,10 +295,8 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("client closing during the handshake is logged as client-closed", func(t *testing.T) {
 		// Arrange
-		inject, _ := newTestInjector(t, upstream, creds)
 		var logBuf syncBuffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, inject))
-		t.Cleanup(proxy.Close)
+		proxy, _, _ := startInjecting(t, &logBuf)
 
 		// Act
 		conn := rawConnect(t, proxy.Listener.Addr().String(), upstreamAddr)
@@ -373,11 +309,8 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("client cancelling a request is logged as client-closed", func(t *testing.T) {
 		// Arrange
-		inject, roots := newTestInjector(t, upstream, creds)
 		var logBuf syncBuffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, inject))
-		t.Cleanup(proxy.Close)
-
+		_, client, _ := startInjecting(t, &logBuf)
 		ctx, cancel := context.WithCancel(context.Background())
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, upstream.URL+"/hang", nil)
 		require.NoError(t, err)
@@ -387,7 +320,7 @@ func TestServerConnectInject(t *testing.T) {
 		}()
 
 		// Act
-		_, err = httpsClientVia(t, proxy.URL, roots).Do(req)
+		_, err = client.Do(req)
 
 		// Assert
 		require.ErrorIs(t, err, context.Canceled)
@@ -397,15 +330,12 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("trace is refused before reaching the upstream", func(t *testing.T) {
 		// Arrange
-		inject, roots := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, inject))
-		t.Cleanup(proxy.Close)
-
+		_, client, _ := startInjecting(t, io.Discard)
 		req, err := http.NewRequest(http.MethodTrace, upstream.URL+"/echo", nil)
 		require.NoError(t, err)
 
 		// Act
-		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
+		resp, err := client.Do(req)
 
 		// Assert
 		require.NoError(t, err)
@@ -417,9 +347,7 @@ func TestServerConnectInject(t *testing.T) {
 
 	t.Run("trailing-dot host shares the normalized cert", func(t *testing.T) {
 		// Arrange
-		inject, _ := newTestInjector(t, upstream, creds)
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, inject))
-		t.Cleanup(proxy.Close)
+		proxy, _, inject := startInjecting(t, io.Discard)
 
 		// Act
 		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost+".", upstreamPort))
@@ -433,32 +361,25 @@ func TestServerConnectInject(t *testing.T) {
 	t.Run("monitor mode still swaps for a denied host", func(t *testing.T) {
 		// Arrange
 		inject, roots := newTestInjector(t, upstream, creds)
-		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf), true, inject))
-		t.Cleanup(proxy.Close)
-
-		req, err := http.NewRequest(http.MethodGet, upstream.URL+"/echo", nil)
-		require.NoError(t, err)
-		req.Header.Set("X-Api-Key", testPlaceholder)
+		var logBuf syncBuffer
+		proxy := startProxy(t, NewServer(NewAllowlist(nil), NewLogger(&logBuf), true, inject))
 
 		// Act
-		resp, err := httpsClientVia(t, proxy.URL, roots).Do(req)
+		resp, err := httpsClientVia(t, proxy.URL, roots).Do(withKey(t, "/echo", testPlaceholder))
 
 		// Assert
 		require.NoError(t, err)
 		defer resp.Body.Close() //nolint:errcheck
 		body, _ := io.ReadAll(resp.Body)
 		assert.Equal(t, "real-secret|"+upstreamAddr, string(body))
-		assert.Contains(t, logBuf.String(), `"decision":"deny"`)
-		assert.Contains(t, logBuf.String(), `"intercepted":true`)
+		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":false,"intercepted":true`)
 	})
 
 	t.Run("denied credentialed host is refused without issuing a cert", func(t *testing.T) {
 		// Arrange
 		inject, _ := newTestInjector(t, upstream, creds)
-		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf), false, inject))
-		t.Cleanup(proxy.Close)
+		var logBuf syncBuffer
+		proxy := startProxy(t, NewServer(NewAllowlist(nil), NewLogger(&logBuf), false, inject))
 
 		// Act
 		resp := connect(t, proxy.Listener.Addr().String(), upstreamAddr)
@@ -470,51 +391,35 @@ func TestServerConnectInject(t *testing.T) {
 		assert.NotContains(t, logBuf.String(), `"intercepted"`)
 	})
 
-	t.Run("host without a credential tunnels without issuing a cert", func(t *testing.T) {
-		// Arrange
-		echoHost, echoPort := startEchoServer(t)
-		stubDefaultPorts(t, echoPort)
-		other := []Credential{{Hosts: []string{"other.test"}, Headers: creds[0].Headers, Placeholder: testPlaceholder, Secret: "real-secret"}}
-		inject, _ := newTestInjector(t, upstream, other)
-		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(echoHost)), NewLogger(&logBuf), false, inject)))
-		t.Cleanup(proxy.Close)
-		hello := clientHello(t, "")
+	for _, tc := range []struct {
+		name     string
+		credHost func(echoHost string) string
+	}{
+		{name: "host without a credential tunnels without issuing a cert", credHost: func(string) string { return "other.test" }},
+		{name: "credentialed host on another port tunnels without issuing a cert", credHost: func(echoHost string) string { return echoHost }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			echoHost, echoPort := startEchoServer(t)
+			stubDefaultPorts(t, echoPort)
+			echoCreds := []Credential{{Hosts: []string{tc.credHost(echoHost)}, Headers: creds[0].Headers, Placeholder: testPlaceholder, Secret: "real-secret"}}
+			inject, _ := newTestInjector(t, upstream, echoCreds)
+			var logBuf syncBuffer
+			proxy := startProxy(t, allowLocal(NewServer(NewAllowlist(hostRules(echoHost)), NewLogger(&logBuf), false, inject)))
+			hello := clientHello(t, "")
 
-		// Act
-		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(echoHost, echoPort))
-		defer conn.Close() //nolint:errcheck
-		echo, err := echoed(t, conn, hello)
+			// Act
+			conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(echoHost, echoPort))
+			defer conn.Close() //nolint:errcheck
+			echo, err := echoed(t, conn, hello)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, hello, echo)
-		assert.Empty(t, inject.leaves)
-		assert.NotContains(t, logBuf.String(), `"intercepted"`)
-	})
-
-	t.Run("credentialed host on another port tunnels without issuing a cert", func(t *testing.T) {
-		// Arrange
-		echoHost, echoPort := startEchoServer(t)
-		stubDefaultPorts(t, echoPort)
-		echoCreds := []Credential{{Hosts: []string{echoHost}, Headers: creds[0].Headers, Placeholder: testPlaceholder, Secret: "real-secret"}}
-		inject, _ := newTestInjector(t, upstream, echoCreds)
-		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(echoHost)), NewLogger(&logBuf), false, inject)))
-		t.Cleanup(proxy.Close)
-		hello := clientHello(t, "")
-
-		// Act
-		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(echoHost, echoPort))
-		defer conn.Close() //nolint:errcheck
-		echo, err := echoed(t, conn, hello)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, hello, echo)
-		assert.Empty(t, inject.leaves)
-		assert.NotContains(t, logBuf.String(), `"intercepted"`)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, hello, echo)
+			assert.Empty(t, inject.leaves)
+			assert.NotContains(t, logBuf.String(), `"intercepted"`)
+		})
+	}
 
 	t.Run("plain http to a credentialed host is not intercepted", func(t *testing.T) {
 		// Arrange
@@ -523,9 +428,8 @@ func TestServerConnectInject(t *testing.T) {
 		plainHost, plainPort := splitHostPort(plain.Listener.Addr().String())
 		stubDefaultPorts(t, plainPort)
 		inject, _ := newTestInjector(t, upstream, creds)
-		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(plainHost)), NewLogger(&logBuf), false, inject)))
-		t.Cleanup(proxy.Close)
+		var logBuf syncBuffer
+		proxy := startProxy(t, allowLocal(NewServer(NewAllowlist(hostRules(plainHost)), NewLogger(&logBuf), false, inject)))
 
 		// Act
 		resp := proxyGet(t, proxy.URL, plain.URL+"/echo")
@@ -548,8 +452,7 @@ func TestServerConnectSubstitute(t *testing.T) {
 	upstreamHost, upstreamPort := splitHostPort(upstream.Listener.Addr().String())
 	stubDefaultPorts(t, upstreamPort)
 	inject, roots := newTestInjector(t, upstream, []Credential{testPlaceholderCredential(upstreamHost, placeholder)})
-	proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, inject))
-	t.Cleanup(proxy.Close)
+	proxy := startProxy(t, NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, inject))
 
 	cases := map[string]struct{ authorization, want string }{
 		"bearer placeholder is swapped": {"Bearer " + placeholder, "Bearer test-secret"},

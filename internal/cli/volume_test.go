@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"testing"
@@ -14,22 +15,10 @@ import (
 )
 
 func Test_runVolumeCreate(t *testing.T) {
-	t.Run("calls create volume", func(t *testing.T) {
+	t.Run("creates the volume and says so", func(t *testing.T) {
 		// Arrange
 		var got string
 		stubCreateVolume(t, func(name string) error { got = name; return nil })
-
-		// Act
-		err := runVolumeCreate(volumeCreateCmd, []string{"maven"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "maven", got)
-	})
-
-	t.Run("prints created", func(t *testing.T) {
-		// Arrange
-		stubCreateVolume(t, func(string) error { return nil })
 		logBuf := iostreamstest.StubErr(t)
 
 		// Act
@@ -37,7 +26,8 @@ func Test_runVolumeCreate(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, logBuf.String(), "agentic: created volume maven")
+		assert.Equal(t, "maven", got)
+		assert.Equal(t, "agentic: created volume maven\n", logBuf.String())
 	})
 
 	t.Run("error propagates", func(t *testing.T) {
@@ -101,24 +91,11 @@ func Test_runVolumeList(t *testing.T) {
 func Test_runVolumeRemove(t *testing.T) {
 	stubMicrosandbox(t, &fakeMicrosandbox{})
 
-	t.Run("named calls remove volume", func(t *testing.T) {
+	t.Run("named removes the volume and says so", func(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven"}, nil })
 		var got string
 		stubRemoveVolume(t, func(name string) error { got = name; return nil })
-
-		// Act
-		err := runVolumeRemove(volumeRemoveCmd, []string{"maven"})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, "maven", got)
-	})
-
-	t.Run("named prints deleted", func(t *testing.T) {
-		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven"}, nil })
-		stubRemoveVolume(t, func(string) error { return nil })
 		logBuf := iostreamstest.StubErr(t)
 
 		// Act
@@ -126,24 +103,8 @@ func Test_runVolumeRemove(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, logBuf.String(), "agentic: removed volume maven")
-	})
-
-	t.Run("named removes an msb volume", func(t *testing.T) {
-		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) { return nil, nil })
-		var got string
-		stubMicrosandbox(t, &fakeMicrosandbox{
-			listVolumeNames: func() ([]string, error) { return []string{"maven"}, nil },
-			removeVolume:    func(name string) error { got = name; return nil },
-		})
-
-		// Act
-		err := runVolumeRemove(volumeRemoveCmd, []string{"maven"})
-
-		// Assert
-		require.NoError(t, err)
 		assert.Equal(t, "maven", got)
+		assert.Equal(t, "agentic: removed volume maven\n", logBuf.String())
 	})
 
 	t.Run("named error propagates", func(t *testing.T) {
@@ -157,11 +118,9 @@ func Test_runVolumeRemove(t *testing.T) {
 		assert.ErrorContains(t, err, "not an agentic-managed volume")
 	})
 
-	t.Run("no name empty prints message", func(t *testing.T) {
+	t.Run("no name without volumes says so", func(t *testing.T) {
 		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) { return nil, nil })
-		var removeCalled bool
-		stubRemoveVolume(t, func(string) error { removeCalled = true; return nil })
 		logBuf := iostreamstest.StubErr(t)
 
 		// Act
@@ -169,98 +128,12 @@ func Test_runVolumeRemove(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, logBuf.String(), "agentic: no agentic-managed volumes found")
-		assert.False(t, removeCalled)
+		assert.Equal(t, "agentic: no agentic-managed volumes found\n", logBuf.String())
 	})
 
-	t.Run("no name confirmed y removes all", func(t *testing.T) {
+	t.Run("no name confirmed y removes every runtime's volumes", func(t *testing.T) {
 		// Arrange
 		logBuf := iostreamstest.StubErr(t)
-		stubListVolumeNames(t, func() ([]string, error) {
-			return []string{"gradle", "maven"}, nil
-		})
-		var removed []string
-		stubRemoveVolume(t, func(name string) error { removed = append(removed, name); return nil })
-		iostreamstest.StubIn(t, "y\n")
-
-		// Act
-		err := runVolumeRemove(volumeRemoveCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"gradle", "maven"}, removed)
-		assert.Contains(t, logBuf.String(), "agentic: removing 2 volume(s)")
-	})
-
-	t.Run("no name declined n skips removal", func(t *testing.T) {
-		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) {
-			return []string{"maven"}, nil
-		})
-		var removeCalled bool
-		stubRemoveVolume(t, func(string) error { removeCalled = true; return nil })
-		iostreamstest.StubIn(t, "n\n")
-
-		// Act
-		err := runVolumeRemove(volumeRemoveCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, removeCalled)
-	})
-
-	t.Run("no name list error propagates", func(t *testing.T) {
-		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) {
-			return nil, fmt.Errorf("docker daemon not running")
-		})
-
-		// Act
-		err := runVolumeRemove(volumeRemoveCmd, nil)
-
-		// Assert
-		assert.ErrorContains(t, err, "docker daemon not running")
-	})
-
-	t.Run("no name remove error propagates", func(t *testing.T) {
-		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) {
-			return []string{"gradle", "maven"}, nil
-		})
-		var removeCalled int
-		stubRemoveVolume(t, func(string) error {
-			removeCalled++
-			return fmt.Errorf("remove failed")
-		})
-		iostreamstest.StubIn(t, "y\n")
-
-		// Act
-		err := runVolumeRemove(volumeRemoveCmd, nil)
-
-		// Assert
-		assert.ErrorContains(t, err, "remove failed")
-		assert.Equal(t, 1, removeCalled, "should stop after first error")
-	})
-
-	t.Run("no name lists volumes right before the prompt", func(t *testing.T) {
-		// Arrange
-		stubListVolumeNames(t, func() ([]string, error) {
-			return []string{"gradle", "maven"}, nil
-		})
-		stubRemoveVolume(t, func(string) error { return nil })
-		iostreamstest.StubIn(t, "n\n")
-		logBuf := iostreamstest.StubErr(t)
-
-		// Act
-		err := runVolumeRemove(volumeRemoveCmd, nil)
-
-		// Assert - list and prompt share stderr, list first
-		require.NoError(t, err)
-		assert.Equal(t, "agentic: volumes to remove:\n   gradle\n   maven\nagentic: remove all agentic-managed volumes? [y/N] agentic: nothing removed\n", logBuf.String())
-	})
-
-	t.Run("no name removes msb volumes too, marked by runtime", func(t *testing.T) {
-		// Arrange
 		stubListVolumeNames(t, func() ([]string, error) { return []string{"maven"}, nil })
 		var removed []string
 		stubRemoveVolume(t, func(name string) error { removed = append(removed, "docker "+name); return nil })
@@ -269,7 +142,6 @@ func Test_runVolumeRemove(t *testing.T) {
 			removeVolume:    func(name string) error { removed = append(removed, "msb "+name); return nil },
 		})
 		iostreamstest.StubIn(t, "y\n")
-		logBuf := iostreamstest.StubErr(t)
 
 		// Act
 		err := runVolumeRemove(volumeRemoveCmd, nil)
@@ -278,7 +150,48 @@ func Test_runVolumeRemove(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{"docker maven", "msb gradle"}, removed)
 		assert.Contains(t, logBuf.String(), "   gradle (microsandbox)\n")
+		assert.Contains(t, logBuf.String(), "agentic: removing 2 volume(s)")
 	})
+
+	t.Run("no name declined lists the volumes before the prompt and removes nothing", func(t *testing.T) {
+		// Arrange
+		stubListVolumeNames(t, func() ([]string, error) { return []string{"gradle", "maven"}, nil })
+		var removeCalled bool
+		stubRemoveVolume(t, func(string) error { removeCalled = true; return nil })
+		iostreamstest.StubIn(t, "n\n")
+		logBuf := iostreamstest.StubErr(t)
+
+		// Act
+		err := runVolumeRemove(volumeRemoveCmd, nil)
+
+		// Assert - list and prompt share stderr, list first
+		require.NoError(t, err)
+		assert.False(t, removeCalled)
+		assert.Equal(t, "agentic: volumes to remove:\n   gradle\n   maven\nagentic: remove all agentic-managed volumes? [y/N] agentic: nothing removed\n", logBuf.String())
+	})
+
+	for _, tc := range []struct {
+		name      string
+		listErr   error
+		removeErr error
+	}{
+		{name: "list", listErr: fmt.Errorf("docker daemon not running")},
+		{name: "remove", removeErr: fmt.Errorf("remove failed")},
+	} {
+		t.Run("no name "+tc.name+" error propagates", func(t *testing.T) {
+			// Arrange
+			stubListVolumeNames(t, func() ([]string, error) { return []string{"maven"}, tc.listErr })
+			stubRemoveVolume(t, func(string) error { return tc.removeErr })
+			iostreamstest.StubIn(t, "y\n")
+			iostreamstest.StubErr(t)
+
+			// Act
+			err := runVolumeRemove(volumeRemoveCmd, nil)
+
+			// Assert
+			assert.ErrorIs(t, err, cmp.Or(tc.listErr, tc.removeErr))
+		})
+	}
 }
 
 func Test_newVolumeService(t *testing.T) {

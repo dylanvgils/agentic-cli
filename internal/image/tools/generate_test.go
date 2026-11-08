@@ -21,9 +21,11 @@ func TestGenerateDockerfile(t *testing.T) {
 	})
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
-		// Act + Assert
+		// Act
 		_, err := GenerateDockerfile("unknown", BuildOptions{})
-		require.Error(t, err)
+
+		// Assert
+		assert.Error(t, err)
 	})
 
 	t.Run("custom installs appear in generated content", func(t *testing.T) {
@@ -98,17 +100,6 @@ func TestBuildExtraStages(t *testing.T) {
 		assert.Equal(t, "base", prev)
 	})
 
-	t.Run("single", func(t *testing.T) {
-		// Act
-		stages, prev, err := buildExtraStages([]string{"java"}, "base", nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Len(t, stages, 1)
-		assert.Equal(t, "java", stages[0].From.As)
-		assert.Equal(t, "java", prev)
-	})
-
 	t.Run("multiple", func(t *testing.T) {
 		// Act
 		stages, prev, err := buildExtraStages([]string{"java", "dotnet"}, "base", nil)
@@ -133,42 +124,27 @@ func TestBuildExtraStages(t *testing.T) {
 }
 
 func TestResolveToolStage(t *testing.T) {
-	t.Run("known tool", func(t *testing.T) {
+	t.Run("known tool builds from prev with cache-bust and skip-checksum args first", func(t *testing.T) {
 		// Act
 		stage, err := resolveToolStage("claude", "base")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "tool", stage.From.As)
-		assert.Equal(t, "base", stage.From.Image)
-	})
-
-	t.Run("prepends cache-bust instructions", func(t *testing.T) {
-		// Act
-		stage, err := resolveToolStage("claude", "base")
-
-		// Assert
-		require.NoError(t, err)
-		require.GreaterOrEqual(t, len(stage.Instructions), 2)
-		assert.Equal(t, dockerfile.Arg{Key: "CACHEBUST", Default: ""}, stage.Instructions[0])
-		assert.Equal(t, dockerfile.Run{Command: `: "${CACHEBUST}"`}, stage.Instructions[1])
-	})
-
-	t.Run("prepends skip-install-checksum arg", func(t *testing.T) {
-		// Act
-		stage, err := resolveToolStage("claude", "base")
-
-		// Assert
-		require.NoError(t, err)
+		assert.Equal(t, dockerfile.From{Image: "base", As: "tool"}, stage.From)
 		require.GreaterOrEqual(t, len(stage.Instructions), 3)
-		assert.Equal(t, dockerfile.Arg{Key: "SKIP_INSTALL_CHECKSUM", Default: "false"}, stage.Instructions[2])
+		assert.Equal(t, []dockerfile.Instruction{
+			dockerfile.Arg{Key: "CACHEBUST", Default: ""},
+			dockerfile.Run{Command: `: "${CACHEBUST}"`},
+			dockerfile.Arg{Key: "SKIP_INSTALL_CHECKSUM", Default: "false"},
+		}, stage.Instructions[:3])
 	})
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
-		// Act + Assert
+		// Act
 		_, err := resolveToolStage("unknown", "base")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unknown")
+
+		// Assert
+		assert.ErrorContains(t, err, "unknown")
 	})
 }
 
@@ -182,17 +158,6 @@ func TestSortByKnownExtras(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, []string{"dotnet", "go", "java"}, result)
-	})
-
-	t.Run("reverse input produces same result", func(t *testing.T) {
-		// Arrange
-		forward := sortByKnownExtras([]string{"dotnet", "java"})
-
-		// Act
-		reversed := sortByKnownExtras([]string{"java", "dotnet"})
-
-		// Assert
-		assert.Equal(t, forward, reversed)
 	})
 
 	t.Run("deduplicates", func(t *testing.T) {

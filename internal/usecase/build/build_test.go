@@ -2,7 +2,6 @@ package build
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -13,51 +12,58 @@ import (
 )
 
 func TestDryRun(t *testing.T) {
-	t.Run("prints dockerfile without building", func(t *testing.T) {
+	t.Run("prints the labelled dockerfile without building", func(t *testing.T) {
 		// Arrange
-		var buildCalled bool
-		d := &fakeDocker{buildTool: func(_, _ string, _ tools.BuildOptions) error {
-			buildCalled = true
-			return nil
-		}}
-		iostreamstest.StubErr(t)
-		out := iostreamstest.StubOut(t)
-
-		// Act
-		err := New(d, t.TempDir()).DryRun([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, buildCalled)
-		assert.Contains(t, out.String(), "FROM")
-		assert.NotContains(t, out.String(), "AS proxy", "the proxy image builds separately")
-	})
-
-	t.Run("labels the dockerfile on stderr", func(t *testing.T) {
-		// Arrange
+		d := &fakeDocker{}
+		built := stubBuilds(d, nil)
 		errOut := iostreamstest.StubErr(t)
 		out := iostreamstest.StubOut(t)
 
 		// Act
-		err := New(&fakeDocker{}, t.TempDir()).DryRun([]string{"claude"}, tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, t.TempDir()).DryRun([]string{"claude"}, tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
+		assert.Empty(t, *built)
+		assert.Contains(t, out.String(), "FROM")
+		assert.NotContains(t, out.String(), "AS proxy", "the proxy image builds separately")
 		assert.Equal(t, "agentic: claude Dockerfile:\n\n", errOut.String())
-		assert.NotContains(t, out.String(), "claude Dockerfile")
 	})
 
 	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		err := New(&fakeDocker{}, t.TempDir()).DryRun([]string{"nonexistent"}, tools.BuildOptions{Versions: map[string]string{}})
+		err := New(&fakeDocker{}, t.TempDir()).DryRun([]string{"nonexistent"}, tools.BuildOptions{})
 
 		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unknown tool")
+		assert.ErrorContains(t, err, "unknown tool")
 	})
 }
 
 func TestApply(t *testing.T) {
+	t.Run("builds each tool, then prunes and records the checks", func(t *testing.T) {
+		// Arrange
+		home := t.TempDir()
+		pruned := false
+		d := &fakeDocker{pruneImages: func() (string, error) { pruned = true; return "", nil }}
+		built := stubBuilds(d, nil)
+
+		// Act
+		var err error
+		out := iostreamstest.CaptureErr(t, func() {
+			err = New(d, home).Apply([]string{"claude", "copilot", "opencode"}, "agentic", tools.BuildOptions{})
+		})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"claude", "copilot", "opencode"}, *built)
+		assert.Equal(t, "agentic: building 3 image(s): agentic-claude, agentic-copilot, agentic-opencode\n=> agentic-claude\n=> agentic-copilot\n=> agentic-opencode\n", out)
+		assert.True(t, pruned)
+		state, err := config.LoadState(home)
+		require.NoError(t, err)
+		assert.Contains(t, state.LastToolVersionCheck, "claude")
+		assert.Contains(t, state.LastToolVersionCheck, "opencode")
+	})
+
 	t.Run("stores custom installs before building", func(t *testing.T) {
 		// Arrange
 		iostreamstest.StubErr(t)
@@ -74,205 +80,52 @@ func TestApply(t *testing.T) {
 		assert.Equal(t, installs, stored)
 	})
 
-	t.Run("all tools when no args", func(t *testing.T) {
-		// Arrange
-		logBuf := iostreamstest.StubErr(t)
-		var built []string
-		d := &fakeDocker{buildTool: func(tool, _ string, _ tools.BuildOptions) error {
-			built = append(built, tool)
-			return nil
-		}}
+	for _, tc := range []struct {
+		name string
+		opts tools.BuildOptions
+		want string
+	}{
+		{name: "nothing but the image without overrides", want: "=> agentic-claude\n"},
+		{
+			name: "base and apt overrides",
+			opts: tools.BuildOptions{BaseOverride: []string{"java", "dotnet"}, AptPackages: []string{"curl", "jq"}},
+			want: "=> agentic-claude\n   base: java, dotnet\n   apt: curl, jq\n",
+		},
+		{
+			name: "empty exact base and apt",
+			opts: tools.BuildOptions{BaseExact: true, AptExact: true},
+			want: "=> agentic-claude\n   base: (none, exact)\n   apt: (none, exact)\n",
+		},
+	} {
+		t.Run("reports "+tc.name, func(t *testing.T) {
+			// Act
+			var err error
+			out := iostreamstest.CaptureErr(t, func() { err = New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", tc.opts) })
 
-		// Act
-		err := New(d, t.TempDir()).Apply([]string{"claude", "copilot", "opencode"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"claude", "copilot", "opencode"}, built)
-		assert.Contains(t, logBuf.String(), "agentic: building 3 image(s): agentic-claude, agentic-copilot, agentic-opencode")
-	})
-
-	t.Run("single tool when arg given", func(t *testing.T) {
-		// Arrange
-		var built []string
-		d := &fakeDocker{buildTool: func(tool, _ string, _ tools.BuildOptions) error {
-			built = append(built, tool)
-			return nil
-		}}
-
-		// Act
-		out := iostreamstest.CaptureErr(t, func() {
-			err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+			// Assert
 			require.NoError(t, err)
+			assert.Equal(t, "agentic: building 1 image(s): agentic-claude\n"+tc.want, out)
 		})
+	}
 
-		// Assert
-		assert.Equal(t, []string{"claude"}, built)
-		assert.Contains(t, out, "=> agentic-claude")
-		assert.NotContains(t, out, "=> copilot")
-		assert.NotContains(t, out, "=> opencode")
-	})
-
-	t.Run("base override shown", func(t *testing.T) {
-		// Arrange
-		opts := tools.BuildOptions{BaseOverride: []string{"java"}, Versions: map[string]string{}}
-
-		// Act
-		out := iostreamstest.CaptureErr(t, func() {
-			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "   base: java")
-	})
-
-	t.Run("base override with multiple extras shown", func(t *testing.T) {
-		// Arrange
-		opts := tools.BuildOptions{BaseOverride: []string{"java", "dotnet"}, Versions: map[string]string{}}
-
-		// Act
-		out := iostreamstest.CaptureErr(t, func() {
-			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "   base: java, dotnet")
-	})
-
-	t.Run("apt packages shown", func(t *testing.T) {
-		// Arrange
-		opts := tools.BuildOptions{AptPackages: []string{"curl", "jq"}, Versions: map[string]string{}}
-
-		// Act
-		out := iostreamstest.CaptureErr(t, func() {
-			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "   apt: curl, jq")
-	})
-
-	t.Run("apt packages hidden when empty", func(t *testing.T) {
-		// Act
-		out := iostreamstest.CaptureErr(t, func() {
-			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.NotContains(t, out, "apt:")
-	})
-
-	t.Run("base override hidden when empty", func(t *testing.T) {
-		// Act
-		out := iostreamstest.CaptureErr(t, func() {
-			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.NotContains(t, out, "=> base:")
-	})
-
-	t.Run("empty base-exact reported as none, exact", func(t *testing.T) {
-		// Arrange
-		opts := tools.BuildOptions{BaseExact: true, Versions: map[string]string{}}
-
-		// Act
-		out := iostreamstest.CaptureErr(t, func() {
-			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "   base: (none, exact)")
-	})
-
-	t.Run("empty apt-exact reported as none, exact", func(t *testing.T) {
-		// Arrange
-		opts := tools.BuildOptions{AptExact: true, Versions: map[string]string{}}
-
-		// Act
-		out := iostreamstest.CaptureErr(t, func() {
-			err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"claude"}, "agentic", opts)
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "   apt: (none, exact)")
-	})
-
-	t.Run("script error propagates", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{buildTool: func(_, _ string, _ tools.BuildOptions) error {
-			return fmt.Errorf("docker daemon not running")
-		}}
-
-		// Act
-		err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "docker daemon not running")
-	})
-
-	t.Run("unknown tool returns error", func(t *testing.T) {
-		// Act
-		err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"nonexistent"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unknown tool")
-	})
-
-	t.Run("stops on first tool error", func(t *testing.T) {
-		// Arrange
-		var built []string
-		d := &fakeDocker{buildTool: func(tool, _ string, _ tools.BuildOptions) error {
-			built = append(built, tool)
-			return fmt.Errorf("fail on %s", tool)
-		}}
-
-		// Act
-		err := New(d, t.TempDir()).Apply([]string{"claude", "copilot", "opencode"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
-
-		// Assert
-		require.Error(t, err)
-		assert.Len(t, built, 1)
-	})
-
-	t.Run("prunes after the builds succeed", func(t *testing.T) {
+	t.Run("a failed build stops the rest, skips the prune and records no check", func(t *testing.T) {
 		// Arrange
 		iostreamstest.StubErr(t)
+		home := t.TempDir()
 		pruned := false
 		d := &fakeDocker{pruneImages: func() (string, error) { pruned = true; return "", nil }}
+		built := stubBuilds(d, errors.New("build failed"))
 
 		// Act
-		err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, pruned)
-	})
-
-	t.Run("a failed build skips the prune", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubErr(t)
-		pruned := false
-		d := &fakeDocker{
-			buildTool:   func(string, string, tools.BuildOptions) error { return errors.New("build failed") },
-			pruneImages: func() (string, error) { pruned = true; return "", nil },
-		}
-
-		// Act
-		err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, home).Apply([]string{"claude", "copilot", "opencode"}, "agentic", tools.BuildOptions{})
 
 		// Assert
 		require.ErrorContains(t, err, "build failed")
+		assert.Equal(t, []string{"claude"}, *built)
 		assert.False(t, pruned)
+		state, err := config.LoadState(home)
+		require.NoError(t, err)
+		assert.NotContains(t, state.LastToolVersionCheck, "claude")
 	})
 
 	t.Run("a failed prune does not fail the build", func(t *testing.T) {
@@ -281,40 +134,17 @@ func TestApply(t *testing.T) {
 		d := &fakeDocker{pruneImages: func() (string, error) { return "", errors.New("prune failed") }}
 
 		// Act
-		err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(d, t.TempDir()).Apply([]string{"claude"}, "agentic", tools.BuildOptions{})
 
 		// Assert
 		require.NoError(t, err)
 	})
 
-	t.Run("successful build records update check", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubErr(t)
-		home := t.TempDir()
-
+	t.Run("unknown tool returns error", func(t *testing.T) {
 		// Act
-		err := New(&fakeDocker{}, home).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
+		err := New(&fakeDocker{}, t.TempDir()).Apply([]string{"nonexistent"}, "agentic", tools.BuildOptions{})
 
 		// Assert
-		require.NoError(t, err)
-		cfg, err := config.LoadState(home)
-		require.NoError(t, err)
-		assert.Contains(t, cfg.LastToolVersionCheck, "claude")
-	})
-
-	t.Run("failed build records no update check", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubErr(t)
-		home := t.TempDir()
-		d := &fakeDocker{buildTool: func(string, string, tools.BuildOptions) error { return errors.New("build failed") }}
-
-		// Act
-		err := New(d, home).Apply([]string{"claude"}, "agentic", tools.BuildOptions{Versions: map[string]string{}})
-
-		// Assert
-		require.Error(t, err)
-		cfg, err := config.LoadState(home)
-		require.NoError(t, err)
-		assert.NotContains(t, cfg.LastToolVersionCheck, "claude")
+		assert.ErrorContains(t, err, "unknown tool")
 	})
 }

@@ -76,3 +76,26 @@ func storeCustomInstalls(t *testing.T, home string, installs ...config.RCCustomI
 	require.NoError(t, config.SaveCustomInstalls(home, installs))
 	return config.CustomInstallsHash(installs)
 }
+
+// builds records the BuildTool calls a fakeDocker gets.
+type builds struct {
+	images []string
+	opts   []tools.BuildOptions
+}
+
+// newTestService returns a Service over d and u with a temp data dir.
+func newTestService(t *testing.T, d Docker, u Upstream) *Service {
+	t.Helper()
+	return New(d, u, t.TempDir())
+}
+
+// stubBuilds makes d's BuildTool record each build and return err.
+func stubBuilds(d *fakeDocker, err error) *builds {
+	b := &builds{}
+	d.buildTool = func(_, image string, opts tools.BuildOptions) error {
+		b.images = append(b.images, image)
+		b.opts = append(b.opts, opts)
+		return err
+	}
+	return b
+}

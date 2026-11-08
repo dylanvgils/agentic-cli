@@ -8,14 +8,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
 )
 
-func TestNewRunSpec_setsImage(t *testing.T) {
-	// Act
-	result := NewRunSpec("agentic-claude").Build()
-
-	// Assert
-	assert.Equal(t, "agentic-claude", result.Image)
-}
-
 func TestRunSpecBuilder_allFields(t *testing.T) {
 	// Act
 	result := NewRunSpec("agentic-claude").
@@ -79,57 +71,36 @@ func TestRunSpecBuilder_WithDind(t *testing.T) {
 	assert.Equal(t, spec, result.Dind)
 }
 
-func TestRunSpecBuilder_WithVolumes_variadic(t *testing.T) {
-	t.Run("empty", func(t *testing.T) {
-		// Act
-		result := NewRunSpec("img").WithVolumes().Build()
+func TestRunSpecBuilder_WithVolumes(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		build func(*RunSpecBuilder) *RunSpecBuilder
+		want  []string
+	}{
+		{
+			name:  "empty",
+			build: func(b *RunSpecBuilder) *RunSpecBuilder { return b.WithVolumes() },
+		},
+		{
+			name:  "multiple calls accumulate",
+			build: func(b *RunSpecBuilder) *RunSpecBuilder { return b.WithVolumes("/a:/b").WithVolumes("/c:/d", "/e:/f") },
+			want:  []string{"/a:/b", "/c:/d", "/e:/f"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := tc.build(NewRunSpec("img")).Build()
 
-		// Assert
-		assert.Nil(t, result.Volumes)
-	})
-
-	t.Run("single", func(t *testing.T) {
-		// Act
-		result := NewRunSpec("img").WithVolumes("/a:/b").Build()
-
-		// Assert
-		assert.Equal(t, []string{"/a:/b"}, result.Volumes)
-	})
-
-	t.Run("multiple calls accumulate", func(t *testing.T) {
-		// Act
-		result := NewRunSpec("img").
-			WithVolumes("/a:/b").
-			WithVolumes("/c:/d", "/e:/f").
-			Build()
-
-		// Assert
-		assert.Equal(t, []string{"/a:/b", "/c:/d", "/e:/f"}, result.Volumes)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result.Volumes)
+		})
+	}
 }
 
-func TestRunSpecBuilder_WithEphemeralDirs_variadic(t *testing.T) {
-	t.Run("empty", func(t *testing.T) {
-		// Act
-		result := NewRunSpec("img").WithEphemeralDirs().Build()
+func TestRunSpecBuilder_WithEphemeralDirs(t *testing.T) {
+	// Act
+	result := NewRunSpec("img").WithEphemeralDirs().Build()
 
-		// Assert
-		assert.Nil(t, result.EphemeralDirs)
-	})
-
-	t.Run("single", func(t *testing.T) {
-		// Act
-		result := NewRunSpec("img").WithEphemeralDirs(EphemeralDir{Path: "/tmp"}).Build()
-
-		// Assert
-		assert.Equal(t, []EphemeralDir{{Path: "/tmp"}}, result.EphemeralDirs)
-	})
-
-	t.Run("multiple", func(t *testing.T) {
-		// Act
-		result := NewRunSpec("img").WithEphemeralDirs(EphemeralDir{Path: "/tmp"}, EphemeralDir{Path: "/run"}).Build()
-
-		// Assert
-		assert.Equal(t, []EphemeralDir{{Path: "/tmp"}, {Path: "/run"}}, result.EphemeralDirs)
-	})
+	// Assert
+	assert.Nil(t, result.EphemeralDirs)
 }

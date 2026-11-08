@@ -62,37 +62,25 @@ func Test_State_IsTrusted(t *testing.T) {
 	}
 	cfg := &State{TrustedDirs: []string{projects}}
 
-	t.Run("exact match", func(t *testing.T) {
-		// Act
-		result := cfg.IsTrusted(projects)
+	for _, tc := range []struct {
+		name string
+		dir  string
+		want bool
+	}{
+		{name: "exact match", dir: projects, want: true},
+		{name: "parent match", dir: filepath.Join(projects, "foo"), want: true},
+		{name: "no match", dir: filepath.Join(base, "other")},
+		{name: "prefix without separator no match", dir: filepath.Join(base, "projects-evil")},
+		{name: "missing dir is not trusted", dir: filepath.Join(projects, "missing")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := cfg.IsTrusted(tc.dir)
 
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("parent match", func(t *testing.T) {
-		// Act
-		result := cfg.IsTrusted(filepath.Join(projects, "foo"))
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("no match", func(t *testing.T) {
-		// Act
-		result := cfg.IsTrusted(filepath.Join(base, "other"))
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("prefix without separator no match", func(t *testing.T) {
-		// Act
-		result := cfg.IsTrusted(filepath.Join(base, "projects-evil"))
-
-		// Assert
-		assert.False(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 
 	t.Run("entry with a trailing separator still matches", func(t *testing.T) {
 		// Arrange
@@ -111,14 +99,6 @@ func Test_State_IsTrusted(t *testing.T) {
 
 		// Act
 		result := cfg.IsTrusted(base)
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("missing dir is not trusted", func(t *testing.T) {
-		// Act
-		result := cfg.IsTrusted(filepath.Join(projects, "missing"))
 
 		// Assert
 		assert.False(t, result)

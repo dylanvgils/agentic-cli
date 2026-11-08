@@ -92,18 +92,6 @@ func TestClaudeStage(t *testing.T) {
 	stage := claudeStage("base")
 	result := renderStage(stage)
 
-	t.Run("from prev stage", func(t *testing.T) {
-		// Assert
-		assert.Equal(t, "base", stage.From.Image)
-		assert.Equal(t, "tool", stage.From.As)
-	})
-
-	t.Run("contains container user", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "groupadd -g ${HOST_GID} --non-unique claude")
-		assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique claude")
-	})
-
 	t.Run("contains entrypoint", func(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, "entrypoint.sh")
@@ -134,14 +122,4 @@ func TestClaudeStage(t *testing.T) {
 		assert.Contains(t, result, "rm /tmp/claude_install.sh")
 	})
 
-	t.Run("contains tool home", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "TOOL_HOME=/home/claude")
-	})
-
-	t.Run("contains version script", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "agentic-version-claude")
-		assert.Contains(t, result, "claude --version")
-	})
 }
