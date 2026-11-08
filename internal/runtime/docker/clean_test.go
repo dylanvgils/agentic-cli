@@ -29,132 +29,52 @@ func TestCleanImage(t *testing.T) {
 		assert.Equal(t, []string{"images", "--quiet", "agentic-claude"}, calls[1])
 	})
 
-	t.Run("with containers removes containers", func(t *testing.T) {
-		// Arrange
-		callNum := 0
-		var rmArgs []string
+	// stubClean answers ps with a container and images with an image id, failing the docker subcommand fail.
+	stubClean := func(t *testing.T, fail string) func() []dockerCall {
+		var calls []dockerCall
 		stubDockerRun(t, client, func(args ...string) (string, error) {
-			callNum++
-			switch callNum {
-			case 1: // docker ps
+			calls = append(calls, dockerCall{args: args})
+			if args[0] == fail {
+				return "", fmt.Errorf("stub: %s failed", fail)
+			}
+			switch args[0] {
+			case "ps":
 				return "c1\nc2", nil
-			case 2: // docker rm
-				rmArgs = args
-				return "", nil
-			case 3: // docker images
-				return "", nil
-			}
-			return "", nil
-		})
-
-		// Act
-		err := client.CleanImage("agentic-claude")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, 3, callNum)
-		assert.Equal(t, []string{"rm", "--force", "--volumes", "c1", "c2"}, rmArgs)
-	})
-
-	t.Run("with images removes images", func(t *testing.T) {
-		// Arrange
-		callNum := 0
-		var rmiArgs []string
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			callNum++
-			switch callNum {
-			case 1: // docker ps - no containers
-				return "", nil
-			case 2: // docker images
+			case "images":
 				return "sha256abc\nsha256def", nil
-			case 3: // docker rmi
-				rmiArgs = args
-				return "", nil
 			}
 			return "", nil
 		})
+		return func() []dockerCall { return calls }
+	}
+
+	t.Run("removes the image's containers, then the image", func(t *testing.T) {
+		// Arrange
+		get := stubClean(t, "")
 
 		// Act
 		err := client.CleanImage("agentic-claude")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, 3, callNum)
-		assert.Equal(t, []string{"rmi", "--force", "sha256abc", "sha256def"}, rmiArgs)
+		calls := get()
+		require.Len(t, calls, 4)
+		assert.Equal(t, []string{"rm", "--force", "--volumes", "c1", "c2"}, calls[1].args)
+		assert.Equal(t, []string{"rmi", "--force", "sha256abc", "sha256def"}, calls[3].args)
 	})
 
-	t.Run("ps error returns error", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "", fmt.Errorf("docker daemon not running"))
+	for _, fail := range []string{"ps", "rm", "images", "rmi"} {
+		t.Run(fail+" error returns error", func(t *testing.T) {
+			// Arrange
+			stubClean(t, fail)
 
-		// Act
-		err := client.CleanImage("agentic-claude")
+			// Act
+			err := client.CleanImage("agentic-claude")
 
-		// Assert
-		require.Error(t, err)
-	})
-
-	t.Run("rm error returns error", func(t *testing.T) {
-		// Arrange
-		callNum := 0
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			callNum++
-			if callNum == 1 {
-				return "container1", nil
-			}
-			return "", fmt.Errorf("rm failed")
+			// Assert
+			assert.ErrorContains(t, err, fail+" failed")
 		})
-
-		// Act
-		err := client.CleanImage("agentic-claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "rm failed")
-	})
-
-	t.Run("images error returns error", func(t *testing.T) {
-		// Arrange
-		callNum := 0
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			callNum++
-			if callNum == 1 {
-				return "", nil
-			}
-			return "", fmt.Errorf("images failed")
-		})
-
-		// Act
-		err := client.CleanImage("agentic-claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "images failed")
-	})
-
-	t.Run("rmi error returns error", func(t *testing.T) {
-		// Arrange
-		callNum := 0
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			callNum++
-			switch callNum {
-			case 1: // ps - no containers
-				return "", nil
-			case 2: // images - returns an ID
-				return "sha256abc", nil
-			case 3: // rmi - fails
-				return "", fmt.Errorf("rmi failed")
-			}
-			return "", nil
-		})
-
-		// Act
-		err := client.CleanImage("agentic-claude")
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "rmi failed")
-	})
+	}
 }
 
 func TestCleanBaseImages(t *testing.T) {

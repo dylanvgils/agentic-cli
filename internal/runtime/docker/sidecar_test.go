@@ -3,7 +3,6 @@ package docker
 import (
 	"errors"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -62,11 +61,10 @@ func Test_setupSidecars(t *testing.T) {
 	t.Run("removes the run network when the proxy fails to start", func(t *testing.T) {
 		// Arrange
 		calls := stubProxyDocker(t, client, "true", "create")
-		rs := toolRun{RunSpec: sandbox.RunSpec{
-			User:   &testUser,
+		rs := newProxyRun(t, sandbox.RunSpec{
 			Image:  "agentic-claude",
 			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
-		}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
+		})
 
 		// Act
 		_, _, err := client.setupSidecars(rs)
@@ -80,11 +78,10 @@ func Test_setupSidecars(t *testing.T) {
 	t.Run("a failed network create starts no sidecar", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client, "network create")
-		rs := toolRun{RunSpec: sandbox.RunSpec{
-			User:   &testUser,
+		rs := newProxyRun(t, sandbox.RunSpec{
 			Image:  "agentic-claude",
 			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
-		}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
+		})
 
 		// Act
 		_, _, err := client.setupSidecars(rs)
@@ -116,13 +113,12 @@ func Test_setupSidecars(t *testing.T) {
 		// Arrange
 		stubDindReadyTimeout(t, client)
 		calls := stubProxyDocker(t, client, "true", "exec")
-		rs := toolRun{RunSpec: sandbox.RunSpec{
-			User:     &testUser,
+		rs := newProxyRun(t, sandbox.RunSpec{
 			Image:    "agentic-claude",
 			ToolHome: t.TempDir(),
 			Egress:   sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
 			Dind:     sandbox.DindSpec{Enabled: true},
-		}, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
+		})
 
 		// Act
 		_, _, err := client.setupSidecars(rs)
@@ -161,27 +157,13 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 		assert.Equal(t, []string{"network", "rm", "agentic-run-abc"}, findCall(calls, "network", "rm"))
 	})
 
-	t.Run("keeps a sidecar younger than the grace period", func(t *testing.T) {
-		// Arrange
-		get := stubOwnedResources(t, client,
-			ownedRow("agentic-proxy-abc", "agentic-claude-starting", time.Minute),
-			ownedRow("agentic-run-abc", "agentic-claude-starting", time.Minute),
-		)
-
-		// Act
-		err := client.sweepOrphanedSidecars("")
-
-		// Assert
-		require.NoError(t, err)
-		calls := get()
-		assert.Nil(t, findCall(calls, "rm"))
-		assert.Nil(t, findCall(calls, "network", "rm"))
-	})
-
-	t.Run("keeps a sidecar whose owner still exists", func(t *testing.T) {
-		// Arrange
-		containers := ownedRow("agentic-claude-abc", "", 0) + ownedRow("agentic-proxy-abc", "agentic-claude-abc", time.Hour)
-		get := stubOwnedResources(t, client, containers, ownedRow("agentic-run-abc", "agentic-claude-abc", time.Hour))
+	t.Run("keeps sidecars and networks still in use", func(t *testing.T) {
+		// Arrange - one owner still exists, the other is younger than the grace period
+		containers := ownedRow("agentic-claude-abc", "", 0) +
+			ownedRow("agentic-proxy-abc", "agentic-claude-abc", time.Hour) +
+			ownedRow("agentic-proxy-def", "agentic-claude-starting", time.Minute)
+		networks := ownedRow("agentic-run-abc", "agentic-claude-abc", time.Hour) + ownedRow("agentic-run-def", "agentic-claude-starting", time.Minute)
+		get := stubOwnedResources(t, client, containers, networks)
 
 		// Act
 		err := client.sweepOrphanedSidecars("")
@@ -258,83 +240,34 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 
 func Test_ownedResource_inUse(t *testing.T) {
 	existing := map[string]bool{"agentic-claude-abc": true}
+	old := time.Now().Add(-time.Hour)
+	gonePID := exitedPID(t)
 
-	t.Run("owner still exists", func(t *testing.T) {
-		// Arrange
-		r := ownedResource{name: "agentic-proxy-abc", owner: "agentic-claude-abc", started: time.Now().Add(-time.Hour)}
+	for _, tc := range []struct {
+		name    string
+		owner   string
+		started time.Time
+		want    bool
+	}{
+		{name: "owner still exists", owner: "agentic-claude-abc", started: old, want: true},
+		{name: "owner not started yet", owner: "agentic-claude-starting", started: time.Now(), want: true},
+		{name: "owner gone", owner: "agentic-claude-gone", started: old},
+		{name: "no owner"},
+		{name: "host process owner still runs", owner: pidOwner(sandbox.RuntimeMicrosandbox, os.Getpid()), started: old, want: true},
+		{name: "host process owner gone", owner: pidOwner(sandbox.RuntimeMicrosandbox, gonePID), started: old},
+		{name: "host process owner gone but within grace", owner: pidOwner(sandbox.RuntimeMicrosandbox, gonePID), started: time.Now(), want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			r := ownedResource{name: "agentic-proxy-abc", owner: tc.owner, started: tc.started}
 
-		// Act
-		inUse := r.inUse(existing, 5*time.Minute)
+			// Act
+			inUse := r.inUse(existing, 5*time.Minute)
 
-		// Assert
-		assert.True(t, inUse)
-	})
-
-	t.Run("owner not started yet", func(t *testing.T) {
-		// Arrange
-		r := ownedResource{name: "agentic-proxy-abc", owner: "agentic-claude-starting", started: time.Now()}
-
-		// Act
-		inUse := r.inUse(existing, 5*time.Minute)
-
-		// Assert
-		assert.True(t, inUse)
-	})
-
-	t.Run("owner gone", func(t *testing.T) {
-		// Arrange
-		r := ownedResource{name: "agentic-proxy-abc", owner: "agentic-claude-gone", started: time.Now().Add(-time.Hour)}
-
-		// Act
-		inUse := r.inUse(existing, 5*time.Minute)
-
-		// Assert
-		assert.False(t, inUse)
-	})
-
-	t.Run("no owner", func(t *testing.T) {
-		// Arrange
-		r := ownedResource{name: "agentic-proxy-old"}
-
-		// Act
-		inUse := r.inUse(existing, 5*time.Minute)
-
-		// Assert
-		assert.False(t, inUse)
-	})
-
-	t.Run("host process owner still runs", func(t *testing.T) {
-		// Arrange
-		r := ownedResource{name: "agentic-proxy-abc", owner: pidOwner(sandbox.RuntimeMicrosandbox, os.Getpid()), started: time.Now().Add(-time.Hour)}
-
-		// Act
-		inUse := r.inUse(existing, 5*time.Minute)
-
-		// Assert
-		assert.True(t, inUse)
-	})
-
-	t.Run("host process owner gone", func(t *testing.T) {
-		// Arrange
-		r := ownedResource{name: "agentic-proxy-abc", owner: pidOwner(sandbox.RuntimeMicrosandbox, exitedPID(t)), started: time.Now().Add(-time.Hour)}
-
-		// Act
-		inUse := r.inUse(existing, 5*time.Minute)
-
-		// Assert
-		assert.False(t, inUse)
-	})
-
-	t.Run("host process owner gone but within grace", func(t *testing.T) {
-		// Arrange
-		r := ownedResource{name: "agentic-proxy-abc", owner: pidOwner(sandbox.RuntimeMicrosandbox, exitedPID(t)), started: time.Now()}
-
-		// Act
-		inUse := r.inUse(existing, 5*time.Minute)
-
-		// Assert
-		assert.True(t, inUse)
-	})
+			// Assert
+			assert.Equal(t, tc.want, inUse)
+		})
+	}
 }
 
 func Test_ownerPID(t *testing.T) {

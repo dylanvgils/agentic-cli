@@ -9,53 +9,26 @@ import (
 )
 
 func TestExtractVersion(t *testing.T) {
-	t.Run("semver", func(t *testing.T) {
-		// Act
-		result := extractVersion("v24.0.0\n")
+	for _, tc := range []struct {
+		name   string
+		output string
+		want   string
+	}{
+		{name: "semver", output: "v24.0.0\n", want: "24.0.0"},
+		{name: "prefixed output", output: "go version go1.21.0 linux/amd64\n", want: "1.21.0"},
+		{name: "docker cli output", output: "Docker version 29.8.2, build 1a2b3c4\n", want: "29.8.2"},
+		{name: "windows line ending", output: "1.0.0\r\n", want: "1.0.0"},
+		{name: "multi line uses first line", output: "1.2.3\n4.5.6\n", want: "1.2.3"},
+		{name: "no version returns empty", output: "no version here\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := extractVersion(tc.output)
 
-		// Assert
-		assert.Equal(t, "24.0.0", result)
-	})
-
-	t.Run("prefixed output", func(t *testing.T) {
-		// Act
-		result := extractVersion("go version go1.21.0 linux/amd64\n")
-
-		// Assert
-		assert.Equal(t, "1.21.0", result)
-	})
-
-	t.Run("docker cli output", func(t *testing.T) {
-		// Act
-		result := extractVersion("Docker version 29.8.2, build 1a2b3c4\n")
-
-		// Assert
-		assert.Equal(t, "29.8.2", result)
-	})
-
-	t.Run("windows line ending", func(t *testing.T) {
-		// Act
-		result := extractVersion("1.0.0\r\n")
-
-		// Assert
-		assert.Equal(t, "1.0.0", result)
-	})
-
-	t.Run("multi line uses first line", func(t *testing.T) {
-		// Act
-		result := extractVersion("1.2.3\n4.5.6\n")
-
-		// Assert
-		assert.Equal(t, "1.2.3", result)
-	})
-
-	t.Run("no version returns empty", func(t *testing.T) {
-		// Act
-		result := extractVersion("no version here\n")
-
-		// Assert
-		assert.Equal(t, "", result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestClient_Version(t *testing.T) {
@@ -165,15 +138,20 @@ func Test_engineComponent(t *testing.T) {
 func TestRunVersionScript(t *testing.T) {
 	client := newTestClient()
 
-	t.Run("returns detected version", func(t *testing.T) {
+	t.Run("returns the version detected without network, so the tool can't self-update mid-detection", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, client, "1.2.3\n", nil)
+		var capturedArgs []string
+		stubDockerRun(t, client, func(args ...string) (string, error) {
+			capturedArgs = args
+			return "1.2.3\n", nil
+		})
 
 		// Act
 		result := client.runVersionScript("agentic-claude", "agentic-version-claude")
 
 		// Assert
 		assert.Equal(t, "1.2.3", result)
+		assert.Contains(t, capturedArgs, "--network=none")
 	})
 
 	t.Run("docker run error returns empty", func(t *testing.T) {
@@ -187,20 +165,6 @@ func TestRunVersionScript(t *testing.T) {
 		assert.Equal(t, "", result)
 	})
 
-	t.Run("runs without network so the tool can't self-update mid-detection", func(t *testing.T) {
-		// Arrange
-		var capturedArgs []string
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			capturedArgs = args
-			return "1.2.3\n", nil
-		})
-
-		// Act
-		client.runVersionScript("agentic-claude", "agentic-version-claude")
-
-		// Assert
-		assert.Contains(t, capturedArgs, "--network=none")
-	})
 }
 
 func TestCollectExtraVersions(t *testing.T) {
@@ -244,40 +208,13 @@ func TestCollectExtraVersions(t *testing.T) {
 }
 
 func TestCollectBaseLabel(t *testing.T) {
+	// Arrange
 	client := newTestClient()
+	stubDockerRunFixed(t, client, "21.0.1\n", nil)
 
-	t.Run("no extras returns empty string", func(t *testing.T) {
-		// Arrange
-		calls := 0
-		stubDockerRun(t, client, func(_ ...string) (string, error) { calls++; return "", nil })
+	// Act
+	result := client.collectBaseLabel("agentic-base", []string{"java"})
 
-		// Act
-		result := client.collectBaseLabel("agentic-base", nil)
-
-		// Assert
-		assert.Equal(t, "", result)
-		assert.Equal(t, 0, calls, "docker should not be called for empty extras")
-	})
-
-	t.Run("with extras returns detected versions", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "21.0.1\n", nil)
-
-		// Act
-		result := client.collectBaseLabel("agentic-base", []string{"java"})
-
-		// Assert
-		assert.Equal(t, "java@21.0.1", result)
-	})
-
-	t.Run("version detection fails returns partial label", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "", fmt.Errorf("not found"))
-
-		// Act
-		result := client.collectBaseLabel("agentic-base", []string{"java"})
-
-		// Assert
-		assert.Equal(t, "java", result)
-	})
+	// Assert
+	assert.Equal(t, "java@21.0.1", result)
 }

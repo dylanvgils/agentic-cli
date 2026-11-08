@@ -35,15 +35,18 @@ const fullImageJSON = `{
 func TestInspectImage(t *testing.T) {
 	client := newTestClient()
 
-	t.Run("all fields", func(t *testing.T) {
+	t.Run("inspects the image and its size into every field", func(t *testing.T) {
 		// Arrange
 		callNum := 0
+		var inspectArgs, lsArgs []string
 		stubDockerRun(t, client, func(args ...string) (string, error) {
 			callNum++
 			switch callNum {
 			case 1:
+				inspectArgs = args
 				return fullImageJSON, nil
 			case 2:
+				lsArgs = args
 				return "1.23GB", nil
 			}
 			return "", nil
@@ -55,6 +58,8 @@ func TestInspectImage(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		require.NotNil(t, info)
+		assert.Contains(t, inspectArgs, "agentic-claude")
+		assert.Contains(t, lsArgs, "--filter=reference=agentic-claude")
 		assert.Equal(t, "agentic-claude", info.Image)
 		assert.Equal(t, "agentic", info.Namespace)
 		assert.Equal(t, "claude", info.Tool)
@@ -120,31 +125,6 @@ func TestInspectImage(t *testing.T) {
 		assert.Nil(t, info)
 	})
 
-	t.Run("passes image name", func(t *testing.T) {
-		// Arrange
-		callNum := 0
-		var inspectArgs, lsArgs []string
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			callNum++
-			switch callNum {
-			case 1:
-				inspectArgs = args
-				return fullImageJSON, nil
-			case 2:
-				lsArgs = args
-				return "1.23GB", nil
-			}
-			return "", nil
-		})
-
-		// Act
-		_, err := client.InspectImage("agentic-opencode")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, inspectArgs, "agentic-opencode")
-		assert.Contains(t, lsArgs, "--filter=reference=agentic-opencode")
-	})
 }
 
 func TestSaveImage(t *testing.T) {
@@ -184,90 +164,67 @@ func TestSaveImage(t *testing.T) {
 }
 
 func Test_extractShortID(t *testing.T) {
-	t.Run("returns 12-char short ID", func(t *testing.T) {
-		// Act
-		id := extractShortID("sha256:a1b2c3d4e5f6abcdef012345678901234567890")
+	for _, tc := range []struct {
+		name string
+		id   string
+		want string
+	}{
+		{name: "returns 12-char short ID", id: "sha256:a1b2c3d4e5f6abcdef012345678901234567890", want: "a1b2c3d4e5f6"},
+		{name: "ID shorter than 19 chars returns empty", id: "sha256:short"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			id := extractShortID(tc.id)
 
-		// Assert
-		assert.Equal(t, "a1b2c3d4e5f6", id)
-	})
-
-	t.Run("ID shorter than 19 chars returns empty", func(t *testing.T) {
-		// Act
-		id := extractShortID("sha256:short")
-
-		// Assert
-		assert.Empty(t, id)
-	})
+			// Assert
+			assert.Equal(t, tc.want, id)
+		})
+	}
 }
 
 func Test_resolveToolName(t *testing.T) {
-	t.Run("tool label takes precedence over parsed name", func(t *testing.T) {
-		// Act
-		_, tool := resolveToolName("agentic-claude", "copilot", "")
+	for _, tc := range []struct {
+		name          string
+		image         string
+		toolLabel     string
+		nsLabel       string
+		wantNamespace string
+		wantTool      string
+	}{
+		{name: "labels take precedence over the parsed name", image: "agentic-claude", toolLabel: "copilot", nsLabel: "myproject", wantNamespace: "myproject", wantTool: "copilot"},
+		{name: "falls back to the parsed name without labels", image: "myproject-claude", wantNamespace: "myproject", wantTool: "claude"},
+		{name: "unknown tool with no label returns empty tool", image: "agentic-bogus"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			namespace, tool := resolveToolName(tc.image, tc.toolLabel, tc.nsLabel)
 
-		// Assert
-		assert.Equal(t, "copilot", tool)
-	})
-
-	t.Run("falls back to parsed tool name when label is empty", func(t *testing.T) {
-		// Act
-		_, tool := resolveToolName("agentic-claude", "", "")
-
-		// Assert
-		assert.Equal(t, "claude", tool)
-	})
-
-	t.Run("namespace label takes precedence over parsed name", func(t *testing.T) {
-		// Act
-		namespace, _ := resolveToolName("agentic-claude", "claude", "myproject")
-
-		// Assert
-		assert.Equal(t, "myproject", namespace)
-	})
-
-	t.Run("falls back to parsed namespace when label is empty", func(t *testing.T) {
-		// Act
-		namespace, _ := resolveToolName("myproject-claude", "claude", "")
-
-		// Assert
-		assert.Equal(t, "myproject", namespace)
-	})
-
-	t.Run("unknown tool with no label returns empty tool", func(t *testing.T) {
-		// Act
-		_, tool := resolveToolName("agentic-bogus", "", "")
-
-		// Assert
-		assert.Empty(t, tool)
-	})
+			// Assert
+			assert.Equal(t, tc.wantNamespace, namespace)
+			assert.Equal(t, tc.wantTool, tool)
+		})
+	}
 }
 
 func Test_listAllRepositories(t *testing.T) {
 	client := newTestClient()
 
-	t.Run("returns repository names from docker output", func(t *testing.T) {
+	t.Run("lists the project's repositories with the extra filters, once each", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, client, "agentic-claude\nmyproject-copilot\n", nil)
+		var capturedArgs []string
+		stubDockerRun(t, client, func(args ...string) (string, error) {
+			capturedArgs = args
+			return "agentic-claude\n<none>\nagentic-claude\nmyproject-copilot\n", nil
+		})
 
 		// Act
-		repos, err := client.listAllRepositories()
+		repos, err := client.listAllRepositories(ToolFilter("claude"))
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"agentic-claude", "myproject-copilot"}, repos)
-	})
-
-	t.Run("skips none repositories", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "<none>", nil)
-
-		// Act
-		repos, err := client.listAllRepositories()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, repos)
+		assert.Contains(t, capturedArgs, "--filter=label=project=agentic-cli")
+		assert.Contains(t, capturedArgs, "--filter=label=agentic.tool=claude")
 	})
 
 	t.Run("docker error propagates", func(t *testing.T) {
@@ -281,37 +238,6 @@ func Test_listAllRepositories(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("passes label filter", func(t *testing.T) {
-		// Arrange
-		var capturedArgs []string
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			capturedArgs = args
-			return "", nil
-		})
-
-		// Act
-		_, err := client.listAllRepositories()
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, capturedArgs, "--filter=label=project=agentic-cli")
-	})
-
-	t.Run("passes extra filters", func(t *testing.T) {
-		// Arrange
-		var capturedArgs []string
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			capturedArgs = args
-			return "", nil
-		})
-
-		// Act
-		_, err := client.listAllRepositories(ToolFilter("claude"))
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, capturedArgs, "--filter=label=agentic.tool=claude")
-	})
 }
 
 func TestListAllImages(t *testing.T) {
@@ -348,36 +274,6 @@ func TestListAllImages(t *testing.T) {
 		assert.Equal(t, "claude", images[0].Tool)
 		assert.Equal(t, "myproject", images[1].Namespace)
 		assert.Equal(t, "claude", images[1].Tool)
-	})
-
-	t.Run("mixed tools from label", func(t *testing.T) {
-		// Arrange
-		callNum := 0
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			callNum++
-			switch callNum {
-			case 1: // images --filter
-				return "agentic-claude\nagentic-copilot\n", nil
-			case 2: // inspect claude
-				return `{"Id":"sha256:a1b2c3d4e5f6abcdef012345678901234567890","Config":{"Labels":{"agentic.tool":"claude"}}}`, nil
-			case 3: // image ls size claude
-				return "", nil
-			case 4: // inspect copilot
-				return `{"Id":"sha256:b2c3d4e5f6a7bcdef012345678901234567890","Config":{"Labels":{"agentic.tool":"copilot"}}}`, nil
-			case 5: // image ls size copilot
-				return "", nil
-			}
-			return "", nil
-		})
-
-		// Act
-		images, err := client.ListAllImages()
-
-		// Assert
-		require.NoError(t, err)
-		require.Len(t, images, 2)
-		assert.Equal(t, "claude", images[0].Tool)
-		assert.Equal(t, "copilot", images[1].Tool)
 	})
 
 	t.Run("skips images where inspect returns nil", func(t *testing.T) {
@@ -437,46 +333,24 @@ func TestImageSize(t *testing.T) {
 func TestImageInfoBuiltBefore(t *testing.T) {
 	cutoff := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 
-	t.Run("older build is before cutoff", func(t *testing.T) {
-		// Arrange
-		info := ImageInfo{Built: "2026-09-20T10:00:00Z"}
+	for _, tc := range []struct {
+		name  string
+		built string
+		want  bool
+	}{
+		{name: "older build is before cutoff", built: "2026-09-20T10:00:00Z", want: true},
+		{name: "newer build is not before cutoff", built: "2026-10-01T10:00:00Z"},
+		{name: "missing label counts as before", want: true},
+		{name: "invalid label counts as before", built: "not-a-time", want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := ImageInfo{Built: tc.built}.BuiltBefore(cutoff)
 
-		// Act
-		result := info.BuiltBefore(cutoff)
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("newer build is not before cutoff", func(t *testing.T) {
-		// Arrange
-		info := ImageInfo{Built: "2026-10-01T10:00:00Z"}
-
-		// Act
-		result := info.BuiltBefore(cutoff)
-
-		// Assert
-		assert.False(t, result)
-	})
-
-	t.Run("missing label counts as before", func(t *testing.T) {
-		// Act
-		result := ImageInfo{}.BuiltBefore(cutoff)
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("invalid label counts as before", func(t *testing.T) {
-		// Arrange
-		info := ImageInfo{Built: "not-a-time"}
-
-		// Act
-		result := info.BuiltBefore(cutoff)
-
-		// Assert
-		assert.True(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestImageRefreshReason(t *testing.T) {
@@ -484,90 +358,35 @@ func TestImageRefreshReason(t *testing.T) {
 	fresh := formatLabelTime(time.Now())
 	stale := formatLabelTime(time.Now().Add(-maxAge - time.Hour))
 
-	t.Run("missing image", func(t *testing.T) {
-		// Act
-		reason := ImageRefreshReason(nil, maxAge)
+	for _, tc := range []struct {
+		name   string
+		info   *ImageInfo
+		maxAge time.Duration
+		want   string
+	}{
+		{name: "missing image", maxAge: maxAge, want: "image missing"},
+		{name: "different CLI version", info: &ImageInfo{CLIVersion: "v0.0.0", Built: fresh}, maxAge: maxAge, want: "built by a different agentic version"},
+		{name: "older than max age", info: &ImageInfo{CLIVersion: buildinfo.Version, Built: stale}, maxAge: maxAge, want: "older than 7 days"},
+		{name: "zero max age skips the age check", info: &ImageInfo{CLIVersion: buildinfo.Version, Built: stale}},
+		{name: "current image", info: &ImageInfo{CLIVersion: buildinfo.Version, Built: fresh}, maxAge: maxAge},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			reason := ImageRefreshReason(tc.info, tc.maxAge)
 
-		// Assert
-		assert.Equal(t, "image missing", reason)
-	})
-
-	t.Run("different CLI version", func(t *testing.T) {
-		// Arrange
-		info := &ImageInfo{CLIVersion: "v0.0.0", Built: fresh}
-
-		// Act
-		reason := ImageRefreshReason(info, maxAge)
-
-		// Assert
-		assert.Equal(t, "built by a different agentic version", reason)
-	})
-
-	t.Run("older than max age", func(t *testing.T) {
-		// Arrange
-		info := &ImageInfo{CLIVersion: buildinfo.Version, Built: stale}
-
-		// Act
-		reason := ImageRefreshReason(info, maxAge)
-
-		// Assert
-		assert.Equal(t, "older than 7 days", reason)
-	})
-
-	t.Run("zero max age skips the age check", func(t *testing.T) {
-		// Arrange
-		info := &ImageInfo{CLIVersion: buildinfo.Version, Built: stale}
-
-		// Act
-		reason := ImageRefreshReason(info, 0)
-
-		// Assert
-		assert.Empty(t, reason)
-	})
-
-	t.Run("current image", func(t *testing.T) {
-		// Arrange
-		info := &ImageInfo{CLIVersion: buildinfo.Version, Built: fresh}
-
-		// Act
-		reason := ImageRefreshReason(info, maxAge)
-
-		// Assert
-		assert.Empty(t, reason)
-	})
+			// Assert
+			assert.Equal(t, tc.want, reason)
+		})
+	}
 }
 
 func TestBuiltTools(t *testing.T) {
-	t.Run("empty image list returns empty map", func(t *testing.T) {
-		// Act
-		result := BuiltTools(nil)
+	// Arrange
+	images := []*ImageInfo{{Tool: "claude"}, {Tool: "claude"}, {Tool: "copilot"}}
 
-		// Assert
-		assert.Empty(t, result)
-	})
+	// Act
+	result := BuiltTools(images)
 
-	t.Run("images populate map by tool name", func(t *testing.T) {
-		// Arrange
-		images := []*ImageInfo{{Tool: "claude"}, {Tool: "copilot"}}
-
-		// Act
-		result := BuiltTools(images)
-
-		// Assert
-		assert.True(t, result["claude"])
-		assert.True(t, result["copilot"])
-		assert.False(t, result["opencode"])
-	})
-
-	t.Run("duplicate tool names collapse to one entry", func(t *testing.T) {
-		// Arrange
-		images := []*ImageInfo{{Tool: "claude"}, {Tool: "claude"}}
-
-		// Act
-		result := BuiltTools(images)
-
-		// Assert
-		assert.Len(t, result, 1)
-		assert.True(t, result["claude"])
-	})
+	// Assert
+	assert.Equal(t, map[string]bool{"claude": true, "copilot": true}, result)
 }

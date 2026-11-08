@@ -56,23 +56,13 @@ func TestCurrentContext(t *testing.T) {
 func TestListContexts(t *testing.T) {
 	client := newTestClient()
 
-	t.Run("calls docker with format", func(t *testing.T) {
+	t.Run("lists the context names", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, client)
-
-		// Act
-		_, err := client.ListContexts()
-
-		// Assert
-		require.NoError(t, err)
-		calls := get()
-		require.Len(t, calls, 1)
-		assert.Equal(t, []string{"context", "ls", "--format={{.Name}}"}, calls[0].args)
-	})
-
-	t.Run("splits lines", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "default\nprod\n", nil)
+		var capturedArgs []string
+		stubDockerRun(t, client, func(args ...string) (string, error) {
+			capturedArgs = args
+			return "default\nprod\n", nil
+		})
 
 		// Act
 		names, err := client.ListContexts()
@@ -80,6 +70,7 @@ func TestListContexts(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{"default", "prod"}, names)
+		assert.Equal(t, []string{"context", "ls", "--format={{.Name}}"}, capturedArgs)
 	})
 
 	t.Run("empty output returns empty", func(t *testing.T) {

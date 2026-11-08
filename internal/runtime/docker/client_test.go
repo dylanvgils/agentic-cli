@@ -126,61 +126,33 @@ func TestClient_runWithStdin(t *testing.T) {
 }
 
 func TestClient_runInteractive(t *testing.T) {
-	t.Run("prepends --context to the executed command", func(t *testing.T) {
-		// Arrange
-		client := newTestClient()
-		get := stubRunInteractive(t, client)
-		client.context = "prod"
+	// Arrange
+	client := newTestClient()
+	get := stubRunInteractive(t, client)
+	client.context = "prod"
 
-		// Act
-		err := client.runInteractive("run", "img")
+	// Act
+	err := client.runInteractive("run", "img")
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--context", "prod", "run", "img"}, get())
-	})
-
-	t.Run("runs attached to the terminal", func(t *testing.T) {
-		// Arrange
-		client := newTestClient()
-		stubRunInteractive(t, client)
-
-		// Act
-		err := client.runInteractive("run", "img")
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, fakeOf(client).progress)
-	})
+	// Assert - attached to the terminal, not as progress
+	require.NoError(t, err)
+	assert.Equal(t, []string{"--context", "prod", "run", "img"}, get())
+	assert.False(t, fakeOf(client).progress)
 }
 
 func TestClient_runProgress(t *testing.T) {
-	t.Run("prepends --context to the executed command", func(t *testing.T) {
-		// Arrange
-		client := newTestClient()
-		get := stubRunInteractive(t, client)
-		client.context = "prod"
+	// Arrange
+	client := newTestClient()
+	get := stubRunInteractive(t, client)
+	client.context = "prod"
 
-		// Act
-		err := client.runProgress("pull", "img")
+	// Act
+	err := client.runProgress("pull", "img")
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--context", "prod", "pull", "img"}, get())
-	})
-
-	t.Run("runs as progress", func(t *testing.T) {
-		// Arrange
-		client := newTestClient()
-		stubRunInteractive(t, client)
-
-		// Act
-		err := client.runProgress("pull", "img")
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, fakeOf(client).progress)
-	})
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, []string{"--context", "prod", "pull", "img"}, get())
+	assert.True(t, fakeOf(client).progress)
 }
 
 func TestClient_stream(t *testing.T) {
@@ -214,27 +186,22 @@ func TestClient_stream(t *testing.T) {
 }
 
 func TestClient_withContext(t *testing.T) {
-	t.Run("returns args unchanged when context unset", func(t *testing.T) {
-		// Arrange
-		client := New("")
+	for _, tc := range []struct {
+		name    string
+		context string
+		want    []string
+	}{
+		{name: "returns args unchanged when context unset", want: []string{"build", "-t", "img"}},
+		{name: "prepends --context flag when context set", context: "prod", want: []string{"--context", "prod", "build", "-t", "img"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := New(tc.context).withContext([]string{"build", "-t", "img"})
 
-		// Act
-		result := client.withContext([]string{"build", "-t", "img"})
-
-		// Assert
-		assert.Equal(t, []string{"build", "-t", "img"}, result)
-	})
-
-	t.Run("prepends --context flag when context set", func(t *testing.T) {
-		// Arrange
-		client := New("prod")
-
-		// Act
-		result := client.withContext([]string{"build", "-t", "img"})
-
-		// Assert
-		assert.Equal(t, []string{"--context", "prod", "build", "-t", "img"}, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func Test_defaultTiming(t *testing.T) {
