@@ -95,6 +95,7 @@ func TestMicrosandboxRun(t *testing.T) {
 		t.Parallel()
 
 		// Arrange
+		platform.SkipWithoutInternet(t, "example.com")
 		script := reachableScript("allowed", "example.com") + "; " + reachableScript("other", "example.org")
 
 		// Act

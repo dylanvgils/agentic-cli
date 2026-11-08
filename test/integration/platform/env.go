@@ -6,9 +6,12 @@ package platform
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"testing"
+	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 )
@@ -90,6 +93,16 @@ func RootDir() string {
 // WorkDir returns the shared work dir, mounted as the tool's /workspace.
 func WorkDir() string {
 	return workDir
+}
+
+// SkipWithoutInternet skips t unless host:443 answers a direct dial, as the proxy dials around the host's HTTPS_PROXY.
+func SkipWithoutInternet(t *testing.T, host string) {
+	t.Helper()
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, "443"), 5*time.Second)
+	if err != nil {
+		t.Skipf("no direct internet access: %v", err)
+	}
+	_ = conn.Close()
 }
 
 // approveSettings records the guarded settings in the .agenticrc.toml at rcPath as approved, as the settings prompt would.
