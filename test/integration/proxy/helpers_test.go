@@ -3,7 +3,6 @@
 package proxy
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -253,24 +252,10 @@ func (r *proxyRun) output() string {
 	return platform.Docker(r.t, "logs", r.container.Name())
 }
 
-// log returns the proxy's access log entries, without the time and error, which vary per run.
-func (r *proxyRun) log() []proxy.Entry {
+// log returns the proxy's access log entries.
+func (r *proxyRun) log() []platform.ProxyEntry {
 	r.t.Helper()
-	f, err := os.Open(r.logPath)
-	require.NoError(r.t, err)
-	defer func() { _ = f.Close() }()
-
-	var entries []proxy.Entry
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		var entry proxy.Entry
-		require.NoError(r.t, json.Unmarshal(scanner.Bytes(), &entry), "proxy log line: %s", scanner.Text())
-		entry.Time = time.Time{}
-		entry.Error = ""
-		entries = append(entries, entry)
-	}
-	require.NoError(r.t, scanner.Err())
-	return entries
+	return platform.ReadProxyLog(r.t, r.logPath)
 }
 
 // decrypts reports whether the proxy needs a CA: for credentials or path rules.

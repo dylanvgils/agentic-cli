@@ -5,7 +5,6 @@ package egress
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
@@ -46,11 +45,11 @@ func TestEgressCredentials(t *testing.T) {
 			assert.Contains(t, out, "status=502")
 			assert.Contains(t, out, "tls=ok")
 			assert.NotContains(t, out, "without the placeholder")
-			assert.Contains(t, proxyLog(t, tool), proxy.Entry{
-				Protocol:    proxy.ProtocolHTTPS,
+			assert.Contains(t, proxyLog(t, tool), platform.ProxyEntry{
+				Protocol:    platform.ProtocolHTTPS,
 				Host:        credentialHost,
 				Port:        "443",
-				Decision:    proxy.DecisionAllow,
+				Decision:    platform.DecisionAllow,
 				Enforced:    true,
 				Intercepted: true,
 			})

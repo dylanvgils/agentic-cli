@@ -5,7 +5,7 @@ package proxy
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
+	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,14 +26,14 @@ func TestProxyPaths(t *testing.T) {
 	assert.Contains(t, allowed, "status=200")
 	assert.Contains(t, refused, "status=403")
 	assert.NotContains(t, refused, "path=")
-	assert.Contains(t, run.log(), proxy.Entry{
-		Protocol:    proxy.ProtocolHTTPS,
+	assert.Contains(t, run.log(), platform.ProxyEntry{
+		Protocol:    platform.ProtocolHTTPS,
 		Host:        pathHost,
 		Port:        "443",
-		Decision:    proxy.DecisionDeny,
+		Decision:    platform.DecisionDeny,
 		Enforced:    true,
 		Intercepted: true,
 		Path:        "/other/README.md",
-		Reason:      proxy.ReasonPathBlocked,
+		Reason:      platform.ReasonPathBlocked,
 	})
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
+	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,11 +32,11 @@ func TestProxyCredentials(t *testing.T) {
 		assert.Contains(t, out, "secret=match")
 		assert.Contains(t, out, "X-Echo-Authorization: Bearer "+testPlaceholder)
 		assert.NotContains(t, out, testSecret)
-		assert.Contains(t, run.log(), proxy.Entry{
-			Protocol:    proxy.ProtocolHTTPS,
+		assert.Contains(t, run.log(), platform.ProxyEntry{
+			Protocol:    platform.ProtocolHTTPS,
 			Host:        credentialHost,
 			Port:        "443",
-			Decision:    proxy.DecisionAllow,
+			Decision:    platform.DecisionAllow,
 			Enforced:    true,
 			Intercepted: true,
 		})

@@ -5,7 +5,7 @@ package proxy
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
+	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,8 +26,8 @@ func TestProxyAddressGuard(t *testing.T) {
 		// Assert
 		assert.Contains(t, out, "status=403")
 		assert.Contains(t, connect, "connect=403")
-		assert.Contains(t, run.log(), blockedEntry(proxy.ProtocolHTTP, allowedHost))
-		assert.Contains(t, run.log(), blockedEntry(proxy.ProtocolHTTPS, allowedHost))
+		assert.Contains(t, run.log(), blockedEntry(platform.ProtocolHTTP, allowedHost))
+		assert.Contains(t, run.log(), blockedEntry(platform.ProtocolHTTPS, allowedHost))
 	})
 
 	t.Run("exact entry cannot reach loopback", func(t *testing.T) {
@@ -41,8 +41,8 @@ func TestProxyAddressGuard(t *testing.T) {
 		// Assert
 		assert.Contains(t, out, "status=403")
 		assert.Contains(t, connect, "connect=403")
-		assert.Contains(t, run.log(), blockedEntry(proxy.ProtocolHTTP, "localhost"))
-		assert.Contains(t, run.log(), blockedEntry(proxy.ProtocolHTTPS, "localhost"))
+		assert.Contains(t, run.log(), blockedEntry(platform.ProtocolHTTP, "localhost"))
+		assert.Contains(t, run.log(), blockedEntry(platform.ProtocolHTTPS, "localhost"))
 	})
 
 	t.Run("monitor mode still refuses loopback", func(t *testing.T) {
@@ -56,23 +56,23 @@ func TestProxyAddressGuard(t *testing.T) {
 		// Assert
 		assert.Contains(t, out, "status=403")
 		assert.Contains(t, connect, "connect=403")
-		assert.Contains(t, run.log(), blockedEntry(proxy.ProtocolHTTP, "localhost"))
-		assert.Contains(t, run.log(), blockedEntry(proxy.ProtocolHTTPS, "localhost"))
+		assert.Contains(t, run.log(), blockedEntry(platform.ProtocolHTTP, "localhost"))
+		assert.Contains(t, run.log(), blockedEntry(platform.ProtocolHTTPS, "localhost"))
 	})
 }
 
 // blockedEntry is the log entry of a request to host the address guard refused.
-func blockedEntry(protocol proxy.Protocol, host string) proxy.Entry {
+func blockedEntry(protocol, host string) platform.ProxyEntry {
 	port := "80"
-	if protocol == proxy.ProtocolHTTPS {
+	if protocol == platform.ProtocolHTTPS {
 		port = "443"
 	}
-	return proxy.Entry{
+	return platform.ProxyEntry{
 		Protocol: protocol,
 		Host:     host,
 		Port:     port,
-		Decision: proxy.DecisionDeny,
+		Decision: platform.DecisionDeny,
 		Enforced: true,
-		Reason:   proxy.ReasonBlockedAddr,
+		Reason:   platform.ReasonBlockedAddr,
 	}
 }
