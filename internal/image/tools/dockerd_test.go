@@ -78,7 +78,7 @@ func TestGenerateDockerdDockerfile(t *testing.T) {
 		assert.Contains(t, result, "COPY --chmod=0755 <<'EOF' "+dockerdEntrypoint)
 		assert.Contains(t, result, "host_alias="+MicrosandboxHostAlias+"\n")
 		assert.Contains(t, result, "config_dir="+dockerdConfigDir+"\n")
-		assert.Contains(t, result, `local proxy="${HTTPS_PROXY/@$host_alias:/@$host_ip:}"`)
+		assert.Contains(t, result, `proxy="${HTTPS_PROXY/@$host_alias:/@$host_ip:}"`)
 		assert.Contains(t, result, `export DOCKER_CONFIG="$config_dir"`)
 	})
 
@@ -87,7 +87,8 @@ func TestGenerateDockerdDockerfile(t *testing.T) {
 		result := GenerateDockerdDockerfile("agentic-claude", "claude")
 
 		// Assert
-		assert.Contains(t, result, `exec `+entrypointPath+` "$@"`)
+		assert.Contains(t, result, "entrypoint="+entrypointPath+"\n")
+		assert.Contains(t, result, `exec "$entrypoint" "$@"`)
 		assert.Regexp(t, `ENTRYPOINT \["`+dockerdEntrypoint+`"\]\s*$`, result)
 	})
 

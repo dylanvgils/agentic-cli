@@ -65,34 +65,29 @@ func dockerdEntrypointScript() df.Heredoc {
 	return df.Heredoc{Dest: dockerdEntrypoint, Blocks: []df.Block{
 		{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
 		{Lines: []string{
+			"entrypoint=" + entrypointPath,
 			"host_alias=" + MicrosandboxHostAlias,
 			"config_dir=" + dockerdConfigDir,
 		}},
-		{Comment: "Write a docker CLI config that passes the proxy to inner containers and builds", Lines: []string{
-			"configure_docker_proxy() {",
-			"  # Only a run through the proxy sets HTTPS_PROXY",
-			`  [[ -n "${HTTPS_PROXY:-}" ]] || return 0`,
-			"",
-			"  # Inner containers resolve names through dockerd, not this VM's /etc/hosts, so they need the IP",
-			"  local host_ip",
-			`  host_ip="$(getent ahostsv4 "$host_alias" | awk 'NR == 1 { print $1 }' || true)"`,
-			`  if [[ -z "$host_ip" ]]; then`,
-			`    echo "warning: can't resolve $host_alias, so inner containers get no proxy" >&2`,
-			"    return 0",
-			"  fi",
-			"",
-			`  local proxy="${HTTPS_PROXY/@$host_alias:/@$host_ip:}"`,
-			`  install -d -m 0700 "$config_dir"`,
-			`  jq -n --arg proxy "$proxy" --arg no_proxy "${NO_PROXY:-}" \`,
-			`    '{proxies: {default: {httpProxy: $proxy, httpsProxy: $proxy, noProxy: $no_proxy}}}' \`,
-			`    > "$config_dir/config.json"`,
-			`  export DOCKER_CONFIG="$config_dir"`,
-			"}",
+		{Comment: "Only a run through the proxy sets HTTPS_PROXY", Lines: []string{
+			`[[ -n "${HTTPS_PROXY:-}" ]] || exec "$entrypoint" "$@"`,
 		}},
-		{Lines: []string{
-			"configure_docker_proxy",
-			`exec ` + entrypointPath + ` "$@"`,
+		{Comment: "Inner containers resolve names through dockerd, not this VM's /etc/hosts, so they need the IP", Lines: []string{
+			`host_ip="$(getent ahostsv4 "$host_alias" | awk 'NR == 1 { print $1 }' || true)"`,
+			`if [[ -z "$host_ip" ]]; then`,
+			`  echo "warning: can't resolve $host_alias, so inner containers get no proxy" >&2`,
+			`  exec "$entrypoint" "$@"`,
+			"fi",
 		}},
+		{Comment: "Point inner containers and builds at the proxy", Lines: []string{
+			`proxy="${HTTPS_PROXY/@$host_alias:/@$host_ip:}"`,
+			`install -d -m 0700 "$config_dir"`,
+			`jq -n --arg proxy "$proxy" --arg no_proxy "${NO_PROXY:-}" \`,
+			`  '{proxies: {default: {httpProxy: $proxy, httpsProxy: $proxy, noProxy: $no_proxy}}}' \`,
+			`  > "$config_dir/config.json"`,
+			`export DOCKER_CONFIG="$config_dir"`,
+		}},
+		{Lines: []string{`exec "$entrypoint" "$@"`}},
 	}}
 }
 
