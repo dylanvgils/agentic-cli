@@ -142,7 +142,9 @@ Setup and cleanup are in `docs/development.md`.
 - `egress` only tests what needs `agentic run` (tool env, CA trust, client access, run summary), looping over `platform.Runtimes`; what the proxy does on its own goes in `proxy`, against `FakeContainer.ServingUpstream`.
 - `TestMain` picks the images a package needs: `platform.Main` (proxy + test tool), `SmokeMain` (every tool, listed in `smokePackages`), `RuntimesMain` (adds microsandbox when msb is there), `ProxyMain` (no agentic run).
 - A helper goes in `platform` (plain `.go` files) only when several feature packages use it, else in that package's `helpers_test.go`.
-- Packages run in parallel on one daemon, so a check never counts the daemon's containers; scope it to the run with `ToolRun.Containers`/`Proxy`.
+- Packages run in parallel on one daemon and one msb image store:
+  - A check never counts the daemon's containers; scope it to the run with `ToolRun.Containers`/`Proxy`.
+  - Only `cmd/cleanup`, after every package, removes shared resources such as the msb image copies.
 
 ## Docs
 
