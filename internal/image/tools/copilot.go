@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
-	"github.com/dylanvgils/agentic-cli/internal/image/instructions"
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -16,6 +15,9 @@ const copilotReleaseRepo = "github/copilot-cli"
 
 // copilotInstructionsContainerPath is the container-side mount target for a per-run instructions snapshot.
 const copilotInstructionsContainerPath = "$CONTAINER_HOME/.copilot/copilot-instructions.md"
+
+// copilotInstructionsFile is Copilot CLI's global instructions file (~/.copilot/copilot-instructions.md), relative to the tools dir.
+const copilotInstructionsFile = "copilot/copilot-instructions.md"
 
 // copilotAllowedHosts is the baseline egress allowlist for GitHub Copilot CLI; users add more via allowed_hosts.
 var copilotAllowedHosts = []string{
@@ -115,14 +117,4 @@ func copilotLatestVersion() (string, error) {
 
 func setupCopilot(toolHome string) error {
 	return os.MkdirAll(filepath.Join(toolHome, ToolsDirName, "copilot"), 0o750)
-}
-
-// copilotInstructionsHostPath is Copilot CLI's global instructions file (~/.copilot/copilot-instructions.md).
-func copilotInstructionsHostPath(toolHome string) string {
-	return filepath.Join(toolHome, ToolsDirName, "copilot", "copilot-instructions.md")
-}
-
-// writeCopilotInstructions writes content to Copilot CLI's global instructions file.
-func writeCopilotInstructions(toolHome, content string) error {
-	return instructions.WriteManaged(filepath.Join(toolHome, ToolsDirName), copilotInstructionsHostPath(toolHome), content)
 }

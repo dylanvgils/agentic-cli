@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
-	"github.com/dylanvgils/agentic-cli/internal/image/instructions"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -15,6 +14,9 @@ const opencodeLatestVersionURL = "https://opencode.ai/update/api/latest/cli/npm"
 
 // opencodeInstructionsContainerPath is the container-side mount target for a per-run instructions snapshot.
 const opencodeInstructionsContainerPath = "$CONTAINER_HOME/.config/opencode/AGENTS.md"
+
+// opencodeInstructionsFile is OpenCode's global AGENTS.md (~/.config/opencode/AGENTS.md), relative to the tools dir.
+const opencodeInstructionsFile = "opencode/config/AGENTS.md"
 
 // opencodeAllowedHosts is the baseline allowlist; OpenCode is multi-provider, so users add their model-provider hosts via allowed_hosts.
 var opencodeAllowedHosts = []string{
@@ -83,14 +85,4 @@ func setupOpencode(toolHome string) error {
 		}
 	}
 	return nil
-}
-
-// opencodeInstructionsHostPath is OpenCode's global AGENTS.md (~/.config/opencode/AGENTS.md).
-func opencodeInstructionsHostPath(toolHome string) string {
-	return filepath.Join(toolHome, ToolsDirName, "opencode", "config", "AGENTS.md")
-}
-
-// writeOpencodeInstructions writes content to OpenCode's global AGENTS.md.
-func writeOpencodeInstructions(toolHome, content string) error {
-	return instructions.WriteManaged(filepath.Join(toolHome, ToolsDirName), opencodeInstructionsHostPath(toolHome), content)
 }

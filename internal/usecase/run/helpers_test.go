@@ -1,6 +1,7 @@
 package run
 
 import (
+	"flag"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,8 +15,12 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// update rewrites golden files instead of comparing against them.
+var update = flag.Bool("update", false, "rewrite golden files in testdata")
 
 // fakeDocker implements Docker; a nil field succeeds with a zero value, except capabilities, which defaults to Docker's.
 type fakeDocker struct {
@@ -393,4 +398,18 @@ func writeProxyLog(t *testing.T, lines ...string) string {
 	path := filepath.Join(t.TempDir(), "proxy_abc.jsonl")
 	require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600))
 	return path
+}
+
+// assertGolden compares got to testdata/name, or rewrites the file with -update.
+func assertGolden(t *testing.T, name, got string) {
+	t.Helper()
+	path := filepath.Join("testdata", name)
+	if *update {
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+		require.NoError(t, os.WriteFile(path, []byte(got), 0o600))
+	}
+
+	want, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, string(want), got)
 }

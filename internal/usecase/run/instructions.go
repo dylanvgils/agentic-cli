@@ -23,6 +23,22 @@ type InstructionsSnapshot struct {
 	finalize  func() error
 }
 
+// instructionsFacts is what the environment block describes, gathered up front so rendering touches no client.
+type instructionsFacts struct {
+	caps          sandbox.Capabilities
+	image         *docker.ImageInfo
+	containerHome string
+	mounts        []string
+	ephemeralDirs []sandbox.EphemeralDir
+	limits        sandbox.ResourceLimits
+	dindLimits    sandbox.ResourceLimits
+	proxyMode     sandbox.EgressMode
+	dindEnabled   bool
+	rules         []sandbox.AllowRule
+	webSearchTool string
+	custom        string
+}
+
 // Cleanup finalizes the snapshot, warning rather than failing on error.
 func (s InstructionsSnapshot) Cleanup() {
 	if s.finalize == nil {
@@ -60,29 +76,12 @@ func (s *Service) BuildInstructions(target Target, in Input, toolConfig tools.To
 		return "", nil
 	}
 
-	info, err := s.docker.InspectImage(target.ImageName)
+	facts, err := s.instructionsFacts(target, in, toolConfig, rc)
 	if err != nil {
-		return "", fmt.Errorf("inspect %s: %w", target.ImageName, err)
+		return "", err
 	}
 
-	containerHome := s.docker.ResolveContainerHome(target.ImageName)
-	limits := resolve.ResourceLimitsFor(in.Limits, rc)
-	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
-
-	caps := s.capabilities(in.Runtime, in.ProxyBackend)
-
-	var b strings.Builder
-	writeIntro(&b, caps.Boundary)
-	writePrecedenceSection(&b)
-	writeCapabilitiesSection(&b, info)
-	writeFilesystemSection(&b, toolConfig, in, rc, containerHome, caps.Isolation)
-	writeResourceLimitsSection(&b, limits, caps.Features)
-	writePrivilegeSection(&b, caps.Isolation)
-	writeNetworkSection(&b, toolConfig, rc, in, caps)
-	writeDockerSection(&b, in, caps, dindLimits)
-	writeCustomSection(&b, rc)
-
-	return b.String(), nil
+	return renderInstructions(facts), nil
 }
 
 // PreviewInstructions returns the effective content a run of req would write, without prompting or touching any files.
@@ -105,9 +104,51 @@ func (s *Service) PreviewInstructions(req Request) (string, error) {
 	return instructions.Merged(filepath.Join(in.ToolHome, tools.ToolsDirName), hostPath, content)
 }
 
+// instructionsFacts inspects the image and resolves the run's settings into what the block describes.
+func (s *Service) instructionsFacts(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (instructionsFacts, error) {
+	info, err := s.docker.InspectImage(target.ImageName)
+	if err != nil {
+		return instructionsFacts{}, fmt.Errorf("inspect %s: %w", target.ImageName, err)
+	}
+
+	caps := s.capabilities(in.Runtime, in.ProxyBackend)
+	limits := resolve.ResourceLimitsFor(in.Limits, rc)
+
+	return instructionsFacts{
+		caps:          caps,
+		image:         info,
+		containerHome: s.docker.ResolveContainerHome(target.ImageName),
+		mounts:        resolve.Volumes(toolConfig.Runtime.Mounts(), in.Volumes, rc),
+		ephemeralDirs: toolConfig.Runtime.EphemeralDirs(),
+		limits:        limits,
+		dindLimits:    resolve.DindResourceLimitsFor(in.DindLimits, rc, limits),
+		proxyMode:     in.ProxyMode,
+		dindEnabled:   in.DindEnabled,
+		rules:         proxyRules(toolConfig, in, rc, caps.Features),
+		webSearchTool: toolConfig.Runtime.WebSearchTool,
+		custom:        rc.Run.Instructions.Custom,
+	}, nil
+}
+
 func instructionsEnabled(rc *config.AgenticRC) bool {
 	enabled := rc.Run.Instructions.Enabled
 	return enabled == nil || *enabled
+}
+
+// renderInstructions writes f as the environment-instructions Markdown, one section per writer.
+func renderInstructions(f instructionsFacts) string {
+	var b strings.Builder
+	writeIntro(&b, f.caps.Boundary)
+	writePrecedenceSection(&b)
+	writeCapabilitiesSection(&b, f.image)
+	writeFilesystemSection(&b, f)
+	writeResourceLimitsSection(&b, f.limits, f.caps.Features)
+	writePrivilegeSection(&b, f.caps.Isolation)
+	writeNetworkSection(&b, f)
+	writeDockerSection(&b, f)
+	writeCustomSection(&b, f.custom)
+
+	return b.String()
 }
 
 func writeIntro(b *strings.Builder, boundary sandbox.Boundary) {
@@ -165,16 +206,16 @@ func writeMissingToolsNote(b *strings.Builder) {
 }
 
 // writeFilesystemSection lists each mounted path with its access, then what happens to every other path.
-func writeFilesystemSection(b *strings.Builder, toolConfig tools.ToolConfig, in Input, rc *config.AgenticRC, containerHome string, isolation sandbox.Isolation) {
+func writeFilesystemSection(b *strings.Builder, f instructionsFacts) {
 	b.WriteString("## Filesystem\n\n")
 	b.WriteString("- `/workspace`: the project on the user's machine. Writable; changes are real.\n")
-	for _, spec := range resolve.Volumes(toolConfig.Runtime.Mounts(), in.Volumes, rc) {
-		writeMountLine(b, spec, containerHome)
+	for _, spec := range f.mounts {
+		writeMountLine(b, spec, f.containerHome)
 	}
 
-	if isolation.ReadOnlyRoot {
-		for _, p := range toolConfig.Runtime.EphemeralDirs() {
-			fmt.Fprintf(b, "- `%s`: writable, cleared when the container exits.\n", sandbox.ExpandTmpfsSpec(p.Path, containerHome))
+	if f.caps.ReadOnlyRoot {
+		for _, p := range f.ephemeralDirs {
+			fmt.Fprintf(b, "- `%s`: writable, cleared when the container exits.\n", sandbox.ExpandTmpfsSpec(p.Path, f.containerHome))
 		}
 		b.WriteString("- Every other path is read-only.\n\n")
 	} else {
@@ -231,26 +272,25 @@ func writePrivilegeSection(b *strings.Builder, isolation sandbox.Isolation) {
 }
 
 // writeNetworkSection is only written when the proxy is enabled and the runtime offers it; in monitor mode nothing is blocked, so it lists no hosts.
-func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *config.AgenticRC, in Input, caps sandbox.Capabilities) {
-	if !in.ProxyMode.Enabled() || !caps.Proxy {
+func writeNetworkSection(b *strings.Builder, f instructionsFacts) {
+	if !f.proxyMode.Enabled() || !f.caps.Proxy {
 		return
 	}
 
 	b.WriteString("## Network\n\n")
-	if in.ProxyMode == sandbox.EgressMonitor {
+	if f.proxyMode == sandbox.EgressMonitor {
 		b.WriteString("- All traffic goes through an egress proxy that logs every request and blocks nothing.\n\n")
 		return
 	}
 
-	if caps.EgressViaProxy {
+	if f.caps.EgressViaProxy {
 		b.WriteString("- All traffic goes through an egress proxy.\n")
 	} else {
 		b.WriteString("- The VM's network policy filters all traffic and inspects HTTPS.\n")
 	}
 
-	rules := proxyRules(toolConfig, in, rc, caps.Features)
 	fmt.Fprintf(b, "- Only these hosts are reachable, and only on ports %s (HTTP and HTTPS):\n", strings.Join(proxy.DefaultPorts, " and "))
-	for _, rule := range rules {
+	for _, rule := range f.rules {
 		if len(rule.Paths) == 0 {
 			fmt.Fprintf(b, "  - %s\n", rule.Host)
 			continue
@@ -259,39 +299,39 @@ func writeNetworkSection(b *strings.Builder, toolConfig tools.ToolConfig, rc *co
 	}
 
 	b.WriteString("- Everything else is blocked: other hosts, other ports and SSH, git over SSH included. ")
-	if caps.EgressViaProxy {
+	if f.caps.EgressViaProxy {
 		b.WriteString("A blocked request gets HTTP 403 from the proxy (curl: `CONNECT tunnel failed, response 403`).\n")
 	} else {
 		b.WriteString("A blocked request fails with a DNS, connection or TLS error.\n")
 	}
 
-	if search := toolConfig.Runtime.WebSearchTool; search != "" {
-		fmt.Fprintf(b, "- Web search (`%s`) runs on the model provider's side and reaches any site. Fetching a page (a fetch tool, `curl`, `wget`) only reaches the hosts above.\n", search)
+	if f.webSearchTool != "" {
+		fmt.Fprintf(b, "- Web search (`%s`) runs on the model provider's side and reaches any site. Fetching a page (a fetch tool, `curl`, `wget`) only reaches the hosts above.\n", f.webSearchTool)
 	} else {
 		b.WriteString("- Web searches and page fetches (any search or fetch tool, `curl`, `wget`) only reach the hosts above.\n")
 	}
 
 	b.WriteString("- A blocked host is blocked for every tool. Don't retry it another way (curl, another fetch tool, a mirror).\n")
 	b.WriteString("- If a task needs a blocked host, tell the user which host and why, so they can add it to allowed_hosts in .agenticrc.toml and rerun.\n")
-	if (sandbox.EgressPolicy{Rules: rules}).HasPathRules() {
+	if (sandbox.EgressPolicy{Rules: f.rules}).HasPathRules() {
 		b.WriteString("- Other paths on a host limited to some paths get HTTP 403 too; tell the user which path and why, so they can add it to allowed_paths.\n")
 	}
 	b.WriteString("\n")
 }
 
 // writeDockerSection is only written when the Docker daemon is enabled; a runtime without one only warns there's no daemon.
-func writeDockerSection(b *strings.Builder, in Input, caps sandbox.Capabilities, limits sandbox.ResourceLimits) {
-	if !in.DindEnabled {
+func writeDockerSection(b *strings.Builder, f instructionsFacts) {
+	if !f.dindEnabled {
 		return
 	}
 
 	b.WriteString("## Docker\n\n")
-	if !caps.Dind {
+	if !f.caps.Dind {
 		b.WriteString("- There is no Docker daemon in this VM; `docker` commands fail.\n\n")
 		return
 	}
-	if caps.Boundary == sandbox.BoundaryVM {
-		writeVMDockerSection(b, in, caps.EgressViaProxy)
+	if f.caps.Boundary == sandbox.BoundaryVM {
+		writeVMDockerSection(b, f)
 		return
 	}
 
@@ -299,30 +339,32 @@ func writeDockerSection(b *strings.Builder, in Input, caps sandbox.Capabilities,
 	b.WriteString("- Bind mounts work only under `/workspace`, which has the same path in the daemon. Other paths, such as `/tmp` or your home, don't exist there.\n")
 	b.WriteString("- Published ports are on the sidecar: use `agentic-docker:<port>`, not `localhost`. The user's machine can't reach them.\n")
 	b.WriteString("- Images, containers and volumes are deleted when this session ends.\n")
-	fmt.Fprintf(b, "- Daemon limits, shared by all its containers: %s processes, %s CPUs, %s memory. To raise them, tell the user to set pids_limit/cpus/memory under [run.dind] in .agenticrc.toml (or --dind-pids-limit/--dind-cpus/--dind-memory).\n", limits.PidsLimit, limits.CPUs, limits.Memory)
-	if in.ProxyMode.Enabled() {
-		b.WriteString("- Image pulls, builds and containers use the same allowlist; a registry other than Docker Hub must be added to allowed_hosts.\n")
-	}
+	fmt.Fprintf(b, "- Daemon limits, shared by all its containers: %s processes, %s CPUs, %s memory. To raise them, tell the user to set pids_limit/cpus/memory under [run.dind] in .agenticrc.toml (or --dind-pids-limit/--dind-cpus/--dind-memory).\n", f.dindLimits.PidsLimit, f.dindLimits.CPUs, f.dindLimits.Memory)
+	writeDaemonAllowlistLine(b, f.proxyMode)
 	b.WriteString("\n")
 }
 
 // writeVMDockerSection describes the daemon that runs as root inside the microsandbox VM.
-func writeVMDockerSection(b *strings.Builder, in Input, viaProxy bool) {
+func writeVMDockerSection(b *strings.Builder, f instructionsFacts) {
 	b.WriteString("- `docker` uses a daemon that runs as root in this VM, with access to any path in it. No setup needed.\n")
 	b.WriteString("- Published ports are on `localhost` in the VM. The user's machine can't reach them.\n")
 	fmt.Fprintf(b, "- Images, containers and volumes live on a %s disk and are deleted when this session ends.\n", microsandbox.DockerDisk)
 	b.WriteString("- The daemon shares the VM's CPUs and memory (see Resource limits).\n")
-	if in.ProxyMode.Enabled() {
-		b.WriteString("- Image pulls, builds and containers use the same allowlist; a registry other than Docker Hub must be added to allowed_hosts.\n")
-		if !viaProxy {
-			b.WriteString("- Containers don't trust the VM's HTTPS inspection CA. For HTTPS inside a container, mount it: `-v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro`. `docker build` steps that use HTTPS fail unless the Dockerfile adds that CA.\n")
-		}
+	writeDaemonAllowlistLine(b, f.proxyMode)
+	if f.proxyMode.Enabled() && !f.caps.EgressViaProxy {
+		b.WriteString("- Containers don't trust the VM's HTTPS inspection CA. For HTTPS inside a container, mount it: `-v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro`. `docker build` steps that use HTTPS fail unless the Dockerfile adds that CA.\n")
 	}
 	b.WriteString("\n")
 }
 
-func writeCustomSection(b *strings.Builder, rc *config.AgenticRC) {
-	custom := rc.Run.Instructions.Custom
+// writeDaemonAllowlistLine notes that the daemon's traffic is filtered too, when the allowlist applies.
+func writeDaemonAllowlistLine(b *strings.Builder, mode sandbox.EgressMode) {
+	if mode.Enabled() {
+		b.WriteString("- Image pulls, builds and containers use the same allowlist; a registry other than Docker Hub must be added to allowed_hosts.\n")
+	}
+}
+
+func writeCustomSection(b *strings.Builder, custom string) {
 	if custom == "" {
 		return
 	}
