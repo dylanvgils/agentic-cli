@@ -99,3 +99,11 @@ func (f *fakeRuntime) CleanImage(image string) error {
 	}
 	return f.cleanImage(image)
 }
+
+// recordCleans returns a CleanImage func that appends prefix plus each image to cleaned.
+func recordCleans(cleaned *[]string, prefix string) func(string) error {
+	return func(image string) error {
+		*cleaned = append(*cleaned, prefix+image)
+		return nil
+	}
+}

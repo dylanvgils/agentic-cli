@@ -2,7 +2,6 @@ package resolve
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -11,127 +10,84 @@ import (
 )
 
 func TestNamespace(t *testing.T) {
-	t.Run("flag takes priority over rc", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Namespace: "fromrc"}
+	rc := &config.AgenticRC{Namespace: "fromrc"}
 
-		// Act
-		result := Namespace("fromflag", rc)
+	for _, tc := range []struct {
+		name string
+		flag string
+		rc   *config.AgenticRC
+		want string
+	}{
+		{name: "flag takes priority over rc", flag: "fromflag", rc: rc, want: "fromflag"},
+		{name: "rc value used when flag absent", rc: rc, want: "fromrc"},
+		{name: "falls back to default when nothing set", want: config.DefaultNamespace},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := Namespace(tc.flag, tc.rc)
 
-		// Assert
-		assert.Equal(t, "fromflag", result)
-	})
-
-	t.Run("rc value used when flag absent", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Namespace: "fromrc"}
-
-		// Act
-		result := Namespace("", rc)
-
-		// Assert
-		assert.Equal(t, "fromrc", result)
-	})
-
-	t.Run("falls back to default when nothing set", func(t *testing.T) {
-		// Act
-		result := Namespace("", nil)
-
-		// Assert
-		assert.Equal(t, config.DefaultNamespace, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestRegistry(t *testing.T) {
-	t.Run("flag takes priority over config", func(t *testing.T) {
-		// Arrange
-		homeDir := t.TempDir()
-		require.NoError(t, os.WriteFile(config.ConfigFile(homeDir), []byte(`{"registry":"config.example.com"}`), 0o640))
+	for _, tc := range []struct {
+		name   string
+		flag   string
+		config string
+		want   string
+	}{
+		{name: "flag takes priority over config", flag: "flag.example.com", config: `{"registry":"config.example.com"}`, want: "flag.example.com"},
+		{name: "falls back to agentic.json when flag not set", config: `{"registry":"config.example.com"}`, want: "config.example.com"},
+		{name: "empty when neither set"},
+		{name: "empty when agentic.json is invalid", config: "invalid json"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			homeDir := t.TempDir()
+			if tc.config != "" {
+				require.NoError(t, os.WriteFile(config.ConfigFile(homeDir), []byte(tc.config), 0o640))
+			}
 
-		// Act
-		result := Registry("flag.example.com", homeDir)
+			// Act
+			result := Registry(tc.flag, homeDir)
 
-		// Assert
-		assert.Equal(t, "flag.example.com", result)
-	})
-
-	t.Run("falls back to agentic.json when flag not set", func(t *testing.T) {
-		// Arrange
-		homeDir := t.TempDir()
-		require.NoError(t, os.WriteFile(config.ConfigFile(homeDir), []byte(`{"registry":"config.example.com"}`), 0o640))
-
-		// Act
-		result := Registry("", homeDir)
-
-		// Assert
-		assert.Equal(t, "config.example.com", result)
-	})
-
-	t.Run("empty when neither set", func(t *testing.T) {
-		// Act
-		result := Registry("", t.TempDir())
-
-		// Assert
-		assert.Empty(t, result)
-	})
-
-	t.Run("empty when homeDir has no config file", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "agentic.json"), []byte("invalid json"), 0o644))
-
-		// Act
-		result := Registry("", dir)
-
-		// Assert
-		assert.Empty(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestDockerContext(t *testing.T) {
-	t.Run("flag wins over everything", func(t *testing.T) {
-		// Arrange
-		homeDir := t.TempDir()
-		require.NoError(t, os.WriteFile(config.ConfigFile(homeDir), []byte(`{"docker_context":"fromconfig"}`), 0o640))
-		rc := &config.AgenticRC{DockerContext: "fromrc"}
+	rc := &config.AgenticRC{DockerContext: "fromrc"}
+	fromConfig := `{"docker_context":"fromconfig"}`
 
-		// Act
-		result := DockerContext("fromflag", rc, homeDir)
+	for _, tc := range []struct {
+		name   string
+		flag   string
+		rc     *config.AgenticRC
+		config string
+		want   string
+	}{
+		{name: "flag wins over everything", flag: "fromflag", rc: rc, config: fromConfig, want: "fromflag"},
+		{name: "rc value wins over agentic.json", rc: rc, config: fromConfig, want: "fromrc"},
+		{name: "agentic.json wins when rc unset", config: fromConfig, want: "fromconfig"},
+		{name: "empty when nothing set"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			homeDir := t.TempDir()
+			if tc.config != "" {
+				require.NoError(t, os.WriteFile(config.ConfigFile(homeDir), []byte(tc.config), 0o640))
+			}
 
-		// Assert
-		assert.Equal(t, "fromflag", result)
-	})
+			// Act
+			result := DockerContext(tc.flag, tc.rc, homeDir)
 
-	t.Run("rc value wins over agentic.json", func(t *testing.T) {
-		// Arrange
-		homeDir := t.TempDir()
-		require.NoError(t, os.WriteFile(config.ConfigFile(homeDir), []byte(`{"docker_context":"fromconfig"}`), 0o640))
-		rc := &config.AgenticRC{DockerContext: "fromrc"}
-
-		// Act
-		result := DockerContext("", rc, homeDir)
-
-		// Assert
-		assert.Equal(t, "fromrc", result)
-	})
-
-	t.Run("agentic.json wins when rc unset", func(t *testing.T) {
-		// Arrange
-		homeDir := t.TempDir()
-		require.NoError(t, os.WriteFile(config.ConfigFile(homeDir), []byte(`{"docker_context":"fromconfig"}`), 0o640))
-
-		// Act
-		result := DockerContext("", nil, homeDir)
-
-		// Assert
-		assert.Equal(t, "fromconfig", result)
-	})
-
-	t.Run("empty when nothing set", func(t *testing.T) {
-		// Act
-		result := DockerContext("", nil, t.TempDir())
-
-		// Assert
-		assert.Empty(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }

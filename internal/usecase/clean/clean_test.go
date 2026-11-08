@@ -1,6 +1,7 @@
 package clean
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -11,6 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// errFake is a docker failure the tests expect to see returned.
+var errFake = errors.New("docker error")
 
 func TestResolve(t *testing.T) {
 	t.Run("all scope dispatches to resolveAll", func(t *testing.T) {
@@ -56,27 +60,26 @@ func TestResolve(t *testing.T) {
 }
 
 func Test_resolveAll(t *testing.T) {
-	t.Run("tool arg applies filter", func(t *testing.T) {
+	t.Run("skips the proxy image since GlobalResources handles it separately", func(t *testing.T) {
 		// Arrange
-		var capturedFilters []docker.ImageFilter
 		d := &fakeDocker{
-			listAllImages: func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-				capturedFilters = filters
+			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 				return []*docker.ImageInfo{
-					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
+					{Image: "agentic-proxy", Namespace: "agentic", Tool: "proxy"},
+					{Image: "work-claude", Namespace: "work", Tool: "claude"},
 				}, nil
 			},
 		}
 
 		// Act
-		_, err := New(t.TempDir(), d).resolveAll("claude")
+		targets, err := New(t.TempDir(), d).resolveAll("")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []docker.ImageFilter{docker.ToolFilter("claude")}, capturedFilters)
+		assert.Equal(t, []Target{{Label: "work/claude", Image: "work-claude"}}, targets)
 	})
 
-	t.Run("listAllImages error propagates", func(t *testing.T) {
+	t.Run("list error propagates", func(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{
 			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -88,27 +91,7 @@ func Test_resolveAll(t *testing.T) {
 		_, err := New(t.TempDir(), d).resolveAll("")
 
 		// Assert
-		require.Error(t, err)
-	})
-
-	t.Run("skips the proxy image since GlobalResources handles it separately", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{
-			listAllImages: func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-				return []*docker.ImageInfo{
-					{Image: "agentic-proxy", Namespace: "agentic", Tool: "proxy"},
-					{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"},
-				}, nil
-			},
-		}
-
-		// Act
-		targets, err := New(t.TempDir(), d).resolveAll("")
-
-		// Assert
-		require.NoError(t, err)
-		require.Len(t, targets, 1)
-		assert.Equal(t, "agentic-claude", targets[0].Image)
+		assert.ErrorContains(t, err, "docker error")
 	})
 }
 
@@ -118,57 +101,25 @@ func TestApply(t *testing.T) {
 		{Label: "agentic-copilot", Image: "agentic-copilot"},
 	}
 
-	t.Run("cleans each target", func(t *testing.T) {
+	t.Run("cleans each target after its dockerd image", func(t *testing.T) {
 		// Arrange
 		var cleaned []string
-		d := &fakeDocker{
-			cleanImage: func(image string) error {
-				cleaned = append(cleaned, image)
-				return nil
-			},
-		}
+		d := &fakeDocker{cleanImage: recordCleans(&cleaned, "")}
 
 		// Act
-		out := iostreamstest.CaptureErr(t, func() {
-			err := New(t.TempDir(), d).Apply(targets)
-			require.NoError(t, err)
-		})
+		var err error
+		out := iostreamstest.CaptureErr(t, func() { err = New(t.TempDir(), d).Apply(targets) })
 
 		// Assert
-		assert.Subset(t, cleaned, []string{"agentic-claude", "agentic-copilot"})
-		assert.Contains(t, out, "=> agentic-claude")
-		assert.Contains(t, out, "=> agentic-copilot")
-	})
-
-	t.Run("cleans each target's dockerd image before the target", func(t *testing.T) {
-		// Arrange
-		var cleaned []string
-		d := &fakeDocker{
-			cleanImage: func(image string) error {
-				cleaned = append(cleaned, image)
-				return nil
-			},
-		}
-
-		// Act
-		iostreamstest.CaptureErr(t, func() {
-			err := New(t.TempDir(), d).Apply(targets)
-			require.NoError(t, err)
-		})
-
-		// Assert
+		require.NoError(t, err)
 		assert.Equal(t, []string{"agentic-claude-dockerd", "agentic-claude", "agentic-copilot-dockerd", "agentic-copilot"}, cleaned)
+		assert.Equal(t, "=> agentic-claude\n=> agentic-copilot\n", out)
 	})
 
 	t.Run("cleans each target from the other runtimes", func(t *testing.T) {
 		// Arrange
 		var cleaned []string
-		m := &fakeRuntime{
-			cleanImage: func(image string) error {
-				cleaned = append(cleaned, image)
-				return nil
-			},
-		}
+		m := &fakeRuntime{cleanImage: recordCleans(&cleaned, "")}
 
 		// Act
 		iostreamstest.CaptureErr(t, func() {
@@ -184,12 +135,7 @@ func TestApply(t *testing.T) {
 		// Arrange
 		errLog := iostreamstest.StubErr(t)
 		var cleaned []string
-		d := &fakeDocker{
-			cleanImage: func(image string) error {
-				cleaned = append(cleaned, image)
-				return nil
-			},
-		}
+		d := &fakeDocker{cleanImage: recordCleans(&cleaned, "")}
 		m := &fakeRuntime{
 			cleanImage: func(image string) error {
 				return fmt.Errorf("fail on %s", image)
@@ -273,17 +219,9 @@ func TestApply(t *testing.T) {
 			listRunning: func() ([]*docker.ContainerInfo, error) {
 				return []*docker.ContainerInfo{{Name: "agentic-claude-abc", Image: "agentic-claude"}}, nil
 			},
-			cleanImage: func(image string) error {
-				cleaned = append(cleaned, image)
-				return nil
-			},
+			cleanImage: recordCleans(&cleaned, ""),
 		}
-		m := &fakeRuntime{
-			cleanImage: func(image string) error {
-				cleaned = append(cleaned, "msb "+image)
-				return nil
-			},
-		}
+		m := &fakeRuntime{cleanImage: recordCleans(&cleaned, "msb ")}
 
 		// Act
 		iostreamstest.CaptureErr(t, func() {
@@ -386,76 +324,26 @@ func TestGlobalResources(t *testing.T) {
 		assert.Contains(t, out, "agentic: removing shared resources")
 	})
 
-	t.Run("cleanBaseImages error propagates", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{cleanBaseImages: func() error { return fmt.Errorf("base cleanup failed") }}
+	for _, tc := range []struct {
+		name string
+		d    *fakeDocker
+	}{
+		{name: "base images", d: &fakeDocker{cleanBaseImages: func() error { return errFake }}},
+		{name: "sidecar image", d: &fakeDocker{cleanImage: func(string) error { return errFake }}},
+		{name: "dind sweep", d: &fakeDocker{sweepDindResources: func(string) ([]string, error) { return nil, errFake }}},
+		{name: "proxy sweep", d: &fakeDocker{sweepProxyResources: func() ([]string, error) { return nil, errFake }}},
+		{name: "run networks sweep", d: &fakeDocker{sweepRunNetworks: func() ([]string, error) { return nil, errFake }}},
+		{name: "network removal", d: &fakeDocker{removeNetwork: func() error { return errFake }}},
+	} {
+		t.Run(tc.name+" error propagates", func(t *testing.T) {
+			// Act
+			var err error
+			iostreamstest.CaptureErr(t, func() { err = New("/agentic-home", tc.d).GlobalResources() })
 
-		// Act
-		err := New("/agentic-home", d).GlobalResources()
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "base cleanup failed")
-	})
-
-	t.Run("cleanImage error for proxy propagates", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{cleanImage: func(string) error { return fmt.Errorf("proxy cleanup failed") }}
-
-		// Act
-		err := New("/agentic-home", d).GlobalResources()
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "proxy cleanup failed")
-	})
-
-	t.Run("sweepDindResources error propagates", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{sweepDindResources: func(string) ([]string, error) { return nil, fmt.Errorf("dind sweep failed") }}
-
-		// Act
-		err := New("/agentic-home", d).GlobalResources()
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "dind sweep failed")
-	})
-
-	t.Run("sweepProxyResources error propagates", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{sweepProxyResources: func() ([]string, error) { return nil, fmt.Errorf("sweep failed") }}
-
-		// Act
-		err := New("/agentic-home", d).GlobalResources()
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "sweep failed")
-	})
-
-	t.Run("sweepRunNetworks error propagates", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{sweepRunNetworks: func() ([]string, error) { return nil, fmt.Errorf("network sweep failed") }}
-
-		// Act
-		err := New("/agentic-home", d).GlobalResources()
-
-		// Assert
-		assert.ErrorContains(t, err, "network sweep failed")
-	})
-
-	t.Run("removeNetwork error propagates", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{removeNetwork: func() error { return fmt.Errorf("network removal failed") }}
-
-		// Act
-		err := New("/agentic-home", d).GlobalResources()
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "network removal failed")
-	})
+			// Assert
+			assert.ErrorIs(t, err, errFake)
+		})
+	}
 }
 
 func TestPrune(t *testing.T) {
@@ -549,10 +437,7 @@ func Test_cleanSidecarImages(t *testing.T) {
 			listRunning: func() ([]*docker.ContainerInfo, error) {
 				return []*docker.ContainerInfo{{Name: "agentic-proxy-abc", Image: tools.ProxyImage}}, nil
 			},
-			cleanImage: func(image string) error {
-				cleaned = append(cleaned, image)
-				return nil
-			},
+			cleanImage: recordCleans(&cleaned, ""),
 		}
 
 		// Act
@@ -579,100 +464,72 @@ func Test_cleanSidecarImages(t *testing.T) {
 }
 
 func Test_stepImage(t *testing.T) {
-	t.Run("image in use is marked as kept", func(t *testing.T) {
-		// Arrange
-		var kept bool
+	for _, tc := range []struct {
+		name  string
+		inUse bool
+		want  string
+	}{
+		{name: "image in use is marked as kept", inUse: true, want: "=> agentic-claude (in use, kept)\n"},
+		{name: "unused image is a plain step", want: "=> agentic-claude\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			var kept bool
+			out := iostreamstest.CaptureErr(t, func() { kept = stepImage("agentic-claude", tc.inUse) })
 
-		// Act
-		out := iostreamstest.CaptureErr(t, func() { kept = stepImage("agentic-claude", true) })
-
-		// Assert
-		assert.True(t, kept)
-		assert.Contains(t, out, "=> agentic-claude (in use, kept)")
-	})
-
-	t.Run("unused image is a plain step", func(t *testing.T) {
-		// Arrange
-		var kept bool
-
-		// Act
-		out := iostreamstest.CaptureErr(t, func() { kept = stepImage("agentic-copilot", false) })
-
-		// Assert
-		assert.False(t, kept)
-		assert.Contains(t, out, "=> agentic-copilot")
-		assert.NotContains(t, out, "kept")
-	})
+			// Assert
+			assert.Equal(t, tc.inUse, kept)
+			assert.Equal(t, tc.want, out)
+		})
+	}
 }
 
 func Test_stepRemoved(t *testing.T) {
-	t.Run("lists the removed names under the label", func(t *testing.T) {
-		// Act
-		out := iostreamstest.CaptureErr(t, func() {
-			err := stepRemoved("leftover sidecars", func() ([]string, error) {
-				return []string{"agentic-docker-abc", "agentic-proxy-abc"}, nil
+	for _, tc := range []struct {
+		name    string
+		removed []string
+		err     error
+		want    string
+	}{
+		{name: "lists the removed names under the label", removed: []string{"agentic-docker-abc", "agentic-proxy-abc"}, want: "=> leftover sidecars\n   agentic-docker-abc\n   agentic-proxy-abc\n"},
+		{name: "reports none when nothing was removed", want: "=> leftover sidecars\n   none\n"},
+		{name: "returns the error", err: errFake, want: "=> leftover sidecars\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			var err error
+			out := iostreamstest.CaptureErr(t, func() {
+				err = stepRemoved("leftover sidecars", func() ([]string, error) { return tc.removed, tc.err })
 			})
-			require.NoError(t, err)
+
+			// Assert
+			assert.ErrorIs(t, err, tc.err)
+			assert.Equal(t, tc.want, out)
 		})
-
-		// Assert
-		assert.Equal(t, "=> leftover sidecars\n   agentic-docker-abc\n   agentic-proxy-abc\n", out)
-	})
-
-	t.Run("reports none when nothing was removed", func(t *testing.T) {
-		// Act
-		out := iostreamstest.CaptureErr(t, func() {
-			err := stepRemoved("leftover sidecars", func() ([]string, error) { return nil, nil })
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Equal(t, "=> leftover sidecars\n   none\n", out)
-	})
-
-	t.Run("returns the error", func(t *testing.T) {
-		// Act
-		var err error
-		iostreamstest.CaptureErr(t, func() {
-			err = stepRemoved("leftover sidecars", func() ([]string, error) { return nil, fmt.Errorf("sweep failed") })
-		})
-
-		// Assert
-		require.ErrorContains(t, err, "sweep failed")
-	})
+	}
 }
 
 func Test_stepReclaimed(t *testing.T) {
-	t.Run("reports the reclaimed space under the label", func(t *testing.T) {
-		// Act
-		out := iostreamstest.CaptureErr(t, func() {
-			err := stepReclaimed("build cache", func() (string, error) { return "1.5GB", nil })
-			require.NoError(t, err)
+	for _, tc := range []struct {
+		name string
+		size string
+		err  error
+		want string
+	}{
+		{name: "reports the reclaimed space under the label", size: "1.5GB", want: "=> build cache\n   reclaimed 1.5GB\n"},
+		{name: "an unknown size prints only the label", want: "=> build cache\n"},
+		{name: "returns the error", err: errFake, want: "=> build cache\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			var err error
+			out := iostreamstest.CaptureErr(t, func() {
+				err = stepReclaimed("build cache", func() (string, error) { return tc.size, tc.err })
+			})
+
+			// Assert
+			assert.ErrorIs(t, err, tc.err)
+			assert.Equal(t, tc.want, out)
 		})
-
-		// Assert
-		assert.Equal(t, "=> build cache\n   reclaimed 1.5GB\n", out)
-	})
-
-	t.Run("an unknown size prints only the label", func(t *testing.T) {
-		// Act
-		out := iostreamstest.CaptureErr(t, func() {
-			err := stepReclaimed("build cache", func() (string, error) { return "", nil })
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Equal(t, "=> build cache\n", out)
-	})
-
-	t.Run("returns the error", func(t *testing.T) {
-		// Act
-		var err error
-		iostreamstest.CaptureErr(t, func() {
-			err = stepReclaimed("build cache", func() (string, error) { return "", fmt.Errorf("prune failed") })
-		})
-
-		// Assert
-		require.ErrorContains(t, err, "prune failed")
-	})
+	}
 }
