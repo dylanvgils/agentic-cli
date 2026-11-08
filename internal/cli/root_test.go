@@ -15,76 +15,37 @@ import (
 )
 
 func Test_checkDocker(t *testing.T) {
-	t.Run("root command skips check", func(t *testing.T) {
-		// Arrange
-		stubCheckDockerDaemon(t, func() error {
-			return errors.New("should not be called")
+	// childOf returns a command named use under a fake root, so it isn't the root itself.
+	childOf := func(use string) *cobra.Command {
+		cmd := &cobra.Command{Use: use}
+		(&cobra.Command{Use: "agentic"}).AddCommand(cmd)
+		return cmd
+	}
+
+	for _, tc := range []struct {
+		name string
+		cmd  *cobra.Command
+	}{
+		{name: "root command", cmd: rootCmd},
+		{name: "completion command", cmd: childOf("completion")},
+		{name: "shell completion", cmd: childOf(cobra.ShellCompRequestCmd)},
+		{name: "aliases command", cmd: aliasesCmd},
+		// migrate only touches the filesystem under TOOL_HOME, no Docker needed
+		{name: "migrate command", cmd: migrateCmd},
+	} {
+		t.Run(tc.name+" skips check", func(t *testing.T) {
+			// Arrange
+			stubCheckDockerDaemon(t, func() error {
+				return errors.New("should not be called")
+			})
+
+			// Act
+			err := checkDocker(tc.cmd, nil)
+
+			// Assert
+			require.NoError(t, err)
 		})
-
-		// Act - rootCmd.Parent() == nil satisfies the guard in checkDocker.
-		err := checkDocker(rootCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-	})
-
-	t.Run("completion command skips check", func(t *testing.T) {
-		// Arrange
-		stubCheckDockerDaemon(t, func() error {
-			return errors.New("should not be called")
-		})
-		fakeRoot := &cobra.Command{Use: "agentic"}
-		completionCmd := &cobra.Command{Use: "completion"}
-		fakeRoot.AddCommand(completionCmd)
-
-		// Act
-		err := checkDocker(completionCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-	})
-
-	t.Run("shell completion skips check", func(t *testing.T) {
-		// Arrange
-		stubCheckDockerDaemon(t, func() error {
-			return errors.New("should not be called")
-		})
-		fakeRoot := &cobra.Command{Use: "agentic"}
-		completeCmd := &cobra.Command{Use: cobra.ShellCompRequestCmd}
-		fakeRoot.AddCommand(completeCmd)
-
-		// Act
-		err := checkDocker(completeCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-	})
-
-	t.Run("aliases command skips check", func(t *testing.T) {
-		// Arrange
-		stubCheckDockerDaemon(t, func() error {
-			return errors.New("should not be called")
-		})
-
-		// Act
-		err := checkDocker(aliasesCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-	})
-
-	t.Run("migrate command skips check", func(t *testing.T) {
-		// Arrange - migrate only touches the filesystem under TOOL_HOME, no Docker needed
-		stubCheckDockerDaemon(t, func() error {
-			return errors.New("should not be called")
-		})
-
-		// Act
-		err := checkDocker(migrateCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-	})
+	}
 
 	t.Run("calls check success", func(t *testing.T) {
 		// Arrange
@@ -121,47 +82,34 @@ func Test_checkGit(t *testing.T) {
 	// No git on PATH, so every check that runs fails
 	t.Setenv("PATH", t.TempDir())
 
-	t.Run("non-run command skips check", func(t *testing.T) {
-		// Act
-		err := checkGit(buildCmd, []string{"claude"})
+	for _, tc := range []struct {
+		name string
+		cmd  *cobra.Command
+		args []string
+	}{
+		{name: "non-run command", cmd: buildCmd, args: []string{"claude"}},
+		{name: "no args", cmd: runCmd},
+		{name: "unknown tool", cmd: runCmd, args: []string{"bogus"}},
+		// opencode has no MarketplaceMount support; toolNeedsMarketplaceSync covers the rest of this predicate's branches directly
+		{name: "tool that doesn't need marketplace sync", cmd: runCmd, args: []string{"opencode"}},
+	} {
+		t.Run(tc.name+" skips check", func(t *testing.T) {
+			// Arrange
+			t.Chdir(t.TempDir())
 
-		// Assert
-		require.NoError(t, err)
-	})
+			// Act
+			err := checkGit(tc.cmd, tc.args)
 
-	t.Run("no args skips check", func(t *testing.T) {
-		// Act
-		err := checkGit(runCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-	})
-
-	t.Run("unknown tool skips check", func(t *testing.T) {
-		// Act
-		err := checkGit(runCmd, []string{"bogus"})
-
-		// Assert
-		require.NoError(t, err)
-	})
-
-	t.Run("tool that doesn't need marketplace sync skips check", func(t *testing.T) {
-		// Arrange - opencode has no MarketplaceMount support; toolNeedsMarketplaceSync
-		// covers the rest of this predicate's branches directly.
-		t.Chdir(t.TempDir())
-
-		// Act
-		err := checkGit(runCmd, []string{"opencode"})
-
-		// Assert
-		require.NoError(t, err)
-	})
+			// Assert
+			require.NoError(t, err)
+		})
+	}
 
 	t.Run("marketplace-capable tool with marketplaces configured calls check", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
 		rcContent := "[[marketplaces]]\nname = \"acme\"\nurl = \"git@example.com:acme.git\"\n"
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte(rcContent), 0o644))
+		writeRC(t, dir, rcContent)
 		t.Chdir(dir)
 
 		// Act
@@ -192,7 +140,7 @@ func Test_resolveContext(t *testing.T) {
 	t.Run("context from an untrusted workspace config is refused", func(t *testing.T) {
 		// Arrange
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte(`docker_context = "prod"`), 0o644))
+		writeRC(t, dir, `docker_context = "prod"`)
 		t.Chdir(dir)
 		restoreDockerClient(t)
 		stubToolHome(t, t.TempDir())
@@ -211,15 +159,21 @@ func Test_persistentPreRunE(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
 
-	t.Run("resolves the docker context", func(t *testing.T) {
-		// Arrange
+	// newCmd returns a command named use under a fake root, with the root's --docker-context flag.
+	newCmd := func(t *testing.T, use string) *cobra.Command {
+		t.Helper()
 		restoreDockerClient(t)
-		stubToolHome(t, filepath.Join(t.TempDir(), "home"))
-		cmd := &cobra.Command{Use: "status"}
+		cmd := &cobra.Command{Use: use}
 		cmd.Flags().String("docker-context", "", "")
+		(&cobra.Command{Use: "agentic"}).AddCommand(cmd)
+		return cmd
+	}
+
+	t.Run("resolves the docker context and loads the project onto the command's context", func(t *testing.T) {
+		// Arrange
+		stubToolHome(t, filepath.Join(t.TempDir(), "home"))
+		cmd := newCmd(t, "status")
 		require.NoError(t, cmd.Flags().Set("docker-context", "prod"))
-		fakeRoot := &cobra.Command{Use: "agentic"}
-		fakeRoot.AddCommand(cmd)
 
 		// Act
 		err := persistentPreRunE(cmd, nil)
@@ -227,36 +181,16 @@ func Test_persistentPreRunE(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "prod", dockerClient.Context())
-	})
-
-	t.Run("loads the project onto the command's context", func(t *testing.T) {
-		// Arrange
-		restoreDockerClient(t)
-		stubToolHome(t, filepath.Join(t.TempDir(), "home"))
-		cmd := &cobra.Command{Use: "upgrade"}
-		cmd.Flags().String("docker-context", "", "")
-		fakeRoot := &cobra.Command{Use: "agentic"}
-		fakeRoot.AddCommand(cmd)
-
-		// Act
-		err := persistentPreRunE(cmd, nil)
-
-		// Assert
-		require.NoError(t, err)
 		_, ok := cmd.Context().Value(projectKey{}).(loadedProject)
 		assert.True(t, ok)
 	})
 
 	t.Run("migration failure aborts the command", func(t *testing.T) {
 		// Arrange
-		restoreDockerClient(t)
 		home := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(home, ".migrations.json"), []byte("not json"), 0o644))
 		stubToolHome(t, home)
-		cmd := &cobra.Command{Use: "status"}
-		cmd.Flags().String("docker-context", "", "")
-		fakeRoot := &cobra.Command{Use: "agentic"}
-		fakeRoot.AddCommand(cmd)
+		cmd := newCmd(t, "status")
 
 		// Act
 		err := persistentPreRunE(cmd, nil)
@@ -265,41 +199,27 @@ func Test_persistentPreRunE(t *testing.T) {
 		assert.ErrorContains(t, err, "invalid character")
 	})
 
-	t.Run("skips the migration check for excluded commands", func(t *testing.T) {
-		// Arrange
-		restoreDockerClient(t)
-		home := filepath.Join(t.TempDir(), "home")
-		stubToolHome(t, home)
-		cmd := &cobra.Command{Use: "upgrade"}
-		cmd.Flags().String("docker-context", "", "")
-		fakeRoot := &cobra.Command{Use: "agentic"}
-		fakeRoot.AddCommand(cmd)
+	for _, tc := range []struct {
+		name string
+		use  string
+	}{
+		{name: "an excluded command", use: "upgrade"},
+		{name: "shell completion", use: cobra.ShellCompRequestCmd},
+	} {
+		t.Run(tc.name+" skips the migration check", func(t *testing.T) {
+			// Arrange
+			home := filepath.Join(t.TempDir(), "home")
+			stubToolHome(t, home)
+			cmd := newCmd(t, tc.use)
 
-		// Act
-		err := persistentPreRunE(cmd, nil)
+			// Act
+			err := persistentPreRunE(cmd, nil)
 
-		// Assert
-		require.NoError(t, err)
-		assert.NoDirExists(t, home)
-	})
-
-	t.Run("shell completion skips the migration check", func(t *testing.T) {
-		// Arrange
-		restoreDockerClient(t)
-		home := filepath.Join(t.TempDir(), "home")
-		stubToolHome(t, home)
-		cmd := &cobra.Command{Use: cobra.ShellCompRequestCmd}
-		cmd.Flags().String("docker-context", "", "")
-		fakeRoot := &cobra.Command{Use: "agentic"}
-		fakeRoot.AddCommand(cmd)
-
-		// Act
-		err := persistentPreRunE(cmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NoDirExists(t, home)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.NoDirExists(t, home)
+		})
+	}
 }
 
 func Test_restartAfterUpgrade(t *testing.T) {

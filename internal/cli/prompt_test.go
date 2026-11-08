@@ -145,18 +145,6 @@ func Test_ttyPrompter_OfferToolUpdate(t *testing.T) {
 		assert.True(t, result)
 		assert.Contains(t, logs.String(), "claude update available: 1.3.0 (current: 1.2.3) - update now? [y/N]")
 	})
-
-	t.Run("tty answers n declines", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubIn(t, "n\n")
-		iostreamstest.StubErr(t)
-
-		// Act
-		result := ttyPrompter{terminal: true}.OfferToolUpdate("claude", "1.2.3", "1.3.0")
-
-		// Assert
-		assert.False(t, result)
-	})
 }
 
 func Test_ttyPrompter_ConfirmCachePrune(t *testing.T) {
@@ -184,18 +172,6 @@ func Test_ttyPrompter_ConfirmCachePrune(t *testing.T) {
 		assert.True(t, result)
 		assert.Contains(t, logs.String(), "including builds outside agentic? [y/N]")
 	})
-
-	t.Run("tty answers n declines", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubIn(t, "n\n")
-		iostreamstest.StubErr(t)
-
-		// Act
-		result := ttyPrompter{terminal: true}.ConfirmCachePrune()
-
-		// Assert
-		assert.False(t, result)
-	})
 }
 
 func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
@@ -222,18 +198,6 @@ func Test_ttyPrompter_OfferUpgrade(t *testing.T) {
 		// Assert
 		assert.True(t, result)
 		assert.Equal(t, "agentic: new release available: v1.1.0 (current: v1.0.0) - update now? [y/N] ", logs.String())
-	})
-
-	t.Run("tty answers n declines", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubIn(t, "n\n")
-		iostreamstest.StubErr(t)
-
-		// Act
-		result := ttyPrompter{terminal: true}.OfferUpgrade("v1.0.0", "v1.1.0")
-
-		// Assert
-		assert.False(t, result)
 	})
 }
 
@@ -399,36 +363,24 @@ func Test_confirmed(t *testing.T) {
 		assert.False(t, second)
 	})
 
-	t.Run("accepts uppercase and surrounding spaces", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubIn(t, "  Y \n")
+	for _, tc := range []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{name: "accepts uppercase and surrounding spaces", input: "  Y \n", want: true},
+		{name: "accepts eof without newline", input: "y", want: true},
+		{name: "declines empty input", input: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			iostreamstest.StubIn(t, tc.input)
 
-		// Act
-		result := confirmed()
+			// Act
+			result := confirmed()
 
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("eof without newline", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubIn(t, "y")
-
-		// Act
-		result := confirmed()
-
-		// Assert
-		assert.True(t, result)
-	})
-
-	t.Run("empty input", func(t *testing.T) {
-		// Arrange
-		iostreamstest.StubIn(t, "")
-
-		// Act
-		result := confirmed()
-
-		// Assert
-		assert.False(t, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }

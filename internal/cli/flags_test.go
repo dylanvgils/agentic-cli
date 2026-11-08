@@ -15,32 +15,23 @@ import (
 )
 
 func Test_addBuildFlags(t *testing.T) {
+	for _, args := range [][]string{
+		{"--base", "java", "--base-exact", "node"},
+		{"--apt", "make", "--apt-exact", "gcc"},
+	} {
+		t.Run(args[0]+" and "+args[2]+" are mutually exclusive", func(t *testing.T) {
+			// Arrange
+			cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
+			addBuildFlags(cmd)
+			cmd.SetArgs(args)
 
-	t.Run("base and base-exact are mutually exclusive", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
-		addBuildFlags(cmd)
-		cmd.SetArgs([]string{"--base", "java", "--base-exact", "node"})
+			// Act
+			err := cmd.Execute()
 
-		// Act
-		err := cmd.Execute()
-
-		// Assert
-		assert.Error(t, err)
-	})
-
-	t.Run("apt and apt-exact are mutually exclusive", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
-		addBuildFlags(cmd)
-		cmd.SetArgs([]string{"--apt", "make", "--apt-exact", "gcc"})
-
-		// Act
-		err := cmd.Execute()
-
-		// Assert
-		assert.Error(t, err)
-	})
+			// Assert
+			assert.Error(t, err)
+		})
+	}
 
 	t.Run("version flag usage reflects default versions", func(t *testing.T) {
 		// Arrange
@@ -110,31 +101,26 @@ func Test_proxyInput(t *testing.T) {
 
 // Test_dindInput only confirms each flag maps to the right resolve.DindInput field; precedence is covered by TestDindEnabled in internal/usecase/resolve.
 func Test_dindInput(t *testing.T) {
-	t.Run("dind flag maps to DindFlag", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-		addDindFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("dind", "true"))
+	for _, tc := range []struct {
+		flag string
+		want resolve.DindInput
+	}{
+		{flag: "dind", want: resolve.DindInput{DindFlag: true}},
+		{flag: "no-dind", want: resolve.DindInput{NoDindFlag: true}},
+	} {
+		t.Run(tc.flag+" flag maps to its field", func(t *testing.T) {
+			// Arrange
+			cmd := &cobra.Command{Use: "test"}
+			addDindFlags(cmd)
+			require.NoError(t, cmd.Flags().Set(tc.flag, "true"))
 
-		// Act
-		result := dindInput(cmd)
+			// Act
+			result := dindInput(cmd)
 
-		// Assert
-		assert.Equal(t, resolve.DindInput{DindFlag: true}, result)
-	})
-
-	t.Run("no-dind flag maps to NoDindFlag", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{Use: "test"}
-		addDindFlags(cmd)
-		require.NoError(t, cmd.Flags().Set("no-dind", "true"))
-
-		// Act
-		result := dindInput(cmd)
-
-		// Assert
-		assert.Equal(t, resolve.DindInput{NoDindFlag: true}, result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func Test_resolveDindResourceLimitFlags(t *testing.T) {
@@ -201,65 +187,45 @@ func Test_buildOptsFromFlags(t *testing.T) {
 func Test_requireArgOrAll(t *testing.T) {
 	validate := requireArgOrAll("tool")
 
-	t.Run("no arg and no all is refused", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{}
-		addAllFlag(cmd, "")
+	for _, tc := range []struct {
+		name    string
+		args    []string
+		all     bool
+		wantErr string
+	}{
+		{name: "no arg and no all is refused", wantErr: "specify a tool or --all"},
+		{name: "an arg passes", args: []string{"claude"}},
+		{name: "all passes", all: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			cmd := newTestAllCmd(t, tc.all)
 
-		// Act
-		err := validate(cmd, nil)
+			// Act
+			err := validate(cmd, tc.args)
 
-		// Assert
-		assert.EqualError(t, err, "specify a tool or --all")
-	})
-
-	t.Run("an arg passes", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{}
-		addAllFlag(cmd, "")
-
-		// Act
-		err := validate(cmd, []string{"claude"})
-
-		// Assert
-		require.NoError(t, err)
-	})
-
-	t.Run("all passes", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{}
-		addAllFlag(cmd, "")
-		require.NoError(t, cmd.Flags().Set(allFlagName, "true"))
-
-		// Act
-		err := validate(cmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-	})
+			// Assert
+			if tc.wantErr != "" {
+				assert.EqualError(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func Test_argOrAllExclusive(t *testing.T) {
 	t.Run("an arg with all is refused", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{}
-		addAllFlag(cmd, "")
-		require.NoError(t, cmd.Flags().Set(allFlagName, "true"))
-
 		// Act
-		err := argOrAllExclusive(cmd, []string{"claude"})
+		err := argOrAllExclusive(newTestAllCmd(t, true), []string{"claude"})
 
 		// Assert
 		assert.EqualError(t, err, "an argument and --all can't be used together")
 	})
 
 	t.Run("an arg alone passes", func(t *testing.T) {
-		// Arrange
-		cmd := &cobra.Command{}
-		addAllFlag(cmd, "")
-
 		// Act
-		err := argOrAllExclusive(cmd, []string{"claude"})
+		err := argOrAllExclusive(newTestAllCmd(t, false), []string{"claude"})
 
 		// Assert
 		require.NoError(t, err)

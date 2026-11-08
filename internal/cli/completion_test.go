@@ -13,41 +13,28 @@ func Test_builtToolNamesFunc(t *testing.T) {
 	// Keep the repo's own .agenticrc.toml out of the test
 	t.Chdir(t.TempDir())
 
-	t.Run("tool already provided", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, &docker.ImageInfo{Image: "agentic-claude", ID: "abc"}, nil)
+	for _, tc := range []struct {
+		name    string
+		args    []string
+		info    *docker.ImageInfo
+		inspect error
+	}{
+		{name: "tool already provided", args: []string{"claude"}, info: &docker.ImageInfo{Image: "agentic-claude", ID: "abc"}},
+		{name: "none built"},
+		{name: "inspect error", inspect: assert.AnError},
+	} {
+		t.Run(tc.name+" suggests nothing", func(t *testing.T) {
+			// Arrange
+			stubInspectImage(t, tc.info, tc.inspect)
 
-		// Act
-		names, directive := builtToolNamesFunc(&cobra.Command{}, []string{"claude"}, "")
+			// Act
+			names, directive := builtToolNamesFunc(&cobra.Command{}, tc.args, "")
 
-		// Assert
-		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
-		assert.Empty(t, names)
-	})
-
-	t.Run("none built", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, nil)
-
-		// Act
-		names, directive := builtToolNamesFunc(&cobra.Command{}, nil, "")
-
-		// Assert
-		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
-		assert.Empty(t, names)
-	})
-
-	t.Run("inspect error", func(t *testing.T) {
-		// Arrange
-		stubInspectImage(t, nil, assert.AnError)
-
-		// Act
-		names, directive := builtToolNamesFunc(&cobra.Command{}, nil, "")
-
-		// Assert
-		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
-		assert.Empty(t, names)
-	})
+			// Assert
+			assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+			assert.Empty(t, names)
+		})
+	}
 
 	t.Run("some built", func(t *testing.T) {
 		// Arrange
@@ -69,12 +56,13 @@ func Test_builtToolNamesFunc(t *testing.T) {
 }
 
 func Test_namespacesFunc(t *testing.T) {
-	t.Run("returns unique namespaces", func(t *testing.T) {
+	t.Run("returns unique non-empty namespaces", func(t *testing.T) {
 		// Arrange
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{
 				{Image: "default-claude", Namespace: "default", Tool: "claude"},
 				{Image: "default-copilot", Namespace: "default", Tool: "copilot"},
+				{Image: "claude", Namespace: "", Tool: "claude"},
 				{Image: "myproject-claude", Namespace: "myproject", Tool: "claude"},
 			}, nil
 		})
@@ -85,23 +73,6 @@ func Test_namespacesFunc(t *testing.T) {
 		// Assert
 		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
 		assert.Equal(t, []string{"default", "myproject"}, names)
-	})
-
-	t.Run("skips empty namespace", func(t *testing.T) {
-		// Arrange
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{
-				{Image: "default-claude", Namespace: "", Tool: "claude"},
-				{Image: "myproject-claude", Namespace: "myproject", Tool: "claude"},
-			}, nil
-		})
-
-		// Act
-		names, directive := namespacesFunc(nil, nil, "")
-
-		// Assert
-		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
-		assert.Equal(t, []string{"myproject"}, names)
 	})
 
 	t.Run("list error returns empty", func(t *testing.T) {

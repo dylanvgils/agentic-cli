@@ -7,6 +7,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,42 +43,25 @@ func Test_runImageList(t *testing.T) {
 		assert.Regexp(t, `claude\s+agentic\s+1\.2\.3`, out)
 	})
 
-	t.Run("with --all shows all namespaces", func(t *testing.T) {
-		// Arrange
-		workInfo := &docker.ImageInfo{Image: "work-claude", Namespace: "work", Tool: "claude"}
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{builtInfo, workInfo}, nil
-		})
-		stubFlag(t, imageListCmd, "all", "true")
+	for _, cmd := range []*cobra.Command{imageListCmd, imagesCmd} {
+		t.Run(cmd.Name()+" with --all shows all namespaces", func(t *testing.T) {
+			// Arrange
+			workInfo := &docker.ImageInfo{Image: "work-claude", Namespace: "work", Tool: "claude"}
+			stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+				return []*docker.ImageInfo{builtInfo, workInfo}, nil
+			})
+			stubFlag(t, cmd, "all", "true")
 
-		// Act
-		out := iostreamstest.CaptureOut(t, func() {
-			err := runImageList(imageListCmd, []string{})
+			// Act
+			var err error
+			out := iostreamstest.CaptureOut(t, func() { err = runImageList(cmd, []string{}) })
+
+			// Assert
 			require.NoError(t, err)
+			assert.Regexp(t, `claude\s+agentic`, out)
+			assert.Regexp(t, `claude\s+work`, out)
 		})
-
-		// Assert
-		assert.Regexp(t, `claude\s+agentic`, out)
-		assert.Regexp(t, `claude\s+work`, out)
-	})
-
-	t.Run("images shortcut takes --all", func(t *testing.T) {
-		// Arrange
-		workInfo := &docker.ImageInfo{Image: "work-claude", Namespace: "work", Tool: "claude"}
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{builtInfo, workInfo}, nil
-		})
-		stubFlag(t, imagesCmd, "all", "true")
-
-		// Act
-		out := iostreamstest.CaptureOut(t, func() {
-			err := runImageList(imagesCmd, []string{})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Regexp(t, `claude\s+work`, out)
-	})
+	}
 }
 
 func Test_runImageTable(t *testing.T) {
@@ -143,29 +127,26 @@ func Test_writeImageTable(t *testing.T) {
 		assert.Regexp(t, `claude\s+agentic\s+1\.2\.3\s+node:24\s+2026-05-01\s+512MB`, out)
 	})
 
-	t.Run("empty names the namespace", func(t *testing.T) {
-		// Arrange
-		logs := iostreamstest.StubErr(t)
+	for _, tc := range []struct {
+		name      string
+		namespace string
+		want      string
+	}{
+		{name: "empty names the namespace", namespace: "agentic", want: "agentic: no images found in namespace \"agentic\"\n"},
+		{name: "empty in every namespace says so", want: "agentic: no images found\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			logs := iostreamstest.StubErr(t)
 
-		// Act
-		err := writeImageTable("agentic", nil)
+			// Act
+			err := writeImageTable(tc.namespace, nil)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, logs.String(), "no images found in namespace \"agentic\"")
-	})
-
-	t.Run("empty in every namespace says so", func(t *testing.T) {
-		// Arrange
-		logs := iostreamstest.StubErr(t)
-
-		// Act
-		err := writeImageTable("", nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, logs.String(), "no images found\n")
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, logs.String())
+		})
+	}
 
 	t.Run("truncates long base field", func(t *testing.T) {
 		// Arrange

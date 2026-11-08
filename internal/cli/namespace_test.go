@@ -71,9 +71,13 @@ func Test_runNamespacesPrune(t *testing.T) {
 		return []*docker.ImageInfo{{Image: "agentic-claude", Namespace: "agentic", Tool: "claude"}}, nil
 	}
 
-	t.Run("confirmed y removes the namespace's images", func(t *testing.T) {
+	t.Run("confirmed y removes the resolved namespace's images", func(t *testing.T) {
 		// Arrange
-		stubListAllImages(t, oneImage)
+		var capturedFilters []docker.ImageFilter
+		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+			capturedFilters = filters
+			return oneImage()
+		})
 		var cleaned []string
 		stubCleanImage(t, func(image string) error { cleaned = append(cleaned, image); return nil })
 		iostreamstest.StubIn(t, "y\n")
@@ -84,6 +88,7 @@ func Test_runNamespacesPrune(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
+		assert.Equal(t, []docker.ImageFilter{docker.NamespaceFilter("agentic")}, capturedFilters)
 		assert.Equal(t, []string{"agentic-claude"}, cleaned)
 	})
 
@@ -102,23 +107,6 @@ func Test_runNamespacesPrune(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, cleanCalled)
 		assert.Contains(t, errLog.String(), "agentic: nothing removed")
-	})
-
-	t.Run("lists only the resolved namespace", func(t *testing.T) {
-		// Arrange
-		var capturedFilters []docker.ImageFilter
-		stubListAllImages(t, func(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			capturedFilters = filters
-			return nil, nil
-		})
-		iostreamstest.StubErr(t)
-
-		// Act
-		err := runNamespacePrune(namespacePruneCmd, nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []docker.ImageFilter{docker.NamespaceFilter("agentic")}, capturedFilters)
 	})
 
 	t.Run("empty namespace says so without prompting", func(t *testing.T) {

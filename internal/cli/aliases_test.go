@@ -11,248 +11,112 @@ import (
 )
 
 func Test_runAliases(t *testing.T) {
-	t.Run("prints bash preamble and reload alias", func(t *testing.T) {
-		// Arrange
-		stubCheckDockerDaemon(t, func() error { return nil })
-		t.Setenv("SHELL", "/bin/bash")
-
-		// Act
-		out := iostreamstest.CaptureOut(t, func() {
-			err := runAliases(aliasesCmd, []string{})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "# agentic tool aliases - source with: source <(agentic aliases)")
-		assert.Contains(t, out, "alias agentic-reload='source <(agentic aliases)'")
-	})
-
-	t.Run("prints fish preamble and reload function", func(t *testing.T) {
-		// Arrange
-		stubCheckDockerDaemon(t, func() error { return nil })
-		t.Setenv("SHELL", "/usr/bin/fish")
-
-		// Act
-		out := iostreamstest.CaptureOut(t, func() {
-			err := runAliases(aliasesCmd, []string{})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "# agentic tool aliases - source with: agentic aliases | source")
-		assert.Contains(t, out, "function agentic-reload; agentic aliases | source; end")
-	})
-
-	t.Run("prints powershell preamble and reload function", func(t *testing.T) {
-		// Arrange
-		stubCheckDockerDaemon(t, func() error { return nil })
-		t.Setenv("SHELL", "/usr/bin/pwsh")
-
-		// Act
-		out := iostreamstest.CaptureOut(t, func() {
-			err := runAliases(aliasesCmd, []string{})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "# agentic tool aliases - source with: agentic aliases | Out-String | Invoke-Expression")
-		assert.Contains(t, out, "function agentic-reload { agentic aliases | Out-String | Invoke-Expression }")
-	})
-
-	t.Run("only built tools get aliases", func(t *testing.T) {
+	t.Run("prints the shell's preamble, reload and short alias, then aliases for built tools only", func(t *testing.T) {
 		// Arrange - only claude is built
 		stubCheckDockerDaemon(t, func() error { return nil })
 		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
 			return []*docker.ImageInfo{{Tool: "claude"}}, nil
 		})
-		t.Setenv("SHELL", "/bin/bash")
+		t.Setenv("SHELL", "/usr/bin/fish")
 
 		// Act
-		out := iostreamstest.CaptureOut(t, func() {
-			err := runAliases(aliasesCmd, []string{})
-			require.NoError(t, err)
-		})
+		var err error
+		out := iostreamstest.CaptureOut(t, func() { err = runAliases(aliasesCmd, []string{}) })
 
 		// Assert
-		assert.Contains(t, out, "alias claude='agentic run claude'")
-		assert.NotContains(t, out, "alias copilot=")
-		assert.NotContains(t, out, "alias opencode=")
+		require.NoError(t, err)
+		assert.Equal(t, preambleFor("fish")+"\n"+
+			reloadLineFor("fish")+"\n"+
+			shortAliasFor("fish")+"\n"+
+			"alias claude='agentic run claude'\n", out)
 	})
 
-	t.Run("built tools emit powershell function lines", func(t *testing.T) {
-		// Arrange
-		stubCheckDockerDaemon(t, func() error { return nil })
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return []*docker.ImageInfo{{Tool: "claude"}, {Tool: "copilot"}, {Tool: "opencode"}}, nil
-		})
-		t.Setenv("SHELL", "/usr/bin/pwsh")
+	for _, tc := range []struct {
+		name      string
+		daemonErr error
+		listErr   error
+	}{
+		{name: "daemon unreachable", daemonErr: fmt.Errorf("docker daemon not running")},
+		{name: "image list error", listErr: fmt.Errorf("image list failed")},
+	} {
+		t.Run(tc.name+" prints no tool aliases", func(t *testing.T) {
+			// Arrange
+			stubCheckDockerDaemon(t, func() error { return tc.daemonErr })
+			stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
+				return []*docker.ImageInfo{{Tool: "claude"}}, tc.listErr
+			})
+			t.Setenv("SHELL", "/bin/bash")
 
-		// Act
-		out := iostreamstest.CaptureOut(t, func() {
-			err := runAliases(aliasesCmd, []string{})
+			// Act
+			var err error
+			out := iostreamstest.CaptureOut(t, func() { err = runAliases(aliasesCmd, []string{}) })
+
+			// Assert
 			require.NoError(t, err)
+			assert.Equal(t, preambleFor("bash")+"\n"+reloadLineFor("bash")+"\n"+shortAliasFor("bash")+"\n", out)
 		})
-
-		// Assert
-		assert.Contains(t, out, "function claude { agentic run claude @args }")
-		assert.Contains(t, out, "function copilot { agentic run copilot @args }")
-		assert.Contains(t, out, "function opencode { agentic run opencode @args }")
-	})
-
-	t.Run("daemon unreachable prints preamble and reload but no tool aliases", func(t *testing.T) {
-		// Arrange
-		stubCheckDockerDaemon(t, func() error { return fmt.Errorf("docker daemon not running") })
-		t.Setenv("SHELL", "/bin/bash")
-
-		// Act
-		out := iostreamstest.CaptureOut(t, func() {
-			err := runAliases(aliasesCmd, []string{})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "# agentic tool aliases")
-		assert.Contains(t, out, "alias agentic-reload=")
-		assert.Contains(t, out, "alias agt=agentic")
-		assert.NotContains(t, out, "alias claude=")
-		assert.NotContains(t, out, "alias copilot=")
-		assert.NotContains(t, out, "alias opencode=")
-	})
-
-	t.Run("image list error prints preamble and reload but no tool aliases", func(t *testing.T) {
-		// Arrange
-		stubCheckDockerDaemon(t, func() error { return nil })
-		stubListAllImages(t, func(...docker.ImageFilter) ([]*docker.ImageInfo, error) {
-			return nil, fmt.Errorf("image list failed")
-		})
-		t.Setenv("SHELL", "/bin/bash")
-
-		// Act
-		out := iostreamstest.CaptureOut(t, func() {
-			err := runAliases(aliasesCmd, []string{})
-			require.NoError(t, err)
-		})
-
-		// Assert
-		assert.Contains(t, out, "# agentic tool aliases")
-		assert.Contains(t, out, "alias agentic-reload=")
-		assert.NotContains(t, out, "alias claude=")
-		assert.NotContains(t, out, "alias copilot=")
-		assert.NotContains(t, out, "alias opencode=")
-	})
+	}
 }
 
 func Test_printAliases(t *testing.T) {
 	t.Run("no built tools prints nothing", func(t *testing.T) {
 		// Act
-		out := iostreamstest.CaptureOut(t, func() {
-			printAliases("bash", map[string]bool{})
-		})
+		out := iostreamstest.CaptureOut(t, func() { printAliases("bash", map[string]bool{}) })
 
 		// Assert
 		assert.Empty(t, out)
 	})
 
-	t.Run("only built tools appear in output", func(t *testing.T) {
+	t.Run("built tools print in name order", func(t *testing.T) {
 		// Arrange
-		built := map[string]bool{"claude": true}
+		built := map[string]bool{"opencode": true, "claude": true}
 
 		// Act
-		out := iostreamstest.CaptureOut(t, func() {
-			printAliases("bash", built)
-		})
+		out := iostreamstest.CaptureOut(t, func() { printAliases("powershell", built) })
 
 		// Assert
-		assert.Contains(t, out, "alias claude=")
-		assert.NotContains(t, out, "alias copilot=")
-		assert.NotContains(t, out, "alias opencode=")
+		assert.Equal(t, "function claude { agentic run claude @args }\nfunction opencode { agentic run opencode @args }\n", out)
 	})
 }
 
 func Test_shellFromEnv(t *testing.T) {
-	t.Run("bash", func(t *testing.T) {
-		// Arrange
-		t.Setenv("SHELL", "/bin/bash")
+	for _, tc := range []struct {
+		shell string
+		want  string
+	}{
+		{shell: "/bin/bash", want: "bash"},
+		{shell: "/bin/sh", want: "bash"},
+		{shell: "/bin/zsh", want: "zsh"},
+		{shell: "/usr/bin/fish", want: "fish"},
+		{shell: "/usr/bin/pwsh", want: "powershell"},
+		{shell: "/usr/bin/dash", want: ""},
+	} {
+		t.Run(tc.shell, func(t *testing.T) {
+			// Arrange
+			t.Setenv("SHELL", tc.shell)
 
-		// Act
-		result := shellFromEnv()
+			// Act
+			result := shellFromEnv()
 
-		// Assert
-		assert.Equal(t, "bash", result)
-	})
-
-	t.Run("sh", func(t *testing.T) {
-		// Arrange
-		t.Setenv("SHELL", "/bin/sh")
-
-		// Act
-		result := shellFromEnv()
-
-		// Assert
-		assert.Equal(t, "bash", result)
-	})
-
-	t.Run("zsh", func(t *testing.T) {
-		// Arrange
-		t.Setenv("SHELL", "/bin/zsh")
-
-		// Act
-		result := shellFromEnv()
-
-		// Assert
-		assert.Equal(t, "zsh", result)
-	})
-
-	t.Run("fish", func(t *testing.T) {
-		// Arrange
-		t.Setenv("SHELL", "/usr/bin/fish")
-
-		// Act
-		result := shellFromEnv()
-
-		// Assert
-		assert.Equal(t, "fish", result)
-	})
-
-	t.Run("pwsh", func(t *testing.T) {
-		// Arrange
-		t.Setenv("SHELL", "/usr/bin/pwsh")
-
-		// Act
-		result := shellFromEnv()
-
-		// Assert
-		assert.Equal(t, "powershell", result)
-	})
-
-	t.Run("unknown returns empty", func(t *testing.T) {
-		// Arrange
-		t.Setenv("SHELL", "/usr/bin/dash")
-
-		// Act
-		result := shellFromEnv()
-
-		// Assert
-		assert.Equal(t, "", result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func Test_defaultShell(t *testing.T) {
-	t.Run("windows returns powershell", func(t *testing.T) {
-		// Act
-		result := defaultShell("windows")
+	for goos, want := range map[string]string{
+		"windows": "powershell",
+		"linux":   "bash",
+	} {
+		t.Run(goos, func(t *testing.T) {
+			// Act
+			result := defaultShell(goos)
 
-		// Assert
-		assert.Equal(t, "powershell", result)
-	})
-
-	t.Run("non-windows returns bash", func(t *testing.T) {
-		// Act
-		result := defaultShell("linux")
-
-		// Assert
-		assert.Equal(t, "bash", result)
-	})
+			// Assert
+			assert.Equal(t, want, result)
+		})
+	}
 }
 
 func Test_detectShell(t *testing.T) {
@@ -279,63 +143,67 @@ func Test_detectShell(t *testing.T) {
 	})
 }
 
+func Test_preambleFor(t *testing.T) {
+	for shell, want := range map[string]string{
+		"bash":       "# agentic tool aliases - source with: source <(agentic aliases)",
+		"fish":       "# agentic tool aliases - source with: agentic aliases | source",
+		"powershell": "# agentic tool aliases - source with: agentic aliases | Out-String | Invoke-Expression",
+	} {
+		t.Run(shell, func(t *testing.T) {
+			// Act
+			result := preambleFor(shell)
+
+			// Assert
+			assert.Equal(t, want, result)
+		})
+	}
+}
+
+func Test_aliasLineFor(t *testing.T) {
+	for shell, want := range map[string]string{
+		"bash":       "alias claude='agentic run claude'",
+		"powershell": "function claude { agentic run claude @args }",
+	} {
+		t.Run(shell, func(t *testing.T) {
+			// Act
+			result := aliasLineFor(shell, "claude")
+
+			// Assert
+			assert.Equal(t, want, result)
+		})
+	}
+}
+
 func Test_reloadLineFor(t *testing.T) {
-	t.Run("bash returns alias", func(t *testing.T) {
-		// Act
-		result := reloadLineFor("bash")
+	for shell, want := range map[string]string{
+		"bash":       "alias agentic-reload='source <(agentic aliases)'",
+		"fish":       "function agentic-reload; agentic aliases | source; end",
+		"powershell": "function agentic-reload { agentic aliases | Out-String | Invoke-Expression }",
+	} {
+		t.Run(shell, func(t *testing.T) {
+			// Act
+			result := reloadLineFor(shell)
 
-		// Assert
-		assert.Equal(t, "alias agentic-reload='source <(agentic aliases)'", result)
-	})
-
-	t.Run("fish returns function", func(t *testing.T) {
-		// Act
-		result := reloadLineFor("fish")
-
-		// Assert
-		assert.Equal(t, "function agentic-reload; agentic aliases | source; end", result)
-	})
-
-	t.Run("powershell returns function", func(t *testing.T) {
-		// Act
-		result := reloadLineFor("powershell")
-
-		// Assert
-		assert.Equal(t, "function agentic-reload { agentic aliases | Out-String | Invoke-Expression }", result)
-	})
+			// Assert
+			assert.Equal(t, want, result)
+		})
+	}
 }
 
 func Test_shortAliasFor(t *testing.T) {
-	t.Run("bash returns alias and copies completion", func(t *testing.T) {
-		// Act
-		result := shortAliasFor("bash")
+	for shell, want := range map[string]string{
+		"bash": "alias agt=agentic\n" + `c=$(complete -p agentic 2>/dev/null) && eval "${c% agentic} agt"`,
+		"zsh":  "alias agt=agentic",
+		"fish": "function agt --wraps agentic; agentic $argv; end",
+		"powershell": "Set-Alias agt agentic\n" +
+			"if ($__agenticCompleterBlock) { Register-ArgumentCompleter -Native -CommandName agt -ScriptBlock $__agenticCompleterBlock }",
+	} {
+		t.Run(shell, func(t *testing.T) {
+			// Act
+			result := shortAliasFor(shell)
 
-		// Assert
-		assert.Equal(t, "alias agt=agentic\n"+`c=$(complete -p agentic 2>/dev/null) && eval "${c% agentic} agt"`, result)
-	})
-
-	t.Run("zsh returns alias", func(t *testing.T) {
-		// Act
-		result := shortAliasFor("zsh")
-
-		// Assert
-		assert.Equal(t, "alias agt=agentic", result)
-	})
-
-	t.Run("fish returns wrapping function", func(t *testing.T) {
-		// Act
-		result := shortAliasFor("fish")
-
-		// Assert
-		assert.Equal(t, "function agt --wraps agentic; agentic $argv; end", result)
-	})
-
-	t.Run("powershell returns alias and registers completer", func(t *testing.T) {
-		// Act
-		result := shortAliasFor("powershell")
-
-		// Assert
-		assert.Equal(t, "Set-Alias agt agentic\n"+
-			"if ($__agenticCompleterBlock) { Register-ArgumentCompleter -Native -CommandName agt -ScriptBlock $__agenticCompleterBlock }", result)
-	})
+			// Assert
+			assert.Equal(t, want, result)
+		})
+	}
 }
