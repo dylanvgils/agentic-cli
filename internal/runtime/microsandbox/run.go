@@ -30,9 +30,6 @@ const (
 	// placeholderPrefix starts the placeholder msb puts in the guest for a secret, e.g. $MSB_GITHUB_TOKEN.
 	placeholderPrefix = "$MSB_"
 
-	// hostAlias names the host from the guest.
-	hostAlias = "host.microsandbox.internal"
-
 	// routeNoProxy skips the proxy for loopback.
 	routeNoProxy = "localhost,127.0.0.1"
 
@@ -90,7 +87,7 @@ func (r *ProxyRoute) hiddenEnv() []string {
 		return nil
 	}
 
-	url := "http://" + proxy.AuthUser + ":" + r.Token + "@" + hostAlias + ":" + r.Port // NOSONAR - proxy on host loopback; HTTPS stays TLS via CONNECT
+	url := "http://" + proxy.AuthUser + ":" + r.Token + "@" + tools.MicrosandboxHostAlias + ":" + r.Port // NOSONAR - proxy on host loopback; HTTPS stays TLS via CONNECT
 	env := sandbox.ProxyEnv(url, routeNoProxy)
 	if len(r.CAPEM) > 0 {
 		env = append(env, tools.ProxyCAEnvName+"="+string(r.CAPEM))

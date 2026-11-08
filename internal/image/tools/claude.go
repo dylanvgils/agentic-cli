@@ -52,7 +52,7 @@ func claudeStage(prevStage string) df.Stage {
 		Add(pipefailShell).
 		Add(createContainerUser("claude")...).
 		Add(df.Heredoc{
-			Dest: "/usr/local/bin/entrypoint.sh",
+			Dest: entrypointPath,
 			Blocks: []df.Block{
 				{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
 				{
@@ -98,7 +98,7 @@ func claudeStage(prevStage string) df.Stage {
 		Add(df.Env{Key: "DISABLE_AUTOUPDATER", Value: "1"}).
 		Add(df.Workdir{Path: sandbox.WorkspaceContainerPath}).
 		Add(proxyTrustLabel()).
-		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
+		Add(df.Entrypoint{Cmd: []string{entrypointPath}}).
 		Build()
 }
 

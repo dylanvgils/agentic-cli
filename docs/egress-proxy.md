@@ -175,4 +175,4 @@ backend = "agentic"
 - Each run gets its own token in the proxy URL. It's never in process args, but anyone who can read the run's environment can use the proxy while it runs.
 - DNS is blocked, so a tool that ignores the proxy env vars reaches nothing.
 - `[run.proxy] integrations` and `--proxy-integration` are ignored, with a warning.
-- With `--dind`, image pulls go through the proxy, but containers in the VM only reach out if you pass the proxy env vars on (`docker run -e HTTPS_PROXY ...`).
+- With `--dind`, image pulls, containers and builds in the VM go through the proxy. `agentic run <tool> -- <cmd>` skips the entrypoint that sets this up, so its inner containers get no proxy.

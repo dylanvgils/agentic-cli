@@ -61,6 +61,7 @@ make test           # run unit tests
 make test-integration # run every integration test package against a real Docker daemon
 make test-integration PKGS="egress proxy" # run only these packages
 make test-integration MSB=1 # require msb (and KVM) instead of skipping the microsandbox runs
+make test-integration-sandbox # inside an agentic run: every package but images and microsandbox
 make dist           # cross-platform binaries → dist/
 make docker-dist    # same via Docker using build/Dockerfile (no local Go needed)
 ```

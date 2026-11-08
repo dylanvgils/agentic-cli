@@ -59,7 +59,7 @@ func copilotStage(prevStage string) df.Stage {
 		})).
 		Add(versionCheckScript("copilot", "copilot --version")).
 		Add(df.Heredoc{
-			Dest: "/usr/local/bin/entrypoint.sh",
+			Dest: entrypointPath,
 			Blocks: []df.Block{
 				{Lines: []string{"#!/usr/bin/env bash", "set -euo pipefail"}},
 				{
@@ -104,7 +104,7 @@ func copilotStage(prevStage string) df.Stage {
 		Add(df.Env{Key: "COPILOT_AUTO_UPDATE", Value: "false"}).
 		Add(df.Workdir{Path: sandbox.WorkspaceContainerPath}).
 		Add(proxyTrustLabel()).
-		Add(df.Entrypoint{Cmd: []string{"/usr/local/bin/entrypoint.sh"}}).
+		Add(df.Entrypoint{Cmd: []string{entrypointPath}}).
 		Build()
 }
 

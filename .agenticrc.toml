@@ -22,6 +22,16 @@ env = [
   "DISABLE_TELEMETRY=1", # no Claude Code metrics or feature flags
 ]
 
+[run.instructions]
+custom = """
+Integration tests:
+
+- To run all integration tests, run `make test-integration-sandbox`.
+- To run one package, run `make test-integration PKGS=<package>`.
+- Never run the `images` or `microsandbox` packages. They always fail here: `images` needs download hosts outside the allowlist, `microsandbox` needs KVM.
+- Never run `make test-integration` without `PKGS`, as it includes both.
+"""
+
 [run.dind]
 enabled = true
 
@@ -34,6 +44,7 @@ allowed_hosts = [
   "deb.debian.org",         # apt in images the integration tests build in the Docker sidecar
   ".claude.ai",             # the integration test image installs Claude, whichever tool runs
   "gcr.io",                 # distroless base of the proxy image the integration tests build
+  "example.org",            # reserved example domain the monitor-mode itest reaches as a public host
   "go.dev",                 # language spec, release notes and blog for WebFetch
   "docs.microsandbox.dev",  # msb CLI and network policy docs for WebFetch
   "docs.docker.com",        # Docker Engine, CLI and Sandboxes docs for WebFetch

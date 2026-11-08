@@ -17,6 +17,9 @@ const (
 
 	// toolHomeVar is the host-side mount placeholder for the agentic data directory.
 	toolHomeVar = "$TOOL_HOME"
+
+	// entrypointPath is each tool image's entrypoint script.
+	entrypointPath = "/usr/local/bin/entrypoint.sh"
 )
 
 // Configs maps tool names to their container configuration.

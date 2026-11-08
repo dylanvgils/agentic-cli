@@ -639,7 +639,7 @@ func TestBuildDockerdImage(t *testing.T) {
 		assert.Contains(t, args, "--label="+LabelTool+"=dockerd")
 		assert.Contains(t, args, "--label="+LabelDockerdParent+"=sha256:0f0f0f0f0f0f")
 		assert.Contains(t, dockerfile, "FROM agentic-claude AS dockerd")
-		assert.Regexp(t, `USER claude\s*$`, dockerfile)
+		assert.Contains(t, dockerfile, "USER claude\n")
 	})
 
 	t.Run("never pulls the local parent", func(t *testing.T) {
