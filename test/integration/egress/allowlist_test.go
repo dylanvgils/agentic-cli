@@ -99,6 +99,7 @@ func TestEgressMonitor(t *testing.T) {
 		// A public host, as the address guard refuses non-allowed private ones even in monitor mode
 		t.Run("other host gets through and is logged", func(t *testing.T) {
 			// Arrange
+			platform.SkipWithoutInternet(t, "example.org")
 			tool := monitorRun(t)
 
 			// Act

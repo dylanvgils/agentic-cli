@@ -72,7 +72,7 @@ To run the CI checks on a branch without a PR, use **Actions → Validate (reusa
 
 CLI changes take effect after `make build`. Changes to stage funcs in `internal/image/tools/` or `internal/runtime/docker/` need an `agentic build` to rebuild the image.
 
-Integration tests build the binary and the images their packages need (slow the first time, cached after), then drive `agentic` like a user would. They skip without Docker, and without msb for the microsandbox runs unless `MSB=1`. This repo's `.agenticrc.toml` enables DinD, so they also run inside an agentic container.
+Integration tests build the binary and the images their packages need (slow the first time, cached after), then drive `agentic` like a user would. They skip without Docker, without msb for the microsandbox runs unless `MSB=1`, and without direct internet access for the few that reach a public host (`platform.SkipWithoutInternet`). This repo's `.agenticrc.toml` enables DinD, so they also run inside an agentic container.
 
 `make test-integration` runs the packages in parallel, prints the failures at the end and removes what the run left behind, outside CI also the test images. For one package's live log:
 
