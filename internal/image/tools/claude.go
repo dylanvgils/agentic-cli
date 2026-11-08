@@ -85,11 +85,11 @@ func claudeStage(prevStage string) df.Stage {
 		Add(df.User{Name: "claude"}).
 		Add(df.Env{Key: "PATH", Value: "/home/claude/.local/bin:${PATH}"}).
 		Add(df.Arg{Key: "CLAUDE_INSTALL_CHECKSUM", Default: DefaultChecksums.ClaudeInstall}).
-		Add(df.Run{Blocks: []df.Block{
-			installScriptBlock("claude", "https://claude.ai/install.sh", "CLAUDE_INSTALL_CHECKSUM"),
+		Add(df.Run{Blocks: append(
+			installScriptBlocks("claude", "https://claude.ai/install.sh", "CLAUDE_INSTALL_CHECKSUM"),
 			installedCheckBlock("claude"),
-			{Lines: []string{`mkdir -p "/home/claude/.claude"`}},
-		}}).
+			df.Block{Lines: []string{`mkdir -p "/home/claude/.claude"`}},
+		)}).
 		Add(versionCheckScript("claude", "claude --version")).
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/claude"}).
 		Add(df.Env{Key: "DISABLE_AUTOUPDATER", Value: "1"}).

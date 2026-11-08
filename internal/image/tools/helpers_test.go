@@ -81,16 +81,22 @@ func stubLatestVersion(t *testing.T, tool string, fn func() (string, error)) {
 	t.Cleanup(func() { Configs[tool] = orig })
 }
 
-func Test_installScriptBlock(t *testing.T) {
-	// runInstall serves script over file:// and runs the block's chained lines, returning the output and error.
+func Test_installScriptBlocks(t *testing.T) {
+	// runInstall runs the rendered RUN without comment lines, as Docker does.
 	runInstall := func(t *testing.T, script, checksum, skip string) (string, error) {
 		t.Helper()
 		src := filepath.Join(t.TempDir(), "install.sh")
 		require.NoError(t, os.WriteFile(src, []byte(script), 0o600))
 		t.Cleanup(func() { _ = os.Remove("/tmp/agentic-unit-test_install.sh") })
-		block := installScriptBlock("agentic-unit-test", "file://"+src, "TEST_INSTALL_CHECKSUM")
+		run := df.Run{Blocks: installScriptBlocks("agentic-unit-test", "file://"+src, "TEST_INSTALL_CHECKSUM")}
 
-		cmd := exec.Command("bash", "-o", "pipefail", "-c", strings.Join(block.Lines, " && "))
+		var lines []string
+		for _, line := range strings.Split(strings.TrimPrefix(run.Render(), "RUN "), "\n") {
+			if !strings.HasPrefix(strings.TrimSpace(line), "#") {
+				lines = append(lines, line)
+			}
+		}
+		cmd := exec.Command("bash", "-o", "pipefail", "-c", strings.Join(lines, "\n"))
 		cmd.Env = append(os.Environ(), "TEST_INSTALL_CHECKSUM="+checksum, "SKIP_INSTALL_CHECKSUM="+skip)
 		out, err := cmd.CombinedOutput()
 		return string(out), err

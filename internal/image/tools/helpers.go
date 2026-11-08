@@ -32,25 +32,31 @@ func skipInstallChecksumArg() df.Instruction {
 	return df.Arg{Key: "SKIP_INSTALL_CHECKSUM", Default: "false"}
 }
 
-// installScriptBlock downloads tool's install script from url, checks it against the checksumArg build arg unless
-// SKIP_INSTALL_CHECKSUM is true, and runs it with args. Chained, so a failed download, checksum or install fails the build.
-func installScriptBlock(tool, url, checksumArg string, args ...string) df.Block {
+// installScriptBlocks downloads, verifies and runs tool's install script; any failure fails the build.
+func installScriptBlocks(tool, url, checksumArg string, args ...string) []df.Block {
 	script := "/tmp/" + tool + "_install.sh"
-	skipWarning := fmt.Sprintf(`echo "warning: skipping %s install script checksum verification (--skip-install-checksum)" >&2`, tool)
-	verify := fmt.Sprintf(`echo "${%s}  %s" | sha256sum -c --quiet - && echo "%s install script checksum verified OK"`, checksumArg, script, tool)
-	run := strings.Join(append([]string{"bash", script}, args...), " ")
 
-	return df.Block{Comment: "Download and verify install script, then run it", Chain: true, Lines: []string{
-		fmt.Sprintf("curl -fsSL %s -o %s", url, script),
-		fmt.Sprintf(`if [ "${SKIP_INSTALL_CHECKSUM}" = "true" ]; then %s; else %s; fi`, skipWarning, verify),
-		run,
-		"rm " + script,
-	}}
+	return []df.Block{
+		{Comment: "Download install script", Lines: []string{
+			"curl -fsSL " + url + " -o " + script,
+		}},
+		{Comment: "Verify its checksum", Lines: []string{
+			`if [ "${SKIP_INSTALL_CHECKSUM}" = "true" ]; then`,
+			`echo "warning: skipping ` + tool + ` install script checksum verification (--skip-install-checksum)" >&2;`,
+			`else`,
+			`echo "${` + checksumArg + `}  ` + script + `" | sha256sum -c --quiet - && echo "` + tool + ` install script checksum verified OK";`,
+			`fi`,
+		}},
+		{Comment: "Run it", Chain: true, Lines: []string{
+			strings.Join(append([]string{"bash", script}, args...), " "),
+			"rm " + script,
+		}},
+	}
 }
 
-// installedCheckBlock fails the build when an install exited cleanly but left no tool on PATH.
+// installedCheckBlock fails the build when tool isn't on PATH.
 func installedCheckBlock(tool string) df.Block {
-	return df.Block{Comment: "Fail the build when the install left no " + tool + " on PATH", Lines: []string{"command -v " + tool}}
+	return df.Block{Comment: "Check " + tool + " is installed", Lines: []string{"command -v " + tool}}
 }
 
 // createContainerUser returns instructions to declare HOST_UID/HOST_GID, remove any user occupying HOST_UID, and create a fresh container user.
