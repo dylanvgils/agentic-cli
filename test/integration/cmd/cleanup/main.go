@@ -1,6 +1,6 @@
 //go:build integration
 
-// Command cleanup removes the fakes and msb sandboxes every test run left behind; --all also removes the test images.
+// Command cleanup removes the fakes, msb sandboxes and msb image copies every test run left behind; --all also removes the test images.
 package main
 
 import (

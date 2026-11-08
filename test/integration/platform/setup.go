@@ -176,7 +176,7 @@ func RuntimesMain(m *testing.M) int {
 	}
 
 	runtimes = append(runtimes, microsandboxRuntime)
-	return withMicrosandboxCleanup(Main(m))
+	return Main(m)
 }
 
 // ProxyMain is Main without an agentic run, for the standalone proxy tests.
@@ -186,7 +186,7 @@ func ProxyMain(m *testing.M) int {
 }
 
 // MicrosandboxMain is SmokeMain for a package that runs tools in microsandbox: it skips without msb unless
-// microsandboxEnv is set, loads the test tool's images into msb up front and removes the test images' msb copies at the end.
+// microsandboxEnv is set and loads the test tool's images into msb up front.
 func MicrosandboxMain(m *testing.M) int {
 	ok, err := microsandboxAvailable()
 	if err != nil || !ok {
@@ -198,7 +198,7 @@ func MicrosandboxMain(m *testing.M) int {
 		return 0
 	}
 	steps := append(toolRunSteps(AllImages), microsandboxLoadStep())
-	return withMicrosandboxCleanup(runPackage(m, steps))
+	return runPackage(m, steps)
 }
 
 // checkDocker prints the daemon summary; without a daemon it skips, except on CI where skipping would hide that nothing ran.
@@ -319,13 +319,17 @@ func microsandboxLoadStep() step {
 	return step{"loading images into msb", func() error { return runParallel(loads) }}
 }
 
-// leftoverSteps remove the fakes of every run and, with msb installed, the msb sandboxes of runs that were killed.
+// leftoverSteps remove every run's fakes and, with msb, killed runs' sandboxes and the test images' msb copies, which packages share.
 func leftoverSteps() []step {
 	steps := []step{
 		{"removing leftover fakes of every run", func() error { return removeFakes("label=" + labelRun) }},
 	}
 	if _, err := exec.LookPath("msb"); err == nil {
-		steps = append(steps, step{"removing leftover msb sandboxes of every run", removeMicrosandboxSandboxes})
+		steps = append(
+			steps,
+			step{"removing leftover msb sandboxes of every run", removeMicrosandboxSandboxes},
+			step{"removing the test images from msb", removeMicrosandboxImages},
+		)
 	}
 	return steps
 }
@@ -453,14 +457,6 @@ func microsandboxAvailable() (bool, error) {
 
 	fmt.Printf("=> msb: %s\n", strings.TrimSpace(string(version)))
 	return true, nil
-}
-
-// withMicrosandboxCleanup removes the test images' msb copies and returns code.
-func withMicrosandboxCleanup(code int) int {
-	if err := runSteps([]step{{"removing the test images from msb", removeMicrosandboxImages}}); err != nil {
-		fmt.Println(err)
-	}
-	return code
 }
 
 // removeTestImages removes the test namespaces' images and their msb copies.
