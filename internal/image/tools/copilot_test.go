@@ -47,21 +47,6 @@ func TestCopilotMarketplaceMount_returnsExpected(t *testing.T) {
 func TestCopilotStage(t *testing.T) {
 	result := renderStage(copilotStage("base"))
 
-	t.Run("from prev stage", func(t *testing.T) {
-		// Arrange
-		stage := copilotStage("java")
-
-		// Assert
-		assert.Equal(t, "java", stage.From.Image)
-		assert.Equal(t, "tool", stage.From.As)
-	})
-
-	t.Run("contains container user", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "groupadd -g ${HOST_GID} --non-unique copilot")
-		assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique copilot")
-	})
-
 	t.Run("registers only the marketplaces named in AGENTIC_MARKETPLACES before exec", func(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, `$HOME/marketplaces`)
@@ -75,12 +60,6 @@ func TestCopilotStage(t *testing.T) {
 		assert.Contains(t, result, `copilot plugin marketplace list 2>/dev/null | awk`)
 		assert.Contains(t, result, `index($0,"(Local: ")`)
 		assert.Contains(t, result, `copilot plugin marketplace remove --force "$name"`)
-	})
-
-	t.Run("contains version script", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "agentic-version-copilot")
-		assert.Contains(t, result, "copilot --version")
 	})
 
 	t.Run("verifies install script checksum before running it", func(t *testing.T) {

@@ -15,6 +15,14 @@ func writeMarketplaceRC(t *testing.T, dir, name, url string) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".agenticrc.toml"), []byte(content), 0o644))
 }
 
+// makeClone creates url's clone dir under baseDir and returns its name.
+func makeClone(t *testing.T, baseDir, url string) string {
+	t.Helper()
+	dirName := CloneDirName(url)
+	require.NoError(t, os.MkdirAll(filepath.Join(baseDir, dirName), 0o755))
+	return dirName
+}
+
 // fakeGit implements Git; a nil func succeeds.
 type fakeGit struct {
 	clone      func(url, dir string) error

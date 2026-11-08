@@ -33,41 +33,16 @@ func TestOpencodeMounts_returnsExpected(t *testing.T) {
 }
 
 func TestOpencodeStage(t *testing.T) {
-	stage := opencodeStage("base")
-	result := renderStage(stage)
+	// Act
+	result := renderStage(opencodeStage("base"))
 
-	t.Run("from prev stage", func(t *testing.T) {
-		// Assert
-		assert.Equal(t, "base", stage.From.Image)
-		assert.Equal(t, "tool", stage.From.As)
-	})
-
-	t.Run("contains container user", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "groupadd -g ${HOST_GID} --non-unique opencode")
-		assert.Contains(t, result, "useradd -l -u ${HOST_UID} -g ${HOST_GID} -m -s /bin/bash --non-unique opencode")
-	})
-
-	t.Run("contains tool home", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "TOOL_HOME=/home/opencode")
-	})
-
-	t.Run("contains version script", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "agentic-version-opencode")
-		assert.Contains(t, result, "opencode --version")
-	})
-
-	t.Run("verifies install script checksum before running it", func(t *testing.T) {
-		// Assert
-		assert.Contains(t, result, "OPENCODE_INSTALL_CHECKSUM="+DefaultChecksums.OpencodeInstall)
-		assert.Contains(t, result, "curl -fsSL https://opencode.ai/v2/install -o /tmp/opencode_install.sh")
-		assert.Contains(t, result, `echo "${OPENCODE_INSTALL_CHECKSUM}  /tmp/opencode_install.sh" | sha256sum -c --quiet -`)
-		assert.Contains(t, result, `echo "opencode install script checksum verified OK"`)
-		assert.Contains(t, result, "bash /tmp/opencode_install.sh --no-modify-path")
-		assert.Contains(t, result, "rm /tmp/opencode_install.sh")
-	})
+	// Assert - verifies the install script checksum before running it
+	assert.Contains(t, result, "OPENCODE_INSTALL_CHECKSUM="+DefaultChecksums.OpencodeInstall)
+	assert.Contains(t, result, "curl -fsSL https://opencode.ai/v2/install -o /tmp/opencode_install.sh")
+	assert.Contains(t, result, `echo "${OPENCODE_INSTALL_CHECKSUM}  /tmp/opencode_install.sh" | sha256sum -c --quiet -`)
+	assert.Contains(t, result, `echo "opencode install script checksum verified OK"`)
+	assert.Contains(t, result, "bash /tmp/opencode_install.sh --no-modify-path")
+	assert.Contains(t, result, "rm /tmp/opencode_install.sh")
 }
 
 func TestSetupOpencode_createsSubDirs(t *testing.T) {

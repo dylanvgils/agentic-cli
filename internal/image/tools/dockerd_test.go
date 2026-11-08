@@ -15,19 +15,15 @@ func TestDockerdImage(t *testing.T) {
 }
 
 func TestGenerateDockerdDockerfile(t *testing.T) {
-	t.Run("builds on the parent as root", func(t *testing.T) {
-		// Act
-		result := GenerateDockerdDockerfile("agentic-claude", "claude")
+	result := GenerateDockerdDockerfile("agentic-claude", "claude")
 
+	t.Run("builds on the parent as root", func(t *testing.T) {
 		// Assert
 		assert.Contains(t, result, "FROM agentic-claude AS dockerd")
 		assert.Contains(t, result, "USER root")
 	})
 
 	t.Run("installs the daemon pinned to the cli release", func(t *testing.T) {
-		// Act
-		result := GenerateDockerdDockerfile("agentic-claude", "claude")
-
 		// Assert
 		assert.Contains(t, result, `"docker-ce=$(dpkg-query --show --showformat='${Version}' docker-ce-cli)"`)
 		assert.Contains(t, result, "containerd.io")
@@ -37,43 +33,28 @@ func TestGenerateDockerdDockerfile(t *testing.T) {
 	})
 
 	t.Run("gives the tool user's primary group the socket", func(t *testing.T) {
-		// Act
-		result := GenerateDockerdDockerfile("agentic-claude", "claude")
-
 		// Assert
 		assert.Contains(t, result, `printf '{"group": "%s"}\n' "$(id -g claude)" > /etc/docker/daemon.json`)
 		assert.NotContains(t, result, "HOST_GID")
 	})
 
 	t.Run("init runs dockerd without msb's args", func(t *testing.T) {
-		// Act
-		result := GenerateDockerdDockerfile("agentic-claude", "claude")
-
 		// Assert
 		assert.Contains(t, result, "COPY --chmod=0755 <<'EOF' "+DockerdInit)
 		assert.Contains(t, result, "dockerd &\n")
 	})
 
 	t.Run("init stops dockerd on any shutdown signal", func(t *testing.T) {
-		// Act
-		result := GenerateDockerdDockerfile("agentic-claude", "claude")
-
 		// Assert
 		assert.Contains(t, result, `trap 'kill "$pid"' TERM INT PWR $(seq 34 64)`+"\n")
 	})
 
 	t.Run("init powers the vm off once dockerd exits", func(t *testing.T) {
-		// Act
-		result := GenerateDockerdDockerfile("agentic-claude", "claude")
-
 		// Assert
 		assert.Contains(t, result, "exec busybox poweroff -f\n")
 	})
 
 	t.Run("entrypoint gives inner containers the proxy at the host alias ip", func(t *testing.T) {
-		// Act
-		result := GenerateDockerdDockerfile("agentic-claude", "claude")
-
 		// Assert
 		assert.Contains(t, result, "COPY --chmod=0755 <<'EOF' "+dockerdEntrypoint)
 		assert.Contains(t, result, "host_alias="+MicrosandboxHostAlias+"\n")
@@ -83,9 +64,6 @@ func TestGenerateDockerdDockerfile(t *testing.T) {
 	})
 
 	t.Run("entrypoint runs the tool's entrypoint", func(t *testing.T) {
-		// Act
-		result := GenerateDockerdDockerfile("agentic-claude", "claude")
-
 		// Assert
 		assert.Contains(t, result, "entrypoint="+entrypointPath+"\n")
 		assert.Contains(t, result, `exec "$entrypoint" "$@"`)

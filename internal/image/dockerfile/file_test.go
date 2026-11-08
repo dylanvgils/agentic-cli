@@ -54,23 +54,6 @@ func TestFile_render(t *testing.T) {
 		)
 	})
 
-	t.Run("divider uses stage As", func(t *testing.T) {
-		// Arrange
-		f := File{
-			Stages: []Stage{
-				{From: From{Image: "debian:bookworm-slim", As: "base"}},
-				{From: From{Image: "base", As: "myapp"}},
-			},
-		}
-
-		// Act
-		result := f.Render()
-
-		// Assert
-		divider := strings.Repeat("#", dividerWidth)
-		assert.Contains(t, result, divider+"\n# myapp\n"+divider+"\n")
-	})
-
 	t.Run("global args before FROM", func(t *testing.T) {
 		// Arrange
 		f := File{

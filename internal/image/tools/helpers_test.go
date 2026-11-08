@@ -3,6 +3,9 @@ package tools
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -183,4 +186,15 @@ func Test_installScriptRun(t *testing.T) {
 		assert.Contains(t, out, "skipping agentic-unit-test install script checksum verification")
 		assert.Contains(t, out, "installed")
 	})
+}
+
+// serveUpstream starts a server answering every request with status and body, closed on cleanup, and returns its URL.
+func serveUpstream(t *testing.T, status int, body string) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(status)
+		fmt.Fprint(w, body)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
 }

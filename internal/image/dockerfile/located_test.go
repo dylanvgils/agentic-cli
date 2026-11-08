@@ -7,67 +7,44 @@ import (
 )
 
 func TestLocated_render(t *testing.T) {
-	t.Run("with source", func(t *testing.T) {
-		// Arrange
-		located := Located{Source: "internal/image/tools/bases.go:42", Inst: Env{Key: "FOO", Value: "bar"}}
+	for _, tc := range []struct {
+		name    string
+		located Located
+		want    string
+	}{
+		{
+			name:    "with source",
+			located: Located{Source: "internal/image/tools/bases.go:42", Inst: Env{Key: "FOO", Value: "bar"}},
+			want:    "# internal/image/tools/bases.go:42\nENV FOO=bar",
+		},
+		{
+			name:    "empty source",
+			located: Located{Inst: Env{Key: "FOO", Value: "bar"}},
+			want:    "ENV FOO=bar",
+		},
+		{
+			name: "with comment",
+			located: Located{
+				Comment: "host user ID for container user mapping",
+				Source:  "internal/image/tools/claude.go:45",
+				Inst:    Arg{Key: "HOST_UID", Default: "1000"},
+			},
+			want: "# host user ID for container user mapping\n# internal/image/tools/claude.go:45\nARG HOST_UID=1000",
+		},
+		{
+			name:    "with comment no source",
+			located: Located{Comment: "set noninteractive mode", Inst: Env{Key: "DEBIAN_FRONTEND", Value: "noninteractive"}},
+			want:    "# set noninteractive mode\nENV DEBIAN_FRONTEND=noninteractive",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			result := tc.located.Render()
 
-		// Act
-		result := located.Render()
-
-		// Assert
-		assert.Equal(t, "# internal/image/tools/bases.go:42\nENV FOO=bar", result)
-	})
-
-	t.Run("empty source", func(t *testing.T) {
-		// Arrange
-		located := Located{Inst: Env{Key: "FOO", Value: "bar"}}
-
-		// Act
-		result := located.Render()
-
-		// Assert
-		assert.Equal(t, "ENV FOO=bar", result)
-	})
-
-	t.Run("with comment", func(t *testing.T) {
-		// Arrange
-		located := Located{
-			Comment: "host user ID for container user mapping",
-			Source:  "internal/image/tools/claude.go:45",
-			Inst:    Arg{Key: "HOST_UID", Default: "1000"},
-		}
-
-		// Act
-		result := located.Render()
-
-		// Assert
-		assert.Equal(t, "# host user ID for container user mapping\n# internal/image/tools/claude.go:45\nARG HOST_UID=1000", result)
-	})
-
-	t.Run("with comment no source", func(t *testing.T) {
-		// Arrange
-		located := Located{
-			Comment: "set noninteractive mode",
-			Inst:    Env{Key: "DEBIAN_FRONTEND", Value: "noninteractive"},
-		}
-
-		// Act
-		result := located.Render()
-
-		// Assert
-		assert.Equal(t, "# set noninteractive mode\nENV DEBIAN_FRONTEND=noninteractive", result)
-	})
-
-	t.Run("empty comment with source", func(t *testing.T) {
-		// Arrange
-		located := Located{Comment: "", Source: "internal/image/tools/bases.go:42", Inst: Env{Key: "FOO", Value: "bar"}}
-
-		// Act
-		result := located.Render()
-
-		// Assert
-		assert.Equal(t, "# internal/image/tools/bases.go:42\nENV FOO=bar", result)
-	})
+			// Assert
+			assert.Equal(t, tc.want, result)
+		})
+	}
 }
 
 func TestLocate_capturesSource(t *testing.T) {

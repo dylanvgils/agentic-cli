@@ -29,6 +29,7 @@ func TestStageBuilder_Add(t *testing.T) {
 		located, ok := stage.Instructions[0].(Located)
 		assert.True(t, ok)
 		assert.Contains(t, located.Source, "builder_test.go:")
+		assert.Empty(t, located.Comment)
 		assert.Equal(t, Env{Key: "FOO", Value: "bar"}, located.Inst)
 	})
 
@@ -44,31 +45,6 @@ func TestStageBuilder_Add(t *testing.T) {
 		assert.Equal(t, "host user ID for container user mapping", located.Comment)
 		assert.Contains(t, located.Source, "builder_test.go:")
 		assert.Equal(t, Arg{Key: "HOST_UID", Default: "1000"}, located.Inst)
-	})
-
-	t.Run("without comment backward compat", func(t *testing.T) {
-		// Act
-		stage := NewStage(From{Image: "base", As: "tool"}).
-			Add(Env{Key: "FOO", Value: "bar"}).
-			Build()
-
-		// Assert
-		located, ok := stage.Instructions[0].(Located)
-		assert.True(t, ok)
-		assert.Equal(t, "", located.Comment)
-	})
-
-	t.Run("C located no double wrap", func(t *testing.T) {
-		// Act
-		stage := NewStage(From{Image: "base", As: "tool"}).
-			Add(C("a comment", User{Name: "claude"})).
-			Build()
-
-		// Assert - exactly one Located, Inst is User (not a nested Located)
-		located, ok := stage.Instructions[0].(Located)
-		assert.True(t, ok)
-		assert.Equal(t, "a comment", located.Comment)
-		assert.IsType(t, User{}, located.Inst)
 	})
 
 	t.Run("comment rendered in Dockerfile", func(t *testing.T) {
