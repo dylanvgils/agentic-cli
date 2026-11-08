@@ -5,7 +5,6 @@ package egress
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
@@ -32,15 +31,15 @@ func TestEgressPaths(t *testing.T) {
 		assert.Contains(t, out, "allowed=502")
 		assert.Contains(t, out, "refused=403")
 		assert.Contains(t, out, "proxy blocked 1 request(s) to paths no rule allows: "+pathHost+"/other/README.md")
-		assert.Contains(t, proxyLog(t, tool), proxy.Entry{
-			Protocol:    proxy.ProtocolHTTPS,
+		assert.Contains(t, proxyLog(t, tool), platform.ProxyEntry{
+			Protocol:    platform.ProtocolHTTPS,
 			Host:        pathHost,
 			Port:        "443",
-			Decision:    proxy.DecisionDeny,
+			Decision:    platform.DecisionDeny,
 			Enforced:    true,
 			Intercepted: true,
 			Path:        "/other/README.md",
-			Reason:      proxy.ReasonPathBlocked,
+			Reason:      platform.ReasonPathBlocked,
 		})
 	})
 }
@@ -64,15 +63,15 @@ func TestEgressCredentialPaths(t *testing.T) {
 		assert.Contains(t, out, "allowed=502")
 		assert.Contains(t, out, "refused=403")
 		assert.NotContains(t, out, "without the placeholder")
-		assert.Contains(t, proxyLog(t, tool), proxy.Entry{
-			Protocol:    proxy.ProtocolHTTPS,
+		assert.Contains(t, proxyLog(t, tool), platform.ProxyEntry{
+			Protocol:    platform.ProtocolHTTPS,
 			Host:        pathHost,
 			Port:        "443",
-			Decision:    proxy.DecisionDeny,
+			Decision:    platform.DecisionDeny,
 			Enforced:    true,
 			Intercepted: true,
 			Path:        "/other/README.md",
-			Reason:      proxy.ReasonPathBlocked,
+			Reason:      platform.ReasonPathBlocked,
 		})
 	})
 }

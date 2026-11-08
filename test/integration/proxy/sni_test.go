@@ -5,7 +5,7 @@ package proxy
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
+	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,12 +22,12 @@ func TestProxyServerName(t *testing.T) {
 
 	// Assert
 	assert.NotContains(t, out, "exit=0")
-	assert.Contains(t, run.log(), proxy.Entry{
-		Protocol: proxy.ProtocolHTTPS,
+	assert.Contains(t, run.log(), platform.ProxyEntry{
+		Protocol: platform.ProtocolHTTPS,
 		Host:     allowedHost,
 		Port:     "443",
-		Decision: proxy.DecisionDeny,
+		Decision: platform.DecisionDeny,
 		Enforced: true,
-		Reason:   proxy.ReasonSNIMismatch,
+		Reason:   platform.ReasonSNIMismatch,
 	})
 }

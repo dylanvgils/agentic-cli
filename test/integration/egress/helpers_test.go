@@ -3,14 +3,10 @@
 package egress
 
 import (
-	"bufio"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/require"
 )
@@ -132,24 +128,10 @@ func pathsScript() string {
 curl -sS -o /dev/null -w 'refused=%{http_code}\n' https://` + pathHost + `/other/README.md`
 }
 
-// proxyLog returns the entries of tool's proxy access log, without the time and error, which vary per run.
-func proxyLog(t *testing.T, tool *platform.ToolRun) []proxy.Entry {
+// proxyLog returns the entries of tool's proxy access log.
+func proxyLog(t *testing.T, tool *platform.ToolRun) []platform.ProxyEntry {
 	t.Helper()
-	f, err := os.Open(tool.ProxyLogFile())
-	require.NoError(t, err)
-	defer func() { _ = f.Close() }()
-
-	var entries []proxy.Entry
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		var entry proxy.Entry
-		require.NoError(t, json.Unmarshal(scanner.Bytes(), &entry), "proxy log line: %s", scanner.Text())
-		entry.Time = time.Time{}
-		entry.Error = ""
-		entries = append(entries, entry)
-	}
-	require.NoError(t, scanner.Err())
-	return entries
+	return platform.ReadProxyLog(t, tool.ProxyLogFile())
 }
 
 // secretFile writes credentialSecret outside the work dir and mounts, as agentic requires, and returns its path.

@@ -5,7 +5,7 @@ package proxy
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
+	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,11 +24,11 @@ func TestProxyForward(t *testing.T) {
 		// Assert
 		assert.Contains(t, out, "path=/forward")
 		assert.Contains(t, out, "status=200")
-		assert.Contains(t, run.log(), proxy.Entry{
-			Protocol: proxy.ProtocolHTTP,
+		assert.Contains(t, run.log(), platform.ProxyEntry{
+			Protocol: platform.ProtocolHTTP,
 			Host:     allowedHost,
 			Port:     "80",
-			Decision: proxy.DecisionAllow,
+			Decision: platform.DecisionAllow,
 			Enforced: true,
 		})
 		assert.Contains(t, run.output(), "msg=request proto=http host="+allowedHost+" port=80 decision=allow")
@@ -41,11 +41,11 @@ func TestProxyForward(t *testing.T) {
 		// Assert
 		assert.Contains(t, out, "host not allowed by agentic proxy allowlist")
 		assert.Contains(t, out, "status=403")
-		assert.Contains(t, run.log(), proxy.Entry{
-			Protocol: proxy.ProtocolHTTP,
+		assert.Contains(t, run.log(), platform.ProxyEntry{
+			Protocol: platform.ProtocolHTTP,
 			Host:     deniedHost,
 			Port:     "80",
-			Decision: proxy.DecisionDeny,
+			Decision: platform.DecisionDeny,
 			Enforced: true,
 		})
 	})
@@ -65,11 +65,11 @@ func TestProxyTunnel(t *testing.T) {
 	// Assert
 	assert.Contains(t, out, "path=/tunnel")
 	assert.Contains(t, out, "status=200")
-	assert.Contains(t, run.log(), proxy.Entry{
-		Protocol: proxy.ProtocolHTTPS,
+	assert.Contains(t, run.log(), platform.ProxyEntry{
+		Protocol: platform.ProtocolHTTPS,
 		Host:     allowedHost,
 		Port:     "443",
-		Decision: proxy.DecisionAllow,
+		Decision: platform.DecisionAllow,
 		Enforced: true,
 	})
 }

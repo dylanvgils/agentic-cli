@@ -5,7 +5,6 @@ package egress
 import (
 	"testing"
 
-	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/test/integration/platform"
 	"github.com/stretchr/testify/assert"
 )
@@ -30,11 +29,11 @@ func TestEgressAllowlist(t *testing.T) {
 		assert.Contains(t, out, "status=200")
 		assert.Contains(t, out, "status=403")
 		assert.Contains(t, out, "path=/tunnel")
-		assert.Contains(t, proxyLog(t, tool), proxy.Entry{
-			Protocol: proxy.ProtocolHTTP,
+		assert.Contains(t, proxyLog(t, tool), platform.ProxyEntry{
+			Protocol: platform.ProtocolHTTP,
 			Host:     otherHost,
 			Port:     "80",
-			Decision: proxy.DecisionDeny,
+			Decision: platform.DecisionDeny,
 			Enforced: true,
 		})
 	})
@@ -56,13 +55,13 @@ func TestEgressAddressGuard(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, out, "status=403")
-		assert.Contains(t, proxyLog(t, tool), proxy.Entry{
-			Protocol: proxy.ProtocolHTTP,
+		assert.Contains(t, proxyLog(t, tool), platform.ProxyEntry{
+			Protocol: platform.ProtocolHTTP,
 			Host:     allowedHost,
 			Port:     "80",
-			Decision: proxy.DecisionDeny,
+			Decision: platform.DecisionDeny,
 			Enforced: true,
-			Reason:   proxy.ReasonBlockedAddr,
+			Reason:   platform.ReasonBlockedAddr,
 		})
 	})
 }
@@ -88,11 +87,11 @@ func TestEgressMonitor(t *testing.T) {
 
 			// Assert
 			assert.Contains(t, out, "status=200")
-			assert.Contains(t, proxyLog(t, tool), proxy.Entry{
-				Protocol: proxy.ProtocolHTTP,
+			assert.Contains(t, proxyLog(t, tool), platform.ProxyEntry{
+				Protocol: platform.ProtocolHTTP,
 				Host:     allowedHost,
 				Port:     "80",
-				Decision: proxy.DecisionAllow,
+				Decision: platform.DecisionAllow,
 				Enforced: false,
 			})
 		})
@@ -107,11 +106,11 @@ func TestEgressMonitor(t *testing.T) {
 
 			// Assert
 			assert.Contains(t, out, "other=ok")
-			assert.Contains(t, proxyLog(t, tool), proxy.Entry{
-				Protocol: proxy.ProtocolHTTPS,
+			assert.Contains(t, proxyLog(t, tool), platform.ProxyEntry{
+				Protocol: platform.ProtocolHTTPS,
 				Host:     "example.org",
 				Port:     "443",
-				Decision: proxy.DecisionDeny,
+				Decision: platform.DecisionDeny,
 				Enforced: false,
 			})
 		})
