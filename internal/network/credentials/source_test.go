@@ -32,29 +32,23 @@ func TestParseSource(t *testing.T) {
 		}
 	})
 
-	t.Run("tilde inside a name is not expanded", func(t *testing.T) {
-		// Act
-		_, err := ParseSource("~other/token")
+	for _, tc := range []struct {
+		name    string
+		spec    string
+		wantErr string
+	}{
+		{name: "tilde inside a name is not expanded", spec: "~other/token", wantErr: "must be absolute"},
+		{name: "relative path is rejected", spec: "example/token", wantErr: "must be absolute"},
+		{name: "scheme is unsupported", spec: "keychain:example-item", wantErr: `unsupported secret source "keychain:"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			_, err := ParseSource(tc.spec)
 
-		// Assert
-		assert.ErrorContains(t, err, "must be absolute")
-	})
-
-	t.Run("relative path is rejected", func(t *testing.T) {
-		// Act
-		_, err := ParseSource("example/token")
-
-		// Assert
-		assert.ErrorContains(t, err, "must be absolute")
-	})
-
-	t.Run("scheme is unsupported", func(t *testing.T) {
-		// Act
-		_, err := ParseSource("keychain:example-item")
-
-		// Assert
-		assert.ErrorContains(t, err, `unsupported secret source "keychain:"`)
-	})
+			// Assert
+			assert.ErrorContains(t, err, tc.wantErr)
+		})
+	}
 }
 
 func Test_fileSource_Resolve(t *testing.T) {
@@ -70,36 +64,24 @@ func Test_fileSource_Resolve(t *testing.T) {
 		assert.Equal(t, "test-secret\n", string(data))
 	})
 
-	t.Run("missing file is an error", func(t *testing.T) {
-		// Arrange
-		source := fileSource{path: filepath.Join(t.TempDir(), "missing")}
+	for _, tc := range []struct {
+		name    string
+		path    func(t *testing.T) string
+		wantErr string
+	}{
+		{name: "missing file is an error", path: func(t *testing.T) string { return filepath.Join(t.TempDir(), "missing") }, wantErr: "read secret"},
+		{name: "directory is rejected", path: func(t *testing.T) string { return t.TempDir() }, wantErr: "not a regular file"},
+		{name: "oversized file is rejected", path: func(t *testing.T) string { return writeSecret(t, strings.Repeat("a", maxSecretSize+1)) }, wantErr: "larger than"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			source := fileSource{path: tc.path(t)}
 
-		// Act
-		_, err := source.Resolve()
+			// Act
+			_, err := source.Resolve()
 
-		// Assert
-		assert.ErrorContains(t, err, "read secret")
-	})
-
-	t.Run("directory is rejected", func(t *testing.T) {
-		// Arrange
-		source := fileSource{path: t.TempDir()}
-
-		// Act
-		_, err := source.Resolve()
-
-		// Assert
-		assert.ErrorContains(t, err, "not a regular file")
-	})
-
-	t.Run("oversized file is rejected", func(t *testing.T) {
-		// Arrange
-		source := fileSource{path: writeSecret(t, strings.Repeat("a", maxSecretSize+1))}
-
-		// Act
-		_, err := source.Resolve()
-
-		// Assert
-		assert.ErrorContains(t, err, "larger than")
-	})
+			// Assert
+			assert.ErrorContains(t, err, tc.wantErr)
+		})
+	}
 }

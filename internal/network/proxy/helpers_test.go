@@ -54,6 +54,14 @@ func stubDefaultPorts(t *testing.T, ports ...string) {
 	t.Cleanup(func() { DefaultPorts = prev })
 }
 
+// startProxy serves h on a test server closed on cleanup.
+func startProxy(t *testing.T, h http.Handler) *httptest.Server {
+	t.Helper()
+	proxy := httptest.NewServer(h)
+	t.Cleanup(proxy.Close)
+	return proxy
+}
+
 // withAddrGuard makes s refuse the upstream addresses blocked reports, instead of the real guard's.
 func withAddrGuard(s *Server, blocked func(netip.Addr, bool) bool) *Server {
 	s.upstream = newUpstream(blocked)
@@ -63,6 +71,21 @@ func withAddrGuard(s *Server, blocked func(netip.Addr, bool) bool) *Server {
 // allowLocal lets s's address guard pass every address, so tests can use loopback upstreams.
 func allowLocal(s *Server) *Server {
 	return withAddrGuard(s, func(netip.Addr, bool) bool { return false })
+}
+
+// privateOnlyExact lets only exact allowlist entries reach private addresses, as the real guard does for loopback.
+func privateOnlyExact(s *Server) *Server {
+	return withAddrGuard(s, func(_ netip.Addr, privateOK bool) bool { return !privateOK })
+}
+
+// startHelloServer starts an HTTP upstream answering "hello", closed on cleanup.
+func startHelloServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "hello")
+	}))
+	t.Cleanup(upstream.Close)
+	return upstream
 }
 
 // closedPort returns a loopback host and port nothing listens on.

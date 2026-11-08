@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -19,23 +18,122 @@ import (
 )
 
 func TestServerConnect(t *testing.T) {
-	t.Run("denied host returns 403 and logs deny", func(t *testing.T) {
-		// Arrange
-		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf), false, nil))
-		t.Cleanup(proxy.Close)
+	for _, tc := range []struct {
+		name    string
+		guard   func(*Server) *Server
+		hosts   []string
+		monitor bool
+		target  string
+		wantLog string
+	}{
+		{
+			name:    "denied host returns 403 and logs deny",
+			target:  "evil.test",
+			wantLog: `"protocol":"https","host":"evil.test","port":"%s","decision":"deny","enforced":true}`,
+		},
+		{
+			name:    "allowed host resolving to a blocked address returns 403 and logs the reason",
+			hosts:   []string{"127.0.0.1"},
+			target:  "127.0.0.1",
+			wantLog: `"decision":"deny","enforced":true,"reason":"blocked-address"`,
+		},
+		{
+			name:    "monitor mode still refuses a blocked address",
+			monitor: true,
+			target:  "127.0.0.1",
+			wantLog: `"decision":"deny","enforced":true,"reason":"blocked-address"`,
+		},
+		{
+			name:    "wildcard match cannot reach a private address",
+			guard:   privateOnlyExact,
+			hosts:   []string{".localhost"},
+			target:  "localhost",
+			wantLog: `"reason":"blocked-address"`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			_, upstreamPort := startEchoServer(t)
+			stubDefaultPorts(t, upstreamPort)
+			var logBuf syncBuffer
+			server := NewServer(NewAllowlist(hostRules(tc.hosts...)), NewLogger(&logBuf), tc.monitor, nil)
+			if tc.guard != nil {
+				server = tc.guard(server)
+			}
+			proxy := startProxy(t, server)
 
-		// Act
-		resp := connect(t, proxy.Listener.Addr().String(), "evil.test:443")
-		defer resp.Body.Close() //nolint:errcheck
+			// Act
+			resp := connect(t, proxy.Listener.Addr().String(), net.JoinHostPort(tc.target, upstreamPort))
+			defer resp.Body.Close() //nolint:errcheck
 
-		// Assert
-		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-		assert.Contains(t, logBuf.String(), `"decision":"deny"`)
-		assert.Contains(t, logBuf.String(), `"host":"evil.test"`)
-		assert.Contains(t, logBuf.String(), `"protocol":"https"`)
-		assert.Contains(t, logBuf.String(), `"enforced":true`)
-	})
+			// Assert
+			assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+			assert.Contains(t, logBuf.String(), strings.ReplaceAll(tc.wantLog, "%s", upstreamPort))
+			assert.NotContains(t, logBuf.String(), `"decision":"allow"`)
+		})
+	}
+
+	for _, tc := range []struct {
+		name       string
+		guard      func(*Server) *Server
+		hosts      []string
+		monitor    bool
+		target     string
+		serverName string
+		wantLog    string
+	}{
+		{
+			name:    "allowed host tunnels bytes and logs allow",
+			guard:   allowLocal,
+			hosts:   []string{"127.0.0.1"},
+			target:  "127.0.0.1",
+			wantLog: `"host":"127.0.0.1","port":"%s","decision":"allow","enforced":true}`,
+		},
+		{
+			name:    "monitor mode tunnels a denied host and logs deny unenforced",
+			guard:   allowLocal,
+			monitor: true,
+			target:  "127.0.0.1",
+			wantLog: `"host":"127.0.0.1","port":"%s","decision":"deny","enforced":false}`,
+		},
+		{
+			name:       "exact entry can reach a private address",
+			guard:      privateOnlyExact,
+			hosts:      []string{"localhost"},
+			target:     "localhost",
+			serverName: "localhost",
+			wantLog:    `"host":"localhost","port":"%s","decision":"allow","enforced":true}`,
+		},
+		{
+			name:       "monitor mode tunnels another tls server name and logs the mismatch unenforced",
+			guard:      allowLocal,
+			hosts:      []string{"127.0.0.1"},
+			monitor:    true,
+			target:     "127.0.0.1",
+			serverName: "other.example.test",
+			wantLog:    `"decision":"deny","enforced":false,"reason":"sni-mismatch"`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			_, upstreamPort := startEchoServer(t)
+			stubDefaultPorts(t, upstreamPort)
+			var logBuf syncBuffer
+			proxy := startProxy(t, tc.guard(NewServer(NewAllowlist(hostRules(tc.hosts...)), NewLogger(&logBuf), tc.monitor, nil)))
+			hello := clientHello(t, tc.serverName)
+
+			// Act
+			conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(tc.target, upstreamPort))
+			defer conn.Close() //nolint:errcheck
+			echo, err := echoed(t, conn, hello)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, hello, echo)
+			wantLog := strings.ReplaceAll(tc.wantLog, "%s", upstreamPort)
+			assert.Eventually(t, func() bool { return strings.Contains(logBuf.String(), wantLog) }, 5*time.Second, 10*time.Millisecond)
+		})
+	}
 
 	t.Run("failed hijack returns a fixed 500 and logs the error once", func(t *testing.T) {
 		// Arrange
@@ -58,36 +156,13 @@ func TestServerConnect(t *testing.T) {
 		assert.Equal(t, 1, strings.Count(logBuf.String(), "\n"))
 	})
 
-	t.Run("allowed host tunnels bytes and logs allow", func(t *testing.T) {
-		// Arrange
-		upstreamHost, upstreamPort := startEchoServer(t)
-		stubDefaultPorts(t, upstreamPort)
-
-		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, nil)))
-		t.Cleanup(proxy.Close)
-		hello := clientHello(t, "")
-
-		// Act
-		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
-		defer conn.Close() //nolint:errcheck
-		echo, err := echoed(t, conn, hello)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, hello, echo)
-		assert.Contains(t, logBuf.String(), `"decision":"allow"`)
-		assert.Contains(t, logBuf.String(), `"protocol":"https"`)
-	})
-
 	t.Run("bytes sent with the connect reach the upstream", func(t *testing.T) {
 		// Arrange
 		upstreamHost, upstreamPort := startEchoServer(t)
 		stubDefaultPorts(t, upstreamPort)
 		target := net.JoinHostPort(upstreamHost, upstreamPort)
 
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(nil), false, nil)))
-		t.Cleanup(proxy.Close)
+		proxy := startProxy(t, allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(nil), false, nil)))
 
 		conn, err := net.Dial("tcp", proxy.Listener.Addr().String())
 		require.NoError(t, err)
@@ -116,8 +191,7 @@ func TestServerConnect(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, nil)))
-		t.Cleanup(proxy.Close)
+		proxy := startProxy(t, allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, nil)))
 
 		// Act
 		resp := connect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
@@ -130,108 +204,13 @@ func TestServerConnect(t *testing.T) {
 		assert.Contains(t, logBuf.String(), `"reason":"upstream-failed","error":"dial tcp `)
 	})
 
-	t.Run("monitor mode tunnels a denied host and logs deny unenforced", func(t *testing.T) {
-		// Arrange
-		upstreamHost, upstreamPort := startEchoServer(t)
-		stubDefaultPorts(t, upstreamPort)
-
-		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(nil), NewLogger(&logBuf), true, nil)))
-		t.Cleanup(proxy.Close)
-		hello := clientHello(t, "")
-
-		// Act
-		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
-		defer conn.Close() //nolint:errcheck
-		echo, err := echoed(t, conn, hello)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, hello, echo)
-		assert.Contains(t, logBuf.String(), `"decision":"deny"`)
-		assert.Contains(t, logBuf.String(), `"enforced":false`)
-	})
-
-	t.Run("allowed host resolving to a blocked address returns 403 and logs the reason", func(t *testing.T) {
-		// Arrange
-		upstreamHost, upstreamPort := startEchoServer(t)
-		stubDefaultPorts(t, upstreamPort)
-
-		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, nil))
-		t.Cleanup(proxy.Close)
-
-		// Act
-		resp := connect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
-		defer resp.Body.Close() //nolint:errcheck
-
-		// Assert
-		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":true,"reason":"blocked-address"`)
-		assert.NotContains(t, logBuf.String(), `"decision":"allow"`)
-	})
-
-	t.Run("monitor mode still refuses a blocked address", func(t *testing.T) {
-		// Arrange
-		upstreamHost, upstreamPort := startEchoServer(t)
-		stubDefaultPorts(t, upstreamPort)
-
-		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf), true, nil))
-		t.Cleanup(proxy.Close)
-
-		// Act
-		resp := connect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
-		defer resp.Body.Close() //nolint:errcheck
-
-		// Assert
-		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":true,"reason":"blocked-address"`)
-	})
-
-	t.Run("wildcard match cannot reach a private address", func(t *testing.T) {
-		// Arrange
-		_, upstreamPort := startEchoServer(t)
-		stubDefaultPorts(t, upstreamPort)
-
-		proxy := httptest.NewServer(withAddrGuard(NewServer(NewAllowlist(hostRules(".localhost")), NewLogger(io.Discard), false, nil), func(_ netip.Addr, privateOK bool) bool { return !privateOK }))
-		t.Cleanup(proxy.Close)
-
-		// Act
-		resp := connect(t, proxy.Listener.Addr().String(), net.JoinHostPort("localhost", upstreamPort))
-		defer resp.Body.Close() //nolint:errcheck
-
-		// Assert
-		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-	})
-
-	t.Run("exact entry can reach a private address", func(t *testing.T) {
-		// Arrange
-		_, upstreamPort := startEchoServer(t)
-		stubDefaultPorts(t, upstreamPort)
-
-		proxy := httptest.NewServer(withAddrGuard(NewServer(NewAllowlist(hostRules("localhost")), NewLogger(io.Discard), false, nil), func(_ netip.Addr, privateOK bool) bool { return !privateOK }))
-		t.Cleanup(proxy.Close)
-		hello := clientHello(t, "localhost")
-
-		// Act
-		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort("localhost", upstreamPort))
-		defer conn.Close() //nolint:errcheck
-		echo, err := echoed(t, conn, hello)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, hello, echo)
-	})
-
 	t.Run("tls server name of another host closes the tunnel and logs the mismatch", func(t *testing.T) {
 		// Arrange
 		upstreamHost, upstreamPort := startEchoServer(t)
 		stubDefaultPorts(t, upstreamPort)
 
 		logBuf := &syncBuffer{}
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(logBuf), false, nil)))
-		t.Cleanup(proxy.Close)
+		proxy := startProxy(t, allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(logBuf), false, nil)))
 		hello := clientHello(t, "other.example.test")
 
 		// Act
@@ -251,8 +230,7 @@ func TestServerConnect(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 
 		logBuf := &syncBuffer{}
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(logBuf), false, nil)))
-		t.Cleanup(proxy.Close)
+		proxy := startProxy(t, allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(logBuf), false, nil)))
 
 		// Act
 		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
@@ -264,35 +242,13 @@ func TestServerConnect(t *testing.T) {
 		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":true,"reason":"sni-mismatch","error":"read tls client hello: `)
 	})
 
-	t.Run("monitor mode tunnels another tls server name and logs the mismatch unenforced", func(t *testing.T) {
-		// Arrange
-		upstreamHost, upstreamPort := startEchoServer(t)
-		stubDefaultPorts(t, upstreamPort)
-
-		logBuf := &syncBuffer{}
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(logBuf), true, nil)))
-		t.Cleanup(proxy.Close)
-		hello := clientHello(t, "other.example.test")
-
-		// Act
-		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
-		defer conn.Close() //nolint:errcheck
-		echo, err := echoed(t, conn, hello)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, hello, echo)
-		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":false,"reason":"sni-mismatch"`)
-	})
-
 	t.Run("client closing before its hello logs client-closed", func(t *testing.T) {
 		// Arrange
 		upstreamHost, upstreamPort := startEchoServer(t)
 		stubDefaultPorts(t, upstreamPort)
 
 		logBuf := &syncBuffer{}
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(logBuf), false, nil)))
-		t.Cleanup(proxy.Close)
+		proxy := startProxy(t, allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(logBuf), false, nil)))
 
 		// Act
 		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
@@ -308,8 +264,7 @@ func TestServerConnect(t *testing.T) {
 func TestServerHTTP(t *testing.T) {
 	t.Run("denied host returns 403", func(t *testing.T) {
 		// Arrange
-		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(io.Discard), false, nil))
-		t.Cleanup(proxy.Close)
+		proxy := startProxy(t, NewServer(NewAllowlist(nil), NewLogger(io.Discard), false, nil))
 
 		// Act
 		resp := proxyGet(t, proxy.URL, "http://evil.test/")
@@ -322,8 +277,7 @@ func TestServerHTTP(t *testing.T) {
 	t.Run("https absolute-form is logged on port 443 with the normalized host", func(t *testing.T) {
 		// Arrange
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(nil), NewLogger(&logBuf), false, nil))
-		t.Cleanup(proxy.Close)
+		proxy := startProxy(t, NewServer(NewAllowlist(nil), NewLogger(&logBuf), false, nil))
 		conn, err := net.Dial("tcp", proxy.Listener.Addr().String())
 		require.NoError(t, err)
 		defer conn.Close() //nolint:errcheck
@@ -342,15 +296,11 @@ func TestServerHTTP(t *testing.T) {
 
 	t.Run("allowed host is forwarded", func(t *testing.T) {
 		// Arrange
-		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = io.WriteString(w, "hello")
-		}))
-		t.Cleanup(upstream.Close)
+		upstream := startHelloServer(t)
 		upstreamHost, upstreamPort := splitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
 		stubDefaultPorts(t, upstreamPort)
 
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, nil)))
-		t.Cleanup(proxy.Close)
+		proxy := startProxy(t, allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, nil)))
 
 		// Act
 		resp := proxyGet(t, proxy.URL, upstream.URL)
@@ -368,8 +318,7 @@ func TestServerHTTP(t *testing.T) {
 		stubDefaultPorts(t, upstreamPort)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, nil)))
-		t.Cleanup(proxy.Close)
+		proxy := startProxy(t, allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, nil)))
 
 		// Act
 		resp := proxyGet(t, proxy.URL, "http://"+net.JoinHostPort(upstreamHost, upstreamPort))
@@ -384,14 +333,10 @@ func TestServerHTTP(t *testing.T) {
 
 	t.Run("monitor mode forwards a denied host and logs deny unenforced", func(t *testing.T) {
 		// Arrange
-		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = io.WriteString(w, "hello")
-		}))
-		t.Cleanup(upstream.Close)
+		upstream := startHelloServer(t)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(allowLocal(NewServer(NewAllowlist(nil), NewLogger(&logBuf), true, nil)))
-		t.Cleanup(proxy.Close)
+		proxy := startProxy(t, allowLocal(NewServer(NewAllowlist(nil), NewLogger(&logBuf), true, nil)))
 
 		// Act
 		resp := proxyGet(t, proxy.URL, upstream.URL)
@@ -407,16 +352,12 @@ func TestServerHTTP(t *testing.T) {
 
 	t.Run("allowed host resolving to a blocked address returns 403 and logs the reason", func(t *testing.T) {
 		// Arrange
-		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = io.WriteString(w, "hello")
-		}))
-		t.Cleanup(upstream.Close)
+		upstream := startHelloServer(t)
 		upstreamHost, upstreamPort := splitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
 		stubDefaultPorts(t, upstreamPort)
 
 		var logBuf bytes.Buffer
-		proxy := httptest.NewServer(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, nil))
-		t.Cleanup(proxy.Close)
+		proxy := startProxy(t, NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(&logBuf), false, nil))
 
 		// Act
 		resp := proxyGet(t, proxy.URL, upstream.URL)
@@ -432,52 +373,33 @@ func Test_Server_decrypt(t *testing.T) {
 	cred := testPlaceholderCredential("api.example.test", testPlaceholder)
 	allow := NewAllowlist([]Rule{{Host: "Raw.Example.Test", Paths: []string{"/a"}}, {Host: "other.example.test"}})
 	inject := NewInjector(newTestProxyCA(t, "api.example.test", "raw.example.test"), []Credential{cred})
-	s := NewServer(allow, NewLogger(nil), false, inject)
 
-	t.Run("credentialed host is decrypted with its credential", func(t *testing.T) {
-		// Act
-		got, ok := s.decrypt("api.example.test", "443")
+	for _, tc := range []struct {
+		name     string
+		inject   *Injector
+		host     string
+		port     string
+		wantOK   bool
+		wantCred Credential
+	}{
+		{name: "credentialed host is decrypted with its credential", inject: inject, host: "api.example.test", port: "443", wantOK: true, wantCred: cred},
+		{name: "path rule host is decrypted without a credential", inject: inject, host: "raw.example.test.", port: "443", wantOK: true},
+		{name: "path rule host on another port is not decrypted", inject: inject, host: "raw.example.test", port: "80"},
+		{name: "host allowed whole is not decrypted", inject: inject, host: "other.example.test", port: "443"},
+		{name: "nothing is decrypted without an injector", host: "raw.example.test", port: "443"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			s := NewServer(allow, NewLogger(nil), false, tc.inject)
 
-		// Assert
-		require.True(t, ok)
-		assert.Equal(t, cred, got)
-	})
+			// Act
+			got, ok := s.decrypt(tc.host, tc.port)
 
-	t.Run("path rule host is decrypted without a credential", func(t *testing.T) {
-		// Act
-		got, ok := s.decrypt("raw.example.test.", "443")
-
-		// Assert
-		require.True(t, ok)
-		assert.Equal(t, Credential{}, got)
-	})
-
-	t.Run("path rule host on another port is not decrypted", func(t *testing.T) {
-		// Act
-		_, ok := s.decrypt("raw.example.test", "80")
-
-		// Assert
-		assert.False(t, ok)
-	})
-
-	t.Run("host allowed whole is not decrypted", func(t *testing.T) {
-		// Act
-		_, ok := s.decrypt("other.example.test", "443")
-
-		// Assert
-		assert.False(t, ok)
-	})
-
-	t.Run("nothing is decrypted without an injector", func(t *testing.T) {
-		// Arrange
-		plain := NewServer(allow, NewLogger(nil), false, nil)
-
-		// Act
-		_, ok := plain.decrypt("raw.example.test", "443")
-
-		// Assert
-		assert.False(t, ok)
-	})
+			// Assert
+			assert.Equal(t, tc.wantOK, ok)
+			assert.Equal(t, tc.wantCred, got)
+		})
+	}
 }
 
 func Test_Server_logClientClosed(t *testing.T) {

@@ -17,140 +17,70 @@ import (
 )
 
 func TestLogger_Log(t *testing.T) {
-	t.Run("writes one JSON line per call to the file destination", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		logger := NewLogger(&buf)
-		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 
-		// Act
-		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionAllow, Enforced: true})
-		logger.Log(Entry{Protocol: ProtocolHTTP, Host: "evil.test", Port: "443", Decision: DecisionDeny, Enforced: true})
+	for _, tc := range []struct {
+		name     string
+		entry    Entry
+		wantLine string
+	}{
+		{
+			name:     "allowed https request",
+			entry:    Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionAllow, Enforced: true},
+			wantLine: "proto=https host=api.example.test port=443 decision=allow",
+		},
+		{
+			name:     "denied http request",
+			entry:    Entry{Protocol: ProtocolHTTP, Host: "evil.test", Port: "443", Decision: DecisionDeny, Enforced: true},
+			wantLine: "proto=http host=evil.test port=443 decision=deny",
+		},
+		{
+			name:     "monitor mode marks the request",
+			entry:    Entry{Protocol: ProtocolHTTPS, Host: "evil.test", Port: "443", Decision: DecisionDeny},
+			wantLine: "proto=https host=evil.test port=443 decision=deny monitor=true",
+		},
+		{
+			name:     "intercepted tunnel is tagged",
+			entry:    Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionAllow, Enforced: true, Intercepted: true},
+			wantLine: "proto=https host=api.example.test port=443 decision=allow intercepted=true",
+		},
+		{
+			name:     "reason is tagged and the error stays out of the human line",
+			entry:    Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionDeny, Enforced: true, Reason: ReasonBlockedAddr, Error: "test-error"},
+			wantLine: "proto=https host=api.example.test port=443 decision=deny reason=blocked-address",
+		},
+		{
+			name:     "refused path is shown after the port",
+			entry:    Entry{Protocol: ProtocolHTTPS, Host: "raw.example.test", Port: "443", Decision: DecisionDeny, Enforced: true, Path: "/other", Reason: ReasonPathBlocked},
+			wantLine: "proto=https host=raw.example.test port=443 path=/other decision=deny reason=path-blocked",
+		},
+	} {
+		t.Run("records "+tc.name, func(t *testing.T) {
+			// Arrange
+			var jsonBuf bytes.Buffer
+			humanBuf := stubSlog(t, time.UTC)
+			logger := NewLogger(&jsonBuf)
+			logger.now = func() time.Time { return now }
 
-		// Assert
-		lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
-		require.Len(t, lines, 2)
+			// Act
+			logger.Log(tc.entry)
 
-		var allow Entry
-		require.NoError(t, json.Unmarshal(lines[0], &allow))
-		assert.Equal(t, ProtocolHTTPS, allow.Protocol)
-		assert.Equal(t, "api.example.test", allow.Host)
-		assert.Equal(t, "443", allow.Port)
-		assert.Equal(t, DecisionAllow, allow.Decision)
-		assert.True(t, allow.Enforced)
-		assert.Equal(t, "2026-06-17T12:00:00Z", allow.Time.Format(time.RFC3339))
-
-		var deny Entry
-		require.NoError(t, json.Unmarshal(lines[1], &deny))
-		assert.Equal(t, ProtocolHTTP, deny.Protocol)
-		assert.Equal(t, DecisionDeny, deny.Decision)
-		assert.True(t, deny.Enforced)
-	})
-
-	t.Run("monitor mode logs enforced=false", func(t *testing.T) {
-		// Arrange
-		var buf bytes.Buffer
-		logger := NewLogger(&buf)
-		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
-
-		// Act
-		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "evil.test", Port: "443", Decision: DecisionDeny, Enforced: false})
-
-		// Assert
-		var entry Entry
-		require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &entry))
-		assert.Equal(t, DecisionDeny, entry.Decision)
-		assert.False(t, entry.Enforced)
-	})
-
-	t.Run("logs one request record per call", func(t *testing.T) {
-		// Arrange
-		buf := stubSlog(t, time.UTC)
-		logger := NewLogger(nil)
-		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
-
-		// Act
-		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionAllow, Enforced: true})
-		logger.Log(Entry{Protocol: ProtocolHTTP, Host: "evil.test", Port: "443", Decision: DecisionDeny, Enforced: true})
-
-		// Assert
-		lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
-		require.Len(t, lines, 2)
-		assert.Equal(t, "time=2026-06-17T12:00:00.000Z level=INFO msg=request proto=https host=api.example.test port=443 decision=allow", string(lines[0]))
-		assert.Equal(t, "time=2026-06-17T12:00:00.000Z level=INFO msg=request proto=http host=evil.test port=443 decision=deny", string(lines[1]))
-	})
-
-	t.Run("monitor mode marks the request record", func(t *testing.T) {
-		// Arrange
-		buf := stubSlog(t, time.UTC)
-		logger := NewLogger(nil)
-		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
-
-		// Act
-		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "evil.test", Port: "443", Decision: DecisionDeny, Enforced: false})
-
-		// Assert
-		lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
-		require.Len(t, lines, 1)
-		assert.Equal(t, "time=2026-06-17T12:00:00.000Z level=INFO msg=request proto=https host=evil.test port=443 decision=deny monitor=true", string(lines[0]))
-	})
-
-	t.Run("intercepted tunnel is tagged and recorded", func(t *testing.T) {
-		// Arrange
-		var jsonBuf bytes.Buffer
-		humanBuf := stubSlog(t, time.UTC)
-		logger := NewLogger(&jsonBuf)
-		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
-
-		// Act
-		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionAllow, Enforced: true, Intercepted: true})
-
-		// Assert
-		var entry Entry
-		require.NoError(t, json.Unmarshal(bytes.TrimSpace(jsonBuf.Bytes()), &entry))
-		assert.True(t, entry.Intercepted)
-		assert.Equal(t, "time=2026-06-17T12:00:00.000Z level=INFO msg=request proto=https host=api.example.test port=443 decision=allow intercepted=true", strings.TrimSpace(humanBuf.String()))
-	})
-
-	t.Run("reason is tagged and recorded", func(t *testing.T) {
-		// Arrange
-		var jsonBuf bytes.Buffer
-		humanBuf := stubSlog(t, time.UTC)
-		logger := NewLogger(&jsonBuf)
-		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
-
-		// Act
-		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionDeny, Enforced: true, Reason: ReasonBlockedAddr})
-
-		// Assert
-		var entry Entry
-		require.NoError(t, json.Unmarshal(bytes.TrimSpace(jsonBuf.Bytes()), &entry))
-		assert.Equal(t, ReasonBlockedAddr, entry.Reason)
-		assert.Equal(t, "time=2026-06-17T12:00:00.000Z level=INFO msg=request proto=https host=api.example.test port=443 decision=deny reason=blocked-address", strings.TrimSpace(humanBuf.String()))
-	})
-
-	t.Run("refused path is recorded and shown after the port", func(t *testing.T) {
-		// Arrange
-		var jsonBuf bytes.Buffer
-		humanBuf := stubSlog(t, time.UTC)
-		logger := NewLogger(&jsonBuf)
-		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
-
-		// Act
-		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "raw.example.test", Port: "443", Decision: DecisionDeny, Enforced: true, Path: "/other", Reason: ReasonPathBlocked})
-
-		// Assert
-		var entry Entry
-		require.NoError(t, json.Unmarshal(bytes.TrimSpace(jsonBuf.Bytes()), &entry))
-		assert.Equal(t, "/other", entry.Path)
-		assert.Equal(t, "time=2026-06-17T12:00:00.000Z level=INFO msg=request proto=https host=raw.example.test port=443 path=/other decision=deny reason=path-blocked", strings.TrimSpace(humanBuf.String()))
-	})
+			// Assert
+			var got Entry
+			require.NoError(t, json.Unmarshal(jsonBuf.Bytes(), &got))
+			want := tc.entry
+			want.Time = now
+			assert.Equal(t, want, got)
+			assert.Equal(t, 1, strings.Count(jsonBuf.String(), "\n"))
+			assert.Equal(t, "time=2026-06-17T12:00:00.000Z level=INFO msg=request "+tc.wantLine+"\n", humanBuf.String())
+		})
+	}
 
 	t.Run("nil file writes no JSON but still logs the request", func(t *testing.T) {
 		// Arrange
 		buf := stubSlog(t, time.UTC)
 		logger := NewLogger(nil)
-		logger.now = func() time.Time { return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) }
+		logger.now = func() time.Time { return now }
 
 		// Act
 		logger.Log(Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionAllow, Enforced: true})
@@ -202,29 +132,19 @@ func TestPruneLogs(t *testing.T) {
 		assert.FileExists(t, recent)
 	})
 
-	t.Run("ignores non-jsonl files regardless of age", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-		other := writeFile(t, dir, LogFilePrefix+"old.txt", 48*time.Hour)
+	for _, name := range []string{LogFilePrefix + "old.txt", "old.jsonl"} {
+		t.Run("ignores "+name+" regardless of age", func(t *testing.T) {
+			// Arrange
+			dir := t.TempDir()
+			other := writeFile(t, dir, name, 48*time.Hour)
 
-		// Act
-		PruneLogs(dir, 24*time.Hour)
+			// Act
+			PruneLogs(dir, 24*time.Hour)
 
-		// Assert
-		assert.FileExists(t, other)
-	})
-
-	t.Run("ignores jsonl files missing the proxy_ prefix regardless of age", func(t *testing.T) {
-		// Arrange
-		dir := t.TempDir()
-		other := writeFile(t, dir, "old.jsonl", 48*time.Hour)
-
-		// Act
-		PruneLogs(dir, 24*time.Hour)
-
-		// Assert
-		assert.FileExists(t, other)
-	})
+			// Assert
+			assert.FileExists(t, other)
+		})
+	}
 
 	t.Run("maxAge of zero removes every log file", func(t *testing.T) {
 		// Arrange
