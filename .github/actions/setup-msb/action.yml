@@ -18,8 +18,8 @@ runs:
       env:
         # sha256 of the release's checksums.sha256, which pins the tarball's checksum in turn;
         # Renovate bumps both
-        MSB_VERSION: v0.7.13
-        MSB_CHECKSUMS_SHA256: 5902f8a04debc926f2b4bfa9ec36248e75cdd9b7817b91246ae0ee03a2b2f67b
+        MSB_VERSION: v0.7.14
+        MSB_CHECKSUMS_SHA256: 8eb6b5872b8668bec4558fcd547ff5b5b2bae4c9dc4ae656b268dd4b73f08d15
       run: |
         base="https://github.com/superradcompany/microsandbox/releases/download/$MSB_VERSION"
         curl --proto =https --tlsv1.2 --fail --silent --show-error --location --remote-name "$base/checksums.sha256"
