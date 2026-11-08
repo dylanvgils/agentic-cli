@@ -4,10 +4,12 @@ package tools
 import (
 	"fmt"
 	"maps"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
+	"github.com/dylanvgils/agentic-cli/internal/image/instructions"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -36,8 +38,7 @@ var Configs = map[string]ToolConfig{
 			AllowedHosts:              claudeAllowedHosts,
 			WebSearchTool:             "WebSearch",
 			MarketplaceMount:          claudeMarketplaceMount,
-			WriteInstructions:         writeClaudeInstructions,
-			InstructionsHostPath:      claudeInstructionsHostPath,
+			InstructionsFile:          claudeInstructionsFile,
 			InstructionsContainerPath: claudeInstructionsContainerPath,
 		},
 	},
@@ -52,8 +53,7 @@ var Configs = map[string]ToolConfig{
 			EphemeralDirs:             copilotEphemeralDirs,
 			AllowedHosts:              copilotAllowedHosts,
 			MarketplaceMount:          copilotMarketplaceMount,
-			WriteInstructions:         writeCopilotInstructions,
-			InstructionsHostPath:      copilotInstructionsHostPath,
+			InstructionsFile:          copilotInstructionsFile,
 			InstructionsContainerPath: copilotInstructionsContainerPath,
 		},
 	},
@@ -67,8 +67,7 @@ var Configs = map[string]ToolConfig{
 			Mounts:                    opencodeMounts,
 			EphemeralDirs:             opencodeEphemeralDirs,
 			AllowedHosts:              opencodeAllowedHosts,
-			WriteInstructions:         writeOpencodeInstructions,
-			InstructionsHostPath:      opencodeInstructionsHostPath,
+			InstructionsFile:          opencodeInstructionsFile,
 			InstructionsContainerPath: opencodeInstructionsContainerPath,
 		},
 	},
@@ -94,10 +93,8 @@ type RuntimeConfig struct {
 	WebSearchTool string
 	// MarketplaceMount returns the mount spec for a synced marketplace clone; nil if unsupported.
 	MarketplaceMount func(name, url string) string
-	// WriteInstructions writes content directly to the tool's persistent global instructions file.
-	WriteInstructions func(toolHome, content string) error
-	// InstructionsHostPath returns the persistent host-side path to the tool's global instructions file.
-	InstructionsHostPath func(toolHome string) string
+	// InstructionsFile is the tool's global instructions file, slash-separated and relative to the tools dir.
+	InstructionsFile string
 	// InstructionsContainerPath is the container-side mount target for a per-run instructions snapshot.
 	InstructionsContainerPath string
 }
@@ -106,6 +103,16 @@ type RuntimeConfig struct {
 type ToolConfig struct {
 	Build   BuildConfig
 	Runtime RuntimeConfig
+}
+
+// InstructionsHostPath returns the persistent host-side path to the tool's global instructions file.
+func (c RuntimeConfig) InstructionsHostPath(toolHome string) string {
+	return filepath.Join(toolHome, ToolsDirName, filepath.FromSlash(c.InstructionsFile))
+}
+
+// WriteInstructions writes content as the managed block of the tool's global instructions file.
+func (c RuntimeConfig) WriteInstructions(toolHome, content string) error {
+	return instructions.WriteManaged(filepath.Join(toolHome, ToolsDirName), c.InstructionsHostPath(toolHome), content)
 }
 
 // ImageName returns the Docker image name for tool in namespace, or an error if the tool is unknown.

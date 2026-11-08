@@ -1,6 +1,8 @@
 package tools
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -107,4 +109,30 @@ func TestParseImageName(t *testing.T) {
 		// Assert
 		assert.False(t, ok)
 	})
+}
+
+func TestRuntimeConfig_InstructionsHostPath(t *testing.T) {
+	// Arrange
+	c := RuntimeConfig{InstructionsFile: "example/data/NOTES.md"}
+
+	// Act
+	got := c.InstructionsHostPath("/home/test")
+
+	// Assert
+	assert.Equal(t, filepath.Join("/home/test", ToolsDirName, "example", "data", "NOTES.md"), got)
+}
+
+func TestRuntimeConfig_WriteInstructions(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	c := RuntimeConfig{InstructionsFile: "example/data/NOTES.md"}
+
+	// Act
+	err := c.WriteInstructions(dir, "# Environment\n")
+
+	// Assert
+	require.NoError(t, err)
+	got, err := os.ReadFile(filepath.Join(dir, ToolsDirName, "example", "data", "NOTES.md"))
+	require.NoError(t, err)
+	assert.Contains(t, string(got), "\n# Environment\n")
 }

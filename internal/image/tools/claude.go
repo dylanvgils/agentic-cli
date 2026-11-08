@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
-	"github.com/dylanvgils/agentic-cli/internal/image/instructions"
 	"github.com/dylanvgils/agentic-cli/internal/image/marketplace"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -16,6 +15,9 @@ const claudeLatestVersionURL = "https://downloads.claude.ai/claude-code-releases
 
 // claudeInstructionsContainerPath is the container-side mount target for a per-run instructions snapshot.
 const claudeInstructionsContainerPath = "$CONTAINER_HOME/.claude/CLAUDE.md"
+
+// claudeInstructionsFile is Claude Code's global CLAUDE.md (~/.claude/CLAUDE.md), relative to the tools dir.
+const claudeInstructionsFile = "claude/data/CLAUDE.md"
 
 // claudeAllowedHosts is the baseline egress allowlist for Claude Code; users add more via allowed_hosts.
 var claudeAllowedHosts = []string{
@@ -118,14 +120,4 @@ func setupClaude(toolHome string) error {
 	}
 
 	return nil
-}
-
-// claudeInstructionsHostPath is Claude Code's global CLAUDE.md (~/.claude/CLAUDE.md).
-func claudeInstructionsHostPath(toolHome string) string {
-	return filepath.Join(toolHome, ToolsDirName, "claude", "data", "CLAUDE.md")
-}
-
-// writeClaudeInstructions writes content to Claude Code's global CLAUDE.md.
-func writeClaudeInstructions(toolHome, content string) error {
-	return instructions.WriteManaged(filepath.Join(toolHome, ToolsDirName), claudeInstructionsHostPath(toolHome), content)
 }
