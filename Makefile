@@ -17,7 +17,7 @@ GOFLAGS   := CGO_ENABLED=0
 GOVULNCHECK_VERSION ?= v1.9.0
 GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-.PHONY: build install uninstall dist docker-dist test test-coverage test-integration lint audit audit-json clean verify-checksums fix-checksums verify-checksums-all fix-checksums-all
+.PHONY: build install uninstall dist docker-dist test test-coverage test-integration test-integration-sandbox lint audit audit-json clean verify-checksums fix-checksums verify-checksums-all fix-checksums-all
 
 build:
 	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/cli
@@ -59,6 +59,10 @@ test-integration:
 	AGENTIC_ITEST_IMAGES_BUILT=1 AGENTIC_ITEST_MICROSANDBOX=$(MSB) go test -tags integration -count=1 -timeout 20m -json \
 		$(or $(addprefix ./test/integration/,$(PKGS)),./test/integration/...) 2>&1 | bin/testlog $(if $(GITHUB_ACTIONS),--groups); \
 		status=$$?; echo; go run -tags integration ./test/integration/cmd/cleanup $(if $(CI),,--all); exit $$status
+
+# The packages that pass inside an agentic run: images needs every tool's download hosts, microsandbox needs KVM.
+test-integration-sandbox:
+	$(MAKE) test-integration PKGS="$(filter-out cmd platform images microsandbox,$(notdir $(wildcard test/integration/*)))"
 
 lint:
 	golangci-lint run ./...

@@ -8,6 +8,7 @@ make test               # unit tests
 make lint               # golangci-lint
 make audit              # go mod verify + govulncheck
 make test-integration   # against a real Docker daemon; PKGS="egress proxy" for some, MSB=1 to require msb
+make test-integration-sandbox # inside an agentic run: skips images and microsandbox, which can't pass there
 make verify-checksums   # pinned artifact checksums, nvm and msb (fix-checksums to update)
 ```
 
