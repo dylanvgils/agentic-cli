@@ -81,14 +81,22 @@ func stubLatestVersion(t *testing.T, tool string, fn func() (string, error)) {
 	t.Cleanup(func() { Configs[tool] = orig })
 }
 
-func Test_installScriptBlocks(t *testing.T) {
+func Test_installScriptRun(t *testing.T) {
+	// installs puts a fake tool in $BIN, which runInstall puts on PATH.
+	const installs = `printf '#!/bin/sh\n' > "$BIN/agentic-unit-test" && chmod +x "$BIN/agentic-unit-test" && echo installed`
+
 	// runInstall runs the rendered RUN without comment lines, as Docker does.
-	runInstall := func(t *testing.T, script, checksum, skip string) (string, error) {
+	runInstall := func(t *testing.T, script, checksum, skip string, after ...df.Block) (string, error) {
 		t.Helper()
 		src := filepath.Join(t.TempDir(), "install.sh")
 		require.NoError(t, os.WriteFile(src, []byte(script), 0o600))
 		t.Cleanup(func() { _ = os.Remove("/tmp/agentic-unit-test_install.sh") })
-		run := df.Run{Blocks: installScriptBlocks("agentic-unit-test", "file://"+src, "TEST_INSTALL_CHECKSUM")}
+		run := installScriptRun(installScript{
+			Tool:        "agentic-unit-test",
+			URL:         "file://" + src,
+			ChecksumArg: "TEST_INSTALL_CHECKSUM",
+			After:       after,
+		})
 
 		var lines []string
 		for _, line := range strings.Split(strings.TrimPrefix(run.Render(), "RUN "), "\n") {
@@ -96,8 +104,15 @@ func Test_installScriptBlocks(t *testing.T) {
 				lines = append(lines, line)
 			}
 		}
+		bin := t.TempDir()
 		cmd := exec.Command("bash", "-o", "pipefail", "-c", strings.Join(lines, "\n"))
-		cmd.Env = append(os.Environ(), "TEST_INSTALL_CHECKSUM="+checksum, "SKIP_INSTALL_CHECKSUM="+skip)
+		cmd.Env = append(
+			os.Environ(),
+			"BIN="+bin,
+			"PATH="+bin+":"+os.Getenv("PATH"),
+			"TEST_INSTALL_CHECKSUM="+checksum,
+			"SKIP_INSTALL_CHECKSUM="+skip,
+		)
 		out, err := cmd.CombinedOutput()
 		return string(out), err
 	}
@@ -107,11 +122,8 @@ func Test_installScriptBlocks(t *testing.T) {
 	}
 
 	t.Run("runs a script that matches the checksum", func(t *testing.T) {
-		// Arrange
-		script := "echo installed"
-
 		// Act
-		out, err := runInstall(t, script, sum(script), "false")
+		out, err := runInstall(t, installs, sum(installs), "false")
 
 		// Assert
 		require.NoError(t, err)
@@ -121,7 +133,7 @@ func Test_installScriptBlocks(t *testing.T) {
 
 	t.Run("fails without running a script that does not match the checksum", func(t *testing.T) {
 		// Act
-		out, err := runInstall(t, "echo installed", sum("other"), "false")
+		out, err := runInstall(t, installs, sum("other"), "false")
 
 		// Assert
 		require.Error(t, err)
@@ -139,21 +151,36 @@ func Test_installScriptBlocks(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("fails when the install leaves no tool on PATH", func(t *testing.T) {
+		// Arrange
+		script := "echo installed"
+
+		// Act
+		_, err := runInstall(t, script, sum(script), "false")
+
+		// Assert
+		require.Error(t, err)
+	})
+
+	t.Run("runs the after steps before the PATH check", func(t *testing.T) {
+		// Arrange
+		script := "true"
+		after := df.Block{Lines: []string{installs}}
+
+		// Act
+		_, err := runInstall(t, script, sum(script), "false", after)
+
+		// Assert
+		require.NoError(t, err)
+	})
+
 	t.Run("runs the script unverified when the checksum is skipped", func(t *testing.T) {
 		// Act
-		out, err := runInstall(t, "echo installed", sum("other"), "true")
+		out, err := runInstall(t, installs, sum("other"), "true")
 
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, out, "skipping agentic-unit-test install script checksum verification")
 		assert.Contains(t, out, "installed")
 	})
-}
-
-func Test_installedCheckBlock(t *testing.T) {
-	// Act
-	block := installedCheckBlock("copilot")
-
-	// Assert
-	assert.Equal(t, []string{"command -v copilot"}, block.Lines)
 }

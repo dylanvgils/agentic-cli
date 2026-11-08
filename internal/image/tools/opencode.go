@@ -51,12 +51,16 @@ func opencodeStage(prevStage string) df.Stage {
 			},
 		}).
 		Add(df.Arg{Key: "OPENCODE_INSTALL_CHECKSUM", Default: DefaultChecksums.OpencodeInstall}).
-		Add(df.Run{Blocks: append(
-			installScriptBlocks("opencode", "https://opencode.ai/v2/install", "OPENCODE_INSTALL_CHECKSUM", "--no-modify-path"),
-			df.Block{Lines: []string{"mv /root/.opencode/bin/opencode /usr/local/bin/opencode"}},
-			df.Block{Lines: []string{"rm -rf /root/.opencode"}},
-			installedCheckBlock("opencode"),
-		)}).
+		Add(installScriptRun(installScript{
+			Tool:        "opencode",
+			URL:         "https://opencode.ai/v2/install",
+			ChecksumArg: "OPENCODE_INSTALL_CHECKSUM",
+			Args:        []string{"--no-modify-path"},
+			After: []df.Block{
+				{Lines: []string{"mv /root/.opencode/bin/opencode /usr/local/bin/opencode"}},
+				{Lines: []string{"rm -rf /root/.opencode"}},
+			},
+		})).
 		Add(versionCheckScript("opencode", "opencode --version")).
 		Add(df.User{Name: "opencode"}).
 		Add(df.Env{Key: "TOOL_HOME", Value: "/home/opencode"}).

@@ -10,6 +10,15 @@ import (
 // pipefailShell makes RUN fail when any command in a pipeline fails.
 var pipefailShell = df.Shell{Cmd: []string{"/bin/bash", "-o", "pipefail", "-c"}}
 
+// installScript is a tool's vendor install script, verified against the ChecksumArg build arg.
+type installScript struct {
+	Tool        string
+	URL         string
+	ChecksumArg string
+	Args        []string   // passed to the script
+	After       []df.Block // steps before the PATH check, e.g. moving the binary
+}
+
 // aptInstallRun builds a standard apt update → install --no-install-recommends → cleanup Run block.
 func aptInstallRun(pkgs []string) df.Run {
 	return df.Run{Blocks: []df.Block{
@@ -32,31 +41,30 @@ func skipInstallChecksumArg() df.Instruction {
 	return df.Arg{Key: "SKIP_INSTALL_CHECKSUM", Default: "false"}
 }
 
-// installScriptBlocks downloads, verifies and runs tool's install script; any failure fails the build.
-func installScriptBlocks(tool, url, checksumArg string, args ...string) []df.Block {
-	script := "/tmp/" + tool + "_install.sh"
+// installScriptRun installs s.Tool with its verified install script; any failed step fails the build.
+func installScriptRun(s installScript) df.Run {
+	script := "/tmp/" + s.Tool + "_install.sh"
 
-	return []df.Block{
+	blocks := []df.Block{
 		{Comment: "Download install script", Lines: []string{
-			"curl -fsSL " + url + " -o " + script,
+			"curl -fsSL " + s.URL + " -o " + script,
 		}},
 		{Comment: "Verify its checksum", Lines: []string{
 			`if [ "${SKIP_INSTALL_CHECKSUM}" = "true" ]; then`,
-			`echo "warning: skipping ` + tool + ` install script checksum verification (--skip-install-checksum)" >&2;`,
+			`echo "warning: skipping ` + s.Tool + ` install script checksum verification (--skip-install-checksum)" >&2;`,
 			`else`,
-			`echo "${` + checksumArg + `}  ` + script + `" | sha256sum -c --quiet - && echo "` + tool + ` install script checksum verified OK";`,
+			`echo "${` + s.ChecksumArg + `}  ` + script + `" | sha256sum -c --quiet - && echo "` + s.Tool + ` install script checksum verified OK";`,
 			`fi`,
 		}},
 		{Comment: "Run it", Chain: true, Lines: []string{
-			strings.Join(append([]string{"bash", script}, args...), " "),
+			strings.Join(append([]string{"bash", script}, s.Args...), " "),
 			"rm " + script,
 		}},
 	}
-}
+	blocks = append(blocks, s.After...)
+	blocks = append(blocks, df.Block{Comment: "Check " + s.Tool + " is installed", Lines: []string{"command -v " + s.Tool}})
 
-// installedCheckBlock fails the build when tool isn't on PATH.
-func installedCheckBlock(tool string) df.Block {
-	return df.Block{Comment: "Check " + tool + " is installed", Lines: []string{"command -v " + tool}}
+	return df.Run{Blocks: blocks}
 }
 
 // createContainerUser returns instructions to declare HOST_UID/HOST_GID, remove any user occupying HOST_UID, and create a fresh container user.

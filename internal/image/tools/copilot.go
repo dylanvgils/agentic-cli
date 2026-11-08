@@ -52,10 +52,11 @@ func copilotStage(prevStage string) df.Stage {
 		Add(pipefailShell).
 		Add(createContainerUser("copilot")...).
 		Add(df.Arg{Key: "COPILOT_INSTALL_CHECKSUM", Default: DefaultChecksums.CopilotInstall}).
-		Add(df.Run{Blocks: append(
-			installScriptBlocks("copilot", "https://gh.io/copilot-install", "COPILOT_INSTALL_CHECKSUM"),
-			installedCheckBlock("copilot"),
-		)}).
+		Add(installScriptRun(installScript{
+			Tool:        "copilot",
+			URL:         "https://gh.io/copilot-install",
+			ChecksumArg: "COPILOT_INSTALL_CHECKSUM",
+		})).
 		Add(versionCheckScript("copilot", "copilot --version")).
 		Add(df.Heredoc{
 			Dest: "/usr/local/bin/entrypoint.sh",
