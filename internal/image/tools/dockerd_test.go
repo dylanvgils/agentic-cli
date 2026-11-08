@@ -70,11 +70,32 @@ func TestGenerateDockerdDockerfile(t *testing.T) {
 		assert.Contains(t, result, "exec busybox poweroff -f\n")
 	})
 
+	t.Run("entrypoint gives inner containers the proxy at the host alias ip", func(t *testing.T) {
+		// Act
+		result := GenerateDockerdDockerfile("agentic-claude", "claude")
+
+		// Assert
+		assert.Contains(t, result, "COPY --chmod=0755 <<'EOF' "+dockerdEntrypoint)
+		assert.Contains(t, result, "host_alias="+MicrosandboxHostAlias+"\n")
+		assert.Contains(t, result, "config_dir="+dockerdConfigDir+"\n")
+		assert.Contains(t, result, `local proxy="${HTTPS_PROXY/@$host_alias:/@$host_ip:}"`)
+		assert.Contains(t, result, `export DOCKER_CONFIG="$config_dir"`)
+	})
+
+	t.Run("entrypoint runs the tool's entrypoint", func(t *testing.T) {
+		// Act
+		result := GenerateDockerdDockerfile("agentic-claude", "claude")
+
+		// Assert
+		assert.Contains(t, result, `exec `+entrypointPath+` "$@"`)
+		assert.Regexp(t, `ENTRYPOINT \["`+dockerdEntrypoint+`"\]\s*$`, result)
+	})
+
 	t.Run("drops back to the tool user", func(t *testing.T) {
 		// Act
 		result := GenerateDockerdDockerfile("agentic-claude", "copilot")
 
 		// Assert
-		assert.Regexp(t, `USER copilot\s*$`, result)
+		assert.Contains(t, result, "USER copilot\n")
 	})
 }

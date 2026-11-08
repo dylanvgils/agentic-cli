@@ -314,9 +314,7 @@ func writeVMDockerSection(b *strings.Builder, in Input, viaProxy bool) {
 	b.WriteString("- The daemon shares the VM's CPUs and memory (see Resource limits).\n")
 	if in.ProxyMode.Enabled() {
 		b.WriteString("- Image pulls, builds and containers use the same allowlist; a registry other than Docker Hub must be added to allowed_hosts.\n")
-		if viaProxy {
-			b.WriteString("- Containers don't get the proxy env and can't reach anything without it. Pass it on: `docker run -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY ...`, and `--build-arg HTTP_PROXY --build-arg HTTPS_PROXY` for `docker build`.\n")
-		} else {
+		if !viaProxy {
 			b.WriteString("- Containers don't trust the VM's HTTPS inspection CA. For HTTPS inside a container, mount it: `-v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro`. `docker build` steps that use HTTPS fail unless the Dockerfile adds that CA.\n")
 		}
 	}
