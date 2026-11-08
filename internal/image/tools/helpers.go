@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"strings"
 
 	df "github.com/dylanvgils/agentic-cli/internal/image/dockerfile"
 )
@@ -29,6 +30,27 @@ func cacheBustInstructions() []df.Instruction {
 // skipInstallChecksumArg declares SKIP_INSTALL_CHECKSUM, so --build-arg SKIP_INSTALL_CHECKSUM=true bypasses installer script checksum verification for tools that check it.
 func skipInstallChecksumArg() df.Instruction {
 	return df.Arg{Key: "SKIP_INSTALL_CHECKSUM", Default: "false"}
+}
+
+// installScriptBlock downloads tool's install script from url, checks it against the checksumArg build arg unless
+// SKIP_INSTALL_CHECKSUM is true, and runs it with args. Chained, so a failed download, checksum or install fails the build.
+func installScriptBlock(tool, url, checksumArg string, args ...string) df.Block {
+	script := "/tmp/" + tool + "_install.sh"
+	skipWarning := fmt.Sprintf(`echo "warning: skipping %s install script checksum verification (--skip-install-checksum)" >&2`, tool)
+	verify := fmt.Sprintf(`echo "${%s}  %s" | sha256sum -c --quiet - && echo "%s install script checksum verified OK"`, checksumArg, script, tool)
+	run := strings.Join(append([]string{"bash", script}, args...), " ")
+
+	return df.Block{Comment: "Download and verify install script, then run it", Chain: true, Lines: []string{
+		fmt.Sprintf("curl -fsSL %s -o %s", url, script),
+		fmt.Sprintf(`if [ "${SKIP_INSTALL_CHECKSUM}" = "true" ]; then %s; else %s; fi`, skipWarning, verify),
+		run,
+		"rm " + script,
+	}}
+}
+
+// installedCheckBlock fails the build when an install exited cleanly but left no tool on PATH.
+func installedCheckBlock(tool string) df.Block {
+	return df.Block{Comment: "Fail the build when the install left no " + tool + " on PATH", Lines: []string{"command -v " + tool}}
 }
 
 // createContainerUser returns instructions to declare HOST_UID/HOST_GID, remove any user occupying HOST_UID, and create a fresh container user.

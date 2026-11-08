@@ -52,19 +52,10 @@ func opencodeStage(prevStage string) df.Stage {
 		}).
 		Add(df.Arg{Key: "OPENCODE_INSTALL_CHECKSUM", Default: DefaultChecksums.OpencodeInstall}).
 		Add(df.Run{Blocks: []df.Block{
-			{Comment: "Download and verify install script, then run it", Lines: []string{
-				`curl -fsSL https://opencode.ai/v2/install -o /tmp/opencode_install.sh;`,
-				`if [ "${SKIP_INSTALL_CHECKSUM}" = "true" ]; then`,
-				`echo "warning: skipping opencode install script checksum verification (--skip-install-checksum)" >&2;`,
-				`else`,
-				`echo "${OPENCODE_INSTALL_CHECKSUM}  /tmp/opencode_install.sh" | sha256sum -c --quiet -;`,
-				`echo "opencode install script checksum verified OK";`,
-				`fi;`,
-				`bash /tmp/opencode_install.sh --no-modify-path;`,
-				`rm /tmp/opencode_install.sh`,
-			}},
+			installScriptBlock("opencode", "https://opencode.ai/v2/install", "OPENCODE_INSTALL_CHECKSUM", "--no-modify-path"),
 			{Lines: []string{"mv /root/.opencode/bin/opencode /usr/local/bin/opencode"}},
 			{Lines: []string{"rm -rf /root/.opencode"}},
+			installedCheckBlock("opencode"),
 		}}).
 		Add(versionCheckScript("opencode", "opencode --version")).
 		Add(df.User{Name: "opencode"}).
