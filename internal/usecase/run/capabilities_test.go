@@ -6,219 +6,152 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_requiredFeatures(t *testing.T) {
 	enabled := true
+	proxyFlag := resolve.ProxyInput{ProxyFlag: true}
+	paths := []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
+	creds := []config.RCCredential{{Preset: "github", Secret: "/example.test/token"}}
 
-	t.Run("a bare run needs only the pids limit", func(t *testing.T) {
-		// Act
-		need := requiredFeatures(Flags{}, &config.AgenticRC{})
+	for _, tc := range []struct {
+		name  string
+		flags Flags
+		rc    config.AgenticRC
+		want  sandbox.Features
+	}{
+		{
+			name: "a bare run needs only the pids limit",
+			want: sandbox.Features{PidsLimit: true},
+		},
+		{
+			name:  "flags ask for the proxy and dind",
+			flags: Flags{Proxy: resolve.ProxyInput{MonitorFlag: true}, Dind: resolve.DindInput{DindFlag: true}},
+			want:  sandbox.Features{Proxy: true, ProxyMonitor: true, Dind: true, PidsLimit: true},
+		},
+		{
+			name: "config asks for the proxy and dind",
+			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}, Dind: config.RCDind{Enabled: &enabled}}},
+			want: sandbox.Features{Proxy: true, Dind: true, PidsLimit: true},
+		},
+		{
+			name: "off switches drop the need",
+			flags: Flags{
+				Proxy: resolve.ProxyInput{NoProxy: true},
+				Dind:  resolve.DindInput{NoDindFlag: true},
+			},
+			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}, Dind: config.RCDind{Enabled: &enabled}}},
+			want: sandbox.Features{PidsLimit: true},
+		},
+		{
+			name:  "dind limits ask for limit support with dind",
+			flags: Flags{Dind: resolve.DindInput{DindFlag: true}, DindLimits: sandbox.ResourceLimits{Memory: "8g"}},
+			want:  sandbox.Features{Dind: true, DindLimits: true, PidsLimit: true},
+		},
+		{
+			name: "dind limits without dind have nothing to limit",
+			rc:   config.AgenticRC{Run: config.RCRun{Dind: config.RCDind{RCLimits: config.RCLimits{Memory: "8g"}}}},
+			want: sandbox.Features{PidsLimit: true},
+		},
+		{
+			name: "credentials alone don't ask for the proxy",
+			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Credentials: creds}}},
+			want: sandbox.Features{CredentialInjection: true, PidsLimit: true},
+		},
+		{
+			name: "path rules without the proxy or credentials need nothing",
+			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: paths}}},
+			want: sandbox.Features{PidsLimit: true},
+		},
+		{
+			name:  "path rules ask for path rule support with the proxy",
+			flags: Flags{Proxy: proxyFlag},
+			rc:    config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: paths}}},
+			want:  sandbox.Features{Proxy: true, PathRules: true, PidsLimit: true},
+		},
+		{
+			name: "path rules ask for path rule support with credentials",
+			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{AllowedPaths: paths, Credentials: creds}}},
+			want: sandbox.Features{CredentialInjection: true, PathRules: true, PidsLimit: true},
+		},
+		{
+			name: "proxy integrations without the proxy or credentials need nothing",
+			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Integrations: []string{"maven"}}}},
+			want: sandbox.Features{PidsLimit: true},
+		},
+		{
+			name:  "proxy integrations ask for integration support with the proxy",
+			flags: Flags{Proxy: proxyFlag},
+			rc:    config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Integrations: []string{"maven"}}}},
+			want:  sandbox.Features{Proxy: true, ProxyIntegrations: true, PidsLimit: true},
+		},
+		{
+			name: "proxy integrations ask for integration support with credentials",
+			rc:   config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Integrations: []string{"maven"}, Credentials: creds}}},
+			want: sandbox.Features{CredentialInjection: true, ProxyIntegrations: true, PidsLimit: true},
+		},
+		{
+			name:  "the integration flag asks for integration support with the proxy",
+			flags: Flags{Proxy: resolve.ProxyInput{ProxyFlag: true, Integrations: []string{"maven"}}},
+			want:  sandbox.Features{Proxy: true, ProxyIntegrations: true, PidsLimit: true},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			need := requiredFeatures(tc.flags, &tc.rc)
 
-		// Assert
-		assert.Equal(t, sandbox.Features{PidsLimit: true}, need)
-	})
-
-	t.Run("flags ask for the proxy and dind", func(t *testing.T) {
-		// Arrange
-		flags := Flags{}
-		flags.Proxy.MonitorFlag = true
-		flags.Dind.DindFlag = true
-
-		// Act
-		need := requiredFeatures(flags, &config.AgenticRC{})
-
-		// Assert
-		assert.Equal(t, sandbox.Features{Proxy: true, ProxyMonitor: true, Dind: true, PidsLimit: true}, need)
-	})
-
-	t.Run("config asks for the proxy and dind", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.Enabled = &enabled
-		rc.Run.Dind.Enabled = &enabled
-
-		// Act
-		need := requiredFeatures(Flags{}, rc)
-
-		// Assert
-		assert.Equal(t, sandbox.Features{Proxy: true, Dind: true, PidsLimit: true}, need)
-	})
-
-	t.Run("dind limits ask for limit support only with dind", func(t *testing.T) {
-		// Arrange
-		withDind := Flags{DindLimits: sandbox.ResourceLimits{Memory: "8g"}}
-		withDind.Dind.DindFlag = true
-		rc := &config.AgenticRC{}
-		rc.Run.Dind.Memory = "8g"
-
-		// Act
-		flagged, configOnly := requiredFeatures(withDind, &config.AgenticRC{}), requiredFeatures(Flags{}, rc)
-
-		// Assert
-		assert.True(t, flagged.DindLimits)
-		assert.False(t, configOnly.DindLimits, "no daemon, so nothing to limit")
-	})
-
-	t.Run("credentials alone don't ask for the proxy", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}}}
-
-		// Act
-		need := requiredFeatures(Flags{}, rc)
-
-		// Assert
-		assert.Equal(t, sandbox.Features{CredentialInjection: true, PidsLimit: true}, need)
-	})
-
-	t.Run("path rules ask for path rule support only with the proxy or credentials", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
-		credentialRC := &config.AgenticRC{}
-		credentialRC.Run.Proxy.AllowedPaths = rc.Run.Proxy.AllowedPaths
-		credentialRC.Run.Proxy.Credentials = []config.RCCredential{{Preset: "github", Secret: "/example.test/token"}}
-		proxyFlags := Flags{}
-		proxyFlags.Proxy.ProxyFlag = true
-
-		// Act
-		without := requiredFeatures(Flags{}, rc)
-		with := requiredFeatures(proxyFlags, rc)
-		withCredentials := requiredFeatures(Flags{}, credentialRC)
-
-		// Assert
-		assert.Equal(t, sandbox.Features{PidsLimit: true}, without)
-		assert.Equal(t, sandbox.Features{Proxy: true, PathRules: true, PidsLimit: true}, with)
-		assert.Equal(t, sandbox.Features{CredentialInjection: true, PathRules: true, PidsLimit: true}, withCredentials)
-	})
-
-	t.Run("proxy integrations ask for integration support only with the proxy or credentials", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.Integrations = []string{"maven"}
-		credentialRC := &config.AgenticRC{}
-		credentialRC.Run.Proxy.Integrations = rc.Run.Proxy.Integrations
-		credentialRC.Run.Proxy.Credentials = []config.RCCredential{{Preset: "github", Secret: "/example.test/token"}}
-		proxyFlags := Flags{}
-		proxyFlags.Proxy.ProxyFlag = true
-
-		// Act
-		without := requiredFeatures(Flags{}, rc)
-		with := requiredFeatures(proxyFlags, rc)
-		withCredentials := requiredFeatures(Flags{}, credentialRC)
-
-		// Assert
-		assert.Equal(t, sandbox.Features{PidsLimit: true}, without)
-		assert.Equal(t, sandbox.Features{Proxy: true, ProxyIntegrations: true, PidsLimit: true}, with)
-		assert.Equal(t, sandbox.Features{CredentialInjection: true, ProxyIntegrations: true, PidsLimit: true}, withCredentials)
-	})
-
-	t.Run("the integration flag asks for integration support with the proxy", func(t *testing.T) {
-		// Arrange
-		flags := Flags{}
-		flags.Proxy.ProxyFlag = true
-		flags.Proxy.Integrations = []string{"maven"}
-
-		// Act
-		result := requiredFeatures(flags, &config.AgenticRC{})
-
-		// Assert
-		assert.Equal(t, sandbox.Features{Proxy: true, ProxyIntegrations: true, PidsLimit: true}, result)
-	})
-
-	t.Run("off switches drop the need", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.Enabled = &enabled
-		rc.Run.Dind.Enabled = &enabled
-		flags := Flags{}
-		flags.Proxy.NoProxy = true
-		flags.Dind.NoDindFlag = true
-
-		// Act
-		need := requiredFeatures(flags, rc)
-
-		// Assert
-		assert.Equal(t, sandbox.Features{PidsLimit: true}, need)
-	})
+			// Assert
+			assert.Equal(t, tc.want, need)
+		})
+	}
 }
 
 func Test_checkCapabilities(t *testing.T) {
 	msb := sandbox.Features{Proxy: true, CredentialInjection: true}
 	noProxy := sandbox.Features{CredentialInjection: true}
 
-	t.Run("a missing proxy is an error with the opt-out", func(t *testing.T) {
-		// Arrange
-		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
-		req.Project.RC = &config.AgenticRC{}
-		req.Flags.Proxy.ProxyFlag = true
+	for _, tc := range []struct {
+		name    string
+		req     Request
+		offered sandbox.Features
+		wantErr string
+	}{
+		{
+			name:    "a missing proxy is an error with the opt-out",
+			req:     msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}}, nil),
+			offered: noProxy,
+			wantErr: "--runtime microsandbox does not support the egress proxy (--proxy); pass --no-proxy to run without the proxy, or use --runtime docker",
+		},
+		{
+			name:    "a missing proxy asked for in config names the layer",
+			req:     msbRequest(Flags{}, func(rc *config.AgenticRC) { enabled := true; rc.Run.Proxy.Enabled = &enabled }),
+			offered: noProxy,
+			wantErr: "--runtime microsandbox does not support the egress proxy ([run.proxy] enabled in /example.test/project/.agenticrc.toml); pass --no-proxy to run without the proxy, or use --runtime docker",
+		},
+		{
+			name:    "a missing monitor mode is an error pointing to --proxy",
+			req:     msbRequest(Flags{Proxy: resolve.ProxyInput{MonitorFlag: true}}, nil),
+			offered: msb,
+			wantErr: "--runtime microsandbox does not support proxy monitor mode (--proxy-monitor); pass --proxy to enforce the allowlist instead, or use --runtime docker",
+		},
+		{
+			name:    "a missing monitor mode asked for in config names the layer",
+			req:     msbRequest(Flags{}, func(rc *config.AgenticRC) { rc.Run.Proxy.Mode = config.ModeMonitor }),
+			offered: msb,
+			wantErr: "--runtime microsandbox does not support proxy monitor mode ([run.proxy] mode in /example.test/project/.agenticrc.toml); pass --proxy to enforce the allowlist instead, or use --runtime docker",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			err := checkCapabilities(tc.req, tc.offered)
 
-		// Act
-		err := checkCapabilities(req, noProxy)
-
-		// Assert
-		assert.EqualError(t, err, "--runtime microsandbox does not support the egress proxy (--proxy); pass --no-proxy to run without the proxy, or use --runtime docker")
-	})
-
-	t.Run("a missing proxy asked for in config names the layer", func(t *testing.T) {
-		// Arrange
-		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
-		enabled := true
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.Enabled = &enabled
-		req.Project.RC = rc
-		req.Project.Layers = []config.RCLayer{{Path: "/example.test/project/.agenticrc.toml", RC: rc}}
-
-		// Act
-		err := checkCapabilities(req, noProxy)
-
-		// Assert
-		assert.EqualError(t, err, "--runtime microsandbox does not support the egress proxy ([run.proxy] enabled in /example.test/project/.agenticrc.toml); pass --no-proxy to run without the proxy, or use --runtime docker")
-	})
-
-	t.Run("an enforcing proxy passes without monitor mode", func(t *testing.T) {
-		// Arrange
-		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
-		req.Project.RC = &config.AgenticRC{}
-		req.Flags.Proxy.ProxyFlag = true
-
-		// Act
-		err := checkCapabilities(req, msb)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("a missing monitor mode is an error pointing to --proxy", func(t *testing.T) {
-		// Arrange
-		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
-		req.Project.RC = &config.AgenticRC{}
-		req.Flags.Proxy.MonitorFlag = true
-
-		// Act
-		err := checkCapabilities(req, msb)
-
-		// Assert
-		assert.EqualError(t, err, "--runtime microsandbox does not support proxy monitor mode (--proxy-monitor); pass --proxy to enforce the allowlist instead, or use --runtime docker")
-	})
-
-	t.Run("a missing monitor mode asked for in config names the layer", func(t *testing.T) {
-		// Arrange
-		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.Mode = config.ModeMonitor
-		req.Project.RC = rc
-		req.Project.Layers = []config.RCLayer{{Path: "/example.test/project/.agenticrc.toml", RC: rc}}
-
-		// Act
-		err := checkCapabilities(req, msb)
-
-		// Assert
-		assert.EqualError(t, err, "--runtime microsandbox does not support proxy monitor mode ([run.proxy] mode in /example.test/project/.agenticrc.toml); pass --proxy to enforce the allowlist instead, or use --runtime docker")
-	})
+			// Assert
+			assert.EqualError(t, err, tc.wantErr)
+		})
+	}
 
 	t.Run("missing proxy and credentials give one error", func(t *testing.T) {
 		// Arrange
@@ -229,60 +162,8 @@ func Test_checkCapabilities(t *testing.T) {
 		// Act
 		err := checkCapabilities(req, sandbox.Features{})
 
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "the egress proxy (--proxy-monitor) or proxy credentials ([[run.proxy.credentials]] in "+req.Project.Layers[0].Path+")")
-	})
-
-	t.Run("missing path rules only warn, naming the layer", func(t *testing.T) {
-		// Arrange
-		errLog := iostreamstest.StubErr(t)
-		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
-		req.Project.RC = rc
-		req.Project.Layers = []config.RCLayer{{Path: "/example.test/project/.agenticrc.toml", RC: rc}}
-		req.Flags.Proxy.ProxyFlag = true
-
-		// Act
-		err := checkCapabilities(req, msb)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, errLog.String(), "--runtime microsandbox can't limit hosts to paths, so it allows the hosts of [[run.proxy.allowed_paths]] in /example.test/project/.agenticrc.toml on every path; use --runtime docker to limit them")
-	})
-
-	t.Run("missing proxy integrations only warn, naming the layer", func(t *testing.T) {
-		// Arrange
-		errLog := iostreamstest.StubErr(t)
-		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.Integrations = []string{"maven"}
-		req.Project.RC = rc
-		req.Project.Layers = []config.RCLayer{{Path: "/example.test/project/.agenticrc.toml", RC: rc}}
-		req.Flags.Proxy.ProxyFlag = true
-
-		// Act
-		err := checkCapabilities(req, msb)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, errLog.String(), "--runtime microsandbox ignores [run.proxy] integrations in /example.test/project/.agenticrc.toml; it can't route those tools through the proxy")
-	})
-
-	t.Run("missing proxy integrations from the flag warn, naming it", func(t *testing.T) {
-		// Arrange
-		errLog := iostreamstest.StubErr(t)
-		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
-		req.Flags.Proxy.ProxyFlag = true
-		req.Flags.Proxy.Integrations = []string{"maven"}
-
-		// Act
-		err := checkCapabilities(req, msb)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, errLog.String(), "--runtime microsandbox ignores --proxy-integration; it can't route those tools through the proxy")
+		// Assert - only the opt-out hint, not the monitor mode one
+		assert.EqualError(t, err, "--runtime microsandbox does not support the egress proxy (--proxy-monitor) or proxy credentials ([[run.proxy.credentials]] in "+req.Project.Layers[0].Path+"); pass --no-proxy to run without the proxy, or use --runtime docker")
 	})
 
 	t.Run("a runtime with every feature passes", func(t *testing.T) {
@@ -298,68 +179,70 @@ func Test_checkCapabilities(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("a missing docker daemon only warns", func(t *testing.T) {
-		// Arrange
-		errLog := iostreamstest.StubErr(t)
-		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
-		req.Project.RC = &config.AgenticRC{}
-		req.Flags.Dind.DindFlag = true
+	dindLimits := Flags{Dind: resolve.DindInput{DindFlag: true}, DindLimits: sandbox.ResourceLimits{Memory: "8g"}}
+	for _, tc := range []struct {
+		name     string
+		req      Request
+		offered  sandbox.Features
+		wantWarn string
+	}{
+		{
+			name: "an enforcing proxy passes silently without monitor mode",
+			req:  msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}}, nil),
+		},
+		{
+			name: "a missing pids limit is silent",
+			req:  msbRequest(Flags{}, nil),
+		},
+		{
+			name: "missing path rules only warn, naming the layer",
+			req: msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}}, func(rc *config.AgenticRC) {
+				rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
+			}),
+			wantWarn: "--runtime microsandbox can't limit hosts to paths, so it allows the hosts of [[run.proxy.allowed_paths]] in /example.test/project/.agenticrc.toml on every path; use --runtime docker to limit them",
+		},
+		{
+			name: "missing proxy integrations only warn, naming the layer",
+			req: msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true}}, func(rc *config.AgenticRC) {
+				rc.Run.Proxy.Integrations = []string{"maven"}
+			}),
+			wantWarn: "--runtime microsandbox ignores [run.proxy] integrations in /example.test/project/.agenticrc.toml; it can't route those tools through the proxy",
+		},
+		{
+			name:     "missing proxy integrations from the flag warn, naming it",
+			req:      msbRequest(Flags{Proxy: resolve.ProxyInput{ProxyFlag: true, Integrations: []string{"maven"}}}, nil),
+			wantWarn: "--runtime microsandbox ignores --proxy-integration; it can't route those tools through the proxy",
+		},
+		{
+			name:     "a missing docker daemon only warns, and not also about its limits",
+			req:      msbRequest(dindLimits, nil),
+			wantWarn: "--runtime microsandbox has no Docker daemon, so it ignores --dind",
+		},
+		{
+			name:     "missing dind limits only warn",
+			req:      msbRequest(dindLimits, nil),
+			offered:  sandbox.Features{Dind: true},
+			wantWarn: "--runtime microsandbox ignores the Docker daemon limits ([run.dind] or --dind-*); dockerd shares the VM's CPUs and memory",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			errLog := iostreamstest.StubErr(t)
+			offered := msb
+			offered.Dind = tc.offered.Dind
 
-		// Act
-		err := checkCapabilities(req, msb)
+			// Act
+			err := checkCapabilities(tc.req, offered)
 
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, errLog.String(), "--runtime microsandbox has no Docker daemon, so it ignores --dind")
-	})
-
-	t.Run("missing dind limits only warn", func(t *testing.T) {
-		// Arrange
-		errLog := iostreamstest.StubErr(t)
-		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
-		req.Project.RC = &config.AgenticRC{}
-		req.Flags.Dind.DindFlag = true
-		req.Flags.DindLimits = sandbox.ResourceLimits{Memory: "8g"}
-		offered := msb
-		offered.Dind = true
-
-		// Act
-		err := checkCapabilities(req, offered)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, errLog.String(), "--runtime microsandbox ignores the Docker daemon limits ([run.dind] or --dind-*)")
-	})
-
-	t.Run("a missing docker daemon doesn't also warn about its limits", func(t *testing.T) {
-		// Arrange
-		errLog := iostreamstest.StubErr(t)
-		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
-		req.Project.RC = &config.AgenticRC{}
-		req.Flags.Dind.DindFlag = true
-		req.Flags.DindLimits = sandbox.ResourceLimits{Memory: "8g"}
-
-		// Act
-		err := checkCapabilities(req, msb)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotContains(t, errLog.String(), "Docker daemon limits")
-	})
-
-	t.Run("a missing pids limit is silent", func(t *testing.T) {
-		// Arrange
-		errLog := iostreamstest.StubErr(t)
-		req := runtimeRequest(sandbox.RuntimeMicrosandbox)
-		req.Project.RC = &config.AgenticRC{}
-
-		// Act
-		err := checkCapabilities(req, msb)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, errLog.String())
-	})
+			// Assert
+			require.NoError(t, err)
+			want := ""
+			if tc.wantWarn != "" {
+				want = "agentic: warning: " + tc.wantWarn + "\n"
+			}
+			assert.Equal(t, want, errLog.String())
+		})
+	}
 }
 
 func Test_proxySource(t *testing.T) {
@@ -369,57 +252,47 @@ func Test_proxySource(t *testing.T) {
 	enabledLayer := config.RCLayer{Path: "/example.test/inner/.agenticrc.toml", RC: &config.AgenticRC{}}
 	enabledLayer.RC.Run.Proxy.Enabled = &enabled
 
-	t.Run("names the flag", func(t *testing.T) {
-		// Arrange
-		req := Request{Project: config.Project{RC: &config.AgenticRC{}}}
-		req.Flags.Proxy.ProxyFlag = true
+	for _, tc := range []struct {
+		name   string
+		flags  resolve.ProxyInput
+		rc     config.AgenticRC
+		layers []config.RCLayer
+		want   string
+	}{
+		{
+			name:  "names the flag",
+			flags: resolve.ProxyInput{ProxyFlag: true},
+			want:  "--proxy",
+		},
+		{
+			name:  "names the monitor flag over the proxy flag",
+			flags: resolve.ProxyInput{ProxyFlag: true, MonitorFlag: true},
+			want:  "--proxy-monitor",
+		},
+		{
+			name:   "names the monitor mode and its layer",
+			rc:     config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Mode: config.ModeMonitor, Enabled: &enabled}}},
+			layers: []config.RCLayer{monitorLayer, enabledLayer},
+			want:   "[run.proxy] mode in /example.test/outer/.agenticrc.toml",
+		},
+		{
+			name:   "names enabled and its layer",
+			rc:     config.AgenticRC{Run: config.RCRun{Proxy: config.RCProxy{Enabled: &enabled}}},
+			layers: []config.RCLayer{enabledLayer},
+			want:   "[run.proxy] enabled in /example.test/inner/.agenticrc.toml",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			req := Request{Project: config.Project{RC: &tc.rc, Layers: tc.layers}, Flags: Flags{Proxy: tc.flags}}
 
-		// Act
-		source := proxySource(req)
+			// Act
+			source := proxySource(req)
 
-		// Assert
-		assert.Equal(t, "--proxy", source)
-	})
-
-	t.Run("names the monitor flag over the proxy flag", func(t *testing.T) {
-		// Arrange
-		req := Request{Project: config.Project{RC: &config.AgenticRC{}}}
-		req.Flags.Proxy.ProxyFlag = true
-		req.Flags.Proxy.MonitorFlag = true
-
-		// Act
-		source := proxySource(req)
-
-		// Assert
-		assert.Equal(t, "--proxy-monitor", source)
-	})
-
-	t.Run("names the monitor mode and its layer", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.Mode = config.ModeMonitor
-		rc.Run.Proxy.Enabled = &enabled
-		req := Request{Project: config.Project{RC: rc, Layers: []config.RCLayer{monitorLayer, enabledLayer}}}
-
-		// Act
-		source := proxySource(req)
-
-		// Assert
-		assert.Equal(t, "[run.proxy] mode in /example.test/outer/.agenticrc.toml", source)
-	})
-
-	t.Run("names enabled and its layer", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{}
-		rc.Run.Proxy.Enabled = &enabled
-		req := Request{Project: config.Project{RC: rc, Layers: []config.RCLayer{enabledLayer}}}
-
-		// Act
-		source := proxySource(req)
-
-		// Assert
-		assert.Equal(t, "[run.proxy] enabled in /example.test/inner/.agenticrc.toml", source)
-	})
+			// Assert
+			assert.Equal(t, tc.want, source)
+		})
+	}
 }
 
 func Test_dindSource(t *testing.T) {
@@ -538,53 +411,47 @@ func Test_layerSource(t *testing.T) {
 }
 
 func Test_specFeatures(t *testing.T) {
-	t.Run("a bare spec relies on nothing", func(t *testing.T) {
-		// Act
-		need := specFeatures(sandbox.RunSpec{})
+	paths := []sandbox.AllowRule{{Host: "raw.example.test", Paths: []string{"/a"}}}
 
-		// Assert
-		assert.Equal(t, sandbox.Features{}, need)
-	})
+	for _, tc := range []struct {
+		name string
+		rs   sandbox.RunSpec
+		want sandbox.Features
+	}{
+		{
+			name: "a bare spec relies on nothing",
+		},
+		{
+			name: "the proxy and credentials each count",
+			rs: sandbox.RunSpec{
+				Egress:      sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
+				Credentials: []sandbox.Credential{{Name: "API_TOKEN"}},
+			},
+			want: sandbox.Features{Proxy: true, CredentialInjection: true},
+		},
+		{
+			name: "path rules without the proxy don't count",
+			rs:   sandbox.RunSpec{Egress: sandbox.EgressPolicy{Rules: paths}},
+		},
+		{
+			name: "path rules count with the proxy",
+			rs:   sandbox.RunSpec{Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Rules: paths}},
+			want: sandbox.Features{Proxy: true, PathRules: true},
+		},
+		{
+			name: "monitor mode counts too",
+			rs:   sandbox.RunSpec{Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}},
+			want: sandbox.Features{Proxy: true, ProxyMonitor: true},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			need := specFeatures(tc.rs)
 
-	t.Run("the proxy and credentials each count", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{
-			Egress:      sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
-			Credentials: []sandbox.Credential{{Name: "API_TOKEN"}},
-		}
-
-		// Act
-		need := specFeatures(rs)
-
-		// Assert
-		assert.Equal(t, sandbox.Features{Proxy: true, CredentialInjection: true}, need)
-	})
-
-	t.Run("path rules count only with the proxy", func(t *testing.T) {
-		// Arrange
-		paths := []sandbox.AllowRule{{Host: "raw.example.test", Paths: []string{"/a"}}}
-		off := sandbox.RunSpec{Egress: sandbox.EgressPolicy{Rules: paths}}
-		on := sandbox.RunSpec{Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce, Rules: paths}}
-
-		// Act
-		offNeed := specFeatures(off)
-		onNeed := specFeatures(on)
-
-		// Assert
-		assert.Equal(t, sandbox.Features{}, offNeed)
-		assert.Equal(t, sandbox.Features{Proxy: true, PathRules: true}, onNeed)
-	})
-
-	t.Run("monitor mode counts too", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}}
-
-		// Act
-		need := specFeatures(rs)
-
-		// Assert
-		assert.Equal(t, sandbox.Features{Proxy: true, ProxyMonitor: true}, need)
-	})
+			// Assert
+			assert.Equal(t, tc.want, need)
+		})
+	}
 }
 
 func Test_checkSpec(t *testing.T) {

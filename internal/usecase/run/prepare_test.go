@@ -291,9 +291,9 @@ func TestPrepare(t *testing.T) {
 		assert.Equal(t, [][]string{{config.CredentialsSetting}}, p.settingsAsked)
 	})
 
-	t.Run("approved credentials reach the run spec", func(t *testing.T) {
+	t.Run("approved credentials reach the run spec with an injection notice", func(t *testing.T) {
 		// Arrange
-		iostreamstest.StubErr(t)
+		stderr := iostreamstest.StubErr(t)
 		req := newCredentialRequest(t)
 
 		// Act
@@ -304,19 +304,6 @@ func TestPrepare(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, rs.Credentials, 1)
 		assert.Equal(t, []string{"api.example.test"}, rs.Credentials[0].Hosts)
-	})
-
-	t.Run("approved credentials print the injection notice", func(t *testing.T) {
-		// Arrange
-		stderr := iostreamstest.StubErr(t)
-		req := newCredentialRequest(t)
-
-		// Act
-		_, cleanup, err := newTestService(&fakeDocker{inspectImage: built}, nil).Prepare(req, &fakePrompter{})
-		defer cleanup()
-
-		// Assert
-		require.NoError(t, err)
 		assert.Contains(t, stderr.String(), "injecting credentials for api.example.test")
 	})
 
@@ -334,7 +321,6 @@ func TestPrepare(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotContains(t, stderr.String(), "injecting credentials")
 	})
-
 }
 
 func Test_Service_offerToolUpdate(t *testing.T) {

@@ -24,22 +24,45 @@ func Test_Service_build(t *testing.T) {
 	trusted := func(string) (*docker.ImageInfo, error) { return &docker.ImageInfo{ProxyTrust: true}, nil }
 	d := &fakeDocker{inspectImage: trusted}
 
-	t.Run("volumes wired", func(t *testing.T) {
+	t.Run("wires the target, input and config into the spec", func(t *testing.T) {
 		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), Volumes: []string{"/host:/container:rw"}}
+		target := Target{ToolName: "claude", ImageName: "agentic-claude", ToolArgs: []string{"--from-cli"}}
+		in := Input{
+			ToolHome: t.TempDir(),
+			Volumes:  []string{"/host:/container:rw"},
+			DryRun:   true,
+		}
+		rc := &config.AgenticRC{Run: config.RCRun{
+			RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
+			Args:     map[string][]string{"claude": {"--from-rc"}},
+		}}
 
 		// Act
-		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
 
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, rs.Volumes, "/host:/container:rw")
+		assert.Equal(t, platform.HostUser(), *rs.User)
+		assert.Equal(t, iostreams.IsTerminal(), rs.TTY, "a TTY only when stdin is a terminal")
+		assert.Equal(t, in.ToolHome, rs.ToolHome)
+		assert.True(t, rs.DryRun)
+		assert.NotEmpty(t, rs.EphemeralDirs)
+		assert.Equal(t, []string{"--from-rc", "--from-cli"}, rs.ToolArgs)
+		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, rs.Limits)
+		assert.Equal(t, rs.Limits, rs.Dind.Limits, "dind limits inherit the tool's")
+		assert.Equal(t, sandbox.EgressOff, rs.Egress.Mode)
+		for _, v := range rs.Volumes {
+			assert.NotContains(t, v, "CLAUDE.md", "no instructions mount without one in the input")
+		}
+		for _, e := range rs.Env {
+			assert.NotContains(t, e, "AGENTIC_MARKETPLACES", "no marketplaces configured")
+		}
 	})
 
-	t.Run("runs as the host user, with a TTY only when stdin is a terminal", func(t *testing.T) {
+	t.Run("skip entrypoint wired", func(t *testing.T) {
 		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+		target := Target{ToolName: "claude", ImageName: "agentic-claude", SkipEntrypoint: true}
 		in := Input{ToolHome: t.TempDir()}
 
 		// Act
@@ -47,8 +70,7 @@ func Test_Service_build(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, platform.HostUser(), *rs.User)
-		assert.Equal(t, iostreams.IsTerminal(), rs.TTY)
+		assert.True(t, rs.SkipEntrypoint)
 	})
 
 	t.Run("instructions mount wired after the tool's base mounts", func(t *testing.T) {
@@ -67,49 +89,6 @@ func Test_Service_build(t *testing.T) {
 		assert.Less(t, baseMountIdx, instructionsMountIdx, "instructions mount must overlay the base directory mount, so it must be listed after it")
 	})
 
-	t.Run("instructions mount omitted when empty", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir()}
-
-		// Act
-		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
-
-		// Assert
-		require.NoError(t, err)
-		for _, v := range rs.Volumes {
-			assert.NotContains(t, v, "CLAUDE.md")
-		}
-	})
-
-	t.Run("resource limits wired", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir()}
-		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
-
-		// Act
-		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, rs.Limits)
-	})
-
-	t.Run("dind limits inherit tool limits", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir()}
-		rc := &config.AgenticRC{Run: config.RCRun{RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}}}
-
-		// Act
-		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"}, rs.Dind.Limits)
-	})
-
 	t.Run("dind limits override tool limits", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
@@ -126,73 +105,6 @@ func Test_Service_build(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "4096", CPUs: "2", Memory: "16g"}, rs.Dind.Limits)
 		assert.Equal(t, "2g", rs.Limits.Memory, "tool limit is unaffected")
-	})
-
-	t.Run("dry run wired", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), DryRun: true}
-
-		// Act
-		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, rs.DryRun)
-	})
-
-	t.Run("ephemeral dirs wired", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir()}
-
-		// Act
-		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotEmpty(t, rs.EphemeralDirs)
-	})
-
-	t.Run("tool home wired", func(t *testing.T) {
-		// Arrange
-		customHome := t.TempDir()
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: customHome}
-
-		// Act
-		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, customHome, rs.ToolHome)
-	})
-
-	t.Run("skip entrypoint wired", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude", SkipEntrypoint: true}
-		in := Input{ToolHome: t.TempDir()}
-
-		// Act
-		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, rs.SkipEntrypoint)
-	})
-
-	t.Run("tool args wired from config and command line", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude", ToolArgs: []string{"--from-cli"}}
-		in := Input{ToolHome: t.TempDir()}
-		rc := &config.AgenticRC{Run: config.RCRun{Args: map[string][]string{"claude": {"--from-rc"}}}}
-
-		// Act
-		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(rc))
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"--from-rc", "--from-cli"}, rs.ToolArgs)
 	})
 
 	t.Run("config mount through a planted symlink out of cwd is refused", func(t *testing.T) {
@@ -273,19 +185,6 @@ func Test_Service_build(t *testing.T) {
 		assert.Contains(t, rs.Egress.WholeHosts(), ".anthropic.com", "the proxy lets the path rules win over the wildcard")
 	})
 
-	t.Run("proxy off leaves spec unproxied", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir()}
-
-		// Act
-		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressOff, rs.Egress.Mode)
-	})
-
 	t.Run("proxy monitor wired", func(t *testing.T) {
 		// Arrange
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
@@ -299,47 +198,45 @@ func Test_Service_build(t *testing.T) {
 		assert.Equal(t, sandbox.EgressMonitor, rs.Egress.Mode)
 	})
 
-	t.Run("proxy credentials wired for the docker runtime to place", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		resolved := credentials.Resolved{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Env: []string{"EXAMPLE_API_KEY"}, Secret: "test-secret"}
-		in := Input{
-			ToolHome:    t.TempDir(),
-			ProxyMode:   sandbox.EgressEnforce,
-			Credentials: []credentials.Resolved{resolved},
-		}
+	for _, tc := range []struct {
+		name string
+		svc  *Service
+		in   Input
+	}{
+		{
+			name: "proxy credentials wired for the docker runtime to place",
+			svc:  newTestService(d, nil),
+			in:   Input{ProxyMode: sandbox.EgressEnforce},
+		},
+		{
+			name: "microsandbox credentials wired without the proxy, placeholder env or image inspect",
+			svc:  newTestService(&fakeDocker{}, &fakeMicrosandbox{}),
+			in:   Input{Runtime: sandbox.RuntimeMicrosandbox},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+			in := tc.in
+			in.ToolHome = t.TempDir()
+			in.Credentials = []credentials.Resolved{{
+				Hosts:   []string{"api.example.test"},
+				Headers: []string{"X-Api-Key"},
+				Env:     []string{"EXAMPLE_API_KEY"},
+				Secret:  "test-secret",
+			}}
 
-		// Act
-		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+			// Act
+			rs, err := tc.svc.build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []sandbox.Credential{
-			{Name: "EXAMPLE_API_KEY", Aliases: []string{}, Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"},
-		}, rs.Credentials)
-		assert.Equal(t, sandbox.EgressEnforce, rs.Egress.Mode)
-	})
-
-	t.Run("microsandbox credentials wired without the proxy, placeholder env or image inspect", func(t *testing.T) {
-		// Arrange
-		d := &fakeDocker{}
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		resolved := credentials.Resolved{Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Env: []string{"EXAMPLE_API_KEY"}, Secret: "test-secret"}
-		in := Input{
-			ToolHome:    t.TempDir(),
-			Runtime:     sandbox.RuntimeMicrosandbox,
-			Credentials: []credentials.Resolved{resolved},
-		}
-
-		// Act
-		rs, err := newTestService(d, &fakeMicrosandbox{}).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []sandbox.Credential{
-			{Name: "EXAMPLE_API_KEY", Aliases: []string{}, Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"},
-		}, rs.Credentials)
-	})
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, []sandbox.Credential{
+				{Name: "EXAMPLE_API_KEY", Aliases: []string{}, Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"},
+			}, rs.Credentials)
+			assert.Equal(t, tc.in.ProxyMode, rs.Egress.Mode)
+		})
+	}
 
 	t.Run("microsandbox allows path rule hosts whole", func(t *testing.T) {
 		// Arrange
@@ -435,21 +332,6 @@ func Test_Service_build(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, rs.Env, "AGENTIC_MARKETPLACES=acme")
 	})
-
-	t.Run("no marketplaces configured leaves AGENTIC_MARKETPLACES unset", func(t *testing.T) {
-		// Arrange
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir()}
-
-		// Act
-		rs, err := newTestService(d, nil).build(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
-
-		// Assert
-		require.NoError(t, err)
-		for _, e := range rs.Env {
-			assert.NotContains(t, e, "AGENTIC_MARKETPLACES")
-		}
-	})
 }
 
 func Test_Service_buildWithInstructions(t *testing.T) {
@@ -518,35 +400,26 @@ func Test_Service_buildWithInstructions(t *testing.T) {
 }
 
 func TestToolNeedsMarketplaceSync(t *testing.T) {
-	t.Run("tool without marketplace support returns false", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
+	acme := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
 
-		// Act
-		needs := newTestService(&fakeDocker{}, nil).ToolNeedsMarketplaceSync(tools.Configs["opencode"], rc, "opencode")
+	for _, tc := range []struct {
+		name string
+		tool string
+		rc   *config.AgenticRC
+		want bool
+	}{
+		{name: "tool without marketplace support returns false", tool: "opencode", rc: acme},
+		{name: "marketplace-capable tool with no marketplaces configured returns false", tool: "claude", rc: &config.AgenticRC{}},
+		{name: "marketplace-capable tool with marketplaces configured returns true", tool: "claude", rc: acme, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			needs := newTestService(&fakeDocker{}, nil).ToolNeedsMarketplaceSync(tools.Configs[tc.tool], tc.rc, tc.tool)
 
-		// Assert
-		assert.False(t, needs)
-	})
-
-	t.Run("marketplace-capable tool with no marketplaces configured returns false", func(t *testing.T) {
-		// Act
-		needs := newTestService(&fakeDocker{}, nil).ToolNeedsMarketplaceSync(tools.Configs["claude"], &config.AgenticRC{}, "claude")
-
-		// Assert
-		assert.False(t, needs)
-	})
-
-	t.Run("marketplace-capable tool with marketplaces configured returns true", func(t *testing.T) {
-		// Arrange
-		rc := &config.AgenticRC{Marketplaces: []config.RCMarketplace{{Name: "acme", URL: "git@example.com:acme.git"}}}
-
-		// Act
-		needs := newTestService(&fakeDocker{}, nil).ToolNeedsMarketplaceSync(tools.Configs["claude"], rc, "claude")
-
-		// Assert
-		assert.True(t, needs)
-	})
+			// Assert
+			assert.Equal(t, tc.want, needs)
+		})
+	}
 }
 
 func Test_Service_syncToolMarketplaces(t *testing.T) {
@@ -697,77 +570,36 @@ func Test_isReservedEnvName(t *testing.T) {
 }
 
 func Test_validateEnv(t *testing.T) {
-	t.Run("accepts ordinary KEY=VALUE", func(t *testing.T) {
-		// Act
-		err := validateEnv([]string{"MAVEN_OPTS=-Dfoo=bar"}, false, false, nil)
+	for _, tc := range []struct {
+		name         string
+		env          string
+		proxy        bool
+		dind         bool
+		integrations []string
+		wantErr      string
+	}{
+		{name: "accepts ordinary KEY=VALUE", env: "MAVEN_OPTS=-Dfoo=bar"},
+		{name: "accepts bare KEY", env: "CI"},
+		{name: "accepts proxy var when proxy disabled", env: "HTTP_PROXY=http://my-corp-proxy"},
+		{name: "rejects proxy var when proxy enabled", env: "HTTP_PROXY=http://evil", proxy: true, wantErr: "HTTP_PROXY"},
+		{name: "accepts docker var when dind disabled", env: "DOCKER_HOST=tcp://build-host:2376"},
+		{name: "rejects docker var when dind enabled", env: "DOCKER_CERT_PATH=/tmp", dind: true, wantErr: "DOCKER_CERT_PATH"},
+		{name: "rejects a var a proxy integration sets", env: "MAVEN_ARGS=--quiet", proxy: true, integrations: []string{"maven"}, wantErr: `"MAVEN_ARGS" is managed by agentic`},
+		{name: "accepts a var no proxy integration sets", env: "MAVEN_ARGS=--quiet", proxy: true},
+		{name: "rejects bare reserved name regardless of proxy", env: "TOOL_HOME", wantErr: "TOOL_HOME"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			err := validateEnv([]string{tc.env}, tc.proxy, tc.dind, tc.integrations)
 
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("accepts bare KEY", func(t *testing.T) {
-		// Act
-		err := validateEnv([]string{"CI"}, false, false, nil)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("accepts proxy var when proxy disabled", func(t *testing.T) {
-		// Act
-		err := validateEnv([]string{"HTTP_PROXY=http://my-corp-proxy"}, false, false, nil)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("rejects proxy var when proxy enabled", func(t *testing.T) {
-		// Act
-		err := validateEnv([]string{"HTTP_PROXY=http://evil"}, true, false, nil)
-
-		// Assert
-		assert.ErrorContains(t, err, "HTTP_PROXY")
-	})
-
-	t.Run("accepts docker var when dind disabled", func(t *testing.T) {
-		// Act
-		err := validateEnv([]string{"DOCKER_HOST=tcp://build-host:2376"}, false, false, nil)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("rejects docker var when dind enabled", func(t *testing.T) {
-		// Act
-		err := validateEnv([]string{"DOCKER_CERT_PATH=/tmp"}, false, true, nil)
-
-		// Assert
-		assert.ErrorContains(t, err, "DOCKER_CERT_PATH")
-	})
-
-	t.Run("rejects a var a proxy integration sets", func(t *testing.T) {
-		// Act
-		err := validateEnv([]string{"MAVEN_ARGS=--quiet"}, true, false, []string{"maven"})
-
-		// Assert
-		assert.ErrorContains(t, err, `"MAVEN_ARGS" is managed by agentic`)
-	})
-
-	t.Run("accepts a var no proxy integration sets", func(t *testing.T) {
-		// Act
-		err := validateEnv([]string{"MAVEN_ARGS=--quiet"}, true, false, nil)
-
-		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("rejects bare reserved name regardless of proxy", func(t *testing.T) {
-		// Act
-		err := validateEnv([]string{"TOOL_HOME"}, false, false, nil)
-
-		// Assert
-		assert.ErrorContains(t, err, "TOOL_HOME")
-	})
+			// Assert
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorContains(t, err, tc.wantErr)
+		})
+	}
 }
 
 func Test_runVolumes(t *testing.T) {

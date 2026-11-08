@@ -167,6 +167,18 @@ func runtimeRequest(runtime sandbox.Runtime) Request {
 	return Request{Project: config.Project{RC: &config.AgenticRC{}}, Flags: Flags{Runtime: runtime}}
 }
 
+// msbRequest returns a microsandbox Request with flags whose config, when set edits it, comes from one project layer.
+func msbRequest(flags Flags, set func(*config.AgenticRC)) Request {
+	flags.Runtime = sandbox.RuntimeMicrosandbox
+	rc := &config.AgenticRC{}
+	req := Request{Project: config.Project{RC: rc}, Flags: flags}
+	if set != nil {
+		set(rc)
+		req.Project.Layers = []config.RCLayer{{Path: "/example.test/project/.agenticrc.toml", RC: rc}}
+	}
+	return req
+}
+
 // inspectImageID returns an InspectImage func reporting every image with id.
 func inspectImageID(id string) func(string) (*docker.ImageInfo, error) {
 	return func(name string) (*docker.ImageInfo, error) {
@@ -233,6 +245,16 @@ func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec, route *microsandbox.ProxyRout
 		return nil
 	}
 	return f.run(rs, route)
+}
+
+// stubRunImage makes m's Run record the image it runs; empty means it didn't run.
+func stubRunImage(m *fakeMicrosandbox) *string {
+	var image string
+	m.run = func(rs sandbox.RunSpec, _ *microsandbox.ProxyRoute) error {
+		image = rs.Image
+		return nil
+	}
+	return &image
 }
 
 // fakePrompter implements Prompter, recording what it was asked; a nil field approves, except tool updates, which it declines.
