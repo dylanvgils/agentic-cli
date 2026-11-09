@@ -73,7 +73,7 @@ func (c *Client) Run(rs sandbox.RunSpec, route *ProxyRoute) error {
 
 	processEnv := credentialEnv(rs)
 	if route != nil {
-		processEnv = hidden
+		processEnv = guestProcessEnv(hidden)
 	}
 
 	// Set agentic startup messages apart from the tool output
