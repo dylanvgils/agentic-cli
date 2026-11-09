@@ -19,9 +19,6 @@ import (
 )
 
 const (
-	// idleTimeout closes intercepted client connections left idle between requests.
-	idleTimeout = 90 * time.Second
-
 	// leafCommonName names every leaf; OpenSSL checks a hostname-like CN against the CA's DNS constraints, which reject an IP host's CN
 	leafCommonName = "agentic proxy"
 )
@@ -139,12 +136,7 @@ func (i *Injector) handshake(w http.ResponseWriter, host string) (*tls.Conn, err
 
 // serve answers requests on the client's TLS conn with handler until it closes.
 func (i *Injector) serve(tlsConn *tls.Conn, handler http.Handler) {
-	server := &http.Server{
-		Handler:           blockMethods(handler),
-		ReadHeaderTimeout: handshakeTimeout,
-		IdleTimeout:       idleTimeout,
-		ErrorLog:          httpErrorLog(),
-	}
+	server := newHTTPServer(blockMethods(handler))
 	_ = server.Serve(newOneConnListener(tlsConn))
 }
 

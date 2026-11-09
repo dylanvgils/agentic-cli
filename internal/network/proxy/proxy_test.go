@@ -504,3 +504,17 @@ func Test_defaultPort(t *testing.T) {
 		})
 	}
 }
+
+func Test_newHTTPServer(t *testing.T) {
+	// Arrange
+	handler := http.NotFoundHandler()
+
+	// Act
+	server := newHTTPServer(handler)
+
+	// Assert
+	assert.Equal(t, handshakeTimeout, server.ReadHeaderTimeout)
+	assert.Equal(t, idleTimeout, server.IdleTimeout)
+	assert.NotNil(t, server.Handler)
+	assert.NotNil(t, server.ErrorLog)
+}

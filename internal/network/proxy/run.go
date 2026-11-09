@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -100,11 +99,8 @@ func Run(cfg Config) error {
 		return err
 	}
 
-	httpServer := &http.Server{
-		Addr:     cfg.Addr,
-		Handler:  handler,
-		ErrorLog: httpErrorLog(),
-	}
+	httpServer := newHTTPServer(handler)
+	httpServer.Addr = cfg.Addr
 	return httpServer.ListenAndServe()
 }
 
