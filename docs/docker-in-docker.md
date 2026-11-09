@@ -53,6 +53,7 @@ allowed_hosts = ["ghcr.io"]
 - The proxy filters by host only, so the agent can also push to an allowed registry.
 - The sidecar's limits default to the tool's, so a run can use up to twice them. Images and volumes use the Docker host's disk with no size limit.
 - An inner container can read the sidecar's own files, including its TLS key.
+- Inner networks get `/24` subnets from `10.200.0.0/16`, or `10.201.0.0/16` or `10.202.0.0/16` when the run network overlaps it. Inner containers can't reach hosts in that range.
 - Proxy-injected credentials don't work in inner containers (see [Limitations](credential-injection.md#limitations)).
 
 See [Security model](security-model.md) for how this fits with the other layers.
