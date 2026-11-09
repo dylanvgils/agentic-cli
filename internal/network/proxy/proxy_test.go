@@ -312,6 +312,29 @@ func TestServerHTTP(t *testing.T) {
 		assert.Equal(t, "hello", string(body))
 	})
 
+	t.Run("hop-by-hop headers are not forwarded", func(t *testing.T) {
+		// Arrange
+		upstream, received := startHopHeaderServer(t)
+		upstreamHost, upstreamPort := splitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
+		stubDefaultPorts(t, upstreamPort)
+
+		proxy := startProxy(t, allowLocal(NewServer(NewAllowlist(hostRules(upstreamHost)), NewLogger(io.Discard), false, nil)))
+		req := mustGet(t, upstream.URL)
+		req.Header = testHopHeader()
+
+		// Act
+		resp := proxyDo(t, proxy.URL, req)
+		defer resp.Body.Close() //nolint:errcheck
+
+		// Assert
+		upstreamGot := <-received
+		assert.Equal(t, "1", upstreamGot.Get("X-Keep"))
+		assert.Empty(t, upstreamGot.Get("X-Hop"))
+		assert.Empty(t, upstreamGot.Get("Proxy-Connection"))
+		assert.Equal(t, "1", resp.Header.Get("X-Keep"))
+		assert.Empty(t, resp.Header.Get("X-Hop"))
+	})
+
 	t.Run("failed upstream returns a fixed 502 and logs the error", func(t *testing.T) {
 		// Arrange
 		upstreamHost, upstreamPort := closedPort(t)
@@ -484,6 +507,24 @@ func Test_copyResponse(t *testing.T) {
 	assert.Equal(t, http.StatusTeapot, rec.Code)
 	assert.Equal(t, []string{"a", "b"}, rec.Header().Values("X-Test"))
 	assert.Equal(t, "test-body", rec.Body.String())
+}
+
+func Test_removeHopHeaders(t *testing.T) {
+	// Arrange
+	header := http.Header{
+		"Connection":       {"X-Hop, keep-alive"},
+		"X-Hop":            {"1"},
+		"Keep-Alive":       {"timeout=5"},
+		"Proxy-Connection": {"keep-alive"},
+		"Upgrade":          {"h2c"},
+		"X-Keep":           {"1"},
+	}
+
+	// Act
+	removeHopHeaders(header)
+
+	// Assert
+	assert.Equal(t, http.Header{"X-Keep": {"1"}}, header)
 }
 
 func Test_defaultPort(t *testing.T) {

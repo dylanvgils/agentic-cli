@@ -6,6 +6,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/textproto"
+	"slices"
 	"strings"
 	"time"
 )
@@ -23,6 +25,19 @@ const (
 
 // proxyFailedText is the fixed body of a 500, so the tool never sees the proxy's internal error.
 const proxyFailedText = "agentic proxy error"
+
+// hopHeaders are per-connection (RFC 9110 7.6.1), so the proxy never forwards them.
+var hopHeaders = []string{
+	"Connection",
+	"Proxy-Connection",
+	"Keep-Alive",
+	"Proxy-Authenticate",
+	"Proxy-Authorization",
+	"Te",
+	"Trailer",
+	"Transfer-Encoding",
+	"Upgrade",
+}
 
 // Server is a forward proxy for allowlisted hosts that logs every attempt; monitor mode logs without blocking.
 type Server struct {
@@ -101,6 +116,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 // forward sends r to entry's host and copies the response back.
 func (s *Server) forward(w http.ResponseWriter, r *http.Request, entry Entry) {
 	r.RequestURI = ""
+	removeHopHeaders(r.Header)
 	resp, err := s.upstream.transport.RoundTrip(r.WithContext(s.upstreamContext(r, entry.Host)))
 	if err != nil {
 		s.refuseUpstream(w, entry, err)
@@ -188,8 +204,9 @@ func (s *Server) logClientClosed(entry Entry, err error) {
 	s.logger.Log(entry)
 }
 
-// copyResponse writes resp's status, headers and body to w.
+// copyResponse writes resp's status, end-to-end headers and body to w.
 func copyResponse(w http.ResponseWriter, resp *http.Response) {
+	removeHopHeaders(resp.Header)
 	for key, values := range resp.Header {
 		for _, v := range values {
 			w.Header().Add(key, v)
@@ -197,6 +214,14 @@ func copyResponse(w http.ResponseWriter, resp *http.Response) {
 	}
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
+}
+
+// removeHopHeaders drops hop-by-hop headers, including the ones Connection names.
+func removeHopHeaders(h http.Header) {
+	listed := strings.Split(strings.Join(h.Values("Connection"), ","), ",")
+	for _, name := range slices.Concat(hopHeaders, listed) {
+		h.Del(textproto.TrimString(name))
+	}
 }
 
 // defaultPort returns the port for a URL without one: 443 for https, else 80.
