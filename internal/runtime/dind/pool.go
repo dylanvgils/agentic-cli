@@ -3,6 +3,7 @@ package dind
 import (
 	"fmt"
 	"net/netip"
+	"slices"
 )
 
 // addressPoolSize is each inner network's prefix length.
@@ -28,19 +29,9 @@ func AddressPool(runSubnets []string) (string, error) {
 	}
 
 	for _, candidate := range addressPoolCandidates {
-		if !overlapsAny(candidate, taken) {
+		if !slices.ContainsFunc(taken, candidate.Overlaps) {
 			return fmt.Sprintf("base=%s,size=%d", candidate, addressPoolSize), nil
 		}
 	}
 	return "", fmt.Errorf("no inner address pool is free of the run network subnets %v", runSubnets)
-}
-
-// overlapsAny reports whether prefix overlaps any of others.
-func overlapsAny(prefix netip.Prefix, others []netip.Prefix) bool {
-	for _, other := range others {
-		if prefix.Overlaps(other) {
-			return true
-		}
-	}
-	return false
 }
