@@ -8,17 +8,32 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-// dryRunEnvConfPlaceholder stands in for the forwarded env file in dry-run output, as it isn't written.
-const dryRunEnvConfPlaceholder = "<forwarded env file>"
+const (
+	// dryRunEnvConfPlaceholder stands in for the forwarded env file in dry-run output, as it isn't written.
+	dryRunEnvConfPlaceholder = "<forwarded env file>"
+
+	// guestEnvPrefix renames guest-only values in msb's env, so they can't steer msb's own HTTP calls.
+	guestEnvPrefix = "AGENTIC_GUEST_"
+)
+
+// envRef maps a guest env key to the msb env var msb reads its value from.
+type envRef struct {
+	guest  string
+	source string
+}
 
 // buildEnvArgs returns the --env flags plus a --runtime-conf file for forwarded vars and hidden entries, kept out of args.
 func buildEnvArgs(rs sandbox.RunSpec, hidden []string) (args []string, cleanup func(), err error) {
 	flags, forwarded := splitEnv(sandbox.ResolveEnv(rs.Env))
+	refs := make([]envRef, 0, len(forwarded)+len(hidden))
+	for _, key := range forwarded {
+		refs = append(refs, envRef{guest: key, source: key})
+	}
 	for _, entry := range hidden {
 		key, _, _ := strings.Cut(entry, "=")
-		forwarded = append(forwarded, key)
+		refs = append(refs, envRef{guest: key, source: guestEnvName(key)})
 	}
-	if len(forwarded) == 0 {
+	if len(refs) == 0 {
 		return flags, noCleanup, nil
 	}
 
@@ -26,7 +41,7 @@ func buildEnvArgs(rs sandbox.RunSpec, hidden []string) (args []string, cleanup f
 		return append(flags, arg("runtime-conf", dryRunEnvConfPlaceholder)), noCleanup, nil
 	}
 
-	path, err := writeEnvConf(forwarded)
+	path, err := writeEnvConf(refs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -58,13 +73,28 @@ func splitEnv(resolved []string) (flags, forwarded []string) {
 	return flags, forwarded
 }
 
-// writeEnvConf writes a temp --runtime-conf file mapping each key to a ${KEY} reference, which msb resolves from its own
-// env, so the file holds no values.
-func writeEnvConf(keys []string) (string, error) {
+// guestProcessEnv renames hidden guest entries for msb's own env, matching the refs buildEnvArgs writes.
+func guestProcessEnv(hidden []string) []string {
+	env := make([]string, 0, len(hidden))
+	for _, entry := range hidden {
+		key, value, _ := strings.Cut(entry, "=")
+		env = append(env, guestEnvName(key)+"="+value)
+	}
+	return env
+}
+
+// guestEnvName returns the private msb env name holding a guest-only value for key.
+func guestEnvName(key string) string {
+	return guestEnvPrefix + key
+}
+
+// writeEnvConf writes a temp --runtime-conf file mapping each guest key to a ${source} reference, which msb resolves
+// from its own env, so the file holds no values.
+func writeEnvConf(refs []envRef) (string, error) {
 	var b strings.Builder
 	b.WriteString("env:\n")
-	for _, key := range keys {
-		fmt.Fprintf(&b, "  %q: \"${%s}\"\n", key, key)
+	for _, ref := range refs {
+		fmt.Fprintf(&b, "  %q: \"${%s}\"\n", ref.guest, ref.source)
 	}
 
 	f, err := os.CreateTemp("", "agentic-msb-env-*.yaml")

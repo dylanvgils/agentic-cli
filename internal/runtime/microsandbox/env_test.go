@@ -88,16 +88,30 @@ func Test_splitEnv(t *testing.T) {
 	}
 }
 
-func Test_writeEnvConf(t *testing.T) {
+func Test_guestProcessEnv(t *testing.T) {
 	// Act
-	path, err := writeEnvConf([]string{"EXAMPLE_TOKEN", "CI"})
+	env := guestProcessEnv([]string{"HTTPS_PROXY=http://proxy.example.test:3128", "EXAMPLE_OPTS=a=b"})
+
+	// Assert
+	assert.Equal(t, []string{"AGENTIC_GUEST_HTTPS_PROXY=http://proxy.example.test:3128", "AGENTIC_GUEST_EXAMPLE_OPTS=a=b"}, env)
+}
+
+func Test_writeEnvConf(t *testing.T) {
+	// Arrange
+	refs := []envRef{
+		{guest: "EXAMPLE_TOKEN", source: "EXAMPLE_TOKEN"},
+		{guest: "HTTPS_PROXY", source: "AGENTIC_GUEST_HTTPS_PROXY"},
+	}
+
+	// Act
+	path, err := writeEnvConf(refs)
 
 	// Assert
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Remove(path) })
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
-	assert.Equal(t, "env:\n  \"EXAMPLE_TOKEN\": \"${EXAMPLE_TOKEN}\"\n  \"CI\": \"${CI}\"\n", string(data))
+	assert.Equal(t, "env:\n  \"EXAMPLE_TOKEN\": \"${EXAMPLE_TOKEN}\"\n  \"HTTPS_PROXY\": \"${AGENTIC_GUEST_HTTPS_PROXY}\"\n", string(data))
 	info, err := os.Stat(path)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
