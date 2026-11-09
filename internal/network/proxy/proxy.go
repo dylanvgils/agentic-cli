@@ -14,8 +14,11 @@ const (
 	// dialTimeout bounds how long the proxy waits to establish an upstream connection.
 	dialTimeout = 30 * time.Second
 
-	// handshakeTimeout bounds a TLS handshake, the tunnel's ClientHello read and a decrypted request's headers.
+	// handshakeTimeout bounds a TLS handshake, the tunnel's ClientHello read and a client request's headers.
 	handshakeTimeout = 30 * time.Second
+
+	// idleTimeout closes client connections left idle between requests.
+	idleTimeout = 90 * time.Second
 )
 
 // proxyFailedText is the fixed body of a 500, so the tool never sees the proxy's internal error.
@@ -211,4 +214,14 @@ func splitHostPort(hostport string) (host, port string) {
 		return hostport, ""
 	}
 	return host, port
+}
+
+// newHTTPServer returns a server for client connections, with header and idle timeouts so a client can't hold one open.
+func newHTTPServer(handler http.Handler) *http.Server {
+	return &http.Server{
+		Handler:           handler,
+		ReadHeaderTimeout: handshakeTimeout,
+		IdleTimeout:       idleTimeout,
+		ErrorLog:          httpErrorLog(),
+	}
 }
