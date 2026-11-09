@@ -1,6 +1,6 @@
 //go:build integration
 
-// Command fakeupstream is the tests' HTTP (:80) and HTTPS (:443) upstream, answering with the path and secret match.
+// Command fakeupstream is the tests' HTTP (:80) and HTTPS (:443) upstream, echoing what the request carried.
 package main
 
 import (
@@ -28,7 +28,7 @@ func main() {
 	os.Exit(1)
 }
 
-// answer writes the path and whether Authorization is the secret, echoing it as a header to check the scrub.
+// answer writes the path, the secret match and the hop headers it got, and echoes Authorization to check the scrub.
 func answer(w http.ResponseWriter, r *http.Request) {
 	auth := r.Header.Get("Authorization")
 	secret := "mismatch"
@@ -37,5 +37,10 @@ func answer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("X-Echo-Authorization", auth)
-	_, _ = fmt.Fprintf(w, "path=%s\nsecret=%s\n", r.URL.Path, secret)
+	// X-Hop is hop-by-hop as Connection names it; X-Keep is end-to-end
+	w.Header().Set("Connection", "X-Hop")
+	w.Header().Set("X-Hop", "1")
+	w.Header().Set("X-Keep", "1")
+	_, _ = fmt.Fprintf(w, "path=%s\nsecret=%s\nheaders=X-Hop:%s,Proxy-Connection:%s,X-Keep:%s\n",
+		r.URL.Path, secret, r.Header.Get("X-Hop"), r.Header.Get("Proxy-Connection"), r.Header.Get("X-Keep"))
 }

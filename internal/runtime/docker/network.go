@@ -14,6 +14,9 @@ const runNetworkPrefix = "agentic-run"
 // inhibitIPv4Opt keeps docker from giving a bridge network an IPv4 address on the host.
 const inhibitIPv4Opt = "com.docker.network.bridge.inhibit_ipv4=true"
 
+// subnetsFormat lists a network's subnets, space-separated.
+const subnetsFormat = "{{range .IPAM.Config}}{{.Subnet}} {{end}}"
+
 // RemoveNetwork removes agentic-net if it exists, is agentic-managed and has no containers attached, such as an active
 // run's proxy; returns nil if it does not exist.
 func (c *Client) RemoveNetwork() error {
@@ -100,7 +103,7 @@ func (c *Client) removeRunNetwork(network string) {
 
 // networkSubnets returns the subnets docker assigned to network, failing if it has none.
 func (c *Client) networkSubnets(network string) ([]string, error) {
-	out, err := c.run("network", "inspect", arg("format", "{{range .IPAM.Config}}{{.Subnet}} {{end}}"), network)
+	out, err := c.run("network", "inspect", arg("format", subnetsFormat), network)
 	if err != nil {
 		return nil, fmt.Errorf("inspect %s subnets: %w", network, err)
 	}

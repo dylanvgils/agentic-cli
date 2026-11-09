@@ -45,6 +45,9 @@ const (
 
 	// dindProbeTimeout bounds each readiness probe in seconds, so a hung dockerd can't stall it.
 	dindProbeTimeout = "10"
+
+	// dryRunAddressPoolPlaceholder stands in for the address pool in dry-run output, as the run network isn't created.
+	dryRunAddressPoolPlaceholder = "<pool outside the run network>"
 )
 
 // dindLogTailOnFail is how many sidecar log lines a failed readiness wait shows.
@@ -87,6 +90,8 @@ type dindHandle struct {
 	identity  dind.Identity
 	container string
 	runDir    string
+	// addressPool is dockerd's --default-address-pool
+	addressPool string
 }
 
 // newDindHandle derives the per-run resource names without creating anything, so it is safe for dry runs.
@@ -105,11 +110,12 @@ func (c *Client) newDindHandle(rs toolRun) (dindHandle, error) {
 	}
 
 	return dindHandle{
-		client:    c,
-		id:        id,
-		identity:  identity,
-		container: dindHostAlias + "-" + id,
-		runDir:    filepath.Join(rs.ToolHome, dindDirName, id),
+		client:      c,
+		id:          id,
+		identity:    identity,
+		container:   dindHostAlias + "-" + id,
+		runDir:      filepath.Join(rs.ToolHome, dindDirName, id),
+		addressPool: dryRunAddressPoolPlaceholder,
 	}, nil
 }
 
@@ -173,7 +179,7 @@ func (h dindHandle) runArgs(rs toolRun) []string {
 	}
 
 	// Trailing flags are passed through to dockerd
-	return append(args, tools.DindImage, arg("data-root", dindDataRoot))
+	return append(args, tools.DindImage, arg("data-root", dindDataRoot), arg("default-address-pool", h.addressPool))
 }
 
 // toolArgs returns the env and mounts pointing the tool's docker CLI at the sidecar.
@@ -269,6 +275,10 @@ func (c *Client) startDind(rs toolRun, interrupt <-chan os.Signal) (dindHandle, 
 		return dindHandle{}, err
 	}
 
+	if h.addressPool, err = c.dindAddressPool(rs.network); err != nil {
+		return dindHandle{}, err
+	}
+
 	if err := os.MkdirAll(h.runDir, 0o700); err != nil {
 		return dindHandle{}, fmt.Errorf("create dind run dir: %w", err)
 	}
@@ -300,6 +310,15 @@ func (c *Client) startDind(rs toolRun, interrupt <-chan os.Signal) (dindHandle, 
 	}
 
 	return h, nil
+}
+
+// dindAddressPool returns an address pool for inner networks that overlaps none of network's subnets.
+func (c *Client) dindAddressPool(network string) (string, error) {
+	subnets, err := c.networkSubnets(network)
+	if err != nil {
+		return "", err
+	}
+	return dind.AddressPool(subnets)
 }
 
 // setupDind starts the Docker sidecar if enabled, returning the tool args and a cleanup func to defer.

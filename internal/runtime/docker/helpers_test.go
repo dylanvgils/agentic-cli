@@ -22,6 +22,9 @@ import (
 // testUser is the host user test runs run as.
 var testUser = platform.User{UID: 1000, GID: 1000}
 
+// testRunSubnet is the run network's subnet in stubbed network inspects.
+const testRunSubnet = "172.19.0.0/16"
+
 // dockerCall records a single run invocation.
 type dockerCall struct {
 	args []string
@@ -152,6 +155,9 @@ func stubDockerRunCapture(t *testing.T, client *Client, failSubcmds ...string) f
 		}
 		if failing[key] {
 			return "", fmt.Errorf("stub: %s failed", key)
+		}
+		if key == "network inspect" && slices.Contains(args, arg("format", subnetsFormat)) {
+			return testRunSubnet + " \n", nil
 		}
 		return "", nil
 	})

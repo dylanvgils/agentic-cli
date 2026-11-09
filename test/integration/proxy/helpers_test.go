@@ -294,6 +294,23 @@ func serverNameScript(host, serverName string) string {
 		" -connect " + host + ":443 -servername " + serverName + " 2>&1; echo exit=$?"
 }
 
+// hopHeaderArgs makes curl send hop-by-hop headers plus X-Keep and print the response header.
+func hopHeaderArgs() []string {
+	return []string{
+		"--include",
+		"--header", "Connection: X-Hop",
+		"--header", "X-Hop: 1",
+		"--header", "Proxy-Connection: keep-alive",
+		"--header", "X-Keep: 1",
+	}
+}
+
+// responseHeader returns the header block of curl --include output.
+func responseHeader(out string) string {
+	header, _, _ := strings.Cut(out, "\r\n\r\n")
+	return header
+}
+
 // hostUser returns the test process's uid:gid, which owns every mounted file.
 func hostUser() string {
 	return fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())
