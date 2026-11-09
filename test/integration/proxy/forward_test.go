@@ -34,6 +34,18 @@ func TestProxyForward(t *testing.T) {
 		assert.Contains(t, run.output(), "msg=request proto=http host="+allowedHost+" port=80 decision=allow")
 	})
 
+	t.Run("hop-by-hop headers are stripped both ways", func(t *testing.T) {
+		// Act
+		out := env.curl("http://"+allowedHost+"/hop", hopHeaderArgs()...)
+
+		// Assert
+		header := responseHeader(out)
+		assert.Contains(t, out, "headers=X-Hop:,Proxy-Connection:,X-Keep:1")
+		assert.Contains(t, header, "X-Keep: 1")
+		assert.NotContains(t, header, "X-Hop:")
+		assert.Contains(t, out, "status=200")
+	})
+
 	t.Run("denied host is refused", func(t *testing.T) {
 		// Act
 		out := env.curl("http://" + deniedHost + "/")
