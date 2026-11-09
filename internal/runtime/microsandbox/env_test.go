@@ -53,13 +53,13 @@ func Test_splitEnv(t *testing.T) {
 		name          string
 		env           []string
 		wantFlags     []string
-		wantForwarded []string
+		wantForwarded []envRef
 	}{
 		{
 			name:          "forwards a bare key and keeps pairs as flags",
 			env:           []string{"MAVEN_OPTS=-Xmx1g", "EXAMPLE_TOKEN"},
 			wantFlags:     []string{"--env=MAVEN_OPTS=-Xmx1g"},
-			wantForwarded: []string{"EXAMPLE_TOKEN"},
+			wantForwarded: []envRef{{guest: "EXAMPLE_TOKEN", source: "EXAMPLE_TOKEN"}},
 		},
 		{
 			name:      "a later pair beats an earlier bare key",
@@ -69,7 +69,7 @@ func Test_splitEnv(t *testing.T) {
 		{
 			name:          "a later bare key beats an earlier pair",
 			env:           []string{"TZ=UTC", "TZ"},
-			wantForwarded: []string{"TZ"},
+			wantForwarded: []envRef{{guest: "TZ", source: "TZ"}},
 		},
 		{
 			name:      "resolves a non-portable bare key to a flag",

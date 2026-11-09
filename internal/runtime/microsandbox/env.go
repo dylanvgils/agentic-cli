@@ -12,11 +12,11 @@ const (
 	// dryRunEnvConfPlaceholder stands in for the forwarded env file in dry-run output, as it isn't written.
 	dryRunEnvConfPlaceholder = "<forwarded env file>"
 
-	// guestEnvPrefix renames guest-only values in msb's env, so they can't steer msb's own HTTP calls.
+	// guestEnvPrefix renames guest-only values in msb's env, so msb itself ignores them.
 	guestEnvPrefix = "AGENTIC_GUEST_"
 )
 
-// envRef maps a guest env key to the msb env var msb reads its value from.
+// envRef maps a guest key to the msb env var holding its value.
 type envRef struct {
 	guest  string
 	source string
@@ -24,11 +24,7 @@ type envRef struct {
 
 // buildEnvArgs returns the --env flags plus a --runtime-conf file for forwarded vars and hidden entries, kept out of args.
 func buildEnvArgs(rs sandbox.RunSpec, hidden []string) (args []string, cleanup func(), err error) {
-	flags, forwarded := splitEnv(sandbox.ResolveEnv(rs.Env))
-	refs := make([]envRef, 0, len(forwarded)+len(hidden))
-	for _, key := range forwarded {
-		refs = append(refs, envRef{guest: key, source: key})
-	}
+	flags, refs := splitEnv(sandbox.ResolveEnv(rs.Env))
 	for _, entry := range hidden {
 		key, _, _ := strings.Cut(entry, "=")
 		refs = append(refs, envRef{guest: key, source: guestEnvName(key)})
@@ -50,7 +46,7 @@ func buildEnvArgs(rs sandbox.RunSpec, hidden []string) (args []string, cleanup f
 
 // splitEnv splits resolved env into --env flags and the forwarded bare keys msb's --env can't take; a key's last
 // entry wins. A non-portable bare key gets its host value as a flag, as msb only substitutes portable names.
-func splitEnv(resolved []string) (flags, forwarded []string) {
+func splitEnv(resolved []string) (flags []string, forwarded []envRef) {
 	last := make(map[string]int, len(resolved))
 	for i, entry := range resolved {
 		key, _, _ := strings.Cut(entry, "=")
@@ -65,7 +61,7 @@ func splitEnv(resolved []string) (flags, forwarded []string) {
 		case isPair:
 			flags = append(flags, arg("env", entry))
 		case sandbox.IsPortableEnvName(key):
-			forwarded = append(forwarded, key)
+			forwarded = append(forwarded, envRef{guest: key, source: key})
 		default:
 			flags = append(flags, arg("env", key+"="+os.Getenv(key)))
 		}
@@ -73,7 +69,7 @@ func splitEnv(resolved []string) (flags, forwarded []string) {
 	return flags, forwarded
 }
 
-// guestProcessEnv renames hidden guest entries for msb's own env, matching the refs buildEnvArgs writes.
+// guestProcessEnv renames hidden entries for msb's env.
 func guestProcessEnv(hidden []string) []string {
 	env := make([]string, 0, len(hidden))
 	for _, entry := range hidden {
@@ -83,13 +79,12 @@ func guestProcessEnv(hidden []string) []string {
 	return env
 }
 
-// guestEnvName returns the private msb env name holding a guest-only value for key.
+// guestEnvName returns the private msb env name for key.
 func guestEnvName(key string) string {
 	return guestEnvPrefix + key
 }
 
-// writeEnvConf writes a temp --runtime-conf file mapping each guest key to a ${source} reference, which msb resolves
-// from its own env, so the file holds no values.
+// writeEnvConf writes a temp --runtime-conf file mapping each key to a ${source} reference, so it holds no values.
 func writeEnvConf(refs []envRef) (string, error) {
 	var b strings.Builder
 	b.WriteString("env:\n")
