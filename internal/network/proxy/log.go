@@ -83,6 +83,8 @@ type Entry struct {
 	Reason Reason `json:"reason,omitempty"`
 	// Error is the upstream or proxy failure detail, kept out of the response to the tool; never in the human line.
 	Error string `json:"error,omitempty"`
+	// UpstreamConnectMillis is how long a tunnel's upstream DNS lookup and connect took; omitted under 1ms.
+	UpstreamConnectMillis int64 `json:"upstream_connect_ms,omitempty"`
 }
 
 // Logger writes each entry as a UTC JSON line to an optional file and as a slog "request" record. Concurrency-safe.
@@ -186,6 +188,9 @@ func requestRecord(entry Entry) slog.Record {
 	}
 	if entry.Reason != "" {
 		r.AddAttrs(slog.String("reason", string(entry.Reason)))
+	}
+	if entry.UpstreamConnectMillis > 0 {
+		r.AddAttrs(slog.Int64("upstream_connect_ms", entry.UpstreamConnectMillis))
 	}
 	return r
 }

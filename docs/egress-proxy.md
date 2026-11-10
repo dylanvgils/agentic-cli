@@ -88,7 +88,7 @@ The log still records the real `"decision"` (`"allow"` or `"deny"`), tagged `"en
 
 ### Access log
 
-Blocked hosts are printed at the end of the run. Every attempt is logged as JSON lines in `$AGENTIC_HOME/logs/proxy_<id>.jsonl`, pruned after `proxy_log_retention_days` in `agentic.json` (default 3). `agentic proxy clean --logs` wipes them all.
+Blocked hosts are printed at the end of the run. Every attempt is logged as JSON lines in `$AGENTIC_HOME/logs/proxy_<id>.jsonl`, pruned after `proxy_log_retention_days` in `agentic.json` (default 3). `agentic proxy clean --logs` wipes them all. A tunnel's `"upstream_connect_ms"` is how long its upstream DNS lookup and connect took, to tell a slow upstream from a slow tool.
 
 Failed requests get a `"reason"`, with the cause in `"error"`:
 

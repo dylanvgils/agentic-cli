@@ -25,34 +25,86 @@ func TestLogger_Log(t *testing.T) {
 		wantLine string
 	}{
 		{
-			name:     "allowed https request",
-			entry:    Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionAllow, Enforced: true},
+			name: "allowed https request",
+			entry: Entry{
+				Protocol: ProtocolHTTPS,
+				Host:     "api.example.test",
+				Port:     "443",
+				Decision: DecisionAllow,
+				Enforced: true,
+			},
 			wantLine: "proto=https host=api.example.test port=443 decision=allow",
 		},
 		{
-			name:     "denied http request",
-			entry:    Entry{Protocol: ProtocolHTTP, Host: "evil.test", Port: "443", Decision: DecisionDeny, Enforced: true},
+			name: "denied http request",
+			entry: Entry{
+				Protocol: ProtocolHTTP,
+				Host:     "evil.test",
+				Port:     "443",
+				Decision: DecisionDeny,
+				Enforced: true,
+			},
 			wantLine: "proto=http host=evil.test port=443 decision=deny",
 		},
 		{
-			name:     "monitor mode marks the request",
-			entry:    Entry{Protocol: ProtocolHTTPS, Host: "evil.test", Port: "443", Decision: DecisionDeny},
+			name: "monitor mode marks the request",
+			entry: Entry{
+				Protocol: ProtocolHTTPS,
+				Host:     "evil.test",
+				Port:     "443",
+				Decision: DecisionDeny,
+			},
 			wantLine: "proto=https host=evil.test port=443 decision=deny monitor=true",
 		},
 		{
-			name:     "intercepted tunnel is tagged",
-			entry:    Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionAllow, Enforced: true, Intercepted: true},
+			name: "intercepted tunnel is tagged",
+			entry: Entry{
+				Protocol:    ProtocolHTTPS,
+				Host:        "api.example.test",
+				Port:        "443",
+				Decision:    DecisionAllow,
+				Enforced:    true,
+				Intercepted: true,
+			},
 			wantLine: "proto=https host=api.example.test port=443 decision=allow intercepted=true",
 		},
 		{
-			name:     "reason is tagged and the error stays out of the human line",
-			entry:    Entry{Protocol: ProtocolHTTPS, Host: "api.example.test", Port: "443", Decision: DecisionDeny, Enforced: true, Reason: ReasonBlockedAddr, Error: "test-error"},
+			name: "reason is tagged and the error stays out of the human line",
+			entry: Entry{
+				Protocol: ProtocolHTTPS,
+				Host:     "api.example.test",
+				Port:     "443",
+				Decision: DecisionDeny,
+				Enforced: true,
+				Reason:   ReasonBlockedAddr,
+				Error:    "test-error",
+			},
 			wantLine: "proto=https host=api.example.test port=443 decision=deny reason=blocked-address",
 		},
 		{
-			name:     "refused path is shown after the port",
-			entry:    Entry{Protocol: ProtocolHTTPS, Host: "raw.example.test", Port: "443", Decision: DecisionDeny, Enforced: true, Path: "/other", Reason: ReasonPathBlocked},
+			name: "refused path is shown after the port",
+			entry: Entry{
+				Protocol: ProtocolHTTPS,
+				Host:     "raw.example.test",
+				Port:     "443",
+				Decision: DecisionDeny,
+				Enforced: true,
+				Path:     "/other",
+				Reason:   ReasonPathBlocked,
+			},
 			wantLine: "proto=https host=raw.example.test port=443 path=/other decision=deny reason=path-blocked",
+		},
+		{
+			name: "upstream connect time is shown last",
+			entry: Entry{
+				Protocol:              ProtocolHTTPS,
+				Host:                  "api.example.test",
+				Port:                  "443",
+				Decision:              DecisionAllow,
+				Enforced:              true,
+				UpstreamConnectMillis: 42,
+			},
+			wantLine: "proto=https host=api.example.test port=443 decision=allow upstream_connect_ms=42",
 		},
 	} {
 		t.Run("records "+tc.name, func(t *testing.T) {
