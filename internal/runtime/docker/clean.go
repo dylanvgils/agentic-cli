@@ -1,11 +1,21 @@
 package docker
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
+)
 
 // CleanImage removes all containers using image (with their anonymous volumes, e.g. the proxy's credentials) and the image itself.
 func (c *Client) CleanImage(image string) error {
 	if err := c.runIfAny(
-		[]string{"ps", arg("all"), arg("quiet"), labelFilter(LabelProject, LabelProjectVal), arg("filter", "ancestor="+image)},
+		[]string{
+			"ps",
+			arg("all"),
+			arg("quiet"),
+			labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
+			arg("filter", "ancestor="+image),
+		},
 		[]string{"rm", arg("force"), arg("volumes")},
 	); err != nil {
 		return err

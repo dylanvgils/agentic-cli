@@ -112,9 +112,13 @@ The sidecar's seccomp profile is derived at run time (`deriveSeccompProfile`) fr
 
 With `--runtime microsandbox --dind`, `ensureDockerdImage` (`internal/usecase/run/microsandbox.go`) builds `<image>-dockerd` (`tools.DockerdImage`) FROM the tool image, adding Docker's daemon and CLI. It's rebuilt when the tool image changes. Because it depends on the tool image, `agentic clean` and `agentic namespace prune` remove it first.
 
-## Orphaned sidecars
+## Run teardown
 
-Sidecars and run networks carry `agentic.owner` (the tool container name) and `agentic.started` labels. If the CLI is killed, its cleanup never runs, so each run starts with `sweepOrphanedSidecars` (`internal/runtime/docker/sidecar.go`). It removes sidecars and networks whose owner is gone and that are older than `sidecarOrphanGrace` (5 minutes, which spares a run that is still starting).
+Every per-run resource derives from one `sandbox.RunID`: the tool container, run network, sidecars, DinD run dir, proxy log and temp files. Sidecars and run networks carry `agentic.run`, `agentic.owner` (the tool container name) and `agentic.started` labels.
+
+Docker's `Teardown(toolHome, runID)` (`internal/runtime/docker/teardown.go`) removes one run's sidecars, network, DinD run dir and proxy token file, best-effort and idempotent. Normal exit, setup rollback and the published proxy's stop go through it.
+
+If the CLI is killed, its teardown never runs, so each run starts with `sweepOrphanedSidecars` (`internal/runtime/docker/sidecar.go`). It removes sidecars and networks whose owner is gone and that are older than `sidecarOrphanGrace` (5 minutes, which spares a run that is still starting).
 
 ## Building the proxy image locally
 

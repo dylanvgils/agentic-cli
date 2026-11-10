@@ -8,6 +8,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // ImageInfo holds metadata about a built tool image.
@@ -168,7 +169,7 @@ func (c *Client) listAllRepositories(filters ...ImageFilter) ([]string, error) {
 	args := []string{
 		"images",
 		arg("format", "{{.Repository}}"),
-		labelFilter(LabelProject, LabelProjectVal),
+		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
 	}
 	for _, f := range filters {
 		args = append(args, string(f))

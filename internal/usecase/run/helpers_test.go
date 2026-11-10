@@ -35,6 +35,7 @@ type fakeDocker struct {
 	startPublishedProxy  func(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error)
 	runTool              func(sidecars docker.Sidecars) error
 	stopSidecars         func(sidecars docker.Sidecars)
+	teardown             func(toolHome string, id sandbox.RunID) error
 	serverVersion        func() (engine, version string, err error)
 }
 
@@ -122,6 +123,13 @@ func (f *fakeDocker) StopSidecars(sidecars docker.Sidecars) {
 	}
 }
 
+func (f *fakeDocker) Teardown(toolHome string, id sandbox.RunID) error {
+	if f.teardown == nil {
+		return nil
+	}
+	return f.teardown(toolHome, id)
+}
+
 // fakeToolUpdates implements ToolUpdates; a nil offer succeeds without offering anything.
 type fakeToolUpdates struct {
 	offer func(u ToolUpdate, confirm func(tool, installed, latest string) bool) error
@@ -195,6 +203,7 @@ type fakeMicrosandbox struct {
 	imageRefs    func() ([]string, error)
 	removeImage  func(ref string) error
 	run          func(rs sandbox.RunSpec, route *microsandbox.ProxyRoute) error
+	teardown     func(id sandbox.RunID) error
 }
 
 func (f *fakeMicrosandbox) Capabilities() sandbox.Capabilities {
@@ -245,6 +254,13 @@ func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec, route *microsandbox.ProxyRout
 		return nil
 	}
 	return f.run(rs, route)
+}
+
+func (f *fakeMicrosandbox) Teardown(id sandbox.RunID) error {
+	if f.teardown == nil {
+		return nil
+	}
+	return f.teardown(id)
 }
 
 // stubRunImage makes m's Run record the image it runs; empty means it didn't run.

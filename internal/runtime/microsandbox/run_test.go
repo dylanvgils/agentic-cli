@@ -20,23 +20,39 @@ func TestClient_Run(t *testing.T) {
 		{Name: "EXAMPLE_TOKEN", Hosts: []string{"api.example.test"}, Headers: []string{"Authorization"}, Secret: "test-secret"},
 	}
 
-	t.Run("runs msb interactively", func(t *testing.T) {
+	t.Run("refuses an invalid run id", func(t *testing.T) {
+		// Arrange
+		client := newTestClient(&fakeRunner{})
+
+		// Act
+		err := client.Run(sandbox.RunSpec{Image: "agentic-claude"}, nil)
+
+		// Assert
+		require.EqualError(t, err, `invalid run id ""`)
+	})
+
+	t.Run("runs msb interactively, labelled with its run", func(t *testing.T) {
 		// Arrange
 		client, call := stubRunInteractive()
 
 		// Act
-		err := client.Run(sandbox.RunSpec{Image: "agentic-claude", ToolArgs: []string{"--help"}}, nil)
+		err := client.Run(sandbox.RunSpec{
+			RunID:    testRunID,
+			Image:    "agentic-claude",
+			ToolArgs: []string{"--help"},
+		}, nil)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "run", call.args[0])
+		assert.Contains(t, call.args, "--label=agentic.run="+string(testRunID))
 		assert.Equal(t, []string{"agentic-claude", "--", "--help"}, call.args[len(call.args)-3:])
 	})
 
 	t.Run("dry run prints the command without running it or its secrets", func(t *testing.T) {
 		// Arrange
 		client := newTestClient(&fakeRunner{})
-		rs := sandbox.RunSpec{Image: "agentic-claude", DryRun: true, Credentials: creds}
+		rs := sandbox.RunSpec{RunID: testRunID, Image: "agentic-claude", DryRun: true, Credentials: creds}
 
 		// Act
 		var err error
@@ -54,7 +70,11 @@ func TestClient_Run(t *testing.T) {
 		client, call := stubRunInteractive()
 
 		// Act
-		err := client.Run(sandbox.RunSpec{Image: "agentic-claude", Credentials: creds}, nil)
+		err := client.Run(sandbox.RunSpec{
+			RunID:       testRunID,
+			Image:       "agentic-claude",
+			Credentials: creds,
+		}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -68,18 +88,28 @@ func TestClient_Run(t *testing.T) {
 		client, call := stubRunInteractive()
 
 		// Act
-		err := client.Run(sandbox.RunSpec{Image: "agentic-claude", Env: []string{"EXAMPLE_TOKEN"}}, nil)
+		err := client.Run(sandbox.RunSpec{
+			RunID: testRunID,
+			Image: "agentic-claude",
+			Env:   []string{"EXAMPLE_TOKEN"},
+		}, nil)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "env:\n  \"EXAMPLE_TOKEN\": \"${EXAMPLE_TOKEN}\"\n", call.conf)
+		assert.Equal(t, envConfPath(testRunID), call.confPath)
 		assert.NoFileExists(t, call.confPath)
 	})
 
 	t.Run("runs with unsupported features left out", func(t *testing.T) {
 		// Arrange
 		client, call := stubRunInteractive()
-		rs := sandbox.RunSpec{Image: "agentic-claude", Dind: sandbox.DindSpec{Enabled: true}, Volumes: []string{"go-cache:/cache"}}
+		rs := sandbox.RunSpec{
+			RunID:   testRunID,
+			Image:   "agentic-claude",
+			Dind:    sandbox.DindSpec{Enabled: true},
+			Volumes: []string{"go-cache:/cache"},
+		}
 
 		// Act
 		err := client.Run(rs, nil)
@@ -93,7 +123,12 @@ func TestClient_Run(t *testing.T) {
 		// Arrange
 		client, call := stubRunInteractive()
 		apiKey := []sandbox.Credential{{Name: "EXAMPLE_API_KEY", Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"}}
-		rs := sandbox.RunSpec{Image: "agentic-claude", Credentials: apiKey, Egress: sandbox.EgressPolicy{Mode: sandbox.EgressMonitor}}
+		rs := sandbox.RunSpec{
+			RunID:       testRunID,
+			Image:       "agentic-claude",
+			Credentials: apiKey,
+			Egress:      sandbox.EgressPolicy{Mode: sandbox.EgressMonitor},
+		}
 		route := &ProxyRoute{Port: "49153", Token: "test-token", CAPEM: []byte("test-ca"), Env: []string{"EXAMPLE_API_KEY=agentic-placeholder"}}
 
 		// Act
@@ -129,8 +164,8 @@ func Test_buildRunArgs(t *testing.T) {
 		},
 		{
 			name:     "omits -- without tool args",
-			rs:       sandbox.RunSpec{Image: "agentic-claude"},
-			wantTail: []string{"--label=project=agentic-cli", "agentic-claude"},
+			rs:       sandbox.RunSpec{RunID: testRunID, Image: "agentic-claude"},
+			wantTail: []string{"--label=project=agentic-cli", "--label=agentic.run=" + string(testRunID), "agentic-claude"},
 		},
 		{
 			name:     "passes only the tool args the entrypoint leaves",

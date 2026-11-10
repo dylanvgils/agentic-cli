@@ -3,7 +3,6 @@ package docker
 import (
 	"errors"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -26,18 +25,33 @@ func TestClient_StartSidecars(t *testing.T) {
 		assert.Empty(t, get())
 	})
 
-	t.Run("names the tool container after its image and keeps the proxy log", func(t *testing.T) {
+	t.Run("refuses an invalid run id before touching Docker", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t, client)
+
+		// Act
+		_, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude", User: &testUser}, "")
+
+		// Assert
+		require.EqualError(t, err, `invalid run id ""`)
+		assert.Empty(t, get())
+	})
+
+	t.Run("names the tool container and network after the run and keeps the proxy log", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client)
 
 		// Act
-		sidecars, err := client.StartSidecars(sandbox.RunSpec{Image: "agentic-claude", User: &testUser}, "/example.test/logs/proxy_abc.jsonl")
+		sidecars, err := client.StartSidecars(sandbox.RunSpec{
+			RunID: testRunID,
+			Image: "agentic-claude",
+			User:  &testUser,
+		}, "/example.test/logs/proxy_abc.jsonl")
 
 		// Assert
 		require.NoError(t, err)
-		assert.True(t, strings.HasPrefix(sidecars.run.container, "agentic-claude-"))
-		id := strings.TrimPrefix(sidecars.run.container, "agentic-claude-")
-		assert.Equal(t, "agentic-run-"+id, sidecars.run.network, "the network shares the container's id")
+		assert.Equal(t, "agentic-claude-"+string(testRunID), sidecars.run.container)
+		assert.Equal(t, "agentic-run-"+string(testRunID), sidecars.run.network)
 		assert.Equal(t, "/example.test/logs/proxy_abc.jsonl", sidecars.run.proxyLog)
 	})
 
@@ -45,7 +59,13 @@ func TestClient_StartSidecars(t *testing.T) {
 		// Arrange
 		stubDindReadyTimeout(t, client)
 		stubDockerRunCapture(t, client, "exec")
-		rs := sandbox.RunSpec{Image: "agentic-claude", User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
+		rs := sandbox.RunSpec{
+			RunID:    testRunID,
+			Image:    "agentic-claude",
+			User:     &testUser,
+			ToolHome: t.TempDir(),
+			Dind:     sandbox.DindSpec{Enabled: true},
+		}
 
 		// Act
 		_, err := client.StartSidecars(rs, "")
@@ -105,7 +125,12 @@ func TestClient_RunTool(t *testing.T) {
 		// Arrange
 		stubDindReadyTimeout(t, client)
 		stubDockerRunCapture(t, client)
-		rs := sandbox.RunSpec{Image: "agentic-claude", User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
+		rs := sandbox.RunSpec{
+			Image:    "agentic-claude",
+			User:     &testUser,
+			ToolHome: t.TempDir(),
+			Dind:     sandbox.DindSpec{Enabled: true},
+		}
 
 		// Act
 		err := startAndRunTool(client, rs, "")
@@ -173,21 +198,30 @@ func TestClient_RunTool(t *testing.T) {
 func TestClient_StopSidecars(t *testing.T) {
 	client := newTestClient()
 
-	t.Run("removes the sidecars it started", func(t *testing.T) {
+	t.Run("tears its run down", func(t *testing.T) {
 		// Arrange
 		stubDindReadyTimeout(t, client)
-		calls := stubDockerRunCapture(t, client)
-		rs := sandbox.RunSpec{Image: "agentic-claude", User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}
+		toolHome := t.TempDir()
+		daemon := &fakeDaemon{}
+		stubDaemon(t, client, daemon)
+		rs := sandbox.RunSpec{
+			RunID:    testRunID,
+			Image:    "agentic-claude",
+			User:     &testUser,
+			ToolHome: toolHome,
+			Dind:     sandbox.DindSpec{Enabled: true},
+		}
 		sidecars, err := client.StartSidecars(rs, "")
 		require.NoError(t, err)
+		daemon.containers = []ownedResource{owned(dindContainerName(testRunID), sidecars.run.container, 0)}
+		daemon.networks = []ownedResource{owned(runNetworkName(testRunID), sidecars.run.container, 0)}
 
 		// Act
 		client.StopSidecars(sidecars)
 
 		// Assert
-		rm := findCall(calls(), "rm", "--force", "--volumes")
-		require.NotNil(t, rm)
-		assert.True(t, hasArgWithPrefix(rm, dindHostAlias+"-"))
+		assert.Empty(t, daemon.names())
+		assert.NoDirExists(t, dindRunDir(toolHome, testRunID))
 	})
 
 	t.Run("zero value does nothing", func(t *testing.T) {

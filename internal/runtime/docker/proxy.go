@@ -1,8 +1,6 @@
 package docker
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -49,7 +47,7 @@ const (
 // network's subnets that may use them, and the CA cert the proxy signs them with, set once started.
 type proxyHandle struct {
 	client    *Client
-	id        string
+	id        sandbox.RunID
 	container string
 	// owner is the tool container, or a pidOwner for a published proxy
 	owner       string
@@ -76,11 +74,6 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		return proxyHandle{}, errNoHostUser
 	}
 
-	id, err := randID()
-	if err != nil {
-		return proxyHandle{}, err
-	}
-
 	creds, placeholderEnv, err := proxyCredentials(rs.Credentials)
 	if err != nil {
 		return proxyHandle{}, err
@@ -91,11 +84,10 @@ func (c *Client) newProxyHandle(rs toolRun) (proxyHandle, error) {
 		return proxyHandle{}, err
 	}
 
-	name := tools.ProxyHostAlias + "-" + id
 	return proxyHandle{
 		client:         c,
-		id:             id,
-		container:      name,
+		id:             rs.RunID,
+		container:      proxyContainerName(rs.RunID),
 		owner:          rs.container,
 		logPath:        rs.proxyLog,
 		monitor:        rs.Egress.Mode == sandbox.EgressMonitor,
@@ -142,14 +134,9 @@ func proxyEnvArgs(dind bool) []string {
 	return args
 }
 
-// Stop removes the proxy sidecar and its volume; idempotent and error-ignoring, so it is safe to defer.
-func (h proxyHandle) Stop() {
-	_, _ = h.client.run("rm", "--force", "--volumes", h.container)
-}
-
-// startProxy starts h's proxy sidecar, copying in any credentials before it starts and wiring it to the egress
-// network; cleans up whatever it created on any failure.
-func (c *Client) startProxy(h proxyHandle, rs toolRun) (proxyHandle, error) {
+// startProxy creates, boots and connects h's proxy; it fails if interrupt fired meanwhile.
+func (c *Client) startProxy(h proxyHandle, rs toolRun, interrupt <-chan os.Signal) (proxyHandle, error) {
+	logging.Info("starting egress proxy...")
 	h, err := c.createProxy(h, rs)
 	if err != nil {
 		return proxyHandle{}, err
@@ -157,37 +144,15 @@ func (c *Client) startProxy(h proxyHandle, rs toolRun) (proxyHandle, error) {
 
 	h.caPEM, err = h.boot()
 	if err != nil {
-		h.Stop()
 		return proxyHandle{}, err
-	}
-	return h, nil
-}
-
-// startGuarded starts h's proxy with signals guarded, so Ctrl-C during startup still removes the sidecar and its
-// credentials volume; cleanup stops it and the guard.
-func (c *Client) startGuarded(h proxyHandle, rs toolRun) (started proxyHandle, cleanup func(), err error) {
-	interrupt, stop := guardSignals()
-
-	logging.Info("starting egress proxy...")
-	h, err = c.startProxy(h, rs)
-	if err != nil {
-		stop()
-		return proxyHandle{}, nil, err
 	}
 
 	select {
 	case <-interrupt:
-		h.Stop()
-		stop()
-		return proxyHandle{}, nil, fmt.Errorf("interrupted while starting egress proxy")
+		return proxyHandle{}, fmt.Errorf("interrupted while starting egress proxy")
 	default:
 	}
-
-	cleanup = func() {
-		h.Stop()
-		stop()
-	}
-	return h, cleanup, nil
+	return h, nil
 }
 
 // createProxy prepares the egress network and log file and creates h's proxy container without starting it.
@@ -221,44 +186,44 @@ func (c *Client) createProxy(h proxyHandle, rs toolRun) (proxyHandle, error) {
 	return h, nil
 }
 
-// setupProxy configures rs for proxy mode if enabled, returning the tool args (proxy env, CA trust) to inject and a cleanup func to defer.
-func (c *Client) setupProxy(rs toolRun) (proxyEnv []string, cleanup func(), err error) {
+// setupProxy starts rs's proxy if enabled and returns the tool's proxy env and CA trust args.
+func (c *Client) setupProxy(rs toolRun, interrupt <-chan os.Signal) (proxyEnv []string, err error) {
 	if !rs.Egress.Mode.Enabled() {
-		return nil, noCleanup, nil
+		return nil, nil
 	}
 
 	if rs.DryRun {
 		return c.dryRunProxy(rs)
 	}
-	return c.launchProxy(rs)
+	return c.launchProxy(rs, interrupt)
 }
 
 // dryRunProxy prints the proxy command and returns the tool's proxy env without provisioning anything.
-func (c *Client) dryRunProxy(rs toolRun) (proxyEnv []string, cleanup func(), err error) {
+func (c *Client) dryRunProxy(rs toolRun) (proxyEnv []string, err error) {
 	handle, err := c.newProxyHandle(rs)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Shows no secrets: those are only copied in before start
 	sandbox.PrintDryRun("egress proxy", "docker", handle.createArgs(rs, ""))
 	sandbox.PrintDryRun("egress network", "docker", handle.connectArgs())
 
-	return handle.toolEnvArgs(rs.Dind.Enabled), noCleanup, nil
+	return handle.toolEnvArgs(rs.Dind.Enabled), nil
 }
 
-// launchProxy starts the sidecar and returns a cleanup that tears it down.
-func (c *Client) launchProxy(rs toolRun) (proxyEnv []string, cleanup func(), err error) {
+// launchProxy starts the sidecar and returns the tool's proxy env.
+func (c *Client) launchProxy(rs toolRun, interrupt <-chan os.Signal) (proxyEnv []string, err error) {
 	h, err := c.newProxyHandle(rs)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	h, cleanup, err = c.startGuarded(h, rs)
+	h, err = c.startProxy(h, rs, interrupt)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return h.toolEnvArgs(rs.Dind.Enabled), cleanup, nil
+	return h.toolEnvArgs(rs.Dind.Enabled), nil
 }
 
 // createArgs builds the `docker create` arguments for the hardened proxy sidecar: on the run network it registers
@@ -286,9 +251,9 @@ func (h proxyHandle) createArgs(rs toolRun, tokenFile string) []string {
 		arg("cap-drop", "ALL"),
 		arg("security-opt", "no-new-privileges:true"),
 		arg("user", h.user.String()),
-		label(LabelProject, LabelProjectVal),
+		label(sandbox.LabelProject, sandbox.LabelProjectVal),
 	)
-	args = append(args, ownerLabels(h.owner)...)
+	args = append(args, ownerLabels(h.owner, h.id)...)
 
 	// Validated plain data, so it always marshals
 	rulesJSON, _ := json.Marshal(h.rules)
@@ -391,7 +356,7 @@ func (h proxyHandle) checkStarted() error {
 func (c *Client) SweepProxyResources() ([]string, error) {
 	listArgs := []string{
 		"ps", arg("all"), arg("format", ownedFormat(".Names")),
-		labelFilter(LabelProject, LabelProjectVal),
+		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
 		nameFilter(tools.ProxyHostAlias),
 	}
 	return c.removeUnused(listArgs, []string{"rm", arg("force"), arg("volumes")})
@@ -410,11 +375,7 @@ func proxyRules(rules []sandbox.AllowRule) ([]proxy.Rule, error) {
 	return converted, nil
 }
 
-// randID returns a short random hex identifier for per-run resource names.
-func randID() (string, error) {
-	buf := make([]byte, 6)
-	if _, err := rand.Read(buf); err != nil {
-		return "", fmt.Errorf("generate proxy id: %w", err)
-	}
-	return hex.EncodeToString(buf), nil
+// proxyContainerName returns run id's proxy sidecar name.
+func proxyContainerName(id sandbox.RunID) string {
+	return tools.ProxyHostAlias + "-" + id.String()
 }

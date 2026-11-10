@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -53,9 +52,6 @@ const (
 // dindLogTailOnFail is how many sidecar log lines a failed readiness wait shows.
 const dindLogTailOnFail = "30"
 
-// dindRunIDPattern matches randID output, so the sweep only touches dirs agentic created.
-var dindRunIDPattern = regexp.MustCompile(`^[0-9a-f]{12}$`)
-
 // dindCapabilities is the sidecar's bounding set; they only take effect inside rootlesskit's user namespace.
 // A cap missing here can never be regained by dockerd or its containers, even inside a nested user namespace.
 var dindCapabilities = []string{
@@ -86,7 +82,7 @@ var dindDevices = []string{"/dev/net/tun"}
 // dindHandle identifies the per-run sidecar and its run dir.
 type dindHandle struct {
 	client    *Client
-	id        string
+	id        sandbox.RunID
 	identity  dind.Identity
 	container string
 	runDir    string
@@ -96,11 +92,6 @@ type dindHandle struct {
 
 // newDindHandle derives the per-run resource names without creating anything, so it is safe for dry runs.
 func (c *Client) newDindHandle(rs toolRun) (dindHandle, error) {
-	id, err := randID()
-	if err != nil {
-		return dindHandle{}, err
-	}
-
 	if rs.User == nil {
 		return dindHandle{}, errNoHostUser
 	}
@@ -111,18 +102,12 @@ func (c *Client) newDindHandle(rs toolRun) (dindHandle, error) {
 
 	return dindHandle{
 		client:      c,
-		id:          id,
+		id:          rs.RunID,
 		identity:    identity,
-		container:   dindHostAlias + "-" + id,
-		runDir:      filepath.Join(rs.ToolHome, dindDirName, id),
+		container:   dindContainerName(rs.RunID),
+		runDir:      dindRunDir(rs.ToolHome, rs.RunID),
 		addressPool: dryRunAddressPoolPlaceholder,
 	}, nil
-}
-
-// Stop removes the sidecar, its data volume and the run dir; safe to defer.
-func (h dindHandle) Stop() {
-	_, _ = h.client.run("rm", "--force", "--volumes", h.container)
-	_ = os.RemoveAll(h.runDir)
 }
 
 // runArgs builds the `docker run` arguments for the rootless dockerd sidecar, on rs's run network so with the proxy
@@ -134,7 +119,7 @@ func (h dindHandle) runArgs(rs toolRun) []string {
 		arg("name", h.container),
 		arg("network", rs.network),
 		arg("network-alias", dindHostAlias),
-		label(LabelProject, LabelProjectVal),
+		label(sandbox.LabelProject, sandbox.LabelProjectVal),
 		arg("pids-limit", rs.Dind.Limits.PidsLimit),
 		arg("cpus", rs.Dind.Limits.CPUs),
 		arg("memory", rs.Dind.Limits.Memory),
@@ -143,7 +128,7 @@ func (h dindHandle) runArgs(rs toolRun) []string {
 		arg("env", "HOME="+dind.Home),
 		arg("cap-drop", "ALL"),
 	}
-	args = append(args, ownerLabels(rs.container)...)
+	args = append(args, ownerLabels(rs.container, rs.RunID)...)
 
 	for _, capability := range dindCapabilities {
 		args = append(args, arg("cap-add", capability))
@@ -257,7 +242,7 @@ func (h dindHandle) exited() bool {
 func (c *Client) SweepDindResources(toolHome string) ([]string, error) {
 	listArgs := []string{
 		"ps", arg("all"), arg("format", ownedFormat(".Names")),
-		labelFilter(LabelProject, LabelProjectVal),
+		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
 		nameFilter(dindHostAlias),
 	}
 	removed, err := c.removeUnused(listArgs, []string{"rm", arg("force"), arg("volumes")})
@@ -268,7 +253,7 @@ func (c *Client) SweepDindResources(toolHome string) ([]string, error) {
 	return removed, c.sweepDindRunDirs(toolHome)
 }
 
-// startDind writes the per-run files, starts the sidecar and waits for dockerd; cleans up on failure.
+// startDind writes the run files, starts the sidecar and waits for dockerd.
 func (c *Client) startDind(rs toolRun, interrupt <-chan os.Signal) (dindHandle, error) {
 	h, err := c.newDindHandle(rs)
 	if err != nil {
@@ -283,29 +268,23 @@ func (c *Client) startDind(rs toolRun, interrupt <-chan os.Signal) (dindHandle, 
 		return dindHandle{}, fmt.Errorf("create dind run dir: %w", err)
 	}
 	if err := dind.WriteCerts(h.runDir, []string{dindHostAlias, "localhost", "127.0.0.1", "::1"}); err != nil {
-		h.Stop()
 		return dindHandle{}, err
 	}
 	if err := writeDindClientConfig(filepath.Join(h.runDir, dindConfigSubdir), rs.Egress.Mode.Enabled()); err != nil {
-		h.Stop()
 		return dindHandle{}, err
 	}
 	if err := dind.WriteSeccompProfile(filepath.Join(h.runDir, dind.SeccompFileName)); err != nil {
-		h.Stop()
 		return dindHandle{}, err
 	}
 	if err := dind.WriteIdentityFiles(filepath.Join(h.runDir, dindEtcSubdir), h.identity); err != nil {
-		h.Stop()
 		return dindHandle{}, err
 	}
 
 	if _, err := c.run(h.runArgs(rs)...); err != nil {
-		h.Stop()
 		return dindHandle{}, fmt.Errorf("start docker sidecar: %w", err)
 	}
 
 	if err := h.waitReady(interrupt); err != nil {
-		h.Stop()
 		return dindHandle{}, err
 	}
 
@@ -321,46 +300,37 @@ func (c *Client) dindAddressPool(network string) (string, error) {
 	return dind.AddressPool(subnets)
 }
 
-// setupDind starts the Docker sidecar if enabled, returning the tool args and a cleanup func to defer.
-func (c *Client) setupDind(rs toolRun) (toolArgs []string, cleanup func(), err error) {
+// setupDind starts the Docker sidecar if enabled and returns the tool args.
+func (c *Client) setupDind(rs toolRun, interrupt <-chan os.Signal) (toolArgs []string, err error) {
 	if !rs.Dind.Enabled {
-		return nil, noCleanup, nil
+		return nil, nil
 	}
 
 	if rs.DryRun {
 		return c.dryRunDind(rs)
 	}
-	return c.launchDind(rs)
+	return c.launchDind(rs, interrupt)
 }
 
 // dryRunDind prints the sidecar command and returns the tool args without provisioning anything.
-func (c *Client) dryRunDind(rs toolRun) (toolArgs []string, cleanup func(), err error) {
+func (c *Client) dryRunDind(rs toolRun) (toolArgs []string, err error) {
 	handle, err := c.newDindHandle(rs)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	sandbox.PrintDryRun("docker sidecar", "docker", handle.runArgs(rs))
-	return handle.toolArgs(), noCleanup, nil
+	return handle.toolArgs(), nil
 }
 
-// launchDind starts the sidecar and returns a cleanup that removes it.
-func (c *Client) launchDind(rs toolRun) (toolArgs []string, cleanup func(), err error) {
-	// Guard first so Ctrl-C during startup still removes the sidecar
-	interrupt, stop := guardSignals()
-
+// launchDind starts the sidecar and returns the tool args.
+func (c *Client) launchDind(rs toolRun, interrupt <-chan os.Signal) (toolArgs []string, err error) {
 	logging.Info("starting docker sidecar...")
 	handle, err := c.startDind(rs, interrupt)
 	if err != nil {
-		stop()
-		return nil, nil, err
+		return nil, err
 	}
-
-	cleanup = func() {
-		handle.Stop()
-		stop()
-	}
-	return handle.toolArgs(), cleanup, nil
+	return handle.toolArgs(), nil
 }
 
 // sweepDindRunDirs removes run dirs whose sidecar is gone, sparing ones younger than dindRunDirGrace.
@@ -376,7 +346,7 @@ func (c *Client) sweepDindRunDirs(toolHome string) error {
 
 	listArgs := []string{
 		"ps", arg("all"), arg("format", "{{.Names}}"),
-		labelFilter(LabelProject, LabelProjectVal),
+		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
 		nameFilter(dindHostAlias),
 	}
 	out, err := c.run(listArgs...)
@@ -390,7 +360,8 @@ func (c *Client) sweepDindRunDirs(toolHome string) error {
 	}
 
 	for _, entry := range entries {
-		if !entry.IsDir() || !dindRunIDPattern.MatchString(entry.Name()) || live[entry.Name()] {
+		id, err := sandbox.ParseRunID(entry.Name())
+		if err != nil || !entry.IsDir() || live[entry.Name()] {
 			continue
 		}
 
@@ -399,7 +370,7 @@ func (c *Client) sweepDindRunDirs(toolHome string) error {
 			continue
 		}
 
-		if err := os.RemoveAll(filepath.Join(base, entry.Name())); err != nil {
+		if err := os.RemoveAll(dindRunDir(toolHome, id)); err != nil {
 			return fmt.Errorf("remove stale dind run dir: %w", err)
 		}
 	}
@@ -453,4 +424,14 @@ func writeDindClientConfig(dir string, proxyEnabled bool) error {
 	}
 
 	return nil
+}
+
+// dindContainerName returns run id's dind sidecar name.
+func dindContainerName(id sandbox.RunID) string {
+	return dindHostAlias + "-" + id.String()
+}
+
+// dindRunDir returns run id's host dir under toolHome.
+func dindRunDir(toolHome string, id sandbox.RunID) string {
+	return filepath.Join(toolHome, dindDirName, id.String())
 }

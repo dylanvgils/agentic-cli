@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -42,55 +43,46 @@ func (r ownedResource) inUse(existing map[string]bool, grace time.Duration) bool
 	return r.owner != "" && !r.isOrphan(existing, grace)
 }
 
-// ownerLabels tie a sidecar or its network to owner, its tool container or a pidOwner.
-func ownerLabels(owner string) []string {
-	return []string{
-		label(LabelOwner, owner),
-		label(LabelStarted, formatLabelTime(time.Now())),
-	}
-}
-
-// setupSidecars sweeps orphans, creates the run network, then starts the proxy and dind on it; cleanup stops both and
-// removes the network last, once nothing is attached to it.
-func (c *Client) setupSidecars(rs toolRun) (args []string, cleanup func(), err error) {
-	networkCleanup := noCleanup
+// setupSidecars sweeps orphans, then creates the run network and sidecars, tearing the run down on failure.
+func (c *Client) setupSidecars(rs toolRun) (args []string, stopGuard func(), err error) {
 	if rs.DryRun {
 		sandbox.PrintDryRun("run network", "docker", runNetworkArgs(rs))
-	} else {
-		warnOnSweepError(c.sweepOrphanedSidecars(rs.ToolHome))
-
-		if err := c.createRunNetwork(rs); err != nil {
-			return nil, nil, err
-		}
-		networkCleanup = func() { c.removeRunNetwork(rs.network) }
+		args, err := c.sidecarArgs(rs, nil)
+		return args, noCleanup, err
 	}
 
-	proxyEnv, proxyCleanup, err := c.setupProxy(rs)
+	warnOnSweepError(c.sweepOrphanedSidecars(rs.ToolHome))
+
+	interrupt, stopGuard := guardSidecars(rs)
+	args, err = c.startSidecars(rs, interrupt)
 	if err != nil {
-		networkCleanup()
+		_ = c.Teardown(rs.ToolHome, rs.RunID)
+		stopGuard()
 		return nil, nil, err
 	}
-
-	dindArgs, dindCleanup, err := c.setupDind(rs)
-	if err != nil {
-		proxyCleanup()
-		networkCleanup()
-		return nil, nil, err
-	}
-
-	cleanup = func() {
-		dindCleanup()
-		proxyCleanup()
-		networkCleanup()
-	}
-	return append(proxyEnv, dindArgs...), cleanup, nil
+	return args, stopGuard, nil
 }
 
-// warnOnSweepError reports a failed sweep without failing the run.
-func warnOnSweepError(err error) {
-	if err != nil {
-		logging.Warnf("could not remove orphaned sidecars: %v", err)
+// startSidecars creates rs's network and starts its sidecars.
+func (c *Client) startSidecars(rs toolRun, interrupt <-chan os.Signal) ([]string, error) {
+	if err := c.createRunNetwork(rs); err != nil {
+		return nil, err
 	}
+	return c.sidecarArgs(rs, interrupt)
+}
+
+// sidecarArgs starts (or prints) rs's proxy and dind and returns the tool's args.
+func (c *Client) sidecarArgs(rs toolRun, interrupt <-chan os.Signal) ([]string, error) {
+	proxyEnv, err := c.setupProxy(rs, interrupt)
+	if err != nil {
+		return nil, err
+	}
+
+	dindArgs, err := c.setupDind(rs, interrupt)
+	if err != nil {
+		return nil, err
+	}
+	return append(proxyEnv, dindArgs...), nil
 }
 
 // sweepOrphanedSidecars removes sidecars, networks and run dirs whose tool container is gone; removals are best-effort.
@@ -112,7 +104,12 @@ func (c *Client) sweepOrphanedSidecars(toolHome string) error {
 
 // removeOrphanedContainers removes orphaned sidecars and returns the names of all agentic containers.
 func (c *Client) removeOrphanedContainers() (existing map[string]bool, err error) {
-	all, err := c.listOwned("ps", arg("all"), arg("format", ownedFormat(".Names")), labelFilter(LabelProject, LabelProjectVal))
+	all, err := c.listOwned(
+		"ps",
+		arg("all"),
+		arg("format", ownedFormat(".Names")),
+		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +166,7 @@ func (c *Client) removeUnused(listArgs, rmArgs []string) ([]string, error) {
 
 // containerNames returns the names of all agentic containers.
 func (c *Client) containerNames() (map[string]bool, error) {
-	out, err := c.run("ps", arg("all"), arg("format", "{{.Names}}"), labelFilter(LabelProject, LabelProjectVal))
+	out, err := c.run("ps", arg("all"), arg("format", "{{.Names}}"), labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal))
 	if err != nil {
 		return nil, err
 	}
@@ -195,6 +192,30 @@ func (c *Client) listOwned(args ...string) ([]ownedResource, error) {
 		}
 	}
 	return result, nil
+}
+
+// ownerLabels tie a sidecar or its network to run id and owner, its tool container or a pidOwner.
+func ownerLabels(owner string, id sandbox.RunID) []string {
+	return []string{
+		label(LabelOwner, owner),
+		label(LabelStarted, formatLabelTime(time.Now())),
+		label(sandbox.LabelRun, id.String()),
+	}
+}
+
+// guardSidecars guards signals while rs's sidecars run; without sidecars there's no guard.
+func guardSidecars(rs toolRun) (interrupt <-chan os.Signal, stop func()) {
+	if !rs.Egress.Mode.Enabled() && !rs.Dind.Enabled {
+		return nil, noCleanup
+	}
+	return guardSignals()
+}
+
+// warnOnSweepError reports a failed sweep without failing the run.
+func warnOnSweepError(err error) {
+	if err != nil {
+		logging.Warnf("could not remove orphaned sidecars: %v", err)
+	}
 }
 
 // parseOwnedRow parses one ownedFormat row; an unparseable start time is left zero.
@@ -224,7 +245,7 @@ func unusedNames(resources []ownedResource, existing map[string]bool, grace time
 	return names
 }
 
-// noCleanup is the cleanup for paths that set nothing up.
+// noCleanup is the stop func for paths that set nothing up.
 func noCleanup() {
 	// Nothing to undo
 }

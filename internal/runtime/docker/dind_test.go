@@ -24,7 +24,16 @@ func Test_startDind(t *testing.T) {
 	t.Run("joins the run network with a clear address pool, writes run files and probes the sidecar", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{}}, container: "agentic-claude-abc", network: "agentic-run-abc"}
+		rs := toolRun{
+			RunSpec: sandbox.RunSpec{
+				RunID:    testRunID,
+				User:     &testUser,
+				ToolHome: t.TempDir(),
+				Dind:     sandbox.DindSpec{},
+			},
+			container: "agentic-claude-abc",
+			network:   "agentic-run-abc",
+		}
 
 		// Act
 		handle, err := client.startDind(rs, nil)
@@ -43,26 +52,37 @@ func Test_startDind(t *testing.T) {
 		assert.DirExists(t, filepath.Join(handle.runDir, "config"))
 	})
 
-	t.Run("tears everything down when dockerd never becomes ready", func(t *testing.T) {
+	t.Run("fails when dockerd never becomes ready", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, client, "exec")
-		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome, Dind: sandbox.DindSpec{}}}
+		stubDockerRunCapture(t, client, "exec")
+		rs := toolRun{
+			RunSpec: sandbox.RunSpec{
+				RunID:    testRunID,
+				User:     &testUser,
+				ToolHome: t.TempDir(),
+				Dind:     sandbox.DindSpec{},
+			},
+		}
 
 		// Act
 		_, err := client.startDind(rs, nil)
 
 		// Assert
-		require.Error(t, err)
-		assert.NotNil(t, findCall(get(), "rm", "--force", "--volumes"))
-		entries, _ := os.ReadDir(filepath.Join(toolHome, dindDirName))
-		assert.Empty(t, entries, "cert dir should be removed")
+		require.ErrorContains(t, err, "docker sidecar did not become ready")
 	})
 
 	t.Run("refuses when the run network's subnets can't be read", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client, "network inspect")
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{}}, network: "agentic-run-abc"}
+		rs := toolRun{
+			RunSpec: sandbox.RunSpec{
+				RunID:    testRunID,
+				User:     &testUser,
+				ToolHome: t.TempDir(),
+				Dind:     sandbox.DindSpec{},
+			},
+			network: "agentic-run-abc",
+		}
 
 		// Act
 		_, err := client.startDind(rs, nil)
@@ -72,19 +92,23 @@ func Test_startDind(t *testing.T) {
 		assert.Nil(t, findCall(get(), "run"), "the sidecar must not start without a clear pool")
 	})
 
-	t.Run("removes certs when sidecar fails to start", func(t *testing.T) {
+	t.Run("fails when the sidecar fails to start", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "run")
-		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome, Dind: sandbox.DindSpec{}}}
+		rs := toolRun{
+			RunSpec: sandbox.RunSpec{
+				RunID:    testRunID,
+				User:     &testUser,
+				ToolHome: t.TempDir(),
+				Dind:     sandbox.DindSpec{},
+			},
+		}
 
 		// Act
 		_, err := client.startDind(rs, nil)
 
 		// Assert
-		require.Error(t, err)
-		entries, _ := os.ReadDir(filepath.Join(toolHome, dindDirName))
-		assert.Empty(t, entries)
+		require.ErrorContains(t, err, "start docker sidecar")
 	})
 }
 
@@ -97,50 +121,44 @@ func Test_setupDind(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
 		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome, DryRun: true, Dind: sandbox.DindSpec{Enabled: true}}}
+		rs := toolRun{
+			RunSpec: sandbox.RunSpec{
+				RunID:    testRunID,
+				User:     &testUser,
+				ToolHome: toolHome,
+				DryRun:   true,
+				Dind:     sandbox.DindSpec{Enabled: true},
+			},
+		}
 
 		// Act
-		args, cleanup, err := client.setupDind(rs)
+		args, err := client.setupDind(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
 		assert.NotEmpty(t, args)
 		assert.Empty(t, calls(), "dry run must not invoke docker")
 		assert.NoDirExists(t, filepath.Join(toolHome, dindDirName), "dry run must not write certs")
-		require.NotPanics(t, cleanup)
-	})
-
-	t.Run("cleanup removes the sidecar", func(t *testing.T) {
-		// Arrange
-		calls := stubDockerRunCapture(t, client)
-		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome, Dind: sandbox.DindSpec{Enabled: true}}}
-
-		// Act
-		_, cleanup, err := client.setupDind(rs)
-		cleanup()
-
-		// Assert
-		require.NoError(t, err)
-		last := calls()[len(calls())-1]
-		assert.Equal(t, "rm", last.args[0])
-		assert.Nil(t, findCall(calls(), "network", "rm"), "setupSidecars owns the run network")
-		entries, _ := os.ReadDir(filepath.Join(toolHome, dindDirName))
-		assert.Empty(t, entries, "per-run certs should be removed")
 	})
 
 	t.Run("propagates startDind error", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "run")
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}}
+		rs := toolRun{
+			RunSpec: sandbox.RunSpec{
+				RunID:    testRunID,
+				User:     &testUser,
+				ToolHome: t.TempDir(),
+				Dind:     sandbox.DindSpec{Enabled: true},
+			},
+		}
 
 		// Act
-		args, cleanup, err := client.setupDind(rs)
+		args, err := client.setupDind(rs, nil)
 
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, args)
-		assert.Nil(t, cleanup)
 	})
 }
 
@@ -264,24 +282,6 @@ func Test_dindHandle_waitReady(t *testing.T) {
 	})
 }
 
-func Test_dindHandle_Stop(t *testing.T) {
-	// Arrange
-	client := newTestClient()
-	get := stubDockerRunCapture(t, client)
-	runDir := filepath.Join(t.TempDir(), "abc")
-	require.NoError(t, os.MkdirAll(runDir, 0o700))
-	handle := dindHandle{client: client, container: "agentic-docker-abc", runDir: runDir}
-
-	// Act
-	handle.Stop()
-
-	// Assert
-	calls := get()
-	require.Len(t, calls, 1, "the run network outlives the sidecar")
-	assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-docker-abc"}, calls[0].args)
-	assert.NoDirExists(t, runDir)
-}
-
 func Test_dindHandle_toolArgs(t *testing.T) {
 	// Arrange
 	handle := dindHandle{runDir: "/home/user/.agentic/dind/abc"}
@@ -298,6 +298,79 @@ func Test_dindHandle_toolArgs(t *testing.T) {
 		"--volume=" + filepath.Join("/home/user/.agentic/dind/abc", "client") + ":/run/secrets/docker:ro",
 		"--volume=" + filepath.Join("/home/user/.agentic/dind/abc", "config") + ":/run/docker-config",
 	}, args)
+}
+
+func Test_workspaceVolumes(t *testing.T) {
+	// Arrange
+	rs := sandbox.RunSpec{
+		ToolHome:      "/home/user/.agentic",
+		ContainerHome: "/home/agent",
+		Volumes: []string{
+			"/src/project:/workspace",
+			"$TOOL_HOME/claude:$CONTAINER_HOME/.claude",
+			"maven-cache:/home/agent/.m2",
+			"/src/project/.git:/workspace/.git:ro",
+			"/src/other:/workspace-other",
+		},
+	}
+
+	// Act
+	result := workspaceVolumes(rs)
+
+	// Assert - tool home and caches stay out of the sidecar; read-only overlays keep their :ro
+	require.Len(t, result, 2)
+	assert.True(t, strings.HasSuffix(result[0], ":/workspace"))
+	assert.True(t, strings.HasSuffix(result[1], ":/workspace/.git:ro"))
+}
+
+func Test_writeDindClientConfig(t *testing.T) {
+	t.Run("creates an empty writable dir without proxy", func(t *testing.T) {
+		// Arrange
+		dir := filepath.Join(t.TempDir(), "config")
+
+		// Act
+		err := writeDindClientConfig(dir, false)
+
+		// Assert
+		require.NoError(t, err)
+		assert.DirExists(t, dir)
+		assert.NoFileExists(t, filepath.Join(dir, "config.json"))
+	})
+
+	t.Run("sets cli proxies in proxy mode", func(t *testing.T) {
+		// Arrange
+		dir := filepath.Join(t.TempDir(), "config")
+
+		// Act
+		err := writeDindClientConfig(dir, true)
+
+		// Assert
+		require.NoError(t, err)
+		content, readErr := os.ReadFile(filepath.Join(dir, "config.json"))
+		require.NoError(t, readErr)
+		assert.JSONEq(t, `{"proxies":{"default":{"httpProxy":"http://agentic-proxy:3128","httpsProxy":"http://agentic-proxy:3128","noProxy":"localhost,127.0.0.1"}}}`, string(content))
+	})
+}
+
+func Test_newDindHandle(t *testing.T) {
+	// Arrange
+	client := newTestClient()
+	toolHome := t.TempDir()
+
+	// Act
+	handle, err := client.newDindHandle(toolRun{
+		RunSpec: sandbox.RunSpec{
+			RunID:    testRunID,
+			User:     &testUser,
+			ToolHome: toolHome,
+		},
+	})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, "agentic-docker-"+string(testRunID), handle.container)
+	assert.Equal(t, filepath.Join(toolHome, dindDirName, string(testRunID)), handle.runDir)
+	assert.Equal(t, dryRunAddressPoolPlaceholder, handle.addressPool, "only startDind knows the run network's subnets")
 }
 
 func TestSweepDindResources(t *testing.T) {
@@ -381,71 +454,4 @@ func Test_sweepDindRunDirs(t *testing.T) {
 		require.Error(t, err)
 		assert.DirExists(t, dir, "without the live list a running sidecar's certs could be deleted")
 	})
-}
-
-func Test_workspaceVolumes(t *testing.T) {
-	// Arrange
-	rs := sandbox.RunSpec{
-		ToolHome:      "/home/user/.agentic",
-		ContainerHome: "/home/agent",
-		Volumes: []string{
-			"/src/project:/workspace",
-			"$TOOL_HOME/claude:$CONTAINER_HOME/.claude",
-			"maven-cache:/home/agent/.m2",
-			"/src/project/.git:/workspace/.git:ro",
-			"/src/other:/workspace-other",
-		},
-	}
-
-	// Act
-	result := workspaceVolumes(rs)
-
-	// Assert - tool home and caches stay out of the sidecar; read-only overlays keep their :ro
-	require.Len(t, result, 2)
-	assert.True(t, strings.HasSuffix(result[0], ":/workspace"))
-	assert.True(t, strings.HasSuffix(result[1], ":/workspace/.git:ro"))
-}
-
-func Test_writeDindClientConfig(t *testing.T) {
-	t.Run("creates an empty writable dir without proxy", func(t *testing.T) {
-		// Arrange
-		dir := filepath.Join(t.TempDir(), "config")
-
-		// Act
-		err := writeDindClientConfig(dir, false)
-
-		// Assert
-		require.NoError(t, err)
-		assert.DirExists(t, dir)
-		assert.NoFileExists(t, filepath.Join(dir, "config.json"))
-	})
-
-	t.Run("sets cli proxies in proxy mode", func(t *testing.T) {
-		// Arrange
-		dir := filepath.Join(t.TempDir(), "config")
-
-		// Act
-		err := writeDindClientConfig(dir, true)
-
-		// Assert
-		require.NoError(t, err)
-		content, readErr := os.ReadFile(filepath.Join(dir, "config.json"))
-		require.NoError(t, readErr)
-		assert.JSONEq(t, `{"proxies":{"default":{"httpProxy":"http://agentic-proxy:3128","httpsProxy":"http://agentic-proxy:3128","noProxy":"localhost,127.0.0.1"}}}`, string(content))
-	})
-}
-
-func Test_newDindHandle(t *testing.T) {
-	// Arrange
-	client := newTestClient()
-	toolHome := t.TempDir()
-
-	// Act
-	handle, err := client.newDindHandle(toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome}})
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "agentic-docker-"+handle.id, handle.container)
-	assert.Equal(t, filepath.Join(toolHome, dindDirName, handle.id), handle.runDir)
-	assert.Equal(t, dryRunAddressPoolPlaceholder, handle.addressPool, "only startDind knows the run network's subnets")
 }

@@ -32,7 +32,7 @@ func buildBaseArgs(rs toolRun) []string {
 		"run", "--rm", "--read-only",
 		// Identify the container in `docker ps`/logs; randomized per run
 		arg("name", rs.container),
-		label(LabelProject, LabelProjectVal),
+		label(sandbox.LabelProject, sandbox.LabelProjectVal),
 		// Limit the number of PIDs (processes) the container can spawn
 		arg("pids-limit", rs.Limits.PidsLimit),
 		// Maximum number of CPUs the container can utilize

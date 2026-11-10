@@ -24,8 +24,8 @@ const (
 	// volumePrefix marks agentic's msb named volumes, since msb volumes have no labels.
 	volumePrefix = "agentic-"
 
-	// projectLabel marks agentic's VMs, like docker.LabelProject marks its containers, so ListRunning can find them.
-	projectLabel = "project=agentic-cli"
+	// projectLabel marks agentic's VMs, so ListRunning can find them.
+	projectLabel = sandbox.LabelProject + "=" + sandbox.LabelProjectVal
 
 	// placeholderPrefix starts the placeholder msb puts in the guest for a secret, e.g. $MSB_GITHUB_TOKEN.
 	placeholderPrefix = "$MSB_"
@@ -54,12 +54,16 @@ type ProxyRoute struct {
 
 // Run runs rs in a microsandbox VM, through route when set; the image must already be loaded.
 func (c *Client) Run(rs sandbox.RunSpec, route *ProxyRoute) error {
+	if _, err := sandbox.ParseRunID(rs.RunID.String()); err != nil {
+		return err
+	}
+
 	hidden := route.hiddenEnv()
-	envArgs, cleanup, err := buildEnvArgs(rs, hidden)
+	envArgs, err := buildEnvArgs(rs, hidden)
 	if err != nil {
 		return err
 	}
-	defer cleanup()
+	defer func() { _ = removeEnvConf(rs.RunID) }()
 
 	args, err := buildRunArgs(rs, envArgs, route)
 	if err != nil {
@@ -117,7 +121,7 @@ func buildRunArgs(rs sandbox.RunSpec, envArgs []string, route *ProxyRoute) ([]st
 		return nil, err
 	}
 
-	args := []string{"run", arg("label", projectLabel)}
+	args := []string{"run", arg("label", projectLabel), arg("label", runLabel(rs.RunID))}
 	args = append(args, limitArgs...)
 	args = append(args, envArgs...)
 	args = append(args, volumeArgs...)

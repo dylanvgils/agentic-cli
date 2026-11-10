@@ -3,6 +3,8 @@ package docker
 import (
 	"fmt"
 	"strings"
+
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // NetworkName is the shared network proxies reach the internet through; tools never join it.
@@ -25,7 +27,7 @@ func (c *Client) RemoveNetwork() error {
 		return nil
 	}
 
-	if project != LabelProjectVal {
+	if project != sandbox.LabelProjectVal {
 		return fmt.Errorf("'%s' is not an agentic-managed network", NetworkName)
 	}
 
@@ -45,7 +47,7 @@ func (c *Client) RemoveNetwork() error {
 func (c *Client) SweepRunNetworks() ([]string, error) {
 	listArgs := []string{
 		"network", "ls", arg("format", ownedFormat(".Name")),
-		labelFilter(LabelProject, LabelProjectVal),
+		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
 		arg("filter", "label="+LabelOwner),
 	}
 	return c.removeUnused(listArgs, []string{"network", "rm"})
@@ -72,7 +74,7 @@ func (c *Client) ensureEgressNetwork() error {
 
 	createArgs := []string{
 		"network", "create",
-		label(LabelProject, LabelProjectVal),
+		label(sandbox.LabelProject, sandbox.LabelProjectVal),
 		NetworkName,
 	}
 
@@ -94,11 +96,6 @@ func (c *Client) createRunNetwork(rs toolRun) error {
 		return fmt.Errorf("create run network: %w", err)
 	}
 	return nil
-}
-
-// removeRunNetwork removes network, ignoring errors so it is safe to defer.
-func (c *Client) removeRunNetwork(network string) {
-	_, _ = c.run("network", "rm", network)
 }
 
 // networkSubnets returns the subnets docker assigned to network, failing if it has none.
@@ -129,14 +126,19 @@ func runNetworkArgs(rs toolRun) []string {
 			arg("ipv6", "false"),
 		)
 	}
-	args = append(args, label(LabelProject, LabelProjectVal))
-	args = append(args, ownerLabels(rs.container)...)
+	args = append(args, label(sandbox.LabelProject, sandbox.LabelProjectVal))
+	args = append(args, ownerLabels(rs.container, rs.RunID)...)
 	return append(args, rs.network)
+}
+
+// runNetworkName returns run id's network name.
+func runNetworkName(id sandbox.RunID) string {
+	return runNetworkPrefix + "-" + id.String()
 }
 
 // checkEgressProject refuses an agentic-net agentic didn't create, given its project label.
 func checkEgressProject(project string) error {
-	if project != LabelProjectVal {
+	if project != sandbox.LabelProjectVal {
 		return fmt.Errorf("'%s' is not an agentic-managed network; remove it or run 'agentic clean'", NetworkName)
 	}
 	return nil

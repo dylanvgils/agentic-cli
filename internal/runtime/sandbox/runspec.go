@@ -4,6 +4,8 @@ import "github.com/dylanvgils/agentic-cli/internal/infra/platform"
 
 // RunSpec describes the tool run a user asked for, independent of the runtime that executes it.
 type RunSpec struct {
+	// RunID keys every per-run resource
+	RunID          RunID
 	Image          string
 	ToolHome       string
 	ContainerHome  string

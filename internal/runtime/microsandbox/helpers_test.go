@@ -8,8 +8,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/require"
 )
+
+// testRunID is the run ID of test runs.
+const testRunID sandbox.RunID = "0123456789ab"
 
 // fakeRunner is the runner of a newTestClient; unset funcs fail like a missing msb binary.
 type fakeRunner struct {

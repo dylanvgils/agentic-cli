@@ -1,12 +1,16 @@
 package docker
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
+)
 
 // PruneImages removes dangling agentic images and returns the space reclaimed.
 func (c *Client) PruneImages() (string, error) {
 	out, err := c.run("image", "prune",
 		arg("force"),
-		labelFilter(LabelProject, LabelProjectVal))
+		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal))
 	if err != nil {
 		return "", err
 	}

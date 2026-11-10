@@ -20,6 +20,7 @@ type Docker interface {
 	StartSidecars(rs sandbox.RunSpec, proxyLog string) (docker.Sidecars, error)
 	RunTool(sidecars docker.Sidecars) error
 	StopSidecars(sidecars docker.Sidecars)
+	Teardown(toolHome string, id sandbox.RunID) error
 	StartPublishedProxy(rs sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (docker.PublishedProxy, error)
 	Capabilities() sandbox.Capabilities
 	ServerVersion() (engine, version string, err error)
@@ -34,6 +35,7 @@ type Microsandbox interface {
 	ImageRefs() ([]string, error)
 	RemoveImage(ref string) error
 	Run(rs sandbox.RunSpec, route *microsandbox.ProxyRoute) error
+	Teardown(id sandbox.RunID) error
 }
 
 // ToolUpdate names the tool image a run offers an update for, and where its check state and config live.

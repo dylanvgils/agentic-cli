@@ -33,7 +33,7 @@ func TestStartProxy(t *testing.T) {
 		rs := newProxyRun(t, sandbox.RunSpec{Credentials: testCredentials})
 
 		// Act
-		handle, err := client.startProxy(newTestProxyHandle(t, client, rs), rs)
+		handle, err := client.startProxy(newTestProxyHandle(t, client, rs), rs, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -42,32 +42,43 @@ func TestStartProxy(t *testing.T) {
 		assert.NotEmpty(t, handle.caPEM)
 	})
 
-	t.Run("removes the proxy when it fails to boot", func(t *testing.T) {
+	t.Run("fails when the proxy fails to boot", func(t *testing.T) {
 		// Arrange
-		get := stubProxyDocker(t, client, "true")
+		stubProxyDocker(t, client, "true")
 		stubDockerRunWithStdinCapture(t, client, fmt.Errorf("stub: cp failed"))
 		rs := newProxyRun(t, sandbox.RunSpec{Credentials: testCredentials})
 
 		// Act
-		_, err := client.startProxy(newTestProxyHandle(t, client, rs), rs)
+		_, err := client.startProxy(newTestProxyHandle(t, client, rs), rs, nil)
 
 		// Assert
 		require.ErrorContains(t, err, "copy proxy credentials")
-		assert.NotNil(t, findCall(get(), "rm", "--force", "--volumes"))
 	})
 
-	t.Run("has nothing to remove when the create fails", func(t *testing.T) {
+	t.Run("fails when the create fails", func(t *testing.T) {
 		// Arrange
-		get := stubProxyDocker(t, client, "true", "create")
+		stubProxyDocker(t, client, "true", "create")
 		rs := newProxyRun(t, sandbox.RunSpec{})
 
 		// Act
-		_, err := client.startProxy(newTestProxyHandle(t, client, rs), rs)
+		_, err := client.startProxy(newTestProxyHandle(t, client, rs), rs, nil)
 
 		// Assert
 		require.ErrorContains(t, err, "create proxy")
-		assert.Nil(t, findCall(get(), "rm"))
-		assert.Nil(t, findCall(get(), "network", "rm"), "setupSidecars owns the run network")
+	})
+
+	t.Run("fails when interrupted while starting", func(t *testing.T) {
+		// Arrange
+		stubProxyDocker(t, client, "true")
+		rs := newProxyRun(t, sandbox.RunSpec{})
+		interrupt := make(chan os.Signal, 1)
+		interrupt <- os.Interrupt
+
+		// Act
+		_, err := client.startProxy(newTestProxyHandle(t, client, rs), rs, interrupt)
+
+		// Assert
+		require.EqualError(t, err, "interrupted while starting egress proxy")
 	})
 }
 
@@ -105,6 +116,7 @@ func TestClient_createProxy(t *testing.T) {
 		assert.FileExists(t, handle.logPath)
 		assert.True(t, hasArgWithPrefix(createArgs, "--env=AGENTIC_PROXY_TZ_OFFSET="))
 		assert.Contains(t, createArgs, "--label=agentic.owner=agentic-claude-abc")
+		assert.Contains(t, createArgs, "--label=agentic.run="+string(testRunID))
 		assert.True(t, hasArgWithPrefix(createArgs, "--label=agentic.started="))
 		assert.Equal(t, tools.ProxyImage, createArgs[len(createArgs)-1])
 	})
@@ -181,7 +193,7 @@ func TestClient_createProxy(t *testing.T) {
 		stubDockerRun(t, client, func(args ...string) (string, error) {
 			calls = append(calls, dockerCall{args: args})
 			if args[len(args)-1] == NetworkName {
-				return LabelProjectVal + "\n", nil
+				return sandbox.LabelProjectVal + "\n", nil
 			}
 			return "", nil
 		})
@@ -299,24 +311,6 @@ func Test_proxyHandle_toolEnvArgs(t *testing.T) {
 	})
 }
 
-func TestProxyHandleStop(t *testing.T) {
-	client := newTestClient()
-
-	t.Run("removes only the container", func(t *testing.T) {
-		// Arrange
-		get := stubDockerRunCapture(t, client)
-		handle := proxyHandle{client: client, container: "agentic-proxy-abc"}
-
-		// Act
-		handle.Stop()
-
-		// Assert
-		calls := get()
-		require.Len(t, calls, 1, "the run network outlives the proxy")
-		assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-proxy-abc"}, calls[0].args)
-	})
-}
-
 func Test_proxyEnvArgs(t *testing.T) {
 	t.Run("points at the proxy, excludes loopback and makes node read the proxy vars", func(t *testing.T) {
 		// Act
@@ -344,31 +338,19 @@ func Test_setupProxy(t *testing.T) {
 	t.Run("dry run makes no docker calls", func(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
-		rs := newProxyRun(t, sandbox.RunSpec{Image: "agentic-claude", DryRun: true, Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce}})
+		rs := newProxyRun(t, sandbox.RunSpec{
+			Image:  "agentic-claude",
+			DryRun: true,
+			Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
+		})
 
 		// Act
-		env, cleanup, err := client.setupProxy(rs)
+		env, err := client.setupProxy(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
 		assert.NotEmpty(t, env)
 		assert.Empty(t, calls(), "dry run must not invoke docker")
-		require.NotPanics(t, cleanup)
-	})
-
-	t.Run("cleanup stops the sidecar", func(t *testing.T) {
-		// Arrange
-		calls := stubProxyDocker(t, client, "true")
-		rs := newProxyRun(t, sandbox.RunSpec{Image: "agentic-claude", Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce}})
-
-		// Act
-		_, cleanup, err := client.setupProxy(rs)
-		cleanup()
-
-		// Assert
-		require.NoError(t, err)
-		last := calls()[len(calls())-1]
-		assert.Equal(t, []string{"rm", "--force", "--volumes"}, last.args[:3])
 	})
 
 	t.Run("propagates startProxy error", func(t *testing.T) {
@@ -377,12 +359,11 @@ func Test_setupProxy(t *testing.T) {
 		rs := newProxyRun(t, sandbox.RunSpec{Image: "agentic-claude", Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce}})
 
 		// Act
-		env, cleanup, err := client.setupProxy(rs)
+		env, err := client.setupProxy(rs, nil)
 
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, env)
-		assert.Nil(t, cleanup)
 	})
 }
 
@@ -560,13 +541,17 @@ func Test_dryRunProxy(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
 		stdin := stubDockerRunWithStdinCapture(t, client, nil)
-		rs := newProxyRun(t, sandbox.RunSpec{DryRun: true, Credentials: testCredentials, Egress: sandbox.EgressPolicy{Mode: sandbox.EgressEnforce}})
+		rs := newProxyRun(t, sandbox.RunSpec{
+			DryRun:      true,
+			Credentials: testCredentials,
+			Egress:      sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
+		})
 
 		// Act
 		var toolArgs []string
 		out := iostreamstest.CaptureOut(t, func() {
 			var err error
-			toolArgs, _, err = client.dryRunProxy(rs)
+			toolArgs, err = client.dryRunProxy(rs)
 			require.NoError(t, err)
 		})
 
@@ -583,22 +568,6 @@ func Test_dryRunProxy(t *testing.T) {
 		assert.Empty(t, calls())
 		assert.Empty(t, stdin())
 	})
-}
-
-func TestSweepProxyResources(t *testing.T) {
-	// Arrange
-	client := newTestClient()
-	get := stubUnusedSweep(t, client, "", ownedRow("agentic-proxy-abc", "agentic-claude-gone", time.Hour))
-
-	// Act
-	removed, err := client.SweepProxyResources()
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, []string{"agentic-proxy-abc"}, removed)
-	calls := get()
-	assert.Contains(t, calls[1].args, "--filter=name=agentic-proxy")
-	assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-proxy-abc"}, findCall(calls, "rm"))
 }
 
 func Test_proxyRules(t *testing.T) {
@@ -624,4 +593,20 @@ func Test_proxyRules(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, "proxy allow rules")
 	})
+}
+
+func TestSweepProxyResources(t *testing.T) {
+	// Arrange
+	client := newTestClient()
+	get := stubUnusedSweep(t, client, "", ownedRow("agentic-proxy-abc", "agentic-claude-gone", time.Hour))
+
+	// Act
+	removed, err := client.SweepProxyResources()
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, []string{"agentic-proxy-abc"}, removed)
+	calls := get()
+	assert.Contains(t, calls[1].args, "--filter=name=agentic-proxy")
+	assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-proxy-abc"}, findCall(calls, "rm"))
 }

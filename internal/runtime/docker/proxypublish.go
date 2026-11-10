@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -43,10 +44,13 @@ func (p PublishedProxy) Stop() {
 	}
 }
 
-// StartPublishedProxy starts a proxy sidecar for spec on the egress network, published on a random 127.0.0.1 port and
-// requiring a fresh auth token, logging to proxyLog; a dry run only prints it. Docker's sweeps spare it while this
-// process runs, and its owner label names the runtime it serves.
+// StartPublishedProxy starts spec's proxy on a random 127.0.0.1 port with a fresh auth token, logging to proxyLog; a
+// dry run only prints it. This process owns it, labelled with owner's runtime.
 func (c *Client) StartPublishedProxy(spec sandbox.RunSpec, proxyLog string, owner sandbox.Runtime) (PublishedProxy, error) {
+	if _, err := sandbox.ParseRunID(spec.RunID.String()); err != nil {
+		return PublishedProxy{}, err
+	}
+
 	rs := toolRun{RunSpec: spec, proxyLog: proxyLog}
 	h, err := c.newPublishedHandle(rs, owner)
 	if err != nil {
@@ -68,20 +72,34 @@ func (c *Client) StartPublishedProxy(spec sandbox.RunSpec, proxyLog string, owne
 	}
 	warnOnSweepError(c.sweepOrphanedSidecars(spec.ToolHome))
 
-	h, cleanup, err := c.startGuarded(h, rs)
+	// Guard first, so Ctrl-C during startup still tears it down
+	interrupt, stopGuard := guardSignals()
+	stop := func() {
+		_ = c.Teardown(spec.ToolHome, spec.RunID)
+		stopGuard()
+	}
+
+	published, err := c.startPublished(h, rs, interrupt)
+	if err != nil {
+		stop()
+		return PublishedProxy{}, err
+	}
+	published.stop = stop
+	return published, nil
+}
+
+// startPublished starts h's proxy and reads its published port.
+func (c *Client) startPublished(h proxyHandle, rs toolRun, interrupt <-chan os.Signal) (PublishedProxy, error) {
+	h, err := c.startProxy(h, rs, interrupt)
 	if err != nil {
 		return PublishedProxy{}, err
 	}
 
 	port, err := h.publishedPort()
 	if err != nil {
-		cleanup()
 		return PublishedProxy{}, err
 	}
-
-	published := h.publishedProxy(port)
-	published.stop = cleanup
-	return published, nil
+	return h.publishedProxy(port), nil
 }
 
 // newPublishedHandle returns rs's proxy handle with a fresh auth token, owned by this process's run on owner.
@@ -118,14 +136,13 @@ func (h proxyHandle) publishedPort() (string, error) {
 	return parsePublishedPort(out)
 }
 
-// writeTokenFile writes a published proxy's token to a 0600 env file for `docker create --env-file`, so it never
-// shows in process args; remove deletes it. A proxy on a run network needs none, so it gets "".
+// writeTokenFile writes a published proxy's token to a 0600 env file, out of process args; "" when unpublished.
 func (h proxyHandle) writeTokenFile() (path string, remove func(), err error) {
 	if !h.published() {
 		return "", noCleanup, nil
 	}
 
-	f, err := os.CreateTemp("", "agentic-proxy-token-*.env")
+	f, err := os.OpenFile(tokenFilePath(h.id), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", nil, fmt.Errorf("create proxy token file: %w", err)
 	}
@@ -140,6 +157,11 @@ func (h proxyHandle) writeTokenFile() (path string, remove func(), err error) {
 		return "", nil, fmt.Errorf("write proxy token file: %w", writeErr)
 	}
 	return f.Name(), remove, nil
+}
+
+// tokenFilePath returns run id's proxy token file.
+func tokenFilePath(id sandbox.RunID) string {
+	return filepath.Join(os.TempDir(), "agentic-proxy-token-"+id.String()+".env")
 }
 
 // parsePublishedPort returns the port of the first `docker port` line, e.g. "127.0.0.1:49153".

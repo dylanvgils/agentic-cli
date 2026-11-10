@@ -8,6 +8,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -252,7 +253,7 @@ func TestStampLabels(t *testing.T) {
 	// Assert - the project label and every non-empty field, tagged back onto the image without a build context
 	assert.Equal(t, []string{
 		"build",
-		"--label=" + LabelProject + "=" + LabelProjectVal,
+		"--label=" + sandbox.LabelProject + "=" + sandbox.LabelProjectVal,
 		"--label=" + LabelNamespace + "=agentic",
 		"--label=" + LabelTool + "=claude",
 		"--label=" + LabelToolVersion + "=1.2.3",
