@@ -3,13 +3,9 @@ package watch
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 
-	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
-	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // ReadyLine is printed once the watchdog holds its handle.
@@ -25,24 +21,14 @@ func New(runs Runs) *Service {
 	return &Service{runs: runs}
 }
 
-// Watch waits for t's process to exit, then tears down its run and removes its own log.
+// Watch waits for t's process to exit, then tears down its run.
 func (s *Service) Watch(t Target) error {
 	platform.IgnoreHangup()
 
 	if err := waitForExit(t.PID); err != nil {
 		return err
 	}
-	if err := s.runs.Teardown(t.Runtime, t.ToolHome, t.RunID); err != nil {
-		return err
-	}
-
-	_ = os.Remove(LogFile(t.ToolHome, t.RunID))
-	return nil
-}
-
-// LogFile returns run id's watchdog log.
-func LogFile(toolHome string, id sandbox.RunID) string {
-	return filepath.Join(toolHome, config.LogsDirName, "watch_"+id.String()+".log")
+	return s.runs.Teardown(t.Runtime, t.ToolHome, t.RunID)
 }
 
 // waitForExit blocks until pid exits, printing ReadyLine once it watches.

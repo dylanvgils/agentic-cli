@@ -37,5 +37,5 @@ func (s Spawner) Spawn(runtime sandbox.Runtime, toolHome string, id sandbox.RunI
 		RunID:         id,
 	}
 	args := append([]string{s.command}, target.Args()...)
-	return platform.StartDetached(exe, args, LogFile(toolHome, id), readyTimeout)
+	return platform.StartDetached(exe, args, readyTimeout)
 }

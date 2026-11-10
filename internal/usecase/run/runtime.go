@@ -43,7 +43,7 @@ func (s *Service) Run(req Request, rs sandbox.RunSpec) error {
 	// Before any resource, so setup crashes are covered
 	if !rs.DryRun {
 		if err := s.watchdog.Spawn(req.runtime(), rs.ToolHome, rs.RunID); err != nil {
-			logging.Warnf("no watchdog, so a killed run is left behind: %v", err)
+			logging.Warnf("watchdog not confirmed, so a killed run may be left behind: %v", err)
 		}
 	}
 	return r.Run(req, rs)
