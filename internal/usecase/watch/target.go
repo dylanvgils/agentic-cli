@@ -1,20 +1,18 @@
 package watch
 
 import (
-	"flag"
-	"io"
 	"strconv"
 
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-// The watchdog's args.
+// The watchdog command's flags; home and docker-context are the root command's own.
 const (
-	argPID           = "pid"
-	argRuntime       = "runtime"
-	argHome          = "home"
-	argDockerContext = "docker-context"
-	argRun           = "run"
+	FlagPID           = "pid"
+	FlagRuntime       = "runtime"
+	FlagHome          = "home"
+	FlagDockerContext = "docker-context"
+	FlagRun           = "run"
 )
 
 // Target is the run a watchdog guards and the process it waits for.
@@ -26,36 +24,13 @@ type Target struct {
 	RunID         sandbox.RunID
 }
 
-// ParseTarget parses the args Target.Args returns.
-func ParseTarget(args []string) (Target, error) {
-	var t Target
-	var runtime, run string
-	fs := flag.NewFlagSet("watch", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	fs.IntVar(&t.PID, argPID, 0, "")
-	fs.StringVar(&runtime, argRuntime, "", "")
-	fs.StringVar(&t.ToolHome, argHome, "", "")
-	fs.StringVar(&t.DockerContext, argDockerContext, "", "")
-	fs.StringVar(&run, argRun, "", "")
-	if err := fs.Parse(args); err != nil {
-		return Target{}, err
-	}
-
-	id, err := sandbox.ParseRunID(run)
-	if err != nil {
-		return Target{}, err
-	}
-	t.Runtime, t.RunID = sandbox.Runtime(runtime), id
-	return t, nil
-}
-
-// Args returns t as the watchdog's args.
+// Args returns t as the watchdog command's flags.
 func (t Target) Args() []string {
 	return []string{
-		"--" + argPID + "=" + strconv.Itoa(t.PID),
-		"--" + argRuntime + "=" + string(t.Runtime),
-		"--" + argHome + "=" + t.ToolHome,
-		"--" + argDockerContext + "=" + t.DockerContext,
-		"--" + argRun + "=" + t.RunID.String(),
+		"--" + FlagPID + "=" + strconv.Itoa(t.PID),
+		"--" + FlagRuntime + "=" + string(t.Runtime),
+		"--" + FlagHome + "=" + t.ToolHome,
+		"--" + FlagDockerContext + "=" + t.DockerContext,
+		"--" + FlagRun + "=" + t.RunID.String(),
 	}
 }
