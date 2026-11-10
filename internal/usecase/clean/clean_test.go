@@ -283,18 +283,10 @@ func TestGlobalResources(t *testing.T) {
 				basesCleaned = true
 				return nil
 			},
-			sweepDindResources: func(toolHome string) ([]string, error) {
+			sweepRuns: func(toolHome string) (docker.SweptRuns, error) {
 				sweptHome = toolHome
-				swept = append(swept, "dind")
-				return nil, nil
-			},
-			sweepProxyResources: func() ([]string, error) {
-				swept = append(swept, "proxy")
-				return nil, nil
-			},
-			sweepRunNetworks: func() ([]string, error) {
-				swept = append(swept, "networks")
-				return nil, nil
+				swept = append(swept, "runs")
+				return docker.SweptRuns{}, nil
 			},
 			listRunning: func() ([]*docker.ContainerInfo, error) {
 				swept = append(swept, "in use")
@@ -315,7 +307,7 @@ func TestGlobalResources(t *testing.T) {
 		assert.True(t, basesCleaned)
 		assert.Contains(t, cleaned, tools.ProxyImage)
 		assert.Contains(t, cleaned, tools.DindImage)
-		assert.Equal(t, []string{"dind", "proxy", "in use", "networks"}, swept, "orphaned sidecars must go before the in-use check and the run networks they sit on")
+		assert.Equal(t, []string{"runs", "in use"}, swept, "interrupted runs must go before the in-use check")
 		assert.Equal(t, "/agentic-home", sweptHome)
 		assert.True(t, networkRemoved)
 		assert.Contains(t, out, "=> base")
@@ -330,9 +322,12 @@ func TestGlobalResources(t *testing.T) {
 	}{
 		{name: "base images", d: &fakeDocker{cleanBaseImages: func() error { return errFake }}},
 		{name: "sidecar image", d: &fakeDocker{cleanImage: func(string) error { return errFake }}},
-		{name: "dind sweep", d: &fakeDocker{sweepDindResources: func(string) ([]string, error) { return nil, errFake }}},
-		{name: "proxy sweep", d: &fakeDocker{sweepProxyResources: func() ([]string, error) { return nil, errFake }}},
-		{name: "run networks sweep", d: &fakeDocker{sweepRunNetworks: func() ([]string, error) { return nil, errFake }}},
+		{
+			name: "run sweep",
+			d: &fakeDocker{sweepRuns: func(string) (docker.SweptRuns, error) {
+				return docker.SweptRuns{}, errFake
+			}},
+		},
 		{name: "network removal", d: &fakeDocker{removeNetwork: func() error { return errFake }}},
 	} {
 		t.Run(tc.name+" error propagates", func(t *testing.T) {
@@ -347,23 +342,18 @@ func TestGlobalResources(t *testing.T) {
 }
 
 func TestPrune(t *testing.T) {
-	t.Run("sweeps sidecars and networks, then prunes images and the confirmed cache", func(t *testing.T) {
+	t.Run("sweeps runs, then prunes images and the confirmed cache", func(t *testing.T) {
 		// Arrange
 		var ran []string
 		var sweptHome string
 		d := &fakeDocker{
-			sweepDindResources: func(toolHome string) ([]string, error) {
+			sweepRuns: func(toolHome string) (docker.SweptRuns, error) {
 				sweptHome = toolHome
-				ran = append(ran, "dind")
-				return nil, nil
-			},
-			sweepProxyResources: func() ([]string, error) {
-				ran = append(ran, "proxy")
-				return nil, nil
-			},
-			sweepRunNetworks: func() ([]string, error) {
-				ran = append(ran, "networks")
-				return nil, nil
+				ran = append(ran, "runs")
+				return docker.SweptRuns{
+					Sidecars: []string{"agentic-proxy-abc"},
+					Networks: []string{"agentic-run-abc"},
+				}, nil
 			},
 			pruneImages: func() (string, error) {
 				ran = append(ran, "images")
@@ -382,8 +372,9 @@ func TestPrune(t *testing.T) {
 		})
 
 		// Assert
-		assert.Equal(t, []string{"dind", "proxy", "networks", "images", "cache"}, ran, "sidecars must go before the run networks they sit on")
+		assert.Equal(t, []string{"runs", "images", "cache"}, ran)
 		assert.Equal(t, "/agentic-home", sweptHome)
+		assert.Contains(t, out, "=> leftover sidecars\n   agentic-proxy-abc\n=> leftover run networks\n   agentic-run-abc\n")
 		assert.Contains(t, out, "=> build cache\n")
 	})
 
@@ -410,7 +401,7 @@ func TestPrune(t *testing.T) {
 		// Arrange
 		imagesPruned := false
 		d := &fakeDocker{
-			sweepRunNetworks: func() ([]string, error) { return nil, fmt.Errorf("sweep failed") },
+			sweepRuns: func(string) (docker.SweptRuns, error) { return docker.SweptRuns{}, fmt.Errorf("sweep failed") },
 			pruneImages: func() (string, error) {
 				imagesPruned = true
 				return "", nil
@@ -488,22 +479,23 @@ func Test_stepRemoved(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		removed []string
-		err     error
 		want    string
 	}{
-		{name: "lists the removed names under the label", removed: []string{"agentic-docker-abc", "agentic-proxy-abc"}, want: "=> leftover sidecars\n   agentic-docker-abc\n   agentic-proxy-abc\n"},
-		{name: "reports none when nothing was removed", want: "=> leftover sidecars\n   none\n"},
-		{name: "returns the error", err: errFake, want: "=> leftover sidecars\n"},
+		{
+			name:    "lists the removed names under the label",
+			removed: []string{"agentic-docker-abc", "agentic-proxy-abc"},
+			want:    "=> leftover sidecars\n   agentic-docker-abc\n   agentic-proxy-abc\n",
+		},
+		{
+			name: "reports none when nothing was removed",
+			want: "=> leftover sidecars\n   none\n",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			var err error
-			out := iostreamstest.CaptureErr(t, func() {
-				err = stepRemoved("leftover sidecars", func() ([]string, error) { return tc.removed, tc.err })
-			})
+			out := iostreamstest.CaptureErr(t, func() { stepRemoved("leftover sidecars", tc.removed) })
 
 			// Assert
-			assert.ErrorIs(t, err, tc.err)
 			assert.Equal(t, tc.want, out)
 		})
 	}

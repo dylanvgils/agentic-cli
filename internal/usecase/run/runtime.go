@@ -15,6 +15,8 @@ type runner interface {
 	Check(req Request) error
 	// Run readies the runtime's host resources for rs, then runs it.
 	Run(req Request, rs sandbox.RunSpec) error
+	// Teardown removes everything run id left on the runtime; best-effort and idempotent.
+	Teardown(toolHome string, id sandbox.RunID) error
 }
 
 // Run executes rs on req's runtime, which first readies its own host resources.
@@ -31,7 +33,21 @@ func (s *Service) Run(req Request, rs sandbox.RunSpec) error {
 	if err := recheckMounts(rs); err != nil {
 		return err
 	}
+
+	rs.RunID, err = sandbox.NewRunID()
+	if err != nil {
+		return err
+	}
 	return r.Run(req, rs)
+}
+
+// Teardown removes everything run id left on runtime.
+func (s *Service) Teardown(runtime sandbox.Runtime, toolHome string, id sandbox.RunID) error {
+	r, err := s.runner(runtime, "")
+	if err != nil {
+		return err
+	}
+	return r.Teardown(toolHome, id)
 }
 
 // runner returns the runner for runtime with proxy backend; an empty runtime is Docker, an empty backend the runtime's

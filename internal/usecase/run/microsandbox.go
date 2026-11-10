@@ -1,6 +1,7 @@
 package run
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -91,11 +92,7 @@ func (r microsandboxRunner) Run(req Request, rs sandbox.RunSpec) error {
 
 // runThroughProxy runs rs through a published agentic-proxy, rechecking mounts after its start, then prints its summary.
 func (r microsandboxRunner) runThroughProxy(req Request, rs sandbox.RunSpec) error {
-	proxyLog, err := proxyLogFile(rs.ToolHome, true)
-	if err != nil {
-		return err
-	}
-
+	proxyLog := proxyLogFile(rs.ToolHome, rs.RunID, true)
 	if !rs.DryRun {
 		if err := prepareProxyLogDir(filepath.Dir(proxyLog), rs.ToolHome); err != nil {
 			return err
@@ -129,6 +126,11 @@ func (r microsandboxRunner) runThroughProxy(req Request, rs sandbox.RunSpec) err
 		CAPEM: published.CAPEM,
 		Env:   published.Env,
 	})
+}
+
+// Teardown stops run id's VM and removes its published proxy.
+func (r microsandboxRunner) Teardown(toolHome string, id sandbox.RunID) error {
+	return errors.Join(r.microsandbox.Teardown(id), r.docker.Teardown(toolHome, id))
 }
 
 // microsandboxRef returns image tagged with its Docker image ID, which pins a run to this exact image; a dry run names a

@@ -43,9 +43,8 @@ type fakeDocker struct {
 	createVolume          func(string) error
 	listVolumeNames       func() ([]string, error)
 	removeVolume          func(string) error
-	sweepProxyResources   func() ([]string, error)
-	sweepDindResources    func(string) ([]string, error)
-	sweepRunNetworks      func() ([]string, error)
+	sweepRuns             func(string) (docker.SweptRuns, error)
+	teardown              func(toolHome string, id sandbox.RunID) error
 	listContexts          func() ([]string, error)
 	currentContext        func() (string, error)
 	version               func() (string, error)
@@ -243,25 +242,18 @@ func (f *fakeDocker) RemoveVolume(name string) error {
 	return f.removeVolume(name)
 }
 
-func (f *fakeDocker) SweepProxyResources() ([]string, error) {
-	if f.sweepProxyResources == nil {
-		return nil, nil
+func (f *fakeDocker) SweepRuns(toolHome string) (docker.SweptRuns, error) {
+	if f.sweepRuns == nil {
+		return docker.SweptRuns{}, nil
 	}
-	return f.sweepProxyResources()
+	return f.sweepRuns(toolHome)
 }
 
-func (f *fakeDocker) SweepDindResources(toolHome string) ([]string, error) {
-	if f.sweepDindResources == nil {
-		return nil, nil
+func (f *fakeDocker) Teardown(toolHome string, id sandbox.RunID) error {
+	if f.teardown == nil {
+		return nil
 	}
-	return f.sweepDindResources(toolHome)
-}
-
-func (f *fakeDocker) SweepRunNetworks() ([]string, error) {
-	if f.sweepRunNetworks == nil {
-		return nil, nil
-	}
-	return f.sweepRunNetworks()
+	return f.teardown(toolHome, id)
 }
 
 func (f *fakeDocker) ListContexts() ([]string, error) {
@@ -357,14 +349,11 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.removeVolume != nil {
 		f.removeVolume = o.removeVolume
 	}
-	if o.sweepProxyResources != nil {
-		f.sweepProxyResources = o.sweepProxyResources
+	if o.sweepRuns != nil {
+		f.sweepRuns = o.sweepRuns
 	}
-	if o.sweepDindResources != nil {
-		f.sweepDindResources = o.sweepDindResources
-	}
-	if o.sweepRunNetworks != nil {
-		f.sweepRunNetworks = o.sweepRunNetworks
+	if o.teardown != nil {
+		f.teardown = o.teardown
 	}
 	if o.listContexts != nil {
 		f.listContexts = o.listContexts
@@ -434,6 +423,7 @@ type fakeMicrosandbox struct {
 	listVolumeNames func() ([]string, error)
 	removeVolume    func(name string) error
 	version         func() (string, error)
+	teardown        func(id sandbox.RunID) error
 }
 
 // Capabilities returns msb's real capabilities, which tests have no reason to change.
@@ -474,6 +464,13 @@ func (f *fakeMicrosandbox) Run(rs sandbox.RunSpec, _ *microsandbox.ProxyRoute) e
 		return nil
 	}
 	return f.run(rs)
+}
+
+func (f *fakeMicrosandbox) Teardown(id sandbox.RunID) error {
+	if f.teardown == nil {
+		return nil
+	}
+	return f.teardown(id)
 }
 
 func (f *fakeMicrosandbox) CleanImage(image string) error {

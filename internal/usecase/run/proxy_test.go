@@ -3,7 +3,6 @@ package run
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -96,40 +95,22 @@ func Test_proxyRetentionDays(t *testing.T) {
 func Test_proxyLogFile(t *testing.T) {
 	t.Run("returns empty string when proxy is disabled", func(t *testing.T) {
 		// Act
-		file, err := proxyLogFile("/example.test/home", false)
+		file := proxyLogFile("/example.test/home", "0123456789ab", false)
 
 		// Assert
-		require.NoError(t, err)
 		assert.Empty(t, file)
 	})
 
-	t.Run("returns a new proxy log in the tool home's logs dir without creating it", func(t *testing.T) {
+	t.Run("names the run's proxy log in the tool home's logs dir without creating it", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
 
 		// Act
-		file, err := proxyLogFile(home, true)
+		file := proxyLogFile(home, "0123456789ab", true)
 
 		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, filepath.Join(home, config.LogsDirName), filepath.Dir(file))
-		assert.True(t, strings.HasPrefix(filepath.Base(file), proxy.LogFilePrefix))
-		assert.Equal(t, ".jsonl", filepath.Ext(file))
+		assert.Equal(t, filepath.Join(home, config.LogsDirName, proxy.LogFilePrefix+"0123456789ab.jsonl"), file)
 		assert.NoDirExists(t, filepath.Dir(file))
-	})
-
-	t.Run("names each run's log differently", func(t *testing.T) {
-		// Arrange
-		home := t.TempDir()
-		first, err := proxyLogFile(home, true)
-		require.NoError(t, err)
-
-		// Act
-		second, err := proxyLogFile(home, true)
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotEqual(t, first, second)
 	})
 }
 

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // ContainerInfo holds metadata about a running agentic-managed container.
@@ -25,7 +26,7 @@ type containerListResult struct {
 
 // ListRunningContainers returns all currently running agentic-managed containers.
 func (c *Client) ListRunningContainers() ([]*ContainerInfo, error) {
-	out, err := c.run("ps", arg("format", "{{json .}}"), labelFilter(LabelProject, LabelProjectVal))
+	out, err := c.run("ps", arg("format", "{{json .}}"), labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal))
 	if err != nil {
 		return nil, err
 	}

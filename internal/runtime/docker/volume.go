@@ -30,7 +30,7 @@ func (c *Client) EnsureNamedVolumes(rs sandbox.RunSpec, chownImage string) error
 
 // CreateVolume creates a named Docker volume with the project=agentic-cli label; unlike ensureVolume, it does not chown.
 func (c *Client) CreateVolume(name string) error {
-	_, err := c.run("volume", "create", label(LabelProject, LabelProjectVal), name)
+	_, err := c.run("volume", "create", label(sandbox.LabelProject, sandbox.LabelProjectVal), name)
 	if err != nil {
 		return fmt.Errorf("create volume %s: %w", name, err)
 	}
@@ -39,7 +39,7 @@ func (c *Client) CreateVolume(name string) error {
 
 // ListVolumeNames returns only the names of agentic-managed volumes (no header row).
 func (c *Client) ListVolumeNames() ([]string, error) {
-	out, err := c.run("volume", "ls", arg("quiet"), labelFilter(LabelProject, LabelProjectVal))
+	out, err := c.run("volume", "ls", arg("quiet"), labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal))
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (c *Client) ListVolumeNames() ([]string, error) {
 // RemoveVolume validates that the named volume is agentic-managed, then removes it.
 func (c *Client) RemoveVolume(name string) error {
 	out, err := c.run("volume", "inspect", arg("format", `{{index .Labels "project"}}`), name)
-	if err != nil || strings.TrimSpace(out) != LabelProjectVal {
+	if err != nil || strings.TrimSpace(out) != sandbox.LabelProjectVal {
 		return fmt.Errorf("'%s' is not an agentic-managed volume", name)
 	}
 	_, err = c.run("volume", "rm", name)
@@ -61,7 +61,7 @@ func (c *Client) ensureVolume(name, chownImage string, owner platform.User) erro
 		return nil
 	}
 
-	createArgs := []string{"volume", "create", label(LabelProject, LabelProjectVal), name}
+	createArgs := []string{"volume", "create", label(sandbox.LabelProject, sandbox.LabelProjectVal), name}
 	if _, err := c.run(createArgs...); err != nil {
 		return fmt.Errorf("create volume %s: %w", name, err)
 	}

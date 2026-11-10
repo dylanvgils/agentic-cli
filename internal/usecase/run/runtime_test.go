@@ -30,6 +30,8 @@ func Test_Service_Run(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude", ranSpec.Image)
 		assert.Empty(t, *msbRan)
+		_, idErr := sandbox.ParseRunID(ranSpec.RunID.String())
+		assert.NoError(t, idErr, "every run gets a fresh run id")
 	})
 
 	t.Run("microsandbox runs through the microsandbox client", func(t *testing.T) {
@@ -254,5 +256,74 @@ func Test_Service_checkRuntime(t *testing.T) {
 
 		// Assert
 		assert.EqualError(t, err, "msb not found on PATH")
+	})
+}
+
+func Test_Service_Teardown(t *testing.T) {
+	const id sandbox.RunID = "0123456789ab"
+
+	for _, tc := range []struct {
+		name        string
+		runtime     sandbox.Runtime
+		wantDocker  bool
+		wantMsb     bool
+		wantErrText string
+	}{
+		{
+			name:       "docker tears down its containers",
+			runtime:    sandbox.RuntimeDocker,
+			wantDocker: true,
+		},
+		{
+			name:       "microsandbox tears down its VM and its published proxy",
+			runtime:    sandbox.RuntimeMicrosandbox,
+			wantDocker: true,
+			wantMsb:    true,
+		},
+		{
+			name:        "an unknown runtime is an error",
+			runtime:     "example",
+			wantErrText: `unknown runtime "example"`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			var dockerHome string
+			var dockerID, msbID sandbox.RunID
+			d := &fakeDocker{teardown: func(toolHome string, got sandbox.RunID) error {
+				dockerHome, dockerID = toolHome, got
+				return nil
+			}}
+			m := &fakeMicrosandbox{teardown: func(got sandbox.RunID) error {
+				msbID = got
+				return nil
+			}}
+
+			// Act
+			err := newTestService(d, m).Teardown(tc.runtime, "/example.test/home", id)
+
+			// Assert
+			if tc.wantErrText != "" {
+				require.EqualError(t, err, tc.wantErrText)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantDocker, dockerID == id)
+			assert.Equal(t, tc.wantDocker, dockerHome == "/example.test/home")
+			assert.Equal(t, tc.wantMsb, msbID == id)
+		})
+	}
+
+	t.Run("microsandbox joins both errors", func(t *testing.T) {
+		// Arrange
+		d := &fakeDocker{teardown: func(string, sandbox.RunID) error { return errors.New("stub: docker failed") }}
+		m := &fakeMicrosandbox{teardown: func(sandbox.RunID) error { return errors.New("stub: msb failed") }}
+
+		// Act
+		err := newTestService(d, m).Teardown(sandbox.RuntimeMicrosandbox, "/example.test/home", id)
+
+		// Assert
+		require.ErrorContains(t, err, "stub: docker failed")
+		require.ErrorContains(t, err, "stub: msb failed")
 	})
 }

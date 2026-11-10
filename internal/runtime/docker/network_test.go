@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
@@ -70,22 +69,6 @@ func TestRemoveNetwork(t *testing.T) {
 		// Assert
 		assert.ErrorContains(t, err, "network rm failed")
 	})
-}
-
-func TestSweepRunNetworks(t *testing.T) {
-	// Arrange
-	client := newTestClient()
-	get := stubUnusedSweep(t, client, "", ownedRow("agentic-run-abc", "agentic-claude-gone", time.Hour))
-
-	// Act
-	removed, err := client.SweepRunNetworks()
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, []string{"agentic-run-abc"}, removed)
-	calls := get()
-	assert.Contains(t, calls[1].args, "--filter=label=agentic.owner")
-	assert.Equal(t, []string{"network", "rm", "agentic-run-abc"}, findCall(calls, "network", "rm"))
 }
 
 func Test_ensureEgressNetwork(t *testing.T) {
@@ -237,7 +220,11 @@ func Test_networkSubnets(t *testing.T) {
 func Test_runNetworkArgs(t *testing.T) {
 	t.Run("labels the network so the sweep can tie it to its owner", func(t *testing.T) {
 		// Arrange
-		rs := toolRun{container: "agentic-claude-abc", network: "agentic-run-abc"}
+		rs := toolRun{
+			RunSpec:   sandbox.RunSpec{RunID: testRunID},
+			container: "agentic-claude-abc",
+			network:   "agentic-run-abc",
+		}
 
 		// Act
 		args := runNetworkArgs(rs)
@@ -248,6 +235,7 @@ func Test_runNetworkArgs(t *testing.T) {
 		assert.NotContains(t, args, "--opt="+inhibitIPv4Opt, "egress without the proxy goes through the gateway")
 		assert.Contains(t, args, "--label=project=agentic-cli")
 		assert.Contains(t, args, "--label=agentic.owner=agentic-claude-abc")
+		assert.Contains(t, args, "--label=agentic.run="+string(testRunID))
 		assert.Equal(t, "agentic-run-abc", args[len(args)-1])
 	})
 

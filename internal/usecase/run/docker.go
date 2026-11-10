@@ -59,11 +59,7 @@ func (r dockerRunner) Check(req Request) error {
 // before the sidecars and the tool start as readying them can take long enough for a path to change; a dry run only
 // prints.
 func (r dockerRunner) Run(req Request, rs sandbox.RunSpec) error {
-	proxyLog, err := proxyLogFile(rs.ToolHome, rs.Egress.Mode.Enabled())
-	if err != nil {
-		return err
-	}
-
+	proxyLog := proxyLogFile(rs.ToolHome, rs.RunID, rs.Egress.Mode.Enabled())
 	if !rs.DryRun {
 		if err := r.prepareDockerHost(rs, req.Flags.Registry, proxyLog); err != nil {
 			return err
@@ -91,6 +87,11 @@ func (r dockerRunner) Run(req Request, rs sandbox.RunSpec) error {
 		return err
 	}
 	return r.docker.RunTool(sidecars)
+}
+
+// Teardown removes run id's containers, network and host files.
+func (r dockerRunner) Teardown(toolHome string, id sandbox.RunID) error {
+	return r.docker.Teardown(toolHome, id)
 }
 
 // prepareDockerHost creates rs's named volumes and proxyLog's dir and builds missing sidecar images.

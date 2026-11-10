@@ -15,8 +15,7 @@ func Test_buildEnvArgs(t *testing.T) {
 
 	t.Run("only flags without forwarded vars", func(t *testing.T) {
 		// Act
-		args, cleanup, err := buildEnvArgs(sandbox.RunSpec{Env: []string{"MAVEN_OPTS=-Xmx1g"}}, nil)
-		cleanup()
+		args, err := buildEnvArgs(sandbox.RunSpec{Env: []string{"MAVEN_OPTS=-Xmx1g"}}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -26,8 +25,10 @@ func Test_buildEnvArgs(t *testing.T) {
 
 	t.Run("hidden entries are forwarded, not flags", func(t *testing.T) {
 		// Act
-		args, cleanup, err := buildEnvArgs(sandbox.RunSpec{DryRun: true}, []string{"HTTPS_PROXY=http://agentic:test-token@proxy.example.test:3128"})
-		cleanup()
+		args, err := buildEnvArgs(
+			sandbox.RunSpec{DryRun: true},
+			[]string{"HTTPS_PROXY=http://agentic:test-token@proxy.example.test:3128"},
+		)
 
 		// Assert
 		require.NoError(t, err)
@@ -37,8 +38,7 @@ func Test_buildEnvArgs(t *testing.T) {
 
 	t.Run("dry run shows a placeholder and writes nothing", func(t *testing.T) {
 		// Act
-		args, cleanup, err := buildEnvArgs(sandbox.RunSpec{Env: []string{"EXAMPLE_TOKEN"}, DryRun: true}, nil)
-		cleanup()
+		args, err := buildEnvArgs(sandbox.RunSpec{Env: []string{"EXAMPLE_TOKEN"}, DryRun: true}, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -104,11 +104,12 @@ func Test_writeEnvConf(t *testing.T) {
 	}
 
 	// Act
-	path, err := writeEnvConf(refs)
+	path, err := writeEnvConf(testRunID, refs)
 
 	// Assert
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Remove(path) })
+	assert.Equal(t, envConfPath(testRunID), path)
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, "env:\n  \"EXAMPLE_TOKEN\": \"${EXAMPLE_TOKEN}\"\n  \"HTTPS_PROXY\": \"${AGENTIC_GUEST_HTTPS_PROXY}\"\n", string(data))

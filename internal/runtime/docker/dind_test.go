@@ -1,7 +1,6 @@
 package docker
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,7 +23,16 @@ func Test_startDind(t *testing.T) {
 	t.Run("joins the run network with a clear address pool, writes run files and probes the sidecar", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client)
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{}}, container: "agentic-claude-abc", network: "agentic-run-abc"}
+		rs := toolRun{
+			RunSpec: sandbox.RunSpec{
+				RunID:    testRunID,
+				User:     &testUser,
+				ToolHome: t.TempDir(),
+				Dind:     sandbox.DindSpec{},
+			},
+			container: "agentic-claude-abc",
+			network:   "agentic-run-abc",
+		}
 
 		// Act
 		handle, err := client.startDind(rs, nil)
@@ -43,26 +51,37 @@ func Test_startDind(t *testing.T) {
 		assert.DirExists(t, filepath.Join(handle.runDir, "config"))
 	})
 
-	t.Run("tears everything down when dockerd never becomes ready", func(t *testing.T) {
+	t.Run("fails when dockerd never becomes ready", func(t *testing.T) {
 		// Arrange
-		get := stubDockerRunCapture(t, client, "exec")
-		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome, Dind: sandbox.DindSpec{}}}
+		stubDockerRunCapture(t, client, "exec")
+		rs := toolRun{
+			RunSpec: sandbox.RunSpec{
+				RunID:    testRunID,
+				User:     &testUser,
+				ToolHome: t.TempDir(),
+				Dind:     sandbox.DindSpec{},
+			},
+		}
 
 		// Act
 		_, err := client.startDind(rs, nil)
 
 		// Assert
-		require.Error(t, err)
-		assert.NotNil(t, findCall(get(), "rm", "--force", "--volumes"))
-		entries, _ := os.ReadDir(filepath.Join(toolHome, dindDirName))
-		assert.Empty(t, entries, "cert dir should be removed")
+		require.ErrorContains(t, err, "docker sidecar did not become ready")
 	})
 
 	t.Run("refuses when the run network's subnets can't be read", func(t *testing.T) {
 		// Arrange
 		get := stubDockerRunCapture(t, client, "network inspect")
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{}}, network: "agentic-run-abc"}
+		rs := toolRun{
+			RunSpec: sandbox.RunSpec{
+				RunID:    testRunID,
+				User:     &testUser,
+				ToolHome: t.TempDir(),
+				Dind:     sandbox.DindSpec{},
+			},
+			network: "agentic-run-abc",
+		}
 
 		// Act
 		_, err := client.startDind(rs, nil)
@@ -72,19 +91,23 @@ func Test_startDind(t *testing.T) {
 		assert.Nil(t, findCall(get(), "run"), "the sidecar must not start without a clear pool")
 	})
 
-	t.Run("removes certs when sidecar fails to start", func(t *testing.T) {
+	t.Run("fails when the sidecar fails to start", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "run")
-		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome, Dind: sandbox.DindSpec{}}}
+		rs := toolRun{
+			RunSpec: sandbox.RunSpec{
+				RunID:    testRunID,
+				User:     &testUser,
+				ToolHome: t.TempDir(),
+				Dind:     sandbox.DindSpec{},
+			},
+		}
 
 		// Act
 		_, err := client.startDind(rs, nil)
 
 		// Assert
-		require.Error(t, err)
-		entries, _ := os.ReadDir(filepath.Join(toolHome, dindDirName))
-		assert.Empty(t, entries)
+		require.ErrorContains(t, err, "start docker sidecar")
 	})
 }
 
@@ -97,50 +120,44 @@ func Test_setupDind(t *testing.T) {
 		// Arrange
 		calls := stubDockerRunCapture(t, client)
 		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome, DryRun: true, Dind: sandbox.DindSpec{Enabled: true}}}
+		rs := toolRun{
+			RunSpec: sandbox.RunSpec{
+				RunID:    testRunID,
+				User:     &testUser,
+				ToolHome: toolHome,
+				DryRun:   true,
+				Dind:     sandbox.DindSpec{Enabled: true},
+			},
+		}
 
 		// Act
-		args, cleanup, err := client.setupDind(rs)
+		args, err := client.setupDind(rs, nil)
 
 		// Assert
 		require.NoError(t, err)
 		assert.NotEmpty(t, args)
 		assert.Empty(t, calls(), "dry run must not invoke docker")
 		assert.NoDirExists(t, filepath.Join(toolHome, dindDirName), "dry run must not write certs")
-		require.NotPanics(t, cleanup)
-	})
-
-	t.Run("cleanup removes the sidecar", func(t *testing.T) {
-		// Arrange
-		calls := stubDockerRunCapture(t, client)
-		toolHome := t.TempDir()
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome, Dind: sandbox.DindSpec{Enabled: true}}}
-
-		// Act
-		_, cleanup, err := client.setupDind(rs)
-		cleanup()
-
-		// Assert
-		require.NoError(t, err)
-		last := calls()[len(calls())-1]
-		assert.Equal(t, "rm", last.args[0])
-		assert.Nil(t, findCall(calls(), "network", "rm"), "setupSidecars owns the run network")
-		entries, _ := os.ReadDir(filepath.Join(toolHome, dindDirName))
-		assert.Empty(t, entries, "per-run certs should be removed")
 	})
 
 	t.Run("propagates startDind error", func(t *testing.T) {
 		// Arrange
 		stubDockerRunCapture(t, client, "run")
-		rs := toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: t.TempDir(), Dind: sandbox.DindSpec{Enabled: true}}}
+		rs := toolRun{
+			RunSpec: sandbox.RunSpec{
+				RunID:    testRunID,
+				User:     &testUser,
+				ToolHome: t.TempDir(),
+				Dind:     sandbox.DindSpec{Enabled: true},
+			},
+		}
 
 		// Act
-		args, cleanup, err := client.setupDind(rs)
+		args, err := client.setupDind(rs, nil)
 
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, args)
-		assert.Nil(t, cleanup)
 	})
 }
 
@@ -264,24 +281,6 @@ func Test_dindHandle_waitReady(t *testing.T) {
 	})
 }
 
-func Test_dindHandle_Stop(t *testing.T) {
-	// Arrange
-	client := newTestClient()
-	get := stubDockerRunCapture(t, client)
-	runDir := filepath.Join(t.TempDir(), "abc")
-	require.NoError(t, os.MkdirAll(runDir, 0o700))
-	handle := dindHandle{client: client, container: "agentic-docker-abc", runDir: runDir}
-
-	// Act
-	handle.Stop()
-
-	// Assert
-	calls := get()
-	require.Len(t, calls, 1, "the run network outlives the sidecar")
-	assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-docker-abc"}, calls[0].args)
-	assert.NoDirExists(t, runDir)
-}
-
 func Test_dindHandle_toolArgs(t *testing.T) {
 	// Arrange
 	handle := dindHandle{runDir: "/home/user/.agentic/dind/abc"}
@@ -300,22 +299,6 @@ func Test_dindHandle_toolArgs(t *testing.T) {
 	}, args)
 }
 
-func TestSweepDindResources(t *testing.T) {
-	// Arrange
-	client := newTestClient()
-	get := stubUnusedSweep(t, client, "", ownedRow("agentic-docker-abc", "agentic-claude-gone", time.Hour))
-
-	// Act
-	removed, err := client.SweepDindResources(t.TempDir())
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, []string{"agentic-docker-abc"}, removed)
-	calls := get()
-	assert.Contains(t, calls[1].args, "--filter=name=agentic-docker")
-	assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-docker-abc"}, findCall(calls, "rm"))
-}
-
 func Test_sweepDindRunDirs(t *testing.T) {
 	client := newTestClient()
 
@@ -323,24 +306,50 @@ func Test_sweepDindRunDirs(t *testing.T) {
 
 	for _, tc := range []struct {
 		name       string
-		live       string
+		live       []ownedResource
 		dir        string
 		age        time.Duration
 		wantExists bool
 	}{
-		{name: "removes a stale dir whose sidecar is gone", dir: "0123456789ab", age: time.Hour},
-		{name: "keeps a dir whose sidecar still exists", live: "agentic-docker-0123456789ab\n", dir: "0123456789ab", age: time.Hour, wantExists: true},
-		{name: "keeps a dir younger than the grace period, as a concurrent run may not have started its sidecar yet", dir: "0123456789ab", wantExists: true},
-		{name: "ignores entries that are not run ids", dir: "not-a-run-id", age: time.Hour, wantExists: true},
+		{
+			name: "removes a stale dir nothing of its run is left of",
+			dir:  string(testRunID),
+			age:  time.Hour,
+		},
+		{
+			name:       "keeps a dir whose run still has a resource",
+			live:       []ownedResource{{name: "agentic-claude-" + string(testRunID), run: testRunID}},
+			dir:        string(testRunID),
+			age:        time.Hour,
+			wantExists: true,
+		},
+		{
+			name:       "keeps a dir an older version named after its live sidecar",
+			live:       []ownedResource{{name: "agentic-docker-" + string(testRunID)}},
+			dir:        string(testRunID),
+			age:        time.Hour,
+			wantExists: true,
+		},
+		{
+			name:       "keeps a dir younger than the grace period, as a concurrent run may not have started yet",
+			dir:        string(testRunID),
+			wantExists: true,
+		},
+		{
+			name:       "ignores entries that are not run ids",
+			dir:        "not-a-run-id",
+			age:        time.Hour,
+			wantExists: true,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			stubDockerRunFixed(t, client, tc.live, nil)
+			stubDockerRunCapture(t, client)
 			toolHome := t.TempDir()
 			dir := makeDindRunDir(t, toolHome, tc.dir, tc.age)
 
 			// Act
-			err := client.sweepDindRunDirs(toolHome)
+			err := client.sweepDindRunDirs(toolHome, tc.live)
 
 			// Assert
 			require.NoError(t, err)
@@ -352,34 +361,30 @@ func Test_sweepDindRunDirs(t *testing.T) {
 		})
 	}
 
-	t.Run("missing dind dir is a no-op without calling docker", func(t *testing.T) {
+	t.Run("tears down the stale dir's run", func(t *testing.T) {
 		// Arrange
-		called := false
-		stubDockerRun(t, client, func(...string) (string, error) {
-			called = true
-			return "", nil
-		})
+		get := stubDockerRunCapture(t, client)
+		toolHome := t.TempDir()
+		makeDindRunDir(t, toolHome, string(testRunID), time.Hour)
 
 		// Act
-		err := client.sweepDindRunDirs(t.TempDir())
+		err := client.sweepDindRunDirs(toolHome, nil)
 
 		// Assert
 		require.NoError(t, err)
-		assert.False(t, called)
+		assert.NotNil(t, findCall(get(), "network", "rm", "agentic-run-"+string(testRunID)))
 	})
 
-	t.Run("docker error propagates and keeps dirs", func(t *testing.T) {
+	t.Run("missing dind dir is a no-op without calling docker", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, client, "", fmt.Errorf("daemon down"))
-		toolHome := t.TempDir()
-		dir := makeDindRunDir(t, toolHome, "0123456789ab", time.Hour)
+		get := stubDockerRunCapture(t, client)
 
 		// Act
-		err := client.sweepDindRunDirs(toolHome)
+		err := client.sweepDindRunDirs(t.TempDir(), nil)
 
 		// Assert
-		require.Error(t, err)
-		assert.DirExists(t, dir, "without the live list a running sidecar's certs could be deleted")
+		require.NoError(t, err)
+		assert.Empty(t, get())
 	})
 }
 
@@ -441,11 +446,17 @@ func Test_newDindHandle(t *testing.T) {
 	toolHome := t.TempDir()
 
 	// Act
-	handle, err := client.newDindHandle(toolRun{RunSpec: sandbox.RunSpec{User: &testUser, ToolHome: toolHome}})
+	handle, err := client.newDindHandle(toolRun{
+		RunSpec: sandbox.RunSpec{
+			RunID:    testRunID,
+			User:     &testUser,
+			ToolHome: toolHome,
+		},
+	})
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, "agentic-docker-"+handle.id, handle.container)
-	assert.Equal(t, filepath.Join(toolHome, dindDirName, handle.id), handle.runDir)
+	assert.Equal(t, "agentic-docker-"+string(testRunID), handle.container)
+	assert.Equal(t, filepath.Join(toolHome, dindDirName, string(testRunID)), handle.runDir)
 	assert.Equal(t, dryRunAddressPoolPlaceholder, handle.addressPool, "only startDind knows the run network's subnets")
 }

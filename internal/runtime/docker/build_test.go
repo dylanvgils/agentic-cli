@@ -10,6 +10,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,7 +68,7 @@ func TestBuildImage(t *testing.T) {
 			"--tag=ns-claude",
 			"--build-arg=HOST_UID=" + strconv.Itoa(host.UID),
 			"--build-arg=HOST_GID=" + strconv.Itoa(host.GID),
-			"--label=" + LabelProject + "=" + LabelProjectVal,
+			"--label=" + sandbox.LabelProject + "=" + sandbox.LabelProjectVal,
 			"--label=" + LabelCLIVersion + "=" + buildinfo.Version,
 			"--label=" + LabelNamespace + "=ns",
 			"--label=" + LabelTool + "=claude",

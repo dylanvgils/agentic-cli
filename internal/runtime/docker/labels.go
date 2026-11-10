@@ -7,6 +7,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 const (
@@ -59,7 +60,7 @@ const (
 
 	// -- Sidecar ownership --
 
-	// LabelOwner records the tool container a sidecar or its network serves.
+	// LabelOwner records the tool container a sidecar or its network serves, or the pidOwner of a tool container.
 	LabelOwner = "agentic.owner"
 
 	// LabelStarted records when a sidecar or its network was created.
@@ -74,13 +75,6 @@ const (
 
 	// LabelCacheBust records the CACHEBUST build-arg baked into the tool stage, reused verbatim on cache-hit rebuilds.
 	LabelCacheBust = "agentic.cachebust"
-
-	// -- Project marker --
-
-	// LabelProject marks every docker resource agentic created, paired with LabelProjectVal, to scope cleanup and listing.
-	LabelProject = "project"
-
-	LabelProjectVal = "agentic-cli"
 )
 
 // RecoverExtras parses an agentic.base label into extra layer names, e.g. "node@24.2.0,java@21.0.1" -> ["node", "java"].
@@ -234,9 +228,9 @@ func (c *Client) RestampImage(image string, info ImageInfo) {
 	c.stampLabels(image, info)
 }
 
-// stampLabels relabels image with LabelProject plus every non-empty label in info.
+// stampLabels relabels image with sandbox.LabelProject plus every non-empty label in info.
 func (c *Client) stampLabels(image string, info ImageInfo) {
-	args := []string{"build", label(LabelProject, LabelProjectVal)}
+	args := []string{"build", label(sandbox.LabelProject, sandbox.LabelProjectVal)}
 
 	for _, p := range imageLabelPairs(info) {
 		if p.value != "" {

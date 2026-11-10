@@ -11,6 +11,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/infra/buildinfo"
 	"github.com/dylanvgils/agentic-cli/internal/infra/cleanup"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // BuildTool generates a multi-stage Dockerfile for the named tool, builds it, and stamps labels with the detected tool version.
@@ -103,7 +104,7 @@ func (c *Client) BuildDockerdImage(image string, parent *ImageInfo) (retErr erro
 func dockerdImageBuildArgs(tmpDir, image string, parent *ImageInfo) []string {
 	return []string{
 		"build",
-		label(LabelProject, LabelProjectVal),
+		label(sandbox.LabelProject, sandbox.LabelProjectVal),
 		label(LabelBuilt, buildBuiltLabel()),
 		label(LabelCLIVersion, buildinfo.Version),
 		label(LabelTool, tools.DockerdImageSuffix),
@@ -118,7 +119,7 @@ func dockerdImageBuildArgs(tmpDir, image string, parent *ImageInfo) []string {
 func sidecarImageBuildArgs(dockerfilePath, image, toolLabel, context string, opts tools.BuildOptions) []string {
 	args := []string{
 		"build",
-		label(LabelProject, LabelProjectVal),
+		label(sandbox.LabelProject, sandbox.LabelProjectVal),
 		label(LabelBuilt, buildBuiltLabel()),
 		label(LabelCLIVersion, buildinfo.Version),
 		label(LabelTool, toolLabel),
@@ -190,7 +191,7 @@ func buildImageArgs(tmpDir, image, tool string, opts tools.BuildOptions) []strin
 
 	args := []string{
 		"build",
-		label(LabelProject, LabelProjectVal),
+		label(sandbox.LabelProject, sandbox.LabelProjectVal),
 		label(LabelBuilt, buildBuiltLabel()),
 		label(LabelCLIVersion, buildinfo.Version),
 		label(LabelNamespace, namespace),

@@ -34,32 +34,31 @@ type Sidecars struct {
 	// args point the tool at the sidecars
 	args []string
 
-	cleanup func()
+	// stopGuard uninstalls the signal guard
+	stopGuard func()
 }
 
-// StartSidecars names spec's tool container and network and starts its sidecars, with the proxy logging to proxyLog
-// (unused without the proxy); a dry run only prints them.
+// StartSidecars starts spec's run network and sidecars, the proxy logging to proxyLog; a dry run only prints them.
 func (c *Client) StartSidecars(spec sandbox.RunSpec, proxyLog string) (Sidecars, error) {
 	if spec.User == nil {
 		return Sidecars{}, errNoHostUser
 	}
-
-	id, err := randID()
-	if err != nil {
+	if _, err := sandbox.ParseRunID(spec.RunID.String()); err != nil {
 		return Sidecars{}, err
 	}
+
 	rs := toolRun{
 		RunSpec:   spec,
-		container: spec.Image + "-" + id,
-		network:   runNetworkPrefix + "-" + id,
+		container: spec.Image + "-" + spec.RunID.String(),
+		network:   runNetworkName(spec.RunID),
 		proxyLog:  proxyLog,
 	}
 
-	args, cleanup, err := c.setupSidecars(rs)
+	args, stopGuard, err := c.setupSidecars(rs)
 	if err != nil {
 		return Sidecars{}, err
 	}
-	return Sidecars{run: rs, args: args, cleanup: cleanup}, nil
+	return Sidecars{run: rs, args: args, stopGuard: stopGuard}, nil
 }
 
 // RunTool runs the tool container of sc's run; a dry run only prints it.
@@ -79,11 +78,13 @@ func (c *Client) RunTool(sc Sidecars) error {
 	return c.attachTool(sc.run.container, args)
 }
 
-// StopSidecars stops and removes sc's sidecars.
+// StopSidecars tears down sc's run and its signal guard.
 func (c *Client) StopSidecars(sc Sidecars) {
-	if sc.cleanup != nil {
-		sc.cleanup()
+	if sc.stopGuard == nil || sc.run.DryRun {
+		return
 	}
+	warnOnTeardownError(c.Teardown(sc.run.ToolHome, sc.run.RunID))
+	sc.stopGuard()
 }
 
 // attachTool runs the tool container with docker run args attached to the terminal, removing it on a signal and once

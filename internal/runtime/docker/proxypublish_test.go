@@ -19,6 +19,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 	stubProxySettleTime(t, client, 0)
 	newSpec := func(t *testing.T) sandbox.RunSpec {
 		return sandbox.RunSpec{
+			RunID:    testRunID,
 			User:     &testUser,
 			ToolHome: t.TempDir(),
 			Egress:   sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
@@ -40,11 +41,13 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		create := findCall(calls(), "create")
 		assert.Contains(t, create, "--network="+NetworkName)
 		assert.Contains(t, create, "--publish=127.0.0.1::3128")
-		assert.Contains(t, create, "--label="+LabelOwner+"=microsandbox:pid:"+strconv.Itoa(os.Getpid()))
+		assert.Contains(t, create, "--label="+LabelOwner+"="+pidOwner(sandbox.RuntimeMicrosandbox, os.Getpid()))
+		assert.Contains(t, create, "--label="+sandbox.LabelRun+"="+string(testRunID))
 		assert.False(t, hasArgWithPrefix(create, "--network-alias"), "no run network to alias on")
 		assert.False(t, hasArgWithPrefix(create, "--env="+proxy.EnvClientNets), "the token admits clients instead")
 		assert.NotContains(t, strings.Join(create, " "), published.Token)
 		path, content := tokenFile()
+		assert.Equal(t, tokenFilePath(testRunID), path)
 		assert.Equal(t, proxy.EnvAuthToken+"="+published.Token+"\n", content)
 		assert.NoFileExists(t, path, "removed once the container is created")
 		assert.Nil(t, findCall(calls(), "network", "connect"), "already on the egress network")
@@ -67,7 +70,21 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		assert.Regexp(t, `^EXAMPLE_API_KEY=agentic-[0-9a-f]{24}$`, published.Env[0])
 	})
 
-	t.Run("stop removes the proxy", func(t *testing.T) {
+	t.Run("refuses an invalid run id before touching Docker", func(t *testing.T) {
+		// Arrange
+		calls, _ := stubPublishedProxyDocker(t, client, "unix:///var/run/docker.sock")
+		spec := newSpec(t)
+		spec.RunID = "../x"
+
+		// Act
+		_, err := client.StartPublishedProxy(spec, filepath.Join(t.TempDir(), "proxy_abc.jsonl"), sandbox.RuntimeMicrosandbox)
+
+		// Assert
+		require.EqualError(t, err, `invalid run id "../x"`)
+		assert.Empty(t, calls())
+	})
+
+	t.Run("stop tears its run down", func(t *testing.T) {
 		// Arrange
 		calls, _ := stubPublishedProxyDocker(t, client, "unix:///var/run/docker.sock")
 		published, err := client.StartPublishedProxy(newSpec(t), filepath.Join(t.TempDir(), "proxy_abc.jsonl"), sandbox.RuntimeMicrosandbox)
@@ -77,10 +94,10 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		published.Stop()
 
 		// Assert
-		assert.NotNil(t, findCall(calls(), "rm", "--force", "--volumes"))
+		assert.NotNil(t, findCall(calls(), runContainersArgs(testRunID)...))
 	})
 
-	t.Run("removes the proxy when its port can't be read", func(t *testing.T) {
+	t.Run("tears its run down when its port can't be read", func(t *testing.T) {
 		// Arrange
 		calls, _ := stubPublishedProxyDocker(t, client, "unix:///var/run/docker.sock", "port")
 
@@ -89,7 +106,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 
 		// Assert
 		require.ErrorContains(t, err, "read the proxy's published port")
-		assert.NotNil(t, findCall(calls(), "rm", "--force", "--volumes"))
+		assert.NotNil(t, findCall(calls(), runContainersArgs(testRunID)...))
 	})
 
 	t.Run("refuses a remote Docker context before creating anything", func(t *testing.T) {

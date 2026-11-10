@@ -3,6 +3,7 @@ package microsandbox
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -23,25 +24,25 @@ type envRef struct {
 }
 
 // buildEnvArgs returns the --env flags plus a --runtime-conf file for forwarded vars and hidden entries, kept out of args.
-func buildEnvArgs(rs sandbox.RunSpec, hidden []string) (args []string, cleanup func(), err error) {
+func buildEnvArgs(rs sandbox.RunSpec, hidden []string) ([]string, error) {
 	flags, refs := splitEnv(sandbox.ResolveEnv(rs.Env))
 	for _, entry := range hidden {
 		key, _, _ := strings.Cut(entry, "=")
 		refs = append(refs, envRef{guest: key, source: guestEnvName(key)})
 	}
 	if len(refs) == 0 {
-		return flags, noCleanup, nil
+		return flags, nil
 	}
 
 	if rs.DryRun {
-		return append(flags, arg("runtime-conf", dryRunEnvConfPlaceholder)), noCleanup, nil
+		return append(flags, arg("runtime-conf", dryRunEnvConfPlaceholder)), nil
 	}
 
-	path, err := writeEnvConf(refs)
+	path, err := writeEnvConf(rs.RunID, refs)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return append(flags, arg("runtime-conf", path)), func() { _ = os.Remove(path) }, nil
+	return append(flags, arg("runtime-conf", path)), nil
 }
 
 // splitEnv splits resolved env into --env flags and the forwarded bare keys msb's --env can't take; a key's last
@@ -84,15 +85,15 @@ func guestEnvName(key string) string {
 	return guestEnvPrefix + key
 }
 
-// writeEnvConf writes a temp --runtime-conf file mapping each key to a ${source} reference, so it holds no values.
-func writeEnvConf(refs []envRef) (string, error) {
+// writeEnvConf writes run id's --runtime-conf file mapping each key to a ${source} reference, so it holds no values.
+func writeEnvConf(id sandbox.RunID, refs []envRef) (string, error) {
 	var b strings.Builder
 	b.WriteString("env:\n")
 	for _, ref := range refs {
 		fmt.Fprintf(&b, "  %q: \"${%s}\"\n", ref.guest, ref.source)
 	}
 
-	f, err := os.CreateTemp("", "agentic-msb-env-*.yaml")
+	f, err := os.OpenFile(envConfPath(id), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", fmt.Errorf("create msb env file: %w", err)
 	}
@@ -105,7 +106,7 @@ func writeEnvConf(refs []envRef) (string, error) {
 	return f.Name(), nil
 }
 
-// noCleanup is the cleanup for paths that set nothing up.
-func noCleanup() {
-	// Nothing to undo
+// envConfPath returns run id's --runtime-conf file.
+func envConfPath(id sandbox.RunID) string {
+	return filepath.Join(os.TempDir(), "agentic-msb-env-"+id.String()+".yaml")
 }

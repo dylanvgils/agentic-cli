@@ -22,6 +22,9 @@ import (
 // testUser is the host user test runs run as.
 var testUser = platform.User{UID: 1000, GID: 1000}
 
+// testRunID is the run ID of test runs.
+const testRunID sandbox.RunID = "0123456789ab"
+
 // testRunSubnet is the run network's subnet in stubbed network inspects.
 const testRunSubnet = "172.19.0.0/16"
 
@@ -170,6 +173,9 @@ func stubDockerRunCapture(t *testing.T, client *Client, failSubcmds ...string) f
 func startAndRunTool(client *Client, rs sandbox.RunSpec, proxyLog string) error {
 	if rs.User == nil {
 		rs.User = &testUser
+	}
+	if rs.RunID == "" {
+		rs.RunID = testRunID
 	}
 
 	sidecars, err := client.StartSidecars(rs, proxyLog)
@@ -320,40 +326,6 @@ func makeDindRunDir(t *testing.T, toolHome, name string, age time.Duration) stri
 	return dir
 }
 
-// stubOwnedResources stubs `ps` and `network ls` output, recording every call.
-func stubOwnedResources(t *testing.T, client *Client, containers, networks string) func() []dockerCall {
-	t.Helper()
-	var calls []dockerCall
-	stubDockerRun(t, client, func(args ...string) (string, error) {
-		calls = append(calls, dockerCall{args: args})
-		switch {
-		case args[0] == "ps":
-			return containers, nil
-		case args[0] == "network" && args[1] == "ls":
-			return networks, nil
-		}
-		return "", nil
-	})
-	return func() []dockerCall { return calls }
-}
-
-// stubUnusedSweep stubs the container name listing with names and every other list with owned, recording every call.
-func stubUnusedSweep(t *testing.T, client *Client, names, owned string) func() []dockerCall {
-	t.Helper()
-	var calls []dockerCall
-	stubDockerRun(t, client, func(args ...string) (string, error) {
-		calls = append(calls, dockerCall{args: args})
-		switch {
-		case slices.Contains(args, "--format={{.Names}}"):
-			return names, nil
-		case args[0] == "ps" || args[0] == "network" && args[1] == "ls":
-			return owned, nil
-		}
-		return "", nil
-	})
-	return func() []dockerCall { return calls }
-}
-
 // stubEgressNetwork stubs an agentic-managed agentic-net with attached as its container count; network rm returns rmErr.
 func stubEgressNetwork(t *testing.T, client *Client, attached string, rmErr error) func() []dockerCall {
 	t.Helper()
@@ -373,9 +345,99 @@ func stubEgressNetwork(t *testing.T, client *Client, attached string, rmErr erro
 	return func() []dockerCall { return calls }
 }
 
-// ownedRow formats a row as ownedFormat renders it.
-func ownedRow(name, owner string, age time.Duration) string {
-	return name + "\t" + owner + "\t" + formatLabelTime(time.Now().Add(-age)) + "\n"
+// fakeDaemon is a stub daemon holding owned containers and networks; rm and network rm remove them, failing like
+// docker for missing ones.
+type fakeDaemon struct {
+	containers []ownedResource
+	networks   []ownedResource
+	calls      []dockerCall
+	// failing makes every call whose first args match fail
+	failing [][]string
+}
+
+// stubDaemon routes client's docker calls to d.
+func stubDaemon(t *testing.T, client *Client, d *fakeDaemon) {
+	t.Helper()
+	stubDockerRun(t, client, d.run)
+}
+
+// run answers one docker call.
+func (d *fakeDaemon) run(args ...string) (string, error) {
+	d.calls = append(d.calls, dockerCall{args: args})
+	for _, prefix := range d.failing {
+		if len(args) >= len(prefix) && slices.Equal(args[:len(prefix)], prefix) {
+			return "", fmt.Errorf("stub: %s failed", strings.Join(prefix, " "))
+		}
+	}
+
+	name := args[len(args)-1]
+	switch {
+	case args[0] == "ps":
+		return listRows(d.containers, args), nil
+	case args[0] == "network" && args[1] == "ls":
+		return listRows(d.networks, args), nil
+	case args[0] == "rm":
+		return "", removeNamed(&d.containers, name, "Error response from daemon: No such container: "+name)
+	case args[0] == "network" && args[1] == "rm":
+		return "", removeNamed(&d.networks, name, "Error response from daemon: network "+name+" not found")
+	case args[0] == "network" && args[1] == "inspect":
+		return testRunSubnet + " \n", nil
+	}
+	return "", nil
+}
+
+// names returns the names of d's containers and networks.
+func (d *fakeDaemon) names() []string {
+	var names []string
+	for _, r := range slices.Concat(d.containers, d.networks) {
+		names = append(names, r.name)
+	}
+	return names
+}
+
+// removed returns the names d's rm and network rm calls named, in order.
+func (d *fakeDaemon) removed() []string {
+	var names []string
+	for _, c := range d.calls {
+		if c.args[0] == "rm" || c.args[0] == "network" && c.args[1] == "rm" {
+			names = append(names, c.args[len(c.args)-1])
+		}
+	}
+	return names
+}
+
+// listRows renders resources as ownedFormat rows, keeping only the run an --filter=label=agentic.run= arg names.
+func listRows(resources []ownedResource, args []string) string {
+	run, filtered := "", false
+	for _, a := range args {
+		if v, ok := strings.CutPrefix(a, "--filter=label="+sandbox.LabelRun+"="); ok {
+			run, filtered = v, true
+		}
+	}
+
+	var b strings.Builder
+	for _, r := range resources {
+		if filtered && string(r.run) != run {
+			continue
+		}
+		b.WriteString(r.name + "\t" + r.owner + "\t" + formatLabelTime(r.started) + "\t" + string(r.run) + "\n")
+	}
+	return b.String()
+}
+
+// removeNamed removes name from resources, failing with missing when it isn't there.
+func removeNamed(resources *[]ownedResource, name, missing string) error {
+	i := slices.IndexFunc(*resources, func(r ownedResource) bool { return r.name == name })
+	if i < 0 {
+		return errors.New(missing)
+	}
+	*resources = slices.Delete(*resources, i, i+1)
+	return nil
+}
+
+// owned returns a resource owned by owner in run, started age ago.
+func owned(name, owner string, run sandbox.RunID, age time.Duration) ownedResource {
+	return ownedResource{name: name, owner: owner, run: run, started: time.Now().Add(-age)}
 }
 
 // stubDockerRunWithStdin replaces client.runWithStdin with fn for the duration of the test.
@@ -427,7 +489,7 @@ func stubProxyDocker(t *testing.T, client *Client, running string, failSubcmds .
 		case slices.Contains(failSubcmds, args[0]):
 			return "", fmt.Errorf("stub: %s failed", args[0])
 		case len(args) > 1 && args[0] == "network" && args[1] == "inspect" && args[len(args)-1] == NetworkName:
-			return LabelProjectVal + "\n", nil
+			return sandbox.LabelProjectVal + "\n", nil
 		case len(args) > 1 && args[0] == "network" && args[1] == "inspect":
 			return "172.30.0.0/16 \n", nil
 		case args[0] == "inspect":
@@ -487,7 +549,7 @@ func stubPublishedProxyDocker(t *testing.T, client *Client, host string, failSub
 			require.NoError(t, err)
 			content = string(data)
 		case len(args) > 1 && args[0] == "network" && args[1] == "inspect":
-			return LabelProjectVal + "\n", nil
+			return sandbox.LabelProjectVal + "\n", nil
 		case args[0] == "inspect":
 			return "true", nil
 		case args[0] == "port":
@@ -513,6 +575,9 @@ func newProxyRun(t *testing.T, spec sandbox.RunSpec) toolRun {
 	t.Helper()
 	if spec.User == nil {
 		spec.User = &testUser
+	}
+	if spec.RunID == "" {
+		spec.RunID = testRunID
 	}
 	return toolRun{RunSpec: spec, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
 }
