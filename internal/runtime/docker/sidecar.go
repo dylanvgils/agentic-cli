@@ -75,20 +75,11 @@ func (r ownedResource) sweepable(existing map[string]bool, grace time.Duration, 
 	return r.isOrphan(existing, grace)
 }
 
-// newSweepTargets picks what a sweep removes from resources.
-func newSweepTargets(resources []ownedResource, grace time.Duration, unowned bool) sweepTargets {
-	existing := make(map[string]bool, len(resources))
-	for _, r := range resources {
-		if !r.network {
-			existing[r.name] = true
-		}
-	}
-
+// newSweepTargets groups resources into their runs and the ones without a run.
+func newSweepTargets(resources []ownedResource) sweepTargets {
 	var t sweepTargets
 	for _, r := range resources {
-		if r.sweepable(existing, grace, unowned) {
-			t.add(r)
-		}
+		t.add(r)
 	}
 	return t
 }
@@ -182,7 +173,7 @@ func (c *Client) sweepRuns(toolHome string, unowned bool) (SweptRuns, error) {
 		return SweptRuns{}, err
 	}
 
-	targets := newSweepTargets(resources, c.timing.sidecarOrphanGrace, unowned)
+	targets := newSweepTargets(sweepableResources(resources, c.timing.sidecarOrphanGrace, unowned))
 	swept := targets.report(resources)
 	removeErr := c.removeTargets(toolHome, targets)
 
@@ -291,6 +282,29 @@ func ownedFormat(nameField string) string {
 		`{{.Label "` + LabelHost + `"}}`,
 	}
 	return strings.Join(fields, "\t")
+}
+
+// sweepableResources returns the resources a sweep removes, see ownedResource.sweepable.
+func sweepableResources(resources []ownedResource, grace time.Duration, unowned bool) []ownedResource {
+	existing := containerNames(resources)
+	var result []ownedResource
+	for _, r := range resources {
+		if r.sweepable(existing, grace, unowned) {
+			result = append(result, r)
+		}
+	}
+	return result
+}
+
+// containerNames returns the names of resources' containers, the owners a sidecar can have.
+func containerNames(resources []ownedResource) map[string]bool {
+	names := make(map[string]bool, len(resources))
+	for _, r := range resources {
+		if !r.network {
+			names[r.name] = true
+		}
+	}
+	return names
 }
 
 // projectContainersArgs lists agentic's containers as ownedFormat rows.

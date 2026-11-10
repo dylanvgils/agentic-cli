@@ -150,16 +150,20 @@ func Test_sweepRuns(t *testing.T) {
 	client := newTestClient()
 	gone := "agentic-claude-gone"
 
-	t.Run("tears down every resource of a run with an orphan", func(t *testing.T) {
+	t.Run("tears down orphaned runs and keeps runs in use", func(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()
 		makeDindRunDir(t, toolHome, string(testRunID), 0)
+		live := "agentic-claude-" + string(otherRunID)
 		daemon := &fakeDaemon{
 			containers: []ownedResource{
 				owned("agentic-proxy-"+string(testRunID), gone, testRunID, time.Hour),
-				owned("agentic-docker-"+string(testRunID), gone, testRunID, time.Hour),
+				owned(live, pidOwner(sandbox.RuntimeDocker, os.Getpid()), otherRunID, time.Hour),
+				owned("agentic-proxy-"+string(otherRunID), live, otherRunID, time.Hour),
 			},
-			networks: []ownedResource{owned(runNetworkName(testRunID), gone, testRunID, time.Hour)},
+			networks: []ownedResource{
+				owned(runNetworkName(testRunID), gone, testRunID, time.Hour),
+			},
 		}
 		stubDaemon(t, client, daemon)
 
@@ -168,71 +172,12 @@ func Test_sweepRuns(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Empty(t, daemon.names())
+		assert.Equal(t, []string{live, "agentic-proxy-" + string(otherRunID)}, daemon.names())
 		assert.NoDirExists(t, dindRunDir(toolHome, testRunID))
 		assert.Equal(t, SweptRuns{
-			Sidecars: []string{"agentic-proxy-" + string(testRunID), "agentic-docker-" + string(testRunID)},
+			Sidecars: []string{"agentic-proxy-" + string(testRunID)},
 			Networks: []string{runNetworkName(testRunID)},
 		}, swept)
-	})
-
-	t.Run("tears down the run of a tool whose host process is gone", func(t *testing.T) {
-		// Arrange
-		tool := "agentic-claude-" + string(testRunID)
-		daemon := &fakeDaemon{
-			containers: []ownedResource{
-				owned(tool, pidOwner(sandbox.RuntimeDocker, exitedPID(t)), testRunID, time.Hour),
-				owned("agentic-proxy-"+string(testRunID), tool, testRunID, time.Hour),
-			},
-			networks: []ownedResource{owned(runNetworkName(testRunID), tool, testRunID, time.Hour)},
-		}
-		stubDaemon(t, client, daemon)
-
-		// Act
-		_, err := client.sweepRuns("", false)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, daemon.names())
-		assert.Equal(t, tool, daemon.removed()[0], "the tool goes first")
-	})
-
-	t.Run("keeps runs still in use", func(t *testing.T) {
-		// Arrange
-		live := "agentic-claude-" + string(testRunID)
-		daemon := &fakeDaemon{
-			containers: []ownedResource{
-				owned(live, pidOwner(sandbox.RuntimeDocker, os.Getpid()), testRunID, time.Hour),
-				owned("agentic-proxy-"+string(testRunID), live, testRunID, time.Hour),
-				owned("agentic-proxy-"+string(otherRunID), "agentic-claude-starting", otherRunID, time.Minute),
-			},
-			networks: []ownedResource{owned(runNetworkName(otherRunID), "agentic-claude-starting", otherRunID, time.Minute)},
-		}
-		stubDaemon(t, client, daemon)
-
-		// Act
-		swept, err := client.sweepRuns("", false)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, daemon.removed())
-		assert.Equal(t, SweptRuns{}, swept)
-	})
-
-	t.Run("removes an orphan without a run label alone", func(t *testing.T) {
-		// Arrange
-		daemon := &fakeDaemon{
-			containers: []ownedResource{owned("agentic-docker-old", gone, "", time.Hour)},
-			networks:   []ownedResource{owned("agentic-run-old", gone, "", time.Hour)},
-		}
-		stubDaemon(t, client, daemon)
-
-		// Act
-		_, err := client.sweepRuns("", false)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"agentic-docker-old", "agentic-run-old"}, daemon.removed())
 	})
 
 	t.Run("removes unowned sidecars only when asked", func(t *testing.T) {
@@ -245,17 +190,14 @@ func Test_sweepRuns(t *testing.T) {
 				name: "run sweep keeps them",
 			},
 			{
-				name:    "clean removes them, but never an unowned tool",
+				name:    "clean removes them",
 				unowned: true,
 				want:    []string{"agentic-proxy-old"},
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				// Arrange
-				daemon := &fakeDaemon{containers: []ownedResource{
-					{name: "agentic-proxy-old"},
-					{name: "agentic-claude-old"},
-				}}
+				daemon := &fakeDaemon{containers: []ownedResource{{name: "agentic-proxy-old"}}}
 				stubDaemon(t, client, daemon)
 
 				// Act
@@ -266,36 +208,6 @@ func Test_sweepRuns(t *testing.T) {
 				assert.Equal(t, tc.want, daemon.removed())
 			})
 		}
-	})
-
-	t.Run("a failed removal doesn't stop the rest", func(t *testing.T) {
-		// Arrange
-		daemon := &fakeDaemon{
-			containers: []ownedResource{
-				owned("agentic-docker-"+string(testRunID), gone, testRunID, time.Hour),
-				owned("agentic-docker-"+string(otherRunID), gone, otherRunID, time.Hour),
-			},
-			failing: [][]string{{"rm", "--force", "--volumes", "agentic-docker-" + string(testRunID)}},
-		}
-		stubDaemon(t, client, daemon)
-
-		// Act
-		_, err := client.sweepRuns("", false)
-
-		// Assert
-		require.ErrorContains(t, err, "stub: rm")
-		assert.Equal(t, []string{"agentic-docker-" + string(testRunID)}, daemon.names())
-	})
-
-	t.Run("list error propagates", func(t *testing.T) {
-		// Arrange
-		stubDaemon(t, client, &fakeDaemon{failing: [][]string{{"ps"}}})
-
-		// Act
-		_, err := client.sweepRuns("", false)
-
-		// Assert
-		assert.ErrorContains(t, err, "stub: ps failed")
 	})
 
 	t.Run("sweeps run dirs left behind by crashed runs", func(t *testing.T) {
@@ -312,6 +224,231 @@ func Test_sweepRuns(t *testing.T) {
 		require.NoError(t, err)
 		assert.NoDirExists(t, stale)
 	})
+
+	t.Run("list error propagates", func(t *testing.T) {
+		// Arrange
+		stubDaemon(t, client, &fakeDaemon{failing: [][]string{{"ps"}}})
+
+		// Act
+		_, err := client.sweepRuns("", false)
+
+		// Assert
+		assert.ErrorContains(t, err, "stub: ps failed")
+	})
+}
+
+func Test_listOwnedResources(t *testing.T) {
+	client := newTestClient()
+
+	t.Run("lists containers, then networks", func(t *testing.T) {
+		// Arrange
+		stubDaemon(t, client, &fakeDaemon{
+			containers: []ownedResource{{name: "agentic-proxy-abc"}},
+			networks:   []ownedResource{{name: "agentic-run-abc"}},
+		})
+
+		// Act
+		resources, err := client.listOwnedResources()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []ownedResource{
+			{name: "agentic-proxy-abc"},
+			{name: "agentic-run-abc", network: true},
+		}, resources)
+	})
+
+	for _, tc := range []struct {
+		name    string
+		failing []string
+	}{
+		{
+			name:    "container list error propagates",
+			failing: []string{"ps"},
+		},
+		{
+			name:    "network list error propagates",
+			failing: []string{"network", "ls"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			stubDaemon(t, client, &fakeDaemon{failing: [][]string{tc.failing}})
+
+			// Act
+			_, err := client.listOwnedResources()
+
+			// Assert
+			assert.ErrorContains(t, err, "stub: "+strings.Join(tc.failing, " ")+" failed")
+		})
+	}
+}
+
+func Test_removeTargets(t *testing.T) {
+	client := newTestClient()
+
+	t.Run("tears down runs, then removes containers before networks", func(t *testing.T) {
+		// Arrange
+		daemon := &fakeDaemon{
+			containers: []ownedResource{
+				owned("agentic-docker-old", "", "", 0),
+				owned("agentic-proxy-"+string(testRunID), "", testRunID, 0),
+			},
+			networks: []ownedResource{
+				owned("agentic-run-old", "", "", 0),
+			},
+		}
+		stubDaemon(t, client, daemon)
+		targets := sweepTargets{
+			runs:       []sandbox.RunID{testRunID},
+			containers: []string{"agentic-docker-old"},
+			networks:   []string{"agentic-run-old"},
+		}
+
+		// Act
+		err := client.removeTargets("", targets)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{
+			"agentic-proxy-" + string(testRunID),
+			runNetworkName(testRunID),
+			"agentic-docker-old",
+			"agentic-run-old",
+		}, daemon.removed())
+	})
+
+	t.Run("a failed removal doesn't stop the rest", func(t *testing.T) {
+		// Arrange
+		daemon := &fakeDaemon{
+			containers: []ownedResource{
+				owned("agentic-docker-"+string(testRunID), "", testRunID, 0),
+				owned("agentic-docker-"+string(otherRunID), "", otherRunID, 0),
+			},
+			failing: [][]string{{"rm", "--force", "--volumes", "agentic-docker-" + string(testRunID)}},
+		}
+		stubDaemon(t, client, daemon)
+		targets := sweepTargets{runs: []sandbox.RunID{testRunID, otherRunID}}
+
+		// Act
+		err := client.removeTargets("", targets)
+
+		// Assert
+		require.ErrorContains(t, err, "stub: rm")
+		assert.Equal(t, []string{"agentic-docker-" + string(testRunID)}, daemon.names())
+	})
+}
+
+func Test_newSweepTargets(t *testing.T) {
+	// Arrange
+	resources := []ownedResource{
+		{name: "agentic-proxy-" + string(testRunID), run: testRunID},
+		{name: runNetworkName(testRunID), run: testRunID, network: true},
+		{name: "agentic-docker-old"},
+		{name: "agentic-run-old", network: true},
+	}
+
+	// Act
+	targets := newSweepTargets(resources)
+
+	// Assert
+	assert.Equal(t, sweepTargets{
+		runs:       []sandbox.RunID{testRunID},
+		containers: []string{"agentic-docker-old"},
+		networks:   []string{"agentic-run-old"},
+	}, targets)
+}
+
+func Test_sweepTargets_report(t *testing.T) {
+	// Arrange
+	targets := sweepTargets{
+		runs:       []sandbox.RunID{testRunID},
+		containers: []string{"agentic-docker-old"},
+		networks:   []string{"agentic-run-old"},
+	}
+	resources := []ownedResource{
+		{name: "agentic-proxy-" + string(testRunID), run: testRunID},
+		{name: runNetworkName(testRunID), run: testRunID, network: true},
+		{name: "agentic-proxy-" + string(otherRunID), run: otherRunID},
+		{name: "agentic-docker-old"},
+	}
+
+	// Act
+	swept := targets.report(resources)
+
+	// Assert
+	assert.Equal(t, SweptRuns{
+		Sidecars: []string{"agentic-docker-old", "agentic-proxy-" + string(testRunID)},
+		Networks: []string{"agentic-run-old", runNetworkName(testRunID)},
+	}, swept)
+}
+
+func Test_sweepableResources(t *testing.T) {
+	// Arrange
+	gone := owned("agentic-proxy-gone", "agentic-claude-gone", "", time.Hour)
+	resources := []ownedResource{
+		gone,
+		owned("agentic-proxy-kept", "agentic-claude-kept", "", time.Hour),
+		{name: "agentic-claude-kept"},
+	}
+
+	// Act
+	sweepable := sweepableResources(resources, time.Minute, false)
+
+	// Assert
+	assert.Equal(t, []ownedResource{gone}, sweepable)
+}
+
+func Test_containerNames(t *testing.T) {
+	// Arrange
+	resources := []ownedResource{
+		{name: "agentic-claude-abc"},
+		{name: "agentic-run-abc", network: true},
+	}
+
+	// Act
+	names := containerNames(resources)
+
+	// Assert
+	assert.Equal(t, map[string]bool{"agentic-claude-abc": true}, names)
+}
+
+func Test_ownedResource_sweepable(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		resource ownedResource
+		unowned  bool
+		want     bool
+	}{
+		{
+			name:     "an orphan",
+			resource: owned("agentic-proxy-abc", "agentic-claude-gone", "", time.Hour),
+			want:     true,
+		},
+		{
+			name:     "an unowned sidecar on a run sweep",
+			resource: ownedResource{name: "agentic-proxy-abc"},
+		},
+		{
+			name:     "an unowned sidecar on clean",
+			resource: ownedResource{name: "agentic-docker-abc"},
+			unowned:  true,
+			want:     true,
+		},
+		{
+			name:     "an unowned tool on clean",
+			resource: ownedResource{name: "agentic-claude-abc"},
+			unowned:  true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			sweepable := tc.resource.sweepable(nil, time.Minute, tc.unowned)
+
+			// Assert
+			assert.Equal(t, tc.want, sweepable)
+		})
+	}
 }
 
 func Test_ownedResource_isOrphan(t *testing.T) {

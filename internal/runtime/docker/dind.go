@@ -401,7 +401,9 @@ func dindRunDir(toolHome string, id sandbox.RunID) string {
 func liveRunIDs(resources []ownedResource) map[sandbox.RunID]bool {
 	live := make(map[sandbox.RunID]bool, len(resources))
 	for _, r := range resources {
-		live[r.run] = true
+		if r.run != "" {
+			live[r.run] = true
+		}
 		if id, ok := strings.CutPrefix(r.name, dindHostAlias+"-"); ok {
 			live[sandbox.RunID(id)] = true
 		}
