@@ -103,7 +103,7 @@ func TestClient_RunTool(t *testing.T) {
 		assert.True(t, hasArgWithPrefix(args, "--name=agentic-claude-"))
 	})
 
-	t.Run("labels the tool with its run and this process as owner, so the sweep can tear it down", func(t *testing.T) {
+	t.Run("labels the tool with its run and this process and host as owner, so the sweep can tear it down", func(t *testing.T) {
 		// Arrange
 		rs := sandbox.RunSpec{Image: "agentic-claude"}
 
@@ -114,6 +114,7 @@ func TestClient_RunTool(t *testing.T) {
 		require.NoError(t, err)
 		args := get()
 		assert.Contains(t, args, "--label="+LabelOwner+"="+pidOwner(sandbox.RuntimeDocker, os.Getpid()))
+		assert.Contains(t, args, "--label="+LabelHost+"="+hostname())
 		assert.Contains(t, args, "--label="+sandbox.LabelRun+"="+string(testRunID))
 		assert.True(t, hasArgWithPrefix(args, "--label="+LabelStarted+"="))
 	})

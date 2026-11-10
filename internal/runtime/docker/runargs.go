@@ -36,8 +36,10 @@ func buildBaseArgs(rs toolRun) []string {
 		arg("name", rs.container),
 		label(sandbox.LabelProject, sandbox.LabelProjectVal),
 	}
-	// The sweep tears the run down if this process dies
-	args = append(args, ownerLabels(pidOwner(sandbox.RuntimeDocker, os.Getpid()), rs.RunID)...)
+	// The sweep tears the run down if this process dies; a dry run's printed command would outlive it
+	if !rs.DryRun {
+		args = append(args, ownerLabels(pidOwner(sandbox.RuntimeDocker, os.Getpid()), rs.RunID)...)
+	}
 	return append(args,
 		// Limit the number of PIDs (processes) the container can spawn
 		arg("pids-limit", rs.Limits.PidsLimit),

@@ -420,7 +420,14 @@ func listRows(resources []ownedResource, args []string) string {
 		if filtered && string(r.run) != run {
 			continue
 		}
-		b.WriteString(r.name + "\t" + r.owner + "\t" + formatLabelTime(r.started) + "\t" + string(r.run) + "\n")
+		fields := []string{
+			r.name,
+			r.owner,
+			formatLabelTime(r.started),
+			string(r.run),
+			r.host,
+		}
+		b.WriteString(strings.Join(fields, "\t") + "\n")
 	}
 	return b.String()
 }

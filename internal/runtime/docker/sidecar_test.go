@@ -2,7 +2,6 @@ package docker
 
 import (
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -323,6 +322,7 @@ func Test_ownedResource_isOrphan(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		owner   string
+		host    string
 		started time.Time
 		want    bool
 	}{
@@ -363,19 +363,26 @@ func Test_ownedResource_isOrphan(t *testing.T) {
 		},
 		{
 			name:    "host process owner on another host",
-			owner:   "docker:pid:" + strconv.Itoa(gonePID) + "@other.example.test",
+			owner:   pidOwner(sandbox.RuntimeDocker, gonePID),
+			host:    "other.example.test",
 			started: old,
 		},
 		{
-			name:    "host process owner from an older version without a host",
-			owner:   "microsandbox:pid:" + strconv.Itoa(gonePID),
+			name:    "host process owner on this host",
+			owner:   pidOwner(sandbox.RuntimeDocker, gonePID),
+			host:    hostname(),
 			started: old,
 			want:    true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			r := ownedResource{name: "agentic-proxy-abc", owner: tc.owner, started: tc.started}
+			r := ownedResource{
+				name:    "agentic-proxy-abc",
+				owner:   tc.owner,
+				host:    tc.host,
+				started: tc.started,
+			}
 
 			// Act
 			orphan := r.isOrphan(existing, 5*time.Minute)
@@ -387,24 +394,13 @@ func Test_ownedResource_isOrphan(t *testing.T) {
 }
 
 func Test_ownerPID(t *testing.T) {
-	t.Run("parses a pid owner and its host", func(t *testing.T) {
+	t.Run("parses a pid owner", func(t *testing.T) {
 		// Act
-		pid, host, ok := ownerPID("microsandbox:pid:4242@host.example.test")
+		pid, ok := ownerPID(pidOwner(sandbox.RuntimeMicrosandbox, 4242))
 
 		// Assert
 		assert.True(t, ok)
 		assert.Equal(t, 4242, pid)
-		assert.Equal(t, "host.example.test", host)
-	})
-
-	t.Run("scopes this process's owner to this host", func(t *testing.T) {
-		// Act
-		pid, host, ok := ownerPID(pidOwner(sandbox.RuntimeDocker, 4242))
-
-		// Assert
-		assert.True(t, ok)
-		assert.Equal(t, 4242, pid)
-		assert.Equal(t, hostname(), host)
 	})
 
 	t.Run("refuses other owners", func(t *testing.T) {
@@ -414,10 +410,10 @@ func Test_ownerPID(t *testing.T) {
 			"microsandbox:pid:abc",
 			"microsandbox:pid:0",
 			"microsandbox:pid:-1",
-			"microsandbox:pid:@host",
+			"microsandbox:pid:4242@host.example.test",
 		} {
 			// Act
-			_, _, ok := ownerPID(owner)
+			_, ok := ownerPID(owner)
 
 			// Assert
 			assert.False(t, ok, owner)
@@ -433,26 +429,29 @@ func Test_parseOwnedRow(t *testing.T) {
 		ok   bool
 	}{
 		{
-			name: "reads the run",
-			line: "agentic-proxy-x\tagentic-claude-x\t\t" + string(testRunID) + "\n",
-			want: ownedResource{name: "agentic-proxy-x", owner: "agentic-claude-x", run: testRunID},
-			ok:   true,
+			name: "reads the run and host",
+			line: "agentic-claude-x\tdocker:pid:4242\t\t" + string(testRunID) + "\thost.example.test\n",
+			want: ownedResource{
+				name:  "agentic-claude-x",
+				owner: "docker:pid:4242",
+				run:   testRunID,
+				host:  "host.example.test",
+			},
+			ok: true,
 		},
 		{
 			name: "drops an invalid run",
-			line: "agentic-proxy-x\tagentic-claude-x\t\t../x\n",
+			line: "agentic-proxy-x\tagentic-claude-x\t\t../x\t\n",
 			want: ownedResource{name: "agentic-proxy-x", owner: "agentic-claude-x"},
 			ok:   true,
 		},
 		{
-			name: "reads a row without a run",
-			line: "agentic-proxy-x\t\t\n",
-			want: ownedResource{name: "agentic-proxy-x"},
-			ok:   true,
+			name: "refuses a row without a name",
+			line: "\t\t\t\t\n",
 		},
 		{
-			name: "refuses a row without a name",
-			line: "\t\t\t\n",
+			name: "refuses a row with too few fields",
+			line: "agentic-proxy-x\t\t\n",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -14,13 +14,8 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-const (
-	// pidOwnerSep joins a pid owner's runtime and pid, e.g. "docker:pid:4242@host".
-	pidOwnerSep = ":pid:"
-
-	// pidHostSep scopes a pid owner to its host.
-	pidHostSep = "@"
-)
+// pidOwnerSep joins a pid owner's runtime and pid, e.g. "docker:pid:4242".
+const pidOwnerSep = ":pid:"
 
 // SweptRuns lists what a sweep removed.
 type SweptRuns struct {
@@ -34,8 +29,9 @@ type ownedResource struct {
 	name    string
 	owner   string
 	network bool
-	// run is empty on resources from older versions
+	// run and host are empty on resources from older versions
 	run     sandbox.RunID
+	host    string
 	started time.Time
 }
 
@@ -56,8 +52,8 @@ func (r ownedResource) isOrphan(existing map[string]bool, grace time.Duration) b
 
 // ownerRunning reports whether r's owner process or container still runs; another host's pid counts as running.
 func (r ownedResource) ownerRunning(existing map[string]bool) bool {
-	if pid, host, ok := ownerPID(r.owner); ok {
-		if host != "" && host != hostname() {
+	if pid, ok := ownerPID(r.owner); ok {
+		if r.host != "" && r.host != hostname() {
 			return true
 		}
 		return platform.ProcessRunning(pid)
@@ -67,7 +63,7 @@ func (r ownedResource) ownerRunning(existing map[string]bool) bool {
 
 // pidOwned reports whether a host process owns r: a tool or a published proxy.
 func (r ownedResource) pidOwned() bool {
-	_, _, ok := ownerPID(r.owner)
+	_, ok := ownerPID(r.owner)
 	return ok
 }
 
@@ -240,13 +236,18 @@ func (c *Client) listOwned(network bool, args ...string) ([]ownedResource, error
 	return result, nil
 }
 
-// ownerLabels tie a container or network to run id and its owner.
+// ownerLabels tie a container or network to run id and its owner, scoping a pid owner to this host.
 func ownerLabels(owner string, id sandbox.RunID) []string {
-	return []string{
+	labels := []string{
 		label(LabelOwner, owner),
 		label(LabelStarted, formatLabelTime(time.Now())),
 		label(sandbox.LabelRun, id.String()),
 	}
+	// A separate label, as older versions read a host in the owner as a dead pid
+	if _, ok := ownerPID(owner); ok && hostname() != "" {
+		labels = append(labels, label(LabelHost, hostname()))
+	}
+	return labels
 }
 
 // guardSidecars guards signals while rs's sidecars run; without sidecars there's no guard.
@@ -267,25 +268,24 @@ func warnOnSweepError(err error) {
 // parseOwnedRow parses one ownedFormat row; unparseable times and run IDs stay zero.
 func parseOwnedRow(line string) (ownedResource, bool) {
 	fields := strings.Split(strings.TrimRight(line, "\r\n"), "\t")
-	if len(fields) < 3 || len(fields) > 4 || fields[0] == "" {
+	if len(fields) != 5 || fields[0] == "" {
 		return ownedResource{}, false
 	}
 
-	r := ownedResource{name: fields[0], owner: fields[1]}
+	r := ownedResource{name: fields[0], owner: fields[1], host: fields[4]}
 	r.started, _ = parseLabelTime(fields[2])
-	if len(fields) == 4 {
-		r.run, _ = sandbox.ParseRunID(fields[3])
-	}
+	r.run, _ = sandbox.ParseRunID(fields[3])
 	return r, true
 }
 
-// ownedFormat renders name, owner, start time and run; nameField is .Names or .Name for networks.
+// ownedFormat renders name, owner, start time, run and host; nameField is .Names or .Name for networks.
 func ownedFormat(nameField string) string {
 	fields := []string{
 		"{{" + nameField + "}}",
 		`{{.Label "` + LabelOwner + `"}}`,
 		`{{.Label "` + LabelStarted + `"}}`,
 		`{{.Label "` + sandbox.LabelRun + `"}}`,
+		`{{.Label "` + LabelHost + `"}}`,
 	}
 	return strings.Join(fields, "\t")
 }
@@ -302,22 +302,17 @@ func noCleanup() {
 
 // pidOwner returns the owner label for host process pid on runtime.
 func pidOwner(runtime sandbox.Runtime, pid int) string {
-	owner := string(runtime) + pidOwnerSep + strconv.Itoa(pid)
-	if host := hostname(); host != "" {
-		owner += pidHostSep + host
-	}
-	return owner
+	return string(runtime) + pidOwnerSep + strconv.Itoa(pid)
 }
 
-// ownerPID returns a pid owner's pid and host; host is empty from older versions.
-func ownerPID(owner string) (pid int, host string, ok bool) {
-	_, rest, ok := strings.Cut(owner, pidOwnerSep)
+// ownerPID returns the pid of a pidOwner owner.
+func ownerPID(owner string) (int, bool) {
+	_, digits, ok := strings.Cut(owner, pidOwnerSep)
 	if !ok {
-		return 0, "", false
+		return 0, false
 	}
-	digits, host, _ := strings.Cut(rest, pidHostSep)
 	pid, err := strconv.Atoi(digits)
-	return pid, host, err == nil && pid > 0
+	return pid, err == nil && pid > 0
 }
 
 // hostname returns this host's name, or "" if unknown.

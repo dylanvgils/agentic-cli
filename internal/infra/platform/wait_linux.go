@@ -12,7 +12,7 @@ import (
 // ProcessHandle waits on a process through a pidfd, immune to pid reuse.
 type ProcessHandle struct {
 	fd int
-	// pid is polled on kernels before 5.3
+	// pid is polled without pidfd support
 	pid int
 }
 
@@ -22,7 +22,8 @@ func OpenProcess(pid int) (*ProcessHandle, error) {
 	switch {
 	case errors.Is(err, unix.ESRCH):
 		return nil, ErrProcessGone
-	case errors.Is(err, unix.ENOSYS):
+	// Kernels before 5.3, or a seccomp filter that blocks pidfd_open
+	case errors.Is(err, unix.ENOSYS), errors.Is(err, unix.EPERM):
 		return &ProcessHandle{fd: -1, pid: pid}, nil
 	case err != nil:
 		return nil, fmt.Errorf("open process %d: %w", pid, err)
