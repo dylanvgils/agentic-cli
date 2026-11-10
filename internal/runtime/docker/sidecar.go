@@ -75,6 +75,24 @@ func (r ownedResource) sweepable(existing map[string]bool, grace time.Duration, 
 	return r.isOrphan(existing, grace)
 }
 
+// newSweepTargets picks what a sweep removes from resources.
+func newSweepTargets(resources []ownedResource, grace time.Duration, unowned bool) sweepTargets {
+	existing := make(map[string]bool, len(resources))
+	for _, r := range resources {
+		if !r.network {
+			existing[r.name] = true
+		}
+	}
+
+	var t sweepTargets
+	for _, r := range resources {
+		if r.sweepable(existing, grace, unowned) {
+			t.add(r)
+		}
+	}
+	return t
+}
+
 // add targets r's run, or r alone without one.
 func (t *sweepTargets) add(r ownedResource) {
 	switch {
@@ -87,6 +105,21 @@ func (t *sweepTargets) add(r ownedResource) {
 	default:
 		t.containers = append(t.containers, r.name)
 	}
+}
+
+// report lists the containers and networks t removes.
+func (t sweepTargets) report(resources []ownedResource) SweptRuns {
+	swept := SweptRuns{Sidecars: t.containers, Networks: t.networks}
+	for _, r := range resources {
+		switch {
+		case r.run == "" || !slices.Contains(t.runs, r.run):
+		case r.network:
+			swept.Networks = append(swept.Networks, r.name)
+		default:
+			swept.Sidecars = append(swept.Sidecars, r.name)
+		}
+	}
+	return swept
 }
 
 // SweepRuns tears down interrupted runs and removes unowned sidecars; active runs are kept.
@@ -144,41 +177,12 @@ func (c *Client) sweepOrphanedSidecars(toolHome string) error {
 
 // sweepRuns tears down runs with an orphaned resource, then sweeps stale run dirs; best-effort.
 func (c *Client) sweepRuns(toolHome string, unowned bool) (SweptRuns, error) {
-	containers, err := c.listOwned(
-		false,
-		"ps",
-		arg("all"),
-		arg("format", ownedFormat(".Names")),
-		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
-	)
-	if err != nil {
-		return SweptRuns{}, err
-	}
-	networks, err := c.listOwned(
-		true,
-		"network", "ls",
-		arg("format", ownedFormat(".Name")),
-		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
-		arg("filter", "label="+LabelOwner),
-	)
+	resources, err := c.listOwnedResources()
 	if err != nil {
 		return SweptRuns{}, err
 	}
 
-	existing := make(map[string]bool, len(containers))
-	for _, r := range containers {
-		existing[r.name] = true
-	}
-
-	resources := slices.Concat(containers, networks)
-	grace := c.timing.sidecarOrphanGrace
-	var targets sweepTargets
-	for _, r := range resources {
-		if r.sweepable(existing, grace, unowned) {
-			targets.add(r)
-		}
-	}
-
+	targets := newSweepTargets(resources, c.timing.sidecarOrphanGrace, unowned)
 	swept := targets.report(resources)
 	removeErr := c.removeTargets(toolHome, targets)
 
@@ -204,19 +208,18 @@ func (c *Client) removeTargets(toolHome string, t sweepTargets) error {
 	return errors.Join(errs...)
 }
 
-// report lists the containers and networks t removes.
-func (t sweepTargets) report(resources []ownedResource) SweptRuns {
-	swept := SweptRuns{Sidecars: t.containers, Networks: t.networks}
-	for _, r := range resources {
-		switch {
-		case r.run == "" || !slices.Contains(t.runs, r.run):
-		case r.network:
-			swept.Networks = append(swept.Networks, r.name)
-		default:
-			swept.Sidecars = append(swept.Sidecars, r.name)
-		}
+// listOwnedResources lists agentic's containers and its networks with an owner.
+func (c *Client) listOwnedResources() ([]ownedResource, error) {
+	containers, err := c.listOwned(false, projectContainersArgs()...)
+	if err != nil {
+		return nil, err
 	}
-	return swept
+
+	networks, err := c.listOwned(true, ownedNetworksArgs()...)
+	if err != nil {
+		return nil, err
+	}
+	return slices.Concat(containers, networks), nil
 }
 
 // listOwned runs a docker list command and parses its ownedFormat rows; network marks network rows.
@@ -288,6 +291,26 @@ func ownedFormat(nameField string) string {
 		`{{.Label "` + LabelHost + `"}}`,
 	}
 	return strings.Join(fields, "\t")
+}
+
+// projectContainersArgs lists agentic's containers as ownedFormat rows.
+func projectContainersArgs() []string {
+	return []string{
+		"ps",
+		arg("all"),
+		arg("format", ownedFormat(".Names")),
+		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
+	}
+}
+
+// ownedNetworksArgs lists agentic's networks with an owner as ownedFormat rows.
+func ownedNetworksArgs() []string {
+	return []string{
+		"network", "ls",
+		arg("format", ownedFormat(".Name")),
+		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
+		arg("filter", "label="+LabelOwner),
+	}
 }
 
 // isSidecarName reports whether name is a proxy or dind sidecar's.

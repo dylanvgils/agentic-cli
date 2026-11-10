@@ -329,26 +329,12 @@ func (c *Client) sweepDindRunDirs(toolHome string, resources []ownedResource) er
 		return fmt.Errorf("read dind dir: %w", err)
 	}
 
-	live := make(map[sandbox.RunID]bool, len(resources))
-	for _, r := range resources {
-		live[r.run] = true
-		if id, ok := strings.CutPrefix(r.name, dindHostAlias+"-"); ok {
-			live[sandbox.RunID(id)] = true
-		}
-	}
-
+	live := liveRunIDs(resources)
 	var errs []error
 	for _, entry := range entries {
-		id, err := sandbox.ParseRunID(entry.Name())
-		if err != nil || !entry.IsDir() || live[id] {
-			continue
+		if id, ok := staleRunDir(entry, live, c.timing.dindRunDirGrace); ok {
+			errs = append(errs, c.Teardown(toolHome, id))
 		}
-
-		info, err := entry.Info()
-		if err != nil || time.Since(info.ModTime()) < c.timing.dindRunDirGrace {
-			continue
-		}
-		errs = append(errs, c.Teardown(toolHome, id))
 	}
 	return errors.Join(errs...)
 }
@@ -409,4 +395,30 @@ func dindContainerName(id sandbox.RunID) string {
 // dindRunDir returns run id's host dir under toolHome.
 func dindRunDir(toolHome string, id sandbox.RunID) string {
 	return filepath.Join(toolHome, dindDirName, id.String())
+}
+
+// liveRunIDs returns the runs resources belong to, by label or an older version's dind sidecar name.
+func liveRunIDs(resources []ownedResource) map[sandbox.RunID]bool {
+	live := make(map[sandbox.RunID]bool, len(resources))
+	for _, r := range resources {
+		live[r.run] = true
+		if id, ok := strings.CutPrefix(r.name, dindHostAlias+"-"); ok {
+			live[sandbox.RunID(id)] = true
+		}
+	}
+	return live
+}
+
+// staleRunDir returns entry's run when it's a run dir of no live run, older than grace.
+func staleRunDir(entry fs.DirEntry, live map[sandbox.RunID]bool, grace time.Duration) (sandbox.RunID, bool) {
+	id, err := sandbox.ParseRunID(entry.Name())
+	if err != nil || !entry.IsDir() || live[id] {
+		return "", false
+	}
+
+	info, err := entry.Info()
+	if err != nil || time.Since(info.ModTime()) < grace {
+		return "", false
+	}
+	return id, true
 }
