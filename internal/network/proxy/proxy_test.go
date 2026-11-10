@@ -3,12 +3,14 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -222,6 +224,36 @@ func TestServerConnect(t *testing.T) {
 		assert.ErrorIs(t, err, io.EOF)
 		assert.Contains(t, logBuf.String(), `"decision":"deny","enforced":true,"reason":"sni-mismatch","error":"tls server name \"other.example.test\""`)
 		assert.NotContains(t, logBuf.String(), `"decision":"allow"`)
+	})
+
+	t.Run("tunnel logs its upstream connect time", func(t *testing.T) {
+		// Arrange
+		upstreamHost, upstreamPort := startEchoServer(t)
+		stubDefaultPorts(t, upstreamPort)
+
+		logBuf := &syncBuffer{}
+		slowConnect := func(netip.Addr, bool) bool {
+			time.Sleep(20 * time.Millisecond)
+			return false
+		}
+		server := NewServer(
+			NewAllowlist(hostRules(upstreamHost)),
+			NewLogger(logBuf),
+			false,
+			nil,
+		)
+		proxy := startProxy(t, withAddrGuard(server, slowConnect))
+
+		// Act
+		conn := rawConnect(t, proxy.Listener.Addr().String(), net.JoinHostPort(upstreamHost, upstreamPort))
+		defer conn.Close() //nolint:errcheck
+		_, err := echoed(t, conn, clientHello(t, upstreamHost))
+
+		// Assert
+		require.NoError(t, err)
+		var entry Entry
+		require.NoError(t, json.Unmarshal([]byte(logBuf.String()), &entry))
+		assert.GreaterOrEqual(t, entry.UpstreamConnectMillis, int64(20))
 	})
 
 	t.Run("tunnel without tls closes and logs the mismatch", func(t *testing.T) {

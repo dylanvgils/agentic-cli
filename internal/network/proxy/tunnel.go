@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"syscall"
+	"time"
 )
 
 // connectEstablished answers a CONNECT the proxy takes over, before the tunnel's first byte.
@@ -29,7 +30,9 @@ func (c *bufferedConn) Read(p []byte) (int, error) {
 
 // tunnel splices the CONNECT to entry's host once its TLS server name checks out.
 func (s *Server) tunnel(w http.ResponseWriter, r *http.Request, entry Entry) {
+	start := time.Now()
 	upstream, err := s.upstream.dialer.DialContext(s.upstreamContext(r, entry.Host), "tcp", net.JoinHostPort(entry.Host, entry.Port)) // NOSONAR - allowlisted host, address guard in the dialer
+	entry.UpstreamConnectMillis = time.Since(start).Milliseconds()
 	if err != nil {
 		s.refuseUpstream(w, entry, err)
 		return

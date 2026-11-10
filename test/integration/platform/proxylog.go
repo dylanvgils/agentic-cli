@@ -27,19 +27,20 @@ const (
 
 // ProxyEntry is one proxy access log line, with its own tags so a change to the user-facing format fails the tests.
 type ProxyEntry struct {
-	Time        string `json:"time"`
-	Protocol    string `json:"protocol"`
-	Host        string `json:"host"`
-	Port        string `json:"port"`
-	Decision    string `json:"decision"`
-	Enforced    bool   `json:"enforced"`
-	Intercepted bool   `json:"intercepted,omitempty"`
-	Path        string `json:"path,omitempty"`
-	Reason      string `json:"reason,omitempty"`
-	Error       string `json:"error,omitempty"`
+	Time                  string `json:"time"`
+	Protocol              string `json:"protocol"`
+	Host                  string `json:"host"`
+	Port                  string `json:"port"`
+	Decision              string `json:"decision"`
+	Enforced              bool   `json:"enforced"`
+	Intercepted           bool   `json:"intercepted,omitempty"`
+	Path                  string `json:"path,omitempty"`
+	Reason                string `json:"reason,omitempty"`
+	Error                 string `json:"error,omitempty"`
+	UpstreamConnectMillis int64  `json:"upstream_connect_ms,omitempty"`
 }
 
-// ReadProxyLog returns the entries of the proxy access log at path, without the time and error, which vary per run.
+// ReadProxyLog returns the entries of the proxy access log at path, without the time, error and upstream connect time, which vary per run.
 // An unknown key fails, so a new or renamed field needs a ProxyEntry change too.
 func ReadProxyLog(t *testing.T, path string) []ProxyEntry {
 	t.Helper()
@@ -60,6 +61,7 @@ func ReadProxyLog(t *testing.T, path string) []ProxyEntry {
 		require.NotEmpty(t, entry.Time, "proxy log entry without a time")
 		entry.Time = ""
 		entry.Error = ""
+		entry.UpstreamConnectMillis = 0
 		entries = append(entries, entry)
 	}
 }
