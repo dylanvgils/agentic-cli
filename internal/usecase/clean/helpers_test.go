@@ -6,14 +6,16 @@ import (
 
 // fakeDocker implements Docker; a nil field succeeds with a zero value.
 type fakeDocker struct {
-	listAllImages   func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
-	listRunning     func() ([]*docker.ContainerInfo, error)
-	cleanImage      func(string) error
-	cleanBaseImages func() error
-	sweepRuns       func(string) (docker.SweptRuns, error)
-	removeNetwork   func() error
-	pruneImages     func() (string, error)
-	pruneBuildCache func() (string, error)
+	listAllImages       func(...docker.ImageFilter) ([]*docker.ImageInfo, error)
+	listRunning         func() ([]*docker.ContainerInfo, error)
+	cleanImage          func(string) error
+	cleanBaseImages     func() error
+	sweepProxyResources func() ([]string, error)
+	sweepDindResources  func(string) ([]string, error)
+	sweepRunNetworks    func() ([]string, error)
+	removeNetwork       func() error
+	pruneImages         func() (string, error)
+	pruneBuildCache     func() (string, error)
 }
 
 func (f *fakeDocker) ListAllImages(filters ...docker.ImageFilter) ([]*docker.ImageInfo, error) {
@@ -44,11 +46,25 @@ func (f *fakeDocker) CleanBaseImages() error {
 	return f.cleanBaseImages()
 }
 
-func (f *fakeDocker) SweepRuns(toolHome string) (docker.SweptRuns, error) {
-	if f.sweepRuns == nil {
-		return docker.SweptRuns{}, nil
+func (f *fakeDocker) SweepProxyResources() ([]string, error) {
+	if f.sweepProxyResources == nil {
+		return nil, nil
 	}
-	return f.sweepRuns(toolHome)
+	return f.sweepProxyResources()
+}
+
+func (f *fakeDocker) SweepDindResources(toolHome string) ([]string, error) {
+	if f.sweepDindResources == nil {
+		return nil, nil
+	}
+	return f.sweepDindResources(toolHome)
+}
+
+func (f *fakeDocker) SweepRunNetworks() ([]string, error) {
+	if f.sweepRunNetworks == nil {
+		return nil, nil
+	}
+	return f.sweepRunNetworks()
 }
 
 func (f *fakeDocker) RemoveNetwork() error {

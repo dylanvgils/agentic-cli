@@ -2,7 +2,6 @@ package docker
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -101,21 +100,6 @@ func TestClient_RunTool(t *testing.T) {
 		assert.True(t, hasArgWithPrefix(args, "--network=agentic-run-"), "even a plain run gets its own network")
 		assert.False(t, hasArg(args, "--network="+NetworkName), "runs must not share a network")
 		assert.True(t, hasArgWithPrefix(args, "--name=agentic-claude-"))
-	})
-
-	t.Run("labels the tool with its run and this process as owner, so the sweep can tear it down", func(t *testing.T) {
-		// Arrange
-		rs := sandbox.RunSpec{Image: "agentic-claude"}
-
-		// Act
-		err := startAndRunTool(client, rs, "")
-
-		// Assert
-		require.NoError(t, err)
-		args := get()
-		assert.Contains(t, args, "--label="+LabelOwner+"="+pidOwner(sandbox.RuntimeDocker, os.Getpid()))
-		assert.Contains(t, args, "--label="+sandbox.LabelRun+"="+string(testRunID))
-		assert.True(t, hasArgWithPrefix(args, "--label="+LabelStarted+"="))
 	})
 
 	t.Run("proxy mode keeps the tool off the egress network and injects proxy env", func(t *testing.T) {
@@ -229,8 +213,8 @@ func TestClient_StopSidecars(t *testing.T) {
 		}
 		sidecars, err := client.StartSidecars(rs, "")
 		require.NoError(t, err)
-		daemon.containers = []ownedResource{owned(dindContainerName(testRunID), sidecars.run.container, testRunID, 0)}
-		daemon.networks = []ownedResource{owned(runNetworkName(testRunID), sidecars.run.container, testRunID, 0)}
+		daemon.containers = []ownedResource{owned(dindContainerName(testRunID), sidecars.run.container, 0)}
+		daemon.networks = []ownedResource{owned(runNetworkName(testRunID), sidecars.run.container, 0)}
 
 		// Act
 		client.StopSidecars(sidecars)

@@ -5,47 +5,24 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"slices"
 	"strings"
 
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
-// Teardown removes run id's tool, then its sidecars, network and host files; best-effort and idempotent.
+// Teardown removes run id's sidecars, network and host files; best-effort and idempotent.
 func (c *Client) Teardown(toolHome string, id sandbox.RunID) error {
 	if _, err := sandbox.ParseRunID(id.String()); err != nil {
 		return err
 	}
 
+	// Sidecars sit on the run network, so they go first
 	return errors.Join(
-		c.removeRunContainers(id),
+		c.removeContainer(dindContainerName(id)),
+		c.removeContainer(proxyContainerName(id)),
 		c.removeNetwork(runNetworkName(id)),
 		removeRunFiles(toolHome, id),
 	)
-}
-
-// removeRunContainers removes id's containers, the tool first.
-func (c *Client) removeRunContainers(id sandbox.RunID) error {
-	rows, err := c.listOwned(runContainersArgs(id)...)
-	if err != nil {
-		return fmt.Errorf("list the containers of run %s: %w", id, err)
-	}
-
-	var first, rest []string
-	for _, r := range rows {
-		if r.pidOwned() {
-			first = append(first, r.name)
-		} else {
-			rest = append(rest, r.name)
-		}
-	}
-
-	var errs []error
-	for _, name := range slices.Concat(first, rest) {
-		errs = append(errs, c.removeContainer(name))
-	}
-	return errors.Join(errs...)
 }
 
 // removeContainer force-removes name with its anonymous volumes.
@@ -58,13 +35,6 @@ func (c *Client) removeContainer(name string) error {
 func (c *Client) removeNetwork(network string) error {
 	_, err := c.run("network", "rm", network)
 	return ignoreMissing(err)
-}
-
-// warnOnTeardownError reports a failed teardown without failing the run.
-func warnOnTeardownError(err error) {
-	if err != nil {
-		logging.Warnf("could not remove every resource of the run: %v", err)
-	}
 }
 
 // removeRunFiles removes id's dind run dir and proxy token file.
@@ -82,16 +52,6 @@ func removeRunFiles(toolHome string, id sandbox.RunID) error {
 		errs = append(errs, fmt.Errorf("remove proxy token file: %w", err))
 	}
 	return errors.Join(errs...)
-}
-
-// runContainersArgs lists run id's containers as ownedFormat rows.
-func runContainersArgs(id sandbox.RunID) []string {
-	return []string{
-		"ps",
-		arg("all"),
-		arg("format", ownedFormat(".Names")),
-		labelFilter(sandbox.LabelRun, id.String()),
-	}
 }
 
 // ignoreMissing returns nil for an already-gone resource.

@@ -43,7 +43,9 @@ type fakeDocker struct {
 	createVolume          func(string) error
 	listVolumeNames       func() ([]string, error)
 	removeVolume          func(string) error
-	sweepRuns             func(string) (docker.SweptRuns, error)
+	sweepProxyResources   func() ([]string, error)
+	sweepDindResources    func(string) ([]string, error)
+	sweepRunNetworks      func() ([]string, error)
 	teardown              func(toolHome string, id sandbox.RunID) error
 	listContexts          func() ([]string, error)
 	currentContext        func() (string, error)
@@ -242,11 +244,25 @@ func (f *fakeDocker) RemoveVolume(name string) error {
 	return f.removeVolume(name)
 }
 
-func (f *fakeDocker) SweepRuns(toolHome string) (docker.SweptRuns, error) {
-	if f.sweepRuns == nil {
-		return docker.SweptRuns{}, nil
+func (f *fakeDocker) SweepProxyResources() ([]string, error) {
+	if f.sweepProxyResources == nil {
+		return nil, nil
 	}
-	return f.sweepRuns(toolHome)
+	return f.sweepProxyResources()
+}
+
+func (f *fakeDocker) SweepDindResources(toolHome string) ([]string, error) {
+	if f.sweepDindResources == nil {
+		return nil, nil
+	}
+	return f.sweepDindResources(toolHome)
+}
+
+func (f *fakeDocker) SweepRunNetworks() ([]string, error) {
+	if f.sweepRunNetworks == nil {
+		return nil, nil
+	}
+	return f.sweepRunNetworks()
 }
 
 func (f *fakeDocker) Teardown(toolHome string, id sandbox.RunID) error {
@@ -349,8 +365,14 @@ func (f *fakeDocker) overlay(o *fakeDocker) {
 	if o.removeVolume != nil {
 		f.removeVolume = o.removeVolume
 	}
-	if o.sweepRuns != nil {
-		f.sweepRuns = o.sweepRuns
+	if o.sweepProxyResources != nil {
+		f.sweepProxyResources = o.sweepProxyResources
+	}
+	if o.sweepDindResources != nil {
+		f.sweepDindResources = o.sweepDindResources
+	}
+	if o.sweepRunNetworks != nil {
+		f.sweepRunNetworks = o.sweepRunNetworks
 	}
 	if o.teardown != nil {
 		f.teardown = o.teardown

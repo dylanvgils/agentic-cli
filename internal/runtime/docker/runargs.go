@@ -1,8 +1,6 @@
 package docker
 
 import (
-	"os"
-
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -29,16 +27,12 @@ func buildRunArgs(rs toolRun, sidecarArgs []string) ([]string, error) {
 
 // buildBaseArgs builds the mandatory security and resource-limit args for running the container with minimal permissions.
 func buildBaseArgs(rs toolRun) []string {
-	args := []string{
+	return []string{
 		// Run container read-only, remove when done
 		"run", "--rm", "--read-only",
 		// Identify the container in `docker ps`/logs; randomized per run
 		arg("name", rs.container),
 		label(sandbox.LabelProject, sandbox.LabelProjectVal),
-	}
-	// The sweep tears the run down if this process dies
-	args = append(args, ownerLabels(pidOwner(sandbox.RuntimeDocker, os.Getpid()), rs.RunID)...)
-	return append(args,
 		// Limit the number of PIDs (processes) the container can spawn
 		arg("pids-limit", rs.Limits.PidsLimit),
 		// Maximum number of CPUs the container can utilize
@@ -54,7 +48,7 @@ func buildBaseArgs(rs toolRun) []string {
 		arg("security-opt", "no-new-privileges:true"),
 		// Use system user to prevent permission issues on mounted files
 		arg("user", rs.User.String()),
-	)
+	}
 }
 
 // buildTTYArgs returns [--interactive --tty] when stdin is a terminal, otherwise empty.

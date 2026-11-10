@@ -22,3 +22,8 @@ func labelFilter(key, value string) string {
 func referenceFilter(name string) string {
 	return arg("filter", "reference="+name)
 }
+
+// nameFilter builds a --filter=name=value Docker flag.
+func nameFilter(name string) string {
+	return arg("filter", "name="+name)
+}

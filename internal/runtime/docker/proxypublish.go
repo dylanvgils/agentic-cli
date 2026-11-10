@@ -75,7 +75,7 @@ func (c *Client) StartPublishedProxy(spec sandbox.RunSpec, proxyLog string, owne
 	// Guard first, so Ctrl-C during startup still tears it down
 	interrupt, stopGuard := guardSignals()
 	stop := func() {
-		warnOnTeardownError(c.Teardown(spec.ToolHome, spec.RunID))
+		_ = c.Teardown(spec.ToolHome, spec.RunID)
 		stopGuard()
 	}
 

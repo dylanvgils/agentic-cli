@@ -238,6 +238,21 @@ func (h dindHandle) exited() bool {
 	return err != nil || strings.TrimSpace(out) == "false"
 }
 
+// SweepDindResources removes sidecars and run dirs of interrupted runs and returns the sidecars' names.
+func (c *Client) SweepDindResources(toolHome string) ([]string, error) {
+	listArgs := []string{
+		"ps", arg("all"), arg("format", ownedFormat(".Names")),
+		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
+		nameFilter(dindHostAlias),
+	}
+	removed, err := c.removeUnused(listArgs, []string{"rm", arg("force"), arg("volumes")})
+	if err != nil {
+		return nil, err
+	}
+
+	return removed, c.sweepDindRunDirs(toolHome)
+}
+
 // startDind writes the run files, starts the sidecar and waits for dockerd.
 func (c *Client) startDind(rs toolRun, interrupt <-chan os.Signal) (dindHandle, error) {
 	h, err := c.newDindHandle(rs)
@@ -318,8 +333,8 @@ func (c *Client) launchDind(rs toolRun, interrupt <-chan os.Signal) (toolArgs []
 	return handle.toolArgs(), nil
 }
 
-// sweepDindRunDirs tears down runs left with only a run dir older than dindRunDirGrace.
-func (c *Client) sweepDindRunDirs(toolHome string, resources []ownedResource) error {
+// sweepDindRunDirs removes run dirs whose sidecar is gone, sparing ones younger than dindRunDirGrace.
+func (c *Client) sweepDindRunDirs(toolHome string) error {
 	base := filepath.Join(toolHome, dindDirName)
 	entries, err := os.ReadDir(base)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -329,18 +344,24 @@ func (c *Client) sweepDindRunDirs(toolHome string, resources []ownedResource) er
 		return fmt.Errorf("read dind dir: %w", err)
 	}
 
-	live := make(map[sandbox.RunID]bool, len(resources))
-	for _, r := range resources {
-		live[r.run] = true
-		if id, ok := strings.CutPrefix(r.name, dindHostAlias+"-"); ok {
-			live[sandbox.RunID(id)] = true
-		}
+	listArgs := []string{
+		"ps", arg("all"), arg("format", "{{.Names}}"),
+		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
+		nameFilter(dindHostAlias),
+	}
+	out, err := c.run(listArgs...)
+	if err != nil {
+		return err
 	}
 
-	var errs []error
+	live := make(map[string]bool)
+	for name := range strings.FieldsSeq(out) {
+		live[strings.TrimPrefix(name, dindHostAlias+"-")] = true
+	}
+
 	for _, entry := range entries {
 		id, err := sandbox.ParseRunID(entry.Name())
-		if err != nil || !entry.IsDir() || live[id] {
+		if err != nil || !entry.IsDir() || live[entry.Name()] {
 			continue
 		}
 
@@ -348,9 +369,13 @@ func (c *Client) sweepDindRunDirs(toolHome string, resources []ownedResource) er
 		if err != nil || time.Since(info.ModTime()) < c.timing.dindRunDirGrace {
 			continue
 		}
-		errs = append(errs, c.Teardown(toolHome, id))
+
+		if err := os.RemoveAll(dindRunDir(toolHome, id)); err != nil {
+			return fmt.Errorf("remove stale dind run dir: %w", err)
+		}
 	}
-	return errors.Join(errs...)
+
+	return nil
 }
 
 // workspaceVolumes returns the tool's /workspace volume specs, so the sidecar sees the same paths and :ro overlays.

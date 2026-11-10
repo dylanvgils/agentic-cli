@@ -97,11 +97,16 @@ func (s *Service) GlobalResources() error {
 		return err
 	}
 
-	// Interrupted runs go first, so only active runs keep the sidecar images
-	if _, err := s.docker.SweepRuns(s.home); err != nil {
+	// Orphaned sidecars go first, so only active runs keep the sidecar images
+	if _, err := s.sweepSidecars(); err != nil {
 		return err
 	}
 	if err := s.cleanSidecarImages(); err != nil {
+		return err
+	}
+
+	// Sidecars sit on a run network, so they go first
+	if _, err := s.docker.SweepRunNetworks(); err != nil {
 		return err
 	}
 
@@ -111,13 +116,13 @@ func (s *Service) GlobalResources() error {
 
 // Prune removes leftovers of interrupted runs, dangling images and, if confirmCache approves, the build cache.
 func (s *Service) Prune(confirmCache func() bool) error {
-	swept, err := s.docker.SweepRuns(s.home)
-	if err != nil {
+	// Sidecars sit on a run network, so they go first
+	if err := stepRemoved("leftover sidecars", s.sweepSidecars); err != nil {
 		return err
 	}
-	stepRemoved("leftover sidecars", swept.Sidecars)
-	stepRemoved("leftover run networks", swept.Networks)
-
+	if err := stepRemoved("leftover run networks", s.docker.SweepRunNetworks); err != nil {
+		return err
+	}
 	if err := stepReclaimed("dangling agentic images", s.docker.PruneImages); err != nil {
 		return err
 	}
@@ -127,6 +132,19 @@ func (s *Service) Prune(confirmCache func() bool) error {
 		return nil
 	}
 	return stepReclaimed("build cache", s.docker.PruneBuildCache)
+}
+
+// sweepSidecars removes unused sidecars and returns their names.
+func (s *Service) sweepSidecars() ([]string, error) {
+	dind, err := s.docker.SweepDindResources(s.home)
+	if err != nil {
+		return nil, err
+	}
+	proxies, err := s.docker.SweepProxyResources()
+	if err != nil {
+		return nil, err
+	}
+	return append(dind, proxies...), nil
 }
 
 // cleanSidecarImages removes the proxy and dind images, keeping those an active run uses.
@@ -224,15 +242,21 @@ func stepImage(label string, inUse bool) bool {
 	return inUse
 }
 
-// stepRemoved lists the names removed under label, or "none".
-func stepRemoved(label string, names []string) {
+// stepRemoved runs remove under label and lists what it removed, or "none".
+func stepRemoved(label string, remove func() ([]string, error)) error {
 	logging.Step(label)
+	names, err := remove()
+	if err != nil {
+		return err
+	}
+
 	if len(names) == 0 {
 		logging.Detail("none")
 	}
 	for _, name := range names {
 		logging.Detail(name)
 	}
+	return nil
 }
 
 // stepReclaimed runs prune under label and reports the space it reclaimed, if known.
