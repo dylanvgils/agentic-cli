@@ -116,19 +116,7 @@ With `--runtime microsandbox --dind`, `ensureDockerdImage` (`internal/usecase/ru
 
 Every per-run resource derives from one `sandbox.RunID` and carries `agentic.run`, `agentic.owner` and `agentic.started` labels. Each runtime's `Teardown(runID)` removes one run, best-effort and idempotent; every exit path, the sweep and `agentic clean`/`prune` use it.
 
-Each runtime's `Teardown(runID)` (`internal/runtime/docker/teardown.go`, `internal/runtime/microsandbox/teardown.go`) removes everything of one run, best-effort and idempotent. Normal exit, setup rollback, the orphan sweep and `agentic clean`/`prune` all go through it.
-
-Before creating anything, `run.Service.Run` spawns a watchdog: `agentic __watch` (hidden), detached into its own session, without output. It holds an OS handle on the CLI's pid (pidfd, kqueue or a process handle in `internal/infra/platform`), so pid reuse can't fool it, and calls `Teardown` once the CLI exits. After a normal exit that finds nothing left. A failed spawn only warns.
-
-If the watchdog is killed too, each run starts with `sweepOrphanedSidecars` (`internal/runtime/docker/sidecar.go`). It tears down every run with a resource whose owner is gone and that is older than `sidecarOrphanGrace` (5 minutes, which spares a run that is still starting). A pid owner on another host counts as running.
-
-### Checking msb teardown on a KVM host
-
-msb `Teardown` stops VMs labelled `agentic.run=<id>` with `msb stop`. Neither the label filter nor `msb stop` has been checked against a real msb yet. On a host with KVM:
-
-1. Start `agentic run --runtime microsandbox <tool>`, then `kill -9` the agentic process from another shell.
-2. Run `msb ls --running --label agentic.run=<id> --format json`, with `<id>` from the watchdog's `--run=` arg in `ps`. It should list nothing within a few seconds.
-3. Repeat, killing `msb run` instead of agentic, and check whether the VM outlives it.
+Each run spawns a detached, hidden `agentic __watch` that calls `Teardown` once the CLI exits, also after `SIGKILL`. If the watchdog dies too, the next run's `sweepOrphanedSidecars` tears down runs whose owner is gone, after a 5-minute grace.
 
 ## Building the proxy image locally
 
