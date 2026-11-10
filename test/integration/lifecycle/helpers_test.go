@@ -32,9 +32,9 @@ func runResources(t *testing.T, id string) []string {
 // assertTornDown checks the watchdog removes every resource of run id.
 func assertTornDown(t *testing.T, id string) {
 	t.Helper()
-	assert.Eventually(t, func() bool {
-		return len(runResources(t, id)) == 0
-	}, teardownWithin, 100*time.Millisecond, "run %s left behind: %v", id, runResources(t, id))
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Empty(c, runResources(t, id), "run %s left behind", id)
+	}, teardownWithin, 100*time.Millisecond)
 }
 
 // killCLI kills cmd without a chance to clean up and reaps it.

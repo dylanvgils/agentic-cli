@@ -20,11 +20,11 @@ type teardownCall struct {
 	id       sandbox.RunID
 }
 
-// fakeRuns implements Runs, recording each teardown; err is what Teardown returns, and a non-nil release blocks it until
-// closed.
+// fakeRuns implements Runs, recording each teardown; errs[i] is what the i-th Teardown returns, and a non-nil release
+// blocks it until closed.
 type fakeRuns struct {
 	calls   []teardownCall
-	err     error
+	errs    []error
 	release chan struct{}
 }
 
@@ -33,7 +33,17 @@ func (f *fakeRuns) Teardown(runtime sandbox.Runtime, toolHome string, id sandbox
 	if f.release != nil {
 		<-f.release
 	}
-	return f.err
+	if i := len(f.calls) - 1; i < len(f.errs) {
+		return f.errs[i]
+	}
+	return nil
+}
+
+// newTestService returns a Service over runs that doesn't wait between its teardowns.
+func newTestService(runs Runs) *Service {
+	s := New(runs)
+	s.settleTime = 0
+	return s
 }
 
 // startChild starts this test binary as a child that exits after childLifetime.

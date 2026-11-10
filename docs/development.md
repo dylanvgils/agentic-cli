@@ -116,7 +116,7 @@ With `--runtime microsandbox --dind`, `ensureDockerdImage` (`internal/usecase/ru
 
 Every per-run resource derives from one `sandbox.RunID` and carries `agentic.run`, `agentic.owner` and `agentic.started` labels. Each runtime's `Teardown(runID)` removes one run, best-effort and idempotent; every exit path, the sweep and `agentic clean`/`prune` use it.
 
-Each run spawns a detached, hidden `agentic __watch` that calls `Teardown` once the CLI exits, also after `SIGKILL`. If the watchdog dies too, the next run's `sweepOrphanedSidecars` tears down runs whose owner is gone, after a 5-minute grace.
+Each run spawns a detached, hidden `agentic __watch` that calls `Teardown` once the CLI exits, also after `SIGKILL`, and again 5 seconds later: a `docker` call in flight at the kill outlives the CLI and can still create a container. If the watchdog dies too, the next run's `sweepOrphanedSidecars` tears down runs whose owner is gone, after a 5-minute grace.
 
 ## Building the proxy image locally
 

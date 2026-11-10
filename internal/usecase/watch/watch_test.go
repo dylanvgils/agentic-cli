@@ -17,7 +17,7 @@ import (
 const testRunID sandbox.RunID = "0123456789ab"
 
 func TestService_Watch(t *testing.T) {
-	t.Run("tears the run down once the process exits", func(t *testing.T) {
+	t.Run("tears the run down twice once the process exits", func(t *testing.T) {
 		// Arrange
 		out := iostreamstest.StubOut(t)
 		toolHome := t.TempDir()
@@ -26,7 +26,7 @@ func TestService_Watch(t *testing.T) {
 		start := time.Now()
 
 		// Act
-		err := New(runs).Watch(Target{
+		err := newTestService(runs).Watch(Target{
 			RunID:    testRunID,
 			Runtime:  sandbox.RuntimeDocker,
 			ToolHome: toolHome,
@@ -37,7 +37,12 @@ func TestService_Watch(t *testing.T) {
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, time.Since(start), childLifetime/2, "waits for the exit")
 		assert.Equal(t, ReadyLine+"\n", out.String())
-		assert.Equal(t, []teardownCall{{runtime: sandbox.RuntimeDocker, toolHome: toolHome, id: testRunID}}, runs.calls)
+		call := teardownCall{
+			runtime:  sandbox.RuntimeDocker,
+			toolHome: toolHome,
+			id:       testRunID,
+		}
+		assert.Equal(t, []teardownCall{call, call}, runs.calls)
 	})
 
 	t.Run("a process already gone is torn down at once", func(t *testing.T) {
@@ -48,7 +53,7 @@ func TestService_Watch(t *testing.T) {
 		require.NoError(t, gone.Run())
 
 		// Act
-		err := New(runs).Watch(Target{
+		err := newTestService(runs).Watch(Target{
 			RunID:    testRunID,
 			Runtime:  sandbox.RuntimeMicrosandbox,
 			ToolHome: t.TempDir(),
@@ -58,19 +63,22 @@ func TestService_Watch(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, out.String(), "nobody waits for it to be ready")
-		assert.Len(t, runs.calls, 1)
+		assert.Len(t, runs.calls, 2)
 	})
 
-	t.Run("returns a failed teardown", func(t *testing.T) {
+	t.Run("returns only the second teardown's error", func(t *testing.T) {
 		// Arrange
 		iostreamstest.StubOut(t)
 		toolHome := t.TempDir()
-		runs := &fakeRuns{err: errors.New("stub: teardown failed")}
+		runs := &fakeRuns{errs: []error{
+			errors.New("stub: first teardown failed"),
+			errors.New("stub: second teardown failed"),
+		}}
 		gone := exec.Command(os.Args[0], "-test.run=^$")
 		require.NoError(t, gone.Run())
 
 		// Act
-		err := New(runs).Watch(Target{
+		err := newTestService(runs).Watch(Target{
 			RunID:    testRunID,
 			Runtime:  sandbox.RuntimeDocker,
 			ToolHome: toolHome,
@@ -78,7 +86,7 @@ func TestService_Watch(t *testing.T) {
 		})
 
 		// Assert
-		require.EqualError(t, err, "stub: teardown failed")
+		require.EqualError(t, err, "stub: second teardown failed")
 	})
 
 	t.Run("gives up on a hung teardown", func(t *testing.T) {
@@ -86,7 +94,7 @@ func TestService_Watch(t *testing.T) {
 		iostreamstest.StubOut(t)
 		runs := &fakeRuns{release: make(chan struct{})}
 		t.Cleanup(func() { close(runs.release) })
-		svc := New(runs)
+		svc := newTestService(runs)
 		svc.teardownTimeout = 50 * time.Millisecond
 		gone := exec.Command(os.Args[0], "-test.run=^$")
 		require.NoError(t, gone.Run())
