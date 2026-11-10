@@ -30,11 +30,11 @@ func (s Spawner) Spawn(runtime sandbox.Runtime, toolHome string, id sandbox.RunI
 	}
 
 	target := Target{
-		PID:           os.Getpid(),
+		RunID:         id,
 		Runtime:       runtime,
 		ToolHome:      toolHome,
 		DockerContext: s.dockerContext,
-		RunID:         id,
+		PID:           os.Getpid(),
 	}
 	args := append([]string{s.command}, target.Args()...)
 	return platform.StartDetached(exe, args, readyTimeout)

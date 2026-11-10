@@ -30,10 +30,10 @@ func Test_watchTarget(t *testing.T) {
 		// Arrange
 		stubToolHome(t, "/example.test/home")
 		cmd := newTestWatchCmd(t,
-			"--pid=4242",
+			"--run="+string(testRunID),
 			"--runtime=docker",
 			"--docker-context=example",
-			"--run="+string(testRunID),
+			"--pid=4242",
 		)
 
 		// Act
@@ -42,17 +42,17 @@ func Test_watchTarget(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, watch.Target{
-			PID:           4242,
+			RunID:         testRunID,
 			Runtime:       sandbox.RuntimeDocker,
 			ToolHome:      "/example.test/home",
 			DockerContext: "example",
-			RunID:         testRunID,
+			PID:           4242,
 		}, target)
 	})
 
 	t.Run("refuses an invalid run id", func(t *testing.T) {
 		// Arrange
-		cmd := newTestWatchCmd(t, "--pid=4242", "--run=../x")
+		cmd := newTestWatchCmd(t, "--run=../x", "--pid=4242")
 
 		// Act
 		_, err := watchTarget(cmd)

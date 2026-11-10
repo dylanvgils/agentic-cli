@@ -3,7 +3,6 @@ package cli
 import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
-	"github.com/dylanvgils/agentic-cli/internal/usecase/run"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/watch"
 	"github.com/spf13/cobra"
 )
@@ -24,11 +23,11 @@ var watchCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(watchCmd)
 
-	watchCmd.Flags().Int(watch.FlagPID, 0, "agentic process to wait for")
-	watchCmd.Flags().String(watch.FlagRuntime, "", "runtime of the run")
 	watchCmd.Flags().String(watch.FlagRun, "", "ID of the run to tear down")
-	_ = watchCmd.MarkFlagRequired(watch.FlagPID)
+	watchCmd.Flags().String(watch.FlagRuntime, "", "runtime of the run")
+	watchCmd.Flags().Int(watch.FlagPID, 0, "agentic process to wait for")
 	_ = watchCmd.MarkFlagRequired(watch.FlagRun)
+	_ = watchCmd.MarkFlagRequired(watch.FlagPID)
 }
 
 func runWatch(cmd *cobra.Command, _ []string) error {
@@ -37,28 +36,27 @@ func runWatch(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// Teardown needs only the runtime clients
-	runs := run.New(docker.New(target.DockerContext), msbClient, nil, nil, nil)
+	runs := newRunServiceFor(docker.New(target.DockerContext))
 	return watch.New(runs).Watch(target)
 }
 
 // watchTarget reads the watchdog's target from cmd's flags, with the root's --home and --docker-context.
 func watchTarget(cmd *cobra.Command) (watch.Target, error) {
-	pid, _ := cmd.Flags().GetInt(watch.FlagPID)
+	runID, _ := cmd.Flags().GetString(watch.FlagRun)
 	runtime, _ := cmd.Flags().GetString(watch.FlagRuntime)
 	dockerContext, _ := cmd.Flags().GetString(dockerContextFlagName)
-	runID, _ := cmd.Flags().GetString(watch.FlagRun)
+	pid, _ := cmd.Flags().GetInt(watch.FlagPID)
 
 	id, err := sandbox.ParseRunID(runID)
 	if err != nil {
 		return watch.Target{}, err
 	}
 	return watch.Target{
-		PID:           pid,
+		RunID:         id,
 		Runtime:       sandbox.Runtime(runtime),
 		ToolHome:      toolHome,
 		DockerContext: dockerContext,
-		RunID:         id,
+		PID:           pid,
 	}, nil
 }
 

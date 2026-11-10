@@ -704,10 +704,10 @@ func newTestPsCmd(t *testing.T, args ...string) *cobra.Command {
 func newTestWatchCmd(t *testing.T, args ...string) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{}
-	cmd.Flags().Int(watch.FlagPID, 0, "")
-	cmd.Flags().String(watch.FlagRuntime, "", "")
 	cmd.Flags().String(watch.FlagRun, "", "")
+	cmd.Flags().String(watch.FlagRuntime, "", "")
 	cmd.Flags().String(dockerContextFlagName, "", "")
+	cmd.Flags().Int(watch.FlagPID, 0, "")
 	require.NoError(t, cmd.ParseFlags(args))
 	return cmd
 }

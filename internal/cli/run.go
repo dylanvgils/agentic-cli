@@ -107,12 +107,17 @@ func runTool(cmd *cobra.Command, args []string) error {
 
 // newRunService returns the run usecase wired to the cli's clients; call it at command time, after dockerClient is set up.
 func newRunService() *run.Service {
+	return newRunServiceFor(dockerClient)
+}
+
+// newRunServiceFor returns the run usecase over d and the cli's other clients.
+func newRunServiceFor(d dockerAPI) *run.Service {
 	return run.New(
-		dockerClient,
+		d,
 		msbClient,
-		toolUpdates{docker: dockerClient, upstream: upstreamClient},
-		sidecar.New(dockerClient),
-		watch.NewSpawner(watchCmdName, dockerClient.Context()),
+		toolUpdates{docker: d, upstream: upstreamClient},
+		sidecar.New(d),
+		watch.NewSpawner(watchCmdName, d.Context()),
 	)
 }
 

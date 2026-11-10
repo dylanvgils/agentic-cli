@@ -27,10 +27,10 @@ func TestService_Watch(t *testing.T) {
 
 		// Act
 		err := New(runs).Watch(Target{
-			PID:      child.Process.Pid,
+			RunID:    testRunID,
 			Runtime:  sandbox.RuntimeDocker,
 			ToolHome: toolHome,
-			RunID:    testRunID,
+			PID:      child.Process.Pid,
 		})
 
 		// Assert
@@ -49,10 +49,10 @@ func TestService_Watch(t *testing.T) {
 
 		// Act
 		err := New(runs).Watch(Target{
-			PID:      gone.Process.Pid,
+			RunID:    testRunID,
 			Runtime:  sandbox.RuntimeMicrosandbox,
 			ToolHome: t.TempDir(),
-			RunID:    testRunID,
+			PID:      gone.Process.Pid,
 		})
 
 		// Assert
@@ -71,10 +71,10 @@ func TestService_Watch(t *testing.T) {
 
 		// Act
 		err := New(runs).Watch(Target{
-			PID:      gone.Process.Pid,
+			RunID:    testRunID,
 			Runtime:  sandbox.RuntimeDocker,
 			ToolHome: toolHome,
-			RunID:    testRunID,
+			PID:      gone.Process.Pid,
 		})
 
 		// Assert
@@ -93,10 +93,10 @@ func TestService_Watch(t *testing.T) {
 
 		// Act
 		err := svc.Watch(Target{
-			PID:      gone.Process.Pid,
+			RunID:    testRunID,
 			Runtime:  sandbox.RuntimeDocker,
 			ToolHome: t.TempDir(),
-			RunID:    testRunID,
+			PID:      gone.Process.Pid,
 		})
 
 		// Assert

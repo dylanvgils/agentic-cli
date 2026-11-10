@@ -10,11 +10,11 @@ import (
 func TestTarget_Args(t *testing.T) {
 	// Arrange
 	target := Target{
-		PID:           4242,
+		RunID:         testRunID,
 		Runtime:       sandbox.RuntimeDocker,
 		ToolHome:      "/example.test/home",
 		DockerContext: "example",
-		RunID:         testRunID,
+		PID:           4242,
 	}
 
 	// Act
@@ -22,10 +22,10 @@ func TestTarget_Args(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, []string{
-		"--pid=4242",
+		"--run=" + string(testRunID),
 		"--runtime=docker",
 		"--home=/example.test/home",
 		"--docker-context=example",
-		"--run=" + string(testRunID),
+		"--pid=4242",
 	}, args)
 }

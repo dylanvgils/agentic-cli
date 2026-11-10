@@ -8,29 +8,29 @@ import (
 
 // The watchdog command's flags; home and docker-context are the root command's own.
 const (
-	FlagPID           = "pid"
+	FlagRun           = "run"
 	FlagRuntime       = "runtime"
 	FlagHome          = "home"
 	FlagDockerContext = "docker-context"
-	FlagRun           = "run"
+	FlagPID           = "pid"
 )
 
 // Target is the run a watchdog guards and the process it waits for.
 type Target struct {
-	PID           int
+	RunID         sandbox.RunID
 	Runtime       sandbox.Runtime
 	ToolHome      string
 	DockerContext string
-	RunID         sandbox.RunID
+	PID           int
 }
 
 // Args returns t as the watchdog command's flags.
 func (t Target) Args() []string {
 	return []string{
-		"--" + FlagPID + "=" + strconv.Itoa(t.PID),
+		"--" + FlagRun + "=" + t.RunID.String(),
 		"--" + FlagRuntime + "=" + string(t.Runtime),
 		"--" + FlagHome + "=" + t.ToolHome,
 		"--" + FlagDockerContext + "=" + t.DockerContext,
-		"--" + FlagRun + "=" + t.RunID.String(),
+		"--" + FlagPID + "=" + strconv.Itoa(t.PID),
 	}
 }
