@@ -20,14 +20,19 @@ type teardownCall struct {
 	id       sandbox.RunID
 }
 
-// fakeRuns implements Runs, recording each teardown; err is what Teardown returns.
+// fakeRuns implements Runs, recording each teardown; err is what Teardown returns, and a non-nil release blocks it until
+// closed.
 type fakeRuns struct {
-	calls []teardownCall
-	err   error
+	calls   []teardownCall
+	err     error
+	release chan struct{}
 }
 
 func (f *fakeRuns) Teardown(runtime sandbox.Runtime, toolHome string, id sandbox.RunID) error {
 	f.calls = append(f.calls, teardownCall{runtime: runtime, toolHome: toolHome, id: id})
+	if f.release != nil {
+		<-f.release
+	}
 	return f.err
 }
 

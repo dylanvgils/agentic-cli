@@ -80,4 +80,26 @@ func TestService_Watch(t *testing.T) {
 		// Assert
 		require.EqualError(t, err, "stub: teardown failed")
 	})
+
+	t.Run("gives up on a hung teardown", func(t *testing.T) {
+		// Arrange
+		iostreamstest.StubOut(t)
+		runs := &fakeRuns{release: make(chan struct{})}
+		t.Cleanup(func() { close(runs.release) })
+		svc := New(runs)
+		svc.teardownTimeout = 50 * time.Millisecond
+		gone := exec.Command(os.Args[0], "-test.run=^$")
+		require.NoError(t, gone.Run())
+
+		// Act
+		err := svc.Watch(Target{
+			PID:      gone.Process.Pid,
+			Runtime:  sandbox.RuntimeDocker,
+			ToolHome: t.TempDir(),
+			RunID:    testRunID,
+		})
+
+		// Assert
+		require.EqualError(t, err, "teardown of run 0123456789ab not done within 50ms")
+	})
 }
