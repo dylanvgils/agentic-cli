@@ -94,7 +94,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 		published.Stop()
 
 		// Assert
-		assert.NotNil(t, findCall(calls(), "rm", "--force", "--volumes", proxyContainerName(testRunID)))
+		assert.NotNil(t, findCall(calls(), runContainersArgs(testRunID)...))
 	})
 
 	t.Run("tears its run down when its port can't be read", func(t *testing.T) {
@@ -106,7 +106,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 
 		// Assert
 		require.ErrorContains(t, err, "read the proxy's published port")
-		assert.NotNil(t, findCall(calls(), "rm", "--force", "--volumes", proxyContainerName(testRunID)))
+		assert.NotNil(t, findCall(calls(), runContainersArgs(testRunID)...))
 	})
 
 	t.Run("refuses a remote Docker context before creating anything", func(t *testing.T) {

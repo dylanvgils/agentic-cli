@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
@@ -282,20 +281,4 @@ func raceAfterCheck(project string) func(args ...string) (string, error) {
 		}
 		return "", nil
 	}
-}
-
-func TestSweepRunNetworks(t *testing.T) {
-	// Arrange
-	client := newTestClient()
-	get := stubUnusedSweep(t, client, "", ownedRow("agentic-run-abc", "agentic-claude-gone", time.Hour))
-
-	// Act
-	removed, err := client.SweepRunNetworks()
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, []string{"agentic-run-abc"}, removed)
-	calls := get()
-	assert.Contains(t, calls[1].args, "--filter=label=agentic.owner")
-	assert.Equal(t, []string{"network", "rm", "agentic-run-abc"}, findCall(calls, "network", "rm"))
 }

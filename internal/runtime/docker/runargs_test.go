@@ -65,6 +65,21 @@ func TestBuildBaseArgs(t *testing.T) {
 		assert.Contains(t, args, "--cpus=2")
 		assert.Contains(t, args, "--memory=2g")
 	})
+
+	t.Run("a dry run prints no owner, so a copied command isn't swept", func(t *testing.T) {
+		// Arrange
+		rs := toolRun{RunSpec: sandbox.RunSpec{
+			Image:  "agentic-claude",
+			User:   &testUser,
+			DryRun: true,
+		}}
+
+		// Act
+		args := buildBaseArgs(rs)
+
+		// Assert
+		assert.False(t, hasArgWithPrefix(args, "--label="+LabelOwner+"="))
+	})
 }
 
 func TestBuildTTYArgs(t *testing.T) {

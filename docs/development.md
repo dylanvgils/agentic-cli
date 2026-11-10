@@ -114,11 +114,9 @@ With `--runtime microsandbox --dind`, `ensureDockerdImage` (`internal/usecase/ru
 
 ## Run teardown
 
-Every per-run resource derives from one `sandbox.RunID`: the tool container, run network, sidecars, DinD run dir, proxy log and temp files. Sidecars and run networks carry `agentic.run`, `agentic.owner` (the tool container name) and `agentic.started` labels.
+Every per-run resource derives from one `sandbox.RunID` and carries `agentic.run`, `agentic.owner` and `agentic.started` labels. Each runtime's `Teardown(runID)` removes one run, best-effort and idempotent; every exit path, the sweep and `agentic clean`/`prune` use it.
 
-Docker's `Teardown(toolHome, runID)` (`internal/runtime/docker/teardown.go`) removes one run's sidecars, network, DinD run dir and proxy token file, best-effort and idempotent. Normal exit, setup rollback and the published proxy's stop go through it.
-
-If the CLI is killed, its teardown never runs, so each run starts with `sweepOrphanedSidecars` (`internal/runtime/docker/sidecar.go`). It removes sidecars and networks whose owner is gone and that are older than `sidecarOrphanGrace` (5 minutes, which spares a run that is still starting).
+If the CLI is killed, the next run's `sweepOrphanedSidecars` tears down runs whose owner is gone, after a 5-minute grace.
 
 ## Building the proxy image locally
 

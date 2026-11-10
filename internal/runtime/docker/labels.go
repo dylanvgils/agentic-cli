@@ -63,6 +63,9 @@ const (
 	// LabelOwner records the tool container a sidecar or its network serves, or the pidOwner of a tool container.
 	LabelOwner = "agentic.owner"
 
+	// LabelHost scopes a pid owner to the host its process runs on.
+	LabelHost = "agentic.host"
+
 	// LabelStarted records when a sidecar or its network was created.
 	LabelStarted = "agentic.started"
 

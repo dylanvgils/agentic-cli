@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,21 +16,21 @@ func TestClient_Teardown(t *testing.T) {
 	proxyName := proxyContainerName(testRunID)
 	dindName := dindContainerName(testRunID)
 	network := runNetworkName(testRunID)
-	t.Setenv("TMPDIR", t.TempDir())
 
-	t.Run("removes the sidecars, then the network and files", func(t *testing.T) {
+	t.Run("removes the tool, then its sidecars, network and files", func(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()
 		makeDindRunDir(t, toolHome, string(testRunID), 0)
 		require.NoError(t, os.WriteFile(tokenFilePath(testRunID), []byte("token"), 0o600))
 		daemon := &fakeDaemon{
 			containers: []ownedResource{
-				owned(proxyName, tool, 0),
-				owned(dindName, tool, 0),
-				owned("agentic-proxy-ba9876543210", "agentic-claude-ba9876543210", 0),
+				owned(proxyName, tool, testRunID, 0),
+				owned(tool, pidOwner(sandbox.RuntimeDocker, os.Getpid()), testRunID, 0),
+				owned(dindName, tool, testRunID, 0),
+				owned("agentic-claude-"+string(otherRunID), "", otherRunID, 0),
 			},
 			networks: []ownedResource{
-				owned(network, tool, 0),
+				owned(network, tool, testRunID, 0),
 			},
 		}
 		stubDaemon(t, client, daemon)
@@ -40,19 +41,36 @@ func TestClient_Teardown(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, []string{
-			dindName,
+			tool,
 			proxyName,
+			dindName,
 			network,
 		}, daemon.removed())
-		assert.Equal(t, []string{"agentic-proxy-ba9876543210"}, daemon.names(), "other runs are kept")
+		assert.Equal(t, []string{"agentic-claude-" + string(otherRunID)}, daemon.names(), "other runs are kept")
 		assert.NoDirExists(t, dindRunDir(toolHome, testRunID))
 		assert.NoFileExists(t, tokenFilePath(testRunID))
+	})
+
+	t.Run("removes what a partly created run has", func(t *testing.T) {
+		// Arrange
+		toolHome := t.TempDir()
+		makeDindRunDir(t, toolHome, string(testRunID), 0)
+		daemon := &fakeDaemon{networks: []ownedResource{owned(network, tool, testRunID, 0)}}
+		stubDaemon(t, client, daemon)
+
+		// Act
+		err := client.Teardown(toolHome, testRunID)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, daemon.names())
+		assert.NoDirExists(t, dindRunDir(toolHome, testRunID))
 	})
 
 	t.Run("a run already torn down is a no-op", func(t *testing.T) {
 		// Arrange
 		toolHome := t.TempDir()
-		daemon := &fakeDaemon{networks: []ownedResource{owned(network, tool, 0)}}
+		daemon := &fakeDaemon{containers: []ownedResource{owned(tool, "", testRunID, 0)}}
 		stubDaemon(t, client, daemon)
 
 		// Act
@@ -65,11 +83,14 @@ func TestClient_Teardown(t *testing.T) {
 		assert.Empty(t, daemon.names())
 	})
 
-	t.Run("a removal already in progress counts as removed", func(t *testing.T) {
+	t.Run("a container gone between listing and removal counts as removed", func(t *testing.T) {
 		// Arrange
 		stubDockerRun(t, client, func(args ...string) (string, error) {
-			if args[0] == "rm" {
-				return "", errors.New("Error response from daemon: removal of container " + proxyName + " is already in progress")
+			switch args[0] {
+			case "ps":
+				return tool + "\t\t\t" + string(testRunID) + "\n", nil
+			case "rm":
+				return "", errors.New("Error response from daemon: removal of container " + tool + " is already in progress")
 			}
 			return "", errors.New("Error response from daemon: network " + network + " not found")
 		})
@@ -86,6 +107,12 @@ func TestClient_Teardown(t *testing.T) {
 		toolHome := t.TempDir()
 		makeDindRunDir(t, toolHome, string(testRunID), 0)
 		daemon := &fakeDaemon{
+			containers: []ownedResource{
+				owned(tool, "", testRunID, 0),
+			},
+			networks: []ownedResource{
+				owned(network, tool, testRunID, 0),
+			},
 			failing: [][]string{
 				{"rm"},
 				{"network", "rm"},

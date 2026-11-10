@@ -1,7 +1,6 @@
 package docker
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -300,6 +299,42 @@ func Test_dindHandle_toolArgs(t *testing.T) {
 	}, args)
 }
 
+func Test_sweepDindRunDirs(t *testing.T) {
+	client := newTestClient()
+
+	stubDindRunDirGrace(t, client, time.Minute)
+
+	t.Run("tears down the runs of stale dirs and keeps live runs' dirs", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t, client)
+		toolHome := t.TempDir()
+		stale := makeDindRunDir(t, toolHome, string(testRunID), time.Hour)
+		live := makeDindRunDir(t, toolHome, string(otherRunID), time.Hour)
+		resources := []ownedResource{{name: "agentic-claude-" + string(otherRunID), run: otherRunID}}
+
+		// Act
+		err := client.sweepDindRunDirs(toolHome, resources)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NoDirExists(t, stale)
+		assert.DirExists(t, live)
+		assert.NotNil(t, findCall(get(), "network", "rm", runNetworkName(testRunID)))
+	})
+
+	t.Run("missing dind dir is a no-op without calling docker", func(t *testing.T) {
+		// Arrange
+		get := stubDockerRunCapture(t, client)
+
+		// Act
+		err := client.sweepDindRunDirs(t.TempDir(), nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, get())
+	})
+}
+
 func Test_workspaceVolumes(t *testing.T) {
 	// Arrange
 	rs := sandbox.RunSpec{
@@ -373,85 +408,82 @@ func Test_newDindHandle(t *testing.T) {
 	assert.Equal(t, dryRunAddressPoolPlaceholder, handle.addressPool, "only startDind knows the run network's subnets")
 }
 
-func TestSweepDindResources(t *testing.T) {
+func Test_liveRunIDs(t *testing.T) {
 	// Arrange
-	client := newTestClient()
-	get := stubUnusedSweep(t, client, "", ownedRow("agentic-docker-abc", "agentic-claude-gone", time.Hour))
+	resources := []ownedResource{
+		{name: "agentic-claude-" + string(testRunID), run: testRunID},
+		{name: "agentic-docker-" + string(otherRunID)},
+	}
 
 	// Act
-	removed, err := client.SweepDindResources(t.TempDir())
+	live := liveRunIDs(resources)
 
 	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, []string{"agentic-docker-abc"}, removed)
-	calls := get()
-	assert.Contains(t, calls[1].args, "--filter=name=agentic-docker")
-	assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-docker-abc"}, findCall(calls, "rm"))
+	assert.Equal(t, map[sandbox.RunID]bool{
+		testRunID:  true,
+		otherRunID: true,
+	}, live)
 }
 
-func Test_sweepDindRunDirs(t *testing.T) {
-	client := newTestClient()
-
-	stubDindRunDirGrace(t, client, time.Minute)
-
+func Test_staleRunDir(t *testing.T) {
 	for _, tc := range []struct {
-		name       string
-		live       string
-		dir        string
-		age        time.Duration
-		wantExists bool
+		name   string
+		entry  string
+		file   bool
+		age    time.Duration
+		live   map[sandbox.RunID]bool
+		wantID sandbox.RunID
+		wantOK bool
 	}{
-		{name: "removes a stale dir whose sidecar is gone", dir: "0123456789ab", age: time.Hour},
-		{name: "keeps a dir whose sidecar still exists", live: "agentic-docker-0123456789ab\n", dir: "0123456789ab", age: time.Hour, wantExists: true},
-		{name: "keeps a dir younger than the grace period, as a concurrent run may not have started its sidecar yet", dir: "0123456789ab", wantExists: true},
-		{name: "ignores entries that are not run ids", dir: "not-a-run-id", age: time.Hour, wantExists: true},
+		{
+			name:   "a dir older than grace of no live run",
+			entry:  string(testRunID),
+			age:    time.Hour,
+			wantID: testRunID,
+			wantOK: true,
+		},
+		{
+			name:  "a live run's dir",
+			entry: string(testRunID),
+			age:   time.Hour,
+			live:  map[sandbox.RunID]bool{testRunID: true},
+		},
+		{
+			name:  "a dir younger than grace, as a concurrent run may not have started yet",
+			entry: string(testRunID),
+		},
+		{
+			name:  "an entry that is not a run id",
+			entry: "not-a-run-id",
+			age:   time.Hour,
+		},
+		{
+			name:  "a file",
+			entry: string(testRunID),
+			file:  true,
+			age:   time.Hour,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			stubDockerRunFixed(t, client, tc.live, nil)
-			toolHome := t.TempDir()
-			dir := makeDindRunDir(t, toolHome, tc.dir, tc.age)
+			base := t.TempDir()
+			path := filepath.Join(base, tc.entry)
+			if tc.file {
+				require.NoError(t, os.WriteFile(path, nil, 0o600))
+			} else {
+				require.NoError(t, os.Mkdir(path, 0o700))
+			}
+			past := time.Now().Add(-tc.age)
+			require.NoError(t, os.Chtimes(path, past, past))
+			entries, err := os.ReadDir(base)
+			require.NoError(t, err)
 
 			// Act
-			err := client.sweepDindRunDirs(toolHome)
+			id, ok := staleRunDir(entries[0], tc.live, time.Minute)
 
 			// Assert
-			require.NoError(t, err)
-			if tc.wantExists {
-				assert.DirExists(t, dir)
-			} else {
-				assert.NoDirExists(t, dir)
-			}
+			assert.Equal(t, tc.wantID, id)
+			assert.Equal(t, tc.wantOK, ok)
 		})
 	}
-
-	t.Run("missing dind dir is a no-op without calling docker", func(t *testing.T) {
-		// Arrange
-		called := false
-		stubDockerRun(t, client, func(...string) (string, error) {
-			called = true
-			return "", nil
-		})
-
-		// Act
-		err := client.sweepDindRunDirs(t.TempDir())
-
-		// Assert
-		require.NoError(t, err)
-		assert.False(t, called)
-	})
-
-	t.Run("docker error propagates and keeps dirs", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "", fmt.Errorf("daemon down"))
-		toolHome := t.TempDir()
-		dir := makeDindRunDir(t, toolHome, "0123456789ab", time.Hour)
-
-		// Act
-		err := client.sweepDindRunDirs(toolHome)
-
-		// Assert
-		require.Error(t, err)
-		assert.DirExists(t, dir, "without the live list a running sidecar's certs could be deleted")
-	})
 }

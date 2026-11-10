@@ -83,7 +83,7 @@ func (c *Client) StopSidecars(sc Sidecars) {
 	if sc.stopGuard == nil || sc.run.DryRun {
 		return
 	}
-	_ = c.Teardown(sc.run.ToolHome, sc.run.RunID)
+	warnOnTeardownError(c.Teardown(sc.run.ToolHome, sc.run.RunID))
 	sc.stopGuard()
 }
 

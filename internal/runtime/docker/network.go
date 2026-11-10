@@ -43,16 +43,6 @@ func (c *Client) RemoveNetwork() error {
 	return err
 }
 
-// SweepRunNetworks removes run networks of interrupted runs and returns their names.
-func (c *Client) SweepRunNetworks() ([]string, error) {
-	listArgs := []string{
-		"network", "ls", arg("format", ownedFormat(".Name")),
-		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
-		arg("filter", "label="+LabelOwner),
-	}
-	return c.removeUnused(listArgs, []string{"network", "rm"})
-}
-
 // egressNetworkProject returns agentic-net's project label; an error means it does not exist.
 func (c *Client) egressNetworkProject() (string, error) {
 	inspectArgs := []string{
