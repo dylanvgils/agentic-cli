@@ -94,8 +94,14 @@ func Test_proxyRetentionDays(t *testing.T) {
 
 func Test_proxyLogFile(t *testing.T) {
 	t.Run("returns empty string when proxy is disabled", func(t *testing.T) {
+		// Arrange
+		rs := sandbox.RunSpec{
+			RunID:    "0123456789ab",
+			ToolHome: "/example.test/home",
+		}
+
 		// Act
-		file := proxyLogFile("/example.test/home", "0123456789ab", false)
+		file := proxyLogFile(rs)
 
 		// Assert
 		assert.Empty(t, file)
@@ -104,9 +110,14 @@ func Test_proxyLogFile(t *testing.T) {
 	t.Run("names the run's proxy log in the tool home's logs dir without creating it", func(t *testing.T) {
 		// Arrange
 		home := t.TempDir()
+		rs := sandbox.RunSpec{
+			RunID:    "0123456789ab",
+			ToolHome: home,
+			Egress:   sandbox.EgressPolicy{Mode: sandbox.EgressEnforce},
+		}
 
 		// Act
-		file := proxyLogFile(home, "0123456789ab", true)
+		file := proxyLogFile(rs)
 
 		// Assert
 		assert.Equal(t, filepath.Join(home, config.LogsDirName, proxy.LogFilePrefix+"0123456789ab.jsonl"), file)

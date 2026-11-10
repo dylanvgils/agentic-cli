@@ -92,7 +92,7 @@ func (r microsandboxRunner) Run(req Request, rs sandbox.RunSpec) error {
 
 // runThroughProxy runs rs through a published agentic-proxy, rechecking mounts after its start, then prints its summary.
 func (r microsandboxRunner) runThroughProxy(req Request, rs sandbox.RunSpec) error {
-	proxyLog := proxyLogFile(rs.ToolHome, rs.RunID, true)
+	proxyLog := proxyLogFile(rs)
 	if !rs.DryRun {
 		if err := prepareProxyLogDir(filepath.Dir(proxyLog), rs.ToolHome); err != nil {
 			return err

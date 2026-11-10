@@ -33,12 +33,12 @@ func proxyIntegrations(flags resolve.ProxyInput, rc *config.AgenticRC, mode sand
 	return resolve.ProxyIntegrations(flags, rc)
 }
 
-// proxyLogFile returns run id's access-log path in the tool home's logs dir when the proxy is enabled, else "".
-func proxyLogFile(toolHome string, id sandbox.RunID, proxyEnabled bool) string {
-	if !proxyEnabled {
+// proxyLogFile returns rs's access-log path in the tool home's logs dir when the proxy is enabled, else "".
+func proxyLogFile(rs sandbox.RunSpec) string {
+	if !rs.Egress.Mode.Enabled() {
 		return ""
 	}
-	return filepath.Join(toolHome, config.LogsDirName, proxy.LogFilePrefix+id.String()+".jsonl")
+	return filepath.Join(rs.ToolHome, config.LogsDirName, proxy.LogFilePrefix+rs.RunID.String()+".jsonl")
 }
 
 // prepareProxyLogDir creates dir and prunes the proxy logs in it older than toolHome's retention window.

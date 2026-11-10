@@ -59,7 +59,7 @@ func (r dockerRunner) Check(req Request) error {
 // before the sidecars and the tool start as readying them can take long enough for a path to change; a dry run only
 // prints.
 func (r dockerRunner) Run(req Request, rs sandbox.RunSpec) error {
-	proxyLog := proxyLogFile(rs.ToolHome, rs.RunID, rs.Egress.Mode.Enabled())
+	proxyLog := proxyLogFile(rs)
 	if !rs.DryRun {
 		if err := r.prepareDockerHost(rs, req.Flags.Registry, proxyLog); err != nil {
 			return err
