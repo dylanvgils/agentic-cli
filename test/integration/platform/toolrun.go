@@ -224,6 +224,18 @@ func (r *ToolRun) Start() (*exec.Cmd, *bytes.Buffer) {
 	return cmd, out
 }
 
+// Launch starts the run without waiting for the tool; the caller ends it.
+func (r *ToolRun) Launch() *exec.Cmd {
+	r.t.Helper()
+	cmd := AgenticCmdIn(r.workDir(), r.args(waitScript)...)
+	require.NoError(r.t, cmd.Start())
+	r.t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	})
+	return cmd
+}
+
 // Containers returns the names of a started run's tool container and its sidecars, running or not.
 func (r *ToolRun) Containers() []string {
 	r.t.Helper()

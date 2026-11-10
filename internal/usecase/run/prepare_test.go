@@ -163,7 +163,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{trustDir: func(string) error { return errors.New("directory not trusted") }}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil, dueUpdate, &fakeSidecarImages{}).Prepare(req, p)
+		_, cleanup, err := newUpdatingService(&fakeDocker{inspectImage: built}, dueUpdate).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -185,7 +185,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil, u, &fakeSidecarImages{}).Prepare(req, p)
+		_, cleanup, err := newUpdatingService(&fakeDocker{inspectImage: built}, u).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -201,7 +201,7 @@ func TestPrepare(t *testing.T) {
 		u := &fakeToolUpdates{offer: func(ToolUpdate, func(string, string, string) bool) error { return errors.New("update failed") }}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil, u, &fakeSidecarImages{}).Prepare(req, &fakePrompter{})
+		_, cleanup, err := newUpdatingService(&fakeDocker{inspectImage: built}, u).Prepare(req, &fakePrompter{})
 		defer cleanup()
 
 		// Assert
@@ -216,7 +216,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil, dueUpdate, &fakeSidecarImages{}).Prepare(req, p)
+		_, cleanup, err := newUpdatingService(&fakeDocker{inspectImage: built}, dueUpdate).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -249,7 +249,7 @@ func TestPrepare(t *testing.T) {
 		p := &fakePrompter{approveSettings: func(config.RCLayer, []config.GuardedSetting) error { return errors.New("settings not approved") }}
 
 		// Act
-		_, cleanup, err := New(&fakeDocker{inspectImage: built}, nil, dueUpdate, &fakeSidecarImages{}).Prepare(req, p)
+		_, cleanup, err := newUpdatingService(&fakeDocker{inspectImage: built}, dueUpdate).Prepare(req, p)
 		defer cleanup()
 
 		// Assert
@@ -332,7 +332,7 @@ func Test_Service_offerToolUpdate(t *testing.T) {
 		got = update
 		return nil
 	}}
-	svc := New(&fakeDocker{}, nil, u, &fakeSidecarImages{})
+	svc := newUpdatingService(&fakeDocker{}, u)
 
 	// Act
 	err := svc.offerToolUpdate(req, approved, &fakePrompter{})
