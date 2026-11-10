@@ -352,16 +352,6 @@ func (h proxyHandle) checkStarted() error {
 	}
 }
 
-// SweepProxyResources removes proxy sidecars of interrupted runs and returns their names.
-func (c *Client) SweepProxyResources() ([]string, error) {
-	listArgs := []string{
-		"ps", arg("all"), arg("format", ownedFormat(".Names")),
-		labelFilter(sandbox.LabelProject, sandbox.LabelProjectVal),
-		nameFilter(tools.ProxyHostAlias),
-	}
-	return c.removeUnused(listArgs, []string{"rm", arg("force"), arg("volumes")})
-}
-
 // proxyRules returns rules as the proxy's allow rules, validated so a bad one fails before the proxy starts.
 func proxyRules(rules []sandbox.AllowRule) ([]proxy.Rule, error) {
 	converted := make([]proxy.Rule, 0, len(rules))
