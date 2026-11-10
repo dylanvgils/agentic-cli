@@ -1,8 +1,8 @@
 package docker
 
 import (
-	"errors"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// otherRunID is a second run's ID.
+const otherRunID sandbox.RunID = "ba9876543210"
 
 func Test_ownerLabels(t *testing.T) {
 	// Act
@@ -67,7 +70,7 @@ func Test_setupSidecars(t *testing.T) {
 		// Assert
 		require.ErrorContains(t, err, "create proxy")
 		got := calls()
-		assert.NotNil(t, findCall(got, "rm", "--force", "--volumes", proxyContainerName(testRunID)))
+		assert.NotNil(t, findCall(got, runContainersArgs(testRunID)...))
 		assert.Equal(t, []string{"network", "rm", network}, got[len(got)-1].args)
 	})
 
@@ -128,10 +131,10 @@ func Test_setupSidecars(t *testing.T) {
 		rs.network = network
 		tool := "agentic-claude-" + string(testRunID)
 		daemon.containers = []ownedResource{
-			owned(dindContainerName(testRunID), tool, 0),
+			owned(dindContainerName(testRunID), tool, testRunID, 0),
 		}
 		daemon.networks = []ownedResource{
-			owned(network, tool, 0),
+			owned(network, tool, testRunID, 0),
 		}
 
 		// Act
@@ -144,100 +147,167 @@ func Test_setupSidecars(t *testing.T) {
 	})
 }
 
-func Test_sweepOrphanedSidecars(t *testing.T) {
+func Test_sweepRuns(t *testing.T) {
 	client := newTestClient()
+	gone := "agentic-claude-gone"
 
-	t.Run("removes an old sidecar and network whose owner is gone", func(t *testing.T) {
+	t.Run("tears down every resource of a run with an orphan", func(t *testing.T) {
 		// Arrange
-		get := stubOwnedResources(t, client,
-			ownedRow("agentic-docker-abc", "agentic-claude-gone", time.Hour),
-			ownedRow("agentic-run-abc", "agentic-claude-gone", time.Hour),
-		)
+		toolHome := t.TempDir()
+		makeDindRunDir(t, toolHome, string(testRunID), 0)
+		daemon := &fakeDaemon{
+			containers: []ownedResource{
+				owned("agentic-proxy-"+string(testRunID), gone, testRunID, time.Hour),
+				owned("agentic-docker-"+string(testRunID), gone, testRunID, time.Hour),
+			},
+			networks: []ownedResource{owned(runNetworkName(testRunID), gone, testRunID, time.Hour)},
+		}
+		stubDaemon(t, client, daemon)
 
 		// Act
-		err := client.sweepOrphanedSidecars("")
+		swept, err := client.sweepRuns(toolHome, false)
 
 		// Assert
 		require.NoError(t, err)
-		calls := get()
-		assert.Equal(t, []string{"rm", "--force", "--volumes", "agentic-docker-abc"}, findCall(calls, "rm"))
-		assert.Equal(t, []string{"network", "rm", "agentic-run-abc"}, findCall(calls, "network", "rm"))
+		assert.Empty(t, daemon.names())
+		assert.NoDirExists(t, dindRunDir(toolHome, testRunID))
+		assert.Equal(t, SweptRuns{
+			Sidecars: []string{"agentic-proxy-" + string(testRunID), "agentic-docker-" + string(testRunID)},
+			Networks: []string{runNetworkName(testRunID)},
+		}, swept)
 	})
 
-	t.Run("keeps sidecars and networks still in use", func(t *testing.T) {
-		// Arrange - one owner still exists, the other is younger than the grace period
-		containers := ownedRow("agentic-claude-abc", "", 0) +
-			ownedRow("agentic-proxy-abc", "agentic-claude-abc", time.Hour) +
-			ownedRow("agentic-proxy-def", "agentic-claude-starting", time.Minute)
-		networks := ownedRow("agentic-run-abc", "agentic-claude-abc", time.Hour) + ownedRow("agentic-run-def", "agentic-claude-starting", time.Minute)
-		get := stubOwnedResources(t, client, containers, networks)
+	t.Run("tears down the run of a tool whose host process is gone", func(t *testing.T) {
+		// Arrange
+		tool := "agentic-claude-" + string(testRunID)
+		daemon := &fakeDaemon{
+			containers: []ownedResource{
+				owned(tool, pidOwner(sandbox.RuntimeDocker, exitedPID(t)), testRunID, time.Hour),
+				owned("agentic-proxy-"+string(testRunID), tool, testRunID, time.Hour),
+			},
+			networks: []ownedResource{owned(runNetworkName(testRunID), tool, testRunID, time.Hour)},
+		}
+		stubDaemon(t, client, daemon)
 
 		// Act
-		err := client.sweepOrphanedSidecars("")
+		_, err := client.sweepRuns("", false)
 
 		// Assert
 		require.NoError(t, err)
-		calls := get()
-		assert.Nil(t, findCall(calls, "rm"))
-		assert.Nil(t, findCall(calls, "network", "rm"))
+		assert.Empty(t, daemon.names())
+		assert.Equal(t, tool, daemon.removed()[0], "the tool goes first")
 	})
 
-	t.Run("ignores resources without an owner or start time", func(t *testing.T) {
+	t.Run("keeps runs still in use", func(t *testing.T) {
 		// Arrange
-		containers := "agentic-proxy-old\t\t\n" + "agentic-docker-old\tagentic-claude-gone\t\n"
-		get := stubOwnedResources(t, client, containers, "")
+		live := "agentic-claude-" + string(testRunID)
+		daemon := &fakeDaemon{
+			containers: []ownedResource{
+				owned(live, pidOwner(sandbox.RuntimeDocker, os.Getpid()), testRunID, time.Hour),
+				owned("agentic-proxy-"+string(testRunID), live, testRunID, time.Hour),
+				owned("agentic-proxy-"+string(otherRunID), "agentic-claude-starting", otherRunID, time.Minute),
+			},
+			networks: []ownedResource{owned(runNetworkName(otherRunID), "agentic-claude-starting", otherRunID, time.Minute)},
+		}
+		stubDaemon(t, client, daemon)
 
 		// Act
-		err := client.sweepOrphanedSidecars("")
+		swept, err := client.sweepRuns("", false)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Nil(t, findCall(get(), "rm"))
+		assert.Empty(t, daemon.removed())
+		assert.Equal(t, SweptRuns{}, swept)
+	})
+
+	t.Run("removes an orphan without a run label alone", func(t *testing.T) {
+		// Arrange
+		daemon := &fakeDaemon{
+			containers: []ownedResource{owned("agentic-docker-old", gone, "", time.Hour)},
+			networks:   []ownedResource{owned("agentic-run-old", gone, "", time.Hour)},
+		}
+		stubDaemon(t, client, daemon)
+
+		// Act
+		_, err := client.sweepRuns("", false)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"agentic-docker-old", "agentic-run-old"}, daemon.removed())
+	})
+
+	t.Run("removes unowned sidecars only when asked", func(t *testing.T) {
+		for _, tc := range []struct {
+			name    string
+			unowned bool
+			want    []string
+		}{
+			{
+				name: "run sweep keeps them",
+			},
+			{
+				name:    "clean removes them, but never an unowned tool",
+				unowned: true,
+				want:    []string{"agentic-proxy-old"},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				// Arrange
+				daemon := &fakeDaemon{containers: []ownedResource{
+					{name: "agentic-proxy-old"},
+					{name: "agentic-claude-old"},
+				}}
+				stubDaemon(t, client, daemon)
+
+				// Act
+				_, err := client.sweepRuns("", tc.unowned)
+
+				// Assert
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, daemon.removed())
+			})
+		}
 	})
 
 	t.Run("a failed removal doesn't stop the rest", func(t *testing.T) {
 		// Arrange
-		containers := ownedRow("agentic-docker-a", "agentic-claude-gone", time.Hour) + ownedRow("agentic-docker-b", "agentic-claude-gone", time.Hour)
-		var removed []string
-		stubDockerRun(t, client, func(args ...string) (string, error) {
-			switch args[0] {
-			case "ps":
-				return containers, nil
-			case "rm":
-				removed = append(removed, args[len(args)-1])
-				return "", errors.New("stub: rm failed")
-			}
-			return "", nil
-		})
+		daemon := &fakeDaemon{
+			containers: []ownedResource{
+				owned("agentic-docker-"+string(testRunID), gone, testRunID, time.Hour),
+				owned("agentic-docker-"+string(otherRunID), gone, otherRunID, time.Hour),
+			},
+			failing: [][]string{{"rm", "--force", "--volumes", "agentic-docker-" + string(testRunID)}},
+		}
+		stubDaemon(t, client, daemon)
 
 		// Act
-		err := client.sweepOrphanedSidecars("")
+		_, err := client.sweepRuns("", false)
 
 		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"agentic-docker-a", "agentic-docker-b"}, removed)
+		require.ErrorContains(t, err, "stub: rm")
+		assert.Equal(t, []string{"agentic-docker-" + string(testRunID)}, daemon.names())
 	})
 
 	t.Run("list error propagates", func(t *testing.T) {
 		// Arrange
-		stubDockerRunFixed(t, client, "", errors.New("stub: daemon down"))
+		stubDaemon(t, client, &fakeDaemon{failing: [][]string{{"ps"}}})
 
 		// Act
-		err := client.sweepOrphanedSidecars("")
+		_, err := client.sweepRuns("", false)
 
 		// Assert
-		assert.ErrorContains(t, err, "daemon down")
+		assert.ErrorContains(t, err, "stub: ps failed")
 	})
 
 	t.Run("sweeps run dirs left behind by crashed runs", func(t *testing.T) {
 		// Arrange
 		stubDindRunDirGrace(t, client, time.Minute)
-		stubOwnedResources(t, client, "", "")
+		stubDaemon(t, client, &fakeDaemon{})
 		toolHome := t.TempDir()
-		stale := makeDindRunDir(t, toolHome, "0123456789ab", time.Hour)
+		stale := makeDindRunDir(t, toolHome, string(testRunID), time.Hour)
 
 		// Act
-		err := client.sweepOrphanedSidecars(toolHome)
+		_, err := client.sweepRuns(toolHome, false)
 
 		// Assert
 		require.NoError(t, err)
@@ -245,7 +315,7 @@ func Test_sweepOrphanedSidecars(t *testing.T) {
 	})
 }
 
-func Test_ownedResource_inUse(t *testing.T) {
+func Test_ownedResource_isOrphan(t *testing.T) {
 	existing := map[string]bool{"agentic-claude-abc": true}
 	old := time.Now().Add(-time.Hour)
 	gonePID := exitedPID(t)
@@ -256,41 +326,98 @@ func Test_ownedResource_inUse(t *testing.T) {
 		started time.Time
 		want    bool
 	}{
-		{name: "owner still exists", owner: "agentic-claude-abc", started: old, want: true},
-		{name: "owner not started yet", owner: "agentic-claude-starting", started: time.Now(), want: true},
-		{name: "owner gone", owner: "agentic-claude-gone", started: old},
-		{name: "no owner"},
-		{name: "host process owner still runs", owner: pidOwner(sandbox.RuntimeMicrosandbox, os.Getpid()), started: old, want: true},
-		{name: "host process owner gone", owner: pidOwner(sandbox.RuntimeMicrosandbox, gonePID), started: old},
-		{name: "host process owner gone but within grace", owner: pidOwner(sandbox.RuntimeMicrosandbox, gonePID), started: time.Now(), want: true},
+		{
+			name:    "owner still exists",
+			owner:   "agentic-claude-abc",
+			started: old,
+		},
+		{
+			name:    "owner not started yet",
+			owner:   "agentic-claude-starting",
+			started: time.Now(),
+		},
+		{
+			name:    "owner gone",
+			owner:   "agentic-claude-gone",
+			started: old,
+			want:    true,
+		},
+		{
+			name: "no owner",
+		},
+		{
+			name:    "host process owner still runs",
+			owner:   pidOwner(sandbox.RuntimeDocker, os.Getpid()),
+			started: old,
+		},
+		{
+			name:    "host process owner gone",
+			owner:   pidOwner(sandbox.RuntimeDocker, gonePID),
+			started: old,
+			want:    true,
+		},
+		{
+			name:    "host process owner gone but within grace",
+			owner:   pidOwner(sandbox.RuntimeDocker, gonePID),
+			started: time.Now(),
+		},
+		{
+			name:    "host process owner on another host",
+			owner:   "docker:pid:" + strconv.Itoa(gonePID) + "@other.example.test",
+			started: old,
+		},
+		{
+			name:    "host process owner from an older version without a host",
+			owner:   "microsandbox:pid:" + strconv.Itoa(gonePID),
+			started: old,
+			want:    true,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
 			r := ownedResource{name: "agentic-proxy-abc", owner: tc.owner, started: tc.started}
 
 			// Act
-			inUse := r.inUse(existing, 5*time.Minute)
+			orphan := r.isOrphan(existing, 5*time.Minute)
 
 			// Assert
-			assert.Equal(t, tc.want, inUse)
+			assert.Equal(t, tc.want, orphan)
 		})
 	}
 }
 
 func Test_ownerPID(t *testing.T) {
-	t.Run("parses a pid owner", func(t *testing.T) {
+	t.Run("parses a pid owner and its host", func(t *testing.T) {
 		// Act
-		pid, ok := ownerPID(pidOwner(sandbox.RuntimeMicrosandbox, 4242))
+		pid, host, ok := ownerPID("microsandbox:pid:4242@host.example.test")
 
 		// Assert
 		assert.True(t, ok)
 		assert.Equal(t, 4242, pid)
+		assert.Equal(t, "host.example.test", host)
+	})
+
+	t.Run("scopes this process's owner to this host", func(t *testing.T) {
+		// Act
+		pid, host, ok := ownerPID(pidOwner(sandbox.RuntimeDocker, 4242))
+
+		// Assert
+		assert.True(t, ok)
+		assert.Equal(t, 4242, pid)
+		assert.Equal(t, hostname(), host)
 	})
 
 	t.Run("refuses other owners", func(t *testing.T) {
-		for _, owner := range []string{"agentic-claude-abc", "microsandbox:pid:", "microsandbox:pid:abc", "microsandbox:pid:0", "microsandbox:pid:-1"} {
+		for _, owner := range []string{
+			"agentic-claude-abc",
+			"microsandbox:pid:",
+			"microsandbox:pid:abc",
+			"microsandbox:pid:0",
+			"microsandbox:pid:-1",
+			"microsandbox:pid:@host",
+		} {
 			// Act
-			_, ok := ownerPID(owner)
+			_, _, ok := ownerPID(owner)
 
 			// Assert
 			assert.False(t, ok, owner)
@@ -298,63 +425,43 @@ func Test_ownerPID(t *testing.T) {
 	})
 }
 
-func Test_removeUnused(t *testing.T) {
-	client := newTestClient()
-	listArgs := []string{"ps", "--all", "--format=owned"}
-	rmArgs := []string{"rm", "--force"}
+func Test_parseOwnedRow(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		line string
+		want ownedResource
+		ok   bool
+	}{
+		{
+			name: "reads the run",
+			line: "agentic-proxy-x\tagentic-claude-x\t\t" + string(testRunID) + "\n",
+			want: ownedResource{name: "agentic-proxy-x", owner: "agentic-claude-x", run: testRunID},
+			ok:   true,
+		},
+		{
+			name: "drops an invalid run",
+			line: "agentic-proxy-x\tagentic-claude-x\t\t../x\n",
+			want: ownedResource{name: "agentic-proxy-x", owner: "agentic-claude-x"},
+			ok:   true,
+		},
+		{
+			name: "reads a row without a run",
+			line: "agentic-proxy-x\t\t\n",
+			want: ownedResource{name: "agentic-proxy-x"},
+			ok:   true,
+		},
+		{
+			name: "refuses a row without a name",
+			line: "\t\t\t\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			got, ok := parseOwnedRow(tc.line)
 
-	t.Run("removes the unused resources in one call", func(t *testing.T) {
-		// Arrange
-		owned := ownedRow("agentic-proxy-a", "agentic-claude-gone", time.Hour) + ownedRow("agentic-proxy-b", "agentic-claude-gone", time.Hour)
-		get := stubUnusedSweep(t, client, "", owned)
-
-		// Act
-		removed, err := client.removeUnused(listArgs, rmArgs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []string{"agentic-proxy-a", "agentic-proxy-b"}, removed)
-		assert.Equal(t, []string{"rm", "--force", "agentic-proxy-a", "agentic-proxy-b"}, findCall(get(), "rm"))
-	})
-
-	t.Run("nothing unused makes no rm call", func(t *testing.T) {
-		// Arrange
-		get := stubUnusedSweep(t, client, "agentic-claude-live\n", ownedRow("agentic-proxy-live", "agentic-claude-live", time.Hour))
-
-		// Act
-		removed, err := client.removeUnused(listArgs, rmArgs)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, removed)
-		assert.Nil(t, findCall(get(), "rm"))
-	})
-
-	t.Run("list error propagates", func(t *testing.T) {
-		// Arrange
-		stubDockerRunFixed(t, client, "", errors.New("stub: daemon down"))
-
-		// Act
-		_, err := client.removeUnused(listArgs, rmArgs)
-
-		// Assert
-		assert.ErrorContains(t, err, "daemon down")
-	})
-}
-
-func Test_unusedNames(t *testing.T) {
-	// Arrange
-	started := time.Now().Add(-time.Hour)
-	resources := []ownedResource{
-		{name: "agentic-proxy-live", owner: "agentic-claude-live", started: started},
-		{name: "agentic-proxy-gone", owner: "agentic-claude-gone", started: started},
-		{name: "agentic-proxy-old"},
+			// Assert
+			assert.Equal(t, tc.ok, ok)
+			assert.Equal(t, tc.want, got)
+		})
 	}
-	existing := map[string]bool{"agentic-claude-live": true}
-
-	// Act
-	names := unusedNames(resources, existing, 5*time.Minute)
-
-	// Assert
-	assert.Equal(t, []string{"agentic-proxy-gone", "agentic-proxy-old"}, names)
 }

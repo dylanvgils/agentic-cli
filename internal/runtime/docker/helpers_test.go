@@ -373,9 +373,9 @@ func (d *fakeDaemon) run(args ...string) (string, error) {
 	name := args[len(args)-1]
 	switch {
 	case args[0] == "ps":
-		return listRows(d.containers), nil
+		return listRows(d.containers, args), nil
 	case args[0] == "network" && args[1] == "ls":
-		return listRows(d.networks), nil
+		return listRows(d.networks, args), nil
 	case args[0] == "rm":
 		return "", removeNamed(&d.containers, name, "Error response from daemon: No such container: "+name)
 	case args[0] == "network" && args[1] == "rm":
@@ -406,11 +406,21 @@ func (d *fakeDaemon) removed() []string {
 	return names
 }
 
-// listRows renders resources as ownedFormat rows.
-func listRows(resources []ownedResource) string {
+// listRows renders resources as ownedFormat rows, keeping only the run an --filter=label=agentic.run= arg names.
+func listRows(resources []ownedResource, args []string) string {
+	run, filtered := "", false
+	for _, a := range args {
+		if v, ok := strings.CutPrefix(a, "--filter=label="+sandbox.LabelRun+"="); ok {
+			run, filtered = v, true
+		}
+	}
+
 	var b strings.Builder
 	for _, r := range resources {
-		b.WriteString(r.name + "\t" + r.owner + "\t" + formatLabelTime(r.started) + "\n")
+		if filtered && string(r.run) != run {
+			continue
+		}
+		b.WriteString(r.name + "\t" + r.owner + "\t" + formatLabelTime(r.started) + "\t" + string(r.run) + "\n")
 	}
 	return b.String()
 }
@@ -425,9 +435,9 @@ func removeNamed(resources *[]ownedResource, name, missing string) error {
 	return nil
 }
 
-// owned returns a resource owned by owner, started age ago.
-func owned(name, owner string, age time.Duration) ownedResource {
-	return ownedResource{name: name, owner: owner, started: time.Now().Add(-age)}
+// owned returns a resource owned by owner in run, started age ago.
+func owned(name, owner string, run sandbox.RunID, age time.Duration) ownedResource {
+	return ownedResource{name: name, owner: owner, run: run, started: time.Now().Add(-age)}
 }
 
 // stubDockerRunWithStdin replaces client.runWithStdin with fn for the duration of the test.
@@ -570,43 +580,4 @@ func newProxyRun(t *testing.T, spec sandbox.RunSpec) toolRun {
 		spec.RunID = testRunID
 	}
 	return toolRun{RunSpec: spec, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
-}
-
-// stubOwnedResources stubs `ps` and `network ls` output, recording every call.
-func stubOwnedResources(t *testing.T, client *Client, containers, networks string) func() []dockerCall {
-	t.Helper()
-	var calls []dockerCall
-	stubDockerRun(t, client, func(args ...string) (string, error) {
-		calls = append(calls, dockerCall{args: args})
-		switch {
-		case args[0] == "ps":
-			return containers, nil
-		case args[0] == "network" && args[1] == "ls":
-			return networks, nil
-		}
-		return "", nil
-	})
-	return func() []dockerCall { return calls }
-}
-
-// stubUnusedSweep stubs the container name listing with names and every other list with owned, recording every call.
-func stubUnusedSweep(t *testing.T, client *Client, names, owned string) func() []dockerCall {
-	t.Helper()
-	var calls []dockerCall
-	stubDockerRun(t, client, func(args ...string) (string, error) {
-		calls = append(calls, dockerCall{args: args})
-		switch {
-		case slices.Contains(args, "--format={{.Names}}"):
-			return names, nil
-		case args[0] == "ps" || args[0] == "network" && args[1] == "ls":
-			return owned, nil
-		}
-		return "", nil
-	})
-	return func() []dockerCall { return calls }
-}
-
-// ownedRow formats a row as ownedFormat renders it.
-func ownedRow(name, owner string, age time.Duration) string {
-	return name + "\t" + owner + "\t" + formatLabelTime(time.Now().Add(-age)) + "\n"
 }
