@@ -3,6 +3,8 @@
 package microsandbox
 
 import (
+	"encoding/json"
+	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
@@ -29,4 +31,24 @@ func valueAfter(t *testing.T, out, prefix string) int {
 	value, err := strconv.Atoi(strings.TrimSpace(line))
 	require.NoError(t, err)
 	return value
+}
+
+// runningVMs returns the names of the running VMs of run id.
+func runningVMs(t *testing.T, id string) []string {
+	t.Helper()
+	out, err := exec.Command("msb", "ls", "--running", "--label", "agentic.run="+id, "--format", "json").Output()
+	require.NoError(t, err)
+
+	var vms []struct {
+		Name string `json:"name"`
+	}
+	if len(strings.TrimSpace(string(out))) > 0 {
+		require.NoError(t, json.Unmarshal(out, &vms))
+	}
+
+	names := make([]string, 0, len(vms))
+	for _, vm := range vms {
+		names = append(names, vm.Name)
+	}
+	return names
 }

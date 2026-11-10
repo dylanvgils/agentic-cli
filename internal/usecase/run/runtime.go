@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
@@ -37,6 +38,13 @@ func (s *Service) Run(req Request, rs sandbox.RunSpec) error {
 	rs.RunID, err = sandbox.NewRunID()
 	if err != nil {
 		return err
+	}
+
+	// Before any resource, so setup crashes are covered
+	if !rs.DryRun {
+		if err := s.watchdog.Spawn(req.runtime(), rs.ToolHome, rs.RunID); err != nil {
+			logging.Warnf("watchdog not confirmed, so a killed run may be left behind: %v", err)
+		}
 	}
 	return r.Run(req, rs)
 }

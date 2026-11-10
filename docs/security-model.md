@@ -57,7 +57,7 @@ What no layer covers today:
 - **Shared tool state**: hooks or MCP servers the agent plants in its tool home also run in your other projects. Use a separate `--home` for untrusted ones.
 - **Exfiltration to allowed hosts**: without `--proxy` the internet is open to the tool and the DinD sidecar; with it, data can still go to any allowlisted host.
 - **Domain fronting**: the proxy [checks the TLS server name](egress-proxy.md#access-log) of each tunnel, but can't see the HTTP `Host` header inside it, or the real name when the tool uses Encrypted Client Hello. A CDN that routes by that hidden name may then serve another of its sites through an allowed host.
-- **Killed agentic**: when its terminal closes or it gets `SIGTERM`, agentic removes the tool container and sidecars. If agentic is killed with `SIGKILL` or crashes, the tool keeps running without you until the next `agentic` run or `agentic clean --all` removes it, once it's a few minutes old. To stop it sooner, find it with `docker ps` and remove it with `docker rm --force <name>`.
+- **Killed agentic**: each run starts a small detached watchdog that removes the tool container and sidecars within seconds of agentic exiting, also after `SIGKILL` or a crash. If the watchdog is killed too, the next `agentic` run or `agentic clean --all` removes them once they're a few minutes old. To stop them sooner, find them with `docker ps` and remove them with `docker rm --force <name>`.
 - **DNS on other engines**: Docker Engine before 26 forwards DNS lookups from the tool's `--internal` network to outside resolvers, so agentic refuses it. It can't check other engines, so with `--proxy` data may still leak there in names like `<data>.example.test`.
 
 ## Check it yourself

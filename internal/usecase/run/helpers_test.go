@@ -130,6 +130,17 @@ func (f *fakeDocker) Teardown(toolHome string, id sandbox.RunID) error {
 	return f.teardown(toolHome, id)
 }
 
+// fakeWatchdog implements Watchdog, recording each spawn; err is what Spawn returns.
+type fakeWatchdog struct {
+	spawned []sandbox.RunID
+	err     error
+}
+
+func (f *fakeWatchdog) Spawn(_ sandbox.Runtime, _ string, id sandbox.RunID) error {
+	f.spawned = append(f.spawned, id)
+	return f.err
+}
+
 // fakeToolUpdates implements ToolUpdates; a nil offer succeeds without offering anything.
 type fakeToolUpdates struct {
 	offer func(u ToolUpdate, confirm func(tool, installed, latest string) bool) error
@@ -156,7 +167,12 @@ func (f *fakeSidecarImages) Ensure(proxy, dind bool, registry string) error {
 
 // newTestService returns a Service over d and m whose tool updates and sidecar images succeed without doing anything.
 func newTestService(d Docker, m Microsandbox) *Service {
-	return New(d, m, &fakeToolUpdates{}, &fakeSidecarImages{})
+	return New(d, m, &fakeToolUpdates{}, &fakeSidecarImages{}, &fakeWatchdog{})
+}
+
+// newUpdatingService returns a Docker-only Service offering tool updates through u.
+func newUpdatingService(d Docker, u ToolUpdates) *Service {
+	return New(d, nil, u, &fakeSidecarImages{}, &fakeWatchdog{})
 }
 
 // newTestDockerRunner returns a dockerRunner over d whose sidecar images succeed without doing anything.
