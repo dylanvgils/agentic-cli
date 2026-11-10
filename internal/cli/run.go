@@ -7,6 +7,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/sidecar"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/toolupdate"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/update"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/watch"
 	"github.com/spf13/cobra"
 )
 
@@ -106,8 +107,18 @@ func runTool(cmd *cobra.Command, args []string) error {
 
 // newRunService returns the run usecase wired to the cli's clients; call it at command time, after dockerClient is set up.
 func newRunService() *run.Service {
-	updates := toolUpdates{docker: dockerClient, upstream: upstreamClient}
-	return run.New(dockerClient, msbClient, updates, sidecar.New(dockerClient))
+	return newRunServiceFor(dockerClient)
+}
+
+// newRunServiceFor returns the run usecase over d and the cli's other clients.
+func newRunServiceFor(d dockerAPI) *run.Service {
+	return run.New(
+		d,
+		msbClient,
+		toolUpdates{docker: d, upstream: upstreamClient},
+		sidecar.New(d),
+		watch.NewSpawner(watchCmdName, d.Context()),
+	)
 }
 
 // parseInvocation checks the working dir's project and parses the tool, image and tool args from args.

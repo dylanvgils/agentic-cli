@@ -13,6 +13,7 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
+	"github.com/dylanvgils/agentic-cli/internal/usecase/watch"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
@@ -695,6 +696,18 @@ func newTestPsCmd(t *testing.T, args ...string) *cobra.Command {
 	cmd := &cobra.Command{}
 	addNamespaceFlag(cmd)
 	addAllFlag(cmd, "")
+	require.NoError(t, cmd.ParseFlags(args))
+	return cmd
+}
+
+// newTestWatchCmd returns a cmd with the watchdog's flags and the root's --docker-context, set to args.
+func newTestWatchCmd(t *testing.T, args ...string) *cobra.Command {
+	t.Helper()
+	cmd := &cobra.Command{}
+	cmd.Flags().String(watch.FlagRun, "", "")
+	cmd.Flags().String(watch.FlagRuntime, "", "")
+	cmd.Flags().String(dockerContextFlagName, "", "")
+	cmd.Flags().Int(watch.FlagPID, 0, "")
 	require.NoError(t, cmd.ParseFlags(args))
 	return cmd
 }

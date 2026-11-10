@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
+	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
@@ -256,6 +257,59 @@ func Test_Service_checkRuntime(t *testing.T) {
 
 		// Assert
 		assert.EqualError(t, err, "msb not found on PATH")
+	})
+}
+
+func Test_Service_Run_watchdog(t *testing.T) {
+	t.Run("spawns the watchdog for the run before the runtime starts anything", func(t *testing.T) {
+		// Arrange
+		w := &fakeWatchdog{}
+		var spawnedFirst bool
+		d := &fakeDocker{startSidecars: func(rs sandbox.RunSpec, _ string) (docker.Sidecars, error) {
+			spawnedFirst = len(w.spawned) == 1 && w.spawned[0] == rs.RunID
+			return docker.Sidecars{}, nil
+		}}
+		svc := New(d, &fakeMicrosandbox{}, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+
+		// Act
+		err := svc.Run(runtimeRequest(sandbox.RuntimeDocker), sandbox.RunSpec{Image: "agentic-claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, spawnedFirst)
+	})
+
+	t.Run("a dry run spawns none", func(t *testing.T) {
+		// Arrange
+		w := &fakeWatchdog{}
+		svc := New(&fakeDocker{}, &fakeMicrosandbox{}, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+
+		// Act
+		err := svc.Run(runtimeRequest(sandbox.RuntimeDocker), sandbox.RunSpec{Image: "agentic-claude", DryRun: true})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, w.spawned)
+	})
+
+	t.Run("a failed spawn only warns", func(t *testing.T) {
+		// Arrange
+		errOut := iostreamstest.StubErr(t)
+		ran := false
+		d := &fakeDocker{runTool: func(docker.Sidecars) error {
+			ran = true
+			return nil
+		}}
+		w := &fakeWatchdog{err: errors.New("stub: spawn failed")}
+		svc := New(d, &fakeMicrosandbox{}, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+
+		// Act
+		err := svc.Run(runtimeRequest(sandbox.RuntimeDocker), sandbox.RunSpec{Image: "agentic-claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, ran)
+		assert.Contains(t, errOut.String(), "stub: spawn failed")
 	})
 }
 

@@ -29,6 +29,7 @@ type Service struct {
 	syncMarketplaces func(entries []marketplace.Entry, dirFor func(marketplace.Entry) string) ([]marketplace.Result, error)
 	toolUpdates      ToolUpdates
 	sidecarImages    SidecarImages
+	watchdog         Watchdog
 }
 
 // Target identifies the tool and image a RunSpec is being built for.
@@ -74,15 +75,16 @@ type buildRequest struct {
 	containerHome string
 }
 
-// New returns a Service that talks to Docker through d and to microsandbox through m, offers tool updates through u and
-// builds sidecar images through si.
-func New(d Docker, m Microsandbox, u ToolUpdates, si SidecarImages) *Service {
+// New returns a Service over Docker d and microsandbox m, offering tool updates through u, building sidecar images
+// through si and guarding runs with w.
+func New(d Docker, m Microsandbox, u ToolUpdates, si SidecarImages, w Watchdog) *Service {
 	return &Service{
 		docker:           d,
 		microsandbox:     m,
 		syncMarketplaces: marketplace.NewSyncer(git.New()).Sync,
 		toolUpdates:      u,
 		sidecarImages:    si,
+		watchdog:         w,
 	}
 }
 
