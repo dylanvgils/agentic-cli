@@ -114,7 +114,9 @@ With `--runtime microsandbox --dind`, `ensureDockerdImage` (`internal/usecase/ru
 
 ## Run teardown
 
-Every per-run resource derives from one `sandbox.RunID` and carries `agentic.run`, `agentic.owner` and `agentic.started` labels. Each runtime's `Teardown(runID)` removes one run, best-effort and idempotent; every exit path, the sweep and `agentic clean`/`prune` use it.
+Every per-run resource derives from one `sandbox.RunID`, which `run.Service.Prepare` creates before anything the run leaves behind. Containers and networks carry `agentic.run`, `agentic.owner` and `agentic.started` labels. Host files go in `$TMPDIR/agentic-run-<id>/` (the instructions snapshot, the proxy token and msb env files), except the dind run dir and the proxy log under `$AGENTIC_HOME`.
+
+Each runtime's `Teardown(runID)` removes one run, best-effort and idempotent; every exit path, the sweep and `agentic clean`/`prune` use it. `run.Service.Teardown` adds the runtime-neutral part: it saves a leftover instructions snapshot back to the tool's file, then removes the run temp dir.
 
 Each run spawns a detached, hidden `agentic __watch` that calls `Teardown` once the CLI exits, also after `SIGKILL`, and again 5 seconds later: a `docker` call in flight at the kill outlives the CLI and can still create a container. If the watchdog dies too, the next run's `sweepOrphanedSidecars` tears down runs whose owner is gone, after a 5-minute grace.
 

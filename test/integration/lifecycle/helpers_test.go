@@ -4,6 +4,7 @@ package lifecycle
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -34,6 +35,7 @@ func assertTornDown(t *testing.T, id string) {
 	t.Helper()
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.Empty(c, runResources(t, id), "run %s left behind", id)
+		assert.NoDirExists(c, filepath.Join(platform.TmpDir(), "agentic-run-"+id), "run %s left its temp dir", id)
 	}, teardownWithin, 100*time.Millisecond)
 }
 

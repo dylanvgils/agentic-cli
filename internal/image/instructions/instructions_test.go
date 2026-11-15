@@ -112,56 +112,42 @@ func TestPrepareSnapshot(t *testing.T) {
 		require.NoError(t, os.WriteFile(target, []byte("test-secret\n"), 0o600))
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		symlinkOrSkip(t, target, hostPath)
+		var snapshot strings.Builder
 
 		// Act
-		_, err := PrepareSnapshot(toolsDir, hostPath, "block")
+		err := PrepareSnapshot(toolsDir, hostPath, "block", &snapshot)
 
 		// Assert
 		assert.ErrorContains(t, err, "not a regular file")
+		assert.Empty(t, snapshot.String())
 	})
 
 	t.Run("drops a stale managed block from the host file rather than duplicating it", func(t *testing.T) {
 		// Arrange
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		require.NoError(t, os.WriteFile(hostPath, []byte(managed("old block")+"\nremembered note\n"), 0o640))
+		var snapshot strings.Builder
 
 		// Act
-		snapshotPath, err := PrepareSnapshot(toolsDir, hostPath, "new block")
+		err := PrepareSnapshot(toolsDir, hostPath, "new block", &snapshot)
 
 		// Assert
 		require.NoError(t, err)
-		t.Cleanup(func() { _ = os.Remove(snapshotPath) })
-		assert.Equal(t, managed("new block")+"\nremembered note\n", readFile(t, snapshotPath))
+		assert.Equal(t, managed("new block")+"\nremembered note\n", snapshot.String())
 	})
 
 	t.Run("missing host file gets created empty up front so Docker can't auto-create it as root", func(t *testing.T) {
 		// Arrange
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
+		var snapshot strings.Builder
 
 		// Act
-		snapshotPath, err := PrepareSnapshot(toolsDir, hostPath, "block")
+		err := PrepareSnapshot(toolsDir, hostPath, "block", &snapshot)
 
 		// Assert
 		require.NoError(t, err)
-		t.Cleanup(func() { _ = os.Remove(snapshotPath) })
-		assert.Equal(t, managed("block"), readFile(t, snapshotPath))
+		assert.Equal(t, managed("block"), snapshot.String())
 		assert.Empty(t, readFile(t, hostPath))
-	})
-
-	t.Run("snapshot path is unique across calls", func(t *testing.T) {
-		// Arrange
-		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
-
-		// Act
-		first, err := PrepareSnapshot(toolsDir, hostPath, "block")
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = os.Remove(first) })
-		second, err := PrepareSnapshot(toolsDir, hostPath, "block")
-
-		// Assert
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = os.Remove(second) })
-		assert.NotEqual(t, first, second)
 	})
 }
 

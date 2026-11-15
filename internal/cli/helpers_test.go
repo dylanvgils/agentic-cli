@@ -706,6 +706,7 @@ func newTestWatchCmd(t *testing.T, args ...string) *cobra.Command {
 	cmd := &cobra.Command{}
 	cmd.Flags().String(watch.FlagRun, "", "")
 	cmd.Flags().String(watch.FlagRuntime, "", "")
+	cmd.Flags().String(watch.FlagTool, "", "")
 	cmd.Flags().String(dockerContextFlagName, "", "")
 	cmd.Flags().Int(watch.FlagPID, 0, "")
 	require.NoError(t, cmd.ParseFlags(args))

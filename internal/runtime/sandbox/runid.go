@@ -13,6 +13,14 @@ var runIDPattern = regexp.MustCompile(`^[0-9a-f]{12}$`)
 // RunID keys every per-run resource name and host path.
 type RunID string
 
+// RunRef is what a teardown needs to find everything a run left behind.
+type RunRef struct {
+	ID       RunID
+	Runtime  Runtime
+	Tool     string
+	ToolHome string
+}
+
 // NewRunID returns a random RunID.
 func NewRunID() (RunID, error) {
 	buf := make([]byte, 6)

@@ -58,7 +58,7 @@ type SidecarImages interface {
 
 // Watchdog tears a run down once this process exits.
 type Watchdog interface {
-	Spawn(runtime sandbox.Runtime, toolHome string, id sandbox.RunID) error
+	Spawn(run sandbox.RunRef) error
 }
 
 // Prompter asks the user to approve what a run needs; a nil error means approved.

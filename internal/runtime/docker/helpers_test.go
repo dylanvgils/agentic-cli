@@ -588,3 +588,10 @@ func newProxyRun(t *testing.T, spec sandbox.RunSpec) toolRun {
 	}
 	return toolRun{RunSpec: spec, proxyLog: filepath.Join(t.TempDir(), "proxy_abc.jsonl"), network: "agentic-run-abc"}
 }
+
+// stubRunTempDir points the OS temp dir at a test dir and creates testRunID's run temp dir in it.
+func stubRunTempDir(t *testing.T) {
+	t.Helper()
+	t.Setenv("TMPDIR", t.TempDir())
+	require.NoError(t, sandbox.CreateRunTempDir(testRunID))
+}
