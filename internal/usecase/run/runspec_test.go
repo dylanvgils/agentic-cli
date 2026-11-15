@@ -335,68 +335,22 @@ func Test_Service_build(t *testing.T) {
 }
 
 func Test_Service_buildWithInstructions(t *testing.T) {
-	d := &fakeDocker{}
+	// Arrange
+	stubRunTempDir(t)
+	target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+	in := Input{ToolHome: t.TempDir()}
+	require.NoError(t, tools.Configs["claude"].Runtime.Setup(in.ToolHome))
 
-	// BuildInstructions' own content rules (sections, formatting) are covered by
-	// TestBuildInstructions, and PrepareInstructions' merge/sync-back behavior is
-	// covered by TestPrepareInstructions - these subtests only cover what
-	// BuildWithInstructions itself adds: threading content -> snapshot -> mount
-	// into Build, and calling cleanup on a Build failure instead of leaking.
+	// Act
+	rs, err := newTestService(&fakeDocker{}, nil).buildWithInstructions(testRunID, target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
-	t.Run("wires the generated content into the RunSpec's instructions mount", func(t *testing.T) {
-		// Arrange
-		stubRunTempDir(t)
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir()}
-		require.NoError(t, tools.Configs["claude"].Runtime.Setup(in.ToolHome))
-
-		// Act
-		rs, cleanup, err := newTestService(d, nil).buildWithInstructions(testRunID, target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
-
-		// Assert
-		require.NoError(t, err)
-		t.Cleanup(cleanup)
-		assert.Equal(t, testRunID, rs.RunID)
-		instructionsVolume := findVolumeSuffix(t, rs.Volumes, ":$CONTAINER_HOME/.claude/CLAUDE.md")
-		got, err := os.ReadFile(sandbox.HostPart(instructionsVolume))
-		require.NoError(t, err)
-		assert.Contains(t, string(got), "# Agentic container environment")
-	})
-
-	t.Run("returned cleanup is wired to a real finalize, not a no-op", func(t *testing.T) {
-		// Arrange
-		stubRunTempDir(t)
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir()}
-		require.NoError(t, tools.Configs["claude"].Runtime.Setup(in.ToolHome))
-		rs, cleanup, err := newTestService(d, nil).buildWithInstructions(testRunID, target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
-		require.NoError(t, err)
-		instructionsVolume := findVolumeSuffix(t, rs.Volumes, ":$CONTAINER_HOME/.claude/CLAUDE.md")
-		snapshotPath := sandbox.HostPart(instructionsVolume)
-
-		// Act
-		cleanup()
-
-		// Assert
-		_, statErr := os.Stat(snapshotPath)
-		assert.True(t, os.IsNotExist(statErr))
-	})
-
-	t.Run("build error finalizes and removes the snapshot immediately, rather than leaking it", func(t *testing.T) {
-		// Arrange
-		stubRunTempDir(t)
-		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
-		in := Input{ToolHome: t.TempDir(), Env: []string{"TOOL_HOME=nope"}}
-		require.NoError(t, tools.Configs["claude"].Runtime.Setup(in.ToolHome))
-
-		// Act
-		_, cleanup, err := newTestService(d, nil).buildWithInstructions(testRunID, target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
-
-		// Assert
-		require.Error(t, err)
-		assert.NotPanics(t, cleanup)
-		assert.NoFileExists(t, filepath.Join(sandbox.RunTempDir(testRunID), "instructions.md"))
-	})
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, testRunID, rs.RunID)
+	instructionsVolume := findVolumeSuffix(t, rs.Volumes, ":$CONTAINER_HOME/.claude/CLAUDE.md")
+	got, err := os.ReadFile(sandbox.HostPart(instructionsVolume))
+	require.NoError(t, err)
+	assert.Contains(t, string(got), "# Agentic container environment")
 }
 
 func TestToolNeedsMarketplaceSync(t *testing.T) {

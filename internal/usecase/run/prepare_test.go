@@ -62,6 +62,23 @@ func TestPrepare(t *testing.T) {
 		assert.NoDirExists(t, sandbox.RunTempDir(rs.RunID), "cleanup removes the run temp dir")
 	})
 
+	t.Run("a failed build saves the snapshot back and removes the run temp dir", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		req.Flags.Env = []string{"TOOL_HOME=nope"}
+		w := &fakeWatchdog{}
+		svc := New(&fakeDocker{inspectImage: built}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+
+		// Act
+		_, cleanup, err := svc.Prepare(req, &fakePrompter{})
+		defer cleanup()
+
+		// Assert
+		require.Error(t, err)
+		require.Len(t, w.spawned, 1)
+		assert.NoDirExists(t, sandbox.RunTempDir(w.spawned[0].ID))
+	})
+
 	t.Run("missing image stops before any prompt", func(t *testing.T) {
 		// Arrange
 		req := newPrepareRequest(t)

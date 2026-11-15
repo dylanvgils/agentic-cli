@@ -82,16 +82,13 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
-	id, err := s.startRun(req)
+	run, err := s.startRun(req)
 	if err != nil {
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
-	rs, finalize, err := s.buildWithInstructions(id, req.Target, in, req.Tool, approved)
-	cleanup := func() {
-		finalize()
-		removeRunTempDir(id)
-	}
+	cleanup := func() { warnOnEndRunError(endRun(run)) }
+	rs, err := s.buildWithInstructions(run.ID, req.Target, in, req.Tool, approved)
 	if err != nil {
 		cleanup()
 		return sandbox.RunSpec{}, noCleanup, err

@@ -344,9 +344,9 @@ func Test_Service_Teardown(t *testing.T) {
 		stubRunTempDir(t)
 		toolHome := t.TempDir()
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(toolHome))
-		snapshot, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, testRunID, tools.Configs["claude"], "generated block")
+		mountSpec, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, testRunID, tools.Configs["claude"], "generated block")
 		require.NoError(t, err)
-		snapshotPath := sandbox.HostPart(snapshot.MountSpec)
+		snapshotPath := sandbox.HostPart(mountSpec)
 		var snapshotAtTeardown bool
 		d := &fakeDocker{teardown: func(string, sandbox.RunID) error {
 			require.NoError(t, appendFile(snapshotPath, "\nuser note\n"))
@@ -385,18 +385,19 @@ func Test_Service_startRun(t *testing.T) {
 		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
 
 		// Act
-		id, err := svc.startRun(req)
+		run, err := svc.startRun(req)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, []sandbox.RunRef{{
-			ID:       id,
+		assert.Equal(t, sandbox.RunRef{
+			ID:       run.ID,
 			Runtime:  sandbox.RuntimeDocker,
 			Tool:     "claude",
 			ToolHome: req.Flags.ToolHome,
-		}}, w.spawned)
+		}, run)
+		assert.Equal(t, []sandbox.RunRef{run}, w.spawned)
 		assert.False(t, dirAtSpawn)
-		assert.DirExists(t, sandbox.RunTempDir(id))
+		assert.DirExists(t, sandbox.RunTempDir(run.ID))
 	})
 
 	t.Run("a dry run spawns none", func(t *testing.T) {
@@ -407,12 +408,12 @@ func Test_Service_startRun(t *testing.T) {
 		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
 
 		// Act
-		id, err := svc.startRun(req)
+		run, err := svc.startRun(req)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, w.spawned)
-		assert.DirExists(t, sandbox.RunTempDir(id))
+		assert.DirExists(t, sandbox.RunTempDir(run.ID))
 	})
 
 	t.Run("a failed spawn only warns", func(t *testing.T) {
@@ -423,11 +424,11 @@ func Test_Service_startRun(t *testing.T) {
 		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
 
 		// Act
-		id, err := svc.startRun(req)
+		run, err := svc.startRun(req)
 
 		// Assert
 		require.NoError(t, err)
-		assert.DirExists(t, sandbox.RunTempDir(id))
+		assert.DirExists(t, sandbox.RunTempDir(run.ID))
 		assert.Contains(t, errOut.String(), "stub: spawn failed")
 	})
 }
