@@ -430,7 +430,10 @@ func Test_Service_resolveRun(t *testing.T) {
 		m := &fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return caps }}
 		return newTestService(d, m)
 	}
-	target := Target{ToolName: "claude", ImageName: "agentic-claude"}
+	target := Target{
+		ToolName:  "claude",
+		ImageName: "agentic-claude",
+	}
 
 	t.Run("copies the flags and resolves proxy, dind and limits against the config", func(t *testing.T) {
 		// Arrange
@@ -461,13 +464,19 @@ func Test_Service_resolveRun(t *testing.T) {
 		require.NoError(t, err)
 		limits := sandbox.ResourceLimits{CPUs: "2"}.Or(sandbox.DefaultLimits)
 		assert.Equal(t, runConfig{
-			Target:  target,
-			Tool:    tool,
-			RC:      rc,
-			Runtime: runtimeConfig{Name: sandbox.RuntimeMicrosandbox, Caps: daemonCaps},
-			Homes:   homes{Tool: "/example.test/home", Container: "/home/agent"},
-			Egress:  egressConfig{Mode: sandbox.EgressMonitor},
-			Limits:  limits,
+			Target: target,
+			Tool:   tool,
+			RC:     rc,
+			Runtime: runtimeConfig{
+				Name: sandbox.RuntimeMicrosandbox,
+				Caps: daemonCaps,
+			},
+			Homes: homes{
+				Tool:      "/example.test/home",
+				Container: "/home/agent",
+			},
+			Egress: egressConfig{Mode: sandbox.EgressMonitor},
+			Limits: limits,
 			Dind: sandbox.DindSpec{
 				Enabled: true,
 				Limits:  sandbox.ResourceLimits{Memory: "1g"}.Or(limits),
@@ -482,17 +491,32 @@ func Test_Service_resolveRun(t *testing.T) {
 	t.Run("dind limits override the tool's, which fill the rest", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{Run: config.RCRun{
-			RCLimits: config.RCLimits{PidsLimit: "512", CPUs: "2", Memory: "2g"},
-			Dind:     config.RCDind{RCLimits: config.RCLimits{PidsLimit: "4096", Memory: "8g"}},
+			RCLimits: config.RCLimits{
+				PidsLimit: "512",
+				CPUs:      "2",
+				Memory:    "2g",
+			},
+			Dind: config.RCDind{RCLimits: config.RCLimits{
+				PidsLimit: "4096",
+				Memory:    "8g",
+			}},
 		}}
-		req := Request{Target: target, Flags: Flags{DindLimits: sandbox.ResourceLimits{Memory: "16g"}}}
+		req := Request{
+			Target: target,
+			Flags:  Flags{DindLimits: sandbox.ResourceLimits{Memory: "16g"}},
+		}
 
 		// Act
 		c, err := newSvc(daemonCaps).resolveRun(req, rc)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, sandbox.ResourceLimits{PidsLimit: "4096", CPUs: "2", Memory: "16g"}, c.Dind.Limits)
+		want := sandbox.ResourceLimits{
+			PidsLimit: "4096",
+			CPUs:      "2",
+			Memory:    "16g",
+		}
+		assert.Equal(t, want, c.Dind.Limits)
 		assert.Equal(t, "2g", c.Limits.Memory, "tool limit is unaffected")
 	})
 
@@ -512,7 +536,10 @@ func Test_Service_resolveRun(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
 		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
-		req := Request{Target: target, Flags: Flags{Proxy: resolve.ProxyInput{NoProxy: true}}}
+		req := Request{
+			Target: target,
+			Flags:  Flags{Proxy: resolve.ProxyInput{NoProxy: true}},
+		}
 
 		// Act
 		_, err := newSvc(daemonCaps).resolveRun(req, rc)
@@ -523,7 +550,10 @@ func Test_Service_resolveRun(t *testing.T) {
 
 	t.Run("an unknown proxy integration is an error", func(t *testing.T) {
 		// Arrange
-		req := Request{Target: target, Flags: Flags{Proxy: resolve.ProxyInput{Integrations: []string{"bogus"}}}}
+		req := Request{
+			Target: target,
+			Flags:  Flags{Proxy: resolve.ProxyInput{Integrations: []string{"bogus"}}},
+		}
 
 		// Act
 		_, err := newSvc(daemonCaps).resolveRun(req, &config.AgenticRC{})
@@ -534,7 +564,10 @@ func Test_Service_resolveRun(t *testing.T) {
 
 	t.Run("dind stays off on a runtime without a daemon", func(t *testing.T) {
 		// Arrange
-		req := Request{Target: target, Flags: Flags{Dind: resolve.DindInput{DindFlag: true}}}
+		req := Request{
+			Target: target,
+			Flags:  Flags{Dind: resolve.DindInput{DindFlag: true}},
+		}
 
 		// Act
 		c, err := newSvc(noDaemonCaps).resolveRun(req, &config.AgenticRC{})

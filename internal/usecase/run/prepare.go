@@ -168,10 +168,13 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC) (runConfig, erro
 
 	limits := resolve.ResourceLimitsFor(flags.Limits, rc)
 	return runConfig{
-		Target:  req.Target,
-		Tool:    req.Tool,
-		RC:      rc,
-		Runtime: runtimeConfig{Name: runtime, Caps: caps},
+		Target: req.Target,
+		Tool:   req.Tool,
+		RC:     rc,
+		Runtime: runtimeConfig{
+			Name: runtime,
+			Caps: caps,
+		},
 		Homes: homes{
 			Tool:      flags.ToolHome,
 			Container: s.docker.ResolveContainerHome(req.Target.ImageName),

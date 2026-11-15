@@ -93,7 +93,10 @@ func Test_Service_buildInstructions(t *testing.T) {
 				Dind:       resolve.DindInput{DindFlag: true},
 				DindLimits: sandbox.ResourceLimits{CPUs: "2"},
 			},
-			rc:     config.RCRun{Proxy: proxyRC, Dind: config.RCDind{RCLimits: config.RCLimits{Memory: "6g"}}},
+			rc: config.RCRun{
+				Proxy: proxyRC,
+				Dind:  config.RCDind{RCLimits: config.RCLimits{Memory: "6g"}},
+			},
 		},
 		{
 			golden: "container-monitor",
@@ -107,8 +110,14 @@ func Test_Service_buildInstructions(t *testing.T) {
 			docker: built,
 			msb:    &fakeMicrosandbox{},
 			tool:   "copilot",
-			flags:  Flags{Runtime: sandbox.RuntimeMicrosandbox, Limits: sandbox.ResourceLimits{CPUs: "3", Memory: "6g"}},
-			rc:     config.RCRun{Instructions: custom},
+			flags: Flags{
+				Runtime: sandbox.RuntimeMicrosandbox,
+				Limits: sandbox.ResourceLimits{
+					CPUs:   "3",
+					Memory: "6g",
+				},
+			},
+			rc: config.RCRun{Instructions: custom},
 		},
 		{
 			golden: "vm-proxy-dind",
@@ -120,7 +129,7 @@ func Test_Service_buildInstructions(t *testing.T) {
 				Proxy:   resolve.ProxyInput{ProxyFlag: true},
 				Dind:    resolve.DindInput{DindFlag: true},
 			},
-			rc:     config.RCRun{Proxy: proxyRC},
+			rc: config.RCRun{Proxy: proxyRC},
 		},
 		{
 			golden: "vm-agentic-proxy-dind",
@@ -129,8 +138,11 @@ func Test_Service_buildInstructions(t *testing.T) {
 			tool:   "claude",
 			flags: Flags{
 				Runtime: sandbox.RuntimeMicrosandbox,
-				Proxy:   resolve.ProxyInput{ProxyFlag: true, Backend: config.BackendAgentic},
-				Dind:    resolve.DindInput{DindFlag: true},
+				Proxy: resolve.ProxyInput{
+					ProxyFlag: true,
+					Backend:   config.BackendAgentic,
+				},
+				Dind: resolve.DindInput{DindFlag: true},
 			},
 		},
 		{
@@ -151,7 +163,11 @@ func Test_Service_buildInstructions(t *testing.T) {
 				m = tc.msb
 			}
 			svc := newTestService(tc.docker, m)
-			req := Request{Target: target, Tool: tools.Configs[tc.tool], Flags: tc.flags}
+			req := Request{
+				Target: target,
+				Tool:   tools.Configs[tc.tool],
+				Flags:  tc.flags,
+			}
 			c, err := svc.resolveRun(req, &config.AgenticRC{Run: tc.rc})
 			require.NoError(t, err)
 			if tc.pin != nil {

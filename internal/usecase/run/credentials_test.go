@@ -90,7 +90,10 @@ func Test_credentialSetup(t *testing.T) {
 		// Arrange
 		c := runConfig{
 			Runtime: proxyInjects,
-			Egress:  egressConfig{Mode: sandbox.EgressMonitor, Credentials: resolved},
+			Egress: egressConfig{
+				Mode:        sandbox.EgressMonitor,
+				Credentials: resolved,
+			},
 		}
 		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
 

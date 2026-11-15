@@ -488,17 +488,28 @@ func stubRunTempDir(t *testing.T) {
 func newTestRunConfig(t *testing.T) runConfig {
 	t.Helper()
 	return runConfig{
-		Target: Target{ToolName: "claude", ImageName: "agentic-claude"},
-		Tool:   tools.Configs["claude"],
-		RC:     &config.AgenticRC{},
-		Homes:  homes{Tool: t.TempDir(), Container: "/home/agent"},
+		Target: Target{
+			ToolName:  "claude",
+			ImageName: "agentic-claude",
+		},
+		Tool: tools.Configs["claude"],
+		RC:   &config.AgenticRC{},
+		Homes: homes{
+			Tool:      t.TempDir(),
+			Container: "/home/agent",
+		},
 	}
 }
 
 // resolvedConfig resolves flags and rc for claude through svc, as Prepare does.
 func resolvedConfig(t *testing.T, svc *Service, target Target, flags Flags, rc *config.AgenticRC) runConfig {
 	t.Helper()
-	c, err := svc.resolveRun(Request{Target: target, Tool: tools.Configs["claude"], Flags: flags}, rc)
+	req := Request{
+		Target: target,
+		Tool:   tools.Configs["claude"],
+		Flags:  flags,
+	}
+	c, err := svc.resolveRun(req, rc)
 	require.NoError(t, err)
 	return c
 }
