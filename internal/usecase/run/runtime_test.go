@@ -2,12 +2,10 @@ package run
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams/iostreamstest"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -33,6 +31,8 @@ func Test_Service_Run(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude", ranSpec.Image)
 		assert.Empty(t, *msbRan)
+		_, idErr := sandbox.ParseRunID(ranSpec.RunID.String())
+		assert.NoError(t, idErr, "every run gets a fresh run id")
 	})
 
 	t.Run("microsandbox runs through the microsandbox client", func(t *testing.T) {
@@ -260,7 +260,62 @@ func Test_Service_checkRuntime(t *testing.T) {
 	})
 }
 
+func Test_Service_Run_watchdog(t *testing.T) {
+	t.Run("spawns the watchdog for the run before the runtime starts anything", func(t *testing.T) {
+		// Arrange
+		w := &fakeWatchdog{}
+		var spawnedFirst bool
+		d := &fakeDocker{startSidecars: func(rs sandbox.RunSpec, _ string) (docker.Sidecars, error) {
+			spawnedFirst = len(w.spawned) == 1 && w.spawned[0] == rs.RunID
+			return docker.Sidecars{}, nil
+		}}
+		svc := New(d, &fakeMicrosandbox{}, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+
+		// Act
+		err := svc.Run(runtimeRequest(sandbox.RuntimeDocker), sandbox.RunSpec{Image: "agentic-claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, spawnedFirst)
+	})
+
+	t.Run("a dry run spawns none", func(t *testing.T) {
+		// Arrange
+		w := &fakeWatchdog{}
+		svc := New(&fakeDocker{}, &fakeMicrosandbox{}, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+
+		// Act
+		err := svc.Run(runtimeRequest(sandbox.RuntimeDocker), sandbox.RunSpec{Image: "agentic-claude", DryRun: true})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Empty(t, w.spawned)
+	})
+
+	t.Run("a failed spawn only warns", func(t *testing.T) {
+		// Arrange
+		errOut := iostreamstest.StubErr(t)
+		ran := false
+		d := &fakeDocker{runTool: func(docker.Sidecars) error {
+			ran = true
+			return nil
+		}}
+		w := &fakeWatchdog{err: errors.New("stub: spawn failed")}
+		svc := New(d, &fakeMicrosandbox{}, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+
+		// Act
+		err := svc.Run(runtimeRequest(sandbox.RuntimeDocker), sandbox.RunSpec{Image: "agentic-claude"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, ran)
+		assert.Contains(t, errOut.String(), "stub: spawn failed")
+	})
+}
+
 func Test_Service_Teardown(t *testing.T) {
+	const id sandbox.RunID = "0123456789ab"
+
 	for _, tc := range []struct {
 		name        string
 		runtime     sandbox.Runtime
@@ -287,7 +342,6 @@ func Test_Service_Teardown(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			stubRunTempDir(t)
 			var dockerHome string
 			var dockerID, msbID sandbox.RunID
 			d := &fakeDocker{teardown: func(toolHome string, got sandbox.RunID) error {
@@ -298,15 +352,9 @@ func Test_Service_Teardown(t *testing.T) {
 				msbID = got
 				return nil
 			}}
-			run := sandbox.RunRef{
-				ID:       testRunID,
-				Runtime:  tc.runtime,
-				Tool:     "claude",
-				ToolHome: "/example.test/home",
-			}
 
 			// Act
-			err := newTestService(d, m).Teardown(run)
+			err := newTestService(d, m).Teardown(tc.runtime, "/example.test/home", id)
 
 			// Assert
 			if tc.wantErrText != "" {
@@ -314,10 +362,9 @@ func Test_Service_Teardown(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tc.wantDocker, dockerID == testRunID)
+			assert.Equal(t, tc.wantDocker, dockerID == id)
 			assert.Equal(t, tc.wantDocker, dockerHome == "/example.test/home")
-			assert.Equal(t, tc.wantMsb, msbID == testRunID)
-			assert.NoDirExists(t, sandbox.RunTempDir(testRunID))
+			assert.Equal(t, tc.wantMsb, msbID == id)
 		})
 	}
 
@@ -325,109 +372,12 @@ func Test_Service_Teardown(t *testing.T) {
 		// Arrange
 		d := &fakeDocker{teardown: func(string, sandbox.RunID) error { return errors.New("stub: docker failed") }}
 		m := &fakeMicrosandbox{teardown: func(sandbox.RunID) error { return errors.New("stub: msb failed") }}
-		run := sandbox.RunRef{
-			ID:       testRunID,
-			Runtime:  sandbox.RuntimeMicrosandbox,
-			ToolHome: "/example.test/home",
-		}
 
 		// Act
-		err := newTestService(d, m).Teardown(run)
+		err := newTestService(d, m).Teardown(sandbox.RuntimeMicrosandbox, "/example.test/home", id)
 
 		// Assert
 		require.ErrorContains(t, err, "stub: docker failed")
 		require.ErrorContains(t, err, "stub: msb failed")
-	})
-
-	t.Run("saves a leftover instructions snapshot to the tool's file once the runtime is torn down", func(t *testing.T) {
-		// Arrange
-		stubRunTempDir(t)
-		toolHome := t.TempDir()
-		require.NoError(t, tools.Configs["claude"].Runtime.Setup(toolHome))
-		snapshot, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, testRunID, tools.Configs["claude"], "generated block")
-		require.NoError(t, err)
-		snapshotPath := sandbox.HostPart(snapshot.MountSpec)
-		var snapshotAtTeardown bool
-		d := &fakeDocker{teardown: func(string, sandbox.RunID) error {
-			require.NoError(t, appendFile(snapshotPath, "\nuser note\n"))
-			snapshotAtTeardown = true
-			return nil
-		}}
-		run := sandbox.RunRef{
-			ID:       testRunID,
-			Runtime:  sandbox.RuntimeDocker,
-			Tool:     "claude",
-			ToolHome: toolHome,
-		}
-
-		// Act
-		err = newTestService(d, nil).Teardown(run)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, snapshotAtTeardown)
-		got, err := os.ReadFile(tools.Configs["claude"].Runtime.InstructionsHostPath(toolHome))
-		require.NoError(t, err)
-		assert.Equal(t, "user note\n", string(got))
-		assert.NoDirExists(t, sandbox.RunTempDir(testRunID))
-	})
-}
-
-func Test_Service_startRun(t *testing.T) {
-	t.Run("spawns the run's watchdog before creating its temp dir", func(t *testing.T) {
-		// Arrange
-		req := newPrepareRequest(t)
-		var dirAtSpawn bool
-		w := &fakeWatchdog{onSpawn: func(run sandbox.RunRef) {
-			_, err := os.Stat(sandbox.RunTempDir(run.ID))
-			dirAtSpawn = err == nil
-		}}
-		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
-
-		// Act
-		id, err := svc.startRun(req)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, []sandbox.RunRef{{
-			ID:       id,
-			Runtime:  sandbox.RuntimeDocker,
-			Tool:     "claude",
-			ToolHome: req.Flags.ToolHome,
-		}}, w.spawned)
-		assert.False(t, dirAtSpawn)
-		assert.DirExists(t, sandbox.RunTempDir(id))
-	})
-
-	t.Run("a dry run spawns none", func(t *testing.T) {
-		// Arrange
-		req := newPrepareRequest(t)
-		req.Flags.DryRun = true
-		w := &fakeWatchdog{}
-		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
-
-		// Act
-		id, err := svc.startRun(req)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Empty(t, w.spawned)
-		assert.DirExists(t, sandbox.RunTempDir(id))
-	})
-
-	t.Run("a failed spawn only warns", func(t *testing.T) {
-		// Arrange
-		errOut := iostreamstest.StubErr(t)
-		req := newPrepareRequest(t)
-		w := &fakeWatchdog{err: errors.New("stub: spawn failed")}
-		svc := New(&fakeDocker{}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
-
-		// Act
-		id, err := svc.startRun(req)
-
-		// Assert
-		require.NoError(t, err)
-		assert.DirExists(t, sandbox.RunTempDir(id))
-		assert.Contains(t, errOut.String(), "stub: spawn failed")
 	})
 }

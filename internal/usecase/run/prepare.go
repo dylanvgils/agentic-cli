@@ -82,21 +82,7 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
-	id, err := s.startRun(req)
-	if err != nil {
-		return sandbox.RunSpec{}, noCleanup, err
-	}
-
-	rs, finalize, err := s.buildWithInstructions(id, req.Target, in, req.Tool, approved)
-	cleanup := func() {
-		finalize()
-		removeRunTempDir(id)
-	}
-	if err != nil {
-		cleanup()
-		return sandbox.RunSpec{}, noCleanup, err
-	}
-	return rs, cleanup, nil
+	return s.buildWithInstructions(req.Target, in, req.Tool, approved)
 }
 
 // checkTool offers a due tool update, unless it's a dry run, and creates the tool's host files.

@@ -1,7 +1,6 @@
 package run
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
@@ -21,7 +20,7 @@ type runner interface {
 	Teardown(toolHome string, id sandbox.RunID) error
 }
 
-// Run executes rs, which Prepare gave its RunID, on req's runtime, which first readies its own host resources.
+// Run executes rs on req's runtime, which first readies its own host resources.
 // Every runtime gets rs's security checks here, even one whose runner skips its own.
 func (s *Service) Run(req Request, rs sandbox.RunSpec) error {
 	r, err := s.runner(req.runtime(), req.proxyBackend())
@@ -35,46 +34,28 @@ func (s *Service) Run(req Request, rs sandbox.RunSpec) error {
 	if err := recheckMounts(rs); err != nil {
 		return err
 	}
-	return r.Run(req, rs)
-}
 
-// Teardown removes everything run left: its runtime resources, then its instructions snapshot, saved back to the tool's
-// file, and its temp dir. Best-effort and idempotent.
-func (s *Service) Teardown(run sandbox.RunRef) error {
-	r, err := s.runner(run.Runtime, "")
+	rs.RunID, err = sandbox.NewRunID()
 	if err != nil {
 		return err
 	}
 
-	// In order: the runtime first, so nothing writes the snapshot while it's saved
-	runtimeErr := r.Teardown(run.ToolHome, run.ID)
-	snapshotErr := finalizeLeftoverSnapshot(run)
-	return errors.Join(runtimeErr, snapshotErr, sandbox.RemoveRunTempDir(run.ID))
-}
-
-// startRun gives a run its ID, its watchdog unless it's a dry run, then its temp dir, before anything it can leave behind.
-func (s *Service) startRun(req Request) (sandbox.RunID, error) {
-	id, err := sandbox.NewRunID()
-	if err != nil {
-		return "", err
-	}
-
-	if !req.Flags.DryRun {
-		run := sandbox.RunRef{
-			ID:       id,
-			Runtime:  req.runtime(),
-			Tool:     req.Target.ToolName,
-			ToolHome: req.Flags.ToolHome,
-		}
-		if err := s.watchdog.Spawn(run); err != nil {
+	// Before any resource, so setup crashes are covered
+	if !rs.DryRun {
+		if err := s.watchdog.Spawn(req.runtime(), rs.ToolHome, rs.RunID); err != nil {
 			logging.Warnf("watchdog not confirmed, so a killed run may be left behind: %v", err)
 		}
 	}
+	return r.Run(req, rs)
+}
 
-	if err := sandbox.CreateRunTempDir(id); err != nil {
-		return "", err
+// Teardown removes everything run id left on runtime.
+func (s *Service) Teardown(runtime sandbox.Runtime, toolHome string, id sandbox.RunID) error {
+	r, err := s.runner(runtime, "")
+	if err != nil {
+		return err
 	}
-	return id, nil
+	return r.Teardown(toolHome, id)
 }
 
 // runner returns the runner for runtime with proxy backend; an empty runtime is Docker, an empty backend the runtime's
@@ -115,11 +96,4 @@ func (s *Service) checkRuntime(req Request) error {
 		return err
 	}
 	return r.Check(req)
-}
-
-// removeRunTempDir removes run id's temp dir once the run is done, warning rather than failing.
-func removeRunTempDir(id sandbox.RunID) {
-	if err := sandbox.RemoveRunTempDir(id); err != nil {
-		logging.Warnf("could not remove the run's temp files: %v", err)
-	}
 }

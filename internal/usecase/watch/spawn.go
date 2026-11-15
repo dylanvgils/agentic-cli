@@ -22,15 +22,17 @@ func NewSpawner(command, dockerContext string) Spawner {
 	return Spawner{command: command, dockerContext: dockerContext}
 }
 
-// Spawn starts a detached watchdog for run and waits until it watches this process.
-func (s Spawner) Spawn(run sandbox.RunRef) error {
+// Spawn starts a detached watchdog for run id and waits until it watches this process.
+func (s Spawner) Spawn(runtime sandbox.Runtime, toolHome string, id sandbox.RunID) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return err
 	}
 
 	target := Target{
-		RunRef:        run,
+		RunID:         id,
+		Runtime:       runtime,
+		ToolHome:      toolHome,
 		DockerContext: s.dockerContext,
 		PID:           os.Getpid(),
 	}

@@ -54,16 +54,16 @@ func (s *Service) teardown(t Target) error {
 	case err := <-done:
 		return err
 	case <-time.After(s.teardownTimeout):
-		return fmt.Errorf("teardown of run %s not done within %s", t.ID, s.teardownTimeout)
+		return fmt.Errorf("teardown of run %s not done within %s", t.RunID, s.teardownTimeout)
 	}
 }
 
 // teardownSettled tears t's run down twice: a runtime call the killed process had in flight, such as a `docker create`,
 // outlives it and can add a resource after the first pass. Only the second pass's error counts.
 func (s *Service) teardownSettled(t Target) error {
-	_ = s.runs.Teardown(t.RunRef)
+	_ = s.runs.Teardown(t.Runtime, t.ToolHome, t.RunID)
 	time.Sleep(s.settleTime)
-	return s.runs.Teardown(t.RunRef)
+	return s.runs.Teardown(t.Runtime, t.ToolHome, t.RunID)
 }
 
 // waitForExit blocks until pid exits, printing ReadyLine once it watches.

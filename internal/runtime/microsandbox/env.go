@@ -15,9 +15,6 @@ const (
 
 	// guestEnvPrefix renames guest-only values in msb's env, so msb itself ignores them.
 	guestEnvPrefix = "AGENTIC_GUEST_"
-
-	// envConfName names the --runtime-conf file in the run temp dir.
-	envConfName = "msb-env.yaml"
 )
 
 // envRef maps a guest key to the msb env var holding its value.
@@ -96,7 +93,7 @@ func writeEnvConf(id sandbox.RunID, refs []envRef) (string, error) {
 		fmt.Fprintf(&b, "  %q: \"${%s}\"\n", ref.guest, ref.source)
 	}
 
-	f, err := sandbox.CreateRunFile(id, envConfName)
+	f, err := os.OpenFile(envConfPath(id), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", fmt.Errorf("create msb env file: %w", err)
 	}
@@ -111,5 +108,5 @@ func writeEnvConf(id sandbox.RunID, refs []envRef) (string, error) {
 
 // envConfPath returns run id's --runtime-conf file.
 func envConfPath(id sandbox.RunID) string {
-	return filepath.Join(sandbox.RunTempDir(id), envConfName)
+	return filepath.Join(os.TempDir(), "agentic-msb-env-"+id.String()+".yaml")
 }

@@ -27,6 +27,6 @@ It takes the same `--proxy`, `--dind`, `--runtime` and limit flags as `agentic r
 
 ## How the file is handled
 
-The rest of the file is left alone, including notes the tool saves there itself, even with `enabled = false`. Each run works on a private copy of the file, so concurrent runs don't affect each other. Changes made during the run are copied back when the tool exits, or by the [watchdog](security-model.md#leftover-risk) if agentic is killed.
+The rest of the file is left alone, including notes the tool saves there itself, even with `enabled = false`. Each run works on a private copy of the file, so concurrent runs don't affect each other. Changes made during the run are copied back when the tool exits.
 
 The file must be a regular file: agentic refuses a symlink there, since the tool can write that directory and could otherwise redirect the copy-back to any host file. Reads and writes also stay inside `$AGENTIC_HOME/tools`.

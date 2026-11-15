@@ -41,26 +41,35 @@ func Merged(toolsDir, hostPath, block string) (string, error) {
 	return mergeInstructions(existing, block), nil
 }
 
-// PrepareSnapshot writes hostPath's content merged with block to snapshot, a per-run file the caller created, so each run
-// gets a private mount instead of sharing one live file.
-func PrepareSnapshot(toolsDir, hostPath, block string, snapshot io.Writer) error {
+// PrepareSnapshot writes the merged content to a new, uniquely-named file in the OS temp dir, returning its path - so each run gets a private mount instead of sharing one live file.
+func PrepareSnapshot(toolsDir, hostPath, block string) (string, error) {
 	root, name, err := createRoot(toolsDir, hostPath)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = root.Close() }()
 
 	existing, err := readInstructions(root, name)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if err := ensureHostFile(root, name); err != nil {
-		return err
+		return "", err
 	}
 
-	_, err = io.WriteString(snapshot, mergeInstructions(existing, block))
-	return err
+	f, err := os.CreateTemp("", "agentic-instructions-*"+filepath.Ext(hostPath))
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+
+	if _, err := f.WriteString(mergeInstructions(existing, block)); err != nil {
+		_ = os.Remove(f.Name())
+		return "", err
+	}
+
+	return f.Name(), nil
 }
 
 // FinalizeSnapshot strips the managed block from snapshotPath and persists the rest back to hostPath, then removes snapshotPath.

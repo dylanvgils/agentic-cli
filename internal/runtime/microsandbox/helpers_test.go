@@ -91,10 +91,3 @@ func stubRunInteractive() (*Client, *msbCall) {
 	}})
 	return client, call
 }
-
-// stubRunTempDir points the OS temp dir at a test dir and creates testRunID's run temp dir in it.
-func stubRunTempDir(t *testing.T) {
-	t.Helper()
-	t.Setenv("TMPDIR", t.TempDir())
-	require.NoError(t, sandbox.CreateRunTempDir(testRunID))
-}

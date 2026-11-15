@@ -22,9 +22,6 @@ import (
 // update rewrites golden files instead of comparing against them.
 var update = flag.Bool("update", false, "rewrite golden files in testdata")
 
-// testRunID is the run ID of test runs.
-const testRunID sandbox.RunID = "0123456789ab"
-
 // fakeDocker implements Docker; a nil field succeeds with a zero value, except capabilities, which defaults to Docker's.
 type fakeDocker struct {
 	capabilities         func() sandbox.Capabilities
@@ -133,18 +130,14 @@ func (f *fakeDocker) Teardown(toolHome string, id sandbox.RunID) error {
 	return f.teardown(toolHome, id)
 }
 
-// fakeWatchdog implements Watchdog, recording each spawn; err is what Spawn returns, and a non-nil onSpawn runs first.
+// fakeWatchdog implements Watchdog, recording each spawn; err is what Spawn returns.
 type fakeWatchdog struct {
-	spawned []sandbox.RunRef
+	spawned []sandbox.RunID
 	err     error
-	onSpawn func(run sandbox.RunRef)
 }
 
-func (f *fakeWatchdog) Spawn(run sandbox.RunRef) error {
-	if f.onSpawn != nil {
-		f.onSpawn(run)
-	}
-	f.spawned = append(f.spawned, run)
+func (f *fakeWatchdog) Spawn(_ sandbox.Runtime, _ string, id sandbox.RunID) error {
+	f.spawned = append(f.spawned, id)
 	return f.err
 }
 
@@ -386,8 +379,6 @@ func approveSettings(t *testing.T, layer config.RCLayer, toolHome string) {
 // newPrepareRequest returns a Request for claude in a fresh home and cwd.
 func newPrepareRequest(t *testing.T) Request {
 	t.Helper()
-	// Prepare creates the run temp dir
-	t.Setenv("TMPDIR", t.TempDir())
 	return Request{
 		Target:  Target{ToolName: "claude", ImageName: "agentic-claude"},
 		Tool:    tools.Configs["claude"],
@@ -475,11 +466,4 @@ func assertGolden(t *testing.T, name, got string) {
 	want, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, string(want), got)
-}
-
-// stubRunTempDir points the OS temp dir at a test dir and creates testRunID's run temp dir in it.
-func stubRunTempDir(t *testing.T) {
-	t.Helper()
-	t.Setenv("TMPDIR", t.TempDir())
-	require.NoError(t, sandbox.CreateRunTempDir(testRunID))
 }

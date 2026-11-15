@@ -153,7 +153,7 @@ func TestPrepareInstructions(t *testing.T) {
 		hostPath := tools.Configs["claude"].Runtime.InstructionsHostPath(toolHome)
 
 		// Act
-		snapshot, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, testRunID, tools.Configs["claude"], "")
+		snapshot, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, tools.Configs["claude"], "")
 
 		// Assert
 		require.NoError(t, err)
@@ -165,12 +165,11 @@ func TestPrepareInstructions(t *testing.T) {
 
 	t.Run("enabled mounts a per-run snapshot over the tool's instructions path", func(t *testing.T) {
 		// Arrange
-		stubRunTempDir(t)
 		toolHome := t.TempDir()
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(toolHome))
 
 		// Act
-		snapshot, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, testRunID, tools.Configs["claude"], "generated block")
+		snapshot, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, tools.Configs["claude"], "generated block")
 
 		// Assert
 		require.NoError(t, err)
@@ -188,10 +187,9 @@ func TestPrepareInstructions(t *testing.T) {
 	// *correct* hostPath and snapshotPath for this tool/toolHome.
 	t.Run("cleanup finalizes to this tool's persistent path and removes the snapshot", func(t *testing.T) {
 		// Arrange
-		stubRunTempDir(t)
 		toolHome := t.TempDir()
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(toolHome))
-		snapshot, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, testRunID, tools.Configs["claude"], "generated block")
+		snapshot, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, tools.Configs["claude"], "generated block")
 		require.NoError(t, err)
 		snapshotPath := sandbox.HostPart(snapshot.MountSpec)
 		require.NoError(t, appendFile(snapshotPath, "\nuser note\n"))

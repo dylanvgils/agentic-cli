@@ -1,10 +1,7 @@
 package run
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -52,16 +49,15 @@ func (s InstructionsSnapshot) Cleanup() {
 	}
 }
 
-// PrepareInstructions stages content into run id's private snapshot file and returns its mount spec, or strips any stale
-// managed block in place when content is empty.
-func (s *Service) PrepareInstructions(toolHome string, id sandbox.RunID, toolConfig tools.ToolConfig, content string) (InstructionsSnapshot, error) {
+// PrepareInstructions stages content into a private per-run snapshot file and returns its mount spec, or strips any stale managed block in place when content is empty.
+func (s *Service) PrepareInstructions(toolHome string, toolConfig tools.ToolConfig, content string) (InstructionsSnapshot, error) {
 	if content == "" {
 		return InstructionsSnapshot{}, toolConfig.Runtime.WriteInstructions(toolHome, "")
 	}
 
-	toolsDir := filepath.Join(toolHome, tools.ToolsDirName)
 	hostPath := toolConfig.Runtime.InstructionsHostPath(toolHome)
-	snapshotPath, err := writeSnapshot(toolsDir, hostPath, id, content)
+
+	snapshotPath, err := instructions.PrepareSnapshot(filepath.Join(toolHome, tools.ToolsDirName), hostPath, content)
 	if err != nil {
 		return InstructionsSnapshot{}, err
 	}
@@ -69,7 +65,7 @@ func (s *Service) PrepareInstructions(toolHome string, id sandbox.RunID, toolCon
 	return InstructionsSnapshot{
 		MountSpec: sandbox.VolumeMount(snapshotPath, toolConfig.Runtime.InstructionsContainerPath),
 		finalize: func() error {
-			return instructions.FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
+			return instructions.FinalizeSnapshot(filepath.Join(toolHome, tools.ToolsDirName), hostPath, snapshotPath)
 		},
 	}, nil
 }
@@ -376,47 +372,4 @@ func writeCustomSection(b *strings.Builder, custom string) {
 	b.WriteString("## Additional instructions\n\n")
 	b.WriteString(custom)
 	b.WriteString("\n")
-}
-
-// writeSnapshot writes hostPath's content merged with content to run id's snapshot file and returns its path.
-func writeSnapshot(toolsDir, hostPath string, id sandbox.RunID, content string) (string, error) {
-	f, err := sandbox.CreateRunFile(id, snapshotName(hostPath))
-	if err != nil {
-		return "", fmt.Errorf("create instructions snapshot: %w", err)
-	}
-
-	err = instructions.PrepareSnapshot(toolsDir, hostPath, content, f)
-	if closeErr := f.Close(); err == nil {
-		err = closeErr
-	}
-	if err != nil {
-		_ = os.Remove(f.Name())
-		return "", err
-	}
-	return f.Name(), nil
-}
-
-// finalizeLeftoverSnapshot saves the snapshot a killed run left back to its tool's instructions file; without one, or for
-// an unknown tool, there is nothing to do.
-func finalizeLeftoverSnapshot(run sandbox.RunRef) error {
-	toolConfig, ok := tools.Configs[run.Tool]
-	if !ok {
-		return nil
-	}
-
-	hostPath := toolConfig.Runtime.InstructionsHostPath(run.ToolHome)
-	snapshotPath := filepath.Join(sandbox.RunTempDir(run.ID), snapshotName(hostPath))
-	if _, err := os.Stat(snapshotPath); errors.Is(err, fs.ErrNotExist) {
-		return nil
-	}
-
-	if err := instructions.FinalizeSnapshot(filepath.Join(run.ToolHome, tools.ToolsDirName), hostPath, snapshotPath); err != nil {
-		return fmt.Errorf("save instructions: %w", err)
-	}
-	return nil
-}
-
-// snapshotName names the instructions snapshot in the run temp dir, keeping hostPath's extension.
-func snapshotName(hostPath string) string {
-	return "instructions" + filepath.Ext(hostPath)
 }

@@ -21,9 +21,6 @@ const (
 
 	// dryRunTokenPlaceholder stands in for a published proxy's auth token in dry-run output, so it is never printed.
 	dryRunTokenPlaceholder = "<auth token>"
-
-	// tokenFileName names a published proxy's token file in the run temp dir.
-	tokenFileName = "proxy-token.env"
 )
 
 // PublishedProxy is a proxy sidecar published on a host loopback port, for a runtime outside Docker; Stop removes it.
@@ -145,7 +142,7 @@ func (h proxyHandle) writeTokenFile() (path string, remove func(), err error) {
 		return "", noCleanup, nil
 	}
 
-	f, err := sandbox.CreateRunFile(h.id, tokenFileName)
+	f, err := os.OpenFile(tokenFilePath(h.id), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", nil, fmt.Errorf("create proxy token file: %w", err)
 	}
@@ -164,7 +161,7 @@ func (h proxyHandle) writeTokenFile() (path string, remove func(), err error) {
 
 // tokenFilePath returns run id's proxy token file.
 func tokenFilePath(id sandbox.RunID) string {
-	return filepath.Join(sandbox.RunTempDir(id), tokenFileName)
+	return filepath.Join(os.TempDir(), "agentic-proxy-token-"+id.String()+".env")
 }
 
 // parsePublishedPort returns the port of the first `docker port` line, e.g. "127.0.0.1:49153".
