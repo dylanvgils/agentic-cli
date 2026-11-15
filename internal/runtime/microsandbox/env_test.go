@@ -98,6 +98,7 @@ func Test_guestProcessEnv(t *testing.T) {
 
 func Test_writeEnvConf(t *testing.T) {
 	// Arrange
+	stubRunTempDir(t)
 	refs := []envRef{
 		{guest: "EXAMPLE_TOKEN", source: "EXAMPLE_TOKEN"},
 		{guest: "HTTPS_PROXY", source: "AGENTIC_GUEST_HTTPS_PROXY"},
@@ -108,7 +109,6 @@ func Test_writeEnvConf(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.Remove(path) })
 	assert.Equal(t, envConfPath(testRunID), path)
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)

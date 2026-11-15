@@ -90,6 +90,11 @@ func RootDir() string {
 	return rootDir
 }
 
+// TmpDir returns the TMPDIR of every agentic call.
+func TmpDir() string {
+	return tmpDir
+}
+
 // WorkDir returns the shared work dir, mounted as the tool's /workspace.
 func WorkDir() string {
 	return workDir

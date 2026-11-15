@@ -2,6 +2,7 @@ package run
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -37,6 +38,28 @@ func TestPrepare(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "agentic-claude", rs.Image)
+	})
+
+	t.Run("gives the run its ID, watched before the instructions snapshot exists", func(t *testing.T) {
+		// Arrange
+		req := newPrepareRequest(t)
+		var snapshotAtSpawn bool
+		w := &fakeWatchdog{onSpawn: func(run sandbox.RunRef) {
+			_, err := os.Stat(sandbox.RunTempDir(run.ID))
+			snapshotAtSpawn = err == nil
+		}}
+		svc := New(&fakeDocker{inspectImage: built}, nil, &fakeToolUpdates{}, &fakeSidecarImages{}, w)
+
+		// Act
+		rs, cleanup, err := svc.Prepare(req, &fakePrompter{})
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, w.spawned, 1)
+		assert.Equal(t, w.spawned[0].ID, rs.RunID)
+		assert.False(t, snapshotAtSpawn)
+		cleanup()
+		assert.NoDirExists(t, sandbox.RunTempDir(rs.RunID), "cleanup removes the run temp dir")
 	})
 
 	t.Run("missing image stops before any prompt", func(t *testing.T) {

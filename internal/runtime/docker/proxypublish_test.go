@@ -28,6 +28,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 
 	t.Run("publishes the proxy on loopback with a token only its env file holds", func(t *testing.T) {
 		// Arrange
+		stubRunTempDir(t)
 		calls, tokenFile := stubPublishedProxyDocker(t, client, "unix:///var/run/docker.sock")
 		spec := newSpec(t)
 
@@ -55,6 +56,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 
 	t.Run("returns the CA and placeholders with credentials", func(t *testing.T) {
 		// Arrange
+		stubRunTempDir(t)
 		stubPublishedProxyDocker(t, client, "unix:///var/run/docker.sock")
 		stubDockerRunWithStdinCapture(t, client, nil)
 		spec := newSpec(t)
@@ -86,6 +88,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 
 	t.Run("stop tears its run down", func(t *testing.T) {
 		// Arrange
+		stubRunTempDir(t)
 		calls, _ := stubPublishedProxyDocker(t, client, "unix:///var/run/docker.sock")
 		published, err := client.StartPublishedProxy(newSpec(t), filepath.Join(t.TempDir(), "proxy_abc.jsonl"), sandbox.RuntimeMicrosandbox)
 		require.NoError(t, err)
@@ -99,6 +102,7 @@ func TestClient_StartPublishedProxy(t *testing.T) {
 
 	t.Run("tears its run down when its port can't be read", func(t *testing.T) {
 		// Arrange
+		stubRunTempDir(t)
 		calls, _ := stubPublishedProxyDocker(t, client, "unix:///var/run/docker.sock", "port")
 
 		// Act

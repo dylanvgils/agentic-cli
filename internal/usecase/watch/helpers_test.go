@@ -13,23 +13,16 @@ import (
 // childLifetime is how long a startChild child runs.
 const childLifetime = 300 * time.Millisecond
 
-// teardownCall records one Teardown.
-type teardownCall struct {
-	runtime  sandbox.Runtime
-	toolHome string
-	id       sandbox.RunID
-}
-
 // fakeRuns implements Runs, recording each teardown; errs[i] is what the i-th Teardown returns, and a non-nil release
 // blocks it until closed.
 type fakeRuns struct {
-	calls   []teardownCall
+	calls   []sandbox.RunRef
 	errs    []error
 	release chan struct{}
 }
 
-func (f *fakeRuns) Teardown(runtime sandbox.Runtime, toolHome string, id sandbox.RunID) error {
-	f.calls = append(f.calls, teardownCall{runtime: runtime, toolHome: toolHome, id: id})
+func (f *fakeRuns) Teardown(run sandbox.RunRef) error {
+	f.calls = append(f.calls, run)
 	if f.release != nil {
 		<-f.release
 	}

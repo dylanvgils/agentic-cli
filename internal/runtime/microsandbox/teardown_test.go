@@ -13,6 +13,7 @@ import (
 func TestClient_Teardown(t *testing.T) {
 	t.Run("stops the run's VMs and removes its env file", func(t *testing.T) {
 		// Arrange
+		stubRunTempDir(t)
 		var calls [][]string
 		client := newTestClient(&fakeRunner{run: func(args ...string) (string, error) {
 			calls = append(calls, args)
@@ -58,6 +59,7 @@ func TestClient_Teardown(t *testing.T) {
 
 	t.Run("a failed listing still removes the env file", func(t *testing.T) {
 		// Arrange
+		stubRunTempDir(t)
 		client := newTestClient(&fakeRunner{run: func(...string) (string, error) { return "", errors.New("stub: msb down") }})
 		require.NoError(t, os.WriteFile(envConfPath(testRunID), []byte("env:\n"), 0o600))
 

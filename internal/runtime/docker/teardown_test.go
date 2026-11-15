@@ -19,6 +19,7 @@ func TestClient_Teardown(t *testing.T) {
 
 	t.Run("removes the tool, then its sidecars, network and files", func(t *testing.T) {
 		// Arrange
+		stubRunTempDir(t)
 		toolHome := t.TempDir()
 		makeDindRunDir(t, toolHome, string(testRunID), 0)
 		require.NoError(t, os.WriteFile(tokenFilePath(testRunID), []byte("token"), 0o600))

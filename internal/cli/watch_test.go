@@ -15,7 +15,7 @@ const testRunID sandbox.RunID = "0123456789ab"
 
 func Test_watchCmd(t *testing.T) {
 	// Act
-	args := watch.Target{RunID: testRunID}.Args()
+	args := watch.Target{RunRef: sandbox.RunRef{ID: testRunID}}.Args()
 
 	// Assert
 	for _, arg := range args {
@@ -32,6 +32,7 @@ func Test_watchTarget(t *testing.T) {
 		cmd := newTestWatchCmd(t,
 			"--run="+string(testRunID),
 			"--runtime=docker",
+			"--tool=claude",
 			"--docker-context=example",
 			"--pid=4242",
 		)
@@ -42,9 +43,12 @@ func Test_watchTarget(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, watch.Target{
-			RunID:         testRunID,
-			Runtime:       sandbox.RuntimeDocker,
-			ToolHome:      "/example.test/home",
+			RunRef: sandbox.RunRef{
+				ID:       testRunID,
+				Runtime:  sandbox.RuntimeDocker,
+				Tool:     "claude",
+				ToolHome: "/example.test/home",
+			},
 			DockerContext: "example",
 			PID:           4242,
 		}, target)

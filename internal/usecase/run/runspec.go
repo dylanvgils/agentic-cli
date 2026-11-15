@@ -133,14 +133,15 @@ func (s *Service) ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *conf
 	return needsMarketplaceSync(toolConfig, rc, tool)
 }
 
-// buildWithInstructions wraps build with this run's instructions snapshot mounted in; the returned cleanup func must always be deferred, even on error.
-func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tools.ToolConfig, approved approvedConfig) (sandbox.RunSpec, func(), error) {
+// buildWithInstructions wraps build with run id's instructions snapshot mounted in; the returned cleanup func must always
+// be deferred, even on error.
+func (s *Service) buildWithInstructions(id sandbox.RunID, target Target, in Input, toolConfig tools.ToolConfig, approved approvedConfig) (sandbox.RunSpec, func(), error) {
 	content, err := s.BuildInstructions(target, in, toolConfig, approved.rc)
 	if err != nil {
 		return sandbox.RunSpec{}, noCleanup, fmt.Errorf("build instructions for %s: %w", target.ToolName, err)
 	}
 
-	snapshot, err := s.PrepareInstructions(in.ToolHome, toolConfig, content)
+	snapshot, err := s.PrepareInstructions(in.ToolHome, id, toolConfig, content)
 	if err != nil {
 		return sandbox.RunSpec{}, noCleanup, fmt.Errorf("prepare instructions for %s: %w", target.ToolName, err)
 	}
@@ -153,6 +154,7 @@ func (s *Service) buildWithInstructions(target Target, in Input, toolConfig tool
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
+	rs.RunID = id
 	return rs, snapshot.Cleanup, nil
 }
 

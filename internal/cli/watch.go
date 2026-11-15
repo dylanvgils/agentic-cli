@@ -25,6 +25,7 @@ func init() {
 
 	watchCmd.Flags().String(watch.FlagRun, "", "ID of the run to tear down")
 	watchCmd.Flags().String(watch.FlagRuntime, "", "runtime of the run")
+	watchCmd.Flags().String(watch.FlagTool, "", "tool of the run, whose instructions a leftover snapshot is saved to")
 	watchCmd.Flags().Int(watch.FlagPID, 0, "agentic process to wait for")
 	_ = watchCmd.MarkFlagRequired(watch.FlagRun)
 	_ = watchCmd.MarkFlagRequired(watch.FlagPID)
@@ -44,6 +45,7 @@ func runWatch(cmd *cobra.Command, _ []string) error {
 func watchTarget(cmd *cobra.Command) (watch.Target, error) {
 	runID, _ := cmd.Flags().GetString(watch.FlagRun)
 	runtime, _ := cmd.Flags().GetString(watch.FlagRuntime)
+	tool, _ := cmd.Flags().GetString(watch.FlagTool)
 	dockerContext, _ := cmd.Flags().GetString(dockerContextFlagName)
 	pid, _ := cmd.Flags().GetInt(watch.FlagPID)
 
@@ -52,9 +54,12 @@ func watchTarget(cmd *cobra.Command) (watch.Target, error) {
 		return watch.Target{}, err
 	}
 	return watch.Target{
-		RunID:         id,
-		Runtime:       sandbox.Runtime(runtime),
-		ToolHome:      toolHome,
+		RunRef: sandbox.RunRef{
+			ID:       id,
+			Runtime:  sandbox.Runtime(runtime),
+			Tool:     tool,
+			ToolHome: toolHome,
+		},
 		DockerContext: dockerContext,
 		PID:           pid,
 	}, nil

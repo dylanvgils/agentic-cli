@@ -345,16 +345,18 @@ func Test_Service_buildWithInstructions(t *testing.T) {
 
 	t.Run("wires the generated content into the RunSpec's instructions mount", func(t *testing.T) {
 		// Arrange
+		stubRunTempDir(t)
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 		in := Input{ToolHome: t.TempDir()}
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(in.ToolHome))
 
 		// Act
-		rs, cleanup, err := newTestService(d, nil).buildWithInstructions(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, cleanup, err := newTestService(d, nil).buildWithInstructions(testRunID, target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.NoError(t, err)
 		t.Cleanup(cleanup)
+		assert.Equal(t, testRunID, rs.RunID)
 		instructionsVolume := findVolumeSuffix(t, rs.Volumes, ":$CONTAINER_HOME/.claude/CLAUDE.md")
 		got, err := os.ReadFile(sandbox.HostPart(instructionsVolume))
 		require.NoError(t, err)
@@ -363,10 +365,11 @@ func Test_Service_buildWithInstructions(t *testing.T) {
 
 	t.Run("returned cleanup is wired to a real finalize, not a no-op", func(t *testing.T) {
 		// Arrange
+		stubRunTempDir(t)
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 		in := Input{ToolHome: t.TempDir()}
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(in.ToolHome))
-		rs, cleanup, err := newTestService(d, nil).buildWithInstructions(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		rs, cleanup, err := newTestService(d, nil).buildWithInstructions(testRunID, target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 		require.NoError(t, err)
 		instructionsVolume := findVolumeSuffix(t, rs.Volumes, ":$CONTAINER_HOME/.claude/CLAUDE.md")
 		snapshotPath := sandbox.HostPart(instructionsVolume)
@@ -381,21 +384,18 @@ func Test_Service_buildWithInstructions(t *testing.T) {
 
 	t.Run("build error finalizes and removes the snapshot immediately, rather than leaking it", func(t *testing.T) {
 		// Arrange
+		stubRunTempDir(t)
 		target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 		in := Input{ToolHome: t.TempDir(), Env: []string{"TOOL_HOME=nope"}}
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(in.ToolHome))
-		before, err := filepath.Glob(filepath.Join(os.TempDir(), "agentic-instructions-*"))
-		require.NoError(t, err)
 
 		// Act
-		_, cleanup, err := newTestService(d, nil).buildWithInstructions(target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
+		_, cleanup, err := newTestService(d, nil).buildWithInstructions(testRunID, target, in, tools.Configs["claude"], approvedRC(&config.AgenticRC{}))
 
 		// Assert
 		require.Error(t, err)
-		assert.NotPanics(t, func() { cleanup() })
-		after, globErr := filepath.Glob(filepath.Join(os.TempDir(), "agentic-instructions-*"))
-		require.NoError(t, globErr)
-		assert.Len(t, after, len(before), "snapshot temp file should already be cleaned up when Build fails")
+		assert.NotPanics(t, cleanup)
+		assert.NoFileExists(t, filepath.Join(sandbox.RunTempDir(testRunID), "instructions.md"))
 	})
 }
 

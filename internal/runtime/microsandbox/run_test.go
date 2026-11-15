@@ -84,6 +84,7 @@ func TestClient_Run(t *testing.T) {
 
 	t.Run("forwards a host var through a runtime-conf file removed after the run", func(t *testing.T) {
 		// Arrange
+		stubRunTempDir(t)
 		t.Setenv("EXAMPLE_TOKEN", "test-secret")
 		client, call := stubRunInteractive()
 
@@ -121,6 +122,7 @@ func TestClient_Run(t *testing.T) {
 
 	t.Run("routes through the proxy with the token only in msb's env", func(t *testing.T) {
 		// Arrange
+		stubRunTempDir(t)
 		client, call := stubRunInteractive()
 		apiKey := []sandbox.Credential{{Name: "EXAMPLE_API_KEY", Hosts: []string{"api.example.test"}, Headers: []string{"X-Api-Key"}, Secret: "test-secret"}}
 		rs := sandbox.RunSpec{

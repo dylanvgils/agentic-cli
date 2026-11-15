@@ -27,22 +27,26 @@ func TestService_Watch(t *testing.T) {
 
 		// Act
 		err := newTestService(runs).Watch(Target{
-			RunID:    testRunID,
-			Runtime:  sandbox.RuntimeDocker,
-			ToolHome: toolHome,
-			PID:      child.Process.Pid,
+			RunRef: sandbox.RunRef{
+				ID:       testRunID,
+				Runtime:  sandbox.RuntimeDocker,
+				Tool:     "claude",
+				ToolHome: toolHome,
+			},
+			PID: child.Process.Pid,
 		})
 
 		// Assert
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, time.Since(start), childLifetime/2, "waits for the exit")
 		assert.Equal(t, ReadyLine+"\n", out.String())
-		call := teardownCall{
-			runtime:  sandbox.RuntimeDocker,
-			toolHome: toolHome,
-			id:       testRunID,
+		run := sandbox.RunRef{
+			ID:       testRunID,
+			Runtime:  sandbox.RuntimeDocker,
+			Tool:     "claude",
+			ToolHome: toolHome,
 		}
-		assert.Equal(t, []teardownCall{call, call}, runs.calls)
+		assert.Equal(t, []sandbox.RunRef{run, run}, runs.calls)
 	})
 
 	t.Run("a process already gone is torn down at once", func(t *testing.T) {
@@ -54,10 +58,13 @@ func TestService_Watch(t *testing.T) {
 
 		// Act
 		err := newTestService(runs).Watch(Target{
-			RunID:    testRunID,
-			Runtime:  sandbox.RuntimeMicrosandbox,
-			ToolHome: t.TempDir(),
-			PID:      gone.Process.Pid,
+			RunRef: sandbox.RunRef{
+				ID:       testRunID,
+				Runtime:  sandbox.RuntimeMicrosandbox,
+				Tool:     "claude",
+				ToolHome: t.TempDir(),
+			},
+			PID: gone.Process.Pid,
 		})
 
 		// Assert
@@ -79,10 +86,13 @@ func TestService_Watch(t *testing.T) {
 
 		// Act
 		err := newTestService(runs).Watch(Target{
-			RunID:    testRunID,
-			Runtime:  sandbox.RuntimeDocker,
-			ToolHome: toolHome,
-			PID:      gone.Process.Pid,
+			RunRef: sandbox.RunRef{
+				ID:       testRunID,
+				Runtime:  sandbox.RuntimeDocker,
+				Tool:     "claude",
+				ToolHome: toolHome,
+			},
+			PID: gone.Process.Pid,
 		})
 
 		// Assert
@@ -101,10 +111,13 @@ func TestService_Watch(t *testing.T) {
 
 		// Act
 		err := svc.Watch(Target{
-			RunID:    testRunID,
-			Runtime:  sandbox.RuntimeDocker,
-			ToolHome: t.TempDir(),
-			PID:      gone.Process.Pid,
+			RunRef: sandbox.RunRef{
+				ID:       testRunID,
+				Runtime:  sandbox.RuntimeDocker,
+				Tool:     "claude",
+				ToolHome: t.TempDir(),
+			},
+			PID: gone.Process.Pid,
 		})
 
 		// Assert
