@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,15 +32,14 @@ func Test_mountSet_hostPaths(t *testing.T) {
 
 func Test_newMountSet(t *testing.T) {
 	ws := chdirSymlinkWorkspace(t)
-	base := buildRequest{toolConfig: tools.Configs["claude"], rc: &config.AgenticRC{}, containerHome: "/home/agent"}
 
 	t.Run("checked mounts are kept as written", func(t *testing.T) {
 		// Arrange
-		req := base
-		req.in = Input{ToolHome: t.TempDir(), Volumes: []string{"$PWD/real:/data"}}
+		c := newTestRunConfig(t)
+		c.Mounts.Extra = []string{"$PWD/real:/data"}
 
 		// Act
-		mounts, err := newMountSet(req, nil)
+		mounts, err := newMountSet(c, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -50,11 +48,11 @@ func Test_newMountSet(t *testing.T) {
 
 	t.Run("mount through a workspace symlink is refused", func(t *testing.T) {
 		// Arrange
-		req := base
-		req.in = Input{ToolHome: t.TempDir(), Volumes: []string{"$PWD/link:/data"}}
+		c := newTestRunConfig(t)
+		c.Mounts.Extra = []string{"$PWD/link:/data"}
 
 		// Act
-		_, err := newMountSet(req, nil)
+		_, err := newMountSet(c, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "goes through workspace symlink "+filepath.Join(ws.dir, "link"))

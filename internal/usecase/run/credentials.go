@@ -56,20 +56,20 @@ func resolveCredentials(layers []config.RCLayer, toolHome string) ([]credentials
 	return credentials.Resolve(rc.Run.Proxy.Credentials)
 }
 
-// credentialSetup checks in.Credentials against the run; the runtime sets the placeholders itself. A no-op without
+// credentialSetup checks c's credentials against the run; the runtime sets the placeholders itself. A no-op without
 // credentials.
-func credentialSetup(in Input, isolation sandbox.Isolation, mounts mountSet, env []string) error {
-	if len(in.Credentials) == 0 {
+func credentialSetup(c runConfig, mounts mountSet, env []string) error {
+	if len(c.Egress.Credentials) == 0 {
 		return nil
 	}
-	if isolation.CredentialsViaProxy && !in.ProxyMode.Enabled() {
+	if c.Runtime.Caps.CredentialsViaProxy && !c.Egress.Mode.Enabled() {
 		return fmt.Errorf("proxy credentials need the egress proxy, which is disabled")
 	}
 
-	if err := checkCredentialPaths(in.Credentials, mounts); err != nil {
+	if err := checkCredentialPaths(c.Egress.Credentials, mounts); err != nil {
 		return err
 	}
-	return checkCredentialEnv(in, env)
+	return checkCredentialEnv(c, env)
 }
 
 // sandboxCredentials maps each resolved entry to a sandbox.Credential named after its first env var.
@@ -87,16 +87,16 @@ func sandboxCredentials(resolved []credentials.Resolved) []sandbox.Credential {
 	return creds
 }
 
-// checkCredentialEnv refuses env entries for the proxy trust vars, and in's credential env names agentic manages or env
+// checkCredentialEnv refuses env entries for the proxy trust vars, and c's credential env names agentic manages or env
 // sets, since a forwarded host value would leak the real secret.
-func checkCredentialEnv(in Input, env []string) error {
+func checkCredentialEnv(c runConfig, env []string) error {
 	if i := slices.IndexFunc(env, func(entry string) bool { return isProxyTrustEnvName(envKey(entry)) }); i >= 0 {
 		return fmt.Errorf("--env: %q is set by agentic when proxy credentials are configured", envKey(env[i]))
 	}
 
-	for _, r := range in.Credentials {
+	for _, r := range c.Egress.Credentials {
 		for _, name := range r.Env {
-			if isReservedEnvName(name, true, in.DindEnabled, in.ProxyIntegrations) || isProxyTrustEnvName(name) {
+			if isReservedEnvName(name, true, c.Dind.Enabled, c.Egress.Integrations) || isProxyTrustEnvName(name) {
 				return fmt.Errorf("credential env %q is managed by agentic", name)
 			}
 			if slices.ContainsFunc(env, func(entry string) bool { return envKey(entry) == name }) {

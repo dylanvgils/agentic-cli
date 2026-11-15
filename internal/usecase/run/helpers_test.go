@@ -483,3 +483,22 @@ func stubRunTempDir(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
 	require.NoError(t, sandbox.CreateRunTempDir(testRunID))
 }
+
+// newTestRunConfig returns a claude runConfig on Docker with an empty config and a temp tool home.
+func newTestRunConfig(t *testing.T) runConfig {
+	t.Helper()
+	return runConfig{
+		Target: Target{ToolName: "claude", ImageName: "agentic-claude"},
+		Tool:   tools.Configs["claude"],
+		RC:     &config.AgenticRC{},
+		Homes:  homes{Tool: t.TempDir(), Container: "/home/agent"},
+	}
+}
+
+// resolvedConfig resolves flags and rc for claude through svc, as Prepare does.
+func resolvedConfig(t *testing.T, svc *Service, target Target, flags Flags, rc *config.AgenticRC) runConfig {
+	t.Helper()
+	c, err := svc.resolveRun(Request{Target: target, Tool: tools.Configs["claude"], Flags: flags}, rc)
+	require.NoError(t, err)
+	return c
+}

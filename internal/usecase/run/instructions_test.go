@@ -15,16 +15,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuildInstructions(t *testing.T) {
+func Test_Service_buildInstructions(t *testing.T) {
 	target := Target{ToolName: "claude", ImageName: "agentic-claude"}
 
 	t.Run("disabled via config returns empty string", func(t *testing.T) {
 		// Arrange
 		disabled := false
-		rc := &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Enabled: &disabled}}}
+		c := newTestRunConfig(t)
+		c.RC = &config.AgenticRC{Run: config.RCRun{Instructions: config.RCInstructions{Enabled: &disabled}}}
 
 		// Act
-		content, err := newTestService(&fakeDocker{}, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], rc)
+		content, err := newTestService(&fakeDocker{}, nil).buildInstructions(c)
 
 		// Assert
 		require.NoError(t, err)
@@ -38,7 +39,7 @@ func TestBuildInstructions(t *testing.T) {
 		}
 
 		// Act
-		_, err := newTestService(d, nil).BuildInstructions(target, Input{}, tools.Configs["claude"], &config.AgenticRC{})
+		_, err := newTestService(d, nil).buildInstructions(newTestRunConfig(t))
 
 		// Assert
 		assert.ErrorContains(t, err, "docker daemon unreachable")
@@ -66,8 +67,10 @@ func TestBuildInstructions(t *testing.T) {
 		docker *fakeDocker
 		msb    *fakeMicrosandbox
 		tool   string
-		in     Input
+		flags  Flags
 		rc     config.RCRun
+		// pin sets what resolveRun wouldn't, to reach a renderer branch
+		pin func(c *runConfig)
 	}{
 		{
 			golden: "no-image",
@@ -78,21 +81,25 @@ func TestBuildInstructions(t *testing.T) {
 			golden: "container",
 			docker: built,
 			tool:   "claude",
-			in:     Input{Volumes: []string{"./data:/data:ro"}},
+			flags:  Flags{Volumes: []string{"./data:/data:ro"}},
 			rc:     config.RCRun{Mounts: []string{"go-mod:$CONTAINER_HOME/go"}, Instructions: custom},
 		},
 		{
 			golden: "container-proxy-dind",
 			docker: built,
 			tool:   "claude",
-			in:     Input{ProxyMode: sandbox.EgressEnforce, DindEnabled: true, DindLimits: sandbox.ResourceLimits{CPUs: "2"}},
+			flags: Flags{
+				Proxy:      resolve.ProxyInput{ProxyFlag: true},
+				Dind:       resolve.DindInput{DindFlag: true},
+				DindLimits: sandbox.ResourceLimits{CPUs: "2"},
+			},
 			rc:     config.RCRun{Proxy: proxyRC, Dind: config.RCDind{RCLimits: config.RCLimits{Memory: "6g"}}},
 		},
 		{
 			golden: "container-monitor",
 			docker: built,
 			tool:   "copilot",
-			in:     Input{ProxyMode: sandbox.EgressMonitor},
+			flags:  Flags{Proxy: resolve.ProxyInput{MonitorFlag: true}},
 			rc:     config.RCRun{Proxy: proxyRC},
 		},
 		{
@@ -100,7 +107,7 @@ func TestBuildInstructions(t *testing.T) {
 			docker: built,
 			msb:    &fakeMicrosandbox{},
 			tool:   "copilot",
-			in:     Input{Runtime: sandbox.RuntimeMicrosandbox, Limits: sandbox.ResourceLimits{CPUs: "3", Memory: "6g"}},
+			flags:  Flags{Runtime: sandbox.RuntimeMicrosandbox, Limits: sandbox.ResourceLimits{CPUs: "3", Memory: "6g"}},
 			rc:     config.RCRun{Instructions: custom},
 		},
 		{
@@ -108,7 +115,11 @@ func TestBuildInstructions(t *testing.T) {
 			docker: built,
 			msb:    &fakeMicrosandbox{},
 			tool:   "opencode",
-			in:     Input{Runtime: sandbox.RuntimeMicrosandbox, ProxyMode: sandbox.EgressEnforce, DindEnabled: true},
+			flags: Flags{
+				Runtime: sandbox.RuntimeMicrosandbox,
+				Proxy:   resolve.ProxyInput{ProxyFlag: true},
+				Dind:    resolve.DindInput{DindFlag: true},
+			},
 			rc:     config.RCRun{Proxy: proxyRC},
 		},
 		{
@@ -116,14 +127,20 @@ func TestBuildInstructions(t *testing.T) {
 			docker: built,
 			msb:    &fakeMicrosandbox{},
 			tool:   "claude",
-			in:     Input{Runtime: sandbox.RuntimeMicrosandbox, ProxyBackend: config.BackendAgentic, ProxyMode: sandbox.EgressEnforce, DindEnabled: true},
+			flags: Flags{
+				Runtime: sandbox.RuntimeMicrosandbox,
+				Proxy:   resolve.ProxyInput{ProxyFlag: true, Backend: config.BackendAgentic},
+				Dind:    resolve.DindInput{DindFlag: true},
+			},
 		},
 		{
 			golden: "vm-no-daemon",
 			docker: &fakeDocker{inspectImage: func(string) (*docker.ImageInfo, error) { return &docker.ImageInfo{}, nil }},
 			msb:    noDaemon,
 			tool:   "claude",
-			in:     Input{Runtime: sandbox.RuntimeMicrosandbox, DindEnabled: true},
+			flags:  Flags{Runtime: sandbox.RuntimeMicrosandbox},
+			// resolveRun keeps dind off without a daemon, so no run reaches this fallback
+			pin: func(c *runConfig) { c.Dind.Enabled = true },
 		},
 	}
 	for _, tc := range cases {
@@ -133,9 +150,16 @@ func TestBuildInstructions(t *testing.T) {
 			if tc.msb != nil {
 				m = tc.msb
 			}
+			svc := newTestService(tc.docker, m)
+			req := Request{Target: target, Tool: tools.Configs[tc.tool], Flags: tc.flags}
+			c, err := svc.resolveRun(req, &config.AgenticRC{Run: tc.rc})
+			require.NoError(t, err)
+			if tc.pin != nil {
+				tc.pin(&c)
+			}
 
 			// Act
-			content, err := newTestService(tc.docker, m).BuildInstructions(target, tc.in, tools.Configs[tc.tool], &config.AgenticRC{Run: tc.rc})
+			content, err := svc.buildInstructions(c)
 
 			// Assert
 			require.NoError(t, err)
@@ -144,16 +168,16 @@ func TestBuildInstructions(t *testing.T) {
 	}
 }
 
-func TestPrepareInstructions(t *testing.T) {
+func Test_Service_prepareInstructions(t *testing.T) {
 	t.Run("disabled strips the persistent file's managed block without mounting anything", func(t *testing.T) {
 		// Arrange
-		toolHome := t.TempDir()
-		require.NoError(t, tools.Configs["claude"].Runtime.Setup(toolHome))
-		require.NoError(t, tools.Configs["claude"].Runtime.WriteInstructions(toolHome, "stale block"))
-		hostPath := tools.Configs["claude"].Runtime.InstructionsHostPath(toolHome)
+		c := newTestRunConfig(t)
+		require.NoError(t, c.Tool.Runtime.Setup(c.Homes.Tool))
+		require.NoError(t, c.Tool.Runtime.WriteInstructions(c.Homes.Tool, "stale block"))
+		hostPath := c.Tool.Runtime.InstructionsHostPath(c.Homes.Tool)
 
 		// Act
-		mountSpec, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, testRunID, tools.Configs["claude"], "")
+		mountSpec, err := newTestService(&fakeDocker{}, nil).prepareInstructions(c, testRunID, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -166,11 +190,11 @@ func TestPrepareInstructions(t *testing.T) {
 	t.Run("enabled mounts the run's snapshot over the tool's instructions path", func(t *testing.T) {
 		// Arrange
 		stubRunTempDir(t)
-		toolHome := t.TempDir()
-		require.NoError(t, tools.Configs["claude"].Runtime.Setup(toolHome))
+		c := newTestRunConfig(t)
+		require.NoError(t, c.Tool.Runtime.Setup(c.Homes.Tool))
 
 		// Act
-		mountSpec, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, testRunID, tools.Configs["claude"], "generated block")
+		mountSpec, err := newTestService(&fakeDocker{}, nil).prepareInstructions(c, testRunID, "generated block")
 
 		// Assert
 		require.NoError(t, err)
@@ -190,7 +214,9 @@ func Test_saveSnapshot(t *testing.T) {
 		stubRunTempDir(t)
 		run := sandbox.RunRef{ID: testRunID, Tool: "claude", ToolHome: t.TempDir()}
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(run.ToolHome))
-		mountSpec, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(run.ToolHome, run.ID, tools.Configs["claude"], "generated block")
+		c := newTestRunConfig(t)
+		c.Homes.Tool = run.ToolHome
+		mountSpec, err := newTestService(&fakeDocker{}, nil).prepareInstructions(c, run.ID, "generated block")
 		require.NoError(t, err)
 		snapshot := sandbox.HostPart(mountSpec)
 		require.NoError(t, appendFile(snapshot, "\nuser note\n"))

@@ -76,11 +76,11 @@ How to read it:
 | Trust | `checkTrust` in `trust.go` | Asks to trust the working dir, unless it already is or `--trust-dir` is set. |
 | Settings | `checkSettings` in `trust.go` | Asks to approve changed guarded settings; the `approvedConfig` it returns is the only config a run reads. |
 | Tool | `checkTool` in `prepare.go` | Offers a due tool update and creates the tool's host files. |
-| Input | `runInput` in `prepare.go` | Resolves the flags against the approved config into the RunSpec's input. |
+| Config | `approvedRun` → `resolveRun` in `prepare.go` | Resolves the flags against the approved config into one `runConfig`, which every later step reads. |
 | Start | `startRun` in `runtime.go` | Creates the RunID, spawns the watchdog and creates the run temp dir, before anything the run can leave behind. |
 | RunSpec | `buildWithInstructions` in `runspec.go` | Writes the instructions snapshot, then builds the RunSpec with it mounted. |
 
-`buildWithInstructions` calls `BuildInstructions` and `PrepareInstructions` (`instructions.go`), then `build` (`runspec.go`):
+`buildWithInstructions` calls `buildInstructions` and `prepareInstructions` (`instructions.go`), then `build` (`runspec.go`):
 
 | Step | Code | Why |
 | --- | --- | --- |

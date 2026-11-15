@@ -77,7 +77,7 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 
-	in, err := runInput(req.Flags, approved, s.capabilities(req.runtime(), req.proxyBackend()))
+	c, err := s.approvedRun(req, approved)
 	if err != nil {
 		return sandbox.RunSpec{}, noCleanup, err
 	}
@@ -88,7 +88,7 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 	}
 
 	cleanup := func() { warnOnEndRunError(endRun(run)) }
-	rs, err := s.buildWithInstructions(run.ID, req.Target, in, req.Tool, approved)
+	rs, err := s.buildWithInstructions(run.ID, c)
 	if err != nil {
 		cleanup()
 		return sandbox.RunSpec{}, noCleanup, err
@@ -131,52 +131,66 @@ func CheckProjectDir(dir string) error {
 	return nil
 }
 
-// runInput resolves flags against the approved config, credentials included, into build's input for a runtime offering caps.
-func runInput(flags Flags, approved approvedConfig, caps sandbox.Capabilities) (Input, error) {
-	in, err := resolveInput(flags, approved.rc, caps)
+// approvedRun resolves req against the approved config, credentials included.
+func (s *Service) approvedRun(req Request, approved approvedConfig) (runConfig, error) {
+	c, err := s.resolveRun(req, approved.rc)
 	if err != nil {
-		return Input{}, err
+		return runConfig{}, err
 	}
 
-	creds, err := resolveCredentials(approved.layers, in.ToolHome)
+	creds, err := resolveCredentials(approved.layers, c.Homes.Tool)
 	if err != nil {
-		return Input{}, err
+		return runConfig{}, err
 	}
-	if len(creds) > 0 && !in.DryRun {
+	if len(creds) > 0 && !c.DryRun {
 		logging.Infof("injecting credentials for %s", describeInjection(creds))
 	}
-	in.Credentials = creds
+	c.Egress.Credentials = creds
 
-	return in, nil
+	return c, nil
 }
 
-// resolveInput resolves flags against rc into build's input for a runtime offering caps, minus the credentials only a run reads.
-func resolveInput(flags Flags, rc *config.AgenticRC, caps sandbox.Capabilities) (Input, error) {
+// resolveRun resolves req against rc, minus the credentials only a run reads.
+func (s *Service) resolveRun(req Request, rc *config.AgenticRC) (runConfig, error) {
+	flags := req.Flags
 	if err := sandbox.CheckEgressIntegrations(flags.Proxy.Integrations); err != nil {
-		return Input{}, fmt.Errorf("--proxy-integration: %w", err)
+		return runConfig{}, fmt.Errorf("--proxy-integration: %w", err)
 	}
+
+	runtime := resolve.Runtime(flags.Runtime, rc)
+	backend := resolve.ProxyBackend(flags.Proxy, rc)
+	caps := s.capabilities(runtime, backend)
 
 	proxyMode, err := resolve.ProxyMode(flags.Proxy, rc, caps.CredentialsViaProxy)
 	if err != nil {
-		return Input{}, err
+		return runConfig{}, err
 	}
 
-	// A runtime without a daemon ignores dind, so its env names and registry hosts stay free
-	dind := caps.Dind && resolve.DindEnabled(flags.Dind, rc)
-
-	return Input{
-		ToolHome:          flags.ToolHome,
-		Volumes:           flags.Volumes,
-		Env:               flags.Env,
-		Limits:            flags.Limits,
-		DryRun:            flags.DryRun,
-		Registry:          flags.Registry,
-		ProxyMode:         proxyMode,
-		ProxyIntegrations: proxyIntegrations(flags.Proxy, rc, proxyMode, caps.Features),
-		DindEnabled:       dind,
-		DindLimits:        flags.DindLimits,
-		Runtime:           resolve.Runtime(flags.Runtime, rc),
-		ProxyBackend:      resolve.ProxyBackend(flags.Proxy, rc),
+	limits := resolve.ResourceLimitsFor(flags.Limits, rc)
+	return runConfig{
+		Target:  req.Target,
+		Tool:    req.Tool,
+		RC:      rc,
+		Runtime: runtimeConfig{Name: runtime, Caps: caps},
+		Homes: homes{
+			Tool:      flags.ToolHome,
+			Container: s.docker.ResolveContainerHome(req.Target.ImageName),
+		},
+		Egress: egressConfig{
+			Mode:         proxyMode,
+			Backend:      backend,
+			Integrations: proxyIntegrations(flags.Proxy, rc, proxyMode, caps.Features),
+		},
+		Limits: limits,
+		Dind: sandbox.DindSpec{
+			// A runtime without a daemon ignores dind, so its env names and registry hosts stay free
+			Enabled: caps.Dind && resolve.DindEnabled(flags.Dind, rc),
+			Limits:  resolve.DindResourceLimitsFor(flags.DindLimits, rc, limits),
+		},
+		Mounts:   runMounts{Extra: flags.Volumes},
+		Env:      flags.Env,
+		Registry: flags.Registry,
+		DryRun:   flags.DryRun,
 	}, nil
 }
 

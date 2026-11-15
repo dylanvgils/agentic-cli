@@ -41,38 +41,49 @@ type Target struct {
 	ToolArgs []string
 }
 
-// Input carries the flag/env-derived values build needs.
-type Input struct {
-	ToolHome  string
-	Volumes   []string
-	Env       []string
-	Limits    sandbox.ResourceLimits
-	DryRun    bool
-	Registry  string
-	ProxyMode sandbox.EgressMode
-	// ProxyIntegrations are the integrations the run applies, empty unless the proxy runs on a runtime with them
-	ProxyIntegrations []string
-	DindEnabled       bool
-	// Sidecar limit flags; empty falls back to config
-	DindLimits sandbox.ResourceLimits
-	// Runtime is where the run executes; empty means Docker
-	Runtime sandbox.Runtime
-	// ProxyBackend is what enforces the allowlist on Runtime; empty means the runtime's default
-	ProxyBackend string
-	// Credentials are the approved proxy credentials; Prepare fills them in
-	Credentials []credentials.Resolved
-	// InstructionsMount is the mount spec for this run's instructions snapshot, empty when disabled.
-	InstructionsMount string
+// runConfig is a run resolved against its approved config: what building the RunSpec and the instructions read.
+type runConfig struct {
+	Target Target
+	Tool   tools.ToolConfig
+	RC     *config.AgenticRC
+
+	Runtime runtimeConfig
+	Homes   homes
+	Egress  egressConfig
+	Limits  sandbox.ResourceLimits // the tool's, resolved against the config
+	Dind    sandbox.DindSpec       // Limits resolved against the tool's
+
+	Mounts runMounts
+	Env    []string // extra env from the flags; resolve.Env merges the config's
+
+	Registry string
+	DryRun   bool
 }
 
-// buildRequest is what every step of build needs to know about the run.
-type buildRequest struct {
-	target        Target
-	in            Input
-	toolConfig    tools.ToolConfig
-	rc            *config.AgenticRC
-	caps          sandbox.Capabilities
-	containerHome string
+// runtimeConfig is where the run executes and what that runtime offers.
+type runtimeConfig struct {
+	Name sandbox.Runtime // empty means Docker
+	Caps sandbox.Capabilities
+}
+
+// homes are the tool home on the host and the home inside the container.
+type homes struct {
+	Tool      string
+	Container string
+}
+
+// runMounts are the mounts a run adds to the tool's own.
+type runMounts struct {
+	Extra        []string // from the flags; resolve.Volumes merges the config's
+	Instructions string   // the instructions snapshot, empty when disabled
+}
+
+// egressConfig is how the run's egress is controlled.
+type egressConfig struct {
+	Mode         sandbox.EgressMode
+	Backend      string // empty means the runtime's default
+	Integrations []string
+	Credentials  []credentials.Resolved
 }
 
 // New returns a Service over Docker d and microsandbox m, offering tool updates through u, building sidecar images
@@ -88,40 +99,29 @@ func New(d Docker, m Microsandbox, u ToolUpdates, si SidecarImages, w Watchdog) 
 	}
 }
 
-// build assembles the sandbox.RunSpec for target from the approved config, syncing marketplaces; the runtime readies its
-// own host resources in Run.
-func (s *Service) build(target Target, in Input, toolConfig tools.ToolConfig, approved approvedConfig) (sandbox.RunSpec, error) {
-	rc := approved.rc
-	req := buildRequest{
-		target:        target,
-		in:            in,
-		toolConfig:    toolConfig,
-		rc:            rc,
-		caps:          s.capabilities(in.Runtime, in.ProxyBackend),
-		containerHome: s.docker.ResolveContainerHome(target.ImageName),
-	}
-
-	marketplaceMounts, marketplaceNames, err := s.syncToolMarketplaces(in.ToolHome, target.ToolName, toolConfig, rc)
+// build assembles the sandbox.RunSpec for c, syncing marketplaces; the runtime readies its own host resources in Run.
+func (s *Service) build(c runConfig) (sandbox.RunSpec, error) {
+	marketplaceMounts, marketplaceNames, err := s.syncToolMarketplaces(c.Homes.Tool, c.Target.ToolName, c.Tool, c.RC)
 	if err != nil {
 		return sandbox.RunSpec{}, err
 	}
 
-	mounts, err := newMountSet(req, marketplaceMounts)
+	mounts, err := newMountSet(c, marketplaceMounts)
 	if err != nil {
 		return sandbox.RunSpec{}, err
 	}
 
-	env, err := s.runEnv(req, mounts, marketplaceNames)
+	env, err := runEnv(c, mounts, marketplaceNames)
 	if err != nil {
 		return sandbox.RunSpec{}, err
 	}
 
-	rs := newRunSpec(req, mounts, env)
+	rs := newRunSpec(c, mounts, env)
 
 	// Only a proxy that decrypts, for credentials or path rules, needs the tool to trust its CA
 	spec := specFeatures(rs)
-	if (spec.CredentialInjection || spec.PathRules) && req.caps.CredentialsViaProxy {
-		if err := s.checkProxyTrust(target); err != nil {
+	if (spec.CredentialInjection || spec.PathRules) && c.Runtime.Caps.CredentialsViaProxy {
+		if err := s.checkProxyTrust(c.Target); err != nil {
 			return sandbox.RunSpec{}, err
 		}
 	}
@@ -134,45 +134,24 @@ func (s *Service) ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *conf
 }
 
 // buildWithInstructions wraps build with run id's instructions snapshot mounted in; endRun saves it back.
-func (s *Service) buildWithInstructions(id sandbox.RunID, target Target, in Input, toolConfig tools.ToolConfig, approved approvedConfig) (sandbox.RunSpec, error) {
-	content, err := s.BuildInstructions(target, in, toolConfig, approved.rc)
+func (s *Service) buildWithInstructions(id sandbox.RunID, c runConfig) (sandbox.RunSpec, error) {
+	content, err := s.buildInstructions(c)
 	if err != nil {
-		return sandbox.RunSpec{}, fmt.Errorf("build instructions for %s: %w", target.ToolName, err)
+		return sandbox.RunSpec{}, fmt.Errorf("build instructions for %s: %w", c.Target.ToolName, err)
 	}
 
-	in.InstructionsMount, err = s.PrepareInstructions(in.ToolHome, id, toolConfig, content)
+	c.Mounts.Instructions, err = s.prepareInstructions(c, id, content)
 	if err != nil {
-		return sandbox.RunSpec{}, fmt.Errorf("prepare instructions for %s: %w", target.ToolName, err)
+		return sandbox.RunSpec{}, fmt.Errorf("prepare instructions for %s: %w", c.Target.ToolName, err)
 	}
 
-	rs, err := s.build(target, in, toolConfig, approved)
+	rs, err := s.build(c)
 	if err != nil {
 		return sandbox.RunSpec{}, err
 	}
 
 	rs.RunID = id
 	return rs, nil
-}
-
-// runEnv resolves the tool's env, refusing managed names, checks the credentials against it and adds the marketplace names.
-func (s *Service) runEnv(req buildRequest, mounts mountSet, marketplaceNames []string) ([]string, error) {
-	in := req.in
-
-	env := resolve.Env(in.Env, req.rc)
-	if err := validateEnv(env, in.ProxyMode.Enabled(), in.DindEnabled, in.ProxyIntegrations); err != nil {
-		return nil, err
-	}
-
-	if err := credentialSetup(in, req.caps.Isolation, mounts, env); err != nil {
-		return nil, err
-	}
-
-	// Tells entrypoint.sh exactly which names to register instead of globbing.
-	if len(marketplaceNames) > 0 {
-		env = append(env, "AGENTIC_MARKETPLACES="+strings.Join(marketplaceNames, ","))
-	}
-
-	return env, nil
 }
 
 // syncToolMarketplaces syncs tool's configured marketplaces and returns each mount spec plus name.
@@ -202,44 +181,57 @@ func needsMarketplaceSync(toolConfig tools.ToolConfig, rc *config.AgenticRC, too
 	return len(config.MarketplacesFor(rc, tool)) > 0
 }
 
+// runEnv resolves the tool's env, refusing managed names, checks the credentials against it and adds the marketplace names.
+func runEnv(c runConfig, mounts mountSet, marketplaceNames []string) ([]string, error) {
+	env := resolve.Env(c.Env, c.RC)
+	if err := validateEnv(env, c.Egress.Mode.Enabled(), c.Dind.Enabled, c.Egress.Integrations); err != nil {
+		return nil, err
+	}
+
+	if err := credentialSetup(c, mounts, env); err != nil {
+		return nil, err
+	}
+
+	// Tells entrypoint.sh exactly which names to register instead of globbing.
+	if len(marketplaceNames) > 0 {
+		env = append(env, "AGENTIC_MARKETPLACES="+strings.Join(marketplaceNames, ","))
+	}
+
+	return env, nil
+}
+
 // runVolumes lists the tool's volume specs: config and flag mounts, marketplaces, then instructions.
-func runVolumes(req buildRequest, marketplaceMounts []string) []string {
-	volumes := resolve.Volumes(req.toolConfig.Runtime.Mounts(), req.in.Volumes, req.rc)
+func runVolumes(c runConfig, marketplaceMounts []string) []string {
+	volumes := resolve.Volumes(c.Tool.Runtime.Mounts(), c.Mounts.Extra, c.RC)
 	volumes = append(volumes, marketplaceMounts...)
-	if req.in.InstructionsMount != "" {
-		volumes = append(volumes, req.in.InstructionsMount)
+	if c.Mounts.Instructions != "" {
+		volumes = append(volumes, c.Mounts.Instructions)
 	}
 
 	return volumes
 }
 
 // newRunSpec assembles the RunSpec from the resolved run parts, including the egress policy and the Docker daemon.
-func newRunSpec(req buildRequest, mounts mountSet, env []string) sandbox.RunSpec {
-	in, rc, toolConfig := req.in, req.rc, req.toolConfig
-	limits := resolve.ResourceLimitsFor(in.Limits, rc)
-	dindLimits := resolve.DindResourceLimitsFor(in.DindLimits, rc, limits)
-
-	rules := proxyRules(toolConfig, in, rc, req.caps.Features)
-
-	return sandbox.NewRunSpec(req.target.ImageName).
-		WithToolHome(in.ToolHome).
-		WithContainerHome(req.containerHome).
+func newRunSpec(c runConfig, mounts mountSet, env []string) sandbox.RunSpec {
+	return sandbox.NewRunSpec(c.Target.ImageName).
+		WithToolHome(c.Homes.Tool).
+		WithContainerHome(c.Homes.Container).
 		WithUser(platform.HostUser()).
 		WithTTY(iostreams.IsTerminal()).
 		WithVolumes(mounts.volumes...).
 		WithEnv(env...).
-		WithSkipEntrypoint(req.target.SkipEntrypoint).
-		WithToolArgs(resolve.ToolArgs(req.target.ToolName, req.target.ToolArgs, req.target.SkipEntrypoint, rc)...).
-		WithEphemeralDirs(toolConfig.Runtime.EphemeralDirs()...).
-		WithLimits(limits).
-		WithDryRun(in.DryRun).
-		WithCredentials(sandboxCredentials(in.Credentials)...).
+		WithSkipEntrypoint(c.Target.SkipEntrypoint).
+		WithToolArgs(resolve.ToolArgs(c.Target.ToolName, c.Target.ToolArgs, c.Target.SkipEntrypoint, c.RC)...).
+		WithEphemeralDirs(c.Tool.Runtime.EphemeralDirs()...).
+		WithLimits(c.Limits).
+		WithDryRun(c.DryRun).
+		WithCredentials(sandboxCredentials(c.Egress.Credentials)...).
 		WithEgress(sandbox.EgressPolicy{
-			Mode:         in.ProxyMode,
-			Rules:        rules,
-			Integrations: in.ProxyIntegrations,
+			Mode:         c.Egress.Mode,
+			Rules:        proxyRules(c),
+			Integrations: c.Egress.Integrations,
 		}).
-		WithDind(sandbox.DindSpec{Enabled: in.DindEnabled, Limits: dindLimits}).
+		WithDind(c.Dind).
 		Build()
 }
 

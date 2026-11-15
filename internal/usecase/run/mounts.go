@@ -24,11 +24,11 @@ type mountSet struct {
 }
 
 // newMountSet assembles the run's volumes and checks them, so an unchecked set never reaches docker.
-func newMountSet(req buildRequest, marketplaceMounts []string) (mountSet, error) {
+func newMountSet(c runConfig, marketplaceMounts []string) (mountSet, error) {
 	m := mountSet{
-		volumes:       runVolumes(req, marketplaceMounts),
-		toolHome:      req.in.ToolHome,
-		containerHome: req.containerHome,
+		volumes:       runVolumes(c, marketplaceMounts),
+		toolHome:      c.Homes.Tool,
+		containerHome: c.Homes.Container,
 	}
 
 	if err := m.checkMounts(); err != nil {
