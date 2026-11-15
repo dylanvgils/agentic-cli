@@ -2,9 +2,7 @@ package docker
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -318,27 +316,6 @@ func (c *Client) launchDind(rs toolRun, interrupt <-chan os.Signal) (toolArgs []
 	return handle.toolArgs(), nil
 }
 
-// sweepDindRunDirs tears down runs left with only a run dir older than dindRunDirGrace.
-func (c *Client) sweepDindRunDirs(toolHome string, resources []ownedResource) error {
-	base := filepath.Join(toolHome, dindDirName)
-	entries, err := os.ReadDir(base)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("read dind dir: %w", err)
-	}
-
-	live := liveRunIDs(resources)
-	var errs []error
-	for _, entry := range entries {
-		if id, ok := staleRunDir(entry, live, c.timing.dindRunDirGrace); ok {
-			errs = append(errs, c.Teardown(toolHome, id))
-		}
-	}
-	return errors.Join(errs...)
-}
-
 // workspaceVolumes returns the tool's /workspace volume specs, so the sidecar sees the same paths and :ro overlays.
 func workspaceVolumes(rs sandbox.RunSpec) []string {
 	var result []string
@@ -395,32 +372,4 @@ func dindContainerName(id sandbox.RunID) string {
 // dindRunDir returns run id's host dir under toolHome.
 func dindRunDir(toolHome string, id sandbox.RunID) string {
 	return filepath.Join(toolHome, dindDirName, id.String())
-}
-
-// liveRunIDs returns the runs resources belong to, by label or an older version's dind sidecar name.
-func liveRunIDs(resources []ownedResource) map[sandbox.RunID]bool {
-	live := make(map[sandbox.RunID]bool, len(resources))
-	for _, r := range resources {
-		if r.run != "" {
-			live[r.run] = true
-		}
-		if id, ok := strings.CutPrefix(r.name, dindHostAlias+"-"); ok {
-			live[sandbox.RunID(id)] = true
-		}
-	}
-	return live
-}
-
-// staleRunDir returns entry's run when it's a run dir of no live run, older than grace.
-func staleRunDir(entry fs.DirEntry, live map[sandbox.RunID]bool, grace time.Duration) (sandbox.RunID, bool) {
-	id, err := sandbox.ParseRunID(entry.Name())
-	if err != nil || !entry.IsDir() || live[id] {
-		return "", false
-	}
-
-	info, err := entry.Info()
-	if err != nil || time.Since(info.ModTime()) < grace {
-		return "", false
-	}
-	return id, true
 }

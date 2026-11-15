@@ -118,7 +118,17 @@ Every per-run resource derives from one `sandbox.RunID`, which `run.Service.Prep
 
 Each runtime's `Teardown(runID)` removes one run, best-effort and idempotent; every exit path, the sweep and `agentic clean`/`prune` use it. `run.Service.Teardown` adds the runtime-neutral part: it saves a leftover instructions snapshot back to the tool's file, then removes the run temp dir.
 
-Each run spawns a detached, hidden `agentic __watch` that calls `Teardown` once the CLI exits, also after `SIGKILL`, and again 5 seconds later: a `docker` call in flight at the kill outlives the CLI and can still create a container. If the watchdog dies too, the next run's `sweepOrphanedSidecars` tears down runs whose owner is gone, after a 5-minute grace.
+Several layers call it, each covering what the one before can't:
+
+| Layer | Covers | Code |
+| --- | --- | --- |
+| `runGuard` | Normal exit, Ctrl-C, `SIGTERM`, `SIGHUP` | `internal/runtime/docker/guard.go` |
+| `attachTool` | A closed terminal detaching `docker run` | `internal/runtime/docker/run.go` |
+| Watchdog | `SIGKILL` or a crash of agentic | `internal/usecase/watch`, `internal/cli/watch.go` |
+| Orphan sweep | The watchdog killed too, after 5 minutes | `internal/runtime/docker/sweep.go` |
+| Stale run dir sweep | A run that left only its dind run dir, after 10 minutes | `internal/runtime/docker/sweep.go` |
+
+`runGuard.release` tears the run down before it stops catching signals, so a second Ctrl-C can't cut the teardown short. The watchdog is a detached, hidden `agentic __watch`; it tears the run down once agentic exits and again 5 seconds later, as a `docker` call in flight at the kill outlives agentic and can still create a container.
 
 ## Building the proxy image locally
 

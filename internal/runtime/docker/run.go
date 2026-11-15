@@ -3,8 +3,6 @@ package docker
 import (
 	"errors"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
@@ -34,8 +32,8 @@ type Sidecars struct {
 	// args point the tool at the sidecars
 	args []string
 
-	// stopGuard uninstalls the signal guard
-	stopGuard func()
+	// guard tears the run down; nil on a dry run
+	guard *runGuard
 }
 
 // StartSidecars starts spec's run network and sidecars, the proxy logging to proxyLog; a dry run only prints them.
@@ -54,11 +52,11 @@ func (c *Client) StartSidecars(spec sandbox.RunSpec, proxyLog string) (Sidecars,
 		proxyLog:  proxyLog,
 	}
 
-	args, stopGuard, err := c.setupSidecars(rs)
+	args, guard, err := c.setupSidecars(rs)
 	if err != nil {
 		return Sidecars{}, err
 	}
-	return Sidecars{run: rs, args: args, stopGuard: stopGuard}, nil
+	return Sidecars{run: rs, args: args, guard: guard}, nil
 }
 
 // RunTool runs the tool container of sc's run; a dry run only prints it.
@@ -80,11 +78,7 @@ func (c *Client) RunTool(sc Sidecars) error {
 
 // StopSidecars tears down sc's run and its signal guard.
 func (c *Client) StopSidecars(sc Sidecars) {
-	if sc.stopGuard == nil || sc.run.DryRun {
-		return
-	}
-	warnOnTeardownError(c.Teardown(sc.run.ToolHome, sc.run.RunID))
-	sc.stopGuard()
+	sc.guard.release()
 }
 
 // attachTool runs the tool container with docker run args attached to the terminal, removing it on a signal and once
@@ -114,12 +108,4 @@ func (c *Client) removeOnSignal(name string, signals <-chan os.Signal, done <-ch
 // removeToolContainer force-removes name, which --rm already did once it exited; errors are ignored for that reason.
 func (c *Client) removeToolContainer(name string) {
 	_, _ = c.run("rm", arg("force"), name)
-}
-
-// guardSignals routes interrupt/terminate signals to a channel so deferred cleanup still runs; stop uninstalls it.
-func guardSignals() (signals <-chan os.Signal, stop func()) {
-	ch := make(chan os.Signal, 1)
-	// SIGHUP covers a closed terminal
-	signal.Notify(ch, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
-	return ch, func() { signal.Stop(ch) }
 }
