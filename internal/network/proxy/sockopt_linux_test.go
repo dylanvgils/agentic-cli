@@ -27,7 +27,7 @@ func Test_setUserTimeout(t *testing.T) {
 	// Assert
 	var got int
 	require.NoError(t, raw.Control(func(fd uintptr) {
-		got, err = syscall.GetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_USER_TIMEOUT)
+		got, err = syscall.GetsockoptInt(int(fd), syscall.IPPROTO_TCP, tcpUserTimeout)
 	}))
 	require.NoError(t, err)
 	assert.Equal(t, 30000, got)
