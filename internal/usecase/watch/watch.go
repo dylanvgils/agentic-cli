@@ -17,8 +17,7 @@ const ReadyLine = "ready"
 // teardownTimeout bounds the teardown, so a hung runtime can't keep the watchdog alive forever.
 const teardownTimeout = 2 * time.Minute
 
-// reapGrace is how long the run's in-flight runtime calls get to finish before the teardown: they outlive the killed
-// process and can still create a resource, such as a `docker create` sent just before the kill.
+// reapGrace lets runtime calls in flight at the kill finish, as they can still create a resource.
 const reapGrace = 5 * time.Second
 
 // Service waits for a run's agentic process to exit, then reaps the run.
@@ -58,8 +57,7 @@ func (s *Service) Watch(t Target) error {
 	return s.reap(t.RunRef)
 }
 
-// reap waits the grace for the run's in-flight runtime calls, then tears it down once, giving up after the teardown
-// timeout; the sweep removes what's left.
+// reap tears run down once after the grace, giving up after the teardown timeout.
 func (s *Service) reap(run sandbox.RunRef) error {
 	time.Sleep(s.reapGrace)
 

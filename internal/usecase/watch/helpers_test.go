@@ -13,8 +13,7 @@ import (
 // childLifetime is how long a startChild child runs.
 const childLifetime = 300 * time.Millisecond
 
-// fakeRuns implements Runs, recording each teardown; err is what Teardown returns, and a non-nil release blocks it
-// until closed.
+// fakeRuns implements Runs, recording each teardown; a non-nil release blocks it until closed.
 type fakeRuns struct {
 	calls   []sandbox.RunRef
 	err     error
