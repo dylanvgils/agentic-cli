@@ -10,10 +10,11 @@ import (
 const addressPoolSize = 24
 
 // addressPoolCandidates are tried in order; they avoid Docker's and Podman's default ranges.
+// NOSONAR on each: private ranges for the sidecar's inner networks, not endpoints.
 var addressPoolCandidates = []netip.Prefix{
-	netip.MustParsePrefix("10.200.0.0/16"),
-	netip.MustParsePrefix("10.201.0.0/16"),
-	netip.MustParsePrefix("10.202.0.0/16"),
+	netip.MustParsePrefix("10.200.0.0/16"), // NOSONAR
+	netip.MustParsePrefix("10.201.0.0/16"), // NOSONAR
+	netip.MustParsePrefix("10.202.0.0/16"), // NOSONAR
 }
 
 // AddressPool returns dockerd's --default-address-pool value, clear of the run network's subnets: an overlapping inner
