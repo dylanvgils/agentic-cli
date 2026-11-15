@@ -35,28 +35,28 @@ type instructionsFacts struct {
 	custom        string
 }
 
-// PrepareInstructions writes content into run id's instructions snapshot and returns its mount spec, or strips any stale
+// prepareInstructions writes content into run id's instructions snapshot and returns its mount spec, or strips any stale
 // managed block in place and returns "" when content is empty.
-func (s *Service) PrepareInstructions(toolHome string, id sandbox.RunID, toolConfig tools.ToolConfig, content string) (string, error) {
+func (s *Service) prepareInstructions(c runConfig, id sandbox.RunID, content string) (string, error) {
 	if content == "" {
-		return "", toolConfig.Runtime.WriteInstructions(toolHome, "")
+		return "", c.Tool.Runtime.WriteInstructions(c.Homes.Tool, "")
 	}
 
-	hostPath := toolConfig.Runtime.InstructionsHostPath(toolHome)
+	hostPath := c.Tool.Runtime.InstructionsHostPath(c.Homes.Tool)
 	path := snapshotPath(id, hostPath)
-	if err := instructions.PrepareSnapshot(filepath.Join(toolHome, tools.ToolsDirName), hostPath, content, path); err != nil {
+	if err := instructions.PrepareSnapshot(filepath.Join(c.Homes.Tool, tools.ToolsDirName), hostPath, content, path); err != nil {
 		return "", err
 	}
-	return sandbox.VolumeMount(path, toolConfig.Runtime.InstructionsContainerPath), nil
+	return sandbox.VolumeMount(path, c.Tool.Runtime.InstructionsContainerPath), nil
 }
 
-// BuildInstructions assembles the environment-instructions Markdown for the tool's global instructions file, or "" when disabled via [run.instructions].
-func (s *Service) BuildInstructions(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (string, error) {
-	if !instructionsEnabled(rc) {
+// buildInstructions assembles the environment-instructions Markdown for the tool's global instructions file, or "" when disabled via [run.instructions].
+func (s *Service) buildInstructions(c runConfig) (string, error) {
+	if !instructionsEnabled(c.RC) {
 		return "", nil
 	}
 
-	facts, err := s.instructionsFacts(target, in, toolConfig, rc)
+	facts, err := s.instructionsFacts(c)
 	if err != nil {
 		return "", err
 	}
@@ -66,12 +66,12 @@ func (s *Service) BuildInstructions(target Target, in Input, toolConfig tools.To
 
 // PreviewInstructions returns the effective content a run of req would write, without prompting or touching any files.
 func (s *Service) PreviewInstructions(req Request) (string, error) {
-	in, err := resolveInput(req.Flags, req.Project.RC, s.capabilities(req.runtime(), req.proxyBackend()))
+	c, err := s.resolveRun(req, req.Project.RC)
 	if err != nil {
 		return "", err
 	}
 
-	content, err := s.BuildInstructions(req.Target, in, req.Tool, req.Project.RC)
+	content, err := s.buildInstructions(c)
 	if err != nil {
 		return "", err
 	}
@@ -79,34 +79,31 @@ func (s *Service) PreviewInstructions(req Request) (string, error) {
 		return "", nil
 	}
 
-	hostPath := req.Tool.Runtime.InstructionsHostPath(in.ToolHome)
+	hostPath := c.Tool.Runtime.InstructionsHostPath(c.Homes.Tool)
 
-	return instructions.Merged(filepath.Join(in.ToolHome, tools.ToolsDirName), hostPath, content)
+	return instructions.Merged(filepath.Join(c.Homes.Tool, tools.ToolsDirName), hostPath, content)
 }
 
 // instructionsFacts inspects the image and resolves the run's settings into what the block describes.
-func (s *Service) instructionsFacts(target Target, in Input, toolConfig tools.ToolConfig, rc *config.AgenticRC) (instructionsFacts, error) {
-	info, err := s.docker.InspectImage(target.ImageName)
+func (s *Service) instructionsFacts(c runConfig) (instructionsFacts, error) {
+	info, err := s.docker.InspectImage(c.Target.ImageName)
 	if err != nil {
-		return instructionsFacts{}, fmt.Errorf("inspect %s: %w", target.ImageName, err)
+		return instructionsFacts{}, fmt.Errorf("inspect %s: %w", c.Target.ImageName, err)
 	}
 
-	caps := s.capabilities(in.Runtime, in.ProxyBackend)
-	limits := resolve.ResourceLimitsFor(in.Limits, rc)
-
 	return instructionsFacts{
-		caps:          caps,
+		caps:          c.Runtime.Caps,
 		image:         info,
-		containerHome: s.docker.ResolveContainerHome(target.ImageName),
-		mounts:        resolve.Volumes(toolConfig.Runtime.Mounts(), in.Volumes, rc),
-		ephemeralDirs: toolConfig.Runtime.EphemeralDirs(),
-		limits:        limits,
-		dindLimits:    resolve.DindResourceLimitsFor(in.DindLimits, rc, limits),
-		proxyMode:     in.ProxyMode,
-		dindEnabled:   in.DindEnabled,
-		rules:         proxyRules(toolConfig, in, rc, caps.Features),
-		webSearchTool: toolConfig.Runtime.WebSearchTool,
-		custom:        rc.Run.Instructions.Custom,
+		containerHome: c.Homes.Container,
+		mounts:        resolve.Volumes(c.Tool.Runtime.Mounts(), c.Mounts.Extra, c.RC),
+		ephemeralDirs: c.Tool.Runtime.EphemeralDirs(),
+		limits:        c.Limits,
+		dindLimits:    c.Dind.Limits,
+		proxyMode:     c.Egress.Mode,
+		dindEnabled:   c.Dind.Enabled,
+		rules:         proxyRules(c),
+		webSearchTool: c.Tool.Runtime.WebSearchTool,
+		custom:        c.RC.Run.Instructions.Custom,
 	}, nil
 }
 

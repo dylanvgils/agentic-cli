@@ -75,7 +75,7 @@ CLI changes take effect after `make build`. Changes to stage funcs in `internal/
 The environment instructions are pinned by golden files in `internal/usecase/run/testdata/instructions/`. After changing their wording, regenerate the files and review the diff:
 
 ```bash
-go test ./internal/usecase/run -run TestBuildInstructions -update
+go test ./internal/usecase/run -run Test_Service_buildInstructions -update
 ```
 
 Integration tests build the binary and the images their packages need (slow the first time, cached after), then drive `agentic` like a user would. They skip without Docker, without msb for the microsandbox runs unless `MSB=1`, and without direct internet access for the few that reach a public host (`platform.SkipWithoutInternet`). This repo's `.agenticrc.toml` enables DinD, so they also run inside an agentic container.

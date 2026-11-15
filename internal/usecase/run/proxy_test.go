@@ -18,11 +18,18 @@ import (
 func Test_proxyRules(t *testing.T) {
 	rc := &config.AgenticRC{}
 	rc.Run.Proxy.AllowedPaths = []config.RCAllowedPath{{Host: "raw.example.test", Paths: []string{"/a"}}}
-	toolConfig := tools.ToolConfig{Runtime: tools.RuntimeConfig{AllowedHosts: []string{"api.example.test"}}}
+	c := runConfig{
+		Tool: tools.ToolConfig{Runtime: tools.RuntimeConfig{AllowedHosts: []string{"api.example.test"}}},
+		RC:   rc,
+	}
 
 	t.Run("a runtime with path rules keeps the paths", func(t *testing.T) {
+		// Arrange
+		withPaths := c
+		withPaths.Runtime.Caps.PathRules = true
+
 		// Act
-		rules := proxyRules(toolConfig, Input{}, rc, sandbox.Features{PathRules: true})
+		rules := proxyRules(withPaths)
 
 		// Assert
 		assert.Equal(t, []sandbox.AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test", Paths: []string{"/a"}}}, rules)
@@ -30,7 +37,7 @@ func Test_proxyRules(t *testing.T) {
 
 	t.Run("a runtime without path rules allows their hosts whole", func(t *testing.T) {
 		// Act
-		rules := proxyRules(toolConfig, Input{}, rc, sandbox.Features{})
+		rules := proxyRules(c)
 
 		// Assert
 		assert.Equal(t, []sandbox.AllowRule{{Host: "api.example.test"}, {Host: "raw.example.test"}}, rules)

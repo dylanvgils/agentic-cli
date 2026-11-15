@@ -344,7 +344,9 @@ func Test_Service_Teardown(t *testing.T) {
 		stubRunTempDir(t)
 		toolHome := t.TempDir()
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(toolHome))
-		mountSpec, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, testRunID, tools.Configs["claude"], "generated block")
+		c := newTestRunConfig(t)
+		c.Homes.Tool = toolHome
+		mountSpec, err := newTestService(&fakeDocker{}, nil).prepareInstructions(c, testRunID, "generated block")
 		require.NoError(t, err)
 		snapshotPath := sandbox.HostPart(mountSpec)
 		var snapshotAtTeardown bool

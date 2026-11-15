@@ -61,12 +61,12 @@ func Test_resolveCredentials(t *testing.T) {
 
 func Test_credentialSetup(t *testing.T) {
 	resolved := []credentials.Resolved{{Env: []string{"EXAMPLE_API_KEY"}}}
-	proxyInjects := sandbox.Isolation{CredentialsViaProxy: true}
-	runtimeInjects := sandbox.Isolation{}
+	proxyInjects := runtimeConfig{Caps: sandbox.Capabilities{Isolation: sandbox.Isolation{CredentialsViaProxy: true}}}
+	runtimeInjects := runtimeConfig{}
 
 	t.Run("no credentials is a no-op even with the proxy off", func(t *testing.T) {
 		// Act
-		err := credentialSetup(Input{}, proxyInjects, mountSet{}, nil)
+		err := credentialSetup(runConfig{Runtime: proxyInjects}, mountSet{}, nil)
 
 		// Assert
 		assert.NoError(t, err)
@@ -74,10 +74,13 @@ func Test_credentialSetup(t *testing.T) {
 
 	t.Run("credentials without the proxy are an error", func(t *testing.T) {
 		// Arrange
-		in := Input{Credentials: resolved}
+		c := runConfig{
+			Runtime: proxyInjects,
+			Egress:  egressConfig{Credentials: resolved},
+		}
 
 		// Act
-		err := credentialSetup(in, proxyInjects, mountSet{}, nil)
+		err := credentialSetup(c, mountSet{}, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "need the egress proxy")
@@ -85,11 +88,17 @@ func Test_credentialSetup(t *testing.T) {
 
 	t.Run("credentials with the proxy pass and leave the placeholders to the runtime", func(t *testing.T) {
 		// Arrange
-		in := Input{ProxyMode: sandbox.EgressMonitor, Credentials: resolved}
+		c := runConfig{
+			Runtime: proxyInjects,
+			Egress: egressConfig{
+				Mode:        sandbox.EgressMonitor,
+				Credentials: resolved,
+			},
+		}
 		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
 
 		// Act
-		err := credentialSetup(in, proxyInjects, mounts, nil)
+		err := credentialSetup(c, mounts, nil)
 
 		// Assert
 		assert.NoError(t, err)
@@ -97,12 +106,15 @@ func Test_credentialSetup(t *testing.T) {
 
 	t.Run("a runtime that injects itself needs no proxy and gets no placeholders, but the same checks", func(t *testing.T) {
 		// Arrange
-		in := Input{Credentials: resolved}
+		c := runConfig{
+			Runtime: runtimeInjects,
+			Egress:  egressConfig{Credentials: resolved},
+		}
 		mounts := mountSet{toolHome: t.TempDir(), containerHome: "/home/agent"}
 
 		// Act
-		err := credentialSetup(in, runtimeInjects, mounts, nil)
-		overrideErr := credentialSetup(in, runtimeInjects, mounts, []string{"EXAMPLE_API_KEY=value"})
+		err := credentialSetup(c, mounts, nil)
+		overrideErr := credentialSetup(c, mounts, []string{"EXAMPLE_API_KEY=value"})
 
 		// Assert
 		assert.NoError(t, err)
@@ -135,7 +147,7 @@ func Test_sandboxCredentials(t *testing.T) {
 func Test_checkCredentialEnv(t *testing.T) {
 	t.Run("accepts names nothing else sets", func(t *testing.T) {
 		// Arrange
-		in := Input{Credentials: []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}}
+		in := runConfig{Egress: egressConfig{Credentials: []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}}}
 
 		// Act
 		err := checkCredentialEnv(in, []string{"OTHER=value"})
@@ -148,7 +160,7 @@ func Test_checkCredentialEnv(t *testing.T) {
 		for _, entry := range []string{"AGENTIC_PROXY_CA=test-ca", "SSL_CERT_FILE=/certs/example.pem", "NODE_EXTRA_CA_CERTS"} {
 			t.Run(entry, func(t *testing.T) {
 				// Arrange
-				in := Input{Credentials: []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}}
+				in := runConfig{Egress: egressConfig{Credentials: []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}}}
 
 				// Act
 				err := checkCredentialEnv(in, []string{entry})
@@ -163,7 +175,7 @@ func Test_checkCredentialEnv(t *testing.T) {
 		for _, entry := range []string{"EXAMPLE_TOKEN=value", "EXAMPLE_TOKEN"} {
 			t.Run(entry, func(t *testing.T) {
 				// Arrange
-				in := Input{Credentials: []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}}
+				in := runConfig{Egress: egressConfig{Credentials: []credentials.Resolved{{Env: []string{"EXAMPLE_TOKEN"}}}}}
 
 				// Act
 				err := checkCredentialEnv(in, []string{entry})
@@ -178,7 +190,7 @@ func Test_checkCredentialEnv(t *testing.T) {
 		for _, name := range []string{"HTTPS_PROXY", "TOOL_HOME", "AGENTIC_PROXY_CA", "GIT_SSL_CAINFO"} {
 			t.Run(name, func(t *testing.T) {
 				// Arrange
-				in := Input{Credentials: []credentials.Resolved{{Env: []string{name}}}}
+				in := runConfig{Egress: egressConfig{Credentials: []credentials.Resolved{{Env: []string{name}}}}}
 
 				// Act
 				err := checkCredentialEnv(in, nil)
@@ -191,9 +203,9 @@ func Test_checkCredentialEnv(t *testing.T) {
 
 	t.Run("refuses docker names only with dind", func(t *testing.T) {
 		// Arrange
-		in := Input{Credentials: []credentials.Resolved{{Env: []string{"DOCKER_HOST"}}}}
+		in := runConfig{Egress: egressConfig{Credentials: []credentials.Resolved{{Env: []string{"DOCKER_HOST"}}}}}
 		dindIn := in
-		dindIn.DindEnabled = true
+		dindIn.Dind.Enabled = true
 
 		// Act
 		withoutDind := checkCredentialEnv(in, nil)
@@ -206,9 +218,9 @@ func Test_checkCredentialEnv(t *testing.T) {
 
 	t.Run("refuses integration names only with the integration", func(t *testing.T) {
 		// Arrange
-		in := Input{Credentials: []credentials.Resolved{{Env: []string{"MAVEN_ARGS"}}}}
+		in := runConfig{Egress: egressConfig{Credentials: []credentials.Resolved{{Env: []string{"MAVEN_ARGS"}}}}}
 		mavenIn := in
-		mavenIn.ProxyIntegrations = []string{"maven"}
+		mavenIn.Egress.Integrations = []string{"maven"}
 
 		// Act
 		without := checkCredentialEnv(in, nil)

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/dylanvgils/agentic-cli/internal/config"
-	"github.com/dylanvgils/agentic-cli/internal/image/tools"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
@@ -17,9 +16,9 @@ import (
 const defaultProxyLogRetentionDays = 3
 
 // proxyRules resolves the proxy's allow rules, allowing path rule hosts whole on a runtime that can't match paths.
-func proxyRules(toolConfig tools.ToolConfig, in Input, rc *config.AgenticRC, features sandbox.Features) []sandbox.AllowRule {
-	rules := resolve.ProxyRules(toolConfig.Runtime.AllowedHosts, in.DindEnabled, rc)
-	if features.PathRules {
+func proxyRules(c runConfig) []sandbox.AllowRule {
+	rules := resolve.ProxyRules(c.Tool.Runtime.AllowedHosts, c.Dind.Enabled, c.RC)
+	if c.Runtime.Caps.PathRules {
 		return rules
 	}
 	return sandbox.AllowWhole(rules)

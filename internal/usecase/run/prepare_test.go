@@ -411,8 +411,8 @@ func Test_Request_runtime(t *testing.T) {
 	assert.Equal(t, sandbox.RuntimeMicrosandbox, runtime)
 }
 
-func Test_resolveInput(t *testing.T) {
-	dockerCaps := sandbox.Capabilities{
+func Test_Service_resolveRun(t *testing.T) {
+	daemonCaps := sandbox.Capabilities{
 		Features: sandbox.Features{
 			Proxy:               true,
 			Dind:                true,
@@ -420,40 +420,104 @@ func Test_resolveInput(t *testing.T) {
 		},
 		Isolation: sandbox.Isolation{CredentialsViaProxy: true},
 	}
+	noDaemonCaps := sandbox.Capabilities{Features: sandbox.Features{CredentialInjection: true}}
+	// newSvc returns a Service whose runtimes both offer caps
+	newSvc := func(caps sandbox.Capabilities) *Service {
+		d := &fakeDocker{
+			capabilities:         func() sandbox.Capabilities { return caps },
+			resolveContainerHome: func(string) string { return "/home/agent" },
+		}
+		m := &fakeMicrosandbox{capabilities: func() sandbox.Capabilities { return caps }}
+		return newTestService(d, m)
+	}
+	target := Target{
+		ToolName:  "claude",
+		ImageName: "agentic-claude",
+	}
 
-	t.Run("copies the flags and resolves proxy and dind against the config", func(t *testing.T) {
+	t.Run("copies the flags and resolves proxy, dind and limits against the config", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
-		flags := Flags{
-			ToolHome:   "/example.test/home",
-			DryRun:     true,
-			Registry:   "registry.example.test",
-			Proxy:      resolve.ProxyInput{MonitorFlag: true},
-			Dind:       resolve.DindInput{DindFlag: true},
-			Volumes:    []string{"/example.test/a:/a"},
-			Env:        []string{"FOO=bar"},
-			Limits:     sandbox.ResourceLimits{CPUs: "2"},
-			DindLimits: sandbox.ResourceLimits{Memory: "1g"},
-			Runtime:    sandbox.RuntimeMicrosandbox,
+		// No funcs, so the config compares equal
+		tool := tools.ToolConfig{Runtime: tools.RuntimeConfig{WebSearchTool: "WebSearch"}}
+		req := Request{
+			Target: target,
+			Tool:   tool,
+			Flags: Flags{
+				ToolHome:   "/example.test/home",
+				DryRun:     true,
+				Registry:   "registry.example.test",
+				Proxy:      resolve.ProxyInput{MonitorFlag: true},
+				Dind:       resolve.DindInput{DindFlag: true},
+				Volumes:    []string{"/example.test/a:/a"},
+				Env:        []string{"FOO=bar"},
+				Limits:     sandbox.ResourceLimits{CPUs: "2"},
+				DindLimits: sandbox.ResourceLimits{Memory: "1g"},
+				Runtime:    sandbox.RuntimeMicrosandbox,
+			},
 		}
 
 		// Act
-		in, err := resolveInput(flags, rc, dockerCaps)
+		c, err := newSvc(daemonCaps).resolveRun(req, rc)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, Input{
-			ToolHome:    "/example.test/home",
-			Volumes:     []string{"/example.test/a:/a"},
-			Env:         []string{"FOO=bar"},
-			Limits:      sandbox.ResourceLimits{CPUs: "2"},
-			DryRun:      true,
-			Registry:    "registry.example.test",
-			ProxyMode:   sandbox.EgressMonitor,
-			DindEnabled: true,
-			DindLimits:  sandbox.ResourceLimits{Memory: "1g"},
-			Runtime:     sandbox.RuntimeMicrosandbox,
-		}, in)
+		limits := sandbox.ResourceLimits{CPUs: "2"}.Or(sandbox.DefaultLimits)
+		assert.Equal(t, runConfig{
+			Target: target,
+			Tool:   tool,
+			RC:     rc,
+			Runtime: runtimeConfig{
+				Name: sandbox.RuntimeMicrosandbox,
+				Caps: daemonCaps,
+			},
+			Homes: homes{
+				Tool:      "/example.test/home",
+				Container: "/home/agent",
+			},
+			Egress: egressConfig{Mode: sandbox.EgressMonitor},
+			Limits: limits,
+			Dind: sandbox.DindSpec{
+				Enabled: true,
+				Limits:  sandbox.ResourceLimits{Memory: "1g"}.Or(limits),
+			},
+			Mounts:   runMounts{Extra: []string{"/example.test/a:/a"}},
+			Env:      []string{"FOO=bar"},
+			Registry: "registry.example.test",
+			DryRun:   true,
+		}, c)
+	})
+
+	t.Run("dind limits override the tool's, which fill the rest", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{
+			RCLimits: config.RCLimits{
+				PidsLimit: "512",
+				CPUs:      "2",
+				Memory:    "2g",
+			},
+			Dind: config.RCDind{RCLimits: config.RCLimits{
+				PidsLimit: "4096",
+				Memory:    "8g",
+			}},
+		}}
+		req := Request{
+			Target: target,
+			Flags:  Flags{DindLimits: sandbox.ResourceLimits{Memory: "16g"}},
+		}
+
+		// Act
+		c, err := newSvc(daemonCaps).resolveRun(req, rc)
+
+		// Assert
+		require.NoError(t, err)
+		want := sandbox.ResourceLimits{
+			PidsLimit: "4096",
+			CPUs:      "2",
+			Memory:    "16g",
+		}
+		assert.Equal(t, want, c.Dind.Limits)
+		assert.Equal(t, "2g", c.Limits.Memory, "tool limit is unaffected")
 	})
 
 	t.Run("config picks the runtime when the flag is unset", func(t *testing.T) {
@@ -461,21 +525,24 @@ func Test_resolveInput(t *testing.T) {
 		rc := &config.AgenticRC{Run: config.RCRun{Runtime: "microsandbox"}}
 
 		// Act
-		in, err := resolveInput(Flags{}, rc, dockerCaps)
+		c, err := newSvc(daemonCaps).resolveRun(Request{Target: target}, rc)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, sandbox.RuntimeMicrosandbox, in.Runtime)
+		assert.Equal(t, sandbox.RuntimeMicrosandbox, c.Runtime.Name)
 	})
 
 	t.Run("a proxy conflict is an error", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{}
 		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
-		flags := Flags{Proxy: resolve.ProxyInput{NoProxy: true}}
+		req := Request{
+			Target: target,
+			Flags:  Flags{Proxy: resolve.ProxyInput{NoProxy: true}},
+		}
 
 		// Act
-		_, err := resolveInput(flags, rc, dockerCaps)
+		_, err := newSvc(daemonCaps).resolveRun(req, rc)
 
 		// Assert
 		require.ErrorContains(t, err, "--no-proxy cannot be used")
@@ -483,10 +550,13 @@ func Test_resolveInput(t *testing.T) {
 
 	t.Run("an unknown proxy integration is an error", func(t *testing.T) {
 		// Arrange
-		flags := Flags{Proxy: resolve.ProxyInput{Integrations: []string{"bogus"}}}
+		req := Request{
+			Target: target,
+			Flags:  Flags{Proxy: resolve.ProxyInput{Integrations: []string{"bogus"}}},
+		}
 
 		// Act
-		_, err := resolveInput(flags, &config.AgenticRC{}, dockerCaps)
+		_, err := newSvc(daemonCaps).resolveRun(req, &config.AgenticRC{})
 
 		// Assert
 		require.ErrorContains(t, err, `--proxy-integration: unknown integration "bogus"`)
@@ -494,14 +564,17 @@ func Test_resolveInput(t *testing.T) {
 
 	t.Run("dind stays off on a runtime without a daemon", func(t *testing.T) {
 		// Arrange
-		flags := Flags{Dind: resolve.DindInput{DindFlag: true}}
+		req := Request{
+			Target: target,
+			Flags:  Flags{Dind: resolve.DindInput{DindFlag: true}},
+		}
 
 		// Act
-		in, err := resolveInput(flags, &config.AgenticRC{}, sandbox.Capabilities{Features: sandbox.Features{CredentialInjection: true}})
+		c, err := newSvc(noDaemonCaps).resolveRun(req, &config.AgenticRC{})
 
 		// Assert
 		require.NoError(t, err)
-		assert.False(t, in.DindEnabled)
+		assert.False(t, c.Dind.Enabled)
 	})
 
 	t.Run("credentials leave the proxy off when the runtime injects them", func(t *testing.T) {
@@ -510,10 +583,10 @@ func Test_resolveInput(t *testing.T) {
 		rc.Run.Proxy.Credentials = []config.RCCredential{{Hosts: []string{"api.example.test"}, Header: "X-Api-Key", Secret: "/example.test/key"}}
 
 		// Act
-		in, err := resolveInput(Flags{}, rc, sandbox.Capabilities{Features: sandbox.Features{CredentialInjection: true}})
+		c, err := newSvc(noDaemonCaps).resolveRun(Request{Target: target}, rc)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, sandbox.EgressOff, in.ProxyMode)
+		assert.Equal(t, sandbox.EgressOff, c.Egress.Mode)
 	})
 }
