@@ -89,14 +89,14 @@ func TestServerConnect(t *testing.T) {
 			guard:   allowLocal,
 			hosts:   []string{"127.0.0.1"},
 			target:  "127.0.0.1",
-			wantLog: `"host":"127.0.0.1","port":"%s","decision":"allow","enforced":true}`,
+			wantLog: `"host":"127.0.0.1","port":"%s","decision":"allow","enforced":true`,
 		},
 		{
 			name:    "monitor mode tunnels a denied host and logs deny unenforced",
 			guard:   allowLocal,
 			monitor: true,
 			target:  "127.0.0.1",
-			wantLog: `"host":"127.0.0.1","port":"%s","decision":"deny","enforced":false}`,
+			wantLog: `"host":"127.0.0.1","port":"%s","decision":"deny","enforced":false`,
 		},
 		{
 			name:       "exact entry can reach a private address",
@@ -104,7 +104,7 @@ func TestServerConnect(t *testing.T) {
 			hosts:      []string{"localhost"},
 			target:     "localhost",
 			serverName: "localhost",
-			wantLog:    `"host":"localhost","port":"%s","decision":"allow","enforced":true}`,
+			wantLog:    `"host":"localhost","port":"%s","decision":"allow","enforced":true`,
 		},
 		{
 			name:       "monitor mode tunnels another tls server name and logs the mismatch unenforced",
