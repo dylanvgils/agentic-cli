@@ -1,4 +1,4 @@
-// Package watch tears a run down once its agentic process exits.
+// Package watch reaps a run once its agentic process exits.
 package watch
 
 import (
@@ -17,14 +17,15 @@ const ReadyLine = "ready"
 // teardownTimeout bounds the teardown, so a hung runtime can't keep the watchdog alive forever.
 const teardownTimeout = 2 * time.Minute
 
-// settleTime is how long a runtime call the killed process had in flight gets to finish before the second teardown.
-const settleTime = 5 * time.Second
+// reapGrace is how long the run's in-flight runtime calls get to finish before the teardown: they outlive the killed
+// process and can still create a resource, such as a `docker create` sent just before the kill.
+const reapGrace = 5 * time.Second
 
-// Service waits for a run's agentic process to exit, then tears the run down.
+// Service waits for a run's agentic process to exit, then reaps the run.
 type Service struct {
 	runs            Runs
 	teardownTimeout time.Duration
-	settleTime      time.Duration
+	reapGrace       time.Duration
 }
 
 // New returns a Service tearing runs down through runs.
@@ -32,17 +33,17 @@ func New(runs Runs) *Service {
 	return &Service{
 		runs:            runs,
 		teardownTimeout: teardownTimeout,
-		settleTime:      settleTime,
+		reapGrace:       reapGrace,
 	}
 }
 
-// Watch waits for t's process to exit, then tears down its run.
+// Watch waits for t's process to exit, then reaps its run.
 func (s *Service) Watch(t Target) error {
 	platform.IgnoreHangup()
 
 	h, err := platform.OpenProcess(t.PID)
 	if errors.Is(err, platform.ErrProcessGone) {
-		return s.teardownWithin(t.RunRef)
+		return s.reap(t.RunRef)
 	}
 	if err != nil {
 		return err
@@ -54,13 +55,16 @@ func (s *Service) Watch(t Target) error {
 	if err := h.Wait(); err != nil {
 		return err
 	}
-	return s.teardownWithin(t.RunRef)
+	return s.reap(t.RunRef)
 }
 
-// teardownWithin tears run down, giving up after the teardown timeout; the sweep removes what's left.
-func (s *Service) teardownWithin(run sandbox.RunRef) error {
+// reap waits the grace for the run's in-flight runtime calls, then tears it down once, giving up after the teardown
+// timeout; the sweep removes what's left.
+func (s *Service) reap(run sandbox.RunRef) error {
+	time.Sleep(s.reapGrace)
+
 	done := make(chan error, 1)
-	go func() { done <- s.teardownAndCatchLate(run) }()
+	go func() { done <- s.runs.Teardown(run) }()
 
 	select {
 	case err := <-done:
@@ -68,12 +72,4 @@ func (s *Service) teardownWithin(run sandbox.RunRef) error {
 	case <-time.After(s.teardownTimeout):
 		return fmt.Errorf("teardown of run %s not done within %s", run.ID, s.teardownTimeout)
 	}
-}
-
-// teardownAndCatchLate tears run down twice: a runtime call the killed process had in flight, such as a `docker create`,
-// outlives it and can add a resource after the first pass. Only the second pass's error counts.
-func (s *Service) teardownAndCatchLate(run sandbox.RunRef) error {
-	_ = s.runs.Teardown(run)
-	time.Sleep(s.settleTime)
-	return s.runs.Teardown(run)
 }

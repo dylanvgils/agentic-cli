@@ -17,7 +17,7 @@ import (
 const testRunID sandbox.RunID = "0123456789ab"
 
 func TestService_Watch(t *testing.T) {
-	t.Run("tears the run down twice once the process exits", func(t *testing.T) {
+	t.Run("tears the run down once after the process exits", func(t *testing.T) {
 		// Arrange
 		out := iostreamstest.StubOut(t)
 		toolHome := t.TempDir()
@@ -46,10 +46,10 @@ func TestService_Watch(t *testing.T) {
 			Tool:     "claude",
 			ToolHome: toolHome,
 		}
-		assert.Equal(t, []sandbox.RunRef{run, run}, runs.calls)
+		assert.Equal(t, []sandbox.RunRef{run}, runs.calls)
 	})
 
-	t.Run("a process already gone is torn down at once", func(t *testing.T) {
+	t.Run("a process already gone is reaped", func(t *testing.T) {
 		// Arrange
 		out := iostreamstest.StubOut(t)
 		runs := &fakeRuns{}
@@ -70,17 +70,14 @@ func TestService_Watch(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, out.String(), "nobody waits for it to be ready")
-		assert.Len(t, runs.calls, 2)
+		assert.Len(t, runs.calls, 1)
 	})
 
-	t.Run("returns only the second teardown's error", func(t *testing.T) {
+	t.Run("returns the teardown's error", func(t *testing.T) {
 		// Arrange
 		iostreamstest.StubOut(t)
 		toolHome := t.TempDir()
-		runs := &fakeRuns{errs: []error{
-			errors.New("stub: first teardown failed"),
-			errors.New("stub: second teardown failed"),
-		}}
+		runs := &fakeRuns{err: errors.New("stub: teardown failed")}
 		gone := exec.Command(os.Args[0], "-test.run=^$")
 		require.NoError(t, gone.Run())
 
@@ -96,7 +93,34 @@ func TestService_Watch(t *testing.T) {
 		})
 
 		// Assert
-		require.EqualError(t, err, "stub: second teardown failed")
+		require.EqualError(t, err, "stub: teardown failed")
+	})
+
+	t.Run("waits the grace before the teardown", func(t *testing.T) {
+		// Arrange
+		iostreamstest.StubOut(t)
+		const grace = 100 * time.Millisecond
+		runs := &fakeRuns{}
+		svc := newTestService(runs)
+		svc.reapGrace = grace
+		gone := exec.Command(os.Args[0], "-test.run=^$")
+		require.NoError(t, gone.Run())
+		start := time.Now()
+
+		// Act
+		err := svc.Watch(Target{
+			RunRef: sandbox.RunRef{
+				ID:       testRunID,
+				Runtime:  sandbox.RuntimeDocker,
+				ToolHome: t.TempDir(),
+			},
+			PID: gone.Process.Pid,
+		})
+
+		// Assert
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, time.Since(start), grace)
+		assert.Len(t, runs.calls, 1)
 	})
 
 	t.Run("gives up on a hung teardown", func(t *testing.T) {
