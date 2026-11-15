@@ -37,14 +37,13 @@ type PublishedProxy struct {
 	// Env is the tool's KEY=VALUE credential placeholders and proxy integration env.
 	Env []string
 
-	stop func()
+	// guard tears the run down; nil on a dry run
+	guard *runGuard
 }
 
 // Stop removes the proxy and its volume; safe to defer, including on a zero or dry-run PublishedProxy.
 func (p PublishedProxy) Stop() {
-	if p.stop != nil {
-		p.stop()
-	}
+	p.guard.release()
 }
 
 // StartPublishedProxy starts spec's proxy on a random 127.0.0.1 port with a fresh auth token, logging to proxyLog; a
@@ -76,18 +75,13 @@ func (c *Client) StartPublishedProxy(spec sandbox.RunSpec, proxyLog string, owne
 	warnOnSweepError(c.sweepOrphanedSidecars(spec.ToolHome))
 
 	// Guard first, so Ctrl-C during startup still tears it down
-	interrupt, stopGuard := guardSignals()
-	stop := func() {
-		warnOnTeardownError(c.Teardown(spec.ToolHome, spec.RunID))
-		stopGuard()
-	}
-
-	published, err := c.startPublished(h, rs, interrupt)
+	guard := c.guardRun(spec.ToolHome, spec.RunID, true)
+	published, err := c.startPublished(h, rs, guard.signals)
 	if err != nil {
-		stop()
+		guard.release()
 		return PublishedProxy{}, err
 	}
-	published.stop = stop
+	published.guard = guard
 	return published, nil
 }
 

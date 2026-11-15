@@ -595,3 +595,6 @@ func stubRunTempDir(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
 	require.NoError(t, sandbox.CreateRunTempDir(testRunID))
 }
+
+// otherRunID is a second run's ID.
+const otherRunID sandbox.RunID = "ba9876543210"

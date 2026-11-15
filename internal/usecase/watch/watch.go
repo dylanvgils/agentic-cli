@@ -8,6 +8,7 @@ import (
 
 	"github.com/dylanvgils/agentic-cli/internal/infra/iostreams"
 	"github.com/dylanvgils/agentic-cli/internal/infra/platform"
+	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
 
 // ReadyLine is printed once the watchdog holds its handle.
@@ -39,44 +40,40 @@ func New(runs Runs) *Service {
 func (s *Service) Watch(t Target) error {
 	platform.IgnoreHangup()
 
-	if err := waitForExit(t.PID); err != nil {
-		return err
-	}
-	return s.teardown(t)
-}
-
-// teardown tears down t's run, giving up after the teardown timeout; the sweep removes what's left.
-func (s *Service) teardown(t Target) error {
-	done := make(chan error, 1)
-	go func() { done <- s.teardownSettled(t) }()
-
-	select {
-	case err := <-done:
-		return err
-	case <-time.After(s.teardownTimeout):
-		return fmt.Errorf("teardown of run %s not done within %s", t.ID, s.teardownTimeout)
-	}
-}
-
-// teardownSettled tears t's run down twice: a runtime call the killed process had in flight, such as a `docker create`,
-// outlives it and can add a resource after the first pass. Only the second pass's error counts.
-func (s *Service) teardownSettled(t Target) error {
-	_ = s.runs.Teardown(t.RunRef)
-	time.Sleep(s.settleTime)
-	return s.runs.Teardown(t.RunRef)
-}
-
-// waitForExit blocks until pid exits, printing ReadyLine once it watches.
-func waitForExit(pid int) error {
-	h, err := platform.OpenProcess(pid)
+	h, err := platform.OpenProcess(t.PID)
 	if errors.Is(err, platform.ErrProcessGone) {
-		return nil
+		return s.teardownWithin(t.RunRef)
 	}
 	if err != nil {
 		return err
 	}
 	defer func() { _ = h.Close() }()
 
+	// The run waits for this line, so it only starts once its exit is watched
 	iostreams.Println(ReadyLine)
-	return h.Wait()
+	if err := h.Wait(); err != nil {
+		return err
+	}
+	return s.teardownWithin(t.RunRef)
+}
+
+// teardownWithin tears run down, giving up after the teardown timeout; the sweep removes what's left.
+func (s *Service) teardownWithin(run sandbox.RunRef) error {
+	done := make(chan error, 1)
+	go func() { done <- s.teardownAndCatchLate(run) }()
+
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(s.teardownTimeout):
+		return fmt.Errorf("teardown of run %s not done within %s", run.ID, s.teardownTimeout)
+	}
+}
+
+// teardownAndCatchLate tears run down twice: a runtime call the killed process had in flight, such as a `docker create`,
+// outlives it and can add a resource after the first pass. Only the second pass's error counts.
+func (s *Service) teardownAndCatchLate(run sandbox.RunRef) error {
+	_ = s.runs.Teardown(run)
+	time.Sleep(s.settleTime)
+	return s.runs.Teardown(run)
 }
