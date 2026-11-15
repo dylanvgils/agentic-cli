@@ -60,7 +60,7 @@ func (s *Service) Watch(t Target) error {
 // teardownWithin tears run down, giving up after the teardown timeout; the sweep removes what's left.
 func (s *Service) teardownWithin(run sandbox.RunRef) error {
 	done := make(chan error, 1)
-	go func() { done <- s.teardownTwice(run) }()
+	go func() { done <- s.teardownAndCatchLate(run) }()
 
 	select {
 	case err := <-done:
@@ -70,9 +70,9 @@ func (s *Service) teardownWithin(run sandbox.RunRef) error {
 	}
 }
 
-// teardownTwice tears run down twice: a runtime call the killed process had in flight, such as a `docker create`,
+// teardownAndCatchLate tears run down twice: a runtime call the killed process had in flight, such as a `docker create`,
 // outlives it and can add a resource after the first pass. Only the second pass's error counts.
-func (s *Service) teardownTwice(run sandbox.RunRef) error {
+func (s *Service) teardownAndCatchLate(run sandbox.RunRef) error {
 	_ = s.runs.Teardown(run)
 	time.Sleep(s.settleTime)
 	return s.runs.Teardown(run)
