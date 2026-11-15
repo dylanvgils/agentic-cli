@@ -484,6 +484,20 @@ func TestServerConnectSubstitute(t *testing.T) {
 	}
 }
 
+func TestNewInjector(t *testing.T) {
+	// Act
+	inject := NewInjector(newTestProxyCA(t, "api.example.test"), nil)
+
+	// Assert
+	transport, ok := inject.transport.(*http.Transport)
+	require.True(t, ok)
+	assert.Equal(t, idleTimeout, transport.IdleConnTimeout)
+	assert.Equal(t, &http.HTTP2Config{
+		SendPingTimeout: upstreamUserTimeout,
+		PingTimeout:     pingTimeout,
+	}, transport.HTTP2)
+}
+
 func Test_credentialFor(t *testing.T) {
 	cred := testPlaceholderCredential("api.example.test", testPlaceholder)
 	inject := NewInjector(newTestProxyCA(t, "api.example.test"), []Credential{cred})
