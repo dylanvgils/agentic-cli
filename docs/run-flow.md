@@ -44,7 +44,7 @@ sequenceDiagram
     dr->>dc: StopSidecars (runGuard.release)
     cli->>svc: cleanup (endRun)
     Note over watch: agentic exits
-    watch->>svc: Teardown(RunRef), twice
+    watch->>svc: Teardown(RunRef) after 5 s
 ```
 
 How to read it:
@@ -146,7 +146,7 @@ flowchart TD
     exit{How did agentic stop?}
     exit -->|normal, Ctrl-C, SIGTERM/HUP| guard["runGuard.release + endRun"]
     exit -->|terminal closed during docker run| attach["attachTool removes the tool"]
-    exit -->|SIGKILL or crash| watchdog["watchdog: Teardown, 5 s, Teardown"]
+    exit -->|SIGKILL or crash| watchdog["watchdog: wait 5 s, Teardown"]
     watchdog -->|watchdog killed too| sweep["next run's orphan sweep after 5 min"]
 ```
 
@@ -164,4 +164,4 @@ Several layers call it, each covering what the one before can't:
 | Orphan sweep | The watchdog killed too, after 5 minutes | `internal/runtime/docker/sweep.go` |
 | Stale run dir sweep | A run that left only its dind run dir, after 10 minutes | `internal/runtime/docker/sweep.go` |
 
-`runGuard.release` tears the run down before it stops catching signals, so a second Ctrl-C can't cut the teardown short. The watchdog is a detached, hidden `agentic __watch`; it tears the run down once agentic exits and again 5 seconds later, as a `docker` call in flight at the kill outlives agentic and can still create a container.
+`runGuard.release` tears the run down before it stops catching signals, so a second Ctrl-C can't cut the teardown short. The watchdog is a detached, hidden `agentic __watch` that reaps the run: once agentic exits, it waits 5 seconds, then tears the run down once. The wait lets a `docker` call in flight at the kill finish first, as it outlives agentic and can still create a container.

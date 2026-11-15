@@ -13,11 +13,10 @@ import (
 // childLifetime is how long a startChild child runs.
 const childLifetime = 300 * time.Millisecond
 
-// fakeRuns implements Runs, recording each teardown; errs[i] is what the i-th Teardown returns, and a non-nil release
-// blocks it until closed.
+// fakeRuns implements Runs, recording each teardown; a non-nil release blocks it until closed.
 type fakeRuns struct {
 	calls   []sandbox.RunRef
-	errs    []error
+	err     error
 	release chan struct{}
 }
 
@@ -26,16 +25,13 @@ func (f *fakeRuns) Teardown(run sandbox.RunRef) error {
 	if f.release != nil {
 		<-f.release
 	}
-	if i := len(f.calls) - 1; i < len(f.errs) {
-		return f.errs[i]
-	}
-	return nil
+	return f.err
 }
 
-// newTestService returns a Service over runs that doesn't wait between its teardowns.
+// newTestService returns a Service over runs that reaps without a grace.
 func newTestService(runs Runs) *Service {
 	s := New(runs)
-	s.settleTime = 0
+	s.reapGrace = 0
 	return s
 }
 
