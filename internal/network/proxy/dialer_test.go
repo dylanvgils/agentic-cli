@@ -2,8 +2,10 @@ package proxy
 
 import (
 	"context"
+	"net"
 	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -47,6 +49,21 @@ func Test_blockedAddr(t *testing.T) {
 			assert.False(t, blocked)
 		})
 	}
+}
+
+func Test_newGuardedDialer(t *testing.T) {
+	// Act
+	dialer := newGuardedDialer(blockedAddr)
+	err := dialer.ControlContext(context.Background(), "tcp", "127.0.0.1:443", nil)
+
+	// Assert
+	assert.Equal(t, net.KeepAliveConfig{
+		Enable:   true,
+		Idle:     30 * time.Second,
+		Interval: 10 * time.Second,
+		Count:    3,
+	}, dialer.KeepAliveConfig)
+	assert.ErrorIs(t, err, errBlockedAddr)
 }
 
 func Test_guardAddr(t *testing.T) {

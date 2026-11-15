@@ -12,7 +12,7 @@ linters:
     depguard:
       rules:
         # ---- Proxy service ----
-        # The proxy is a standalone service: only the stdlib and these packages; logs go through log/slog
+        # The proxy is a standalone service: only the stdlib, x/sys/unix (socket options) and these packages; logs go through log/slog
         proxy:
           list-mode: strict
           files:
@@ -23,6 +23,7 @@ linters:
             - github.com/dylanvgils/agentic-cli/internal/config
             - github.com/dylanvgils/agentic-cli/internal/infra/iostreams
             - github.com/dylanvgils/agentic-cli/internal/network/certs
+            - golang.org/x/sys/unix
         # Its binary only wires the streams and starts it
         proxy-main:
           list-mode: strict

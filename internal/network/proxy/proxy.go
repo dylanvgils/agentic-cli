@@ -21,6 +21,12 @@ const (
 
 	// idleTimeout closes client connections left idle between requests.
 	idleTimeout = 90 * time.Second
+
+	// upstreamUserTimeout fails an upstream connection whose sent data stays unacknowledged, so a dead peer can't hang a tunnel.
+	upstreamUserTimeout = 30 * time.Second
+
+	// pingTimeout bounds an upstream HTTP/2 health-check ping.
+	pingTimeout = 15 * time.Second
 )
 
 // proxyFailedText is the fixed body of a 500, so the tool never sees the proxy's internal error.

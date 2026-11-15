@@ -63,7 +63,12 @@ func NewInjector(ca certs.CA, creds []Credential) *Injector {
 		transport: &http.Transport{
 			DialContext:         newGuardedDialer(blockedAddr).DialContext,
 			TLSHandshakeTimeout: handshakeTimeout,
+			IdleConnTimeout:     idleTimeout,
 			ForceAttemptHTTP2:   true,
+			HTTP2: &http.HTTP2Config{
+				SendPingTimeout: upstreamUserTimeout,
+				PingTimeout:     pingTimeout,
+			},
 		},
 	}
 }

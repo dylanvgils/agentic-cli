@@ -63,9 +63,25 @@ func newUpstream(blocked func(addr netip.Addr, privateOK bool) bool) upstream {
 	}
 }
 
-// newGuardedDialer returns a dialer refusing the addresses blocked reports.
+// newGuardedDialer returns a dialer refusing the addresses blocked reports and failing fast on a dead peer.
 func newGuardedDialer(blocked func(addr netip.Addr, privateOK bool) bool) *net.Dialer {
-	return &net.Dialer{Timeout: dialTimeout, ControlContext: guardAddr(blocked)}
+	guard := guardAddr(blocked)
+	return &net.Dialer{
+		Timeout: dialTimeout,
+		KeepAliveConfig: net.KeepAliveConfig{
+			Enable:   true,
+			Idle:     30 * time.Second,
+			Interval: 10 * time.Second,
+			Count:    3,
+		},
+		ControlContext: func(ctx context.Context, network, address string, raw syscall.RawConn) error {
+			if err := guard(ctx, network, address, raw); err != nil {
+				return err
+			}
+			setUserTimeout(raw, upstreamUserTimeout)
+			return nil
+		},
+	}
 }
 
 // allowPrivate passes whether next's upstream dials may reach private addresses.
