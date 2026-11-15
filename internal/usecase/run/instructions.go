@@ -12,19 +12,12 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/image/instructions"
 	"github.com/dylanvgils/agentic-cli/internal/image/tools"
-	"github.com/dylanvgils/agentic-cli/internal/infra/logging"
 	"github.com/dylanvgils/agentic-cli/internal/network/proxy"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/docker"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/microsandbox"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
-
-// InstructionsSnapshot is the per-run view of a tool's global instructions file; Cleanup must always be deferred by the caller.
-type InstructionsSnapshot struct {
-	MountSpec string
-	finalize  func() error
-}
 
 // instructionsFacts is what the environment block describes, gathered up front so rendering touches no client.
 type instructionsFacts struct {
@@ -42,36 +35,19 @@ type instructionsFacts struct {
 	custom        string
 }
 
-// Cleanup finalizes the snapshot, warning rather than failing on error.
-func (s InstructionsSnapshot) Cleanup() {
-	if s.finalize == nil {
-		return
-	}
-	if err := s.finalize(); err != nil {
-		logging.Warnf("could not save instructions: %v", err)
-	}
-}
-
-// PrepareInstructions stages content into run id's private snapshot file and returns its mount spec, or strips any stale
-// managed block in place when content is empty.
-func (s *Service) PrepareInstructions(toolHome string, id sandbox.RunID, toolConfig tools.ToolConfig, content string) (InstructionsSnapshot, error) {
+// PrepareInstructions writes content into run id's instructions snapshot and returns its mount spec, or strips any stale
+// managed block in place and returns "" when content is empty.
+func (s *Service) PrepareInstructions(toolHome string, id sandbox.RunID, toolConfig tools.ToolConfig, content string) (string, error) {
 	if content == "" {
-		return InstructionsSnapshot{}, toolConfig.Runtime.WriteInstructions(toolHome, "")
+		return "", toolConfig.Runtime.WriteInstructions(toolHome, "")
 	}
 
-	toolsDir := filepath.Join(toolHome, tools.ToolsDirName)
 	hostPath := toolConfig.Runtime.InstructionsHostPath(toolHome)
-	snapshotPath, err := writeSnapshot(toolsDir, hostPath, id, content)
-	if err != nil {
-		return InstructionsSnapshot{}, err
+	path := snapshotPath(id, hostPath)
+	if err := instructions.PrepareSnapshot(filepath.Join(toolHome, tools.ToolsDirName), hostPath, content, path); err != nil {
+		return "", err
 	}
-
-	return InstructionsSnapshot{
-		MountSpec: sandbox.VolumeMount(snapshotPath, toolConfig.Runtime.InstructionsContainerPath),
-		finalize: func() error {
-			return instructions.FinalizeSnapshot(toolsDir, hostPath, snapshotPath)
-		},
-	}, nil
+	return sandbox.VolumeMount(path, toolConfig.Runtime.InstructionsContainerPath), nil
 }
 
 // BuildInstructions assembles the environment-instructions Markdown for the tool's global instructions file, or "" when disabled via [run.instructions].
@@ -378,45 +354,27 @@ func writeCustomSection(b *strings.Builder, custom string) {
 	b.WriteString("\n")
 }
 
-// writeSnapshot writes hostPath's content merged with content to run id's snapshot file and returns its path.
-func writeSnapshot(toolsDir, hostPath string, id sandbox.RunID, content string) (string, error) {
-	f, err := sandbox.CreateRunFile(id, snapshotName(hostPath))
-	if err != nil {
-		return "", fmt.Errorf("create instructions snapshot: %w", err)
-	}
-
-	err = instructions.PrepareSnapshot(toolsDir, hostPath, content, f)
-	if closeErr := f.Close(); err == nil {
-		err = closeErr
-	}
-	if err != nil {
-		_ = os.Remove(f.Name())
-		return "", err
-	}
-	return f.Name(), nil
-}
-
-// finalizeLeftoverSnapshot saves the snapshot a killed run left back to its tool's instructions file; without one, or for
-// an unknown tool, there is nothing to do.
-func finalizeLeftoverSnapshot(run sandbox.RunRef) error {
+// saveSnapshot saves run's instructions snapshot back to its tool's instructions file; without one, or for an unknown
+// tool, there is nothing to do.
+func saveSnapshot(run sandbox.RunRef) error {
 	toolConfig, ok := tools.Configs[run.Tool]
 	if !ok {
 		return nil
 	}
 
 	hostPath := toolConfig.Runtime.InstructionsHostPath(run.ToolHome)
-	snapshotPath := filepath.Join(sandbox.RunTempDir(run.ID), snapshotName(hostPath))
-	if _, err := os.Stat(snapshotPath); errors.Is(err, fs.ErrNotExist) {
+	path := snapshotPath(run.ID, hostPath)
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
 
-	if err := instructions.FinalizeSnapshot(filepath.Join(run.ToolHome, tools.ToolsDirName), hostPath, snapshotPath); err != nil {
+	if err := instructions.FinalizeSnapshot(filepath.Join(run.ToolHome, tools.ToolsDirName), hostPath, path); err != nil {
 		return fmt.Errorf("save instructions: %w", err)
 	}
 	return nil
 }
 
-// snapshotName names the instructions snapshot in the run temp dir, keeping hostPath's extension.
-func snapshotName(hostPath string) string {
-	return "instructions" + filepath.Ext(hostPath)
+// snapshotPath returns run id's instructions snapshot in its temp dir, keeping hostPath's extension.
+func snapshotPath(id sandbox.RunID, hostPath string) string {
+	return filepath.Join(sandbox.RunTempDir(id), "instructions"+filepath.Ext(hostPath))
 }

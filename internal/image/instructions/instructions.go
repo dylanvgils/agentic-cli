@@ -41,9 +41,9 @@ func Merged(toolsDir, hostPath, block string) (string, error) {
 	return mergeInstructions(existing, block), nil
 }
 
-// PrepareSnapshot writes hostPath's content merged with block to snapshot, a per-run file the caller created, so each run
+// PrepareSnapshot writes hostPath's content merged with block to snapshotPath, a per-run file in a private dir, so each run
 // gets a private mount instead of sharing one live file.
-func PrepareSnapshot(toolsDir, hostPath, block string, snapshot io.Writer) error {
+func PrepareSnapshot(toolsDir, hostPath, block, snapshotPath string) error {
 	root, name, err := createRoot(toolsDir, hostPath)
 	if err != nil {
 		return err
@@ -59,8 +59,7 @@ func PrepareSnapshot(toolsDir, hostPath, block string, snapshot io.Writer) error
 		return err
 	}
 
-	_, err = io.WriteString(snapshot, mergeInstructions(existing, block))
-	return err
+	return os.WriteFile(snapshotPath, []byte(mergeInstructions(existing, block)), 0o600)
 }
 
 // FinalizeSnapshot strips the managed block from snapshotPath and persists the rest back to hostPath, then removes snapshotPath.

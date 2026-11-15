@@ -133,29 +133,25 @@ func (s *Service) ToolNeedsMarketplaceSync(toolConfig tools.ToolConfig, rc *conf
 	return needsMarketplaceSync(toolConfig, rc, tool)
 }
 
-// buildWithInstructions wraps build with run id's instructions snapshot mounted in; the returned cleanup func must always
-// be deferred, even on error.
-func (s *Service) buildWithInstructions(id sandbox.RunID, target Target, in Input, toolConfig tools.ToolConfig, approved approvedConfig) (sandbox.RunSpec, func(), error) {
+// buildWithInstructions wraps build with run id's instructions snapshot mounted in; endRun saves it back.
+func (s *Service) buildWithInstructions(id sandbox.RunID, target Target, in Input, toolConfig tools.ToolConfig, approved approvedConfig) (sandbox.RunSpec, error) {
 	content, err := s.BuildInstructions(target, in, toolConfig, approved.rc)
 	if err != nil {
-		return sandbox.RunSpec{}, noCleanup, fmt.Errorf("build instructions for %s: %w", target.ToolName, err)
+		return sandbox.RunSpec{}, fmt.Errorf("build instructions for %s: %w", target.ToolName, err)
 	}
 
-	snapshot, err := s.PrepareInstructions(in.ToolHome, id, toolConfig, content)
+	in.InstructionsMount, err = s.PrepareInstructions(in.ToolHome, id, toolConfig, content)
 	if err != nil {
-		return sandbox.RunSpec{}, noCleanup, fmt.Errorf("prepare instructions for %s: %w", target.ToolName, err)
+		return sandbox.RunSpec{}, fmt.Errorf("prepare instructions for %s: %w", target.ToolName, err)
 	}
-
-	in.InstructionsMount = snapshot.MountSpec
 
 	rs, err := s.build(target, in, toolConfig, approved)
 	if err != nil {
-		snapshot.Cleanup()
-		return sandbox.RunSpec{}, noCleanup, err
+		return sandbox.RunSpec{}, err
 	}
 
 	rs.RunID = id
-	return rs, snapshot.Cleanup, nil
+	return rs, nil
 }
 
 // runEnv resolves the tool's env, refusing managed names, checks the credentials against it and adds the marketplace names.

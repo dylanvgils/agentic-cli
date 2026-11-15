@@ -112,41 +112,41 @@ func TestPrepareSnapshot(t *testing.T) {
 		require.NoError(t, os.WriteFile(target, []byte("test-secret\n"), 0o600))
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		symlinkOrSkip(t, target, hostPath)
-		var snapshot strings.Builder
+		snapshotPath := filepath.Join(t.TempDir(), "CLAUDE.md")
 
 		// Act
-		err := PrepareSnapshot(toolsDir, hostPath, "block", &snapshot)
+		err := PrepareSnapshot(toolsDir, hostPath, "block", snapshotPath)
 
 		// Assert
 		assert.ErrorContains(t, err, "not a regular file")
-		assert.Empty(t, snapshot.String())
+		assert.NoFileExists(t, snapshotPath)
 	})
 
 	t.Run("drops a stale managed block from the host file rather than duplicating it", func(t *testing.T) {
 		// Arrange
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
 		require.NoError(t, os.WriteFile(hostPath, []byte(managed("old block")+"\nremembered note\n"), 0o640))
-		var snapshot strings.Builder
+		snapshotPath := filepath.Join(t.TempDir(), "CLAUDE.md")
 
 		// Act
-		err := PrepareSnapshot(toolsDir, hostPath, "new block", &snapshot)
+		err := PrepareSnapshot(toolsDir, hostPath, "new block", snapshotPath)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, managed("new block")+"\nremembered note\n", snapshot.String())
+		assert.Equal(t, managed("new block")+"\nremembered note\n", readFile(t, snapshotPath))
 	})
 
 	t.Run("missing host file gets created empty up front so Docker can't auto-create it as root", func(t *testing.T) {
 		// Arrange
 		toolsDir, hostPath := newHostPath(t, "CLAUDE.md")
-		var snapshot strings.Builder
+		snapshotPath := filepath.Join(t.TempDir(), "CLAUDE.md")
 
 		// Act
-		err := PrepareSnapshot(toolsDir, hostPath, "block", &snapshot)
+		err := PrepareSnapshot(toolsDir, hostPath, "block", snapshotPath)
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, managed("block"), snapshot.String())
+		assert.Equal(t, managed("block"), readFile(t, snapshotPath))
 		assert.Empty(t, readFile(t, hostPath))
 	})
 }

@@ -38,43 +38,41 @@ func (s *Service) Run(req Request, rs sandbox.RunSpec) error {
 	return r.Run(req, rs)
 }
 
-// Teardown removes everything run left: its runtime resources, then its instructions snapshot, saved back to the tool's
-// file, and its temp dir. Best-effort and idempotent.
+// Teardown removes everything run left: its runtime resources first, so nothing writes its host files while endRun
+// handles them. Best-effort and idempotent.
 func (s *Service) Teardown(run sandbox.RunRef) error {
 	r, err := s.runner(run.Runtime, "")
 	if err != nil {
 		return err
 	}
 
-	// In order: the runtime first, so nothing writes the snapshot while it's saved
 	runtimeErr := r.Teardown(run.ToolHome, run.ID)
-	snapshotErr := finalizeLeftoverSnapshot(run)
-	return errors.Join(runtimeErr, snapshotErr, sandbox.RemoveRunTempDir(run.ID))
+	return errors.Join(runtimeErr, endRun(run))
 }
 
 // startRun gives a run its ID, its watchdog unless it's a dry run, then its temp dir, before anything it can leave behind.
-func (s *Service) startRun(req Request) (sandbox.RunID, error) {
+func (s *Service) startRun(req Request) (sandbox.RunRef, error) {
 	id, err := sandbox.NewRunID()
 	if err != nil {
-		return "", err
+		return sandbox.RunRef{}, err
 	}
 
+	run := sandbox.RunRef{
+		ID:       id,
+		Runtime:  req.runtime(),
+		Tool:     req.Target.ToolName,
+		ToolHome: req.Flags.ToolHome,
+	}
 	if !req.Flags.DryRun {
-		run := sandbox.RunRef{
-			ID:       id,
-			Runtime:  req.runtime(),
-			Tool:     req.Target.ToolName,
-			ToolHome: req.Flags.ToolHome,
-		}
 		if err := s.watchdog.Spawn(run); err != nil {
 			logging.Warnf("watchdog not confirmed, so a killed run may be left behind: %v", err)
 		}
 	}
 
 	if err := sandbox.CreateRunTempDir(id); err != nil {
-		return "", err
+		return sandbox.RunRef{}, err
 	}
-	return id, nil
+	return run, nil
 }
 
 // runner returns the runner for runtime with proxy backend; an empty runtime is Docker, an empty backend the runtime's
@@ -117,9 +115,15 @@ func (s *Service) checkRuntime(req Request) error {
 	return r.Check(req)
 }
 
-// removeRunTempDir removes run id's temp dir once the run is done, warning rather than failing.
-func removeRunTempDir(id sandbox.RunID) {
-	if err := sandbox.RemoveRunTempDir(id); err != nil {
-		logging.Warnf("could not remove the run's temp files: %v", err)
+// endRun saves run's instructions snapshot back to its tool, then removes its temp dir; idempotent.
+func endRun(run sandbox.RunRef) error {
+	saveErr := saveSnapshot(run)
+	return errors.Join(saveErr, sandbox.RemoveRunTempDir(run.ID))
+}
+
+// warnOnEndRunError reports a failed endRun without failing the run.
+func warnOnEndRunError(err error) {
+	if err != nil {
+		logging.Warnf("could not clean up the run's host files: %v", err)
 	}
 }

@@ -153,60 +153,84 @@ func TestPrepareInstructions(t *testing.T) {
 		hostPath := tools.Configs["claude"].Runtime.InstructionsHostPath(toolHome)
 
 		// Act
-		snapshot, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, testRunID, tools.Configs["claude"], "")
+		mountSpec, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, testRunID, tools.Configs["claude"], "")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Empty(t, snapshot.MountSpec)
+		assert.Empty(t, mountSpec)
 		got, err := os.ReadFile(hostPath)
 		require.NoError(t, err)
 		assert.Empty(t, string(got))
 	})
 
-	t.Run("enabled mounts a per-run snapshot over the tool's instructions path", func(t *testing.T) {
+	t.Run("enabled mounts the run's snapshot over the tool's instructions path", func(t *testing.T) {
 		// Arrange
 		stubRunTempDir(t)
 		toolHome := t.TempDir()
 		require.NoError(t, tools.Configs["claude"].Runtime.Setup(toolHome))
 
 		// Act
-		snapshot, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, testRunID, tools.Configs["claude"], "generated block")
+		mountSpec, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, testRunID, tools.Configs["claude"], "generated block")
 
 		// Assert
 		require.NoError(t, err)
-		t.Cleanup(snapshot.Cleanup)
-		assert.Contains(t, snapshot.MountSpec, ":$CONTAINER_HOME/.claude/CLAUDE.md")
-		hostPath := sandbox.HostPart(snapshot.MountSpec)
-		got, err := os.ReadFile(hostPath)
+		snapshot := filepath.Join(sandbox.RunTempDir(testRunID), "instructions.md")
+		assert.Equal(t, sandbox.VolumeMount(snapshot, "$CONTAINER_HOME/.claude/CLAUDE.md"), mountSpec)
+		got, err := os.ReadFile(snapshot)
 		require.NoError(t, err)
 		assert.Contains(t, string(got), "generated block")
 	})
+}
 
-	// The exact merge/strip format is FinalizeInstructionsSnapshot's own
-	// responsibility, already covered by TestFinalizeInstructionsSnapshot in the
-	// tools package - this only checks that Cleanup's closure captured the
-	// *correct* hostPath and snapshotPath for this tool/toolHome.
-	t.Run("cleanup finalizes to this tool's persistent path and removes the snapshot", func(t *testing.T) {
+// The exact merge/strip format is FinalizeSnapshot's own, covered in the instructions package; this only checks that
+// saveSnapshot finds the run's snapshot and its tool's file.
+func Test_saveSnapshot(t *testing.T) {
+	t.Run("saves the run's snapshot to its tool's file and removes it", func(t *testing.T) {
 		// Arrange
 		stubRunTempDir(t)
-		toolHome := t.TempDir()
-		require.NoError(t, tools.Configs["claude"].Runtime.Setup(toolHome))
-		snapshot, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(toolHome, testRunID, tools.Configs["claude"], "generated block")
+		run := sandbox.RunRef{ID: testRunID, Tool: "claude", ToolHome: t.TempDir()}
+		require.NoError(t, tools.Configs["claude"].Runtime.Setup(run.ToolHome))
+		mountSpec, err := newTestService(&fakeDocker{}, nil).PrepareInstructions(run.ToolHome, run.ID, tools.Configs["claude"], "generated block")
 		require.NoError(t, err)
-		snapshotPath := sandbox.HostPart(snapshot.MountSpec)
-		require.NoError(t, appendFile(snapshotPath, "\nuser note\n"))
+		snapshot := sandbox.HostPart(mountSpec)
+		require.NoError(t, appendFile(snapshot, "\nuser note\n"))
 
 		// Act
-		snapshot.Cleanup()
+		err = saveSnapshot(run)
 
 		// Assert
-		_, statErr := os.Stat(snapshotPath)
-		assert.True(t, os.IsNotExist(statErr))
-		hostPath := tools.Configs["claude"].Runtime.InstructionsHostPath(toolHome)
-		got, err := os.ReadFile(hostPath)
 		require.NoError(t, err)
-		assert.Contains(t, string(got), "user note")
+		assert.NoFileExists(t, snapshot)
+		got, err := os.ReadFile(tools.Configs["claude"].Runtime.InstructionsHostPath(run.ToolHome))
+		require.NoError(t, err)
+		assert.Equal(t, "user note\n", string(got))
 	})
+
+	for _, tc := range []struct {
+		name string
+		tool string
+	}{
+		{
+			name: "without a snapshot there is nothing to save",
+			tool: "claude",
+		},
+		{
+			name: "an unknown tool has nothing to save",
+			tool: "example",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			stubRunTempDir(t)
+			run := sandbox.RunRef{ID: testRunID, Tool: tc.tool, ToolHome: t.TempDir()}
+
+			// Act
+			err := saveSnapshot(run)
+
+			// Assert
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestPreviewInstructions(t *testing.T) {
