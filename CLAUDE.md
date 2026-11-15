@@ -31,7 +31,7 @@ CLI changes need `make build`; image stage changes also need `agentic build`.
   - `usecase/run` gets other usecases injected and imports only `usecase/resolve`.
   - `network/certs` imports only the stdlib.
 - The proxy (`internal/network/proxy`, `cmd/proxy`) is a standalone service:
-  - Non-test code imports only the stdlib, `config`, `infra/iostreams` and `network/certs`; `cmd/proxy` only `infra/iostreams` and `network/proxy`.
+  - Non-test code imports only the stdlib, `golang.org/x/sys/unix`, `config`, `infra/iostreams` and `network/certs`; `cmd/proxy` only `infra/iostreams` and `network/proxy`.
   - All settings, listen address included, come from `AGENTIC_PROXY_*` env vars.
   - `cmd/proxy/main_test.go` keeps the CLI's packages out transitively.
 - `depguard` in `.golangci.yml` enforces all of the above except `network/certs`: `layer-*` rules for the layers, one rule per package rule, strict allowlists for the proxy. A new layer or package rule needs a rule there too.

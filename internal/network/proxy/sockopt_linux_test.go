@@ -2,12 +2,12 @@ package proxy
 
 import (
 	"net"
-	"syscall"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 func Test_setUserTimeout(t *testing.T) {
@@ -27,7 +27,7 @@ func Test_setUserTimeout(t *testing.T) {
 	// Assert
 	var got int
 	require.NoError(t, raw.Control(func(fd uintptr) {
-		got, err = syscall.GetsockoptInt(int(fd), syscall.IPPROTO_TCP, tcpUserTimeout)
+		got, err = unix.GetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_USER_TIMEOUT)
 	}))
 	require.NoError(t, err)
 	assert.Equal(t, 30000, got)

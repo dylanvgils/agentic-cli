@@ -3,14 +3,13 @@ package proxy
 import (
 	"syscall"
 	"time"
-)
 
-// tcpUserTimeout is TCP_USER_TIMEOUT, the same on every Linux arch; syscall only defines it on some.
-const tcpUserTimeout = 0x12
+	"golang.org/x/sys/unix"
+)
 
 // setUserTimeout sets TCP_USER_TIMEOUT on raw; best effort, as the tunnel still works without it.
 func setUserTimeout(raw syscall.RawConn, timeout time.Duration) {
 	_ = raw.Control(func(fd uintptr) {
-		_ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, tcpUserTimeout, int(timeout.Milliseconds()))
+		_ = unix.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_USER_TIMEOUT, int(timeout.Milliseconds()))
 	})
 }
