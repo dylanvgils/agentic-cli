@@ -4,10 +4,13 @@ package microsandbox
 
 import (
 	"encoding/json"
+	"net"
+	"net/http"
 	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -17,9 +20,23 @@ func writableScript(label, path string) string {
 	return "touch " + path + " 2>/dev/null && rm " + path + " && echo " + label + "=rw || echo " + label + "=ro"
 }
 
-// reachableScript prints <label>=ok when an HTTPS request to host succeeds, <label>=blocked otherwise.
-func reachableScript(label, host string) string {
-	return "curl --fail --silent --show-error --max-time 20 --output /dev/null https://" + host + " && echo " + label + "=ok || echo " + label + "=blocked"
+// reachableScript prints <label>=ok when a request to url succeeds, <label>=blocked otherwise.
+func reachableScript(label, url string) string {
+	return "curl --fail --silent --show-error --max-time 20 --output /dev/null " + url + " && echo " + label + "=ok || echo " + label + "=blocked"
+}
+
+// serveHost serves 200 on all host interfaces and returns its URL as the guest sees the host.
+func serveHost(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+
+	server := &http.Server{Handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), ReadHeaderTimeout: time.Second}
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(func() { _ = server.Close() })
+
+	port := listener.Addr().(*net.TCPAddr).Port
+	return "http://host.microsandbox.internal:" + strconv.Itoa(port)
 }
 
 // valueAfter returns the integer that follows prefix on its line in out.

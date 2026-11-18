@@ -167,7 +167,7 @@ func Test_buildRunArgs(t *testing.T) {
 		{
 			name:     "omits -- without tool args",
 			rs:       sandbox.RunSpec{RunID: testRunID, Image: "agentic-claude"},
-			wantTail: []string{"--label=project=agentic-cli", "--label=agentic.run=" + string(testRunID), "agentic-claude"},
+			wantTail: []string{"--label=project=agentic-cli", "--label=agentic.run=" + string(testRunID), "--net=public", "agentic-claude"},
 		},
 		{
 			name:     "passes only the tool args the entrypoint leaves",
@@ -320,12 +320,14 @@ func Test_buildNetworkArgs(t *testing.T) {
 		want   []string
 	}{
 		{
-			name:   "adds nothing with the proxy off",
+			name:   "allows only the public internet with the proxy off",
 			egress: sandbox.EgressPolicy{Rules: rules},
+			want:   []string{"--net=public"},
 		},
 		{
-			name:  "a route with the proxy off adds nothing",
+			name:  "a route with the proxy off still allows only the public internet",
 			route: route,
+			want:  []string{"--net=public"},
 		},
 		{
 			name:   "a route allows only the proxy's host port",

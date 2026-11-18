@@ -96,7 +96,7 @@ func TestMicrosandboxRun(t *testing.T) {
 
 		// Arrange
 		platform.SkipWithoutInternet(t, "example.com")
-		script := reachableScript("allowed", "example.com") + "; " + reachableScript("other", "example.org")
+		script := reachableScript("allowed", "https://example.com") + "; " + reachableScript("other", "https://example.org")
 
 		// Act
 		out := platform.NewToolRun(t).
@@ -108,6 +108,23 @@ func TestMicrosandboxRun(t *testing.T) {
 		// Assert
 		assert.Contains(t, out, "allowed=ok")
 		assert.Contains(t, out, "other=blocked")
+	})
+
+	t.Run("without the proxy blocks the host", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		platform.SkipWithoutInternet(t, "example.com")
+		script := reachableScript("public", "https://example.com") + "; " + reachableScript("host", serveHost(t))
+
+		// Act
+		out := platform.NewToolRun(t).
+			InMicrosandbox().
+			Run(script)
+
+		// Assert
+		assert.Contains(t, out, "public=ok")
+		assert.Contains(t, out, "host=blocked")
 	})
 
 	t.Run("second run reuses the loaded image", func(t *testing.T) {
