@@ -14,7 +14,7 @@ LDFLAGS     = -s -w \
               -X github.com/dylanvgils/agentic-cli/internal/infra/buildinfo.BuildDate=$(BUILD_DATE) \
               $(if $(INSTALL_METHOD),-X github.com/dylanvgils/agentic-cli/internal/infra/buildinfo.InstallMethod=$(INSTALL_METHOD))
 GOFLAGS   := CGO_ENABLED=0
-GOVULNCHECK_VERSION ?= v1.9.0
+GOVULNCHECK_VERSION ?= v1.10.0
 GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
 .PHONY: build install uninstall dist docker-dist test test-coverage test-integration test-integration-sandbox lint audit audit-json clean verify-checksums fix-checksums verify-checksums-all fix-checksums-all
