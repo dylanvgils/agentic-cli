@@ -71,7 +71,8 @@
       "managerFilePatterns": ["/^internal/image/tools/versions\\.json$/"],
       "matchStrings": ["\"dotnet\":\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "dotnet-sdk",
-      "datasourceTemplate": "dotnet-version"
+      "datasourceTemplate": "dotnet-version",
+      "extractVersionTemplate": "^(?<version>\\d+)\\.\\d+\\.\\d+$"
     },
     {
       "customType": "regex",
