@@ -35,6 +35,9 @@ const (
 
 	// netRuleFlag is msb's flag for one egress rule.
 	netRuleFlag = "net-rule"
+
+	// netPublic is msb's public-internet-only profile.
+	netPublic = "public"
 )
 
 // hostRe matches a hostname of two or more labels, so msb can't read an entry as a group (public), CIDR, IP or port.
@@ -203,11 +206,11 @@ func buildCredentialArgs(rs sandbox.RunSpec) []string {
 
 // buildNetworkArgs makes msb deny all egress but DNS and the allowlist on proxy.DefaultPorts, intercepting HTTPS so
 // strict mode can check each request's host; msb keeps no log of what it denies, so it can't run in monitor mode. A route
-// allows only the proxy's port, so a tool ignoring the proxy env reaches nothing.
+// allows only the proxy's port, so a tool ignoring the proxy env reaches nothing. Proxy off names an msb profile.
 func buildNetworkArgs(policy sandbox.EgressPolicy, route *ProxyRoute) ([]string, error) {
 	switch {
 	case policy.Mode == sandbox.EgressOff:
-		return nil, nil
+		return []string{arg("net", netPublic)}, nil
 	case route != nil:
 		return []string{arg("net-default-egress", "deny"), arg(netRuleFlag, "allow@host:tcp:"+route.Port)}, nil
 	case policy.Mode == sandbox.EgressMonitor:

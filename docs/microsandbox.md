@@ -44,6 +44,7 @@ The first run of an image copies it from Docker into msb, which takes a while. L
 
 - **Filesystem**: the VM's root is writable but discarded when it exits, so there's no read-only root and no separate temp dirs. The workspace, tool home and `--volume` mounts work as with Docker.
 - **Docker-in-Docker**: the daemon runs inside the VM, not in a sidecar. See [Docker in the VM](#docker-in-the-vm).
+- **Private networks**: without the proxy, the VM can't reach your LAN or the host.
 - **Egress allowlist**: msb's own network policy enforces it, with no access log and no `--proxy-monitor`, unless you pick agentic-proxy. See [With microsandbox](egress-proxy.md#with-microsandbox).
 - **Credential injection**: msb swaps [`[[run.proxy.credentials]]`](credential-injection.md) secrets in for its own placeholder, without the proxy, unless agentic-proxy injects them.
 - **Named volumes**: msb stores them as `agentic-<name>`. See [Named volumes](usage.md#named-volumes).
