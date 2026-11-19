@@ -24,6 +24,8 @@ type Run struct {
 	Image     string
 	Status    string
 	Name      string
+	// Empty on msb, whose list doesn't show them yet
+	Ports string
 }
 
 // New returns a Service over Docker and microsandbox.
@@ -81,6 +83,7 @@ func (s *Service) dockerRuns() []Run {
 			Image:     c.Image,
 			Status:    c.Status,
 			Name:      c.Name,
+			Ports:     c.Ports,
 		}
 	}
 	return runs

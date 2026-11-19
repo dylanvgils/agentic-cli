@@ -17,6 +17,12 @@ func Volumes(toolMounts, extra []string, rc *config.AgenticRC) []string {
 	return volumes
 }
 
+// Ports parses --port flag values, then .agenticrc.toml ports, refusing a host port used twice across them.
+func Ports(flags []string, rc *config.AgenticRC) ([]sandbox.PortMapping, error) {
+	specs := append(append([]string{}, flags...), rc.Run.Ports...)
+	return sandbox.ParsePorts(specs)
+}
+
 // Env merges .agenticrc.toml env entries with --env flags, rc first so a flag with the same key wins.
 func Env(flags []string, rc *config.AgenticRC) []string {
 	env := append([]string{}, rc.Run.Env...)

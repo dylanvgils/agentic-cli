@@ -136,6 +136,7 @@ func buildRunArgs(rs sandbox.RunSpec, envArgs []string, route *ProxyRoute) ([]st
 		}
 	}
 	args = append(args, networkArgs...)
+	args = append(args, buildPortArgs(rs)...)
 	args = append(args, buildDockerArgs(rs)...)
 	args = append(args, entrypointArgs...)
 	args = append(args, rs.Image)
@@ -182,6 +183,15 @@ func buildVolumeArgs(rs sandbox.RunSpec) ([]string, error) {
 		args = append(args, mountArgs...)
 	}
 	return args, nil
+}
+
+// buildPortArgs publishes each port on the host's loopback, explicit so a global default can't widen it.
+func buildPortArgs(rs sandbox.RunSpec) []string {
+	var args []string
+	for _, port := range rs.Ports {
+		args = append(args, arg("port", sandbox.PortLoopback+":"+port.String()))
+	}
+	return args
 }
 
 // buildCredentialArgs maps each credential to a --secret flag msb substitutes only in its headers on its hosts,

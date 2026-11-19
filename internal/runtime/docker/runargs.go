@@ -18,6 +18,7 @@ func buildRunArgs(rs toolRun, sidecarArgs []string) ([]string, error) {
 	args = append(args, sidecarArgs...)
 	args = append(args, buildTmpfsArgs(rs.RunSpec)...)
 	args = append(args, buildVolumeArgs(rs.RunSpec)...)
+	args = append(args, buildPortArgs(rs.RunSpec)...)
 
 	if rs.SkipEntrypoint {
 		args = append(args, arg("entrypoint", ""))
@@ -83,6 +84,15 @@ func buildVolumeArgs(rs sandbox.RunSpec) []string {
 	for _, volume := range rs.Volumes {
 		expanded := sandbox.ExpandMountSpec(volume, rs.ToolHome, rs.ContainerHome)
 		args = append(args, arg("volume", sandbox.NormalizeMountSpec(expanded)))
+	}
+	return args
+}
+
+// buildPortArgs publishes each port on the host's loopback only.
+func buildPortArgs(rs sandbox.RunSpec) []string {
+	args := make([]string, 0, len(rs.Ports))
+	for _, port := range rs.Ports {
+		args = append(args, arg("publish", sandbox.PortLoopback+":"+port.String()))
 	}
 	return args
 }

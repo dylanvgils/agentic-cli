@@ -40,6 +40,7 @@ type RCBuild struct {
 type RCRun struct {
 	Mounts []string `toml:"mounts"`
 	Env    []string `toml:"env"`
+	Ports  []string `toml:"ports"`
 	// Args are extra args per tool name, passed before the args given on the command line
 	Args         map[string][]string `toml:"args"`
 	Runtime      string              `toml:"runtime"`

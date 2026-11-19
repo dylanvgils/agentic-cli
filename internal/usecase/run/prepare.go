@@ -30,6 +30,7 @@ type Flags struct {
 	Dind       resolve.DindInput
 	Volumes    []string
 	Env        []string
+	Ports      []string
 	Limits     sandbox.ResourceLimits
 	DindLimits sandbox.ResourceLimits
 	// Runtime is the --runtime flag; empty defers to the config
@@ -53,6 +54,9 @@ func (s *Service) Prepare(req Request, prompter Prompter) (sandbox.RunSpec, func
 
 	// Before any prompt, so a run the runtime can't do doesn't waste the user's approvals
 	if err := s.checkRuntime(req); err != nil {
+		return sandbox.RunSpec{}, noCleanup, err
+	}
+	if err := checkPorts(req); err != nil {
 		return sandbox.RunSpec{}, noCleanup, err
 	}
 	if err := credentials.Check(req.Project.RC.Run.Proxy.Credentials); err != nil {
@@ -166,6 +170,11 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC) (runConfig, erro
 		return runConfig{}, err
 	}
 
+	ports, err := resolve.Ports(flags.Ports, rc)
+	if err != nil {
+		return runConfig{}, err
+	}
+
 	limits := resolve.ResourceLimitsFor(flags.Limits, rc)
 	return runConfig{
 		Target: req.Target,
@@ -192,6 +201,7 @@ func (s *Service) resolveRun(req Request, rc *config.AgenticRC) (runConfig, erro
 		},
 		Mounts:   runMounts{Extra: flags.Volumes},
 		Env:      flags.Env,
+		Ports:    ports,
 		Registry: flags.Registry,
 		DryRun:   flags.DryRun,
 	}, nil

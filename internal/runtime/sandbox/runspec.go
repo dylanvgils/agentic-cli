@@ -13,6 +13,7 @@ type RunSpec struct {
 	TTY            bool           // stdin is a terminal
 	Volumes        []string
 	Env            []string
+	Ports          []PortMapping
 	SkipEntrypoint bool
 	ToolArgs       []string // passed to the entrypoint, or run as the command when it's skipped
 	EphemeralDirs  []EphemeralDir
@@ -42,6 +43,7 @@ type RunSpecBuilder struct {
 	tty            bool
 	volumes        []string
 	env            []string
+	ports          []PortMapping
 	skipEntrypoint bool
 	toolArgs       []string
 	ephemeralDirs  []EphemeralDir
@@ -90,6 +92,12 @@ func (b *RunSpecBuilder) WithVolumes(vols ...string) *RunSpecBuilder {
 // WithEnv appends env entries (KEY=VALUE, or bare KEY to forward the host's current value).
 func (b *RunSpecBuilder) WithEnv(env ...string) *RunSpecBuilder {
 	b.env = append(b.env, env...)
+	return b
+}
+
+// WithPorts appends ports to publish on the host's loopback.
+func (b *RunSpecBuilder) WithPorts(ports ...PortMapping) *RunSpecBuilder {
+	b.ports = append(b.ports, ports...)
 	return b
 }
 
@@ -151,6 +159,7 @@ func (b *RunSpecBuilder) Build() RunSpec {
 		TTY:            b.tty,
 		Volumes:        b.volumes,
 		Env:            b.env,
+		Ports:          b.ports,
 		SkipEntrypoint: b.skipEntrypoint,
 		ToolArgs:       b.toolArgs,
 		EphemeralDirs:  b.ephemeralDirs,

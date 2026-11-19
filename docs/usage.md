@@ -154,6 +154,22 @@ agentic volume remove --all       # remove all agentic volumes
 
 With the microsandbox runtime, msb stores the volume as `agentic-<name>`, so agentic can tell its volumes from yours. `list` and `remove` cover these too; `create` is Docker-only, since msb creates volumes on first use.
 
+## Forwarding ports
+
+`--port` forwards a port on your machine to the tool, for example to open a dev server the agent started. It takes `PORT` or `HOST:GUEST` and can be repeated. `[run] ports` in [`.agenticrc.toml`](config.md#run) sets the same list.
+
+```bash
+agentic run --port 3000 claude              # localhost:3000 -> 3000 in the tool
+agentic run --port 8080:80 --port 5173 claude
+```
+
+- Ports bind to `127.0.0.1` only, so nothing else on your network reaches them. TCP only.
+- The forward is one-way: it lets you into the tool, not the tool out to your machine.
+- A run refuses a host port that's already in use.
+- Docker can't forward ports with [`--proxy`](egress-proxy.md), as the run network has no route to the host. Pass `--no-proxy` or use the [microsandbox runtime](microsandbox.md), which forwards them either way.
+- Ports that [`--dind`](docker-in-docker.md#how-it-stays-isolated) containers publish stay inside the run.
+- `agentic ps` lists the forwarded ports of Docker runs.
+
 ## Disk space
 
 After `build`, `update` and `proxy build`, agentic removes the old images that a rebuild left untagged (`agentic image prune` does just that). To free more space, run:

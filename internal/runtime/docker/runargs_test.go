@@ -31,6 +31,18 @@ func TestBuildRunArgs(t *testing.T) {
 		assert.Contains(t, args, "--env=AGENTIC_TEST_TOKEN")
 		assert.NotContains(t, args, "--env=AGENTIC_TEST_TOKEN=test-secret", "the value would show in the host's process list")
 	})
+
+	t.Run("publishes the ports", func(t *testing.T) {
+		// Arrange
+		rs := toolRun{RunSpec: sandbox.RunSpec{Image: "agentic-claude", User: &testUser, Ports: []sandbox.PortMapping{{Host: 8080, Guest: 80}}}}
+
+		// Act
+		args, err := buildRunArgs(rs, nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, args, "--publish=127.0.0.1:8080:80")
+	})
 }
 
 func TestBuildBaseArgs(t *testing.T) {
@@ -173,4 +185,23 @@ func TestBuildVolumeArgs(t *testing.T) {
 			"--volume=/home/.agentic/data:/data",
 		}, args)
 	})
+}
+
+func TestBuildPortArgs(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		ports []sandbox.PortMapping
+		want  []string
+	}{
+		{"no ports", nil, []string{}},
+		{"binds each port to loopback", []sandbox.PortMapping{{Host: 3000, Guest: 3000}, {Host: 8080, Guest: 80}}, []string{"--publish=127.0.0.1:3000:3000", "--publish=127.0.0.1:8080:80"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			args := buildPortArgs(sandbox.RunSpec{Ports: tc.ports})
+
+			// Assert
+			assert.Equal(t, tc.want, args)
+		})
+	}
 }

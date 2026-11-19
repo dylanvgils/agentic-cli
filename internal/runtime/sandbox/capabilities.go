@@ -35,6 +35,8 @@ type Features struct {
 	ProxyIntegrations bool
 	// PidsLimit is a cap on the number of processes.
 	PidsLimit bool
+	// PortsWithProxy publishes ports on a run whose egress goes through the proxy.
+	PortsWithProxy bool
 }
 
 // Isolation is how a runtime isolates the tool and enforces its controls; a run never needs it, so it's never missing.
@@ -62,5 +64,6 @@ func (f Features) Missing(need Features) Features {
 		PathRules:           need.PathRules && !f.PathRules,
 		ProxyIntegrations:   need.ProxyIntegrations && !f.ProxyIntegrations,
 		PidsLimit:           need.PidsLimit && !f.PidsLimit,
+		PortsWithProxy:      need.PortsWithProxy && !f.PortsWithProxy,
 	}
 }

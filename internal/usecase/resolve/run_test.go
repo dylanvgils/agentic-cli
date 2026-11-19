@@ -6,7 +6,36 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestPorts(t *testing.T) {
+	t.Run("parses flags, then config", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{Ports: []string{"8080:80"}}}
+
+		// Act
+		result, err := Ports([]string{"3000"}, rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []sandbox.PortMapping{
+			{Host: 3000, Guest: 3000},
+			{Host: 8080, Guest: 80},
+		}, result)
+	})
+
+	t.Run("refuses a host port in both", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{Ports: []string{"3000:80"}}}
+
+		// Act
+		_, err := Ports([]string{"3000"}, rc)
+
+		// Assert
+		assert.EqualError(t, err, `port "3000:80": host port 3000 is forwarded twice`)
+	})
+}
 
 func TestVolumes(t *testing.T) {
 	t.Run("ordering", func(t *testing.T) {

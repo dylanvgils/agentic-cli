@@ -14,6 +14,7 @@ import (
 func requiredFeatures(flags Flags, rc *config.AgenticRC) sandbox.Features {
 	proxyMode := resolve.RequestedProxyMode(flags.Proxy, rc)
 	dind := resolve.DindEnabled(flags.Dind, rc)
+	ports := len(flags.Ports) > 0 || len(rc.Run.Ports) > 0
 	return sandbox.Features{
 		Proxy:               proxyMode.Enabled(),
 		ProxyMonitor:        proxyMode == sandbox.EgressMonitor,
@@ -23,6 +24,7 @@ func requiredFeatures(flags Flags, rc *config.AgenticRC) sandbox.Features {
 		PathRules:           len(rc.Run.Proxy.AllowedPaths) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
 		ProxyIntegrations:   len(resolve.ProxyIntegrations(flags.Proxy, rc)) > 0 && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
 		PidsLimit:           true,
+		PortsWithProxy:      ports && (proxyMode.Enabled() || len(rc.Run.Proxy.Credentials) > 0),
 	}
 }
 
@@ -33,6 +35,7 @@ func specFeatures(rs sandbox.RunSpec) sandbox.Features {
 		ProxyMonitor:        rs.Egress.Mode == sandbox.EgressMonitor,
 		CredentialInjection: len(rs.Credentials) > 0,
 		PathRules:           rs.Egress.Mode.Enabled() && rs.Egress.HasPathRules(),
+		PortsWithProxy:      rs.Egress.Mode.Enabled() && len(rs.Ports) > 0,
 	}
 }
 
@@ -64,6 +67,9 @@ func checkSpec(rs sandbox.RunSpec, offered sandbox.Features) error {
 	if missing.PathRules {
 		refused = append(refused, "path rules")
 	}
+	if missing.PortsWithProxy {
+		refused = append(refused, "published ports with the egress proxy")
+	}
 	if len(refused) > 0 {
 		return fmt.Errorf("the runtime can't enforce %s that the run asks for", strings.Join(refused, " or "))
 	}
@@ -72,6 +78,10 @@ func checkSpec(rs sandbox.RunSpec, offered sandbox.Features) error {
 
 // refuseMissing errors on missing security features, with a hint.
 func refuseMissing(req Request, missing sandbox.Features) error {
+	if missing.PortsWithProxy {
+		return refusePortsWithProxy(req)
+	}
+
 	var refused []string
 	if missing.Proxy {
 		refused = append(refused, fmt.Sprintf("the egress proxy (%s)", proxySource(req)))
@@ -166,6 +176,23 @@ func integrationsSource(req Request) string {
 		return "--proxy-integration"
 	}
 	return layerSource(req.Project.Layers, "[run.proxy] integrations", func(rc *config.AgenticRC) bool { return len(rc.Run.Proxy.Integrations) > 0 })
+}
+
+// portsSource names what sets ports in req: --port, or [run] ports and the innermost layer setting them.
+func portsSource(req Request) string {
+	if len(req.Flags.Ports) > 0 {
+		return "--port"
+	}
+	return layerSource(req.Project.Layers, "[run] ports", func(rc *config.AgenticRC) bool { return len(rc.Run.Ports) > 0 })
+}
+
+// refusePortsWithProxy errors on ports in a run whose egress goes through the proxy, naming what turns it on.
+func refusePortsWithProxy(req Request) error {
+	cause, hint := credentialsSource(req), "use --runtime microsandbox"
+	if resolve.RequestedProxyMode(req.Flags.Proxy, req.Project.RC).Enabled() {
+		cause, hint = proxySource(req), "pass --no-proxy or "+hint
+	}
+	return fmt.Errorf("%s can't be used with the egress proxy (%s) on the %s runtime, as its run network has no route to the host; %s", portsSource(req), cause, req.runtime(), hint)
 }
 
 // dindLimitsSet reports whether flags or rc set Docker daemon limits.

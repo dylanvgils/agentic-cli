@@ -21,6 +21,7 @@ func Test_Service_List(t *testing.T) {
 				Namespace: "agentic",
 				Tool:      "claude",
 				Status:    "Up 5 minutes",
+				Ports:     "127.0.0.1:3000->3000/tcp",
 			},
 			{
 				Name:      "other-copilot-cd34",
@@ -54,6 +55,7 @@ func Test_Service_List(t *testing.T) {
 		Image:     "agentic-claude",
 		Status:    "Up 5 minutes",
 		Name:      "agentic-claude-ab12",
+		Ports:     "127.0.0.1:3000->3000/tcp",
 	}
 	copilot := Run{
 		Tool:      "copilot",

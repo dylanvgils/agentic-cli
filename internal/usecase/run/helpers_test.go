@@ -3,6 +3,7 @@ package run
 import (
 	"flag"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -200,7 +201,17 @@ func runtimeRequest(runtime sandbox.Runtime) Request {
 
 // msbRequest returns a microsandbox Request with flags whose config, when set edits it, comes from one project layer.
 func msbRequest(flags Flags, set func(*config.AgenticRC)) Request {
-	flags.Runtime = sandbox.RuntimeMicrosandbox
+	return layeredRequest(sandbox.RuntimeMicrosandbox, flags, set)
+}
+
+// dockerRequest is msbRequest for the default runtime, Docker.
+func dockerRequest(flags Flags, set func(*config.AgenticRC)) Request {
+	return layeredRequest("", flags, set)
+}
+
+// layeredRequest returns a Request on runtime with flags whose config, when set edits it, comes from one project layer.
+func layeredRequest(runtime sandbox.Runtime, flags Flags, set func(*config.AgenticRC)) Request {
+	flags.Runtime = runtime
 	rc := &config.AgenticRC{}
 	req := Request{Project: config.Project{RC: rc}, Flags: flags}
 	if set != nil {
@@ -512,4 +523,23 @@ func resolvedConfig(t *testing.T, svc *Service, target Target, flags Flags, rc *
 	c, err := svc.resolveRun(req, rc)
 	require.NoError(t, err)
 	return c
+}
+
+// busyPort returns a loopback port a listener holds until the test ends.
+func busyPort(t *testing.T) uint16 {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() }) //nolint:errcheck
+	return uint16(listener.Addr().(*net.TCPAddr).Port)
+}
+
+// freePort returns a loopback port nothing listens on.
+func freePort(t *testing.T) uint16 {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := uint16(listener.Addr().(*net.TCPAddr).Port)
+	require.NoError(t, listener.Close())
+	return port
 }

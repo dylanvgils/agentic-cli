@@ -59,6 +59,7 @@ func Test_validateRun(t *testing.T) {
 		// Arrange
 		run := RCRun{
 			Runtime:  "docker",
+			Ports:    []string{"3000", "8080:80"},
 			RCLimits: RCLimits{PidsLimit: "512"},
 			Dind:     RCDind{RCLimits: RCLimits{CPUs: "2"}},
 		}
@@ -92,6 +93,11 @@ func Test_validateRun(t *testing.T) {
 			name: "dind limit that lifts the limit",
 			run:  RCRun{Dind: RCDind{RCLimits: RCLimits{CPUs: "0"}}},
 			want: `[run.dind] cpus "0": must be a positive number`,
+		},
+		{
+			name: "invalid port",
+			run:  RCRun{Ports: []string{"0.0.0.0:8080:80"}},
+			want: `[run] ports: port "0.0.0.0:8080:80": ports bind to 127.0.0.1; drop the address`,
 		},
 		{
 			name: "invalid proxy table",

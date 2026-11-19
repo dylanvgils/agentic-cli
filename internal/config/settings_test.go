@@ -46,6 +46,8 @@ func TestGuardedSettings(t *testing.T) {
 			"run.dind.pids_limit",
 			"run.dind.cpus",
 			"run.dind.memory",
+			// A listener on the host's loopback; reaches nothing past the container
+			"run.ports",
 			// Host-side behaviour that grants nothing
 			"run.check_updates",
 			"run.instructions.enabled",
