@@ -23,17 +23,16 @@ func Test_checkPorts(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("refuses a host port used twice across flag and config", func(t *testing.T) {
+	t.Run("refuses an invalid port", func(t *testing.T) {
 		// Arrange
 		req := runtimeRequest("")
-		req.Flags.Ports = []string{"3000"}
-		req.Project.RC = &config.AgenticRC{Run: config.RCRun{Ports: []string{"3000:80"}}}
+		req.Flags.Ports = []string{"http"}
 
 		// Act
 		err := checkPorts(req)
 
 		// Assert
-		assert.EqualError(t, err, `port "3000:80": host port 3000 is forwarded twice`)
+		assert.EqualError(t, err, `port "http": "http" must be a number from 1 to 65535`)
 	})
 
 	t.Run("refuses a port in use", func(t *testing.T) {

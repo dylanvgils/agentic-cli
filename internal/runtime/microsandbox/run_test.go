@@ -443,8 +443,22 @@ func Test_buildPortArgs(t *testing.T) {
 		ports []sandbox.PortMapping
 		want  []string
 	}{
-		{"no ports", nil, nil},
-		{"binds each port to loopback", []sandbox.PortMapping{{Host: 3000, Guest: 3000}, {Host: 8080, Guest: 80}}, []string{"--port=127.0.0.1:3000:3000", "--port=127.0.0.1:8080:80"}},
+		{
+			name:  "no ports",
+			ports: nil,
+			want:  nil,
+		},
+		{
+			name: "binds each port to loopback",
+			ports: []sandbox.PortMapping{
+				{Host: 3000, Guest: 3000},
+				{Host: 8080, Guest: 80},
+			},
+			want: []string{
+				"--port=127.0.0.1:3000:3000",
+				"--port=127.0.0.1:8080:80",
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act

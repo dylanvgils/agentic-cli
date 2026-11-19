@@ -10,16 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const (
-	// hostPort is the forwarded port on the daemon host's loopback.
-	hostPort = "38080"
-
-	// serveScript answers every request on port 8080 with "forwarded".
-	serveScript = `while true; do printf 'HTTP/1.0 200 OK\r\n\r\nforwarded\n' | nc -N -l 8080; done`
-)
+// serveScript answers every request on port 8080 with "forwarded".
+const serveScript = `while true; do printf 'HTTP/1.0 200 OK\r\n\r\nforwarded\n' | nc -N -l 8080; done`
 
 func TestPorts(t *testing.T) {
 	// Arrange
+	hostPort := freePort(t)
 	run := platform.NewToolRun(t).WithPort(hostPort + ":8080")
 
 	run.During(func() {

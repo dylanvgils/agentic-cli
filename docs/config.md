@@ -281,7 +281,7 @@ List settings combine instead:
 | ------------------------- | ----------------------------------------------------------------------------------- |
 | `bases`, `apt_packages`   | Files (outermost first), then `--base`/`--apt`. Duplicates removed.                 |
 | `mounts`                  | Files and `--volume` combined                                                       |
-| `ports`                   | `--port`, then files. A host port can only appear once.                             |
+| `ports`                   | `--port`, then files. A `--port` replaces a file's port with the same host port; otherwise a host port can only appear once. |
 | `env`                     | Files, then `--env`. The last value for a key wins. Some names are [reserved](usage.md#environment-variables). |
 | `args`                    | Files, then the args after the tool name                                            |
 

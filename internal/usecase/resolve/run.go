@@ -1,6 +1,8 @@
 package resolve
 
 import (
+	"slices"
+
 	"github.com/dylanvgils/agentic-cli/internal/config"
 	"github.com/dylanvgils/agentic-cli/internal/runtime/sandbox"
 )
@@ -17,10 +19,23 @@ func Volumes(toolMounts, extra []string, rc *config.AgenticRC) []string {
 	return volumes
 }
 
-// Ports parses --port flag values, then .agenticrc.toml ports, refusing a host port used twice across them.
+// Ports parses --port flag values, then .agenticrc.toml ports; a flag replaces a config port with the same host port.
 func Ports(flags []string, rc *config.AgenticRC) ([]sandbox.PortMapping, error) {
-	specs := append(append([]string{}, flags...), rc.Run.Ports...)
-	return sandbox.ParsePorts(specs)
+	ports, err := sandbox.ParsePorts(flags)
+	if err != nil {
+		return nil, err
+	}
+	fromRC, err := sandbox.ParsePorts(rc.Run.Ports)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, port := range fromRC {
+		if !slices.ContainsFunc(ports, func(p sandbox.PortMapping) bool { return p.Host == port.Host }) {
+			ports = append(ports, port)
+		}
+	}
+	return ports, nil
 }
 
 // Env merges .agenticrc.toml env entries with --env flags, rc first so a flag with the same key wins.

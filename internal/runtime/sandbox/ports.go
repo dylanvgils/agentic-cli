@@ -22,7 +22,7 @@ func (p PortMapping) String() string {
 	return fmt.Sprintf("%d:%d", p.Host, p.Guest)
 }
 
-// ParsePorts parses "PORT" or "HOST:GUEST" specs, refusing a host address, a protocol and a host port used twice.
+// ParsePorts parses "PORT" or "HOST:GUEST" specs, refusing a host address, a protocol other than TCP and a host port used twice.
 func ParsePorts(specs []string) ([]PortMapping, error) {
 	var ports []PortMapping
 	seen := make(map[uint16]bool, len(specs))
@@ -57,27 +57,24 @@ func CheckPortsFree(ports []PortMapping) error {
 	return nil
 }
 
-// parsePort parses one "PORT" or "HOST:GUEST" spec.
+// parsePort parses one "PORT" or "HOST:GUEST" spec, with an optional "/tcp".
 func parsePort(spec string) (PortMapping, error) {
-	if strings.Contains(spec, "/") {
-		return PortMapping{}, fmt.Errorf("port %q: only TCP is forwarded; drop the protocol", spec)
+	ports, protocol, hasProtocol := strings.Cut(spec, "/")
+	if hasProtocol && protocol != "tcp" {
+		return PortMapping{}, fmt.Errorf("port %q: only TCP is forwarded", spec)
 	}
 
-	parts := strings.Split(spec, ":")
-	switch len(parts) {
-	case 1:
-		port, err := parsePortNumber(spec, parts[0])
-		return PortMapping{Host: port, Guest: port}, err
-	case 2:
-		host, err := parsePortNumber(spec, parts[0])
-		if err != nil {
-			return PortMapping{}, err
-		}
-		guest, err := parsePortNumber(spec, parts[1])
-		return PortMapping{Host: host, Guest: guest}, err
-	default:
+	parts := strings.Split(ports, ":")
+	if len(parts) > 2 || (len(parts) == 2 && isAddress(parts[0])) {
 		return PortMapping{}, fmt.Errorf("port %q: ports bind to %s; drop the address", spec, PortLoopback)
 	}
+
+	host, err := parsePortNumber(spec, parts[0])
+	if err != nil || len(parts) == 1 {
+		return PortMapping{Host: host, Guest: host}, err
+	}
+	guest, err := parsePortNumber(spec, parts[1])
+	return PortMapping{Host: host, Guest: guest}, err
 }
 
 // parsePortNumber parses one port number of spec, from 1 to 65535.
@@ -87,6 +84,11 @@ func parsePortNumber(spec, value string) (uint16, error) {
 		return 0, fmt.Errorf("port %q: %q must be a number from 1 to 65535", spec, value)
 	}
 	return uint16(n), nil
+}
+
+// isAddress reports whether value is a host address rather than a port.
+func isAddress(value string) bool {
+	return value == "localhost" || net.ParseIP(value) != nil
 }
 
 // addrInUse reports whether err is a listen failing on an address already in use.

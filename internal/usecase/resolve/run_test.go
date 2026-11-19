@@ -25,12 +25,27 @@ func TestPorts(t *testing.T) {
 		}, result)
 	})
 
-	t.Run("refuses a host port in both", func(t *testing.T) {
+	t.Run("a flag replaces the config port with the same host port", func(t *testing.T) {
 		// Arrange
 		rc := &config.AgenticRC{Run: config.RCRun{Ports: []string{"3000:80"}}}
 
 		// Act
-		_, err := Ports([]string{"3000"}, rc)
+		result, err := Ports([]string{"3000"}, rc)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []sandbox.PortMapping{{Host: 3000, Guest: 3000}}, result)
+	})
+
+	t.Run("refuses a host port twice in the config", func(t *testing.T) {
+		// Arrange
+		rc := &config.AgenticRC{Run: config.RCRun{Ports: []string{
+			"3000",
+			"3000:80",
+		}}}
+
+		// Act
+		_, err := Ports(nil, rc)
 
 		// Assert
 		assert.EqualError(t, err, `port "3000:80": host port 3000 is forwarded twice`)

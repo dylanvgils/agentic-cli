@@ -20,12 +20,13 @@ func TestPortMapping_String(t *testing.T) {
 }
 
 func TestParsePorts(t *testing.T) {
-	t.Run("parses single ports and host:guest pairs", func(t *testing.T) {
+	t.Run("parses single ports, host:guest pairs and a tcp suffix", func(t *testing.T) {
 		// Act
 		ports, err := ParsePorts([]string{
 			"3000",
 			"8080:80",
 			"65535:1",
+			"5173/tcp",
 		})
 
 		// Assert
@@ -34,6 +35,7 @@ func TestParsePorts(t *testing.T) {
 			{Host: 3000, Guest: 3000},
 			{Host: 8080, Guest: 80},
 			{Host: 65535, Guest: 1},
+			{Host: 5173, Guest: 5173},
 		}, ports)
 	})
 
@@ -42,14 +44,59 @@ func TestParsePorts(t *testing.T) {
 		specs []string
 		want  string
 	}{
-		{"host address", []string{"0.0.0.0:8080:80"}, `port "0.0.0.0:8080:80": ports bind to 127.0.0.1; drop the address`},
-		{"protocol", []string{"8080:80/udp"}, `port "8080:80/udp": only TCP is forwarded; drop the protocol`},
-		{"zero", []string{"0"}, `port "0": "0" must be a number from 1 to 65535`},
-		{"above range", []string{"8080:65536"}, `port "8080:65536": "65536" must be a number from 1 to 65535`},
-		{"not a number", []string{"http"}, `port "http": "http" must be a number from 1 to 65535`},
-		{"range", []string{"8000-8002:80-82"}, `port "8000-8002:80-82": "8000-8002" must be a number from 1 to 65535`},
-		{"empty", []string{""}, `port "": "" must be a number from 1 to 65535`},
-		{"duplicate host port", []string{"8080:80", "8080:81"}, `port "8080:81": host port 8080 is forwarded twice`},
+		{
+			name:  "host address",
+			specs: []string{"0.0.0.0:8080:80"},
+			want:  `port "0.0.0.0:8080:80": ports bind to 127.0.0.1; drop the address`,
+		},
+		{
+			name:  "host address without a guest port",
+			specs: []string{"127.0.0.1:80"},
+			want:  `port "127.0.0.1:80": ports bind to 127.0.0.1; drop the address`,
+		},
+		{
+			name:  "localhost",
+			specs: []string{"localhost:3000"},
+			want:  `port "localhost:3000": ports bind to 127.0.0.1; drop the address`,
+		},
+		{
+			name:  "udp",
+			specs: []string{"8080:80/udp"},
+			want:  `port "8080:80/udp": only TCP is forwarded`,
+		},
+		{
+			name:  "zero",
+			specs: []string{"0"},
+			want:  `port "0": "0" must be a number from 1 to 65535`,
+		},
+		{
+			name:  "above range",
+			specs: []string{"8080:65536"},
+			want:  `port "8080:65536": "65536" must be a number from 1 to 65535`,
+		},
+		{
+			name:  "not a number",
+			specs: []string{"http"},
+			want:  `port "http": "http" must be a number from 1 to 65535`,
+		},
+		{
+			name:  "range",
+			specs: []string{"8000-8002:80-82"},
+			want:  `port "8000-8002:80-82": "8000-8002" must be a number from 1 to 65535`,
+		},
+		{
+			name:  "empty",
+			specs: []string{""},
+			want:  `port "": "" must be a number from 1 to 65535`,
+		},
+		{
+			name: "duplicate host port",
+			specs: []string{
+				"8080:80",
+				"8080:81",
+			},
+			want: `port "8080:81": host port 8080 is forwarded twice`,
+		},
 	} {
 		t.Run("refuses "+tc.name, func(t *testing.T) {
 			// Act

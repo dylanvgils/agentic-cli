@@ -156,7 +156,7 @@ With the microsandbox runtime, msb stores the volume as `agentic-<name>`, so age
 
 ## Forwarding ports
 
-`--port` forwards a port on your machine to the tool, for example to open a dev server the agent started. It takes `PORT` or `HOST:GUEST` and can be repeated. `[run] ports` in [`.agenticrc.toml`](config.md#run) sets the same list.
+`--port` forwards a port on your machine to the tool, for example to open a dev server the agent started. It takes `PORT` or `HOST:GUEST`, optionally with `/tcp`, and can be repeated. `[run] ports` in [`.agenticrc.toml`](config.md#run) sets the same list.
 
 ```bash
 agentic run --port 3000 claude              # localhost:3000 -> 3000 in the tool
