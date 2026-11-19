@@ -14,7 +14,6 @@ import (
 var (
 	flagVolumes  []string
 	flagEnv      []string
-	flagPorts    []string
 	flagDryRun   bool
 	flagTrustDir bool
 )
@@ -69,8 +68,6 @@ func init() {
 		"additional volume mount (format: host:container[:options]); bind mounts are read-only unless options include rw; repeatable")
 	runToolCmd.Flags().StringArrayVarP(&flagEnv, "env", "e", nil,
 		"environment variable to set in the container (format: KEY=VALUE, or KEY to forward the host value); repeatable")
-	runToolCmd.Flags().StringArrayVarP(&flagPorts, "port", "p", nil,
-		"forward a host port on 127.0.0.1 to the tool (format: PORT or HOST:GUEST); repeatable")
 	runToolCmd.Flags().BoolVar(&flagDryRun, dryRunFlagName, false, "print the runtime command without running it")
 	runToolCmd.Flags().BoolVar(&flagTrustDir, "trust-dir", false, "trust the current directory and save it to config")
 	runToolCmd.Flags().SetInterspersed(false)
@@ -78,6 +75,7 @@ func init() {
 	addResourceLimitFlags(runToolCmd)
 	addProxyFlags(runToolCmd)
 	addDindFlags(runToolCmd)
+	addPortFlag(runToolCmd)
 	addRuntimeFlag(runToolCmd)
 	addNamespaceFlag(runToolCmd)
 	addRegistryFlag(runToolCmd)
@@ -159,7 +157,6 @@ func runRequest(cmd *cobra.Command, inv invocation) (run.Request, error) {
 	flags.Registry = collectRegistry(cmd)
 	flags.Volumes = flagVolumes
 	flags.Env = flagEnv
-	flags.Ports = flagPorts
 
 	return run.Request{
 		Target: run.Target{

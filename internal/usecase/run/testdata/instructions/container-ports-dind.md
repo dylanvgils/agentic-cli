@@ -57,41 +57,7 @@ These are hard limits for this run. If a task needs more, tell the user so they 
 - A server must listen on `0.0.0.0`. On `127.0.0.1` the user gets an empty response.
 - Once it serves, give the user the matching `localhost` URL from this list.
 - If a task needs another port, tell the user its number, so they can add it with `--port` and rerun.
-- To show a Docker container, publish it on the sidecar under a forwarded port's number, then relay that port from here to the sidecar:
-  1. Publish it. For nginx, which listens on 80: `docker run --detach --publish 3000:80 nginx`.
-  2. Save this relay as `/tmp/relay.py`:
-
-     ```python
-     import asyncio, sys
-
-     PORT = int(sys.argv[1])
-
-
-     async def pipe(r, w):
-         try:
-             while data := await r.read(65536):
-                 w.write(data)
-                 await w.drain()
-         finally:
-             w.close()
-
-
-     async def handle(cr, cw):
-         ur, uw = await asyncio.open_connection("agentic-docker", PORT)
-         await asyncio.gather(pipe(cr, uw), pipe(ur, cw))
-
-
-     async def main():
-         server = await asyncio.start_server(handle, "0.0.0.0", PORT)
-         await server.serve_forever()
-
-
-     asyncio.run(main())
-     ```
-
-  3. Start the relay for that port, in the background:
-     - 3000: `python3 /tmp/relay.py 3000 &`
-     - 5173: `python3 /tmp/relay.py 5173 &`
+- To show a Docker container, publish it on the sidecar under a forwarded port's number (nginx: `docker run --detach --publish 3000:80 nginx`). Then start a relay in the background that listens on `0.0.0.0` on that port here and forwards to `agentic-docker` on the same port. Write it in `python3`, which is always installed.
 
 ## Docker
 

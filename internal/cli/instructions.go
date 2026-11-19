@@ -26,6 +26,7 @@ func init() {
 	addResourceLimitFlags(instructionsCmd)
 	addProxyFlags(instructionsCmd)
 	addDindFlags(instructionsCmd)
+	addPortFlag(instructionsCmd)
 	addRuntimeFlag(instructionsCmd)
 	addNamespaceFlag(instructionsCmd)
 }

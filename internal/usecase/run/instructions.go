@@ -19,34 +19,6 @@ import (
 	"github.com/dylanvgils/agentic-cli/internal/usecase/resolve"
 )
 
-// relayScript forwards its port argument to the same port on the DinD sidecar.
-const relayScript = `import asyncio, sys
-
-PORT = int(sys.argv[1])
-
-
-async def pipe(r, w):
-    try:
-        while data := await r.read(65536):
-            w.write(data)
-            await w.drain()
-    finally:
-        w.close()
-
-
-async def handle(cr, cw):
-    ur, uw = await asyncio.open_connection("agentic-docker", PORT)
-    await asyncio.gather(pipe(cr, uw), pipe(ur, cw))
-
-
-async def main():
-    server = await asyncio.start_server(handle, "0.0.0.0", PORT)
-    await server.serve_forever()
-
-
-asyncio.run(main())
-`
-
 // instructionsFacts is what the environment block describes, gathered up front so rendering touches no client.
 type instructionsFacts struct {
 	caps          sandbox.Capabilities
@@ -352,21 +324,7 @@ func writePortsSection(b *strings.Builder, f instructionsFacts) {
 		return
 	}
 
-	b.WriteString("- To show a Docker container, publish it on the sidecar under a forwarded port's number, then relay that port from here to the sidecar:\n")
-	fmt.Fprintf(b, "  1. Publish it. For nginx, which listens on 80: `docker run --detach --publish %d:80 nginx`.\n", example)
-	b.WriteString("  2. Save this relay as `/tmp/relay.py`:\n\n")
-	b.WriteString("     ```python\n")
-	for line := range strings.Lines(relayScript) {
-		if line != "\n" {
-			b.WriteString("     ")
-		}
-		b.WriteString(line)
-	}
-	b.WriteString("     ```\n\n")
-	b.WriteString("  3. Start the relay for that port, in the background:\n")
-	for _, port := range f.ports {
-		fmt.Fprintf(b, "     - %d: `python3 /tmp/relay.py %d &`\n", port.Guest, port.Guest)
-	}
+	fmt.Fprintf(b, "- To show a Docker container, publish it on the sidecar under a forwarded port's number (nginx: `docker run --detach --publish %d:80 nginx`). Then start a relay in the background that listens on `0.0.0.0` on that port here and forwards to `agentic-docker` on the same port. Write it in `python3`, which is always installed.\n", example)
 	b.WriteString("\n")
 }
 

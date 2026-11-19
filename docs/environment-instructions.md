@@ -22,9 +22,10 @@ Each run writes a block into the tool's own global instructions file that tells 
 ```bash
 agentic instructions claude
 agentic instructions claude --proxy --dind --runtime microsandbox
+agentic instructions claude --dind --port 3000
 ```
 
-It takes the same `--proxy`, `--dind`, `--runtime` and limit flags as `agentic run`, so you see the block that run would write.
+It takes the same `--proxy`, `--dind`, `--port`, `--runtime` and limit flags as `agentic run`, so you see the block that run would write.
 
 ## How the file is handled
 

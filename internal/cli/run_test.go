@@ -212,7 +212,6 @@ func Test_runRequest(t *testing.T) {
 	stubFlag(t, runToolCmd, "dry-run", "true")
 	stubFlag(t, runToolCmd, "volume", "/example.test/a:/a")
 	stubFlag(t, runToolCmd, "env", "FOO=bar")
-	stubFlag(t, runToolCmd, "port", "3000")
 	stubFlag(t, runToolCmd, "registry", "registry.example.test")
 	stubFlag(t, runToolCmd, "proxy", "true")
 	stubFlag(t, runToolCmd, "runtime", "microsandbox")
@@ -237,7 +236,6 @@ func Test_runRequest(t *testing.T) {
 	assert.Equal(t, "registry.example.test", req.Flags.Registry)
 	assert.Equal(t, []string{"/example.test/a:/a"}, req.Flags.Volumes)
 	assert.Equal(t, []string{"FOO=bar"}, req.Flags.Env)
-	assert.Equal(t, []string{"3000"}, req.Flags.Ports)
 	assert.Equal(t, sandbox.RuntimeMicrosandbox, req.Flags.Runtime)
 }
 

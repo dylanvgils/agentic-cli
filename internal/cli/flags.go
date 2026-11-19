@@ -115,6 +115,11 @@ func addDindFlags(cmd *cobra.Command) {
 	cmd.MarkFlagsMutuallyExclusive("dind", noDindFlagName)
 }
 
+// addPortFlag registers --port, shared by the run and instructions commands.
+func addPortFlag(cmd *cobra.Command) {
+	cmd.Flags().StringArrayP("port", "p", nil, "forward a host port on 127.0.0.1 to the tool (format: PORT or HOST:GUEST); repeatable")
+}
+
 // addRuntimeFlag registers the --runtime flag shared by the run and instructions commands.
 func addRuntimeFlag(cmd *cobra.Command) {
 	cmd.Flags().String("runtime", "", "where the tool runs: "+sandbox.RuntimeNames()+" (overrides config; default "+string(sandbox.RuntimeDocker)+")")
@@ -169,6 +174,7 @@ func runtimeFlags(cmd *cobra.Command) (run.Flags, error) {
 		}
 	}
 
+	ports, _ := cmd.Flags().GetStringArray("port")
 	return run.Flags{
 		ToolHome:   toolHome,
 		Proxy:      proxy,
@@ -176,6 +182,7 @@ func runtimeFlags(cmd *cobra.Command) (run.Flags, error) {
 		Limits:     resolveResourceLimitFlags(cmd),
 		DindLimits: resolveDindResourceLimitFlags(cmd),
 		Runtime:    runtime,
+		Ports:      ports,
 	}, nil
 }
 
